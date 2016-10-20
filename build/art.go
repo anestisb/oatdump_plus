@@ -74,6 +74,12 @@ func globalFlags(ctx android.BaseContext) ([]string, []string) {
 		cflags = append(cflags, "-fstack-protector")
 	}
 
+	if envTrue(ctx, "ART_USE_VIXL_ARM_BACKEND") {
+		// Used to enable the new VIXL-based ARM code generator.
+		cflags = append(cflags, "-DART_USE_VIXL_ARM_BACKEND=1")
+		asflags = append(asflags, "-DART_USE_VIXL_ARM_BACKEND=1")
+	}
+
 	return cflags, asflags
 }
 

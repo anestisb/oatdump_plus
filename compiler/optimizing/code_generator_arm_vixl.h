@@ -29,7 +29,7 @@
 #pragma GCC diagnostic pop
 
 // True if VIXL32 should be used for codegen on ARM.
-#ifdef USE_VIXL_ARM_BACKEND
+#ifdef ART_USE_VIXL_ARM_BACKEND
 static constexpr bool kArmUseVIXL32 = true;
 #else
 static constexpr bool kArmUseVIXL32 = false;
@@ -38,20 +38,79 @@ static constexpr bool kArmUseVIXL32 = false;
 namespace art {
 namespace arm {
 
+static const vixl::aarch32::Register kParameterCoreRegistersVIXL[] = {
+    vixl::aarch32::r1,
+    vixl::aarch32::r2,
+    vixl::aarch32::r3
+};
+static const size_t kParameterCoreRegistersLengthVIXL = arraysize(kParameterCoreRegisters);
+static const vixl::aarch32::SRegister kParameterFpuRegistersVIXL[] = {
+    vixl::aarch32::s0,
+    vixl::aarch32::s1,
+    vixl::aarch32::s2,
+    vixl::aarch32::s3,
+    vixl::aarch32::s4,
+    vixl::aarch32::s5,
+    vixl::aarch32::s6,
+    vixl::aarch32::s7,
+    vixl::aarch32::s8,
+    vixl::aarch32::s9,
+    vixl::aarch32::s10,
+    vixl::aarch32::s11,
+    vixl::aarch32::s12,
+    vixl::aarch32::s13,
+    vixl::aarch32::s14,
+    vixl::aarch32::s15
+};
+static const size_t kParameterFpuRegistersLengthVIXL = arraysize(kParameterFpuRegisters);
+
 static const vixl::aarch32::Register kMethodRegister = vixl::aarch32::r0;
+
 static const vixl::aarch32::Register kCoreAlwaysSpillRegister = vixl::aarch32::r5;
-static const vixl::aarch32::RegisterList kCoreCalleeSaves = vixl::aarch32::RegisterList(
-    (1 << R5) | (1 << R6) | (1 << R7) | (1 << R8) | (1 << R10) | (1 << R11) | (1 << LR));
-// Callee saves s16 to s31 inc.
+
+// Callee saves core registers r5, r6, r7, r8, r10, r11, and lr.
+static const vixl::aarch32::RegisterList kCoreCalleeSaves = vixl::aarch32::RegisterList::Union(
+    vixl::aarch32::RegisterList(vixl::aarch32::r5,
+                                vixl::aarch32::r6,
+                                vixl::aarch32::r7,
+                                vixl::aarch32::r8),
+    vixl::aarch32::RegisterList(vixl::aarch32::r10,
+                                vixl::aarch32::r11,
+                                vixl::aarch32::lr));
+
+// Callee saves FP registers s16 to s31 inclusive.
 static const vixl::aarch32::SRegisterList kFpuCalleeSaves =
     vixl::aarch32::SRegisterList(vixl::aarch32::s16, 16);
+
+static const vixl::aarch32::Register kRuntimeParameterCoreRegistersVIXL[] = {
+    vixl::aarch32::r0,
+    vixl::aarch32::r1,
+    vixl::aarch32::r2,
+    vixl::aarch32::r3
+};
+static const size_t kRuntimeParameterCoreRegistersLengthVIXL =
+    arraysize(kRuntimeParameterCoreRegisters);
+static const vixl::aarch32::SRegister kRuntimeParameterFpuRegistersVIXL[] = {
+    vixl::aarch32::s0,
+    vixl::aarch32::s1,
+    vixl::aarch32::s2,
+    vixl::aarch32::s3
+};
+static const size_t kRuntimeParameterFpuRegistersLengthVIXL =
+    arraysize(kRuntimeParameterFpuRegisters);
+
+class LoadClassSlowPathARMVIXL;
 
 #define FOR_EACH_IMPLEMENTED_INSTRUCTION(M)     \
   M(Above)                                      \
   M(AboveOrEqual)                               \
   M(Add)                                        \
+  M(ArrayLength)                                \
   M(Below)                                      \
   M(BelowOrEqual)                               \
+  M(ClearException)                             \
+  M(ClinitCheck)                                \
+  M(CurrentMethod)                              \
   M(Div)                                        \
   M(DivZeroCheck)                               \
   M(Equal)                                      \
@@ -60,69 +119,65 @@ static const vixl::aarch32::SRegisterList kFpuCalleeSaves =
   M(GreaterThan)                                \
   M(GreaterThanOrEqual)                         \
   M(If)                                         \
+  M(InstanceFieldGet)                           \
+  M(InstanceFieldSet)                           \
   M(IntConstant)                                \
+  M(InvokeStaticOrDirect)                       \
+  M(InvokeVirtual)                              \
   M(LessThan)                                   \
   M(LessThanOrEqual)                            \
+  M(LoadClass)                                  \
+  M(LoadException)                              \
+  M(LoadString)                                 \
   M(LongConstant)                               \
   M(MemoryBarrier)                              \
   M(Mul)                                        \
+  M(NewArray)                                   \
+  M(NewInstance)                                \
   M(Not)                                        \
   M(NotEqual)                                   \
+  M(NullCheck)                                  \
+  M(NullConstant)                               \
   M(ParallelMove)                               \
+  M(ParameterValue)                             \
+  M(Phi)                                        \
   M(Return)                                     \
   M(ReturnVoid)                                 \
+  M(Select)                                     \
+  M(StaticFieldGet)                             \
   M(Sub)                                        \
+  M(SuspendCheck)                               \
+  M(Throw)                                      \
+  M(TryBoundary)                                \
   M(TypeConversion)                             \
 
 // TODO: Remove once the VIXL32 backend is implemented completely.
 #define FOR_EACH_UNIMPLEMENTED_INSTRUCTION(M)   \
   M(And)                                        \
   M(ArrayGet)                                   \
-  M(ArrayLength)                                \
   M(ArraySet)                                   \
   M(BooleanNot)                                 \
   M(BoundsCheck)                                \
   M(BoundType)                                  \
   M(CheckCast)                                  \
   M(ClassTableGet)                              \
-  M(ClearException)                             \
-  M(ClinitCheck)                                \
   M(Compare)                                    \
-  M(CurrentMethod)                              \
   M(Deoptimize)                                 \
   M(DoubleConstant)                             \
   M(FloatConstant)                              \
-  M(InstanceFieldGet)                           \
-  M(InstanceFieldSet)                           \
   M(InstanceOf)                                 \
   M(InvokeInterface)                            \
-  M(InvokeStaticOrDirect)                       \
   M(InvokeUnresolved)                           \
-  M(InvokeVirtual)                              \
-  M(LoadClass)                                  \
-  M(LoadException)                              \
-  M(LoadString)                                 \
   M(MonitorOperation)                           \
   M(NativeDebugInfo)                            \
   M(Neg)                                        \
-  M(NewArray)                                   \
-  M(NewInstance)                                \
-  M(NullCheck)                                  \
-  M(NullConstant)                               \
   M(Or)                                         \
   M(PackedSwitch)                               \
-  M(ParameterValue)                             \
-  M(Phi)                                        \
   M(Rem)                                        \
   M(Ror)                                        \
-  M(Select)                                     \
   M(Shl)                                        \
   M(Shr)                                        \
-  M(StaticFieldGet)                             \
   M(StaticFieldSet)                             \
-  M(SuspendCheck)                               \
-  M(Throw)                                      \
-  M(TryBoundary)                                \
   M(UnresolvedInstanceFieldGet)                 \
   M(UnresolvedInstanceFieldSet)                 \
   M(UnresolvedStaticFieldGet)                   \
@@ -131,6 +186,34 @@ static const vixl::aarch32::SRegisterList kFpuCalleeSaves =
   M(Xor)                                        \
 
 class CodeGeneratorARMVIXL;
+
+class InvokeRuntimeCallingConventionARMVIXL
+    : public CallingConvention<vixl::aarch32::Register, vixl::aarch32::SRegister> {
+ public:
+  InvokeRuntimeCallingConventionARMVIXL()
+      : CallingConvention(kRuntimeParameterCoreRegistersVIXL,
+                          kRuntimeParameterCoreRegistersLengthVIXL,
+                          kRuntimeParameterFpuRegistersVIXL,
+                          kRuntimeParameterFpuRegistersLengthVIXL,
+                          kArmPointerSize) {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(InvokeRuntimeCallingConventionARMVIXL);
+};
+
+class InvokeDexCallingConventionARMVIXL
+    : public CallingConvention<vixl::aarch32::Register, vixl::aarch32::SRegister> {
+ public:
+  InvokeDexCallingConventionARMVIXL()
+      : CallingConvention(kParameterCoreRegistersVIXL,
+                          kParameterCoreRegistersLengthVIXL,
+                          kParameterFpuRegistersVIXL,
+                          kParameterFpuRegistersLengthVIXL,
+                          kArmPointerSize) {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConventionARMVIXL);
+};
 
 class SlowPathCodeARMVIXL : public SlowPathCode {
  public:
@@ -192,7 +275,10 @@ class LocationsBuilderARMVIXL : public HGraphVisitor {
     LOG(FATAL) << "Unimplemented Instruction: " << instruction->DebugName();
   }
 
+  void HandleInvoke(HInvoke* invoke);
   void HandleCondition(HCondition* condition);
+  void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info);
+  void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
 
   CodeGeneratorARMVIXL* const codegen_;
   InvokeDexCallingConventionVisitorARM parameter_visitor_;
@@ -216,9 +302,42 @@ class InstructionCodeGeneratorARMVIXL : public InstructionCodeGenerator {
     LOG(FATAL) << "Unimplemented Instruction: " << instruction->DebugName();
   }
 
+  // Generate code for the given suspend check. If not null, `successor`
+  // is the block to branch to if the suspend check is not needed, and after
+  // the suspend call.
   void GenerateSuspendCheck(HSuspendCheck* instruction, HBasicBlock* successor);
+  void GenerateClassInitializationCheck(LoadClassSlowPathARMVIXL* slow_path,
+                                        vixl32::Register class_reg);
   void HandleGoto(HInstruction* got, HBasicBlock* successor);
   void HandleCondition(HCondition* condition);
+
+  void GenerateWideAtomicStore(vixl::aarch32::Register addr,
+                               uint32_t offset,
+                               vixl::aarch32::Register value_lo,
+                               vixl::aarch32::Register value_hi,
+                               vixl::aarch32::Register temp1,
+                               vixl::aarch32::Register temp2,
+                               HInstruction* instruction);
+  void GenerateWideAtomicLoad(vixl::aarch32::Register addr,
+                              uint32_t offset,
+                              vixl::aarch32::Register out_lo,
+                              vixl::aarch32::Register out_hi);
+
+  void HandleFieldSet(HInstruction* instruction,
+                      const FieldInfo& field_info,
+                      bool value_can_be_null);
+  void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
+
+  // Generate a GC root reference load:
+  //
+  //   root <- *(obj + offset)
+  //
+  // while honoring read barriers if `requires_read_barrier` is true.
+  void GenerateGcRootFieldLoad(HInstruction* instruction,
+                               Location root,
+                               vixl::aarch32::Register obj,
+                               uint32_t offset,
+                               bool requires_read_barrier = kEmitCompilerReadBarrier);
   void GenerateTestAndBranch(HInstruction* instruction,
                              size_t condition_input_index,
                              vixl::aarch32::Label* true_target,
@@ -259,7 +378,14 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
 
   void GenerateFrameEntry() OVERRIDE;
   void GenerateFrameExit() OVERRIDE;
+
   void Bind(HBasicBlock* block) OVERRIDE;
+
+  vixl::aarch32::Label* GetLabelOf(HBasicBlock* block) {
+    block = FirstNonEmptyBlock(block);
+    return &(block_labels_[block->GetBlockId()]);
+  }
+
   void MoveConstant(Location destination, int32_t value) OVERRIDE;
   void MoveLocation(Location dst, Location src, Primitive::Type dst_type) OVERRIDE;
   void AddLocationAsTemp(Location location, LocationSummary* locations) OVERRIDE;
@@ -274,11 +400,15 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
 
   size_t GetFloatingPointSpillSlotSize() const OVERRIDE { return vixl::aarch32::kRegSizeInBytes; }
 
+  uintptr_t GetAddressOf(HBasicBlock* block) OVERRIDE {
+    vixl::aarch32::Label* block_entry_label = GetLabelOf(block);
+    DCHECK(block_entry_label->IsBound());
+    return block_entry_label->GetLocation();
+  }
+
   HGraphVisitor* GetLocationBuilder() OVERRIDE { return &location_builder_; }
 
   HGraphVisitor* GetInstructionVisitor() OVERRIDE { return &instruction_visitor_; }
-
-  uintptr_t GetAddressOf(HBasicBlock* block) OVERRIDE;
 
   void GenerateMemoryBarrier(MemBarrierKind kind);
   void Finalize(CodeAllocator* allocator) OVERRIDE;
@@ -288,6 +418,9 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
   void DumpFloatingPointRegister(std::ostream& stream, int reg) const OVERRIDE;
 
   InstructionSet GetInstructionSet() const OVERRIDE { return InstructionSet::kThumb2; }
+
+  // Helper method to move a 32-bit value between two locations.
+  void Move32(Location destination, Location source);
 
   const ArmInstructionSetFeatures& GetInstructionSetFeatures() const { return isa_features_; }
 
@@ -346,6 +479,23 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
 
   void GenerateInvokeRuntime(int32_t entry_point_offset);
 
+  // Emit a write barrier.
+  void MarkGCCard(vixl::aarch32::Register temp,
+                  vixl::aarch32::Register card,
+                  vixl::aarch32::Register object,
+                  vixl::aarch32::Register value,
+                  bool can_be_null);
+
+  // If read barriers are enabled, generate a read barrier for a heap
+  // reference using a slow path. If heap poisoning is enabled, also
+  // unpoison the reference in `out`.
+  void MaybeGenerateReadBarrierSlow(HInstruction* instruction,
+                                    Location out,
+                                    Location ref,
+                                    Location obj,
+                                    uint32_t offset,
+                                    Location index = Location::NoLocation());
+
   // Check if the desired_string_load_kind is supported. If it is, return it,
   // otherwise return a fall-back kind that should be used instead.
   HLoadString::LoadKind GetSupportedLoadStringKind(
@@ -369,12 +519,10 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
 
   void GenerateNop() OVERRIDE;
 
-  vixl::aarch32::Label* GetLabelOf(HBasicBlock* block) {
-    block = FirstNonEmptyBlock(block);
-    return &(block_labels_[block->GetBlockId()]);
-  }
-
  private:
+  vixl::aarch32::Register GetInvokeStaticOrDirectExtraParameter(HInvokeStaticOrDirect* invoke,
+                                                                vixl::aarch32::Register temp);
+
   // Labels for each block that will be compiled.
   // We use a deque so that the `vixl::aarch32::Label` objects do not move in memory.
   ArenaDeque<vixl::aarch32::Label> block_labels_;  // Indexed by block id.
