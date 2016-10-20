@@ -158,7 +158,8 @@ class OptimizingCFITest : public CFITest {
     TestImpl(isa, #isa, expected_asm, expected_cfi);          \
   }
 
-#ifdef ART_ENABLE_CODEGEN_arm
+// TODO(VIXL): Support this test for the VIXL backend.
+#if defined(ART_ENABLE_CODEGEN_arm) && !defined(ART_USE_VIXL_ARM_BACKEND)
 TEST_ISA(kThumb2)
 #endif
 #ifdef ART_ENABLE_CODEGEN_arm64
@@ -177,7 +178,8 @@ TEST_ISA(kMips)
 TEST_ISA(kMips64)
 #endif
 
-#ifdef ART_ENABLE_CODEGEN_arm
+// TODO(VIXL): Support this test for the VIXL backend.
+#if defined(ART_ENABLE_CODEGEN_arm) && !defined(ART_USE_VIXL_ARM_BACKEND)
 TEST_F(OptimizingCFITest, kThumb2Adjust) {
   std::vector<uint8_t> expected_asm(
       expected_asm_kThumb2_adjust,

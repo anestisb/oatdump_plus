@@ -107,7 +107,7 @@ static size_t SaveContiguousSRegisterList(size_t first,
     size_t number_of_d_regs = (last - first + 1) / 2;
 
     if (number_of_d_regs == 1) {
-       __ StoreDToOffset(d_reg, SP, stack_offset);
+      __ StoreDToOffset(d_reg, SP, stack_offset);
     } else if (number_of_d_regs > 1) {
       __ add(IP, SP, ShifterOperand(stack_offset));
       __ vstmiad(IP, d_reg, number_of_d_regs);
