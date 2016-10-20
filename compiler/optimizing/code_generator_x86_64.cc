@@ -299,9 +299,9 @@ class LoadStringSlowPathX86_64 : public SlowPathCode {
     __ Bind(GetEntryLabel());
     SaveLiveRegisters(codegen, locations);
 
-    InvokeRuntimeCallingConvention calling_convention;
     const uint32_t string_index = instruction_->AsLoadString()->GetStringIndex();
-    __ movl(CpuRegister(calling_convention.GetRegisterAt(0)), Immediate(string_index));
+    // Custom calling convention: RAX serves as both input and output.
+    __ movl(CpuRegister(RAX), Immediate(string_index));
     x86_64_codegen->InvokeRuntime(kQuickResolveString,
                                   instruction_,
                                   instruction_->GetDexPc(),
@@ -5456,10 +5456,20 @@ void LocationsBuilderX86_64::VisitLoadString(HLoadString* load) {
       : LocationSummary::kNoCall;
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(load, call_kind);
   if (load->GetLoadKind() == HLoadString::LoadKind::kDexCacheViaMethod) {
-    locations->SetInAt(0, Location::RequiresRegister());
     locations->SetOut(Location::RegisterLocation(RAX));
   } else {
     locations->SetOut(Location::RequiresRegister());
+    if (load->GetLoadKind() == HLoadString::LoadKind::kBssEntry) {
+      if (!kUseReadBarrier || kUseBakerReadBarrier) {
+        // Rely on the pResolveString and/or marking to save everything.
+        // Custom calling convention: RAX serves as both input and output.
+        RegisterSet caller_saves = RegisterSet::Empty();
+        caller_saves.Add(Location::RegisterLocation(RAX));
+        locations->SetCustomSlowPathCallerSaves(caller_saves);
+      } else {
+        // For non-Baker read barrier we have a temp-clobbering call.
+      }
+    }
   }
 }
 
@@ -5499,9 +5509,8 @@ void InstructionCodeGeneratorX86_64::VisitLoadString(HLoadString* load) {
   }
 
   // TODO: Re-add the compiler code to do string dex cache lookup again.
-  InvokeRuntimeCallingConvention calling_convention;
-  __ movl(CpuRegister(calling_convention.GetRegisterAt(0)),
-          Immediate(load->GetStringIndex()));
+  // Custom calling convention: RAX serves as both input and output.
+  __ movl(CpuRegister(RAX), Immediate(load->GetStringIndex()));
   codegen_->InvokeRuntime(kQuickResolveString,
                           load,
                           load->GetDexPc());
