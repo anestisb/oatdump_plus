@@ -606,8 +606,9 @@ void Thread::CreateNativeThread(JNIEnv* env, jobject java_peer, size_t stack_siz
 
   // Try to allocate a JNIEnvExt for the thread. We do this here as we might be out of memory and
   // do not have a good way to report this on the child's side.
+  std::string error_msg;
   std::unique_ptr<JNIEnvExt> child_jni_env_ext(
-      JNIEnvExt::Create(child_thread, Runtime::Current()->GetJavaVM()));
+      JNIEnvExt::Create(child_thread, Runtime::Current()->GetJavaVM(), &error_msg));
 
   int pthread_create_result = 0;
   if (child_jni_env_ext.get() != nullptr) {
@@ -648,7 +649,7 @@ void Thread::CreateNativeThread(JNIEnv* env, jobject java_peer, size_t stack_siz
   env->SetLongField(java_peer, WellKnownClasses::java_lang_Thread_nativePeer, 0);
   {
     std::string msg(child_jni_env_ext.get() == nullptr ?
-        "Could not allocate JNI Env" :
+        StringPrintf("Could not allocate JNI Env: %s", error_msg.c_str()) :
         StringPrintf("pthread_create (%s stack) failed: %s",
                                  PrettySize(stack_size).c_str(), strerror(pthread_create_result)));
     ScopedObjectAccess soa(env);
@@ -693,8 +694,10 @@ bool Thread::Init(ThreadList* thread_list, JavaVMExt* java_vm, JNIEnvExt* jni_en
     DCHECK_EQ(jni_env_ext->self, this);
     tlsPtr_.jni_env = jni_env_ext;
   } else {
-    tlsPtr_.jni_env = JNIEnvExt::Create(this, java_vm);
+    std::string error_msg;
+    tlsPtr_.jni_env = JNIEnvExt::Create(this, java_vm, &error_msg);
     if (tlsPtr_.jni_env == nullptr) {
+      LOG(ERROR) << "Failed to create JNIEnvExt: " << error_msg;
       return false;
     }
   }
