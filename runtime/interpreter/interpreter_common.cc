@@ -667,11 +667,39 @@ inline bool DoInvokePolymorphic(Thread* self, ShadowFrame& shadow_frame,
         return false;
       }
     } else if (handle_kind == kInvokeDirect) {
-      // TODO(narayan) : We need to handle the case where the target method is a
-      // constructor here. Also the case where we don't want to dynamically
-      // dispatch based on the type of the receiver.
-      UNIMPLEMENTED(FATAL) << "Direct invokes are not implemented yet.";
-      return false;
+      if (called_method->IsConstructor()) {
+        // TODO(narayan) : We need to handle the case where the target method is a
+        // constructor here.
+        UNIMPLEMENTED(FATAL) << "Direct invokes for constructors are not implemented yet.";
+        return false;
+      }
+
+      // Nothing special to do in the case where we're not dealing with a
+      // constructor. It's a private method, and we've already access checked at
+      // the point of creating the handle.
+    } else if (handle_kind == kInvokeSuper) {
+      mirror::Class* declaring_class = called_method->GetDeclaringClass();
+
+      // Note that we're not dynamically dispatching on the type of the receiver
+      // here. We use the static type of the "receiver" object that we've
+      // recorded in the method handle's type, which will be the same as the
+      // special caller that was specified at the point of lookup.
+      mirror::Class* referrer_class = handle_type->GetPTypes()->Get(0);
+      if (!declaring_class->IsInterface()) {
+        mirror::Class* super_class = referrer_class->GetSuperClass();
+        uint16_t vtable_index = called_method->GetMethodIndex();
+        DCHECK(super_class != nullptr);
+        DCHECK(super_class->HasVTable());
+        // Note that super_class is a super of referrer_class and called_method
+        // will always be declared by super_class (or one of its super classes).
+        DCHECK_LT(vtable_index, super_class->GetVTableLength());
+        called_method = super_class->GetVTableEntry(vtable_index, kRuntimePointerSize);
+      } else {
+        called_method = referrer_class->FindVirtualMethodForInterfaceSuper(
+            called_method, kRuntimePointerSize);
+      }
+
+      CHECK(called_method != nullptr);
     }
 
     // NOTE: handle_kind == kInvokeStatic needs no special treatment here. We
