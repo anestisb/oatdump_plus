@@ -224,12 +224,11 @@ END_MACRO
     /*
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kSaveEverything)
-     * when EDI is already saved.
+     * when EDI and ESI are already saved.
      */
-MACRO2(SETUP_SAVE_EVERYTHING_FRAME_EDI_SAVED, got_reg, temp_reg)
+MACRO2(SETUP_SAVE_EVERYTHING_FRAME_EDI_ESI_SAVED, got_reg, temp_reg)
     // Save core registers from highest to lowest to agree with core spills bitmap.
-    // EDI, or at least a placeholder for it, is already on the stack.
-    PUSH esi
+    // EDI and ESI, or at least placeholders for them, are already on the stack.
     PUSH ebp
     PUSH ebx
     PUSH edx
@@ -268,13 +267,25 @@ END_MACRO
     /*
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kSaveEverything)
+     * when EDI is already saved.
+     */
+MACRO2(SETUP_SAVE_EVERYTHING_FRAME_EDI_SAVED, got_reg, temp_reg)
+    // Save core registers from highest to lowest to agree with core spills bitmap.
+    // EDI, or at least a placeholder for it, is already on the stack.
+    PUSH esi
+    SETUP_SAVE_EVERYTHING_FRAME_EDI_ESI_SAVED RAW_VAR(got_reg), RAW_VAR(temp_reg)
+END_MACRO
+
+    /*
+     * Macro that sets up the callee save frame to conform with
+     * Runtime::CreateCalleeSaveMethod(kSaveEverything)
      */
 MACRO2(SETUP_SAVE_EVERYTHING_FRAME, got_reg, temp_reg)
     PUSH edi
     SETUP_SAVE_EVERYTHING_FRAME_EDI_SAVED RAW_VAR(got_reg), RAW_VAR(temp_reg)
 END_MACRO
 
-MACRO0(RESTORE_SAVE_EVERYTHING_FRAME)
+MACRO0(RESTORE_SAVE_EVERYTHING_FRAME_FRPS)
     // Restore FPRs. Method and padding is still on the stack.
     movsd 16(%esp), %xmm0
     movsd 24(%esp), %xmm1
@@ -284,13 +295,10 @@ MACRO0(RESTORE_SAVE_EVERYTHING_FRAME)
     movsd 56(%esp), %xmm5
     movsd 64(%esp), %xmm6
     movsd 72(%esp), %xmm7
+END_MACRO
 
-    // Remove save everything callee save method, stack alignment padding and FPRs.
-    addl MACRO_LITERAL(16 + 8 * 8), %esp
-    CFI_ADJUST_CFA_OFFSET(-(16 + 8 * 8))
-
-    // Restore core registers.
-    POP eax
+MACRO0(RESTORE_SAVE_EVERYTHING_FRAME_GPRS_EXCEPT_EAX)
+    // Restore core registers (except eax).
     POP ecx
     POP edx
     POP ebx
@@ -299,12 +307,32 @@ MACRO0(RESTORE_SAVE_EVERYTHING_FRAME)
     POP edi
 END_MACRO
 
+MACRO0(RESTORE_SAVE_EVERYTHING_FRAME)
+    RESTORE_SAVE_EVERYTHING_FRAME_FRPS
+
+    // Remove save everything callee save method, stack alignment padding and FPRs.
+    addl MACRO_LITERAL(16 + 8 * 8), %esp
+    CFI_ADJUST_CFA_OFFSET(-(16 + 8 * 8))
+
+    POP eax
+    RESTORE_SAVE_EVERYTHING_FRAME_GPRS_EXCEPT_EAX
+END_MACRO
+
+MACRO0(RESTORE_SAVE_EVERYTHING_FRAME_KEEP_EAX)
+    RESTORE_SAVE_EVERYTHING_FRAME_FRPS
+
+    // Remove save everything callee save method, stack alignment padding and FPRs, skip EAX.
+    addl MACRO_LITERAL(16 + 8 * 8 + 4), %esp
+    CFI_ADJUST_CFA_OFFSET(-(16 + 8 * 8 + 4))
+
+    RESTORE_SAVE_EVERYTHING_FRAME_GPRS_EXCEPT_EAX
+END_MACRO
+
     /*
-     * Macro that set calls through to artDeliverPendingExceptionFromCode, where the pending
-     * exception is Thread::Current()->exception_.
+     * Macro that calls through to artDeliverPendingExceptionFromCode, where the pending
+     * exception is Thread::Current()->exception_ when the runtime method frame is ready.
      */
-MACRO0(DELIVER_PENDING_EXCEPTION)
-    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME ebx, ebx // save callee saves for throw
+MACRO0(DELIVER_PENDING_EXCEPTION_FRAME_READY)
     // Outgoing argument set up
     subl MACRO_LITERAL(12), %esp               // alignment padding
     CFI_ADJUST_CFA_OFFSET(12)
@@ -312,6 +340,15 @@ MACRO0(DELIVER_PENDING_EXCEPTION)
     CFI_ADJUST_CFA_OFFSET(4)
     call SYMBOL(artDeliverPendingExceptionFromCode)  // artDeliverPendingExceptionFromCode(Thread*)
     UNREACHABLE
+END_MACRO
+
+    /*
+     * Macro that calls through to artDeliverPendingExceptionFromCode, where the pending
+     * exception is Thread::Current()->exception_.
+     */
+MACRO0(DELIVER_PENDING_EXCEPTION)
+    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME ebx, ebx // save callee saves for throw
+    DELIVER_PENDING_EXCEPTION_FRAME_READY
 END_MACRO
 
 MACRO2(NO_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
@@ -1114,26 +1151,42 @@ DEFINE_FUNCTION art_quick_alloc_object_region_tlab
 END_FUNCTION art_quick_alloc_object_region_tlab
 
 DEFINE_FUNCTION art_quick_resolve_string
-    movl 4(%esp), %ecx                                           // get referrer
-    movl ART_METHOD_DECLARING_CLASS_OFFSET(%ecx), %ecx           // get declaring class
-    movl DECLARING_CLASS_DEX_CACHE_STRINGS_OFFSET(%ecx), %ecx    // get string dex cache
-    movl LITERAL(STRING_DEX_CACHE_SIZE_MINUS_ONE), %edx
-    andl %eax, %edx
-    movlps (%ecx, %edx, STRING_DEX_CACHE_ELEMENT_SIZE), %xmm0    // load string idx and ptr to xmm0
-    movd %xmm0, %ecx                                             // extract pointer
+    PUSH edi
+    PUSH esi
+    // Save xmm0 at an aligned address on the stack.
+    subl MACRO_LITERAL(12), %esp
+    CFI_ADJUST_CFA_OFFSET(12)
+    movsd %xmm0, 0(%esp)
+    movl 24(%esp), %edi                                          // get referrer
+    movl ART_METHOD_DECLARING_CLASS_OFFSET(%edi), %edi           // get declaring class
+    movl DECLARING_CLASS_DEX_CACHE_STRINGS_OFFSET(%edi), %edi    // get string dex cache
+    movl LITERAL(STRING_DEX_CACHE_SIZE_MINUS_ONE), %esi
+    andl %eax, %esi
+    movlps (%edi, %esi, STRING_DEX_CACHE_ELEMENT_SIZE), %xmm0    // load string idx and ptr to xmm0
+    movd %xmm0, %edi                                             // extract pointer
     pshufd LITERAL(0x55), %xmm0, %xmm0                           // shuffle index into lowest bits
-    movd %xmm0, %edx                                             // extract index
-    cmp %edx, %eax
+    movd %xmm0, %esi                                             // extract index
+    // Restore xmm0 and remove it together with padding from the stack.
+    movsd 0(%esp), %xmm0
+    addl MACRO_LITERAL(12), %esp
+    CFI_ADJUST_CFA_OFFSET(-12)
+    cmp %esi, %eax
     jne .Lart_quick_resolve_string_slow_path
-    movl %ecx, %eax
+    movl %edi, %eax
+    CFI_REMEMBER_STATE
+    POP esi
+    POP edi
 #ifdef USE_READ_BARRIER
     cmpl LITERAL(0), %fs:THREAD_IS_GC_MARKING_OFFSET
-    jne .Lart_quick_resolve_string_marking
+    jne .Lnot_null_art_quick_read_barrier_mark_reg00
 #endif
     ret
+    CFI_RESTORE_STATE
+    CFI_DEF_CFA(esp, 24)                          // workaround for clang bug: 31975598
+
 .Lart_quick_resolve_string_slow_path:
     // Outgoing argument set up
-    SETUP_SAVE_REFS_ONLY_FRAME  ebx, ebx
+    SETUP_SAVE_EVERYTHING_FRAME_EDI_ESI_SAVED ebx, ebx
     subl LITERAL(8), %esp                                        // push padding
     CFI_ADJUST_CFA_OFFSET(8)
     pushl %fs:THREAD_SELF_OFFSET                                 // pass Thread::Current()
@@ -1142,21 +1195,15 @@ DEFINE_FUNCTION art_quick_resolve_string
     call SYMBOL(artResolveStringFromCode)
     addl LITERAL(16), %esp                                       // pop arguments
     CFI_ADJUST_CFA_OFFSET(-16)
-    RESTORE_SAVE_REFS_ONLY_FRAME
-    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
-.Lart_quick_resolve_string_marking:
-    SETUP_SAVE_REFS_ONLY_FRAME  ebx, ebx
-    testl LITERAL(LOCK_WORD_MARK_BIT_MASK_SHIFTED), MIRROR_OBJECT_LOCK_WORD_OFFSET(%eax)
-    jnz .Lart_quick_resolve_string_no_rb
-    subl LITERAL(12), %esp                                   // alignment padding
-    CFI_ADJUST_CFA_OFFSET(12)
-    PUSH eax                                                 // Pass the string as the first param.
-    call SYMBOL(artReadBarrierMark)
-    addl LITERAL(16), %esp
-    CFI_ADJUST_CFA_OFFSET(-16)
-.Lart_quick_resolve_string_no_rb:
-    RESTORE_SAVE_REFS_ONLY_FRAME
+    testl %eax, %eax                                        // If result is null, deliver the OOME.
+    jz 1f
+    CFI_REMEMBER_STATE
+    RESTORE_SAVE_EVERYTHING_FRAME_KEEP_EAX
     ret
+    CFI_RESTORE_STATE
+    CFI_DEF_CFA(esp, FRAME_SIZE_SAVE_EVERYTHING)  // workaround for clang bug: 31975598
+1:
+    DELIVER_PENDING_EXCEPTION_FRAME_READY
 END_FUNCTION art_quick_resolve_string
 
 ONE_ARG_DOWNCALL art_quick_initialize_static_storage, artInitializeStaticStorageFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
@@ -2102,6 +2149,7 @@ MACRO2(READ_BARRIER_MARK_REG, name, reg)
     // Null check so that we can load the lock word.
     test REG_VAR(reg), REG_VAR(reg)
     jz .Lret_rb_\name
+.Lnot_null_\name:
     // Check the mark bit, if it is 1 return.
     testl LITERAL(LOCK_WORD_MARK_BIT_MASK_SHIFTED), MIRROR_OBJECT_LOCK_WORD_OFFSET(REG_VAR(reg))
     jz .Lslow_rb_\name

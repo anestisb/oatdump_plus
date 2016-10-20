@@ -214,7 +214,7 @@ void Arm64RelativePatcher::PatchPcRelativeReference(std::vector<uint8_t>* code,
         DCHECK(patch.GetType() == LinkerPatch::Type::kStringRelative ||
                patch.GetType() == LinkerPatch::Type::kTypeRelative) << patch.GetType();
       } else {
-        // With the read barrier (non-baker) enabled, it could be kDexCacheArray in the
+        // With the read barrier (non-Baker) enabled, it could be kDexCacheArray in the
         // HLoadString::LoadKind::kDexCachePcRelative case of VisitLoadString().
         DCHECK(patch.GetType() == LinkerPatch::Type::kStringRelative ||
                patch.GetType() == LinkerPatch::Type::kTypeRelative ||
