@@ -23,12 +23,12 @@ namespace art {
  * Since graph traversal may enter a SCC at any position, an initial representation may be rotated,
  * along dependences, viz. any of (a, b, c, d), (d, a, b, c)  (c, d, a, b), (b, c, d, a) assuming
  * a chain of dependences (mutual independent items may occur in arbitrary order). For proper
- * classification, the lexicographically first entry-phi is rotated to the front.
+ * classification, the lexicographically first loop-phi is rotated to the front.
  */
 static void RotateEntryPhiFirst(HLoopInformation* loop,
                                 ArenaVector<HInstruction*>* scc,
                                 ArenaVector<HInstruction*>* new_scc) {
-  // Find very first entry-phi.
+  // Find very first loop-phi.
   const HInstructionList& phis = loop->GetHeader()->GetPhis();
   HInstruction* phi = nullptr;
   size_t phi_pos = -1;
@@ -41,7 +41,7 @@ static void RotateEntryPhiFirst(HLoopInformation* loop,
     }
   }
 
-  // If found, bring that entry-phi to front.
+  // If found, bring that loop-phi to front.
   if (phi != nullptr) {
     new_scc->clear();
     for (size_t i = 0; i < size; i++) {
@@ -94,7 +94,9 @@ HInductionVarAnalysis::HInductionVarAnalysis(HGraph* graph)
              graph->GetArena()->Adapter(kArenaAllocInductionVarAnalysis)),
       type_(Primitive::kPrimVoid),
       induction_(std::less<HLoopInformation*>(),
-                 graph->GetArena()->Adapter(kArenaAllocInductionVarAnalysis)) {
+                 graph->GetArena()->Adapter(kArenaAllocInductionVarAnalysis)),
+      cycles_(std::less<HPhi*>(),
+              graph->GetArena()->Adapter(kArenaAllocInductionVarAnalysis)) {
 }
 
 void HInductionVarAnalysis::Run() {
@@ -245,13 +247,13 @@ void HInductionVarAnalysis::ClassifyNonTrivial(HLoopInformation* loop) {
   const size_t size = scc_.size();
   DCHECK_GE(size, 1u);
 
-  // Rotate proper entry-phi to front.
+  // Rotate proper loop-phi to front.
   if (size > 1) {
     ArenaVector<HInstruction*> other(graph_->GetArena()->Adapter(kArenaAllocInductionVarAnalysis));
     RotateEntryPhiFirst(loop, &scc_, &other);
   }
 
-  // Analyze from entry-phi onwards.
+  // Analyze from loop-phi onwards.
   HInstruction* phi = scc_[0];
   if (!phi->IsLoopHeaderPhi()) {
     return;
@@ -262,6 +264,9 @@ void HInductionVarAnalysis::ClassifyNonTrivial(HLoopInformation* loop) {
   if (initial == nullptr || initial->induction_class != kInvariant) {
     return;
   }
+
+  // Store interesting cycle.
+  AssignCycle(phi->AsPhi());
 
   // Singleton is wrap-around induction if all internal links have the same meaning.
   if (size == 1) {
@@ -366,6 +371,7 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferAddSub(Indu
   // can be combined with an invariant to yield a similar result. Even two linear inputs can
   // be combined. All other combinations fail, however.
   if (a != nullptr && b != nullptr) {
+    type_ = Narrowest(type_, Narrowest(a->type, b->type));
     if (a->induction_class == kInvariant && b->induction_class == kInvariant) {
       return CreateInvariantOp(op, a, b);
     } else if (a->induction_class == kLinear && b->induction_class == kLinear) {
@@ -402,6 +408,7 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferMul(Inducti
   // can be multiplied with an invariant to yield a similar but multiplied result.
   // Two non-invariant inputs cannot be multiplied, however.
   if (a != nullptr && b != nullptr) {
+    type_ = Narrowest(type_, Narrowest(a->type, b->type));
     if (a->induction_class == kInvariant && b->induction_class == kInvariant) {
       return CreateInvariantOp(kMul, a, b);
     } else if (a->induction_class == kInvariant) {
@@ -442,6 +449,7 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferNeg(Inducti
   // Transfer over a unary negation: an invariant, linear, wrap-around, or periodic input
   // yields a similar but negated induction as result.
   if (a != nullptr) {
+    type_ = Narrowest(type_, a->type);
     if (a->induction_class == kInvariant) {
       return CreateInvariantOp(kNeg, nullptr, a);
     }
@@ -939,6 +947,23 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::CreateSimplifiedInv
     }
   }
   return new (graph_->GetArena()) InductionInfo(kInvariant, op, a, b, nullptr, b->type);
+}
+
+
+void HInductionVarAnalysis::AssignCycle(HPhi* phi) {
+  ArenaSet<HInstruction*>* set = &cycles_.Put(phi, ArenaSet<HInstruction*>(
+      graph_->GetArena()->Adapter(kArenaAllocInductionVarAnalysis)))->second;
+  for (HInstruction* i : scc_) {
+    set->insert(i);
+  }
+}
+
+ArenaSet<HInstruction*>* HInductionVarAnalysis::LookupCycle(HPhi* phi) {
+  auto it = cycles_.find(phi);
+  if (it != cycles_.end()) {
+    return &it->second;
+  }
+  return nullptr;
 }
 
 bool HInductionVarAnalysis::IsExact(InductionInfo* info, int64_t* value) {

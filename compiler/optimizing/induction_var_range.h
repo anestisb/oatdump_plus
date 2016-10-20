@@ -136,7 +136,17 @@ class InductionVarRange {
    */
   void ReVisit(HLoopInformation* loop) {
     induction_analysis_->induction_.erase(loop);
+    for (HInstructionIterator it(loop->GetHeader()->GetPhis()); !it.Done(); it.Advance()) {
+      induction_analysis_->cycles_.erase(it.Current()->AsPhi());
+    }
     induction_analysis_->VisitLoop(loop);
+  }
+
+  /**
+   * Lookup an interesting cycle associated with an entry phi.
+   */
+  ArenaSet<HInstruction*>* LookupCycle(HPhi* phi) const {
+    return induction_analysis_->LookupCycle(phi);
   }
 
   /**

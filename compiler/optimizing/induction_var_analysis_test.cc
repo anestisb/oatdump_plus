@@ -740,6 +740,31 @@ TEST_F(InductionVarAnalysisTest, ByteInductionIntLoopControl) {
   EXPECT_STREQ("((100) (TC-loop) ((0) < (100)))", GetTripCount(0).c_str());
 }
 
+TEST_F(InductionVarAnalysisTest, ByteInductionDerivedIntLoopControl) {
+  // Setup:
+  // for (int i = 0; i < 100; i++) {
+  //   k = (byte) i;
+  //   a[k] = 0;
+  //   k = k + 1
+  //   a[k] = 0;
+  // }
+  BuildLoopNest(1);
+  HInstruction* conv = InsertInstruction(
+      new (&allocator_) HTypeConversion(Primitive::kPrimByte, basic_[0], -1), 0);
+  HInstruction* store1 = InsertArrayStore(conv, 0);
+  HInstruction* add = InsertInstruction(
+      new (&allocator_) HAdd(Primitive::kPrimInt, conv, constant1_), 0);
+  HInstruction* store2 = InsertArrayStore(add, 0);
+
+  PerformInductionVarAnalysis();
+
+  // Byte induction (k) is "transferred" over conversion into addition (k + 1).
+  // This means only values within byte range can be trusted (even though
+  // addition can jump out of the range of course).
+  EXPECT_STREQ("((1) * i + (0)):PrimByte", GetInductionInfo(store1->InputAt(1), 0).c_str());
+  EXPECT_STREQ("((1) * i + (1)):PrimByte", GetInductionInfo(store2->InputAt(1), 0).c_str());
+}
+
 TEST_F(InductionVarAnalysisTest, ByteLoopControl1) {
   // Setup:
   // for (byte i = -128; i < 127; i++) {  // just fits!

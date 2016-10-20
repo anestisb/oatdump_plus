@@ -890,11 +890,19 @@ public class Main {
     return result;
   }
 
+  /// CHECK-START: int Main.shortIndex(int[]) BCE (before)
+  /// CHECK-DAG: BoundsCheck loop:<<Loop:B\d+>>
+  /// CHECK-DAG: BoundsCheck loop:<<Loop>>
+  //
+  /// CHECK-START: int Main.shortIndex(int[]) BCE (after)
+  /// CHECK-DAG: BoundsCheck loop:<<Loop:B\d+>>
+  /// CHECK-DAG: BoundsCheck loop:<<Loop>>
+  //
+  /// CHECK-START: int Main.shortIndex(int[]) BCE (after)
+  /// CHECK-NOT: Deoptimize
   static int shortIndex(int[] a) {
     int r = 0;
     // Make sure short/int conversions compiles well (b/32193474).
-    // TODO: investigate type implications and whether we can use
-    //       constant range to apply dyn BCE on all subscripts.
     for (short i = 1; i < 10; i++) {
       int ki = i - 1;
       r += a[ki] + a[i];

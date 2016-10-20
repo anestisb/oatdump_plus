@@ -214,6 +214,8 @@ class HInductionVarAnalysis : public HOptimization {
   InductionInfo* LookupInfo(HLoopInformation* loop, HInstruction* instruction);
   InductionInfo* CreateConstant(int64_t value, Primitive::Type type);
   InductionInfo* CreateSimplifiedInvariant(InductionOp op, InductionInfo* a, InductionInfo* b);
+  void AssignCycle(HPhi* phi);
+  ArenaSet<HInstruction*>* LookupCycle(HPhi* phi);
 
   // Constants.
   bool IsExact(InductionInfo* info, /*out*/ int64_t* value);
@@ -239,6 +241,11 @@ class HInductionVarAnalysis : public HOptimization {
    * to the induction information for that instruction in that loop.
    */
   ArenaSafeMap<HLoopInformation*, ArenaSafeMap<HInstruction*, InductionInfo*>> induction_;
+
+  /**
+   * Preserves induction cycle information for each loop-phi.
+   */
+  ArenaSafeMap<HPhi*, ArenaSet<HInstruction*>> cycles_;
 
   friend class InductionVarAnalysisTest;
   friend class InductionVarRange;
