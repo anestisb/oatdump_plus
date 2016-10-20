@@ -239,6 +239,30 @@
     .cfi_adjust_cfa_offset -56
 .endm
 
+.macro RESTORE_SAVE_EVERYTHING_FRAME_KEEP_R0
+    add  sp, #8                         @ rewind sp
+    .cfi_adjust_cfa_offset -8
+    vpop {d0-d15}
+    .cfi_adjust_cfa_offset -128
+    add  sp, #4                         @ skip r0
+    .cfi_adjust_cfa_offset -4
+    .cfi_restore r0                     @ debugger can no longer restore caller's r0
+    pop {r1-r12, lr}                    @ 13 words of callee saves
+    .cfi_restore r1
+    .cfi_restore r2
+    .cfi_restore r3
+    .cfi_restore r5
+    .cfi_restore r6
+    .cfi_restore r7
+    .cfi_restore r8
+    .cfi_restore r9
+    .cfi_restore r10
+    .cfi_restore r11
+    .cfi_restore r12
+    .cfi_restore lr
+    .cfi_adjust_cfa_offset -52
+.endm
+
 .macro RETURN_IF_RESULT_IS_ZERO
     cbnz   r0, 1f              @ result non-zero branch over
     bx     lr                  @ return
@@ -252,15 +276,21 @@
 .endm
 
     /*
-     * Macro that set calls through to artDeliverPendingExceptionFromCode, where the pending
-     * exception is Thread::Current()->exception_
+     * Macro that calls through to artDeliverPendingExceptionFromCode, where the pending
+     * exception is Thread::Current()->exception_ when the runtime method frame is ready.
      */
-.macro DELIVER_PENDING_EXCEPTION
-    .fnend
-    .fnstart
-    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME r0       @ save callee saves for throw
+.macro DELIVER_PENDING_EXCEPTION_FRAME_READY
     mov    r0, r9                              @ pass Thread::Current
     bl     artDeliverPendingExceptionFromCode  @ artDeliverPendingExceptionFromCode(Thread*)
+.endm
+
+    /*
+     * Macro that calls through to artDeliverPendingExceptionFromCode, where the pending
+     * exception is Thread::Current()->exception_.
+     */
+.macro DELIVER_PENDING_EXCEPTION
+    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME r0       @ save callee saves for throw
+    DELIVER_PENDING_EXCEPTION_FRAME_READY
 .endm
 
 .macro NO_ARG_RUNTIME_EXCEPTION c_name, cxx_name
@@ -1078,41 +1108,71 @@ END art_quick_set64_instance
      */
 
 ENTRY art_quick_resolve_string
-    ldr    r1, [sp]                                              @ load referrer
-    ldr    r1, [r1, #ART_METHOD_DECLARING_CLASS_OFFSET]          @ load declaring class
-    ldr    r1, [r1, #DECLARING_CLASS_DEX_CACHE_STRINGS_OFFSET]   @ load string dex cache
-    ubfx   r2, r0, #0, #STRING_DEX_CACHE_HASH_BITS
-    add    r1, r1, r2, LSL #STRING_DEX_CACHE_ELEMENT_SIZE_SHIFT
-    ldrd   r2, r3, [r1]                                    @ load index into r3 and pointer into r2
-    cmp    r0, r3
+    push   {r10-r12, lr}
+    .cfi_adjust_cfa_offset 16
+    .cfi_rel_offset r10, 0
+    .cfi_rel_offset r11, 4
+    .cfi_rel_offset ip, 8
+    .cfi_rel_offset lr, 12
+    ldr    r10, [sp, #16]                                        @ load referrer
+    ldr    r10, [r10, #ART_METHOD_DECLARING_CLASS_OFFSET]        @ load declaring class
+    ldr    r10, [r10, #DECLARING_CLASS_DEX_CACHE_STRINGS_OFFSET] @ load string dex cache
+    ubfx   r11, r0, #0, #STRING_DEX_CACHE_HASH_BITS
+    add    r10, r10, r11, LSL #STRING_DEX_CACHE_ELEMENT_SIZE_SHIFT
+    ldrd   r10, r11, [r10]                               @ load index into r11 and pointer into r10
+    cmp    r0, r11
     bne    .Lart_quick_resolve_string_slow_path
 #ifdef USE_READ_BARRIER
-    ldr    r3, [rSELF, #THREAD_IS_GC_MARKING_OFFSET]
-    cbnz   r3, .Lart_quick_resolve_string_marking
+    ldr    r0, [rSELF, #THREAD_IS_GC_MARKING_OFFSET]
+    cbnz   r0, .Lart_quick_resolve_string_marking
+.Lart_quick_resolve_string_no_rb:
 #endif
-    mov    r0, r2
-    bx     lr
-// Slow path case, the index did not match
-.Lart_quick_resolve_string_slow_path:
-    SETUP_SAVE_REFS_ONLY_FRAME r2                    @ save callee saves in case of GC
-    mov    r1, r9                                    @ pass Thread::Current
-    mov    r3, sp
-    bl     artResolveStringFromCode                  @ (uint32_t type_idx, Method* method, Thread*)
-    RESTORE_SAVE_REFS_ONLY_FRAME
-    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+    mov    r0, r10
+    pop    {r10-r12, pc}
+
+#ifdef USE_READ_BARRIER
 // GC is marking case, need to check the mark bit.
 .Lart_quick_resolve_string_marking:
-    ldr    r3, [r2, MIRROR_OBJECT_LOCK_WORD_OFFSET]
-    tst    r3, #LOCK_WORD_MARK_BIT_MASK_SHIFTED
-    mov    r0, r2
-    bne    .Lart_quick_resolve_string_no_rb
-    push   {r1, r2, r3, lr}                          @ Save x1, LR
-    .cfi_adjust_cfa_offset 16
-    bl     artReadBarrierMark                        @ Get the marked string back.
-    pop    {r1, r2, r3, lr}                          @ Restore registers.
+    ldr    r0, [r10, MIRROR_OBJECT_LOCK_WORD_OFFSET]
+    lsrs   r0, #(LOCK_WORD_MARK_BIT_SHIFT + 1)
+    bcs    .Lart_quick_resolve_string_no_rb
+    mov    r0, r10
+    .cfi_remember_state
+    pop    {r10-r12, lr}
     .cfi_adjust_cfa_offset -16
-.Lart_quick_resolve_string_no_rb:
+    .cfi_restore r10
+    .cfi_restore r11
+    .cfi_restore r12
+    .cfi_restore lr
+    // Note: art_quick_read_barrier_mark_reg00 clobbers IP but the .Lslow_rb_* does not.
+    b      .Lslow_rb_art_quick_read_barrier_mark_reg00  @ Get the marked string back.
+    .cfi_restore_state
+#endif
+
+// Slow path case, the index did not match
+.Lart_quick_resolve_string_slow_path:
+    push {r0-r9}                  @ 10 words of callee saves and args; {r10-r12, lr} already saved.
+    .cfi_adjust_cfa_offset 40
+    .cfi_rel_offset r0, 0
+    .cfi_rel_offset r1, 4
+    .cfi_rel_offset r2, 8
+    .cfi_rel_offset r3, 12
+    .cfi_rel_offset r4, 16
+    .cfi_rel_offset r5, 20
+    .cfi_rel_offset r6, 24
+    .cfi_rel_offset r7, 28
+    .cfi_rel_offset r8, 32
+    .cfi_rel_offset r9, 36
+    SETUP_SAVE_EVERYTHING_FRAME_CORE_REGS_SAVED r1   @ save callee saves in case of GC
+    mov    r1, r9                                    @ pass Thread::Current
+    bl     artResolveStringFromCode                  @ (uint32_t type_idx, Thread*)
+    cbz    r0, 1f                                    @ If result is null, deliver the OOME.
+    .cfi_remember_state
+    RESTORE_SAVE_EVERYTHING_FRAME_KEEP_R0
     bx     lr
+    .cfi_restore_state
+1:
+    DELIVER_PENDING_EXCEPTION_FRAME_READY
 END art_quick_resolve_string
 
 // Generate the allocation entrypoints for each allocator.
@@ -1920,6 +1980,8 @@ END art_quick_l2f
      * getting its argument and returning its result through register
      * `reg`, saving and restoring all caller-save registers.
      *
+     * IP is clobbered; `reg` must not be IP.
+     *
      * If `reg` is different from `r0`, the generated function follows a
      * non-standard runtime calling convention:
      * - register `reg` is used to pass the (sole) argument of this
@@ -1936,36 +1998,71 @@ ENTRY \name
     SMART_CBZ \reg, .Lret_rb_\name
     // Check lock word for mark bit, if marked return. Use IP for scratch since it is blocked.
     ldr ip, [\reg, MIRROR_OBJECT_LOCK_WORD_OFFSET]
-    ands ip, #LOCK_WORD_MARK_BIT_MASK_SHIFTED
+    tst ip, #LOCK_WORD_MARK_BIT_MASK_SHIFTED
     beq .Lslow_rb_\name
     // Already marked, return right away.
+.Lret_rb_\name:
     bx lr
 
 .Lslow_rb_\name:
-    push  {r0-r5, r9, lr}               @ save return address and core caller-save registers
-                                        @ also save callee save r5 for 16 byte alignment
+    // Save IP: the kSaveEverything entrypoint art_quick_resolve_string makes a tail call here.
+    push  {r0-r4, r9, ip, lr}           @ save return address, core caller-save registers and ip
     .cfi_adjust_cfa_offset 32
     .cfi_rel_offset r0, 0
     .cfi_rel_offset r1, 4
     .cfi_rel_offset r2, 8
     .cfi_rel_offset r3, 12
     .cfi_rel_offset r4, 16
-    .cfi_rel_offset r5, 20
-    .cfi_rel_offset r9, 24
+    .cfi_rel_offset r9, 20
+    .cfi_rel_offset ip, 24
     .cfi_rel_offset lr, 28
-    vpush {s0-s15}                      @ save floating-point caller-save registers
-    .cfi_adjust_cfa_offset 64
 
     .ifnc \reg, r0
       mov   r0, \reg                    @ pass arg1 - obj from `reg`
     .endif
+
+    vpush {s0-s15}                      @ save floating-point caller-save registers
+    .cfi_adjust_cfa_offset 64
     bl    artReadBarrierMark            @ r0 <- artReadBarrierMark(obj)
-    mov ip, r0                          @ Save result in IP
     vpop {s0-s15}                       @ restore floating-point registers
     .cfi_adjust_cfa_offset -64
-    pop   {r0-r5, r9, lr}               @ restore caller-save registers
-    mov \reg, ip                        @ copy result to reg
-.Lret_rb_\name:
+
+    .ifc \reg, r0                       @ Save result to the stack slot or destination register.
+      str r0, [sp, #0]
+    .else
+      .ifc \reg, r1
+        str r0, [sp, #4]
+      .else
+        .ifc \reg, r2
+          str r0, [sp, #8]
+        .else
+          .ifc \reg, r3
+            str r0, [sp, #12]
+          .else
+            .ifc \reg, r4
+              str r0, [sp, #16]
+            .else
+              .ifc \reg, r9
+                str r0, [sp, #20]
+              .else
+                mov \reg, r0
+              .endif
+            .endif
+          .endif
+        .endif
+      .endif
+    .endif
+
+    pop   {r0-r4, r9, ip, lr}           @ restore caller-save registers
+    .cfi_adjust_cfa_offset -32
+    .cfi_restore r0
+    .cfi_restore r1
+    .cfi_restore r2
+    .cfi_restore r3
+    .cfi_restore r4
+    .cfi_restore r9
+    .cfi_restore ip
+    .cfi_restore lr
     bx lr
 END \name
 .endm

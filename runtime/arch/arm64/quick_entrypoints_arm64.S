@@ -337,7 +337,7 @@
     SETUP_SAVE_EVERYTHING_FRAME_DECREMENTED_SP_SKIP_X29_LR
 .endm
 
-.macro RESTORE_SAVE_EVERYTHING_FRAME
+.macro RESTORE_SAVE_EVERYTHING_FRAME_KEEP_X0
     // Restore FP registers.
     // For better performance, load d0 and d31 separately, so that all LDPs are 16-byte aligned.
     ldr d0,       [sp, #8]
@@ -359,7 +359,6 @@
     ldr d31,      [sp, #256]
 
     // Restore core registers.
-    RESTORE_REG            x0, 264
     RESTORE_TWO_REGS  x1,  x2, 272
     RESTORE_TWO_REGS  x3,  x4, 288
     RESTORE_TWO_REGS  x5,  x6, 304
@@ -379,6 +378,11 @@
     DECREASE_FRAME 512
 .endm
 
+.macro RESTORE_SAVE_EVERYTHING_FRAME
+    RESTORE_REG            x0, 264
+    RESTORE_SAVE_EVERYTHING_FRAME_KEEP_X0
+.endm
+
 .macro RETURN_IF_RESULT_IS_ZERO
     cbnz x0, 1f                // result non-zero branch over
     ret                        // return
@@ -392,16 +396,24 @@
 .endm
 
     /*
-     * Macro that set calls through to artDeliverPendingExceptionFromCode, where the pending
-     * exception is Thread::Current()->exception_
+     * Macro that calls through to artDeliverPendingExceptionFromCode, where the pending
+     * exception is Thread::Current()->exception_ when the runtime method frame is ready.
      */
-.macro DELIVER_PENDING_EXCEPTION
-    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME
+.macro DELIVER_PENDING_EXCEPTION_FRAME_READY
     mov x0, xSELF
 
     // Point of no return.
     bl artDeliverPendingExceptionFromCode  // artDeliverPendingExceptionFromCode(Thread*)
     brk 0  // Unreached
+.endm
+
+    /*
+     * Macro that calls through to artDeliverPendingExceptionFromCode, where the pending
+     * exception is Thread::Current()->exception_.
+     */
+.macro DELIVER_PENDING_EXCEPTION
+    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME
+    DELIVER_PENDING_EXCEPTION_FRAME_READY
 .endm
 
 .macro RETURN_OR_DELIVER_PENDING_EXCEPTION_REG reg
@@ -1638,40 +1650,54 @@ END art_quick_set64_static
      */
 
 ENTRY art_quick_resolve_string
-    ldr   x1, [sp]                                               // load referrer
-    ldr   w2, [x1, #ART_METHOD_DECLARING_CLASS_OFFSET]           // load declaring class
-    ldr   x1, [x2, #DECLARING_CLASS_DEX_CACHE_STRINGS_OFFSET]    // load string dex cache
-    ubfx  x2, x0, #0, #STRING_DEX_CACHE_HASH_BITS                // get masked string index into x2
-    ldr   x2, [x1, x2, lsl #STRING_DEX_CACHE_ELEMENT_SIZE_SHIFT]  // load dex cache pair into x2
-    cmp   x0, x2, lsr #32                                         // compare against upper 32 bits
+    SAVE_TWO_REGS_INCREASE_FRAME x29, xLR, 2 * __SIZEOF_POINTER__
+    ldr   x29, [sp, #(2 * __SIZEOF_POINTER__)]                   // load referrer
+    ldr   w29, [x29, #ART_METHOD_DECLARING_CLASS_OFFSET]         // load declaring class
+    ldr   x29, [x29, #DECLARING_CLASS_DEX_CACHE_STRINGS_OFFSET]  // load string dex cache
+    ubfx  lr, x0, #0, #STRING_DEX_CACHE_HASH_BITS                // get masked string index into LR
+    ldr   x29, [x29, lr, lsl #STRING_DEX_CACHE_ELEMENT_SIZE_SHIFT]  // load dex cache pair into x29
+    cmp   x0, x29, lsr #32                                       // compare against upper 32 bits
     bne   .Lart_quick_resolve_string_slow_path
-    ubfx  x0, x2, #0, #32                                        // extract lower 32 bits into x0
+    ubfx  x0, x29, #0, #32                                       // extract lower 32 bits into x0
 #ifdef USE_READ_BARRIER
     // Most common case: GC is not marking.
-    ldr    w3, [xSELF, #THREAD_IS_GC_MARKING_OFFSET]
-    cbnz   x3, .Lart_quick_resolve_string_marking
+    ldr    w29, [xSELF, #THREAD_IS_GC_MARKING_OFFSET]
+    cbnz   x29, .Lart_quick_resolve_string_marking
+.Lart_quick_resolve_string_no_rb:
 #endif
+    .cfi_remember_state
+    RESTORE_TWO_REGS_DECREASE_FRAME x29, xLR, 2 * __SIZEOF_POINTER__
     ret
+    .cfi_restore_state
+    .cfi_def_cfa_offset 16                          // workaround for clang bug: 31975598
+
+#ifdef USE_READ_BARRIER
+// GC is marking case, need to check the mark bit.
+.Lart_quick_resolve_string_marking:
+    ldr   x29, [x0, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
+    tbnz  x29, #LOCK_WORD_MARK_BIT_SHIFT, .Lart_quick_resolve_string_no_rb
+    .cfi_remember_state
+    RESTORE_TWO_REGS_DECREASE_FRAME x29, xLR, 2 * __SIZEOF_POINTER__
+    // Note: art_quick_read_barrier_mark_reg00 clobbers IP0 but the .Lslow_rb_* does not.
+    b     .Lslow_rb_art_quick_read_barrier_mark_reg00  // Get the marked string back.
+    .cfi_restore_state
+    .cfi_def_cfa_offset 16                          // workaround for clang bug: 31975598
+#endif
 
 // Slow path case, the index did not match.
 .Lart_quick_resolve_string_slow_path:
-    SETUP_SAVE_REFS_ONLY_FRAME                      // save callee saves in case of GC
+    INCREASE_FRAME (FRAME_SIZE_SAVE_EVERYTHING - 2 * __SIZEOF_POINTER__)
+    SETUP_SAVE_EVERYTHING_FRAME_DECREMENTED_SP_SKIP_X29_LR  // save callee saves in case of GC
     mov   x1, xSELF                                 // pass Thread::Current
     bl    artResolveStringFromCode                  // (int32_t string_idx, Thread* self)
-    RESTORE_SAVE_REFS_ONLY_FRAME
-    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
-
-// GC is marking case, need to check the mark bit.
-.Lart_quick_resolve_string_marking:
-    ldr   x3, [x0, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
-    tbnz  x3, #LOCK_WORD_MARK_BIT_SHIFT, .Lart_quick_resolve_string_no_rb
-    // Save LR so that we can return, also x1 for alignment purposes.
-    SAVE_TWO_REGS_INCREASE_FRAME x1, xLR, 16        // Save x1, LR.
-    bl     artReadBarrierMark                       // Get the marked string back.
-    RESTORE_TWO_REGS_DECREASE_FRAME x1, xLR, 16     // Restore registers.
-.Lart_quick_resolve_string_no_rb:
-    ret
-
+    cbz   w0, 1f                                    // If result is null, deliver the OOME.
+    .cfi_remember_state
+    RESTORE_SAVE_EVERYTHING_FRAME_KEEP_X0
+    ret                        // return
+    .cfi_restore_state
+    .cfi_def_cfa_offset FRAME_SIZE_SAVE_EVERYTHING  // workaround for clang bug: 31975598
+1:
+    DELIVER_PENDING_EXCEPTION_FRAME_READY
 END art_quick_resolve_string
 
 // Generate the allocation entrypoints for each allocator.
@@ -2513,9 +2539,10 @@ ENTRY \name
      */
     // Use wIP0 as temp and check the mark bit of the reference. wIP0 is not used by the compiler.
     ldr   wIP0, [\xreg, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
-    tbz   wIP0, #LOCK_WORD_MARK_BIT_SHIFT, .Lslow_path_rb_\name
+    tbz   wIP0, #LOCK_WORD_MARK_BIT_SHIFT, .Lslow_rb_\name
+.Lret_rb_\name:
     ret
-.Lslow_path_rb_\name:
+.Lslow_rb_\name:
     // Save all potentially live caller-save core registers.
     SAVE_TWO_REGS_INCREASE_FRAME x0, x1, 368
     SAVE_TWO_REGS  x2,  x3, 16
@@ -2580,7 +2607,6 @@ ENTRY \name
     // Restore return address and remove padding.
     RESTORE_REG xLR, 360
     DECREASE_FRAME 368
-.Lret_rb_\name:
     ret
 END \name
 .endm
