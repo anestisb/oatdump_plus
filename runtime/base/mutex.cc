@@ -25,11 +25,12 @@
 #include "base/systrace.h"
 #include "base/value_object.h"
 #include "mutex-inl.h"
-#include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
 
 namespace art {
+
+static Atomic<Locks::ClientCallback*> safe_to_call_abort_callback(nullptr);
 
 Mutex* Locks::abort_lock_ = nullptr;
 Mutex* Locks::alloc_tracker_lock_ = nullptr;
@@ -320,30 +321,26 @@ Mutex::Mutex(const char* name, LockLevel level, bool recursive)
   exclusive_owner_ = 0;
 }
 
-// Helper to ignore the lock requirement.
-static bool IsShuttingDown() NO_THREAD_SAFETY_ANALYSIS {
-  Runtime* runtime = Runtime::Current();
-  return runtime == nullptr || runtime->IsShuttingDownLocked();
+// Helper to allow checking shutdown while locking for thread safety.
+static bool IsSafeToCallAbortSafe() {
+  MutexLock mu(Thread::Current(), *Locks::runtime_shutdown_lock_);
+  return Locks::IsSafeToCallAbortRacy();
 }
 
 Mutex::~Mutex() {
-  bool shutting_down = IsShuttingDown();
+  bool safe_to_call_abort = Locks::IsSafeToCallAbortRacy();
 #if ART_USE_FUTEXES
   if (state_.LoadRelaxed() != 0) {
-    LOG(shutting_down
-            ? ::android::base::WARNING
-            : ::android::base::FATAL) << "destroying mutex with owner: " << exclusive_owner_;
+    LOG(safe_to_call_abort ? FATAL : WARNING)
+        << "destroying mutex with owner: " << exclusive_owner_;
   } else {
     if (exclusive_owner_ != 0) {
-      LOG(shutting_down
-              ? ::android::base::WARNING
-              : ::android::base::FATAL) << "unexpectedly found an owner on unlocked mutex "
-                                           << name_;
+      LOG(safe_to_call_abort ? FATAL : WARNING)
+          << "unexpectedly found an owner on unlocked mutex " << name_;
     }
     if (num_contenders_.LoadSequentiallyConsistent() != 0) {
-      LOG(shutting_down
-              ? ::android::base::WARNING
-              : ::android::base::FATAL) << "unexpectedly found a contender on mutex " << name_;
+      LOG(safe_to_call_abort ? FATAL : WARNING)
+          << "unexpectedly found a contender on mutex " << name_;
     }
   }
 #else
@@ -352,11 +349,8 @@ Mutex::~Mutex() {
   int rc = pthread_mutex_destroy(&mutex_);
   if (rc != 0) {
     errno = rc;
-    // TODO: should we just not log at all if shutting down? this could be the logging mutex!
-    MutexLock mu(Thread::Current(), *Locks::runtime_shutdown_lock_);
-    PLOG(shutting_down
-             ? ::android::base::WARNING
-             : ::android::base::FATAL) << "pthread_mutex_destroy failed for " << name_;
+    PLOG(safe_to_call_abort ? FATAL : WARNING)
+        << "pthread_mutex_destroy failed for " << name_;
   }
 #endif
 }
@@ -544,11 +538,8 @@ ReaderWriterMutex::~ReaderWriterMutex() {
   int rc = pthread_rwlock_destroy(&rwlock_);
   if (rc != 0) {
     errno = rc;
-    // TODO: should we just not log at all if shutting down? this could be the logging mutex!
-    MutexLock mu(Thread::Current(), *Locks::runtime_shutdown_lock_);
-    Runtime* runtime = Runtime::Current();
-    bool shutting_down = runtime == nullptr || runtime->IsShuttingDownLocked();
-    PLOG(shutting_down ? WARNING : FATAL) << "pthread_rwlock_destroy failed for " << name_;
+    bool is_safe_to_call_abort = IsSafeToCallAbortSafe();
+    PLOG(is_safe_to_call_abort ? FATAL : WARNING) << "pthread_rwlock_destroy failed for " << name_;
   }
 #endif
 }
@@ -772,11 +763,8 @@ ConditionVariable::ConditionVariable(const char* name, Mutex& guard)
 ConditionVariable::~ConditionVariable() {
 #if ART_USE_FUTEXES
   if (num_waiters_!= 0) {
-    Runtime* runtime = Runtime::Current();
-    bool shutting_down = runtime == nullptr || runtime->IsShuttingDown(Thread::Current());
-    LOG(shutting_down
-           ? ::android::base::WARNING
-           : ::android::base::FATAL)
+    bool is_safe_to_call_abort = IsSafeToCallAbortSafe();
+    LOG(is_safe_to_call_abort ? FATAL : WARNING)
         << "ConditionVariable::~ConditionVariable for " << name_
         << " called with " << num_waiters_ << " waiters.";
   }
@@ -786,12 +774,8 @@ ConditionVariable::~ConditionVariable() {
   int rc = pthread_cond_destroy(&cond_);
   if (rc != 0) {
     errno = rc;
-    MutexLock mu(Thread::Current(), *Locks::runtime_shutdown_lock_);
-    Runtime* runtime = Runtime::Current();
-    bool shutting_down = (runtime == nullptr) || runtime->IsShuttingDownLocked();
-    PLOG(shutting_down
-             ? ::android::base::WARNING
-             : ::android::base::FATAL) << "pthread_cond_destroy failed for " << name_;
+    bool is_safe_to_call_abort = IsSafeToCallAbortSafe();
+    PLOG(is_safe_to_call_abort ? FATAL : WARNING) << "pthread_cond_destroy failed for " << name_;
   }
 #endif
 }
@@ -1127,6 +1111,16 @@ void Locks::Init() {
 
 void Locks::InitConditions() {
   thread_exit_cond_ = new ConditionVariable("thread exit condition variable", *thread_list_lock_);
+}
+
+void Locks::SetClientCallback(ClientCallback* safe_to_call_abort_cb) {
+  safe_to_call_abort_callback.StoreRelease(safe_to_call_abort_cb);
+}
+
+// Helper to allow checking shutdown while ignoring locking requirements.
+bool Locks::IsSafeToCallAbortRacy() {
+  Locks::ClientCallback* safe_to_call_abort_cb = safe_to_call_abort_callback.LoadAcquire();
+  return safe_to_call_abort_cb != nullptr && safe_to_call_abort_cb();
 }
 
 }  // namespace art
