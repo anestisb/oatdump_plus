@@ -7,12 +7,12 @@
 f2i_doconv:
 #ifdef MIPS32REVGE6
     l.s       fa1, .LFLOAT_TO_INT_max
-    cmp.ule.s ft2, fa1, fa0
+    cmp.le.s  ft2, fa1, fa0
     l.s       fv0, .LFLOAT_TO_INT_ret_max
     bc1nez    ft2, .L${opcode}_set_vreg_f
 
     l.s       fa1, .LFLOAT_TO_INT_min
-    cmp.ule.s ft2, fa0, fa1
+    cmp.le.s  ft2, fa0, fa1
     l.s       fv0, .LFLOAT_TO_INT_ret_min
     bc1nez    ft2, .L${opcode}_set_vreg_f
 

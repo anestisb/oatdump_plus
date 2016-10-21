@@ -4,13 +4,13 @@
 f2l_doconv:
 #ifdef MIPS32REVGE6
     l.s       fa1, .LLONG_TO_max
-    cmp.ule.s ft2, fa1, fa0
+    cmp.le.s  ft2, fa1, fa0
     li        rRESULT0, ~0
     li        rRESULT1, ~0x80000000
     bc1nez    ft2, .L${opcode}_set_vreg
 
     l.s       fa1, .LLONG_TO_min
-    cmp.ule.s ft2, fa0, fa1
+    cmp.le.s  ft2, fa0, fa1
     li        rRESULT0, 0
     li        rRESULT1, 0x80000000
     bc1nez    ft2, .L${opcode}_set_vreg

@@ -1420,10 +1420,10 @@ artMterpAsmInstructionStart = .L_op_nop
     GET_VREG_F(ft0, a2)
     GET_VREG_F(ft1, a3)
 #ifdef MIPS32REVGE6
-    cmp.ult.s ft2, ft0, ft1               # Is ft0 < ft1
+    cmp.lt.s  ft2, ft0, ft1               # Is ft0 < ft1
     li        rTEMP, -1
     bc1nez    ft2, .Lop_cmpl_float_finish
-    cmp.ult.s ft2, ft1, ft0
+    cmp.lt.s  ft2, ft1, ft0
     li        rTEMP, 1
     bc1nez    ft2, .Lop_cmpl_float_finish
     cmp.eq.s  ft2, ft0, ft1
@@ -1476,10 +1476,10 @@ artMterpAsmInstructionStart = .L_op_nop
     GET_VREG_F(ft0, a2)
     GET_VREG_F(ft1, a3)
 #ifdef MIPS32REVGE6
-    cmp.ult.s ft2, ft0, ft1               # Is ft0 < ft1
+    cmp.lt.s  ft2, ft0, ft1               # Is ft0 < ft1
     li        rTEMP, -1
     bc1nez    ft2, .Lop_cmpg_float_finish
-    cmp.ult.s ft2, ft1, ft0
+    cmp.lt.s  ft2, ft1, ft0
     li        rTEMP, 1
     bc1nez    ft2, .Lop_cmpg_float_finish
     cmp.eq.s  ft2, ft0, ft1
@@ -1525,10 +1525,10 @@ artMterpAsmInstructionStart = .L_op_nop
     LOAD64_F(ft0, ft0f, rOBJ)
     LOAD64_F(ft1, ft1f, t0)
 #ifdef MIPS32REVGE6
-    cmp.ult.d ft2, ft0, ft1
+    cmp.lt.d  ft2, ft0, ft1
     li        rTEMP, -1
     bc1nez    ft2, .Lop_cmpl_double_finish
-    cmp.ult.d ft2, ft1, ft0
+    cmp.lt.d  ft2, ft1, ft0
     li        rTEMP, 1
     bc1nez    ft2, .Lop_cmpl_double_finish
     cmp.eq.d  ft2, ft0, ft1
@@ -1574,10 +1574,10 @@ artMterpAsmInstructionStart = .L_op_nop
     LOAD64_F(ft0, ft0f, rOBJ)
     LOAD64_F(ft1, ft1f, t0)
 #ifdef MIPS32REVGE6
-    cmp.ult.d ft2, ft0, ft1
+    cmp.lt.d  ft2, ft0, ft1
     li        rTEMP, -1
     bc1nez    ft2, .Lop_cmpg_double_finish
-    cmp.ult.d ft2, ft1, ft0
+    cmp.lt.d  ft2, ft1, ft0
     li        rTEMP, 1
     bc1nez    ft2, .Lop_cmpg_double_finish
     cmp.eq.d  ft2, ft0, ft1
@@ -7746,12 +7746,12 @@ artMterpAsmSisterStart:
 f2i_doconv:
 #ifdef MIPS32REVGE6
     l.s       fa1, .LFLOAT_TO_INT_max
-    cmp.ule.s ft2, fa1, fa0
+    cmp.le.s  ft2, fa1, fa0
     l.s       fv0, .LFLOAT_TO_INT_ret_max
     bc1nez    ft2, .Lop_float_to_int_set_vreg_f
 
     l.s       fa1, .LFLOAT_TO_INT_min
-    cmp.ule.s ft2, fa0, fa1
+    cmp.le.s  ft2, fa0, fa1
     l.s       fv0, .LFLOAT_TO_INT_ret_min
     bc1nez    ft2, .Lop_float_to_int_set_vreg_f
 
@@ -7793,13 +7793,13 @@ f2i_doconv:
 f2l_doconv:
 #ifdef MIPS32REVGE6
     l.s       fa1, .LLONG_TO_max
-    cmp.ule.s ft2, fa1, fa0
+    cmp.le.s  ft2, fa1, fa0
     li        rRESULT0, ~0
     li        rRESULT1, ~0x80000000
     bc1nez    ft2, .Lop_float_to_long_set_vreg
 
     l.s       fa1, .LLONG_TO_min
-    cmp.ule.s ft2, fa0, fa1
+    cmp.le.s  ft2, fa0, fa1
     li        rRESULT0, 0
     li        rRESULT1, 0x80000000
     bc1nez    ft2, .Lop_float_to_long_set_vreg
@@ -7845,13 +7845,13 @@ d2i_doconv:
 #ifdef MIPS32REVGE6
     la        t0, .LDOUBLE_TO_INT_max
     LOAD64_F(fa1, fa1f, t0)
-    cmp.ule.d ft2, fa1, fa0
+    cmp.le.d  ft2, fa1, fa0
     l.s       fv0, .LDOUBLE_TO_INT_maxret
     bc1nez    ft2, .Lop_double_to_int_set_vreg_f
 
     la        t0, .LDOUBLE_TO_INT_min
     LOAD64_F(fa1, fa1f, t0)
-    cmp.ule.d ft2, fa0, fa1
+    cmp.le.d  ft2, fa0, fa1
     l.s       fv0, .LDOUBLE_TO_INT_minret
     bc1nez    ft2, .Lop_double_to_int_set_vreg_f
 
@@ -7896,14 +7896,14 @@ d2l_doconv:
 #ifdef MIPS32REVGE6
     la        t0, .LDOUBLE_TO_LONG_max
     LOAD64_F(fa1, fa1f, t0)
-    cmp.ule.d ft2, fa1, fa0
+    cmp.le.d  ft2, fa1, fa0
     la        t0, .LDOUBLE_TO_LONG_ret_max
     LOAD64(rRESULT0, rRESULT1, t0)
     bc1nez    ft2, .Lop_double_to_long_set_vreg
 
     la        t0, .LDOUBLE_TO_LONG_min
     LOAD64_F(fa1, fa1f, t0)
-    cmp.ule.d ft2, fa0, fa1
+    cmp.le.d  ft2, fa0, fa1
     la        t0, .LDOUBLE_TO_LONG_ret_min
     LOAD64(rRESULT0, rRESULT1, t0)
     bc1nez    ft2, .Lop_double_to_long_set_vreg
