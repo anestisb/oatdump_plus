@@ -27,10 +27,10 @@
     GET_VREG_F(ft0, a2)
     GET_VREG_F(ft1, a3)
 #ifdef MIPS32REVGE6
-    cmp.ult.s ft2, ft0, ft1               # Is ft0 < ft1
+    cmp.lt.s  ft2, ft0, ft1               # Is ft0 < ft1
     li        rTEMP, -1
     bc1nez    ft2, .L${opcode}_finish
-    cmp.ult.s ft2, ft1, ft0
+    cmp.lt.s  ft2, ft1, ft0
     li        rTEMP, 1
     bc1nez    ft2, .L${opcode}_finish
     cmp.eq.s  ft2, ft0, ft1
