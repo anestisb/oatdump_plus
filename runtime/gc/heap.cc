@@ -58,6 +58,7 @@
 #include "gc/space/zygote_space.h"
 #include "gc/task_processor.h"
 #include "entrypoints/quick/quick_alloc_entrypoints.h"
+#include "gc_pause_listener.h"
 #include "heap-inl.h"
 #include "image.h"
 #include "intern_table.h"
@@ -4216,6 +4217,13 @@ void Heap::RemoveAllocationListener() {
   }
 }
 
+void Heap::SetGcPauseListener(GcPauseListener* l) {
+  gc_pause_listener_.StoreRelaxed(l);
+}
+
+void Heap::RemoveGcPauseListener() {
+  gc_pause_listener_.StoreRelaxed(nullptr);
+}
 
 }  // namespace gc
 }  // namespace art
