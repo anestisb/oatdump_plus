@@ -312,7 +312,8 @@ void HSharpening::ProcessLoadString(HLoadString* load_string) {
         desired_load_kind = HLoadString::LoadKind::kBootImageAddress;
         address = reinterpret_cast64<uint64_t>(string);
       } else {
-        desired_load_kind = HLoadString::LoadKind::kBssEntry;
+        // FIXME: Disabled because of BSS root visiting issues. Bug: 32124939
+        // desired_load_kind = HLoadString::LoadKind::kBssEntry;
       }
     }
   }
