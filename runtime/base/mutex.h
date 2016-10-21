@@ -558,6 +558,18 @@ class Locks {
  public:
   static void Init();
   static void InitConditions() NO_THREAD_SAFETY_ANALYSIS;  // Condition variables.
+
+  // Destroying various lock types can emit errors that vary depending upon
+  // whether the client (art::Runtime) is currently active.  Allow the client
+  // to set a callback that is used to check when it is acceptable to call
+  // Abort.  The default behavior is that the client *is not* able to call
+  // Abort if no callback is established.
+  using ClientCallback = bool();
+  static void SetClientCallback(ClientCallback* is_safe_to_call_abort_cb) NO_THREAD_SAFETY_ANALYSIS;
+  // Checks for whether it is safe to call Abort() without using locks.
+  static bool IsSafeToCallAbortRacy() NO_THREAD_SAFETY_ANALYSIS;
+
+
   // Guards allocation entrypoint instrumenting.
   static Mutex* instrument_entrypoints_lock_;
 
