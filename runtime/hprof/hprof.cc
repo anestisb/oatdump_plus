@@ -1167,8 +1167,8 @@ void Hprof::DumpHeapObject(mirror::Object* obj) {
 }
 
 void Hprof::DumpHeapClass(mirror::Class* klass) {
-  if (!klass->IsLoaded() && !klass->IsErroneous()) {
-    // Class is allocated but not yet loaded: we cannot access its fields or super class.
+  if (!klass->IsResolved() && !klass->IsErroneous()) {
+    // Class is allocated but not yet resolved: we cannot access its fields or super class.
     return;
   }
   const size_t num_static_fields = klass->NumStaticFields();
