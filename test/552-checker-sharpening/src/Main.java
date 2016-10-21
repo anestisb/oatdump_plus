@@ -284,28 +284,29 @@ public class Main {
   /// CHECK-START: java.lang.String Main.$noinline$getNonBootImageString() sharpening (before)
   /// CHECK:                LoadString load_kind:DexCacheViaMethod
 
-  /// CHECK-START-X86: java.lang.String Main.$noinline$getNonBootImageString() sharpening (after)
-  /// CHECK:                LoadString load_kind:BssEntry
+  // FIXME: Disabled because of BSS root visiting issues. Bug: 32124939
+  // CHECK-START-X86: java.lang.String Main.$noinline$getNonBootImageString() sharpening (after)
+  // CHECK:                LoadString load_kind:BssEntry
 
-  /// CHECK-START-X86: java.lang.String Main.$noinline$getNonBootImageString() pc_relative_fixups_x86 (after)
-  /// CHECK-DAG:            X86ComputeBaseMethodAddress
-  /// CHECK-DAG:            LoadString load_kind:BssEntry
+  // CHECK-START-X86: java.lang.String Main.$noinline$getNonBootImageString() pc_relative_fixups_x86 (after)
+  // CHECK-DAG:            X86ComputeBaseMethodAddress
+  // CHECK-DAG:            LoadString load_kind:BssEntry
 
-  /// CHECK-START-X86_64: java.lang.String Main.$noinline$getNonBootImageString() sharpening (after)
-  /// CHECK:                LoadString load_kind:BssEntry
+  // CHECK-START-X86_64: java.lang.String Main.$noinline$getNonBootImageString() sharpening (after)
+  // CHECK:                LoadString load_kind:BssEntry
 
-  /// CHECK-START-ARM: java.lang.String Main.$noinline$getNonBootImageString() sharpening (after)
-  /// CHECK:                LoadString load_kind:BssEntry
+  // CHECK-START-ARM: java.lang.String Main.$noinline$getNonBootImageString() sharpening (after)
+  // CHECK:                LoadString load_kind:BssEntry
 
-  /// CHECK-START-ARM64: java.lang.String Main.$noinline$getNonBootImageString() sharpening (after)
-  /// CHECK:                LoadString load_kind:BssEntry
+  // CHECK-START-ARM64: java.lang.String Main.$noinline$getNonBootImageString() sharpening (after)
+  // CHECK:                LoadString load_kind:BssEntry
 
-  /// CHECK-START-MIPS: java.lang.String Main.$noinline$getNonBootImageString() sharpening (after)
-  /// CHECK:                LoadString load_kind:BssEntry
+  // CHECK-START-MIPS: java.lang.String Main.$noinline$getNonBootImageString() sharpening (after)
+  // CHECK:                LoadString load_kind:BssEntry
 
-  /// CHECK-START-MIPS: java.lang.String Main.$noinline$getNonBootImageString() pc_relative_fixups_mips (after)
-  /// CHECK-DAG:            MipsComputeBaseMethodAddress
-  /// CHECK-DAG:            LoadString load_kind:BssEntry
+  // CHECK-START-MIPS: java.lang.String Main.$noinline$getNonBootImageString() pc_relative_fixups_mips (after)
+  // CHECK-DAG:            MipsComputeBaseMethodAddress
+  // CHECK-DAG:            LoadString load_kind:BssEntry
 
   public static String $noinline$getNonBootImageString() {
     // Prevent inlining to avoid the string comparison being optimized away.
