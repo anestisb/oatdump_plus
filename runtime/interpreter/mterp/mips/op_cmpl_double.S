@@ -20,10 +20,10 @@
     LOAD64_F(ft0, ft0f, rOBJ)
     LOAD64_F(ft1, ft1f, t0)
 #ifdef MIPS32REVGE6
-    cmp.ult.d ft2, ft0, ft1
+    cmp.lt.d  ft2, ft0, ft1
     li        rTEMP, -1
     bc1nez    ft2, .L${opcode}_finish
-    cmp.ult.d ft2, ft1, ft0
+    cmp.lt.d  ft2, ft1, ft0
     li        rTEMP, 1
     bc1nez    ft2, .L${opcode}_finish
     cmp.eq.d  ft2, ft0, ft1
