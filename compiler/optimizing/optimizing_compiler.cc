@@ -624,17 +624,14 @@ void OptimizingCompiler::RunArchOptimizations(InstructionSet instruction_set,
   UNUSED(codegen);  // To avoid compilation error when compiling for svelte
   OptimizingCompilerStats* stats = compilation_stats_.get();
   ArenaAllocator* arena = graph->GetArena();
-#ifdef ART_USE_VIXL_ARM_BACKEND
-  UNUSED(arena);
-  UNUSED(pass_observer);
-  UNUSED(stats);
-#endif
   switch (instruction_set) {
-#if defined(ART_ENABLE_CODEGEN_arm) && !defined(ART_USE_VIXL_ARM_BACKEND)
+#if defined(ART_ENABLE_CODEGEN_arm)
     case kThumb2:
     case kArm: {
+#ifndef ART_USE_VIXL_ARM_BACKEND
       arm::DexCacheArrayFixups* fixups =
           new (arena) arm::DexCacheArrayFixups(graph, codegen, stats);
+#endif
       arm::InstructionSimplifierArm* simplifier =
           new (arena) arm::InstructionSimplifierArm(graph, stats);
       SideEffectsAnalysis* side_effects = new (arena) SideEffectsAnalysis(graph);
@@ -643,7 +640,9 @@ void OptimizingCompiler::RunArchOptimizations(InstructionSet instruction_set,
         simplifier,
         side_effects,
         gvn,
+#ifndef ART_USE_VIXL_ARM_BACKEND
         fixups
+#endif
       };
       RunOptimizations(arm_optimizations, arraysize(arm_optimizations), pass_observer);
       break;

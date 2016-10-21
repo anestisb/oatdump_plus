@@ -4161,7 +4161,14 @@ void InstructionCodeGeneratorARMVIXL::VisitArrayGet(HArrayGet* instruction) {
         vixl32::Register temp = temps.Acquire();
 
         if (has_intermediate_address) {
-          TODO_VIXL32(FATAL);
+          // We do not need to compute the intermediate address from the array: the
+          // input instruction has done it already. See the comment in
+          // `TryExtractArrayAccessAddress()`.
+          if (kIsDebugBuild) {
+            HIntermediateAddress* tmp = array_instr->AsIntermediateAddress();
+            DCHECK_EQ(tmp->GetOffset()->AsIntConstant()->GetValueAsUint64(), data_offset);
+          }
+          temp = obj;
         } else {
           __ Add(temp, obj, data_offset);
         }
@@ -4206,7 +4213,14 @@ void InstructionCodeGeneratorARMVIXL::VisitArrayGet(HArrayGet* instruction) {
           vixl32::Register temp = temps.Acquire();
 
           if (has_intermediate_address) {
-            TODO_VIXL32(FATAL);
+            // We do not need to compute the intermediate address from the array: the
+            // input instruction has done it already. See the comment in
+            // `TryExtractArrayAccessAddress()`.
+            if (kIsDebugBuild) {
+              HIntermediateAddress* tmp = array_instr->AsIntermediateAddress();
+              DCHECK_EQ(tmp->GetOffset()->AsIntConstant()->GetValueAsUint64(), data_offset);
+            }
+            temp = obj;
           } else {
             __ Add(temp, obj, data_offset);
           }
@@ -4334,7 +4348,14 @@ void InstructionCodeGeneratorARMVIXL::VisitArraySet(HArraySet* instruction) {
         vixl32::Register temp = temps.Acquire();
 
         if (has_intermediate_address) {
-          TODO_VIXL32(FATAL);
+          // We do not need to compute the intermediate address from the array: the
+          // input instruction has done it already. See the comment in
+          // `TryExtractArrayAccessAddress()`.
+          if (kIsDebugBuild) {
+            HIntermediateAddress* tmp = array_instr->AsIntermediateAddress();
+            DCHECK(tmp->GetOffset()->AsIntConstant()->GetValueAsUint64() == data_offset);
+          }
+          temp = array;
         } else {
           __ Add(temp, array, data_offset);
         }
@@ -4550,6 +4571,32 @@ void InstructionCodeGeneratorARMVIXL::VisitArrayLength(HArrayLength* instruction
   // Mask out compression flag from String's array length.
   if (mirror::kUseStringCompression && instruction->IsStringLength()) {
     __ Lsr(out, out, 1u);
+  }
+}
+
+void LocationsBuilderARMVIXL::VisitIntermediateAddress(HIntermediateAddress* instruction) {
+  // The read barrier instrumentation does not support the HIntermediateAddress instruction yet.
+  DCHECK(!kEmitCompilerReadBarrier);
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
+
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RegisterOrConstant(instruction->GetOffset()));
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitIntermediateAddress(HIntermediateAddress* instruction) {
+  vixl32::Register out = OutputRegister(instruction);
+  vixl32::Register first = InputRegisterAt(instruction, 0);
+  Location second = instruction->GetLocations()->InAt(1);
+
+  // The read barrier instrumentation does not support the HIntermediateAddress instruction yet.
+  DCHECK(!kEmitCompilerReadBarrier);
+
+  if (second.IsRegister()) {
+    __ Add(out, first, RegisterFrom(second));
+  } else {
+    __ Add(out, first, second.GetConstant()->AsIntConstant()->GetValue());
   }
 }
 
@@ -5488,6 +5535,70 @@ void InstructionCodeGeneratorARMVIXL::VisitXor(HXor* instruction) {
   HandleBitwiseOperation(instruction);
 }
 
+void LocationsBuilderARMVIXL::VisitBitwiseNegatedRight(HBitwiseNegatedRight* instruction) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
+  DCHECK(instruction->GetResultType() == Primitive::kPrimInt
+         || instruction->GetResultType() == Primitive::kPrimLong);
+
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitBitwiseNegatedRight(HBitwiseNegatedRight* instruction) {
+  LocationSummary* locations = instruction->GetLocations();
+  Location first = locations->InAt(0);
+  Location second = locations->InAt(1);
+  Location out = locations->Out();
+
+  if (instruction->GetResultType() == Primitive::kPrimInt) {
+    vixl32::Register first_reg = RegisterFrom(first);
+    vixl32::Register second_reg = RegisterFrom(second);
+    vixl32::Register out_reg = RegisterFrom(out);
+
+    switch (instruction->GetOpKind()) {
+      case HInstruction::kAnd:
+        __ Bic(out_reg, first_reg, second_reg);
+        break;
+      case HInstruction::kOr:
+        __ Orn(out_reg, first_reg, second_reg);
+        break;
+      // There is no EON on arm.
+      case HInstruction::kXor:
+      default:
+        LOG(FATAL) << "Unexpected instruction " << instruction->DebugName();
+        UNREACHABLE();
+    }
+    return;
+
+  } else {
+    DCHECK_EQ(instruction->GetResultType(), Primitive::kPrimLong);
+    vixl32::Register first_low = LowRegisterFrom(first);
+    vixl32::Register first_high = HighRegisterFrom(first);
+    vixl32::Register second_low = LowRegisterFrom(second);
+    vixl32::Register second_high = HighRegisterFrom(second);
+    vixl32::Register out_low = LowRegisterFrom(out);
+    vixl32::Register out_high = HighRegisterFrom(out);
+
+    switch (instruction->GetOpKind()) {
+      case HInstruction::kAnd:
+        __ Bic(out_low, first_low, second_low);
+        __ Bic(out_high, first_high, second_high);
+        break;
+      case HInstruction::kOr:
+        __ Orn(out_low, first_low, second_low);
+        __ Orn(out_high, first_high, second_high);
+        break;
+      // There is no EON on arm.
+      case HInstruction::kXor:
+      default:
+        LOG(FATAL) << "Unexpected instruction " << instruction->DebugName();
+        UNREACHABLE();
+    }
+  }
+}
+
 // TODO(VIXL): Remove optimizations in the helper when they are implemented in vixl.
 void InstructionCodeGeneratorARMVIXL::GenerateAndConst(vixl32::Register out,
                                                        vixl32::Register first,
@@ -5853,6 +5964,32 @@ void CodeGeneratorARMVIXL::GenerateVirtualCall(HInvokeVirtual* invoke, Location 
   GetAssembler()->LoadFromOffset(kLoadWord, lr, temp, entry_point);
   // LR();
   __ Blx(lr);
+}
+
+void LocationsBuilderARMVIXL::VisitMultiplyAccumulate(HMultiplyAccumulate* instr) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instr, LocationSummary::kNoCall);
+  locations->SetInAt(HMultiplyAccumulate::kInputAccumulatorIndex,
+                     Location::RequiresRegister());
+  locations->SetInAt(HMultiplyAccumulate::kInputMulLeftIndex, Location::RequiresRegister());
+  locations->SetInAt(HMultiplyAccumulate::kInputMulRightIndex, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitMultiplyAccumulate(HMultiplyAccumulate* instr) {
+  vixl32::Register res = OutputRegister(instr);
+  vixl32::Register accumulator =
+      InputRegisterAt(instr, HMultiplyAccumulate::kInputAccumulatorIndex);
+  vixl32::Register mul_left =
+      InputRegisterAt(instr, HMultiplyAccumulate::kInputMulLeftIndex);
+  vixl32::Register mul_right =
+      InputRegisterAt(instr, HMultiplyAccumulate::kInputMulRightIndex);
+
+  if (instr->GetOpKind() == HInstruction::kAdd) {
+    __ Mla(res, mul_left, mul_right, accumulator);
+  } else {
+    __ Mls(res, mul_left, mul_right, accumulator);
+  }
 }
 
 void LocationsBuilderARMVIXL::VisitBoundType(HBoundType* instruction ATTRIBUTE_UNUSED) {
