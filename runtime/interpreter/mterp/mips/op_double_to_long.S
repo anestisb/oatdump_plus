@@ -5,14 +5,14 @@ d2l_doconv:
 #ifdef MIPS32REVGE6
     la        t0, .LDOUBLE_TO_LONG_max
     LOAD64_F(fa1, fa1f, t0)
-    cmp.ule.d ft2, fa1, fa0
+    cmp.le.d  ft2, fa1, fa0
     la        t0, .LDOUBLE_TO_LONG_ret_max
     LOAD64(rRESULT0, rRESULT1, t0)
     bc1nez    ft2, .L${opcode}_set_vreg
 
     la        t0, .LDOUBLE_TO_LONG_min
     LOAD64_F(fa1, fa1f, t0)
-    cmp.ule.d ft2, fa0, fa1
+    cmp.le.d  ft2, fa0, fa1
     la        t0, .LDOUBLE_TO_LONG_ret_min
     LOAD64(rRESULT0, rRESULT1, t0)
     bc1nez    ft2, .L${opcode}_set_vreg
