@@ -23,7 +23,6 @@
 
 #include "base/stringprintf.h"
 #include "base/value_object.h"
-#include "runtime.h"
 #include "thread.h"
 #include "utils.h"
 
@@ -59,8 +58,7 @@ static inline void CheckUnattachedThread(LockLevel level) NO_THREAD_SAFETY_ANALY
   // on a thread. Lock checking is disabled to avoid deadlock when checking shutdown lock.
   // TODO: tighten this check.
   if (kDebugLocking) {
-    Runtime* runtime = Runtime::Current();
-    CHECK(runtime == nullptr || !runtime->IsStarted() || runtime->IsShuttingDownLocked() ||
+    CHECK(!Locks::IsSafeToCallAbortRacy() ||
           // Used during thread creation to avoid races with runtime shutdown. Thread::Current not
           // yet established.
           level == kRuntimeShutdownLock ||

@@ -508,12 +508,21 @@ bool Runtime::ParseOptions(const RuntimeOptions& raw_options,
   return true;
 }
 
+// Callback to check whether it is safe to call Abort (e.g., to use a call to
+// LOG(FATAL)).  It is only safe to call Abort if the runtime has been created,
+// properly initialized, and has not shut down.
+static bool IsSafeToCallAbort() NO_THREAD_SAFETY_ANALYSIS {
+  Runtime* runtime = Runtime::Current();
+  return runtime != nullptr && runtime->IsStarted() && !runtime->IsShuttingDownLocked();
+}
+
 bool Runtime::Create(RuntimeArgumentMap&& runtime_options) {
   // TODO: acquire a static mutex on Runtime to avoid racing.
   if (Runtime::instance_ != nullptr) {
     return false;
   }
   instance_ = new Runtime;
+  Locks::SetClientCallback(IsSafeToCallAbort);
   if (!instance_->Init(std::move(runtime_options))) {
     // TODO: Currently deleting the instance will abort the runtime on destruction. Now This will
     // leak memory, instead. Fix the destructor. b/19100793.
