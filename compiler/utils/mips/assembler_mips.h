@@ -414,8 +414,16 @@ class MipsAssembler FINAL : public Assembler, public JNIMacroAssembler<PointerSi
   void MovfD(FRegister fd, FRegister fs, int cc = 0);  // R2
   void MovtS(FRegister fd, FRegister fs, int cc = 0);  // R2
   void MovtD(FRegister fd, FRegister fs, int cc = 0);  // R2
+  void MovzS(FRegister fd, FRegister fs, Register rt);  // R2
+  void MovzD(FRegister fd, FRegister fs, Register rt);  // R2
+  void MovnS(FRegister fd, FRegister fs, Register rt);  // R2
+  void MovnD(FRegister fd, FRegister fs, Register rt);  // R2
   void SelS(FRegister fd, FRegister fs, FRegister ft);  // R6
   void SelD(FRegister fd, FRegister fs, FRegister ft);  // R6
+  void SeleqzS(FRegister fd, FRegister fs, FRegister ft);  // R6
+  void SeleqzD(FRegister fd, FRegister fs, FRegister ft);  // R6
+  void SelnezS(FRegister fd, FRegister fs, FRegister ft);  // R6
+  void SelnezD(FRegister fd, FRegister fs, FRegister ft);  // R6
   void ClassS(FRegister fd, FRegister fs);  // R6
   void ClassD(FRegister fd, FRegister fs);  // R6
   void MinS(FRegister fd, FRegister fs, FRegister ft);  // R6
@@ -1257,6 +1265,7 @@ class MipsAssembler FINAL : public Assembler, public JNIMacroAssembler<PointerSi
   void DsFsmInstrRrrr(uint32_t instruction, Register in1_out, Register in2, Register in3);
   void DsFsmInstrFff(uint32_t instruction, FRegister out, FRegister in1, FRegister in2);
   void DsFsmInstrFfff(uint32_t instruction, FRegister in1_out, FRegister in2, FRegister in3);
+  void DsFsmInstrFffr(uint32_t instruction, FRegister in1_out, FRegister in2, Register in3);
   void DsFsmInstrRf(uint32_t instruction, Register out, FRegister in);
   void DsFsmInstrFr(uint32_t instruction, FRegister out, Register in);
   void DsFsmInstrFR(uint32_t instruction, FRegister in1, Register in2);

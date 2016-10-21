@@ -2941,6 +2941,104 @@ void InstructionCodeGeneratorMIPS::GenerateIntCompare(IfCondition cond,
   }
 }
 
+bool InstructionCodeGeneratorMIPS::MaterializeIntCompare(IfCondition cond,
+                                                         LocationSummary* input_locations,
+                                                         Register dst) {
+  Register lhs = input_locations->InAt(0).AsRegister<Register>();
+  Location rhs_location = input_locations->InAt(1);
+  Register rhs_reg = ZERO;
+  int64_t rhs_imm = 0;
+  bool use_imm = rhs_location.IsConstant();
+  if (use_imm) {
+    rhs_imm = CodeGenerator::GetInt32ValueOf(rhs_location.GetConstant());
+  } else {
+    rhs_reg = rhs_location.AsRegister<Register>();
+  }
+
+  switch (cond) {
+    case kCondEQ:
+    case kCondNE:
+      if (use_imm && IsInt<16>(-rhs_imm)) {
+        __ Addiu(dst, lhs, -rhs_imm);
+      } else if (use_imm && IsUint<16>(rhs_imm)) {
+        __ Xori(dst, lhs, rhs_imm);
+      } else {
+        if (use_imm) {
+          rhs_reg = TMP;
+          __ LoadConst32(rhs_reg, rhs_imm);
+        }
+        __ Xor(dst, lhs, rhs_reg);
+      }
+      return (cond == kCondEQ);
+
+    case kCondLT:
+    case kCondGE:
+      if (use_imm && IsInt<16>(rhs_imm)) {
+        __ Slti(dst, lhs, rhs_imm);
+      } else {
+        if (use_imm) {
+          rhs_reg = TMP;
+          __ LoadConst32(rhs_reg, rhs_imm);
+        }
+        __ Slt(dst, lhs, rhs_reg);
+      }
+      return (cond == kCondGE);
+
+    case kCondLE:
+    case kCondGT:
+      if (use_imm && IsInt<16>(rhs_imm + 1)) {
+        // Simulate lhs <= rhs via lhs < rhs + 1.
+        __ Slti(dst, lhs, rhs_imm + 1);
+        return (cond == kCondGT);
+      } else {
+        if (use_imm) {
+          rhs_reg = TMP;
+          __ LoadConst32(rhs_reg, rhs_imm);
+        }
+        __ Slt(dst, rhs_reg, lhs);
+        return (cond == kCondLE);
+      }
+
+    case kCondB:
+    case kCondAE:
+      if (use_imm && IsInt<16>(rhs_imm)) {
+        // Sltiu sign-extends its 16-bit immediate operand before
+        // the comparison and thus lets us compare directly with
+        // unsigned values in the ranges [0, 0x7fff] and
+        // [0xffff8000, 0xffffffff].
+        __ Sltiu(dst, lhs, rhs_imm);
+      } else {
+        if (use_imm) {
+          rhs_reg = TMP;
+          __ LoadConst32(rhs_reg, rhs_imm);
+        }
+        __ Sltu(dst, lhs, rhs_reg);
+      }
+      return (cond == kCondAE);
+
+    case kCondBE:
+    case kCondA:
+      if (use_imm && (rhs_imm != -1) && IsInt<16>(rhs_imm + 1)) {
+        // Simulate lhs <= rhs via lhs < rhs + 1.
+        // Note that this only works if rhs + 1 does not overflow
+        // to 0, hence the check above.
+        // Sltiu sign-extends its 16-bit immediate operand before
+        // the comparison and thus lets us compare directly with
+        // unsigned values in the ranges [0, 0x7fff] and
+        // [0xffff8000, 0xffffffff].
+        __ Sltiu(dst, lhs, rhs_imm + 1);
+        return (cond == kCondA);
+      } else {
+        if (use_imm) {
+          rhs_reg = TMP;
+          __ LoadConst32(rhs_reg, rhs_imm);
+        }
+        __ Sltu(dst, rhs_reg, lhs);
+        return (cond == kCondBE);
+      }
+  }
+}
+
 void InstructionCodeGeneratorMIPS::GenerateIntCompareAndBranch(IfCondition cond,
                                                                LocationSummary* locations,
                                                                MipsLabel* label) {
@@ -3555,6 +3653,190 @@ void InstructionCodeGeneratorMIPS::GenerateFpCompare(IfCondition cond,
   }
 }
 
+bool InstructionCodeGeneratorMIPS::MaterializeFpCompareR2(IfCondition cond,
+                                                          bool gt_bias,
+                                                          Primitive::Type type,
+                                                          LocationSummary* input_locations,
+                                                          int cc) {
+  FRegister lhs = input_locations->InAt(0).AsFpuRegister<FRegister>();
+  FRegister rhs = input_locations->InAt(1).AsFpuRegister<FRegister>();
+  CHECK(!codegen_->GetInstructionSetFeatures().IsR6());
+  if (type == Primitive::kPrimFloat) {
+    switch (cond) {
+      case kCondEQ:
+        __ CeqS(cc, lhs, rhs);
+        return false;
+      case kCondNE:
+        __ CeqS(cc, lhs, rhs);
+        return true;
+      case kCondLT:
+        if (gt_bias) {
+          __ ColtS(cc, lhs, rhs);
+        } else {
+          __ CultS(cc, lhs, rhs);
+        }
+        return false;
+      case kCondLE:
+        if (gt_bias) {
+          __ ColeS(cc, lhs, rhs);
+        } else {
+          __ CuleS(cc, lhs, rhs);
+        }
+        return false;
+      case kCondGT:
+        if (gt_bias) {
+          __ CultS(cc, rhs, lhs);
+        } else {
+          __ ColtS(cc, rhs, lhs);
+        }
+        return false;
+      case kCondGE:
+        if (gt_bias) {
+          __ CuleS(cc, rhs, lhs);
+        } else {
+          __ ColeS(cc, rhs, lhs);
+        }
+        return false;
+      default:
+        LOG(FATAL) << "Unexpected non-floating-point condition";
+        UNREACHABLE();
+    }
+  } else {
+    DCHECK_EQ(type, Primitive::kPrimDouble);
+    switch (cond) {
+      case kCondEQ:
+        __ CeqD(cc, lhs, rhs);
+        return false;
+      case kCondNE:
+        __ CeqD(cc, lhs, rhs);
+        return true;
+      case kCondLT:
+        if (gt_bias) {
+          __ ColtD(cc, lhs, rhs);
+        } else {
+          __ CultD(cc, lhs, rhs);
+        }
+        return false;
+      case kCondLE:
+        if (gt_bias) {
+          __ ColeD(cc, lhs, rhs);
+        } else {
+          __ CuleD(cc, lhs, rhs);
+        }
+        return false;
+      case kCondGT:
+        if (gt_bias) {
+          __ CultD(cc, rhs, lhs);
+        } else {
+          __ ColtD(cc, rhs, lhs);
+        }
+        return false;
+      case kCondGE:
+        if (gt_bias) {
+          __ CuleD(cc, rhs, lhs);
+        } else {
+          __ ColeD(cc, rhs, lhs);
+        }
+        return false;
+      default:
+        LOG(FATAL) << "Unexpected non-floating-point condition";
+        UNREACHABLE();
+    }
+  }
+}
+
+bool InstructionCodeGeneratorMIPS::MaterializeFpCompareR6(IfCondition cond,
+                                                          bool gt_bias,
+                                                          Primitive::Type type,
+                                                          LocationSummary* input_locations,
+                                                          FRegister dst) {
+  FRegister lhs = input_locations->InAt(0).AsFpuRegister<FRegister>();
+  FRegister rhs = input_locations->InAt(1).AsFpuRegister<FRegister>();
+  CHECK(codegen_->GetInstructionSetFeatures().IsR6());
+  if (type == Primitive::kPrimFloat) {
+    switch (cond) {
+      case kCondEQ:
+        __ CmpEqS(dst, lhs, rhs);
+        return false;
+      case kCondNE:
+        __ CmpEqS(dst, lhs, rhs);
+        return true;
+      case kCondLT:
+        if (gt_bias) {
+          __ CmpLtS(dst, lhs, rhs);
+        } else {
+          __ CmpUltS(dst, lhs, rhs);
+        }
+        return false;
+      case kCondLE:
+        if (gt_bias) {
+          __ CmpLeS(dst, lhs, rhs);
+        } else {
+          __ CmpUleS(dst, lhs, rhs);
+        }
+        return false;
+      case kCondGT:
+        if (gt_bias) {
+          __ CmpUltS(dst, rhs, lhs);
+        } else {
+          __ CmpLtS(dst, rhs, lhs);
+        }
+        return false;
+      case kCondGE:
+        if (gt_bias) {
+          __ CmpUleS(dst, rhs, lhs);
+        } else {
+          __ CmpLeS(dst, rhs, lhs);
+        }
+        return false;
+      default:
+        LOG(FATAL) << "Unexpected non-floating-point condition";
+        UNREACHABLE();
+    }
+  } else {
+    DCHECK_EQ(type, Primitive::kPrimDouble);
+    switch (cond) {
+      case kCondEQ:
+        __ CmpEqD(dst, lhs, rhs);
+        return false;
+      case kCondNE:
+        __ CmpEqD(dst, lhs, rhs);
+        return true;
+      case kCondLT:
+        if (gt_bias) {
+          __ CmpLtD(dst, lhs, rhs);
+        } else {
+          __ CmpUltD(dst, lhs, rhs);
+        }
+        return false;
+      case kCondLE:
+        if (gt_bias) {
+          __ CmpLeD(dst, lhs, rhs);
+        } else {
+          __ CmpUleD(dst, lhs, rhs);
+        }
+        return false;
+      case kCondGT:
+        if (gt_bias) {
+          __ CmpUltD(dst, rhs, lhs);
+        } else {
+          __ CmpLtD(dst, rhs, lhs);
+        }
+        return false;
+      case kCondGE:
+        if (gt_bias) {
+          __ CmpUleD(dst, rhs, lhs);
+        } else {
+          __ CmpLeD(dst, rhs, lhs);
+        }
+        return false;
+      default:
+        LOG(FATAL) << "Unexpected non-floating-point condition";
+        UNREACHABLE();
+    }
+  }
+}
+
 void InstructionCodeGeneratorMIPS::GenerateFpCompareAndBranch(IfCondition cond,
                                                               bool gt_bias,
                                                               Primitive::Type type,
@@ -3608,6 +3890,7 @@ void InstructionCodeGeneratorMIPS::GenerateFpCompareAndBranch(IfCondition cond,
           break;
         default:
           LOG(FATAL) << "Unexpected non-floating-point condition";
+          UNREACHABLE();
       }
     } else {
       switch (cond) {
@@ -3653,6 +3936,7 @@ void InstructionCodeGeneratorMIPS::GenerateFpCompareAndBranch(IfCondition cond,
           break;
         default:
           LOG(FATAL) << "Unexpected non-floating-point condition";
+          UNREACHABLE();
       }
     }
   } else {
@@ -3701,6 +3985,7 @@ void InstructionCodeGeneratorMIPS::GenerateFpCompareAndBranch(IfCondition cond,
           break;
         default:
           LOG(FATAL) << "Unexpected non-floating-point condition";
+          UNREACHABLE();
       }
     } else {
       switch (cond) {
@@ -3746,6 +4031,7 @@ void InstructionCodeGeneratorMIPS::GenerateFpCompareAndBranch(IfCondition cond,
           break;
         default:
           LOG(FATAL) << "Unexpected non-floating-point condition";
+          UNREACHABLE();
       }
     }
   }
@@ -3862,30 +4148,562 @@ void InstructionCodeGeneratorMIPS::VisitDeoptimize(HDeoptimize* deoptimize) {
                         /* false_target */ nullptr);
 }
 
+// This function returns true if a conditional move can be generated for HSelect.
+// Otherwise it returns false and HSelect must be implemented in terms of conditonal
+// branches and regular moves.
+//
+// If `locations_to_set` isn't nullptr, its inputs and outputs are set for HSelect.
+//
+// While determining feasibility of a conditional move and setting inputs/outputs
+// are two distinct tasks, this function does both because they share quite a bit
+// of common logic.
+static bool CanMoveConditionally(HSelect* select, bool is_r6, LocationSummary* locations_to_set) {
+  bool materialized = IsBooleanValueOrMaterializedCondition(select->GetCondition());
+  HInstruction* cond = select->InputAt(/* condition_input_index */ 2);
+  HCondition* condition = cond->AsCondition();
+
+  Primitive::Type cond_type = materialized ? Primitive::kPrimInt : condition->InputAt(0)->GetType();
+  Primitive::Type dst_type = select->GetType();
+
+  HConstant* cst_true_value = select->GetTrueValue()->AsConstant();
+  HConstant* cst_false_value = select->GetFalseValue()->AsConstant();
+  bool is_true_value_zero_constant =
+      (cst_true_value != nullptr && cst_true_value->IsZeroBitPattern());
+  bool is_false_value_zero_constant =
+      (cst_false_value != nullptr && cst_false_value->IsZeroBitPattern());
+
+  bool can_move_conditionally = false;
+  bool use_const_for_false_in = false;
+  bool use_const_for_true_in = false;
+
+  if (!cond->IsConstant()) {
+    switch (cond_type) {
+      default:
+        switch (dst_type) {
+          default:
+            // Moving int on int condition.
+            if (is_r6) {
+              if (is_true_value_zero_constant) {
+                // seleqz out_reg, false_reg, cond_reg
+                can_move_conditionally = true;
+                use_const_for_true_in = true;
+              } else if (is_false_value_zero_constant) {
+                // selnez out_reg, true_reg, cond_reg
+                can_move_conditionally = true;
+                use_const_for_false_in = true;
+              } else if (materialized) {
+                // Not materializing unmaterialized int conditions
+                // to keep the instruction count low.
+                // selnez AT, true_reg, cond_reg
+                // seleqz TMP, false_reg, cond_reg
+                // or out_reg, AT, TMP
+                can_move_conditionally = true;
+              }
+            } else {
+              // movn out_reg, true_reg/ZERO, cond_reg
+              can_move_conditionally = true;
+              use_const_for_true_in = is_true_value_zero_constant;
+            }
+            break;
+          case Primitive::kPrimLong:
+            // Moving long on int condition.
+            if (is_r6) {
+              if (is_true_value_zero_constant) {
+                // seleqz out_reg_lo, false_reg_lo, cond_reg
+                // seleqz out_reg_hi, false_reg_hi, cond_reg
+                can_move_conditionally = true;
+                use_const_for_true_in = true;
+              } else if (is_false_value_zero_constant) {
+                // selnez out_reg_lo, true_reg_lo, cond_reg
+                // selnez out_reg_hi, true_reg_hi, cond_reg
+                can_move_conditionally = true;
+                use_const_for_false_in = true;
+              }
+              // Other long conditional moves would generate 6+ instructions,
+              // which is too many.
+            } else {
+              // movn out_reg_lo, true_reg_lo/ZERO, cond_reg
+              // movn out_reg_hi, true_reg_hi/ZERO, cond_reg
+              can_move_conditionally = true;
+              use_const_for_true_in = is_true_value_zero_constant;
+            }
+            break;
+          case Primitive::kPrimFloat:
+          case Primitive::kPrimDouble:
+            // Moving float/double on int condition.
+            if (is_r6) {
+              if (materialized) {
+                // Not materializing unmaterialized int conditions
+                // to keep the instruction count low.
+                can_move_conditionally = true;
+                if (is_true_value_zero_constant) {
+                  // sltu TMP, ZERO, cond_reg
+                  // mtc1 TMP, temp_cond_reg
+                  // seleqz.fmt out_reg, false_reg, temp_cond_reg
+                  use_const_for_true_in = true;
+                } else if (is_false_value_zero_constant) {
+                  // sltu TMP, ZERO, cond_reg
+                  // mtc1 TMP, temp_cond_reg
+                  // selnez.fmt out_reg, true_reg, temp_cond_reg
+                  use_const_for_false_in = true;
+                } else {
+                  // sltu TMP, ZERO, cond_reg
+                  // mtc1 TMP, temp_cond_reg
+                  // sel.fmt temp_cond_reg, false_reg, true_reg
+                  // mov.fmt out_reg, temp_cond_reg
+                }
+              }
+            } else {
+              // movn.fmt out_reg, true_reg, cond_reg
+              can_move_conditionally = true;
+            }
+            break;
+        }
+        break;
+      case Primitive::kPrimLong:
+        // We don't materialize long comparison now
+        // and use conditional branches instead.
+        break;
+      case Primitive::kPrimFloat:
+      case Primitive::kPrimDouble:
+        switch (dst_type) {
+          default:
+            // Moving int on float/double condition.
+            if (is_r6) {
+              if (is_true_value_zero_constant) {
+                // mfc1 TMP, temp_cond_reg
+                // seleqz out_reg, false_reg, TMP
+                can_move_conditionally = true;
+                use_const_for_true_in = true;
+              } else if (is_false_value_zero_constant) {
+                // mfc1 TMP, temp_cond_reg
+                // selnez out_reg, true_reg, TMP
+                can_move_conditionally = true;
+                use_const_for_false_in = true;
+              } else {
+                // mfc1 TMP, temp_cond_reg
+                // selnez AT, true_reg, TMP
+                // seleqz TMP, false_reg, TMP
+                // or out_reg, AT, TMP
+                can_move_conditionally = true;
+              }
+            } else {
+              // movt out_reg, true_reg/ZERO, cc
+              can_move_conditionally = true;
+              use_const_for_true_in = is_true_value_zero_constant;
+            }
+            break;
+          case Primitive::kPrimLong:
+            // Moving long on float/double condition.
+            if (is_r6) {
+              if (is_true_value_zero_constant) {
+                // mfc1 TMP, temp_cond_reg
+                // seleqz out_reg_lo, false_reg_lo, TMP
+                // seleqz out_reg_hi, false_reg_hi, TMP
+                can_move_conditionally = true;
+                use_const_for_true_in = true;
+              } else if (is_false_value_zero_constant) {
+                // mfc1 TMP, temp_cond_reg
+                // selnez out_reg_lo, true_reg_lo, TMP
+                // selnez out_reg_hi, true_reg_hi, TMP
+                can_move_conditionally = true;
+                use_const_for_false_in = true;
+              }
+              // Other long conditional moves would generate 6+ instructions,
+              // which is too many.
+            } else {
+              // movt out_reg_lo, true_reg_lo/ZERO, cc
+              // movt out_reg_hi, true_reg_hi/ZERO, cc
+              can_move_conditionally = true;
+              use_const_for_true_in = is_true_value_zero_constant;
+            }
+            break;
+          case Primitive::kPrimFloat:
+          case Primitive::kPrimDouble:
+            // Moving float/double on float/double condition.
+            if (is_r6) {
+              can_move_conditionally = true;
+              if (is_true_value_zero_constant) {
+                // seleqz.fmt out_reg, false_reg, temp_cond_reg
+                use_const_for_true_in = true;
+              } else if (is_false_value_zero_constant) {
+                // selnez.fmt out_reg, true_reg, temp_cond_reg
+                use_const_for_false_in = true;
+              } else {
+                // sel.fmt temp_cond_reg, false_reg, true_reg
+                // mov.fmt out_reg, temp_cond_reg
+              }
+            } else {
+              // movt.fmt out_reg, true_reg, cc
+              can_move_conditionally = true;
+            }
+            break;
+        }
+        break;
+    }
+  }
+
+  if (can_move_conditionally) {
+    DCHECK(!use_const_for_false_in || !use_const_for_true_in);
+  } else {
+    DCHECK(!use_const_for_false_in);
+    DCHECK(!use_const_for_true_in);
+  }
+
+  if (locations_to_set != nullptr) {
+    if (use_const_for_false_in) {
+      locations_to_set->SetInAt(0, Location::ConstantLocation(cst_false_value));
+    } else {
+      locations_to_set->SetInAt(0,
+                                Primitive::IsFloatingPointType(dst_type)
+                                    ? Location::RequiresFpuRegister()
+                                    : Location::RequiresRegister());
+    }
+    if (use_const_for_true_in) {
+      locations_to_set->SetInAt(1, Location::ConstantLocation(cst_true_value));
+    } else {
+      locations_to_set->SetInAt(1,
+                                Primitive::IsFloatingPointType(dst_type)
+                                    ? Location::RequiresFpuRegister()
+                                    : Location::RequiresRegister());
+    }
+    if (materialized) {
+      locations_to_set->SetInAt(2, Location::RequiresRegister());
+    }
+    // On R6 we don't require the output to be the same as the
+    // first input for conditional moves unlike on R2.
+    bool is_out_same_as_first_in = !can_move_conditionally || !is_r6;
+    if (is_out_same_as_first_in) {
+      locations_to_set->SetOut(Location::SameAsFirstInput());
+    } else {
+      locations_to_set->SetOut(Primitive::IsFloatingPointType(dst_type)
+                                   ? Location::RequiresFpuRegister()
+                                   : Location::RequiresRegister());
+    }
+  }
+
+  return can_move_conditionally;
+}
+
+void InstructionCodeGeneratorMIPS::GenConditionalMoveR2(HSelect* select) {
+  LocationSummary* locations = select->GetLocations();
+  Location dst = locations->Out();
+  Location src = locations->InAt(1);
+  Register src_reg = ZERO;
+  Register src_reg_high = ZERO;
+  HInstruction* cond = select->InputAt(/* condition_input_index */ 2);
+  Register cond_reg = TMP;
+  int cond_cc = 0;
+  Primitive::Type cond_type = Primitive::kPrimInt;
+  bool cond_inverted = false;
+  Primitive::Type dst_type = select->GetType();
+
+  if (IsBooleanValueOrMaterializedCondition(cond)) {
+    cond_reg = locations->InAt(/* condition_input_index */ 2).AsRegister<Register>();
+  } else {
+    HCondition* condition = cond->AsCondition();
+    LocationSummary* cond_locations = cond->GetLocations();
+    IfCondition if_cond = condition->GetCondition();
+    cond_type = condition->InputAt(0)->GetType();
+    switch (cond_type) {
+      default:
+        DCHECK_NE(cond_type, Primitive::kPrimLong);
+        cond_inverted = MaterializeIntCompare(if_cond, cond_locations, cond_reg);
+        break;
+      case Primitive::kPrimFloat:
+      case Primitive::kPrimDouble:
+        cond_inverted = MaterializeFpCompareR2(if_cond,
+                                               condition->IsGtBias(),
+                                               cond_type,
+                                               cond_locations,
+                                               cond_cc);
+        break;
+    }
+  }
+
+  DCHECK(dst.Equals(locations->InAt(0)));
+  if (src.IsRegister()) {
+    src_reg = src.AsRegister<Register>();
+  } else if (src.IsRegisterPair()) {
+    src_reg = src.AsRegisterPairLow<Register>();
+    src_reg_high = src.AsRegisterPairHigh<Register>();
+  } else if (src.IsConstant()) {
+    DCHECK(src.GetConstant()->IsZeroBitPattern());
+  }
+
+  switch (cond_type) {
+    default:
+      switch (dst_type) {
+        default:
+          if (cond_inverted) {
+            __ Movz(dst.AsRegister<Register>(), src_reg, cond_reg);
+          } else {
+            __ Movn(dst.AsRegister<Register>(), src_reg, cond_reg);
+          }
+          break;
+        case Primitive::kPrimLong:
+          if (cond_inverted) {
+            __ Movz(dst.AsRegisterPairLow<Register>(), src_reg, cond_reg);
+            __ Movz(dst.AsRegisterPairHigh<Register>(), src_reg_high, cond_reg);
+          } else {
+            __ Movn(dst.AsRegisterPairLow<Register>(), src_reg, cond_reg);
+            __ Movn(dst.AsRegisterPairHigh<Register>(), src_reg_high, cond_reg);
+          }
+          break;
+        case Primitive::kPrimFloat:
+          if (cond_inverted) {
+            __ MovzS(dst.AsFpuRegister<FRegister>(), src.AsFpuRegister<FRegister>(), cond_reg);
+          } else {
+            __ MovnS(dst.AsFpuRegister<FRegister>(), src.AsFpuRegister<FRegister>(), cond_reg);
+          }
+          break;
+        case Primitive::kPrimDouble:
+          if (cond_inverted) {
+            __ MovzD(dst.AsFpuRegister<FRegister>(), src.AsFpuRegister<FRegister>(), cond_reg);
+          } else {
+            __ MovnD(dst.AsFpuRegister<FRegister>(), src.AsFpuRegister<FRegister>(), cond_reg);
+          }
+          break;
+      }
+      break;
+    case Primitive::kPrimLong:
+      LOG(FATAL) << "Unreachable";
+      UNREACHABLE();
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble:
+      switch (dst_type) {
+        default:
+          if (cond_inverted) {
+            __ Movf(dst.AsRegister<Register>(), src_reg, cond_cc);
+          } else {
+            __ Movt(dst.AsRegister<Register>(), src_reg, cond_cc);
+          }
+          break;
+        case Primitive::kPrimLong:
+          if (cond_inverted) {
+            __ Movf(dst.AsRegisterPairLow<Register>(), src_reg, cond_cc);
+            __ Movf(dst.AsRegisterPairHigh<Register>(), src_reg_high, cond_cc);
+          } else {
+            __ Movt(dst.AsRegisterPairLow<Register>(), src_reg, cond_cc);
+            __ Movt(dst.AsRegisterPairHigh<Register>(), src_reg_high, cond_cc);
+          }
+          break;
+        case Primitive::kPrimFloat:
+          if (cond_inverted) {
+            __ MovfS(dst.AsFpuRegister<FRegister>(), src.AsFpuRegister<FRegister>(), cond_cc);
+          } else {
+            __ MovtS(dst.AsFpuRegister<FRegister>(), src.AsFpuRegister<FRegister>(), cond_cc);
+          }
+          break;
+        case Primitive::kPrimDouble:
+          if (cond_inverted) {
+            __ MovfD(dst.AsFpuRegister<FRegister>(), src.AsFpuRegister<FRegister>(), cond_cc);
+          } else {
+            __ MovtD(dst.AsFpuRegister<FRegister>(), src.AsFpuRegister<FRegister>(), cond_cc);
+          }
+          break;
+      }
+      break;
+  }
+}
+
+void InstructionCodeGeneratorMIPS::GenConditionalMoveR6(HSelect* select) {
+  LocationSummary* locations = select->GetLocations();
+  Location dst = locations->Out();
+  Location false_src = locations->InAt(0);
+  Location true_src = locations->InAt(1);
+  HInstruction* cond = select->InputAt(/* condition_input_index */ 2);
+  Register cond_reg = TMP;
+  FRegister fcond_reg = FTMP;
+  Primitive::Type cond_type = Primitive::kPrimInt;
+  bool cond_inverted = false;
+  Primitive::Type dst_type = select->GetType();
+
+  if (IsBooleanValueOrMaterializedCondition(cond)) {
+    cond_reg = locations->InAt(/* condition_input_index */ 2).AsRegister<Register>();
+  } else {
+    HCondition* condition = cond->AsCondition();
+    LocationSummary* cond_locations = cond->GetLocations();
+    IfCondition if_cond = condition->GetCondition();
+    cond_type = condition->InputAt(0)->GetType();
+    switch (cond_type) {
+      default:
+        DCHECK_NE(cond_type, Primitive::kPrimLong);
+        cond_inverted = MaterializeIntCompare(if_cond, cond_locations, cond_reg);
+        break;
+      case Primitive::kPrimFloat:
+      case Primitive::kPrimDouble:
+        cond_inverted = MaterializeFpCompareR6(if_cond,
+                                               condition->IsGtBias(),
+                                               cond_type,
+                                               cond_locations,
+                                               fcond_reg);
+        break;
+    }
+  }
+
+  if (true_src.IsConstant()) {
+    DCHECK(true_src.GetConstant()->IsZeroBitPattern());
+  }
+  if (false_src.IsConstant()) {
+    DCHECK(false_src.GetConstant()->IsZeroBitPattern());
+  }
+
+  switch (dst_type) {
+    default:
+      if (Primitive::IsFloatingPointType(cond_type)) {
+        __ Mfc1(cond_reg, fcond_reg);
+      }
+      if (true_src.IsConstant()) {
+        if (cond_inverted) {
+          __ Selnez(dst.AsRegister<Register>(), false_src.AsRegister<Register>(), cond_reg);
+        } else {
+          __ Seleqz(dst.AsRegister<Register>(), false_src.AsRegister<Register>(), cond_reg);
+        }
+      } else if (false_src.IsConstant()) {
+        if (cond_inverted) {
+          __ Seleqz(dst.AsRegister<Register>(), true_src.AsRegister<Register>(), cond_reg);
+        } else {
+          __ Selnez(dst.AsRegister<Register>(), true_src.AsRegister<Register>(), cond_reg);
+        }
+      } else {
+        DCHECK_NE(cond_reg, AT);
+        if (cond_inverted) {
+          __ Seleqz(AT, true_src.AsRegister<Register>(), cond_reg);
+          __ Selnez(TMP, false_src.AsRegister<Register>(), cond_reg);
+        } else {
+          __ Selnez(AT, true_src.AsRegister<Register>(), cond_reg);
+          __ Seleqz(TMP, false_src.AsRegister<Register>(), cond_reg);
+        }
+        __ Or(dst.AsRegister<Register>(), AT, TMP);
+      }
+      break;
+    case Primitive::kPrimLong: {
+      if (Primitive::IsFloatingPointType(cond_type)) {
+        __ Mfc1(cond_reg, fcond_reg);
+      }
+      Register dst_lo = dst.AsRegisterPairLow<Register>();
+      Register dst_hi = dst.AsRegisterPairHigh<Register>();
+      if (true_src.IsConstant()) {
+        Register src_lo = false_src.AsRegisterPairLow<Register>();
+        Register src_hi = false_src.AsRegisterPairHigh<Register>();
+        if (cond_inverted) {
+          __ Selnez(dst_lo, src_lo, cond_reg);
+          __ Selnez(dst_hi, src_hi, cond_reg);
+        } else {
+          __ Seleqz(dst_lo, src_lo, cond_reg);
+          __ Seleqz(dst_hi, src_hi, cond_reg);
+        }
+      } else {
+        DCHECK(false_src.IsConstant());
+        Register src_lo = true_src.AsRegisterPairLow<Register>();
+        Register src_hi = true_src.AsRegisterPairHigh<Register>();
+        if (cond_inverted) {
+          __ Seleqz(dst_lo, src_lo, cond_reg);
+          __ Seleqz(dst_hi, src_hi, cond_reg);
+        } else {
+          __ Selnez(dst_lo, src_lo, cond_reg);
+          __ Selnez(dst_hi, src_hi, cond_reg);
+        }
+      }
+      break;
+    }
+    case Primitive::kPrimFloat: {
+      if (!Primitive::IsFloatingPointType(cond_type)) {
+        // sel*.fmt tests bit 0 of the condition register, account for that.
+        __ Sltu(TMP, ZERO, cond_reg);
+        __ Mtc1(TMP, fcond_reg);
+      }
+      FRegister dst_reg = dst.AsFpuRegister<FRegister>();
+      if (true_src.IsConstant()) {
+        FRegister src_reg = false_src.AsFpuRegister<FRegister>();
+        if (cond_inverted) {
+          __ SelnezS(dst_reg, src_reg, fcond_reg);
+        } else {
+          __ SeleqzS(dst_reg, src_reg, fcond_reg);
+        }
+      } else if (false_src.IsConstant()) {
+        FRegister src_reg = true_src.AsFpuRegister<FRegister>();
+        if (cond_inverted) {
+          __ SeleqzS(dst_reg, src_reg, fcond_reg);
+        } else {
+          __ SelnezS(dst_reg, src_reg, fcond_reg);
+        }
+      } else {
+        if (cond_inverted) {
+          __ SelS(fcond_reg,
+                  true_src.AsFpuRegister<FRegister>(),
+                  false_src.AsFpuRegister<FRegister>());
+        } else {
+          __ SelS(fcond_reg,
+                  false_src.AsFpuRegister<FRegister>(),
+                  true_src.AsFpuRegister<FRegister>());
+        }
+        __ MovS(dst_reg, fcond_reg);
+      }
+      break;
+    }
+    case Primitive::kPrimDouble: {
+      if (!Primitive::IsFloatingPointType(cond_type)) {
+        // sel*.fmt tests bit 0 of the condition register, account for that.
+        __ Sltu(TMP, ZERO, cond_reg);
+        __ Mtc1(TMP, fcond_reg);
+      }
+      FRegister dst_reg = dst.AsFpuRegister<FRegister>();
+      if (true_src.IsConstant()) {
+        FRegister src_reg = false_src.AsFpuRegister<FRegister>();
+        if (cond_inverted) {
+          __ SelnezD(dst_reg, src_reg, fcond_reg);
+        } else {
+          __ SeleqzD(dst_reg, src_reg, fcond_reg);
+        }
+      } else if (false_src.IsConstant()) {
+        FRegister src_reg = true_src.AsFpuRegister<FRegister>();
+        if (cond_inverted) {
+          __ SeleqzD(dst_reg, src_reg, fcond_reg);
+        } else {
+          __ SelnezD(dst_reg, src_reg, fcond_reg);
+        }
+      } else {
+        if (cond_inverted) {
+          __ SelD(fcond_reg,
+                  true_src.AsFpuRegister<FRegister>(),
+                  false_src.AsFpuRegister<FRegister>());
+        } else {
+          __ SelD(fcond_reg,
+                  false_src.AsFpuRegister<FRegister>(),
+                  true_src.AsFpuRegister<FRegister>());
+        }
+        __ MovD(dst_reg, fcond_reg);
+      }
+      break;
+    }
+  }
+}
+
 void LocationsBuilderMIPS::VisitSelect(HSelect* select) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(select);
-  if (Primitive::IsFloatingPointType(select->GetType())) {
-    locations->SetInAt(0, Location::RequiresFpuRegister());
-    locations->SetInAt(1, Location::RequiresFpuRegister());
-  } else {
-    locations->SetInAt(0, Location::RequiresRegister());
-    locations->SetInAt(1, Location::RequiresRegister());
-  }
-  if (IsBooleanValueOrMaterializedCondition(select->GetCondition())) {
-    locations->SetInAt(2, Location::RequiresRegister());
-  }
-  locations->SetOut(Location::SameAsFirstInput());
+  CanMoveConditionally(select, codegen_->GetInstructionSetFeatures().IsR6(), locations);
 }
 
 void InstructionCodeGeneratorMIPS::VisitSelect(HSelect* select) {
-  LocationSummary* locations = select->GetLocations();
-  MipsLabel false_target;
-  GenerateTestAndBranch(select,
-                        /* condition_input_index */ 2,
-                        /* true_target */ nullptr,
-                        &false_target);
-  codegen_->MoveLocation(locations->Out(), locations->InAt(1), select->GetType());
-  __ Bind(&false_target);
+  bool is_r6 = codegen_->GetInstructionSetFeatures().IsR6();
+  if (CanMoveConditionally(select, is_r6, /* locations_to_set */ nullptr)) {
+    if (is_r6) {
+      GenConditionalMoveR6(select);
+    } else {
+      GenConditionalMoveR2(select);
+    }
+  } else {
+    LocationSummary* locations = select->GetLocations();
+    MipsLabel false_target;
+    GenerateTestAndBranch(select,
+                          /* condition_input_index */ 2,
+                          /* true_target */ nullptr,
+                          &false_target);
+    codegen_->MoveLocation(locations->Out(), locations->InAt(1), select->GetType());
+    __ Bind(&false_target);
+  }
 }
 
 void LocationsBuilderMIPS::VisitNativeDebugInfo(HNativeDebugInfo* info) {

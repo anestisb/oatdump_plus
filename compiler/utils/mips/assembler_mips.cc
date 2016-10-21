@@ -192,6 +192,13 @@ void MipsAssembler::DsFsmInstrFfff(uint32_t instruction,
   DsFsmInstr(instruction, 0, 0, (1u << in1_out), (1u << in1_out) | (1u << in2) | (1u << in3), 0, 0);
 }
 
+void MipsAssembler::DsFsmInstrFffr(uint32_t instruction,
+                                   FRegister in1_out,
+                                   FRegister in2,
+                                   Register in3) {
+  DsFsmInstr(instruction, 0, (1u << in3), (1u << in1_out), (1u << in1_out) | (1u << in2), 0, 0);
+}
+
 void MipsAssembler::DsFsmInstrRf(uint32_t instruction, Register out, FRegister in) {
   DsFsmInstr(instruction, (1u << out), 0, 0, (1u << in), 0, 0);
 }
@@ -1446,6 +1453,26 @@ void MipsAssembler::MovtD(FRegister fd, FRegister fs, int cc) {
                  cc);
 }
 
+void MipsAssembler::MovzS(FRegister fd, FRegister fs, Register rt) {
+  CHECK(!IsR6());
+  DsFsmInstrFffr(EmitFR(0x11, 0x10, static_cast<FRegister>(rt), fs, fd, 0x12), fd, fs, rt);
+}
+
+void MipsAssembler::MovzD(FRegister fd, FRegister fs, Register rt) {
+  CHECK(!IsR6());
+  DsFsmInstrFffr(EmitFR(0x11, 0x11, static_cast<FRegister>(rt), fs, fd, 0x12), fd, fs, rt);
+}
+
+void MipsAssembler::MovnS(FRegister fd, FRegister fs, Register rt) {
+  CHECK(!IsR6());
+  DsFsmInstrFffr(EmitFR(0x11, 0x10, static_cast<FRegister>(rt), fs, fd, 0x13), fd, fs, rt);
+}
+
+void MipsAssembler::MovnD(FRegister fd, FRegister fs, Register rt) {
+  CHECK(!IsR6());
+  DsFsmInstrFffr(EmitFR(0x11, 0x11, static_cast<FRegister>(rt), fs, fd, 0x13), fd, fs, rt);
+}
+
 void MipsAssembler::SelS(FRegister fd, FRegister fs, FRegister ft) {
   CHECK(IsR6());
   DsFsmInstrFfff(EmitFR(0x11, 0x10, ft, fs, fd, 0x10), fd, fs, ft);
@@ -1454,6 +1481,26 @@ void MipsAssembler::SelS(FRegister fd, FRegister fs, FRegister ft) {
 void MipsAssembler::SelD(FRegister fd, FRegister fs, FRegister ft) {
   CHECK(IsR6());
   DsFsmInstrFfff(EmitFR(0x11, 0x11, ft, fs, fd, 0x10), fd, fs, ft);
+}
+
+void MipsAssembler::SeleqzS(FRegister fd, FRegister fs, FRegister ft) {
+  CHECK(IsR6());
+  DsFsmInstrFff(EmitFR(0x11, 0x10, ft, fs, fd, 0x14), fd, fs, ft);
+}
+
+void MipsAssembler::SeleqzD(FRegister fd, FRegister fs, FRegister ft) {
+  CHECK(IsR6());
+  DsFsmInstrFff(EmitFR(0x11, 0x11, ft, fs, fd, 0x14), fd, fs, ft);
+}
+
+void MipsAssembler::SelnezS(FRegister fd, FRegister fs, FRegister ft) {
+  CHECK(IsR6());
+  DsFsmInstrFff(EmitFR(0x11, 0x10, ft, fs, fd, 0x17), fd, fs, ft);
+}
+
+void MipsAssembler::SelnezD(FRegister fd, FRegister fs, FRegister ft) {
+  CHECK(IsR6());
+  DsFsmInstrFff(EmitFR(0x11, 0x11, ft, fs, fd, 0x17), fd, fs, ft);
 }
 
 void MipsAssembler::ClassS(FRegister fd, FRegister fs) {
