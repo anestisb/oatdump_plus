@@ -667,6 +667,22 @@ TEST_F(AssemblerMIPSTest, MovtD) {
             "MovtD");
 }
 
+TEST_F(AssemblerMIPSTest, MovzS) {
+  DriverStr(RepeatFFR(&mips::MipsAssembler::MovzS, "movz.s ${reg1}, ${reg2}, ${reg3}"), "MovzS");
+}
+
+TEST_F(AssemblerMIPSTest, MovzD) {
+  DriverStr(RepeatFFR(&mips::MipsAssembler::MovzD, "movz.d ${reg1}, ${reg2}, ${reg3}"), "MovzD");
+}
+
+TEST_F(AssemblerMIPSTest, MovnS) {
+  DriverStr(RepeatFFR(&mips::MipsAssembler::MovnS, "movn.s ${reg1}, ${reg2}, ${reg3}"), "MovnS");
+}
+
+TEST_F(AssemblerMIPSTest, MovnD) {
+  DriverStr(RepeatFFR(&mips::MipsAssembler::MovnD, "movn.d ${reg1}, ${reg2}, ${reg3}"), "MovnD");
+}
+
 TEST_F(AssemblerMIPSTest, CvtSW) {
   DriverStr(RepeatFF(&mips::MipsAssembler::Cvtsw, "cvt.s.w ${reg1}, ${reg2}"), "CvtSW");
 }

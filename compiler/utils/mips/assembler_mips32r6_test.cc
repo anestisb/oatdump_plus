@@ -349,6 +349,26 @@ TEST_F(AssemblerMIPS32r6Test, SelD) {
   DriverStr(RepeatFFF(&mips::MipsAssembler::SelD, "sel.d ${reg1}, ${reg2}, ${reg3}"), "sel.d");
 }
 
+TEST_F(AssemblerMIPS32r6Test, SeleqzS) {
+  DriverStr(RepeatFFF(&mips::MipsAssembler::SeleqzS, "seleqz.s ${reg1}, ${reg2}, ${reg3}"),
+            "seleqz.s");
+}
+
+TEST_F(AssemblerMIPS32r6Test, SeleqzD) {
+  DriverStr(RepeatFFF(&mips::MipsAssembler::SeleqzD, "seleqz.d ${reg1}, ${reg2}, ${reg3}"),
+            "seleqz.d");
+}
+
+TEST_F(AssemblerMIPS32r6Test, SelnezS) {
+  DriverStr(RepeatFFF(&mips::MipsAssembler::SelnezS, "selnez.s ${reg1}, ${reg2}, ${reg3}"),
+            "selnez.s");
+}
+
+TEST_F(AssemblerMIPS32r6Test, SelnezD) {
+  DriverStr(RepeatFFF(&mips::MipsAssembler::SelnezD, "selnez.d ${reg1}, ${reg2}, ${reg3}"),
+            "selnez.d");
+}
+
 TEST_F(AssemblerMIPS32r6Test, ClassS) {
   DriverStr(RepeatFF(&mips::MipsAssembler::ClassS, "class.s ${reg1}, ${reg2}"), "class.s");
 }

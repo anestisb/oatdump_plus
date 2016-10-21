@@ -247,6 +247,12 @@ class InstructionCodeGeneratorMIPS : public InstructionCodeGenerator {
                                Register obj,
                                uint32_t offset);
   void GenerateIntCompare(IfCondition cond, LocationSummary* locations);
+  // When the function returns `false` it means that the condition holds if `dst` is non-zero
+  // and doesn't hold if `dst` is zero. If it returns `true`, the roles of zero and non-zero
+  // `dst` are exchanged.
+  bool MaterializeIntCompare(IfCondition cond,
+                             LocationSummary* input_locations,
+                             Register dst);
   void GenerateIntCompareAndBranch(IfCondition cond,
                                    LocationSummary* locations,
                                    MipsLabel* label);
@@ -257,6 +263,22 @@ class InstructionCodeGeneratorMIPS : public InstructionCodeGenerator {
                          bool gt_bias,
                          Primitive::Type type,
                          LocationSummary* locations);
+  // When the function returns `false` it means that the condition holds if the condition
+  // code flag `cc` is non-zero and doesn't hold if `cc` is zero. If it returns `true`,
+  // the roles of zero and non-zero values of the `cc` flag are exchanged.
+  bool MaterializeFpCompareR2(IfCondition cond,
+                              bool gt_bias,
+                              Primitive::Type type,
+                              LocationSummary* input_locations,
+                              int cc);
+  // When the function returns `false` it means that the condition holds if `dst` is non-zero
+  // and doesn't hold if `dst` is zero. If it returns `true`, the roles of zero and non-zero
+  // `dst` are exchanged.
+  bool MaterializeFpCompareR6(IfCondition cond,
+                              bool gt_bias,
+                              Primitive::Type type,
+                              LocationSummary* input_locations,
+                              FRegister dst);
   void GenerateFpCompareAndBranch(IfCondition cond,
                                   bool gt_bias,
                                   Primitive::Type type,
@@ -283,6 +305,8 @@ class InstructionCodeGeneratorMIPS : public InstructionCodeGenerator {
                                  uint32_t num_entries,
                                  HBasicBlock* switch_block,
                                  HBasicBlock* default_block);
+  void GenConditionalMoveR2(HSelect* select);
+  void GenConditionalMoveR6(HSelect* select);
 
   MipsAssembler* const assembler_;
   CodeGeneratorMIPS* const codegen_;
