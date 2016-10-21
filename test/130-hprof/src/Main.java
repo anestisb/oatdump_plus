@@ -166,7 +166,7 @@ public class Main {
         }
         Allocator allocator;
         public void run() {
-            for (int i = 0; i < 10; ++i) {
+            for (int i = 0; i < 5; ++i) {
                 Main.sleep(1000L);
                 createDumpAndConv();
             }
