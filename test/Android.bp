@@ -178,6 +178,7 @@ art_cc_library {
     shared_libs: [
         "libartd",
         "libartd-compiler",
+        "libbase",
     ],
     target: {
         android: {
