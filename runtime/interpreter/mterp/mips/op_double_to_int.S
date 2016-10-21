@@ -12,13 +12,13 @@ d2i_doconv:
 #ifdef MIPS32REVGE6
     la        t0, .LDOUBLE_TO_INT_max
     LOAD64_F(fa1, fa1f, t0)
-    cmp.ule.d ft2, fa1, fa0
+    cmp.le.d  ft2, fa1, fa0
     l.s       fv0, .LDOUBLE_TO_INT_maxret
     bc1nez    ft2, .L${opcode}_set_vreg_f
 
     la        t0, .LDOUBLE_TO_INT_min
     LOAD64_F(fa1, fa1f, t0)
-    cmp.ule.d ft2, fa0, fa1
+    cmp.le.d  ft2, fa0, fa1
     l.s       fv0, .LDOUBLE_TO_INT_minret
     bc1nez    ft2, .L${opcode}_set_vreg_f
 
