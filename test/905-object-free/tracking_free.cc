@@ -32,8 +32,10 @@
 namespace art {
 namespace Test905ObjectFree {
 
+static std::vector<jlong> collected_tags;
+
 static void JNICALL ObjectFree(jvmtiEnv* ti_env ATTRIBUTE_UNUSED, jlong tag) {
-  printf("ObjectFree tag=%zu\n", static_cast<size_t>(tag));
+  collected_tags.push_back(tag);
 }
 
 extern "C" JNIEXPORT void JNICALL Java_Main_setupObjectFreeCallback(
@@ -62,6 +64,19 @@ extern "C" JNIEXPORT void JNICALL Java_Main_enableFreeTracking(JNIEnv* env ATTRI
     jvmti_env->GetErrorName(ret, &err);
     printf("Error enabling/disabling object-free callbacks: %s\n", err);
   }
+}
+
+extern "C" JNIEXPORT jlongArray JNICALL Java_Main_getCollectedTags(JNIEnv* env,
+                                                                   jclass klass ATTRIBUTE_UNUSED) {
+  jlongArray ret = env->NewLongArray(collected_tags.size());
+  if (ret == nullptr) {
+    return ret;
+  }
+
+  env->SetLongArrayRegion(ret, 0, collected_tags.size(), collected_tags.data());
+  collected_tags.clear();
+
+  return ret;
 }
 
 // Don't do anything

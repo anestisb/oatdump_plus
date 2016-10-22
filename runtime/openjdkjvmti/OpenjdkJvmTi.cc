@@ -312,10 +312,7 @@ class JvmtiFunctions {
 
     art::ScopedObjectAccess soa(jni_env);
     art::ObjPtr<art::mirror::Object> obj = soa.Decode<art::mirror::Object>(object);
-    gObjectTagTable.Remove(obj.Ptr(), /* tag* */ nullptr);
-    if (tag != 0) {
-      gObjectTagTable.Add(obj.Ptr(), tag);
-    }
+    gObjectTagTable.Set(obj.Ptr(), tag);
 
     return ERR(NONE);
   }

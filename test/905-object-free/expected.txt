@@ -1,10 +1,12 @@
-ObjectFree tag=1
+[1]
 ---
-ObjectFree tag=10
-ObjectFree tag=100
-ObjectFree tag=1000
+[10, 100, 1000]
 ---
+[]
 ---
+[]
 ---
+[]
 ---
+[]
 ---

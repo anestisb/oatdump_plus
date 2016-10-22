@@ -15,6 +15,7 @@
  */
 
 import java.util.ArrayList;
+import java.util.Arrays;
 
 public class Main {
   public static void main(String[] args) throws Exception {
@@ -42,6 +43,7 @@ public class Main {
 
     Runtime.getRuntime().gc();
 
+    getAndPrintTags();
     System.out.println("---");
 
     // Note: the reporting will not depend on the heap layout (which could be unstable). Walking
@@ -53,10 +55,12 @@ public class Main {
 
     Runtime.getRuntime().gc();
 
+    getAndPrintTags();
     System.out.println("---");
 
     Runtime.getRuntime().gc();
 
+    getAndPrintTags();
     System.out.println("---");
   }
 
@@ -66,7 +70,14 @@ public class Main {
     setTag(obj, tag);
   }
 
+  private static void getAndPrintTags() {
+    long[] freedTags = getCollectedTags();
+    Arrays.sort(freedTags);
+    System.out.println(Arrays.toString(freedTags));
+  }
+
   private static native void setupObjectFreeCallback();
   private static native void enableFreeTracking(boolean enable);
   private static native void setTag(Object o, long tag);
+  private static native long[] getCollectedTags();
 }
