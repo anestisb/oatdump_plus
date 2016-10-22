@@ -17,9 +17,12 @@
 #ifndef ART_RUNTIME_OPENJDKJVMTI_OBJECT_TAGGING_H_
 #define ART_RUNTIME_OPENJDKJVMTI_OBJECT_TAGGING_H_
 
+#include <unordered_map>
+
 #include "base/mutex.h"
 #include "gc/system_weak.h"
 #include "gc_root-inl.h"
+#include "globals.h"
 #include "mirror/object.h"
 #include "thread-inl.h"
 
@@ -53,14 +56,7 @@ class ObjectTagTable : public art::gc::SystemWeakHolder {
     art::MutexLock mu(self, allow_disallow_lock_);
     Wait(self);
 
-    for (const auto& pair : tagged_objects_) {
-      if (pair.first.Read(nullptr) == obj) {
-        *result = pair.second;
-        return true;
-      }
-    }
-
-    return false;
+    return GetTagLocked(self, obj, result);
   }
 
   void Sweep(art::IsMarkedVisitor* visitor)
@@ -68,16 +64,80 @@ class ObjectTagTable : public art::gc::SystemWeakHolder {
       REQUIRES(!allow_disallow_lock_);
 
  private:
-  using Entry = std::pair<art::GcRoot<art::mirror::Object>, jlong>;
+  bool SetLocked(art::Thread* self, art::mirror::Object* obj, jlong tag)
+      REQUIRES_SHARED(art::Locks::mutator_lock_)
+      REQUIRES(allow_disallow_lock_);
+
+  bool RemoveLocked(art::Thread* self, art::mirror::Object* obj, jlong* tag)
+      REQUIRES_SHARED(art::Locks::mutator_lock_)
+      REQUIRES(allow_disallow_lock_);
+
+  bool GetTagLocked(art::Thread* self, art::mirror::Object* obj, jlong* result)
+      REQUIRES_SHARED(art::Locks::mutator_lock_)
+      REQUIRES(allow_disallow_lock_) {
+    auto it = tagged_objects_.find(art::GcRoot<art::mirror::Object>(obj));
+    if (it != tagged_objects_.end()) {
+      *result = it->second;
+      return true;
+    }
+
+    if (art::kUseReadBarrier &&
+        self != nullptr &&
+        self->GetIsGcMarking()) {
+      return GetTagSlowPath(self, obj, result);
+    }
+
+    return false;
+  }
+
+  // Slow-path for GetTag. We didn't find the object, but we might be storing from-pointers and
+  // are asked to retrieve with a to-pointer.
+  bool GetTagSlowPath(art::Thread* self, art::mirror::Object* obj, jlong* result)
+      REQUIRES_SHARED(art::Locks::mutator_lock_)
+      REQUIRES(allow_disallow_lock_);
+
+  void UpdateTable()
+      REQUIRES_SHARED(art::Locks::mutator_lock_)
+      REQUIRES(allow_disallow_lock_);
 
   template <bool kHandleNull>
   void SweepImpl(art::IsMarkedVisitor* visitor)
-        REQUIRES_SHARED(art::Locks::mutator_lock_)
-        REQUIRES(!allow_disallow_lock_);
+      REQUIRES_SHARED(art::Locks::mutator_lock_)
+      REQUIRES(!allow_disallow_lock_);
   void HandleNullSweep(jlong tag);
 
-  std::vector<Entry> tagged_objects_ GUARDED_BY(allow_disallow_lock_);
-  size_t first_free_ = 0;
+  enum TableUpdateNullTarget {
+    kIgnoreNull,
+    kRemoveNull,
+    kCallHandleNull
+  };
+
+  template <typename T, TableUpdateNullTarget kTargetNull>
+  void UpdateTableWith(T& updater)
+      REQUIRES_SHARED(art::Locks::mutator_lock_)
+      REQUIRES(allow_disallow_lock_);
+
+  struct HashGcRoot {
+    size_t operator()(const art::GcRoot<art::mirror::Object>& r) const
+        REQUIRES_SHARED(art::Locks::mutator_lock_) {
+      return reinterpret_cast<uintptr_t>(r.Read<art::kWithoutReadBarrier>());
+    }
+  };
+
+  struct EqGcRoot {
+    bool operator()(const art::GcRoot<art::mirror::Object>& r1,
+                    const art::GcRoot<art::mirror::Object>& r2) const
+        REQUIRES_SHARED(art::Locks::mutator_lock_) {
+      return r1.Read<art::kWithoutReadBarrier>() == r2.Read<art::kWithoutReadBarrier>();
+    }
+  };
+
+  std::unordered_map<art::GcRoot<art::mirror::Object>,
+                     jlong,
+                     HashGcRoot,
+                     EqGcRoot> tagged_objects_
+      GUARDED_BY(allow_disallow_lock_)
+      GUARDED_BY(art::Locks::mutator_lock_);
 
   EventHandler* event_handler_;
 };
