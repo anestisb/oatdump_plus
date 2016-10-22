@@ -1,6 +1,7 @@
     /*
      * Return the length of an array.
      */
+    /* array-length vA, vB */
     GET_OPB(a1)                            #  a1 <- B
     GET_OPA4(a2)                           #  a2 <- A+
     GET_VREG(a0, a1)                       #  a0 <- vB (object ref)

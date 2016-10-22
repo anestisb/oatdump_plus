@@ -1,7 +1,7 @@
     /*
      * 64-bit SPUT handler.
      */
-    # sput-wide vAA, field                 /* BBBB */
+    /* sput-wide vAA, field@BBBB */
     .extern artSet64IndirectStaticFromMterp
     EXPORT_PC()
     FETCH(a0, 1)                           # a0 <- field ref CCCC

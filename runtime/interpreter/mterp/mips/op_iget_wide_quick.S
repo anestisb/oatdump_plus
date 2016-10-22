@@ -1,4 +1,4 @@
-    # iget-wide-quick vA, vB, offset       /* CCCC */
+    /* iget-wide-quick vA, vB, offset@CCCC */
     GET_OPB(a2)                            #  a2 <- B
     GET_VREG(a3, a2)                       #  a3 <- object we're operating on
     FETCH(a1, 1)                           #  a1 <- field byte offset
@@ -9,5 +9,4 @@
     LOAD64(a0, a1, t0)                     #  a0 <- obj.field (64 bits, aligned)
     FETCH_ADVANCE_INST(2)                  #  advance rPC, load rINST
     GET_INST_OPCODE(t0)                    #  extract opcode from rINST
-    SET_VREG64(a0, a1, a2)                 #  fp[A] <- a0/a1
-    GOTO_OPCODE(t0)                        #  jump to next instruction
+    SET_VREG64_GOTO(a0, a1, a2, t0)        #  fp[A] <- a0/a1

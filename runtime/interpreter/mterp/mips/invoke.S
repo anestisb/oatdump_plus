@@ -2,8 +2,8 @@
     /*
      * Generic invoke handler wrapper.
      */
-    # op vB, {vD, vE, vF, vG, vA}, class   /* CCCC */
-    # op {vCCCC..v(CCCC+AA-1)}, meth       /* BBBB */
+    /* op vB, {vD, vE, vF, vG, vA}, class@CCCC */
+    /* op {vCCCC..v(CCCC+AA-1)}, meth@BBBB */
     .extern $helper
     EXPORT_PC()
     move    a0, rSELF

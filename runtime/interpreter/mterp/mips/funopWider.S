@@ -1,10 +1,8 @@
-%default {"st_result":"SET_VREG64_F(fv0, fv0f, rOBJ)"}
     /*
-     * Generic 32bit-to-64bit unary operation.  Provide an "instr" line
-     * that specifies an instruction that performs "result = op a0", where
-     * "result" is a 64-bit quantity in a0/a1.
+     * Generic 32bit-to-64bit floating-point unary operation.  Provide an "instr"
+     * line that specifies an instruction that performs "fv0 = op fa0".
      *
-     * For: int-to-double, float-to-long, float-to-double
+     * For: int-to-double, float-to-double
      */
     /* unop vA, vB */
     GET_OPA4(rOBJ)                         #  rOBJ <- A+
@@ -12,8 +10,5 @@
     GET_VREG_F(fa0, a3)
     FETCH_ADVANCE_INST(1)                  #  advance rPC, load rINST
     $instr
-
-.L${opcode}_set_vreg:
-    $st_result                             #  vA/vA+1 <- a0/a1
     GET_INST_OPCODE(t0)                    #  extract opcode from rINST
-    GOTO_OPCODE(t0)                        #  jump to next instruction
+    SET_VREG64_F_GOTO(fv0, fv0f, rOBJ, t0) #  vA/vA+1 <- fv0

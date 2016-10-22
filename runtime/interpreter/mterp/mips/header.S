@@ -153,6 +153,58 @@
 #define fcc1   $$fcc1
 #endif
 
+#ifdef MIPS32REVGE2
+#define SEB(rd, rt) \
+    seb       rd, rt
+#define SEH(rd, rt) \
+    seh       rd, rt
+#define INSERT_HIGH_HALF(rd_lo, rt_hi) \
+    ins       rd_lo, rt_hi, 16, 16
+#else
+#define SEB(rd, rt) \
+    sll       rd, rt, 24; \
+    sra       rd, rd, 24
+#define SEH(rd, rt) \
+    sll       rd, rt, 16; \
+    sra       rd, rd, 16
+/* Clobbers rt_hi on pre-R2. */
+#define INSERT_HIGH_HALF(rd_lo, rt_hi) \
+    sll       rt_hi, rt_hi, 16; \
+    or        rd_lo, rt_hi
+#endif
+
+#ifdef FPU64
+#define MOVE_TO_FPU_HIGH(r, flo, fhi) \
+    mthc1     r, flo
+#else
+#define MOVE_TO_FPU_HIGH(r, flo, fhi) \
+    mtc1      r, fhi
+#endif
+
+#ifdef MIPS32REVGE6
+#define JR(rt) \
+    jic       rt, 0
+#define LSA(rd, rs, rt, sa) \
+    .if sa; \
+    lsa       rd, rs, rt, sa; \
+    .else; \
+    addu      rd, rs, rt; \
+    .endif
+#else
+#define JR(rt) \
+    jalr      zero, rt
+#define LSA(rd, rs, rt, sa) \
+    .if sa; \
+    .set      push; \
+    .set      noat; \
+    sll       AT, rs, sa; \
+    addu      rd, AT, rt; \
+    .set      pop; \
+    .else; \
+    addu      rd, rs, rt; \
+    .endif
+#endif
+
 /*
  * Instead of holding a pointer to the shadow frame, we keep rFP at the base of the vregs.  So,
  * to access other shadow frame fields, we need to use a backwards offset.  Define those here.
@@ -186,12 +238,12 @@
     sw        rPC, OFF_FP_DEX_PC_PTR(rFP)
 
 #define EXPORT_DEX_PC(tmp) \
-    lw   tmp, OFF_FP_CODE_ITEM(rFP) \
-    sw   rPC, OFF_FP_DEX_PC_PTR(rFP) \
-    addu tmp, CODEITEM_INSNS_OFFSET \
-    subu tmp, rPC, tmp \
-    sra  tmp, tmp, 1 \
-    sw   tmp, OFF_FP_DEX_PC(rFP)
+    lw        tmp, OFF_FP_CODE_ITEM(rFP); \
+    sw        rPC, OFF_FP_DEX_PC_PTR(rFP); \
+    addu      tmp, CODEITEM_INSNS_OFFSET; \
+    subu      tmp, rPC, tmp; \
+    sra       tmp, tmp, 1; \
+    sw        tmp, OFF_FP_DEX_PC(rFP)
 
 /*
  * Fetch the next instruction from rPC into rINST.  Does not advance rPC.
@@ -206,16 +258,9 @@
  * exception catch may miss.  (This also implies that it must come after
  * EXPORT_PC().)
  */
-#define FETCH_ADVANCE_INST(_count) lhu rINST, ((_count)*2)(rPC); \
+#define FETCH_ADVANCE_INST(_count) \
+    lhu       rINST, ((_count)*2)(rPC); \
     addu      rPC, rPC, ((_count) * 2)
-
-/*
- * The operation performed here is similar to FETCH_ADVANCE_INST, except the
- * src and dest registers are parameterized (not hard-wired to rPC and rINST).
- */
-#define PREFETCH_ADVANCE_INST(_dreg, _sreg, _count) \
-    lhu       _dreg, ((_count)*2)(_sreg) ;            \
-    addu      _sreg, _sreg, (_count)*2
 
 /*
  * Similar to FETCH_ADVANCE_INST, but does not update rPC.  Used to load
@@ -232,7 +277,8 @@
  * rPC to point to the next instruction.  "rd" must specify the distance
  * in bytes, *not* 16-bit code units, and may be a signed value.
  */
-#define FETCH_ADVANCE_INST_RB(rd) addu rPC, rPC, rd; \
+#define FETCH_ADVANCE_INST_RB(rd) \
+    addu      rPC, rPC, rd; \
     lhu       rINST, (rPC)
 
 /*
@@ -257,38 +303,75 @@
 #define GET_INST_OPCODE(rd) and rd, rINST, 0xFF
 
 /*
- * Put the prefetched instruction's opcode field into the specified register.
+ * Transform opcode into branch target address.
  */
-#define GET_PREFETCHED_OPCODE(dreg, sreg)   andi     dreg, sreg, 255
+#define GET_OPCODE_TARGET(rd) \
+    sll       rd, rd, ${handler_size_bits}; \
+    addu      rd, rIBASE, rd
 
 /*
  * Begin executing the opcode in rd.
  */
-#define GOTO_OPCODE(rd) sll rd, rd, ${handler_size_bits}; \
-    addu      rd, rIBASE, rd; \
-    jalr      zero, rd
-
-#define GOTO_OPCODE_BASE(_base, rd)  sll rd, rd, ${handler_size_bits}; \
-    addu      rd, _base, rd; \
-    jalr      zero, rd
+#define GOTO_OPCODE(rd) \
+    GET_OPCODE_TARGET(rd); \
+    JR(rd)
 
 /*
  * Get/set the 32-bit value from a Dalvik register.
  */
 #define GET_VREG(rd, rix) LOAD_eas2(rd, rFP, rix)
 
-#define GET_VREG_F(rd, rix) EAS2(AT, rFP, rix); \
-    .set noat; l.s rd, (AT); .set at
+#define GET_VREG_F(rd, rix) \
+    .set noat; \
+    EAS2(AT, rFP, rix); \
+    l.s       rd, (AT); \
+    .set at
 
-#define SET_VREG(rd, rix) .set noat; \
+#ifdef MIPS32REVGE6
+#define SET_VREG(rd, rix) \
+    lsa       t8, rix, rFP, 2; \
+    sw        rd, 0(t8); \
+    lsa       t8, rix, rREFS, 2; \
+    sw        zero, 0(t8)
+#else
+#define SET_VREG(rd, rix) \
+    .set noat; \
     sll       AT, rix, 2; \
     addu      t8, rFP, AT; \
     sw        rd, 0(t8); \
     addu      t8, rREFS, AT; \
     .set at; \
     sw        zero, 0(t8)
+#endif
 
-#define SET_VREG64(rlo, rhi, rix) .set noat; \
+#ifdef MIPS32REVGE6
+#define SET_VREG_OBJECT(rd, rix) \
+    lsa       t8, rix, rFP, 2; \
+    sw        rd, 0(t8); \
+    lsa       t8, rix, rREFS, 2; \
+    sw        rd, 0(t8)
+#else
+#define SET_VREG_OBJECT(rd, rix) \
+    .set noat; \
+    sll       AT, rix, 2; \
+    addu      t8, rFP, AT; \
+    sw        rd, 0(t8); \
+    addu      t8, rREFS, AT; \
+    .set at; \
+    sw        rd, 0(t8)
+#endif
+
+#ifdef MIPS32REVGE6
+#define SET_VREG64(rlo, rhi, rix) \
+    lsa       t8, rix, rFP, 2; \
+    sw        rlo, 0(t8); \
+    sw        rhi, 4(t8); \
+    lsa       t8, rix, rREFS, 2; \
+    sw        zero, 0(t8); \
+    sw        zero, 4(t8)
+#else
+#define SET_VREG64(rlo, rhi, rix) \
+    .set noat; \
     sll       AT, rix, 2; \
     addu      t8, rFP, AT; \
     sw        rlo, 0(t8); \
@@ -297,9 +380,39 @@
     .set at; \
     sw        zero, 0(t8); \
     sw        zero, 4(t8)
+#endif
 
-#ifdef FPU64
-#define SET_VREG64_F(rlo, rhi, rix) .set noat; \
+#ifdef MIPS32REVGE6
+#define SET_VREG_F(rd, rix) \
+    lsa       t8, rix, rFP, 2; \
+    s.s       rd, 0(t8); \
+    lsa       t8, rix, rREFS, 2; \
+    sw        zero, 0(t8)
+#else
+#define SET_VREG_F(rd, rix) \
+    .set noat; \
+    sll       AT, rix, 2; \
+    addu      t8, rFP, AT; \
+    s.s       rd, 0(t8); \
+    addu      t8, rREFS, AT; \
+    .set at; \
+    sw        zero, 0(t8)
+#endif
+
+#ifdef MIPS32REVGE6
+#define SET_VREG64_F(rlo, rhi, rix) \
+    lsa       t8, rix, rFP, 2; \
+    .set noat; \
+    mfhc1     AT, rlo; \
+    s.s       rlo, 0(t8); \
+    sw        AT, 4(t8); \
+    .set at; \
+    lsa       t8, rix, rREFS, 2; \
+    sw        zero, 0(t8); \
+    sw        zero, 4(t8)
+#elif defined(FPU64)
+#define SET_VREG64_F(rlo, rhi, rix) \
+    .set noat; \
     sll       AT, rix, 2; \
     addu      t8, rREFS, AT; \
     sw        zero, 0(t8); \
@@ -310,7 +423,8 @@
     .set at; \
     s.s       rlo, 0(t8)
 #else
-#define SET_VREG64_F(rlo, rhi, rix) .set noat; \
+#define SET_VREG64_F(rlo, rhi, rix) \
+    .set noat; \
     sll       AT, rix, 2; \
     addu      t8, rFP, AT; \
     s.s       rlo, 0(t8); \
@@ -321,18 +435,21 @@
     sw        zero, 4(t8)
 #endif
 
-#define SET_VREG_OBJECT(rd, rix) .set noat; \
-    sll       AT, rix, 2; \
-    addu      t8, rFP, AT; \
-    sw        rd, 0(t8); \
-    addu      t8, rREFS, AT; \
-    .set at; \
-    sw        rd, 0(t8)
-
 /* Combination of the SET_VREG and GOTO_OPCODE functions to save 1 instruction */
-#define SET_VREG_GOTO(rd, rix, dst) .set noreorder; \
-    sll       dst, dst, ${handler_size_bits}; \
-    addu      dst, rIBASE, dst; \
+#ifdef MIPS32REVGE6
+#define SET_VREG_GOTO(rd, rix, dst) \
+    .set noreorder; \
+    GET_OPCODE_TARGET(dst); \
+    lsa       t8, rix, rFP, 2; \
+    sw        rd, 0(t8); \
+    lsa       t8, rix, rREFS, 2; \
+    jalr      zero, dst; \
+    sw        zero, 0(t8); \
+    .set reorder
+#else
+#define SET_VREG_GOTO(rd, rix, dst) \
+    .set noreorder; \
+    GET_OPCODE_TARGET(dst); \
     .set noat; \
     sll       AT, rix, 2; \
     addu      t8, rFP, AT; \
@@ -342,11 +459,51 @@
     jalr      zero, dst; \
     sw        zero, 0(t8); \
     .set reorder
+#endif
+
+/* Combination of the SET_VREG_OBJECT and GOTO_OPCODE functions to save 1 instruction */
+#ifdef MIPS32REVGE6
+#define SET_VREG_OBJECT_GOTO(rd, rix, dst) \
+    .set noreorder; \
+    GET_OPCODE_TARGET(dst); \
+    lsa       t8, rix, rFP, 2; \
+    sw        rd, 0(t8); \
+    lsa       t8, rix, rREFS, 2; \
+    jalr      zero, dst; \
+    sw        rd, 0(t8); \
+    .set reorder
+#else
+#define SET_VREG_OBJECT_GOTO(rd, rix, dst) \
+    .set noreorder; \
+    GET_OPCODE_TARGET(dst); \
+    .set noat; \
+    sll       AT, rix, 2; \
+    addu      t8, rFP, AT; \
+    sw        rd, 0(t8); \
+    addu      t8, rREFS, AT; \
+    .set at; \
+    jalr      zero, dst; \
+    sw        rd, 0(t8); \
+    .set reorder
+#endif
 
 /* Combination of the SET_VREG64 and GOTO_OPCODE functions to save 1 instruction */
-#define SET_VREG64_GOTO(rlo, rhi, rix, dst) .set noreorder; \
-    sll       dst, dst, ${handler_size_bits}; \
-    addu      dst, rIBASE, dst; \
+#ifdef MIPS32REVGE6
+#define SET_VREG64_GOTO(rlo, rhi, rix, dst) \
+    .set noreorder; \
+    GET_OPCODE_TARGET(dst); \
+    lsa       t8, rix, rFP, 2; \
+    sw        rlo, 0(t8); \
+    sw        rhi, 4(t8); \
+    lsa       t8, rix, rREFS, 2; \
+    sw        zero, 0(t8); \
+    jalr      zero, dst; \
+    sw        zero, 4(t8); \
+    .set reorder
+#else
+#define SET_VREG64_GOTO(rlo, rhi, rix, dst) \
+    .set noreorder; \
+    GET_OPCODE_TARGET(dst); \
     .set noat; \
     sll       AT, rix, 2; \
     addu      t8, rFP, AT; \
@@ -358,14 +515,82 @@
     jalr      zero, dst; \
     sw        zero, 4(t8); \
     .set reorder
+#endif
 
-#define SET_VREG_F(rd, rix) .set noat; \
+/* Combination of the SET_VREG_F and GOTO_OPCODE functions to save 1 instruction */
+#ifdef MIPS32REVGE6
+#define SET_VREG_F_GOTO(rd, rix, dst) \
+    .set noreorder; \
+    GET_OPCODE_TARGET(dst); \
+    lsa       t8, rix, rFP, 2; \
+    s.s       rd, 0(t8); \
+    lsa       t8, rix, rREFS, 2; \
+    jalr      zero, dst; \
+    sw        zero, 0(t8); \
+    .set reorder
+#else
+#define SET_VREG_F_GOTO(rd, rix, dst) \
+    .set noreorder; \
+    GET_OPCODE_TARGET(dst); \
+    .set noat; \
     sll       AT, rix, 2; \
     addu      t8, rFP, AT; \
     s.s       rd, 0(t8); \
     addu      t8, rREFS, AT; \
     .set at; \
-    sw        zero, 0(t8)
+    jalr      zero, dst; \
+    sw        zero, 0(t8); \
+    .set reorder
+#endif
+
+/* Combination of the SET_VREG64_F and GOTO_OPCODE functions to save 1 instruction */
+#ifdef MIPS32REVGE6
+#define SET_VREG64_F_GOTO(rlo, rhi, rix, dst) \
+    .set noreorder; \
+    GET_OPCODE_TARGET(dst); \
+    lsa       t8, rix, rFP, 2; \
+    .set noat; \
+    mfhc1     AT, rlo; \
+    s.s       rlo, 0(t8); \
+    sw        AT, 4(t8); \
+    .set at; \
+    lsa       t8, rix, rREFS, 2; \
+    sw        zero, 0(t8); \
+    jalr      zero, dst; \
+    sw        zero, 4(t8); \
+    .set reorder
+#elif defined(FPU64)
+#define SET_VREG64_F_GOTO(rlo, rhi, rix, dst) \
+    .set noreorder; \
+    GET_OPCODE_TARGET(dst); \
+    .set noat; \
+    sll       AT, rix, 2; \
+    addu      t8, rREFS, AT; \
+    sw        zero, 0(t8); \
+    sw        zero, 4(t8); \
+    addu      t8, rFP, AT; \
+    mfhc1     AT, rlo; \
+    sw        AT, 4(t8); \
+    .set at; \
+    jalr      zero, dst; \
+    s.s       rlo, 0(t8); \
+    .set reorder
+#else
+#define SET_VREG64_F_GOTO(rlo, rhi, rix, dst) \
+    .set noreorder; \
+    GET_OPCODE_TARGET(dst); \
+    .set noat; \
+    sll       AT, rix, 2; \
+    addu      t8, rFP, AT; \
+    s.s       rlo, 0(t8); \
+    s.s       rhi, 4(t8); \
+    addu      t8, rREFS, AT; \
+    .set at; \
+    sw        zero, 0(t8); \
+    jalr      zero, dst; \
+    sw        zero, 4(t8); \
+    .set reorder
+#endif
 
 #define GET_OPA(rd) srl rd, rINST, 8
 #ifdef MIPS32REVGE2
@@ -376,60 +601,60 @@
 #define GET_OPB(rd) srl rd, rINST, 12
 
 /*
- * Form an Effective Address rd = rbase + roff<<n;
- * Uses reg AT
+ * Form an Effective Address rd = rbase + roff<<shift;
+ * Uses reg AT on pre-R6.
  */
-#define EASN(rd, rbase, roff, rshift) .set noat; \
-    sll       AT, roff, rshift; \
-    addu      rd, rbase, AT; \
-    .set at
+#define EASN(rd, rbase, roff, shift) LSA(rd, roff, rbase, shift)
 
 #define EAS1(rd, rbase, roff) EASN(rd, rbase, roff, 1)
 #define EAS2(rd, rbase, roff) EASN(rd, rbase, roff, 2)
 #define EAS3(rd, rbase, roff) EASN(rd, rbase, roff, 3)
 #define EAS4(rd, rbase, roff) EASN(rd, rbase, roff, 4)
 
-/*
- * Form an Effective Shift Right rd = rbase + roff>>n;
- * Uses reg AT
- */
-#define ESRN(rd, rbase, roff, rshift) .set noat; \
-    srl       AT, roff, rshift; \
-    addu      rd, rbase, AT; \
+#define LOAD_eas2(rd, rbase, roff) \
+    .set noat; \
+    EAS2(AT, rbase, roff); \
+    lw        rd, 0(AT); \
     .set at
 
-#define LOAD_eas2(rd, rbase, roff) EAS2(AT, rbase, roff); \
-    .set noat; lw rd, 0(AT); .set at
-
-#define STORE_eas2(rd, rbase, roff) EAS2(AT, rbase, roff); \
-    .set noat; sw rd, 0(AT); .set at
+#define STORE_eas2(rd, rbase, roff) \
+    .set noat; \
+    EAS2(AT, rbase, roff); \
+    sw        rd, 0(AT); \
+    .set at
 
 #define LOAD_RB_OFF(rd, rbase, off) lw rd, off(rbase)
 #define STORE_RB_OFF(rd, rbase, off) sw rd, off(rbase)
 
-#define STORE64_off(rlo, rhi, rbase, off) sw rlo, off(rbase); \
+#define STORE64_off(rlo, rhi, rbase, off) \
+    sw        rlo, off(rbase); \
     sw        rhi, (off+4)(rbase)
-#define LOAD64_off(rlo, rhi, rbase, off) lw rlo, off(rbase); \
+#define LOAD64_off(rlo, rhi, rbase, off) \
+    lw        rlo, off(rbase); \
     lw        rhi, (off+4)(rbase)
 
 #define STORE64(rlo, rhi, rbase) STORE64_off(rlo, rhi, rbase, 0)
 #define LOAD64(rlo, rhi, rbase) LOAD64_off(rlo, rhi, rbase, 0)
 
 #ifdef FPU64
-#define STORE64_off_F(rlo, rhi, rbase, off) s.s rlo, off(rbase); \
+#define STORE64_off_F(rlo, rhi, rbase, off) \
+    s.s       rlo, off(rbase); \
     .set noat; \
     mfhc1     AT, rlo; \
     sw        AT, (off+4)(rbase); \
     .set at
-#define LOAD64_off_F(rlo, rhi, rbase, off) l.s rlo, off(rbase); \
+#define LOAD64_off_F(rlo, rhi, rbase, off) \
+    l.s       rlo, off(rbase); \
     .set noat; \
     lw        AT, (off+4)(rbase); \
     mthc1     AT, rlo; \
     .set at
 #else
-#define STORE64_off_F(rlo, rhi, rbase, off) s.s rlo, off(rbase); \
+#define STORE64_off_F(rlo, rhi, rbase, off) \
+    s.s       rlo, off(rbase); \
     s.s       rhi, (off+4)(rbase)
-#define LOAD64_off_F(rlo, rhi, rbase, off) l.s rlo, off(rbase); \
+#define LOAD64_off_F(rlo, rhi, rbase, off) \
+    l.s       rlo, off(rbase); \
     l.s       rhi, (off+4)(rbase)
 #endif
 
@@ -490,3 +715,11 @@
 
 #define REFRESH_IBASE() \
     lw        rIBASE, THREAD_CURRENT_IBASE_OFFSET(rSELF)
+
+/* Constants for float/double_to_int/long conversions */
+#define INT_MIN                 0x80000000
+#define INT_MIN_AS_FLOAT        0xCF000000
+#define INT_MIN_AS_DOUBLE_HIGH  0xC1E00000
+#define LONG_MIN_HIGH           0x80000000
+#define LONG_MIN_AS_FLOAT       0xDF000000
+#define LONG_MIN_AS_DOUBLE_HIGH 0xC3E00000

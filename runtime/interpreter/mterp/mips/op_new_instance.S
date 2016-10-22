@@ -1,7 +1,7 @@
     /*
      * Create a new instance of a class.
      */
-    # new-instance vAA, class              /* BBBB */
+    /* new-instance vAA, class@BBBB */
     EXPORT_PC()
     addu   a0, rFP, OFF_FP_SHADOWFRAME
     move   a1, rSELF

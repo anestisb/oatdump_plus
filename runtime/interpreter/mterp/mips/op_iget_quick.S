@@ -1,6 +1,6 @@
 %default { "load":"lw" }
     /* For: iget-quick, iget-boolean-quick, iget-byte-quick, iget-char-quick, iget-short-quick */
-    # op vA, vB, offset                    /* CCCC */
+    /* op vA, vB, offset@CCCC */
     GET_OPB(a2)                            #  a2 <- B
     GET_VREG(a3, a2)                       #  a3 <- object we're operating on
     FETCH(a1, 1)                           #  a1 <- field byte offset
