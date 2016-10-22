@@ -31,6 +31,8 @@
 
 #include "object_tagging.h"
 
+#include <limits>
+
 #include "art_jvmti.h"
 #include "base/logging.h"
 #include "events-inl.h"
@@ -44,21 +46,24 @@
 
 namespace openjdkjvmti {
 
-void ObjectTagTable::Add(art::mirror::Object* obj, jlong tag) {
-  art::Thread* self = art::Thread::Current();
-  art::MutexLock mu(self, allow_disallow_lock_);
-  Wait(self);
+void ObjectTagTable::UpdateTable() {
+  auto WithReadBarrierUpdater = [&](const art::GcRoot<art::mirror::Object>& original_root,
+                                    art::mirror::Object* original_obj ATTRIBUTE_UNUSED)
+     REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    return original_root.Read<art::kWithReadBarrier>();
+  };
 
-  if (first_free_ == tagged_objects_.size()) {
-    tagged_objects_.push_back(Entry(art::GcRoot<art::mirror::Object>(obj), tag));
-    first_free_++;
-  } else {
-    DCHECK_LT(first_free_, tagged_objects_.size());
-    DCHECK(tagged_objects_[first_free_].first.IsNull());
-    tagged_objects_[first_free_] = Entry(art::GcRoot<art::mirror::Object>(obj), tag);
-    // TODO: scan for free elements.
-    first_free_ = tagged_objects_.size();
-  }
+  UpdateTableWith<decltype(WithReadBarrierUpdater), kIgnoreNull>(WithReadBarrierUpdater);
+}
+
+bool ObjectTagTable::GetTagSlowPath(art::Thread* self, art::mirror::Object* obj, jlong* result) {
+  UpdateTable();
+  return GetTagLocked(self, obj, result);
+}
+
+void ObjectTagTable::Add(art::mirror::Object* obj, jlong tag) {
+  // Same as Set(), as we don't have duplicates in an unordered_map.
+  Set(obj, tag);
 }
 
 bool ObjectTagTable::Remove(art::mirror::Object* obj, jlong* tag) {
@@ -66,24 +71,28 @@ bool ObjectTagTable::Remove(art::mirror::Object* obj, jlong* tag) {
   art::MutexLock mu(self, allow_disallow_lock_);
   Wait(self);
 
-  for (auto it = tagged_objects_.begin(); it != tagged_objects_.end(); ++it) {
-    if (it->first.Read(nullptr) == obj) {
-      if (tag != nullptr) {
-        *tag = it->second;
-      }
-      it->first = art::GcRoot<art::mirror::Object>(nullptr);
+  return RemoveLocked(self, obj, tag);
+}
 
-      size_t index = it - tagged_objects_.begin();
-      if (index < first_free_) {
-        first_free_ = index;
-      }
-
-      // TODO: compaction.
-
-      return true;
+bool ObjectTagTable::RemoveLocked(art::Thread* self, art::mirror::Object* obj, jlong* tag) {
+  auto it = tagged_objects_.find(art::GcRoot<art::mirror::Object>(obj));
+  if (it != tagged_objects_.end()) {
+    if (tag != nullptr) {
+      *tag = it->second;
     }
+    tagged_objects_.erase(it);
+    return true;
   }
 
+  if (art::kUseReadBarrier && self->GetIsGcMarking()) {
+    // Update the table.
+    UpdateTable();
+
+    // And try again.
+    return RemoveLocked(self, obj, tag);
+  }
+
+  // Not in here.
   return false;
 }
 
@@ -92,25 +101,27 @@ bool ObjectTagTable::Set(art::mirror::Object* obj, jlong new_tag) {
   art::MutexLock mu(self, allow_disallow_lock_);
   Wait(self);
 
-  for (auto& pair : tagged_objects_) {
-    if (pair.first.Read(nullptr) == obj) {
-      pair.second = new_tag;
-      return true;
-    }
+  return SetLocked(self, obj, new_tag);
+}
+
+bool ObjectTagTable::SetLocked(art::Thread* self, art::mirror::Object* obj, jlong new_tag) {
+  auto it = tagged_objects_.find(art::GcRoot<art::mirror::Object>(obj));
+  if (it != tagged_objects_.end()) {
+    it->second = new_tag;
+    return true;
   }
 
-  // TODO refactor with Add.
-  if (first_free_ == tagged_objects_.size()) {
-    tagged_objects_.push_back(Entry(art::GcRoot<art::mirror::Object>(obj), new_tag));
-    first_free_++;
-  } else {
-    DCHECK_LT(first_free_, tagged_objects_.size());
-    DCHECK(tagged_objects_[first_free_].first.IsNull());
-    tagged_objects_[first_free_] = Entry(art::GcRoot<art::mirror::Object>(obj), new_tag);
-    // TODO: scan for free elements.
-    first_free_ = tagged_objects_.size();
+  if (art::kUseReadBarrier && self->GetIsGcMarking()) {
+    // Update the table.
+    UpdateTable();
+
+    // And try again.
+    return SetLocked(self, obj, new_tag);
   }
 
+  // New element.
+  auto insert_it = tagged_objects_.emplace(art::GcRoot<art::mirror::Object>(obj), new_tag);
+  DCHECK(insert_it.second);
   return false;
 }
 
@@ -127,28 +138,53 @@ void ObjectTagTable::SweepImpl(art::IsMarkedVisitor* visitor) {
   art::Thread* self = art::Thread::Current();
   art::MutexLock mu(self, allow_disallow_lock_);
 
-  for (auto it = tagged_objects_.begin(); it != tagged_objects_.end(); ++it) {
-    if (!it->first.IsNull()) {
-      art::mirror::Object* original_obj = it->first.Read<art::kWithoutReadBarrier>();
-      art::mirror::Object* target_obj = visitor->IsMarked(original_obj);
-      if (original_obj != target_obj) {
-        it->first = art::GcRoot<art::mirror::Object>(target_obj);
+  auto IsMarkedUpdater = [&](const art::GcRoot<art::mirror::Object>& original_root ATTRIBUTE_UNUSED,
+                             art::mirror::Object* original_obj) {
+    return visitor->IsMarked(original_obj);
+  };
 
-        if (kHandleNull && target_obj == nullptr) {
-          HandleNullSweep(it->second);
-        }
-      }
-    } else {
-      size_t index = it - tagged_objects_.begin();
-      if (index < first_free_) {
-        first_free_ = index;
-      }
-    }
-  }
+  UpdateTableWith<decltype(IsMarkedUpdater),
+                  kHandleNull ? kCallHandleNull : kRemoveNull>(IsMarkedUpdater);
 }
 
 void ObjectTagTable::HandleNullSweep(jlong tag) {
   event_handler_->DispatchEvent(nullptr, JVMTI_EVENT_OBJECT_FREE, tag);
+}
+
+template <typename T, ObjectTagTable::TableUpdateNullTarget kTargetNull>
+ALWAYS_INLINE inline void ObjectTagTable::UpdateTableWith(T& updater) {
+  // We optimistically hope that elements will still be well-distributed when re-inserting them.
+  // So play with the map mechanics, and postpone rehashing. This avoids the need of a side
+  // vector and two passes.
+  float original_max_load_factor = tagged_objects_.max_load_factor();
+  tagged_objects_.max_load_factor(std::numeric_limits<float>::max());
+  // For checking that a max load-factor actually does what we expect.
+  size_t original_bucket_count = tagged_objects_.bucket_count();
+
+  for (auto it = tagged_objects_.begin(); it != tagged_objects_.end();) {
+    DCHECK(!it->first.IsNull());
+    art::mirror::Object* original_obj = it->first.Read<art::kWithoutReadBarrier>();
+    art::mirror::Object* target_obj = updater(it->first, original_obj);
+    if (original_obj != target_obj) {
+      if (kTargetNull == kIgnoreNull && target_obj == nullptr) {
+        // Ignore null target, don't do anything.
+      } else {
+        jlong tag = it->second;
+        it = tagged_objects_.erase(it);
+        if (target_obj != nullptr) {
+          tagged_objects_.emplace(art::GcRoot<art::mirror::Object>(target_obj), tag);
+          DCHECK_EQ(original_bucket_count, tagged_objects_.bucket_count());
+        } else if (kTargetNull == kCallHandleNull) {
+          HandleNullSweep(tag);
+        }
+        continue;  // Iterator was implicitly updated by erase.
+      }
+    }
+    it++;
+  }
+
+  tagged_objects_.max_load_factor(original_max_load_factor);
+  // TODO: consider rehash here.
 }
 
 }  // namespace openjdkjvmti
