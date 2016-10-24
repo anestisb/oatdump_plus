@@ -51,7 +51,6 @@ static void Usage(void) {
   fprintf(stderr, " -d : disassemble code sections\n");
   fprintf(stderr, " -e : display exported items only\n");
   fprintf(stderr, " -f : display summary information from file header\n");
-  fprintf(stderr, " -g : display CFG for dex\n");
   fprintf(stderr, " -h : display file header details\n");
   fprintf(stderr, " -i : ignore checksum failures\n");
   fprintf(stderr, " -l : output layout, either 'plain' or 'xml'\n");
@@ -98,9 +97,6 @@ int DexlayoutDriver(int argc, char** argv) {
         break;
       case 'f':  // display outer file header
         options_.show_file_headers_ = true;
-        break;
-      case 'g':  // display cfg
-        options_.show_cfg_ = true;
         break;
       case 'h':  // display section headers, i.e. all meta-data
         options_.show_section_headers_ = true;

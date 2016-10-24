@@ -44,7 +44,6 @@ struct Options {
   bool exports_only_;
   bool ignore_bad_checksum_;
   bool show_annotations_;
-  bool show_cfg_;
   bool show_file_headers_;
   bool show_section_headers_;
   bool verbose_;
