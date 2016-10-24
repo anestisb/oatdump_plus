@@ -162,7 +162,6 @@ void HSharpening::ProcessLoadClass(HLoadClass* load_class) {
         ? compilation_unit_.GetDexCache()
         : hs.NewHandle(class_linker->FindDexCache(soa.Self(), dex_file));
     mirror::Class* klass = dex_cache->GetResolvedType(type_index);
-
     if (codegen_->GetCompilerOptions().IsBootImage()) {
       // Compiling boot image. Check if the class is a boot image class.
       DCHECK(!runtime->UseJitCompilation());
