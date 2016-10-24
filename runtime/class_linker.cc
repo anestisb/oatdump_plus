@@ -1283,7 +1283,7 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
     }
     // Only add the classes to the class loader after the points where we can return false.
     for (size_t i = 0; i < num_dex_caches; i++) {
-      ObjPtr<mirror::DexCache> const dex_cache = dex_caches->Get(i);
+      ObjPtr<mirror::DexCache> dex_cache = dex_caches->Get(i);
       const DexFile* const dex_file = dex_cache->GetDexFile();
       const OatFile::OatDexFile* oat_dex_file = dex_file->GetOatDexFile();
       if (oat_dex_file != nullptr && oat_dex_file->GetDexCacheArrays() != nullptr) {
@@ -1391,7 +1391,11 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
                                                                          /*allow_failure*/true);
         CHECK(existing_dex_cache == nullptr);
         StackHandleScope<1> hs3(self);
-        RegisterDexFileLocked(*dex_file, hs3.NewHandle(dex_cache));
+        Handle<mirror::DexCache> h_dex_cache = hs3.NewHandle(dex_cache);
+        RegisterDexFileLocked(*dex_file, h_dex_cache);
+        if (kIsDebugBuild) {
+          dex_cache.Assign(h_dex_cache.Get());  // Update dex_cache, used below in debug build.
+        }
       }
       if (kIsDebugBuild) {
         CHECK(new_class_set != nullptr);
@@ -1781,6 +1785,12 @@ bool ClassLinker::AddImageSpace(
                     << reinterpret_cast<const void*>(section_end);
       }
     }
+    if (!oat_file->GetBssGcRoots().empty()) {
+      // Insert oat file to class table for visiting .bss GC roots.
+      class_table->InsertOatFile(oat_file);
+    }
+  } else {
+    DCHECK(oat_file->GetBssGcRoots().empty());
   }
   if (added_class_table) {
     WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
