@@ -1,12 +1,14 @@
 AHAT - Android Heap Analysis Tool
 
 Usage:
-  java -jar ahat.jar [-p port] FILE
+  java -jar ahat.jar [-p port] [--proguard-map FILE] FILE
     Launch an http server for viewing the given Android heap-dump FILE.
 
   Options:
     -p <port>
        Serve pages on the given port. Defaults to 7100.
+    --proguard-map FILE
+       Use the proguard map FILE to deobfuscate the heap dump.
 
 TODO:
  * Have a way to diff two heap dumps.
@@ -84,7 +86,7 @@ Release History:
    Target Java 1.7.
 
  0.6 Jun 21, 2016
-   Add support for proguard deobfuscation (pending AOSP push of perflib)
+   Add support for proguard deobfuscation.
 
  0.5 Apr 19, 2016
    Update perflib to perflib-25.0.0 to improve processing performance.
