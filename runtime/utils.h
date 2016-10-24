@@ -36,11 +36,7 @@
 #include "obj_ptr.h"
 #include "primitive.h"
 
-class BacktraceMap;
-
 namespace art {
-
-class DexFile;
 
 template <typename T>
 bool ParseUint(const char *in, T* out) {
@@ -273,8 +269,6 @@ inline bool TestBitmap(size_t idx, const uint8_t* bitmap) {
 static inline constexpr bool ValidPointerSize(size_t pointer_size) {
   return pointer_size == 4 || pointer_size == 8;
 }
-
-void DumpMethodCFG(const DexFile* dex_file, uint32_t dex_method_idx, std::ostream& os);
 
 static inline const void* EntryPointToCodePointer(const void* entry_point) {
   uintptr_t code = reinterpret_cast<uintptr_t>(entry_point);

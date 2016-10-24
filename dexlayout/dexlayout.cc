@@ -1286,49 +1286,6 @@ static void DumpIField(dex_ir::Header* header, uint32_t idx, uint32_t flags, int
 }
 
 /*
- * Dumping a CFG. Note that this will do duplicate work. utils.h doesn't expose the code-item
- * version, so the DumpMethodCFG code will have to iterate again to find it. But dexdump is a
- * tool, so this is not performance-critical.
- */
-
-static void DumpCFG(const DexFile* dex_file,
-                    uint32_t dex_method_idx,
-                    const DexFile::CodeItem* code) {
-  if (code != nullptr) {
-    std::ostringstream oss;
-    DumpMethodCFG(dex_file, dex_method_idx, oss);
-    fprintf(out_file_, "%s", oss.str().c_str());
-  }
-}
-
-static void DumpCFG(const DexFile* dex_file, int idx) {
-  const DexFile::ClassDef& class_def = dex_file->GetClassDef(idx);
-  const uint8_t* class_data = dex_file->GetClassData(class_def);
-  if (class_data == nullptr) {  // empty class such as a marker interface?
-    return;
-  }
-  ClassDataItemIterator it(*dex_file, class_data);
-  while (it.HasNextStaticField()) {
-    it.Next();
-  }
-  while (it.HasNextInstanceField()) {
-    it.Next();
-  }
-  while (it.HasNextDirectMethod()) {
-    DumpCFG(dex_file,
-            it.GetMemberIndex(),
-            it.GetMethodCodeItem());
-    it.Next();
-  }
-  while (it.HasNextVirtualMethod()) {
-    DumpCFG(dex_file,
-            it.GetMemberIndex(),
-            it.GetMethodCodeItem());
-    it.Next();
-  }
-}
-
-/*
  * Dumps the class.
  *
  * Note "idx" is a DexClassDef index, not a DexTypeId index.
@@ -1336,10 +1293,7 @@ static void DumpCFG(const DexFile* dex_file, int idx) {
  * If "*last_package" is nullptr or does not match the current class' package,
  * the value will be replaced with a newly-allocated string.
  */
-static void DumpClass(const DexFile* dex_file,
-                      dex_ir::Header* header,
-                      int idx,
-                      char** last_package) {
+static void DumpClass(dex_ir::Header* header, int idx, char** last_package) {
   dex_ir::ClassDef* class_def = header->GetCollections().GetClassDef(idx);
   // Omitting non-public class.
   if (options_.exports_only_ && (class_def->GetAccessFlags() & kAccPublic) == 0) {
@@ -1352,11 +1306,6 @@ static void DumpClass(const DexFile* dex_file,
 
   if (options_.show_annotations_) {
     DumpClassAnnotations(header, idx);
-  }
-
-  if (options_.show_cfg_) {
-    DumpCFG(dex_file, idx);
-    return;
   }
 
   // For the XML output, show the package name.  Ideally we'd gather
@@ -1561,7 +1510,7 @@ static void ProcessDexFile(const char* file_name, const DexFile* dex_file, size_
   char* package = nullptr;
   const uint32_t class_defs_size = header->GetCollections().ClassDefsSize();
   for (uint32_t i = 0; i < class_defs_size; i++) {
-    DumpClass(dex_file, header.get(), i, &package);
+    DumpClass(header.get(), i, &package);
   }  // for
 
   // Free the last package allocated.
