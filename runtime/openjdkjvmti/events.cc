@@ -34,6 +34,8 @@
 #include "art_jvmti.h"
 #include "base/logging.h"
 #include "gc/allocation_listener.h"
+#include "gc/gc_pause_listener.h"
+#include "gc/heap.h"
 #include "instrumentation.h"
 #include "jni_env_ext-inl.h"
 #include "mirror/class.h"
@@ -131,7 +133,7 @@ class JvmtiAllocationListener : public art::gc::AllocationListener {
   explicit JvmtiAllocationListener(EventHandler* handler) : handler_(handler) {}
 
   void ObjectAllocated(art::Thread* self, art::ObjPtr<art::mirror::Object>* obj, size_t byte_count)
-      REQUIRES_SHARED(art::Locks::mutator_lock_) {
+      OVERRIDE REQUIRES_SHARED(art::Locks::mutator_lock_) {
     DCHECK_EQ(self, art::Thread::Current());
 
     if (handler_->IsEventEnabledAnywhere(JVMTI_EVENT_VM_OBJECT_ALLOC)) {
@@ -185,11 +187,74 @@ static void SetupObjectAllocationTracking(art::gc::AllocationListener* listener,
   }
 }
 
+// Report GC pauses (see spec) as GARBAGE_COLLECTION_START and GARBAGE_COLLECTION_END.
+class JvmtiGcPauseListener : public art::gc::GcPauseListener {
+ public:
+  explicit JvmtiGcPauseListener(EventHandler* handler)
+      : handler_(handler),
+        start_enabled_(false),
+        finish_enabled_(false) {}
+
+  void StartPause() OVERRIDE {
+    handler_->DispatchEvent(nullptr, JVMTI_EVENT_GARBAGE_COLLECTION_START);
+  }
+
+  void EndPause() OVERRIDE {
+    handler_->DispatchEvent(nullptr, JVMTI_EVENT_GARBAGE_COLLECTION_FINISH);
+  }
+
+  bool IsEnabled() {
+    return start_enabled_ || finish_enabled_;
+  }
+
+  void SetStartEnabled(bool e) {
+    start_enabled_ = e;
+  }
+
+  void SetFinishEnabled(bool e) {
+    finish_enabled_ = e;
+  }
+
+ private:
+  EventHandler* handler_;
+  bool start_enabled_;
+  bool finish_enabled_;
+};
+
+static void SetupGcPauseTracking(JvmtiGcPauseListener* listener, jvmtiEvent event, bool enable) {
+  bool old_state = listener->IsEnabled();
+
+  if (event == JVMTI_EVENT_GARBAGE_COLLECTION_START) {
+    listener->SetStartEnabled(enable);
+  } else {
+    listener->SetFinishEnabled(enable);
+  }
+
+  bool new_state = listener->IsEnabled();
+
+  if (old_state != new_state) {
+    if (new_state) {
+      art::Runtime::Current()->GetHeap()->SetGcPauseListener(listener);
+    } else {
+      art::Runtime::Current()->GetHeap()->RemoveGcPauseListener();
+    }
+  }
+}
+
 // Handle special work for the given event type, if necessary.
 void EventHandler::HandleEventType(jvmtiEvent event, bool enable) {
-  if (event == JVMTI_EVENT_VM_OBJECT_ALLOC) {
-    SetupObjectAllocationTracking(alloc_listener_.get(), enable);
-    return;
+  switch (event) {
+    case JVMTI_EVENT_VM_OBJECT_ALLOC:
+      SetupObjectAllocationTracking(alloc_listener_.get(), enable);
+      return;
+
+    case JVMTI_EVENT_GARBAGE_COLLECTION_START:
+    case JVMTI_EVENT_GARBAGE_COLLECTION_FINISH:
+      SetupGcPauseTracking(gc_pause_listener_.get(), event, enable);
+      return;
+
+    default:
+      break;
   }
 }
 
@@ -253,6 +318,7 @@ jvmtiError EventHandler::SetEvent(ArtJvmTiEnv* env,
 
 EventHandler::EventHandler() {
   alloc_listener_.reset(new JvmtiAllocationListener(this));
+  gc_pause_listener_.reset(new JvmtiGcPauseListener(this));
 }
 
 EventHandler::~EventHandler() {
