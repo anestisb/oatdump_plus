@@ -34,6 +34,7 @@ class ObjectTagTable : public art::gc::SystemWeakHolder {
  public:
   explicit ObjectTagTable(EventHandler* event_handler)
       : art::gc::SystemWeakHolder(art::LockLevel::kAllocTrackerLock),
+        update_since_last_sweep_(false),
         event_handler_(event_handler) {
   }
 
@@ -83,7 +84,8 @@ class ObjectTagTable : public art::gc::SystemWeakHolder {
 
     if (art::kUseReadBarrier &&
         self != nullptr &&
-        self->GetIsGcMarking()) {
+        self->GetIsGcMarking() &&
+        !update_since_last_sweep_) {
       return GetTagSlowPath(self, obj, result);
     }
 
@@ -96,7 +98,9 @@ class ObjectTagTable : public art::gc::SystemWeakHolder {
       REQUIRES_SHARED(art::Locks::mutator_lock_)
       REQUIRES(allow_disallow_lock_);
 
-  void UpdateTable()
+  // Update the table by doing read barriers on each element, ensuring that to-space pointers
+  // are stored.
+  void UpdateTableWithReadBarrier()
       REQUIRES_SHARED(art::Locks::mutator_lock_)
       REQUIRES(allow_disallow_lock_);
 
@@ -138,6 +142,8 @@ class ObjectTagTable : public art::gc::SystemWeakHolder {
                      EqGcRoot> tagged_objects_
       GUARDED_BY(allow_disallow_lock_)
       GUARDED_BY(art::Locks::mutator_lock_);
+  // To avoid repeatedly scanning the whole table, remember if we did that since the last sweep.
+  bool update_since_last_sweep_;
 
   EventHandler* event_handler_;
 };
