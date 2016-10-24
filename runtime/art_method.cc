@@ -468,7 +468,18 @@ const uint8_t* ArtMethod::GetQuickenedInfo(PointerSize pointer_size) {
   if (!found || (oat_method.GetQuickCode() != nullptr)) {
     return nullptr;
   }
-  return oat_method.GetVmapTable();
+  if (kIsVdexEnabled) {
+    const OatQuickMethodHeader* header = oat_method.GetOatQuickMethodHeader();
+    // OatMethod without a header: no quickening table.
+    if (header == nullptr) {
+      return nullptr;
+    }
+    // The table is in the .vdex file.
+    const OatFile::OatDexFile* oat_dex_file = GetDexCache()->GetDexFile()->GetOatDexFile();
+    return oat_dex_file->GetOatFile()->DexBegin() + header->vmap_table_offset_;
+  } else {
+    return oat_method.GetVmapTable();
+  }
 }
 
 const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
