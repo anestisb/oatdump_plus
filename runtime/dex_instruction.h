@@ -126,13 +126,14 @@ class Instruction {
 
   enum IndexType {
     kIndexUnknown = 0,
-    kIndexNone,          // has no index
-    kIndexTypeRef,       // type reference index
-    kIndexStringRef,     // string reference index
-    kIndexMethodRef,     // method reference index
-    kIndexFieldRef,      // field reference index
-    kIndexFieldOffset,   // field offset (for static linked fields)
-    kIndexVtableOffset   // vtable offset (for static linked methods)
+    kIndexNone,              // has no index
+    kIndexTypeRef,           // type reference index
+    kIndexStringRef,         // string reference index
+    kIndexMethodRef,         // method reference index
+    kIndexFieldRef,          // field reference index
+    kIndexFieldOffset,       // field offset (for static linked fields)
+    kIndexVtableOffset,      // vtable offset (for static linked methods)
+    kIndexMethodAndProtoRef  // method and a proto reference index (for invoke-polymorphic)
   };
 
   enum Flags {
