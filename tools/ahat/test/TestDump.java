@@ -19,8 +19,10 @@ package com.android.ahat;
 import com.android.tools.perflib.heap.ClassObj;
 import com.android.tools.perflib.heap.Field;
 import com.android.tools.perflib.heap.Instance;
+import com.android.tools.perflib.heap.ProguardMap;
 import java.io.File;
 import java.io.IOException;
+import java.text.ParseException;
 import java.util.Map;
 
 /**
@@ -44,11 +46,21 @@ public class TestDump {
    * For example:
    *   java -Dahat.test.dump.hprof=test-dump.hprof -jar ahat-tests.jar
    *
-   * An IOException is thrown if there is a failure reading the hprof file.
+   * An IOException is thrown if there is a failure reading the hprof file or
+   * the proguard map.
    */
   private TestDump() throws IOException {
       String hprof = System.getProperty("ahat.test.dump.hprof");
-      mSnapshot = AhatSnapshot.fromHprof(new File(hprof));
+
+      String mapfile = System.getProperty("ahat.test.dump.map");
+      ProguardMap map = new ProguardMap();
+      try {
+        map.readFromFile(new File(mapfile));
+      } catch (ParseException e) {
+        throw new IOException("Unable to load proguard map", e);
+      }
+
+      mSnapshot = AhatSnapshot.fromHprof(new File(hprof), map);
   }
 
   /**
