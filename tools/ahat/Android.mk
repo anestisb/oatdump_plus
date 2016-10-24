@@ -55,11 +55,23 @@ LOCAL_MODULE := ahat-tests
 include $(BUILD_HOST_JAVA_LIBRARY)
 AHAT_TEST_JAR := $(LOCAL_BUILT_MODULE)
 
+# Rule to generate the proguard configuration for the test-dump program.
+# We copy the configuration to the intermediates directory because jack will
+# output the proguard map in that same directory.
+AHAT_TEST_DUMP_PROGUARD_CONFIG := $(intermediates.COMMON)/config.pro
+AHAT_TEST_DUMP_PROGUARD_MAP := $(intermediates.COMMON)/proguard.map
+$(AHAT_TEST_DUMP_PROGUARD_CONFIG): PRIVATE_AHAT_PROGUARD_CONFIG_IN := $(LOCAL_PATH)/test-dump/config.pro
+$(AHAT_TEST_DUMP_PROGUARD_CONFIG): PRIVATE_AHAT_PROGUARD_CONFIG := $(AHAT_TEST_DUMP_PROGUARD_CONFIG)
+$(AHAT_TEST_DUMP_PROGUARD_CONFIG): $(LOCAL_PATH)/test-dump/config.pro
+	cp $(PRIVATE_AHAT_PROGUARD_CONFIG_IN) $(PRIVATE_AHAT_PROGUARD_CONFIG)
+
 # --- ahat-test-dump.jar --------------
 include $(CLEAR_VARS)
 LOCAL_MODULE := ahat-test-dump
 LOCAL_MODULE_TAGS := tests
 LOCAL_SRC_FILES := $(call all-java-files-under, test-dump)
+LOCAL_ADDITIONAL_DEPENDENCIES := $(AHAT_TEST_DUMP_PROGUARD_CONFIG)
+LOCAL_JACK_FLAGS := --config-proguard $(AHAT_TEST_DUMP_PROGUARD_CONFIG)
 include $(BUILD_HOST_DALVIK_JAVA_LIBRARY)
 
 # Determine the location of the test-dump.jar and test-dump.hprof files.
@@ -84,12 +96,15 @@ $(AHAT_TEST_DUMP_HPROF): $(AHAT_TEST_DUMP_JAR) $(AHAT_TEST_DUMP_DEPENDENCIES)
 .PHONY: ahat-test
 ahat-test: PRIVATE_AHAT_TEST_DUMP_HPROF := $(AHAT_TEST_DUMP_HPROF)
 ahat-test: PRIVATE_AHAT_TEST_JAR := $(AHAT_TEST_JAR)
+ahat-test: PRIVATE_AHAT_PROGUARD_MAP := $(AHAT_TEST_DUMP_PROGUARD_MAP)
 ahat-test: $(AHAT_TEST_JAR) $(AHAT_TEST_DUMP_HPROF)
-	java -Dahat.test.dump.hprof=$(PRIVATE_AHAT_TEST_DUMP_HPROF) -jar $(PRIVATE_AHAT_TEST_JAR)
+	java -Dahat.test.dump.hprof=$(PRIVATE_AHAT_TEST_DUMP_HPROF) -Dahat.test.dump.map=$(PRIVATE_AHAT_PROGUARD_MAP) -jar $(PRIVATE_AHAT_TEST_JAR)
 
 # Clean up local variables.
 AHAT_TEST_DUMP_DEPENDENCIES :=
 AHAT_TEST_DUMP_HPROF :=
 AHAT_TEST_DUMP_JAR :=
+AHAT_TEST_DUMP_PROGUARD_CONFIG :=
+AHAT_TEST_DUMP_PROGUARD_MAP :=
 AHAT_TEST_JAR :=
 
