@@ -25,6 +25,8 @@
 #include "base/systrace.h"
 #include "base/time_utils.h"
 #include "gc/accounting/heap_bitmap.h"
+#include "gc/gc_pause_listener.h"
+#include "gc/heap.h"
 #include "gc/space/large_object_space.h"
 #include "gc/space/space-inl.h"
 #include "thread-inl.h"
@@ -156,12 +158,22 @@ void GarbageCollector::ResetMeasurements() {
 
 GarbageCollector::ScopedPause::ScopedPause(GarbageCollector* collector)
     : start_time_(NanoTime()), collector_(collector) {
-  Runtime::Current()->GetThreadList()->SuspendAll(__FUNCTION__);
+  Runtime* runtime = Runtime::Current();
+  runtime->GetThreadList()->SuspendAll(__FUNCTION__);
+  GcPauseListener* pause_listener = runtime->GetHeap()->GetGcPauseListener();
+  if (pause_listener != nullptr) {
+    pause_listener->StartPause();
+  }
 }
 
 GarbageCollector::ScopedPause::~ScopedPause() {
   collector_->RegisterPause(NanoTime() - start_time_);
-  Runtime::Current()->GetThreadList()->ResumeAll();
+  Runtime* runtime = Runtime::Current();
+  GcPauseListener* pause_listener = runtime->GetHeap()->GetGcPauseListener();
+  if (pause_listener != nullptr) {
+    pause_listener->EndPause();
+  }
+  runtime->GetThreadList()->ResumeAll();
 }
 
 // Returns the current GC iteration and assocated info.

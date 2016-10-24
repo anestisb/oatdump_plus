@@ -37,7 +37,7 @@ fi
 
 ./default-run "$@" --experimental agents \
                    --experimental runtime-plugins \
-                   --runtime-option -agentpath:${agent}=907-get-loaded-classes,${arg} \
+                   --runtime-option -agentpath:${agent}=908-gc-start-finish,${arg} \
                    --android-runtime-option -Xplugin:${plugin} \
                    ${other_args} \
                    --args ${lib}

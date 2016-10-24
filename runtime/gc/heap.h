@@ -61,6 +61,7 @@ namespace gc {
 
 class AllocationListener;
 class AllocRecordObjectMap;
+class GcPauseListener;
 class ReferenceProcessor;
 class TaskProcessor;
 
@@ -811,6 +812,16 @@ class Heap {
   // reasons, we assume it stays valid when we read it (so that we don't require a lock).
   void RemoveAllocationListener();
 
+  // Install a gc pause listener.
+  void SetGcPauseListener(GcPauseListener* l);
+  // Get the currently installed gc pause listener, or null.
+  GcPauseListener* GetGcPauseListener() {
+    return gc_pause_listener_.LoadAcquire();
+  }
+  // Remove a gc pause listener. Note: the listener must not be deleted, as for performance
+  // reasons, we assume it stays valid when we read it (so that we don't require a lock).
+  void RemoveGcPauseListener();
+
  private:
   class ConcurrentGCTask;
   class CollectorTransitionTask;
@@ -1377,6 +1388,8 @@ class Heap {
 
   // An installed allocation listener.
   Atomic<AllocationListener*> alloc_listener_;
+  // An installed GC Pause listener.
+  Atomic<GcPauseListener*> gc_pause_listener_;
 
   friend class CollectorTransitionTask;
   friend class collector::GarbageCollector;
