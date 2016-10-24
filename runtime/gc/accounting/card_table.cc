@@ -97,36 +97,18 @@ CardTable::~CardTable() {
   // Destroys MemMap via std::unique_ptr<>.
 }
 
-void CardTable::ClearSpaceCards(space::ContinuousSpace* space) {
-  // TODO: clear just the range of the table that has been modified
-  uint8_t* card_start = CardFromAddr(space->Begin());
-  uint8_t* card_end = CardFromAddr(space->End());  // Make sure to round up.
-  memset(reinterpret_cast<void*>(card_start), kCardClean, card_end - card_start);
-}
-
 void CardTable::ClearCardTable() {
   static_assert(kCardClean == 0, "kCardClean must be 0");
   mem_map_->MadviseDontNeedAndZero();
 }
 
 void CardTable::ClearCardRange(uint8_t* start, uint8_t* end) {
-  if (!kMadviseZeroes) {
-    memset(start, 0, end - start);
-    return;
-  }
   CHECK_ALIGNED(reinterpret_cast<uintptr_t>(start), kCardSize);
   CHECK_ALIGNED(reinterpret_cast<uintptr_t>(end), kCardSize);
   static_assert(kCardClean == 0, "kCardClean must be 0");
   uint8_t* start_card = CardFromAddr(start);
   uint8_t* end_card = CardFromAddr(end);
-  uint8_t* round_start = AlignUp(start_card, kPageSize);
-  uint8_t* round_end = AlignDown(end_card, kPageSize);
-  if (round_start < round_end) {
-    madvise(round_start, round_end - round_start, MADV_DONTNEED);
-  }
-  // Handle unaligned regions at start / end.
-  memset(start_card, 0, std::min(round_start, end_card) - start_card);
-  memset(std::max(round_end, start_card), 0, end_card - std::max(round_end, start_card));
+  ZeroAndReleasePages(start_card, end_card - start_card);
 }
 
 bool CardTable::AddrIsInCardTable(const void* addr) const {
