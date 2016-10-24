@@ -77,5 +77,16 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getLoadedClasses(
   return ret;
 }
 
+// Don't do anything
+jint OnLoad(JavaVM* vm,
+            char* options ATTRIBUTE_UNUSED,
+            void* reserved ATTRIBUTE_UNUSED) {
+  if (vm->GetEnv(reinterpret_cast<void**>(&jvmti_env), JVMTI_VERSION_1_0)) {
+    printf("Unable to get jvmti env!\n");
+    return 1;
+  }
+  return 0;
+}
+
 }  // namespace Test907GetLoadedClasses
 }  // namespace art

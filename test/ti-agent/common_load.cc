@@ -30,6 +30,8 @@
 #include "904-object-allocation/tracking.h"
 #include "905-object-free/tracking_free.h"
 #include "906-iterate-heap/iterate_heap.h"
+#include "907-get-loaded-classes/get_loaded_classes.h"
+#include "908-gc-start-finish/gc_callbacks.h"
 
 namespace art {
 
@@ -52,6 +54,8 @@ AgentLib agents[] = {
   { "904-object-allocation", Test904ObjectAllocation::OnLoad, nullptr },
   { "905-object-free", Test905ObjectFree::OnLoad, nullptr },
   { "906-iterate-heap", Test906IterateHeap::OnLoad, nullptr },
+  { "907-get-loaded-classes", Test907GetLoadedClasses::OnLoad, nullptr },
+  { "908-gc-start-finish", Test908GcStartFinish::OnLoad, nullptr },
 };
 
 static AgentLib* FindAgent(char* name) {
