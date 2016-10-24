@@ -52,7 +52,6 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   037-inherit \
   041-narrowing \
   042-new-instance \
-  043-privates \
   044-proxy \
   045-reflect-array \
   046-reflect \
@@ -62,7 +61,6 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   050-sync-test \
   051-thread \
   052-verifier-fun \
-  053-wait-some \
   054-uncaught \
   058-enum-order \
   059-finalizer-throw \
@@ -137,9 +135,6 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   201-built-in-except-detail-messages \
   302-float-conversion \
   304-method-tracing \
-  403-optimizing-long \
-  404-optimizing-allocator \
-  405-optimizing-long-allocator \
   406-fields \
   407-arrays \
   410-floats \
@@ -153,7 +148,6 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   417-optimizing-arith-div \
   419-long-parameter \
   421-exceptions \
-  421-large-frame \
   422-instanceof \
   422-type-conversion \
   423-invoke-interface \
@@ -180,7 +174,6 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   442-checker-constant-folding \
   444-checker-nce \
   445-checker-licm \
-  446-checker-inliner2 \
   447-checker-inliner3 \
   448-multiple-returns \
   449-checker-bce \
@@ -197,33 +190,24 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   459-dead-phi \
   460-multiple-returns3 \
   461-get-reference-vreg \
-  462-checker-inlining-dex-files \
   463-checker-boolean-simplifier \
-  464-checker-inline-sharpen-calls \
   466-get-live-vreg \
   467-regalloc-pair \
   468-checker-bool-simplif-regression \
   469-condition-materialization \
-  470-huge-method \
   471-deopt-environment \
   472-type-propagation \
-  473-checker-inliner-constants \
   474-checker-boolean-input \
   474-fp-sub-neg \
   475-regression-inliner-ids \
-  476-checker-ctor-memory-barrier \
   477-checker-bound-type \
   477-long-2-float-convers-precision \
   478-checker-clinit-check-pruning \
-  478-checker-inliner-nested-loop \
-  480-checker-dead-blocks \
-  482-checker-loop-back-edge-use \
   483-dce-block \
   484-checker-register-hints \
   485-checker-dce-loop-update \
   485-checker-dce-switch \
   486-checker-must-do-null-check \
-  487-checker-inline-calls \
   488-checker-inline-recursive-calls \
   490-checker-inline \
   491-current-method \
@@ -273,7 +257,6 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   535-regression-const-val \
   536-checker-intrinsic-optimization \
   536-checker-needs-access-check \
-  537-checker-arraycopy \
   537-checker-inline-and-unverified \
   537-checker-jump-over-jump \
   538-checker-embed-constants \
@@ -285,10 +268,8 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   543-env-long-ref \
   545-tracing-and-jit \
   546-regression-simplify-catch \
-  548-checker-inlining-and-dce \
   550-checker-multiply-accumulate \
   550-checker-regression-wide-store \
-  551-checker-clinit \
   551-checker-shifter-operand \
   551-implicit-null-checks \
   551-invoke-super \
@@ -311,17 +292,13 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   562-no-intermediate \
   563-checker-fakestring \
   564-checker-bitcount \
-  564-checker-inline-loop \
   564-checker-irreducible-loop \
   564-checker-negbitwise \
   565-checker-condition-liveness \
   565-checker-doublenegbitwise \
   565-checker-irreducible-loop \
   565-checker-rotate \
-  566-checker-codegen-select \
-  566-checker-signum \
   566-polymorphic-inlining \
-  567-checker-compare \
   568-checker-onebit \
   570-checker-osr \
   570-checker-select \
@@ -346,7 +323,6 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   590-checker-arr-set-null-regression \
   591-new-instance-string \
   592-checker-regression-bool-input \
-  593-checker-boolean-2-integral-conv \
   593-checker-long-2-float-regression \
   593-checker-shift-and-simplifier \
   594-checker-array-alias \
