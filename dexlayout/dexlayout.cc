@@ -30,6 +30,7 @@
 #include <sstream>
 #include <vector>
 
+#include "base/stringprintf.h"
 #include "dex_ir_builder.h"
 #include "dex_file-inl.h"
 #include "dex_instruction-inl.h"
@@ -722,9 +723,11 @@ static void DumpLocalInfo(const dex_ir::CodeItem* code) {
 static std::unique_ptr<char[]> IndexString(dex_ir::Header* header,
                                            const Instruction* dec_insn,
                                            size_t buf_size) {
+  static const uint32_t kInvalidIndex = std::numeric_limits<uint32_t>::max();
   std::unique_ptr<char[]> buf(new char[buf_size]);
   // Determine index and width of the string.
   uint32_t index = 0;
+  uint32_t secondary_index = kInvalidIndex;
   uint32_t width = 4;
   switch (Instruction::FormatOf(dec_insn->Opcode())) {
     // SOME NOT SUPPORTED:
@@ -746,6 +749,12 @@ static std::unique_ptr<char[]> IndexString(dex_ir::Header* header,
     case Instruction::k22c:
     // case Instruction::k22cs:
       index = dec_insn->VRegC();
+      width = 4;
+      break;
+    case Instruction::k45cc:
+    case Instruction::k4rcc:
+      index = dec_insn->VRegB();
+      secondary_index = dec_insn->VRegH();
       width = 4;
       break;
     default:
@@ -815,6 +824,24 @@ static std::unique_ptr<char[]> IndexString(dex_ir::Header* header,
     // SOME NOT SUPPORTED:
     // case Instruction::kIndexVaries:
     // case Instruction::kIndexInlineMethod:
+    case Instruction::kIndexMethodAndProtoRef: {
+      std::string method("<method?>");
+      std::string proto("<proto?>");
+      if (index < header->GetCollections().MethodIdsSize()) {
+        dex_ir::MethodId* method_id = header->GetCollections().GetMethodId(index);
+        const char* name = method_id->Name()->Data();
+        std::string type_descriptor = GetSignatureForProtoId(method_id->Proto());
+        const char* back_descriptor = method_id->Class()->GetStringId()->Data();
+        method = StringPrintf("%s.%s:%s", back_descriptor, name, type_descriptor.c_str());
+      }
+      if (secondary_index < header->GetCollections().ProtoIdsSize()) {
+        dex_ir::ProtoId* proto_id = header->GetCollections().GetProtoId(secondary_index);
+        proto = GetSignatureForProtoId(proto_id);
+      }
+      outSize = snprintf(buf.get(), buf_size, "%s, %s // method@%0*x, proto@%0*x",
+                         method.c_str(), proto.c_str(), width, index, width, secondary_index);
+      }
+      break;
     default:
       outSize = snprintf(buf.get(), buf_size, "<?>");
       break;
@@ -984,7 +1011,8 @@ static void DumpInstruction(dex_ir::Header* header, const dex_ir::CodeItem* code
     case Instruction::k32x:        // op vAAAA, vBBBB
       fprintf(out_file_, " v%d, v%d", dec_insn->VRegA(), dec_insn->VRegB());
       break;
-    case Instruction::k35c: {      // op {vC, vD, vE, vF, vG}, thing@BBBB
+    case Instruction::k35c:           // op {vC, vD, vE, vF, vG}, thing@BBBB
+    case Instruction::k45cc: {        // op {vC, vD, vE, vF, vG}, meth@BBBB, proto@HHHH
     // NOT SUPPORTED:
     // case Instruction::k35ms:       // [opt] invoke-virtual+super
     // case Instruction::k35mi:       // [opt] inline invoke
@@ -1001,7 +1029,8 @@ static void DumpInstruction(dex_ir::Header* header, const dex_ir::CodeItem* code
       fprintf(out_file_, "}, %s", index_buf.get());
       break;
     }
-    case Instruction::k3rc:        // op {vCCCC .. v(CCCC+AA-1)}, thing@BBBB
+    case Instruction::k3rc:           // op {vCCCC .. v(CCCC+AA-1)}, thing@BBBB
+    case Instruction::k4rcc:          // op {vCCCC .. v(CCCC+AA-1)}, meth@BBBB, proto@HHHH
     // NOT SUPPORTED:
     // case Instruction::k3rms:       // [opt] invoke-virtual+super/range
     // case Instruction::k3rmi:       // [opt] execute-inline/range

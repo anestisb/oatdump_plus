@@ -639,6 +639,9 @@ class DexFile {
   // Returns a representation of the signature of a method id.
   const Signature GetMethodSignature(const MethodId& method_id) const;
 
+  // Returns a representation of the signature of a proto id.
+  const Signature GetProtoSignature(const ProtoId& proto_id) const;
+
   // Returns the name of a method id.
   const char* GetMethodName(const MethodId& method_id) const;
 
