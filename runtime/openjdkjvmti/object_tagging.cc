@@ -46,7 +46,9 @@
 
 namespace openjdkjvmti {
 
-void ObjectTagTable::UpdateTable() {
+void ObjectTagTable::UpdateTableWithReadBarrier() {
+  update_since_last_sweep_ = true;
+
   auto WithReadBarrierUpdater = [&](const art::GcRoot<art::mirror::Object>& original_root,
                                     art::mirror::Object* original_obj ATTRIBUTE_UNUSED)
      REQUIRES_SHARED(art::Locks::mutator_lock_) {
@@ -57,7 +59,11 @@ void ObjectTagTable::UpdateTable() {
 }
 
 bool ObjectTagTable::GetTagSlowPath(art::Thread* self, art::mirror::Object* obj, jlong* result) {
-  UpdateTable();
+  // Under concurrent GC, there is a window between moving objects and sweeping of system
+  // weaks in which mutators are active. We may receive a to-space object pointer in obj,
+  // but still have from-space pointers in the table. Explicitly update the table once.
+  // Note: this will keep *all* objects in the table live, but should be a rare occurrence.
+  UpdateTableWithReadBarrier();
   return GetTagLocked(self, obj, result);
 }
 
@@ -84,9 +90,14 @@ bool ObjectTagTable::RemoveLocked(art::Thread* self, art::mirror::Object* obj, j
     return true;
   }
 
-  if (art::kUseReadBarrier && self->GetIsGcMarking()) {
+  if (art::kUseReadBarrier && self->GetIsGcMarking() && !update_since_last_sweep_) {
+    // Under concurrent GC, there is a window between moving objects and sweeping of system
+    // weaks in which mutators are active. We may receive a to-space object pointer in obj,
+    // but still have from-space pointers in the table. Explicitly update the table once.
+    // Note: this will keep *all* objects in the table live, but should be a rare occurrence.
+
     // Update the table.
-    UpdateTable();
+    UpdateTableWithReadBarrier();
 
     // And try again.
     return RemoveLocked(self, obj, tag);
@@ -111,9 +122,14 @@ bool ObjectTagTable::SetLocked(art::Thread* self, art::mirror::Object* obj, jlon
     return true;
   }
 
-  if (art::kUseReadBarrier && self->GetIsGcMarking()) {
+  if (art::kUseReadBarrier && self->GetIsGcMarking() && !update_since_last_sweep_) {
+    // Under concurrent GC, there is a window between moving objects and sweeping of system
+    // weaks in which mutators are active. We may receive a to-space object pointer in obj,
+    // but still have from-space pointers in the table. Explicitly update the table once.
+    // Note: this will keep *all* objects in the table live, but should be a rare occurrence.
+
     // Update the table.
-    UpdateTable();
+    UpdateTableWithReadBarrier();
 
     // And try again.
     return SetLocked(self, obj, new_tag);
@@ -131,6 +147,14 @@ void ObjectTagTable::Sweep(art::IsMarkedVisitor* visitor) {
   } else {
     SweepImpl<false>(visitor);
   }
+
+  // Under concurrent GC, there is a window between moving objects and sweeping of system
+  // weaks in which mutators are active. We may receive a to-space object pointer in obj,
+  // but still have from-space pointers in the table. We explicitly update the table then
+  // to ensure we compare against to-space pointers. But we want to do this only once. Once
+  // sweeping is done, we know all objects are to-space pointers until the next GC cycle,
+  // so we re-enable the explicit update for the next marking.
+  update_since_last_sweep_ = false;
 }
 
 template <bool kHandleNull>
