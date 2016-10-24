@@ -16,24 +16,28 @@
 
 package com.android.ahat;
 
+import com.android.tools.perflib.heap.ProguardMap;
 import com.sun.net.httpserver.HttpServer;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.text.ParseException;
 import java.util.concurrent.Executors;
 
 public class Main {
 
   public static void help(PrintStream out) {
-    out.println("java -jar ahat.jar [-p port] FILE");
+    out.println("java -jar ahat.jar [-p port] [--proguard-map FILE] FILE");
     out.println("  Launch an http server for viewing "
         + "the given Android heap-dump FILE.");
     out.println("");
     out.println("Options:");
     out.println("  -p <port>");
     out.println("     Serve pages on the given port. Defaults to 7100.");
+    out.println("  --proguard-map FILE");
+    out.println("     Use the proguard map FILE to deobfuscate the heap dump.");
     out.println("");
   }
 
@@ -47,10 +51,19 @@ public class Main {
     }
 
     File hprof = null;
+    ProguardMap map = new ProguardMap();
     for (int i = 0; i < args.length; i++) {
       if ("-p".equals(args[i]) && i + 1 < args.length) {
         i++;
         port = Integer.parseInt(args[i]);
+      } else if ("--proguard-map".equals(args[i]) && i + 1 < args.length) {
+        i++;
+        try {
+          map.readFromFile(new File(args[i]));
+        } catch (IOException|ParseException ex) {
+          System.out.println("Unable to read proguard map: " + ex);
+          System.out.println("The proguard map will not be used.");
+        }
       } else {
         if (hprof != null) {
           System.err.println("multiple input files.");
@@ -74,7 +87,7 @@ public class Main {
     HttpServer server = HttpServer.create(addr, 0);
 
     System.out.println("Processing hprof file...");
-    AhatSnapshot ahat = AhatSnapshot.fromHprof(hprof);
+    AhatSnapshot ahat = AhatSnapshot.fromHprof(hprof, map);
     server.createContext("/", new AhatHttpHandler(new OverviewHandler(ahat, hprof)));
     server.createContext("/rooted", new AhatHttpHandler(new RootedHandler(ahat)));
     server.createContext("/object", new AhatHttpHandler(new ObjectHandler(ahat)));
