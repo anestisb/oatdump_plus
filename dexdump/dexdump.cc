@@ -42,6 +42,7 @@
 #include <sstream>
 #include <vector>
 
+#include "base/stringprintf.h"
 #include "dex_file-inl.h"
 #include "dex_instruction-inl.h"
 #include "utils.h"
@@ -780,9 +781,11 @@ static void dumpLocalsCb(void* /*context*/, const DexFile::LocalInfo& entry) {
 static std::unique_ptr<char[]> indexString(const DexFile* pDexFile,
                                            const Instruction* pDecInsn,
                                            size_t bufSize) {
+  static const u4 kInvalidIndex = std::numeric_limits<u4>::max();
   std::unique_ptr<char[]> buf(new char[bufSize]);
   // Determine index and width of the string.
   u4 index = 0;
+  u4 secondary_index = kInvalidIndex;
   u4 width = 4;
   switch (Instruction::FormatOf(pDecInsn->Opcode())) {
     // SOME NOT SUPPORTED:
@@ -804,6 +807,12 @@ static std::unique_ptr<char[]> indexString(const DexFile* pDexFile,
     case Instruction::k22c:
     // case Instruction::k22cs:
       index = pDecInsn->VRegC();
+      width = 4;
+      break;
+    case Instruction::k45cc:
+    case Instruction::k4rcc:
+      index = pDecInsn->VRegB();
+      secondary_index = pDecInsn->VRegH();
       width = 4;
       break;
     default:
@@ -869,6 +878,26 @@ static std::unique_ptr<char[]> indexString(const DexFile* pDexFile,
       break;
     case Instruction::kIndexFieldOffset:
       outSize = snprintf(buf.get(), bufSize, "[obj+%0*x]", width, index);
+      break;
+    case Instruction::kIndexMethodAndProtoRef: {
+        std::string method("<method?>");
+        std::string proto("<proto?>");
+        if (index < pDexFile->GetHeader().method_ids_size_) {
+          const DexFile::MethodId& pMethodId = pDexFile->GetMethodId(index);
+          const char* name = pDexFile->StringDataByIdx(pMethodId.name_idx_);
+          const Signature signature = pDexFile->GetMethodSignature(pMethodId);
+          const char* backDescriptor = pDexFile->StringByTypeIdx(pMethodId.class_idx_);
+          method = StringPrintf("%s.%s:%s",
+                                backDescriptor, name, signature.ToString().c_str());
+        }
+        if (secondary_index < pDexFile->GetHeader().proto_ids_size_) {
+          const DexFile::ProtoId& protoId = pDexFile->GetProtoId(secondary_index);
+          const Signature signature = pDexFile->GetProtoSignature(protoId);
+          proto = signature.ToString();
+        }
+        outSize = snprintf(buf.get(), bufSize, "%s, %s // method@%0*x, proto@%0*x",
+                           method.c_str(), proto.c_str(), width, index, width, secondary_index);
+      }
       break;
     // SOME NOT SUPPORTED:
     // case Instruction::kIndexVaries:
@@ -1043,7 +1072,8 @@ static void dumpInstruction(const DexFile* pDexFile,
     case Instruction::k32x:        // op vAAAA, vBBBB
       fprintf(gOutFile, " v%d, v%d", pDecInsn->VRegA(), pDecInsn->VRegB());
       break;
-    case Instruction::k35c: {      // op {vC, vD, vE, vF, vG}, thing@BBBB
+    case Instruction::k35c:       // op {vC, vD, vE, vF, vG}, thing@BBBB
+    case Instruction::k45cc: {    // op {vC, vD, vE, vF, vG}, method@BBBB, proto@HHHH
     // NOT SUPPORTED:
     // case Instruction::k35ms:       // [opt] invoke-virtual+super
     // case Instruction::k35mi:       // [opt] inline invoke
@@ -1061,10 +1091,10 @@ static void dumpInstruction(const DexFile* pDexFile,
       break;
     }
     case Instruction::k3rc:        // op {vCCCC .. v(CCCC+AA-1)}, thing@BBBB
+    case Instruction::k4rcc: {     // op {vCCCC .. v(CCCC+AA-1)}, method@BBBB, proto@HHHH
     // NOT SUPPORTED:
     // case Instruction::k3rms:       // [opt] invoke-virtual+super/range
     // case Instruction::k3rmi:       // [opt] execute-inline/range
-      {
         // This doesn't match the "dx" output when some of the args are
         // 64-bit values -- dx only shows the first register.
         fputs(" {", gOutFile);
