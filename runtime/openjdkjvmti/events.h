@@ -28,6 +28,7 @@ namespace openjdkjvmti {
 
 struct ArtJvmTiEnv;
 class JvmtiAllocationListener;
+class JvmtiGcPauseListener;
 
 struct EventMask {
   static constexpr size_t kEventsSize = JVMTI_MAX_EVENT_TYPE_VAL - JVMTI_MIN_EVENT_TYPE_VAL + 1;
@@ -103,6 +104,7 @@ class EventHandler {
   EventMask global_mask;
 
   std::unique_ptr<JvmtiAllocationListener> alloc_listener_;
+  std::unique_ptr<JvmtiGcPauseListener> gc_pause_listener_;
 };
 
 }  // namespace openjdkjvmti
