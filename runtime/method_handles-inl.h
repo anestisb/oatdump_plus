@@ -97,6 +97,70 @@ template <bool is_range> class ArgIterator {
   size_t arg_index_;
 };
 
+REQUIRES_SHARED(Locks::mutator_lock_)
+bool ConvertJValue(Handle<mirror::Class> from,
+                   Handle<mirror::Class> to,
+                   const JValue& from_value,
+                   JValue* to_value) {
+  const Primitive::Type from_type = from->GetPrimitiveType();
+  const Primitive::Type to_type = to->GetPrimitiveType();
+
+  // This method must be called only when the types don't match.
+  DCHECK(from.Get() != to.Get());
+
+  if ((from_type != Primitive::kPrimNot) && (to_type != Primitive::kPrimNot)) {
+    // Throws a ClassCastException if we're unable to convert a primitive value.
+    return ConvertPrimitiveValue(false, from_type, to_type, from_value, to_value);
+  } else if ((from_type == Primitive::kPrimNot) && (to_type == Primitive::kPrimNot)) {
+    // They're both reference types. If "from" is null, we can pass it
+    // through unchanged. If not, we must generate a cast exception if
+    // |to| is not assignable from the dynamic type of |ref|.
+    mirror::Object* const ref = from_value.GetL();
+    if (ref == nullptr || to->IsAssignableFrom(ref->GetClass())) {
+      to_value->SetL(ref);
+      return true;
+    } else {
+      ThrowClassCastException(to.Get(), ref->GetClass());
+      return false;
+    }
+  } else {
+    // Precisely one of the source or the destination are reference types.
+    // We must box or unbox.
+    if (to_type == Primitive::kPrimNot) {
+      // The target type is a reference, we must box.
+      Primitive::Type type;
+      // TODO(narayan): This is a CHECK for now. There might be a few corner cases
+      // here that we might not have handled yet. For exmple, if |to| is java/lang/Number;,
+      // we will need to box this "naturally".
+      CHECK(GetPrimitiveType(to.Get(), &type));
+      // First perform a primitive conversion to the unboxed equivalent of the target,
+      // if necessary. This should be for the rarer cases like (int->Long) etc.
+      if (UNLIKELY(from_type != type)) {
+         if (!ConvertPrimitiveValue(false, from_type, type, from_value, to_value)) {
+           return false;
+         }
+      } else {
+        *to_value = from_value;
+      }
+
+      // Then perform the actual boxing, and then set the reference.
+      ObjPtr<mirror::Object> boxed = BoxPrimitive(type, from_value);
+      to_value->SetL(boxed.Ptr());
+      return true;
+    } else {
+      // The target type is a primitive, we must unbox.
+      ObjPtr<mirror::Object> ref(from_value.GetL());
+
+      // Note that UnboxPrimitiveForResult already performs all of the type
+      // conversions that we want, based on |to|.
+      JValue unboxed_value;
+      return UnboxPrimitiveForResult(ref, to.Get(), to_value);
+    }
+  }
+
+  return true;
+}
+
 template <bool is_range>
 bool PerformArgumentConversions(Thread* self,
                                 Handle<mirror::MethodType> callsite_type,
@@ -105,8 +169,7 @@ bool PerformArgumentConversions(Thread* self,
                                 uint32_t first_src_reg,
                                 uint32_t first_dest_reg,
                                 const uint32_t (&arg)[Instruction::kMaxVarArgRegs],
-                                ShadowFrame* callee_frame,
-                                JValue* result) {
+                                ShadowFrame* callee_frame) {
   StackHandleScope<4> hs(self);
   Handle<mirror::ObjectArray<mirror::Class>> from_types(hs.NewHandle(callsite_type->GetPTypes()));
   Handle<mirror::ObjectArray<mirror::Class>> to_types(hs.NewHandle(callee_type->GetPTypes()));
@@ -114,7 +177,6 @@ bool PerformArgumentConversions(Thread* self,
   const int32_t num_method_params = from_types->GetLength();
   if (to_types->GetLength() != num_method_params) {
     ThrowWrongMethodTypeException(callee_type.Get(), callsite_type.Get());
-    result->SetJ(0);
     return false;
   }
 
@@ -149,105 +211,32 @@ bool PerformArgumentConversions(Thread* self,
       }
 
       continue;
-    } else if ((from_type != Primitive::kPrimNot) && (to_type != Primitive::kPrimNot)) {
-      // They are both primitive types - we should perform any widening or
-      // narrowing conversions as applicable.
+    } else {
       JValue from_value;
       JValue to_value;
 
       if (Primitive::Is64BitType(from_type)) {
         from_value.SetJ(caller_frame.GetVRegLong(input_args.NextPair()));
+      } else if (from_type == Primitive::kPrimNot) {
+        from_value.SetL(caller_frame.GetVRegReference(input_args.Next()));
       } else {
         from_value.SetI(caller_frame.GetVReg(input_args.Next()));
       }
 
-      // Throws a ClassCastException if we're unable to convert a primitive value.
-      if (!ConvertPrimitiveValue(false, from_type, to_type, from_value, &to_value)) {
+      if (!ConvertJValue(from, to, from_value, &to_value)) {
         DCHECK(self->IsExceptionPending());
-        result->SetL(0);
         return false;
       }
 
       if (Primitive::Is64BitType(to_type)) {
         callee_frame->SetVRegLong(first_dest_reg + to_arg_index, to_value.GetJ());
         to_arg_index += 2;
+      } else if (to_type == Primitive::kPrimNot) {
+        callee_frame->SetVRegReference(first_dest_reg + to_arg_index, to_value.GetL());
+        ++to_arg_index;
       } else {
         callee_frame->SetVReg(first_dest_reg + to_arg_index, to_value.GetI());
         ++to_arg_index;
-      }
-    } else if ((from_type == Primitive::kPrimNot) && (to_type == Primitive::kPrimNot)) {
-      // They're both reference types. If "from" is null, we can pass it
-      // through unchanged. If not, we must generate a cast exception if
-      // |to| is not assignable from the dynamic type of |ref|.
-      const size_t next_arg_reg = input_args.Next();
-      mirror::Object* const ref = caller_frame.GetVRegReference(next_arg_reg);
-      if (ref == nullptr || to->IsAssignableFrom(ref->GetClass())) {
-        interpreter::AssignRegister(callee_frame,
-                                    caller_frame,
-                                    first_dest_reg + to_arg_index,
-                                    next_arg_reg);
-        ++to_arg_index;
-      } else {
-        ThrowClassCastException(to.Get(), ref->GetClass());
-        result->SetL(0);
-        return false;
-      }
-    } else {
-      // Precisely one of the source or the destination are reference types.
-      // We must box or unbox.
-      if (to_type == Primitive::kPrimNot) {
-        // The target type is a reference, we must box.
-        Primitive::Type type;
-        // TODO(narayan): This is a CHECK for now. There might be a few corner cases
-        // here that we might not have handled yet. For exmple, if |to| is java/lang/Number;,
-        // we will need to box this "naturally".
-        CHECK(GetPrimitiveType(to.Get(), &type));
-
-        JValue from_value;
-        JValue to_value;
-
-        if (Primitive::Is64BitType(from_type)) {
-          from_value.SetJ(caller_frame.GetVRegLong(input_args.NextPair()));
-        } else {
-          from_value.SetI(caller_frame.GetVReg(input_args.Next()));
-        }
-
-        // First perform a primitive conversion to the unboxed equivalent of the target,
-        // if necessary. This should be for the rarer cases like (int->Long) etc.
-        if (UNLIKELY(from_type != type)) {
-          if (!ConvertPrimitiveValue(false, from_type, type, from_value, &to_value)) {
-            DCHECK(self->IsExceptionPending());
-            result->SetL(0);
-            return false;
-          }
-        } else {
-          to_value = from_value;
-        }
-
-        // Then perform the actual boxing, and then set the reference.
-        ObjPtr<mirror::Object> boxed = BoxPrimitive(type, to_value);
-        callee_frame->SetVRegReference(first_dest_reg + to_arg_index, boxed.Ptr());
-        ++to_arg_index;
-      } else {
-        // The target type is a primitive, we must unbox.
-        ObjPtr<mirror::Object> ref(caller_frame.GetVRegReference(input_args.Next()));
-
-        // Note that UnboxPrimitiveForResult already performs all of the type
-        // conversions that we want, based on |to|.
-        JValue unboxed_value;
-        if (!UnboxPrimitiveForResult(ref, to.Get(), &unboxed_value)) {
-          DCHECK(self->IsExceptionPending());
-          result->SetL(0);
-          return false;
-        }
-
-        if (Primitive::Is64BitType(to_type)) {
-          callee_frame->SetVRegLong(first_dest_reg + to_arg_index, unboxed_value.GetJ());
-          to_arg_index += 2;
-        } else {
-          callee_frame->SetVReg(first_dest_reg + to_arg_index, unboxed_value.GetI());
-          ++to_arg_index;
-        }
       }
     }
   }
