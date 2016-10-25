@@ -2325,7 +2325,6 @@ void ConcurrentCopying::FinishPhase() {
     MutexLock mu(self, mark_stack_lock_);
     CHECK_EQ(pooled_mark_stacks_.size(), kMarkStackPoolSize);
   }
-  region_space_ = nullptr;
   {
     MutexLock mu(Thread::Current(), skipped_blocks_lock_);
     skipped_blocks_map_.clear();
