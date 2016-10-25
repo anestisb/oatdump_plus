@@ -64,6 +64,7 @@
 #include "string_reference.h"
 #include "thread_list.h"
 #include "type_lookup_table.h"
+#include "vdex_file.h"
 #include "verifier/method_verifier.h"
 #include "well_known_classes.h"
 
@@ -1029,13 +1030,19 @@ class OatDumper {
       if (options_.absolute_addresses_) {
         vios->Stream() << StringPrintf("%p ", oat_method.GetVmapTable());
       }
-      uint32_t vmap_table_offset = oat_method.GetVmapTableOffset();
+      uint32_t vmap_table_offset = method_header == nullptr ? 0 : method_header->vmap_table_offset_;
       vios->Stream() << StringPrintf("(offset=0x%08x)\n", vmap_table_offset);
-      if (vmap_table_offset > oat_file_.Size()) {
+
+      size_t vmap_table_offset_limit =
+          (kIsVdexEnabled && IsMethodGeneratedByDexToDexCompiler(oat_method, code_item))
+              ? oat_file_.GetVdexFile()->Size()
+              : method_header->GetCode() - oat_file_.Begin();
+      if (vmap_table_offset >= vmap_table_offset_limit) {
         vios->Stream() << StringPrintf("WARNING: "
                                        "vmap table offset 0x%08x is past end of file 0x%08zx. "
                                        "vmap table offset was loaded from offset 0x%08x.\n",
-                                       vmap_table_offset, oat_file_.Size(),
+                                       vmap_table_offset,
+                                       vmap_table_offset_limit,
                                        oat_method.GetVmapTableOffsetOffset());
         success = false;
       } else if (options_.dump_vmap_) {
