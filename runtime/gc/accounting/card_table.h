@@ -98,15 +98,19 @@ class CardTable {
    * us to know which cards got cleared.
    */
   template <typename Visitor, typename ModifiedVisitor>
-  void ModifyCardsAtomic(uint8_t* scan_begin, uint8_t* scan_end, const Visitor& visitor,
+  void ModifyCardsAtomic(uint8_t* scan_begin,
+                         uint8_t* scan_end,
+                         const Visitor& visitor,
                          const ModifiedVisitor& modified);
 
   // For every dirty at least minumum age between begin and end invoke the visitor with the
   // specified argument. Returns how many cards the visitor was run on.
   template <bool kClearCard, typename Visitor>
-  size_t Scan(SpaceBitmap<kObjectAlignment>* bitmap, uint8_t* scan_begin, uint8_t* scan_end,
+  size_t Scan(SpaceBitmap<kObjectAlignment>* bitmap,
+              uint8_t* scan_begin,
+              uint8_t* scan_end,
               const Visitor& visitor,
-              const uint8_t minimum_age = kCardDirty) const
+              const uint8_t minimum_age = kCardDirty)
       REQUIRES(Locks::heap_bitmap_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -118,9 +122,6 @@ class CardTable {
 
   // Clear a range of cards that covers start to end, start and end must be aligned to kCardSize.
   void ClearCardRange(uint8_t* start, uint8_t* end);
-
-  // Resets all of the bytes in the card table which do not map to the image space.
-  void ClearSpaceCards(space::ContinuousSpace* space);
 
   // Returns the first address in the heap which maps to this card.
   void* AddrFromCard(const uint8_t *card_addr) const ALWAYS_INLINE;
