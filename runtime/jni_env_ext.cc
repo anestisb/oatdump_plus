@@ -69,7 +69,7 @@ JNIEnvExt::JNIEnvExt(Thread* self_in, JavaVMExt* vm_in, std::string* error_msg)
     : self(self_in),
       vm(vm_in),
       local_ref_cookie(kIRTFirstSegment),
-      locals(kLocalsInitial, kLocal, error_msg),
+      locals(kLocalsInitial, kLocal, IndirectReferenceTable::ResizableCapacity::kYes, error_msg),
       check_jni(false),
       runtime_deleted(false),
       critical(0),

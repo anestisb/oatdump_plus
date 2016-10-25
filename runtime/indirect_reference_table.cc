@@ -61,11 +61,13 @@ void IndirectReferenceTable::AbortIfNoCheckJNI(const std::string& msg) {
 
 IndirectReferenceTable::IndirectReferenceTable(size_t max_count,
                                                IndirectRefKind desired_kind,
+                                               ResizableCapacity resizable,
                                                std::string* error_msg)
     : segment_state_(kIRTFirstSegment),
       kind_(desired_kind),
       max_entries_(max_count),
-      current_num_holes_(0) {
+      current_num_holes_(0),
+      resizable_(resizable) {
   CHECK(error_msg != nullptr);
   CHECK_NE(desired_kind, kHandleScopeOrInvalid);
 
@@ -236,10 +238,22 @@ IndirectRef IndirectReferenceTable::Add(IRTSegmentState previous_state,
   DCHECK(table_ != nullptr);
 
   if (top_index == max_entries_) {
-    LOG(FATAL) << "JNI ERROR (app bug): " << kind_ << " table overflow "
-               << "(max=" << max_entries_ << ")\n"
-               << MutatorLockedDumpable<IndirectReferenceTable>(*this);
-    UNREACHABLE();
+    if (resizable_ == ResizableCapacity::kNo) {
+      LOG(FATAL) << "JNI ERROR (app bug): " << kind_ << " table overflow "
+                 << "(max=" << max_entries_ << ")\n"
+                 << MutatorLockedDumpable<IndirectReferenceTable>(*this);
+      UNREACHABLE();
+    }
+
+    // Try to double space.
+    std::string error_msg;
+    if (!Resize(max_entries_ * 2, &error_msg)) {
+      LOG(FATAL) << "JNI ERROR (app bug): " << kind_ << " table overflow "
+                 << "(max=" << max_entries_ << ")" << std::endl
+                 << MutatorLockedDumpable<IndirectReferenceTable>(*this)
+                 << " Resizing failed: " << error_msg;
+      UNREACHABLE();
+    }
   }
 
   RecoverHoles(previous_state);
