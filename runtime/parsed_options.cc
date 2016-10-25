@@ -601,7 +601,7 @@ bool ParsedOptions::DoParse(const RuntimeOptions& options,
                  << "runtime plugins.";
   } else if (!args.GetOrDefault(M::Plugins).empty()) {
     LOG(WARNING) << "Experimental runtime plugin support has not been enabled. Ignored options: ";
-    for (auto& op : args.GetOrDefault(M::Plugins)) {
+    for (const auto& op : args.GetOrDefault(M::Plugins)) {
       LOG(WARNING) << "    -plugin:" << op.GetLibrary();
     }
   }
@@ -614,14 +614,14 @@ bool ParsedOptions::DoParse(const RuntimeOptions& options,
   } else if (!args.GetOrDefault(M::AgentLib).empty() || !args.GetOrDefault(M::AgentPath).empty()) {
     LOG(WARNING) << "agent support has not been enabled. Enable experimental agent "
                  << " support with '-XExperimental:agent'. Ignored options are:";
-    for (auto op : args.GetOrDefault(M::AgentLib)) {
+    for (const auto& op : args.GetOrDefault(M::AgentLib)) {
       if (op.HasArgs()) {
         LOG(WARNING) << "    -agentlib:" << op.GetName() << "=" << op.GetArgs();
       } else {
         LOG(WARNING) << "    -agentlib:" << op.GetName();
       }
     }
-    for (auto op : args.GetOrDefault(M::AgentPath)) {
+    for (const auto& op : args.GetOrDefault(M::AgentPath)) {
       if (op.HasArgs()) {
         LOG(WARNING) << "    -agentpath:" << op.GetName() << "=" << op.GetArgs();
       } else {
