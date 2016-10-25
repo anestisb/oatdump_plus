@@ -2310,19 +2310,20 @@ TEST_F(JniInternalTest, IndirectReferenceTableOffsets) {
   std::string error_msg;
   IndirectReferenceTable irt(5, IndirectRefKind::kGlobal, &error_msg);
   ASSERT_TRUE(irt.IsValid()) << error_msg;
-  uint32_t old_state = irt.GetSegmentState();
+  IRTSegmentState old_state = irt.GetSegmentState();
 
   // Write some new state directly. We invert parts of old_state to ensure a new value.
-  uint32_t new_state = old_state ^ 0x07705005;
-  ASSERT_NE(old_state, new_state);
+  IRTSegmentState new_state;
+  new_state.top_index = old_state.top_index ^ 0x07705005;
+  ASSERT_NE(old_state.top_index, new_state.top_index);
 
   uint8_t* base = reinterpret_cast<uint8_t*>(&irt);
   int32_t segment_state_offset =
       IndirectReferenceTable::SegmentStateOffset(sizeof(void*)).Int32Value();
-  *reinterpret_cast<uint32_t*>(base + segment_state_offset) = new_state;
+  *reinterpret_cast<IRTSegmentState*>(base + segment_state_offset) = new_state;
 
   // Read and compare.
-  EXPECT_EQ(new_state, irt.GetSegmentState());
+  EXPECT_EQ(new_state.top_index, irt.GetSegmentState().top_index);
 }
 
 // Test the offset computation of JNIEnvExt offsets. b/26071368.

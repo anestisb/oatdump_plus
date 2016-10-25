@@ -15,12 +15,17 @@
  */
 
 #include "art_method-inl.h"
+#include "base/casts.h"
 #include "entrypoints/entrypoint_utils-inl.h"
+#include "indirect_reference_table.h"
 #include "mirror/object-inl.h"
 #include "thread-inl.h"
 #include "verify_object-inl.h"
 
 namespace art {
+
+static_assert(sizeof(IRTSegmentState) == sizeof(uint32_t), "IRTSegmentState size unexpected");
+static_assert(std::is_trivial<IRTSegmentState>::value, "IRTSegmentState not trivial");
 
 template <bool kDynamicFast>
 static inline void GoToRunnableFast(Thread* self) NO_THREAD_SAFETY_ANALYSIS;
@@ -45,7 +50,7 @@ extern void ReadBarrierJni(mirror::CompressedReference<mirror::Object>* handle_o
 extern uint32_t JniMethodFastStart(Thread* self) {
   JNIEnvExt* env = self->GetJniEnv();
   DCHECK(env != nullptr);
-  uint32_t saved_local_ref_cookie = env->local_ref_cookie;
+  uint32_t saved_local_ref_cookie = bit_cast<uint32_t>(env->local_ref_cookie);
   env->local_ref_cookie = env->locals.GetSegmentState();
 
   if (kIsDebugBuild) {
@@ -60,7 +65,7 @@ extern uint32_t JniMethodFastStart(Thread* self) {
 extern uint32_t JniMethodStart(Thread* self) {
   JNIEnvExt* env = self->GetJniEnv();
   DCHECK(env != nullptr);
-  uint32_t saved_local_ref_cookie = env->local_ref_cookie;
+  uint32_t saved_local_ref_cookie = bit_cast<uint32_t>(env->local_ref_cookie);
   env->local_ref_cookie = env->locals.GetSegmentState();
   ArtMethod* native_method = *self->GetManagedStack()->GetTopQuickFrame();
   if (!native_method->IsFastNative()) {
@@ -117,7 +122,7 @@ static void PopLocalReferences(uint32_t saved_local_ref_cookie, Thread* self)
     env->CheckNoHeldMonitors();
   }
   env->locals.SetSegmentState(env->local_ref_cookie);
-  env->local_ref_cookie = saved_local_ref_cookie;
+  env->local_ref_cookie = bit_cast<IRTSegmentState>(saved_local_ref_cookie);
   self->PopHandleScope();
 }
 
