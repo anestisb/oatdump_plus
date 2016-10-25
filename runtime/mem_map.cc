@@ -918,4 +918,23 @@ void MemMap::TryReadable() {
   }
 }
 
+void ZeroAndReleasePages(void* address, size_t length) {
+  uint8_t* const mem_begin = reinterpret_cast<uint8_t*>(address);
+  uint8_t* const mem_end = mem_begin + length;
+  uint8_t* const page_begin = AlignUp(mem_begin, kPageSize);
+  uint8_t* const page_end = AlignDown(mem_end, kPageSize);
+  if (!kMadviseZeroes || page_begin >= page_end) {
+    // No possible area to madvise.
+    std::fill(mem_begin, mem_end, 0);
+  } else {
+    // Spans one or more pages.
+    DCHECK_LE(mem_begin, page_begin);
+    DCHECK_LE(page_begin, page_end);
+    DCHECK_LE(page_end, mem_end);
+    std::fill(mem_begin, page_begin, 0);
+    CHECK_NE(madvise(page_begin, page_end - page_begin, MADV_DONTNEED), -1) << "madvise failed";
+    std::fill(page_end, mem_end, 0);
+  }
+}
+
 }  // namespace art

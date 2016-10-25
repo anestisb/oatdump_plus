@@ -214,7 +214,7 @@ void ModUnionTableTest::RunTest(ModUnionTableFactory::TableType type) {
   ASSERT_TRUE(other_space_ref2 != nullptr);
   obj1->Set(1, other_space_ref1);
   obj2->Set(3, other_space_ref2);
-  table->ClearCards();
+  table->ProcessCards();
   std::set<mirror::Object*> visited_before;
   CollectVisitedVisitor collector_before(&visited_before);
   table->UpdateAndMarkReferences(&collector_before);
