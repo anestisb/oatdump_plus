@@ -68,7 +68,7 @@ JNIEnvExt* JNIEnvExt::Create(Thread* self_in, JavaVMExt* vm_in, std::string* err
 JNIEnvExt::JNIEnvExt(Thread* self_in, JavaVMExt* vm_in, std::string* error_msg)
     : self(self_in),
       vm(vm_in),
-      local_ref_cookie(IRT_FIRST_SEGMENT),
+      local_ref_cookie(kIRTFirstSegment),
       locals(kLocalsInitial, kLocal, error_msg),
       check_jni(false),
       runtime_deleted(false),
