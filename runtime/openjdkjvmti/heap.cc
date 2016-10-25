@@ -21,7 +21,6 @@
 #include "base/mutex.h"
 #include "class_linker.h"
 #include "gc/heap.h"
-#include "java_vm_ext.h"
 #include "jni_env_ext.h"
 #include "mirror/class.h"
 #include "object_callbacks.h"
@@ -179,8 +178,7 @@ jvmtiError HeapUtil::GetLoadedClasses(jvmtiEnv* env,
 
     bool operator()(art::ObjPtr<art::mirror::Class> klass)
         OVERRIDE REQUIRES_SHARED(art::Locks::mutator_lock_) {
-      art::JNIEnvExt* jni_env = self_->GetJniEnv();
-      classes_.push_back(reinterpret_cast<jclass>(jni_env->vm->AddGlobalRef(self_, klass)));
+      classes_.push_back(self_->GetJniEnv()->AddLocalReference<jclass>(klass));
       return true;
     }
 
