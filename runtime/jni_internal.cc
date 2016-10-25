@@ -2374,7 +2374,7 @@ class JNI {
 
     // Do we definitely know what kind of reference this is?
     IndirectRef ref = reinterpret_cast<IndirectRef>(java_object);
-    IndirectRefKind kind = GetIndirectRefKind(ref);
+    IndirectRefKind kind = IndirectReferenceTable::GetIndirectRefKind(ref);
     switch (kind) {
     case kLocal:
       return JNILocalRefType;

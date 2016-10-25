@@ -277,7 +277,7 @@ class ScopedCheck {
     if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(o.Ptr())) {
       Runtime::Current()->GetHeap()->DumpSpaces(LOG_STREAM(ERROR));
       AbortF("field operation on invalid %s: %p",
-             ToStr<IndirectRefKind>(GetIndirectRefKind(java_object)).c_str(),
+             GetIndirectRefKindString(IndirectReferenceTable::GetIndirectRefKind(java_object)),
              java_object);
       return false;
     }
@@ -632,17 +632,17 @@ class ScopedCheck {
   bool CheckReferenceKind(IndirectRefKind expected_kind, Thread* self, jobject obj) {
     IndirectRefKind found_kind;
     if (expected_kind == kLocal) {
-      found_kind = GetIndirectRefKind(obj);
+      found_kind = IndirectReferenceTable::GetIndirectRefKind(obj);
       if (found_kind == kHandleScopeOrInvalid && self->HandleScopeContains(obj)) {
         found_kind = kLocal;
       }
     } else {
-      found_kind = GetIndirectRefKind(obj);
+      found_kind = IndirectReferenceTable::GetIndirectRefKind(obj);
     }
     if (obj != nullptr && found_kind != expected_kind) {
       AbortF("expected reference of kind %s but found %s: %p",
-             ToStr<IndirectRefKind>(expected_kind).c_str(),
-             ToStr<IndirectRefKind>(GetIndirectRefKind(obj)).c_str(),
+             GetIndirectRefKindString(expected_kind),
+             GetIndirectRefKindString(IndirectReferenceTable::GetIndirectRefKind(obj)),
              obj);
       return false;
     }
@@ -773,7 +773,7 @@ class ScopedCheck {
       // Either java_object is invalid or is a cleared weak.
       IndirectRef ref = reinterpret_cast<IndirectRef>(java_object);
       bool okay;
-      if (GetIndirectRefKind(ref) != kWeakGlobal) {
+      if (IndirectReferenceTable::GetIndirectRefKind(ref) != kWeakGlobal) {
         okay = false;
       } else {
         obj = soa.Vm()->DecodeWeakGlobal(soa.Self(), ref);
@@ -781,8 +781,10 @@ class ScopedCheck {
       }
       if (!okay) {
         AbortF("%s is an invalid %s: %p (%p)",
-               what, ToStr<IndirectRefKind>(GetIndirectRefKind(java_object)).c_str(),
-               java_object, obj.Ptr());
+               what,
+               GetIndirectRefKindString(IndirectReferenceTable::GetIndirectRefKind(java_object)),
+               java_object,
+               obj.Ptr());
         return false;
       }
     }
@@ -790,8 +792,10 @@ class ScopedCheck {
     if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(obj.Ptr())) {
       Runtime::Current()->GetHeap()->DumpSpaces(LOG_STREAM(ERROR));
       AbortF("%s is an invalid %s: %p (%p)",
-             what, ToStr<IndirectRefKind>(GetIndirectRefKind(java_object)).c_str(),
-             java_object, obj.Ptr());
+             what,
+             GetIndirectRefKindString(IndirectReferenceTable::GetIndirectRefKind(java_object)),
+             java_object,
+             obj.Ptr());
       return false;
     }
 
@@ -1116,8 +1120,9 @@ class ScopedCheck {
     if (UNLIKELY(!Runtime::Current()->GetHeap()->IsValidObjectAddress(a.Ptr()))) {
       Runtime::Current()->GetHeap()->DumpSpaces(LOG_STREAM(ERROR));
       AbortF("jarray is an invalid %s: %p (%p)",
-             ToStr<IndirectRefKind>(GetIndirectRefKind(java_array)).c_str(),
-             java_array, a.Ptr());
+             GetIndirectRefKindString(IndirectReferenceTable::GetIndirectRefKind(java_array)),
+             java_array,
+             a.Ptr());
       return false;
     } else if (!a->IsArrayInstance()) {
       AbortF("jarray argument has non-array type: %s", a->PrettyTypeOf().c_str());
