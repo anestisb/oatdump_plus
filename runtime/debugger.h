@@ -202,6 +202,7 @@ std::ostream& operator<<(std::ostream& os, const DeoptimizationRequest::Kind& rh
 class Dbg {
  public:
   static void SetJdwpAllowed(bool allowed);
+  static bool IsJdwpAllowed();
 
   static void StartJdwp();
   static void StopJdwp();

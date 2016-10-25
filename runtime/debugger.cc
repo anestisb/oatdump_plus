@@ -551,6 +551,10 @@ void Dbg::SetJdwpAllowed(bool allowed) {
   gJdwpAllowed = allowed;
 }
 
+bool Dbg::IsJdwpAllowed() {
+  return gJdwpAllowed;
+}
+
 DebugInvokeReq* Dbg::GetInvokeReq() {
   return Thread::Current()->GetInvokeReq();
 }
