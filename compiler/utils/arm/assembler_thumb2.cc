@@ -2830,7 +2830,7 @@ void Thumb2Assembler::strexd(Register rd, Register rt, Register rt2, Register rn
 
 void Thumb2Assembler::clrex(Condition cond) {
   CheckCondition(cond);
-  int32_t encoding = B31 | B30 | B29 | B27 | B28 | B25 | B24 | B23 |
+  int32_t encoding = B31 | B30 | B29 | B28 | B25 | B24 | B23 |
       B21 | B20 |
       0xf << 16 |
       B15 |
