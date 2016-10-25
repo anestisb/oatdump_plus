@@ -241,8 +241,12 @@ class MemMap {
 
   friend class MemMapTest;  // To allow access to base_begin_ and base_size_.
 };
+
 std::ostream& operator<<(std::ostream& os, const MemMap& mem_map);
 std::ostream& operator<<(std::ostream& os, const MemMap::Maps& mem_maps);
+
+// Zero and release pages if possible, no requirements on alignments.
+void ZeroAndReleasePages(void* address, size_t length);
 
 }  // namespace art
 

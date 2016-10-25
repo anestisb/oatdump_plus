@@ -3327,7 +3327,7 @@ void Heap::ProcessCards(TimingLogger* timings,
       const char* name = space->IsZygoteSpace() ? "ZygoteModUnionClearCards" :
           "ImageModUnionClearCards";
       TimingLogger::ScopedTiming t2(name, timings);
-      table->ClearCards();
+      table->ProcessCards();
     } else if (use_rem_sets && rem_set != nullptr) {
       DCHECK(collector::SemiSpace::kUseRememberedSet && collector_type_ == kCollectorTypeGSS)
           << static_cast<int>(collector_type_);

@@ -168,7 +168,7 @@ class ModUnionScanImageRootVisitor {
   bool* const contains_reference_to_other_space_;
 };
 
-void ModUnionTableReferenceCache::ClearCards() {
+void ModUnionTableReferenceCache::ProcessCards() {
   CardTable* card_table = GetHeap()->GetCardTable();
   ModUnionAddToCardSetVisitor visitor(&cleared_cards_);
   // Clear dirty cards in the this space and update the corresponding mod-union bits.
@@ -525,7 +525,7 @@ class CardBitVisitor {
   ModUnionTable::CardBitmap* const card_bitmap_;
 };
 
-void ModUnionTableCardCache::ClearCards() {
+void ModUnionTableCardCache::ProcessCards() {
   CardTable* const card_table = GetHeap()->GetCardTable();
   ModUnionAddToCardBitmapVisitor visitor(card_bitmap_.get(), card_table);
   // Clear dirty cards in the this space and update the corresponding mod-union bits.
