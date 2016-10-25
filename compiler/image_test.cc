@@ -260,7 +260,8 @@ void CompilationHelper::Compile(CompilerDriver* driver,
         OatWriter* const oat_writer = oat_writers[i].get();
         ElfWriter* const elf_writer = elf_writers[i].get();
         std::vector<const DexFile*> cur_dex_files(1u, class_path[i]);
-        oat_writer->PrepareLayout(driver, writer.get(), cur_dex_files, &patcher);
+        oat_writer->Initialize(driver, writer.get(), cur_dex_files);
+        oat_writer->PrepareLayout(&patcher);
         size_t rodata_size = oat_writer->GetOatHeader().GetExecutableOffset();
         size_t text_size = oat_writer->GetOatSize() - rodata_size;
         elf_writer->PrepareDynamicSection(rodata_size,

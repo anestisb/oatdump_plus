@@ -42,13 +42,14 @@ class VdexFile {
  public:
   struct Header {
    public:
-    Header(uint32_t dex_size, uint32_t verifier_deps_size);
+    Header(uint32_t dex_size, uint32_t verifier_deps_size, uint32_t quickening_info_size);
 
     bool IsMagicValid() const;
     bool IsVersionValid() const;
 
     uint32_t GetDexSize() const { return dex_size_; }
     uint32_t GetVerifierDepsSize() const { return verifier_deps_size_; }
+    uint32_t GetQuickeningInfoSize() const { return quickening_info_size_; }
 
    private:
     static constexpr uint8_t kVdexMagic[] = { 'v', 'd', 'e', 'x' };
@@ -58,6 +59,7 @@ class VdexFile {
     uint8_t version_[4];
     uint32_t dex_size_;
     uint32_t verifier_deps_size_;
+    uint32_t quickening_info_size_;
   };
 
   static VdexFile* Open(const std::string& vdex_filename,
