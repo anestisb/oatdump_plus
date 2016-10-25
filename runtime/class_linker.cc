@@ -1180,8 +1180,7 @@ class FixupArtMethodArrayVisitor : public ArtMethodVisitor {
           << resolved_types << " is not in image starting at "
           << reinterpret_cast<void*>(header_.GetImageBegin());
       if (!is_copied || in_image_space) {
-        // Go through the array so that we don't need to do a slow map lookup.
-        method->SetDexCacheResolvedTypes(*reinterpret_cast<GcRoot<mirror::Class>**>(resolved_types),
+        method->SetDexCacheResolvedTypes(method->GetDexCache()->GetResolvedTypes(),
                                          kRuntimePointerSize);
       }
     }
@@ -1197,8 +1196,7 @@ class FixupArtMethodArrayVisitor : public ArtMethodVisitor {
           << resolved_methods << " is not in image starting at "
           << reinterpret_cast<void*>(header_.GetImageBegin());
       if (!is_copied || in_image_space) {
-        // Go through the array so that we don't need to do a slow map lookup.
-        method->SetDexCacheResolvedMethods(*reinterpret_cast<ArtMethod***>(resolved_methods),
+        method->SetDexCacheResolvedMethods(method->GetDexCache()->GetResolvedMethods(),
                                            kRuntimePointerSize);
       }
     }
@@ -1333,10 +1331,6 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
             DCHECK(types[j].IsNull());
           }
           std::copy_n(image_resolved_types, num_types, types);
-          // Store a pointer to the new location for fast ArtMethod patching without requiring map.
-          // This leaves random garbage at the start of the dex cache array, but nobody should ever
-          // read from it again.
-          *reinterpret_cast<GcRoot<mirror::Class>**>(image_resolved_types) = types;
           dex_cache->SetResolvedTypes(types);
         }
         if (num_methods != 0u) {
@@ -1347,8 +1341,6 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
             DCHECK(methods[j] == nullptr);
           }
           std::copy_n(image_resolved_methods, num_methods, methods);
-          // Store a pointer to the new location for fast ArtMethod patching without requiring map.
-          *reinterpret_cast<ArtMethod***>(image_resolved_methods) = methods;
           dex_cache->SetResolvedMethods(methods);
         }
         if (num_fields != 0u) {
