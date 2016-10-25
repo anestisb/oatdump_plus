@@ -686,6 +686,15 @@ void ThrowRuntimeException(const char* fmt, ...) {
   va_end(args);
 }
 
+// SecurityException
+
+void ThrowSecurityException(const char* fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  ThrowException("Ljava/lang/SecurityException;", nullptr, fmt, &args);
+  va_end(args);
+}
+
 // Stack overflow.
 
 void ThrowStackOverflowError(Thread* self) {
