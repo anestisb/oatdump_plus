@@ -354,7 +354,7 @@ class ProfMan FINAL {
   }
 
   int GenerateTestProfile() {
-    int profile_test_fd = open(test_profile_.c_str(), O_CREAT | O_TRUNC | O_WRONLY);
+    int profile_test_fd = open(test_profile_.c_str(), O_CREAT | O_TRUNC | O_WRONLY, 0644);
     if (profile_test_fd < 0) {
       std::cerr << "Cannot open " << test_profile_ << strerror(errno);
       return -1;
