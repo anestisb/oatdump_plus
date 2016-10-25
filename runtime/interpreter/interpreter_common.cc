@@ -795,7 +795,7 @@ static inline bool DoCallPolymorphic(ArtMethod* called_method,
         self, new_shadow_frame, StackedShadowFrameType::kShadowFrameUnderConstruction);
     if (!PerformArgumentConversions<is_range>(self, callsite_type, target_type,
                                               shadow_frame, vregC, first_dest_reg,
-                                              arg, new_shadow_frame, result)) {
+                                              arg, new_shadow_frame)) {
       DCHECK(self->IsExceptionPending());
       result->SetL(0);
       return false;

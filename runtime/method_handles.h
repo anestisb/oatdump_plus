@@ -55,6 +55,14 @@ inline bool IsInvoke(const MethodHandleKind handle_kind) {
   return handle_kind <= kLastInvokeKind;
 }
 
+// Performs a single argument conversion from type |from| to a distinct
+// type |to|. Returns true on success, false otherwise.
+REQUIRES_SHARED(Locks::mutator_lock_)
+bool ConvertJValue(Handle<mirror::Class> from,
+                   Handle<mirror::Class> to,
+                   const JValue& from_value,
+                   JValue* to_value) ALWAYS_INLINE;
+
 // Perform argument conversions between |callsite_type| (the type of the
 // incoming arguments) and |callee_type| (the type of the method being
 // invoked). These include widening and narrowing conversions as well as
@@ -68,8 +76,7 @@ bool PerformArgumentConversions(Thread* self,
                                 uint32_t first_src_reg,
                                 uint32_t first_dest_reg,
                                 const uint32_t (&arg)[Instruction::kMaxVarArgRegs],
-                                ShadowFrame* callee_frame,
-                                JValue* result);
+                                ShadowFrame* callee_frame);
 
 }  // namespace art
 
