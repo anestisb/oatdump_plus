@@ -36,6 +36,7 @@
 #include "jni.h"
 #include "mirror/class.h"
 #include "object_callbacks.h"
+#include "verifier/method_verifier.h"
 #include "verifier/verifier_log_mode.h"
 
 namespace art {
@@ -483,9 +484,10 @@ class ClassLinker {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Roles::uninterruptible_);
 
-  void VerifyClass(Thread* self,
-                   Handle<mirror::Class> klass,
-                   verifier::HardFailLogMode log_level = verifier::HardFailLogMode::kLogNone)
+  verifier::MethodVerifier::FailureKind VerifyClass(
+      Thread* self,
+      Handle<mirror::Class> klass,
+      verifier::HardFailLogMode log_level = verifier::HardFailLogMode::kLogNone)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!dex_lock_);
   bool VerifyClassUsingOatFile(const DexFile& dex_file,

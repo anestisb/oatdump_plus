@@ -14,14 +14,17 @@
  * limitations under the License.
  */
 
-#include "verifier_deps.h"
+// Test is in compiler, as it uses compiler related code.
+#include "verifier/verifier_deps.h"
 
 #include "class_linker.h"
-#include "common_runtime_test.h"
+#include "compiler/common_compiler_test.h"
+#include "compiler/driver/compiler_options.h"
+#include "compiler/driver/compiler_driver.h"
 #include "compiler_callbacks.h"
 #include "dex_file.h"
 #include "handle_scope-inl.h"
-#include "method_verifier-inl.h"
+#include "verifier/method_verifier-inl.h"
 #include "mirror/class_loader.h"
 #include "runtime.h"
 #include "thread.h"
@@ -47,10 +50,10 @@ class VerifierDepsCompilerCallbacks : public CompilerCallbacks {
   verifier::VerifierDeps* deps_;
 };
 
-class VerifierDepsTest : public CommonRuntimeTest {
+class VerifierDepsTest : public CommonCompilerTest {
  public:
   void SetUpRuntimeOptions(RuntimeOptions* options) {
-    CommonRuntimeTest::SetUpRuntimeOptions(options);
+    CommonCompilerTest::SetUpRuntimeOptions(options);
     callbacks_.reset(new VerifierDepsCompilerCallbacks());
   }
 
@@ -147,23 +150,17 @@ class VerifierDepsTest : public CommonRuntimeTest {
 
   void VerifyDexFile() {
     std::string error_msg;
-    ScopedObjectAccess soa(Thread::Current());
-
-    LoadDexFile(&soa);
-    SetVerifierDeps({ dex_file_ });
-
-    for (size_t i = 0; i < dex_file_->NumClassDefs(); i++) {
-      const char* descriptor = dex_file_->GetClassDescriptor(dex_file_->GetClassDef(i));
-      mirror::Class* klass = FindClassByName(descriptor, &soa);
-      if (klass != nullptr) {
-        MethodVerifier::VerifyClass(Thread::Current(),
-                                    klass,
-                                    nullptr,
-                                    true,
-                                    HardFailLogMode::kLogWarning,
-                                    &error_msg);
-      }
+    {
+      ScopedObjectAccess soa(Thread::Current());
+      LoadDexFile(&soa);
     }
+    SetVerifierDeps({ dex_file_ });
+    TimingLogger timings("Verify", false, false);
+    std::vector<const DexFile*> dex_files;
+    dex_files.push_back(dex_file_);
+    compiler_options_->boot_image_ = false;
+    compiler_driver_->InitializeThreadPools();
+    compiler_driver_->Verify(class_loader_, dex_files, &timings);
   }
 
   bool TestAssignabilityRecording(const std::string& dst,
@@ -182,6 +179,21 @@ class VerifierDepsTest : public CommonRuntimeTest {
                                      is_strict,
                                      is_assignable);
     return true;
+  }
+
+  bool HasUnverifiedClass(const std::string& cls) {
+    const DexFile::TypeId* type_id = dex_file_->FindTypeId(cls.c_str());
+    DCHECK(type_id != nullptr);
+    uint16_t index = dex_file_->GetIndexForTypeId(*type_id);
+    MutexLock mu(Thread::Current(), *Locks::verifier_deps_lock_);
+    for (const auto& dex_dep : verifier_deps_->dex_deps_) {
+      for (uint16_t entry : dex_dep.second->unverified_classes_) {
+        if (index == entry) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   // Iterates over all assignability records and tries to find an entry which
@@ -361,6 +373,7 @@ class VerifierDepsTest : public CommonRuntimeTest {
     bool has_classes = false;
     bool has_fields = false;
     bool has_methods = false;
+    bool has_unverified_classes = false;
 
     for (auto& entry : verifier_deps_->dex_deps_) {
       has_strings |= !entry.second->strings_.empty();
@@ -371,9 +384,15 @@ class VerifierDepsTest : public CommonRuntimeTest {
       has_methods |= !entry.second->direct_methods_.empty();
       has_methods |= !entry.second->virtual_methods_.empty();
       has_methods |= !entry.second->interface_methods_.empty();
+      has_unverified_classes |= !entry.second->unverified_classes_.empty();
     }
 
-    return has_strings && has_assignability && has_classes && has_fields && has_methods;
+    return has_strings &&
+           has_assignability &&
+           has_classes &&
+           has_fields &&
+           has_methods &&
+           has_unverified_classes;
   }
 
   std::unique_ptr<verifier::VerifierDeps> verifier_deps_;
@@ -1054,6 +1073,19 @@ TEST_F(VerifierDepsTest, EncodeDecode) {
 
   VerifierDeps decoded_deps({ dex_file_ }, ArrayRef<uint8_t>(buffer));
   ASSERT_TRUE(verifier_deps_->Equals(decoded_deps));
+}
+
+TEST_F(VerifierDepsTest, UnverifiedClasses) {
+  VerifyDexFile();
+  ASSERT_FALSE(HasUnverifiedClass("LMyThread;"));
+  // Test that a class with a soft failure is recorded.
+  ASSERT_TRUE(HasUnverifiedClass("LMain;"));
+  // Test that a class with hard failure is recorded.
+  ASSERT_TRUE(HasUnverifiedClass("LMyVerificationFailure;"));
+  // Test that a class with unresolved super is recorded.
+  ASSERT_FALSE(HasUnverifiedClass("LMyClassWithNoSuper;"));
+  // Test that a class with unresolved super and hard failure is recorded.
+  ASSERT_TRUE(HasUnverifiedClass("LMyClassWithNoSuperButFailures;"));
 }
 
 }  // namespace verifier
