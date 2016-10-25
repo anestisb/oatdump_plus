@@ -1518,8 +1518,9 @@ void ConcurrentCopying::MarkZygoteLargeObjects() {
   accounting::LargeObjectBitmap* const live_bitmap = los->GetLiveBitmap();
   accounting::LargeObjectBitmap* const mark_bitmap = los->GetMarkBitmap();
   // Walk through all of the objects and explicitly mark the zygote ones so they don't get swept.
-  live_bitmap->VisitMarkedRange(reinterpret_cast<uintptr_t>(los->Begin()),
-                                reinterpret_cast<uintptr_t>(los->End()),
+  std::pair<uint8_t*, uint8_t*> range = los->GetBeginEndAtomic();
+  live_bitmap->VisitMarkedRange(reinterpret_cast<uintptr_t>(range.first),
+                                reinterpret_cast<uintptr_t>(range.second),
                                 [mark_bitmap, los, self](mirror::Object* obj)
       REQUIRES(Locks::heap_bitmap_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_) {

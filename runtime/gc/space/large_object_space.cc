@@ -606,15 +606,28 @@ collector::ObjectBytePair LargeObjectSpace::Sweep(bool swap_bitmaps) {
     std::swap(live_bitmap, mark_bitmap);
   }
   AllocSpace::SweepCallbackContext scc(swap_bitmaps, this);
+  std::pair<uint8_t*, uint8_t*> range = GetBeginEndAtomic();
   accounting::LargeObjectBitmap::SweepWalk(*live_bitmap, *mark_bitmap,
-                                           reinterpret_cast<uintptr_t>(Begin()),
-                                           reinterpret_cast<uintptr_t>(End()), SweepCallback, &scc);
+                                           reinterpret_cast<uintptr_t>(range.first),
+                                           reinterpret_cast<uintptr_t>(range.second),
+                                           SweepCallback,
+                                           &scc);
   return scc.freed;
 }
 
 void LargeObjectSpace::LogFragmentationAllocFailure(std::ostream& /*os*/,
                                                     size_t /*failed_alloc_bytes*/) {
   UNIMPLEMENTED(FATAL);
+}
+
+std::pair<uint8_t*, uint8_t*> LargeObjectMapSpace::GetBeginEndAtomic() const {
+  MutexLock mu(Thread::Current(), lock_);
+  return std::make_pair(Begin(), End());
+}
+
+std::pair<uint8_t*, uint8_t*> FreeListSpace::GetBeginEndAtomic() const {
+  MutexLock mu(Thread::Current(), lock_);
+  return std::make_pair(Begin(), End());
 }
 
 }  // namespace space

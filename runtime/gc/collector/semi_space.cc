@@ -408,8 +408,9 @@ void SemiSpace::MarkReachableObjects() {
     // classes (primitive array classes) that could move though they
     // don't contain any other references.
     accounting::LargeObjectBitmap* large_live_bitmap = los->GetLiveBitmap();
-    large_live_bitmap->VisitMarkedRange(reinterpret_cast<uintptr_t>(los->Begin()),
-                                        reinterpret_cast<uintptr_t>(los->End()),
+    std::pair<uint8_t*, uint8_t*> range = los->GetBeginEndAtomic();
+    large_live_bitmap->VisitMarkedRange(reinterpret_cast<uintptr_t>(range.first),
+                                        reinterpret_cast<uintptr_t>(range.second),
                                         [this](mirror::Object* obj)
         REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
       ScanObject(obj);
