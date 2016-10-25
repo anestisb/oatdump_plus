@@ -323,7 +323,18 @@ class JvmtiFunctions {
                                        jint* count_ptr,
                                        jobject** object_result_ptr,
                                        jlong** tag_result_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    JNIEnv* jni_env = GetJniEnv(env);
+    if (jni_env == nullptr) {
+      return ERR(INTERNAL);
+    }
+
+    art::ScopedObjectAccess soa(jni_env);
+    return gObjectTagTable.GetTaggedObjects(env,
+                                            tag_count,
+                                            tags,
+                                            count_ptr,
+                                            object_result_ptr,
+                                            tag_result_ptr);
   }
 
   static jvmtiError ForceGarbageCollection(jvmtiEnv* env) {

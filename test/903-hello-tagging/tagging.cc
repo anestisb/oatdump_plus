@@ -21,9 +21,12 @@
 #include <stdio.h>
 #include <vector>
 
+#include "jni.h"
+#include "ScopedLocalRef.h"
+#include "ScopedPrimitiveArray.h"
+
 #include "art_method-inl.h"
 #include "base/logging.h"
-#include "jni.h"
 #include "openjdkjvmti/jvmti.h"
 #include "ti-agent/common_load.h"
 #include "utils.h"
@@ -54,6 +57,84 @@ extern "C" JNIEXPORT jlong JNICALL Java_Main_getTag(JNIEnv* env ATTRIBUTE_UNUSED
     printf("Error getting tag: %s\n", err);
   }
   return tag;
+}
+
+extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getTaggedObjects(JNIEnv* env,
+                                                                     jclass,
+                                                                     jlongArray searchTags,
+                                                                     jboolean returnObjects,
+                                                                     jboolean returnTags) {
+  ScopedLongArrayRO scoped_array(env);
+  if (searchTags != nullptr) {
+    scoped_array.reset(searchTags);
+  }
+  const jlong* tag_ptr = scoped_array.get();
+  if (tag_ptr == nullptr) {
+    // Can never pass null.
+    tag_ptr = reinterpret_cast<const jlong*>(1);
+  }
+
+  jint result_count;
+  jobject* result_object_array;
+  jobject** result_object_array_ptr = returnObjects == JNI_TRUE ? &result_object_array : nullptr;
+  jlong* result_tag_array;
+  jlong** result_tag_array_ptr = returnTags == JNI_TRUE ? &result_tag_array : nullptr;
+
+  jvmtiError ret = jvmti_env->GetObjectsWithTags(scoped_array.size(),
+                                                 tag_ptr,
+                                                 &result_count,
+                                                 result_object_array_ptr,
+                                                 result_tag_array_ptr);
+  if (ret != JVMTI_ERROR_NONE) {
+    char* err;
+    jvmti_env->GetErrorName(ret, &err);
+    printf("Failure running GetLoadedClasses: %s\n", err);
+    return nullptr;
+  }
+
+  CHECK_GE(result_count, 0);
+
+  ScopedLocalRef<jclass> obj_class(env, env->FindClass("java/lang/Object"));
+  if (obj_class.get() == nullptr) {
+    return nullptr;
+  }
+
+  jobjectArray resultObjectArray = nullptr;
+  if (returnObjects == JNI_TRUE) {
+    resultObjectArray = env->NewObjectArray(result_count, obj_class.get(), nullptr);
+    if (resultObjectArray == nullptr) {
+      return nullptr;
+    }
+    for (jint i = 0; i < result_count; ++i) {
+      env->SetObjectArrayElement(resultObjectArray, i, result_object_array[i]);
+    }
+  }
+
+  jlongArray resultTagArray = nullptr;
+  if (returnTags == JNI_TRUE) {
+    resultTagArray = env->NewLongArray(result_count);
+    env->SetLongArrayRegion(resultTagArray, 0, result_count, result_tag_array);
+  }
+
+  jobject count_integer;
+  {
+    ScopedLocalRef<jclass> integer_class(env, env->FindClass("java/lang/Integer"));
+    jmethodID methodID = env->GetMethodID(integer_class.get(), "<init>", "(I)V");
+    count_integer = env->NewObject(integer_class.get(), methodID, result_count);
+    if (count_integer == nullptr) {
+      return nullptr;
+    }
+  }
+
+  jobjectArray resultArray = env->NewObjectArray(3, obj_class.get(), nullptr);
+  if (resultArray == nullptr) {
+    return nullptr;
+  }
+  env->SetObjectArrayElement(resultArray, 0, resultObjectArray);
+  env->SetObjectArrayElement(resultArray, 1, resultTagArray);
+  env->SetObjectArrayElement(resultArray, 2, count_integer);
+
+  return resultArray;
 }
 
 // Don't do anything

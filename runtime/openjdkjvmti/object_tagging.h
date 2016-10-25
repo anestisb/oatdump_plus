@@ -23,6 +23,7 @@
 #include "gc/system_weak.h"
 #include "gc_root-inl.h"
 #include "globals.h"
+#include "jvmti.h"
 #include "mirror/object.h"
 #include "thread-inl.h"
 
@@ -61,6 +62,15 @@ class ObjectTagTable : public art::gc::SystemWeakHolder {
   }
 
   void Sweep(art::IsMarkedVisitor* visitor)
+      REQUIRES_SHARED(art::Locks::mutator_lock_)
+      REQUIRES(!allow_disallow_lock_);
+
+  jvmtiError GetTaggedObjects(jvmtiEnv* jvmti_env,
+                              jint tag_count,
+                              const jlong* tags,
+                              jint* count_ptr,
+                              jobject** object_result_ptr,
+                              jlong** tag_result_ptr)
       REQUIRES_SHARED(art::Locks::mutator_lock_)
       REQUIRES(!allow_disallow_lock_);
 
