@@ -50,7 +50,10 @@ TEST_F(IndirectReferenceTableTest, BasicTest) {
   ScopedObjectAccess soa(Thread::Current());
   static const size_t kTableMax = 20;
   std::string error_msg;
-  IndirectReferenceTable irt(kTableMax, kGlobal, &error_msg);
+  IndirectReferenceTable irt(kTableMax,
+                             kGlobal,
+                             IndirectReferenceTable::ResizableCapacity::kNo,
+                             &error_msg);
   ASSERT_TRUE(irt.IsValid()) << error_msg;
 
   mirror::Class* c = class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Object;");
@@ -289,7 +292,10 @@ TEST_F(IndirectReferenceTableTest, Holes) {
 
   // 1) Segment with holes (current_num_holes_ > 0), push new segment, add/remove reference.
   {
-    IndirectReferenceTable irt(kTableMax, kLocal, &error_msg);
+    IndirectReferenceTable irt(kTableMax,
+                               kGlobal,
+                               IndirectReferenceTable::ResizableCapacity::kNo,
+                               &error_msg);
     ASSERT_TRUE(irt.IsValid()) << error_msg;
 
     const IRTSegmentState cookie0 = kIRTFirstSegment;
@@ -317,7 +323,10 @@ TEST_F(IndirectReferenceTableTest, Holes) {
 
   // 2) Segment with holes (current_num_holes_ > 0), pop segment, add/remove reference
   {
-    IndirectReferenceTable irt(kTableMax, kGlobal, &error_msg);
+    IndirectReferenceTable irt(kTableMax,
+                               kGlobal,
+                               IndirectReferenceTable::ResizableCapacity::kNo,
+                               &error_msg);
     ASSERT_TRUE(irt.IsValid()) << error_msg;
 
     const IRTSegmentState cookie0 = kIRTFirstSegment;
@@ -350,7 +359,10 @@ TEST_F(IndirectReferenceTableTest, Holes) {
   // 3) Segment with holes (current_num_holes_ > 0), push new segment, pop segment, add/remove
   //    reference.
   {
-    IndirectReferenceTable irt(kTableMax, kGlobal, &error_msg);
+    IndirectReferenceTable irt(kTableMax,
+                               kGlobal,
+                               IndirectReferenceTable::ResizableCapacity::kNo,
+                               &error_msg);
     ASSERT_TRUE(irt.IsValid()) << error_msg;
 
     const IRTSegmentState cookie0 = kIRTFirstSegment;
@@ -386,7 +398,10 @@ TEST_F(IndirectReferenceTableTest, Holes) {
 
   // 4) Empty segment, push new segment, create a hole, pop a segment, add/remove a reference.
   {
-    IndirectReferenceTable irt(kTableMax, kGlobal, &error_msg);
+    IndirectReferenceTable irt(kTableMax,
+                               kGlobal,
+                               IndirectReferenceTable::ResizableCapacity::kNo,
+                               &error_msg);
     ASSERT_TRUE(irt.IsValid()) << error_msg;
 
     const IRTSegmentState cookie0 = kIRTFirstSegment;
@@ -426,7 +441,10 @@ TEST_F(IndirectReferenceTableTest, Holes) {
   // 5) Base segment, push new segment, create a hole, pop a segment, push new segment, add/remove
   //    reference
   {
-    IndirectReferenceTable irt(kTableMax, kGlobal, &error_msg);
+    IndirectReferenceTable irt(kTableMax,
+                               kGlobal,
+                               IndirectReferenceTable::ResizableCapacity::kNo,
+                               &error_msg);
     ASSERT_TRUE(irt.IsValid()) << error_msg;
 
     const IRTSegmentState cookie0 = kIRTFirstSegment;
@@ -459,6 +477,33 @@ TEST_F(IndirectReferenceTableTest, Holes) {
 
     UNUSED(iref0, iref1, iref2, iref3, iref4);
   }
+}
+
+TEST_F(IndirectReferenceTableTest, Resize) {
+  ScopedObjectAccess soa(Thread::Current());
+  static const size_t kTableMax = 512;
+
+  mirror::Class* c = class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Object;");
+  StackHandleScope<1> hs(soa.Self());
+  ASSERT_TRUE(c != nullptr);
+  Handle<mirror::Object> obj0 = hs.NewHandle(c->AllocObject(soa.Self()));
+  ASSERT_TRUE(obj0.Get() != nullptr);
+
+  std::string error_msg;
+  IndirectReferenceTable irt(kTableMax,
+                             kLocal,
+                             IndirectReferenceTable::ResizableCapacity::kYes,
+                             &error_msg);
+  ASSERT_TRUE(irt.IsValid()) << error_msg;
+
+  CheckDump(&irt, 0, 0);
+  const IRTSegmentState cookie = kIRTFirstSegment;
+
+  for (size_t i = 0; i != kTableMax + 1; ++i) {
+    irt.Add(cookie, obj0.Get());
+  }
+
+  EXPECT_EQ(irt.Capacity(), kTableMax + 1);
 }
 
 }  // namespace art
