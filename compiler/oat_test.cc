@@ -203,7 +203,8 @@ class OatTest : public CommonCompilerTest {
     }
     linker::MultiOatRelativePatcher patcher(compiler_driver_->GetInstructionSet(),
                                             instruction_set_features_.get());
-    oat_writer.PrepareLayout(compiler_driver_.get(), nullptr, dex_files, &patcher);
+    oat_writer.Initialize(compiler_driver_.get(), nullptr, dex_files);
+    oat_writer.PrepareLayout(&patcher);
     size_t rodata_size = oat_writer.GetOatHeader().GetExecutableOffset();
     size_t text_size = oat_writer.GetOatSize() - rodata_size;
     elf_writer->PrepareDynamicSection(rodata_size,

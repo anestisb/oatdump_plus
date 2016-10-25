@@ -301,6 +301,10 @@ class OatFile {
   // error and sets found to false.
   static OatClass FindOatClass(const DexFile& dex_file, uint16_t class_def_idx, bool* found);
 
+  VdexFile* GetVdexFile() const {
+    return vdex_.get();
+  }
+
  protected:
   OatFile(const std::string& filename, bool executable);
 
