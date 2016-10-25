@@ -354,7 +354,6 @@ MemMap* MemMap::MapAnonymous(const char* name,
     }
     return nullptr;
   }
-  std::ostringstream check_map_request_error_msg;
   if (!CheckMapRequest(expected_ptr, actual, page_aligned_byte_count, error_msg)) {
     return nullptr;
   }
@@ -441,7 +440,6 @@ MemMap* MemMap::MapFileAtAddress(uint8_t* expected_ptr,
     }
     return nullptr;
   }
-  std::ostringstream check_map_request_error_msg;
   if (!CheckMapRequest(expected_ptr, actual, page_aligned_byte_count, error_msg)) {
     return nullptr;
   }
