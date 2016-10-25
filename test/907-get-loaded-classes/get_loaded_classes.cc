@@ -70,7 +70,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getLoadedClasses(
   // 1) Free the local references.
   // 2) Deallocate.
   for (size_t i = 0; i < static_cast<size_t>(count); ++i) {
-    env->DeleteGlobalRef(classes[i]);
+    env->DeleteLocalRef(classes[i]);
   }
   jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(classes));
 
