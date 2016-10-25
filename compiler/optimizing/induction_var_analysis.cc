@@ -101,8 +101,7 @@ void HInductionVarAnalysis::Run() {
   // Detects sequence variables (generalized induction variables) during an outer to inner
   // traversal of all loops using Gerlek's algorithm. The order is important to enable
   // range analysis on outer loop while visiting inner loops.
-  for (HReversePostOrderIterator it_graph(*graph_); !it_graph.Done(); it_graph.Advance()) {
-    HBasicBlock* graph_block = it_graph.Current();
+  for (HBasicBlock* graph_block : graph_->GetReversePostOrder()) {
     // Don't analyze irreducible loops.
     if (graph_block->IsLoopHeader() && !graph_block->GetLoopInformation()->IsIrreducible()) {
       VisitLoop(graph_block->GetLoopInformation());

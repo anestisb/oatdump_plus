@@ -25,6 +25,7 @@
 #include "base/arena_containers.h"
 #include "base/arena_object.h"
 #include "base/array_ref.h"
+#include "base/iteration_range.h"
 #include "base/stl_util.h"
 #include "base/transform_array_ref.h"
 #include "dex_file.h"
@@ -460,8 +461,21 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
     return reverse_post_order_;
   }
 
+  ArrayRef<HBasicBlock* const> GetReversePostOrderSkipEntryBlock() {
+    DCHECK(GetReversePostOrder()[0] == entry_block_);
+    return ArrayRef<HBasicBlock* const>(GetReversePostOrder()).SubArray(1);
+  }
+
+  IterationRange<ArenaVector<HBasicBlock*>::const_reverse_iterator> GetPostOrder() const {
+    return ReverseRange(GetReversePostOrder());
+  }
+
   const ArenaVector<HBasicBlock*>& GetLinearOrder() const {
     return linear_order_;
+  }
+
+  IterationRange<ArenaVector<HBasicBlock*>::const_reverse_iterator> GetLinearPostOrder() const {
+    return ReverseRange(GetLinearOrder());
   }
 
   bool HasBoundsChecks() const {
@@ -6613,58 +6627,6 @@ class HGraphDelegateVisitor : public HGraphVisitor {
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HGraphDelegateVisitor);
-};
-
-class HInsertionOrderIterator : public ValueObject {
- public:
-  explicit HInsertionOrderIterator(const HGraph& graph) : graph_(graph), index_(0) {}
-
-  bool Done() const { return index_ == graph_.GetBlocks().size(); }
-  HBasicBlock* Current() const { return graph_.GetBlocks()[index_]; }
-  void Advance() { ++index_; }
-
- private:
-  const HGraph& graph_;
-  size_t index_;
-
-  DISALLOW_COPY_AND_ASSIGN(HInsertionOrderIterator);
-};
-
-class HReversePostOrderIterator : public ValueObject {
- public:
-  explicit HReversePostOrderIterator(const HGraph& graph) : graph_(graph), index_(0) {
-    // Check that reverse post order of the graph has been built.
-    DCHECK(!graph.GetReversePostOrder().empty());
-  }
-
-  bool Done() const { return index_ == graph_.GetReversePostOrder().size(); }
-  HBasicBlock* Current() const { return graph_.GetReversePostOrder()[index_]; }
-  void Advance() { ++index_; }
-
- private:
-  const HGraph& graph_;
-  size_t index_;
-
-  DISALLOW_COPY_AND_ASSIGN(HReversePostOrderIterator);
-};
-
-class HPostOrderIterator : public ValueObject {
- public:
-  explicit HPostOrderIterator(const HGraph& graph)
-      : graph_(graph), index_(graph_.GetReversePostOrder().size()) {
-    // Check that reverse post order of the graph has been built.
-    DCHECK(!graph.GetReversePostOrder().empty());
-  }
-
-  bool Done() const { return index_ == 0; }
-  HBasicBlock* Current() const { return graph_.GetReversePostOrder()[index_ - 1u]; }
-  void Advance() { --index_; }
-
- private:
-  const HGraph& graph_;
-  size_t index_;
-
-  DISALLOW_COPY_AND_ASSIGN(HPostOrderIterator);
 };
 
 // Iterator over the blocks that art part of the loop. Includes blocks part
