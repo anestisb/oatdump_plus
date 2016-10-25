@@ -1860,7 +1860,7 @@ ObjPtr<mirror::Object> Thread::DecodeJObject(jobject obj) const {
     return nullptr;
   }
   IndirectRef ref = reinterpret_cast<IndirectRef>(obj);
-  IndirectRefKind kind = GetIndirectRefKind(ref);
+  IndirectRefKind kind = IndirectReferenceTable::GetIndirectRefKind(ref);
   ObjPtr<mirror::Object> result;
   bool expect_null = false;
   // The "kinds" below are sorted by the frequency we expect to encounter them.
@@ -1902,7 +1902,7 @@ ObjPtr<mirror::Object> Thread::DecodeJObject(jobject obj) const {
 bool Thread::IsJWeakCleared(jweak obj) const {
   CHECK(obj != nullptr);
   IndirectRef ref = reinterpret_cast<IndirectRef>(obj);
-  IndirectRefKind kind = GetIndirectRefKind(ref);
+  IndirectRefKind kind = IndirectReferenceTable::GetIndirectRefKind(ref);
   CHECK_EQ(kind, kWeakGlobal);
   return tlsPtr_.jni_env->vm->IsWeakGlobalCleared(const_cast<Thread*>(this), ref);
 }

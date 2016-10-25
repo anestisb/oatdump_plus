@@ -22,6 +22,7 @@
 #include <iosfwd>
 #include <string>
 
+#include "base/bit_utils.h"
 #include "base/logging.h"
 #include "base/mutex.h"
 #include "gc_root.h"
@@ -114,20 +115,14 @@ typedef void* IndirectRef;
  * For convenience these match up with enum jobjectRefType from jni.h.
  */
 enum IndirectRefKind {
-  kHandleScopeOrInvalid = 0,  // <<stack indirect reference table or invalid reference>>
-  kLocal         = 1,  // <<local reference>>
-  kGlobal        = 2,  // <<global reference>>
-  kWeakGlobal    = 3   // <<weak global reference>>
+  kHandleScopeOrInvalid = 0,           // <<stack indirect reference table or invalid reference>>
+  kLocal                = 1,           // <<local reference>>
+  kGlobal               = 2,           // <<global reference>>
+  kWeakGlobal           = 3,           // <<weak global reference>>
+  kLastKind             = kWeakGlobal
 };
 std::ostream& operator<<(std::ostream& os, const IndirectRefKind& rhs);
 const char* GetIndirectRefKindString(const IndirectRefKind& kind);
-
-/*
- * Determine what kind of indirect reference this is.
- */
-static inline IndirectRefKind GetIndirectRefKind(IndirectRef iref) {
-  return static_cast<IndirectRefKind>(reinterpret_cast<uintptr_t>(iref) & 0x03);
-}
 
 /* use as initial value for "cookie", and when table has only one segment */
 static const uint32_t IRT_FIRST_SEGMENT = 0;
@@ -198,7 +193,8 @@ union IRTSegmentState {
 // Try to choose kIRTPrevCount so that sizeof(IrtEntry) is a power of 2.
 // Contains multiple entries but only one active one, this helps us detect use after free errors
 // since the serial stored in the indirect ref wont match.
-static const size_t kIRTPrevCount = kIsDebugBuild ? 7 : 3;
+static constexpr size_t kIRTPrevCount = kIsDebugBuild ? 7 : 3;
+
 class IrtEntry {
  public:
   void Add(ObjPtr<mirror::Object> obj) REQUIRES_SHARED(Locks::mutator_lock_);
@@ -220,6 +216,7 @@ class IrtEntry {
 };
 static_assert(sizeof(IrtEntry) == (1 + kIRTPrevCount) * sizeof(uint32_t),
               "Unexpected sizeof(IrtEntry)");
+static_assert(IsPowerOfTwo(sizeof(IrtEntry)), "Unexpected sizeof(IrtEntry)");
 
 class IrtIterator {
  public:
@@ -362,22 +359,59 @@ class IndirectReferenceTable {
   // Release pages past the end of the table that may have previously held references.
   void Trim() REQUIRES_SHARED(Locks::mutator_lock_);
 
- private:
-  // Extract the table index from an indirect reference.
-  static uint32_t ExtractIndex(IndirectRef iref) {
-    uintptr_t uref = reinterpret_cast<uintptr_t>(iref);
-    return (uref >> 2) & 0xffff;
+  // Determine what kind of indirect reference this is. Opposite of EncodeIndirectRefKind.
+  ALWAYS_INLINE static inline IndirectRefKind GetIndirectRefKind(IndirectRef iref) {
+    return DecodeIndirectRefKind(reinterpret_cast<uintptr_t>(iref));
   }
 
-  /*
-   * The object pointer itself is subject to relocation in some GC
-   * implementations, so we shouldn't really be using it here.
-   */
-  IndirectRef ToIndirectRef(uint32_t tableIndex) const {
-    DCHECK_LT(tableIndex, 65536U);
-    uint32_t serialChunk = table_[tableIndex].GetSerial();
-    uintptr_t uref = (serialChunk << 20) | (tableIndex << 2) | kind_;
-    return reinterpret_cast<IndirectRef>(uref);
+ private:
+  static constexpr size_t kSerialBits = MinimumBitsToStore(kIRTPrevCount);
+  static constexpr uint32_t kShiftedSerialMask = (1u << kSerialBits) - 1;
+
+  static constexpr size_t kKindBits = MinimumBitsToStore(
+      static_cast<uint32_t>(IndirectRefKind::kLastKind));
+  static constexpr uint32_t kKindMask = (1u << kKindBits) - 1;
+
+  static constexpr uintptr_t EncodeIndex(uint32_t table_index) {
+    static_assert(sizeof(IndirectRef) == sizeof(uintptr_t), "Unexpected IndirectRef size");
+    DCHECK_LE(MinimumBitsToStore(table_index), BitSizeOf<uintptr_t>() - kSerialBits - kKindBits);
+    return (static_cast<uintptr_t>(table_index) << kKindBits << kSerialBits);
+  }
+  static constexpr uint32_t DecodeIndex(uintptr_t uref) {
+    return static_cast<uint32_t>((uref >> kKindBits) >> kSerialBits);
+  }
+
+  static constexpr uintptr_t EncodeIndirectRefKind(IndirectRefKind kind) {
+    return static_cast<uintptr_t>(kind);
+  }
+  static constexpr IndirectRefKind DecodeIndirectRefKind(uintptr_t uref) {
+    return static_cast<IndirectRefKind>(uref & kKindMask);
+  }
+
+  static constexpr uintptr_t EncodeSerial(uint32_t serial) {
+    DCHECK_LE(MinimumBitsToStore(serial), kSerialBits);
+    return serial << kKindBits;
+  }
+  static constexpr uint32_t DecodeSerial(uintptr_t uref) {
+    return static_cast<uint32_t>(uref >> kKindBits) & kShiftedSerialMask;
+  }
+
+  constexpr uintptr_t EncodeIndirectRef(uint32_t table_index, uint32_t serial) const {
+    DCHECK_LT(table_index, max_entries_);
+    return EncodeIndex(table_index) | EncodeSerial(serial) | EncodeIndirectRefKind(kind_);
+  }
+
+  static void ConstexprChecks();
+
+  // Extract the table index from an indirect reference.
+  ALWAYS_INLINE static uint32_t ExtractIndex(IndirectRef iref) {
+    return DecodeIndex(reinterpret_cast<uintptr_t>(iref));
+  }
+
+  IndirectRef ToIndirectRef(uint32_t table_index) const {
+    DCHECK_LT(table_index, max_entries_);
+    uint32_t serial = table_[table_index].GetSerial();
+    return reinterpret_cast<IndirectRef>(EncodeIndirectRef(table_index, serial));
   }
 
   // Abort if check_jni is not enabled. Otherwise, just log as an error.
