@@ -141,6 +141,11 @@ class ClassTable {
       REQUIRES(!lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // Return true if we inserted the oat file, false if it already exists.
+  bool InsertOatFile(const OatFile* oat_file)
+      REQUIRES(!lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   // Combines all of the tables into one class set.
   size_t WriteToMemory(uint8_t* ptr) const
       REQUIRES(!lock_)
@@ -167,6 +172,11 @@ class ClassTable {
 
  private:
   void InsertWithoutLocks(ObjPtr<mirror::Class> klass) NO_THREAD_SAFETY_ANALYSIS;
+
+  // Return true if we inserted the oat file, false if it already exists.
+  bool InsertOatFileLocked(const OatFile* oat_file)
+      REQUIRES(lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Lock to guard inserting and removing.
   mutable ReaderWriterMutex lock_;
