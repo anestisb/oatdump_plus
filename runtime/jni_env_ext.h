@@ -64,7 +64,7 @@ struct JNIEnvExt : public JNIEnv {
   JavaVMExt* const vm;
 
   // Cookie used when using the local indirect reference table.
-  uint32_t local_ref_cookie;
+  IRTSegmentState local_ref_cookie;
 
   // JNI local references.
   IndirectReferenceTable locals GUARDED_BY(Locks::mutator_lock_);
@@ -72,7 +72,7 @@ struct JNIEnvExt : public JNIEnv {
   // Stack of cookies corresponding to PushLocalFrame/PopLocalFrame calls.
   // TODO: to avoid leaks (and bugs), we need to clear this vector on entry (or return)
   // to a native method.
-  std::vector<uint32_t> stacked_local_ref_cookies;
+  std::vector<IRTSegmentState> stacked_local_ref_cookies;
 
   // Frequently-accessed fields cached from JavaVM.
   bool check_jni;
@@ -131,7 +131,7 @@ class ScopedJniEnvLocalRefState {
 
  private:
   JNIEnvExt* const env_;
-  uint32_t saved_local_ref_cookie_;
+  IRTSegmentState saved_local_ref_cookie_;
 
   DISALLOW_COPY_AND_ASSIGN(ScopedJniEnvLocalRefState);
 };

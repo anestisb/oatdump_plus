@@ -422,10 +422,13 @@ JavaVMExt::JavaVMExt(Runtime* runtime,
       tracing_enabled_(runtime_options.Exists(RuntimeArgumentMap::JniTrace)
                        || VLOG_IS_ON(third_party_jni)),
       trace_(runtime_options.GetOrDefault(RuntimeArgumentMap::JniTrace)),
-      globals_(kGlobalsMax, kGlobal, error_msg),
+      globals_(kGlobalsMax, kGlobal, IndirectReferenceTable::ResizableCapacity::kNo, error_msg),
       libraries_(new Libraries),
       unchecked_functions_(&gJniInvokeInterface),
-      weak_globals_(kWeakGlobalsMax, kWeakGlobal, error_msg),
+      weak_globals_(kWeakGlobalsMax,
+                    kWeakGlobal,
+                    IndirectReferenceTable::ResizableCapacity::kNo,
+                    error_msg),
       allow_accessing_weak_globals_(true),
       weak_globals_add_condition_("weak globals add condition",
                                   (CHECK(Locks::jni_weak_globals_lock_ != nullptr),
@@ -551,7 +554,7 @@ jobject JavaVMExt::AddGlobalRef(Thread* self, ObjPtr<mirror::Object> obj) {
     return nullptr;
   }
   WriterMutexLock mu(self, *Locks::jni_globals_lock_);
-  IndirectRef ref = globals_.Add(IRT_FIRST_SEGMENT, obj);
+  IndirectRef ref = globals_.Add(kIRTFirstSegment, obj);
   return reinterpret_cast<jobject>(ref);
 }
 
@@ -563,7 +566,7 @@ jweak JavaVMExt::AddWeakGlobalRef(Thread* self, ObjPtr<mirror::Object> obj) {
   while (UNLIKELY(!MayAccessWeakGlobals(self))) {
     weak_globals_add_condition_.WaitHoldingLocks(self);
   }
-  IndirectRef ref = weak_globals_.Add(IRT_FIRST_SEGMENT, obj);
+  IndirectRef ref = weak_globals_.Add(kIRTFirstSegment, obj);
   return reinterpret_cast<jweak>(ref);
 }
 
@@ -572,7 +575,7 @@ void JavaVMExt::DeleteGlobalRef(Thread* self, jobject obj) {
     return;
   }
   WriterMutexLock mu(self, *Locks::jni_globals_lock_);
-  if (!globals_.Remove(IRT_FIRST_SEGMENT, obj)) {
+  if (!globals_.Remove(kIRTFirstSegment, obj)) {
     LOG(WARNING) << "JNI WARNING: DeleteGlobalRef(" << obj << ") "
                  << "failed to find entry";
   }
@@ -583,7 +586,7 @@ void JavaVMExt::DeleteWeakGlobalRef(Thread* self, jweak obj) {
     return;
   }
   MutexLock mu(self, *Locks::jni_weak_globals_lock_);
-  if (!weak_globals_.Remove(IRT_FIRST_SEGMENT, obj)) {
+  if (!weak_globals_.Remove(kIRTFirstSegment, obj)) {
     LOG(WARNING) << "JNI WARNING: DeleteWeakGlobalRef(" << obj << ") "
                  << "failed to find entry";
   }

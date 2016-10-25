@@ -50,7 +50,10 @@ TEST_F(IndirectReferenceTableTest, BasicTest) {
   ScopedObjectAccess soa(Thread::Current());
   static const size_t kTableMax = 20;
   std::string error_msg;
-  IndirectReferenceTable irt(kTableMax, kGlobal, &error_msg);
+  IndirectReferenceTable irt(kTableMax,
+                             kGlobal,
+                             IndirectReferenceTable::ResizableCapacity::kNo,
+                             &error_msg);
   ASSERT_TRUE(irt.IsValid()) << error_msg;
 
   mirror::Class* c = class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Object;");
@@ -65,7 +68,7 @@ TEST_F(IndirectReferenceTableTest, BasicTest) {
   Handle<mirror::Object> obj3 = hs.NewHandle(c->AllocObject(soa.Self()));
   ASSERT_TRUE(obj3.Get() != nullptr);
 
-  const uint32_t cookie = IRT_FIRST_SEGMENT;
+  const IRTSegmentState cookie = kIRTFirstSegment;
 
   CheckDump(&irt, 0, 0);
 
@@ -255,6 +258,252 @@ TEST_F(IndirectReferenceTableTest, BasicTest) {
 
   ASSERT_EQ(0U, irt.Capacity()) << "multi-del not empty";
   CheckDump(&irt, 0, 0);
+}
+
+TEST_F(IndirectReferenceTableTest, Holes) {
+  // Test the explicitly named cases from the IRT implementation:
+  //
+  // 1) Segment with holes (current_num_holes_ > 0), push new segment, add/remove reference
+  // 2) Segment with holes (current_num_holes_ > 0), pop segment, add/remove reference
+  // 3) Segment with holes (current_num_holes_ > 0), push new segment, pop segment, add/remove
+  //    reference
+  // 4) Empty segment, push new segment, create a hole, pop a segment, add/remove a reference
+  // 5) Base segment, push new segment, create a hole, pop a segment, push new segment, add/remove
+  //    reference
+
+  ScopedObjectAccess soa(Thread::Current());
+  static const size_t kTableMax = 10;
+
+  mirror::Class* c = class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Object;");
+  StackHandleScope<5> hs(soa.Self());
+  ASSERT_TRUE(c != nullptr);
+  Handle<mirror::Object> obj0 = hs.NewHandle(c->AllocObject(soa.Self()));
+  ASSERT_TRUE(obj0.Get() != nullptr);
+  Handle<mirror::Object> obj1 = hs.NewHandle(c->AllocObject(soa.Self()));
+  ASSERT_TRUE(obj1.Get() != nullptr);
+  Handle<mirror::Object> obj2 = hs.NewHandle(c->AllocObject(soa.Self()));
+  ASSERT_TRUE(obj2.Get() != nullptr);
+  Handle<mirror::Object> obj3 = hs.NewHandle(c->AllocObject(soa.Self()));
+  ASSERT_TRUE(obj3.Get() != nullptr);
+  Handle<mirror::Object> obj4 = hs.NewHandle(c->AllocObject(soa.Self()));
+  ASSERT_TRUE(obj4.Get() != nullptr);
+
+  std::string error_msg;
+
+  // 1) Segment with holes (current_num_holes_ > 0), push new segment, add/remove reference.
+  {
+    IndirectReferenceTable irt(kTableMax,
+                               kGlobal,
+                               IndirectReferenceTable::ResizableCapacity::kNo,
+                               &error_msg);
+    ASSERT_TRUE(irt.IsValid()) << error_msg;
+
+    const IRTSegmentState cookie0 = kIRTFirstSegment;
+
+    CheckDump(&irt, 0, 0);
+
+    IndirectRef iref0 = irt.Add(cookie0, obj0.Get());
+    IndirectRef iref1 = irt.Add(cookie0, obj1.Get());
+    IndirectRef iref2 = irt.Add(cookie0, obj2.Get());
+
+    EXPECT_TRUE(irt.Remove(cookie0, iref1));
+
+    // New segment.
+    const IRTSegmentState cookie1 = irt.GetSegmentState();
+
+    IndirectRef iref3 = irt.Add(cookie1, obj3.Get());
+
+    // Must not have filled the previous hole.
+    EXPECT_EQ(irt.Capacity(), 4u);
+    EXPECT_TRUE(irt.Get(iref1) == nullptr);
+    CheckDump(&irt, 3, 3);
+
+    UNUSED(iref0, iref1, iref2, iref3);
+  }
+
+  // 2) Segment with holes (current_num_holes_ > 0), pop segment, add/remove reference
+  {
+    IndirectReferenceTable irt(kTableMax,
+                               kGlobal,
+                               IndirectReferenceTable::ResizableCapacity::kNo,
+                               &error_msg);
+    ASSERT_TRUE(irt.IsValid()) << error_msg;
+
+    const IRTSegmentState cookie0 = kIRTFirstSegment;
+
+    CheckDump(&irt, 0, 0);
+
+    IndirectRef iref0 = irt.Add(cookie0, obj0.Get());
+
+    // New segment.
+    const IRTSegmentState cookie1 = irt.GetSegmentState();
+
+    IndirectRef iref1 = irt.Add(cookie1, obj1.Get());
+    IndirectRef iref2 = irt.Add(cookie1, obj2.Get());
+    IndirectRef iref3 = irt.Add(cookie1, obj3.Get());
+
+    EXPECT_TRUE(irt.Remove(cookie1, iref2));
+
+    // Pop segment.
+    irt.SetSegmentState(cookie1);
+
+    IndirectRef iref4 = irt.Add(cookie1, obj4.Get());
+
+    EXPECT_EQ(irt.Capacity(), 2u);
+    EXPECT_TRUE(irt.Get(iref2) == nullptr);
+    CheckDump(&irt, 2, 2);
+
+    UNUSED(iref0, iref1, iref2, iref3, iref4);
+  }
+
+  // 3) Segment with holes (current_num_holes_ > 0), push new segment, pop segment, add/remove
+  //    reference.
+  {
+    IndirectReferenceTable irt(kTableMax,
+                               kGlobal,
+                               IndirectReferenceTable::ResizableCapacity::kNo,
+                               &error_msg);
+    ASSERT_TRUE(irt.IsValid()) << error_msg;
+
+    const IRTSegmentState cookie0 = kIRTFirstSegment;
+
+    CheckDump(&irt, 0, 0);
+
+    IndirectRef iref0 = irt.Add(cookie0, obj0.Get());
+
+    // New segment.
+    const IRTSegmentState cookie1 = irt.GetSegmentState();
+
+    IndirectRef iref1 = irt.Add(cookie1, obj1.Get());
+    IndirectRef iref2 = irt.Add(cookie1, obj2.Get());
+
+    EXPECT_TRUE(irt.Remove(cookie1, iref1));
+
+    // New segment.
+    const IRTSegmentState cookie2 = irt.GetSegmentState();
+
+    IndirectRef iref3 = irt.Add(cookie2, obj3.Get());
+
+    // Pop segment.
+    irt.SetSegmentState(cookie2);
+
+    IndirectRef iref4 = irt.Add(cookie1, obj4.Get());
+
+    EXPECT_EQ(irt.Capacity(), 3u);
+    EXPECT_TRUE(irt.Get(iref1) == nullptr);
+    CheckDump(&irt, 3, 3);
+
+    UNUSED(iref0, iref1, iref2, iref3, iref4);
+  }
+
+  // 4) Empty segment, push new segment, create a hole, pop a segment, add/remove a reference.
+  {
+    IndirectReferenceTable irt(kTableMax,
+                               kGlobal,
+                               IndirectReferenceTable::ResizableCapacity::kNo,
+                               &error_msg);
+    ASSERT_TRUE(irt.IsValid()) << error_msg;
+
+    const IRTSegmentState cookie0 = kIRTFirstSegment;
+
+    CheckDump(&irt, 0, 0);
+
+    IndirectRef iref0 = irt.Add(cookie0, obj0.Get());
+
+    // New segment.
+    const IRTSegmentState cookie1 = irt.GetSegmentState();
+
+    IndirectRef iref1 = irt.Add(cookie1, obj1.Get());
+    EXPECT_TRUE(irt.Remove(cookie1, iref1));
+
+    // Emptied segment, push new one.
+    const IRTSegmentState cookie2 = irt.GetSegmentState();
+
+    IndirectRef iref2 = irt.Add(cookie1, obj1.Get());
+    IndirectRef iref3 = irt.Add(cookie1, obj2.Get());
+    IndirectRef iref4 = irt.Add(cookie1, obj3.Get());
+
+    EXPECT_TRUE(irt.Remove(cookie1, iref3));
+
+    // Pop segment.
+    UNUSED(cookie2);
+    irt.SetSegmentState(cookie1);
+
+    IndirectRef iref5 = irt.Add(cookie1, obj4.Get());
+
+    EXPECT_EQ(irt.Capacity(), 2u);
+    EXPECT_TRUE(irt.Get(iref3) == nullptr);
+    CheckDump(&irt, 2, 2);
+
+    UNUSED(iref0, iref1, iref2, iref3, iref4, iref5);
+  }
+
+  // 5) Base segment, push new segment, create a hole, pop a segment, push new segment, add/remove
+  //    reference
+  {
+    IndirectReferenceTable irt(kTableMax,
+                               kGlobal,
+                               IndirectReferenceTable::ResizableCapacity::kNo,
+                               &error_msg);
+    ASSERT_TRUE(irt.IsValid()) << error_msg;
+
+    const IRTSegmentState cookie0 = kIRTFirstSegment;
+
+    CheckDump(&irt, 0, 0);
+
+    IndirectRef iref0 = irt.Add(cookie0, obj0.Get());
+
+    // New segment.
+    const IRTSegmentState cookie1 = irt.GetSegmentState();
+
+    IndirectRef iref1 = irt.Add(cookie1, obj1.Get());
+    IndirectRef iref2 = irt.Add(cookie1, obj1.Get());
+    IndirectRef iref3 = irt.Add(cookie1, obj2.Get());
+
+    EXPECT_TRUE(irt.Remove(cookie1, iref2));
+
+    // Pop segment.
+    irt.SetSegmentState(cookie1);
+
+    // Push segment.
+    const IRTSegmentState cookie1_second = irt.GetSegmentState();
+    UNUSED(cookie1_second);
+
+    IndirectRef iref4 = irt.Add(cookie1, obj3.Get());
+
+    EXPECT_EQ(irt.Capacity(), 2u);
+    EXPECT_TRUE(irt.Get(iref3) == nullptr);
+    CheckDump(&irt, 2, 2);
+
+    UNUSED(iref0, iref1, iref2, iref3, iref4);
+  }
+}
+
+TEST_F(IndirectReferenceTableTest, Resize) {
+  ScopedObjectAccess soa(Thread::Current());
+  static const size_t kTableMax = 512;
+
+  mirror::Class* c = class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Object;");
+  StackHandleScope<1> hs(soa.Self());
+  ASSERT_TRUE(c != nullptr);
+  Handle<mirror::Object> obj0 = hs.NewHandle(c->AllocObject(soa.Self()));
+  ASSERT_TRUE(obj0.Get() != nullptr);
+
+  std::string error_msg;
+  IndirectReferenceTable irt(kTableMax,
+                             kLocal,
+                             IndirectReferenceTable::ResizableCapacity::kYes,
+                             &error_msg);
+  ASSERT_TRUE(irt.IsValid()) << error_msg;
+
+  CheckDump(&irt, 0, 0);
+  const IRTSegmentState cookie = kIRTFirstSegment;
+
+  for (size_t i = 0; i != kTableMax + 1; ++i) {
+    irt.Add(cookie, obj0.Get());
+  }
+
+  EXPECT_EQ(irt.Capacity(), kTableMax + 1);
 }
 
 }  // namespace art
