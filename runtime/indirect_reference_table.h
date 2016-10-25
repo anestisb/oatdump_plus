@@ -218,12 +218,20 @@ bool inline operator!=(const IrtIterator& lhs, const IrtIterator& rhs) {
 
 class IndirectReferenceTable {
  public:
+  enum class ResizableCapacity {
+    kNo,
+    kYes
+  };
+
   // WARNING: Construction of the IndirectReferenceTable may fail.
   // error_msg must not be null. If error_msg is set by the constructor, then
   // construction has failed and the IndirectReferenceTable will be in an
   // invalid state. Use IsValid to check whether the object is in an invalid
   // state.
-  IndirectReferenceTable(size_t max_count, IndirectRefKind kind, std::string* error_msg);
+  IndirectReferenceTable(size_t max_count,
+                         IndirectRefKind kind,
+                         ResizableCapacity resizable,
+                         std::string* error_msg);
 
   ~IndirectReferenceTable();
 
@@ -383,7 +391,7 @@ class IndirectReferenceTable {
   // bit mask, ORed into all irefs.
   const IndirectRefKind kind_;
 
-  // max #of entries allowed.
+  // max #of entries allowed (modulo resizing).
   size_t max_entries_;
 
   // Some values to retain old behavior with holes. Description of the algorithm is in the .cc
@@ -391,6 +399,10 @@ class IndirectReferenceTable {
   // TODO: Consider other data structures for compact tables, e.g., free lists.
   size_t current_num_holes_;
   IRTSegmentState last_known_previous_state_;
+
+  // Whether the table's capacity may be resized. As there are no locks used, it is the caller's
+  // responsibility to ensure thread-safety.
+  ResizableCapacity resizable_;
 };
 
 }  // namespace art
