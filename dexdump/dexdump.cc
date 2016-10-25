@@ -1581,10 +1581,15 @@ static void dumpClass(const DexFile* pDexFile, int idx, char** pLastPackage) {
 /*
  * Dumps the requested sections of the file.
  */
-static void processDexFile(const char* fileName, const DexFile* pDexFile) {
+static void processDexFile(const char* fileName,
+                           const DexFile* pDexFile, size_t i, size_t n) {
   if (gOptions.verbose) {
-    fprintf(gOutFile, "Opened '%s', DEX version '%.3s'\n",
-            fileName, pDexFile->GetHeader().magic_ + 4);
+    fputs("Opened '", gOutFile);
+    fputs(fileName, gOutFile);
+    if (n > 1) {
+      fprintf(gOutFile, ":%s", DexFile::GetMultiDexClassesDexName(i).c_str());
+    }
+    fprintf(gOutFile, "', DEX version '%.3s'\n", pDexFile->GetHeader().magic_ + 4);
   }
 
   // Headers.
@@ -1642,8 +1647,8 @@ int processFile(const char* fileName) {
   if (gOptions.checksumOnly) {
     fprintf(gOutFile, "Checksum verified\n");
   } else {
-    for (size_t i = 0; i < dex_files.size(); i++) {
-      processDexFile(fileName, dex_files[i].get());
+    for (size_t i = 0, n = dex_files.size(); i < n; i++) {
+      processDexFile(fileName, dex_files[i].get(), i, n);
     }
   }
   return 0;
