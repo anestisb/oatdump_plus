@@ -3242,6 +3242,10 @@ mirror::DexCache* ClassLinker::RegisterDexFile(const DexFile& dex_file,
     WriterMutexLock mu(self, dex_lock_);
     ObjPtr<mirror::DexCache> dex_cache = FindDexCacheLocked(self, dex_file, true);
     if (dex_cache != nullptr) {
+      // Another thread managed to initialize the dex cache faster, so use that DexCache.
+      // If this thread encountered OOME, ignore it.
+      DCHECK_EQ(h_dex_cache.Get() == nullptr, self->IsExceptionPending());
+      self->ClearException();
       return dex_cache.Ptr();
     }
     if (h_dex_cache.Get() == nullptr) {
