@@ -252,6 +252,7 @@ art_cc_defaults {
         "906-iterate-heap/iterate_heap.cc",
         "907-get-loaded-classes/get_loaded_classes.cc",
         "908-gc-start-finish/gc_callbacks.cc",
+        "909-attach-agent/attach.cc",
     ],
     shared_libs: [
         "libbase",

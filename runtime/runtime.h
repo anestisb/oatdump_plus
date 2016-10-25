@@ -665,6 +665,8 @@ class Runtime {
   NO_RETURN
   static void Aborter(const char* abort_message);
 
+  void AttachAgent(const std::string& agent_arg);
+
  private:
   static void InitPlatformSignalHandlers();
 

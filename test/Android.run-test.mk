@@ -277,6 +277,7 @@ TEST_ART_BROKEN_TARGET_TESTS += \
   906-iterate-heap \
   907-get-loaded-classes \
   908-gc-start-finish \
+  909-attach-agent \
 
 ifneq (,$(filter target,$(TARGET_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,target,$(RUN_TYPES),$(PREBUILD_TYPES), \

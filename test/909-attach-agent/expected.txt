@@ -1,0 +1,3 @@
+Hello, world!
+Attached Agent for test 909-attach-agent
+Goodbye!
