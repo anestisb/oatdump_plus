@@ -118,31 +118,8 @@ void SpaceBitmap<kAlignment>::ClearRange(const mirror::Object* begin, const mirr
   }
   const uintptr_t start_index = OffsetToIndex(begin_offset);
   const uintptr_t end_index = OffsetToIndex(end_offset);
-  Atomic<uintptr_t>* const mem_begin = &bitmap_begin_[start_index];
-  Atomic<uintptr_t>* const mem_end = &bitmap_begin_[end_index];
-  Atomic<uintptr_t>* const page_begin = AlignUp(mem_begin, kPageSize);
-  Atomic<uintptr_t>* const page_end = AlignDown(mem_end, kPageSize);
-  if (!kMadviseZeroes || page_begin >= page_end) {
-    // No possible area to madvise.
-    std::fill(reinterpret_cast<uint8_t*>(mem_begin),
-              reinterpret_cast<uint8_t*>(mem_end),
-              0);
-  } else {
-    // Spans one or more pages.
-    DCHECK_LE(mem_begin, page_begin);
-    DCHECK_LE(page_begin, page_end);
-    DCHECK_LE(page_end, mem_end);
-    std::fill(reinterpret_cast<uint8_t*>(mem_begin),
-              reinterpret_cast<uint8_t*>(page_begin),
-              0);
-    CHECK_NE(madvise(page_begin,
-                     reinterpret_cast<uint8_t*>(page_end) - reinterpret_cast<uint8_t*>(page_begin),
-                     MADV_DONTNEED),
-             -1) << "madvise failed";
-    std::fill(reinterpret_cast<uint8_t*>(page_end),
-             reinterpret_cast<uint8_t*>(mem_end),
-             0);
-  }
+  ZeroAndReleasePages(reinterpret_cast<uint8_t*>(&bitmap_begin_[start_index]),
+                      (end_index - start_index) * sizeof(*bitmap_begin_));
 }
 
 template<size_t kAlignment>
