@@ -84,6 +84,7 @@ IndirectReferenceTable::IndirectReferenceTable(size_t max_count,
     table_ = nullptr;
   }
   segment_state_ = kIRTFirstSegment;
+  last_known_previous_state_ = kIRTFirstSegment;
 }
 
 IndirectReferenceTable::~IndirectReferenceTable() {
