@@ -2308,7 +2308,10 @@ TEST_F(JniInternalTest, IndirectReferenceTableOffsets) {
   // by modifying memory.
   // The parameters don't really matter here.
   std::string error_msg;
-  IndirectReferenceTable irt(5, IndirectRefKind::kGlobal, &error_msg);
+  IndirectReferenceTable irt(5,
+                             IndirectRefKind::kGlobal,
+                             IndirectReferenceTable::ResizableCapacity::kNo,
+                             &error_msg);
   ASSERT_TRUE(irt.IsValid()) << error_msg;
   IRTSegmentState old_state = irt.GetSegmentState();
 
