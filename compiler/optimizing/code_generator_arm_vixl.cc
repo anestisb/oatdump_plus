@@ -62,6 +62,7 @@ static bool ExpectedPairLayout(Location location) {
   return ((location.low() & 1) == 0) && (location.low() + 1 == location.high());
 }
 
+static constexpr int kCurrentMethodStackOffset = 0;
 static constexpr size_t kArmInstrMaxSizeInBytes = 4u;
 
 #ifdef __
@@ -434,6 +435,59 @@ class LoadClassSlowPathARMVIXL : public SlowPathCodeARMVIXL {
   DISALLOW_COPY_AND_ASSIGN(LoadClassSlowPathARMVIXL);
 };
 
+class TypeCheckSlowPathARMVIXL : public SlowPathCodeARMVIXL {
+ public:
+  TypeCheckSlowPathARMVIXL(HInstruction* instruction, bool is_fatal)
+      : SlowPathCodeARMVIXL(instruction), is_fatal_(is_fatal) {}
+
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    LocationSummary* locations = instruction_->GetLocations();
+    Location object_class = instruction_->IsCheckCast() ? locations->GetTemp(0)
+                                                        : locations->Out();
+    DCHECK(instruction_->IsCheckCast()
+           || !locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
+
+    CodeGeneratorARMVIXL* arm_codegen = down_cast<CodeGeneratorARMVIXL*>(codegen);
+    __ Bind(GetEntryLabel());
+
+    if (!is_fatal_) {
+      TODO_VIXL32(FATAL);
+    }
+
+    // We're moving two locations to locations that could overlap, so we need a parallel
+    // move resolver.
+    InvokeRuntimeCallingConventionARMVIXL calling_convention;
+    codegen->EmitParallelMoves(
+        locations->InAt(1),
+        LocationFrom(calling_convention.GetRegisterAt(0)),
+        Primitive::kPrimNot,
+        object_class,
+        LocationFrom(calling_convention.GetRegisterAt(1)),
+        Primitive::kPrimNot);
+
+    if (instruction_->IsInstanceOf()) {
+      TODO_VIXL32(FATAL);
+    } else {
+      DCHECK(instruction_->IsCheckCast());
+      arm_codegen->InvokeRuntime(kQuickCheckCast, instruction_, instruction_->GetDexPc(), this);
+      CheckEntrypointTypes<kQuickCheckCast, void, const mirror::Class*, const mirror::Class*>();
+    }
+
+    if (!is_fatal_) {
+      TODO_VIXL32(FATAL);
+    }
+  }
+
+  const char* GetDescription() const OVERRIDE { return "TypeCheckSlowPathARMVIXL"; }
+
+  bool IsFatal() const OVERRIDE { return is_fatal_; }
+
+ private:
+  const bool is_fatal_;
+
+  DISALLOW_COPY_AND_ASSIGN(TypeCheckSlowPathARMVIXL);
+};
+
 class DeoptimizationSlowPathARMVIXL : public SlowPathCodeARMVIXL {
  public:
   explicit DeoptimizationSlowPathARMVIXL(HDeoptimize* instruction)
@@ -565,6 +619,11 @@ static uint32_t ComputeSRegisterListMask(const SRegisterList& regs) {
     mask |= (1 << i);
   }
   return mask;
+}
+
+size_t CodeGeneratorARMVIXL::RestoreFloatingPointRegister(size_t stack_index, uint32_t reg_id) {
+  GetAssembler()->LoadSFromOffset(vixl32::SRegister(reg_id), sp, stack_index);
+  return kArmWordSize;
 }
 
 #undef __
@@ -1418,6 +1477,8 @@ void LocationsBuilderARMVIXL::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* i
   // TODO(VIXL): TryDispatch
 
   HandleInvoke(invoke);
+
+  // TODO(VIXL): invoke->HasPcRelativeDexCache()
 }
 
 void InstructionCodeGeneratorARMVIXL::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
@@ -1507,6 +1568,8 @@ void InstructionCodeGeneratorARMVIXL::VisitNeg(HNeg* neg) {
 
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble:
+      // TODO(VIXL): Consider introducing an InputVRegister()
+      // helper function (equivalent to InputRegister()).
       __ Vneg(OutputVRegister(neg), InputVRegisterAt(neg, 0));
       break;
 
@@ -2325,7 +2388,12 @@ void LocationsBuilderARMVIXL::VisitDiv(HDiv* div) {
       break;
     }
     case Primitive::kPrimLong: {
-      TODO_VIXL32(FATAL);
+      InvokeRuntimeCallingConventionARMVIXL calling_convention;
+      locations->SetInAt(0, LocationFrom(
+          calling_convention.GetRegisterAt(0), calling_convention.GetRegisterAt(1)));
+      locations->SetInAt(1, LocationFrom(
+          calling_convention.GetRegisterAt(2), calling_convention.GetRegisterAt(3)));
+      locations->SetOut(LocationFrom(r0, r1));
       break;
     }
     case Primitive::kPrimFloat:
@@ -2342,6 +2410,7 @@ void LocationsBuilderARMVIXL::VisitDiv(HDiv* div) {
 }
 
 void InstructionCodeGeneratorARMVIXL::VisitDiv(HDiv* div) {
+  Location lhs = div->GetLocations()->InAt(0);
   Location rhs = div->GetLocations()->InAt(1);
 
   switch (div->GetResultType()) {
@@ -2357,7 +2426,16 @@ void InstructionCodeGeneratorARMVIXL::VisitDiv(HDiv* div) {
     }
 
     case Primitive::kPrimLong: {
-      TODO_VIXL32(FATAL);
+      InvokeRuntimeCallingConventionARMVIXL calling_convention;
+      DCHECK(calling_convention.GetRegisterAt(0).Is(LowRegisterFrom(lhs)));
+      DCHECK(calling_convention.GetRegisterAt(1).Is(HighRegisterFrom(lhs)));
+      DCHECK(calling_convention.GetRegisterAt(2).Is(LowRegisterFrom(rhs)));
+      DCHECK(calling_convention.GetRegisterAt(3).Is(HighRegisterFrom(rhs)));
+      DCHECK(LowRegisterFrom(div->GetLocations()->Out()).Is(r0));
+      DCHECK(HighRegisterFrom(div->GetLocations()->Out()).Is(r1));
+
+      codegen_->InvokeRuntime(kQuickLdiv, div, div->GetDexPc());
+      CheckEntrypointTypes<kQuickLdiv, int64_t, int64_t, int64_t>();
       break;
     }
 
@@ -3663,7 +3741,7 @@ void LocationsBuilderARMVIXL::VisitArrayGet(HArrayGet* instruction) {
   // Also need for String compression feature.
   if ((object_array_get_with_read_barrier && kUseBakerReadBarrier)
       || (mirror::kUseStringCompression && instruction->IsStringCharAt())) {
-    TODO_VIXL32(FATAL);
+    locations->AddTemp(Location::RequiresRegister());
   }
 }
 
@@ -3692,7 +3770,24 @@ void InstructionCodeGeneratorARMVIXL::VisitArrayGet(HArrayGet* instruction) {
       if (index.IsConstant()) {
         int32_t const_index = index.GetConstant()->AsIntConstant()->GetValue();
         if (maybe_compressed_char_at) {
-          TODO_VIXL32(FATAL);
+          vixl32::Register length = temps.Acquire();
+          vixl32::Label uncompressed_load, done;
+          uint32_t count_offset = mirror::String::CountOffset().Uint32Value();
+          GetAssembler()->LoadFromOffset(kLoadWord, length, obj, count_offset);
+          codegen_->MaybeRecordImplicitNullCheck(instruction);
+          __ Cmp(length, 0);
+          __ B(ge, &uncompressed_load);
+          GetAssembler()->LoadFromOffset(kLoadUnsignedByte,
+                                         RegisterFrom(out_loc),
+                                         obj,
+                                         data_offset + const_index);
+          __ B(&done);
+          __ Bind(&uncompressed_load);
+          GetAssembler()->LoadFromOffset(GetLoadOperandType(Primitive::kPrimChar),
+                                         RegisterFrom(out_loc),
+                                         obj,
+                                         data_offset + (const_index << 1));
+          __ Bind(&done);
         } else {
           uint32_t full_offset = data_offset + (const_index << Primitive::ComponentSizeShift(type));
 
@@ -3708,7 +3803,18 @@ void InstructionCodeGeneratorARMVIXL::VisitArrayGet(HArrayGet* instruction) {
           __ Add(temp, obj, data_offset);
         }
         if (maybe_compressed_char_at) {
-          TODO_VIXL32(FATAL);
+          vixl32::Label uncompressed_load, done;
+          uint32_t count_offset = mirror::String::CountOffset().Uint32Value();
+          vixl32::Register length = RegisterFrom(locations->GetTemp(0));
+          GetAssembler()->LoadFromOffset(kLoadWord, length, obj, count_offset);
+          codegen_->MaybeRecordImplicitNullCheck(instruction);
+          __ Cmp(length, 0);
+          __ B(ge, &uncompressed_load);
+          __ Ldrb(RegisterFrom(out_loc), MemOperand(temp, RegisterFrom(index), vixl32::LSL, 0));
+          __ B(&done);
+          __ Bind(&uncompressed_load);
+          __ Ldrh(RegisterFrom(out_loc), MemOperand(temp, RegisterFrom(index), vixl32::LSL, 1));
+          __ Bind(&done);
         } else {
           codegen_->LoadFromShiftedRegOffset(type, out_loc, temp, RegisterFrom(index));
         }
@@ -4080,7 +4186,10 @@ void InstructionCodeGeneratorARMVIXL::VisitArrayLength(HArrayLength* instruction
   vixl32::Register out = OutputRegister(instruction);
   GetAssembler()->LoadFromOffset(kLoadWord, out, obj, offset);
   codegen_->MaybeRecordImplicitNullCheck(instruction);
-  // TODO(VIXL): https://android-review.googlesource.com/#/c/272625/
+  // Mask out compression flag from String's array length.
+  if (mirror::kUseStringCompression && instruction->IsStringLength()) {
+    __ Bic(out, out, 1u << 31);
+  }
 }
 
 void LocationsBuilderARMVIXL::VisitBoundsCheck(HBoundsCheck* instruction) {
@@ -4376,7 +4485,12 @@ void ParallelMoveResolverARMVIXL::EmitSwap(size_t index) {
     GetAssembler()->LoadFromOffset(kLoadWordPair, low_reg, sp, mem);
     GetAssembler()->StoreDToOffset(temp, sp, mem);
   } else if (source.IsFpuRegisterPair() && destination.IsFpuRegisterPair()) {
-    TODO_VIXL32(FATAL);
+    vixl32::DRegister first = DRegisterFrom(source);
+    vixl32::DRegister second = DRegisterFrom(destination);
+    vixl32::DRegister temp = temps.AcquireD();
+    __ Vmov(temp, first);
+    __ Vmov(first, second);
+    __ Vmov(second, temp);
   } else if (source.IsFpuRegisterPair() || destination.IsFpuRegisterPair()) {
     TODO_VIXL32(FATAL);
   } else if (source.IsFpuRegister() || destination.IsFpuRegister()) {
@@ -4609,6 +4723,115 @@ void InstructionCodeGeneratorARMVIXL::VisitThrow(HThrow* instruction) {
   CheckEntrypointTypes<kQuickDeliverException, void, mirror::Object*>();
 }
 
+static bool TypeCheckNeedsATemporary(TypeCheckKind type_check_kind) {
+  return kEmitCompilerReadBarrier &&
+      (kUseBakerReadBarrier ||
+       type_check_kind == TypeCheckKind::kAbstractClassCheck ||
+       type_check_kind == TypeCheckKind::kClassHierarchyCheck ||
+       type_check_kind == TypeCheckKind::kArrayObjectCheck);
+}
+
+void LocationsBuilderARMVIXL::VisitCheckCast(HCheckCast* instruction) {
+  LocationSummary::CallKind call_kind = LocationSummary::kNoCall;
+  bool throws_into_catch = instruction->CanThrowIntoCatchBlock();
+
+  TypeCheckKind type_check_kind = instruction->GetTypeCheckKind();
+  switch (type_check_kind) {
+    case TypeCheckKind::kExactCheck:
+    case TypeCheckKind::kAbstractClassCheck:
+    case TypeCheckKind::kClassHierarchyCheck:
+    case TypeCheckKind::kArrayObjectCheck:
+      call_kind = (throws_into_catch || kEmitCompilerReadBarrier) ?
+          LocationSummary::kCallOnSlowPath :
+          LocationSummary::kNoCall;  // In fact, call on a fatal (non-returning) slow path.
+      break;
+    case TypeCheckKind::kArrayCheck:
+    case TypeCheckKind::kUnresolvedCheck:
+    case TypeCheckKind::kInterfaceCheck:
+      call_kind = LocationSummary::kCallOnSlowPath;
+      break;
+  }
+
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction, call_kind);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+  // Note that TypeCheckSlowPathARM uses this "temp" register too.
+  locations->AddTemp(Location::RequiresRegister());
+  // When read barriers are enabled, we need an additional temporary
+  // register for some cases.
+  if (TypeCheckNeedsATemporary(type_check_kind)) {
+    locations->AddTemp(Location::RequiresRegister());
+  }
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitCheckCast(HCheckCast* instruction) {
+  TypeCheckKind type_check_kind = instruction->GetTypeCheckKind();
+  LocationSummary* locations = instruction->GetLocations();
+  Location obj_loc = locations->InAt(0);
+  vixl32::Register obj = InputRegisterAt(instruction, 0);
+  vixl32::Register cls = InputRegisterAt(instruction, 1);
+  Location temp_loc = locations->GetTemp(0);
+  vixl32::Register temp = RegisterFrom(temp_loc);
+  Location maybe_temp2_loc = TypeCheckNeedsATemporary(type_check_kind) ?
+      locations->GetTemp(1) :
+      Location::NoLocation();
+  uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
+
+  bool is_type_check_slow_path_fatal =
+      (type_check_kind == TypeCheckKind::kExactCheck ||
+       type_check_kind == TypeCheckKind::kAbstractClassCheck ||
+       type_check_kind == TypeCheckKind::kClassHierarchyCheck ||
+       type_check_kind == TypeCheckKind::kArrayObjectCheck) &&
+      !instruction->CanThrowIntoCatchBlock();
+  SlowPathCodeARMVIXL* type_check_slow_path =
+      new (GetGraph()->GetArena()) TypeCheckSlowPathARMVIXL(instruction,
+                                                            is_type_check_slow_path_fatal);
+  codegen_->AddSlowPath(type_check_slow_path);
+
+  vixl32::Label done;
+  // Avoid null check if we know obj is not null.
+  if (instruction->MustDoNullCheck()) {
+    __ Cbz(obj, &done);
+  }
+
+  // /* HeapReference<Class> */ temp = obj->klass_
+  GenerateReferenceLoadTwoRegisters(instruction, temp_loc, obj_loc, class_offset, maybe_temp2_loc);
+
+  switch (type_check_kind) {
+    case TypeCheckKind::kExactCheck:
+    case TypeCheckKind::kArrayCheck: {
+      __ Cmp(temp, cls);
+      // Jump to slow path for throwing the exception or doing a
+      // more involved array check.
+      __ B(ne, type_check_slow_path->GetEntryLabel());
+      break;
+    }
+
+    case TypeCheckKind::kAbstractClassCheck: {
+      TODO_VIXL32(FATAL);
+      break;
+    }
+
+    case TypeCheckKind::kClassHierarchyCheck: {
+      TODO_VIXL32(FATAL);
+      break;
+    }
+
+    case TypeCheckKind::kArrayObjectCheck: {
+      TODO_VIXL32(FATAL);
+      break;
+    }
+
+    case TypeCheckKind::kUnresolvedCheck:
+    case TypeCheckKind::kInterfaceCheck:
+      TODO_VIXL32(FATAL);
+      break;
+  }
+  __ Bind(&done);
+
+  __ Bind(type_check_slow_path->GetExitLabel());
+}
+
 void LocationsBuilderARMVIXL::VisitAnd(HAnd* instruction) {
   HandleBitwiseOperation(instruction, AND);
 }
@@ -4780,6 +5003,24 @@ void InstructionCodeGeneratorARMVIXL::HandleBitwiseOperation(HBinaryOperation* i
   }
 }
 
+void InstructionCodeGeneratorARMVIXL::GenerateReferenceLoadTwoRegisters(
+    HInstruction* instruction ATTRIBUTE_UNUSED,
+    Location out,
+    Location obj,
+    uint32_t offset,
+    Location maybe_temp ATTRIBUTE_UNUSED) {
+  vixl32::Register out_reg = RegisterFrom(out);
+  vixl32::Register obj_reg = RegisterFrom(obj);
+  if (kEmitCompilerReadBarrier) {
+    TODO_VIXL32(FATAL);
+  } else {
+    // Plain load with no read barrier.
+    // /* HeapReference<Object> */ out = *(obj + offset)
+    GetAssembler()->LoadFromOffset(kLoadWord, out_reg, obj_reg, offset);
+    GetAssembler()->MaybeUnpoisonHeapReference(out_reg);
+  }
+}
+
 void InstructionCodeGeneratorARMVIXL::GenerateGcRootFieldLoad(
     HInstruction* instruction ATTRIBUTE_UNUSED,
     Location root,
@@ -4871,7 +5112,10 @@ void CodeGeneratorARMVIXL::GenerateStaticOrDirectCall(
       if (current_method.IsRegister()) {
         method_reg = RegisterFrom(current_method);
       } else {
-        TODO_VIXL32(FATAL);
+        DCHECK(invoke->GetLocations()->Intrinsified());
+        DCHECK(!current_method.IsValid());
+        method_reg = temp_reg;
+        GetAssembler()->LoadFromOffset(kLoadWord, temp_reg, sp, kCurrentMethodStackOffset);
       }
       // /* ArtMethod*[] */ temp = temp.ptr_sized_fields_->dex_cache_resolved_methods_;
       GetAssembler()->LoadFromOffset(
@@ -4942,9 +5186,31 @@ void CodeGeneratorARMVIXL::GenerateVirtualCall(HInvokeVirtual* invoke, Location 
 }
 
 // Copy the result of a call into the given target.
-void CodeGeneratorARMVIXL::MoveFromReturnRegister(Location trg ATTRIBUTE_UNUSED,
-                                                  Primitive::Type type ATTRIBUTE_UNUSED) {
-  TODO_VIXL32(FATAL);
+void CodeGeneratorARMVIXL::MoveFromReturnRegister(Location trg, Primitive::Type type) {
+  if (!trg.IsValid()) {
+    DCHECK_EQ(type, Primitive::kPrimVoid);
+    return;
+  }
+
+  DCHECK_NE(type, Primitive::kPrimVoid);
+
+  Location return_loc = InvokeDexCallingConventionVisitorARM().GetReturnLocation(type);
+  if (return_loc.Equals(trg)) {
+    return;
+  }
+
+  // TODO: Consider pairs in the parallel move resolver, then this could be nicely merged
+  //       with the last branch.
+  if (type == Primitive::kPrimLong) {
+    TODO_VIXL32(FATAL);
+  } else if (type == Primitive::kPrimDouble) {
+    TODO_VIXL32(FATAL);
+  } else {
+    // Let the parallel move resolver take care of all of this.
+    HParallelMove parallel_move(GetGraph()->GetArena());
+    parallel_move.AddMove(return_loc, trg, type, nullptr);
+    GetMoveResolver()->EmitNativeCode(&parallel_move);
+  }
 }
 
 #undef __
