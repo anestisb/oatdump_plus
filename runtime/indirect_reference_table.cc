@@ -84,6 +84,34 @@ IndirectReferenceTable::IndirectReferenceTable(size_t max_count,
 IndirectReferenceTable::~IndirectReferenceTable() {
 }
 
+void IndirectReferenceTable::ConstexprChecks() {
+  // Use this for some assertions. They can't be put into the header as C++ wants the class
+  // to be complete.
+
+  // Check kind.
+  static_assert((EncodeIndirectRefKind(kLocal) & (~kKindMask)) == 0, "Kind encoding error");
+  static_assert((EncodeIndirectRefKind(kGlobal) & (~kKindMask)) == 0, "Kind encoding error");
+  static_assert((EncodeIndirectRefKind(kWeakGlobal) & (~kKindMask)) == 0, "Kind encoding error");
+  static_assert(DecodeIndirectRefKind(EncodeIndirectRefKind(kLocal)) == kLocal,
+                "Kind encoding error");
+  static_assert(DecodeIndirectRefKind(EncodeIndirectRefKind(kGlobal)) == kGlobal,
+                "Kind encoding error");
+  static_assert(DecodeIndirectRefKind(EncodeIndirectRefKind(kWeakGlobal)) == kWeakGlobal,
+                "Kind encoding error");
+
+  // Check serial.
+  static_assert(DecodeSerial(EncodeSerial(0u)) == 0u, "Serial encoding error");
+  static_assert(DecodeSerial(EncodeSerial(1u)) == 1u, "Serial encoding error");
+  static_assert(DecodeSerial(EncodeSerial(2u)) == 2u, "Serial encoding error");
+  static_assert(DecodeSerial(EncodeSerial(3u)) == 3u, "Serial encoding error");
+
+  // Table index.
+  static_assert(DecodeIndex(EncodeIndex(0u)) == 0u, "Index encoding error");
+  static_assert(DecodeIndex(EncodeIndex(1u)) == 1u, "Index encoding error");
+  static_assert(DecodeIndex(EncodeIndex(2u)) == 2u, "Index encoding error");
+  static_assert(DecodeIndex(EncodeIndex(3u)) == 3u, "Index encoding error");
+}
+
 bool IndirectReferenceTable::IsValid() const {
   return table_mem_map_.get() != nullptr;
 }
