@@ -1777,6 +1777,14 @@ class Dex2Oat FINAL {
       }
     }
 
+    // Initialize the writers with the compiler driver, image writer, and their
+    // dex files. The writers were created without those being there yet.
+    for (size_t i = 0, size = oat_files_.size(); i != size; ++i) {
+      std::unique_ptr<OatWriter>& oat_writer = oat_writers_[i];
+      std::vector<const DexFile*>& dex_files = dex_files_per_oat_file_[i];
+      oat_writer->Initialize(driver_.get(), image_writer_.get(), dex_files);
+    }
+
     {
       TimingLogger::ScopedTiming t2("dex2oat Write VDEX", timings_);
       DCHECK(IsBootImage() || oat_files_.size() == 1u);
@@ -1791,6 +1799,11 @@ class Dex2Oat FINAL {
           return false;
         }
 
+        if (!oat_writers_[i]->WriteQuickeningInfo(vdex_out.get())) {
+          LOG(ERROR) << "Failed to write quickening info into VDEX " << vdex_file->GetPath();
+          return false;
+        }
+
         // VDEX finalized, seek back to the beginning and write the header.
         if (!oat_writers_[i]->WriteVdexHeader(vdex_out.get())) {
           LOG(ERROR) << "Failed to write vdex header into VDEX " << vdex_file->GetPath();
@@ -1799,15 +1812,14 @@ class Dex2Oat FINAL {
       }
     }
 
-    linker::MultiOatRelativePatcher patcher(instruction_set_, instruction_set_features_.get());
     {
       TimingLogger::ScopedTiming t2("dex2oat Write ELF", timings_);
+      linker::MultiOatRelativePatcher patcher(instruction_set_, instruction_set_features_.get());
       for (size_t i = 0, size = oat_files_.size(); i != size; ++i) {
         std::unique_ptr<ElfWriter>& elf_writer = elf_writers_[i];
         std::unique_ptr<OatWriter>& oat_writer = oat_writers_[i];
 
-        std::vector<const DexFile*>& dex_files = dex_files_per_oat_file_[i];
-        oat_writer->PrepareLayout(driver_.get(), image_writer_.get(), dex_files, &patcher);
+        oat_writer->PrepareLayout(&patcher);
 
         size_t rodata_size = oat_writer->GetOatHeader().GetExecutableOffset();
         size_t text_size = oat_writer->GetOatSize() - rodata_size;
