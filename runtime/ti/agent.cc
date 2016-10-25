@@ -25,17 +25,10 @@ const char* AGENT_ON_LOAD_FUNCTION_NAME = "Agent_OnLoad";
 const char* AGENT_ON_ATTACH_FUNCTION_NAME = "Agent_OnAttach";
 const char* AGENT_ON_UNLOAD_FUNCTION_NAME = "Agent_OnUnload";
 
-Agent Agent::Create(std::string arg) {
-  size_t eq = arg.find_first_of('=');
-  if (eq == std::string::npos) {
-    return Agent(arg, "");
-  } else {
-    return Agent(arg.substr(0, eq), arg.substr(eq + 1, arg.length()));
-  }
-}
-
 // TODO We need to acquire some locks probably.
-Agent::LoadError Agent::Load(/*out*/jint* call_res, /*out*/ std::string* error_msg) {
+Agent::LoadError Agent::DoLoadHelper(bool attaching,
+                                     /*out*/jint* call_res,
+                                     /*out*/std::string* error_msg) {
   DCHECK(call_res != nullptr);
   DCHECK(error_msg != nullptr);
 
@@ -49,8 +42,10 @@ Agent::LoadError Agent::Load(/*out*/jint* call_res, /*out*/ std::string* error_m
     VLOG(agents) << "err: " << *error_msg;
     return err;
   }
-  if (onload_ == nullptr) {
-    *error_msg = StringPrintf("Unable to start agent %s: No Agent_OnLoad function found",
+  AgentOnLoadFunction callback = attaching ? onattach_ : onload_;
+  if (callback == nullptr) {
+    *error_msg = StringPrintf("Unable to start agent %s: No %s callback found",
+                              (attaching ? "attach" : "load"),
                               name_.c_str());
     VLOG(agents) << "err: " << *error_msg;
     return kLoadingError;
@@ -59,9 +54,9 @@ Agent::LoadError Agent::Load(/*out*/jint* call_res, /*out*/ std::string* error_m
   std::unique_ptr<char[]> copied_args(new char[args_.size() + 1]);
   strcpy(copied_args.get(), args_.c_str());
   // TODO Need to do some checks that we are at a good spot etc.
-  *call_res = onload_(static_cast<JavaVM*>(Runtime::Current()->GetJavaVM()),
-                      copied_args.get(),
-                      nullptr);
+  *call_res = callback(Runtime::Current()->GetJavaVM(),
+                       copied_args.get(),
+                       nullptr);
   if (*call_res != 0) {
     *error_msg = StringPrintf("Initialization of %s returned non-zero value of %d",
                               name_.c_str(), *call_res);
@@ -74,6 +69,12 @@ Agent::LoadError Agent::Load(/*out*/jint* call_res, /*out*/ std::string* error_m
 
 Agent::LoadError Agent::DoDlOpen(/*out*/std::string* error_msg) {
   DCHECK(error_msg != nullptr);
+
+  DCHECK(dlopen_handle_ == nullptr);
+  DCHECK(onload_ == nullptr);
+  DCHECK(onattach_ == nullptr);
+  DCHECK(onunload_ == nullptr);
+
   dlopen_handle_ = dlopen(name_.c_str(), RTLD_LAZY);
   if (dlopen_handle_ == nullptr) {
     *error_msg = StringPrintf("Unable to dlopen %s: %s", name_.c_str(), dlerror());
@@ -85,7 +86,7 @@ Agent::LoadError Agent::DoDlOpen(/*out*/std::string* error_msg) {
   if (onload_ == nullptr) {
     VLOG(agents) << "Unable to find 'Agent_OnLoad' symbol in " << this;
   }
-  onattach_ = reinterpret_cast<AgentOnAttachFunction>(dlsym(dlopen_handle_,
+  onattach_ = reinterpret_cast<AgentOnLoadFunction>(dlsym(dlopen_handle_,
                                                             AGENT_ON_ATTACH_FUNCTION_NAME));
   if (onattach_ == nullptr) {
     VLOG(agents) << "Unable to find 'Agent_OnAttach' symbol in " << this;
@@ -106,21 +107,91 @@ void Agent::Unload() {
     }
     dlclose(dlopen_handle_);
     dlopen_handle_ = nullptr;
+    onload_ = nullptr;
+    onattach_ = nullptr;
+    onunload_ = nullptr;
   } else {
     VLOG(agents) << this << " is not currently loaded!";
   }
 }
 
-Agent::Agent(const Agent& other)
-  : name_(other.name_),
-    args_(other.args_),
-    dlopen_handle_(other.dlopen_handle_),
-    onload_(other.onload_),
-    onattach_(other.onattach_),
-    onunload_(other.onunload_) {
-  if (other.dlopen_handle_ != nullptr) {
-    dlopen(other.name_.c_str(), 0);
+Agent::Agent(std::string arg)
+    : dlopen_handle_(nullptr),
+      onload_(nullptr),
+      onattach_(nullptr),
+      onunload_(nullptr) {
+  size_t eq = arg.find_first_of('=');
+  if (eq == std::string::npos) {
+    name_ = arg;
+  } else {
+    name_ = arg.substr(0, eq);
+    args_ = arg.substr(eq + 1, arg.length());
   }
+}
+
+Agent::Agent(const Agent& other)
+    : dlopen_handle_(nullptr),
+      onload_(nullptr),
+      onattach_(nullptr),
+      onunload_(nullptr) {
+  *this = other;
+}
+
+// Attempting to copy to/from loaded/started agents is a fatal error
+Agent& Agent::operator=(const Agent& other) {
+  if (this != &other) {
+    if (other.dlopen_handle_ != nullptr) {
+      LOG(FATAL) << "Attempting to copy a loaded agent!";
+    }
+
+    if (dlopen_handle_ != nullptr) {
+      LOG(FATAL) << "Attempting to assign into a loaded agent!";
+    }
+
+    DCHECK(other.onload_ == nullptr);
+    DCHECK(other.onattach_ == nullptr);
+    DCHECK(other.onunload_ == nullptr);
+
+    DCHECK(onload_ == nullptr);
+    DCHECK(onattach_ == nullptr);
+    DCHECK(onunload_ == nullptr);
+
+    name_ = other.name_;
+    args_ = other.args_;
+
+    dlopen_handle_ = nullptr;
+    onload_ = nullptr;
+    onattach_ = nullptr;
+    onunload_ = nullptr;
+  }
+  return *this;
+}
+
+Agent::Agent(Agent&& other)
+    : dlopen_handle_(nullptr),
+      onload_(nullptr),
+      onattach_(nullptr),
+      onunload_(nullptr) {
+  *this = std::move(other);
+}
+
+Agent& Agent::operator=(Agent&& other) {
+  if (this != &other) {
+    if (dlopen_handle_ != nullptr) {
+      dlclose(dlopen_handle_);
+    }
+    name_ = std::move(other.name_);
+    args_ = std::move(other.args_);
+    dlopen_handle_ = other.dlopen_handle_;
+    onload_ = other.onload_;
+    onattach_ = other.onattach_;
+    onunload_ = other.onunload_;
+    other.dlopen_handle_ = nullptr;
+    other.onload_ = nullptr;
+    other.onattach_ = nullptr;
+    other.onunload_ = nullptr;
+  }
+  return *this;
 }
 
 Agent::~Agent() {

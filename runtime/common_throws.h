@@ -215,6 +215,12 @@ void ThrowRuntimeException(const char* fmt, ...)
     __attribute__((__format__(__printf__, 1, 2)))
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
+// SecurityException
+
+void ThrowSecurityException(const char* fmt, ...)
+    __attribute__((__format__(__printf__, 1, 2)))
+    REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
+
 // Stack overflow.
 
 void ThrowStackOverflowError(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;

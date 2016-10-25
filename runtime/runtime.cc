@@ -1311,6 +1311,28 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   return true;
 }
 
+// Attach a new agent and add it to the list of runtime agents
+//
+// TODO: once we decide on the threading model for agents,
+//   revisit this and make sure we're doing this on the right thread
+//   (and we synchronize access to any shared data structures like "agents_")
+//
+void Runtime::AttachAgent(const std::string& agent_arg) {
+  ti::Agent agent(agent_arg);
+
+  int res = 0;
+  std::string err;
+  ti::Agent::LoadError result = agent.Attach(&res, &err);
+
+  if (result == ti::Agent::kNoError) {
+    agents_.push_back(std::move(agent));
+  } else {
+    LOG(ERROR) << "Agent attach failed (result=" << result << ") : " << err;
+    ScopedObjectAccess soa(Thread::Current());
+    ThrowWrappedIOException("%s", err.c_str());
+  }
+}
+
 void Runtime::InitNativeMethods() {
   VLOG(startup) << "Runtime::InitNativeMethods entering";
   Thread* self = Thread::Current();

@@ -407,7 +407,7 @@ struct CmdlineType<std::vector<ti::Agent>> : CmdlineTypeParser<std::vector<ti::A
 
   Result ParseAndAppend(const std::string& args,
                         std::vector<ti::Agent>& existing_value) {
-    existing_value.push_back(ti::Agent::Create(args));
+    existing_value.emplace_back(args);
     return Result::SuccessNoValue();
   }
 
