@@ -170,11 +170,24 @@ bool ClassTable::InsertStrongRoot(ObjPtr<mirror::Object> obj) {
     const DexFile* dex_file = ObjPtr<mirror::DexCache>::DownCast(obj)->GetDexFile();
     if (dex_file != nullptr && dex_file->GetOatDexFile() != nullptr) {
       const OatFile* oat_file = dex_file->GetOatDexFile()->GetOatFile();
-      if (!oat_file->GetBssGcRoots().empty() && !ContainsElement(oat_files_, oat_file)) {
-        oat_files_.push_back(oat_file);
+      if (!oat_file->GetBssGcRoots().empty()) {
+        InsertOatFileLocked(oat_file);  // Ignore return value.
       }
     }
   }
+  return true;
+}
+
+bool ClassTable::InsertOatFile(const OatFile* oat_file) {
+  WriterMutexLock mu(Thread::Current(), lock_);
+  return InsertOatFileLocked(oat_file);
+}
+
+bool ClassTable::InsertOatFileLocked(const OatFile* oat_file) {
+  if (ContainsElement(oat_files_, oat_file)) {
+    return false;
+  }
+  oat_files_.push_back(oat_file);
   return true;
 }
 
