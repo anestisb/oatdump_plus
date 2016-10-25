@@ -207,6 +207,13 @@ TEST_F(AssemblerThumb2Test, strexd) {
   DriverStr(expected, "strexd");
 }
 
+TEST_F(AssemblerThumb2Test, clrex) {
+  __ clrex();
+
+  const char* expected = "clrex\n";
+  DriverStr(expected, "clrex");
+}
+
 TEST_F(AssemblerThumb2Test, LdrdStrd) {
   __ ldrd(arm::R0, arm::Address(arm::R2, 8));
   __ ldrd(arm::R0, arm::Address(arm::R12));
