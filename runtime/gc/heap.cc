@@ -612,6 +612,8 @@ Heap::Heap(size_t initial_size,
       concurrent_copying_collector_ = new collector::ConcurrentCopying(this,
                                                                        "",
                                                                        measure_gc_performance);
+      DCHECK(region_space_ != nullptr);
+      concurrent_copying_collector_->SetRegionSpace(region_space_);
       garbage_collectors_.push_back(concurrent_copying_collector_);
     }
     if (MayUseCollector(kCollectorTypeMC)) {
@@ -2708,7 +2710,6 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type,
         collector = semi_space_collector_;
         break;
       case kCollectorTypeCC:
-        concurrent_copying_collector_->SetRegionSpace(region_space_);
         collector = concurrent_copying_collector_;
         break;
       case kCollectorTypeMC:
