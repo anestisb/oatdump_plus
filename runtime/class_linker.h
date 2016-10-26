@@ -171,20 +171,6 @@ class ClassLinker {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!dex_lock_);
 
-  // Finds a class in the path class loader, loading it if necessary without using JNI. Hash
-  // function is supposed to be ComputeModifiedUtf8Hash(descriptor). Returns true if the
-  // class-loader chain could be handled, false otherwise, i.e., a non-supported class-loader
-  // was encountered while walking the parent chain (currently only BootClassLoader and
-  // PathClassLoader are supported).
-  bool FindClassInPathClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
-                                  Thread* self,
-                                  const char* descriptor,
-                                  size_t hash,
-                                  Handle<mirror::ClassLoader> class_loader,
-                                  ObjPtr<mirror::Class>* result)
-      REQUIRES_SHARED(Locks::mutator_lock_)
-      REQUIRES(!dex_lock_);
-
   // Finds a class by its descriptor using the "system" class loader, ie by searching the
   // boot_class_path_.
   mirror::Class* FindSystemClass(Thread* self, const char* descriptor)
@@ -215,10 +201,11 @@ class ClassLinker {
   // by the given 'class_loader'.
   mirror::Class* LookupClass(Thread* self,
                              const char* descriptor,
-                             size_t hash,
                              ObjPtr<mirror::ClassLoader> class_loader)
       REQUIRES(!Locks::classlinker_classes_lock_)
-      REQUIRES_SHARED(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    return LookupClass(self, descriptor, ComputeModifiedUtf8Hash(descriptor), class_loader);
+  }
 
   // Finds all the classes with the given descriptor, regardless of ClassLoader.
   void LookupClasses(const char* descriptor, std::vector<ObjPtr<mirror::Class>>& classes)
@@ -804,6 +791,29 @@ class ClassLinker {
 
   void FixupStaticTrampolines(ObjPtr<mirror::Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // Finds a class in the path class loader, loading it if necessary without using JNI. Hash
+  // function is supposed to be ComputeModifiedUtf8Hash(descriptor). Returns true if the
+  // class-loader chain could be handled, false otherwise, i.e., a non-supported class-loader
+  // was encountered while walking the parent chain (currently only BootClassLoader and
+  // PathClassLoader are supported).
+  bool FindClassInPathClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
+                                  Thread* self,
+                                  const char* descriptor,
+                                  size_t hash,
+                                  Handle<mirror::ClassLoader> class_loader,
+                                  ObjPtr<mirror::Class>* result)
+      REQUIRES_SHARED(Locks::mutator_lock_)
+      REQUIRES(!dex_lock_);
+
+  // Finds a class by its descriptor, returning NULL if it isn't wasn't loaded
+  // by the given 'class_loader'. Uses the provided hash for the descriptor.
+  mirror::Class* LookupClass(Thread* self,
+                             const char* descriptor,
+                             size_t hash,
+                             ObjPtr<mirror::ClassLoader> class_loader)
+      REQUIRES(!Locks::classlinker_classes_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   void RegisterDexFileLocked(const DexFile& dex_file, Handle<mirror::DexCache> dex_cache)
       REQUIRES(dex_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
@@ -1187,6 +1197,7 @@ class ClassLinker {
   friend struct CompilationHelper;  // For Compile in ImageTest.
   friend class ImageDumper;  // for DexLock
   friend class ImageWriter;  // for GetClassRoots
+  friend class VMClassLoader;  // for LookupClass and FindClassInPathClassLoader.
   friend class JniCompilerTest;  // for GetRuntimeQuickGenericJniStub
   friend class JniInternalTest;  // for GetRuntimeQuickGenericJniStub
   ART_FRIEND_TEST(ClassLinkerTest, RegisterDexFileName);  // for DexLock, and RegisterDexFileLocked
