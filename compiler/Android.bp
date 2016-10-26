@@ -342,6 +342,7 @@ art_cc_test {
         "utils/string_reference_test.cc",
         "utils/swap_space_test.cc",
         "utils/test_dex_file_builder_test.cc",
+        "verifier_deps_test.cc",
 
         "jni/jni_cfi_test.cc",
         "optimizing/codegen_test.cc",
