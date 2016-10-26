@@ -72,6 +72,7 @@
 #include "verifier/method_verifier.h"
 #include "verifier/method_verifier-inl.h"
 #include "verifier/verifier_log_mode.h"
+#include "verifier/verifier_deps.h"
 
 namespace art {
 
@@ -1968,6 +1969,7 @@ class VerifyClassVisitor : public CompilationVisitor {
         hs.NewHandle(soa.Decode<mirror::ClassLoader>(jclass_loader)));
     Handle<mirror::Class> klass(
         hs.NewHandle(class_linker->FindClass(soa.Self(), descriptor, class_loader)));
+    verifier::MethodVerifier::FailureKind failure_kind;
     if (klass.Get() == nullptr) {
       CHECK(soa.Self()->IsExceptionPending());
       soa.Self()->ClearException();
@@ -1980,7 +1982,8 @@ class VerifyClassVisitor : public CompilationVisitor {
       Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->FindDexCache(
           soa.Self(), dex_file, false)));
       std::string error_msg;
-      if (verifier::MethodVerifier::VerifyClass(soa.Self(),
+      failure_kind =
+          verifier::MethodVerifier::VerifyClass(soa.Self(),
                                                 &dex_file,
                                                 dex_cache,
                                                 class_loader,
@@ -1988,15 +1991,15 @@ class VerifyClassVisitor : public CompilationVisitor {
                                                 Runtime::Current()->GetCompilerCallbacks(),
                                                 true /* allow soft failures */,
                                                 log_level_,
-                                                &error_msg) ==
-                                                    verifier::MethodVerifier::kHardFailure) {
+                                                &error_msg);
+      if (failure_kind == verifier::MethodVerifier::kHardFailure) {
         LOG(ERROR) << "Verification failed on class " << PrettyDescriptor(descriptor)
                    << " because: " << error_msg;
         manager_->GetCompiler()->SetHadHardVerifierFailure();
       }
     } else if (!SkipClass(jclass_loader, dex_file, klass.Get())) {
       CHECK(klass->IsResolved()) << klass->PrettyClass();
-      class_linker->VerifyClass(soa.Self(), klass, log_level_);
+      failure_kind = class_linker->VerifyClass(soa.Self(), klass, log_level_);
 
       if (klass->IsErroneous()) {
         // ClassLinker::VerifyClass throws, which isn't useful in the compiler.
@@ -2008,13 +2011,18 @@ class VerifyClassVisitor : public CompilationVisitor {
       CHECK(klass->IsCompileTimeVerified() || klass->IsErroneous())
           << klass->PrettyDescriptor() << ": state=" << klass->GetStatus();
 
-      // It is *very* problematic if there are verification errors in the boot classpath. For example,
-      // we rely on things working OK without verification when the decryption dialog is brought up.
-      // So abort in a debug build if we find this violated.
+      // It is *very* problematic if there are verification errors in the boot classpath.
+      // For example, we rely on things working OK without verification when the
+      // decryption dialog is brought up. So abort in a debug build if we find this violated.
       DCHECK(!manager_->GetCompiler()->GetCompilerOptions().IsBootImage() || klass->IsVerified())
           << "Boot classpath class " << klass->PrettyClass()
           << " failed to fully verify.";
+    } else {
+      // Make the skip a soft failure, essentially being considered as verify at runtime.
+      failure_kind = verifier::MethodVerifier::kSoftFailure;
     }
+    verifier::VerifierDeps::MaybeRecordVerificationStatus(
+        dex_file, class_def.class_idx_, failure_kind);
     soa.Self()->AssertNoPendingException();
   }
 

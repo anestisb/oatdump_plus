@@ -280,6 +280,22 @@ static inline VerifierDeps* GetVerifierDepsSingleton() {
   return callbacks->GetVerifierDeps();
 }
 
+void VerifierDeps::MaybeRecordVerificationStatus(const DexFile& dex_file,
+                                                 uint16_t type_idx,
+                                                 MethodVerifier::FailureKind failure_kind) {
+  if (failure_kind == MethodVerifier::kNoFailure) {
+    // We only record classes that did not fully verify at compile time.
+    return;
+  }
+
+  VerifierDeps* singleton = GetVerifierDepsSingleton();
+  if (singleton != nullptr) {
+    DexFileDeps* dex_deps = singleton->GetDexFileDeps(dex_file);
+    MutexLock mu(Thread::Current(), *Locks::verifier_deps_lock_);
+    dex_deps->unverified_classes_.push_back(type_idx);
+  }
+}
+
 void VerifierDeps::MaybeRecordClassResolution(const DexFile& dex_file,
                                               uint16_t type_idx,
                                               mirror::Class* klass) {
@@ -360,6 +376,14 @@ static inline void EncodeSet(std::vector<uint8_t>* out, const std::set<T>& set) 
   }
 }
 
+static inline void EncodeUint16Vector(std::vector<uint8_t>* out,
+                                      const std::vector<uint16_t>& vector) {
+  EncodeUnsignedLeb128(out, vector.size());
+  for (uint16_t entry : vector) {
+    EncodeUnsignedLeb128(out, entry);
+  }
+}
+
 template<typename T>
 static inline void DecodeSet(const uint8_t** in, const uint8_t* end, std::set<T>* set) {
   DCHECK(set->empty());
@@ -368,6 +392,17 @@ static inline void DecodeSet(const uint8_t** in, const uint8_t* end, std::set<T>
     T tuple;
     DecodeTuple(in, end, &tuple);
     set->emplace(tuple);
+  }
+}
+
+static inline void DecodeUint16Vector(const uint8_t** in,
+                                      const uint8_t* end,
+                                      std::vector<uint16_t>* vector) {
+  DCHECK(vector->empty());
+  size_t num_entries = DecodeUint32WithOverflowCheck(in, end);
+  vector->reserve(num_entries);
+  for (size_t i = 0; i < num_entries; ++i) {
+    vector->push_back(dchecked_integral_cast<uint16_t>(DecodeUint32WithOverflowCheck(in, end)));
   }
 }
 
@@ -407,6 +442,7 @@ void VerifierDeps::Encode(std::vector<uint8_t>* buffer) const {
     EncodeSet(buffer, entry.second->direct_methods_);
     EncodeSet(buffer, entry.second->virtual_methods_);
     EncodeSet(buffer, entry.second->interface_methods_);
+    EncodeUint16Vector(buffer, entry.second->unverified_classes_);
   }
 }
 
@@ -423,6 +459,7 @@ VerifierDeps::VerifierDeps(const std::vector<const DexFile*>& dex_files, ArrayRe
     DecodeSet(&data_start, data_end, &entry.second->direct_methods_);
     DecodeSet(&data_start, data_end, &entry.second->virtual_methods_);
     DecodeSet(&data_start, data_end, &entry.second->interface_methods_);
+    DecodeUint16Vector(&data_start, data_end, &entry.second->unverified_classes_);
   }
   CHECK_LE(data_start, data_end);
 }
@@ -463,7 +500,8 @@ bool VerifierDeps::DexFileDeps::Equals(const VerifierDeps::DexFileDeps& rhs) con
          (fields_ == rhs.fields_) &&
          (direct_methods_ == rhs.direct_methods_) &&
          (virtual_methods_ == rhs.virtual_methods_) &&
-         (interface_methods_ == rhs.interface_methods_);
+         (interface_methods_ == rhs.interface_methods_) &&
+         (unverified_classes_ == rhs.unverified_classes_);
 }
 
 }  // namespace verifier

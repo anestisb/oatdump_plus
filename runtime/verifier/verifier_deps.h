@@ -26,6 +26,7 @@
 #include "base/array_ref.h"
 #include "base/mutex.h"
 #include "method_resolution_kind.h"
+#include "method_verifier.h"  // For MethodVerifier::FailureKind.
 #include "obj_ptr.h"
 #include "os.h"
 
@@ -47,6 +48,12 @@ namespace verifier {
 class VerifierDeps {
  public:
   explicit VerifierDeps(const std::vector<const DexFile*>& dex_files)
+      REQUIRES(!Locks::verifier_deps_lock_);
+
+  // Record the verification status of the class at `type_idx`.
+  static void MaybeRecordVerificationStatus(const DexFile& dex_file,
+                                            uint16_t type_idx,
+                                            MethodVerifier::FailureKind failure_kind)
       REQUIRES(!Locks::verifier_deps_lock_);
 
   // Record the outcome `klass` of resolving type `type_idx` from `dex_file`.
@@ -136,7 +143,7 @@ class VerifierDeps {
   };
 
   using TypeAssignabilityBase = std::tuple<uint32_t, uint32_t>;
-  struct TypeAssignability : public std::tuple<uint32_t, uint32_t> {
+  struct TypeAssignability : public TypeAssignabilityBase {
     TypeAssignability() = default;
     TypeAssignability(const TypeAssignability&) = default;
     TypeAssignability(uint32_t destination_idx, uint32_t source_idx)
@@ -164,6 +171,9 @@ class VerifierDeps {
     std::set<MethodResolution> direct_methods_;
     std::set<MethodResolution> virtual_methods_;
     std::set<MethodResolution> interface_methods_;
+
+    // List of classes that were not fully verified in that dex file.
+    std::vector<uint16_t> unverified_classes_;
 
     bool Equals(const DexFileDeps& rhs) const;
   };
