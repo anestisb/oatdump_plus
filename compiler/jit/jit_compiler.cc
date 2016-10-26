@@ -124,30 +124,30 @@ JitCompiler::JitCompiler() {
     if (option.starts_with("--instruction-set-variant=")) {
       StringPiece str = option.substr(strlen("--instruction-set-variant=")).data();
       VLOG(compiler) << "JIT instruction set variant " << str;
-      instruction_set_features_.reset(InstructionSetFeatures::FromVariant(
-          instruction_set, str.as_string(), &error_msg));
+      instruction_set_features_ = InstructionSetFeatures::FromVariant(
+          instruction_set, str.as_string(), &error_msg);
       if (instruction_set_features_ == nullptr) {
         LOG(WARNING) << "Error parsing " << option << " message=" << error_msg;
       }
     } else if (option.starts_with("--instruction-set-features=")) {
       StringPiece str = option.substr(strlen("--instruction-set-features=")).data();
       VLOG(compiler) << "JIT instruction set features " << str;
-      if (instruction_set_features_.get() == nullptr) {
-        instruction_set_features_.reset(InstructionSetFeatures::FromVariant(
-            instruction_set, "default", &error_msg));
+      if (instruction_set_features_ == nullptr) {
+        instruction_set_features_ = InstructionSetFeatures::FromVariant(
+            instruction_set, "default", &error_msg);
         if (instruction_set_features_ == nullptr) {
           LOG(WARNING) << "Error parsing " << option << " message=" << error_msg;
         }
       }
-      instruction_set_features_.reset(
-          instruction_set_features_->AddFeaturesFromString(str.as_string(), &error_msg));
+      instruction_set_features_ =
+          instruction_set_features_->AddFeaturesFromString(str.as_string(), &error_msg);
       if (instruction_set_features_ == nullptr) {
         LOG(WARNING) << "Error parsing " << option << " message=" << error_msg;
       }
     }
   }
   if (instruction_set_features_ == nullptr) {
-    instruction_set_features_.reset(InstructionSetFeatures::FromCppDefines());
+    instruction_set_features_ = InstructionSetFeatures::FromCppDefines();
   }
   cumulative_logger_.reset(new CumulativeLogger("jit times"));
   compiler_driver_.reset(new CompilerDriver(
