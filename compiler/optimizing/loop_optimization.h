@@ -64,6 +64,10 @@ class HLoopOptimization : public HOptimization {
   void SimplifyBlocks(LoopNode* node);
   void RemoveIfEmptyInnerLoop(LoopNode* node);
 
+  bool IsPhiInduction(HPhi* phi);
+  bool IsEmptyHeader(HBasicBlock* block);
+  bool IsEmptyBody(HBasicBlock* block);
+
   bool IsOnlyUsedAfterLoop(HLoopInformation* loop_info,
                            HInstruction* instruction,
                            /*out*/ int32_t* use_count);
