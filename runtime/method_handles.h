@@ -42,12 +42,13 @@ enum MethodHandleKind {
   kInvokeDirect,
   kInvokeStatic,
   kInvokeInterface,
+  kInvokeTransform,
   kInstanceGet,
   kInstancePut,
   kStaticGet,
   kStaticPut,
   kLastValidKind = kStaticPut,
-  kLastInvokeKind = kInvokeInterface
+  kLastInvokeKind = kInvokeTransform
 };
 
 // Whether the given method handle kind is some variant of an invoke.
@@ -69,14 +70,24 @@ bool ConvertJValue(Handle<mirror::Class> from,
 // boxing and unboxing. Returns true on success, on false on failure. A
 // pending exception will always be set on failure.
 template <bool is_range> REQUIRES_SHARED(Locks::mutator_lock_)
-bool PerformArgumentConversions(Thread* self,
-                                Handle<mirror::MethodType> callsite_type,
-                                Handle<mirror::MethodType> callee_type,
-                                const ShadowFrame& caller_frame,
-                                uint32_t first_src_reg,
-                                uint32_t first_dest_reg,
-                                const uint32_t (&arg)[Instruction::kMaxVarArgRegs],
-                                ShadowFrame* callee_frame);
+bool ConvertAndCopyArgumentsFromCallerFrame(Thread* self,
+                                            Handle<mirror::MethodType> callsite_type,
+                                            Handle<mirror::MethodType> callee_type,
+                                            const ShadowFrame& caller_frame,
+                                            uint32_t first_src_reg,
+                                            uint32_t first_dest_reg,
+                                            const uint32_t (&arg)[Instruction::kMaxVarArgRegs],
+                                            ShadowFrame* callee_frame);
+
+// Similar to |ConvertAndCopyArgumentsFromCallerFrame|, except that the
+// arguments are copied from an |EmulatedStackFrame|.
+template <bool is_range> REQUIRES_SHARED(Locks::mutator_lock_)
+bool ConvertAndCopyArgumentsFromEmulatedStackFrame(Thread* self,
+                                                   ObjPtr<mirror::Object> emulated_stack_frame,
+                                                   Handle<mirror::MethodType> callee_type,
+                                                   const uint32_t first_dest_reg,
+                                                   ShadowFrame* callee_frame);
+
 
 }  // namespace art
 
