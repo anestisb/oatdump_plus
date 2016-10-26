@@ -50,6 +50,7 @@ struct WellKnownClasses {
   static jclass dalvik_system_DexFile;
   static jclass dalvik_system_DexPathList;
   static jclass dalvik_system_DexPathList__Element;
+  static jclass dalvik_system_EmulatedStackFrame;
   static jclass dalvik_system_PathClassLoader;
   static jclass dalvik_system_VMRuntime;
   static jclass java_lang_annotation_Annotation__array;

@@ -162,14 +162,14 @@ bool ConvertJValue(Handle<mirror::Class> from,
 }
 
 template <bool is_range>
-bool PerformArgumentConversions(Thread* self,
-                                Handle<mirror::MethodType> callsite_type,
-                                Handle<mirror::MethodType> callee_type,
-                                const ShadowFrame& caller_frame,
-                                uint32_t first_src_reg,
-                                uint32_t first_dest_reg,
-                                const uint32_t (&arg)[Instruction::kMaxVarArgRegs],
-                                ShadowFrame* callee_frame) {
+bool ConvertAndCopyArgumentsFromCallerFrame(Thread* self,
+                                            Handle<mirror::MethodType> callsite_type,
+                                            Handle<mirror::MethodType> callee_type,
+                                            const ShadowFrame& caller_frame,
+                                            uint32_t first_src_reg,
+                                            uint32_t first_dest_reg,
+                                            const uint32_t (&arg)[Instruction::kMaxVarArgRegs],
+                                            ShadowFrame* callee_frame) {
   StackHandleScope<4> hs(self);
   Handle<mirror::ObjectArray<mirror::Class>> from_types(hs.NewHandle(callsite_type->GetPTypes()));
   Handle<mirror::ObjectArray<mirror::Class>> to_types(hs.NewHandle(callee_type->GetPTypes()));
@@ -243,6 +243,25 @@ bool PerformArgumentConversions(Thread* self,
 
   return true;
 }
+
+// Similar to |ConvertAndCopyArgumentsFromCallerFrame|, except that the
+// arguments are copied from an |EmulatedStackFrame|.
+template <bool is_range>
+bool ConvertAndCopyArgumentsFromEmulatedStackFrame(Thread* self,
+                                                   ObjPtr<mirror::Object> emulated_stack_frame,
+                                                   Handle<mirror::MethodType> callee_type,
+                                                   const uint32_t first_dest_reg,
+                                                   ShadowFrame* callee_frame) {
+  UNUSED(self);
+  UNUSED(emulated_stack_frame);
+  UNUSED(callee_type);
+  UNUSED(first_dest_reg);
+  UNUSED(callee_frame);
+
+  UNIMPLEMENTED(FATAL) << "ConvertAndCopyArgumentsFromEmulatedStackFrame is unimplemented";
+  return false;
+}
+
 
 }  // namespace art
 
