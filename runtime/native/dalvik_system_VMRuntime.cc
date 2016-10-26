@@ -317,7 +317,7 @@ static void PreloadDexCachesResolveType(Thread* self,
   if (class_name[1] == '\0') {
     klass = linker->FindPrimitiveClass(class_name[0]);
   } else {
-    klass = linker->LookupClass(self, class_name, ComputeModifiedUtf8Hash(class_name), nullptr);
+    klass = linker->LookupClass(self, class_name, nullptr);
   }
   if (klass == nullptr) {
     return;
