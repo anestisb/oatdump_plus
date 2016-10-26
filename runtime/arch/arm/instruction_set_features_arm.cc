@@ -33,7 +33,7 @@ extern "C" bool artCheckForArmSdivInstruction();
 
 namespace art {
 
-const ArmInstructionSetFeatures* ArmInstructionSetFeatures::FromVariant(
+ArmFeaturesUniquePtr ArmInstructionSetFeatures::FromVariant(
     const std::string& variant, std::string* error_msg) {
   // Assume all ARM processors are SMP.
   // TODO: set the SMP support based on variant.
@@ -69,7 +69,7 @@ const ArmInstructionSetFeatures* ArmInstructionSetFeatures::FromVariant(
     if (FindVariantInArray(unsupported_arm_variants, arraysize(unsupported_arm_variants),
                            variant)) {
       *error_msg = StringPrintf("Attempt to use unsupported ARM variant: %s", variant.c_str());
-      return nullptr;
+      return ArmFeaturesUniquePtr();
     }
     // Warn if the variant is unknown.
     // TODO: some of the variants below may have feature support, but that support is currently
@@ -97,17 +97,17 @@ const ArmInstructionSetFeatures* ArmInstructionSetFeatures::FromVariant(
           << ") using conservative defaults";
     }
   }
-  return new ArmInstructionSetFeatures(smp, has_div, has_lpae);
+  return ArmFeaturesUniquePtr(new ArmInstructionSetFeatures(smp, has_div, has_lpae));
 }
 
-const ArmInstructionSetFeatures* ArmInstructionSetFeatures::FromBitmap(uint32_t bitmap) {
+ArmFeaturesUniquePtr ArmInstructionSetFeatures::FromBitmap(uint32_t bitmap) {
   bool smp = (bitmap & kSmpBitfield) != 0;
   bool has_div = (bitmap & kDivBitfield) != 0;
   bool has_atomic_ldrd_strd = (bitmap & kAtomicLdrdStrdBitfield) != 0;
-  return new ArmInstructionSetFeatures(smp, has_div, has_atomic_ldrd_strd);
+  return ArmFeaturesUniquePtr(new ArmInstructionSetFeatures(smp, has_div, has_atomic_ldrd_strd));
 }
 
-const ArmInstructionSetFeatures* ArmInstructionSetFeatures::FromCppDefines() {
+ArmFeaturesUniquePtr ArmInstructionSetFeatures::FromCppDefines() {
   const bool smp = true;
 #if defined(__ARM_ARCH_EXT_IDIV__)
   const bool has_div = true;
@@ -119,10 +119,10 @@ const ArmInstructionSetFeatures* ArmInstructionSetFeatures::FromCppDefines() {
 #else
   const bool has_lpae = false;
 #endif
-  return new ArmInstructionSetFeatures(smp, has_div, has_lpae);
+  return ArmFeaturesUniquePtr(new ArmInstructionSetFeatures(smp, has_div, has_lpae));
 }
 
-const ArmInstructionSetFeatures* ArmInstructionSetFeatures::FromCpuInfo() {
+ArmFeaturesUniquePtr ArmInstructionSetFeatures::FromCpuInfo() {
   // Look in /proc/cpuinfo for features we need.  Only use this when we can guarantee that
   // the kernel puts the appropriate feature flags in here.  Sometimes it doesn't.
   bool smp = false;
@@ -157,10 +157,10 @@ const ArmInstructionSetFeatures* ArmInstructionSetFeatures::FromCpuInfo() {
   } else {
     LOG(ERROR) << "Failed to open /proc/cpuinfo";
   }
-  return new ArmInstructionSetFeatures(smp, has_div, has_lpae);
+  return ArmFeaturesUniquePtr(new ArmInstructionSetFeatures(smp, has_div, has_lpae));
 }
 
-const ArmInstructionSetFeatures* ArmInstructionSetFeatures::FromHwcap() {
+ArmFeaturesUniquePtr ArmInstructionSetFeatures::FromHwcap() {
   bool smp = sysconf(_SC_NPROCESSORS_CONF) > 1;
 
   bool has_div = false;
@@ -180,7 +180,7 @@ const ArmInstructionSetFeatures* ArmInstructionSetFeatures::FromHwcap() {
   }
 #endif
 
-  return new ArmInstructionSetFeatures(smp, has_div, has_lpae);
+  return ArmFeaturesUniquePtr(new ArmInstructionSetFeatures(smp, has_div, has_lpae));
 }
 
 // A signal handler called by a fault for an illegal instruction.  We record the fact in r0
@@ -198,7 +198,7 @@ static void bad_divide_inst_handle(int signo ATTRIBUTE_UNUSED, siginfo_t* si ATT
 #endif
 }
 
-const ArmInstructionSetFeatures* ArmInstructionSetFeatures::FromAssembly() {
+ArmFeaturesUniquePtr ArmInstructionSetFeatures::FromAssembly() {
   const bool smp = true;
 
   // See if have a sdiv instruction.  Register a signal handler and try to execute an sdiv
@@ -226,7 +226,7 @@ const ArmInstructionSetFeatures* ArmInstructionSetFeatures::FromAssembly() {
 #else
   const bool has_lpae = false;
 #endif
-  return new ArmInstructionSetFeatures(smp, has_div, has_lpae);
+  return ArmFeaturesUniquePtr(new ArmInstructionSetFeatures(smp, has_div, has_lpae));
 }
 
 bool ArmInstructionSetFeatures::Equals(const InstructionSetFeatures* other) const {
@@ -265,7 +265,8 @@ std::string ArmInstructionSetFeatures::GetFeatureString() const {
   return result;
 }
 
-const InstructionSetFeatures* ArmInstructionSetFeatures::AddFeaturesFromSplitString(
+std::unique_ptr<const InstructionSetFeatures>
+ArmInstructionSetFeatures::AddFeaturesFromSplitString(
     const bool smp, const std::vector<std::string>& features, std::string* error_msg) const {
   bool has_atomic_ldrd_strd = has_atomic_ldrd_strd_;
   bool has_div = has_div_;
@@ -284,7 +285,8 @@ const InstructionSetFeatures* ArmInstructionSetFeatures::AddFeaturesFromSplitStr
       return nullptr;
     }
   }
-  return new ArmInstructionSetFeatures(smp, has_div, has_atomic_ldrd_strd);
+  return std::unique_ptr<const InstructionSetFeatures>(
+      new ArmInstructionSetFeatures(smp, has_div, has_atomic_ldrd_strd));
 }
 
 }  // namespace art
