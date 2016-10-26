@@ -1,3 +1,2 @@
-This test verifies the exception message is informative for failure to launch
-a thread due to the number of available file descriptors in the process being
-exceeded.
+This test verifies that running out of file descriptors in the process doesn't
+prevent us from launching a new thread.
