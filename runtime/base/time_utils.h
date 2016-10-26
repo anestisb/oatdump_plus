@@ -73,8 +73,10 @@ static constexpr inline uint64_t MsToNs(uint64_t ms) {
 }
 
 #if defined(__APPLE__)
-// No clocks to specify on OS/X, fake value to pass to routines that require a clock.
+#ifndef CLOCK_REALTIME
+// No clocks to specify on OS/X < 10.12, fake value to pass to routines that require a clock.
 #define CLOCK_REALTIME 0xebadf00d
+#endif
 #endif
 
 // Sleep for the given number of nanoseconds, a bad way to handle contention.
