@@ -20,82 +20,6 @@
 
 namespace art {
 
-// Detects a potential induction cycle. Note that the actual induction
-// information is queried later if its last value is really needed.
-static bool IsPhiInduction(HPhi* phi, ArenaSet<HInstruction*>* iset) {
-  DCHECK(iset->empty());
-  HInputsRef inputs = phi->GetInputs();
-  if (inputs.size() == 2) {
-    HLoopInformation* loop_info = phi->GetBlock()->GetLoopInformation();
-    HInstruction* op = inputs[1];
-    if (op->GetBlock()->GetLoopInformation() == loop_info) {
-      // Chase a simple chain back to phi.
-      while (!op->IsPhi()) {
-        // Binary operation with single use in same loop.
-        if (!op->IsBinaryOperation() || !op->GetUses().HasExactlyOneElement()) {
-          return false;
-        }
-        // Chase back either through left or right operand.
-        iset->insert(op);
-        HInstruction* a = op->InputAt(0);
-        HInstruction* b = op->InputAt(1);
-        if (a->GetBlock()->GetLoopInformation() == loop_info && b != phi) {
-          op = a;
-        } else if (b->GetBlock()->GetLoopInformation() == loop_info) {
-          op = b;
-        } else {
-          return false;
-        }
-      }
-      // Closed the cycle?
-      if (op == phi) {
-       iset->insert(phi);
-       return true;
-      }
-    }
-  }
-  return false;
-}
-
-// Find: phi: Phi(init, addsub)
-//       s:   SuspendCheck
-//       c:   Condition(phi, bound)
-//       i:   If(c)
-// TODO: Find a less pattern matching approach?
-static bool IsEmptyHeader(HBasicBlock* block, ArenaSet<HInstruction*>* iset) {
-  DCHECK(iset->empty());
-  HInstruction* phi = block->GetFirstPhi();
-  if (phi != nullptr && phi->GetNext() == nullptr && IsPhiInduction(phi->AsPhi(), iset)) {
-    HInstruction* s = block->GetFirstInstruction();
-    if (s != nullptr && s->IsSuspendCheck()) {
-      HInstruction* c = s->GetNext();
-      if (c != nullptr && c->IsCondition() && c->GetUses().HasExactlyOneElement()) {
-        HInstruction* i = c->GetNext();
-        if (i != nullptr && i->IsIf() && i->InputAt(0) == c) {
-          iset->insert(c);
-          iset->insert(s);
-          return true;
-        }
-      }
-    }
-  }
-  return false;
-}
-
-// Does the loop-body consist of induction cycle and direct control flow only?
-static bool IsEmptyBody(HBasicBlock* block, ArenaSet<HInstruction*>* iset) {
-  if (block->GetFirstPhi() == nullptr) {
-    for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
-      HInstruction* instruction = it.Current();
-      if (!instruction->IsGoto() && iset->find(instruction) == iset->end()) {
-        return false;
-      }
-    }
-    return true;
-  }
-  return false;
-}
-
 // Remove the instruction from the graph. A bit more elaborate than the usual
 // instruction removal, since there may be a cycle in the use structure.
 static void RemoveFromCycle(HInstruction* instruction) {
@@ -242,7 +166,7 @@ void HLoopOptimization::SimplifyInduction(LoopNode* node) {
     HPhi* phi = it.Current()->AsPhi();
     iset_->clear();
     int32_t use_count = 0;
-    if (IsPhiInduction(phi, iset_) &&
+    if (IsPhiInduction(phi) &&
         IsOnlyUsedAfterLoop(node->loop_info, phi, &use_count) &&
         TryReplaceWithLastValue(phi, use_count, preheader)) {
       for (HInstruction* i : *iset_) {
@@ -256,15 +180,14 @@ void HLoopOptimization::SimplifyInduction(LoopNode* node) {
 void HLoopOptimization::SimplifyBlocks(LoopNode* node) {
   for (HBlocksInLoopIterator it(*node->loop_info); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
-    // Remove instructions that are dead, usually resulting from eliminating induction cycles.
+    // Remove instructions that are dead.
     for (HBackwardInstructionIterator i(block->GetInstructions()); !i.Done(); i.Advance()) {
       HInstruction* instruction = i.Current();
       if (instruction->IsDeadAndRemovable()) {
         block->RemoveInstruction(instruction);
       }
     }
-    // Remove trivial control flow blocks from the loop-body, again usually resulting
-    // from eliminating induction cycles.
+    // Remove trivial control flow blocks from the loop-body.
     if (block->GetPredecessors().size() == 1 &&
         block->GetSuccessors().size() == 1 &&
         block->GetFirstInstruction()->IsGoto()) {
@@ -314,8 +237,8 @@ void HLoopOptimization::RemoveIfEmptyInnerLoop(LoopNode* node) {
   // subsequent index uses, if any, with the last value and remove the loop.
   iset_->clear();
   int32_t use_count = 0;
-  if (IsEmptyHeader(header, iset_) &&
-      IsEmptyBody(body, iset_) &&
+  if (IsEmptyHeader(header) &&
+      IsEmptyBody(body) &&
       IsOnlyUsedAfterLoop(node->loop_info, header->GetFirstPhi(), &use_count) &&
       TryReplaceWithLastValue(header->GetFirstPhi(), use_count, preheader)) {
     body->DisconnectAndDelete();
@@ -331,6 +254,68 @@ void HLoopOptimization::RemoveIfEmptyInnerLoop(LoopNode* node) {
     // Update hierarchy.
     RemoveLoop(node);
   }
+}
+
+bool HLoopOptimization::IsPhiInduction(HPhi* phi) {
+  ArenaSet<HInstruction*>* set = induction_range_.LookupCycle(phi);
+  if (set != nullptr) {
+    for (HInstruction* i : *set) {
+      // Check that, other than phi, instruction are removable with uses contained in the cycle.
+      // TODO: investigate what cases are no longer in the graph.
+      if (i != phi) {
+        if (!i->IsInBlock() || !i->IsRemovable()) {
+          return false;
+        }
+        for (const HUseListNode<HInstruction*>& use : i->GetUses()) {
+          if (set->find(use.GetUser()) == set->end()) {
+            return false;
+          }
+        }
+      }
+    }
+    DCHECK(iset_->empty());
+    iset_->insert(set->begin(), set->end());  // copy
+    return true;
+  }
+  return false;
+}
+
+// Find: phi: Phi(init, addsub)
+//       s:   SuspendCheck
+//       c:   Condition(phi, bound)
+//       i:   If(c)
+// TODO: Find a less pattern matching approach?
+bool HLoopOptimization::IsEmptyHeader(HBasicBlock* block) {
+  DCHECK(iset_->empty());
+  HInstruction* phi = block->GetFirstPhi();
+  if (phi != nullptr && phi->GetNext() == nullptr && IsPhiInduction(phi->AsPhi())) {
+    HInstruction* s = block->GetFirstInstruction();
+    if (s != nullptr && s->IsSuspendCheck()) {
+      HInstruction* c = s->GetNext();
+      if (c != nullptr && c->IsCondition() && c->GetUses().HasExactlyOneElement()) {
+        HInstruction* i = c->GetNext();
+        if (i != nullptr && i->IsIf() && i->InputAt(0) == c) {
+          iset_->insert(c);
+          iset_->insert(s);
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+bool HLoopOptimization::IsEmptyBody(HBasicBlock* block) {
+  if (block->GetFirstPhi() == nullptr) {
+    for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+      HInstruction* instruction = it.Current();
+      if (!instruction->IsGoto() && iset_->find(instruction) == iset_->end()) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return false;
 }
 
 bool HLoopOptimization::IsOnlyUsedAfterLoop(HLoopInformation* loop_info,
