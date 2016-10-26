@@ -318,11 +318,18 @@ MemMap* MemMap::MapAnonymous(const char* name,
     debug_friendly_name += name;
     fd.Reset(ashmem_create_region(debug_friendly_name.c_str(), page_aligned_byte_count),
              /* check_usage */ false);
+
     if (fd.Fd() == -1) {
-      *error_msg = StringPrintf("ashmem_create_region failed for '%s': %s", name, strerror(errno));
-      return nullptr;
+      // We failed to create the ashmem region. Print a warning, but continue
+      // anyway by creating a true anonymous mmap with an fd of -1. It is
+      // better to use an unlabelled anonymous map than to fail to create a
+      // map at all.
+      PLOG(WARNING) << "ashmem_create_region failed for '" << name << "'";
+    } else {
+      // We succeeded in creating the ashmem region. Use the created ashmem
+      // region as backing for the mmap.
+      flags &= ~MAP_ANONYMOUS;
     }
-    flags &= ~MAP_ANONYMOUS;
   }
 
   // We need to store and potentially set an error number for pretty printing of errors
