@@ -1239,6 +1239,20 @@ class VerifyDeclaringClassVisitor : public ArtMethodVisitor {
   gc::accounting::HeapBitmap* const live_bitmap_;
 };
 
+// Copies data from one array to another array at the same position
+// if pred returns false. If there is a page of continuous data in
+// the src array for which pred consistently returns true then
+// corresponding page in the dst array will not be touched.
+// This should reduce number of allocated physical pages.
+template <class T, class NullPred>
+static void CopyNonNull(const T* src, size_t count, T* dst, const NullPred& pred) {
+  for (size_t i = 0; i < count; ++i) {
+    if (!pred(src[i])) {
+      dst[i] = src[i];
+    }
+  }
+}
+
 bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
     gc::space::ImageSpace* space,
     Handle<mirror::ClassLoader> class_loader,
@@ -1330,7 +1344,12 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
           for (size_t j = 0; kIsDebugBuild && j < num_types; ++j) {
             DCHECK(types[j].IsNull());
           }
-          std::copy_n(image_resolved_types, num_types, types);
+          CopyNonNull(image_resolved_types,
+                      num_types,
+                      types,
+                      [](const GcRoot<mirror::Class>& elem) {
+                          return elem.IsNull();
+                      });
           dex_cache->SetResolvedTypes(types);
         }
         if (num_methods != 0u) {
@@ -1340,7 +1359,12 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
           for (size_t j = 0; kIsDebugBuild && j < num_methods; ++j) {
             DCHECK(methods[j] == nullptr);
           }
-          std::copy_n(image_resolved_methods, num_methods, methods);
+          CopyNonNull(image_resolved_methods,
+                      num_methods,
+                      methods,
+                      [] (const ArtMethod* method) {
+                          return method == nullptr;
+                      });
           dex_cache->SetResolvedMethods(methods);
         }
         if (num_fields != 0u) {
@@ -1349,7 +1373,12 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
           for (size_t j = 0; kIsDebugBuild && j < num_fields; ++j) {
             DCHECK(fields[j] == nullptr);
           }
-          std::copy_n(dex_cache->GetResolvedFields(), num_fields, fields);
+          CopyNonNull(dex_cache->GetResolvedFields(),
+                      num_fields,
+                      fields,
+                      [] (const ArtField* field) {
+                          return field == nullptr;
+                      });
           dex_cache->SetResolvedFields(fields);
         }
         if (num_method_types != 0u) {
