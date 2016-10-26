@@ -52,11 +52,7 @@ public class Main {
             thread.start();
             thread.join();
         } catch (Throwable e) {
-            if (e.getMessage().contains("Too many open files")) {
-                System.out.println("Message includes \"Too many open files\"");
-            } else {
-                System.out.println(e.getMessage());
-            }
+            System.out.println(e.getMessage());
         }
 
         for (int i = 0; i < files.size(); i++) {
