@@ -594,6 +594,13 @@ class CodeGeneratorARM64 : public CodeGenerator {
                                              bool needs_null_check);
   // Factored implementation used by GenerateFieldLoadWithBakerReadBarrier
   // and GenerateArrayLoadWithBakerReadBarrier.
+  //
+  // Load the object reference located at the address
+  // `obj + offset + (index << scale_factor)`, held by object `obj`, into
+  // `ref`, and mark it if needed.
+  //
+  // If `always_update_field` is true, the value of the reference is
+  // atomically updated in the holder (`obj`).
   void GenerateReferenceLoadWithBakerReadBarrier(HInstruction* instruction,
                                                  Location ref,
                                                  vixl::aarch64::Register obj,
@@ -602,7 +609,8 @@ class CodeGeneratorARM64 : public CodeGenerator {
                                                  size_t scale_factor,
                                                  vixl::aarch64::Register temp,
                                                  bool needs_null_check,
-                                                 bool use_load_acquire);
+                                                 bool use_load_acquire,
+                                                 bool always_update_field = false);
 
   // Generate a read barrier for a heap reference within `instruction`
   // using a slow path.

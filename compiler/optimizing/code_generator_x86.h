@@ -499,13 +499,24 @@ class CodeGeneratorX86 : public CodeGenerator {
                                              uint32_t data_offset,
                                              Location index,
                                              bool needs_null_check);
-  // Factored implementation used by GenerateFieldLoadWithBakerReadBarrier
-  // and GenerateArrayLoadWithBakerReadBarrier.
+  // Factored implementation, used by GenerateFieldLoadWithBakerReadBarrier,
+  // GenerateArrayLoadWithBakerReadBarrier and some intrinsics.
+  //
+  // Load the object reference located at address `src`, held by
+  // object `obj`, into `ref`, and mark it if needed.  The base of
+  // address `src` must be `obj`.
+  //
+  // If `always_update_field` is true, the value of the reference is
+  // atomically updated in the holder (`obj`).  This operation
+  // requires a temporary register, which must be provided as a
+  // non-null pointer (`temp`).
   void GenerateReferenceLoadWithBakerReadBarrier(HInstruction* instruction,
                                                  Location ref,
                                                  Register obj,
                                                  const Address& src,
-                                                 bool needs_null_check);
+                                                 bool needs_null_check,
+                                                 bool always_update_field = false,
+                                                 Register* temp = nullptr);
 
   // Generate a read barrier for a heap reference within `instruction`
   // using a slow path.

@@ -1271,7 +1271,7 @@ void UnstartedRuntime::UnstartedUnsafeCompareAndSwapObject(
     mirror::HeapReference<mirror::Object>* field_addr =
         reinterpret_cast<mirror::HeapReference<mirror::Object>*>(
             reinterpret_cast<uint8_t*>(obj) + static_cast<size_t>(offset));
-    ReadBarrier::Barrier<mirror::Object, kWithReadBarrier, /*kAlwaysUpdateField*/true>(
+    ReadBarrier::Barrier<mirror::Object, kWithReadBarrier, /* kAlwaysUpdateField */ true>(
         obj,
         MemberOffset(offset),
         field_addr);
