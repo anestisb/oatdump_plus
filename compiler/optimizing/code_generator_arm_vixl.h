@@ -110,6 +110,7 @@ class LoadClassSlowPathARMVIXL;
   M(BelowOrEqual)                               \
   M(ClearException)                             \
   M(ClinitCheck)                                \
+  M(Compare)                                    \
   M(CurrentMethod)                              \
   M(Div)                                        \
   M(DivZeroCheck)                               \
@@ -161,7 +162,6 @@ class LoadClassSlowPathARMVIXL;
   M(BoundType)                                  \
   M(CheckCast)                                  \
   M(ClassTableGet)                              \
-  M(Compare)                                    \
   M(Deoptimize)                                 \
   M(DoubleConstant)                             \
   M(FloatConstant)                              \
@@ -246,7 +246,7 @@ class ParallelMoveResolverARMVIXL : public ParallelMoveResolverWithSwap {
   ArmVIXLAssembler* GetAssembler() const;
 
  private:
-  void Exchange(Register reg, int mem);
+  void Exchange(vixl32::Register reg, int mem);
   void Exchange(int mem1, int mem2);
 
   CodeGeneratorARMVIXL* const codegen_;
@@ -279,6 +279,8 @@ class LocationsBuilderARMVIXL : public HGraphVisitor {
   void HandleCondition(HCondition* condition);
   void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info);
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
+
+  Location ArithmeticZeroOrFpuRegister(HInstruction* input);
 
   CodeGeneratorARMVIXL* const codegen_;
   InvokeDexCallingConventionVisitorARM parameter_visitor_;
