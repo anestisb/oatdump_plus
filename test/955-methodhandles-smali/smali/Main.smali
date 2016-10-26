@@ -220,24 +220,22 @@
     invoke-polymorphic {v0, v1, v1}, Ljava/lang/invoke/MethodHandle;->invoke([Ljava/lang/Object;)Ljava/lang/Object;, (Ljava/lang/Long;Ljava/lang/Long;)I
     move-result v3
     sget-object v4, Ljava/lang/System;->out:Ljava/io/PrintStream;
-    invoke-virtual {v4, v3}, Ljava/io/PrintStream;->print(I)V
+    invoke-virtual {v4, v3}, Ljava/io/PrintStream;->println(I)V
 
     # Call compareTo(long) - this is an implicit box.
     const-wide v2, 44
     invoke-polymorphic {v0, v1, v2, v3}, Ljava/lang/invoke/MethodHandle;->invoke([Ljava/lang/Object;)Ljava/lang/Object;, (Ljava/lang/Long;J)I
     move-result v3
     sget-object v4, Ljava/lang/System;->out:Ljava/io/PrintStream;
-    invoke-virtual {v4, v3}, Ljava/io/PrintStream;->print(I)V
+    invoke-virtual {v4, v3}, Ljava/io/PrintStream;->println(I)V
 
     # Call compareTo(int) - this is an implicit box.
-    const v2, 40
-    invoke-polymorphic {v0, v1, v2}, Ljava/lang/invoke/MethodHandle;->invoke([Ljava/lang/Object;)Ljava/lang/Object;, (Ljava/lang/Long;I)I
-    move-result v3
-    sget-object v4, Ljava/lang/System;->out:Ljava/io/PrintStream;
-    invoke-virtual {v4, v3}, Ljava/io/PrintStream;->print(I)V
-
-    # Add a newline at the end of file.
-    invoke-virtual {v4}, Ljava/io/PrintStream;->println()V
+# This throws WrongMethodTypeException as it's a two step conversion int->long->Long or int->Integer->Long.
+#    const v2, 40
+#    invoke-polymorphic {v0, v1, v2}, Ljava/lang/invoke/MethodHandle;->invoke([Ljava/lang/Object;)Ljava/lang/Object;, (Ljava/lang/Long;I)I
+#    move-result v3
+#    sget-object v4, Ljava/lang/System;->out:Ljava/io/PrintStream;
+#    invoke-virtual {v4, v3}, Ljava/io/PrintStream;->print(I)V
 
     return-void
 .end method

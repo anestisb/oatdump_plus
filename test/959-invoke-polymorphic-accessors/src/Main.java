@@ -44,7 +44,26 @@ public class Main {
         public static final int s_fi = 0x5a5a5a5a;
     }
 
-    public static class InvokeExactTester {
+    public static class Tester {
+        public static void assertActualAndExpectedMatch(boolean actual, boolean expected)
+                throws AssertionError {
+            if (actual != expected) {
+                throw new AssertionError("Actual != Expected (" + actual + " != " + expected + ")");
+            }
+        }
+
+        public static void assertTrue(boolean value) throws AssertionError {
+            if (!value) {
+                throw new AssertionError("Value is not true");
+            }
+        }
+
+        public static void unreachable() throws Throwable{
+            throw new Error("unreachable");
+        }
+    }
+
+    public static class InvokeExactTester extends Tester {
         private enum PrimitiveType {
             Boolean,
             Byte,
@@ -62,19 +81,6 @@ public class Main {
             SPUT,
             IGET,
             SGET,
-        }
-
-        private static void assertActualAndExpectedMatch(boolean actual, boolean expected)
-                throws AssertionError {
-            if (actual != expected) {
-                throw new AssertionError("Actual != Expected (" + actual + " != " + expected + ")");
-            }
-        }
-
-        private static void assertTrue(boolean value) throws AssertionError {
-            if (!value) {
-                throw new AssertionError("Value is not true");
-            }
         }
 
         static void setByte(MethodHandle m, ValueHolder v, byte value, boolean expectFailure)
@@ -677,11 +683,11 @@ public class Main {
                 assertTrue(s.equals(ValueHolder.s_l));
             }
 
-            System.out.println("Passed InvokeExact tests for accessors.");
+            System.out.println("Passed MethodHandle.invokeExact() tests for accessors.");
         }
     }
 
-    public static class FindAccessorTester {
+    public static class FindAccessorTester extends Tester {
         public static void main() throws Throwable {
             // NB having a static field test here is essential for
             // this test. MethodHandles need to ensure the class
@@ -723,10 +729,161 @@ public class Main {
                 lookup.findSetter(ValueHolder.class, "m_fi", int.class);
                 unreachable();
             } catch (IllegalAccessException e) {}
+
+            System.out.println("Passed MethodHandles.Lookup tests for accessors.");
+        }
+    }
+
+    public static class InvokeTester extends Tester {
+        private static void testStaticGetter() throws Throwable {
+            MethodHandles.Lookup lookup = MethodHandles.lookup();
+            MethodHandle h0 = lookup.findStaticGetter(ValueHolder.class, "s_fi", int.class);
+            h0.invoke();
+            Number t = (Number)h0.invoke();
+            int u = (int)h0.invoke();
+            Integer v = (Integer)h0.invoke();
+            long w = (long)h0.invoke();
+            try {
+                byte x = (byte)h0.invoke();
+                unreachable();
+            } catch (WrongMethodTypeException e) {}
+            try {
+                String y = (String)h0.invoke();
+                unreachable();
+            } catch (WrongMethodTypeException e) {}
+            try {
+                Long z = (Long)h0.invoke();
+                unreachable();
+            } catch (WrongMethodTypeException e) {}
         }
 
-        public static void unreachable() throws Throwable{
-            throw new Error("unreachable");
+        private static void testMemberGetter() throws Throwable {
+            ValueHolder valueHolder = new ValueHolder();
+            MethodHandles.Lookup lookup = MethodHandles.lookup();
+            MethodHandle h0 = lookup.findGetter(ValueHolder.class, "m_fi", int.class);
+            h0.invoke(valueHolder);
+            Number t = (Number)h0.invoke(valueHolder);
+            int u = (int)h0.invoke(valueHolder);
+            Integer v = (Integer)h0.invoke(valueHolder);
+            long w = (long)h0.invoke(valueHolder);
+            try {
+                byte x = (byte)h0.invoke(valueHolder);
+                unreachable();
+            } catch (WrongMethodTypeException e) {}
+            try {
+                String y = (String)h0.invoke(valueHolder);
+                unreachable();
+            } catch (WrongMethodTypeException e) {}
+            try {
+                Long z = (Long)h0.invoke(valueHolder);
+                unreachable();
+            } catch (WrongMethodTypeException e) {}
+        }
+
+        private static void testMemberSetter() throws Throwable {
+            ValueHolder valueHolder = new ValueHolder();
+            MethodHandles.Lookup lookup = MethodHandles.lookup();
+            MethodHandle h0 = lookup.findSetter(ValueHolder.class, "m_f", float.class);
+            h0.invoke(valueHolder, 0.22f);
+            h0.invoke(valueHolder, new Float(1.11f));
+            Number floatNumber = new Float(0.88f);
+            h0.invoke(valueHolder, floatNumber);
+            assertTrue(valueHolder.m_f == floatNumber.floatValue());
+
+            try {
+              h0.invoke(valueHolder, (Float)null);
+              unreachable();
+            } catch (NullPointerException e) {}
+
+            h0.invoke(valueHolder, (byte)1);
+            h0.invoke(valueHolder, (short)2);
+            h0.invoke(valueHolder, 3);
+            h0.invoke(valueHolder, 4l);
+            try {
+                h0.invoke(valueHolder, 0.33);
+                unreachable();
+            } catch (WrongMethodTypeException e) {}
+            try {
+                Number doubleNumber = new Double(0.89);
+                h0.invoke(valueHolder, doubleNumber);
+                unreachable();
+            } catch (ClassCastException e) {}
+            try {
+                Number doubleNumber = null;
+                h0.invoke(valueHolder, doubleNumber);
+                unreachable();
+            } catch (NullPointerException e) {}
+            try {
+                // Mismatched return type - float != void
+                float tmp = (float)h0.invoke(valueHolder, 0.45f);
+                assertTrue(tmp == 0.0);
+            } catch (Exception e) { unreachable(); }
+            try {
+                h0.invoke(valueHolder, "bam");
+                unreachable();
+            } catch (WrongMethodTypeException e) {}
+            try {
+                String s = null;
+                h0.invoke(valueHolder, s);
+                unreachable();
+            } catch (WrongMethodTypeException e) {}
+        }
+
+        private static void testStaticSetter() throws Throwable {
+            MethodHandles.Lookup lookup = MethodHandles.lookup();
+            MethodHandle h0 = lookup.findStaticSetter(ValueHolder.class, "s_f", float.class);
+            h0.invoke(0.22f);
+            h0.invoke(new Float(1.11f));
+            Number floatNumber = new Float(0.88f);
+            h0.invoke(floatNumber);
+            assertTrue(ValueHolder.s_f == floatNumber.floatValue());
+
+            try {
+              h0.invoke((Float)null);
+              unreachable();
+            } catch (NullPointerException e) {}
+
+            h0.invoke((byte)1);
+            h0.invoke((short)2);
+            h0.invoke(3);
+            h0.invoke(4l);
+            try {
+                h0.invoke(0.33);
+                unreachable();
+            } catch (WrongMethodTypeException e) {}
+            try {
+                Number doubleNumber = new Double(0.89);
+                h0.invoke(doubleNumber);
+                unreachable();
+            } catch (ClassCastException e) {}
+            try {
+                Number doubleNumber = new Double(1.01);
+                doubleNumber = (doubleNumber.doubleValue() != 0.1) ? null : doubleNumber;
+                h0.invoke(doubleNumber);
+                unreachable();
+            } catch (NullPointerException e) {}
+            try {
+                // Mismatched return type - float != void
+                float tmp = (float)h0.invoke(0.45f);
+                assertTrue(tmp == 0.0);
+            } catch (Exception e) { unreachable(); }
+            try {
+                h0.invoke("bam");
+                unreachable();
+            } catch (WrongMethodTypeException e) {}
+            try {
+                String s = null;
+                h0.invoke(s);
+                unreachable();
+            } catch (WrongMethodTypeException e) {}
+        }
+
+        public static void main() throws Throwable{
+            testStaticGetter();
+            testMemberGetter();
+            testStaticSetter();
+            testMemberSetter();
+            System.out.println("Passed MethodHandle.invoke() tests for accessors.");
         }
     }
 
@@ -735,5 +892,6 @@ public class Main {
         // file to ensure class initialization test is run.
         FindAccessorTester.main();
         InvokeExactTester.main();
+        InvokeTester.main();
     }
 }

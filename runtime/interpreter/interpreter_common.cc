@@ -48,7 +48,8 @@ static ALWAYS_INLINE void DoFieldGetCommon(Thread* self,
                                            const ShadowFrame& shadow_frame,
                                            ObjPtr<mirror::Object>& obj,
                                            ArtField* field,
-                                           JValue* result) REQUIRES_SHARED(Locks::mutator_lock_) {
+                                           JValue* result)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   field->GetDeclaringClass()->AssertInitializedOrInitializingInThread(self);
 
   // Report this field access to instrumentation if needed.
@@ -299,6 +300,42 @@ EXPLICIT_DO_IGET_QUICK_TEMPLATE_DECL(Primitive::kPrimLong);     // iget-wide-qui
 EXPLICIT_DO_IGET_QUICK_TEMPLATE_DECL(Primitive::kPrimNot);      // iget-object-quick.
 #undef EXPLICIT_DO_IGET_QUICK_TEMPLATE_DECL
 
+static JValue GetFieldValue(const ShadowFrame& shadow_frame,
+                            Primitive::Type field_type,
+                            uint32_t vreg)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  JValue field_value;
+  switch (field_type) {
+    case Primitive::kPrimBoolean:
+      field_value.SetZ(static_cast<uint8_t>(shadow_frame.GetVReg(vreg)));
+      break;
+    case Primitive::kPrimByte:
+      field_value.SetB(static_cast<int8_t>(shadow_frame.GetVReg(vreg)));
+      break;
+    case Primitive::kPrimChar:
+      field_value.SetC(static_cast<uint16_t>(shadow_frame.GetVReg(vreg)));
+      break;
+    case Primitive::kPrimShort:
+      field_value.SetS(static_cast<int16_t>(shadow_frame.GetVReg(vreg)));
+      break;
+    case Primitive::kPrimInt:
+    case Primitive::kPrimFloat:
+      field_value.SetI(shadow_frame.GetVReg(vreg));
+      break;
+    case Primitive::kPrimLong:
+    case Primitive::kPrimDouble:
+      field_value.SetJ(shadow_frame.GetVRegLong(vreg));
+      break;
+    case Primitive::kPrimNot:
+      field_value.SetL(shadow_frame.GetVRegReference(vreg));
+      break;
+    case Primitive::kPrimVoid:
+      LOG(FATAL) << "Unreachable: " << field_type;
+      UNREACHABLE();
+  }
+  return field_value;
+}
+
 template<Primitive::Type field_type>
 static JValue GetFieldValue(const ShadowFrame& shadow_frame, uint32_t vreg)
     REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -337,7 +374,8 @@ static inline bool DoFieldPutCommon(Thread* self,
                                     const ShadowFrame& shadow_frame,
                                     ObjPtr<mirror::Object>& obj,
                                     ArtField* f,
-                                    size_t vregA) REQUIRES_SHARED(Locks::mutator_lock_) {
+                                    const JValue& value)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   f->GetDeclaringClass()->AssertInitializedOrInitializingInThread(self);
 
   // Report this field access to instrumentation if needed. Since we only have the offset of
@@ -347,36 +385,35 @@ static inline bool DoFieldPutCommon(Thread* self,
     StackHandleScope<1> hs(self);
     // Wrap in handle wrapper in case the listener does thread suspension.
     HandleWrapperObjPtr<mirror::Object> h(hs.NewHandleWrapper(&obj));
-    JValue field_value = GetFieldValue<field_type>(shadow_frame, vregA);
     ObjPtr<mirror::Object> this_object = f->IsStatic() ? nullptr : obj;
     instrumentation->FieldWriteEvent(self, this_object.Ptr(),
                                      shadow_frame.GetMethod(),
                                      shadow_frame.GetDexPC(),
                                      f,
-                                     field_value);
+                                     value);
   }
 
   switch (field_type) {
     case Primitive::kPrimBoolean:
-      f->SetBoolean<transaction_active>(obj, shadow_frame.GetVReg(vregA));
+      f->SetBoolean<transaction_active>(obj, value.GetZ());
       break;
     case Primitive::kPrimByte:
-      f->SetByte<transaction_active>(obj, shadow_frame.GetVReg(vregA));
+      f->SetByte<transaction_active>(obj, value.GetB());
       break;
     case Primitive::kPrimChar:
-      f->SetChar<transaction_active>(obj, shadow_frame.GetVReg(vregA));
+      f->SetChar<transaction_active>(obj, value.GetC());
       break;
     case Primitive::kPrimShort:
-      f->SetShort<transaction_active>(obj, shadow_frame.GetVReg(vregA));
+      f->SetShort<transaction_active>(obj, value.GetS());
       break;
     case Primitive::kPrimInt:
-      f->SetInt<transaction_active>(obj, shadow_frame.GetVReg(vregA));
+      f->SetInt<transaction_active>(obj, value.GetI());
       break;
     case Primitive::kPrimLong:
-      f->SetLong<transaction_active>(obj, shadow_frame.GetVRegLong(vregA));
+      f->SetLong<transaction_active>(obj, value.GetJ());
       break;
     case Primitive::kPrimNot: {
-      ObjPtr<mirror::Object> reg = shadow_frame.GetVRegReference(vregA);
+      ObjPtr<mirror::Object> reg = value.GetL();
       if (do_assignability_check && reg != nullptr) {
         // FieldHelper::GetType can resolve classes, use a handle wrapper which will restore the
         // object in the destructor.
@@ -434,11 +471,12 @@ bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame, const Instruction
   }
 
   uint32_t vregA = is_static ? inst->VRegA_21c(inst_data) : inst->VRegA_22c(inst_data);
+  JValue value = GetFieldValue<field_type>(shadow_frame, vregA);
   return DoFieldPutCommon<field_type, do_assignability_check, transaction_active>(self,
                                                                                   shadow_frame,
                                                                                   obj,
                                                                                   f,
-                                                                                  vregA);
+                                                                                  value);
 }
 
 // Explicitly instantiate all DoFieldPut functions.
@@ -479,37 +517,34 @@ bool DoFieldPutForInvokePolymorphic(Thread* self,
                                     ObjPtr<mirror::Object>& obj,
                                     ArtField* field,
                                     Primitive::Type field_type,
-                                    size_t vregA) REQUIRES_SHARED(Locks::mutator_lock_) {
+                                    const JValue& value)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   static const bool kDoCheckAssignability = false;
   static const bool kTransaction = false;
   switch (field_type) {
     case Primitive::kPrimBoolean:
       return DoFieldPutCommon<Primitive::kPrimBoolean, kDoCheckAssignability, kTransaction>(
-          self, shadow_frame, obj, field, vregA);
+          self, shadow_frame, obj, field, value);
     case Primitive::kPrimByte:
       return DoFieldPutCommon<Primitive::kPrimByte, kDoCheckAssignability, kTransaction>(
-          self, shadow_frame, obj, field, vregA);
+          self, shadow_frame, obj, field, value);
     case Primitive::kPrimChar:
       return DoFieldPutCommon<Primitive::kPrimChar, kDoCheckAssignability, kTransaction>(
-          self, shadow_frame, obj, field, vregA);
+          self, shadow_frame, obj, field, value);
     case Primitive::kPrimShort:
       return DoFieldPutCommon<Primitive::kPrimShort, kDoCheckAssignability, kTransaction>(
-          self, shadow_frame, obj, field, vregA);
+          self, shadow_frame, obj, field, value);
     case Primitive::kPrimInt:
-      return DoFieldPutCommon<Primitive::kPrimInt, kDoCheckAssignability, kTransaction>(
-          self, shadow_frame, obj, field, vregA);
-    case Primitive::kPrimLong:
-      return DoFieldPutCommon<Primitive::kPrimLong, kDoCheckAssignability, kTransaction>(
-          self, shadow_frame, obj, field, vregA);
     case Primitive::kPrimFloat:
       return DoFieldPutCommon<Primitive::kPrimInt, kDoCheckAssignability, kTransaction>(
-          self, shadow_frame, obj, field, vregA);
+          self, shadow_frame, obj, field, value);
+    case Primitive::kPrimLong:
     case Primitive::kPrimDouble:
       return DoFieldPutCommon<Primitive::kPrimLong, kDoCheckAssignability, kTransaction>(
-          self, shadow_frame, obj, field, vregA);
+          self, shadow_frame, obj, field, value);
     case Primitive::kPrimNot:
       return DoFieldPutCommon<Primitive::kPrimNot, kDoCheckAssignability, kTransaction>(
-          self, shadow_frame, obj, field, vregA);
+          self, shadow_frame, obj, field, value);
     case Primitive::kPrimVoid:
       LOG(FATAL) << "Unreachable: " << field_type;
       UNREACHABLE();
@@ -797,7 +832,8 @@ inline bool DoInvokePolymorphic(Thread* self,
                                 ShadowFrame& shadow_frame,
                                 const Instruction* inst,
                                 uint16_t inst_data,
-                                JValue* result) REQUIRES_SHARED(Locks::mutator_lock_) {
+                                JValue* result)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   // Invoke-polymorphic instructions always take a receiver. i.e, they are never static.
   const uint32_t vRegC = (is_range) ? inst->VRegC_4rcc() : inst->VRegC_45cc();
   const int invoke_method_idx = (is_range) ? inst->VRegB_4rcc() : inst->VRegB_45cc();
@@ -960,19 +996,22 @@ inline bool DoInvokePolymorphic(Thread* self,
     Primitive::Type field_type = field->GetTypeAsPrimitiveType();;
 
     if (!is_invoke_exact) {
-      // TODO(oth): conversion plumbing for invoke().
-      UNIMPLEMENTED(FATAL);
+      if (handle_type->GetPTypes()->GetLength() != callsite_type->GetPTypes()->GetLength()) {
+        // Too many arguments to setter or getter.
+        ThrowWrongMethodTypeException(callsite_type.Get(), handle_type.Get());
+        return false;
+      }
     }
 
     switch (handle_kind) {
       case kInstanceGet: {
         ObjPtr<mirror::Object> obj = shadow_frame.GetVRegReference(first_src_reg);
         DoFieldGetForInvokePolymorphic(self, shadow_frame, obj, field, field_type, result);
+        if (!ConvertReturnValue(callsite_type, handle_type, result)) {
+          DCHECK(self->IsExceptionPending());
+          return false;
+        }
         return true;
-      }
-      case kInstancePut: {
-        ObjPtr<mirror::Object> obj = shadow_frame.GetVRegReference(first_src_reg);
-        return DoFieldPutForInvokePolymorphic(self, shadow_frame, obj, field, field_type, arg[1]);
       }
       case kStaticGet: {
         ObjPtr<mirror::Object> obj = GetAndInitializeDeclaringClass(self, field);
@@ -981,15 +1020,31 @@ inline bool DoInvokePolymorphic(Thread* self,
           return false;
         }
         DoFieldGetForInvokePolymorphic(self, shadow_frame, obj, field, field_type, result);
-        return true;
-      }
-      case kStaticPut: {
-        ObjPtr<mirror::Object> obj = GetAndInitializeDeclaringClass(self, field);
-        if (obj == nullptr) {
+        if (!ConvertReturnValue(callsite_type, handle_type, result)) {
           DCHECK(self->IsExceptionPending());
           return false;
         }
-        return DoFieldPutForInvokePolymorphic(self, shadow_frame, obj, field, field_type, arg[0]);
+        return true;
+      }
+      case kInstancePut: {
+        JValue value = GetFieldValue(shadow_frame, field_type, arg[1]);
+        if (!ConvertArgumentValue(callsite_type, handle_type, 1, &value)) {
+          DCHECK(self->IsExceptionPending());
+          return false;
+        }
+        ObjPtr<mirror::Object> obj = shadow_frame.GetVRegReference(first_src_reg);
+        result->SetL(0);
+        return DoFieldPutForInvokePolymorphic(self, shadow_frame, obj, field, field_type, value);
+      }
+      case kStaticPut: {
+        JValue value = GetFieldValue(shadow_frame, field_type, arg[0]);
+        if (!ConvertArgumentValue(callsite_type, handle_type, 0, &value)) {
+          DCHECK(self->IsExceptionPending());
+          return false;
+        }
+        ObjPtr<mirror::Object> obj = field->GetDeclaringClass();
+        result->SetL(0);
+        return DoFieldPutForInvokePolymorphic(self, shadow_frame, obj, field, field_type, value);
       }
       default:
         LOG(FATAL) << "Unreachable: " << handle_kind;
