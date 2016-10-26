@@ -29,6 +29,10 @@
 
 namespace art {
 
+namespace verifier {
+  class VerifierDepsTest;
+}
+
 class DexFile;
 
 class CompilerOptions FINAL {
@@ -338,6 +342,7 @@ class CompilerOptions FINAL {
 
   friend class Dex2Oat;
   friend class CommonCompilerTest;
+  friend class verifier::VerifierDepsTest;
 
   DISALLOW_COPY_AND_ASSIGN(CompilerOptions);
 };

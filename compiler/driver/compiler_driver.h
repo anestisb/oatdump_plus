@@ -50,6 +50,7 @@ class DexCache;
 
 namespace verifier {
 class MethodVerifier;
+class VerifierDepsTest;
 }  // namespace verifier
 
 class BitVector;
@@ -578,6 +579,7 @@ class CompilerDriver {
   const BitVector* current_dex_to_dex_methods_;
 
   friend class CompileClassVisitor;
+  friend class verifier::VerifierDepsTest;
   DISALLOW_COPY_AND_ASSIGN(CompilerDriver);
 };
 
