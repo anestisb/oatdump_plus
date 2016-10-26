@@ -37,6 +37,7 @@ jclass WellKnownClasses::dalvik_annotation_optimization_FastNative;
 jclass WellKnownClasses::dalvik_system_DexFile;
 jclass WellKnownClasses::dalvik_system_DexPathList;
 jclass WellKnownClasses::dalvik_system_DexPathList__Element;
+jclass WellKnownClasses::dalvik_system_EmulatedStackFrame;
 jclass WellKnownClasses::dalvik_system_PathClassLoader;
 jclass WellKnownClasses::dalvik_system_VMRuntime;
 jclass WellKnownClasses::java_lang_annotation_Annotation__array;
@@ -266,6 +267,7 @@ void WellKnownClasses::Init(JNIEnv* env) {
   dalvik_system_DexFile = CacheClass(env, "dalvik/system/DexFile");
   dalvik_system_DexPathList = CacheClass(env, "dalvik/system/DexPathList");
   dalvik_system_DexPathList__Element = CacheClass(env, "dalvik/system/DexPathList$Element");
+  dalvik_system_EmulatedStackFrame = CacheClass(env, "dalvik/system/EmulatedStackFrame");
   dalvik_system_PathClassLoader = CacheClass(env, "dalvik/system/PathClassLoader");
   dalvik_system_VMRuntime = CacheClass(env, "dalvik/system/VMRuntime");
 
