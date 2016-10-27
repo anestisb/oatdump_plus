@@ -30,10 +30,8 @@
 #include "arch/instruction_set.h"
 #include "base/casts.h"
 #include "base/logging.h"
-#include "base/mutex.h"
 #include "base/stringpiece.h"
 #include "globals.h"
-#include "obj_ptr.h"
 #include "primitive.h"
 
 namespace art {

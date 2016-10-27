@@ -22,7 +22,6 @@
 #include <vector>
 
 #include "base/logging.h"
-#include "base/mutex.h"  // For Locks::mutator_lock_.
 #include "base/value_object.h"
 #include "globals.h"
 #include "invoke_type.h"
@@ -36,10 +35,8 @@ class MemMap;
 class OatDexFile;
 class Signature;
 class StringPiece;
-class TypeLookupTable;
 class ZipArchive;
 
-// TODO: move all of the macro functionality into the DexCache class.
 class DexFile {
  public:
   // First Dex format version supporting default methods.
