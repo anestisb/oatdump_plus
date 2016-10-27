@@ -259,12 +259,12 @@ class InstructionCodeGeneratorX86 : public InstructionCodeGenerator {
   //
   //   root <- *address
   //
-  // while honoring read barriers (if any).
+  // while honoring read barriers if `requires_read_barrier` is true.
   void GenerateGcRootFieldLoad(HInstruction* instruction,
                                Location root,
                                const Address& address,
-                               Label* fixup_label = nullptr,
-                               bool requires_read_barrier = kEmitCompilerReadBarrier);
+                               Label* fixup_label,
+                               bool requires_read_barrier);
 
   // Push value to FPU stack. `is_fp` specifies whether the value is floating point or not.
   // `is_wide` specifies whether it is long/double or not.

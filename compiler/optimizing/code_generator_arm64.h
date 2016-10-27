@@ -289,13 +289,13 @@ class InstructionCodeGeneratorARM64 : public InstructionCodeGenerator {
   //
   //   root <- *(obj + offset)
   //
-  // while honoring read barriers (if any).
+  // while honoring read barriers if `requires_read_barrier` is true.
   void GenerateGcRootFieldLoad(HInstruction* instruction,
                                Location root,
                                vixl::aarch64::Register obj,
                                uint32_t offset,
-                               vixl::aarch64::Label* fixup_label = nullptr,
-                               bool requires_read_barrier = kEmitCompilerReadBarrier);
+                               vixl::aarch64::Label* fixup_label,
+                               bool requires_read_barrier);
 
   // Generate a floating-point comparison.
   void GenerateFcmp(HInstruction* instruction);

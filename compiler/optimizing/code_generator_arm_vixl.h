@@ -339,7 +339,7 @@ class InstructionCodeGeneratorARMVIXL : public InstructionCodeGenerator {
                                Location root,
                                vixl::aarch32::Register obj,
                                uint32_t offset,
-                               bool requires_read_barrier = kEmitCompilerReadBarrier);
+                               bool requires_read_barrier);
   void GenerateTestAndBranch(HInstruction* instruction,
                              size_t condition_input_index,
                              vixl::aarch32::Label* true_target,

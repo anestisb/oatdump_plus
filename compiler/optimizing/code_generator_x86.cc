@@ -5897,7 +5897,7 @@ void InstructionCodeGeneratorX86::VisitLoadClass(HLoadClass* cls) {
           cls,
           out_loc,
           Address(current_method, ArtMethod::DeclaringClassOffset().Int32Value()),
-          /*fixup_label*/ nullptr,
+          /* fixup_label */ nullptr,
           requires_read_barrier);
       break;
     }
@@ -5929,7 +5929,7 @@ void InstructionCodeGeneratorX86::VisitLoadClass(HLoadClass* cls) {
       GenerateGcRootFieldLoad(cls,
                               out_loc,
                               Address::Absolute(address),
-                              /*fixup_label*/ nullptr,
+                              /* fixup_label */ nullptr,
                               requires_read_barrier);
       generate_null_check = !cls->IsInDexCache();
       break;
@@ -5957,7 +5957,7 @@ void InstructionCodeGeneratorX86::VisitLoadClass(HLoadClass* cls) {
       GenerateGcRootFieldLoad(cls,
                               out_loc,
                               Address(out, CodeGenerator::GetCacheOffset(cls->GetTypeIndex())),
-                              /*fixup_label*/ nullptr,
+                              /* fixup_label */ nullptr,
                               requires_read_barrier);
       generate_null_check = !cls->IsInDexCache();
       break;
@@ -6099,7 +6099,7 @@ void InstructionCodeGeneratorX86::VisitLoadString(HLoadString* load) {
       Address address = Address(method_address, CodeGeneratorX86::kDummy32BitOffset);
       Label* fixup_label = codegen_->NewStringBssEntryPatch(load);
       // /* GcRoot<mirror::Class> */ out = *address  /* PC-relative */
-      GenerateGcRootFieldLoad(load, out_loc, address, fixup_label);
+      GenerateGcRootFieldLoad(load, out_loc, address, fixup_label, kEmitCompilerReadBarrier);
       SlowPathCode* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathX86(load);
       codegen_->AddSlowPath(slow_path);
       __ testl(out, out);

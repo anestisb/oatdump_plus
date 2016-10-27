@@ -5773,7 +5773,7 @@ void InstructionCodeGeneratorARM::VisitLoadString(HLoadString* load) {
       __ movt(temp, /* placeholder */ 0u);
       __ BindTrackedLabel(&labels->add_pc_label);
       __ add(temp, temp, ShifterOperand(PC));
-      GenerateGcRootFieldLoad(load, out_loc, temp, 0);
+      GenerateGcRootFieldLoad(load, out_loc, temp, /* offset */ 0, kEmitCompilerReadBarrier);
       SlowPathCode* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathARM(load);
       codegen_->AddSlowPath(slow_path);
       __ CompareAndBranchIfZero(out, slow_path->GetEntryLabel());
