@@ -58,7 +58,9 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   050-sync-test \
   051-thread \
   052-verifier-fun \
+  053-wait-some \
   054-uncaught \
+  055-enum-performance \
   058-enum-order \
   059-finalizer-throw \
   061-out-of-memory \
@@ -129,6 +131,7 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   145-alloc-tracking-stress \
   146-bad-interface \
   150-loadlibrary \
+  151-OpenFileLimit \
   201-built-in-except-detail-messages \
   304-method-tracing \
   407-arrays \
@@ -335,6 +338,7 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   615-checker-arm64-store-zero \
   617-clinit-oome \
   618-checker-induction \
+  621-checker-new-instance \
   700-LoadArgRegs \
   701-easy-div-rem \
   702-LargeBranchOffset \
