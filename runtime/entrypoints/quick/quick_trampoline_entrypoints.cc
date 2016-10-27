@@ -2121,7 +2121,9 @@ extern "C" uint64_t artQuickGenericJniEndTrampoline(Thread* self,
 // to hold the mutator lock (see REQUIRES_SHARED(Locks::mutator_lock_) annotations).
 
 template<InvokeType type, bool access_check>
-static TwoWordReturn artInvokeCommon(uint32_t method_idx, mirror::Object* this_object, Thread* self,
+static TwoWordReturn artInvokeCommon(uint32_t method_idx,
+                                     ObjPtr<mirror::Object> this_object,
+                                     Thread* self,
                                      ArtMethod** sp) {
   ScopedQuickEntrypointChecks sqec(self);
   DCHECK_EQ(*sp, Runtime::Current()->GetCalleeSaveMethod(Runtime::kSaveRefsAndArgs));
@@ -2136,7 +2138,9 @@ static TwoWordReturn artInvokeCommon(uint32_t method_idx, mirror::Object* this_o
       ScopedObjectAccessUnchecked soa(self->GetJniEnv());
       RememberForGcArgumentVisitor visitor(sp, type == kStatic, shorty, shorty_len, &soa);
       visitor.VisitArguments();
-      method = FindMethodFromCode<type, access_check>(method_idx, &this_object, caller_method,
+      method = FindMethodFromCode<type, access_check>(method_idx,
+                                                      &this_object,
+                                                      caller_method,
                                                       self);
       visitor.FixupReferences();
     }
@@ -2162,7 +2166,7 @@ static TwoWordReturn artInvokeCommon(uint32_t method_idx, mirror::Object* this_o
 #define EXPLICIT_INVOKE_COMMON_TEMPLATE_DECL(type, access_check)                                \
   template REQUIRES_SHARED(Locks::mutator_lock_)                                          \
   TwoWordReturn artInvokeCommon<type, access_check>(                                            \
-      uint32_t method_idx, mirror::Object* this_object, Thread* self, ArtMethod** sp)
+      uint32_t method_idx, ObjPtr<mirror::Object> his_object, Thread* self, ArtMethod** sp)
 
 EXPLICIT_INVOKE_COMMON_TEMPLATE_DECL(kVirtual, false);
 EXPLICIT_INVOKE_COMMON_TEMPLATE_DECL(kVirtual, true);
@@ -2190,9 +2194,13 @@ extern "C" TwoWordReturn artInvokeDirectTrampolineWithAccessCheck(
 }
 
 extern "C" TwoWordReturn artInvokeStaticTrampolineWithAccessCheck(
-    uint32_t method_idx, mirror::Object* this_object, Thread* self, ArtMethod** sp)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  return artInvokeCommon<kStatic, true>(method_idx, this_object, self, sp);
+    uint32_t method_idx,
+    mirror::Object* this_object ATTRIBUTE_UNUSED,
+    Thread* self,
+    ArtMethod** sp) REQUIRES_SHARED(Locks::mutator_lock_) {
+  // For static, this_object is not required and may be random garbage. Don't pass it down so that
+  // it doesn't cause ObjPtr alignment failure check.
+  return artInvokeCommon<kStatic, true>(method_idx, nullptr, self, sp);
 }
 
 extern "C" TwoWordReturn artInvokeSuperTrampolineWithAccessCheck(
@@ -2211,10 +2219,11 @@ extern "C" TwoWordReturn artInvokeVirtualTrampolineWithAccessCheck(
 // is there for consistency but should not be used, as some architectures overwrite it
 // in the assembly trampoline.
 extern "C" TwoWordReturn artInvokeInterfaceTrampoline(uint32_t deadbeef ATTRIBUTE_UNUSED,
-                                                      mirror::Object* this_object,
+                                                      mirror::Object* raw_this_object,
                                                       Thread* self,
                                                       ArtMethod** sp)
     REQUIRES_SHARED(Locks::mutator_lock_) {
+  ObjPtr<mirror::Object> this_object(raw_this_object);
   ScopedQuickEntrypointChecks sqec(self);
   StackHandleScope<1> hs(self);
   Handle<mirror::Class> cls(hs.NewHandle(this_object->GetClass()));
@@ -2285,7 +2294,9 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(uint32_t deadbeef ATTRIBUT
       ScopedObjectAccessUnchecked soa(self->GetJniEnv());
       RememberForGcArgumentVisitor visitor(sp, false, shorty, shorty_len, &soa);
       visitor.VisitArguments();
-      method = FindMethodFromCode<kInterface, false>(dex_method_idx, &this_object, caller_method,
+      method = FindMethodFromCode<kInterface, false>(dex_method_idx,
+                                                     &this_object,
+                                                     caller_method,
                                                      self);
       visitor.FixupReferences();
     }

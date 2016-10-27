@@ -564,7 +564,7 @@ void UnstartedRuntime::UnstartedClassLoaderGetResourceAsStream(
             this_classloader_class.Get()) {
       AbortTransactionOrFail(self,
                              "Unsupported classloader type %s for getResourceAsStream",
-                             Class::PrettyClass(this_classloader_class.Get()).c_str());
+                             mirror::Class::PrettyClass(this_classloader_class.Get()).c_str());
       return;
     }
   }
@@ -608,10 +608,11 @@ static void PrimitiveArrayCopy(Thread* self,
                                int32_t length)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   if (src_array->GetClass()->GetComponentType() != dst_array->GetClass()->GetComponentType()) {
-    AbortTransactionOrFail(self, "Types mismatched in arraycopy: %s vs %s.",
-                           Class::PrettyDescriptor(
+    AbortTransactionOrFail(self,
+                           "Types mismatched in arraycopy: %s vs %s.",
+                           mirror::Class::PrettyDescriptor(
                                src_array->GetClass()->GetComponentType()).c_str(),
-                           Class::PrettyDescriptor(
+                           mirror::Class::PrettyDescriptor(
                                dst_array->GetClass()->GetComponentType()).c_str());
     return;
   }
@@ -677,9 +678,9 @@ void UnstartedRuntime::UnstartedSystemArraycopy(
         GetComponentType();
     if (trg_type->IsPrimitiveInt()) {
       AbortTransactionOrFail(self, "Type mismatch in arraycopy: %s vs %s",
-                             Class::PrettyDescriptor(
+                             mirror::Class::PrettyDescriptor(
                                  src_array->GetClass()->GetComponentType()).c_str(),
-                             Class::PrettyDescriptor(
+                             mirror::Class::PrettyDescriptor(
                                  dst_array->GetClass()->GetComponentType()).c_str());
       return;
     }
