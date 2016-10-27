@@ -114,8 +114,10 @@ class LoadClassSlowPathARMVIXL;
   M(CurrentMethod)                              \
   M(Div)                                        \
   M(DivZeroCheck)                               \
+  M(DoubleConstant)                             \
   M(Equal)                                      \
   M(Exit)                                       \
+  M(FloatConstant)                              \
   M(Goto)                                       \
   M(GreaterThan)                                \
   M(GreaterThanOrEqual)                         \
@@ -163,8 +165,6 @@ class LoadClassSlowPathARMVIXL;
   M(CheckCast)                                  \
   M(ClassTableGet)                              \
   M(Deoptimize)                                 \
-  M(DoubleConstant)                             \
-  M(FloatConstant)                              \
   M(InstanceOf)                                 \
   M(InvokeInterface)                            \
   M(InvokeUnresolved)                           \
