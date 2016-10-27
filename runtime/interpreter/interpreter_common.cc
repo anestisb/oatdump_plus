@@ -163,6 +163,9 @@ bool DoIGetQuick(ShadowFrame& shadow_frame, const Instruction* inst, uint16_t in
                                                         field_offset.Uint32Value());
     DCHECK(f != nullptr);
     DCHECK(!f->IsStatic());
+    StackHandleScope<1> hs(Thread::Current());
+    // Save obj in case the instrumentation event has thread suspension.
+    HandleWrapperObjPtr<mirror::Object> h = hs.NewHandleWrapper(&obj);
     instrumentation->FieldReadEvent(Thread::Current(),
                                     obj.Ptr(),
                                     shadow_frame.GetMethod(),
@@ -392,6 +395,9 @@ bool DoIPutQuick(const ShadowFrame& shadow_frame, const Instruction* inst, uint1
     DCHECK(f != nullptr);
     DCHECK(!f->IsStatic());
     JValue field_value = GetFieldValue<field_type>(shadow_frame, vregA);
+    StackHandleScope<1> hs(Thread::Current());
+    // Save obj in case the instrumentation event has thread suspension.
+    HandleWrapperObjPtr<mirror::Object> h = hs.NewHandleWrapper(&obj);
     instrumentation->FieldWriteEvent(Thread::Current(),
                                      obj.Ptr(),
                                      shadow_frame.GetMethod(),
