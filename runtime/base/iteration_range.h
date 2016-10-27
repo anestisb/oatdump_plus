@@ -54,6 +54,17 @@ inline IterationRange<Iter> MakeEmptyIterationRange(const Iter& it) {
   return IterationRange<Iter>(it, it);
 }
 
+template <typename Container>
+inline auto ReverseRange(Container& c) {
+  typedef typename std::reverse_iterator<decltype(c.begin())> riter;
+  return MakeIterationRange(riter(c.end()), riter(c.begin()));
+}
+
+template <typename T, size_t size>
+inline auto ReverseRange(T (&array)[size]) {
+  return ReverseRange(MakeIterationRange<T*>(array, array+size));
+}
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_BASE_ITERATION_RANGE_H_

@@ -81,8 +81,7 @@ void HInstructionBuilder::InitializeBlockLocals() {
       // locals (guaranteed by HGraphBuilder) and that all try blocks have been
       // visited already (from HTryBoundary scoping and reverse post order).
       bool catch_block_visited = false;
-      for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
-        HBasicBlock* current = it.Current();
+      for (HBasicBlock* current : graph_->GetReversePostOrder()) {
         if (current == current_block_) {
           catch_block_visited = true;
         } else if (current->IsTryBlock()) {
@@ -276,8 +275,8 @@ bool HInstructionBuilder::Build() {
     FindNativeDebugInfoLocations(native_debug_info_locations);
   }
 
-  for (HReversePostOrderIterator block_it(*graph_); !block_it.Done(); block_it.Advance()) {
-    current_block_ = block_it.Current();
+  for (HBasicBlock* block : graph_->GetReversePostOrder()) {
+    current_block_ = block;
     uint32_t block_dex_pc = current_block_->GetDexPc();
 
     InitializeBlockLocals();

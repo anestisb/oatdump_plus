@@ -163,7 +163,7 @@ void RegisterAllocatorLinearScan::BlockRegisters(size_t start, size_t end, bool 
 void RegisterAllocatorLinearScan::AllocateRegistersInternal() {
   // Iterate post-order, to ensure the list is sorted, and the last added interval
   // is the one with the lowest start position.
-  for (HBasicBlock* block : LinearPostOrder(codegen_->GetGraph()->GetLinearOrder())) {
+  for (HBasicBlock* block : codegen_->GetGraph()->GetLinearPostOrder()) {
     for (HBackwardInstructionIterator back_it(block->GetInstructions()); !back_it.Done();
          back_it.Advance()) {
       ProcessInstruction(back_it.Current());

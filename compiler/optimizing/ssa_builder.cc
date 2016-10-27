@@ -25,8 +25,8 @@ namespace art {
 
 void SsaBuilder::FixNullConstantType() {
   // The order doesn't matter here.
-  for (HReversePostOrderIterator itb(*graph_); !itb.Done(); itb.Advance()) {
-    for (HInstructionIterator it(itb.Current()->GetInstructions()); !it.Done(); it.Advance()) {
+  for (HBasicBlock* block : graph_->GetReversePostOrder()) {
+    for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
       HInstruction* equality_instr = it.Current();
       if (!equality_instr->IsEqual() && !equality_instr->IsNotEqual()) {
         continue;
@@ -57,8 +57,8 @@ void SsaBuilder::FixNullConstantType() {
 
 void SsaBuilder::EquivalentPhisCleanup() {
   // The order doesn't matter here.
-  for (HReversePostOrderIterator itb(*graph_); !itb.Done(); itb.Advance()) {
-    for (HInstructionIterator it(itb.Current()->GetPhis()); !it.Done(); it.Advance()) {
+  for (HBasicBlock* block : graph_->GetReversePostOrder()) {
+    for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
       HPhi* phi = it.Current()->AsPhi();
       HPhi* next = phi->GetNextEquivalentPhiWithSameType();
       if (next != nullptr) {
@@ -79,8 +79,7 @@ void SsaBuilder::EquivalentPhisCleanup() {
 }
 
 void SsaBuilder::FixEnvironmentPhis() {
-  for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
-    HBasicBlock* block = it.Current();
+  for (HBasicBlock* block : graph_->GetReversePostOrder()) {
     for (HInstructionIterator it_phis(block->GetPhis()); !it_phis.Done(); it_phis.Advance()) {
       HPhi* phi = it_phis.Current()->AsPhi();
       // If the phi is not dead, or has no environment uses, there is nothing to do.
@@ -228,8 +227,7 @@ bool SsaBuilder::UpdatePrimitiveType(HPhi* phi, ArenaVector<HPhi*>* worklist) {
 void SsaBuilder::RunPrimitiveTypePropagation() {
   ArenaVector<HPhi*> worklist(graph_->GetArena()->Adapter(kArenaAllocGraphBuilder));
 
-  for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
-    HBasicBlock* block = it.Current();
+  for (HBasicBlock* block : graph_->GetReversePostOrder()) {
     if (block->IsLoopHeader()) {
       for (HInstructionIterator phi_it(block->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
         HPhi* phi = phi_it.Current()->AsPhi();

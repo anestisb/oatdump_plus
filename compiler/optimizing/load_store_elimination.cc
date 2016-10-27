@@ -1046,8 +1046,8 @@ void LoadStoreElimination::Run() {
     return;
   }
   HeapLocationCollector heap_location_collector(graph_);
-  for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
-    heap_location_collector.VisitBasicBlock(it.Current());
+  for (HBasicBlock* block : graph_->GetReversePostOrder()) {
+    heap_location_collector.VisitBasicBlock(block);
   }
   if (heap_location_collector.GetNumberOfHeapLocations() > kMaxNumberOfHeapLocations) {
     // Bail out if there are too many heap locations to deal with.
@@ -1065,8 +1065,8 @@ void LoadStoreElimination::Run() {
   }
   heap_location_collector.BuildAliasingMatrix();
   LSEVisitor lse_visitor(graph_, heap_location_collector, side_effects_);
-  for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
-    lse_visitor.VisitBasicBlock(it.Current());
+  for (HBasicBlock* block : graph_->GetReversePostOrder()) {
+    lse_visitor.VisitBasicBlock(block);
   }
   lse_visitor.RemoveInstructions();
 }

@@ -179,16 +179,16 @@ GraphAnalysisResult HGraph::BuildDominatorTree() {
 }
 
 void HGraph::ClearDominanceInformation() {
-  for (HReversePostOrderIterator it(*this); !it.Done(); it.Advance()) {
-    it.Current()->ClearDominanceInformation();
+  for (HBasicBlock* block : GetReversePostOrder()) {
+    block->ClearDominanceInformation();
   }
   reverse_post_order_.clear();
 }
 
 void HGraph::ClearLoopInformation() {
   SetHasIrreducibleLoops(false);
-  for (HReversePostOrderIterator it(*this); !it.Done(); it.Advance()) {
-    it.Current()->SetLoopInformation(nullptr);
+  for (HBasicBlock* block : GetReversePostOrder()) {
+    block->SetLoopInformation(nullptr);
   }
 }
 
@@ -275,8 +275,7 @@ void HGraph::ComputeDominanceInformation() {
     bool update_occurred = true;
     while (update_occurred) {
       update_occurred = false;
-      for (HReversePostOrderIterator it(*this); !it.Done(); it.Advance()) {
-        HBasicBlock* block = it.Current();
+      for (HBasicBlock* block : GetReversePostOrder()) {
         for (HBasicBlock* successor : block->GetSuccessors()) {
           update_occurred |= UpdateDominatorOfSuccessor(block, successor);
         }
@@ -287,8 +286,7 @@ void HGraph::ComputeDominanceInformation() {
   // Make sure that there are no remaining blocks whose dominator information
   // needs to be updated.
   if (kIsDebugBuild) {
-    for (HReversePostOrderIterator it(*this); !it.Done(); it.Advance()) {
-      HBasicBlock* block = it.Current();
+    for (HBasicBlock* block : GetReversePostOrder()) {
       for (HBasicBlock* successor : block->GetSuccessors()) {
         DCHECK(!UpdateDominatorOfSuccessor(block, successor));
       }
@@ -297,8 +295,7 @@ void HGraph::ComputeDominanceInformation() {
 
   // Populate `dominated_blocks_` information after computing all dominators.
   // The potential presence of irreducible loops requires to do it after.
-  for (HReversePostOrderIterator it(*this); !it.Done(); it.Advance()) {
-    HBasicBlock* block = it.Current();
+  for (HBasicBlock* block : GetReversePostOrder()) {
     if (!block->IsEntryBlock()) {
       block->GetDominator()->AddDominatedBlock(block);
     }
@@ -375,8 +372,7 @@ void HGraph::SimplifyLoop(HBasicBlock* header) {
 void HGraph::ComputeTryBlockInformation() {
   // Iterate in reverse post order to propagate try membership information from
   // predecessors to their successors.
-  for (HReversePostOrderIterator it(*this); !it.Done(); it.Advance()) {
-    HBasicBlock* block = it.Current();
+  for (HBasicBlock* block : GetReversePostOrder()) {
     if (block->IsEntryBlock() || block->IsCatchBlock()) {
       // Catch blocks after simplification have only exceptional predecessors
       // and hence are never in tries.
@@ -446,8 +442,7 @@ GraphAnalysisResult HGraph::AnalyzeLoops() const {
   // We iterate post order to ensure we visit inner loops before outer loops.
   // `PopulateRecursive` needs this guarantee to know whether a natural loop
   // contains an irreducible loop.
-  for (HPostOrderIterator it(*this); !it.Done(); it.Advance()) {
-    HBasicBlock* block = it.Current();
+  for (HBasicBlock* block : GetPostOrder()) {
     if (block->IsLoopHeader()) {
       if (block->IsCatchBlock()) {
         // TODO: Dealing with exceptional back edges could be tricky because
@@ -1134,8 +1129,8 @@ void HGraphVisitor::VisitInsertionOrder() {
 }
 
 void HGraphVisitor::VisitReversePostOrder() {
-  for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
-    VisitBasicBlock(it.Current());
+  for (HBasicBlock* block : graph_->GetReversePostOrder()) {
+    VisitBasicBlock(block);
   }
 }
 
@@ -1986,10 +1981,8 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
   // Update the environments in this graph to have the invoke's environment
   // as parent.
   {
-    HReversePostOrderIterator it(*this);
-    it.Advance();  // Skip the entry block, we do not need to update the entry's suspend check.
-    for (; !it.Done(); it.Advance()) {
-      HBasicBlock* block = it.Current();
+    // Skip the entry block, we do not need to update the entry's suspend check.
+    for (HBasicBlock* block : GetReversePostOrderSkipEntryBlock()) {
       for (HInstructionIterator instr_it(block->GetInstructions());
            !instr_it.Done();
            instr_it.Advance()) {
@@ -2070,8 +2063,7 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
 
     // Do a reverse post order of the blocks in the callee and do (1), (2), (3)
     // and (4) to the blocks that apply.
-    for (HReversePostOrderIterator it(*this); !it.Done(); it.Advance()) {
-      HBasicBlock* current = it.Current();
+    for (HBasicBlock* current : GetReversePostOrder()) {
       if (current != exit_block_ && current != entry_block_ && current != first) {
         DCHECK(current->GetTryCatchInformation() == nullptr);
         DCHECK(current->GetGraph() == this);
