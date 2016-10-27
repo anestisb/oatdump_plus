@@ -139,7 +139,7 @@ static void RecursivelyProcessInputs(HInstruction* current,
 void SsaLivenessAnalysis::ComputeLiveRanges() {
   // Do a post order visit, adding inputs of instructions live in the block where
   // that instruction is defined, and killing instructions that are being visited.
-  for (HBasicBlock* block : LinearPostOrder(graph_->GetLinearOrder())) {
+  for (HBasicBlock* block : ReverseRange(graph_->GetLinearOrder())) {
     BitVector* kill = GetKillSet(*block);
     BitVector* live_in = GetLiveInSet(*block);
 
@@ -256,15 +256,13 @@ void SsaLivenessAnalysis::ComputeLiveInAndLiveOutSets() {
   do {
     changed = false;
 
-    for (HPostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
-      const HBasicBlock& block = *it.Current();
-
+    for (const HBasicBlock* block : graph_->GetPostOrder()) {
       // The live_in set depends on the kill set (which does not
       // change in this loop), and the live_out set.  If the live_out
       // set does not change, there is no need to update the live_in set.
-      if (UpdateLiveOut(block) && UpdateLiveIn(block)) {
+      if (UpdateLiveOut(*block) && UpdateLiveIn(*block)) {
         if (kIsDebugBuild) {
-          CheckNoLiveInIrreducibleLoop(block);
+          CheckNoLiveInIrreducibleLoop(*block);
         }
         changed = true;
       }

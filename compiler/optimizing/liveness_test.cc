@@ -56,8 +56,7 @@ static void TestCode(const uint16_t* data, const char* expected) {
   liveness.Analyze();
 
   std::ostringstream buffer;
-  for (HInsertionOrderIterator it(*graph); !it.Done(); it.Advance()) {
-    HBasicBlock* block = it.Current();
+  for (HBasicBlock* block : graph->GetBlocks()) {
     buffer << "Block " << block->GetBlockId() << std::endl;
     size_t ssa_values = liveness.GetNumberOfSsaValues();
     BitVector* live_in = liveness.GetLiveInSet(*block);
