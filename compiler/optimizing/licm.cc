@@ -15,6 +15,7 @@
  */
 
 #include "licm.h"
+
 #include "side_effects_analysis.h"
 
 namespace art {
@@ -90,8 +91,7 @@ void LICM::Run() {
   }
 
   // Post order visit to visit inner loops before outer loops.
-  for (HPostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
-    HBasicBlock* block = it.Current();
+  for (HBasicBlock* block : graph_->GetPostOrder()) {
     if (!block->IsLoopHeader()) {
       // Only visit the loop when we reach the header.
       continue;

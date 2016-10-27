@@ -1845,8 +1845,8 @@ void BoundsCheckElimination::Run() {
   // that value dominated by that instruction fits in that range. Range of that
   // value can be narrowed further down in the dominator tree.
   BCEVisitor visitor(graph_, side_effects_, induction_analysis_);
-  for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
-    HBasicBlock* current = it.Current();
+  for (size_t i = 0, size = graph_->GetReversePostOrder().size(); i != size; ++i) {
+    HBasicBlock* current = graph_->GetReversePostOrder()[i];
     if (visitor.IsAddedBlock(current)) {
       // Skip added blocks. Their effects are already taken care of.
       continue;
@@ -1855,8 +1855,11 @@ void BoundsCheckElimination::Run() {
     // Skip forward to the current block in case new basic blocks were inserted
     // (which always appear earlier in reverse post order) to avoid visiting the
     // same basic block twice.
-    for ( ; !it.Done() && it.Current() != current; it.Advance()) {
-    }
+    size_t new_size = graph_->GetReversePostOrder().size();
+    DCHECK_GE(new_size, size);
+    i += new_size - size;
+    DCHECK_EQ(current, graph_->GetReversePostOrder()[i]);
+    size = new_size;
   }
 
   // Perform cleanup.

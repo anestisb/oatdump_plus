@@ -76,8 +76,7 @@ void HSelectGenerator::Run() {
   // Iterate in post order in the unlikely case that removing one occurrence of
   // the selection pattern empties a branch block of another occurrence.
   // Otherwise the order does not matter.
-  for (HPostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
-    HBasicBlock* block = it.Current();
+  for (HBasicBlock* block : graph_->GetPostOrder()) {
     if (!block->EndsWithIf()) continue;
 
     // Find elements of the diamond pattern.

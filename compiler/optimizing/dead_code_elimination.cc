@@ -18,6 +18,7 @@
 
 #include "base/array_ref.h"
 #include "base/bit_vector-inl.h"
+#include "base/stl_util.h"
 #include "ssa_phi_elimination.h"
 
 namespace art {
@@ -168,8 +169,7 @@ bool HDeadCodeElimination::SimplifyIfs() {
   bool simplified_one_or_more_ifs = false;
   bool rerun_dominance_and_loop_analysis = false;
 
-  for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
-    HBasicBlock* block = it.Current();
+  for (HBasicBlock* block : graph_->GetReversePostOrder()) {
     HInstruction* last = block->GetLastInstruction();
     HInstruction* first = block->GetFirstInstruction();
     if (last->IsIf() &&
@@ -271,20 +271,22 @@ bool HDeadCodeElimination::SimplifyIfs() {
 }
 
 void HDeadCodeElimination::ConnectSuccessiveBlocks() {
-  // Order does not matter.
-  for (HReversePostOrderIterator it(*graph_); !it.Done();) {
-    HBasicBlock* block  = it.Current();
-    if (block->IsEntryBlock() || !block->GetLastInstruction()->IsGoto()) {
-      it.Advance();
-      continue;
+  // Order does not matter. Skip the entry block by starting at index 1 in reverse post order.
+  for (size_t i = 1u, size = graph_->GetReversePostOrder().size(); i != size; ++i) {
+    HBasicBlock* block  = graph_->GetReversePostOrder()[i];
+    DCHECK(!block->IsEntryBlock());
+    while (block->GetLastInstruction()->IsGoto()) {
+      HBasicBlock* successor = block->GetSingleSuccessor();
+      if (successor->IsExitBlock() || successor->GetPredecessors().size() != 1u) {
+        break;
+      }
+      DCHECK_LT(i, IndexOfElement(graph_->GetReversePostOrder(), successor));
+      block->MergeWith(successor);
+      --size;
+      DCHECK_EQ(size, graph_->GetReversePostOrder().size());
+      DCHECK_EQ(block, graph_->GetReversePostOrder()[i]);
+      // Reiterate on this block in case it can be merged with its new successor.
     }
-    HBasicBlock* successor = block->GetSingleSuccessor();
-    if (successor->IsExitBlock() || successor->GetPredecessors().size() != 1u) {
-      it.Advance();
-      continue;
-    }
-    block->MergeWith(successor);
-    // Reiterate on this block in case it can be merged with its new successor.
   }
 }
 
@@ -300,8 +302,7 @@ bool HDeadCodeElimination::RemoveDeadBlocks() {
   // Remove all dead blocks. Iterate in post order because removal needs the
   // block's chain of dominators and nested loops need to be updated from the
   // inside out.
-  for (HPostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
-    HBasicBlock* block  = it.Current();
+  for (HBasicBlock* block : graph_->GetPostOrder()) {
     int id = block->GetBlockId();
     if (!live_blocks.IsBitSet(id)) {
       MaybeRecordDeadBlock(block);
@@ -332,8 +333,7 @@ bool HDeadCodeElimination::RemoveDeadBlocks() {
 void HDeadCodeElimination::RemoveDeadInstructions() {
   // Process basic blocks in post-order in the dominator tree, so that
   // a dead instruction depending on another dead instruction is removed.
-  for (HPostOrderIterator b(*graph_); !b.Done(); b.Advance()) {
-    HBasicBlock* block = b.Current();
+  for (HBasicBlock* block : graph_->GetPostOrder()) {
     // Traverse this block's instructions in backward order and remove
     // the unused ones.
     HBackwardInstructionIterator i(block->GetInstructions());

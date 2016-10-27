@@ -133,8 +133,7 @@ static bool CheckInvokeType(Intrinsics intrinsic, HInvoke* invoke) {
 
 void IntrinsicsRecognizer::Run() {
   ScopedObjectAccess soa(Thread::Current());
-  for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
-    HBasicBlock* block = it.Current();
+  for (HBasicBlock* block : graph_->GetReversePostOrder()) {
     for (HInstructionIterator inst_it(block->GetInstructions()); !inst_it.Done();
          inst_it.Advance()) {
       HInstruction* inst = inst_it.Current();
