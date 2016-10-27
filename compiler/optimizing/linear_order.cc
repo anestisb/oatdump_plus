@@ -94,8 +94,7 @@ void LinearizeGraph(const HGraph* graph,
   //      for it.
   ArenaVector<uint32_t> forward_predecessors(graph->GetBlocks().size(),
                                              allocator->Adapter(kArenaAllocLinearOrder));
-  for (HReversePostOrderIterator it(*graph); !it.Done(); it.Advance()) {
-    HBasicBlock* block = it.Current();
+  for (HBasicBlock* block : graph->GetReversePostOrder()) {
     size_t number_of_forward_predecessors = block->GetPredecessors().size();
     if (block->IsLoopHeader()) {
       number_of_forward_predecessors -= block->GetLoopInformation()->NumberOfBackEdges();

@@ -124,20 +124,16 @@ void InstructionSimplifier::Run() {
 void InstructionSimplifierVisitor::Run() {
   // Iterate in reverse post order to open up more simplifications to users
   // of instructions that got simplified.
-  for (HReversePostOrderIterator it(*GetGraph()); !it.Done();) {
+  for (HBasicBlock* block : GetGraph()->GetReversePostOrder()) {
     // The simplification of an instruction to another instruction may yield
     // possibilities for other simplifications. So although we perform a reverse
     // post order visit, we sometimes need to revisit an instruction index.
-    simplification_occurred_ = false;
-    VisitBasicBlock(it.Current());
-    if (simplification_occurred_ &&
-        (simplifications_at_current_position_ < kMaxSamePositionSimplifications)) {
-      // New simplifications may be applicable to the instruction at the
-      // current index, so don't advance the iterator.
-      continue;
-    }
+    do {
+      simplification_occurred_ = false;
+      VisitBasicBlock(block);
+    } while (simplification_occurred_ &&
+             (simplifications_at_current_position_ < kMaxSamePositionSimplifications));
     simplifications_at_current_position_ = 0;
-    it.Advance();
   }
 }
 

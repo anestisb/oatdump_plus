@@ -34,8 +34,7 @@ void SsaDeadPhiElimination::MarkDeadPhis() {
   ArenaSet<HPhi*> initially_live(graph_->GetArena()->Adapter(kArenaAllocSsaPhiElimination));
 
   // Add to the worklist phis referenced by non-phi instructions.
-  for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
-    HBasicBlock* block = it.Current();
+  for (HBasicBlock* block : graph_->GetReversePostOrder()) {
     for (HInstructionIterator inst_it(block->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
       HPhi* phi = inst_it.Current()->AsPhi();
       if (phi->IsDead()) {
@@ -84,8 +83,7 @@ void SsaDeadPhiElimination::EliminateDeadPhis() {
   // Remove phis that are not live. Visit in post order so that phis
   // that are not inputs of loop phis can be removed when they have
   // no users left (dead phis might use dead phis).
-  for (HPostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
-    HBasicBlock* block = it.Current();
+  for (HBasicBlock* block : graph_->GetPostOrder()) {
     HInstruction* current = block->GetFirstPhi();
     HInstruction* next = nullptr;
     HPhi* phi;
@@ -119,8 +117,7 @@ void SsaDeadPhiElimination::EliminateDeadPhis() {
 void SsaRedundantPhiElimination::Run() {
   // Add all phis in the worklist. Order does not matter for correctness, and
   // neither will necessarily converge faster.
-  for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
-    HBasicBlock* block = it.Current();
+  for (HBasicBlock* block : graph_->GetReversePostOrder()) {
     for (HInstructionIterator inst_it(block->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
       worklist_.push_back(inst_it.Current()->AsPhi());
     }

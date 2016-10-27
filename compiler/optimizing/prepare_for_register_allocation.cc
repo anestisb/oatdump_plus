@@ -20,8 +20,7 @@ namespace art {
 
 void PrepareForRegisterAllocation::Run() {
   // Order does not matter.
-  for (HReversePostOrderIterator it(*GetGraph()); !it.Done(); it.Advance()) {
-    HBasicBlock* block = it.Current();
+  for (HBasicBlock* block : GetGraph()->GetReversePostOrder()) {
     // No need to visit the phis.
     for (HInstructionIterator inst_it(block->GetInstructions()); !inst_it.Done();
          inst_it.Advance()) {
