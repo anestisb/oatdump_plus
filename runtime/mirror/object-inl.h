@@ -275,7 +275,7 @@ inline void Object::AssertReadBarrierPointer() const {
 }
 
 template<VerifyObjectFlags kVerifyFlags>
-inline bool Object::VerifierInstanceOf(Class* klass) {
+inline bool Object::VerifierInstanceOf(ObjPtr<Class> klass) {
   DCHECK(klass != nullptr);
   DCHECK(GetClass<kVerifyFlags>() != nullptr);
   return klass->IsInterface() || InstanceOf(klass);
