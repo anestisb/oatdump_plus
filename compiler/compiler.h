@@ -18,6 +18,7 @@
 #define ART_COMPILER_COMPILER_H_
 
 #include "dex_file.h"
+#include "base/mutex.h"
 #include "os.h"
 
 namespace art {
@@ -34,6 +35,7 @@ class CompilerDriver;
 class CompiledMethod;
 template<class T> class Handle;
 class OatWriter;
+class Thread;
 
 class Compiler {
  public:
