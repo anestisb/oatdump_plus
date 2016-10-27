@@ -411,8 +411,8 @@ void GlobalValueNumberer::Run() {
 
   // Use the reverse post order to ensure the non back-edge predecessors of a block are
   // visited before the block itself.
-  for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
-    VisitBasicBlock(it.Current());
+  for (HBasicBlock* block : graph_->GetReversePostOrder()) {
+    VisitBasicBlock(block);
   }
 }
 

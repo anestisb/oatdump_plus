@@ -123,8 +123,7 @@ void ReferenceTypePropagation::ValidateTypes() {
   // TODO: move this to the graph checker.
   if (kIsDebugBuild) {
     ScopedObjectAccess soa(Thread::Current());
-    for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
-      HBasicBlock* block = it.Current();
+    for (HBasicBlock* block : graph_->GetReversePostOrder()) {
       for (HInstructionIterator iti(block->GetInstructions()); !iti.Done(); iti.Advance()) {
         HInstruction* instr = iti.Current();
         if (instr->GetType() == Primitive::kPrimNot) {
@@ -158,8 +157,8 @@ void ReferenceTypePropagation::Run() {
   // To properly propagate type info we need to visit in the dominator-based order.
   // Reverse post order guarantees a node's dominators are visited first.
   // We take advantage of this order in `VisitBasicBlock`.
-  for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
-    VisitBasicBlock(it.Current());
+  for (HBasicBlock* block : graph_->GetReversePostOrder()) {
+    VisitBasicBlock(block);
   }
 
   ProcessWorklist();

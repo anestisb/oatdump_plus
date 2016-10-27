@@ -30,15 +30,11 @@ namespace art {
 //
 // for (HBasicBlock* block : linear_order)                   // linear order
 //
-// for (HBasicBlock* block : LinearPostOrder(linear_order))  // linear post order
+// for (HBasicBlock* block : ReverseRange(linear_order))     // linear post order
 //
 void LinearizeGraph(const HGraph* graph,
                     ArenaAllocator* allocator,
                     ArenaVector<HBasicBlock*>* linear_order);
-
-inline auto LinearPostOrder(const ArenaVector<HBasicBlock*>& linear_order) {
-  return MakeIterationRange(linear_order.rbegin(), linear_order.rend());
-}
 
 }  // namespace art
 

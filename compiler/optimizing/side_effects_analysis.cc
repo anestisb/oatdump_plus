@@ -26,8 +26,7 @@ void SideEffectsAnalysis::Run() {
 
   // In DEBUG mode, ensure side effects are properly initialized to empty.
   if (kIsDebugBuild) {
-    for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
-      HBasicBlock* block = it.Current();
+    for (HBasicBlock* block : graph_->GetReversePostOrder()) {
       SideEffects effects = GetBlockEffects(block);
       DCHECK(effects.DoesNothing());
       if (block->IsLoopHeader()) {
@@ -38,9 +37,7 @@ void SideEffectsAnalysis::Run() {
   }
 
   // Do a post order visit to ensure we visit a loop header after its loop body.
-  for (HPostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
-    HBasicBlock* block = it.Current();
-
+  for (HBasicBlock* block : graph_->GetPostOrder()) {
     SideEffects effects = SideEffects::None();
     // Update `effects` with the side effects of all instructions in this block.
     for (HInstructionIterator inst_it(block->GetInstructions()); !inst_it.Done();

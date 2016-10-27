@@ -758,7 +758,7 @@ bool RegisterAllocatorGraphColor::Validate(bool log_fatal_on_failure) {
 }
 
 void RegisterAllocatorGraphColor::ProcessInstructions() {
-  for (HBasicBlock* block : LinearPostOrder(codegen_->GetGraph()->GetLinearOrder())) {
+  for (HBasicBlock* block : codegen_->GetGraph()->GetLinearPostOrder()) {
     // Note that we currently depend on this ordering, since some helper
     // code is designed for linear scan register allocation.
     for (HBackwardInstructionIterator instr_it(block->GetInstructions());
