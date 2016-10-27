@@ -15,11 +15,14 @@
  */
 
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.Arrays;
 
 public class Main {
   public static void main(String[] args) {
     System.loadLibrary(args[1]);
     doTest();
+    testGetTaggedObjects();
   }
 
   public static void doTest() {
@@ -68,6 +71,100 @@ public class Main {
     }
   }
 
+  private static void testGetTaggedObjects() {
+    // Use an array list to ensure that the objects stay live for a bit. Also gives us a source
+    // to compare to. We use index % 10 as the tag.
+    ArrayList<Object> l = new ArrayList<>();
+
+    for (int i = 0; i < 20; i++) {
+      Integer o = new Integer(i);
+      l.add(o);
+      if (i % 10 != 0) {
+        setTag(o, i % 10);
+      }
+    }
+
+    testGetTaggedObjectsRun(l, null, false, false);
+    testGetTaggedObjectsRun(l, null, true, true);
+    testGetTaggedObjectsRun(l, new long[] { 2, 5 }, true, true);
+    testGetTaggedObjectsRun(l, null, false, true);
+    testGetTaggedObjectsRun(l, null, true, false);
+  }
+
+  private static void testGetTaggedObjectsRun(ArrayList<Object> l, long[] searchTags,
+      boolean returnObjects, boolean returnTags) {
+    Object[] result = getTaggedObjects(searchTags, returnObjects, returnTags);
+
+    Object[] objects = (Object[])result[0];
+    long[] tags = (long[])result[1];
+    int count = (int)result[2];
+
+    System.out.println(count);
+    printArraysSorted(objects, tags);
+  }
+
+  private static void printArraysSorted(Object[] objects, long[] tags) {
+    if (objects == null && tags == null) {
+      System.out.println("<nothing>");
+      return;
+    }
+
+    int l1 = objects == null ? 0 : objects.length;
+    int l2 = tags == null ? 0 : tags.length;
+    int l = Math.max(l1, l2);
+    Pair[] tmp = new Pair[l];
+    for (int i = 0; i < l; i++) {
+      tmp[i] = new Pair(objects == null ? null : objects[i], tags == null ? 0 : tags[i]);
+    }
+
+    Arrays.sort(tmp);
+
+    System.out.println(Arrays.toString(tmp));
+  }
+
+  private static class Pair implements Comparable<Pair> {
+    Object obj;
+    long tag;
+    public Pair(Object o, long t) {
+      obj = o;
+      tag = t;
+    }
+
+    public int compareTo(Pair p) {
+      if (tag != p.tag) {
+        return Long.compare(tag, p.tag);
+      }
+
+      if ((obj instanceof Comparable) && (p.obj instanceof Comparable)) {
+        // It's not really correct, but w/e, best effort.
+        int result = ((Comparable<Object>)obj).compareTo(p.obj);
+        if (result != 0) {
+          return result;
+        }
+      }
+
+      if (obj != null && p.obj != null) {
+        return obj.hashCode() - p.obj.hashCode();
+      }
+
+      if (obj != null) {
+        return 1;
+      }
+
+      if (p.obj != null) {
+        return -1;
+      }
+
+      return hashCode() - p.hashCode();
+    }
+
+    public String toString() {
+      return "<" + obj + ";" + tag + ">";
+    }
+  }
+
   private static native void setTag(Object o, long tag);
   private static native long getTag(Object o);
+  private static native Object[] getTaggedObjects(long[] searchTags, boolean returnObjects,
+      boolean returnTags);
 }
