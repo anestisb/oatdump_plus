@@ -21,6 +21,7 @@
 #include "base/mutex.h"
 #include "dex_file.h"
 #include "jvalue.h"
+#include "obj_ptr.h"
 
 namespace art {
 

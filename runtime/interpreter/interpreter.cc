@@ -35,8 +35,17 @@
 namespace art {
 namespace interpreter {
 
-static void InterpreterJni(Thread* self, ArtMethod* method, const StringPiece& shorty,
-                           Object* receiver, uint32_t* args, JValue* result)
+ALWAYS_INLINE static ObjPtr<mirror::Object> ObjArg(uint32_t arg)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  return ObjPtr<mirror::Object>(reinterpret_cast<mirror::Object*>(arg));
+}
+
+static void InterpreterJni(Thread* self,
+                           ArtMethod* method,
+                           const StringPiece& shorty,
+                           ObjPtr<mirror::Object> receiver,
+                           uint32_t* args,
+                           JValue* result)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   // TODO: The following enters JNI code using a typedef-ed function rather than the JNI compiler,
   //       it should be removed and JNI compiled stubs used instead.
@@ -52,7 +61,7 @@ static void InterpreterJni(Thread* self, ArtMethod* method, const StringPiece& s
         ScopedThreadStateChange tsc(self, kNative);
         jresult = fn(soa.Env(), klass.get());
       }
-      result->SetL(soa.Decode<Object>(jresult));
+      result->SetL(soa.Decode<mirror::Object>(jresult));
     } else if (shorty == "V") {
       typedef void (fntype)(JNIEnv*, jclass);
       fntype* const fn = reinterpret_cast<fntype*>(method->GetEntryPointFromJni());
@@ -87,14 +96,13 @@ static void InterpreterJni(Thread* self, ArtMethod* method, const StringPiece& s
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedLocalRef<jobject> arg0(soa.Env(),
-                                   soa.AddLocalReference<jobject>(
-                                       reinterpret_cast<Object*>(args[0])));
+                                   soa.AddLocalReference<jobject>(ObjArg(args[0])));
       jobject jresult;
       {
         ScopedThreadStateChange tsc(self, kNative);
         jresult = fn(soa.Env(), klass.get(), arg0.get());
       }
-      result->SetL(soa.Decode<Object>(jresult));
+      result->SetL(soa.Decode<mirror::Object>(jresult));
     } else if (shorty == "IIZ") {
       typedef jint (fntype)(JNIEnv*, jclass, jint, jboolean);
       fntype* const fn = reinterpret_cast<fntype*>(method->GetEntryPointFromJni());
@@ -109,8 +117,7 @@ static void InterpreterJni(Thread* self, ArtMethod* method, const StringPiece& s
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedLocalRef<jobject> arg0(soa.Env(),
-                                   soa.AddLocalReference<jobject>(
-                                       reinterpret_cast<Object*>(args[0])));
+                                   soa.AddLocalReference<jobject>(ObjArg(args[0])));
       ScopedThreadStateChange tsc(self, kNative);
       result->SetI(fn(soa.Env(), klass.get(), arg0.get(), args[1]));
     } else if (shorty == "SIZ") {
@@ -134,11 +141,9 @@ static void InterpreterJni(Thread* self, ArtMethod* method, const StringPiece& s
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedLocalRef<jobject> arg0(soa.Env(),
-                                   soa.AddLocalReference<jobject>(
-                                       reinterpret_cast<Object*>(args[0])));
+                                   soa.AddLocalReference<jobject>(ObjArg(args[0])));
       ScopedLocalRef<jobject> arg1(soa.Env(),
-                                   soa.AddLocalReference<jobject>(
-                                       reinterpret_cast<Object*>(args[1])));
+                                   soa.AddLocalReference<jobject>(ObjArg(args[1])));
       ScopedThreadStateChange tsc(self, kNative);
       result->SetZ(fn(soa.Env(), klass.get(), arg0.get(), arg1.get()));
     } else if (shorty == "ZILL") {
@@ -147,11 +152,9 @@ static void InterpreterJni(Thread* self, ArtMethod* method, const StringPiece& s
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedLocalRef<jobject> arg1(soa.Env(),
-                                   soa.AddLocalReference<jobject>(
-                                       reinterpret_cast<Object*>(args[1])));
+                                   soa.AddLocalReference<jobject>(ObjArg(args[1])));
       ScopedLocalRef<jobject> arg2(soa.Env(),
-                                   soa.AddLocalReference<jobject>(
-                                       reinterpret_cast<Object*>(args[2])));
+                                   soa.AddLocalReference<jobject>(ObjArg(args[2])));
       ScopedThreadStateChange tsc(self, kNative);
       result->SetZ(fn(soa.Env(), klass.get(), args[0], arg1.get(), arg2.get()));
     } else if (shorty == "VILII") {
@@ -160,8 +163,7 @@ static void InterpreterJni(Thread* self, ArtMethod* method, const StringPiece& s
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedLocalRef<jobject> arg1(soa.Env(),
-                                   soa.AddLocalReference<jobject>(
-                                       reinterpret_cast<Object*>(args[1])));
+                                   soa.AddLocalReference<jobject>(ObjArg(args[1])));
       ScopedThreadStateChange tsc(self, kNative);
       fn(soa.Env(), klass.get(), args[0], arg1.get(), args[2], args[3]);
     } else if (shorty == "VLILII") {
@@ -170,11 +172,9 @@ static void InterpreterJni(Thread* self, ArtMethod* method, const StringPiece& s
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedLocalRef<jobject> arg0(soa.Env(),
-                                   soa.AddLocalReference<jobject>(
-                                       reinterpret_cast<Object*>(args[0])));
+                                   soa.AddLocalReference<jobject>(ObjArg(args[0])));
       ScopedLocalRef<jobject> arg2(soa.Env(),
-                                   soa.AddLocalReference<jobject>(
-                                       reinterpret_cast<Object*>(args[2])));
+                                   soa.AddLocalReference<jobject>(ObjArg(args[2])));
       ScopedThreadStateChange tsc(self, kNative);
       fn(soa.Env(), klass.get(), arg0.get(), args[1], arg2.get(), args[3], args[4]);
     } else {
@@ -192,7 +192,7 @@ static void InterpreterJni(Thread* self, ArtMethod* method, const StringPiece& s
         ScopedThreadStateChange tsc(self, kNative);
         jresult = fn(soa.Env(), rcvr.get());
       }
-      result->SetL(soa.Decode<Object>(jresult));
+      result->SetL(soa.Decode<mirror::Object>(jresult));
     } else if (shorty == "V") {
       typedef void (fntype)(JNIEnv*, jobject);
       fntype* const fn = reinterpret_cast<fntype*>(method->GetEntryPointFromJni());
@@ -206,14 +206,13 @@ static void InterpreterJni(Thread* self, ArtMethod* method, const StringPiece& s
       ScopedLocalRef<jobject> rcvr(soa.Env(),
                                    soa.AddLocalReference<jobject>(receiver));
       ScopedLocalRef<jobject> arg0(soa.Env(),
-                                   soa.AddLocalReference<jobject>(
-                                       reinterpret_cast<Object*>(args[0])));
+                                   soa.AddLocalReference<jobject>(ObjArg(args[0])));
       jobject jresult;
       {
         ScopedThreadStateChange tsc(self, kNative);
         jresult = fn(soa.Env(), rcvr.get(), arg0.get());
       }
-      result->SetL(soa.Decode<Object>(jresult));
+      result->SetL(soa.Decode<mirror::Object>(jresult));
       ScopedThreadStateChange tsc(self, kNative);
     } else if (shorty == "III") {
       typedef jint (fntype)(JNIEnv*, jobject, jint, jint);
@@ -312,7 +311,7 @@ static inline JValue Execute(
           } else {
             // Mterp didn't like that instruction.  Single-step it with the reference interpreter.
             result_register = ExecuteSwitchImpl<false, false>(self, code_item, shadow_frame,
-                                                               result_register, true);
+                                                              result_register, true);
             if (shadow_frame.GetDexPC() == DexFile::kDexNoIndex) {
               // Single-stepped a return or an exception not handled locally.  Return to caller.
               return result_register;
@@ -354,8 +353,11 @@ static inline JValue Execute(
   }
 }
 
-void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receiver,
-                                uint32_t* args, JValue* result,
+void EnterInterpreterFromInvoke(Thread* self,
+                                ArtMethod* method,
+                                ObjPtr<mirror::Object> receiver,
+                                uint32_t* args,
+                                JValue* result,
                                 bool stay_in_interpreter) {
   DCHECK_EQ(self, Thread::Current());
   bool implicit_check = !Runtime::Current()->ExplicitStackOverflowChecks();
@@ -393,7 +395,7 @@ void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receive
   size_t cur_reg = num_regs - num_ins;
   if (!method->IsStatic()) {
     CHECK(receiver != nullptr);
-    shadow_frame->SetVRegReference(cur_reg, receiver);
+    shadow_frame->SetVRegReference(cur_reg, receiver.Ptr());
     ++cur_reg;
   }
   uint32_t shorty_len = 0;
@@ -402,8 +404,9 @@ void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receive
     DCHECK_LT(shorty_pos + 1, shorty_len);
     switch (shorty[shorty_pos + 1]) {
       case 'L': {
-        Object* o = reinterpret_cast<StackReference<Object>*>(&args[arg_pos])->AsMirrorPtr();
-        shadow_frame->SetVRegReference(cur_reg, o);
+        ObjPtr<mirror::Object> o =
+            reinterpret_cast<StackReference<mirror::Object>*>(&args[arg_pos])->AsMirrorPtr();
+        shadow_frame->SetVRegReference(cur_reg, o.Ptr());
         break;
       }
       case 'J': case 'D': {
@@ -442,7 +445,7 @@ void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receive
     // references pointers due to moving GC.
     args = shadow_frame->GetVRegArgs(method->IsStatic() ? 0 : 1);
     if (!Runtime::Current()->IsStarted()) {
-      UnstartedRuntime::Jni(self, method, receiver, args, result);
+      UnstartedRuntime::Jni(self, method, receiver.Ptr(), args, result);
     } else {
       InterpreterJni(self, method, shorty, receiver, args, result);
     }
@@ -539,7 +542,7 @@ void EnterInterpreterFromDeoptimize(Thread* self,
         if (kIsDebugBuild) {
           ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
           // This is a suspend point. But it's ok since value has been set into shadow_frame.
-          mirror::Class* klass = class_linker->ResolveType(
+          ObjPtr<mirror::Class> klass = class_linker->ResolveType(
               instr->VRegB_21c(), shadow_frame->GetMethod());
           DCHECK(klass->IsStringClass());
         }
@@ -582,8 +585,10 @@ JValue EnterInterpreterFromEntryPoint(Thread* self, const DexFile::CodeItem* cod
   return Execute(self, code_item, *shadow_frame, JValue());
 }
 
-void ArtInterpreterToInterpreterBridge(Thread* self, const DexFile::CodeItem* code_item,
-                                       ShadowFrame* shadow_frame, JValue* result) {
+void ArtInterpreterToInterpreterBridge(Thread* self,
+                                       const DexFile::CodeItem* code_item,
+                                       ShadowFrame* shadow_frame,
+                                       JValue* result) {
   bool implicit_check = !Runtime::Current()->ExplicitStackOverflowChecks();
   if (UNLIKELY(__builtin_frame_address(0) < self->GetStackEndForInterpreter(implicit_check))) {
     ThrowStackOverflowError(self);
@@ -595,10 +600,10 @@ void ArtInterpreterToInterpreterBridge(Thread* self, const DexFile::CodeItem* co
   // Ensure static methods are initialized.
   const bool is_static = method->IsStatic();
   if (is_static) {
-    mirror::Class* declaring_class = method->GetDeclaringClass();
+    ObjPtr<mirror::Class> declaring_class = method->GetDeclaringClass();
     if (UNLIKELY(!declaring_class->IsInitialized())) {
       StackHandleScope<1> hs(self);
-      HandleWrapper<Class> h_declaring_class(hs.NewHandleWrapper(&declaring_class));
+      HandleWrapperObjPtr<mirror::Class> h_declaring_class(hs.NewHandleWrapper(&declaring_class));
       if (UNLIKELY(!Runtime::Current()->GetClassLinker()->EnsureInitialized(
           self, h_declaring_class, true, true))) {
         DCHECK(self->IsExceptionPending());
@@ -615,9 +620,9 @@ void ArtInterpreterToInterpreterBridge(Thread* self, const DexFile::CodeItem* co
     // We don't expect to be asked to interpret native code (which is entered via a JNI compiler
     // generated stub) except during testing and image writing.
     CHECK(!Runtime::Current()->IsStarted());
-    Object* receiver = is_static ? nullptr : shadow_frame->GetVRegReference(0);
+    ObjPtr<mirror::Object> receiver = is_static ? nullptr : shadow_frame->GetVRegReference(0);
     uint32_t* args = shadow_frame->GetVRegArgs(is_static ? 0 : 1);
-    UnstartedRuntime::Jni(self, shadow_frame->GetMethod(), receiver, args, result);
+    UnstartedRuntime::Jni(self, shadow_frame->GetMethod(), receiver.Ptr(), args, result);
   }
 
   self->PopShadowFrame();

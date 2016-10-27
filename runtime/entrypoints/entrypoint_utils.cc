@@ -237,7 +237,7 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
   }
 }
 
-bool FillArrayData(mirror::Object* obj, const Instruction::ArrayDataPayload* payload) {
+bool FillArrayData(ObjPtr<mirror::Object> obj, const Instruction::ArrayDataPayload* payload) {
   DCHECK_EQ(payload->ident, static_cast<uint16_t>(Instruction::kArrayDataSignature));
   if (UNLIKELY(obj == nullptr)) {
     ThrowNullPointerException("null array in FILL_ARRAY_DATA");

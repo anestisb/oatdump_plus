@@ -22,9 +22,10 @@
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "base/timing_logger.h"
+#include "jit/profile_saver_options.h"
+#include "obj_ptr.h"
 #include "object_callbacks.h"
 #include "offline_profiling_info.h"
-#include "jit/profile_saver_options.h"
 #include "thread_pool.h"
 
 namespace art {
@@ -114,7 +115,7 @@ class Jit {
   void AddSamples(Thread* self, ArtMethod* method, uint16_t samples, bool with_backedges)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void InvokeVirtualOrInterface(mirror::Object* this_object,
+  void InvokeVirtualOrInterface(ObjPtr<mirror::Object> this_object,
                                 ArtMethod* caller,
                                 uint32_t dex_pc,
                                 ArtMethod* callee)
