@@ -2335,7 +2335,6 @@ void ConcurrentCopying::FinishPhase() {
     TimingLogger::ScopedTiming split("ClearRegionSpaceCards", GetTimings());
     // We do not currently use the region space cards at all, madvise them away to save ram.
     heap_->GetCardTable()->ClearCardRange(region_space_->Begin(), region_space_->Limit());
-    region_space_ = nullptr;
   }
   {
     MutexLock mu(self, skipped_blocks_lock_);
