@@ -20,9 +20,6 @@ set -e
 if [[ $@ != *"--jvm"* ]]; then
   # Don't do anything with jvm.
   export USE_JACK=true
-  export JACK_SERVER=false
-  export JACK_REPOSITORY="${ANDROID_BUILD_TOP}/prebuilts/sdk/tools/jacks"
-  export JACK_VERSION=4.11.BETA
 fi
 
 ./default-build "$@" --experimental method-handles
