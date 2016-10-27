@@ -18,6 +18,8 @@
 
 #include <fstream>
 #include <memory>
+#include <sstream>
+
 #include <stdint.h>
 
 #ifdef ART_ENABLE_CODEGEN_arm
@@ -46,6 +48,7 @@
 #include "base/arena_containers.h"
 #include "base/dumpable.h"
 #include "base/macros.h"
+#include "base/mutex.h"
 #include "base/timing_logger.h"
 #include "bounds_check_elimination.h"
 #include "builder.h"
@@ -135,14 +138,18 @@ class PassObserver : public ValueObject {
   PassObserver(HGraph* graph,
                CodeGenerator* codegen,
                std::ostream* visualizer_output,
-               CompilerDriver* compiler_driver)
+               CompilerDriver* compiler_driver,
+               Mutex& dump_mutex)
       : graph_(graph),
         cached_method_name_(),
         timing_logger_enabled_(compiler_driver->GetDumpPasses()),
         timing_logger_(timing_logger_enabled_ ? GetMethodName() : "", true, true),
         disasm_info_(graph->GetArena()),
+        visualizer_oss_(),
+        visualizer_output_(visualizer_output),
         visualizer_enabled_(!compiler_driver->GetCompilerOptions().GetDumpCfgFileName().empty()),
-        visualizer_(visualizer_output, graph, *codegen),
+        visualizer_(&visualizer_oss_, graph, *codegen),
+        visualizer_dump_mutex_(dump_mutex),
         graph_in_bad_state_(false) {
     if (timing_logger_enabled_ || visualizer_enabled_) {
       if (!IsVerboseMethod(compiler_driver, GetMethodName())) {
@@ -159,6 +166,10 @@ class PassObserver : public ValueObject {
     if (timing_logger_enabled_) {
       LOG(INFO) << "TIMINGS " << GetMethodName();
       LOG(INFO) << Dumpable<TimingLogger>(timing_logger_);
+    }
+    if (visualizer_enabled_) {
+      MutexLock mu(Thread::Current(), visualizer_dump_mutex_);
+      *visualizer_output_ << visualizer_oss_.str();
     }
   }
 
@@ -237,8 +248,11 @@ class PassObserver : public ValueObject {
 
   DisassemblyInformation disasm_info_;
 
+  std::ostringstream visualizer_oss_;
+  std::ostream* visualizer_output_;
   bool visualizer_enabled_;
   HGraphVisualizer visualizer_;
+  Mutex& visualizer_dump_mutex_;
 
   // Flag to be set by the compiler if the pass failed and the graph is not
   // expected to validate.
@@ -369,13 +383,16 @@ class OptimizingCompiler FINAL : public Compiler {
 
   std::unique_ptr<std::ostream> visualizer_output_;
 
+  mutable Mutex dump_mutex_;  // To synchronize visualizer writing.
+
   DISALLOW_COPY_AND_ASSIGN(OptimizingCompiler);
 };
 
 static const int kMaximumCompilationTimeBeforeWarning = 100; /* ms */
 
 OptimizingCompiler::OptimizingCompiler(CompilerDriver* driver)
-    : Compiler(driver, kMaximumCompilationTimeBeforeWarning) {}
+    : Compiler(driver, kMaximumCompilationTimeBeforeWarning),
+      dump_mutex_("Visualizer dump lock") {}
 
 void OptimizingCompiler::Init() {
   // Enable C1visualizer output. Must be done in Init() because the compiler
@@ -383,9 +400,6 @@ void OptimizingCompiler::Init() {
   CompilerDriver* driver = GetCompilerDriver();
   const std::string cfg_file_name = driver->GetCompilerOptions().GetDumpCfgFileName();
   if (!cfg_file_name.empty()) {
-    CHECK_EQ(driver->GetThreadCount(), 1U)
-      << "Graph visualizer requires the compiler to run single-threaded. "
-      << "Invoke the compiler with '-j1'.";
     std::ios_base::openmode cfg_file_mode =
         driver->GetCompilerOptions().GetDumpCfgAppend() ? std::ofstream::app : std::ofstream::out;
     visualizer_output_.reset(new std::ofstream(cfg_file_name, cfg_file_mode));
@@ -951,7 +965,8 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
   PassObserver pass_observer(graph,
                              codegen.get(),
                              visualizer_output_.get(),
-                             compiler_driver);
+                             compiler_driver,
+                             dump_mutex_);
 
   VLOG(compiler) << "Building " << pass_observer.GetMethodName();
 
