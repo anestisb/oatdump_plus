@@ -119,7 +119,7 @@ class MANAGED LOCKABLE Object {
   // The verifier treats all interfaces as java.lang.Object and relies on runtime checks in
   // invoke-interface to detect incompatible interface types.
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  bool VerifierInstanceOf(Class* klass) REQUIRES_SHARED(Locks::mutator_lock_);
+  bool VerifierInstanceOf(ObjPtr<Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   ALWAYS_INLINE bool InstanceOf(ObjPtr<Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);
 

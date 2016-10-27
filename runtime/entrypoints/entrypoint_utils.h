@@ -156,7 +156,7 @@ inline ArtField* FindFieldFromCode(uint32_t field_idx,
 
 template<InvokeType type, bool access_check>
 inline ArtMethod* FindMethodFromCode(uint32_t method_idx,
-                                     mirror::Object** this_object,
+                                     ObjPtr<mirror::Object>* this_object,
                                      ArtMethod* referrer,
                                      Thread* self)
     REQUIRES_SHARED(Locks::mutator_lock_)
@@ -171,7 +171,7 @@ inline ArtField* FindFieldFast(uint32_t field_idx,
 
 // Fast path method resolution that can't throw exceptions.
 inline ArtMethod* FindMethodFast(uint32_t method_idx,
-                                 mirror::Object* this_object,
+                                 ObjPtr<mirror::Object> this_object,
                                  ArtMethod* referrer,
                                  bool access_check,
                                  InvokeType type)
@@ -203,7 +203,7 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
     REQUIRES_SHARED(Locks::mutator_lock_)
     REQUIRES(!Roles::uninterruptible_);
 
-bool FillArrayData(mirror::Object* obj, const Instruction::ArrayDataPayload* payload)
+bool FillArrayData(ObjPtr<mirror::Object> obj, const Instruction::ArrayDataPayload* payload)
     REQUIRES_SHARED(Locks::mutator_lock_)
     REQUIRES(!Roles::uninterruptible_);
 

@@ -683,7 +683,7 @@ void Jit::MethodEntered(Thread* thread, ArtMethod* method) {
   }
 }
 
-void Jit::InvokeVirtualOrInterface(mirror::Object* this_object,
+void Jit::InvokeVirtualOrInterface(ObjPtr<mirror::Object> this_object,
                                    ArtMethod* caller,
                                    uint32_t dex_pc,
                                    ArtMethod* callee ATTRIBUTE_UNUSED) {

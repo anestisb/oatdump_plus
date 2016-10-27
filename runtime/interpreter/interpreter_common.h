@@ -43,24 +43,10 @@
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/string-inl.h"
+#include "obj_ptr.h"
 #include "stack.h"
 #include "thread.h"
 #include "well_known_classes.h"
-
-using ::art::ArtMethod;
-using ::art::mirror::Array;
-using ::art::mirror::BooleanArray;
-using ::art::mirror::ByteArray;
-using ::art::mirror::CharArray;
-using ::art::mirror::Class;
-using ::art::mirror::ClassLoader;
-using ::art::mirror::IntArray;
-using ::art::mirror::LongArray;
-using ::art::mirror::Object;
-using ::art::mirror::ObjectArray;
-using ::art::mirror::ShortArray;
-using ::art::mirror::String;
-using ::art::mirror::Throwable;
 
 namespace art {
 namespace interpreter {
@@ -69,13 +55,11 @@ void ThrowNullPointerExceptionFromInterpreter()
     REQUIRES_SHARED(Locks::mutator_lock_);
 
 template <bool kMonitorCounting>
-static inline void DoMonitorEnter(Thread* self,
-                                  ShadowFrame* frame,
-                                  Object* ref)
+static inline void DoMonitorEnter(Thread* self, ShadowFrame* frame, ObjPtr<mirror::Object> ref)
     NO_THREAD_SAFETY_ANALYSIS
     REQUIRES(!Roles::uninterruptible_) {
   StackHandleScope<1> hs(self);
-  Handle<Object> h_ref(hs.NewHandle(ref));
+  Handle<mirror::Object> h_ref(hs.NewHandle(ref));
   h_ref->MonitorEnter(self);
   if (kMonitorCounting && frame->GetMethod()->MustCountLocks()) {
     frame->GetLockCountData().AddMonitor(self, h_ref.Get());
@@ -83,13 +67,11 @@ static inline void DoMonitorEnter(Thread* self,
 }
 
 template <bool kMonitorCounting>
-static inline void DoMonitorExit(Thread* self,
-                                 ShadowFrame* frame,
-                                 Object* ref)
+static inline void DoMonitorExit(Thread* self, ShadowFrame* frame, ObjPtr<mirror::Object> ref)
     NO_THREAD_SAFETY_ANALYSIS
     REQUIRES(!Roles::uninterruptible_) {
   StackHandleScope<1> hs(self);
-  Handle<Object> h_ref(hs.NewHandle(ref));
+  Handle<mirror::Object> h_ref(hs.NewHandle(ref));
   h_ref->MonitorExit(self);
   if (kMonitorCounting && frame->GetMethod()->MustCountLocks()) {
     frame->GetLockCountData().RemoveMonitorOrThrow(self, h_ref.Get());
@@ -113,7 +95,7 @@ void AbortTransactionF(Thread* self, const char* fmt, ...)
 void AbortTransactionV(Thread* self, const char* fmt, va_list args)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
-void RecordArrayElementsInTransaction(mirror::Array* array, int32_t count)
+void RecordArrayElementsInTransaction(ObjPtr<mirror::Array> array, int32_t count)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
 // Invokes the given method. This is part of the invocation support and is used by DoInvoke and
@@ -126,11 +108,14 @@ bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
 // Handles all invoke-XXX/range instructions except for invoke-polymorphic[/range].
 // Returns true on success, otherwise throws an exception and returns false.
 template<InvokeType type, bool is_range, bool do_access_check>
-static inline bool DoInvoke(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst,
-                            uint16_t inst_data, JValue* result) {
+static inline bool DoInvoke(Thread* self,
+                            ShadowFrame& shadow_frame,
+                            const Instruction* inst,
+                            uint16_t inst_data,
+                            JValue* result) {
   const uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
   const uint32_t vregC = (is_range) ? inst->VRegC_3rc() : inst->VRegC_35c();
-  Object* receiver = (type == kStatic) ? nullptr : shadow_frame.GetVRegReference(vregC);
+  ObjPtr<mirror::Object> receiver = (type == kStatic) ? nullptr : shadow_frame.GetVRegReference(vregC);
   ArtMethod* sf_method = shadow_frame.GetMethod();
   ArtMethod* const called_method = FindMethodFromCode<type, do_access_check>(
       method_idx, &receiver, sf_method, self);
@@ -156,7 +141,7 @@ static inline bool DoInvoke(Thread* self, ShadowFrame& shadow_frame, const Instr
       instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
       if (UNLIKELY(instrumentation->HasInvokeVirtualOrInterfaceListeners())) {
         instrumentation->InvokeVirtualOrInterface(
-            self, receiver, sf_method, shadow_frame.GetDexPC(), called_method);
+            self, receiver.Ptr(), sf_method, shadow_frame.GetDexPC(), called_method);
       }
     }
     return DoCall<is_range, do_access_check>(called_method, self, shadow_frame, inst, inst_data,
@@ -177,7 +162,7 @@ static inline bool DoInvokeVirtualQuick(Thread* self, ShadowFrame& shadow_frame,
                                         const Instruction* inst, uint16_t inst_data,
                                         JValue* result) {
   const uint32_t vregC = (is_range) ? inst->VRegC_3rc() : inst->VRegC_35c();
-  Object* const receiver = shadow_frame.GetVRegReference(vregC);
+  ObjPtr<mirror::Object> const receiver = shadow_frame.GetVRegReference(vregC);
   if (UNLIKELY(receiver == nullptr)) {
     // We lost the reference to the method index so we cannot get a more
     // precised exception message.
@@ -190,7 +175,7 @@ static inline bool DoInvokeVirtualQuick(Thread* self, ShadowFrame& shadow_frame,
     CHECK(receiver->GetClass() != nullptr)
         << "Null class found in object " << receiver << " in region type "
         << Runtime::Current()->GetHeap()->ConcurrentCopyingCollector()->
-            RegionSpace()->GetRegionType(receiver);
+            RegionSpace()->GetRegionType(receiver.Ptr());
   }
   CHECK(receiver->GetClass()->ShouldHaveEmbeddedVTable());
   ArtMethod* const called_method = receiver->GetClass()->GetEmbeddedVTableEntry(
@@ -214,7 +199,7 @@ static inline bool DoInvokeVirtualQuick(Thread* self, ShadowFrame& shadow_frame,
     // TODO: Remove the InvokeVirtualOrInterface instrumentation, as it was only used by the JIT.
     if (UNLIKELY(instrumentation->HasInvokeVirtualOrInterfaceListeners())) {
       instrumentation->InvokeVirtualOrInterface(
-          self, receiver, shadow_frame.GetMethod(), shadow_frame.GetDexPC(), called_method);
+          self, receiver.Ptr(), shadow_frame.GetMethod(), shadow_frame.GetDexPC(), called_method);
     }
     // No need to check since we've been quickened.
     return DoCall<is_range, false>(called_method, self, shadow_frame, inst, inst_data, result);
@@ -249,9 +234,11 @@ bool DoIPutQuick(const ShadowFrame& shadow_frame, const Instruction* inst, uint1
 
 // Handles string resolution for const-string and const-string-jumbo instructions. Also ensures the
 // java.lang.String class is initialized.
-static inline String* ResolveString(Thread* self, ShadowFrame& shadow_frame, uint32_t string_idx)
+static inline ObjPtr<mirror::String> ResolveString(Thread* self,
+                                                   ShadowFrame& shadow_frame,
+                                                   uint32_t string_idx)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  Class* java_lang_string_class = String::GetJavaLangString();
+  ObjPtr<mirror::Class> java_lang_string_class = mirror::String::GetJavaLangString();
   if (UNLIKELY(!java_lang_string_class->IsInitialized())) {
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     StackHandleScope<1> hs(self);
@@ -262,11 +249,11 @@ static inline String* ResolveString(Thread* self, ShadowFrame& shadow_frame, uin
     }
   }
   ArtMethod* method = shadow_frame.GetMethod();
-  mirror::Class* declaring_class = method->GetDeclaringClass();
+  ObjPtr<mirror::Class> declaring_class = method->GetDeclaringClass();
   // MethodVerifier refuses methods with string_idx out of bounds.
   DCHECK_LT(string_idx % mirror::DexCache::kDexCacheStringCacheSize,
             declaring_class->GetDexFile().NumStringIds());
-  mirror::String* string_ptr =
+  ObjPtr<mirror::String> string_ptr =
       mirror::StringDexCachePair::Lookup(declaring_class->GetDexCacheStrings(),
                                          string_idx,
                                          mirror::DexCache::kDexCacheStringCacheSize).Read();
@@ -318,8 +305,10 @@ static inline bool DoIntRemainder(ShadowFrame& shadow_frame, size_t result_reg,
 
 // Handles div-long and div-long-2addr instructions.
 // Returns true on success, otherwise throws a java.lang.ArithmeticException and return false.
-static inline bool DoLongDivide(ShadowFrame& shadow_frame, size_t result_reg,
-                                int64_t dividend, int64_t divisor)
+static inline bool DoLongDivide(ShadowFrame& shadow_frame,
+                                size_t result_reg,
+                                int64_t dividend,
+                                int64_t divisor)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   const int64_t kMinLong = std::numeric_limits<int64_t>::min();
   if (UNLIKELY(divisor == 0)) {
@@ -336,8 +325,10 @@ static inline bool DoLongDivide(ShadowFrame& shadow_frame, size_t result_reg,
 
 // Handles rem-long and rem-long-2addr instructions.
 // Returns true on success, otherwise throws a java.lang.ArithmeticException and return false.
-static inline bool DoLongRemainder(ShadowFrame& shadow_frame, size_t result_reg,
-                                   int64_t dividend, int64_t divisor)
+static inline bool DoLongRemainder(ShadowFrame& shadow_frame,
+                                   size_t result_reg,
+                                   int64_t dividend,
+                                   int64_t divisor)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   const int64_t kMinLong = std::numeric_limits<int64_t>::min();
   if (UNLIKELY(divisor == 0)) {
@@ -443,7 +434,7 @@ static inline void TraceExecution(const ShadowFrame& shadow_frame, const Instruc
         << inst->DumpString(shadow_frame.GetMethod()->GetDexFile()) << "\n";
     for (uint32_t i = 0; i < shadow_frame.NumberOfVRegs(); ++i) {
       uint32_t raw_value = shadow_frame.GetVReg(i);
-      Object* ref_value = shadow_frame.GetVRegReference(i);
+      ObjPtr<mirror::Object> ref_value = shadow_frame.GetVRegReference(i);
       oss << StringPrintf(" vreg%u=0x%08X", i, raw_value);
       if (ref_value != nullptr) {
         if (ref_value->GetClass()->IsStringClass() &&
@@ -469,13 +460,13 @@ static inline void AssignRegister(ShadowFrame* new_shadow_frame, const ShadowFra
     REQUIRES_SHARED(Locks::mutator_lock_) {
   // Uint required, so that sign extension does not make this wrong on 64b systems
   uint32_t src_value = shadow_frame.GetVReg(src_reg);
-  mirror::Object* o = shadow_frame.GetVRegReference<kVerifyNone>(src_reg);
+  ObjPtr<mirror::Object> o = shadow_frame.GetVRegReference<kVerifyNone>(src_reg);
 
   // If both register locations contains the same value, the register probably holds a reference.
   // Note: As an optimization, non-moving collectors leave a stale reference value
   // in the references array even after the original vreg was overwritten to a non-reference.
-  if (src_value == reinterpret_cast<uintptr_t>(o)) {
-    new_shadow_frame->SetVRegReference(dest_reg, o);
+  if (src_value == reinterpret_cast<uintptr_t>(o.Ptr())) {
+    new_shadow_frame->SetVRegReference(dest_reg, o.Ptr());
   } else {
     new_shadow_frame->SetVReg(dest_reg, src_value);
   }
