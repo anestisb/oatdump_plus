@@ -39,6 +39,7 @@
 #include "gc/allocation_listener.h"
 #include "instrumentation.h"
 #include "jni_env_ext-inl.h"
+#include "jvmti_allocator.h"
 #include "mirror/class.h"
 #include "mirror/object.h"
 #include "runtime.h"
@@ -209,6 +210,144 @@ ALWAYS_INLINE inline void ObjectTagTable::UpdateTableWith(T& updater) {
 
   tagged_objects_.max_load_factor(original_max_load_factor);
   // TODO: consider rehash here.
+}
+
+template <typename T, class Allocator = std::allocator<T>>
+struct ReleasableContainer {
+  using allocator_type = Allocator;
+
+  explicit ReleasableContainer(const allocator_type& alloc, size_t reserve = 10)
+      : allocator(alloc),
+        data(reserve > 0 ? allocator.allocate(reserve) : nullptr),
+        size(0),
+        capacity(reserve) {
+  }
+
+  ~ReleasableContainer() {
+    if (data != nullptr) {
+      allocator.deallocate(data, capacity);
+      capacity = 0;
+      size = 0;
+    }
+  }
+
+  T* Release() {
+    T* tmp = data;
+
+    data = nullptr;
+    size = 0;
+    capacity = 0;
+
+    return tmp;
+  }
+
+  void Resize(size_t new_capacity) {
+    CHECK_GT(new_capacity, capacity);
+
+    T* tmp = allocator.allocate(new_capacity);
+    DCHECK(tmp != nullptr);
+    if (data != nullptr) {
+      memcpy(tmp, data, sizeof(T) * size);
+    }
+    T* old = data;
+    data = tmp;
+    allocator.deallocate(old, capacity);
+    capacity = new_capacity;
+  }
+
+  void Pushback(const T& elem) {
+    if (size == capacity) {
+      size_t new_capacity = 2 * capacity + 1;
+      Resize(new_capacity);
+    }
+    data[size++] = elem;
+  }
+
+  Allocator allocator;
+  T* data;
+  size_t size;
+  size_t capacity;
+};
+
+jvmtiError ObjectTagTable::GetTaggedObjects(jvmtiEnv* jvmti_env,
+                                            jint tag_count,
+                                            const jlong* tags,
+                                            jint* count_ptr,
+                                            jobject** object_result_ptr,
+                                            jlong** tag_result_ptr) {
+  if (tag_count < 0) {
+    return ERR(ILLEGAL_ARGUMENT);
+  }
+  if (tag_count > 0) {
+    for (size_t i = 0; i != static_cast<size_t>(tag_count); ++i) {
+      if (tags[i] == 0) {
+        return ERR(ILLEGAL_ARGUMENT);
+      }
+    }
+  }
+  if (tags == nullptr) {
+    return ERR(NULL_POINTER);
+  }
+  if (count_ptr == nullptr) {
+    return ERR(NULL_POINTER);
+  }
+
+  art::Thread* self = art::Thread::Current();
+  art::MutexLock mu(self, allow_disallow_lock_);
+  Wait(self);
+
+  art::JNIEnvExt* jni_env = self->GetJniEnv();
+
+  constexpr size_t kDefaultSize = 10;
+  size_t initial_object_size;
+  size_t initial_tag_size;
+  if (tag_count == 0) {
+    initial_object_size = (object_result_ptr != nullptr) ? tagged_objects_.size() : 0;
+    initial_tag_size = (tag_result_ptr != nullptr) ? tagged_objects_.size() : 0;
+  } else {
+    initial_object_size = initial_tag_size = kDefaultSize;
+  }
+  JvmtiAllocator<void> allocator(jvmti_env);
+  ReleasableContainer<jobject, JvmtiAllocator<jobject>> selected_objects(allocator, initial_object_size);
+  ReleasableContainer<jlong, JvmtiAllocator<jlong>> selected_tags(allocator, initial_tag_size);
+
+  size_t count = 0;
+  for (auto& pair : tagged_objects_) {
+    bool select;
+    if (tag_count > 0) {
+      select = false;
+      for (size_t i = 0; i != static_cast<size_t>(tag_count); ++i) {
+        if (tags[i] == pair.second) {
+          select = true;
+          break;
+        }
+      }
+    } else {
+      select = true;
+    }
+
+    if (select) {
+      art::mirror::Object* obj = pair.first.Read<art::kWithReadBarrier>();
+      if (obj != nullptr) {
+        count++;
+        if (object_result_ptr != nullptr) {
+          selected_objects.Pushback(jni_env->AddLocalReference<jobject>(obj));
+        }
+        if (tag_result_ptr != nullptr) {
+          selected_tags.Pushback(pair.second);
+        }
+      }
+    }
+  }
+
+  if (object_result_ptr != nullptr) {
+    *object_result_ptr = selected_objects.Release();
+  }
+  if (tag_result_ptr != nullptr) {
+    *tag_result_ptr = selected_tags.Release();
+  }
+  *count_ptr = static_cast<jint>(count);
+  return ERR(NONE);
 }
 
 }  // namespace openjdkjvmti
