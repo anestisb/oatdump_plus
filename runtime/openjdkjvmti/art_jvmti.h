@@ -37,6 +37,8 @@
 #include <jni.h>
 
 #include "base/casts.h"
+#include "base/logging.h"
+#include "base/macros.h"
 #include "events.h"
 #include "java_vm_ext.h"
 #include "jni_env_ext.h"
@@ -78,6 +80,32 @@ static inline JNIEnv* GetJniEnv(jvmtiEnv* env) {
     return nullptr;
   }
   return ret_value;
+}
+
+class JvmtiDeleter {
+ public:
+  JvmtiDeleter() : env_(nullptr) {}
+  explicit JvmtiDeleter(jvmtiEnv* env) : env_(env) {}
+
+  JvmtiDeleter(JvmtiDeleter&) = default;
+  JvmtiDeleter(JvmtiDeleter&&) = default;
+  JvmtiDeleter& operator=(const JvmtiDeleter&) = default;
+
+  void operator()(unsigned char* ptr) const {
+    CHECK(env_ != nullptr);
+    jvmtiError ret = env_->Deallocate(ptr);
+    CHECK(ret == ERR(NONE));
+  }
+
+ private:
+  mutable jvmtiEnv* env_;
+};
+
+using JvmtiUniquePtr = std::unique_ptr<unsigned char, JvmtiDeleter>;
+
+ALWAYS_INLINE
+static inline JvmtiUniquePtr MakeJvmtiUniquePtr(jvmtiEnv* env, unsigned char* mem) {
+  return JvmtiUniquePtr(mem, JvmtiDeleter(env));
 }
 
 }  // namespace openjdkjvmti

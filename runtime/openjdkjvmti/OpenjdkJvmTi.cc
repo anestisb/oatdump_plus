@@ -47,6 +47,7 @@
 #include "scoped_thread_state_change-inl.h"
 #include "thread_list.h"
 #include "thread-inl.h"
+#include "ti_method.h"
 #include "transform.h"
 
 // TODO Remove this at some point by annotating all the methods. It was put in to make the skeleton
@@ -635,7 +636,7 @@ class JvmtiFunctions {
                                   char** name_ptr,
                                   char** signature_ptr,
                                   char** generic_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return MethodUtil::GetMethodName(env, method, name_ptr, signature_ptr, generic_ptr);
   }
 
   static jvmtiError GetMethodDeclaringClass(jvmtiEnv* env,

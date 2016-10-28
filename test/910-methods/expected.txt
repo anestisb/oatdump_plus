@@ -1,0 +1,4 @@
+[toString, ()Ljava/lang/String;, null]
+[charAt, (I)C, null]
+[sqrt, (D)D, null]
+[add, (Ljava/lang/Object;)Z, null]
