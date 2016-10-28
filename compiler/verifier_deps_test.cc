@@ -79,17 +79,24 @@ class VerifierDepsTest : public CommonCompilerTest {
     callbacks->SetVerifierDeps(verifier_deps_.get());
   }
 
+  void LoadDexFile(ScopedObjectAccess* soa, const char* name1, const char* name2 = nullptr)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    class_loader_ = (name2 == nullptr) ? LoadDex(name1) : LoadMultiDex(name1, name2);
+    dex_files_ = GetDexFiles(class_loader_);
+    primary_dex_file_ = dex_files_.front();
+
+    SetVerifierDeps(dex_files_);
+    StackHandleScope<1> hs(soa->Self());
+    Handle<mirror::ClassLoader> loader =
+        hs.NewHandle(soa->Decode<mirror::ClassLoader>(class_loader_));
+    for (const DexFile* dex_file : dex_files_) {
+      class_linker_->RegisterDexFile(*dex_file, loader.Get());
+    }
+  }
+
   void LoadDexFile(ScopedObjectAccess* soa) REQUIRES_SHARED(Locks::mutator_lock_) {
-    class_loader_ = LoadDex("VerifierDeps");
-    std::vector<const DexFile*> dex_files = GetDexFiles(class_loader_);
-    CHECK_EQ(dex_files.size(), 1u);
-    dex_file_ = dex_files.front();
-
-    SetVerifierDeps(dex_files);
-
-    ObjPtr<mirror::ClassLoader> loader = soa->Decode<mirror::ClassLoader>(class_loader_);
-    class_linker_->RegisterDexFile(*dex_file_, loader.Ptr());
-
+    LoadDexFile(soa, "VerifierDeps");
+    CHECK_EQ(dex_files_.size(), 1u);
     klass_Main_ = FindClassByName("LMain;", soa);
     CHECK(klass_Main_ != nullptr);
   }
@@ -98,16 +105,16 @@ class VerifierDepsTest : public CommonCompilerTest {
     ScopedObjectAccess soa(Thread::Current());
     LoadDexFile(&soa);
 
-    StackHandleScope<2> hs(Thread::Current());
+    StackHandleScope<2> hs(soa.Self());
     Handle<mirror::ClassLoader> class_loader_handle(
         hs.NewHandle(soa.Decode<mirror::ClassLoader>(class_loader_)));
     Handle<mirror::DexCache> dex_cache_handle(hs.NewHandle(klass_Main_->GetDexCache()));
 
     const DexFile::ClassDef* class_def = klass_Main_->GetClassDef();
-    const uint8_t* class_data = dex_file_->GetClassData(*class_def);
+    const uint8_t* class_data = primary_dex_file_->GetClassData(*class_def);
     CHECK(class_data != nullptr);
 
-    ClassDataItemIterator it(*dex_file_, class_data);
+    ClassDataItemIterator it(*primary_dex_file_, class_data);
     while (it.HasNextStaticField() || it.HasNextInstanceField()) {
       it.Next();
     }
@@ -115,7 +122,7 @@ class VerifierDepsTest : public CommonCompilerTest {
     ArtMethod* method = nullptr;
     while (it.HasNextDirectMethod()) {
       ArtMethod* resolved_method = class_linker_->ResolveMethod<ClassLinker::kNoICCECheckForCache>(
-          *dex_file_,
+          *primary_dex_file_,
           it.GetMemberIndex(),
           dex_cache_handle,
           class_loader_handle,
@@ -131,7 +138,7 @@ class VerifierDepsTest : public CommonCompilerTest {
     CHECK(method != nullptr);
 
     MethodVerifier verifier(Thread::Current(),
-                            dex_file_,
+                            primary_dex_file_,
                             dex_cache_handle,
                             class_loader_handle,
                             *class_def,
@@ -148,19 +155,16 @@ class VerifierDepsTest : public CommonCompilerTest {
     return !verifier.HasFailures();
   }
 
-  void VerifyDexFile() {
+  void VerifyDexFile(const char* multidex = nullptr) {
     std::string error_msg;
     {
       ScopedObjectAccess soa(Thread::Current());
-      LoadDexFile(&soa);
+      LoadDexFile(&soa, "VerifierDeps", multidex);
     }
-    SetVerifierDeps({ dex_file_ });
     TimingLogger timings("Verify", false, false);
-    std::vector<const DexFile*> dex_files;
-    dex_files.push_back(dex_file_);
     compiler_options_->boot_image_ = false;
     compiler_driver_->InitializeThreadPools();
-    compiler_driver_->Verify(class_loader_, dex_files, &timings);
+    compiler_driver_->Verify(class_loader_, dex_files_, &timings);
   }
 
   bool TestAssignabilityRecording(const std::string& dst,
@@ -173,7 +177,7 @@ class VerifierDepsTest : public CommonCompilerTest {
     DCHECK(klass_dst != nullptr);
     mirror::Class* klass_src = FindClassByName(src, &soa);
     DCHECK(klass_src != nullptr);
-    verifier_deps_->AddAssignability(*dex_file_,
+    verifier_deps_->AddAssignability(*primary_dex_file_,
                                      klass_dst,
                                      klass_src,
                                      is_strict,
@@ -182,9 +186,9 @@ class VerifierDepsTest : public CommonCompilerTest {
   }
 
   bool HasUnverifiedClass(const std::string& cls) {
-    const DexFile::TypeId* type_id = dex_file_->FindTypeId(cls.c_str());
+    const DexFile::TypeId* type_id = primary_dex_file_->FindTypeId(cls.c_str());
     DCHECK(type_id != nullptr);
-    uint16_t index = dex_file_->GetIndexForTypeId(*type_id);
+    uint16_t index = primary_dex_file_->GetIndexForTypeId(*type_id);
     MutexLock mu(Thread::Current(), *Locks::verifier_deps_lock_);
     for (const auto& dex_dep : verifier_deps_->dex_deps_) {
       for (uint16_t entry : dex_dep.second->unverified_classes_) {
@@ -396,7 +400,8 @@ class VerifierDepsTest : public CommonCompilerTest {
   }
 
   std::unique_ptr<verifier::VerifierDeps> verifier_deps_;
-  const DexFile* dex_file_;
+  std::vector<const DexFile*> dex_files_;
+  const DexFile* primary_dex_file_;
   jobject class_loader_;
   mirror::Class* klass_Main_;
 };
@@ -407,21 +412,21 @@ TEST_F(VerifierDepsTest, StringToId) {
 
   MutexLock mu(Thread::Current(), *Locks::verifier_deps_lock_);
 
-  uint32_t id_Main1 = verifier_deps_->GetIdFromString(*dex_file_, "LMain;");
-  ASSERT_LT(id_Main1, dex_file_->NumStringIds());
-  ASSERT_EQ("LMain;", verifier_deps_->GetStringFromId(*dex_file_, id_Main1));
+  uint32_t id_Main1 = verifier_deps_->GetIdFromString(*primary_dex_file_, "LMain;");
+  ASSERT_LT(id_Main1, primary_dex_file_->NumStringIds());
+  ASSERT_EQ("LMain;", verifier_deps_->GetStringFromId(*primary_dex_file_, id_Main1));
 
-  uint32_t id_Main2 = verifier_deps_->GetIdFromString(*dex_file_, "LMain;");
-  ASSERT_LT(id_Main2, dex_file_->NumStringIds());
-  ASSERT_EQ("LMain;", verifier_deps_->GetStringFromId(*dex_file_, id_Main2));
+  uint32_t id_Main2 = verifier_deps_->GetIdFromString(*primary_dex_file_, "LMain;");
+  ASSERT_LT(id_Main2, primary_dex_file_->NumStringIds());
+  ASSERT_EQ("LMain;", verifier_deps_->GetStringFromId(*primary_dex_file_, id_Main2));
 
-  uint32_t id_Lorem1 = verifier_deps_->GetIdFromString(*dex_file_, "Lorem ipsum");
-  ASSERT_GE(id_Lorem1, dex_file_->NumStringIds());
-  ASSERT_EQ("Lorem ipsum", verifier_deps_->GetStringFromId(*dex_file_, id_Lorem1));
+  uint32_t id_Lorem1 = verifier_deps_->GetIdFromString(*primary_dex_file_, "Lorem ipsum");
+  ASSERT_GE(id_Lorem1, primary_dex_file_->NumStringIds());
+  ASSERT_EQ("Lorem ipsum", verifier_deps_->GetStringFromId(*primary_dex_file_, id_Lorem1));
 
-  uint32_t id_Lorem2 = verifier_deps_->GetIdFromString(*dex_file_, "Lorem ipsum");
-  ASSERT_GE(id_Lorem2, dex_file_->NumStringIds());
-  ASSERT_EQ("Lorem ipsum", verifier_deps_->GetStringFromId(*dex_file_, id_Lorem2));
+  uint32_t id_Lorem2 = verifier_deps_->GetIdFromString(*primary_dex_file_, "Lorem ipsum");
+  ASSERT_GE(id_Lorem2, primary_dex_file_->NumStringIds());
+  ASSERT_EQ("Lorem ipsum", verifier_deps_->GetStringFromId(*primary_dex_file_, id_Lorem2));
 
   ASSERT_EQ(id_Main1, id_Main2);
   ASSERT_EQ(id_Lorem1, id_Lorem2);
@@ -1068,11 +1073,39 @@ TEST_F(VerifierDepsTest, EncodeDecode) {
   ASSERT_TRUE(HasEachKindOfRecord());
 
   std::vector<uint8_t> buffer;
-  verifier_deps_->Encode(&buffer);
+  verifier_deps_->Encode(dex_files_, &buffer);
   ASSERT_FALSE(buffer.empty());
 
-  VerifierDeps decoded_deps({ dex_file_ }, ArrayRef<uint8_t>(buffer));
+  VerifierDeps decoded_deps(dex_files_, ArrayRef<uint8_t>(buffer));
   ASSERT_TRUE(verifier_deps_->Equals(decoded_deps));
+}
+
+TEST_F(VerifierDepsTest, EncodeDecodeMulti) {
+  VerifyDexFile("MultiDex");
+
+  ASSERT_GT(NumberOfCompiledDexFiles(), 1u);
+  std::vector<uint8_t> buffer;
+  verifier_deps_->Encode(dex_files_, &buffer);
+  ASSERT_FALSE(buffer.empty());
+
+  // Create new DexFile, to mess with std::map order: the verifier deps used
+  // to iterate over the map, which doesn't guarantee insertion order. We fixed
+  // this by passing the expected order when encoding/decoding.
+  std::vector<std::unique_ptr<const DexFile>> first_dex_files = OpenTestDexFiles("VerifierDeps");
+  std::vector<std::unique_ptr<const DexFile>> second_dex_files = OpenTestDexFiles("MultiDex");
+  std::vector<const DexFile*> dex_files;
+  for (auto& dex_file : first_dex_files) {
+    dex_files.push_back(dex_file.get());
+  }
+  for (auto& dex_file : second_dex_files) {
+    dex_files.push_back(dex_file.get());
+  }
+
+  // Dump the new verifier deps to ensure it can properly read the data.
+  VerifierDeps decoded_deps(dex_files, ArrayRef<uint8_t>(buffer));
+  std::ostringstream stream;
+  VariableIndentationOutputStream os(&stream);
+  decoded_deps.Dump(&os);
 }
 
 TEST_F(VerifierDepsTest, UnverifiedClasses) {

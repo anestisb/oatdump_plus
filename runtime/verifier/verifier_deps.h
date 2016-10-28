@@ -25,6 +25,7 @@
 #include "art_method.h"
 #include "base/array_ref.h"
 #include "base/mutex.h"
+#include "indenter.h"
 #include "method_resolution_kind.h"
 #include "method_verifier.h"  // For MethodVerifier::FailureKind.
 #include "obj_ptr.h"
@@ -94,8 +95,15 @@ class VerifierDeps {
       REQUIRES(!Locks::verifier_deps_lock_);
 
   // Serialize the recorded dependencies and store the data into `buffer`.
-  void Encode(std::vector<uint8_t>* buffer) const
+  // `dex_files` provides the order of the dex files in which the dependencies
+  // should be emitted.
+  void Encode(const std::vector<const DexFile*>& dex_files, std::vector<uint8_t>* buffer) const
       REQUIRES(!Locks::verifier_deps_lock_);
+
+  // NO_THREAD_SAFETY_ANALYSIS as Dump iterates over dex_deps_, which is guarded by
+  // verifier_deps_lock_, but we expect Dump to be called once the deps collection is done.
+  void Dump(VariableIndentationOutputStream* vios) const
+      NO_THREAD_SAFETY_ANALYSIS;
 
  private:
   static constexpr uint16_t kUnresolvedMarker = static_cast<uint16_t>(-1);
@@ -185,9 +193,12 @@ class VerifierDeps {
   DexFileDeps* GetDexFileDeps(const DexFile& dex_file)
       NO_THREAD_SAFETY_ANALYSIS;
 
+  const DexFileDeps* GetDexFileDeps(const DexFile& dex_file) const
+      NO_THREAD_SAFETY_ANALYSIS;
+
   // Returns true if `klass` is null or not defined in any of dex files which
   // were reported as being compiled.
-  bool IsInClassPath(ObjPtr<mirror::Class> klass)
+  bool IsInClassPath(ObjPtr<mirror::Class> klass) const
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns the index of `str`. If it is defined in `dex_file_`, this is the dex
@@ -198,13 +209,13 @@ class VerifierDeps {
       REQUIRES(Locks::verifier_deps_lock_);
 
   // Returns the string represented by `id`.
-  std::string GetStringFromId(const DexFile& dex_file, uint32_t string_id)
+  std::string GetStringFromId(const DexFile& dex_file, uint32_t string_id) const
       REQUIRES(Locks::verifier_deps_lock_);
 
   // Returns the bytecode access flags of `element` (bottom 16 bits), or
   // `kUnresolvedMarker` if `element` is null.
   template <typename T>
-  uint16_t GetAccessFlags(T* element)
+  static uint16_t GetAccessFlags(T* element)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns a string ID of the descriptor of the declaring class of `element`,
@@ -251,6 +262,7 @@ class VerifierDeps {
   friend class VerifierDepsTest;
   ART_FRIEND_TEST(VerifierDepsTest, StringToId);
   ART_FRIEND_TEST(VerifierDepsTest, EncodeDecode);
+  ART_FRIEND_TEST(VerifierDepsTest, EncodeDecodeMulti);
 };
 
 }  // namespace verifier
