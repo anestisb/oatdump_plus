@@ -24,6 +24,8 @@
 #include <malloc.h>  // For mallinfo
 #endif
 
+#include "android-base/strings.h"
+
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "base/array_ref.h"
@@ -2011,12 +2013,18 @@ class VerifyClassVisitor : public CompilationVisitor {
       CHECK(klass->IsCompileTimeVerified() || klass->IsErroneous())
           << klass->PrettyDescriptor() << ": state=" << klass->GetStatus();
 
-      // It is *very* problematic if there are verification errors in the boot classpath.
-      // For example, we rely on things working OK without verification when the
-      // decryption dialog is brought up. So abort in a debug build if we find this violated.
-      DCHECK(!manager_->GetCompiler()->GetCompilerOptions().IsBootImage() || klass->IsVerified())
-          << "Boot classpath class " << klass->PrettyClass()
-          << " failed to fully verify.";
+      // It is *very* problematic if there are verification errors in the boot classpath. For example,
+      // we rely on things working OK without verification when the decryption dialog is brought up.
+      // So abort in a debug build if we find this violated.
+      if (kIsDebugBuild) {
+        // TODO(narayan): Remove this special case for signature polymorphic
+        // invokes once verifier support is fully implemented.
+        if (manager_->GetCompiler()->GetCompilerOptions().IsBootImage() &&
+            !android::base::StartsWith(descriptor, "Ljava/lang/invoke/")) {
+          DCHECK(klass->IsVerified()) << "Boot classpath class " << klass->PrettyClass()
+              << " failed to fully verify: state= " << klass->GetStatus();
+        }
+      }
     } else {
       // Make the skip a soft failure, essentially being considered as verify at runtime.
       failure_kind = verifier::MethodVerifier::kSoftFailure;
