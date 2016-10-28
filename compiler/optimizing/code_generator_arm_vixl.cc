@@ -3357,7 +3357,8 @@ void InstructionCodeGeneratorARMVIXL::VisitLoadClass(HLoadClass* cls) {
       GenerateGcRootFieldLoad(cls,
                               out_loc,
                               current_method,
-                              ArtMethod::DeclaringClassOffset().Int32Value());
+                              ArtMethod::DeclaringClassOffset().Int32Value(),
+                              kEmitCompilerReadBarrier);
       break;
     }
     case HLoadClass::LoadKind::kDexCacheViaMethod: {
@@ -3369,7 +3370,7 @@ void InstructionCodeGeneratorARMVIXL::VisitLoadClass(HLoadClass* cls) {
       GetAssembler()->LoadFromOffset(kLoadWord, out, current_method, resolved_types_offset);
       // /* GcRoot<mirror::Class> */ out = out[type_index]
       size_t offset = CodeGenerator::GetCacheOffset(cls->GetTypeIndex());
-      GenerateGcRootFieldLoad(cls, out_loc, out, offset);
+      GenerateGcRootFieldLoad(cls, out_loc, out, offset, kEmitCompilerReadBarrier);
       generate_null_check = !cls->IsInDexCache();
       break;
     }
