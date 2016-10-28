@@ -94,7 +94,7 @@ class ArmVIXLAssembler FINAL : public Assembler {
   void StoreRegisterList(RegList regs, size_t stack_offset);
 
   bool ShifterOperandCanAlwaysHold(uint32_t immediate);
-  bool ShifterOperandCanHold(Opcode opcode, uint32_t immediate, SetCc set_cc);
+  bool ShifterOperandCanHold(Opcode opcode, uint32_t immediate, SetCc set_cc = kCcDontCare);
   bool CanSplitLoadStoreOffset(int32_t allowed_offset_bits,
                                int32_t offset,
                                /*out*/ int32_t* add_to_base,

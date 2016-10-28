@@ -18,6 +18,7 @@
 TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   002-sleep \
   003-omnibus-opcodes \
+  004-checker-UnsafeTest18 \
   004-InterfaceTest \
   004-JniTest \
   004-NativeAllocations \
@@ -26,7 +27,6 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   004-StackWalk \
   004-ThreadStress \
   004-UnsafeTest \
-  004-checker-UnsafeTest18 \
   005-annotations \
   006-args \
   008-exceptions \
@@ -103,7 +103,6 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   107-int-math2 \
   108-check-cast \
   109-suspend-check \
-  112-double-math \
   113-multidex \
   114-ParallelGC \
   117-nopatchoat \
@@ -140,7 +139,6 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   412-new-array \
   413-regalloc-regression \
   414-static-fields \
-  415-optimizing-arith-neg \
   416-optimizing-arith-not \
   417-optimizing-arith-div \
   421-exceptions \
@@ -150,16 +148,13 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   424-checkcast \
   425-invoke-super \
   426-monitor \
-  427-bitwise \
   427-bounds \
   428-optimizing-arith-rem \
   430-live-register-slow-path \
-  431-optimizing-arith-shifts \
   431-type-propagation \
   432-optimizing-cmp \
   434-invoke-direct \
   436-rem-float \
-  436-shift-constant \
   437-inline \
   438-volatile \
   439-npe \
@@ -191,13 +186,11 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   471-deopt-environment \
   472-type-propagation \
   474-checker-boolean-input \
-  474-fp-sub-neg \
   475-regression-inliner-ids \
   477-checker-bound-type \
   478-checker-clinit-check-pruning \
   483-dce-block \
   484-checker-register-hints \
-  485-checker-dce-loop-update \
   485-checker-dce-switch \
   486-checker-must-do-null-check \
   488-checker-inline-recursive-calls \
@@ -219,7 +212,6 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   508-checker-disassembly \
   510-checker-try-catch \
   513-array-deopt \
-  514-shifts \
   515-dce-dominator \
   517-checker-builder-fallthrough \
   518-null-array-get \
@@ -254,7 +246,6 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   538-checker-embed-constants \
   540-checker-rtp-bug \
   541-regression-inlined-deopt \
-  542-bitfield-rotates \
   542-unresolved-access-check \
   543-checker-dce-trycatch \
   543-env-long-ref \
@@ -264,14 +255,13 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   550-checker-regression-wide-store \
   551-checker-shifter-operand \
   551-invoke-super \
-  552-checker-primitive-typeprop \
   552-checker-sharpening \
+  552-checker-primitive-typeprop \
   552-invoke-non-existent-super \
   553-invoke-super \
   554-checker-rtp-checkcast \
   555-UnsafeGetLong-regression \
   556-invoke-super \
-  557-checker-instruct-simplifier-ror \
   558-switch \
   559-bce-ssa \
   559-checker-irreducible-loop \
@@ -282,12 +272,10 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   562-bce-preheader \
   562-no-intermediate \
   563-checker-fakestring \
-  564-checker-bitcount \
   564-checker-irreducible-loop \
   564-checker-negbitwise \
   565-checker-doublenegbitwise \
   565-checker-irreducible-loop \
-  565-checker-rotate \
   566-polymorphic-inlining \
   568-checker-onebit \
   570-checker-osr \
