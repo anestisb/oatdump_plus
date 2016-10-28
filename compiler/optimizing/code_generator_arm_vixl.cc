@@ -2025,7 +2025,7 @@ void InstructionCodeGeneratorARMVIXL::VisitTypeConversion(HTypeConversion* conve
         case Primitive::kPrimFloat: {
           // Processing a Dex `float-to-int' instruction.
           vixl32::SRegister temp = LowSRegisterFrom(locations->GetTemp(0));
-          __ Vcvt(I32, F32, temp, InputSRegisterAt(conversion, 0));
+          __ Vcvt(S32, F32, temp, InputSRegisterAt(conversion, 0));
           __ Vmov(OutputRegister(conversion), temp);
           break;
         }
@@ -2033,7 +2033,7 @@ void InstructionCodeGeneratorARMVIXL::VisitTypeConversion(HTypeConversion* conve
         case Primitive::kPrimDouble: {
           // Processing a Dex `double-to-int' instruction.
           vixl32::SRegister temp_s = LowSRegisterFrom(locations->GetTemp(0));
-          __ Vcvt(I32, F64, temp_s, DRegisterFrom(in));
+          __ Vcvt(S32, F64, temp_s, DRegisterFrom(in));
           __ Vmov(OutputRegister(conversion), temp_s);
           break;
         }
@@ -2109,7 +2109,7 @@ void InstructionCodeGeneratorARMVIXL::VisitTypeConversion(HTypeConversion* conve
         case Primitive::kPrimChar: {
           // Processing a Dex `int-to-float' instruction.
           __ Vmov(OutputSRegister(conversion), InputRegisterAt(conversion, 0));
-          __ Vcvt(F32, I32, OutputSRegister(conversion), OutputSRegister(conversion));
+          __ Vcvt(F32, S32, OutputSRegister(conversion), OutputSRegister(conversion));
           break;
         }
 
@@ -2140,7 +2140,7 @@ void InstructionCodeGeneratorARMVIXL::VisitTypeConversion(HTypeConversion* conve
         case Primitive::kPrimChar: {
           // Processing a Dex `int-to-double' instruction.
           __ Vmov(LowSRegisterFrom(out), InputRegisterAt(conversion, 0));
-          __ Vcvt(F64, I32, DRegisterFrom(out), LowSRegisterFrom(out));
+          __ Vcvt(F64, S32, DRegisterFrom(out), LowSRegisterFrom(out));
           break;
         }
 
@@ -2148,18 +2148,15 @@ void InstructionCodeGeneratorARMVIXL::VisitTypeConversion(HTypeConversion* conve
           // Processing a Dex `long-to-double' instruction.
           vixl32::Register low = LowRegisterFrom(in);
           vixl32::Register high = HighRegisterFrom(in);
-
           vixl32::SRegister out_s = LowSRegisterFrom(out);
           vixl32::DRegister out_d = DRegisterFrom(out);
-
           vixl32::SRegister temp_s = LowSRegisterFrom(locations->GetTemp(0));
           vixl32::DRegister temp_d = DRegisterFrom(locations->GetTemp(0));
-
-          vixl32::DRegister constant_d = DRegisterFrom(locations->GetTemp(0));
+          vixl32::DRegister constant_d = DRegisterFrom(locations->GetTemp(1));
 
           // temp_d = int-to-double(high)
           __ Vmov(temp_s, high);
-          __ Vcvt(F64, I32, temp_d, temp_s);
+          __ Vcvt(F64, S32, temp_d, temp_s);
           // constant_d = k2Pow32EncodingForDouble
           __ Vmov(constant_d, bit_cast<double, int64_t>(k2Pow32EncodingForDouble));
           // out_d = unsigned-to-double(low)
