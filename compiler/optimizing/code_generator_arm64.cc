@@ -4276,7 +4276,7 @@ void InstructionCodeGeneratorARM64::VisitLoadClass(HLoadClass* cls) {
                               out_loc,
                               current_method,
                               ArtMethod::DeclaringClassOffset().Int32Value(),
-                              /*fixup_label*/ nullptr,
+                              /* fixup_label */ nullptr,
                               requires_read_barrier);
       break;
     }
@@ -4321,7 +4321,7 @@ void InstructionCodeGeneratorARM64::VisitLoadClass(HLoadClass* cls) {
                               out_loc,
                               out.X(),
                               offset,
-                              /*fixup_label*/ nullptr,
+                              /* fixup_label */ nullptr,
                               requires_read_barrier);
       generate_null_check = !cls->IsInDexCache();
       break;
@@ -4358,7 +4358,7 @@ void InstructionCodeGeneratorARM64::VisitLoadClass(HLoadClass* cls) {
                               out_loc,
                               out.X(),
                               CodeGenerator::GetCacheOffset(cls->GetTypeIndex()),
-                              /*fixup_label*/ nullptr,
+                              /* fixup_label */ nullptr,
                               requires_read_barrier);
       generate_null_check = !cls->IsInDexCache();
       break;
@@ -4497,8 +4497,9 @@ void InstructionCodeGeneratorARM64::VisitLoadString(HLoadString* load) {
       GenerateGcRootFieldLoad(load,
                               load->GetLocations()->Out(),
                               temp,
-                              /* placeholder */ 0u,
-                              ldr_label);
+                              /* offset placeholder */ 0u,
+                              ldr_label,
+                              kEmitCompilerReadBarrier);
       SlowPathCodeARM64* slow_path =
           new (GetGraph()->GetArena()) LoadStringSlowPathARM64(load, temp, adrp_label);
       codegen_->AddSlowPath(slow_path);

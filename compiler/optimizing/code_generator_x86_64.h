@@ -253,12 +253,12 @@ class InstructionCodeGeneratorX86_64 : public InstructionCodeGenerator {
   //
   //   root <- *address
   //
-  // while honoring read barriers (if any).
+  // while honoring read barriers if `requires_read_barrier` is true.
   void GenerateGcRootFieldLoad(HInstruction* instruction,
                                Location root,
                                const Address& address,
-                               Label* fixup_label = nullptr,
-                               bool requires_read_barrier = kEmitCompilerReadBarrier);
+                               Label* fixup_label,
+                               bool requires_read_barrier);
 
   void PushOntoFPStack(Location source, uint32_t temp_offset,
                        uint32_t stack_adjustment, bool is_float);
