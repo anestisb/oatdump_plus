@@ -1440,6 +1440,65 @@ void InstructionCodeGeneratorARMVIXL::VisitInvokeVirtual(HInvokeVirtual* invoke)
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
 
+void LocationsBuilderARMVIXL::VisitNeg(HNeg* neg) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(neg, LocationSummary::kNoCall);
+  switch (neg->GetResultType()) {
+    case Primitive::kPrimInt: {
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+      break;
+    }
+    case Primitive::kPrimLong: {
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
+      break;
+    }
+
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble:
+      locations->SetInAt(0, Location::RequiresFpuRegister());
+      locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
+      break;
+
+    default:
+      LOG(FATAL) << "Unexpected neg type " << neg->GetResultType();
+  }
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitNeg(HNeg* neg) {
+  LocationSummary* locations = neg->GetLocations();
+  Location out = locations->Out();
+  Location in = locations->InAt(0);
+  switch (neg->GetResultType()) {
+    case Primitive::kPrimInt:
+      __ Rsb(OutputRegister(neg), InputRegisterAt(neg, 0), 0);
+      break;
+
+    case Primitive::kPrimLong:
+      // out.lo = 0 - in.lo (and update the carry/borrow (C) flag)
+      __ Rsbs(LowRegisterFrom(out), LowRegisterFrom(in), 0);
+      // We cannot emit an RSC (Reverse Subtract with Carry)
+      // instruction here, as it does not exist in the Thumb-2
+      // instruction set.  We use the following approach
+      // using SBC and SUB instead.
+      //
+      // out.hi = -C
+      __ Sbc(HighRegisterFrom(out), HighRegisterFrom(out), HighRegisterFrom(out));
+      // out.hi = out.hi - in.hi
+      __ Sub(HighRegisterFrom(out), HighRegisterFrom(out), HighRegisterFrom(in));
+      break;
+
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble:
+      __ Vneg(OutputVRegister(neg), InputVRegisterAt(neg, 0));
+      break;
+
+    default:
+      LOG(FATAL) << "Unexpected neg type " << neg->GetResultType();
+  }
+}
+
 void LocationsBuilderARMVIXL::VisitTypeConversion(HTypeConversion* conversion) {
   Primitive::Type result_type = conversion->GetResultType();
   Primitive::Type input_type = conversion->GetInputType();
@@ -2111,6 +2170,239 @@ void InstructionCodeGeneratorARMVIXL::VisitNewArray(HNewArray* instruction) {
   CheckEntrypointTypes<kQuickAllocArrayWithAccessCheck, void*, uint32_t, int32_t, ArtMethod*>();
 }
 
+void LocationsBuilderARMVIXL::HandleShift(HBinaryOperation* op) {
+  DCHECK(op->IsShl() || op->IsShr() || op->IsUShr());
+
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(op, LocationSummary::kNoCall);
+
+  switch (op->GetResultType()) {
+    case Primitive::kPrimInt: {
+      locations->SetInAt(0, Location::RequiresRegister());
+      if (op->InputAt(1)->IsConstant()) {
+        locations->SetInAt(1, Location::ConstantLocation(op->InputAt(1)->AsConstant()));
+        locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+      } else {
+        locations->SetInAt(1, Location::RequiresRegister());
+        // Make the output overlap, as it will be used to hold the masked
+        // second input.
+        locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
+      }
+      break;
+    }
+    case Primitive::kPrimLong: {
+      locations->SetInAt(0, Location::RequiresRegister());
+      if (op->InputAt(1)->IsConstant()) {
+        locations->SetInAt(1, Location::ConstantLocation(op->InputAt(1)->AsConstant()));
+        // For simplicity, use kOutputOverlap even though we only require that low registers
+        // don't clash with high registers which the register allocator currently guarantees.
+        locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
+      } else {
+        locations->SetInAt(1, Location::RequiresRegister());
+        locations->AddTemp(Location::RequiresRegister());
+        locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
+      }
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unexpected operation type " << op->GetResultType();
+  }
+}
+
+void InstructionCodeGeneratorARMVIXL::HandleShift(HBinaryOperation* op) {
+  DCHECK(op->IsShl() || op->IsShr() || op->IsUShr());
+
+  LocationSummary* locations = op->GetLocations();
+  Location out = locations->Out();
+  Location first = locations->InAt(0);
+  Location second = locations->InAt(1);
+
+  Primitive::Type type = op->GetResultType();
+  switch (type) {
+    case Primitive::kPrimInt: {
+      vixl32::Register out_reg = OutputRegister(op);
+      vixl32::Register first_reg = InputRegisterAt(op, 0);
+      if (second.IsRegister()) {
+        vixl32::Register second_reg = RegisterFrom(second);
+        // ARM doesn't mask the shift count so we need to do it ourselves.
+        __ And(out_reg, second_reg, kMaxIntShiftDistance);
+        if (op->IsShl()) {
+          __ Lsl(out_reg, first_reg, out_reg);
+        } else if (op->IsShr()) {
+          __ Asr(out_reg, first_reg, out_reg);
+        } else {
+          __ Lsr(out_reg, first_reg, out_reg);
+        }
+      } else {
+        int32_t cst = second.GetConstant()->AsIntConstant()->GetValue();
+        uint32_t shift_value = cst & kMaxIntShiftDistance;
+        if (shift_value == 0) {  // ARM does not support shifting with 0 immediate.
+          __ Mov(out_reg, first_reg);
+        } else if (op->IsShl()) {
+          __ Lsl(out_reg, first_reg, shift_value);
+        } else if (op->IsShr()) {
+          __ Asr(out_reg, first_reg, shift_value);
+        } else {
+          __ Lsr(out_reg, first_reg, shift_value);
+        }
+      }
+      break;
+    }
+    case Primitive::kPrimLong: {
+      vixl32::Register o_h = HighRegisterFrom(out);
+      vixl32::Register o_l = LowRegisterFrom(out);
+
+      vixl32::Register high = HighRegisterFrom(first);
+      vixl32::Register low = LowRegisterFrom(first);
+
+      if (second.IsRegister()) {
+        vixl32::Register temp = RegisterFrom(locations->GetTemp(0));
+
+        vixl32::Register second_reg = RegisterFrom(second);
+
+        if (op->IsShl()) {
+          __ And(o_l, second_reg, kMaxLongShiftDistance);
+          // Shift the high part
+          __ Lsl(o_h, high, o_l);
+          // Shift the low part and `or` what overflew on the high part
+          __ Rsb(temp, o_l, kArmBitsPerWord);
+          __ Lsr(temp, low, temp);
+          __ Orr(o_h, o_h, temp);
+          // If the shift is > 32 bits, override the high part
+          __ Subs(temp, o_l, kArmBitsPerWord);
+          {
+            AssemblerAccurateScope guard(GetVIXLAssembler(),
+                                         3 * kArmInstrMaxSizeInBytes,
+                                         CodeBufferCheckScope::kMaximumSize);
+            __ it(pl);
+            __ lsl(pl, o_h, low, temp);
+          }
+          // Shift the low part
+          __ Lsl(o_l, low, o_l);
+        } else if (op->IsShr()) {
+          __ And(o_h, second_reg, kMaxLongShiftDistance);
+          // Shift the low part
+          __ Lsr(o_l, low, o_h);
+          // Shift the high part and `or` what underflew on the low part
+          __ Rsb(temp, o_h, kArmBitsPerWord);
+          __ Lsl(temp, high, temp);
+          __ Orr(o_l, o_l, temp);
+          // If the shift is > 32 bits, override the low part
+          __ Subs(temp, o_h, kArmBitsPerWord);
+          {
+            AssemblerAccurateScope guard(GetVIXLAssembler(),
+                                         3 * kArmInstrMaxSizeInBytes,
+                                         CodeBufferCheckScope::kMaximumSize);
+            __ it(pl);
+            __ asr(pl, o_l, high, temp);
+          }
+          // Shift the high part
+          __ Asr(o_h, high, o_h);
+        } else {
+          __ And(o_h, second_reg, kMaxLongShiftDistance);
+          // same as Shr except we use `Lsr`s and not `Asr`s
+          __ Lsr(o_l, low, o_h);
+          __ Rsb(temp, o_h, kArmBitsPerWord);
+          __ Lsl(temp, high, temp);
+          __ Orr(o_l, o_l, temp);
+          __ Subs(temp, o_h, kArmBitsPerWord);
+          {
+            AssemblerAccurateScope guard(GetVIXLAssembler(),
+                                         3 * kArmInstrMaxSizeInBytes,
+                                         CodeBufferCheckScope::kMaximumSize);
+          __ it(pl);
+          __ lsr(pl, o_l, high, temp);
+          }
+          __ Lsr(o_h, high, o_h);
+        }
+      } else {
+        // Register allocator doesn't create partial overlap.
+        DCHECK(!o_l.Is(high));
+        DCHECK(!o_h.Is(low));
+        int32_t cst = second.GetConstant()->AsIntConstant()->GetValue();
+        uint32_t shift_value = cst & kMaxLongShiftDistance;
+        if (shift_value > 32) {
+          if (op->IsShl()) {
+            __ Lsl(o_h, low, shift_value - 32);
+            __ Mov(o_l, 0);
+          } else if (op->IsShr()) {
+            __ Asr(o_l, high, shift_value - 32);
+            __ Asr(o_h, high, 31);
+          } else {
+            __ Lsr(o_l, high, shift_value - 32);
+            __ Mov(o_h, 0);
+          }
+        } else if (shift_value == 32) {
+          if (op->IsShl()) {
+            __ Mov(o_h, low);
+            __ Mov(o_l, 0);
+          } else if (op->IsShr()) {
+            __ Mov(o_l, high);
+            __ Asr(o_h, high, 31);
+          } else {
+            __ Mov(o_l, high);
+            __ Mov(o_h, 0);
+          }
+        } else if (shift_value == 1) {
+          if (op->IsShl()) {
+            __ Lsls(o_l, low, 1);
+            __ Adc(o_h, high, high);
+          } else if (op->IsShr()) {
+            __ Asrs(o_h, high, 1);
+            __ Rrx(o_l, low);
+          } else {
+            __ Lsrs(o_h, high, 1);
+            __ Rrx(o_l, low);
+          }
+        } else {
+          DCHECK(2 <= shift_value && shift_value < 32) << shift_value;
+          if (op->IsShl()) {
+            __ Lsl(o_h, high, shift_value);
+            __ Orr(o_h, o_h, Operand(low, ShiftType::LSR, 32 - shift_value));
+            __ Lsl(o_l, low, shift_value);
+          } else if (op->IsShr()) {
+            __ Lsr(o_l, low, shift_value);
+            __ Orr(o_l, o_l, Operand(high, ShiftType::LSL, 32 - shift_value));
+            __ Asr(o_h, high, shift_value);
+          } else {
+            __ Lsr(o_l, low, shift_value);
+            __ Orr(o_l, o_l, Operand(high, ShiftType::LSL, 32 - shift_value));
+            __ Lsr(o_h, high, shift_value);
+          }
+        }
+      }
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unexpected operation type " << type;
+      UNREACHABLE();
+  }
+}
+
+void LocationsBuilderARMVIXL::VisitShl(HShl* shl) {
+  HandleShift(shl);
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitShl(HShl* shl) {
+  HandleShift(shl);
+}
+
+void LocationsBuilderARMVIXL::VisitShr(HShr* shr) {
+  HandleShift(shr);
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitShr(HShr* shr) {
+  HandleShift(shr);
+}
+
+void LocationsBuilderARMVIXL::VisitUShr(HUShr* ushr) {
+  HandleShift(ushr);
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitUShr(HUShr* ushr) {
+  HandleShift(ushr);
+}
+
 void LocationsBuilderARMVIXL::VisitNewInstance(HNewInstance* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCallOnMainOnly);
@@ -2613,6 +2905,143 @@ void InstructionCodeGeneratorARMVIXL::VisitDivZeroCheck(HDivZeroCheck* instructi
   }
 }
 
+void InstructionCodeGeneratorARMVIXL::HandleIntegerRotate(HRor* ror) {
+  LocationSummary* locations = ror->GetLocations();
+  vixl32::Register in = InputRegisterAt(ror, 0);
+  Location rhs = locations->InAt(1);
+  vixl32::Register out = OutputRegister(ror);
+
+  if (rhs.IsConstant()) {
+    // Arm32 and Thumb2 assemblers require a rotation on the interval [1,31],
+    // so map all rotations to a +ve. equivalent in that range.
+    // (e.g. left *or* right by -2 bits == 30 bits in the same direction.)
+    uint32_t rot = CodeGenerator::GetInt32ValueOf(rhs.GetConstant()) & 0x1F;
+    if (rot) {
+      // Rotate, mapping left rotations to right equivalents if necessary.
+      // (e.g. left by 2 bits == right by 30.)
+      __ Ror(out, in, rot);
+    } else if (!out.Is(in)) {
+      __ Mov(out, in);
+    }
+  } else {
+    __ Ror(out, in, RegisterFrom(rhs));
+  }
+}
+
+// Gain some speed by mapping all Long rotates onto equivalent pairs of Integer
+// rotates by swapping input regs (effectively rotating by the first 32-bits of
+// a larger rotation) or flipping direction (thus treating larger right/left
+// rotations as sub-word sized rotations in the other direction) as appropriate.
+void InstructionCodeGeneratorARMVIXL::HandleLongRotate(HRor* ror) {
+  LocationSummary* locations = ror->GetLocations();
+  vixl32::Register in_reg_lo = LowRegisterFrom(locations->InAt(0));
+  vixl32::Register in_reg_hi = HighRegisterFrom(locations->InAt(0));
+  Location rhs = locations->InAt(1);
+  vixl32::Register out_reg_lo = LowRegisterFrom(locations->Out());
+  vixl32::Register out_reg_hi = HighRegisterFrom(locations->Out());
+
+  if (rhs.IsConstant()) {
+    uint64_t rot = CodeGenerator::GetInt64ValueOf(rhs.GetConstant());
+    // Map all rotations to +ve. equivalents on the interval [0,63].
+    rot &= kMaxLongShiftDistance;
+    // For rotates over a word in size, 'pre-rotate' by 32-bits to keep rotate
+    // logic below to a simple pair of binary orr.
+    // (e.g. 34 bits == in_reg swap + 2 bits right.)
+    if (rot >= kArmBitsPerWord) {
+      rot -= kArmBitsPerWord;
+      std::swap(in_reg_hi, in_reg_lo);
+    }
+    // Rotate, or mov to out for zero or word size rotations.
+    if (rot != 0u) {
+      __ Lsr(out_reg_hi, in_reg_hi, rot);
+      __ Orr(out_reg_hi, out_reg_hi, Operand(in_reg_lo, ShiftType::LSL, kArmBitsPerWord - rot));
+      __ Lsr(out_reg_lo, in_reg_lo, rot);
+      __ Orr(out_reg_lo, out_reg_lo, Operand(in_reg_hi, ShiftType::LSL, kArmBitsPerWord - rot));
+    } else {
+      __ Mov(out_reg_lo, in_reg_lo);
+      __ Mov(out_reg_hi, in_reg_hi);
+    }
+  } else {
+    vixl32::Register shift_right = RegisterFrom(locations->GetTemp(0));
+    vixl32::Register shift_left = RegisterFrom(locations->GetTemp(1));
+    vixl32::Label end;
+    vixl32::Label shift_by_32_plus_shift_right;
+
+    __ And(shift_right, RegisterFrom(rhs), 0x1F);
+    __ Lsrs(shift_left, RegisterFrom(rhs), 6);
+    // TODO(VIXL): Check that flags are kept after "vixl32::LeaveFlags" enabled.
+    __ Rsb(shift_left, shift_right, kArmBitsPerWord);
+    __ B(cc, &shift_by_32_plus_shift_right);
+
+    // out_reg_hi = (reg_hi << shift_left) | (reg_lo >> shift_right).
+    // out_reg_lo = (reg_lo << shift_left) | (reg_hi >> shift_right).
+    __ Lsl(out_reg_hi, in_reg_hi, shift_left);
+    __ Lsr(out_reg_lo, in_reg_lo, shift_right);
+    __ Add(out_reg_hi, out_reg_hi, out_reg_lo);
+    __ Lsl(out_reg_lo, in_reg_lo, shift_left);
+    __ Lsr(shift_left, in_reg_hi, shift_right);
+    __ Add(out_reg_lo, out_reg_lo, shift_left);
+    __ B(&end);
+
+    __ Bind(&shift_by_32_plus_shift_right);  // Shift by 32+shift_right.
+    // out_reg_hi = (reg_hi >> shift_right) | (reg_lo << shift_left).
+    // out_reg_lo = (reg_lo >> shift_right) | (reg_hi << shift_left).
+    __ Lsr(out_reg_hi, in_reg_hi, shift_right);
+    __ Lsl(out_reg_lo, in_reg_lo, shift_left);
+    __ Add(out_reg_hi, out_reg_hi, out_reg_lo);
+    __ Lsr(out_reg_lo, in_reg_lo, shift_right);
+    __ Lsl(shift_right, in_reg_hi, shift_left);
+    __ Add(out_reg_lo, out_reg_lo, shift_right);
+
+    __ Bind(&end);
+  }
+}
+
+void LocationsBuilderARMVIXL::VisitRor(HRor* ror) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(ror, LocationSummary::kNoCall);
+  switch (ror->GetResultType()) {
+    case Primitive::kPrimInt: {
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RegisterOrConstant(ror->InputAt(1)));
+      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+      break;
+    }
+    case Primitive::kPrimLong: {
+      locations->SetInAt(0, Location::RequiresRegister());
+      if (ror->InputAt(1)->IsConstant()) {
+        locations->SetInAt(1, Location::ConstantLocation(ror->InputAt(1)->AsConstant()));
+      } else {
+        locations->SetInAt(1, Location::RequiresRegister());
+        locations->AddTemp(Location::RequiresRegister());
+        locations->AddTemp(Location::RequiresRegister());
+      }
+      locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unexpected operation type " << ror->GetResultType();
+  }
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitRor(HRor* ror) {
+  Primitive::Type type = ror->GetResultType();
+  switch (type) {
+    case Primitive::kPrimInt: {
+      HandleIntegerRotate(ror);
+      break;
+    }
+    case Primitive::kPrimLong: {
+      HandleLongRotate(ror);
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unexpected operation type " << type;
+      UNREACHABLE();
+  }
+}
+
+
 void LocationsBuilderARMVIXL::HandleFieldSet(
     HInstruction* instruction, const FieldInfo& field_info) {
   DCHECK(instruction->IsInstanceFieldSet() || instruction->IsStaticFieldSet());
@@ -2769,6 +3198,68 @@ void InstructionCodeGeneratorARMVIXL::HandleFieldSet(HInstruction* instruction,
   if (is_volatile) {
     codegen_->GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
   }
+}
+
+Location LocationsBuilderARMVIXL::ArmEncodableConstantOrRegister(HInstruction* constant,
+                                                                 Opcode opcode) {
+  DCHECK(!Primitive::IsFloatingPointType(constant->GetType()));
+  if (constant->IsConstant() &&
+      CanEncodeConstantAsImmediate(constant->AsConstant(), opcode)) {
+    return Location::ConstantLocation(constant->AsConstant());
+  }
+  return Location::RequiresRegister();
+}
+
+bool LocationsBuilderARMVIXL::CanEncodeConstantAsImmediate(HConstant* input_cst,
+                                                           Opcode opcode) {
+  uint64_t value = static_cast<uint64_t>(Int64FromConstant(input_cst));
+  if (Primitive::Is64BitType(input_cst->GetType())) {
+    Opcode high_opcode = opcode;
+    SetCc low_set_cc = kCcDontCare;
+    switch (opcode) {
+      case SUB:
+        // Flip the operation to an ADD.
+        value = -value;
+        opcode = ADD;
+        FALLTHROUGH_INTENDED;
+      case ADD:
+        if (Low32Bits(value) == 0u) {
+          return CanEncodeConstantAsImmediate(High32Bits(value), opcode, kCcDontCare);
+        }
+        high_opcode = ADC;
+        low_set_cc = kCcSet;
+        break;
+      default:
+        break;
+    }
+    return CanEncodeConstantAsImmediate(Low32Bits(value), opcode, low_set_cc) &&
+        CanEncodeConstantAsImmediate(High32Bits(value), high_opcode, kCcDontCare);
+  } else {
+    return CanEncodeConstantAsImmediate(Low32Bits(value), opcode);
+  }
+}
+
+// TODO(VIXL): Replace art::arm::SetCc` with `vixl32::FlagsUpdate after flags set optimization
+// enabled.
+bool LocationsBuilderARMVIXL::CanEncodeConstantAsImmediate(uint32_t value,
+                                                           Opcode opcode,
+                                                           SetCc set_cc) {
+  ArmVIXLAssembler* assembler = codegen_->GetAssembler();
+  if (assembler->ShifterOperandCanHold(opcode, value, set_cc)) {
+    return true;
+  }
+  Opcode neg_opcode = kNoOperand;
+  switch (opcode) {
+    case AND: neg_opcode = BIC; value = ~value; break;
+    case ORR: neg_opcode = ORN; value = ~value; break;
+    case ADD: neg_opcode = SUB; value = -value; break;
+    case ADC: neg_opcode = SBC; value = ~value; break;
+    case SUB: neg_opcode = ADD; value = -value; break;
+    case SBC: neg_opcode = ADC; value = ~value; break;
+    default:
+      return false;
+  }
+  return assembler->ShifterOperandCanHold(neg_opcode, value, set_cc);
 }
 
 Location LocationsBuilderARMVIXL::ArithmeticZeroOrFpuRegister(HInstruction* input) {
@@ -3390,6 +3881,177 @@ void InstructionCodeGeneratorARMVIXL::VisitLoadClass(HLoadClass* cls) {
       GenerateClassInitializationCheck(slow_path, out);
     } else {
       __ Bind(slow_path->GetExitLabel());
+    }
+  }
+}
+
+void LocationsBuilderARMVIXL::VisitAnd(HAnd* instruction) {
+  HandleBitwiseOperation(instruction, AND);
+}
+
+void LocationsBuilderARMVIXL::VisitOr(HOr* instruction) {
+  HandleBitwiseOperation(instruction, ORR);
+}
+
+void LocationsBuilderARMVIXL::VisitXor(HXor* instruction) {
+  HandleBitwiseOperation(instruction, EOR);
+}
+
+void LocationsBuilderARMVIXL::HandleBitwiseOperation(HBinaryOperation* instruction, Opcode opcode) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
+  DCHECK(instruction->GetResultType() == Primitive::kPrimInt
+         || instruction->GetResultType() == Primitive::kPrimLong);
+  // Note: GVN reorders commutative operations to have the constant on the right hand side.
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, ArmEncodableConstantOrRegister(instruction->InputAt(1), opcode));
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitAnd(HAnd* instruction) {
+  HandleBitwiseOperation(instruction);
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitOr(HOr* instruction) {
+  HandleBitwiseOperation(instruction);
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitXor(HXor* instruction) {
+  HandleBitwiseOperation(instruction);
+}
+
+// TODO(VIXL): Remove optimizations in the helper when they are implemented in vixl.
+void InstructionCodeGeneratorARMVIXL::GenerateAndConst(vixl32::Register out,
+                                                       vixl32::Register first,
+                                                       uint32_t value) {
+  // Optimize special cases for individual halfs of `and-long` (`and` is simplified earlier).
+  if (value == 0xffffffffu) {
+    if (!out.Is(first)) {
+      __ Mov(out, first);
+    }
+    return;
+  }
+  if (value == 0u) {
+    __ Mov(out, 0);
+    return;
+  }
+  if (GetAssembler()->ShifterOperandCanHold(AND, value)) {
+  __ And(out, first, value);
+  } else {
+    DCHECK(GetAssembler()->ShifterOperandCanHold(BIC, ~value));
+  __ Bic(out, first, ~value);
+  }
+}
+
+// TODO(VIXL): Remove optimizations in the helper when they are implemented in vixl.
+void InstructionCodeGeneratorARMVIXL::GenerateOrrConst(vixl32::Register out,
+                                                       vixl32::Register first,
+                                                       uint32_t value) {
+  // Optimize special cases for individual halfs of `or-long` (`or` is simplified earlier).
+  if (value == 0u) {
+    if (!out.Is(first)) {
+      __ Mov(out, first);
+    }
+    return;
+  }
+  if (value == 0xffffffffu) {
+    __ Mvn(out, 0);
+    return;
+  }
+  if (GetAssembler()->ShifterOperandCanHold(ORR, value)) {
+    __ Orr(out, first, value);
+  } else {
+    DCHECK(GetAssembler()->ShifterOperandCanHold(ORN, ~value));
+    __ Orn(out, first, ~value);
+  }
+}
+
+// TODO(VIXL): Remove optimizations in the helper when they are implemented in vixl.
+void InstructionCodeGeneratorARMVIXL::GenerateEorConst(vixl32::Register out,
+                                                       vixl32::Register first,
+                                                       uint32_t value) {
+  // Optimize special case for individual halfs of `xor-long` (`xor` is simplified earlier).
+  if (value == 0u) {
+    if (!out.Is(first)) {
+      __ Mov(out, first);
+    }
+    return;
+  }
+  __ Eor(out, first, value);
+}
+
+void InstructionCodeGeneratorARMVIXL::HandleBitwiseOperation(HBinaryOperation* instruction) {
+  LocationSummary* locations = instruction->GetLocations();
+  Location first = locations->InAt(0);
+  Location second = locations->InAt(1);
+  Location out = locations->Out();
+
+  if (second.IsConstant()) {
+    uint64_t value = static_cast<uint64_t>(Int64FromConstant(second.GetConstant()));
+    uint32_t value_low = Low32Bits(value);
+    if (instruction->GetResultType() == Primitive::kPrimInt) {
+      vixl32::Register first_reg = InputRegisterAt(instruction, 0);
+      vixl32::Register out_reg = OutputRegister(instruction);
+      if (instruction->IsAnd()) {
+        GenerateAndConst(out_reg, first_reg, value_low);
+      } else if (instruction->IsOr()) {
+        GenerateOrrConst(out_reg, first_reg, value_low);
+      } else {
+        DCHECK(instruction->IsXor());
+        GenerateEorConst(out_reg, first_reg, value_low);
+      }
+    } else {
+      DCHECK_EQ(instruction->GetResultType(), Primitive::kPrimLong);
+      uint32_t value_high = High32Bits(value);
+      vixl32::Register first_low = LowRegisterFrom(first);
+      vixl32::Register first_high = HighRegisterFrom(first);
+      vixl32::Register out_low = LowRegisterFrom(out);
+      vixl32::Register out_high = HighRegisterFrom(out);
+      if (instruction->IsAnd()) {
+        GenerateAndConst(out_low, first_low, value_low);
+        GenerateAndConst(out_high, first_high, value_high);
+      } else if (instruction->IsOr()) {
+        GenerateOrrConst(out_low, first_low, value_low);
+        GenerateOrrConst(out_high, first_high, value_high);
+      } else {
+        DCHECK(instruction->IsXor());
+        GenerateEorConst(out_low, first_low, value_low);
+        GenerateEorConst(out_high, first_high, value_high);
+      }
+    }
+    return;
+  }
+
+  if (instruction->GetResultType() == Primitive::kPrimInt) {
+    vixl32::Register first_reg = InputRegisterAt(instruction, 0);
+    vixl32::Register second_reg = InputRegisterAt(instruction, 1);
+    vixl32::Register out_reg = OutputRegister(instruction);
+    if (instruction->IsAnd()) {
+      __ And(out_reg, first_reg, second_reg);
+    } else if (instruction->IsOr()) {
+      __ Orr(out_reg, first_reg, second_reg);
+    } else {
+      DCHECK(instruction->IsXor());
+      __ Eor(out_reg, first_reg, second_reg);
+    }
+  } else {
+    DCHECK_EQ(instruction->GetResultType(), Primitive::kPrimLong);
+    vixl32::Register first_low = LowRegisterFrom(first);
+    vixl32::Register first_high = HighRegisterFrom(first);
+    vixl32::Register second_low = LowRegisterFrom(second);
+    vixl32::Register second_high = HighRegisterFrom(second);
+    vixl32::Register out_low = LowRegisterFrom(out);
+    vixl32::Register out_high = HighRegisterFrom(out);
+    if (instruction->IsAnd()) {
+      __ And(out_low, first_low, second_low);
+      __ And(out_high, first_high, second_high);
+    } else if (instruction->IsOr()) {
+      __ Orr(out_low, first_low, second_low);
+      __ Orr(out_high, first_high, second_high);
+    } else {
+      DCHECK(instruction->IsXor());
+      __ Eor(out_low, first_low, second_low);
+      __ Eor(out_high, first_high, second_high);
     }
   }
 }

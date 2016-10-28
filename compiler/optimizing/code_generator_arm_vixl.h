@@ -105,6 +105,7 @@ class LoadClassSlowPathARMVIXL;
   M(Above)                                      \
   M(AboveOrEqual)                               \
   M(Add)                                        \
+  M(And)                                        \
   M(ArrayLength)                                \
   M(Below)                                      \
   M(BelowOrEqual)                               \
@@ -135,28 +136,34 @@ class LoadClassSlowPathARMVIXL;
   M(LongConstant)                               \
   M(MemoryBarrier)                              \
   M(Mul)                                        \
+  M(Neg)                                        \
   M(NewArray)                                   \
   M(NewInstance)                                \
   M(Not)                                        \
   M(NotEqual)                                   \
   M(NullCheck)                                  \
   M(NullConstant)                               \
+  M(Or)                                         \
   M(ParallelMove)                               \
   M(ParameterValue)                             \
   M(Phi)                                        \
   M(Return)                                     \
   M(ReturnVoid)                                 \
+  M(Ror)                                        \
   M(Select)                                     \
+  M(Shl)                                        \
+  M(Shr)                                        \
   M(StaticFieldGet)                             \
   M(Sub)                                        \
   M(SuspendCheck)                               \
   M(Throw)                                      \
   M(TryBoundary)                                \
   M(TypeConversion)                             \
+  M(UShr)                                       \
+  M(Xor)                                        \
 
 // TODO: Remove once the VIXL32 backend is implemented completely.
 #define FOR_EACH_UNIMPLEMENTED_INSTRUCTION(M)   \
-  M(And)                                        \
   M(ArrayGet)                                   \
   M(ArraySet)                                   \
   M(BooleanNot)                                 \
@@ -170,20 +177,13 @@ class LoadClassSlowPathARMVIXL;
   M(InvokeUnresolved)                           \
   M(MonitorOperation)                           \
   M(NativeDebugInfo)                            \
-  M(Neg)                                        \
-  M(Or)                                         \
   M(PackedSwitch)                               \
   M(Rem)                                        \
-  M(Ror)                                        \
-  M(Shl)                                        \
-  M(Shr)                                        \
   M(StaticFieldSet)                             \
   M(UnresolvedInstanceFieldGet)                 \
   M(UnresolvedInstanceFieldSet)                 \
   M(UnresolvedStaticFieldGet)                   \
   M(UnresolvedStaticFieldSet)                   \
-  M(UShr)                                       \
-  M(Xor)                                        \
 
 class CodeGeneratorARMVIXL;
 
@@ -276,11 +276,18 @@ class LocationsBuilderARMVIXL : public HGraphVisitor {
   }
 
   void HandleInvoke(HInvoke* invoke);
+  void HandleBitwiseOperation(HBinaryOperation* operation, Opcode opcode);
   void HandleCondition(HCondition* condition);
+  void HandleIntegerRotate(LocationSummary* locations);
+  void HandleLongRotate(LocationSummary* locations);
+  void HandleShift(HBinaryOperation* operation);
   void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info);
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
 
   Location ArithmeticZeroOrFpuRegister(HInstruction* input);
+  Location ArmEncodableConstantOrRegister(HInstruction* constant, Opcode opcode);
+  bool CanEncodeConstantAsImmediate(HConstant* input_cst, Opcode opcode);
+  bool CanEncodeConstantAsImmediate(uint32_t value, Opcode opcode, SetCc set_cc = kCcDontCare);
 
   CodeGeneratorARMVIXL* const codegen_;
   InvokeDexCallingConventionVisitorARM parameter_visitor_;
@@ -311,7 +318,14 @@ class InstructionCodeGeneratorARMVIXL : public InstructionCodeGenerator {
   void GenerateClassInitializationCheck(LoadClassSlowPathARMVIXL* slow_path,
                                         vixl32::Register class_reg);
   void HandleGoto(HInstruction* got, HBasicBlock* successor);
+  void GenerateAndConst(vixl::aarch32::Register out, vixl::aarch32::Register first, uint32_t value);
+  void GenerateOrrConst(vixl::aarch32::Register out, vixl::aarch32::Register first, uint32_t value);
+  void GenerateEorConst(vixl::aarch32::Register out, vixl::aarch32::Register first, uint32_t value);
+  void HandleBitwiseOperation(HBinaryOperation* operation);
   void HandleCondition(HCondition* condition);
+  void HandleIntegerRotate(HRor* ror);
+  void HandleLongRotate(HRor* ror);
+  void HandleShift(HBinaryOperation* operation);
 
   void GenerateWideAtomicStore(vixl::aarch32::Register addr,
                                uint32_t offset,
