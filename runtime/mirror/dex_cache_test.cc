@@ -55,9 +55,8 @@ TEST_F(DexCacheTest, Open) {
   EXPECT_EQ(java_lang_dex_file_->NumTypeIds(),   dex_cache->NumResolvedTypes());
   EXPECT_EQ(java_lang_dex_file_->NumMethodIds(), dex_cache->NumResolvedMethods());
   EXPECT_EQ(java_lang_dex_file_->NumFieldIds(),  dex_cache->NumResolvedFields());
-  // This should always be zero because the -Xexperimental:method-handles isn't
-  // set.
-  EXPECT_EQ(0u, dex_cache->NumResolvedMethodTypes());
+  EXPECT_TRUE(dex_cache->StaticMethodTypeSize() == dex_cache->NumResolvedMethodTypes()
+      || java_lang_dex_file_->NumProtoIds() == dex_cache->NumResolvedMethodTypes());
 }
 
 TEST_F(DexCacheMethodHandlesTest, Open) {
