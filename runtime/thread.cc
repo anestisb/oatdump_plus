@@ -1827,14 +1827,6 @@ void Thread::RemoveFromThreadGroup(ScopedObjectAccess& soa) {
   }
 }
 
-size_t Thread::NumHandleReferences() {
-  size_t count = 0;
-  for (BaseHandleScope* cur = tlsPtr_.top_handle_scope; cur != nullptr; cur = cur->GetLink()) {
-    count += cur->NumberOfReferences();
-  }
-  return count;
-}
-
 bool Thread::HandleScopeContains(jobject obj) const {
   StackReference<mirror::Object>* hs_entry =
       reinterpret_cast<StackReference<mirror::Object>*>(obj);

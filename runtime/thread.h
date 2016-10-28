@@ -731,9 +731,6 @@ class Thread {
     tlsPtr_.stack_end = tlsPtr_.stack_begin + GetStackOverflowReservedBytes(kRuntimeISA);
   }
 
-  // Install the protected region for implicit stack checks.
-  void InstallImplicitProtection();
-
   bool IsHandlingStackOverflow() const {
     return tlsPtr_.stack_end == tlsPtr_.stack_begin;
   }
@@ -782,19 +779,6 @@ class Thread {
     return ThreadOffsetFromTlsPtr<pointer_size>(
         OFFSETOF_MEMBER(tls_ptr_sized_values, managed_stack) +
         ManagedStack::TopShadowFrameOffset());
-  }
-
-  // Number of references allocated in JNI ShadowFrames on this thread.
-  size_t NumJniShadowFrameReferences() const REQUIRES_SHARED(Locks::mutator_lock_) {
-    return tlsPtr_.managed_stack.NumJniShadowFrameReferences();
-  }
-
-  // Number of references in handle scope on this thread.
-  size_t NumHandleReferences();
-
-  // Number of references allocated in handle scopes & JNI shadow frames on this thread.
-  size_t NumStackReferences() REQUIRES_SHARED(Locks::mutator_lock_) {
-    return NumHandleReferences() + NumJniShadowFrameReferences();
   }
 
   // Is the given obj in this thread's stack indirect reference table?
@@ -981,11 +965,6 @@ class Thread {
   void SetHeldMutex(LockLevel level, BaseMutex* mutex) {
     tlsPtr_.held_mutexes[level] = mutex;
   }
-
-  void RunCheckpointFunction();
-
-  bool PassActiveSuspendBarriers(Thread* self)
-      REQUIRES(!Locks::thread_suspend_count_lock_);
 
   void ClearSuspendBarrier(AtomicInteger* target)
       REQUIRES(Locks::thread_suspend_count_lock_);
@@ -1235,6 +1214,14 @@ class Thread {
                                   AtomicInteger* suspend_barrier,
                                   bool for_debugger)
       REQUIRES(Locks::thread_suspend_count_lock_);
+
+  void RunCheckpointFunction();
+
+  bool PassActiveSuspendBarriers(Thread* self)
+      REQUIRES(!Locks::thread_suspend_count_lock_);
+
+  // Install the protected region for implicit stack checks.
+  void InstallImplicitProtection();
 
   // 32 bits of atomically changed state and flags. Keeping as 32 bits allows and atomic CAS to
   // change from being Suspended to Runnable without a suspend request occurring.
