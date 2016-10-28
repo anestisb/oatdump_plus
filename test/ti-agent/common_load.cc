@@ -33,6 +33,7 @@
 #include "907-get-loaded-classes/get_loaded_classes.h"
 #include "908-gc-start-finish/gc_callbacks.h"
 #include "909-attach-agent/attach.h"
+#include "910-methods/methods.h"
 
 namespace art {
 
@@ -58,6 +59,7 @@ AgentLib agents[] = {
   { "907-get-loaded-classes", Test907GetLoadedClasses::OnLoad, nullptr },
   { "908-gc-start-finish", Test908GcStartFinish::OnLoad, nullptr },
   { "909-attach-agent", nullptr, Test909AttachAgent::OnAttach },
+  { "910-methods", Test910Methods::OnLoad, nullptr },
 };
 
 static AgentLib* FindAgent(char* name) {
