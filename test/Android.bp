@@ -254,6 +254,7 @@ art_cc_defaults {
         "908-gc-start-finish/gc_callbacks.cc",
         "909-attach-agent/attach.cc",
         "910-methods/methods.cc",
+        "911-get-stack-trace/stack_trace.cc",
     ],
     shared_libs: [
         "libbase",

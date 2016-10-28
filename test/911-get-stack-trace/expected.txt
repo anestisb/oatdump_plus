@@ -1,0 +1,208 @@
+###################
+### Same thread ###
+###################
+From top
+---------
+ getStackTrace (Ljava/lang/Thread;II)[Ljava/lang/String;
+ print (Ljava/lang/Thread;II)V
+ printOrWait (IILMain$ControlData;)V
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ doTest ()V
+ main ([Ljava/lang/String;)V
+---------
+ print (Ljava/lang/Thread;II)V
+ printOrWait (IILMain$ControlData;)V
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ doTest ()V
+ main ([Ljava/lang/String;)V
+---------
+ getStackTrace (Ljava/lang/Thread;II)[Ljava/lang/String;
+ print (Ljava/lang/Thread;II)V
+ printOrWait (IILMain$ControlData;)V
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+---------
+ printOrWait (IILMain$ControlData;)V
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+From bottom
+---------
+ main ([Ljava/lang/String;)V
+---------
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ doTest ()V
+ main ([Ljava/lang/String;)V
+---------
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+
+################################
+### Other thread (suspended) ###
+################################
+From top
+---------
+ wait ()V
+ printOrWait (IILMain$ControlData;)V
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ run ()V
+---------
+ printOrWait (IILMain$ControlData;)V
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ run ()V
+---------
+ wait ()V
+ printOrWait (IILMain$ControlData;)V
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+---------
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+From bottom
+---------
+ run ()V
+---------
+ foo (IIILMain$ControlData;)I
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ run ()V
+---------
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+
+###########################
+### Other thread (live) ###
+###########################
+From top
+---------
+ printOrWait (IILMain$ControlData;)V
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ run ()V
+---------
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ run ()V
+---------
+ printOrWait (IILMain$ControlData;)V
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+---------
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+From bottom
+---------
+ run ()V
+---------
+ foo (IIILMain$ControlData;)I
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ run ()V
+---------
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
+ foo (IIILMain$ControlData;)I
+ baz (IIILMain$ControlData;)Ljava/lang/Object;
+ bar (IIILMain$ControlData;)J
