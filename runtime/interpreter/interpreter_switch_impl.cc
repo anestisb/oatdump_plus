@@ -1558,6 +1558,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
       }
       case Instruction::INVOKE_POLYMORPHIC: {
         PREAMBLE();
+        DCHECK(Runtime::Current()->IsMethodHandlesEnabled());
         bool success = DoInvokePolymorphic<false, do_access_check>(
             self, shadow_frame, inst, inst_data, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_4xx);
@@ -1565,6 +1566,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
       }
       case Instruction::INVOKE_POLYMORPHIC_RANGE: {
         PREAMBLE();
+        DCHECK(Runtime::Current()->IsMethodHandlesEnabled());
         bool success = DoInvokePolymorphic<true, do_access_check>(
             self, shadow_frame, inst, inst_data, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_4xx);

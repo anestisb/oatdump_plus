@@ -1309,12 +1309,9 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
         const size_t num_types = dex_file->NumTypeIds();
         const size_t num_methods = dex_file->NumMethodIds();
         const size_t num_fields = dex_file->NumFieldIds();
-        size_t num_method_types = 0;
-        if (Runtime::Current()->IsMethodHandlesEnabled()) {
-          num_method_types = mirror::DexCache::kDexCacheMethodTypeCacheSize;
-          if (dex_file->NumProtoIds() < num_method_types) {
-            num_method_types = dex_file->NumProtoIds();
-          }
+        size_t num_method_types = mirror::DexCache::kDexCacheMethodTypeCacheSize;
+        if (dex_file->NumProtoIds() < num_method_types) {
+          num_method_types = dex_file->NumProtoIds();
         }
 
         CHECK_EQ(num_strings, dex_cache->NumStrings());
@@ -2110,21 +2107,18 @@ void ClassLinker::InitializeDexCache(Thread* self,
   //
   // If this needs to be mitigated in a production system running this code,
   // DexCache::kDexCacheMethodTypeCacheSize can be set to zero.
-  const bool is_method_handles_enabled = Runtime::Current()->IsMethodHandlesEnabled();
   mirror::MethodTypeDexCacheType* method_types = nullptr;
   size_t num_method_types = 0;
 
-  if (is_method_handles_enabled) {
-    if (dex_file.NumProtoIds() < mirror::DexCache::kDexCacheMethodTypeCacheSize) {
-      num_method_types = dex_file.NumProtoIds();
-    } else {
-      num_method_types = mirror::DexCache::kDexCacheMethodTypeCacheSize;
-    }
+  if (dex_file.NumProtoIds() < mirror::DexCache::kDexCacheMethodTypeCacheSize) {
+    num_method_types = dex_file.NumProtoIds();
+  } else {
+    num_method_types = mirror::DexCache::kDexCacheMethodTypeCacheSize;
+  }
 
-    if (num_method_types > 0) {
-      method_types = reinterpret_cast<mirror::MethodTypeDexCacheType*>(
-          raw_arrays + layout.MethodTypesOffset());
-    }
+  if (num_method_types > 0) {
+    method_types = reinterpret_cast<mirror::MethodTypeDexCacheType*>(
+        raw_arrays + layout.MethodTypesOffset());
   }
 
   DCHECK_ALIGNED(raw_arrays, alignof(mirror::StringDexCacheType)) <<
