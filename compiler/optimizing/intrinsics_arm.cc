@@ -652,9 +652,9 @@ static void CreateIntIntIntToIntLocations(ArenaAllocator* arena,
       (invoke->GetIntrinsic() == Intrinsics::kUnsafeGetObject ||
        invoke->GetIntrinsic() == Intrinsics::kUnsafeGetObjectVolatile);
   LocationSummary* locations = new (arena) LocationSummary(invoke,
-                                                           can_call ?
-                                                               LocationSummary::kCallOnSlowPath :
-                                                               LocationSummary::kNoCall,
+                                                           (can_call
+                                                                ? LocationSummary::kCallOnSlowPath
+                                                                : LocationSummary::kNoCall),
                                                            kIntrinsified);
   if (can_call && kUseBakerReadBarrier) {
     locations->SetCustomSlowPathCallerSaves(RegisterSet::Empty());  // No caller-save registers.
@@ -663,7 +663,7 @@ static void CreateIntIntIntToIntLocations(ArenaAllocator* arena,
   locations->SetInAt(1, Location::RequiresRegister());
   locations->SetInAt(2, Location::RequiresRegister());
   locations->SetOut(Location::RequiresRegister(),
-                    can_call ? Location::kOutputOverlap : Location::kNoOutputOverlap);
+                    (can_call ? Location::kOutputOverlap : Location::kNoOutputOverlap));
   if (type == Primitive::kPrimNot && kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
     // We need a temporary register for the read barrier marking slow
     // path in InstructionCodeGeneratorARM::GenerateReferenceLoadWithBakerReadBarrier.
@@ -891,8 +891,13 @@ void IntrinsicCodeGeneratorARM::VisitUnsafePutLongVolatile(HInvoke* invoke) {
 static void CreateIntIntIntIntIntToIntPlusTemps(ArenaAllocator* arena,
                                                 HInvoke* invoke,
                                                 Primitive::Type type) {
+  bool can_call = kEmitCompilerReadBarrier &&
+      kUseBakerReadBarrier &&
+      (invoke->GetIntrinsic() == Intrinsics::kUnsafeCASObject);
   LocationSummary* locations = new (arena) LocationSummary(invoke,
-                                                           LocationSummary::kNoCall,
+                                                           (can_call
+                                                                ? LocationSummary::kCallOnSlowPath
+                                                                : LocationSummary::kNoCall),
                                                            kIntrinsified);
   locations->SetInAt(0, Location::NoLocation());        // Unused receiver.
   locations->SetInAt(1, Location::RequiresRegister());
@@ -901,36 +906,65 @@ static void CreateIntIntIntIntIntToIntPlusTemps(ArenaAllocator* arena,
   locations->SetInAt(4, Location::RequiresRegister());
 
   // If heap poisoning is enabled, we don't want the unpoisoning
-  // operations to potentially clobber the output.
-  Location::OutputOverlap overlaps = (kPoisonHeapReferences && type == Primitive::kPrimNot)
+  // operations to potentially clobber the output. Likewise when
+  // emitting a (Baker) read barrier, which may call.
+  Location::OutputOverlap overlaps =
+      ((kPoisonHeapReferences && type == Primitive::kPrimNot) || can_call)
       ? Location::kOutputOverlap
       : Location::kNoOutputOverlap;
   locations->SetOut(Location::RequiresRegister(), overlaps);
 
+  // Temporary registers used in CAS. In the object case
+  // (UnsafeCASObject intrinsic), these are also used for
+  // card-marking, and possibly for (Baker) read barrier.
   locations->AddTemp(Location::RequiresRegister());  // Pointer.
   locations->AddTemp(Location::RequiresRegister());  // Temp 1.
 }
 
-static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGeneratorARM* codegen) {
+static void GenCas(HInvoke* invoke, Primitive::Type type, CodeGeneratorARM* codegen) {
   DCHECK_NE(type, Primitive::kPrimLong);
 
   ArmAssembler* assembler = codegen->GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
 
-  Register out = locations->Out().AsRegister<Register>();              // Boolean result.
+  Location out_loc = locations->Out();
+  Register out = out_loc.AsRegister<Register>();                  // Boolean result.
 
-  Register base = locations->InAt(1).AsRegister<Register>();           // Object pointer.
-  Register offset = locations->InAt(2).AsRegisterPairLow<Register>();  // Offset (discard high 4B).
-  Register expected_lo = locations->InAt(3).AsRegister<Register>();    // Expected.
-  Register value_lo = locations->InAt(4).AsRegister<Register>();       // Value.
+  Register base = locations->InAt(1).AsRegister<Register>();      // Object pointer.
+  Location offset_loc = locations->InAt(2);
+  Register offset = offset_loc.AsRegisterPairLow<Register>();     // Offset (discard high 4B).
+  Register expected = locations->InAt(3).AsRegister<Register>();  // Expected.
+  Register value = locations->InAt(4).AsRegister<Register>();     // Value.
 
-  Register tmp_ptr = locations->GetTemp(0).AsRegister<Register>();     // Pointer to actual memory.
-  Register tmp_lo = locations->GetTemp(1).AsRegister<Register>();      // Value in memory.
+  Location tmp_ptr_loc = locations->GetTemp(0);
+  Register tmp_ptr = tmp_ptr_loc.AsRegister<Register>();          // Pointer to actual memory.
+  Register tmp = locations->GetTemp(1).AsRegister<Register>();    // Value in memory.
 
   if (type == Primitive::kPrimNot) {
+    // The only read barrier implementation supporting the
+    // UnsafeCASObject intrinsic is the Baker-style read barriers.
+    DCHECK(!kEmitCompilerReadBarrier || kUseBakerReadBarrier);
+
     // Mark card for object assuming new value is stored. Worst case we will mark an unchanged
     // object and scan the receiver at the next GC for nothing.
     bool value_can_be_null = true;  // TODO: Worth finding out this information?
-    codegen->MarkGCCard(tmp_ptr, tmp_lo, base, value_lo, value_can_be_null);
+    codegen->MarkGCCard(tmp_ptr, tmp, base, value, value_can_be_null);
+
+    if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
+      // Need to make sure the reference stored in the field is a to-space
+      // one before attempting the CAS or the CAS could fail incorrectly.
+      codegen->GenerateReferenceLoadWithBakerReadBarrier(
+          invoke,
+          out_loc,  // Unused, used only as a "temporary" within the read barrier.
+          base,
+          /* offset */ 0u,
+          /* index */ offset_loc,
+          ScaleFactor::TIMES_1,
+          tmp_ptr_loc,
+          /* needs_null_check */ false,
+          /* always_update_field */ true,
+          &tmp);
+    }
   }
 
   // Prevent reordering with prior memory operations.
@@ -942,12 +976,12 @@ static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGenerat
   __ add(tmp_ptr, base, ShifterOperand(offset));
 
   if (kPoisonHeapReferences && type == Primitive::kPrimNot) {
-    codegen->GetAssembler()->PoisonHeapReference(expected_lo);
-    if (value_lo == expected_lo) {
-      // Do not poison `value_lo`, as it is the same register as
-      // `expected_lo`, which has just been poisoned.
+    __ PoisonHeapReference(expected);
+    if (value == expected) {
+      // Do not poison `value`, as it is the same register as
+      // `expected`, which has just been poisoned.
     } else {
-      codegen->GetAssembler()->PoisonHeapReference(value_lo);
+      __ PoisonHeapReference(value);
     }
   }
 
@@ -959,37 +993,29 @@ static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGenerat
   Label loop_head;
   __ Bind(&loop_head);
 
-  // TODO: When `type == Primitive::kPrimNot`, add a read barrier for
-  // the reference stored in the object before attempting the CAS,
-  // similar to the one in the art::Unsafe_compareAndSwapObject JNI
-  // implementation.
-  //
-  // Note that this code is not (yet) used when read barriers are
-  // enabled (see IntrinsicLocationsBuilderARM::VisitUnsafeCASObject).
-  DCHECK(!(type == Primitive::kPrimNot && kEmitCompilerReadBarrier));
-  __ ldrex(tmp_lo, tmp_ptr);
+  __ ldrex(tmp, tmp_ptr);
 
-  __ subs(tmp_lo, tmp_lo, ShifterOperand(expected_lo));
+  __ subs(tmp, tmp, ShifterOperand(expected));
 
   __ it(EQ, ItState::kItT);
-  __ strex(tmp_lo, value_lo, tmp_ptr, EQ);
-  __ cmp(tmp_lo, ShifterOperand(1), EQ);
+  __ strex(tmp, value, tmp_ptr, EQ);
+  __ cmp(tmp, ShifterOperand(1), EQ);
 
   __ b(&loop_head, EQ);
 
   __ dmb(ISH);
 
-  __ rsbs(out, tmp_lo, ShifterOperand(1));
+  __ rsbs(out, tmp, ShifterOperand(1));
   __ it(CC);
   __ mov(out, ShifterOperand(0), CC);
 
   if (kPoisonHeapReferences && type == Primitive::kPrimNot) {
-    codegen->GetAssembler()->UnpoisonHeapReference(expected_lo);
-    if (value_lo == expected_lo) {
-      // Do not unpoison `value_lo`, as it is the same register as
-      // `expected_lo`, which has just been unpoisoned.
+    __ UnpoisonHeapReference(expected);
+    if (value == expected) {
+      // Do not unpoison `value`, as it is the same register as
+      // `expected`, which has just been unpoisoned.
     } else {
-      codegen->GetAssembler()->UnpoisonHeapReference(value_lo);
+      __ UnpoisonHeapReference(value);
     }
   }
 }
@@ -998,33 +1024,23 @@ void IntrinsicLocationsBuilderARM::VisitUnsafeCASInt(HInvoke* invoke) {
   CreateIntIntIntIntIntToIntPlusTemps(arena_, invoke, Primitive::kPrimInt);
 }
 void IntrinsicLocationsBuilderARM::VisitUnsafeCASObject(HInvoke* invoke) {
-  // The UnsafeCASObject intrinsic is missing a read barrier, and
-  // therefore sometimes does not work as expected (b/25883050).
-  // Turn it off temporarily as a quick fix, until the read barrier is
-  // implemented (see TODO in GenCAS).
-  //
-  // TODO(rpl): Implement read barrier support in GenCAS and re-enable
-  // this intrinsic.
-  if (kEmitCompilerReadBarrier) {
+  // The only read barrier implementation supporting the
+  // UnsafeCASObject intrinsic is the Baker-style read barriers.
+  if (kEmitCompilerReadBarrier && !kUseBakerReadBarrier) {
     return;
   }
 
   CreateIntIntIntIntIntToIntPlusTemps(arena_, invoke, Primitive::kPrimNot);
 }
 void IntrinsicCodeGeneratorARM::VisitUnsafeCASInt(HInvoke* invoke) {
-  GenCas(invoke->GetLocations(), Primitive::kPrimInt, codegen_);
+  GenCas(invoke, Primitive::kPrimInt, codegen_);
 }
 void IntrinsicCodeGeneratorARM::VisitUnsafeCASObject(HInvoke* invoke) {
-  // The UnsafeCASObject intrinsic is missing a read barrier, and
-  // therefore sometimes does not work as expected (b/25883050).
-  // Turn it off temporarily as a quick fix, until the read barrier is
-  // implemented (see TODO in GenCAS).
-  //
-  // TODO(rpl): Implement read barrier support in GenCAS and re-enable
-  // this intrinsic.
-  DCHECK(!kEmitCompilerReadBarrier);
+  // The only read barrier implementation supporting the
+  // UnsafeCASObject intrinsic is the Baker-style read barriers.
+  DCHECK(!kEmitCompilerReadBarrier || kUseBakerReadBarrier);
 
-  GenCas(invoke->GetLocations(), Primitive::kPrimNot, codegen_);
+  GenCas(invoke, Primitive::kPrimNot, codegen_);
 }
 
 void IntrinsicLocationsBuilderARM::VisitStringCompareTo(HInvoke* invoke) {
