@@ -794,13 +794,16 @@ class ReadBarrierMarkAndUpdateFieldSlowPathARM64 : public SlowPathCodeARM64 {
     //   tmp_value = [tmp_ptr] - expected;
     // } while (tmp_value == 0 && failure([tmp_ptr] <- r_new_value));
 
-    vixl::aarch64::Label loop_head, exit_loop;
+    vixl::aarch64::Label loop_head, comparison_failed, exit_loop;
     __ Bind(&loop_head);
     __ Ldxr(tmp_value, MemOperand(tmp_ptr));
     __ Cmp(tmp_value, expected);
-    __ B(&exit_loop, ne);
+    __ B(&comparison_failed, ne);
     __ Stxr(tmp_value, value, MemOperand(tmp_ptr));
     __ Cbnz(tmp_value, &loop_head);
+    __ B(&exit_loop);
+    __ Bind(&comparison_failed);
+    __ Clrex();
     __ Bind(&exit_loop);
 
     if (kPoisonHeapReferences) {
