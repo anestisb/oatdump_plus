@@ -532,6 +532,25 @@ struct ScopedCheckHandleScope {
   BaseHandleScope* const handle_scope_;
 };
 
+// Number of references allocated in JNI ShadowFrames on the given thread.
+static size_t NumJniShadowFrameReferences(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_) {
+  return self->GetManagedStack()->NumJniShadowFrameReferences();
+}
+
+// Number of references in handle scope on the given thread.
+static size_t NumHandleReferences(Thread* self) {
+  size_t count = 0;
+  for (BaseHandleScope* cur = self->GetTopHandleScope(); cur != nullptr; cur = cur->GetLink()) {
+    count += cur->NumberOfReferences();
+  }
+  return count;
+}
+
+// Number of references allocated in handle scopes & JNI shadow frames on this thread.
+static size_t NumStackReferences(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_) {
+  return NumHandleReferences(self) + NumJniShadowFrameReferences(self);
+}
+
 static void expectNumStackReferences(size_t val1, size_t val2) {
   // In rare cases when JNI functions call themselves recursively,
   // disable this test because it will have a false negative.
@@ -539,7 +558,7 @@ static void expectNumStackReferences(size_t val1, size_t val2) {
     /* @CriticalNative doesn't build a HandleScope, so this test is meaningless then. */
     ScopedObjectAccess soa(Thread::Current());
 
-    size_t actual_num = Thread::Current()->NumStackReferences();
+    size_t actual_num = NumStackReferences(Thread::Current());
     // XX: Not too sure what's going on.
     // Sometimes null references get placed and sometimes they don't?
     EXPECT_TRUE(val1 == actual_num || val2 == actual_num)
