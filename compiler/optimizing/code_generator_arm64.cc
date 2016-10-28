@@ -589,11 +589,21 @@ void JumpTableARM64::EmitTable(CodeGeneratorARM64* codegen) {
   }
 }
 
-// Slow path marking an object during a read barrier.
+// Slow path marking an object reference `ref` during a read
+// barrier. The field `obj.field` in the object `obj` holding this
+// reference does not get updated by this slow path after marking (see
+// ReadBarrierMarkAndUpdateFieldSlowPathARM64 below for that).
+//
+// This means that after the execution of this slow path, `ref` will
+// always be up-to-date, but `obj.field` may not; i.e., after the
+// flip, `ref` will be a to-space reference, but `obj.field` will
+// probably still be a from-space reference (unless it gets updated by
+// another thread, or if another thread installed another object
+// reference (different from `ref`) in `obj.field`).
 class ReadBarrierMarkSlowPathARM64 : public SlowPathCodeARM64 {
  public:
-  ReadBarrierMarkSlowPathARM64(HInstruction* instruction, Location obj)
-      : SlowPathCodeARM64(instruction), obj_(obj) {
+  ReadBarrierMarkSlowPathARM64(HInstruction* instruction, Location ref)
+      : SlowPathCodeARM64(instruction), ref_(ref) {
     DCHECK(kEmitCompilerReadBarrier);
   }
 
@@ -602,7 +612,8 @@ class ReadBarrierMarkSlowPathARM64 : public SlowPathCodeARM64 {
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
     DCHECK(locations->CanCall());
-    DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(obj_.reg()));
+    DCHECK(ref_.IsRegister()) << ref_;
+    DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(ref_.reg())) << ref_.reg();
     DCHECK(instruction_->IsInstanceFieldGet() ||
            instruction_->IsStaticFieldGet() ||
            instruction_->IsArrayGet() ||
@@ -621,38 +632,202 @@ class ReadBarrierMarkSlowPathARM64 : public SlowPathCodeARM64 {
     // entrypoint. Also, there is no need to update the stack mask,
     // as this runtime call will not trigger a garbage collection.
     CodeGeneratorARM64* arm64_codegen = down_cast<CodeGeneratorARM64*>(codegen);
-    DCHECK_NE(obj_.reg(), LR);
-    DCHECK_NE(obj_.reg(), WSP);
-    DCHECK_NE(obj_.reg(), WZR);
+    DCHECK_NE(ref_.reg(), LR);
+    DCHECK_NE(ref_.reg(), WSP);
+    DCHECK_NE(ref_.reg(), WZR);
     // IP0 is used internally by the ReadBarrierMarkRegX entry point
     // as a temporary, it cannot be the entry point's input/output.
-    DCHECK_NE(obj_.reg(), IP0);
-    DCHECK(0 <= obj_.reg() && obj_.reg() < kNumberOfWRegisters) << obj_.reg();
+    DCHECK_NE(ref_.reg(), IP0);
+    DCHECK(0 <= ref_.reg() && ref_.reg() < kNumberOfWRegisters) << ref_.reg();
     // "Compact" slow path, saving two moves.
     //
     // Instead of using the standard runtime calling convention (input
     // and output in W0):
     //
-    //   W0 <- obj
+    //   W0 <- ref
     //   W0 <- ReadBarrierMark(W0)
-    //   obj <- W0
+    //   ref <- W0
     //
-    // we just use rX (the register holding `obj`) as input and output
+    // we just use rX (the register containing `ref`) as input and output
     // of a dedicated entrypoint:
     //
     //   rX <- ReadBarrierMarkRegX(rX)
     //
     int32_t entry_point_offset =
-        CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kArm64PointerSize>(obj_.reg());
+        CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kArm64PointerSize>(ref_.reg());
     // This runtime call does not require a stack map.
     arm64_codegen->InvokeRuntimeWithoutRecordingPcInfo(entry_point_offset, instruction_, this);
     __ B(GetExitLabel());
   }
 
  private:
-  const Location obj_;
+  // The location (register) of the marked object reference.
+  const Location ref_;
 
   DISALLOW_COPY_AND_ASSIGN(ReadBarrierMarkSlowPathARM64);
+};
+
+// Slow path marking an object reference `ref` during a read barrier,
+// and if needed, atomically updating the field `obj.field` in the
+// object `obj` holding this reference after marking (contrary to
+// ReadBarrierMarkSlowPathARM64 above, which never tries to update
+// `obj.field`).
+//
+// This means that after the execution of this slow path, both `ref`
+// and `obj.field` will be up-to-date; i.e., after the flip, both will
+// hold the same to-space reference (unless another thread installed
+// another object reference (different from `ref`) in `obj.field`).
+class ReadBarrierMarkAndUpdateFieldSlowPathARM64 : public SlowPathCodeARM64 {
+ public:
+  ReadBarrierMarkAndUpdateFieldSlowPathARM64(HInstruction* instruction,
+                                             Location ref,
+                                             Register obj,
+                                             Location field_offset,
+                                             Register temp)
+      : SlowPathCodeARM64(instruction),
+        ref_(ref),
+        obj_(obj),
+        field_offset_(field_offset),
+        temp_(temp) {
+    DCHECK(kEmitCompilerReadBarrier);
+  }
+
+  const char* GetDescription() const OVERRIDE {
+    return "ReadBarrierMarkAndUpdateFieldSlowPathARM64";
+  }
+
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    LocationSummary* locations = instruction_->GetLocations();
+    Register ref_reg = WRegisterFrom(ref_);
+    DCHECK(locations->CanCall());
+    DCHECK(ref_.IsRegister()) << ref_;
+    DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(ref_.reg())) << ref_.reg();
+    // This slow path is only used by the UnsafeCASObject intrinsic.
+    DCHECK((instruction_->IsInvokeVirtual() && instruction_->GetLocations()->Intrinsified()))
+        << "Unexpected instruction in read barrier marking and field updating slow path: "
+        << instruction_->DebugName();
+    DCHECK(instruction_->GetLocations()->Intrinsified());
+    DCHECK_EQ(instruction_->AsInvoke()->GetIntrinsic(), Intrinsics::kUnsafeCASObject);
+    DCHECK(field_offset_.IsRegister()) << field_offset_;
+
+    __ Bind(GetEntryLabel());
+
+    // Save the old reference.
+    // Note that we cannot use IP to save the old reference, as IP is
+    // used internally by the ReadBarrierMarkRegX entry point, and we
+    // need the old reference after the call to that entry point.
+    DCHECK_NE(LocationFrom(temp_).reg(), IP0);
+    __ Mov(temp_.W(), ref_reg);
+
+    // No need to save live registers; it's taken care of by the
+    // entrypoint. Also, there is no need to update the stack mask,
+    // as this runtime call will not trigger a garbage collection.
+    CodeGeneratorARM64* arm64_codegen = down_cast<CodeGeneratorARM64*>(codegen);
+    DCHECK_NE(ref_.reg(), LR);
+    DCHECK_NE(ref_.reg(), WSP);
+    DCHECK_NE(ref_.reg(), WZR);
+    // IP0 is used internally by the ReadBarrierMarkRegX entry point
+    // as a temporary, it cannot be the entry point's input/output.
+    DCHECK_NE(ref_.reg(), IP0);
+    DCHECK(0 <= ref_.reg() && ref_.reg() < kNumberOfWRegisters) << ref_.reg();
+    // "Compact" slow path, saving two moves.
+    //
+    // Instead of using the standard runtime calling convention (input
+    // and output in W0):
+    //
+    //   W0 <- ref
+    //   W0 <- ReadBarrierMark(W0)
+    //   ref <- W0
+    //
+    // we just use rX (the register containing `ref`) as input and output
+    // of a dedicated entrypoint:
+    //
+    //   rX <- ReadBarrierMarkRegX(rX)
+    //
+    int32_t entry_point_offset =
+        CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kArm64PointerSize>(ref_.reg());
+    // This runtime call does not require a stack map.
+    arm64_codegen->InvokeRuntimeWithoutRecordingPcInfo(entry_point_offset, instruction_, this);
+
+    // If the new reference is different from the old reference,
+    // update the field in the holder (`*(obj_ + field_offset_)`).
+    //
+    // Note that this field could also hold a different object, if
+    // another thread had concurrently changed it. In that case, the
+    // LDXR/CMP/BNE sequence of instructions in the compare-and-set
+    // (CAS) operation below would abort the CAS, leaving the field
+    // as-is.
+    vixl::aarch64::Label done;
+    __ Cmp(temp_.W(), ref_reg);
+    __ B(eq, &done);
+
+    // Update the the holder's field atomically.  This may fail if
+    // mutator updates before us, but it's OK.  This is achieved
+    // using a strong compare-and-set (CAS) operation with relaxed
+    // memory synchronization ordering, where the expected value is
+    // the old reference and the desired value is the new reference.
+
+    MacroAssembler* masm = arm64_codegen->GetVIXLAssembler();
+    UseScratchRegisterScope temps(masm);
+
+    // Convenience aliases.
+    Register base = obj_.W();
+    Register offset = XRegisterFrom(field_offset_);
+    Register expected = temp_.W();
+    Register value = ref_reg;
+    Register tmp_ptr = temps.AcquireX();    // Pointer to actual memory.
+    Register tmp_value = temps.AcquireW();  // Value in memory.
+
+    __ Add(tmp_ptr, base.X(), Operand(offset));
+
+    if (kPoisonHeapReferences) {
+      arm64_codegen->GetAssembler()->PoisonHeapReference(expected);
+      if (value.Is(expected)) {
+        // Do not poison `value`, as it is the same register as
+        // `expected`, which has just been poisoned.
+      } else {
+        arm64_codegen->GetAssembler()->PoisonHeapReference(value);
+      }
+    }
+
+    // do {
+    //   tmp_value = [tmp_ptr] - expected;
+    // } while (tmp_value == 0 && failure([tmp_ptr] <- r_new_value));
+
+    vixl::aarch64::Label loop_head, exit_loop;
+    __ Bind(&loop_head);
+    __ Ldxr(tmp_value, MemOperand(tmp_ptr));
+    __ Cmp(tmp_value, expected);
+    __ B(&exit_loop, ne);
+    __ Stxr(tmp_value, value, MemOperand(tmp_ptr));
+    __ Cbnz(tmp_value, &loop_head);
+    __ Bind(&exit_loop);
+
+    if (kPoisonHeapReferences) {
+      arm64_codegen->GetAssembler()->UnpoisonHeapReference(expected);
+      if (value.Is(expected)) {
+        // Do not unpoison `value`, as it is the same register as
+        // `expected`, which has just been unpoisoned.
+      } else {
+        arm64_codegen->GetAssembler()->UnpoisonHeapReference(value);
+      }
+    }
+
+    __ Bind(&done);
+    __ B(GetExitLabel());
+  }
+
+ private:
+  // The location (register) of the marked object reference.
+  const Location ref_;
+  // The register containing the object holding the marked object reference field.
+  const Register obj_;
+  // The location of the offset of the marked reference field within `obj_`.
+  Location field_offset_;
+
+  const Register temp_;
+
+  DISALLOW_COPY_AND_ASSIGN(ReadBarrierMarkAndUpdateFieldSlowPathARM64);
 };
 
 // Slow path generating a read barrier for a heap reference.
@@ -768,7 +943,7 @@ class ReadBarrierForHeapReferenceSlowPathARM64 : public SlowPathCodeARM64 {
         DCHECK((instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kUnsafeGetObject) ||
                (instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kUnsafeGetObjectVolatile))
             << instruction_->AsInvoke()->GetIntrinsic();
-        DCHECK_EQ(offset_, 0U);
+        DCHECK_EQ(offset_, 0u);
         DCHECK(index_.IsRegister());
       }
     }
@@ -5174,7 +5349,7 @@ void CodeGeneratorARM64::GenerateFieldLoadWithBakerReadBarrier(HInstruction* ins
 
   // /* HeapReference<Object> */ ref = *(obj + offset)
   Location no_index = Location::NoLocation();
-  size_t no_scale_factor = 0U;
+  size_t no_scale_factor = 0u;
   GenerateReferenceLoadWithBakerReadBarrier(instruction,
                                             ref,
                                             obj,
@@ -5225,7 +5400,8 @@ void CodeGeneratorARM64::GenerateReferenceLoadWithBakerReadBarrier(HInstruction*
                                                                    size_t scale_factor,
                                                                    Register temp,
                                                                    bool needs_null_check,
-                                                                   bool use_load_acquire) {
+                                                                   bool use_load_acquire,
+                                                                   bool always_update_field) {
   DCHECK(kEmitCompilerReadBarrier);
   DCHECK(kUseBakerReadBarrier);
   // If we are emitting an array load, we should not be using a
@@ -5278,7 +5454,9 @@ void CodeGeneratorARM64::GenerateReferenceLoadWithBakerReadBarrier(HInstruction*
 
   // The actual reference load.
   if (index.IsValid()) {
-    // Load types involving an "index".
+    // Load types involving an "index": ArrayGet,
+    // UnsafeGetObject/UnsafeGetObjectVolatile and UnsafeCASObject
+    // intrinsics.
     if (use_load_acquire) {
       // UnsafeGetObjectVolatile intrinsic case.
       // Register `index` is not an index in an object array, but an
@@ -5287,9 +5465,9 @@ void CodeGeneratorARM64::GenerateReferenceLoadWithBakerReadBarrier(HInstruction*
       DCHECK(instruction->GetLocations()->Intrinsified());
       DCHECK(instruction->AsInvoke()->GetIntrinsic() == Intrinsics::kUnsafeGetObjectVolatile)
           << instruction->AsInvoke()->GetIntrinsic();
-      DCHECK_EQ(offset, 0U);
-      DCHECK_EQ(scale_factor, 0U);
-      DCHECK_EQ(needs_null_check, 0U);
+      DCHECK_EQ(offset, 0u);
+      DCHECK_EQ(scale_factor, 0u);
+      DCHECK_EQ(needs_null_check, 0u);
       // /* HeapReference<Object> */ ref = *(obj + index)
       MemOperand field = HeapOperand(obj, XRegisterFrom(index));
       LoadAcquire(instruction, ref_reg, field, /* needs_null_check */ false);
@@ -5300,10 +5478,10 @@ void CodeGeneratorARM64::GenerateReferenceLoadWithBakerReadBarrier(HInstruction*
         uint32_t computed_offset = offset + (Int64ConstantFrom(index) << scale_factor);
         Load(type, ref_reg, HeapOperand(obj, computed_offset));
       } else {
-        Register temp2 = temps.AcquireW();
-        __ Add(temp2, obj, offset);
-        Load(type, ref_reg, HeapOperand(temp2, XRegisterFrom(index), LSL, scale_factor));
-        temps.Release(temp2);
+        Register temp3 = temps.AcquireW();
+        __ Add(temp3, obj, offset);
+        Load(type, ref_reg, HeapOperand(temp3, XRegisterFrom(index), LSL, scale_factor));
+        temps.Release(temp3);
       }
     }
   } else {
@@ -5320,8 +5498,19 @@ void CodeGeneratorARM64::GenerateReferenceLoadWithBakerReadBarrier(HInstruction*
   GetAssembler()->MaybeUnpoisonHeapReference(ref_reg);
 
   // Slow path marking the object `ref` when it is gray.
-  SlowPathCodeARM64* slow_path =
-      new (GetGraph()->GetArena()) ReadBarrierMarkSlowPathARM64(instruction, ref);
+  SlowPathCodeARM64* slow_path;
+  if (always_update_field) {
+    // ReadBarrierMarkAndUpdateFieldSlowPathARM64 only supports
+    // address of the form `obj + field_offset`, where `obj` is a
+    // register and `field_offset` is a register. Thus `offset` and
+    // `scale_factor` above are expected to be null in this code path.
+    DCHECK_EQ(offset, 0u);
+    DCHECK_EQ(scale_factor, 0u);  /* "times 1" */
+    slow_path = new (GetGraph()->GetArena()) ReadBarrierMarkAndUpdateFieldSlowPathARM64(
+        instruction, ref, obj, /* field_offset */ index, temp);
+  } else {
+    slow_path = new (GetGraph()->GetArena()) ReadBarrierMarkSlowPathARM64(instruction, ref);
+  }
   AddSlowPath(slow_path);
 
   // if (rb_state == ReadBarrier::gray_ptr_)
