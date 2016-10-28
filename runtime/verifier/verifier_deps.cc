@@ -607,5 +607,266 @@ void VerifierDeps::Dump(VariableIndentationOutputStream* vios) const {
   }
 }
 
+bool VerifierDeps::Verify(Handle<mirror::ClassLoader> class_loader, Thread* self) const {
+  for (const auto& entry : dex_deps_) {
+    if (!VerifyDexFile(class_loader, *entry.first, *entry.second, self)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// TODO: share that helper with other parts of the compiler that have
+// the same lookup pattern.
+static mirror::Class* FindClassAndClearException(ClassLinker* class_linker,
+                                                 Thread* self,
+                                                 const char* name,
+                                                 Handle<mirror::ClassLoader> class_loader)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  mirror::Class* result = class_linker->FindClass(self, name, class_loader);
+  if (result == nullptr) {
+    DCHECK(self->IsExceptionPending());
+    self->ClearException();
+  }
+  return result;
+}
+
+bool VerifierDeps::VerifyAssignability(Handle<mirror::ClassLoader> class_loader,
+                                       const DexFile& dex_file,
+                                       const std::set<TypeAssignability>& assignables,
+                                       bool expected_assignability,
+                                       Thread* self) const {
+  StackHandleScope<2> hs(self);
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  MutableHandle<mirror::Class> source(hs.NewHandle<mirror::Class>(nullptr));
+  MutableHandle<mirror::Class> destination(hs.NewHandle<mirror::Class>(nullptr));
+
+  for (const auto& entry : assignables) {
+    const std::string& destination_desc = GetStringFromId(dex_file, entry.GetDestination());
+    destination.Assign(
+        FindClassAndClearException(class_linker, self, destination_desc.c_str(), class_loader));
+    const std::string& source_desc = GetStringFromId(dex_file, entry.GetSource());
+    source.Assign(
+        FindClassAndClearException(class_linker, self, source_desc.c_str(), class_loader));
+
+    if (destination.Get() == nullptr) {
+      LOG(INFO) << "VerifiersDeps: Could not resolve class " << destination_desc;
+      return false;
+    }
+
+    if (source.Get() == nullptr) {
+      LOG(INFO) << "VerifierDeps: Could not resolve class " << source_desc;
+      return false;
+    }
+
+    DCHECK(destination->IsResolved() && source->IsResolved());
+    if (destination->IsAssignableFrom(source.Get()) != expected_assignability) {
+      LOG(INFO) << "VerifierDeps: Class "
+                << destination_desc
+                << (expected_assignability ? " not " : " ")
+                << "assignable from "
+                << source_desc;
+      return false;
+    }
+  }
+  return true;
+}
+
+bool VerifierDeps::VerifyClasses(Handle<mirror::ClassLoader> class_loader,
+                                 const DexFile& dex_file,
+                                 const std::set<ClassResolution>& classes,
+                                 Thread* self) const {
+  StackHandleScope<1> hs(self);
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  MutableHandle<mirror::Class> cls(hs.NewHandle<mirror::Class>(nullptr));
+  for (const auto& entry : classes) {
+    const char* descriptor = dex_file.StringByTypeIdx(entry.GetDexTypeIndex());
+    cls.Assign(FindClassAndClearException(class_linker, self, descriptor, class_loader));
+
+    if (entry.IsResolved()) {
+      if (cls.Get() == nullptr) {
+        LOG(INFO) << "VerifierDeps: Could not resolve class " << descriptor;
+        return false;
+      } else if (entry.GetAccessFlags() != GetAccessFlags(cls.Get())) {
+        LOG(INFO) << "VerifierDeps: Unexpected access flags on class "
+                  << descriptor
+                  << std::hex
+                  << " (expected="
+                  << entry.GetAccessFlags()
+                  << ", actual="
+                  << GetAccessFlags(cls.Get()) << ")"
+                  << std::dec;
+        return false;
+      }
+    } else if (cls.Get() != nullptr) {
+      LOG(INFO) << "VerifierDeps: Unexpected successful resolution of class " << descriptor;
+      return false;
+    }
+  }
+  return true;
+}
+
+static std::string GetFieldDescription(const DexFile& dex_file, uint32_t index) {
+  const DexFile::FieldId& field_id = dex_file.GetFieldId(index);
+  return std::string(dex_file.GetFieldDeclaringClassDescriptor(field_id))
+      + "->"
+      + dex_file.GetFieldName(field_id)
+      + ":"
+      + dex_file.GetFieldTypeDescriptor(field_id);
+}
+
+bool VerifierDeps::VerifyFields(Handle<mirror::ClassLoader> class_loader,
+                                const DexFile& dex_file,
+                                const std::set<FieldResolution>& fields,
+                                Thread* self) const {
+  // Check recorded fields are resolved the same way, have the same recorded class,
+  // and have the same recorded flags.
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  StackHandleScope<1> hs(self);
+  Handle<mirror::DexCache> dex_cache(
+      hs.NewHandle(class_linker->FindDexCache(self, dex_file, /* allow_failure */ false)));
+  for (const auto& entry : fields) {
+    ArtField* field = class_linker->ResolveFieldJLS(
+        dex_file, entry.GetDexFieldIndex(), dex_cache, class_loader);
+
+    if (field == nullptr) {
+      DCHECK(self->IsExceptionPending());
+      self->ClearException();
+    }
+
+    if (entry.IsResolved()) {
+      std::string expected_decl_klass = GetStringFromId(dex_file, entry.GetDeclaringClassIndex());
+      std::string temp;
+      if (field == nullptr) {
+        LOG(INFO) << "VerifierDeps: Could not resolve field "
+                  << GetFieldDescription(dex_file, entry.GetDexFieldIndex());
+        return false;
+      } else if (expected_decl_klass != field->GetDeclaringClass()->GetDescriptor(&temp)) {
+        LOG(INFO) << "VerifierDeps: Unexpected declaring class for field resolution "
+                  << GetFieldDescription(dex_file, entry.GetDexFieldIndex())
+                  << " (expected=" << expected_decl_klass
+                  << ", actual=" << field->GetDeclaringClass()->GetDescriptor(&temp) << ")";
+        return false;
+      } else if (entry.GetAccessFlags() != GetAccessFlags(field)) {
+        LOG(INFO) << "VerifierDeps: Unexpected access flags for resolved field "
+                  << GetFieldDescription(dex_file, entry.GetDexFieldIndex())
+                  << std::hex << " (expected=" << entry.GetAccessFlags()
+                  << ", actual=" << GetAccessFlags(field) << ")" << std::dec;
+        return false;
+      }
+    } else if (field != nullptr) {
+      LOG(INFO) << "VerifierDeps: Unexpected successful resolution of field "
+                << GetFieldDescription(dex_file, entry.GetDexFieldIndex());
+      return false;
+    }
+  }
+  return true;
+}
+
+static std::string GetMethodDescription(const DexFile& dex_file, uint32_t index) {
+  const DexFile::MethodId& method_id = dex_file.GetMethodId(index);
+  return std::string(dex_file.GetMethodDeclaringClassDescriptor(method_id))
+      + "->"
+      + dex_file.GetMethodName(method_id)
+      + dex_file.GetMethodSignature(method_id).ToString();
+}
+
+bool VerifierDeps::VerifyMethods(Handle<mirror::ClassLoader> class_loader,
+                                 const DexFile& dex_file,
+                                 const std::set<MethodResolution>& methods,
+                                 MethodResolutionKind kind,
+                                 Thread* self) const {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  PointerSize pointer_size = class_linker->GetImagePointerSize();
+
+  for (const auto& entry : methods) {
+    const DexFile::MethodId& method_id = dex_file.GetMethodId(entry.GetDexMethodIndex());
+
+    const char* name = dex_file.GetMethodName(method_id);
+    const Signature signature = dex_file.GetMethodSignature(method_id);
+    const char* descriptor = dex_file.GetMethodDeclaringClassDescriptor(method_id);
+
+    mirror::Class* cls = FindClassAndClearException(class_linker, self, descriptor, class_loader);
+    if (cls == nullptr) {
+      LOG(INFO) << "VerifierDeps: Could not resolve class " << descriptor;
+      return false;
+    }
+    DCHECK(cls->IsResolved());
+    ArtMethod* method = nullptr;
+    if (kind == kDirectMethodResolution) {
+      method = cls->FindDirectMethod(name, signature, pointer_size);
+    } else if (kind == kVirtualMethodResolution) {
+      method = cls->FindVirtualMethod(name, signature, pointer_size);
+    } else {
+      DCHECK_EQ(kind, kInterfaceMethodResolution);
+      method = cls->FindInterfaceMethod(name, signature, pointer_size);
+    }
+
+    if (entry.IsResolved()) {
+      std::string temp;
+      std::string expected_decl_klass = GetStringFromId(dex_file, entry.GetDeclaringClassIndex());
+      if (method == nullptr) {
+        LOG(INFO) << "VerifierDeps: Could not resolve "
+                  << kind
+                  << " method "
+                  << GetMethodDescription(dex_file, entry.GetDexMethodIndex());
+        return false;
+      } else if (expected_decl_klass != method->GetDeclaringClass()->GetDescriptor(&temp)) {
+        LOG(INFO) << "VerifierDeps: Unexpected declaring class for "
+                  << kind
+                  << " method resolution "
+                  << GetMethodDescription(dex_file, entry.GetDexMethodIndex())
+                  << " (expected="
+                  << expected_decl_klass
+                  << ", actual="
+                  << method->GetDeclaringClass()->GetDescriptor(&temp)
+                  << ")";
+        return false;
+      } else if (entry.GetAccessFlags() != GetAccessFlags(method)) {
+        LOG(INFO) << "VerifierDeps: Unexpected access flags for resolved "
+                  << kind
+                  << " method resolution "
+                  << GetMethodDescription(dex_file, entry.GetDexMethodIndex())
+                  << std::hex
+                  << " (expected="
+                  << entry.GetAccessFlags()
+                  << ", actual="
+                  << GetAccessFlags(method) << ")"
+                  << std::dec;
+        return false;
+      }
+    } else if (method != nullptr) {
+      LOG(INFO) << "VerifierDeps: Unexpected successful resolution of "
+                << kind
+                << " method "
+                << GetMethodDescription(dex_file, entry.GetDexMethodIndex());
+      return false;
+    }
+  }
+  return true;
+}
+
+bool VerifierDeps::VerifyDexFile(Handle<mirror::ClassLoader> class_loader,
+                                 const DexFile& dex_file,
+                                 const DexFileDeps& deps,
+                                 Thread* self) const {
+  bool result = VerifyAssignability(
+      class_loader, dex_file, deps.assignable_types_, /* expected_assignability */ true, self);
+  result = result && VerifyAssignability(
+      class_loader, dex_file, deps.unassignable_types_, /* expected_assignability */ false, self);
+
+  result = result && VerifyClasses(class_loader, dex_file, deps.classes_, self);
+  result = result && VerifyFields(class_loader, dex_file, deps.fields_, self);
+
+  result = result && VerifyMethods(
+      class_loader, dex_file, deps.direct_methods_, kDirectMethodResolution, self);
+  result = result && VerifyMethods(
+      class_loader, dex_file, deps.virtual_methods_, kVirtualMethodResolution, self);
+  result = result && VerifyMethods(
+      class_loader, dex_file, deps.interface_methods_, kInterfaceMethodResolution, self);
+
+  return result;
+}
+
 }  // namespace verifier
 }  // namespace art
