@@ -54,7 +54,7 @@ inline MirrorType* ReadBarrier::Barrier(
         // Slow-path.
         ref = reinterpret_cast<MirrorType*>(Mark(ref));
         // If kAlwaysUpdateField is true, update the field atomically. This may fail if mutator
-        // updates before us, but it's ok.
+        // updates before us, but it's OK.
         if (kAlwaysUpdateField && ref != old_ref) {
           obj->CasFieldStrongRelaxedObjectWithoutWriteBarrier<false, false>(
               offset, old_ref, ref);
