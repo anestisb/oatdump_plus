@@ -18,6 +18,9 @@ class Circle {
   Circle(double radius) {
     this.radius = radius;
   }
+  public double getRadius() {
+    return radius;
+  }
   public double getArea() {
     return radius * radius * Math.PI;
   }
@@ -758,6 +761,30 @@ public class Main {
     return area;
   }
 
+  /// CHECK-START: double Main.testDeoptimize(int[], double[], double) load_store_elimination (before)
+  /// CHECK: Deoptimize
+  /// CHECK: NewInstance
+  /// CHECK: Deoptimize
+  /// CHECK: NewInstance
+
+  /// CHECK-START: double Main.testDeoptimize(int[], double[], double) load_store_elimination (after)
+  /// CHECK: Deoptimize
+  /// CHECK: NewInstance
+  /// CHECK: Deoptimize
+  /// CHECK-NOT: NewInstance
+
+  private static double testDeoptimize(int[] iarr, double[] darr, double radius) {
+    iarr[0] = 1;  // One HDeoptimize here. Not triggered.
+    iarr[1] = 1;
+    Circle circle1 = new Circle(radius);
+    iarr[2] = 1;
+    darr[0] = circle1.getRadius();  // One HDeoptimize here, which holds circle1 live. Triggered.
+    darr[1] = circle1.getRadius();
+    darr[2] = circle1.getRadius();
+    darr[3] = circle1.getRadius();
+    return new Circle(Math.PI).getArea();
+  }
+
   static void assertIntEquals(int result, int expected) {
     if (expected != result) {
       throw new Error("Expected: " + expected + ", found: " + result);
@@ -824,6 +851,20 @@ public class Main {
     assertFloatEquals(mF, 0f);
     assertDoubleEquals(Math.PI * Math.PI * Math.PI, getCircleArea(Math.PI, true));
     assertDoubleEquals(0d, getCircleArea(Math.PI, false));
+
+    int[] iarray = {0, 0, 0};
+    double[] darray = {0d, 0d, 0d};
+    try {
+      assertDoubleEquals(Math.PI * Math.PI * Math.PI, testDeoptimize(iarray, darray, Math.PI));
+    } catch (Exception e) {
+      System.out.println(e);
+    }
+    assertIntEquals(iarray[0], 1);
+    assertIntEquals(iarray[1], 1);
+    assertIntEquals(iarray[2], 1);
+    assertDoubleEquals(darray[0], Math.PI);
+    assertDoubleEquals(darray[1], Math.PI);
+    assertDoubleEquals(darray[2], Math.PI);
   }
 
   static boolean sFlag;
