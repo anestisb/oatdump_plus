@@ -237,6 +237,8 @@ class Thread {
 
   bool RequestCheckpoint(Closure* function)
       REQUIRES(Locks::thread_suspend_count_lock_);
+  void RequestSynchronousCheckpoint(Closure* function)
+      REQUIRES(!Locks::thread_suspend_count_lock_, !Locks::thread_list_lock_);
 
   void SetFlipFunction(Closure* function);
   Closure* GetFlipFunction();
