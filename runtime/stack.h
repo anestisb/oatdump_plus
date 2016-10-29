@@ -572,8 +572,7 @@ class StackVisitor {
   };
 
  protected:
-  StackVisitor(Thread* thread, Context* context, StackWalkKind walk_kind)
-      REQUIRES_SHARED(Locks::mutator_lock_);
+  StackVisitor(Thread* thread, Context* context, StackWalkKind walk_kind);
 
   bool GetRegisterIfAccessible(uint32_t reg, VRegKind kind, uint32_t* val) const
       REQUIRES_SHARED(Locks::mutator_lock_);
