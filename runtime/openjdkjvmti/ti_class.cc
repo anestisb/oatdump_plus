@@ -29,49 +29,35 @@
  * questions.
  */
 
-#include "ti_method.h"
+#include "ti_class.h"
 
 #include "art_jvmti.h"
-#include "art_method-inl.h"
-#include "base/enums.h"
 #include "scoped_thread_state_change-inl.h"
+#include "thread-inl.h"
 
 namespace openjdkjvmti {
 
-jvmtiError MethodUtil::GetMethodName(jvmtiEnv* env,
-                                     jmethodID method,
-                                     char** name_ptr,
-                                     char** signature_ptr,
-                                     char** generic_ptr) {
+jvmtiError ClassUtil::GetClassSignature(jvmtiEnv* env,
+                                         jclass jklass,
+                                         char** signature_ptr,
+                                         char** generic_ptr) {
   art::ScopedObjectAccess soa(art::Thread::Current());
-  art::ArtMethod* art_method = soa.DecodeMethod(method);
-  art_method = art_method->GetInterfaceMethodIfProxy(art::kRuntimePointerSize);
-
-  JvmtiUniquePtr name_copy;
-  if (name_ptr != nullptr) {
-    const char* method_name = art_method->GetName();
-    if (method_name == nullptr) {
-      method_name = "<error>";
-    }
-    unsigned char* tmp;
-    jvmtiError ret = CopyString(env, method_name, &tmp);
-    if (ret != ERR(NONE)) {
-      return ret;
-    }
-    name_copy = MakeJvmtiUniquePtr(env, tmp);
-    *name_ptr = reinterpret_cast<char*>(tmp);
+  art::ObjPtr<art::mirror::Class> klass = soa.Decode<art::mirror::Class>(jklass);
+  if (klass == nullptr) {
+    return ERR(INVALID_CLASS);
   }
 
-  JvmtiUniquePtr signature_copy;
+  JvmtiUniquePtr sig_copy;
   if (signature_ptr != nullptr) {
-    const art::Signature sig = art_method->GetSignature();
-    std::string str = sig.ToString();
+    std::string storage;
+    const char* descriptor = klass->GetDescriptor(&storage);
+
     unsigned char* tmp;
-    jvmtiError ret = CopyString(env, str.c_str(), &tmp);
+    jvmtiError ret = CopyString(env, descriptor, &tmp);
     if (ret != ERR(NONE)) {
       return ret;
     }
-    signature_copy = MakeJvmtiUniquePtr(env, tmp);
+    sig_copy = MakeJvmtiUniquePtr(env, tmp);
     *signature_ptr = reinterpret_cast<char*>(tmp);
   }
 
@@ -79,8 +65,7 @@ jvmtiError MethodUtil::GetMethodName(jvmtiEnv* env,
   *generic_ptr = nullptr;
 
   // Everything is fine, release the buffers.
-  name_copy.release();
-  signature_copy.release();
+  sig_copy.release();
 
   return ERR(NONE);
 }

@@ -21,6 +21,7 @@ cc_defaults {
            "heap.cc",
            "object_tagging.cc",
            "OpenjdkJvmTi.cc",
+           "ti_class.cc",
            "ti_method.cc",
            "ti_stack.cc",
            "transform.cc"],
