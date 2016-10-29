@@ -48,6 +48,7 @@
 #include "thread_list.h"
 #include "thread-inl.h"
 #include "ti_method.h"
+#include "ti_stack.h"
 #include "transform.h"
 
 // TODO Remove this at some point by annotating all the methods. It was put in to make the skeleton
@@ -202,7 +203,12 @@ class JvmtiFunctions {
                                   jint max_frame_count,
                                   jvmtiFrameInfo* frame_buffer,
                                   jint* count_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return StackUtil::GetStackTrace(env,
+                                    thread,
+                                    start_depth,
+                                    max_frame_count,
+                                    frame_buffer,
+                                    count_ptr);
   }
 
   static jvmtiError GetAllStackTraces(jvmtiEnv* env,

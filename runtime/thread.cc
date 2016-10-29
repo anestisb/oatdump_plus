@@ -1175,6 +1175,85 @@ bool Thread::RequestCheckpoint(Closure* function) {
   return success;
 }
 
+class BarrierClosure : public Closure {
+ public:
+  explicit BarrierClosure(Closure* wrapped) : wrapped_(wrapped), barrier_(0) {}
+
+  void Run(Thread* self) OVERRIDE {
+    wrapped_->Run(self);
+    barrier_.Pass(self);
+  }
+
+  void Wait(Thread* self) {
+    barrier_.Increment(self, 1);
+  }
+
+ private:
+  Closure* wrapped_;
+  Barrier barrier_;
+};
+
+void Thread::RequestSynchronousCheckpoint(Closure* function) {
+  if (this == Thread::Current()) {
+    // Asked to run on this thread. Just run.
+    function->Run(this);
+    return;
+  }
+  Thread* self = Thread::Current();
+
+  // The current thread is not this thread.
+
+  for (;;) {
+    // If this thread is runnable, try to schedule a checkpoint. Do some gymnastics to not hold the
+    // suspend-count lock for too long.
+    if (GetState() == ThreadState::kRunnable) {
+      BarrierClosure barrier_closure(function);
+      bool installed = false;
+      {
+        MutexLock mu(self, *Locks::thread_suspend_count_lock_);
+        installed = RequestCheckpoint(&barrier_closure);
+      }
+      if (installed) {
+        barrier_closure.Wait(self);
+        return;
+      }
+      // Fall-through.
+    }
+
+    // This thread is not runnable, make sure we stay suspended, then run the checkpoint.
+    // Note: ModifySuspendCountInternal also expects the thread_list_lock to be held in
+    //       certain situations.
+    {
+      MutexLock mu(self, *Locks::thread_list_lock_);
+      MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
+
+      if (!ModifySuspendCount(self, +1, nullptr, false)) {
+        // Just retry the loop.
+        sched_yield();
+        continue;
+      }
+    }
+
+    while (GetState() == ThreadState::kRunnable) {
+      // We became runnable again. Wait till the suspend triggered in ModifySuspendCount
+      // moves us to suspended.
+      sched_yield();
+    }
+
+    function->Run(this);
+
+    {
+      MutexLock mu(self, *Locks::thread_list_lock_);
+      MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
+
+      DCHECK_NE(GetState(), ThreadState::kRunnable);
+      CHECK(ModifySuspendCount(self, -1, nullptr, false));
+    }
+
+    return;  // We're done, break out of the loop.
+  }
+}
+
 Closure* Thread::GetFlipFunction() {
   Atomic<Closure*>* atomic_func = reinterpret_cast<Atomic<Closure*>*>(&tlsPtr_.flip_function);
   Closure* func;
