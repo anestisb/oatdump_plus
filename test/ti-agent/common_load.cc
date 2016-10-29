@@ -34,6 +34,7 @@
 #include "908-gc-start-finish/gc_callbacks.h"
 #include "909-attach-agent/attach.h"
 #include "910-methods/methods.h"
+#include "911-get-stack-trace/stack_trace.h"
 
 namespace art {
 
@@ -60,6 +61,7 @@ AgentLib agents[] = {
   { "908-gc-start-finish", Test908GcStartFinish::OnLoad, nullptr },
   { "909-attach-agent", nullptr, Test909AttachAgent::OnAttach },
   { "910-methods", Test910Methods::OnLoad, nullptr },
+  { "911-get-stack-trace", Test911GetStackTrace::OnLoad, nullptr },
 };
 
 static AgentLib* FindAgent(char* name) {
