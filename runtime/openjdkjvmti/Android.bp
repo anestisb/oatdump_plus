@@ -22,6 +22,7 @@ cc_defaults {
            "object_tagging.cc",
            "OpenjdkJvmTi.cc",
            "ti_method.cc",
+           "ti_stack.cc",
            "transform.cc"],
     include_dirs: ["art/runtime"],
     shared_libs: [
