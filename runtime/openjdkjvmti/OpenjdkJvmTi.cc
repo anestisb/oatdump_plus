@@ -654,7 +654,7 @@ class JvmtiFunctions {
   static jvmtiError GetMethodModifiers(jvmtiEnv* env,
                                        jmethodID method,
                                        jint* modifiers_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return MethodUtil::GetMethodModifiers(env, method, modifiers_ptr);
   }
 
   static jvmtiError GetMaxLocals(jvmtiEnv* env,

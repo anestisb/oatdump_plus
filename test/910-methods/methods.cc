@@ -91,6 +91,22 @@ extern "C" JNIEXPORT jclass JNICALL Java_Main_getMethodDeclaringClass(
   return declaring_class;
 }
 
+extern "C" JNIEXPORT jint JNICALL Java_Main_getMethodModifiers(
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject method) {
+  jmethodID id = env->FromReflectedMethod(method);
+
+  jint modifiers;
+  jvmtiError result = jvmti_env->GetMethodModifiers(id, &modifiers);
+  if (result != JVMTI_ERROR_NONE) {
+    char* err;
+    jvmti_env->GetErrorName(result, &err);
+    printf("Failure running GetMethodModifiers: %s\n", err);
+    return 0;
+  }
+
+  return modifiers;
+}
+
 // Don't do anything
 jint OnLoad(JavaVM* vm,
             char* options ATTRIBUTE_UNUSED,
