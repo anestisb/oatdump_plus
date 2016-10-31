@@ -936,12 +936,12 @@ inline bool DoInvokePolymorphic(Thread* self,
 
     switch (handle_kind) {
       case kInstanceGet: {
-        ObjPtr<mirror::Object> obj = shadow_frame.GetVRegReference(receiver_vregC);
+        ObjPtr<mirror::Object> obj = shadow_frame.GetVRegReference(first_src_reg);
         DoFieldGetForInvokePolymorphic(self, shadow_frame, obj, field, field_type, result);
         return true;
       }
       case kInstancePut: {
-        ObjPtr<mirror::Object> obj = shadow_frame.GetVRegReference(receiver_vregC);
+        ObjPtr<mirror::Object> obj = shadow_frame.GetVRegReference(first_src_reg);
         return DoFieldPutForInvokePolymorphic(self, shadow_frame, obj, field, field_type, arg[1]);
       }
       case kStaticGet: {
