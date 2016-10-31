@@ -85,10 +85,6 @@ public class Main {
       mh1.invokeExact(aInstance);
       System.out.println("mh1.invoke(aInstance) should not succeeed");
     } catch (WrongMethodTypeException expected) {
-    } catch (ClassCastException workaround) {
-      // TODO(narayan): ART treats all invokes as if they were non-exact. We
-      // should throw a WMTE if we execute an invoke-polymorphic instruction whose
-      // target method is MethodHandle.invokeExact.
     }
 
     // This should *still* be as if an invoke-super was called from one of C's
