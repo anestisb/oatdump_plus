@@ -1571,7 +1571,6 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
             self, shadow_frame, inst, inst_data, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_4xx);
         break;
-        break;
       }
       case Instruction::NEG_INT:
         PREAMBLE();
