@@ -99,8 +99,16 @@ public class Main {
     DelegatingTransformer delegate = new DelegatingTransformer(specialFunctionHandle);
 
     // Test an exact invoke.
+    //
+    // Note that the shorter form below doesn't work and must be
+    // investigated on the jack side :  b/32536744
+    //
+    // delegate.invokeExact(false, 'h', (short) 56, 72, Integer.MAX_VALUE + 42l,
+    //    0.56f, 100.0d, "hello", (Object) "goodbye");
+
+    Object obj = "goodbye";
     delegate.invokeExact(false, 'h', (short) 56, 72, Integer.MAX_VALUE + 42l,
-        0.56f, 100.0d, "hello", "goodbye");
+        0.56f, 100.0d, "hello", obj);
 
     // Test a non exact invoke with one int -> long conversion and a float -> double
     // conversion.
