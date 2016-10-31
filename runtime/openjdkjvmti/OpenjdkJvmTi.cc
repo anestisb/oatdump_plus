@@ -648,13 +648,13 @@ class JvmtiFunctions {
   static jvmtiError GetMethodDeclaringClass(jvmtiEnv* env,
                                             jmethodID method,
                                             jclass* declaring_class_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return MethodUtil::GetMethodDeclaringClass(env, method, declaring_class_ptr);
   }
 
   static jvmtiError GetMethodModifiers(jvmtiEnv* env,
                                        jmethodID method,
                                        jint* modifiers_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return MethodUtil::GetMethodModifiers(env, method, modifiers_ptr);
   }
 
   static jvmtiError GetMaxLocals(jvmtiEnv* env,

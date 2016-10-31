@@ -34,6 +34,7 @@
 #include "art_jvmti.h"
 #include "art_method-inl.h"
 #include "base/enums.h"
+#include "modifiers.h"
 #include "scoped_thread_state_change-inl.h"
 
 namespace openjdkjvmti {
@@ -94,6 +95,49 @@ jvmtiError MethodUtil::GetMethodName(jvmtiEnv* env,
   name_copy.release();
   signature_copy.release();
 
+  return ERR(NONE);
+}
+
+jvmtiError MethodUtil::GetMethodDeclaringClass(jvmtiEnv* env ATTRIBUTE_UNUSED,
+                                               jmethodID method,
+                                               jclass* declaring_class_ptr) {
+  if (declaring_class_ptr == nullptr) {
+    return ERR(NULL_POINTER);
+  }
+
+  art::ScopedObjectAccess soa(art::Thread::Current());
+  art::ArtMethod* art_method = soa.DecodeMethod(method);
+  // Note: No GetInterfaceMethodIfProxy, we want to actual class.
+
+  art::mirror::Class* klass = art_method->GetDeclaringClass();
+  *declaring_class_ptr = soa.AddLocalReference<jclass>(klass);
+
+  return ERR(NONE);
+}
+
+jvmtiError MethodUtil::GetMethodModifiers(jvmtiEnv* env ATTRIBUTE_UNUSED,
+                                          jmethodID method,
+                                          jint* modifiers_ptr) {
+  if (modifiers_ptr == nullptr) {
+    return ERR(NULL_POINTER);
+  }
+
+  art::ScopedObjectAccess soa(art::Thread::Current());
+  art::ArtMethod* art_method = soa.DecodeMethod(method);
+
+  uint32_t modifiers = art_method->GetAccessFlags();
+
+  // Note: Keep this code in sync with Executable.fixMethodFlags.
+  if ((modifiers & art::kAccAbstract) != 0) {
+    modifiers &= ~art::kAccNative;
+  }
+  modifiers &= ~art::kAccSynchronized;
+  if ((modifiers & art::kAccDeclaredSynchronized) != 0) {
+    modifiers |= art::kAccSynchronized;
+  }
+  modifiers &= art::kAccJavaFlagsMask;
+
+  *modifiers_ptr = modifiers;
   return ERR(NONE);
 }
 

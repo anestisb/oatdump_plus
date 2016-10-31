@@ -15,6 +15,7 @@
  */
 
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.util.Arrays;
 
 public class Main {
@@ -29,15 +30,47 @@ public class Main {
     testMethod("java.lang.String", "charAt", int.class);
     testMethod("java.lang.Math", "sqrt", double.class);
     testMethod("java.util.List", "add", Object.class);
+
+    testMethod(getProxyClass(), "run");
+  }
+
+  private static Class<?> proxyClass = null;
+
+  private static Class<?> getProxyClass() throws Exception {
+    if (proxyClass != null) {
+      return proxyClass;
+    }
+
+    proxyClass = Proxy.getProxyClass(Main.class.getClassLoader(), new Class[] { Runnable.class });
+    return proxyClass;
   }
 
   private static void testMethod(String className, String methodName, Class<?>... types)
       throws Exception {
     Class<?> base = Class.forName(className);
+    testMethod(base, methodName, types);
+  }
+
+  private static void testMethod(Class<?> base, String methodName, Class<?>... types)
+      throws Exception {
     Method m = base.getDeclaredMethod(methodName, types);
     String[] result = getMethodName(m);
     System.out.println(Arrays.toString(result));
+
+    Class<?> declClass = getMethodDeclaringClass(m);
+    if (base != declClass) {
+      throw new RuntimeException("Declaring class not equal: " + base + " vs " + declClass);
+    }
+    System.out.println(declClass);
+
+    int modifiers = getMethodModifiers(m);
+    if (modifiers != m.getModifiers()) {
+      throw new RuntimeException("Modifiers not equal: " + m.getModifiers() + " vs " + modifiers);
+    }
+    System.out.println(modifiers);
   }
 
   private static native String[] getMethodName(Method m);
+  private static native Class<?> getMethodDeclaringClass(Method m);
+  private static native int getMethodModifiers(Method m);
 }
