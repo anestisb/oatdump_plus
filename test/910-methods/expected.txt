@@ -1,4 +1,10 @@
 [toString, ()Ljava/lang/String;, null]
+class java.lang.Object
 [charAt, (I)C, null]
+class java.lang.String
 [sqrt, (D)D, null]
+class java.lang.Math
 [add, (Ljava/lang/Object;)Z, null]
+interface java.util.List
+[run, ()V, null]
+class $Proxy0
