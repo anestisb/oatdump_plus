@@ -97,4 +97,21 @@ jvmtiError MethodUtil::GetMethodName(jvmtiEnv* env,
   return ERR(NONE);
 }
 
+jvmtiError MethodUtil::GetMethodDeclaringClass(jvmtiEnv* env ATTRIBUTE_UNUSED,
+                                               jmethodID method,
+                                               jclass* declaring_class_ptr) {
+  if (declaring_class_ptr == nullptr) {
+    return ERR(NULL_POINTER);
+  }
+
+  art::ScopedObjectAccess soa(art::Thread::Current());
+  art::ArtMethod* art_method = soa.DecodeMethod(method);
+  // Note: No GetInterfaceMethodIfProxy, we want to actual class.
+
+  art::mirror::Class* klass = art_method->GetDeclaringClass();
+  *declaring_class_ptr = soa.AddLocalReference<jclass>(klass);
+
+  return ERR(NONE);
+}
+
 }  // namespace openjdkjvmti
