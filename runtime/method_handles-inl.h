@@ -64,44 +64,11 @@ static inline bool GetPrimitiveType(ObjPtr<mirror::Class> dst_class, Primitive::
   }
 }
 
-// A convenience class that allows for iteration through a list of
-// input argument registers |arg| for non-range invokes or a list of
-// consecutive registers starting with a given based for range
-// invokes.
-template <bool is_range> class ArgIterator {
- public:
-  ArgIterator(size_t first_src_reg,
-              const uint32_t (&arg)[Instruction::kMaxVarArgRegs]) :
-      first_src_reg_(first_src_reg),
-      arg_(arg),
-      arg_index_(0) {
-  }
-
-  uint32_t Next() {
-    const uint32_t next = (is_range ? first_src_reg_ + arg_index_ : arg_[arg_index_]);
-    ++arg_index_;
-
-    return next;
-  }
-
-  uint32_t NextPair() {
-    const uint32_t next = (is_range ? first_src_reg_ + arg_index_ : arg_[arg_index_]);
-    arg_index_ += 2;
-
-    return next;
-  }
-
- private:
-  const size_t first_src_reg_;
-  const uint32_t (&arg_)[Instruction::kMaxVarArgRegs];
-  size_t arg_index_;
-};
-
 REQUIRES_SHARED(Locks::mutator_lock_)
-bool ConvertJValue(Handle<mirror::Class> from,
-                   Handle<mirror::Class> to,
-                   const JValue& from_value,
-                   JValue* to_value) {
+inline bool ConvertJValue(Handle<mirror::Class> from,
+                          Handle<mirror::Class> to,
+                          const JValue& from_value,
+                          JValue* to_value) {
   const Primitive::Type from_type = from->GetPrimitiveType();
   const Primitive::Type to_type = to->GetPrimitiveType();
 
@@ -161,6 +128,66 @@ bool ConvertJValue(Handle<mirror::Class> from,
   return true;
 }
 
+template <typename G, typename S>
+bool PerformConversions(Thread* self,
+                        Handle<mirror::ObjectArray<mirror::Class>> from_types,
+                        Handle<mirror::ObjectArray<mirror::Class>> to_types,
+                        G* getter,
+                        S* setter,
+                        int32_t num_conversions) {
+  StackHandleScope<2> hs(self);
+  MutableHandle<mirror::Class> from(hs.NewHandle<mirror::Class>(nullptr));
+  MutableHandle<mirror::Class> to(hs.NewHandle<mirror::Class>(nullptr));
+
+  for (int32_t i = 0; i < num_conversions; ++i) {
+    from.Assign(from_types->GetWithoutChecks(i));
+    to.Assign(to_types->GetWithoutChecks(i));
+
+    const Primitive::Type from_type = from->GetPrimitiveType();
+    const Primitive::Type to_type = to->GetPrimitiveType();
+
+    if (from.Get() == to.Get()) {
+      // Easy case - the types are identical. Nothing left to do except to pass
+      // the arguments along verbatim.
+      if (Primitive::Is64BitType(from_type)) {
+        setter->SetLong(getter->GetLong());
+      } else if (from_type == Primitive::kPrimNot) {
+        setter->SetReference(getter->GetReference());
+      } else {
+        setter->Set(getter->Get());
+      }
+
+      continue;
+    } else {
+      JValue from_value;
+      JValue to_value;
+
+      if (Primitive::Is64BitType(from_type)) {
+        from_value.SetJ(getter->GetLong());
+      } else if (from_type == Primitive::kPrimNot) {
+        from_value.SetL(getter->GetReference());
+      } else {
+        from_value.SetI(getter->Get());
+      }
+
+      if (!ConvertJValue(from, to, from_value, &to_value)) {
+        DCHECK(self->IsExceptionPending());
+        return false;
+      }
+
+      if (Primitive::Is64BitType(to_type)) {
+        setter->SetLong(to_value.GetJ());
+      } else if (to_type == Primitive::kPrimNot) {
+        setter->SetReference(to_value.GetL());
+      } else {
+        setter->Set(to_value.GetI());
+      }
+    }
+  }
+
+  return true;
+}
+
 template <bool is_range>
 bool ConvertAndCopyArgumentsFromCallerFrame(Thread* self,
                                             Handle<mirror::MethodType> callsite_type,
@@ -180,88 +207,16 @@ bool ConvertAndCopyArgumentsFromCallerFrame(Thread* self,
     return false;
   }
 
-  ArgIterator<is_range> input_args(first_src_reg, arg);
-  size_t to_arg_index = 0;
-  MutableHandle<mirror::Class> from(hs.NewHandle<mirror::Class>(nullptr));
-  MutableHandle<mirror::Class> to(hs.NewHandle<mirror::Class>(nullptr));
-  for (int32_t i = 0; i < num_method_params; ++i) {
-    from.Assign(from_types->GetWithoutChecks(i));
-    to.Assign(to_types->GetWithoutChecks(i));
+  ShadowFrameGetter<is_range> getter(first_src_reg, arg, caller_frame);
+  ShadowFrameSetter setter(callee_frame, first_dest_reg);
 
-    const Primitive::Type from_type = from->GetPrimitiveType();
-    const Primitive::Type to_type = to->GetPrimitiveType();
-
-    // Easy case - the types are identical. Nothing left to do except to pass
-    // the arguments along verbatim.
-    if (from.Get() == to.Get()) {
-      interpreter::AssignRegister(callee_frame,
-                                  caller_frame,
-                                  first_dest_reg + to_arg_index,
-                                  input_args.Next());
-      ++to_arg_index;
-
-      // This is a wide argument, we must use the second half of the register
-      // pair as well.
-      if (Primitive::Is64BitType(from_type)) {
-        interpreter::AssignRegister(callee_frame,
-                                    caller_frame,
-                                    first_dest_reg + to_arg_index,
-                                    input_args.Next());
-        ++to_arg_index;
-      }
-
-      continue;
-    } else {
-      JValue from_value;
-      JValue to_value;
-
-      if (Primitive::Is64BitType(from_type)) {
-        from_value.SetJ(caller_frame.GetVRegLong(input_args.NextPair()));
-      } else if (from_type == Primitive::kPrimNot) {
-        from_value.SetL(caller_frame.GetVRegReference(input_args.Next()));
-      } else {
-        from_value.SetI(caller_frame.GetVReg(input_args.Next()));
-      }
-
-      if (!ConvertJValue(from, to, from_value, &to_value)) {
-        DCHECK(self->IsExceptionPending());
-        return false;
-      }
-
-      if (Primitive::Is64BitType(to_type)) {
-        callee_frame->SetVRegLong(first_dest_reg + to_arg_index, to_value.GetJ());
-        to_arg_index += 2;
-      } else if (to_type == Primitive::kPrimNot) {
-        callee_frame->SetVRegReference(first_dest_reg + to_arg_index, to_value.GetL());
-        ++to_arg_index;
-      } else {
-        callee_frame->SetVReg(first_dest_reg + to_arg_index, to_value.GetI());
-        ++to_arg_index;
-      }
-    }
-  }
-
-  return true;
+  return PerformConversions<ShadowFrameGetter<is_range>, ShadowFrameSetter>(self,
+                                                                            from_types,
+                                                                            to_types,
+                                                                            &getter,
+                                                                            &setter,
+                                                                            num_method_params);
 }
-
-// Similar to |ConvertAndCopyArgumentsFromCallerFrame|, except that the
-// arguments are copied from an |EmulatedStackFrame|.
-template <bool is_range>
-bool ConvertAndCopyArgumentsFromEmulatedStackFrame(Thread* self,
-                                                   ObjPtr<mirror::Object> emulated_stack_frame,
-                                                   Handle<mirror::MethodType> callee_type,
-                                                   const uint32_t first_dest_reg,
-                                                   ShadowFrame* callee_frame) {
-  UNUSED(self);
-  UNUSED(emulated_stack_frame);
-  UNUSED(callee_type);
-  UNUSED(first_dest_reg);
-  UNUSED(callee_frame);
-
-  UNIMPLEMENTED(FATAL) << "ConvertAndCopyArgumentsFromEmulatedStackFrame is unimplemented";
-  return false;
-}
-
 
 }  // namespace art
 
