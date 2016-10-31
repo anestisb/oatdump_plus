@@ -36,6 +36,11 @@ class MANAGED MethodHandle : public Object {
     return GetFieldObject<mirror::MethodType>(OFFSET_OF_OBJECT_MEMBER(MethodHandle, method_type_));
   }
 
+  ArtField* GetTargetField() REQUIRES_SHARED(Locks::mutator_lock_) {
+    return reinterpret_cast<ArtField*>(
+        GetField64(OFFSET_OF_OBJECT_MEMBER(MethodHandle, art_field_or_method_)));
+  }
+
   ArtMethod* GetTargetMethod() REQUIRES_SHARED(Locks::mutator_lock_) {
     return reinterpret_cast<ArtMethod*>(
         GetField64(OFFSET_OF_OBJECT_MEMBER(MethodHandle, art_field_or_method_)));
