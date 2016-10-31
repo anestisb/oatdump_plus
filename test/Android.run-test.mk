@@ -278,6 +278,7 @@ TEST_ART_BROKEN_TARGET_TESTS += \
   909-attach-agent \
   910-methods \
   911-get-stack-trace \
+  912-classes \
 
 ifneq (,$(filter target,$(TARGET_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,target,$(RUN_TYPES),$(PREBUILD_TYPES), \
