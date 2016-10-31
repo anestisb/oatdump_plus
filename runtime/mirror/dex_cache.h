@@ -74,6 +74,7 @@ template <typename T> struct PACKED(8) DexCachePair {
   static GcRoot<T> Lookup(std::atomic<DexCachePair<T>>* dex_cache,
                           uint32_t idx,
                           uint32_t cache_size) {
+    DCHECK_NE(cache_size, 0u);
     DexCachePair<T> element = dex_cache[idx % cache_size].load(std::memory_order_relaxed);
     if (idx != element.index) {
       return GcRoot<T>(nullptr);
