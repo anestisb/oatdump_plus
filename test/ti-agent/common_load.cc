@@ -35,6 +35,7 @@
 #include "909-attach-agent/attach.h"
 #include "910-methods/methods.h"
 #include "911-get-stack-trace/stack_trace.h"
+#include "912-classes/classes.h"
 
 namespace art {
 
@@ -62,6 +63,7 @@ AgentLib agents[] = {
   { "909-attach-agent", nullptr, Test909AttachAgent::OnAttach },
   { "910-methods", Test910Methods::OnLoad, nullptr },
   { "911-get-stack-trace", Test911GetStackTrace::OnLoad, nullptr },
+  { "912-classes", Test912Classes::OnLoad, nullptr },
 };
 
 static AgentLib* FindAgent(char* name) {

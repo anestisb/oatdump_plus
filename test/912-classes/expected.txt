@@ -1,0 +1,7 @@
+[Ljava/lang/Object;, null]
+[Ljava/lang/String;, null]
+[Ljava/lang/Math;, null]
+[Ljava/util/List;, null]
+[L$Proxy0;, null]
+[I, null]
+[[D, null]
