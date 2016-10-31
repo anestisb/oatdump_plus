@@ -70,6 +70,7 @@
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache.h"
 #include "mirror/dex_cache-inl.h"
+#include "mirror/emulated_stack_frame.h"
 #include "mirror/field.h"
 #include "mirror/iftable-inl.h"
 #include "mirror/method.h"
@@ -650,6 +651,11 @@ bool ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   SetClassRoot(kJavaLangInvokeMethodHandleImpl, class_root);
   mirror::MethodHandleImpl::SetClass(class_root);
 
+  class_root = FindSystemClass(self, "Ldalvik/system/EmulatedStackFrame;");
+  CHECK(class_root != nullptr);
+  SetClassRoot(kDalvikSystemEmulatedStackFrame, class_root);
+  mirror::EmulatedStackFrame::SetClass(class_root);
+
   // java.lang.ref classes need to be specially flagged, but otherwise are normal classes
   // finish initializing Reference class
   mirror::Class::SetStatus(java_lang_ref_Reference, mirror::Class::kStatusNotReady, self);
@@ -1059,6 +1065,7 @@ bool ClassLinker::InitFromBootImage(std::string* error_msg) {
   mirror::ShortArray::SetArrayClass(GetClassRoot(kShortArrayClass));
   mirror::Throwable::SetClass(GetClassRoot(kJavaLangThrowable));
   mirror::StackTraceElement::SetClass(GetClassRoot(kJavaLangStackTraceElement));
+  mirror::EmulatedStackFrame::SetClass(GetClassRoot(kDalvikSystemEmulatedStackFrame));
 
   for (gc::space::ImageSpace* image_space : spaces) {
     // Boot class loader, use a null handle.
@@ -2038,6 +2045,7 @@ ClassLinker::~ClassLinker() {
   mirror::ShortArray::ResetArrayClass();
   mirror::MethodType::ResetClass();
   mirror::MethodHandleImpl::ResetClass();
+  mirror::EmulatedStackFrame::ResetClass();
   Thread* const self = Thread::Current();
   for (const ClassLoaderData& data : class_loaders_) {
     DeleteClassLoader(self, data);
@@ -8050,6 +8058,7 @@ const char* ClassLinker::GetClassRootDescriptor(ClassRoot class_root) {
     "Ljava/lang/Throwable;",
     "Ljava/lang/ClassNotFoundException;",
     "Ljava/lang/StackTraceElement;",
+    "Ldalvik/system/EmulatedStackFrame;",
     "Z",
     "B",
     "C",

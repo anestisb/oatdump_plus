@@ -316,7 +316,8 @@ class Runtime {
   }
 
   bool IsMethodHandlesEnabled() const {
-    return experimental_flags_ & ExperimentalFlags::kMethodHandles;
+    // return experimental_flags_ & ExperimentalFlags::kMethodHandles;
+    return true;
   }
 
   void DisallowNewSystemWeaks() REQUIRES_SHARED(Locks::mutator_lock_);

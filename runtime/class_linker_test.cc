@@ -31,6 +31,7 @@
 #include "mirror/accessible_object.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache.h"
+#include "mirror/emulated_stack_frame.h"
 #include "mirror/executable.h"
 #include "mirror/field.h"
 #include "mirror/method_type.h"
@@ -740,6 +741,15 @@ struct MethodHandleImplOffsets : public CheckOffsets<mirror::MethodHandleImpl> {
   }
 };
 
+struct EmulatedStackFrameOffsets : public CheckOffsets<mirror::EmulatedStackFrame> {
+  EmulatedStackFrameOffsets() : CheckOffsets<mirror::EmulatedStackFrame>(
+      false, "Ldalvik/system/EmulatedStackFrame;") {
+    addOffset(OFFSETOF_MEMBER(mirror::EmulatedStackFrame, references_), "references");
+    addOffset(OFFSETOF_MEMBER(mirror::EmulatedStackFrame, stack_frame_), "stackFrame");
+    addOffset(OFFSETOF_MEMBER(mirror::EmulatedStackFrame, type_), "type");
+  }
+};
+
 // C++ fields must exactly match the fields in the Java classes. If this fails,
 // reorder the fields in the C++ class. Managed class fields are ordered by
 // ClassLinker::LinkFields.
@@ -760,6 +770,7 @@ TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
   EXPECT_TRUE(ExecutableOffsets().Check());
   EXPECT_TRUE(MethodTypeOffsets().Check());
   EXPECT_TRUE(MethodHandleImplOffsets().Check());
+  EXPECT_TRUE(EmulatedStackFrameOffsets().Check());
 }
 
 TEST_F(ClassLinkerTest, FindClassNonexistent) {
