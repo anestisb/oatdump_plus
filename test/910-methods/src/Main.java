@@ -62,8 +62,15 @@ public class Main {
       throw new RuntimeException("Declaring class not equal: " + base + " vs " + declClass);
     }
     System.out.println(declClass);
+
+    int modifiers = getMethodModifiers(m);
+    if (modifiers != m.getModifiers()) {
+      throw new RuntimeException("Modifiers not equal: " + m.getModifiers() + " vs " + modifiers);
+    }
+    System.out.println(modifiers);
   }
 
   private static native String[] getMethodName(Method m);
   private static native Class<?> getMethodDeclaringClass(Method m);
+  private static native int getMethodModifiers(Method m);
 }
