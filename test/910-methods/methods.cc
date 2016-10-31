@@ -75,6 +75,22 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getMethodName(
   return ret;
 }
 
+extern "C" JNIEXPORT jclass JNICALL Java_Main_getMethodDeclaringClass(
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject method) {
+  jmethodID id = env->FromReflectedMethod(method);
+
+  jclass declaring_class;
+  jvmtiError result = jvmti_env->GetMethodDeclaringClass(id, &declaring_class);
+  if (result != JVMTI_ERROR_NONE) {
+    char* err;
+    jvmti_env->GetErrorName(result, &err);
+    printf("Failure running GetMethodDeclaringClass: %s\n", err);
+    return nullptr;
+  }
+
+  return declaring_class;
+}
+
 // Don't do anything
 jint OnLoad(JavaVM* vm,
             char* options ATTRIBUTE_UNUSED,

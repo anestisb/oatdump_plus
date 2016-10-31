@@ -44,6 +44,10 @@ class MethodUtil {
                                   char** name_ptr,
                                   char** signature_ptr,
                                   char** generic_ptr);
+
+  static jvmtiError GetMethodDeclaringClass(jvmtiEnv* env,
+                                            jmethodID method,
+                                            jclass* declaring_class_ptr);
 };
 
 }  // namespace openjdkjvmti
