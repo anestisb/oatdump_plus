@@ -51,6 +51,7 @@
 #include "lock_word.h"
 #include "mirror/array-inl.h"
 #include "mirror/class-inl.h"
+#include "mirror/class_ext.h"
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache.h"
 #include "mirror/dex_cache-inl.h"
@@ -757,7 +758,8 @@ bool ImageWriter::PruneAppImageClassInternal(
   if (klass->GetStatus() == mirror::Class::kStatusError) {
     result = true;
   } else {
-    CHECK(klass->GetVerifyError() == nullptr) << klass->PrettyClass();
+    ObjPtr<mirror::ClassExt> ext(klass->GetExtData());
+    CHECK(ext.IsNull() || ext->GetVerifyError() == nullptr) << klass->PrettyClass();
   }
   if (!result) {
     // Check interfaces since these wont be visited through VisitReferences.)
