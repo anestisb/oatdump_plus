@@ -27,6 +27,7 @@
 #include "method_handles-inl.h"
 #include "mirror/array-inl.h"
 #include "mirror/class.h"
+#include "mirror/emulated_stack_frame.h"
 #include "mirror/method_handle_impl.h"
 #include "reflection.h"
 #include "reflection-inl.h"
@@ -529,15 +530,19 @@ static inline bool DoCallPolymorphic(ArtMethod* called_method,
                                      ShadowFrame& shadow_frame,
                                      JValue* result,
                                      uint32_t (&arg)[Instruction::kMaxVarArgRegs],
-                                     uint32_t vregC) ALWAYS_INLINE;
+                                     uint32_t vregC,
+                                     const MethodHandleKind handle_kind) ALWAYS_INLINE;
 
-REQUIRES_SHARED(Locks::mutator_lock_)
+template <bool is_range> REQUIRES_SHARED(Locks::mutator_lock_)
 static inline bool DoCallTransform(ArtMethod* called_method,
                                    Handle<mirror::MethodType> callsite_type,
+                                   Handle<mirror::MethodType> callee_type,
                                    Thread* self,
                                    ShadowFrame& shadow_frame,
                                    Handle<mirror::MethodHandleImpl> receiver,
-                                   JValue* result) ALWAYS_INLINE;
+                                   JValue* result,
+                                   uint32_t (&arg)[Instruction::kMaxVarArgRegs],
+                                   uint32_t vregC) ALWAYS_INLINE;
 
 REQUIRES_SHARED(Locks::mutator_lock_)
 inline void PerformCall(Thread* self,
@@ -683,9 +688,9 @@ inline bool DoInvokePolymorphic(Thread* self,
   CHECK(handle_type.Get() != nullptr);
 
   uint32_t arg[Instruction::kMaxVarArgRegs] = {};
-  uint32_t receiver_vregC = 0;
+  uint32_t first_src_reg = 0;
   if (is_range) {
-    receiver_vregC = (inst->VRegC_4rcc() + 1);
+    first_src_reg = (inst->VRegC_4rcc() + 1);
   } else {
     inst->GetVarArgs(arg, inst_data);
     arg[0] = arg[1];
@@ -693,20 +698,15 @@ inline bool DoInvokePolymorphic(Thread* self,
     arg[2] = arg[3];
     arg[3] = arg[4];
     arg[4] = 0;
-    receiver_vregC = arg[0];
+    first_src_reg = arg[0];
   }
 
   if (IsInvoke(handle_kind)) {
     if (handle_kind == kInvokeVirtual || handle_kind == kInvokeInterface) {
-      ObjPtr<mirror::Object> receiver = shadow_frame.GetVRegReference(receiver_vregC);
-      ObjPtr<mirror::Class> declaring_class = called_method->GetDeclaringClass();
-      // Verify that _vRegC is an object reference and of the type expected by
-      // the receiver.
-      called_method = receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(
-          called_method, kRuntimePointerSize);
-      if (!VerifyObjectIsClass(receiver, declaring_class)) {
-        return false;
-      }
+      // TODO: Unfortunately, we have to postpone dynamic receiver based checks
+      // because the receiver might be cast or might come from an emulated stack
+      // frame, which means that it is unknown at this point. We perform these
+      // checks inside DoCallPolymorphic right before we do the actualy invoke.
     } else if (handle_kind == kInvokeDirect) {
       if (called_method->IsConstructor()) {
         // TODO(narayan) : We need to handle the case where the target method is a
@@ -744,12 +744,15 @@ inline bool DoInvokePolymorphic(Thread* self,
     }
 
     if (handle_kind == kInvokeTransform) {
-      return DoCallTransform(called_method,
-                             callsite_type,
-                             self,
-                             shadow_frame,
-                             method_handle /* receiver */,
-                             result);
+      return DoCallTransform<is_range>(called_method,
+                                       callsite_type,
+                                       handle_type,
+                                       self,
+                                       shadow_frame,
+                                       method_handle /* receiver */,
+                                       result,
+                                       arg,
+                                       first_src_reg);
     } else {
       return DoCallPolymorphic<is_range>(called_method,
                                          callsite_type,
@@ -758,7 +761,8 @@ inline bool DoInvokePolymorphic(Thread* self,
                                          shadow_frame,
                                          result,
                                          arg,
-                                         receiver_vregC);
+                                         first_src_reg,
+                                         handle_kind);
     }
   } else {
     // TODO(narayan): Implement field getters and setters.
@@ -860,7 +864,8 @@ static inline bool DoCallPolymorphic(ArtMethod* called_method,
                                      ShadowFrame& shadow_frame,
                                      JValue* result,
                                      uint32_t (&arg)[Instruction::kMaxVarArgRegs],
-                                     uint32_t first_src_reg) {
+                                     uint32_t first_src_reg,
+                                     const MethodHandleKind handle_kind) {
   // TODO(narayan): Wire in the String.init hacks.
 
   // Compute method information.
@@ -893,6 +898,8 @@ static inline bool DoCallPolymorphic(ArtMethod* called_method,
       CREATE_SHADOW_FRAME(num_regs, &shadow_frame, called_method, /* dex pc */ 0);
   ShadowFrame* new_shadow_frame = shadow_frame_unique_ptr.get();
 
+  // Whether this polymorphic invoke was issued by a transformer method.
+  bool is_caller_transformer = false;
   // Thread might be suspended during PerformArgumentConversions due to the
   // allocations performed during boxing.
   {
@@ -914,18 +921,16 @@ static inline bool DoCallPolymorphic(ArtMethod* called_method,
       // case, we'll have to unmarshal the EmulatedStackFrame into the
       // new_shadow_frame and perform argument conversions on it.
       if (IsCallerTransformer(callsite_type)) {
-        // The emulated stack frame will be the first ahnd only argument
-        // when we're coming through from a transformer.
-        //
-        // TODO(narayan): This should be a mirror::EmulatedStackFrame after that
-        // type is introduced.
-        ObjPtr<mirror::Object> emulated_stack_frame(
-            shadow_frame.GetVRegReference(first_src_reg));
-        if (!ConvertAndCopyArgumentsFromEmulatedStackFrame<is_range>(self,
-                                                                     emulated_stack_frame,
-                                                                     target_type,
-                                                                     first_dest_reg,
-                                                                     new_shadow_frame)) {
+        is_caller_transformer = true;
+        // The emulated stack frame is the first and only argument when we're coming
+        // through from a transformer.
+        ObjPtr<mirror::EmulatedStackFrame> emulated_stack_frame(
+            reinterpret_cast<mirror::EmulatedStackFrame*>(
+                shadow_frame.GetVRegReference(first_src_reg)));
+        if (!emulated_stack_frame->WriteToShadowFrame(self,
+                                                      target_type,
+                                                      first_dest_reg,
+                                                      new_shadow_frame)) {
           DCHECK(self->IsExceptionPending());
           result->SetL(0);
           return false;
@@ -945,20 +950,51 @@ static inline bool DoCallPolymorphic(ArtMethod* called_method,
     }
   }
 
+  // See TODO in DoInvokePolymorphic : We need to perform this dynamic, receiver
+  // based dispatch right before we perform the actual call, because the
+  // receiver isn't known very early.
+  if (handle_kind == kInvokeVirtual || handle_kind == kInvokeInterface) {
+    ObjPtr<mirror::Object> receiver(new_shadow_frame->GetVRegReference(first_dest_reg));
+    ObjPtr<mirror::Class> declaring_class(called_method->GetDeclaringClass());
+    // Verify that _vRegC is an object reference and of the type expected by
+    // the receiver.
+    if (!VerifyObjectIsClass(receiver, declaring_class)) {
+      DCHECK(self->IsExceptionPending());
+      return false;
+    }
+
+    called_method = receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(
+        called_method, kRuntimePointerSize);
+  }
+
   PerformCall(self, code_item, shadow_frame.GetMethod(), first_dest_reg, new_shadow_frame, result);
 
   // TODO(narayan): Perform return value conversions.
 
+  // If the caller of this signature polymorphic method was a transformer,
+  // we need to copy the result back out to the emulated stack frame.
+  if (is_caller_transformer && !self->IsExceptionPending()) {
+    ObjPtr<mirror::EmulatedStackFrame> emulated_stack_frame(
+        reinterpret_cast<mirror::EmulatedStackFrame*>(
+            shadow_frame.GetVRegReference(first_src_reg)));
+
+    emulated_stack_frame->SetReturnValue(self, *result);
+  }
+
   return !self->IsExceptionPending();
 }
 
+template <bool is_range>
 static inline bool DoCallTransform(ArtMethod* called_method,
                                    Handle<mirror::MethodType> callsite_type,
+                                   Handle<mirror::MethodType> callee_type,
                                    Thread* self,
                                    ShadowFrame& shadow_frame,
                                    Handle<mirror::MethodHandleImpl> receiver,
-                                   JValue* result) {
-  // This can be fixed, because the method we're calling here
+                                   JValue* result,
+                                   uint32_t (&arg)[Instruction::kMaxVarArgRegs],
+                                   uint32_t first_src_reg) {
+  // This can be fixed to two, because the method we're calling here
   // (MethodHandle.transformInternal) doesn't have any locals and the signature
   // is known :
   //
@@ -978,18 +1014,33 @@ static inline bool DoCallTransform(ArtMethod* called_method,
       CREATE_SHADOW_FRAME(kNumRegsForTransform, &shadow_frame, called_method, /* dex pc */ 0);
   ShadowFrame* new_shadow_frame = shadow_frame_unique_ptr.get();
 
-  // TODO(narayan): Perform argument conversions first (if this is an inexact invoke), and
-  // then construct an argument list object that's passed through to the
-  // method. Note that the ArgumentList reference is currently a nullptr.
-  //
-  // NOTE(narayan): If the caller is a transformer method (i.e, there is only
-  // one argument and its type is EmulatedStackFrame), we can directly pass that
-  // through without having to do any additional work.
-  UNUSED(callsite_type);
+  StackHandleScope<1> hs(self);
+  MutableHandle<mirror::EmulatedStackFrame> sf(hs.NewHandle<mirror::EmulatedStackFrame>(nullptr));
+  if (IsCallerTransformer(callsite_type)) {
+    // If we're entering this transformer from another transformer, we can pass
+    // through the handle directly to the callee, instead of having to
+    // instantiate a new stack frame based on the shadow frame.
+    sf.Assign(reinterpret_cast<mirror::EmulatedStackFrame*>(
+        shadow_frame.GetVRegReference(first_src_reg)));
+  } else {
+    sf.Assign(mirror::EmulatedStackFrame::CreateFromShadowFrameAndArgs<is_range>(
+        self,
+        callsite_type,
+        callee_type,
+        shadow_frame,
+        first_src_reg,
+        arg));
+
+    // Something went wrong while creating the emulated stack frame, we should
+    // throw the pending exception.
+    if (sf.Get() == nullptr) {
+      DCHECK(self->IsExceptionPending());
+      return false;
+    }
+  }
 
   new_shadow_frame->SetVRegReference(0, receiver.Get());
-  // TODO(narayan): This is the EmulatedStackFrame, currently nullptr.
-  new_shadow_frame->SetVRegReference(1, nullptr);
+  new_shadow_frame->SetVRegReference(1, sf.Get());
 
   PerformCall(self,
               code_item,
@@ -997,6 +1048,12 @@ static inline bool DoCallTransform(ArtMethod* called_method,
               0 /* first dest reg */,
               new_shadow_frame,
               result);
+
+  // If the called transformer method we called has returned a value, then we
+  // need to copy it back to |result|.
+  if (!self->IsExceptionPending()) {
+    sf->GetReturnValue(self, result);
+  }
 
   return !self->IsExceptionPending();
 }

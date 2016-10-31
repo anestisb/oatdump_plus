@@ -123,6 +123,7 @@ cc_defaults {
         "mirror/array.cc",
         "mirror/class.cc",
         "mirror/dex_cache.cc",
+        "mirror/emulated_stack_frame.cc",
         "mirror/executable.cc",
         "mirror/field.cc",
         "mirror/method.cc",
