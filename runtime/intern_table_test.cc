@@ -193,22 +193,22 @@ TEST_F(InternTableTest, LookupStrong) {
   ASSERT_NE(foo.Get(), bar.Get());
   ASSERT_NE(foo.Get(), foobar.Get());
   ASSERT_NE(bar.Get(), foobar.Get());
-  mirror::String* lookup_foo = intern_table.LookupStrong(soa.Self(), 3, "foo");
-  EXPECT_EQ(lookup_foo, foo.Get());
-  mirror::String* lookup_bar = intern_table.LookupStrong(soa.Self(), 3, "bar");
-  EXPECT_EQ(lookup_bar, bar.Get());
-  mirror::String* lookup_foobar = intern_table.LookupStrong(soa.Self(), 6, "foobar");
-  EXPECT_EQ(lookup_foobar, foobar.Get());
-  mirror::String* lookup_foox = intern_table.LookupStrong(soa.Self(), 4, "foox");
+  ObjPtr<mirror::String> lookup_foo = intern_table.LookupStrong(soa.Self(), 3, "foo");
+  EXPECT_OBJ_PTR_EQ(lookup_foo, foo.Get());
+  ObjPtr<mirror::String> lookup_bar = intern_table.LookupStrong(soa.Self(), 3, "bar");
+  EXPECT_OBJ_PTR_EQ(lookup_bar, bar.Get());
+  ObjPtr<mirror::String> lookup_foobar = intern_table.LookupStrong(soa.Self(), 6, "foobar");
+  EXPECT_OBJ_PTR_EQ(lookup_foobar, foobar.Get());
+  ObjPtr<mirror::String> lookup_foox = intern_table.LookupStrong(soa.Self(), 4, "foox");
   EXPECT_TRUE(lookup_foox == nullptr);
-  mirror::String* lookup_fooba = intern_table.LookupStrong(soa.Self(), 5, "fooba");
+  ObjPtr<mirror::String> lookup_fooba = intern_table.LookupStrong(soa.Self(), 5, "fooba");
   EXPECT_TRUE(lookup_fooba == nullptr);
-  mirror::String* lookup_foobaR = intern_table.LookupStrong(soa.Self(), 6, "foobaR");
+  ObjPtr<mirror::String> lookup_foobaR = intern_table.LookupStrong(soa.Self(), 6, "foobaR");
   EXPECT_TRUE(lookup_foobaR == nullptr);
   // Try a hash conflict.
   ASSERT_EQ(ComputeUtf16HashFromModifiedUtf8("foobar", 6),
             ComputeUtf16HashFromModifiedUtf8("foobbS", 6));
-  mirror::String* lookup_foobbS = intern_table.LookupStrong(soa.Self(), 6, "foobbS");
+  ObjPtr<mirror::String> lookup_foobbS = intern_table.LookupStrong(soa.Self(), 6, "foobbS");
   EXPECT_TRUE(lookup_foobbS == nullptr);
 }
 

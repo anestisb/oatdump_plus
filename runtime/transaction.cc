@@ -167,29 +167,29 @@ void Transaction::RecordWriteArray(mirror::Array* array, size_t index, uint64_t 
   array_log.LogValue(index, value);
 }
 
-void Transaction::RecordResolveString(mirror::DexCache* dex_cache, uint32_t string_idx) {
+void Transaction::RecordResolveString(ObjPtr<mirror::DexCache> dex_cache, uint32_t string_idx) {
   DCHECK(dex_cache != nullptr);
   DCHECK_LT(string_idx, dex_cache->GetDexFile()->NumStringIds());
   MutexLock mu(Thread::Current(), log_lock_);
   resolve_string_logs_.push_back(ResolveStringLog(dex_cache, string_idx));
 }
 
-void Transaction::RecordStrongStringInsertion(mirror::String* s) {
+void Transaction::RecordStrongStringInsertion(ObjPtr<mirror::String> s) {
   InternStringLog log(s, InternStringLog::kStrongString, InternStringLog::kInsert);
   LogInternedString(log);
 }
 
-void Transaction::RecordWeakStringInsertion(mirror::String* s) {
+void Transaction::RecordWeakStringInsertion(ObjPtr<mirror::String> s) {
   InternStringLog log(s, InternStringLog::kWeakString, InternStringLog::kInsert);
   LogInternedString(log);
 }
 
-void Transaction::RecordStrongStringRemoval(mirror::String* s) {
+void Transaction::RecordStrongStringRemoval(ObjPtr<mirror::String> s) {
   InternStringLog log(s, InternStringLog::kStrongString, InternStringLog::kRemove);
   LogInternedString(log);
 }
 
-void Transaction::RecordWeakStringRemoval(mirror::String* s) {
+void Transaction::RecordWeakStringRemoval(ObjPtr<mirror::String> s) {
   InternStringLog log(s, InternStringLog::kWeakString, InternStringLog::kRemove);
   LogInternedString(log);
 }
@@ -470,10 +470,10 @@ void Transaction::InternStringLog::Undo(InternTable* intern_table) {
     case InternStringLog::kInsert: {
       switch (string_kind_) {
         case InternStringLog::kStrongString:
-          intern_table->RemoveStrongFromTransaction(str_);
+          intern_table->RemoveStrongFromTransaction(str_.Read());
           break;
         case InternStringLog::kWeakString:
-          intern_table->RemoveWeakFromTransaction(str_);
+          intern_table->RemoveWeakFromTransaction(str_.Read());
           break;
         default:
           LOG(FATAL) << "Unknown interned string kind";
@@ -484,10 +484,10 @@ void Transaction::InternStringLog::Undo(InternTable* intern_table) {
     case InternStringLog::kRemove: {
       switch (string_kind_) {
         case InternStringLog::kStrongString:
-          intern_table->InsertStrongFromTransaction(str_);
+          intern_table->InsertStrongFromTransaction(str_.Read());
           break;
         case InternStringLog::kWeakString:
-          intern_table->InsertWeakFromTransaction(str_);
+          intern_table->InsertWeakFromTransaction(str_.Read());
           break;
         default:
           LOG(FATAL) << "Unknown interned string kind";
@@ -502,14 +502,15 @@ void Transaction::InternStringLog::Undo(InternTable* intern_table) {
 }
 
 void Transaction::InternStringLog::VisitRoots(RootVisitor* visitor) {
-  visitor->VisitRoot(reinterpret_cast<mirror::Object**>(&str_), RootInfo(kRootInternedString));
+  str_.VisitRoot(visitor, RootInfo(kRootInternedString));
 }
 
 void Transaction::ResolveStringLog::Undo() {
   dex_cache_.Read()->ClearString(string_idx_);
 }
 
-Transaction::ResolveStringLog::ResolveStringLog(mirror::DexCache* dex_cache, uint32_t string_idx)
+Transaction::ResolveStringLog::ResolveStringLog(ObjPtr<mirror::DexCache> dex_cache,
+                                                uint32_t string_idx)
     : dex_cache_(dex_cache),
       string_idx_(string_idx) {
   DCHECK(dex_cache != nullptr);
@@ -518,6 +519,15 @@ Transaction::ResolveStringLog::ResolveStringLog(mirror::DexCache* dex_cache, uin
 
 void Transaction::ResolveStringLog::VisitRoots(RootVisitor* visitor) {
   dex_cache_.VisitRoot(visitor, RootInfo(kRootVMInternal));
+}
+
+Transaction::InternStringLog::InternStringLog(ObjPtr<mirror::String> s,
+                                              StringKind kind,
+                                              StringOp op)
+    : str_(s),
+      string_kind_(kind),
+      string_op_(op) {
+  DCHECK(s != nullptr);
 }
 
 void Transaction::ArrayLog::LogValue(size_t index, uint64_t value) {

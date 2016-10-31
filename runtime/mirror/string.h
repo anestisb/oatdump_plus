@@ -93,7 +93,7 @@ class MANAGED String FINAL : public Object {
 
   void SetCharAt(int32_t index, uint16_t c) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  String* Intern() REQUIRES_SHARED(Locks::mutator_lock_);
+  ObjPtr<String> Intern() REQUIRES_SHARED(Locks::mutator_lock_);
 
   template <bool kIsInstrumented>
   ALWAYS_INLINE static String* AllocFromByteArray(Thread* self, int32_t byte_length,

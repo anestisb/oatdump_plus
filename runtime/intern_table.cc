@@ -63,9 +63,9 @@ void InternTable::VisitRoots(RootVisitor* visitor, VisitRootFlags flags) {
     strong_interns_.VisitRoots(visitor);
   } else if ((flags & kVisitRootFlagNewRoots) != 0) {
     for (auto& root : new_strong_intern_roots_) {
-      mirror::String* old_ref = root.Read<kWithoutReadBarrier>();
+      ObjPtr<mirror::String> old_ref = root.Read<kWithoutReadBarrier>();
       root.VisitRoot(visitor, RootInfo(kRootInternedString));
-      mirror::String* new_ref = root.Read<kWithoutReadBarrier>();
+      ObjPtr<mirror::String> new_ref = root.Read<kWithoutReadBarrier>();
       if (new_ref != old_ref) {
         // The GC moved a root in the log. Need to search the strong interns and update the
         // corresponding object. This is slow, but luckily for us, this may only happen with a
@@ -86,17 +86,17 @@ void InternTable::VisitRoots(RootVisitor* visitor, VisitRootFlags flags) {
   // Note: we deliberately don't visit the weak_interns_ table and the immutable image roots.
 }
 
-mirror::String* InternTable::LookupWeak(Thread* self, mirror::String* s) {
+ObjPtr<mirror::String> InternTable::LookupWeak(Thread* self, ObjPtr<mirror::String> s) {
   MutexLock mu(self, *Locks::intern_table_lock_);
   return LookupWeakLocked(s);
 }
 
-mirror::String* InternTable::LookupStrong(Thread* self, mirror::String* s) {
+ObjPtr<mirror::String> InternTable::LookupStrong(Thread* self, ObjPtr<mirror::String> s) {
   MutexLock mu(self, *Locks::intern_table_lock_);
   return LookupStrongLocked(s);
 }
 
-mirror::String* InternTable::LookupStrong(Thread* self,
+ObjPtr<mirror::String> InternTable::LookupStrong(Thread* self,
                                           uint32_t utf16_length,
                                           const char* utf8_data) {
   DCHECK_EQ(utf16_length, CountModifiedUtf8Chars(utf8_data));
@@ -107,11 +107,11 @@ mirror::String* InternTable::LookupStrong(Thread* self,
   return strong_interns_.Find(string);
 }
 
-mirror::String* InternTable::LookupWeakLocked(mirror::String* s) {
+ObjPtr<mirror::String> InternTable::LookupWeakLocked(ObjPtr<mirror::String> s) {
   return weak_interns_.Find(s);
 }
 
-mirror::String* InternTable::LookupStrongLocked(mirror::String* s) {
+ObjPtr<mirror::String> InternTable::LookupStrongLocked(ObjPtr<mirror::String> s) {
   return strong_interns_.Find(s);
 }
 
@@ -121,7 +121,7 @@ void InternTable::AddNewTable() {
   strong_interns_.AddNewTable();
 }
 
-mirror::String* InternTable::InsertStrong(mirror::String* s) {
+ObjPtr<mirror::String> InternTable::InsertStrong(ObjPtr<mirror::String> s) {
   Runtime* runtime = Runtime::Current();
   if (runtime->IsActiveTransaction()) {
     runtime->RecordStrongStringInsertion(s);
@@ -133,7 +133,7 @@ mirror::String* InternTable::InsertStrong(mirror::String* s) {
   return s;
 }
 
-mirror::String* InternTable::InsertWeak(mirror::String* s) {
+ObjPtr<mirror::String> InternTable::InsertWeak(ObjPtr<mirror::String> s) {
   Runtime* runtime = Runtime::Current();
   if (runtime->IsActiveTransaction()) {
     runtime->RecordWeakStringInsertion(s);
@@ -142,11 +142,11 @@ mirror::String* InternTable::InsertWeak(mirror::String* s) {
   return s;
 }
 
-void InternTable::RemoveStrong(mirror::String* s) {
+void InternTable::RemoveStrong(ObjPtr<mirror::String> s) {
   strong_interns_.Remove(s);
 }
 
-void InternTable::RemoveWeak(mirror::String* s) {
+void InternTable::RemoveWeak(ObjPtr<mirror::String> s) {
   Runtime* runtime = Runtime::Current();
   if (runtime->IsActiveTransaction()) {
     runtime->RecordWeakStringRemoval(s);
@@ -155,19 +155,22 @@ void InternTable::RemoveWeak(mirror::String* s) {
 }
 
 // Insert/remove methods used to undo changes made during an aborted transaction.
-mirror::String* InternTable::InsertStrongFromTransaction(mirror::String* s) {
+ObjPtr<mirror::String> InternTable::InsertStrongFromTransaction(ObjPtr<mirror::String> s) {
   DCHECK(!Runtime::Current()->IsActiveTransaction());
   return InsertStrong(s);
 }
-mirror::String* InternTable::InsertWeakFromTransaction(mirror::String* s) {
+
+ObjPtr<mirror::String> InternTable::InsertWeakFromTransaction(ObjPtr<mirror::String> s) {
   DCHECK(!Runtime::Current()->IsActiveTransaction());
   return InsertWeak(s);
 }
-void InternTable::RemoveStrongFromTransaction(mirror::String* s) {
+
+void InternTable::RemoveStrongFromTransaction(ObjPtr<mirror::String> s) {
   DCHECK(!Runtime::Current()->IsActiveTransaction());
   RemoveStrong(s);
 }
-void InternTable::RemoveWeakFromTransaction(mirror::String* s) {
+
+void InternTable::RemoveWeakFromTransaction(ObjPtr<mirror::String> s) {
   DCHECK(!Runtime::Current()->IsActiveTransaction());
   RemoveWeak(s);
 }
@@ -203,7 +206,9 @@ void InternTable::WaitUntilAccessible(Thread* self) {
   Locks::intern_table_lock_->ExclusiveLock(self);
 }
 
-mirror::String* InternTable::Insert(mirror::String* s, bool is_strong, bool holding_locks) {
+ObjPtr<mirror::String> InternTable::Insert(ObjPtr<mirror::String> s,
+                                           bool is_strong,
+                                           bool holding_locks) {
   if (s == nullptr) {
     return nullptr;
   }
@@ -222,7 +227,7 @@ mirror::String* InternTable::Insert(mirror::String* s, bool is_strong, bool hold
       }
     }
     // Check the strong table for a match.
-    mirror::String* strong = LookupStrongLocked(s);
+    ObjPtr<mirror::String> strong = LookupStrongLocked(s);
     if (strong != nullptr) {
       return strong;
     }
@@ -244,7 +249,7 @@ mirror::String* InternTable::Insert(mirror::String* s, bool is_strong, bool hold
     CHECK(self->GetWeakRefAccessEnabled());
   }
   // There is no match in the strong table, check the weak table.
-  mirror::String* weak = LookupWeakLocked(s);
+  ObjPtr<mirror::String> weak = LookupWeakLocked(s);
   if (weak != nullptr) {
     if (is_strong) {
       // A match was found in the weak table. Promote to the strong table.
@@ -257,11 +262,11 @@ mirror::String* InternTable::Insert(mirror::String* s, bool is_strong, bool hold
   return is_strong ? InsertStrong(s) : InsertWeak(s);
 }
 
-mirror::String* InternTable::InternStrong(int32_t utf16_length, const char* utf8_data) {
+ObjPtr<mirror::String> InternTable::InternStrong(int32_t utf16_length, const char* utf8_data) {
   DCHECK(utf8_data != nullptr);
   Thread* self = Thread::Current();
   // Try to avoid allocation.
-  mirror::String* s = LookupStrong(self, utf16_length, utf8_data);
+  ObjPtr<mirror::String> s = LookupStrong(self, utf16_length, utf8_data);
   if (s != nullptr) {
     return s;
   }
@@ -269,25 +274,25 @@ mirror::String* InternTable::InternStrong(int32_t utf16_length, const char* utf8
       self, utf16_length, utf8_data));
 }
 
-mirror::String* InternTable::InternStrong(const char* utf8_data) {
+ObjPtr<mirror::String> InternTable::InternStrong(const char* utf8_data) {
   DCHECK(utf8_data != nullptr);
   return InternStrong(mirror::String::AllocFromModifiedUtf8(Thread::Current(), utf8_data));
 }
 
-mirror::String* InternTable::InternStrongImageString(mirror::String* s) {
+ObjPtr<mirror::String> InternTable::InternStrongImageString(ObjPtr<mirror::String> s) {
   // May be holding the heap bitmap lock.
   return Insert(s, true, true);
 }
 
-mirror::String* InternTable::InternStrong(mirror::String* s) {
+ObjPtr<mirror::String> InternTable::InternStrong(ObjPtr<mirror::String> s) {
   return Insert(s, true, false);
 }
 
-mirror::String* InternTable::InternWeak(mirror::String* s) {
+ObjPtr<mirror::String> InternTable::InternWeak(ObjPtr<mirror::String> s) {
   return Insert(s, false, false);
 }
 
-bool InternTable::ContainsWeak(mirror::String* s) {
+bool InternTable::ContainsWeak(ObjPtr<mirror::String> s) {
   return LookupWeak(Thread::Current(), s) == s;
 }
 
@@ -314,7 +319,7 @@ std::size_t InternTable::StringHashEquals::operator()(const GcRoot<mirror::Strin
   if (kIsDebugBuild) {
     Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
   }
-  return static_cast<size_t>(root.Read()->GetHashCode());
+  return static_cast<size_t>(root.Read<kWithoutReadBarrier>()->GetHashCode());
 }
 
 bool InternTable::StringHashEquals::operator()(const GcRoot<mirror::String>& a,
@@ -322,7 +327,7 @@ bool InternTable::StringHashEquals::operator()(const GcRoot<mirror::String>& a,
   if (kIsDebugBuild) {
     Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
   }
-  return a.Read()->Equals(b.Read());
+  return a.Read<kWithoutReadBarrier>()->Equals(b.Read<kWithoutReadBarrier>());
 }
 
 bool InternTable::StringHashEquals::operator()(const GcRoot<mirror::String>& a,
@@ -330,7 +335,7 @@ bool InternTable::StringHashEquals::operator()(const GcRoot<mirror::String>& a,
   if (kIsDebugBuild) {
     Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
   }
-  mirror::String* a_string = a.Read();
+  ObjPtr<mirror::String> a_string = a.Read<kWithoutReadBarrier>();
   uint32_t a_length = static_cast<uint32_t>(a_string->GetLength());
   if (a_length != b.GetUtf16Length()) {
     return false;
@@ -392,7 +397,7 @@ size_t InternTable::Table::WriteToMemory(uint8_t* ptr) {
   return table_to_write->WriteToMemory(ptr);
 }
 
-void InternTable::Table::Remove(mirror::String* s) {
+void InternTable::Table::Remove(ObjPtr<mirror::String> s) {
   for (UnorderedSet& table : tables_) {
     auto it = table.Find(GcRoot<mirror::String>(s));
     if (it != table.end()) {
@@ -403,7 +408,7 @@ void InternTable::Table::Remove(mirror::String* s) {
   LOG(FATAL) << "Attempting to remove non-interned string " << s->ToModifiedUtf8();
 }
 
-mirror::String* InternTable::Table::Find(mirror::String* s) {
+ObjPtr<mirror::String> InternTable::Table::Find(ObjPtr<mirror::String> s) {
   Locks::intern_table_lock_->AssertHeld(Thread::Current());
   for (UnorderedSet& table : tables_) {
     auto it = table.Find(GcRoot<mirror::String>(s));
@@ -414,7 +419,7 @@ mirror::String* InternTable::Table::Find(mirror::String* s) {
   return nullptr;
 }
 
-mirror::String* InternTable::Table::Find(const Utf8String& string) {
+ObjPtr<mirror::String> InternTable::Table::Find(const Utf8String& string) {
   Locks::intern_table_lock_->AssertHeld(Thread::Current());
   for (UnorderedSet& table : tables_) {
     auto it = table.Find(string);
@@ -429,7 +434,7 @@ void InternTable::Table::AddNewTable() {
   tables_.push_back(UnorderedSet());
 }
 
-void InternTable::Table::Insert(mirror::String* s) {
+void InternTable::Table::Insert(ObjPtr<mirror::String> s) {
   // Always insert the last table, the image tables are before and we avoid inserting into these
   // to prevent dirty pages.
   DCHECK(!tables_.empty());
