@@ -108,6 +108,19 @@ static inline JvmtiUniquePtr MakeJvmtiUniquePtr(jvmtiEnv* env, unsigned char* me
   return JvmtiUniquePtr(mem, JvmtiDeleter(env));
 }
 
+ALWAYS_INLINE
+static inline jvmtiError CopyString(jvmtiEnv* env, const char* src, unsigned char** copy) {
+  size_t len = strlen(src) + 1;
+  unsigned char* buf;
+  jvmtiError ret = env->Allocate(len, &buf);
+  if (ret != ERR(NONE)) {
+    return ret;
+  }
+  strcpy(reinterpret_cast<char*>(buf), src);
+  *copy = buf;
+  return ret;
+}
+
 }  // namespace openjdkjvmti
 
 #endif  // ART_RUNTIME_OPENJDKJVMTI_ART_JVMTI_H_

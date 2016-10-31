@@ -39,18 +39,6 @@
 
 namespace openjdkjvmti {
 
-static jvmtiError CopyString(jvmtiEnv* env, const char* src, unsigned char** copy) {
-  size_t len = strlen(src) + 1;
-  unsigned char* buf;
-  jvmtiError ret = env->Allocate(len, &buf);
-  if (ret != ERR(NONE)) {
-    return ret;
-  }
-  strcpy(reinterpret_cast<char*>(buf), src);
-  *copy = buf;
-  return ret;
-}
-
 jvmtiError MethodUtil::GetMethodName(jvmtiEnv* env,
                                      jmethodID method,
                                      char** name_ptr,
