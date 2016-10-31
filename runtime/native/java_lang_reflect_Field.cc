@@ -446,6 +446,12 @@ static jobject Field_getAnnotationNative(JNIEnv* env, jobject javaField, jclass 
   return soa.AddLocalReference<jobject>(annotations::GetAnnotationForField(field, klass));
 }
 
+static jlong Field_getArtField(JNIEnv* env, jobject javaField) {
+  ScopedFastNativeObjectAccess soa(env);
+  ArtField* field = soa.Decode<mirror::Field>(javaField)->GetArtField();
+  return reinterpret_cast<jlong>(field);
+}
+
 static jobjectArray Field_getDeclaredAnnotations(JNIEnv* env, jobject javaField) {
   ScopedFastNativeObjectAccess soa(env);
   ArtField* field = soa.Decode<mirror::Field>(javaField)->GetArtField();
@@ -489,6 +495,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Field, getChar,    "!(Ljava/lang/Object;)C"),
   NATIVE_METHOD(Field, getAnnotationNative,
                 "!(Ljava/lang/Class;)Ljava/lang/annotation/Annotation;"),
+  NATIVE_METHOD(Field, getArtField, "!()J"),
   NATIVE_METHOD(Field, getDeclaredAnnotations, "!()[Ljava/lang/annotation/Annotation;"),
   NATIVE_METHOD(Field, getSignatureAnnotation, "!()[Ljava/lang/String;"),
   NATIVE_METHOD(Field, getDouble,  "!(Ljava/lang/Object;)D"),
