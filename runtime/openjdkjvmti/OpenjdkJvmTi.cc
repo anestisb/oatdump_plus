@@ -47,6 +47,7 @@
 #include "scoped_thread_state_change-inl.h"
 #include "thread_list.h"
 #include "thread-inl.h"
+#include "ti_class.h"
 #include "ti_method.h"
 #include "ti_stack.h"
 #include "transform.h"
@@ -506,7 +507,7 @@ class JvmtiFunctions {
                                       jclass klass,
                                       char** signature_ptr,
                                       char** generic_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return ClassUtil::GetClassSignature(env, klass, signature_ptr, generic_ptr);
   }
 
   static jvmtiError GetClassStatus(jvmtiEnv* env, jclass klass, jint* status_ptr) {
