@@ -48,6 +48,10 @@ class MethodUtil {
   static jvmtiError GetMethodDeclaringClass(jvmtiEnv* env,
                                             jmethodID method,
                                             jclass* declaring_class_ptr);
+
+  static jvmtiError GetMethodModifiers(jvmtiEnv* env,
+                                       jmethodID method,
+                                       jint* modifiers_ptr);
 };
 
 }  // namespace openjdkjvmti
