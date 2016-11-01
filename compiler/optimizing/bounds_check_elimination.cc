@@ -548,7 +548,21 @@ class BCEVisitor : public HGraphVisitor {
   void VisitBasicBlock(HBasicBlock* block) OVERRIDE {
     DCHECK(!IsAddedBlock(block));
     first_index_bounds_check_map_.clear();
-    HGraphVisitor::VisitBasicBlock(block);
+    // Visit phis and instructions using a safe iterator. The iteration protects
+    // against deleting the current instruction during iteration. However, it
+    // must advance next_ if that instruction is deleted during iteration.
+    for (HInstruction* instruction = block->GetFirstPhi(); instruction != nullptr;) {
+      DCHECK(instruction->IsInBlock());
+      next_ = instruction->GetNext();
+      instruction->Accept(this);
+      instruction = next_;
+    }
+    for (HInstruction* instruction = block->GetFirstInstruction(); instruction != nullptr;) {
+      DCHECK(instruction->IsInBlock());
+      next_ = instruction->GetNext();
+      instruction->Accept(this);
+      instruction = next_;
+    }
     // We should never deoptimize from an osr method, otherwise we might wrongly optimize
     // code dominated by the deoptimization.
     if (!GetGraph()->IsCompilingOsr()) {
@@ -1798,7 +1812,12 @@ class BCEVisitor : public HGraphVisitor {
   }
 
   /** Helper method to replace an instruction with another instruction. */
-  static void ReplaceInstruction(HInstruction* instruction, HInstruction* replacement) {
+  void ReplaceInstruction(HInstruction* instruction, HInstruction* replacement) {
+    // Safe iteration.
+    if (instruction == next_) {
+      next_ = next_->GetNext();
+    }
+    // Replace and remove.
     instruction->ReplaceWith(replacement);
     instruction->GetBlock()->RemoveInstruction(instruction);
   }
@@ -1830,6 +1849,9 @@ class BCEVisitor : public HGraphVisitor {
 
   // Range analysis based on induction variables.
   InductionVarRange induction_range_;
+
+  // Safe iteration.
+  HInstruction* next_;
 
   DISALLOW_COPY_AND_ASSIGN(BCEVisitor);
 };
