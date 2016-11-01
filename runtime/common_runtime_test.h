@@ -133,6 +133,8 @@ class CommonRuntimeTestImpl {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   jobject LoadDex(const char* dex_name) REQUIRES_SHARED(Locks::mutator_lock_);
+  jobject LoadMultiDex(const char* first_dex_name, const char* second_dex_name)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   std::string android_data_;
   std::string dalvik_cache_;
