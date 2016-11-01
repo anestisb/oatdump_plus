@@ -374,13 +374,14 @@ TEST_ART_BROKEN_INTERPRETER_ACCESS_CHECK_TESTS :=
 # * 137-cfi needs to unwind a second forked process. We're using a primitive sleep to wait till we
 #   hope the second process got into the expected state. The slowness of gcstress makes this bad.
 # * 908-gc-start-finish expects GCs only to be run at clear points. The reduced heap size makes
-#   this non-deterministic.
+#   this non-deterministic. Same for 913.
 # * 961-default-iface-resolution-gen and 964-default-iface-init-genare very long tests that often
 #   will take more than the timeout to run when gcstress is enabled. This is because gcstress
 #   slows down allocations significantly which these tests do a lot.
 TEST_ART_BROKEN_GCSTRESS_RUN_TESTS := \
   137-cfi \
   908-gc-start-finish \
+  913-heaps \
   961-default-iface-resolution-gen \
   964-default-iface-init-gen \  
 
