@@ -1759,7 +1759,7 @@ bool OatWriter::WriteVerifierDeps(OutputStream* vdex_out, verifier::VerifierDeps
   }
 
   std::vector<uint8_t> buffer;
-  verifier_deps->Encode(&buffer);
+  verifier_deps->Encode(*dex_files_, &buffer);
 
   if (!vdex_out->WriteFully(buffer.data(), buffer.size())) {
     PLOG(ERROR) << "Failed to write verifier deps."

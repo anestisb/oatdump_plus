@@ -572,6 +572,29 @@ const DexFile* CommonRuntimeTestImpl::GetFirstDexFile(jobject jclass_loader) {
   return ret;
 }
 
+jobject CommonRuntimeTestImpl::LoadMultiDex(const char* first_dex_name,
+                                            const char* second_dex_name) {
+  std::vector<std::unique_ptr<const DexFile>> first_dex_files = OpenTestDexFiles(first_dex_name);
+  std::vector<std::unique_ptr<const DexFile>> second_dex_files = OpenTestDexFiles(second_dex_name);
+  std::vector<const DexFile*> class_path;
+  CHECK_NE(0U, first_dex_files.size());
+  CHECK_NE(0U, second_dex_files.size());
+  for (auto& dex_file : first_dex_files) {
+    class_path.push_back(dex_file.get());
+    loaded_dex_files_.push_back(std::move(dex_file));
+  }
+  for (auto& dex_file : second_dex_files) {
+    class_path.push_back(dex_file.get());
+    loaded_dex_files_.push_back(std::move(dex_file));
+  }
+
+  Thread* self = Thread::Current();
+  jobject class_loader = Runtime::Current()->GetClassLinker()->CreatePathClassLoader(self,
+                                                                                     class_path);
+  self->SetClassLoaderOverride(class_loader);
+  return class_loader;
+}
+
 jobject CommonRuntimeTestImpl::LoadDex(const char* dex_name) {
   std::vector<std::unique_ptr<const DexFile>> dex_files = OpenTestDexFiles(dex_name);
   std::vector<const DexFile*> class_path;
