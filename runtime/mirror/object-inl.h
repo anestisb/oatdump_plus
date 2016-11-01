@@ -135,25 +135,82 @@ inline void Object::Wait(Thread* self, int64_t ms, int32_t ns) {
   Monitor::Wait(self, this, ms, ns, true, kTimedWaiting);
 }
 
-inline Object* Object::GetReadBarrierPointer() {
+inline uint32_t Object::GetReadBarrierState(uintptr_t* fake_address_dependency) {
+#ifdef USE_BAKER_READ_BARRIER
+  CHECK(kUseBakerReadBarrier);
+#if defined(__arm__)
+  uintptr_t obj = reinterpret_cast<uintptr_t>(this);
+  uintptr_t result;
+  DCHECK_EQ(OFFSETOF_MEMBER(Object, monitor_), 4U);
+  // Use inline assembly to prevent the compiler from optimizing away the false dependency.
+  __asm__ __volatile__(
+      "ldr %[result], [%[obj], #4]\n\t"
+      // This instruction is enough to "fool the compiler and the CPU" by having `fad` always be
+      // null, without them being able to assume that fact.
+      "eor %[fad], %[result], %[result]\n\t"
+      : [result] "+r" (result), [fad] "=r" (*fake_address_dependency)
+      : [obj] "r" (obj));
+  DCHECK_EQ(*fake_address_dependency, 0U);
+  LockWord lw(static_cast<uint32_t>(result));
+  uint32_t rb_state = lw.ReadBarrierState();
+  return rb_state;
+#elif defined(__aarch64__)
+  uintptr_t obj = reinterpret_cast<uintptr_t>(this);
+  uintptr_t result;
+  DCHECK_EQ(OFFSETOF_MEMBER(Object, monitor_), 4U);
+  // Use inline assembly to prevent the compiler from optimizing away the false dependency.
+  __asm__ __volatile__(
+      "ldr %w[result], [%[obj], #4]\n\t"
+      // This instruction is enough to "fool the compiler and the CPU" by having `fad` always be
+      // null, without them being able to assume that fact.
+      "eor %[fad], %[result], %[result]\n\t"
+      : [result] "+r" (result), [fad] "=r" (*fake_address_dependency)
+      : [obj] "r" (obj));
+  DCHECK_EQ(*fake_address_dependency, 0U);
+  LockWord lw(static_cast<uint32_t>(result));
+  uint32_t rb_state = lw.ReadBarrierState();
+  return rb_state;
+#elif defined(__i386__) || defined(__x86_64__)
+  LockWord lw = GetLockWord(false);
+  // i386/x86_64 don't need fake address dependency. Use a compiler fence to avoid compiler
+  // reordering.
+  *fake_address_dependency = 0;
+  std::atomic_signal_fence(std::memory_order_acquire);
+  uint32_t rb_state = lw.ReadBarrierState();
+  return rb_state;
+#else
+  // mips/mips64
+  LOG(FATAL) << "Unreachable";
+  UNREACHABLE();
+  UNUSED(fake_address_dependency);
+#endif
+#else  // !USE_BAKER_READ_BARRIER
+  LOG(FATAL) << "Unreachable";
+  UNREACHABLE();
+  UNUSED(fake_address_dependency);
+#endif
+}
+
+inline uint32_t Object::GetReadBarrierState() {
 #ifdef USE_BAKER_READ_BARRIER
   DCHECK(kUseBakerReadBarrier);
-  return reinterpret_cast<Object*>(GetLockWord(false).ReadBarrierState());
-#elif USE_BROOKS_READ_BARRIER
-  DCHECK(kUseBrooksReadBarrier);
-  return GetFieldObject<Object, kVerifyNone, kWithoutReadBarrier>(
-      OFFSET_OF_OBJECT_MEMBER(Object, x_rb_ptr_));
+  LockWord lw(GetField<uint32_t, /*kIsVolatile*/false>(OFFSET_OF_OBJECT_MEMBER(Object, monitor_)));
+  uint32_t rb_state = lw.ReadBarrierState();
+  DCHECK(ReadBarrier::IsValidReadBarrierState(rb_state)) << rb_state;
+  return rb_state;
 #else
   LOG(FATAL) << "Unreachable";
   UNREACHABLE();
 #endif
 }
 
-inline Object* Object::GetReadBarrierPointerAcquire() {
+inline uint32_t Object::GetReadBarrierStateAcquire() {
 #ifdef USE_BAKER_READ_BARRIER
   DCHECK(kUseBakerReadBarrier);
   LockWord lw(GetFieldAcquire<uint32_t>(OFFSET_OF_OBJECT_MEMBER(Object, monitor_)));
-  return reinterpret_cast<Object*>(lw.ReadBarrierState());
+  uint32_t rb_state = lw.ReadBarrierState();
+  DCHECK(ReadBarrier::IsValidReadBarrierState(rb_state)) << rb_state;
+  return rb_state;
 #else
   LOG(FATAL) << "Unreachable";
   UNREACHABLE();
@@ -169,48 +226,38 @@ inline uint32_t Object::GetMarkBit() {
 #endif
 }
 
-inline void Object::SetReadBarrierPointer(Object* rb_ptr) {
+inline void Object::SetReadBarrierState(uint32_t rb_state) {
 #ifdef USE_BAKER_READ_BARRIER
   DCHECK(kUseBakerReadBarrier);
-  DCHECK_EQ(reinterpret_cast<uint64_t>(rb_ptr) >> 32, 0U);
-  DCHECK_NE(rb_ptr, ReadBarrier::BlackPtr()) << "Setting to black is not supported";
+  DCHECK(ReadBarrier::IsValidReadBarrierState(rb_state)) << rb_state;
   LockWord lw = GetLockWord(false);
-  lw.SetReadBarrierState(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(rb_ptr)));
+  lw.SetReadBarrierState(rb_state);
   SetLockWord(lw, false);
-#elif USE_BROOKS_READ_BARRIER
-  DCHECK(kUseBrooksReadBarrier);
-  // We don't mark the card as this occurs as part of object allocation. Not all objects have
-  // backing cards, such as large objects.
-  SetFieldObjectWithoutWriteBarrier<false, false, kVerifyNone>(
-      OFFSET_OF_OBJECT_MEMBER(Object, x_rb_ptr_), rb_ptr);
 #else
   LOG(FATAL) << "Unreachable";
   UNREACHABLE();
-  UNUSED(rb_ptr);
+  UNUSED(rb_state);
 #endif
 }
 
 template<bool kCasRelease>
-inline bool Object::AtomicSetReadBarrierPointer(Object* expected_rb_ptr, Object* rb_ptr) {
+inline bool Object::AtomicSetReadBarrierState(uint32_t expected_rb_state, uint32_t rb_state) {
 #ifdef USE_BAKER_READ_BARRIER
   DCHECK(kUseBakerReadBarrier);
-  DCHECK_EQ(reinterpret_cast<uint64_t>(expected_rb_ptr) >> 32, 0U);
-  DCHECK_EQ(reinterpret_cast<uint64_t>(rb_ptr) >> 32, 0U);
-  DCHECK_NE(expected_rb_ptr, ReadBarrier::BlackPtr()) << "Setting to black is not supported";
-  DCHECK_NE(rb_ptr, ReadBarrier::BlackPtr()) << "Setting to black is not supported";
+  DCHECK(ReadBarrier::IsValidReadBarrierState(expected_rb_state)) << expected_rb_state;
+  DCHECK(ReadBarrier::IsValidReadBarrierState(rb_state)) << rb_state;
   LockWord expected_lw;
   LockWord new_lw;
   do {
     LockWord lw = GetLockWord(false);
-    if (UNLIKELY(reinterpret_cast<Object*>(lw.ReadBarrierState()) != expected_rb_ptr)) {
+    if (UNLIKELY(lw.ReadBarrierState() != expected_rb_state)) {
       // Lost the race.
       return false;
     }
     expected_lw = lw;
-    expected_lw.SetReadBarrierState(
-        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(expected_rb_ptr)));
+    expected_lw.SetReadBarrierState(expected_rb_state);
     new_lw = lw;
-    new_lw.SetReadBarrierState(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(rb_ptr)));
+    new_lw.SetReadBarrierState(rb_state);
     // ConcurrentCopying::ProcessMarkStackRef uses this with kCasRelease == true.
     // If kCasRelease == true, use a CAS release so that when GC updates all the fields of
     // an object and then changes the object from gray to black, the field updates (stores) will be
@@ -219,23 +266,8 @@ inline bool Object::AtomicSetReadBarrierPointer(Object* expected_rb_ptr, Object*
              CasLockWordWeakRelease(expected_lw, new_lw) :
              CasLockWordWeakRelaxed(expected_lw, new_lw)));
   return true;
-#elif USE_BROOKS_READ_BARRIER
-  DCHECK(kUseBrooksReadBarrier);
-  MemberOffset offset = OFFSET_OF_OBJECT_MEMBER(Object, x_rb_ptr_);
-  uint8_t* raw_addr = reinterpret_cast<uint8_t*>(this) + offset.SizeValue();
-  Atomic<uint32_t>* atomic_rb_ptr = reinterpret_cast<Atomic<uint32_t>*>(raw_addr);
-  HeapReference<Object> expected_ref(HeapReference<Object>::FromMirrorPtr(expected_rb_ptr));
-  HeapReference<Object> new_ref(HeapReference<Object>::FromMirrorPtr(rb_ptr));
-  do {
-    if (UNLIKELY(atomic_rb_ptr->LoadRelaxed() != expected_ref.reference_)) {
-      // Lost the race.
-      return false;
-    }
-  } while (!atomic_rb_ptr->CompareExchangeWeakSequentiallyConsistent(expected_ref.reference_,
-                                                                     new_ref.reference_));
-  return true;
 #else
-  UNUSED(expected_rb_ptr, rb_ptr);
+  UNUSED(expected_rb_state, rb_state);
   LOG(FATAL) << "Unreachable";
   UNREACHABLE();
 #endif
@@ -259,19 +291,12 @@ inline bool Object::AtomicSetMarkBit(uint32_t expected_mark_bit, uint32_t mark_b
 }
 
 
-inline void Object::AssertReadBarrierPointer() const {
-  if (kUseBakerReadBarrier) {
-    Object* obj = const_cast<Object*>(this);
-    DCHECK(obj->GetReadBarrierPointer() == nullptr)
-        << "Bad Baker pointer: obj=" << reinterpret_cast<void*>(obj)
-        << " ptr=" << reinterpret_cast<void*>(obj->GetReadBarrierPointer());
-  } else {
-    CHECK(kUseBrooksReadBarrier);
-    Object* obj = const_cast<Object*>(this);
-    DCHECK_EQ(obj, obj->GetReadBarrierPointer())
-        << "Bad Brooks pointer: obj=" << reinterpret_cast<void*>(obj)
-        << " ptr=" << reinterpret_cast<void*>(obj->GetReadBarrierPointer());
-  }
+inline void Object::AssertReadBarrierState() const {
+  CHECK(kUseBakerReadBarrier);
+  Object* obj = const_cast<Object*>(this);
+  DCHECK(obj->GetReadBarrierState() == ReadBarrier::WhiteState())
+      << "Bad Baker pointer: obj=" << reinterpret_cast<void*>(obj)
+      << " rb_state" << reinterpret_cast<void*>(obj->GetReadBarrierState());
 }
 
 template<VerifyObjectFlags kVerifyFlags>

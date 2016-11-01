@@ -2067,13 +2067,8 @@ void ImageWriter::FixupClass(mirror::Class* orig, mirror::Class* copy) {
 void ImageWriter::FixupObject(Object* orig, Object* copy) {
   DCHECK(orig != nullptr);
   DCHECK(copy != nullptr);
-  if (kUseBakerOrBrooksReadBarrier) {
-    orig->AssertReadBarrierPointer();
-    if (kUseBrooksReadBarrier) {
-      // Note the address 'copy' isn't the same as the image address of 'orig'.
-      copy->SetReadBarrierPointer(GetImageAddress(orig));
-      DCHECK_EQ(copy->GetReadBarrierPointer(), GetImageAddress(orig));
-    }
+  if (kUseBakerReadBarrier) {
+    orig->AssertReadBarrierState();
   }
   auto* klass = orig->GetClass();
   if (klass->IsIntArrayClass() || klass->IsLongArrayClass()) {
