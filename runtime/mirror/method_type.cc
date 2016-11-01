@@ -65,6 +65,25 @@ bool MethodType::IsExactMatch(mirror::MethodType* other) REQUIRES_SHARED(Locks::
   return true;
 }
 
+std::string MethodType::PrettyDescriptor() REQUIRES_SHARED(Locks::mutator_lock_) {
+  std::ostringstream ss;
+  ss << "(";
+
+  mirror::ObjectArray<Class>* const p_types = GetPTypes();
+  const int32_t params_length = p_types->GetLength();
+  for (int32_t i = 0; i < params_length; ++i) {
+    ss << p_types->GetWithoutChecks(i)->PrettyDescriptor();
+    if (i != (params_length - 1)) {
+      ss << ", ";
+    }
+  }
+
+  ss << ")";
+  ss << GetRType()->PrettyDescriptor();
+
+  return ss.str();
+}
+
 void MethodType::SetClass(Class* klass) {
   CHECK(static_class_.IsNull()) << static_class_.Read() << " " << klass;
   CHECK(klass != nullptr);

@@ -56,6 +56,10 @@ class MANAGED MethodType : public Object {
   // iff. they have the same return types and parameter types.
   bool IsExactMatch(mirror::MethodType* other) REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // Returns the pretty descriptor for this method type, suitable for display in
+  // exception messages and the like.
+  std::string PrettyDescriptor() REQUIRES_SHARED(Locks::mutator_lock_);
+
  private:
   static MemberOffset FormOffset() {
     return MemberOffset(OFFSETOF_MEMBER(MethodType, form_));

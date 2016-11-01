@@ -57,6 +57,7 @@ public class Main {
   public static void main(String[] args) throws Throwable {
     testfindSpecial_invokeSuperBehaviour();
     testfindSpecial_invokeDirectBehaviour();
+    testExceptionDetailMessages();
   }
 
   public static void testfindSpecial_invokeSuperBehaviour() throws Throwable {
@@ -125,6 +126,18 @@ public class Main {
       E.lookup.findSpecial(D.class, "privateRyan", MethodType.methodType(void.class), E.class);
       System.out.println("findSpecial(privateRyan, E.class) unexpectedly succeeded");
     } catch (IllegalAccessException expected) {
+    }
+  }
+
+  public static void testExceptionDetailMessages() throws Throwable {
+    MethodHandle handle = MethodHandles.lookup().findVirtual(String.class, "concat",
+        MethodType.methodType(String.class, String.class));
+
+    try {
+      handle.invokeExact("a", new Object());
+      System.out.println("invokeExact(\"a\", new Object()) unexpectedly succeeded.");
+    } catch (WrongMethodTypeException ex) {
+      System.out.println("Received exception: " + ex.getMessage());
     }
   }
 }
