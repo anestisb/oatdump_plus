@@ -1126,7 +1126,7 @@ static bool FlattenPathClassLoader(ObjPtr<mirror::ClassLoader> class_loader,
   DCHECK(error_msg != nullptr);
   ScopedObjectAccessUnchecked soa(Thread::Current());
   ArtField* const dex_path_list_field =
-      soa.DecodeField(WellKnownClasses::dalvik_system_PathClassLoader_pathList);
+      soa.DecodeField(WellKnownClasses::dalvik_system_BaseDexClassLoader_pathList);
   ArtField* const dex_elements_field =
       soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList_dexElements);
   CHECK(dex_path_list_field != nullptr);
@@ -2329,12 +2329,12 @@ ClassPathEntry FindInClassPath(const char* descriptor,
   return ClassPathEntry(nullptr, nullptr);
 }
 
-bool ClassLinker::FindClassInPathClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
-                                             Thread* self,
-                                             const char* descriptor,
-                                             size_t hash,
-                                             Handle<mirror::ClassLoader> class_loader,
-                                             ObjPtr<mirror::Class>* result) {
+bool ClassLinker::FindClassInBaseDexClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
+                                                Thread* self,
+                                                const char* descriptor,
+                                                size_t hash,
+                                                Handle<mirror::ClassLoader> class_loader,
+                                                ObjPtr<mirror::Class>* result) {
   // Termination case: boot class-loader.
   if (IsBootClassLoader(soa, class_loader.Get())) {
     // The boot class loader, search the boot class path.
@@ -2364,14 +2364,24 @@ bool ClassLinker::FindClassInPathClassLoader(ScopedObjectAccessAlreadyRunnable& 
   // Unsupported class-loader?
   if (soa.Decode<mirror::Class>(WellKnownClasses::dalvik_system_PathClassLoader) !=
       class_loader->GetClass()) {
-    *result = nullptr;
-    return false;
+    // PathClassLoader is the most common case, so it's the one we check first. For secondary dex
+    // files, we also check DexClassLoader here.
+    if (soa.Decode<mirror::Class>(WellKnownClasses::dalvik_system_DexClassLoader) !=
+        class_loader->GetClass()) {
+      *result = nullptr;
+      return false;
+    }
   }
 
   // Handles as RegisterDexFile may allocate dex caches (and cause thread suspension).
   StackHandleScope<4> hs(self);
   Handle<mirror::ClassLoader> h_parent(hs.NewHandle(class_loader->GetParent()));
-  bool recursive_result = FindClassInPathClassLoader(soa, self, descriptor, hash, h_parent, result);
+  bool recursive_result = FindClassInBaseDexClassLoader(soa,
+                                                        self,
+                                                        descriptor,
+                                                        hash,
+                                                        h_parent,
+                                                        result);
 
   if (!recursive_result) {
     // Something wrong up the chain.
@@ -2391,7 +2401,7 @@ bool ClassLinker::FindClassInPathClassLoader(ScopedObjectAccessAlreadyRunnable& 
   ArtField* const dex_file_field =
       soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList__Element_dexFile);
   ObjPtr<mirror::Object> dex_path_list =
-      soa.DecodeField(WellKnownClasses::dalvik_system_PathClassLoader_pathList)->
+      soa.DecodeField(WellKnownClasses::dalvik_system_BaseDexClassLoader_pathList)->
       GetObject(class_loader.Get());
   if (dex_path_list != nullptr && dex_file_field != nullptr && cookie_field != nullptr) {
     // DexPathList has an array dexElements of Elements[] which each contain a dex file.
@@ -2493,14 +2503,14 @@ mirror::Class* ClassLinker::FindClass(Thread* self,
   } else {
     ScopedObjectAccessUnchecked soa(self);
     ObjPtr<mirror::Class> cp_klass;
-    if (FindClassInPathClassLoader(soa, self, descriptor, hash, class_loader, &cp_klass)) {
+    if (FindClassInBaseDexClassLoader(soa, self, descriptor, hash, class_loader, &cp_klass)) {
       // The chain was understood. So the value in cp_klass is either the class we were looking
       // for, or not found.
       if (cp_klass != nullptr) {
         return cp_klass.Ptr();
       }
-      // TODO: We handle the boot classpath loader in FindClassInPathClassLoader. Try to unify this
-      //       and the branch above. TODO: throw the right exception here.
+      // TODO: We handle the boot classpath loader in FindClassInBaseDexClassLoader. Try to unify
+      //       this and the branch above. TODO: throw the right exception here.
 
       // We'll let the Java-side rediscover all this and throw the exception with the right stack
       // trace.
@@ -8165,7 +8175,7 @@ jobject ClassLinker::CreatePathClassLoader(Thread* self,
   DCHECK(h_path_class_loader.Get() != nullptr);
   // Set DexPathList.
   ArtField* path_list_field =
-      soa.DecodeField(WellKnownClasses::dalvik_system_PathClassLoader_pathList);
+      soa.DecodeField(WellKnownClasses::dalvik_system_BaseDexClassLoader_pathList);
   DCHECK(path_list_field != nullptr);
   path_list_field->SetObject<false>(h_path_class_loader.Get(), h_dex_path_list.Get());
 
