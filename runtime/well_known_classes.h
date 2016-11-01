@@ -47,6 +47,7 @@ struct WellKnownClasses {
   static jclass com_android_dex_Dex;
   static jclass dalvik_annotation_optimization_CriticalNative;
   static jclass dalvik_annotation_optimization_FastNative;
+  static jclass dalvik_system_BaseDexClassLoader;
   static jclass dalvik_system_DexFile;
   static jclass dalvik_system_DexPathList;
   static jclass dalvik_system_DexPathList__Element;
@@ -119,11 +120,11 @@ struct WellKnownClasses {
   static jmethodID org_apache_harmony_dalvik_ddmc_DdmServer_broadcast;
   static jmethodID org_apache_harmony_dalvik_ddmc_DdmServer_dispatch;
 
+  static jfieldID dalvik_system_BaseDexClassLoader_pathList;
   static jfieldID dalvik_system_DexFile_cookie;
   static jfieldID dalvik_system_DexFile_fileName;
   static jfieldID dalvik_system_DexPathList_dexElements;
   static jfieldID dalvik_system_DexPathList__Element_dexFile;
-  static jfieldID dalvik_system_PathClassLoader_pathList;
   static jfieldID java_lang_reflect_Executable_artMethod;
   static jfieldID java_lang_reflect_Proxy_h;
   static jfieldID java_lang_Thread_daemon;
