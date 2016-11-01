@@ -170,6 +170,15 @@ class PassObserver : public ValueObject {
     if (visualizer_enabled_) {
       MutexLock mu(Thread::Current(), visualizer_dump_mutex_);
       *visualizer_output_ << visualizer_oss_.str();
+      // The destructor of `visualizer_output_` is normally
+      // responsible for flushing (and closing) the stream, but it
+      // won't be invoked during fast exits in non-debug mode -- see
+      // art::Dex2Oat::~Dex2Oat, which explicitly abandons some
+      // objects (such as the compiler driver) in non-debug mode, to
+      // avoid the cost of destructing them.  Therefore we explicitly
+      // flush the stream here to prevent truncated CFG visualizer
+      // files.
+      visualizer_output_->flush();
     }
   }
 
