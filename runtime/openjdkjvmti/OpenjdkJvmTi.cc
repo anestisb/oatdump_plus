@@ -346,7 +346,7 @@ class JvmtiFunctions {
   }
 
   static jvmtiError ForceGarbageCollection(jvmtiEnv* env) {
-    return ERR(NOT_IMPLEMENTED);
+    return HeapUtil::ForceGarbageCollection(env);
   }
 
   static jvmtiError IterateOverObjectsReachableFromObject(
