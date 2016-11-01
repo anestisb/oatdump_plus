@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "heap.h"
+#include "ti_heap.h"
 
 #include "art_jvmti.h"
 #include "base/macros.h"
