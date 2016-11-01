@@ -36,6 +36,7 @@
 #include "910-methods/methods.h"
 #include "911-get-stack-trace/stack_trace.h"
 #include "912-classes/classes.h"
+#include "913-heaps/heaps.h"
 
 namespace art {
 
@@ -64,6 +65,7 @@ AgentLib agents[] = {
   { "910-methods", Test910Methods::OnLoad, nullptr },
   { "911-get-stack-trace", Test911GetStackTrace::OnLoad, nullptr },
   { "912-classes", Test912Classes::OnLoad, nullptr },
+  { "913-heaps", Test913Heaps::OnLoad, nullptr },
 };
 
 static AgentLib* FindAgent(char* name) {
