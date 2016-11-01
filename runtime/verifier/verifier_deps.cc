@@ -39,6 +39,11 @@ VerifierDeps::DexFileDeps* VerifierDeps::GetDexFileDeps(const DexFile& dex_file)
   return (it == dex_deps_.end()) ? nullptr : it->second.get();
 }
 
+const VerifierDeps::DexFileDeps* VerifierDeps::GetDexFileDeps(const DexFile& dex_file) const {
+  auto it = dex_deps_.find(&dex_file);
+  return (it == dex_deps_.end()) ? nullptr : it->second.get();
+}
+
 template <typename T>
 uint16_t VerifierDeps::GetAccessFlags(T* element) {
   static_assert(kAccJavaFlagsMask == 0xFFFF, "Unexpected value of a constant");
@@ -95,12 +100,12 @@ uint32_t VerifierDeps::GetIdFromString(const DexFile& dex_file, const std::strin
   return new_id;
 }
 
-std::string VerifierDeps::GetStringFromId(const DexFile& dex_file, uint32_t string_id) {
+std::string VerifierDeps::GetStringFromId(const DexFile& dex_file, uint32_t string_id) const {
   uint32_t num_ids_in_dex = dex_file.NumStringIds();
   if (string_id < num_ids_in_dex) {
     return std::string(dex_file.StringDataByIdx(string_id));
   } else {
-    DexFileDeps* deps = GetDexFileDeps(dex_file);
+    const DexFileDeps* deps = GetDexFileDeps(dex_file);
     DCHECK(deps != nullptr);
     string_id -= num_ids_in_dex;
     CHECK_LT(string_id, deps->strings_.size());
@@ -108,7 +113,7 @@ std::string VerifierDeps::GetStringFromId(const DexFile& dex_file, uint32_t stri
   }
 }
 
-bool VerifierDeps::IsInClassPath(ObjPtr<mirror::Class> klass) {
+bool VerifierDeps::IsInClassPath(ObjPtr<mirror::Class> klass) const {
   DCHECK(klass != nullptr);
 
   ObjPtr<mirror::DexCache> dex_cache = klass->GetDexCache();
@@ -431,18 +436,20 @@ static inline void DecodeStringVector(const uint8_t** in,
   }
 }
 
-void VerifierDeps::Encode(std::vector<uint8_t>* buffer) const {
+void VerifierDeps::Encode(const std::vector<const DexFile*>& dex_files,
+                          std::vector<uint8_t>* buffer) const {
   MutexLock mu(Thread::Current(), *Locks::verifier_deps_lock_);
-  for (auto& entry : dex_deps_) {
-    EncodeStringVector(buffer, entry.second->strings_);
-    EncodeSet(buffer, entry.second->assignable_types_);
-    EncodeSet(buffer, entry.second->unassignable_types_);
-    EncodeSet(buffer, entry.second->classes_);
-    EncodeSet(buffer, entry.second->fields_);
-    EncodeSet(buffer, entry.second->direct_methods_);
-    EncodeSet(buffer, entry.second->virtual_methods_);
-    EncodeSet(buffer, entry.second->interface_methods_);
-    EncodeUint16Vector(buffer, entry.second->unverified_classes_);
+  for (const DexFile* dex_file : dex_files) {
+    const DexFileDeps& deps = *GetDexFileDeps(*dex_file);
+    EncodeStringVector(buffer, deps.strings_);
+    EncodeSet(buffer, deps.assignable_types_);
+    EncodeSet(buffer, deps.unassignable_types_);
+    EncodeSet(buffer, deps.classes_);
+    EncodeSet(buffer, deps.fields_);
+    EncodeSet(buffer, deps.direct_methods_);
+    EncodeSet(buffer, deps.virtual_methods_);
+    EncodeSet(buffer, deps.interface_methods_);
+    EncodeUint16Vector(buffer, deps.unverified_classes_);
   }
 }
 
@@ -450,16 +457,17 @@ VerifierDeps::VerifierDeps(const std::vector<const DexFile*>& dex_files, ArrayRe
     : VerifierDeps(dex_files) {
   const uint8_t* data_start = data.data();
   const uint8_t* data_end = data_start + data.size();
-  for (auto& entry : dex_deps_) {
-    DecodeStringVector(&data_start, data_end, &entry.second->strings_);
-    DecodeSet(&data_start, data_end, &entry.second->assignable_types_);
-    DecodeSet(&data_start, data_end, &entry.second->unassignable_types_);
-    DecodeSet(&data_start, data_end, &entry.second->classes_);
-    DecodeSet(&data_start, data_end, &entry.second->fields_);
-    DecodeSet(&data_start, data_end, &entry.second->direct_methods_);
-    DecodeSet(&data_start, data_end, &entry.second->virtual_methods_);
-    DecodeSet(&data_start, data_end, &entry.second->interface_methods_);
-    DecodeUint16Vector(&data_start, data_end, &entry.second->unverified_classes_);
+  for (const DexFile* dex_file : dex_files) {
+    DexFileDeps* deps = GetDexFileDeps(*dex_file);
+    DecodeStringVector(&data_start, data_end, &deps->strings_);
+    DecodeSet(&data_start, data_end, &deps->assignable_types_);
+    DecodeSet(&data_start, data_end, &deps->unassignable_types_);
+    DecodeSet(&data_start, data_end, &deps->classes_);
+    DecodeSet(&data_start, data_end, &deps->fields_);
+    DecodeSet(&data_start, data_end, &deps->direct_methods_);
+    DecodeSet(&data_start, data_end, &deps->virtual_methods_);
+    DecodeSet(&data_start, data_end, &deps->interface_methods_);
+    DecodeUint16Vector(&data_start, data_end, &deps->unverified_classes_);
   }
   CHECK_LE(data_start, data_end);
 }
@@ -502,6 +510,94 @@ bool VerifierDeps::DexFileDeps::Equals(const VerifierDeps::DexFileDeps& rhs) con
          (virtual_methods_ == rhs.virtual_methods_) &&
          (interface_methods_ == rhs.interface_methods_) &&
          (unverified_classes_ == rhs.unverified_classes_);
+}
+
+void VerifierDeps::Dump(VariableIndentationOutputStream* vios) const {
+  for (const auto& dep : dex_deps_) {
+    const DexFile& dex_file = *dep.first;
+    vios->Stream()
+        << "Dependencies of "
+        << dex_file.GetLocation()
+        << ":\n";
+
+    ScopedIndentation indent(vios);
+
+    for (const std::string& str : dep.second->strings_) {
+      vios->Stream() << "Extra string: " << str << "\n";
+    }
+
+    for (const TypeAssignability& entry : dep.second->assignable_types_) {
+      vios->Stream()
+        << GetStringFromId(dex_file, entry.GetSource())
+        << " must be assignable to "
+        << GetStringFromId(dex_file, entry.GetDestination())
+        << "\n";
+    }
+
+    for (const TypeAssignability& entry : dep.second->unassignable_types_) {
+      vios->Stream()
+        << GetStringFromId(dex_file, entry.GetSource())
+        << " must not be assignable to "
+        << GetStringFromId(dex_file, entry.GetDestination())
+        << "\n";
+    }
+
+    for (const ClassResolution& entry : dep.second->classes_) {
+      vios->Stream()
+          << dex_file.StringByTypeIdx(entry.GetDexTypeIndex())
+          << (entry.IsResolved() ? " must be resolved " : "must not be resolved ")
+          << " with access flags " << std::hex << entry.GetAccessFlags() << std::dec
+          << "\n";
+    }
+
+    for (const FieldResolution& entry : dep.second->fields_) {
+      const DexFile::FieldId& field_id = dex_file.GetFieldId(entry.GetDexFieldIndex());
+      vios->Stream()
+          << dex_file.GetFieldDeclaringClassDescriptor(field_id) << "->"
+          << dex_file.GetFieldName(field_id) << ":"
+          << dex_file.GetFieldTypeDescriptor(field_id)
+          << " is expected to be ";
+      if (!entry.IsResolved()) {
+        vios->Stream() << "unresolved\n";
+      } else {
+        vios->Stream()
+          << "in class "
+          << GetStringFromId(dex_file, entry.GetDeclaringClassIndex())
+          << ", and have the access flags " << std::hex << entry.GetAccessFlags() << std::dec
+          << "\n";
+      }
+    }
+
+    for (const auto& entry :
+            { std::make_pair(kDirectMethodResolution, dep.second->direct_methods_),
+              std::make_pair(kVirtualMethodResolution, dep.second->virtual_methods_),
+              std::make_pair(kInterfaceMethodResolution, dep.second->interface_methods_) }) {
+      for (const MethodResolution& method : entry.second) {
+        const DexFile::MethodId& method_id = dex_file.GetMethodId(method.GetDexMethodIndex());
+        vios->Stream()
+            << dex_file.GetMethodDeclaringClassDescriptor(method_id) << "->"
+            << dex_file.GetMethodName(method_id)
+            << dex_file.GetMethodSignature(method_id).ToString()
+            << " is expected to be ";
+        if (!method.IsResolved()) {
+          vios->Stream() << "unresolved\n";
+        } else {
+          vios->Stream()
+            << "in class "
+            << GetStringFromId(dex_file, method.GetDeclaringClassIndex())
+            << ", have the access flags " << std::hex << method.GetAccessFlags() << std::dec
+            << ", and be of kind " << entry.first
+            << "\n";
+        }
+      }
+    }
+
+    for (uint16_t type_index : dep.second->unverified_classes_) {
+      vios->Stream()
+          << dex_file.StringByTypeIdx(type_index)
+          << " is expected to be verified at runtime\n";
+    }
+  }
 }
 
 }  // namespace verifier
