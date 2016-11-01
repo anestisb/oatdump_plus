@@ -279,6 +279,7 @@ TEST_ART_BROKEN_TARGET_TESTS += \
   910-methods \
   911-get-stack-trace \
   912-classes \
+  913-heaps \
 
 ifneq (,$(filter target,$(TARGET_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,target,$(RUN_TYPES),$(PREBUILD_TYPES), \
