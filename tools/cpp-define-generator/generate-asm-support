@@ -5,4 +5,4 @@
 
 [[ -z ${ANDROID_BUILD_TOP+x} ]] && (echo "Run source build/envsetup.sh first" >&2 && exit 1)
 
-cpp-define-generator-datad > ${ANDROID_BUILD_TOP}/art/runtime/generated/asm_support_gen.h
+cpp-define-generator-data > ${ANDROID_BUILD_TOP}/art/runtime/generated/asm_support_gen.h
