@@ -51,6 +51,10 @@ class VerifierDeps {
   explicit VerifierDeps(const std::vector<const DexFile*>& dex_files)
       REQUIRES(!Locks::verifier_deps_lock_);
 
+  VerifierDeps(const std::vector<const DexFile*>& dex_files,
+               ArrayRef<const uint8_t> data)
+      REQUIRES(!Locks::verifier_deps_lock_);
+
   // Record the verification status of the class at `type_idx`.
   static void MaybeRecordVerificationStatus(const DexFile& dex_file,
                                             uint16_t type_idx,
@@ -107,10 +111,6 @@ class VerifierDeps {
 
  private:
   static constexpr uint16_t kUnresolvedMarker = static_cast<uint16_t>(-1);
-
-  // Only used in tests to reconstruct the data structure from serialized data.
-  VerifierDeps(const std::vector<const DexFile*>& dex_files, ArrayRef<uint8_t> data)
-      REQUIRES(!Locks::verifier_deps_lock_);
 
   using ClassResolutionBase = std::tuple<uint32_t, uint16_t>;
   struct ClassResolution : public ClassResolutionBase {

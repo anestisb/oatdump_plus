@@ -1076,7 +1076,7 @@ TEST_F(VerifierDepsTest, EncodeDecode) {
   verifier_deps_->Encode(dex_files_, &buffer);
   ASSERT_FALSE(buffer.empty());
 
-  VerifierDeps decoded_deps(dex_files_, ArrayRef<uint8_t>(buffer));
+  VerifierDeps decoded_deps(dex_files_, ArrayRef<const uint8_t>(buffer));
   ASSERT_TRUE(verifier_deps_->Equals(decoded_deps));
 }
 
@@ -1102,7 +1102,7 @@ TEST_F(VerifierDepsTest, EncodeDecodeMulti) {
   }
 
   // Dump the new verifier deps to ensure it can properly read the data.
-  VerifierDeps decoded_deps(dex_files, ArrayRef<uint8_t>(buffer));
+  VerifierDeps decoded_deps(dex_files, ArrayRef<const uint8_t>(buffer));
   std::ostringstream stream;
   VariableIndentationOutputStream os(&stream);
   decoded_deps.Dump(&os);
