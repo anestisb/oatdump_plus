@@ -32,9 +32,15 @@ public class Main {
   }
 
   private static void run() {
+    clearStats();
     printStats();
     forceGarbageCollection();
     printStats();
+  }
+
+  private static void clearStats() {
+    getGcStarts();
+    getGcFinishes();
   }
 
   private static void printStats() {
