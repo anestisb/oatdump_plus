@@ -57,43 +57,44 @@ class InternTable {
   InternTable();
 
   // Interns a potentially new string in the 'strong' table. May cause thread suspension.
-  mirror::String* InternStrong(int32_t utf16_length, const char* utf8_data)
+  ObjPtr<mirror::String> InternStrong(int32_t utf16_length, const char* utf8_data)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   // Only used by image writer. Special version that may not cause thread suspension since the GC
   // cannot be running while we are doing image writing. Maybe be called while while holding a
   // lock since there will not be thread suspension.
-  mirror::String* InternStrongImageString(mirror::String* s)
+  ObjPtr<mirror::String> InternStrongImageString(ObjPtr<mirror::String> s)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Interns a potentially new string in the 'strong' table. May cause thread suspension.
-  mirror::String* InternStrong(const char* utf8_data) REQUIRES_SHARED(Locks::mutator_lock_)
+  ObjPtr<mirror::String> InternStrong(const char* utf8_data) REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Roles::uninterruptible_);
 
   // Interns a potentially new string in the 'strong' table. May cause thread suspension.
-  mirror::String* InternStrong(mirror::String* s) REQUIRES_SHARED(Locks::mutator_lock_)
+  ObjPtr<mirror::String> InternStrong(ObjPtr<mirror::String> s)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Roles::uninterruptible_);
 
   // Interns a potentially new string in the 'weak' table. May cause thread suspension.
-  mirror::String* InternWeak(mirror::String* s) REQUIRES_SHARED(Locks::mutator_lock_)
+  ObjPtr<mirror::String> InternWeak(ObjPtr<mirror::String> s) REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Roles::uninterruptible_);
 
   void SweepInternTableWeaks(IsMarkedVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::intern_table_lock_);
 
-  bool ContainsWeak(mirror::String* s) REQUIRES_SHARED(Locks::mutator_lock_)
+  bool ContainsWeak(ObjPtr<mirror::String> s) REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::intern_table_lock_);
 
   // Lookup a strong intern, returns null if not found.
-  mirror::String* LookupStrong(Thread* self, mirror::String* s)
+  ObjPtr<mirror::String> LookupStrong(Thread* self, ObjPtr<mirror::String> s)
       REQUIRES(!Locks::intern_table_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  mirror::String* LookupStrong(Thread* self, uint32_t utf16_length, const char* utf8_data)
+  ObjPtr<mirror::String> LookupStrong(Thread* self, uint32_t utf16_length, const char* utf8_data)
       REQUIRES(!Locks::intern_table_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Lookup a weak intern, returns null if not found.
-  mirror::String* LookupWeak(Thread* self, mirror::String* s)
+  ObjPtr<mirror::String> LookupWeak(Thread* self, ObjPtr<mirror::String> s)
       REQUIRES(!Locks::intern_table_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -181,13 +182,13 @@ class InternTable {
   class Table {
    public:
     Table();
-    mirror::String* Find(mirror::String* s) REQUIRES_SHARED(Locks::mutator_lock_)
+    ObjPtr<mirror::String> Find(ObjPtr<mirror::String> s) REQUIRES_SHARED(Locks::mutator_lock_)
         REQUIRES(Locks::intern_table_lock_);
-    mirror::String* Find(const Utf8String& string) REQUIRES_SHARED(Locks::mutator_lock_)
+    ObjPtr<mirror::String> Find(const Utf8String& string) REQUIRES_SHARED(Locks::mutator_lock_)
         REQUIRES(Locks::intern_table_lock_);
-    void Insert(mirror::String* s) REQUIRES_SHARED(Locks::mutator_lock_)
+    void Insert(ObjPtr<mirror::String> s) REQUIRES_SHARED(Locks::mutator_lock_)
         REQUIRES(Locks::intern_table_lock_);
-    void Remove(mirror::String* s)
+    void Remove(ObjPtr<mirror::String> s)
         REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::intern_table_lock_);
     void VisitRoots(RootVisitor* visitor)
         REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::intern_table_lock_);
@@ -221,30 +222,30 @@ class InternTable {
   // Insert if non null, otherwise return null. Must be called holding the mutator lock.
   // If holding_locks is true, then we may also hold other locks. If holding_locks is true, then we
   // require GC is not running since it is not safe to wait while holding locks.
-  mirror::String* Insert(mirror::String* s, bool is_strong, bool holding_locks)
+  ObjPtr<mirror::String> Insert(ObjPtr<mirror::String> s, bool is_strong, bool holding_locks)
       REQUIRES(!Locks::intern_table_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  mirror::String* LookupStrongLocked(mirror::String* s)
+  ObjPtr<mirror::String> LookupStrongLocked(ObjPtr<mirror::String> s)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::intern_table_lock_);
-  mirror::String* LookupWeakLocked(mirror::String* s)
+  ObjPtr<mirror::String> LookupWeakLocked(ObjPtr<mirror::String> s)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::intern_table_lock_);
-  mirror::String* InsertStrong(mirror::String* s)
+  ObjPtr<mirror::String> InsertStrong(ObjPtr<mirror::String> s)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::intern_table_lock_);
-  mirror::String* InsertWeak(mirror::String* s)
+  ObjPtr<mirror::String> InsertWeak(ObjPtr<mirror::String> s)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::intern_table_lock_);
-  void RemoveStrong(mirror::String* s)
+  void RemoveStrong(ObjPtr<mirror::String> s)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::intern_table_lock_);
-  void RemoveWeak(mirror::String* s)
+  void RemoveWeak(ObjPtr<mirror::String> s)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::intern_table_lock_);
 
   // Transaction rollback access.
-  mirror::String* InsertStrongFromTransaction(mirror::String* s)
+  ObjPtr<mirror::String> InsertStrongFromTransaction(ObjPtr<mirror::String> s)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::intern_table_lock_);
-  mirror::String* InsertWeakFromTransaction(mirror::String* s)
+  ObjPtr<mirror::String> InsertWeakFromTransaction(ObjPtr<mirror::String> s)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::intern_table_lock_);
-  void RemoveStrongFromTransaction(mirror::String* s)
+  void RemoveStrongFromTransaction(ObjPtr<mirror::String> s)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::intern_table_lock_);
-  void RemoveWeakFromTransaction(mirror::String* s)
+  void RemoveWeakFromTransaction(ObjPtr<mirror::String> s)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::intern_table_lock_);
 
   size_t AddTableFromMemoryLocked(const uint8_t* ptr)

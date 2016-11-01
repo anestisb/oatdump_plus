@@ -160,7 +160,7 @@ class SetStringCountAndValueVisitorFromString {
   const int32_t offset_;
 };
 
-inline String* String::Intern() {
+inline ObjPtr<String> String::Intern() {
   return Runtime::Current()->GetInternTable()->InternWeak(this);
 }
 
