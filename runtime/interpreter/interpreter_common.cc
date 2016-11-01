@@ -836,7 +836,7 @@ inline bool DoInvokePolymorphic(Thread* self,
   Handle<mirror::MethodType> handle_type(hs.NewHandle(method_handle->GetMethodType()));
   CHECK(handle_type.Get() != nullptr);
   if (UNLIKELY(is_invoke_exact && !callsite_type->IsExactMatch(handle_type.Get()))) {
-    ThrowWrongMethodTypeException(callsite_type.Get(), handle_type.Get());
+    ThrowWrongMethodTypeException(handle_type.Get(), callsite_type.Get());
     return false;
   }
 

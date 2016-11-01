@@ -813,13 +813,11 @@ void ThrowVerifyError(ObjPtr<mirror::Class> referrer, const char* fmt, ...) {
 
 void ThrowWrongMethodTypeException(mirror::MethodType* callee_type,
                                    mirror::MethodType* callsite_type) {
-  // TODO(narayan): Should we provide more detail here ? The RI doesn't bother.
-  UNUSED(callee_type);
-  UNUSED(callsite_type);
-
   ThrowException("Ljava/lang/invoke/WrongMethodTypeException;",
                  nullptr,
-                 "Invalid method type for signature polymorphic call");
+                 StringPrintf("Expected %s but was %s",
+                              callee_type->PrettyDescriptor().c_str(),
+                              callsite_type->PrettyDescriptor().c_str()).c_str());
 }
 
 }  // namespace art
