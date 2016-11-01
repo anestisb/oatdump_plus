@@ -20,6 +20,7 @@
 #include <stdint.h>
 #include <string>
 
+#include "base/array_ref.h"
 #include "base/macros.h"
 #include "mem_map.h"
 #include "os.h"
@@ -44,8 +45,11 @@ class VdexFile {
    public:
     Header(uint32_t dex_size, uint32_t verifier_deps_size, uint32_t quickening_info_size);
 
+    const char* GetMagic() const { return reinterpret_cast<const char*>(magic_); }
+    const char* GetVersion() const { return reinterpret_cast<const char*>(version_); }
     bool IsMagicValid() const;
     bool IsVersionValid() const;
+    bool IsValid() const { return IsMagicValid() && IsVersionValid(); }
 
     uint32_t GetDexSize() const { return dex_size_; }
     uint32_t GetVerifierDepsSize() const { return verifier_deps_size_; }
@@ -70,6 +74,15 @@ class VdexFile {
   const uint8_t* Begin() const { return mmap_->Begin(); }
   const uint8_t* End() const { return mmap_->End(); }
   size_t Size() const { return mmap_->Size(); }
+
+  const Header& GetHeader() const {
+    return *reinterpret_cast<const Header*>(Begin());
+  }
+
+  ArrayRef<const uint8_t> GetVerifierDepsData() const {
+    return ArrayRef<const uint8_t>(
+        Begin() + sizeof(Header) + GetHeader().GetDexSize(), GetHeader().GetVerifierDepsSize());
+  }
 
  private:
   explicit VdexFile(MemMap* mmap) : mmap_(mmap) {}

@@ -453,8 +453,15 @@ void VerifierDeps::Encode(const std::vector<const DexFile*>& dex_files,
   }
 }
 
-VerifierDeps::VerifierDeps(const std::vector<const DexFile*>& dex_files, ArrayRef<uint8_t> data)
+VerifierDeps::VerifierDeps(const std::vector<const DexFile*>& dex_files,
+                           ArrayRef<const uint8_t> data)
     : VerifierDeps(dex_files) {
+  if (data.empty()) {
+    // Return eagerly, as the first thing we expect from VerifierDeps data is
+    // the number of created strings, even if there is no dependency.
+    // Currently, only the boot image does not have any VerifierDeps data.
+    return;
+  }
   const uint8_t* data_start = data.data();
   const uint8_t* data_end = data_start + data.size();
   for (const DexFile* dex_file : dex_files) {
