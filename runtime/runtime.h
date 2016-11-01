@@ -510,15 +510,15 @@ class Runtime {
       REQUIRES_SHARED(Locks::mutator_lock_);
   void RecordWriteArray(mirror::Array* array, size_t index, uint64_t value) const
       REQUIRES_SHARED(Locks::mutator_lock_);
-  void RecordStrongStringInsertion(mirror::String* s) const
+  void RecordStrongStringInsertion(ObjPtr<mirror::String> s) const
       REQUIRES(Locks::intern_table_lock_);
-  void RecordWeakStringInsertion(mirror::String* s) const
+  void RecordWeakStringInsertion(ObjPtr<mirror::String> s) const
       REQUIRES(Locks::intern_table_lock_);
-  void RecordStrongStringRemoval(mirror::String* s) const
+  void RecordStrongStringRemoval(ObjPtr<mirror::String> s) const
       REQUIRES(Locks::intern_table_lock_);
-  void RecordWeakStringRemoval(mirror::String* s) const
+  void RecordWeakStringRemoval(ObjPtr<mirror::String> s) const
       REQUIRES(Locks::intern_table_lock_);
-  void RecordResolveString(mirror::DexCache* dex_cache, uint32_t string_idx) const
+  void RecordResolveString(ObjPtr<mirror::DexCache> dex_cache, uint32_t string_idx) const
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   void SetFaultMessage(const std::string& message) REQUIRES(!fault_message_lock_);

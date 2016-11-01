@@ -963,21 +963,21 @@ void ImageWriter::DumpImageClasses() {
 mirror::String* ImageWriter::FindInternedString(mirror::String* string) {
   Thread* const self = Thread::Current();
   for (const ImageInfo& image_info : image_infos_) {
-    mirror::String* const found = image_info.intern_table_->LookupStrong(self, string);
+    ObjPtr<mirror::String> const found = image_info.intern_table_->LookupStrong(self, string);
     DCHECK(image_info.intern_table_->LookupWeak(self, string) == nullptr)
         << string->ToModifiedUtf8();
     if (found != nullptr) {
-      return found;
+      return found.Ptr();
     }
   }
   if (compile_app_image_) {
     Runtime* const runtime = Runtime::Current();
-    mirror::String* found = runtime->GetInternTable()->LookupStrong(self, string);
+    ObjPtr<mirror::String> found = runtime->GetInternTable()->LookupStrong(self, string);
     // If we found it in the runtime intern table it could either be in the boot image or interned
     // during app image compilation. If it was in the boot image return that, otherwise return null
     // since it belongs to another image space.
-    if (found != nullptr && runtime->GetHeap()->ObjectIsInBootImageSpace(found)) {
-      return found;
+    if (found != nullptr && runtime->GetHeap()->ObjectIsInBootImageSpace(found.Ptr())) {
+      return found.Ptr();
     }
     DCHECK(runtime->GetInternTable()->LookupWeak(self, string) == nullptr)
         << string->ToModifiedUtf8();
@@ -1088,7 +1088,8 @@ mirror::Object* ImageWriter::TryAssignBinSlot(WorkStack& work_stack,
       mirror::String* interned = FindInternedString(obj->AsString());
       if (interned == nullptr) {
         // Not in another image space, insert to our table.
-        interned = GetImageInfo(oat_index).intern_table_->InternStrongImageString(obj->AsString());
+        interned =
+            GetImageInfo(oat_index).intern_table_->InternStrongImageString(obj->AsString()).Ptr();
         DCHECK_EQ(interned, obj);
       }
     } else if (obj->IsDexCache()) {
@@ -1448,7 +1449,7 @@ void ImageWriter::CalculateNewObjectOffsets() {
     for (size_t i = 0, count = dex_file->NumStringIds(); i < count; ++i) {
       uint32_t utf16_length;
       const char* utf8_data = dex_file->StringDataAndUtf16LengthByIdx(i, &utf16_length);
-      mirror::String* string = intern_table->LookupStrong(self, utf16_length, utf8_data);
+      mirror::String* string = intern_table->LookupStrong(self, utf16_length, utf8_data).Ptr();
       TryAssignBinSlot(work_stack, string, oat_index);
     }
   }

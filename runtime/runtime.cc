@@ -1948,31 +1948,31 @@ void Runtime::RecordWriteArray(mirror::Array* array, size_t index, uint64_t valu
   preinitialization_transaction_->RecordWriteArray(array, index, value);
 }
 
-void Runtime::RecordStrongStringInsertion(mirror::String* s) const {
+void Runtime::RecordStrongStringInsertion(ObjPtr<mirror::String> s) const {
   DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
   preinitialization_transaction_->RecordStrongStringInsertion(s);
 }
 
-void Runtime::RecordWeakStringInsertion(mirror::String* s) const {
+void Runtime::RecordWeakStringInsertion(ObjPtr<mirror::String> s) const {
   DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
   preinitialization_transaction_->RecordWeakStringInsertion(s);
 }
 
-void Runtime::RecordStrongStringRemoval(mirror::String* s) const {
+void Runtime::RecordStrongStringRemoval(ObjPtr<mirror::String> s) const {
   DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
   preinitialization_transaction_->RecordStrongStringRemoval(s);
 }
 
-void Runtime::RecordWeakStringRemoval(mirror::String* s) const {
+void Runtime::RecordWeakStringRemoval(ObjPtr<mirror::String> s) const {
   DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
   preinitialization_transaction_->RecordWeakStringRemoval(s);
 }
 
-void Runtime::RecordResolveString(mirror::DexCache* dex_cache, uint32_t string_idx) const {
+void Runtime::RecordResolveString(ObjPtr<mirror::DexCache> dex_cache, uint32_t string_idx) const {
   DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
   preinitialization_transaction_->RecordResolveString(dex_cache, string_idx);

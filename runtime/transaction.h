@@ -83,21 +83,21 @@ class Transaction FINAL {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Record intern string table changes.
-  void RecordStrongStringInsertion(mirror::String* s)
+  void RecordStrongStringInsertion(ObjPtr<mirror::String> s)
       REQUIRES(Locks::intern_table_lock_)
       REQUIRES(!log_lock_);
-  void RecordWeakStringInsertion(mirror::String* s)
+  void RecordWeakStringInsertion(ObjPtr<mirror::String> s)
       REQUIRES(Locks::intern_table_lock_)
       REQUIRES(!log_lock_);
-  void RecordStrongStringRemoval(mirror::String* s)
+  void RecordStrongStringRemoval(ObjPtr<mirror::String> s)
       REQUIRES(Locks::intern_table_lock_)
       REQUIRES(!log_lock_);
-  void RecordWeakStringRemoval(mirror::String* s)
+  void RecordWeakStringRemoval(ObjPtr<mirror::String> s)
       REQUIRES(Locks::intern_table_lock_)
       REQUIRES(!log_lock_);
 
   // Record resolve string.
-  void RecordResolveString(mirror::DexCache* dex_cache, uint32_t string_idx)
+  void RecordResolveString(ObjPtr<mirror::DexCache> dex_cache, uint32_t string_idx)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!log_lock_);
 
@@ -182,10 +182,7 @@ class Transaction FINAL {
       kInsert,
       kRemove
     };
-    InternStringLog(mirror::String* s, StringKind kind, StringOp op)
-      : str_(s), string_kind_(kind), string_op_(op) {
-      DCHECK(s != nullptr);
-    }
+    InternStringLog(ObjPtr<mirror::String> s, StringKind kind, StringOp op);
 
     void Undo(InternTable* intern_table)
         REQUIRES_SHARED(Locks::mutator_lock_)
@@ -193,14 +190,14 @@ class Transaction FINAL {
     void VisitRoots(RootVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
 
    private:
-    mirror::String* str_;
+    GcRoot<mirror::String> str_;
     const StringKind string_kind_;
     const StringOp string_op_;
   };
 
   class ResolveStringLog : public ValueObject {
    public:
-    ResolveStringLog(mirror::DexCache* dex_cache, uint32_t string_idx);
+    ResolveStringLog(ObjPtr<mirror::DexCache> dex_cache, uint32_t string_idx);
 
     void Undo() REQUIRES_SHARED(Locks::mutator_lock_);
 
