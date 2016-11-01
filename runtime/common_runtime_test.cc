@@ -524,7 +524,7 @@ std::vector<const DexFile*> CommonRuntimeTestImpl::GetDexFiles(jobject jclass_lo
   ArtField* dex_file_field =
       soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList__Element_dexFile);
   ObjPtr<mirror::Object> dex_path_list =
-      soa.DecodeField(WellKnownClasses::dalvik_system_PathClassLoader_pathList)->
+      soa.DecodeField(WellKnownClasses::dalvik_system_BaseDexClassLoader_pathList)->
       GetObject(class_loader.Get());
   if (dex_path_list != nullptr && dex_file_field!= nullptr && cookie_field != nullptr) {
     // DexPathList has an array dexElements of Elements[] which each contain a dex file.

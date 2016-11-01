@@ -34,6 +34,7 @@ namespace art {
 jclass WellKnownClasses::com_android_dex_Dex;
 jclass WellKnownClasses::dalvik_annotation_optimization_CriticalNative;
 jclass WellKnownClasses::dalvik_annotation_optimization_FastNative;
+jclass WellKnownClasses::dalvik_system_BaseDexClassLoader;
 jclass WellKnownClasses::dalvik_system_DexFile;
 jclass WellKnownClasses::dalvik_system_DexPathList;
 jclass WellKnownClasses::dalvik_system_DexPathList__Element;
@@ -108,7 +109,7 @@ jmethodID WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer_dispatch;
 
 jfieldID WellKnownClasses::dalvik_system_DexFile_cookie;
 jfieldID WellKnownClasses::dalvik_system_DexFile_fileName;
-jfieldID WellKnownClasses::dalvik_system_PathClassLoader_pathList;
+jfieldID WellKnownClasses::dalvik_system_BaseDexClassLoader_pathList;
 jfieldID WellKnownClasses::dalvik_system_DexPathList_dexElements;
 jfieldID WellKnownClasses::dalvik_system_DexPathList__Element_dexFile;
 jfieldID WellKnownClasses::java_lang_Thread_daemon;
@@ -264,6 +265,7 @@ void WellKnownClasses::Init(JNIEnv* env) {
   dalvik_annotation_optimization_CriticalNative =
       CacheClass(env, "dalvik/annotation/optimization/CriticalNative");
   dalvik_annotation_optimization_FastNative = CacheClass(env, "dalvik/annotation/optimization/FastNative");
+  dalvik_system_BaseDexClassLoader = CacheClass(env, "dalvik/system/BaseDexClassLoader");
   dalvik_system_DexFile = CacheClass(env, "dalvik/system/DexFile");
   dalvik_system_DexPathList = CacheClass(env, "dalvik/system/DexPathList");
   dalvik_system_DexPathList__Element = CacheClass(env, "dalvik/system/DexPathList$Element");
@@ -332,9 +334,9 @@ void WellKnownClasses::Init(JNIEnv* env) {
   org_apache_harmony_dalvik_ddmc_DdmServer_broadcast = CacheMethod(env, org_apache_harmony_dalvik_ddmc_DdmServer, true, "broadcast", "(I)V");
   org_apache_harmony_dalvik_ddmc_DdmServer_dispatch = CacheMethod(env, org_apache_harmony_dalvik_ddmc_DdmServer, true, "dispatch", "(I[BII)Lorg/apache/harmony/dalvik/ddmc/Chunk;");
 
+  dalvik_system_BaseDexClassLoader_pathList = CacheField(env, dalvik_system_BaseDexClassLoader, false, "pathList", "Ldalvik/system/DexPathList;");
   dalvik_system_DexFile_cookie = CacheField(env, dalvik_system_DexFile, false, "mCookie", "Ljava/lang/Object;");
   dalvik_system_DexFile_fileName = CacheField(env, dalvik_system_DexFile, false, "mFileName", "Ljava/lang/String;");
-  dalvik_system_PathClassLoader_pathList = CacheField(env, dalvik_system_PathClassLoader, false, "pathList", "Ldalvik/system/DexPathList;");
   dalvik_system_DexPathList_dexElements = CacheField(env, dalvik_system_DexPathList, false, "dexElements", "[Ldalvik/system/DexPathList$Element;");
   dalvik_system_DexPathList__Element_dexFile = CacheField(env, dalvik_system_DexPathList__Element, false, "dexFile", "Ldalvik/system/DexFile;");
   java_lang_Thread_daemon = CacheField(env, java_lang_Thread, false, "daemon", "Z");
