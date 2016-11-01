@@ -210,4 +210,10 @@ jvmtiError HeapUtil::GetLoadedClasses(jvmtiEnv* env,
   return ERR(NONE);
 }
 
+jvmtiError HeapUtil::ForceGarbageCollection(jvmtiEnv* env ATTRIBUTE_UNUSED) {
+  art::Runtime::Current()->GetHeap()->CollectGarbage(false);
+
+  return ERR(NONE);
+}
+
 }  // namespace openjdkjvmti
