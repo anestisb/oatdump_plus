@@ -680,6 +680,10 @@ class MANAGED Class FINAL : public Object {
     return MemberOffset(OFFSETOF_MEMBER(Class, dex_cache_));
   }
 
+  static MemberOffset IfTableOffset() {
+    return MemberOffset(OFFSETOF_MEMBER(Class, iftable_));
+  }
+
   enum {
     kDumpClassFullDetail = 1,
     kDumpClassClassLoader = (1 << 1),
