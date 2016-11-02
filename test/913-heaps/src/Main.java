@@ -33,7 +33,6 @@ public class Main {
 
   private static void run() {
     clearStats();
-    printStats();
     forceGarbageCollection();
     printStats();
   }
