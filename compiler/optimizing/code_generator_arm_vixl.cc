@@ -39,10 +39,10 @@ using namespace vixl32;  // NOLINT(build/namespaces)
 
 using helpers::DRegisterFrom;
 using helpers::DWARFReg;
-using helpers::FromLowSToD;
 using helpers::HighDRegisterFrom;
 using helpers::HighRegisterFrom;
 using helpers::InputOperandAt;
+using helpers::InputRegister;
 using helpers::InputRegisterAt;
 using helpers::InputSRegisterAt;
 using helpers::InputVRegisterAt;
@@ -340,6 +340,46 @@ class SuspendCheckSlowPathARMVIXL : public SlowPathCodeARMVIXL {
   DISALLOW_COPY_AND_ASSIGN(SuspendCheckSlowPathARMVIXL);
 };
 
+class BoundsCheckSlowPathARMVIXL : public SlowPathCodeARMVIXL {
+ public:
+  explicit BoundsCheckSlowPathARMVIXL(HBoundsCheck* instruction)
+      : SlowPathCodeARMVIXL(instruction) {}
+
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    CodeGeneratorARMVIXL* arm_codegen = down_cast<CodeGeneratorARMVIXL*>(codegen);
+    LocationSummary* locations = instruction_->GetLocations();
+
+    __ Bind(GetEntryLabel());
+    if (instruction_->CanThrowIntoCatchBlock()) {
+      // Live registers will be restored in the catch block if caught.
+      SaveLiveRegisters(codegen, instruction_->GetLocations());
+    }
+    // We're moving two locations to locations that could overlap, so we need a parallel
+    // move resolver.
+    InvokeRuntimeCallingConventionARMVIXL calling_convention;
+    codegen->EmitParallelMoves(
+        locations->InAt(0),
+        LocationFrom(calling_convention.GetRegisterAt(0)),
+        Primitive::kPrimInt,
+        locations->InAt(1),
+        LocationFrom(calling_convention.GetRegisterAt(1)),
+        Primitive::kPrimInt);
+    QuickEntrypointEnum entrypoint = instruction_->AsBoundsCheck()->IsStringCharAt()
+        ? kQuickThrowStringBounds
+        : kQuickThrowArrayBounds;
+    arm_codegen->InvokeRuntime(entrypoint, instruction_, instruction_->GetDexPc(), this);
+    CheckEntrypointTypes<kQuickThrowStringBounds, void, int32_t, int32_t>();
+    CheckEntrypointTypes<kQuickThrowArrayBounds, void, int32_t, int32_t>();
+  }
+
+  bool IsFatal() const OVERRIDE { return true; }
+
+  const char* GetDescription() const OVERRIDE { return "BoundsCheckSlowPathARMVIXL"; }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(BoundsCheckSlowPathARMVIXL);
+};
+
 class LoadClassSlowPathARMVIXL : public SlowPathCodeARMVIXL {
  public:
   LoadClassSlowPathARMVIXL(HLoadClass* cls, HInstruction* at, uint32_t dex_pc, bool do_clinit)
@@ -393,6 +433,66 @@ class LoadClassSlowPathARMVIXL : public SlowPathCodeARMVIXL {
 
   DISALLOW_COPY_AND_ASSIGN(LoadClassSlowPathARMVIXL);
 };
+
+class DeoptimizationSlowPathARMVIXL : public SlowPathCodeARMVIXL {
+ public:
+  explicit DeoptimizationSlowPathARMVIXL(HDeoptimize* instruction)
+      : SlowPathCodeARMVIXL(instruction) {}
+
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    CodeGeneratorARMVIXL* arm_codegen = down_cast<CodeGeneratorARMVIXL*>(codegen);
+    __ Bind(GetEntryLabel());
+    arm_codegen->InvokeRuntime(kQuickDeoptimize, instruction_, instruction_->GetDexPc(), this);
+    CheckEntrypointTypes<kQuickDeoptimize, void, void>();
+  }
+
+  const char* GetDescription() const OVERRIDE { return "DeoptimizationSlowPathARMVIXL"; }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(DeoptimizationSlowPathARMVIXL);
+};
+
+class ArraySetSlowPathARMVIXL : public SlowPathCodeARMVIXL {
+ public:
+  explicit ArraySetSlowPathARMVIXL(HInstruction* instruction) : SlowPathCodeARMVIXL(instruction) {}
+
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    LocationSummary* locations = instruction_->GetLocations();
+    __ Bind(GetEntryLabel());
+    SaveLiveRegisters(codegen, locations);
+
+    InvokeRuntimeCallingConventionARMVIXL calling_convention;
+    HParallelMove parallel_move(codegen->GetGraph()->GetArena());
+    parallel_move.AddMove(
+        locations->InAt(0),
+        LocationFrom(calling_convention.GetRegisterAt(0)),
+        Primitive::kPrimNot,
+        nullptr);
+    parallel_move.AddMove(
+        locations->InAt(1),
+        LocationFrom(calling_convention.GetRegisterAt(1)),
+        Primitive::kPrimInt,
+        nullptr);
+    parallel_move.AddMove(
+        locations->InAt(2),
+        LocationFrom(calling_convention.GetRegisterAt(2)),
+        Primitive::kPrimNot,
+        nullptr);
+    codegen->GetMoveResolver()->EmitNativeCode(&parallel_move);
+
+    CodeGeneratorARMVIXL* arm_codegen = down_cast<CodeGeneratorARMVIXL*>(codegen);
+    arm_codegen->InvokeRuntime(kQuickAputObject, instruction_, instruction_->GetDexPc(), this);
+    CheckEntrypointTypes<kQuickAputObject, void, mirror::Array*, int32_t, mirror::Object*>();
+    RestoreLiveRegisters(codegen, locations);
+    __ B(GetExitLabel());
+  }
+
+  const char* GetDescription() const OVERRIDE { return "ArraySetSlowPathARMVIXL"; }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ArraySetSlowPathARMVIXL);
+};
+
 
 inline vixl32::Condition ARMCondition(IfCondition cond) {
   switch (cond) {
@@ -795,14 +895,14 @@ void InstructionCodeGeneratorARMVIXL::GenerateVcmp(HInstruction* instruction) {
       __ Vcmp(F32, InputSRegisterAt(instruction, 0), 0.0);
     } else {
       DCHECK_EQ(type, Primitive::kPrimDouble);
-      __ Vcmp(F64, FromLowSToD(LowSRegisterFrom(lhs_loc)), 0.0);
+      __ Vcmp(F64, DRegisterFrom(lhs_loc), 0.0);
     }
   } else {
     if (type == Primitive::kPrimFloat) {
       __ Vcmp(InputSRegisterAt(instruction, 0), InputSRegisterAt(instruction, 1));
     } else {
       DCHECK_EQ(type, Primitive::kPrimDouble);
-      __ Vcmp(FromLowSToD(LowSRegisterFrom(lhs_loc)), FromLowSToD(LowSRegisterFrom(rhs_loc)));
+      __ Vcmp(DRegisterFrom(lhs_loc), DRegisterFrom(rhs_loc));
     }
   }
 }
@@ -1028,6 +1128,24 @@ void InstructionCodeGeneratorARMVIXL::VisitIf(HIf* if_instr) {
   GenerateTestAndBranch(if_instr, /* condition_input_index */ 0, true_target, false_target);
 }
 
+void LocationsBuilderARMVIXL::VisitDeoptimize(HDeoptimize* deoptimize) {
+  LocationSummary* locations = new (GetGraph()->GetArena())
+      LocationSummary(deoptimize, LocationSummary::kCallOnSlowPath);
+  locations->SetCustomSlowPathCallerSaves(RegisterSet::Empty());  // No caller-save registers.
+  if (IsBooleanValueOrMaterializedCondition(deoptimize->InputAt(0))) {
+    locations->SetInAt(0, Location::RequiresRegister());
+  }
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitDeoptimize(HDeoptimize* deoptimize) {
+  SlowPathCodeARMVIXL* slow_path =
+      deopt_slow_paths_.NewSlowPath<DeoptimizationSlowPathARMVIXL>(deoptimize);
+  GenerateTestAndBranch(deoptimize,
+                        /* condition_input_index */ 0,
+                        slow_path->GetEntryLabel(),
+                        /* false_target */ nullptr);
+}
+
 void LocationsBuilderARMVIXL::VisitSelect(HSelect* select) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(select);
   if (Primitive::IsFloatingPointType(select->GetType())) {
@@ -1250,7 +1368,8 @@ void LocationsBuilderARMVIXL::VisitFloatConstant(HFloatConstant* constant) {
   locations->SetOut(Location::ConstantLocation(constant));
 }
 
-void InstructionCodeGeneratorARMVIXL::VisitFloatConstant(HFloatConstant* constant ATTRIBUTE_UNUSED) {
+void InstructionCodeGeneratorARMVIXL::VisitFloatConstant(
+    HFloatConstant* constant ATTRIBUTE_UNUSED) {
   // Will be generated at use site.
 }
 
@@ -1260,7 +1379,8 @@ void LocationsBuilderARMVIXL::VisitDoubleConstant(HDoubleConstant* constant) {
   locations->SetOut(Location::ConstantLocation(constant));
 }
 
-void InstructionCodeGeneratorARMVIXL::VisitDoubleConstant(HDoubleConstant* constant ATTRIBUTE_UNUSED) {
+void InstructionCodeGeneratorARMVIXL::VisitDoubleConstant(
+    HDoubleConstant* constant ATTRIBUTE_UNUSED) {
   // Will be generated at use site.
 }
 
@@ -1693,7 +1813,7 @@ void InstructionCodeGeneratorARMVIXL::VisitTypeConversion(HTypeConversion* conve
         case Primitive::kPrimDouble: {
           // Processing a Dex `double-to-int' instruction.
           vixl32::SRegister temp_s = LowSRegisterFrom(locations->GetTemp(0));
-          __ Vcvt(I32, F64, temp_s, FromLowSToD(LowSRegisterFrom(in)));
+          __ Vcvt(I32, F64, temp_s, DRegisterFrom(in));
           __ Vmov(OutputRegister(conversion), temp_s);
           break;
         }
@@ -1781,7 +1901,7 @@ void InstructionCodeGeneratorARMVIXL::VisitTypeConversion(HTypeConversion* conve
 
         case Primitive::kPrimDouble:
           // Processing a Dex `double-to-float' instruction.
-          __ Vcvt(F32, F64, OutputSRegister(conversion), FromLowSToD(LowSRegisterFrom(in)));
+          __ Vcvt(F32, F64, OutputSRegister(conversion), DRegisterFrom(in));
           break;
 
         default:
@@ -1800,7 +1920,7 @@ void InstructionCodeGeneratorARMVIXL::VisitTypeConversion(HTypeConversion* conve
         case Primitive::kPrimChar: {
           // Processing a Dex `int-to-double' instruction.
           __ Vmov(LowSRegisterFrom(out), InputRegisterAt(conversion, 0));
-          __ Vcvt(F64, I32, FromLowSToD(LowSRegisterFrom(out)), LowSRegisterFrom(out));
+          __ Vcvt(F64, I32, DRegisterFrom(out), LowSRegisterFrom(out));
           break;
         }
 
@@ -1810,13 +1930,12 @@ void InstructionCodeGeneratorARMVIXL::VisitTypeConversion(HTypeConversion* conve
           vixl32::Register high = HighRegisterFrom(in);
 
           vixl32::SRegister out_s = LowSRegisterFrom(out);
-          vixl32::DRegister out_d = FromLowSToD(out_s);
+          vixl32::DRegister out_d = DRegisterFrom(out);
 
           vixl32::SRegister temp_s = LowSRegisterFrom(locations->GetTemp(0));
-          vixl32::DRegister temp_d = FromLowSToD(temp_s);
+          vixl32::DRegister temp_d = DRegisterFrom(locations->GetTemp(0));
 
-          vixl32::SRegister constant_s = LowSRegisterFrom(locations->GetTemp(1));
-          vixl32::DRegister constant_d = FromLowSToD(constant_s);
+          vixl32::DRegister constant_d = DRegisterFrom(locations->GetTemp(0));
 
           // temp_d = int-to-double(high)
           __ Vmov(temp_s, high);
@@ -1833,7 +1952,7 @@ void InstructionCodeGeneratorARMVIXL::VisitTypeConversion(HTypeConversion* conve
 
         case Primitive::kPrimFloat:
           // Processing a Dex `float-to-double' instruction.
-          __ Vcvt(F64, F32, FromLowSToD(LowSRegisterFrom(out)), InputSRegisterAt(conversion, 0));
+          __ Vcvt(F64, F32, DRegisterFrom(out), InputSRegisterAt(conversion, 0));
           break;
 
         default:
@@ -2782,6 +2901,17 @@ void InstructionCodeGeneratorARMVIXL::VisitNot(HNot* not_) {
   }
 }
 
+void LocationsBuilderARMVIXL::VisitBooleanNot(HBooleanNot* bool_not) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(bool_not, LocationSummary::kNoCall);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitBooleanNot(HBooleanNot* bool_not) {
+  __ Eor(OutputRegister(bool_not), InputRegister(bool_not), 1);
+}
+
 void LocationsBuilderARMVIXL::VisitCompare(HCompare* compare) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(compare, LocationSummary::kNoCall);
@@ -3053,7 +3183,7 @@ void InstructionCodeGeneratorARMVIXL::HandleFieldSet(HInstruction* instruction,
     }
 
     case Primitive::kPrimDouble: {
-      vixl32::DRegister value_reg = FromLowSToD(LowSRegisterFrom(value));
+      vixl32::DRegister value_reg = DRegisterFrom(value);
       if (is_volatile && !atomic_ldrd_strd) {
         vixl32::Register value_reg_lo = RegisterFrom(locations->GetTemp(0));
         vixl32::Register value_reg_hi = RegisterFrom(locations->GetTemp(1));
@@ -3281,7 +3411,7 @@ void InstructionCodeGeneratorARMVIXL::HandleFieldGet(HInstruction* instruction,
       break;
 
     case Primitive::kPrimDouble: {
-      vixl32::DRegister out_dreg = FromLowSToD(LowSRegisterFrom(out));
+      vixl32::DRegister out_dreg = DRegisterFrom(out);
       if (is_volatile && !atomic_ldrd_strd) {
         vixl32::Register lo = RegisterFrom(locations->GetTemp(0));
         vixl32::Register hi = RegisterFrom(locations->GetTemp(1));
@@ -3345,6 +3475,14 @@ void InstructionCodeGeneratorARMVIXL::VisitStaticFieldGet(HStaticFieldGet* instr
   HandleFieldGet(instruction, instruction->GetFieldInfo());
 }
 
+void LocationsBuilderARMVIXL::VisitStaticFieldSet(HStaticFieldSet* instruction) {
+  HandleFieldSet(instruction, instruction->GetFieldInfo());
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitStaticFieldSet(HStaticFieldSet* instruction) {
+  HandleFieldSet(instruction, instruction->GetFieldInfo(), instruction->GetValueCanBeNull());
+}
+
 void LocationsBuilderARMVIXL::VisitNullCheck(HNullCheck* instruction) {
   // TODO(VIXL): https://android-review.googlesource.com/#/c/275337/
   LocationSummary::CallKind call_kind = instruction->CanThrowIntoCatchBlock()
@@ -3381,6 +3519,554 @@ void InstructionCodeGeneratorARMVIXL::VisitNullCheck(HNullCheck* instruction) {
   codegen_->GenerateNullCheck(instruction);
 }
 
+static LoadOperandType GetLoadOperandType(Primitive::Type type) {
+  switch (type) {
+    case Primitive::kPrimNot:
+      return kLoadWord;
+    case Primitive::kPrimBoolean:
+      return kLoadUnsignedByte;
+    case Primitive::kPrimByte:
+      return kLoadSignedByte;
+    case Primitive::kPrimChar:
+      return kLoadUnsignedHalfword;
+    case Primitive::kPrimShort:
+      return kLoadSignedHalfword;
+    case Primitive::kPrimInt:
+      return kLoadWord;
+    case Primitive::kPrimLong:
+      return kLoadWordPair;
+    case Primitive::kPrimFloat:
+      return kLoadSWord;
+    case Primitive::kPrimDouble:
+      return kLoadDWord;
+    default:
+      LOG(FATAL) << "Unreachable type " << type;
+      UNREACHABLE();
+  }
+}
+
+static StoreOperandType GetStoreOperandType(Primitive::Type type) {
+  switch (type) {
+    case Primitive::kPrimNot:
+      return kStoreWord;
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimByte:
+      return kStoreByte;
+    case Primitive::kPrimChar:
+    case Primitive::kPrimShort:
+      return kStoreHalfword;
+    case Primitive::kPrimInt:
+      return kStoreWord;
+    case Primitive::kPrimLong:
+      return kStoreWordPair;
+    case Primitive::kPrimFloat:
+      return kStoreSWord;
+    case Primitive::kPrimDouble:
+      return kStoreDWord;
+    default:
+      LOG(FATAL) << "Unreachable type " << type;
+      UNREACHABLE();
+  }
+}
+
+void CodeGeneratorARMVIXL::LoadFromShiftedRegOffset(Primitive::Type type,
+                                                    Location out_loc,
+                                                    vixl32::Register base,
+                                                    vixl32::Register reg_index,
+                                                    vixl32::Condition cond) {
+  uint32_t shift_count = Primitive::ComponentSizeShift(type);
+  MemOperand mem_address(base, reg_index, vixl32::LSL, shift_count);
+
+  switch (type) {
+    case Primitive::kPrimByte:
+      __ Ldrsb(cond, RegisterFrom(out_loc), mem_address);
+      break;
+    case Primitive::kPrimBoolean:
+      __ Ldrb(cond, RegisterFrom(out_loc), mem_address);
+      break;
+    case Primitive::kPrimShort:
+      __ Ldrsh(cond, RegisterFrom(out_loc), mem_address);
+      break;
+    case Primitive::kPrimChar:
+      __ Ldrh(cond, RegisterFrom(out_loc), mem_address);
+      break;
+    case Primitive::kPrimNot:
+    case Primitive::kPrimInt:
+      __ Ldr(cond, RegisterFrom(out_loc), mem_address);
+      break;
+    // T32 doesn't support LoadFromShiftedRegOffset mem address mode for these types.
+    case Primitive::kPrimLong:
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble:
+    default:
+      LOG(FATAL) << "Unreachable type " << type;
+      UNREACHABLE();
+  }
+}
+
+void CodeGeneratorARMVIXL::StoreToShiftedRegOffset(Primitive::Type type,
+                                                   Location loc,
+                                                   vixl32::Register base,
+                                                   vixl32::Register reg_index,
+                                                   vixl32::Condition cond) {
+  uint32_t shift_count = Primitive::ComponentSizeShift(type);
+  MemOperand mem_address(base, reg_index, vixl32::LSL, shift_count);
+
+  switch (type) {
+    case Primitive::kPrimByte:
+    case Primitive::kPrimBoolean:
+      __ Strb(cond, RegisterFrom(loc), mem_address);
+      break;
+    case Primitive::kPrimShort:
+    case Primitive::kPrimChar:
+      __ Strh(cond, RegisterFrom(loc), mem_address);
+      break;
+    case Primitive::kPrimNot:
+    case Primitive::kPrimInt:
+      __ Str(cond, RegisterFrom(loc), mem_address);
+      break;
+    // T32 doesn't support StoreToShiftedRegOffset mem address mode for these types.
+    case Primitive::kPrimLong:
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble:
+    default:
+      LOG(FATAL) << "Unreachable type " << type;
+      UNREACHABLE();
+  }
+}
+
+void LocationsBuilderARMVIXL::VisitArrayGet(HArrayGet* instruction) {
+  bool object_array_get_with_read_barrier =
+      kEmitCompilerReadBarrier && (instruction->GetType() == Primitive::kPrimNot);
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction,
+                                                   object_array_get_with_read_barrier ?
+                                                       LocationSummary::kCallOnSlowPath :
+                                                       LocationSummary::kNoCall);
+  if (object_array_get_with_read_barrier && kUseBakerReadBarrier) {
+    TODO_VIXL32(FATAL);
+  }
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
+  if (Primitive::IsFloatingPointType(instruction->GetType())) {
+    locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
+  } else {
+    // The output overlaps in the case of an object array get with
+    // read barriers enabled: we do not want the move to overwrite the
+    // array's location, as we need it to emit the read barrier.
+    locations->SetOut(
+        Location::RequiresRegister(),
+        object_array_get_with_read_barrier ? Location::kOutputOverlap : Location::kNoOutputOverlap);
+  }
+  // We need a temporary register for the read barrier marking slow
+  // path in CodeGeneratorARM::GenerateArrayLoadWithBakerReadBarrier.
+  // Also need for String compression feature.
+  if ((object_array_get_with_read_barrier && kUseBakerReadBarrier)
+      || (mirror::kUseStringCompression && instruction->IsStringCharAt())) {
+    TODO_VIXL32(FATAL);
+  }
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitArrayGet(HArrayGet* instruction) {
+  UseScratchRegisterScope temps(GetAssembler()->GetVIXLAssembler());
+  LocationSummary* locations = instruction->GetLocations();
+  Location obj_loc = locations->InAt(0);
+  vixl32::Register obj = InputRegisterAt(instruction, 0);
+  Location index = locations->InAt(1);
+  Location out_loc = locations->Out();
+  uint32_t data_offset = CodeGenerator::GetArrayDataOffset(instruction);
+  Primitive::Type type = instruction->GetType();
+  const bool maybe_compressed_char_at = mirror::kUseStringCompression &&
+                                        instruction->IsStringCharAt();
+  HInstruction* array_instr = instruction->GetArray();
+  bool has_intermediate_address = array_instr->IsIntermediateAddress();
+  // The read barrier instrumentation does not support the HIntermediateAddress instruction yet.
+  DCHECK(!(has_intermediate_address && kEmitCompilerReadBarrier));
+
+  switch (type) {
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimByte:
+    case Primitive::kPrimShort:
+    case Primitive::kPrimChar:
+    case Primitive::kPrimInt: {
+      if (index.IsConstant()) {
+        int32_t const_index = index.GetConstant()->AsIntConstant()->GetValue();
+        if (maybe_compressed_char_at) {
+          TODO_VIXL32(FATAL);
+        } else {
+          uint32_t full_offset = data_offset + (const_index << Primitive::ComponentSizeShift(type));
+
+          LoadOperandType load_type = GetLoadOperandType(type);
+          GetAssembler()->LoadFromOffset(load_type, RegisterFrom(out_loc), obj, full_offset);
+        }
+      } else {
+        vixl32::Register temp = temps.Acquire();
+
+        if (has_intermediate_address) {
+          TODO_VIXL32(FATAL);
+        } else {
+          __ Add(temp, obj, data_offset);
+        }
+        if (maybe_compressed_char_at) {
+          TODO_VIXL32(FATAL);
+        } else {
+          codegen_->LoadFromShiftedRegOffset(type, out_loc, temp, RegisterFrom(index));
+        }
+      }
+      break;
+    }
+
+    case Primitive::kPrimNot: {
+      static_assert(
+          sizeof(mirror::HeapReference<mirror::Object>) == sizeof(int32_t),
+          "art::mirror::HeapReference<art::mirror::Object> and int32_t have different sizes.");
+      // /* HeapReference<Object> */ out =
+      //     *(obj + data_offset + index * sizeof(HeapReference<Object>))
+      if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
+        TODO_VIXL32(FATAL);
+      } else {
+        vixl32::Register out = OutputRegister(instruction);
+        if (index.IsConstant()) {
+          size_t offset =
+              (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
+          GetAssembler()->LoadFromOffset(kLoadWord, out, obj, offset);
+          codegen_->MaybeRecordImplicitNullCheck(instruction);
+          // If read barriers are enabled, emit read barriers other than
+          // Baker's using a slow path (and also unpoison the loaded
+          // reference, if heap poisoning is enabled).
+          codegen_->MaybeGenerateReadBarrierSlow(instruction, out_loc, out_loc, obj_loc, offset);
+        } else {
+          vixl32::Register temp = temps.Acquire();
+
+          if (has_intermediate_address) {
+            TODO_VIXL32(FATAL);
+          } else {
+            __ Add(temp, obj, data_offset);
+          }
+          codegen_->LoadFromShiftedRegOffset(type, out_loc, temp, RegisterFrom(index));
+
+          codegen_->MaybeRecordImplicitNullCheck(instruction);
+          // If read barriers are enabled, emit read barriers other than
+          // Baker's using a slow path (and also unpoison the loaded
+          // reference, if heap poisoning is enabled).
+          codegen_->MaybeGenerateReadBarrierSlow(
+              instruction, out_loc, out_loc, obj_loc, data_offset, index);
+        }
+      }
+      break;
+    }
+
+    case Primitive::kPrimLong: {
+      if (index.IsConstant()) {
+        size_t offset =
+            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8) + data_offset;
+        GetAssembler()->LoadFromOffset(kLoadWordPair, LowRegisterFrom(out_loc), obj, offset);
+      } else {
+        vixl32::Register temp = temps.Acquire();
+        __ Add(temp, obj, Operand(RegisterFrom(index), vixl32::LSL, TIMES_8));
+        GetAssembler()->LoadFromOffset(kLoadWordPair, LowRegisterFrom(out_loc), temp, data_offset);
+      }
+      break;
+    }
+
+    case Primitive::kPrimFloat: {
+      vixl32::SRegister out = SRegisterFrom(out_loc);
+      if (index.IsConstant()) {
+        size_t offset = (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
+        GetAssembler()->LoadSFromOffset(out, obj, offset);
+      } else {
+        vixl32::Register temp = temps.Acquire();
+        __ Add(temp, obj, Operand(RegisterFrom(index), vixl32::LSL, TIMES_4));
+        GetAssembler()->LoadSFromOffset(out, temp, data_offset);
+      }
+      break;
+    }
+
+    case Primitive::kPrimDouble: {
+      if (index.IsConstant()) {
+        size_t offset = (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8) + data_offset;
+        GetAssembler()->LoadDFromOffset(DRegisterFrom(out_loc), obj, offset);
+      } else {
+        vixl32::Register temp = temps.Acquire();
+        __ Add(temp, obj, Operand(RegisterFrom(index), vixl32::LSL, TIMES_8));
+        GetAssembler()->LoadDFromOffset(DRegisterFrom(out_loc), temp, data_offset);
+      }
+      break;
+    }
+
+    case Primitive::kPrimVoid:
+      LOG(FATAL) << "Unreachable type " << type;
+      UNREACHABLE();
+  }
+
+  if (type == Primitive::kPrimNot) {
+    // Potential implicit null checks, in the case of reference
+    // arrays, are handled in the previous switch statement.
+  } else if (!maybe_compressed_char_at) {
+    codegen_->MaybeRecordImplicitNullCheck(instruction);
+  }
+}
+
+void LocationsBuilderARMVIXL::VisitArraySet(HArraySet* instruction) {
+  Primitive::Type value_type = instruction->GetComponentType();
+
+  bool needs_write_barrier =
+      CodeGenerator::StoreNeedsWriteBarrier(value_type, instruction->GetValue());
+  bool may_need_runtime_call_for_type_check = instruction->NeedsTypeCheck();
+
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(
+      instruction,
+      may_need_runtime_call_for_type_check ?
+          LocationSummary::kCallOnSlowPath :
+          LocationSummary::kNoCall);
+
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
+  if (Primitive::IsFloatingPointType(value_type)) {
+    locations->SetInAt(2, Location::RequiresFpuRegister());
+  } else {
+    locations->SetInAt(2, Location::RequiresRegister());
+  }
+  if (needs_write_barrier) {
+    // Temporary registers for the write barrier.
+    locations->AddTemp(Location::RequiresRegister());  // Possibly used for ref. poisoning too.
+    locations->AddTemp(Location::RequiresRegister());
+  }
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitArraySet(HArraySet* instruction) {
+  UseScratchRegisterScope temps(GetAssembler()->GetVIXLAssembler());
+  LocationSummary* locations = instruction->GetLocations();
+  vixl32::Register array = InputRegisterAt(instruction, 0);
+  Location index = locations->InAt(1);
+  Primitive::Type value_type = instruction->GetComponentType();
+  bool may_need_runtime_call_for_type_check = instruction->NeedsTypeCheck();
+  bool needs_write_barrier =
+      CodeGenerator::StoreNeedsWriteBarrier(value_type, instruction->GetValue());
+  uint32_t data_offset =
+      mirror::Array::DataOffset(Primitive::ComponentSize(value_type)).Uint32Value();
+  Location value_loc = locations->InAt(2);
+  HInstruction* array_instr = instruction->GetArray();
+  bool has_intermediate_address = array_instr->IsIntermediateAddress();
+  // The read barrier instrumentation does not support the HIntermediateAddress instruction yet.
+  DCHECK(!(has_intermediate_address && kEmitCompilerReadBarrier));
+
+  switch (value_type) {
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimByte:
+    case Primitive::kPrimShort:
+    case Primitive::kPrimChar:
+    case Primitive::kPrimInt: {
+      if (index.IsConstant()) {
+        int32_t const_index = index.GetConstant()->AsIntConstant()->GetValue();
+        uint32_t full_offset =
+            data_offset + (const_index << Primitive::ComponentSizeShift(value_type));
+        StoreOperandType store_type = GetStoreOperandType(value_type);
+        GetAssembler()->StoreToOffset(store_type, RegisterFrom(value_loc), array, full_offset);
+      } else {
+        vixl32::Register temp = temps.Acquire();
+
+        if (has_intermediate_address) {
+          TODO_VIXL32(FATAL);
+        } else {
+          __ Add(temp, array, data_offset);
+        }
+        codegen_->StoreToShiftedRegOffset(value_type, value_loc, temp, RegisterFrom(index));
+      }
+      break;
+    }
+
+    case Primitive::kPrimNot: {
+      vixl32::Register value = RegisterFrom(value_loc);
+      // TryExtractArrayAccessAddress optimization is never applied for non-primitive ArraySet.
+      // See the comment in instruction_simplifier_shared.cc.
+      DCHECK(!has_intermediate_address);
+
+      if (instruction->InputAt(2)->IsNullConstant()) {
+        // Just setting null.
+        if (index.IsConstant()) {
+          size_t offset =
+              (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
+          GetAssembler()->StoreToOffset(kStoreWord, value, array, offset);
+        } else {
+          DCHECK(index.IsRegister()) << index;
+          vixl32::Register temp = temps.Acquire();
+          __ Add(temp, array, data_offset);
+          codegen_->StoreToShiftedRegOffset(value_type, value_loc, temp, RegisterFrom(index));
+        }
+        codegen_->MaybeRecordImplicitNullCheck(instruction);
+        DCHECK(!needs_write_barrier);
+        DCHECK(!may_need_runtime_call_for_type_check);
+        break;
+      }
+
+      DCHECK(needs_write_barrier);
+      Location temp1_loc = locations->GetTemp(0);
+      vixl32::Register temp1 = RegisterFrom(temp1_loc);
+      Location temp2_loc = locations->GetTemp(1);
+      vixl32::Register temp2 = RegisterFrom(temp2_loc);
+      uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
+      uint32_t super_offset = mirror::Class::SuperClassOffset().Int32Value();
+      uint32_t component_offset = mirror::Class::ComponentTypeOffset().Int32Value();
+      vixl32::Label done;
+      SlowPathCodeARMVIXL* slow_path = nullptr;
+
+      if (may_need_runtime_call_for_type_check) {
+        slow_path = new (GetGraph()->GetArena()) ArraySetSlowPathARMVIXL(instruction);
+        codegen_->AddSlowPath(slow_path);
+        if (instruction->GetValueCanBeNull()) {
+          vixl32::Label non_zero;
+          __ Cbnz(value, &non_zero);
+          if (index.IsConstant()) {
+            size_t offset =
+               (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
+            GetAssembler()->StoreToOffset(kStoreWord, value, array, offset);
+          } else {
+            DCHECK(index.IsRegister()) << index;
+            vixl32::Register temp = temps.Acquire();
+            __ Add(temp, array, data_offset);
+            codegen_->StoreToShiftedRegOffset(value_type, value_loc, temp, RegisterFrom(index));
+          }
+          codegen_->MaybeRecordImplicitNullCheck(instruction);
+          __ B(&done);
+          __ Bind(&non_zero);
+        }
+
+        // Note that when read barriers are enabled, the type checks
+        // are performed without read barriers.  This is fine, even in
+        // the case where a class object is in the from-space after
+        // the flip, as a comparison involving such a type would not
+        // produce a false positive; it may of course produce a false
+        // negative, in which case we would take the ArraySet slow
+        // path.
+
+        // /* HeapReference<Class> */ temp1 = array->klass_
+        GetAssembler()->LoadFromOffset(kLoadWord, temp1, array, class_offset);
+        codegen_->MaybeRecordImplicitNullCheck(instruction);
+        GetAssembler()->MaybeUnpoisonHeapReference(temp1);
+
+        // /* HeapReference<Class> */ temp1 = temp1->component_type_
+        GetAssembler()->LoadFromOffset(kLoadWord, temp1, temp1, component_offset);
+        // /* HeapReference<Class> */ temp2 = value->klass_
+        GetAssembler()->LoadFromOffset(kLoadWord, temp2, value, class_offset);
+        // If heap poisoning is enabled, no need to unpoison `temp1`
+        // nor `temp2`, as we are comparing two poisoned references.
+        __ Cmp(temp1, temp2);
+
+        if (instruction->StaticTypeOfArrayIsObjectArray()) {
+          vixl32::Label do_put;
+          __ B(eq, &do_put);
+          // If heap poisoning is enabled, the `temp1` reference has
+          // not been unpoisoned yet; unpoison it now.
+          GetAssembler()->MaybeUnpoisonHeapReference(temp1);
+
+          // /* HeapReference<Class> */ temp1 = temp1->super_class_
+          GetAssembler()->LoadFromOffset(kLoadWord, temp1, temp1, super_offset);
+          // If heap poisoning is enabled, no need to unpoison
+          // `temp1`, as we are comparing against null below.
+          __ Cbnz(temp1, slow_path->GetEntryLabel());
+          __ Bind(&do_put);
+        } else {
+          __ B(ne, slow_path->GetEntryLabel());
+        }
+      }
+
+      vixl32::Register source = value;
+      if (kPoisonHeapReferences) {
+        // Note that in the case where `value` is a null reference,
+        // we do not enter this block, as a null reference does not
+        // need poisoning.
+        DCHECK_EQ(value_type, Primitive::kPrimNot);
+        __ Mov(temp1, value);
+        GetAssembler()->PoisonHeapReference(temp1);
+        source = temp1;
+      }
+
+      if (index.IsConstant()) {
+        size_t offset =
+            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
+        GetAssembler()->StoreToOffset(kStoreWord, source, array, offset);
+      } else {
+        DCHECK(index.IsRegister()) << index;
+
+        vixl32::Register temp = temps.Acquire();
+        __ Add(temp, array, data_offset);
+        codegen_->StoreToShiftedRegOffset(value_type,
+                                          LocationFrom(source),
+                                          temp,
+                                          RegisterFrom(index));
+      }
+
+      if (!may_need_runtime_call_for_type_check) {
+        codegen_->MaybeRecordImplicitNullCheck(instruction);
+      }
+
+      codegen_->MarkGCCard(temp1, temp2, array, value, instruction->GetValueCanBeNull());
+
+      if (done.IsReferenced()) {
+        __ Bind(&done);
+      }
+
+      if (slow_path != nullptr) {
+        __ Bind(slow_path->GetExitLabel());
+      }
+
+      break;
+    }
+
+    case Primitive::kPrimLong: {
+      Location value = locations->InAt(2);
+      if (index.IsConstant()) {
+        size_t offset =
+            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8) + data_offset;
+        GetAssembler()->StoreToOffset(kStoreWordPair, LowRegisterFrom(value), array, offset);
+      } else {
+        vixl32::Register temp = temps.Acquire();
+        __ Add(temp, array, Operand(RegisterFrom(index), vixl32::LSL, TIMES_8));
+        GetAssembler()->StoreToOffset(kStoreWordPair, LowRegisterFrom(value), temp, data_offset);
+      }
+      break;
+    }
+
+    case Primitive::kPrimFloat: {
+      Location value = locations->InAt(2);
+      DCHECK(value.IsFpuRegister());
+      if (index.IsConstant()) {
+        size_t offset = (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
+        GetAssembler()->StoreSToOffset(SRegisterFrom(value), array, offset);
+      } else {
+        vixl32::Register temp = temps.Acquire();
+        __ Add(temp, array, Operand(RegisterFrom(index), vixl32::LSL, TIMES_4));
+        GetAssembler()->StoreSToOffset(SRegisterFrom(value), temp, data_offset);
+      }
+      break;
+    }
+
+    case Primitive::kPrimDouble: {
+      Location value = locations->InAt(2);
+      DCHECK(value.IsFpuRegisterPair());
+      if (index.IsConstant()) {
+        size_t offset = (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8) + data_offset;
+        GetAssembler()->StoreDToOffset(DRegisterFrom(value), array, offset);
+      } else {
+        vixl32::Register temp = temps.Acquire();
+        __ Add(temp, array, Operand(RegisterFrom(index), vixl32::LSL, TIMES_8));
+        GetAssembler()->StoreDToOffset(DRegisterFrom(value), temp, data_offset);
+      }
+      break;
+    }
+
+    case Primitive::kPrimVoid:
+      LOG(FATAL) << "Unreachable type " << value_type;
+      UNREACHABLE();
+  }
+
+  // Objects are handled in the switch.
+  if (value_type != Primitive::kPrimNot) {
+    codegen_->MaybeRecordImplicitNullCheck(instruction);
+  }
+}
+
 void LocationsBuilderARMVIXL::VisitArrayLength(HArrayLength* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
@@ -3395,6 +4081,28 @@ void InstructionCodeGeneratorARMVIXL::VisitArrayLength(HArrayLength* instruction
   GetAssembler()->LoadFromOffset(kLoadWord, out, obj, offset);
   codegen_->MaybeRecordImplicitNullCheck(instruction);
   // TODO(VIXL): https://android-review.googlesource.com/#/c/272625/
+}
+
+void LocationsBuilderARMVIXL::VisitBoundsCheck(HBoundsCheck* instruction) {
+  RegisterSet caller_saves = RegisterSet::Empty();
+  InvokeRuntimeCallingConventionARMVIXL calling_convention;
+  caller_saves.Add(LocationFrom(calling_convention.GetRegisterAt(0)));
+  caller_saves.Add(LocationFrom(calling_convention.GetRegisterAt(1)));
+  LocationSummary* locations = codegen_->CreateThrowingSlowPathLocations(instruction, caller_saves);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitBoundsCheck(HBoundsCheck* instruction) {
+  SlowPathCodeARMVIXL* slow_path =
+      new (GetGraph()->GetArena()) BoundsCheckSlowPathARMVIXL(instruction);
+  codegen_->AddSlowPath(slow_path);
+
+  vixl32::Register index = InputRegisterAt(instruction, 0);
+  vixl32::Register length = InputRegisterAt(instruction, 1);
+
+  __ Cmp(index, length);
+  __ B(hs, slow_path->GetEntryLabel());
 }
 
 void CodeGeneratorARMVIXL::MarkGCCard(vixl32::Register temp,
@@ -3509,7 +4217,7 @@ void ParallelMoveResolverARMVIXL::EmitMove(size_t index) {
     }
   } else if (source.IsFpuRegister()) {
     if (destination.IsRegister()) {
-      TODO_VIXL32(FATAL);
+      __ Vmov(RegisterFrom(destination), SRegisterFrom(source));
     } else if (destination.IsFpuRegister()) {
       __ Vmov(SRegisterFrom(destination), SRegisterFrom(source));
     } else {
@@ -3534,9 +4242,7 @@ void ParallelMoveResolverARMVIXL::EmitMove(size_t index) {
       __ Mov(LowRegisterFrom(destination), LowRegisterFrom(source));
       __ Mov(HighRegisterFrom(destination), HighRegisterFrom(source));
     } else if (destination.IsFpuRegisterPair()) {
-      __ Vmov(FromLowSToD(LowSRegisterFrom(destination)),
-              LowRegisterFrom(source),
-              HighRegisterFrom(source));
+      __ Vmov(DRegisterFrom(destination), LowRegisterFrom(source), HighRegisterFrom(source));
     } else {
       DCHECK(destination.IsDoubleStackSlot()) << destination;
       DCHECK(ExpectedPairLayout(source));
@@ -3547,7 +4253,7 @@ void ParallelMoveResolverARMVIXL::EmitMove(size_t index) {
     }
   } else if (source.IsFpuRegisterPair()) {
     if (destination.IsRegisterPair()) {
-      TODO_VIXL32(FATAL);
+      __ Vmov(LowRegisterFrom(destination), HighRegisterFrom(destination), DRegisterFrom(source));
     } else if (destination.IsFpuRegisterPair()) {
       __ Vmov(DRegisterFrom(destination), DRegisterFrom(source));
     } else {
@@ -3586,7 +4292,7 @@ void ParallelMoveResolverARMVIXL::EmitMove(size_t index) {
     } else if (constant->IsDoubleConstant()) {
       double value = constant->AsDoubleConstant()->GetValue();
       if (destination.IsFpuRegisterPair()) {
-        __ Vmov(FromLowSToD(LowSRegisterFrom(destination)), value);
+        __ Vmov(DRegisterFrom(destination), value);
       } else {
         DCHECK(destination.IsDoubleStackSlot()) << destination;
         uint64_t int_value = bit_cast<uint64_t, double>(value);

@@ -106,13 +106,18 @@ class LoadClassSlowPathARMVIXL;
   M(AboveOrEqual)                               \
   M(Add)                                        \
   M(And)                                        \
+  M(ArrayGet)                                   \
   M(ArrayLength)                                \
+  M(ArraySet)                                   \
   M(Below)                                      \
   M(BelowOrEqual)                               \
+  M(BooleanNot)                                 \
+  M(BoundsCheck)                                \
   M(ClearException)                             \
   M(ClinitCheck)                                \
   M(Compare)                                    \
   M(CurrentMethod)                              \
+  M(Deoptimize)                                 \
   M(Div)                                        \
   M(DivZeroCheck)                               \
   M(DoubleConstant)                             \
@@ -154,6 +159,7 @@ class LoadClassSlowPathARMVIXL;
   M(Shl)                                        \
   M(Shr)                                        \
   M(StaticFieldGet)                             \
+  M(StaticFieldSet)                             \
   M(Sub)                                        \
   M(SuspendCheck)                               \
   M(Throw)                                      \
@@ -164,14 +170,9 @@ class LoadClassSlowPathARMVIXL;
 
 // TODO: Remove once the VIXL32 backend is implemented completely.
 #define FOR_EACH_UNIMPLEMENTED_INSTRUCTION(M)   \
-  M(ArrayGet)                                   \
-  M(ArraySet)                                   \
-  M(BooleanNot)                                 \
-  M(BoundsCheck)                                \
   M(BoundType)                                  \
   M(CheckCast)                                  \
   M(ClassTableGet)                              \
-  M(Deoptimize)                                 \
   M(InstanceOf)                                 \
   M(InvokeInterface)                            \
   M(InvokeUnresolved)                           \
@@ -179,7 +180,6 @@ class LoadClassSlowPathARMVIXL;
   M(NativeDebugInfo)                            \
   M(PackedSwitch)                               \
   M(Rem)                                        \
-  M(StaticFieldSet)                             \
   M(UnresolvedInstanceFieldGet)                 \
   M(UnresolvedInstanceFieldSet)                 \
   M(UnresolvedStaticFieldGet)                   \
@@ -437,6 +437,17 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
 
   // Helper method to move a 32-bit value between two locations.
   void Move32(Location destination, Location source);
+
+  void LoadFromShiftedRegOffset(Primitive::Type type,
+                                Location out_loc,
+                                vixl::aarch32::Register base,
+                                vixl::aarch32::Register reg_index,
+                                vixl::aarch32::Condition cond = vixl::aarch32::al);
+  void StoreToShiftedRegOffset(Primitive::Type type,
+                               Location out_loc,
+                               vixl::aarch32::Register base,
+                               vixl::aarch32::Register reg_index,
+                               vixl::aarch32::Condition cond = vixl::aarch32::al);
 
   const ArmInstructionSetFeatures& GetInstructionSetFeatures() const { return isa_features_; }
 
