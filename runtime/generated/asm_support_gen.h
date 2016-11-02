@@ -52,6 +52,8 @@ DEFINE_CHECK_EQ(static_cast<int32_t>(MIRROR_OBJECT_LOCK_WORD_OFFSET), (static_ca
 DEFINE_CHECK_EQ(static_cast<uint32_t>(MIRROR_CLASS_STATUS_INITIALIZED), (static_cast<uint32_t>((art::mirror::Class::kStatusInitialized))))
 #define ACCESS_FLAGS_CLASS_IS_FINALIZABLE 0x80000000
 DEFINE_CHECK_EQ(static_cast<uint32_t>(ACCESS_FLAGS_CLASS_IS_FINALIZABLE), (static_cast<uint32_t>((art::kAccClassIsFinalizable))))
+#define ACCESS_FLAGS_CLASS_IS_INTERFACE 0x200
+DEFINE_CHECK_EQ(static_cast<uint32_t>(ACCESS_FLAGS_CLASS_IS_INTERFACE), (static_cast<uint32_t>((art::kAccInterface))))
 #define ACCESS_FLAGS_CLASS_IS_FINALIZABLE_BIT 0x1f
 DEFINE_CHECK_EQ(static_cast<uint32_t>(ACCESS_FLAGS_CLASS_IS_FINALIZABLE_BIT), (static_cast<uint32_t>((art::MostSignificantBit(art::kAccClassIsFinalizable)))))
 #define ART_METHOD_DEX_CACHE_METHODS_OFFSET_32 20
