@@ -67,6 +67,7 @@
 #include "linear_alloc.h"
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
+#include "mirror/class_ext.h"
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache.h"
 #include "mirror/dex_cache-inl.h"
@@ -136,10 +137,22 @@ static bool HasInitWithString(Thread* self, ClassLinker* class_linker, const cha
   return exception_init_method != nullptr;
 }
 
-// Helper for ThrowEarlierClassFailure. Throws the stored error.
-static void HandleEarlierVerifyError(Thread* self, ClassLinker* class_linker, ObjPtr<mirror::Class> c)
+static mirror::Object* GetVerifyError(ObjPtr<mirror::Class> c)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  ObjPtr<mirror::Object> obj = c->GetVerifyError();
+  ObjPtr<mirror::ClassExt> ext(c->GetExtData());
+  if (ext == nullptr) {
+    return nullptr;
+  } else {
+    return ext->GetVerifyError();
+  }
+}
+
+// Helper for ThrowEarlierClassFailure. Throws the stored error.
+static void HandleEarlierVerifyError(Thread* self,
+                                     ClassLinker* class_linker,
+                                     ObjPtr<mirror::Class> c)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  ObjPtr<mirror::Object> obj = GetVerifyError(c);
   DCHECK(obj != nullptr);
   self->AssertNoPendingException();
   if (obj->IsClass()) {
@@ -173,8 +186,8 @@ void ClassLinker::ThrowEarlierClassFailure(ObjPtr<mirror::Class> c, bool wrap_in
   Runtime* const runtime = Runtime::Current();
   if (!runtime->IsAotCompiler()) {  // Give info if this occurs at runtime.
     std::string extra;
-    if (c->GetVerifyError() != nullptr) {
-      ObjPtr<mirror::Object> verify_error = c->GetVerifyError();
+    if (GetVerifyError(c) != nullptr) {
+      ObjPtr<mirror::Object> verify_error = GetVerifyError(c);
       if (verify_error->IsClass()) {
         extra = mirror::Class::PrettyDescriptor(verify_error->AsClass());
       } else {
@@ -192,11 +205,14 @@ void ClassLinker::ThrowEarlierClassFailure(ObjPtr<mirror::Class> c, bool wrap_in
     ObjPtr<mirror::Throwable> pre_allocated = runtime->GetPreAllocatedNoClassDefFoundError();
     self->SetException(pre_allocated);
   } else {
-    if (c->GetVerifyError() != nullptr) {
+    if (GetVerifyError(c) != nullptr) {
       // Rethrow stored error.
       HandleEarlierVerifyError(self, this, c);
     }
-    if (c->GetVerifyError() == nullptr || wrap_in_no_class_def) {
+    // TODO This might be wrong if we hit an OOME while allocating the ClassExt. In that case we
+    // might have meant to go down the earlier if statement with the original error but it got
+    // swallowed by the OOM so we end up here.
+    if (GetVerifyError(c) == nullptr || wrap_in_no_class_def) {
       // If there isn't a recorded earlier error, or this is a repeat throw from initialization,
       // the top-level exception must be a NoClassDefFoundError. The potentially already pending
       // exception will be a cause.
@@ -495,6 +511,14 @@ bool ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   java_lang_DexCache->SetObjectSize(mirror::DexCache::InstanceSize());
   mirror::Class::SetStatus(java_lang_DexCache, mirror::Class::kStatusResolved, self);
 
+
+  // Setup dalvik.system.ClassExt
+  Handle<mirror::Class> dalvik_system_ClassExt(hs.NewHandle(
+      AllocClass(self, java_lang_Class.Get(), mirror::ClassExt::ClassSize(image_pointer_size_))));
+  SetClassRoot(kDalvikSystemClassExt, dalvik_system_ClassExt.Get());
+  mirror::ClassExt::SetClass(dalvik_system_ClassExt.Get());
+  mirror::Class::SetStatus(dalvik_system_ClassExt, mirror::Class::kStatusResolved, self);
+
   // Set up array classes for string, field, method
   Handle<mirror::Class> object_array_string(hs.NewHandle(
       AllocClass(self, java_lang_Class.Get(),
@@ -540,7 +564,7 @@ bool ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
     quick_to_interpreter_bridge_trampoline_ = GetQuickToInterpreterBridge();
   }
 
-  // Object, String and DexCache need to be rerun through FindSystemClass to finish init
+  // Object, String, ClassExt and DexCache need to be rerun through FindSystemClass to finish init
   mirror::Class::SetStatus(java_lang_Object, mirror::Class::kStatusNotReady, self);
   CheckSystemClass(self, java_lang_Object, "Ljava/lang/Object;");
   CHECK_EQ(java_lang_Object->GetObjectSize(), mirror::Object::InstanceSize());
@@ -549,6 +573,9 @@ bool ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   mirror::Class::SetStatus(java_lang_DexCache, mirror::Class::kStatusNotReady, self);
   CheckSystemClass(self, java_lang_DexCache, "Ljava/lang/DexCache;");
   CHECK_EQ(java_lang_DexCache->GetObjectSize(), mirror::DexCache::InstanceSize());
+  mirror::Class::SetStatus(dalvik_system_ClassExt, mirror::Class::kStatusNotReady, self);
+  CheckSystemClass(self, dalvik_system_ClassExt, "Ldalvik/system/ClassExt;");
+  CHECK_EQ(dalvik_system_ClassExt->GetObjectSize(), mirror::ClassExt::InstanceSize());
 
   // Setup the primitive array type classes - can't be done until Object has a vtable.
   SetClassRoot(kBooleanArrayClass, FindSystemClass(self, "[Z"));
@@ -1066,6 +1093,7 @@ bool ClassLinker::InitFromBootImage(std::string* error_msg) {
   mirror::Throwable::SetClass(GetClassRoot(kJavaLangThrowable));
   mirror::StackTraceElement::SetClass(GetClassRoot(kJavaLangStackTraceElement));
   mirror::EmulatedStackFrame::SetClass(GetClassRoot(kDalvikSystemEmulatedStackFrame));
+  mirror::ClassExt::SetClass(GetClassRoot(kDalvikSystemClassExt));
 
   for (gc::space::ImageSpace* image_space : spaces) {
     // Boot class loader, use a null handle.
@@ -2578,6 +2606,8 @@ mirror::Class* ClassLinker::DefineClass(Thread* self,
       klass.Assign(GetClassRoot(kJavaLangRefReference));
     } else if (strcmp(descriptor, "Ljava/lang/DexCache;") == 0) {
       klass.Assign(GetClassRoot(kJavaLangDexCache));
+    } else if (strcmp(descriptor, "Ldalvik/system/ClassExt;") == 0) {
+      klass.Assign(GetClassRoot(kDalvikSystemClassExt));
     }
   }
 
@@ -8087,6 +8117,7 @@ const char* ClassLinker::GetClassRootDescriptor(ClassRoot class_root) {
     "[J",
     "[S",
     "[Ljava/lang/StackTraceElement;",
+    "Ldalvik/system/ClassExt;",
   };
   static_assert(arraysize(class_roots_descriptors) == size_t(kClassRootsMax),
                 "Mismatch between class descriptors and class-root enum");
