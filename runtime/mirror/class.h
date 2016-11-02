@@ -49,6 +49,7 @@ template<size_t kNumReferences> class PACKED(4) StackHandleScope;
 
 namespace mirror {
 
+class ClassExt;
 class ClassLoader;
 class Constructor;
 class DexCache;
@@ -1130,10 +1131,7 @@ class MANAGED Class FINAL : public Object {
 
   void SetClinitThreadId(pid_t new_clinit_thread_id) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  Object* GetVerifyError() REQUIRES_SHARED(Locks::mutator_lock_) {
-    // DCHECK(IsErroneous());
-    return GetFieldObject<Class>(OFFSET_OF_OBJECT_MEMBER(Class, verify_error_));
-  }
+  ClassExt* GetExtData() REQUIRES_SHARED(Locks::mutator_lock_);
 
   uint16_t GetDexClassDefIndex() REQUIRES_SHARED(Locks::mutator_lock_) {
     return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, dex_class_def_idx_));
@@ -1322,7 +1320,8 @@ class MANAGED Class FINAL : public Object {
   ALWAYS_INLINE void SetMethodsPtrInternal(LengthPrefixedArray<ArtMethod>* new_methods)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void SetVerifyError(ObjPtr<Object> klass) REQUIRES_SHARED(Locks::mutator_lock_);
+  // Set the extData field. This should be done while the 'this' is locked to prevent races.
+  void SetExtData(ObjPtr<ClassExt> ext) REQUIRES_SHARED(Locks::mutator_lock_);
 
   template <bool throw_on_failure, bool use_referrers_cache>
   bool ResolvedFieldAccessTest(ObjPtr<Class> access_to,
@@ -1388,6 +1387,12 @@ class MANAGED Class FINAL : public Object {
   // runtime such as arrays and primitive classes).
   HeapReference<DexCache> dex_cache_;
 
+  // Extraneous class data that is not always needed. This field is allocated lazily and may
+  // only be set with 'this' locked. This is synchronized on 'this'.
+  // TODO(allight) We should probably synchronize it on something external or handle allocation in
+  // some other (safe) way to prevent possible deadlocks.
+  HeapReference<ClassExt> ext_data_;
+
   // The interface table (iftable_) contains pairs of a interface class and an array of the
   // interface methods. There is one pair per interface supported by this class.  That means one
   // pair for each interface we support directly, indirectly via superclass, or indirectly via a
@@ -1411,10 +1416,6 @@ class MANAGED Class FINAL : public Object {
   // GetSuperClass or java.lang.Class.getSuperClass() which need to
   // check for interfaces and return null.
   HeapReference<Class> super_class_;
-
-  // If class verify fails, we must return same error on subsequent tries. We may store either
-  // the class of the error, or an actual instance of Throwable here.
-  HeapReference<Object> verify_error_;
 
   // Virtual method table (vtable), for use by "invoke-virtual".  The vtable from the superclass is
   // copied in, and virtual methods from our class either replace those from the super or are

@@ -30,6 +30,7 @@
 #include "gc/heap.h"
 #include "mirror/accessible_object.h"
 #include "mirror/class-inl.h"
+#include "mirror/class_ext.h"
 #include "mirror/dex_cache.h"
 #include "mirror/emulated_stack_frame.h"
 #include "mirror/executable.h"
@@ -586,6 +587,7 @@ struct ClassOffsets : public CheckOffsets<mirror::Class> {
     addOffset(OFFSETOF_MEMBER(mirror::Class, dex_cache_strings_), "dexCacheStrings");
     addOffset(OFFSETOF_MEMBER(mirror::Class, dex_class_def_idx_), "dexClassDefIndex");
     addOffset(OFFSETOF_MEMBER(mirror::Class, dex_type_idx_), "dexTypeIndex");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, ext_data_), "extData");
     addOffset(OFFSETOF_MEMBER(mirror::Class, ifields_), "iFields");
     addOffset(OFFSETOF_MEMBER(mirror::Class, iftable_), "ifTable");
     addOffset(OFFSETOF_MEMBER(mirror::Class, methods_), "methods");
@@ -603,10 +605,15 @@ struct ClassOffsets : public CheckOffsets<mirror::Class> {
     addOffset(OFFSETOF_MEMBER(mirror::Class, sfields_), "sFields");
     addOffset(OFFSETOF_MEMBER(mirror::Class, status_), "status");
     addOffset(OFFSETOF_MEMBER(mirror::Class, super_class_), "superClass");
-    addOffset(OFFSETOF_MEMBER(mirror::Class, verify_error_), "verifyError");
     addOffset(OFFSETOF_MEMBER(mirror::Class, virtual_methods_offset_), "virtualMethodsOffset");
     addOffset(OFFSETOF_MEMBER(mirror::Class, vtable_), "vtable");
   };
+};
+
+struct ClassExtOffsets : public CheckOffsets<mirror::ClassExt> {
+  ClassExtOffsets() : CheckOffsets<mirror::ClassExt>(false, "Ldalvik/system/ClassExt;") {
+    addOffset(OFFSETOF_MEMBER(mirror::ClassExt, verify_error_), "verifyError");
+  }
 };
 
 struct StringOffsets : public CheckOffsets<mirror::String> {
@@ -757,6 +764,7 @@ TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
   ScopedObjectAccess soa(Thread::Current());
   EXPECT_TRUE(ObjectOffsets().Check());
   EXPECT_TRUE(ClassOffsets().Check());
+  EXPECT_TRUE(ClassExtOffsets().Check());
   EXPECT_TRUE(StringOffsets().Check());
   EXPECT_TRUE(ThrowableOffsets().Check());
   EXPECT_TRUE(StackTraceElementOffsets().Check());
