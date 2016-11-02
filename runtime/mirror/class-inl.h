@@ -526,8 +526,7 @@ inline ArtMethod* Class::FindVirtualMethodForVirtualOrInterface(ArtMethod* metho
 template<VerifyObjectFlags kVerifyFlags,
          ReadBarrierOption kReadBarrierOption>
 inline IfTable* Class::GetIfTable() {
-  return GetFieldObject<IfTable, kVerifyFlags, kReadBarrierOption>(
-      OFFSET_OF_OBJECT_MEMBER(Class, iftable_));
+  return GetFieldObject<IfTable, kVerifyFlags, kReadBarrierOption>(IfTableOffset());
 }
 
 inline int32_t Class::GetIfTableCount() {
@@ -539,7 +538,7 @@ inline int32_t Class::GetIfTableCount() {
 }
 
 inline void Class::SetIfTable(ObjPtr<IfTable> new_iftable) {
-  SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(Class, iftable_), new_iftable);
+  SetFieldObject<false>(IfTableOffset(), new_iftable);
 }
 
 inline LengthPrefixedArray<ArtField>* Class::GetIFieldsPtr() {
