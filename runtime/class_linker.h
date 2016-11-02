@@ -794,17 +794,17 @@ class ClassLinker {
 
   void FixupStaticTrampolines(ObjPtr<mirror::Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Finds a class in a Path- or DexClassLoader, loading it if necessary without using JNI. Hash
+  // Finds a class in the path class loader, loading it if necessary without using JNI. Hash
   // function is supposed to be ComputeModifiedUtf8Hash(descriptor). Returns true if the
   // class-loader chain could be handled, false otherwise, i.e., a non-supported class-loader
   // was encountered while walking the parent chain (currently only BootClassLoader and
   // PathClassLoader are supported).
-  bool FindClassInBaseDexClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
-                                     Thread* self,
-                                     const char* descriptor,
-                                     size_t hash,
-                                     Handle<mirror::ClassLoader> class_loader,
-                                     ObjPtr<mirror::Class>* result)
+  bool FindClassInPathClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
+                                  Thread* self,
+                                  const char* descriptor,
+                                  size_t hash,
+                                  Handle<mirror::ClassLoader> class_loader,
+                                  ObjPtr<mirror::Class>* result)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!dex_lock_);
 
@@ -1200,7 +1200,7 @@ class ClassLinker {
   friend struct CompilationHelper;  // For Compile in ImageTest.
   friend class ImageDumper;  // for DexLock
   friend class ImageWriter;  // for GetClassRoots
-  friend class VMClassLoader;  // for LookupClass and FindClassInBaseDexClassLoader.
+  friend class VMClassLoader;  // for LookupClass and FindClassInPathClassLoader.
   friend class JniCompilerTest;  // for GetRuntimeQuickGenericJniStub
   friend class JniInternalTest;  // for GetRuntimeQuickGenericJniStub
   ART_FRIEND_TEST(ClassLinkerTest, RegisterDexFileName);  // for DexLock, and RegisterDexFileLocked
