@@ -3974,7 +3974,8 @@ HInvokeStaticOrDirect::DispatchInfo CodeGeneratorARM64::GetSupportedInvokeStatic
   return desired_dispatch_info;
 }
 
-void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) {
+Location CodeGeneratorARM64::GenerateCalleeMethodStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
+                                                                    Location temp) {
   // Make sure that ArtMethod* is passed in kArtMethodRegister as per the calling convention.
   Location callee_method = temp;  // For all kinds except kRecursive, callee will be in temp.
   switch (invoke->GetMethodLoadKind()) {
@@ -4028,6 +4029,12 @@ void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invok
       break;
     }
   }
+  return callee_method;
+}
+
+void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) {
+  // All registers are assumed to be correctly set up.
+  Location callee_method = GenerateCalleeMethodStaticOrDirectCall(invoke, temp);
 
   switch (invoke->GetCodePtrLocation()) {
     case HInvokeStaticOrDirect::CodePtrLocation::kCallSelf:

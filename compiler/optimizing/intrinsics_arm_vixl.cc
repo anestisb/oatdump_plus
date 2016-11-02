@@ -2688,6 +2688,60 @@ void IntrinsicCodeGeneratorARMVIXL::VisitDoubleIsInfinite(HInvoke* invoke) {
   __ Lsr(out, out, 5);
 }
 
+void IntrinsicLocationsBuilderARMVIXL::VisitReferenceGetReferent(HInvoke* invoke) {
+  if (kEmitCompilerReadBarrier) {
+    // Do not intrinsify this call with the read barrier configuration.
+    return;
+  }
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kCallOnSlowPath,
+                                                            kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetOut(Location::SameAsFirstInput());
+  locations->AddTemp(Location::RequiresRegister());
+}
+
+void IntrinsicCodeGeneratorARMVIXL::VisitReferenceGetReferent(HInvoke* invoke) {
+  DCHECK(!kEmitCompilerReadBarrier);
+  ArmVIXLAssembler* assembler = GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  vixl32::Register obj = InputRegisterAt(invoke, 0);
+  vixl32::Register out = OutputRegister(invoke);
+
+  SlowPathCodeARMVIXL* slow_path = new (GetAllocator()) IntrinsicSlowPathARMVIXL(invoke);
+  codegen_->AddSlowPath(slow_path);
+
+  // Load ArtMethod first.
+  HInvokeStaticOrDirect* invoke_direct = invoke->AsInvokeStaticOrDirect();
+  DCHECK(invoke_direct != nullptr);
+  vixl32::Register temp0 = RegisterFrom(codegen_->GenerateCalleeMethodStaticOrDirectCall(
+      invoke_direct, locations->GetTemp(0)));
+
+  // Now get declaring class.
+  __ Ldr(temp0, MemOperand(temp0, ArtMethod::DeclaringClassOffset().Int32Value()));
+
+  uint32_t slow_path_flag_offset = codegen_->GetReferenceSlowFlagOffset();
+  uint32_t disable_flag_offset = codegen_->GetReferenceDisableFlagOffset();
+  DCHECK_NE(slow_path_flag_offset, 0u);
+  DCHECK_NE(disable_flag_offset, 0u);
+  DCHECK_NE(slow_path_flag_offset, disable_flag_offset);
+
+  // Check static flags that prevent using intrinsic.
+  UseScratchRegisterScope temps(assembler->GetVIXLAssembler());
+  vixl32::Register temp1 = temps.Acquire();
+  __ Ldr(temp1, MemOperand(temp0, disable_flag_offset));
+  __ Ldr(temp0, MemOperand(temp0, slow_path_flag_offset));
+  __ Orr(temp0, temp1, temp0);
+  __ CompareAndBranchIfNonZero(temp0, slow_path->GetEntryLabel());
+
+  // Fast path.
+  __ Ldr(out, MemOperand(obj, mirror::Reference::ReferentOffset().Int32Value()));
+  codegen_->MaybeRecordImplicitNullCheck(invoke);
+  assembler->MaybeUnpoisonHeapReference(out);
+  __ Bind(slow_path->GetExitLabel());
+}
+
 UNIMPLEMENTED_INTRINSIC(ARMVIXL, MathMinDoubleDouble)
 UNIMPLEMENTED_INTRINSIC(ARMVIXL, MathMinFloatFloat)
 UNIMPLEMENTED_INTRINSIC(ARMVIXL, MathMaxDoubleDouble)
@@ -2701,7 +2755,6 @@ UNIMPLEMENTED_INTRINSIC(ARMVIXL, MathRoundDouble)   // Could be done by changing
 UNIMPLEMENTED_INTRINSIC(ARMVIXL, MathRoundFloat)    // Could be done by changing rounding mode, maybe?
 UNIMPLEMENTED_INTRINSIC(ARMVIXL, UnsafeCASLong)     // High register pressure.
 UNIMPLEMENTED_INTRINSIC(ARMVIXL, SystemArrayCopyChar)
-UNIMPLEMENTED_INTRINSIC(ARMVIXL, ReferenceGetReferent)
 UNIMPLEMENTED_INTRINSIC(ARMVIXL, IntegerHighestOneBit)
 UNIMPLEMENTED_INTRINSIC(ARMVIXL, LongHighestOneBit)
 UNIMPLEMENTED_INTRINSIC(ARMVIXL, IntegerLowestOneBit)

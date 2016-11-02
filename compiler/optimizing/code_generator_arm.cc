@@ -7166,8 +7166,7 @@ Register CodeGeneratorARM::GetInvokeStaticOrDirectExtraParameter(HInvokeStaticOr
   // save one load. However, since this is just an intrinsic slow path we prefer this
   // simple and more robust approach rather that trying to determine if that's the case.
   SlowPathCode* slow_path = GetCurrentSlowPath();
-  DCHECK(slow_path != nullptr);  // For intrinsified invokes the call is emitted on the slow path.
-  if (slow_path->IsCoreRegisterSaved(location.AsRegister<Register>())) {
+  if (slow_path != nullptr && slow_path->IsCoreRegisterSaved(location.AsRegister<Register>())) {
     int stack_offset = slow_path->GetStackOffsetOfCoreRegister(location.AsRegister<Register>());
     __ LoadFromOffset(kLoadWord, temp, SP, stack_offset);
     return temp;
@@ -7175,7 +7174,8 @@ Register CodeGeneratorARM::GetInvokeStaticOrDirectExtraParameter(HInvokeStaticOr
   return location.AsRegister<Register>();
 }
 
-void CodeGeneratorARM::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) {
+Location CodeGeneratorARM::GenerateCalleeMethodStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
+                                                                  Location temp) {
   Location callee_method = temp;  // For all kinds except kRecursive, callee will be in temp.
   switch (invoke->GetMethodLoadKind()) {
     case HInvokeStaticOrDirect::MethodLoadKind::kStringInit: {
@@ -7224,6 +7224,11 @@ void CodeGeneratorARM::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
       break;
     }
   }
+  return callee_method;
+}
+
+void CodeGeneratorARM::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) {
+  Location callee_method = GenerateCalleeMethodStaticOrDirectCall(invoke, temp);
 
   switch (invoke->GetCodePtrLocation()) {
     case HInvokeStaticOrDirect::CodePtrLocation::kCallSelf:
