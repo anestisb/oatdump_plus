@@ -819,34 +819,60 @@ TEST_F(StubTest, CheckCast) {
   ScopedObjectAccess soa(self);
   // garbage is created during ClassLinker::Init
 
-  StackHandleScope<2> hs(soa.Self());
+  StackHandleScope<4> hs(soa.Self());
   Handle<mirror::Class> c(
       hs.NewHandle(class_linker_->FindSystemClass(soa.Self(), "[Ljava/lang/Object;")));
   Handle<mirror::Class> c2(
       hs.NewHandle(class_linker_->FindSystemClass(soa.Self(), "[Ljava/lang/String;")));
+  Handle<mirror::Class> list(
+      hs.NewHandle(class_linker_->FindSystemClass(soa.Self(), "[Ljava/util/List;")));
+  Handle<mirror::Class> array_list(
+      hs.NewHandle(class_linker_->FindSystemClass(soa.Self(), "[Ljava/util/ArrayList;")));
 
   EXPECT_FALSE(self->IsExceptionPending());
 
-  Invoke3(reinterpret_cast<size_t>(c.Get()), reinterpret_cast<size_t>(c.Get()), 0U,
-          art_quick_check_cast, self);
-
+  Invoke3(reinterpret_cast<size_t>(c.Get()),
+          reinterpret_cast<size_t>(c.Get()),
+          0U,
+          art_quick_check_cast,
+          self);
   EXPECT_FALSE(self->IsExceptionPending());
 
-  Invoke3(reinterpret_cast<size_t>(c2.Get()), reinterpret_cast<size_t>(c2.Get()), 0U,
-          art_quick_check_cast, self);
-
+  Invoke3(reinterpret_cast<size_t>(c2.Get()),
+          reinterpret_cast<size_t>(c2.Get()),
+          0U,
+          art_quick_check_cast,
+          self);
   EXPECT_FALSE(self->IsExceptionPending());
 
-  Invoke3(reinterpret_cast<size_t>(c.Get()), reinterpret_cast<size_t>(c2.Get()), 0U,
-          art_quick_check_cast, self);
-
+  Invoke3(reinterpret_cast<size_t>(c.Get()),
+          reinterpret_cast<size_t>(c2.Get()),
+          0U,
+          art_quick_check_cast,
+          self);
   EXPECT_FALSE(self->IsExceptionPending());
+
+  Invoke3(reinterpret_cast<size_t>(list.Get()),
+          reinterpret_cast<size_t>(array_list.Get()),
+          0U,
+          art_quick_check_cast,
+          self);
+  EXPECT_FALSE(self->IsExceptionPending());
+
+  Invoke3(reinterpret_cast<size_t>(list.Get()),
+          reinterpret_cast<size_t>(c2.Get()),
+          0U,
+          art_quick_check_cast,
+          self);
+  EXPECT_TRUE(self->IsExceptionPending());
+  self->ClearException();
 
   // TODO: Make the following work. But that would require correct managed frames.
-
-  Invoke3(reinterpret_cast<size_t>(c2.Get()), reinterpret_cast<size_t>(c.Get()), 0U,
-          art_quick_check_cast, self);
-
+  Invoke3(reinterpret_cast<size_t>(c2.Get()),
+          reinterpret_cast<size_t>(c.Get()),
+          0U,
+          art_quick_check_cast,
+          self);
   EXPECT_TRUE(self->IsExceptionPending());
   self->ClearException();
 

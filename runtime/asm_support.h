@@ -172,6 +172,9 @@ ADD_TEST_EQ(size_t(MIRROR_OBJECT_HEADER_SIZE), sizeof(art::mirror::Object))
 #define MIRROR_CLASS_COMPONENT_TYPE_OFFSET (4 + MIRROR_OBJECT_HEADER_SIZE)
 ADD_TEST_EQ(MIRROR_CLASS_COMPONENT_TYPE_OFFSET,
             art::mirror::Class::ComponentTypeOffset().Int32Value())
+#define MIRROR_CLASS_IF_TABLE_OFFSET (12 + MIRROR_OBJECT_HEADER_SIZE)
+ADD_TEST_EQ(MIRROR_CLASS_IF_TABLE_OFFSET,
+            art::mirror::Class::IfTableOffset().Int32Value())
 #define MIRROR_CLASS_ACCESS_FLAGS_OFFSET (64 + MIRROR_OBJECT_HEADER_SIZE)
 ADD_TEST_EQ(MIRROR_CLASS_ACCESS_FLAGS_OFFSET,
             art::mirror::Class::AccessFlagsOffset().Int32Value())

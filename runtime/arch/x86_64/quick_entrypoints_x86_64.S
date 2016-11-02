@@ -1481,6 +1481,32 @@ DEFINE_FUNCTION art_quick_unlock_object_no_inline
 END_FUNCTION art_quick_unlock_object_no_inline
 
 DEFINE_FUNCTION art_quick_check_cast
+    testl LITERAL(ACCESS_FLAGS_CLASS_IS_INTERFACE), MIRROR_CLASS_ACCESS_FLAGS_OFFSET(%rdi)
+    jz .Lnot_interface
+
+    // There are no read barriers since the iftable is immutable. There can be false negatives for
+    // the read barrier case if classes in the IfTable are in the from-space. In the case where
+    // we do not find a matching interface we call into artIsAssignableFromCode which will have
+    // read barriers.
+    movl MIRROR_CLASS_IF_TABLE_OFFSET(%rsi), %ecx
+    UNPOISON_HEAP_REF %ecx
+    testl %ecx, %ecx
+    jz .Lnot_interface
+    movl MIRROR_ARRAY_LENGTH_OFFSET(%rcx), %r8d
+.Lstart_loop:
+    // Re-poison before comparing to prevent rare possible false positives. This is done inside
+    // the loop since heap poisoning is only for testing builds.
+    POISON_HEAP_REF %edi
+    cmpl MIRROR_OBJECT_ARRAY_DATA_OFFSET(%rcx), %edi
+    je .Lreturn  // Return if same class.
+    UNPOISON_HEAP_REF %edi
+    // Go to next interface.
+    add LITERAL(COMPRESSED_REFERENCE_SIZE * 2), %rcx
+    sub LITERAL(2), %r8
+    jnz .Lstart_loop
+
+.Lnot_interface:
+    // We could check the super classes here but that is usually already checked in the caller.
     PUSH rdi                          // Save args for exc
     PUSH rsi
     subq LITERAL(8), %rsp             // Alignment padding.
@@ -1493,6 +1519,7 @@ DEFINE_FUNCTION art_quick_check_cast
     addq LITERAL(24), %rsp            // pop arguments
     CFI_ADJUST_CFA_OFFSET(-24)
 
+.Lreturn:
     ret
 
     CFI_ADJUST_CFA_OFFSET(24 + 4 * 8)  // Reset unwind info so following code unwinds.

@@ -25,6 +25,7 @@
 
 DEFINE_FLAG_OFFSET(MIRROR_CLASS, STATUS_INITIALIZED,       art::mirror::Class::kStatusInitialized)
 DEFINE_FLAG_OFFSET(ACCESS_FLAGS, CLASS_IS_FINALIZABLE,     art::kAccClassIsFinalizable)
+DEFINE_FLAG_OFFSET(ACCESS_FLAGS, CLASS_IS_INTERFACE,       art::kAccInterface)
 // TODO: We should really have a BitPosition which also checks it's a power of 2.
 DEFINE_FLAG_OFFSET(ACCESS_FLAGS, CLASS_IS_FINALIZABLE_BIT, art::MostSignificantBit(art::kAccClassIsFinalizable))
 
