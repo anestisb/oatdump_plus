@@ -174,14 +174,9 @@ inline void VisitDexCachePairs(std::atomic<DexCachePair<T>>* pairs,
     // tell the compiler to treat "Read" as a template rather than a field or
     // function. Otherwise, on encountering the "<" token, the compiler would
     // treat "Read" as a field.
-    T* before = source.object.template Read<kReadBarrierOption>();
-    // TODO(narayan): This additional GC root construction and assignment
-    // is unnecessary. We're already operating on a copy of the DexCachePair
-    // that's in the cache.
-    GcRoot<T> root(before);
-    visitor.VisitRootIfNonNull(root.AddressWithoutBarrier());
-    if (root.Read() != before) {
-      source.object = GcRoot<T>(root.Read());
+    T* const before = source.object.template Read<kReadBarrierOption>();
+    visitor.VisitRootIfNonNull(source.object.AddressWithoutBarrier());
+    if (source.object.template Read<kReadBarrierOption>() != before) {
       pairs[i].store(source, std::memory_order_relaxed);
     }
   }
