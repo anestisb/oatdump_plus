@@ -18,6 +18,7 @@
 
 #include "art_field-inl.h"
 #include "art_method-inl.h"
+#include "class_ext.h"
 #include "class_linker-inl.h"
 #include "class_loader.h"
 #include "class-inl.h"
@@ -29,6 +30,7 @@
 #include "method.h"
 #include "object_array-inl.h"
 #include "object-inl.h"
+#include "object_lock.h"
 #include "runtime.h"
 #include "thread.h"
 #include "throwable.h"
@@ -58,12 +60,23 @@ void Class::VisitRoots(RootVisitor* visitor) {
   java_lang_Class_.VisitRootIfNonNull(visitor, RootInfo(kRootStickyClass));
 }
 
-inline void Class::SetVerifyError(ObjPtr<Object> error) {
-  CHECK(error != nullptr) << PrettyClass();
+ClassExt* Class::GetExtData() {
+  return GetFieldObject<ClassExt>(OFFSET_OF_OBJECT_MEMBER(Class, ext_data_));
+}
+
+void Class::SetExtData(ObjPtr<ClassExt> ext) {
+  CHECK(ext != nullptr) << PrettyClass();
+  // TODO It might be wise to just create an internal (global?) mutex that we synchronize on instead
+  // to prevent any possibility of deadlocks with java code. Alternatively we might want to come up
+  // with some other abstraction.
+  DCHECK_EQ(GetLockOwnerThreadId(), Thread::Current()->GetThreadId())
+      << "The " << PrettyClass() << " object should be locked when writing to the extData field.";
+  DCHECK(GetExtData() == nullptr)
+      << "The extData for " << PrettyClass() << " has already been set!";
   if (Runtime::Current()->IsActiveTransaction()) {
-    SetFieldObject<true>(OFFSET_OF_OBJECT_MEMBER(Class, verify_error_), error);
+    SetFieldObject<true>(OFFSET_OF_OBJECT_MEMBER(Class, ext_data_), ext);
   } else {
-    SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(Class, verify_error_), error);
+    SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(Class, ext_data_), ext);
   }
 }
 
@@ -95,9 +108,33 @@ void Class::SetStatus(Handle<Class> h_this, Status new_status, Thread* self) {
       }
     }
 
-    // Remember the current exception.
-    CHECK(self->GetException() != nullptr);
-    h_this->SetVerifyError(self->GetException());
+    {
+      // Ensure we lock around 'this' when we set the ClassExt.
+      ObjectLock<mirror::Class> lock(self, h_this);
+      StackHandleScope<2> hs(self);
+      // Remember the current exception.
+      Handle<Throwable> exception(hs.NewHandle(self->GetException()));
+      CHECK(exception.Get() != nullptr);
+      MutableHandle<ClassExt> ext(hs.NewHandle(h_this->GetExtData()));
+      if (ext.Get() == nullptr) {
+        // Cannot have exception while allocating.
+        self->ClearException();
+        ext.Assign(ClassExt::Alloc(self));
+        DCHECK(ext.Get() == nullptr || ext->GetVerifyError() == nullptr);
+        if (ext.Get() != nullptr) {
+          self->AssertNoPendingException();
+          h_this->SetExtData(ext.Get());
+          self->SetException(exception.Get());
+        } else {
+          // TODO Should we restore the old exception anyway?
+          self->AssertPendingOOMException();
+        }
+      }
+      if (ext.Get() != nullptr) {
+        ext->SetVerifyError(self->GetException());
+      }
+    }
+    self->AssertPendingException();
   }
   static_assert(sizeof(Status) == sizeof(uint32_t), "Size of status not equal to uint32");
   if (Runtime::Current()->IsActiveTransaction()) {
