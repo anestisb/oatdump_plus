@@ -5695,7 +5695,12 @@ void LocationsBuilderMIPS::VisitLoadString(HLoadString* load) {
     default:
       break;
   }
-  locations->SetOut(Location::RequiresRegister());
+  if (load_kind == HLoadString::LoadKind::kDexCacheViaMethod) {
+    InvokeRuntimeCallingConvention calling_convention;
+    locations->SetOut(calling_convention.GetReturnLocation(load->GetType()));
+  } else {
+    locations->SetOut(Location::RequiresRegister());
+  }
 }
 
 void InstructionCodeGeneratorMIPS::VisitLoadString(HLoadString* load) {
