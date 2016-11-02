@@ -58,22 +58,90 @@ static bool IsIntAndGet(HInstruction* instruction, int64_t* value) {
 }
 
 /**
- * An upper bound a * (length / a) + b, where a >= 1, can be conservatively rewritten as length + b
- * because length >= 0 is true. This makes it more likely the bound is useful to clients.
+ * Detects an instruction that is >= 0. As long as the value is carried by
+ * a single instruction, arithmetic wrap-around cannot occur.
  */
-static InductionVarRange::Value SimplifyMax(InductionVarRange::Value v) {
-  int64_t value;
-  if (v.is_known &&
-      v.a_constant >= 1 &&
-      v.instruction->IsDiv() &&
-      v.instruction->InputAt(0)->IsArrayLength() &&
-      IsIntAndGet(v.instruction->InputAt(1), &value) && v.a_constant == value) {
-    return InductionVarRange::Value(v.instruction->InputAt(0), 1, v.b_constant);
+static bool IsGEZero(HInstruction* instruction) {
+  DCHECK(instruction != nullptr);
+  if (instruction->IsArrayLength()) {
+    return true;
+  } else if (instruction->IsInvokeStaticOrDirect()) {
+    switch (instruction->AsInvoke()->GetIntrinsic()) {
+      case Intrinsics::kMathMinIntInt:
+      case Intrinsics::kMathMinLongLong:
+        // Instruction MIN(>=0, >=0) is >= 0.
+        return IsGEZero(instruction->InputAt(0)) &&
+               IsGEZero(instruction->InputAt(1));
+      case Intrinsics::kMathAbsInt:
+      case Intrinsics::kMathAbsLong:
+        // Instruction ABS(x) is >= 0.
+        return true;
+      default:
+        break;
+    }
+  }
+  int64_t value = -1;
+  return IsIntAndGet(instruction, &value) && value >= 0;
+}
+
+/** Hunts "under the hood" for a suitable instruction at the hint. */
+static bool IsMaxAtHint(
+    HInstruction* instruction, HInstruction* hint, /*out*/HInstruction** suitable) {
+  if (instruction->IsInvokeStaticOrDirect()) {
+    switch (instruction->AsInvoke()->GetIntrinsic()) {
+      case Intrinsics::kMathMinIntInt:
+      case Intrinsics::kMathMinLongLong:
+        // For MIN(x, y), return most suitable x or y as maximum.
+        return IsMaxAtHint(instruction->InputAt(0), hint, suitable) ||
+               IsMaxAtHint(instruction->InputAt(1), hint, suitable);
+      default:
+        break;
+    }
+  } else {
+    *suitable = instruction;
+    while (instruction->IsArrayLength() ||
+           instruction->IsNullCheck() ||
+           instruction->IsNewArray()) {
+      instruction = instruction->InputAt(0);
+    }
+    return instruction == hint;
+  }
+  return false;
+}
+
+/** Post-analysis simplification of a minimum value that makes the bound more useful to clients. */
+static InductionVarRange::Value SimplifyMin(InductionVarRange::Value v) {
+  if (v.is_known && v.a_constant == 1 && v.b_constant <= 0) {
+    // If a == 1,  instruction >= 0 and b <= 0, just return the constant b.
+    // No arithmetic wrap-around can occur.
+    if (IsGEZero(v.instruction)) {
+      return InductionVarRange::Value(v.b_constant);
+    }
   }
   return v;
 }
 
-/** Helper method to test for a constant value. */
+/** Post-analysis simplification of a maximum value that makes the bound more useful to clients. */
+static InductionVarRange::Value SimplifyMax(InductionVarRange::Value v, HInstruction* hint) {
+  if (v.is_known && v.a_constant >= 1) {
+    // An upper bound a * (length / a) + b, where a >= 1, can be conservatively rewritten as
+    // length + b because length >= 0 is true.
+    int64_t value;
+    if (v.instruction->IsDiv() &&
+        v.instruction->InputAt(0)->IsArrayLength() &&
+        IsIntAndGet(v.instruction->InputAt(1), &value) && v.a_constant == value) {
+      return InductionVarRange::Value(v.instruction->InputAt(0), 1, v.b_constant);
+    }
+    // If a == 1, the most suitable one suffices as maximum value.
+    HInstruction* suitable = nullptr;
+    if (v.a_constant == 1 && IsMaxAtHint(v.instruction, hint, &suitable)) {
+      return InductionVarRange::Value(suitable, 1, v.b_constant);
+    }
+  }
+  return v;
+}
+
+/** Tests for a constant value. */
 static bool IsConstantValue(InductionVarRange::Value v) {
   return v.is_known && v.a_constant == 0;
 }
@@ -97,7 +165,7 @@ static InductionVarRange::Value CorrectForType(InductionVarRange::Value v, Primi
   }
 }
 
-/** Helper method to insert an instruction. */
+/** Inserts an instruction. */
 static HInstruction* Insert(HBasicBlock* block, HInstruction* instruction) {
   DCHECK(block != nullptr);
   DCHECK(block->GetLastInstruction() != nullptr) << block->GetBlockId();
@@ -106,7 +174,7 @@ static HInstruction* Insert(HBasicBlock* block, HInstruction* instruction) {
   return instruction;
 }
 
-/** Helper method to obtain loop's control instruction. */
+/** Obtains loop's control instruction. */
 static HInstruction* GetLoopControl(HLoopInformation* loop) {
   DCHECK(loop != nullptr);
   return loop->GetHeader()->GetLastInstruction();
@@ -150,9 +218,14 @@ bool InductionVarRange::GetInductionRange(HInstruction* context,
   chase_hint_ = chase_hint;
   bool in_body = context->GetBlock() != loop->GetHeader();
   int64_t stride_value = 0;
-  *min_val = GetVal(info, trip, in_body, /* is_min */ true);
-  *max_val = SimplifyMax(GetVal(info, trip, in_body, /* is_min */ false));
+  *min_val = SimplifyMin(GetVal(info, trip, in_body, /* is_min */ true));
+  *max_val = SimplifyMax(GetVal(info, trip, in_body, /* is_min */ false), chase_hint);
   *needs_finite_test = NeedsTripCount(info, &stride_value) && IsUnsafeTripCount(trip);
+  chase_hint_ = nullptr;
+  // Retry chasing constants for wrap-around (merge sensitive).
+  if (!min_val->is_known && info->induction_class == HInductionVarAnalysis::kWrapAround) {
+    *min_val = SimplifyMin(GetVal(info, trip, in_body, /* is_min */ true));
+  }
   return true;
 }
 
@@ -175,7 +248,7 @@ bool InductionVarRange::CanGenerateRange(HInstruction* context,
                                   needs_taken_test)
       && (stride_value == -1 ||
           stride_value == 0 ||
-          stride_value == 1);  // avoid wrap-around anomalies.
+          stride_value == 1);  // avoid arithmetic wrap-around anomalies.
 }
 
 void InductionVarRange::GenerateRange(HInstruction* context,
@@ -302,7 +375,8 @@ bool InductionVarRange::IsConstant(HInductionVarAnalysis::InductionInfo* info,
         return true;
       }
     }
-    // Try range analysis on the invariant, but only on proper range to avoid wrap-around anomalies.
+    // Try range analysis on the invariant, only accept a proper range
+    // to avoid arithmetic wrap-around anomalies.
     Value min_val = GetVal(info, nullptr, /* in_body */ true, /* is_min */ true);
     Value max_val = GetVal(info, nullptr, /* in_body */ true, /* is_min */ false);
     if (IsConstantValue(min_val) &&
@@ -450,25 +524,26 @@ InductionVarRange::Value InductionVarRange::GetFetch(HInstruction* instruction,
                                                      HInductionVarAnalysis::InductionInfo* trip,
                                                      bool in_body,
                                                      bool is_min) const {
-  // Stop chasing the instruction at constant or hint.
-  int64_t value;
-  if (IsIntAndGet(instruction, &value) && CanLongValueFitIntoInt(value)) {
-    return Value(static_cast<int32_t>(value));
-  } else if (instruction == chase_hint_) {
-    return Value(instruction, 1, 0);
-  }
-  // Special cases when encountering a single instruction that denotes trip count in the
-  // loop-body: min is 1 and, when chasing constants, max of safe trip-count is max int
-  if (in_body && trip != nullptr && instruction == trip->op_a->fetch) {
+  // Special case when chasing constants: single instruction that denotes trip count in the
+  // loop-body is minimal 1 and maximal, with safe trip-count, max int,
+  if (chase_hint_ == nullptr && in_body && trip != nullptr && instruction == trip->op_a->fetch) {
     if (is_min) {
       return Value(1);
-    } else if (chase_hint_ == nullptr && !IsUnsafeTripCount(trip)) {
+    } else if (!IsUnsafeTripCount(trip)) {
       return Value(std::numeric_limits<int32_t>::max());
     }
   }
-  // Chase the instruction a bit deeper into the HIR tree, so that it becomes more likely
-  // range analysis will compare the same instructions as terminal nodes.
-  if (instruction->IsAdd()) {
+  // Unless at a constant or hint, chase the instruction a bit deeper into the HIR tree, so that
+  // it becomes more likely range analysis will compare the same instructions as terminal nodes.
+  int64_t value;
+  if (IsIntAndGet(instruction, &value) && CanLongValueFitIntoInt(value)) {
+    // Proper constant reveals best information.
+    return Value(static_cast<int32_t>(value));
+  } else if (instruction == chase_hint_) {
+    // At hint, fetch is represented by itself.
+    return Value(instruction, 1, 0);
+  } else if (instruction->IsAdd()) {
+    // Incorporate suitable constants in the chased value.
     if (IsIntAndGet(instruction->InputAt(0), &value) && CanLongValueFitIntoInt(value)) {
       return AddValue(Value(static_cast<int32_t>(value)),
                       GetFetch(instruction->InputAt(1), trip, in_body, is_min));
@@ -477,14 +552,14 @@ InductionVarRange::Value InductionVarRange::GetFetch(HInstruction* instruction,
                       Value(static_cast<int32_t>(value)));
     }
   } else if (instruction->IsArrayLength()) {
-    // Return extreme values when chasing constants. Otherwise, chase deeper.
+    // Exploit length properties when chasing constants or chase into a new array declaration.
     if (chase_hint_ == nullptr) {
       return is_min ? Value(0) : Value(std::numeric_limits<int32_t>::max());
     } else if (instruction->InputAt(0)->IsNewArray()) {
       return GetFetch(instruction->InputAt(0)->InputAt(0), trip, in_body, is_min);
     }
   } else if (instruction->IsTypeConversion()) {
-    // Since analysis is 32-bit (or narrower) we allow a widening along the path.
+    // Since analysis is 32-bit (or narrower), chase beyond widening along the path.
     if (instruction->AsTypeConversion()->GetInputType() == Primitive::kPrimInt &&
         instruction->AsTypeConversion()->GetResultType() == Primitive::kPrimLong) {
       return GetFetch(instruction->InputAt(0), trip, in_body, is_min);
@@ -506,6 +581,7 @@ InductionVarRange::Value InductionVarRange::GetFetch(HInstruction* instruction,
       !IsUnsafeTripCount(next_trip)) {
     return GetVal(next_info, next_trip, next_in_body, is_min);
   }
+  // Fetch is represented by itself.
   return Value(instruction, 1, 0);
 }
 
@@ -870,10 +946,11 @@ bool InductionVarRange::GenerateCode(HInductionVarAnalysis::InductionInfo* info,
     HInstruction* opb = nullptr;
     switch (info->induction_class) {
       case HInductionVarAnalysis::kInvariant:
-        // Invariants.
+        // Invariants (note that even though is_min does not impact code generation for
+        // invariants, some effort is made to keep this parameter consistent).
         switch (info->operation) {
           case HInductionVarAnalysis::kAdd:
-          case HInductionVarAnalysis::kXor:
+          case HInductionVarAnalysis::kXor:  // no proper is_min for second arg
           case HInductionVarAnalysis::kLT:
           case HInductionVarAnalysis::kLE:
           case HInductionVarAnalysis::kGT:
