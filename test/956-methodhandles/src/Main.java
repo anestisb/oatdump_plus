@@ -58,6 +58,7 @@ public class Main {
     testfindSpecial_invokeSuperBehaviour();
     testfindSpecial_invokeDirectBehaviour();
     testExceptionDetailMessages();
+    testfindVirtual();
   }
 
   public static void testfindSpecial_invokeSuperBehaviour() throws Throwable {
@@ -138,6 +139,127 @@ public class Main {
       System.out.println("invokeExact(\"a\", new Object()) unexpectedly succeeded.");
     } catch (WrongMethodTypeException ex) {
       System.out.println("Received exception: " + ex.getMessage());
+    }
+  }
+
+  public interface Foo {
+    public String foo();
+  }
+
+  public interface Bar extends Foo {
+    public String bar();
+  }
+
+  public static class BarSuper {
+    public String superPublicMethod() {
+      return "superPublicMethod";
+    }
+
+    public String superProtectedMethod() {
+      return "superProtectedMethod";
+    }
+
+    String superPackageMethod() {
+      return "superPackageMethod";
+    }
+  }
+
+  public static class BarImpl extends BarSuper implements Bar {
+    public BarImpl() {
+    }
+
+    @Override
+    public String foo() {
+      return "foo";
+    }
+
+    @Override
+    public String bar() {
+      return "bar";
+    }
+
+    private String privateMethod() { return "privateMethod"; }
+
+    public static String staticMethod() { return null; }
+
+    static final MethodHandles.Lookup lookup = MethodHandles.lookup();
+  }
+
+  public static void testfindVirtual() throws Throwable {
+    // Virtual lookups on static methods should not succeed.
+    try {
+        MethodHandles.lookup().findVirtual(
+            BarImpl.class,  "staticMethod", MethodType.methodType(String.class));
+        System.out.println("findVirtual(staticMethod) unexpectedly succeeded");
+    } catch (IllegalAccessException expected) {
+    }
+
+    // Virtual lookups on private methods should not succeed, unless the Lookup
+    // context had sufficient privileges.
+    try {
+        MethodHandles.lookup().findVirtual(
+            BarImpl.class,  "privateMethod", MethodType.methodType(String.class));
+        System.out.println("findVirtual(privateMethod) unexpectedly succeeded");
+    } catch (IllegalAccessException expected) {
+    }
+
+    // Virtual lookup on a private method with a context that *does* have sufficient
+    // privileges.
+    MethodHandle mh = BarImpl.lookup.findVirtual(
+            BarImpl.class,  "privateMethod", MethodType.methodType(String.class));
+    String str = (String) mh.invoke(new BarImpl());
+    if (!"privateMethod".equals(str)) {
+      System.out.println("Unexpected return value for BarImpl#privateMethod: " + str);
+    }
+
+    // Find virtual must find interface methods defined by interfaces implemented
+    // by the class.
+    mh = MethodHandles.lookup().findVirtual(BarImpl.class, "foo",
+        MethodType.methodType(String.class));
+    str = (String) mh.invoke(new BarImpl());
+    if (!"foo".equals(str)) {
+      System.out.println("Unexpected return value for BarImpl#foo: " + str);
+    }
+
+    // .. and their super-interfaces.
+    mh = MethodHandles.lookup().findVirtual(BarImpl.class, "bar",
+        MethodType.methodType(String.class));
+    str = (String) mh.invoke(new BarImpl());
+    if (!"bar".equals(str)) {
+      System.out.println("Unexpected return value for BarImpl#bar: " + str);
+    }
+
+    // TODO(narayan): Fix this case, we're using the wrong ArtMethod for the
+    // invoke resulting in a failing check in the interpreter.
+    //
+    // mh = MethodHandles.lookup().findVirtual(Bar.class, "bar",
+    //    MethodType.methodType(String.class));
+    // str = (String) mh.invoke(new BarImpl());
+    // if (!"bar".equals(str)) {
+    //   System.out.println("Unexpected return value for BarImpl#bar: " + str);
+    // }
+
+    // We should also be able to lookup public / protected / package methods in
+    // the super class, given sufficient access privileges.
+    mh = MethodHandles.lookup().findVirtual(BarImpl.class, "superPublicMethod",
+        MethodType.methodType(String.class));
+    str = (String) mh.invoke(new BarImpl());
+    if (!"superPublicMethod".equals(str)) {
+      System.out.println("Unexpected return value for BarImpl#superPublicMethod: " + str);
+    }
+
+    mh = MethodHandles.lookup().findVirtual(BarImpl.class, "superProtectedMethod",
+        MethodType.methodType(String.class));
+    str = (String) mh.invoke(new BarImpl());
+    if (!"superProtectedMethod".equals(str)) {
+      System.out.println("Unexpected return value for BarImpl#superProtectedMethod: " + str);
+    }
+
+    mh = MethodHandles.lookup().findVirtual(BarImpl.class, "superPackageMethod",
+        MethodType.methodType(String.class));
+    str = (String) mh.invoke(new BarImpl());
+    if (!"superPackageMethod".equals(str)) {
+      System.out.println("Unexpected return value for BarImpl#superPackageMethod: " + str);
     }
   }
 }
