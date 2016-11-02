@@ -64,19 +64,45 @@ ClassExt* Class::GetExtData() {
   return GetFieldObject<ClassExt>(OFFSET_OF_OBJECT_MEMBER(Class, ext_data_));
 }
 
-void Class::SetExtData(ObjPtr<ClassExt> ext) {
-  CHECK(ext != nullptr) << PrettyClass();
-  // TODO It might be wise to just create an internal (global?) mutex that we synchronize on instead
-  // to prevent any possibility of deadlocks with java code. Alternatively we might want to come up
-  // with some other abstraction.
-  DCHECK_EQ(GetLockOwnerThreadId(), Thread::Current()->GetThreadId())
-      << "The " << PrettyClass() << " object should be locked when writing to the extData field.";
-  DCHECK(GetExtData() == nullptr)
-      << "The extData for " << PrettyClass() << " has already been set!";
-  if (Runtime::Current()->IsActiveTransaction()) {
-    SetFieldObject<true>(OFFSET_OF_OBJECT_MEMBER(Class, ext_data_), ext);
+ClassExt* Class::EnsureExtDataPresent(Thread* self) {
+  ObjPtr<ClassExt> existing(GetExtData());
+  if (!existing.IsNull()) {
+    return existing.Ptr();
+  }
+  StackHandleScope<3> hs(self);
+  // Handlerize 'this' since we are allocating here.
+  Handle<Class> h_this(hs.NewHandle(this));
+  // Clear exception so we can allocate.
+  Handle<Throwable> throwable(hs.NewHandle(self->GetException()));
+  self->ClearException();
+  // Allocate the ClassExt
+  Handle<ClassExt> new_ext(hs.NewHandle(ClassExt::Alloc(self)));
+  if (new_ext.Get() == nullptr) {
+    // OOM allocating the classExt.
+    // TODO Should we restore the suppressed exception?
+    self->AssertPendingOOMException();
+    return nullptr;
   } else {
-    SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(Class, ext_data_), ext);
+    MemberOffset ext_offset(OFFSET_OF_OBJECT_MEMBER(Class, ext_data_));
+    bool set;
+    // Set the ext_data_ field using CAS semantics.
+    if (Runtime::Current()->IsActiveTransaction()) {
+      set = h_this->CasFieldStrongSequentiallyConsistentObject<true>(ext_offset,
+                                                                     ObjPtr<ClassExt>(nullptr),
+                                                                     new_ext.Get());
+    } else {
+      set = h_this->CasFieldStrongSequentiallyConsistentObject<false>(ext_offset,
+                                                                      ObjPtr<ClassExt>(nullptr),
+                                                                      new_ext.Get());
+    }
+    ObjPtr<ClassExt> ret(set ? new_ext.Get() : h_this->GetExtData());
+    DCHECK(!set || h_this->GetExtData() == new_ext.Get());
+    CHECK(!ret.IsNull());
+    // Restore the exception if there was one.
+    if (throwable.Get() != nullptr) {
+      self->SetException(throwable.Get());
+    }
+    return ret.Ptr();
   }
 }
 
@@ -108,34 +134,16 @@ void Class::SetStatus(Handle<Class> h_this, Status new_status, Thread* self) {
       }
     }
 
-    {
-      // Ensure we lock around 'this' when we set the ClassExt.
-      ObjectLock<mirror::Class> lock(self, h_this);
-      StackHandleScope<2> hs(self);
-      // Remember the current exception.
-      Handle<Throwable> exception(hs.NewHandle(self->GetException()));
-      CHECK(exception.Get() != nullptr);
-      MutableHandle<ClassExt> ext(hs.NewHandle(h_this->GetExtData()));
-      if (ext.Get() == nullptr) {
-        // Cannot have exception while allocating.
-        self->ClearException();
-        ext.Assign(ClassExt::Alloc(self));
-        DCHECK(ext.Get() == nullptr || ext->GetVerifyError() == nullptr);
-        if (ext.Get() != nullptr) {
-          self->AssertNoPendingException();
-          h_this->SetExtData(ext.Get());
-          self->SetException(exception.Get());
-        } else {
-          // TODO Should we restore the old exception anyway?
-          self->AssertPendingOOMException();
-        }
-      }
-      if (ext.Get() != nullptr) {
-        ext->SetVerifyError(self->GetException());
-      }
+    ObjPtr<ClassExt> ext(h_this->EnsureExtDataPresent(self));
+    if (!ext.IsNull()) {
+      self->AssertPendingException();
+      ext->SetVerifyError(self->GetException());
+    } else {
+      self->AssertPendingOOMException();
     }
     self->AssertPendingException();
   }
+
   static_assert(sizeof(Status) == sizeof(uint32_t), "Size of status not equal to uint32");
   if (Runtime::Current()->IsActiveTransaction()) {
     h_this->SetField32Volatile<true>(StatusOffset(), new_status);
