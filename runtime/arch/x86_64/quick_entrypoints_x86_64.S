@@ -1489,17 +1489,17 @@ DEFINE_FUNCTION art_quick_check_cast
     // we do not find a matching interface we call into artIsAssignableFromCode which will have
     // read barriers.
     movl MIRROR_CLASS_IF_TABLE_OFFSET(%rsi), %ecx
-    UNPOISON_HEAP_REF %ecx
+    UNPOISON_HEAP_REF ecx
     testl %ecx, %ecx
     jz .Lnot_interface
     movl MIRROR_ARRAY_LENGTH_OFFSET(%rcx), %r8d
 .Lstart_loop:
     // Re-poison before comparing to prevent rare possible false positives. This is done inside
     // the loop since heap poisoning is only for testing builds.
-    POISON_HEAP_REF %edi
+    POISON_HEAP_REF edi
     cmpl MIRROR_OBJECT_ARRAY_DATA_OFFSET(%rcx), %edi
     je .Lreturn  // Return if same class.
-    UNPOISON_HEAP_REF %edi
+    UNPOISON_HEAP_REF edi
     // Go to next interface.
     add LITERAL(COMPRESSED_REFERENCE_SIZE * 2), %rcx
     sub LITERAL(2), %r8
