@@ -1,0 +1,71 @@
+/*
+ * Copyright (C) 2016 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#ifndef ART_RUNTIME_MIRROR_CLASS_EXT_H_
+#define ART_RUNTIME_MIRROR_CLASS_EXT_H_
+
+#include "class-inl.h"
+
+#include "gc_root.h"
+#include "object.h"
+#include "object_callbacks.h"
+#include "string.h"
+
+namespace art {
+
+struct ClassExtOffsets;
+
+namespace mirror {
+
+// C++ mirror of dalvik.system.ClassExt
+class MANAGED ClassExt : public Object {
+ public:
+  static uint32_t ClassSize(PointerSize pointer_size) {
+    uint32_t vtable_entries = Object::kVTableLength;
+    return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0, 0, 0, pointer_size);
+  }
+
+  // Size of an instance of dalvik.system.ClassExt.
+  static constexpr uint32_t InstanceSize() {
+    return sizeof(ClassExt);
+  }
+
+  void SetVerifyError(ObjPtr<Object> obj) REQUIRES_SHARED(Locks::mutator_lock_);
+
+  Object* GetVerifyError() REQUIRES_SHARED(Locks::mutator_lock_) {
+    return GetFieldObject<ClassExt>(OFFSET_OF_OBJECT_MEMBER(ClassExt, verify_error_));
+  }
+
+  static void SetClass(ObjPtr<Class> dalvik_system_ClassExt);
+  static void ResetClass();
+  static void VisitRoots(RootVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
+
+  static ClassExt* Alloc(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_);
+
+ private:
+  // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
+  HeapReference<Object> verify_error_;
+
+  static GcRoot<Class> dalvik_system_ClassExt_;
+
+  friend struct art::ClassExtOffsets;  // for verifying offset information
+  DISALLOW_IMPLICIT_CONSTRUCTORS(ClassExt);
+};
+
+}  // namespace mirror
+}  // namespace art
+
+#endif  // ART_RUNTIME_MIRROR_CLASS_EXT_H_

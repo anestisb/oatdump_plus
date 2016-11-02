@@ -393,7 +393,9 @@ void WellKnownClasses::LateInit(JNIEnv* env) {
 }
 
 ObjPtr<mirror::Class> WellKnownClasses::ToClass(jclass global_jclass) {
-  return ObjPtr<mirror::Class>::DownCast(Thread::Current()->DecodeJObject(global_jclass));
+  auto ret = ObjPtr<mirror::Class>::DownCast(Thread::Current()->DecodeJObject(global_jclass));
+  DCHECK(!ret.IsNull());
+  return ret;
 }
 
 }  // namespace art
