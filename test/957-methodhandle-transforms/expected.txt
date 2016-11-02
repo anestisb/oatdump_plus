@@ -1,35 +1,16 @@
----
--- testDelegation
----
-boolean: false
-char: h
-short: 56
-int: 72
-long: 2147483689
-float: 0.56
-double: 100.0
-String: hello
-Object: goodbye
-boolean: false
-char: h
-short: 56
-int: 72
-long: 73
-float: 0.56
-double: 100.0
-String: hello
-Object: goodbye
-true
-true
-a
-a
-42
-42
-43
-43
-43.0
-43.0
-43.0
-43.0
-plank
-plank
+Message: foo, Message2: 42
+Message: foo, Message2: 42
+Message: foo, Message2: 42
+Message: foo, Message2: 42
+Message: foo, Message2: 42
+Message: foo, Message2: 42
+Target: Arg1: foo, Arg2: 42
+Target: Arg1: foo, Arg2: 42
+Handler: java.lang.IllegalArgumentException: exceptionMessage, Arg1: foo, Arg2: 42, ExMsg: exceptionMessage
+Handler: java.lang.IllegalArgumentException: exceptionMessage, Arg1: foo, Arg2: 42, ExMsg: exceptionMessage
+Handler: java.lang.IllegalArgumentException: exceptionMessage, Arg1: foo
+Handler: java.lang.IllegalArgumentException: exceptionMessage, Arg1: foo
+target: target, 42, 56
+target: target, 42, 56
+fallback: fallback, 42, 56
+target: target, 42, 56
