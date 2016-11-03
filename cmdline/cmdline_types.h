@@ -182,7 +182,7 @@ template <size_t Divisor>
 struct CmdlineType<Memory<Divisor>> : CmdlineTypeParser<Memory<Divisor>> {
   using typename CmdlineTypeParser<Memory<Divisor>>::Result;
 
-  Result Parse(const std::string arg) {
+  Result Parse(const std::string& arg) {
     CMDLINE_DEBUG_LOG << "Parsing memory: " << arg << std::endl;
     size_t val = ParseMemoryOption(arg.c_str(), Divisor);
     CMDLINE_DEBUG_LOG << "Memory parsed to size_t value: " << val << std::endl;

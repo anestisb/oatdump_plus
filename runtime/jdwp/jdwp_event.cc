@@ -781,7 +781,7 @@ void JdwpState::PostVMStart() {
   SendRequestAndPossiblySuspend(pReq, suspend_policy, threadId);
 }
 
-static void LogMatchingEventsAndThread(const std::vector<JdwpEvent*> match_list,
+static void LogMatchingEventsAndThread(const std::vector<JdwpEvent*>& match_list,
                                        ObjectId thread_id)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   for (size_t i = 0, e = match_list.size(); i < e; ++i) {
