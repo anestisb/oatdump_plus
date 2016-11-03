@@ -398,8 +398,15 @@ fi
 
 if [ "$HOST" = "n" ]; then
   ISA=$(adb shell ls -F /data/dalvik-cache | grep -Ewo "${ARCHITECTURES_PATTERN}")
+  outcome=$?
   if [ x"$ISA" = "x" ]; then
     echo "Unable to determine architecture"
+    # Print a few things for helping diagnosing the problem.
+    echo "adb invocation outcome: $outcome"
+    echo $(adb shell ls -F /data/dalvik-cache)
+    echo $(adb shell ls /data/dalvik-cache)
+    echo ${ARCHITECTURES_PATTERN}
+    echo $(adb shell ls -F /data/dalvik-cache | grep -Ewo "${ARCHITECTURES_PATTERN}")
     exit 1
   fi
 fi
