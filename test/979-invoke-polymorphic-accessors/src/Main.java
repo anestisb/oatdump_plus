@@ -683,10 +683,20 @@ public class Main {
 
     public static class FindAccessorTester {
         public static void main() throws Throwable {
-            ValueHolder valueHolder = new ValueHolder();
+            // NB having a static field test here is essential for
+            // this test. MethodHandles need to ensure the class
+            // (ValueHolder) is initialized. This happens in the
+            // invoke-polymorphic dispatch.
             MethodHandles.Lookup lookup = MethodHandles.lookup();
-
-            lookup.findStaticGetter(ValueHolder.class, "s_fi", int.class);
+            try {
+                MethodHandle mh = lookup.findStaticGetter(ValueHolder.class, "s_fi", int.class);
+                int initialValue = (int)mh.invokeExact();
+                System.out.println(initialValue);
+            } catch (NoSuchFieldException e) { unreachable(); }
+            try {
+                MethodHandle mh = lookup.findStaticSetter(ValueHolder.class, "s_i", int.class);
+                mh.invokeExact(0);
+            } catch (NoSuchFieldException e) { unreachable(); }
             try {
                 lookup.findStaticGetter(ValueHolder.class, "s_fi", byte.class);
                 unreachable();
@@ -721,6 +731,8 @@ public class Main {
     }
 
     public static void main(String[] args) throws Throwable {
+        // FindAccessor test should be the first test class in this
+        // file to ensure class initialization test is run.
         FindAccessorTester.main();
         InvokeExactTester.main();
     }
