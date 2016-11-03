@@ -47,6 +47,7 @@ class CompilerCallbacks {
   virtual bool IsRelocationPossible() = 0;
 
   virtual verifier::VerifierDeps* GetVerifierDeps() const = 0;
+  virtual void SetVerifierDeps(verifier::VerifierDeps* deps ATTRIBUTE_UNUSED) {}
 
   bool IsBootImage() {
     return mode_ == CallbackMode::kCompileBootImage;

@@ -72,6 +72,22 @@ class VerifierDepsTest : public CommonCompilerTest {
     return klass;
   }
 
+  void SetupCompilerDriver() {
+    compiler_options_->boot_image_ = false;
+    compiler_driver_->InitializeThreadPools();
+  }
+
+  void VerifyWithCompilerDriver(verifier::VerifierDeps* deps) {
+    TimingLogger timings("Verify", false, false);
+    // The compiler driver handles the verifier deps in the callbacks, so
+    // remove what this class did for unit testing.
+    verifier_deps_.reset(nullptr);
+    callbacks_->SetVerifierDeps(nullptr);
+    compiler_driver_->Verify(class_loader_, dex_files_, deps, &timings);
+    // The compiler driver may have updated the VerifierDeps in the callback object.
+    verifier_deps_.reset(callbacks_->GetVerifierDeps());
+  }
+
   void SetVerifierDeps(const std::vector<const DexFile*>& dex_files) {
     verifier_deps_.reset(new verifier::VerifierDeps(dex_files));
     VerifierDepsCompilerCallbacks* callbacks =
@@ -156,15 +172,12 @@ class VerifierDepsTest : public CommonCompilerTest {
   }
 
   void VerifyDexFile(const char* multidex = nullptr) {
-    std::string error_msg;
     {
       ScopedObjectAccess soa(Thread::Current());
       LoadDexFile(&soa, "VerifierDeps", multidex);
     }
-    TimingLogger timings("Verify", false, false);
-    compiler_options_->boot_image_ = false;
-    compiler_driver_->InitializeThreadPools();
-    compiler_driver_->Verify(class_loader_, dex_files_, &timings);
+    SetupCompilerDriver();
+    VerifyWithCompilerDriver(/* verifier_deps */ nullptr);
   }
 
   bool TestAssignabilityRecording(const std::string& dst,
@@ -183,6 +196,33 @@ class VerifierDepsTest : public CommonCompilerTest {
                                      is_strict,
                                      is_assignable);
     return true;
+  }
+
+  // Check that the status of classes in `class_loader_` match the
+  // expected status in `deps`.
+  void VerifyClassStatus(const verifier::VerifierDeps& deps) {
+    ScopedObjectAccess soa(Thread::Current());
+    StackHandleScope<2> hs(soa.Self());
+    Handle<mirror::ClassLoader> class_loader_handle(
+        hs.NewHandle(soa.Decode<mirror::ClassLoader>(class_loader_)));
+    MutableHandle<mirror::Class> cls(hs.NewHandle<mirror::Class>(nullptr));
+    for (const DexFile* dex_file : dex_files_) {
+      const std::vector<uint16_t>& unverified_classes = deps.GetUnverifiedClasses(*dex_file);
+      std::set<uint16_t> set(unverified_classes.begin(), unverified_classes.end());
+      for (uint32_t i = 0; i < dex_file->NumClassDefs(); ++i) {
+        const DexFile::ClassDef& class_def = dex_file->GetClassDef(i);
+        const char* descriptor = dex_file->GetClassDescriptor(class_def);
+        cls.Assign(class_linker_->FindClass(soa.Self(), descriptor, class_loader_handle));
+        if (cls.Get() == nullptr) {
+          CHECK(soa.Self()->IsExceptionPending());
+          soa.Self()->ClearException();
+        } else if (set.find(class_def.class_idx_) == set.end()) {
+          ASSERT_EQ(cls->GetStatus(), mirror::Class::kStatusVerified);
+        } else {
+          ASSERT_LT(cls->GetStatus(), mirror::Class::kStatusVerified);
+        }
+      }
+    }
   }
 
   bool HasUnverifiedClass(const std::string& cls) {
@@ -1160,7 +1200,7 @@ TEST_F(VerifierDepsTest, VerifyDeps) {
   MutableHandle<mirror::ClassLoader> new_class_loader(hs.NewHandle<mirror::ClassLoader>(nullptr));
   {
     new_class_loader.Assign(soa.Decode<mirror::ClassLoader>(LoadDex("VerifierDeps")));
-    ASSERT_TRUE(verifier_deps_->Verify(new_class_loader, soa.Self()));
+    ASSERT_TRUE(verifier_deps_->ValidateDependencies(new_class_loader, soa.Self()));
   }
 
   std::vector<uint8_t> buffer;
@@ -1170,7 +1210,7 @@ TEST_F(VerifierDepsTest, VerifyDeps) {
   {
     VerifierDeps decoded_deps(dex_files_, ArrayRef<const uint8_t>(buffer));
     new_class_loader.Assign(soa.Decode<mirror::ClassLoader>(LoadDex("VerifierDeps")));
-    ASSERT_TRUE(decoded_deps.Verify(new_class_loader, soa.Self()));
+    ASSERT_TRUE(decoded_deps.ValidateDependencies(new_class_loader, soa.Self()));
   }
 
   // Fiddle with the dependencies to make sure we catch any change and fail to verify.
@@ -1181,7 +1221,7 @@ TEST_F(VerifierDepsTest, VerifyDeps) {
     VerifierDeps::DexFileDeps* deps = decoded_deps.GetDexFileDeps(*primary_dex_file_);
     deps->assignable_types_.insert(*deps->unassignable_types_.begin());
     new_class_loader.Assign(soa.Decode<mirror::ClassLoader>(LoadDex("VerifierDeps")));
-    ASSERT_FALSE(decoded_deps.Verify(new_class_loader, soa.Self()));
+    ASSERT_FALSE(decoded_deps.ValidateDependencies(new_class_loader, soa.Self()));
   }
 
   {
@@ -1190,7 +1230,7 @@ TEST_F(VerifierDepsTest, VerifyDeps) {
     VerifierDeps::DexFileDeps* deps = decoded_deps.GetDexFileDeps(*primary_dex_file_);
     deps->unassignable_types_.insert(*deps->assignable_types_.begin());
     new_class_loader.Assign(soa.Decode<mirror::ClassLoader>(LoadDex("VerifierDeps")));
-    ASSERT_FALSE(decoded_deps.Verify(new_class_loader, soa.Self()));
+    ASSERT_FALSE(decoded_deps.ValidateDependencies(new_class_loader, soa.Self()));
   }
 
   // Mess up with classes.
@@ -1208,7 +1248,7 @@ TEST_F(VerifierDepsTest, VerifyDeps) {
     }
     ASSERT_TRUE(found);
     new_class_loader.Assign(soa.Decode<mirror::ClassLoader>(LoadDex("VerifierDeps")));
-    ASSERT_FALSE(decoded_deps.Verify(new_class_loader, soa.Self()));
+    ASSERT_FALSE(decoded_deps.ValidateDependencies(new_class_loader, soa.Self()));
   }
 
   {
@@ -1225,7 +1265,7 @@ TEST_F(VerifierDepsTest, VerifyDeps) {
     }
     ASSERT_TRUE(found);
     new_class_loader.Assign(soa.Decode<mirror::ClassLoader>(LoadDex("VerifierDeps")));
-    ASSERT_FALSE(decoded_deps.Verify(new_class_loader, soa.Self()));
+    ASSERT_FALSE(decoded_deps.ValidateDependencies(new_class_loader, soa.Self()));
   }
 
   {
@@ -1242,7 +1282,7 @@ TEST_F(VerifierDepsTest, VerifyDeps) {
     }
     ASSERT_TRUE(found);
     new_class_loader.Assign(soa.Decode<mirror::ClassLoader>(LoadDex("VerifierDeps")));
-    ASSERT_FALSE(decoded_deps.Verify(new_class_loader, soa.Self()));
+    ASSERT_FALSE(decoded_deps.ValidateDependencies(new_class_loader, soa.Self()));
   }
 
   // Mess up with fields.
@@ -1261,7 +1301,7 @@ TEST_F(VerifierDepsTest, VerifyDeps) {
     }
     ASSERT_TRUE(found);
     new_class_loader.Assign(soa.Decode<mirror::ClassLoader>(LoadDex("VerifierDeps")));
-    ASSERT_FALSE(decoded_deps.Verify(new_class_loader, soa.Self()));
+    ASSERT_FALSE(decoded_deps.ValidateDependencies(new_class_loader, soa.Self()));
   }
 
   {
@@ -1279,7 +1319,7 @@ TEST_F(VerifierDepsTest, VerifyDeps) {
     }
     ASSERT_TRUE(found);
     new_class_loader.Assign(soa.Decode<mirror::ClassLoader>(LoadDex("VerifierDeps")));
-    ASSERT_FALSE(decoded_deps.Verify(new_class_loader, soa.Self()));
+    ASSERT_FALSE(decoded_deps.ValidateDependencies(new_class_loader, soa.Self()));
   }
 
   {
@@ -1297,7 +1337,7 @@ TEST_F(VerifierDepsTest, VerifyDeps) {
     }
     ASSERT_TRUE(found);
     new_class_loader.Assign(soa.Decode<mirror::ClassLoader>(LoadDex("VerifierDeps")));
-    ASSERT_FALSE(decoded_deps.Verify(new_class_loader, soa.Self()));
+    ASSERT_FALSE(decoded_deps.ValidateDependencies(new_class_loader, soa.Self()));
   }
 
   {
@@ -1316,7 +1356,7 @@ TEST_F(VerifierDepsTest, VerifyDeps) {
     }
     ASSERT_TRUE(found);
     new_class_loader.Assign(soa.Decode<mirror::ClassLoader>(LoadDex("VerifierDeps")));
-    ASSERT_FALSE(decoded_deps.Verify(new_class_loader, soa.Self()));
+    ASSERT_FALSE(decoded_deps.ValidateDependencies(new_class_loader, soa.Self()));
   }
 
   // Mess up with methods.
@@ -1338,7 +1378,7 @@ TEST_F(VerifierDepsTest, VerifyDeps) {
       }
       ASSERT_TRUE(found);
       new_class_loader.Assign(soa.Decode<mirror::ClassLoader>(LoadDex("VerifierDeps")));
-      ASSERT_FALSE(decoded_deps.Verify(new_class_loader, soa.Self()));
+      ASSERT_FALSE(decoded_deps.ValidateDependencies(new_class_loader, soa.Self()));
     }
 
     {
@@ -1357,7 +1397,7 @@ TEST_F(VerifierDepsTest, VerifyDeps) {
       }
       ASSERT_TRUE(found);
       new_class_loader.Assign(soa.Decode<mirror::ClassLoader>(LoadDex("VerifierDeps")));
-      ASSERT_FALSE(decoded_deps.Verify(new_class_loader, soa.Self()));
+      ASSERT_FALSE(decoded_deps.ValidateDependencies(new_class_loader, soa.Self()));
     }
 
     {
@@ -1376,7 +1416,7 @@ TEST_F(VerifierDepsTest, VerifyDeps) {
       }
       ASSERT_TRUE(found);
       new_class_loader.Assign(soa.Decode<mirror::ClassLoader>(LoadDex("VerifierDeps")));
-      ASSERT_FALSE(decoded_deps.Verify(new_class_loader, soa.Self()));
+      ASSERT_FALSE(decoded_deps.ValidateDependencies(new_class_loader, soa.Self()));
     }
 
     {
@@ -1396,7 +1436,7 @@ TEST_F(VerifierDepsTest, VerifyDeps) {
       }
       ASSERT_TRUE(found);
       new_class_loader.Assign(soa.Decode<mirror::ClassLoader>(LoadDex("VerifierDeps")));
-      ASSERT_FALSE(decoded_deps.Verify(new_class_loader, soa.Self()));
+      ASSERT_FALSE(decoded_deps.ValidateDependencies(new_class_loader, soa.Self()));
     }
 
     {
@@ -1415,7 +1455,7 @@ TEST_F(VerifierDepsTest, VerifyDeps) {
       }
       ASSERT_TRUE(found);
       new_class_loader.Assign(soa.Decode<mirror::ClassLoader>(LoadDex("VerifierDeps")));
-      ASSERT_FALSE(decoded_deps.Verify(new_class_loader, soa.Self()));
+      ASSERT_FALSE(decoded_deps.ValidateDependencies(new_class_loader, soa.Self()));
     }
 
     {
@@ -1434,7 +1474,56 @@ TEST_F(VerifierDepsTest, VerifyDeps) {
       }
       ASSERT_TRUE(found);
       new_class_loader.Assign(soa.Decode<mirror::ClassLoader>(LoadDex("VerifierDeps")));
-      ASSERT_FALSE(decoded_deps.Verify(new_class_loader, soa.Self()));
+      ASSERT_FALSE(decoded_deps.ValidateDependencies(new_class_loader, soa.Self()));
+    }
+  }
+}
+
+TEST_F(VerifierDepsTest, CompilerDriver) {
+  SetupCompilerDriver();
+
+  // Test both multi-dex and single-dex configuration.
+  for (const char* multi : { "MultiDex", static_cast<const char*>(nullptr) }) {
+    // Test that the compiler driver behaves as expected when the dependencies
+    // verify and when they don't verify.
+    for (bool verify_failure : { false, true }) {
+      {
+        ScopedObjectAccess soa(Thread::Current());
+        LoadDexFile(&soa, "VerifierDeps", multi);
+      }
+      VerifyWithCompilerDriver(/* verifier_deps */ nullptr);
+
+      std::vector<uint8_t> buffer;
+      verifier_deps_->Encode(dex_files_, &buffer);
+
+      {
+        ScopedObjectAccess soa(Thread::Current());
+        LoadDexFile(&soa, "VerifierDeps", multi);
+      }
+      verifier::VerifierDeps decoded_deps(dex_files_, ArrayRef<const uint8_t>(buffer));
+      if (verify_failure) {
+        // Just taint the decoded VerifierDeps with one invalid entry.
+        VerifierDeps::DexFileDeps* deps = decoded_deps.GetDexFileDeps(*primary_dex_file_);
+        bool found = false;
+        for (const auto& entry : deps->classes_) {
+          if (entry.IsResolved()) {
+            deps->classes_.insert(VerifierDeps::ClassResolution(
+                entry.GetDexTypeIndex(), VerifierDeps::kUnresolvedMarker));
+            found = true;
+            break;
+          }
+        }
+        ASSERT_TRUE(found);
+      }
+      VerifyWithCompilerDriver(&decoded_deps);
+
+      if (verify_failure) {
+        ASSERT_FALSE(verifier_deps_ == nullptr);
+        ASSERT_FALSE(verifier_deps_->Equals(decoded_deps));
+      } else {
+        ASSERT_TRUE(verifier_deps_ == nullptr);
+        VerifyClassStatus(decoded_deps);
+      }
     }
   }
 }
