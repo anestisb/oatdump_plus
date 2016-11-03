@@ -574,9 +574,9 @@ class Hprof : public SingleRootVisitor {
   }
 
   void WriteStringTable() {
-    for (const std::pair<std::string, HprofStringId>& p : strings_) {
+    for (const auto& p : strings_) {
       const std::string& string = p.first;
-      const size_t id = p.second;
+      const HprofStringId id = p.second;
 
       output_->StartNewRecord(HPROF_TAG_STRING, kHprofTime);
 
