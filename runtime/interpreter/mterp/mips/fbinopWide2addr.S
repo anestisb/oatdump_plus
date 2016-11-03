@@ -1,10 +1,11 @@
     /*
-     * Generic 64-bit "/2addr" binary operation.  Provide an "instr" line
-     * that specifies an instruction that performs "result = a0-a1 op a2-a3".
+     * Generic 64-bit floating-point "/2addr" binary operation.
+     * Provide an "instr" line that specifies an instruction that
+     * performs "fv0 = fa0 op fa1".
      * This could be an MIPS instruction or a function call.
      *
      * For: add-double/2addr, sub-double/2addr, mul-double/2addr,
-     *  div-double/2addr, rem-double/2addr
+     *      div-double/2addr, rem-double/2addr
      */
     /* binop/2addr vA, vB */
     GET_OPA4(rOBJ)                         #  rOBJ <- A+
@@ -16,6 +17,5 @@
 
     FETCH_ADVANCE_INST(1)                  #  advance rPC, load rINST
     $instr
-    SET_VREG64_F(fv0, fv0f, rOBJ)
     GET_INST_OPCODE(t0)                    #  extract opcode from rINST
-    GOTO_OPCODE(t0)                        #  jump to next instruction
+    SET_VREG64_F_GOTO(fv0, fv0f, rOBJ, t0)  #  vA/vA+1 <- fv0

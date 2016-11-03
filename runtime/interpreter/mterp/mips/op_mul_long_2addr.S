@@ -26,6 +26,4 @@
 
     FETCH_ADVANCE_INST(1)                  #  advance rPC, load rINST
     GET_INST_OPCODE(t1)                    #  extract opcode from rINST
-    # vAA <- v0 (low)
-    SET_VREG64(v0, v1, rOBJ)               #  vAA+1 <- v1 (high)
-    GOTO_OPCODE(t1)                        #  jump to next instruction
+    SET_VREG64_GOTO(v0, v1, rOBJ, t1)      #  vA/vA+1 <- v0(low)/v1(high)

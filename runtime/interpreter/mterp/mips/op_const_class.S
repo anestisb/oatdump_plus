@@ -1,4 +1,4 @@
-    # const/class vAA, Class               /* BBBB */
+    /* const/class vAA, class@BBBB */
     EXPORT_PC()
     FETCH(a0, 1)                        # a0 <- BBBB
     GET_OPA(a1)                         # a1 <- AA

@@ -1,7 +1,5 @@
     /*
      * Array put, 64 bits.  vBB[vCC] <- vAA.
-     *
-     * Arrays of long/double are 64-bit aligned, so it's okay to use STRD.
      */
     /* aput-wide vAA, vBB, vCC */
     FETCH(a0, 1)                           #  a0 <- CCBB
@@ -21,5 +19,6 @@
     FETCH_ADVANCE_INST(2)                  #  advance rPC, load rINST
     LOAD64(a2, a3, rOBJ)                   #  a2/a3 <- vAA/vAA+1
     GET_INST_OPCODE(t0)                    #  extract opcode from rINST
+    GET_OPCODE_TARGET(t0)
     STORE64_off(a2, a3, a0, MIRROR_WIDE_ARRAY_DATA_OFFSET) #  a2/a3 <- vBB[vCC]
-    GOTO_OPCODE(t0)                        #  jump to next instruction
+    JR(t0)                                 #  jump to next instruction

@@ -4,8 +4,8 @@
      *
      * for: filled-new-array, filled-new-array/range
      */
-    # op vB, {vD, vE, vF, vG, vA}, class   /* CCCC */
-    # op {vCCCC..v(CCCC+AA-1)}, type       /* BBBB */
+    /* op vB, {vD, vE, vF, vG, vA}, class@CCCC */
+    /* op {vCCCC..v(CCCC+AA-1)}, type@BBBB */
     .extern $helper
     EXPORT_PC()
     addu   a0, rFP, OFF_FP_SHADOWFRAME     # a0 <- shadow frame
