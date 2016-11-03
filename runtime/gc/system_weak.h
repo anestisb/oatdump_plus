@@ -30,7 +30,8 @@ class AbstractSystemWeakHolder {
 
   virtual void Allow() REQUIRES_SHARED(Locks::mutator_lock_) = 0;
   virtual void Disallow() REQUIRES_SHARED(Locks::mutator_lock_) = 0;
-  virtual void Broadcast() REQUIRES_SHARED(Locks::mutator_lock_) = 0;
+  // See Runtime::BroadcastForNewSystemWeaks for the broadcast_for_checkpoint definition.
+  virtual void Broadcast(bool broadcast_for_checkpoint) = 0;
 
   virtual void Sweep(IsMarkedVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_) = 0;
 };
@@ -61,19 +62,22 @@ class SystemWeakHolder : public AbstractSystemWeakHolder {
     allow_new_system_weak_ = false;
   }
 
-  void Broadcast() OVERRIDE
-      REQUIRES_SHARED(Locks::mutator_lock_)
+  void Broadcast(bool broadcast_for_checkpoint ATTRIBUTE_UNUSED) OVERRIDE
       REQUIRES(!allow_disallow_lock_) {
-    CHECK(kUseReadBarrier);
     MutexLock mu(Thread::Current(), allow_disallow_lock_);
     new_weak_condition_.Broadcast(Thread::Current());
   }
 
  protected:
-  void Wait(Thread* self) REQUIRES_SHARED(allow_disallow_lock_) {
+  void Wait(Thread* self)
+      REQUIRES_SHARED(Locks::mutator_lock_)
+      REQUIRES(allow_disallow_lock_) {
     // Wait for GC's sweeping to complete and allow new records
     while (UNLIKELY((!kUseReadBarrier && !allow_new_system_weak_) ||
                     (kUseReadBarrier && !self->GetWeakRefAccessEnabled()))) {
+      // Check and run the empty checkpoint before blocking so the empty checkpoint will work in the
+      // presence of threads blocking for weak ref access.
+      self->CheckEmptyCheckpoint();
       new_weak_condition_.WaitHoldingLocks(self);
     }
   }

@@ -32,6 +32,7 @@
 #include "base/timing_logger.h"
 #include "debugger.h"
 #include "gc/collector/concurrent_copying.h"
+#include "gc/reference_processor.h"
 #include "jni_internal.h"
 #include "lock_word.h"
 #include "monitor.h"
@@ -68,7 +69,8 @@ ThreadList::ThreadList()
       debug_suspend_all_count_(0),
       unregistering_count_(0),
       suspend_all_historam_("suspend all histogram", 16, 64),
-      long_suspend_(false) {
+      long_suspend_(false),
+      empty_checkpoint_barrier_(new Barrier(0)) {
   CHECK(Monitor::IsValidLockWord(LockWord::FromThinLockId(kMaxThreadId, 1, 0U)));
 }
 
@@ -369,6 +371,43 @@ size_t ThreadList::RunCheckpoint(Closure* checkpoint_function, Closure* callback
     MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
     Thread::resume_cond_->Broadcast(self);
   }
+
+  return count;
+}
+
+size_t ThreadList::RunEmptyCheckpoint() {
+  Thread* self = Thread::Current();
+  Locks::mutator_lock_->AssertNotExclusiveHeld(self);
+  Locks::thread_list_lock_->AssertNotHeld(self);
+  Locks::thread_suspend_count_lock_->AssertNotHeld(self);
+
+  size_t count = 0;
+  {
+    MutexLock mu(self, *Locks::thread_list_lock_);
+    MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
+    for (Thread* thread : list_) {
+      if (thread != self) {
+        while (true) {
+          if (thread->RequestEmptyCheckpoint()) {
+            // This thread will run an empty checkpoint (decrement the empty checkpoint barrier)
+            // some time in the near future.
+            ++count;
+            break;
+          }
+          if (thread->GetState() != kRunnable) {
+            // It's seen suspended, we are done because it must not be in the middle of a mutator
+            // heap access.
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // Wake up the threads blocking for weak ref access so that they will respond to the empty
+  // checkpoint request. Otherwise we will hang as they are blocking in the kRunnable state.
+  Runtime::Current()->GetHeap()->GetReferenceProcessor()->BroadcastForSlowPath(self);
+  Runtime::Current()->BroadcastForNewSystemWeaks(/*broadcast_for_checkpoint*/true);
 
   return count;
 }

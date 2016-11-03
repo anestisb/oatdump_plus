@@ -4069,7 +4069,6 @@ void Heap::DisallowNewAllocationRecords() const {
 }
 
 void Heap::BroadcastForNewAllocationRecords() const {
-  CHECK(kUseReadBarrier);
   // Always broadcast without checking IsAllocTrackingEnabled() because IsAllocTrackingEnabled() may
   // be set to false while some threads are waiting for system weak access in
   // AllocRecordObjectMap::RecordAllocation() and we may fail to wake them up. b/27467554.

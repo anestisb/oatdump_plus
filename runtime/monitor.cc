@@ -1330,7 +1330,6 @@ void MonitorList::AllowNewMonitors() {
 }
 
 void MonitorList::BroadcastForNewMonitors() {
-  CHECK(kUseReadBarrier);
   Thread* self = Thread::Current();
   MutexLock mu(self, monitor_list_lock_);
   monitor_add_condition_.Broadcast(self);
@@ -1341,6 +1340,9 @@ void MonitorList::Add(Monitor* m) {
   MutexLock mu(self, monitor_list_lock_);
   while (UNLIKELY((!kUseReadBarrier && !allow_new_monitors_) ||
                   (kUseReadBarrier && !self->GetWeakRefAccessEnabled()))) {
+    // Check and run the empty checkpoint before blocking so the empty checkpoint will work in the
+    // presence of threads blocking for weak ref access.
+    self->CheckEmptyCheckpoint();
     monitor_add_condition_.WaitHoldingLocks(self);
   }
   list_.push_front(m);

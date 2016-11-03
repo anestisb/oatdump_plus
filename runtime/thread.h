@@ -105,7 +105,8 @@ enum ThreadFlag {
   kSuspendRequest   = 1,  // If set implies that suspend_count_ > 0 and the Thread should enter the
                           // safepoint handler.
   kCheckpointRequest = 2,  // Request that the thread do some checkpoint work and then continue.
-  kActiveSuspendBarrier = 4  // Register that at least 1 suspend barrier needs to be passed.
+  kEmptyCheckpointRequest = 4,  // Request that the thread do empty checkpoint and then continue.
+  kActiveSuspendBarrier = 8,  // Register that at least 1 suspend barrier needs to be passed.
 };
 
 enum class StackedShadowFrameType {
@@ -170,6 +171,9 @@ class Thread {
 
   // Process pending thread suspension request and handle if pending.
   void CheckSuspend() REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Process a pending empty checkpoint if pending.
+  void CheckEmptyCheckpoint() REQUIRES_SHARED(Locks::mutator_lock_);
 
   static Thread* FromManagedThread(const ScopedObjectAccessAlreadyRunnable& ts,
                                    mirror::Object* thread_peer)
@@ -239,6 +243,8 @@ class Thread {
       REQUIRES(Locks::thread_suspend_count_lock_);
   void RequestSynchronousCheckpoint(Closure* function)
       REQUIRES(!Locks::thread_suspend_count_lock_, !Locks::thread_list_lock_);
+  bool RequestEmptyCheckpoint()
+      REQUIRES(Locks::thread_suspend_count_lock_);
 
   void SetFlipFunction(Closure* function);
   Closure* GetFlipFunction();
@@ -1218,6 +1224,7 @@ class Thread {
       REQUIRES(Locks::thread_suspend_count_lock_);
 
   void RunCheckpointFunction();
+  void RunEmptyCheckpoint();
 
   bool PassActiveSuspendBarriers(Thread* self)
       REQUIRES(!Locks::thread_suspend_count_lock_);
