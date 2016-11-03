@@ -411,7 +411,7 @@ bool FindLockAliasedRegister(uint32_t src,
   }
 
   // Scan the map for the same value.
-  for (const std::pair<uint32_t, uint32_t>& pair : search_map) {
+  for (const std::pair<const uint32_t, uint32_t>& pair : search_map) {
     if (pair.first != src && pair.second == src_lock_levels) {
       return true;
     }
