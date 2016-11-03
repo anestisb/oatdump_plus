@@ -235,8 +235,6 @@ void Object::CheckFieldAssignmentImpl(MemberOffset field_offset, ObjPtr<Object> 
   }
   for (ObjPtr<Class> cur = c; cur != nullptr; cur = cur->GetSuperClass()) {
     for (ArtField& field : cur->GetIFields()) {
-      StackHandleScope<1> hs(Thread::Current());
-      Handle<Object> h_object(hs.NewHandle(new_value));
       if (field.GetOffset().Int32Value() == field_offset.Int32Value()) {
         CHECK_NE(field.GetTypeAsPrimitiveType(), Primitive::kPrimNot);
         // TODO: resolve the field type for moving GC.
