@@ -1,4 +1,4 @@
-    # const/string vAA, String             /* BBBB */
+    /* const/string vAA, string@BBBB */
     EXPORT_PC()
     FETCH(a0, 1)                        # a0 <- BBBB
     GET_OPA(a1)                         # a1 <- AA

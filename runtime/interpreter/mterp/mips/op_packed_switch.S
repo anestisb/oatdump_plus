@@ -12,8 +12,7 @@
     FETCH(a0, 1)                           #  a0 <- bbbb (lo)
     FETCH(a1, 2)                           #  a1 <- BBBB (hi)
     GET_OPA(a3)                            #  a3 <- AA
-    sll       t0, a1, 16
-    or        a0, a0, t0                   #  a0 <- BBBBbbbb
+    INSERT_HIGH_HALF(a0, a1)               #  a0 <- BBBBbbbb
     GET_VREG(a1, a3)                       #  a1 <- vAA
     EAS1(a0, rPC, a0)                      #  a0 <- PC + BBBBbbbb*2
     JAL($func)                             #  a0 <- code-unit branch offset

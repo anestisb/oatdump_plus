@@ -17,14 +17,11 @@
     # null array object?
     beqz      a0, common_errNullObject     #  yes, bail
     LOAD_base_offMirrorArray_length(a3, a0) #  a3 <- arrayObj->length
-    .if $shift
     EASN(a0, a0, a1, $shift)               #  a0 <- arrayObj + index*width
-    .else
-    addu      a0, a0, a1
-    .endif
     bgeu      a1, a3, common_errArrayIndex #  index >= length, bail
     FETCH_ADVANCE_INST(2)                  #  advance rPC, load rINST
     GET_VREG(a2, rOBJ)                     #  a2 <- vAA
     GET_INST_OPCODE(t0)                    #  extract opcode from rINST
+    GET_OPCODE_TARGET(t0)
     $store a2, $data_offset(a0)            #  vBB[vCC] <- a2
-    GOTO_OPCODE(t0)                        #  jump to next instruction
+    JR(t0)                                 #  jump to next instruction

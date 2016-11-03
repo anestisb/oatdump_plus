@@ -1,1 +1,1 @@
-%include "mips/op_cmpl_float.S" { "naninst":"li rTEMP, 1" }
+%include "mips/op_cmpl_float.S" { "gt_bias":"1" }

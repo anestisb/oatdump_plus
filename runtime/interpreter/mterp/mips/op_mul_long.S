@@ -39,5 +39,4 @@
 
 .L${opcode}_finish:
     GET_INST_OPCODE(t0)                    #  extract opcode from rINST
-    SET_VREG64(v0, v1, a0)                 #  vAA::vAA+1 <- v0(low) :: v1(high)
-    GOTO_OPCODE(t0)                        #  jump to next instruction
+    SET_VREG64_GOTO(v0, v1, a0, t0)        #  vAA/vAA+1 <- v0(low)/v1(high)

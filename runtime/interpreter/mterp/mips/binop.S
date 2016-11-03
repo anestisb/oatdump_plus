@@ -30,4 +30,3 @@
     $instr                                 #  $result <- op, a0-a3 changed
     GET_INST_OPCODE(t0)                    #  extract opcode from rINST
     SET_VREG_GOTO($result, rOBJ, t0)       #  vAA <- $result
-    /* 11-14 instructions */

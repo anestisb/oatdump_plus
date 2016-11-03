@@ -4,7 +4,7 @@
      * Most common situation is a non-null object, being compared against
      * an already-resolved class.
      */
-    # instance-of vA, vB, class            /* CCCC */
+    /* instance-of vA, vB, class@CCCC */
     EXPORT_PC()
     FETCH(a0, 1)                           # a0 <- CCCC
     GET_OPB(a1)                            # a1 <- B

@@ -1,58 +1,39 @@
-%include "mips/unopNarrower.S" {"instr":"b d2i_doconv"}
-/*
- * Convert the double in a0/a1 to an int in a0.
- *
- * We have to clip values to int min/max per the specification.  The
- * expected common case is a "reasonable" value that converts directly
- * to modest integer.  The EABI convert function isn't doing this for us.
- */
-%break
+    /*
+     * double-to-int
+     *
+     * We have to clip values to int min/max per the specification.  The
+     * expected common case is a "reasonable" value that converts directly
+     * to modest integer.  The EABI convert function isn't doing this for us.
+     */
+    /* unop vA, vB */
+    GET_OPB(a3)                            #  a3 <- B
+    GET_OPA4(rOBJ)                         #  rOBJ <- A+
+    EAS2(a3, rFP, a3)                      #  a3 <- &fp[B]
+    LOAD64_F(fa0, fa0f, a3)
+    FETCH_ADVANCE_INST(1)                  #  advance rPC, load rINST
 
-d2i_doconv:
+    li        t0, INT_MIN_AS_DOUBLE_HIGH
+    mtc1      zero, fa1
+    MOVE_TO_FPU_HIGH(t0, fa1, fa1f)
 #ifdef MIPS32REVGE6
-    la        t0, .LDOUBLE_TO_INT_max
-    LOAD64_F(fa1, fa1f, t0)
-    cmp.le.d  ft2, fa1, fa0
-    l.s       fv0, .LDOUBLE_TO_INT_maxret
-    bc1nez    ft2, .L${opcode}_set_vreg_f
-
-    la        t0, .LDOUBLE_TO_INT_min
-    LOAD64_F(fa1, fa1f, t0)
-    cmp.le.d  ft2, fa0, fa1
-    l.s       fv0, .LDOUBLE_TO_INT_minret
-    bc1nez    ft2, .L${opcode}_set_vreg_f
-
-    mov.d     fa1, fa0
-    cmp.un.d  ft2, fa0, fa1
-    li.s      fv0, 0
-    bc1nez    ft2, .L${opcode}_set_vreg_f
+    /*
+     * TODO: simplify this when the MIPS64R6 emulator
+     * supports NAN2008=1.
+     */
+    cmp.le.d  ft0, fa1, fa0
+    GET_INST_OPCODE(t1)                    #  extract opcode from rINST
+    bc1nez    ft0, 1f                      #  if INT_MIN <= vB, proceed to truncation
+    cmp.eq.d  ft0, fa0, fa0
+    selnez.d  fa0, fa1, ft0                #  fa0 = ordered(vB) ? INT_MIN_AS_DOUBLE : 0
 #else
-    la        t0, .LDOUBLE_TO_INT_max
-    LOAD64_F(fa1, fa1f, t0)
     c.ole.d   fcc0, fa1, fa0
-    l.s       fv0, .LDOUBLE_TO_INT_maxret
-    bc1t      .L${opcode}_set_vreg_f
-
-    la        t0, .LDOUBLE_TO_INT_min
-    LOAD64_F(fa1, fa1f, t0)
-    c.ole.d   fcc0, fa0, fa1
-    l.s       fv0, .LDOUBLE_TO_INT_minret
-    bc1t      .L${opcode}_set_vreg_f
-
-    mov.d     fa1, fa0
-    c.un.d    fcc0, fa0, fa1
-    li.s      fv0, 0
-    bc1t      .L${opcode}_set_vreg_f
+    GET_INST_OPCODE(t1)                    #  extract opcode from rINST
+    bc1t      fcc0, 1f                     #  if INT_MIN <= vB, proceed to truncation
+    c.eq.d    fcc0, fa0, fa0
+    mtc1      zero, fa0
+    MOVE_TO_FPU_HIGH(zero, fa0, fa0f)
+    movt.d    fa0, fa1, fcc0               #  fa0 = ordered(vB) ? INT_MIN_AS_DOUBLE : 0
 #endif
-
-    trunc.w.d  fv0, fa0
-    b         .L${opcode}_set_vreg_f
-
-.LDOUBLE_TO_INT_max:
-    .dword 0x41dfffffffc00000
-.LDOUBLE_TO_INT_min:
-    .dword 0xc1e0000000000000              #  minint, as a double (high word)
-.LDOUBLE_TO_INT_maxret:
-    .word 0x7fffffff
-.LDOUBLE_TO_INT_minret:
-    .word 0x80000000
+1:
+    trunc.w.d fa0, fa0
+    SET_VREG_F_GOTO(fa0, rOBJ, t1)         #  vA <- result

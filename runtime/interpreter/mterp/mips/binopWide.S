@@ -3,10 +3,10 @@
      * Generic 64-bit binary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = a0-a1 op a2-a3".
      * This could be a MIPS instruction or a function call.  (If the result
-     * comes back in a register other than a0, you can override "result".)
+     * comes back in a register pair other than a0-a1, you can override "result".)
      *
      * If "chkzero" is set to 1, we perform a divide-by-zero check on
-     * vCC (a1).  Useful for integer division and modulus.
+     * vCC (a2-a3).  Useful for integer division and modulus.
      *
      * for: add-long, sub-long, div-long, rem-long, and-long, or-long,
      *      xor-long
@@ -32,4 +32,3 @@
     $instr                                 #  result <- op, a0-a3 changed
     GET_INST_OPCODE(t0)                    #  extract opcode from rINST
     SET_VREG64_GOTO($result0, $result1, rOBJ, t0)   #  vAA/vAA+1 <- $result0/$result1
-    /* 14-17 instructions */
