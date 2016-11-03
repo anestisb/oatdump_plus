@@ -401,14 +401,11 @@ TEST_F(MonitorTest, TestTryLock) {
   Thread* const self = Thread::Current();
   ThreadPool thread_pool("the pool", 2);
   ScopedObjectAccess soa(self);
-  StackHandleScope<3> hs(self);
+  StackHandleScope<1> hs(self);
   Handle<mirror::Object> obj1(
-      hs.NewHandle<mirror::Object>(mirror::String::AllocFromModifiedUtf8(self, "hello, world!")));
-  Handle<mirror::Object> obj2(
       hs.NewHandle<mirror::Object>(mirror::String::AllocFromModifiedUtf8(self, "hello, world!")));
   {
     ObjectLock<mirror::Object> lock1(self, obj1);
-    ObjectLock<mirror::Object> lock2(self, obj1);
     {
       ObjectTryLock<mirror::Object> trylock(self, obj1);
       EXPECT_TRUE(trylock.Acquired());

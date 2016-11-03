@@ -42,13 +42,9 @@ class Handle : public ValueObject {
   Handle() : reference_(nullptr) {
   }
 
-  ALWAYS_INLINE Handle(const Handle<T>& handle) : reference_(handle.reference_) {
-  }
+  ALWAYS_INLINE Handle(const Handle<T>& handle) = default;
 
-  ALWAYS_INLINE Handle<T>& operator=(const Handle<T>& handle) {
-    reference_ = handle.reference_;
-    return *this;
-  }
+  ALWAYS_INLINE Handle<T>& operator=(const Handle<T>& handle) = default;
 
   ALWAYS_INLINE explicit Handle(StackReference<T>* reference) : reference_(reference) {
   }
@@ -109,15 +105,10 @@ class MutableHandle : public Handle<T> {
   }
 
   ALWAYS_INLINE MutableHandle(const MutableHandle<T>& handle)
-      REQUIRES_SHARED(Locks::mutator_lock_)
-      : Handle<T>(handle.reference_) {
-  }
+      REQUIRES_SHARED(Locks::mutator_lock_) = default;
 
   ALWAYS_INLINE MutableHandle<T>& operator=(const MutableHandle<T>& handle)
-      REQUIRES_SHARED(Locks::mutator_lock_) {
-    Handle<T>::operator=(handle);
-    return *this;
-  }
+      REQUIRES_SHARED(Locks::mutator_lock_) = default;
 
   ALWAYS_INLINE explicit MutableHandle(StackReference<T>* reference)
       REQUIRES_SHARED(Locks::mutator_lock_)
