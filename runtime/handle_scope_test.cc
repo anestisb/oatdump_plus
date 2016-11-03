@@ -14,14 +14,26 @@
  * limitations under the License.
  */
 
+#include <type_traits>
+
 #include "base/enums.h"
 #include "common_runtime_test.h"
 #include "gtest/gtest.h"
+#include "handle.h"
 #include "handle_scope-inl.h"
+#include "mirror/object.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread.h"
 
 namespace art {
+
+// Handles are value objects and should be trivially copyable.
+static_assert(std::is_trivially_copyable<Handle<mirror::Object>>::value,
+              "Handle should be trivially copyable");
+static_assert(std::is_trivially_copyable<MutableHandle<mirror::Object>>::value,
+              "MutableHandle should be trivially copyable");
+static_assert(std::is_trivially_copyable<ScopedNullHandle<mirror::Object>>::value,
+              "ScopedNullHandle should be trivially copyable");
 
 class HandleScopeTest : public CommonRuntimeTest {};
 
