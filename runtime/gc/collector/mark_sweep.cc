@@ -462,9 +462,9 @@ inline void MarkSweep::MarkObjectNonNull(mirror::Object* obj,
                                          mirror::Object* holder,
                                          MemberOffset offset) {
   DCHECK(obj != nullptr);
-  if (kUseBakerOrBrooksReadBarrier) {
-    // Verify all the objects have the correct pointer installed.
-    obj->AssertReadBarrierPointer();
+  if (kUseBakerReadBarrier) {
+    // Verify all the objects have the correct state installed.
+    obj->AssertReadBarrierState();
   }
   if (immune_spaces_.IsInImmuneRegion(obj)) {
     if (kCountMarkedObjects) {
@@ -503,9 +503,9 @@ inline void MarkSweep::PushOnMarkStack(mirror::Object* obj) {
 
 inline bool MarkSweep::MarkObjectParallel(mirror::Object* obj) {
   DCHECK(obj != nullptr);
-  if (kUseBakerOrBrooksReadBarrier) {
-    // Verify all the objects have the correct pointer installed.
-    obj->AssertReadBarrierPointer();
+  if (kUseBakerReadBarrier) {
+    // Verify all the objects have the correct state installed.
+    obj->AssertReadBarrierState();
   }
   if (immune_spaces_.IsInImmuneRegion(obj)) {
     DCHECK(IsMarked(obj) != nullptr);

@@ -7093,7 +7093,7 @@ void CodeGeneratorX86::GenerateReferenceLoadWithBakerReadBarrier(HInstruction* i
   //   uint32_t rb_state = Lockword(obj->monitor_).ReadBarrierState();
   //   lfence;  // Load fence or artificial data dependency to prevent load-load reordering
   //   HeapReference<Object> ref = *src;  // Original reference load.
-  //   bool is_gray = (rb_state == ReadBarrier::gray_ptr_);
+  //   bool is_gray = (rb_state == ReadBarrier::GrayState());
   //   if (is_gray) {
   //     ref = ReadBarrier::Mark(ref);  // Performed by runtime entrypoint slow path.
   //   }
@@ -7111,14 +7111,13 @@ void CodeGeneratorX86::GenerateReferenceLoadWithBakerReadBarrier(HInstruction* i
   uint32_t monitor_offset = mirror::Object::MonitorOffset().Int32Value();
 
   // Given the numeric representation, it's enough to check the low bit of the rb_state.
-  static_assert(ReadBarrier::white_ptr_ == 0, "Expecting white to have value 0");
-  static_assert(ReadBarrier::gray_ptr_ == 1, "Expecting gray to have value 1");
-  static_assert(ReadBarrier::black_ptr_ == 2, "Expecting black to have value 2");
+  static_assert(ReadBarrier::WhiteState() == 0, "Expecting white to have value 0");
+  static_assert(ReadBarrier::GrayState() == 1, "Expecting gray to have value 1");
   constexpr uint32_t gray_byte_position = LockWord::kReadBarrierStateShift / kBitsPerByte;
   constexpr uint32_t gray_bit_position = LockWord::kReadBarrierStateShift % kBitsPerByte;
   constexpr int32_t test_value = static_cast<int8_t>(1 << gray_bit_position);
 
-  // if (rb_state == ReadBarrier::gray_ptr_)
+  // if (rb_state == ReadBarrier::GrayState())
   //   ref = ReadBarrier::Mark(ref);
   // At this point, just do the "if" and make sure that flags are preserved until the branch.
   __ testb(Address(obj, monitor_offset + gray_byte_position), Immediate(test_value));

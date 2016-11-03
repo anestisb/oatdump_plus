@@ -40,14 +40,16 @@ inline MirrorType* ReadBarrier::Barrier(
       }
     }
     if (kUseBakerReadBarrier) {
-      // The higher bits of the rb_ptr, rb_ptr_high_bits (must be zero)
-      // is used to create artificial data dependency from the is_gray
-      // load to the ref field (ptr) load to avoid needing a load-load
-      // barrier between the two.
-      uintptr_t rb_ptr_high_bits;
-      bool is_gray = HasGrayReadBarrierPointer(obj, &rb_ptr_high_bits);
+      // fake_address_dependency (must be zero) is used to create artificial data dependency from
+      // the is_gray load to the ref field (ptr) load to avoid needing a load-load barrier between
+      // the two.
+      uintptr_t fake_address_dependency;
+      bool is_gray = IsGray(obj, &fake_address_dependency);
+      if (kEnableReadBarrierInvariantChecks) {
+        CHECK_EQ(fake_address_dependency, 0U) << obj << " rb_state=" << obj->GetReadBarrierState();
+      }
       ref_addr = reinterpret_cast<mirror::HeapReference<MirrorType>*>(
-          rb_ptr_high_bits | reinterpret_cast<uintptr_t>(ref_addr));
+          fake_address_dependency | reinterpret_cast<uintptr_t>(ref_addr));
       MirrorType* ref = ref_addr->AsMirrorPtr();
       MirrorType* old_ref = ref;
       if (is_gray) {
@@ -59,9 +61,6 @@ inline MirrorType* ReadBarrier::Barrier(
           obj->CasFieldStrongRelaxedObjectWithoutWriteBarrier<false, false>(
               offset, old_ref, ref);
         }
-      }
-      if (kEnableReadBarrierInvariantChecks) {
-        CHECK_EQ(rb_ptr_high_bits, 0U) << obj << " rb_ptr=" << obj->GetReadBarrierPointer();
       }
       AssertToSpaceInvariant(obj, offset, ref);
       return ref;
@@ -223,20 +222,14 @@ inline mirror::Object* ReadBarrier::Mark(mirror::Object* obj) {
   return Runtime::Current()->GetHeap()->ConcurrentCopyingCollector()->MarkFromReadBarrier(obj);
 }
 
-inline bool ReadBarrier::HasGrayReadBarrierPointer(mirror::Object* obj,
-                                                   uintptr_t* out_rb_ptr_high_bits) {
-  mirror::Object* rb_ptr = obj->GetReadBarrierPointer();
-  uintptr_t rb_ptr_bits = reinterpret_cast<uintptr_t>(rb_ptr);
-  uintptr_t rb_ptr_low_bits = rb_ptr_bits & rb_ptr_mask_;
-  if (kEnableReadBarrierInvariantChecks) {
-    CHECK(rb_ptr_low_bits == white_ptr_ || rb_ptr_low_bits == gray_ptr_ ||
-          rb_ptr_low_bits == black_ptr_)
-        << "obj=" << obj << " rb_ptr=" << rb_ptr << " " << obj->PrettyTypeOf();
-  }
-  bool is_gray = rb_ptr_low_bits == gray_ptr_;
-  // The high bits are supposed to be zero. We check this on the caller side.
-  *out_rb_ptr_high_bits = rb_ptr_bits & ~rb_ptr_mask_;
-  return is_gray;
+inline bool ReadBarrier::IsGray(mirror::Object* obj, uintptr_t* fake_address_dependency) {
+  return obj->GetReadBarrierState(fake_address_dependency) == gray_state_;
+}
+
+inline bool ReadBarrier::IsGray(mirror::Object* obj) {
+  // Use a load-acquire to load the read barrier bit to avoid reordering with the subsequent load.
+  // GetReadBarrierStateAcquire() has load-acquire semantics.
+  return obj->GetReadBarrierStateAcquire() == gray_state_;
 }
 
 }  // namespace art

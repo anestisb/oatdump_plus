@@ -43,11 +43,8 @@ extern "C" mirror::Object* artAllocObjectFromCode ##suffix##suffix2( \
         obj = self->AllocTlab(byte_count); \
         DCHECK(obj != nullptr) << "AllocTlab can't fail"; \
         obj->SetClass(klass); \
-        if (kUseBakerOrBrooksReadBarrier) { \
-          if (kUseBrooksReadBarrier) { \
-            obj->SetReadBarrierPointer(obj); \
-          } \
-          obj->AssertReadBarrierPointer(); \
+        if (kUseBakerReadBarrier) { \
+          obj->AssertReadBarrierState(); \
         } \
         QuasiAtomic::ThreadFenceForConstructor(); \
         return obj; \
@@ -69,11 +66,8 @@ extern "C" mirror::Object* artAllocObjectFromCodeResolved##suffix##suffix2( \
         obj = self->AllocTlab(byte_count); \
         DCHECK(obj != nullptr) << "AllocTlab can't fail"; \
         obj->SetClass(klass); \
-        if (kUseBakerOrBrooksReadBarrier) { \
-          if (kUseBrooksReadBarrier) { \
-            obj->SetReadBarrierPointer(obj); \
-          } \
-          obj->AssertReadBarrierPointer(); \
+        if (kUseBakerReadBarrier) { \
+          obj->AssertReadBarrierState(); \
         } \
         QuasiAtomic::ThreadFenceForConstructor(); \
         return obj; \
@@ -94,11 +88,8 @@ extern "C" mirror::Object* artAllocObjectFromCodeInitialized##suffix##suffix2( \
       obj = self->AllocTlab(byte_count); \
       DCHECK(obj != nullptr) << "AllocTlab can't fail"; \
       obj->SetClass(klass); \
-      if (kUseBakerOrBrooksReadBarrier) { \
-        if (kUseBrooksReadBarrier) { \
-          obj->SetReadBarrierPointer(obj); \
-        } \
-        obj->AssertReadBarrierPointer(); \
+      if (kUseBakerReadBarrier) { \
+        obj->AssertReadBarrierState(); \
       } \
       QuasiAtomic::ThreadFenceForConstructor(); \
       return obj; \
