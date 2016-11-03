@@ -64,7 +64,6 @@ static inline bool GetPrimitiveType(ObjPtr<mirror::Class> dst_class, Primitive::
   }
 }
 
-REQUIRES_SHARED(Locks::mutator_lock_)
 inline bool ConvertJValue(Handle<mirror::Class> from,
                           Handle<mirror::Class> to,
                           const JValue& from_value,
@@ -103,15 +102,21 @@ inline bool ConvertJValue(Handle<mirror::Class> from,
       // First perform a primitive conversion to the unboxed equivalent of the target,
       // if necessary. This should be for the rarer cases like (int->Long) etc.
       if (UNLIKELY(from_type != type)) {
-         if (!ConvertPrimitiveValue(false, from_type, type, from_value, to_value)) {
-           return false;
-         }
+        if (!ConvertPrimitiveValue(false, from_type, type, from_value, to_value)) {
+          return false;
+        }
       } else {
         *to_value = from_value;
       }
 
-      // Then perform the actual boxing, and then set the reference.
+      // Then perform the actual boxing, and then set the reference. Note that
+      // BoxPrimitive can return null if an OOM occurs.
       ObjPtr<mirror::Object> boxed = BoxPrimitive(type, from_value);
+      if (boxed.Ptr() == nullptr) {
+        DCHECK(Thread::Current()->IsExceptionPending());
+        return false;
+      }
+
       to_value->SetL(boxed.Ptr());
       return true;
     } else {
@@ -156,8 +161,6 @@ bool PerformConversions(Thread* self,
       } else {
         setter->Set(getter->Get());
       }
-
-      continue;
     } else {
       JValue from_value;
       JValue to_value;
