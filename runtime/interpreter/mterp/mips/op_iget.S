@@ -4,6 +4,7 @@
      *
      * for: iget, iget-object, iget-boolean, iget-byte, iget-char, iget-short
      */
+    /* op vA, vB, field@CCCC */
     EXPORT_PC()
     FETCH(a0, 1)                           # a0 <- field ref CCCC
     GET_OPB(a1)                            # a1 <- B
@@ -15,11 +16,10 @@
     GET_OPA4(a2)                           # a2<- A+
     PREFETCH_INST(2)                       # load rINST
     bnez  a3, MterpPossibleException        # bail out
-    .if $is_object
-    SET_VREG_OBJECT(v0, a2)                # fp[A] <- v0
-    .else
-    SET_VREG(v0, a2)                       # fp[A] <- v0
-    .endif
     ADVANCE(2)                             #  advance rPC
     GET_INST_OPCODE(t0)                    #  extract opcode from rINST
-    GOTO_OPCODE(t0)                        #  jump to next instruction
+    .if $is_object
+    SET_VREG_OBJECT_GOTO(v0, a2, t0)       # fp[A] <- v0
+    .else
+    SET_VREG_GOTO(v0, a2, t0)              # fp[A] <- v0
+    .endif

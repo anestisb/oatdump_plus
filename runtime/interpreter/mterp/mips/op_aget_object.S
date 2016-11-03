@@ -14,7 +14,6 @@
     lw   a1, THREAD_EXCEPTION_OFFSET(rSELF)
     PREFETCH_INST(2)                       #  load rINST
     bnez a1, MterpException
-    SET_VREG_OBJECT(v0, rOBJ)              #  vAA <- v0
     ADVANCE(2)                             #  advance rPC
     GET_INST_OPCODE(t0)                    #  extract opcode from rINST
-    GOTO_OPCODE(t0)                        #  jump to next instruction
+    SET_VREG_OBJECT_GOTO(v0, rOBJ, t0)     #  vAA <- v0

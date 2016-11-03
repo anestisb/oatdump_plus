@@ -1,1 +1,1 @@
-%include "mips/unop.S" {"preinstr":"sll a0, 16", "instr":"sra a0, 16"}
+%include "mips/unop.S" {"instr":"SEH(a0, a0)"}

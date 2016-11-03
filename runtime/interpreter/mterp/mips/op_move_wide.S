@@ -5,6 +5,5 @@
     EAS2(a3, rFP, a3)                      #  a3 <- &fp[B]
     LOAD64(a0, a1, a3)                     #  a0/a1 <- fp[B]
     FETCH_ADVANCE_INST(1)                  #  advance rPC, load rINST
-    SET_VREG64(a0, a1, a2)                 #  fp[A] <- a0/a1
     GET_INST_OPCODE(t0)                    #  extract opcode from rINST
-    GOTO_OPCODE(t0)                        #  jump to next instruction
+    SET_VREG64_GOTO(a0, a1, a2, t0)        #  fp[A] <- a0/a1

@@ -4,7 +4,7 @@
      *
      * for: iput, iput-boolean, iput-byte, iput-char, iput-short
      */
-    # op vA, vB, field                     /* CCCC */
+    /* op vA, vB, field@CCCC */
     .extern $handler
     EXPORT_PC()
     FETCH(a0, 1)                           # a0 <- field ref CCCC
