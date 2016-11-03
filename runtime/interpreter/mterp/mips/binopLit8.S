@@ -12,7 +12,7 @@
      *      rem-int/lit8, and-int/lit8, or-int/lit8, xor-int/lit8,
      *      shl-int/lit8, shr-int/lit8, ushr-int/lit8
      */
-    # binop/lit8 vAA, vBB,                 /* +CC */
+    /* binop/lit8 vAA, vBB, +CC */
     FETCH_S(a3, 1)                         #  a3 <- ssssCCBB (sign-extended for CC)
     GET_OPA(rOBJ)                          #  rOBJ <- AA
     and       a2, a3, 255                  #  a2 <- BB
@@ -28,4 +28,3 @@
     $instr                                 #  $result <- op, a0-a3 changed
     GET_INST_OPCODE(t0)                    #  extract opcode from rINST
     SET_VREG_GOTO($result, rOBJ, t0)       #  vAA <- $result
-    /* 10-12 instructions */

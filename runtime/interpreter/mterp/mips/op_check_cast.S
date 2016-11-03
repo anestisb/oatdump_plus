@@ -1,7 +1,7 @@
     /*
      * Check to see if a cast from one class to another is allowed.
      */
-    # check-cast vAA, class                /* BBBB */
+    /* check-cast vAA, class@BBBB */
     EXPORT_PC()
     FETCH(a0, 1)                           #  a0 <- BBBB
     GET_OPA(a1)                            #  a1 <- AA

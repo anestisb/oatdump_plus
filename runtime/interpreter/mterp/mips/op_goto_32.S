@@ -8,8 +8,7 @@
      * our "backward branch" test must be "<=0" instead of "<0".
      */
     /* goto/32 +AAAAAAAA */
-    FETCH(a0, 1)                           #  a0 <- aaaa (lo)
+    FETCH(rINST, 1)                        #  rINST <- aaaa (lo)
     FETCH(a1, 2)                           #  a1 <- AAAA (hi)
-    sll       a1, a1, 16
-    or        rINST, a0, a1                #  rINST <- AAAAaaaa
+    INSERT_HIGH_HALF(rINST, a1)            #  rINST <- AAAAaaaa
     b         MterpCommonTakenBranchNoFlags

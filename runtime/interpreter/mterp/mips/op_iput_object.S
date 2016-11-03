@@ -3,7 +3,7 @@
      *
      * for: iput-object, iput-object-volatile
      */
-    # op vA, vB, field                     /* CCCC */
+    /* op vA, vB, field@CCCC */
     EXPORT_PC()
     addu   a0, rFP, OFF_FP_SHADOWFRAME
     move   a1, rPC
