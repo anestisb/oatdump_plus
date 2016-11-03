@@ -35,10 +35,10 @@ public class Main {
   // where TryBoundary still has exception handler successors after having removed
   // some already.
 
-  /// CHECK-START: void Main.testDeadTryCatch(boolean) dead_code_elimination$final (after)
+  /// CHECK-START: void Main.testDeadTryCatch(boolean) dead_code_elimination$after_inlining (after)
   /// CHECK-NOT: TryBoundary
 
-  /// CHECK-START: void Main.testDeadTryCatch(boolean) dead_code_elimination$final (after)
+  /// CHECK-START: void Main.testDeadTryCatch(boolean) dead_code_elimination$after_inlining (after)
   /// CHECK: begin_block
   /// CHECK: begin_block
   /// CHECK: begin_block
