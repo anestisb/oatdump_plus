@@ -1855,6 +1855,15 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
   size_t InputCount() const { return GetInputRecords().size(); }
   HInstruction* InputAt(size_t i) const { return InputRecordAt(i).GetInstruction(); }
 
+  bool HasInput(HInstruction* input) const {
+    for (const HInstruction* i : GetInputs()) {
+      if (i == input) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   void SetRawInputAt(size_t index, HInstruction* input) {
     SetRawInputRecordAt(index, HUserRecord<HInstruction*>(input));
   }
