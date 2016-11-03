@@ -199,8 +199,6 @@ TEST_F(ProxyTest, CheckArtMirrorFieldsOfProxyStaticFields) {
   ScopedObjectAccess soa(Thread::Current());
   jobject jclass_loader = LoadDex("Interfaces");
   StackHandleScope<7> hs(soa.Self());
-  Handle<mirror::ClassLoader> class_loader(
-      hs.NewHandle(soa.Decode<mirror::ClassLoader>(jclass_loader)));
 
   Handle<mirror::Class> proxyClass0;
   Handle<mirror::Class> proxyClass1;
