@@ -115,18 +115,18 @@ class ManagedRegisterEntrySpills : public std::vector<ManagedRegisterSpill> {
  public:
   // The ManagedRegister does not have information about size and offset.
   // In this case it's size and offset determined by BuildFrame (assembler)
-  void push_back(ManagedRegister __x) {
-    ManagedRegisterSpill spill(__x);
+  void push_back(ManagedRegister x) {
+    ManagedRegisterSpill spill(x);
     std::vector<ManagedRegisterSpill>::push_back(spill);
   }
 
-  void push_back(ManagedRegister __x, int32_t __size) {
-    ManagedRegisterSpill spill(__x, __size);
+  void push_back(ManagedRegister x, int32_t size) {
+    ManagedRegisterSpill spill(x, size);
     std::vector<ManagedRegisterSpill>::push_back(spill);
   }
 
-  void push_back(ManagedRegisterSpill __x) {
-    std::vector<ManagedRegisterSpill>::push_back(__x);
+  void push_back(ManagedRegisterSpill x) {
+    std::vector<ManagedRegisterSpill>::push_back(x);
   }
  private:
 };
