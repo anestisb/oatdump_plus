@@ -318,7 +318,7 @@ class MethodVerifier {
   void PrependToLastFailMessage(std::string);
 
   // Adds the given string to the end of the last failure message.
-  void AppendToLastFailMessage(std::string);
+  void AppendToLastFailMessage(const std::string& append);
 
   // Verification result for method(s). Includes a (maximum) failure kind, and (the union of)
   // all failure types.
