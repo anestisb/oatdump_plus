@@ -61,7 +61,7 @@ class Monitor;
  */
 class LockWord {
  public:
-  enum SizeShiftsAndMasks {  // private marker to avoid generate-operator-out.py from processing.
+  enum SizeShiftsAndMasks : uint32_t {  // private marker to avoid generate-operator-out.py from processing.
     // Number of bits to encode the state, currently just fat or thin/unlocked or hash code.
     kStateSize = 2,
     kReadBarrierStateSize = 1,
@@ -91,6 +91,8 @@ class LockWord {
     kStateFat = 1,
     kStateHash = 2,
     kStateForwardingAddress = 3,
+    kStateForwardingAddressShifted = kStateForwardingAddress << kStateShift,
+    kStateForwardingAddressOverflow = (1 + kStateMask - kStateForwardingAddress) << kStateShift,
 
     // Read barrier bit.
     kReadBarrierStateShift = kThinLockCountSize + kThinLockCountShift,
@@ -140,7 +142,7 @@ class LockWord {
 
   static LockWord FromForwardingAddress(size_t target) {
     DCHECK_ALIGNED(target, (1 << kStateSize));
-    return LockWord((target >> kForwardingAddressShift) | (kStateForwardingAddress << kStateShift));
+    return LockWord((target >> kForwardingAddressShift) | kStateForwardingAddressShifted);
   }
 
   static LockWord FromHashCode(uint32_t hash_code, uint32_t gc_state) {
@@ -258,6 +260,11 @@ class LockWord {
   LockWord();
 
   explicit LockWord(uint32_t val) : value_(val) {
+    // Make sure adding the overflow causes an overflow.
+    constexpr uint64_t overflow = static_cast<uint64_t>(kStateForwardingAddressShifted) +
+        static_cast<uint64_t>(kStateForwardingAddressOverflow);
+    constexpr bool is_larger = overflow > static_cast<uint64_t>(0xFFFFFFFF);
+    static_assert(is_larger, "should have overflowed");
     CheckReadBarrierState();
   }
 

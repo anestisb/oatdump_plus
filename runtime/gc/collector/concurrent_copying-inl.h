@@ -151,7 +151,7 @@ inline mirror::Object* ConcurrentCopying::MarkFromReadBarrier(mirror::Object* fr
   mirror::Object* ret;
   // TODO: Delete GetMarkBit check when all of the callers properly check the bit. Remaining caller
   // is array allocations.
-  if (from_ref == nullptr || from_ref->GetMarkBit()) {
+  if (from_ref == nullptr) {
     return from_ref;
   }
   // TODO: Consider removing this check when we are done investigating slow paths. b/30162165
