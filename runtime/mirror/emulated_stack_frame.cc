@@ -173,13 +173,22 @@ mirror::EmulatedStackFrame* EmulatedStackFrame::CreateFromShadowFrameAndArgs(
 
   Handle<mirror::ObjectArray<mirror::Object>> references(hs.NewHandle(
       mirror::ObjectArray<mirror::Object>::Alloc(self, array_class, refs_size)));
+  if (references.Get() == nullptr) {
+    DCHECK(self->IsExceptionPending());
+    return nullptr;
+  }
+
   Handle<ByteArray> stack_frame(hs.NewHandle(ByteArray::Alloc(self, frame_size)));
+  if (stack_frame.Get() == nullptr) {
+    DCHECK(self->IsExceptionPending());
+    return nullptr;
+  }
 
   // Step 4 : Perform argument conversions (if required).
   ShadowFrameGetter<is_range> getter(first_src_reg, arg, caller_frame);
   EmulatedStackFrameAccessor setter(references, stack_frame, stack_frame->GetLength());
   if (!PerformConversions<ShadowFrameGetter<is_range>, EmulatedStackFrameAccessor>(
-      self, from_types, to_types, &getter, &setter, num_method_params)) {
+          self, from_types, to_types, &getter, &setter, num_method_params)) {
     return nullptr;
   }
 
