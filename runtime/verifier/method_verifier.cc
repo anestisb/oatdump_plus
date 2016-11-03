@@ -956,7 +956,7 @@ void MethodVerifier::PrependToLastFailMessage(std::string prepend) {
   delete last_fail_message;
 }
 
-void MethodVerifier::AppendToLastFailMessage(std::string append) {
+void MethodVerifier::AppendToLastFailMessage(const std::string& append) {
   size_t failure_num = failure_messages_.size();
   DCHECK_NE(failure_num, 0U);
   std::ostringstream* last_fail_message = failure_messages_[failure_num - 1];
