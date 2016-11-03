@@ -82,26 +82,32 @@ class ReadBarrier {
   // ALWAYS_INLINE on this caused a performance regression b/26744236.
   static mirror::Object* Mark(mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  static mirror::Object* WhitePtr() {
-    return reinterpret_cast<mirror::Object*>(white_ptr_);
+  static constexpr uint32_t WhiteState() {
+    return white_state_;
   }
-  static mirror::Object* GrayPtr() {
-    return reinterpret_cast<mirror::Object*>(gray_ptr_);
-  }
-  static mirror::Object* BlackPtr() {
-    return reinterpret_cast<mirror::Object*>(black_ptr_);
+  static constexpr uint32_t GrayState() {
+    return gray_state_;
   }
 
-  ALWAYS_INLINE static bool HasGrayReadBarrierPointer(mirror::Object* obj,
-                                                      uintptr_t* out_rb_ptr_high_bits)
+  // fake_address_dependency will be zero which should be bitwise-or'ed with the address of the
+  // subsequent load to prevent the reordering of the read barrier bit load and the subsequent
+  // object reference load (from one of `obj`'s fields).
+  // *fake_address_dependency will be set to 0.
+  ALWAYS_INLINE static bool IsGray(mirror::Object* obj, uintptr_t* fake_address_dependency)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Note: These couldn't be constexpr pointers as reinterpret_cast isn't compatible with them.
-  static constexpr uintptr_t white_ptr_ = 0x0;    // Not marked.
-  static constexpr uintptr_t gray_ptr_ = 0x1;     // Marked, but not marked through. On mark stack.
-  // TODO: black_ptr_ is unused, we should remove it.
-  static constexpr uintptr_t black_ptr_ = 0x2;    // Marked through. Used for non-moving objects.
-  static constexpr uintptr_t rb_ptr_mask_ = 0x1;  // The low bits for white|gray.
+  // This uses a load-acquire to load the read barrier bit internally to prevent the reordering of
+  // the read barrier bit load and the subsequent load.
+  ALWAYS_INLINE static bool IsGray(mirror::Object* obj)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  static bool IsValidReadBarrierState(uint32_t rb_state) {
+    return rb_state == white_state_ || rb_state == gray_state_;
+  }
+
+  static constexpr uint32_t white_state_ = 0x0;    // Not marked.
+  static constexpr uint32_t gray_state_ = 0x1;     // Marked, but not marked through. On mark stack.
+  static constexpr uint32_t rb_state_mask_ = 0x1;  // The low bits for white|gray.
 };
 
 }  // namespace art

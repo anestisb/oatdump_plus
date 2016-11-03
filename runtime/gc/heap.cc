@@ -2406,13 +2406,9 @@ class ZygoteCompactingCollector FINAL : public collector::SemiSpace {
     }
     // Copy the object over to its new location. Don't use alloc_size to avoid valgrind error.
     memcpy(reinterpret_cast<void*>(forward_address), obj, obj_size);
-    if (kUseBakerOrBrooksReadBarrier) {
-      obj->AssertReadBarrierPointer();
-      if (kUseBrooksReadBarrier) {
-        DCHECK_EQ(forward_address->GetReadBarrierPointer(), obj);
-        forward_address->SetReadBarrierPointer(forward_address);
-      }
-      forward_address->AssertReadBarrierPointer();
+    if (kUseBakerReadBarrier) {
+      obj->AssertReadBarrierState();
+      forward_address->AssertReadBarrierState();
     }
     return forward_address;
   }
