@@ -663,26 +663,58 @@ class LSEVisitor : public HGraphVisitor {
     if (predecessors.size() == 0) {
       return;
     }
+
     ArenaVector<HInstruction*>& heap_values = heap_values_for_[block->GetBlockId()];
     for (size_t i = 0; i < heap_values.size(); i++) {
-      HInstruction* pred0_value = heap_values_for_[predecessors[0]->GetBlockId()][i];
-      heap_values[i] = pred0_value;
-      if (pred0_value != kUnknownHeapValue) {
-        for (size_t j = 1; j < predecessors.size(); j++) {
-          HInstruction* pred_value = heap_values_for_[predecessors[j]->GetBlockId()][i];
-          if (pred_value != pred0_value) {
-            heap_values[i] = kUnknownHeapValue;
-            break;
-          }
+      HInstruction* merged_value = nullptr;
+      // Whether merged_value is a result that's merged from all predecessors.
+      bool from_all_predecessors = true;
+      ReferenceInfo* ref_info = heap_location_collector_.GetHeapLocation(i)->GetReferenceInfo();
+      HInstruction* singleton_ref = nullptr;
+      if (ref_info->IsSingletonAndNotReturned()) {
+        // We do more analysis of liveness when merging heap values for such
+        // cases since stores into such references may potentially be eliminated.
+        singleton_ref = ref_info->GetReference();
+      }
+
+      for (HBasicBlock* predecessor : predecessors) {
+        HInstruction* pred_value = heap_values_for_[predecessor->GetBlockId()][i];
+        if ((singleton_ref != nullptr) &&
+            !singleton_ref->GetBlock()->Dominates(predecessor)) {
+          // singleton_ref is not live in this predecessor. Skip this predecessor since
+          // it does not really have the location.
+          DCHECK_EQ(pred_value, kUnknownHeapValue);
+          from_all_predecessors = false;
+          continue;
+        }
+        if (merged_value == nullptr) {
+          // First seen heap value.
+          merged_value = pred_value;
+        } else if (pred_value != merged_value) {
+          // There are conflicting values.
+          merged_value = kUnknownHeapValue;
+          break;
         }
       }
 
-      if (heap_values[i] == kUnknownHeapValue) {
+      if (merged_value == kUnknownHeapValue) {
+        // There are conflicting heap values from different predecessors.
         // Keep the last store in each predecessor since future loads cannot be eliminated.
-        for (size_t j = 0; j < predecessors.size(); j++) {
-          ArenaVector<HInstruction*>& pred_values = heap_values_for_[predecessors[j]->GetBlockId()];
+        for (HBasicBlock* predecessor : predecessors) {
+          ArenaVector<HInstruction*>& pred_values = heap_values_for_[predecessor->GetBlockId()];
           KeepIfIsStore(pred_values[i]);
         }
+      }
+
+      if ((merged_value == nullptr) || !from_all_predecessors) {
+        DCHECK(singleton_ref != nullptr);
+        DCHECK((singleton_ref->GetBlock() == block) ||
+               !singleton_ref->GetBlock()->Dominates(block));
+        // singleton_ref is not defined before block or defined only in some of its
+        // predecessors, so block doesn't really have the location at its entry.
+        heap_values[i] = kUnknownHeapValue;
+      } else {
+        heap_values[i] = merged_value;
       }
     }
   }
