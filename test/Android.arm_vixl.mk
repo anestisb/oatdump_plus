@@ -22,7 +22,6 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   004-JniTest \
   004-NativeAllocations \
   004-ThreadStress \
-  004-UnsafeTest \
   004-checker-UnsafeTest18 \
   005-annotations \
   009-instanceof \
@@ -208,6 +207,7 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   570-checker-osr \
   570-checker-select \
   573-checker-checkcast-regression \
+  574-irreducible-and-constant-area \
   575-checker-string-init-alias \
   580-checker-round \
   584-checker-div-bool \
