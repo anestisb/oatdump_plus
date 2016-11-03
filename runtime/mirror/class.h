@@ -1133,6 +1133,12 @@ class MANAGED Class FINAL : public Object {
 
   ClassExt* GetExtData() REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // Returns the ExtData for this class, allocating one if necessary. This should be the only way
+  // to force ext_data_ to be set. No functions are available for changing an already set ext_data_
+  // since doing so is not allowed.
+  ClassExt* EnsureExtDataPresent(Thread* self)
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
+
   uint16_t GetDexClassDefIndex() REQUIRES_SHARED(Locks::mutator_lock_) {
     return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, dex_class_def_idx_));
   }
@@ -1319,9 +1325,6 @@ class MANAGED Class FINAL : public Object {
  private:
   ALWAYS_INLINE void SetMethodsPtrInternal(LengthPrefixedArray<ArtMethod>* new_methods)
       REQUIRES_SHARED(Locks::mutator_lock_);
-
-  // Set the extData field. This should be done while the 'this' is locked to prevent races.
-  void SetExtData(ObjPtr<ClassExt> ext) REQUIRES_SHARED(Locks::mutator_lock_);
 
   template <bool throw_on_failure, bool use_referrers_cache>
   bool ResolvedFieldAccessTest(ObjPtr<Class> access_to,
