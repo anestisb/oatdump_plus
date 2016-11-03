@@ -5062,6 +5062,15 @@ void InstructionCodeGeneratorARMVIXL::GenerateGcRootFieldLoad(
   }
 }
 
+void CodeGeneratorARMVIXL::GenerateReadBarrierSlow(HInstruction* instruction ATTRIBUTE_UNUSED,
+                                                   Location out ATTRIBUTE_UNUSED,
+                                                   Location ref ATTRIBUTE_UNUSED,
+                                                   Location obj ATTRIBUTE_UNUSED,
+                                                   uint32_t offset ATTRIBUTE_UNUSED,
+                                                   Location index ATTRIBUTE_UNUSED) {
+  TODO_VIXL32(FATAL);
+}
+
 void CodeGeneratorARMVIXL::MaybeGenerateReadBarrierSlow(HInstruction* instruction ATTRIBUTE_UNUSED,
                                                         Location out,
                                                         Location ref ATTRIBUTE_UNUSED,
