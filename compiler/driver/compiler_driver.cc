@@ -1522,7 +1522,7 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(const mirror::Class* referrer
 
   if (!use_dex_cache) {
     bool method_in_image = false;
-    const std::vector<gc::space::ImageSpace*> image_spaces = heap->GetBootImageSpaces();
+    const std::vector<gc::space::ImageSpace*>& image_spaces = heap->GetBootImageSpaces();
     for (gc::space::ImageSpace* image_space : image_spaces) {
       const auto& method_section = image_space->GetImageHeader().GetMethodsSection();
       if (method_section.Contains(reinterpret_cast<uint8_t*>(method) - image_space->Begin())) {
