@@ -377,7 +377,7 @@ static void GetDexFilesFromDexElementsArray(
   }
 }
 
-static bool AreSharedLibrariesOk(const std::string shared_libraries,
+static bool AreSharedLibrariesOk(const std::string& shared_libraries,
                                  std::priority_queue<DexFileAndClassPair>& queue) {
   if (shared_libraries.empty()) {
     if (queue.empty()) {
