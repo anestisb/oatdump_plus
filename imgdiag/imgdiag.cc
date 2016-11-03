@@ -516,8 +516,8 @@ class ImgDiagDumper {
 
       // Sanity check that we are reading a real object
       CHECK(obj->GetClass() != nullptr) << "Image object at address " << obj << " has null class";
-      if (kUseBakerOrBrooksReadBarrier) {
-        obj->AssertReadBarrierPointer();
+      if (kUseBakerReadBarrier) {
+        obj->AssertReadBarrierState();
       }
 
       // Iterate every page this object belongs to

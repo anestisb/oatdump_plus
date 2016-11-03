@@ -108,13 +108,10 @@ class SpaceTest : public Super {
     EXPECT_GE(size, SizeOfZeroLengthByteArray());
     EXPECT_TRUE(byte_array_class != nullptr);
     o->SetClass(byte_array_class);
-    if (kUseBakerOrBrooksReadBarrier) {
+    if (kUseBakerReadBarrier) {
       // Like the proper heap object allocation, install and verify
-      // the correct read barrier pointer.
-      if (kUseBrooksReadBarrier) {
-        o->SetReadBarrierPointer(o);
-      }
-      o->AssertReadBarrierPointer();
+      // the correct read barrier state.
+      o->AssertReadBarrierState();
     }
     mirror::Array* arr = o->AsArray<kVerifyNone>();
     size_t header_size = SizeOfZeroLengthByteArray();
