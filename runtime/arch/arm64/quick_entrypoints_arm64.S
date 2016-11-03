@@ -2539,10 +2539,17 @@ ENTRY \name
      */
     // Use wIP0 as temp and check the mark bit of the reference. wIP0 is not used by the compiler.
     ldr   wIP0, [\xreg, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
-    tbz   wIP0, #LOCK_WORD_MARK_BIT_SHIFT, .Lslow_rb_\name
+    tbz   wIP0, #LOCK_WORD_MARK_BIT_SHIFT, .Lnot_marked_rb_\name
 .Lret_rb_\name:
     ret
+.Lnot_marked_rb_\name:
+    // Check if the top two bits are one, if this is the case it is a forwarding address.
+    mvn wIP0, wIP0
+    cmp wzr, wIP0, lsr #30
+    beq .Lret_forwarding_address\name
 .Lslow_rb_\name:
+    // We must not clobber IP0 since art_quick_resolve_string makes a tail call here and relies on
+    // IP0 being restored.
     // Save all potentially live caller-save core registers.
     SAVE_TWO_REGS_INCREASE_FRAME x0, x1, 368
     SAVE_TWO_REGS  x2,  x3, 16
@@ -2607,6 +2614,12 @@ ENTRY \name
     // Restore return address and remove padding.
     RESTORE_REG xLR, 360
     DECREASE_FRAME 368
+    ret
+.Lret_forwarding_address\name:
+    mvn wIP0, wIP0
+    // Shift left by the forwarding address shift. This clears out the state bits since they are
+    // in the top 2 bits of the lock word.
+    lsl \wreg, wIP0, #LOCK_WORD_STATE_FORWARDING_ADDRESS_SHIFT
     ret
 END \name
 .endm
