@@ -1567,7 +1567,8 @@ class Thread {
 
 class SCOPED_CAPABILITY ScopedAssertNoThreadSuspension {
  public:
-  ALWAYS_INLINE ScopedAssertNoThreadSuspension(const char* cause) ACQUIRE(Roles::uninterruptible_) {
+  ALWAYS_INLINE explicit ScopedAssertNoThreadSuspension(const char* cause)
+      ACQUIRE(Roles::uninterruptible_) {
     if (kIsDebugBuild) {
       self_ = Thread::Current();
       old_cause_ = self_->StartAssertNoThreadSuspension(cause);
