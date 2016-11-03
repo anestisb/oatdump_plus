@@ -1,10 +1,9 @@
     /* fill-array-data vAA, +BBBBBBBB */
     EXPORT_PC()
-    FETCH(a0, 1)                           #  a0 <- bbbb (lo)
-    FETCH(a1, 2)                           #  a1 <- BBBB (hi)
+    FETCH(a1, 1)                           #  a1 <- bbbb (lo)
+    FETCH(a0, 2)                           #  a0 <- BBBB (hi)
     GET_OPA(a3)                            #  a3 <- AA
-    sll       a1, a1, 16                   #  a1 <- BBBBbbbb
-    or        a1, a0, a1                   #  a1 <- BBBBbbbb
+    INSERT_HIGH_HALF(a1, a0)               #  a1 <- BBBBbbbb
     GET_VREG(a0, a3)                       #  a0 <- vAA (array object)
     EAS1(a1, rPC, a1)                      #  a1 <- PC + BBBBbbbb*2 (array data off.)
     JAL(MterpFillArrayData)                #  v0 <- Mterp(obj, payload)

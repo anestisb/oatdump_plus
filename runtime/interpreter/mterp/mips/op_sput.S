@@ -4,7 +4,7 @@
      *
      * for: sput, sput-boolean, sput-byte, sput-char, sput-short
      */
-    # op vAA, field                        /* BBBB */
+    /* op vAA, field@BBBB */
     EXPORT_PC()
     FETCH(a0, 1)                           # a0 <- field ref BBBB
     GET_OPA(a3)                            # a3 <- AA

@@ -23,7 +23,7 @@
     sll     a1, 1
     sll     a1, a0                         #  ahi<- ahi << (32-(shift&31))
     or      v0, a1                         #  rlo<- rlo | ahi
-    SET_VREG64_GOTO(v0, v1, t3, t0)        #  vAA/VAA+1 <- v0/v0
+    SET_VREG64_GOTO(v0, v1, t3, t0)        #  vAA/VAA+1 <- v0/v1
 %break
 
 .L${opcode}_finish:

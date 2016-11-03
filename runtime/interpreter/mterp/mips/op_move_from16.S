@@ -7,8 +7,7 @@
     GET_VREG(a2, a1)                       #  a2 <- fp[BBBB]
     GET_INST_OPCODE(t0)                    #  extract opcode from rINST
     .if $is_object
-    SET_VREG_OBJECT(a2, a0)                #  fp[AA] <- a2
+    SET_VREG_OBJECT_GOTO(a2, a0, t0)       #  fp[AA] <- a2
     .else
-    SET_VREG(a2, a0)                       #  fp[AA] <- a2
+    SET_VREG_GOTO(a2, a0, t0)              #  fp[AA] <- a2
     .endif
-    GOTO_OPCODE(t0)                        #  jump to next instruction

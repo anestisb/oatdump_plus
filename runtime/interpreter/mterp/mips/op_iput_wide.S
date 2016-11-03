@@ -1,4 +1,4 @@
-    # iput-wide vA, vB, field              /* CCCC */
+    /* iput-wide vA, vB, field@CCCC */
     .extern artSet64InstanceFromMterp
     EXPORT_PC()
     FETCH(a0, 1)                           # a0 <- field ref CCCC

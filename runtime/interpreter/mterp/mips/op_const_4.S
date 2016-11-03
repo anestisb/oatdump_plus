@@ -1,4 +1,4 @@
-    # const/4 vA,                          /* +B */
+    /* const/4 vA, +B */
     sll       a1, rINST, 16                #  a1 <- Bxxx0000
     GET_OPA(a0)                            #  a0 <- A+
     FETCH_ADVANCE_INST(1)                  #  advance rPC, load rINST

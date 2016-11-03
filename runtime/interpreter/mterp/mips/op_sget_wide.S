@@ -1,7 +1,7 @@
     /*
      * 64-bit SGET handler.
      */
-    # sget-wide vAA, field                 /* BBBB */
+    /* sget-wide vAA, field@BBBB */
     .extern artGet64StaticFromCode
     EXPORT_PC()
     FETCH(a0, 1)                           # a0 <- field ref BBBB
@@ -12,6 +12,5 @@
     bnez  a3, MterpException
     GET_OPA(a1)                            # a1 <- AA
     FETCH_ADVANCE_INST(2)                  # advance rPC, load rINST
-    SET_VREG64(v0, v1, a1)                 # vAA/vAA+1 <- v0/v1
     GET_INST_OPCODE(t0)                    # extract opcode from rINST
-    GOTO_OPCODE(t0)                        # jump to next instruction
+    SET_VREG64_GOTO(v0, v1, a1, t0)        # vAA/vAA+1 <- v0/v1

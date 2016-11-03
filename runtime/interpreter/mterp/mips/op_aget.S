@@ -19,11 +19,7 @@
     # null array object?
     beqz      a0, common_errNullObject     #  yes, bail
     LOAD_base_offMirrorArray_length(a3, a0) #  a3 <- arrayObj->length
-    .if $shift
     EASN(a0, a0, a1, $shift)               #  a0 <- arrayObj + index*width
-    .else
-    addu      a0, a0, a1
-    .endif
     # a1 >= a3; compare unsigned index
     bgeu      a1, a3, common_errArrayIndex #  index >= length, bail
     FETCH_ADVANCE_INST(2)                  #  advance rPC, load rINST

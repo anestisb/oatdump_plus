@@ -1,5 +1,5 @@
     /* For: iput-object-quick */
-    # op vA, vB, offset                 /* CCCC */
+    /* op vA, vB, offset@CCCC */
     EXPORT_PC()
     addu   a0, rFP, OFF_FP_SHADOWFRAME
     move   a1, rPC
