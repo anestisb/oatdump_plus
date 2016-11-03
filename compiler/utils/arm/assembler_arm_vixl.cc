@@ -62,6 +62,12 @@ void ArmVIXLAssembler::UnpoisonHeapReference(vixl::aarch32::Register reg) {
   ___ Rsb(reg, reg, 0);
 }
 
+void ArmVIXLAssembler::MaybePoisonHeapReference(vixl32::Register reg) {
+  if (kPoisonHeapReferences) {
+    PoisonHeapReference(reg);
+  }
+}
+
 void ArmVIXLAssembler::MaybeUnpoisonHeapReference(vixl32::Register reg) {
   if (kPoisonHeapReferences) {
     UnpoisonHeapReference(reg);

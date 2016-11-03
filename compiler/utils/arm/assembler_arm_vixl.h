@@ -72,6 +72,8 @@ class ArmVIXLAssembler FINAL : public Assembler {
   void PoisonHeapReference(vixl32::Register reg);
   // Unpoison a heap reference contained in `reg`.
   void UnpoisonHeapReference(vixl32::Register reg);
+  // Poison a heap reference contained in `reg` if heap poisoning is enabled.
+  void MaybePoisonHeapReference(vixl32::Register reg);
   // Unpoison a heap reference contained in `reg` if heap poisoning is enabled.
   void MaybeUnpoisonHeapReference(vixl32::Register reg);
 
