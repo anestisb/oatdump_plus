@@ -744,6 +744,20 @@ public class Main {
     return 1.0f;
   }
 
+  /// CHECK-START: double Main.getCircleArea(double, boolean) load_store_elimination (before)
+  /// CHECK: NewInstance
+
+  /// CHECK-START: double Main.getCircleArea(double, boolean) load_store_elimination (after)
+  /// CHECK-NOT: NewInstance
+
+  private static double getCircleArea(double radius, boolean b) {
+    double area = 0d;
+    if (b) {
+      area = new Circle(radius).getArea();
+    }
+    return area;
+  }
+
   static void assertIntEquals(int result, int expected) {
     if (expected != result) {
       throw new Error("Expected: " + expected + ", found: " + result);
@@ -808,6 +822,8 @@ public class Main {
     assertIntEquals(sumWithinRange(array, 1, 5), 11);
     assertFloatEquals(testAllocationEliminationWithLoops(), 1.0f);
     assertFloatEquals(mF, 0f);
+    assertDoubleEquals(Math.PI * Math.PI * Math.PI, getCircleArea(Math.PI, true));
+    assertDoubleEquals(0d, getCircleArea(Math.PI, false));
   }
 
   static boolean sFlag;
