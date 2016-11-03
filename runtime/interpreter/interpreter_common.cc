@@ -774,6 +774,24 @@ inline static bool IsInvokeExact(const DexFile& dex_file, int invoke_method_idx)
   return is_invoke_exact;
 }
 
+inline static ObjPtr<mirror::Class> GetAndInitializeDeclaringClass(Thread* self, ArtField* field)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  // Method handle invocations on static fields should ensure class is
+  // initialized. This usually happens when an instance is constructed
+  // or class members referenced, but this is not guaranteed when
+  // looking up method handles.
+  ObjPtr<mirror::Class> klass = field->GetDeclaringClass();
+  if (UNLIKELY(!klass->IsInitialized())) {
+    StackHandleScope<1> hs(self);
+    HandleWrapperObjPtr<mirror::Class> h(hs.NewHandleWrapper(&klass));
+    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(self, h, true, true)) {
+      DCHECK(self->IsExceptionPending());
+      return nullptr;
+    }
+  }
+  return klass;
+}
+
 template<bool is_range, bool do_access_check>
 inline bool DoInvokePolymorphic(Thread* self,
                                 ShadowFrame& shadow_frame,
@@ -943,12 +961,20 @@ inline bool DoInvokePolymorphic(Thread* self,
         return DoFieldPutForInvokePolymorphic(self, shadow_frame, obj, field, field_type, arg[1]);
       }
       case kStaticGet: {
-        ObjPtr<mirror::Object> obj = field->GetDeclaringClass();
+        ObjPtr<mirror::Object> obj = GetAndInitializeDeclaringClass(self, field);
+        if (obj == nullptr) {
+          DCHECK(self->IsExceptionPending());
+          return false;
+        }
         DoFieldGetForInvokePolymorphic(self, shadow_frame, obj, field, field_type, result);
         return true;
       }
       case kStaticPut: {
-        ObjPtr<mirror::Object> obj = field->GetDeclaringClass();
+        ObjPtr<mirror::Object> obj = GetAndInitializeDeclaringClass(self, field);
+        if (obj == nullptr) {
+          DCHECK(self->IsExceptionPending());
+          return false;
+        }
         return DoFieldPutForInvokePolymorphic(self, shadow_frame, obj, field, field_type, arg[0]);
       }
       default:
