@@ -145,6 +145,10 @@ art_global_defaults {
         "external/vixl/src",
         "external/zlib",
     ],
+
+    tidy_checks: [
+        "-google-default-arguments",
+    ],
 }
 
 art_debug_defaults {
