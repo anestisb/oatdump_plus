@@ -771,7 +771,7 @@ bool Monitor::Deflate(Thread* self, mirror::Object* obj) {
         return false;
       }
       // Can't deflate if our lock count is too high.
-      if (monitor->lock_count_ > LockWord::kThinLockMaxCount) {
+      if (static_cast<uint32_t>(monitor->lock_count_) > LockWord::kThinLockMaxCount) {
         return false;
       }
       // Deflate to a thin lock.
