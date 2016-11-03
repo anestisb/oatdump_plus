@@ -75,19 +75,19 @@ ObjPtr<mirror::Reference> ReferenceQueue::DequeuePendingReference() {
     // collector (SemiSpace) is running.
     CHECK(ref != nullptr);
     collector::ConcurrentCopying* concurrent_copying = heap->ConcurrentCopyingCollector();
-    mirror::Object* rb_ptr = ref->GetReadBarrierPointer();
-    if (rb_ptr == ReadBarrier::GrayPtr()) {
-      ref->AtomicSetReadBarrierPointer(ReadBarrier::GrayPtr(), ReadBarrier::WhitePtr());
-      CHECK_EQ(ref->GetReadBarrierPointer(), ReadBarrier::WhitePtr());
+    uint32_t rb_state = ref->GetReadBarrierState();
+    if (rb_state == ReadBarrier::GrayState()) {
+      ref->AtomicSetReadBarrierState(ReadBarrier::GrayState(), ReadBarrier::WhiteState());
+      CHECK_EQ(ref->GetReadBarrierState(), ReadBarrier::WhiteState());
     } else {
       // In ConcurrentCopying::ProcessMarkStackRef() we may leave a white reference in the queue and
       // find it here, which is OK.
-      CHECK_EQ(rb_ptr, ReadBarrier::WhitePtr()) << "ref=" << ref << " rb_ptr=" << rb_ptr;
+      CHECK_EQ(rb_state, ReadBarrier::WhiteState()) << "ref=" << ref << " rb_state=" << rb_state;
       ObjPtr<mirror::Object> referent = ref->GetReferent<kWithoutReadBarrier>();
       // The referent could be null if it's cleared by a mutator (Reference.clear()).
       if (referent != nullptr) {
         CHECK(concurrent_copying->IsInToSpace(referent.Ptr()))
-            << "ref=" << ref << " rb_ptr=" << ref->GetReadBarrierPointer()
+            << "ref=" << ref << " rb_state=" << ref->GetReadBarrierState()
             << " referent=" << referent;
       }
     }

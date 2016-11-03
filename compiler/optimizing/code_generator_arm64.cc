@@ -5426,7 +5426,7 @@ void CodeGeneratorARM64::GenerateReferenceLoadWithBakerReadBarrier(HInstruction*
   //   uint32_t rb_state = Lockword(obj->monitor_).ReadBarrierState();
   //   lfence;  // Load fence or artificial data dependency to prevent load-load reordering
   //   HeapReference<Object> ref = *src;  // Original reference load.
-  //   bool is_gray = (rb_state == ReadBarrier::gray_ptr_);
+  //   bool is_gray = (rb_state == ReadBarrier::GrayState());
   //   if (is_gray) {
   //     ref = ReadBarrier::Mark(ref);  // Performed by runtime entrypoint slow path.
   //   }
@@ -5517,12 +5517,11 @@ void CodeGeneratorARM64::GenerateReferenceLoadWithBakerReadBarrier(HInstruction*
   }
   AddSlowPath(slow_path);
 
-  // if (rb_state == ReadBarrier::gray_ptr_)
+  // if (rb_state == ReadBarrier::GrayState())
   //   ref = ReadBarrier::Mark(ref);
   // Given the numeric representation, it's enough to check the low bit of the rb_state.
-  static_assert(ReadBarrier::white_ptr_ == 0, "Expecting white to have value 0");
-  static_assert(ReadBarrier::gray_ptr_ == 1, "Expecting gray to have value 1");
-  static_assert(ReadBarrier::black_ptr_ == 2, "Expecting black to have value 2");
+  static_assert(ReadBarrier::WhiteState() == 0, "Expecting white to have value 0");
+  static_assert(ReadBarrier::GrayState() == 1, "Expecting gray to have value 1");
   __ Tbnz(temp, LockWord::kReadBarrierStateShift, slow_path->GetEntryLabel());
   __ Bind(slow_path->GetExitLabel());
 }

@@ -32,7 +32,7 @@ inline mirror::Object* ConcurrentCopying::MarkUnevacFromSpaceRegion(
     mirror::Object* ref, accounting::ContinuousSpaceBitmap* bitmap) {
   // For the Baker-style RB, in a rare case, we could incorrectly change the object from white
   // to gray even though the object has already been marked through. This happens if a mutator
-  // thread gets preempted before the AtomicSetReadBarrierPointer below, GC marks through the
+  // thread gets preempted before the AtomicSetReadBarrierState below, GC marks through the
   // object (changes it from white to gray and back to white), and the thread runs and
   // incorrectly changes it from white to gray. If this happens, the object will get added to the
   // mark stack again and get changed back to white after it is processed.
@@ -50,14 +50,14 @@ inline mirror::Object* ConcurrentCopying::MarkUnevacFromSpaceRegion(
     // we can avoid an expensive CAS.
     // For the baker case, an object is marked if either the mark bit marked or the bitmap bit is
     // set.
-    success = ref->AtomicSetReadBarrierPointer(ReadBarrier::WhitePtr(), ReadBarrier::GrayPtr());
+    success = ref->AtomicSetReadBarrierState(ReadBarrier::WhiteState(), ReadBarrier::GrayState());
   } else {
     success = !bitmap->AtomicTestAndSet(ref);
   }
   if (success) {
     // Newly marked.
     if (kUseBakerReadBarrier) {
-      DCHECK_EQ(ref->GetReadBarrierPointer(), ReadBarrier::GrayPtr());
+      DCHECK_EQ(ref->GetReadBarrierState(), ReadBarrier::GrayState());
     }
     PushOntoMarkStack(ref);
   }
@@ -84,8 +84,8 @@ inline mirror::Object* ConcurrentCopying::MarkImmuneSpace(mirror::Object* ref) {
       return ref;
     }
     // This may or may not succeed, which is ok because the object may already be gray.
-    bool success = ref->AtomicSetReadBarrierPointer(ReadBarrier::WhitePtr(),
-                                                    ReadBarrier::GrayPtr());
+    bool success = ref->AtomicSetReadBarrierState(ReadBarrier::WhiteState(),
+                                                  ReadBarrier::GrayState());
     if (success) {
       MutexLock mu(Thread::Current(), immune_gray_stack_lock_);
       immune_gray_stack_.push_back(ref);
@@ -125,10 +125,6 @@ inline mirror::Object* ConcurrentCopying::Mark(mirror::Object* from_ref) {
       return from_ref;
     case space::RegionSpace::RegionType::kRegionTypeFromSpace: {
       mirror::Object* to_ref = GetFwdPtr(from_ref);
-      if (kUseBakerReadBarrier) {
-        DCHECK_NE(to_ref, ReadBarrier::GrayPtr())
-            << "from_ref=" << from_ref << " to_ref=" << to_ref;
-      }
       if (to_ref == nullptr) {
         // It isn't marked yet. Mark it by copying it to the to-space.
         to_ref = Copy(from_ref);
@@ -192,9 +188,9 @@ inline mirror::Object* ConcurrentCopying::GetFwdPtr(mirror::Object* from_ref) {
 
 inline bool ConcurrentCopying::IsMarkedInUnevacFromSpace(mirror::Object* from_ref) {
   // Use load acquire on the read barrier pointer to ensure that we never see a white read barrier
-  // pointer with an unmarked bit due to reordering.
+  // state with an unmarked bit due to reordering.
   DCHECK(region_space_->IsInUnevacFromSpace(from_ref));
-  if (kUseBakerReadBarrier && from_ref->GetReadBarrierPointerAcquire() == ReadBarrier::GrayPtr()) {
+  if (kUseBakerReadBarrier && from_ref->GetReadBarrierStateAcquire() == ReadBarrier::GrayState()) {
     return true;
   }
   return region_space_bitmap_->Test(from_ref);

@@ -747,13 +747,8 @@ void PatchOat::PatchVisitor::operator() (ObjPtr<mirror::Class> cls ATTRIBUTE_UNU
 void PatchOat::VisitObject(mirror::Object* object) {
   mirror::Object* copy = RelocatedCopyOf(object);
   CHECK(copy != nullptr);
-  if (kUseBakerOrBrooksReadBarrier) {
-    object->AssertReadBarrierPointer();
-    if (kUseBrooksReadBarrier) {
-      mirror::Object* moved_to = RelocatedAddressOfPointer(object);
-      copy->SetReadBarrierPointer(moved_to);
-      DCHECK_EQ(copy->GetReadBarrierPointer(), moved_to);
-    }
+  if (kUseBakerReadBarrier) {
+    object->AssertReadBarrierState();
   }
   PatchOat::PatchVisitor visitor(this, copy);
   object->VisitReferences<kVerifyNone>(visitor, visitor);
