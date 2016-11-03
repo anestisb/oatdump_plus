@@ -69,7 +69,7 @@ class PACKED(4) BaseHandleScope {
         number_of_references_(num_references) {}
 
   // Variable sized constructor.
-  BaseHandleScope(BaseHandleScope* link)
+  explicit BaseHandleScope(BaseHandleScope* link)
       : link_(link),
         number_of_references_(kNumReferencesVariableSized) {}
 
