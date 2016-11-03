@@ -5062,6 +5062,30 @@ void InstructionCodeGeneratorARMVIXL::GenerateGcRootFieldLoad(
   }
 }
 
+void CodeGeneratorARMVIXL::GenerateFieldLoadWithBakerReadBarrier(
+    HInstruction* instruction ATTRIBUTE_UNUSED,
+    Location ref ATTRIBUTE_UNUSED,
+    vixl::aarch32::Register obj ATTRIBUTE_UNUSED,
+    uint32_t offset ATTRIBUTE_UNUSED,
+    Location temp ATTRIBUTE_UNUSED,
+    bool needs_null_check ATTRIBUTE_UNUSED) {
+  TODO_VIXL32(FATAL);
+}
+
+void CodeGeneratorARMVIXL::GenerateReferenceLoadWithBakerReadBarrier(
+    HInstruction* instruction ATTRIBUTE_UNUSED,
+    Location ref ATTRIBUTE_UNUSED,
+    vixl::aarch32::Register obj ATTRIBUTE_UNUSED,
+    uint32_t offset ATTRIBUTE_UNUSED,
+    Location index ATTRIBUTE_UNUSED,
+    ScaleFactor scale_factor ATTRIBUTE_UNUSED,
+    Location temp ATTRIBUTE_UNUSED,
+    bool needs_null_check ATTRIBUTE_UNUSED,
+    bool always_update_field ATTRIBUTE_UNUSED,
+    vixl::aarch32::Register* temp2 ATTRIBUTE_UNUSED) {
+  TODO_VIXL32(FATAL);
+}
+
 void CodeGeneratorARMVIXL::GenerateReadBarrierSlow(HInstruction* instruction ATTRIBUTE_UNUSED,
                                                    Location out ATTRIBUTE_UNUSED,
                                                    Location ref ATTRIBUTE_UNUSED,
