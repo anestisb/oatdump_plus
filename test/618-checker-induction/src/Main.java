@@ -92,6 +92,43 @@ public class Main {
     }
   }
 
+  /// CHECK-START: void Main.deadConditional(int) loop_optimization (before)
+  /// CHECK-DAG: Phi loop:{{B\d+}} outer_loop:none
+  //
+  /// CHECK-START: void Main.deadConditional(int) loop_optimization (after)
+  /// CHECK-NOT: Phi loop:{{B\d+}}
+  public static void deadConditional(int n) {
+    int k = 0;
+    int m = 0;
+    for (int i = 0; i < n; i++) {
+      if (i == 3)
+        k = i;
+      else
+        m = i;
+    }
+  }
+
+  /// CHECK-START: void Main.deadConditionalCycle(int) loop_optimization (before)
+  /// CHECK-DAG: Phi loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: Phi loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: Phi loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: Phi loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: Phi loop:<<Loop>>      outer_loop:none
+  //
+  /// CHECK-START: void Main.deadConditionalCycle(int) loop_optimization (after)
+  /// CHECK-NOT: Phi loop:{{B\d+}}
+  public static void deadConditionalCycle(int n) {
+    int k = 0;
+    int m = 0;
+    for (int i = 0; i < n; i++) {
+      if (i == 3)
+        k--;
+      else
+        m++;
+    }
+  }
+
+
   /// CHECK-START: void Main.deadInduction() loop_optimization (before)
   /// CHECK-DAG: Phi      loop:<<Loop:B\d+>> outer_loop:none
   /// CHECK-DAG: Phi      loop:<<Loop>>      outer_loop:none
@@ -668,6 +705,8 @@ public class Main {
     potentialInfiniteLoop(4);
     deadNestedLoops();
     deadNestedAndFollowingLoops();
+    deadConditional(4);
+    deadConditionalCycle(4);
 
     deadInduction();
     for (int i = 0; i < a.length; i++) {
