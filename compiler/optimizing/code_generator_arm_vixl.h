@@ -113,6 +113,7 @@ class LoadClassSlowPathARMVIXL;
   M(BelowOrEqual)                               \
   M(BooleanNot)                                 \
   M(BoundsCheck)                                \
+  M(CheckCast)                                  \
   M(ClearException)                             \
   M(ClinitCheck)                                \
   M(Compare)                                    \
@@ -171,7 +172,6 @@ class LoadClassSlowPathARMVIXL;
 // TODO: Remove once the VIXL32 backend is implemented completely.
 #define FOR_EACH_UNIMPLEMENTED_INSTRUCTION(M)   \
   M(BoundType)                                  \
-  M(CheckCast)                                  \
   M(ClassTableGet)                              \
   M(InstanceOf)                                 \
   M(InvokeInterface)                            \
@@ -344,6 +344,22 @@ class InstructionCodeGeneratorARMVIXL : public InstructionCodeGenerator {
                       bool value_can_be_null);
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
 
+  // Generate a heap reference load using two different registers
+  // `out` and `obj`:
+  //
+  //   out <- *(obj + offset)
+  //
+  // while honoring heap poisoning and/or read barriers (if any).
+  //
+  // Location `maybe_temp` is used when generating a Baker's (fast
+  // path) read barrier and shall be a register in that case; it may
+  // be an invalid location otherwise.
+  void GenerateReferenceLoadTwoRegisters(HInstruction* instruction,
+                                         Location out,
+                                         Location obj,
+                                         uint32_t offset,
+                                         Location maybe_temp);
+
   // Generate a GC root reference load:
   //
   //   root <- *(obj + offset)
@@ -473,11 +489,7 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
     return 0;
   }
 
-  size_t RestoreFloatingPointRegister(size_t stack_index ATTRIBUTE_UNUSED,
-                                      uint32_t reg_id ATTRIBUTE_UNUSED) OVERRIDE {
-    UNIMPLEMENTED(INFO) << "TODO: RestoreFloatingPointRegister";
-    return 0;
-  }
+  size_t RestoreFloatingPointRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
 
   bool NeedsTwoRegisters(Primitive::Type type) const OVERRIDE {
     return type == Primitive::kPrimDouble || type == Primitive::kPrimLong;
@@ -512,6 +524,62 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
                   vixl::aarch32::Register object,
                   vixl::aarch32::Register value,
                   bool can_be_null);
+
+  // Fast path implementation of ReadBarrier::Barrier for a heap
+  // reference field load when Baker's read barriers are used.
+  void GenerateFieldLoadWithBakerReadBarrier(HInstruction* instruction,
+                                             Location ref,
+                                             vixl::aarch32::Register obj,
+                                             uint32_t offset,
+                                             Location temp,
+                                             bool needs_null_check);
+
+  // Factored implementation, used by GenerateFieldLoadWithBakerReadBarrier,
+  // GenerateArrayLoadWithBakerReadBarrier and some intrinsics.
+  //
+  // Load the object reference located at the address
+  // `obj + offset + (index << scale_factor)`, held by object `obj`, into
+  // `ref`, and mark it if needed.
+  //
+  // If `always_update_field` is true, the value of the reference is
+  // atomically updated in the holder (`obj`).  This operation
+  // requires an extra temporary register, which must be provided as a
+  // non-null pointer (`temp2`).
+  void GenerateReferenceLoadWithBakerReadBarrier(HInstruction* instruction,
+                                                 Location ref,
+                                                 vixl::aarch32::Register obj,
+                                                 uint32_t offset,
+                                                 Location index,
+                                                 ScaleFactor scale_factor,
+                                                 Location temp,
+                                                 bool needs_null_check,
+                                                 bool always_update_field = false,
+                                                 vixl::aarch32::Register* temp2 = nullptr);
+
+  // Generate a read barrier for a heap reference within `instruction`
+  // using a slow path.
+  //
+  // A read barrier for an object reference read from the heap is
+  // implemented as a call to the artReadBarrierSlow runtime entry
+  // point, which is passed the values in locations `ref`, `obj`, and
+  // `offset`:
+  //
+  //   mirror::Object* artReadBarrierSlow(mirror::Object* ref,
+  //                                      mirror::Object* obj,
+  //                                      uint32_t offset);
+  //
+  // The `out` location contains the value returned by
+  // artReadBarrierSlow.
+  //
+  // When `index` is provided (i.e. for array accesses), the offset
+  // value passed to artReadBarrierSlow is adjusted to take `index`
+  // into account.
+  void GenerateReadBarrierSlow(HInstruction* instruction,
+                               Location out,
+                               Location ref,
+                               Location obj,
+                               uint32_t offset,
+                               Location index = Location::NoLocation());
 
   // If read barriers are enabled, generate a read barrier for a heap
   // reference using a slow path. If heap poisoning is enabled, also
