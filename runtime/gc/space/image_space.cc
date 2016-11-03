@@ -1606,7 +1606,7 @@ std::unique_ptr<ImageSpace> ImageSpace::CreateBootImage(const char* image_locati
 
   std::ostringstream oss;
   bool first = true;
-  for (auto msg : error_msgs) {
+  for (const auto& msg : error_msgs) {
     if (!first) {
       oss << "\n    ";
     }
