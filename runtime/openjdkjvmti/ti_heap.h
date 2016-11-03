@@ -36,6 +36,13 @@ class HeapUtil {
                                 const jvmtiHeapCallbacks* callbacks,
                                 const void* user_data);
 
+  jvmtiError FollowReferences(jvmtiEnv* env,
+                              jint heap_filter,
+                              jclass klass,
+                              jobject initial_object,
+                              const jvmtiHeapCallbacks* callbacks,
+                              const void* user_data);
+
   static jvmtiError ForceGarbageCollection(jvmtiEnv* env);
 
   ObjectTagTable* GetTags() {
