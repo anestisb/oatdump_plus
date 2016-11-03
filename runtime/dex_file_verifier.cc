@@ -456,22 +456,22 @@ uint32_t DexFileVerifier::ReadUnsignedLittleEndian(uint32_t size) {
 
 #define DECODE_UNSIGNED_CHECKED_FROM_WITH_ERROR_VALUE(ptr, var, error_value)  \
   uint32_t var;                                                               \
-  if (!DecodeUnsignedLeb128Checked(&ptr, begin_ + size_, &var)) {             \
+  if (!DecodeUnsignedLeb128Checked(&(ptr), begin_ + size_, &(var))) {         \
     return error_value;                                                       \
   }
 
-#define DECODE_UNSIGNED_CHECKED_FROM(ptr, var)                      \
-  uint32_t var;                                                     \
-  if (!DecodeUnsignedLeb128Checked(&ptr, begin_ + size_, &var)) {   \
-    ErrorStringPrintf("Read out of bounds");                        \
-    return false;                                                   \
+#define DECODE_UNSIGNED_CHECKED_FROM(ptr, var)                        \
+  uint32_t var;                                                       \
+  if (!DecodeUnsignedLeb128Checked(&(ptr), begin_ + size_, &(var))) { \
+    ErrorStringPrintf("Read out of bounds");                          \
+    return false;                                                     \
   }
 
-#define DECODE_SIGNED_CHECKED_FROM(ptr, var)                      \
-  int32_t var;                                                    \
-  if (!DecodeSignedLeb128Checked(&ptr, begin_ + size_, &var)) {   \
-    ErrorStringPrintf("Read out of bounds");                      \
-    return false;                                                 \
+#define DECODE_SIGNED_CHECKED_FROM(ptr, var)                        \
+  int32_t var;                                                      \
+  if (!DecodeSignedLeb128Checked(&(ptr), begin_ + size_, &(var))) { \
+    ErrorStringPrintf("Read out of bounds");                        \
+    return false;                                                   \
   }
 
 bool DexFileVerifier::CheckAndGetHandlerOffsets(const DexFile::CodeItem* code_item,
