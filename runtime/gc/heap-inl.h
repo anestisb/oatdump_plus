@@ -86,11 +86,8 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self,
     obj = self->AllocTlab(byte_count);
     DCHECK(obj != nullptr) << "AllocTlab can't fail";
     obj->SetClass(klass);
-    if (kUseBakerOrBrooksReadBarrier) {
-      if (kUseBrooksReadBarrier) {
-        obj->SetReadBarrierPointer(obj.Ptr());
-      }
-      obj->AssertReadBarrierPointer();
+    if (kUseBakerReadBarrier) {
+      obj->AssertReadBarrierState();
     }
     bytes_allocated = byte_count;
     usable_size = bytes_allocated;
@@ -102,11 +99,8 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self,
       LIKELY(obj != nullptr)) {
     DCHECK(!is_running_on_memory_tool_);
     obj->SetClass(klass);
-    if (kUseBakerOrBrooksReadBarrier) {
-      if (kUseBrooksReadBarrier) {
-        obj->SetReadBarrierPointer(obj.Ptr());
-      }
-      obj->AssertReadBarrierPointer();
+    if (kUseBakerReadBarrier) {
+      obj->AssertReadBarrierState();
     }
     usable_size = bytes_allocated;
     pre_fence_visitor(obj, usable_size);
@@ -143,11 +137,8 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self,
     DCHECK_GT(bytes_allocated, 0u);
     DCHECK_GT(usable_size, 0u);
     obj->SetClass(klass);
-    if (kUseBakerOrBrooksReadBarrier) {
-      if (kUseBrooksReadBarrier) {
-        obj->SetReadBarrierPointer(obj.Ptr());
-      }
-      obj->AssertReadBarrierPointer();
+    if (kUseBakerReadBarrier) {
+      obj->AssertReadBarrierState();
     }
     if (collector::SemiSpace::kUseRememberedSet && UNLIKELY(allocator == kAllocatorTypeNonMoving)) {
       // (Note this if statement will be constant folded away for the

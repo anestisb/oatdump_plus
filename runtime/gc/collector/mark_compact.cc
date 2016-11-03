@@ -124,9 +124,9 @@ inline mirror::Object* MarkCompact::MarkObject(mirror::Object* obj) {
   if (obj == nullptr) {
     return nullptr;
   }
-  if (kUseBakerOrBrooksReadBarrier) {
-    // Verify all the objects have the correct forward pointer installed.
-    obj->AssertReadBarrierPointer();
+  if (kUseBakerReadBarrier) {
+    // Verify all the objects have the correct forward state installed.
+    obj->AssertReadBarrierState();
   }
   if (!immune_spaces_.IsInImmuneRegion(obj)) {
     if (objects_before_forwarding_->HasAddress(obj)) {

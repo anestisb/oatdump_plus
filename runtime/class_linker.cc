@@ -394,8 +394,8 @@ bool ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   CHECK(java_lang_Class.Get() != nullptr);
   mirror::Class::SetClassClass(java_lang_Class.Get());
   java_lang_Class->SetClass(java_lang_Class.Get());
-  if (kUseBakerOrBrooksReadBarrier) {
-    java_lang_Class->AssertReadBarrierPointer();
+  if (kUseBakerReadBarrier) {
+    java_lang_Class->AssertReadBarrierState();
   }
   java_lang_Class->SetClassSize(class_class_size);
   java_lang_Class->SetPrimitiveType(Primitive::kPrimNot);

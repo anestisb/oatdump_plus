@@ -94,19 +94,22 @@ class MANAGED LOCKABLE Object {
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   void SetClass(ObjPtr<Class> new_klass) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // TODO: Clean these up and change to return int32_t
-  Object* GetReadBarrierPointer() REQUIRES_SHARED(Locks::mutator_lock_);
-
-  // Get the read barrier pointer with release semantics, only supported for baker.
-  Object* GetReadBarrierPointerAcquire() REQUIRES_SHARED(Locks::mutator_lock_);
+  // Get the read barrier state with a fake address dependency.
+  // '*fake_address_dependency' will be set to 0.
+  ALWAYS_INLINE uint32_t GetReadBarrierState(uintptr_t* fake_address_dependency)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  // This version does not offer any special mechanism to prevent load-load reordering.
+  ALWAYS_INLINE uint32_t GetReadBarrierState() REQUIRES_SHARED(Locks::mutator_lock_);
+  // Get the read barrier state with a load-acquire.
+  ALWAYS_INLINE uint32_t GetReadBarrierStateAcquire() REQUIRES_SHARED(Locks::mutator_lock_);
 
 #ifndef USE_BAKER_OR_BROOKS_READ_BARRIER
   NO_RETURN
 #endif
-  void SetReadBarrierPointer(Object* rb_ptr) REQUIRES_SHARED(Locks::mutator_lock_);
+  ALWAYS_INLINE void SetReadBarrierState(uint32_t rb_state) REQUIRES_SHARED(Locks::mutator_lock_);
 
   template<bool kCasRelease = false>
-  ALWAYS_INLINE bool AtomicSetReadBarrierPointer(Object* expected_rb_ptr, Object* rb_ptr)
+  ALWAYS_INLINE bool AtomicSetReadBarrierState(uint32_t expected_rb_state, uint32_t rb_state)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   ALWAYS_INLINE uint32_t GetMarkBit() REQUIRES_SHARED(Locks::mutator_lock_);
@@ -114,7 +117,8 @@ class MANAGED LOCKABLE Object {
   ALWAYS_INLINE bool AtomicSetMarkBit(uint32_t expected_mark_bit, uint32_t mark_bit)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void AssertReadBarrierPointer() const REQUIRES_SHARED(Locks::mutator_lock_);
+  // Assert that the read barrier state is in the default (white) state.
+  ALWAYS_INLINE void AssertReadBarrierState() const REQUIRES_SHARED(Locks::mutator_lock_);
 
   // The verifier treats all interfaces as java.lang.Object and relies on runtime checks in
   // invoke-interface to detect incompatible interface types.
