@@ -58,11 +58,10 @@ inline bool IsInvoke(const MethodHandleKind handle_kind) {
 
 // Performs a single argument conversion from type |from| to a distinct
 // type |to|. Returns true on success, false otherwise.
-REQUIRES_SHARED(Locks::mutator_lock_)
-inline bool ConvertJValue(Handle<mirror::Class> from,
+ALWAYS_INLINE bool ConvertJValue(Handle<mirror::Class> from,
                           Handle<mirror::Class> to,
                           const JValue& from_value,
-                          JValue* to_value) ALWAYS_INLINE;
+                          JValue* to_value) REQUIRES_SHARED(Locks::mutator_lock_);
 
 // Perform argument conversions between |callsite_type| (the type of the
 // incoming arguments) and |callee_type| (the type of the method being
@@ -109,17 +108,16 @@ inline bool ConvertJValue(Handle<mirror::Class> from,
 // up too much space, we can make G / S abstract base classes that are
 // overridden by concrete classes.
 template <typename G, typename S>
-REQUIRES_SHARED(Locks::mutator_lock_)
 bool PerformConversions(Thread* self,
                         Handle<mirror::ObjectArray<mirror::Class>> from_types,
                         Handle<mirror::ObjectArray<mirror::Class>> to_types,
                         G* getter,
                         S* setter,
-                        int32_t num_conversions);
+                        int32_t num_conversions) REQUIRES_SHARED(Locks::mutator_lock_);
 
 // A convenience wrapper around |PerformConversions|, for the case where
 // the setter and getter are both ShadowFrame based.
-template <bool is_range> REQUIRES_SHARED(Locks::mutator_lock_)
+template <bool is_range>
 bool ConvertAndCopyArgumentsFromCallerFrame(Thread* self,
                                             Handle<mirror::MethodType> callsite_type,
                                             Handle<mirror::MethodType> callee_type,
@@ -127,7 +125,8 @@ bool ConvertAndCopyArgumentsFromCallerFrame(Thread* self,
                                             uint32_t first_src_reg,
                                             uint32_t first_dest_reg,
                                             const uint32_t (&arg)[Instruction::kMaxVarArgRegs],
-                                            ShadowFrame* callee_frame);
+                                            ShadowFrame* callee_frame)
+    REQUIRES_SHARED(Locks::mutator_lock_);
 
 // A convenience class that allows for iteration through a list of
 // input argument registers |arg| for non-range invokes or a list of

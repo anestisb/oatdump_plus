@@ -653,53 +653,51 @@ void AbortTransactionV(Thread* self, const char* fmt, va_list args) {
 //
 
 template <bool is_range, bool do_assignability_check>
-    REQUIRES_SHARED(Locks::mutator_lock_)
-static inline bool DoCallCommon(ArtMethod* called_method,
-                                Thread* self,
-                                ShadowFrame& shadow_frame,
-                                JValue* result,
-                                uint16_t number_of_inputs,
-                                uint32_t (&arg)[Instruction::kMaxVarArgRegs],
-                                uint32_t vregC) ALWAYS_INLINE;
-
-template <bool is_range> REQUIRES_SHARED(Locks::mutator_lock_)
-static inline bool DoCallPolymorphic(ArtMethod* called_method,
-                                     Handle<mirror::MethodType> callsite_type,
-                                     Handle<mirror::MethodType> target_type,
-                                     Thread* self,
-                                     ShadowFrame& shadow_frame,
-                                     JValue* result,
-                                     uint32_t (&arg)[Instruction::kMaxVarArgRegs],
-                                     uint32_t vregC,
-                                     const MethodHandleKind handle_kind) ALWAYS_INLINE;
-
-template <bool is_range> REQUIRES_SHARED(Locks::mutator_lock_)
-static inline bool DoCallTransform(ArtMethod* called_method,
-                                   Handle<mirror::MethodType> callsite_type,
-                                   Handle<mirror::MethodType> callee_type,
-                                   Thread* self,
-                                   ShadowFrame& shadow_frame,
-                                   Handle<mirror::MethodHandleImpl> receiver,
-                                   JValue* result,
-                                   uint32_t (&arg)[Instruction::kMaxVarArgRegs],
-                                   uint32_t vregC) ALWAYS_INLINE;
-
-REQUIRES_SHARED(Locks::mutator_lock_)
-inline void PerformCall(Thread* self,
-                        const DexFile::CodeItem* code_item,
-                        ArtMethod* caller_method,
-                        const size_t first_dest_reg,
-                        ShadowFrame* callee_frame,
-                        JValue* result) ALWAYS_INLINE;
+static ALWAYS_INLINE bool DoCallCommon(ArtMethod* called_method,
+                                       Thread* self,
+                                       ShadowFrame& shadow_frame,
+                                       JValue* result,
+                                       uint16_t number_of_inputs,
+                                       uint32_t (&arg)[Instruction::kMaxVarArgRegs],
+                                       uint32_t vregC) REQUIRES_SHARED(Locks::mutator_lock_);
 
 template <bool is_range>
-REQUIRES_SHARED(Locks::mutator_lock_)
-inline void CopyRegisters(ShadowFrame& caller_frame,
-                          ShadowFrame* callee_frame,
-                          const uint32_t (&arg)[Instruction::kMaxVarArgRegs],
-                          const size_t first_src_reg,
-                          const size_t first_dest_reg,
-                          const size_t num_regs) ALWAYS_INLINE;
+static ALWAYS_INLINE bool DoCallPolymorphic(ArtMethod* called_method,
+                                            Handle<mirror::MethodType> callsite_type,
+                                            Handle<mirror::MethodType> target_type,
+                                            Thread* self,
+                                            ShadowFrame& shadow_frame,
+                                            JValue* result,
+                                            uint32_t (&arg)[Instruction::kMaxVarArgRegs],
+                                            uint32_t vregC,
+                                            const MethodHandleKind handle_kind)
+  REQUIRES_SHARED(Locks::mutator_lock_);
+
+template <bool is_range>
+static ALWAYS_INLINE bool DoCallTransform(ArtMethod* called_method,
+                                          Handle<mirror::MethodType> callsite_type,
+                                          Handle<mirror::MethodType> callee_type,
+                                          Thread* self,
+                                          ShadowFrame& shadow_frame,
+                                          Handle<mirror::MethodHandleImpl> receiver,
+                                          JValue* result,
+                                          uint32_t (&arg)[Instruction::kMaxVarArgRegs],
+                                          uint32_t vregC) REQUIRES_SHARED(Locks::mutator_lock_);
+
+ALWAYS_INLINE void PerformCall(Thread* self,
+                               const DexFile::CodeItem* code_item,
+                               ArtMethod* caller_method,
+                               const size_t first_dest_reg,
+                               ShadowFrame* callee_frame,
+                               JValue* result) REQUIRES_SHARED(Locks::mutator_lock_);
+
+template <bool is_range>
+ALWAYS_INLINE void CopyRegisters(ShadowFrame& caller_frame,
+                                 ShadowFrame* callee_frame,
+                                 const uint32_t (&arg)[Instruction::kMaxVarArgRegs],
+                                 const size_t first_src_reg,
+                                 const size_t first_dest_reg,
+                                 const size_t num_regs) REQUIRES_SHARED(Locks::mutator_lock_);
 
 // END DECLARATIONS.
 
