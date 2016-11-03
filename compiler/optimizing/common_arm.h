@@ -135,6 +135,16 @@ inline vixl::aarch32::Register InputRegister(HInstruction* instr) {
   return InputRegisterAt(instr, 0);
 }
 
+inline int32_t Int32ConstantFrom(Location location) {
+  HConstant* instr = location.GetConstant();
+  if (instr->IsIntConstant()) {
+    return instr->AsIntConstant()->GetValue();
+  } else {
+    DCHECK(instr->IsNullConstant()) << instr->DebugName();
+    return 0;
+  }
+}
+
 inline int64_t Int64ConstantFrom(Location location) {
   HConstant* instr = location.GetConstant();
   if (instr->IsIntConstant()) {
