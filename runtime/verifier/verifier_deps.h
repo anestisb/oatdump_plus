@@ -109,10 +109,17 @@ class VerifierDeps {
   void Dump(VariableIndentationOutputStream* vios) const
       NO_THREAD_SAFETY_ANALYSIS;
 
-  // Verify the encoded dependencies of this `VerifierDeps`.
+  // Verify the encoded dependencies of this `VerifierDeps` are still valid.
   // NO_THREAD_SAFETY_ANALYSIS, as this must be called on a read-only `VerifierDeps`.
-  bool Verify(Handle<mirror::ClassLoader> class_loader, Thread* self) const
+  bool ValidateDependencies(Handle<mirror::ClassLoader> class_loader, Thread* self) const
       NO_THREAD_SAFETY_ANALYSIS;
+
+  // NO_THREAD_SAFETY_ANALSYS, as this is queried when the VerifierDeps are
+  // fully created.
+  const std::vector<uint16_t>& GetUnverifiedClasses(const DexFile& dex_file) const
+      NO_THREAD_SAFETY_ANALYSIS {
+    return GetDexFileDeps(dex_file)->unverified_classes_;
+  }
 
  private:
   static constexpr uint16_t kUnresolvedMarker = static_cast<uint16_t>(-1);
@@ -317,6 +324,7 @@ class VerifierDeps {
   ART_FRIEND_TEST(VerifierDepsTest, EncodeDecode);
   ART_FRIEND_TEST(VerifierDepsTest, EncodeDecodeMulti);
   ART_FRIEND_TEST(VerifierDepsTest, VerifyDeps);
+  ART_FRIEND_TEST(VerifierDepsTest, CompilerDriver);
 };
 
 }  // namespace verifier
