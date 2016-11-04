@@ -199,7 +199,8 @@ void InternTable::WaitUntilAccessible(Thread* self) {
   {
     ScopedThreadSuspension sts(self, kWaitingWeakGcRootRead);
     MutexLock mu(self, *Locks::intern_table_lock_);
-    while (weak_root_state_ == gc::kWeakRootStateNoReadsOrWrites) {
+    while ((!kUseReadBarrier && weak_root_state_ == gc::kWeakRootStateNoReadsOrWrites) ||
+           (kUseReadBarrier && !self->GetWeakRefAccessEnabled())) {
       weak_intern_condition_.Wait(self);
     }
   }
