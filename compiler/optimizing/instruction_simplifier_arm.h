@@ -48,7 +48,7 @@ class InstructionSimplifierArmVisitor : public HGraphVisitor {
 class InstructionSimplifierArm : public HOptimization {
  public:
   InstructionSimplifierArm(HGraph* graph, OptimizingCompilerStats* stats)
-    : HOptimization(graph, kInstructionSimplifierArmPassName, stats) {}
+      : HOptimization(graph, kInstructionSimplifierArmPassName, stats) {}
 
   static constexpr const char* kInstructionSimplifierArmPassName = "instruction_simplifier_arm";
 
