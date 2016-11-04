@@ -188,7 +188,7 @@ class AssemblerMIPSTest : public AssemblerTest<mips::MipsAssembler,
 
   void BranchCondOneRegHelper(void (mips::MipsAssembler::*f)(mips::Register,
                                                              mips::MipsLabel*),
-                              std::string instr_name) {
+                              const std::string& instr_name) {
     mips::MipsLabel label;
     (Base::GetAssembler()->*f)(mips::A0, &label);
     constexpr size_t kAdduCount1 = 63;
@@ -217,7 +217,7 @@ class AssemblerMIPSTest : public AssemblerTest<mips::MipsAssembler,
   void BranchCondTwoRegsHelper(void (mips::MipsAssembler::*f)(mips::Register,
                                                               mips::Register,
                                                               mips::MipsLabel*),
-                               std::string instr_name) {
+                               const std::string& instr_name) {
     mips::MipsLabel label;
     (Base::GetAssembler()->*f)(mips::A0, mips::A1, &label);
     constexpr size_t kAdduCount1 = 63;
