@@ -20,6 +20,7 @@
 #include <ostream>
 #include <type_traits>
 
+#include "base/macros.h"
 #include "base/mutex.h"  // For Locks::mutator_lock_.
 #include "globals.h"
 
@@ -41,17 +42,26 @@ class ObjPtr {
  public:
   ALWAYS_INLINE ObjPtr() REQUIRES_SHARED(Locks::mutator_lock_) : reference_(0u) {}
 
-  ALWAYS_INLINE ObjPtr(std::nullptr_t) REQUIRES_SHARED(Locks::mutator_lock_) : reference_(0u) {}
+  // Note: The following constructors allow implicit conversion. This simplifies code that uses
+  //       them, e.g., for parameter passing. However, in general, implicit-conversion constructors
+  //       are discouraged and detected by cpplint and clang-tidy. So mark these constructors
+  //       as NOLINT (without category, as the categories are different).
+
+  ALWAYS_INLINE ObjPtr(std::nullptr_t)  // NOLINT
+      REQUIRES_SHARED(Locks::mutator_lock_)
+      : reference_(0u) {}
 
   template <typename Type>
-  ALWAYS_INLINE ObjPtr(Type* ptr) REQUIRES_SHARED(Locks::mutator_lock_)
+  ALWAYS_INLINE ObjPtr(Type* ptr)  // NOLINT
+      REQUIRES_SHARED(Locks::mutator_lock_)
       : reference_(Encode(static_cast<MirrorType*>(ptr))) {
     static_assert(std::is_base_of<MirrorType, Type>::value,
                   "Input type must be a subtype of the ObjPtr type");
   }
 
   template <typename Type>
-  ALWAYS_INLINE ObjPtr(const ObjPtr<Type, kPoison>& other) REQUIRES_SHARED(Locks::mutator_lock_)
+  ALWAYS_INLINE ObjPtr(const ObjPtr<Type, kPoison>& other)  // NOLINT
+      REQUIRES_SHARED(Locks::mutator_lock_)
       : reference_(Encode(static_cast<MirrorType*>(other.Ptr()))) {
     static_assert(std::is_base_of<MirrorType, Type>::value,
                   "Input type must be a subtype of the ObjPtr type");
@@ -153,6 +163,9 @@ class ObjPtr {
   // The encoded reference and cookie.
   uintptr_t reference_;
 };
+
+static_assert(std::is_trivially_copyable<ObjPtr<void>>::value,
+              "ObjPtr should be trivially copyable");
 
 // Hash function for stl data structures.
 class HashObjPtr {
