@@ -52,7 +52,7 @@ class ScratchFile {
 
   ScratchFile(const ScratchFile& other, const char* suffix);
 
-  explicit ScratchFile(ScratchFile&& other);
+  ScratchFile(ScratchFile&& other);
 
   ScratchFile& operator=(ScratchFile&& other);
 
