@@ -397,14 +397,26 @@ else
 fi
 
 if [ "$HOST" = "n" ]; then
-  adb_invocation=$(adb shell ls -F /data/dalvik-cache)
-  outcome=$?
-  ISA=$(echo $adb_invocation | grep -Ewo "${ARCHITECTURES_PATTERN}")
+  # Need to be root to query /data/dalvik-cache
+  adb root > /dev/null
+  adb wait-for-device
+  ISA=
+  ISA_adb_invocation=
+  ISA_outcome=
+  # We iterate a few times to workaround an adb issue. b/32655576
+  for i in {1..10}; do
+    ISA_adb_invocation=$(adb shell ls -F /data/dalvik-cache)
+    ISA_outcome=$?
+    ISA=$(echo $ISA_adb_invocation | grep -Ewo "${ARCHITECTURES_PATTERN}")
+    if [ x"$ISA" != "x" ]; then
+      break;
+    fi
+  done
   if [ x"$ISA" = "x" ]; then
     echo "Unable to determine architecture"
     # Print a few things for helping diagnosing the problem.
-    echo "adb invocation output: $adb_invocation"
-    echo "adb invocation outcome: $outcome"
+    echo "adb invocation output: $ISA_adb_invocation"
+    echo "adb invocation outcome: $ISA_outcome"
     echo $(adb shell ls -F /data/dalvik-cache)
     echo $(adb shell ls /data/dalvik-cache)
     echo ${ARCHITECTURES_PATTERN}
