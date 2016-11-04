@@ -20,6 +20,10 @@ import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
 import java.lang.invoke.WrongMethodTypeException;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+
 public class Main {
 
   public static class A {
@@ -59,6 +63,7 @@ public class Main {
     testfindSpecial_invokeDirectBehaviour();
     testExceptionDetailMessages();
     testfindVirtual();
+    testUnreflects();
   }
 
   public static void testfindSpecial_invokeSuperBehaviour() throws Throwable {
@@ -261,6 +266,183 @@ public class Main {
     if (!"superPackageMethod".equals(str)) {
       System.out.println("Unexpected return value for BarImpl#superPackageMethod: " + str);
     }
+  }
+
+  static class UnreflectTester {
+    public String publicField;
+    private String privateField;
+
+    public static String publicStaticField = "publicStaticValue";
+    private static String privateStaticField = "privateStaticValue";
+
+    private UnreflectTester(String val) {
+      publicField = val;
+      privateField = val;
+    }
+
+    // NOTE: The boolean constructor argument only exists to give this a
+    // different signature.
+    public UnreflectTester(String val, boolean unused) {
+      this(val);
+    }
+
+    private static String privateStaticMethod() {
+      return "privateStaticMethod";
+    }
+
+    private String privateMethod() {
+      return "privateMethod";
+    }
+
+    public static String publicStaticMethod() {
+      return "publicStaticMethod";
+    }
+
+    public String publicMethod() {
+      return "publicMethod";
+    }
+  }
+
+  public static void testUnreflects() throws Throwable {
+    UnreflectTester instance = new UnreflectTester("unused");
+    Method publicMethod = UnreflectTester.class.getMethod("publicMethod");
+
+    MethodHandle mh = MethodHandles.lookup().unreflect(publicMethod);
+    assertEquals("publicMethod", (String) mh.invoke(instance));
+    assertEquals("publicMethod", (String) mh.invokeExact(instance));
+
+    Method publicStaticMethod = UnreflectTester.class.getMethod("publicStaticMethod");
+    mh = MethodHandles.lookup().unreflect(publicStaticMethod);
+    assertEquals("publicStaticMethod", (String) mh.invoke());
+    assertEquals("publicStaticMethod", (String) mh.invokeExact());
+
+    Method privateMethod = UnreflectTester.class.getDeclaredMethod("privateMethod");
+    try {
+      mh = MethodHandles.lookup().unreflect(privateMethod);
+      fail();
+    } catch (IllegalAccessException expected) {}
+
+    privateMethod.setAccessible(true);
+    mh = MethodHandles.lookup().unreflect(privateMethod);
+    assertEquals("privateMethod", (String) mh.invoke(instance));
+    assertEquals("privateMethod", (String) mh.invokeExact(instance));
+
+    Method privateStaticMethod = UnreflectTester.class.getDeclaredMethod("privateStaticMethod");
+    try {
+      mh = MethodHandles.lookup().unreflect(privateStaticMethod);
+      fail();
+    } catch (IllegalAccessException expected) {}
+
+    privateStaticMethod.setAccessible(true);
+    mh = MethodHandles.lookup().unreflect(privateStaticMethod);
+    assertEquals("privateStaticMethod", (String) mh.invoke());
+    assertEquals("privateStaticMethod", (String) mh.invokeExact());
+
+    Constructor privateConstructor = UnreflectTester.class.getDeclaredConstructor(String.class);
+    try {
+      mh = MethodHandles.lookup().unreflectConstructor(privateConstructor);
+      fail();
+    } catch (IllegalAccessException expected) {}
+
+    privateConstructor.setAccessible(true);
+    mh = MethodHandles.lookup().unreflectConstructor(privateConstructor);
+    // TODO(narayan): Method handle constructor invokes are not supported yet.
+    //
+    // UnreflectTester tester = (UnreflectTester) mh.invoke("foo");
+    // UnreflectTester tester = (UnreflectTester) mh.invoke("fooExact");
+
+    Constructor publicConstructor = UnreflectTester.class.getConstructor(String.class,
+        boolean.class);
+    mh = MethodHandles.lookup().unreflectConstructor(publicConstructor);
+    // TODO(narayan): Method handle constructor invokes are not supported yet.
+    //
+    // UnreflectTester tester = (UnreflectTester) mh.invoke("foo");
+    // UnreflectTester tester = (UnreflectTester) mh.invoke("fooExact");
+
+    // TODO(narayan): Non exact invokes for field sets/gets are not implemented yet.
+    //
+    // assertEquals("instanceValue", (String) mh.invoke(new UnreflectTester("instanceValue")));
+    Field publicField = UnreflectTester.class.getField("publicField");
+    mh = MethodHandles.lookup().unreflectGetter(publicField);
+    instance = new UnreflectTester("instanceValue");
+    assertEquals("instanceValue", (String) mh.invokeExact(instance));
+
+    mh = MethodHandles.lookup().unreflectSetter(publicField);
+    instance = new UnreflectTester("instanceValue");
+    mh.invokeExact(instance, "updatedInstanceValue");
+    assertEquals("updatedInstanceValue", instance.publicField);
+
+    Field publicStaticField = UnreflectTester.class.getField("publicStaticField");
+    mh = MethodHandles.lookup().unreflectGetter(publicStaticField);
+    UnreflectTester.publicStaticField = "updatedStaticValue";
+    assertEquals("updatedStaticValue", (String) mh.invokeExact());
+
+    mh = MethodHandles.lookup().unreflectSetter(publicStaticField);
+    UnreflectTester.publicStaticField = "updatedStaticValue";
+    mh.invokeExact("updatedStaticValue2");
+    assertEquals("updatedStaticValue2", UnreflectTester.publicStaticField);
+
+    Field privateField = UnreflectTester.class.getDeclaredField("privateField");
+    try {
+      mh = MethodHandles.lookup().unreflectGetter(privateField);
+      fail();
+    } catch (IllegalAccessException expected) {
+    }
+    try {
+      mh = MethodHandles.lookup().unreflectSetter(privateField);
+      fail();
+    } catch (IllegalAccessException expected) {
+    }
+
+    privateField.setAccessible(true);
+
+    mh = MethodHandles.lookup().unreflectGetter(privateField);
+    instance = new UnreflectTester("instanceValue");
+    assertEquals("instanceValue", (String) mh.invokeExact(instance));
+
+    mh = MethodHandles.lookup().unreflectSetter(privateField);
+    instance = new UnreflectTester("instanceValue");
+    mh.invokeExact(instance, "updatedInstanceValue");
+    assertEquals("updatedInstanceValue", instance.privateField);
+
+    Field privateStaticField = UnreflectTester.class.getDeclaredField("privateStaticField");
+    try {
+      mh = MethodHandles.lookup().unreflectGetter(privateStaticField);
+      fail();
+    } catch (IllegalAccessException expected) {
+    }
+    try {
+      mh = MethodHandles.lookup().unreflectSetter(privateStaticField);
+      fail();
+    } catch (IllegalAccessException expected) {
+    }
+
+    privateStaticField.setAccessible(true);
+    mh = MethodHandles.lookup().unreflectGetter(privateStaticField);
+    privateStaticField.set(null, "updatedStaticValue");
+    assertEquals("updatedStaticValue", (String) mh.invokeExact());
+
+    mh = MethodHandles.lookup().unreflectSetter(privateStaticField);
+    privateStaticField.set(null, "updatedStaticValue");
+    mh.invokeExact("updatedStaticValue2");
+    assertEquals("updatedStaticValue2", (String) privateStaticField.get(null));
+  }
+
+  public static void assertEquals(String s1, String s2) {
+    if (s1 == s2) {
+      return;
+    }
+
+    if (s1 != null && s2 != null && s1.equals(s2)) {
+      return;
+    }
+
+    throw new AssertionError("assertEquals s1: " + s1 + ", s2: " + s2);
+  }
+
+  public static void fail() {
+    System.out.println("fail");
+    Thread.dumpStack();
   }
 }
 
