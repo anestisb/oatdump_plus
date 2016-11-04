@@ -39,12 +39,12 @@ class JNIMacroAssemblerTest : public testing::Test {
 
   typedef std::string (*TestFn)(JNIMacroAssemblerTest* assembler_test, Ass* assembler);
 
-  void DriverFn(TestFn f, std::string test_name) {
+  void DriverFn(TestFn f, const std::string& test_name) {
     DriverWrapper(f(this, assembler_.get()), test_name);
   }
 
   // This driver assumes the assembler has already been called.
-  void DriverStr(std::string assembly_string, std::string test_name) {
+  void DriverStr(const std::string& assembly_string, const std::string& test_name) {
     DriverWrapper(assembly_string, test_name);
   }
 
@@ -128,7 +128,7 @@ class JNIMacroAssemblerTest : public testing::Test {
   virtual void Pad(std::vector<uint8_t>& data ATTRIBUTE_UNUSED) {
   }
 
-  void DriverWrapper(std::string assembly_text, std::string test_name) {
+  void DriverWrapper(const std::string& assembly_text, const std::string& test_name) {
     assembler_->FinalizeCode();
     size_t cs = assembler_->CodeSize();
     std::unique_ptr<std::vector<uint8_t>> data(new std::vector<uint8_t>(cs));
