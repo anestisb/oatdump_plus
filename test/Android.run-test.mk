@@ -384,7 +384,7 @@ TEST_ART_BROKEN_GCSTRESS_RUN_TESTS := \
   908-gc-start-finish \
   913-heaps \
   961-default-iface-resolution-gen \
-  964-default-iface-init-gen \  
+  964-default-iface-init-gen
 
 ifneq (,$(filter gcstress,$(GC_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
@@ -610,9 +610,12 @@ TEST_ART_BROKEN_INTERPRETER_READ_BARRIER_RUN_TESTS :=
 #      more parallel moves on x86, thus some Checker assertions may fail.
 # 527: On ARM64 and ARM, the read barrier instrumentation does not support the HIntermediateAddress
 #      instruction yet (b/26601270).
+# 562: On ARM64 and ARM, the read barrier instrumentation does not support the HIntermediateAddress
+#      instruction yet (b/26601270).
 TEST_ART_BROKEN_OPTIMIZING_READ_BARRIER_RUN_TESTS := \
   484-checker-register-hints \
-  527-checker-array-access-split
+  527-checker-array-access-split \
+  562-checker-no-intermediate
 
 # Tests that should fail in the read barrier configuration with JIT (Optimizing compiler).
 TEST_ART_BROKEN_JIT_READ_BARRIER_RUN_TESTS :=
