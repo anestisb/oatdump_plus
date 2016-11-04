@@ -16,10 +16,15 @@
 
 #include "locations.h"
 
+#include <type_traits>
+
 #include "nodes.h"
 #include "code_generator.h"
 
 namespace art {
+
+// Verify that Location is trivially copyable.
+static_assert(std::is_trivially_copyable<Location>::value, "Location should be trivially copyable");
 
 LocationSummary::LocationSummary(HInstruction* instruction,
                                  CallKind call_kind,
