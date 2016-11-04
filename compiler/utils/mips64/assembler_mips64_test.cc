@@ -212,7 +212,7 @@ class AssemblerMIPS64Test : public AssemblerTest<mips64::Mips64Assembler,
 
   void BranchCondOneRegHelper(void (mips64::Mips64Assembler::*f)(mips64::GpuRegister,
                                                                  mips64::Mips64Label*),
-                              std::string instr_name) {
+                              const std::string& instr_name) {
     mips64::Mips64Label label;
     (Base::GetAssembler()->*f)(mips64::A0, &label);
     constexpr size_t kAdduCount1 = 63;
@@ -241,7 +241,7 @@ class AssemblerMIPS64Test : public AssemblerTest<mips64::Mips64Assembler,
   void BranchCondTwoRegsHelper(void (mips64::Mips64Assembler::*f)(mips64::GpuRegister,
                                                                   mips64::GpuRegister,
                                                                   mips64::Mips64Label*),
-                               std::string instr_name) {
+                               const std::string& instr_name) {
     mips64::Mips64Label label;
     (Base::GetAssembler()->*f)(mips64::A0, mips64::A1, &label);
     constexpr size_t kAdduCount1 = 63;
