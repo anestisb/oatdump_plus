@@ -51,30 +51,30 @@ class AssemblerTest : public testing::Test {
 
   typedef std::string (*TestFn)(AssemblerTest* assembler_test, Ass* assembler);
 
-  void DriverFn(TestFn f, std::string test_name) {
+  void DriverFn(TestFn f, const std::string& test_name) {
     DriverWrapper(f(this, assembler_.get()), test_name);
   }
 
   // This driver assumes the assembler has already been called.
-  void DriverStr(std::string assembly_string, std::string test_name) {
+  void DriverStr(const std::string& assembly_string, const std::string& test_name) {
     DriverWrapper(assembly_string, test_name);
   }
 
-  std::string RepeatR(void (Ass::*f)(Reg), std::string fmt) {
+  std::string RepeatR(void (Ass::*f)(Reg), const std::string& fmt) {
     return RepeatTemplatedRegister<Reg>(f,
         GetRegisters(),
         &AssemblerTest::GetRegName<RegisterView::kUsePrimaryName>,
         fmt);
   }
 
-  std::string Repeatr(void (Ass::*f)(Reg), std::string fmt) {
+  std::string Repeatr(void (Ass::*f)(Reg), const std::string& fmt) {
     return RepeatTemplatedRegister<Reg>(f,
         GetRegisters(),
         &AssemblerTest::GetRegName<RegisterView::kUseSecondaryName>,
         fmt);
   }
 
-  std::string RepeatRR(void (Ass::*f)(Reg, Reg), std::string fmt) {
+  std::string RepeatRR(void (Ass::*f)(Reg, Reg), const std::string& fmt) {
     return RepeatTemplatedRegisters<Reg, Reg>(f,
         GetRegisters(),
         GetRegisters(),
@@ -83,7 +83,7 @@ class AssemblerTest : public testing::Test {
         fmt);
   }
 
-  std::string RepeatRRNoDupes(void (Ass::*f)(Reg, Reg), std::string fmt) {
+  std::string RepeatRRNoDupes(void (Ass::*f)(Reg, Reg), const std::string& fmt) {
     return RepeatTemplatedRegistersNoDupes<Reg, Reg>(f,
         GetRegisters(),
         GetRegisters(),
@@ -92,7 +92,7 @@ class AssemblerTest : public testing::Test {
         fmt);
   }
 
-  std::string Repeatrr(void (Ass::*f)(Reg, Reg), std::string fmt) {
+  std::string Repeatrr(void (Ass::*f)(Reg, Reg), const std::string& fmt) {
     return RepeatTemplatedRegisters<Reg, Reg>(f,
         GetRegisters(),
         GetRegisters(),
@@ -101,7 +101,7 @@ class AssemblerTest : public testing::Test {
         fmt);
   }
 
-  std::string RepeatRRR(void (Ass::*f)(Reg, Reg, Reg), std::string fmt) {
+  std::string RepeatRRR(void (Ass::*f)(Reg, Reg, Reg), const std::string& fmt) {
     return RepeatTemplatedRegisters<Reg, Reg, Reg>(f,
         GetRegisters(),
         GetRegisters(),
@@ -112,7 +112,7 @@ class AssemblerTest : public testing::Test {
         fmt);
   }
 
-  std::string Repeatrb(void (Ass::*f)(Reg, Reg), std::string fmt) {
+  std::string Repeatrb(void (Ass::*f)(Reg, Reg), const std::string& fmt) {
     return RepeatTemplatedRegisters<Reg, Reg>(f,
         GetRegisters(),
         GetRegisters(),
@@ -121,7 +121,7 @@ class AssemblerTest : public testing::Test {
         fmt);
   }
 
-  std::string RepeatRr(void (Ass::*f)(Reg, Reg), std::string fmt) {
+  std::string RepeatRr(void (Ass::*f)(Reg, Reg), const std::string& fmt) {
     return RepeatTemplatedRegisters<Reg, Reg>(f,
         GetRegisters(),
         GetRegisters(),
@@ -130,11 +130,11 @@ class AssemblerTest : public testing::Test {
         fmt);
   }
 
-  std::string RepeatRI(void (Ass::*f)(Reg, const Imm&), size_t imm_bytes, std::string fmt) {
+  std::string RepeatRI(void (Ass::*f)(Reg, const Imm&), size_t imm_bytes, const std::string& fmt) {
     return RepeatRegisterImm<RegisterView::kUsePrimaryName>(f, imm_bytes, fmt);
   }
 
-  std::string Repeatri(void (Ass::*f)(Reg, const Imm&), size_t imm_bytes, std::string fmt) {
+  std::string Repeatri(void (Ass::*f)(Reg, const Imm&), size_t imm_bytes, const std::string& fmt) {
     return RepeatRegisterImm<RegisterView::kUseSecondaryName>(f, imm_bytes, fmt);
   }
 
@@ -145,7 +145,7 @@ class AssemblerTest : public testing::Test {
                                               const std::vector<Reg2*> reg2_registers,
                                               std::string (AssemblerTest::*GetName1)(const Reg1&),
                                               std::string (AssemblerTest::*GetName2)(const Reg2&),
-                                              std::string fmt) {
+                                              const std::string& fmt) {
     std::string str;
     std::vector<int64_t> imms = CreateImmediateValuesBits(abs(imm_bits), (imm_bits > 0));
 
@@ -195,7 +195,7 @@ class AssemblerTest : public testing::Test {
                                               std::string (AssemblerTest::*GetName1)(const Reg1&),
                                               std::string (AssemblerTest::*GetName2)(const Reg2&),
                                               int imm_bits,
-                                              std::string fmt) {
+                                              const std::string& fmt) {
     std::vector<int64_t> imms = CreateImmediateValuesBits(abs(imm_bits), (imm_bits > 0));
 
     WarnOnCombinations(reg1_registers.size() * reg2_registers.size() * imms.size());
@@ -245,7 +245,7 @@ class AssemblerTest : public testing::Test {
                                              int imm_bits,
                                              const std::vector<Reg*> registers,
                                              std::string (AssemblerTest::*GetName)(const RegType&),
-                                             std::string fmt) {
+                                             const std::string& fmt) {
     std::string str;
     std::vector<int64_t> imms = CreateImmediateValuesBits(abs(imm_bits), (imm_bits > 0));
 
@@ -281,7 +281,7 @@ class AssemblerTest : public testing::Test {
   }
 
   template <typename ImmType>
-  std::string RepeatRRIb(void (Ass::*f)(Reg, Reg, ImmType), int imm_bits, std::string fmt) {
+  std::string RepeatRRIb(void (Ass::*f)(Reg, Reg, ImmType), int imm_bits, const std::string& fmt) {
     return RepeatTemplatedRegistersImmBits<Reg, Reg, ImmType>(f,
         imm_bits,
         GetRegisters(),
@@ -292,7 +292,7 @@ class AssemblerTest : public testing::Test {
   }
 
   template <typename ImmType>
-  std::string RepeatRIb(void (Ass::*f)(Reg, ImmType), int imm_bits, std::string fmt) {
+  std::string RepeatRIb(void (Ass::*f)(Reg, ImmType), int imm_bits, const std::string& fmt) {
     return RepeatTemplatedRegisterImmBits<Reg, ImmType>(f,
         imm_bits,
         GetRegisters(),
@@ -301,7 +301,9 @@ class AssemblerTest : public testing::Test {
   }
 
   template <typename ImmType>
-  std::string RepeatFRIb(void (Ass::*f)(FPReg, Reg, ImmType), int imm_bits, std::string fmt) {
+  std::string RepeatFRIb(void (Ass::*f)(FPReg, Reg, ImmType),
+                         int imm_bits,
+                         const std::string& fmt) {
     return RepeatTemplatedRegistersImmBits<FPReg, Reg, ImmType>(f,
         imm_bits,
         GetFPRegisters(),
@@ -311,7 +313,7 @@ class AssemblerTest : public testing::Test {
         fmt);
   }
 
-  std::string RepeatFF(void (Ass::*f)(FPReg, FPReg), std::string fmt) {
+  std::string RepeatFF(void (Ass::*f)(FPReg, FPReg), const std::string& fmt) {
     return RepeatTemplatedRegisters<FPReg, FPReg>(f,
                                                   GetFPRegisters(),
                                                   GetFPRegisters(),
@@ -320,7 +322,7 @@ class AssemblerTest : public testing::Test {
                                                   fmt);
   }
 
-  std::string RepeatFFF(void (Ass::*f)(FPReg, FPReg, FPReg), std::string fmt) {
+  std::string RepeatFFF(void (Ass::*f)(FPReg, FPReg, FPReg), const std::string& fmt) {
     return RepeatTemplatedRegisters<FPReg, FPReg, FPReg>(f,
                                                          GetFPRegisters(),
                                                          GetFPRegisters(),
@@ -331,7 +333,7 @@ class AssemblerTest : public testing::Test {
                                                          fmt);
   }
 
-  std::string RepeatFFR(void (Ass::*f)(FPReg, FPReg, Reg), std::string fmt) {
+  std::string RepeatFFR(void (Ass::*f)(FPReg, FPReg, Reg), const std::string& fmt) {
     return RepeatTemplatedRegisters<FPReg, FPReg, Reg>(
         f,
         GetFPRegisters(),
@@ -345,7 +347,7 @@ class AssemblerTest : public testing::Test {
 
   std::string RepeatFFI(void (Ass::*f)(FPReg, FPReg, const Imm&),
                         size_t imm_bytes,
-                        std::string fmt) {
+                        const std::string& fmt) {
     return RepeatTemplatedRegistersImm<FPReg, FPReg>(f,
                                                      GetFPRegisters(),
                                                      GetFPRegisters(),
@@ -356,7 +358,9 @@ class AssemblerTest : public testing::Test {
   }
 
   template <typename ImmType>
-  std::string RepeatFFIb(void (Ass::*f)(FPReg, FPReg, ImmType), int imm_bits, std::string fmt) {
+  std::string RepeatFFIb(void (Ass::*f)(FPReg, FPReg, ImmType),
+                         int imm_bits,
+                         const std::string& fmt) {
     return RepeatTemplatedRegistersImmBits<FPReg, FPReg, ImmType>(f,
                                                                   imm_bits,
                                                                   GetFPRegisters(),
@@ -367,7 +371,9 @@ class AssemblerTest : public testing::Test {
   }
 
   template <typename ImmType>
-  std::string RepeatIbFF(void (Ass::*f)(ImmType, FPReg, FPReg), int imm_bits, std::string fmt) {
+  std::string RepeatIbFF(void (Ass::*f)(ImmType, FPReg, FPReg),
+                         int imm_bits,
+                         const std::string& fmt) {
     return RepeatTemplatedImmBitsRegisters<ImmType, FPReg, FPReg>(f,
                                                                   GetFPRegisters(),
                                                                   GetFPRegisters(),
@@ -377,7 +383,7 @@ class AssemblerTest : public testing::Test {
                                                                   fmt);
   }
 
-  std::string RepeatFR(void (Ass::*f)(FPReg, Reg), std::string fmt) {
+  std::string RepeatFR(void (Ass::*f)(FPReg, Reg), const std::string& fmt) {
     return RepeatTemplatedRegisters<FPReg, Reg>(f,
         GetFPRegisters(),
         GetRegisters(),
@@ -386,7 +392,7 @@ class AssemblerTest : public testing::Test {
         fmt);
   }
 
-  std::string RepeatFr(void (Ass::*f)(FPReg, Reg), std::string fmt) {
+  std::string RepeatFr(void (Ass::*f)(FPReg, Reg), const std::string& fmt) {
     return RepeatTemplatedRegisters<FPReg, Reg>(f,
         GetFPRegisters(),
         GetRegisters(),
@@ -395,7 +401,7 @@ class AssemblerTest : public testing::Test {
         fmt);
   }
 
-  std::string RepeatRF(void (Ass::*f)(Reg, FPReg), std::string fmt) {
+  std::string RepeatRF(void (Ass::*f)(Reg, FPReg), const std::string& fmt) {
     return RepeatTemplatedRegisters<Reg, FPReg>(f,
         GetRegisters(),
         GetFPRegisters(),
@@ -404,7 +410,7 @@ class AssemblerTest : public testing::Test {
         fmt);
   }
 
-  std::string RepeatrF(void (Ass::*f)(Reg, FPReg), std::string fmt) {
+  std::string RepeatrF(void (Ass::*f)(Reg, FPReg), const std::string& fmt) {
     return RepeatTemplatedRegisters<Reg, FPReg>(f,
         GetRegisters(),
         GetFPRegisters(),
@@ -413,7 +419,9 @@ class AssemblerTest : public testing::Test {
         fmt);
   }
 
-  std::string RepeatI(void (Ass::*f)(const Imm&), size_t imm_bytes, std::string fmt,
+  std::string RepeatI(void (Ass::*f)(const Imm&),
+                      size_t imm_bytes,
+                      const std::string& fmt,
                       bool as_uint = false) {
     std::string str;
     std::vector<int64_t> imms = CreateImmediateValues(imm_bytes, as_uint);
@@ -651,7 +659,7 @@ class AssemblerTest : public testing::Test {
   std::string RepeatTemplatedRegister(void (Ass::*f)(RegType),
                                       const std::vector<RegType*> registers,
                                       std::string (AssemblerTest::*GetName)(const RegType&),
-                                      std::string fmt) {
+                                      const std::string& fmt) {
     std::string str;
     for (auto reg : registers) {
       (assembler_.get()->*f)(*reg);
@@ -679,7 +687,7 @@ class AssemblerTest : public testing::Test {
                                        const std::vector<Reg2*> reg2_registers,
                                        std::string (AssemblerTest::*GetName1)(const Reg1&),
                                        std::string (AssemblerTest::*GetName2)(const Reg2&),
-                                       std::string fmt) {
+                                       const std::string& fmt) {
     WarnOnCombinations(reg1_registers.size() * reg2_registers.size());
 
     std::string str;
@@ -717,7 +725,7 @@ class AssemblerTest : public testing::Test {
                                               const std::vector<Reg2*> reg2_registers,
                                               std::string (AssemblerTest::*GetName1)(const Reg1&),
                                               std::string (AssemblerTest::*GetName2)(const Reg2&),
-                                              std::string fmt) {
+                                              const std::string& fmt) {
     WarnOnCombinations(reg1_registers.size() * reg2_registers.size());
 
     std::string str;
@@ -758,7 +766,7 @@ class AssemblerTest : public testing::Test {
                                        std::string (AssemblerTest::*GetName1)(const Reg1&),
                                        std::string (AssemblerTest::*GetName2)(const Reg2&),
                                        std::string (AssemblerTest::*GetName3)(const Reg3&),
-                                       std::string fmt) {
+                                       const std::string& fmt) {
     std::string str;
     for (auto reg1 : reg1_registers) {
       for (auto reg2 : reg2_registers) {
@@ -803,7 +811,7 @@ class AssemblerTest : public testing::Test {
                                           std::string (AssemblerTest::*GetName1)(const Reg1&),
                                           std::string (AssemblerTest::*GetName2)(const Reg2&),
                                           size_t imm_bytes,
-                                          std::string fmt) {
+                                          const std::string& fmt) {
     std::vector<int64_t> imms = CreateImmediateValues(imm_bytes);
     WarnOnCombinations(reg1_registers.size() * reg2_registers.size() * imms.size());
 
@@ -895,8 +903,9 @@ class AssemblerTest : public testing::Test {
 
  private:
   template <RegisterView kRegView>
-  std::string RepeatRegisterImm(void (Ass::*f)(Reg, const Imm&), size_t imm_bytes,
-                                  std::string fmt) {
+  std::string RepeatRegisterImm(void (Ass::*f)(Reg, const Imm&),
+                                size_t imm_bytes,
+                                const std::string& fmt) {
     const std::vector<Reg*> registers = GetRegisters();
     std::string str;
     std::vector<int64_t> imms = CreateImmediateValues(imm_bytes);
@@ -938,7 +947,7 @@ class AssemblerTest : public testing::Test {
   virtual void Pad(std::vector<uint8_t>& data ATTRIBUTE_UNUSED) {
   }
 
-  void DriverWrapper(std::string assembly_text, std::string test_name) {
+  void DriverWrapper(const std::string& assembly_text, const std::string& test_name) {
     assembler_->FinalizeCode();
     size_t cs = assembler_->CodeSize();
     std::unique_ptr<std::vector<uint8_t>> data(new std::vector<uint8_t>(cs));

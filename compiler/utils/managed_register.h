@@ -17,7 +17,10 @@
 #ifndef ART_COMPILER_UTILS_MANAGED_REGISTER_H_
 #define ART_COMPILER_UTILS_MANAGED_REGISTER_H_
 
+#include <type_traits>
 #include <vector>
+
+#include "base/value_object.h"
 
 namespace art {
 
@@ -42,17 +45,14 @@ namespace x86_64 {
 class X86_64ManagedRegister;
 }
 
-class ManagedRegister {
+class ManagedRegister : public ValueObject {
  public:
   // ManagedRegister is a value class. There exists no method to change the
   // internal state. We therefore allow a copy constructor and an
   // assignment-operator.
-  constexpr ManagedRegister(const ManagedRegister& other) : id_(other.id_) { }
+  constexpr ManagedRegister(const ManagedRegister& other) = default;
 
-  ManagedRegister& operator=(const ManagedRegister& other) {
-    id_ = other.id_;
-    return *this;
-  }
+  ManagedRegister& operator=(const ManagedRegister& other) = default;
 
   constexpr arm::ArmManagedRegister AsArm() const;
   constexpr arm64::Arm64ManagedRegister AsArm64() const;
@@ -84,6 +84,9 @@ class ManagedRegister {
 
   int id_;
 };
+
+static_assert(std::is_trivially_copyable<ManagedRegister>::value,
+              "ManagedRegister should be trivially copyable");
 
 class ManagedRegisterSpill : public ManagedRegister {
  public:

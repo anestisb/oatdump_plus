@@ -91,12 +91,9 @@ class Location : public ValueObject {
     DCHECK(!IsValid());
   }
 
-  Location(const Location& other) : value_(other.value_) {}
+  Location(const Location& other) = default;
 
-  Location& operator=(const Location& other) {
-    value_ = other.value_;
-    return *this;
-  }
+  Location& operator=(const Location& other) = default;
 
   bool IsConstant() const {
     return (value_ & kLocationConstantMask) == kConstant;
@@ -328,7 +325,6 @@ class Location : public ValueObject {
         LOG(FATAL) << "Should not use this location kind";
     }
     UNREACHABLE();
-    return "?";
   }
 
   // Unallocated locations.
