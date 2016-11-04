@@ -72,9 +72,7 @@ class HLoopOptimization : public HOptimization {
                            HInstruction* instruction,
                            /*out*/ int32_t* use_count);
   void ReplaceAllUses(HInstruction* instruction, HInstruction* replacement);
-  bool TryReplaceWithLastValue(HInstruction* instruction,
-                               int32_t use_count,
-                               HBasicBlock* block);
+  bool TryReplaceWithLastValue(HInstruction* instruction, HBasicBlock* block);
 
   // Range information based on prior induction variable analysis.
   InductionVarRange induction_range_;
