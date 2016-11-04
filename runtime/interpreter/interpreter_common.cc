@@ -851,9 +851,23 @@ inline bool DoInvokePolymorphic(Thread* self,
   const MethodHandleKind handle_kind = method_handle->GetHandleKind();
   Handle<mirror::MethodType> handle_type(hs.NewHandle(method_handle->GetMethodType()));
   CHECK(handle_type.Get() != nullptr);
-  if (UNLIKELY(is_invoke_exact && !callsite_type->IsExactMatch(handle_type.Get()))) {
-    ThrowWrongMethodTypeException(handle_type.Get(), callsite_type.Get());
-    return false;
+  if (is_invoke_exact) {
+    // We need to check the nominal type of the handle in addition to the
+    // real type. The "nominal" type is present when MethodHandle.asType is
+    // called any handle, and results in the declared type of the handle
+    // changing.
+    ObjPtr<mirror::MethodType> nominal_type(method_handle->GetNominalType());
+    ObjPtr<mirror::MethodType> check_type(nullptr);
+    if (LIKELY(nominal_type.Ptr() == nullptr)) {
+      check_type.Assign(handle_type.Get());
+    } else {
+      check_type.Assign(nominal_type.Ptr());
+    }
+
+    if (UNLIKELY(!callsite_type->IsExactMatch(check_type.Ptr()))) {
+      ThrowWrongMethodTypeException(check_type.Ptr(), callsite_type.Get());
+      return false;
+    }
   }
 
   uint32_t arg[Instruction::kMaxVarArgRegs] = {};

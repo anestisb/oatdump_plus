@@ -64,6 +64,7 @@ public class Main {
     testExceptionDetailMessages();
     testfindVirtual();
     testUnreflects();
+    testAsType();
   }
 
   public static void testfindSpecial_invokeSuperBehaviour() throws Throwable {
@@ -426,6 +427,54 @@ public class Main {
     privateStaticField.set(null, "updatedStaticValue");
     mh.invokeExact("updatedStaticValue2");
     assertEquals("updatedStaticValue2", (String) privateStaticField.get(null));
+  }
+
+  // This method only exists to fool Jack's handling of types. See b/32536744.
+  public static CharSequence getSequence() {
+    return "foo";
+  }
+
+  public static void testAsType() throws Throwable {
+    // The type of this handle is (String, String)String.
+    MethodHandle mh = MethodHandles.lookup().findVirtual(String.class,
+        "concat", MethodType.methodType(String.class, String.class));
+
+    // Change it to (CharSequence, String)Object.
+    MethodHandle asType = mh.asType(
+        MethodType.methodType(Object.class, CharSequence.class, String.class));
+
+    Object obj = asType.invokeExact((CharSequence) getSequence(), "bar");
+    assertEquals("foobar", (String) obj);
+
+    // Should fail due to a wrong return type.
+    try {
+      String str = (String) asType.invokeExact((CharSequence) getSequence(), "bar");
+      fail();
+    } catch (WrongMethodTypeException expected) {
+    }
+
+    // Should fail due to a wrong argument type (String instead of Charsequence).
+    try {
+      String str = (String) asType.invokeExact("baz", "bar");
+      fail();
+    } catch (WrongMethodTypeException expected) {
+    }
+
+    // Calls to asType should fail if the types are not convertible.
+    //
+    // Bad return type conversion.
+    try {
+      mh.asType(MethodType.methodType(int.class, String.class, String.class));
+      fail();
+    } catch (WrongMethodTypeException expected) {
+    }
+
+    // Bad argument conversion.
+    try {
+      mh.asType(MethodType.methodType(String.class, int.class, String.class));
+      fail();
+    } catch (WrongMethodTypeException expected) {
+    }
   }
 
   public static void assertEquals(String s1, String s2) {
