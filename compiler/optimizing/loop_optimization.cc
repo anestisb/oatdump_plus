@@ -28,13 +28,26 @@ static void RemoveFromCycle(HInstruction* instruction) {
   instruction->GetBlock()->RemoveInstructionOrPhi(instruction, /*ensure_safety=*/ false);
 }
 
-// Detects a goto block and sets succ to the single successor.
+// Detect a goto block and sets succ to the single successor.
 static bool IsGotoBlock(HBasicBlock* block, /*out*/ HBasicBlock** succ) {
   if (block->GetPredecessors().size() == 1 &&
       block->GetSuccessors().size() == 1 &&
       block->IsSingleGoto()) {
     *succ = block->GetSingleSuccessor();
     return true;
+  }
+  return false;
+}
+
+// Detect an early exit loop.
+static bool IsEarlyExit(HLoopInformation* loop_info) {
+  HBlocksInLoopReversePostOrderIterator it_loop(*loop_info);
+  for (it_loop.Advance(); !it_loop.Done(); it_loop.Advance()) {
+    for (HBasicBlock* successor : it_loop.Current()->GetSuccessors()) {
+      if (!loop_info->Contains(*successor)) {
+        return true;
+      }
+    }
   }
   return false;
 }
@@ -179,7 +192,9 @@ void HLoopOptimization::SimplifyInduction(LoopNode* node) {
     int32_t use_count = 0;
     if (IsPhiInduction(phi) &&
         IsOnlyUsedAfterLoop(node->loop_info, phi, &use_count) &&
-        TryReplaceWithLastValue(phi, use_count, preheader)) {
+        // No uses, or no early-exit with proper replacement.
+        (use_count == 0 ||
+         (!IsEarlyExit(node->loop_info) && TryReplaceWithLastValue(phi, preheader)))) {
       for (HInstruction* i : *iset_) {
         RemoveFromCycle(i);
       }
@@ -277,7 +292,8 @@ void HLoopOptimization::RemoveIfEmptyInnerLoop(LoopNode* node) {
   if (IsEmptyHeader(header) &&
       IsEmptyBody(body) &&
       IsOnlyUsedAfterLoop(node->loop_info, header->GetFirstPhi(), &use_count) &&
-      TryReplaceWithLastValue(header->GetFirstPhi(), use_count, preheader)) {
+      // No uses, or proper replacement.
+      (use_count == 0 || TryReplaceWithLastValue(header->GetFirstPhi(), preheader))) {
     body->DisconnectAndDelete();
     exit->RemovePredecessor(header);
     header->RemoveSuccessor(exit);
@@ -395,20 +411,16 @@ void HLoopOptimization::ReplaceAllUses(HInstruction* instruction, HInstruction* 
   }
 }
 
-bool HLoopOptimization::TryReplaceWithLastValue(HInstruction* instruction,
-                                                int32_t use_count,
-                                                HBasicBlock* block) {
-  // If true uses appear after the loop, replace these uses with the last value. Environment
-  // uses can consume this value too, since any first true use is outside the loop (although
-  // this may imply that de-opting may look "ahead" a bit on the phi value). If there are only
-  // environment uses, the value is dropped altogether, since the computations have no effect.
-  if (use_count > 0) {
-    if (!induction_range_.CanGenerateLastValue(instruction)) {
-      return false;
-    }
+bool HLoopOptimization::TryReplaceWithLastValue(HInstruction* instruction, HBasicBlock* block) {
+  // Try to replace outside uses with the last value. Environment uses can consume this
+  // value too, since any first true use is outside the loop (although this may imply
+  // that de-opting may look "ahead" a bit on the phi value). If there are only environment
+  // uses, the value is dropped altogether, since the computations have no effect.
+  if (induction_range_.CanGenerateLastValue(instruction)) {
     ReplaceAllUses(instruction, induction_range_.GenerateLastValue(instruction, graph_, block));
+    return true;
   }
-  return true;
+  return false;
 }
 
 }  // namespace art
