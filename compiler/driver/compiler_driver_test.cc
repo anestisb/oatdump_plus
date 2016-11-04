@@ -43,6 +43,7 @@ class CompilerDriverTest : public CommonCompilerTest {
     TimingLogger::ScopedTiming t(__FUNCTION__, &timings);
     compiler_driver_->CompileAll(class_loader,
                                  GetDexFiles(class_loader),
+                                 /* verifier_deps */ nullptr,
                                  &timings);
     t.NewTiming("MakeAllExecutable");
     MakeAllExecutable(class_loader);
