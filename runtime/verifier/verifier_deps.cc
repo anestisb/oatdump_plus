@@ -607,7 +607,8 @@ void VerifierDeps::Dump(VariableIndentationOutputStream* vios) const {
   }
 }
 
-bool VerifierDeps::Verify(Handle<mirror::ClassLoader> class_loader, Thread* self) const {
+bool VerifierDeps::ValidateDependencies(Handle<mirror::ClassLoader> class_loader,
+                                        Thread* self) const {
   for (const auto& entry : dex_deps_) {
     if (!VerifyDexFile(class_loader, *entry.first, *entry.second, self)) {
       return false;

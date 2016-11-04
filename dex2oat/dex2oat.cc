@@ -1497,12 +1497,6 @@ class Dex2Oat FINAL {
 
     dex_files_ = MakeNonOwningPointerVector(opened_dex_files_);
 
-    if (!IsBootImage()) {
-      // Collect verification dependencies when compiling an app.
-      verifier_deps_.reset(new verifier::VerifierDeps(dex_files_));
-      callbacks_->SetVerifierDeps(verifier_deps_.get());
-    }
-
     // We had to postpone the swap decision till now, as this is the point when we actually
     // know about the dex files we're going to use.
 
@@ -1660,7 +1654,7 @@ class Dex2Oat FINAL {
                                      swap_fd_,
                                      profile_compilation_info_.get()));
     driver_->SetDexFilesForOatFile(dex_files_);
-    driver_->CompileAll(class_loader_, dex_files_, timings_);
+    driver_->CompileAll(class_loader_, dex_files_, /* verifier_deps */ nullptr, timings_);
   }
 
   // Notes on the interleaving of creating the images and oat files to
@@ -1785,13 +1779,13 @@ class Dex2Oat FINAL {
     {
       TimingLogger::ScopedTiming t2("dex2oat Write VDEX", timings_);
       DCHECK(IsBootImage() || oat_files_.size() == 1u);
-      DCHECK_EQ(IsBootImage(), verifier_deps_ == nullptr);
+      verifier::VerifierDeps* verifier_deps = callbacks_->GetVerifierDeps();
       for (size_t i = 0, size = oat_files_.size(); i != size; ++i) {
         File* vdex_file = vdex_files_[i].get();
         std::unique_ptr<BufferedOutputStream> vdex_out(
             MakeUnique<BufferedOutputStream>(MakeUnique<FileOutputStream>(vdex_file)));
 
-        if (!oat_writers_[i]->WriteVerifierDeps(vdex_out.get(), verifier_deps_.get())) {
+        if (!oat_writers_[i]->WriteVerifierDeps(vdex_out.get(), verifier_deps)) {
           LOG(ERROR) << "Failed to write verifier dependencies into VDEX " << vdex_file->GetPath();
           return false;
         }
@@ -2644,9 +2638,6 @@ class Dex2Oat FINAL {
   std::unique_ptr<CumulativeLogger> compiler_phases_timings_;
   std::vector<std::vector<const DexFile*>> dex_files_per_oat_file_;
   std::unordered_map<const DexFile*, size_t> dex_file_oat_index_map_;
-
-  // Collector of verifier dependencies.
-  std::unique_ptr<verifier::VerifierDeps> verifier_deps_;
 
   // Backing storage.
   std::vector<std::string> char_backing_storage_;

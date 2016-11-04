@@ -18,6 +18,7 @@
 #define ART_COMPILER_DEX_QUICK_COMPILER_CALLBACKS_H_
 
 #include "compiler_callbacks.h"
+#include "verifier/verifier_deps.h"
 
 namespace art {
 
@@ -46,16 +47,16 @@ class QuickCompilerCallbacks FINAL : public CompilerCallbacks {
     }
 
     verifier::VerifierDeps* GetVerifierDeps() const OVERRIDE {
-      return verifier_deps_;
+      return verifier_deps_.get();
     }
 
-    void SetVerifierDeps(verifier::VerifierDeps* deps) {
-      verifier_deps_ = deps;
+    void SetVerifierDeps(verifier::VerifierDeps* deps) OVERRIDE {
+      verifier_deps_.reset(deps);
     }
 
   private:
     VerificationResults* const verification_results_;
-    verifier::VerifierDeps* verifier_deps_;
+    std::unique_ptr<verifier::VerifierDeps> verifier_deps_;
 };
 
 }  // namespace art
