@@ -82,9 +82,10 @@ class InstructionSimplifierArm64Visitor : public HGraphVisitor {
 class InstructionSimplifierArm64 : public HOptimization {
  public:
   InstructionSimplifierArm64(HGraph* graph, OptimizingCompilerStats* stats)
-    : HOptimization(graph, kInstructionSimplifierArm64PassName, stats) {}
-  static constexpr const char* kInstructionSimplifierArm64PassName
-      = "instruction_simplifier_arm64";
+      : HOptimization(graph, kInstructionSimplifierArm64PassName, stats) {}
+
+  static constexpr const char* kInstructionSimplifierArm64PassName = "instruction_simplifier_arm64";
+
   void Run() OVERRIDE {
     InstructionSimplifierArm64Visitor visitor(graph_, stats_);
     visitor.VisitReversePostOrder();
