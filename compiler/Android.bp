@@ -204,7 +204,8 @@ art_cc_defaults {
 
 gensrcs {
     name: "art_compiler_operator_srcs",
-    cmd: "art/tools/generate-operator-out.py art/compiler $in > $out",
+    cmd: "$(location generate-operator-out.py) art/compiler $(in) > $(out)",
+    tool_files: ["generate-operator-out.py"],
     srcs: [
         "compiled_method.h",
         "dex/dex_to_dex_compiler.h",
