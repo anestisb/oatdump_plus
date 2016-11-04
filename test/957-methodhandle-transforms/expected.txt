@@ -4,6 +4,7 @@ Message: foo, Message2: 42
 Message: foo, Message2: 42
 Message: foo, Message2: 42
 Message: foo, Message2: 42
+Message: foo, Message2: 42
 Target: Arg1: foo, Arg2: 42
 Target: Arg1: foo, Arg2: 42
 Handler: java.lang.IllegalArgumentException: exceptionMessage, Arg1: foo, Arg2: 42, ExMsg: exceptionMessage
@@ -13,4 +14,5 @@ Handler: java.lang.IllegalArgumentException: exceptionMessage, Arg1: foo
 target: target, 42, 56
 target: target, 42, 56
 fallback: fallback, 42, 56
+target: target, 42, 56
 target: target, 42, 56

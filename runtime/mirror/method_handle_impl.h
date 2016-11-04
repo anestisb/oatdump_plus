@@ -36,6 +36,10 @@ class MANAGED MethodHandle : public Object {
     return GetFieldObject<mirror::MethodType>(OFFSET_OF_OBJECT_MEMBER(MethodHandle, method_type_));
   }
 
+  mirror::MethodType* GetNominalType() REQUIRES_SHARED(Locks::mutator_lock_) {
+    return GetFieldObject<mirror::MethodType>(OFFSET_OF_OBJECT_MEMBER(MethodHandle, nominal_type_));
+  }
+
   ArtField* GetTargetField() REQUIRES_SHARED(Locks::mutator_lock_) {
     return reinterpret_cast<ArtField*>(
         GetField64(OFFSET_OF_OBJECT_MEMBER(MethodHandle, art_field_or_method_)));
@@ -54,14 +58,14 @@ class MANAGED MethodHandle : public Object {
   }
 
  private:
-  HeapReference<mirror::Object> as_type_cache_;
+  HeapReference<mirror::MethodType> nominal_type_;
   HeapReference<mirror::MethodType> method_type_;
   uint64_t art_field_or_method_;
   uint32_t handle_kind_;
 
  private:
-  static MemberOffset AsTypeCacheOffset() {
-    return MemberOffset(OFFSETOF_MEMBER(MethodHandle, as_type_cache_));
+  static MemberOffset NominalTypeOffset() {
+    return MemberOffset(OFFSETOF_MEMBER(MethodHandle, nominal_type_));
   }
   static MemberOffset MethodTypeOffset() {
     return MemberOffset(OFFSETOF_MEMBER(MethodHandle, method_type_));

@@ -90,6 +90,12 @@ public class Main {
       // it's IAE and should be WMTE instead.
     }
 
+    // Check that asType works as expected.
+    transform = MethodHandles.dropArguments(delegate, 0, int.class, Object.class);
+    transform = transform.asType(MethodType.methodType(void.class,
+          new Class<?>[] { short.class, Object.class, String.class, long.class }));
+    transform.invokeExact((short) 45, new Object(), "foo", 42l);
+
     // Invalid argument location, should not be allowed.
     try {
       MethodHandles.dropArguments(delegate, -1, int.class, Object.class);
@@ -183,6 +189,14 @@ public class Main {
     assertEquals("java.lang.IllegalArgumentException: exceptionMessage", returnVal);
     returnVal = (String) adapter.invokeExact("foo", 42l, "exceptionMessage2");
     assertEquals("java.lang.IllegalArgumentException: exceptionMessage2", returnVal);
+
+    // Check that asType works as expected.
+    adapter = MethodHandles.catchException(target, IllegalArgumentException.class,
+        handler);
+    adapter = adapter.asType(MethodType.methodType(String.class,
+          new Class<?>[] { String.class, int.class, String.class }));
+    returnVal = (String) adapter.invokeExact("foo", 42, "exceptionMessage");
+    assertEquals("java.lang.IllegalArgumentException: exceptionMessage", returnVal);
   }
 
   public static boolean testGuardWithTest_test(String arg1, long arg2) {
@@ -224,6 +238,12 @@ public class Main {
     returnVal = (String) adapter.invoke("fallback", 42l, 56);
     assertEquals("fallback", returnVal);
     returnVal = (String) adapter.invokeExact("target", 42l, 56);
+    assertEquals("target", returnVal);
+
+    // Check that asType works as expected.
+    adapter = adapter.asType(MethodType.methodType(String.class,
+          new Class<?>[] { String.class, int.class, int.class }));
+    returnVal = (String) adapter.invokeExact("target", 42, 56);
     assertEquals("target", returnVal);
   }
 
