@@ -116,18 +116,17 @@ inline mirror::Object* RegionSpace::Region::Alloc(size_t num_bytes, size_t* byte
                                                   size_t* bytes_tl_bulk_allocated) {
   DCHECK(IsAllocated() && IsInToSpace());
   DCHECK_ALIGNED(num_bytes, kAlignment);
-  Atomic<uint8_t*>* atomic_top = reinterpret_cast<Atomic<uint8_t*>*>(&top_);
   uint8_t* old_top;
   uint8_t* new_top;
   do {
-    old_top = atomic_top->LoadRelaxed();
+    old_top = top_.LoadRelaxed();
     new_top = old_top + num_bytes;
     if (UNLIKELY(new_top > end_)) {
       return nullptr;
     }
-  } while (!atomic_top->CompareExchangeWeakSequentiallyConsistent(old_top, new_top));
-  reinterpret_cast<Atomic<uint64_t>*>(&objects_allocated_)->FetchAndAddSequentiallyConsistent(1);
-  DCHECK_LE(atomic_top->LoadRelaxed(), end_);
+  } while (!top_.CompareExchangeWeakRelaxed(old_top, new_top));
+  objects_allocated_.FetchAndAddRelaxed(1);
+  DCHECK_LE(Top(), end_);
   DCHECK_LT(old_top, end_);
   DCHECK_LE(new_top, end_);
   *bytes_allocated = num_bytes;
