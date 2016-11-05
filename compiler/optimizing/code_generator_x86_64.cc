@@ -5978,25 +5978,29 @@ void InstructionCodeGeneratorX86_64::VisitInstanceOf(HInstanceOf* instruction) {
   }
 }
 
-void LocationsBuilderX86_64::VisitCheckCast(HCheckCast* instruction) {
-  LocationSummary::CallKind call_kind = LocationSummary::kNoCall;
-  bool throws_into_catch = instruction->CanThrowIntoCatchBlock();
-  TypeCheckKind type_check_kind = instruction->GetTypeCheckKind();
+bool IsTypeCheckSlowPathFatal(TypeCheckKind type_check_kind, bool throws_into_catch) {
   switch (type_check_kind) {
     case TypeCheckKind::kExactCheck:
     case TypeCheckKind::kAbstractClassCheck:
     case TypeCheckKind::kClassHierarchyCheck:
     case TypeCheckKind::kArrayObjectCheck:
     case TypeCheckKind::kInterfaceCheck:
-      call_kind = (throws_into_catch || kEmitCompilerReadBarrier) ?
-          LocationSummary::kCallOnSlowPath :
-          LocationSummary::kNoCall;  // In fact, call on a fatal (non-returning) slow path.
-      break;
+      return !throws_into_catch && !kEmitCompilerReadBarrier;
     case TypeCheckKind::kArrayCheck:
     case TypeCheckKind::kUnresolvedCheck:
-      call_kind = LocationSummary::kCallOnSlowPath;
-      break;
+      return false;
   }
+  LOG(FATAL) << "Unreachable";
+  UNREACHABLE();
+}
+
+void LocationsBuilderX86_64::VisitCheckCast(HCheckCast* instruction) {
+  bool throws_into_catch = instruction->CanThrowIntoCatchBlock();
+  TypeCheckKind type_check_kind = instruction->GetTypeCheckKind();
+  bool is_fatal_slow_path = IsTypeCheckSlowPathFatal(type_check_kind, throws_into_catch);
+  LocationSummary::CallKind call_kind = is_fatal_slow_path
+                                            ? LocationSummary::kNoCall
+                                            : LocationSummary::kCallOnSlowPath;
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction, call_kind);
   locations->SetInAt(0, Location::RequiresRegister());
   if (type_check_kind == TypeCheckKind::kInterfaceCheck) {
@@ -6036,11 +6040,7 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
   const int object_array_data_offset = mirror::Array::DataOffset(kHeapReferenceSize).Uint32Value();
 
   bool is_type_check_slow_path_fatal =
-      (type_check_kind == TypeCheckKind::kExactCheck ||
-       type_check_kind == TypeCheckKind::kAbstractClassCheck ||
-       type_check_kind == TypeCheckKind::kClassHierarchyCheck ||
-       type_check_kind == TypeCheckKind::kArrayObjectCheck) &&
-      !instruction->CanThrowIntoCatchBlock();
+      IsTypeCheckSlowPathFatal(type_check_kind, instruction->CanThrowIntoCatchBlock());
   SlowPathCode* type_check_slow_path =
       new (GetGraph()->GetArena()) TypeCheckSlowPathX86_64(instruction,
                                                            is_type_check_slow_path_fatal);
