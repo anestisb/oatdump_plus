@@ -525,6 +525,12 @@ class LocationSummary : public ArenaObject<kArenaAllocLocationSummary> {
     temps_.push_back(location);
   }
 
+  void AddRegisterTemps(size_t count) {
+    for (size_t i = 0; i < count; ++i) {
+      AddTemp(Location::RequiresRegister());
+    }
+  }
+
   Location GetTemp(uint32_t at) const {
     return temps_[at];
   }

@@ -284,7 +284,8 @@ class InstructionCodeGeneratorARM64 : public InstructionCodeGenerator {
                                          Location out,
                                          Location obj,
                                          uint32_t offset,
-                                         Location maybe_temp);
+                                         Location maybe_temp,
+                                         bool emit_read_barrier);
   // Generate a GC root reference load:
   //
   //   root <- *(obj + offset)

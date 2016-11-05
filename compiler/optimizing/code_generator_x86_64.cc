@@ -6007,7 +6007,7 @@ void InstructionCodeGeneratorX86_64::VisitInstanceOf(HInstanceOf* instruction) {
   }
 }
 
-bool IsTypeCheckSlowPathFatal(TypeCheckKind type_check_kind, bool throws_into_catch) {
+static bool IsTypeCheckSlowPathFatal(TypeCheckKind type_check_kind, bool throws_into_catch) {
   switch (type_check_kind) {
     case TypeCheckKind::kExactCheck:
     case TypeCheckKind::kAbstractClassCheck:
@@ -6067,7 +6067,8 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
   const uint32_t primitive_offset = mirror::Class::PrimitiveTypeOffset().Int32Value();
   const uint32_t iftable_offset = mirror::Class::IfTableOffset().Uint32Value();
   const uint32_t array_length_offset = mirror::Array::LengthOffset().Uint32Value();
-  const int object_array_data_offset = mirror::Array::DataOffset(kHeapReferenceSize).Uint32Value();
+  const uint32_t object_array_data_offset =
+      mirror::Array::DataOffset(kHeapReferenceSize).Uint32Value();
 
   bool is_type_check_slow_path_fatal =
       IsTypeCheckSlowPathFatal(type_check_kind, instruction->CanThrowIntoCatchBlock());
@@ -6225,17 +6226,7 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
       break;
     }
 
-    case TypeCheckKind::kUnresolvedCheck:
-    case TypeCheckKind::kInterfaceCheck:
-      NearLabel done;
-
-      // Avoid null check if we know obj is not null.
-      if (instruction->MustDoNullCheck()) {
-        __ testl(obj, obj);
-        __ j(kEqual, &done);
-      }
-
-
+    case TypeCheckKind::kUnresolvedCheck: {
       // We always go into the type check slow path for the unresolved case.
       //
       // We cannot directly call the CheckCast runtime entry point
@@ -6245,18 +6236,30 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
       // instruction (following the runtime calling convention), which
       // might be cluttered by the potential first read barrier
       // emission at the beginning of this method.
-      //
-      // TODO: Introduce a new runtime entry point taking the object
-      // to test (instead of its class) as argument, and let it deal
-      // with the read barrier issues. This will let us refactor this
-      // case of the `switch` code as it was previously (with a direct
-      // call to the runtime not using a type checking slow path).
-      // This should also be beneficial for the other cases above.
 
-      // Fast path for the interface check. Since we compare with a memory location in the inner
-      // loop we would need to have cls poisoned. However unpoisoning cls would reset the
-      // conditional flags and cause the conditional jump to be incorrect.
-      if (type_check_kind == TypeCheckKind::kInterfaceCheck && !kPoisonHeapReferences) {
+      NearLabel done;
+      // Avoid null check if we know obj is not null.
+      if (instruction->MustDoNullCheck()) {
+        __ testl(obj, obj);
+        __ j(kEqual, &done);
+      }
+      __ jmp(type_check_slow_path->GetEntryLabel());
+      __ Bind(&done);
+      break;
+    }
+
+    case TypeCheckKind::kInterfaceCheck:
+      NearLabel done;
+
+      // Avoid null check if we know obj is not null.
+      if (instruction->MustDoNullCheck()) {
+        __ testl(obj, obj);
+        __ j(kEqual, &done);
+      }
+
+      // Fast path for the interface check. We always go slow path for heap poisoning since
+      // unpoisoning cls would require an extra temp.
+      if (!kPoisonHeapReferences) {
         // Try to avoid read barriers to improve the fast path. We can not get false positives by
         // doing this.
         // /* HeapReference<Class> */ temp = obj->klass_
@@ -6274,21 +6277,19 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
                                           /*emit_read_barrier*/ false);
         NearLabel is_null;
         // Null iftable means it is empty.
-        __ testl(temp_loc.AsRegister<CpuRegister>(), temp_loc.AsRegister<CpuRegister>());
+        __ testl(temp, temp);
         __ j(kZero, &is_null);
 
         // Loop through the iftable and check if any class matches.
-        __ movl(maybe_temp2_loc.AsRegister<CpuRegister>(),
-                Address(temp_loc.AsRegister<CpuRegister>(), array_length_offset));
+        __ movl(maybe_temp2_loc.AsRegister<CpuRegister>(), Address(temp, array_length_offset));
 
         NearLabel start_loop;
         __ Bind(&start_loop);
-        __ cmpl(cls.AsRegister<CpuRegister>(),
-                Address(temp_loc.AsRegister<CpuRegister>(), object_array_data_offset));
+        __ cmpl(cls.AsRegister<CpuRegister>(), Address(temp, object_array_data_offset));
         __ j(kEqual, &done);  // Return if same class.
         // Go to next interface.
-        __ addq(temp_loc.AsRegister<CpuRegister>(), Immediate(2 * kHeapReferenceSize));
-        __ subq(maybe_temp2_loc.AsRegister<CpuRegister>(), Immediate(2));
+        __ addl(temp, Immediate(2 * kHeapReferenceSize));
+        __ subl(maybe_temp2_loc.AsRegister<CpuRegister>(), Immediate(2));
         __ j(kNotZero, &start_loop);
         __ Bind(&is_null);
       }
