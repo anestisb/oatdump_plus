@@ -758,8 +758,8 @@ fi
 if [ "$run_checker" = "yes" -a "$target_mode" = "yes" ]; then
   # We will need to `adb pull` the .cfg output from the target onto the host to
   # run checker on it. This file can be big.
-  build_file_size_limit=24576
-  run_file_size_limit=24576
+  build_file_size_limit=32768
+  run_file_size_limit=32768
 fi
 if [ ${USE_JACK} = "false" ]; then
   # Set ulimit if we build with dx only, Jack can generate big temp files.
