@@ -5740,11 +5740,19 @@ void InstructionCodeGeneratorX86_64::VisitThrow(HThrow* instruction) {
   CheckEntrypointTypes<kQuickDeliverException, void, mirror::Object*>();
 }
 
-static bool TypeCheckNeedsATemporary(TypeCheckKind type_check_kind) {
-  if (type_check_kind == TypeCheckKind::kInterfaceCheck) {
+static bool CheckCastTypeCheckNeedsATemporary(TypeCheckKind type_check_kind) {
+  if (type_check_kind == TypeCheckKind::kInterfaceCheck && !kPoisonHeapReferences) {
     // We need a temporary for holding the iftable length.
     return true;
   }
+  return kEmitCompilerReadBarrier &&
+      !kUseBakerReadBarrier &&
+      (type_check_kind == TypeCheckKind::kAbstractClassCheck ||
+       type_check_kind == TypeCheckKind::kClassHierarchyCheck ||
+       type_check_kind == TypeCheckKind::kArrayObjectCheck);
+}
+
+static bool InstanceOfTypeCheckNeedsATemporary(TypeCheckKind type_check_kind) {
   return kEmitCompilerReadBarrier &&
       !kUseBakerReadBarrier &&
       (type_check_kind == TypeCheckKind::kAbstractClassCheck ||
@@ -5782,7 +5790,7 @@ void LocationsBuilderX86_64::VisitInstanceOf(HInstanceOf* instruction) {
   locations->SetOut(Location::RequiresRegister());
   // When read barriers are enabled, we need a temporary register for
   // some cases.
-  if (TypeCheckNeedsATemporary(type_check_kind)) {
+  if (InstanceOfTypeCheckNeedsATemporary(type_check_kind)) {
     locations->AddTemp(Location::RequiresRegister());
   }
 }
@@ -5795,7 +5803,7 @@ void InstructionCodeGeneratorX86_64::VisitInstanceOf(HInstanceOf* instruction) {
   Location cls = locations->InAt(1);
   Location out_loc =  locations->Out();
   CpuRegister out = out_loc.AsRegister<CpuRegister>();
-  Location maybe_temp_loc = TypeCheckNeedsATemporary(type_check_kind) ?
+  Location maybe_temp_loc = InstanceOfTypeCheckNeedsATemporary(type_check_kind) ?
       locations->GetTemp(0) :
       Location::NoLocation();
   uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
@@ -5984,8 +5992,9 @@ bool IsTypeCheckSlowPathFatal(TypeCheckKind type_check_kind, bool throws_into_ca
     case TypeCheckKind::kAbstractClassCheck:
     case TypeCheckKind::kClassHierarchyCheck:
     case TypeCheckKind::kArrayObjectCheck:
-    case TypeCheckKind::kInterfaceCheck:
       return !throws_into_catch && !kEmitCompilerReadBarrier;
+    case TypeCheckKind::kInterfaceCheck:
+      return !throws_into_catch && !kEmitCompilerReadBarrier && !kPoisonHeapReferences;
     case TypeCheckKind::kArrayCheck:
     case TypeCheckKind::kUnresolvedCheck:
       return false;
@@ -6015,7 +6024,7 @@ void LocationsBuilderX86_64::VisitCheckCast(HCheckCast* instruction) {
   locations->AddTemp(Location::RequiresRegister());
   // When read barriers are enabled, we need an additional temporary
   // register for some cases.
-  if (TypeCheckNeedsATemporary(type_check_kind)) {
+  if (CheckCastTypeCheckNeedsATemporary(type_check_kind)) {
     locations->AddTemp(Location::RequiresRegister());
   }
 }
@@ -6028,7 +6037,7 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
   Location cls = locations->InAt(1);
   Location temp_loc = locations->GetTemp(0);
   CpuRegister temp = temp_loc.AsRegister<CpuRegister>();
-  Location maybe_temp2_loc = TypeCheckNeedsATemporary(type_check_kind) ?
+  Location maybe_temp2_loc = CheckCastTypeCheckNeedsATemporary(type_check_kind) ?
       locations->GetTemp(1) :
       Location::NoLocation();
   const uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
