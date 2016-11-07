@@ -326,6 +326,7 @@ class Runtime {
   // Visit all the roots. If only_dirty is true then non-dirty roots won't be visited. If
   // clean_dirty is true then dirty roots will be marked as non-dirty after visiting.
   void VisitRoots(RootVisitor* visitor, VisitRootFlags flags = kVisitRootFlagAllRoots)
+      REQUIRES(!Locks::classlinker_classes_lock_, !Locks::trace_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Visit image roots, only used for hprof since the GC uses the image space mod union table
@@ -335,6 +336,7 @@ class Runtime {
   // Visit all of the roots we can do safely do concurrently.
   void VisitConcurrentRoots(RootVisitor* visitor,
                             VisitRootFlags flags = kVisitRootFlagAllRoots)
+      REQUIRES(!Locks::classlinker_classes_lock_, !Locks::trace_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Visit all of the non thread roots, we can do this with mutators unpaused.
