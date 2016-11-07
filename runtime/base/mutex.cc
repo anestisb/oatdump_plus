@@ -42,7 +42,6 @@ Mutex* Locks::deoptimization_lock_ = nullptr;
 ReaderWriterMutex* Locks::heap_bitmap_lock_ = nullptr;
 Mutex* Locks::instrument_entrypoints_lock_ = nullptr;
 Mutex* Locks::intern_table_lock_ = nullptr;
-Mutex* Locks::interpreter_string_init_map_lock_ = nullptr;
 Mutex* Locks::jni_libraries_lock_ = nullptr;
 Mutex* Locks::logging_lock_ = nullptr;
 Mutex* Locks::mem_maps_lock_ = nullptr;
