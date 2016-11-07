@@ -374,7 +374,9 @@ void RegisterAllocationResolver::ConnectSiblings(LiveInterval* interval) {
       if (current->GetType() == Primitive::kPrimNot) {
         DCHECK(interval->GetDefinedBy()->IsActualObject())
             << interval->GetDefinedBy()->DebugName()
-            << "@" << safepoint_position->GetInstruction()->DebugName();
+            << '(' << interval->GetDefinedBy()->GetId() << ')'
+            << "@" << safepoint_position->GetInstruction()->DebugName()
+            << '(' << safepoint_position->GetInstruction()->GetId() << ')';
         LocationSummary* locations = safepoint_position->GetLocations();
         if (current->GetParent()->HasSpillSlot()) {
           locations->SetStackBit(current->GetParent()->GetSpillSlot() / kVRegSize);
