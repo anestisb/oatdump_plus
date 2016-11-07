@@ -466,7 +466,7 @@ extern "C" int native_bridge_unloadLibrary(void* handle ATTRIBUTE_UNUSED) {
   return 0;
 }
 
-extern "C" char* native_bridge_getError() {
+extern "C" const char* native_bridge_getError() {
   printf("dlerror() in native bridge.\n");
   return nullptr;
 }
