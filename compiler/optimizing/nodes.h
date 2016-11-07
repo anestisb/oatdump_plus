@@ -1956,7 +1956,7 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
 
   bool IsRemovable() const {
     return
-        !HasSideEffects() &&
+        !DoesAnyWrite() &&
         !CanThrow() &&
         !IsSuspendCheck() &&
         !IsControlFlow() &&
@@ -3782,6 +3782,8 @@ class HInvoke : public HInstruction {
     return GetEnvironment()->IsFromInlinedInvoke();
   }
 
+  void SetCanThrow(bool can_throw) { SetPackedFlag<kFlagCanThrow>(can_throw); }
+
   bool CanThrow() const OVERRIDE { return GetPackedFlag<kFlagCanThrow>(); }
 
   bool CanBeMoved() const OVERRIDE { return IsIntrinsic(); }
@@ -3839,8 +3841,6 @@ class HInvoke : public HInstruction {
     SetPackedField<InvokeTypeField>(invoke_type);
     SetPackedFlag<kFlagCanThrow>(true);
   }
-
-  void SetCanThrow(bool can_throw) { SetPackedFlag<kFlagCanThrow>(can_throw); }
 
   uint32_t number_of_arguments_;
   ArtMethod* const resolved_method_;
