@@ -265,6 +265,9 @@ class LockWord {
         static_cast<uint64_t>(kStateForwardingAddressOverflow);
     constexpr bool is_larger = overflow > static_cast<uint64_t>(0xFFFFFFFF);
     static_assert(is_larger, "should have overflowed");
+    static_assert(
+         (~kStateForwardingAddress & kStateMask) == 0,
+        "READ_BARRIER_MARK_REG relies on the forwarding address state being only one bits");
     CheckReadBarrierState();
   }
 
