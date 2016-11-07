@@ -2279,9 +2279,10 @@ MACRO2(READ_BARRIER_MARK_REG, name, reg)
     PUSH rax
     movl MIRROR_OBJECT_LOCK_WORD_OFFSET(REG_VAR(reg)), %eax
     addl LITERAL(LOCK_WORD_STATE_FORWARDING_ADDRESS_OVERFLOW), %eax
-    // Jump if overflow, the only case where it overflows should be the forwarding address one.
+    // Jump if the addl caused eax to unsigned overflow. The only case where it overflows is the
+    // forwarding address one.
     // Taken ~25% of the time.
-    jnae .Lret_overflow\name
+    jnae .Lret_forwarding_address\name
 
     // Save all potentially live caller-save core registers.
     movq 0(%rsp), %rax
@@ -2349,7 +2350,7 @@ MACRO2(READ_BARRIER_MARK_REG, name, reg)
     POP_REG_NE rax, RAW_VAR(reg)
 .Lret_rb_\name:
     ret
-.Lret_overflow\name:
+.Lret_forwarding_address\name:
     // The overflow cleared the top bits.
     sall LITERAL(LOCK_WORD_STATE_FORWARDING_ADDRESS_SHIFT), %eax
     movq %rax, REG_VAR(reg)
