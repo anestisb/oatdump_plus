@@ -405,7 +405,8 @@ cc_defaults {
 
 gensrcs {
     name: "art_operator_srcs",
-    cmd: "art/tools/generate-operator-out.py art/runtime $in > $out",
+    cmd: "$(location generate-operator-out.py) art/runtime $(in) > $(out)",
+    tool_files: ["generate-operator-out.py"],
     srcs: [
         "arch/instruction_set.h",
         "base/allocator.h",
