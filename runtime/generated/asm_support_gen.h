@@ -98,6 +98,8 @@ DEFINE_CHECK_EQ(static_cast<uint32_t>(LOCK_WORD_READ_BARRIER_STATE_MASK), (stati
 DEFINE_CHECK_EQ(static_cast<uint32_t>(LOCK_WORD_READ_BARRIER_STATE_MASK_TOGGLED), (static_cast<uint32_t>(art::LockWord::kReadBarrierStateMaskShiftedToggled)))
 #define LOCK_WORD_THIN_LOCK_COUNT_ONE 65536
 DEFINE_CHECK_EQ(static_cast<int32_t>(LOCK_WORD_THIN_LOCK_COUNT_ONE), (static_cast<int32_t>(art::LockWord::kThinLockCountOne)))
+#define LOCK_WORD_STATE_FORWARDING_ADDRESS 0x3
+DEFINE_CHECK_EQ(static_cast<uint32_t>(LOCK_WORD_STATE_FORWARDING_ADDRESS), (static_cast<uint32_t>(art::LockWord::kStateForwardingAddress)))
 #define LOCK_WORD_STATE_FORWARDING_ADDRESS_OVERFLOW 0x40000000
 DEFINE_CHECK_EQ(static_cast<uint32_t>(LOCK_WORD_STATE_FORWARDING_ADDRESS_OVERFLOW), (static_cast<uint32_t>(art::LockWord::kStateForwardingAddressOverflow)))
 #define LOCK_WORD_STATE_FORWARDING_ADDRESS_SHIFT 0x3

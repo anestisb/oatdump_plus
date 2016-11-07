@@ -149,8 +149,6 @@ inline mirror::Object* ConcurrentCopying::Mark(mirror::Object* from_ref) {
 
 inline mirror::Object* ConcurrentCopying::MarkFromReadBarrier(mirror::Object* from_ref) {
   mirror::Object* ret;
-  // TODO: Delete GetMarkBit check when all of the callers properly check the bit. Remaining caller
-  // is array allocations.
   if (from_ref == nullptr) {
     return from_ref;
   }
