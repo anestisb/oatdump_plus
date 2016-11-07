@@ -33,6 +33,12 @@ class StickyMarkSweep FINAL : public PartialMarkSweep {
   StickyMarkSweep(Heap* heap, bool is_concurrent, const std::string& name_prefix = "");
   ~StickyMarkSweep() {}
 
+  virtual void MarkConcurrentRoots(VisitRootFlags flags)
+      OVERRIDE
+      REQUIRES(Locks::heap_bitmap_lock_)
+      REQUIRES(!mark_stack_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
  protected:
   // Bind the live bits to the mark bits of bitmaps for all spaces, all spaces other than the
   // alloc space will be marked as immune.
