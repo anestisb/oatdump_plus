@@ -231,15 +231,6 @@ bool TryExtractArrayAccessAddress(HInstruction* access,
                                   HInstruction* array,
                                   HInstruction* index,
                                   size_t data_offset) {
-  if (kEmitCompilerReadBarrier) {
-    // The read barrier instrumentation does not support the
-    // HIntermediateAddress instruction yet.
-    //
-    // TODO: Handle this case properly in the ARM64 and ARM code generator and
-    // re-enable this optimization; otherwise, remove this TODO.
-    // b/26601270
-    return false;
-  }
   if (index->IsConstant() ||
       (index->IsBoundsCheck() && index->AsBoundsCheck()->GetIndex()->IsConstant())) {
     // When the index is a constant all the addressing can be fitted in the
@@ -251,14 +242,20 @@ bool TryExtractArrayAccessAddress(HInstruction* access,
     // The access may require a runtime call or the original array pointer.
     return false;
   }
+  if (kEmitCompilerReadBarrier &&
+      access->IsArrayGet() &&
+      access->GetType() == Primitive::kPrimNot) {
+    // For object arrays, the read barrier instrumentation requires
+    // the original array pointer.
+    return false;
+  }
 
   // Proceed to extract the base address computation.
   HGraph* graph = access->GetBlock()->GetGraph();
   ArenaAllocator* arena = graph->GetArena();
 
   HIntConstant* offset = graph->GetIntConstant(data_offset);
-  HIntermediateAddress* address =
-      new (arena) HIntermediateAddress(array, offset, kNoDexPc);
+  HIntermediateAddress* address = new (arena) HIntermediateAddress(array, offset, kNoDexPc);
   // TODO: Is it ok to not have this on the intermediate address?
   // address->SetReferenceTypeInfo(array->GetReferenceTypeInfo());
   access->GetBlock()->InsertInstructionBefore(address, access);
