@@ -26,6 +26,10 @@ public class Main {
     testDropArguments();
     testCatchException();
     testGuardWithTest();
+    testArrayElementGetter();
+    testArrayElementSetter();
+    testIdentity();
+    testConstant();
   }
 
   public static void testThrowException() throws Throwable {
@@ -245,6 +249,424 @@ public class Main {
           new Class<?>[] { String.class, int.class, int.class }));
     returnVal = (String) adapter.invokeExact("target", 42, 56);
     assertEquals("target", returnVal);
+  }
+
+  public static void testArrayElementGetter() throws Throwable {
+    MethodHandle getter = MethodHandles.arrayElementGetter(int[].class);
+
+    {
+      int[] array = new int[1];
+      array[0] = 42;
+      int value = (int) getter.invoke(array, 0);
+      if (value != 42) {
+        System.out.println("Unexpected value: " + value);
+      }
+
+      try {
+        value = (int) getter.invoke(array, -1);
+        fail();
+      } catch (ArrayIndexOutOfBoundsException expected) {
+      }
+
+      try {
+        value = (int) getter.invoke(null, -1);
+        fail();
+      } catch (NullPointerException expected) {
+      }
+    }
+
+    {
+      getter = MethodHandles.arrayElementGetter(long[].class);
+      long[] array = new long[1];
+      array[0] = 42;
+      long value = (long) getter.invoke(array, 0);
+      if (value != 42l) {
+        System.out.println("Unexpected value: " + value);
+      }
+    }
+
+    {
+      getter = MethodHandles.arrayElementGetter(short[].class);
+      short[] array = new short[1];
+      array[0] = 42;
+      short value = (short) getter.invoke(array, 0);
+      if (value != 42l) {
+        System.out.println("Unexpected value: " + value);
+      }
+    }
+
+    {
+      getter = MethodHandles.arrayElementGetter(char[].class);
+      char[] array = new char[1];
+      array[0] = 42;
+      char value = (char) getter.invoke(array, 0);
+      if (value != 42l) {
+        System.out.println("Unexpected value: " + value);
+      }
+    }
+
+    {
+      getter = MethodHandles.arrayElementGetter(byte[].class);
+      byte[] array = new byte[1];
+      array[0] = (byte) 0x8;
+      byte value = (byte) getter.invoke(array, 0);
+      if (value != (byte) 0x8) {
+        System.out.println("Unexpected value: " + value);
+      }
+    }
+
+    {
+      getter = MethodHandles.arrayElementGetter(boolean[].class);
+      boolean[] array = new boolean[1];
+      array[0] = true;
+      boolean value = (boolean) getter.invoke(array, 0);
+      if (!value) {
+        System.out.println("Unexpected value: " + value);
+      }
+    }
+
+    {
+      getter = MethodHandles.arrayElementGetter(float[].class);
+      float[] array = new float[1];
+      array[0] = 42.0f;
+      float value = (float) getter.invoke(array, 0);
+      if (value != 42.0f) {
+        System.out.println("Unexpected value: " + value);
+      }
+    }
+
+    {
+      getter = MethodHandles.arrayElementGetter(double[].class);
+      double[] array = new double[1];
+      array[0] = 42.0;
+      double value = (double) getter.invoke(array, 0);
+      if (value != 42.0) {
+        System.out.println("Unexpected value: " + value);
+      }
+    }
+
+    {
+      getter = MethodHandles.arrayElementGetter(String[].class);
+      String[] array = new String[3];
+      array[0] = "42";
+      array[1] = "48";
+      array[2] = "54";
+      String value = (String) getter.invoke(array, 0);
+      assertEquals("42", value);
+      value = (String) getter.invoke(array, 1);
+      assertEquals("48", value);
+      value = (String) getter.invoke(array, 2);
+      assertEquals("54", value);
+    }
+  }
+
+  public static void testArrayElementSetter() throws Throwable {
+    MethodHandle setter = MethodHandles.arrayElementSetter(int[].class);
+
+    {
+      int[] array = new int[2];
+      setter.invoke(array, 0, 42);
+      setter.invoke(array, 1, 43);
+
+      if (array[0] != 42) {
+        System.out.println("Unexpected value: " + array[0]);
+      }
+      if (array[1] != 43) {
+        System.out.println("Unexpected value: " + array[1]);
+      }
+
+      try {
+        setter.invoke(array, -1, 42);
+        fail();
+      } catch (ArrayIndexOutOfBoundsException expected) {
+      }
+
+      try {
+        setter.invoke(null, 0, 42);
+        fail();
+      } catch (NullPointerException expected) {
+      }
+    }
+
+    {
+      setter = MethodHandles.arrayElementSetter(long[].class);
+      long[] array = new long[1];
+      setter.invoke(array, 0, 42l);
+      if (array[0] != 42l) {
+        System.out.println("Unexpected value: " + array[0]);
+      }
+    }
+
+    {
+      setter = MethodHandles.arrayElementSetter(short[].class);
+      short[] array = new short[1];
+      setter.invoke(array, 0, (short) 42);
+      if (array[0] != 42l) {
+        System.out.println("Unexpected value: " + array[0]);
+      }
+    }
+
+    {
+      setter = MethodHandles.arrayElementSetter(char[].class);
+      char[] array = new char[1];
+      setter.invoke(array, 0, (char) 42);
+      if (array[0] != 42) {
+        System.out.println("Unexpected value: " + array[0]);
+      }
+    }
+
+    {
+      setter = MethodHandles.arrayElementSetter(byte[].class);
+      byte[] array = new byte[1];
+      setter.invoke(array, 0, (byte) 0x8);
+      if (array[0] != (byte) 0x8) {
+        System.out.println("Unexpected value: " + array[0]);
+      }
+    }
+
+    {
+      setter = MethodHandles.arrayElementSetter(boolean[].class);
+      boolean[] array = new boolean[1];
+      setter.invoke(array, 0, true);
+      if (!array[0]) {
+        System.out.println("Unexpected value: " + array[0]);
+      }
+    }
+
+    {
+      setter = MethodHandles.arrayElementSetter(float[].class);
+      float[] array = new float[1];
+      setter.invoke(array, 0, 42.0f);
+      if (array[0] != 42.0f) {
+        System.out.println("Unexpected value: " + array[0]);
+      }
+    }
+
+    {
+      setter = MethodHandles.arrayElementSetter(double[].class);
+      double[] array = new double[1];
+      setter.invoke(array, 0, 42.0);
+      if (array[0] != 42.0) {
+        System.out.println("Unexpected value: " + array[0]);
+      }
+    }
+
+    {
+      setter = MethodHandles.arrayElementSetter(String[].class);
+      String[] array = new String[3];
+      setter.invoke(array, 0, "42");
+      setter.invoke(array, 1, "48");
+      setter.invoke(array, 2, "54");
+      assertEquals("42", array[0]);
+      assertEquals("48", array[1]);
+      assertEquals("54", array[2]);
+    }
+  }
+
+  public static void testIdentity() throws Throwable {
+    {
+      MethodHandle identity = MethodHandles.identity(boolean.class);
+      boolean value = (boolean) identity.invoke(false);
+      if (value) {
+        System.out.println("Unexpected value: " + value);
+      }
+    }
+
+    {
+      MethodHandle identity = MethodHandles.identity(byte.class);
+      byte value = (byte) identity.invoke((byte) 0x8);
+      if (value != (byte) 0x8) {
+        System.out.println("Unexpected value: " + value);
+      }
+    }
+
+    {
+      MethodHandle identity = MethodHandles.identity(char.class);
+      char value = (char) identity.invoke((char) -56);
+      if (value != (char) -56) {
+        System.out.println("Unexpected value: " + value);
+      }
+    }
+
+    {
+      MethodHandle identity = MethodHandles.identity(short.class);
+      short value = (short) identity.invoke((short) -59);
+      if (value != (short) -59) {
+        System.out.println("Unexpected value: " + value);
+      }
+    }
+
+    {
+      MethodHandle identity = MethodHandles.identity(int.class);
+      int value = (int) identity.invoke(52);
+      if (value != 52) {
+        System.out.println("Unexpected value: " + value);
+      }
+    }
+
+    {
+      MethodHandle identity = MethodHandles.identity(long.class);
+      long value = (long) identity.invoke(-76l);
+      if (value != (long) -76) {
+        System.out.println("Unexpected value: " + value);
+      }
+    }
+
+    {
+      MethodHandle identity = MethodHandles.identity(float.class);
+      float value = (float) identity.invoke(56.0f);
+      if (value != (float) 56.0f) {
+        System.out.println("Unexpected value: " + value);
+      }
+    }
+
+    {
+      MethodHandle identity = MethodHandles.identity(double.class);
+      double value = (double) identity.invoke((double) 72.0);
+      if (value != (double) 72.0) {
+        System.out.println("Unexpected value: " + value);
+      }
+    }
+
+    {
+      MethodHandle identity = MethodHandles.identity(String.class);
+      String value = (String) identity.invoke("bazman");
+      assertEquals("bazman", value);
+    }
+  }
+
+  public static void testConstant() throws Throwable {
+    // int constants.
+    {
+      MethodHandle constant = MethodHandles.constant(int.class, 56);
+      int value = (int) constant.invoke();
+      if (value != 56) {
+        System.out.println("Unexpected value: " + value);
+      }
+
+      // short constant values are converted to int.
+      constant = MethodHandles.constant(int.class, (short) 52);
+      value = (int) constant.invoke();
+      if (value != 52) {
+        System.out.println("Unexpected value: " + value);
+      }
+
+      // char constant values are converted to int.
+      constant = MethodHandles.constant(int.class, (char) 'b');
+      value = (int) constant.invoke();
+      if (value != (int) 'b') {
+        System.out.println("Unexpected value: " + value);
+      }
+
+      // int constant values are converted to int.
+      constant = MethodHandles.constant(int.class, (byte) 0x1);
+      value = (int) constant.invoke();
+      if (value != 1) {
+        System.out.println("Unexpected value: " + value);
+      }
+
+      // boolean, float, double and long primitive constants are not convertible
+      // to int, so the handle creation must fail with a CCE.
+      try {
+        MethodHandles.constant(int.class, false);
+        fail();
+      } catch (ClassCastException expected) {
+      }
+
+      try {
+        MethodHandles.constant(int.class, 0.1f);
+        fail();
+      } catch (ClassCastException expected) {
+      }
+
+      try {
+        MethodHandles.constant(int.class, 0.2);
+        fail();
+      } catch (ClassCastException expected) {
+      }
+
+      try {
+        MethodHandles.constant(int.class, 73l);
+        fail();
+      } catch (ClassCastException expected) {
+      }
+    }
+
+    // long constants.
+    {
+      MethodHandle constant = MethodHandles.constant(long.class, 56l);
+      long value = (long) constant.invoke();
+      if (value != 56l) {
+        System.out.println("Unexpected value: " + value);
+      }
+
+      constant = MethodHandles.constant(long.class, (int) 56);
+      value = (long) constant.invoke();
+      if (value != 56l) {
+        System.out.println("Unexpected value: " + value);
+      }
+    }
+
+    // byte constants.
+    {
+      MethodHandle constant = MethodHandles.constant(byte.class, (byte) 0x12);
+      byte value = (byte) constant.invoke();
+      if (value != (byte) 0x12) {
+        System.out.println("Unexpected value: " + value);
+      }
+    }
+
+    // boolean constants.
+    {
+      MethodHandle constant = MethodHandles.constant(boolean.class, true);
+      boolean value = (boolean) constant.invoke();
+      if (!value) {
+        System.out.println("Unexpected value: " + value);
+      }
+    }
+
+    // char constants.
+    {
+      MethodHandle constant = MethodHandles.constant(char.class, 'f');
+      char value = (char) constant.invoke();
+      if (value != 'f') {
+        System.out.println("Unexpected value: " + value);
+      }
+    }
+
+    // short constants.
+    {
+      MethodHandle constant = MethodHandles.constant(short.class, (short) 123);
+      short value = (short) constant.invoke();
+      if (value != (short) 123) {
+        System.out.println("Unexpected value: " + value);
+      }
+    }
+
+    // float constants.
+    {
+      MethodHandle constant = MethodHandles.constant(float.class, 56.0f);
+      float value = (float) constant.invoke();
+      if (value != 56.0f) {
+        System.out.println("Unexpected value: " + value);
+      }
+    }
+
+    // double constants.
+    {
+      MethodHandle constant = MethodHandles.constant(double.class, 256.0);
+      double value = (double) constant.invoke();
+      if (value != 256.0) {
+        System.out.println("Unexpected value: " + value);
+      }
+    }
+
+    // reference constants.
+    {
+      MethodHandle constant = MethodHandles.constant(String.class, "256.0");
+      String value = (String) constant.invoke();
+      assertEquals("256.0", value);
+    }
   }
 
   public static void fail() {
