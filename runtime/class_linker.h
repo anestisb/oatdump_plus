@@ -418,10 +418,10 @@ class ClassLinker {
       REQUIRES(!dex_lock_);
 
   void VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags)
-      REQUIRES(!Locks::classlinker_classes_lock_)
+      REQUIRES(!Locks::classlinker_classes_lock_, !Locks::trace_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
   void VisitRoots(RootVisitor* visitor, VisitRootFlags flags)
-      REQUIRES(!dex_lock_)
+      REQUIRES(!dex_lock_, !Locks::classlinker_classes_lock_, !Locks::trace_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   mirror::DexCache* FindDexCache(Thread* self,
