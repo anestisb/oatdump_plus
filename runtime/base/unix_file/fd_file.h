@@ -97,7 +97,14 @@ class FdFile : public RandomAccessFile {
   int Flush() OVERRIDE WARN_UNUSED;
 
   // Short for SetLength(0); Flush(); Close();
-  void Erase();
+  // If the file was opened with a path name and unlink = true, also calls Unlink() on the path.
+  // Note that it is the the caller's responsibility to avoid races.
+  bool Erase(bool unlink = false);
+
+  // Call unlink() if the file was opened with a path, and if open() with the name shows that
+  // the file descriptor of this file is still up-to-date. This is still racy, though, and it
+  // is up to the caller to ensure correctness in a multi-process setup.
+  bool Unlink();
 
   // Try to Flush(), then try to Close(); If either fails, call Erase().
   int FlushCloseOrErase() WARN_UNUSED;

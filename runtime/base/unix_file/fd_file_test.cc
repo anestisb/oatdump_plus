@@ -186,4 +186,24 @@ TEST_F(FdFileTest, MoveConstructor) {
   ASSERT_EQ(file2.Close(), 0);
 }
 
+TEST_F(FdFileTest, EraseWithPathUnlinks) {
+  // New scratch file, zero-length.
+  art::ScratchFile tmp;
+  std::string filename = tmp.GetFilename();
+  tmp.Close();  // This is required because of the unlink race between the scratch file and the
+                // FdFile, which leads to close-guard breakage.
+  FdFile file(filename, O_RDWR, false);
+  ASSERT_TRUE(file.IsOpened());
+  EXPECT_GE(file.Fd(), 0);
+  uint8_t buffer[16] = { 0 };
+  EXPECT_TRUE(file.WriteFully(&buffer, sizeof(buffer)));
+  EXPECT_EQ(file.Flush(), 0);
+
+  EXPECT_TRUE(file.Erase(true));
+
+  EXPECT_FALSE(file.IsOpened());
+
+  EXPECT_FALSE(art::OS::FileExists(filename.c_str())) << filename;
+}
+
 }  // namespace unix_file
