@@ -23,6 +23,7 @@
 #include "common_runtime_test.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "imt_conflict_table.h"
+#include "jni_internal.h"
 #include "linear_alloc.h"
 #include "mirror/class-inl.h"
 #include "mirror/string-inl.h"
@@ -1990,7 +1991,7 @@ TEST_F(StubTest, DISABLED_IMT) {
   ASSERT_NE(nullptr, add_jmethod);
 
   // Get representation.
-  ArtMethod* contains_amethod = soa.DecodeMethod(contains_jmethod);
+  ArtMethod* contains_amethod = jni::DecodeArtMethod(contains_jmethod);
 
   // Patch up ArrayList.contains.
   if (contains_amethod->GetEntryPointFromQuickCompiledCode() == nullptr) {
@@ -2008,7 +2009,7 @@ TEST_F(StubTest, DISABLED_IMT) {
   ASSERT_NE(nullptr, inf_contains_jmethod);
 
   // Get mirror representation.
-  ArtMethod* inf_contains = soa.DecodeMethod(inf_contains_jmethod);
+  ArtMethod* inf_contains = jni::DecodeArtMethod(inf_contains_jmethod);
 
   // Object
 

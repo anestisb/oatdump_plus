@@ -453,7 +453,7 @@ JValue InvokeWithVarArgs(const ScopedObjectAccessAlreadyRunnable& soa, jobject o
     return JValue();
   }
 
-  ArtMethod* method = soa.DecodeMethod(mid);
+  ArtMethod* method = jni::DecodeArtMethod(mid);
   bool is_string_init = method->GetDeclaringClass()->IsStringClass() && method->IsConstructor();
   if (is_string_init) {
     // Replace calls to String.<init> with equivalent StringFactory call.
@@ -484,7 +484,7 @@ JValue InvokeWithJValues(const ScopedObjectAccessAlreadyRunnable& soa, jobject o
     return JValue();
   }
 
-  ArtMethod* method = soa.DecodeMethod(mid);
+  ArtMethod* method = jni::DecodeArtMethod(mid);
   bool is_string_init = method->GetDeclaringClass()->IsStringClass() && method->IsConstructor();
   if (is_string_init) {
     // Replace calls to String.<init> with equivalent StringFactory call.
@@ -516,7 +516,7 @@ JValue InvokeVirtualOrInterfaceWithJValues(const ScopedObjectAccessAlreadyRunnab
   }
 
   ObjPtr<mirror::Object> receiver = soa.Decode<mirror::Object>(obj);
-  ArtMethod* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
+  ArtMethod* method = FindVirtualMethod(receiver, jni::DecodeArtMethod(mid));
   bool is_string_init = method->GetDeclaringClass()->IsStringClass() && method->IsConstructor();
   if (is_string_init) {
     // Replace calls to String.<init> with equivalent StringFactory call.
@@ -548,7 +548,7 @@ JValue InvokeVirtualOrInterfaceWithVarArgs(const ScopedObjectAccessAlreadyRunnab
   }
 
   ObjPtr<mirror::Object> receiver = soa.Decode<mirror::Object>(obj);
-  ArtMethod* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
+  ArtMethod* method = FindVirtualMethod(receiver, jni::DecodeArtMethod(mid));
   bool is_string_init = method->GetDeclaringClass()->IsStringClass() && method->IsConstructor();
   if (is_string_init) {
     // Replace calls to String.<init> with equivalent StringFactory call.
@@ -739,8 +739,11 @@ ObjPtr<mirror::Object> BoxPrimitive(Primitive::Type src_class, const JValue& val
     arg_array.Append(value.GetI());
   }
 
-  soa.DecodeMethod(m)->Invoke(soa.Self(), arg_array.GetArray(), arg_array.GetNumBytes(),
-                              &result, shorty);
+  jni::DecodeArtMethod(m)->Invoke(soa.Self(),
+                                  arg_array.GetArray(),
+                                  arg_array.GetNumBytes(),
+                                  &result,
+                                  shorty);
   return result.GetL();
 }
 

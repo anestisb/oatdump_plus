@@ -37,6 +37,7 @@
 #include "dex_file.h"
 #include "dex_file_annotations.h"
 #include "jni_env_ext.h"
+#include "jni_internal.h"
 #include "mirror/class.h"
 #include "mirror/dex_cache.h"
 #include "scoped_thread_state_change-inl.h"
@@ -64,7 +65,7 @@ struct GetStackTraceVisitor : public art::StackVisitor {
 
     if (start == 0) {
       m = m->GetInterfaceMethodIfProxy(art::kRuntimePointerSize);
-      jmethodID id = soa.EncodeMethod(m);
+      jmethodID id = art::jni::EncodeArtMethod(m);
 
       art::mirror::DexCache* dex_cache = m->GetDexCache();
       int32_t line_number = -1;
