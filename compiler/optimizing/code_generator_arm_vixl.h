@@ -396,7 +396,6 @@ class InstructionCodeGeneratorARMVIXL : public InstructionCodeGenerator {
   void GenerateCompareTestAndBranch(HCondition* condition,
                                     vixl::aarch32::Label* true_target,
                                     vixl::aarch32::Label* false_target);
-  void GenerateVcmp(HInstruction* instruction);
   void GenerateFPJumps(HCondition* cond,
                        vixl::aarch32::Label* true_label,
                        vixl::aarch32::Label* false_label);
@@ -504,6 +503,8 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
     block = FirstNonEmptyBlock(block);
     return &(block_labels_[block->GetBlockId()]);
   }
+
+  vixl32::Label* GetFinalLabel(HInstruction* instruction, vixl32::Label* final_label);
 
   void Initialize() OVERRIDE {
     block_labels_.resize(GetGraph()->GetBlocks().size());

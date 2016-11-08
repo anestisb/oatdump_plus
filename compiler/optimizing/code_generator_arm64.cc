@@ -3419,7 +3419,7 @@ void LocationsBuilderARM64::VisitSelect(HSelect* select) {
   if (Primitive::IsFloatingPointType(select->GetType())) {
     locations->SetInAt(0, Location::RequiresFpuRegister());
     locations->SetInAt(1, Location::RequiresFpuRegister());
-    locations->SetOut(Location::RequiresFpuRegister());
+    locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
   } else {
     HConstant* cst_true_value = select->GetTrueValue()->AsConstant();
     HConstant* cst_false_value = select->GetFalseValue()->AsConstant();
@@ -3442,7 +3442,7 @@ void LocationsBuilderARM64::VisitSelect(HSelect* select) {
                                                  : Location::ConstantLocation(cst_true_value));
     locations->SetInAt(0, false_value_in_register ? Location::RequiresRegister()
                                                   : Location::ConstantLocation(cst_false_value));
-    locations->SetOut(Location::RequiresRegister());
+    locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
   }
 
   if (IsBooleanValueOrMaterializedCondition(select->GetCondition())) {

@@ -299,7 +299,6 @@ class InstructionCodeGeneratorARM : public InstructionCodeGenerator {
   void GenerateCompareTestAndBranch(HCondition* condition,
                                     Label* true_target,
                                     Label* false_target);
-  void GenerateVcmp(HInstruction* instruction);
   void GenerateFPJumps(HCondition* cond, Label* true_label, Label* false_label);
   void GenerateLongComparesAndJumps(HCondition* cond, Label* true_label, Label* false_label);
   void DivRemOneOrMinusOne(HBinaryOperation* instruction);
@@ -421,6 +420,8 @@ class CodeGeneratorARM : public CodeGenerator {
   Label* GetLabelOf(HBasicBlock* block) const {
     return CommonGetLabelOf<Label>(block_labels_, block);
   }
+
+  Label* GetFinalLabel(HInstruction* instruction, Label* final_label);
 
   void Initialize() OVERRIDE {
     block_labels_ = CommonInitializeLabels<Label>();

@@ -1375,9 +1375,331 @@ static void GenerateLongDataProc(HDataProcWithShifterOp* instruction, CodeGenera
   }
 }
 
+static void GenerateVcmp(HInstruction* instruction, CodeGeneratorARM* codegen) {
+  Primitive::Type type = instruction->InputAt(0)->GetType();
+  Location lhs_loc = instruction->GetLocations()->InAt(0);
+  Location rhs_loc = instruction->GetLocations()->InAt(1);
+  if (rhs_loc.IsConstant()) {
+    // 0.0 is the only immediate that can be encoded directly in
+    // a VCMP instruction.
+    //
+    // Both the JLS (section 15.20.1) and the JVMS (section 6.5)
+    // specify that in a floating-point comparison, positive zero
+    // and negative zero are considered equal, so we can use the
+    // literal 0.0 for both cases here.
+    //
+    // Note however that some methods (Float.equal, Float.compare,
+    // Float.compareTo, Double.equal, Double.compare,
+    // Double.compareTo, Math.max, Math.min, StrictMath.max,
+    // StrictMath.min) consider 0.0 to be (strictly) greater than
+    // -0.0. So if we ever translate calls to these methods into a
+    // HCompare instruction, we must handle the -0.0 case with
+    // care here.
+    DCHECK(rhs_loc.GetConstant()->IsArithmeticZero());
+    if (type == Primitive::kPrimFloat) {
+      __ vcmpsz(lhs_loc.AsFpuRegister<SRegister>());
+    } else {
+      DCHECK_EQ(type, Primitive::kPrimDouble);
+      __ vcmpdz(FromLowSToD(lhs_loc.AsFpuRegisterPairLow<SRegister>()));
+    }
+  } else {
+    if (type == Primitive::kPrimFloat) {
+      __ vcmps(lhs_loc.AsFpuRegister<SRegister>(), rhs_loc.AsFpuRegister<SRegister>());
+    } else {
+      DCHECK_EQ(type, Primitive::kPrimDouble);
+      __ vcmpd(FromLowSToD(lhs_loc.AsFpuRegisterPairLow<SRegister>()),
+               FromLowSToD(rhs_loc.AsFpuRegisterPairLow<SRegister>()));
+    }
+  }
+}
+
+static Condition GenerateLongTestConstant(HCondition* condition,
+                                          bool invert,
+                                          CodeGeneratorARM* codegen) {
+  DCHECK_EQ(condition->GetLeft()->GetType(), Primitive::kPrimLong);
+
+  const LocationSummary* const locations = condition->GetLocations();
+  IfCondition cond = invert ? condition->GetOppositeCondition() : condition->GetCondition();
+  Condition ret = EQ;
+  const Location left = locations->InAt(0);
+  const Location right = locations->InAt(1);
+
+  DCHECK(right.IsConstant());
+
+  const Register left_high = left.AsRegisterPairHigh<Register>();
+  const Register left_low = left.AsRegisterPairLow<Register>();
+  int64_t value = right.GetConstant()->AsLongConstant()->GetValue();
+
+  switch (cond) {
+    case kCondEQ:
+    case kCondNE:
+    case kCondB:
+    case kCondBE:
+    case kCondA:
+    case kCondAE:
+      __ CmpConstant(left_high, High32Bits(value));
+      __ it(EQ);
+      __ cmp(left_low, ShifterOperand(Low32Bits(value)), EQ);
+      ret = ARMUnsignedCondition(cond);
+      break;
+    case kCondLE:
+    case kCondGT:
+      // Trivially true or false.
+      if (value == std::numeric_limits<int64_t>::max()) {
+        __ cmp(left_low, ShifterOperand(left_low));
+        ret = cond == kCondLE ? EQ : NE;
+        break;
+      }
+
+      if (cond == kCondLE) {
+        cond = kCondLT;
+      } else {
+        DCHECK_EQ(cond, kCondGT);
+        cond = kCondGE;
+      }
+
+      value++;
+      FALLTHROUGH_INTENDED;
+    case kCondGE:
+    case kCondLT:
+      __ CmpConstant(left_low, Low32Bits(value));
+      __ sbcs(IP, left_high, ShifterOperand(High32Bits(value)));
+      ret = ARMCondition(cond);
+      break;
+    default:
+      LOG(FATAL) << "Unreachable";
+      UNREACHABLE();
+  }
+
+  return ret;
+}
+
+static Condition GenerateLongTest(HCondition* condition,
+                                  bool invert,
+                                  CodeGeneratorARM* codegen) {
+  DCHECK_EQ(condition->GetLeft()->GetType(), Primitive::kPrimLong);
+
+  const LocationSummary* const locations = condition->GetLocations();
+  IfCondition cond = invert ? condition->GetOppositeCondition() : condition->GetCondition();
+  Condition ret = EQ;
+  Location left = locations->InAt(0);
+  Location right = locations->InAt(1);
+
+  DCHECK(right.IsRegisterPair());
+
+  switch (cond) {
+    case kCondEQ:
+    case kCondNE:
+    case kCondB:
+    case kCondBE:
+    case kCondA:
+    case kCondAE:
+      __ cmp(left.AsRegisterPairHigh<Register>(),
+             ShifterOperand(right.AsRegisterPairHigh<Register>()));
+      __ it(EQ);
+      __ cmp(left.AsRegisterPairLow<Register>(),
+             ShifterOperand(right.AsRegisterPairLow<Register>()),
+             EQ);
+      ret = ARMUnsignedCondition(cond);
+      break;
+    case kCondLE:
+    case kCondGT:
+      if (cond == kCondLE) {
+        cond = kCondGE;
+      } else {
+        DCHECK_EQ(cond, kCondGT);
+        cond = kCondLT;
+      }
+
+      std::swap(left, right);
+      FALLTHROUGH_INTENDED;
+    case kCondGE:
+    case kCondLT:
+      __ cmp(left.AsRegisterPairLow<Register>(),
+             ShifterOperand(right.AsRegisterPairLow<Register>()));
+      __ sbcs(IP,
+              left.AsRegisterPairHigh<Register>(),
+              ShifterOperand(right.AsRegisterPairHigh<Register>()));
+      ret = ARMCondition(cond);
+      break;
+    default:
+      LOG(FATAL) << "Unreachable";
+      UNREACHABLE();
+  }
+
+  return ret;
+}
+
+static Condition GenerateTest(HInstruction* instruction,
+                              Location loc,
+                              bool invert,
+                              CodeGeneratorARM* codegen) {
+  DCHECK(!instruction->IsConstant());
+
+  Condition ret = invert ? EQ : NE;
+
+  if (IsBooleanValueOrMaterializedCondition(instruction)) {
+    __ CmpConstant(loc.AsRegister<Register>(), 0);
+  } else {
+    HCondition* const condition = instruction->AsCondition();
+    const LocationSummary* const locations = condition->GetLocations();
+    const Primitive::Type type = condition->GetLeft()->GetType();
+    const IfCondition cond = invert ? condition->GetOppositeCondition() : condition->GetCondition();
+    const Location right = locations->InAt(1);
+
+    if (type == Primitive::kPrimLong) {
+      ret = condition->GetLocations()->InAt(1).IsConstant()
+          ? GenerateLongTestConstant(condition, invert, codegen)
+          : GenerateLongTest(condition, invert, codegen);
+    } else if (Primitive::IsFloatingPointType(type)) {
+      GenerateVcmp(condition, codegen);
+      __ vmstat();
+      ret = ARMFPCondition(cond, condition->IsGtBias());
+    } else {
+      DCHECK(Primitive::IsIntegralType(type) || type == Primitive::kPrimNot) << type;
+
+      const Register left = locations->InAt(0).AsRegister<Register>();
+
+      if (right.IsRegister()) {
+        __ cmp(left, ShifterOperand(right.AsRegister<Register>()));
+      } else {
+        DCHECK(right.IsConstant());
+        __ CmpConstant(left, CodeGenerator::GetInt32ValueOf(right.GetConstant()));
+      }
+
+      ret = ARMCondition(cond);
+    }
+  }
+
+  return ret;
+}
+
+static bool CanGenerateTest(HInstruction* condition, ArmAssembler* assembler) {
+  if (!IsBooleanValueOrMaterializedCondition(condition)) {
+    const HCondition* const cond = condition->AsCondition();
+
+    if (cond->GetLeft()->GetType() == Primitive::kPrimLong) {
+      const LocationSummary* const locations = cond->GetLocations();
+      const IfCondition c = cond->GetCondition();
+
+      if (locations->InAt(1).IsConstant()) {
+        const int64_t value = locations->InAt(1).GetConstant()->AsLongConstant()->GetValue();
+        ShifterOperand so;
+
+        if (c < kCondLT || c > kCondGE) {
+          // Since IT blocks longer than a 16-bit instruction are deprecated by ARMv8,
+          // we check that the least significant half of the first input to be compared
+          // is in a low register (the other half is read outside an IT block), and
+          // the constant fits in an 8-bit unsigned integer, so that a 16-bit CMP
+          // encoding can be used.
+          if (!ArmAssembler::IsLowRegister(locations->InAt(0).AsRegisterPairLow<Register>()) ||
+              !IsUint<8>(Low32Bits(value))) {
+            return false;
+          }
+        } else if (c == kCondLE || c == kCondGT) {
+          if (value < std::numeric_limits<int64_t>::max() &&
+              !assembler->ShifterOperandCanHold(kNoRegister,
+                                                kNoRegister,
+                                                SBC,
+                                                High32Bits(value + 1),
+                                                kCcSet,
+                                                &so)) {
+            return false;
+          }
+        } else if (!assembler->ShifterOperandCanHold(kNoRegister,
+                                                     kNoRegister,
+                                                     SBC,
+                                                     High32Bits(value),
+                                                     kCcSet,
+                                                     &so)) {
+          return false;
+        }
+      }
+    }
+  }
+
+  return true;
+}
+
+static bool CanEncodeConstantAs8BitImmediate(HConstant* constant) {
+  const Primitive::Type type = constant->GetType();
+  bool ret = false;
+
+  DCHECK(Primitive::IsIntegralType(type) || type == Primitive::kPrimNot) << type;
+
+  if (type == Primitive::kPrimLong) {
+    const uint64_t value = constant->AsLongConstant()->GetValueAsUint64();
+
+    ret = IsUint<8>(Low32Bits(value)) && IsUint<8>(High32Bits(value));
+  } else {
+    ret = IsUint<8>(CodeGenerator::GetInt32ValueOf(constant));
+  }
+
+  return ret;
+}
+
+static Location Arm8BitEncodableConstantOrRegister(HInstruction* constant) {
+  DCHECK(!Primitive::IsFloatingPointType(constant->GetType()));
+
+  if (constant->IsConstant() && CanEncodeConstantAs8BitImmediate(constant->AsConstant())) {
+    return Location::ConstantLocation(constant->AsConstant());
+  }
+
+  return Location::RequiresRegister();
+}
+
+static bool CanGenerateConditionalMove(const Location& out, const Location& src) {
+  // Since IT blocks longer than a 16-bit instruction are deprecated by ARMv8,
+  // we check that we are not dealing with floating-point output (there is no
+  // 16-bit VMOV encoding).
+  if (!out.IsRegister() && !out.IsRegisterPair()) {
+    return false;
+  }
+
+  // For constants, we also check that the output is in one or two low registers,
+  // and that the constants fit in an 8-bit unsigned integer, so that a 16-bit
+  // MOV encoding can be used.
+  if (src.IsConstant()) {
+    if (!CanEncodeConstantAs8BitImmediate(src.GetConstant())) {
+      return false;
+    }
+
+    if (out.IsRegister()) {
+      if (!ArmAssembler::IsLowRegister(out.AsRegister<Register>())) {
+        return false;
+      }
+    } else {
+      DCHECK(out.IsRegisterPair());
+
+      if (!ArmAssembler::IsLowRegister(out.AsRegisterPairHigh<Register>())) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
 #undef __
 // NOLINT on __ macro to suppress wrong warning/fix (misc-macro-parentheses) from clang-tidy.
 #define __ down_cast<ArmAssembler*>(GetAssembler())->  // NOLINT
+
+Label* CodeGeneratorARM::GetFinalLabel(HInstruction* instruction, Label* final_label) {
+  DCHECK(!instruction->IsControlFlow() && !instruction->IsSuspendCheck());
+
+  const HBasicBlock* const block = instruction->GetBlock();
+  const HLoopInformation* const info = block->GetLoopInformation();
+  HInstruction* const next = instruction->GetNext();
+
+  // Avoid a branch to a branch.
+  if (next->IsGoto() && (info == nullptr ||
+                         !info->IsBackEdge(*block) ||
+                         !info->HasSuspendCheck())) {
+    final_label = GetLabelOf(next->AsGoto()->GetSuccessor());
+  }
+
+  return final_label;
+}
 
 void CodeGeneratorARM::DumpCoreRegister(std::ostream& stream, int reg) const {
   stream << Register(reg);
@@ -1905,44 +2227,6 @@ void LocationsBuilderARM::VisitExit(HExit* exit) {
 void InstructionCodeGeneratorARM::VisitExit(HExit* exit ATTRIBUTE_UNUSED) {
 }
 
-void InstructionCodeGeneratorARM::GenerateVcmp(HInstruction* instruction) {
-  Primitive::Type type = instruction->InputAt(0)->GetType();
-  Location lhs_loc = instruction->GetLocations()->InAt(0);
-  Location rhs_loc = instruction->GetLocations()->InAt(1);
-  if (rhs_loc.IsConstant()) {
-    // 0.0 is the only immediate that can be encoded directly in
-    // a VCMP instruction.
-    //
-    // Both the JLS (section 15.20.1) and the JVMS (section 6.5)
-    // specify that in a floating-point comparison, positive zero
-    // and negative zero are considered equal, so we can use the
-    // literal 0.0 for both cases here.
-    //
-    // Note however that some methods (Float.equal, Float.compare,
-    // Float.compareTo, Double.equal, Double.compare,
-    // Double.compareTo, Math.max, Math.min, StrictMath.max,
-    // StrictMath.min) consider 0.0 to be (strictly) greater than
-    // -0.0. So if we ever translate calls to these methods into a
-    // HCompare instruction, we must handle the -0.0 case with
-    // care here.
-    DCHECK(rhs_loc.GetConstant()->IsArithmeticZero());
-    if (type == Primitive::kPrimFloat) {
-      __ vcmpsz(lhs_loc.AsFpuRegister<SRegister>());
-    } else {
-      DCHECK_EQ(type, Primitive::kPrimDouble);
-      __ vcmpdz(FromLowSToD(lhs_loc.AsFpuRegisterPairLow<SRegister>()));
-    }
-  } else {
-    if (type == Primitive::kPrimFloat) {
-      __ vcmps(lhs_loc.AsFpuRegister<SRegister>(), rhs_loc.AsFpuRegister<SRegister>());
-    } else {
-      DCHECK_EQ(type, Primitive::kPrimDouble);
-      __ vcmpd(FromLowSToD(lhs_loc.AsFpuRegisterPairLow<SRegister>()),
-               FromLowSToD(rhs_loc.AsFpuRegisterPairLow<SRegister>()));
-    }
-  }
-}
-
 void InstructionCodeGeneratorARM::GenerateFPJumps(HCondition* cond,
                                                   Label* true_label,
                                                   Label* false_label ATTRIBUTE_UNUSED) {
@@ -2050,7 +2334,7 @@ void InstructionCodeGeneratorARM::GenerateCompareTestAndBranch(HCondition* condi
       break;
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble:
-      GenerateVcmp(condition);
+      GenerateVcmp(condition, codegen_);
       GenerateFPJumps(condition, true_target, false_target);
       break;
     default:
@@ -2120,20 +2404,38 @@ void InstructionCodeGeneratorARM::GenerateTestAndBranch(HInstruction* instructio
       return;
     }
 
+    Label* non_fallthrough_target;
+    Condition arm_cond;
     LocationSummary* locations = cond->GetLocations();
     DCHECK(locations->InAt(0).IsRegister());
     Register left = locations->InAt(0).AsRegister<Register>();
     Location right = locations->InAt(1);
-    if (right.IsRegister()) {
-      __ cmp(left, ShifterOperand(right.AsRegister<Register>()));
-    } else {
-      DCHECK(right.IsConstant());
-      __ CmpConstant(left, CodeGenerator::GetInt32ValueOf(right.GetConstant()));
-    }
+
     if (true_target == nullptr) {
-      __ b(false_target, ARMCondition(condition->GetOppositeCondition()));
+      arm_cond = ARMCondition(condition->GetOppositeCondition());
+      non_fallthrough_target = false_target;
     } else {
-      __ b(true_target, ARMCondition(condition->GetCondition()));
+      arm_cond = ARMCondition(condition->GetCondition());
+      non_fallthrough_target = true_target;
+    }
+
+    if (right.IsConstant() && (arm_cond == NE || arm_cond == EQ) &&
+        CodeGenerator::GetInt32ValueOf(right.GetConstant()) == 0) {
+      if (arm_cond == EQ) {
+        __ CompareAndBranchIfZero(left, non_fallthrough_target);
+      } else {
+        DCHECK_EQ(arm_cond, NE);
+        __ CompareAndBranchIfNonZero(left, non_fallthrough_target);
+      }
+    } else {
+      if (right.IsRegister()) {
+        __ cmp(left, ShifterOperand(right.AsRegister<Register>()));
+      } else {
+        DCHECK(right.IsConstant());
+        __ CmpConstant(left, CodeGenerator::GetInt32ValueOf(right.GetConstant()));
+      }
+
+      __ b(non_fallthrough_target, arm_cond);
     }
   }
 
@@ -2193,28 +2495,140 @@ void InstructionCodeGeneratorARM::VisitShouldDeoptimizeFlag(HShouldDeoptimizeFla
 
 void LocationsBuilderARM::VisitSelect(HSelect* select) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(select);
-  if (Primitive::IsFloatingPointType(select->GetType())) {
+  const bool is_floating_point = Primitive::IsFloatingPointType(select->GetType());
+
+  if (is_floating_point) {
     locations->SetInAt(0, Location::RequiresFpuRegister());
-    locations->SetInAt(1, Location::RequiresFpuRegister());
+    locations->SetInAt(1, Location::FpuRegisterOrConstant(select->GetTrueValue()));
   } else {
     locations->SetInAt(0, Location::RequiresRegister());
-    locations->SetInAt(1, Location::RequiresRegister());
+    locations->SetInAt(1, Arm8BitEncodableConstantOrRegister(select->GetTrueValue()));
   }
+
   if (IsBooleanValueOrMaterializedCondition(select->GetCondition())) {
-    locations->SetInAt(2, Location::RequiresRegister());
+    locations->SetInAt(2, Location::RegisterOrConstant(select->GetCondition()));
+    // The code generator handles overlap with the values, but not with the condition.
+    locations->SetOut(Location::SameAsFirstInput());
+  } else if (is_floating_point) {
+    locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
+  } else {
+    if (!locations->InAt(1).IsConstant()) {
+      locations->SetInAt(0, Arm8BitEncodableConstantOrRegister(select->GetFalseValue()));
+    }
+
+    locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
   }
-  locations->SetOut(Location::SameAsFirstInput());
 }
 
 void InstructionCodeGeneratorARM::VisitSelect(HSelect* select) {
-  LocationSummary* locations = select->GetLocations();
-  Label false_target;
-  GenerateTestAndBranch(select,
-                        /* condition_input_index */ 2,
-                        /* true_target */ nullptr,
-                        &false_target);
-  codegen_->MoveLocation(locations->Out(), locations->InAt(1), select->GetType());
-  __ Bind(&false_target);
+  HInstruction* const condition = select->GetCondition();
+  const LocationSummary* const locations = select->GetLocations();
+  const Primitive::Type type = select->GetType();
+  const Location first = locations->InAt(0);
+  const Location out = locations->Out();
+  const Location second = locations->InAt(1);
+  Location src;
+
+  if (condition->IsIntConstant()) {
+    if (condition->AsIntConstant()->IsFalse()) {
+      src = first;
+    } else {
+      src = second;
+    }
+
+    codegen_->MoveLocation(out, src, type);
+    return;
+  }
+
+  if (!Primitive::IsFloatingPointType(type) &&
+      CanGenerateTest(condition, codegen_->GetAssembler())) {
+    bool invert = false;
+
+    if (out.Equals(second)) {
+      src = first;
+      invert = true;
+    } else if (out.Equals(first)) {
+      src = second;
+    } else if (second.IsConstant()) {
+      DCHECK(CanEncodeConstantAs8BitImmediate(second.GetConstant()));
+      src = second;
+    } else if (first.IsConstant()) {
+      DCHECK(CanEncodeConstantAs8BitImmediate(first.GetConstant()));
+      src = first;
+      invert = true;
+    } else {
+      src = second;
+    }
+
+    if (CanGenerateConditionalMove(out, src)) {
+      if (!out.Equals(first) && !out.Equals(second)) {
+        codegen_->MoveLocation(out, src.Equals(first) ? second : first, type);
+      }
+
+      const Condition cond = GenerateTest(condition, locations->InAt(2), invert, codegen_);
+
+      if (out.IsRegister()) {
+        ShifterOperand operand;
+
+        if (src.IsConstant()) {
+          operand = ShifterOperand(CodeGenerator::GetInt32ValueOf(src.GetConstant()));
+        } else {
+          DCHECK(src.IsRegister());
+          operand = ShifterOperand(src.AsRegister<Register>());
+        }
+
+        __ it(cond);
+        __ mov(out.AsRegister<Register>(), operand, cond);
+      } else {
+        DCHECK(out.IsRegisterPair());
+
+        ShifterOperand operand_high;
+        ShifterOperand operand_low;
+
+        if (src.IsConstant()) {
+          const int64_t value = src.GetConstant()->AsLongConstant()->GetValue();
+
+          operand_high = ShifterOperand(High32Bits(value));
+          operand_low = ShifterOperand(Low32Bits(value));
+        } else {
+          DCHECK(src.IsRegisterPair());
+          operand_high = ShifterOperand(src.AsRegisterPairHigh<Register>());
+          operand_low = ShifterOperand(src.AsRegisterPairLow<Register>());
+        }
+
+        __ it(cond);
+        __ mov(out.AsRegisterPairLow<Register>(), operand_low, cond);
+        __ it(cond);
+        __ mov(out.AsRegisterPairHigh<Register>(), operand_high, cond);
+      }
+
+      return;
+    }
+  }
+
+  Label* false_target = nullptr;
+  Label* true_target = nullptr;
+  Label select_end;
+  Label* target = codegen_->GetFinalLabel(select, &select_end);
+
+  if (out.Equals(second)) {
+    true_target = target;
+    src = first;
+  } else {
+    false_target = target;
+    src = second;
+
+    if (!out.Equals(first)) {
+      codegen_->MoveLocation(out, first, type);
+    }
+  }
+
+  GenerateTestAndBranch(select, 2, true_target, false_target);
+  codegen_->MoveLocation(out, src, type);
+
+  if (select_end.IsLinked()) {
+    __ Bind(&select_end);
+  }
 }
 
 void LocationsBuilderARM::VisitNativeDebugInfo(HNativeDebugInfo* info) {
@@ -2293,7 +2707,7 @@ void InstructionCodeGeneratorARM::HandleCondition(HCondition* cond) {
       break;
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble:
-      GenerateVcmp(cond);
+      GenerateVcmp(cond, codegen_);
       GenerateFPJumps(cond, &true_label, &false_label);
       break;
   }
@@ -4347,7 +4761,7 @@ void InstructionCodeGeneratorARM::VisitCompare(HCompare* compare) {
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble: {
       __ LoadImmediate(out, 0);
-      GenerateVcmp(compare);
+      GenerateVcmp(compare, codegen_);
       __ vmstat();  // transfer FP status register to ARM APSR.
       less_cond = ARMFPCondition(kCondLT, compare->IsGtBias());
       break;
@@ -4710,6 +5124,7 @@ bool LocationsBuilderARM::CanEncodeConstantAsImmediate(uint32_t value,
     case ADC: neg_opcode = SBC; value = ~value; break;
     case SUB: neg_opcode = ADD; value = -value; break;
     case SBC: neg_opcode = ADC; value = ~value; break;
+    case MOV: neg_opcode = MVN; value = ~value; break;
     default:
       return false;
   }

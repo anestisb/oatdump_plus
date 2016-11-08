@@ -629,21 +629,21 @@ bool RegisterAllocatorLinearScan::TryAllocateFreeReg(LiveInterval* current) {
     if (!locations->OutputCanOverlapWithInputs() && locations->Out().IsUnallocated()) {
       HInputsRef inputs = defined_by->GetInputs();
       for (size_t i = 0; i < inputs.size(); ++i) {
-        // Take the last interval of the input. It is the location of that interval
-        // that will be used at `defined_by`.
-        LiveInterval* interval = inputs[i]->GetLiveInterval()->GetLastSibling();
-        // Note that interval may have not been processed yet.
-        // TODO: Handle non-split intervals last in the work list.
-        if (locations->InAt(i).IsValid()
-            && interval->HasRegister()
-            && interval->SameRegisterKind(*current)) {
-          // The input must be live until the end of `defined_by`, to comply to
-          // the linear scan algorithm. So we use `defined_by`'s end lifetime
-          // position to check whether the input is dead or is inactive after
-          // `defined_by`.
-          DCHECK(interval->CoversSlow(defined_by->GetLifetimePosition()));
-          size_t position = defined_by->GetLifetimePosition() + 1;
-          FreeIfNotCoverAt(interval, position, free_until);
+        if (locations->InAt(i).IsValid()) {
+          // Take the last interval of the input. It is the location of that interval
+          // that will be used at `defined_by`.
+          LiveInterval* interval = inputs[i]->GetLiveInterval()->GetLastSibling();
+          // Note that interval may have not been processed yet.
+          // TODO: Handle non-split intervals last in the work list.
+          if (interval->HasRegister() && interval->SameRegisterKind(*current)) {
+            // The input must be live until the end of `defined_by`, to comply to
+            // the linear scan algorithm. So we use `defined_by`'s end lifetime
+            // position to check whether the input is dead or is inactive after
+            // `defined_by`.
+            DCHECK(interval->CoversSlow(defined_by->GetLifetimePosition()));
+            size_t position = defined_by->GetLifetimePosition() + 1;
+            FreeIfNotCoverAt(interval, position, free_until);
+          }
         }
       }
     }
