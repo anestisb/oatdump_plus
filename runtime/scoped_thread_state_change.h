@@ -94,10 +94,6 @@ class ScopedObjectAccessAlreadyRunnable : public ValueObject {
   template<typename T, bool kPoison = kIsDebugBuild>
   ObjPtr<T, kPoison> Decode(jobject obj) const REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ArtField* DecodeField(jfieldID fid) const REQUIRES_SHARED(Locks::mutator_lock_);
-
-  jfieldID EncodeField(ArtField* field) const REQUIRES_SHARED(Locks::mutator_lock_);
-
   ALWAYS_INLINE bool IsRunnable() const;
 
  protected:

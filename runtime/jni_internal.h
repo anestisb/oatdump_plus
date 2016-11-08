@@ -38,6 +38,7 @@
 
 namespace art {
 
+class ArtField;
 class ArtMethod;
 
 const JNINativeInterface* GetJniNativeInterface();
@@ -51,6 +52,16 @@ void RegisterNativeMethods(JNIEnv* env, const char* jni_class_name, const JNINat
 int ThrowNewException(JNIEnv* env, jclass exception_class, const char* msg, jobject cause);
 
 namespace jni {
+
+ALWAYS_INLINE
+static inline ArtField* DecodeArtField(jfieldID fid) {
+  return reinterpret_cast<ArtField*>(fid);
+}
+
+ALWAYS_INLINE
+static inline jfieldID EncodeArtField(ArtField* field) {
+  return reinterpret_cast<jfieldID>(field);
+}
 
 ALWAYS_INLINE
 static inline jmethodID EncodeArtMethod(ArtMethod* art_method) {

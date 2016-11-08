@@ -282,7 +282,7 @@ class ScopedCheck {
       return false;
     }
 
-    ArtField* f = CheckFieldID(soa, fid);
+    ArtField* f = CheckFieldID(fid);
     if (f == nullptr) {
       return false;
     }
@@ -362,7 +362,7 @@ class ScopedCheck {
   bool CheckStaticFieldID(ScopedObjectAccess& soa, jclass java_class, jfieldID fid)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     ObjPtr<mirror::Class> c = soa.Decode<mirror::Class>(java_class);
-    ArtField* f = CheckFieldID(soa, fid);
+    ArtField* f = CheckFieldID(fid);
     if (f == nullptr) {
       return false;
     }
@@ -681,7 +681,7 @@ class ScopedCheck {
     if (!is_static && !CheckInstanceFieldID(soa, obj, fid)) {
       return false;
     }
-    ArtField* field = soa.DecodeField(fid);
+    ArtField* field = jni::DecodeArtField(fid);
     DCHECK(field != nullptr);  // Already checked by Check.
     if (is_static != field->IsStatic()) {
       AbortF("attempt to access %s field %s: %p",
@@ -843,7 +843,7 @@ class ScopedCheck {
       case 'c':  // jclass
         return CheckInstance(soa, kClass, arg.c, false);
       case 'f':  // jfieldID
-        return CheckFieldID(soa, arg.f) != nullptr;
+        return CheckFieldID(arg.f) != nullptr;
       case 'm':  // jmethodID
         return CheckMethodID(arg.m) != nullptr;
       case 'r':  // release int
@@ -961,7 +961,7 @@ class ScopedCheck {
       }
       case 'f': {  // jfieldID
         jfieldID fid = arg.f;
-        ArtField* f = soa.DecodeField(fid);
+        ArtField* f = jni::DecodeArtField(fid);
         *msg += ArtField::PrettyField(f);
         if (!entry) {
           StringAppendF(msg, " (%p)", fid);
@@ -1146,13 +1146,12 @@ class ScopedCheck {
     return true;
   }
 
-  ArtField* CheckFieldID(ScopedObjectAccess& soa, jfieldID fid)
-      REQUIRES_SHARED(Locks::mutator_lock_) {
+  ArtField* CheckFieldID(jfieldID fid) REQUIRES_SHARED(Locks::mutator_lock_) {
     if (fid == nullptr) {
       AbortF("jfieldID was NULL");
       return nullptr;
     }
-    ArtField* f = soa.DecodeField(fid);
+    ArtField* f = jni::DecodeArtField(fid);
     // TODO: Better check here.
     if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(f->GetDeclaringClass().Ptr())) {
       Runtime::Current()->GetHeap()->DumpSpaces(LOG_STREAM(ERROR));
