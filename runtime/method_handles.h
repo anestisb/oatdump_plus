@@ -20,7 +20,10 @@
 #include <ostream>
 
 #include "dex_instruction.h"
+#include "handle.h"
 #include "jvalue.h"
+#include "mirror/class.h"
+#include "mirror/method_type.h"
 
 namespace art {
 
@@ -56,12 +59,36 @@ inline bool IsInvoke(const MethodHandleKind handle_kind) {
   return handle_kind <= kLastInvokeKind;
 }
 
-// Performs a single argument conversion from type |from| to a distinct
-// type |to|. Returns true on success, false otherwise.
-ALWAYS_INLINE bool ConvertJValue(Handle<mirror::Class> from,
-                          Handle<mirror::Class> to,
-                          const JValue& from_value,
-                          JValue* to_value) REQUIRES_SHARED(Locks::mutator_lock_);
+// Performs a conversion from type |from| to a distinct type |to| as
+// part of conversion of |caller_type| to |callee_type|. The value to
+// be converted is in |value|. Returns true on success and updates
+// |value| with the converted value, false otherwise.
+bool ConvertJValueCommon(Handle<mirror::MethodType> callsite_type,
+                         Handle<mirror::MethodType> callee_type,
+                         ObjPtr<mirror::Class> from,
+                         ObjPtr<mirror::Class> to,
+                         JValue* value)
+    REQUIRES_SHARED(Locks::mutator_lock_);
+
+// Converts the value of the argument at position |index| from type
+// expected by |callee_type| to type used by |callsite_type|. |value|
+// represents the value to be converted. Returns true on success and
+// updates |value|, false otherwise.
+ALWAYS_INLINE bool ConvertArgumentValue(Handle<mirror::MethodType> callsite_type,
+                                        Handle<mirror::MethodType> callee_type,
+                                        int index,
+                                        JValue* value)
+    REQUIRES_SHARED(Locks::mutator_lock_);
+
+// Converts the return value from return type yielded by
+// |callee_type| to the return type yielded by
+// |callsite_type|. |value| represents the value to be
+// converted. Returns true on success and updates |value|, false
+// otherwise.
+ALWAYS_INLINE bool ConvertReturnValue(Handle<mirror::MethodType> callsite_type,
+                                      Handle<mirror::MethodType> callee_type,
+                                      JValue* value)
+    REQUIRES_SHARED(Locks::mutator_lock_);
 
 // Perform argument conversions between |callsite_type| (the type of the
 // incoming arguments) and |callee_type| (the type of the method being
@@ -109,8 +136,8 @@ ALWAYS_INLINE bool ConvertJValue(Handle<mirror::Class> from,
 // overridden by concrete classes.
 template <typename G, typename S>
 bool PerformConversions(Thread* self,
-                        Handle<mirror::ObjectArray<mirror::Class>> from_types,
-                        Handle<mirror::ObjectArray<mirror::Class>> to_types,
+                        Handle<mirror::MethodType> callsite_type,
+                        Handle<mirror::MethodType> callee_type,
                         G* getter,
                         S* setter,
                         int32_t num_conversions) REQUIRES_SHARED(Locks::mutator_lock_);

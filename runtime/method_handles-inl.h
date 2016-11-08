@@ -31,127 +31,70 @@
 
 namespace art {
 
-// Assigns |type| to the primitive type associated with |dst_class|. Returns
-// true iff. |dst_class| was a boxed type (Integer, Long etc.), false otherwise.
-REQUIRES_SHARED(Locks::mutator_lock_)
-static inline bool GetPrimitiveType(ObjPtr<mirror::Class> dst_class, Primitive::Type* type) {
-  if (dst_class->DescriptorEquals("Ljava/lang/Boolean;")) {
-    (*type) = Primitive::kPrimBoolean;
+inline bool ConvertArgumentValue(Handle<mirror::MethodType> callsite_type,
+                                 Handle<mirror::MethodType> callee_type,
+                                 int index,
+                                 JValue* value) REQUIRES_SHARED(Locks::mutator_lock_) {
+  ObjPtr<mirror::Class> from_class(callsite_type->GetPTypes()->GetWithoutChecks(index));
+  ObjPtr<mirror::Class> to_class(callee_type->GetPTypes()->GetWithoutChecks(index));
+  if (from_class == to_class) {
     return true;
-  } else if (dst_class->DescriptorEquals("Ljava/lang/Byte;")) {
-    (*type) = Primitive::kPrimByte;
-    return true;
-  } else if (dst_class->DescriptorEquals("Ljava/lang/Character;")) {
-    (*type) = Primitive::kPrimChar;
-    return true;
-  } else if (dst_class->DescriptorEquals("Ljava/lang/Float;")) {
-    (*type) = Primitive::kPrimFloat;
-    return true;
-  } else if (dst_class->DescriptorEquals("Ljava/lang/Double;")) {
-    (*type) = Primitive::kPrimDouble;
-    return true;
-  } else if (dst_class->DescriptorEquals("Ljava/lang/Integer;")) {
-    (*type) = Primitive::kPrimInt;
-    return true;
-  } else if (dst_class->DescriptorEquals("Ljava/lang/Long;")) {
-    (*type) = Primitive::kPrimLong;
-    return true;
-  } else if (dst_class->DescriptorEquals("Ljava/lang/Short;")) {
-    (*type) = Primitive::kPrimShort;
+  }
+
+  // |value| may contain a bare heap pointer which is generally
+  // |unsafe. ConvertJValueCommon() saves |value|, |from_class|, and
+  // |to_class| to Handles where necessary to avoid issues if the heap
+  // changes.
+  if (ConvertJValueCommon(callsite_type, callee_type, from_class, to_class, value)) {
+    DCHECK(!Thread::Current()->IsExceptionPending());
     return true;
   } else {
+    DCHECK(Thread::Current()->IsExceptionPending());
+    value->SetJ(0);
     return false;
   }
 }
 
-inline bool ConvertJValue(Handle<mirror::Class> from,
-                          Handle<mirror::Class> to,
-                          const JValue& from_value,
-                          JValue* to_value) {
-  const Primitive::Type from_type = from->GetPrimitiveType();
-  const Primitive::Type to_type = to->GetPrimitiveType();
-
-  // This method must be called only when the types don't match.
-  DCHECK(from.Get() != to.Get());
-
-  if ((from_type != Primitive::kPrimNot) && (to_type != Primitive::kPrimNot)) {
-    // Throws a ClassCastException if we're unable to convert a primitive value.
-    return ConvertPrimitiveValue(false, from_type, to_type, from_value, to_value);
-  } else if ((from_type == Primitive::kPrimNot) && (to_type == Primitive::kPrimNot)) {
-    // They're both reference types. If "from" is null, we can pass it
-    // through unchanged. If not, we must generate a cast exception if
-    // |to| is not assignable from the dynamic type of |ref|.
-    mirror::Object* const ref = from_value.GetL();
-    if (ref == nullptr || to->IsAssignableFrom(ref->GetClass())) {
-      to_value->SetL(ref);
-      return true;
-    } else {
-      ThrowClassCastException(to.Get(), ref->GetClass());
-      return false;
-    }
-  } else {
-    // Precisely one of the source or the destination are reference types.
-    // We must box or unbox.
-    if (to_type == Primitive::kPrimNot) {
-      // The target type is a reference, we must box.
-      Primitive::Type type;
-      // TODO(narayan): This is a CHECK for now. There might be a few corner cases
-      // here that we might not have handled yet. For exmple, if |to| is java/lang/Number;,
-      // we will need to box this "naturally".
-      CHECK(GetPrimitiveType(to.Get(), &type));
-      // First perform a primitive conversion to the unboxed equivalent of the target,
-      // if necessary. This should be for the rarer cases like (int->Long) etc.
-      if (UNLIKELY(from_type != type)) {
-        if (!ConvertPrimitiveValue(false, from_type, type, from_value, to_value)) {
-          return false;
-        }
-      } else {
-        *to_value = from_value;
-      }
-
-      // Then perform the actual boxing, and then set the reference. Note that
-      // BoxPrimitive can return null if an OOM occurs.
-      ObjPtr<mirror::Object> boxed = BoxPrimitive(type, from_value);
-      if (boxed.Ptr() == nullptr) {
-        DCHECK(Thread::Current()->IsExceptionPending());
-        return false;
-      }
-
-      to_value->SetL(boxed.Ptr());
-      return true;
-    } else {
-      // The target type is a primitive, we must unbox.
-      ObjPtr<mirror::Object> ref(from_value.GetL());
-
-      // Note that UnboxPrimitiveForResult already performs all of the type
-      // conversions that we want, based on |to|.
-      JValue unboxed_value;
-      return UnboxPrimitiveForResult(ref, to.Get(), to_value);
-    }
+inline bool ConvertReturnValue(Handle<mirror::MethodType> callsite_type,
+                               Handle<mirror::MethodType> callee_type,
+                               JValue* value)  REQUIRES_SHARED(Locks::mutator_lock_) {
+  ObjPtr<mirror::Class> from_class(callee_type->GetRType());
+  ObjPtr<mirror::Class> to_class(callsite_type->GetRType());
+  if (to_class->GetPrimitiveType() == Primitive::kPrimVoid || from_class == to_class) {
+    return true;
   }
 
-  return true;
+  // |value| may contain a bare heap pointer which is generally
+  // unsafe. ConvertJValueCommon() saves |value|, |from_class|, and
+  // |to_class| to Handles where necessary to avoid issues if the heap
+  // changes.
+  if (ConvertJValueCommon(callsite_type, callee_type, from_class, to_class, value)) {
+    DCHECK(!Thread::Current()->IsExceptionPending());
+    return true;
+  } else {
+    DCHECK(Thread::Current()->IsExceptionPending());
+    value->SetJ(0);
+    return false;
+  }
 }
 
 template <typename G, typename S>
 bool PerformConversions(Thread* self,
-                        Handle<mirror::ObjectArray<mirror::Class>> from_types,
-                        Handle<mirror::ObjectArray<mirror::Class>> to_types,
+                        Handle<mirror::MethodType> callsite_type,
+                        Handle<mirror::MethodType> callee_type,
                         G* getter,
                         S* setter,
-                        int32_t num_conversions) {
+                        int32_t num_conversions) REQUIRES_SHARED(Locks::mutator_lock_) {
   StackHandleScope<2> hs(self);
-  MutableHandle<mirror::Class> from(hs.NewHandle<mirror::Class>(nullptr));
-  MutableHandle<mirror::Class> to(hs.NewHandle<mirror::Class>(nullptr));
+  Handle<mirror::ObjectArray<mirror::Class>> from_types(hs.NewHandle(callsite_type->GetPTypes()));
+  Handle<mirror::ObjectArray<mirror::Class>> to_types(hs.NewHandle(callee_type->GetPTypes()));
 
   for (int32_t i = 0; i < num_conversions; ++i) {
-    from.Assign(from_types->GetWithoutChecks(i));
-    to.Assign(to_types->GetWithoutChecks(i));
-
-    const Primitive::Type from_type = from->GetPrimitiveType();
-    const Primitive::Type to_type = to->GetPrimitiveType();
-
-    if (from.Get() == to.Get()) {
+    ObjPtr<mirror::Class> from(from_types->GetWithoutChecks(i));
+    ObjPtr<mirror::Class> to(to_types->GetWithoutChecks(i));
+    const Primitive::Type from_type = from_types->GetWithoutChecks(i)->GetPrimitiveType();
+    const Primitive::Type to_type = to_types->GetWithoutChecks(i)->GetPrimitiveType();
+    if (from == to) {
       // Easy case - the types are identical. Nothing left to do except to pass
       // the arguments along verbatim.
       if (Primitive::Is64BitType(from_type)) {
@@ -162,28 +105,28 @@ bool PerformConversions(Thread* self,
         setter->Set(getter->Get());
       }
     } else {
-      JValue from_value;
-      JValue to_value;
+      JValue value;
 
       if (Primitive::Is64BitType(from_type)) {
-        from_value.SetJ(getter->GetLong());
+        value.SetJ(getter->GetLong());
       } else if (from_type == Primitive::kPrimNot) {
-        from_value.SetL(getter->GetReference());
+        value.SetL(getter->GetReference());
       } else {
-        from_value.SetI(getter->Get());
+        value.SetI(getter->Get());
       }
 
-      if (!ConvertJValue(from, to, from_value, &to_value)) {
+      // Caveat emptor - ObjPtr's not guaranteed valid after this call.
+      if (!ConvertArgumentValue(callsite_type, callee_type, i, &value)) {
         DCHECK(self->IsExceptionPending());
         return false;
       }
 
       if (Primitive::Is64BitType(to_type)) {
-        setter->SetLong(to_value.GetJ());
+        setter->SetLong(value.GetJ());
       } else if (to_type == Primitive::kPrimNot) {
-        setter->SetReference(to_value.GetL());
+        setter->SetReference(value.GetL());
       } else {
-        setter->Set(to_value.GetI());
+        setter->Set(value.GetI());
       }
     }
   }
@@ -199,10 +142,10 @@ bool ConvertAndCopyArgumentsFromCallerFrame(Thread* self,
                                             uint32_t first_src_reg,
                                             uint32_t first_dest_reg,
                                             const uint32_t (&arg)[Instruction::kMaxVarArgRegs],
-                                            ShadowFrame* callee_frame) {
-  StackHandleScope<4> hs(self);
-  Handle<mirror::ObjectArray<mirror::Class>> from_types(hs.NewHandle(callsite_type->GetPTypes()));
-  Handle<mirror::ObjectArray<mirror::Class>> to_types(hs.NewHandle(callee_type->GetPTypes()));
+                                            ShadowFrame* callee_frame)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  ObjPtr<mirror::ObjectArray<mirror::Class>> from_types(callsite_type->GetPTypes());
+  ObjPtr<mirror::ObjectArray<mirror::Class>> to_types(callee_type->GetPTypes());
 
   const int32_t num_method_params = from_types->GetLength();
   if (to_types->GetLength() != num_method_params) {
@@ -214,8 +157,8 @@ bool ConvertAndCopyArgumentsFromCallerFrame(Thread* self,
   ShadowFrameSetter setter(callee_frame, first_dest_reg);
 
   return PerformConversions<ShadowFrameGetter<is_range>, ShadowFrameSetter>(self,
-                                                                            from_types,
-                                                                            to_types,
+                                                                            callsite_type,
+                                                                            callee_type,
                                                                             &getter,
                                                                             &setter,
                                                                             num_method_params);
