@@ -46,10 +46,16 @@ class ObjectTagTable : public art::gc::SystemWeakHolder {
   bool Remove(art::mirror::Object* obj, jlong* tag)
       REQUIRES_SHARED(art::Locks::mutator_lock_)
       REQUIRES(!allow_disallow_lock_);
+  bool RemoveLocked(art::mirror::Object* obj, jlong* tag)
+      REQUIRES_SHARED(art::Locks::mutator_lock_)
+      REQUIRES(allow_disallow_lock_);
 
   bool Set(art::mirror::Object* obj, jlong tag)
       REQUIRES_SHARED(art::Locks::mutator_lock_)
       REQUIRES(!allow_disallow_lock_);
+  bool SetLocked(art::mirror::Object* obj, jlong tag)
+      REQUIRES_SHARED(art::Locks::mutator_lock_)
+      REQUIRES(allow_disallow_lock_);
 
   bool GetTag(art::mirror::Object* obj, jlong* result)
       REQUIRES_SHARED(art::Locks::mutator_lock_)
@@ -59,6 +65,30 @@ class ObjectTagTable : public art::gc::SystemWeakHolder {
     Wait(self);
 
     return GetTagLocked(self, obj, result);
+  }
+  bool GetTagLocked(art::mirror::Object* obj, jlong* result)
+      REQUIRES_SHARED(art::Locks::mutator_lock_)
+      REQUIRES(allow_disallow_lock_) {
+    art::Thread* self = art::Thread::Current();
+    allow_disallow_lock_.AssertHeld(self);
+    Wait(self);
+
+    return GetTagLocked(self, obj, result);
+  }
+
+  jlong GetTagOrZero(art::mirror::Object* obj)
+      REQUIRES_SHARED(art::Locks::mutator_lock_)
+      REQUIRES(!allow_disallow_lock_) {
+    jlong tmp = 0;
+    GetTag(obj, &tmp);
+    return tmp;
+  }
+  jlong GetTagOrZeroLocked(art::mirror::Object* obj)
+      REQUIRES_SHARED(art::Locks::mutator_lock_)
+      REQUIRES(allow_disallow_lock_) {
+    jlong tmp = 0;
+    GetTagLocked(obj, &tmp);
+    return tmp;
   }
 
   void Sweep(art::IsMarkedVisitor* visitor)
@@ -73,6 +103,10 @@ class ObjectTagTable : public art::gc::SystemWeakHolder {
                               jlong** tag_result_ptr)
       REQUIRES_SHARED(art::Locks::mutator_lock_)
       REQUIRES(!allow_disallow_lock_);
+
+  void Lock() ACQUIRE(allow_disallow_lock_);
+  void Unlock() RELEASE(allow_disallow_lock_);
+  void AssertLocked() ASSERT_CAPABILITY(allow_disallow_lock_);
 
  private:
   bool SetLocked(art::Thread* self, art::mirror::Object* obj, jlong tag)

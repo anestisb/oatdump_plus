@@ -47,6 +47,16 @@
 
 namespace openjdkjvmti {
 
+void ObjectTagTable::Lock() {
+  allow_disallow_lock_.ExclusiveLock(art::Thread::Current());
+}
+void ObjectTagTable::Unlock() {
+  allow_disallow_lock_.ExclusiveUnlock(art::Thread::Current());
+}
+void ObjectTagTable::AssertLocked() {
+  allow_disallow_lock_.AssertHeld(art::Thread::Current());
+}
+
 void ObjectTagTable::UpdateTableWithReadBarrier() {
   update_since_last_sweep_ = true;
 
@@ -80,6 +90,13 @@ bool ObjectTagTable::Remove(art::mirror::Object* obj, jlong* tag) {
 
   return RemoveLocked(self, obj, tag);
 }
+bool ObjectTagTable::RemoveLocked(art::mirror::Object* obj, jlong* tag) {
+  art::Thread* self = art::Thread::Current();
+  allow_disallow_lock_.AssertHeld(self);
+  Wait(self);
+
+  return RemoveLocked(self, obj, tag);
+}
 
 bool ObjectTagTable::RemoveLocked(art::Thread* self, art::mirror::Object* obj, jlong* tag) {
   auto it = tagged_objects_.find(art::GcRoot<art::mirror::Object>(obj));
@@ -109,8 +126,25 @@ bool ObjectTagTable::RemoveLocked(art::Thread* self, art::mirror::Object* obj, j
 }
 
 bool ObjectTagTable::Set(art::mirror::Object* obj, jlong new_tag) {
+  if (new_tag == 0) {
+    jlong tmp;
+    return Remove(obj, &tmp);
+  }
+
   art::Thread* self = art::Thread::Current();
   art::MutexLock mu(self, allow_disallow_lock_);
+  Wait(self);
+
+  return SetLocked(self, obj, new_tag);
+}
+bool ObjectTagTable::SetLocked(art::mirror::Object* obj, jlong new_tag) {
+  if (new_tag == 0) {
+    jlong tmp;
+    return RemoveLocked(obj, &tmp);
+  }
+
+  art::Thread* self = art::Thread::Current();
+  allow_disallow_lock_.AssertHeld(self);
   Wait(self);
 
   return SetLocked(self, obj, new_tag);
