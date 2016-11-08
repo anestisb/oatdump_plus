@@ -2503,7 +2503,7 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset) {
   QUICK_ENTRY_POINT_INFO(pAllocStringFromChars)
   QUICK_ENTRY_POINT_INFO(pAllocStringFromString)
   QUICK_ENTRY_POINT_INFO(pInstanceofNonTrivial)
-  QUICK_ENTRY_POINT_INFO(pCheckCast)
+  QUICK_ENTRY_POINT_INFO(pCheckInstanceOf)
   QUICK_ENTRY_POINT_INFO(pInitializeStaticStorage)
   QUICK_ENTRY_POINT_INFO(pInitializeTypeAndVerifyAccess)
   QUICK_ENTRY_POINT_INFO(pInitializeType)
