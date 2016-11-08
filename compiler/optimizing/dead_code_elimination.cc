@@ -161,8 +161,21 @@ static HConstant* Evaluate(HCondition* condition, HInstruction* left, HInstructi
 //        |      |      |
 //       B4      B5    B?
 //
-// This simplification cannot be applied for loop headers, as they
-// contain a suspend check.
+// Note that individual edges can be redirected (for example B2->B3
+// can be redirected as B2->B5) without applying this optimization
+// to other incoming edges.
+//
+// This simplification cannot be applied to catch blocks, because
+// exception handler edges do not represent normal control flow.
+// Though in theory this could still apply to normal control flow
+// going directly to a catch block, we cannot support it at the
+// moment because the catch Phi's inputs do not correspond to the
+// catch block's predecessors, so we cannot identify which
+// predecessor corresponds to a given statically evaluated input.
+//
+// We do not apply this optimization to loop headers as this could
+// create irreducible loops. We rely on the suspend check in the
+// loop header to prevent the pattern match.
 //
 // Note that we rely on the dead code elimination to get rid of B3.
 bool HDeadCodeElimination::SimplifyIfs() {
@@ -172,7 +185,8 @@ bool HDeadCodeElimination::SimplifyIfs() {
   for (HBasicBlock* block : graph_->GetReversePostOrder()) {
     HInstruction* last = block->GetLastInstruction();
     HInstruction* first = block->GetFirstInstruction();
-    if (last->IsIf() &&
+    if (!block->IsCatchBlock() &&
+        last->IsIf() &&
         block->HasSinglePhi() &&
         block->GetFirstPhi()->HasOnlyOneNonEnvironmentUse()) {
       bool has_only_phi_and_if = (last == first) && (last->InputAt(0) == block->GetFirstPhi());
