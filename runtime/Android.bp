@@ -120,6 +120,7 @@ cc_defaults {
         "linear_alloc.cc",
         "mem_map.cc",
         "memory_region.cc",
+        "method_handles.cc",
         "mirror/array.cc",
         "mirror/class.cc",
         "mirror/class_ext.cc",

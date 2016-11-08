@@ -188,7 +188,7 @@ mirror::EmulatedStackFrame* EmulatedStackFrame::CreateFromShadowFrameAndArgs(
   ShadowFrameGetter<is_range> getter(first_src_reg, arg, caller_frame);
   EmulatedStackFrameAccessor setter(references, stack_frame, stack_frame->GetLength());
   if (!PerformConversions<ShadowFrameGetter<is_range>, EmulatedStackFrameAccessor>(
-          self, from_types, to_types, &getter, &setter, num_method_params)) {
+          self, caller_type, callee_type, &getter, &setter, num_method_params)) {
     return nullptr;
   }
 
@@ -206,9 +206,8 @@ bool EmulatedStackFrame::WriteToShadowFrame(Thread* self,
                                             Handle<mirror::MethodType> callee_type,
                                             const uint32_t first_dest_reg,
                                             ShadowFrame* callee_frame) {
-  StackHandleScope<4> hs(self);
-  Handle<mirror::ObjectArray<mirror::Class>> from_types(hs.NewHandle(GetType()->GetPTypes()));
-  Handle<mirror::ObjectArray<mirror::Class>> to_types(hs.NewHandle(callee_type->GetPTypes()));
+  ObjPtr<mirror::ObjectArray<mirror::Class>> from_types(GetType()->GetPTypes());
+  ObjPtr<mirror::ObjectArray<mirror::Class>> to_types(callee_type->GetPTypes());
 
   const int32_t num_method_params = from_types->GetLength();
   if (to_types->GetLength() != num_method_params) {
@@ -216,6 +215,8 @@ bool EmulatedStackFrame::WriteToShadowFrame(Thread* self,
     return false;
   }
 
+  StackHandleScope<3> hs(self);
+  Handle<mirror::MethodType> frame_callsite_type(hs.NewHandle(GetType()));
   Handle<mirror::ObjectArray<mirror::Object>> references(hs.NewHandle(GetReferences()));
   Handle<ByteArray> stack_frame(hs.NewHandle(GetStackFrame()));
 
@@ -223,7 +224,7 @@ bool EmulatedStackFrame::WriteToShadowFrame(Thread* self,
   ShadowFrameSetter setter(callee_frame, first_dest_reg);
 
   return PerformConversions<EmulatedStackFrameAccessor, ShadowFrameSetter>(
-      self, from_types, to_types, &getter, &setter, num_method_params);
+      self, frame_callsite_type, callee_type, &getter, &setter, num_method_params);
 }
 
 void EmulatedStackFrame::GetReturnValue(Thread* self, JValue* value) {
