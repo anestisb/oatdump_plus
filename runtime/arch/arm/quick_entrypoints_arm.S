@@ -764,11 +764,12 @@ ENTRY art_quick_unlock_object_no_inline
 END art_quick_unlock_object_no_inline
 
     /*
-     * Entry from managed code that calls artIsAssignableFromCode and on failure calls
-     * artThrowClassCastException.
+     * Entry from managed code that calls artInstanceOfFromCode and on failure calls
+     * artThrowClassCastExceptionForObject.
      */
-    .extern artThrowClassCastException
-ENTRY art_quick_check_cast
+    .extern artInstanceOfFromCode
+    .extern artThrowClassCastExceptionForObject
+ENTRY art_quick_check_instance_of
     push {r0-r1, lr}                    @ save arguments, link register and pad
     .cfi_adjust_cfa_offset 12
     .cfi_rel_offset r0, 0
@@ -776,7 +777,7 @@ ENTRY art_quick_check_cast
     .cfi_rel_offset lr, 8
     sub sp, #4
     .cfi_adjust_cfa_offset 4
-    bl artIsAssignableFromCode
+    bl artInstanceOfFromCode
     cbz    r0, .Lthrow_class_cast_exception
     add sp, #4
     .cfi_adjust_cfa_offset -4
@@ -792,9 +793,9 @@ ENTRY art_quick_check_cast
     .cfi_restore lr
     SETUP_SAVE_ALL_CALLEE_SAVES_FRAME r2       @ save all registers as basis for long jump context
     mov r2, r9                      @ pass Thread::Current
-    bl  artThrowClassCastException  @ (Class*, Class*, Thread*)
+    bl  artThrowClassCastExceptionForObject  @ (Object*, Class*, Thread*)
     bkpt
-END art_quick_check_cast
+END art_quick_check_instance_of
 
 // Restore rReg's value from [sp, #offset] if rReg is not the same as rExclude.
 .macro POP_REG_NE rReg, offset, rExclude

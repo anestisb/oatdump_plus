@@ -1256,10 +1256,11 @@ ENTRY_NO_GP art_quick_unlock_object_no_inline
 END art_quick_unlock_object_no_inline
 
     /*
-     * Entry from managed code that calls artCheckCastFromCode and delivers exception on failure.
+     * Entry from managed code that calls artInstanceOfFromCode and delivers exception on failure.
      */
-    .extern artThrowClassCastException
-ENTRY art_quick_check_cast
+    .extern artInstanceOfFromCode
+    .extern artThrowClassCastExceptionForObject
+ENTRY art_quick_check_instance_of
     daddiu $sp, $sp, -32
     .cfi_adjust_cfa_offset 32
     sd     $ra, 24($sp)
@@ -1267,7 +1268,7 @@ ENTRY art_quick_check_cast
     sd     $t9, 16($sp)
     sd     $a1, 8($sp)
     sd     $a0, 0($sp)
-    jal    artIsAssignableFromCode
+    jal    artInstanceOfFromCode
     .cpreturn                       # Restore gp from t8 in branch delay slot.
                                     # t8 may be clobbered in artIsAssignableFromCode.
     beq    $v0, $zero, .Lthrow_class_cast_exception
@@ -1283,10 +1284,10 @@ ENTRY art_quick_check_cast
     .cfi_adjust_cfa_offset -32
     SETUP_GP
     SETUP_SAVE_ALL_CALLEE_SAVES_FRAME
-    dla  $t9, artThrowClassCastException
-    jalr $zero, $t9                 # artThrowClassCastException (Class*, Class*, Thread*)
+    dla  $t9, artThrowClassCastExceptionForObject
+    jalr $zero, $t9                 # artThrowClassCastException (Object*, Class*, Thread*)
     move $a2, rSELF                 # pass Thread::Current
-END art_quick_check_cast
+END art_quick_check_instance_of
 
 
     /*

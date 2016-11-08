@@ -459,9 +459,15 @@ class TypeCheckSlowPathARM64 : public SlowPathCodeARM64 {
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
-    Location class_to_check = locations->InAt(1);
-    Location object_class = instruction_->IsCheckCast() ? locations->GetTemp(0)
-                                                        : locations->Out();
+    Location arg0, arg1;
+    if (instruction_->IsInstanceOf()) {
+      arg0 = locations->InAt(1);
+      arg1 = locations->Out();
+    } else {
+      arg0 = locations->InAt(0);
+      arg1 = locations->InAt(1);
+    }
+
     DCHECK(instruction_->IsCheckCast()
            || !locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
     CodeGeneratorARM64* arm64_codegen = down_cast<CodeGeneratorARM64*>(codegen);
@@ -476,21 +482,22 @@ class TypeCheckSlowPathARM64 : public SlowPathCodeARM64 {
     // We're moving two locations to locations that could overlap, so we need a parallel
     // move resolver.
     InvokeRuntimeCallingConvention calling_convention;
-    codegen->EmitParallelMoves(
-        class_to_check, LocationFrom(calling_convention.GetRegisterAt(0)), Primitive::kPrimNot,
-        object_class, LocationFrom(calling_convention.GetRegisterAt(1)), Primitive::kPrimNot);
-
+    codegen->EmitParallelMoves(arg0,
+                               LocationFrom(calling_convention.GetRegisterAt(0)),
+                               Primitive::kPrimNot,
+                               arg1,
+                               LocationFrom(calling_convention.GetRegisterAt(1)),
+                               Primitive::kPrimNot);
     if (instruction_->IsInstanceOf()) {
       arm64_codegen->InvokeRuntime(kQuickInstanceofNonTrivial, instruction_, dex_pc, this);
-      CheckEntrypointTypes<kQuickInstanceofNonTrivial, size_t,
-                           const mirror::Class*, const mirror::Class*>();
+      CheckEntrypointTypes<kQuickInstanceofNonTrivial, size_t, mirror::Class*, mirror::Class*>();
       Primitive::Type ret_type = instruction_->GetType();
       Location ret_loc = calling_convention.GetReturnLocation(ret_type);
       arm64_codegen->MoveLocation(locations->Out(), ret_loc, ret_type);
     } else {
       DCHECK(instruction_->IsCheckCast());
-      arm64_codegen->InvokeRuntime(kQuickCheckCast, instruction_, dex_pc, this);
-      CheckEntrypointTypes<kQuickCheckCast, void, const mirror::Class*, const mirror::Class*>();
+      arm64_codegen->InvokeRuntime(kQuickCheckInstanceOf, instruction_, dex_pc, this);
+      CheckEntrypointTypes<kQuickCheckInstanceOf, void, mirror::Object*, mirror::Class*>();
     }
 
     if (!is_fatal_) {
@@ -3594,26 +3601,15 @@ void InstructionCodeGeneratorARM64::VisitCheckCast(HCheckCast* instruction) {
     case TypeCheckKind::kAbstractClassCheck: {
       // If the class is abstract, we eagerly fetch the super class of the
       // object to avoid doing a comparison we know will fail.
-      vixl::aarch64::Label loop, compare_classes;
+      vixl::aarch64::Label loop;
       __ Bind(&loop);
       // /* HeapReference<Class> */ temp = temp->super_class_
       GenerateReferenceLoadOneRegister(instruction, temp_loc, super_offset, maybe_temp2_loc);
 
-      // If the class reference currently in `temp` is not null, jump
-      // to the `compare_classes` label to compare it with the checked
-      // class.
-      __ Cbnz(temp, &compare_classes);
-      // Otherwise, jump to the slow path to throw the exception.
-      //
-      // But before, move back the object's class into `temp` before
-      // going into the slow path, as it has been overwritten in the
-      // meantime.
-      // /* HeapReference<Class> */ temp = obj->klass_
-      GenerateReferenceLoadTwoRegisters(
-          instruction, temp_loc, obj_loc, class_offset, maybe_temp2_loc);
-      __ B(type_check_slow_path->GetEntryLabel());
-
-      __ Bind(&compare_classes);
+      // If the class reference currently in `temp` is null, jump to the slow path to throw the
+      // exception.
+      __ Cbz(temp, type_check_slow_path->GetEntryLabel());
+      // Otherwise, compare classes.
       __ Cmp(temp, cls);
       __ B(ne, &loop);
       break;
@@ -3633,20 +3629,12 @@ void InstructionCodeGeneratorARM64::VisitCheckCast(HCheckCast* instruction) {
       // back at the beginning of the loop.
       __ Cbnz(temp, &loop);
       // Otherwise, jump to the slow path to throw the exception.
-      //
-      // But before, move back the object's class into `temp` before
-      // going into the slow path, as it has been overwritten in the
-      // meantime.
-      // /* HeapReference<Class> */ temp = obj->klass_
-      GenerateReferenceLoadTwoRegisters(
-          instruction, temp_loc, obj_loc, class_offset, maybe_temp2_loc);
       __ B(type_check_slow_path->GetEntryLabel());
       break;
     }
 
     case TypeCheckKind::kArrayObjectCheck: {
       // Do an exact check.
-      vixl::aarch64::Label check_non_primitive_component_type;
       __ Cmp(temp, cls);
       __ B(eq, &done);
 
@@ -3654,30 +3642,13 @@ void InstructionCodeGeneratorARM64::VisitCheckCast(HCheckCast* instruction) {
       // /* HeapReference<Class> */ temp = temp->component_type_
       GenerateReferenceLoadOneRegister(instruction, temp_loc, component_offset, maybe_temp2_loc);
 
-      // If the component type is not null (i.e. the object is indeed
-      // an array), jump to label `check_non_primitive_component_type`
-      // to further check that this component type is not a primitive
-      // type.
-      __ Cbnz(temp, &check_non_primitive_component_type);
-      // Otherwise, jump to the slow path to throw the exception.
-      //
-      // But before, move back the object's class into `temp` before
-      // going into the slow path, as it has been overwritten in the
-      // meantime.
-      // /* HeapReference<Class> */ temp = obj->klass_
-      GenerateReferenceLoadTwoRegisters(
-          instruction, temp_loc, obj_loc, class_offset, maybe_temp2_loc);
-      __ B(type_check_slow_path->GetEntryLabel());
-
-      __ Bind(&check_non_primitive_component_type);
+      // If the component type is null, jump to the slow path to throw the exception.
+      __ Cbz(temp, type_check_slow_path->GetEntryLabel());
+      // Otherwise, the object is indeed an array. Further check that this component type is not a
+      // primitive type.
       __ Ldrh(temp, HeapOperand(temp, primitive_offset));
       static_assert(Primitive::kPrimNot == 0, "Expected 0 for kPrimNot");
-      __ Cbz(temp, &done);
-      // Same comment as above regarding `temp` and the slow path.
-      // /* HeapReference<Class> */ temp = obj->klass_
-      GenerateReferenceLoadTwoRegisters(
-          instruction, temp_loc, obj_loc, class_offset, maybe_temp2_loc);
-      __ B(type_check_slow_path->GetEntryLabel());
+      __ Cbnz(temp, type_check_slow_path->GetEntryLabel());
       break;
     }
 
@@ -3693,13 +3664,6 @@ void InstructionCodeGeneratorARM64::VisitCheckCast(HCheckCast* instruction) {
       // instruction (following the runtime calling convention), which
       // might be cluttered by the potential first read barrier
       // emission at the beginning of this method.
-      //
-      // TODO: Introduce a new runtime entry point taking the object
-      // to test (instead of its class) as argument, and let it deal
-      // with the read barrier issues. This will let us refactor this
-      // case of the `switch` code as it was previously (with a direct
-      // call to the runtime not using a type checking slow path).
-      // This should also be beneficial for the other cases above.
       __ B(type_check_slow_path->GetEntryLabel());
       break;
   }

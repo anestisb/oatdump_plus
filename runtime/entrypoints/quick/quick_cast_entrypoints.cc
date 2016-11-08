@@ -27,4 +27,12 @@ extern "C" size_t artIsAssignableFromCode(mirror::Class* klass, mirror::Class* r
   return klass->IsAssignableFrom(ref_class) ? 1 : 0;
 }
 
+// Is assignable test for code, won't throw.  Null and equality test already performed.
+extern "C" size_t artInstanceOfFromCode(mirror::Object* obj, mirror::Class* ref_class)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  DCHECK(obj != nullptr);
+  DCHECK(ref_class != nullptr);
+  return obj->InstanceOf(ref_class) ? 1 : 0;
+}
+
 }  // namespace art

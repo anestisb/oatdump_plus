@@ -30,8 +30,8 @@
 namespace art {
 
 // Cast entrypoints.
-extern "C" size_t artIsAssignableFromCode(const mirror::Class* klass,
-                                          const mirror::Class* ref_class);
+extern "C" size_t artIsAssignableFromCode(mirror::Class* klass, mirror::Class* ref_class);
+
 // Math entrypoints.
 extern int32_t CmpgDouble(double a, double b);
 extern int32_t CmplDouble(double a, double b);
@@ -64,7 +64,7 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
 
   // Cast
   qpoints->pInstanceofNonTrivial = artIsAssignableFromCode;
-  qpoints->pCheckCast = art_quick_check_cast;
+  qpoints->pCheckInstanceOf = art_quick_check_instance_of;
 
   // Math
   qpoints->pCmpgDouble = CmpgDouble;
