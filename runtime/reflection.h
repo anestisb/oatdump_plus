@@ -47,6 +47,12 @@ bool UnboxPrimitiveForResult(ObjPtr<mirror::Object> o,
                              JValue* unboxed_value)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
+ALWAYS_INLINE bool ConvertPrimitiveValueNoThrow(Primitive::Type src_class,
+                                                Primitive::Type dst_class,
+                                                const JValue& src,
+                                                JValue* dst)
+    REQUIRES_SHARED(Locks::mutator_lock_);
+
 ALWAYS_INLINE bool ConvertPrimitiveValue(bool unbox_for_result,
                                          Primitive::Type src_class,
                                          Primitive::Type dst_class,
