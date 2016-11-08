@@ -69,6 +69,11 @@ class SystemWeakHolder : public AbstractSystemWeakHolder {
     new_weak_condition_.Broadcast(Thread::Current());
   }
 
+  // WARNING: For lock annotations only.
+  Mutex* GetAllowDisallowLock() const RETURN_CAPABILITY(allow_disallow_lock_) {
+    return nullptr;
+  }
+
  protected:
   void Wait(Thread* self) REQUIRES_SHARED(allow_disallow_lock_) {
     // Wait for GC's sweeping to complete and allow new records
