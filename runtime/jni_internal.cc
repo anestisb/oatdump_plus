@@ -157,14 +157,14 @@ static jmethodID FindMethodID(ScopedObjectAccess& soa, jclass jni_class,
     ThrowNoSuchMethodError(soa, c, name, sig, is_static ? "static" : "non-static");
     return nullptr;
   }
-  return soa.EncodeMethod(method);
+  return jni::EncodeArtMethod(method);
 }
 
 static ObjPtr<mirror::ClassLoader> GetClassLoader(const ScopedObjectAccess& soa)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   ArtMethod* method = soa.Self()->GetCurrentMethod(nullptr);
   // If we are running Runtime.nativeLoad, use the overriding ClassLoader it set.
-  if (method == soa.DecodeMethod(WellKnownClasses::java_lang_Runtime_nativeLoad)) {
+  if (method == jni::DecodeArtMethod(WellKnownClasses::java_lang_Runtime_nativeLoad)) {
     return soa.Decode<mirror::ClassLoader>(soa.Self()->GetClassLoaderOverride());
   }
   // If we have a method, use its ClassLoader for context.
@@ -368,7 +368,7 @@ class JNI {
   static jmethodID FromReflectedMethod(JNIEnv* env, jobject jlr_method) {
     CHECK_NON_NULL_ARGUMENT(jlr_method);
     ScopedObjectAccess soa(env);
-    return soa.EncodeMethod(ArtMethod::FromReflectedMethod(soa, jlr_method));
+    return jni::EncodeArtMethod(ArtMethod::FromReflectedMethod(soa, jlr_method));
   }
 
   static jfieldID FromReflectedField(JNIEnv* env, jobject jlr_field) {
@@ -386,7 +386,7 @@ class JNI {
   static jobject ToReflectedMethod(JNIEnv* env, jclass, jmethodID mid, jboolean) {
     CHECK_NON_NULL_ARGUMENT(mid);
     ScopedObjectAccess soa(env);
-    ArtMethod* m = soa.DecodeMethod(mid);
+    ArtMethod* m = jni::DecodeArtMethod(mid);
     mirror::Executable* method;
     DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), kRuntimePointerSize);
     DCHECK(!Runtime::Current()->IsActiveTransaction());
@@ -631,8 +631,8 @@ class JNI {
     }
     if (c->IsStringClass()) {
       // Replace calls to String.<init> with equivalent StringFactory call.
-      jmethodID sf_mid = soa.EncodeMethod(
-          WellKnownClasses::StringInitToStringFactory(soa.DecodeMethod(mid)));
+      jmethodID sf_mid = jni::EncodeArtMethod(
+          WellKnownClasses::StringInitToStringFactory(jni::DecodeArtMethod(mid)));
       return CallStaticObjectMethodV(env, WellKnownClasses::java_lang_StringFactory, sf_mid, args);
     }
     ObjPtr<mirror::Object> result = c->AllocObject(soa.Self());
@@ -658,8 +658,8 @@ class JNI {
     }
     if (c->IsStringClass()) {
       // Replace calls to String.<init> with equivalent StringFactory call.
-      jmethodID sf_mid = soa.EncodeMethod(
-          WellKnownClasses::StringInitToStringFactory(soa.DecodeMethod(mid)));
+      jmethodID sf_mid = jni::EncodeArtMethod(
+          WellKnownClasses::StringInitToStringFactory(jni::DecodeArtMethod(mid)));
       return CallStaticObjectMethodA(env, WellKnownClasses::java_lang_StringFactory, sf_mid, args);
     }
     ObjPtr<mirror::Object> result = c->AllocObject(soa.Self());

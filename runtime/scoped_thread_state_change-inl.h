@@ -98,18 +98,6 @@ inline jfieldID ScopedObjectAccessAlreadyRunnable::EncodeField(ArtField* field) 
   return reinterpret_cast<jfieldID>(field);
 }
 
-inline ArtMethod* ScopedObjectAccessAlreadyRunnable::DecodeMethod(jmethodID mid) const {
-  Locks::mutator_lock_->AssertSharedHeld(Self());
-  DCHECK(IsRunnable());  // Don't work with raw objects in non-runnable states.
-  return reinterpret_cast<ArtMethod*>(mid);
-}
-
-inline jmethodID ScopedObjectAccessAlreadyRunnable::EncodeMethod(ArtMethod* method) const {
-  Locks::mutator_lock_->AssertSharedHeld(Self());
-  DCHECK(IsRunnable());  // Don't work with raw objects in non-runnable states.
-  return reinterpret_cast<jmethodID>(method);
-}
-
 inline bool ScopedObjectAccessAlreadyRunnable::IsRunnable() const {
   return self_->GetState() == kRunnable;
 }

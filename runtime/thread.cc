@@ -2414,7 +2414,7 @@ void Thread::ThrowNewWrappedException(const char* exception_class_descriptor,
       ++i;
     }
     ScopedLocalRef<jobject> ref(soa.Env(), soa.AddLocalReference<jobject>(exception.Get()));
-    InvokeWithJValues(soa, ref.get(), soa.EncodeMethod(exception_init_method), jv_args);
+    InvokeWithJValues(soa, ref.get(), jni::EncodeArtMethod(exception_init_method), jv_args);
     if (LIKELY(!IsExceptionPending())) {
       SetException(exception.Get());
     }
