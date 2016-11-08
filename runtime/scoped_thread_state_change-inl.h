@@ -86,18 +86,6 @@ inline ObjPtr<T, kPoison> ScopedObjectAccessAlreadyRunnable::Decode(jobject obj)
   return ObjPtr<T, kPoison>::DownCast(Self()->DecodeJObject(obj));
 }
 
-inline ArtField* ScopedObjectAccessAlreadyRunnable::DecodeField(jfieldID fid) const {
-  Locks::mutator_lock_->AssertSharedHeld(Self());
-  DCHECK(IsRunnable());  // Don't work with raw objects in non-runnable states.
-  return reinterpret_cast<ArtField*>(fid);
-}
-
-inline jfieldID ScopedObjectAccessAlreadyRunnable::EncodeField(ArtField* field) const {
-  Locks::mutator_lock_->AssertSharedHeld(Self());
-  DCHECK(IsRunnable());  // Don't work with raw objects in non-runnable states.
-  return reinterpret_cast<jfieldID>(field);
-}
-
 inline bool ScopedObjectAccessAlreadyRunnable::IsRunnable() const {
   return self_->GetState() == kRunnable;
 }

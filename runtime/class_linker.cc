@@ -63,6 +63,7 @@
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
 #include "jit/offline_profiling_info.h"
+#include "jni_internal.h"
 #include "leb128.h"
 #include "linear_alloc.h"
 #include "mirror/class.h"
@@ -1124,13 +1125,12 @@ bool ClassLinker::IsBootClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
            class_loader->GetClass();
 }
 
-static mirror::String* GetDexPathListElementName(ScopedObjectAccessUnchecked& soa,
-                                                 ObjPtr<mirror::Object> element)
+static mirror::String* GetDexPathListElementName(ObjPtr<mirror::Object> element)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   ArtField* const dex_file_field =
-      soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList__Element_dexFile);
+      jni::DecodeArtField(WellKnownClasses::dalvik_system_DexPathList__Element_dexFile);
   ArtField* const dex_file_name_field =
-      soa.DecodeField(WellKnownClasses::dalvik_system_DexFile_fileName);
+      jni::DecodeArtField(WellKnownClasses::dalvik_system_DexFile_fileName);
   DCHECK(dex_file_field != nullptr);
   DCHECK(dex_file_name_field != nullptr);
   DCHECK(element != nullptr);
@@ -1154,9 +1154,9 @@ static bool FlattenPathClassLoader(ObjPtr<mirror::ClassLoader> class_loader,
   DCHECK(error_msg != nullptr);
   ScopedObjectAccessUnchecked soa(Thread::Current());
   ArtField* const dex_path_list_field =
-      soa.DecodeField(WellKnownClasses::dalvik_system_BaseDexClassLoader_pathList);
+      jni::DecodeArtField(WellKnownClasses::dalvik_system_BaseDexClassLoader_pathList);
   ArtField* const dex_elements_field =
-      soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList_dexElements);
+      jni::DecodeArtField(WellKnownClasses::dalvik_system_DexPathList_dexElements);
   CHECK(dex_path_list_field != nullptr);
   CHECK(dex_elements_field != nullptr);
   while (!ClassLinker::IsBootClassLoader(soa, class_loader)) {
@@ -1183,7 +1183,7 @@ static bool FlattenPathClassLoader(ObjPtr<mirror::ClassLoader> class_loader,
             *error_msg = StringPrintf("Null dex element at index %d", i);
             return false;
           }
-          ObjPtr<mirror::String> const name = GetDexPathListElementName(soa, element);
+          ObjPtr<mirror::String> const name = GetDexPathListElementName(element);
           if (name == nullptr) {
             *error_msg = StringPrintf("Null name for dex element at index %d", i);
             return false;
@@ -1733,7 +1733,7 @@ bool ClassLinker::AddImageSpace(
         ObjPtr<mirror::Object> element = elements->GetWithoutChecks(i);
         if (element != nullptr) {
           // If we are somewhere in the middle of the array, there may be nulls at the end.
-          loader_dex_file_names.push_back(GetDexPathListElementName(soa, element));
+          loader_dex_file_names.push_back(GetDexPathListElementName(element));
         }
       }
       // Ignore the number of image dex files since we are adding those to the class loader anyways.
@@ -2425,16 +2425,17 @@ bool ClassLinker::FindClassInBaseDexClassLoader(ScopedObjectAccessAlreadyRunnabl
   // Handle as if this is the child PathClassLoader.
   // The class loader is a PathClassLoader which inherits from BaseDexClassLoader.
   // We need to get the DexPathList and loop through it.
-  ArtField* const cookie_field = soa.DecodeField(WellKnownClasses::dalvik_system_DexFile_cookie);
+  ArtField* const cookie_field =
+      jni::DecodeArtField(WellKnownClasses::dalvik_system_DexFile_cookie);
   ArtField* const dex_file_field =
-      soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList__Element_dexFile);
+      jni::DecodeArtField(WellKnownClasses::dalvik_system_DexPathList__Element_dexFile);
   ObjPtr<mirror::Object> dex_path_list =
-      soa.DecodeField(WellKnownClasses::dalvik_system_BaseDexClassLoader_pathList)->
-      GetObject(class_loader.Get());
+      jni::DecodeArtField(WellKnownClasses::dalvik_system_BaseDexClassLoader_pathList)->
+          GetObject(class_loader.Get());
   if (dex_path_list != nullptr && dex_file_field != nullptr && cookie_field != nullptr) {
     // DexPathList has an array dexElements of Elements[] which each contain a dex file.
     ObjPtr<mirror::Object> dex_elements_obj =
-        soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList_dexElements)->
+        jni::DecodeArtField(WellKnownClasses::dalvik_system_DexPathList_dexElements)->
         GetObject(dex_path_list);
     // Loop through each dalvik.system.DexPathList$Element's dalvik.system.DexFile and look
     // at the mCookie which is a DexFile vector.
@@ -8137,7 +8138,7 @@ jobject ClassLinker::CreatePathClassLoader(Thread* self,
   StackHandleScope<11> hs(self);
 
   ArtField* dex_elements_field =
-      soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList_dexElements);
+      jni::DecodeArtField(WellKnownClasses::dalvik_system_DexPathList_dexElements);
 
   Handle<mirror::Class> dex_elements_class(hs.NewHandle(dex_elements_field->GetType<true>()));
   DCHECK(dex_elements_class.Get() != nullptr);
@@ -8150,13 +8151,13 @@ jobject ClassLinker::CreatePathClassLoader(Thread* self,
       hs.NewHandle(dex_elements_class->GetComponentType());
 
   ArtField* element_file_field =
-      soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList__Element_dexFile);
+      jni::DecodeArtField(WellKnownClasses::dalvik_system_DexPathList__Element_dexFile);
   DCHECK_EQ(h_dex_element_class.Get(), element_file_field->GetDeclaringClass());
 
-  ArtField* cookie_field = soa.DecodeField(WellKnownClasses::dalvik_system_DexFile_cookie);
+  ArtField* cookie_field = jni::DecodeArtField(WellKnownClasses::dalvik_system_DexFile_cookie);
   DCHECK_EQ(cookie_field->GetDeclaringClass(), element_file_field->GetType<false>());
 
-  ArtField* file_name_field = soa.DecodeField(WellKnownClasses::dalvik_system_DexFile_fileName);
+  ArtField* file_name_field = jni::DecodeArtField(WellKnownClasses::dalvik_system_DexFile_fileName);
   DCHECK_EQ(file_name_field->GetDeclaringClass(), element_file_field->GetType<false>());
 
   // Fill the elements array.
@@ -8206,7 +8207,7 @@ jobject ClassLinker::CreatePathClassLoader(Thread* self,
   DCHECK(h_path_class_loader.Get() != nullptr);
   // Set DexPathList.
   ArtField* path_list_field =
-      soa.DecodeField(WellKnownClasses::dalvik_system_BaseDexClassLoader_pathList);
+      jni::DecodeArtField(WellKnownClasses::dalvik_system_BaseDexClassLoader_pathList);
   DCHECK(path_list_field != nullptr);
   path_list_field->SetObject<false>(h_path_class_loader.Get(), h_dex_path_list.Get());
 
