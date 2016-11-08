@@ -22,6 +22,7 @@
 
 #include "base/logging.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
+#include "jni_internal.h"
 #include "mirror/class.h"
 #include "mirror/throwable.h"
 #include "obj_ptr-inl.h"
@@ -219,9 +220,9 @@ void WellKnownClasses::InitStringInit(JNIEnv* env) {
   ScopedObjectAccess soa(Thread::Current());
   #define LOAD_STRING_INIT(init_runtime_name, init_signature, new_runtime_name,             \
                            new_java_name, new_signature, ...)                               \
-      init_runtime_name = soa.DecodeMethod(                                                 \
+      init_runtime_name = jni::DecodeArtMethod(                                             \
           CacheMethod(env, java_lang_String, false, "<init>", init_signature));             \
-      new_runtime_name = soa.DecodeMethod(                                                  \
+      new_runtime_name = jni::DecodeArtMethod(                                              \
           CacheMethod(env, java_lang_StringFactory, true, new_java_name, new_signature));
       STRING_INIT_LIST(LOAD_STRING_INIT)
   #undef LOAD_STRING_INIT

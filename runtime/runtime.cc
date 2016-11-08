@@ -559,7 +559,10 @@ static jobject CreateSystemClassLoader(Runtime* runtime) {
       "getSystemClassLoader", "()Ljava/lang/ClassLoader;", pointer_size);
   CHECK(getSystemClassLoader != nullptr);
 
-  JValue result = InvokeWithJValues(soa, nullptr, soa.EncodeMethod(getSystemClassLoader), nullptr);
+  JValue result = InvokeWithJValues(soa,
+                                    nullptr,
+                                    jni::EncodeArtMethod(getSystemClassLoader),
+                                    nullptr);
   JNIEnv* env = soa.Self()->GetJniEnv();
   ScopedLocalRef<jobject> system_class_loader(env, soa.AddLocalReference<jobject>(result.GetL()));
   CHECK(system_class_loader.get() != nullptr);

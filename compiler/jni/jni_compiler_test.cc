@@ -2202,8 +2202,7 @@ void JniCompilerTest::NormalNativeImpl() {
                "()V",
                CURRENT_JNI_WRAPPER(Java_MyClassNatives_normalNative));
 
-  ScopedObjectAccess soa(Thread::Current());
-  ArtMethod* method = soa.DecodeMethod(jmethod_);
+  ArtMethod* method = jni::DecodeArtMethod(jmethod_);
   ASSERT_TRUE(method != nullptr);
 
   EXPECT_FALSE(method->IsAnnotatedWithCriticalNative());
@@ -2225,8 +2224,7 @@ void JniCompilerTest::FastNativeImpl() {
                "()V",
                CURRENT_JNI_WRAPPER(Java_MyClassNatives_fastNative));
 
-  ScopedObjectAccess soa(Thread::Current());
-  ArtMethod* method = soa.DecodeMethod(jmethod_);
+  ArtMethod* method = jni::DecodeArtMethod(jmethod_);
   ASSERT_TRUE(method != nullptr);
 
   EXPECT_FALSE(method->IsAnnotatedWithCriticalNative());
@@ -2255,8 +2253,7 @@ void JniCompilerTest::CriticalNativeImpl() {
   UpdateCurrentJni(JniKind::kCritical);
   ASSERT_TRUE(IsCurrentJniCritical());
 
-  ScopedObjectAccess soa(Thread::Current());
-  ArtMethod* method = soa.DecodeMethod(jmethod_);
+  ArtMethod* method = jni::DecodeArtMethod(jmethod_);
   ASSERT_TRUE(method != nullptr);
 
   EXPECT_TRUE(method->IsAnnotatedWithCriticalNative());

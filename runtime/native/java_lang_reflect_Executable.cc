@@ -136,7 +136,7 @@ static jobjectArray Executable_getParameters0(JNIEnv* env, jobject javaMethod) {
   Handle<mirror::Class> parameter_class =
       hs.NewHandle(soa.Decode<mirror::Class>(WellKnownClasses::java_lang_reflect_Parameter));
   ArtMethod* parameter_init =
-      soa.DecodeMethod(WellKnownClasses::java_lang_reflect_Parameter_init);
+      jni::DecodeArtMethod(WellKnownClasses::java_lang_reflect_Parameter_init);
 
   // Mutable handles used in the loop below to ensure cleanup without scaling the number of
   // handles by the number of parameters.
