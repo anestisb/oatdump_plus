@@ -322,7 +322,15 @@ class TypeCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
-    Location object_class = instruction_->IsCheckCast() ? locations->GetTemp(0) : locations->Out();
+    Location arg0, arg1;
+    if (instruction_->IsInstanceOf()) {
+      arg0 = locations->InAt(1);
+      arg1 = locations->Out();
+    } else {
+      arg0 = locations->InAt(0);
+      arg1 = locations->InAt(1);
+    }
+
     uint32_t dex_pc = instruction_->GetDexPc();
     DCHECK(instruction_->IsCheckCast()
            || !locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
@@ -334,24 +342,23 @@ class TypeCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
     // We're moving two locations to locations that could overlap, so we need a parallel
     // move resolver.
     InvokeRuntimeCallingConvention calling_convention;
-    codegen->EmitParallelMoves(locations->InAt(1),
+    codegen->EmitParallelMoves(arg0,
                                Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
                                Primitive::kPrimNot,
-                               object_class,
+                               arg1,
                                Location::RegisterLocation(calling_convention.GetRegisterAt(1)),
                                Primitive::kPrimNot);
-
     if (instruction_->IsInstanceOf()) {
       mips64_codegen->InvokeRuntime(kQuickInstanceofNonTrivial, instruction_, dex_pc, this);
       CheckEntrypointTypes<
-          kQuickInstanceofNonTrivial, size_t, const mirror::Class*, const mirror::Class*>();
+          kQuickInstanceofNonTrivial, size_t, mirror::Class*, mirror::Class*>();
       Primitive::Type ret_type = instruction_->GetType();
       Location ret_loc = calling_convention.GetReturnLocation(ret_type);
       mips64_codegen->MoveLocation(locations->Out(), ret_loc, ret_type);
     } else {
       DCHECK(instruction_->IsCheckCast());
-      mips64_codegen->InvokeRuntime(kQuickCheckCast, instruction_, dex_pc, this);
-      CheckEntrypointTypes<kQuickCheckCast, void, const mirror::Class*, const mirror::Class*>();
+      mips64_codegen->InvokeRuntime(kQuickCheckInstanceOf, instruction_, dex_pc, this);
+      CheckEntrypointTypes<kQuickCheckInstanceOf, void, mirror::Object*, mirror::Class*>();
     }
 
     RestoreLiveRegisters(codegen, locations);

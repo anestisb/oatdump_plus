@@ -1294,18 +1294,19 @@ ENTRY art_quick_unlock_object_no_inline
 END art_quick_unlock_object_no_inline
 
     /*
-     * Entry from managed code that calls artIsAssignableFromCode and on failure calls
-     * artThrowClassCastException.
+     * Entry from managed code that calls artInstanceOfFromCode and on failure calls
+     * artThrowClassCastExceptionForObject.
      */
-    .extern artThrowClassCastException
-ENTRY art_quick_check_cast
+    .extern artInstanceOfFromCode
+    .extern artThrowClassCastExceptionForObject
+ENTRY art_quick_check_instance_of
     // Store arguments and link register
     // Stack needs to be 16B aligned on calls.
     SAVE_TWO_REGS_INCREASE_FRAME x0, x1, 32
     SAVE_REG xLR, 24
 
     // Call runtime code
-    bl artIsAssignableFromCode
+    bl artInstanceOfFromCode
 
     // Check for exception
     cbz x0, .Lthrow_class_cast_exception
@@ -1324,9 +1325,9 @@ ENTRY art_quick_check_cast
 
     SETUP_SAVE_ALL_CALLEE_SAVES_FRAME // save all registers as basis for long jump context
     mov x2, xSELF                     // pass Thread::Current
-    bl artThrowClassCastException     // (Class*, Class*, Thread*)
+    bl artThrowClassCastExceptionForObject     // (Object*, Class*, Thread*)
     brk 0                             // We should not return here...
-END art_quick_check_cast
+END art_quick_check_instance_of
 
 // Restore xReg's value from [sp, #offset] if xReg is not the same as xExclude.
 .macro POP_REG_NE xReg, offset, xExclude

@@ -27,8 +27,7 @@
 namespace art {
 
 // Cast entrypoints.
-extern "C" size_t art_quick_is_assignable(const mirror::Class* klass,
-                                          const mirror::Class* ref_class);
+extern "C" size_t art_quick_is_assignable(mirror::Class* klass, mirror::Class* ref_class);
 
 // Read barrier entrypoints.
 // art_quick_read_barrier_mark_regX uses an non-standard calling
@@ -50,7 +49,7 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
 
   // Cast
   qpoints->pInstanceofNonTrivial = art_quick_is_assignable;
-  qpoints->pCheckCast = art_quick_check_cast;
+  qpoints->pCheckInstanceOf = art_quick_check_instance_of;
 
   // More math.
   qpoints->pCos = cos;
