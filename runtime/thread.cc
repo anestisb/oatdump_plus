@@ -410,9 +410,9 @@ void* Thread::CreateCallback(void* arg) {
     self->tlsPtr_.opeer = soa.Decode<mirror::Object>(self->tlsPtr_.jpeer).Ptr();
     self->GetJniEnv()->DeleteGlobalRef(self->tlsPtr_.jpeer);
     self->tlsPtr_.jpeer = nullptr;
-    self->SetThreadName(self->GetThreadName(soa)->ToModifiedUtf8().c_str());
+    self->SetThreadName(self->GetThreadName()->ToModifiedUtf8().c_str());
 
-    ArtField* priorityField = soa.DecodeField(WellKnownClasses::java_lang_Thread_priority);
+    ArtField* priorityField = jni::DecodeArtField(WellKnownClasses::java_lang_Thread_priority);
     self->SetNativePriority(priorityField->GetInt(self->tlsPtr_.opeer));
     Dbg::PostThreadStart(self);
 
@@ -430,7 +430,7 @@ void* Thread::CreateCallback(void* arg) {
 
 Thread* Thread::FromManagedThread(const ScopedObjectAccessAlreadyRunnable& soa,
                                   mirror::Object* thread_peer) {
-  ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_Thread_nativePeer);
+  ArtField* f = jni::DecodeArtField(WellKnownClasses::java_lang_Thread_nativePeer);
   Thread* result = reinterpret_cast<Thread*>(static_cast<uintptr_t>(f->GetLong(thread_peer)));
   // Sanity check that if we have a result it is either suspended or we hold the thread_list_lock_
   // to stop it from going away.
@@ -562,7 +562,7 @@ void Thread::CreateNativeThread(JNIEnv* env, jobject java_peer, size_t stack_siz
   if (VLOG_IS_ON(threads)) {
     ScopedObjectAccess soa(env);
 
-    ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_Thread_name);
+    ArtField* f = jni::DecodeArtField(WellKnownClasses::java_lang_Thread_name);
     ObjPtr<mirror::String> java_name =
         f->GetObject(soa.Decode<mirror::Object>(java_peer))->AsString();
     std::string thread_name;
@@ -823,7 +823,7 @@ void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) 
 
   ScopedObjectAccess soa(self);
   StackHandleScope<1> hs(self);
-  MutableHandle<mirror::String> peer_thread_name(hs.NewHandle(GetThreadName(soa)));
+  MutableHandle<mirror::String> peer_thread_name(hs.NewHandle(GetThreadName()));
   if (peer_thread_name.Get() == nullptr) {
     // The Thread constructor should have set the Thread.name to a
     // non-null value. However, because we can run without code
@@ -834,7 +834,7 @@ void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) 
     } else {
       InitPeer<false>(soa, thread_is_daemon, thread_group, thread_name.get(), thread_priority);
     }
-    peer_thread_name.Assign(GetThreadName(soa));
+    peer_thread_name.Assign(GetThreadName());
   }
   // 'thread_name' may have been null, so don't trust 'peer_thread_name' to be non-null.
   if (peer_thread_name.Get() != nullptr) {
@@ -845,13 +845,13 @@ void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) 
 template<bool kTransactionActive>
 void Thread::InitPeer(ScopedObjectAccess& soa, jboolean thread_is_daemon, jobject thread_group,
                       jobject thread_name, jint thread_priority) {
-  soa.DecodeField(WellKnownClasses::java_lang_Thread_daemon)->
+  jni::DecodeArtField(WellKnownClasses::java_lang_Thread_daemon)->
       SetBoolean<kTransactionActive>(tlsPtr_.opeer, thread_is_daemon);
-  soa.DecodeField(WellKnownClasses::java_lang_Thread_group)->
+  jni::DecodeArtField(WellKnownClasses::java_lang_Thread_group)->
       SetObject<kTransactionActive>(tlsPtr_.opeer, soa.Decode<mirror::Object>(thread_group));
-  soa.DecodeField(WellKnownClasses::java_lang_Thread_name)->
+  jni::DecodeArtField(WellKnownClasses::java_lang_Thread_name)->
       SetObject<kTransactionActive>(tlsPtr_.opeer, soa.Decode<mirror::Object>(thread_name));
-  soa.DecodeField(WellKnownClasses::java_lang_Thread_priority)->
+  jni::DecodeArtField(WellKnownClasses::java_lang_Thread_priority)->
       SetInt<kTransactionActive>(tlsPtr_.opeer, thread_priority);
 }
 
@@ -947,8 +947,8 @@ void Thread::Dump(std::ostream& os, bool dump_native_stack, BacktraceMap* backtr
   DumpStack(os, dump_native_stack, backtrace_map);
 }
 
-mirror::String* Thread::GetThreadName(const ScopedObjectAccessAlreadyRunnable& soa) const {
-  ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_Thread_name);
+mirror::String* Thread::GetThreadName() const {
+  ArtField* f = jni::DecodeArtField(WellKnownClasses::java_lang_Thread_name);
   if (tlsPtr_.opeer == nullptr) {
     return nullptr;
   }
@@ -1306,17 +1306,18 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
   // cause ScopedObjectAccessUnchecked to deadlock.
   if (gAborting == 0 && self != nullptr && thread != nullptr && thread->tlsPtr_.opeer != nullptr) {
     ScopedObjectAccessUnchecked soa(self);
-    priority = soa.DecodeField(WellKnownClasses::java_lang_Thread_priority)
+    priority = jni::DecodeArtField(WellKnownClasses::java_lang_Thread_priority)
         ->GetInt(thread->tlsPtr_.opeer);
-    is_daemon = soa.DecodeField(WellKnownClasses::java_lang_Thread_daemon)
+    is_daemon = jni::DecodeArtField(WellKnownClasses::java_lang_Thread_daemon)
         ->GetBoolean(thread->tlsPtr_.opeer);
 
     ObjPtr<mirror::Object> thread_group =
-        soa.DecodeField(WellKnownClasses::java_lang_Thread_group)->GetObject(thread->tlsPtr_.opeer);
+        jni::DecodeArtField(WellKnownClasses::java_lang_Thread_group)
+            ->GetObject(thread->tlsPtr_.opeer);
 
     if (thread_group != nullptr) {
       ArtField* group_name_field =
-          soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_name);
+          jni::DecodeArtField(WellKnownClasses::java_lang_ThreadGroup_name);
       ObjPtr<mirror::String> group_name_string =
           group_name_field->GetObject(thread_group)->AsString();
       group_name = (group_name_string != nullptr) ? group_name_string->ToModifiedUtf8() : "<null>";
@@ -1792,10 +1793,10 @@ void Thread::Destroy() {
 
     // this.nativePeer = 0;
     if (Runtime::Current()->IsActiveTransaction()) {
-      soa.DecodeField(WellKnownClasses::java_lang_Thread_nativePeer)
+      jni::DecodeArtField(WellKnownClasses::java_lang_Thread_nativePeer)
           ->SetLong<true>(tlsPtr_.opeer, 0);
     } else {
-      soa.DecodeField(WellKnownClasses::java_lang_Thread_nativePeer)
+      jni::DecodeArtField(WellKnownClasses::java_lang_Thread_nativePeer)
           ->SetLong<false>(tlsPtr_.opeer, 0);
     }
     Dbg::PostThreadDeath(self);
@@ -1803,7 +1804,7 @@ void Thread::Destroy() {
     // Thread.join() is implemented as an Object.wait() on the Thread.lock object. Signal anyone
     // who is waiting.
     ObjPtr<mirror::Object> lock =
-        soa.DecodeField(WellKnownClasses::java_lang_Thread_lock)->GetObject(tlsPtr_.opeer);
+        jni::DecodeArtField(WellKnownClasses::java_lang_Thread_lock)->GetObject(tlsPtr_.opeer);
     // (This conditional is only needed for tests, where Thread.lock won't have been set.)
     if (lock != nullptr) {
       StackHandleScope<1> hs(self);
@@ -1894,7 +1895,7 @@ void Thread::HandleUncaughtExceptions(ScopedObjectAccess& soa) {
 void Thread::RemoveFromThreadGroup(ScopedObjectAccess& soa) {
   // this.group.removeThread(this);
   // group can be null if we're in the compiler or a test.
-  ObjPtr<mirror::Object> ogroup = soa.DecodeField(WellKnownClasses::java_lang_Thread_group)
+  ObjPtr<mirror::Object> ogroup = jni::DecodeArtField(WellKnownClasses::java_lang_Thread_group)
       ->GetObject(tlsPtr_.opeer);
   if (ogroup != nullptr) {
     ScopedLocalRef<jobject> group(soa.Env(), soa.AddLocalReference<jobject>(ogroup));

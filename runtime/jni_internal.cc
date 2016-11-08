@@ -235,7 +235,7 @@ static jfieldID FindFieldID(const ScopedObjectAccess& soa, jclass jni_class, con
                                    sig, name, c->GetDescriptor(&temp));
     return nullptr;
   }
-  return soa.EncodeField(field);
+  return jni::EncodeArtField(field);
 }
 
 static void ThrowAIOOBE(ScopedObjectAccess& soa, mirror::Array* array, jsize start,
@@ -380,7 +380,7 @@ class JNI {
       return nullptr;
     }
     ObjPtr<mirror::Field> field = ObjPtr<mirror::Field>::DownCast(obj_field);
-    return soa.EncodeField(field->GetArtField());
+    return jni::EncodeArtField(field->GetArtField());
   }
 
   static jobject ToReflectedMethod(JNIEnv* env, jclass, jmethodID mid, jboolean) {
@@ -401,7 +401,7 @@ class JNI {
   static jobject ToReflectedField(JNIEnv* env, jclass, jfieldID fid, jboolean) {
     CHECK_NON_NULL_ARGUMENT(fid);
     ScopedObjectAccess soa(env);
-    ArtField* f = soa.DecodeField(fid);
+    ArtField* f = jni::DecodeArtField(fid);
     return soa.AddLocalReference<jobject>(
         mirror::Field::CreateFromArtField<kRuntimePointerSize>(soa.Self(), f, true));
   }
@@ -1237,14 +1237,14 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT(fid);
     ScopedObjectAccess soa(env);
     ObjPtr<mirror::Object> o = soa.Decode<mirror::Object>(obj);
-    ArtField* f = soa.DecodeField(fid);
+    ArtField* f = jni::DecodeArtField(fid);
     return soa.AddLocalReference<jobject>(f->GetObject(o));
   }
 
   static jobject GetStaticObjectField(JNIEnv* env, jclass, jfieldID fid) {
     CHECK_NON_NULL_ARGUMENT(fid);
     ScopedObjectAccess soa(env);
-    ArtField* f = soa.DecodeField(fid);
+    ArtField* f = jni::DecodeArtField(fid);
     return soa.AddLocalReference<jobject>(f->GetObject(f->GetDeclaringClass()));
   }
 
@@ -1254,7 +1254,7 @@ class JNI {
     ScopedObjectAccess soa(env);
     ObjPtr<mirror::Object> o = soa.Decode<mirror::Object>(java_object);
     ObjPtr<mirror::Object> v = soa.Decode<mirror::Object>(java_value);
-    ArtField* f = soa.DecodeField(fid);
+    ArtField* f = jni::DecodeArtField(fid);
     f->SetObject<false>(o, v);
   }
 
@@ -1262,7 +1262,7 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT_RETURN_VOID(fid);
     ScopedObjectAccess soa(env);
     ObjPtr<mirror::Object> v = soa.Decode<mirror::Object>(java_value);
-    ArtField* f = soa.DecodeField(fid);
+    ArtField* f = jni::DecodeArtField(fid);
     f->SetObject<false>(f->GetDeclaringClass(), v);
   }
 
@@ -1271,13 +1271,13 @@ class JNI {
   CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(fid); \
   ScopedObjectAccess soa(env); \
   ObjPtr<mirror::Object> o = soa.Decode<mirror::Object>(instance); \
-  ArtField* f = soa.DecodeField(fid); \
+  ArtField* f = jni::DecodeArtField(fid); \
   return f->Get ##fn (o)
 
 #define GET_STATIC_PRIMITIVE_FIELD(fn) \
   CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(fid); \
   ScopedObjectAccess soa(env); \
-  ArtField* f = soa.DecodeField(fid); \
+  ArtField* f = jni::DecodeArtField(fid); \
   return f->Get ##fn (f->GetDeclaringClass())
 
 #define SET_PRIMITIVE_FIELD(fn, instance, value) \
@@ -1285,13 +1285,13 @@ class JNI {
   CHECK_NON_NULL_ARGUMENT_RETURN_VOID(fid); \
   ScopedObjectAccess soa(env); \
   ObjPtr<mirror::Object> o = soa.Decode<mirror::Object>(instance); \
-  ArtField* f = soa.DecodeField(fid); \
+  ArtField* f = jni::DecodeArtField(fid); \
   f->Set ##fn <false>(o, value)
 
 #define SET_STATIC_PRIMITIVE_FIELD(fn, value) \
   CHECK_NON_NULL_ARGUMENT_RETURN_VOID(fid); \
   ScopedObjectAccess soa(env); \
-  ArtField* f = soa.DecodeField(fid); \
+  ArtField* f = jni::DecodeArtField(fid); \
   f->Set ##fn <false>(f->GetDeclaringClass(), value)
 
   static jboolean GetBooleanField(JNIEnv* env, jobject obj, jfieldID fid) {
