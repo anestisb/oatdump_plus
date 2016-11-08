@@ -332,8 +332,14 @@ class TypeCheckSlowPathX86_64 : public SlowPathCode {
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
-    Location object_class = instruction_->IsCheckCast() ? locations->GetTemp(0)
-                                                        : locations->Out();
+    Location arg0, arg1;
+    if (instruction_->IsInstanceOf()) {
+      arg0 = locations->InAt(1);
+      arg1 = locations->Out();
+    } else {
+      arg0 = locations->InAt(0);
+      arg1 = locations->InAt(1);
+    }
     uint32_t dex_pc = instruction_->GetDexPc();
     DCHECK(instruction_->IsCheckCast()
            || !locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
@@ -348,22 +354,19 @@ class TypeCheckSlowPathX86_64 : public SlowPathCode {
     // We're moving two locations to locations that could overlap, so we need a parallel
     // move resolver.
     InvokeRuntimeCallingConvention calling_convention;
-    codegen->EmitParallelMoves(
-        locations->InAt(1),
-        Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
-        Primitive::kPrimNot,
-        object_class,
-        Location::RegisterLocation(calling_convention.GetRegisterAt(1)),
-        Primitive::kPrimNot);
-
+    codegen->EmitParallelMoves(arg0,
+                               Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
+                               Primitive::kPrimNot,
+                               arg1,
+                               Location::RegisterLocation(calling_convention.GetRegisterAt(1)),
+                               Primitive::kPrimNot);
     if (instruction_->IsInstanceOf()) {
       x86_64_codegen->InvokeRuntime(kQuickInstanceofNonTrivial, instruction_, dex_pc, this);
-      CheckEntrypointTypes<
-          kQuickInstanceofNonTrivial, size_t, const mirror::Class*, const mirror::Class*>();
+      CheckEntrypointTypes<kQuickInstanceofNonTrivial, size_t, mirror::Class*, mirror::Class*>();
     } else {
       DCHECK(instruction_->IsCheckCast());
-      x86_64_codegen->InvokeRuntime(kQuickCheckCast, instruction_, dex_pc, this);
-      CheckEntrypointTypes<kQuickCheckCast, void, const mirror::Class*, const mirror::Class*>();
+      x86_64_codegen->InvokeRuntime(kQuickCheckInstanceOf, instruction_, dex_pc, this);
+      CheckEntrypointTypes<kQuickCheckInstanceOf, void, mirror::Object*, mirror::Class*>();
     }
 
     if (!is_fatal_) {
@@ -6100,30 +6103,16 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
                                         kEmitCompilerReadBarrier);
       // If the class is abstract, we eagerly fetch the super class of the
       // object to avoid doing a comparison we know will fail.
-      NearLabel loop, compare_classes;
+      NearLabel loop;
       __ Bind(&loop);
       // /* HeapReference<Class> */ temp = temp->super_class_
       GenerateReferenceLoadOneRegister(instruction, temp_loc, super_offset, maybe_temp2_loc);
 
-      // If the class reference currently in `temp` is not null, jump
-      // to the `compare_classes` label to compare it with the checked
-      // class.
+      // If the class reference currently in `temp` is null, jump to the slow path to throw the
+      // exception.
       __ testl(temp, temp);
-      __ j(kNotEqual, &compare_classes);
-      // Otherwise, jump to the slow path to throw the exception.
-      //
-      // But before, move back the object's class into `temp` before
-      // going into the slow path, as it has been overwritten in the
-      // meantime.
-      // /* HeapReference<Class> */ temp = obj->klass_
-      GenerateReferenceLoadTwoRegisters(instruction,
-                                        temp_loc,
-                                        obj_loc,
-                                        class_offset,
-                                        kEmitCompilerReadBarrier);
-      __ jmp(type_check_slow_path->GetEntryLabel());
-
-      __ Bind(&compare_classes);
+      // Otherwise, compare the classes.
+      __ j(kZero, type_check_slow_path->GetEntryLabel());
       if (cls.IsRegister()) {
         __ cmpl(temp, cls.AsRegister<CpuRegister>());
       } else {
@@ -6166,18 +6155,8 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
       // If the class reference currently in `temp` is not null, jump
       // back at the beginning of the loop.
       __ testl(temp, temp);
-      __ j(kNotEqual, &loop);
+      __ j(kNotZero, &loop);
       // Otherwise, jump to the slow path to throw the exception.
-      //
-      // But before, move back the object's class into `temp` before
-      // going into the slow path, as it has been overwritten in the
-      // meantime.
-      // /* HeapReference<Class> */ temp = obj->klass_
-      GenerateReferenceLoadTwoRegisters(instruction,
-                                        temp_loc,
-                                        obj_loc,
-                                        class_offset,
-                                        kEmitCompilerReadBarrier);
       __ jmp(type_check_slow_path->GetEntryLabel());
       __ Bind(&done);
       break;
@@ -6220,31 +6199,10 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
       // to further check that this component type is not a primitive
       // type.
       __ testl(temp, temp);
-      __ j(kNotEqual, &check_non_primitive_component_type);
       // Otherwise, jump to the slow path to throw the exception.
-      //
-      // But before, move back the object's class into `temp` before
-      // going into the slow path, as it has been overwritten in the
-      // meantime.
-      // /* HeapReference<Class> */ temp = obj->klass_
-      GenerateReferenceLoadTwoRegisters(instruction,
-                                        temp_loc,
-                                        obj_loc,
-                                        class_offset,
-                                        kEmitCompilerReadBarrier);
-      __ jmp(type_check_slow_path->GetEntryLabel());
-
-      __ Bind(&check_non_primitive_component_type);
+      __ j(kZero, type_check_slow_path->GetEntryLabel());
       __ cmpw(Address(temp, primitive_offset), Immediate(Primitive::kPrimNot));
-      __ j(kEqual, &done);
-      // Same comment as above regarding `temp` and the slow path.
-      // /* HeapReference<Class> */ temp = obj->klass_
-      GenerateReferenceLoadTwoRegisters(instruction,
-                                        temp_loc,
-                                        obj_loc,
-                                        class_offset,
-                                        kEmitCompilerReadBarrier);
-      __ jmp(type_check_slow_path->GetEntryLabel());
+      __ j(kNotEqual, type_check_slow_path->GetEntryLabel());
       __ Bind(&done);
       break;
     }
@@ -6316,13 +6274,6 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
         __ j(kNotZero, &start_loop);
         __ Bind(&is_null);
       }
-
-      // Since we clobbered temp_loc holding the class, we need to reload it.
-      GenerateReferenceLoadTwoRegisters(instruction,
-                                        temp_loc,
-                                        obj_loc,
-                                        class_offset,
-                                        kEmitCompilerReadBarrier);
       __ jmp(type_check_slow_path->GetEntryLabel());
       __ Bind(&done);
       break;

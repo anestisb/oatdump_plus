@@ -33,8 +33,8 @@
   V(AllocStringFromChars, void*, int32_t, int32_t, void*) \
   V(AllocStringFromString, void*, void*) \
 \
-  V(InstanceofNonTrivial, size_t, const mirror::Class*, const mirror::Class*) \
-  V(CheckCast, void, const mirror::Class*, const mirror::Class*) \
+  V(InstanceofNonTrivial, size_t, mirror::Class*, mirror::Class*) \
+  V(CheckInstanceOf, void, mirror::Object*, mirror::Class*) \
 \
   V(InitializeStaticStorage, void*, uint32_t) \
   V(InitializeTypeAndVerifyAccess, void*, uint32_t) \

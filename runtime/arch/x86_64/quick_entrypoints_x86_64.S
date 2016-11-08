@@ -1480,14 +1480,14 @@ DEFINE_FUNCTION art_quick_unlock_object_no_inline
     RETURN_IF_EAX_ZERO
 END_FUNCTION art_quick_unlock_object_no_inline
 
-DEFINE_FUNCTION art_quick_check_cast
+DEFINE_FUNCTION art_quick_check_instance_of
     // We could check the super classes here but that is usually already checked in the caller.
     PUSH rdi                          // Save args for exc
     PUSH rsi
     subq LITERAL(8), %rsp             // Alignment padding.
     CFI_ADJUST_CFA_OFFSET(8)
     SETUP_FP_CALLEE_SAVE_FRAME
-    call SYMBOL(artIsAssignableFromCode)  // (Class* klass, Class* ref_klass)
+    call SYMBOL(artInstanceOfFromCode)  // (Object* obj, Class* ref_klass)
     testq %rax, %rax
     jz 1f                             // jump forward if not assignable
     RESTORE_FP_CALLEE_SAVE_FRAME
@@ -1506,9 +1506,9 @@ DEFINE_FUNCTION art_quick_check_cast
     POP rdi
     SETUP_SAVE_ALL_CALLEE_SAVES_FRAME // save all registers as basis for long jump context
     mov %gs:THREAD_SELF_OFFSET, %rdx  // pass Thread::Current()
-    call SYMBOL(artThrowClassCastException) // (Class* a, Class* b, Thread*)
+    call SYMBOL(artThrowClassCastExceptionForObject)  // (Object* src, Class* dest, Thread*)
     UNREACHABLE
-END_FUNCTION art_quick_check_cast
+END_FUNCTION art_quick_check_instance_of
 
 
 // Restore reg's value if reg is not the same as exclude_reg, otherwise just adjust stack.

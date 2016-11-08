@@ -1171,10 +1171,11 @@ ENTRY art_quick_unlock_object_no_inline
 END art_quick_unlock_object_no_inline
 
     /*
-     * Entry from managed code that calls artCheckCastFromCode and delivers exception on failure.
+     * Entry from managed code that calls artInstanceOfFromCode and delivers exception on failure.
      */
-    .extern artThrowClassCastException
-ENTRY art_quick_check_cast
+    .extern artInstanceOfFromCode
+    .extern artThrowClassCastExceptionForObject
+ENTRY art_quick_check_instance_of
     addiu  $sp, $sp, -32
     .cfi_adjust_cfa_offset 32
     sw     $gp, 16($sp)
@@ -1183,7 +1184,7 @@ ENTRY art_quick_check_cast
     sw     $t9, 8($sp)
     sw     $a1, 4($sp)
     sw     $a0, 0($sp)
-    la     $t9, artIsAssignableFromCode
+    la     $t9, artInstanceOfFromCode
     jalr   $t9
     addiu  $sp, $sp, -16             # reserve argument slots on the stack
     addiu  $sp, $sp, 16
@@ -1200,10 +1201,10 @@ ENTRY art_quick_check_cast
     addiu  $sp, $sp, 32
     .cfi_adjust_cfa_offset -32
     SETUP_SAVE_ALL_CALLEE_SAVES_FRAME
-    la   $t9, artThrowClassCastException
-    jalr $zero, $t9                 # artThrowClassCastException (Class*, Class*, Thread*)
+    la   $t9, artThrowClassCastExceptionForObject
+    jalr $zero, $t9                 # artThrowClassCastException (Object*, Class*, Thread*)
     move $a2, rSELF                 # pass Thread::Current
-END art_quick_check_cast
+END art_quick_check_instance_of
 
     /*
      * Restore rReg's value from offset($sp) if rReg is not the same as rExclude.
