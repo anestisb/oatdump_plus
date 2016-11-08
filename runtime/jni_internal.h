@@ -20,6 +20,8 @@
 #include <jni.h>
 #include <iosfwd>
 
+#include "base/macros.h"
+
 #ifndef NATIVE_METHOD
 #define NATIVE_METHOD(className, functionName, signature) \
   { #functionName, signature, reinterpret_cast<void*>(className ## _ ## functionName) }
@@ -36,6 +38,8 @@
 
 namespace art {
 
+class ArtMethod;
+
 const JNINativeInterface* GetJniNativeInterface();
 const JNINativeInterface* GetRuntimeShutdownNativeInterface();
 
@@ -46,6 +50,19 @@ void RegisterNativeMethods(JNIEnv* env, const char* jni_class_name, const JNINat
 
 int ThrowNewException(JNIEnv* env, jclass exception_class, const char* msg, jobject cause);
 
+namespace jni {
+
+ALWAYS_INLINE
+static inline jmethodID EncodeArtMethod(ArtMethod* art_method) {
+  return reinterpret_cast<jmethodID>(art_method);
+}
+
+ALWAYS_INLINE
+static inline ArtMethod* DecodeArtMethod(jmethodID method_id) {
+  return reinterpret_cast<ArtMethod*>(method_id);
+}
+
+}  // namespace jni
 }  // namespace art
 
 std::ostream& operator<<(std::ostream& os, const jobjectRefType& rhs);
