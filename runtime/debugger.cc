@@ -39,6 +39,7 @@
 #include "handle_scope.h"
 #include "jdwp/jdwp_priv.h"
 #include "jdwp/object_registry.h"
+#include "jni_internal.h"
 #include "jvalue-inl.h"
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
@@ -4093,7 +4094,7 @@ void Dbg::ExecuteMethodWithoutPendingException(ScopedObjectAccess& soa, DebugInv
 
   // Invoke the method.
   ScopedLocalRef<jobject> ref(soa.Env(), soa.AddLocalReference<jobject>(pReq->receiver.Read()));
-  JValue result = InvokeWithJValues(soa, ref.get(), soa.EncodeMethod(m),
+  JValue result = InvokeWithJValues(soa, ref.get(), jni::EncodeArtMethod(m),
                                     reinterpret_cast<jvalue*>(pReq->arg_values.get()));
 
   // Prepare JDWP ids for the reply.
@@ -5117,13 +5118,11 @@ jbyteArray Dbg::GetRecentAllocations() {
 }
 
 ArtMethod* DeoptimizationRequest::Method() const {
-  ScopedObjectAccessUnchecked soa(Thread::Current());
-  return soa.DecodeMethod(method_);
+  return jni::DecodeArtMethod(method_);
 }
 
 void DeoptimizationRequest::SetMethod(ArtMethod* m) {
-  ScopedObjectAccessUnchecked soa(Thread::Current());
-  method_ = soa.EncodeMethod(m);
+  method_ = jni::EncodeArtMethod(m);
 }
 
 void Dbg::VisitRoots(RootVisitor* visitor) {

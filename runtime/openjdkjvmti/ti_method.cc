@@ -34,6 +34,7 @@
 #include "art_jvmti.h"
 #include "art_method-inl.h"
 #include "base/enums.h"
+#include "jni_internal.h"
 #include "modifiers.h"
 #include "scoped_thread_state_change-inl.h"
 
@@ -45,7 +46,7 @@ jvmtiError MethodUtil::GetMethodName(jvmtiEnv* env,
                                      char** signature_ptr,
                                      char** generic_ptr) {
   art::ScopedObjectAccess soa(art::Thread::Current());
-  art::ArtMethod* art_method = soa.DecodeMethod(method);
+  art::ArtMethod* art_method = art::jni::DecodeArtMethod(method);
   art_method = art_method->GetInterfaceMethodIfProxy(art::kRuntimePointerSize);
 
   JvmtiUniquePtr name_copy;
@@ -93,10 +94,10 @@ jvmtiError MethodUtil::GetMethodDeclaringClass(jvmtiEnv* env ATTRIBUTE_UNUSED,
     return ERR(NULL_POINTER);
   }
 
-  art::ScopedObjectAccess soa(art::Thread::Current());
-  art::ArtMethod* art_method = soa.DecodeMethod(method);
+  art::ArtMethod* art_method = art::jni::DecodeArtMethod(method);
   // Note: No GetInterfaceMethodIfProxy, we want to actual class.
 
+  art::ScopedObjectAccess soa(art::Thread::Current());
   art::mirror::Class* klass = art_method->GetDeclaringClass();
   *declaring_class_ptr = soa.AddLocalReference<jclass>(klass);
 
@@ -110,9 +111,7 @@ jvmtiError MethodUtil::GetMethodModifiers(jvmtiEnv* env ATTRIBUTE_UNUSED,
     return ERR(NULL_POINTER);
   }
 
-  art::ScopedObjectAccess soa(art::Thread::Current());
-  art::ArtMethod* art_method = soa.DecodeMethod(method);
-
+  art::ArtMethod* art_method = art::jni::DecodeArtMethod(method);
   uint32_t modifiers = art_method->GetAccessFlags();
 
   // Note: Keep this code in sync with Executable.fixMethodFlags.

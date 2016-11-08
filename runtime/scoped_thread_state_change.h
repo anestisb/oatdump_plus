@@ -98,10 +98,6 @@ class ScopedObjectAccessAlreadyRunnable : public ValueObject {
 
   jfieldID EncodeField(ArtField* field) const REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ArtMethod* DecodeMethod(jmethodID mid) const REQUIRES_SHARED(Locks::mutator_lock_);
-
-  jmethodID EncodeMethod(ArtMethod* method) const REQUIRES_SHARED(Locks::mutator_lock_);
-
   ALWAYS_INLINE bool IsRunnable() const;
 
  protected:
