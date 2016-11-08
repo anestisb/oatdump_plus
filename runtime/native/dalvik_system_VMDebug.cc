@@ -420,8 +420,10 @@ static jobject VMDebug_getRuntimeStatInternal(JNIEnv* env, jclass, jint statId) 
   }
 }
 
-static bool SetRuntimeStatValue(JNIEnv* env, jobjectArray result, VMDebugRuntimeStatId id,
-                                std::string value) {
+static bool SetRuntimeStatValue(JNIEnv* env,
+                                jobjectArray result,
+                                VMDebugRuntimeStatId id,
+                                const std::string& value) {
   ScopedLocalRef<jstring> jvalue(env, env->NewStringUTF(value.c_str()));
   if (jvalue.get() == nullptr) {
     return false;

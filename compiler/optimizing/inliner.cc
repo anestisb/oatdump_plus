@@ -1315,8 +1315,8 @@ size_t HInliner::RunOptimizations(HGraph* callee_graph,
                                   const DexCompilationUnit& dex_compilation_unit) {
   // Note: if the outermost_graph_ is being compiled OSR, we should not run any
   // optimization that could lead to a HDeoptimize. The following optimizations do not.
-  HDeadCodeElimination dce(callee_graph, stats_);
-  HConstantFolding fold(callee_graph);
+  HDeadCodeElimination dce(callee_graph, stats_, "dead_code_elimination$inliner");
+  HConstantFolding fold(callee_graph, "constant_folding$inliner");
   HSharpening sharpening(callee_graph, codegen_, dex_compilation_unit, compiler_driver_);
   InstructionSimplifier simplify(callee_graph, stats_);
   IntrinsicsRecognizer intrinsics(callee_graph, stats_);

@@ -239,8 +239,8 @@ void Thread::InitStringEntryPoints() {
 ArtMethod* WellKnownClasses::StringInitToStringFactory(ArtMethod* string_init) {
   #define TO_STRING_FACTORY(init_runtime_name, init_signature, new_runtime_name,            \
                             new_java_name, new_signature, entry_point_name)                 \
-      if (string_init == init_runtime_name) {                                               \
-        return new_runtime_name;                                                            \
+      if (string_init == (init_runtime_name)) {                                             \
+        return (new_runtime_name);                                                          \
       }
       STRING_INIT_LIST(TO_STRING_FACTORY)
   #undef TO_STRING_FACTORY
@@ -251,7 +251,7 @@ ArtMethod* WellKnownClasses::StringInitToStringFactory(ArtMethod* string_init) {
 uint32_t WellKnownClasses::StringInitToEntryPoint(ArtMethod* string_init) {
   #define TO_ENTRY_POINT(init_runtime_name, init_signature, new_runtime_name,               \
                          new_java_name, new_signature, entry_point_name)                    \
-      if (string_init == init_runtime_name) {                                               \
+      if (string_init == (init_runtime_name)) {                                             \
         return kQuick ## entry_point_name;                                                  \
       }
       STRING_INIT_LIST(TO_ENTRY_POINT)

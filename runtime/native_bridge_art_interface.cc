@@ -90,14 +90,14 @@ static android::NativeBridgeRuntimeCallbacks native_bridge_art_callbacks_ {
   GetMethodShorty, GetNativeMethodCount, GetNativeMethods
 };
 
-bool LoadNativeBridge(std::string& native_bridge_library_filename) {
+bool LoadNativeBridge(const std::string& native_bridge_library_filename) {
   VLOG(startup) << "Runtime::Setup native bridge library: "
       << (native_bridge_library_filename.empty() ? "(empty)" : native_bridge_library_filename);
   return android::LoadNativeBridge(native_bridge_library_filename.c_str(),
                                    &native_bridge_art_callbacks_);
 }
 
-void PreInitializeNativeBridge(std::string dir) {
+void PreInitializeNativeBridge(const std::string& dir) {
   VLOG(startup) << "Runtime::Pre-initialize native bridge";
 #ifndef __APPLE__  // Mac OS does not support CLONE_NEWNS.
   if (unshare(CLONE_NEWNS) == -1) {

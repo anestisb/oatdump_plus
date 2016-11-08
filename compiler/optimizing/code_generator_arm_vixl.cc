@@ -660,7 +660,7 @@ CodeGeneratorARMVIXL::CodeGeneratorARMVIXL(HGraph* graph,
   GetVIXLAssembler()->GetScratchVRegisterList()->Combine(d15);
 }
 
-#define __ reinterpret_cast<ArmVIXLAssembler*>(GetAssembler())->GetVIXLAssembler()->
+#define __ reinterpret_cast<ArmVIXLAssembler*>(GetAssembler())->GetVIXLAssembler()->  // NOLINT
 
 void CodeGeneratorARMVIXL::Finalize(CodeAllocator* allocator) {
   GetAssembler()->FinalizeCode();

@@ -42,7 +42,7 @@ class ConstantFoldingTest : public CommonCompilerTest {
                 const std::string& expected_before,
                 const std::string& expected_after_cf,
                 const std::string& expected_after_dce,
-                std::function<void(HGraph*)> check_after_cf,
+                const std::function<void(HGraph*)>& check_after_cf,
                 Primitive::Type return_type = Primitive::kPrimInt) {
     graph_ = CreateCFG(&allocator_, data, return_type);
     TestCodeOnReadyGraph(expected_before,
@@ -54,7 +54,7 @@ class ConstantFoldingTest : public CommonCompilerTest {
   void TestCodeOnReadyGraph(const std::string& expected_before,
                             const std::string& expected_after_cf,
                             const std::string& expected_after_dce,
-                            std::function<void(HGraph*)> check_after_cf) {
+                            const std::function<void(HGraph*)>& check_after_cf) {
     ASSERT_NE(graph_, nullptr);
 
     StringPrettyPrinter printer_before(graph_);
@@ -65,7 +65,7 @@ class ConstantFoldingTest : public CommonCompilerTest {
     std::unique_ptr<const X86InstructionSetFeatures> features_x86(
         X86InstructionSetFeatures::FromCppDefines());
     x86::CodeGeneratorX86 codegenX86(graph_, *features_x86.get(), CompilerOptions());
-    HConstantFolding(graph_).Run();
+    HConstantFolding(graph_, "constant_folding").Run();
     GraphChecker graph_checker_cf(graph_);
     graph_checker_cf.Run();
     ASSERT_TRUE(graph_checker_cf.IsValid());
@@ -77,7 +77,7 @@ class ConstantFoldingTest : public CommonCompilerTest {
 
     check_after_cf(graph_);
 
-    HDeadCodeElimination(graph_).Run();
+    HDeadCodeElimination(graph_, nullptr /* stats */, "dead_code_elimination").Run();
     GraphChecker graph_checker_dce(graph_);
     graph_checker_dce.Run();
     ASSERT_TRUE(graph_checker_dce.IsValid());

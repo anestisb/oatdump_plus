@@ -89,7 +89,7 @@ class ImgDiagDumper {
 
   // Return suffix of the file path after the last /. (e.g. /foo/bar -> bar, bar -> bar)
   static std::string BaseName(const std::string& str) {
-    size_t idx = str.rfind("/");
+    size_t idx = str.rfind('/');
     if (idx == std::string::npos) {
       return str;
     }

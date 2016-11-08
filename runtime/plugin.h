@@ -34,7 +34,7 @@ using PluginDeinitializationFunction = bool (*)();
 // single-threaded fashion so not much need
 class Plugin {
  public:
-  static Plugin Create(std::string lib) {
+  static Plugin Create(const std::string& lib) {
     return Plugin(lib);
   }
 
@@ -66,7 +66,7 @@ class Plugin {
   }
 
  private:
-  explicit Plugin(std::string library) : library_(library), dlopen_handle_(nullptr) { }
+  explicit Plugin(const std::string& library) : library_(library), dlopen_handle_(nullptr) { }
 
   std::string library_;
   void* dlopen_handle_;

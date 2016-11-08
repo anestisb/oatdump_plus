@@ -58,7 +58,7 @@ class DexFileVerifierTest : public CommonRuntimeTest {
 
   void VerifyModification(const char* dex_file_base64_content,
                           const char* location,
-                          std::function<void(DexFile*)> f,
+                          const std::function<void(DexFile*)>& f,
                           const char* expected_error) {
     size_t length;
     std::unique_ptr<uint8_t[]> dex_bytes(DecodeBase64(dex_file_base64_content, &length));

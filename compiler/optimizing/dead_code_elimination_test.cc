@@ -44,7 +44,7 @@ static void TestCode(const uint16_t* data,
   std::unique_ptr<const X86InstructionSetFeatures> features_x86(
       X86InstructionSetFeatures::FromCppDefines());
   x86::CodeGeneratorX86 codegenX86(graph, *features_x86.get(), CompilerOptions());
-  HDeadCodeElimination(graph).Run();
+  HDeadCodeElimination(graph, nullptr /* stats */, "dead_code_elimination").Run();
   GraphChecker graph_checker(graph);
   graph_checker.Run();
   ASSERT_TRUE(graph_checker.IsValid());
