@@ -25,6 +25,7 @@
 #include "base/logging.h"
 #include "base/macros.h"
 #include "dex_file-inl.h"
+#include "jni_internal.h"
 #include "mirror/class-inl.h"
 #include "scoped_thread_state_change-inl.h"
 #include "sigchain.h"
@@ -33,7 +34,7 @@ namespace art {
 
 static const char* GetMethodShorty(JNIEnv* env, jmethodID mid) {
   ScopedObjectAccess soa(env);
-  ArtMethod* m = soa.DecodeMethod(mid);
+  ArtMethod* m = jni::DecodeArtMethod(mid);
   return m->GetShorty();
 }
 

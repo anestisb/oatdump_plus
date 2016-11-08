@@ -22,6 +22,7 @@
 #include "art_method-inl.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
+#include "jni_internal.h"
 #include "jvalue-inl.h"
 #include "mirror/field.h"
 #include "mirror/method.h"
@@ -281,7 +282,7 @@ mirror::Object* ProcessEncodedAnnotation(Handle<mirror::Class> klass, const uint
 
   JValue result;
   ArtMethod* create_annotation_method =
-      soa.DecodeMethod(WellKnownClasses::libcore_reflect_AnnotationFactory_createAnnotation);
+      jni::DecodeArtMethod(WellKnownClasses::libcore_reflect_AnnotationFactory_createAnnotation);
   uint32_t args[2] = { static_cast<uint32_t>(reinterpret_cast<uintptr_t>(annotation_class.Get())),
                        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(h_element_array.Get())) };
   create_annotation_method->Invoke(self, args, sizeof(args), &result, "LLL");
@@ -633,7 +634,7 @@ mirror::Object* CreateAnnotationMember(Handle<mirror::Class> klass,
 
   JValue result;
   ArtMethod* annotation_member_init =
-      soa.DecodeMethod(WellKnownClasses::libcore_reflect_AnnotationMember_init);
+      jni::DecodeArtMethod(WellKnownClasses::libcore_reflect_AnnotationMember_init);
   uint32_t args[5] = { static_cast<uint32_t>(reinterpret_cast<uintptr_t>(new_member.Get())),
                        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(string_name.Get())),
                        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(value_object.Get())),

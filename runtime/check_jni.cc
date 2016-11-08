@@ -313,7 +313,7 @@ class ScopedCheck {
   bool CheckMethodAndSig(ScopedObjectAccess& soa, jobject jobj, jclass jc,
                          jmethodID mid, Primitive::Type type, InvokeType invoke)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    ArtMethod* m = CheckMethodID(soa, mid);
+    ArtMethod* m = CheckMethodID(mid);
     if (m == nullptr) {
       return false;
     }
@@ -385,7 +385,7 @@ class ScopedCheck {
    */
   bool CheckStaticMethod(ScopedObjectAccess& soa, jclass java_class, jmethodID mid)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    ArtMethod* m = CheckMethodID(soa, mid);
+    ArtMethod* m = CheckMethodID(mid);
     if (m == nullptr) {
       return false;
     }
@@ -407,7 +407,7 @@ class ScopedCheck {
    */
   bool CheckVirtualMethod(ScopedObjectAccess& soa, jobject java_object, jmethodID mid)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    ArtMethod* m = CheckMethodID(soa, mid);
+    ArtMethod* m = CheckMethodID(mid);
     if (m == nullptr) {
       return false;
     }
@@ -577,9 +577,8 @@ class ScopedCheck {
     return true;
   }
 
-  bool CheckConstructor(ScopedObjectAccess& soa, jmethodID mid)
-      REQUIRES_SHARED(Locks::mutator_lock_) {
-    ArtMethod* method = soa.DecodeMethod(mid);
+  bool CheckConstructor(jmethodID mid) REQUIRES_SHARED(Locks::mutator_lock_) {
+    ArtMethod* method = jni::DecodeArtMethod(mid);
     if (method == nullptr) {
       AbortF("expected non-null constructor");
       return false;
@@ -846,7 +845,7 @@ class ScopedCheck {
       case 'f':  // jfieldID
         return CheckFieldID(soa, arg.f) != nullptr;
       case 'm':  // jmethodID
-        return CheckMethodID(soa, arg.m) != nullptr;
+        return CheckMethodID(arg.m) != nullptr;
       case 'r':  // release int
         return CheckReleaseMode(arg.r);
       case 's':  // jstring
@@ -868,7 +867,7 @@ class ScopedCheck {
       REQUIRES_SHARED(Locks::mutator_lock_) {
     CHECK(args_p != nullptr);
     VarArgs args(args_p->Clone());
-    ArtMethod* m = CheckMethodID(soa, args.GetMethodID());
+    ArtMethod* m = CheckMethodID(args.GetMethodID());
     if (m == nullptr) {
       return false;
     }
@@ -971,7 +970,7 @@ class ScopedCheck {
       }
       case 'm': {  // jmethodID
         jmethodID mid = arg.m;
-        ArtMethod* m = soa.DecodeMethod(mid);
+        ArtMethod* m = jni::DecodeArtMethod(mid);
         *msg += ArtMethod::PrettyMethod(m);
         if (!entry) {
           StringAppendF(msg, " (%p)", mid);
@@ -981,7 +980,7 @@ class ScopedCheck {
       case '.': {
         const VarArgs* va = arg.va;
         VarArgs args(va->Clone());
-        ArtMethod* m = soa.DecodeMethod(args.GetMethodID());
+        ArtMethod* m = jni::DecodeArtMethod(args.GetMethodID());
         uint32_t len;
         const char* shorty = m->GetShorty(&len);
         CHECK_GE(len, 1u);
@@ -1163,13 +1162,12 @@ class ScopedCheck {
     return f;
   }
 
-  ArtMethod* CheckMethodID(ScopedObjectAccess& soa, jmethodID mid)
-      REQUIRES_SHARED(Locks::mutator_lock_) {
+  ArtMethod* CheckMethodID(jmethodID mid) REQUIRES_SHARED(Locks::mutator_lock_) {
     if (mid == nullptr) {
       AbortF("jmethodID was NULL");
       return nullptr;
     }
-    ArtMethod* m = soa.DecodeMethod(mid);
+    ArtMethod* m = jni::DecodeArtMethod(mid);
     // TODO: Better check here.
     if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(m->GetDeclaringClass())) {
       Runtime::Current()->GetHeap()->DumpSpaces(LOG_STREAM(ERROR));
@@ -2005,7 +2003,7 @@ class CheckJNI {
     VarArgs rest(mid, vargs);
     JniValueType args[4] = {{.E = env}, {.c = c}, {.m = mid}, {.va = &rest}};
     if (sc.Check(soa, true, "Ecm.", args) && sc.CheckInstantiableNonArray(soa, c) &&
-        sc.CheckConstructor(soa, mid)) {
+        sc.CheckConstructor(mid)) {
       JniValueType result;
       result.L = baseEnv(env)->NewObjectV(env, c, mid, vargs);
       if (sc.Check(soa, false, "L", &result)) {
@@ -2029,7 +2027,7 @@ class CheckJNI {
     VarArgs rest(mid, vargs);
     JniValueType args[4] = {{.E = env}, {.c = c}, {.m = mid}, {.va = &rest}};
     if (sc.Check(soa, true, "Ecm.", args) && sc.CheckInstantiableNonArray(soa, c) &&
-        sc.CheckConstructor(soa, mid)) {
+        sc.CheckConstructor(mid)) {
       JniValueType result;
       result.L = baseEnv(env)->NewObjectA(env, c, mid, vargs);
       if (sc.Check(soa, false, "L", &result)) {
