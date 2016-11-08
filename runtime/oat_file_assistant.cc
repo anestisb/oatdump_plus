@@ -137,49 +137,14 @@ bool OatFileAssistant::Lock(std::string* error_msg) {
 
 OatFileAssistant::DexOptNeeded
 OatFileAssistant::GetDexOptNeeded(CompilerFilter::Filter target, bool profile_changed) {
-  bool compilation_desired = CompilerFilter::IsBytecodeCompilationEnabled(target);
-
-  // See if the oat file is in good shape as is.
-  bool oat_okay = oat_.CompilerFilterIsOkay(target, profile_changed);
-  if (oat_okay) {
-    if (compilation_desired) {
-      if (oat_.IsUpToDate()) {
-        return kNoDexOptNeeded;
-      }
-    } else {
-      if (!oat_.IsOutOfDate()) {
-        return kNoDexOptNeeded;
-      }
+  if (!oat_.IsOutOfDate()) {
+    DexOptNeeded dexopt_needed = oat_.GetDexOptNeeded(target, profile_changed);
+    if (dexopt_needed == kPatchOatNeeded) {
+      dexopt_needed = kSelfPatchOatNeeded;
     }
+    return dexopt_needed;
   }
-
-  // See if the odex file is in good shape as is.
-  bool odex_okay = odex_.CompilerFilterIsOkay(target, profile_changed);
-  if (odex_okay) {
-    if (compilation_desired) {
-      if (odex_.IsUpToDate()) {
-        return kNoDexOptNeeded;
-      }
-    } else {
-      if (!odex_.IsOutOfDate()) {
-        return kNoDexOptNeeded;
-      }
-    }
-  }
-
-  // See if we can get an up-to-date file by running patchoat.
-  if (compilation_desired) {
-    if (odex_okay && odex_.NeedsRelocation() && odex_.HasPatchInfo()) {
-      return kPatchOatNeeded;
-    }
-
-    if (oat_okay && oat_.NeedsRelocation() && oat_.HasPatchInfo()) {
-      return kSelfPatchOatNeeded;
-    }
-  }
-
-  // We can only run dex2oat if there are original dex files.
-  return HasOriginalDexFiles() ? kDex2OatNeeded : kNoDexOptNeeded;
+  return odex_.GetDexOptNeeded(target, profile_changed);
 }
 
 // Figure out the currently specified compile filter option in the runtime.
@@ -225,49 +190,10 @@ OatFileAssistant::MakeUpToDate(bool profile_changed, std::string* error_msg) {
 }
 
 std::unique_ptr<OatFile> OatFileAssistant::GetBestOatFile() {
-  // The best oat files are, in descending order of bestness:
-  // 1. Properly relocated files. These may be opened executable.
-  // 2. Not out-of-date files that are already opened non-executable.
-  // 3. Not out-of-date files that we must reopen non-executable.
-
-  if (oat_.IsUpToDate()) {
-    return oat_.ReleaseFile();
-  }
-
-  if (odex_.IsUpToDate()) {
-    return odex_.ReleaseFile();
-  }
-
-  VLOG(oat) << "Oat File Assistant: No relocated oat file found,"
-    << " attempting to fall back to interpreting oat file instead.";
-
-  if (!oat_.IsOutOfDate() && !oat_.IsExecutable()) {
-    return oat_.ReleaseFile();
-  }
-
-  if (!odex_.IsOutOfDate() && !odex_.IsExecutable()) {
-    return odex_.ReleaseFile();
-  }
-
   if (!oat_.IsOutOfDate()) {
-    load_executable_ = false;
-    oat_.Reset();
-    if (!oat_.IsOutOfDate()) {
-      CHECK(!oat_.IsExecutable());
-      return oat_.ReleaseFile();
-    }
+    return oat_.ReleaseFileForUse();
   }
-
-  if (!odex_.IsOutOfDate()) {
-    load_executable_ = false;
-    odex_.Reset();
-    if (!odex_.IsOutOfDate()) {
-      CHECK(!odex_.IsExecutable());
-      return odex_.ReleaseFile();
-    }
-  }
-
-  return std::unique_ptr<OatFile>();
+  return odex_.ReleaseFileForUse();
 }
 
 std::vector<std::unique_ptr<const DexFile>> OatFileAssistant::LoadDexFiles(
@@ -902,6 +828,33 @@ CompilerFilter::Filter OatFileAssistant::OatFileInfo::CompilerFilter() {
   return file->GetCompilerFilter();
 }
 
+OatFileAssistant::DexOptNeeded OatFileAssistant::OatFileInfo::GetDexOptNeeded(
+    CompilerFilter::Filter target, bool profile_changed) {
+  bool compilation_desired = CompilerFilter::IsBytecodeCompilationEnabled(target);
+
+  // See if the oat file is in good shape as is.
+  bool okay = CompilerFilterIsOkay(target, profile_changed);
+  if (okay) {
+    if (compilation_desired) {
+      if (IsUpToDate()) {
+        return kNoDexOptNeeded;
+      }
+    } else {
+      if (!IsOutOfDate()) {
+        return kNoDexOptNeeded;
+      }
+    }
+  }
+
+  // See if we can get an up-to-date file by running patchoat.
+  if (compilation_desired && okay && NeedsRelocation() && HasPatchInfo()) {
+    return kPatchOatNeeded;
+  }
+
+  // We can only run dex2oat if there are original dex files.
+  return oat_file_assistant_->HasOriginalDexFiles() ? kDex2OatNeeded : kNoDexOptNeeded;
+}
+
 const OatFile* OatFileAssistant::OatFileInfo::GetFile() {
   CHECK(!file_released_) << "GetFile called after oat file released.";
   if (!load_attempted_) {
@@ -967,5 +920,31 @@ std::unique_ptr<OatFile> OatFileAssistant::OatFileInfo::ReleaseFile() {
   return std::move(file_);
 }
 
+std::unique_ptr<OatFile> OatFileAssistant::OatFileInfo::ReleaseFileForUse() {
+  if (IsUpToDate()) {
+    return ReleaseFile();
+  }
+
+  VLOG(oat) << "Oat File Assistant: No relocated oat file found,"
+    << " attempting to fall back to interpreting oat file instead.";
+
+  if (!IsOutOfDate() && !IsExecutable()) {
+    return ReleaseFile();
+  }
+
+  if (!IsOutOfDate()) {
+    // We are loading an oat file for runtime use that needs relocation.
+    // Reload the file non-executable to ensure that we interpret out of the
+    // dex code in the oat file rather than trying to execute the unrelocated
+    // compiled code.
+    oat_file_assistant_->load_executable_ = false;
+    Reset();
+    if (!IsOutOfDate()) {
+      CHECK(!IsExecutable());
+      return ReleaseFile();
+    }
+  }
+  return std::unique_ptr<OatFile>();
+}
 }  // namespace art
 
