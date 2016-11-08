@@ -30,8 +30,7 @@
 namespace art {
 
 // Cast entrypoints.
-extern "C" size_t artIsAssignableFromCode(const mirror::Class* klass,
-                                          const mirror::Class* ref_class);
+extern "C" size_t artIsAssignableFromCode(mirror::Class* klass, mirror::Class* ref_class);
 
 // Math entrypoints.
 extern int32_t CmpgDouble(double a, double b);
@@ -73,8 +72,8 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
   // Cast
   qpoints->pInstanceofNonTrivial = artIsAssignableFromCode;
   static_assert(IsDirectEntrypoint(kQuickInstanceofNonTrivial), "Direct C stub not marked direct.");
-  qpoints->pCheckCast = art_quick_check_cast;
-  static_assert(!IsDirectEntrypoint(kQuickCheckCast), "Non-direct C stub marked direct.");
+  qpoints->pCheckInstanceOf = art_quick_check_instance_of;
+  static_assert(!IsDirectEntrypoint(kQuickCheckInstanceOf), "Non-direct C stub marked direct.");
 
   // DexCache
   qpoints->pInitializeStaticStorage = art_quick_initialize_static_storage;

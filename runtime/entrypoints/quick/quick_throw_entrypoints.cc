@@ -111,6 +111,14 @@ extern "C" NO_RETURN void artThrowClassCastException(mirror::Class* dest_type,
   self->QuickDeliverException();
 }
 
+extern "C" NO_RETURN void artThrowClassCastExceptionForObject(mirror::Object* obj,
+                                                              mirror::Class* dest_type,
+                                                              Thread* self)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  DCHECK(obj != nullptr);
+  artThrowClassCastException(dest_type, obj->GetClass(), self);
+}
+
 extern "C" NO_RETURN void artThrowArrayStoreException(mirror::Object* array, mirror::Object* value,
                                                       Thread* self)
     REQUIRES_SHARED(Locks::mutator_lock_) {
