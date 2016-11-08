@@ -443,8 +443,14 @@ class TypeCheckSlowPathARMVIXL : public SlowPathCodeARMVIXL {
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
-    Location object_class = instruction_->IsCheckCast() ? locations->GetTemp(0)
-                                                        : locations->Out();
+    Location arg0, arg1;
+    if (instruction_->IsInstanceOf()) {
+      arg0 = locations->InAt(1);
+      arg1 = locations->Out();
+    } else {
+      arg0 = locations->InAt(0);
+      arg1 = locations->InAt(1);
+    }
     DCHECK(instruction_->IsCheckCast()
            || !locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
 
@@ -458,20 +464,22 @@ class TypeCheckSlowPathARMVIXL : public SlowPathCodeARMVIXL {
     // We're moving two locations to locations that could overlap, so we need a parallel
     // move resolver.
     InvokeRuntimeCallingConventionARMVIXL calling_convention;
-    codegen->EmitParallelMoves(
-        locations->InAt(1),
-        LocationFrom(calling_convention.GetRegisterAt(0)),
-        Primitive::kPrimNot,
-        object_class,
-        LocationFrom(calling_convention.GetRegisterAt(1)),
-        Primitive::kPrimNot);
 
+    codegen->EmitParallelMoves(arg0,
+                               LocationFrom(calling_convention.GetRegisterAt(0)),
+                               Primitive::kPrimNot,
+                               arg1,
+                               LocationFrom(calling_convention.GetRegisterAt(1)),
+                               Primitive::kPrimNot);
     if (instruction_->IsInstanceOf()) {
       TODO_VIXL32(FATAL);
     } else {
       DCHECK(instruction_->IsCheckCast());
-      arm_codegen->InvokeRuntime(kQuickCheckCast, instruction_, instruction_->GetDexPc(), this);
-      CheckEntrypointTypes<kQuickCheckCast, void, const mirror::Class*, const mirror::Class*>();
+      arm_codegen->InvokeRuntime(kQuickCheckInstanceOf,
+                                 instruction_,
+                                 instruction_->GetDexPc(),
+                                 this);
+      CheckEntrypointTypes<kQuickCheckInstanceOf, void, mirror::Object*, mirror::Class*>();
     }
 
     if (!is_fatal_) {

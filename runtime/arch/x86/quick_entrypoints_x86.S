@@ -1361,11 +1361,11 @@ DEFINE_FUNCTION art_quick_is_assignable
     ret
 END_FUNCTION art_quick_is_assignable
 
-DEFINE_FUNCTION art_quick_check_cast
+DEFINE_FUNCTION art_quick_check_instance_of
     PUSH eax                              // alignment padding
-    PUSH ecx                              // pass arg2 - obj->klass
-    PUSH eax                              // pass arg1 - checked class
-    call SYMBOL(artIsAssignableFromCode)  // (Class* klass, Class* ref_klass)
+    PUSH ecx                              // pass arg2 - checked class
+    PUSH eax                              // pass arg1 - obj
+    call SYMBOL(artInstanceOfFromCode)    // (Object* obj, Class* ref_klass)
     testl %eax, %eax
     jz 1f                                 // jump forward if not assignable
     addl LITERAL(12), %esp                // pop arguments
@@ -1385,9 +1385,9 @@ DEFINE_FUNCTION art_quick_check_cast
     CFI_ADJUST_CFA_OFFSET(4)
     PUSH ecx                              // pass arg2
     PUSH eax                              // pass arg1
-    call SYMBOL(artThrowClassCastException) // (Class* a, Class* b, Thread*)
+    call SYMBOL(artThrowClassCastExceptionForObject)  // (Object* src, Class* dest, Thread*)
     UNREACHABLE
-END_FUNCTION art_quick_check_cast
+END_FUNCTION art_quick_check_instance_of
 
 // Restore reg's value if reg is not the same as exclude_reg, otherwise just adjust stack.
 MACRO2(POP_REG_NE, reg, exclude_reg)

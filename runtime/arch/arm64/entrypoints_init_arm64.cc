@@ -30,8 +30,7 @@
 namespace art {
 
 // Cast entrypoints.
-extern "C" size_t artIsAssignableFromCode(const mirror::Class* klass,
-                                          const mirror::Class* ref_class);
+extern "C" size_t artIsAssignableFromCode(mirror::Class* klass, mirror::Class* ref_class);
 
 // Read barrier entrypoints.
 // art_quick_read_barrier_mark_regX uses an non-standard calling
@@ -76,7 +75,7 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
 
   // Cast
   qpoints->pInstanceofNonTrivial = artIsAssignableFromCode;
-  qpoints->pCheckCast = art_quick_check_cast;
+  qpoints->pCheckInstanceOf = art_quick_check_instance_of;
 
   // Math
   // TODO null entrypoints not needed for ARM64 - generate inline.
