@@ -333,8 +333,7 @@ class Thread {
   }
 
   // Returns the java.lang.Thread's name, or null if this Thread* doesn't have a peer.
-  mirror::String* GetThreadName(const ScopedObjectAccessAlreadyRunnable& ts) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
+  mirror::String* GetThreadName() const REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Sets 'name' to the java.lang.Thread's name. This requires no transition to managed code,
   // allocation, or locking.
