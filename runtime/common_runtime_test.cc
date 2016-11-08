@@ -520,17 +520,17 @@ std::vector<const DexFile*> CommonRuntimeTestImpl::GetDexFiles(jobject jclass_lo
 
   // The class loader is a PathClassLoader which inherits from BaseDexClassLoader.
   // We need to get the DexPathList and loop through it.
-  ArtField* cookie_field = soa.DecodeField(WellKnownClasses::dalvik_system_DexFile_cookie);
+  ArtField* cookie_field = jni::DecodeArtField(WellKnownClasses::dalvik_system_DexFile_cookie);
   ArtField* dex_file_field =
-      soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList__Element_dexFile);
+      jni::DecodeArtField(WellKnownClasses::dalvik_system_DexPathList__Element_dexFile);
   ObjPtr<mirror::Object> dex_path_list =
-      soa.DecodeField(WellKnownClasses::dalvik_system_BaseDexClassLoader_pathList)->
-      GetObject(class_loader.Get());
+      jni::DecodeArtField(WellKnownClasses::dalvik_system_BaseDexClassLoader_pathList)->
+          GetObject(class_loader.Get());
   if (dex_path_list != nullptr && dex_file_field!= nullptr && cookie_field != nullptr) {
     // DexPathList has an array dexElements of Elements[] which each contain a dex file.
     ObjPtr<mirror::Object> dex_elements_obj =
-        soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList_dexElements)->
-        GetObject(dex_path_list);
+        jni::DecodeArtField(WellKnownClasses::dalvik_system_DexPathList_dexElements)->
+            GetObject(dex_path_list);
     // Loop through each dalvik.system.DexPathList$Element's dalvik.system.DexFile and look
     // at the mCookie which is a DexFile vector.
     if (dex_elements_obj != nullptr) {

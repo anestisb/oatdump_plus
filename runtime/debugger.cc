@@ -2008,7 +2008,7 @@ JDWP::JdwpError Dbg::GetThreadName(JDWP::ObjectId thread_id, std::string* name) 
   mirror::Object* thread_object = gRegistry->Get<mirror::Object*>(thread_id, &error);
   CHECK(thread_object != nullptr) << error;
   ArtField* java_lang_Thread_name_field =
-      soa.DecodeField(WellKnownClasses::java_lang_Thread_name);
+      jni::DecodeArtField(WellKnownClasses::java_lang_Thread_name);
   ObjPtr<mirror::String> s(java_lang_Thread_name_field->GetObject(thread_object)->AsString());
   if (s != nullptr) {
     *name = s->ToModifiedUtf8();
@@ -2033,7 +2033,7 @@ JDWP::JdwpError Dbg::GetThreadGroup(JDWP::ObjectId thread_id, JDWP::ExpandBuf* p
   } else if (error == JDWP::ERR_NONE) {
     ObjPtr<mirror::Class> c = soa.Decode<mirror::Class>(WellKnownClasses::java_lang_Thread);
     CHECK(c != nullptr);
-    ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_Thread_group);
+    ArtField* f = jni::DecodeArtField(WellKnownClasses::java_lang_Thread_group);
     CHECK(f != nullptr);
     ObjPtr<mirror::Object> group = f->GetObject(thread_object);
     CHECK(group != nullptr);
@@ -2075,7 +2075,7 @@ JDWP::JdwpError Dbg::GetThreadGroupName(JDWP::ObjectId thread_group_id, JDWP::Ex
     return error;
   }
   ScopedAssertNoThreadSuspension ants("Debugger: GetThreadGroupName");
-  ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_name);
+  ArtField* f = jni::DecodeArtField(WellKnownClasses::java_lang_ThreadGroup_name);
   CHECK(f != nullptr);
   ObjPtr<mirror::String> s = f->GetObject(thread_group)->AsString();
 
@@ -2094,7 +2094,7 @@ JDWP::JdwpError Dbg::GetThreadGroupParent(JDWP::ObjectId thread_group_id, JDWP::
   ObjPtr<mirror::Object> parent;
   {
     ScopedAssertNoThreadSuspension ants("Debugger: GetThreadGroupParent");
-    ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_parent);
+    ArtField* f = jni::DecodeArtField(WellKnownClasses::java_lang_ThreadGroup_parent);
     CHECK(f != nullptr);
     parent = f->GetObject(thread_group);
   }
@@ -2103,13 +2103,13 @@ JDWP::JdwpError Dbg::GetThreadGroupParent(JDWP::ObjectId thread_group_id, JDWP::
   return JDWP::ERR_NONE;
 }
 
-static void GetChildThreadGroups(ScopedObjectAccessUnchecked& soa, mirror::Object* thread_group,
+static void GetChildThreadGroups(mirror::Object* thread_group,
                                  std::vector<JDWP::ObjectId>* child_thread_group_ids)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   CHECK(thread_group != nullptr);
 
   // Get the int "ngroups" count of this thread group...
-  ArtField* ngroups_field = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_ngroups);
+  ArtField* ngroups_field = jni::DecodeArtField(WellKnownClasses::java_lang_ThreadGroup_ngroups);
   CHECK(ngroups_field != nullptr);
   const int32_t size = ngroups_field->GetInt(thread_group);
   if (size == 0) {
@@ -2117,7 +2117,7 @@ static void GetChildThreadGroups(ScopedObjectAccessUnchecked& soa, mirror::Objec
   }
 
   // Get the ThreadGroup[] "groups" out of this thread group...
-  ArtField* groups_field = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_groups);
+  ArtField* groups_field = jni::DecodeArtField(WellKnownClasses::java_lang_ThreadGroup_groups);
   ObjPtr<mirror::Object> groups_array = groups_field->GetObject(thread_group);
 
   CHECK(groups_array != nullptr);
@@ -2155,7 +2155,7 @@ JDWP::JdwpError Dbg::GetThreadGroupChildren(JDWP::ObjectId thread_group_id,
   // Add child thread groups.
   {
     std::vector<JDWP::ObjectId> child_thread_groups_ids;
-    GetChildThreadGroups(soa, thread_group, &child_thread_groups_ids);
+    GetChildThreadGroups(thread_group, &child_thread_groups_ids);
     expandBufAdd4BE(pReply, child_thread_groups_ids.size());
     for (JDWP::ObjectId child_thread_group_id : child_thread_groups_ids) {
       expandBufAddObjectId(pReply, child_thread_group_id);
@@ -2167,7 +2167,7 @@ JDWP::JdwpError Dbg::GetThreadGroupChildren(JDWP::ObjectId thread_group_id,
 
 JDWP::ObjectId Dbg::GetSystemThreadGroupId() {
   ScopedObjectAccessUnchecked soa(Thread::Current());
-  ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup);
+  ArtField* f = jni::DecodeArtField(WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup);
   ObjPtr<mirror::Object> group = f->GetObject(f->GetDeclaringClass());
   return gRegistry->Add(group);
 }
@@ -2257,14 +2257,13 @@ JDWP::JdwpError Dbg::Interrupt(JDWP::ObjectId thread_id) {
   return JDWP::ERR_NONE;
 }
 
-static bool IsInDesiredThreadGroup(ScopedObjectAccessUnchecked& soa,
-                                   mirror::Object* desired_thread_group, mirror::Object* peer)
+static bool IsInDesiredThreadGroup(mirror::Object* desired_thread_group, mirror::Object* peer)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   // Do we want threads from all thread groups?
   if (desired_thread_group == nullptr) {
     return true;
   }
-  ArtField* thread_group_field = soa.DecodeField(WellKnownClasses::java_lang_Thread_group);
+  ArtField* thread_group_field = jni::DecodeArtField(WellKnownClasses::java_lang_Thread_group);
   DCHECK(thread_group_field != nullptr);
   ObjPtr<mirror::Object> group = thread_group_field->GetObject(peer);
   return (group == desired_thread_group);
@@ -2297,7 +2296,7 @@ void Dbg::GetThreads(mirror::Object* thread_group, std::vector<JDWP::ObjectId>* 
       // Doing so might help us report ZOMBIE threads too.
       continue;
     }
-    if (IsInDesiredThreadGroup(soa, thread_group, peer)) {
+    if (IsInDesiredThreadGroup(thread_group, peer)) {
       thread_ids->push_back(gRegistry->Add(peer));
     }
   }
@@ -4372,7 +4371,7 @@ void Dbg::DdmSendThreadNotification(Thread* t, uint32_t type) {
     CHECK(type == CHUNK_TYPE("THCR") || type == CHUNK_TYPE("THNM")) << type;
     ScopedObjectAccessUnchecked soa(Thread::Current());
     StackHandleScope<1> hs(soa.Self());
-    Handle<mirror::String> name(hs.NewHandle(t->GetThreadName(soa)));
+    Handle<mirror::String> name(hs.NewHandle(t->GetThreadName()));
     size_t char_count = (name.Get() != nullptr) ? name->GetLength() : 0;
     const jchar* chars = (name.Get() != nullptr) ? name->GetValue() : nullptr;
     bool is_compressed = (name.Get() != nullptr) ? name->IsCompressed() : false;
