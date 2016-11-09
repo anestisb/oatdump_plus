@@ -138,6 +138,9 @@ class Primitive {
 
   static const char* PrettyDescriptor(Type type);
 
+  // Returns the descriptor corresponding to the boxed type of |type|.
+  static const char* BoxedDescriptor(Type type);
+
   static bool IsFloatingPointType(Type type) {
     return type == kPrimFloat || type == kPrimDouble;
   }
@@ -156,6 +159,32 @@ class Primitive {
       default:
         return false;
     }
+  }
+
+  // Return true if |type| is an numeric type.
+  static bool IsNumericType(Type type) {
+    switch (type) {
+      case Primitive::Type::kPrimNot: return false;
+      case Primitive::Type::kPrimBoolean: return false;
+      case Primitive::Type::kPrimByte: return true;
+      case Primitive::Type::kPrimChar: return false;
+      case Primitive::Type::kPrimShort: return true;
+      case Primitive::Type::kPrimInt: return true;
+      case Primitive::Type::kPrimLong: return true;
+      case Primitive::Type::kPrimFloat: return true;
+      case Primitive::Type::kPrimDouble: return true;
+      case Primitive::Type::kPrimVoid: return false;
+    }
+  }
+
+  // Returns true if |from| and |to| are the same or a widening conversion exists between them.
+  static bool IsWidenable(Type from, Type to) {
+    static_assert(Primitive::Type::kPrimByte < Primitive::Type::kPrimShort, "Bad ordering");
+    static_assert(Primitive::Type::kPrimShort < Primitive::Type::kPrimInt, "Bad ordering");
+    static_assert(Primitive::Type::kPrimInt < Primitive::Type::kPrimLong, "Bad ordering");
+    static_assert(Primitive::Type::kPrimLong < Primitive::Type::kPrimFloat, "Bad ordering");
+    static_assert(Primitive::Type::kPrimFloat < Primitive::Type::kPrimDouble, "Bad ordering");
+    return IsNumericType(from) && IsNumericType(to) && from <= to;
   }
 
   static bool IsIntOrLongType(Type type) {

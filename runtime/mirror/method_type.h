@@ -52,9 +52,13 @@ class MANAGED MethodType : public Object {
   static void ResetClass() REQUIRES_SHARED(Locks::mutator_lock_);
   static void VisitRoots(RootVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Returns true iff. |other| is an exact match for this method type, i.e
+  // Returns true iff. |this| is an exact match for method type |target|, i.e
   // iff. they have the same return types and parameter types.
-  bool IsExactMatch(mirror::MethodType* other) REQUIRES_SHARED(Locks::mutator_lock_);
+  bool IsExactMatch(mirror::MethodType* target) REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Returns true iff. |this| can be converted to match |target| method type, i.e
+  // iff. they have convertible return types and parameter types.
+  bool IsConvertible(mirror::MethodType* target) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns the pretty descriptor for this method type, suitable for display in
   // exception messages and the like.
