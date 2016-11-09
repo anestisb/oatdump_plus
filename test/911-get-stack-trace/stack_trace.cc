@@ -23,6 +23,7 @@
 #include "jni.h"
 #include "openjdkjvmti/jvmti.h"
 #include "ScopedLocalRef.h"
+#include "ti-agent/common_helper.h"
 #include "ti-agent/common_load.h"
 
 namespace art {
@@ -33,39 +34,36 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getStackTrace(
   std::unique_ptr<jvmtiFrameInfo[]> frames(new jvmtiFrameInfo[max]);
 
   jint count;
-  jvmtiError result = jvmti_env->GetStackTrace(thread, start, max, frames.get(), &count);
-  if (result != JVMTI_ERROR_NONE) {
-    char* err;
-    jvmti_env->GetErrorName(result, &err);
-    printf("Failure running GetStackTrace: %s\n", err);
-    return nullptr;
+  {
+    jvmtiError result = jvmti_env->GetStackTrace(thread, start, max, frames.get(), &count);
+    if (result != JVMTI_ERROR_NONE) {
+      char* err;
+      jvmti_env->GetErrorName(result, &err);
+      printf("Failure running GetStackTrace: %s\n", err);
+      return nullptr;
+    }
   }
 
-  ScopedLocalRef<jclass> obj_class(env, env->FindClass("java/lang/String"));
-  if (obj_class.get() == nullptr) {
-    return nullptr;
-  }
-
-  jobjectArray ret = env->NewObjectArray(2 * count, obj_class.get(), nullptr);
-  if (ret == nullptr) {
-    return ret;
-  }
-
-  for (size_t i = 0; i < static_cast<size_t>(count); ++i) {
+  auto callback = [&](jint i) -> jstring {
+    size_t method_index = static_cast<size_t>(i) / 2;
     char* name;
     char* sig;
     char* gen;
-    jvmtiError result2 = jvmti_env->GetMethodName(frames[i].method, &name, &sig, &gen);
-    if (result2 != JVMTI_ERROR_NONE) {
-      char* err;
-      jvmti_env->GetErrorName(result, &err);
-      printf("Failure running GetMethodName: %s\n", err);
-      return nullptr;
+    {
+      jvmtiError result2 = jvmti_env->GetMethodName(frames[method_index].method, &name, &sig, &gen);
+      if (result2 != JVMTI_ERROR_NONE) {
+        char* err;
+        jvmti_env->GetErrorName(result2, &err);
+        printf("Failure running GetMethodName: %s\n", err);
+        return nullptr;
+      }
     }
-    ScopedLocalRef<jstring> trace_name(env, name == nullptr ? nullptr : env->NewStringUTF(name));
-    ScopedLocalRef<jstring> trace_sig(env, sig == nullptr ? nullptr : env->NewStringUTF(sig));
-    env->SetObjectArrayElement(ret, static_cast<jint>(2 * i), trace_name.get());
-    env->SetObjectArrayElement(ret, static_cast<jint>(2 * i + 1), trace_sig.get());
+    jstring callback_result;
+    if (i % 2 == 0) {
+      callback_result = name == nullptr ? nullptr : env->NewStringUTF(name);
+    } else {
+      callback_result = sig == nullptr ? nullptr : env->NewStringUTF(sig);
+    }
 
     if (name != nullptr) {
       jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(name));
@@ -76,9 +74,9 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getStackTrace(
     if (gen != nullptr) {
       jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(gen));
     }
-  }
-
-  return ret;
+    return callback_result;
+  };
+  return CreateObjectArray(env, 2 * count, "java/lang/String", callback);
 }
 
 // Don't do anything
