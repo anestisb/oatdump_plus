@@ -331,7 +331,6 @@ void HSharpening::ProcessLoadString(HLoadString* load_string) {
       load_string->SetLoadKindWithStringReference(load_kind, dex_file, string_index);
       break;
     case HLoadString::LoadKind::kBootImageAddress:
-    case HLoadString::LoadKind::kDexCacheAddress:
       DCHECK_NE(address, 0u);
       load_string->SetLoadKindWithAddress(load_kind, address);
       break;
