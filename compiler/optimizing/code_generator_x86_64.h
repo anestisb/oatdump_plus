@@ -411,13 +411,10 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   void RecordTypePatch(HLoadClass* load_class);
   Label* NewStringBssEntryPatch(HLoadString* load_string);
   Label* NewPcRelativeDexCacheArrayPatch(const DexFile& dex_file, uint32_t element_offset);
-  Label* NewJitRootStringPatch(const DexFile& dex_file, uint32_t dex_index);
 
   void MoveFromReturnRegister(Location trg, Primitive::Type type) OVERRIDE;
 
   void EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) OVERRIDE;
-
-  void EmitJitRootPatches(uint8_t* code, const uint8_t* roots_data) OVERRIDE;
 
   const X86_64InstructionSetFeatures& GetInstructionSetFeatures() const {
     return isa_features_;
@@ -603,9 +600,6 @@ class CodeGeneratorX86_64 : public CodeGenerator {
 
   // Fixups for jump tables need to be handled specially.
   ArenaVector<JumpTableRIPFixup*> fixups_to_jump_tables_;
-
-  // Patches for string literals in JIT compiled code.
-  ArenaDeque<PatchInfo<Label>> jit_string_patches_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorX86_64);
 };
