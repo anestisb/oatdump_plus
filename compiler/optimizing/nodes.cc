@@ -1432,10 +1432,10 @@ HBasicBlock* HBasicBlock::SplitBefore(HInstruction* cursor) {
   AddInstruction(new (GetGraph()->GetArena()) HGoto(new_block->GetDexPc()));
 
   for (HBasicBlock* successor : GetSuccessors()) {
-    new_block->successors_.push_back(successor);
     successor->predecessors_[successor->GetPredecessorIndexOf(this)] = new_block;
   }
-  successors_.clear();
+  new_block->successors_.swap(successors_);
+  DCHECK(successors_.empty());
   AddSuccessor(new_block);
 
   GetGraph()->AddBlock(new_block);
@@ -1449,10 +1449,10 @@ HBasicBlock* HBasicBlock::CreateImmediateDominator() {
   HBasicBlock* new_block = new (GetGraph()->GetArena()) HBasicBlock(GetGraph(), GetDexPc());
 
   for (HBasicBlock* predecessor : GetPredecessors()) {
-    new_block->predecessors_.push_back(predecessor);
     predecessor->successors_[predecessor->GetSuccessorIndexOf(this)] = new_block;
   }
-  predecessors_.clear();
+  new_block->predecessors_.swap(predecessors_);
+  DCHECK(predecessors_.empty());
   AddPredecessor(new_block);
 
   GetGraph()->AddBlock(new_block);
@@ -1477,16 +1477,16 @@ HBasicBlock* HBasicBlock::SplitBeforeForInlining(HInstruction* cursor) {
   new_block->instructions_.SetBlockOfInstructions(new_block);
 
   for (HBasicBlock* successor : GetSuccessors()) {
-    new_block->successors_.push_back(successor);
     successor->predecessors_[successor->GetPredecessorIndexOf(this)] = new_block;
   }
-  successors_.clear();
+  new_block->successors_.swap(successors_);
+  DCHECK(successors_.empty());
 
   for (HBasicBlock* dominated : GetDominatedBlocks()) {
     dominated->dominator_ = new_block;
-    new_block->dominated_blocks_.push_back(dominated);
   }
-  dominated_blocks_.clear();
+  new_block->dominated_blocks_.swap(dominated_blocks_);
+  DCHECK(dominated_blocks_.empty());
   return new_block;
 }
 
@@ -1504,16 +1504,16 @@ HBasicBlock* HBasicBlock::SplitAfterForInlining(HInstruction* cursor) {
 
   new_block->instructions_.SetBlockOfInstructions(new_block);
   for (HBasicBlock* successor : GetSuccessors()) {
-    new_block->successors_.push_back(successor);
     successor->predecessors_[successor->GetPredecessorIndexOf(this)] = new_block;
   }
-  successors_.clear();
+  new_block->successors_.swap(successors_);
+  DCHECK(successors_.empty());
 
   for (HBasicBlock* dominated : GetDominatedBlocks()) {
     dominated->dominator_ = new_block;
-    new_block->dominated_blocks_.push_back(dominated);
   }
-  dominated_blocks_.clear();
+  new_block->dominated_blocks_.swap(dominated_blocks_);
+  DCHECK(dominated_blocks_.empty());
   return new_block;
 }
 
@@ -1852,17 +1852,19 @@ void HBasicBlock::MergeWith(HBasicBlock* other) {
 
   // Update links to the successors of `other`.
   successors_.clear();
-  while (!other->successors_.empty()) {
-    HBasicBlock* successor = other->GetSuccessors()[0];
-    successor->ReplacePredecessor(other, this);
+  for (HBasicBlock* successor : other->GetSuccessors()) {
+    successor->predecessors_[successor->GetPredecessorIndexOf(other)] = this;
   }
+  successors_.swap(other->successors_);
+  DCHECK(other->successors_.empty());
 
   // Update the dominator tree.
   RemoveDominatedBlock(other);
   for (HBasicBlock* dominated : other->GetDominatedBlocks()) {
-    dominated_blocks_.push_back(dominated);
     dominated->SetDominator(this);
   }
+  dominated_blocks_.insert(
+      dominated_blocks_.end(), other->dominated_blocks_.begin(), other->dominated_blocks_.end());
   other->dominated_blocks_.clear();
   other->dominator_ = nullptr;
 
@@ -1889,16 +1891,18 @@ void HBasicBlock::MergeWithInlined(HBasicBlock* other) {
 
   // Update links to the successors of `other`.
   successors_.clear();
-  while (!other->successors_.empty()) {
-    HBasicBlock* successor = other->GetSuccessors()[0];
-    successor->ReplacePredecessor(other, this);
+  for (HBasicBlock* successor : other->GetSuccessors()) {
+    successor->predecessors_[successor->GetPredecessorIndexOf(other)] = this;
   }
+  successors_.swap(other->successors_);
+  DCHECK(other->successors_.empty());
 
   // Update the dominator tree.
   for (HBasicBlock* dominated : other->GetDominatedBlocks()) {
-    dominated_blocks_.push_back(dominated);
     dominated->SetDominator(this);
   }
+  dominated_blocks_.insert(
+      dominated_blocks_.end(), other->dominated_blocks_.begin(), other->dominated_blocks_.end());
   other->dominated_blocks_.clear();
   other->dominator_ = nullptr;
   other->graph_ = nullptr;
