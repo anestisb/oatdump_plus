@@ -1144,8 +1144,6 @@ static inline bool DoCallPolymorphic(ArtMethod* called_method,
                                      uint32_t (&arg)[Instruction::kMaxVarArgRegs],
                                      uint32_t first_src_reg,
                                      const MethodHandleKind handle_kind) {
-  // TODO(narayan): Wire in the String.init hacks.
-
   // Compute method information.
   const DexFile::CodeItem* code_item = called_method->GetCodeItem();
 
