@@ -256,7 +256,7 @@ static void Addr2line(const std::string& map_src,
   Drain(2U, prefix, pipe, os);
 }
 
-static bool RunCommand(std::string cmd) {
+static bool RunCommand(const std::string& cmd) {
   FILE* stream = popen(cmd.c_str(), "r");
   if (stream) {
     pclose(stream);

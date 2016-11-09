@@ -999,7 +999,7 @@ TEST_F(OatFileAssistantTest, GenNoDex) {
 
 // Turn an absolute path into a path relative to the current working
 // directory.
-static std::string MakePathRelative(std::string target) {
+static std::string MakePathRelative(const std::string& target) {
   char buf[MAXPATHLEN];
   std::string cwd = getcwd(buf, MAXPATHLEN);
 

@@ -59,12 +59,12 @@ pretty_format(T value) {
 }
 
 template <typename T>
-void cpp_define(std::string name, T value) {
+void cpp_define(const std::string& name, T value) {
   std::cout << "#define " << name << " " << pretty_format(value) << std::endl;
 }
 
 template <typename T>
-void emit_check_eq(T value, std::string expr) {
+void emit_check_eq(T value, const std::string& expr) {
   std::cout << "DEFINE_CHECK_EQ(" << value << ", (" << expr << "))" << std::endl;
 }
 

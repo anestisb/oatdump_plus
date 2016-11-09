@@ -78,7 +78,7 @@ namespace art {
     return memcmp(std::addressof(expected), std::addressof(actual), sizeof(expected)) == 0;
   }
 
-  bool UsuallyEquals(const char* expected, std::string actual) {
+  bool UsuallyEquals(const char* expected, const std::string& actual) {
     return std::string(expected) == actual;
   }
 
@@ -129,7 +129,7 @@ class CmdlineParserTest : public ::testing::Test {
     parser_ = ParsedOptions::MakeParser(false);  // do not ignore unrecognized options
   }
 
-  static ::testing::AssertionResult IsResultSuccessful(CmdlineResult result) {
+  static ::testing::AssertionResult IsResultSuccessful(const CmdlineResult& result) {
     if (result.IsSuccess()) {
       return ::testing::AssertionSuccess();
     } else {
@@ -138,7 +138,7 @@ class CmdlineParserTest : public ::testing::Test {
     }
   }
 
-  static ::testing::AssertionResult IsResultFailure(CmdlineResult result,
+  static ::testing::AssertionResult IsResultFailure(const CmdlineResult& result,
                                                     CmdlineResult::Status failure_status) {
     if (result.IsSuccess()) {
       return ::testing::AssertionFailure() << " got success but expected failure: "

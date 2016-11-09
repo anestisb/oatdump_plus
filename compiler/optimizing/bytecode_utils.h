@@ -26,7 +26,8 @@ namespace art {
 
 class CodeItemIterator : public ValueObject {
  public:
-  CodeItemIterator(const DexFile::CodeItem& code_item, uint32_t start_dex_pc = 0u)
+  explicit CodeItemIterator(const DexFile::CodeItem& code_item) : CodeItemIterator(code_item, 0u) {}
+  CodeItemIterator(const DexFile::CodeItem& code_item, uint32_t start_dex_pc)
       : code_ptr_(code_item.insns_ + start_dex_pc),
         code_end_(code_item.insns_ + code_item.insns_size_in_code_units_),
         dex_pc_(start_dex_pc) {}

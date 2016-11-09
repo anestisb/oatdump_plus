@@ -54,7 +54,7 @@ jvmtiError GetTransformationData(ArtJvmTiEnv* env,
 
 // Install the new dex file.
 jvmtiError MoveTransformedFileIntoRuntime(jclass jklass,
-                                          std::string original_location,
+                                          const std::string& original_location,
                                           jint data_len,
                                           unsigned char* dex_data);
 
