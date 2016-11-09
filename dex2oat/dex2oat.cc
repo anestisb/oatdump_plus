@@ -517,8 +517,7 @@ class Dex2Oat FINAL {
       thread_count_(sysconf(_SC_NPROCESSORS_CONF)),
       start_ns_(NanoTime()),
       oat_fd_(-1),
-      input_vdex_fd_(-1),
-      output_vdex_fd_(-1),
+      vdex_fd_(-1),
       zip_fd_(-1),
       image_base_(0U),
       image_classes_zip_filename_(nullptr),
@@ -591,12 +590,8 @@ class Dex2Oat FINAL {
     ParseUintOption(option, "--zip-fd", &zip_fd_, Usage);
   }
 
-  void ParseInputVdexFd(const StringPiece& option) {
-    ParseUintOption(option, "--input-vdex-fd", &input_vdex_fd_, Usage);
-  }
-
-  void ParseOutputVdexFd(const StringPiece& option) {
-    ParseUintOption(option, "--output-vdex-fd", &output_vdex_fd_, Usage);
+  void ParseVdexFd(const StringPiece& option) {
+    ParseUintOption(option, "--vdex-fd", &vdex_fd_, Usage);
   }
 
   void ParseOatFd(const StringPiece& option) {
@@ -712,9 +707,9 @@ class Dex2Oat FINAL {
       Usage("--oat-file should not be used with --oat-fd");
     }
 
-    if ((output_vdex_fd_ == -1) != (oat_fd_ == -1)) {
+    if ((vdex_fd_ == -1) != (oat_fd_ == -1)) {
       Usage("VDEX and OAT output must be specified either with one --oat-filename "
-            "or with --oat-fd and --output-vdex-fd file descriptors");
+            "or with --oat-fd and --vdex-fd file descriptors");
     }
 
     if (!parser_options->oat_symbols.empty() && oat_fd_ != -1) {
@@ -725,8 +720,8 @@ class Dex2Oat FINAL {
       Usage("--oat-symbols should not be used with --host");
     }
 
-    if (output_vdex_fd_ != -1 && !image_filenames_.empty()) {
-      Usage("--output-vdex-fd should not be used with --image");
+    if (vdex_fd_ != -1 && !image_filenames_.empty()) {
+      Usage("--vdex-fd should not be used with --image");
     }
 
     if (oat_fd_ != -1 && !image_filenames_.empty()) {
@@ -1119,10 +1114,8 @@ class Dex2Oat FINAL {
         ParseZipFd(option);
       } else if (option.starts_with("--zip-location=")) {
         zip_location_ = option.substr(strlen("--zip-location=")).data();
-      } else if (option.starts_with("--input-vdex-fd=")) {
-        ParseInputVdexFd(option);
-      } else if (option.starts_with("--output-vdex-fd=")) {
-        ParseOutputVdexFd(option);
+      } else if (option.starts_with("--vdex-fd=")) {
+        ParseVdexFd(option);
       } else if (option.starts_with("--oat-file=")) {
         oat_filenames_.push_back(option.substr(strlen("--oat-file=")).data());
       } else if (option.starts_with("--oat-symbols=")) {
@@ -1265,7 +1258,7 @@ class Dex2Oat FINAL {
         }
         oat_files_.push_back(std::move(oat_file));
 
-        DCHECK_EQ(output_vdex_fd_, -1);
+        DCHECK_EQ(vdex_fd_, -1);
         std::string vdex_filename = ReplaceFileExtension(oat_filename, "vdex");
         std::unique_ptr<File> vdex_file(OS::CreateEmptyFile(vdex_filename.c_str()));
         if (vdex_file.get() == nullptr) {
@@ -1291,9 +1284,9 @@ class Dex2Oat FINAL {
       }
       oat_files_.push_back(std::move(oat_file));
 
-      DCHECK_NE(output_vdex_fd_, -1);
+      DCHECK_NE(vdex_fd_, -1);
       std::string vdex_location = ReplaceFileExtension(oat_location_, "vdex");
-      std::unique_ptr<File> vdex_file(new File(output_vdex_fd_, vdex_location, /* check_usage */ true));
+      std::unique_ptr<File> vdex_file(new File(vdex_fd_, vdex_location, /* check_usage */ true));
       if (vdex_file.get() == nullptr) {
         PLOG(ERROR) << "Failed to create vdex file: " << vdex_location;
         return false;
@@ -2583,8 +2576,7 @@ class Dex2Oat FINAL {
   std::vector<const char*> oat_filenames_;
   std::vector<const char*> oat_unstripped_;
   int oat_fd_;
-  int input_vdex_fd_;
-  int output_vdex_fd_;
+  int vdex_fd_;
   std::vector<const char*> dex_filenames_;
   std::vector<const char*> dex_locations_;
   int zip_fd_;
