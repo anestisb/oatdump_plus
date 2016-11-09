@@ -108,7 +108,7 @@ namespace art {
       // If this is true, then the wildcard matching later on can still fail, so this is not
       // a guarantee that the argument is correct, it's more of a strong hint that the
       // user-provided input *probably* was trying to match this argument.
-      size_t MaybeMatches(TokenRange token_list) const {
+      size_t MaybeMatches(const TokenRange& token_list) const {
         auto best_match = FindClosestMatch(token_list);
 
         return best_match.second;
@@ -118,7 +118,7 @@ namespace art {
       //
       // Returns the token range that was the closest match and the # of tokens that
       // this range was matched up until.
-      std::pair<const TokenRange*, size_t> FindClosestMatch(TokenRange token_list) const {
+      std::pair<const TokenRange*, size_t> FindClosestMatch(const TokenRange& token_list) const {
         const TokenRange* best_match_ptr = nullptr;
 
         size_t best_match = 0;

@@ -1068,7 +1068,7 @@ static int patchoat_image(TimingLogger& timings,
   TimingLogger::ScopedTiming pt("patch image and oat", &timings);
 
   std::string output_directory =
-      output_image_filename.substr(0, output_image_filename.find_last_of("/"));
+      output_image_filename.substr(0, output_image_filename.find_last_of('/'));
   bool ret = PatchOat::Patch(input_image_location, base_delta, output_directory, isa, &timings);
 
   if (kIsDebugBuild) {

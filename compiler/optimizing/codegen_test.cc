@@ -259,7 +259,7 @@ static void ValidateGraph(HGraph* graph) {
   GraphChecker graph_checker(graph);
   graph_checker.Run();
   if (!graph_checker.IsValid()) {
-    for (auto error : graph_checker.GetErrors()) {
+    for (const auto& error : graph_checker.GetErrors()) {
       std::cout << error << std::endl;
     }
   }
@@ -269,7 +269,7 @@ static void ValidateGraph(HGraph* graph) {
 template <typename Expected>
 static void RunCodeNoCheck(CodeGenerator* codegen,
                            HGraph* graph,
-                           std::function<void(HGraph*)> hook_before_codegen,
+                           const std::function<void(HGraph*)>& hook_before_codegen,
                            bool has_result,
                            Expected expected) {
   SsaLivenessAnalysis liveness(graph, codegen);

@@ -225,9 +225,10 @@ static void AddNext(/*inout*/DexFileAndClassPair* original,
   }
 }
 
+template <typename T>
 static void IterateOverJavaDexFile(ObjPtr<mirror::Object> dex_file,
                                    ArtField* const cookie_field,
-                                   std::function<bool(const DexFile*)> fn)
+                                   const T& fn)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   if (dex_file != nullptr) {
     mirror::LongArray* long_array = cookie_field->GetObject(dex_file)->AsLongArray();
@@ -248,10 +249,11 @@ static void IterateOverJavaDexFile(ObjPtr<mirror::Object> dex_file,
   }
 }
 
+template <typename T>
 static void IterateOverPathClassLoader(
     Handle<mirror::ClassLoader> class_loader,
     MutableHandle<mirror::ObjectArray<mirror::Object>> dex_elements,
-    std::function<bool(const DexFile*)> fn) REQUIRES_SHARED(Locks::mutator_lock_) {
+    const T& fn) REQUIRES_SHARED(Locks::mutator_lock_) {
   // Handle this step.
   // Handle as if this is the child PathClassLoader.
   // The class loader is a PathClassLoader which inherits from BaseDexClassLoader.

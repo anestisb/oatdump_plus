@@ -438,9 +438,7 @@ class Dex2oatVeryLargeTest : public Dex2oatTest {
 
     Copy(GetDexSrc1(), dex_location);
 
-    std::vector<std::string> copy(extra_args);
-
-    GenerateOdexForTest(dex_location, odex_location, filter, copy);
+    GenerateOdexForTest(dex_location, odex_location, filter, extra_args);
 
     CheckValidity();
     ASSERT_TRUE(success_);
