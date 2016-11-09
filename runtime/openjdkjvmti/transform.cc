@@ -283,7 +283,7 @@ jvmtiError GetTransformationData(ArtJvmTiEnv* env,
 // Install the new dex file.
 // TODO do error checks for bad state (method in a stack, changes to number of methods/fields/etc).
 jvmtiError MoveTransformedFileIntoRuntime(jclass jklass,
-                                          std::string original_location,
+                                          const std::string& original_location,
                                           jint data_len,
                                           unsigned char* dex_data) {
   const char* dex_file_name = "Ldalvik/system/DexFile;";

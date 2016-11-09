@@ -113,8 +113,8 @@ TEST_F(UtfTest, CountModifiedUtf8Chars) {
   EXPECT_EQ(2u, CountModifiedUtf8Chars(reinterpret_cast<const char *>(kSurrogateEncoding)));
 }
 
-static void AssertConversion(const std::vector<uint16_t> input,
-                             const std::vector<uint8_t> expected) {
+static void AssertConversion(const std::vector<uint16_t>& input,
+                             const std::vector<uint8_t>& expected) {
   ASSERT_EQ(expected.size(), CountUtf8Bytes(&input[0], input.size()));
 
   std::vector<uint8_t> output(expected.size());

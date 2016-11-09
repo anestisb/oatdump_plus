@@ -234,7 +234,7 @@ struct CmdlineArgs {
     // Checks for --boot-image location.
     {
       std::string boot_image_location = boot_image_location_;
-      size_t file_name_idx = boot_image_location.rfind("/");
+      size_t file_name_idx = boot_image_location.rfind('/');
       if (file_name_idx == std::string::npos) {  // Prevent a InsertIsaDirectory check failure.
         *error_msg = "Boot image location must have a / in it";
         return false;
@@ -244,7 +244,7 @@ struct CmdlineArgs {
       // This prevents a common error "Could not create an image space..." when initing the Runtime.
       if (file_name_idx != std::string::npos) {
         std::string no_file_name = boot_image_location.substr(0, file_name_idx);
-        size_t ancestor_dirs_idx = no_file_name.rfind("/");
+        size_t ancestor_dirs_idx = no_file_name.rfind('/');
 
         std::string parent_dir_name;
         if (ancestor_dirs_idx != std::string::npos) {

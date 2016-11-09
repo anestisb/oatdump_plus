@@ -29,9 +29,7 @@ namespace art {
  */
 class HDeadCodeElimination : public HOptimization {
  public:
-  HDeadCodeElimination(HGraph* graph,
-                       OptimizingCompilerStats* stats = nullptr,
-                       const char* name = kDeadCodeEliminationPassName)
+  HDeadCodeElimination(HGraph* graph, OptimizingCompilerStats* stats, const char* name)
       : HOptimization(graph, name, stats) {}
 
   void Run() OVERRIDE;
