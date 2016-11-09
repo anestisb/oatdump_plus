@@ -595,7 +595,7 @@ OatFileAssistant::GenerateOatFile(std::string* error_msg) {
 
   std::vector<std::string> args;
   args.push_back("--dex-file=" + dex_location_);
-  args.push_back("--output-vdex-fd=" + std::to_string(vdex_file->Fd()));
+  args.push_back("--vdex-fd=" + std::to_string(vdex_file->Fd()));
   args.push_back("--oat-fd=" + std::to_string(oat_file->Fd()));
   args.push_back("--oat-location=" + oat_file_name);
 
