@@ -252,27 +252,27 @@ public class Main {
   /// CHECK-START-X86: java.lang.String Main.$noinline$getBootImageString() sharpening (after)
   // Note: load kind depends on PIC/non-PIC
   // TODO: Remove DexCacheViaMethod when read barrier config supports BootImageAddress.
-  /// CHECK:                LoadString load_kind:{{BootImageAddress|DexCachePcRelative|DexCacheViaMethod}}
+  /// CHECK:                LoadString load_kind:{{BootImageAddress|BssEntry|DexCacheViaMethod}}
 
   /// CHECK-START-X86_64: java.lang.String Main.$noinline$getBootImageString() sharpening (after)
   // Note: load kind depends on PIC/non-PIC
   // TODO: Remove DexCacheViaMethod when read barrier config supports BootImageAddress.
-  /// CHECK:                LoadString load_kind:{{BootImageAddress|DexCachePcRelative|DexCacheViaMethod}}
+  /// CHECK:                LoadString load_kind:{{BootImageAddress|BssEntry|DexCacheViaMethod}}
 
   /// CHECK-START-ARM: java.lang.String Main.$noinline$getBootImageString() sharpening (after)
   // Note: load kind depends on PIC/non-PIC
   // TODO: Remove DexCacheViaMethod when read barrier config supports BootImageAddress.
-  /// CHECK:                LoadString load_kind:{{BootImageAddress|DexCachePcRelative|DexCacheViaMethod}}
+  /// CHECK:                LoadString load_kind:{{BootImageAddress|BssEntry|DexCacheViaMethod}}
 
   /// CHECK-START-ARM64: java.lang.String Main.$noinline$getBootImageString() sharpening (after)
   // Note: load kind depends on PIC/non-PIC
   // TODO: Remove DexCacheViaMethod when read barrier config supports BootImageAddress.
-  /// CHECK:                LoadString load_kind:{{BootImageAddress|DexCachePcRelative|DexCacheViaMethod}}
+  /// CHECK:                LoadString load_kind:{{BootImageAddress|BssEntry|DexCacheViaMethod}}
 
   /// CHECK-START-MIPS: java.lang.String Main.$noinline$getBootImageString() sharpening (after)
   // Note: load kind depends on PIC/non-PIC
   // TODO: Remove DexCacheViaMethod when read barrier config supports BootImageAddress.
-  /// CHECK:                LoadString load_kind:{{BootImageAddress|DexCachePcRelative|DexCacheViaMethod}}
+  /// CHECK:                LoadString load_kind:{{BootImageAddress|BssEntry|DexCacheViaMethod}}
 
   public static String $noinline$getBootImageString() {
     // Prevent inlining to avoid the string comparison being optimized away.
