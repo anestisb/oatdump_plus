@@ -5679,10 +5679,6 @@ class HLoadString FINAL : public HInstruction {
     // GetIncludePatchInformation().
     kBootImageAddress,
 
-    // Load from the resolved strings array at an absolute address.
-    // Used for strings outside the boot image referenced by JIT-compiled code.
-    kDexCacheAddress,
-
     // Load from an entry in the .bss section using a PC-relative load.
     // Used for strings outside boot image when .bss is accessible with a PC-relative load.
     kBssEntry,
@@ -5812,7 +5808,7 @@ class HLoadString FINAL : public HInstruction {
   }
 
   static bool HasAddress(LoadKind load_kind) {
-    return load_kind == LoadKind::kBootImageAddress || load_kind == LoadKind::kDexCacheAddress;
+    return load_kind == LoadKind::kBootImageAddress;
   }
 
   void SetLoadKindInternal(LoadKind load_kind);

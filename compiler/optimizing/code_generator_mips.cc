@@ -5199,10 +5199,6 @@ HLoadString::LoadKind CodeGeneratorMIPS::GetSupportedLoadStringKind(
       break;
     case HLoadString::LoadKind::kBootImageAddress:
       break;
-    case HLoadString::LoadKind::kDexCacheAddress:
-      DCHECK(Runtime::Current()->UseJitCompilation());
-      fallback_load = false;
-      break;
     case HLoadString::LoadKind::kBssEntry:
       DCHECK(!Runtime::Current()->UseJitCompilation());
       break;
