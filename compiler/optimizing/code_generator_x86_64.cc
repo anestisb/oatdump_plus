@@ -5854,7 +5854,11 @@ void InstructionCodeGeneratorX86_64::VisitInstanceOf(HInstanceOf* instruction) {
       NearLabel loop, success;
       __ Bind(&loop);
       // /* HeapReference<Class> */ out = out->super_class_
-      GenerateReferenceLoadOneRegister(instruction, out_loc, super_offset, maybe_temp_loc);
+      GenerateReferenceLoadOneRegister(instruction,
+                                       out_loc,
+                                       super_offset,
+                                       maybe_temp_loc,
+                                       kEmitCompilerReadBarrier);
       __ testl(out, out);
       // If `out` is null, we use it for the result, and jump to `done`.
       __ j(kEqual, &done);
@@ -5884,7 +5888,11 @@ void InstructionCodeGeneratorX86_64::VisitInstanceOf(HInstanceOf* instruction) {
       }
       __ j(kEqual, &success);
       // /* HeapReference<Class> */ out = out->super_class_
-      GenerateReferenceLoadOneRegister(instruction, out_loc, super_offset, maybe_temp_loc);
+      GenerateReferenceLoadOneRegister(instruction,
+                                       out_loc,
+                                       super_offset,
+                                       maybe_temp_loc,
+                                       kEmitCompilerReadBarrier);
       __ testl(out, out);
       __ j(kNotEqual, &loop);
       // If `out` is null, we use it for the result, and jump to `done`.
@@ -5909,7 +5917,11 @@ void InstructionCodeGeneratorX86_64::VisitInstanceOf(HInstanceOf* instruction) {
       __ j(kEqual, &exact_check);
       // Otherwise, we need to check that the object's class is a non-primitive array.
       // /* HeapReference<Class> */ out = out->component_type_
-      GenerateReferenceLoadOneRegister(instruction, out_loc, component_offset, maybe_temp_loc);
+      GenerateReferenceLoadOneRegister(instruction,
+                                       out_loc,
+                                       component_offset,
+                                       maybe_temp_loc,
+                                       kEmitCompilerReadBarrier);
       __ testl(out, out);
       // If `out` is null, we use it for the result, and jump to `done`.
       __ j(kEqual, &done);
@@ -6056,22 +6068,23 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
                                                            is_type_check_slow_path_fatal);
   codegen_->AddSlowPath(type_check_slow_path);
 
+
+  NearLabel done;
+  // Avoid null check if we know obj is not null.
+  if (instruction->MustDoNullCheck()) {
+    __ testl(obj, obj);
+    __ j(kEqual, &done);
+  }
+
   switch (type_check_kind) {
     case TypeCheckKind::kExactCheck:
     case TypeCheckKind::kArrayCheck: {
-      NearLabel done;
-      // Avoid null check if we know obj is not null.
-      if (instruction->MustDoNullCheck()) {
-        __ testl(obj, obj);
-        __ j(kEqual, &done);
-      }
-
       // /* HeapReference<Class> */ temp = obj->klass_
       GenerateReferenceLoadTwoRegisters(instruction,
                                         temp_loc,
                                         obj_loc,
                                         class_offset,
-                                        kEmitCompilerReadBarrier);
+                                        /*emit_read_barrier*/ false);
       if (cls.IsRegister()) {
         __ cmpl(temp, cls.AsRegister<CpuRegister>());
       } else {
@@ -6081,30 +6094,26 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
       // Jump to slow path for throwing the exception or doing a
       // more involved array check.
       __ j(kNotEqual, type_check_slow_path->GetEntryLabel());
-      __ Bind(&done);
       break;
     }
 
     case TypeCheckKind::kAbstractClassCheck: {
-      NearLabel done;
-      // Avoid null check if we know obj is not null.
-      if (instruction->MustDoNullCheck()) {
-        __ testl(obj, obj);
-        __ j(kEqual, &done);
-      }
-
       // /* HeapReference<Class> */ temp = obj->klass_
       GenerateReferenceLoadTwoRegisters(instruction,
                                         temp_loc,
                                         obj_loc,
                                         class_offset,
-                                        kEmitCompilerReadBarrier);
+                                        /*emit_read_barrier*/ false);
       // If the class is abstract, we eagerly fetch the super class of the
       // object to avoid doing a comparison we know will fail.
       NearLabel loop;
       __ Bind(&loop);
       // /* HeapReference<Class> */ temp = temp->super_class_
-      GenerateReferenceLoadOneRegister(instruction, temp_loc, super_offset, maybe_temp2_loc);
+      GenerateReferenceLoadOneRegister(instruction,
+                                       temp_loc,
+                                       super_offset,
+                                       maybe_temp2_loc,
+                                       /*emit_read_barrier*/ false);
 
       // If the class reference currently in `temp` is null, jump to the slow path to throw the
       // exception.
@@ -6118,24 +6127,16 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
         __ cmpl(temp, Address(CpuRegister(RSP), cls.GetStackIndex()));
       }
       __ j(kNotEqual, &loop);
-      __ Bind(&done);
       break;
     }
 
     case TypeCheckKind::kClassHierarchyCheck: {
-      NearLabel done;
-      // Avoid null check if we know obj is not null.
-      if (instruction->MustDoNullCheck()) {
-        __ testl(obj, obj);
-        __ j(kEqual, &done);
-      }
-
       // /* HeapReference<Class> */ temp = obj->klass_
       GenerateReferenceLoadTwoRegisters(instruction,
                                         temp_loc,
                                         obj_loc,
                                         class_offset,
-                                        kEmitCompilerReadBarrier);
+                                        /*emit_read_barrier*/ false);
       // Walk over the class hierarchy to find a match.
       NearLabel loop;
       __ Bind(&loop);
@@ -6148,7 +6149,11 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
       __ j(kEqual, &done);
 
       // /* HeapReference<Class> */ temp = temp->super_class_
-      GenerateReferenceLoadOneRegister(instruction, temp_loc, super_offset, maybe_temp2_loc);
+      GenerateReferenceLoadOneRegister(instruction,
+                                       temp_loc,
+                                       super_offset,
+                                       maybe_temp2_loc,
+                                       /*emit_read_barrier*/ false);
 
       // If the class reference currently in `temp` is not null, jump
       // back at the beginning of the loop.
@@ -6156,28 +6161,16 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
       __ j(kNotZero, &loop);
       // Otherwise, jump to the slow path to throw the exception.
       __ jmp(type_check_slow_path->GetEntryLabel());
-      __ Bind(&done);
       break;
     }
 
     case TypeCheckKind::kArrayObjectCheck: {
-      // We cannot use a NearLabel here, as its range might be too
-      // short in some cases when read barriers are enabled.  This has
-      // been observed for instance when the code emitted for this
-      // case uses high x86-64 registers (R8-R15).
-      Label done;
-      // Avoid null check if we know obj is not null.
-      if (instruction->MustDoNullCheck()) {
-        __ testl(obj, obj);
-        __ j(kEqual, &done);
-      }
-
       // /* HeapReference<Class> */ temp = obj->klass_
       GenerateReferenceLoadTwoRegisters(instruction,
                                         temp_loc,
                                         obj_loc,
                                         class_offset,
-                                        kEmitCompilerReadBarrier);
+                                        /*emit_read_barrier*/ false);
       // Do an exact check.
       NearLabel check_non_primitive_component_type;
       if (cls.IsRegister()) {
@@ -6190,7 +6183,11 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
 
       // Otherwise, we need to check that the object's class is a non-primitive array.
       // /* HeapReference<Class> */ temp = temp->component_type_
-      GenerateReferenceLoadOneRegister(instruction, temp_loc, component_offset, maybe_temp2_loc);
+      GenerateReferenceLoadOneRegister(instruction,
+                                       temp_loc,
+                                       component_offset,
+                                       maybe_temp2_loc,
+                                       /*emit_read_barrier*/ false);
 
       // If the component type is not null (i.e. the object is indeed
       // an array), jump to label `check_non_primitive_component_type`
@@ -6201,7 +6198,6 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
       __ j(kZero, type_check_slow_path->GetEntryLabel());
       __ cmpw(Address(temp, primitive_offset), Immediate(Primitive::kPrimNot));
       __ j(kNotEqual, type_check_slow_path->GetEntryLabel());
-      __ Bind(&done);
       break;
     }
 
@@ -6215,27 +6211,11 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
       // instruction (following the runtime calling convention), which
       // might be cluttered by the potential first read barrier
       // emission at the beginning of this method.
-
-      NearLabel done;
-      // Avoid null check if we know obj is not null.
-      if (instruction->MustDoNullCheck()) {
-        __ testl(obj, obj);
-        __ j(kEqual, &done);
-      }
       __ jmp(type_check_slow_path->GetEntryLabel());
-      __ Bind(&done);
       break;
     }
 
     case TypeCheckKind::kInterfaceCheck:
-      NearLabel done;
-
-      // Avoid null check if we know obj is not null.
-      if (instruction->MustDoNullCheck()) {
-        __ testl(obj, obj);
-        __ j(kEqual, &done);
-      }
-
       // Fast path for the interface check. We always go slow path for heap poisoning since
       // unpoisoning cls would require an extra temp.
       if (!kPoisonHeapReferences) {
@@ -6273,8 +6253,11 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
         __ Bind(&is_null);
       }
       __ jmp(type_check_slow_path->GetEntryLabel());
-      __ Bind(&done);
       break;
+  }
+
+  if (done.IsLinked()) {
+    __ Bind(&done);
   }
 
   __ Bind(type_check_slow_path->GetExitLabel());
@@ -6416,9 +6399,11 @@ void InstructionCodeGeneratorX86_64::HandleBitwiseOperation(HBinaryOperation* in
 void InstructionCodeGeneratorX86_64::GenerateReferenceLoadOneRegister(HInstruction* instruction,
                                                                       Location out,
                                                                       uint32_t offset,
-                                                                      Location maybe_temp) {
+                                                                      Location maybe_temp,
+                                                                      bool emit_read_barrier) {
   CpuRegister out_reg = out.AsRegister<CpuRegister>();
-  if (kEmitCompilerReadBarrier) {
+  if (emit_read_barrier) {
+    CHECK(kEmitCompilerReadBarrier);
     if (kUseBakerReadBarrier) {
       // Load with fast path based Baker's read barrier.
       // /* HeapReference<Object> */ out = *(out + offset)
@@ -6451,6 +6436,7 @@ void InstructionCodeGeneratorX86_64::GenerateReferenceLoadTwoRegisters(HInstruct
   CpuRegister out_reg = out.AsRegister<CpuRegister>();
   CpuRegister obj_reg = obj.AsRegister<CpuRegister>();
   if (emit_read_barrier) {
+    CHECK(kEmitCompilerReadBarrier);
     if (kUseBakerReadBarrier) {
       // Load with fast path based Baker's read barrier.
       // /* HeapReference<Object> */ out = *(obj + offset)

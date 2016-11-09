@@ -6033,7 +6033,7 @@ static size_t NumberOfInstanceOfTemps(TypeCheckKind type_check_kind) {
   return 0;
 }
 
-// InteraceCheck has 3 temps, one for holding the number of interfaces, one for the current
+// Interface case has 3 temps, one for holding the number of interfaces, one for the current
 // interface pointer, one for loading the current interface.
 // The other checks have one temp for loading the object's class.
 static size_t NumberOfCheckCastTemps(TypeCheckKind type_check_kind) {
@@ -6123,7 +6123,11 @@ void InstructionCodeGeneratorARM::VisitInstanceOf(HInstanceOf* instruction) {
       Label loop;
       __ Bind(&loop);
       // /* HeapReference<Class> */ out = out->super_class_
-      GenerateReferenceLoadOneRegister(instruction, out_loc, super_offset, maybe_temp_loc);
+      GenerateReferenceLoadOneRegister(instruction,
+                                       out_loc,
+                                       super_offset,
+                                       maybe_temp_loc,
+                                       kEmitCompilerReadBarrier);
       // If `out` is null, we use it for the result, and jump to `done`.
       __ CompareAndBranchIfZero(out, &done);
       __ cmp(out, ShifterOperand(cls));
@@ -6142,7 +6146,11 @@ void InstructionCodeGeneratorARM::VisitInstanceOf(HInstanceOf* instruction) {
       __ cmp(out, ShifterOperand(cls));
       __ b(&success, EQ);
       // /* HeapReference<Class> */ out = out->super_class_
-      GenerateReferenceLoadOneRegister(instruction, out_loc, super_offset, maybe_temp_loc);
+      GenerateReferenceLoadOneRegister(instruction,
+                                       out_loc,
+                                       super_offset,
+                                       maybe_temp_loc,
+                                       kEmitCompilerReadBarrier);
       __ CompareAndBranchIfNonZero(out, &loop);
       // If `out` is null, we use it for the result, and jump to `done`.
       __ b(&done);
@@ -6161,7 +6169,11 @@ void InstructionCodeGeneratorARM::VisitInstanceOf(HInstanceOf* instruction) {
       __ b(&exact_check, EQ);
       // Otherwise, we need to check that the object's class is a non-primitive array.
       // /* HeapReference<Class> */ out = out->component_type_
-      GenerateReferenceLoadOneRegister(instruction, out_loc, component_offset, maybe_temp_loc);
+      GenerateReferenceLoadOneRegister(instruction,
+                                       out_loc,
+                                       component_offset,
+                                       maybe_temp_loc,
+                                       kEmitCompilerReadBarrier);
       // If `out` is null, we use it for the result, and jump to `done`.
       __ CompareAndBranchIfZero(out, &done);
       __ LoadFromOffset(kLoadUnsignedHalfword, out, out, primitive_offset);
@@ -6281,12 +6293,15 @@ void InstructionCodeGeneratorARM::VisitCheckCast(HCheckCast* instruction) {
   const uint32_t object_array_data_offset =
       mirror::Array::DataOffset(kHeapReferenceSize).Uint32Value();
 
-  bool is_type_check_slow_path_fatal =
-      (type_check_kind == TypeCheckKind::kExactCheck ||
-       type_check_kind == TypeCheckKind::kAbstractClassCheck ||
-       type_check_kind == TypeCheckKind::kClassHierarchyCheck ||
-       type_check_kind == TypeCheckKind::kArrayObjectCheck) &&
-      !instruction->CanThrowIntoCatchBlock();
+  bool is_type_check_slow_path_fatal = false;
+  if (!kEmitCompilerReadBarrier) {
+    is_type_check_slow_path_fatal =
+        (type_check_kind == TypeCheckKind::kExactCheck ||
+         type_check_kind == TypeCheckKind::kAbstractClassCheck ||
+         type_check_kind == TypeCheckKind::kClassHierarchyCheck ||
+         type_check_kind == TypeCheckKind::kArrayObjectCheck) &&
+        !instruction->CanThrowIntoCatchBlock();
+  }
   SlowPathCodeARM* type_check_slow_path =
       new (GetGraph()->GetArena()) TypeCheckSlowPathARM(instruction,
                                                         is_type_check_slow_path_fatal);
@@ -6307,7 +6322,7 @@ void InstructionCodeGeneratorARM::VisitCheckCast(HCheckCast* instruction) {
                                         obj_loc,
                                         class_offset,
                                         maybe_temp2_loc,
-                                        kEmitCompilerReadBarrier);
+                                        /*emit_read_barrier*/ false);
 
       __ cmp(temp, ShifterOperand(cls));
       // Jump to slow path for throwing the exception or doing a
@@ -6323,14 +6338,18 @@ void InstructionCodeGeneratorARM::VisitCheckCast(HCheckCast* instruction) {
                                         obj_loc,
                                         class_offset,
                                         maybe_temp2_loc,
-                                        kEmitCompilerReadBarrier);
+                                        /*emit_read_barrier*/ false);
 
       // If the class is abstract, we eagerly fetch the super class of the
       // object to avoid doing a comparison we know will fail.
       Label loop;
       __ Bind(&loop);
       // /* HeapReference<Class> */ temp = temp->super_class_
-      GenerateReferenceLoadOneRegister(instruction, temp_loc, super_offset, maybe_temp2_loc);
+      GenerateReferenceLoadOneRegister(instruction,
+                                       temp_loc,
+                                       super_offset,
+                                       maybe_temp2_loc,
+                                       /*emit_read_barrier*/ false);
 
       // If the class reference currently in `temp` is null, jump to the slow path to throw the
       // exception.
@@ -6349,7 +6368,7 @@ void InstructionCodeGeneratorARM::VisitCheckCast(HCheckCast* instruction) {
                                         obj_loc,
                                         class_offset,
                                         maybe_temp2_loc,
-                                        kEmitCompilerReadBarrier);
+                                        /*emit_read_barrier*/ false);
 
       // Walk over the class hierarchy to find a match.
       Label loop;
@@ -6358,7 +6377,11 @@ void InstructionCodeGeneratorARM::VisitCheckCast(HCheckCast* instruction) {
       __ b(&done, EQ);
 
       // /* HeapReference<Class> */ temp = temp->super_class_
-      GenerateReferenceLoadOneRegister(instruction, temp_loc, super_offset, maybe_temp2_loc);
+      GenerateReferenceLoadOneRegister(instruction,
+                                       temp_loc,
+                                       super_offset,
+                                       maybe_temp2_loc,
+                                       /*emit_read_barrier*/ false);
 
       // If the class reference currently in `temp` is null, jump to the slow path to throw the
       // exception.
@@ -6375,7 +6398,7 @@ void InstructionCodeGeneratorARM::VisitCheckCast(HCheckCast* instruction) {
                                         obj_loc,
                                         class_offset,
                                         maybe_temp2_loc,
-                                        kEmitCompilerReadBarrier);
+                                        /*emit_read_barrier*/ false);
 
       // Do an exact check.
       __ cmp(temp, ShifterOperand(cls));
@@ -6383,7 +6406,11 @@ void InstructionCodeGeneratorARM::VisitCheckCast(HCheckCast* instruction) {
 
       // Otherwise, we need to check that the object's class is a non-primitive array.
       // /* HeapReference<Class> */ temp = temp->component_type_
-      GenerateReferenceLoadOneRegister(instruction, temp_loc, component_offset, maybe_temp2_loc);
+      GenerateReferenceLoadOneRegister(instruction,
+                                       temp_loc,
+                                       component_offset,
+                                       maybe_temp2_loc,
+                                       /*emit_read_barrier*/ false);
       // If the component type is null, jump to the slow path to throw the exception.
       __ CompareAndBranchIfZero(temp, type_check_slow_path->GetEntryLabel());
       // Otherwise,the object is indeed an array, jump to label `check_non_primitive_component_type`
@@ -6727,9 +6754,11 @@ void InstructionCodeGeneratorARM::HandleBitwiseOperation(HBinaryOperation* instr
 void InstructionCodeGeneratorARM::GenerateReferenceLoadOneRegister(HInstruction* instruction,
                                                                    Location out,
                                                                    uint32_t offset,
-                                                                   Location maybe_temp) {
+                                                                   Location maybe_temp,
+                                                                   bool emit_read_barrier) {
   Register out_reg = out.AsRegister<Register>();
-  if (kEmitCompilerReadBarrier) {
+  if (emit_read_barrier) {
+    CHECK(kEmitCompilerReadBarrier);
     DCHECK(maybe_temp.IsRegister()) << maybe_temp;
     if (kUseBakerReadBarrier) {
       // Load with fast path based Baker's read barrier.
@@ -6763,7 +6792,7 @@ void InstructionCodeGeneratorARM::GenerateReferenceLoadTwoRegisters(HInstruction
   Register out_reg = out.AsRegister<Register>();
   Register obj_reg = obj.AsRegister<Register>();
   if (emit_read_barrier) {
-    DCHECK(kEmitCompilerReadBarrier);
+    CHECK(kEmitCompilerReadBarrier);
     if (kUseBakerReadBarrier) {
       DCHECK(maybe_temp.IsRegister()) << maybe_temp;
       // Load with fast path based Baker's read barrier.
