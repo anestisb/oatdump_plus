@@ -5877,9 +5877,6 @@ HLoadString::LoadKind CodeGeneratorARM::GetSupportedLoadStringKind(
     case HLoadString::LoadKind::kBssEntry:
       DCHECK(!Runtime::Current()->UseJitCompilation());
       break;
-    case HLoadString::LoadKind::kJitTableAddress:
-      DCHECK(Runtime::Current()->UseJitCompilation());
-      return HLoadString::LoadKind::kDexCacheViaMethod;
     case HLoadString::LoadKind::kDexCacheViaMethod:
       break;
   }

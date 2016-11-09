@@ -6217,9 +6217,6 @@ HLoadString::LoadKind CodeGeneratorX86::GetSupportedLoadStringKind(
       break;
     case HLoadString::LoadKind::kDexCacheViaMethod:
       break;
-    case HLoadString::LoadKind::kJitTableAddress:
-      DCHECK(Runtime::Current()->UseJitCompilation());
-      return HLoadString::LoadKind::kDexCacheViaMethod;
   }
   return desired_string_load_kind;
 }
