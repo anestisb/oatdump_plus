@@ -1527,7 +1527,7 @@ static void ProcessDexFile(const char* file_name, const DexFile* dex_file, size_
   // Output dex file.
   if (options_.output_dex_directory_ != nullptr) {
     std::string output_location(options_.output_dex_directory_);
-    size_t last_slash = dex_file->GetLocation().rfind("/");
+    size_t last_slash = dex_file->GetLocation().rfind('/');
     output_location.append(dex_file->GetLocation().substr(last_slash));
     DexWriter::OutputDexFile(*header, output_location.c_str());
   }

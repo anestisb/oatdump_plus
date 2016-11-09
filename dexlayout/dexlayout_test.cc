@@ -37,12 +37,12 @@ class DexLayoutTest : public CommonRuntimeTest {
   bool FullPlainOutputExec(std::string* error_msg) {
     // TODO: dexdump2 -> dexdump ?
     ScratchFile dexdump_output;
-    std::string dexdump_filename = dexdump_output.GetFilename();
+    const std::string& dexdump_filename = dexdump_output.GetFilename();
     std::string dexdump = GetTestAndroidRoot() + "/bin/dexdump2";
     EXPECT_TRUE(OS::FileExists(dexdump.c_str())) << dexdump << " should be a valid file path";
 
     ScratchFile dexlayout_output;
-    std::string dexlayout_filename = dexlayout_output.GetFilename();
+    const std::string& dexlayout_filename = dexlayout_output.GetFilename();
     std::string dexlayout = GetTestAndroidRoot() + "/bin/dexlayout";
     EXPECT_TRUE(OS::FileExists(dexlayout.c_str())) << dexlayout << " should be a valid file path";
 
@@ -70,8 +70,8 @@ class DexLayoutTest : public CommonRuntimeTest {
   // Runs DexFileOutput test.
   bool DexFileOutputExec(std::string* error_msg) {
     ScratchFile tmp_file;
-    std::string tmp_name = tmp_file.GetFilename();
-    size_t tmp_last_slash = tmp_name.rfind("/");
+    const std::string& tmp_name = tmp_file.GetFilename();
+    size_t tmp_last_slash = tmp_name.rfind('/');
     std::string tmp_dir = tmp_name.substr(0, tmp_last_slash + 1);
     std::string dexlayout = GetTestAndroidRoot() + "/bin/dexlayout";
     EXPECT_TRUE(OS::FileExists(dexlayout.c_str())) << dexlayout << " should be a valid file path";
@@ -84,7 +84,7 @@ class DexLayoutTest : public CommonRuntimeTest {
         return false;
       }
 
-      size_t dex_file_last_slash = dex_file.rfind("/");
+      size_t dex_file_last_slash = dex_file.rfind('/');
       std::string dex_file_name = dex_file.substr(dex_file_last_slash + 1);
       std::vector<std::string> unzip_exec_argv =
           { "/usr/bin/unzip", dex_file, "classes.dex", "-d", tmp_dir};

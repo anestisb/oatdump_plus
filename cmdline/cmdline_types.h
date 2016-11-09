@@ -696,7 +696,7 @@ struct CmdlineType<ProfileSaverOptions> : CmdlineTypeParser<ProfileSaverOptions>
   }
 
   static std::string RemovePrefix(const std::string& source) {
-    size_t prefix_idx = source.find(":");
+    size_t prefix_idx = source.find(':');
 
     if (prefix_idx == std::string::npos) {
       return "";
