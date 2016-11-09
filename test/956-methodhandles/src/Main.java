@@ -19,6 +19,8 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
 import java.lang.invoke.WrongMethodTypeException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -65,6 +67,8 @@ public class Main {
     testfindVirtual();
     testUnreflects();
     testAsType();
+    testConstructors();
+    testStringConstructors();
   }
 
   public static void testfindSpecial_invokeSuperBehaviour() throws Throwable {
@@ -347,18 +351,17 @@ public class Main {
 
     privateConstructor.setAccessible(true);
     mh = MethodHandles.lookup().unreflectConstructor(privateConstructor);
-    // TODO(narayan): Method handle constructor invokes are not supported yet.
-    //
-    // UnreflectTester tester = (UnreflectTester) mh.invoke("foo");
-    // UnreflectTester tester = (UnreflectTester) mh.invoke("fooExact");
-
+    instance = (UnreflectTester) mh.invokeExact("abc");
+    assertEquals("abc", instance.publicField);
+    instance = (UnreflectTester) mh.invoke("def");
+    assertEquals("def", instance.publicField);
     Constructor publicConstructor = UnreflectTester.class.getConstructor(String.class,
         boolean.class);
     mh = MethodHandles.lookup().unreflectConstructor(publicConstructor);
-    // TODO(narayan): Method handle constructor invokes are not supported yet.
-    //
-    // UnreflectTester tester = (UnreflectTester) mh.invoke("foo");
-    // UnreflectTester tester = (UnreflectTester) mh.invoke("fooExact");
+    instance = (UnreflectTester) mh.invokeExact("abc", false);
+    assertEquals("abc", instance.publicField);
+    instance = (UnreflectTester) mh.invoke("def", true);
+    assertEquals("def", instance.publicField);
 
     // TODO(narayan): Non exact invokes for field sets/gets are not implemented yet.
     //
@@ -492,6 +495,195 @@ public class Main {
   public static void fail() {
     System.out.println("fail");
     Thread.dumpStack();
+  }
+
+  public static void fail(String message) {
+    System.out.println("fail: " + message);
+    Thread.dumpStack();
+  }
+
+  public static void testConstructors() throws Throwable {
+    MethodHandle mh =
+        MethodHandles.lookup().findConstructor(Float.class,
+                                               MethodType.methodType(void.class,
+                                                                     float.class));
+    Float value = (Float) mh.invokeExact(0.33f);
+    if (value.floatValue() != 0.33f) {
+      fail("Unexpected float value from invokeExact " + value.floatValue());
+    }
+
+    value = (Float) mh.invoke(3.34f);
+    if (value.floatValue() != 3.34f) {
+      fail("Unexpected float value from invoke " + value.floatValue());
+    }
+
+    mh = MethodHandles.lookup().findConstructor(Double.class,
+                                                MethodType.methodType(void.class, String.class));
+    Double d = (Double) mh.invoke("8.45e3");
+    if (d.doubleValue() != 8.45e3) {
+      fail("Unexpected double value from Double(String) " + value.doubleValue());
+    }
+
+    mh = MethodHandles.lookup().findConstructor(Double.class,
+                                                MethodType.methodType(void.class, double.class));
+    d = (Double) mh.invoke(8.45e3);
+    if (d.doubleValue() != 8.45e3) {
+      fail("Unexpected double value from Double(double) " + value.doubleValue());
+    }
+
+    // Primitive type
+    try {
+      mh = MethodHandles.lookup().findConstructor(int.class, MethodType.methodType(void.class));
+      fail("Unexpected lookup success for primitive constructor");
+    } catch (NoSuchMethodException e) {}
+
+    // Interface
+    try {
+      mh = MethodHandles.lookup().findConstructor(Readable.class,
+                                                  MethodType.methodType(void.class));
+      fail("Unexpected lookup success for interface constructor");
+    } catch (NoSuchMethodException e) {}
+
+    // Abstract
+    mh = MethodHandles.lookup().findConstructor(Process.class, MethodType.methodType(void.class));
+    try {
+      mh.invoke();
+      fail("Unexpected ability to instantiate an abstract class");
+    } catch (InstantiationException e) {}
+
+    // Non-existent
+    try {
+        MethodHandle bad = MethodHandles.lookup().findConstructor(
+            String.class, MethodType.methodType(String.class, Float.class));
+        fail("Unexpected success for non-existent constructor");
+    } catch (NoSuchMethodException e) {}
+
+    // Non-void constructor search. (I)I instead of (I)V.
+    try {
+        MethodHandle foo = MethodHandles.lookup().findConstructor(
+            Integer.class, MethodType.methodType(Integer.class, Integer.class));
+        fail("Unexpected success for non-void type for findConstructor");
+    } catch (NoSuchMethodException e) {}
+  }
+
+  public static void testStringConstructors() throws Throwable {
+    final String testPattern = "The system as we know it is broken";
+
+    // String()
+    MethodHandle mh = MethodHandles.lookup().findConstructor(
+        String.class, MethodType.methodType(void.class));
+    String s = (String) mh.invokeExact();
+    if (!s.equals("")) {
+      fail("Unexpected empty string constructor result: '" + s + "'");
+    }
+
+    // String(String)
+    mh = MethodHandles.lookup().findConstructor(
+        String.class, MethodType.methodType(void.class, String.class));
+    s = (String) mh.invokeExact(testPattern);
+    if (!s.equals(testPattern)) {
+      fail("Unexpected string constructor result: '" + s + "'");
+    }
+
+    // String(char[])
+    mh = MethodHandles.lookup().findConstructor(
+        String.class, MethodType.methodType(void.class, char[].class));
+    s = (String) mh.invokeExact(testPattern.toCharArray());
+    if (!s.equals(testPattern)) {
+      fail("Unexpected string constructor result: '" + s + "'");
+    }
+
+    // String(char[], int, int)
+    mh = MethodHandles.lookup().findConstructor(
+        String.class, MethodType.methodType(void.class, char[].class, int.class, int.class));
+    s = (String) mh.invokeExact(new char [] { 'a', 'b', 'c', 'd', 'e'}, 2, 3);
+    if (!s.equals("cde")) {
+      fail("Unexpected string constructor result: '" + s + "'");
+    }
+
+    // String(int[] codePoints, int offset, int count)
+    StringBuffer sb = new StringBuffer(testPattern);
+    int[] codePoints = new int[sb.codePointCount(0, sb.length())];
+    for (int i = 0; i < sb.length(); ++i) {
+      codePoints[i] = sb.codePointAt(i);
+    }
+    mh = MethodHandles.lookup().findConstructor(
+        String.class, MethodType.methodType(void.class, int[].class, int.class, int.class));
+    s = (String) mh.invokeExact(codePoints, 0, codePoints.length);
+    if (!s.equals(testPattern)) {
+      fail("Unexpected string constructor result: '" + s + "'");
+    }
+
+    // String(byte ascii[], int hibyte, int offset, int count)
+    byte [] ascii = testPattern.getBytes(StandardCharsets.US_ASCII);
+    mh = MethodHandles.lookup().findConstructor(
+        String.class, MethodType.methodType(void.class, byte[].class, int.class, int.class));
+    s = (String) mh.invokeExact(ascii, 0, ascii.length);
+    if (!s.equals(testPattern)) {
+      fail("Unexpected string constructor result: '" + s + "'");
+    }
+
+    // String(byte bytes[], int offset, int length, String charsetName)
+    mh = MethodHandles.lookup().findConstructor(
+        String.class,
+        MethodType.methodType(void.class, byte[].class, int.class, int.class, String.class));
+    s = (String) mh.invokeExact(ascii, 0, 5, StandardCharsets.US_ASCII.name());
+    if (!s.equals(testPattern.substring(0, 5))) {
+      fail("Unexpected string constructor result: '" + s + "'");
+    }
+
+    // String(byte bytes[], int offset, int length, Charset charset)
+    mh = MethodHandles.lookup().findConstructor(
+        String.class,
+        MethodType.methodType(void.class, byte[].class, int.class, int.class, Charset.class));
+    s = (String) mh.invokeExact(ascii, 0, 5, StandardCharsets.US_ASCII);
+    if (!s.equals(testPattern.substring(0, 5))) {
+      fail("Unexpected string constructor result: '" + s + "'");
+    }
+
+    // String(byte bytes[], String charsetName)
+    mh = MethodHandles.lookup().findConstructor(
+        String.class,
+        MethodType.methodType(void.class, byte[].class, String.class));
+    s = (String) mh.invokeExact(ascii, StandardCharsets.US_ASCII.name());
+    if (!s.equals(testPattern)) {
+      fail("Unexpected string constructor result: '" + s + "'");
+    }
+
+    // String(byte bytes[], Charset charset)
+    mh = MethodHandles.lookup().findConstructor(
+        String.class, MethodType.methodType(void.class, byte[].class, Charset.class));
+    s = (String) mh.invokeExact(ascii, StandardCharsets.US_ASCII);
+    if (!s.equals(testPattern)) {
+      fail("Unexpected string constructor result: '" + s + "'");
+    }
+
+    // String(byte bytes[], int offset, int length)
+    mh = MethodHandles.lookup().findConstructor(
+        String.class, MethodType.methodType(void.class, byte[].class, int.class, int.class));
+    s = (String) mh.invokeExact(ascii, 1, ascii.length - 2);
+    s = testPattern.charAt(0) + s + testPattern.charAt(testPattern.length() - 1);
+    if (!s.equals(testPattern)) {
+      fail("Unexpected string constructor result: '" + s + "'");
+    }
+
+    // String(byte bytes[])
+    mh = MethodHandles.lookup().findConstructor(
+        String.class, MethodType.methodType(void.class, byte[].class));
+    s = (String) mh.invokeExact(ascii);
+    if (!s.equals(testPattern)) {
+      fail("Unexpected string constructor result: '" + s + "'");
+    }
+
+    // String(StringBuffer buffer)
+    mh = MethodHandles.lookup().findConstructor(
+        String.class, MethodType.methodType(void.class, StringBuffer.class));
+    s = (String) mh.invokeExact(sb);
+    if (!s.equals(testPattern)) {
+      fail("Unexpected string constructor result: '" + s + "'");
+    }
+
+    System.out.println("String constructors done.");
   }
 }
 
