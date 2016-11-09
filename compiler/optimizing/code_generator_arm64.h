@@ -563,8 +563,6 @@ class CodeGeneratorARM64 : public CodeGenerator {
                                                                     uint32_t type_index);
   vixl::aarch64::Literal<uint32_t>* DeduplicateBootImageAddressLiteral(uint64_t address);
   vixl::aarch64::Literal<uint64_t>* DeduplicateDexCacheAddressLiteral(uint64_t address);
-  vixl::aarch64::Literal<uint32_t>* DeduplicateJitStringLiteral(const DexFile& dex_file,
-                                                                uint32_t string_index);
 
   void EmitAdrpPlaceholder(vixl::aarch64::Label* fixup_label, vixl::aarch64::Register reg);
   void EmitAddPlaceholder(vixl::aarch64::Label* fixup_label,
@@ -575,8 +573,6 @@ class CodeGeneratorARM64 : public CodeGenerator {
                                 vixl::aarch64::Register base);
 
   void EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) OVERRIDE;
-
-  void EmitJitRootPatches(uint8_t* code, const uint8_t* roots_data) OVERRIDE;
 
   // Fast path implementation of ReadBarrier::Barrier for a heap
   // reference field load when Baker's read barriers are used.
@@ -675,9 +671,9 @@ class CodeGeneratorARM64 : public CodeGenerator {
   using MethodToLiteralMap = ArenaSafeMap<MethodReference,
                                           vixl::aarch64::Literal<uint64_t>*,
                                           MethodReferenceComparator>;
-  using StringToLiteralMap = ArenaSafeMap<StringReference,
-                                          vixl::aarch64::Literal<uint32_t>*,
-                                          StringReferenceValueComparator>;
+  using BootStringToLiteralMap = ArenaSafeMap<StringReference,
+                                              vixl::aarch64::Literal<uint32_t>*,
+                                              StringReferenceValueComparator>;
   using BootTypeToLiteralMap = ArenaSafeMap<TypeReference,
                                             vixl::aarch64::Literal<uint32_t>*,
                                             TypeReferenceValueComparator>;
@@ -741,7 +737,7 @@ class CodeGeneratorARM64 : public CodeGenerator {
   // PC-relative DexCache access info.
   ArenaDeque<PcRelativePatchInfo> pc_relative_dex_cache_patches_;
   // Deduplication map for boot string literals for kBootImageLinkTimeAddress.
-  StringToLiteralMap boot_image_string_patches_;
+  BootStringToLiteralMap boot_image_string_patches_;
   // PC-relative String patch info; type depends on configuration (app .bss or boot image PIC).
   ArenaDeque<PcRelativePatchInfo> pc_relative_string_patches_;
   // Deduplication map for boot type literals for kBootImageLinkTimeAddress.
@@ -750,9 +746,6 @@ class CodeGeneratorARM64 : public CodeGenerator {
   ArenaDeque<PcRelativePatchInfo> pc_relative_type_patches_;
   // Deduplication map for patchable boot image addresses.
   Uint32ToLiteralMap boot_image_address_patches_;
-
-  // Patches for string literals in JIT compiled code.
-  StringToLiteralMap jit_string_patches_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorARM64);
 };
