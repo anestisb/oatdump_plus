@@ -1020,7 +1020,6 @@ CodeGeneratorX86::CodeGeneratorX86(HGraph* graph,
       simple_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       string_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       type_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
-      jit_string_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       constant_area_start_(-1),
       fixups_to_jump_tables_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       method_address_offset_(-1) {
@@ -6226,7 +6225,7 @@ HLoadString::LoadKind CodeGeneratorX86::GetSupportedLoadStringKind(
       break;
     case HLoadString::LoadKind::kJitTableAddress:
       DCHECK(Runtime::Current()->UseJitCompilation());
-      break;
+      return HLoadString::LoadKind::kDexCacheViaMethod;
   }
   return desired_string_load_kind;
 }
@@ -6261,14 +6260,6 @@ void LocationsBuilderX86::VisitLoadString(HLoadString* load) {
   }
 }
 
-Label* CodeGeneratorX86::NewJitRootStringPatch(const DexFile& dex_file, uint32_t dex_index) {
-  jit_string_roots_.Overwrite(StringReference(&dex_file, dex_index), /* placeholder */ 0u);
-  // Add a patch entry and return the label.
-  jit_string_patches_.emplace_back(dex_file, dex_index);
-  PatchInfo<Label>* info = &jit_string_patches_.back();
-  return &info->label;
-}
-
 void InstructionCodeGeneratorX86::VisitLoadString(HLoadString* load) {
   LocationSummary* locations = load->GetLocations();
   Location out_loc = locations->Out();
@@ -6297,21 +6288,13 @@ void InstructionCodeGeneratorX86::VisitLoadString(HLoadString* load) {
       Register method_address = locations->InAt(0).AsRegister<Register>();
       Address address = Address(method_address, CodeGeneratorX86::kDummy32BitOffset);
       Label* fixup_label = codegen_->NewStringBssEntryPatch(load);
-      // /* GcRoot<mirror::String> */ out = *address  /* PC-relative */
+      // /* GcRoot<mirror::Class> */ out = *address  /* PC-relative */
       GenerateGcRootFieldLoad(load, out_loc, address, fixup_label, kEmitCompilerReadBarrier);
       SlowPathCode* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathX86(load);
       codegen_->AddSlowPath(slow_path);
       __ testl(out, out);
       __ j(kEqual, slow_path->GetEntryLabel());
       __ Bind(slow_path->GetExitLabel());
-      return;
-    }
-    case HLoadString::LoadKind::kJitTableAddress: {
-      Address address = Address::Absolute(CodeGeneratorX86::kDummy32BitOffset);
-      Label* fixup_label = codegen_->NewJitRootStringPatch(
-          load->GetDexFile(), load->GetStringIndex());
-      // /* GcRoot<mirror::String> */ out = *address
-      GenerateGcRootFieldLoad(load, out_loc, address, fixup_label, kEmitCompilerReadBarrier);
       return;
     }
     default:
@@ -7618,20 +7601,6 @@ void CodeGeneratorX86::MoveFromReturnRegister(Location target, Primitive::Type t
     HParallelMove parallel_move(GetGraph()->GetArena());
     parallel_move.AddMove(return_loc, target, type, nullptr);
     GetMoveResolver()->EmitNativeCode(&parallel_move);
-  }
-}
-
-void CodeGeneratorX86::EmitJitRootPatches(uint8_t* code, const uint8_t* roots_data) {
-  for (const PatchInfo<Label>& info : jit_string_patches_) {
-    const auto& it = jit_string_roots_.find(StringReference(&info.dex_file, info.index));
-    DCHECK(it != jit_string_roots_.end());
-    size_t index_in_table = it->second;
-    uint32_t code_offset = info.label.Position() - kLabelPositionToLiteralOffsetAdjustment;
-    uintptr_t address =
-        reinterpret_cast<uintptr_t>(roots_data) + index_in_table * sizeof(GcRoot<mirror::Object>);
-    typedef __attribute__((__aligned__(1))) uint32_t unaligned_uint32_t;
-    reinterpret_cast<unaligned_uint32_t*>(code + code_offset)[0] =
-       dchecked_integral_cast<uint32_t>(address);
   }
 }
 
