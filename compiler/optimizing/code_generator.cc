@@ -1375,4 +1375,30 @@ uint32_t CodeGenerator::GetReferenceDisableFlagOffset() const {
   return klass->GetDisableIntrinsicFlagOffset().Uint32Value();
 }
 
+void CodeGenerator::EmitJitRoots(uint8_t* code,
+                                 Handle<mirror::ObjectArray<mirror::Object>> roots,
+                                 const uint8_t* roots_data,
+                                 Handle<mirror::DexCache> outer_dex_cache) {
+  DCHECK_EQ(static_cast<size_t>(roots->GetLength()), GetNumberOfJitRoots());
+  StackHandleScope<1> hs(Thread::Current());
+  MutableHandle<mirror::DexCache> h_dex_cache(hs.NewHandle<mirror::DexCache>(nullptr));
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  size_t index = 0;
+  for (auto& entry : jit_string_roots_) {
+    const DexFile& entry_dex_file = *entry.first.dex_file;
+    // Avoid the expensive FindDexCache call by checking if the string is
+    // in the compiled method's dex file.
+    h_dex_cache.Assign(IsSameDexFile(*outer_dex_cache->GetDexFile(), entry_dex_file)
+        ? outer_dex_cache.Get()
+        : class_linker->FindDexCache(hs.Self(), entry_dex_file));
+    mirror::String* string = class_linker->LookupString(
+        entry_dex_file, entry.first.string_index, h_dex_cache);
+    DCHECK(string != nullptr) << "JIT roots require strings to have been loaded";
+    roots->Set(index, string);
+    entry.second = index;
+    ++index;
+  }
+  EmitJitRootPatches(code, roots_data);
+}
+
 }  // namespace art
