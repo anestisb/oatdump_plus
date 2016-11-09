@@ -30,6 +30,7 @@ public class Main {
     testArrayElementSetter();
     testIdentity();
     testConstant();
+    testBindTo();
   }
 
   public static void testThrowException() throws Throwable {
@@ -666,6 +667,44 @@ public class Main {
       MethodHandle constant = MethodHandles.constant(String.class, "256.0");
       String value = (String) constant.invoke();
       assertEquals("256.0", value);
+    }
+  }
+
+  public static void testBindTo() throws Throwable {
+    MethodHandle stringCharAt = MethodHandles.lookup().findVirtual(
+        String.class, "charAt", MethodType.methodType(char.class, int.class));
+
+    char value = (char) stringCharAt.invoke("foo", 0);
+    if (value != 'f') {
+      System.out.println("Unexpected value: " + value);
+    }
+
+    MethodHandle bound = stringCharAt.bindTo("foo");
+    value = (char) bound.invoke(0);
+    if (value != 'f') {
+      System.out.println("Unexpected value: " + value);
+    }
+
+    try {
+      stringCharAt.bindTo(new Object());
+      fail();
+    } catch (ClassCastException expected) {
+    }
+
+    bound = stringCharAt.bindTo(null);
+    try {
+      bound.invoke(0);
+      fail();
+    } catch (NullPointerException expected) {
+    }
+
+    MethodHandle integerParseInt = MethodHandles.lookup().findStatic(
+        Integer.class, "parseInt", MethodType.methodType(int.class, String.class));
+
+    bound = integerParseInt.bindTo("78452");
+    int intValue = (int) bound.invoke();
+    if (intValue != 78452) {
+      System.out.println("Unexpected value: " + intValue);
     }
   }
 
