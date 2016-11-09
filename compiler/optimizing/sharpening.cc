@@ -281,7 +281,8 @@ void HSharpening::ProcessLoadString(HLoadString* load_string) {
         : hs.NewHandle(class_linker->FindDexCache(soa.Self(), dex_file));
 
     if (codegen_->GetCompilerOptions().IsBootImage()) {
-      // Compiling boot image. Resolve the string and allocate it if needed.
+      // Compiling boot image. Resolve the string and allocate it if needed, to ensure
+      // the string will be added to the boot image.
       DCHECK(!runtime->UseJitCompilation());
       mirror::String* string = class_linker->ResolveString(dex_file, string_index, dex_cache);
       CHECK(string != nullptr);
@@ -297,10 +298,14 @@ void HSharpening::ProcessLoadString(HLoadString* load_string) {
     } else if (runtime->UseJitCompilation()) {
       // TODO: Make sure we don't set the "compile PIC" flag for JIT as that's bogus.
       // DCHECK(!codegen_->GetCompilerOptions().GetCompilePic());
-      mirror::String* string = dex_cache->GetResolvedString(string_index);
-      if (string != nullptr && runtime->GetHeap()->ObjectIsInBootImageSpace(string)) {
-        desired_load_kind = HLoadString::LoadKind::kBootImageAddress;
-        address = reinterpret_cast64<uint64_t>(string);
+      mirror::String* string = class_linker->LookupString(dex_file, string_index, dex_cache);
+      if (string != nullptr) {
+        if (runtime->GetHeap()->ObjectIsInBootImageSpace(string)) {
+          desired_load_kind = HLoadString::LoadKind::kBootImageAddress;
+          address = reinterpret_cast64<uint64_t>(string);
+        } else {
+          desired_load_kind = HLoadString::LoadKind::kJitTableAddress;
+        }
       }
     } else {
       // AOT app compilation. Try to lookup the string without allocating if not found.
@@ -322,6 +327,7 @@ void HSharpening::ProcessLoadString(HLoadString* load_string) {
     case HLoadString::LoadKind::kBootImageLinkTimePcRelative:
     case HLoadString::LoadKind::kBssEntry:
     case HLoadString::LoadKind::kDexCacheViaMethod:
+    case HLoadString::LoadKind::kJitTableAddress:
       load_string->SetLoadKindWithStringReference(load_kind, dex_file, string_index);
       break;
     case HLoadString::LoadKind::kBootImageAddress:
