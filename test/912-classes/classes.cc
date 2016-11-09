@@ -23,6 +23,7 @@
 #include "openjdkjvmti/jvmti.h"
 #include "ScopedLocalRef.h"
 
+#include "ti-agent/common_helper.h"
 #include "ti-agent/common_load.h"
 
 namespace art {
@@ -40,21 +41,14 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getClassSignature(
     return nullptr;
   }
 
-  ScopedLocalRef<jclass> obj_class(env, env->FindClass("java/lang/String"));
-  if (obj_class.get() == nullptr) {
-    return nullptr;
-  }
-
-  jobjectArray ret = env->NewObjectArray(2, obj_class.get(), nullptr);
-  if (ret == nullptr) {
-    return ret;
-  }
-
-  ScopedLocalRef<jstring> sig_str(env, sig == nullptr ? nullptr : env->NewStringUTF(sig));
-  ScopedLocalRef<jstring> gen_str(env, gen == nullptr ? nullptr : env->NewStringUTF(gen));
-
-  env->SetObjectArrayElement(ret, 0, sig_str.get());
-  env->SetObjectArrayElement(ret, 1, gen_str.get());
+  auto callback = [&](jint i) {
+    if (i == 0) {
+      return sig == nullptr ? nullptr : env->NewStringUTF(sig);
+    } else {
+      return gen == nullptr ? nullptr : env->NewStringUTF(gen);
+    }
+  };
+  jobjectArray ret = CreateObjectArray(env, 2, "java/lang/String", callback);
 
   // Need to deallocate the strings.
   if (sig != nullptr) {
