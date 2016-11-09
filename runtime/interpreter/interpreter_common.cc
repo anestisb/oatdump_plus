@@ -934,16 +934,12 @@ inline bool DoInvokePolymorphic(Thread* self,
       // frame, which means that it is unknown at this point. We perform these
       // checks inside DoCallPolymorphic right before we do the actualy invoke.
     } else if (handle_kind == kInvokeDirect) {
-      if (called_method->IsConstructor()) {
-        // TODO(narayan) : We need to handle the case where the target method is a
-        // constructor here.
-        UNIMPLEMENTED(FATAL) << "Direct invokes for constructors are not implemented yet.";
-        return false;
+      // String constructors are a special case, they are replaced with StringFactory
+      // methods.
+      if (called_method->IsConstructor() && called_method->GetDeclaringClass()->IsStringClass()) {
+        DCHECK(handle_type->GetRType()->IsStringClass());
+        called_method = WellKnownClasses::StringInitToStringFactory(called_method);
       }
-
-      // Nothing special to do in the case where we're not dealing with a
-      // constructor. It's a private method, and we've already access checked at
-      // the point of creating the handle.
     } else if (handle_kind == kInvokeSuper) {
       ObjPtr<mirror::Class> declaring_class = called_method->GetDeclaringClass();
 
