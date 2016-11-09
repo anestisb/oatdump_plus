@@ -6218,9 +6218,6 @@ HLoadString::LoadKind CodeGeneratorX86::GetSupportedLoadStringKind(
       break;
     case HLoadString::LoadKind::kBootImageAddress:
       break;
-    case HLoadString::LoadKind::kDexCacheAddress:
-      DCHECK(Runtime::Current()->UseJitCompilation());
-      break;
     case HLoadString::LoadKind::kDexCacheViaMethod:
       break;
     case HLoadString::LoadKind::kJitTableAddress:
