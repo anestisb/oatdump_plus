@@ -2992,6 +2992,9 @@ void IntrinsicCodeGeneratorX86_64::VisitReferenceGetReferent(HInvoke* invoke) {
 UNIMPLEMENTED_INTRINSIC(X86_64, FloatIsInfinite)
 UNIMPLEMENTED_INTRINSIC(X86_64, DoubleIsInfinite)
 
+UNIMPLEMENTED_INTRINSIC(X86_64, StringStringIndexOf);
+UNIMPLEMENTED_INTRINSIC(X86_64, StringStringIndexOfAfter);
+
 // 1.8.
 UNIMPLEMENTED_INTRINSIC(X86_64, UnsafeGetAndAddInt)
 UNIMPLEMENTED_INTRINSIC(X86_64, UnsafeGetAndAddLong)

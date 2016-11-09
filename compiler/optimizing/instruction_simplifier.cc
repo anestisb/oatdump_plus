@@ -106,6 +106,7 @@ class InstructionSimplifierVisitor : public HGraphDelegateVisitor {
   void SimplifyFP2Int(HInvoke* invoke);
   void SimplifyStringCharAt(HInvoke* invoke);
   void SimplifyStringIsEmptyOrLength(HInvoke* invoke);
+  void SimplifyNPEOnArgN(HInvoke* invoke, size_t);
   void SimplifyMemBarrier(HInvoke* invoke, MemBarrierKind barrier_kind);
 
   OptimizingCompilerStats* stats_;
@@ -1858,6 +1859,16 @@ void InstructionSimplifierVisitor::SimplifyStringIsEmptyOrLength(HInvoke* invoke
   invoke->GetBlock()->ReplaceAndRemoveInstructionWith(invoke, replacement);
 }
 
+// This method should only be used on intrinsics whose sole way of throwing an
+// exception is raising a NPE when the nth argument is null. If that argument
+// is provably non-null, we can clear the flag.
+void InstructionSimplifierVisitor::SimplifyNPEOnArgN(HInvoke* invoke, size_t n) {
+  HInstruction* arg = invoke->InputAt(n);
+  if (!arg->CanBeNull()) {
+    invoke->SetCanThrow(false);
+  }
+}
+
 void InstructionSimplifierVisitor::SimplifyMemBarrier(HInvoke* invoke, MemBarrierKind barrier_kind) {
   uint32_t dex_pc = invoke->GetDexPc();
   HMemoryBarrier* mem_barrier = new (GetGraph()->GetArena()) HMemoryBarrier(barrier_kind, dex_pc);
@@ -1910,6 +1921,10 @@ void InstructionSimplifierVisitor::VisitInvoke(HInvoke* instruction) {
     case Intrinsics::kStringIsEmpty:
     case Intrinsics::kStringLength:
       SimplifyStringIsEmptyOrLength(instruction);
+      break;
+    case Intrinsics::kStringStringIndexOf:
+    case Intrinsics::kStringStringIndexOfAfter:
+      SimplifyNPEOnArgN(instruction, 1);  // 0th has own NullCheck
       break;
     case Intrinsics::kUnsafeLoadFence:
       SimplifyMemBarrier(instruction, MemBarrierKind::kLoadAny);
