@@ -27,6 +27,7 @@
 #include "base/stringprintf.h"
 #include "jni.h"
 #include "openjdkjvmti/jvmti.h"
+
 #include "ti-agent/common_helper.h"
 #include "ti-agent/common_load.h"
 
@@ -275,6 +276,7 @@ jint OnLoad(JavaVM* vm,
     printf("Unable to get jvmti env!\n");
     return 1;
   }
+  SetAllCapabilities(jvmti_env);
   return 0;
 }
 
