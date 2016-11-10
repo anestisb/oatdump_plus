@@ -1330,34 +1330,7 @@ DEFINE_FUNCTION art_quick_alloc_object_initialized_region_tlab
 END_FUNCTION art_quick_alloc_object_initialized_region_tlab
 
 DEFINE_FUNCTION art_quick_resolve_string
-    // Custom calling convention: RAX serves as both input and output.
-    PUSH r15
-    PUSH r14
-    movq 24(%rsp), %r15                                         // get referrer
-    movl ART_METHOD_DECLARING_CLASS_OFFSET(%r15), %r15d         // get declaring class
-    movq DECLARING_CLASS_DEX_CACHE_STRINGS_OFFSET(%r15d), %r15  // get string dex cache
-    movl LITERAL(STRING_DEX_CACHE_SIZE_MINUS_ONE), %r14d
-    andl %eax, %r14d
-    movq (%r15, %r14, STRING_DEX_CACHE_ELEMENT_SIZE), %r14
-    movl %r14d, %r15d
-    shrq LITERAL(32), %r14
-    cmpl %r14d, %eax
-    jne .Lart_quick_resolve_string_slow_path
-    movl %r15d, %eax
-    CFI_REMEMBER_STATE
-    POP r14
-    POP r15
-#ifdef USE_READ_BARRIER
-    cmpl LITERAL(0), %gs:THREAD_IS_GC_MARKING_OFFSET
-    jne .Lnot_null_art_quick_read_barrier_mark_reg00
-#endif
-    ret
-    CFI_RESTORE_STATE
-    CFI_DEF_CFA(rsp, 24)                        // workaround for clang bug: 31975598
-
-// Slow path, the index did not match.
-.Lart_quick_resolve_string_slow_path:
-    SETUP_SAVE_EVERYTHING_FRAME_R14_R15_SAVED
+    SETUP_SAVE_EVERYTHING_FRAME
     // Outgoing argument set up
     movl %eax, %edi                             // pass string index
     movq %gs:THREAD_SELF_OFFSET, %rsi           // pass Thread::Current()

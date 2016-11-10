@@ -1109,62 +1109,7 @@ END art_quick_set64_instance
      */
 
 ENTRY art_quick_resolve_string
-    push   {r10-r12, lr}
-    .cfi_adjust_cfa_offset 16
-    .cfi_rel_offset r10, 0
-    .cfi_rel_offset r11, 4
-    .cfi_rel_offset ip, 8
-    .cfi_rel_offset lr, 12
-    ldr    r10, [sp, #16]                                        @ load referrer
-    ldr    r10, [r10, #ART_METHOD_DECLARING_CLASS_OFFSET]        @ load declaring class
-    ldr    r10, [r10, #DECLARING_CLASS_DEX_CACHE_STRINGS_OFFSET] @ load string dex cache
-    ubfx   r11, r0, #0, #STRING_DEX_CACHE_HASH_BITS
-    add    r10, r10, r11, LSL #STRING_DEX_CACHE_ELEMENT_SIZE_SHIFT
-    ldrd   r10, r11, [r10]                               @ load index into r11 and pointer into r10
-    cmp    r0, r11
-    bne    .Lart_quick_resolve_string_slow_path
-#ifdef USE_READ_BARRIER
-    ldr    r0, [rSELF, #THREAD_IS_GC_MARKING_OFFSET]
-    cbnz   r0, .Lart_quick_resolve_string_marking
-.Lart_quick_resolve_string_no_rb:
-#endif
-    mov    r0, r10
-    pop    {r10-r12, pc}
-
-#ifdef USE_READ_BARRIER
-// GC is marking case, need to check the mark bit.
-.Lart_quick_resolve_string_marking:
-    ldr    r0, [r10, MIRROR_OBJECT_LOCK_WORD_OFFSET]
-    lsrs   r0, #(LOCK_WORD_MARK_BIT_SHIFT + 1)
-    bcs    .Lart_quick_resolve_string_no_rb
-    mov    r0, r10
-    .cfi_remember_state
-    pop    {r10-r12, lr}
-    .cfi_adjust_cfa_offset -16
-    .cfi_restore r10
-    .cfi_restore r11
-    .cfi_restore r12
-    .cfi_restore lr
-    // Note: art_quick_read_barrier_mark_reg00 clobbers IP but the .Lslow_rb_* does not.
-    b      .Lslow_rb_art_quick_read_barrier_mark_reg00  @ Get the marked string back.
-    .cfi_restore_state
-#endif
-
-// Slow path case, the index did not match
-.Lart_quick_resolve_string_slow_path:
-    push {r0-r9}                  @ 10 words of callee saves and args; {r10-r12, lr} already saved.
-    .cfi_adjust_cfa_offset 40
-    .cfi_rel_offset r0, 0
-    .cfi_rel_offset r1, 4
-    .cfi_rel_offset r2, 8
-    .cfi_rel_offset r3, 12
-    .cfi_rel_offset r4, 16
-    .cfi_rel_offset r5, 20
-    .cfi_rel_offset r6, 24
-    .cfi_rel_offset r7, 28
-    .cfi_rel_offset r8, 32
-    .cfi_rel_offset r9, 36
-    SETUP_SAVE_EVERYTHING_FRAME_CORE_REGS_SAVED r1   @ save callee saves in case of GC
+    SETUP_SAVE_EVERYTHING_FRAME r1                   @ save everything in case of GC
     mov    r1, r9                                    @ pass Thread::Current
     bl     artResolveStringFromCode                  @ (uint32_t type_idx, Thread*)
     cbz    r0, 1f                                    @ If result is null, deliver the OOME.

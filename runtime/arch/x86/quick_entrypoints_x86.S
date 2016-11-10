@@ -1151,51 +1151,17 @@ DEFINE_FUNCTION art_quick_alloc_object_region_tlab
 END_FUNCTION art_quick_alloc_object_region_tlab
 
 DEFINE_FUNCTION art_quick_resolve_string
-    PUSH edi
-    PUSH esi
-    // Save xmm0 at an aligned address on the stack.
-    subl MACRO_LITERAL(12), %esp
-    CFI_ADJUST_CFA_OFFSET(12)
-    movsd %xmm0, 0(%esp)
-    movl 24(%esp), %edi                                          // get referrer
-    movl ART_METHOD_DECLARING_CLASS_OFFSET(%edi), %edi           // get declaring class
-    movl DECLARING_CLASS_DEX_CACHE_STRINGS_OFFSET(%edi), %edi    // get string dex cache
-    movl LITERAL(STRING_DEX_CACHE_SIZE_MINUS_ONE), %esi
-    andl %eax, %esi
-    movlps (%edi, %esi, STRING_DEX_CACHE_ELEMENT_SIZE), %xmm0    // load string idx and ptr to xmm0
-    movd %xmm0, %edi                                             // extract pointer
-    pshufd LITERAL(0x55), %xmm0, %xmm0                           // shuffle index into lowest bits
-    movd %xmm0, %esi                                             // extract index
-    // Restore xmm0 and remove it together with padding from the stack.
-    movsd 0(%esp), %xmm0
-    addl MACRO_LITERAL(12), %esp
-    CFI_ADJUST_CFA_OFFSET(-12)
-    cmp %esi, %eax
-    jne .Lart_quick_resolve_string_slow_path
-    movl %edi, %eax
-    CFI_REMEMBER_STATE
-    POP esi
-    POP edi
-#ifdef USE_READ_BARRIER
-    cmpl LITERAL(0), %fs:THREAD_IS_GC_MARKING_OFFSET
-    jne .Lnot_null_art_quick_read_barrier_mark_reg00
-#endif
-    ret
-    CFI_RESTORE_STATE
-    CFI_DEF_CFA(esp, 24)                          // workaround for clang bug: 31975598
-
-.Lart_quick_resolve_string_slow_path:
+    SETUP_SAVE_EVERYTHING_FRAME ebx, ebx
     // Outgoing argument set up
-    SETUP_SAVE_EVERYTHING_FRAME_EDI_ESI_SAVED ebx, ebx
-    subl LITERAL(8), %esp                                        // push padding
+    subl LITERAL(8), %esp                                 // push padding
     CFI_ADJUST_CFA_OFFSET(8)
-    pushl %fs:THREAD_SELF_OFFSET                                 // pass Thread::Current()
+    pushl %fs:THREAD_SELF_OFFSET                          // pass Thread::Current()
     CFI_ADJUST_CFA_OFFSET(4)
-    PUSH eax                                                     // pass arg1
+    PUSH eax                                              // pass arg1
     call SYMBOL(artResolveStringFromCode)
-    addl LITERAL(16), %esp                                       // pop arguments
+    addl LITERAL(16), %esp                                // pop arguments
     CFI_ADJUST_CFA_OFFSET(-16)
-    testl %eax, %eax                                        // If result is null, deliver the OOME.
+    testl %eax, %eax                                      // If result is null, deliver the OOME.
     jz 1f
     CFI_REMEMBER_STATE
     RESTORE_SAVE_EVERYTHING_FRAME_KEEP_EAX
