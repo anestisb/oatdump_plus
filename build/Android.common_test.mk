@@ -124,12 +124,17 @@ ART_TEST_RUN_TEST_DEBUGGABLE ?= $(ART_TEST_FULL)
 ART_TEST_RUN_TEST_MULTI_IMAGE ?= $(ART_TEST_FULL)
 
 # Define the command run on test failure. $(1) is the name of the test. Executed by the shell.
+# If the test was a top-level make target (e.g. `test-art-host-gtest-codegen_test64`), the command
+# fails with exit status 1 (returned by the last `grep` statement below).
+# Otherwise (e.g., if the test was run as a prerequisite of a compound test command, such as
+# `test-art-host-gtest-codegen_test`), the command does not fail, as this would break rules running
+# ART_TEST_PREREQ_FINISHED as one of their actions, which expects *all* prerequisites *not* to fail.
 define ART_TEST_FAILED
   ( [ -f $(ART_HOST_TEST_DIR)/skipped/$(1) ] || \
     (mkdir -p $(ART_HOST_TEST_DIR)/failed/ && touch $(ART_HOST_TEST_DIR)/failed/$(1) && \
       echo $(ART_TEST_KNOWN_FAILING) | grep -q $(1) \
         && (echo -e "$(1) \e[91mKNOWN FAILURE\e[0m") \
-        || (echo -e "$(1) \e[91mFAILED\e[0m" >&2 )))
+        || (echo -e "$(1) \e[91mFAILED\e[0m" >&2; echo $(MAKECMDGOALS) | grep -q -v $(1))))
 endef
 
 ifeq ($(ART_TEST_QUIET),true)
