@@ -31,6 +31,7 @@ public class Main {
     testIdentity();
     testConstant();
     testBindTo();
+    testFilterReturnValue();
   }
 
   public static void testThrowException() throws Throwable {
@@ -708,6 +709,80 @@ public class Main {
     }
   }
 
+  public static String filterReturnValue_target(int a) {
+    return "ReturnValue" + a;
+  }
+
+  public static boolean filterReturnValue_filter(String value) {
+    return value.indexOf("42") != -1;
+  }
+
+  public static int filterReturnValue_intTarget(String a) {
+    return Integer.parseInt(a);
+  }
+
+  public static int filterReturnValue_intFilter(int b) {
+    return b + 1;
+  }
+
+  public static void filterReturnValue_voidTarget() {
+  }
+
+  public static int filterReturnValue_voidFilter() {
+    return 42;
+  }
+
+  public static void testFilterReturnValue() throws Throwable {
+    // A target that returns a reference.
+    {
+      final MethodHandle target = MethodHandles.lookup().findStatic(Main.class,
+          "filterReturnValue_target", MethodType.methodType(String.class, int.class));
+      final MethodHandle filter = MethodHandles.lookup().findStatic(Main.class,
+          "filterReturnValue_filter", MethodType.methodType(boolean.class, String.class));
+
+      MethodHandle adapter = MethodHandles.filterReturnValue(target, filter);
+
+      boolean value = (boolean) adapter.invoke((int) 42);
+      if (!value) {
+        System.out.println("Unexpected value: " + value);
+      }
+      value = (boolean) adapter.invoke((int) 43);
+      if (value) {
+        System.out.println("Unexpected value: " + value);
+      }
+    }
+
+    // A target that returns a primitive.
+    {
+      final MethodHandle target = MethodHandles.lookup().findStatic(Main.class,
+          "filterReturnValue_intTarget", MethodType.methodType(int.class, String.class));
+      final MethodHandle filter = MethodHandles.lookup().findStatic(Main.class,
+          "filterReturnValue_intFilter", MethodType.methodType(int.class, int.class));
+
+      MethodHandle adapter = MethodHandles.filterReturnValue(target, filter);
+
+      int value = (int) adapter.invoke("56");
+      if (value != 57) {
+        System.out.println("Unexpected value: " + value);
+      }
+    }
+
+    // A target that returns void.
+    {
+      final MethodHandle target = MethodHandles.lookup().findStatic(Main.class,
+          "filterReturnValue_voidTarget", MethodType.methodType(void.class));
+      final MethodHandle filter = MethodHandles.lookup().findStatic(Main.class,
+          "filterReturnValue_voidFilter", MethodType.methodType(int.class));
+
+      MethodHandle adapter = MethodHandles.filterReturnValue(target, filter);
+
+      int value = (int) adapter.invoke();
+      if (value != 42) {
+        System.out.println("Unexpected value: " + value);
+      }
+    }
+  }
+
   public static void fail() {
     System.out.println("FAIL");
     Thread.dumpStack();
@@ -725,5 +800,3 @@ public class Main {
     throw new AssertionError("assertEquals s1: " + s1 + ", s2: " + s2);
   }
 }
-
-
