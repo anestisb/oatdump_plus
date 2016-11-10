@@ -1097,10 +1097,12 @@ void UnstartedRuntime::UnstartedStringGetCharsNoCheck(
     return;
   }
   DCHECK_GE(start, 0);
-  DCHECK_GE(end, string->GetLength());
+  DCHECK_LE(start, end);
+  DCHECK_LE(end, string->GetLength());
   StackHandleScope<1> hs(self);
   Handle<mirror::CharArray> h_char_array(
       hs.NewHandle(shadow_frame->GetVRegReference(arg_offset + 3)->AsCharArray()));
+  DCHECK_GE(index, 0);
   DCHECK_LE(index, h_char_array->GetLength());
   DCHECK_LE(end - start, h_char_array->GetLength() - index);
   string->GetChars(start, end, h_char_array, index);

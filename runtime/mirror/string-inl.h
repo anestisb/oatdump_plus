@@ -106,9 +106,7 @@ class SetStringCountAndValueVisitorFromCharArray {
     string->SetCount(count_);
     const uint16_t* const src = src_array_->GetData() + offset_;
     const int32_t length = String::GetLengthFromCount(count_);
-    bool compressible = kUseStringCompression && String::GetCompressionFlagFromCount(count_);
-    DCHECK(!compressible || kUseStringCompression);
-    if (compressible) {
+    if (kUseStringCompression && String::IsCompressed(count_)) {
       for (int i = 0; i < length; ++i) {
         string->GetValueCompressed()[i] = static_cast<uint8_t>(src[i]);
       }
@@ -126,7 +124,8 @@ class SetStringCountAndValueVisitorFromCharArray {
 // Sets string count and value in the allocation code path to ensure it is guarded by a CAS.
 class SetStringCountAndValueVisitorFromString {
  public:
-  SetStringCountAndValueVisitorFromString(int32_t count, Handle<String> src_string,
+  SetStringCountAndValueVisitorFromString(int32_t count,
+                                          Handle<String> src_string,
                                           int32_t offset) :
     count_(count), src_string_(src_string), offset_(offset) {
   }
@@ -137,8 +136,7 @@ class SetStringCountAndValueVisitorFromString {
     ObjPtr<String> string = ObjPtr<String>::DownCast(obj);
     string->SetCount(count_);
     const int32_t length = String::GetLengthFromCount(count_);
-    bool compressible = kUseStringCompression && String::GetCompressionFlagFromCount(count_);
-    DCHECK(!compressible || kUseStringCompression);
+    bool compressible = kUseStringCompression && String::IsCompressed(count_);
     if (src_string_->IsCompressed()) {
       const uint8_t* const src = src_string_->GetValueCompressed() + offset_;
       memcpy(string->GetValueCompressed(), src, length * sizeof(uint8_t));
@@ -209,8 +207,7 @@ inline String* String::Alloc(Thread* self, int32_t utf16_length_with_flag,
                              gc::AllocatorType allocator_type,
                              const PreFenceVisitor& pre_fence_visitor) {
   constexpr size_t header_size = sizeof(String);
-  const bool compressible = kUseStringCompression &&
-                            String::GetCompressionFlagFromCount(utf16_length_with_flag);
+  const bool compressible = kUseStringCompression && String::IsCompressed(utf16_length_with_flag);
   const size_t block_size = (compressible) ? sizeof(uint8_t) : sizeof(uint16_t);
   size_t length = String::GetLengthFromCount(utf16_length_with_flag);
   static_assert(sizeof(length) <= sizeof(size_t),
@@ -245,7 +242,7 @@ inline String* String::Alloc(Thread* self, int32_t utf16_length_with_flag,
 
 template <bool kIsInstrumented>
 inline String* String::AllocEmptyString(Thread* self, gc::AllocatorType allocator_type) {
-  const int32_t length_with_flag = String::GetFlaggedCount(0);
+  const int32_t length_with_flag = String::GetFlaggedCount(0, /* compressible */ true);
   SetStringCountVisitor visitor(length_with_flag);
   return Alloc<kIsInstrumented>(self, length_with_flag, allocator_type, visitor);
 }
@@ -255,10 +252,9 @@ inline String* String::AllocFromByteArray(Thread* self, int32_t byte_length,
                                           Handle<ByteArray> array, int32_t offset,
                                           int32_t high_byte, gc::AllocatorType allocator_type) {
   const uint8_t* const src = reinterpret_cast<uint8_t*>(array->GetData()) + offset;
-  const bool compressible = kUseStringCompression && String::AllASCII<uint8_t>(src, byte_length)
-                                            && (high_byte == 0);
-  const int32_t length_with_flag = (compressible) ? String::GetFlaggedCount(byte_length)
-                                                  : byte_length;
+  const bool compressible =
+      kUseStringCompression && String::AllASCII<uint8_t>(src, byte_length) && (high_byte == 0);
+  const int32_t length_with_flag = String::GetFlaggedCount(byte_length, compressible);
   SetStringCountAndBytesVisitor visitor(length_with_flag, array, offset, high_byte << 8);
   String* string = Alloc<kIsInstrumented>(self, length_with_flag, allocator_type, visitor);
   return string;
@@ -272,7 +268,7 @@ inline String* String::AllocFromCharArray(Thread* self, int32_t count,
   DCHECK_GE(array->GetLength(), count);
   const bool compressible = kUseStringCompression &&
                             String::AllASCII<uint16_t>(array->GetData() + offset, count);
-  const int32_t length_with_flag = (compressible) ? String::GetFlaggedCount(count) : count;
+  const int32_t length_with_flag = String::GetFlaggedCount(count, compressible);
   SetStringCountAndValueVisitorFromCharArray visitor(length_with_flag, array, offset);
   String* new_string = Alloc<kIsInstrumented>(self, length_with_flag, allocator_type, visitor);
   return new_string;
@@ -284,8 +280,7 @@ inline String* String::AllocFromString(Thread* self, int32_t string_length, Hand
   const bool compressible = kUseStringCompression &&
       ((string->IsCompressed()) ? true : String::AllASCII<uint16_t>(string->GetValue() + offset,
                                                                     string_length));
-  const int32_t length_with_flag = (compressible) ? String::GetFlaggedCount(string_length)
-                                                  : string_length;
+  const int32_t length_with_flag = String::GetFlaggedCount(string_length, compressible);
   SetStringCountAndValueVisitorFromString visitor(length_with_flag, string, offset);
   String* new_string = Alloc<kIsInstrumented>(self, length_with_flag, allocator_type, visitor);
   return new_string;
@@ -311,7 +306,7 @@ inline int32_t String::GetHashCode() {
 template<typename MemoryType>
 bool String::AllASCII(const MemoryType* const chars, const int length) {
   for (int i = 0; i < length; ++i) {
-    if (chars[i] > 0x80) {
+    if (chars[i] >= 0x80) {
       return false;
     }
   }

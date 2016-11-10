@@ -431,6 +431,22 @@ public class Main {
                 "\u0440\u0440\u0440\u0440\u0440\u0440z\u0440",
                 "\u0440\u0440\u0440\u0440\u0440\u0440\u0440z\u0440",
                 "\u0440\u0440\u0440\u0440\u0440\u0440\u0440\u0440z\u0440",
+                "\u0000",
+                "\u0000\u0000",
+                "\u0000\u0000\u0000",
+                "\u0000\u0000\u0000\u0000",
+                "\u0000\u0000\u0000\u0000\u0000",
+                "\u0000\u0000\u0000\u0000\u0000\u0000",
+                "\u0000\u0000\u0000\u0000\u0000\u0000\u0000",
+                "\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000",
+                "\u0000z\u0000",
+                "\u0000\u0000z\u0000",
+                "\u0000\u0000\u0000z\u0000",
+                "\u0000\u0000\u0000\u0000z\u0000",
+                "\u0000\u0000\u0000\u0000\u0000z\u0000",
+                "\u0000\u0000\u0000\u0000\u0000\u0000z\u0000",
+                "\u0000\u0000\u0000\u0000\u0000\u0000\u0000z\u0000",
+                "\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000z\u0000",
         };
         String[] suffixes = {
                 "",
@@ -458,30 +474,40 @@ public class Main {
                     String full = p + c + s;
                     int expX = (c.isEmpty() || c.charAt(0) != 'x') ? -1 : p.length();
                     int exp0440 = (c.isEmpty() || c.charAt(0) != '\u0440') ? -1 : p.length();
+                    int exp0000 = (c.isEmpty() || c.charAt(0) != '\u0000') ? -1 : p.length();
                     Assert.assertEquals(expX, $noinline$indexOf(full, 'x'));
                     Assert.assertEquals(exp0440, $noinline$indexOf(full, '\u0440'));
+                    Assert.assertEquals(exp0000, $noinline$indexOf(full, '\u0000'));
                     Assert.assertEquals(expX, $noinline$indexOf(full, 'x', -1));
                     Assert.assertEquals(exp0440, $noinline$indexOf(full, '\u0440', -1));
+                    Assert.assertEquals(exp0000, $noinline$indexOf(full, '\u0000', -1));
                     Assert.assertEquals(-1, $noinline$indexOf(full, 'x', full.length() + 1));
                     Assert.assertEquals(-1, $noinline$indexOf(full, '\u0440', full.length() + 1));
+                    Assert.assertEquals(-1, $noinline$indexOf(full, '\u0000', full.length() + 1));
                     for (int from = 0; from != full.length(); ++from) {
                         final int eX;
                         final int e0440;
+                        final int e0000;
                         if (from <= p.length()) {
                             eX = expX;
                             e0440 = exp0440;
+                            e0000 = exp0000;
                         } else if (from >= p.length() + c.length()) {
                             eX = -1;
                             e0440 = -1;
+                            e0000 = -1;
                         } else if (full.charAt(from) == 'z') {
                             eX = (full.charAt(from + 1) != 'x') ? -1 : from + 1;
                             e0440 = (full.charAt(from + 1) != '\u0440') ? -1 : from + 1;
+                            e0000 = (full.charAt(from + 1) != '\u0000') ? -1 : from + 1;
                         } else {
                             eX = (full.charAt(from) != 'x') ? -1 : from;
                             e0440 = (full.charAt(from) != '\u0440') ? -1 : from;
+                            e0000 = (full.charAt(from) != '\u0000') ? -1 : from;
                         }
                         Assert.assertEquals(eX, $noinline$indexOf(full, 'x', from));
                         Assert.assertEquals(e0440, $noinline$indexOf(full, '\u0440', from));
+                        Assert.assertEquals(e0000, $noinline$indexOf(full, '\u0000', from));
                     }
                 }
             }
