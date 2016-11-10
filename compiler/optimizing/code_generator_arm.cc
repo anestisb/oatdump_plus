@@ -4864,16 +4864,21 @@ void InstructionCodeGeneratorARM::VisitArrayGet(HArrayGet* instruction) {
     case Primitive::kPrimShort:
     case Primitive::kPrimChar:
     case Primitive::kPrimInt: {
+      Register length;
+      if (maybe_compressed_char_at) {
+        length = locations->GetTemp(0).AsRegister<Register>();
+        uint32_t count_offset = mirror::String::CountOffset().Uint32Value();
+        __ LoadFromOffset(kLoadWord, length, obj, count_offset);
+        codegen_->MaybeRecordImplicitNullCheck(instruction);
+      }
       if (index.IsConstant()) {
         int32_t const_index = index.GetConstant()->AsIntConstant()->GetValue();
         if (maybe_compressed_char_at) {
-          Register length = IP;
           Label uncompressed_load, done;
-          uint32_t count_offset = mirror::String::CountOffset().Uint32Value();
-          __ LoadFromOffset(kLoadWord, length, obj, count_offset);
-          codegen_->MaybeRecordImplicitNullCheck(instruction);
-          __ cmp(length, ShifterOperand(0));
-          __ b(&uncompressed_load, GE);
+          __ Lsrs(length, length, 1u);  // LSRS has a 16-bit encoding, TST (immediate) does not.
+          static_assert(static_cast<uint32_t>(mirror::StringCompressionFlag::kCompressed) == 0u,
+                        "Expecting 0=compressed, 1=uncompressed");
+          __ b(&uncompressed_load, CS);
           __ LoadFromOffset(kLoadUnsignedByte,
                             out_loc.AsRegister<Register>(),
                             obj,
@@ -4908,12 +4913,10 @@ void InstructionCodeGeneratorARM::VisitArrayGet(HArrayGet* instruction) {
         }
         if (maybe_compressed_char_at) {
           Label uncompressed_load, done;
-          uint32_t count_offset = mirror::String::CountOffset().Uint32Value();
-          Register length = locations->GetTemp(0).AsRegister<Register>();
-          __ LoadFromOffset(kLoadWord, length, obj, count_offset);
-          codegen_->MaybeRecordImplicitNullCheck(instruction);
-          __ cmp(length, ShifterOperand(0));
-          __ b(&uncompressed_load, GE);
+          __ Lsrs(length, length, 1u);  // LSRS has a 16-bit encoding, TST (immediate) does not.
+          static_assert(static_cast<uint32_t>(mirror::StringCompressionFlag::kCompressed) == 0u,
+                        "Expecting 0=compressed, 1=uncompressed");
+          __ b(&uncompressed_load, CS);
           __ ldrb(out_loc.AsRegister<Register>(),
                   Address(temp, index.AsRegister<Register>(), Shift::LSL, 0));
           __ b(&done);
@@ -5318,7 +5321,7 @@ void InstructionCodeGeneratorARM::VisitArrayLength(HArrayLength* instruction) {
   codegen_->MaybeRecordImplicitNullCheck(instruction);
   // Mask out compression flag from String's array length.
   if (mirror::kUseStringCompression && instruction->IsStringLength()) {
-    __ bic(out, out, ShifterOperand(1u << 31));
+    __ Lsr(out, out, 1u);
   }
 }
 

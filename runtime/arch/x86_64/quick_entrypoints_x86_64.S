@@ -2142,15 +2142,14 @@ DEFINE_FUNCTION art_quick_string_compareto
     leal MIRROR_STRING_VALUE_OFFSET(%esi), %esi
 #if (STRING_COMPRESSION_FEATURE)
     /* Differ cases */
-    cmpl LITERAL(0), %r8d
-    jl      .Lstring_compareto_this_is_compressed
-    cmpl    LITERAL(0), %r9d
-    jl      .Lstring_compareto_that_is_compressed
+    shrl    LITERAL(1), %r8d
+    jnc     .Lstring_compareto_this_is_compressed
+    shrl    LITERAL(1), %r9d
+    jnc     .Lstring_compareto_that_is_compressed
     jmp     .Lstring_compareto_both_not_compressed
 .Lstring_compareto_this_is_compressed:
-    andl    LITERAL(0x7FFFFFFF), %r8d
-    cmpl    LITERAL(0), %r9d
-    jl      .Lstring_compareto_both_compressed
+    shrl    LITERAL(1), %r9d
+    jnc     .Lstring_compareto_both_compressed
     /* Comparison this (8-bit) and that (16-bit) */
     mov     %r8d, %eax
     subl    %r9d, %eax
@@ -2169,7 +2168,6 @@ DEFINE_FUNCTION art_quick_string_compareto
 .Lstring_compareto_keep_length1:
     ret
 .Lstring_compareto_that_is_compressed:
-    andl    LITERAL(0x7FFFFFFF), %r9d
     movl    %r8d, %eax
     subl    %r9d, %eax
     mov     %r8d, %ecx
@@ -2187,7 +2185,6 @@ DEFINE_FUNCTION art_quick_string_compareto
 .Lstring_compareto_keep_length2:
     ret
 .Lstring_compareto_both_compressed:
-    andl    LITERAL(0x7FFFFFFF), %r9d
     /* Calculate min length and count diff */
     movl    %r8d, %ecx
     movl    %r8d, %eax

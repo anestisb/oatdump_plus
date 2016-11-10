@@ -33,6 +33,10 @@ namespace mirror {
 
 // String Compression
 static constexpr bool kUseStringCompression = false;
+enum class StringCompressionFlag : uint32_t {
+    kCompressed = 0u,
+    kUncompressed = 1u
+};
 
 // C++ mirror of java.lang.String
 class MANAGED String FINAL : public Object {
@@ -78,7 +82,6 @@ class MANAGED String FINAL : public Object {
   void SetCount(int32_t new_count) REQUIRES_SHARED(Locks::mutator_lock_) {
     // Count is invariant so use non-transactional mode. Also disable check as we may run inside
     // a transaction.
-    DCHECK_LE(0, (new_count & INT32_MAX));
     SetField32<false, false>(OFFSET_OF_OBJECT_MEMBER(String, count_), new_count);
   }
 
@@ -175,7 +178,7 @@ class MANAGED String FINAL : public Object {
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool IsCompressed() REQUIRES_SHARED(Locks::mutator_lock_) {
-    return kUseStringCompression && GetCompressionFlagFromCount(GetCount());
+    return kUseStringCompression && IsCompressed(GetCount());
   }
 
   bool IsValueNull() REQUIRES_SHARED(Locks::mutator_lock_);
@@ -183,16 +186,27 @@ class MANAGED String FINAL : public Object {
   template<typename MemoryType>
   static bool AllASCII(const MemoryType* const chars, const int length);
 
-  ALWAYS_INLINE static bool GetCompressionFlagFromCount(const int32_t count) {
-    return kUseStringCompression && ((count & (1u << 31)) != 0);
+  ALWAYS_INLINE static bool IsCompressed(int32_t count) {
+    return GetCompressionFlagFromCount(count) == StringCompressionFlag::kCompressed;
   }
 
-  ALWAYS_INLINE static int32_t GetLengthFromCount(const int32_t count) {
-    return kUseStringCompression ? (count & INT32_MAX) : count;
+  ALWAYS_INLINE static StringCompressionFlag GetCompressionFlagFromCount(int32_t count) {
+    return kUseStringCompression
+        ? static_cast<StringCompressionFlag>(static_cast<uint32_t>(count) & 1u)
+        : StringCompressionFlag::kUncompressed;
   }
 
-  ALWAYS_INLINE static int32_t GetFlaggedCount(const int32_t count) {
-    return kUseStringCompression ? (count | (1u << 31)) : count;
+  ALWAYS_INLINE static int32_t GetLengthFromCount(int32_t count) {
+    return kUseStringCompression ? static_cast<int32_t>(static_cast<uint32_t>(count) >> 1) : count;
+  }
+
+  ALWAYS_INLINE static int32_t GetFlaggedCount(int32_t length, bool compressible) {
+    return kUseStringCompression
+        ? static_cast<int32_t>((static_cast<uint32_t>(length) << 1) |
+                               (static_cast<uint32_t>(compressible
+                                                          ? StringCompressionFlag::kCompressed
+                                                          : StringCompressionFlag::kUncompressed)))
+        : length;
   }
 
   static Class* GetJavaLangString() REQUIRES_SHARED(Locks::mutator_lock_) {

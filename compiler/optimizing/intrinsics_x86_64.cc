@@ -1574,20 +1574,23 @@ void IntrinsicCodeGeneratorX86_64::VisitStringEquals(HInvoke* invoke) {
   // compression style is decided on alloc.
   __ cmpl(rcx, Address(arg, count_offset));
   __ j(kNotEqual, &return_false);
+  // Return true if both strings are empty. Even with string compression `count == 0` means empty.
+  static_assert(static_cast<uint32_t>(mirror::StringCompressionFlag::kCompressed) == 0u,
+                "Expecting 0=compressed, 1=uncompressed");
+  __ jrcxz(&return_true);
 
   if (mirror::kUseStringCompression) {
     NearLabel string_uncompressed;
-    // Both string are compressed.
-    __ cmpl(rcx, Immediate(0));
-    __ j(kGreaterEqual, &string_uncompressed);
+    // Extract length and differentiate between both compressed or both uncompressed.
+    // Different compression style is cut above.
+    __ shrl(rcx, Immediate(1));
+    __ j(kCarrySet, &string_uncompressed);
     // Divide string length by 2, rounding up, and continue as if uncompressed.
     // Merge clearing the compression flag with +1 for rounding.
-    __ addl(rcx, Immediate(static_cast<int32_t>(0x80000001)));
+    __ addl(rcx, Immediate(1));
     __ shrl(rcx, Immediate(1));
     __ Bind(&string_uncompressed);
   }
-  // Return true if both strings are empty.
-  __ jrcxz(&return_true);
   // Load starting addresses of string values into RSI/RDI as required for repe_cmpsq instruction.
   __ leal(rsi, Address(str, value_offset));
   __ leal(rdi, Address(arg, value_offset));
@@ -1694,20 +1697,21 @@ static void GenerateStringIndexOf(HInvoke* invoke,
   // Location of count within the String object.
   int32_t count_offset = mirror::String::CountOffset().Int32Value();
 
-  // Load string length, i.e., the count field of the string.
+  // Load the count field of the string containing the length and compression flag.
   __ movl(string_length, Address(string_obj, count_offset));
-  if (mirror::kUseStringCompression) {
-    // Use TMP to keep string_length_flagged.
-    __ movl(CpuRegister(TMP), string_length);
-    // Mask out first bit used as compression flag.
-    __ andl(string_length, Immediate(INT32_MAX));
-  }
 
-  // Do a length check.
+  // Do a zero-length check. Even with string compression `count == 0` means empty.
   // TODO: Support jecxz.
   NearLabel not_found_label;
   __ testl(string_length, string_length);
   __ j(kEqual, &not_found_label);
+
+  if (mirror::kUseStringCompression) {
+    // Use TMP to keep string_length_flagged.
+    __ movl(CpuRegister(TMP), string_length);
+    // Mask out first bit used as compression flag.
+    __ shrl(string_length, Immediate(1));
+  }
 
   if (start_at_zero) {
     // Number of chars to scan is the same as the string length.
@@ -1728,8 +1732,8 @@ static void GenerateStringIndexOf(HInvoke* invoke,
 
     if (mirror::kUseStringCompression) {
       NearLabel modify_counter, offset_uncompressed_label;
-      __ cmpl(CpuRegister(TMP), Immediate(0));
-      __ j(kGreaterEqual, &offset_uncompressed_label);
+      __ testl(CpuRegister(TMP), Immediate(1));
+      __ j(kNotZero, &offset_uncompressed_label);
       __ leaq(string_obj, Address(string_obj, counter, ScaleFactor::TIMES_1, value_offset));
       __ jmp(&modify_counter);
       // Move to the start of the string: string_obj + value_offset + 2 * start_index.
@@ -1747,8 +1751,8 @@ static void GenerateStringIndexOf(HInvoke* invoke,
   if (mirror::kUseStringCompression) {
     NearLabel uncompressed_string_comparison;
     NearLabel comparison_done;
-    __ cmpl(CpuRegister(TMP), Immediate(0));
-    __ j(kGreater, &uncompressed_string_comparison);
+    __ testl(CpuRegister(TMP), Immediate(1));
+    __ j(kNotZero, &uncompressed_string_comparison);
     // Check if RAX (search_value) is ASCII.
     __ cmpl(search_value, Immediate(127));
     __ j(kGreater, &not_found_label);
@@ -1931,8 +1935,10 @@ void IntrinsicCodeGeneratorX86_64::VisitStringGetCharsNoCheck(HInvoke* invoke) {
     // Location of count in string.
     const uint32_t count_offset = mirror::String::CountOffset().Uint32Value();
 
-    __ cmpl(Address(obj, count_offset), Immediate(0));
-    __ j(kGreaterEqual, &copy_uncompressed);
+    __ testl(Address(obj, count_offset), Immediate(1));
+    static_assert(static_cast<uint32_t>(mirror::StringCompressionFlag::kCompressed) == 0u,
+                  "Expecting 0=compressed, 1=uncompressed");
+    __ j(kNotZero, &copy_uncompressed);
     // Compute the address of the source string by adding the number of chars from
     // the source beginning to the value offset of a string.
     __ leaq(CpuRegister(RSI),
