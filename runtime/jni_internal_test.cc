@@ -679,12 +679,8 @@ TEST_F(JniInternalTest, AllocObject) {
   ASSERT_TRUE(env_->IsInstanceOf(o, c));
   // ...whose fields haven't been initialized because
   // we didn't call a constructor.
-  if (art::mirror::kUseStringCompression) {
-    // Zero-length string is compressed, so the length internally will be -(1 << 31).
-    ASSERT_EQ(-2147483648, env_->GetIntField(o, env_->GetFieldID(c, "count", "I")));
-  } else {
-    ASSERT_EQ(0, env_->GetIntField(o, env_->GetFieldID(c, "count", "I")));
-  }
+  // Even with string compression empty string has `count == 0`.
+  ASSERT_EQ(0, env_->GetIntField(o, env_->GetFieldID(c, "count", "I")));
 }
 
 TEST_F(JniInternalTest, GetVersion) {
@@ -895,11 +891,12 @@ TEST_F(JniInternalTest, FromReflectedField_ToReflectedField) {
   // Make sure we can actually use it.
   jstring s = env_->NewStringUTF("poop");
   if (mirror::kUseStringCompression) {
-    // Negative because s is compressed (first bit is 1)
-    ASSERT_EQ(-2147483644, env_->GetIntField(s, fid2));
+    ASSERT_EQ(mirror::String::GetFlaggedCount(4, /* compressible */ true),
+              env_->GetIntField(s, fid2));
     // Create incompressible string
     jstring s_16 = env_->NewStringUTF("\u0444\u0444");
-    ASSERT_EQ(2, env_->GetIntField(s_16, fid2));
+    ASSERT_EQ(mirror::String::GetFlaggedCount(2, /* compressible */ false),
+              env_->GetIntField(s_16, fid2));
   } else {
     ASSERT_EQ(4, env_->GetIntField(s, fid2));
   }

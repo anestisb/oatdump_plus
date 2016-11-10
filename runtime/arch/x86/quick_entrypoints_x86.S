@@ -2035,15 +2035,14 @@ DEFINE_FUNCTION art_quick_string_compareto
     lea MIRROR_STRING_VALUE_OFFSET(%ecx), %edi
 #if (STRING_COMPRESSION_FEATURE)
     /* Differ cases */
-    cmpl    LITERAL(0), %edx
-    jl      .Lstring_compareto_this_is_compressed
-    cmpl    LITERAL(0), %ebx
-    jl      .Lstring_compareto_that_is_compressed
+    shrl    LITERAL(1), %edx
+    jnc     .Lstring_compareto_this_is_compressed
+    shrl    LITERAL(1), %ebx
+    jnc     .Lstring_compareto_that_is_compressed
     jmp     .Lstring_compareto_both_not_compressed
 .Lstring_compareto_this_is_compressed:
-    andl    LITERAL(0x7FFFFFFF), %edx
-    cmpl    LITERAL(0), %ebx
-    jl      .Lstring_compareto_both_compressed
+    shrl    LITERAL(1), %ebx
+    jnc     .Lstring_compareto_both_compressed
     /* If (this->IsCompressed() && that->IsCompressed() == false) */
     mov     %edx, %eax
     subl    %ebx, %eax
@@ -2061,7 +2060,6 @@ DEFINE_FUNCTION art_quick_string_compareto
     cmovne  %edx, %eax                        // return eax = *(this_cur_char) - *(that_cur_char)
     jmp     .Lstring_compareto_return
 .Lstring_compareto_that_is_compressed:
-    andl    LITERAL(0x7FFFFFFF), %ebx
     mov     %edx, %eax
     subl    %ebx, %eax
     mov     %edx, %ecx
@@ -2078,7 +2076,6 @@ DEFINE_FUNCTION art_quick_string_compareto
     cmovne  %edx, %eax
     jmp     .Lstring_compareto_return         // return eax = *(this_cur_char) - *(that_cur_char)
 .Lstring_compareto_both_compressed:
-    andl    LITERAL(0x7FFFFFFF), %ebx
     /* Calculate min length and count diff */
     mov     %edx, %ecx
     mov     %edx, %eax
