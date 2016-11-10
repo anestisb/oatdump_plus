@@ -235,7 +235,7 @@ class InstructionCodeGeneratorX86_64 : public InstructionCodeGenerator {
                                         Location out,
                                         uint32_t offset,
                                         Location maybe_temp,
-                                        bool emit_read_barrier);
+                                        ReadBarrierOption read_barrier_option);
   // Generate a heap reference load using two different registers
   // `out` and `obj`:
   //
@@ -250,17 +250,17 @@ class InstructionCodeGeneratorX86_64 : public InstructionCodeGenerator {
                                          Location out,
                                          Location obj,
                                          uint32_t offset,
-                                         bool emit_read_barrier);
+                                         ReadBarrierOption read_barrier_option);
   // Generate a GC root reference load:
   //
   //   root <- *address
   //
-  // while honoring read barriers if `requires_read_barrier` is true.
+  // while honoring read barriers based on read_barrier_option.
   void GenerateGcRootFieldLoad(HInstruction* instruction,
                                Location root,
                                const Address& address,
                                Label* fixup_label,
-                               bool requires_read_barrier);
+                               ReadBarrierOption read_barrier_option);
 
   void PushOntoFPStack(Location source, uint32_t temp_offset,
                        uint32_t stack_adjustment, bool is_float);

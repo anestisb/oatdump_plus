@@ -264,7 +264,7 @@ class InstructionCodeGeneratorARM : public InstructionCodeGenerator {
                                         Location out,
                                         uint32_t offset,
                                         Location maybe_temp,
-                                        bool emit_read_barrier);
+                                        ReadBarrierOption read_barrier_option);
   // Generate a heap reference load using two different registers
   // `out` and `obj`:
   //
@@ -280,17 +280,17 @@ class InstructionCodeGeneratorARM : public InstructionCodeGenerator {
                                          Location obj,
                                          uint32_t offset,
                                          Location maybe_temp,
-                                         bool emit_read_barrier);
+                                         ReadBarrierOption read_barrier_option);
   // Generate a GC root reference load:
   //
   //   root <- *(obj + offset)
   //
-  // while honoring read barriers if `requires_read_barrier` is true.
+  // while honoring read barriers based on read_barrier_option.
   void GenerateGcRootFieldLoad(HInstruction* instruction,
                                Location root,
                                Register obj,
                                uint32_t offset,
-                               bool requires_read_barrier);
+                               ReadBarrierOption read_barrier_option);
   void GenerateTestAndBranch(HInstruction* instruction,
                              size_t condition_input_index,
                              Label* true_target,
