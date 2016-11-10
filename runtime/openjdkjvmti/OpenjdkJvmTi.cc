@@ -277,7 +277,13 @@ class JvmtiFunctions {
                                      jobject initial_object,
                                      const jvmtiHeapCallbacks* callbacks,
                                      const void* user_data) {
-    return ERR(NOT_IMPLEMENTED);
+    HeapUtil heap_util(&gObjectTagTable);
+    return heap_util.FollowReferences(env,
+                                      heap_filter,
+                                      klass,
+                                      initial_object,
+                                      callbacks,
+                                      user_data);
   }
 
   static jvmtiError IterateThroughHeap(jvmtiEnv* env,
