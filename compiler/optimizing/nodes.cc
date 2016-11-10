@@ -735,6 +735,20 @@ bool HLoopInformation::DominatesAllBackEdges(HBasicBlock* block) {
   return true;
 }
 
+
+bool HLoopInformation::HasExitEdge() const {
+  // Determine if this loop has at least one exit edge.
+  HBlocksInLoopReversePostOrderIterator it_loop(*this);
+  for (; !it_loop.Done(); it_loop.Advance()) {
+    for (HBasicBlock* successor : it_loop.Current()->GetSuccessors()) {
+      if (!Contains(*successor)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 bool HBasicBlock::Dominates(HBasicBlock* other) const {
   // Walk up the dominator tree from `other`, to find out if `this`
   // is an ancestor.

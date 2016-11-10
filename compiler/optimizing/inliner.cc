@@ -1226,12 +1226,22 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
 
   // Skip the entry block, it does not contain instructions that prevent inlining.
   for (HBasicBlock* block : callee_graph->GetReversePostOrderSkipEntryBlock()) {
-    if (block->IsLoopHeader() && block->GetLoopInformation()->IsIrreducible()) {
-      // Don't inline methods with irreducible loops, they could prevent some
-      // optimizations to run.
-      VLOG(compiler) << "Method " << callee_dex_file.PrettyMethod(method_index)
-                     << " could not be inlined because it contains an irreducible loop";
-      return false;
+    if (block->IsLoopHeader()) {
+      if (block->GetLoopInformation()->IsIrreducible()) {
+        // Don't inline methods with irreducible loops, they could prevent some
+        // optimizations to run.
+        VLOG(compiler) << "Method " << callee_dex_file.PrettyMethod(method_index)
+                       << " could not be inlined because it contains an irreducible loop";
+        return false;
+      }
+      if (!block->GetLoopInformation()->HasExitEdge()) {
+        // Don't inline methods with loops without exit, since they cause the
+        // loop information to be computed incorrectly when updating after
+        // inlining.
+        VLOG(compiler) << "Method " << callee_dex_file.PrettyMethod(method_index)
+                       << " could not be inlined because it contains a loop with no exit";
+        return false;
+      }
     }
 
     for (HInstructionIterator instr_it(block->GetInstructions());
