@@ -769,6 +769,8 @@ class HLoopInformation : public ArenaObject<kArenaAllocLoopInfo> {
 
   bool DominatesAllBackEdges(HBasicBlock* block);
 
+  bool HasExitEdge() const;
+
  private:
   // Internal recursive implementation of `Populate`.
   void PopulateRecursive(HBasicBlock* block);
