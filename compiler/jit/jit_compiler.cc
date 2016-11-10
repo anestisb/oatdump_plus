@@ -171,19 +171,10 @@ JitCompiler::JitCompiler() {
 
   size_t thread_count = compiler_driver_->GetThreadCount();
   if (compiler_options_->GetGenerateDebugInfo()) {
-#ifdef ART_TARGET_ANDROID
-    const char* prefix = "/data/misc/trace";
-#else
-    const char* prefix = "/tmp";
-#endif
     DCHECK_EQ(thread_count, 1u)
         << "Generating debug info only works with one compiler thread";
-    std::string perf_filename = std::string(prefix) + "/perf-" + std::to_string(getpid()) + ".map";
-    perf_file_.reset(OS::CreateEmptyFileWriteOnly(perf_filename.c_str()));
-    if (perf_file_ == nullptr) {
-      LOG(ERROR) << "Could not create perf file at " << perf_filename <<
-                    " Are you on a user build? Perf only works on userdebug/eng builds";
-    }
+    jit_logger_.reset(new JitLogger());
+    jit_logger_->OpenLog();
   }
 
   size_t inline_depth_limit = compiler_driver_->GetCompilerOptions().GetInlineDepthLimit();
@@ -192,9 +183,8 @@ JitCompiler::JitCompiler() {
 }
 
 JitCompiler::~JitCompiler() {
-  if (perf_file_ != nullptr) {
-    UNUSED(perf_file_->Flush());
-    UNUSED(perf_file_->Close());
+  if (compiler_options_->GetGenerateDebugInfo()) {
+    jit_logger_->CloseLog();
   }
 }
 
@@ -218,19 +208,8 @@ bool JitCompiler::CompileMethod(Thread* self, ArtMethod* method, bool osr) {
     TimingLogger::ScopedTiming t2("Compiling", &logger);
     JitCodeCache* const code_cache = runtime->GetJit()->GetCodeCache();
     success = compiler_driver_->GetCompiler()->JitCompile(self, code_cache, method, osr);
-    if (success && (perf_file_ != nullptr)) {
-      const void* ptr = method->GetEntryPointFromQuickCompiledCode();
-      std::ostringstream stream;
-      stream << std::hex
-             << reinterpret_cast<uintptr_t>(ptr)
-             << " "
-             << code_cache->GetMemorySizeOfCodePointer(ptr)
-             << " "
-             << method->PrettyMethod()
-             << std::endl;
-      std::string str = stream.str();
-      bool res = perf_file_->WriteFully(str.c_str(), str.size());
-      CHECK(res);
+    if (success && (jit_logger_ != nullptr)) {
+      jit_logger_->WriteLog(code_cache, method);
     }
   }
 
