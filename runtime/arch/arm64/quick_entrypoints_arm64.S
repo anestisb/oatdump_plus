@@ -2403,12 +2403,15 @@ END art_quick_deoptimize_from_compiled_code
      *    w2:   Starting offset in string data
      */
 ENTRY art_quick_indexof
+#if (STRING_COMPRESSION_FEATURE)
+    ldr   w4, [x0, #MIRROR_STRING_COUNT_OFFSET]
+#else
     ldr   w3, [x0, #MIRROR_STRING_COUNT_OFFSET]
+#endif
     add   x0, x0, #MIRROR_STRING_VALUE_OFFSET
 #if (STRING_COMPRESSION_FEATURE)
     /* w4 holds count (with flag) and w3 holds actual length */
-    mov   w4, w3
-    and   w3, w3, #2147483647
+    lsr   w3, w4, #1
 #endif
     /* Clamp start to [0..count] */
     cmp   w2, #0
@@ -2420,7 +2423,7 @@ ENTRY art_quick_indexof
     mov   x5, x0
 
 #if (STRING_COMPRESSION_FEATURE)
-    tbnz  w4, #31, .Lstring_indexof_compressed
+    tbz   w4, #0, .Lstring_indexof_compressed
 #endif
     /* Build pointer to start of data to compare and pre-bias */
     add   x0, x0, x2, lsl #1
