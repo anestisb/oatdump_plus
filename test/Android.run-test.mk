@@ -230,40 +230,6 @@ ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),
         $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
         $(IMAGE_TYPES), $(PICTEST_TYPES), $(DEBUGGABLE_TYPES), $(ART_TEST_RUN_TEST_SKIP), $(ALL_ADDRESS_SIZES))
 
-# b/31385354: Roots (and thus iteration order) is non-stable between different run modes.
-#             Temporarily disable test for everything but default optimizing configuration
-#             until the test check code is generalized to allow spec-compliant output.
-TEST_ART_BROKEN_B31385354_TESTS := \
-  913-heaps \
-
-NON_AOT_MODES := $(filter-out optimizing,$(COMPILER_TYPES))
-ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
-    $(NON_AOT_MODES), $(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-    $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES), $(TEST_ART_BROKEN_B31385354_TESTS), \
-    $(ALL_ADDRESS_SIZES))
-NON_AOT_MODES :=
-
-NON_PREBUILD_MODES := $(filter-out prebuild,$(PREBUILD_TYPES))
-ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(NON_PREBUILD_MODES), \
-    $(COMPILER_TYPES), $(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-    $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES), $(TEST_ART_BROKEN_B31385354_TESTS), \
-    $(ALL_ADDRESS_SIZES))
-NON_PREBUILD_MODES :=
-
-NON_RELOCATE_MODES := $(filter-out relocate,$(RELOCATE_TYPES))
-ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
-    $(COMPILER_TYPES), $(NON_RELOCATE_MODES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-    $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES), $(TEST_ART_BROKEN_B31385354_TESTS), \
-    $(ALL_ADDRESS_SIZES))
-NON_RELOCATE_MODES :=
-
-ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
-    $(COMPILER_TYPES), $(RELOCATE_TYPES),trace,$(GC_TYPES),$(JNI_TYPES), \
-    $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES), $(TEST_ART_BROKEN_B31385354_TESTS), \
-    $(ALL_ADDRESS_SIZES))
-
-TEST_ART_BROKEN_B31385354_TESTS :=
-
 
 # Disable 149-suspend-all-stress, its output is flaky (b/28988206).
 # Disable 577-profile-foreign-dex (b/27454772).
