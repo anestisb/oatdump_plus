@@ -26,6 +26,7 @@
 #include "openjdkjvmti/jvmti.h"
 #include "ScopedLocalRef.h"
 #include "ScopedUtfChars.h"
+#include "ti-agent/common_helper.h"
 #include "ti-agent/common_load.h"
 #include "utils.h"
 
@@ -95,6 +96,7 @@ jint OnLoad(JavaVM* vm,
     return 1;
   }
   jvmti_env->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_VM_OBJECT_ALLOC, nullptr);
+  SetAllCapabilities(jvmti_env);
   return 0;
 }
 
