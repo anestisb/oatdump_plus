@@ -279,22 +279,32 @@ static inline const void* EntryPointToCodePointer(const void* entry_point) {
 using UsageFn = void (*)(const char*, ...);
 
 template <typename T>
-static void ParseUintOption(const StringPiece& option,
+static void ParseIntOption(const StringPiece& option,
                             const std::string& option_name,
                             T* out,
-                            UsageFn Usage,
+                            UsageFn usage,
                             bool is_long_option = true) {
   std::string option_prefix = option_name + (is_long_option ? "=" : "");
   DCHECK(option.starts_with(option_prefix)) << option << " " << option_prefix;
   const char* value_string = option.substr(option_prefix.size()).data();
   int64_t parsed_integer_value = 0;
   if (!ParseInt(value_string, &parsed_integer_value)) {
-    Usage("Failed to parse %s '%s' as an integer", option_name.c_str(), value_string);
-  }
-  if (parsed_integer_value < 0) {
-    Usage("%s passed a negative value %d", option_name.c_str(), parsed_integer_value);
+    usage("Failed to parse %s '%s' as an integer", option_name.c_str(), value_string);
   }
   *out = dchecked_integral_cast<T>(parsed_integer_value);
+}
+
+template <typename T>
+static void ParseUintOption(const StringPiece& option,
+                            const std::string& option_name,
+                            T* out,
+                            UsageFn usage,
+                            bool is_long_option = true) {
+  ParseIntOption(option, option_name, out, usage, is_long_option);
+  if (*out < 0) {
+    usage("%s passed a negative value %d", option_name.c_str(), *out);
+    *out = 0;
+  }
 }
 
 void ParseDouble(const std::string& option,
