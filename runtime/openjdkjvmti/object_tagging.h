@@ -34,7 +34,7 @@ class EventHandler;
 class ObjectTagTable : public art::gc::SystemWeakHolder {
  public:
   explicit ObjectTagTable(EventHandler* event_handler)
-      : art::gc::SystemWeakHolder(art::LockLevel::kAllocTrackerLock),
+      : art::gc::SystemWeakHolder(kTaggingLockLevel),
         update_since_last_sweep_(false),
         event_handler_(event_handler) {
   }
@@ -179,6 +179,10 @@ class ObjectTagTable : public art::gc::SystemWeakHolder {
       return r1.Read<art::kWithoutReadBarrier>() == r2.Read<art::kWithoutReadBarrier>();
     }
   };
+
+  // The tag table is used when visiting roots. So it needs to have a low lock level.
+  static constexpr art::LockLevel kTaggingLockLevel =
+      static_cast<art::LockLevel>(art::LockLevel::kAbortLock + 1);
 
   std::unordered_map<art::GcRoot<art::mirror::Object>,
                      jlong,
