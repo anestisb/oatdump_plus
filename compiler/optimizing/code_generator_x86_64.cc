@@ -5501,7 +5501,9 @@ void InstructionCodeGeneratorX86_64::VisitLoadClass(HLoadClass* cls) {
   Location out_loc = locations->Out();
   CpuRegister out = out_loc.AsRegister<CpuRegister>();
 
-  const bool requires_read_barrier = kEmitCompilerReadBarrier && !cls->IsInBootImage();
+  const ReadBarrierOption read_barrier_option = cls->IsInBootImage()
+      ? kWithoutReadBarrier
+      : kCompilerReadBarrierOption;
   bool generate_null_check = false;
   switch (cls->GetLoadKind()) {
     case HLoadClass::LoadKind::kReferrersClass: {
@@ -5514,16 +5516,16 @@ void InstructionCodeGeneratorX86_64::VisitLoadClass(HLoadClass* cls) {
           out_loc,
           Address(current_method, ArtMethod::DeclaringClassOffset().Int32Value()),
           /* fixup_label */ nullptr,
-          requires_read_barrier);
+          read_barrier_option);
       break;
     }
     case HLoadClass::LoadKind::kBootImageLinkTimePcRelative:
-      DCHECK(!requires_read_barrier);
+      DCHECK_EQ(read_barrier_option, kWithoutReadBarrier);
       __ leal(out, Address::Absolute(CodeGeneratorX86_64::kDummy32BitOffset, /* no_rip */ false));
       codegen_->RecordTypePatch(cls);
       break;
     case HLoadClass::LoadKind::kBootImageAddress: {
-      DCHECK(!requires_read_barrier);
+      DCHECK_EQ(read_barrier_option, kWithoutReadBarrier);
       DCHECK_NE(cls->GetAddress(), 0u);
       uint32_t address = dchecked_integral_cast<uint32_t>(cls->GetAddress());
       __ movl(out, Immediate(address));  // Zero-extended.
@@ -5539,7 +5541,7 @@ void InstructionCodeGeneratorX86_64::VisitLoadClass(HLoadClass* cls) {
                                 out_loc,
                                 address,
                                 /* fixup_label */ nullptr,
-                                requires_read_barrier);
+                                read_barrier_option);
       } else {
         // TODO: Consider using opcode A1, i.e. movl eax, moff32 (with 64-bit address).
         __ movq(out, Immediate(cls->GetAddress()));
@@ -5547,7 +5549,7 @@ void InstructionCodeGeneratorX86_64::VisitLoadClass(HLoadClass* cls) {
                                 out_loc,
                                 Address(out, 0),
                                 /* fixup_label */ nullptr,
-                                requires_read_barrier);
+                                read_barrier_option);
       }
       generate_null_check = !cls->IsInDexCache();
       break;
@@ -5558,7 +5560,7 @@ void InstructionCodeGeneratorX86_64::VisitLoadClass(HLoadClass* cls) {
       Address address = Address::Absolute(CodeGeneratorX86_64::kDummy32BitOffset,
                                           /* no_rip */ false);
       // /* GcRoot<mirror::Class> */ out = *address  /* PC-relative */
-      GenerateGcRootFieldLoad(cls, out_loc, address, fixup_label, requires_read_barrier);
+      GenerateGcRootFieldLoad(cls, out_loc, address, fixup_label, read_barrier_option);
       generate_null_check = !cls->IsInDexCache();
       break;
     }
@@ -5575,7 +5577,7 @@ void InstructionCodeGeneratorX86_64::VisitLoadClass(HLoadClass* cls) {
           out_loc,
           Address(out, CodeGenerator::GetCacheOffset(cls->GetTypeIndex())),
           /* fixup_label */ nullptr,
-          requires_read_barrier);
+          read_barrier_option);
       generate_null_check = !cls->IsInDexCache();
       break;
     }
@@ -5688,7 +5690,7 @@ void InstructionCodeGeneratorX86_64::VisitLoadString(HLoadString* load) {
                                           /* no_rip */ false);
       Label* fixup_label = codegen_->NewStringBssEntryPatch(load);
       // /* GcRoot<mirror::Class> */ out = *address  /* PC-relative */
-      GenerateGcRootFieldLoad(load, out_loc, address, fixup_label, kEmitCompilerReadBarrier);
+      GenerateGcRootFieldLoad(load, out_loc, address, fixup_label, kCompilerReadBarrierOption);
       SlowPathCode* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathX86_64(load);
       codegen_->AddSlowPath(slow_path);
       __ testl(out, out);
@@ -5829,7 +5831,7 @@ void InstructionCodeGeneratorX86_64::VisitInstanceOf(HInstanceOf* instruction) {
                                     out_loc,
                                     obj_loc,
                                     class_offset,
-                                    kEmitCompilerReadBarrier);
+                                    kCompilerReadBarrierOption);
 
   switch (type_check_kind) {
     case TypeCheckKind::kExactCheck: {
@@ -5862,7 +5864,7 @@ void InstructionCodeGeneratorX86_64::VisitInstanceOf(HInstanceOf* instruction) {
                                        out_loc,
                                        super_offset,
                                        maybe_temp_loc,
-                                       kEmitCompilerReadBarrier);
+                                       kCompilerReadBarrierOption);
       __ testl(out, out);
       // If `out` is null, we use it for the result, and jump to `done`.
       __ j(kEqual, &done);
@@ -5896,7 +5898,7 @@ void InstructionCodeGeneratorX86_64::VisitInstanceOf(HInstanceOf* instruction) {
                                        out_loc,
                                        super_offset,
                                        maybe_temp_loc,
-                                       kEmitCompilerReadBarrier);
+                                       kCompilerReadBarrierOption);
       __ testl(out, out);
       __ j(kNotEqual, &loop);
       // If `out` is null, we use it for the result, and jump to `done`.
@@ -5925,7 +5927,7 @@ void InstructionCodeGeneratorX86_64::VisitInstanceOf(HInstanceOf* instruction) {
                                        out_loc,
                                        component_offset,
                                        maybe_temp_loc,
-                                       kEmitCompilerReadBarrier);
+                                       kCompilerReadBarrierOption);
       __ testl(out, out);
       // If `out` is null, we use it for the result, and jump to `done`.
       __ j(kEqual, &done);
@@ -6065,6 +6067,9 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
   const uint32_t object_array_data_offset =
       mirror::Array::DataOffset(kHeapReferenceSize).Uint32Value();
 
+  // Always false for read barriers since we may need to go to the entrypoint for non-fatal cases
+  // from false negatives. The false negatives may come from avoiding read barriers below. Avoiding
+  // read barriers is done for performance and code size reasons.
   bool is_type_check_slow_path_fatal =
       IsTypeCheckSlowPathFatal(type_check_kind, instruction->CanThrowIntoCatchBlock());
   SlowPathCode* type_check_slow_path =
@@ -6088,7 +6093,7 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
                                         temp_loc,
                                         obj_loc,
                                         class_offset,
-                                        /*emit_read_barrier*/ false);
+                                        kWithoutReadBarrier);
       if (cls.IsRegister()) {
         __ cmpl(temp, cls.AsRegister<CpuRegister>());
       } else {
@@ -6107,7 +6112,7 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
                                         temp_loc,
                                         obj_loc,
                                         class_offset,
-                                        /*emit_read_barrier*/ false);
+                                        kWithoutReadBarrier);
       // If the class is abstract, we eagerly fetch the super class of the
       // object to avoid doing a comparison we know will fail.
       NearLabel loop;
@@ -6117,7 +6122,7 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
                                        temp_loc,
                                        super_offset,
                                        maybe_temp2_loc,
-                                       /*emit_read_barrier*/ false);
+                                       kWithoutReadBarrier);
 
       // If the class reference currently in `temp` is null, jump to the slow path to throw the
       // exception.
@@ -6140,7 +6145,7 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
                                         temp_loc,
                                         obj_loc,
                                         class_offset,
-                                        /*emit_read_barrier*/ false);
+                                        kWithoutReadBarrier);
       // Walk over the class hierarchy to find a match.
       NearLabel loop;
       __ Bind(&loop);
@@ -6157,7 +6162,7 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
                                        temp_loc,
                                        super_offset,
                                        maybe_temp2_loc,
-                                       /*emit_read_barrier*/ false);
+                                       kWithoutReadBarrier);
 
       // If the class reference currently in `temp` is not null, jump
       // back at the beginning of the loop.
@@ -6174,7 +6179,7 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
                                         temp_loc,
                                         obj_loc,
                                         class_offset,
-                                        /*emit_read_barrier*/ false);
+                                        kWithoutReadBarrier);
       // Do an exact check.
       NearLabel check_non_primitive_component_type;
       if (cls.IsRegister()) {
@@ -6191,7 +6196,7 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
                                        temp_loc,
                                        component_offset,
                                        maybe_temp2_loc,
-                                       /*emit_read_barrier*/ false);
+                                       kWithoutReadBarrier);
 
       // If the component type is not null (i.e. the object is indeed
       // an array), jump to label `check_non_primitive_component_type`
@@ -6230,14 +6235,14 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
                                           temp_loc,
                                           obj_loc,
                                           class_offset,
-                                          /*emit_read_barrier*/ false);
+                                          kWithoutReadBarrier);
 
         // /* HeapReference<Class> */ temp = temp->iftable_
         GenerateReferenceLoadTwoRegisters(instruction,
                                           temp_loc,
                                           temp_loc,
                                           iftable_offset,
-                                          /*emit_read_barrier*/ false);
+                                          kWithoutReadBarrier);
         NearLabel is_null;
         // Null iftable means it is empty.
         __ testl(temp, temp);
@@ -6400,13 +6405,14 @@ void InstructionCodeGeneratorX86_64::HandleBitwiseOperation(HBinaryOperation* in
   }
 }
 
-void InstructionCodeGeneratorX86_64::GenerateReferenceLoadOneRegister(HInstruction* instruction,
-                                                                      Location out,
-                                                                      uint32_t offset,
-                                                                      Location maybe_temp,
-                                                                      bool emit_read_barrier) {
+void InstructionCodeGeneratorX86_64::GenerateReferenceLoadOneRegister(
+    HInstruction* instruction,
+    Location out,
+    uint32_t offset,
+    Location maybe_temp,
+    ReadBarrierOption read_barrier_option) {
   CpuRegister out_reg = out.AsRegister<CpuRegister>();
-  if (emit_read_barrier) {
+  if (read_barrier_option == kWithReadBarrier) {
     CHECK(kEmitCompilerReadBarrier);
     if (kUseBakerReadBarrier) {
       // Load with fast path based Baker's read barrier.
@@ -6432,14 +6438,15 @@ void InstructionCodeGeneratorX86_64::GenerateReferenceLoadOneRegister(HInstructi
   }
 }
 
-void InstructionCodeGeneratorX86_64::GenerateReferenceLoadTwoRegisters(HInstruction* instruction,
-                                                                       Location out,
-                                                                       Location obj,
-                                                                       uint32_t offset,
-                                                                       bool emit_read_barrier) {
+void InstructionCodeGeneratorX86_64::GenerateReferenceLoadTwoRegisters(
+    HInstruction* instruction,
+    Location out,
+    Location obj,
+    uint32_t offset,
+    ReadBarrierOption read_barrier_option) {
   CpuRegister out_reg = out.AsRegister<CpuRegister>();
   CpuRegister obj_reg = obj.AsRegister<CpuRegister>();
-  if (emit_read_barrier) {
+  if (read_barrier_option == kWithReadBarrier) {
     CHECK(kEmitCompilerReadBarrier);
     if (kUseBakerReadBarrier) {
       // Load with fast path based Baker's read barrier.
@@ -6460,13 +6467,14 @@ void InstructionCodeGeneratorX86_64::GenerateReferenceLoadTwoRegisters(HInstruct
   }
 }
 
-void InstructionCodeGeneratorX86_64::GenerateGcRootFieldLoad(HInstruction* instruction,
-                                                             Location root,
-                                                             const Address& address,
-                                                             Label* fixup_label,
-                                                             bool requires_read_barrier) {
+void InstructionCodeGeneratorX86_64::GenerateGcRootFieldLoad(
+    HInstruction* instruction,
+    Location root,
+    const Address& address,
+    Label* fixup_label,
+    ReadBarrierOption read_barrier_option) {
   CpuRegister root_reg = root.AsRegister<CpuRegister>();
-  if (requires_read_barrier) {
+  if (read_barrier_option == kWithReadBarrier) {
     DCHECK(kEmitCompilerReadBarrier);
     if (kUseBakerReadBarrier) {
       // Fast path implementation of art::ReadBarrier::BarrierForRoot when
