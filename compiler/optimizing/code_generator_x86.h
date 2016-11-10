@@ -240,7 +240,8 @@ class InstructionCodeGeneratorX86 : public InstructionCodeGenerator {
   void GenerateReferenceLoadOneRegister(HInstruction* instruction,
                                         Location out,
                                         uint32_t offset,
-                                        Location maybe_temp);
+                                        Location maybe_temp,
+                                        bool emit_read_barrier);
   // Generate a heap reference load using two different registers
   // `out` and `obj`:
   //
