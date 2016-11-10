@@ -1769,12 +1769,15 @@ ENTRY art_quick_indexof
     .cfi_rel_offset r10, 4
     .cfi_rel_offset r11, 8
     .cfi_rel_offset lr, 12
+#if (STRING_COMPRESSION_FEATURE)
+    ldr   r4, [r0, #MIRROR_STRING_COUNT_OFFSET]
+#else
     ldr   r3, [r0, #MIRROR_STRING_COUNT_OFFSET]
+#endif
     add   r0, #MIRROR_STRING_VALUE_OFFSET
 #if (STRING_COMPRESSION_FEATURE)
     /* r4 count (with flag) and r3 holds actual length */
-    mov   r4, r3
-    bic   r3, #2147483648
+    lsr   r3, r4, #1
 #endif
     /* Clamp start to [0..count] */
     cmp   r2, #0
@@ -1789,8 +1792,8 @@ ENTRY art_quick_indexof
 
     /* Build pointer to start of data to compare and pre-bias */
 #if (STRING_COMPRESSION_FEATURE)
-    cmp   r4, #0
-    blt   .Lstring_indexof_compressed
+    lsrs  r4, r4, #1
+    bcc   .Lstring_indexof_compressed
 #endif
     add   r0, r0, r2, lsl #1
     sub   r0, #2
