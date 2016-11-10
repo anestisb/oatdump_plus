@@ -32,6 +32,7 @@ public class Main {
     testConstant();
     testBindTo();
     testFilterReturnValue();
+    testPermuteArguments();
   }
 
   public static void testThrowException() throws Throwable {
@@ -780,6 +781,110 @@ public class Main {
       if (value != 42) {
         System.out.println("Unexpected value: " + value);
       }
+    }
+  }
+
+  public static void permuteArguments_callee(boolean a, byte b, char c,
+      short d, int e, long f, float g, double h) {
+    if (a == true && b == (byte) 'b' && c == 'c' && d == (short) 56 &&
+        e == 78 && f == (long) 97 && g == 98.0f && f == 97.0) {
+      return;
+    }
+
+    System.out.println("Unexpected arguments: " + a + ", " + b + ", " + c
+        + ", " + d + ", " + e + ", " + f + ", " + g + ", " + h);
+  }
+
+  public static void permuteArguments_boxingCallee(boolean a, Integer b) {
+    if (a && b.intValue() == 42) {
+      return;
+    }
+
+    System.out.println("Unexpected arguments: " + a + ", " + b);
+  }
+
+  public static void testPermuteArguments() throws Throwable {
+    {
+      final MethodHandle target = MethodHandles.lookup().findStatic(
+          Main.class, "permuteArguments_callee",
+          MethodType.methodType(void.class, new Class<?>[] {
+            boolean.class, byte.class, char.class, short.class, int.class,
+            long.class, float.class, double.class }));
+
+      final MethodType newType = MethodType.methodType(void.class, new Class<?>[] {
+        double.class, float.class, long.class, int.class, short.class, char.class,
+        byte.class, boolean.class });
+
+      final MethodHandle permutation = MethodHandles.permuteArguments(
+          target, newType, new int[] { 7, 6, 5, 4, 3, 2, 1, 0 });
+
+      permutation.invoke((double) 97.0, (float) 98.0f, (long) 97, 78,
+          (short) 56, 'c', (byte) 'b', (boolean) true);
+
+      // The permutation array was not of the right length.
+      try {
+        MethodHandles.permuteArguments(target, newType,
+            new int[] { 7 });
+        fail();
+      } catch (IllegalArgumentException expected) {
+      }
+
+      // The permutation array has an element that's out of bounds
+      // (there's no argument with idx == 8).
+      try {
+        MethodHandles.permuteArguments(target, newType,
+            new int[] { 8, 6, 5, 4, 3, 2, 1, 0 });
+        fail();
+      } catch (IllegalArgumentException expected) {
+      }
+
+      // The permutation array maps to an incorrect type.
+      try {
+        MethodHandles.permuteArguments(target, newType,
+            new int[] { 7, 7, 5, 4, 3, 2, 1, 0 });
+        fail();
+      } catch (IllegalArgumentException expected) {
+      }
+    }
+
+    // Tests for reference arguments as well as permutations that
+    // repeat arguments.
+    {
+      final MethodHandle target = MethodHandles.lookup().findVirtual(
+          String.class, "concat", MethodType.methodType(String.class, String.class));
+
+      final MethodType newType = MethodType.methodType(String.class, String.class,
+          String.class);
+
+      assertEquals("foobar", (String) target.invoke("foo", "bar"));
+
+      MethodHandle permutation = MethodHandles.permuteArguments(target,
+          newType, new int[] { 1, 0 });
+      assertEquals("barfoo", (String) permutation.invoke("foo", "bar"));
+
+      permutation = MethodHandles.permuteArguments(target, newType, new int[] { 0, 0 });
+      assertEquals("foofoo", (String) permutation.invoke("foo", "bar"));
+
+      permutation = MethodHandles.permuteArguments(target, newType, new int[] { 1, 1 });
+      assertEquals("barbar", (String) permutation.invoke("foo", "bar"));
+    }
+
+    // Tests for boxing and unboxing.
+    {
+      final MethodHandle target = MethodHandles.lookup().findStatic(
+          Main.class, "permuteArguments_boxingCallee",
+          MethodType.methodType(void.class, new Class<?>[] { boolean.class, Integer.class }));
+
+      final MethodType newType = MethodType.methodType(void.class,
+          new Class<?>[] { Integer.class, boolean.class });
+
+      MethodHandle permutation = MethodHandles.permuteArguments(target,
+          newType, new int[] { 1, 0 });
+
+      permutation.invoke(42, true);
+      permutation.invoke(42, Boolean.TRUE);
+      permutation.invoke(Integer.valueOf(42), true);
+      permutation.invoke(Integer.valueOf(42), Boolean.TRUE);
     }
   }
 
