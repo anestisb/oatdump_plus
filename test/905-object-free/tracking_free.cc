@@ -26,6 +26,7 @@
 #include "openjdkjvmti/jvmti.h"
 #include "ScopedLocalRef.h"
 #include "ScopedUtfChars.h"
+#include "ti-agent/common_helper.h"
 #include "ti-agent/common_load.h"
 #include "utils.h"
 
@@ -87,6 +88,7 @@ jint OnLoad(JavaVM* vm,
     printf("Unable to get jvmti env!\n");
     return 1;
   }
+  SetAllCapabilities(jvmti_env);
   return 0;
 }
 
