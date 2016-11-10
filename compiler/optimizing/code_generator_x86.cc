@@ -6577,25 +6577,30 @@ void InstructionCodeGeneratorX86::VisitInstanceOf(HInstanceOf* instruction) {
   }
 }
 
+static bool IsTypeCheckSlowPathFatal(TypeCheckKind type_check_kind, bool throws_into_catch) {
+  switch (type_check_kind) {
+  case TypeCheckKind::kExactCheck:
+  case TypeCheckKind::kAbstractClassCheck:
+  case TypeCheckKind::kClassHierarchyCheck:
+  case TypeCheckKind::kArrayObjectCheck:
+    return !throws_into_catch && !kEmitCompilerReadBarrier;
+  case TypeCheckKind::kInterfaceCheck:
+    return !throws_into_catch && !kEmitCompilerReadBarrier && !kPoisonHeapReferences;
+  case TypeCheckKind::kArrayCheck:
+  case TypeCheckKind::kUnresolvedCheck:
+    return false;
+  }
+  LOG(FATAL) << "Unreachable";
+  UNREACHABLE();
+}
+
 void LocationsBuilderX86::VisitCheckCast(HCheckCast* instruction) {
-  LocationSummary::CallKind call_kind = LocationSummary::kNoCall;
   bool throws_into_catch = instruction->CanThrowIntoCatchBlock();
   TypeCheckKind type_check_kind = instruction->GetTypeCheckKind();
-  switch (type_check_kind) {
-    case TypeCheckKind::kExactCheck:
-    case TypeCheckKind::kAbstractClassCheck:
-    case TypeCheckKind::kClassHierarchyCheck:
-    case TypeCheckKind::kArrayObjectCheck:
-    case TypeCheckKind::kInterfaceCheck:
-      call_kind = (throws_into_catch || kEmitCompilerReadBarrier) ?
-          LocationSummary::kCallOnSlowPath :
-          LocationSummary::kNoCall;  // In fact, call on a fatal (non-returning) slow path.
-      break;
-    case TypeCheckKind::kArrayCheck:
-    case TypeCheckKind::kUnresolvedCheck:
-      call_kind = LocationSummary::kCallOnSlowPath;
-      break;
-  }
+  LocationSummary::CallKind call_kind =
+      IsTypeCheckSlowPathFatal(type_check_kind, throws_into_catch)
+          ? LocationSummary::kNoCall
+          : LocationSummary::kCallOnSlowPath;
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction, call_kind);
   locations->SetInAt(0, Location::RequiresRegister());
   if (type_check_kind == TypeCheckKind::kInterfaceCheck) {
@@ -6609,23 +6614,6 @@ void LocationsBuilderX86::VisitCheckCast(HCheckCast* instruction) {
   locations->AddTemp(Location::RequiresRegister());
   // When read barriers are enabled, we need an additional temporary register for some cases.
   locations->AddRegisterTemps(NumberOfCheckCastTemps(type_check_kind));
-}
-
-static bool IsTypeCheckSlowPathFatal(TypeCheckKind type_check_kind, bool throws_into_catch) {
-  switch (type_check_kind) {
-    case TypeCheckKind::kExactCheck:
-    case TypeCheckKind::kAbstractClassCheck:
-    case TypeCheckKind::kClassHierarchyCheck:
-    case TypeCheckKind::kArrayObjectCheck:
-      return !throws_into_catch && !kEmitCompilerReadBarrier;
-    case TypeCheckKind::kInterfaceCheck:
-      return !throws_into_catch && !kEmitCompilerReadBarrier && !kPoisonHeapReferences;
-    case TypeCheckKind::kArrayCheck:
-    case TypeCheckKind::kUnresolvedCheck:
-      return false;
-  }
-  LOG(FATAL) << "Unreachable";
-  UNREACHABLE();
 }
 
 void InstructionCodeGeneratorX86::VisitCheckCast(HCheckCast* instruction) {
