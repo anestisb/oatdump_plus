@@ -568,8 +568,7 @@ void ParallelMoveResolverMIPS::EmitSwap(size_t index) {
     DCHECK_EQ(type, Primitive::kPrimFloat);  // Can only swap a float.
     FRegister f1 = loc1.IsFpuRegister() ? loc1.AsFpuRegister<FRegister>()
                                         : loc2.AsFpuRegister<FRegister>();
-    Register r2 = loc1.IsRegister() ? loc1.AsRegister<Register>()
-                                    : loc2.AsRegister<Register>();
+    Register r2 = loc1.IsRegister() ? loc1.AsRegister<Register>() : loc2.AsRegister<Register>();
     __ Move(TMP, r2);
     __ Mfc1(r2, f1);
     __ Mtc1(TMP, f1);
@@ -610,10 +609,8 @@ void ParallelMoveResolverMIPS::EmitSwap(size_t index) {
     Exchange(loc1.GetStackIndex(), loc2.GetStackIndex(), /* double_slot */ true);
   } else if ((loc1.IsRegister() && loc2.IsStackSlot()) ||
              (loc1.IsStackSlot() && loc2.IsRegister())) {
-    Register reg = loc1.IsRegister() ? loc1.AsRegister<Register>()
-                                     : loc2.AsRegister<Register>();
-    intptr_t offset = loc1.IsStackSlot() ? loc1.GetStackIndex()
-                                         : loc2.GetStackIndex();
+    Register reg = loc1.IsRegister() ? loc1.AsRegister<Register>() : loc2.AsRegister<Register>();
+    intptr_t offset = loc1.IsStackSlot() ? loc1.GetStackIndex() : loc2.GetStackIndex();
     __ Move(TMP, reg);
     __ LoadFromOffset(kLoadWord, reg, SP, offset);
     __ StoreToOffset(kStoreWord, TMP, SP, offset);
@@ -623,8 +620,7 @@ void ParallelMoveResolverMIPS::EmitSwap(size_t index) {
                                            : loc2.AsRegisterPairLow<Register>();
     Register reg_h = loc1.IsRegisterPair() ? loc1.AsRegisterPairHigh<Register>()
                                            : loc2.AsRegisterPairHigh<Register>();
-    intptr_t offset_l = loc1.IsDoubleStackSlot() ? loc1.GetStackIndex()
-                                                 : loc2.GetStackIndex();
+    intptr_t offset_l = loc1.IsDoubleStackSlot() ? loc1.GetStackIndex() : loc2.GetStackIndex();
     intptr_t offset_h = loc1.IsDoubleStackSlot() ? loc1.GetHighStackIndex(kMipsWordSize)
                                                  : loc2.GetHighStackIndex(kMipsWordSize);
     __ Move(TMP, reg_l);
@@ -633,6 +629,20 @@ void ParallelMoveResolverMIPS::EmitSwap(size_t index) {
     __ Move(TMP, reg_h);
     __ LoadFromOffset(kLoadWord, reg_h, SP, offset_h);
     __ StoreToOffset(kStoreWord, TMP, SP, offset_h);
+  } else if (loc1.IsFpuRegister() || loc2.IsFpuRegister()) {
+    FRegister reg = loc1.IsFpuRegister() ? loc1.AsFpuRegister<FRegister>()
+                                         : loc2.AsFpuRegister<FRegister>();
+    intptr_t offset = loc1.IsFpuRegister() ? loc2.GetStackIndex() : loc1.GetStackIndex();
+    if (type == Primitive::kPrimFloat) {
+      __ MovS(FTMP, reg);
+      __ LoadSFromOffset(reg, SP, offset);
+      __ StoreSToOffset(FTMP, SP, offset);
+    } else {
+      DCHECK_EQ(type, Primitive::kPrimDouble);
+      __ MovD(FTMP, reg);
+      __ LoadDFromOffset(reg, SP, offset);
+      __ StoreDToOffset(FTMP, SP, offset);
+    }
   } else {
     LOG(FATAL) << "Swap between " << loc1 << " and " << loc2 << " is unsupported";
   }
