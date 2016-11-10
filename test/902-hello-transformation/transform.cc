@@ -23,6 +23,7 @@
 #include "base/logging.h"
 #include "jni.h"
 #include "openjdkjvmti/jvmti.h"
+#include "ti-agent/common_helper.h"
 #include "ti-agent/common_load.h"
 #include "utils.h"
 
@@ -132,15 +133,13 @@ extern "C" JNIEXPORT void JNICALL Java_Main_doClassTransformation(JNIEnv* env,
 jint OnLoad(JavaVM* vm,
             char* options,
             void* reserved ATTRIBUTE_UNUSED) {
-  jvmtiCapabilities caps;
   RuntimeIsJvm = (strcmp("jvm", options) == 0);
   if (vm->GetEnv(reinterpret_cast<void**>(&jvmti_env), JVMTI_VERSION_1_0)) {
     printf("Unable to get jvmti env!\n");
     return 1;
   }
+  SetAllCapabilities(jvmti_env);
   if (IsJVM()) {
-    jvmti_env->GetPotentialCapabilities(&caps);
-    jvmti_env->AddCapabilities(&caps);
     jvmtiEventCallbacks cbs;
     memset(&cbs, 0, sizeof(cbs));
     cbs.ClassFileLoadHook = transformationHook;
