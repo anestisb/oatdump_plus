@@ -30,6 +30,7 @@
 #include "memory_region.h"
 #include "nodes.h"
 #include "optimizing_compiler_stats.h"
+#include "read_barrier_option.h"
 #include "stack_map_stream.h"
 #include "utils/label.h"
 
@@ -49,6 +50,9 @@ static int64_t constexpr kPrimLongMin = INT64_C(0x8000000000000000);
 static int32_t constexpr kPrimIntMax = 0x7fffffff;
 // Maximum value for a primitive long.
 static int64_t constexpr kPrimLongMax = INT64_C(0x7fffffffffffffff);
+
+static constexpr ReadBarrierOption kCompilerReadBarrierOption =
+    kEmitCompilerReadBarrier ? kWithReadBarrier : kWithoutReadBarrier;
 
 class Assembler;
 class CodeGenerator;

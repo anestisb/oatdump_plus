@@ -270,7 +270,7 @@ class InstructionCodeGeneratorARM64 : public InstructionCodeGenerator {
                                         Location out,
                                         uint32_t offset,
                                         Location maybe_temp,
-                                        bool emit_read_barrier);
+                                        ReadBarrierOption read_barrier_option);
   // Generate a heap reference load using two different registers
   // `out` and `obj`:
   //
@@ -286,18 +286,18 @@ class InstructionCodeGeneratorARM64 : public InstructionCodeGenerator {
                                          Location obj,
                                          uint32_t offset,
                                          Location maybe_temp,
-                                         bool emit_read_barrier);
+                                         ReadBarrierOption read_barrier_option);
   // Generate a GC root reference load:
   //
   //   root <- *(obj + offset)
   //
-  // while honoring read barriers if `requires_read_barrier` is true.
+  // while honoring read barriers based on read_barrier_option.
   void GenerateGcRootFieldLoad(HInstruction* instruction,
                                Location root,
                                vixl::aarch64::Register obj,
                                uint32_t offset,
                                vixl::aarch64::Label* fixup_label,
-                               bool requires_read_barrier);
+                               ReadBarrierOption read_barrier_option);
 
   // Generate a floating-point comparison.
   void GenerateFcmp(HInstruction* instruction);
