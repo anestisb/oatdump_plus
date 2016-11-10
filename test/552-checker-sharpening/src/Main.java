@@ -303,10 +303,6 @@ public class Main {
   /// CHECK-START-MIPS: java.lang.String Main.$noinline$getNonBootImageString() sharpening (after)
   /// CHECK:                LoadString load_kind:BssEntry
 
-  /// CHECK-START-MIPS: java.lang.String Main.$noinline$getNonBootImageString() pc_relative_fixups_mips (after)
-  /// CHECK-DAG:            MipsComputeBaseMethodAddress
-  /// CHECK-DAG:            LoadString load_kind:BssEntry
-
   public static String $noinline$getNonBootImageString() {
     // Prevent inlining to avoid the string comparison being optimized away.
     if (doThrow) { throw new Error(); }
