@@ -53,6 +53,12 @@ static jobjectArray CreateObjectArray(JNIEnv* env,
   return ret.release();
 }
 
+static void SetAllCapabilities(jvmtiEnv* env) {
+  jvmtiCapabilities caps;
+  env->GetPotentialCapabilities(&caps);
+  env->AddCapabilities(&caps);
+}
+
 }  // namespace art
 
 #endif  // ART_TEST_TI_AGENT_COMMON_HELPER_H_
