@@ -780,16 +780,28 @@ public class Main {
             } catch (WrongMethodTypeException e) {}
         }
 
+        /*package*/ static Number getDoubleAsNumber() {
+            return new Double(1.4e77);
+        }
+        /*package*/ static Number getFloatAsNumber() {
+            return new Float(7.77);
+        }
+        /*package*/ static Object getFloatAsObject() {
+            return new Float(-7.77);
+        }
+
         private static void testMemberSetter() throws Throwable {
             ValueHolder valueHolder = new ValueHolder();
             MethodHandles.Lookup lookup = MethodHandles.lookup();
             MethodHandle h0 = lookup.findSetter(ValueHolder.class, "m_f", float.class);
             h0.invoke(valueHolder, 0.22f);
             h0.invoke(valueHolder, new Float(1.11f));
-            Number floatNumber = new Float(0.88f);
+            Number floatNumber = getFloatAsNumber();
             h0.invoke(valueHolder, floatNumber);
             assertTrue(valueHolder.m_f == floatNumber.floatValue());
-
+            Object objNumber = getFloatAsObject();
+            h0.invoke(valueHolder, objNumber);
+            assertTrue(valueHolder.m_f == ((Float) objNumber).floatValue());
             try {
               h0.invoke(valueHolder, (Float)null);
               unreachable();
@@ -799,12 +811,17 @@ public class Main {
             h0.invoke(valueHolder, (short)2);
             h0.invoke(valueHolder, 3);
             h0.invoke(valueHolder, 4l);
+
+            assertTrue(null == (Object) h0.invoke(valueHolder, 33));
+            assertTrue(0.0f == (float) h0.invoke(valueHolder, 33));
+            assertTrue(0l == (long) h0.invoke(valueHolder, 33));
+
             try {
                 h0.invoke(valueHolder, 0.33);
                 unreachable();
             } catch (WrongMethodTypeException e) {}
             try {
-                Number doubleNumber = new Double(0.89);
+                Number doubleNumber = getDoubleAsNumber();
                 h0.invoke(valueHolder, doubleNumber);
                 unreachable();
             } catch (ClassCastException e) {}
@@ -847,12 +864,17 @@ public class Main {
             h0.invoke((short)2);
             h0.invoke(3);
             h0.invoke(4l);
+
+            assertTrue(null == (Object) h0.invoke(33));
+            assertTrue(0.0f == (float) h0.invoke(33));
+            assertTrue(0l == (long) h0.invoke(33));
+
             try {
                 h0.invoke(0.33);
                 unreachable();
             } catch (WrongMethodTypeException e) {}
             try {
-                Number doubleNumber = new Double(0.89);
+                Number doubleNumber = getDoubleAsNumber();
                 h0.invoke(doubleNumber);
                 unreachable();
             } catch (ClassCastException e) {}

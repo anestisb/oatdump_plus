@@ -18,6 +18,7 @@
 
 #include "class-inl.h"
 #include "gc_root-inl.h"
+#include "method_handles.h"
 
 namespace art {
 namespace mirror {
@@ -43,25 +44,44 @@ mirror::MethodType* MethodType::Create(Thread* const self,
   return mt.Get();
 }
 
-bool MethodType::IsExactMatch(mirror::MethodType* other) REQUIRES_SHARED(Locks::mutator_lock_) {
-  if (GetRType() != other->GetRType()) {
-    return false;
-  }
-
+bool MethodType::IsExactMatch(mirror::MethodType* target) REQUIRES_SHARED(Locks::mutator_lock_) {
   mirror::ObjectArray<Class>* const p_types = GetPTypes();
   const int32_t params_length = p_types->GetLength();
 
-  mirror::ObjectArray<Class>* const other_p_types = other->GetPTypes();
-  if (params_length != other_p_types->GetLength()) {
+  mirror::ObjectArray<Class>* const target_p_types = target->GetPTypes();
+  if (params_length != target_p_types->GetLength()) {
+    return false;
+  }
+  for (int32_t i = 0; i < params_length; ++i) {
+    if (p_types->GetWithoutChecks(i) != target_p_types->GetWithoutChecks(i)) {
+      return false;
+    }
+  }
+  return GetRType() == target->GetRType();
+}
+
+bool MethodType::IsConvertible(mirror::MethodType* target) REQUIRES_SHARED(Locks::mutator_lock_) {
+  mirror::ObjectArray<Class>* const p_types = GetPTypes();
+  const int32_t params_length = p_types->GetLength();
+
+  mirror::ObjectArray<Class>* const target_p_types = target->GetPTypes();
+  if (params_length != target_p_types->GetLength()) {
+    return false;
+  }
+
+  // Perform return check before invoking method handle otherwise side
+  // effects from the invocation may be observable before
+  // WrongMethodTypeException is raised.
+  if (!IsReturnTypeConvertible(target->GetRType(), GetRType())) {
     return false;
   }
 
   for (int32_t i = 0; i < params_length; ++i) {
-    if (p_types->GetWithoutChecks(i) != other_p_types->GetWithoutChecks(i)) {
+    if (!IsParameterTypeConvertible(p_types->GetWithoutChecks(i),
+                                    target_p_types->GetWithoutChecks(i))) {
       return false;
     }
   }
-
   return true;
 }
 

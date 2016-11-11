@@ -21,168 +21,70 @@
 #include "jvalue-inl.h"
 #include "reflection.h"
 #include "reflection-inl.h"
+#include "well_known_classes.h"
 
 namespace art {
 
 namespace {
 
-static const char* kBoxedBooleanClass = "Ljava/lang/Boolean;";
-static const char* kBoxedByteClass = "Ljava/lang/Byte;";
-static const char* kBoxedCharacterClass = "Ljava/lang/Character;";
-static const char* kBoxedDoubleClass = "Ljava/lang/Double;";
-static const char* kBoxedFloatClass = "Ljava/lang/Float;";
-static const char* kBoxedIntegerClass = "Ljava/lang/Integer;";
-static const char* kBoxedLongClass = "Ljava/lang/Long;";
-static const char* kBoxedShortClass = "Ljava/lang/Short;";
+#define PRIMITIVES_LIST(V) \
+  V(Primitive::kPrimBoolean, Boolean, Boolean, Z) \
+  V(Primitive::kPrimByte, Byte, Byte, B)          \
+  V(Primitive::kPrimChar, Char, Character, C)     \
+  V(Primitive::kPrimShort, Short, Short, S)       \
+  V(Primitive::kPrimInt, Int, Integer, I)         \
+  V(Primitive::kPrimLong, Long, Long, J)          \
+  V(Primitive::kPrimFloat, Float, Float, F)       \
+  V(Primitive::kPrimDouble, Double, Double, D)
 
 // Assigns |type| to the primitive type associated with |klass|. Returns
 // true iff. |klass| was a boxed type (Integer, Long etc.), false otherwise.
 bool GetUnboxedPrimitiveType(ObjPtr<mirror::Class> klass, Primitive::Type* type)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   ScopedAssertNoThreadSuspension ants(__FUNCTION__);
-  if (klass->DescriptorEquals(kBoxedBooleanClass)) {
-    (*type) = Primitive::kPrimBoolean;
-    return true;
-  } else if (klass->DescriptorEquals(kBoxedByteClass)) {
-    (*type) = Primitive::kPrimByte;
-    return true;
-  } else if (klass->DescriptorEquals(kBoxedCharacterClass)) {
-    (*type) = Primitive::kPrimChar;
-    return true;
-  } else if (klass->DescriptorEquals(kBoxedFloatClass)) {
-    (*type) = Primitive::kPrimFloat;
-    return true;
-  } else if (klass->DescriptorEquals(kBoxedDoubleClass)) {
-    (*type) = Primitive::kPrimDouble;
-    return true;
-  } else if (klass->DescriptorEquals(kBoxedIntegerClass)) {
-    (*type) = Primitive::kPrimInt;
-    return true;
-  } else if (klass->DescriptorEquals(kBoxedLongClass)) {
-    (*type) = Primitive::kPrimLong;
-    return true;
-  } else if (klass->DescriptorEquals(kBoxedShortClass)) {
-    (*type) = Primitive::kPrimShort;
-    return true;
-  } else {
-    return false;
+#define LOOKUP_PRIMITIVE(primitive, _, __, ___)                         \
+  if (klass->DescriptorEquals(Primitive::BoxedDescriptor(primitive))) { \
+    *type = primitive;                                                  \
+    return true;                                                        \
   }
-}
 
-// Returns the class corresponding to the boxed type for the primitive |type|.
-ObjPtr<mirror::Class> GetBoxedPrimitiveClass(Primitive::Type type)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  ScopedAssertNoThreadSuspension ants(__FUNCTION__);
-  ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
-  switch (type) {
-    case Primitive::kPrimBoolean:
-      return class_linker->FindSystemClass(Thread::Current(), kBoxedBooleanClass);
-    case Primitive::kPrimByte:
-      return class_linker->FindSystemClass(Thread::Current(), kBoxedByteClass);
-    case Primitive::kPrimChar:
-      return class_linker->FindSystemClass(Thread::Current(), kBoxedCharacterClass);
-    case Primitive::kPrimShort:
-      return class_linker->FindSystemClass(Thread::Current(), kBoxedShortClass);
-    case Primitive::kPrimInt:
-      return class_linker->FindSystemClass(Thread::Current(), kBoxedIntegerClass);
-    case Primitive::kPrimLong:
-      return class_linker->FindSystemClass(Thread::Current(), kBoxedLongClass);
-    case Primitive::kPrimFloat:
-      return class_linker->FindSystemClass(Thread::Current(), kBoxedFloatClass);
-    case Primitive::kPrimDouble:
-      return class_linker->FindSystemClass(Thread::Current(), kBoxedDoubleClass);
-    case Primitive::kPrimNot:
-    case Primitive::kPrimVoid:
-      LOG(FATAL) << "Unreachable";
-      return nullptr;
-  }
-}
-
-// Returns true if |klass| is a boxed primitive type or a sub-class of a boxed primitive type.
-bool IsSubClassOfBoxedPrimitive(const Handle<mirror::Class>& klass)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  StackHandleScope<1> hs(Thread::Current());
-  MutableHandle<mirror::Class> h_klass(hs.NewHandle(klass.Get()));
-  do {
-    Primitive::Type type;
-    if (GetUnboxedPrimitiveType(h_klass.Get(), &type)) {
-      return true;
-    }
-    h_klass.Assign(h_klass->GetSuperClass());
-  } while (h_klass.Get() != nullptr);
+  PRIMITIVES_LIST(LOOKUP_PRIMITIVE);
+#undef LOOKUP_PRIMITIVE
   return false;
 }
 
-// Unboxed the value |o| to |unboxed_value| of type |dst_class|.
-// |unboxed_value| must be zero on entry to avoid dangling pointers.
-// Returns true on success, false if an exception is raised.
-bool UnboxPrimitiveForMethodHandles(ObjPtr<mirror::Object> o,
-                                    ObjPtr<mirror::Class> dst_class,
-                                    JValue* unboxed_value)
+ObjPtr<mirror::Class> GetBoxedPrimitiveClass(Primitive::Type type)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  // Check unboxed_value does not contain a dangling pointer.
-  DCHECK_EQ(unboxed_value->GetJ(), 0);
-  DCHECK(dst_class->IsPrimitive());
-
-  // This is derived from UnboxPrimitive() in reflection.cc, but with
-  // exceptions appropriate to method handles.
-  if (UNLIKELY(dst_class->GetPrimitiveType() == Primitive::kPrimVoid)) {
-    ThrowClassCastException(o->GetClass(), dst_class);
-    return false;
+  ScopedAssertNoThreadSuspension ants(__FUNCTION__);
+  jmethodID m = nullptr;
+  switch (type) {
+#define CASE_PRIMITIVE(primitive, _, java_name, __)              \
+    case primitive:                                              \
+      m = WellKnownClasses::java_lang_ ## java_name ## _valueOf; \
+      break;
+    PRIMITIVES_LIST(CASE_PRIMITIVE);
+#undef CASE_PRIMITIVE
+    case Primitive::Type::kPrimNot:
+    case Primitive::Type::kPrimVoid:
+      return nullptr;
   }
-  if (UNLIKELY(o == nullptr)) {
-    ThrowNullPointerException(
-        StringPrintf("Expected to unbox a '%s' primitive type but was returned null",
-                     dst_class->PrettyDescriptor().c_str()).c_str());
-    return false;
-  }
+  return jni::DecodeArtMethod(m)->GetDeclaringClass();
+}
 
-  JValue boxed_value;
+bool GetUnboxedTypeAndValue(ObjPtr<mirror::Object> o, Primitive::Type* type, JValue* value)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  ScopedAssertNoThreadSuspension ants(__FUNCTION__);
   ObjPtr<mirror::Class> klass = o->GetClass();
-  ObjPtr<mirror::Class> src_class = nullptr;
-  ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
   ArtField* primitive_field = &klass->GetIFieldsPtr()->At(0);
-  if (klass->DescriptorEquals(kBoxedBooleanClass)) {
-    src_class = class_linker->FindPrimitiveClass('Z');
-    boxed_value.SetZ(primitive_field->GetBoolean(o));
-  } else if (klass->DescriptorEquals(kBoxedByteClass)) {
-    src_class = class_linker->FindPrimitiveClass('B');
-    boxed_value.SetB(primitive_field->GetByte(o));
-  } else if (klass->DescriptorEquals(kBoxedCharacterClass)) {
-    src_class = class_linker->FindPrimitiveClass('C');
-    boxed_value.SetC(primitive_field->GetChar(o));
-  } else if (klass->DescriptorEquals(kBoxedFloatClass)) {
-    src_class = class_linker->FindPrimitiveClass('F');
-    boxed_value.SetF(primitive_field->GetFloat(o));
-  } else if (klass->DescriptorEquals(kBoxedDoubleClass)) {
-    src_class = class_linker->FindPrimitiveClass('D');
-    boxed_value.SetD(primitive_field->GetDouble(o));
-  } else if (klass->DescriptorEquals(kBoxedIntegerClass)) {
-    src_class = class_linker->FindPrimitiveClass('I');
-    boxed_value.SetI(primitive_field->GetInt(o));
-  } else if (klass->DescriptorEquals(kBoxedLongClass)) {
-    src_class = class_linker->FindPrimitiveClass('J');
-    boxed_value.SetJ(primitive_field->GetLong(o));
-  } else if (klass->DescriptorEquals(kBoxedShortClass)) {
-    src_class = class_linker->FindPrimitiveClass('S');
-    boxed_value.SetS(primitive_field->GetShort(o));
-  } else {
-    std::string temp;
-    ThrowIllegalArgumentException(
-        StringPrintf("result has type %s, got %s",
-                     dst_class->PrettyDescriptor().c_str(),
-                     PrettyDescriptor(o->GetClass()->GetDescriptor(&temp)).c_str()).c_str());
-    return false;
+#define CASE_PRIMITIVE(primitive, abbrev, _, shorthand)         \
+  if (klass == GetBoxedPrimitiveClass(primitive)) {             \
+    *type = primitive;                                          \
+    value->Set ## shorthand(primitive_field->Get ## abbrev(o)); \
+    return true;                                                \
   }
-
-  if (!ConvertPrimitiveValueNoThrow(src_class->GetPrimitiveType(),
-                                    dst_class->GetPrimitiveType(),
-                                    boxed_value,
-                                    unboxed_value)) {
-    ThrowClassCastException(src_class, dst_class);
-    return false;
-  }
-  return true;
+  PRIMITIVES_LIST(CASE_PRIMITIVE)
+#undef CASE_PRIMITIVE
+  return false;
 }
 
 inline bool IsReferenceType(Primitive::Type type) {
@@ -194,6 +96,71 @@ inline bool IsPrimitiveType(Primitive::Type type) {
 }
 
 }  // namespace
+
+bool IsParameterTypeConvertible(ObjPtr<mirror::Class> from, ObjPtr<mirror::Class> to)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  // This function returns true if there's any conceivable conversion
+  // between |from| and |to|. It's expected this method will be used
+  // to determine if a WrongMethodTypeException should be raised. The
+  // decision logic follows the documentation for MethodType.asType().
+  if (from == to) {
+    return true;
+  }
+
+  Primitive::Type from_primitive = from->GetPrimitiveType();
+  Primitive::Type to_primitive = to->GetPrimitiveType();
+  DCHECK(from_primitive != Primitive::Type::kPrimVoid);
+  DCHECK(to_primitive != Primitive::Type::kPrimVoid);
+
+  // If |to| and |from| are references.
+  if (IsReferenceType(from_primitive) && IsReferenceType(to_primitive)) {
+    // Assignability is determined during parameter conversion when
+    // invoking the associated method handle.
+    return true;
+  }
+
+  // If |to| and |from| are primitives and a widening conversion exists.
+  if (Primitive::IsWidenable(from_primitive, to_primitive)) {
+    return true;
+  }
+
+  // If |to| is a reference and |from| is a primitive, then boxing conversion.
+  if (IsReferenceType(to_primitive) && IsPrimitiveType(from_primitive)) {
+    return to->IsAssignableFrom(GetBoxedPrimitiveClass(from_primitive));
+  }
+
+  // If |from| is a reference and |to| is a primitive, then unboxing conversion.
+  if (IsPrimitiveType(to_primitive) && IsReferenceType(from_primitive)) {
+    if (from->DescriptorEquals("Ljava/lang/Object;")) {
+      // Object might be converted into a primitive during unboxing.
+      return true;
+    } else if (Primitive::IsNumericType(to_primitive) &&
+               from->DescriptorEquals("Ljava/lang/Number;")) {
+      // Number might be unboxed into any of the number primitive types.
+      return true;
+    }
+    Primitive::Type unboxed_type;
+    if (GetUnboxedPrimitiveType(from, &unboxed_type)) {
+      return Primitive::IsWidenable(unboxed_type, to_primitive);
+    }
+  }
+
+  return false;
+}
+
+bool IsReturnTypeConvertible(ObjPtr<mirror::Class> from, ObjPtr<mirror::Class> to)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  if (to->GetPrimitiveType() == Primitive::Type::kPrimVoid) {
+    // Result will be ignored.
+    return true;
+  } else if (from->GetPrimitiveType() == Primitive::Type::kPrimVoid) {
+    // Returned value will be 0 / null.
+    return true;
+  } else {
+    // Otherwise apply usual parameter conversion rules.
+    return IsParameterTypeConvertible(from, to);
+  }
+}
 
 bool ConvertJValueCommon(
     Handle<mirror::MethodType> callsite_type,
@@ -209,14 +176,23 @@ bool ConvertJValueCommon(
   const Primitive::Type from_type = from->GetPrimitiveType();
   const Primitive::Type to_type = to->GetPrimitiveType();
 
+  // Put incoming value into |src_value| and set return value to 0.
+  // Errors and conversions from void require the return value to be 0.
+  const JValue src_value(*value);
+  value->SetJ(0);
+
+  // Conversion from void set result to zero.
+  if (from_type == Primitive::kPrimVoid) {
+    return true;
+  }
+
   // This method must be called only when the types don't match.
   DCHECK(from != to);
 
   if (IsPrimitiveType(from_type) && IsPrimitiveType(to_type)) {
     // The source and target types are both primitives.
-    if (UNLIKELY(!ConvertPrimitiveValueNoThrow(from_type, to_type, *value, value))) {
+    if (UNLIKELY(!ConvertPrimitiveValueNoThrow(from_type, to_type, src_value, value))) {
       ThrowWrongMethodTypeException(callee_type.Get(), callsite_type.Get());
-      value->SetJ(0);
       return false;
     }
     return true;
@@ -229,12 +205,7 @@ bool ConvertJValueCommon(
     // in mirror::Class::IsAssignable().
     StackHandleScope<2> hs(Thread::Current());
     Handle<mirror::Class> h_to(hs.NewHandle(to));
-    Handle<mirror::Object> h_obj(hs.NewHandle(value->GetL()));
-
-    // |value| will now be the result value, invalidate its existing value
-    // as |h_obj| now owns it.
-    value->SetJ(0);
-
+    Handle<mirror::Object> h_obj(hs.NewHandle(src_value.GetL()));
     if (h_obj.Get() != nullptr && !to->IsAssignableFrom(h_obj->GetClass())) {
       ThrowClassCastException(h_to.Get(), h_obj->GetClass());
       return false;
@@ -243,10 +214,6 @@ bool ConvertJValueCommon(
     return true;
   } else if (IsReferenceType(to_type)) {
     DCHECK(IsPrimitiveType(from_type));
-    // Playing it safe with StackHandleScope here with regards to
-    // GetUnboxedPrimitiveType() and GetBoxedPrimitiveClass().
-    StackHandleScope<1> hs(Thread::Current());
-    Handle<mirror::Class> h_to(hs.NewHandle(to));
     // The source type is a primitive and the target type is a reference, so we must box.
     // The target type maybe a super class of the boxed source type, for example,
     // if the source type is int, it's boxed type is java.lang.Integer, and the target
@@ -254,29 +221,26 @@ bool ConvertJValueCommon(
     Primitive::Type type;
     if (!GetUnboxedPrimitiveType(to, &type)) {
       ObjPtr<mirror::Class> boxed_from_class = GetBoxedPrimitiveClass(from_type);
-      if (boxed_from_class->IsSubClass(h_to.Get())) {
+      if (boxed_from_class->IsSubClass(to)) {
         type = from_type;
       } else {
-        value->SetJ(0);
         ThrowWrongMethodTypeException(callee_type.Get(), callsite_type.Get());
         return false;
       }
     }
 
     if (UNLIKELY(from_type != type)) {
-      value->SetJ(0);
       ThrowWrongMethodTypeException(callee_type.Get(), callsite_type.Get());
       return false;
     }
 
-    if (!ConvertPrimitiveValueNoThrow(from_type, type, *value, value)) {
-      value->SetJ(0);
+    if (!ConvertPrimitiveValueNoThrow(from_type, type, src_value, value)) {
       ThrowWrongMethodTypeException(callee_type.Get(), callsite_type.Get());
       return false;
     }
 
     // Then perform the actual boxing, and then set the reference.
-    ObjPtr<mirror::Object> boxed = BoxPrimitive(type, *value);
+    ObjPtr<mirror::Object> boxed = BoxPrimitive(type, src_value);
     value->SetL(boxed.Ptr());
     return true;
   } else {
@@ -284,33 +248,27 @@ bool ConvertJValueCommon(
     DCHECK(IsReferenceType(from_type));
     DCHECK(IsPrimitiveType(to_type));
 
-    // Use StackHandleScope to protect |from|, |to|, and the reference
-    // in |value| from heap re-arrangements that could be triggered
-    // ahead of unboxing step.
-    StackHandleScope<3> hs(Thread::Current());
-    Handle<mirror::Class> h_to(hs.NewHandle(to));
-    Handle<mirror::Class> h_from(hs.NewHandle(from));
-    Handle<mirror::Object> h_obj(hs.NewHandle(value->GetL()));
+    ObjPtr<mirror::Object> from_obj(src_value.GetL());
+    if (UNLIKELY(from_obj == nullptr)) {
+      ThrowNullPointerException(
+          StringPrintf("Expected to unbox a '%s' primitive type but was returned null",
+                       from->PrettyDescriptor().c_str()).c_str());
+      return false;
+    }
 
-    // |value| will now be the result value, invalidate its existing value
-    // as |h_obj| now owns it.
-    value->SetJ(0);
-
-    // Check source type is a boxed primitive or has a boxed primitive super-class.
-    ObjPtr<mirror::Class> boxed_to_class = GetBoxedPrimitiveClass(to_type);
-    if (!IsSubClassOfBoxedPrimitive(h_from) && !boxed_to_class->IsSubClass(h_from.Get())) {
+    Primitive::Type unboxed_type;
+    JValue unboxed_value;
+    if (UNLIKELY(!GetUnboxedTypeAndValue(from_obj, &unboxed_type, &unboxed_value))) {
       ThrowWrongMethodTypeException(callee_type.Get(), callsite_type.Get());
       return false;
     }
 
-    if (h_obj.Get() == nullptr) {
-      ThrowNullPointerException(
-        StringPrintf("Expected to unbox a '%s' but instance was null",
-                     h_from->PrettyDescriptor().c_str()).c_str());
+    if (UNLIKELY(!ConvertPrimitiveValueNoThrow(unboxed_type, to_type, unboxed_value, value))) {
+      ThrowClassCastException(from, to);
       return false;
     }
 
-    return UnboxPrimitiveForMethodHandles(h_obj.Get(), h_to.Get(), value);
+    return true;
   }
 }
 
