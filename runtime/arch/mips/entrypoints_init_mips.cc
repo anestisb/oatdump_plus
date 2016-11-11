@@ -59,6 +59,9 @@ extern "C" double fmod(double a, double b);     // REM_DOUBLE[_2ADDR]
 extern "C" int64_t __divdi3(int64_t, int64_t);
 extern "C" int64_t __moddi3(int64_t, int64_t);
 
+// No read barrier entrypoints for marking registers.
+void UpdateReadBarrierEntrypoints(QuickEntryPoints* qpoints, bool is_marking) {}
+
 void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
   // Note: MIPS has asserts checking for the type of entrypoint. Don't move it
   //       to InitDefaultEntryPoints().

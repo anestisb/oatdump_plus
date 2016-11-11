@@ -845,10 +845,7 @@ class Thread {
     return tls32_.is_gc_marking;
   }
 
-  void SetIsGcMarking(bool is_marking) {
-    CHECK(kUseReadBarrier);
-    tls32_.is_gc_marking = is_marking;
-  }
+  void SetIsGcMarkingAndUpdateEntrypoints(bool is_marking);
 
   bool GetWeakRefAccessEnabled() const {
     CHECK(kUseReadBarrier);
