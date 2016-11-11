@@ -141,7 +141,14 @@ bool IsParameterTypeConvertible(ObjPtr<mirror::Class> from, ObjPtr<mirror::Class
     }
     Primitive::Type unboxed_type;
     if (GetUnboxedPrimitiveType(from, &unboxed_type)) {
-      return Primitive::IsWidenable(unboxed_type, to_primitive);
+      if (unboxed_type == to_primitive) {
+        // Straightforward unboxing conversion such as Boolean => boolean.
+        return true;
+      } else {
+        // Check if widening operations for numeric primitives would work,
+        // such as Byte => byte => long.
+        return Primitive::IsWidenable(unboxed_type, to_primitive);
+      }
     }
   }
 
