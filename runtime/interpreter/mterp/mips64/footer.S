@@ -108,7 +108,7 @@ MterpCommonTakenBranchNoFlags:
     REFRESH_IBASE
     daddu   a2, rINST, rINST            # a2<- byte offset
     FETCH_ADVANCE_INST_RB a2            # update rPC, load rINST
-    and     ra, (THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
+    and     ra, THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
     bnezc   ra, .L_suspend_request_pending
     GET_INST_OPCODE v0                  # extract opcode from rINST
     GOTO_OPCODE v0                      # jump to next instruction
@@ -225,7 +225,7 @@ MterpReturn:
     lw      ra, THREAD_FLAGS_OFFSET(rSELF)
     sd      a0, 0(a2)
     move    a0, rSELF
-    and     ra, ra, (THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
+    and     ra, ra, THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
     beqzc   ra, check2
     jal     MterpSuspendCheck                       # (self)
 check2:

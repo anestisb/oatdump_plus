@@ -55,7 +55,6 @@ void ReferenceProcessor::DisableSlowPath(Thread* self) {
 }
 
 void ReferenceProcessor::BroadcastForSlowPath(Thread* self) {
-  CHECK(kUseReadBarrier);
   MutexLock mu(self, *Locks::reference_processor_lock_);
   condition_.Broadcast(self);
 }
@@ -99,6 +98,9 @@ ObjPtr<mirror::Object> ReferenceProcessor::GetReferent(Thread* self,
         }
       }
     }
+    // Check and run the empty checkpoint before blocking so the empty checkpoint will work in the
+    // presence of threads blocking for weak ref access.
+    self->CheckEmptyCheckpoint();
     condition_.WaitHoldingLocks(self);
   }
   return reference->GetReferent();
@@ -270,6 +272,9 @@ bool ReferenceProcessor::MakeCircularListIfUnenqueued(
   // Wait untul we are done processing reference.
   while ((!kUseReadBarrier && SlowPathEnabled()) ||
          (kUseReadBarrier && !self->GetWeakRefAccessEnabled())) {
+    // Check and run the empty checkpoint before blocking so the empty checkpoint will work in the
+    // presence of threads blocking for weak ref access.
+    self->CheckEmptyCheckpoint();
     condition_.WaitHoldingLocks(self);
   }
   // At this point, since the sentinel of the reference is live, it is guaranteed to not be

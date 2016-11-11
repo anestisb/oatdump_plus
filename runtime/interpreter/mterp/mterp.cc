@@ -564,6 +564,8 @@ extern "C" void MterpLogSuspendFallback(Thread* self, ShadowFrame* shadow_frame,
     LOG(INFO) << "Checkpoint fallback: " << inst->Opcode(inst_data);
   } else if (flags & kSuspendRequest) {
     LOG(INFO) << "Suspend fallback: " << inst->Opcode(inst_data);
+  } else if (flags & kEmptyCheckpointRequest) {
+    LOG(INFO) << "Empty checkpoint fallback: " << inst->Opcode(inst_data);
   }
 }
 

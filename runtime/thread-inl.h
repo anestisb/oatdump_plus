@@ -72,6 +72,19 @@ inline void Thread::CheckSuspend() {
       RunCheckpointFunction();
     } else if (ReadFlag(kSuspendRequest)) {
       FullSuspendCheck();
+    } else if (ReadFlag(kEmptyCheckpointRequest)) {
+      RunEmptyCheckpoint();
+    } else {
+      break;
+    }
+  }
+}
+
+inline void Thread::CheckEmptyCheckpoint() {
+  DCHECK_EQ(Thread::Current(), this);
+  for (;;) {
+    if (ReadFlag(kEmptyCheckpointRequest)) {
+      RunEmptyCheckpoint();
     } else {
       break;
     }
@@ -145,8 +158,13 @@ inline void Thread::TransitionToSuspendedAndRunCheckpoints(ThreadState new_state
       RunCheckpointFunction();
       continue;
     }
+    if (UNLIKELY((old_state_and_flags.as_struct.flags & kEmptyCheckpointRequest) != 0)) {
+      RunEmptyCheckpoint();
+      continue;
+    }
     // Change the state but keep the current flags (kCheckpointRequest is clear).
     DCHECK_EQ((old_state_and_flags.as_struct.flags & kCheckpointRequest), 0);
+    DCHECK_EQ((old_state_and_flags.as_struct.flags & kEmptyCheckpointRequest), 0);
     new_state_and_flags.as_struct.flags = old_state_and_flags.as_struct.flags;
     new_state_and_flags.as_struct.state = new_state;
 
@@ -163,7 +181,8 @@ inline void Thread::TransitionToSuspendedAndRunCheckpoints(ThreadState new_state
 inline void Thread::PassActiveSuspendBarriers() {
   while (true) {
     uint16_t current_flags = tls32_.state_and_flags.as_struct.flags;
-    if (LIKELY((current_flags & (kCheckpointRequest | kActiveSuspendBarrier)) == 0)) {
+    if (LIKELY((current_flags &
+                (kCheckpointRequest | kEmptyCheckpointRequest | kActiveSuspendBarrier)) == 0)) {
       break;
     } else if ((current_flags & kActiveSuspendBarrier) != 0) {
       PassActiveSuspendBarriers(this);
@@ -211,7 +230,8 @@ inline ThreadState Thread::TransitionFromSuspendedToRunnable() {
       }
     } else if ((old_state_and_flags.as_struct.flags & kActiveSuspendBarrier) != 0) {
       PassActiveSuspendBarriers(this);
-    } else if ((old_state_and_flags.as_struct.flags & kCheckpointRequest) != 0) {
+    } else if ((old_state_and_flags.as_struct.flags &
+                (kCheckpointRequest | kEmptyCheckpointRequest)) != 0) {
       // Impossible
       LOG(FATAL) << "Transitioning to runnable with checkpoint flag, "
                  << " flags=" << old_state_and_flags.as_struct.flags

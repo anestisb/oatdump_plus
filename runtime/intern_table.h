@@ -112,7 +112,7 @@ class InternTable {
 
   void DumpForSigQuit(std::ostream& os) const REQUIRES(!Locks::intern_table_lock_);
 
-  void BroadcastForNewInterns() REQUIRES_SHARED(Locks::mutator_lock_);
+  void BroadcastForNewInterns();
 
   // Adds all of the resolved image strings from the image spaces into the intern table. The
   // advantage of doing this is preventing expensive DexFile::FindStringId calls. Sets
