@@ -14,35 +14,48 @@
  * limitations under the License.
  */
 
+import java.util.concurrent.CountDownLatch;
+
 /**
  * Make sure that a sub-thread can join the main thread.
  */
 public class Main {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         Thread t;
+        CountDownLatch waitLatch = new CountDownLatch(1);
+        CountDownLatch progressLatch = new CountDownLatch(1);
 
-        t = new Thread(new JoinMainSub(Thread.currentThread()), "Joiner");
+        t = new Thread(new JoinMainSub(Thread.currentThread(), waitLatch, progressLatch), "Joiner");
         System.out.print("Starting thread '" + t.getName() + "'\n");
         t.start();
 
-        try { Thread.sleep(1000); }
-        catch (InterruptedException ie) {}
-
+        waitLatch.await();
         System.out.print("JoinMain starter returning\n");
+        progressLatch.countDown();
+
+        // Keep the thread alive a little longer, giving the other thread a chance to join on a
+        // live thread (though that isn't critically important for the test).
+        Thread.currentThread().sleep(500);
     }
 }
 
 class JoinMainSub implements Runnable {
     private Thread mJoinMe;
+    private CountDownLatch waitLatch;
+    private CountDownLatch progressLatch;
 
-    public JoinMainSub(Thread joinMe) {
+    public JoinMainSub(Thread joinMe, CountDownLatch waitLatch, CountDownLatch progressLatch) {
         mJoinMe = joinMe;
+        this.waitLatch = waitLatch;
+        this.progressLatch = progressLatch;
     }
 
     public void run() {
         System.out.print("@ JoinMainSub running\n");
 
         try {
+            waitLatch.countDown();
+            progressLatch.await();
             mJoinMe.join();
             System.out.print("@ JoinMainSub successfully joined main\n");
         } catch (InterruptedException ie) {
