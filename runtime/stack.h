@@ -469,13 +469,20 @@ struct ShadowFrameDeleter {
   }
 };
 
-class JavaFrameRootInfo : public RootInfo {
+class JavaFrameRootInfo FINAL : public RootInfo {
  public:
   JavaFrameRootInfo(uint32_t thread_id, const StackVisitor* stack_visitor, size_t vreg)
      : RootInfo(kRootJavaFrame, thread_id), stack_visitor_(stack_visitor), vreg_(vreg) {
   }
-  virtual void Describe(std::ostream& os) const OVERRIDE
+  void Describe(std::ostream& os) const OVERRIDE
       REQUIRES_SHARED(Locks::mutator_lock_);
+
+  size_t GetVReg() const {
+    return vreg_;
+  }
+  const StackVisitor* GetVisitor() const {
+    return stack_visitor_;
+  }
 
  private:
   const StackVisitor* const stack_visitor_;
@@ -623,7 +630,7 @@ class StackVisitor {
     return num_frames_;
   }
 
-  size_t GetFrameDepth() REQUIRES_SHARED(Locks::mutator_lock_) {
+  size_t GetFrameDepth() const REQUIRES_SHARED(Locks::mutator_lock_) {
     return cur_depth_;
   }
 
