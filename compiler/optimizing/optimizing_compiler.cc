@@ -167,24 +167,13 @@ class PassObserver : public ValueObject {
       LOG(INFO) << "TIMINGS " << GetMethodName();
       LOG(INFO) << Dumpable<TimingLogger>(timing_logger_);
     }
-    if (visualizer_enabled_) {
-      MutexLock mu(Thread::Current(), visualizer_dump_mutex_);
-      *visualizer_output_ << visualizer_oss_.str();
-      // The destructor of `visualizer_output_` is normally
-      // responsible for flushing (and closing) the stream, but it
-      // won't be invoked during fast exits in non-debug mode -- see
-      // art::Dex2Oat::~Dex2Oat, which explicitly abandons some
-      // objects (such as the compiler driver) in non-debug mode, to
-      // avoid the cost of destructing them.  Therefore we explicitly
-      // flush the stream here to prevent truncated CFG visualizer
-      // files.
-      visualizer_output_->flush();
-    }
+    DCHECK(visualizer_oss_.str().empty());
   }
 
-  void DumpDisassembly() const {
+  void DumpDisassembly() REQUIRES(!visualizer_dump_mutex_) {
     if (visualizer_enabled_) {
       visualizer_.DumpGraphWithDisassembly();
+      FlushVisualizer();
     }
   }
 
@@ -199,24 +188,34 @@ class PassObserver : public ValueObject {
   }
 
  private:
-  void StartPass(const char* pass_name) {
+  void StartPass(const char* pass_name) REQUIRES(!visualizer_dump_mutex_) {
     VLOG(compiler) << "Starting pass: " << pass_name;
     // Dump graph first, then start timer.
     if (visualizer_enabled_) {
       visualizer_.DumpGraph(pass_name, /* is_after_pass */ false, graph_in_bad_state_);
+      FlushVisualizer();
     }
     if (timing_logger_enabled_) {
       timing_logger_.StartTiming(pass_name);
     }
   }
 
-  void EndPass(const char* pass_name) {
+  void FlushVisualizer() REQUIRES(!visualizer_dump_mutex_) {
+    MutexLock mu(Thread::Current(), visualizer_dump_mutex_);
+    *visualizer_output_ << visualizer_oss_.str();
+    visualizer_output_->flush();
+    visualizer_oss_.str("");
+    visualizer_oss_.clear();
+  }
+
+  void EndPass(const char* pass_name) REQUIRES(!visualizer_dump_mutex_) {
     // Pause timer first, then dump graph.
     if (timing_logger_enabled_) {
       timing_logger_.EndTiming();
     }
     if (visualizer_enabled_) {
       visualizer_.DumpGraph(pass_name, /* is_after_pass */ true, graph_in_bad_state_);
+      FlushVisualizer();
     }
 
     // Validate the HGraph if running in debug mode.
