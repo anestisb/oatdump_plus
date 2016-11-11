@@ -69,6 +69,7 @@ public class Main {
     testAsType();
     testConstructors();
     testStringConstructors();
+    testReturnValueConversions();
   }
 
   public static void testfindSpecial_invokeSuperBehaviour() throws Throwable {
@@ -685,6 +686,168 @@ public class Main {
 
     System.out.println("String constructors done.");
   }
+
+  private static void testReferenceReturnValueConversions() throws Throwable {
+    MethodHandle mh = MethodHandles.lookup().findStatic(
+        Float.class, "valueOf", MethodType.methodType(Float.class, String.class));
+
+    // No conversion
+    Float f = (Float) mh.invokeExact("1.375");
+    if (f.floatValue() != 1.375) {
+      fail();
+    }
+    f = (Float) mh.invoke("1.875");
+    if (f.floatValue() != 1.875) {
+      fail();
+    }
+
+    // Bad conversion
+    try {
+      int i = (int) mh.invokeExact("7.77");
+      fail();
+    } catch (WrongMethodTypeException e) {}
+
+    try {
+      int i = (int) mh.invoke("7.77");
+      fail();
+    } catch (WrongMethodTypeException e) {}
+
+    // Assignment to super-class.
+    Number n = (Number) mh.invoke("1.11");
+    try {
+      Number o = (Number) mh.invokeExact("1.11");
+      fail();
+    } catch (WrongMethodTypeException e) {}
+
+    // Assignment to widened boxed primitive class.
+    try {
+      Double u = (Double) mh.invoke("1.11");
+      fail();
+    } catch (ClassCastException e) {}
+
+    try {
+      Double v = (Double) mh.invokeExact("1.11");
+      fail();
+    } catch (WrongMethodTypeException e) {}
+
+    // Unboxed
+    float p = (float) mh.invoke("1.11");
+    if (p != 1.11f) {
+      fail();
+    }
+
+    // Unboxed and widened
+    double d = (double) mh.invoke("2.5");
+    if (d != 2.5) {
+      fail();
+    }
+
+    // Interface
+    Comparable<Float> c = (Comparable<Float>) mh.invoke("2.125");
+    if (c.compareTo(new Float(2.125f)) != 0) {
+      fail();
+    }
+
+    System.out.println("testReferenceReturnValueConversions done.");
+  }
+
+  private static void testPrimitiveReturnValueConversions() throws Throwable {
+    MethodHandle mh = MethodHandles.lookup().findStatic(
+        Math.class, "min", MethodType.methodType(int.class, int.class, int.class));
+
+    final int SMALL = -8972;
+    final int LARGE = 7932529;
+
+    // No conversion
+    if ((int) mh.invokeExact(LARGE, SMALL) != SMALL) {
+      fail();
+    } else if ((int) mh.invoke(LARGE, SMALL) != SMALL) {
+      fail();
+    } else if ((int) mh.invokeExact(SMALL, LARGE) != SMALL) {
+      fail();
+    } else if ((int) mh.invoke(SMALL, LARGE) != SMALL) {
+      fail();
+    }
+
+    // int -> long
+    try {
+      if ((long) mh.invokeExact(LARGE, SMALL) != (long) SMALL) {}
+        fail();
+    } catch (WrongMethodTypeException e) {}
+
+    if ((long) mh.invoke(LARGE, SMALL) != (long) SMALL) {
+      fail();
+    }
+
+    // int -> short
+    try {
+      if ((short) mh.invokeExact(LARGE, SMALL) != (short) SMALL) {}
+      fail();
+    } catch (WrongMethodTypeException e) {}
+
+    try {
+      if ((short) mh.invoke(LARGE, SMALL) != (short) SMALL) {
+        fail();
+      }
+    } catch (WrongMethodTypeException e) {}
+
+    // int -> Integer
+    try {
+      if (!((Integer) mh.invokeExact(LARGE, SMALL)).equals(new Integer(SMALL))) {}
+      fail();
+    } catch (WrongMethodTypeException e) {}
+
+    if (!((Integer) mh.invoke(LARGE, SMALL)).equals(new Integer(SMALL))) {
+      fail();
+    }
+
+    // int -> Long
+    try {
+      Long l = (Long) mh.invokeExact(LARGE, SMALL);
+      fail();
+    } catch (WrongMethodTypeException e) {}
+
+    try {
+      Long l = (Long) mh.invoke(LARGE, SMALL);
+      fail();
+    } catch (WrongMethodTypeException e) {}
+
+    // int -> Short
+    try {
+      Short s = (Short) mh.invokeExact(LARGE, SMALL);
+      fail();
+    } catch (WrongMethodTypeException e) {}
+
+    try {
+      Short s = (Short) mh.invoke(LARGE, SMALL);
+      fail();
+    } catch (WrongMethodTypeException e) {}
+
+    // int -> Process
+    try {
+      Process p = (Process) mh.invokeExact(LARGE, SMALL);
+      fail();
+    } catch (WrongMethodTypeException e) {}
+
+    try {
+      Process p = (Process) mh.invoke(LARGE, SMALL);
+      fail();
+    } catch (WrongMethodTypeException e) {}
+
+    // void -> Object
+    mh = MethodHandles.lookup().findStatic(System.class, "gc", MethodType.methodType(void.class));
+    Object o = (Object) mh.invoke();
+    if (o != null) fail();
+
+    // void -> long
+    long l = (long) mh.invoke();
+    if (l != 0) fail();
+
+    System.out.println("testPrimitiveReturnValueConversions done.");
+  }
+
+  public static void testReturnValueConversions() throws Throwable {
+    testReferenceReturnValueConversions();
+    testPrimitiveReturnValueConversions();
+  }
 }
-
-
