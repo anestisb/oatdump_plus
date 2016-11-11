@@ -162,7 +162,7 @@ class Primitive {
   }
 
   // Return true if |type| is an numeric type.
-  static bool IsNumericType(Type type) {
+  static constexpr bool IsNumericType(Type type) {
     switch (type) {
       case Primitive::Type::kPrimNot: return false;
       case Primitive::Type::kPrimBoolean: return false;
@@ -177,13 +177,16 @@ class Primitive {
     }
   }
 
-  // Returns true if |from| and |to| are the same or a widening conversion exists between them.
+  // Returns true if it is possible to widen type |from| to type |to|. Both |from| and
+  // |to| should be numeric primitive types.
   static bool IsWidenable(Type from, Type to) {
     static_assert(Primitive::Type::kPrimByte < Primitive::Type::kPrimShort, "Bad ordering");
     static_assert(Primitive::Type::kPrimShort < Primitive::Type::kPrimInt, "Bad ordering");
     static_assert(Primitive::Type::kPrimInt < Primitive::Type::kPrimLong, "Bad ordering");
     static_assert(Primitive::Type::kPrimLong < Primitive::Type::kPrimFloat, "Bad ordering");
     static_assert(Primitive::Type::kPrimFloat < Primitive::Type::kPrimDouble, "Bad ordering");
+    // Widening is only applicable between numeric types, like byte
+    // and int. Non-numeric types, such as boolean, cannot be widened.
     return IsNumericType(from) && IsNumericType(to) && from <= to;
   }
 
