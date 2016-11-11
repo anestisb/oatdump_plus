@@ -827,6 +827,20 @@ inline static ObjPtr<mirror::Class> GetAndInitializeDeclaringClass(Thread* self,
   return klass;
 }
 
+// Returns true iff. the callsite type for a polymorphic invoke is transformer
+// like, i.e that it has a single input argument whose type is
+// dalvik.system.EmulatedStackFrame.
+static inline bool IsCallerTransformer(Handle<mirror::MethodType> callsite_type)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  ObjPtr<mirror::ObjectArray<mirror::Class>> param_types(callsite_type->GetPTypes());
+  if (param_types->GetLength() == 1) {
+    ObjPtr<mirror::Class> param(param_types->GetWithoutChecks(0));
+    return param == WellKnownClasses::ToClass(WellKnownClasses::dalvik_system_EmulatedStackFrame);
+  }
+
+  return false;
+}
+
 template<bool is_range, bool do_access_check>
 inline bool DoInvokePolymorphic(Thread* self,
                                 ShadowFrame& shadow_frame,
@@ -837,6 +851,11 @@ inline bool DoInvokePolymorphic(Thread* self,
   // Invoke-polymorphic instructions always take a receiver. i.e, they are never static.
   const uint32_t vRegC = (is_range) ? inst->VRegC_4rcc() : inst->VRegC_45cc();
   const int invoke_method_idx = (is_range) ? inst->VRegB_4rcc() : inst->VRegB_45cc();
+
+  // Initialize |result| to 0 as this is the default return value for
+  // polymorphic invocations of method handle types with void return
+  // and provides sane return result in error cases.
+  result->SetJ(0);
 
   // Determine if this invocation is MethodHandle.invoke() or
   // MethodHandle.invokeExact().
@@ -859,7 +878,6 @@ inline bool DoInvokePolymorphic(Thread* self,
     // Note that the invoke type is kVirtual here because a call to a signature
     // polymorphic method is shaped like a virtual call at the bytecode level.
     ThrowNullPointerExceptionForMethodAccess(invoke_method_idx, InvokeType::kVirtual);
-    result->SetJ(0);
     return false;
   }
 
@@ -880,14 +898,13 @@ inline bool DoInvokePolymorphic(Thread* self,
   // This implies we couldn't resolve one or more types in this method handle.
   if (UNLIKELY(callsite_type.Get() == nullptr)) {
     CHECK(self->IsExceptionPending());
-    result->SetJ(0);
     return false;
   }
 
   const MethodHandleKind handle_kind = method_handle->GetHandleKind();
   Handle<mirror::MethodType> handle_type(hs.NewHandle(method_handle->GetMethodType()));
   CHECK(handle_type.Get() != nullptr);
-  if (is_invoke_exact) {
+  {
     // We need to check the nominal type of the handle in addition to the
     // real type. The "nominal" type is present when MethodHandle.asType is
     // called any handle, and results in the declared type of the handle
@@ -900,9 +917,17 @@ inline bool DoInvokePolymorphic(Thread* self,
       check_type.Assign(nominal_type.Ptr());
     }
 
-    if (UNLIKELY(!callsite_type->IsExactMatch(check_type.Ptr()))) {
-      ThrowWrongMethodTypeException(check_type.Ptr(), callsite_type.Get());
-      return false;
+    if (is_invoke_exact) {
+      if (UNLIKELY(!callsite_type->IsExactMatch(check_type.Ptr()))) {
+        ThrowWrongMethodTypeException(check_type.Ptr(), callsite_type.Get());
+        return false;
+      }
+    } else {
+      if (UNLIKELY(!IsCallerTransformer(callsite_type) &&
+                   !callsite_type->IsConvertible(check_type.Ptr()))) {
+        ThrowWrongMethodTypeException(check_type.Ptr(), callsite_type.Get());
+        return false;
+      }
     }
   }
 
@@ -932,7 +957,7 @@ inline bool DoInvokePolymorphic(Thread* self,
       // TODO: Unfortunately, we have to postpone dynamic receiver based checks
       // because the receiver might be cast or might come from an emulated stack
       // frame, which means that it is unknown at this point. We perform these
-      // checks inside DoCallPolymorphic right before we do the actualy invoke.
+      // checks inside DoCallPolymorphic right before we do the actual invoke.
     } else if (handle_kind == kInvokeDirect) {
       // String constructors are a special case, they are replaced with StringFactory
       // methods.
@@ -965,39 +990,37 @@ inline bool DoInvokePolymorphic(Thread* self,
       CHECK(called_method != nullptr);
     }
 
+    bool call_success;
     if (handle_kind == kInvokeTransform) {
-      return DoCallTransform<is_range>(called_method,
-                                       callsite_type,
-                                       handle_type,
-                                       self,
-                                       shadow_frame,
-                                       method_handle /* receiver */,
-                                       result,
-                                       arg,
-                                       first_src_reg);
+      call_success = DoCallTransform<is_range>(called_method,
+                                               callsite_type,
+                                               handle_type,
+                                               self,
+                                               shadow_frame,
+                                               method_handle /* receiver */,
+                                               result,
+                                               arg,
+                                               first_src_reg);
     } else {
-      return DoCallPolymorphic<is_range>(called_method,
-                                         callsite_type,
-                                         handle_type,
-                                         self,
-                                         shadow_frame,
-                                         result,
-                                         arg,
-                                         first_src_reg,
-                                         handle_kind);
+      call_success = DoCallPolymorphic<is_range>(called_method,
+                                                 callsite_type,
+                                                 handle_type,
+                                                 self,
+                                                 shadow_frame,
+                                                 result,
+                                                 arg,
+                                                 first_src_reg,
+                                                 handle_kind);
     }
+    if (LIKELY(call_success && ConvertReturnValue(callsite_type, handle_type, result))) {
+      return true;
+    }
+    DCHECK(self->IsExceptionPending());
+    return false;
   } else {
     DCHECK(!is_range);
     ArtField* field = method_handle->GetTargetField();
     Primitive::Type field_type = field->GetTypeAsPrimitiveType();;
-
-    if (!is_invoke_exact) {
-      if (handle_type->GetPTypes()->GetLength() != callsite_type->GetPTypes()->GetLength()) {
-        // Too many arguments to setter or getter.
-        ThrowWrongMethodTypeException(callsite_type.Get(), handle_type.Get());
-        return false;
-      }
-    }
 
     switch (handle_kind) {
       case kInstanceGet: {
@@ -1029,7 +1052,6 @@ inline bool DoInvokePolymorphic(Thread* self,
           return false;
         }
         ObjPtr<mirror::Object> obj = shadow_frame.GetVRegReference(first_src_reg);
-        result->SetL(0);
         return DoFieldPutForInvokePolymorphic(self, shadow_frame, obj, field, field_type, value);
       }
       case kStaticPut: {
@@ -1039,7 +1061,6 @@ inline bool DoInvokePolymorphic(Thread* self,
           return false;
         }
         ObjPtr<mirror::Object> obj = field->GetDeclaringClass();
-        result->SetL(0);
         return DoFieldPutForInvokePolymorphic(self, shadow_frame, obj, field, field_type, value);
       }
       default:
@@ -1118,20 +1139,6 @@ inline void CopyRegisters(ShadowFrame& caller_frame,
       AssignRegister(callee_frame, caller_frame, first_dest_reg + arg_index, arg[arg_index]);
     }
   }
-}
-
-// Returns true iff. the callsite type for a polymorphic invoke is transformer
-// like, i.e that it has a single input argument whose type is
-// dalvik.system.EmulatedStackFrame.
-static inline bool IsCallerTransformer(Handle<mirror::MethodType> callsite_type)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  ObjPtr<mirror::ObjectArray<mirror::Class>> param_types(callsite_type->GetPTypes());
-  if (param_types->GetLength() == 1) {
-    ObjPtr<mirror::Class> param(param_types->GetWithoutChecks(0));
-    return param == WellKnownClasses::ToClass(WellKnownClasses::dalvik_system_EmulatedStackFrame);
-  }
-
-  return false;
 }
 
 template <bool is_range>
@@ -1244,8 +1251,6 @@ static inline bool DoCallPolymorphic(ArtMethod* called_method,
   }
 
   PerformCall(self, code_item, shadow_frame.GetMethod(), first_dest_reg, new_shadow_frame, result);
-
-  // TODO(narayan): Perform return value conversions.
 
   // If the caller of this signature polymorphic method was a transformer,
   // we need to copy the result back out to the emulated stack frame.

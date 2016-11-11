@@ -59,6 +59,16 @@ inline bool IsInvoke(const MethodHandleKind handle_kind) {
   return handle_kind <= kLastInvokeKind;
 }
 
+// Returns true if there is a possible conversion from |from| to |to|
+// for a MethodHandle parameter.
+bool IsParameterTypeConvertible(ObjPtr<mirror::Class> from,
+                                ObjPtr<mirror::Class> to);
+
+// Returns true if there is a possible conversion from |from| to |to|
+// for the return type of a MethodHandle.
+bool IsReturnTypeConvertible(ObjPtr<mirror::Class> from,
+                             ObjPtr<mirror::Class> to);
+
 // Performs a conversion from type |from| to a distinct type |to| as
 // part of conversion of |caller_type| to |callee_type|. The value to
 // be converted is in |value|. Returns true on success and updates
