@@ -843,6 +843,42 @@ public class Main {
     long l = (long) mh.invoke();
     if (l != 0) fail();
 
+    // boolean -> Boolean
+    mh = MethodHandles.lookup().findStatic(Boolean.class, "parseBoolean",
+                                           MethodType.methodType(boolean.class, String.class));
+    Boolean z = (Boolean) mh.invoke("True");
+    if (!z.booleanValue()) fail();
+
+    // boolean -> int
+    try {
+        int dummy = (int) mh.invoke("True");
+        fail();
+    } catch (WrongMethodTypeException e) {}
+
+    // boolean -> Integer
+    try {
+        Integer dummy = (Integer) mh.invoke("True");
+        fail();
+    } catch (WrongMethodTypeException e) {}
+
+    // Boolean -> boolean
+    mh = MethodHandles.lookup().findStatic(Boolean.class, "valueOf",
+                                           MethodType.methodType(Boolean.class, boolean.class));
+    boolean w = (boolean) mh.invoke(false);
+    if (w) fail();
+
+    // Boolean -> int
+    try {
+        int dummy = (int) mh.invoke(false);
+        fail();
+    } catch (WrongMethodTypeException e) {}
+
+    // Boolean -> Integer
+    try {
+        Integer dummy = (Integer) mh.invoke("True");
+        fail();
+    } catch (WrongMethodTypeException e) {}
+
     System.out.println("testPrimitiveReturnValueConversions done.");
   }
 
