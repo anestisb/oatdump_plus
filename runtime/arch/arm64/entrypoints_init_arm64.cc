@@ -70,6 +70,47 @@ extern "C" mirror::Object* art_quick_read_barrier_mark_reg27(mirror::Object*);
 extern "C" mirror::Object* art_quick_read_barrier_mark_reg28(mirror::Object*);
 extern "C" mirror::Object* art_quick_read_barrier_mark_reg29(mirror::Object*);
 
+void UpdateReadBarrierEntrypoints(QuickEntryPoints* qpoints, bool is_marking) {
+  // ARM64 is the architecture with the largest number of core
+  // registers (32) that supports the read barrier configuration.
+  // Because registers 30 (LR) and 31 (SP/XZR) cannot be used to pass
+  // arguments, only define ReadBarrierMarkRegX entrypoints for the
+  // first 30 registers.  This limitation is not a problem on other
+  // supported architectures (ARM, x86 and x86-64) either, as they
+  // have less core registers (resp. 16, 8 and 16).  (We may have to
+  // revise that design choice if read barrier support is added for
+  // MIPS and/or MIPS64.)
+  qpoints->pReadBarrierMarkReg00 = is_marking ? art_quick_read_barrier_mark_reg00 : nullptr;
+  qpoints->pReadBarrierMarkReg01 = is_marking ? art_quick_read_barrier_mark_reg01 : nullptr;
+  qpoints->pReadBarrierMarkReg02 = is_marking ? art_quick_read_barrier_mark_reg02 : nullptr;
+  qpoints->pReadBarrierMarkReg03 = is_marking ? art_quick_read_barrier_mark_reg03 : nullptr;
+  qpoints->pReadBarrierMarkReg04 = is_marking ? art_quick_read_barrier_mark_reg04 : nullptr;
+  qpoints->pReadBarrierMarkReg05 = is_marking ? art_quick_read_barrier_mark_reg05 : nullptr;
+  qpoints->pReadBarrierMarkReg06 = is_marking ? art_quick_read_barrier_mark_reg06 : nullptr;
+  qpoints->pReadBarrierMarkReg07 = is_marking ? art_quick_read_barrier_mark_reg07 : nullptr;
+  qpoints->pReadBarrierMarkReg08 = is_marking ? art_quick_read_barrier_mark_reg08 : nullptr;
+  qpoints->pReadBarrierMarkReg09 = is_marking ? art_quick_read_barrier_mark_reg09 : nullptr;
+  qpoints->pReadBarrierMarkReg10 = is_marking ? art_quick_read_barrier_mark_reg10 : nullptr;
+  qpoints->pReadBarrierMarkReg11 = is_marking ? art_quick_read_barrier_mark_reg11 : nullptr;
+  qpoints->pReadBarrierMarkReg12 = is_marking ? art_quick_read_barrier_mark_reg12 : nullptr;
+  qpoints->pReadBarrierMarkReg13 = is_marking ? art_quick_read_barrier_mark_reg13 : nullptr;
+  qpoints->pReadBarrierMarkReg14 = is_marking ? art_quick_read_barrier_mark_reg14 : nullptr;
+  qpoints->pReadBarrierMarkReg15 = is_marking ? art_quick_read_barrier_mark_reg15 : nullptr;
+  qpoints->pReadBarrierMarkReg17 = is_marking ? art_quick_read_barrier_mark_reg17 : nullptr;
+  qpoints->pReadBarrierMarkReg18 = is_marking ? art_quick_read_barrier_mark_reg18 : nullptr;
+  qpoints->pReadBarrierMarkReg19 = is_marking ? art_quick_read_barrier_mark_reg19 : nullptr;
+  qpoints->pReadBarrierMarkReg20 = is_marking ? art_quick_read_barrier_mark_reg20 : nullptr;
+  qpoints->pReadBarrierMarkReg21 = is_marking ? art_quick_read_barrier_mark_reg21 : nullptr;
+  qpoints->pReadBarrierMarkReg22 = is_marking ? art_quick_read_barrier_mark_reg22 : nullptr;
+  qpoints->pReadBarrierMarkReg23 = is_marking ? art_quick_read_barrier_mark_reg23 : nullptr;
+  qpoints->pReadBarrierMarkReg24 = is_marking ? art_quick_read_barrier_mark_reg24 : nullptr;
+  qpoints->pReadBarrierMarkReg25 = is_marking ? art_quick_read_barrier_mark_reg25 : nullptr;
+  qpoints->pReadBarrierMarkReg26 = is_marking ? art_quick_read_barrier_mark_reg26 : nullptr;
+  qpoints->pReadBarrierMarkReg27 = is_marking ? art_quick_read_barrier_mark_reg27 : nullptr;
+  qpoints->pReadBarrierMarkReg28 = is_marking ? art_quick_read_barrier_mark_reg28 : nullptr;
+  qpoints->pReadBarrierMarkReg29 = is_marking ? art_quick_read_barrier_mark_reg29 : nullptr;
+}
+
 void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
   DefaultInitEntryPoints(jpoints, qpoints);
 
@@ -126,45 +167,8 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
 
   // Read barrier.
   qpoints->pReadBarrierJni = ReadBarrierJni;
-  // ARM64 is the architecture with the largest number of core
-  // registers (32) that supports the read barrier configuration.
-  // Because registers 30 (LR) and 31 (SP/XZR) cannot be used to pass
-  // arguments, only define ReadBarrierMarkRegX entrypoints for the
-  // first 30 registers.  This limitation is not a problem on other
-  // supported architectures (ARM, x86 and x86-64) either, as they
-  // have less core registers (resp. 16, 8 and 16).  (We may have to
-  // revise that design choice if read barrier support is added for
-  // MIPS and/or MIPS64.)
-  qpoints->pReadBarrierMarkReg00 = art_quick_read_barrier_mark_reg00;
-  qpoints->pReadBarrierMarkReg01 = art_quick_read_barrier_mark_reg01;
-  qpoints->pReadBarrierMarkReg02 = art_quick_read_barrier_mark_reg02;
-  qpoints->pReadBarrierMarkReg03 = art_quick_read_barrier_mark_reg03;
-  qpoints->pReadBarrierMarkReg04 = art_quick_read_barrier_mark_reg04;
-  qpoints->pReadBarrierMarkReg05 = art_quick_read_barrier_mark_reg05;
-  qpoints->pReadBarrierMarkReg06 = art_quick_read_barrier_mark_reg06;
-  qpoints->pReadBarrierMarkReg07 = art_quick_read_barrier_mark_reg07;
-  qpoints->pReadBarrierMarkReg08 = art_quick_read_barrier_mark_reg08;
-  qpoints->pReadBarrierMarkReg09 = art_quick_read_barrier_mark_reg09;
-  qpoints->pReadBarrierMarkReg10 = art_quick_read_barrier_mark_reg10;
-  qpoints->pReadBarrierMarkReg11 = art_quick_read_barrier_mark_reg11;
-  qpoints->pReadBarrierMarkReg12 = art_quick_read_barrier_mark_reg12;
-  qpoints->pReadBarrierMarkReg13 = art_quick_read_barrier_mark_reg13;
-  qpoints->pReadBarrierMarkReg14 = art_quick_read_barrier_mark_reg14;
-  qpoints->pReadBarrierMarkReg15 = art_quick_read_barrier_mark_reg15;
   qpoints->pReadBarrierMarkReg16 = nullptr;  // IP0 is used as a temp by the asm stub.
-  qpoints->pReadBarrierMarkReg17 = art_quick_read_barrier_mark_reg17;
-  qpoints->pReadBarrierMarkReg18 = art_quick_read_barrier_mark_reg18;
-  qpoints->pReadBarrierMarkReg19 = art_quick_read_barrier_mark_reg19;
-  qpoints->pReadBarrierMarkReg20 = art_quick_read_barrier_mark_reg20;
-  qpoints->pReadBarrierMarkReg21 = art_quick_read_barrier_mark_reg21;
-  qpoints->pReadBarrierMarkReg22 = art_quick_read_barrier_mark_reg22;
-  qpoints->pReadBarrierMarkReg23 = art_quick_read_barrier_mark_reg23;
-  qpoints->pReadBarrierMarkReg24 = art_quick_read_barrier_mark_reg24;
-  qpoints->pReadBarrierMarkReg25 = art_quick_read_barrier_mark_reg25;
-  qpoints->pReadBarrierMarkReg26 = art_quick_read_barrier_mark_reg26;
-  qpoints->pReadBarrierMarkReg27 = art_quick_read_barrier_mark_reg27;
-  qpoints->pReadBarrierMarkReg28 = art_quick_read_barrier_mark_reg28;
-  qpoints->pReadBarrierMarkReg29 = art_quick_read_barrier_mark_reg29;
+  UpdateReadBarrierEntrypoints(qpoints, /*is_marking*/ false);
   qpoints->pReadBarrierSlow = artReadBarrierSlow;
   qpoints->pReadBarrierForRootSlow = artReadBarrierForRootSlow;
 };

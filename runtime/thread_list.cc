@@ -1242,7 +1242,7 @@ void ThreadList::Register(Thread* self) {
     // Initialize according to the state of the CC collector.
     bool is_gc_marking =
         Runtime::Current()->GetHeap()->ConcurrentCopyingCollector()->IsMarking();
-    self->SetIsGcMarking(is_gc_marking);
+    self->SetIsGcMarkingAndUpdateEntrypoints(is_gc_marking);
     bool weak_ref_access_enabled =
         Runtime::Current()->GetHeap()->ConcurrentCopyingCollector()->IsWeakRefAccessEnabled();
     self->SetWeakRefAccessEnabled(weak_ref_access_enabled);
