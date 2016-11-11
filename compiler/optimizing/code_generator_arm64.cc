@@ -607,10 +607,16 @@ void JumpTableARM64::EmitTable(CodeGeneratorARM64* codegen) {
 // probably still be a from-space reference (unless it gets updated by
 // another thread, or if another thread installed another object
 // reference (different from `ref`) in `obj.field`).
+// If entrypoint is a valid location it is assumed to already be holding the entrypoint. The case
+// where the entrypoint is passed in is for the GcRoot read barrier.
 class ReadBarrierMarkSlowPathARM64 : public SlowPathCodeARM64 {
  public:
-  ReadBarrierMarkSlowPathARM64(HInstruction* instruction, Location ref)
-      : SlowPathCodeARM64(instruction), ref_(ref) {
+  ReadBarrierMarkSlowPathARM64(HInstruction* instruction,
+                               Location ref,
+                               Location entrypoint = Location::NoLocation())
+      : SlowPathCodeARM64(instruction),
+        ref_(ref),
+        entrypoint_(entrypoint) {
     DCHECK(kEmitCompilerReadBarrier);
   }
 
@@ -665,16 +671,25 @@ class ReadBarrierMarkSlowPathARM64 : public SlowPathCodeARM64 {
     //
     //   rX <- ReadBarrierMarkRegX(rX)
     //
-    int32_t entry_point_offset =
-        CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kArm64PointerSize>(ref_.reg());
-    // This runtime call does not require a stack map.
-    arm64_codegen->InvokeRuntimeWithoutRecordingPcInfo(entry_point_offset, instruction_, this);
+    if (entrypoint_.IsValid()) {
+      arm64_codegen->ValidateInvokeRuntimeWithoutRecordingPcInfo(instruction_, this);
+      __ Blr(XRegisterFrom(entrypoint_));
+    } else {
+      // Entrypoint is not already loaded, load from the thread.
+      int32_t entry_point_offset =
+          CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kArm64PointerSize>(ref_.reg());
+      // This runtime call does not require a stack map.
+      arm64_codegen->InvokeRuntimeWithoutRecordingPcInfo(entry_point_offset, instruction_, this);
+    }
     __ B(GetExitLabel());
   }
 
  private:
   // The location (register) of the marked object reference.
   const Location ref_;
+
+  // The location of the entrypoint if it is already loaded.
+  const Location entrypoint_;
 
   DISALLOW_COPY_AND_ASSIGN(ReadBarrierMarkSlowPathARM64);
 };
@@ -5379,8 +5394,9 @@ void InstructionCodeGeneratorARM64::GenerateGcRootFieldLoad(
       // Baker's read barrier are used:
       //
       //   root = obj.field;
-      //   if (Thread::Current()->GetIsGcMarking()) {
-      //     root = ReadBarrier::Mark(root)
+      //   temp = Thread::Current()->pReadBarrierMarkReg ## root.reg()
+      //   if (temp != null) {
+      //     root = temp(root)
       //   }
 
       // /* GcRoot<mirror::Object> */ root = *(obj + offset)
@@ -5397,16 +5413,22 @@ void InstructionCodeGeneratorARM64::GenerateGcRootFieldLoad(
                     "art::mirror::CompressedReference<mirror::Object> and int32_t "
                     "have different sizes.");
 
-      // Slow path marking the GC root `root`.
-      SlowPathCodeARM64* slow_path =
-          new (GetGraph()->GetArena()) ReadBarrierMarkSlowPathARM64(instruction, root);
-      codegen_->AddSlowPath(slow_path);
+      Register temp = lr;
 
-      MacroAssembler* masm = GetVIXLAssembler();
-      UseScratchRegisterScope temps(masm);
-      Register temp = temps.AcquireW();
-      // temp = Thread::Current()->GetIsGcMarking()
-      __ Ldr(temp, MemOperand(tr, Thread::IsGcMarkingOffset<kArm64PointerSize>().Int32Value()));
+      // Slow path marking the GC root `root`. The entrypoint will alrady be loaded in temp.
+      SlowPathCodeARM64* slow_path =
+          new (GetGraph()->GetArena()) ReadBarrierMarkSlowPathARM64(instruction,
+                                                                    root,
+                                                                    LocationFrom(temp));
+      codegen_->AddSlowPath(slow_path);
+      const int32_t entry_point_offset =
+          CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kArm64PointerSize>(root.reg());
+      // temp = Thread::Current()->pReadBarrierMarkReg ## root.reg()
+      // Loading the entrypoint does not require a load acquire since it is only changed when
+      // threads are suspended or running a checkpoint.
+      __ Ldr(temp, MemOperand(tr, entry_point_offset));
+      // The entrypoint is null when the GC is not marking, this prevents one load compared to
+      // checking GetIsGcMarking.
       __ Cbnz(temp, slow_path->GetEntryLabel());
       __ Bind(slow_path->GetExitLabel());
     } else {

@@ -116,6 +116,13 @@ static void UnimplementedEntryPoint() {
 }
 
 void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints);
+void UpdateReadBarrierEntrypoints(QuickEntryPoints* qpoints, bool is_marking);
+
+void Thread::SetIsGcMarkingAndUpdateEntrypoints(bool is_marking) {
+  CHECK(kUseReadBarrier);
+  tls32_.is_gc_marking = is_marking;
+  UpdateReadBarrierEntrypoints(&tlsPtr_.quick_entrypoints, is_marking);
+}
 
 void Thread::InitTlsEntryPoints() {
   // Insert a placeholder so we can easily tell if we call an unimplemented entry point.
