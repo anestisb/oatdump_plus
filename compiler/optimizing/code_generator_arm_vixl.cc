@@ -458,7 +458,7 @@ class TypeCheckSlowPathARMVIXL : public SlowPathCodeARMVIXL {
     __ Bind(GetEntryLabel());
 
     if (!is_fatal_) {
-      TODO_VIXL32(FATAL);
+      SaveLiveRegisters(codegen, locations);
     }
 
     // We're moving two locations to locations that could overlap, so we need a parallel
@@ -472,7 +472,13 @@ class TypeCheckSlowPathARMVIXL : public SlowPathCodeARMVIXL {
                                LocationFrom(calling_convention.GetRegisterAt(1)),
                                Primitive::kPrimNot);
     if (instruction_->IsInstanceOf()) {
-      TODO_VIXL32(FATAL);
+      arm_codegen->InvokeRuntime(kQuickInstanceofNonTrivial,
+                                 instruction_,
+                                 instruction_->GetDexPc(),
+                                 this);
+      CheckEntrypointTypes<
+          kQuickInstanceofNonTrivial, size_t, mirror::Class*, mirror::Class*>();
+      arm_codegen->Move32(locations->Out(), LocationFrom(r0));
     } else {
       DCHECK(instruction_->IsCheckCast());
       arm_codegen->InvokeRuntime(kQuickCheckInstanceOf,
@@ -483,7 +489,8 @@ class TypeCheckSlowPathARMVIXL : public SlowPathCodeARMVIXL {
     }
 
     if (!is_fatal_) {
-      TODO_VIXL32(FATAL);
+      RestoreLiveRegisters(codegen, locations);
+      __ B(GetExitLabel());
     }
   }
 
@@ -850,9 +857,9 @@ void CodeGeneratorARMVIXL::Move32(Location destination, Location source) {
   }
 }
 
-void CodeGeneratorARMVIXL::MoveConstant(Location destination ATTRIBUTE_UNUSED,
-                                        int32_t value ATTRIBUTE_UNUSED) {
-  TODO_VIXL32(FATAL);
+void CodeGeneratorARMVIXL::MoveConstant(Location location, int32_t value) {
+  DCHECK(location.IsRegister());
+  __ Mov(RegisterFrom(location), value);
 }
 
 void CodeGeneratorARMVIXL::MoveLocation(Location dst, Location src, Primitive::Type dst_type) {
@@ -863,9 +870,15 @@ void CodeGeneratorARMVIXL::MoveLocation(Location dst, Location src, Primitive::T
   GetMoveResolver()->EmitNativeCode(&move);
 }
 
-void CodeGeneratorARMVIXL::AddLocationAsTemp(Location location ATTRIBUTE_UNUSED,
-                                             LocationSummary* locations ATTRIBUTE_UNUSED) {
-  TODO_VIXL32(FATAL);
+void CodeGeneratorARMVIXL::AddLocationAsTemp(Location location, LocationSummary* locations) {
+  if (location.IsRegister()) {
+    locations->AddTemp(location);
+  } else if (location.IsRegisterPair()) {
+    locations->AddTemp(LocationFrom(LowRegisterFrom(location)));
+    locations->AddTemp(LocationFrom(HighRegisterFrom(location)));
+  } else {
+    UNIMPLEMENTED(FATAL) << "AddLocationAsTemp not implemented for location " << location;
+  }
 }
 
 void CodeGeneratorARMVIXL::InvokeRuntime(QuickEntrypointEnum entrypoint,
@@ -1478,6 +1491,17 @@ void InstructionCodeGeneratorARMVIXL::VisitReturn(HReturn* ret ATTRIBUTE_UNUSED)
   codegen_->GenerateFrameExit();
 }
 
+void LocationsBuilderARMVIXL::VisitInvokeUnresolved(HInvokeUnresolved* invoke) {
+  // The trampoline uses the same calling convention as dex calling conventions,
+  // except instead of loading arg0/r0 with the target Method*, arg0/r0 will contain
+  // the method_idx.
+  HandleInvoke(invoke);
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitInvokeUnresolved(HInvokeUnresolved* invoke) {
+  codegen_->GenerateInvokeUnresolvedRuntimeCall(invoke);
+}
+
 void LocationsBuilderARMVIXL::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
   // Explicit clinit checks triggered by static invokes must have been pruned by
   // art::PrepareForRegisterAllocation.
@@ -1546,6 +1570,63 @@ void InstructionCodeGeneratorARMVIXL::VisitInvokeVirtual(HInvokeVirtual* invoke)
   // TODO(VIXL): If necessary, use a scope to ensure we record the pc info immediately after the
   // previous instruction.
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
+}
+
+void LocationsBuilderARMVIXL::VisitInvokeInterface(HInvokeInterface* invoke) {
+  HandleInvoke(invoke);
+  // Add the hidden argument.
+  invoke->GetLocations()->AddTemp(LocationFrom(r12));
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitInvokeInterface(HInvokeInterface* invoke) {
+  // TODO: b/18116999, our IMTs can miss an IncompatibleClassChangeError.
+  LocationSummary* locations = invoke->GetLocations();
+  vixl32::Register temp = RegisterFrom(locations->GetTemp(0));
+  vixl32::Register hidden_reg = RegisterFrom(locations->GetTemp(1));
+  Location receiver = locations->InAt(0);
+  uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
+
+  DCHECK(!receiver.IsStackSlot());
+
+  // /* HeapReference<Class> */ temp = receiver->klass_
+  GetAssembler()->LoadFromOffset(kLoadWord, temp, RegisterFrom(receiver), class_offset);
+
+  codegen_->MaybeRecordImplicitNullCheck(invoke);
+  // Instead of simply (possibly) unpoisoning `temp` here, we should
+  // emit a read barrier for the previous class reference load.
+  // However this is not required in practice, as this is an
+  // intermediate/temporary reference and because the current
+  // concurrent copying collector keeps the from-space memory
+  // intact/accessible until the end of the marking phase (the
+  // concurrent copying collector may not in the future).
+  GetAssembler()->MaybeUnpoisonHeapReference(temp);
+  GetAssembler()->LoadFromOffset(kLoadWord,
+                                 temp,
+                                 temp,
+                                 mirror::Class::ImtPtrOffset(kArmPointerSize).Uint32Value());
+  uint32_t method_offset = static_cast<uint32_t>(ImTable::OffsetOfElement(
+      invoke->GetImtIndex(), kArmPointerSize));
+  // temp = temp->GetImtEntryAt(method_offset);
+  GetAssembler()->LoadFromOffset(kLoadWord, temp, temp, method_offset);
+  uint32_t entry_point =
+      ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArmPointerSize).Int32Value();
+  // LR = temp->GetEntryPoint();
+  GetAssembler()->LoadFromOffset(kLoadWord, lr, temp, entry_point);
+
+  // Set the hidden (in r12) argument. It is done here, right before a BLX to prevent other
+  // instruction from clobbering it as they might use r12 as a scratch register.
+  DCHECK(hidden_reg.Is(r12));
+  __ Mov(hidden_reg, invoke->GetDexMethodIndex());
+
+  {
+    AssemblerAccurateScope aas(GetVIXLAssembler(),
+                               kArmInstrMaxSizeInBytes,
+                               CodeBufferCheckScope::kMaximumSize);
+    // LR();
+    __ blx(lr);
+    DCHECK(!codegen_->IsLeafMethod());
+    codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
+  }
 }
 
 void LocationsBuilderARMVIXL::VisitNeg(HNeg* neg) {
@@ -3592,6 +3673,74 @@ void InstructionCodeGeneratorARMVIXL::VisitStaticFieldSet(HStaticFieldSet* instr
   HandleFieldSet(instruction, instruction->GetFieldInfo(), instruction->GetValueCanBeNull());
 }
 
+void LocationsBuilderARMVIXL::VisitUnresolvedInstanceFieldGet(
+    HUnresolvedInstanceFieldGet* instruction) {
+  FieldAccessCallingConventionARMVIXL calling_convention;
+  codegen_->CreateUnresolvedFieldLocationSummary(
+      instruction, instruction->GetFieldType(), calling_convention);
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitUnresolvedInstanceFieldGet(
+    HUnresolvedInstanceFieldGet* instruction) {
+  FieldAccessCallingConventionARMVIXL calling_convention;
+  codegen_->GenerateUnresolvedFieldAccess(instruction,
+                                          instruction->GetFieldType(),
+                                          instruction->GetFieldIndex(),
+                                          instruction->GetDexPc(),
+                                          calling_convention);
+}
+
+void LocationsBuilderARMVIXL::VisitUnresolvedInstanceFieldSet(
+    HUnresolvedInstanceFieldSet* instruction) {
+  FieldAccessCallingConventionARMVIXL calling_convention;
+  codegen_->CreateUnresolvedFieldLocationSummary(
+      instruction, instruction->GetFieldType(), calling_convention);
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitUnresolvedInstanceFieldSet(
+    HUnresolvedInstanceFieldSet* instruction) {
+  FieldAccessCallingConventionARMVIXL calling_convention;
+  codegen_->GenerateUnresolvedFieldAccess(instruction,
+                                          instruction->GetFieldType(),
+                                          instruction->GetFieldIndex(),
+                                          instruction->GetDexPc(),
+                                          calling_convention);
+}
+
+void LocationsBuilderARMVIXL::VisitUnresolvedStaticFieldGet(
+    HUnresolvedStaticFieldGet* instruction) {
+  FieldAccessCallingConventionARMVIXL calling_convention;
+  codegen_->CreateUnresolvedFieldLocationSummary(
+      instruction, instruction->GetFieldType(), calling_convention);
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitUnresolvedStaticFieldGet(
+    HUnresolvedStaticFieldGet* instruction) {
+  FieldAccessCallingConventionARMVIXL calling_convention;
+  codegen_->GenerateUnresolvedFieldAccess(instruction,
+                                          instruction->GetFieldType(),
+                                          instruction->GetFieldIndex(),
+                                          instruction->GetDexPc(),
+                                          calling_convention);
+}
+
+void LocationsBuilderARMVIXL::VisitUnresolvedStaticFieldSet(
+    HUnresolvedStaticFieldSet* instruction) {
+  FieldAccessCallingConventionARMVIXL calling_convention;
+  codegen_->CreateUnresolvedFieldLocationSummary(
+      instruction, instruction->GetFieldType(), calling_convention);
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitUnresolvedStaticFieldSet(
+    HUnresolvedStaticFieldSet* instruction) {
+  FieldAccessCallingConventionARMVIXL calling_convention;
+  codegen_->GenerateUnresolvedFieldAccess(instruction,
+                                          instruction->GetFieldType(),
+                                          instruction->GetFieldIndex(),
+                                          instruction->GetDexPc(),
+                                          calling_convention);
+}
+
 void LocationsBuilderARMVIXL::VisitNullCheck(HNullCheck* instruction) {
   // TODO(VIXL): https://android-review.googlesource.com/#/c/275337/
   LocationSummary::CallKind call_kind = instruction->CanThrowIntoCatchBlock()
@@ -4765,6 +4914,196 @@ static bool TypeCheckNeedsATemporary(TypeCheckKind type_check_kind) {
        type_check_kind == TypeCheckKind::kArrayObjectCheck);
 }
 
+
+void LocationsBuilderARMVIXL::VisitInstanceOf(HInstanceOf* instruction) {
+  LocationSummary::CallKind call_kind = LocationSummary::kNoCall;
+  TypeCheckKind type_check_kind = instruction->GetTypeCheckKind();
+  bool baker_read_barrier_slow_path = false;
+  switch (type_check_kind) {
+    case TypeCheckKind::kExactCheck:
+    case TypeCheckKind::kAbstractClassCheck:
+    case TypeCheckKind::kClassHierarchyCheck:
+    case TypeCheckKind::kArrayObjectCheck:
+      call_kind =
+          kEmitCompilerReadBarrier ? LocationSummary::kCallOnSlowPath : LocationSummary::kNoCall;
+      baker_read_barrier_slow_path = kUseBakerReadBarrier;
+      break;
+    case TypeCheckKind::kArrayCheck:
+    case TypeCheckKind::kUnresolvedCheck:
+    case TypeCheckKind::kInterfaceCheck:
+      call_kind = LocationSummary::kCallOnSlowPath;
+      break;
+  }
+
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction, call_kind);
+  if (baker_read_barrier_slow_path) {
+    locations->SetCustomSlowPathCallerSaves(RegisterSet::Empty());  // No caller-save registers.
+  }
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+  // The "out" register is used as a temporary, so it overlaps with the inputs.
+  // Note that TypeCheckSlowPathARM uses this register too.
+  locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
+  // When read barriers are enabled, we need a temporary register for
+  // some cases.
+  if (TypeCheckNeedsATemporary(type_check_kind)) {
+    locations->AddTemp(Location::RequiresRegister());
+  }
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) {
+  TypeCheckKind type_check_kind = instruction->GetTypeCheckKind();
+  LocationSummary* locations = instruction->GetLocations();
+  Location obj_loc = locations->InAt(0);
+  vixl32::Register obj = InputRegisterAt(instruction, 0);
+  vixl32::Register cls = InputRegisterAt(instruction, 1);
+  Location out_loc = locations->Out();
+  vixl32::Register out = OutputRegister(instruction);
+  Location maybe_temp_loc = TypeCheckNeedsATemporary(type_check_kind) ?
+      locations->GetTemp(0) :
+      Location::NoLocation();
+  uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
+  uint32_t super_offset = mirror::Class::SuperClassOffset().Int32Value();
+  uint32_t component_offset = mirror::Class::ComponentTypeOffset().Int32Value();
+  uint32_t primitive_offset = mirror::Class::PrimitiveTypeOffset().Int32Value();
+  vixl32::Label done, zero;
+  SlowPathCodeARMVIXL* slow_path = nullptr;
+
+  // Return 0 if `obj` is null.
+  // avoid null check if we know obj is not null.
+  if (instruction->MustDoNullCheck()) {
+    __ Cbz(obj, &zero);
+  }
+
+  // /* HeapReference<Class> */ out = obj->klass_
+  GenerateReferenceLoadTwoRegisters(instruction, out_loc, obj_loc, class_offset, maybe_temp_loc);
+
+  switch (type_check_kind) {
+    case TypeCheckKind::kExactCheck: {
+      __ Cmp(out, cls);
+      // Classes must be equal for the instanceof to succeed.
+      __ B(ne, &zero);
+      __ Mov(out, 1);
+      __ B(&done);
+      break;
+    }
+
+    case TypeCheckKind::kAbstractClassCheck: {
+      // If the class is abstract, we eagerly fetch the super class of the
+      // object to avoid doing a comparison we know will fail.
+      vixl32::Label loop;
+      __ Bind(&loop);
+      // /* HeapReference<Class> */ out = out->super_class_
+      GenerateReferenceLoadOneRegister(instruction, out_loc, super_offset, maybe_temp_loc);
+      // If `out` is null, we use it for the result, and jump to `done`.
+      __ Cbz(out, &done);
+      __ Cmp(out, cls);
+      __ B(ne, &loop);
+      __ Mov(out, 1);
+      if (zero.IsReferenced()) {
+        __ B(&done);
+      }
+      break;
+    }
+
+    case TypeCheckKind::kClassHierarchyCheck: {
+      // Walk over the class hierarchy to find a match.
+      vixl32::Label loop, success;
+      __ Bind(&loop);
+      __ Cmp(out, cls);
+      __ B(eq, &success);
+      // /* HeapReference<Class> */ out = out->super_class_
+      GenerateReferenceLoadOneRegister(instruction, out_loc, super_offset, maybe_temp_loc);
+      __ Cbnz(out, &loop);
+      // If `out` is null, we use it for the result, and jump to `done`.
+      __ B(&done);
+      __ Bind(&success);
+      __ Mov(out, 1);
+      if (zero.IsReferenced()) {
+        __ B(&done);
+      }
+      break;
+    }
+
+    case TypeCheckKind::kArrayObjectCheck: {
+      // Do an exact check.
+      vixl32::Label exact_check;
+      __ Cmp(out, cls);
+      __ B(eq, &exact_check);
+      // Otherwise, we need to check that the object's class is a non-primitive array.
+      // /* HeapReference<Class> */ out = out->component_type_
+      GenerateReferenceLoadOneRegister(instruction, out_loc, component_offset, maybe_temp_loc);
+      // If `out` is null, we use it for the result, and jump to `done`.
+      __ Cbz(out, &done);
+      GetAssembler()->LoadFromOffset(kLoadUnsignedHalfword, out, out, primitive_offset);
+      static_assert(Primitive::kPrimNot == 0, "Expected 0 for kPrimNot");
+      __ Cbnz(out, &zero);
+      __ Bind(&exact_check);
+      __ Mov(out, 1);
+      __ B(&done);
+      break;
+    }
+
+    case TypeCheckKind::kArrayCheck: {
+      __ Cmp(out, cls);
+      DCHECK(locations->OnlyCallsOnSlowPath());
+      slow_path = new (GetGraph()->GetArena()) TypeCheckSlowPathARMVIXL(instruction,
+                                                                        /* is_fatal */ false);
+      codegen_->AddSlowPath(slow_path);
+      __ B(ne, slow_path->GetEntryLabel());
+      __ Mov(out, 1);
+      if (zero.IsReferenced()) {
+        __ B(&done);
+      }
+      break;
+    }
+
+    case TypeCheckKind::kUnresolvedCheck:
+    case TypeCheckKind::kInterfaceCheck: {
+      // Note that we indeed only call on slow path, but we always go
+      // into the slow path for the unresolved and interface check
+      // cases.
+      //
+      // We cannot directly call the InstanceofNonTrivial runtime
+      // entry point without resorting to a type checking slow path
+      // here (i.e. by calling InvokeRuntime directly), as it would
+      // require to assign fixed registers for the inputs of this
+      // HInstanceOf instruction (following the runtime calling
+      // convention), which might be cluttered by the potential first
+      // read barrier emission at the beginning of this method.
+      //
+      // TODO: Introduce a new runtime entry point taking the object
+      // to test (instead of its class) as argument, and let it deal
+      // with the read barrier issues. This will let us refactor this
+      // case of the `switch` code as it was previously (with a direct
+      // call to the runtime not using a type checking slow path).
+      // This should also be beneficial for the other cases above.
+      DCHECK(locations->OnlyCallsOnSlowPath());
+      slow_path = new (GetGraph()->GetArena()) TypeCheckSlowPathARMVIXL(instruction,
+                                                                        /* is_fatal */ false);
+      codegen_->AddSlowPath(slow_path);
+      __ B(slow_path->GetEntryLabel());
+      if (zero.IsReferenced()) {
+        __ B(&done);
+      }
+      break;
+    }
+  }
+
+  if (zero.IsReferenced()) {
+    __ Bind(&zero);
+    __ Mov(out, 0);
+  }
+
+  if (done.IsReferenced()) {
+    __ Bind(&done);
+  }
+
+  if (slow_path != nullptr) {
+    __ Bind(slow_path->GetExitLabel());
+  }
+}
+
 void LocationsBuilderARMVIXL::VisitCheckCast(HCheckCast* instruction) {
   LocationSummary::CallKind call_kind = LocationSummary::kNoCall;
   bool throws_into_catch = instruction->CanThrowIntoCatchBlock();
@@ -4810,6 +5149,9 @@ void InstructionCodeGeneratorARMVIXL::VisitCheckCast(HCheckCast* instruction) {
       locations->GetTemp(1) :
       Location::NoLocation();
   uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
+  uint32_t super_offset = mirror::Class::SuperClassOffset().Int32Value();
+  uint32_t component_offset = mirror::Class::ComponentTypeOffset().Int32Value();
+  uint32_t primitive_offset = mirror::Class::PrimitiveTypeOffset().Int32Value();
 
   bool is_type_check_slow_path_fatal =
       (type_check_kind == TypeCheckKind::kExactCheck ||
@@ -4842,23 +5184,72 @@ void InstructionCodeGeneratorARMVIXL::VisitCheckCast(HCheckCast* instruction) {
     }
 
     case TypeCheckKind::kAbstractClassCheck: {
-      TODO_VIXL32(FATAL);
+      // If the class is abstract, we eagerly fetch the super class of the
+      // object to avoid doing a comparison we know will fail.
+      vixl32::Label loop;
+      __ Bind(&loop);
+      // /* HeapReference<Class> */ temp = temp->super_class_
+      GenerateReferenceLoadOneRegister(instruction, temp_loc, super_offset, maybe_temp2_loc);
+
+      // If the class reference currently in `temp` is null, jump to the slow path to throw the
+      // exception.
+      __ Cbz(temp, type_check_slow_path->GetEntryLabel());
+
+      // Otherwise, compare the classes.
+      __ Cmp(temp, cls);
+      __ B(ne, &loop);
       break;
     }
 
     case TypeCheckKind::kClassHierarchyCheck: {
-      TODO_VIXL32(FATAL);
+      // Walk over the class hierarchy to find a match.
+      vixl32::Label loop;
+      __ Bind(&loop);
+      __ Cmp(temp, cls);
+      __ B(eq, &done);
+
+      // /* HeapReference<Class> */ temp = temp->super_class_
+      GenerateReferenceLoadOneRegister(instruction, temp_loc, super_offset, maybe_temp2_loc);
+
+      // If the class reference currently in `temp` is null, jump to the slow path to throw the
+      // exception.
+      __ Cbz(temp, type_check_slow_path->GetEntryLabel());
+      // Otherwise, jump to the beginning of the loop.
+      __ B(&loop);
       break;
     }
 
-    case TypeCheckKind::kArrayObjectCheck: {
-      TODO_VIXL32(FATAL);
+    case TypeCheckKind::kArrayObjectCheck:  {
+      // Do an exact check.
+      __ Cmp(temp, cls);
+      __ B(eq, &done);
+
+      // Otherwise, we need to check that the object's class is a non-primitive array.
+      // /* HeapReference<Class> */ temp = temp->component_type_
+      GenerateReferenceLoadOneRegister(instruction, temp_loc, component_offset, maybe_temp2_loc);
+      // If the component type is null, jump to the slow path to throw the exception.
+      __ Cbz(temp, type_check_slow_path->GetEntryLabel());
+      // Otherwise,the object is indeed an array, jump to label `check_non_primitive_component_type`
+      // to further check that this component type is not a primitive type.
+      GetAssembler()->LoadFromOffset(kLoadUnsignedHalfword, temp, temp, primitive_offset);
+      static_assert(Primitive::kPrimNot == 0, "Expected 0 for art::Primitive::kPrimNot");
+      __ Cbnz(temp, type_check_slow_path->GetEntryLabel());
       break;
     }
 
     case TypeCheckKind::kUnresolvedCheck:
     case TypeCheckKind::kInterfaceCheck:
-      TODO_VIXL32(FATAL);
+      // We always go into the type check slow path for the unresolved
+      // and interface check cases.
+      //
+      // We cannot directly call the CheckCast runtime entry point
+      // without resorting to a type checking slow path here (i.e. by
+      // calling InvokeRuntime directly), as it would require to
+      // assign fixed registers for the inputs of this HInstanceOf
+      // instruction (following the runtime calling convention), which
+      // might be cluttered by the potential first read barrier
+      // emission at the beginning of this method.
+      __ B(type_check_slow_path->GetEntryLabel());
       break;
   }
   __ Bind(&done);
@@ -5034,6 +5425,22 @@ void InstructionCodeGeneratorARMVIXL::HandleBitwiseOperation(HBinaryOperation* i
       __ Eor(out_low, first_low, second_low);
       __ Eor(out_high, first_high, second_high);
     }
+  }
+}
+
+void InstructionCodeGeneratorARMVIXL::GenerateReferenceLoadOneRegister(
+    HInstruction* instruction ATTRIBUTE_UNUSED,
+    Location out,
+    uint32_t offset,
+    Location maybe_temp ATTRIBUTE_UNUSED) {
+  vixl32::Register out_reg = RegisterFrom(out);
+  if (kEmitCompilerReadBarrier) {
+    TODO_VIXL32(FATAL);
+  } else {
+    // Plain load with no read barrier.
+    // /* HeapReference<Object> */ out = *(out + offset)
+    GetAssembler()->LoadFromOffset(kLoadWord, out_reg, out_reg, offset);
+    GetAssembler()->MaybeUnpoisonHeapReference(out_reg);
   }
 }
 
