@@ -18,6 +18,7 @@
 #define ART_COMPILER_OPTIMIZING_CODE_GENERATOR_ARM_VIXL_H_
 
 #include "code_generator_arm.h"
+#include "common_arm.h"
 #include "utils/arm/assembler_arm_vixl.h"
 
 // TODO(VIXL): make vixl clean wrt -Wshadow.
@@ -131,8 +132,11 @@ class LoadClassSlowPathARMVIXL;
   M(If)                                         \
   M(InstanceFieldGet)                           \
   M(InstanceFieldSet)                           \
+  M(InstanceOf)                                 \
   M(IntConstant)                                \
+  M(InvokeInterface)                            \
   M(InvokeStaticOrDirect)                       \
+  M(InvokeUnresolved)                           \
   M(InvokeVirtual)                              \
   M(LessThan)                                   \
   M(LessThanOrEqual)                            \
@@ -166,24 +170,25 @@ class LoadClassSlowPathARMVIXL;
   M(Throw)                                      \
   M(TryBoundary)                                \
   M(TypeConversion)                             \
+  M(UnresolvedInstanceFieldGet)                 \
+  M(UnresolvedInstanceFieldSet)                 \
+  M(UnresolvedStaticFieldGet)                   \
+  M(UnresolvedStaticFieldSet)                   \
   M(UShr)                                       \
   M(Xor)                                        \
 
 // TODO: Remove once the VIXL32 backend is implemented completely.
 #define FOR_EACH_UNIMPLEMENTED_INSTRUCTION(M)   \
+  M(ArmDexCacheArraysBase)                      \
+  M(BitwiseNegatedRight)                        \
   M(BoundType)                                  \
   M(ClassTableGet)                              \
-  M(InstanceOf)                                 \
-  M(InvokeInterface)                            \
-  M(InvokeUnresolved)                           \
+  M(IntermediateAddress)                        \
   M(MonitorOperation)                           \
+  M(MultiplyAccumulate)                         \
   M(NativeDebugInfo)                            \
   M(PackedSwitch)                               \
   M(Rem)                                        \
-  M(UnresolvedInstanceFieldGet)                 \
-  M(UnresolvedInstanceFieldSet)                 \
-  M(UnresolvedStaticFieldGet)                   \
-  M(UnresolvedStaticFieldSet)                   \
 
 class CodeGeneratorARMVIXL;
 
@@ -213,6 +218,38 @@ class InvokeDexCallingConventionARMVIXL
 
  private:
   DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConventionARMVIXL);
+};
+
+class FieldAccessCallingConventionARMVIXL : public FieldAccessCallingConvention {
+ public:
+  FieldAccessCallingConventionARMVIXL() {}
+
+  Location GetObjectLocation() const OVERRIDE {
+    return helpers::LocationFrom(vixl::aarch32::r1);
+  }
+  Location GetFieldIndexLocation() const OVERRIDE {
+    return helpers::LocationFrom(vixl::aarch32::r0);
+  }
+  Location GetReturnLocation(Primitive::Type type) const OVERRIDE {
+    return Primitive::Is64BitType(type)
+        ? helpers::LocationFrom(vixl::aarch32::r0, vixl::aarch32::r1)
+        : helpers::LocationFrom(vixl::aarch32::r0);
+  }
+  Location GetSetValueLocation(Primitive::Type type, bool is_instance) const OVERRIDE {
+    return Primitive::Is64BitType(type)
+        ? helpers::LocationFrom(vixl::aarch32::r2, vixl::aarch32::r3)
+        : (is_instance
+            ? helpers::LocationFrom(vixl::aarch32::r2)
+            : helpers::LocationFrom(vixl::aarch32::r1));
+  }
+  Location GetFpuLocation(Primitive::Type type) const OVERRIDE {
+    return Primitive::Is64BitType(type)
+        ? helpers::LocationFrom(vixl::aarch32::s0, vixl::aarch32::s1)
+        : helpers::LocationFrom(vixl::aarch32::s0);
+  }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FieldAccessCallingConventionARMVIXL);
 };
 
 class SlowPathCodeARMVIXL : public SlowPathCode {
@@ -344,6 +381,19 @@ class InstructionCodeGeneratorARMVIXL : public InstructionCodeGenerator {
                       bool value_can_be_null);
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
 
+  // Generate a heap reference load using one register `out`:
+  //
+  //   out <- *(out + offset)
+  //
+  // while honoring heap poisoning and/or read barriers (if any).
+  //
+  // Location `maybe_temp` is used when generating a read barrier and
+  // shall be a register in that case; it may be an invalid location
+  // otherwise.
+  void GenerateReferenceLoadOneRegister(HInstruction* instruction,
+                                        Location out,
+                                        uint32_t offset,
+                                        Location maybe_temp);
   // Generate a heap reference load using two different registers
   // `out` and `obj`:
   //

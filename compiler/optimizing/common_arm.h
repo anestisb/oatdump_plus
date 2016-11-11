@@ -39,22 +39,22 @@ inline dwarf::Reg DWARFReg(vixl::aarch32::SRegister reg) {
 
 inline vixl::aarch32::Register HighRegisterFrom(Location location) {
   DCHECK(location.IsRegisterPair()) << location;
-  return vixl::aarch32::Register(location.AsRegisterPairHigh<vixl32::Register>());
+  return vixl::aarch32::Register(location.AsRegisterPairHigh<vixl::aarch32::Register>());
 }
 
 inline vixl::aarch32::DRegister HighDRegisterFrom(Location location) {
   DCHECK(location.IsFpuRegisterPair()) << location;
-  return vixl::aarch32::DRegister(location.AsFpuRegisterPairHigh<vixl32::DRegister>());
+  return vixl::aarch32::DRegister(location.AsFpuRegisterPairHigh<vixl::aarch32::DRegister>());
 }
 
 inline vixl::aarch32::Register LowRegisterFrom(Location location) {
   DCHECK(location.IsRegisterPair()) << location;
-  return vixl::aarch32::Register(location.AsRegisterPairLow<vixl32::Register>());
+  return vixl::aarch32::Register(location.AsRegisterPairLow<vixl::aarch32::Register>());
 }
 
 inline vixl::aarch32::SRegister LowSRegisterFrom(Location location) {
   DCHECK(location.IsFpuRegisterPair()) << location;
-  return vixl::aarch32::SRegister(location.AsFpuRegisterPairLow<vixl32::SRegister>());
+  return vixl::aarch32::SRegister(location.AsFpuRegisterPairLow<vixl::aarch32::SRegister>());
 }
 
 inline vixl::aarch32::Register RegisterFrom(Location location) {
