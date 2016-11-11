@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_THREAD_LIST_H_
 #define ART_RUNTIME_THREAD_LIST_H_
 
+#include "barrier.h"
 #include "base/histogram.h"
 #include "base/mutex.h"
 #include "base/value_object.h"
@@ -100,6 +101,14 @@ class ThreadList {
   size_t RunCheckpoint(Closure* checkpoint_function, Closure* callback = nullptr)
       REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
 
+  // Run an empty checkpoint on threads. Wait until threads pass the next suspend point or are
+  // suspended. This is used to ensure that the threads finish or aren't in the middle of an
+  // in-flight mutator heap access (eg. a read barrier.) Runnable threads will respond by
+  // decrementing the empty checkpoint barrier count. This works even when the weak ref access is
+  // disabled. Only one concurrent use is currently supported.
+  size_t RunEmptyCheckpoint()
+      REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
+
   size_t RunCheckpointOnRunnableThreads(Closure* checkpoint_function)
       REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
 
@@ -158,6 +167,10 @@ class ThreadList {
   void DumpNativeStacks(std::ostream& os)
       REQUIRES(!Locks::thread_list_lock_);
 
+  Barrier* EmptyCheckpointBarrier() {
+    return empty_checkpoint_barrier_.get();
+  }
+
  private:
   uint32_t AllocThreadId(Thread* self);
   void ReleaseThreadId(Thread* self, uint32_t id) REQUIRES(!Locks::allocated_thread_ids_lock_);
@@ -202,6 +215,8 @@ class ThreadList {
 
   // Whether or not the current thread suspension is long.
   bool long_suspend_;
+
+  std::unique_ptr<Barrier> empty_checkpoint_barrier_;
 
   friend class Thread;
 

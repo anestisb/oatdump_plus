@@ -8,7 +8,7 @@
     bl      MterpThreadFenceForConstructor
     ldr     w7, [xSELF, #THREAD_FLAGS_OFFSET]
     mov     x0, xSELF
-    ands    w7, w7, #(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
+    ands    w7, w7, #THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
     b.ne    .L${opcode}_check
 .L${opcode}_return:
     lsr     w2, wINST, #8               // r2<- AA

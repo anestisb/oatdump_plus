@@ -1756,10 +1756,10 @@ void Runtime::AllowNewSystemWeaks() {
   }
 }
 
-void Runtime::BroadcastForNewSystemWeaks() {
+void Runtime::BroadcastForNewSystemWeaks(bool broadcast_for_checkpoint) {
   // This is used for the read barrier case that uses the thread-local
-  // Thread::GetWeakRefAccessEnabled() flag.
-  CHECK(kUseReadBarrier);
+  // Thread::GetWeakRefAccessEnabled() flag and the checkpoint while weak ref access is disabled
+  // (see ThreadList::RunCheckpoint).
   monitor_list_->BroadcastForNewMonitors();
   intern_table_->BroadcastForNewInterns();
   java_vm_->BroadcastForNewWeakGlobals();
@@ -1767,7 +1767,7 @@ void Runtime::BroadcastForNewSystemWeaks() {
 
   // All other generic system-weak holders.
   for (gc::AbstractSystemWeakHolder* holder : system_weak_holders_) {
-    holder->Broadcast();
+    holder->Broadcast(broadcast_for_checkpoint);
   }
 }
 

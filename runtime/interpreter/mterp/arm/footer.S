@@ -156,7 +156,7 @@ MterpCommonTakenBranch:
     REFRESH_IBASE
     add     r2, rINST, rINST            @ r2<- byte offset
     FETCH_ADVANCE_INST_RB r2            @ update rPC, load rINST
-    ands    lr, #(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
+    ands    lr, #THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
     bne     .L_suspend_request_pending
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     GOTO_OPCODE ip                      @ jump to next instruction
