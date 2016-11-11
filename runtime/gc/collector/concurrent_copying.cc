@@ -246,7 +246,7 @@ class ConcurrentCopying::ThreadFlipVisitor : public Closure, public RootVisitor 
     Thread* self = Thread::Current();
     CHECK(thread == self || thread->IsSuspended() || thread->GetState() == kWaitingPerformingGc)
         << thread->GetState() << " thread " << thread << " self " << self;
-    thread->SetIsGcMarking(true);
+    thread->SetIsGcMarkingAndUpdateEntrypoints(true);
     if (use_tlab_ && thread->HasTlab()) {
       if (ConcurrentCopying::kEnableFromSpaceAccountingCheck) {
         // This must come before the revoke.
@@ -746,7 +746,7 @@ class ConcurrentCopying::DisableMarkingCheckpoint : public Closure {
     // Disable the thread-local is_gc_marking flag.
     // Note a thread that has just started right before this checkpoint may have already this flag
     // set to false, which is ok.
-    thread->SetIsGcMarking(false);
+    thread->SetIsGcMarkingAndUpdateEntrypoints(false);
     // If thread is a running mutator, then act on behalf of the garbage collector.
     // See the code in ThreadList::RunCheckpoint.
     concurrent_copying_->GetBarrier().Pass(self);
