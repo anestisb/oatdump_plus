@@ -194,16 +194,28 @@ class CodeGeneratorARMVIXL;
 
 class JumpTableARMVIXL : public DeletableArenaObject<kArenaAllocSwitchTable> {
  public:
+  typedef vixl::aarch32::Literal<int32_t> IntLiteral;
+
   explicit JumpTableARMVIXL(HPackedSwitch* switch_instr)
-      : switch_instr_(switch_instr), table_start_() {}
+      : switch_instr_(switch_instr),
+        table_start_(),
+        bb_addresses_(switch_instr->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
+    uint32_t num_entries = switch_instr_->GetNumEntries();
+    for (uint32_t i = 0; i < num_entries; i++) {
+      IntLiteral *lit = new IntLiteral(0);
+      bb_addresses_.emplace_back(lit);
+    }
+  }
 
   vixl::aarch32::Label* GetTableStartLabel() { return &table_start_; }
 
   void EmitTable(CodeGeneratorARMVIXL* codegen);
+  void FixTable(CodeGeneratorARMVIXL* codegen);
 
  private:
   HPackedSwitch* const switch_instr_;
   vixl::aarch32::Label table_start_;
+  ArenaVector<std::unique_ptr<IntLiteral>> bb_addresses_;
 
   DISALLOW_COPY_AND_ASSIGN(JumpTableARMVIXL);
 };
@@ -513,7 +525,7 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
 
   HGraphVisitor* GetInstructionVisitor() OVERRIDE { return &instruction_visitor_; }
 
-  void EmitJumpTables();
+  void FixJumpTables();
   void GenerateMemoryBarrier(MemBarrierKind kind);
   void Finalize(CodeAllocator* allocator) OVERRIDE;
   void SetupBlockedRegisters() const OVERRIDE;
