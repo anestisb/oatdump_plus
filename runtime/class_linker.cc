@@ -2828,6 +2828,13 @@ bool ClassLinker::ShouldUseInterpreterEntrypoint(ArtMethod* method, const void* 
     return true;
   }
 
+  if (runtime->IsFullyDeoptable()) {
+    // We need to be able to deoptimize at any time so we should always just ignore precompiled
+    // code and go to the interpreter assuming we don't already have jitted code.
+    jit::Jit* jit = Runtime::Current()->GetJit();
+    return (jit == nullptr) || !jit->GetCodeCache()->ContainsPc(quick_code);
+  }
+
   if (runtime->IsNativeDebuggable()) {
     DCHECK(runtime->UseJitCompilation() && runtime->GetJit()->JitAtFirstUse());
     // If we are doing native debugging, ignore application's AOT code,
