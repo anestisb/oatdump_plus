@@ -60,7 +60,8 @@ extern "C" int64_t __divdi3(int64_t, int64_t);
 extern "C" int64_t __moddi3(int64_t, int64_t);
 
 // No read barrier entrypoints for marking registers.
-void UpdateReadBarrierEntrypoints(QuickEntryPoints* qpoints, bool is_marking) {}
+void UpdateReadBarrierEntrypoints(QuickEntryPoints* qpoints ATTRIBUTE_UNUSED,
+                                  bool is_marking ATTRIBUTE_UNUSED) {}
 
 void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
   // Note: MIPS has asserts checking for the type of entrypoint. Don't move it
