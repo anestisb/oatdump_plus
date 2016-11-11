@@ -16,6 +16,8 @@
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 
 public class Main {
   public static void main(String[] args) throws Exception {
@@ -56,7 +58,6 @@ public class Main {
     Runtime.getRuntime().gc();
     Runtime.getRuntime().gc();
 
-    tagClasses();
     setTag(Thread.currentThread(), 3000);
 
     {
@@ -77,88 +78,103 @@ public class Main {
   }
 
   private static void doFollowReferencesTestNonRoot(ArrayList<Object> tmpStorage) {
-    A a = createTree();
+    Verifier v = new Verifier();
+    tagClasses(v);
+    A a = createTree(v);
     tmpStorage.add(a);
-    doFollowReferencesTestImpl(null, Integer.MAX_VALUE, -1, null);
-    doFollowReferencesTestImpl(a, Integer.MAX_VALUE, -1, null);
+    v.add("0@0", "1@1000");  // tmpStorage[0] --(array-element)--> a.
+
+    doFollowReferencesTestImpl(null, Integer.MAX_VALUE, -1, null, v, null);
+    doFollowReferencesTestImpl(a.foo, Integer.MAX_VALUE, -1, null, v, "2@1000");
+
     tmpStorage.clear();
   }
 
   private static void doFollowReferencesTestRoot() {
-    A a = createTree();
-    doFollowReferencesTestImpl(null, Integer.MAX_VALUE, -1, a);
-    doFollowReferencesTestImpl(a, Integer.MAX_VALUE, -1, a);
+    Verifier v = new Verifier();
+    tagClasses(v);
+    A a = createTree(v);
+
+    doFollowReferencesTestImpl(null, Integer.MAX_VALUE, -1, a, v, null);
+    doFollowReferencesTestImpl(a.foo, Integer.MAX_VALUE, -1, a, v, "2@1000");
   }
 
   private static void doFollowReferencesTestImpl(A root, int stopAfter, int followSet,
-      Object asRoot) {
+      Object asRoot, Verifier v, String additionalEnabled) {
+    waitForJitCompilation();  // Wait to avoid JIT influence (e.g., JNI globals).
+
     String[] lines =
-        followReferences(0, null, root == null ? null : root.foo, stopAfter, followSet, asRoot);
-    // Note: sort the roots, as stack locals visit order isn't defined, so may depend on compiled
-    //       code. Do not sort non-roots, as the order here needs to be verified (elements are
-    //       finished before a reference is followed). The test setup (and root visit order)
-    //       luckily ensures that this is deterministic.
+        followReferences(0, null, root, stopAfter, followSet, asRoot);
 
-    int i = 0;
-    ArrayList<String> rootLines = new ArrayList<>();
-    while (i < lines.length) {
-      if (lines[i].startsWith("root")) {
-        rootLines.add(lines[i]);
-      } else {
-        break;
-      }
-      i++;
-    }
-    Collections.sort(rootLines);
-    for (String l : rootLines) {
-      System.out.println(l);
-    }
-
-    // Print the non-root lines in order.
-    while (i < lines.length) {
-      System.out.println(lines[i]);
-      i++;
-    }
-
-    System.out.println("---");
+    v.process(lines, additionalEnabled);
 
     // TODO: Test filters.
   }
 
-  private static void tagClasses() {
+  private static void tagClasses(Verifier v) {
     setTag(A.class, 1000);
+
     setTag(B.class, 1001);
+    v.add("1001@0", "1000@0");  // B.class --(superclass)--> A.class.
+
     setTag(C.class, 1002);
+    v.add("1002@0", "1001@0");  // C.class --(superclass)--> B.class.
+    v.add("1002@0", "2001@0");  // C.class --(interface)--> I2.class.
+
     setTag(I1.class, 2000);
+
     setTag(I2.class, 2001);
+    v.add("2001@0", "2000@0");  // I2.class --(interface)--> I1.class.
   }
 
-  private static A createTree() {
-    A root = new A();
-    setTag(root, 1);
+  private static A createTree(Verifier v) {
+    A aInst = new A();
+    setTag(aInst, 1);
+    String aInstStr = "1@1000";
+    String aClassStr = "1000@0";
+    v.add(aInstStr, aClassStr);  // A -->(class) --> A.class.
 
-    A foo = new A();
-    setTag(foo, 2);
-    root.foo = foo;
+    A a2Inst = new A();
+    setTag(a2Inst, 2);
+    aInst.foo = a2Inst;
+    String a2InstStr = "2@1000";
+    v.add(a2InstStr, aClassStr);  // A2 -->(class) --> A.class.
+    v.add(aInstStr, a2InstStr);   // A -->(field) --> A2.
 
-    B foo2 = new B();
-    setTag(foo2, 3);
-    root.foo2 = foo2;
+    B bInst = new B();
+    setTag(bInst, 3);
+    aInst.foo2 = bInst;
+    String bInstStr = "3@1001";
+    String bClassStr = "1001@0";
+    v.add(bInstStr, bClassStr);  // B -->(class) --> B.class.
+    v.add(aInstStr, bInstStr);   // A -->(field) --> B.
 
-    A bar = new A();
-    setTag(bar, 4);
-    foo2.bar = bar;
+    A a3Inst = new A();
+    setTag(a3Inst, 4);
+    bInst.bar = a3Inst;
+    String a3InstStr = "4@1000";
+    v.add(a3InstStr, aClassStr);  // A3 -->(class) --> A.class.
+    v.add(bInstStr, a3InstStr);   // B -->(field) --> A3.
 
-    C bar2 = new C();
-    setTag(bar2, 5);
-    foo2.bar2 = bar2;
+    C cInst = new C();
+    setTag(cInst, 5);
+    bInst.bar2 = cInst;
+    String cInstStr = "5@1000";
+    String cClassStr = "1002@0";
+    v.add(cInstStr, cClassStr);  // C -->(class) --> C.class.
+    v.add(bInstStr, cInstStr);   // B -->(field) --> C.
 
-    A baz = new A();
-    setTag(baz, 6);
-    bar2.baz = baz;
-    bar2.baz2 = root;
+    A a4Inst = new A();
+    setTag(a4Inst, 6);
+    cInst.baz = a4Inst;
+    String a4InstStr = "6@1000";
+    v.add(a4InstStr, aClassStr);  // A4 -->(class) --> A.class.
+    v.add(cInstStr, a4InstStr);   // C -->(field) --> A4.
 
-    return root;
+    cInst.baz2 = aInst;
+    v.add(cInstStr, aInstStr);  // C -->(field) --> A.
+
+    return aInst;
   }
 
   public static class A {
@@ -202,6 +218,165 @@ public class Main {
     }
   }
 
+  public static class Verifier {
+    public static class Node {
+      public String referrer;
+
+      public HashSet<String> referrees = new HashSet<>();
+
+      public Node(String r) {
+        referrer = r;
+      }
+
+      public boolean isRoot() {
+        return referrer.startsWith("root@");
+      }
+    }
+
+    HashMap<String, Node> nodes = new HashMap<>();
+
+    public Verifier() {
+    }
+
+    public void add(String referrer, String referree) {
+      if (!nodes.containsKey(referrer)) {
+        nodes.put(referrer, new Node(referrer));
+      }
+      if (referree != null) {
+        nodes.get(referrer).referrees.add(referree);
+      }
+    }
+
+    public void process(String[] lines, String additionalEnabledReferrer) {
+      // This method isn't optimal. The loops could be merged. However, it's more readable if
+      // the different parts are separated.
+
+      ArrayList<String> rootLines = new ArrayList<>();
+      ArrayList<String> nonRootLines = new ArrayList<>();
+
+      // Check for consecutive chunks of referrers. Also ensure roots come first.
+      {
+        String currentHead = null;
+        boolean rootsDone = false;
+        HashSet<String> completedReferrers = new HashSet<>();
+        for (String l : lines) {
+          String referrer = getReferrer(l);
+
+          if (isRoot(referrer)) {
+            if (rootsDone) {
+              System.out.println("ERROR: Late root " + l);
+              print(lines);
+              return;
+            }
+            rootLines.add(l);
+            continue;
+          }
+
+          rootsDone = true;
+
+          if (currentHead == null) {
+            currentHead = referrer;
+          } else {
+            if (!currentHead.equals(referrer)) {
+              completedReferrers.add(currentHead);
+              currentHead = referrer;
+              if (completedReferrers.contains(referrer)) {
+                System.out.println("Non-contiguous referrer " + l);
+                print(lines);
+                return;
+              }
+            }
+          }
+          nonRootLines.add(l);
+        }
+      }
+
+      // Sort (root order is not specified) and print the roots.
+      // TODO: What about extra roots? JNI and the interpreter seem to introduce those (though it
+      //       isn't clear why a debuggable-AoT test doesn't have the same, at least for locals).
+      //       For now, swallow duplicates, and resolve once we have the metadata for the roots.
+      {
+        Collections.sort(rootLines);
+        String lastRoot = null;
+        for (String l : rootLines) {
+          if (lastRoot != null && lastRoot.equals(l)) {
+            continue;
+          }
+          lastRoot = l;
+          System.out.println(l);
+        }
+      }
+
+      // Iterate through the lines, keeping track of which referrers are visited, to ensure the
+      // order is acceptable.
+      HashSet<String> enabled = new HashSet<>();
+      if (additionalEnabledReferrer != null) {
+        enabled.add(additionalEnabledReferrer);
+      }
+      // Always add "0@0".
+      enabled.add("0@0");
+
+      for (String l : lines) {
+        String referrer = getReferrer(l);
+        String referree = getReferree(l);
+        if (isRoot(referrer)) {
+          // For a root src, just enable the referree.
+          enabled.add(referree);
+        } else {
+          // Check that the referrer is enabled (may be visited).
+          if (!enabled.contains(referrer)) {
+            System.out.println("Referrer " + referrer + " not enabled: " + l);
+            print(lines);
+            return;
+          }
+          enabled.add(referree);
+        }
+      }
+
+      // Now just sort the non-root lines and output them
+      Collections.sort(nonRootLines);
+      for (String l : nonRootLines) {
+        System.out.println(l);
+      }
+
+      System.out.println("---");
+    }
+
+    public static boolean isRoot(String ref) {
+      return ref.startsWith("root@");
+    }
+
+    private static String getReferrer(String line) {
+      int i = line.indexOf(" --");
+      if (i <= 0) {
+        throw new IllegalArgumentException(line);
+      }
+      int j = line.indexOf(' ');
+      if (i != j) {
+        throw new IllegalArgumentException(line);
+      }
+      return line.substring(0, i);
+    }
+
+    private static String getReferree(String line) {
+      int i = line.indexOf("--> ");
+      if (i <= 0) {
+        throw new IllegalArgumentException(line);
+      }
+      int j = line.indexOf(' ', i + 4);
+      if (j < 0) {
+        throw new IllegalArgumentException(line);
+      }
+      return line.substring(i + 4, j);
+    }
+
+    private static void print(String[] lines) {
+      for (String l : lines) {
+        System.out.println(l);
+      }
+    }
+  }
+
   private static native void setupGcCallback();
   private static native void enableGcTracking(boolean enable);
   private static native int getGcStarts();
@@ -213,4 +388,6 @@ public class Main {
 
   private static native String[] followReferences(int heapFilter, Class<?> klassFilter,
       Object initialObject, int stopAfter, int followSet, Object jniRef);
+
+  private static native void waitForJitCompilation();
 }
