@@ -151,7 +151,7 @@ MterpCommonTakenBranchNoFlags:
     REFRESH_IBASE()
     addu    a2, rINST, rINST            # a2<- byte offset
     FETCH_ADVANCE_INST_RB(a2)           # update rPC, load rINST
-    and     ra, (THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
+    and     ra, THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
     bnez    ra, .L_suspend_request_pending
     GET_INST_OPCODE(t0)                 # extract opcode from rINST
     GOTO_OPCODE(t0)                     # jump to next instruction

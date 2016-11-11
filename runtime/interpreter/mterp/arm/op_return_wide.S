@@ -6,7 +6,7 @@
     bl      MterpThreadFenceForConstructor
     ldr     lr, [rSELF, #THREAD_FLAGS_OFFSET]
     mov     r0, rSELF
-    ands    lr, #(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
+    ands    lr, #THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
     blne    MterpSuspendCheck                       @ (self)
     mov     r2, rINST, lsr #8           @ r2<- AA
     VREG_INDEX_TO_ADDR r2, r2           @ r2<- &fp[AA]

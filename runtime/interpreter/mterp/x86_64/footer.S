@@ -151,7 +151,7 @@ MterpCommonTakenBranch:
     je      .L_add_batch                    # counted down to zero - report
 .L_resume_backward_branch:
     movq    rSELF, %rax
-    testl   $$(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST), THREAD_FLAGS_OFFSET(%rax)
+    testl   $$(THREAD_SUSPEND_OR_CHECKPOINT_REQUEST), THREAD_FLAGS_OFFSET(%rax)
     REFRESH_IBASE
     leaq    (rPC, rINSTq, 2), rPC
     FETCH_INST

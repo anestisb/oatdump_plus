@@ -797,7 +797,6 @@ class Heap {
       REQUIRES(!Locks::alloc_tracker_lock_);
 
   void BroadcastForNewAllocationRecords() const
-      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::alloc_tracker_lock_);
 
   void DisableGCForShutdown() REQUIRES(!*gc_complete_lock_);

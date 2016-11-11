@@ -25,5 +25,7 @@
 
 DEFINE_THREAD_CONSTANT(SUSPEND_REQUEST,    int32_t, art::kSuspendRequest)
 DEFINE_THREAD_CONSTANT(CHECKPOINT_REQUEST, int32_t, art::kCheckpointRequest)
+DEFINE_THREAD_CONSTANT(EMPTY_CHECKPOINT_REQUEST, int32_t, art::kEmptyCheckpointRequest)
+DEFINE_THREAD_CONSTANT(SUSPEND_OR_CHECKPOINT_REQUEST,  int32_t, art::kSuspendRequest | art::kCheckpointRequest | art::kEmptyCheckpointRequest)
 
 #undef DEFINE_THREAD_CONSTANT

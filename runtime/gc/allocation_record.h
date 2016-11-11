@@ -261,7 +261,6 @@ class AllocRecordObjectMap {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(Locks::alloc_tracker_lock_);
   void BroadcastForNewAllocationRecords()
-      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(Locks::alloc_tracker_lock_);
 
   // TODO: Is there a better way to hide the entries_'s type?

@@ -188,7 +188,6 @@ void InternTable::AddImagesStringsToTable(const std::vector<gc::space::ImageSpac
 }
 
 void InternTable::BroadcastForNewInterns() {
-  CHECK(kUseReadBarrier);
   Thread* self = Thread::Current();
   MutexLock mu(self, *Locks::intern_table_lock_);
   weak_intern_condition_.Broadcast(self);
