@@ -1040,7 +1040,7 @@ artMterpAsmInstructionStart = .L_op_nop
     JAL(MterpThreadFenceForConstructor)
     lw        ra, THREAD_FLAGS_OFFSET(rSELF)
     move      a0, rSELF
-    and       ra, (THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
+    and       ra, THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
     beqz      ra, 1f
     JAL(MterpSuspendCheck)                 # (self)
 1:
@@ -1062,7 +1062,7 @@ artMterpAsmInstructionStart = .L_op_nop
     JAL(MterpThreadFenceForConstructor)
     lw        ra, THREAD_FLAGS_OFFSET(rSELF)
     move      a0, rSELF
-    and       ra, (THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
+    and       ra, THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
     beqz      ra, 1f
     JAL(MterpSuspendCheck)                 # (self)
 1:
@@ -1083,7 +1083,7 @@ artMterpAsmInstructionStart = .L_op_nop
     JAL(MterpThreadFenceForConstructor)
     lw        ra, THREAD_FLAGS_OFFSET(rSELF)
     move      a0, rSELF
-    and       ra, (THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
+    and       ra, THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
     beqz      ra, 1f
     JAL(MterpSuspendCheck)                 # (self)
 1:
@@ -1107,7 +1107,7 @@ artMterpAsmInstructionStart = .L_op_nop
     JAL(MterpThreadFenceForConstructor)
     lw        ra, THREAD_FLAGS_OFFSET(rSELF)
     move      a0, rSELF
-    and       ra, (THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
+    and       ra, THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
     beqz      ra, 1f
     JAL(MterpSuspendCheck)                 # (self)
 1:
@@ -3524,7 +3524,7 @@ artMterpAsmInstructionStart = .L_op_nop
 /* File: mips/op_return_void_no_barrier.S */
     lw     ra, THREAD_FLAGS_OFFSET(rSELF)
     move   a0, rSELF
-    and    ra, (THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
+    and    ra, THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
     beqz   ra, 1f
     JAL(MterpSuspendCheck)                 # (self)
 1:
@@ -12651,7 +12651,7 @@ MterpCommonTakenBranchNoFlags:
     REFRESH_IBASE()
     addu    a2, rINST, rINST            # a2<- byte offset
     FETCH_ADVANCE_INST_RB(a2)           # update rPC, load rINST
-    and     ra, (THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
+    and     ra, THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
     bnez    ra, .L_suspend_request_pending
     GET_INST_OPCODE(t0)                 # extract opcode from rINST
     GOTO_OPCODE(t0)                     # jump to next instruction

@@ -1155,6 +1155,12 @@ void Thread::RunCheckpointFunction() {
   } while (!done);
 }
 
+void Thread::RunEmptyCheckpoint() {
+  DCHECK_EQ(Thread::Current(), this);
+  AtomicClearFlag(kEmptyCheckpointRequest);
+  Runtime::Current()->GetThreadList()->EmptyCheckpointBarrier()->Pass(this);
+}
+
 bool Thread::RequestCheckpoint(Closure* function) {
   union StateAndFlags old_state_and_flags;
   old_state_and_flags.as_int = tls32_.state_and_flags.as_int;
@@ -1177,6 +1183,28 @@ bool Thread::RequestCheckpoint(Closure* function) {
       checkpoint_overflow_.push_back(function);
     }
     CHECK_EQ(ReadFlag(kCheckpointRequest), true);
+    TriggerSuspend();
+  }
+  return success;
+}
+
+bool Thread::RequestEmptyCheckpoint() {
+  union StateAndFlags old_state_and_flags;
+  old_state_and_flags.as_int = tls32_.state_and_flags.as_int;
+  if (old_state_and_flags.as_struct.state != kRunnable) {
+    // If it's not runnable, we don't need to do anything because it won't be in the middle of a
+    // heap access (eg. the read barrier).
+    return false;
+  }
+
+  // We must be runnable to request a checkpoint.
+  DCHECK_EQ(old_state_and_flags.as_struct.state, kRunnable);
+  union StateAndFlags new_state_and_flags;
+  new_state_and_flags.as_int = old_state_and_flags.as_int;
+  new_state_and_flags.as_struct.flags |= kEmptyCheckpointRequest;
+  bool success = tls32_.state_and_flags.as_atomic_int.CompareExchangeStrongSequentiallyConsistent(
+      old_state_and_flags.as_int, new_state_and_flags.as_int);
+  if (success) {
     TriggerSuspend();
   }
   return success;
@@ -1841,7 +1869,8 @@ Thread::~Thread() {
     tlsPtr_.jni_env = nullptr;
   }
   CHECK_NE(GetState(), kRunnable);
-  CHECK_NE(ReadFlag(kCheckpointRequest), true);
+  CHECK(!ReadFlag(kCheckpointRequest));
+  CHECK(!ReadFlag(kEmptyCheckpointRequest));
   CHECK(tlsPtr_.checkpoint_function == nullptr);
   CHECK_EQ(checkpoint_overflow_.size(), 0u);
   CHECK(tlsPtr_.flip_function == nullptr);
