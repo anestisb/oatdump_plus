@@ -514,26 +514,6 @@ void ConcurrentCopying::RecordLiveStackFreezeSize(Thread* self) {
   live_stack_freeze_size_ = heap_->GetLiveStack()->Size();
 }
 
-class EmptyCheckpoint : public Closure {
- public:
-  explicit EmptyCheckpoint(ConcurrentCopying* concurrent_copying)
-      : concurrent_copying_(concurrent_copying) {
-  }
-
-  virtual void Run(Thread* thread) OVERRIDE NO_THREAD_SAFETY_ANALYSIS {
-    // Note: self is not necessarily equal to thread since thread may be suspended.
-    Thread* self = Thread::Current();
-    CHECK(thread == self || thread->IsSuspended() || thread->GetState() == kWaitingPerformingGc)
-        << thread->GetState() << " thread " << thread << " self " << self;
-    // If thread is a running mutator, then act on behalf of the garbage collector.
-    // See the code in ThreadList::RunCheckpoint.
-    concurrent_copying_->GetBarrier().Pass(self);
-  }
-
- private:
-  ConcurrentCopying* const concurrent_copying_;
-};
-
 // Used to visit objects in the immune spaces.
 inline void ConcurrentCopying::ScanImmuneObject(mirror::Object* obj) {
   DCHECK(obj != nullptr);
@@ -835,10 +815,10 @@ void ConcurrentCopying::ProcessFalseGrayStack() {
 
 void ConcurrentCopying::IssueEmptyCheckpoint() {
   Thread* self = Thread::Current();
-  EmptyCheckpoint check_point(this);
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
-  gc_barrier_->Init(self, 0);
-  size_t barrier_count = thread_list->RunCheckpoint(&check_point);
+  Barrier* barrier = thread_list->EmptyCheckpointBarrier();
+  barrier->Init(self, 0);
+  size_t barrier_count = thread_list->RunEmptyCheckpoint();
   // If there are no threads to wait which implys that all the checkpoint functions are finished,
   // then no need to release the mutator lock.
   if (barrier_count == 0) {
@@ -848,7 +828,7 @@ void ConcurrentCopying::IssueEmptyCheckpoint() {
   Locks::mutator_lock_->SharedUnlock(self);
   {
     ScopedThreadStateChange tsc(self, kWaitingForCheckPointsToRun);
-    gc_barrier_->Increment(self, barrier_count);
+    barrier->Increment(self, barrier_count);
   }
   Locks::mutator_lock_->SharedLock(self);
 }
@@ -1253,6 +1233,10 @@ bool ConcurrentCopying::ProcessMarkStackOnce() {
     }
     gc_mark_stack_->Reset();
   } else if (mark_stack_mode == kMarkStackModeShared) {
+    // Do an empty checkpoint to avoid a race with a mutator preempted in the middle of a read
+    // barrier but before pushing onto the mark stack. b/32508093. Note the weak ref access is
+    // disabled at this point.
+    IssueEmptyCheckpoint();
     // Process the shared GC mark stack with a lock.
     {
       MutexLock mu(self, mark_stack_lock_);

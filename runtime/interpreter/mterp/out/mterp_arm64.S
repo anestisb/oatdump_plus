@@ -616,7 +616,7 @@ artMterpAsmInstructionStart = .L_op_nop
     bl      MterpThreadFenceForConstructor
     ldr     w7, [xSELF, #THREAD_FLAGS_OFFSET]
     mov     x0, xSELF
-    ands    w7, w7, #(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
+    ands    w7, w7, #THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
     b.ne    .Lop_return_void_check
 .Lop_return_void_return:
     mov     x0, #0
@@ -639,7 +639,7 @@ artMterpAsmInstructionStart = .L_op_nop
     bl      MterpThreadFenceForConstructor
     ldr     w7, [xSELF, #THREAD_FLAGS_OFFSET]
     mov     x0, xSELF
-    ands    w7, w7, #(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
+    ands    w7, w7, #THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
     b.ne    .Lop_return_check
 .Lop_return_return:
     lsr     w2, wINST, #8               // r2<- AA
@@ -662,7 +662,7 @@ artMterpAsmInstructionStart = .L_op_nop
     bl      MterpThreadFenceForConstructor
     ldr     w7, [xSELF, #THREAD_FLAGS_OFFSET]
     mov     x0, xSELF
-    ands    w7, w7, #(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
+    ands    w7, w7, #THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
     b.ne    .Lop_return_wide_check
 .Lop_return_wide_return:
     lsr     w2, wINST, #8               // w2<- AA
@@ -687,7 +687,7 @@ artMterpAsmInstructionStart = .L_op_nop
     bl      MterpThreadFenceForConstructor
     ldr     w7, [xSELF, #THREAD_FLAGS_OFFSET]
     mov     x0, xSELF
-    ands    w7, w7, #(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
+    ands    w7, w7, #THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
     b.ne    .Lop_return_object_check
 .Lop_return_object_return:
     lsr     w2, wINST, #8               // r2<- AA
@@ -3033,7 +3033,7 @@ artMterpAsmInstructionStart = .L_op_nop
 /* File: arm64/op_return_void_no_barrier.S */
     ldr     w7, [xSELF, #THREAD_FLAGS_OFFSET]
     mov     x0, xSELF
-    ands    w7, w7, #(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
+    ands    w7, w7, #THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
     b.ne    .Lop_return_void_no_barrier_check
 .Lop_return_void_no_barrier_return:
     mov     x0, #0
@@ -7082,7 +7082,7 @@ MterpCommonTakenBranchNoFlags:
     add     w2, wINST, wINST            // w2<- byte offset
     FETCH_ADVANCE_INST_RB w2            // update rPC, load wINST
     REFRESH_IBASE
-    ands    lr, lr, #(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
+    ands    lr, lr, #THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
     b.ne    .L_suspend_request_pending
     GET_INST_OPCODE ip                  // extract opcode from wINST
     GOTO_OPCODE ip                      // jump to next instruction
@@ -7156,7 +7156,7 @@ MterpCommonTakenBranchNoFlags:
  */
 MterpCheckSuspendAndContinue:
     ldr     xIBASE, [xSELF, #THREAD_CURRENT_IBASE_OFFSET]  // refresh xIBASE
-    ands    w7, w7, #(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
+    ands    w7, w7, #THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
     b.ne    check1
     GET_INST_OPCODE ip                  // extract opcode from wINST
     GOTO_OPCODE ip                      // jump to next instruction
@@ -7211,7 +7211,7 @@ MterpReturn:
     ldr     lr, [xSELF, #THREAD_FLAGS_OFFSET]
     str     x0, [x2]
     mov     x0, xSELF
-    ands    lr, lr, #(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
+    ands    lr, lr, #THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
     b.eq    check2
     bl      MterpSuspendCheck                       // (self)
 check2:

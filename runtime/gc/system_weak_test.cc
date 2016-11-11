@@ -58,12 +58,14 @@ struct CountingSystemWeakHolder : public SystemWeakHolder {
     disallow_count_++;
   }
 
-  void Broadcast() OVERRIDE
-      REQUIRES_SHARED(Locks::mutator_lock_)
+  void Broadcast(bool broadcast_for_checkpoint) OVERRIDE
       REQUIRES(!allow_disallow_lock_) {
-    SystemWeakHolder::Broadcast();
+    SystemWeakHolder::Broadcast(broadcast_for_checkpoint);
 
-    allow_count_++;
+    if (!broadcast_for_checkpoint) {
+      // Don't count the broadcasts for running checkpoints.
+      allow_count_++;
+    }
   }
 
   void Sweep(IsMarkedVisitor* visitor) OVERRIDE

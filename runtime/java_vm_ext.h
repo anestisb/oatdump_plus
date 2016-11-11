@@ -136,7 +136,6 @@ class JavaVMExt : public JavaVM {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::jni_weak_globals_lock_);
   void BroadcastForNewWeakGlobals()
-      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::jni_weak_globals_lock_);
 
   jobject AddGlobalRef(Thread* self, ObjPtr<mirror::Object> obj)
