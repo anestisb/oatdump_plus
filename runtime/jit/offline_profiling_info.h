@@ -152,7 +152,7 @@ class ProfileCompilationInfo {
     uint8_t* Get() { return storage_.get(); }
 
    private:
-    std::unique_ptr<uint8_t> storage_;
+    std::unique_ptr<uint8_t[]> storage_;
     uint8_t* ptr_current_;
     uint8_t* ptr_end_;
   };
