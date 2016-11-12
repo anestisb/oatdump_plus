@@ -65,6 +65,7 @@ static bool ExpectedPairLayout(Location location) {
 
 static constexpr int kCurrentMethodStackOffset = 0;
 static constexpr size_t kArmInstrMaxSizeInBytes = 4u;
+static constexpr uint32_t kPackedSwitchCompareJumpThreshold = 7;
 
 #ifdef __
 #error "ARM Codegen VIXL macro-assembler macro already defined."
@@ -657,6 +658,7 @@ CodeGeneratorARMVIXL::CodeGeneratorARMVIXL(HGraph* graph,
                     compiler_options,
                     stats),
       block_labels_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      jump_tables_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       location_builder_(graph, this),
       instruction_visitor_(graph, this),
       move_resolver_(graph->GetArena(), this),
@@ -675,9 +677,44 @@ CodeGeneratorARMVIXL::CodeGeneratorARMVIXL(HGraph* graph,
   GetVIXLAssembler()->GetScratchVRegisterList()->Combine(d15);
 }
 
+void JumpTableARMVIXL::EmitTable(CodeGeneratorARMVIXL* codegen) {
+  uint32_t num_entries = switch_instr_->GetNumEntries();
+  DCHECK_GE(num_entries, kPackedSwitchCompareJumpThreshold);
+
+  // We are about to use the assembler to place literals directly. Make sure we have enough
+  // underlying code buffer and we have generated the jump table with right size.
+  codegen->GetVIXLAssembler()->GetBuffer().Align();
+  AssemblerAccurateScope aas(codegen->GetVIXLAssembler(),
+                             num_entries * sizeof(int32_t),
+                             CodeBufferCheckScope::kMaximumSize);
+  // TODO(VIXL): Check that using lower case bind is fine here.
+  codegen->GetVIXLAssembler()->bind(&table_start_);
+  const ArenaVector<HBasicBlock*>& successors = switch_instr_->GetBlock()->GetSuccessors();
+  for (uint32_t i = 0; i < num_entries; i++) {
+    vixl32::Label* target_label = codegen->GetLabelOf(successors[i]);
+    DCHECK(target_label->IsBound());
+    int32_t jump_offset = target_label->GetLocation() - table_start_.GetLocation();
+    // When doing BX to address we need to have lower bit set to 1 in T32.
+    if (codegen->GetVIXLAssembler()->IsUsingT32()) {
+      jump_offset++;
+    }
+    DCHECK_GT(jump_offset, std::numeric_limits<int32_t>::min());
+    DCHECK_LE(jump_offset, std::numeric_limits<int32_t>::max());
+    vixl32::Literal<int32_t> literal(jump_offset);
+    codegen->GetVIXLAssembler()->place(&literal);
+  }
+}
+
+void CodeGeneratorARMVIXL::EmitJumpTables() {
+  for (auto&& jump_table : jump_tables_) {
+    jump_table->EmitTable(this);
+  }
+}
+
 #define __ reinterpret_cast<ArmVIXLAssembler*>(GetAssembler())->GetVIXLAssembler()->  // NOLINT
 
 void CodeGeneratorARMVIXL::Finalize(CodeAllocator* allocator) {
+  EmitJumpTables();
   GetAssembler()->FinalizeCode();
   CodeGenerator::Finalize(allocator);
 }
@@ -1251,6 +1288,14 @@ void InstructionCodeGeneratorARMVIXL::VisitSelect(HSelect* select) {
                         &false_target);
   codegen_->MoveLocation(locations->Out(), locations->InAt(1), select->GetType());
   __ Bind(&false_target);
+}
+
+void LocationsBuilderARMVIXL::VisitNativeDebugInfo(HNativeDebugInfo* info) {
+  new (GetGraph()->GetArena()) LocationSummary(info);
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitNativeDebugInfo(HNativeDebugInfo*) {
+  // MaybeRecordNativeDebugInfo is already called implicitly in CodeGenerator::Compile.
 }
 
 void CodeGeneratorARMVIXL::GenerateNop() {
@@ -2495,7 +2540,12 @@ void LocationsBuilderARMVIXL::VisitDiv(HDiv* div) {
         locations->SetInAt(1, Location::RequiresRegister());
         locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
       } else {
-        TODO_VIXL32(FATAL);
+        InvokeRuntimeCallingConventionARMVIXL calling_convention;
+        locations->SetInAt(0, LocationFrom(calling_convention.GetRegisterAt(0)));
+        locations->SetInAt(1, LocationFrom(calling_convention.GetRegisterAt(1)));
+        // Note: divrem will compute both the quotient and the remainder as the pair R0 and R1, but
+        //       we only need the former.
+        locations->SetOut(LocationFrom(r0));
       }
       break;
     }
@@ -2532,7 +2582,13 @@ void InstructionCodeGeneratorARMVIXL::VisitDiv(HDiv* div) {
       } else if (codegen_->GetInstructionSetFeatures().HasDivideInstruction()) {
         __ Sdiv(OutputRegister(div), InputRegisterAt(div, 0), InputRegisterAt(div, 1));
       } else {
-        TODO_VIXL32(FATAL);
+        InvokeRuntimeCallingConventionARMVIXL calling_convention;
+        DCHECK(calling_convention.GetRegisterAt(0).Is(RegisterFrom(lhs)));
+        DCHECK(calling_convention.GetRegisterAt(1).Is(RegisterFrom(rhs)));
+        DCHECK(r0.Is(OutputRegister(div)));
+
+        codegen_->InvokeRuntime(kQuickIdivmod, div, div->GetDexPc());
+        CheckEntrypointTypes<kQuickIdivmod, int32_t, int32_t, int32_t>();
       }
       break;
     }
@@ -2560,6 +2616,140 @@ void InstructionCodeGeneratorARMVIXL::VisitDiv(HDiv* div) {
       LOG(FATAL) << "Unexpected div type " << div->GetResultType();
   }
 }
+
+void LocationsBuilderARMVIXL::VisitRem(HRem* rem) {
+  Primitive::Type type = rem->GetResultType();
+
+  // Most remainders are implemented in the runtime.
+  LocationSummary::CallKind call_kind = LocationSummary::kCallOnMainOnly;
+  if (rem->GetResultType() == Primitive::kPrimInt && rem->InputAt(1)->IsConstant()) {
+    // sdiv will be replaced by other instruction sequence.
+    call_kind = LocationSummary::kNoCall;
+  } else if ((rem->GetResultType() == Primitive::kPrimInt)
+             && codegen_->GetInstructionSetFeatures().HasDivideInstruction()) {
+    // Have hardware divide instruction for int, do it with three instructions.
+    call_kind = LocationSummary::kNoCall;
+  }
+
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(rem, call_kind);
+
+  switch (type) {
+    case Primitive::kPrimInt: {
+      if (rem->InputAt(1)->IsConstant()) {
+        locations->SetInAt(0, Location::RequiresRegister());
+        locations->SetInAt(1, Location::ConstantLocation(rem->InputAt(1)->AsConstant()));
+        locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+        int32_t value = rem->InputAt(1)->AsIntConstant()->GetValue();
+        if (value == 1 || value == 0 || value == -1) {
+          // No temp register required.
+        } else {
+          locations->AddTemp(Location::RequiresRegister());
+          if (!IsPowerOfTwo(AbsOrMin(value))) {
+            locations->AddTemp(Location::RequiresRegister());
+          }
+        }
+      } else if (codegen_->GetInstructionSetFeatures().HasDivideInstruction()) {
+        locations->SetInAt(0, Location::RequiresRegister());
+        locations->SetInAt(1, Location::RequiresRegister());
+        locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+        locations->AddTemp(Location::RequiresRegister());
+      } else {
+        InvokeRuntimeCallingConventionARMVIXL calling_convention;
+        locations->SetInAt(0, LocationFrom(calling_convention.GetRegisterAt(0)));
+        locations->SetInAt(1, LocationFrom(calling_convention.GetRegisterAt(1)));
+        // Note: divrem will compute both the quotient and the remainder as the pair R0 and R1, but
+        //       we only need the latter.
+        locations->SetOut(LocationFrom(r1));
+      }
+      break;
+    }
+    case Primitive::kPrimLong: {
+      InvokeRuntimeCallingConventionARMVIXL calling_convention;
+      locations->SetInAt(0, LocationFrom(
+          calling_convention.GetRegisterAt(0), calling_convention.GetRegisterAt(1)));
+      locations->SetInAt(1, LocationFrom(
+          calling_convention.GetRegisterAt(2), calling_convention.GetRegisterAt(3)));
+      // The runtime helper puts the output in R2,R3.
+      locations->SetOut(LocationFrom(r2, r3));
+      break;
+    }
+    case Primitive::kPrimFloat: {
+      InvokeRuntimeCallingConventionARMVIXL calling_convention;
+      locations->SetInAt(0, LocationFrom(calling_convention.GetFpuRegisterAt(0)));
+      locations->SetInAt(1, LocationFrom(calling_convention.GetFpuRegisterAt(1)));
+      locations->SetOut(LocationFrom(s0));
+      break;
+    }
+
+    case Primitive::kPrimDouble: {
+      InvokeRuntimeCallingConventionARMVIXL calling_convention;
+      locations->SetInAt(0, LocationFrom(
+          calling_convention.GetFpuRegisterAt(0), calling_convention.GetFpuRegisterAt(1)));
+      locations->SetInAt(1, LocationFrom(
+          calling_convention.GetFpuRegisterAt(2), calling_convention.GetFpuRegisterAt(3)));
+      locations->SetOut(LocationFrom(s0, s1));
+      break;
+    }
+
+    default:
+      LOG(FATAL) << "Unexpected rem type " << type;
+  }
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitRem(HRem* rem) {
+  LocationSummary* locations = rem->GetLocations();
+  Location second = locations->InAt(1);
+
+  Primitive::Type type = rem->GetResultType();
+  switch (type) {
+    case Primitive::kPrimInt: {
+        vixl32::Register reg1 = InputRegisterAt(rem, 0);
+        vixl32::Register out_reg = OutputRegister(rem);
+        if (second.IsConstant()) {
+          GenerateDivRemConstantIntegral(rem);
+        } else if (codegen_->GetInstructionSetFeatures().HasDivideInstruction()) {
+        vixl32::Register reg2 = RegisterFrom(second);
+        vixl32::Register temp = RegisterFrom(locations->GetTemp(0));
+
+        // temp = reg1 / reg2  (integer division)
+        // dest = reg1 - temp * reg2
+        __ Sdiv(temp, reg1, reg2);
+        __ Mls(out_reg, temp, reg2, reg1);
+      } else {
+        InvokeRuntimeCallingConventionARMVIXL calling_convention;
+        DCHECK(reg1.Is(calling_convention.GetRegisterAt(0)));
+        DCHECK(RegisterFrom(second).Is(calling_convention.GetRegisterAt(1)));
+        DCHECK(out_reg.Is(r1));
+
+        codegen_->InvokeRuntime(kQuickIdivmod, rem, rem->GetDexPc());
+        CheckEntrypointTypes<kQuickIdivmod, int32_t, int32_t, int32_t>();
+      }
+      break;
+    }
+
+    case Primitive::kPrimLong: {
+      codegen_->InvokeRuntime(kQuickLmod, rem, rem->GetDexPc());
+        CheckEntrypointTypes<kQuickLmod, int64_t, int64_t, int64_t>();
+      break;
+    }
+
+    case Primitive::kPrimFloat: {
+      codegen_->InvokeRuntime(kQuickFmodf, rem, rem->GetDexPc());
+      CheckEntrypointTypes<kQuickFmodf, float, float, float>();
+      break;
+    }
+
+    case Primitive::kPrimDouble: {
+      codegen_->InvokeRuntime(kQuickFmod, rem, rem->GetDexPc());
+      CheckEntrypointTypes<kQuickFmod, double, double, double>();
+      break;
+    }
+
+    default:
+      LOG(FATAL) << "Unexpected rem type " << type;
+  }
+}
+
 
 void LocationsBuilderARMVIXL::VisitDivZeroCheck(HDivZeroCheck* instruction) {
   // TODO(VIXL): https://android-review.googlesource.com/#/c/275337/
@@ -5257,6 +5447,24 @@ void InstructionCodeGeneratorARMVIXL::VisitCheckCast(HCheckCast* instruction) {
   __ Bind(type_check_slow_path->GetExitLabel());
 }
 
+void LocationsBuilderARMVIXL::VisitMonitorOperation(HMonitorOperation* instruction) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCallOnMainOnly);
+  InvokeRuntimeCallingConventionARMVIXL calling_convention;
+  locations->SetInAt(0, LocationFrom(calling_convention.GetRegisterAt(0)));
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitMonitorOperation(HMonitorOperation* instruction) {
+  codegen_->InvokeRuntime(instruction->IsEnter() ? kQuickLockObject : kQuickUnlockObject,
+                          instruction,
+                          instruction->GetDexPc());
+  if (instruction->IsEnter()) {
+    CheckEntrypointTypes<kQuickLockObject, void, mirror::Object*>();
+  } else {
+    CheckEntrypointTypes<kQuickUnlockObject, void, mirror::Object*>();
+  }
+}
+
 void LocationsBuilderARMVIXL::VisitAnd(HAnd* instruction) {
   HandleBitwiseOperation(instruction, AND);
 }
@@ -5659,6 +5867,103 @@ void CodeGeneratorARMVIXL::GenerateVirtualCall(HInvokeVirtual* invoke, Location 
   __ Blx(lr);
 }
 
+void LocationsBuilderARMVIXL::VisitBoundType(HBoundType* instruction ATTRIBUTE_UNUSED) {
+  // Nothing to do, this should be removed during prepare for register allocator.
+  LOG(FATAL) << "Unreachable";
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitBoundType(HBoundType* instruction ATTRIBUTE_UNUSED) {
+  // Nothing to do, this should be removed during prepare for register allocator.
+  LOG(FATAL) << "Unreachable";
+}
+
+// Simple implementation of packed switch - generate cascaded compare/jumps.
+void LocationsBuilderARMVIXL::VisitPackedSwitch(HPackedSwitch* switch_instr) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(switch_instr, LocationSummary::kNoCall);
+  locations->SetInAt(0, Location::RequiresRegister());
+  if (switch_instr->GetNumEntries() > kPackedSwitchCompareJumpThreshold &&
+      codegen_->GetAssembler()->GetVIXLAssembler()->IsUsingT32()) {
+    locations->AddTemp(Location::RequiresRegister());  // We need a temp for the table base.
+    if (switch_instr->GetStartValue() != 0) {
+      locations->AddTemp(Location::RequiresRegister());  // We need a temp for the bias.
+    }
+  }
+}
+
+// TODO(VIXL): Investigate and reach the parity with old arm codegen.
+void InstructionCodeGeneratorARMVIXL::VisitPackedSwitch(HPackedSwitch* switch_instr) {
+  int32_t lower_bound = switch_instr->GetStartValue();
+  uint32_t num_entries = switch_instr->GetNumEntries();
+  LocationSummary* locations = switch_instr->GetLocations();
+  vixl32::Register value_reg = InputRegisterAt(switch_instr, 0);
+  HBasicBlock* default_block = switch_instr->GetDefaultBlock();
+
+  if (num_entries <= kPackedSwitchCompareJumpThreshold ||
+      !codegen_->GetAssembler()->GetVIXLAssembler()->IsUsingT32()) {
+    // Create a series of compare/jumps.
+    UseScratchRegisterScope temps(GetAssembler()->GetVIXLAssembler());
+    vixl32::Register temp_reg = temps.Acquire();
+    // Note: It is fine for the below AddConstantSetFlags() using IP register to temporarily store
+    // the immediate, because IP is used as the destination register. For the other
+    // AddConstantSetFlags() and GenerateCompareWithImmediate(), the immediate values are constant,
+    // and they can be encoded in the instruction without making use of IP register.
+    __ Adds(temp_reg, value_reg, -lower_bound);
+
+    const ArenaVector<HBasicBlock*>& successors = switch_instr->GetBlock()->GetSuccessors();
+    // Jump to successors[0] if value == lower_bound.
+    __ B(eq, codegen_->GetLabelOf(successors[0]));
+    int32_t last_index = 0;
+    for (; num_entries - last_index > 2; last_index += 2) {
+      __ Adds(temp_reg, temp_reg, -2);
+      // Jump to successors[last_index + 1] if value < case_value[last_index + 2].
+      __ B(lo, codegen_->GetLabelOf(successors[last_index + 1]));
+      // Jump to successors[last_index + 2] if value == case_value[last_index + 2].
+      __ B(eq, codegen_->GetLabelOf(successors[last_index + 2]));
+    }
+    if (num_entries - last_index == 2) {
+      // The last missing case_value.
+      __ Cmp(temp_reg, 1);
+      __ B(eq, codegen_->GetLabelOf(successors[last_index + 1]));
+    }
+
+    // And the default for any other value.
+    if (!codegen_->GoesToNextBlock(switch_instr->GetBlock(), default_block)) {
+      __ B(codegen_->GetLabelOf(default_block));
+    }
+  } else {
+    // Create a table lookup.
+    vixl32::Register table_base = RegisterFrom(locations->GetTemp(0));
+
+    JumpTableARMVIXL* jump_table = codegen_->CreateJumpTable(switch_instr);
+
+    // Remove the bias.
+    vixl32::Register key_reg;
+    if (lower_bound != 0) {
+      key_reg = RegisterFrom(locations->GetTemp(1));
+      __ Sub(key_reg, value_reg, lower_bound);
+    } else {
+      key_reg = value_reg;
+    }
+
+    // Check whether the value is in the table, jump to default block if not.
+    __ Cmp(key_reg, num_entries - 1);
+    __ B(hi, codegen_->GetLabelOf(default_block));
+
+    UseScratchRegisterScope temps(GetAssembler()->GetVIXLAssembler());
+    vixl32::Register jump_offset = temps.Acquire();
+
+    // Load jump offset from the table.
+    __ Adr(table_base, jump_table->GetTableStartLabel());
+    __ Ldr(jump_offset, MemOperand(table_base, key_reg, vixl32::LSL, 2));
+
+    // Jump to target block by branching to table_base(pc related) + offset.
+    vixl32::Register target_address = table_base;
+    __ Add(target_address, table_base, jump_offset);
+    __ Bx(target_address);
+  }
+}
+
 // Copy the result of a call into the given target.
 void CodeGeneratorARMVIXL::MoveFromReturnRegister(Location trg, Primitive::Type type) {
   if (!trg.IsValid()) {
@@ -5686,6 +5991,17 @@ void CodeGeneratorARMVIXL::MoveFromReturnRegister(Location trg, Primitive::Type 
     GetMoveResolver()->EmitNativeCode(&parallel_move);
   }
 }
+
+void LocationsBuilderARMVIXL::VisitClassTableGet(
+    HClassTableGet* instruction ATTRIBUTE_UNUSED) {
+  TODO_VIXL32(FATAL);
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitClassTableGet(
+    HClassTableGet* instruction ATTRIBUTE_UNUSED) {
+  TODO_VIXL32(FATAL);
+}
+
 
 #undef __
 #undef QUICK_ENTRY_POINT

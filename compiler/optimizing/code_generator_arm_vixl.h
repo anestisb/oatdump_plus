@@ -114,7 +114,9 @@ class LoadClassSlowPathARMVIXL;
   M(BelowOrEqual)                               \
   M(BooleanNot)                                 \
   M(BoundsCheck)                                \
+  M(BoundType)                                  \
   M(CheckCast)                                  \
+  M(ClassTableGet)                              \
   M(ClearException)                             \
   M(ClinitCheck)                                \
   M(Compare)                                    \
@@ -145,7 +147,9 @@ class LoadClassSlowPathARMVIXL;
   M(LoadString)                                 \
   M(LongConstant)                               \
   M(MemoryBarrier)                              \
+  M(MonitorOperation)                           \
   M(Mul)                                        \
+  M(NativeDebugInfo)                            \
   M(Neg)                                        \
   M(NewArray)                                   \
   M(NewInstance)                                \
@@ -154,9 +158,11 @@ class LoadClassSlowPathARMVIXL;
   M(NullCheck)                                  \
   M(NullConstant)                               \
   M(Or)                                         \
+  M(PackedSwitch)                               \
   M(ParallelMove)                               \
   M(ParameterValue)                             \
   M(Phi)                                        \
+  M(Rem)                                        \
   M(Return)                                     \
   M(ReturnVoid)                                 \
   M(Ror)                                        \
@@ -181,16 +187,26 @@ class LoadClassSlowPathARMVIXL;
 #define FOR_EACH_UNIMPLEMENTED_INSTRUCTION(M)   \
   M(ArmDexCacheArraysBase)                      \
   M(BitwiseNegatedRight)                        \
-  M(BoundType)                                  \
-  M(ClassTableGet)                              \
   M(IntermediateAddress)                        \
-  M(MonitorOperation)                           \
   M(MultiplyAccumulate)                         \
-  M(NativeDebugInfo)                            \
-  M(PackedSwitch)                               \
-  M(Rem)                                        \
 
 class CodeGeneratorARMVIXL;
+
+class JumpTableARMVIXL : public DeletableArenaObject<kArenaAllocSwitchTable> {
+ public:
+  explicit JumpTableARMVIXL(HPackedSwitch* switch_instr)
+      : switch_instr_(switch_instr), table_start_() {}
+
+  vixl::aarch32::Label* GetTableStartLabel() { return &table_start_; }
+
+  void EmitTable(CodeGeneratorARMVIXL* codegen);
+
+ private:
+  HPackedSwitch* const switch_instr_;
+  vixl::aarch32::Label table_start_;
+
+  DISALLOW_COPY_AND_ASSIGN(JumpTableARMVIXL);
+};
 
 class InvokeRuntimeCallingConventionARMVIXL
     : public CallingConvention<vixl::aarch32::Register, vixl::aarch32::SRegister> {
@@ -488,10 +504,16 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
     return block_entry_label->GetLocation();
   }
 
+  JumpTableARMVIXL* CreateJumpTable(HPackedSwitch* switch_instr) {
+    jump_tables_.emplace_back(new (GetGraph()->GetArena()) JumpTableARMVIXL(switch_instr));
+    return jump_tables_.back().get();
+  }
+
   HGraphVisitor* GetLocationBuilder() OVERRIDE { return &location_builder_; }
 
   HGraphVisitor* GetInstructionVisitor() OVERRIDE { return &instruction_visitor_; }
 
+  void EmitJumpTables();
   void GenerateMemoryBarrier(MemBarrierKind kind);
   void Finalize(CodeAllocator* allocator) OVERRIDE;
   void SetupBlockedRegisters() const OVERRIDE;
@@ -673,6 +695,7 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
   ArenaDeque<vixl::aarch32::Label> block_labels_;  // Indexed by block id.
   vixl::aarch32::Label frame_entry_label_;
 
+  ArenaVector<std::unique_ptr<JumpTableARMVIXL>> jump_tables_;
   LocationsBuilderARMVIXL location_builder_;
   InstructionCodeGeneratorARMVIXL instruction_visitor_;
   ParallelMoveResolverARMVIXL move_resolver_;
