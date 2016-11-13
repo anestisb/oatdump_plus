@@ -167,50 +167,60 @@
     /*
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kSaveRefsAndArgs).
-     * callee-save: $a1-$a3, $s2-$s8 + $gp + $ra, 12 total + 3 words padding + method*
+     * callee-save: $a1-$a3, $t0-$t1, $s2-$s8, $gp, $ra, $f8-$f19
+     *              (26 total + 1 word padding + method*)
      */
 .macro SETUP_SAVE_REFS_AND_ARGS_FRAME_REGISTERS_ONLY
-    addiu  $sp, $sp, -80
-    .cfi_adjust_cfa_offset 80
+    addiu  $sp, $sp, -112
+    .cfi_adjust_cfa_offset 112
 
     // Ugly compile-time check, but we only have the preprocessor.
-#if (FRAME_SIZE_SAVE_REFS_AND_ARGS != 80)
+#if (FRAME_SIZE_SAVE_REFS_AND_ARGS != 112)
 #error "FRAME_SIZE_SAVE_REFS_AND_ARGS(MIPS) size not as expected."
 #endif
 
-    sw     $ra, 76($sp)
-    .cfi_rel_offset 31, 76
-    sw     $s8, 72($sp)
-    .cfi_rel_offset 30, 72
-    sw     $gp, 68($sp)
-    .cfi_rel_offset 28, 68
-    sw     $s7, 64($sp)
-    .cfi_rel_offset 23, 64
-    sw     $s6, 60($sp)
-    .cfi_rel_offset 22, 60
-    sw     $s5, 56($sp)
-    .cfi_rel_offset 21, 56
-    sw     $s4, 52($sp)
-    .cfi_rel_offset 20, 52
-    sw     $s3, 48($sp)
-    .cfi_rel_offset 19, 48
-    sw     $s2, 44($sp)
-    .cfi_rel_offset 18, 44
-    sw     $a3, 40($sp)
-    .cfi_rel_offset 7, 40
-    sw     $a2, 36($sp)
-    .cfi_rel_offset 6, 36
-    sw     $a1, 32($sp)
-    .cfi_rel_offset 5, 32
-    SDu $f14, $f15, 24, $sp, $t0
-    SDu $f12, $f13, 16, $sp, $t0
+    sw     $ra, 108($sp)
+    .cfi_rel_offset 31, 108
+    sw     $s8, 104($sp)
+    .cfi_rel_offset 30, 104
+    sw     $gp, 100($sp)
+    .cfi_rel_offset 28, 100
+    sw     $s7, 96($sp)
+    .cfi_rel_offset 23, 96
+    sw     $s6, 92($sp)
+    .cfi_rel_offset 22, 92
+    sw     $s5, 88($sp)
+    .cfi_rel_offset 21, 88
+    sw     $s4, 84($sp)
+    .cfi_rel_offset 20, 84
+    sw     $s3, 80($sp)
+    .cfi_rel_offset 19, 80
+    sw     $s2, 76($sp)
+    .cfi_rel_offset 18, 76
+    sw     $t1, 72($sp)
+    .cfi_rel_offset 9, 72
+    sw     $t0, 68($sp)
+    .cfi_rel_offset 8, 68
+    sw     $a3, 64($sp)
+    .cfi_rel_offset 7, 64
+    sw     $a2, 60($sp)
+    .cfi_rel_offset 6, 60
+    sw     $a1, 56($sp)
+    .cfi_rel_offset 5, 56
+    SDu $f18, $f19, 48, $sp, $t8
+    SDu $f16, $f17, 40, $sp, $t8
+    SDu $f14, $f15, 32, $sp, $t8
+    SDu $f12, $f13, 24, $sp, $t8
+    SDu $f10, $f11, 16, $sp, $t8
+    SDu $f8, $f9, 8, $sp, $t8
     # bottom will hold Method*
 .endm
 
     /*
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kSaveRefsAndArgs). Restoration assumes non-moving GC.
-     * callee-save: $a1-$a3, $f12-$f15, $s2-$s8 + $gp + $ra, 12 total + 3 words padding + method*
+     * callee-save: $a1-$a3, $t0-$t1, $s2-$s8, $gp, $ra, $f8-$f19
+     *              (26 total + 1 word padding + method*)
      * Clobbers $t0 and $sp
      * Allocates ARG_SLOT_SIZE bytes at the bottom of the stack for arg slots.
      * Reserves FRAME_SIZE_SAVE_REFS_AND_ARGS + ARG_SLOT_SIZE bytes on the stack
@@ -229,7 +239,8 @@
     /*
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kSaveRefsAndArgs). Restoration assumes non-moving GC.
-     * callee-save: $a1-$a3, $f12-$f15, $s2-$s8 + $gp + $ra, 12 total + 3 words padding + method*
+     * callee-save: $a1-$a3, $t0-$t1, $s2-$s8, $gp, $ra, $f8-$f19
+     *              (26 total + 1 word padding + method*)
      * Clobbers $sp
      * Use $a0 as the Method* and loads it into bottom of stack.
      * Allocates ARG_SLOT_SIZE bytes at the bottom of the stack for arg slots.
@@ -246,34 +257,42 @@
 .macro RESTORE_SAVE_REFS_AND_ARGS_FRAME
     addiu  $sp, $sp, ARG_SLOT_SIZE                # remove argument slots on the stack
     .cfi_adjust_cfa_offset -ARG_SLOT_SIZE
-    lw     $ra, 76($sp)
+    lw     $ra, 108($sp)
     .cfi_restore 31
-    lw     $s8, 72($sp)
+    lw     $s8, 104($sp)
     .cfi_restore 30
-    lw     $gp, 68($sp)
+    lw     $gp, 100($sp)
     .cfi_restore 28
-    lw     $s7, 64($sp)
+    lw     $s7, 96($sp)
     .cfi_restore 23
-    lw     $s6, 60($sp)
+    lw     $s6, 92($sp)
     .cfi_restore 22
-    lw     $s5, 56($sp)
+    lw     $s5, 88($sp)
     .cfi_restore 21
-    lw     $s4, 52($sp)
+    lw     $s4, 84($sp)
     .cfi_restore 20
-    lw     $s3, 48($sp)
+    lw     $s3, 80($sp)
     .cfi_restore 19
-    lw     $s2, 44($sp)
+    lw     $s2, 76($sp)
     .cfi_restore 18
-    lw     $a3, 40($sp)
+    lw     $t1, 72($sp)
+    .cfi_restore 9
+    lw     $t0, 68($sp)
+    .cfi_restore 8
+    lw     $a3, 64($sp)
     .cfi_restore 7
-    lw     $a2, 36($sp)
+    lw     $a2, 60($sp)
     .cfi_restore 6
-    lw     $a1, 32($sp)
+    lw     $a1, 56($sp)
     .cfi_restore 5
-    LDu $f14, $f15, 24, $sp, $t1
-    LDu $f12, $f13, 16, $sp, $t1
-    addiu  $sp, $sp, 80           # pop frame
-    .cfi_adjust_cfa_offset -80
+    LDu $f18, $f19, 48, $sp, $t8
+    LDu $f16, $f17, 40, $sp, $t8
+    LDu $f14, $f15, 32, $sp, $t8
+    LDu $f12, $f13, 24, $sp, $t8
+    LDu $f10, $f11, 16, $sp, $t8
+    LDu $f8, $f9, 8, $sp, $t8
+    addiu  $sp, $sp, 112          # pop frame
+    .cfi_adjust_cfa_offset -112
 .endm
 
     /*
@@ -824,30 +843,56 @@ INVOKE_TRAMPOLINE art_quick_invoke_direct_trampoline_with_access_check, artInvok
 INVOKE_TRAMPOLINE art_quick_invoke_super_trampoline_with_access_check, artInvokeSuperTrampolineWithAccessCheck
 INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvokeVirtualTrampolineWithAccessCheck
 
-.macro LOAD_WORD_TO_REG reg, next_arg, index, label
+// Each of the following macros expands into four instructions or 16 bytes.
+// They are used to build indexable "tables" of code.
+
+.macro LOAD_WORD_TO_REG reg, next_arg, index_reg, label
     lw    $\reg, -4($\next_arg)   # next_arg points to argument after the current one (offset is 4)
     b     \label
-    addiu $\index, 1
+    addiu $\index_reg, 16
+    .balign 16
 .endm
 
-.macro LOAD_LONG_TO_REG reg1, reg2, next_arg, index, label
+.macro LOAD_LONG_TO_REG reg1, reg2, next_arg, index_reg, next_index, label
     lw    $\reg1, -8($\next_arg)  # next_arg points to argument after the current one (offset is 8)
     lw    $\reg2, -4($\next_arg)
     b     \label
-    li    $\index, 4              # long can be loaded only to a2_a3 pair so index will be always 4
+    li    $\index_reg, \next_index
+    .balign 16
 .endm
 
-.macro LOAD_FLOAT_TO_REG reg, next_arg, index, label
+.macro LOAD_FLOAT_TO_REG reg, next_arg, index_reg, label
     lwc1  $\reg, -4($\next_arg)   # next_arg points to argument after the current one (offset is 4)
     b     \label
-    addiu $\index, 1
+    addiu $\index_reg, 16
+    .balign 16
 .endm
 
-.macro LOAD_DOUBLE_TO_REG reg1, reg2, next_arg, index, tmp, label
+#if defined(__mips_isa_rev) && __mips_isa_rev > 2
+// LDu expands into 3 instructions for 64-bit FPU, so index_reg cannot be updated here.
+.macro LOAD_DOUBLE_TO_REG reg1, reg2, next_arg, index_reg, tmp, label
+    .set reorder                                # force use of the branch delay slot
     LDu  $\reg1, $\reg2, -8, $\next_arg, $\tmp  # next_arg points to argument after the current one
                                                 # (offset is 8)
     b     \label
-    addiu $\index, 1
+    .set noreorder
+    .balign 16
+.endm
+#else
+// LDu expands into 2 instructions for 32-bit FPU, so index_reg is updated here.
+.macro LOAD_DOUBLE_TO_REG reg1, reg2, next_arg, index_reg, tmp, label
+    LDu  $\reg1, $\reg2, -8, $\next_arg, $\tmp  # next_arg points to argument after the current one
+                                                # (offset is 8)
+    b     \label
+    addiu $\index_reg, 16
+    .balign 16
+.endm
+#endif
+
+.macro LOAD_END index_reg, next_index, label
+    b     \label
+    li    $\index_reg, \next_index
+    .balign 16
 .endm
 
 #define SPILL_SIZE    32
@@ -891,61 +936,63 @@ ENTRY art_quick_invoke_stub
     lw    $gp, 16($fp)          # restore $gp
     lw    $a0, SPILL_SIZE($fp)  # restore ArtMethod*
     lw    $a1, 4($sp)           # a1 = this*
-    addiu $t0, $sp, 8           # t0 = pointer to the current argument (skip ArtMethod* and this*)
-    li    $t3, 2                # t3 = gpr_index = 2 (skip A0 and A1)
-    move  $t4, $zero            # t4 = fp_index = 0
-    lw    $t1, 20 + SPILL_SIZE($fp)  # get shorty (20 is offset from the $sp on entry + SPILL_SIZE
+    addiu $t8, $sp, 8           # t8 = pointer to the current argument (skip ArtMethod* and this*)
+    li    $t6, 0                # t6 = gpr_index = 0 (corresponds to A2; A0 and A1 are skipped)
+    li    $t7, 0                # t7 = fp_index = 0
+    lw    $t9, 20 + SPILL_SIZE($fp)  # get shorty (20 is offset from the $sp on entry + SPILL_SIZE
                                 # as the $fp is SPILL_SIZE bytes below the $sp on entry)
-    addiu $t1, 1                # t1 = shorty + 1 (skip 1 for return type)
+    addiu $t9, 1                # t9 = shorty + 1 (skip 1 for return type)
+
+    // Load the base addresses of tabInt ... tabDouble.
+    // We will use the register indices (gpr_index, fp_index) to branch.
+    // Note that the indices are scaled by 16, so they can be added to the bases directly.
+#if defined(__mips_isa_rev) && __mips_isa_rev >= 6
+    lapc  $t2, tabInt
+    lapc  $t3, tabLong
+    lapc  $t4, tabSingle
+    lapc  $t5, tabDouble
+#else
+    bltzal $zero, tabBase       # nal
+    addiu $t2, $ra, %lo(tabInt - tabBase)
+tabBase:
+    addiu $t3, $ra, %lo(tabLong - tabBase)
+    addiu $t4, $ra, %lo(tabSingle - tabBase)
+    addiu $t5, $ra, %lo(tabDouble - tabBase)
+#endif
+
 loop:
-    lbu   $t2, 0($t1)           # t2 = shorty[i]
-    beqz  $t2, loopEnd          # finish getting args when shorty[i] == '\0'
-    addiu $t1, 1
+    lbu   $ra, 0($t9)           # ra = shorty[i]
+    beqz  $ra, loopEnd          # finish getting args when shorty[i] == '\0'
+    addiu $t9, 1
 
-    li    $t9, 'J'              # put char 'J' into t9
-    beq   $t9, $t2, isLong      # branch if result type char == 'J'
-    li    $t9, 'D'              # put char 'D' into t9
-    beq   $t9, $t2, isDouble    # branch if result type char == 'D'
-    li    $t9, 'F'              # put char 'F' into t9
-    beq   $t9, $t2, isSingle    # branch if result type char == 'F'
-    addiu $t0, 4                # next_arg = curr_arg + 4 (in branch delay slot,
-                                # for both, int and single)
+    addiu $ra, -'J'
+    beqz  $ra, isLong           # branch if result type char == 'J'
+    addiu $ra, 'J' - 'D'
+    beqz  $ra, isDouble         # branch if result type char == 'D'
+    addiu $ra, 'D' - 'F'
+    beqz  $ra, isSingle         # branch if result type char == 'F'
 
-    li    $t5, 2                                   # skip a0 and a1 (ArtMethod* and this*)
-    bne   $t5, $t3, 1f                             # if (gpr_index == 2)
-    addiu $t5, 1
-    LOAD_WORD_TO_REG a2, t0, t3, loop              #   a2 = current argument, gpr_index++
-1:  bne   $t5, $t3, loop                           # else if (gpr_index == 3)
-    nop
-    LOAD_WORD_TO_REG a3, t0, t3, loop              #   a3 = current argument, gpr_index++
+    addu  $ra, $t2, $t6
+    jalr  $zero, $ra
+    addiu $t8, 4                # next_arg = curr_arg + 4
 
 isLong:
-    addiu $t0, 8                                   # next_arg = curr_arg + 8
-    slti  $t5, $t3, 3
-    beqz  $t5, 2f                                  # if (gpr_index < 3)
-    nop
-    LOAD_LONG_TO_REG a2, a3, t0, t3, loop          #   a2_a3 = curr_arg, gpr_index = 4
-2:  b     loop                                     # else
-    li    $t3, 4                                   #   gpr_index = 4
-
-isDouble:
-    addiu $t0, 8                                   # next_arg = curr_arg + 8
-    li    $t5, 0
-    bne   $t5, $t4, 3f                             # if (fp_index == 0)
-    addiu $t5, 1
-    LOAD_DOUBLE_TO_REG f12, f13, t0, t4, t9, loop  #   f12_f13 = curr_arg, fp_index++
-3:  bne   $t5, $t4, loop                           # else if (fp_index == 1)
-    nop
-    LOAD_DOUBLE_TO_REG f14, f15, t0, t4, t9, loop  #   f14_f15 = curr_arg, fp_index++
+    addu  $ra, $t3, $t6
+    jalr  $zero, $ra
+    addiu $t8, 8                # next_arg = curr_arg + 8
 
 isSingle:
-    li    $t5, 0
-    bne   $t5, $t4, 4f                             # if (fp_index == 0)
-    addiu $t5, 1
-    LOAD_FLOAT_TO_REG f12, t0, t4, loop            #   f12 = curr_arg, fp_index++
-4:  bne   $t5, $t4, loop                           # else if (fp_index == 1)
-    nop
-    LOAD_FLOAT_TO_REG f14, t0, t4, loop            #   f14 = curr_arg, fp_index++
+    addu  $ra, $t4, $t7
+    jalr  $zero, $ra
+    addiu $t8, 4                # next_arg = curr_arg + 4
+
+isDouble:
+    addu  $ra, $t5, $t7
+#if defined(__mips_isa_rev) && __mips_isa_rev > 2
+    addiu $t7, 16               # fp_index += 16 didn't fit into LOAD_DOUBLE_TO_REG
+#endif
+    jalr  $zero, $ra
+    addiu $t8, 8                # next_arg = curr_arg + 8
 
 loopEnd:
     lw    $t9, ART_METHOD_QUICK_CODE_OFFSET_32($a0)  # get pointer to the code
@@ -976,6 +1023,38 @@ loopEnd:
     SDu   $f0, $f1, 0, $t0, $t1 # store floating point result
     jalr  $zero, $ra
     nop
+
+    // Note that gpr_index is kept within the range of tabInt and tabLong
+    // and fp_index is kept within the range of tabSingle and tabDouble.
+    .balign 16
+tabInt:
+    LOAD_WORD_TO_REG a2, t8, t6, loop             # a2 = current argument, gpr_index += 16
+    LOAD_WORD_TO_REG a3, t8, t6, loop             # a3 = current argument, gpr_index += 16
+    LOAD_WORD_TO_REG t0, t8, t6, loop             # t0 = current argument, gpr_index += 16
+    LOAD_WORD_TO_REG t1, t8, t6, loop             # t1 = current argument, gpr_index += 16
+    LOAD_END t6, 4*16, loop                       # no more GPR args, gpr_index = 4*16
+tabLong:
+    LOAD_LONG_TO_REG a2, a3, t8, t6, 2*16, loop   # a2_a3 = curr_arg, gpr_index = 2*16
+    LOAD_LONG_TO_REG t0, t1, t8, t6, 4*16, loop   # t0_t1 = curr_arg, gpr_index = 4*16
+    LOAD_LONG_TO_REG t0, t1, t8, t6, 4*16, loop   # t0_t1 = curr_arg, gpr_index = 4*16
+    LOAD_END t6, 4*16, loop                       # no more GPR args, gpr_index = 4*16
+    LOAD_END t6, 4*16, loop                       # no more GPR args, gpr_index = 4*16
+tabSingle:
+    LOAD_FLOAT_TO_REG f8, t8, t7, loop            # f8 = curr_arg, fp_index += 16
+    LOAD_FLOAT_TO_REG f10, t8, t7, loop           # f10 = curr_arg, fp_index += 16
+    LOAD_FLOAT_TO_REG f12, t8, t7, loop           # f12 = curr_arg, fp_index += 16
+    LOAD_FLOAT_TO_REG f14, t8, t7, loop           # f14 = curr_arg, fp_index += 16
+    LOAD_FLOAT_TO_REG f16, t8, t7, loop           # f16 = curr_arg, fp_index += 16
+    LOAD_FLOAT_TO_REG f18, t8, t7, loop           # f18 = curr_arg, fp_index += 16
+    LOAD_END t7, 6*16, loop                       # no more FPR args, fp_index = 6*16
+tabDouble:
+    LOAD_DOUBLE_TO_REG f8, f9, t8, t7, ra, loop   # f8_f9 = curr_arg; if FPU32, fp_index += 16
+    LOAD_DOUBLE_TO_REG f10, f11, t8, t7, ra, loop # f10_f11 = curr_arg; if FPU32, fp_index += 16
+    LOAD_DOUBLE_TO_REG f12, f13, t8, t7, ra, loop # f12_f13 = curr_arg; if FPU32, fp_index += 16
+    LOAD_DOUBLE_TO_REG f14, f15, t8, t7, ra, loop # f14_f15 = curr_arg; if FPU32, fp_index += 16
+    LOAD_DOUBLE_TO_REG f16, f17, t8, t7, ra, loop # f16_f17 = curr_arg; if FPU32, fp_index += 16
+    LOAD_DOUBLE_TO_REG f18, f19, t8, t7, ra, loop # f18_f19 = curr_arg; if FPU32, fp_index += 16
+    LOAD_END t7, 6*16, loop                       # no more FPR args, fp_index = 6*16
 END art_quick_invoke_stub
 
     /*
@@ -1016,64 +1095,63 @@ ENTRY art_quick_invoke_static_stub
     addiu $sp, $sp, 16          # restore stack after memcpy
     lw    $gp, 16($fp)          # restore $gp
     lw    $a0, SPILL_SIZE($fp)  # restore ArtMethod*
-    addiu $t0, $sp, 4           # t0 = pointer to the current argument (skip ArtMethod*)
-    li    $t3, 1                # t3 = gpr_index = 1 (skip A0)
-    move  $t4, $zero            # t4 = fp_index = 0
-    lw    $t1, 20 + SPILL_SIZE($fp)  # get shorty (20 is offset from the $sp on entry + SPILL_SIZE
+    addiu $t8, $sp, 4           # t8 = pointer to the current argument (skip ArtMethod*)
+    li    $t6, 0                # t6 = gpr_index = 0 (corresponds to A1; A0 is skipped)
+    li    $t7, 0                # t7 = fp_index = 0
+    lw    $t9, 20 + SPILL_SIZE($fp)  # get shorty (20 is offset from the $sp on entry + SPILL_SIZE
                                 # as the $fp is SPILL_SIZE bytes below the $sp on entry)
-    addiu $t1, 1                # t1 = shorty + 1 (skip 1 for return type)
+    addiu $t9, 1                # t9 = shorty + 1 (skip 1 for return type)
+
+    // Load the base addresses of tabIntS ... tabDoubleS.
+    // We will use the register indices (gpr_index, fp_index) to branch.
+    // Note that the indices are scaled by 16, so they can be added to the bases directly.
+#if defined(__mips_isa_rev) && __mips_isa_rev >= 6
+    lapc  $t2, tabIntS
+    lapc  $t3, tabLongS
+    lapc  $t4, tabSingleS
+    lapc  $t5, tabDoubleS
+#else
+    bltzal $zero, tabBaseS      # nal
+    addiu $t2, $ra, %lo(tabIntS - tabBaseS)
+tabBaseS:
+    addiu $t3, $ra, %lo(tabLongS - tabBaseS)
+    addiu $t4, $ra, %lo(tabSingleS - tabBaseS)
+    addiu $t5, $ra, %lo(tabDoubleS - tabBaseS)
+#endif
+
 loopS:
-    lbu   $t2, 0($t1)           # t2 = shorty[i]
-    beqz  $t2, loopEndS         # finish getting args when shorty[i] == '\0'
-    addiu $t1, 1
+    lbu   $ra, 0($t9)           # ra = shorty[i]
+    beqz  $ra, loopEndS         # finish getting args when shorty[i] == '\0'
+    addiu $t9, 1
 
-    li    $t9, 'J'              # put char 'J' into t9
-    beq   $t9, $t2, isLongS     # branch if result type char == 'J'
-    li    $t9, 'D'              # put char 'D' into t9
-    beq   $t9, $t2, isDoubleS   # branch if result type char == 'D'
-    li    $t9, 'F'              # put char 'F' into t9
-    beq   $t9, $t2, isSingleS   # branch if result type char == 'F'
-    addiu $t0, 4                # next_arg = curr_arg + 4 (in branch delay slot,
-                                # for both, int and single)
+    addiu $ra, -'J'
+    beqz  $ra, isLongS          # branch if result type char == 'J'
+    addiu $ra, 'J' - 'D'
+    beqz  $ra, isDoubleS        # branch if result type char == 'D'
+    addiu $ra, 'D' - 'F'
+    beqz  $ra, isSingleS        # branch if result type char == 'F'
 
-    li    $t5, 1                                    # skip a0 (ArtMethod*)
-    bne   $t5, $t3, 1f                              # if (gpr_index == 1)
-    addiu $t5, 1
-    LOAD_WORD_TO_REG a1, t0, t3, loopS              #   a1 = current argument, gpr_index++
-1:  bne   $t5, $t3, 2f                              # else if (gpr_index == 2)
-    addiu $t5, 1
-    LOAD_WORD_TO_REG a2, t0, t3, loopS              #   a2 = current argument, gpr_index++
-2:  bne   $t5, $t3, loopS                           # else if (gpr_index == 3)
-    nop
-    LOAD_WORD_TO_REG a3, t0, t3, loopS              #   a3 = current argument, gpr_index++
+    addu  $ra, $t2, $t6
+    jalr  $zero, $ra
+    addiu $t8, 4                # next_arg = curr_arg + 4
 
 isLongS:
-    addiu $t0, 8                                    # next_arg = curr_arg + 8
-    slti  $t5, $t3, 3
-    beqz  $t5, 3f                                   # if (gpr_index < 3)
-    nop
-    LOAD_LONG_TO_REG a2, a3, t0, t3, loopS          #   a2_a3 = curr_arg, gpr_index = 4
-3:  b     loopS                                     # else
-    li    $t3, 4                                    #   gpr_index = 4
-
-isDoubleS:
-    addiu $t0, 8                                    # next_arg = curr_arg + 8
-    li    $t5, 0
-    bne   $t5, $t4, 4f                              # if (fp_index == 0)
-    addiu $t5, 1
-    LOAD_DOUBLE_TO_REG f12, f13, t0, t4, t9, loopS  #   f12_f13 = curr_arg, fp_index++
-4:  bne   $t5, $t4, loopS                           # else if (fp_index == 1)
-    nop
-    LOAD_DOUBLE_TO_REG f14, f15, t0, t4, t9, loopS  #   f14_f15 = curr_arg, fp_index++
+    addu  $ra, $t3, $t6
+    jalr  $zero, $ra
+    addiu $t8, 8                # next_arg = curr_arg + 8
 
 isSingleS:
-    li    $t5, 0
-    bne   $t5, $t4, 5f                              # if (fp_index == 0)
-    addiu $t5, 1
-    LOAD_FLOAT_TO_REG f12, t0, t4, loopS            #   f12 = curr_arg, fp_index++
-5:  bne   $t5, $t4, loopS                           # else if (fp_index == 1)
-    nop
-    LOAD_FLOAT_TO_REG f14, t0, t4, loopS            #   f14 = curr_arg, fp_index++
+    addu  $ra, $t4, $t7
+    jalr  $zero, $ra
+    addiu $t8, 4                # next_arg = curr_arg + 4
+
+isDoubleS:
+    addu  $ra, $t5, $t7
+#if defined(__mips_isa_rev) && __mips_isa_rev > 2
+    addiu $t7, 16               # fp_index += 16 didn't fit into LOAD_DOUBLE_TO_REG
+#endif
+    jalr  $zero, $ra
+    addiu $t8, 8                # next_arg = curr_arg + 8
 
 loopEndS:
     lw    $t9, ART_METHOD_QUICK_CODE_OFFSET_32($a0)  # get pointer to the code
@@ -1104,6 +1182,40 @@ loopEndS:
     SDu   $f0, $f1, 0, $t0, $t1 # store floating point result
     jalr  $zero, $ra
     nop
+
+    // Note that gpr_index is kept within the range of tabIntS and tabLongS
+    // and fp_index is kept within the range of tabSingleS and tabDoubleS.
+    .balign 16
+tabIntS:
+    LOAD_WORD_TO_REG a1, t8, t6, loopS             # a1 = current argument, gpr_index += 16
+    LOAD_WORD_TO_REG a2, t8, t6, loopS             # a2 = current argument, gpr_index += 16
+    LOAD_WORD_TO_REG a3, t8, t6, loopS             # a3 = current argument, gpr_index += 16
+    LOAD_WORD_TO_REG t0, t8, t6, loopS             # t0 = current argument, gpr_index += 16
+    LOAD_WORD_TO_REG t1, t8, t6, loopS             # t1 = current argument, gpr_index += 16
+    LOAD_END t6, 5*16, loopS                       # no more GPR args, gpr_index = 5*16
+tabLongS:
+    LOAD_LONG_TO_REG a2, a3, t8, t6, 3*16, loopS   # a2_a3 = curr_arg, gpr_index = 3*16
+    LOAD_LONG_TO_REG a2, a3, t8, t6, 3*16, loopS   # a2_a3 = curr_arg, gpr_index = 3*16
+    LOAD_LONG_TO_REG t0, t1, t8, t6, 5*16, loopS   # t0_t1 = curr_arg, gpr_index = 5*16
+    LOAD_LONG_TO_REG t0, t1, t8, t6, 5*16, loopS   # t0_t1 = curr_arg, gpr_index = 5*16
+    LOAD_END t6, 5*16, loopS                       # no more GPR args, gpr_index = 5*16
+    LOAD_END t6, 5*16, loopS                       # no more GPR args, gpr_index = 5*16
+tabSingleS:
+    LOAD_FLOAT_TO_REG f8, t8, t7, loopS            # f8 = curr_arg, fp_index += 16
+    LOAD_FLOAT_TO_REG f10, t8, t7, loopS           # f10 = curr_arg, fp_index += 16
+    LOAD_FLOAT_TO_REG f12, t8, t7, loopS           # f12 = curr_arg, fp_index += 16
+    LOAD_FLOAT_TO_REG f14, t8, t7, loopS           # f14 = curr_arg, fp_index += 16
+    LOAD_FLOAT_TO_REG f16, t8, t7, loopS           # f16 = curr_arg, fp_index += 16
+    LOAD_FLOAT_TO_REG f18, t8, t7, loopS           # f18 = curr_arg, fp_index += 16
+    LOAD_END t7, 6*16, loopS                       # no more FPR args, fp_index = 6*16
+tabDoubleS:
+    LOAD_DOUBLE_TO_REG f8, f9, t8, t7, ra, loopS   # f8_f9 = curr_arg; if FPU32, fp_index += 16
+    LOAD_DOUBLE_TO_REG f10, f11, t8, t7, ra, loopS # f10_f11 = curr_arg; if FPU32, fp_index += 16
+    LOAD_DOUBLE_TO_REG f12, f13, t8, t7, ra, loopS # f12_f13 = curr_arg; if FPU32, fp_index += 16
+    LOAD_DOUBLE_TO_REG f14, f15, t8, t7, ra, loopS # f14_f15 = curr_arg; if FPU32, fp_index += 16
+    LOAD_DOUBLE_TO_REG f16, f17, t8, t7, ra, loopS # f16_f17 = curr_arg; if FPU32, fp_index += 16
+    LOAD_DOUBLE_TO_REG f18, f19, t8, t7, ra, loopS # f18_f19 = curr_arg; if FPU32, fp_index += 16
+    LOAD_END t7, 6*16, loopS                       # no more FPR args, fp_index = 6*16
 END art_quick_invoke_static_stub
 
 #undef SPILL_SIZE
@@ -1886,9 +1998,9 @@ ENTRY art_quick_proxy_invoke_handler
     la      $t9, artQuickProxyInvokeHandler
     jalr    $t9                         # (Method* proxy method, receiver, Thread*, SP)
     addiu   $a3, $sp, ARG_SLOT_SIZE     # pass $sp (remove arg slots)
-    lw      $t0, THREAD_EXCEPTION_OFFSET(rSELF) # load Thread::Current()->exception_
+    lw      $t7, THREAD_EXCEPTION_OFFSET(rSELF) # load Thread::Current()->exception_
     RESTORE_SAVE_REFS_AND_ARGS_FRAME
-    bnez    $t0, 1f
+    bnez    $t7, 1f
     # don't care if $v0 and/or $v1 are modified, when exception branch taken
     MTD     $v0, $v1, $f0, $f1          # move float value to return value
     jalr    $zero, $ra
@@ -1900,25 +2012,25 @@ END art_quick_proxy_invoke_handler
     /*
      * Called to resolve an imt conflict.
      * a0 is the conflict ArtMethod.
-     * t0 is a hidden argument that holds the target interface method's dex method index.
+     * t7 is a hidden argument that holds the target interface method's dex method index.
      *
-     * Note that this stub writes to a0, t0 and t1.
+     * Note that this stub writes to a0, t7 and t8.
      */
 ENTRY art_quick_imt_conflict_trampoline
-    lw      $t1, 0($sp)                                      # Load referrer.
-    lw      $t1, ART_METHOD_DEX_CACHE_METHODS_OFFSET_32($t1) # Load dex cache methods array.
-    sll     $t0, $t0, POINTER_SIZE_SHIFT                     # Calculate offset.
-    addu    $t0, $t1, $t0                                    # Add offset to base.
-    lw      $t0, 0($t0)                                      # Load interface method.
+    lw      $t8, 0($sp)                                      # Load referrer.
+    lw      $t8, ART_METHOD_DEX_CACHE_METHODS_OFFSET_32($t8) # Load dex cache methods array.
+    sll     $t7, $t7, POINTER_SIZE_SHIFT                     # Calculate offset.
+    addu    $t7, $t8, $t7                                    # Add offset to base.
+    lw      $t7, 0($t7)                                      # Load interface method.
     lw      $a0, ART_METHOD_JNI_OFFSET_32($a0)               # Load ImtConflictTable.
 
 .Limt_table_iterate:
-    lw      $t1, 0($a0)                                      # Load next entry in ImtConflictTable.
+    lw      $t8, 0($a0)                                      # Load next entry in ImtConflictTable.
     # Branch if found.
-    beq     $t1, $t0, .Limt_table_found
+    beq     $t8, $t7, .Limt_table_found
     nop
     # If the entry is null, the interface method is not in the ImtConflictTable.
-    beqz    $t1, .Lconflict_trampoline
+    beqz    $t8, .Lconflict_trampoline
     nop
     # Iterate over the entries of the ImtConflictTable.
     b       .Limt_table_iterate
@@ -1928,7 +2040,7 @@ ENTRY art_quick_imt_conflict_trampoline
     # We successfully hit an entry in the table. Load the target method and jump to it.
     lw      $a0, __SIZEOF_POINTER__($a0)
     lw      $t9, ART_METHOD_QUICK_CODE_OFFSET_32($a0)
-    jr      $t9
+    jalr    $zero, $t9
     nop
 
 .Lconflict_trampoline:
@@ -1972,7 +2084,7 @@ ENTRY art_quick_generic_jni_trampoline
     # The result of the call is:
     # v0: ptr to native code, 0 on error.
     # v1: ptr to the bottom of the used area of the alloca, can restore stack till here.
-    beq     $v0, $zero, 1f         # check entry error
+    beq     $v0, $zero, 2f         # check entry error
     move    $t9, $v0               # save the code ptr
     move    $sp, $v1               # release part of the alloca
 
@@ -1980,10 +2092,22 @@ ENTRY art_quick_generic_jni_trampoline
     lw      $a0,   0($sp)
     lw      $a1,   4($sp)
     lw      $a2,   8($sp)
-
-    # Load FPRs the same as GPRs. Look at BuildNativeCallFrameStateMachine.
-    jalr    $t9                    # native call
     lw      $a3,  12($sp)
+
+    # artQuickGenericJniTrampoline sets bit 0 of the native code address to 1
+    # when the first two arguments are both single precision floats. This lets
+    # us extract them properly from the stack and load into floating point
+    # registers.
+    MTD     $a0, $a1, $f12, $f13
+    andi    $t0, $t9, 1
+    xor     $t9, $t9, $t0
+    bnez    $t0, 1f
+    mtc1    $a1, $f14
+    MTD     $a2, $a3, $f14, $f15
+
+1:
+    jalr    $t9                    # native call
+    nop
     addiu   $sp, $sp, 16           # remove arg slots
 
     move    $gp, $s3               # restore $gp from $s3
@@ -1999,18 +2123,18 @@ ENTRY art_quick_generic_jni_trampoline
     s.d     $f0, 16($sp)           # pass result_f
 
     lw      $t0, THREAD_EXCEPTION_OFFSET(rSELF) # load Thread::Current()->exception_
-    bne     $t0, $zero, 1f         # check for pending exceptions
+    bne     $t0, $zero, 2f         # check for pending exceptions
 
     move    $sp, $s8               # tear down the alloca
 
-    # tear dpown the callee-save frame
+    # tear down the callee-save frame
     RESTORE_SAVE_REFS_AND_ARGS_FRAME
 
     MTD     $v0, $v1, $f0, $f1     # move float value to return value
     jalr    $zero, $ra
     nop
 
-1:
+2:
     lw $sp, THREAD_TOP_QUICK_FRAME_OFFSET(rSELF)
     # This will create a new save-all frame, required by the runtime.
     DELIVER_PENDING_EXCEPTION
@@ -2023,9 +2147,9 @@ ENTRY art_quick_to_interpreter_bridge
     la      $t9, artQuickToInterpreterBridge
     jalr    $t9                                 # (Method* method, Thread*, SP)
     addiu   $a2, $sp, ARG_SLOT_SIZE             # pass $sp (remove arg slots)
-    lw      $t0, THREAD_EXCEPTION_OFFSET(rSELF) # load Thread::Current()->exception_
+    lw      $t7, THREAD_EXCEPTION_OFFSET(rSELF) # load Thread::Current()->exception_
     RESTORE_SAVE_REFS_AND_ARGS_FRAME
-    bnez    $t0, 1f
+    bnez    $t7, 1f
     # don't care if $v0 and/or $v1 are modified, when exception branch taken
     MTD     $v0, $v1, $f0, $f1                  # move float value to return value
     jalr    $zero, $ra

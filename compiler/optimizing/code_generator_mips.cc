@@ -99,8 +99,9 @@ Location InvokeDexCallingConventionVisitorMIPS::GetNextLocation(Primitive::Type 
       uint32_t gp_index = gp_index_;
       gp_index_ += 2;
       if (gp_index + 1 < calling_convention.GetNumberOfRegisters()) {
-        if (calling_convention.GetRegisterAt(gp_index) == A1) {
-          gp_index_++;  // Skip A1, and use A2_A3 instead.
+        Register reg = calling_convention.GetRegisterAt(gp_index);
+        if (reg == A1 || reg == A3) {
+          gp_index_++;  // Skip A1(A3), and use A2_A3(T0_T1) instead.
           gp_index++;
         }
         Register low_even = calling_convention.GetRegisterAt(gp_index);
@@ -5085,9 +5086,9 @@ void LocationsBuilderMIPS::HandleInvoke(HInvoke* invoke) {
 
 void LocationsBuilderMIPS::VisitInvokeInterface(HInvokeInterface* invoke) {
   HandleInvoke(invoke);
-  // The register T0 is required to be used for the hidden argument in
+  // The register T7 is required to be used for the hidden argument in
   // art_quick_imt_conflict_trampoline, so add the hidden argument.
-  invoke->GetLocations()->AddTemp(Location::RegisterLocation(T0));
+  invoke->GetLocations()->AddTemp(Location::RegisterLocation(T7));
 }
 
 void InstructionCodeGeneratorMIPS::VisitInvokeInterface(HInvokeInterface* invoke) {

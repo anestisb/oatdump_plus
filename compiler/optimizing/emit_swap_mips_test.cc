@@ -154,54 +154,54 @@ TEST_F(EmitSwapMipsTest, TwoRegisterPairs) {
 TEST_F(EmitSwapMipsTest, TwoFpuRegistersFloat) {
   moves_->AddMove(
       Location::FpuRegisterLocation(4),
-      Location::FpuRegisterLocation(6),
+      Location::FpuRegisterLocation(2),
       Primitive::kPrimFloat,
       nullptr);
   moves_->AddMove(
-      Location::FpuRegisterLocation(6),
+      Location::FpuRegisterLocation(2),
       Location::FpuRegisterLocation(4),
       Primitive::kPrimFloat,
       nullptr);
   const char* expected =
-      "mov.s $f8, $f6\n"
-      "mov.s $f6, $f4\n"
-      "mov.s $f4, $f8\n";
+      "mov.s $f6, $f2\n"
+      "mov.s $f2, $f4\n"
+      "mov.s $f4, $f6\n";
   DriverWrapper(moves_, expected, "TwoFpuRegistersFloat");
 }
 
 TEST_F(EmitSwapMipsTest, TwoFpuRegistersDouble) {
   moves_->AddMove(
       Location::FpuRegisterLocation(4),
-      Location::FpuRegisterLocation(6),
+      Location::FpuRegisterLocation(2),
       Primitive::kPrimDouble,
       nullptr);
   moves_->AddMove(
-      Location::FpuRegisterLocation(6),
+      Location::FpuRegisterLocation(2),
       Location::FpuRegisterLocation(4),
       Primitive::kPrimDouble,
       nullptr);
   const char* expected =
-      "mov.d $f8, $f6\n"
-      "mov.d $f6, $f4\n"
-      "mov.d $f4, $f8\n";
+      "mov.d $f6, $f2\n"
+      "mov.d $f2, $f4\n"
+      "mov.d $f4, $f6\n";
   DriverWrapper(moves_, expected, "TwoFpuRegistersDouble");
 }
 
 TEST_F(EmitSwapMipsTest, RegisterAndFpuRegister) {
   moves_->AddMove(
       Location::RegisterLocation(4),
-      Location::FpuRegisterLocation(6),
+      Location::FpuRegisterLocation(2),
       Primitive::kPrimFloat,
       nullptr);
   moves_->AddMove(
-      Location::FpuRegisterLocation(6),
+      Location::FpuRegisterLocation(2),
       Location::RegisterLocation(4),
       Primitive::kPrimFloat,
       nullptr);
   const char* expected =
       "or $t8, $a0, $zero\n"
-      "mfc1 $a0, $f6\n"
-      "mtc1 $t8, $f6\n";
+      "mfc1 $a0, $f2\n"
+      "mtc1 $t8, $f2\n";
   DriverWrapper(moves_, expected, "RegisterAndFpuRegister");
 }
 
@@ -327,9 +327,9 @@ TEST_F(EmitSwapMipsTest, FpuRegisterAndStackSlot) {
       Primitive::kPrimFloat,
       nullptr);
   const char* expected =
-      "mov.s $f8, $f4\n"
+      "mov.s $f6, $f4\n"
       "lwc1 $f4, 48($sp)\n"
-      "swc1 $f8, 48($sp)\n";
+      "swc1 $f6, 48($sp)\n";
   DriverWrapper(moves_, expected, "FpuRegisterAndStackSlot");
 }
 
@@ -345,9 +345,9 @@ TEST_F(EmitSwapMipsTest, FpuRegisterAndDoubleStackSlot) {
       Primitive::kPrimDouble,
       nullptr);
   const char* expected =
-      "mov.d $f8, $f4\n"
+      "mov.d $f6, $f4\n"
       "ldc1 $f4, 48($sp)\n"
-      "sdc1 $f8, 48($sp)\n";
+      "sdc1 $f6, 48($sp)\n";
   DriverWrapper(moves_, expected, "FpuRegisterAndDoubleStackSlot");
 }
 

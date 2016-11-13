@@ -31,11 +31,11 @@ namespace mips {
 // InvokeDexCallingConvention registers
 
 static constexpr Register kParameterCoreRegisters[] =
-    { A1, A2, A3 };
+    { A1, A2, A3, T0, T1 };
 static constexpr size_t kParameterCoreRegistersLength = arraysize(kParameterCoreRegisters);
 
 static constexpr FRegister kParameterFpuRegisters[] =
-    { F12, F14 };
+    { F8, F10, F12, F14, F16, F18 };
 static constexpr size_t kParameterFpuRegistersLength = arraysize(kParameterFpuRegisters);
 
 
@@ -47,7 +47,7 @@ static constexpr size_t kRuntimeParameterCoreRegistersLength =
     arraysize(kRuntimeParameterCoreRegisters);
 
 static constexpr FRegister kRuntimeParameterFpuRegisters[] =
-    { F12, F14};
+    { F12, F14 };
 static constexpr size_t kRuntimeParameterFpuRegistersLength =
     arraysize(kRuntimeParameterFpuRegisters);
 
