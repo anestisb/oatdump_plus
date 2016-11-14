@@ -1166,9 +1166,7 @@ CodeGeneratorARM64::CodeGeneratorARM64(HGraph* graph,
                                graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       pc_relative_type_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       boot_image_address_patches_(std::less<uint32_t>(),
-                                  graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
-      jit_string_patches_(StringReferenceValueComparator(),
-                          graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
+                                  graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
   // Save the link register (containing the return address) to mimic Quick.
   AddAllocatedRegister(LocationFrom(lr));
 }
@@ -4140,14 +4138,6 @@ vixl::aarch64::Literal<uint64_t>* CodeGeneratorARM64::DeduplicateDexCacheAddress
   return DeduplicateUint64Literal(address);
 }
 
-vixl::aarch64::Literal<uint32_t>* CodeGeneratorARM64::DeduplicateJitStringLiteral(
-    const DexFile& dex_file, uint32_t string_index) {
-  jit_string_roots_.Overwrite(StringReference(&dex_file, string_index), /* placeholder */ 0u);
-  return jit_string_patches_.GetOrCreate(
-      StringReference(&dex_file, string_index),
-      [this]() { return __ CreateLiteralDestroyedWithPool<uint32_t>(/* placeholder */ 0u); });
-}
-
 void CodeGeneratorARM64::EmitAdrpPlaceholder(vixl::aarch64::Label* fixup_label,
                                              vixl::aarch64::Register reg) {
   DCHECK(reg.IsX());
@@ -4533,15 +4523,16 @@ HLoadString::LoadKind CodeGeneratorARM64::GetSupportedLoadStringKind(
       break;
     case HLoadString::LoadKind::kDexCacheViaMethod:
       break;
-    case HLoadString::LoadKind::kJitTableAddress:
-      DCHECK(Runtime::Current()->UseJitCompilation());
-      break;
   }
   return desired_string_load_kind;
 }
 
 void LocationsBuilderARM64::VisitLoadString(HLoadString* load) {
-  LocationSummary::CallKind call_kind = CodeGenerator::GetLoadStringCallKind(load);
+  LocationSummary::CallKind call_kind = load->NeedsEnvironment()
+      ? ((load->GetLoadKind() == HLoadString::LoadKind::kDexCacheViaMethod)
+          ? LocationSummary::kCallOnMainOnly
+          : LocationSummary::kCallOnSlowPath)
+      : LocationSummary::kNoCall;
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(load, call_kind);
   if (load->GetLoadKind() == HLoadString::LoadKind::kDexCacheViaMethod) {
     InvokeRuntimeCallingConvention calling_convention;
@@ -4567,7 +4558,6 @@ void LocationsBuilderARM64::VisitLoadString(HLoadString* load) {
 
 void InstructionCodeGeneratorARM64::VisitLoadString(HLoadString* load) {
   Register out = OutputRegister(load);
-  Location out_loc = load->GetLocations()->Out();
 
   switch (load->GetLoadKind()) {
     case HLoadString::LoadKind::kBootImageLinkTimeAddress:
@@ -4604,9 +4594,9 @@ void InstructionCodeGeneratorARM64::VisitLoadString(HLoadString* load) {
       // Add LDR with its PC-relative String patch.
       vixl::aarch64::Label* ldr_label =
           codegen_->NewPcRelativeStringPatch(dex_file, string_index, adrp_label);
-      // /* GcRoot<mirror::String> */ out = *(base_address + offset)  /* PC-relative */
+      // /* GcRoot<mirror::Class> */ out = *(base_address + offset)  /* PC-relative */
       GenerateGcRootFieldLoad(load,
-                              out_loc,
+                              load->GetLocations()->Out(),
                               temp,
                               /* offset placeholder */ 0u,
                               ldr_label,
@@ -4616,17 +4606,6 @@ void InstructionCodeGeneratorARM64::VisitLoadString(HLoadString* load) {
       codegen_->AddSlowPath(slow_path);
       __ Cbz(out.X(), slow_path->GetEntryLabel());
       __ Bind(slow_path->GetExitLabel());
-      return;
-    }
-    case HLoadString::LoadKind::kJitTableAddress: {
-      __ Ldr(out, codegen_->DeduplicateJitStringLiteral(load->GetDexFile(),
-                                                        load->GetStringIndex()));
-      GenerateGcRootFieldLoad(load,
-                              out_loc,
-                              out.X(),
-                              /* offset */ 0,
-                              /* fixup_label */ nullptr,
-                              kCompilerReadBarrierOption);
       return;
     }
     default:
@@ -5748,19 +5727,7 @@ void InstructionCodeGeneratorARM64::VisitClassTableGet(HClassTableGet* instructi
   }
 }
 
-void CodeGeneratorARM64::EmitJitRootPatches(uint8_t* code, const uint8_t* roots_data) {
-  for (const auto& entry : jit_string_patches_) {
-    const auto& it = jit_string_roots_.find(entry.first);
-    DCHECK(it != jit_string_roots_.end());
-    size_t index_in_table = it->second;
-    vixl::aarch64::Literal<uint32_t>* literal = entry.second;
-    uint32_t literal_offset = literal->GetOffset();
-    uintptr_t address =
-        reinterpret_cast<uintptr_t>(roots_data) + index_in_table * sizeof(GcRoot<mirror::Object>);
-    uint8_t* data = code + literal_offset;
-    reinterpret_cast<uint32_t*>(data)[0] = dchecked_integral_cast<uint32_t>(address);
-  }
-}
+
 
 #undef __
 #undef QUICK_ENTRY_POINT

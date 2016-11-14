@@ -92,15 +92,13 @@ class JitCodeCache {
   // Allocate and write code and its metadata to the code cache.
   uint8_t* CommitCode(Thread* self,
                       ArtMethod* method,
-                      uint8_t* stack_map,
-                      uint8_t* roots_data,
+                      const uint8_t* vmap_table,
                       size_t frame_size_in_bytes,
                       size_t core_spill_mask,
                       size_t fp_spill_mask,
                       const uint8_t* code,
                       size_t code_size,
-                      bool osr,
-                      Handle<mirror::ObjectArray<mirror::Object>> roots)
+                      bool osr)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!lock_);
 
@@ -110,14 +108,8 @@ class JitCodeCache {
   // Return true if the code cache contains this method.
   bool ContainsMethod(ArtMethod* method) REQUIRES(!lock_);
 
-  // Allocate a region of data that contain `size` bytes, and potentially space
-  // for storing `number_of_roots` roots. Returns null if there is no more room.
-  void ReserveData(Thread* self,
-                   size_t size,
-                   size_t number_of_roots,
-                   ArtMethod* method,
-                   uint8_t** stack_map_data,
-                   uint8_t** roots_data)
+  // Reserve a region of data of size at least "size". Returns null if there is no more room.
+  uint8_t* ReserveData(Thread* self, size_t size, ArtMethod* method)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!lock_);
 
@@ -196,10 +188,6 @@ class JitCodeCache {
 
   bool IsOsrCompiled(ArtMethod* method) REQUIRES(!lock_);
 
-  void SweepRootTables(IsMarkedVisitor* visitor)
-      REQUIRES(!lock_)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
  private:
   // Take ownership of maps.
   JitCodeCache(MemMap* code_map,
@@ -213,15 +201,13 @@ class JitCodeCache {
   // allocation fails. Return null if the allocation fails.
   uint8_t* CommitCodeInternal(Thread* self,
                               ArtMethod* method,
-                              uint8_t* stack_map,
-                              uint8_t* roots_data,
+                              const uint8_t* vmap_table,
                               size_t frame_size_in_bytes,
                               size_t core_spill_mask,
                               size_t fp_spill_mask,
                               const uint8_t* code,
                               size_t code_size,
-                              bool osr,
-                              Handle<mirror::ObjectArray<mirror::Object>> roots)
+                              bool osr)
       REQUIRES(!lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
