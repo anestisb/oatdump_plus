@@ -67,6 +67,11 @@ class PACKED(4) OatQuickMethodHeader {
     return data;
   }
 
+  uint8_t* GetOptimizedCodeInfoPtr() {
+    DCHECK(IsOptimized());
+    return code_ - vmap_table_offset_;
+  }
+
   CodeInfo GetOptimizedCodeInfo() const {
     return CodeInfo(GetOptimizedCodeInfoPtr());
   }
