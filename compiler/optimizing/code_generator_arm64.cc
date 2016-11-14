@@ -3782,26 +3782,23 @@ void InstructionCodeGeneratorARM64::VisitCheckCast(HCheckCast* instruction) {
                                         iftable_offset,
                                         maybe_temp2_loc,
                                         kWithoutReadBarrier);
-      vixl::aarch64::Label is_null;
       // Null iftable means it is empty and will always fail the check.
-      __ Cbz(temp, &is_null);
+      __ Cbz(temp, type_check_slow_path->GetEntryLabel());
 
       // Loop through the iftable and check if any class matches.
       __ Ldr(WRegisterFrom(maybe_temp2_loc), HeapOperand(temp.W(), array_length_offset));
 
       vixl::aarch64::Label start_loop;
       __ Bind(&start_loop);
+      __ Cbz(WRegisterFrom(maybe_temp2_loc), type_check_slow_path->GetEntryLabel());
       __ Ldr(WRegisterFrom(maybe_temp3_loc), HeapOperand(temp.W(), object_array_data_offset));
       GetAssembler()->MaybeUnpoisonHeapReference(WRegisterFrom(maybe_temp3_loc));
-      __ Cmp(cls, WRegisterFrom(maybe_temp3_loc));
-      __ B(eq, &done);  // Return if same class.
       // Go to next interface.
       __ Add(temp, temp, 2 * kHeapReferenceSize);
       __ Sub(WRegisterFrom(maybe_temp2_loc), WRegisterFrom(maybe_temp2_loc), 2);
-      __ Cbnz(WRegisterFrom(maybe_temp2_loc), &start_loop);
-      __ Bind(&is_null);
-
-      __ B(type_check_slow_path->GetEntryLabel());
+      // Compare the classes and continue the loop if they do not match.
+      __ Cmp(cls, WRegisterFrom(maybe_temp3_loc));
+      __ B(ne, &start_loop);
       break;
     }
   }
