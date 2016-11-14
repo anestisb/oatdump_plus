@@ -6470,30 +6470,26 @@ void InstructionCodeGeneratorARM::VisitCheckCast(HCheckCast* instruction) {
                                         iftable_offset,
                                         maybe_temp2_loc,
                                         kWithoutReadBarrier);
-      Label is_null;
       // Null iftable means it is empty and will always fail the check.
-      // Not cbz since the temp may not be a low register.
-      __ CompareAndBranchIfZero(temp, &is_null);
+      __ CompareAndBranchIfZero(temp, type_check_slow_path->GetEntryLabel());
 
       // Loop through the iftable and check if any class matches.
       __ ldr(maybe_temp2_loc.AsRegister<Register>(), Address(temp, array_length_offset));
 
       Label start_loop;
       __ Bind(&start_loop);
+      __ CompareAndBranchIfZero(maybe_temp2_loc.AsRegister<Register>(),
+                                type_check_slow_path->GetEntryLabel());
       __ ldr(maybe_temp3_loc.AsRegister<Register>(), Address(temp, object_array_data_offset));
       __ MaybeUnpoisonHeapReference(maybe_temp3_loc.AsRegister<Register>());
-      __ cmp(cls, ShifterOperand(maybe_temp3_loc.AsRegister<Register>()));
-      __ b(&done, EQ);  // Return if same class.
       // Go to next interface.
       __ add(temp, temp, ShifterOperand(2 * kHeapReferenceSize));
       __ sub(maybe_temp2_loc.AsRegister<Register>(),
              maybe_temp2_loc.AsRegister<Register>(),
              ShifterOperand(2));
-      // Not cbnz since the temp may not be a low register.
-      __ CompareAndBranchIfNonZero(maybe_temp2_loc.AsRegister<Register>(), &start_loop);
-      __ Bind(&is_null);
-
-      __ b(type_check_slow_path->GetEntryLabel());
+      // Compare the classes and continue the loop if they do not match.
+      __ cmp(cls, ShifterOperand(maybe_temp3_loc.AsRegister<Register>()));
+      __ b(&start_loop, NE);
       break;
     }
   }
