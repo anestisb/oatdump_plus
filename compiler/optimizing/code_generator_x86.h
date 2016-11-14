@@ -414,14 +414,11 @@ class CodeGeneratorX86 : public CodeGenerator {
   void RecordTypePatch(HLoadClass* load_class);
   Label* NewStringBssEntryPatch(HLoadString* load_string);
   Label* NewPcRelativeDexCacheArrayPatch(const DexFile& dex_file, uint32_t element_offset);
-  Label* NewJitRootStringPatch(const DexFile& dex_file, uint32_t dex_index);
 
   void MoveFromReturnRegister(Location trg, Primitive::Type type) OVERRIDE;
 
   // Emit linker patches.
   void EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) OVERRIDE;
-
-  void EmitJitRootPatches(uint8_t* code, const uint8_t* roots_data) OVERRIDE;
 
   // Emit a write barrier.
   void MarkGCCard(Register temp,
@@ -618,9 +615,6 @@ class CodeGeneratorX86 : public CodeGenerator {
   ArenaDeque<PatchInfo<Label>> string_patches_;
   // Type patch locations.
   ArenaDeque<PatchInfo<Label>> type_patches_;
-
-  // Patches for string root accesses in JIT compiled code.
-  ArenaDeque<PatchInfo<Label>> jit_string_patches_;
 
   // Offset to the start of the constant area in the assembled code.
   // Used for fixups to the constant area.

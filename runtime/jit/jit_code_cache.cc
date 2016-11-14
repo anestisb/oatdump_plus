@@ -80,18 +80,8 @@ JitCodeCache* JitCodeCache::Create(size_t initial_capacity,
 
   std::string error_str;
   // Map name specific for android_os_Debug.cpp accounting.
-  // Map in low 4gb to simplify accessing root tables for x86_64.
-  // We could do PC-relative addressing to avoid this problem, but that
-  // would require reserving code and data area before submitting, which
-  // means more windows for the code memory to be RWX.
   MemMap* data_map = MemMap::MapAnonymous(
-      "data-code-cache", nullptr,
-      max_capacity,
-      kProtAll,
-      /* low_4gb */ true,
-      /* reuse */ false,
-      &error_str,
-      use_ashmem);
+      "data-code-cache", nullptr, max_capacity, kProtAll, false, false, &error_str, use_ashmem);
   if (data_map == nullptr) {
     std::ostringstream oss;
     oss << "Failed to create read write execute cache: " << error_str << " size=" << max_capacity;
@@ -207,40 +197,34 @@ class ScopedCodeCacheWrite : ScopedTrace {
 
 uint8_t* JitCodeCache::CommitCode(Thread* self,
                                   ArtMethod* method,
-                                  uint8_t* stack_map,
-                                  uint8_t* roots_data,
+                                  const uint8_t* vmap_table,
                                   size_t frame_size_in_bytes,
                                   size_t core_spill_mask,
                                   size_t fp_spill_mask,
                                   const uint8_t* code,
                                   size_t code_size,
-                                  bool osr,
-                                  Handle<mirror::ObjectArray<mirror::Object>> roots) {
+                                  bool osr) {
   uint8_t* result = CommitCodeInternal(self,
                                        method,
-                                       stack_map,
-                                       roots_data,
+                                       vmap_table,
                                        frame_size_in_bytes,
                                        core_spill_mask,
                                        fp_spill_mask,
                                        code,
                                        code_size,
-                                       osr,
-                                       roots);
+                                       osr);
   if (result == nullptr) {
     // Retry.
     GarbageCollectCache(self);
     result = CommitCodeInternal(self,
                                 method,
-                                stack_map,
-                                roots_data,
+                                vmap_table,
                                 frame_size_in_bytes,
                                 core_spill_mask,
                                 fp_spill_mask,
                                 code,
                                 code_size,
-                                osr,
-                                roots);
+                                osr);
   }
   return result;
 }
@@ -259,67 +243,20 @@ static uintptr_t FromCodeToAllocation(const void* code) {
   return reinterpret_cast<uintptr_t>(code) - RoundUp(sizeof(OatQuickMethodHeader), alignment);
 }
 
-static uint32_t ComputeRootTableSize(uint32_t number_of_roots) {
-  return sizeof(uint32_t) + number_of_roots * sizeof(GcRoot<mirror::Object>);
-}
-
-static uint32_t GetNumberOfRoots(const uint8_t* stack_map) {
-  // The length of the table is stored just before the stack map (and therefore at the end of
-  // the table itself), in order to be able to fetch it from a `stack_map` pointer.
-  return reinterpret_cast<const uint32_t*>(stack_map)[-1];
-}
-
-static void FillRootTable(uint8_t* roots_data, Handle<mirror::ObjectArray<mirror::Object>> roots)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  GcRoot<mirror::Object>* gc_roots = reinterpret_cast<GcRoot<mirror::Object>*>(roots_data);
-  uint32_t length = roots->GetLength();
-  // Put all roots in `roots_data`.
-  for (uint32_t i = 0; i < length; ++i) {
-    gc_roots[i] = GcRoot<mirror::Object>(roots->Get(i));
-  }
-  // Store the length of the table at the end. This will allow fetching it from a `stack_map`
-  // pointer.
-  reinterpret_cast<uint32_t*>(gc_roots + length)[0] = length;
-}
-
-static uint8_t* GetRootTable(const void* code_ptr, uint32_t* number_of_roots = nullptr) {
-  OatQuickMethodHeader* method_header = OatQuickMethodHeader::FromCodePointer(code_ptr);
-  uint8_t* data = method_header->GetOptimizedCodeInfoPtr();
-  uint32_t roots = GetNumberOfRoots(data);
-  if (number_of_roots != nullptr) {
-    *number_of_roots = roots;
-  }
-  return data - ComputeRootTableSize(roots);
-}
-
-void JitCodeCache::SweepRootTables(IsMarkedVisitor* visitor) {
-  MutexLock mu(Thread::Current(), lock_);
-  for (const auto& entry : method_code_map_) {
-    uint32_t number_of_roots = 0;
-    uint8_t* roots_data = GetRootTable(entry.first, &number_of_roots);
-    GcRoot<mirror::Object>* roots = reinterpret_cast<GcRoot<mirror::Object>*>(roots_data);
-    for (uint32_t i = 0; i < number_of_roots; ++i) {
-      // This does not need a read barrier because this is called by GC.
-      mirror::Object* object = roots[i].Read<kWithoutReadBarrier>();
-      DCHECK(object != nullptr);
-      mirror::Object* new_string = visitor->IsMarked(object);
-      // We know the string is marked because it's a strongly-interned string that
-      // is always alive.
-      // TODO: Do not use IsMarked for j.l.Class, and adjust once we move this method
-      // out of the weak access/creation pause. b/32167580
-      DCHECK(new_string != nullptr);
-      DCHECK(new_string->IsString());
-      roots[i] = GcRoot<mirror::Object>(new_string);
-    }
-  }
-}
-
 void JitCodeCache::FreeCode(const void* code_ptr, ArtMethod* method ATTRIBUTE_UNUSED) {
   uintptr_t allocation = FromCodeToAllocation(code_ptr);
+  const OatQuickMethodHeader* method_header = OatQuickMethodHeader::FromCodePointer(code_ptr);
   // Notify native debugger that we are about to remove the code.
   // It does nothing if we are not using native debugger.
   DeleteJITCodeEntryForAddress(reinterpret_cast<uintptr_t>(code_ptr));
-  FreeData(GetRootTable(code_ptr));
+
+  // Use the offset directly to prevent sanity check that the method is
+  // compiled with optimizing.
+  // TODO(ngeoffray): Clean up.
+  if (method_header->vmap_table_offset_ != 0) {
+    const uint8_t* data = method_header->code_ - method_header->vmap_table_offset_;
+    FreeData(const_cast<uint8_t*>(data));
+  }
   FreeCode(reinterpret_cast<uint8_t*>(allocation));
 }
 
@@ -371,16 +308,13 @@ void JitCodeCache::ClearGcRootsInInlineCaches(Thread* self) {
 
 uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
                                           ArtMethod* method,
-                                          uint8_t* stack_map,
-                                          uint8_t* roots_data,
+                                          const uint8_t* vmap_table,
                                           size_t frame_size_in_bytes,
                                           size_t core_spill_mask,
                                           size_t fp_spill_mask,
                                           const uint8_t* code,
                                           size_t code_size,
-                                          bool osr,
-                                          Handle<mirror::ObjectArray<mirror::Object>> roots) {
-  DCHECK(stack_map != nullptr);
+                                          bool osr) {
   size_t alignment = GetInstructionSetAlignment(kRuntimeISA);
   // Ensure the header ends up at expected instruction alignment.
   size_t header_size = RoundUp(sizeof(OatQuickMethodHeader), alignment);
@@ -404,7 +338,7 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
       std::copy(code, code + code_size, code_ptr);
       method_header = OatQuickMethodHeader::FromCodePointer(code_ptr);
       new (method_header) OatQuickMethodHeader(
-          code_ptr - stack_map,
+          (vmap_table == nullptr) ? 0 : code_ptr - vmap_table,
           frame_size_in_bytes,
           core_spill_mask,
           fp_spill_mask,
@@ -419,8 +353,6 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
   {
     MutexLock mu(self, lock_);
     method_code_map_.Put(code_ptr, method);
-    // Fill the root table before updating the entry point.
-    FillRootTable(roots_data, roots);
     if (osr) {
       number_of_osr_compilations_++;
       osr_code_map_.Put(method, code_ptr);
@@ -476,14 +408,8 @@ void JitCodeCache::ClearData(Thread* self, void* data) {
   FreeData(reinterpret_cast<uint8_t*>(data));
 }
 
-void JitCodeCache::ReserveData(Thread* self,
-                               size_t stack_map_size,
-                               size_t number_of_roots,
-                               ArtMethod* method,
-                               uint8_t** stack_map_data,
-                               uint8_t** roots_data) {
-  size_t table_size = ComputeRootTableSize(number_of_roots);
-  size_t size = RoundUp(stack_map_size + table_size, sizeof(void*));
+uint8_t* JitCodeCache::ReserveData(Thread* self, size_t size, ArtMethod* method) {
+  size = RoundUp(size, sizeof(void*));
   uint8_t* result = nullptr;
 
   {
@@ -510,8 +436,7 @@ void JitCodeCache::ReserveData(Thread* self,
               << " for stack maps of "
               << ArtMethod::PrettyMethod(method);
   }
-  *roots_data = result;
-  *stack_map_data = result + table_size;
+  return result;
 }
 
 class MarkCodeVisitor FINAL : public StackVisitor {
