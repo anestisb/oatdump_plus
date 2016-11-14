@@ -32,7 +32,6 @@
 #include "optimizing_compiler_stats.h"
 #include "read_barrier_option.h"
 #include "stack_map_stream.h"
-#include "string_reference.h"
 #include "utils/label.h"
 
 namespace art {
@@ -336,17 +335,6 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
 
   void BuildStackMaps(MemoryRegion region, const DexFile::CodeItem& code_item);
   size_t ComputeStackMapsSize();
-  size_t GetNumberOfJitRoots() const {
-    return jit_string_roots_.size();
-  }
-
-  // Fills the `literals` array with literals collected during code generation.
-  // Also emits literal patches.
-  void EmitJitRoots(uint8_t* code,
-                    Handle<mirror::ObjectArray<mirror::Object>> roots,
-                    const uint8_t* roots_data,
-                    Handle<mirror::DexCache> outer_dex_cache)
-      REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool IsLeafMethod() const {
     return is_leaf_;
@@ -527,26 +515,6 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
   virtual HLoadClass::LoadKind GetSupportedLoadClassKind(
       HLoadClass::LoadKind desired_class_load_kind) = 0;
 
-  static LocationSummary::CallKind GetLoadStringCallKind(HLoadString* load) {
-    switch (load->GetLoadKind()) {
-      case HLoadString::LoadKind::kBssEntry:
-        DCHECK(load->NeedsEnvironment());
-        return LocationSummary::kCallOnSlowPath;
-      case HLoadString::LoadKind::kDexCacheViaMethod:
-        DCHECK(load->NeedsEnvironment());
-        return LocationSummary::kCallOnMainOnly;
-      case HLoadString::LoadKind::kJitTableAddress:
-        DCHECK(!load->NeedsEnvironment());
-        return kEmitCompilerReadBarrier
-            ? LocationSummary::kCallOnSlowPath
-            : LocationSummary::kNoCall;
-        break;
-      default:
-        DCHECK(!load->NeedsEnvironment());
-        return LocationSummary::kNoCall;
-    }
-  }
-
   // Check if the desired_dispatch_info is supported. If it is, return it,
   // otherwise return a fall-back info that should be used instead.
   virtual HInvokeStaticOrDirect::DispatchInfo GetSupportedInvokeStaticOrDirectDispatch(
@@ -603,8 +571,6 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
         fpu_callee_save_mask_(fpu_callee_save_mask),
         stack_map_stream_(graph->GetArena()),
         block_order_(nullptr),
-        jit_string_roots_(StringReferenceValueComparator(),
-                          graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
         disasm_info_(nullptr),
         stats_(stats),
         graph_(graph),
@@ -671,12 +637,6 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
     return current_slow_path_;
   }
 
-  // Emit the patches assocatied with JIT roots. Only applies to JIT compiled code.
-  virtual void EmitJitRootPatches(uint8_t* code ATTRIBUTE_UNUSED,
-                                  const uint8_t* roots_data ATTRIBUTE_UNUSED) {
-    DCHECK_EQ(jit_string_roots_.size(), 0u);
-  }
-
   // Frame size required for this method.
   uint32_t frame_size_;
   uint32_t core_spill_mask_;
@@ -701,11 +661,6 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
 
   // The order to use for code generation.
   const ArenaVector<HBasicBlock*>* block_order_;
-
-  // Maps a StringReference (dex_file, string_index) to the index in the literal table.
-  // Entries are intially added with a 0 index, and `EmitJitRoots` will compute all the
-  // indices.
-  ArenaSafeMap<StringReference, size_t, StringReferenceValueComparator> jit_string_roots_;
 
   DisassemblyInformation* disasm_info_;
 
