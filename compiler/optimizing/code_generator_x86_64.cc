@@ -6243,10 +6243,9 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
                                           temp_loc,
                                           iftable_offset,
                                           kWithoutReadBarrier);
-        NearLabel is_null;
         // Null iftable means it is empty.
         __ testl(temp, temp);
-        __ j(kZero, &is_null);
+        __ j(kZero, type_check_slow_path->GetEntryLabel());
 
         // Loop through the iftable and check if any class matches.
         __ movl(maybe_temp2_loc.AsRegister<CpuRegister>(), Address(temp, array_length_offset));
@@ -6259,7 +6258,6 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
         __ addl(temp, Immediate(2 * kHeapReferenceSize));
         __ subl(maybe_temp2_loc.AsRegister<CpuRegister>(), Immediate(2));
         __ j(kNotZero, &start_loop);
-        __ Bind(&is_null);
       }
       __ jmp(type_check_slow_path->GetEntryLabel());
       break;
