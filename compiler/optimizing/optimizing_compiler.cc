@@ -117,7 +117,6 @@ class CodeVectorAllocator FINAL : public CodeAllocator {
 
   size_t GetSize() const { return size_; }
   const ArenaVector<uint8_t>& GetMemory() const { return memory_; }
-  uint8_t* GetData() { return memory_.data(); }
 
  private:
   ArenaVector<uint8_t> memory_;
@@ -1126,7 +1125,7 @@ bool OptimizingCompiler::JitCompile(Thread* self,
                                     jit::JitCodeCache* code_cache,
                                     ArtMethod* method,
                                     bool osr) {
-  StackHandleScope<3> hs(self);
+  StackHandleScope<2> hs(self);
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
       method->GetDeclaringClass()->GetClassLoader()));
   Handle<mirror::DexCache> dex_cache(hs.NewHandle(method->GetDexCache()));
@@ -1172,43 +1171,22 @@ bool OptimizingCompiler::JitCompile(Thread* self,
   }
 
   size_t stack_map_size = codegen->ComputeStackMapsSize();
-  size_t number_of_roots = codegen->GetNumberOfJitRoots();
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  // We allocate an object array to ensure the JIT roots that we will collect in EmitJitRoots
-  // will be visible by the GC between EmitLiterals and CommitCode. Once CommitCode is
-  // executed, this array is not needed.
-  Handle<mirror::ObjectArray<mirror::Object>> roots(
-      hs.NewHandle(mirror::ObjectArray<mirror::Object>::Alloc(
-          self, class_linker->GetClassRoot(ClassLinker::kObjectArrayClass), number_of_roots)));
-  if (roots.Get() == nullptr) {
-    // Out of memory, just clear the exception to avoid any Java exception uncaught problems.
-    DCHECK(self->IsExceptionPending());
-    self->ClearException();
-    return false;
-  }
-  uint8_t* stack_map_data = nullptr;
-  uint8_t* roots_data = nullptr;
-  code_cache->ReserveData(
-      self, stack_map_size, number_of_roots, method, &stack_map_data, &roots_data);
-  if (stack_map_data == nullptr || roots_data == nullptr) {
+  uint8_t* stack_map_data = code_cache->ReserveData(self, stack_map_size, method);
+  if (stack_map_data == nullptr) {
     return false;
   }
   MaybeRecordStat(MethodCompilationStat::kCompiled);
   codegen->BuildStackMaps(MemoryRegion(stack_map_data, stack_map_size), *code_item);
-  codegen->EmitJitRoots(code_allocator.GetData(), roots, roots_data, dex_cache);
-
   const void* code = code_cache->CommitCode(
       self,
       method,
       stack_map_data,
-      roots_data,
       codegen->HasEmptyFrame() ? 0 : codegen->GetFrameSize(),
       codegen->GetCoreSpillMask(),
       codegen->GetFpuSpillMask(),
       code_allocator.GetMemory().data(),
       code_allocator.GetSize(),
-      osr,
-      roots);
+      osr);
 
   if (code == nullptr) {
     code_cache->ClearData(self, stack_map_data);
