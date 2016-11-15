@@ -39,5 +39,6 @@ fi
                    --experimental runtime-plugins \
                    --runtime-option -agentpath:${agent}=902-hello-transformation,${arg} \
                    --android-runtime-option -Xplugin:${plugin} \
+                   --android-runtime-option -Xfully-deoptable \
                    ${other_args} \
                    --args ${lib}
