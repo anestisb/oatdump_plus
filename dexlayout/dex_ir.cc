@@ -56,6 +56,36 @@ static void GetLocalsCb(void* context, const DexFile::LocalInfo& entry) {
                     entry.end_address_, entry.reg_)));
 }
 
+static uint32_t GetCodeItemSize(const DexFile& dex_file, const DexFile::CodeItem& disk_code_item) {
+  uintptr_t code_item_start = reinterpret_cast<uintptr_t>(&disk_code_item);
+  uint32_t insns_size = disk_code_item.insns_size_in_code_units_;
+  uint32_t tries_size = disk_code_item.tries_size_;
+  if (tries_size == 0) {
+    uintptr_t insns_end = reinterpret_cast<uintptr_t>(&disk_code_item.insns_[insns_size]);
+    return insns_end - code_item_start;
+  } else {
+    uint32_t last_handler_off = 0;
+    for (uint32_t i = 0; i < tries_size; ++i) {
+      // Iterate over the try items to find the last catch handler.
+      const DexFile::TryItem* disk_try_item = dex_file.GetTryItems(disk_code_item, i);
+      uint16_t handler_off = disk_try_item->handler_off_;
+      if (handler_off > last_handler_off) {
+        last_handler_off = handler_off;
+      }
+    }
+    // Decode the final handler to see where it ends.
+    const uint8_t* handler_data = DexFile::GetCatchHandlerData(disk_code_item, last_handler_off);
+    int32_t uleb128_count = DecodeSignedLeb128(&handler_data) * 2;
+    if (uleb128_count <= 0) {
+      uleb128_count = -uleb128_count + 1;
+    }
+    for (int32_t i = 0; i < uleb128_count; ++i) {
+      DecodeUnsignedLeb128(&handler_data);
+    }
+    return reinterpret_cast<uintptr_t>(handler_data) - code_item_start;
+  }
+}
+
 static uint32_t GetDebugInfoStreamSize(const uint8_t* debug_info_stream) {
   const uint8_t* stream = debug_info_stream;
   DecodeUnsignedLeb128(&stream);  // line_start
@@ -384,11 +414,9 @@ TypeList* Collections::CreateTypeList(const DexFile::TypeList* dex_type_list, ui
   if (dex_type_list == nullptr) {
     return nullptr;
   }
-  // TODO: Create more efficient lookup for existing type lists.
-  for (std::unique_ptr<TypeList>& type_list : TypeLists()) {
-    if (type_list->GetOffset() == offset) {
-      return type_list.get();
-    }
+  auto found_type_list = TypeLists().find(offset);
+  if (found_type_list != TypeLists().end()) {
+    return found_type_list->second.get();
   }
   TypeIdVector* type_vector = new TypeIdVector();
   uint32_t size = dex_type_list->Size();
@@ -404,10 +432,9 @@ EncodedArrayItem* Collections::CreateEncodedArrayItem(const uint8_t* static_data
   if (static_data == nullptr) {
     return nullptr;
   }
-  for (std::unique_ptr<EncodedArrayItem>& existing_array_item : EncodedArrayItems()) {
-    if (existing_array_item->GetOffset() == offset) {
-      return existing_array_item.get();
-    }
+  auto found_encoded_array_item = EncodedArrayItems().find(offset);
+  if (found_encoded_array_item != EncodedArrayItems().end()) {
+    return found_encoded_array_item->second.get();
   }
   uint32_t size = DecodeUnsignedLeb128(&static_data);
   EncodedValueVector* values = new EncodedValueVector();
@@ -422,10 +449,9 @@ EncodedArrayItem* Collections::CreateEncodedArrayItem(const uint8_t* static_data
 
 AnnotationItem* Collections::CreateAnnotationItem(const DexFile::AnnotationItem* annotation,
                                                   uint32_t offset) {
-  for (std::unique_ptr<AnnotationItem>& existing_annotation_item : AnnotationItems()) {
-    if (existing_annotation_item->GetOffset() == offset) {
-      return existing_annotation_item.get();
-    }
+  auto found_annotation_item = AnnotationItems().find(offset);
+  if (found_annotation_item != AnnotationItems().end()) {
+    return found_annotation_item->second.get();
   }
   uint8_t visibility = annotation->visibility_;
   const uint8_t* annotation_data = annotation->annotation_;
@@ -444,10 +470,9 @@ AnnotationSetItem* Collections::CreateAnnotationSetItem(const DexFile& dex_file,
   if (disk_annotations_item.size_ == 0 && offset == 0) {
     return nullptr;
   }
-  for (std::unique_ptr<AnnotationSetItem>& existing_anno_set_item : AnnotationSetItems()) {
-    if (existing_anno_set_item->GetOffset() == offset) {
-      return existing_anno_set_item.get();
-    }
+  auto found_anno_set_item = AnnotationSetItems().find(offset);
+  if (found_anno_set_item != AnnotationSetItems().end()) {
+    return found_anno_set_item->second.get();
   }
   std::vector<AnnotationItem*>* items = new std::vector<AnnotationItem*>();
   for (uint32_t i = 0; i < disk_annotations_item.size_; ++i) {
@@ -467,10 +492,9 @@ AnnotationSetItem* Collections::CreateAnnotationSetItem(const DexFile& dex_file,
 
 AnnotationsDirectoryItem* Collections::CreateAnnotationsDirectoryItem(const DexFile& dex_file,
     const DexFile::AnnotationsDirectoryItem* disk_annotations_item, uint32_t offset) {
-  for (std::unique_ptr<AnnotationsDirectoryItem>& anno_dir_item : AnnotationsDirectoryItems()) {
-    if (anno_dir_item->GetOffset() == offset) {
-      return anno_dir_item.get();
-    }
+  auto found_anno_dir_item = AnnotationsDirectoryItems().find(offset);
+  if (found_anno_dir_item != AnnotationsDirectoryItems().end()) {
+    return found_anno_dir_item->second.get();
   }
   const DexFile::AnnotationSetItem* class_set_item =
       dex_file.GetClassAnnotationSet(disk_annotations_item);
@@ -535,11 +559,9 @@ ParameterAnnotation* Collections::GenerateParameterAnnotation(
     const DexFile& dex_file, MethodId* method_id,
     const DexFile::AnnotationSetRefList* annotation_set_ref_list, uint32_t offset) {
   AnnotationSetRefList* set_ref_list = nullptr;
-  for (std::unique_ptr<AnnotationSetRefList>& existing_set_ref_list : AnnotationSetRefLists()) {
-    if (existing_set_ref_list->GetOffset() == offset) {
-      set_ref_list = existing_set_ref_list.get();
-      break;
-    }
+  auto found_set_ref_list = AnnotationSetRefLists().find(offset);
+  if (found_set_ref_list != AnnotationSetRefLists().end()) {
+    set_ref_list = found_set_ref_list->second.get();
   }
   if (set_ref_list == nullptr) {
     std::vector<AnnotationSetItem*>* annotations = new std::vector<AnnotationSetItem*>();
@@ -610,9 +632,10 @@ CodeItem* Collections::CreateCodeItem(const DexFile& dex_file,
       tries->push_back(std::unique_ptr<const TryItem>(try_item));
     }
   }
-  // TODO: Calculate the size of the code item.
+  uint32_t size = GetCodeItemSize(dex_file, disk_code_item);
   CodeItem* code_item = new CodeItem(
       registers_size, ins_size, outs_size, debug_info, insns_size, insns, tries, handler_list);
+  code_item->SetSize(size);
   code_items_.AddItem(code_item, offset);
   // Add "fixup" references to types, strings, methods, and fields.
   // This is temporary, as we will probably want more detailed parsing of the
@@ -690,8 +713,8 @@ ClassData* Collections::CreateClassData(
       virtual_methods->push_back(
           std::unique_ptr<MethodItem>(GenerateMethodItem(dex_file, cdii)));
     }
-    // TODO: Calculate the size of the class data.
     class_data = new ClassData(static_fields, instance_fields, direct_methods, virtual_methods);
+    class_data->SetSize(cdii.EndDataPointer() - encoded_data);
     class_datas_.AddItem(class_data, offset);
   }
   return class_data;

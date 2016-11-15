@@ -68,64 +68,67 @@ int DexlayoutDriver(int argc, char** argv) {
   InitLogging(argv, Runtime::Aborter);
   MemMap::Init();
 
-  // Reset options.
+  Options options;
+  options.dump_ = true;
+  options.verbose_ = true;
   bool want_usage = false;
-  memset(&options_, 0, sizeof(options_));
-  options_.verbose_ = true;
 
   // Parse all arguments.
   while (1) {
-    const int ic = getopt(argc, argv, "abcdefghil:o:p:sw:");
+    const int ic = getopt(argc, argv, "abcdefghil:mo:p:sw:");
     if (ic < 0) {
       break;  // done
     }
     switch (ic) {
       case 'a':  // display annotations
-        options_.show_annotations_ = true;
+        options.show_annotations_ = true;
         break;
       case 'b':  // build dex_ir
-        options_.build_dex_ir_ = true;
+        options.build_dex_ir_ = true;
         break;
       case 'c':  // verify the checksum then exit
-        options_.checksum_only_ = true;
+        options.checksum_only_ = true;
         break;
       case 'd':  // disassemble Dalvik instructions
-        options_.disassemble_ = true;
+        options.disassemble_ = true;
         break;
       case 'e':  // exported items only
-        options_.exports_only_ = true;
+        options.exports_only_ = true;
         break;
       case 'f':  // display outer file header
-        options_.show_file_headers_ = true;
+        options.show_file_headers_ = true;
         break;
       case 'h':  // display section headers, i.e. all meta-data
-        options_.show_section_headers_ = true;
+        options.show_section_headers_ = true;
         break;
       case 'i':  // continue even if checksum is bad
-        options_.ignore_bad_checksum_ = true;
+        options.ignore_bad_checksum_ = true;
         break;
       case 'l':  // layout
         if (strcmp(optarg, "plain") == 0) {
-          options_.output_format_ = kOutputPlain;
+          options.output_format_ = kOutputPlain;
         } else if (strcmp(optarg, "xml") == 0) {
-          options_.output_format_ = kOutputXml;
-          options_.verbose_ = false;
+          options.output_format_ = kOutputXml;
+          options.verbose_ = false;
         } else {
           want_usage = true;
         }
         break;
+      case 'm':  // output dex files to a memmap
+        options.output_to_memmap_ = true;
+        break;
       case 'o':  // output file
-        options_.output_file_name_ = optarg;
+        options.output_file_name_ = optarg;
         break;
       case 'p':  // profile file
-        options_.profile_file_name_ = optarg;
+        options.profile_file_name_ = optarg;
         break;
       case 's':  // visualize access pattern
-        options_.visualize_pattern_ = true;
-        options_.verbose_ = false;
+        options.visualize_pattern_ = true;
+        options.verbose_ = false;
         break;
       case 'w':  // output dex files directory
-        options_.output_dex_directory_ = optarg;
+        options.output_dex_directory_ = optarg;
         break;
       default:
         want_usage = true;
@@ -138,7 +141,7 @@ int DexlayoutDriver(int argc, char** argv) {
     fprintf(stderr, "%s: no file specified\n", kProgramName);
     want_usage = true;
   }
-  if (options_.checksum_only_ && options_.ignore_bad_checksum_) {
+  if (options.checksum_only_ && options.ignore_bad_checksum_) {
     fprintf(stderr, "Can't specify both -c and -i\n");
     want_usage = true;
   }
@@ -148,32 +151,37 @@ int DexlayoutDriver(int argc, char** argv) {
   }
 
   // Open alternative output file.
-  if (options_.output_file_name_) {
-    out_file_ = fopen(options_.output_file_name_, "w");
-    if (!out_file_) {
-      fprintf(stderr, "Can't open %s\n", options_.output_file_name_);
+  FILE* out_file = stdout;
+  if (options.output_file_name_) {
+    out_file = fopen(options.output_file_name_, "w");
+    if (!out_file) {
+      fprintf(stderr, "Can't open %s\n", options.output_file_name_);
       return 1;
     }
   }
 
   // Open profile file.
-  if (options_.profile_file_name_) {
-    int profile_fd = open(options_.profile_file_name_, O_RDONLY);
+  ProfileCompilationInfo* profile_info = nullptr;
+  if (options.profile_file_name_) {
+    int profile_fd = open(options.profile_file_name_, O_RDONLY);
     if (profile_fd < 0) {
-      fprintf(stderr, "Can't open %s\n", options_.profile_file_name_);
+      fprintf(stderr, "Can't open %s\n", options.profile_file_name_);
       return 1;
     }
-    profile_info_ = new ProfileCompilationInfo();
-    if (!profile_info_->Load(profile_fd)) {
-      fprintf(stderr, "Can't read profile info from %s\n", options_.profile_file_name_);
+    profile_info = new ProfileCompilationInfo();
+    if (!profile_info->Load(profile_fd)) {
+      fprintf(stderr, "Can't read profile info from %s\n", options.profile_file_name_);
       return 1;
     }
   }
 
+  // Create DexLayout instance.
+  DexLayout dex_layout(options, profile_info, out_file);
+
   // Process all files supplied on command line.
   int result = 0;
   while (optind < argc) {
-    result |= ProcessFile(argv[optind++]);
+    result |= dex_layout.ProcessFile(argv[optind++]);
   }  // while
   return result != 0;
 }

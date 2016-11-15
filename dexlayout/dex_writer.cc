@@ -104,7 +104,9 @@ size_t EncodeDoubleValue(double value, uint8_t* buffer) {
 }
 
 size_t DexWriter::Write(const void* buffer, size_t length, size_t offset) {
-  return dex_file_->PwriteFully(buffer, length, offset) ? length : 0;
+  DCHECK_LE(offset + length, mem_map_->Size());
+  memcpy(mem_map_->Begin() + offset, buffer, length);
+  return length;
 }
 
 size_t DexWriter::WriteSleb128(uint32_t value, size_t offset) {
@@ -236,12 +238,13 @@ size_t DexWriter::WriteEncodedMethods(dex_ir::MethodItemVector* methods, size_t 
 
 void DexWriter::WriteStrings() {
   uint32_t string_data_off[1];
-  for (std::unique_ptr<dex_ir::StringId>& string_id : header_.GetCollections().StringIds()) {
+  for (std::unique_ptr<dex_ir::StringId>& string_id : header_->GetCollections().StringIds()) {
     string_data_off[0] = string_id->DataItem()->GetOffset();
     Write(string_data_off, string_id->GetSize(), string_id->GetOffset());
   }
 
-  for (std::unique_ptr<dex_ir::StringData>& string_data : header_.GetCollections().StringDatas()) {
+  for (auto& string_data_pair : header_->GetCollections().StringDatas()) {
+    std::unique_ptr<dex_ir::StringData>& string_data = string_data_pair.second;
     uint32_t offset = string_data->GetOffset();
     offset += WriteUleb128(CountModifiedUtf8Chars(string_data->Data()), offset);
     Write(string_data->Data(), strlen(string_data->Data()), offset);
@@ -250,7 +253,7 @@ void DexWriter::WriteStrings() {
 
 void DexWriter::WriteTypes() {
   uint32_t descriptor_idx[1];
-  for (std::unique_ptr<dex_ir::TypeId>& type_id : header_.GetCollections().TypeIds()) {
+  for (std::unique_ptr<dex_ir::TypeId>& type_id : header_->GetCollections().TypeIds()) {
     descriptor_idx[0] = type_id->GetStringId()->GetIndex();
     Write(descriptor_idx, type_id->GetSize(), type_id->GetOffset());
   }
@@ -259,7 +262,8 @@ void DexWriter::WriteTypes() {
 void DexWriter::WriteTypeLists() {
   uint32_t size[1];
   uint16_t list[1];
-  for (std::unique_ptr<dex_ir::TypeList>& type_list : header_.GetCollections().TypeLists()) {
+  for (auto& type_list_pair : header_->GetCollections().TypeLists()) {
+    std::unique_ptr<dex_ir::TypeList>& type_list = type_list_pair.second;
     size[0] = type_list->GetTypeList()->size();
     uint32_t offset = type_list->GetOffset();
     offset += Write(size, sizeof(uint32_t), offset);
@@ -272,7 +276,7 @@ void DexWriter::WriteTypeLists() {
 
 void DexWriter::WriteProtos() {
   uint32_t buffer[3];
-  for (std::unique_ptr<dex_ir::ProtoId>& proto_id : header_.GetCollections().ProtoIds()) {
+  for (std::unique_ptr<dex_ir::ProtoId>& proto_id : header_->GetCollections().ProtoIds()) {
     buffer[0] = proto_id->Shorty()->GetIndex();
     buffer[1] = proto_id->ReturnType()->GetIndex();
     buffer[2] = proto_id->Parameters() == nullptr ? 0 : proto_id->Parameters()->GetOffset();
@@ -282,7 +286,7 @@ void DexWriter::WriteProtos() {
 
 void DexWriter::WriteFields() {
   uint16_t buffer[4];
-  for (std::unique_ptr<dex_ir::FieldId>& field_id : header_.GetCollections().FieldIds()) {
+  for (std::unique_ptr<dex_ir::FieldId>& field_id : header_->GetCollections().FieldIds()) {
     buffer[0] = field_id->Class()->GetIndex();
     buffer[1] = field_id->Type()->GetIndex();
     buffer[2] = field_id->Name()->GetIndex();
@@ -293,7 +297,7 @@ void DexWriter::WriteFields() {
 
 void DexWriter::WriteMethods() {
   uint16_t buffer[4];
-  for (std::unique_ptr<dex_ir::MethodId>& method_id : header_.GetCollections().MethodIds()) {
+  for (std::unique_ptr<dex_ir::MethodId>& method_id : header_->GetCollections().MethodIds()) {
     buffer[0] = method_id->Class()->GetIndex();
     buffer[1] = method_id->Proto()->GetIndex();
     buffer[2] = method_id->Name()->GetIndex();
@@ -303,16 +307,16 @@ void DexWriter::WriteMethods() {
 }
 
 void DexWriter::WriteEncodedArrays() {
-  for (std::unique_ptr<dex_ir::EncodedArrayItem>& encoded_array :
-      header_.GetCollections().EncodedArrayItems()) {
+  for (auto& encoded_array_pair : header_->GetCollections().EncodedArrayItems()) {
+    std::unique_ptr<dex_ir::EncodedArrayItem>& encoded_array = encoded_array_pair.second;
     WriteEncodedArray(encoded_array->GetEncodedValues(), encoded_array->GetOffset());
   }
 }
 
 void DexWriter::WriteAnnotations() {
   uint8_t visibility[1];
-  for (std::unique_ptr<dex_ir::AnnotationItem>& annotation :
-      header_.GetCollections().AnnotationItems()) {
+  for (auto& annotation_pair : header_->GetCollections().AnnotationItems()) {
+    std::unique_ptr<dex_ir::AnnotationItem>& annotation = annotation_pair.second;
     visibility[0] = annotation->GetVisibility();
     size_t offset = annotation->GetOffset();
     offset += Write(visibility, sizeof(uint8_t), offset);
@@ -323,8 +327,8 @@ void DexWriter::WriteAnnotations() {
 void DexWriter::WriteAnnotationSets() {
   uint32_t size[1];
   uint32_t annotation_off[1];
-  for (std::unique_ptr<dex_ir::AnnotationSetItem>& annotation_set :
-      header_.GetCollections().AnnotationSetItems()) {
+  for (auto& annotation_set_pair : header_->GetCollections().AnnotationSetItems()) {
+    std::unique_ptr<dex_ir::AnnotationSetItem>& annotation_set = annotation_set_pair.second;
     size[0] = annotation_set->GetItems()->size();
     size_t offset = annotation_set->GetOffset();
     offset += Write(size, sizeof(uint32_t), offset);
@@ -338,8 +342,8 @@ void DexWriter::WriteAnnotationSets() {
 void DexWriter::WriteAnnotationSetRefs() {
   uint32_t size[1];
   uint32_t annotations_off[1];
-  for (std::unique_ptr<dex_ir::AnnotationSetRefList>& annotation_set_ref :
-        header_.GetCollections().AnnotationSetRefLists()) {
+  for (auto& anno_set_ref_pair : header_->GetCollections().AnnotationSetRefLists()) {
+    std::unique_ptr<dex_ir::AnnotationSetRefList>& annotation_set_ref = anno_set_ref_pair.second;
     size[0] = annotation_set_ref->GetItems()->size();
     size_t offset = annotation_set_ref->GetOffset();
     offset += Write(size, sizeof(uint32_t), offset);
@@ -353,8 +357,9 @@ void DexWriter::WriteAnnotationSetRefs() {
 void DexWriter::WriteAnnotationsDirectories() {
   uint32_t directory_buffer[4];
   uint32_t annotation_buffer[2];
-  for (std::unique_ptr<dex_ir::AnnotationsDirectoryItem>& annotations_directory :
-          header_.GetCollections().AnnotationsDirectoryItems()) {
+  for (auto& annotations_directory_pair : header_->GetCollections().AnnotationsDirectoryItems()) {
+    std::unique_ptr<dex_ir::AnnotationsDirectoryItem>& annotations_directory =
+        annotations_directory_pair.second;
     directory_buffer[0] = annotations_directory->GetClassAnnotation() == nullptr ? 0 :
         annotations_directory->GetClassAnnotation()->GetOffset();
     directory_buffer[1] = annotations_directory->GetFieldAnnotations() == nullptr ? 0 :
@@ -393,15 +398,17 @@ void DexWriter::WriteAnnotationsDirectories() {
 }
 
 void DexWriter::WriteDebugInfoItems() {
-  for (std::unique_ptr<dex_ir::DebugInfoItem>& info : header_.GetCollections().DebugInfoItems()) {
-    Write(info->GetDebugInfo(), info->GetDebugInfoSize(), info->GetOffset());
+  for (auto& debug_info_pair : header_->GetCollections().DebugInfoItems()) {
+    std::unique_ptr<dex_ir::DebugInfoItem>& debug_info = debug_info_pair.second;
+    Write(debug_info->GetDebugInfo(), debug_info->GetDebugInfoSize(), debug_info->GetOffset());
   }
 }
 
 void DexWriter::WriteCodeItems() {
   uint16_t uint16_buffer[4];
   uint32_t uint32_buffer[2];
-  for (std::unique_ptr<dex_ir::CodeItem>& code_item : header_.GetCollections().CodeItems()) {
+  for (auto& code_item_pair : header_->GetCollections().CodeItems()) {
+    std::unique_ptr<dex_ir::CodeItem>& code_item = code_item_pair.second;
     uint16_buffer[0] = code_item->RegistersSize();
     uint16_buffer[1] = code_item->InsSize();
     uint16_buffer[2] = code_item->OutsSize();
@@ -446,7 +453,7 @@ void DexWriter::WriteCodeItems() {
 
 void DexWriter::WriteClasses() {
   uint32_t class_def_buffer[8];
-  for (std::unique_ptr<dex_ir::ClassDef>& class_def : header_.GetCollections().ClassDefs()) {
+  for (std::unique_ptr<dex_ir::ClassDef>& class_def : header_->GetCollections().ClassDefs()) {
     class_def_buffer[0] = class_def->ClassType()->GetIndex();
     class_def_buffer[1] = class_def->GetAccessFlags();
     class_def_buffer[2] = class_def->Superclass() == nullptr ? DexFile::kDexNoIndex :
@@ -464,7 +471,8 @@ void DexWriter::WriteClasses() {
     Write(class_def_buffer, class_def->GetSize(), offset);
   }
 
-  for (std::unique_ptr<dex_ir::ClassData>& class_data : header_.GetCollections().ClassDatas()) {
+  for (auto& class_data_pair : header_->GetCollections().ClassDatas()) {
+    std::unique_ptr<dex_ir::ClassData>& class_data = class_data_pair.second;
     size_t offset = class_data->GetOffset();
     offset += WriteUleb128(class_data->StaticFields()->size(), offset);
     offset += WriteUleb128(class_data->InstanceFields()->size(), offset);
@@ -491,7 +499,7 @@ struct MapItemContainer {
 };
 
 void DexWriter::WriteMapItem() {
-  dex_ir::Collections& collection = header_.GetCollections();
+  dex_ir::Collections& collection = header_->GetCollections();
   std::priority_queue<MapItemContainer> queue;
 
   // Header and index section.
@@ -522,7 +530,7 @@ void DexWriter::WriteMapItem() {
   }
 
   // Data section.
-  queue.push(MapItemContainer(DexFile::kDexTypeMapList, 1, collection.MapItemOffset()));
+  queue.push(MapItemContainer(DexFile::kDexTypeMapList, 1, collection.MapListOffset()));
   if (collection.TypeListsSize() != 0) {
     queue.push(MapItemContainer(DexFile::kDexTypeTypeList, collection.TypeListsSize(),
         collection.TypeListsOffset()));
@@ -564,7 +572,7 @@ void DexWriter::WriteMapItem() {
         collection.AnnotationsDirectoryItemsSize(), collection.AnnotationsDirectoryItemsOffset()));
   }
 
-  uint32_t offset = collection.MapItemOffset();
+  uint32_t offset = collection.MapListOffset();
   uint16_t uint16_buffer[2];
   uint32_t uint32_buffer[2];
   uint16_buffer[1] = 0;
@@ -583,19 +591,19 @@ void DexWriter::WriteMapItem() {
 
 void DexWriter::WriteHeader() {
   uint32_t buffer[20];
-  dex_ir::Collections& collections = header_.GetCollections();
+  dex_ir::Collections& collections = header_->GetCollections();
   size_t offset = 0;
-  offset += Write(header_.Magic(), 8 * sizeof(uint8_t), offset);
-  buffer[0] = header_.Checksum();
+  offset += Write(header_->Magic(), 8 * sizeof(uint8_t), offset);
+  buffer[0] = header_->Checksum();
   offset += Write(buffer, sizeof(uint32_t), offset);
-  offset += Write(header_.Signature(), 20 * sizeof(uint8_t), offset);
-  uint32_t file_size = header_.FileSize();
+  offset += Write(header_->Signature(), 20 * sizeof(uint8_t), offset);
+  uint32_t file_size = header_->FileSize();
   buffer[0] = file_size;
-  buffer[1] = header_.GetSize();
-  buffer[2] = header_.EndianTag();
-  buffer[3] = header_.LinkSize();
-  buffer[4] = header_.LinkOffset();
-  buffer[5] = collections.MapItemOffset();
+  buffer[1] = header_->GetSize();
+  buffer[2] = header_->EndianTag();
+  buffer[3] = header_->LinkSize();
+  buffer[4] = header_->LinkOffset();
+  buffer[5] = collections.MapListOffset();
   buffer[6] = collections.StringIdsSize();
   buffer[7] = collections.StringIdsOffset();
   buffer[8] = collections.TypeIdsSize();
@@ -617,12 +625,7 @@ void DexWriter::WriteHeader() {
   Write(buffer, 20 * sizeof(uint32_t), offset);
 }
 
-void DexWriter::WriteFile() {
-  if (dex_file_.get() == nullptr) {
-    fprintf(stderr, "Can't open output dex file\n");
-    return;
-  }
-
+void DexWriter::WriteMemMap() {
   WriteStrings();
   WriteTypes();
   WriteTypeLists();
@@ -641,8 +644,9 @@ void DexWriter::WriteFile() {
   WriteHeader();
 }
 
-void DexWriter::OutputDexFile(dex_ir::Header& header, const char* file_name) {
-  (new DexWriter(header, file_name))->WriteFile();
+void DexWriter::Output(dex_ir::Header* header, MemMap* mem_map) {
+  DexWriter dex_writer(header, mem_map);
+  dex_writer.WriteMemMap();
 }
 
 }  // namespace art
