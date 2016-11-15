@@ -1020,7 +1020,7 @@ inline bool DoInvokePolymorphic(Thread* self,
   } else {
     DCHECK(!is_range);
     ArtField* field = method_handle->GetTargetField();
-    Primitive::Type field_type = field->GetTypeAsPrimitiveType();;
+    Primitive::Type field_type = field->GetTypeAsPrimitiveType();
 
     switch (handle_kind) {
       case kInstanceGet: {

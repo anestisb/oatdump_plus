@@ -2783,7 +2783,7 @@ class IMTDumper {
 
     bool result = klass->GetImt(pointer_size) == object_class->GetImt(pointer_size);
 
-    if (klass->GetIfTable() == nullptr) {
+    if (klass->GetIfTable()->Count() == 0) {
       DCHECK(result);
     }
 
@@ -2889,25 +2889,23 @@ class IMTDumper {
     std::cerr << " Interfaces:" << std::endl;
     // Run through iftable, find methods that slot here, see if they fit.
     mirror::IfTable* if_table = klass->GetIfTable();
-    if (if_table != nullptr) {
-      for (size_t i = 0, num_interfaces = klass->GetIfTableCount(); i < num_interfaces; ++i) {
-        mirror::Class* iface = if_table->GetInterface(i);
-        std::string iface_name;
-        std::cerr << "  " << iface->GetDescriptor(&iface_name) << std::endl;
+    for (size_t i = 0, num_interfaces = klass->GetIfTableCount(); i < num_interfaces; ++i) {
+      mirror::Class* iface = if_table->GetInterface(i);
+      std::string iface_name;
+      std::cerr << "  " << iface->GetDescriptor(&iface_name) << std::endl;
 
-        for (ArtMethod& iface_method : iface->GetVirtualMethods(pointer_size)) {
-          uint32_t class_hash, name_hash, signature_hash;
-          ImTable::GetImtHashComponents(&iface_method, &class_hash, &name_hash, &signature_hash);
-          uint32_t imt_slot = ImTable::GetImtIndex(&iface_method);
-          std::cerr << "    " << iface_method.PrettyMethod(true)
-              << " slot=" << imt_slot
-              << std::hex
-              << " class_hash=0x" << class_hash
-              << " name_hash=0x" << name_hash
-              << " signature_hash=0x" << signature_hash
-              << std::dec
-              << std::endl;
-        }
+      for (ArtMethod& iface_method : iface->GetVirtualMethods(pointer_size)) {
+        uint32_t class_hash, name_hash, signature_hash;
+        ImTable::GetImtHashComponents(&iface_method, &class_hash, &name_hash, &signature_hash);
+        uint32_t imt_slot = ImTable::GetImtIndex(&iface_method);
+        std::cerr << "    " << iface_method.PrettyMethod(true)
+            << " slot=" << imt_slot
+            << std::hex
+            << " class_hash=0x" << class_hash
+            << " name_hash=0x" << name_hash
+            << " signature_hash=0x" << signature_hash
+            << std::dec
+            << std::endl;
       }
     }
   }
@@ -2972,18 +2970,16 @@ class IMTDumper {
         } else {
           // Run through iftable, find methods that slot here, see if they fit.
           mirror::IfTable* if_table = klass->GetIfTable();
-          if (if_table != nullptr) {
-            for (size_t i = 0, num_interfaces = klass->GetIfTableCount(); i < num_interfaces; ++i) {
-              mirror::Class* iface = if_table->GetInterface(i);
-              size_t num_methods = iface->NumDeclaredVirtualMethods();
-              if (num_methods > 0) {
-                for (ArtMethod& iface_method : iface->GetMethods(pointer_size)) {
-                  if (ImTable::GetImtIndex(&iface_method) == index) {
-                    std::string i_name = iface_method.PrettyMethod(true);
-                    if (StartsWith(i_name, method.c_str())) {
-                      std::cerr << "  Slot " << index << " (1)" << std::endl;
-                      std::cerr << "    " << p_name << " (" << i_name << ")" << std::endl;
-                    }
+          for (size_t i = 0, num_interfaces = klass->GetIfTableCount(); i < num_interfaces; ++i) {
+            mirror::Class* iface = if_table->GetInterface(i);
+            size_t num_methods = iface->NumDeclaredVirtualMethods();
+            if (num_methods > 0) {
+              for (ArtMethod& iface_method : iface->GetMethods(pointer_size)) {
+                if (ImTable::GetImtIndex(&iface_method) == index) {
+                  std::string i_name = iface_method.PrettyMethod(true);
+                  if (StartsWith(i_name, method.c_str())) {
+                    std::cerr << "  Slot " << index << " (1)" << std::endl;
+                    std::cerr << "    " << p_name << " (" << i_name << ")" << std::endl;
                   }
                 }
               }
