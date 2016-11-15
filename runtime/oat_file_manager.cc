@@ -403,9 +403,13 @@ static bool AreSharedLibrariesOk(const std::string& shared_libraries,
       DexFileAndClassPair pair(temp.top());
       const DexFile* dex_file = pair.GetDexFile();
       const std::string& dex_filename = dex_file->GetLocation();
+      if (dex_filename != shared_libraries_split[index]) {
+        break;
+      }
+      char* end;
+      size_t shared_lib_checksum = strtoul(shared_libraries_split[index + 1].c_str(), &end, 10);
       uint32_t dex_checksum = dex_file->GetLocationChecksum();
-      if (dex_filename != shared_libraries_split[index] ||
-          dex_checksum != std::stoul(shared_libraries_split[index + 1])) {
+      if (*end != '\0' || dex_checksum != shared_lib_checksum) {
         break;
       }
       temp.pop();
