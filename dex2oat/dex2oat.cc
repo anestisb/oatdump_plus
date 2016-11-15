@@ -2361,6 +2361,11 @@ class Dex2Oat FINAL {
       LOG(ERROR) << "Failed to create runtime";
       return false;
     }
+
+    // Runtime::Init will rename this thread to be "main". Prefer "dex2oat" so that "top" and
+    // "ps -a" don't change to non-descript "main."
+    SetThreadName(kIsDebugBuild ? "dex2oatd" : "dex2oat");
+
     runtime_.reset(Runtime::Current());
     runtime_->SetInstructionSet(instruction_set_);
     for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
