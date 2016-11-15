@@ -239,6 +239,7 @@ Runtime::Runtime()
       force_native_bridge_(false),
       is_native_bridge_loaded_(false),
       is_native_debuggable_(false),
+      is_fully_deoptable_(false),
       zygote_max_failed_boots_(0),
       experimental_flags_(ExperimentalFlags::kNone),
       oat_file_manager_(nullptr),
@@ -764,6 +765,9 @@ bool Runtime::IsShuttingDown(Thread* self) {
 }
 
 bool Runtime::IsDebuggable() const {
+  if (IsFullyDeoptable()) {
+    return true;
+  }
   const OatFile* oat_file = GetOatFileManager().GetPrimaryOatFile();
   return oat_file != nullptr && oat_file->IsDebuggable();
 }
@@ -986,6 +990,8 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
 
   verify_ = runtime_options.GetOrDefault(Opt::Verify);
   allow_dex_file_fallback_ = !runtime_options.Exists(Opt::NoDexFileFallback);
+
+  is_fully_deoptable_ = runtime_options.Exists(Opt::FullyDeoptable);
 
   no_sig_chain_ = runtime_options.Exists(Opt::NoSigChain);
   force_native_bridge_ = runtime_options.Exists(Opt::ForceNativeBridge);

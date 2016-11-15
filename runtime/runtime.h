@@ -592,6 +592,14 @@ class Runtime {
 
   bool IsDebuggable() const;
 
+  bool IsFullyDeoptable() const {
+    return is_fully_deoptable_;
+  }
+
+  void SetFullyDeoptable(bool value) {
+    is_fully_deoptable_ = value;
+  }
+
   bool IsNativeDebuggable() const {
     return is_native_debuggable_;
   }
@@ -856,6 +864,9 @@ class Runtime {
 
   // Whether we are running under native debugger.
   bool is_native_debuggable_;
+
+  // Whether we are expected to be deoptable at all points.
+  bool is_fully_deoptable_;
 
   // The maximum number of failed boots we allow before pruning the dalvik cache
   // and trying again. This option is only inspected when we're running as a
