@@ -27,9 +27,11 @@
 #include "base/stringprintf.h"
 #include "jit/jit.h"
 #include "jni.h"
+#include "native_stack_dump.h"
 #include "openjdkjvmti/jvmti.h"
 #include "runtime.h"
 #include "thread-inl.h"
+#include "thread_list.h"
 
 #include "ti-agent/common_helper.h"
 #include "ti-agent/common_load.h"
@@ -191,6 +193,20 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_followReferences(JNIEnv* env
                        class_tag,
                        adapted_size,
                        length));
+
+      if (reference_kind == JVMTI_HEAP_REFERENCE_THREAD && *tag_ptr == 1000) {
+        DumpStacks();
+      }
+    }
+
+    static void DumpStacks() NO_THREAD_SAFETY_ANALYSIS {
+      auto dump_function = [](art::Thread* t, void* data ATTRIBUTE_UNUSED) {
+        std::string name;
+        t->GetThreadName(name);
+        LOG(ERROR) << name;
+        art::DumpNativeStack(LOG_STREAM(ERROR), t->GetTid());
+      };
+      art::Runtime::Current()->GetThreadList()->ForEach(dump_function, nullptr);
     }
 
     static std::string GetReferenceTypeStr(jvmtiHeapReferenceKind reference_kind,
