@@ -444,14 +444,6 @@ class TypeCheckSlowPathARMVIXL : public SlowPathCodeARMVIXL {
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
-    Location arg0, arg1;
-    if (instruction_->IsInstanceOf()) {
-      arg0 = locations->InAt(1);
-      arg1 = locations->Out();
-    } else {
-      arg0 = locations->InAt(0);
-      arg1 = locations->InAt(1);
-    }
     DCHECK(instruction_->IsCheckCast()
            || !locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
 
@@ -466,10 +458,10 @@ class TypeCheckSlowPathARMVIXL : public SlowPathCodeARMVIXL {
     // move resolver.
     InvokeRuntimeCallingConventionARMVIXL calling_convention;
 
-    codegen->EmitParallelMoves(arg0,
+    codegen->EmitParallelMoves(locations->InAt(0),
                                LocationFrom(calling_convention.GetRegisterAt(0)),
                                Primitive::kPrimNot,
-                               arg1,
+                               locations->InAt(1),
                                LocationFrom(calling_convention.GetRegisterAt(1)),
                                Primitive::kPrimNot);
     if (instruction_->IsInstanceOf()) {
@@ -477,8 +469,7 @@ class TypeCheckSlowPathARMVIXL : public SlowPathCodeARMVIXL {
                                  instruction_,
                                  instruction_->GetDexPc(),
                                  this);
-      CheckEntrypointTypes<
-          kQuickInstanceofNonTrivial, size_t, mirror::Class*, mirror::Class*>();
+      CheckEntrypointTypes<kQuickInstanceofNonTrivial, size_t, mirror::Object*, mirror::Class*>();
       arm_codegen->Move32(locations->Out(), LocationFrom(r0));
     } else {
       DCHECK(instruction_->IsCheckCast());

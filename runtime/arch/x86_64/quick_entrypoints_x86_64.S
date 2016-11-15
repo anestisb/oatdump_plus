@@ -2223,16 +2223,16 @@ END_FUNCTION art_quick_string_compareto
 
 UNIMPLEMENTED art_quick_memcmp16
 
-DEFINE_FUNCTION art_quick_assignable_from_code
+DEFINE_FUNCTION art_quick_instance_of
     SETUP_FP_CALLEE_SAVE_FRAME
     subq LITERAL(8), %rsp                      // Alignment padding.
     CFI_ADJUST_CFA_OFFSET(8)
-    call SYMBOL(artIsAssignableFromCode)       // (const mirror::Class*, const mirror::Class*)
+    call SYMBOL(artInstanceOfFromCode)         // (mirror::Object*, mirror::Class*)
     addq LITERAL(8), %rsp
     CFI_ADJUST_CFA_OFFSET(-8)
     RESTORE_FP_CALLEE_SAVE_FRAME
     ret
-END_FUNCTION art_quick_assignable_from_code
+END_FUNCTION art_quick_instance_of
 
 
 // Return from a nested signal:
