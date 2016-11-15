@@ -30,7 +30,7 @@
 namespace art {
 
 // Cast entrypoints.
-extern "C" size_t artIsAssignableFromCode(mirror::Class* klass, mirror::Class* ref_class);
+extern "C" size_t artInstanceOfFromCode(mirror::Object* obj, mirror::Class* ref_class);
 
 // Math entrypoints.
 extern int32_t CmpgDouble(double a, double b);
@@ -74,7 +74,7 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
   ResetQuickAllocEntryPoints(qpoints);
 
   // Cast
-  qpoints->pInstanceofNonTrivial = artIsAssignableFromCode;
+  qpoints->pInstanceofNonTrivial = artInstanceOfFromCode;
   static_assert(IsDirectEntrypoint(kQuickInstanceofNonTrivial), "Direct C stub not marked direct.");
   qpoints->pCheckInstanceOf = art_quick_check_instance_of;
   static_assert(!IsDirectEntrypoint(kQuickCheckInstanceOf), "Non-direct C stub marked direct.");
