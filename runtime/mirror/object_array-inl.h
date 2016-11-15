@@ -119,10 +119,10 @@ inline void ObjectArray<T>::SetWithoutChecksAndWriteBarrier(int32_t i, ObjPtr<T>
       OffsetOfElement(i), object);
 }
 
-template<class T>
+template<class T> template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline T* ObjectArray<T>::GetWithoutChecks(int32_t i) {
   DCHECK(CheckIsValidIndex(i));
-  return GetFieldObject<T>(OffsetOfElement(i));
+  return GetFieldObject<T, kVerifyFlags, kReadBarrierOption>(OffsetOfElement(i));
 }
 
 template<class T>
@@ -145,17 +145,53 @@ inline void ObjectArray<T>::AssignableMemmove(int32_t dst_pos,
   const bool copy_forward = (src != this) || (dst_pos < src_pos) || (dst_pos - src_pos >= count);
   if (copy_forward) {
     // Forward copy.
-    for (int i = 0; i < count; ++i) {
-      // We need a RB here. ObjectArray::GetWithoutChecks() contains a RB.
-      Object* obj = src->GetWithoutChecks(src_pos + i);
-      SetWithoutChecksAndWriteBarrier<false>(dst_pos + i, obj);
+    bool baker_non_gray_case = false;
+    if (kUseReadBarrier && kUseBakerReadBarrier) {
+      uintptr_t fake_address_dependency;
+      if (!ReadBarrier::IsGray(src.Ptr(), &fake_address_dependency)) {
+        baker_non_gray_case = true;
+        DCHECK_EQ(fake_address_dependency, 0U) << fake_address_dependency;
+        src.Assign(reinterpret_cast<ObjectArray<T>*>(
+            reinterpret_cast<uintptr_t>(src.Ptr()) | fake_address_dependency));
+        for (int i = 0; i < count; ++i) {
+          // We can skip the RB here because 'src' isn't gray.
+          Object* obj = src->template GetWithoutChecks<kDefaultVerifyFlags, kWithoutReadBarrier>(
+              src_pos + i);
+          SetWithoutChecksAndWriteBarrier<false>(dst_pos + i, obj);
+        }
+      }
+    }
+    if (!baker_non_gray_case) {
+      for (int i = 0; i < count; ++i) {
+        // We need a RB here. ObjectArray::GetWithoutChecks() contains a RB.
+        Object* obj = src->GetWithoutChecks(src_pos + i);
+        SetWithoutChecksAndWriteBarrier<false>(dst_pos + i, obj);
+      }
     }
   } else {
     // Backward copy.
-    for (int i = count - 1; i >= 0; --i) {
-      // We need a RB here. ObjectArray::GetWithoutChecks() contains a RB.
-      Object* obj = src->GetWithoutChecks(src_pos + i);
-      SetWithoutChecksAndWriteBarrier<false>(dst_pos + i, obj);
+    bool baker_non_gray_case = false;
+    if (kUseReadBarrier && kUseBakerReadBarrier) {
+      uintptr_t fake_address_dependency;
+      if (!ReadBarrier::IsGray(src.Ptr(), &fake_address_dependency)) {
+        baker_non_gray_case = true;
+        DCHECK_EQ(fake_address_dependency, 0U) << fake_address_dependency;
+        src.Assign(reinterpret_cast<ObjectArray<T>*>(
+            reinterpret_cast<uintptr_t>(src.Ptr()) | fake_address_dependency));
+        for (int i = count - 1; i >= 0; --i) {
+          // We can skip the RB here because 'src' isn't gray.
+          Object* obj = src->template GetWithoutChecks<kDefaultVerifyFlags, kWithoutReadBarrier>(
+              src_pos + i);
+          SetWithoutChecksAndWriteBarrier<false>(dst_pos + i, obj);
+        }
+      }
+    }
+    if (!baker_non_gray_case) {
+      for (int i = count - 1; i >= 0; --i) {
+        // We need a RB here. ObjectArray::GetWithoutChecks() contains a RB.
+        Object* obj = src->GetWithoutChecks(src_pos + i);
+        SetWithoutChecksAndWriteBarrier<false>(dst_pos + i, obj);
+      }
     }
   }
   Runtime::Current()->GetHeap()->WriteBarrierArray(this, dst_pos, count);
@@ -184,10 +220,28 @@ inline void ObjectArray<T>::AssignableMemcpy(int32_t dst_pos,
   // TODO: Optimize this later?
   // We can't use memmove since it does not handle read barriers and may do by per byte copying.
   // See b/32012820.
-  for (int i = 0; i < count; ++i) {
-    // We need a RB here. ObjectArray::GetWithoutChecks() contains a RB.
-    T* obj = src->GetWithoutChecks(src_pos + i);
-    SetWithoutChecksAndWriteBarrier<false>(dst_pos + i, obj);
+  bool baker_non_gray_case = false;
+  if (kUseReadBarrier && kUseBakerReadBarrier) {
+    uintptr_t fake_address_dependency;
+    if (!ReadBarrier::IsGray(src.Ptr(), &fake_address_dependency)) {
+      baker_non_gray_case = true;
+      DCHECK_EQ(fake_address_dependency, 0U) << fake_address_dependency;
+      src.Assign(reinterpret_cast<ObjectArray<T>*>(
+          reinterpret_cast<uintptr_t>(src.Ptr()) | fake_address_dependency));
+      for (int i = 0; i < count; ++i) {
+        // We can skip the RB here because 'src' isn't gray.
+        Object* obj = src->template GetWithoutChecks<kDefaultVerifyFlags, kWithoutReadBarrier>(
+            src_pos + i);
+        SetWithoutChecksAndWriteBarrier<false>(dst_pos + i, obj);
+      }
+    }
+  }
+  if (!baker_non_gray_case) {
+    for (int i = 0; i < count; ++i) {
+      // We need a RB here. ObjectArray::GetWithoutChecks() contains a RB.
+      T* obj = src->GetWithoutChecks(src_pos + i);
+      SetWithoutChecksAndWriteBarrier<false>(dst_pos + i, obj);
+    }
   }
   Runtime::Current()->GetHeap()->WriteBarrierArray(this, dst_pos, count);
   if (kIsDebugBuild) {
@@ -214,25 +268,60 @@ inline void ObjectArray<T>::AssignableCheckingMemcpy(int32_t dst_pos,
 
   Object* o = nullptr;
   int i = 0;
-  for (; i < count; ++i) {
-    // The follow get operations force the objects to be verified.
-    // We need a RB here. ObjectArray::GetWithoutChecks() contains a RB.
-    o = src->GetWithoutChecks(src_pos + i);
-    if (o == nullptr) {
-      // Null is always assignable.
-      SetWithoutChecks<kTransactionActive>(dst_pos + i, nullptr);
-    } else {
-      // TODO: use the underlying class reference to avoid uncompression when not necessary.
-      Class* o_class = o->GetClass();
-      if (LIKELY(lastAssignableElementClass == o_class)) {
-        SetWithoutChecks<kTransactionActive>(dst_pos + i, o);
-      } else if (LIKELY(dst_class->IsAssignableFrom(o_class))) {
-        lastAssignableElementClass = o_class;
-        SetWithoutChecks<kTransactionActive>(dst_pos + i, o);
+  bool baker_non_gray_case = false;
+  if (kUseReadBarrier && kUseBakerReadBarrier) {
+    uintptr_t fake_address_dependency;
+    if (!ReadBarrier::IsGray(src.Ptr(), &fake_address_dependency)) {
+      baker_non_gray_case = true;
+      DCHECK_EQ(fake_address_dependency, 0U) << fake_address_dependency;
+      src.Assign(reinterpret_cast<ObjectArray<T>*>(
+          reinterpret_cast<uintptr_t>(src.Ptr()) | fake_address_dependency));
+      for (; i < count; ++i) {
+        // The follow get operations force the objects to be verified.
+        // We can skip the RB here because 'src' isn't gray.
+        o = src->template GetWithoutChecks<kDefaultVerifyFlags, kWithoutReadBarrier>(
+            src_pos + i);
+        if (o == nullptr) {
+          // Null is always assignable.
+          SetWithoutChecks<kTransactionActive>(dst_pos + i, nullptr);
+        } else {
+          // TODO: use the underlying class reference to avoid uncompression when not necessary.
+          Class* o_class = o->GetClass();
+          if (LIKELY(lastAssignableElementClass == o_class)) {
+            SetWithoutChecks<kTransactionActive>(dst_pos + i, o);
+          } else if (LIKELY(dst_class->IsAssignableFrom(o_class))) {
+            lastAssignableElementClass = o_class;
+            SetWithoutChecks<kTransactionActive>(dst_pos + i, o);
+          } else {
+            // Can't put this element into the array, break to perform write-barrier and throw
+            // exception.
+            break;
+          }
+        }
+      }
+    }
+  }
+  if (!baker_non_gray_case) {
+    for (; i < count; ++i) {
+      // The follow get operations force the objects to be verified.
+      // We need a RB here. ObjectArray::GetWithoutChecks() contains a RB.
+      o = src->GetWithoutChecks(src_pos + i);
+      if (o == nullptr) {
+        // Null is always assignable.
+        SetWithoutChecks<kTransactionActive>(dst_pos + i, nullptr);
       } else {
-        // Can't put this element into the array, break to perform write-barrier and throw
-        // exception.
-        break;
+        // TODO: use the underlying class reference to avoid uncompression when not necessary.
+        Class* o_class = o->GetClass();
+        if (LIKELY(lastAssignableElementClass == o_class)) {
+          SetWithoutChecks<kTransactionActive>(dst_pos + i, o);
+        } else if (LIKELY(dst_class->IsAssignableFrom(o_class))) {
+          lastAssignableElementClass = o_class;
+          SetWithoutChecks<kTransactionActive>(dst_pos + i, o);
+        } else {
+          // Can't put this element into the array, break to perform write-barrier and throw
+          // exception.
+          break;
+        }
       }
     }
   }
