@@ -378,14 +378,6 @@ class TypeCheckSlowPathMIPS : public SlowPathCodeMIPS {
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
-    Location arg0, arg1;
-    if (instruction_->IsInstanceOf()) {
-      arg0 = locations->InAt(1);
-      arg1 = locations->Out();
-    } else {
-      arg0 = locations->InAt(0);
-      arg1 = locations->InAt(1);
-    }
     uint32_t dex_pc = instruction_->GetDexPc();
     DCHECK(instruction_->IsCheckCast()
            || !locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
@@ -397,15 +389,15 @@ class TypeCheckSlowPathMIPS : public SlowPathCodeMIPS {
     // We're moving two locations to locations that could overlap, so we need a parallel
     // move resolver.
     InvokeRuntimeCallingConvention calling_convention;
-    codegen->EmitParallelMoves(arg0,
+    codegen->EmitParallelMoves(locations->InAt(0),
                                Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
                                Primitive::kPrimNot,
-                               arg1,
+                               locations->InAt(1),
                                Location::RegisterLocation(calling_convention.GetRegisterAt(1)),
                                Primitive::kPrimNot);
     if (instruction_->IsInstanceOf()) {
       mips_codegen->InvokeRuntime(kQuickInstanceofNonTrivial, instruction_, dex_pc, this);
-      CheckEntrypointTypes<kQuickInstanceofNonTrivial, size_t, mirror::Class*, mirror::Class*>();
+      CheckEntrypointTypes<kQuickInstanceofNonTrivial, size_t, mirror::Object*, mirror::Class*>();
       Primitive::Type ret_type = instruction_->GetType();
       Location ret_loc = calling_convention.GetReturnLocation(ret_type);
       mips_codegen->MoveLocation(locations->Out(), ret_loc, ret_type);

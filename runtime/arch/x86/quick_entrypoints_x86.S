@@ -1351,15 +1351,15 @@ DEFINE_FUNCTION art_quick_unlock_object_no_inline
     RETURN_IF_EAX_ZERO
 END_FUNCTION art_quick_unlock_object_no_inline
 
-DEFINE_FUNCTION art_quick_is_assignable
+DEFINE_FUNCTION art_quick_instance_of
     PUSH eax                              // alignment padding
     PUSH ecx                              // pass arg2 - obj->klass
     PUSH eax                              // pass arg1 - checked class
-    call SYMBOL(artIsAssignableFromCode)  // (Class* klass, Class* ref_klass)
+    call SYMBOL(artInstanceOfFromCode)    // (Object* obj, Class* ref_klass)
     addl LITERAL(12), %esp                // pop arguments
     CFI_ADJUST_CFA_OFFSET(-12)
     ret
-END_FUNCTION art_quick_is_assignable
+END_FUNCTION art_quick_instance_of
 
 DEFINE_FUNCTION art_quick_check_instance_of
     PUSH eax                              // alignment padding
