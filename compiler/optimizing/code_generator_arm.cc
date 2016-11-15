@@ -489,14 +489,6 @@ class TypeCheckSlowPathARM : public SlowPathCodeARM {
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
-    Location arg0, arg1;
-    if (instruction_->IsInstanceOf()) {
-      arg0 = locations->InAt(1);
-      arg1 = locations->Out();
-    } else {
-      arg0 = locations->InAt(0);
-      arg1 = locations->InAt(1);
-    }
     DCHECK(instruction_->IsCheckCast()
            || !locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
 
@@ -510,10 +502,10 @@ class TypeCheckSlowPathARM : public SlowPathCodeARM {
     // We're moving two locations to locations that could overlap, so we need a parallel
     // move resolver.
     InvokeRuntimeCallingConvention calling_convention;
-    codegen->EmitParallelMoves(arg0,
+    codegen->EmitParallelMoves(locations->InAt(0),
                                Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
                                Primitive::kPrimNot,
-                               arg1,
+                               locations->InAt(1),
                                Location::RegisterLocation(calling_convention.GetRegisterAt(1)),
                                Primitive::kPrimNot);
     if (instruction_->IsInstanceOf()) {
@@ -521,7 +513,7 @@ class TypeCheckSlowPathARM : public SlowPathCodeARM {
                                  instruction_,
                                  instruction_->GetDexPc(),
                                  this);
-      CheckEntrypointTypes<kQuickInstanceofNonTrivial, size_t, mirror::Class*, mirror::Class*>();
+      CheckEntrypointTypes<kQuickInstanceofNonTrivial, size_t, mirror::Object*, mirror::Class*>();
       arm_codegen->Move32(locations->Out(), Location::RegisterLocation(R0));
     } else {
       DCHECK(instruction_->IsCheckCast());
@@ -6114,16 +6106,15 @@ void InstructionCodeGeneratorARM::VisitInstanceOf(HInstanceOf* instruction) {
     __ CompareAndBranchIfZero(obj, &zero);
   }
 
-  // /* HeapReference<Class> */ out = obj->klass_
-  GenerateReferenceLoadTwoRegisters(instruction,
-                                    out_loc,
-                                    obj_loc,
-                                    class_offset,
-                                    maybe_temp_loc,
-                                    kCompilerReadBarrierOption);
-
   switch (type_check_kind) {
     case TypeCheckKind::kExactCheck: {
+      // /* HeapReference<Class> */ out = obj->klass_
+      GenerateReferenceLoadTwoRegisters(instruction,
+                                        out_loc,
+                                        obj_loc,
+                                        class_offset,
+                                        maybe_temp_loc,
+                                        kCompilerReadBarrierOption);
       __ cmp(out, ShifterOperand(cls));
       // Classes must be equal for the instanceof to succeed.
       __ b(&zero, NE);
@@ -6133,6 +6124,13 @@ void InstructionCodeGeneratorARM::VisitInstanceOf(HInstanceOf* instruction) {
     }
 
     case TypeCheckKind::kAbstractClassCheck: {
+      // /* HeapReference<Class> */ out = obj->klass_
+      GenerateReferenceLoadTwoRegisters(instruction,
+                                        out_loc,
+                                        obj_loc,
+                                        class_offset,
+                                        maybe_temp_loc,
+                                        kCompilerReadBarrierOption);
       // If the class is abstract, we eagerly fetch the super class of the
       // object to avoid doing a comparison we know will fail.
       Label loop;
@@ -6155,6 +6153,13 @@ void InstructionCodeGeneratorARM::VisitInstanceOf(HInstanceOf* instruction) {
     }
 
     case TypeCheckKind::kClassHierarchyCheck: {
+      // /* HeapReference<Class> */ out = obj->klass_
+      GenerateReferenceLoadTwoRegisters(instruction,
+                                        out_loc,
+                                        obj_loc,
+                                        class_offset,
+                                        maybe_temp_loc,
+                                        kCompilerReadBarrierOption);
       // Walk over the class hierarchy to find a match.
       Label loop, success;
       __ Bind(&loop);
@@ -6178,6 +6183,13 @@ void InstructionCodeGeneratorARM::VisitInstanceOf(HInstanceOf* instruction) {
     }
 
     case TypeCheckKind::kArrayObjectCheck: {
+      // /* HeapReference<Class> */ out = obj->klass_
+      GenerateReferenceLoadTwoRegisters(instruction,
+                                        out_loc,
+                                        obj_loc,
+                                        class_offset,
+                                        maybe_temp_loc,
+                                        kCompilerReadBarrierOption);
       // Do an exact check.
       Label exact_check;
       __ cmp(out, ShifterOperand(cls));
@@ -6201,6 +6213,14 @@ void InstructionCodeGeneratorARM::VisitInstanceOf(HInstanceOf* instruction) {
     }
 
     case TypeCheckKind::kArrayCheck: {
+      // No read barrier since the slow path will retry upon failure.
+      // /* HeapReference<Class> */ out = obj->klass_
+      GenerateReferenceLoadTwoRegisters(instruction,
+                                        out_loc,
+                                        obj_loc,
+                                        class_offset,
+                                        maybe_temp_loc,
+                                        kWithoutReadBarrier);
       __ cmp(out, ShifterOperand(cls));
       DCHECK(locations->OnlyCallsOnSlowPath());
       slow_path = new (GetGraph()->GetArena()) TypeCheckSlowPathARM(instruction,

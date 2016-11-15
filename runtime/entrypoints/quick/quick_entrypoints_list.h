@@ -33,7 +33,7 @@
   V(AllocStringFromChars, void*, int32_t, int32_t, void*) \
   V(AllocStringFromString, void*, void*) \
 \
-  V(InstanceofNonTrivial, size_t, mirror::Class*, mirror::Class*) \
+  V(InstanceofNonTrivial, size_t, mirror::Object*, mirror::Class*) \
   V(CheckInstanceOf, void, mirror::Object*, mirror::Class*) \
 \
   V(InitializeStaticStorage, void*, uint32_t) \
