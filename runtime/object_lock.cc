@@ -17,6 +17,7 @@
 #include "object_lock.h"
 
 #include "mirror/object-inl.h"
+#include "mirror/class_ext.h"
 #include "monitor.h"
 
 namespace art {
@@ -61,6 +62,7 @@ ObjectTryLock<T>::~ObjectTryLock() {
 }
 
 template class ObjectLock<mirror::Class>;
+template class ObjectLock<mirror::ClassExt>;
 template class ObjectLock<mirror::Object>;
 template class ObjectTryLock<mirror::Class>;
 template class ObjectTryLock<mirror::Object>;

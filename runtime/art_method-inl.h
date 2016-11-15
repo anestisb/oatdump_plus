@@ -399,7 +399,11 @@ inline mirror::ClassLoader* ArtMethod::GetClassLoader() {
 
 inline mirror::DexCache* ArtMethod::GetDexCache() {
   DCHECK(!IsProxyMethod());
-  return GetDeclaringClass()->GetDexCache();
+  if (UNLIKELY(IsObsolete())) {
+    return GetObsoleteDexCache();
+  } else {
+    return GetDeclaringClass()->GetDexCache();
+  }
 }
 
 template<ReadBarrierOption kReadBarrierOption>
