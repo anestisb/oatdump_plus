@@ -72,6 +72,8 @@ class MANAGED ObjectArray: public Array {
   ALWAYS_INLINE void SetWithoutChecksAndWriteBarrier(int32_t i, ObjPtr<T> object)
       NO_THREAD_SAFETY_ANALYSIS;
 
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   ALWAYS_INLINE T* GetWithoutChecks(int32_t i) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Copy src into this array (dealing with overlaps as memmove does) without assignability checks.
