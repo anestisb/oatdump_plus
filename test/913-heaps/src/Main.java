@@ -101,8 +101,6 @@ public class Main {
 
   private static void doFollowReferencesTestImpl(A root, int stopAfter, int followSet,
       Object asRoot, Verifier v, String additionalEnabled) {
-    waitForJitCompilation();  // Wait to avoid JIT influence (e.g., JNI globals).
-
     String[] lines =
         followReferences(0, null, root, stopAfter, followSet, asRoot);
 
@@ -388,6 +386,4 @@ public class Main {
 
   private static native String[] followReferences(int heapFilter, Class<?> klassFilter,
       Object initialObject, int stopAfter, int followSet, Object jniRef);
-
-  private static native void waitForJitCompilation();
 }
