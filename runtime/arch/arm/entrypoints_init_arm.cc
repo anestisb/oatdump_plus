@@ -86,7 +86,7 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
   DefaultInitEntryPoints(jpoints, qpoints);
 
   // Cast
-  qpoints->pInstanceofNonTrivial = artInstanceOfFromCode;;
+  qpoints->pInstanceofNonTrivial = artInstanceOfFromCode;
   qpoints->pCheckInstanceOf = art_quick_check_instance_of;
 
   // Math

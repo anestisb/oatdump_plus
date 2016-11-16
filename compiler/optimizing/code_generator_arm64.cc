@@ -3802,12 +3802,9 @@ void InstructionCodeGeneratorARM64::VisitCheckCast(HCheckCast* instruction) {
                                         iftable_offset,
                                         maybe_temp2_loc,
                                         kWithoutReadBarrier);
-      // Null iftable means it is empty and will always fail the check.
-      __ Cbz(temp, type_check_slow_path->GetEntryLabel());
-
-      // Loop through the iftable and check if any class matches.
+      // Iftable is never null.
       __ Ldr(WRegisterFrom(maybe_temp2_loc), HeapOperand(temp.W(), array_length_offset));
-
+      // Loop through the iftable and check if any class matches.
       vixl::aarch64::Label start_loop;
       __ Bind(&start_loop);
       __ Cbz(WRegisterFrom(maybe_temp2_loc), type_check_slow_path->GetEntryLabel());

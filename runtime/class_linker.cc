@@ -475,6 +475,9 @@ bool ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   SetClassRoot(kJavaLangString, java_lang_String.Get());
   SetClassRoot(kJavaLangRefReference, java_lang_ref_Reference.Get());
 
+  // Fill in the empty iftable. Needs to be done after the kObjectArrayClass root is set.
+  java_lang_Object->SetIfTable(AllocIfTable(self, 0));
+
   // Setup the primitive type classes.
   SetClassRoot(kPrimitiveBoolean, CreatePrimitiveClass(self, Primitive::kPrimBoolean));
   SetClassRoot(kPrimitiveByte, CreatePrimitiveClass(self, Primitive::kPrimByte));
@@ -916,13 +919,11 @@ static void SanityCheckObjectsCallback(mirror::Object* obj, void* arg ATTRIBUTE_
         SanityCheckArtMethod(klass->GetEmbeddedVTableEntry(i, pointer_size), nullptr, image_spaces);
       }
     }
-    auto* iftable = klass->GetIfTable();
-    if (iftable != nullptr) {
-      for (int32_t i = 0; i < klass->GetIfTableCount(); ++i) {
-        if (iftable->GetMethodArrayCount(i) > 0) {
-          SanityCheckArtMethodPointerArray(
-              iftable->GetMethodArray(i), nullptr, pointer_size, image_spaces);
-        }
+    mirror::IfTable* iftable = klass->GetIfTable();
+    for (int32_t i = 0; i < klass->GetIfTableCount(); ++i) {
+      if (iftable->GetMethodArrayCount(i) > 0) {
+        SanityCheckArtMethodPointerArray(
+            iftable->GetMethodArray(i), nullptr, pointer_size, image_spaces);
       }
     }
   }
@@ -3401,7 +3402,8 @@ void ClassLinker::FixupDexCaches(ArtMethod* resolution_method) {
 }
 
 mirror::Class* ClassLinker::CreatePrimitiveClass(Thread* self, Primitive::Type type) {
-  ObjPtr<mirror::Class> klass = AllocClass(self, mirror::Class::PrimitiveClassSize(image_pointer_size_));
+  ObjPtr<mirror::Class> klass =
+      AllocClass(self, mirror::Class::PrimitiveClassSize(image_pointer_size_));
   if (UNLIKELY(klass == nullptr)) {
     self->AssertPendingOOMException();
     return nullptr;
@@ -3419,10 +3421,12 @@ mirror::Class* ClassLinker::InitializePrimitiveClass(ObjPtr<mirror::Class> primi
   ObjectLock<mirror::Class> lock(self, h_class);
   h_class->SetAccessFlags(kAccPublic | kAccFinal | kAccAbstract);
   h_class->SetPrimitiveType(type);
+  h_class->SetIfTable(GetClassRoot(kJavaLangObject)->GetIfTable());
   mirror::Class::SetStatus(h_class, mirror::Class::kStatusInitialized, self);
   const char* descriptor = Primitive::Descriptor(type);
-  ObjPtr<mirror::Class> existing = InsertClass(descriptor, h_class.Get(),
-                                        ComputeModifiedUtf8Hash(descriptor));
+  ObjPtr<mirror::Class> existing = InsertClass(descriptor,
+                                               h_class.Get(),
+                                               ComputeModifiedUtf8Hash(descriptor));
   CHECK(existing == nullptr) << "InitPrimitiveClass(" << type << ") failed";
   return h_class.Get();
 }
@@ -4121,6 +4125,8 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
   DCHECK_EQ(klass->GetPrimitiveType(), Primitive::kPrimNot);
   klass->SetName(soa.Decode<mirror::String>(name));
   klass->SetDexCache(GetClassRoot(kJavaLangReflectProxy)->GetDexCache());
+  // Object has an empty iftable, copy it for that reason.
+  klass->SetIfTable(GetClassRoot(kJavaLangObject)->GetIfTable());
   mirror::Class::SetStatus(klass, mirror::Class::kStatusIdx, self);
   std::string descriptor(GetDescriptorForProxy(klass.Get()));
   const size_t hash = ComputeModifiedUtf8Hash(descriptor.c_str());
@@ -6381,16 +6387,18 @@ static size_t FillIfTable(ObjPtr<mirror::IfTable> iftable,
 bool ClassLinker::SetupInterfaceLookupTable(Thread* self, Handle<mirror::Class> klass,
                                             Handle<mirror::ObjectArray<mirror::Class>> interfaces) {
   StackHandleScope<1> hs(self);
-  const size_t super_ifcount =
-      klass->HasSuperClass() ? klass->GetSuperClass()->GetIfTableCount() : 0U;
+  const bool has_superclass = klass->HasSuperClass();
+  const size_t super_ifcount = has_superclass ? klass->GetSuperClass()->GetIfTableCount() : 0U;
   const bool have_interfaces = interfaces.Get() != nullptr;
   const size_t num_interfaces =
       have_interfaces ? interfaces->GetLength() : klass->NumDirectInterfaces();
   if (num_interfaces == 0) {
     if (super_ifcount == 0) {
+      if (LIKELY(has_superclass)) {
+        klass->SetIfTable(klass->GetSuperClass()->GetIfTable());
+      }
       // Class implements no interfaces.
       DCHECK_EQ(klass->GetIfTableCount(), 0);
-      DCHECK(klass->GetIfTable() == nullptr);
       return true;
     }
     // Class implements same interfaces as parent, are any of these not marker interfaces?
@@ -6583,7 +6591,7 @@ void ClassLinker::FillImtFromSuperClass(Handle<mirror::Class> klass,
   } else {
     // No imt in the super class, need to reconstruct from the iftable.
     ObjPtr<mirror::IfTable> if_table = super_class->GetIfTable();
-    if (if_table != nullptr) {
+    if (if_table->Count() != 0) {
       // Ignore copied methods since we will handle these in LinkInterfaceMethods.
       FillIMTFromIfTable(if_table,
                          unimplemented_method,
