@@ -17,56 +17,27 @@
 # Known broken tests for the ARM VIXL backend.
 TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   003-omnibus-opcodes \
-  004-ThreadStress \
-  028-array-write \
-  037-inherit \
-  042-new-instance \
+  020-string \
+  021-string2 \
   044-proxy \
-  080-oom-throw \
   082-inline-execute \
-  083-compiler-regressions \
   096-array-copy-concurrent-gc \
-  099-vmdebug \
+  100-reflect2 \
   103-string-append \
-  114-ParallelGC \
   122-npe \
-  123-inline-execute2 \
   129-ThreadGetId \
   137-cfi \
-  144-static-field-sigquit \
-  201-built-in-except-detail-messages \
-  412-new-array \
-  422-type-conversion \
-  437-inline \
   439-npe \
-  442-checker-constant-folding \
-  450-checker-types \
-  458-checker-instruct-simplification \
-  458-long-to-fpu \
   488-checker-inline-recursive-calls \
-  510-checker-try-catch \
-  515-dce-dominator \
   520-equivalent-phi \
   525-checker-arrays-fields1 \
   525-checker-arrays-fields2 \
   527-checker-array-access-split \
-  530-checker-loops2 \
-  530-checker-lse \
-  530-checker-lse2 \
-  535-regression-const-val \
-  536-checker-intrinsic-optimization \
   538-checker-embed-constants \
   550-checker-multiply-accumulate \
-  552-checker-primitive-typeprop \
   552-checker-sharpening \
-  555-UnsafeGetLong-regression \
   562-checker-no-intermediate \
   564-checker-negbitwise \
   570-checker-osr \
-  570-checker-select \
-  574-irreducible-and-constant-area \
-  580-checker-round \
-  594-checker-array-alias \
-  602-deoptimizeable \
-  700-LoadArgRegs \
-  800-smali \
+  602-deoptimizeable
+
