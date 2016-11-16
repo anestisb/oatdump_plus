@@ -264,6 +264,10 @@ Heap::Heap(size_t initial_size,
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap() entering";
   }
+  if (kUseReadBarrier) {
+    CHECK_EQ(foreground_collector_type_, kCollectorTypeCC);
+    CHECK_EQ(background_collector_type_, kCollectorTypeCCBackground);
+  }
   CHECK_GE(large_object_threshold, kMinLargeObjectThreshold);
   ScopedTrace trace(__FUNCTION__);
   Runtime* const runtime = Runtime::Current();
