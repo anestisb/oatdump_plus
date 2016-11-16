@@ -100,7 +100,7 @@ public class Main {
   /// CHECK-DAG:                     Return [<<ArrayGet2>>]
   public static float test1() {
     Test1 test1 = getNullTest1();
-    Test2 test2 = getNullTest2();;
+    Test2 test2 = getNullTest2();
     int[] iarr = test1.iarr;
     float[] farr = test2.farr;
     iarr[0] = iarr[1];

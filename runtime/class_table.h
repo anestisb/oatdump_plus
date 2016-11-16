@@ -48,7 +48,7 @@ class ClassTable {
     uint32_t operator()(const GcRoot<mirror::Class>& root) const NO_THREAD_SAFETY_ANALYSIS;
     // Same class loader and descriptor.
     bool operator()(const GcRoot<mirror::Class>& a, const GcRoot<mirror::Class>& b) const
-        NO_THREAD_SAFETY_ANALYSIS;;
+        NO_THREAD_SAFETY_ANALYSIS;
     // Same descriptor.
     bool operator()(const GcRoot<mirror::Class>& a, const char* descriptor) const
         NO_THREAD_SAFETY_ANALYSIS;

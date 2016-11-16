@@ -6490,12 +6490,9 @@ void InstructionCodeGeneratorARM::VisitCheckCast(HCheckCast* instruction) {
                                         iftable_offset,
                                         maybe_temp2_loc,
                                         kWithoutReadBarrier);
-      // Null iftable means it is empty and will always fail the check.
-      __ CompareAndBranchIfZero(temp, type_check_slow_path->GetEntryLabel());
-
-      // Loop through the iftable and check if any class matches.
+      // Iftable is never null.
       __ ldr(maybe_temp2_loc.AsRegister<Register>(), Address(temp, array_length_offset));
-
+      // Loop through the iftable and check if any class matches.
       Label start_loop;
       __ Bind(&start_loop);
       __ CompareAndBranchIfZero(maybe_temp2_loc.AsRegister<Register>(),
