@@ -114,7 +114,7 @@ JitOptions* JitOptions::CreateFromRuntimeArguments(const RuntimeArgumentMap& opt
   } else {
     jit_options->invoke_transition_weight_ = std::max(
         jit_options->warmup_threshold_ / Jit::kDefaultInvokeTransitionWeightRatio,
-        static_cast<size_t>(1));;
+        static_cast<size_t>(1));
   }
 
   return jit_options;

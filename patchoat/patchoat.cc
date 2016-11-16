@@ -762,16 +762,14 @@ void PatchOat::VisitObject(mirror::Object* object) {
     if (vtable != nullptr) {
       vtable->Fixup(RelocatedCopyOfFollowImages(vtable), pointer_size, native_visitor);
     }
-    auto* iftable = klass->GetIfTable();
-    if (iftable != nullptr) {
-      for (int32_t i = 0; i < klass->GetIfTableCount(); ++i) {
-        if (iftable->GetMethodArrayCount(i) > 0) {
-          auto* method_array = iftable->GetMethodArray(i);
-          CHECK(method_array != nullptr);
-          method_array->Fixup(RelocatedCopyOfFollowImages(method_array),
-                              pointer_size,
-                              native_visitor);
-        }
+    mirror::IfTable* iftable = klass->GetIfTable();
+    for (int32_t i = 0; i < klass->GetIfTableCount(); ++i) {
+      if (iftable->GetMethodArrayCount(i) > 0) {
+        auto* method_array = iftable->GetMethodArray(i);
+        CHECK(method_array != nullptr);
+        method_array->Fixup(RelocatedCopyOfFollowImages(method_array),
+                            pointer_size,
+                            native_visitor);
       }
     }
   } else if (object->GetClass() == mirror::Method::StaticClass() ||

@@ -5153,11 +5153,14 @@ void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) 
     __ Cbz(obj, &zero);
   }
 
-  // /* HeapReference<Class> */ out = obj->klass_
-  GenerateReferenceLoadTwoRegisters(instruction, out_loc, obj_loc, class_offset, maybe_temp_loc);
-
   switch (type_check_kind) {
     case TypeCheckKind::kExactCheck: {
+      // /* HeapReference<Class> */ out = obj->klass_
+      GenerateReferenceLoadTwoRegisters(instruction,
+                                        out_loc,
+                                        obj_loc,
+                                        class_offset,
+                                        maybe_temp_loc);
       __ Cmp(out, cls);
       // Classes must be equal for the instanceof to succeed.
       __ B(ne, &zero);
@@ -5167,6 +5170,12 @@ void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) 
     }
 
     case TypeCheckKind::kAbstractClassCheck: {
+      // /* HeapReference<Class> */ out = obj->klass_
+      GenerateReferenceLoadTwoRegisters(instruction,
+                                        out_loc,
+                                        obj_loc,
+                                        class_offset,
+                                        maybe_temp_loc);
       // If the class is abstract, we eagerly fetch the super class of the
       // object to avoid doing a comparison we know will fail.
       vixl32::Label loop;
@@ -5185,6 +5194,12 @@ void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) 
     }
 
     case TypeCheckKind::kClassHierarchyCheck: {
+      // /* HeapReference<Class> */ out = obj->klass_
+      GenerateReferenceLoadTwoRegisters(instruction,
+                                        out_loc,
+                                        obj_loc,
+                                        class_offset,
+                                        maybe_temp_loc);
       // Walk over the class hierarchy to find a match.
       vixl32::Label loop, success;
       __ Bind(&loop);
@@ -5204,6 +5219,12 @@ void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) 
     }
 
     case TypeCheckKind::kArrayObjectCheck: {
+      // /* HeapReference<Class> */ out = obj->klass_
+      GenerateReferenceLoadTwoRegisters(instruction,
+                                        out_loc,
+                                        obj_loc,
+                                        class_offset,
+                                        maybe_temp_loc);
       // Do an exact check.
       vixl32::Label exact_check;
       __ Cmp(out, cls);
@@ -5223,6 +5244,12 @@ void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) 
     }
 
     case TypeCheckKind::kArrayCheck: {
+      // /* HeapReference<Class> */ out = obj->klass_
+      GenerateReferenceLoadTwoRegisters(instruction,
+                                        out_loc,
+                                        obj_loc,
+                                        class_offset,
+                                        maybe_temp_loc);
       __ Cmp(out, cls);
       DCHECK(locations->OnlyCallsOnSlowPath());
       slow_path = new (GetGraph()->GetArena()) TypeCheckSlowPathARMVIXL(instruction,
