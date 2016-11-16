@@ -19,7 +19,17 @@ if [ ! -d art ]; then
   exit 1
 fi
 
-out_dir=${OUT_DIR-out}
+# Logic for setting out_dir from build/make/core/envsetup.mk:
+if [[ -z $OUT_DIR ]]; then
+  if [[ -z $OUT_DIR_COMMON_BASE ]]; then
+    out_dir=out
+  else
+    out_dir=${OUT_DIR_COMMON_BASE}/${PWD##*/}
+  fi
+else
+  out_dir=${OUT_DIR}
+fi
+
 java_libraries_dir=${out_dir}/target/common/obj/JAVA_LIBRARIES
 common_targets="vogar core-tests apache-harmony-jdwp-tests-hostdex jsr166-tests mockito-target ${out_dir}/host/linux-x86/bin/jack"
 mode="target"
