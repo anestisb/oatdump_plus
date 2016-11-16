@@ -117,6 +117,12 @@
   V(StringNewStringFromBytes, kStatic, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow, "Ljava/lang/StringFactory;", "newStringFromBytes", "([BIII)Ljava/lang/String;") \
   V(StringNewStringFromChars, kStatic, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow, "Ljava/lang/StringFactory;", "newStringFromChars", "(II[C)Ljava/lang/String;") \
   V(StringNewStringFromString, kStatic, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow, "Ljava/lang/StringFactory;", "newStringFromString", "(Ljava/lang/String;)Ljava/lang/String;") \
+  V(StringBufferAppend, kVirtual, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow, "Ljava/lang/StringBuffer;", "append", "(Ljava/lang/String;)Ljava/lang/StringBuffer;") \
+  V(StringBufferLength, kVirtual, kNeedsEnvironmentOrCache, kAllSideEffects, kNoThrow, "Ljava/lang/StringBuffer;", "length", "()I") \
+  V(StringBufferToString, kVirtual, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow, "Ljava/lang/StringBuffer;", "toString", "()Ljava/lang/String;") \
+  V(StringBuilderAppend, kVirtual, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow, "Ljava/lang/StringBuilder;", "append", "(Ljava/lang/String;)Ljava/lang/StringBuilder;") \
+  V(StringBuilderLength, kVirtual, kNeedsEnvironmentOrCache, kReadSideEffects, kNoThrow, "Ljava/lang/StringBuilder;", "length", "()I") \
+  V(StringBuilderToString, kVirtual, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow, "Ljava/lang/StringBuilder;", "toString", "()Ljava/lang/String;") \
   V(UnsafeCASInt, kVirtual, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow, "Lsun/misc/Unsafe;", "compareAndSwapInt", "(Ljava/lang/Object;JII)Z") \
   V(UnsafeCASLong, kVirtual, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow, "Lsun/misc/Unsafe;", "compareAndSwapLong", "(Ljava/lang/Object;JJJ)Z") \
   V(UnsafeCASObject, kVirtual, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow, "Lsun/misc/Unsafe;", "compareAndSwapObject", "(Ljava/lang/Object;JLjava/lang/Object;Ljava/lang/Object;)Z") \

@@ -2072,6 +2072,8 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
 #undef INSTRUCTION_TYPE_CHECK
 
   // Returns whether the instruction can be moved within the graph.
+  // TODO: this method is used by LICM and GVN with possibly different
+  //       meanings? split and rename?
   virtual bool CanBeMoved() const { return false; }
 
   // Returns whether the two instructions are of the same kind.
@@ -3789,7 +3791,7 @@ class HInvoke : public HInstruction {
 
   bool CanThrow() const OVERRIDE { return GetPackedFlag<kFlagCanThrow>(); }
 
-  bool CanBeMoved() const OVERRIDE { return IsIntrinsic(); }
+  bool CanBeMoved() const OVERRIDE { return IsIntrinsic() && !DoesAnyWrite(); }
 
   bool InstructionDataEquals(const HInstruction* other) const OVERRIDE {
     return intrinsic_ != Intrinsics::kNone && intrinsic_ == other->AsInvoke()->intrinsic_;
@@ -4180,6 +4182,19 @@ class HInvokeVirtual FINAL : public HInvoke {
                 resolved_method,
                 kVirtual),
         vtable_index_(vtable_index) {}
+
+  bool CanBeNull() const OVERRIDE {
+    switch (GetIntrinsic()) {
+      case Intrinsics::kThreadCurrentThread:
+      case Intrinsics::kStringBufferAppend:
+      case Intrinsics::kStringBufferToString:
+      case Intrinsics::kStringBuilderAppend:
+      case Intrinsics::kStringBuilderToString:
+        return false;
+      default:
+        return HInvoke::CanBeNull();
+    }
+  }
 
   bool CanDoImplicitNullCheckOn(HInstruction* obj) const OVERRIDE {
     // TODO: Add implicit null checks in intrinsics.
