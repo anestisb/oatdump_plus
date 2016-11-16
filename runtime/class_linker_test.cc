@@ -101,7 +101,8 @@ class ClassLinkerTest : public CommonRuntimeTest {
     EXPECT_EQ(0U, primitive->NumDirectInterfaces());
     EXPECT_FALSE(primitive->HasVTable());
     EXPECT_EQ(0, primitive->GetIfTableCount());
-    EXPECT_TRUE(primitive->GetIfTable() == nullptr);
+    EXPECT_TRUE(primitive->GetIfTable() != nullptr);
+    EXPECT_EQ(primitive->GetIfTable()->Count(), 0u);
     EXPECT_EQ(kAccPublic | kAccFinal | kAccAbstract, primitive->GetAccessFlags());
   }
 

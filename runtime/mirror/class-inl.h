@@ -526,18 +526,17 @@ inline ArtMethod* Class::FindVirtualMethodForVirtualOrInterface(ArtMethod* metho
 template<VerifyObjectFlags kVerifyFlags,
          ReadBarrierOption kReadBarrierOption>
 inline IfTable* Class::GetIfTable() {
-  return GetFieldObject<IfTable, kVerifyFlags, kReadBarrierOption>(IfTableOffset());
+  ObjPtr<IfTable> ret = GetFieldObject<IfTable, kVerifyFlags, kReadBarrierOption>(IfTableOffset());
+  DCHECK(ret != nullptr) << PrettyClass(this);
+  return ret.Ptr();
 }
 
 inline int32_t Class::GetIfTableCount() {
-  ObjPtr<IfTable> iftable = GetIfTable();
-  if (iftable == nullptr) {
-    return 0;
-  }
-  return iftable->Count();
+  return GetIfTable()->Count();
 }
 
 inline void Class::SetIfTable(ObjPtr<IfTable> new_iftable) {
+  DCHECK(new_iftable != nullptr) << PrettyClass(this);
   SetFieldObject<false>(IfTableOffset(), new_iftable);
 }
 
