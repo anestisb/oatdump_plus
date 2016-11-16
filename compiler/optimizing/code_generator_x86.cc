@@ -6849,24 +6849,24 @@ void InstructionCodeGeneratorX86::VisitCheckCast(HCheckCast* instruction) {
                                           temp_loc,
                                           iftable_offset,
                                           kWithoutReadBarrier);
-        // Null iftable means it is empty.
-        __ testl(temp, temp);
-        __ j(kZero, type_check_slow_path->GetEntryLabel());
-
-        // Loop through the iftable and check if any class matches.
+        // Iftable is never null.
         __ movl(maybe_temp2_loc.AsRegister<Register>(), Address(temp, array_length_offset));
-
+        // Loop through the iftable and check if any class matches.
         NearLabel start_loop;
         __ Bind(&start_loop);
-        __ cmpl(cls.AsRegister<Register>(), Address(temp, object_array_data_offset));
-        __ j(kEqual, &done);  // Return if same class.
-        // Go to next interface.
-        __ addl(temp, Immediate(2 * kHeapReferenceSize));
+        // Need to subtract first to handle the empty array case.
         __ subl(maybe_temp2_loc.AsRegister<Register>(), Immediate(2));
-        __ j(kNotZero, &start_loop);
+        __ j(kNegative, type_check_slow_path->GetEntryLabel());
+        // Go to next interface if the classes do not match.
+        __ cmpl(cls.AsRegister<Register>(),
+                CodeGeneratorX86::ArrayAddress(temp,
+                                               maybe_temp2_loc,
+                                               TIMES_4,
+                                               object_array_data_offset));
+        __ j(kNotEqual, &start_loop);
+      } else {
+        __ jmp(type_check_slow_path->GetEntryLabel());
       }
-
-      __ jmp(type_check_slow_path->GetEntryLabel());
       break;
     }
   }
@@ -7562,7 +7562,7 @@ class RIPFixup : public AssemblerFixup, public ArenaObject<kArenaAllocCodeGenera
     // The value to patch is the distance from the offset in the constant area
     // from the address computed by the HX86ComputeBaseMethodAddress instruction.
     int32_t constant_offset = codegen_->ConstantAreaStart() + offset_into_constant_area_;
-    int32_t relative_position = constant_offset - codegen_->GetMethodAddressOffset();;
+    int32_t relative_position = constant_offset - codegen_->GetMethodAddressOffset();
 
     // Patch in the right value.
     region.StoreUnaligned<int32_t>(pos - 4, relative_position);

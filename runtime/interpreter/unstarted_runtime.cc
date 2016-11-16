@@ -424,7 +424,7 @@ static std::unique_ptr<MemMap> FindAndExtractEntry(const std::string& jar_file,
 
   std::unique_ptr<ZipArchive> zip_archive(ZipArchive::Open(jar_file.c_str(), error_msg));
   if (zip_archive == nullptr) {
-    return nullptr;;
+    return nullptr;
   }
   std::unique_ptr<ZipEntry> zip_entry(zip_archive->Find(entry_name, error_msg));
   if (zip_entry == nullptr) {

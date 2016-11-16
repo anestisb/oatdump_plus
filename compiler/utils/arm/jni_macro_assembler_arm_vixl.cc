@@ -49,7 +49,7 @@ static dwarf::Reg DWARFReg(vixl32::SRegister reg) {
   return dwarf::Reg::ArmFp(static_cast<int>(reg.GetCode()));
 }
 
-static constexpr size_t kFramePointerSize = static_cast<size_t>(kArmPointerSize);;
+static constexpr size_t kFramePointerSize = static_cast<size_t>(kArmPointerSize);
 
 void ArmVIXLJNIMacroAssembler::BuildFrame(size_t frame_size,
                                           ManagedRegister method_reg,

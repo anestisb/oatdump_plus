@@ -246,7 +246,7 @@ public class Main {
 
     oneConstantIndex(a, b);
     for (int i = 0; i < a.length; i++) {
-      expectEquals(2, a[i]);;
+      expectEquals(2, a[i]);
     }
     try {
       oneConstantIndex(a, b1);
@@ -256,7 +256,7 @@ public class Main {
 
     multipleConstantIndices(a, b);
     for (int i = 0; i < a.length; i++) {
-      expectEquals(6, a[i]);;
+      expectEquals(6, a[i]);
     }
     try {
       multipleConstantIndices(a, b1);
@@ -266,7 +266,7 @@ public class Main {
 
     oneInvariantIndex(a, b, 1);
     for (int i = 0; i < a.length; i++) {
-      expectEquals(2, a[i]);;
+      expectEquals(2, a[i]);
     }
     try {
       oneInvariantIndex(a, b1, 1);
@@ -276,7 +276,7 @@ public class Main {
 
     multipleInvariantIndices(a, b, 1);
     for (int i = 0; i < a.length; i++) {
-      expectEquals(6, a[i]);;
+      expectEquals(6, a[i]);
     }
     try {
       multipleInvariantIndices(a, b1, 1);
@@ -286,18 +286,18 @@ public class Main {
 
     oneUnitStride(a, b);
     for (int i = 0; i < a.length; i++) {
-      expectEquals(i + 1, a[i]);;
+      expectEquals(i + 1, a[i]);
     }
     try {
       oneUnitStride(a, b1);
       throw new Error("Should throw AIOOBE");
     } catch (ArrayIndexOutOfBoundsException e) {
-      expectEquals(100, a[0]);;
+      expectEquals(100, a[0]);
     }
 
     multipleUnitStrides(a, b);
     for (int i = 1; i < a.length - 1; i++) {
-      expectEquals(3 * i + 3, a[i]);;
+      expectEquals(3 * i + 3, a[i]);
     }
     try {
       multipleUnitStrides(a, b1);
@@ -308,7 +308,7 @@ public class Main {
     multipleUnitStridesConditional(a, b);
     for (int i = 2; i < a.length - 2; i++) {
       int e = 3 * i + 3 + (((i & 1) == 0) ? i + 2 : i);
-      expectEquals(e, a[i]);;
+      expectEquals(e, a[i]);
     }
     try {
       multipleUnitStridesConditional(a, b1);

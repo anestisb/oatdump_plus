@@ -144,7 +144,7 @@ public class Main {
   /// CHECK-NOT:                          GreaterThanOrEqual
   /// CHECK-NOT:                          If
   public static void testGreaterCondition(String[] args) {
-    int a = 42;;
+    int a = 42;
     if (args.length == 42) {
       a = 34;
     } else {

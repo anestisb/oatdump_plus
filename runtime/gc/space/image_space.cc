@@ -1002,7 +1002,7 @@ class ImageSpaceLoader {
         mirror::IfTable* iftable = as_klass->GetIfTable<kVerifyNone, kWithoutReadBarrier>();
         // Ensure iftable arrays are fixed up since we need GetMethodArray to return the valid
         // contents.
-        if (iftable != nullptr && IsInAppImage(iftable)) {
+        if (IsInAppImage(iftable)) {
           operator()(iftable);
           for (int32_t i = 0, count = iftable->Count(); i < count; ++i) {
             if (iftable->GetMethodArrayCount<kVerifyNone, kWithoutReadBarrier>(i) > 0) {
