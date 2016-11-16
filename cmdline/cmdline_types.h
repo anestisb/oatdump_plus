@@ -496,11 +496,7 @@ static gc::CollectorType ParseCollectorType(const std::string& option) {
 struct XGcOption {
   // These defaults are used when the command line arguments for -Xgc:
   // are either omitted completely or partially.
-  gc::CollectorType collector_type_ = kUseReadBarrier ?
-                                           // If RB is enabled (currently a build-time decision),
-                                           // use CC as the default GC.
-                                           gc::kCollectorTypeCC :
-                                           gc::kCollectorTypeDefault;
+  gc::CollectorType collector_type_ = gc::kCollectorTypeDefault;
   bool verify_pre_gc_heap_ = false;
   bool verify_pre_sweeping_heap_ = kIsDebugBuild;
   bool verify_post_gc_heap_ = false;
@@ -580,10 +576,6 @@ struct BackgroundGcOption {
     : background_collector_type_(background_collector_type) {}
   BackgroundGcOption()
     : background_collector_type_(gc::kCollectorTypeNone) {
-
-    if (kUseReadBarrier) {
-      background_collector_type_ = gc::kCollectorTypeCCBackground;  // Background compaction for CC.
-    }
   }
 
   operator gc::CollectorType() const { return background_collector_type_; }
