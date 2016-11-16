@@ -1214,7 +1214,9 @@ CodeGeneratorARM::CodeGeneratorARM(HGraph* graph,
                                graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       pc_relative_type_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       boot_image_address_patches_(std::less<uint32_t>(),
-                                  graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
+                                  graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      jit_string_patches_(StringReferenceValueComparator(),
+                          graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
   // Always save the LR register to mimic Quick.
   AddAllocatedRegister(Location::RegisterLocation(LR));
 }
@@ -5893,6 +5895,9 @@ HLoadString::LoadKind CodeGeneratorARM::GetSupportedLoadStringKind(
     case HLoadString::LoadKind::kBssEntry:
       DCHECK(!Runtime::Current()->UseJitCompilation());
       break;
+    case HLoadString::LoadKind::kJitTableAddress:
+      DCHECK(Runtime::Current()->UseJitCompilation());
+      break;
     case HLoadString::LoadKind::kDexCacheViaMethod:
       break;
   }
@@ -5900,13 +5905,8 @@ HLoadString::LoadKind CodeGeneratorARM::GetSupportedLoadStringKind(
 }
 
 void LocationsBuilderARM::VisitLoadString(HLoadString* load) {
-  LocationSummary::CallKind call_kind = load->NeedsEnvironment()
-      ? ((load->GetLoadKind() == HLoadString::LoadKind::kDexCacheViaMethod)
-          ? LocationSummary::kCallOnMainOnly
-          : LocationSummary::kCallOnSlowPath)
-      : LocationSummary::kNoCall;
+  LocationSummary::CallKind call_kind = CodeGenerator::GetLoadStringCallKind(load);
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(load, call_kind);
-
   HLoadString::LoadKind load_kind = load->GetLoadKind();
   if (load_kind == HLoadString::LoadKind::kDexCacheViaMethod) {
     locations->SetOut(Location::RegisterLocation(R0));
@@ -5977,6 +5977,13 @@ void InstructionCodeGeneratorARM::VisitLoadString(HLoadString* load) {
       codegen_->AddSlowPath(slow_path);
       __ CompareAndBranchIfZero(out, slow_path->GetEntryLabel());
       __ Bind(slow_path->GetExitLabel());
+      return;
+    }
+    case HLoadString::LoadKind::kJitTableAddress: {
+      __ LoadLiteral(out, codegen_->DeduplicateJitStringLiteral(load->GetDexFile(),
+                                                                load->GetStringIndex()));
+      // /* GcRoot<mirror::String> */ out = *out
+      GenerateGcRootFieldLoad(load, out_loc, out, /* offset */ 0, kCompilerReadBarrierOption);
       return;
     }
     default:
@@ -7359,6 +7366,14 @@ Literal* CodeGeneratorARM::DeduplicateDexCacheAddressLiteral(uint32_t address) {
   return DeduplicateUint32Literal(address, &uint32_literals_);
 }
 
+Literal* CodeGeneratorARM::DeduplicateJitStringLiteral(const DexFile& dex_file,
+                                                       uint32_t string_index) {
+  jit_string_roots_.Overwrite(StringReference(&dex_file, string_index), /* placeholder */ 0u);
+  return jit_string_patches_.GetOrCreate(
+      StringReference(&dex_file, string_index),
+      [this]() { return __ NewLiteral<uint32_t>(/* placeholder */ 0u); });
+}
+
 template <LinkerPatch (*Factory)(size_t, const DexFile*, uint32_t, uint32_t)>
 inline void CodeGeneratorARM::EmitPcRelativeLinkerPatches(
     const ArenaDeque<PcRelativePatchInfo>& infos,
@@ -7672,6 +7687,21 @@ void InstructionCodeGeneratorARM::VisitClassTableGet(HClassTableGet* instruction
                       locations->Out().AsRegister<Register>(),
                       locations->Out().AsRegister<Register>(),
                       method_offset);
+  }
+}
+
+void CodeGeneratorARM::EmitJitRootPatches(uint8_t* code, const uint8_t* roots_data) {
+  for (const auto& entry : jit_string_patches_) {
+    const auto& it = jit_string_roots_.find(entry.first);
+    DCHECK(it != jit_string_roots_.end());
+    size_t index_in_table = it->second;
+    Literal* literal = entry.second;
+    DCHECK(literal->GetLabel()->IsBound());
+    uint32_t literal_offset = literal->GetLabel()->Position();
+    uintptr_t address =
+        reinterpret_cast<uintptr_t>(roots_data) + index_in_table * sizeof(GcRoot<mirror::Object>);
+    uint8_t* data = code + literal_offset;
+    reinterpret_cast<uint32_t*>(data)[0] = dchecked_integral_cast<uint32_t>(address);
   }
 }
 
