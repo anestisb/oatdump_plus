@@ -1029,8 +1029,10 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
                        runtime_options.GetOrDefault(Opt::NonMovingSpaceCapacity),
                        runtime_options.GetOrDefault(Opt::Image),
                        runtime_options.GetOrDefault(Opt::ImageInstructionSet),
-                       xgc_option.collector_type_,
-                       runtime_options.GetOrDefault(Opt::BackgroundGc),
+                       // Override the collector type to CC if the read barrier config.
+                       kUseReadBarrier ? gc::kCollectorTypeCC : xgc_option.collector_type_,
+                       kUseReadBarrier ? BackgroundGcOption(gc::kCollectorTypeCCBackground)
+                                       : runtime_options.GetOrDefault(Opt::BackgroundGc),
                        runtime_options.GetOrDefault(Opt::LargeObjectSpace),
                        runtime_options.GetOrDefault(Opt::LargeObjectThreshold),
                        runtime_options.GetOrDefault(Opt::ParallelGCThreads),
