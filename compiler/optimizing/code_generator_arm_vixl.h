@@ -112,6 +112,7 @@ class LoadClassSlowPathARMVIXL;
   M(ArraySet)                                   \
   M(Below)                                      \
   M(BelowOrEqual)                               \
+  M(BitwiseNegatedRight)                        \
   M(BooleanNot)                                 \
   M(BoundsCheck)                                \
   M(BoundType)                                  \
@@ -136,6 +137,7 @@ class LoadClassSlowPathARMVIXL;
   M(InstanceFieldSet)                           \
   M(InstanceOf)                                 \
   M(IntConstant)                                \
+  M(IntermediateAddress)                        \
   M(InvokeInterface)                            \
   M(InvokeStaticOrDirect)                       \
   M(InvokeUnresolved)                           \
@@ -149,6 +151,7 @@ class LoadClassSlowPathARMVIXL;
   M(MemoryBarrier)                              \
   M(MonitorOperation)                           \
   M(Mul)                                        \
+  M(MultiplyAccumulate)                         \
   M(NativeDebugInfo)                            \
   M(Neg)                                        \
   M(NewArray)                                   \
@@ -186,9 +189,6 @@ class LoadClassSlowPathARMVIXL;
 // TODO: Remove once the VIXL32 backend is implemented completely.
 #define FOR_EACH_UNIMPLEMENTED_INSTRUCTION(M)   \
   M(ArmDexCacheArraysBase)                      \
-  M(BitwiseNegatedRight)                        \
-  M(IntermediateAddress)                        \
-  M(MultiplyAccumulate)                         \
 
 class CodeGeneratorARMVIXL;
 
