@@ -18,6 +18,7 @@ public class ConstStringBenchmark {
     // Initialize 1025 strings with consecutive string indexes in the dex file.
     // The tests below rely on the knowledge that ART uses the low 10 bits
     // of the string index as the hash into DexCache strings array.
+    // Note: n == n + 1024 (mod 2^10), n + 1 != n + 1023 (mod 2^10).
     public static final String string_0000 = "TestString_0000";
     public static final String string_0001 = "TestString_0001";
     public static final String string_0002 = "TestString_0002";
@@ -1045,21 +1046,21 @@ public class ConstStringBenchmark {
     public static final String string_1024 = "TestString_1024";
 
     public void timeConstStringsWithConflict(int count) {
-      for (int i = 0; i < count; ++i) {
-        $noinline$foo("TestString_0000");
-        $noinline$foo("TestString_1024");
-      }
+        for (int i = 0; i < count; ++i) {
+            $noinline$foo("TestString_0000");
+            $noinline$foo("TestString_1024");
+        }
     }
 
     public void timeConstStringsWithoutConflict(int count) {
-      for (int i = 0; i < count; ++i) {
-        $noinline$foo("TestString_0001");
-        $noinline$foo("TestString_1023");
-      }
+        for (int i = 0; i < count; ++i) {
+            $noinline$foo("TestString_0001");
+            $noinline$foo("TestString_1023");
+        }
     }
 
     static void $noinline$foo(String s) {
-      if (doThrow) { throw new Error(); }
+        if (doThrow) { throw new Error(); }
     }
 
     public static boolean doThrow = false;
