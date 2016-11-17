@@ -222,7 +222,11 @@ Arm64JniCallingConvention::Arm64JniCallingConvention(bool is_static,
                                                      bool is_synchronized,
                                                      bool is_critical_native,
                                                      const char* shorty)
-    : JniCallingConvention(is_static, is_synchronized, is_critical_native, shorty, kArm64PointerSize) {
+    : JniCallingConvention(is_static,
+                           is_synchronized,
+                           is_critical_native,
+                           shorty,
+                           kArm64PointerSize) {
 }
 
 uint32_t Arm64JniCallingConvention::CoreSpillMask() const {
