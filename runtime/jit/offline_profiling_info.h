@@ -65,8 +65,8 @@ class ProfileCompilationInfo {
   // Returns true if the method reference is present in the profiling info.
   bool ContainsMethod(const MethodReference& method_ref) const;
 
-  // Returns true if the class is present in the profiling info.
-  bool ContainsClass(const DexFile& dex_file, uint16_t class_def_idx) const;
+  // Returns true if the class's type is present in the profiling info.
+  bool ContainsClass(const DexFile& dex_file, uint16_t type_idx) const;
 
   // Dumps all the loaded profile info into a string and returns it.
   // If dex_files is not null then the method indices will be resolved to their
@@ -115,7 +115,7 @@ class ProfileCompilationInfo {
 
   DexFileData* GetOrAddDexFileData(const std::string& dex_location, uint32_t checksum);
   bool AddMethodIndex(const std::string& dex_location, uint32_t checksum, uint16_t method_idx);
-  bool AddClassIndex(const std::string& dex_location, uint32_t checksum, uint16_t class_idx);
+  bool AddClassIndex(const std::string& dex_location, uint32_t checksum, uint16_t type_idx);
   bool AddResolvedClasses(const DexCacheResolvedClasses& classes);
 
   // Parsing functionality.

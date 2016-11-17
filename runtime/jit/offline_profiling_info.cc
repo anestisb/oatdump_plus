@@ -37,7 +37,7 @@
 namespace art {
 
 const uint8_t ProfileCompilationInfo::kProfileMagic[] = { 'p', 'r', 'o', '\0' };
-const uint8_t ProfileCompilationInfo::kProfileVersion[] = { '0', '0', '1', '\0' };
+const uint8_t ProfileCompilationInfo::kProfileVersion[] = { '0', '0', '2', '\0' };
 
 static constexpr uint16_t kMaxDexFileKeyLength = PATH_MAX;
 
@@ -282,12 +282,12 @@ bool ProfileCompilationInfo::AddMethodIndex(const std::string& dex_location,
 
 bool ProfileCompilationInfo::AddClassIndex(const std::string& dex_location,
                                            uint32_t checksum,
-                                           uint16_t class_idx) {
+                                           uint16_t type_idx) {
   DexFileData* const data = GetOrAddDexFileData(dex_location, checksum);
   if (data == nullptr) {
     return false;
   }
-  data->class_set.insert(class_idx);
+  data->class_set.insert(type_idx);
   return true;
 }
 
@@ -304,8 +304,8 @@ bool ProfileCompilationInfo::ProcessLine(SafeBuffer& line_buffer,
   }
 
   for (uint16_t i = 0; i < class_set_size; i++) {
-    uint16_t class_def_idx = line_buffer.ReadUintAndAdvance<uint16_t>();
-    if (!AddClassIndex(dex_location, checksum, class_def_idx)) {
+    uint16_t type_idx = line_buffer.ReadUintAndAdvance<uint16_t>();
+    if (!AddClassIndex(dex_location, checksum, type_idx)) {
       return false;
     }
   }
@@ -569,14 +569,14 @@ bool ProfileCompilationInfo::ContainsMethod(const MethodReference& method_ref) c
   return false;
 }
 
-bool ProfileCompilationInfo::ContainsClass(const DexFile& dex_file, uint16_t class_def_idx) const {
+bool ProfileCompilationInfo::ContainsClass(const DexFile& dex_file, uint16_t type_idx) const {
   auto info_it = info_.find(GetProfileDexFileKey(dex_file.GetLocation()));
   if (info_it != info_.end()) {
     if (!ChecksumMatch(dex_file, info_it->second.checksum)) {
       return false;
     }
     const std::set<uint16_t>& classes = info_it->second.class_set;
-    return classes.find(class_def_idx) != classes.end();
+    return classes.find(type_idx) != classes.end();
   }
   return false;
 }
@@ -637,7 +637,7 @@ std::string ProfileCompilationInfo::DumpInfo(const std::vector<const DexFile*>* 
     os << "\n\tclasses: ";
     for (const auto class_it : dex_data.class_set) {
       if (dex_file != nullptr) {
-        os << "\n\t\t" << dex_file->GetClassDescriptor(dex_file->GetClassDef(class_it));
+        os << "\n\t\t" << dex_file->PrettyType(class_it);
       } else {
         os << class_it << ",";
       }
@@ -702,11 +702,11 @@ bool ProfileCompilationInfo::GenerateTestProfile(int fd,
     }
 
     for (uint16_t c = 0; c < number_of_classes; c++) {
-      uint16_t class_idx = rand() % max_classes;
+      uint16_t type_idx = rand() % max_classes;
       if (c < (number_of_classes / kFavorSplit)) {
-        class_idx %= kFavorFirstN;
+        type_idx %= kFavorFirstN;
       }
-      info.AddClassIndex(profile_key, 0, class_idx);
+      info.AddClassIndex(profile_key, 0, type_idx);
     }
   }
   return info.Save(fd);
