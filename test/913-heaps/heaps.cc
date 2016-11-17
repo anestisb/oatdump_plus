@@ -261,6 +261,8 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_followReferences(JNIEnv* env
     std::vector<std::string> lines_;
   };
 
+  jit::ScopedJitSuspend sjs;  // Wait to avoid JIT influence (e.g., JNI globals).
+
   // If jniRef isn't null, add a local and a global ref.
   ScopedLocalRef<jobject> jni_local_ref(env, nullptr);
   jobject jni_global_ref = nullptr;
@@ -297,13 +299,6 @@ jint OnLoad(JavaVM* vm,
   }
   SetAllCapabilities(jvmti_env);
   return 0;
-}
-
-extern "C" JNIEXPORT void JNICALL Java_Main_waitForJitCompilation(JNIEnv*, jclass) {
-  jit::Jit* jit = Runtime::Current()->GetJit();
-  if (jit != nullptr) {
-    jit->WaitForCompilationToFinish(Thread::Current());
-  }
 }
 
 }  // namespace Test913Heaps
