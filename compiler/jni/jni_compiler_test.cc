@@ -20,6 +20,7 @@
 #include <math.h>
 
 #include "art_method-inl.h"
+#include "base/bit_utils.h"
 #include "class_linker.h"
 #include "common_compiler_test.h"
 #include "compiler.h"
@@ -366,7 +367,9 @@ class JniCompilerTest : public CommonCompilerTest {
   void StackArgsIntsFirstImpl();
   void StackArgsFloatsFirstImpl();
   void StackArgsMixedImpl();
+#if defined(__mips__) && defined(__LP64__) && (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
   void StackArgsSignExtendedMips64Impl();
+#endif
 
   void NormalNativeImpl();
   void FastNativeImpl();
@@ -2145,50 +2148,43 @@ void JniCompilerTest::StackArgsMixedImpl() {
 
 JNI_TEST_CRITICAL(StackArgsMixed)
 
-void Java_MyClassNatives_stackArgsSignExtendedMips64(JNIEnv*, jclass, jint i1, jint i2, jint i3,
-                                                     jint i4, jint i5, jint i6, jint i7, jint i8) {
-  EXPECT_EQ(i1, 1);
-  EXPECT_EQ(i2, 2);
-  EXPECT_EQ(i3, 3);
-  EXPECT_EQ(i4, 4);
-  EXPECT_EQ(i5, 5);
-  EXPECT_EQ(i6, 6);
-  EXPECT_EQ(i7, 7);
-  EXPECT_EQ(i8, -8);
-
 #if defined(__mips__) && defined(__LP64__) && (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
-  // Mips64 ABI requires that arguments passed through stack be sign-extended 8B slots.
-  // First 8 arguments are passed through registers, check i7 and i8.
-  uint32_t stack1_high = *(&i7 + 1);
-  uint32_t stack2_high = *(&i8 + 1);
-
-  EXPECT_EQ(stack1_high, static_cast<uint32_t>(0));
-  EXPECT_EQ(stack2_high, static_cast<uint32_t>(0xffffffff));
-#else
-  LOG(INFO) << "Skipping stackArgsSignExtendedMips64 as there is nothing to be done on "
-            << kRuntimeISA;
-  // Force-print to std::cout so it's also outside the logcat.
-  std::cout << "Skipping stackArgsSignExtendedMips64 as there is nothing to be done on "
-            << kRuntimeISA << std::endl;
-#endif
+// Function will fetch the last argument passed from caller that is now on top of the stack and
+// return it as a 8B long. That way we can test if the caller has properly sign-extended the
+// value when placing it on the stack.
+__attribute__((naked))
+jlong Java_MyClassNatives_getStackArgSignExtendedMips64(
+    JNIEnv*, jclass,                      // Arguments passed from caller
+    jint, jint, jint, jint, jint, jint,   // through regs a0 to a7.
+    jint) {                               // The last argument will be passed on the stack.
+  __asm__(
+      ".set noreorder\n\t"                // Just return and store 8 bytes from the top of the stack
+      "jr  $ra\n\t"                       // in v0 (in branch delay slot). This should be the last
+      "ld  $v0, 0($sp)\n\t");             // argument. It is a 32-bit int, but it should be sign
+                                          // extended and it occupies 64-bit location.
 }
 
 void JniCompilerTest::StackArgsSignExtendedMips64Impl() {
-  SetUpForTest(true, "stackArgsSignExtendedMips64", "(IIIIIIII)V",
-               CURRENT_JNI_WRAPPER(Java_MyClassNatives_stackArgsSignExtendedMips64));
-  jint i1 = 1;
-  jint i2 = 2;
-  jint i3 = 3;
-  jint i4 = 4;
-  jint i5 = 5;
-  jint i6 = 6;
-  jint i7 = 7;
-  jint i8 = -8;
+  uint64_t ret;
+  SetUpForTest(true,
+               "getStackArgSignExtendedMips64",
+               "(IIIIIII)J",
+               // Don't use wrapper because this is raw assembly function.
+               reinterpret_cast<void*>(&Java_MyClassNatives_getStackArgSignExtendedMips64));
 
-  env_->CallStaticVoidMethod(jklass_, jmethod_, i1, i2, i3, i4, i5, i6, i7, i8);
+  // Mips64 ABI requires that arguments passed through stack be sign-extended 8B slots.
+  // First 8 arguments are passed through registers.
+  // Final argument's value is 7. When sign-extended, higher stack bits should be 0.
+  ret = env_->CallStaticLongMethod(jklass_, jmethod_, 1, 2, 3, 4, 5, 6, 7);
+  EXPECT_EQ(High32Bits(ret), static_cast<uint32_t>(0));
+
+  // Final argument's value is -8.  When sign-extended, higher stack bits should be 0xffffffff.
+  ret = env_->CallStaticLongMethod(jklass_, jmethod_, 1, 2, 3, 4, 5, 6, -8);
+  EXPECT_EQ(High32Bits(ret), static_cast<uint32_t>(0xffffffff));
 }
 
-JNI_TEST_CRITICAL(StackArgsSignExtendedMips64)
+JNI_TEST(StackArgsSignExtendedMips64)
+#endif
 
 void Java_MyClassNatives_normalNative(JNIEnv*, jclass) {
   // Intentionally left empty.
