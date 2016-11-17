@@ -8366,17 +8366,16 @@ std::set<DexCacheResolvedClasses> ClassLinker::GetResolvedClasses(bool ignore_bo
       }
       ObjPtr<mirror::DexCache> klass_dex_cache = klass->GetDexCache();
       if (klass_dex_cache == dex_cache) {
-        const size_t class_def_idx = klass->GetDexClassDefIndex();
         DCHECK(klass->IsResolved());
-        CHECK_LT(class_def_idx, num_class_defs);
-        class_set.insert(class_def_idx);
+        CHECK_LT(klass->GetDexClassDefIndex(), num_class_defs);
+        class_set.insert(klass->GetDexTypeIndex());
       }
     }
 
     if (!class_set.empty()) {
       auto it = ret.find(resolved_classes);
       if (it != ret.end()) {
-        // Already have the key, union the class def idxs.
+        // Already have the key, union the class type indexes.
         it->AddClasses(class_set.begin(), class_set.end());
       } else {
         resolved_classes.AddClasses(class_set.begin(), class_set.end());
@@ -8419,13 +8418,8 @@ std::unordered_set<std::string> ClassLinker::GetClassDescriptorsForProfileKeys(
       VLOG(profiler) << "Found opened dex file for " << dex_file->GetLocation() << " with "
                      << info.GetClasses().size() << " classes";
       DCHECK_EQ(dex_file->GetLocationChecksum(), info.GetLocationChecksum());
-      for (uint16_t class_def_idx : info.GetClasses()) {
-        if (class_def_idx >= dex_file->NumClassDefs()) {
-          LOG(WARNING) << "Class def index " << class_def_idx << " >= " << dex_file->NumClassDefs();
-          continue;
-        }
-        const DexFile::TypeId& type_id = dex_file->GetTypeId(
-            dex_file->GetClassDef(class_def_idx).class_idx_);
+      for (uint16_t type_idx : info.GetClasses()) {
+        const DexFile::TypeId& type_id = dex_file->GetTypeId(type_idx);
         const char* descriptor = dex_file->GetTypeDescriptor(type_id);
         ret.insert(descriptor);
       }
