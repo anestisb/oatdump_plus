@@ -170,7 +170,7 @@ bool ClassTable::InsertStrongRoot(ObjPtr<mirror::Object> obj) {
     const DexFile* dex_file = ObjPtr<mirror::DexCache>::DownCast(obj)->GetDexFile();
     if (dex_file != nullptr && dex_file->GetOatDexFile() != nullptr) {
       const OatFile* oat_file = dex_file->GetOatDexFile()->GetOatFile();
-      if (!oat_file->GetBssGcRoots().empty()) {
+      if (oat_file != nullptr && !oat_file->GetBssGcRoots().empty()) {
         InsertOatFileLocked(oat_file);  // Ignore return value.
       }
     }

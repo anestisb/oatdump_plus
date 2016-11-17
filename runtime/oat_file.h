@@ -384,7 +384,13 @@ class OatDexFile FINAL {
   // Opens the DexFile referred to by this OatDexFile from within the containing OatFile.
   std::unique_ptr<const DexFile> OpenDexFile(std::string* error_msg) const;
 
+  // May return null if the OatDexFile only contains a type lookup table. This case only happens
+  // for the compiler to speed up compilation.
   const OatFile* GetOatFile() const {
+    // Avoid pulling in runtime.h in the header file.
+    if (kIsDebugBuild && oat_file_ == nullptr) {
+      AssertAotCompiler();
+    }
     return oat_file_;
   }
 
@@ -436,6 +442,9 @@ class OatDexFile FINAL {
 
   ~OatDexFile();
 
+  // Create only with a type lookup table, used by the compiler to speed up compilation.
+  explicit OatDexFile(std::unique_ptr<TypeLookupTable>&& lookup_table);
+
  private:
   OatDexFile(const OatFile* oat_file,
              const std::string& dex_file_location,
@@ -446,14 +455,16 @@ class OatDexFile FINAL {
              const uint32_t* oat_class_offsets_pointer,
              uint8_t* dex_cache_arrays);
 
-  const OatFile* const oat_file_;
+  static void AssertAotCompiler();
+
+  const OatFile* const oat_file_ = nullptr;
   const std::string dex_file_location_;
   const std::string canonical_dex_file_location_;
-  const uint32_t dex_file_location_checksum_;
-  const uint8_t* const dex_file_pointer_;
-  const uint8_t* lookup_table_data_;
-  const uint32_t* const oat_class_offsets_pointer_;
-  uint8_t* const dex_cache_arrays_;
+  const uint32_t dex_file_location_checksum_ = 0u;
+  const uint8_t* const dex_file_pointer_ = nullptr;
+  const uint8_t* lookup_table_data_ = nullptr;
+  const uint32_t* const oat_class_offsets_pointer_ = 0u;
+  uint8_t* const dex_cache_arrays_ = nullptr;
   mutable std::unique_ptr<TypeLookupTable> lookup_table_;
 
   friend class OatFile;

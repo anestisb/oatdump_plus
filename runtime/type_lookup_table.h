@@ -60,13 +60,14 @@ class TypeLookupTable {
   }
 
   // Method creates lookup table for dex file
-  static TypeLookupTable* Create(const DexFile& dex_file, uint8_t* storage = nullptr);
+  static std::unique_ptr<TypeLookupTable> Create(const DexFile& dex_file,
+                                                 uint8_t* storage = nullptr);
 
   // Method opens lookup table from binary data. Lookups will traverse strings and other
   // data contained in dex_file as well.  Lookup table does not own raw_data or dex_file.
-  static TypeLookupTable* Open(const uint8_t* dex_file_pointer,
-                               const uint8_t* raw_data,
-                               uint32_t num_class_defs);
+  static std::unique_ptr<TypeLookupTable> Open(const uint8_t* dex_file_pointer,
+                                               const uint8_t* raw_data,
+                                               uint32_t num_class_defs);
 
   // Method returns pointer to binary data of lookup table. Used by the oat writer.
   const uint8_t* RawData() const {

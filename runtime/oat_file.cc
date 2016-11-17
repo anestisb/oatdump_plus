@@ -1252,12 +1252,13 @@ OatFile::OatDexFile::OatDexFile(const OatFile* oat_file,
     if (lookup_table_data_ + TypeLookupTable::RawDataLength(num_class_defs) > GetOatFile()->End()) {
       LOG(WARNING) << "found truncated lookup table in " << dex_file_location_;
     } else {
-      lookup_table_.reset(TypeLookupTable::Open(dex_file_pointer_,
-                                                lookup_table_data_,
-                                                num_class_defs));
+      lookup_table_ = TypeLookupTable::Open(dex_file_pointer_, lookup_table_data_, num_class_defs);
     }
   }
 }
+
+OatFile::OatDexFile::OatDexFile(std::unique_ptr<TypeLookupTable>&& lookup_table)
+    : lookup_table_(std::move(lookup_table)) {}
 
 OatFile::OatDexFile::~OatDexFile() {}
 
@@ -1540,12 +1541,16 @@ OatFile::OatClass OatFile::FindOatClass(const DexFile& dex_file,
                                         bool* found) {
   DCHECK_NE(class_def_idx, DexFile::kDexNoIndex16);
   const OatFile::OatDexFile* oat_dex_file = dex_file.GetOatDexFile();
-  if (oat_dex_file == nullptr) {
+  if (oat_dex_file == nullptr || oat_dex_file->GetOatFile() == nullptr) {
     *found = false;
     return OatFile::OatClass::Invalid();
   }
   *found = true;
   return oat_dex_file->GetOatClass(class_def_idx);
+}
+
+void OatFile::OatDexFile::AssertAotCompiler() {
+  CHECK(Runtime::Current()->IsAotCompiler());
 }
 
 }  // namespace art
