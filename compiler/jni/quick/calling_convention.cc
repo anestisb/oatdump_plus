@@ -152,24 +152,6 @@ std::unique_ptr<JniCallingConvention> JniCallingConvention::Create(ArenaAllocato
                                                                    bool is_critical_native,
                                                                    const char* shorty,
                                                                    InstructionSet instruction_set) {
-  if (UNLIKELY(is_critical_native)) {
-    // Sanity check that the requested JNI instruction set
-    // is supported for critical natives. Not every one is.
-    switch (instruction_set) {
-      case kX86_64:
-      case kX86:
-      case kArm64:
-      case kArm:
-      case kThumb2:
-        break;
-      default:
-        is_critical_native = false;
-        LOG(WARNING) << "@CriticalNative support not implemented for " << instruction_set
-                     << "; will crash at runtime if trying to invoke such a method.";
-        // TODO: implement for MIPS/MIPS64
-    }
-  }
-
   switch (instruction_set) {
 #ifdef ART_ENABLE_CODEGEN_arm
     case kArm:
@@ -191,12 +173,18 @@ std::unique_ptr<JniCallingConvention> JniCallingConvention::Create(ArenaAllocato
 #ifdef ART_ENABLE_CODEGEN_mips
     case kMips:
       return std::unique_ptr<JniCallingConvention>(
-          new (arena) mips::MipsJniCallingConvention(is_static, is_synchronized, shorty));
+          new (arena) mips::MipsJniCallingConvention(is_static,
+                                                     is_synchronized,
+                                                     is_critical_native,
+                                                     shorty));
 #endif
 #ifdef ART_ENABLE_CODEGEN_mips64
     case kMips64:
       return std::unique_ptr<JniCallingConvention>(
-          new (arena) mips64::Mips64JniCallingConvention(is_static, is_synchronized, shorty));
+          new (arena) mips64::Mips64JniCallingConvention(is_static,
+                                                         is_synchronized,
+                                                         is_critical_native,
+                                                         shorty));
 #endif
 #ifdef ART_ENABLE_CODEGEN_x86
     case kX86:
