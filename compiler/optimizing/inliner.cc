@@ -506,19 +506,25 @@ void HInliner::AddCHAGuard(HInstruction* invoke_instruction,
                            uint32_t dex_pc,
                            HInstruction* cursor,
                            HBasicBlock* bb_cursor) {
-  HInstruction* deopt_flag = new (graph_->GetArena()) HShouldDeoptimizeFlag(dex_pc);
-  HInstruction* should_deopt = new (graph_->GetArena()) HNotEqual(
+  HShouldDeoptimizeFlag* deopt_flag = new (graph_->GetArena())
+      HShouldDeoptimizeFlag(graph_->GetArena(), dex_pc);
+  HInstruction* compare = new (graph_->GetArena()) HNotEqual(
       deopt_flag, graph_->GetIntConstant(0, dex_pc));
-  HInstruction* deopt = new (graph_->GetArena()) HDeoptimize(should_deopt, dex_pc);
+  HInstruction* deopt = new (graph_->GetArena()) HDeoptimize(compare, dex_pc);
 
   if (cursor != nullptr) {
     bb_cursor->InsertInstructionAfter(deopt_flag, cursor);
   } else {
     bb_cursor->InsertInstructionBefore(deopt_flag, bb_cursor->GetFirstInstruction());
   }
-  bb_cursor->InsertInstructionAfter(should_deopt, deopt_flag);
-  bb_cursor->InsertInstructionAfter(deopt, should_deopt);
+  bb_cursor->InsertInstructionAfter(compare, deopt_flag);
+  bb_cursor->InsertInstructionAfter(deopt, compare);
+
+  // Add receiver as input to aid CHA guard optimization later.
+  deopt_flag->AddInput(invoke_instruction->InputAt(0));
+  DCHECK_EQ(deopt_flag->InputCount(), 1u);
   deopt->CopyEnvironmentFrom(invoke_instruction->GetEnvironment());
+  outermost_graph_->IncrementNumberOfCHAGuards();
 }
 
 HInstruction* HInliner::AddTypeGuard(HInstruction* receiver,
