@@ -185,18 +185,192 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_followReferences(JNIEnv* env
         }
       }
 
-      lines_.push_back(
-          StringPrintf("%s --(%s)--> %" PRId64 "@%" PRId64 " [size=%" PRId64 ", length=%d]",
-                       referrer_str.c_str(),
-                       GetReferenceTypeStr(reference_kind, reference_info).c_str(),
-                       *tag_ptr,
-                       class_tag,
-                       adapted_size,
-                       length));
+      std::string referree_str = StringPrintf("%" PRId64 "@%" PRId64, *tag_ptr, class_tag);
+
+      lines_.push_back(CreateElem(referrer_str,
+                                  referree_str,
+                                  reference_kind,
+                                  reference_info,
+                                  adapted_size,
+                                  length));
 
       if (reference_kind == JVMTI_HEAP_REFERENCE_THREAD && *tag_ptr == 1000) {
         DumpStacks();
       }
+    }
+
+    std::vector<std::string> GetLines() const {
+      std::vector<std::string> ret;
+      for (const std::unique_ptr<Elem>& e : lines_) {
+        ret.push_back(e->Print());
+      }
+      return ret;
+    }
+
+   private:
+    // We need to postpone some printing, as required functions are not callback-safe.
+    class Elem {
+     public:
+      Elem(const std::string& referrer, const std::string& referree, jlong size, jint length)
+          : referrer_(referrer), referree_(referree), size_(size), length_(length) {}
+      virtual ~Elem() {}
+
+      std::string Print() const {
+        return StringPrintf("%s --(%s)--> %s [size=%" PRId64 ", length=%d]",
+                            referrer_.c_str(),
+                            PrintArrowType().c_str(),
+                            referree_.c_str(),
+                            size_,
+                            length_);
+      }
+
+     protected:
+      virtual std::string PrintArrowType() const = 0;
+
+     private:
+      std::string referrer_;
+      std::string referree_;
+      jlong size_;
+      jint length_;
+    };
+
+    // For simple or unimplemented cases.
+    class StringElement : public Elem {
+     public:
+      StringElement(const std::string& referrer,
+                   const std::string& referree,
+                   jlong size,
+                   jint length,
+                   const std::string& string)
+          : Elem(referrer, referree, size, length), string_(string) {}
+
+     protected:
+      std::string PrintArrowType() const OVERRIDE {
+        return string_;
+      }
+
+     private:
+      const std::string string_;
+    };
+
+    static std::unique_ptr<Elem> CreateElem(const std::string& referrer,
+                                            const std::string& referree,
+                                            jvmtiHeapReferenceKind reference_kind,
+                                            const jvmtiHeapReferenceInfo* reference_info,
+                                            jlong size,
+                                            jint length) {
+      switch (reference_kind) {
+        case JVMTI_HEAP_REFERENCE_CLASS:
+          return std::unique_ptr<Elem>(new StringElement(referrer,
+                                                         referree,
+                                                         size,
+                                                         length,
+                                                         "class"));
+        case JVMTI_HEAP_REFERENCE_FIELD: {
+          std::string tmp = StringPrintf("field@%d", reference_info->field.index);
+          return std::unique_ptr<Elem>(new StringElement(referrer,
+                                                        referree,
+                                                        size,
+                                                        length,
+                                                        tmp));
+        }
+        case JVMTI_HEAP_REFERENCE_ARRAY_ELEMENT: {
+          std::string tmp = StringPrintf("array-element@%d", reference_info->array.index);
+          return std::unique_ptr<Elem>(new StringElement(referrer,
+                                                         referree,
+                                                         size,
+                                                         length,
+                                                         tmp));
+        }
+        case JVMTI_HEAP_REFERENCE_CLASS_LOADER:
+          return std::unique_ptr<Elem>(new StringElement(referrer,
+                                                         referree,
+                                                         size,
+                                                         length,
+                                                         "classloader"));
+        case JVMTI_HEAP_REFERENCE_SIGNERS:
+          return std::unique_ptr<Elem>(new StringElement(referrer,
+                                                         referree,
+                                                         size,
+                                                         length,
+                                                         "signers"));
+        case JVMTI_HEAP_REFERENCE_PROTECTION_DOMAIN:
+          return std::unique_ptr<Elem>(new StringElement(referrer,
+                                                         referree,
+                                                         size,
+                                                         length,
+                                                         "protection-domain"));
+        case JVMTI_HEAP_REFERENCE_INTERFACE:
+          return std::unique_ptr<Elem>(new StringElement(referrer,
+                                                         referree,
+                                                         size,
+                                                         length,
+                                                         "interface"));
+        case JVMTI_HEAP_REFERENCE_STATIC_FIELD: {
+          std::string tmp = StringPrintf("array-element@%d", reference_info->array.index);
+          return std::unique_ptr<Elem>(new StringElement(referrer,
+                                                         referree,
+                                                         size,
+                                                         length,
+                                                         tmp));;
+        }
+        case JVMTI_HEAP_REFERENCE_CONSTANT_POOL:
+          return std::unique_ptr<Elem>(new StringElement(referrer,
+                                                         referree,
+                                                         size,
+                                                         length,
+                                                         "constant-pool"));
+        case JVMTI_HEAP_REFERENCE_SUPERCLASS:
+          return std::unique_ptr<Elem>(new StringElement(referrer,
+                                                         referree,
+                                                         size,
+                                                         length,
+                                                         "superclass"));
+        case JVMTI_HEAP_REFERENCE_JNI_GLOBAL:
+          return std::unique_ptr<Elem>(new StringElement(referrer,
+                                                         referree,
+                                                         size,
+                                                         length,
+                                                         "jni-global"));
+        case JVMTI_HEAP_REFERENCE_SYSTEM_CLASS:
+          return std::unique_ptr<Elem>(new StringElement(referrer,
+                                                         referree,
+                                                         size,
+                                                         length,
+                                                         "system-class"));
+        case JVMTI_HEAP_REFERENCE_MONITOR:
+          return std::unique_ptr<Elem>(new StringElement(referrer,
+                                                         referree,
+                                                         size,
+                                                         length,
+                                                         "monitor"));
+        case JVMTI_HEAP_REFERENCE_STACK_LOCAL:
+          return std::unique_ptr<Elem>(new StringElement(referrer,
+                                                         referree,
+                                                         size,
+                                                         length,
+                                                         "stack-local"));
+        case JVMTI_HEAP_REFERENCE_JNI_LOCAL:
+          return std::unique_ptr<Elem>(new StringElement(referrer,
+                                                         referree,
+                                                         size,
+                                                         length,
+                                                         "jni-local"));
+        case JVMTI_HEAP_REFERENCE_THREAD:
+          return std::unique_ptr<Elem>(new StringElement(referrer,
+                                                         referree,
+                                                         size,
+                                                         length,
+                                                         "thread"));
+        case JVMTI_HEAP_REFERENCE_OTHER:
+          return std::unique_ptr<Elem>(new StringElement(referrer,
+                                                         referree,
+                                                         size,
+                                                         length,
+                                                         "other"));
+      }
+      LOG(FATAL) << "Unknown kind";
+      UNREACHABLE();
     }
 
     static void DumpStacks() NO_THREAD_SAFETY_ANALYSIS {
@@ -209,56 +383,11 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_followReferences(JNIEnv* env
       art::Runtime::Current()->GetThreadList()->ForEach(dump_function, nullptr);
     }
 
-    static std::string GetReferenceTypeStr(jvmtiHeapReferenceKind reference_kind,
-                                           const jvmtiHeapReferenceInfo* reference_info) {
-      switch (reference_kind) {
-        case JVMTI_HEAP_REFERENCE_CLASS:
-          return "class";
-        case JVMTI_HEAP_REFERENCE_FIELD:
-          return StringPrintf("field@%d", reference_info->field.index);
-        case JVMTI_HEAP_REFERENCE_ARRAY_ELEMENT:
-          return StringPrintf("array-element@%d", reference_info->array.index);
-        case JVMTI_HEAP_REFERENCE_CLASS_LOADER:
-          return "classloader";
-        case JVMTI_HEAP_REFERENCE_SIGNERS:
-          return "signers";
-        case JVMTI_HEAP_REFERENCE_PROTECTION_DOMAIN:
-          return "protection-domain";
-        case JVMTI_HEAP_REFERENCE_INTERFACE:
-          return "interface";
-        case JVMTI_HEAP_REFERENCE_STATIC_FIELD:
-          return StringPrintf("static-field@%d", reference_info->field.index);
-        case JVMTI_HEAP_REFERENCE_CONSTANT_POOL:
-          return "constant-pool";
-        case JVMTI_HEAP_REFERENCE_SUPERCLASS:
-          return "superclass";
-        case JVMTI_HEAP_REFERENCE_JNI_GLOBAL:
-          return "jni-global";
-        case JVMTI_HEAP_REFERENCE_SYSTEM_CLASS:
-          return "system-class";
-        case JVMTI_HEAP_REFERENCE_MONITOR:
-          return "monitor";
-        case JVMTI_HEAP_REFERENCE_STACK_LOCAL:
-          return "stack-local";
-        case JVMTI_HEAP_REFERENCE_JNI_LOCAL:
-          return "jni-local";
-        case JVMTI_HEAP_REFERENCE_THREAD:
-          return "thread";
-        case JVMTI_HEAP_REFERENCE_OTHER:
-          return "other";
-      }
-      return "unknown";
-    }
-
-    const std::vector<std::string>& GetLines() const {
-      return lines_;
-    }
-
-   private:
     jint counter_;
     const jint stop_after_;
     const jint follow_set_;
-    std::vector<std::string> lines_;
+
+    std::vector<std::unique_ptr<Elem>> lines_;
   };
 
   jit::ScopedJitSuspend sjs;  // Wait to avoid JIT influence (e.g., JNI globals).
@@ -274,7 +403,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_followReferences(JNIEnv* env
   PrintIterationConfig config(stop_after, follow_set);
   Run(heap_filter, klass_filter, initial_object, &config);
 
-  const std::vector<std::string>& lines = config.GetLines();
+  std::vector<std::string> lines = config.GetLines();
   jobjectArray ret = CreateObjectArray(env,
                                        static_cast<jint>(lines.size()),
                                        "java/lang/String",
