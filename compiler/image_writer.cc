@@ -697,7 +697,7 @@ bool ImageWriter::AllocMemory() {
   return true;
 }
 
-class ComputeLazyFieldsForClassesVisitor : public ClassVisitor {
+class ImageWriter::ComputeLazyFieldsForClassesVisitor : public ClassVisitor {
  public:
   bool operator()(ObjPtr<Class> c) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     StackHandleScope<1> hs(Thread::Current());
@@ -837,7 +837,7 @@ bool ImageWriter::KeepClass(Class* klass) {
   return true;
 }
 
-class NonImageClassesVisitor : public ClassVisitor {
+class ImageWriter::NonImageClassesVisitor : public ClassVisitor {
  public:
   explicit NonImageClassesVisitor(ImageWriter* image_writer) : image_writer_(image_writer) {}
 
@@ -1701,7 +1701,7 @@ ArtMethod* ImageWriter::GetImageMethodAddress(ArtMethod* method) {
   return reinterpret_cast<ArtMethod*>(image_info.image_begin_ + it->second.offset);
 }
 
-class FixupRootVisitor : public RootVisitor {
+class ImageWriter::FixupRootVisitor : public RootVisitor {
  public:
   explicit FixupRootVisitor(ImageWriter* image_writer) : image_writer_(image_writer) {
   }
@@ -1944,7 +1944,7 @@ void ImageWriter::CopyAndFixupObject(Object* obj) {
 }
 
 // Rewrite all the references in the copied object to point to their image address equivalent
-class FixupVisitor {
+class ImageWriter::FixupVisitor {
  public:
   FixupVisitor(ImageWriter* image_writer, Object* copy) : image_writer_(image_writer), copy_(copy) {
   }
@@ -1980,7 +1980,7 @@ class FixupVisitor {
   mirror::Object* const copy_;
 };
 
-class FixupClassVisitor FINAL : public FixupVisitor {
+class ImageWriter::FixupClassVisitor FINAL : public FixupVisitor {
  public:
   FixupClassVisitor(ImageWriter* image_writer, Object* copy) : FixupVisitor(image_writer, copy) {
   }
@@ -2045,7 +2045,7 @@ T* ImageWriter::NativeCopyLocation(T* obj, mirror::DexCache* dex_cache) {
   }
 }
 
-class NativeLocationVisitor {
+class ImageWriter::NativeLocationVisitor {
  public:
   explicit NativeLocationVisitor(ImageWriter* image_writer) : image_writer_(image_writer) {}
 
