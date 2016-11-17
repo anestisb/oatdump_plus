@@ -25,6 +25,7 @@ include art/build/Android.common_build.mk
 GTEST_DEX_DIRECTORIES := \
   AbstractMethod \
   AllFields \
+  DexToDexDecompiler \
   ExceptionHandle \
   GetMethodSignature \
   ImageLayoutA \
@@ -106,6 +107,7 @@ ART_GTEST_stub_test_DEX_DEPS := AllFields
 ART_GTEST_transaction_test_DEX_DEPS := Transaction
 ART_GTEST_type_lookup_table_test_DEX_DEPS := Lookup
 ART_GTEST_verifier_deps_test_DEX_DEPS := VerifierDeps MultiDex
+ART_GTEST_dex_to_dex_decompiler_test_DEX_DEPS := VerifierDeps DexToDexDecompiler
 
 # The elf writer test has dependencies on core.oat.
 ART_GTEST_elf_writer_test_HOST_DEPS := $(HOST_CORE_IMAGE_optimizing_no-pic_64) $(HOST_CORE_IMAGE_optimizing_no-pic_32)
