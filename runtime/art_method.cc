@@ -199,9 +199,9 @@ uint32_t ArtMethod::FindCatchBlock(Handle<mirror::Class> exception_type,
   // Iterate over the catch handlers associated with dex_pc.
   PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
   for (CatchHandlerIterator it(*code_item, dex_pc); it.HasNext(); it.Next()) {
-    uint16_t iter_type_idx = it.GetHandlerTypeIndex();
+    dex::TypeIndex iter_type_idx = it.GetHandlerTypeIndex();
     // Catch all case
-    if (iter_type_idx == DexFile::kDexNoIndex16) {
+    if (!iter_type_idx.IsValid()) {
       found_dex_pc = it.GetHandlerAddress();
       break;
     }

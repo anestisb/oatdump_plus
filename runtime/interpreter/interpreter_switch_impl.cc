@@ -395,7 +395,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
       }
       case Instruction::CONST_CLASS: {
         PREAMBLE();
-        ObjPtr<mirror::Class> c = ResolveVerifyAndClinit(inst->VRegB_21c(),
+        ObjPtr<mirror::Class> c = ResolveVerifyAndClinit(dex::TypeIndex(inst->VRegB_21c()),
                                                          shadow_frame.GetMethod(),
                                                          self,
                                                          false,
@@ -434,7 +434,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
       }
       case Instruction::CHECK_CAST: {
         PREAMBLE();
-        ObjPtr<mirror::Class> c = ResolveVerifyAndClinit(inst->VRegB_21c(),
+        ObjPtr<mirror::Class> c = ResolveVerifyAndClinit(dex::TypeIndex(inst->VRegB_21c()),
                                                          shadow_frame.GetMethod(),
                                                          self,
                                                          false,
@@ -454,7 +454,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
       }
       case Instruction::INSTANCE_OF: {
         PREAMBLE();
-        ObjPtr<mirror::Class> c = ResolveVerifyAndClinit(inst->VRegC_22c(),
+        ObjPtr<mirror::Class> c = ResolveVerifyAndClinit(dex::TypeIndex(inst->VRegC_22c()),
                                                          shadow_frame.GetMethod(),
                                                          self,
                                                          false,
@@ -484,7 +484,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
       case Instruction::NEW_INSTANCE: {
         PREAMBLE();
         ObjPtr<mirror::Object> obj = nullptr;
-        ObjPtr<mirror::Class> c = ResolveVerifyAndClinit(inst->VRegB_21c(),
+        ObjPtr<mirror::Class> c = ResolveVerifyAndClinit(dex::TypeIndex(inst->VRegB_21c()),
                                                          shadow_frame.GetMethod(),
                                                          self,
                                                          false,
@@ -495,8 +495,10 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
             obj = mirror::String::AllocEmptyString<true>(self, allocator_type);
           } else {
             obj = AllocObjectFromCode<do_access_check, true>(
-              inst->VRegB_21c(), shadow_frame.GetMethod(), self,
-              Runtime::Current()->GetHeap()->GetCurrentAllocator());
+                dex::TypeIndex(inst->VRegB_21c()),
+                shadow_frame.GetMethod(),
+                self,
+                Runtime::Current()->GetHeap()->GetCurrentAllocator());
           }
         }
         if (UNLIKELY(obj == nullptr)) {
@@ -520,7 +522,10 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         PREAMBLE();
         int32_t length = shadow_frame.GetVReg(inst->VRegB_22c(inst_data));
         ObjPtr<mirror::Object> obj = AllocArrayFromCode<do_access_check, true>(
-            inst->VRegC_22c(), length, shadow_frame.GetMethod(), self,
+            dex::TypeIndex(inst->VRegC_22c()),
+            length,
+            shadow_frame.GetMethod(),
+            self,
             Runtime::Current()->GetHeap()->GetCurrentAllocator());
         if (UNLIKELY(obj == nullptr)) {
           HANDLE_PENDING_EXCEPTION();

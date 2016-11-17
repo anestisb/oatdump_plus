@@ -63,7 +63,10 @@ class LICMTest : public CommonCompilerTest {
     return_->AddSuccessor(exit_);
 
     // Provide boiler-plate instructions.
-    parameter_ = new (&allocator_) HParameterValue(graph_->GetDexFile(), 0, 0, Primitive::kPrimNot);
+    parameter_ = new (&allocator_) HParameterValue(graph_->GetDexFile(),
+                                                   dex::TypeIndex(0),
+                                                   0,
+                                                   Primitive::kPrimNot);
     entry_->AddInstruction(parameter_);
     int_constant_ = graph_->GetIntConstant(42);
     float_constant_ = graph_->GetFloatConstant(42.0f);

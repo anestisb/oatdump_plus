@@ -208,9 +208,9 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case CONST_CLASS:
         case NEW_INSTANCE:
           if (file != nullptr) {
-            uint32_t type_idx = VRegB_21c();
-            os << opcode << " v" << static_cast<int>(VRegA_21c()) << ", " << file->PrettyType(type_idx)
-               << " // type@" << type_idx;
+            dex::TypeIndex type_idx(VRegB_21c());
+            os << opcode << " v" << static_cast<int>(VRegA_21c()) << ", "
+               << file->PrettyType(type_idx) << " // type@" << type_idx;
             break;
           }
           FALLTHROUGH_INTENDED;
@@ -302,17 +302,19 @@ std::string Instruction::DumpString(const DexFile* file) const {
           FALLTHROUGH_INTENDED;
         case INSTANCE_OF:
           if (file != nullptr) {
-            uint32_t type_idx = VRegC_22c();
-            os << opcode << " v" << static_cast<int>(VRegA_22c()) << ", v" << static_cast<int>(VRegB_22c()) << ", "
-               << file->PrettyType(type_idx) << " // type@" << type_idx;
+            dex::TypeIndex type_idx(VRegC_22c());
+            os << opcode << " v" << static_cast<int>(VRegA_22c()) << ", v"
+               << static_cast<int>(VRegB_22c()) << ", " << file->PrettyType(type_idx)
+               << " // type@" << type_idx.index_;
             break;
           }
           FALLTHROUGH_INTENDED;
         case NEW_ARRAY:
           if (file != nullptr) {
-            uint32_t type_idx = VRegC_22c();
-            os << opcode << " v" << static_cast<int>(VRegA_22c()) << ", v" << static_cast<int>(VRegB_22c()) << ", "
-               << file->PrettyType(type_idx) << " // type@" << type_idx;
+            dex::TypeIndex type_idx(VRegC_22c());
+            os << opcode << " v" << static_cast<int>(VRegA_22c()) << ", v"
+               << static_cast<int>(VRegB_22c()) << ", " << file->PrettyType(type_idx)
+               << " // type@" << type_idx.index_;
             break;
           }
           FALLTHROUGH_INTENDED;

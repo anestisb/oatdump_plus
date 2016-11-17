@@ -23,6 +23,7 @@
 
 #include "base/logging.h"
 #include "base/value_object.h"
+#include "dex_file_types.h"
 #include "globals.h"
 #include "invoke_type.h"
 #include "jni.h"
@@ -159,17 +160,28 @@ class DexFile {
 
   // Raw field_id_item.
   struct FieldId {
-    uint16_t class_idx_;  // index into type_ids_ array for defining class
-    uint16_t type_idx_;  // index into type_ids_ array for field type
+    dex::TypeIndex class_idx_;  // index into type_ids_ array for defining class
+    dex::TypeIndex type_idx_;  // index into type_ids_ array for field type
     uint32_t name_idx_;  // index into string_ids_ array for field name
 
    private:
     DISALLOW_COPY_AND_ASSIGN(FieldId);
   };
 
+  // Raw proto_id_item.
+  struct ProtoId {
+    uint32_t shorty_idx_;        // index into string_ids array for shorty descriptor
+    dex::TypeIndex return_type_idx_;  // index into type_ids array for return type
+    uint16_t pad_;               // padding = 0
+    uint32_t parameters_off_;    // file offset to type_list for parameter types
+
+   private:
+    DISALLOW_COPY_AND_ASSIGN(ProtoId);
+  };
+
   // Raw method_id_item.
   struct MethodId {
-    uint16_t class_idx_;  // index into type_ids_ array for defining class
+    dex::TypeIndex class_idx_;   // index into type_ids_ array for defining class
     uint16_t proto_idx_;  // index into proto_ids_ array for method prototype
     uint32_t name_idx_;  // index into string_ids_ array for method name
 
@@ -177,23 +189,12 @@ class DexFile {
     DISALLOW_COPY_AND_ASSIGN(MethodId);
   };
 
-  // Raw proto_id_item.
-  struct ProtoId {
-    uint32_t shorty_idx_;  // index into string_ids array for shorty descriptor
-    uint16_t return_type_idx_;  // index into type_ids array for return type
-    uint16_t pad_;             // padding = 0
-    uint32_t parameters_off_;  // file offset to type_list for parameter types
-
-   private:
-    DISALLOW_COPY_AND_ASSIGN(ProtoId);
-  };
-
   // Raw class_def_item.
   struct ClassDef {
-    uint16_t class_idx_;  // index into type_ids_ array for this class
+    dex::TypeIndex class_idx_;  // index into type_ids_ array for this class
     uint16_t pad1_;  // padding = 0
     uint32_t access_flags_;
-    uint16_t superclass_idx_;  // index into type_ids_ array for superclass
+    dex::TypeIndex superclass_idx_;  // index into type_ids_ array for superclass
     uint16_t pad2_;  // padding = 0
     uint32_t interfaces_off_;  // file offset to TypeList
     uint32_t source_file_idx_;  // index into string_ids_ for source file name
@@ -225,7 +226,7 @@ class DexFile {
 
   // Raw type_item.
   struct TypeItem {
-    uint16_t type_idx_;  // index into type_ids section
+    dex::TypeIndex type_idx_;  // index into type_ids section
 
    private:
     DISALLOW_COPY_AND_ASSIGN(TypeItem);
@@ -540,23 +541,23 @@ class DexFile {
   }
 
   // Returns the TypeId at the specified index.
-  const TypeId& GetTypeId(uint32_t idx) const {
-    DCHECK_LT(idx, NumTypeIds()) << GetLocation();
-    return type_ids_[idx];
+  const TypeId& GetTypeId(dex::TypeIndex idx) const {
+    DCHECK_LT(idx.index_, NumTypeIds()) << GetLocation();
+    return type_ids_[idx.index_];
   }
 
-  uint16_t GetIndexForTypeId(const TypeId& type_id) const {
+  dex::TypeIndex GetIndexForTypeId(const TypeId& type_id) const {
     CHECK_GE(&type_id, type_ids_) << GetLocation();
     CHECK_LT(&type_id, type_ids_ + header_->type_ids_size_) << GetLocation();
     size_t result = &type_id - type_ids_;
     DCHECK_LT(result, 65536U) << GetLocation();
-    return static_cast<uint16_t>(result);
+    return dex::TypeIndex(static_cast<uint16_t>(result));
   }
 
   // Get the descriptor string associated with a given type index.
-  const char* StringByTypeIdx(uint32_t idx, uint32_t* unicode_length) const;
+  const char* StringByTypeIdx(dex::TypeIndex idx, uint32_t* unicode_length) const;
 
-  const char* StringByTypeIdx(uint32_t idx) const;
+  const char* StringByTypeIdx(dex::TypeIndex idx) const;
 
   // Returns the type descriptor string of a type id.
   const char* GetTypeDescriptor(const TypeId& type_id) const;
@@ -671,7 +672,7 @@ class DexFile {
   const char* GetClassDescriptor(const ClassDef& class_def) const;
 
   // Looks up a class definition by its type index.
-  const ClassDef* FindClassDef(uint16_t type_idx) const;
+  const ClassDef* FindClassDef(dex::TypeIndex type_idx) const;
 
   const TypeList* GetInterfacesList(const ClassDef& class_def) const {
     if (class_def.interfaces_off_ == 0) {
@@ -711,7 +712,7 @@ class DexFile {
   }
 
   // Returns the ProtoId at the specified index.
-  const ProtoId& GetProtoId(uint32_t idx) const {
+  const ProtoId& GetProtoId(uint16_t idx) const {
     DCHECK_LT(idx, NumProtoIds()) << GetLocation();
     return proto_ids_[idx];
   }
@@ -723,16 +724,18 @@ class DexFile {
   }
 
   // Looks up a proto id for a given return type and signature type list
-  const ProtoId* FindProtoId(uint16_t return_type_idx,
-                             const uint16_t* signature_type_idxs, uint32_t signature_length) const;
-  const ProtoId* FindProtoId(uint16_t return_type_idx,
-                             const std::vector<uint16_t>& signature_type_idxs) const {
+  const ProtoId* FindProtoId(dex::TypeIndex return_type_idx,
+                             const dex::TypeIndex* signature_type_idxs,
+                             uint32_t signature_length) const;
+  const ProtoId* FindProtoId(dex::TypeIndex return_type_idx,
+                             const std::vector<dex::TypeIndex>& signature_type_idxs) const {
     return FindProtoId(return_type_idx, &signature_type_idxs[0], signature_type_idxs.size());
   }
 
   // Given a signature place the type ids into the given vector, returns true on success
-  bool CreateTypeList(const StringPiece& signature, uint16_t* return_type_idx,
-                      std::vector<uint16_t>* param_type_idxs) const;
+  bool CreateTypeList(const StringPiece& signature,
+                      dex::TypeIndex* return_type_idx,
+                      std::vector<dex::TypeIndex>* param_type_idxs) const;
 
   // Create a Signature from the given string signature or return Signature::NoSignature if not
   // possible.
@@ -1021,7 +1024,7 @@ class DexFile {
   // Returns a human-readable form of the field at an index.
   std::string PrettyField(uint32_t field_idx, bool with_type = true) const;
   // Returns a human-readable form of the type at an index.
-  std::string PrettyType(uint32_t type_idx) const;
+  std::string PrettyType(dex::TypeIndex type_idx) const;
 
  private:
   static std::unique_ptr<const DexFile> OpenFile(int fd,
@@ -1165,11 +1168,11 @@ class DexFileParameterIterator {
   bool HasNext() const { return pos_ < size_; }
   size_t Size() const { return size_; }
   void Next() { ++pos_; }
-  uint16_t GetTypeIdx() {
+  dex::TypeIndex GetTypeIdx() {
     return type_list_->GetTypeItem(pos_).type_idx_;
   }
   const char* GetDescriptor() {
-    return dex_file_.StringByTypeIdx(GetTypeIdx());
+    return dex_file_.StringByTypeIdx(dex::TypeIndex(GetTypeIdx()));
   }
  private:
   const DexFile& dex_file_;
@@ -1455,7 +1458,7 @@ class CatchHandlerIterator {
       Init(handler_data);
     }
 
-    uint16_t GetHandlerTypeIndex() const {
+    dex::TypeIndex GetHandlerTypeIndex() const {
       return handler_.type_idx_;
     }
     uint32_t GetHandlerAddress() const {
@@ -1476,7 +1479,7 @@ class CatchHandlerIterator {
     void Init(const uint8_t* handler_data);
 
     struct CatchHandlerItem {
-      uint16_t type_idx_;  // type index of the caught exception type
+      dex::TypeIndex type_idx_;  // type index of the caught exception type
       uint32_t address_;  // handler address
     } handler_;
     const uint8_t* current_data_;  // the current handler in dex file.

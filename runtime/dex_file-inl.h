@@ -58,12 +58,12 @@ inline const char* DexFile::StringDataByIdx(uint32_t idx) const {
   return StringDataAndUtf16LengthByIdx(idx, &unicode_length);
 }
 
-inline const char* DexFile::StringByTypeIdx(uint32_t idx, uint32_t* unicode_length) const {
+inline const char* DexFile::StringByTypeIdx(dex::TypeIndex idx, uint32_t* unicode_length) const {
   const TypeId& type_id = GetTypeId(idx);
   return StringDataAndUtf16LengthByIdx(type_id.descriptor_idx_, unicode_length);
 }
 
-inline const char* DexFile::StringByTypeIdx(uint32_t idx) const {
+inline const char* DexFile::StringByTypeIdx(dex::TypeIndex idx) const {
   const TypeId& type_id = GetTypeId(idx);
   return StringDataByIdx(type_id.descriptor_idx_);
 }

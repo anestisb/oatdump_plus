@@ -96,7 +96,7 @@ class ReferenceTypePropagation::RTPVisitor : public HGraphDelegateVisitor {
   void VisitBoundType(HBoundType* instr) OVERRIDE;
   void VisitNullCheck(HNullCheck* instr) OVERRIDE;
   void UpdateReferenceTypeInfo(HInstruction* instr,
-                               uint16_t type_idx,
+                               dex::TypeIndex type_idx,
                                const DexFile& dex_file,
                                bool is_exact);
 
@@ -463,7 +463,7 @@ void ReferenceTypePropagation::RTPVisitor::SetClassAsTypeInfo(HInstruction* inst
 }
 
 void ReferenceTypePropagation::RTPVisitor::UpdateReferenceTypeInfo(HInstruction* instr,
-                                                                   uint16_t type_idx,
+                                                                   dex::TypeIndex type_idx,
                                                                    const DexFile& dex_file,
                                                                    bool is_exact) {
   DCHECK_EQ(instr->GetType(), Primitive::kPrimNot);
@@ -484,7 +484,7 @@ void ReferenceTypePropagation::RTPVisitor::VisitNewArray(HNewArray* instr) {
 
 static mirror::Class* GetClassFromDexCache(Thread* self,
                                            const DexFile& dex_file,
-                                           uint16_t type_idx,
+                                           dex::TypeIndex type_idx,
                                            Handle<mirror::DexCache> hint_dex_cache)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   mirror::DexCache* dex_cache = FindDexCacheWithHint(self, dex_file, hint_dex_cache);

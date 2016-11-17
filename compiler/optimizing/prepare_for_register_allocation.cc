@@ -143,7 +143,7 @@ void PrepareForRegisterAllocation::VisitNewInstance(HNewInstance* instruction) {
   // - or the load class has only one use.
   if (instruction->IsFinalizable() || has_only_one_use || load_class->NeedsAccessCheck()) {
     instruction->SetEntrypoint(kQuickAllocObject);
-    instruction->ReplaceInput(GetGraph()->GetIntConstant(load_class->GetTypeIndex()), 0);
+    instruction->ReplaceInput(GetGraph()->GetIntConstant(load_class->GetTypeIndex().index_), 0);
     if (has_only_one_use) {
       // We've just removed the only use of the HLoadClass. Since we don't run DCE after this pass,
       // do it manually if possible.

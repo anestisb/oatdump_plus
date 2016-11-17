@@ -27,6 +27,7 @@
 #include "base/stl_util.h"
 #include "base/value_object.h"
 #include "dex_file.h"
+#include "dex_file_types.h"
 #include "handle.h"
 #include "instruction_flags.h"
 #include "method_reference.h"
@@ -261,7 +262,7 @@ class MethodVerifier {
     return have_any_pending_runtime_throw_failure_;
   }
 
-  const RegType& ResolveCheckedClass(uint32_t class_idx)
+  const RegType& ResolveCheckedClass(dex::TypeIndex class_idx)
       REQUIRES_SHARED(Locks::mutator_lock_);
   // Returns the method of a quick invoke or null if it cannot be found.
   ArtMethod* GetQuickInvokedMethod(const Instruction* inst, RegisterLine* reg_line,
@@ -471,18 +472,18 @@ class MethodVerifier {
 
   // Perform static checks on a "new-instance" instruction. Specifically, make sure the class
   // reference isn't for an array class.
-  bool CheckNewInstance(uint32_t idx);
+  bool CheckNewInstance(dex::TypeIndex idx);
 
   /* Ensure that the string index is in the valid range. */
   bool CheckStringIndex(uint32_t idx);
 
   // Perform static checks on an instruction that takes a class constant. Ensure that the class
   // index is in the valid range.
-  bool CheckTypeIndex(uint32_t idx);
+  bool CheckTypeIndex(dex::TypeIndex idx);
 
   // Perform static checks on a "new-array" instruction. Specifically, make sure they aren't
   // creating an array of arrays that causes the number of dimensions to exceed 255.
-  bool CheckNewArray(uint32_t idx);
+  bool CheckNewArray(dex::TypeIndex idx);
 
   // Verify an array data table. "cur_offset" is the offset of the fill-array-data instruction.
   bool CheckArrayData(uint32_t cur_offset);
@@ -625,7 +626,7 @@ class MethodVerifier {
 
   // Resolves a class based on an index and performs access checks to ensure the referrer can
   // access the resolved class.
-  const RegType& ResolveClassAndCheckAccess(uint32_t class_idx)
+  const RegType& ResolveClassAndCheckAccess(dex::TypeIndex class_idx)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   /*

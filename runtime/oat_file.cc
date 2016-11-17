@@ -38,6 +38,7 @@
 #include "base/stl_util.h"
 #include "base/systrace.h"
 #include "base/unix_file/fd_file.h"
+#include "dex_file_types.h"
 #include "elf_file.h"
 #include "elf_utils.h"
 #include "gc_root.h"
@@ -1342,7 +1343,7 @@ const DexFile::ClassDef* OatFile::OatDexFile::FindClassDef(const DexFile& dex_fi
   }
   const DexFile::TypeId* type_id = dex_file.FindTypeId(descriptor);
   if (type_id != nullptr) {
-    uint16_t type_idx = dex_file.GetIndexForTypeId(*type_id);
+    dex::TypeIndex type_idx = dex_file.GetIndexForTypeId(*type_id);
     return dex_file.FindClassDef(type_idx);
   }
   return nullptr;

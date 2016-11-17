@@ -756,7 +756,7 @@ TEST_F(ConstantFoldingTest, UnsignedComparisonsWithZero) {
 
   // Make various unsigned comparisons with zero against a parameter.
   HInstruction* parameter = new (&allocator_) HParameterValue(
-      graph_->GetDexFile(), 0, 0, Primitive::kPrimInt, true);
+      graph_->GetDexFile(), dex::TypeIndex(0), 0, Primitive::kPrimInt, true);
   entry_block->AddInstruction(parameter);
   entry_block->AddInstruction(new (&allocator_) HGoto());
 

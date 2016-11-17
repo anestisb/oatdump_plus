@@ -19,6 +19,7 @@
 #include "art_method-inl.h"
 #include "base/enums.h"
 #include "callee_save_frame.h"
+#include "dex_file_types.h"
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object_array-inl.h"
@@ -34,7 +35,8 @@ extern "C" mirror::Object* artAllocObjectFromCode ##suffix##suffix2( \
     REQUIRES_SHARED(Locks::mutator_lock_) { \
   ScopedQuickEntrypointChecks sqec(self); \
   if (kUseTlabFastPath && !(instrumented_bool) && (allocator_type) == gc::kAllocatorTypeTLAB) { \
-    mirror::Class* klass = method->GetDexCacheResolvedType<false>(type_idx, kRuntimePointerSize); \
+    mirror::Class* klass = method->GetDexCacheResolvedType<false>(dex::TypeIndex(type_idx), \
+                                                                  kRuntimePointerSize); \
     if (LIKELY(klass != nullptr && klass->IsInitialized() && !klass->IsFinalizable())) { \
       size_t byte_count = klass->GetObjectSize(); \
       byte_count = RoundUp(byte_count, gc::space::BumpPointerSpace::kAlignment); \
@@ -51,7 +53,10 @@ extern "C" mirror::Object* artAllocObjectFromCode ##suffix##suffix2( \
       } \
     } \
   } \
-  return AllocObjectFromCode<false, instrumented_bool>(type_idx, method, self, allocator_type); \
+  return AllocObjectFromCode<false, instrumented_bool>(dex::TypeIndex(type_idx), \
+                                                       method, \
+                                                       self, \
+                                                       allocator_type); \
 } \
 extern "C" mirror::Object* artAllocObjectFromCodeResolved##suffix##suffix2( \
     mirror::Class* klass, ArtMethod* method ATTRIBUTE_UNUSED, Thread* self) \
@@ -101,13 +106,19 @@ extern "C" mirror::Object* artAllocObjectFromCodeWithAccessCheck##suffix##suffix
     uint32_t type_idx, ArtMethod* method, Thread* self) \
     REQUIRES_SHARED(Locks::mutator_lock_) { \
   ScopedQuickEntrypointChecks sqec(self); \
-  return AllocObjectFromCode<true, instrumented_bool>(type_idx, method, self, allocator_type); \
+  return AllocObjectFromCode<true, instrumented_bool>(dex::TypeIndex(type_idx), \
+                                                      method, \
+                                                      self, \
+                                                      allocator_type); \
 } \
 extern "C" mirror::Array* artAllocArrayFromCode##suffix##suffix2( \
     uint32_t type_idx, int32_t component_count, ArtMethod* method, Thread* self) \
     REQUIRES_SHARED(Locks::mutator_lock_) { \
   ScopedQuickEntrypointChecks sqec(self); \
-  return AllocArrayFromCode<false, instrumented_bool>(type_idx, component_count, method, self, \
+  return AllocArrayFromCode<false, instrumented_bool>(dex::TypeIndex(type_idx), \
+                                                      component_count, \
+                                                      method, \
+                                                      self, \
                                                       allocator_type); \
 } \
 extern "C" mirror::Array* artAllocArrayFromCodeResolved##suffix##suffix2( \
@@ -121,7 +132,10 @@ extern "C" mirror::Array* artAllocArrayFromCodeWithAccessCheck##suffix##suffix2(
     uint32_t type_idx, int32_t component_count, ArtMethod* method, Thread* self) \
     REQUIRES_SHARED(Locks::mutator_lock_) { \
   ScopedQuickEntrypointChecks sqec(self); \
-  return AllocArrayFromCode<true, instrumented_bool>(type_idx, component_count, method, self, \
+  return AllocArrayFromCode<true, instrumented_bool>(dex::TypeIndex(type_idx), \
+                                                     component_count, \
+                                                     method, \
+                                                     self, \
                                                      allocator_type); \
 } \
 extern "C" mirror::Array* artCheckAndAllocArrayFromCode##suffix##suffix2( \
@@ -129,9 +143,19 @@ extern "C" mirror::Array* artCheckAndAllocArrayFromCode##suffix##suffix2( \
     REQUIRES_SHARED(Locks::mutator_lock_) { \
   ScopedQuickEntrypointChecks sqec(self); \
   if (!(instrumented_bool)) { \
-    return CheckAndAllocArrayFromCode(type_idx, component_count, method, self, false, allocator_type); \
+    return CheckAndAllocArrayFromCode(dex::TypeIndex(type_idx), \
+                                      component_count, \
+                                      method, \
+                                      self, \
+                                      false, \
+                                      allocator_type); \
   } else { \
-    return CheckAndAllocArrayFromCodeInstrumented(type_idx, component_count, method, self, false, allocator_type); \
+    return CheckAndAllocArrayFromCodeInstrumented(dex::TypeIndex(type_idx), \
+                                                  component_count, \
+                                                  method, \
+                                                  self, \
+                                                  false, \
+                                                  allocator_type); \
   } \
 } \
 extern "C" mirror::Array* artCheckAndAllocArrayFromCodeWithAccessCheck##suffix##suffix2( \
@@ -139,9 +163,19 @@ extern "C" mirror::Array* artCheckAndAllocArrayFromCodeWithAccessCheck##suffix##
     REQUIRES_SHARED(Locks::mutator_lock_) { \
   ScopedQuickEntrypointChecks sqec(self); \
   if (!(instrumented_bool)) { \
-    return CheckAndAllocArrayFromCode(type_idx, component_count, method, self, true, allocator_type); \
+    return CheckAndAllocArrayFromCode(dex::TypeIndex(type_idx), \
+                                      component_count, \
+                                      method, \
+                                      self, \
+                                      true, \
+                                      allocator_type); \
   } else { \
-    return CheckAndAllocArrayFromCodeInstrumented(type_idx, component_count, method, self, true, allocator_type); \
+    return CheckAndAllocArrayFromCodeInstrumented(dex::TypeIndex(type_idx), \
+                                                  component_count, \
+                                                  method, \
+                                                  self, \
+                                                  true, \
+                                                  allocator_type); \
   } \
 } \
 extern "C" mirror::String* artAllocStringFromBytesFromCode##suffix##suffix2( \

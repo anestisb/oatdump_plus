@@ -147,7 +147,7 @@ void HSharpening::ProcessLoadClass(HLoadClass* load_class) {
   DCHECK(!load_class->IsInBootImage()) << "HLoadClass should not be optimized before sharpening.";
 
   const DexFile& dex_file = load_class->GetDexFile();
-  uint32_t type_index = load_class->GetTypeIndex();
+  dex::TypeIndex type_index = load_class->GetTypeIndex();
 
   bool is_in_dex_cache = false;
   bool is_in_boot_image = false;
@@ -197,7 +197,7 @@ void HSharpening::ProcessLoadClass(HLoadClass* load_class) {
           // inlined frames are used correctly for OOM stack trace.
           // TODO: Write a test for this. Bug: 29416588
           desired_load_kind = HLoadClass::LoadKind::kDexCacheAddress;
-          void* dex_cache_element_address = &dex_cache->GetResolvedTypes()[type_index];
+          void* dex_cache_element_address = &dex_cache->GetResolvedTypes()[type_index.index_];
           address = reinterpret_cast64<uint64_t>(dex_cache_element_address);
         }
         // AOT app compilation. Check if the class is in the boot image.

@@ -908,7 +908,7 @@ bool HInstructionBuilder::BuildInvoke(const Instruction& instruction,
                       false /* is_unresolved */);
 }
 
-bool HInstructionBuilder::BuildNewInstance(uint16_t type_index, uint32_t dex_pc) {
+bool HInstructionBuilder::BuildNewInstance(dex::TypeIndex type_index, uint32_t dex_pc) {
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScope<1> hs(soa.Self());
   Handle<mirror::DexCache> dex_cache = dex_compilation_unit_->GetDexCache();
@@ -1004,7 +1004,7 @@ HClinitCheck* HInstructionBuilder::ProcessClinitCheckForInvoke(
   Handle<mirror::Class> resolved_method_class(hs.NewHandle(resolved_method->GetDeclaringClass()));
 
   // The index at which the method's class is stored in the DexCache's type array.
-  uint32_t storage_index = DexFile::kDexNoIndex;
+  dex::TypeIndex storage_index;
   bool is_outer_class = (resolved_method->GetDeclaringClass() == outer_class.Get());
   if (is_outer_class) {
     storage_index = outer_class->GetDexTypeIndex();
@@ -1021,7 +1021,7 @@ HClinitCheck* HInstructionBuilder::ProcessClinitCheckForInvoke(
 
   if (IsInitialized(resolved_method_class)) {
     *clinit_check_requirement = HInvokeStaticOrDirect::ClinitCheckRequirement::kNone;
-  } else if (storage_index != DexFile::kDexNoIndex) {
+  } else if (storage_index.IsValid()) {
     *clinit_check_requirement = HInvokeStaticOrDirect::ClinitCheckRequirement::kExplicit;
     HLoadClass* load_class = new (arena_) HLoadClass(
         graph_->GetCurrentMethod(),
@@ -1297,7 +1297,7 @@ mirror::Class* HInstructionBuilder::GetCompilingClass() const {
   return GetClassFrom(compiler_driver_, *dex_compilation_unit_);
 }
 
-bool HInstructionBuilder::IsOutermostCompilingClass(uint16_t type_index) const {
+bool HInstructionBuilder::IsOutermostCompilingClass(dex::TypeIndex type_index) const {
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScope<3> hs(soa.Self());
   Handle<mirror::DexCache> dex_cache = dex_compilation_unit_->GetDexCache();
@@ -1360,7 +1360,7 @@ bool HInstructionBuilder::BuildStaticFieldAccess(const Instruction& instruction,
   Handle<mirror::Class> outer_class(hs.NewHandle(GetOutermostCompilingClass()));
 
   // The index at which the field's class is stored in the DexCache's type array.
-  uint32_t storage_index;
+  dex::TypeIndex storage_index;
   bool is_outer_class = (outer_class.Get() == resolved_field->GetDeclaringClass());
   if (is_outer_class) {
     storage_index = outer_class->GetDexTypeIndex();
@@ -1497,7 +1497,7 @@ void HInstructionBuilder::BuildArrayAccess(const Instruction& instruction,
 }
 
 void HInstructionBuilder::BuildFilledNewArray(uint32_t dex_pc,
-                                              uint32_t type_index,
+                                              dex::TypeIndex type_index,
                                               uint32_t number_of_vreg_arguments,
                                               bool is_range,
                                               uint32_t* args,
@@ -1644,7 +1644,7 @@ static TypeCheckKind ComputeTypeCheckKind(Handle<mirror::Class> cls)
 void HInstructionBuilder::BuildTypeCheck(const Instruction& instruction,
                                          uint8_t destination,
                                          uint8_t reference,
-                                         uint16_t type_index,
+                                         dex::TypeIndex type_index,
                                          uint32_t dex_pc) {
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScope<1> hs(soa.Self());
@@ -1684,14 +1684,14 @@ void HInstructionBuilder::BuildTypeCheck(const Instruction& instruction,
   }
 }
 
-bool HInstructionBuilder::NeedsAccessCheck(uint32_t type_index,
+bool HInstructionBuilder::NeedsAccessCheck(dex::TypeIndex type_index,
                                            Handle<mirror::DexCache> dex_cache,
                                            bool* finalizable) const {
   return !compiler_driver_->CanAccessInstantiableTypeWithoutChecks(
       dex_compilation_unit_->GetDexMethodIndex(), dex_cache, type_index, finalizable);
 }
 
-bool HInstructionBuilder::NeedsAccessCheck(uint32_t type_index, bool* finalizable) const {
+bool HInstructionBuilder::NeedsAccessCheck(dex::TypeIndex type_index, bool* finalizable) const {
   ScopedObjectAccess soa(Thread::Current());
   Handle<mirror::DexCache> dex_cache = dex_compilation_unit_->GetDexCache();
   return NeedsAccessCheck(type_index, dex_cache, finalizable);
@@ -2449,7 +2449,7 @@ bool HInstructionBuilder::ProcessDexInstruction(const Instruction& instruction, 
     }
 
     case Instruction::NEW_INSTANCE: {
-      if (!BuildNewInstance(instruction.VRegB_21c(), dex_pc)) {
+      if (!BuildNewInstance(dex::TypeIndex(instruction.VRegB_21c()), dex_pc)) {
         return false;
       }
       UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction());
@@ -2457,7 +2457,7 @@ bool HInstructionBuilder::ProcessDexInstruction(const Instruction& instruction, 
     }
 
     case Instruction::NEW_ARRAY: {
-      uint16_t type_index = instruction.VRegC_22c();
+      dex::TypeIndex type_index(instruction.VRegC_22c());
       HInstruction* length = LoadLocal(instruction.VRegB_22c(), Primitive::kPrimInt);
       bool finalizable;
       QuickEntrypointEnum entrypoint = NeedsAccessCheck(type_index, &finalizable)
@@ -2475,7 +2475,7 @@ bool HInstructionBuilder::ProcessDexInstruction(const Instruction& instruction, 
 
     case Instruction::FILLED_NEW_ARRAY: {
       uint32_t number_of_vreg_arguments = instruction.VRegA_35c();
-      uint32_t type_index = instruction.VRegB_35c();
+      dex::TypeIndex type_index(instruction.VRegB_35c());
       uint32_t args[5];
       instruction.GetVarArgs(args);
       BuildFilledNewArray(dex_pc, type_index, number_of_vreg_arguments, false, args, 0);
@@ -2484,7 +2484,7 @@ bool HInstructionBuilder::ProcessDexInstruction(const Instruction& instruction, 
 
     case Instruction::FILLED_NEW_ARRAY_RANGE: {
       uint32_t number_of_vreg_arguments = instruction.VRegA_3rc();
-      uint32_t type_index = instruction.VRegB_3rc();
+      dex::TypeIndex type_index(instruction.VRegB_3rc());
       uint32_t register_index = instruction.VRegC_3rc();
       BuildFilledNewArray(
           dex_pc, type_index, number_of_vreg_arguments, true, nullptr, register_index);
@@ -2641,7 +2641,7 @@ bool HInstructionBuilder::ProcessDexInstruction(const Instruction& instruction, 
     }
 
     case Instruction::CONST_CLASS: {
-      uint16_t type_index = instruction.VRegB_21c();
+      dex::TypeIndex type_index(instruction.VRegB_21c());
       // `CanAccessTypeWithoutChecks` will tell whether the method being
       // built is trying to access its own class, so that the generated
       // code can optimize for this case. However, the optimization does not
@@ -2682,14 +2682,14 @@ bool HInstructionBuilder::ProcessDexInstruction(const Instruction& instruction, 
     case Instruction::INSTANCE_OF: {
       uint8_t destination = instruction.VRegA_22c();
       uint8_t reference = instruction.VRegB_22c();
-      uint16_t type_index = instruction.VRegC_22c();
+      dex::TypeIndex type_index(instruction.VRegC_22c());
       BuildTypeCheck(instruction, destination, reference, type_index, dex_pc);
       break;
     }
 
     case Instruction::CHECK_CAST: {
       uint8_t reference = instruction.VRegA_21c();
-      uint16_t type_index = instruction.VRegB_21c();
+      dex::TypeIndex type_index(instruction.VRegB_21c());
       BuildTypeCheck(instruction, -1, reference, type_index, dex_pc);
       break;
     }

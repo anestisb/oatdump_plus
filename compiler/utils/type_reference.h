@@ -20,6 +20,7 @@
 #include <stdint.h>
 
 #include "base/logging.h"
+#include "dex_file_types.h"
 #include "string_reference.h"
 
 namespace art {
@@ -28,10 +29,10 @@ class DexFile;
 
 // A type is located by its DexFile and the string_ids_ table index into that DexFile.
 struct TypeReference {
-  TypeReference(const DexFile* file, uint32_t index) : dex_file(file), type_index(index) { }
+  TypeReference(const DexFile* file, dex::TypeIndex index) : dex_file(file), type_index(index) { }
 
   const DexFile* dex_file;
-  uint32_t type_index;
+  dex::TypeIndex type_index;
 };
 
 // Compare the actual referenced type names. Used for type reference deduplication.

@@ -61,6 +61,7 @@
 #include "debug/method_debug_info.h"
 #include "dex/verification_results.h"
 #include "dex/verified_method.h"
+#include "dex_file_types.h"
 #include "driver/compiler_driver-inl.h"
 #include "driver/compiler_options.h"
 #include "driver/dex_compilation_unit.h"
@@ -948,7 +949,7 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
     graph->SetArtMethod(method);
     ScopedObjectAccess soa(Thread::Current());
     interpreter_metadata = method->GetQuickenedInfo(class_linker->GetImagePointerSize());
-    uint16_t type_index = method->GetDeclaringClass()->GetDexTypeIndex();
+    dex::TypeIndex type_index = method->GetDeclaringClass()->GetDexTypeIndex();
 
     // Update the dex cache if the type is not in it yet. Note that under AOT,
     // the verifier must have set it, but under JIT, there's no guarantee, as we

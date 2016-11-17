@@ -730,10 +730,12 @@ bool ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
     const DexFile& dex_file = java_lang_Object->GetDexFile();
     const DexFile::TypeId* void_type_id = dex_file.FindTypeId("V");
     CHECK(void_type_id != nullptr);
-    uint16_t void_type_idx = dex_file.GetIndexForTypeId(*void_type_id);
+    dex::TypeIndex void_type_idx = dex_file.GetIndexForTypeId(*void_type_id);
     // Now we resolve void type so the dex cache contains it. We use java.lang.Object class
     // as referrer so the used dex cache is core's one.
-    ObjPtr<mirror::Class> resolved_type = ResolveType(dex_file, void_type_idx, java_lang_Object.Get());
+    ObjPtr<mirror::Class> resolved_type = ResolveType(dex_file,
+                                                      void_type_idx,
+                                                      java_lang_Object.Get());
     CHECK_EQ(resolved_type, GetClassRoot(kPrimitiveVoid));
     self->AssertNoPendingException();
   }
@@ -4090,7 +4092,7 @@ void ClassLinker::ResolveMethodExceptionHandlerTypes(ArtMethod* method) {
     for (; iterator.HasNext(); iterator.Next()) {
       // Ensure exception types are resolved so that they don't need resolution to be delivered,
       // unresolved exception types will be ignored by exception delivery
-      if (iterator.GetHandlerTypeIndex() != DexFile::kDexNoIndex16) {
+      if (iterator.GetHandlerTypeIndex().IsValid()) {
         ObjPtr<mirror::Class> exception_type = ResolveType(iterator.GetHandlerTypeIndex(), method);
         if (exception_type == nullptr) {
           DCHECK(Thread::Current()->IsExceptionPending());
@@ -4756,7 +4758,7 @@ static void ThrowSignatureCheckResolveReturnTypeException(Handle<mirror::Class> 
   const DexFile* dex_file = m->GetDexFile();
   const DexFile::MethodId& method_id = dex_file->GetMethodId(m->GetDexMethodIndex());
   const DexFile::ProtoId& proto_id = dex_file->GetMethodPrototype(method_id);
-  uint16_t return_type_idx = proto_id.return_type_idx_;
+  dex::TypeIndex return_type_idx = proto_id.return_type_idx_;
   std::string return_type = dex_file->PrettyType(return_type_idx);
   std::string class_loader = mirror::Object::PrettyTypeOf(m->GetDeclaringClass()->GetClassLoader());
   ThrowWrappedLinkageError(klass.Get(),
@@ -4774,7 +4776,7 @@ static void ThrowSignatureCheckResolveArgException(Handle<mirror::Class> klass,
                                                    ArtMethod* method,
                                                    ArtMethod* m,
                                                    uint32_t index,
-                                                   uint32_t arg_type_idx)
+                                                   dex::TypeIndex arg_type_idx)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK(Thread::Current()->IsExceptionPending());
   DCHECK(!m->IsProxyMethod());
@@ -4864,7 +4866,7 @@ static bool HasSameSignatureWithDifferentClassLoaders(Thread* self,
   }
   for (uint32_t i = 0; i < num_types; ++i) {
     StackHandleScope<1> hs(self);
-    uint32_t param_type_idx = types1->GetTypeItem(i).type_idx_;
+    dex::TypeIndex param_type_idx = types1->GetTypeItem(i).type_idx_;
     Handle<mirror::Class> param_type(hs.NewHandle(
         method1->GetClassFromTypeIndex(param_type_idx, true /* resolve */, pointer_size)));
     if (UNLIKELY(param_type.Get() == nullptr)) {
@@ -4872,7 +4874,7 @@ static bool HasSameSignatureWithDifferentClassLoaders(Thread* self,
                                              method1, i, param_type_idx);
       return false;
     }
-    uint32_t other_param_type_idx = types2->GetTypeItem(i).type_idx_;
+    dex::TypeIndex other_param_type_idx = types2->GetTypeItem(i).type_idx_;
     ObjPtr<mirror::Class> other_param_type =
         method2->GetClassFromTypeIndex(other_param_type_idx, true /* resolve */, pointer_size);
     if (UNLIKELY(other_param_type == nullptr)) {
@@ -5356,8 +5358,8 @@ static bool CheckSuperClassChange(Handle<mirror::Class> klass,
 bool ClassLinker::LoadSuperAndInterfaces(Handle<mirror::Class> klass, const DexFile& dex_file) {
   CHECK_EQ(mirror::Class::kStatusIdx, klass->GetStatus());
   const DexFile::ClassDef& class_def = dex_file.GetClassDef(klass->GetDexClassDefIndex());
-  uint16_t super_class_idx = class_def.superclass_idx_;
-  if (super_class_idx != DexFile::kDexNoIndex16) {
+  dex::TypeIndex super_class_idx = class_def.superclass_idx_;
+  if (super_class_idx.IsValid()) {
     // Check that a class does not inherit from itself directly.
     //
     // TODO: This is a cheap check to detect the straightforward case
@@ -5394,7 +5396,7 @@ bool ClassLinker::LoadSuperAndInterfaces(Handle<mirror::Class> klass, const DexF
   const DexFile::TypeList* interfaces = dex_file.GetInterfacesList(class_def);
   if (interfaces != nullptr) {
     for (size_t i = 0; i < interfaces->Size(); i++) {
-      uint16_t idx = interfaces->GetTypeItem(i).type_idx_;
+      dex::TypeIndex idx = interfaces->GetTypeItem(i).type_idx_;
       ObjPtr<mirror::Class> interface = ResolveType(dex_file, idx, klass.Get());
       if (interface == nullptr) {
         DCHECK(Thread::Current()->IsExceptionPending());
@@ -7510,7 +7512,7 @@ mirror::String* ClassLinker::LookupString(const DexFile& dex_file,
 }
 
 ObjPtr<mirror::Class> ClassLinker::LookupResolvedType(const DexFile& dex_file,
-                                                      uint16_t type_idx,
+                                                      dex::TypeIndex type_idx,
                                                       ObjPtr<mirror::DexCache> dex_cache,
                                                       ObjPtr<mirror::ClassLoader> class_loader) {
   ObjPtr<mirror::Class> type = dex_cache->GetResolvedType(type_idx);
@@ -7536,7 +7538,7 @@ ObjPtr<mirror::Class> ClassLinker::LookupResolvedType(const DexFile& dex_file,
 }
 
 mirror::Class* ClassLinker::ResolveType(const DexFile& dex_file,
-                                        uint16_t type_idx,
+                                        dex::TypeIndex type_idx,
                                         ObjPtr<mirror::Class> referrer) {
   StackHandleScope<2> hs(Thread::Current());
   Handle<mirror::DexCache> dex_cache(hs.NewHandle(referrer->GetDexCache()));
@@ -7545,7 +7547,7 @@ mirror::Class* ClassLinker::ResolveType(const DexFile& dex_file,
 }
 
 mirror::Class* ClassLinker::ResolveType(const DexFile& dex_file,
-                                        uint16_t type_idx,
+                                        dex::TypeIndex type_idx,
                                         Handle<mirror::DexCache> dex_cache,
                                         Handle<mirror::ClassLoader> class_loader) {
   DCHECK(dex_cache.Get() != nullptr);
@@ -7939,7 +7941,7 @@ mirror::MethodType* ClassLinker::ResolveMethodType(const DexFile& dex_file,
   int32_t i = 0;
   MutableHandle<mirror::Class> param_class = hs.NewHandle<mirror::Class>(nullptr);
   for (; it.HasNext(); it.Next()) {
-    const uint16_t type_idx = it.GetTypeIdx();
+    const dex::TypeIndex type_idx = it.GetTypeIdx();
     param_class.Assign(ResolveType(dex_file, type_idx, dex_cache, class_loader));
     if (param_class.Get() == nullptr) {
       DCHECK(self->IsExceptionPending());
@@ -8350,10 +8352,10 @@ std::set<DexCacheResolvedClasses> ClassLinker::GetResolvedClasses(bool ignore_bo
                                              dex_file->GetBaseLocation(),
                                              dex_file->GetLocationChecksum());
     size_t num_resolved = 0;
-    std::unordered_set<uint16_t> class_set;
+    std::unordered_set<dex::TypeIndex> class_set;
     CHECK_EQ(num_types, dex_cache->NumResolvedTypes());
     for (size_t i = 0; i < num_types; ++i) {
-      ObjPtr<mirror::Class> klass = dex_cache->GetResolvedType(i);
+      ObjPtr<mirror::Class> klass = dex_cache->GetResolvedType(dex::TypeIndex(i));
       // Filter out null class loader since that is the boot class loader.
       if (klass == nullptr || (ignore_boot_classes && klass->GetClassLoader() == nullptr)) {
         continue;
@@ -8418,7 +8420,7 @@ std::unordered_set<std::string> ClassLinker::GetClassDescriptorsForProfileKeys(
       VLOG(profiler) << "Found opened dex file for " << dex_file->GetLocation() << " with "
                      << info.GetClasses().size() << " classes";
       DCHECK_EQ(dex_file->GetLocationChecksum(), info.GetLocationChecksum());
-      for (uint16_t type_idx : info.GetClasses()) {
+      for (dex::TypeIndex type_idx : info.GetClasses()) {
         const DexFile::TypeId& type_id = dex_file->GetTypeId(type_idx);
         const char* descriptor = dex_file->GetTypeDescriptor(type_id);
         ret.insert(descriptor);
