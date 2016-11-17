@@ -25,10 +25,13 @@ import java.nio.charset.StandardCharsets;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.Arrays;
 
 public class Main {
 
   public static class A {
+    public A() {}
+
     public void foo() {
       System.out.println("foo_A");
     }
@@ -65,6 +68,7 @@ public class Main {
     testfindSpecial_invokeDirectBehaviour();
     testExceptionDetailMessages();
     testfindVirtual();
+    testfindStatic();
     testUnreflects();
     testAsType();
     testConstructors();
@@ -116,6 +120,19 @@ public class Main {
       System.out.println("findSpecial(A.class, foo, .. D.class) unexpectedly succeeded.");
     } catch (IllegalAccessException expected) {
     }
+
+    // Check return type matches for find.
+    try {
+      B.lookup.findSpecial(A.class /* refC */, "foo",
+                           MethodType.methodType(int.class), B.class /* specialCaller */);
+      fail();
+    } catch (NoSuchMethodException e) {}
+    // Check constructors
+    try {
+      B.lookup.findSpecial(A.class /* refC */, "<init>",
+                           MethodType.methodType(void.class), B.class /* specialCaller */);
+      fail();
+    } catch (NoSuchMethodException e) {}
   }
 
   public static void testfindSpecial_invokeDirectBehaviour() throws Throwable {
@@ -189,9 +206,20 @@ public class Main {
       return "bar";
     }
 
+    public String add(int x, int y) {
+      return Arrays.toString(new int[] { x, y });
+    }
+
     private String privateMethod() { return "privateMethod"; }
 
-    public static String staticMethod() { return null; }
+    public static String staticMethod() { return staticString; }
+
+    private static String staticString;
+
+    {
+      // Static constructor
+      staticString = Long.toString(System.currentTimeMillis());
+    }
 
     static final MethodHandles.Lookup lookup = MethodHandles.lookup();
   }
@@ -231,6 +259,21 @@ public class Main {
     if (!"foo".equals(str)) {
       System.out.println("Unexpected return value for BarImpl#foo: " + str);
     }
+
+    // Find virtual should check rtype.
+    try {
+      mh = MethodHandles.lookup().findVirtual(BarImpl.class, "foo",
+                                              MethodType.methodType(void.class));
+      fail();
+    } catch (NoSuchMethodException e) {}
+
+    // And ptypes
+    mh = MethodHandles.lookup().findVirtual(
+        BarImpl.class, "add", MethodType.methodType(String.class, int.class, int.class));
+    try {
+      mh = MethodHandles.lookup().findVirtual(
+          BarImpl.class, "add", MethodType.methodType(String.class, Integer.class, int.class));
+    } catch (NoSuchMethodException e) {}
 
     // .. and their super-interfaces.
     mh = MethodHandles.lookup().findVirtual(BarImpl.class, "bar",
@@ -272,6 +315,37 @@ public class Main {
     if (!"superPackageMethod".equals(str)) {
       System.out.println("Unexpected return value for BarImpl#superPackageMethod: " + str);
     }
+
+    try {
+      MethodHandles.lookup().findVirtual(BarImpl.class, "<init>",
+                                        MethodType.methodType(void.class));
+      fail();
+    } catch (NoSuchMethodException e) {}
+  }
+
+  public static void testfindStatic() throws Throwable {
+    MethodHandles.lookup().findStatic(BarImpl.class, "staticMethod",
+                                      MethodType.methodType(String.class));
+    try {
+      MethodHandles.lookup().findStatic(BarImpl.class, "staticMethod",
+                                        MethodType.methodType(void.class));
+      fail();
+    } catch (NoSuchMethodException e) {}
+    try {
+      MethodHandles.lookup().findStatic(BarImpl.class, "staticMethod",
+                                        MethodType.methodType(String.class, int.class));
+      fail();
+    } catch (NoSuchMethodException e) {}
+    try {
+      MethodHandles.lookup().findStatic(BarImpl.class, "<clinit>",
+                                        MethodType.methodType(void.class));
+      fail();
+    } catch (NoSuchMethodException e) {}
+    try {
+      MethodHandles.lookup().findStatic(BarImpl.class, "<init>",
+                                        MethodType.methodType(void.class));
+      fail();
+    } catch (NoSuchMethodException e) {}
   }
 
   static class UnreflectTester {
