@@ -372,6 +372,9 @@ struct AbortState {
   void Dump(std::ostream& os) const {
     if (gAborting > 1) {
       os << "Runtime aborting --- recursively, so no thread-specific detail!\n";
+      if (gAborting == 2) {
+        DumpRecursiveAbort(os);
+      }
       return;
     }
     gAborting++;
@@ -427,6 +430,12 @@ struct AbortState {
         thread_list->Dump(os);
       }
     }
+  }
+
+  // For recursive aborts.
+  void DumpRecursiveAbort(std::ostream& os) const NO_THREAD_SAFETY_ANALYSIS {
+    // The only thing we'll attempt is dumping the native stack of the current thread.
+    DumpNativeStack(os, GetTid());
   }
 };
 
