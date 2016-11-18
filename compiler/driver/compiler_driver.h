@@ -584,6 +584,7 @@ class CompilerDriver {
   const BitVector* current_dex_to_dex_methods_;
 
   friend class CompileClassVisitor;
+  friend class DexToDexDecompilerTest;
   friend class verifier::VerifierDepsTest;
   DISALLOW_COPY_AND_ASSIGN(CompilerDriver);
 };
