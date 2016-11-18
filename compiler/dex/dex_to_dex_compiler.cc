@@ -233,6 +233,8 @@ Instruction* DexCompiler::CompileCheckCast(Instruction* inst, uint32_t dex_pc) {
                  << " by replacing it with 2 NOPs at dex pc "
                  << StringPrintf("0x%x", dex_pc) << " in method "
                  << GetDexFile().PrettyMethod(unit_.GetDexMethodIndex(), true);
+  quickened_info_.push_back(QuickenedInfo(dex_pc, inst->VRegA_21c()));
+  quickened_info_.push_back(QuickenedInfo(dex_pc, inst->VRegB_21c()));
   // We are modifying 4 consecutive bytes.
   inst->SetOpcode(Instruction::NOP);
   inst->SetVRegA_10x(0u);  // keep compliant with verifier.
