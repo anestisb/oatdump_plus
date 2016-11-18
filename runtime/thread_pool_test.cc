@@ -114,6 +114,8 @@ TEST_F(ThreadPoolTest, StopWait) {
   thread_pool.StopWorkers(self);
 
   thread_pool.Wait(self, false, false);  // We should not deadlock here.
+  // Drain the task list.
+  thread_pool.Wait(self, /* do_work */ true, false);  // We should not deadlock here.
 }
 
 class TreeTask : public Task {
