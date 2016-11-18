@@ -582,14 +582,15 @@ class ImageWriter FINAL {
   // Map of dex files to the indexes of oat files that they were compiled into.
   const std::unordered_map<const DexFile*, size_t>& dex_file_oat_index_map_;
 
-  friend class ContainsBootClassLoaderNonImageClassVisitor;
-  friend class FixupClassVisitor;
-  friend class FixupRootVisitor;
-  friend class FixupVisitor;
+  class ComputeLazyFieldsForClassesVisitor;
+  class FixupClassVisitor;
+  class FixupRootVisitor;
+  class FixupVisitor;
   class GetRootsVisitor;
-  friend class NativeLocationVisitor;
-  friend class NonImageClassesVisitor;
+  class NativeLocationVisitor;
+  class NonImageClassesVisitor;
   class VisitReferencesVisitor;
+
   DISALLOW_COPY_AND_ASSIGN(ImageWriter);
 };
 
