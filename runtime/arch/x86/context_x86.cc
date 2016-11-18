@@ -17,6 +17,7 @@
 #include "context_x86.h"
 
 #include "base/bit_utils.h"
+#include "base/memory_tool.h"
 #include "quick/quick_method_frame_info.h"
 
 namespace art {
@@ -102,6 +103,7 @@ void X86Context::DoLongJump() {
   uintptr_t esp = gprs[kNumberOfCpuRegisters - ESP - 1] - sizeof(intptr_t);
   gprs[kNumberOfCpuRegisters] = esp;
   *(reinterpret_cast<uintptr_t*>(esp)) = eip_;
+  MEMORY_TOOL_HANDLE_NO_RETURN;
   __asm__ __volatile__(
       "movl %1, %%ebx\n\t"          // Address base of FPRs.
       "movsd 0(%%ebx), %%xmm0\n\t"  // Load up XMM0-XMM7.
