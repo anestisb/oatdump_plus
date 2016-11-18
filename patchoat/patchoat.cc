@@ -498,7 +498,7 @@ bool PatchOat::ReplaceOatFileWithSymlink(const std::string& input_oat_filename,
   return true;
 }
 
-class PatchOatArtFieldVisitor : public ArtFieldVisitor {
+class PatchOat::PatchOatArtFieldVisitor : public ArtFieldVisitor {
  public:
   explicit PatchOatArtFieldVisitor(PatchOat* patch_oat) : patch_oat_(patch_oat) {}
 
@@ -517,7 +517,7 @@ void PatchOat::PatchArtFields(const ImageHeader* image_header) {
   image_header->VisitPackedArtFields(&visitor, heap_->Begin());
 }
 
-class PatchOatArtMethodVisitor : public ArtMethodVisitor {
+class PatchOat::PatchOatArtMethodVisitor : public ArtMethodVisitor {
  public:
   explicit PatchOatArtMethodVisitor(PatchOat* patch_oat) : patch_oat_(patch_oat) {}
 
@@ -558,7 +558,7 @@ void PatchOat::PatchImtConflictTables(const ImageHeader* image_header) {
       pointer_size);
 }
 
-class FixupRootVisitor : public RootVisitor {
+class PatchOat::FixupRootVisitor : public RootVisitor {
  public:
   explicit FixupRootVisitor(const PatchOat* patch_oat) : patch_oat_(patch_oat) {
   }
@@ -610,7 +610,7 @@ void PatchOat::PatchClassTable(const ImageHeader* image_header) {
 }
 
 
-class RelocatedPointerVisitor {
+class PatchOat::RelocatedPointerVisitor {
  public:
   explicit RelocatedPointerVisitor(PatchOat* patch_oat) : patch_oat_(patch_oat) {}
 

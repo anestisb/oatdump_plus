@@ -230,10 +230,11 @@ class PatchOat {
 
   TimingLogger* timings_;
 
-  friend class FixupRootVisitor;
-  friend class RelocatedPointerVisitor;
-  friend class PatchOatArtFieldVisitor;
-  friend class PatchOatArtMethodVisitor;
+  class FixupRootVisitor;
+  class RelocatedPointerVisitor;
+  class PatchOatArtFieldVisitor;
+  class PatchOatArtMethodVisitor;
+
   DISALLOW_IMPLICIT_CONSTRUCTORS(PatchOat);
 };
 
