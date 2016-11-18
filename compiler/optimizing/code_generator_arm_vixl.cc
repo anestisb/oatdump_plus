@@ -680,6 +680,15 @@ void JumpTableARMVIXL::EmitTable(CodeGeneratorARMVIXL* codegen) {
                              CodeBufferCheckScope::kMaximumSize);
   // TODO(VIXL): Check that using lower case bind is fine here.
   codegen->GetVIXLAssembler()->bind(&table_start_);
+  for (uint32_t i = 0; i < num_entries; i++) {
+    codegen->GetVIXLAssembler()->place(bb_addresses_[i].get());
+  }
+}
+
+void JumpTableARMVIXL::FixTable(CodeGeneratorARMVIXL* codegen) {
+  uint32_t num_entries = switch_instr_->GetNumEntries();
+  DCHECK_GE(num_entries, kPackedSwitchCompareJumpThreshold);
+
   const ArenaVector<HBasicBlock*>& successors = switch_instr_->GetBlock()->GetSuccessors();
   for (uint32_t i = 0; i < num_entries; i++) {
     vixl32::Label* target_label = codegen->GetLabelOf(successors[i]);
@@ -691,21 +700,21 @@ void JumpTableARMVIXL::EmitTable(CodeGeneratorARMVIXL* codegen) {
     }
     DCHECK_GT(jump_offset, std::numeric_limits<int32_t>::min());
     DCHECK_LE(jump_offset, std::numeric_limits<int32_t>::max());
-    vixl32::Literal<int32_t> literal(jump_offset);
-    codegen->GetVIXLAssembler()->place(&literal);
+
+    bb_addresses_[i].get()->UpdateValue(jump_offset, &codegen->GetVIXLAssembler()->GetBuffer());
   }
 }
 
-void CodeGeneratorARMVIXL::EmitJumpTables() {
+void CodeGeneratorARMVIXL::FixJumpTables() {
   for (auto&& jump_table : jump_tables_) {
-    jump_table->EmitTable(this);
+    jump_table->FixTable(this);
   }
 }
 
 #define __ reinterpret_cast<ArmVIXLAssembler*>(GetAssembler())->GetVIXLAssembler()->  // NOLINT
 
 void CodeGeneratorARMVIXL::Finalize(CodeAllocator* allocator) {
-  EmitJumpTables();
+  FixJumpTables();
   GetAssembler()->FinalizeCode();
   CodeGenerator::Finalize(allocator);
 }
@@ -6113,6 +6122,8 @@ void InstructionCodeGeneratorARMVIXL::VisitPackedSwitch(HPackedSwitch* switch_in
     vixl32::Register target_address = table_base;
     __ Add(target_address, table_base, jump_offset);
     __ Bx(target_address);
+
+    jump_table->EmitTable(codegen_);
   }
 }
 

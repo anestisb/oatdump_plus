@@ -113,7 +113,7 @@ public class Main {
     }
 
     // Long packed-switch that might lead to not creating chained-ifs.
-    public static void packedSwitch7(int value) {
+    public static long packedSwitch7(int value) {
         switch (value) {
             case 1:
                 System.out.println(1); break;
@@ -148,6 +148,113 @@ public class Main {
             default:
                 System.out.println("default"); break;
         }
+
+        // Jump tables previously were emitted in the end of the method code buffer. The
+        // following boilerplate code aims to fill the emitted code buffer extensively
+        // and check that even for big method jump table is correctly emitted, its address
+        // is within a range of corresponded pc-relative instructions (this applies to
+        // ARM mainly).
+        long temp = value;
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+        temp = Long.rotateLeft(temp, value);
+
+        return temp;
     }
 
     // Sparse switch, just leave a gap.
