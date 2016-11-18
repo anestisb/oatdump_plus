@@ -341,6 +341,7 @@ class CompilerOptions FINAL {
   const std::vector<std::string>* passes_to_run_;
 
   friend class Dex2Oat;
+  friend class DexToDexDecompilerTest;
   friend class CommonCompilerTest;
   friend class verifier::VerifierDepsTest;
 

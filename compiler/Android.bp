@@ -28,6 +28,7 @@ art_cc_defaults {
         "compiled_method.cc",
         "debug/elf_debug_writer.cc",
         "dex/dex_to_dex_compiler.cc",
+        "dex/dex_to_dex_decompiler.cc",
         "dex/verified_method.cc",
         "dex/verification_results.cc",
         "dex/quick_compiler_callbacks.cc",
@@ -312,6 +313,7 @@ art_cc_test {
     srcs: [
         "compiled_method_test.cc",
         "debug/dwarf/dwarf_test.cc",
+        "dex/dex_to_dex_decompiler_test.cc",
         "driver/compiled_method_storage_test.cc",
         "driver/compiler_driver_test.cc",
         "elf_writer_test.cc",

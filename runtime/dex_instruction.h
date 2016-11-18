@@ -480,6 +480,18 @@ class Instruction {
     insns[1] = val;
   }
 
+  void SetVRegA_21c(uint8_t val) {
+    DCHECK(FormatOf(Opcode()) == k21c);
+    uint16_t* insns = reinterpret_cast<uint16_t*>(this);
+    insns[0] = (val << 8) | (insns[0] & 0x00ff);
+  }
+
+  void SetVRegB_21c(uint16_t val) {
+    DCHECK(FormatOf(Opcode()) == k21c);
+    uint16_t* insns = reinterpret_cast<uint16_t*>(this);
+    insns[1] = val;
+  }
+
   // Returns the format of the given opcode.
   static Format FormatOf(Code opcode) {
     return kInstructionFormats[opcode];

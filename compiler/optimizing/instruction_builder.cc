@@ -1723,7 +1723,10 @@ uint16_t HInstructionBuilder::LookupQuickenedInfo(uint32_t dex_pc) {
     if (dex_pc_in_map == dex_pc) {
       return value_in_map;
     } else {
-      skipped_interpreter_metadata_.Put(dex_pc_in_map, value_in_map);
+      // Overwrite and not Put, as quickened CHECK-CAST has two entries with
+      // the same dex_pc. This is OK, because the compiler does not care about those
+      // entries.
+      skipped_interpreter_metadata_.Overwrite(dex_pc_in_map, value_in_map);
     }
   }
 }
