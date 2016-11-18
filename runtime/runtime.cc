@@ -442,8 +442,16 @@ void Runtime::Abort(const char* msg) {
 
   // Many people have difficulty distinguish aborts from crashes,
   // so be explicit.
+  // Note: use cerr on the host to print log lines immediately, so we get at least some output
+  //       in case of recursive aborts. We lose annotation with the source file and line number
+  //       here, which is a minor issue. The same is significantly more complicated on device,
+  //       which is why we ignore the issue there.
   AbortState state;
-  LOG(FATAL_WITHOUT_ABORT) << Dumpable<AbortState>(state);
+  if (kIsTargetBuild) {
+    LOG(FATAL_WITHOUT_ABORT) << Dumpable<AbortState>(state);
+  } else {
+    std::cerr << Dumpable<AbortState>(state);
+  }
 
   // Sometimes we dump long messages, and the Android abort message only retains the first line.
   // In those cases, just log the message again, to avoid logcat limits.
