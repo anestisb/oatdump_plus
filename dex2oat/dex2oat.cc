@@ -78,6 +78,7 @@
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change-inl.h"
 #include "utils.h"
+#include "vdex_file.h"
 #include "verifier/verifier_deps.h"
 #include "well_known_classes.h"
 #include "zip_archive.h"
@@ -520,6 +521,7 @@ class Dex2Oat FINAL {
       oat_fd_(-1),
       input_vdex_fd_(-1),
       output_vdex_fd_(-1),
+      input_vdex_file_(nullptr),
       zip_fd_(-1),
       image_base_(0U),
       image_classes_zip_filename_(nullptr),
@@ -708,6 +710,10 @@ class Dex2Oat FINAL {
 
     if (oat_filenames_.empty() && oat_fd_ == -1) {
       Usage("Output must be supplied with either --oat-file or --oat-fd");
+    }
+
+    if (input_vdex_fd_ != -1 && !input_vdex_.empty()) {
+      Usage("Can't have both --input-vdex-fd and --input-vdex");
     }
 
     if (!oat_filenames_.empty() && oat_fd_ != -1) {
@@ -1123,6 +1129,8 @@ class Dex2Oat FINAL {
         zip_location_ = option.substr(strlen("--zip-location=")).data();
       } else if (option.starts_with("--input-vdex-fd=")) {
         ParseInputVdexFd(option);
+      } else if (option.starts_with("--input-vdex=")) {
+        input_vdex_ = option.substr(strlen("--input-vdex=")).data();
       } else if (option.starts_with("--output-vdex-fd=")) {
         ParseOutputVdexFd(option);
       } else if (option.starts_with("--oat-file=")) {
@@ -1266,6 +1274,17 @@ class Dex2Oat FINAL {
           return false;
         }
         oat_files_.push_back(std::move(oat_file));
+        DCHECK_EQ(input_vdex_fd_, -1);
+        if (!input_vdex_.empty()) {
+          std::string error_msg;
+          input_vdex_file_.reset(VdexFile::Open(input_vdex_,
+                                                /* writable */ false,
+                                                /* low_4gb */ false,
+                                                &error_msg));
+          if (input_vdex_file_ != nullptr && !input_vdex_file_->IsValid()) {
+            input_vdex_file_.reset(nullptr);
+          }
+        }
 
         DCHECK_EQ(output_vdex_fd_, -1);
         std::string vdex_filename = ReplaceFileExtension(oat_filename, "vdex");
@@ -1292,6 +1311,31 @@ class Dex2Oat FINAL {
         PLOG(WARNING) << "Truncating oat file " << oat_location_ << " failed.";
       }
       oat_files_.push_back(std::move(oat_file));
+
+      DCHECK_NE(input_vdex_fd_, output_vdex_fd_);
+      if (input_vdex_fd_ != -1) {
+        struct stat s;
+        int rc = TEMP_FAILURE_RETRY(fstat(input_vdex_fd_, &s));
+        if (rc == -1) {
+          PLOG(WARNING) << "Failed getting length of vdex file";
+        } else {
+          std::string error_msg;
+          input_vdex_file_.reset(VdexFile::Open(input_vdex_fd_,
+                                                s.st_size,
+                                                "vdex",
+                                                /* writable */ false,
+                                                /* low_4gb */ false,
+                                                &error_msg));
+          // If there's any problem with the passed vdex, just warn and proceed
+          // without it.
+          if (input_vdex_file_ == nullptr) {
+            PLOG(WARNING) << "Failed opening vdex file " << error_msg;
+          } else if (!input_vdex_file_->IsValid()) {
+            PLOG(WARNING) << "Existing vdex file is invalid";
+            input_vdex_file_.reset(nullptr);
+          }
+        }
+      }
 
       DCHECK_NE(output_vdex_fd_, -1);
       std::string vdex_location = ReplaceFileExtension(oat_location_, "vdex");
@@ -1388,7 +1432,6 @@ class Dex2Oat FINAL {
   // boot class path.
   bool Setup() {
     TimingLogger::ScopedTiming t("dex2oat Setup", timings_);
-    art::MemMap::Init();  // For ZipEntry::ExtractToMemMap.
 
     if (!PrepareImageClasses() || !PrepareCompiledClasses() || !PrepareCompiledMethods()) {
       return false;
@@ -1480,8 +1523,11 @@ class Dex2Oat FINAL {
         // Unzip or copy dex files straight to the oat file.
         std::unique_ptr<MemMap> opened_dex_files_map;
         std::vector<std::unique_ptr<const DexFile>> opened_dex_files;
-        // Dexlayout verifies the dex file, so disable dex file verification in that case.
-        bool verify = compiler_options_->GetCompilerFilter() != CompilerFilter::kLayoutProfile;
+        // No need to verify the dex file for:
+        // 1) dexlayout, which already verified it
+        // 2) when we have a vdex file, which means it was already verified.
+        bool verify = compiler_options_->GetCompilerFilter() != CompilerFilter::kLayoutProfile &&
+            (input_vdex_file_ == nullptr);
         if (!oat_writers_[i]->WriteAndOpenDexFiles(
             kIsVdexEnabled ? vdex_files_[i].get() : oat_files_[i].get(),
             rodata_.back(),
@@ -1665,7 +1711,7 @@ class Dex2Oat FINAL {
                                      swap_fd_,
                                      profile_compilation_info_.get()));
     driver_->SetDexFilesForOatFile(dex_files_);
-    driver_->CompileAll(class_loader_, dex_files_, /* verifier_deps */ nullptr, timings_);
+    driver_->CompileAll(class_loader_, dex_files_, input_vdex_file_.get(), timings_);
   }
 
   // Notes on the interleaving of creating the images and oat files to
@@ -2238,7 +2284,14 @@ class Dex2Oat FINAL {
 
   bool AddDexFileSources() {
     TimingLogger::ScopedTiming t2("AddDexFileSources", timings_);
-    if (zip_fd_ != -1) {
+    if (input_vdex_file_ != nullptr) {
+      DCHECK_EQ(oat_writers_.size(), 1u);
+      const std::string& name = zip_location_.empty() ? dex_locations_[0] : zip_location_;
+      DCHECK(!name.empty());
+      if (!oat_writers_[0]->AddVdexDexFilesSource(*input_vdex_file_.get(), name.c_str())) {
+        return false;
+      }
+    } else if (zip_fd_ != -1) {
       DCHECK_EQ(oat_writers_.size(), 1u);
       if (!oat_writers_[0]->AddZippedDexFilesSource(File(zip_fd_, /* check_usage */ false),
                                                     zip_location_.c_str())) {
@@ -2596,6 +2649,8 @@ class Dex2Oat FINAL {
   int oat_fd_;
   int input_vdex_fd_;
   int output_vdex_fd_;
+  std::string input_vdex_;
+  std::unique_ptr<VdexFile> input_vdex_file_;
   std::vector<const char*> dex_filenames_;
   std::vector<const char*> dex_locations_;
   int zip_fd_;
@@ -2791,6 +2846,8 @@ static int dex2oat(int argc, char** argv) {
       return EXIT_FAILURE;
     }
   }
+
+  art::MemMap::Init();  // For ZipEntry::ExtractToMemMap, and vdex.
 
   // Check early that the result of compilation can be written
   if (!dex2oat->OpenFile()) {
