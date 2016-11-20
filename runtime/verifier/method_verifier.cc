@@ -100,8 +100,18 @@ PcToRegisterLineTable::~PcToRegisterLineTable() {}
 ALWAYS_INLINE static inline bool FailOrAbort(MethodVerifier* verifier, bool condition,
                                              const char* error_msg, uint32_t work_insn_idx) {
   if (kIsDebugBuild) {
-    // In a debug build, abort if the error condition is wrong.
-    DCHECK(condition) << error_msg << work_insn_idx;
+    // In a debug build, abort if the error condition is wrong. Only warn if
+    // we are already aborting (as this verification is likely run to print
+    // lock information).
+    if (LIKELY(gAborting == 0)) {
+      DCHECK(condition) << error_msg << work_insn_idx;
+    } else {
+      if (!condition) {
+        LOG(ERROR) << error_msg << work_insn_idx;
+        verifier->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << error_msg << work_insn_idx;
+        return true;
+      }
+    }
   } else {
     // In a non-debug build, just fail the class.
     if (!condition) {
