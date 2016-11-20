@@ -274,6 +274,15 @@ bool Jit::CompileMethod(ArtMethod* method, Thread* self, bool osr) {
               << ArtMethod::PrettyMethod(method_to_compile)
               << " osr=" << std::boolalpha << osr;
   }
+  if (kIsDebugBuild) {
+    if (self->IsExceptionPending()) {
+      mirror::Throwable* exception = self->GetException();
+      LOG(FATAL) << "No pending exception expected after compiling "
+                 << ArtMethod::PrettyMethod(method)
+                 << ": "
+                 << exception->Dump();
+    }
+  }
   return success;
 }
 
