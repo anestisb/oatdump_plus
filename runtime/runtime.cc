@@ -372,9 +372,7 @@ struct AbortState {
   void Dump(std::ostream& os) const {
     if (gAborting > 1) {
       os << "Runtime aborting --- recursively, so no thread-specific detail!\n";
-      if (gAborting == 2) {
-        DumpRecursiveAbort(os);
-      }
+      DumpRecursiveAbort(os);
       return;
     }
     gAborting++;
@@ -434,8 +432,17 @@ struct AbortState {
 
   // For recursive aborts.
   void DumpRecursiveAbort(std::ostream& os) const NO_THREAD_SAFETY_ANALYSIS {
-    // The only thing we'll attempt is dumping the native stack of the current thread.
-    DumpNativeStack(os, GetTid());
+    // The only thing we'll attempt is dumping the native stack of the current thread. We will only
+    // try this if we haven't exceeded an arbitrary amount of recursions, to recover and actually
+    // die.
+    // Note: as we're using a global counter for the recursive abort detection, there is a potential
+    //       race here and it is not OK to just print when the counter is "2" (one from
+    //       Runtime::Abort(), one from previous Dump() call). Use a number that seems large enough.
+    static constexpr size_t kOnlyPrintWhenRecursionLessThan = 100u;
+    if (gAborting < kOnlyPrintWhenRecursionLessThan) {
+      gAborting++;
+      DumpNativeStack(os, GetTid());
+    }
   }
 };
 
