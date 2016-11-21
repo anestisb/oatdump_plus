@@ -66,6 +66,15 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getMethodName(
     jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(gen));
   }
 
+  // Also run GetMethodName with all parameter pointers null to check for segfaults.
+  jvmtiError result2 = jvmti_env->GetMethodName(id, nullptr, nullptr, nullptr);
+  if (result2 != JVMTI_ERROR_NONE) {
+    char* err;
+    jvmti_env->GetErrorName(result2, &err);
+    printf("Failure running GetMethodName(null, null, null): %s\n", err);
+    return nullptr;
+  }
+
   return ret;
 }
 
