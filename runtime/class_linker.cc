@@ -240,6 +240,12 @@ static void WrapExceptionInInitializer(Handle<mirror::Class> klass)
   ScopedLocalRef<jthrowable> cause(env, env->ExceptionOccurred());
   CHECK(cause.get() != nullptr);
 
+  // Boot classpath classes should not fail initialization.
+  if (!Runtime::Current()->IsAotCompiler()) {
+    std::string tmp;
+    CHECK(klass->GetClassLoader() != nullptr) << klass->GetDescriptor(&tmp);
+  }
+
   env->ExceptionClear();
   bool is_error = env->IsInstanceOf(cause.get(), WellKnownClasses::java_lang_Error);
   env->Throw(cause.get());
