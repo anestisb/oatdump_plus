@@ -363,7 +363,7 @@ static void CheckMethodArguments(JavaVMExt* vm, ArtMethod* m, uint32_t* args)
   Thread* const self = Thread::Current();
   PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
   for (uint32_t i = 0; i < num_params; i++) {
-    uint16_t type_idx = params->GetTypeItem(i).type_idx_;
+    dex::TypeIndex type_idx = params->GetTypeItem(i).type_idx_;
     ObjPtr<mirror::Class> param_type(m->GetClassFromTypeIndex(type_idx,
                                                               true /* resolve*/,
                                                               pointer_size));

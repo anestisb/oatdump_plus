@@ -38,7 +38,7 @@ inline mirror::ClassLoader* CompilerDriver::GetClassLoader(const ScopedObjectAcc
 
 inline mirror::Class* CompilerDriver::ResolveClass(
     const ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
-    Handle<mirror::ClassLoader> class_loader, uint16_t cls_index,
+    Handle<mirror::ClassLoader> class_loader, dex::TypeIndex cls_index,
     const DexCompilationUnit* mUnit) {
   DCHECK_EQ(dex_cache->GetDexFile(), mUnit->GetDexFile());
   DCHECK_EQ(class_loader.Get(), GetClassLoader(soa, mUnit));
@@ -141,7 +141,7 @@ inline std::pair<bool, bool> CompilerDriver::IsClassOfStaticMemberAvailableToRef
     mirror::Class* referrer_class,
     ArtMember* resolved_member,
     uint16_t member_idx,
-    uint32_t* storage_index) {
+    dex::TypeIndex* storage_index) {
   DCHECK(resolved_member->IsStatic());
   if (LIKELY(referrer_class != nullptr)) {
     ObjPtr<mirror::Class> members_class = resolved_member->GetDeclaringClass();
@@ -156,7 +156,7 @@ inline std::pair<bool, bool> CompilerDriver::IsClassOfStaticMemberAvailableToRef
       // TODO: for images we can elide the static storage base null check
       // if we know there's a non-null entry in the image
       const DexFile* dex_file = dex_cache->GetDexFile();
-      uint32_t storage_idx = DexFile::kDexNoIndex;
+      dex::TypeIndex storage_idx(DexFile::kDexNoIndex16);
       if (LIKELY(members_class->GetDexCache() == dex_cache)) {
         // common case where the dex cache of both the referrer and the member are the same,
         // no need to search the dex file
@@ -166,27 +166,27 @@ inline std::pair<bool, bool> CompilerDriver::IsClassOfStaticMemberAvailableToRef
         // of the class mentioned in the dex file and there is no dex cache entry.
         storage_idx = resolved_member->GetDeclaringClass()->FindTypeIndexInOtherDexFile(*dex_file);
       }
-      if (storage_idx != DexFile::kDexNoIndex) {
+      if (storage_idx.IsValid()) {
         *storage_index = storage_idx;
         return std::make_pair(true, !resolved_member->IsFinal());
       }
     }
   }
   // Conservative defaults.
-  *storage_index = DexFile::kDexNoIndex;
+  *storage_index = dex::TypeIndex(DexFile::kDexNoIndex16);
   return std::make_pair(false, false);
 }
 
 inline std::pair<bool, bool> CompilerDriver::IsFastStaticField(
     mirror::DexCache* dex_cache, mirror::Class* referrer_class,
-    ArtField* resolved_field, uint16_t field_idx, uint32_t* storage_index) {
+    ArtField* resolved_field, uint16_t field_idx, dex::TypeIndex* storage_index) {
   return IsClassOfStaticMemberAvailableToReferrer(
       dex_cache, referrer_class, resolved_field, field_idx, storage_index);
 }
 
 inline bool CompilerDriver::IsClassOfStaticMethodAvailableToReferrer(
     mirror::DexCache* dex_cache, mirror::Class* referrer_class,
-    ArtMethod* resolved_method, uint16_t method_idx, uint32_t* storage_index) {
+    ArtMethod* resolved_method, uint16_t method_idx, dex::TypeIndex* storage_index) {
   std::pair<bool, bool> result = IsClassOfStaticMemberAvailableToReferrer(
       dex_cache, referrer_class, resolved_method, method_idx, storage_index);
   // Only the first member of `result` is meaningful, as there is no

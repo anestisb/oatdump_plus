@@ -80,7 +80,7 @@ class InductionVarAnalysisTest : public CommonCompilerTest {
 
     // Provide entry and exit instructions.
     parameter_ = new (&allocator_) HParameterValue(
-        graph_->GetDexFile(), 0, 0, Primitive::kPrimNot, true);
+        graph_->GetDexFile(), dex::TypeIndex(0), 0, Primitive::kPrimNot, true);
     entry_->AddInstruction(parameter_);
     constant0_ = graph_->GetIntConstant(0);
     constant1_ = graph_->GetIntConstant(1);

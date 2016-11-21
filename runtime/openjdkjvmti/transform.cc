@@ -33,6 +33,7 @@
 
 #include "class_linker.h"
 #include "dex_file.h"
+#include "dex_file_types.h"
 #include "gc_root-inl.h"
 #include "globals.h"
 #include "jni_env_ext-inl.h"
@@ -108,10 +109,10 @@ static void InvalidateExistingMethods(art::Thread* self,
     // Find the code_item for the method then find the dex_method_index and dex_code_item_offset to
     // set.
     const art::DexFile::StringId* new_name_id = dex_file->FindStringId(method.GetName());
-    uint16_t method_return_idx =
+    art::dex::TypeIndex method_return_idx =
         dex_file->GetIndexForTypeId(*dex_file->FindTypeId(method.GetReturnTypeDescriptor()));
     const auto* old_type_list = method.GetParameterTypeList();
-    std::vector<uint16_t> new_type_list;
+    std::vector<art::dex::TypeIndex> new_type_list;
     for (uint32_t i = 0; old_type_list != nullptr && i < old_type_list->Size(); i++) {
       new_type_list.push_back(
           dex_file->GetIndexForTypeId(

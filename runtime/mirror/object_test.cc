@@ -313,7 +313,7 @@ TEST_F(ObjectTest, CheckAndAllocArrayFromCode) {
   ArtMethod* sort = java_util_Arrays->FindDirectMethod("sort", "([I)V", kRuntimePointerSize);
   const DexFile::TypeId* type_id = java_lang_dex_file_->FindTypeId("[I");
   ASSERT_TRUE(type_id != nullptr);
-  uint32_t type_idx = java_lang_dex_file_->GetIndexForTypeId(*type_id);
+  dex::TypeIndex type_idx = java_lang_dex_file_->GetIndexForTypeId(*type_id);
   Object* array = CheckAndAllocArrayFromCodeInstrumented(
       type_idx, 3, sort, Thread::Current(), false,
       Runtime::Current()->GetHeap()->GetCurrentAllocator());

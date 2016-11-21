@@ -183,17 +183,17 @@ inline GcRoot<mirror::Class>* ArtMethod::GetDexCacheResolvedTypes(PointerSize po
 }
 
 template <bool kWithCheck>
-inline mirror::Class* ArtMethod::GetDexCacheResolvedType(uint32_t type_index,
+inline mirror::Class* ArtMethod::GetDexCacheResolvedType(dex::TypeIndex type_index,
                                                          PointerSize pointer_size) {
   if (kWithCheck) {
     mirror::DexCache* dex_cache =
         GetInterfaceMethodIfProxy(pointer_size)->GetDeclaringClass()->GetDexCache();
-    if (UNLIKELY(type_index >= dex_cache->NumResolvedTypes())) {
-      ThrowArrayIndexOutOfBoundsException(type_index, dex_cache->NumResolvedTypes());
+    if (UNLIKELY(type_index.index_ >= dex_cache->NumResolvedTypes())) {
+      ThrowArrayIndexOutOfBoundsException(type_index.index_, dex_cache->NumResolvedTypes());
       return nullptr;
     }
   }
-  mirror::Class* klass = GetDexCacheResolvedTypes(pointer_size)[type_index].Read();
+  mirror::Class* klass = GetDexCacheResolvedTypes(pointer_size)[type_index.index_].Read();
   return (klass != nullptr && !klass->IsErroneous()) ? klass : nullptr;
 }
 
@@ -210,7 +210,7 @@ inline bool ArtMethod::HasSameDexCacheResolvedTypes(ArtMethod* other, PointerSiz
   return GetDexCacheResolvedTypes(pointer_size) == other->GetDexCacheResolvedTypes(pointer_size);
 }
 
-inline mirror::Class* ArtMethod::GetClassFromTypeIndex(uint16_t type_idx,
+inline mirror::Class* ArtMethod::GetClassFromTypeIndex(dex::TypeIndex type_idx,
                                                        bool resolve,
                                                        PointerSize pointer_size) {
   mirror::Class* type = GetDexCacheResolvedType(type_idx, pointer_size);
@@ -336,7 +336,7 @@ inline const DexFile::CodeItem* ArtMethod::GetCodeItem() {
   return GetDeclaringClass()->GetDexFile().GetCodeItem(GetCodeItemOffset());
 }
 
-inline bool ArtMethod::IsResolvedTypeIdx(uint16_t type_idx, PointerSize pointer_size) {
+inline bool ArtMethod::IsResolvedTypeIdx(dex::TypeIndex type_idx, PointerSize pointer_size) {
   DCHECK(!IsProxyMethod());
   return GetDexCacheResolvedType(type_idx, pointer_size) != nullptr;
 }
@@ -383,11 +383,10 @@ inline const char* ArtMethod::GetReturnTypeDescriptor() {
   const DexFile* dex_file = GetDexFile();
   const DexFile::MethodId& method_id = dex_file->GetMethodId(GetDexMethodIndex());
   const DexFile::ProtoId& proto_id = dex_file->GetMethodPrototype(method_id);
-  uint16_t return_type_idx = proto_id.return_type_idx_;
-  return dex_file->GetTypeDescriptor(dex_file->GetTypeId(return_type_idx));
+  return dex_file->GetTypeDescriptor(dex_file->GetTypeId(proto_id.return_type_idx_));
 }
 
-inline const char* ArtMethod::GetTypeDescriptorFromTypeIdx(uint16_t type_idx) {
+inline const char* ArtMethod::GetTypeDescriptorFromTypeIdx(dex::TypeIndex type_idx) {
   DCHECK(!IsProxyMethod());
   const DexFile* dex_file = GetDexFile();
   return dex_file->GetTypeDescriptor(dex_file->GetTypeId(type_idx));
@@ -440,7 +439,7 @@ inline mirror::Class* ArtMethod::GetReturnType(bool resolve, PointerSize pointer
   const DexFile* dex_file = GetDexFile();
   const DexFile::MethodId& method_id = dex_file->GetMethodId(GetDexMethodIndex());
   const DexFile::ProtoId& proto_id = dex_file->GetMethodPrototype(method_id);
-  uint16_t return_type_idx = proto_id.return_type_idx_;
+  dex::TypeIndex return_type_idx = proto_id.return_type_idx_;
   mirror::Class* type = GetDexCacheResolvedType(return_type_idx, pointer_size);
   if (type == nullptr && resolve) {
     type = Runtime::Current()->GetClassLinker()->ResolveType(return_type_idx, this);

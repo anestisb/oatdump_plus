@@ -90,7 +90,7 @@ const DexFile::AnnotationItem* SearchAnnotationSet(const DexFile& dex_file,
     const uint8_t* annotation = annotation_item->annotation_;
     uint32_t type_index = DecodeUnsignedLeb128(&annotation);
 
-    if (strcmp(descriptor, dex_file.StringByTypeIdx(type_index)) == 0) {
+    if (strcmp(descriptor, dex_file.StringByTypeIdx(dex::TypeIndex(type_index))) == 0) {
       result = annotation_item;
       break;
     }
@@ -246,7 +246,7 @@ mirror::Object* ProcessEncodedAnnotation(Handle<mirror::Class> klass, const uint
   StackHandleScope<2> hs(self);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Handle<mirror::Class> annotation_class(hs.NewHandle(
-      class_linker->ResolveType(klass->GetDexFile(), type_index, klass.Get())));
+      class_linker->ResolveType(klass->GetDexFile(), dex::TypeIndex(type_index), klass.Get())));
   if (annotation_class.Get() == nullptr) {
     LOG(INFO) << "Unable to resolve " << klass->PrettyClass() << " annotation class " << type_index;
     DCHECK(Thread::Current()->IsExceptionPending());
@@ -370,13 +370,14 @@ bool ProcessAnnotationValue(Handle<mirror::Class> klass,
       if (result_style == DexFile::kAllRaw) {
         annotation_value->value_.SetI(index);
       } else {
+        dex::TypeIndex type_index(index);
         element_object = Runtime::Current()->GetClassLinker()->ResolveType(
-            klass->GetDexFile(), index, klass.Get());
+            klass->GetDexFile(), type_index, klass.Get());
         set_object = true;
         if (element_object == nullptr) {
           CHECK(self->IsExceptionPending());
           if (result_style == DexFile::kAllObjects) {
-            const char* msg = dex_file.StringByTypeIdx(index);
+            const char* msg = dex_file.StringByTypeIdx(type_index);
             self->ThrowNewWrappedException("Ljava/lang/TypeNotPresentException;", msg);
             element_object = self->GetException();
             self->ClearException();
@@ -665,7 +666,7 @@ const DexFile::AnnotationItem* GetAnnotationItemFromAnnotationSet(
     const uint8_t* annotation = annotation_item->annotation_;
     uint32_t type_index = DecodeUnsignedLeb128(&annotation);
     mirror::Class* resolved_class = Runtime::Current()->GetClassLinker()->ResolveType(
-        klass->GetDexFile(), type_index, klass.Get());
+        klass->GetDexFile(), dex::TypeIndex(type_index), klass.Get());
     if (resolved_class == nullptr) {
       std::string temp;
       LOG(WARNING) << StringPrintf("Unable to resolve %s annotation class %d",
@@ -1345,7 +1346,9 @@ void RuntimeEncodedStaticFieldValueIterator::ReadValueToField(ArtField* field) c
       break;
     }
     case kType: {
-      mirror::Class* resolved = linker_->ResolveType(dex_file_, jval_.i, *dex_cache_,
+      mirror::Class* resolved = linker_->ResolveType(dex_file_,
+                                                     dex::TypeIndex(jval_.i),
+                                                     *dex_cache_,
                                                      *class_loader_);
       field->SetObject<kTransactionActive>(field->GetDeclaringClass(), resolved);
       break;

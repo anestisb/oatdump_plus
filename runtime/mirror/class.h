@@ -20,6 +20,7 @@
 #include "base/enums.h"
 #include "base/iteration_range.h"
 #include "dex_file.h"
+#include "dex_file_types.h"
 #include "class_flags.h"
 #include "gc_root.h"
 #include "gc/allocator_type.h"
@@ -1148,16 +1149,17 @@ class MANAGED Class FINAL : public Object {
     SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, dex_class_def_idx_), class_def_idx);
   }
 
-  uint16_t GetDexTypeIndex() REQUIRES_SHARED(Locks::mutator_lock_) {
-    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, dex_type_idx_));
+  dex::TypeIndex GetDexTypeIndex() REQUIRES_SHARED(Locks::mutator_lock_) {
+    return dex::TypeIndex(
+        static_cast<uint16_t>(GetField32(OFFSET_OF_OBJECT_MEMBER(Class, dex_type_idx_))));
   }
 
-  void SetDexTypeIndex(uint16_t type_idx) REQUIRES_SHARED(Locks::mutator_lock_) {
+  void SetDexTypeIndex(dex::TypeIndex type_idx) REQUIRES_SHARED(Locks::mutator_lock_) {
     // Not called within a transaction.
-    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, dex_type_idx_), type_idx);
+    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, dex_type_idx_), type_idx.index_);
   }
 
-  uint32_t FindTypeIndexInOtherDexFile(const DexFile& dex_file)
+  dex::TypeIndex FindTypeIndexInOtherDexFile(const DexFile& dex_file)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   static Class* GetJavaLangClass() REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -1198,7 +1200,7 @@ class MANAGED Class FINAL : public Object {
 
   ALWAYS_INLINE uint32_t NumDirectInterfaces() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  uint16_t GetDirectInterfaceTypeIdx(uint32_t idx) REQUIRES_SHARED(Locks::mutator_lock_);
+  dex::TypeIndex GetDirectInterfaceTypeIdx(uint32_t idx) REQUIRES_SHARED(Locks::mutator_lock_);
 
   static ObjPtr<Class> GetDirectInterface(Thread* self,
                                           Handle<Class> klass,

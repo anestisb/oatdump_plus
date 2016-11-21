@@ -230,7 +230,7 @@ void VerifiedMethod::GenerateSafeCastSet(verifier::MethodVerifier* method_verifi
         const verifier::RegType& reg_type(line->GetRegisterType(method_verifier,
                                                                 inst->VRegA_21c()));
         const verifier::RegType& cast_type =
-            method_verifier->ResolveCheckedClass(inst->VRegB_21c());
+            method_verifier->ResolveCheckedClass(dex::TypeIndex(inst->VRegB_21c()));
         is_safe_cast = cast_type.IsStrictlyAssignableFrom(reg_type, method_verifier);
       } else {
         const verifier::RegType& array_type(line->GetRegisterType(method_verifier,

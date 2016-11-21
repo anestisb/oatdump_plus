@@ -129,7 +129,7 @@ inline ArtMethod* GetCalleeSaveMethodCaller(Thread* self, Runtime::CalleeSaveTyp
 
 template <const bool kAccessCheck>
 ALWAYS_INLINE
-inline mirror::Class* CheckObjectAlloc(uint32_t type_idx,
+inline mirror::Class* CheckObjectAlloc(dex::TypeIndex type_idx,
                                        ArtMethod* method,
                                        Thread* self,
                                        bool* slow_path) {
@@ -219,7 +219,7 @@ inline mirror::Class* CheckClassInitializedForObjectAlloc(mirror::Class* klass,
 // check.
 template <bool kAccessCheck, bool kInstrumented>
 ALWAYS_INLINE
-inline mirror::Object* AllocObjectFromCode(uint32_t type_idx,
+inline mirror::Object* AllocObjectFromCode(dex::TypeIndex type_idx,
                                            ArtMethod* method,
                                            Thread* self,
                                            gc::AllocatorType allocator_type) {
@@ -275,7 +275,7 @@ inline mirror::Object* AllocObjectFromCodeInitialized(mirror::Class* klass,
 
 template <bool kAccessCheck>
 ALWAYS_INLINE
-inline mirror::Class* CheckArrayAlloc(uint32_t type_idx,
+inline mirror::Class* CheckArrayAlloc(dex::TypeIndex type_idx,
                                       int32_t component_count,
                                       ArtMethod* method,
                                       bool* slow_path) {
@@ -313,7 +313,7 @@ inline mirror::Class* CheckArrayAlloc(uint32_t type_idx,
 // check.
 template <bool kAccessCheck, bool kInstrumented>
 ALWAYS_INLINE
-inline mirror::Array* AllocArrayFromCode(uint32_t type_idx,
+inline mirror::Array* AllocArrayFromCode(dex::TypeIndex type_idx,
                                          int32_t component_count,
                                          ArtMethod* method,
                                          Thread* self,
@@ -562,7 +562,7 @@ inline ArtMethod* FindMethodFromCode(uint32_t method_idx,
       StackHandleScope<2> hs2(self);
       HandleWrapperObjPtr<mirror::Object> h_this(hs2.NewHandleWrapper(this_object));
       Handle<mirror::Class> h_referring_class(hs2.NewHandle(referrer->GetDeclaringClass()));
-      const uint16_t method_type_idx =
+      const dex::TypeIndex method_type_idx =
           h_referring_class->GetDexFile().GetMethodId(method_idx).class_idx_;
       mirror::Class* method_reference_class = class_linker->ResolveType(method_type_idx, referrer);
       if (UNLIKELY(method_reference_class == nullptr)) {
@@ -758,7 +758,8 @@ inline ArtMethod* FindMethodFast(uint32_t method_idx,
     return resolved_method;
   } else if (type == kSuper) {
     // TODO This lookup is rather slow.
-    uint16_t method_type_idx = referring_class->GetDexFile().GetMethodId(method_idx).class_idx_;
+    dex::TypeIndex method_type_idx =
+        referring_class->GetDexFile().GetMethodId(method_idx).class_idx_;
     mirror::Class* method_reference_class =
         referring_class->GetDexCache()->GetResolvedType(method_type_idx);
     if (method_reference_class == nullptr) {
@@ -788,8 +789,11 @@ inline ArtMethod* FindMethodFast(uint32_t method_idx,
   }
 }
 
-inline mirror::Class* ResolveVerifyAndClinit(uint32_t type_idx, ArtMethod* referrer, Thread* self,
-                                             bool can_run_clinit, bool verify_access) {
+inline mirror::Class* ResolveVerifyAndClinit(dex::TypeIndex type_idx,
+                                             ArtMethod* referrer,
+                                             Thread* self,
+                                             bool can_run_clinit,
+                                             bool verify_access) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   mirror::Class* klass = class_linker->ResolveType(type_idx, referrer);
   if (UNLIKELY(klass == nullptr)) {

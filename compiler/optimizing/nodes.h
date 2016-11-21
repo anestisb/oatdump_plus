@@ -29,6 +29,7 @@
 #include "base/stl_util.h"
 #include "base/transform_array_ref.h"
 #include "dex_file.h"
+#include "dex_file_types.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "handle.h"
 #include "handle_scope.h"
@@ -800,7 +801,7 @@ class TryCatchInformation : public ArenaObject<kArenaAllocTryCatchInfo> {
   }
 
   // Catch block information constructor.
-  TryCatchInformation(uint16_t catch_type_index, const DexFile& dex_file)
+  TryCatchInformation(dex::TypeIndex catch_type_index, const DexFile& dex_file)
       : try_entry_(nullptr),
         catch_dex_file_(&dex_file),
         catch_type_index_(catch_type_index) {}
@@ -816,10 +817,10 @@ class TryCatchInformation : public ArenaObject<kArenaAllocTryCatchInfo> {
 
   bool IsCatchAllTypeIndex() const {
     DCHECK(IsCatchBlock());
-    return catch_type_index_ == DexFile::kDexNoIndex16;
+    return !catch_type_index_.IsValid();
   }
 
-  uint16_t GetCatchTypeIndex() const {
+  dex::TypeIndex GetCatchTypeIndex() const {
     DCHECK(IsCatchBlock());
     return catch_type_index_;
   }
@@ -836,7 +837,7 @@ class TryCatchInformation : public ArenaObject<kArenaAllocTryCatchInfo> {
 
   // Exception type information. Only set for catch blocks.
   const DexFile* catch_dex_file_;
-  const uint16_t catch_type_index_;
+  const dex::TypeIndex catch_type_index_;
 };
 
 static constexpr size_t kNoLifetime = -1;
@@ -3671,7 +3672,7 @@ class HNewInstance FINAL : public HExpression<2> {
   HNewInstance(HInstruction* cls,
                HCurrentMethod* current_method,
                uint32_t dex_pc,
-               uint16_t type_index,
+               dex::TypeIndex type_index,
                const DexFile& dex_file,
                bool needs_access_check,
                bool finalizable,
@@ -3686,7 +3687,7 @@ class HNewInstance FINAL : public HExpression<2> {
     SetRawInputAt(1, current_method);
   }
 
-  uint16_t GetTypeIndex() const { return type_index_; }
+  dex::TypeIndex GetTypeIndex() const { return type_index_; }
   const DexFile& GetDexFile() const { return dex_file_; }
 
   // Calls runtime so needs an environment.
@@ -3719,7 +3720,7 @@ class HNewInstance FINAL : public HExpression<2> {
   static_assert(kNumberOfNewInstancePackedBits <= kMaxNumberOfPackedBits,
                 "Too many packed fields.");
 
-  const uint16_t type_index_;
+  const dex::TypeIndex type_index_;
   const DexFile& dex_file_;
   QuickEntrypointEnum entrypoint_;
 
@@ -4265,7 +4266,7 @@ class HNewArray FINAL : public HExpression<2> {
   HNewArray(HInstruction* length,
             HCurrentMethod* current_method,
             uint32_t dex_pc,
-            uint16_t type_index,
+            dex::TypeIndex type_index,
             const DexFile& dex_file,
             QuickEntrypointEnum entrypoint)
       : HExpression(Primitive::kPrimNot, SideEffects::CanTriggerGC(), dex_pc),
@@ -4276,7 +4277,7 @@ class HNewArray FINAL : public HExpression<2> {
     SetRawInputAt(1, current_method);
   }
 
-  uint16_t GetTypeIndex() const { return type_index_; }
+  dex::TypeIndex GetTypeIndex() const { return type_index_; }
   const DexFile& GetDexFile() const { return dex_file_; }
 
   // Calls runtime so needs an environment.
@@ -4292,7 +4293,7 @@ class HNewArray FINAL : public HExpression<2> {
   DECLARE_INSTRUCTION(NewArray);
 
  private:
-  const uint16_t type_index_;
+  const dex::TypeIndex type_index_;
   const DexFile& dex_file_;
   const QuickEntrypointEnum entrypoint_;
 
@@ -4829,7 +4830,7 @@ class HRor FINAL : public HBinaryOperation {
 class HParameterValue FINAL : public HExpression<0> {
  public:
   HParameterValue(const DexFile& dex_file,
-                  uint16_t type_index,
+                  dex::TypeIndex type_index,
                   uint8_t index,
                   Primitive::Type parameter_type,
                   bool is_this = false)
@@ -4842,7 +4843,7 @@ class HParameterValue FINAL : public HExpression<0> {
   }
 
   const DexFile& GetDexFile() const { return dex_file_; }
-  uint16_t GetTypeIndex() const { return type_index_; }
+  dex::TypeIndex GetTypeIndex() const { return type_index_; }
   uint8_t GetIndex() const { return index_; }
   bool IsThis() const { return GetPackedFlag<kFlagIsThis>(); }
 
@@ -4860,7 +4861,7 @@ class HParameterValue FINAL : public HExpression<0> {
                 "Too many packed fields.");
 
   const DexFile& dex_file_;
-  const uint16_t type_index_;
+  const dex::TypeIndex type_index_;
   // The index of this parameter in the parameters list. Must be less
   // than HGraph::number_of_in_vregs_.
   const uint8_t index_;
@@ -5455,7 +5456,7 @@ class HLoadClass FINAL : public HInstruction {
   };
 
   HLoadClass(HCurrentMethod* current_method,
-             uint16_t type_index,
+             dex::TypeIndex type_index,
              const DexFile& dex_file,
              bool is_referrers_class,
              uint32_t dex_pc,
@@ -5487,7 +5488,7 @@ class HLoadClass FINAL : public HInstruction {
 
   void SetLoadKindWithTypeReference(LoadKind load_kind,
                                     const DexFile& dex_file,
-                                    uint32_t type_index) {
+                                    dex::TypeIndex type_index) {
     DCHECK(HasTypeReference(load_kind));
     DCHECK(IsSameDexFile(dex_file_, dex_file));
     DCHECK_EQ(type_index_, type_index);
@@ -5511,7 +5512,7 @@ class HLoadClass FINAL : public HInstruction {
 
   bool InstructionDataEquals(const HInstruction* other) const;
 
-  size_t ComputeHashCode() const OVERRIDE { return type_index_; }
+  size_t ComputeHashCode() const OVERRIDE { return type_index_.index_; }
 
   bool CanBeNull() const OVERRIDE { return false; }
 
@@ -5547,7 +5548,7 @@ class HLoadClass FINAL : public HInstruction {
     loaded_class_rti_ = rti;
   }
 
-  uint32_t GetTypeIndex() const { return type_index_; }
+  dex::TypeIndex GetTypeIndex() const { return type_index_; }
   const DexFile& GetDexFile() const { return dex_file_; }
 
   uint32_t GetDexCacheElementOffset() const;
@@ -5630,7 +5631,7 @@ class HLoadClass FINAL : public HInstruction {
   // for PC-relative loads, i.e. kDexCachePcRelative or kBootImageLinkTimePcRelative.
   HUserRecord<HInstruction*> special_input_;
 
-  const uint16_t type_index_;
+  const dex::TypeIndex type_index_;
   const DexFile& dex_file_;
 
   union {

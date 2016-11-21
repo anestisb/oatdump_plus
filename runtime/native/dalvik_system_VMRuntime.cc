@@ -34,6 +34,7 @@ extern "C" void android_set_application_target_sdk_version(uint32_t version);
 #include "common_throws.h"
 #include "debugger.h"
 #include "dex_file-inl.h"
+#include "dex_file_types.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/allocator/dlmalloc.h"
 #include "gc/heap.h"
@@ -305,7 +306,7 @@ static void PreloadDexCachesResolveString(
 // Based on ClassLinker::ResolveType.
 static void PreloadDexCachesResolveType(Thread* self,
                                         ObjPtr<mirror::DexCache> dex_cache,
-                                        uint32_t type_idx)
+                                        dex::TypeIndex type_idx)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   ObjPtr<mirror::Class> klass = dex_cache->GetResolvedType(type_idx);
   if (klass != nullptr) {
@@ -455,7 +456,7 @@ static void PreloadDexCachesStatsFilled(DexCacheStats* filled)
       }
     }
     for (size_t j = 0; j < dex_cache->NumResolvedTypes(); j++) {
-      ObjPtr<mirror::Class> klass = dex_cache->GetResolvedType(j);
+      ObjPtr<mirror::Class> klass = dex_cache->GetResolvedType(dex::TypeIndex(j));
       if (klass != nullptr) {
         filled->num_types++;
       }
@@ -519,7 +520,7 @@ static void VMRuntime_preloadDexCaches(JNIEnv* env, jobject) {
 
     if (kPreloadDexCachesTypes) {
       for (size_t j = 0; j < dex_cache->NumResolvedTypes(); j++) {
-        PreloadDexCachesResolveType(soa.Self(), dex_cache.Get(), j);
+        PreloadDexCachesResolveType(soa.Self(), dex_cache.Get(), dex::TypeIndex(j));
       }
     }
 

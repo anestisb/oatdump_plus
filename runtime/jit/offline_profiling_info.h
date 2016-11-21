@@ -23,6 +23,7 @@
 #include "atomic.h"
 #include "dex_cache_resolved_classes.h"
 #include "dex_file.h"
+#include "dex_file_types.h"
 #include "method_reference.h"
 #include "safe_map.h"
 
@@ -66,7 +67,7 @@ class ProfileCompilationInfo {
   bool ContainsMethod(const MethodReference& method_ref) const;
 
   // Returns true if the class's type is present in the profiling info.
-  bool ContainsClass(const DexFile& dex_file, uint16_t type_idx) const;
+  bool ContainsClass(const DexFile& dex_file, dex::TypeIndex type_idx) const;
 
   // Dumps all the loaded profile info into a string and returns it.
   // If dex_files is not null then the method indices will be resolved to their
@@ -104,7 +105,7 @@ class ProfileCompilationInfo {
     explicit DexFileData(uint32_t location_checksum) : checksum(location_checksum) {}
     uint32_t checksum;
     std::set<uint16_t> method_set;
-    std::set<uint16_t> class_set;
+    std::set<dex::TypeIndex> class_set;
 
     bool operator==(const DexFileData& other) const {
       return checksum == other.checksum && method_set == other.method_set;
@@ -115,7 +116,7 @@ class ProfileCompilationInfo {
 
   DexFileData* GetOrAddDexFileData(const std::string& dex_location, uint32_t checksum);
   bool AddMethodIndex(const std::string& dex_location, uint32_t checksum, uint16_t method_idx);
-  bool AddClassIndex(const std::string& dex_location, uint32_t checksum, uint16_t type_idx);
+  bool AddClassIndex(const std::string& dex_location, uint32_t checksum, dex::TypeIndex type_idx);
   bool AddResolvedClasses(const DexCacheResolvedClasses& classes);
 
   // Parsing functionality.

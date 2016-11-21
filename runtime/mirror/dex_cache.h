@@ -21,6 +21,7 @@
 #include "art_field.h"
 #include "art_method.h"
 #include "class.h"
+#include "dex_file_types.h"
 #include "object.h"
 #include "object_array.h"
 
@@ -223,9 +224,9 @@ class MANAGED DexCache FINAL : public Object {
   // the string isn't kept live.
   void ClearString(uint32_t string_idx) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  Class* GetResolvedType(uint32_t type_idx) REQUIRES_SHARED(Locks::mutator_lock_);
+  Class* GetResolvedType(dex::TypeIndex type_idx) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void SetResolvedType(uint32_t type_idx, ObjPtr<Class> resolved)
+  void SetResolvedType(dex::TypeIndex type_idx, ObjPtr<Class> resolved)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   ALWAYS_INLINE ArtMethod* GetResolvedMethod(uint32_t method_idx, PointerSize ptr_size)

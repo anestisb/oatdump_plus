@@ -265,7 +265,7 @@ class LoadClassSlowPathX86 : public SlowPathCode {
     SaveLiveRegisters(codegen, locations);
 
     InvokeRuntimeCallingConvention calling_convention;
-    __ movl(calling_convention.GetRegisterAt(0), Immediate(cls_->GetTypeIndex()));
+    __ movl(calling_convention.GetRegisterAt(0), Immediate(cls_->GetTypeIndex().index_));
     x86_codegen->InvokeRuntime(do_clinit_ ? kQuickInitializeStaticStorage
                                           : kQuickInitializeType,
                                at_, dex_pc_, this);
@@ -4168,7 +4168,7 @@ void LocationsBuilderX86::VisitNewArray(HNewArray* instruction) {
 
 void InstructionCodeGeneratorX86::VisitNewArray(HNewArray* instruction) {
   InvokeRuntimeCallingConvention calling_convention;
-  __ movl(calling_convention.GetRegisterAt(0), Immediate(instruction->GetTypeIndex()));
+  __ movl(calling_convention.GetRegisterAt(0), Immediate(instruction->GetTypeIndex().index_));
   // Note: if heap poisoning is enabled, the entry point takes cares
   // of poisoning the reference.
   codegen_->InvokeRuntime(instruction->GetEntrypoint(), instruction, instruction->GetDexPc());
@@ -4612,7 +4612,7 @@ void CodeGeneratorX86::RecordBootStringPatch(HLoadString* load_string) {
 }
 
 void CodeGeneratorX86::RecordTypePatch(HLoadClass* load_class) {
-  type_patches_.emplace_back(load_class->GetDexFile(), load_class->GetTypeIndex());
+  type_patches_.emplace_back(load_class->GetDexFile(), load_class->GetTypeIndex().index_);
   __ Bind(&type_patches_.back().label);
 }
 
@@ -6060,7 +6060,7 @@ void LocationsBuilderX86::VisitLoadClass(HLoadClass* cls) {
 void InstructionCodeGeneratorX86::VisitLoadClass(HLoadClass* cls) {
   LocationSummary* locations = cls->GetLocations();
   if (cls->NeedsAccessCheck()) {
-    codegen_->MoveConstant(locations->GetTemp(0), cls->GetTypeIndex());
+    codegen_->MoveConstant(locations->GetTemp(0), cls->GetTypeIndex().index_);
     codegen_->InvokeRuntime(kQuickInitializeTypeAndVerifyAccess, cls, cls->GetDexPc());
     CheckEntrypointTypes<kQuickInitializeTypeAndVerifyAccess, void*, uint32_t>();
     return;
@@ -6142,7 +6142,8 @@ void InstructionCodeGeneratorX86::VisitLoadClass(HLoadClass* cls) {
       // /* GcRoot<mirror::Class> */ out = out[type_index]
       GenerateGcRootFieldLoad(cls,
                               out_loc,
-                              Address(out, CodeGenerator::GetCacheOffset(cls->GetTypeIndex())),
+                              Address(out,
+                                      CodeGenerator::GetCacheOffset(cls->GetTypeIndex().index_)),
                               /* fixup_label */ nullptr,
                               read_barrier_option);
       generate_null_check = !cls->IsInDexCache();
