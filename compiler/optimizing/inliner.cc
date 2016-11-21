@@ -197,15 +197,15 @@ static uint32_t FindMethodIndexIn(ArtMethod* method,
   }
 }
 
-static uint32_t FindClassIndexIn(mirror::Class* cls,
-                                 const DexFile& dex_file,
-                                 Handle<mirror::DexCache> dex_cache)
+static dex::TypeIndex FindClassIndexIn(mirror::Class* cls,
+                                       const DexFile& dex_file,
+                                       Handle<mirror::DexCache> dex_cache)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  uint32_t index = DexFile::kDexNoIndex;
+  dex::TypeIndex index;
   if (cls->GetDexCache() == nullptr) {
     DCHECK(cls->IsArrayClass()) << cls->PrettyClass();
     index = cls->FindTypeIndexInOtherDexFile(dex_file);
-  } else if (cls->GetDexTypeIndex() == DexFile::kDexNoIndex16) {
+  } else if (!cls->GetDexTypeIndex().IsValid()) {
     DCHECK(cls->IsProxyClass()) << cls->PrettyClass();
     // TODO: deal with proxy classes.
   } else if (IsSameDexFile(cls->GetDexFile(), dex_file)) {
@@ -223,8 +223,8 @@ static uint32_t FindClassIndexIn(mirror::Class* cls,
     // We cannot guarantee the entry in the dex cache will resolve to the same class,
     // as there may be different class loaders. So only return the index if it's
     // the right class in the dex cache already.
-    if (index != DexFile::kDexNoIndex && dex_cache->GetResolvedType(index) != cls) {
-      index = DexFile::kDexNoIndex;
+    if (index.IsValid() && dex_cache->GetResolvedType(index) != cls) {
+      index = dex::TypeIndex::Invalid();
     }
   }
 
@@ -363,9 +363,9 @@ bool HInliner::TryInlineMonomorphicCall(HInvoke* invoke_instruction,
       << invoke_instruction->DebugName();
 
   const DexFile& caller_dex_file = *caller_compilation_unit_.GetDexFile();
-  uint32_t class_index = FindClassIndexIn(
+  dex::TypeIndex class_index = FindClassIndexIn(
       ic.GetMonomorphicType(), caller_dex_file, caller_compilation_unit_.GetDexCache());
-  if (class_index == DexFile::kDexNoIndex) {
+  if (!class_index.IsValid()) {
     VLOG(compiler) << "Call to " << ArtMethod::PrettyMethod(resolved_method)
                    << " from inline cache is not inlined because its class is not"
                    << " accessible to the caller";
@@ -417,7 +417,7 @@ bool HInliner::TryInlineMonomorphicCall(HInvoke* invoke_instruction,
 HInstruction* HInliner::AddTypeGuard(HInstruction* receiver,
                                      HInstruction* cursor,
                                      HBasicBlock* bb_cursor,
-                                     uint32_t class_index,
+                                     dex::TypeIndex class_index,
                                      bool is_referrer,
                                      HInstruction* invoke_instruction,
                                      bool with_deoptimization) {
@@ -489,10 +489,10 @@ bool HInliner::TryInlinePolymorphicCall(HInvoke* invoke_instruction,
     HInstruction* cursor = invoke_instruction->GetPrevious();
     HBasicBlock* bb_cursor = invoke_instruction->GetBlock();
 
-    uint32_t class_index = FindClassIndexIn(
+    dex::TypeIndex class_index = FindClassIndexIn(
         ic.GetTypeAt(i), caller_dex_file, caller_compilation_unit_.GetDexCache());
     HInstruction* return_replacement = nullptr;
-    if (class_index == DexFile::kDexNoIndex ||
+    if (!class_index.IsValid() ||
         !TryBuildAndInline(invoke_instruction, method, &return_replacement)) {
       all_targets_inlined = false;
     } else {

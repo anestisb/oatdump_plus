@@ -923,7 +923,7 @@ const DexFile::ClassDef* Class::GetClassDef() {
   return &GetDexFile().GetClassDef(class_def_idx);
 }
 
-uint16_t Class::GetDirectInterfaceTypeIdx(uint32_t idx) {
+dex::TypeIndex Class::GetDirectInterfaceTypeIdx(uint32_t idx) {
   DCHECK(!IsPrimitive());
   DCHECK(!IsArrayClass());
   return GetInterfaceTypeList()->GetTypeItem(idx).type_idx_;
@@ -947,10 +947,11 @@ ObjPtr<Class> Class::GetDirectInterface(Thread* self,
     DCHECK(interfaces != nullptr);
     return interfaces->Get(idx);
   } else {
-    uint16_t type_idx = klass->GetDirectInterfaceTypeIdx(idx);
+    dex::TypeIndex type_idx = klass->GetDirectInterfaceTypeIdx(idx);
     ObjPtr<Class> interface = klass->GetDexCache()->GetResolvedType(type_idx);
     if (interface == nullptr) {
-      interface = Runtime::Current()->GetClassLinker()->ResolveType(klass->GetDexFile(), type_idx,
+      interface = Runtime::Current()->GetClassLinker()->ResolveType(klass->GetDexFile(),
+                                                                    type_idx,
                                                                     klass.Get());
       CHECK(interface != nullptr || self->IsExceptionPending());
     }
@@ -1130,10 +1131,12 @@ uint32_t Class::Depth() {
   return depth;
 }
 
-uint32_t Class::FindTypeIndexInOtherDexFile(const DexFile& dex_file) {
+dex::TypeIndex Class::FindTypeIndexInOtherDexFile(const DexFile& dex_file) {
   std::string temp;
   const DexFile::TypeId* type_id = dex_file.FindTypeId(GetDescriptor(&temp));
-  return (type_id == nullptr) ? DexFile::kDexNoIndex : dex_file.GetIndexForTypeId(*type_id);
+  return (type_id == nullptr)
+      ? dex::TypeIndex(DexFile::kDexNoIndex)
+      : dex_file.GetIndexForTypeId(*type_id);
 }
 
 template <PointerSize kPointerSize, bool kTransactionActive>

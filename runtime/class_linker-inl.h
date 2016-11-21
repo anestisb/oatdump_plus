@@ -86,7 +86,7 @@ inline mirror::String* ClassLinker::ResolveString(uint32_t string_idx, ArtMethod
   return string.Ptr();
 }
 
-inline mirror::Class* ClassLinker::ResolveType(uint16_t type_idx, ArtMethod* referrer) {
+inline mirror::Class* ClassLinker::ResolveType(dex::TypeIndex type_idx, ArtMethod* referrer) {
   Thread::PoisonObjectPointersIfDebug();
   ObjPtr<mirror::Class> resolved_type =
       referrer->GetDexCacheResolvedType(type_idx, image_pointer_size_);
@@ -103,7 +103,7 @@ inline mirror::Class* ClassLinker::ResolveType(uint16_t type_idx, ArtMethod* ref
   return resolved_type.Ptr();
 }
 
-inline mirror::Class* ClassLinker::ResolveType(uint16_t type_idx, ArtField* referrer) {
+inline mirror::Class* ClassLinker::ResolveType(dex::TypeIndex type_idx, ArtField* referrer) {
   Thread::PoisonObjectPointersIfDebug();
   ObjPtr<mirror::Class> declaring_class = referrer->GetDeclaringClass();
   ObjPtr<mirror::DexCache> dex_cache_ptr = declaring_class->GetDexCache();

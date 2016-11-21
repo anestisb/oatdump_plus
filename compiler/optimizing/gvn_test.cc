@@ -35,7 +35,7 @@ TEST_F(GVNTest, LocalFieldElimination) {
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
   HInstruction* parameter = new (&allocator) HParameterValue(graph->GetDexFile(),
-                                                             0,
+                                                             dex::TypeIndex(0),
                                                              0,
                                                              Primitive::kPrimNot);
   entry->AddInstruction(parameter);
@@ -120,7 +120,7 @@ TEST_F(GVNTest, GlobalFieldElimination) {
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
   HInstruction* parameter = new (&allocator) HParameterValue(graph->GetDexFile(),
-                                                             0,
+                                                             dex::TypeIndex(0),
                                                              0,
                                                              Primitive::kPrimNot);
   entry->AddInstruction(parameter);
@@ -204,7 +204,7 @@ TEST_F(GVNTest, LoopFieldElimination) {
   graph->SetEntryBlock(entry);
 
   HInstruction* parameter = new (&allocator) HParameterValue(graph->GetDexFile(),
-                                                             0,
+                                                             dex::TypeIndex(0),
                                                              0,
                                                              Primitive::kPrimNot);
   entry->AddInstruction(parameter);
@@ -352,7 +352,7 @@ TEST_F(GVNTest, LoopSideEffects) {
   inner_loop_exit->AddSuccessor(outer_loop_header);
 
   HInstruction* parameter = new (&allocator) HParameterValue(graph->GetDexFile(),
-                                                             0,
+                                                             dex::TypeIndex(0),
                                                              0,
                                                              Primitive::kPrimBoolean);
   entry->AddInstruction(parameter);

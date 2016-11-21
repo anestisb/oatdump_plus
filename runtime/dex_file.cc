@@ -26,6 +26,7 @@
 
 #include <memory>
 #include <sstream>
+#include <type_traits>
 
 #include "base/enums.h"
 #include "base/file_magic.h"
@@ -43,6 +44,9 @@
 #include "zip_archive.h"
 
 namespace art {
+
+static_assert(sizeof(dex::TypeIndex) == sizeof(uint16_t), "TypeIndex size is wrong");
+static_assert(std::is_trivially_copyable<dex::TypeIndex>::value, "TypeIndex not trivial");
 
 static constexpr OatDexFile* kNoOatDexFile = nullptr;
 
@@ -550,7 +554,7 @@ uint32_t DexFile::Header::GetVersion() const {
   return atoi(version);
 }
 
-const DexFile::ClassDef* DexFile::FindClassDef(uint16_t type_idx) const {
+const DexFile::ClassDef* DexFile::FindClassDef(dex::TypeIndex type_idx) const {
   size_t num_class_defs = NumClassDefs();
   // Fast path for rare no class defs case.
   if (num_class_defs == 0) {
@@ -597,9 +601,9 @@ const DexFile::FieldId* DexFile::FindFieldId(const DexFile::TypeId& declaring_kl
                                              const DexFile::StringId& name,
                                              const DexFile::TypeId& type) const {
   // Binary search MethodIds knowing that they are sorted by class_idx, name_idx then proto_idx
-  const uint16_t class_idx = GetIndexForTypeId(declaring_klass);
+  const dex::TypeIndex class_idx = GetIndexForTypeId(declaring_klass);
   const uint32_t name_idx = GetIndexForStringId(name);
-  const uint16_t type_idx = GetIndexForTypeId(type);
+  const dex::TypeIndex type_idx = GetIndexForTypeId(type);
   int32_t lo = 0;
   int32_t hi = NumFieldIds() - 1;
   while (hi >= lo) {
@@ -632,7 +636,7 @@ const DexFile::MethodId* DexFile::FindMethodId(const DexFile::TypeId& declaring_
                                                const DexFile::StringId& name,
                                                const DexFile::ProtoId& signature) const {
   // Binary search MethodIds knowing that they are sorted by class_idx, name_idx then proto_idx
-  const uint16_t class_idx = GetIndexForTypeId(declaring_klass);
+  const dex::TypeIndex class_idx = GetIndexForTypeId(declaring_klass);
   const uint32_t name_idx = GetIndexForStringId(name);
   const uint16_t proto_idx = GetIndexForProtoId(signature);
   int32_t lo = 0;
@@ -687,7 +691,7 @@ const DexFile::TypeId* DexFile::FindTypeId(const char* string) const {
   int32_t hi = NumTypeIds() - 1;
   while (hi >= lo) {
     int32_t mid = (hi + lo) / 2;
-    const TypeId& type_id = GetTypeId(mid);
+    const TypeId& type_id = GetTypeId(dex::TypeIndex(mid));
     const DexFile::StringId& str_id = GetStringId(type_id.descriptor_idx_);
     const char* str = GetStringData(str_id);
     int compare = CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(string, str);
@@ -726,7 +730,7 @@ const DexFile::TypeId* DexFile::FindTypeId(uint32_t string_idx) const {
   int32_t hi = NumTypeIds() - 1;
   while (hi >= lo) {
     int32_t mid = (hi + lo) / 2;
-    const TypeId& type_id = GetTypeId(mid);
+    const TypeId& type_id = GetTypeId(dex::TypeIndex(mid));
     if (string_idx > type_id.descriptor_idx_) {
       lo = mid + 1;
     } else if (string_idx < type_id.descriptor_idx_) {
@@ -738,20 +742,20 @@ const DexFile::TypeId* DexFile::FindTypeId(uint32_t string_idx) const {
   return nullptr;
 }
 
-const DexFile::ProtoId* DexFile::FindProtoId(uint16_t return_type_idx,
-                                             const uint16_t* signature_type_idxs,
+const DexFile::ProtoId* DexFile::FindProtoId(dex::TypeIndex return_type_idx,
+                                             const dex::TypeIndex* signature_type_idxs,
                                              uint32_t signature_length) const {
   int32_t lo = 0;
   int32_t hi = NumProtoIds() - 1;
   while (hi >= lo) {
     int32_t mid = (hi + lo) / 2;
     const DexFile::ProtoId& proto = GetProtoId(mid);
-    int compare = return_type_idx - proto.return_type_idx_;
+    int compare = return_type_idx.index_ - proto.return_type_idx_.index_;
     if (compare == 0) {
       DexFileParameterIterator it(*this, proto);
       size_t i = 0;
       while (it.HasNext() && i < signature_length && compare == 0) {
-        compare = signature_type_idxs[i] - it.GetTypeIdx();
+        compare = signature_type_idxs[i].index_ - it.GetTypeIdx().index_;
         it.Next();
         i++;
       }
@@ -775,8 +779,9 @@ const DexFile::ProtoId* DexFile::FindProtoId(uint16_t return_type_idx,
 }
 
 // Given a signature place the type ids into the given vector
-bool DexFile::CreateTypeList(const StringPiece& signature, uint16_t* return_type_idx,
-                             std::vector<uint16_t>* param_type_idxs) const {
+bool DexFile::CreateTypeList(const StringPiece& signature,
+                             dex::TypeIndex* return_type_idx,
+                             std::vector<dex::TypeIndex>* param_type_idxs) const {
   if (signature[0] != '(') {
     return false;
   }
@@ -813,7 +818,7 @@ bool DexFile::CreateTypeList(const StringPiece& signature, uint16_t* return_type
     if (type_id == nullptr) {
       return false;
     }
-    uint16_t type_idx = GetIndexForTypeId(*type_id);
+    dex::TypeIndex type_idx = GetIndexForTypeId(*type_id);
     if (!process_return) {
       param_type_idxs->push_back(type_idx);
     } else {
@@ -825,8 +830,8 @@ bool DexFile::CreateTypeList(const StringPiece& signature, uint16_t* return_type
 }
 
 const Signature DexFile::CreateSignature(const StringPiece& signature) const {
-  uint16_t return_type_idx;
-  std::vector<uint16_t> param_type_indices;
+  dex::TypeIndex return_type_idx;
+  std::vector<dex::TypeIndex> param_type_indices;
   bool success = CreateTypeList(signature, &return_type_idx, &param_type_indices);
   if (!success) {
     return Signature::NoSignature();
@@ -971,7 +976,8 @@ bool DexFile::DecodeDebugLocalInfo(const CodeItem* code_item, bool is_static, ui
         }
 
         local_in_reg[reg].name_ = StringDataByIdx(name_idx);
-        local_in_reg[reg].descriptor_ = StringByTypeIdx(descriptor_idx);
+        local_in_reg[reg].descriptor_ =
+            StringByTypeIdx(dex::TypeIndex(dchecked_integral_cast<uint16_t>(descriptor_idx)));;
         local_in_reg[reg].signature_ = StringDataByIdx(signature_idx);
         local_in_reg[reg].start_address_ = address;
         local_in_reg[reg].reg_ = reg;
@@ -1225,9 +1231,9 @@ std::string DexFile::PrettyField(uint32_t field_idx, bool with_type) const {
   return result;
 }
 
-std::string DexFile::PrettyType(uint32_t type_idx) const {
-  if (type_idx >= NumTypeIds()) {
-    return StringPrintf("<<invalid-type-idx-%d>>", type_idx);
+std::string DexFile::PrettyType(dex::TypeIndex type_idx) const {
+  if (type_idx.index_ >= NumTypeIds()) {
+    return StringPrintf("<<invalid-type-idx-%d>>", type_idx.index_);
   }
   const DexFile::TypeId& type_id = GetTypeId(type_idx);
   return PrettyDescriptor(GetTypeDescriptor(type_id));
@@ -1457,14 +1463,14 @@ void CatchHandlerIterator::Init(const uint8_t* handler_data) {
 
 void CatchHandlerIterator::Next() {
   if (remaining_count_ > 0) {
-    handler_.type_idx_ = DecodeUnsignedLeb128(&current_data_);
+    handler_.type_idx_ = dex::TypeIndex(DecodeUnsignedLeb128(&current_data_));
     handler_.address_  = DecodeUnsignedLeb128(&current_data_);
     remaining_count_--;
     return;
   }
 
   if (catch_all_) {
-    handler_.type_idx_ = DexFile::kDexNoIndex16;
+    handler_.type_idx_ = dex::TypeIndex(DexFile::kDexNoIndex16);
     handler_.address_  = DecodeUnsignedLeb128(&current_data_);
     catch_all_ = false;
     return;
@@ -1473,5 +1479,14 @@ void CatchHandlerIterator::Next() {
   // no more handler
   remaining_count_ = -1;
 }
+
+namespace dex {
+
+std::ostream& operator<<(std::ostream& os, const TypeIndex& index) {
+  os << "TypeIndex[" << index.index_ << "]";
+  return os;
+}
+
+}  // namespace dex
 
 }  // namespace art

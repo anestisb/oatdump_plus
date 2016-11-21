@@ -31,6 +31,7 @@
 #include "class_reference.h"
 #include "compiler.h"
 #include "dex_file.h"
+#include "dex_file_types.h"
 #include "driver/compiled_method_storage.h"
 #include "jit/offline_profiling_info.h"
 #include "invoke_type.h"
@@ -188,14 +189,14 @@ class CompilerDriver {
   // Are runtime access checks necessary in the compiled code?
   bool CanAccessTypeWithoutChecks(uint32_t referrer_idx,
                                   Handle<mirror::DexCache> dex_cache,
-                                  uint32_t type_idx)
+                                  dex::TypeIndex type_idx)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Are runtime access and instantiable checks necessary in the code?
   // out_is_finalizable is set to whether the type is finalizable.
   bool CanAccessInstantiableTypeWithoutChecks(uint32_t referrer_idx,
                                               Handle<mirror::DexCache> dex_cache,
-                                              uint32_t type_idx,
+                                              dex::TypeIndex type_idx,
                                               bool* out_is_finalizable)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -207,7 +208,7 @@ class CompilerDriver {
 
   mirror::Class* ResolveClass(
       const ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
-      Handle<mirror::ClassLoader> class_loader, uint16_t type_index,
+      Handle<mirror::ClassLoader> class_loader, dex::TypeIndex type_index,
       const DexCompilationUnit* mUnit)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -234,9 +235,11 @@ class CompilerDriver {
 
   // Can we fast-path an SGET/SPUT access to a static field? If yes, compute the type index
   // of the declaring class in the referrer's dex file.
-  std::pair<bool, bool> IsFastStaticField(
-      mirror::DexCache* dex_cache, mirror::Class* referrer_class,
-      ArtField* resolved_field, uint16_t field_idx, uint32_t* storage_index)
+  std::pair<bool, bool> IsFastStaticField(mirror::DexCache* dex_cache,
+                                          mirror::Class* referrer_class,
+                                          ArtField* resolved_field,
+                                          uint16_t field_idx,
+                                          dex::TypeIndex* storage_index)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Return whether the declaring class of `resolved_method` is
@@ -248,7 +251,7 @@ class CompilerDriver {
                                                 mirror::Class* referrer_class,
                                                 ArtMethod* resolved_method,
                                                 uint16_t method_idx,
-                                                uint32_t* storage_index)
+                                                dex::TypeIndex* storage_index)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Resolve a method. Returns null on failure, including incompatible class change.
@@ -395,7 +398,7 @@ class CompilerDriver {
                                                                  mirror::Class* referrer_class,
                                                                  ArtMember* resolved_member,
                                                                  uint16_t member_idx,
-                                                                 uint32_t* storage_index)
+                                                                 dex::TypeIndex* storage_index)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Can `referrer_class` access the resolved `member`?

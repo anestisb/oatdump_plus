@@ -21,6 +21,8 @@
 #include <unordered_set>
 #include <vector>
 
+#include "dex_file_types.h"
+
 namespace art {
 
 // Data structure for passing around which classes belonging to a dex cache / dex file are resolved.
@@ -59,7 +61,7 @@ class DexCacheResolvedClasses {
     return location_checksum_;
   }
 
-  const std::unordered_set<uint16_t>& GetClasses() const {
+  const std::unordered_set<dex::TypeIndex>& GetClasses() const {
     return classes_;
   }
 
@@ -68,7 +70,7 @@ class DexCacheResolvedClasses {
   const std::string base_location_;
   const uint32_t location_checksum_;
   // Array of resolved class def indexes.
-  mutable std::unordered_set<uint16_t> classes_;
+  mutable std::unordered_set<dex::TypeIndex> classes_;
 };
 
 inline bool operator<(const DexCacheResolvedClasses& a, const DexCacheResolvedClasses& b) {

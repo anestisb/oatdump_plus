@@ -45,6 +45,7 @@
 #include "base/stringprintf.h"
 #include "dexdump_cfg.h"
 #include "dex_file-inl.h"
+#include "dex_file_types.h"
 #include "dex_instruction-inl.h"
 
 namespace art {
@@ -482,7 +483,7 @@ static void dumpEncodedValue(const DexFile* pDexFile, const u1** data, u1 type, 
     }
     case DexFile::kDexAnnotationType: {
       const u4 str_idx = static_cast<u4>(readVarWidth(data, arg, false));
-      fputs(pDexFile->StringByTypeIdx(str_idx), gOutFile);
+      fputs(pDexFile->StringByTypeIdx(dex::TypeIndex(str_idx)), gOutFile);
       break;
     }
     case DexFile::kDexAnnotationField:
@@ -511,7 +512,7 @@ static void dumpEncodedValue(const DexFile* pDexFile, const u1** data, u1 type, 
     }
     case DexFile::kDexAnnotationAnnotation: {
       const u4 type_idx = DecodeUnsignedLeb128(data);
-      fputs(pDexFile->StringByTypeIdx(type_idx), gOutFile);
+      fputs(pDexFile->StringByTypeIdx(dex::TypeIndex(type_idx)), gOutFile);
       // Decode and display all name=value pairs.
       const u4 size = DecodeUnsignedLeb128(data);
       for (u4 i = 0; i < size; i++) {
@@ -592,10 +593,10 @@ static void dumpClassDef(const DexFile* pDexFile, int idx) {
   // General class information.
   const DexFile::ClassDef& pClassDef = pDexFile->GetClassDef(idx);
   fprintf(gOutFile, "Class #%d header:\n", idx);
-  fprintf(gOutFile, "class_idx           : %d\n", pClassDef.class_idx_);
+  fprintf(gOutFile, "class_idx           : %d\n", pClassDef.class_idx_.index_);
   fprintf(gOutFile, "access_flags        : %d (0x%04x)\n",
           pClassDef.access_flags_, pClassDef.access_flags_);
-  fprintf(gOutFile, "superclass_idx      : %d\n", pClassDef.superclass_idx_);
+  fprintf(gOutFile, "superclass_idx      : %d\n", pClassDef.superclass_idx_.index_);
   fprintf(gOutFile, "interfaces_off      : %d (0x%06x)\n",
           pClassDef.interfaces_off_, pClassDef.interfaces_off_);
   fprintf(gOutFile, "source_file_idx     : %d\n", pClassDef.source_file_idx_);
@@ -747,9 +748,8 @@ static void dumpCatches(const DexFile* pDexFile, const DexFile::CodeItem* pCode)
     const u4 end = start + pTry->insn_count_;
     fprintf(gOutFile, "        0x%04x - 0x%04x\n", start, end);
     for (CatchHandlerIterator it(*pCode, *pTry); it.HasNext(); it.Next()) {
-      const u2 tidx = it.GetHandlerTypeIndex();
-      const char* descriptor =
-          (tidx == DexFile::kDexNoIndex16) ? "<any>" : pDexFile->StringByTypeIdx(tidx);
+      const dex::TypeIndex tidx = it.GetHandlerTypeIndex();
+      const char* descriptor = (!tidx.IsValid()) ? "<any>" : pDexFile->StringByTypeIdx(tidx);
       fprintf(gOutFile, "          %s -> 0x%04x\n", descriptor, it.GetHandlerAddress());
     }  // for
   }  // for
@@ -834,7 +834,7 @@ static std::unique_ptr<char[]> indexString(const DexFile* pDexFile,
       break;
     case Instruction::kIndexTypeRef:
       if (index < pDexFile->GetHeader().type_ids_size_) {
-        const char* tp = pDexFile->StringByTypeIdx(index);
+        const char* tp = pDexFile->StringByTypeIdx(dex::TypeIndex(index));
         outSize = snprintf(buf.get(), bufSize, "%s // type@%0*x", tp, width, index);
       } else {
         outSize = snprintf(buf.get(), bufSize, "<type?> // type@%0*x", width, index);
@@ -1461,7 +1461,7 @@ static void dumpClass(const DexFile* pDexFile, int idx, char** pLastPackage) {
   // General class information.
   char* accessStr = createAccessFlagStr(pClassDef.access_flags_, kAccessForClass);
   const char* superclassDescriptor;
-  if (pClassDef.superclass_idx_ == DexFile::kDexNoIndex16) {
+  if (!pClassDef.superclass_idx_.IsValid()) {
     superclassDescriptor = nullptr;
   } else {
     superclassDescriptor = pDexFile->StringByTypeIdx(pClassDef.superclass_idx_);

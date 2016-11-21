@@ -19,6 +19,7 @@
 
 #include "base/enums.h"
 #include "code_generator.h"
+#include "dex_file_types.h"
 #include "driver/compiler_options.h"
 #include "nodes.h"
 #include "string_reference.h"
@@ -481,11 +482,11 @@ class CodeGeneratorARM : public CodeGenerator {
   };
 
   PcRelativePatchInfo* NewPcRelativeStringPatch(const DexFile& dex_file, uint32_t string_index);
-  PcRelativePatchInfo* NewPcRelativeTypePatch(const DexFile& dex_file, uint32_t type_index);
+  PcRelativePatchInfo* NewPcRelativeTypePatch(const DexFile& dex_file, dex::TypeIndex type_index);
   PcRelativePatchInfo* NewPcRelativeDexCacheArrayPatch(const DexFile& dex_file,
                                                        uint32_t element_offset);
   Literal* DeduplicateBootImageStringLiteral(const DexFile& dex_file, uint32_t string_index);
-  Literal* DeduplicateBootImageTypeLiteral(const DexFile& dex_file, uint32_t type_index);
+  Literal* DeduplicateBootImageTypeLiteral(const DexFile& dex_file, dex::TypeIndex type_index);
   Literal* DeduplicateBootImageAddressLiteral(uint32_t address);
   Literal* DeduplicateDexCacheAddressLiteral(uint32_t address);
   Literal* DeduplicateJitStringLiteral(const DexFile& dex_file, uint32_t string_index);

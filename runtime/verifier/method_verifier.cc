@@ -1072,7 +1072,7 @@ bool MethodVerifier::ScanTryCatchBlocks() {
       GetInstructionFlags(dex_pc).SetBranchTarget();
       // Ensure exception types are resolved so that they don't need resolution to be delivered,
       // unresolved exception types will be ignored by exception delivery
-      if (iterator.GetHandlerTypeIndex() != DexFile::kDexNoIndex16) {
+      if (iterator.GetHandlerTypeIndex().IsValid()) {
         mirror::Class* exception_type = linker->ResolveType(*dex_file_,
                                                             iterator.GetHandlerTypeIndex(),
                                                             dex_cache_, class_loader_);
@@ -1155,13 +1155,13 @@ bool MethodVerifier::VerifyInstruction(const Instruction* inst, uint32_t code_of
       result = result && CheckMethodIndex(inst->VRegB());
       break;
     case Instruction::kVerifyRegBNewInstance:
-      result = result && CheckNewInstance(inst->VRegB());
+      result = result && CheckNewInstance(dex::TypeIndex(inst->VRegB()));
       break;
     case Instruction::kVerifyRegBString:
       result = result && CheckStringIndex(inst->VRegB());
       break;
     case Instruction::kVerifyRegBType:
-      result = result && CheckTypeIndex(inst->VRegB());
+      result = result && CheckTypeIndex(dex::TypeIndex(inst->VRegB()));
       break;
     case Instruction::kVerifyRegBWide:
       result = result && CheckWideRegisterIndex(inst->VRegB());
@@ -1175,10 +1175,10 @@ bool MethodVerifier::VerifyInstruction(const Instruction* inst, uint32_t code_of
       result = result && CheckFieldIndex(inst->VRegC());
       break;
     case Instruction::kVerifyRegCNewArray:
-      result = result && CheckNewArray(inst->VRegC());
+      result = result && CheckNewArray(dex::TypeIndex(inst->VRegC()));
       break;
     case Instruction::kVerifyRegCType:
-      result = result && CheckTypeIndex(inst->VRegC());
+      result = result && CheckTypeIndex(dex::TypeIndex(inst->VRegC()));
       break;
     case Instruction::kVerifyRegCWide:
       result = result && CheckWideRegisterIndex(inst->VRegC());
@@ -1270,9 +1270,9 @@ inline bool MethodVerifier::CheckMethodIndex(uint32_t idx) {
   return true;
 }
 
-inline bool MethodVerifier::CheckNewInstance(uint32_t idx) {
-  if (idx >= dex_file_->GetHeader().type_ids_size_) {
-    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad type index " << idx << " (max "
+inline bool MethodVerifier::CheckNewInstance(dex::TypeIndex idx) {
+  if (idx.index_ >= dex_file_->GetHeader().type_ids_size_) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad type index " << idx.index_ << " (max "
                                       << dex_file_->GetHeader().type_ids_size_ << ")";
     return false;
   }
@@ -1298,18 +1298,18 @@ inline bool MethodVerifier::CheckStringIndex(uint32_t idx) {
   return true;
 }
 
-inline bool MethodVerifier::CheckTypeIndex(uint32_t idx) {
-  if (idx >= dex_file_->GetHeader().type_ids_size_) {
-    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad type index " << idx << " (max "
+inline bool MethodVerifier::CheckTypeIndex(dex::TypeIndex idx) {
+  if (idx.index_ >= dex_file_->GetHeader().type_ids_size_) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad type index " << idx.index_ << " (max "
                                       << dex_file_->GetHeader().type_ids_size_ << ")";
     return false;
   }
   return true;
 }
 
-bool MethodVerifier::CheckNewArray(uint32_t idx) {
-  if (idx >= dex_file_->GetHeader().type_ids_size_) {
-    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad type index " << idx << " (max "
+bool MethodVerifier::CheckNewArray(dex::TypeIndex idx) {
+  if (idx.index_ >= dex_file_->GetHeader().type_ids_size_) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad type index " << idx.index_ << " (max "
                                       << dex_file_->GetHeader().type_ids_size_ << ")";
     return false;
   }
@@ -1945,7 +1945,7 @@ bool MethodVerifier::CodeFlowVerifyMethod() {
 
 // Returns the index of the first final instance field of the given class, or kDexNoIndex if there
 // is no such field.
-static uint32_t GetFirstFinalInstanceFieldIndex(const DexFile& dex_file, uint16_t type_idx) {
+static uint32_t GetFirstFinalInstanceFieldIndex(const DexFile& dex_file, dex::TypeIndex type_idx) {
   const DexFile::ClassDef* class_def = dex_file.FindClassDef(type_idx);
   DCHECK(class_def != nullptr);
   const uint8_t* class_data = dex_file.GetClassData(*class_def);
@@ -2293,7 +2293,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::CONST_CLASS: {
       // Get type from instruction if unresolved then we need an access check
       // TODO: check Compiler::CanAccessTypeWithoutChecks returns false when res_type is unresolved
-      const RegType& res_type = ResolveClassAndCheckAccess(inst->VRegB_21c());
+      const RegType& res_type = ResolveClassAndCheckAccess(dex::TypeIndex(inst->VRegB_21c()));
       // Register holds class, ie its type is class, on error it will hold Conflict.
       work_line_->SetRegisterType<LockOp::kClear>(
           this, inst->VRegA_21c(), res_type.IsConflict() ? res_type
@@ -2363,7 +2363,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
        * dec_insn.vA when branching to a handler.
        */
       const bool is_checkcast = (inst->Opcode() == Instruction::CHECK_CAST);
-      const uint32_t type_idx = (is_checkcast) ? inst->VRegB_21c() : inst->VRegC_22c();
+      const dex::TypeIndex type_idx((is_checkcast) ? inst->VRegB_21c() : inst->VRegC_22c());
       const RegType& res_type = ResolveClassAndCheckAccess(type_idx);
       if (res_type.IsConflict()) {
         // If this is a primitive type, fail HARD.
@@ -2433,7 +2433,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       break;
     }
     case Instruction::NEW_INSTANCE: {
-      const RegType& res_type = ResolveClassAndCheckAccess(inst->VRegB_21c());
+      const RegType& res_type = ResolveClassAndCheckAccess(dex::TypeIndex(inst->VRegB_21c()));
       if (res_type.IsConflict()) {
         DCHECK_NE(failures_.size(), 0U);
         break;  // bad class
@@ -2645,7 +2645,8 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         // ensure that subsequent merges don't lose type information - such as becoming an
         // interface from a class that would lose information relevant to field checks.
         const RegType& orig_type = work_line_->GetRegisterType(this, instance_of_inst->VRegB_22c());
-        const RegType& cast_type = ResolveClassAndCheckAccess(instance_of_inst->VRegC_22c());
+        const RegType& cast_type = ResolveClassAndCheckAccess(
+            dex::TypeIndex(instance_of_inst->VRegC_22c()));
 
         if (!orig_type.Equals(cast_type) &&
             !cast_type.IsUnresolvedTypes() && !orig_type.IsUnresolvedTypes() &&
@@ -2883,7 +2884,8 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       if (return_type == nullptr) {
         uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
         const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
-        uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
+        dex::TypeIndex return_type_idx =
+            dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
         const char* descriptor = dex_file_->StringByTypeIdx(return_type_idx);
         return_type = &reg_types_.FromDescriptor(GetClassLoader(), descriptor, false);
       }
@@ -2906,7 +2908,8 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
         const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
         is_constructor = strcmp("<init>", dex_file_->StringDataByIdx(method_id.name_idx_)) == 0;
-        uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
+        dex::TypeIndex return_type_idx =
+            dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
         return_type_descriptor =  dex_file_->StringByTypeIdx(return_type_idx);
       } else {
         is_constructor = called_method->IsConstructor();
@@ -2982,7 +2985,8 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         if (called_method == nullptr) {
           uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
           const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
-          uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
+          dex::TypeIndex return_type_idx =
+              dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
           descriptor = dex_file_->StringByTypeIdx(return_type_idx);
         } else {
           descriptor = called_method->GetReturnTypeDescriptor();
@@ -3036,7 +3040,8 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       if (abs_method == nullptr) {
         uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
         const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
-        uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
+        dex::TypeIndex return_type_idx =
+            dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
         descriptor = dex_file_->StringByTypeIdx(return_type_idx);
       } else {
         descriptor = abs_method->GetReturnTypeDescriptor();
@@ -3500,8 +3505,8 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     ClassLinker* linker = Runtime::Current()->GetClassLinker();
 
     for (; iterator.HasNext(); iterator.Next()) {
-      uint16_t handler_type_idx = iterator.GetHandlerTypeIndex();
-      if (handler_type_idx == DexFile::kDexNoIndex16) {
+      dex::TypeIndex handler_type_idx = iterator.GetHandlerTypeIndex();
+      if (!handler_type_idx.IsValid()) {
         has_catch_all_handler = true;
       } else {
         // It is also a catch-all if it is java.lang.Throwable.
@@ -3628,7 +3633,7 @@ inline bool MethodVerifier::IsInstantiableOrPrimitive(mirror::Class* klass) {
   return klass->IsInstantiable() || klass->IsPrimitive();
 }
 
-const RegType& MethodVerifier::ResolveClassAndCheckAccess(uint32_t class_idx) {
+const RegType& MethodVerifier::ResolveClassAndCheckAccess(dex::TypeIndex class_idx) {
   mirror::Class* klass = dex_cache_->GetResolvedType(class_idx);
   const RegType* result = nullptr;
   if (klass != nullptr) {
@@ -3684,7 +3689,7 @@ const RegType& MethodVerifier::GetCaughtExceptionType() {
       CatchHandlerIterator iterator(handlers_ptr);
       for (; iterator.HasNext(); iterator.Next()) {
         if (iterator.GetHandlerAddress() == (uint32_t) work_insn_idx_) {
-          if (iterator.GetHandlerTypeIndex() == DexFile::kDexNoIndex16) {
+          if (!iterator.GetHandlerTypeIndex().IsValid()) {
             common_super = &reg_types_.JavaLangThrowable(false);
           } else {
             const RegType& exception = ResolveClassAndCheckAccess(iterator.GetHandlerTypeIndex());
@@ -3941,7 +3946,7 @@ ArtMethod* MethodVerifier::VerifyInvocationArgsFromIterator(
                                       klass->CannotBeAssignedFromOtherTypes());
       } else {
         const uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
-        const uint16_t class_idx = dex_file_->GetMethodId(method_idx).class_idx_;
+        const dex::TypeIndex class_idx = dex_file_->GetMethodId(method_idx).class_idx_;
         res_method_class = &reg_types_.FromDescriptor(
             GetClassLoader(),
             dex_file_->StringByTypeIdx(class_idx),
@@ -4078,7 +4083,7 @@ ArtMethod* MethodVerifier::VerifyInvocationArgs(
   // If we're using invoke-super(method), make sure that the executing method's class' superclass
   // has a vtable entry for the target method. Or the target is on a interface.
   if (method_type == METHOD_SUPER) {
-    uint16_t class_idx = dex_file_->GetMethodId(method_idx).class_idx_;
+    dex::TypeIndex class_idx = dex_file_->GetMethodId(method_idx).class_idx_;
     const RegType& reference_type = reg_types_.FromDescriptor(
         GetClassLoader(),
         dex_file_->StringByTypeIdx(class_idx),
@@ -4287,16 +4292,16 @@ ArtMethod* MethodVerifier::VerifyInvokeVirtualQuickArgs(const Instruction* inst,
 }
 
 void MethodVerifier::VerifyNewArray(const Instruction* inst, bool is_filled, bool is_range) {
-  uint32_t type_idx;
+  dex::TypeIndex type_idx;
   if (!is_filled) {
     DCHECK_EQ(inst->Opcode(), Instruction::NEW_ARRAY);
-    type_idx = inst->VRegC_22c();
+    type_idx = dex::TypeIndex(inst->VRegC_22c());
   } else if (!is_range) {
     DCHECK_EQ(inst->Opcode(), Instruction::FILLED_NEW_ARRAY);
-    type_idx = inst->VRegB_35c();
+    type_idx = dex::TypeIndex(inst->VRegB_35c());
   } else {
     DCHECK_EQ(inst->Opcode(), Instruction::FILLED_NEW_ARRAY_RANGE);
-    type_idx = inst->VRegB_3rc();
+    type_idx = dex::TypeIndex(inst->VRegB_3rc());
   }
   const RegType& res_type = ResolveClassAndCheckAccess(type_idx);
   if (res_type.IsConflict()) {  // bad class
@@ -5011,7 +5016,7 @@ const RegType& MethodVerifier::GetMethodReturnType() {
     if (return_type_ == nullptr) {
       const DexFile::MethodId& method_id = dex_file_->GetMethodId(dex_method_idx_);
       const DexFile::ProtoId& proto_id = dex_file_->GetMethodPrototype(method_id);
-      uint16_t return_type_idx = proto_id.return_type_idx_;
+      dex::TypeIndex return_type_idx = proto_id.return_type_idx_;
       const char* descriptor = dex_file_->GetTypeDescriptor(dex_file_->GetTypeId(return_type_idx));
       return_type_ = &reg_types_.FromDescriptor(GetClassLoader(), descriptor, false);
     }

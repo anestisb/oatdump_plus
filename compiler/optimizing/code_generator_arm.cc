@@ -383,7 +383,7 @@ class LoadClassSlowPathARM : public SlowPathCodeARM {
     SaveLiveRegisters(codegen, locations);
 
     InvokeRuntimeCallingConvention calling_convention;
-    __ LoadImmediate(calling_convention.GetRegisterAt(0), cls_->GetTypeIndex());
+    __ LoadImmediate(calling_convention.GetRegisterAt(0), cls_->GetTypeIndex().index_);
     QuickEntrypointEnum entrypoint = do_clinit_ ? kQuickInitializeStaticStorage
                                                 : kQuickInitializeType;
     arm_codegen->InvokeRuntime(entrypoint, at_, dex_pc_, this);
@@ -3953,7 +3953,7 @@ void LocationsBuilderARM::VisitNewArray(HNewArray* instruction) {
 
 void InstructionCodeGeneratorARM::VisitNewArray(HNewArray* instruction) {
   InvokeRuntimeCallingConvention calling_convention;
-  __ LoadImmediate(calling_convention.GetRegisterAt(0), instruction->GetTypeIndex());
+  __ LoadImmediate(calling_convention.GetRegisterAt(0), instruction->GetTypeIndex().index_);
   // Note: if heap poisoning is enabled, the entry point takes cares
   // of poisoning the reference.
   codegen_->InvokeRuntime(instruction->GetEntrypoint(), instruction, instruction->GetDexPc());
@@ -5743,7 +5743,7 @@ void LocationsBuilderARM::VisitLoadClass(HLoadClass* cls) {
 void InstructionCodeGeneratorARM::VisitLoadClass(HLoadClass* cls) {
   LocationSummary* locations = cls->GetLocations();
   if (cls->NeedsAccessCheck()) {
-    codegen_->MoveConstant(locations->GetTemp(0), cls->GetTypeIndex());
+    codegen_->MoveConstant(locations->GetTemp(0), cls->GetTypeIndex().index_);
     codegen_->InvokeRuntime(kQuickInitializeTypeAndVerifyAccess, cls, cls->GetDexPc());
     CheckEntrypointTypes<kQuickInitializeTypeAndVerifyAccess, void*, uint32_t>();
     return;
@@ -5830,7 +5830,7 @@ void InstructionCodeGeneratorARM::VisitLoadClass(HLoadClass* cls) {
                         current_method,
                         ArtMethod::DexCacheResolvedTypesOffset(kArmPointerSize).Int32Value());
       // /* GcRoot<mirror::Class> */ out = out[type_index]
-      size_t offset = CodeGenerator::GetCacheOffset(cls->GetTypeIndex());
+      size_t offset = CodeGenerator::GetCacheOffset(cls->GetTypeIndex().index_);
       GenerateGcRootFieldLoad(cls, out_loc, out, offset, read_barrier_option);
       generate_null_check = !cls->IsInDexCache();
     }
@@ -7324,8 +7324,8 @@ CodeGeneratorARM::PcRelativePatchInfo* CodeGeneratorARM::NewPcRelativeStringPatc
 }
 
 CodeGeneratorARM::PcRelativePatchInfo* CodeGeneratorARM::NewPcRelativeTypePatch(
-    const DexFile& dex_file, uint32_t type_index) {
-  return NewPcRelativePatch(dex_file, type_index, &pc_relative_type_patches_);
+    const DexFile& dex_file, dex::TypeIndex type_index) {
+  return NewPcRelativePatch(dex_file, type_index.index_, &pc_relative_type_patches_);
 }
 
 CodeGeneratorARM::PcRelativePatchInfo* CodeGeneratorARM::NewPcRelativeDexCacheArrayPatch(
@@ -7347,7 +7347,7 @@ Literal* CodeGeneratorARM::DeduplicateBootImageStringLiteral(const DexFile& dex_
 }
 
 Literal* CodeGeneratorARM::DeduplicateBootImageTypeLiteral(const DexFile& dex_file,
-                                                           uint32_t type_index) {
+                                                           dex::TypeIndex type_index) {
   return boot_image_type_patches_.GetOrCreate(
       TypeReference(&dex_file, type_index),
       [this]() { return __ NewLiteral<uint32_t>(/* placeholder */ 0u); });
@@ -7452,7 +7452,7 @@ void CodeGeneratorARM::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patche
     uint32_t literal_offset = literal->GetLabel()->Position();
     linker_patches->push_back(LinkerPatch::TypePatch(literal_offset,
                                                      target_type.dex_file,
-                                                     target_type.type_index));
+                                                     target_type.type_index.index_));
   }
   EmitPcRelativeLinkerPatches<LinkerPatch::RelativeTypePatch>(pc_relative_type_patches_,
                                                               linker_patches);

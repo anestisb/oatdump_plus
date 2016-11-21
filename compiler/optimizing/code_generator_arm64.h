@@ -20,6 +20,7 @@
 #include "arch/arm64/quick_method_frame_info_arm64.h"
 #include "code_generator.h"
 #include "common_arm64.h"
+#include "dex_file_types.h"
 #include "driver/compiler_options.h"
 #include "nodes.h"
 #include "parallel_move_resolver.h"
@@ -547,7 +548,7 @@ class CodeGeneratorARM64 : public CodeGenerator {
   // ADRP (pass `adrp_label = null`) or the ADD (pass `adrp_label` pointing
   // to the associated ADRP patch label).
   vixl::aarch64::Label* NewPcRelativeTypePatch(const DexFile& dex_file,
-                                               uint32_t type_index,
+                                               dex::TypeIndex type_index,
                                                vixl::aarch64::Label* adrp_label = nullptr);
 
   // Add a new PC-relative dex cache array patch for an instruction and return
@@ -562,7 +563,7 @@ class CodeGeneratorARM64 : public CodeGenerator {
   vixl::aarch64::Literal<uint32_t>* DeduplicateBootImageStringLiteral(const DexFile& dex_file,
                                                                       uint32_t string_index);
   vixl::aarch64::Literal<uint32_t>* DeduplicateBootImageTypeLiteral(const DexFile& dex_file,
-                                                                    uint32_t type_index);
+                                                                    dex::TypeIndex type_index);
   vixl::aarch64::Literal<uint32_t>* DeduplicateBootImageAddressLiteral(uint64_t address);
   vixl::aarch64::Literal<uint64_t>* DeduplicateDexCacheAddressLiteral(uint64_t address);
   vixl::aarch64::Literal<uint32_t>* DeduplicateJitStringLiteral(const DexFile& dex_file,

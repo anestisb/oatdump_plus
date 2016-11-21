@@ -23,6 +23,7 @@
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "dex_instruction.h"
+#include "dex_file_types.h"
 #include "gc/allocator_type.h"
 #include "handle.h"
 #include "invoke_type.h"
@@ -45,7 +46,7 @@ class ScopedObjectAccessAlreadyRunnable;
 class Thread;
 
 template <const bool kAccessCheck>
-ALWAYS_INLINE inline mirror::Class* CheckObjectAlloc(uint32_t type_idx,
+ALWAYS_INLINE inline mirror::Class* CheckObjectAlloc(dex::TypeIndex type_idx,
                                                      ArtMethod* method,
                                                      Thread* self,
                                                      bool* slow_path)
@@ -63,7 +64,7 @@ ALWAYS_INLINE inline mirror::Class* CheckClassInitializedForObjectAlloc(mirror::
 // When verification/compiler hasn't been able to verify access, optionally perform an access
 // check.
 template <bool kAccessCheck, bool kInstrumented>
-ALWAYS_INLINE inline mirror::Object* AllocObjectFromCode(uint32_t type_idx,
+ALWAYS_INLINE inline mirror::Object* AllocObjectFromCode(dex::TypeIndex type_idx,
                                                          ArtMethod* method,
                                                          Thread* self,
                                                          gc::AllocatorType allocator_type)
@@ -89,7 +90,7 @@ ALWAYS_INLINE inline mirror::Object* AllocObjectFromCodeInitialized(
 
 
 template <bool kAccessCheck>
-ALWAYS_INLINE inline mirror::Class* CheckArrayAlloc(uint32_t type_idx,
+ALWAYS_INLINE inline mirror::Class* CheckArrayAlloc(dex::TypeIndex type_idx,
                                                     int32_t component_count,
                                                     ArtMethod* method,
                                                     bool* slow_path)
@@ -101,7 +102,7 @@ ALWAYS_INLINE inline mirror::Class* CheckArrayAlloc(uint32_t type_idx,
 // When verification/compiler hasn't been able to verify access, optionally perform an access
 // check.
 template <bool kAccessCheck, bool kInstrumented>
-ALWAYS_INLINE inline mirror::Array* AllocArrayFromCode(uint32_t type_idx,
+ALWAYS_INLINE inline mirror::Array* AllocArrayFromCode(dex::TypeIndex type_idx,
                                                        int32_t component_count,
                                                        ArtMethod* method,
                                                        Thread* self,
@@ -118,19 +119,21 @@ ALWAYS_INLINE inline mirror::Array* AllocArrayFromCodeResolved(mirror::Class* kl
     REQUIRES_SHARED(Locks::mutator_lock_)
     REQUIRES(!Roles::uninterruptible_);
 
-extern mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, int32_t component_count,
-                                                 ArtMethod* method, Thread* self,
-                                                 bool access_check,
-                                                 gc::AllocatorType allocator_type)
+mirror::Array* CheckAndAllocArrayFromCode(dex::TypeIndex type_idx,
+                                          int32_t component_count,
+                                          ArtMethod* method,
+                                          Thread* self,
+                                          bool access_check,
+                                          gc::AllocatorType allocator_type)
     REQUIRES_SHARED(Locks::mutator_lock_)
     REQUIRES(!Roles::uninterruptible_);
 
-extern mirror::Array* CheckAndAllocArrayFromCodeInstrumented(uint32_t type_idx,
-                                                             int32_t component_count,
-                                                             ArtMethod* method,
-                                                             Thread* self,
-                                                             bool access_check,
-                                                             gc::AllocatorType allocator_type)
+mirror::Array* CheckAndAllocArrayFromCodeInstrumented(dex::TypeIndex type_idx,
+                                                      int32_t component_count,
+                                                      ArtMethod* method,
+                                                      Thread* self,
+                                                      bool access_check,
+                                                      gc::AllocatorType allocator_type)
     REQUIRES_SHARED(Locks::mutator_lock_)
     REQUIRES(!Roles::uninterruptible_);
 
@@ -177,7 +180,7 @@ inline ArtMethod* FindMethodFast(uint32_t method_idx,
                                  InvokeType type)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
-inline mirror::Class* ResolveVerifyAndClinit(uint32_t type_idx,
+inline mirror::Class* ResolveVerifyAndClinit(dex::TypeIndex type_idx,
                                              ArtMethod* referrer,
                                              Thread* self,
                                              bool can_run_clinit,

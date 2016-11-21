@@ -235,7 +235,7 @@ bool ProfileCompilationInfo::Save(int fd) {
       AddUintToBuffer(&buffer, method_it);
     }
     for (auto class_id : dex_data.class_set) {
-      AddUintToBuffer(&buffer, class_id);
+      AddUintToBuffer(&buffer, class_id.index_);
     }
     DCHECK_EQ(required_capacity, buffer.size())
         << "Failed to add the expected number of bytes in the buffer";
@@ -282,7 +282,7 @@ bool ProfileCompilationInfo::AddMethodIndex(const std::string& dex_location,
 
 bool ProfileCompilationInfo::AddClassIndex(const std::string& dex_location,
                                            uint32_t checksum,
-                                           uint16_t type_idx) {
+                                           dex::TypeIndex type_idx) {
   DexFileData* const data = GetOrAddDexFileData(dex_location, checksum);
   if (data == nullptr) {
     return false;
@@ -305,7 +305,7 @@ bool ProfileCompilationInfo::ProcessLine(SafeBuffer& line_buffer,
 
   for (uint16_t i = 0; i < class_set_size; i++) {
     uint16_t type_idx = line_buffer.ReadUintAndAdvance<uint16_t>();
-    if (!AddClassIndex(dex_location, checksum, type_idx)) {
+    if (!AddClassIndex(dex_location, checksum, dex::TypeIndex(type_idx))) {
       return false;
     }
   }
@@ -569,13 +569,13 @@ bool ProfileCompilationInfo::ContainsMethod(const MethodReference& method_ref) c
   return false;
 }
 
-bool ProfileCompilationInfo::ContainsClass(const DexFile& dex_file, uint16_t type_idx) const {
+bool ProfileCompilationInfo::ContainsClass(const DexFile& dex_file, dex::TypeIndex type_idx) const {
   auto info_it = info_.find(GetProfileDexFileKey(dex_file.GetLocation()));
   if (info_it != info_.end()) {
     if (!ChecksumMatch(dex_file, info_it->second.checksum)) {
       return false;
     }
-    const std::set<uint16_t>& classes = info_it->second.class_set;
+    const std::set<dex::TypeIndex>& classes = info_it->second.class_set;
     return classes.find(type_idx) != classes.end();
   }
   return false;
@@ -706,7 +706,7 @@ bool ProfileCompilationInfo::GenerateTestProfile(int fd,
       if (c < (number_of_classes / kFavorSplit)) {
         type_idx %= kFavorFirstN;
       }
-      info.AddClassIndex(profile_key, 0, type_idx);
+      info.AddClassIndex(profile_key, 0, dex::TypeIndex(type_idx));
     }
   }
   return info.Save(fd);

@@ -304,7 +304,11 @@ extern "C" size_t MterpConstClass(uint32_t index,
                                   ShadowFrame* shadow_frame,
                                   Thread* self)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  mirror::Class* c = ResolveVerifyAndClinit(index, shadow_frame->GetMethod(), self, false, false);
+  mirror::Class* c = ResolveVerifyAndClinit(dex::TypeIndex(index),
+                                            shadow_frame->GetMethod(),
+                                            self,
+                                            false,
+                                            false);
   if (UNLIKELY(c == nullptr)) {
     return true;
   }
@@ -317,7 +321,11 @@ extern "C" size_t MterpCheckCast(uint32_t index,
                                  art::ArtMethod* method,
                                  Thread* self)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  ObjPtr<mirror::Class> c = ResolveVerifyAndClinit(index, method, self, false, false);
+  ObjPtr<mirror::Class> c = ResolveVerifyAndClinit(dex::TypeIndex(index),
+                                                   method,
+                                                   self,
+                                                   false,
+                                                   false);
   if (UNLIKELY(c == nullptr)) {
     return true;
   }
@@ -335,7 +343,11 @@ extern "C" size_t MterpInstanceOf(uint32_t index,
                                   art::ArtMethod* method,
                                   Thread* self)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  ObjPtr<mirror::Class> c = ResolveVerifyAndClinit(index, method, self, false, false);
+  ObjPtr<mirror::Class> c = ResolveVerifyAndClinit(dex::TypeIndex(index),
+                                                   method,
+                                                   self,
+                                                   false,
+                                                   false);
   if (UNLIKELY(c == nullptr)) {
     return false;  // Caller will check for pending exception.  Return value unimportant.
   }
@@ -353,7 +365,7 @@ extern "C" size_t MterpNewInstance(ShadowFrame* shadow_frame, Thread* self, uint
     REQUIRES_SHARED(Locks::mutator_lock_) {
   const Instruction* inst = Instruction::At(shadow_frame->GetDexPCPtr());
   mirror::Object* obj = nullptr;
-  mirror::Class* c = ResolveVerifyAndClinit(inst->VRegB_21c(),
+  mirror::Class* c = ResolveVerifyAndClinit(dex::TypeIndex(inst->VRegB_21c()),
                                             shadow_frame->GetMethod(),
                                             self,
                                             false,
@@ -363,9 +375,10 @@ extern "C" size_t MterpNewInstance(ShadowFrame* shadow_frame, Thread* self, uint
       gc::AllocatorType allocator_type = Runtime::Current()->GetHeap()->GetCurrentAllocator();
       obj = mirror::String::AllocEmptyString<true>(self, allocator_type);
     } else {
-      obj = AllocObjectFromCode<false, true>(
-        inst->VRegB_21c(), shadow_frame->GetMethod(), self,
-        Runtime::Current()->GetHeap()->GetCurrentAllocator());
+      obj = AllocObjectFromCode<false, true>(dex::TypeIndex(inst->VRegB_21c()),
+                                             shadow_frame->GetMethod(),
+                                             self,
+                                             Runtime::Current()->GetHeap()->GetCurrentAllocator());
     }
   }
   if (UNLIKELY(obj == nullptr)) {
@@ -446,7 +459,7 @@ extern "C" size_t MterpNewArray(ShadowFrame* shadow_frame,
   const Instruction* inst = Instruction::At(dex_pc_ptr);
   int32_t length = shadow_frame->GetVReg(inst->VRegB_22c(inst_data));
   mirror::Object* obj = AllocArrayFromCode<false, true>(
-      inst->VRegC_22c(), length, shadow_frame->GetMethod(), self,
+      dex::TypeIndex(inst->VRegC_22c()), length, shadow_frame->GetMethod(), self,
       Runtime::Current()->GetHeap()->GetCurrentAllocator());
   if (UNLIKELY(obj == nullptr)) {
       return false;

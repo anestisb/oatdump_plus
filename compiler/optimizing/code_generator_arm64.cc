@@ -288,7 +288,7 @@ class LoadClassSlowPathARM64 : public SlowPathCodeARM64 {
     SaveLiveRegisters(codegen, locations);
 
     InvokeRuntimeCallingConvention calling_convention;
-    __ Mov(calling_convention.GetRegisterAt(0).W(), cls_->GetTypeIndex());
+    __ Mov(calling_convention.GetRegisterAt(0).W(), cls_->GetTypeIndex().index_);
     QuickEntrypointEnum entrypoint = do_clinit_ ? kQuickInitializeStaticStorage
                                                 : kQuickInitializeType;
     arm64_codegen->InvokeRuntime(entrypoint, at_, dex_pc_, this);
@@ -4102,9 +4102,9 @@ vixl::aarch64::Label* CodeGeneratorARM64::NewPcRelativeStringPatch(
 
 vixl::aarch64::Label* CodeGeneratorARM64::NewPcRelativeTypePatch(
     const DexFile& dex_file,
-    uint32_t type_index,
+    dex::TypeIndex type_index,
     vixl::aarch64::Label* adrp_label) {
-  return NewPcRelativePatch(dex_file, type_index, adrp_label, &pc_relative_type_patches_);
+  return NewPcRelativePatch(dex_file, type_index.index_, adrp_label, &pc_relative_type_patches_);
 }
 
 vixl::aarch64::Label* CodeGeneratorARM64::NewPcRelativeDexCacheArrayPatch(
@@ -4136,7 +4136,7 @@ vixl::aarch64::Literal<uint32_t>* CodeGeneratorARM64::DeduplicateBootImageString
 }
 
 vixl::aarch64::Literal<uint32_t>* CodeGeneratorARM64::DeduplicateBootImageTypeLiteral(
-    const DexFile& dex_file, uint32_t type_index) {
+    const DexFile& dex_file, dex::TypeIndex type_index) {
   return boot_image_type_patches_.GetOrCreate(
       TypeReference(&dex_file, type_index),
       [this]() { return __ CreateLiteralDestroyedWithPool<uint32_t>(/* placeholder */ 0u); });
@@ -4257,7 +4257,7 @@ void CodeGeneratorARM64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patc
     vixl::aarch64::Literal<uint32_t>* literal = entry.second;
     linker_patches->push_back(LinkerPatch::TypePatch(literal->GetOffset(),
                                                      target_type.dex_file,
-                                                     target_type.type_index));
+                                                     target_type.type_index.index_));
   }
   EmitPcRelativeLinkerPatches<LinkerPatch::RelativeTypePatch>(pc_relative_type_patches_,
                                                                 linker_patches);
@@ -4381,7 +4381,7 @@ void LocationsBuilderARM64::VisitLoadClass(HLoadClass* cls) {
 
 void InstructionCodeGeneratorARM64::VisitLoadClass(HLoadClass* cls) {
   if (cls->NeedsAccessCheck()) {
-    codegen_->MoveConstant(cls->GetLocations()->GetTemp(0), cls->GetTypeIndex());
+    codegen_->MoveConstant(cls->GetLocations()->GetTemp(0), cls->GetTypeIndex().index_);
     codegen_->InvokeRuntime(kQuickInitializeTypeAndVerifyAccess, cls, cls->GetDexPc());
     CheckEntrypointTypes<kQuickInitializeTypeAndVerifyAccess, void*, uint32_t>();
     return;
@@ -4417,7 +4417,7 @@ void InstructionCodeGeneratorARM64::VisitLoadClass(HLoadClass* cls) {
       DCHECK_EQ(read_barrier_option, kWithoutReadBarrier);
       // Add ADRP with its PC-relative type patch.
       const DexFile& dex_file = cls->GetDexFile();
-      uint32_t type_index = cls->GetTypeIndex();
+      dex::TypeIndex type_index = cls->GetTypeIndex();
       vixl::aarch64::Label* adrp_label = codegen_->NewPcRelativeTypePatch(dex_file, type_index);
       codegen_->EmitAdrpPlaceholder(adrp_label, out.X());
       // Add ADD with its PC-relative type patch.
@@ -4485,7 +4485,7 @@ void InstructionCodeGeneratorARM64::VisitLoadClass(HLoadClass* cls) {
       GenerateGcRootFieldLoad(cls,
                               out_loc,
                               out.X(),
-                              CodeGenerator::GetCacheOffset(cls->GetTypeIndex()),
+                              CodeGenerator::GetCacheOffset(cls->GetTypeIndex().index_),
                               /* fixup_label */ nullptr,
                               read_barrier_option);
       generate_null_check = !cls->IsInDexCache();
@@ -4775,7 +4775,7 @@ void InstructionCodeGeneratorARM64::VisitNewArray(HNewArray* instruction) {
   InvokeRuntimeCallingConvention calling_convention;
   Register type_index = RegisterFrom(locations->GetTemp(0), Primitive::kPrimInt);
   DCHECK(type_index.Is(w0));
-  __ Mov(type_index, instruction->GetTypeIndex());
+  __ Mov(type_index, instruction->GetTypeIndex().index_);
   // Note: if heap poisoning is enabled, the entry point takes cares
   // of poisoning the reference.
   codegen_->InvokeRuntime(instruction->GetEntrypoint(), instruction, instruction->GetDexPc());

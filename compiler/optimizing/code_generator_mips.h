@@ -449,11 +449,11 @@ class CodeGeneratorMIPS : public CodeGenerator {
   };
 
   PcRelativePatchInfo* NewPcRelativeStringPatch(const DexFile& dex_file, uint32_t string_index);
-  PcRelativePatchInfo* NewPcRelativeTypePatch(const DexFile& dex_file, uint32_t type_index);
+  PcRelativePatchInfo* NewPcRelativeTypePatch(const DexFile& dex_file, dex::TypeIndex type_index);
   PcRelativePatchInfo* NewPcRelativeDexCacheArrayPatch(const DexFile& dex_file,
                                                        uint32_t element_offset);
   Literal* DeduplicateBootImageStringLiteral(const DexFile& dex_file, uint32_t string_index);
-  Literal* DeduplicateBootImageTypeLiteral(const DexFile& dex_file, uint32_t type_index);
+  Literal* DeduplicateBootImageTypeLiteral(const DexFile& dex_file, dex::TypeIndex type_index);
   Literal* DeduplicateBootImageAddressLiteral(uint32_t address);
 
   void EmitPcRelativeAddressPlaceholder(PcRelativePatchInfo* info, Register out, Register base);

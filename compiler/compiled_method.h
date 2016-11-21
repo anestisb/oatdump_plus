@@ -26,6 +26,7 @@
 #include "base/array_ref.h"
 #include "base/bit_utils.h"
 #include "base/length_prefixed_array.h"
+#include "dex_file_types.h"
 #include "method_reference.h"
 
 namespace art {
@@ -302,9 +303,9 @@ class LinkerPatch {
     return target_dex_file_;
   }
 
-  uint32_t TargetTypeIndex() const {
+  dex::TypeIndex TargetTypeIndex() const {
     DCHECK(patch_type_ == Type::kType || patch_type_ == Type::kTypeRelative);
-    return type_idx_;
+    return dex::TypeIndex(type_idx_);
   }
 
   const DexFile* TargetStringDexFile() const {
