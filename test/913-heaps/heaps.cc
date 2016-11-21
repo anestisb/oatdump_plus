@@ -234,6 +234,41 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_followReferences(JNIEnv* env
       jint length_;
     };
 
+    class JNILocalElement : public Elem {
+     public:
+      JNILocalElement(const std::string& referrer,
+                      const std::string& referree,
+                      jlong size,
+                      jint length,
+                      const jvmtiHeapReferenceInfo* reference_info)
+          : Elem(referrer, referree, size, length) {
+        memcpy(&info_, reference_info, sizeof(jvmtiHeapReferenceInfo));
+      }
+
+     protected:
+      std::string PrintArrowType() const OVERRIDE {
+        char* name = nullptr;
+        if (info_.jni_local.method != nullptr) {
+          jvmti_env->GetMethodName(info_.jni_local.method, &name, nullptr, nullptr);
+        }
+        std::string ret = StringPrintf("jni-local[id=%" PRId64 ",tag=%" PRId64 ",depth=%d,"
+                                       "method=%s]",
+                                       info_.jni_local.thread_id,
+                                       info_.jni_local.thread_tag,
+                                       info_.jni_local.depth,
+                                       name == nullptr ? "<null>" : name);
+        if (name != nullptr) {
+          jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(name));
+        }
+
+        return ret;
+      }
+
+     private:
+      const std::string string_;
+      jvmtiHeapReferenceInfo info_;
+    };
+
     // For simple or unimplemented cases.
     class StringElement : public Elem {
      public:
@@ -351,11 +386,11 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_followReferences(JNIEnv* env
                                                          length,
                                                          "stack-local"));
         case JVMTI_HEAP_REFERENCE_JNI_LOCAL:
-          return std::unique_ptr<Elem>(new StringElement(referrer,
-                                                         referree,
-                                                         size,
-                                                         length,
-                                                         "jni-local"));
+          return std::unique_ptr<Elem>(new JNILocalElement(referrer,
+                                                           referree,
+                                                           size,
+                                                           length,
+                                                           reference_info));
         case JVMTI_HEAP_REFERENCE_THREAD:
           return std::unique_ptr<Elem>(new StringElement(referrer,
                                                          referree,
