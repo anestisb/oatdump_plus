@@ -1063,7 +1063,7 @@ TEST_F(StubTest, AllocObject) {
   EXPECT_FALSE(self->IsExceptionPending());
   {
     // Use an arbitrary method from c to use as referrer
-    size_t result = Invoke3(static_cast<size_t>(c->GetDexTypeIndex()),    // type_idx
+    size_t result = Invoke3(static_cast<size_t>(c->GetDexTypeIndex().index_),    // type_idx
                             // arbitrary
                             reinterpret_cast<size_t>(c->GetVirtualMethod(0, kRuntimePointerSize)),
                             0U,
@@ -1197,7 +1197,7 @@ TEST_F(StubTest, AllocObjectArray) {
   if ((false)) {
     // Use an arbitrary method from c to use as referrer
     size_t result = Invoke3(
-        static_cast<size_t>(c->GetDexTypeIndex()),    // type_idx
+        static_cast<size_t>(c->GetDexTypeIndex().index_),    // type_idx
         10U,
         // arbitrary
         reinterpret_cast<size_t>(c_obj->GetVirtualMethod(0, kRuntimePointerSize)),

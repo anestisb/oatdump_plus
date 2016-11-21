@@ -19,6 +19,7 @@
 
 #include <jni.h>
 
+#include "dex_file_types.h"
 #include "gc_root.h"
 #include "modifiers.h"
 #include "obj_ptr.h"
@@ -216,7 +217,8 @@ class ArtField FINAL {
  private:
   ObjPtr<mirror::Class> ProxyFindSystemClass(const char* descriptor)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  ObjPtr<mirror::Class> ResolveGetType(uint32_t type_idx) REQUIRES_SHARED(Locks::mutator_lock_);
+  ObjPtr<mirror::Class> ResolveGetType(dex::TypeIndex type_idx)
+      REQUIRES_SHARED(Locks::mutator_lock_);
   ObjPtr<mirror::String> ResolveGetStringName(Thread* self,
                                               const DexFile& dex_file,
                                               uint32_t string_idx,

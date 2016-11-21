@@ -38,7 +38,7 @@
 
 namespace art {
 
-static inline mirror::Class* CheckFilledNewArrayAlloc(uint32_t type_idx,
+static inline mirror::Class* CheckFilledNewArrayAlloc(dex::TypeIndex type_idx,
                                                       int32_t component_count,
                                                       ArtMethod* referrer,
                                                       Thread* self,
@@ -82,10 +82,12 @@ static inline mirror::Class* CheckFilledNewArrayAlloc(uint32_t type_idx,
 }
 
 // Helper function to allocate array for FILLED_NEW_ARRAY.
-mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, int32_t component_count,
-                                          ArtMethod* referrer, Thread* self,
+mirror::Array* CheckAndAllocArrayFromCode(dex::TypeIndex type_idx,
+                                          int32_t component_count,
+                                          ArtMethod* referrer,
+                                          Thread* self,
                                           bool access_check,
-                                          gc::AllocatorType /* allocator_type */) {
+                                          gc::AllocatorType allocator_type ATTRIBUTE_UNUSED) {
   mirror::Class* klass = CheckFilledNewArrayAlloc(type_idx, component_count, referrer, self,
                                                   access_check);
   if (UNLIKELY(klass == nullptr)) {
@@ -101,12 +103,13 @@ mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, int32_t component_c
 }
 
 // Helper function to allocate array for FILLED_NEW_ARRAY.
-mirror::Array* CheckAndAllocArrayFromCodeInstrumented(uint32_t type_idx,
-                                                      int32_t component_count,
-                                                      ArtMethod* referrer,
-                                                      Thread* self,
-                                                      bool access_check,
-                                                      gc::AllocatorType /* allocator_type */) {
+mirror::Array* CheckAndAllocArrayFromCodeInstrumented(
+    dex::TypeIndex type_idx,
+    int32_t component_count,
+    ArtMethod* referrer,
+    Thread* self,
+    bool access_check,
+    gc::AllocatorType allocator_type ATTRIBUTE_UNUSED) {
   mirror::Class* klass = CheckFilledNewArrayAlloc(type_idx, component_count, referrer, self,
                                                   access_check);
   if (UNLIKELY(klass == nullptr)) {

@@ -24,6 +24,7 @@
 #include "class_linker-inl.h"
 #include "common_compiler_test.h"
 #include "dex_file.h"
+#include "dex_file_types.h"
 #include "gc/heap.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
@@ -115,9 +116,9 @@ TEST_F(CompilerDriverTest, DISABLED_LARGE_CompileDexLibCore) {
   }
   EXPECT_EQ(dex.NumTypeIds(), dex_cache->NumResolvedTypes());
   for (size_t i = 0; i < dex_cache->NumResolvedTypes(); i++) {
-    mirror::Class* type = dex_cache->GetResolvedType(i);
+    mirror::Class* type = dex_cache->GetResolvedType(dex::TypeIndex(i));
     EXPECT_TRUE(type != nullptr) << "type_idx=" << i
-                              << " " << dex.GetTypeDescriptor(dex.GetTypeId(i));
+                              << " " << dex.GetTypeDescriptor(dex.GetTypeId(dex::TypeIndex(i)));
   }
   EXPECT_EQ(dex.NumMethodIds(), dex_cache->NumResolvedMethods());
   auto* cl = Runtime::Current()->GetClassLinker();

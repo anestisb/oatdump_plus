@@ -48,7 +48,10 @@ class LoopOptimizationTest : public CommonCompilerTest {
     graph_->AddBlock(exit_block_);
     graph_->SetEntryBlock(entry_block_);
     graph_->SetExitBlock(exit_block_);
-    parameter_ = new (&allocator_) HParameterValue(graph_->GetDexFile(), 0, 0, Primitive::kPrimInt);
+    parameter_ = new (&allocator_) HParameterValue(graph_->GetDexFile(),
+                                                   dex::TypeIndex(0),
+                                                   0,
+                                                   Primitive::kPrimInt);
     entry_block_->AddInstruction(parameter_);
     return_block_->AddInstruction(new (&allocator_) HReturnVoid());
     exit_block_->AddInstruction(new (&allocator_) HExit());

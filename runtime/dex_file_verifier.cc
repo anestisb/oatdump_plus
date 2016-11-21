@@ -76,8 +76,9 @@ const char* DexFileVerifier::CheckLoadStringByIdx(uint32_t idx, const char* erro
   return dex_file_->StringDataByIdx(idx);
 }
 
-const char* DexFileVerifier::CheckLoadStringByTypeIdx(uint32_t type_idx, const char* error_string) {
-  if (UNLIKELY(!CheckIndex(type_idx, dex_file_->NumTypeIds(), error_string))) {
+const char* DexFileVerifier::CheckLoadStringByTypeIdx(dex::TypeIndex type_idx,
+                                                      const char* error_string) {
+  if (UNLIKELY(!CheckIndex(type_idx.index_, dex_file_->NumTypeIds(), error_string))) {
     return nullptr;
   }
   const DexFile::TypeId& type_id = dex_file_->GetTypeId(type_idx);
@@ -525,7 +526,7 @@ bool DexFileVerifier::CheckAndGetHandlerOffsets(const DexFile::CodeItem* code_it
 bool DexFileVerifier::CheckClassDataItemField(uint32_t idx,
                                               uint32_t access_flags,
                                               uint32_t class_access_flags,
-                                              uint16_t class_type_index,
+                                              dex::TypeIndex class_type_index,
                                               bool expect_static) {
   // Check for overflow.
   if (!CheckIndex(idx, header_->field_ids_size_, "class_data_item field_idx")) {
@@ -533,13 +534,13 @@ bool DexFileVerifier::CheckClassDataItemField(uint32_t idx,
   }
 
   // Check that it's the right class.
-  uint16_t my_class_index =
+  dex::TypeIndex my_class_index =
       (reinterpret_cast<const DexFile::FieldId*>(begin_ + header_->field_ids_off_) + idx)->
           class_idx_;
   if (class_type_index != my_class_index) {
     ErrorStringPrintf("Field's class index unexpected, %" PRIu16 "vs %" PRIu16,
-                      my_class_index,
-                      class_type_index);
+                      my_class_index.index_,
+                      class_type_index.index_);
     return false;
   }
 
@@ -563,7 +564,7 @@ bool DexFileVerifier::CheckClassDataItemField(uint32_t idx,
 bool DexFileVerifier::CheckClassDataItemMethod(uint32_t idx,
                                                uint32_t access_flags,
                                                uint32_t class_access_flags,
-                                               uint16_t class_type_index,
+                                               dex::TypeIndex class_type_index,
                                                uint32_t code_offset,
                                                std::unordered_set<uint32_t>* direct_method_indexes,
                                                bool expect_direct) {
@@ -574,13 +575,13 @@ bool DexFileVerifier::CheckClassDataItemMethod(uint32_t idx,
   }
 
   // Check that it's the right class.
-  uint16_t my_class_index =
+  dex::TypeIndex my_class_index =
       (reinterpret_cast<const DexFile::MethodId*>(begin_ + header_->method_ids_off_) + idx)->
           class_idx_;
   if (class_type_index != my_class_index) {
     ErrorStringPrintf("Method's class index unexpected, %" PRIu16 "vs %" PRIu16,
-                      my_class_index,
-                      class_type_index);
+                      my_class_index.index_,
+                      class_type_index.index_);
     return false;
   }
 
@@ -789,7 +790,7 @@ bool DexFileVerifier::CheckEncodedAnnotation() {
 
 bool DexFileVerifier::FindClassFlags(uint32_t index,
                                      bool is_field,
-                                     uint16_t* class_type_index,
+                                     dex::TypeIndex* class_type_index,
                                      uint32_t* class_access_flags) {
   DCHECK(class_type_index != nullptr);
   DCHECK(class_access_flags != nullptr);
@@ -811,7 +812,7 @@ bool DexFileVerifier::FindClassFlags(uint32_t index,
   }
 
   // Check if that is valid.
-  if (*class_type_index >= header_->type_ids_size_) {
+  if (class_type_index->index_ >= header_->type_ids_size_) {
     return false;
   }
 
@@ -836,7 +837,7 @@ bool DexFileVerifier::CheckOrderAndGetClassFlags(bool is_field,
                                                  uint32_t curr_index,
                                                  uint32_t prev_index,
                                                  bool* have_class,
-                                                 uint16_t* class_type_index,
+                                                 dex::TypeIndex* class_type_index,
                                                  uint32_t* class_access_flags) {
   if (curr_index < prev_index) {
     ErrorStringPrintf("out-of-order %s indexes %" PRIu32 " and %" PRIu32,
@@ -862,7 +863,7 @@ bool DexFileVerifier::CheckOrderAndGetClassFlags(bool is_field,
 template <bool kStatic>
 bool DexFileVerifier::CheckIntraClassDataItemFields(ClassDataItemIterator* it,
                                                     bool* have_class,
-                                                    uint16_t* class_type_index,
+                                                    dex::TypeIndex* class_type_index,
                                                     uint32_t* class_access_flags) {
   DCHECK(it != nullptr);
   // These calls use the raw access flags to check whether the whole dex field is valid.
@@ -897,7 +898,7 @@ bool DexFileVerifier::CheckIntraClassDataItemMethods(
     ClassDataItemIterator* it,
     std::unordered_set<uint32_t>* direct_method_indexes,
     bool* have_class,
-    uint16_t* class_type_index,
+    dex::TypeIndex* class_type_index,
     uint32_t* class_access_flags) {
   uint32_t prev_index = 0;
   for (; kDirect ? it->HasNextDirectMethod() : it->HasNextVirtualMethod(); it->Next()) {
@@ -935,7 +936,7 @@ bool DexFileVerifier::CheckIntraClassDataItem() {
   // So we need to explicitly search with the first item we find (either field or method), and then,
   // as the lookup is expensive, cache the result.
   bool have_class = false;
-  uint16_t class_type_index;
+  dex::TypeIndex class_type_index;
   uint32_t class_access_flags;
 
   // Check fields.
@@ -1682,26 +1683,27 @@ bool DexFileVerifier::CheckOffsetToTypeMap(size_t offset, uint16_t type) {
   return true;
 }
 
-uint16_t DexFileVerifier::FindFirstClassDataDefiner(const uint8_t* ptr, bool* success) {
+dex::TypeIndex DexFileVerifier::FindFirstClassDataDefiner(const uint8_t* ptr, bool* success) {
   ClassDataItemIterator it(*dex_file_, ptr);
   *success = true;
 
   if (it.HasNextStaticField() || it.HasNextInstanceField()) {
     LOAD_FIELD(field, it.GetMemberIndex(), "first_class_data_definer field_id",
-               *success = false; return DexFile::kDexNoIndex16)
+               *success = false; return dex::TypeIndex(DexFile::kDexNoIndex16))
     return field->class_idx_;
   }
 
   if (it.HasNextDirectMethod() || it.HasNextVirtualMethod()) {
     LOAD_METHOD(method, it.GetMemberIndex(), "first_class_data_definer method_id",
-                *success = false; return DexFile::kDexNoIndex16)
+                *success = false; return dex::TypeIndex(DexFile::kDexNoIndex16))
     return method->class_idx_;
   }
 
-  return DexFile::kDexNoIndex16;
+  return dex::TypeIndex(DexFile::kDexNoIndex16);
 }
 
-uint16_t DexFileVerifier::FindFirstAnnotationsDirectoryDefiner(const uint8_t* ptr, bool* success) {
+dex::TypeIndex DexFileVerifier::FindFirstAnnotationsDirectoryDefiner(const uint8_t* ptr,
+                                                                     bool* success) {
   const DexFile::AnnotationsDirectoryItem* item =
       reinterpret_cast<const DexFile::AnnotationsDirectoryItem*>(ptr);
   *success = true;
@@ -1709,25 +1711,25 @@ uint16_t DexFileVerifier::FindFirstAnnotationsDirectoryDefiner(const uint8_t* pt
   if (item->fields_size_ != 0) {
     DexFile::FieldAnnotationsItem* field_items = (DexFile::FieldAnnotationsItem*) (item + 1);
     LOAD_FIELD(field, field_items[0].field_idx_, "first_annotations_dir_definer field_id",
-               *success = false; return DexFile::kDexNoIndex16)
+               *success = false; return dex::TypeIndex(DexFile::kDexNoIndex16))
     return field->class_idx_;
   }
 
   if (item->methods_size_ != 0) {
     DexFile::MethodAnnotationsItem* method_items = (DexFile::MethodAnnotationsItem*) (item + 1);
     LOAD_METHOD(method, method_items[0].method_idx_, "first_annotations_dir_definer method id",
-                *success = false; return DexFile::kDexNoIndex16)
+                *success = false; return dex::TypeIndex(DexFile::kDexNoIndex16))
     return method->class_idx_;
   }
 
   if (item->parameters_size_ != 0) {
     DexFile::ParameterAnnotationsItem* parameter_items = (DexFile::ParameterAnnotationsItem*) (item + 1);
     LOAD_METHOD(method, parameter_items[0].method_idx_, "first_annotations_dir_definer method id",
-                *success = false; return DexFile::kDexNoIndex16)
+                *success = false; return dex::TypeIndex(DexFile::kDexNoIndex16))
     return method->class_idx_;
   }
 
-  return DexFile::kDexNoIndex16;
+  return dex::TypeIndex(DexFile::kDexNoIndex16);
 }
 
 bool DexFileVerifier::CheckInterStringIdItem() {
@@ -1797,7 +1799,8 @@ bool DexFileVerifier::CheckInterProtoIdItem() {
 
   DexFileParameterIterator it(*dex_file_, *item);
   while (it.HasNext() && *shorty != '\0') {
-    if (!CheckIndex(it.GetTypeIdx(), dex_file_->NumTypeIds(),
+    if (!CheckIndex(it.GetTypeIdx().index_,
+                    dex_file_->NumTypeIds(),
                     "inter_proto_id_item shorty type_idx")) {
       return false;
     }
@@ -1824,10 +1827,10 @@ bool DexFileVerifier::CheckInterProtoIdItem() {
       DexFileParameterIterator prev_it(*dex_file_, *prev);
 
       while (curr_it.HasNext() && prev_it.HasNext()) {
-        uint16_t prev_idx = prev_it.GetTypeIdx();
-        uint16_t curr_idx = curr_it.GetTypeIdx();
-        DCHECK_NE(prev_idx, DexFile::kDexNoIndex16);
-        DCHECK_NE(curr_idx, DexFile::kDexNoIndex16);
+        dex::TypeIndex prev_idx = prev_it.GetTypeIdx();
+        dex::TypeIndex curr_idx = curr_it.GetTypeIdx();
+        DCHECK_NE(prev_idx, dex::TypeIndex(DexFile::kDexNoIndex16));
+        DCHECK_NE(curr_idx, dex::TypeIndex(DexFile::kDexNoIndex16));
 
         if (prev_idx < curr_idx) {
           break;
@@ -1951,7 +1954,7 @@ bool DexFileVerifier::CheckInterClassDefItem() {
 
   // Check for duplicate class def.
   if (defined_classes_.find(item->class_idx_) != defined_classes_.end()) {
-    ErrorStringPrintf("Redefinition of class with type idx: '%d'", item->class_idx_);
+    ErrorStringPrintf("Redefinition of class with type idx: '%d'", item->class_idx_.index_);
     return false;
   }
   defined_classes_.insert(item->class_idx_);
@@ -1985,12 +1988,13 @@ bool DexFileVerifier::CheckInterClassDefItem() {
     return false;
   }
 
-  if (item->superclass_idx_ != DexFile::kDexNoIndex16) {
+  if (item->superclass_idx_.IsValid()) {
     if (header_->GetVersion() >= DexFile::kClassDefinitionOrderEnforcedVersion) {
       // Check that a class does not inherit from itself directly (by having
       // the same type idx as its super class).
       if (UNLIKELY(item->superclass_idx_ == item->class_idx_)) {
-        ErrorStringPrintf("Class with same type idx as its superclass: '%d'", item->class_idx_);
+        ErrorStringPrintf("Class with same type idx as its superclass: '%d'",
+                          item->class_idx_.index_);
         return false;
       }
 
@@ -2004,8 +2008,8 @@ bool DexFileVerifier::CheckInterClassDefItem() {
           ErrorStringPrintf("Invalid class definition ordering:"
                             " class with type idx: '%d' defined before"
                             " superclass with type idx: '%d'",
-                            item->class_idx_,
-                            item->superclass_idx_);
+                            item->class_idx_.index_,
+                            item->superclass_idx_.index_);
           return false;
         }
       }
@@ -2029,7 +2033,7 @@ bool DexFileVerifier::CheckInterClassDefItem() {
         // same type idx as one of its immediate implemented interfaces).
         if (UNLIKELY(interfaces->GetTypeItem(i).type_idx_ == item->class_idx_)) {
           ErrorStringPrintf("Class with same type idx as implemented interface: '%d'",
-                            item->class_idx_);
+                            item->class_idx_.index_);
           return false;
         }
 
@@ -2044,8 +2048,8 @@ bool DexFileVerifier::CheckInterClassDefItem() {
             ErrorStringPrintf("Invalid class definition ordering:"
                               " class with type idx: '%d' defined before"
                               " implemented interface with type idx: '%d'",
-                              item->class_idx_,
-                              interfaces->GetTypeItem(i).type_idx_);
+                              item->class_idx_.index_,
+                              interfaces->GetTypeItem(i).type_idx_.index_);
             return false;
           }
         }
@@ -2065,9 +2069,9 @@ bool DexFileVerifier::CheckInterClassDefItem() {
      * practice the number of interfaces implemented by any given class is low.
      */
     for (uint32_t i = 1; i < size; i++) {
-      uint32_t idx1 = interfaces->GetTypeItem(i).type_idx_;
+      dex::TypeIndex idx1 = interfaces->GetTypeItem(i).type_idx_;
       for (uint32_t j =0; j < i; j++) {
-        uint32_t idx2 = interfaces->GetTypeItem(j).type_idx_;
+        dex::TypeIndex idx2 = interfaces->GetTypeItem(j).type_idx_;
         if (UNLIKELY(idx1 == idx2)) {
           ErrorStringPrintf("Duplicate interface: '%s'", dex_file_->StringByTypeIdx(idx1));
           return false;
@@ -2080,11 +2084,12 @@ bool DexFileVerifier::CheckInterClassDefItem() {
   if (item->class_data_off_ != 0) {
     const uint8_t* data = begin_ + item->class_data_off_;
     bool success;
-    uint16_t data_definer = FindFirstClassDataDefiner(data, &success);
+    dex::TypeIndex data_definer = FindFirstClassDataDefiner(data, &success);
     if (!success) {
       return false;
     }
-    if (UNLIKELY((data_definer != item->class_idx_) && (data_definer != DexFile::kDexNoIndex16))) {
+    if (UNLIKELY((data_definer != item->class_idx_) &&
+                 (data_definer != dex::TypeIndex(DexFile::kDexNoIndex16)))) {
       ErrorStringPrintf("Invalid class_data_item");
       return false;
     }
@@ -2099,12 +2104,12 @@ bool DexFileVerifier::CheckInterClassDefItem() {
     }
     const uint8_t* data = begin_ + item->annotations_off_;
     bool success;
-    uint16_t annotations_definer = FindFirstAnnotationsDirectoryDefiner(data, &success);
+    dex::TypeIndex annotations_definer = FindFirstAnnotationsDirectoryDefiner(data, &success);
     if (!success) {
       return false;
     }
     if (UNLIKELY((annotations_definer != item->class_idx_) &&
-                 (annotations_definer != DexFile::kDexNoIndex16))) {
+                 (annotations_definer != dex::TypeIndex(DexFile::kDexNoIndex16)))) {
       ErrorStringPrintf("Invalid annotations_directory_item");
       return false;
     }
@@ -2165,7 +2170,7 @@ bool DexFileVerifier::CheckInterAnnotationSetItem() {
 bool DexFileVerifier::CheckInterClassDataItem() {
   ClassDataItemIterator it(*dex_file_, ptr_);
   bool success;
-  uint16_t defining_class = FindFirstClassDataDefiner(ptr_, &success);
+  dex::TypeIndex defining_class = FindFirstClassDataDefiner(ptr_, &success);
   if (!success) {
     return false;
   }
@@ -2197,7 +2202,7 @@ bool DexFileVerifier::CheckInterAnnotationsDirectoryItem() {
   const DexFile::AnnotationsDirectoryItem* item =
       reinterpret_cast<const DexFile::AnnotationsDirectoryItem*>(ptr_);
   bool success;
-  uint16_t defining_class = FindFirstAnnotationsDirectoryDefiner(ptr_, &success);
+  dex::TypeIndex defining_class = FindFirstAnnotationsDirectoryDefiner(ptr_, &success);
   if (!success) {
     return false;
   }
@@ -2471,15 +2476,15 @@ static std::string GetStringOrError(const uint8_t* const begin,
 
 static std::string GetClassOrError(const uint8_t* const begin,
                                    const DexFile::Header* const header,
-                                   uint32_t class_idx) {
+                                   dex::TypeIndex class_idx) {
   // The `class_idx` is either `FieldId::class_idx_` or `MethodId::class_idx_` and
   // it has already been checked in `DexFileVerifier::CheckClassDataItemField()`
   // or `DexFileVerifier::CheckClassDataItemMethod()`, respectively, to match
   // a valid defining class.
-  CHECK_LT(class_idx, header->type_ids_size_);
+  CHECK_LT(class_idx.index_, header->type_ids_size_);
 
   const DexFile::TypeId* type_id =
-      reinterpret_cast<const DexFile::TypeId*>(begin + header->type_ids_off_) + class_idx;
+      reinterpret_cast<const DexFile::TypeId*>(begin + header->type_ids_off_) + class_idx.index_;
 
   // Assume that the data is OK at this point. Type id offsets have been checked at this point.
 

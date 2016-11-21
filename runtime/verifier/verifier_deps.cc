@@ -137,7 +137,7 @@ bool VerifierDeps::IsInClassPath(ObjPtr<mirror::Class> klass) const {
 }
 
 void VerifierDeps::AddClassResolution(const DexFile& dex_file,
-                                      uint16_t type_idx,
+                                      dex::TypeIndex type_idx,
                                       mirror::Class* klass) {
   DexFileDeps* dex_deps = GetDexFileDeps(dex_file);
   if (dex_deps == nullptr) {
@@ -286,7 +286,7 @@ static inline VerifierDeps* GetVerifierDepsSingleton() {
 }
 
 void VerifierDeps::MaybeRecordVerificationStatus(const DexFile& dex_file,
-                                                 uint16_t type_idx,
+                                                 dex::TypeIndex type_idx,
                                                  MethodVerifier::FailureKind failure_kind) {
   if (failure_kind == MethodVerifier::kNoFailure) {
     // We only record classes that did not fully verify at compile time.
@@ -302,7 +302,7 @@ void VerifierDeps::MaybeRecordVerificationStatus(const DexFile& dex_file,
 }
 
 void VerifierDeps::MaybeRecordClassResolution(const DexFile& dex_file,
-                                              uint16_t type_idx,
+                                              dex::TypeIndex type_idx,
                                               mirror::Class* klass) {
   VerifierDeps* singleton = GetVerifierDepsSingleton();
   if (singleton != nullptr) {
@@ -340,36 +340,62 @@ void VerifierDeps::MaybeRecordAssignability(const DexFile& dex_file,
   }
 }
 
+namespace {
+
 static inline uint32_t DecodeUint32WithOverflowCheck(const uint8_t** in, const uint8_t* end) {
   CHECK_LT(*in, end);
   return DecodeUnsignedLeb128(in);
 }
 
+template<typename T> inline uint32_t Encode(T in);
+
+template<> inline uint32_t Encode<uint16_t>(uint16_t in) {
+  return in;
+}
+template<> inline uint32_t Encode<uint32_t>(uint32_t in) {
+  return in;
+}
+template<> inline uint32_t Encode<dex::TypeIndex>(dex::TypeIndex in) {
+  return in.index_;
+}
+
+template<typename T> inline T Decode(uint32_t in);
+
+template<> inline uint16_t Decode<uint16_t>(uint32_t in) {
+  return dchecked_integral_cast<uint16_t>(in);
+}
+template<> inline uint32_t Decode<uint32_t>(uint32_t in) {
+  return in;
+}
+template<> inline dex::TypeIndex Decode<dex::TypeIndex>(uint32_t in) {
+  return dex::TypeIndex(in);
+}
+
 template<typename T1, typename T2>
 static inline void EncodeTuple(std::vector<uint8_t>* out, const std::tuple<T1, T2>& t) {
-  EncodeUnsignedLeb128(out, std::get<0>(t));
-  EncodeUnsignedLeb128(out, std::get<1>(t));
+  EncodeUnsignedLeb128(out, Encode(std::get<0>(t)));
+  EncodeUnsignedLeb128(out, Encode(std::get<1>(t)));
 }
 
 template<typename T1, typename T2>
 static inline void DecodeTuple(const uint8_t** in, const uint8_t* end, std::tuple<T1, T2>* t) {
-  T1 v1 = static_cast<T1>(DecodeUint32WithOverflowCheck(in, end));
-  T2 v2 = static_cast<T2>(DecodeUint32WithOverflowCheck(in, end));
+  T1 v1 = Decode<T1>(DecodeUint32WithOverflowCheck(in, end));
+  T2 v2 = Decode<T2>(DecodeUint32WithOverflowCheck(in, end));
   *t = std::make_tuple(v1, v2);
 }
 
 template<typename T1, typename T2, typename T3>
 static inline void EncodeTuple(std::vector<uint8_t>* out, const std::tuple<T1, T2, T3>& t) {
-  EncodeUnsignedLeb128(out, std::get<0>(t));
-  EncodeUnsignedLeb128(out, std::get<1>(t));
-  EncodeUnsignedLeb128(out, std::get<2>(t));
+  EncodeUnsignedLeb128(out, Encode(std::get<0>(t)));
+  EncodeUnsignedLeb128(out, Encode(std::get<1>(t)));
+  EncodeUnsignedLeb128(out, Encode(std::get<2>(t)));
 }
 
 template<typename T1, typename T2, typename T3>
 static inline void DecodeTuple(const uint8_t** in, const uint8_t* end, std::tuple<T1, T2, T3>* t) {
-  T1 v1 = static_cast<T1>(DecodeUint32WithOverflowCheck(in, end));
-  T2 v2 = static_cast<T2>(DecodeUint32WithOverflowCheck(in, end));
-  T3 v3 = static_cast<T2>(DecodeUint32WithOverflowCheck(in, end));
+  T1 v1 = Decode<T1>(DecodeUint32WithOverflowCheck(in, end));
+  T2 v2 = Decode<T2>(DecodeUint32WithOverflowCheck(in, end));
+  T3 v3 = Decode<T2>(DecodeUint32WithOverflowCheck(in, end));
   *t = std::make_tuple(v1, v2, v3);
 }
 
@@ -381,11 +407,12 @@ static inline void EncodeSet(std::vector<uint8_t>* out, const std::set<T>& set) 
   }
 }
 
+template <typename T>
 static inline void EncodeUint16Vector(std::vector<uint8_t>* out,
-                                      const std::vector<uint16_t>& vector) {
+                                      const std::vector<T>& vector) {
   EncodeUnsignedLeb128(out, vector.size());
-  for (uint16_t entry : vector) {
-    EncodeUnsignedLeb128(out, entry);
+  for (const T& entry : vector) {
+    EncodeUnsignedLeb128(out, Encode(entry));
   }
 }
 
@@ -400,14 +427,16 @@ static inline void DecodeSet(const uint8_t** in, const uint8_t* end, std::set<T>
   }
 }
 
+template<typename T>
 static inline void DecodeUint16Vector(const uint8_t** in,
                                       const uint8_t* end,
-                                      std::vector<uint16_t>* vector) {
+                                      std::vector<T>* vector) {
   DCHECK(vector->empty());
   size_t num_entries = DecodeUint32WithOverflowCheck(in, end);
   vector->reserve(num_entries);
   for (size_t i = 0; i < num_entries; ++i) {
-    vector->push_back(dchecked_integral_cast<uint16_t>(DecodeUint32WithOverflowCheck(in, end)));
+    vector->push_back(
+        Decode<T>(dchecked_integral_cast<uint16_t>(DecodeUint32WithOverflowCheck(in, end))));
   }
 }
 
@@ -435,6 +464,8 @@ static inline void DecodeStringVector(const uint8_t** in,
     *in += strings->back().length() + 1;
   }
 }
+
+}  // namespace
 
 void VerifierDeps::Encode(const std::vector<const DexFile*>& dex_files,
                           std::vector<uint8_t>* buffer) const {
@@ -599,7 +630,7 @@ void VerifierDeps::Dump(VariableIndentationOutputStream* vios) const {
       }
     }
 
-    for (uint16_t type_index : dep.second->unverified_classes_) {
+    for (dex::TypeIndex type_index : dep.second->unverified_classes_) {
       vios->Stream()
           << dex_file.StringByTypeIdx(type_index)
           << " is expected to be verified at runtime\n";

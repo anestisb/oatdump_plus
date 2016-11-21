@@ -62,9 +62,15 @@ class InductionVarRangeTest : public CommonCompilerTest {
     graph_->SetEntryBlock(entry_block_);
     graph_->SetExitBlock(exit_block_);
     // Two parameters.
-    x_ = new (&allocator_) HParameterValue(graph_->GetDexFile(), 0, 0, Primitive::kPrimInt);
+    x_ = new (&allocator_) HParameterValue(graph_->GetDexFile(),
+                                           dex::TypeIndex(0),
+                                           0,
+                                           Primitive::kPrimInt);
     entry_block_->AddInstruction(x_);
-    y_ = new (&allocator_) HParameterValue(graph_->GetDexFile(), 0, 0, Primitive::kPrimInt);
+    y_ = new (&allocator_) HParameterValue(graph_->GetDexFile(),
+                                           dex::TypeIndex(0),
+                                           0,
+                                           Primitive::kPrimInt);
     entry_block_->AddInstruction(y_);
     // Set arbitrary range analysis hint while testing private methods.
     SetHint(x_);
@@ -572,7 +578,8 @@ TEST_F(InductionVarRangeTest, ArrayLengthAndHints) {
   HInstruction* new_array = new (&allocator_)
       HNewArray(x_,
                 graph_->GetCurrentMethod(),
-                0, Primitive::kPrimInt,
+                0,
+                dex::TypeIndex(Primitive::kPrimInt),
                 graph_->GetDexFile(),
                 kQuickAllocArray);
   entry_block_->AddInstruction(new_array);
