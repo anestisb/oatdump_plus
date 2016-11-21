@@ -476,7 +476,11 @@ const uint8_t* ArtMethod::GetQuickenedInfo(PointerSize pointer_size) {
     }
     // The table is in the .vdex file.
     const OatFile::OatDexFile* oat_dex_file = GetDexCache()->GetDexFile()->GetOatDexFile();
-    return oat_dex_file->GetOatFile()->DexBegin() + header->vmap_table_offset_;
+    const OatFile* oat_file = oat_dex_file->GetOatFile();
+    if (oat_file == nullptr) {
+      return nullptr;
+    }
+    return oat_file->DexBegin() + header->vmap_table_offset_;
   } else {
     return oat_method.GetVmapTable();
   }

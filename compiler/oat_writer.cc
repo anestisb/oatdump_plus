@@ -260,16 +260,7 @@ class OatWriter::OatDexFile {
   // Data to write to a separate section.
   dchecked_vector<uint32_t> class_offsets_;
 
-  void InitTypeLookupTable(const DexFile& dex_file, uint8_t* storage) const {
-    lookup_table_.reset(TypeLookupTable::Create(dex_file, storage));
-  }
-
-  TypeLookupTable* GetTypeLookupTable() const {
-    return lookup_table_.get();
-  }
-
  private:
-  mutable std::unique_ptr<TypeLookupTable> lookup_table_;
   size_t GetClassOffsetsRawSize() const {
     return class_offsets_.size() * sizeof(class_offsets_[0]);
   }
@@ -2481,8 +2472,15 @@ bool OatWriter::WriteTypeLookupTables(
 
     // Create the lookup table. When `nullptr` is given as the storage buffer,
     // TypeLookupTable allocates its own and OatDexFile takes ownership.
-    oat_dex_file->InitTypeLookupTable(*opened_dex_files[i], /* storage */ nullptr);
-    TypeLookupTable* table = oat_dex_file->GetTypeLookupTable();
+    const DexFile& dex_file = *opened_dex_files[i];
+    {
+      std::unique_ptr<TypeLookupTable> type_lookup_table =
+          TypeLookupTable::Create(dex_file, /* storage */ nullptr);
+      type_lookup_table_oat_dex_files_.push_back(
+          std::make_unique<art::OatDexFile>(std::move(type_lookup_table)));
+      dex_file.SetOatDexFile(type_lookup_table_oat_dex_files_.back().get());
+    }
+    TypeLookupTable* const table = type_lookup_table_oat_dex_files_.back()->GetTypeLookupTable();
 
     // Type tables are required to be 4 byte aligned.
     size_t initial_offset = oat_size_;
