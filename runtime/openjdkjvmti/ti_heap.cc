@@ -269,6 +269,12 @@ class FollowReferencesHelper FINAL {
       ReportRoot(root_obj, info);
     }
 
+    // Remove NO_THREAD_SAFETY_ANALYSIS once ASSERT_CAPABILITY works correctly.
+    art::Thread* FindThread(const art::RootInfo& info) NO_THREAD_SAFETY_ANALYSIS {
+      art::Locks::thread_list_lock_->AssertExclusiveHeld(art::Thread::Current());
+      return art::Runtime::Current()->GetThreadList()->FindThreadByThreadId(info.GetThreadId());
+    }
+
     jvmtiHeapReferenceKind GetReferenceKind(const art::RootInfo& info,
                                             jvmtiHeapReferenceInfo* ref_info)
         REQUIRES_SHARED(art::Locks::mutator_lock_) {
@@ -280,7 +286,34 @@ class FollowReferencesHelper FINAL {
           return JVMTI_HEAP_REFERENCE_JNI_GLOBAL;
 
         case art::RootType::kRootJNILocal:
+        {
+          uint32_t thread_id = info.GetThreadId();
+          ref_info->jni_local.thread_id = thread_id;
+
+          art::Thread* thread = FindThread(info);
+          if (thread != nullptr) {
+            art::mirror::Object* thread_obj = thread->GetPeer();
+            if (thread->IsStillStarting()) {
+              thread_obj = nullptr;
+            } else {
+              thread_obj = thread->GetPeer();
+            }
+            if (thread_obj != nullptr) {
+              ref_info->jni_local.thread_tag = tag_table_->GetTagOrZero(thread_obj);
+            }
+          }
+
+          // TODO: We don't have this info.
+          if (thread != nullptr) {
+            ref_info->jni_local.depth = 0;
+            art::ArtMethod* method = thread->GetCurrentMethod(nullptr, false /* abort_on_error */);
+            if (method != nullptr) {
+              ref_info->jni_local.method = art::jni::EncodeArtMethod(method);
+            }
+          }
+
           return JVMTI_HEAP_REFERENCE_JNI_LOCAL;
+        }
 
         case art::RootType::kRootJavaFrame:
           return JVMTI_HEAP_REFERENCE_STACK_LOCAL;
