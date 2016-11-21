@@ -50,17 +50,19 @@ bool TypeLookupTable::SupportedSize(uint32_t num_class_defs) {
   return num_class_defs != 0u && num_class_defs <= std::numeric_limits<uint16_t>::max();
 }
 
-TypeLookupTable* TypeLookupTable::Create(const DexFile& dex_file, uint8_t* storage) {
+std::unique_ptr<TypeLookupTable> TypeLookupTable::Create(const DexFile& dex_file,
+                                                         uint8_t* storage) {
   const uint32_t num_class_defs = dex_file.NumClassDefs();
-  return SupportedSize(num_class_defs)
+  return std::unique_ptr<TypeLookupTable>(SupportedSize(num_class_defs)
       ? new TypeLookupTable(dex_file, storage)
-      : nullptr;
+      : nullptr);
 }
 
-TypeLookupTable* TypeLookupTable::Open(const uint8_t* dex_file_pointer,
-                                       const uint8_t* raw_data,
-                                       uint32_t num_class_defs) {
-  return new TypeLookupTable(dex_file_pointer, raw_data, num_class_defs);
+std::unique_ptr<TypeLookupTable> TypeLookupTable::Open(const uint8_t* dex_file_pointer,
+                                                       const uint8_t* raw_data,
+                                                       uint32_t num_class_defs) {
+  return std::unique_ptr<TypeLookupTable>(
+      new TypeLookupTable(dex_file_pointer, raw_data, num_class_defs));
 }
 
 TypeLookupTable::TypeLookupTable(const DexFile& dex_file, uint8_t* storage)

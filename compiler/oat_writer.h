@@ -363,6 +363,9 @@ class OatWriter {
   // Offset of the oat data from the start of the mmapped region of the elf file.
   size_t oat_data_offset_;
 
+  // Fake OatDexFiles to hold type lookup tables for the compiler.
+  std::vector<std::unique_ptr<art::OatDexFile>> type_lookup_table_oat_dex_files_;
+
   // data to write
   std::unique_ptr<OatHeader> oat_header_;
   dchecked_vector<OatDexFile> oat_dex_files_;
