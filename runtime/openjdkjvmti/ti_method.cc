@@ -78,7 +78,9 @@ jvmtiError MethodUtil::GetMethodName(jvmtiEnv* env,
   }
 
   // TODO: Support generic signature.
-  *generic_ptr = nullptr;
+  if (generic_ptr != nullptr) {
+    *generic_ptr = nullptr;
+  }
 
   // Everything is fine, release the buffers.
   name_copy.release();
