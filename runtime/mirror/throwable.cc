@@ -104,7 +104,7 @@ std::string Throwable::Dump() {
     CHECK_EQ(array_len % 2, 0);
     const auto depth = array_len / 2;
     if (depth == 0) {
-      result += "(Throwable with empty stack trace)";
+      result += "(Throwable with empty stack trace)\n";
     } else {
       const PointerSize ptr_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
       for (int32_t i = 0; i < depth; ++i) {
@@ -124,7 +124,7 @@ std::string Throwable::Dump() {
       ObjPtr<ObjectArray<StackTraceElement>> ste_array =
           ObjPtr<ObjectArray<StackTraceElement>>::DownCast(stack_trace);
       if (ste_array->GetLength() == 0) {
-        result += "(Throwable with empty stack trace)";
+        result += "(Throwable with empty stack trace)\n";
       } else {
         for (int32_t i = 0; i < ste_array->GetLength(); ++i) {
           StackTraceElement* ste = ste_array->Get(i);
@@ -139,7 +139,7 @@ std::string Throwable::Dump() {
         }
       }
     } else {
-      result += "(Throwable with no stack trace)";
+      result += "(Throwable with no stack trace)\n";
     }
   }
   ObjPtr<Throwable> cause = GetFieldObject<Throwable>(OFFSET_OF_OBJECT_MEMBER(Throwable, cause_));
