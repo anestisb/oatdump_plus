@@ -81,6 +81,7 @@
 #include "intern_table.h"
 #include "interpreter/interpreter.h"
 #include "jit/jit.h"
+#include "jit/jit_code_cache.h"
 #include "jni_internal.h"
 #include "linear_alloc.h"
 #include "mirror/array.h"
@@ -516,6 +517,14 @@ void Runtime::SweepSystemWeaks(IsMarkedVisitor* visitor) {
   GetMonitorList()->SweepMonitorList(visitor);
   GetJavaVM()->SweepJniWeakGlobals(visitor);
   GetHeap()->SweepAllocationRecords(visitor);
+  if (GetJit() != nullptr) {
+    // Visit JIT literal tables. Objects in these tables are classes and strings
+    // and only classes can be affected by class unloading. The strings always
+    // stay alive as they are strongly interned.
+    // TODO: Move this closer to CleanupClassLoaders, to avoid blocking weak accesses
+    // from mutators. See b/32167580.
+    GetJit()->GetCodeCache()->SweepRootTables(visitor);
+  }
 
   // All other generic system-weak holders.
   for (gc::AbstractSystemWeakHolder* holder : system_weak_holders_) {
