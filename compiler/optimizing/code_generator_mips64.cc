@@ -180,7 +180,7 @@ class LoadClassSlowPathMIPS64 : public SlowPathCodeMIPS64 {
     SaveLiveRegisters(codegen, locations);
 
     InvokeRuntimeCallingConvention calling_convention;
-    __ LoadConst32(calling_convention.GetRegisterAt(0), cls_->GetTypeIndex());
+    __ LoadConst32(calling_convention.GetRegisterAt(0), cls_->GetTypeIndex().index_);
     QuickEntrypointEnum entrypoint = do_clinit_ ? kQuickInitializeStaticStorage
                                                 : kQuickInitializeType;
     mips64_codegen->InvokeRuntime(entrypoint, at_, dex_pc_, this);
@@ -3157,7 +3157,7 @@ void LocationsBuilderMIPS64::VisitLoadClass(HLoadClass* cls) {
 void InstructionCodeGeneratorMIPS64::VisitLoadClass(HLoadClass* cls) {
   LocationSummary* locations = cls->GetLocations();
   if (cls->NeedsAccessCheck()) {
-    codegen_->MoveConstant(locations->GetTemp(0), cls->GetTypeIndex());
+    codegen_->MoveConstant(locations->GetTemp(0), cls->GetTypeIndex().index_);
     codegen_->InvokeRuntime(kQuickInitializeTypeAndVerifyAccess, cls, cls->GetDexPc());
     CheckEntrypointTypes<kQuickInitializeTypeAndVerifyAccess, void*, uint32_t>();
     return;
@@ -3174,7 +3174,7 @@ void InstructionCodeGeneratorMIPS64::VisitLoadClass(HLoadClass* cls) {
     __ LoadFromOffset(kLoadDoubleword, out, current_method,
                       ArtMethod::DexCacheResolvedTypesOffset(kMips64PointerSize).Int32Value());
     __ LoadFromOffset(
-        kLoadUnsignedWord, out, out, CodeGenerator::GetCacheOffset(cls->GetTypeIndex()));
+        kLoadUnsignedWord, out, out, CodeGenerator::GetCacheOffset(cls->GetTypeIndex().index_));
     // TODO: We will need a read barrier here.
     if (!cls->IsInDexCache() || cls->MustGenerateClinitCheck()) {
       DCHECK(cls->CanCallRuntime());
@@ -3382,7 +3382,8 @@ void LocationsBuilderMIPS64::VisitNewArray(HNewArray* instruction) {
 void InstructionCodeGeneratorMIPS64::VisitNewArray(HNewArray* instruction) {
   LocationSummary* locations = instruction->GetLocations();
   // Move an uint16_t value to a register.
-  __ LoadConst32(locations->GetTemp(0).AsRegister<GpuRegister>(), instruction->GetTypeIndex());
+  __ LoadConst32(locations->GetTemp(0).AsRegister<GpuRegister>(),
+                 instruction->GetTypeIndex().index_);
   codegen_->InvokeRuntime(instruction->GetEntrypoint(), instruction, instruction->GetDexPc());
   CheckEntrypointTypes<kQuickAllocArrayWithAccessCheck, void*, uint32_t, int32_t, ArtMethod*>();
 }

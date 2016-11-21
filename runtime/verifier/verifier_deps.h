@@ -57,14 +57,14 @@ class VerifierDeps {
 
   // Record the verification status of the class at `type_idx`.
   static void MaybeRecordVerificationStatus(const DexFile& dex_file,
-                                            uint16_t type_idx,
+                                            dex::TypeIndex type_idx,
                                             MethodVerifier::FailureKind failure_kind)
       REQUIRES(!Locks::verifier_deps_lock_);
 
   // Record the outcome `klass` of resolving type `type_idx` from `dex_file`.
   // If `klass` is null, the class is assumed unresolved.
   static void MaybeRecordClassResolution(const DexFile& dex_file,
-                                         uint16_t type_idx,
+                                         dex::TypeIndex type_idx,
                                          mirror::Class* klass)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::verifier_deps_lock_);
@@ -116,7 +116,7 @@ class VerifierDeps {
 
   // NO_THREAD_SAFETY_ANALSYS, as this is queried when the VerifierDeps are
   // fully created.
-  const std::vector<uint16_t>& GetUnverifiedClasses(const DexFile& dex_file) const
+  const std::vector<dex::TypeIndex>& GetUnverifiedClasses(const DexFile& dex_file) const
       NO_THREAD_SAFETY_ANALYSIS {
     return GetDexFileDeps(dex_file)->unverified_classes_;
   }
@@ -124,15 +124,15 @@ class VerifierDeps {
  private:
   static constexpr uint16_t kUnresolvedMarker = static_cast<uint16_t>(-1);
 
-  using ClassResolutionBase = std::tuple<uint32_t, uint16_t>;
+  using ClassResolutionBase = std::tuple<dex::TypeIndex, uint16_t>;
   struct ClassResolution : public ClassResolutionBase {
     ClassResolution() = default;
     ClassResolution(const ClassResolution&) = default;
-    ClassResolution(uint32_t type_idx, uint16_t access_flags)
+    ClassResolution(dex::TypeIndex type_idx, uint16_t access_flags)
         : ClassResolutionBase(type_idx, access_flags) {}
 
     bool IsResolved() const { return GetAccessFlags() != kUnresolvedMarker; }
-    uint32_t GetDexTypeIndex() const { return std::get<0>(*this); }
+    dex::TypeIndex GetDexTypeIndex() const { return std::get<0>(*this); }
     uint16_t GetAccessFlags() const { return std::get<1>(*this); }
   };
 
@@ -193,7 +193,7 @@ class VerifierDeps {
     std::set<MethodResolution> interface_methods_;
 
     // List of classes that were not fully verified in that dex file.
-    std::vector<uint16_t> unverified_classes_;
+    std::vector<dex::TypeIndex> unverified_classes_;
 
     bool Equals(const DexFileDeps& rhs) const;
   };
@@ -238,7 +238,7 @@ class VerifierDeps {
       REQUIRES(Locks::verifier_deps_lock_);
 
   void AddClassResolution(const DexFile& dex_file,
-                          uint16_t type_idx,
+                          dex::TypeIndex type_idx,
                           mirror::Class* klass)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::verifier_deps_lock_);

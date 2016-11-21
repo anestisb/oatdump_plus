@@ -32,6 +32,7 @@
 #include "class_linker-inl.h"
 #include "compiled_method.h"
 #include "dex_file-inl.h"
+#include "dex_file_types.h"
 #include "driver/compiler_driver.h"
 #include "elf_file.h"
 #include "elf_utils.h"
@@ -890,9 +891,9 @@ void ImageWriter::PruneNonImageClasses() {
     }
     ObjPtr<mirror::DexCache> dex_cache = self->DecodeJObject(data.weak_root)->AsDexCache();
     for (size_t i = 0; i < dex_cache->NumResolvedTypes(); i++) {
-      Class* klass = dex_cache->GetResolvedType(i);
+      Class* klass = dex_cache->GetResolvedType(dex::TypeIndex(i));
       if (klass != nullptr && !KeepClass(klass)) {
-        dex_cache->SetResolvedType(i, nullptr);
+        dex_cache->SetResolvedType(dex::TypeIndex(i), nullptr);
       }
     }
     ArtMethod** resolved_methods = dex_cache->GetResolvedMethods();

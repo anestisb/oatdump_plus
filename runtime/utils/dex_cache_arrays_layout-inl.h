@@ -65,8 +65,8 @@ static constexpr PointerSize GcRootAsPointerSize() {
   return PointerSize::k32;
 }
 
-inline size_t DexCacheArraysLayout::TypeOffset(uint32_t type_idx) const {
-  return types_offset_ + ElementOffset(GcRootAsPointerSize<mirror::Class>(), type_idx);
+inline size_t DexCacheArraysLayout::TypeOffset(dex::TypeIndex type_idx) const {
+  return types_offset_ + ElementOffset(GcRootAsPointerSize<mirror::Class>(), type_idx.index_);
 }
 
 inline size_t DexCacheArraysLayout::TypesSize(size_t num_elements) const {

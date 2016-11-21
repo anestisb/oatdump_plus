@@ -62,7 +62,8 @@ TEST(TestDexFileBuilderTest, SimpleTest) {
   };
   ASSERT_EQ(arraysize(expected_types), dex_file->NumTypeIds());
   for (size_t i = 0; i != arraysize(expected_types); ++i) {
-    EXPECT_STREQ(expected_types[i], dex_file->GetTypeDescriptor(dex_file->GetTypeId(i))) << i;
+    EXPECT_STREQ(expected_types[i],
+                 dex_file->GetTypeDescriptor(dex_file->GetTypeId(dex::TypeIndex(i)))) << i;
   }
 
   ASSERT_EQ(1u, dex_file->NumFieldIds());

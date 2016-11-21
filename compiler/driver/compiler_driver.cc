@@ -969,7 +969,7 @@ bool CompilerDriver::ShouldVerifyClassBasedOnProfile(const DexFile& dex_file,
   }
   DCHECK(profile_compilation_info_ != nullptr);
   const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_idx);
-  uint16_t type_idx = class_def.class_idx_;
+  dex::TypeIndex type_idx = class_def.class_idx_;
   bool result = profile_compilation_info_->ContainsClass(dex_file, type_idx);
   if (kDebugProfileGuidedCompilation) {
     LOG(INFO) << "[ProfileGuidedCompilation] " << (result ? "Verified" : "Skipped") << " method:"
@@ -981,7 +981,7 @@ bool CompilerDriver::ShouldVerifyClassBasedOnProfile(const DexFile& dex_file,
 class ResolveCatchBlockExceptionsClassVisitor : public ClassVisitor {
  public:
   explicit ResolveCatchBlockExceptionsClassVisitor(
-      std::set<std::pair<uint16_t, const DexFile*>>& exceptions_to_resolve)
+      std::set<std::pair<dex::TypeIndex, const DexFile*>>& exceptions_to_resolve)
      : exceptions_to_resolve_(exceptions_to_resolve) {}
 
   virtual bool operator()(ObjPtr<mirror::Class> c) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -1012,8 +1012,8 @@ class ResolveCatchBlockExceptionsClassVisitor : public ClassVisitor {
         has_catch_all = true;
       }
       for (int32_t j = 0; j < encoded_catch_handler_size; j++) {
-        uint16_t encoded_catch_handler_handlers_type_idx =
-            DecodeUnsignedLeb128(&encoded_catch_handler_list);
+        dex::TypeIndex encoded_catch_handler_handlers_type_idx =
+            dex::TypeIndex(DecodeUnsignedLeb128(&encoded_catch_handler_list));
         // Add to set of types to resolve if not already in the dex cache resolved types
         if (!method_handle->IsResolvedTypeIdx(encoded_catch_handler_handlers_type_idx,
                                               pointer_size)) {
@@ -1030,7 +1030,7 @@ class ResolveCatchBlockExceptionsClassVisitor : public ClassVisitor {
     }
   }
 
-  std::set<std::pair<uint16_t, const DexFile*>>& exceptions_to_resolve_;
+  std::set<std::pair<dex::TypeIndex, const DexFile*>>& exceptions_to_resolve_;
 };
 
 class RecordImageClassesVisitor : public ClassVisitor {
@@ -1078,7 +1078,7 @@ void CompilerDriver::LoadImageClasses(TimingLogger* timings) {
   // Resolve exception classes referenced by the loaded classes. The catch logic assumes
   // exceptions are resolved by the verifier when there is a catch block in an interested method.
   // Do this here so that exception classes appear to have been specified image classes.
-  std::set<std::pair<uint16_t, const DexFile*>> unresolved_exception_types;
+  std::set<std::pair<dex::TypeIndex, const DexFile*>> unresolved_exception_types;
   StackHandleScope<1> hs(self);
   Handle<mirror::Class> java_lang_Throwable(
       hs.NewHandle(class_linker->FindSystemClass(self, "Ljava/lang/Throwable;")));
@@ -1086,8 +1086,8 @@ void CompilerDriver::LoadImageClasses(TimingLogger* timings) {
     unresolved_exception_types.clear();
     ResolveCatchBlockExceptionsClassVisitor visitor(unresolved_exception_types);
     class_linker->VisitClasses(&visitor);
-    for (const std::pair<uint16_t, const DexFile*>& exception_type : unresolved_exception_types) {
-      uint16_t exception_type_idx = exception_type.first;
+    for (const auto& exception_type : unresolved_exception_types) {
+      dex::TypeIndex exception_type_idx = exception_type.first;
       const DexFile* dex_file = exception_type.second;
       StackHandleScope<2> hs2(self);
       Handle<mirror::DexCache> dex_cache(hs2.NewHandle(class_linker->RegisterDexFile(*dex_file,
@@ -1338,7 +1338,7 @@ void CompilerDriver::MarkForDexToDexCompilation(Thread* self, const MethodRefere
 
 bool CompilerDriver::CanAccessTypeWithoutChecks(uint32_t referrer_idx,
                                                 Handle<mirror::DexCache> dex_cache,
-                                                uint32_t type_idx) {
+                                                dex::TypeIndex type_idx) {
   // Get type from dex cache assuming it was populated by the verifier
   mirror::Class* resolved_class = dex_cache->GetResolvedType(type_idx);
   if (resolved_class == nullptr) {
@@ -1367,7 +1367,7 @@ bool CompilerDriver::CanAccessTypeWithoutChecks(uint32_t referrer_idx,
 
 bool CompilerDriver::CanAccessInstantiableTypeWithoutChecks(uint32_t referrer_idx,
                                                             Handle<mirror::DexCache> dex_cache,
-                                                            uint32_t type_idx,
+                                                            dex::TypeIndex type_idx,
                                                             bool* finalizable) {
   // Get type from dex cache assuming it was populated by the verifier.
   mirror::Class* resolved_class = dex_cache->GetResolvedType(type_idx);
@@ -1861,7 +1861,7 @@ class ResolveTypeVisitor : public CompilationVisitor {
  public:
   explicit ResolveTypeVisitor(const ParallelCompilationManager* manager) : manager_(manager) {
   }
-  virtual void Visit(size_t type_idx) OVERRIDE REQUIRES(!Locks::mutator_lock_) {
+  void Visit(size_t type_idx) OVERRIDE REQUIRES(!Locks::mutator_lock_) {
   // Class derived values are more complicated, they require the linker and loader.
     ScopedObjectAccess soa(Thread::Current());
     ClassLinker* class_linker = manager_->GetClassLinker();
@@ -1872,7 +1872,10 @@ class ResolveTypeVisitor : public CompilationVisitor {
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->RegisterDexFile(
         dex_file,
         class_loader.Get())));
-    mirror::Class* klass = class_linker->ResolveType(dex_file, type_idx, dex_cache, class_loader);
+    mirror::Class* klass = class_linker->ResolveType(dex_file,
+                                                     dex::TypeIndex(type_idx),
+                                                     dex_cache,
+                                                     class_loader);
 
     if (klass == nullptr) {
       soa.Self()->AssertPendingException();
@@ -1952,9 +1955,9 @@ void CompilerDriver::Verify(jobject jclass_loader,
       for (const DexFile* dex_file : dex_files) {
         // Fetch the list of unverified classes and turn it into a set for faster
         // lookups.
-        const std::vector<uint16_t>& unverified_classes =
+        const std::vector<dex::TypeIndex>& unverified_classes =
             verifier_deps->GetUnverifiedClasses(*dex_file);
-        std::set<uint16_t> set(unverified_classes.begin(), unverified_classes.end());
+        std::set<dex::TypeIndex> set(unverified_classes.begin(), unverified_classes.end());
         for (uint32_t i = 0; i < dex_file->NumClassDefs(); ++i) {
           const DexFile::ClassDef& class_def = dex_file->GetClassDef(i);
           const char* descriptor = dex_file->GetClassDescriptor(class_def);

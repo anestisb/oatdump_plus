@@ -20,6 +20,7 @@
 #include <unordered_set>
 
 #include "dex_file.h"
+#include "dex_file_types.h"
 #include "safe_map.h"
 
 namespace art {
@@ -76,12 +77,12 @@ class DexFileVerifier {
   bool CheckClassDataItemField(uint32_t idx,
                                uint32_t access_flags,
                                uint32_t class_access_flags,
-                               uint16_t class_type_index,
+                               dex::TypeIndex class_type_index,
                                bool expect_static);
   bool CheckClassDataItemMethod(uint32_t idx,
                                 uint32_t access_flags,
                                 uint32_t class_access_flags,
-                                uint16_t class_type_index,
+                                dex::TypeIndex class_type_index,
                                 uint32_t code_offset,
                                 std::unordered_set<uint32_t>* direct_method_indexes,
                                 bool expect_direct);
@@ -90,7 +91,7 @@ class DexFileVerifier {
                                   uint32_t curr_index,
                                   uint32_t prev_index,
                                   bool* have_class,
-                                  uint16_t* class_type_index,
+                                  dex::TypeIndex* class_type_index,
                                   uint32_t* class_access_flags);
 
   bool CheckPadding(size_t offset, uint32_t aligned_offset);
@@ -104,7 +105,7 @@ class DexFileVerifier {
   template <bool kStatic>
   bool CheckIntraClassDataItemFields(ClassDataItemIterator* it,
                                      bool* have_class,
-                                     uint16_t* class_type_index,
+                                     dex::TypeIndex* class_type_index,
                                      uint32_t* class_access_flags);
   // Check all methods of the given type from the given iterator. Load the class data from the first
   // method, if necessary (and return it), or use the given values.
@@ -112,7 +113,7 @@ class DexFileVerifier {
   bool CheckIntraClassDataItemMethods(ClassDataItemIterator* it,
                                       std::unordered_set<uint32_t>* direct_method_indexes,
                                       bool* have_class,
-                                      uint16_t* class_type_index,
+                                      dex::TypeIndex* class_type_index,
                                       uint32_t* class_access_flags);
 
   bool CheckIntraCodeItem();
@@ -130,8 +131,8 @@ class DexFileVerifier {
 
   // Note: as sometimes kDexNoIndex16, being 0xFFFF, is a valid return value, we need an
   // additional out parameter to signal any errors loading an index.
-  uint16_t FindFirstClassDataDefiner(const uint8_t* ptr, bool* success);
-  uint16_t FindFirstAnnotationsDirectoryDefiner(const uint8_t* ptr, bool* success);
+  dex::TypeIndex FindFirstClassDataDefiner(const uint8_t* ptr, bool* success);
+  dex::TypeIndex FindFirstAnnotationsDirectoryDefiner(const uint8_t* ptr, bool* success);
 
   bool CheckInterStringIdItem();
   bool CheckInterTypeIdItem();
@@ -150,7 +151,7 @@ class DexFileVerifier {
   // Load a string by (type) index. Checks whether the index is in bounds, printing the error if
   // not. If there is an error, null is returned.
   const char* CheckLoadStringByIdx(uint32_t idx, const char* error_fmt);
-  const char* CheckLoadStringByTypeIdx(uint32_t type_idx, const char* error_fmt);
+  const char* CheckLoadStringByTypeIdx(dex::TypeIndex type_idx, const char* error_fmt);
 
   // Load a field/method Id by index. Checks whether the index is in bounds, printing the error if
   // not. If there is an error, null is returned.
@@ -168,7 +169,7 @@ class DexFileVerifier {
   // linear search. The output values should thus be cached by the caller.
   bool FindClassFlags(uint32_t index,
                       bool is_field,
-                      uint16_t* class_type_index,
+                      dex::TypeIndex* class_type_index,
                       uint32_t* class_access_flags);
 
   // Check validity of the given access flags, interpreted for a field in the context of a class

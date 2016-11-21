@@ -26,6 +26,7 @@
 #include "base/macros.h"
 #include "common_runtime_test.h"
 #include "dex_file-inl.h"
+#include "dex_file_types.h"
 #include "leb128.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
@@ -155,7 +156,7 @@ TEST_F(DexFileVerifierTest, MethodId) {
       "method_id_class_idx",
       [](DexFile* dex_file) {
         DexFile::MethodId* method_id = const_cast<DexFile::MethodId*>(&dex_file->GetMethodId(0));
-        method_id->class_idx_ = 0xFF;
+        method_id->class_idx_ = dex::TypeIndex(0xFF);
       },
       "could not find declaring class for direct method index 0");
 

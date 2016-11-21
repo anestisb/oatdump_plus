@@ -398,7 +398,7 @@ class LoadClassSlowPathARMVIXL : public SlowPathCodeARMVIXL {
     SaveLiveRegisters(codegen, locations);
 
     InvokeRuntimeCallingConventionARMVIXL calling_convention;
-    __ Mov(calling_convention.GetRegisterAt(0), cls_->GetTypeIndex());
+    __ Mov(calling_convention.GetRegisterAt(0), cls_->GetTypeIndex().index_);
     QuickEntrypointEnum entrypoint = do_clinit_ ? kQuickInitializeStaticStorage
                                                 : kQuickInitializeType;
     arm_codegen->InvokeRuntime(entrypoint, at_, dex_pc_, this);
@@ -3217,7 +3217,7 @@ void LocationsBuilderARMVIXL::VisitNewArray(HNewArray* instruction) {
 
 void InstructionCodeGeneratorARMVIXL::VisitNewArray(HNewArray* instruction) {
   InvokeRuntimeCallingConventionARMVIXL calling_convention;
-  __ Mov(calling_convention.GetRegisterAt(0), instruction->GetTypeIndex());
+  __ Mov(calling_convention.GetRegisterAt(0), instruction->GetTypeIndex().index_);
   // Note: if heap poisoning is enabled, the entry point takes cares
   // of poisoning the reference.
   codegen_->InvokeRuntime(instruction->GetEntrypoint(), instruction, instruction->GetDexPc());
@@ -4968,7 +4968,7 @@ void LocationsBuilderARMVIXL::VisitLoadClass(HLoadClass* cls) {
 void InstructionCodeGeneratorARMVIXL::VisitLoadClass(HLoadClass* cls) {
   LocationSummary* locations = cls->GetLocations();
   if (cls->NeedsAccessCheck()) {
-    codegen_->MoveConstant(locations->GetTemp(0), cls->GetTypeIndex());
+    codegen_->MoveConstant(locations->GetTemp(0), cls->GetTypeIndex().index_);
     codegen_->InvokeRuntime(kQuickInitializeTypeAndVerifyAccess, cls, cls->GetDexPc());
     CheckEntrypointTypes<kQuickInitializeTypeAndVerifyAccess, void*, uint32_t>();
     return;
@@ -5000,7 +5000,7 @@ void InstructionCodeGeneratorARMVIXL::VisitLoadClass(HLoadClass* cls) {
           ArtMethod::DexCacheResolvedTypesOffset(kArmPointerSize).Int32Value();
       GetAssembler()->LoadFromOffset(kLoadWord, out, current_method, resolved_types_offset);
       // /* GcRoot<mirror::Class> */ out = out[type_index]
-      size_t offset = CodeGenerator::GetCacheOffset(cls->GetTypeIndex());
+      size_t offset = CodeGenerator::GetCacheOffset(cls->GetTypeIndex().index_);
       GenerateGcRootFieldLoad(cls, out_loc, out, offset, kEmitCompilerReadBarrier);
       generate_null_check = !cls->IsInDexCache();
       break;

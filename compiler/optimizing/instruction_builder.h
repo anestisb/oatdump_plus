@@ -20,6 +20,7 @@
 #include "base/arena_containers.h"
 #include "base/arena_object.h"
 #include "block_builder.h"
+#include "dex_file_types.h"
 #include "driver/compiler_driver.h"
 #include "driver/compiler_driver-inl.h"
 #include "driver/dex_compilation_unit.h"
@@ -100,11 +101,11 @@ class HInstructionBuilder : public ValueObject {
 
   // Returns whether the current method needs access check for the type.
   // Output parameter finalizable is set to whether the type is finalizable.
-  bool NeedsAccessCheck(uint32_t type_index,
+  bool NeedsAccessCheck(dex::TypeIndex type_index,
                         Handle<mirror::DexCache> dex_cache,
                         /*out*/bool* finalizable) const
       REQUIRES_SHARED(Locks::mutator_lock_);
-  bool NeedsAccessCheck(uint32_t type_index, /*out*/bool* finalizable) const;
+  bool NeedsAccessCheck(dex::TypeIndex type_index, /*out*/bool* finalizable) const;
 
   template<typename T>
   void Unop_12x(const Instruction& instruction, Primitive::Type type, uint32_t dex_pc);
@@ -176,7 +177,7 @@ class HInstructionBuilder : public ValueObject {
 
   // Builds a new array node and the instructions that fill it.
   void BuildFilledNewArray(uint32_t dex_pc,
-                           uint32_t type_index,
+                           dex::TypeIndex type_index,
                            uint32_t number_of_vreg_arguments,
                            bool is_range,
                            uint32_t* args,
@@ -205,7 +206,7 @@ class HInstructionBuilder : public ValueObject {
   void BuildTypeCheck(const Instruction& instruction,
                       uint8_t destination,
                       uint8_t reference,
-                      uint16_t type_index,
+                      dex::TypeIndex type_index,
                       uint32_t dex_pc);
 
   // Builds an instruction sequence for a switch statement.
@@ -218,7 +219,7 @@ class HInstructionBuilder : public ValueObject {
   mirror::Class* GetCompilingClass() const;
 
   // Returns whether `type_index` points to the outer-most compiling method's class.
-  bool IsOutermostCompilingClass(uint16_t type_index) const;
+  bool IsOutermostCompilingClass(dex::TypeIndex type_index) const;
 
   void PotentiallySimplifyFakeString(uint16_t original_dex_register,
                                      uint32_t dex_pc,
@@ -258,7 +259,7 @@ class HInstructionBuilder : public ValueObject {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Build a HNewInstance instruction.
-  bool BuildNewInstance(uint16_t type_index, uint32_t dex_pc);
+  bool BuildNewInstance(dex::TypeIndex type_index, uint32_t dex_pc);
 
   // Return whether the compiler can assume `cls` is initialized.
   bool IsInitialized(Handle<mirror::Class> cls) const
