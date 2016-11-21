@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_OPTIMIZING_INLINER_H_
 #define ART_COMPILER_OPTIMIZING_INLINER_H_
 
+#include "dex_file_types.h"
 #include "invoke_type.h"
 #include "optimization.h"
 
@@ -150,7 +151,7 @@ class HInliner : public HOptimization {
   HInstruction* AddTypeGuard(HInstruction* receiver,
                              HInstruction* cursor,
                              HBasicBlock* bb_cursor,
-                             uint32_t class_index,
+                             dex::TypeIndex class_index,
                              bool is_referrer,
                              HInstruction* invoke_instruction,
                              bool with_deoptimization)

@@ -343,7 +343,7 @@ class ArtMethod FINAL {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   template <bool kWithCheck = true>
-  mirror::Class* GetDexCacheResolvedType(uint32_t type_idx, PointerSize pointer_size)
+  mirror::Class* GetDexCacheResolvedType(dex::TypeIndex type_idx, PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
   void SetDexCacheResolvedTypes(GcRoot<mirror::Class>* new_dex_cache_types,
                                 PointerSize pointer_size)
@@ -355,7 +355,9 @@ class ArtMethod FINAL {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Get the Class* from the type index into this method's dex cache.
-  mirror::Class* GetClassFromTypeIndex(uint16_t type_idx, bool resolve, PointerSize pointer_size)
+  mirror::Class* GetClassFromTypeIndex(dex::TypeIndex type_idx,
+                                       bool resolve,
+                                       PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns true if this method has the same name and signature of the other method.
@@ -527,7 +529,7 @@ class ArtMethod FINAL {
 
   const DexFile::CodeItem* GetCodeItem() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  bool IsResolvedTypeIdx(uint16_t type_idx, PointerSize pointer_size)
+  bool IsResolvedTypeIdx(dex::TypeIndex type_idx, PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   int32_t GetLineNumFromDexPC(uint32_t dex_pc) REQUIRES_SHARED(Locks::mutator_lock_);
@@ -544,7 +546,7 @@ class ArtMethod FINAL {
 
   const char* GetReturnTypeDescriptor() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  const char* GetTypeDescriptorFromTypeIdx(uint16_t type_idx)
+  const char* GetTypeDescriptorFromTypeIdx(dex::TypeIndex type_idx)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // May cause thread suspension due to GetClassFromTypeIdx calling ResolveType this caused a large

@@ -42,7 +42,7 @@ class ProfileAssistantTest : public CommonRuntimeTest {
       ASSERT_TRUE(info->AddMethodIndex(dex_location2, dex_location_checksum2, i));
     }
     for (uint16_t i = 0; i < number_of_classes; i++) {
-      ASSERT_TRUE(info->AddClassIndex(dex_location1, dex_location_checksum1, i));
+      ASSERT_TRUE(info->AddClassIndex(dex_location1, dex_location_checksum1, dex::TypeIndex(i)));
     }
 
     ASSERT_TRUE(info->Save(GetFd(profile)));

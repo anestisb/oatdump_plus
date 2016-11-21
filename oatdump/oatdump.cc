@@ -794,7 +794,7 @@ class OatDumper {
       uint32_t oat_class_offset = oat_dex_file.GetOatClassOffset(class_def_index);
       const OatFile::OatClass oat_class = oat_dex_file.GetOatClass(class_def_index);
       os << StringPrintf("%zd: %s (offset=0x%08x) (type_idx=%d)",
-                         class_def_index, descriptor, oat_class_offset, class_def.class_idx_)
+                         class_def_index, descriptor, oat_class_offset, class_def.class_idx_.index_)
          << " (" << oat_class.GetStatus() << ")"
          << " (" << oat_class.GetType() << ")\n";
       // TODO: include bitmap here if type is kOatClassSomeCompiled?

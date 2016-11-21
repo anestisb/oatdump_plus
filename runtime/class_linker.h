@@ -32,6 +32,7 @@
 #include "class_table.h"
 #include "dex_cache_resolved_classes.h"
 #include "dex_file.h"
+#include "dex_file_types.h"
 #include "gc_root.h"
 #include "jni.h"
 #include "mirror/class.h"
@@ -255,7 +256,7 @@ class ClassLinker {
   // result in the DexCache. The referrer is used to identify the
   // target DexCache and ClassLoader to use for resolution.
   mirror::Class* ResolveType(const DexFile& dex_file,
-                             uint16_t type_idx,
+                             dex::TypeIndex type_idx,
                              ObjPtr<mirror::Class> referrer)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!dex_lock_, !Roles::uninterruptible_);
@@ -263,18 +264,18 @@ class ClassLinker {
   // Resolve a Type with the given index from the DexFile, storing the
   // result in the DexCache. The referrer is used to identify the
   // target DexCache and ClassLoader to use for resolution.
-  mirror::Class* ResolveType(uint16_t type_idx, ArtMethod* referrer)
+  mirror::Class* ResolveType(dex::TypeIndex type_idx, ArtMethod* referrer)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!dex_lock_, !Roles::uninterruptible_);
 
-  mirror::Class* ResolveType(uint16_t type_idx, ArtField* referrer)
+  mirror::Class* ResolveType(dex::TypeIndex type_idx, ArtField* referrer)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!dex_lock_, !Roles::uninterruptible_);
 
   // Look up a resolved type with the given ID from the DexFile. The ClassLoader is used to search
   // for the type, since it may be referenced from but not contained within the given DexFile.
   ObjPtr<mirror::Class> LookupResolvedType(const DexFile& dex_file,
-                                           uint16_t type_idx,
+                                           dex::TypeIndex type_idx,
                                            ObjPtr<mirror::DexCache> dex_cache,
                                            ObjPtr<mirror::ClassLoader> class_loader)
       REQUIRES_SHARED(Locks::mutator_lock_);
@@ -284,7 +285,7 @@ class ClassLinker {
   // type, since it may be referenced from but not contained within
   // the given DexFile.
   mirror::Class* ResolveType(const DexFile& dex_file,
-                             uint16_t type_idx,
+                             dex::TypeIndex type_idx,
                              Handle<mirror::DexCache> dex_cache,
                              Handle<mirror::ClassLoader> class_loader)
       REQUIRES_SHARED(Locks::mutator_lock_)

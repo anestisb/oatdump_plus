@@ -20,6 +20,7 @@
 #include "class_linker-inl.h"
 #include "class_table-inl.h"
 #include "dex_file-inl.h"
+#include "dex_file_types.h"
 #include "gc/heap.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
@@ -37,7 +38,7 @@ extern "C" mirror::Class* artInitializeStaticStorageFromCode(uint32_t type_idx, 
   // given by inheritance.
   ScopedQuickEntrypointChecks sqec(self);
   auto* caller = GetCalleeSaveMethodCaller(self, Runtime::kSaveRefsOnly);
-  return ResolveVerifyAndClinit(type_idx, caller, self, true, false);
+  return ResolveVerifyAndClinit(dex::TypeIndex(type_idx), caller, self, true, false);
 }
 
 extern "C" mirror::Class* artInitializeTypeFromCode(uint32_t type_idx, Thread* self)
@@ -45,7 +46,7 @@ extern "C" mirror::Class* artInitializeTypeFromCode(uint32_t type_idx, Thread* s
   // Called when method->dex_cache_resolved_types_[] misses.
   ScopedQuickEntrypointChecks sqec(self);
   auto* caller = GetCalleeSaveMethodCaller(self, Runtime::kSaveRefsOnly);
-  return ResolveVerifyAndClinit(type_idx, caller, self, false, false);
+  return ResolveVerifyAndClinit(dex::TypeIndex(type_idx), caller, self, false, false);
 }
 
 extern "C" mirror::Class* artInitializeTypeAndVerifyAccessFromCode(uint32_t type_idx, Thread* self)
@@ -54,7 +55,7 @@ extern "C" mirror::Class* artInitializeTypeAndVerifyAccessFromCode(uint32_t type
   // unpopulated.
   ScopedQuickEntrypointChecks sqec(self);
   auto* caller = GetCalleeSaveMethodCaller(self, Runtime::kSaveRefsOnly);
-  return ResolveVerifyAndClinit(type_idx, caller, self, false, true);
+  return ResolveVerifyAndClinit(dex::TypeIndex(type_idx), caller, self, false, true);
 }
 
 extern "C" mirror::String* artResolveStringFromCode(int32_t string_idx, Thread* self)

@@ -20,6 +20,7 @@
 #include "code_generator.h"
 #include "code_generator_x86.h"
 #include "dex_file.h"
+#include "dex_file_types.h"
 #include "dex_instruction.h"
 #include "driver/compiler_options.h"
 #include "nodes.h"
@@ -495,7 +496,7 @@ static HGraph* BuildIfElseWithPhi(ArenaAllocator* allocator,
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
   HInstruction* parameter = new (allocator) HParameterValue(
-      graph->GetDexFile(), 0, 0, Primitive::kPrimNot);
+      graph->GetDexFile(), dex::TypeIndex(0), 0, Primitive::kPrimNot);
   entry->AddInstruction(parameter);
 
   HBasicBlock* block = new (allocator) HBasicBlock(graph);
@@ -658,7 +659,7 @@ static HGraph* BuildFieldReturn(ArenaAllocator* allocator,
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
   HInstruction* parameter = new (allocator) HParameterValue(
-      graph->GetDexFile(), 0, 0, Primitive::kPrimNot);
+      graph->GetDexFile(), dex::TypeIndex(0), 0, Primitive::kPrimNot);
   entry->AddInstruction(parameter);
 
   HBasicBlock* block = new (allocator) HBasicBlock(graph);
@@ -742,7 +743,7 @@ static HGraph* BuildTwoSubs(ArenaAllocator* allocator,
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
   HInstruction* parameter = new (allocator) HParameterValue(
-      graph->GetDexFile(), 0, 0, Primitive::kPrimInt);
+      graph->GetDexFile(), dex::TypeIndex(0), 0, Primitive::kPrimInt);
   entry->AddInstruction(parameter);
 
   HInstruction* constant1 = graph->GetIntConstant(1);
@@ -821,9 +822,9 @@ static HGraph* BuildDiv(ArenaAllocator* allocator,
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
   HInstruction* first = new (allocator) HParameterValue(
-      graph->GetDexFile(), 0, 0, Primitive::kPrimInt);
+      graph->GetDexFile(), dex::TypeIndex(0), 0, Primitive::kPrimInt);
   HInstruction* second = new (allocator) HParameterValue(
-      graph->GetDexFile(), 0, 0, Primitive::kPrimInt);
+      graph->GetDexFile(), dex::TypeIndex(0), 0, Primitive::kPrimInt);
   entry->AddInstruction(first);
   entry->AddInstruction(second);
 
@@ -883,13 +884,13 @@ TEST_F(RegisterAllocatorTest, SpillInactive) {
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
   HInstruction* one = new (&allocator) HParameterValue(
-      graph->GetDexFile(), 0, 0, Primitive::kPrimInt);
+      graph->GetDexFile(), dex::TypeIndex(0), 0, Primitive::kPrimInt);
   HInstruction* two = new (&allocator) HParameterValue(
-      graph->GetDexFile(), 0, 0, Primitive::kPrimInt);
+      graph->GetDexFile(), dex::TypeIndex(0), 0, Primitive::kPrimInt);
   HInstruction* three = new (&allocator) HParameterValue(
-      graph->GetDexFile(), 0, 0, Primitive::kPrimInt);
+      graph->GetDexFile(), dex::TypeIndex(0), 0, Primitive::kPrimInt);
   HInstruction* four = new (&allocator) HParameterValue(
-      graph->GetDexFile(), 0, 0, Primitive::kPrimInt);
+      graph->GetDexFile(), dex::TypeIndex(0), 0, Primitive::kPrimInt);
   entry->AddInstruction(one);
   entry->AddInstruction(two);
   entry->AddInstruction(three);

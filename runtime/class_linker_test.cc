@@ -25,6 +25,7 @@
 #include "class_linker-inl.h"
 #include "common_runtime_test.h"
 #include "dex_file.h"
+#include "dex_file_types.h"
 #include "experimental_flags.h"
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "gc/heap.h"
@@ -429,7 +430,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
     }
     // Verify all the types referenced by this file
     for (size_t i = 0; i < dex.NumTypeIds(); i++) {
-      const DexFile::TypeId& type_id = dex.GetTypeId(i);
+      const DexFile::TypeId& type_id = dex.GetTypeId(dex::TypeIndex(i));
       const char* descriptor = dex.GetTypeDescriptor(type_id);
       AssertDexFileClass(class_loader, descriptor);
     }
@@ -891,7 +892,7 @@ TEST_F(ClassLinkerTest, LookupResolvedType) {
       hs.NewHandle(soa.Decode<mirror::ClassLoader>(LoadDex("MyClass"))));
   AssertNonExistentClass("LMyClass;");
   ObjPtr<mirror::Class> klass = class_linker_->FindClass(soa.Self(), "LMyClass;", class_loader);
-  uint32_t type_idx = klass->GetClassDef()->class_idx_;
+  dex::TypeIndex type_idx = klass->GetClassDef()->class_idx_;
   ObjPtr<mirror::DexCache> dex_cache = klass->GetDexCache();
   const DexFile& dex_file = klass->GetDexFile();
   EXPECT_OBJ_PTR_EQ(dex_cache->GetResolvedType(type_idx), klass);
@@ -1154,7 +1155,7 @@ TEST_F(ClassLinkerTest, ResolveVerifyAndClinit) {
   ArtMethod* getS0 = klass->FindDirectMethod("getS0", "()Ljava/lang/Object;", kRuntimePointerSize);
   const DexFile::TypeId* type_id = dex_file->FindTypeId("LStaticsFromCode;");
   ASSERT_TRUE(type_id != nullptr);
-  uint32_t type_idx = dex_file->GetIndexForTypeId(*type_id);
+  dex::TypeIndex type_idx = dex_file->GetIndexForTypeId(*type_id);
   mirror::Class* uninit = ResolveVerifyAndClinit(type_idx, clinit, soa.Self(), true, false);
   EXPECT_TRUE(uninit != nullptr);
   EXPECT_FALSE(uninit->IsInitialized());

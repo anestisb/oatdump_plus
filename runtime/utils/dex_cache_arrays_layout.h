@@ -18,6 +18,7 @@
 #define ART_RUNTIME_UTILS_DEX_CACHE_ARRAYS_LAYOUT_H_
 
 #include "dex_file.h"
+#include "dex_file_types.h"
 
 namespace art {
 
@@ -59,7 +60,7 @@ class DexCacheArraysLayout {
     return types_offset_;
   }
 
-  size_t TypeOffset(uint32_t type_idx) const;
+  size_t TypeOffset(dex::TypeIndex type_idx) const;
 
   size_t TypesSize(size_t num_elements) const;
 

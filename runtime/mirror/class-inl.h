@@ -372,7 +372,7 @@ inline bool Class::ResolvedFieldAccessTest(ObjPtr<Class> access_to,
     // to access the field if the FieldId specifies an accessible subclass of the declaring
     // class rather than the declaring class itself.
     ObjPtr<DexCache> referrer_dex_cache = use_referrers_cache ? this->GetDexCache() : dex_cache;
-    uint32_t class_idx = referrer_dex_cache->GetDexFile()->GetFieldId(field_idx).class_idx_;
+    dex::TypeIndex class_idx = referrer_dex_cache->GetDexFile()->GetFieldId(field_idx).class_idx_;
     // The referenced class has already been resolved with the field, but may not be in the dex
     // cache. Use LookupResolveType here to search the class table if it is not in the dex cache.
     // should be no thread suspension due to the class being resolved.
@@ -410,7 +410,7 @@ inline bool Class::ResolvedMethodAccessTest(ObjPtr<Class> access_to,
     // to access the method if the MethodId specifies an accessible subclass of the declaring
     // class rather than the declaring class itself.
     ObjPtr<DexCache> referrer_dex_cache = use_referrers_cache ? this->GetDexCache() : dex_cache;
-    uint32_t class_idx = referrer_dex_cache->GetDexFile()->GetMethodId(method_idx).class_idx_;
+    dex::TypeIndex class_idx = referrer_dex_cache->GetDexFile()->GetMethodId(method_idx).class_idx_;
     // The referenced class has already been resolved with the method, but may not be in the dex
     // cache.
     ObjPtr<Class> dex_access_to = Runtime::Current()->GetClassLinker()->LookupResolvedType(
@@ -894,7 +894,8 @@ inline void Class::InitializeClassVisitor::operator()(ObjPtr<Object> obj,
   klass->SetClassSize(class_size_);
   klass->SetPrimitiveType(Primitive::kPrimNot);  // Default to not being primitive.
   klass->SetDexClassDefIndex(DexFile::kDexNoIndex16);  // Default to no valid class def index.
-  klass->SetDexTypeIndex(DexFile::kDexNoIndex16);  // Default to no valid type index.
+  klass->SetDexTypeIndex(dex::TypeIndex(DexFile::kDexNoIndex16));  // Default to no valid type
+                                                                   // index.
   // Default to force slow path until initialized.
   klass->SetObjectSizeAllocFastPath(std::numeric_limits<uint32_t>::max());
 }

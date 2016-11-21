@@ -543,7 +543,7 @@ void EnterInterpreterFromDeoptimize(Thread* self,
           ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
           // This is a suspend point. But it's ok since value has been set into shadow_frame.
           ObjPtr<mirror::Class> klass = class_linker->ResolveType(
-              instr->VRegB_21c(), shadow_frame->GetMethod());
+              dex::TypeIndex(instr->VRegB_21c()), shadow_frame->GetMethod());
           DCHECK(klass->IsStringClass());
         }
       } else {

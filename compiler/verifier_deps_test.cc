@@ -23,6 +23,7 @@
 #include "compiler/driver/compiler_driver.h"
 #include "compiler_callbacks.h"
 #include "dex_file.h"
+#include "dex_file_types.h"
 #include "handle_scope-inl.h"
 #include "verifier/method_verifier-inl.h"
 #include "mirror/class_loader.h"
@@ -207,8 +208,8 @@ class VerifierDepsTest : public CommonCompilerTest {
         hs.NewHandle(soa.Decode<mirror::ClassLoader>(class_loader_)));
     MutableHandle<mirror::Class> cls(hs.NewHandle<mirror::Class>(nullptr));
     for (const DexFile* dex_file : dex_files_) {
-      const std::vector<uint16_t>& unverified_classes = deps.GetUnverifiedClasses(*dex_file);
-      std::set<uint16_t> set(unverified_classes.begin(), unverified_classes.end());
+      const std::vector<dex::TypeIndex>& unverified_classes = deps.GetUnverifiedClasses(*dex_file);
+      std::set<dex::TypeIndex> set(unverified_classes.begin(), unverified_classes.end());
       for (uint32_t i = 0; i < dex_file->NumClassDefs(); ++i) {
         const DexFile::ClassDef& class_def = dex_file->GetClassDef(i);
         const char* descriptor = dex_file->GetClassDescriptor(class_def);
@@ -228,10 +229,10 @@ class VerifierDepsTest : public CommonCompilerTest {
   bool HasUnverifiedClass(const std::string& cls) {
     const DexFile::TypeId* type_id = primary_dex_file_->FindTypeId(cls.c_str());
     DCHECK(type_id != nullptr);
-    uint16_t index = primary_dex_file_->GetIndexForTypeId(*type_id);
+    dex::TypeIndex index = primary_dex_file_->GetIndexForTypeId(*type_id);
     MutexLock mu(Thread::Current(), *Locks::verifier_deps_lock_);
     for (const auto& dex_dep : verifier_deps_->dex_deps_) {
-      for (uint16_t entry : dex_dep.second->unverified_classes_) {
+      for (dex::TypeIndex entry : dex_dep.second->unverified_classes_) {
         if (index == entry) {
           return true;
         }

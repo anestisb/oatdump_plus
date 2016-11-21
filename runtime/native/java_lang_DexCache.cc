@@ -17,6 +17,7 @@
 #include "java_lang_DexCache.h"
 
 #include "dex_file.h"
+#include "dex_file_types.h"
 #include "jni_internal.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache-inl.h"
@@ -53,7 +54,7 @@ static jobject DexCache_getResolvedType(JNIEnv* env, jobject javaDexCache, jint 
   ScopedFastNativeObjectAccess soa(env);
   ObjPtr<mirror::DexCache> dex_cache = soa.Decode<mirror::DexCache>(javaDexCache);
   CHECK_LT(static_cast<size_t>(type_index), dex_cache->NumResolvedTypes());
-  return soa.AddLocalReference<jobject>(dex_cache->GetResolvedType(type_index));
+  return soa.AddLocalReference<jobject>(dex_cache->GetResolvedType(dex::TypeIndex(type_index)));
 }
 
 static jobject DexCache_getResolvedString(JNIEnv* env, jobject javaDexCache, jint string_index) {
@@ -68,7 +69,7 @@ static void DexCache_setResolvedType(JNIEnv* env, jobject javaDexCache, jint typ
   ScopedFastNativeObjectAccess soa(env);
   ObjPtr<mirror::DexCache> dex_cache = soa.Decode<mirror::DexCache>(javaDexCache);
   CHECK_LT(static_cast<size_t>(type_index), dex_cache->NumResolvedTypes());
-  dex_cache->SetResolvedType(type_index, soa.Decode<mirror::Class>(type));
+  dex_cache->SetResolvedType(dex::TypeIndex(type_index), soa.Decode<mirror::Class>(type));
 }
 
 static void DexCache_setResolvedString(JNIEnv* env, jobject javaDexCache, jint string_index,

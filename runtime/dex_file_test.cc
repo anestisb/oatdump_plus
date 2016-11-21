@@ -415,14 +415,14 @@ TEST_F(DexFileTest, FindStringId) {
 
 TEST_F(DexFileTest, FindTypeId) {
   for (size_t i = 0; i < java_lang_dex_file_->NumTypeIds(); i++) {
-    const char* type_str = java_lang_dex_file_->StringByTypeIdx(i);
+    const char* type_str = java_lang_dex_file_->StringByTypeIdx(dex::TypeIndex(i));
     const DexFile::StringId* type_str_id = java_lang_dex_file_->FindStringId(type_str);
     ASSERT_TRUE(type_str_id != nullptr);
     uint32_t type_str_idx = java_lang_dex_file_->GetIndexForStringId(*type_str_id);
     const DexFile::TypeId* type_id = java_lang_dex_file_->FindTypeId(type_str_idx);
     ASSERT_EQ(type_id, java_lang_dex_file_->FindTypeId(type_str));
     ASSERT_TRUE(type_id != nullptr);
-    EXPECT_EQ(java_lang_dex_file_->GetIndexForTypeId(*type_id), i);
+    EXPECT_EQ(java_lang_dex_file_->GetIndexForTypeId(*type_id).index_, i);
   }
 }
 
@@ -430,7 +430,7 @@ TEST_F(DexFileTest, FindProtoId) {
   for (size_t i = 0; i < java_lang_dex_file_->NumProtoIds(); i++) {
     const DexFile::ProtoId& to_find = java_lang_dex_file_->GetProtoId(i);
     const DexFile::TypeList* to_find_tl = java_lang_dex_file_->GetProtoParameters(to_find);
-    std::vector<uint16_t> to_find_types;
+    std::vector<dex::TypeIndex> to_find_types;
     if (to_find_tl != nullptr) {
       for (size_t j = 0; j < to_find_tl->Size(); j++) {
         to_find_types.push_back(to_find_tl->GetTypeItem(j).type_idx_);
