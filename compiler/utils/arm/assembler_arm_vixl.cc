@@ -43,12 +43,12 @@ size_t ArmVIXLAssembler::CodeSize() const {
 }
 
 const uint8_t* ArmVIXLAssembler::CodeBufferBaseAddress() const {
-  return vixl_masm_.GetStartAddress<uint8_t*>();
+  return vixl_masm_.GetBuffer().GetStartAddress<const uint8_t*>();
 }
 
 void ArmVIXLAssembler::FinalizeInstructions(const MemoryRegion& region) {
   // Copy the instructions from the buffer.
-  MemoryRegion from(vixl_masm_.GetStartAddress<void*>(), CodeSize());
+  MemoryRegion from(vixl_masm_.GetBuffer()->GetStartAddress<void*>(), CodeSize());
   region.CopyFrom(0, from);
 }
 
@@ -365,7 +365,7 @@ void ArmVIXLAssembler::StoreRegisterList(RegList regs, size_t stack_offset) {
       if (stack_offset != 0) {
         base = temps.Acquire();
         DCHECK_EQ(regs & (1u << base.GetCode()), 0u);
-        ___ Add(base, sp, stack_offset);
+        ___ Add(base, sp, Operand::From(stack_offset));
       }
       ___ Stm(base, NO_WRITE_BACK, RegisterList(regs));
     } else {
@@ -385,7 +385,7 @@ void ArmVIXLAssembler::LoadRegisterList(RegList regs, size_t stack_offset) {
       vixl32::Register base = sp;
       if (stack_offset != 0) {
         base = temps.Acquire();
-        ___ Add(base, sp, stack_offset);
+        ___ Add(base, sp, Operand::From(stack_offset));
       }
       ___ Ldm(base, NO_WRITE_BACK, RegisterList(regs));
     } else {

@@ -63,9 +63,7 @@ class DisassemblerArm::CustomDisassembler FINAL : public PrintDisassembler {
         case kVld2Location:
         case kVld3Location:
         case kVld4Location: {
-          const uintptr_t pc_delta = disasm_->IsT32()
-              ? vixl::aarch32::kT32PcDelta
-              : vixl::aarch32::kA32PcDelta;
+          const uintptr_t pc_delta = label.GetLabel()->GetPcOffset();
           const int32_t offset = label.GetLabel()->GetLocation();
 
           os() << "[pc, #" << offset - pc_delta << "]";
@@ -77,7 +75,7 @@ class DisassemblerArm::CustomDisassembler FINAL : public PrintDisassembler {
       }
     }
 
-    DisassemblerStream& operator<<(const vixl::aarch32::Register reg) OVERRIDE {
+    DisassemblerStream& operator<<(vixl::aarch32::Register reg) OVERRIDE {
       if (reg.Is(tr)) {
         os() << "tr";
         return *this;
@@ -118,20 +116,11 @@ class DisassemblerArm::CustomDisassembler FINAL : public PrintDisassembler {
   CustomDisassembler(std::ostream& os, const DisassemblerOptions* options)
       : PrintDisassembler(&disassembler_stream_), disassembler_stream_(os, this, options) {}
 
-  void PrintPc(uint32_t prog_ctr) OVERRIDE {
+  void PrintCodeAddress(uint32_t prog_ctr) OVERRIDE {
     os() << "0x" << std::hex << std::setw(8) << std::setfill('0') << prog_ctr << ": ";
   }
 
-  bool IsT32() const {
-    return is_t32_;
-  }
-
-  void SetT32(bool is_t32) {
-    is_t32_ = is_t32;
-  }
-
  private:
-  bool is_t32_;
   CustomDisassemblerStream disassembler_stream_;
 };
 
@@ -152,7 +141,7 @@ void DisassemblerArm::CustomDisassembler::CustomDisassemblerStream::PrintLiteral
       sizeof(unaligned_float), sizeof(unaligned_double)};
   const uintptr_t begin = reinterpret_cast<uintptr_t>(options_->base_address_);
   const uintptr_t end = reinterpret_cast<uintptr_t>(options_->end_address_);
-  uintptr_t literal_addr = RoundDown(disasm_->GetPc(), vixl::aarch32::kRegSizeInBytes) + offset;
+  uintptr_t literal_addr = RoundDown(disasm_->GetCodeAddress(), vixl::aarch32::kRegSizeInBytes) + offset;
 
   if (!options_->absolute_addresses_) {
     literal_addr += begin;
@@ -208,12 +197,14 @@ size_t DisassemblerArm::Dump(std::ostream& os, const uint8_t* begin) {
   // Remove the Thumb specifier bit; no effect if begin does not point to T32 code.
   const uintptr_t instr_ptr = reinterpret_cast<uintptr_t>(begin) & ~1;
 
-  disasm_->SetT32((reinterpret_cast<uintptr_t>(begin) & 1) != 0);
-  disasm_->JumpToPc(GetPc(instr_ptr));
+  const bool is_t32 = (reinterpret_cast<uintptr_t>(begin) & 1) != 0;
+  disasm_->SetCodeAddress(GetPc(instr_ptr));
 
-  if (disasm_->IsT32()) {
+  if (is_t32) {
     const uint16_t* const ip = reinterpret_cast<const uint16_t*>(instr_ptr);
-    next = reinterpret_cast<uintptr_t>(disasm_->DecodeT32At(ip));
+    const uint16_t* const end_address = reinterpret_cast<const uint16_t*>(
+        GetDisassemblerOptions()->end_address_);
+    next = reinterpret_cast<uintptr_t>(disasm_->DecodeT32At(ip, end_address));
   } else {
     const uint32_t* const ip = reinterpret_cast<const uint32_t*>(instr_ptr);
     next = reinterpret_cast<uintptr_t>(disasm_->DecodeA32At(ip));
@@ -230,10 +221,10 @@ void DisassemblerArm::Dump(std::ostream& os, const uint8_t* begin, const uint8_t
   // Remove the Thumb specifier bit; no effect if begin does not point to T32 code.
   const uintptr_t base = reinterpret_cast<uintptr_t>(begin) & ~1;
 
-  disasm_->SetT32((reinterpret_cast<uintptr_t>(begin) & 1) != 0);
-  disasm_->JumpToPc(GetPc(base));
+  const bool is_t32 = (reinterpret_cast<uintptr_t>(begin) & 1) != 0;
+  disasm_->SetCodeAddress(GetPc(base));
 
-  if (disasm_->IsT32()) {
+  if (is_t32) {
     // The Thumb specifier bits cancel each other.
     disasm_->DisassembleT32Buffer(reinterpret_cast<const uint16_t*>(base), end - begin);
   } else {

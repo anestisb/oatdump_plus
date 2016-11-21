@@ -518,7 +518,7 @@ void IntrinsicLocationsBuilderARMVIXL::VisitMemoryPeekByte(HInvoke* invoke) {
 void IntrinsicCodeGeneratorARMVIXL::VisitMemoryPeekByte(HInvoke* invoke) {
   ArmVIXLAssembler* assembler = GetAssembler();
   // Ignore upper 4B of long address.
-  __ Ldrsb(OutputRegister(invoke), LowRegisterFrom(invoke->GetLocations()->InAt(0)));
+  __ Ldrsb(OutputRegister(invoke), MemOperand(LowRegisterFrom(invoke->GetLocations()->InAt(0))));
 }
 
 void IntrinsicLocationsBuilderARMVIXL::VisitMemoryPeekIntNative(HInvoke* invoke) {
@@ -528,7 +528,7 @@ void IntrinsicLocationsBuilderARMVIXL::VisitMemoryPeekIntNative(HInvoke* invoke)
 void IntrinsicCodeGeneratorARMVIXL::VisitMemoryPeekIntNative(HInvoke* invoke) {
   ArmVIXLAssembler* assembler = GetAssembler();
   // Ignore upper 4B of long address.
-  __ Ldr(OutputRegister(invoke), LowRegisterFrom(invoke->GetLocations()->InAt(0)));
+  __ Ldr(OutputRegister(invoke), MemOperand(LowRegisterFrom(invoke->GetLocations()->InAt(0))));
 }
 
 void IntrinsicLocationsBuilderARMVIXL::VisitMemoryPeekLongNative(HInvoke* invoke) {
@@ -545,9 +545,9 @@ void IntrinsicCodeGeneratorARMVIXL::VisitMemoryPeekLongNative(HInvoke* invoke) {
   vixl32::Register hi = HighRegisterFrom(invoke->GetLocations()->Out());
   if (addr.Is(lo)) {
     __ Ldr(hi, MemOperand(addr, 4));
-    __ Ldr(lo, addr);
+    __ Ldr(lo, MemOperand(addr));
   } else {
-    __ Ldr(lo, addr);
+    __ Ldr(lo, MemOperand(addr));
     __ Ldr(hi, MemOperand(addr, 4));
   }
 }
@@ -559,7 +559,7 @@ void IntrinsicLocationsBuilderARMVIXL::VisitMemoryPeekShortNative(HInvoke* invok
 void IntrinsicCodeGeneratorARMVIXL::VisitMemoryPeekShortNative(HInvoke* invoke) {
   ArmVIXLAssembler* assembler = GetAssembler();
   // Ignore upper 4B of long address.
-  __ Ldrsh(OutputRegister(invoke), LowRegisterFrom(invoke->GetLocations()->InAt(0)));
+  __ Ldrsh(OutputRegister(invoke), MemOperand(LowRegisterFrom(invoke->GetLocations()->InAt(0))));
 }
 
 static void CreateIntIntToVoidLocations(ArenaAllocator* arena, HInvoke* invoke) {
@@ -576,7 +576,7 @@ void IntrinsicLocationsBuilderARMVIXL::VisitMemoryPokeByte(HInvoke* invoke) {
 
 void IntrinsicCodeGeneratorARMVIXL::VisitMemoryPokeByte(HInvoke* invoke) {
   ArmVIXLAssembler* assembler = GetAssembler();
-  __ Strb(InputRegisterAt(invoke, 1), LowRegisterFrom(invoke->GetLocations()->InAt(0)));
+  __ Strb(InputRegisterAt(invoke, 1), MemOperand(LowRegisterFrom(invoke->GetLocations()->InAt(0))));
 }
 
 void IntrinsicLocationsBuilderARMVIXL::VisitMemoryPokeIntNative(HInvoke* invoke) {
@@ -585,7 +585,7 @@ void IntrinsicLocationsBuilderARMVIXL::VisitMemoryPokeIntNative(HInvoke* invoke)
 
 void IntrinsicCodeGeneratorARMVIXL::VisitMemoryPokeIntNative(HInvoke* invoke) {
   ArmVIXLAssembler* assembler = GetAssembler();
-  __ Str(InputRegisterAt(invoke, 1), LowRegisterFrom(invoke->GetLocations()->InAt(0)));
+  __ Str(InputRegisterAt(invoke, 1), MemOperand(LowRegisterFrom(invoke->GetLocations()->InAt(0))));
 }
 
 void IntrinsicLocationsBuilderARMVIXL::VisitMemoryPokeLongNative(HInvoke* invoke) {
@@ -598,7 +598,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitMemoryPokeLongNative(HInvoke* invoke) {
   vixl32::Register addr = LowRegisterFrom(invoke->GetLocations()->InAt(0));
   // Worst case: Control register bit SCTLR.A = 0. Then unaligned accesses throw a processor
   // exception. So we can't use ldrd as addr may be unaligned.
-  __ Str(LowRegisterFrom(invoke->GetLocations()->InAt(1)), addr);
+  __ Str(LowRegisterFrom(invoke->GetLocations()->InAt(1)), MemOperand(addr));
   __ Str(HighRegisterFrom(invoke->GetLocations()->InAt(1)), MemOperand(addr, 4));
 }
 
@@ -608,7 +608,7 @@ void IntrinsicLocationsBuilderARMVIXL::VisitMemoryPokeShortNative(HInvoke* invok
 
 void IntrinsicCodeGeneratorARMVIXL::VisitMemoryPokeShortNative(HInvoke* invoke) {
   ArmVIXLAssembler* assembler = GetAssembler();
-  __ Strh(InputRegisterAt(invoke, 1), LowRegisterFrom(invoke->GetLocations()->InAt(0)));
+  __ Strh(InputRegisterAt(invoke, 1), MemOperand(LowRegisterFrom(invoke->GetLocations()->InAt(0))));
 }
 
 void IntrinsicLocationsBuilderARMVIXL::VisitThreadCurrentThread(HInvoke* invoke) {
@@ -842,8 +842,8 @@ static void GenUnsafePut(LocationSummary* locations,
       __ Add(temp_reg, base, offset);
       vixl32::Label loop_head;
       __ Bind(&loop_head);
-      __ Ldrexd(temp_lo, temp_hi, temp_reg);
-      __ Strexd(temp_lo, value_lo, value_hi, temp_reg);
+      __ Ldrexd(temp_lo, temp_hi, MemOperand(temp_reg));
+      __ Strexd(temp_lo, value_lo, value_hi, MemOperand(temp_reg));
       __ Cmp(temp_lo, 0);
       __ B(ne, &loop_head);
     } else {
@@ -1042,7 +1042,7 @@ static void GenCas(HInvoke* invoke, Primitive::Type type, CodeGeneratorARMVIXL* 
   vixl32::Label loop_head;
   __ Bind(&loop_head);
 
-  __ Ldrex(tmp, tmp_ptr);
+  __ Ldrex(tmp, MemOperand(tmp_ptr));
 
   __ Subs(tmp, tmp, expected);
 
@@ -1052,7 +1052,7 @@ static void GenCas(HInvoke* invoke, Primitive::Type type, CodeGeneratorARMVIXL* 
                                CodeBufferCheckScope::kMaximumSize);
 
     __ itt(eq);
-    __ strex(eq, tmp, value, tmp_ptr);
+    __ strex(eq, tmp, value, MemOperand(tmp_ptr));
     __ cmp(eq, tmp, 1);
   }
 
@@ -1220,7 +1220,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringCompareTo(HInvoke* invoke) {
   static_assert(IsAligned<8>(kObjectAlignment),
                 "String data must be 8-byte aligned for unrolled CompareTo loop.");
 
-  const size_t char_size = Primitive::ComponentSize(Primitive::kPrimChar);
+  const unsigned char_size = Primitive::ComponentSize(Primitive::kPrimChar);
   DCHECK_EQ(char_size, 2u);
 
   UseScratchRegisterScope temps(assembler->GetVIXLAssembler());
@@ -1469,7 +1469,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringEquals(HInvoke* invoke) {
   __ Bind(&loop);
   __ Ldr(out, MemOperand(str, temp1));
   __ Ldr(temp2, MemOperand(arg, temp1));
-  __ Add(temp1, temp1, sizeof(uint32_t));
+  __ Add(temp1, temp1, Operand::From(sizeof(uint32_t)));
   __ Cmp(out, temp2);
   __ B(ne, &return_false);
   // With string compression, we have compared 4 bytes, otherwise 2 chars.
