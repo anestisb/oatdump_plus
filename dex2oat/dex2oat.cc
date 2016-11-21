@@ -1585,6 +1585,9 @@ class Dex2Oat FINAL {
       dex_caches_.push_back(soa.AddLocalReference<jobject>(
           class_linker->RegisterDexFile(*dex_file,
                                         soa.Decode<mirror::ClassLoader>(class_loader_).Ptr())));
+      // Pre-register dex files so that we can access verification results without locks during
+      // compilation and verification.
+      verification_results_->PreRegisterDexFile(dex_file);
     }
 
     return true;
