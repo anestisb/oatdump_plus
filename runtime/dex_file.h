@@ -1010,6 +1010,11 @@ class DexFile {
     return oat_dex_file_;
   }
 
+  // Used by oat writer.
+  void SetOatDexFile(OatDexFile* oat_dex_file) const {
+    oat_dex_file_ = oat_dex_file;
+  }
+
   // Utility methods for reading integral values from a buffer.
   static int32_t ReadSignedInt(const uint8_t* ptr, int zwidth);
   static uint32_t ReadUnsignedInt(const uint8_t* ptr, int zwidth, bool fill_on_right);
@@ -1138,9 +1143,10 @@ class DexFile {
   // If this dex file was loaded from an oat file, oat_dex_file_ contains a
   // pointer to the OatDexFile it was loaded from. Otherwise oat_dex_file_ is
   // null.
-  const OatDexFile* oat_dex_file_;
+  mutable const OatDexFile* oat_dex_file_;
 
   friend class DexFileVerifierTest;
+  friend class OatWriter;
   ART_FRIEND_TEST(ClassLinkerTest, RegisterDexFileName);  // for constructor
 };
 
