@@ -4000,7 +4000,7 @@ bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file,
 
   const OatFile::OatDexFile* oat_dex_file = dex_file.GetOatDexFile();
   // In case we run without an image there won't be a backing oat file.
-  if (oat_dex_file == nullptr) {
+  if (oat_dex_file == nullptr || oat_dex_file->GetOatFile() == nullptr) {
     return false;
   }
 
