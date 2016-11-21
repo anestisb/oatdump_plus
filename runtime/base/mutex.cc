@@ -672,7 +672,7 @@ void ReaderWriterMutex::HandleSharedLockContention(Thread* self, int32_t cur_sta
   ScopedContentionRecorder scr(this, GetExclusiveOwnerTid(), SafeGetTid(self));
   ++num_pending_readers_;
   if (futex(state_.Address(), FUTEX_WAIT, cur_state, nullptr, nullptr, 0) != 0) {
-    if (errno != EAGAIN) {
+    if (errno != EAGAIN && errno != EINTR) {
       PLOG(FATAL) << "futex wait failed for " << name_;
     }
   }
@@ -796,7 +796,7 @@ void ConditionVariable::Broadcast(Thread* self) {
                    reinterpret_cast<const timespec*>(std::numeric_limits<int32_t>::max()),
                    guard_.state_.Address(), cur_sequence) != -1;
       if (!done) {
-        if (errno != EAGAIN) {
+        if (errno != EAGAIN && errno != EINTR) {
           PLOG(FATAL) << "futex cmp requeue failed for " << name_;
         }
       }
