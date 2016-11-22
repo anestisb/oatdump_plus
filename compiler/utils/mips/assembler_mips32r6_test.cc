@@ -319,6 +319,14 @@ TEST_F(AssemblerMIPS32r6Test, Bitswap) {
   DriverStr(RepeatRR(&mips::MipsAssembler::Bitswap, "bitswap ${reg1}, ${reg2}"), "bitswap");
 }
 
+TEST_F(AssemblerMIPS32r6Test, Lsa) {
+  DriverStr(RepeatRRRIb(&mips::MipsAssembler::Lsa,
+                        2,
+                        "lsa ${reg1}, ${reg2}, ${reg3}, {imm}",
+                        1),
+            "lsa");
+}
+
 TEST_F(AssemblerMIPS32r6Test, Seleqz) {
   DriverStr(RepeatRRR(&mips::MipsAssembler::Seleqz, "seleqz ${reg1}, ${reg2}, ${reg3}"),
             "seleqz");

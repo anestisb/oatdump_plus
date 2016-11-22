@@ -2464,6 +2464,94 @@ void IntrinsicCodeGeneratorMIPS::VisitMathRoundFloat(HInvoke* invoke) {
   __ Bind(&done);
 }
 
+// void java.lang.String.getChars(int srcBegin, int srcEnd, char[] dst, int dstBegin)
+void IntrinsicLocationsBuilderMIPS::VisitStringGetCharsNoCheck(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kCallOnMainOnly,
+                                                            kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetInAt(2, Location::RequiresRegister());
+  locations->SetInAt(3, Location::RequiresRegister());
+  locations->SetInAt(4, Location::RequiresRegister());
+
+  // We will call memcpy() to do the actual work. Allocate the temporary
+  // registers to use the correct input registers, and output register.
+  // memcpy() uses the normal MIPS calling convention.
+  InvokeRuntimeCallingConvention calling_convention;
+
+  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
+
+  Location outLocation = calling_convention.GetReturnLocation(Primitive::kPrimInt);
+  locations->AddTemp(Location::RegisterLocation(outLocation.AsRegister<Register>()));
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitStringGetCharsNoCheck(HInvoke* invoke) {
+  MipsAssembler* assembler = GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  // Check assumption that sizeof(Char) is 2 (used in scaling below).
+  const size_t char_size = Primitive::ComponentSize(Primitive::kPrimChar);
+  DCHECK_EQ(char_size, 2u);
+  const size_t char_shift = Primitive::ComponentSizeShift(Primitive::kPrimChar);
+
+  Register srcObj = locations->InAt(0).AsRegister<Register>();
+  Register srcBegin = locations->InAt(1).AsRegister<Register>();
+  Register srcEnd = locations->InAt(2).AsRegister<Register>();
+  Register dstObj = locations->InAt(3).AsRegister<Register>();
+  Register dstBegin = locations->InAt(4).AsRegister<Register>();
+
+  Register dstPtr = locations->GetTemp(0).AsRegister<Register>();
+  DCHECK_EQ(dstPtr, A0);
+  Register srcPtr = locations->GetTemp(1).AsRegister<Register>();
+  DCHECK_EQ(srcPtr, A1);
+  Register numChrs = locations->GetTemp(2).AsRegister<Register>();
+  DCHECK_EQ(numChrs, A2);
+
+  Register dstReturn = locations->GetTemp(3).AsRegister<Register>();
+  DCHECK_EQ(dstReturn, V0);
+
+  MipsLabel done;
+
+  // Location of data in char array buffer.
+  const uint32_t data_offset = mirror::Array::DataOffset(char_size).Uint32Value();
+
+  // Get offset of value field within a string object.
+  const int32_t value_offset = mirror::String::ValueOffset().Int32Value();
+
+  __ Beq(srcEnd, srcBegin, &done);  // No characters to move.
+
+  // Calculate number of characters to be copied.
+  __ Subu(numChrs, srcEnd, srcBegin);
+
+  // Calculate destination address.
+  __ Addiu(dstPtr, dstObj, data_offset);
+  if (IsR6()) {
+    __ Lsa(dstPtr, dstBegin, dstPtr, char_shift);
+  } else {
+    __ Sll(AT, dstBegin, char_shift);
+    __ Addu(dstPtr, dstPtr, AT);
+  }
+
+  // Calculate source address.
+  __ Addiu(srcPtr, srcObj, value_offset);
+  if (IsR6()) {
+    __ Lsa(srcPtr, srcBegin, srcPtr, char_shift);
+  } else {
+    __ Sll(AT, srcBegin, char_shift);
+    __ Addu(srcPtr, srcPtr, AT);
+  }
+
+  // Calculate number of bytes to copy from number of characters.
+  __ Sll(numChrs, numChrs, char_shift);
+
+  codegen_->InvokeRuntime(kQuickMemcpy, invoke, invoke->GetDexPc(), nullptr);
+
+  __ Bind(&done);
+}
+
 // Unimplemented intrinsics.
 
 UNIMPLEMENTED_INTRINSIC(MIPS, MathCeil)
@@ -2473,7 +2561,6 @@ UNIMPLEMENTED_INTRINSIC(MIPS, MathRoundDouble)
 UNIMPLEMENTED_INTRINSIC(MIPS, UnsafeCASLong)
 
 UNIMPLEMENTED_INTRINSIC(MIPS, ReferenceGetReferent)
-UNIMPLEMENTED_INTRINSIC(MIPS, StringGetCharsNoCheck)
 UNIMPLEMENTED_INTRINSIC(MIPS, SystemArrayCopyChar)
 UNIMPLEMENTED_INTRINSIC(MIPS, SystemArrayCopy)
 
