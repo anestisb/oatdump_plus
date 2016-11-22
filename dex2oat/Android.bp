@@ -89,6 +89,7 @@ art_cc_binary {
     ],
     static_libs: [
         "libart-compiler",
+        "libart-dexlayout",
         "libart",
         "libvixl-arm",
         "libvixl-arm64",
@@ -118,6 +119,7 @@ art_cc_binary {
     ],
     static_libs: [
         "libartd-compiler",
+        "libartd-dexlayout",
         "libartd",
         "libvixld-arm",
         "libvixld-arm64",

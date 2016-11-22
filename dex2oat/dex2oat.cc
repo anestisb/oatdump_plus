@@ -270,6 +270,7 @@ NO_RETURN static void Usage(const char* fmt, ...) {
                 "|balanced"
                 "|speed-profile"
                 "|speed"
+                "|layout-profile"
                 "|everything-profile"
                 "|everything):");
   UsageError("      select compiler filter.");
@@ -1479,13 +1480,15 @@ class Dex2Oat FINAL {
         // Unzip or copy dex files straight to the oat file.
         std::unique_ptr<MemMap> opened_dex_files_map;
         std::vector<std::unique_ptr<const DexFile>> opened_dex_files;
+        // Dexlayout verifies the dex file, so disable dex file verification in that case.
+        bool verify = compiler_options_->GetCompilerFilter() != CompilerFilter::kLayoutProfile;
         if (!oat_writers_[i]->WriteAndOpenDexFiles(
             kIsVdexEnabled ? vdex_files_[i].get() : oat_files_[i].get(),
             rodata_.back(),
             instruction_set_,
             instruction_set_features_.get(),
             key_value_store_.get(),
-            /* verify */ true,
+            verify,
             &opened_dex_files_map,
             &opened_dex_files)) {
           return false;
@@ -2273,7 +2276,9 @@ class Dex2Oat FINAL {
                                                      compiler_options_.get(),
                                                      oat_file.get()));
       elf_writers_.back()->Start();
-      oat_writers_.emplace_back(new OatWriter(IsBootImage(), timings_));
+      bool do_dexlayout = compiler_options_->GetCompilerFilter() == CompilerFilter::kLayoutProfile;
+      oat_writers_.emplace_back(new OatWriter(
+          IsBootImage(), timings_, do_dexlayout ? profile_compilation_info_.get() : nullptr));
     }
   }
 

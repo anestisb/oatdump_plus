@@ -24,6 +24,7 @@
 #include "base/logging.h"
 #include "base/macros.h"
 #include "base/stringprintf.h"
+#include "dex_file-inl.h"
 #include "dex2oat_environment_test.h"
 #include "oat.h"
 #include "oat_file.h"
@@ -549,6 +550,109 @@ TEST_F(Dex2oatVeryLargeTest, UseVeryLarge) {
   RunTest(CompilerFilter::kVerifyAtRuntime, false, { "--very-large-app-threshold=100" });
   RunTest(CompilerFilter::kInterpretOnly, true, { "--very-large-app-threshold=100" });
   RunTest(CompilerFilter::kSpeed, true, { "--very-large-app-threshold=100" });
+}
+
+static const char kDexFileLayoutInputProfile[] = "cHJvADAwMgABAAwAAQABAOqMEeFEZXhOb09hdC5qYXIBAAEA";
+
+static void WriteFileBase64(const char* base64, const char* location) {
+  // Decode base64.
+  CHECK(base64 != nullptr);
+  size_t length;
+  std::unique_ptr<uint8_t[]> bytes(DecodeBase64(base64, &length));
+  CHECK(bytes.get() != nullptr);
+
+  // Write to provided file.
+  std::unique_ptr<File> file(OS::CreateEmptyFile(location));
+  CHECK(file.get() != nullptr);
+  if (!file->WriteFully(bytes.get(), length)) {
+    PLOG(FATAL) << "Failed to write base64 as file";
+  }
+  if (file->FlushCloseOrErase() != 0) {
+    PLOG(FATAL) << "Could not flush and close test file.";
+  }
+}
+
+class Dex2oatLayoutTest : public Dex2oatTest {
+ protected:
+  void CheckFilter(CompilerFilter::Filter input ATTRIBUTE_UNUSED,
+                   CompilerFilter::Filter result ATTRIBUTE_UNUSED) OVERRIDE {
+    // Ignore, we'll do our own checks.
+  }
+
+  void RunTest() {
+    std::string dex_location = GetScratchDir() + "/DexNoOat.jar";
+    std::string profile_location = GetScratchDir() + "/primary.prof";
+    std::string odex_location = GetOdexDir() + "/DexOdexNoOat.odex";
+
+    Copy(GetDexSrc2(), dex_location);
+    WriteFileBase64(kDexFileLayoutInputProfile, profile_location.c_str());
+
+    const std::vector<std::string>& extra_args = { "--profile-file=" + profile_location };
+    GenerateOdexForTest(dex_location, odex_location, CompilerFilter::kLayoutProfile, extra_args);
+
+    CheckValidity();
+    ASSERT_TRUE(success_);
+    CheckResult(dex_location, odex_location);
+  }
+  void CheckResult(const std::string& dex_location, const std::string& odex_location) {
+    // Host/target independent checks.
+    std::string error_msg;
+    std::unique_ptr<OatFile> odex_file(OatFile::Open(odex_location.c_str(),
+                                                     odex_location.c_str(),
+                                                     nullptr,
+                                                     nullptr,
+                                                     false,
+                                                     /*low_4gb*/false,
+                                                     dex_location.c_str(),
+                                                     &error_msg));
+    ASSERT_TRUE(odex_file.get() != nullptr) << error_msg;
+
+    const char* location = dex_location.c_str();
+    std::vector<std::unique_ptr<const DexFile>> dex_files;
+    ASSERT_TRUE(DexFile::Open(location, location, true, &error_msg, &dex_files));
+    EXPECT_EQ(dex_files.size(), 1U);
+    std::unique_ptr<const DexFile>& old_dex_file = dex_files[0];
+
+    for (const OatDexFile* oat_dex_file : odex_file->GetOatDexFiles()) {
+      std::unique_ptr<const DexFile> new_dex_file = oat_dex_file->OpenDexFile(&error_msg);
+      ASSERT_TRUE(new_dex_file != nullptr);
+      uint32_t class_def_count = new_dex_file->NumClassDefs();
+      ASSERT_LT(class_def_count, std::numeric_limits<uint16_t>::max());
+      ASSERT_GE(class_def_count, 2U);
+
+      // The new layout swaps the classes at indexes 0 and 1.
+      std::string old_class0 = old_dex_file->PrettyType(old_dex_file->GetClassDef(0).class_idx_);
+      std::string old_class1 = old_dex_file->PrettyType(old_dex_file->GetClassDef(1).class_idx_);
+      std::string new_class0 = new_dex_file->PrettyType(new_dex_file->GetClassDef(0).class_idx_);
+      std::string new_class1 = new_dex_file->PrettyType(new_dex_file->GetClassDef(1).class_idx_);
+      EXPECT_EQ(old_class0, new_class1);
+      EXPECT_EQ(old_class1, new_class0);
+    }
+
+    EXPECT_EQ(odex_file->GetCompilerFilter(), CompilerFilter::kLayoutProfile);
+  }
+
+    // Check whether the dex2oat run was really successful.
+    void CheckValidity() {
+      if (kIsTargetBuild) {
+        CheckTargetValidity();
+      } else {
+        CheckHostValidity();
+      }
+    }
+
+    void CheckTargetValidity() {
+      // TODO: Ignore for now.
+    }
+
+    // On the host, we can get the dex2oat output. Here, look for "dex2oat took."
+    void CheckHostValidity() {
+      EXPECT_NE(output_.find("dex2oat took"), std::string::npos) << output_;
+    }
+  };
+
+TEST_F(Dex2oatLayoutTest, TestLayout) {
+  RunTest();
 }
 
 }  // namespace art

@@ -263,11 +263,13 @@ class Dumper {
     DumpStringId(method_id->Name(), class_index);
   }
 
-  void DumpMethodItem(const dex_ir::MethodItem* method, const DexFile* dex_file, int class_index) {
-    if (profile_info_ != nullptr) {
+  void DumpMethodItem(dex_ir::MethodItem* method,
+                      const DexFile* dex_file,
+                      int class_index,
+                      ProfileCompilationInfo* profile_info) {
+    if (profile_info != nullptr) {
       uint32_t method_idx = method->GetMethodId()->GetIndex();
-      MethodReference mr(dex_file, method_idx);
-      if (!profile_info_->ContainsMethod(mr)) {
+      if (!profile_info->ContainsMethod(MethodReference(dex_file, method_idx))) {
         return;
       }
     }
@@ -344,14 +346,17 @@ class Dumper {
  * Dumps a gnuplot data file showing the parts of the dex_file that belong to each class.
  * If profiling information is present, it dumps only those classes that are marked as hot.
  */
-void VisualizeDexLayout(dex_ir::Header* header, const DexFile* dex_file, size_t dex_file_index) {
+void VisualizeDexLayout(dex_ir::Header* header,
+                        const DexFile* dex_file,
+                        size_t dex_file_index,
+                        ProfileCompilationInfo* profile_info) {
   std::unique_ptr<Dumper> dumper(new Dumper(header->GetCollections(), dex_file_index));
 
   const uint32_t class_defs_size = header->GetCollections().ClassDefsSize();
   for (uint32_t class_index = 0; class_index < class_defs_size; class_index++) {
     dex_ir::ClassDef* class_def = header->GetCollections().GetClassDef(class_index);
     dex::TypeIndex type_idx(class_def->ClassType()->GetIndex());
-    if (profile_info_ != nullptr && !profile_info_->ContainsClass(*dex_file, type_idx)) {
+    if (profile_info != nullptr && !profile_info->ContainsClass(*dex_file, type_idx)) {
       continue;
     }
     dumper->DumpAddressRange(class_def, class_index);
@@ -384,12 +389,12 @@ void VisualizeDexLayout(dex_ir::Header* header, const DexFile* dex_file, size_t 
       }
       if (class_data->DirectMethods()) {
         for (auto& method_item : *class_data->DirectMethods()) {
-          dumper->DumpMethodItem(method_item.get(), dex_file, class_index);
+          dumper->DumpMethodItem(method_item.get(), dex_file, class_index, profile_info);
         }
       }
       if (class_data->VirtualMethods()) {
         for (auto& method_item : *class_data->VirtualMethods()) {
-          dumper->DumpMethodItem(method_item.get(), dex_file, class_index);
+          dumper->DumpMethodItem(method_item.get(), dex_file, class_index, profile_info);
         }
       }
     }

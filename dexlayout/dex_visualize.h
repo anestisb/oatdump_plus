@@ -28,11 +28,15 @@
 namespace art {
 
 class DexFile;
+class ProfileCompilationInfo;
 namespace dex_ir {
 class Header;
 }  // namespace dex_ir
 
-void VisualizeDexLayout(dex_ir::Header* header, const DexFile* dex_file, size_t dex_file_index);
+void VisualizeDexLayout(dex_ir::Header* header,
+                        const DexFile* dex_file,
+                        size_t dex_file_index,
+                        ProfileCompilationInfo* profile_info);
 
 }  // namespace art
 
