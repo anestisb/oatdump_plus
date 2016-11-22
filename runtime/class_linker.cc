@@ -1949,36 +1949,13 @@ class VisitClassLoaderClassesVisitor : public ClassLoaderVisitor {
   void Visit(ObjPtr<mirror::ClassLoader> class_loader)
       REQUIRES_SHARED(Locks::classlinker_classes_lock_, Locks::mutator_lock_) OVERRIDE {
     ClassTable* const class_table = class_loader->GetClassTable();
-    if (!done_ && class_table != nullptr) {
-      DefiningClassLoaderFilterVisitor visitor(class_loader, visitor_);
-      if (!class_table->Visit(visitor)) {
-        // If the visitor ClassTable returns false it means that we don't need to continue.
-        done_ = true;
-      }
+    if (!done_ && class_table != nullptr && !class_table->Visit(*visitor_)) {
+      // If the visitor ClassTable returns false it means that we don't need to continue.
+      done_ = true;
     }
   }
 
  private:
-  // Class visitor that limits the class visits from a ClassTable to the classes with
-  // the provided defining class loader. This filter is used to avoid multiple visits
-  // of the same class which can be recorded for multiple initiating class loaders.
-  class DefiningClassLoaderFilterVisitor : public ClassVisitor {
-   public:
-    DefiningClassLoaderFilterVisitor(ObjPtr<mirror::ClassLoader> defining_class_loader,
-                                     ClassVisitor* visitor)
-        : defining_class_loader_(defining_class_loader), visitor_(visitor) { }
-
-    bool operator()(ObjPtr<mirror::Class> klass) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
-      if (klass->GetClassLoader() != defining_class_loader_) {
-        return true;
-      }
-      return (*visitor_)(klass);
-    }
-
-    ObjPtr<mirror::ClassLoader> const defining_class_loader_;
-    ClassVisitor* const visitor_;
-  };
-
   ClassVisitor* const visitor_;
   // If done is true then we don't need to do any more visiting.
   bool done_;
@@ -2563,109 +2540,56 @@ mirror::Class* ClassLinker::FindClass(Thread* self,
     }
   } else {
     ScopedObjectAccessUnchecked soa(self);
-    ObjPtr<mirror::Class> result_ptr;
-    bool descriptor_equals;
-    bool known_hierarchy =
-        FindClassInBaseDexClassLoader(soa, self, descriptor, hash, class_loader, &result_ptr);
-    if (result_ptr != nullptr) {
-      // The chain was understood and we found the class. We still need to add the class to
-      // the class table to protect from racy programs that can try and redefine the path list
-      // which would change the Class<?> returned for subsequent evaluation of const-class.
-      DCHECK(known_hierarchy);
-      DCHECK(result_ptr->DescriptorEquals(descriptor));
-      descriptor_equals = true;
-    } else {
-      // Either the chain wasn't understood or the class wasn't found.
-      //
-      // If the chain was understood and but we did not find the class, let the Java-side
-      // rediscover all this and throw the exception with the right stack trace. Note that
-      // the Java-side could still succeed for racy programs if another thread is actively
-      // modifying the class loader's path list.
+    ObjPtr<mirror::Class> cp_klass;
+    if (FindClassInBaseDexClassLoader(soa, self, descriptor, hash, class_loader, &cp_klass)) {
+      // The chain was understood. So the value in cp_klass is either the class we were looking
+      // for, or not found.
+      if (cp_klass != nullptr) {
+        return cp_klass.Ptr();
+      }
+      // TODO: We handle the boot classpath loader in FindClassInBaseDexClassLoader. Try to unify
+      //       this and the branch above. TODO: throw the right exception here.
 
-      if (Runtime::Current()->IsAotCompiler()) {
-        // Oops, compile-time, can't run actual class-loader code.
-        ObjPtr<mirror::Throwable> pre_allocated =
-            Runtime::Current()->GetPreAllocatedNoClassDefFoundError();
-        self->SetException(pre_allocated);
-        return nullptr;
-      }
-
-      ScopedLocalRef<jobject> class_loader_object(
-          soa.Env(), soa.AddLocalReference<jobject>(class_loader.Get()));
-      std::string class_name_string(DescriptorToDot(descriptor));
-      ScopedLocalRef<jobject> result(soa.Env(), nullptr);
-      {
-        ScopedThreadStateChange tsc(self, kNative);
-        ScopedLocalRef<jobject> class_name_object(
-            soa.Env(), soa.Env()->NewStringUTF(class_name_string.c_str()));
-        if (class_name_object.get() == nullptr) {
-          DCHECK(self->IsExceptionPending());  // OOME.
-          return nullptr;
-        }
-        CHECK(class_loader_object.get() != nullptr);
-        result.reset(soa.Env()->CallObjectMethod(class_loader_object.get(),
-                                                 WellKnownClasses::java_lang_ClassLoader_loadClass,
-                                                 class_name_object.get()));
-      }
-      if (self->IsExceptionPending()) {
-        // If the ClassLoader threw, pass that exception up.
-        // However, to comply with the RI behavior, first check if another thread succeeded.
-        result_ptr = LookupClass(self, descriptor, hash, class_loader.Get());
-        if (result_ptr != nullptr && result_ptr->IsResolved()) {
-          self->ClearException();
-          return result_ptr.Ptr();
-        }
-        return nullptr;
-      } else if (result.get() == nullptr) {
-        // broken loader - throw NPE to be compatible with Dalvik
-        ThrowNullPointerException(StringPrintf("ClassLoader.loadClass returned null for %s",
-                                               class_name_string.c_str()).c_str());
-        return nullptr;
-      }
-      result_ptr = soa.Decode<mirror::Class>(result.get());
-      // Check the name of the returned class.
-      descriptor_equals = result_ptr->DescriptorEquals(descriptor);
+      // We'll let the Java-side rediscover all this and throw the exception with the right stack
+      // trace.
     }
 
-    // Try to insert the class to the class table, checking for mismatch.
-    ObjPtr<mirror::Class> old;
-    {
-      ReaderMutexLock mu(self, *Locks::classlinker_classes_lock_);
-      ClassTable* const class_table = InsertClassTableForClassLoader(class_loader.Get());
-      old = class_table->Lookup(descriptor, hash);
-      if (old == nullptr) {
-        old = result_ptr;  // For the comparison below, after releasing the lock.
-        if (descriptor_equals) {
-          class_table->InsertWithHash(result_ptr.Ptr(), hash);
-          Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(class_loader.Get());
-        }  // else throw below, after releasing the lock.
-      }
-    }
-    if (UNLIKELY(old != result_ptr)) {
-      // Return `old` (even if `!descriptor_equals`) to mimic the RI behavior for parallel
-      // capable class loaders.  (All class loaders are considered parallel capable on Android.)
-      mirror::Class* loader_class = class_loader->GetClass();
-      const char* loader_class_name =
-          loader_class->GetDexFile().StringByTypeIdx(loader_class->GetDexTypeIndex());
-      LOG(WARNING) << "Initiating class loader of type " << DescriptorToDot(loader_class_name)
-          << " is not well-behaved; it a returned different Class for racing loadClass(\""
-          << DescriptorToDot(descriptor) << "\").";
-      return old.Ptr();
-    }
-    if (UNLIKELY(!descriptor_equals)) {
-      std::string result_storage;
-      const char* result_name = result_ptr->GetDescriptor(&result_storage);
-      std::string loader_storage;
-      const char* loader_class_name = class_loader->GetClass()->GetDescriptor(&loader_storage);
-      ThrowNoClassDefFoundError(
-          "Initiating class loader of type %s returned class %s instead of %s.",
-          DescriptorToDot(loader_class_name).c_str(),
-          DescriptorToDot(result_name).c_str(),
-          DescriptorToDot(descriptor).c_str());
+    if (Runtime::Current()->IsAotCompiler()) {
+      // Oops, compile-time, can't run actual class-loader code.
+      ObjPtr<mirror::Throwable> pre_allocated = Runtime::Current()->GetPreAllocatedNoClassDefFoundError();
+      self->SetException(pre_allocated);
       return nullptr;
     }
-    // success, return mirror::Class*
-    return result_ptr.Ptr();
+
+    ScopedLocalRef<jobject> class_loader_object(soa.Env(),
+                                                soa.AddLocalReference<jobject>(class_loader.Get()));
+    std::string class_name_string(DescriptorToDot(descriptor));
+    ScopedLocalRef<jobject> result(soa.Env(), nullptr);
+    {
+      ScopedThreadStateChange tsc(self, kNative);
+      ScopedLocalRef<jobject> class_name_object(soa.Env(),
+                                                soa.Env()->NewStringUTF(class_name_string.c_str()));
+      if (class_name_object.get() == nullptr) {
+        DCHECK(self->IsExceptionPending());  // OOME.
+        return nullptr;
+      }
+      CHECK(class_loader_object.get() != nullptr);
+      result.reset(soa.Env()->CallObjectMethod(class_loader_object.get(),
+                                               WellKnownClasses::java_lang_ClassLoader_loadClass,
+                                               class_name_object.get()));
+    }
+    if (self->IsExceptionPending()) {
+      // If the ClassLoader threw, pass that exception up.
+      return nullptr;
+    } else if (result.get() == nullptr) {
+      // broken loader - throw NPE to be compatible with Dalvik
+      ThrowNullPointerException(StringPrintf("ClassLoader.loadClass returned null for %s",
+                                             class_name_string.c_str()).c_str());
+      return nullptr;
+    } else {
+      // success, return mirror::Class*
+      return soa.Decode<mirror::Class>(result.get()).Ptr();
+    }
   }
   UNREACHABLE();
 }
@@ -3744,6 +3668,12 @@ void ClassLinker::UpdateClassMethods(ObjPtr<mirror::Class> klass,
                                 klass->NumDeclaredVirtualMethods());
   // Need to mark the card so that the remembered sets and mod union tables get updated.
   Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(klass);
+}
+
+bool ClassLinker::RemoveClass(const char* descriptor, ObjPtr<mirror::ClassLoader> class_loader) {
+  WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
+  ClassTable* const class_table = ClassTableForClassLoader(class_loader);
+  return class_table != nullptr && class_table->Remove(descriptor);
 }
 
 mirror::Class* ClassLinker::LookupClass(Thread* self,

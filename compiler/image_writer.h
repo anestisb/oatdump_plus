@@ -588,8 +588,7 @@ class ImageWriter FINAL {
   class FixupVisitor;
   class GetRootsVisitor;
   class NativeLocationVisitor;
-  class PruneClassesVisitor;
-  class PruneClassLoaderClassesVisitor;
+  class NonImageClassesVisitor;
   class VisitReferencesVisitor;
 
   DISALLOW_COPY_AND_ASSIGN(ImageWriter);
