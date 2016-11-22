@@ -49,6 +49,7 @@ public class Main {
         }
         Runtime.getRuntime().gc();
         WeakReference<Class<?>> weak_test2 = wrapHelperGet(helper);
+        Runtime.getRuntime().gc();
 
         Class<?> test1 = weak_test1.get();
         if (test1 == null) {
@@ -62,20 +63,6 @@ public class Main {
             System.out.println("test1 != test2");
         }
 
-        test1 = null;
-        test2 = null;
-        if (!usingRI) {
-            clearResolvedTypes(helper);
-        }
-        helper = null;
-        delegating_loader = null;
-        Runtime.getRuntime().gc();
-        if (weak_test1.get() != null) {
-            System.out.println("weak_test1 still not null");
-        }
-        if (weak_test2.get() != null) {
-            System.out.println("weak_test2 still not null");
-        }
         System.out.println("testClearDexCache done");
     }
 
@@ -90,6 +77,8 @@ public class Main {
         Class<?> helper2 = delegating_loader.loadClass("Helper2");
         WeakReference<Class<?>> weak_test2 = wrapHelperGet(helper2);
 
+        Runtime.getRuntime().gc();
+
         Class<?> test1 = weak_test1.get();
         if (test1 == null) {
             System.out.println("test1 disappeared");
@@ -102,18 +91,6 @@ public class Main {
             System.out.println("test1 != test2");
         }
 
-        test1 = null;
-        test2 = null;
-        delegating_loader = null;
-        helper1 = null;
-        helper2 = null;
-        Runtime.getRuntime().gc();
-        if (weak_test1.get() != null) {
-            System.out.println("weak_test1 still not null");
-        }
-        if (weak_test2.get() != null) {
-            System.out.println("weak_test2 still not null");
-        }
         System.out.println("testMultiDex done");
     }
 
@@ -271,38 +248,38 @@ public class Main {
     }
 
     private static void testRacyMisbehavingLoader2() throws Exception {
-      final ClassLoader system_loader = ClassLoader.getSystemClassLoader();
+        final ClassLoader system_loader = ClassLoader.getSystemClassLoader();
 
-      final Thread[] threads = new Thread[4];
-      final Object[] results = new Object[threads.length];
+        final Thread[] threads = new Thread[4];
+        final Object[] results = new Object[threads.length];
 
-      final RacyMisbehavingLoader racy_loader =
-          new RacyMisbehavingLoader(system_loader, threads.length, true);
-      final Class<?> helper1 = racy_loader.loadClass("RacyMisbehavingHelper");
+        final RacyMisbehavingLoader racy_loader =
+            new RacyMisbehavingLoader(system_loader, threads.length, true);
+        final Class<?> helper1 = racy_loader.loadClass("RacyMisbehavingHelper");
 
-      for (int i = 0; i != threads.length; ++i) {
-          final int my_index = i;
-          Thread t = new Thread() {
-              public void run() {
-                  try {
-                      Method get = helper1.getDeclaredMethod("get");
-                      results[my_index] = get.invoke(null);
-                  } catch (InvocationTargetException ite) {
-                      results[my_index] = ite.getCause();
-                  } catch (Throwable t) {
-                      results[my_index] = t;
-                  }
-              }
-          };
-          t.start();
-          threads[i] = t;
-      }
-      for (Thread t : threads) {
-          t.join();
-      }
-      dumpResultStats(results);
-      System.out.println("testRacyMisbehavingLoader2 done");
-  }
+        for (int i = 0; i != threads.length; ++i) {
+            final int my_index = i;
+            Thread t = new Thread() {
+                public void run() {
+                    try {
+                        Method get = helper1.getDeclaredMethod("get");
+                        results[my_index] = get.invoke(null);
+                    } catch (InvocationTargetException ite) {
+                        results[my_index] = ite.getCause();
+                    } catch (Throwable t) {
+                        results[my_index] = t;
+                    }
+                }
+            };
+            t.start();
+            threads[i] = t;
+        }
+        for (Thread t : threads) {
+            t.join();
+        }
+        dumpResultStats(results);
+        System.out.println("testRacyMisbehavingLoader2 done");
+    }
 
     private static DelegatingLoader createDelegatingLoader() {
         ClassLoader system_loader = ClassLoader.getSystemClassLoader();
