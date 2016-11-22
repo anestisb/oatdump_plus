@@ -38,6 +38,7 @@ class BitVector;
 class CompiledMethod;
 class CompilerDriver;
 class ImageWriter;
+class ProfileCompilationInfo;
 class OutputStream;
 class TimingLogger;
 class TypeLookupTable;
@@ -110,7 +111,7 @@ class OatWriter {
     kDefault = kCreate
   };
 
-  OatWriter(bool compiling_boot_image, TimingLogger* timings);
+  OatWriter(bool compiling_boot_image, TimingLogger* timings, ProfileCompilationInfo* info);
 
   // To produce a valid oat file, the user must first add sources with any combination of
   //   - AddDexFileSource(),
@@ -258,6 +259,7 @@ class OatWriter {
   bool WriteDexFiles(OutputStream* out, File* file);
   bool WriteDexFile(OutputStream* out, File* file, OatDexFile* oat_dex_file);
   bool SeekToDexFile(OutputStream* out, File* file, OatDexFile* oat_dex_file);
+  bool LayoutAndWriteDexFile(OutputStream* out, OatDexFile* oat_dex_file);
   bool WriteDexFile(OutputStream* out,
                     File* file,
                     OatDexFile* oat_dex_file,
@@ -421,6 +423,9 @@ class OatWriter {
 
   // The locations of absolute patches relative to the start of the executable section.
   dchecked_vector<uintptr_t> absolute_patch_locations_;
+
+  // Profile info used to generate new layout of files.
+  ProfileCompilationInfo* profile_compilation_info_;
 
   DISALLOW_COPY_AND_ASSIGN(OatWriter);
 };
