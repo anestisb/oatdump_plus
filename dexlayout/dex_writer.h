@@ -21,19 +21,19 @@
 
 #include "base/unix_file/fd_file.h"
 #include "dex_ir.h"
+#include "mem_map.h"
 #include "os.h"
 
 namespace art {
 
 class DexWriter {
  public:
-  DexWriter(dex_ir::Header& header, const char* file_name) : header_(header),
-      dex_file_(OS::CreateEmptyFileWriteOnly(file_name)) { }
+  DexWriter(dex_ir::Header* header, MemMap* mem_map) : header_(header), mem_map_(mem_map) { }
 
-  static void OutputDexFile(dex_ir::Header& header, const char* file_name);
+  static void Output(dex_ir::Header* header, MemMap* mem_map);
 
  private:
-  void WriteFile();
+  void WriteMemMap();
 
   size_t Write(const void* buffer, size_t length, size_t offset);
   size_t WriteSleb128(uint32_t value, size_t offset);
@@ -62,12 +62,11 @@ class DexWriter {
   void WriteMapItem();
   void WriteHeader();
 
-  dex_ir::Header& header_;
-  std::unique_ptr<File> dex_file_;
+  dex_ir::Header* const header_;
+  MemMap* const mem_map_;
 
   DISALLOW_COPY_AND_ASSIGN(DexWriter);
 };
-
 
 }  // namespace art
 

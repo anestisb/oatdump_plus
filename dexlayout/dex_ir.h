@@ -19,6 +19,7 @@
 #ifndef ART_DEXLAYOUT_DEX_IR_H_
 #define ART_DEXLAYOUT_DEX_IR_H_
 
+#include <map>
 #include <vector>
 #include <stdint.h>
 
@@ -98,34 +99,52 @@ class AbstractDispatcher {
 };
 
 // Collections become owners of the objects added by moving them into unique pointers.
-template<class T> class CollectionWithOffset {
+template<class T> class CollectionBase {
  public:
-  CollectionWithOffset() = default;
-  std::vector<std::unique_ptr<T>>& Collection() { return collection_; }
-  // Read-time support methods
-  void AddItem(T* object, uint32_t offset) {
-    object->SetOffset(offset);
-    collection_.push_back(std::unique_ptr<T>(object));
-  }
+  CollectionBase() = default;
+
+  uint32_t GetOffset() const { return offset_; }
+  void SetOffset(uint32_t new_offset) { offset_ = new_offset; }
+
+ private:
+  uint32_t offset_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(CollectionBase);
+};
+
+template<class T> class CollectionVector : public CollectionBase<T> {
+ public:
+  CollectionVector() = default;
+
   void AddIndexedItem(T* object, uint32_t offset, uint32_t index) {
     object->SetOffset(offset);
     object->SetIndex(index);
     collection_.push_back(std::unique_ptr<T>(object));
   }
-  // Ordinary object insertion into collection.
-  void Insert(T object ATTRIBUTE_UNUSED) {
-    // TODO(sehr): add ordered insertion support.
-    UNIMPLEMENTED(FATAL) << "Insertion not ready";
-  }
-  uint32_t GetOffset() const { return offset_; }
-  void SetOffset(uint32_t new_offset) { offset_ = new_offset; }
   uint32_t Size() const { return collection_.size(); }
+  std::vector<std::unique_ptr<T>>& Collection() { return collection_; }
 
  private:
   std::vector<std::unique_ptr<T>> collection_;
-  uint32_t offset_ = 0;
 
-  DISALLOW_COPY_AND_ASSIGN(CollectionWithOffset);
+  DISALLOW_COPY_AND_ASSIGN(CollectionVector);
+};
+
+template<class T> class CollectionMap : public CollectionBase<T> {
+ public:
+  CollectionMap() = default;
+
+  void AddItem(T* object, uint32_t offset) {
+    object->SetOffset(offset);
+    collection_.emplace(offset, std::unique_ptr<T>(object));
+  }
+  uint32_t Size() const { return collection_.size(); }
+  std::map<uint32_t, std::unique_ptr<T>>& Collection() { return collection_; }
+
+ private:
+  std::map<uint32_t, std::unique_ptr<T>> collection_;
+
+  DISALLOW_COPY_AND_ASSIGN(CollectionMap);
 };
 
 class Collections {
@@ -138,22 +157,23 @@ class Collections {
   std::vector<std::unique_ptr<FieldId>>& FieldIds() { return field_ids_.Collection(); }
   std::vector<std::unique_ptr<MethodId>>& MethodIds() { return method_ids_.Collection(); }
   std::vector<std::unique_ptr<ClassDef>>& ClassDefs() { return class_defs_.Collection(); }
-  std::vector<std::unique_ptr<StringData>>& StringDatas() { return string_datas_.Collection(); }
-  std::vector<std::unique_ptr<TypeList>>& TypeLists() { return type_lists_.Collection(); }
-  std::vector<std::unique_ptr<EncodedArrayItem>>& EncodedArrayItems()
+  std::map<uint32_t, std::unique_ptr<StringData>>& StringDatas()
+      { return string_datas_.Collection(); }
+  std::map<uint32_t, std::unique_ptr<TypeList>>& TypeLists() { return type_lists_.Collection(); }
+  std::map<uint32_t, std::unique_ptr<EncodedArrayItem>>& EncodedArrayItems()
       { return encoded_array_items_.Collection(); }
-  std::vector<std::unique_ptr<AnnotationItem>>& AnnotationItems()
+  std::map<uint32_t, std::unique_ptr<AnnotationItem>>& AnnotationItems()
       { return annotation_items_.Collection(); }
-  std::vector<std::unique_ptr<AnnotationSetItem>>& AnnotationSetItems()
+  std::map<uint32_t, std::unique_ptr<AnnotationSetItem>>& AnnotationSetItems()
       { return annotation_set_items_.Collection(); }
-  std::vector<std::unique_ptr<AnnotationSetRefList>>& AnnotationSetRefLists()
+  std::map<uint32_t, std::unique_ptr<AnnotationSetRefList>>& AnnotationSetRefLists()
       { return annotation_set_ref_lists_.Collection(); }
-  std::vector<std::unique_ptr<AnnotationsDirectoryItem>>& AnnotationsDirectoryItems()
+  std::map<uint32_t, std::unique_ptr<AnnotationsDirectoryItem>>& AnnotationsDirectoryItems()
       { return annotations_directory_items_.Collection(); }
-  std::vector<std::unique_ptr<DebugInfoItem>>& DebugInfoItems()
+  std::map<uint32_t, std::unique_ptr<DebugInfoItem>>& DebugInfoItems()
       { return debug_info_items_.Collection(); }
-  std::vector<std::unique_ptr<CodeItem>>& CodeItems() { return code_items_.Collection(); }
-  std::vector<std::unique_ptr<ClassData>>& ClassDatas() { return class_datas_.Collection(); }
+  std::map<uint32_t, std::unique_ptr<CodeItem>>& CodeItems() { return code_items_.Collection(); }
+  std::map<uint32_t, std::unique_ptr<ClassData>>& ClassDatas() { return class_datas_.Collection(); }
 
   void CreateStringId(const DexFile& dex_file, uint32_t i);
   void CreateTypeId(const DexFile& dex_file, uint32_t i);
@@ -204,7 +224,7 @@ class Collections {
   uint32_t DebugInfoItemsOffset() const { return debug_info_items_.GetOffset(); }
   uint32_t CodeItemsOffset() const { return code_items_.GetOffset(); }
   uint32_t ClassDatasOffset() const { return class_datas_.GetOffset(); }
-  uint32_t MapItemOffset() const { return map_item_offset_; }
+  uint32_t MapListOffset() const { return map_list_offset_; }
 
   void SetStringIdsOffset(uint32_t new_offset) { string_ids_.SetOffset(new_offset); }
   void SetTypeIdsOffset(uint32_t new_offset) { type_ids_.SetOffset(new_offset); }
@@ -226,7 +246,7 @@ class Collections {
   void SetDebugInfoItemsOffset(uint32_t new_offset) { debug_info_items_.SetOffset(new_offset); }
   void SetCodeItemsOffset(uint32_t new_offset) { code_items_.SetOffset(new_offset); }
   void SetClassDatasOffset(uint32_t new_offset) { class_datas_.SetOffset(new_offset); }
-  void SetMapItemOffset(uint32_t new_offset) { map_item_offset_ = new_offset; }
+  void SetMapListOffset(uint32_t new_offset) { map_list_offset_ = new_offset; }
 
   uint32_t StringIdsSize() const { return string_ids_.Size(); }
   uint32_t TypeIdsSize() const { return type_ids_.Size(); }
@@ -254,25 +274,25 @@ class Collections {
       const DexFile::AnnotationSetRefList* annotation_set_ref_list, uint32_t offset);
   MethodItem* GenerateMethodItem(const DexFile& dex_file, ClassDataItemIterator& cdii);
 
-  CollectionWithOffset<StringId> string_ids_;
-  CollectionWithOffset<TypeId> type_ids_;
-  CollectionWithOffset<ProtoId> proto_ids_;
-  CollectionWithOffset<FieldId> field_ids_;
-  CollectionWithOffset<MethodId> method_ids_;
-  CollectionWithOffset<ClassDef> class_defs_;
+  CollectionVector<StringId> string_ids_;
+  CollectionVector<TypeId> type_ids_;
+  CollectionVector<ProtoId> proto_ids_;
+  CollectionVector<FieldId> field_ids_;
+  CollectionVector<MethodId> method_ids_;
+  CollectionVector<ClassDef> class_defs_;
 
-  CollectionWithOffset<StringData> string_datas_;
-  CollectionWithOffset<TypeList> type_lists_;
-  CollectionWithOffset<EncodedArrayItem> encoded_array_items_;
-  CollectionWithOffset<AnnotationItem> annotation_items_;
-  CollectionWithOffset<AnnotationSetItem> annotation_set_items_;
-  CollectionWithOffset<AnnotationSetRefList> annotation_set_ref_lists_;
-  CollectionWithOffset<AnnotationsDirectoryItem> annotations_directory_items_;
-  CollectionWithOffset<DebugInfoItem> debug_info_items_;
-  CollectionWithOffset<CodeItem> code_items_;
-  CollectionWithOffset<ClassData> class_datas_;
+  CollectionMap<StringData> string_datas_;
+  CollectionMap<TypeList> type_lists_;
+  CollectionMap<EncodedArrayItem> encoded_array_items_;
+  CollectionMap<AnnotationItem> annotation_items_;
+  CollectionMap<AnnotationSetItem> annotation_set_items_;
+  CollectionMap<AnnotationSetRefList> annotation_set_ref_lists_;
+  CollectionMap<AnnotationsDirectoryItem> annotations_directory_items_;
+  CollectionMap<DebugInfoItem> debug_info_items_;
+  CollectionMap<CodeItem> code_items_;
+  CollectionMap<ClassData> class_datas_;
 
-  uint32_t map_item_offset_ = 0;
+  uint32_t map_list_offset_ = 0;
 
   DISALLOW_COPY_AND_ASSIGN(Collections);
 };
@@ -539,20 +559,20 @@ using FieldItemVector = std::vector<std::unique_ptr<FieldItem>>;
 
 class MethodItem : public Item {
  public:
-  MethodItem(uint32_t access_flags, const MethodId* method_id, const CodeItem* code)
+  MethodItem(uint32_t access_flags, const MethodId* method_id, CodeItem* code)
       : access_flags_(access_flags), method_id_(method_id), code_(code) { }
   ~MethodItem() OVERRIDE { }
 
   uint32_t GetAccessFlags() const { return access_flags_; }
   const MethodId* GetMethodId() const { return method_id_; }
-  const CodeItem* GetCodeItem() const { return code_; }
+  CodeItem* GetCodeItem() { return code_; }
 
   void Accept(AbstractDispatcher* dispatch) { dispatch->Dispatch(this); }
 
  private:
   uint32_t access_flags_;
   const MethodId* method_id_;
-  const CodeItem* code_;  // This can be nullptr.
+  CodeItem* code_;  // This can be nullptr.
 
   DISALLOW_COPY_AND_ASSIGN(MethodItem);
 };
