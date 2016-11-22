@@ -1980,8 +1980,16 @@ void CompilerDriver::Verify(jobject jclass_loader,
   // non boot image compilation. The verifier will need it to record the new dependencies.
   // Then dex2oat can update the vdex file with these new dependencies.
   if (!GetCompilerOptions().IsBootImage()) {
+    // Create the main VerifierDeps, and set it to this thread.
     Runtime::Current()->GetCompilerCallbacks()->SetVerifierDeps(
         new verifier::VerifierDeps(dex_files));
+    Thread::Current()->SetVerifierDeps(
+        Runtime::Current()->GetCompilerCallbacks()->GetVerifierDeps());
+    // Create per-thread VerifierDeps to avoid contention on the main one.
+    // We will merge them after verification.
+    for (ThreadPoolWorker* worker : parallel_thread_pool_->GetWorkers()) {
+      worker->GetThread()->SetVerifierDeps(new verifier::VerifierDeps(dex_files));
+    }
   }
   // Note: verification should not be pulling in classes anymore when compiling the boot image,
   //       as all should have been resolved before. As such, doing this in parallel should still
@@ -1994,6 +2002,19 @@ void CompilerDriver::Verify(jobject jclass_loader,
                   parallel_thread_pool_.get(),
                   parallel_thread_count_,
                   timings);
+  }
+
+  if (!GetCompilerOptions().IsBootImage()) {
+    verifier::VerifierDeps* main_deps =
+        Runtime::Current()->GetCompilerCallbacks()->GetVerifierDeps();
+    // Merge all VerifierDeps into the main one.
+    for (ThreadPoolWorker* worker : parallel_thread_pool_->GetWorkers()) {
+      verifier::VerifierDeps* thread_deps = worker->GetThread()->GetVerifierDeps();
+      worker->GetThread()->SetVerifierDeps(nullptr);
+      main_deps->MergeWith(*thread_deps, dex_files);;
+      delete thread_deps;
+    }
+    Thread::Current()->SetVerifierDeps(nullptr);
   }
 }
 

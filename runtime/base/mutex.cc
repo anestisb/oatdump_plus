@@ -48,7 +48,7 @@ Mutex* Locks::mem_maps_lock_ = nullptr;
 Mutex* Locks::modify_ldt_lock_ = nullptr;
 MutatorMutex* Locks::mutator_lock_ = nullptr;
 Mutex* Locks::profiler_lock_ = nullptr;
-Mutex* Locks::verifier_deps_lock_ = nullptr;
+ReaderWriterMutex* Locks::verifier_deps_lock_ = nullptr;
 ReaderWriterMutex* Locks::oat_file_manager_lock_ = nullptr;
 Mutex* Locks::host_dlopen_handles_lock_ = nullptr;
 Mutex* Locks::reference_processor_lock_ = nullptr;
@@ -1039,7 +1039,7 @@ void Locks::Init() {
 
     UPDATE_CURRENT_LOCK_LEVEL(kVerifierDepsLock);
     DCHECK(verifier_deps_lock_ == nullptr);
-    verifier_deps_lock_ = new Mutex("verifier deps lock", current_lock_level);
+    verifier_deps_lock_ = new ReaderWriterMutex("verifier deps lock", current_lock_level);
 
     UPDATE_CURRENT_LOCK_LEVEL(kHostDlOpenHandlesLock);
     DCHECK(host_dlopen_handles_lock_ == nullptr);
