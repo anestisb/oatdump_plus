@@ -269,10 +269,16 @@ static uint32_t GetNumberOfRoots(const uint8_t* stack_map) {
   return reinterpret_cast<const uint32_t*>(stack_map)[-1];
 }
 
+static void FillRootTableLength(uint8_t* roots_data, uint32_t length) {
+  // Store the length of the table at the end. This will allow fetching it from a `stack_map`
+  // pointer.
+  reinterpret_cast<uint32_t*>(roots_data)[length] = length;
+}
+
 static void FillRootTable(uint8_t* roots_data, Handle<mirror::ObjectArray<mirror::Object>> roots)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   GcRoot<mirror::Object>* gc_roots = reinterpret_cast<GcRoot<mirror::Object>*>(roots_data);
-  uint32_t length = roots->GetLength();
+  const uint32_t length = roots->GetLength();
   // Put all roots in `roots_data`.
   for (uint32_t i = 0; i < length; ++i) {
     ObjPtr<mirror::Object> object = roots->Get(i);
@@ -285,9 +291,7 @@ static void FillRootTable(uint8_t* roots_data, Handle<mirror::ObjectArray<mirror
     }
     gc_roots[i] = GcRoot<mirror::Object>(object);
   }
-  // Store the length of the table at the end. This will allow fetching it from a `stack_map`
-  // pointer.
-  reinterpret_cast<uint32_t*>(gc_roots + length)[0] = length;
+  FillRootTableLength(roots_data, length);
 }
 
 static uint8_t* GetRootTable(const void* code_ptr, uint32_t* number_of_roots = nullptr) {
@@ -396,6 +400,7 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
   // Ensure the header ends up at expected instruction alignment.
   size_t header_size = RoundUp(sizeof(OatQuickMethodHeader), alignment);
   size_t total_size = header_size + code_size;
+  const uint32_t num_roots = roots->GetLength();
 
   OatQuickMethodHeader* method_header = nullptr;
   uint8_t* code_ptr = nullptr;
@@ -408,6 +413,9 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
       ScopedCodeCacheWrite scc(code_map_.get());
       memory = AllocateCode(total_size);
       if (memory == nullptr) {
+        // Fill root table length so that ClearData works correctly in case of failure. Otherwise
+        // the length will be 0 and cause incorrect DCHECK failure.
+        FillRootTableLength(roots_data, num_roots);
         return nullptr;
       }
       code_ptr = memory + header_size;
