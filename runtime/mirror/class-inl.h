@@ -65,8 +65,10 @@ inline Class* Class::GetSuperClass() {
       OFFSET_OF_OBJECT_MEMBER(Class, super_class_));
 }
 
+template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline ClassLoader* Class::GetClassLoader() {
-  return GetFieldObject<ClassLoader>(OFFSET_OF_OBJECT_MEMBER(Class, class_loader_));
+  return GetFieldObject<ClassLoader, kVerifyFlags, kReadBarrierOption>(
+      OFFSET_OF_OBJECT_MEMBER(Class, class_loader_));
 }
 
 template<VerifyObjectFlags kVerifyFlags>

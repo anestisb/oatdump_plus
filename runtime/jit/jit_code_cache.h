@@ -36,6 +36,7 @@ namespace art {
 
 class ArtMethod;
 class LinearAlloc;
+class InlineCache;
 class ProfilingInfo;
 
 namespace jit {
@@ -156,7 +157,9 @@ class JitCodeCache {
       REQUIRES(!lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void ClearGcRootsInInlineCaches(Thread* self) REQUIRES(!lock_);
+  void CopyInlineCacheInto(const InlineCache& ic, Handle<mirror::ObjectArray<mirror::Class>> array)
+      REQUIRES(!lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Create a 'ProfileInfo' for 'method'. If 'retry_allocation' is true,
   // will collect and retry if the first allocation is unsuccessful.
@@ -199,6 +202,12 @@ class JitCodeCache {
   void SweepRootTables(IsMarkedVisitor* visitor)
       REQUIRES(!lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // The GC needs to disallow the reading of inline caches when it processes them,
+  // to avoid having a class being used while it is being deleted.
+  void AllowInlineCacheAccess() REQUIRES(!lock_);
+  void DisallowInlineCacheAccess() REQUIRES(!lock_);
+  void BroadcastForInlineCacheAccess() REQUIRES(!lock_);
 
  private:
   // Take ownership of maps.
@@ -275,6 +284,11 @@ class JitCodeCache {
   void FreeData(uint8_t* data) REQUIRES(lock_);
   uint8_t* AllocateData(size_t data_size) REQUIRES(lock_);
 
+  bool IsWeakAccessEnabled(Thread* self) const;
+  void WaitUntilInlineCacheAccessible(Thread* self)
+      REQUIRES(!lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   // Lock for guarding allocations, collections, and the method_code_map_.
   Mutex lock_;
   // Condition to wait on during collection.
@@ -346,6 +360,14 @@ class JitCodeCache {
 
   // Histograms for keeping track of profiling info statistics.
   Histogram<uint64_t> histogram_profiling_info_memory_use_ GUARDED_BY(lock_);
+
+  // Whether the GC allows accessing weaks in inline caches. Note that this
+  // is not used by the concurrent collector, which uses
+  // Thread::SetWeakRefAccessEnabled instead.
+  Atomic<bool> is_weak_access_enabled_;
+
+  // Condition to wait on for accessing inline caches.
+  ConditionVariable inline_cache_cond_ GUARDED_BY(lock_);
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(JitCodeCache);
 };
