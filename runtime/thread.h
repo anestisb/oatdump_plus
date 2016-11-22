@@ -70,7 +70,8 @@ namespace mirror {
 }  // namespace mirror
 
 namespace verifier {
-class MethodVerifier;
+  class MethodVerifier;
+  class VerifierDeps;
 }  // namespace verifier
 
 class ArtMethod;
@@ -947,11 +948,25 @@ class Thread {
   }
 
   std::vector<ArtMethod*>* GetStackTraceSample() const {
-    return tlsPtr_.stack_trace_sample;
+    return tlsPtr_.deps_or_stack_trace_sample.stack_trace_sample;
   }
 
   void SetStackTraceSample(std::vector<ArtMethod*>* sample) {
-    tlsPtr_.stack_trace_sample = sample;
+    DCHECK(sample == nullptr || tlsPtr_.deps_or_stack_trace_sample.verifier_deps == nullptr);
+    tlsPtr_.deps_or_stack_trace_sample.stack_trace_sample = sample;
+  }
+
+  verifier::VerifierDeps* GetVerifierDeps() const {
+    return tlsPtr_.deps_or_stack_trace_sample.verifier_deps;
+  }
+
+  // It is the responsability of the caller to make sure the verifier_deps
+  // entry in the thread is cleared before destruction of the actual VerifierDeps
+  // object, or the thread.
+  void SetVerifierDeps(verifier::VerifierDeps* verifier_deps) {
+    DCHECK(verifier_deps == nullptr ||
+           tlsPtr_.deps_or_stack_trace_sample.stack_trace_sample == nullptr);
+    tlsPtr_.deps_or_stack_trace_sample.verifier_deps = verifier_deps;
   }
 
   uint64_t GetTraceClockBase() const {
@@ -1378,7 +1393,7 @@ class Thread {
       tls_ptr_sized_values() : card_table(nullptr), exception(nullptr), stack_end(nullptr),
       managed_stack(), suspend_trigger(nullptr), jni_env(nullptr), tmp_jni_env(nullptr),
       self(nullptr), opeer(nullptr), jpeer(nullptr), stack_begin(nullptr), stack_size(0),
-      stack_trace_sample(nullptr), wait_next(nullptr), monitor_enter_object(nullptr),
+      deps_or_stack_trace_sample(), wait_next(nullptr), monitor_enter_object(nullptr),
       top_handle_scope(nullptr), class_loader_override(nullptr), long_jump_context(nullptr),
       instrumentation_stack(nullptr), debug_invoke_req(nullptr), single_step_control(nullptr),
       stacked_shadow_frame_record(nullptr), deoptimization_context_stack(nullptr),
@@ -1432,8 +1447,18 @@ class Thread {
     // Size of the stack.
     size_t stack_size;
 
-    // Pointer to previous stack trace captured by sampling profiler.
-    std::vector<ArtMethod*>* stack_trace_sample;
+    // Sampling profiler and AOT verification cannot happen on the same run, so we share
+    // the same entry for the stack trace and the verifier deps.
+    union DepsOrStackTraceSample {
+      DepsOrStackTraceSample() {
+        verifier_deps = nullptr;
+        stack_trace_sample = nullptr;
+      }
+      // Pointer to previous stack trace captured by sampling profiler.
+      std::vector<ArtMethod*>* stack_trace_sample;
+      // When doing AOT verification, per-thread VerifierDeps.
+      verifier::VerifierDeps* verifier_deps;
+    } deps_or_stack_trace_sample;
 
     // The next thread in the wait set this thread is part of or null if not waiting.
     Thread* wait_next;

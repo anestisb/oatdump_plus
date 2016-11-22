@@ -1900,7 +1900,7 @@ Thread::~Thread() {
   }
   delete tlsPtr_.instrumentation_stack;
   delete tlsPtr_.name;
-  delete tlsPtr_.stack_trace_sample;
+  delete tlsPtr_.deps_or_stack_trace_sample.stack_trace_sample;
   free(tlsPtr_.nested_signal_state);
 
   Runtime::Current()->GetHeap()->AssertThreadLocalBuffersAreRevoked(this);
