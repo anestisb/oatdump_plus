@@ -142,7 +142,6 @@ uint32_t ClassTable::ClassDescriptorHashEquals::operator()(const GcRoot<mirror::
 
 bool ClassTable::ClassDescriptorHashEquals::operator()(const GcRoot<mirror::Class>& a,
                                                        const GcRoot<mirror::Class>& b) const {
-  DCHECK_EQ(a.Read()->GetClassLoader(), b.Read()->GetClassLoader());
   std::string temp;
   return a.Read()->DescriptorEquals(b.Read()->GetDescriptor(&temp));
 }
