@@ -1211,7 +1211,7 @@ bool OptimizingCompiler::JitCompile(Thread* self,
       roots);
 
   if (code == nullptr) {
-    code_cache->ClearData(self, stack_map_data);
+    code_cache->ClearData(self, stack_map_data, roots_data);
     return false;
   }
 

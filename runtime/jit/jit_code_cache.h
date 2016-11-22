@@ -122,7 +122,7 @@ class JitCodeCache {
       REQUIRES(!lock_);
 
   // Clear data from the data portion of the code cache.
-  void ClearData(Thread* self, void* data)
+  void ClearData(Thread* self, uint8_t* stack_map_data, uint8_t* roots_data)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!lock_);
 

@@ -482,9 +482,16 @@ size_t JitCodeCache::DataCacheSizeLocked() {
   return used_memory_for_data_;
 }
 
-void JitCodeCache::ClearData(Thread* self, void* data) {
+static const uint8_t* FromStackMapToRoots(const uint8_t* stack_map_data) {
+  return stack_map_data - ComputeRootTableSize(GetNumberOfRoots(stack_map_data));
+}
+
+void JitCodeCache::ClearData(Thread* self,
+                             uint8_t* stack_map_data,
+                             uint8_t* roots_data) {
+  DCHECK_EQ(FromStackMapToRoots(stack_map_data), roots_data);
   MutexLock mu(self, lock_);
-  FreeData(reinterpret_cast<uint8_t*>(data));
+  FreeData(reinterpret_cast<uint8_t*>(roots_data));
 }
 
 void JitCodeCache::ReserveData(Thread* self,
