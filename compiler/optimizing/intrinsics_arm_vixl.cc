@@ -1281,20 +1281,20 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringCompareTo(HInvoke* invoke) {
     // For compressed strings we need to clear 0x7 from temp1, for uncompressed we need to clear
     // 0xf. We also need to prepare the character extraction mask `uncompressed ? 0xffffu : 0xffu`.
     // The compression flag is now in the highest bit of temp3, so let's play some tricks.
-    __ orr(temp3, temp3, 0xffu << 23);                  // uncompressed ? 0xff800000u : 0x7ff80000u
-    __ bic(temp1, temp1, Operand(temp3, vixl32::LSR, 31 - 3));  // &= ~(uncompressed ? 0xfu : 0x7u)
+    __ Orr(temp3, temp3, 0xffu << 23);                  // uncompressed ? 0xff800000u : 0x7ff80000u
+    __ Bic(temp1, temp1, Operand(temp3, vixl32::LSR, 31 - 3));  // &= ~(uncompressed ? 0xfu : 0x7u)
     __ Asr(temp3, temp3, 7u);                           // uncompressed ? 0xffff0000u : 0xff0000u.
     __ Lsr(temp2, temp2, temp1);                        // Extract second character.
     __ Lsr(temp3, temp3, 16u);                          // uncompressed ? 0xffffu : 0xffu
     __ Lsr(out, temp_reg, temp1);                       // Extract first character.
-    __ and_(temp2, temp2, temp3);
-    __ and_(out, out, temp3);
+    __ And(temp2, temp2, temp3);
+    __ And(out, out, temp3);
   } else {
-    __ bic(temp1, temp1, 0xf);
+    __ Bic(temp1, temp1, 0xf);
     __ Lsr(temp2, temp2, temp1);
     __ Lsr(out, temp_reg, temp1);
-    __ movt(temp2, 0);
-    __ movt(out, 0);
+    __ Movt(temp2, 0);
+    __ Movt(out, 0);
   }
 
   __ Sub(out, out, temp2);
@@ -1313,10 +1313,10 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringCompareTo(HInvoke* invoke) {
     // need to treat as unsigned. Start by freeing the bit with an ADD and continue
     // further down by a LSRS+SBC which will flip the meaning of the flag but allow
     // `subs temp0, #2; bhi different_compression_loop` to serve as the loop condition.
-    __ add(temp0, temp0, temp0);              // Unlike LSL, this ADD is always 16-bit.
+    __ Add(temp0, temp0, temp0);              // Unlike LSL, this ADD is always 16-bit.
     // `temp1` will hold the compressed data pointer, `temp2` the uncompressed data pointer.
-    __ mov(temp1, str);
-    __ mov(temp2, arg);
+    __ Mov(temp1, str);
+    __ Mov(temp2, arg);
     __ Lsrs(temp3, temp3, 1u);                // Continue the move of the compression flag.
     {
       AssemblerAccurateScope aas(assembler->GetVIXLAssembler(),
@@ -1326,11 +1326,11 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringCompareTo(HInvoke* invoke) {
       __ mov(cs, temp1, arg);                 // Preserves flags.
       __ mov(cs, temp2, str);                 // Preserves flags.
     }
-    __ sbc(temp0, temp0, 0);                  // Complete the move of the compression flag.
+    __ Sbc(temp0, temp0, 0);                  // Complete the move of the compression flag.
 
     // Adjust temp1 and temp2 from string pointers to data pointers.
-    __ add(temp1, temp1, value_offset);
-    __ add(temp2, temp2, value_offset);
+    __ Add(temp1, temp1, value_offset);
+    __ Add(temp2, temp2, value_offset);
 
     vixl32::Label different_compression_loop;
     vixl32::Label different_compression_diff;
@@ -1340,7 +1340,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringCompareTo(HInvoke* invoke) {
     __ Bind(&different_compression_loop);
     __ Ldrb(temp_reg, MemOperand(temp1, c_char_size, PostIndex));
     __ Ldrh(temp3, MemOperand(temp2, char_size, PostIndex));
-    __ cmp(temp_reg, temp3);
+    __ Cmp(temp_reg, temp3);
     __ B(ne, &different_compression_diff);
     __ Subs(temp0, temp0, 2);
     __ B(hi, &different_compression_loop);
