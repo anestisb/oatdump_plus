@@ -211,7 +211,9 @@ void CompilationHelper::Compile(CompilerDriver* driver,
                                                       &driver->GetCompilerOptions(),
                                                       oat_file.GetFile()));
         elf_writers.back()->Start();
-        oat_writers.emplace_back(new OatWriter(/*compiling_boot_image*/true, &timings));
+        oat_writers.emplace_back(new OatWriter(/*compiling_boot_image*/true,
+                                               &timings,
+                                               /*profile_compilation_info*/nullptr));
       }
 
       std::vector<OutputStream*> rodata;
