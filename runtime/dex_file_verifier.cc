@@ -19,6 +19,7 @@
 #include <inttypes.h>
 #include <zlib.h>
 
+#include <limits>
 #include <memory>
 
 #include "base/stringprintf.h"
@@ -30,6 +31,16 @@
 #include "utils.h"
 
 namespace art {
+
+static constexpr uint32_t kTypeIdLimit = std::numeric_limits<uint16_t>::max();
+
+static bool IsValidOrNoTypeId(uint16_t low, uint16_t high) {
+  return (high == 0) || ((high == 0xffffU) && (low == 0xffffU));
+}
+
+static bool IsValidTypeId(uint16_t low ATTRIBUTE_UNUSED, uint16_t high) {
+  return (high == 0);
+}
 
 static uint32_t MapTypeToBitMask(uint32_t map_type) {
   switch (map_type) {
@@ -1790,6 +1801,12 @@ bool DexFileVerifier::CheckInterProtoIdItem() {
     return false;
   }
 
+  // Check that return type is representable as a uint16_t;
+  if (UNLIKELY(!IsValidOrNoTypeId(item->return_type_idx_.index_, item->pad_))) {
+    ErrorStringPrintf("proto with return type idx outside uint16_t range '%x:%x'",
+                      item->pad_, item->return_type_idx_.index_);
+    return false;
+  }
   // Check the return type and advance the shorty.
   LOAD_STRING_BY_TYPE(return_type, item->return_type_idx_, "inter_proto_id_item return_type_idx")
   if (!CheckShortyDescriptorMatch(*shorty, return_type, true)) {
@@ -1952,6 +1969,18 @@ bool DexFileVerifier::CheckInterMethodIdItem() {
 bool DexFileVerifier::CheckInterClassDefItem() {
   const DexFile::ClassDef* item = reinterpret_cast<const DexFile::ClassDef*>(ptr_);
 
+  // Check that class_idx_ is representable as a uint16_t;
+  if (UNLIKELY(!IsValidTypeId(item->class_idx_.index_, item->pad1_))) {
+    ErrorStringPrintf("class with type idx outside uint16_t range '%x:%x'", item->pad1_,
+                      item->class_idx_.index_);
+    return false;
+  }
+  // Check that superclass_idx_ is representable as a uint16_t;
+  if (UNLIKELY(!IsValidOrNoTypeId(item->superclass_idx_.index_, item->pad2_))) {
+    ErrorStringPrintf("class with superclass type idx outside uint16_t range '%x:%x'", item->pad2_,
+                      item->superclass_idx_.index_);
+    return false;
+  }
   // Check for duplicate class def.
   if (defined_classes_.find(item->class_idx_) != defined_classes_.end()) {
     ErrorStringPrintf("Redefinition of class with type idx: '%d'", item->class_idx_.index_);
@@ -2320,6 +2349,14 @@ bool DexFileVerifier::CheckInterSectionIterate(size_t offset, uint32_t count, ui
         break;
       }
       case DexFile::kDexTypeClassDefItem: {
+        // There shouldn't be more class definitions than type ids allow.
+        // This check should be redundant, since there are checks that the
+        // class_idx_ is within range and that there is only one definition
+        // for a given type id.
+        if (i > kTypeIdLimit) {
+          ErrorStringPrintf("Too many class definition items");
+          return false;
+        }
         if (!CheckInterClassDefItem()) {
           return false;
         }
@@ -2338,6 +2375,14 @@ bool DexFileVerifier::CheckInterSectionIterate(size_t offset, uint32_t count, ui
         break;
       }
       case DexFile::kDexTypeClassDataItem: {
+        // There shouldn't be more class data than type ids allow.
+        // This check should be redundant, since there are checks that the
+        // class_idx_ is within range and that there is only one definition
+        // for a given type id.
+        if (i > kTypeIdLimit) {
+          ErrorStringPrintf("Too many class data items");
+          return false;
+        }
         if (!CheckInterClassDataItem()) {
           return false;
         }
