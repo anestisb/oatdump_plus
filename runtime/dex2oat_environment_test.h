@@ -136,7 +136,9 @@ class Dex2oatEnvironmentTest : public CommonRuntimeTest {
       + "/core.art";
   }
 
-  bool GetCachedImageFile(/*out*/std::string* image, std::string* error_msg) const {
+  bool GetCachedImageFile(const std::string& image_location,
+                          /*out*/std::string* image,
+                          /*out*/std::string* error_msg) const {
     std::string cache;
     bool have_android_data;
     bool dalvik_cache_exists;
@@ -151,7 +153,14 @@ class Dex2oatEnvironmentTest : public CommonRuntimeTest {
       *error_msg = "Failed to create dalvik cache";
       return false;
     }
-    return GetDalvikCacheFilename(GetImageLocation().c_str(), cache.c_str(), image, error_msg);
+    return GetDalvikCacheFilename(image_location.c_str(), cache.c_str(), image, error_msg);
+  }
+
+  // Returns the path to an image location whose contents differ from the
+  // image at GetImageLocation(). This is used for testing mismatched
+  // image checksums in the oat_file_assistant_tests.
+  std::string GetImageLocation2() const {
+    return GetImageDirectory() + "/core-npic.art";
   }
 
   std::string GetDexSrc1() const {

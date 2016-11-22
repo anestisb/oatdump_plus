@@ -36,14 +36,20 @@ namespace art {
 
 std::ostream& operator << (std::ostream& stream, const OatFileAssistant::OatStatus status) {
   switch (status) {
-    case OatFileAssistant::kOatOutOfDate:
-      stream << "kOatOutOfDate";
+    case OatFileAssistant::kOatCannotOpen:
+      stream << "kOatCannotOpen";
+      break;
+    case OatFileAssistant::kOatDexOutOfDate:
+      stream << "kOatDexOutOfDate";
+      break;
+    case OatFileAssistant::kOatBootImageOutOfDate:
+      stream << "kOatBootImageOutOfDate";
+      break;
+    case OatFileAssistant::kOatRelocationOutOfDate:
+      stream << "kOatRelocationOutOfDate";
       break;
     case OatFileAssistant::kOatUpToDate:
       stream << "kOatUpToDate";
-      break;
-    case OatFileAssistant::kOatNeedsRelocation:
-      stream << "kOatNeedsRelocation";
       break;
     default:
       UNREACHABLE();
@@ -204,20 +210,28 @@ std::string OatFileAssistant::GetStatusDump() {
   std::ostringstream status;
   bool oat_file_exists = false;
   bool odex_file_exists = false;
-  if (oat_.Exists()) {
+  if (oat_.Status() != kOatCannotOpen) {
+    // If we can open the file, neither Filename nor GetFile should return null.
+    CHECK(oat_.Filename() != nullptr);
+    CHECK(oat_.GetFile() != nullptr);
+
     oat_file_exists = true;
     status << *oat_.Filename() << " [compilation_filter=";
-    status << CompilerFilter::NameOfFilter(oat_.CompilerFilter());
+    status << CompilerFilter::NameOfFilter(oat_.GetFile()->GetCompilerFilter());
     status << ", status=" << oat_.Status();
   }
 
-  if (odex_.Exists()) {
+  if (odex_.Status() != kOatCannotOpen) {
+    // If we can open the file, neither Filename nor GetFile should return null.
+    CHECK(odex_.Filename() != nullptr);
+    CHECK(odex_.GetFile() != nullptr);
+
     odex_file_exists = true;
     if (oat_file_exists) {
       status << "] ";
     }
     status << *odex_.Filename() << " [compilation_filter=";
-    status << CompilerFilter::NameOfFilter(odex_.CompilerFilter());
+    status << CompilerFilter::NameOfFilter(odex_.GetFile()->GetCompilerFilter());
     status << ", status=" << odex_.Status();
   }
 
@@ -276,16 +290,8 @@ bool OatFileAssistant::HasOriginalDexFiles() {
   return has_original_dex_files_;
 }
 
-bool OatFileAssistant::OdexFileExists() {
-  return odex_.Exists();
-}
-
 OatFileAssistant::OatStatus OatFileAssistant::OdexFileStatus() {
   return odex_.Status();
-}
-
-bool OatFileAssistant::OatFileExists() {
-  return oat_.Exists();
 }
 
 OatFileAssistant::OatStatus OatFileAssistant::OatFileStatus() {
@@ -302,7 +308,7 @@ OatFileAssistant::OatStatus OatFileAssistant::GivenOatFileStatus(const OatFile& 
       dex_location_.c_str(), dex_checksum_pointer, &error_msg);
   if (oat_dex_file == nullptr) {
     VLOG(oat) << error_msg;
-    return kOatOutOfDate;
+    return kOatDexOutOfDate;
   }
 
   // Verify the dex checksums for any secondary multidex files
@@ -325,7 +331,7 @@ OatFileAssistant::OatStatus OatFileAssistant::GivenOatFileStatus(const OatFile& 
           << secondary_dex_location
           << ". Expected: " << expected_secondary_checksum
           << ", Actual: " << actual_secondary_checksum;
-        return kOatOutOfDate;
+        return kOatDexOutOfDate;
       }
     } else {
       // If we can't get the checksum for the secondary location, we assume
@@ -344,7 +350,7 @@ OatFileAssistant::OatStatus OatFileAssistant::GivenOatFileStatus(const OatFile& 
       VLOG(oat) << "No image for oat image checksum to match against.";
 
       if (HasOriginalDexFiles()) {
-        return kOatOutOfDate;
+        return kOatBootImageOutOfDate;
       }
 
       // If there is no original dex file to fall back to, grudgingly accept
@@ -358,7 +364,7 @@ OatFileAssistant::OatStatus OatFileAssistant::GivenOatFileStatus(const OatFile& 
     } else if (file.GetOatHeader().GetImageFileLocationOatChecksum()
         != GetCombinedImageChecksum()) {
       VLOG(oat) << "Oat image checksum does not match image checksum.";
-      return kOatOutOfDate;
+      return kOatBootImageOutOfDate;
     }
   } else {
     VLOG(oat) << "Image checksum test skipped for compiler filter " << current_compiler_filter;
@@ -369,7 +375,7 @@ OatFileAssistant::OatStatus OatFileAssistant::GivenOatFileStatus(const OatFile& 
       const ImageInfo* image_info = GetImageInfo();
       if (image_info == nullptr) {
         VLOG(oat) << "No image to check oat relocation against.";
-        return kOatNeedsRelocation;
+        return kOatRelocationOutOfDate;
       }
 
       // Verify the oat_data_begin recorded for the image in the oat file matches
@@ -381,7 +387,7 @@ OatFileAssistant::OatStatus OatFileAssistant::GivenOatFileStatus(const OatFile& 
           ": Oat file image oat_data_begin (" << oat_data_begin << ")"
           << " does not match actual image oat_data_begin ("
           << image_info->oat_data_begin << ")";
-        return kOatNeedsRelocation;
+        return kOatRelocationOutOfDate;
       }
 
       // Verify the oat_patch_delta recorded for the image in the oat file matches
@@ -392,7 +398,7 @@ OatFileAssistant::OatStatus OatFileAssistant::GivenOatFileStatus(const OatFile& 
           ": Oat file image patch delta (" << oat_patch_delta << ")"
           << " does not match actual image patch delta ("
           << image_info->patch_delta << ")";
-        return kOatNeedsRelocation;
+        return kOatRelocationOutOfDate;
       }
     } else {
       // Oat files compiled in PIC mode do not require relocation.
@@ -761,7 +767,8 @@ uint32_t OatFileAssistant::GetCombinedImageChecksum() {
 }
 
 OatFileAssistant::OatFileInfo& OatFileAssistant::GetBestInfo() {
-  return oat_.Status() != kOatOutOfDate ? oat_ : odex_;
+  bool use_oat = oat_.IsUseable() || odex_.Status() == kOatCannotOpen;
+  return use_oat ? oat_ : odex_;
 }
 
 std::unique_ptr<gc::space::ImageSpace> OatFileAssistant::OpenImageSpace(const OatFile* oat_file) {
@@ -793,8 +800,16 @@ const std::string* OatFileAssistant::OatFileInfo::Filename() {
   return filename_provided_ ? &filename_ : nullptr;
 }
 
-bool OatFileAssistant::OatFileInfo::Exists() {
-  return GetFile() != nullptr;
+bool OatFileAssistant::OatFileInfo::IsUseable() {
+  switch (Status()) {
+    case kOatCannotOpen:
+    case kOatDexOutOfDate:
+    case kOatBootImageOutOfDate: return false;
+
+    case kOatRelocationOutOfDate:
+    case kOatUpToDate: return true;
+  }
+  UNREACHABLE();
 }
 
 OatFileAssistant::OatStatus OatFileAssistant::OatFileInfo::Status() {
@@ -802,7 +817,7 @@ OatFileAssistant::OatStatus OatFileAssistant::OatFileInfo::Status() {
     status_attempted_ = true;
     const OatFile* file = GetFile();
     if (file == nullptr) {
-      status_ = kOatOutOfDate;
+      status_ = kOatCannotOpen;
     } else {
       status_ = oat_file_assistant_->GivenOatFileStatus(*file);
       VLOG(oat) << file->GetLocation() << " is " << status_
@@ -810,12 +825,6 @@ OatFileAssistant::OatStatus OatFileAssistant::OatFileInfo::Status() {
     }
   }
   return status_;
-}
-
-CompilerFilter::Filter OatFileAssistant::OatFileInfo::CompilerFilter() {
-  const OatFile* file = GetFile();
-  CHECK(file != nullptr);
-  return file->GetCompilerFilter();
 }
 
 OatFileAssistant::DexOptNeeded OatFileAssistant::OatFileInfo::GetDexOptNeeded(
@@ -828,7 +837,7 @@ OatFileAssistant::DexOptNeeded OatFileAssistant::OatFileInfo::GetDexOptNeeded(
       return kNoDexOptNeeded;
     }
 
-    if (Status() == kOatNeedsRelocation) {
+    if (Status() == kOatRelocationOutOfDate) {
       if (!compilation_desired) {
         // If no compilation is desired, then it doesn't matter if the oat
         // file needs relocation. It's in good shape as is.
@@ -919,18 +928,18 @@ std::unique_ptr<OatFile> OatFileAssistant::OatFileInfo::ReleaseFileForUse() {
   VLOG(oat) << "Oat File Assistant: No relocated oat file found,"
     << " attempting to fall back to interpreting oat file instead.";
 
-  if (Status() == kOatNeedsRelocation && !IsExecutable()) {
+  if (Status() == kOatRelocationOutOfDate && !IsExecutable()) {
     return ReleaseFile();
   }
 
-  if (Status() == kOatNeedsRelocation) {
+  if (Status() == kOatRelocationOutOfDate) {
     // We are loading an oat file for runtime use that needs relocation.
     // Reload the file non-executable to ensure that we interpret out of the
     // dex code in the oat file rather than trying to execute the unrelocated
     // compiled code.
     oat_file_assistant_->load_executable_ = false;
     Reset();
-    if (Status() != kOatOutOfDate) {
+    if (IsUseable()) {
       CHECK(!IsExecutable());
       return ReleaseFile();
     }
