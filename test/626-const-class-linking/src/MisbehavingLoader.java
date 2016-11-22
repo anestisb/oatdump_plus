@@ -40,7 +40,6 @@ public class MisbehavingLoader extends DefiningLoader {
             return super.loadClass(name, resolve);
         } else if (name.equals("Test")) {
             // Ask for a different class.
-            System.out.println("MisbehavingLoader loading Helper2 instead of Test");
             return defining_loader.loadClass("Helper2", resolve);
         }
         return super.loadClass(name, resolve);
