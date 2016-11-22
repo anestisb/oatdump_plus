@@ -1480,13 +1480,15 @@ class Dex2Oat FINAL {
         // Unzip or copy dex files straight to the oat file.
         std::unique_ptr<MemMap> opened_dex_files_map;
         std::vector<std::unique_ptr<const DexFile>> opened_dex_files;
+        // Dexlayout verifies the dex file, so disable dex file verification in that case.
+        bool verify = compiler_options_->GetCompilerFilter() != CompilerFilter::kLayoutProfile;
         if (!oat_writers_[i]->WriteAndOpenDexFiles(
             kIsVdexEnabled ? vdex_files_[i].get() : oat_files_[i].get(),
             rodata_.back(),
             instruction_set_,
             instruction_set_features_.get(),
             key_value_store_.get(),
-            /* verify */ true,
+            verify,
             &opened_dex_files_map,
             &opened_dex_files)) {
           return false;
