@@ -658,8 +658,8 @@ class Locks {
   // Guards opened oat files in OatFileManager.
   static ReaderWriterMutex* oat_file_manager_lock_ ACQUIRED_AFTER(modify_ldt_lock_);
 
-  // Guards verifier dependency collection in VerifierDeps.
-  static Mutex* verifier_deps_lock_ ACQUIRED_AFTER(oat_file_manager_lock_);
+  // Guards extra string entries for VerifierDeps.
+  static ReaderWriterMutex* verifier_deps_lock_ ACQUIRED_AFTER(oat_file_manager_lock_);
 
   // Guards dlopen_handles_ in DlOpenOatFile.
   static Mutex* host_dlopen_handles_lock_ ACQUIRED_AFTER(verifier_deps_lock_);
