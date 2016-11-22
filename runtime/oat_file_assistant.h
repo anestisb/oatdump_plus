@@ -48,25 +48,33 @@ class ImageSpace;
 class OatFileAssistant {
  public:
   enum DexOptNeeded {
-    // kNoDexOptNeeded - The code for this dex location is up to date and can
-    // be used as is.
+    // No dexopt should (or can) be done to update the apk/jar.
     // Matches Java: dalvik.system.DexFile.NO_DEXOPT_NEEDED = 0
     kNoDexOptNeeded = 0,
 
-    // kDex2OatNeeded - In order to make the code for this dex location up to
-    // date, dex2oat must be run on the dex file.
-    // Matches Java: dalvik.system.DexFile.DEX2OAT_NEEDED = 1
-    kDex2OatNeeded = 1,
+    // dex2oat should be run to update the apk/jar from scratch.
+    // Matches Java: dalvik.system.DexFile.DEX2OAT_FROM_SCRATCH = 1
+    kDex2OatFromScratch = 1,
 
-    // kPatchOatNeeded - In order to make the code for this dex location up to
-    // date, patchoat must be run on the odex file.
-    // Matches Java: dalvik.system.DexFile.PATCHOAT_NEEDED = 2
-    kPatchOatNeeded = 2,
+    // dex2oat should be run to update the apk/jar because the existing code
+    // is out of date with respect to the boot image.
+    // Matches Java: dalvik.system.DexFile.DEX2OAT_FOR_BOOT_IMAGE
+    kDex2OatForBootImage = 2,
 
-    // kSelfPatchOatNeeded - In order to make the code for this dex location
-    // up to date, patchoat must be run on the oat file.
-    // Matches Java: dalvik.system.DexFile.SELF_PATCHOAT_NEEDED = 3
-    kSelfPatchOatNeeded = 3,
+    // dex2oat should be run to update the apk/jar because the existing code
+    // is out of date with respect to the target compiler filter.
+    // Matches Java: dalvik.system.DexFile.DEX2OAT_FOR_FILTER
+    kDex2OatForFilter = 3,
+
+    // dex2oat should be run to update the apk/jar because the existing code
+    // is not relocated to match the boot image and does not have the
+    // necessary patch information to use patchoat.
+    // Matches Java: dalvik.system.DexFile.DEX2OAT_FOR_RELOCATION
+    kDex2OatForRelocation = 4,
+
+    // patchoat should be run to update the apk/jar.
+    // Matches Java: dalvik.system.DexFile.PATCHOAT_FOR_RELOCATION
+    kPatchoatForRelocation = 5,
   };
 
   enum OatStatus {
@@ -149,8 +157,10 @@ class OatFileAssistant {
   // dex location that is at least as good as an oat file generated with the
   // given compiler filter. profile_changed should be true to indicate the
   // profile has recently changed for this dex location.
-  DexOptNeeded GetDexOptNeeded(CompilerFilter::Filter target_compiler_filter,
-                               bool profile_changed = false);
+  // Returns a positive status code if the status refers to the oat file in
+  // the oat location. Returns a negative status code if the status refers to
+  // the oat file in the odex location.
+  int GetDexOptNeeded(CompilerFilter::Filter target_compiler_filter, bool profile_changed = false);
 
   // Returns true if there is up-to-date code for this dex location,
   // irrespective of the compiler filter of the up-to-date code.
