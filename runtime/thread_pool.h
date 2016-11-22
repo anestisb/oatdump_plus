@@ -62,6 +62,8 @@ class ThreadPoolWorker {
   // Set the "nice" priorty for this worker.
   void SetPthreadPriority(int priority);
 
+  Thread* GetThread() const { return thread_; }
+
  protected:
   ThreadPoolWorker(ThreadPool* thread_pool, const std::string& name, size_t stack_size);
   static void* Callback(void* arg) REQUIRES(!Locks::mutator_lock_);
@@ -71,6 +73,7 @@ class ThreadPoolWorker {
   const std::string name_;
   std::unique_ptr<MemMap> stack_;
   pthread_t pthread_;
+  Thread* thread_;
 
  private:
   friend class ThreadPool;
@@ -82,6 +85,10 @@ class ThreadPool {
   // Returns the number of threads in the thread pool.
   size_t GetThreadCount() const {
     return threads_.size();
+  }
+
+  const std::vector<ThreadPoolWorker*>& GetWorkers() const {
+    return threads_;
   }
 
   // Broadcast to the workers and tell them to empty out the work queue.

@@ -18,6 +18,7 @@
 #define ART_RUNTIME_BASE_STL_UTIL_H_
 
 #include <algorithm>
+#include <set>
 #include <sstream>
 
 #include "base/logging.h"
@@ -186,6 +187,12 @@ template <typename T>
 struct Identity {
   using type = T;
 };
+
+// Merge `other` entries into `to_update`.
+template <typename T>
+static inline void MergeSets(std::set<T>& to_update, const std::set<T>& other) {
+  to_update.insert(other.begin(), other.end());
+}
 
 }  // namespace art
 
