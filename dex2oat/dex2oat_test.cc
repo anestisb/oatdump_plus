@@ -552,8 +552,7 @@ TEST_F(Dex2oatVeryLargeTest, UseVeryLarge) {
   RunTest(CompilerFilter::kSpeed, true, { "--very-large-app-threshold=100" });
 }
 
-static const char kDexFileLayoutInputProfile[] =
-    "cHJvADAwMgABAAsAAAABAPUpbf5jbGFzc2VzLmRleAEA";
+static const char kDexFileLayoutInputProfile[] = "cHJvADAwMgABAAwAAQABAOqMEeFEZXhOb09hdC5qYXIBAAEA";
 
 static void WriteFileBase64(const char* base64, const char* location) {
   // Decode base64.
@@ -608,11 +607,26 @@ class Dex2oatLayoutTest : public Dex2oatTest {
                                                      &error_msg));
     ASSERT_TRUE(odex_file.get() != nullptr) << error_msg;
 
+    const char* location = dex_location.c_str();
+    std::vector<std::unique_ptr<const DexFile>> dex_files;
+    ASSERT_TRUE(DexFile::Open(location, location, true, &error_msg, &dex_files));
+    EXPECT_EQ(dex_files.size(), 1U);
+    std::unique_ptr<const DexFile>& old_dex_file = dex_files[0];
+
     for (const OatDexFile* oat_dex_file : odex_file->GetOatDexFiles()) {
-      std::unique_ptr<const DexFile> dex_file = oat_dex_file->OpenDexFile(&error_msg);
-      ASSERT_TRUE(dex_file != nullptr);
-      uint32_t class_def_count = dex_file->NumClassDefs();
+      std::unique_ptr<const DexFile> new_dex_file = oat_dex_file->OpenDexFile(&error_msg);
+      ASSERT_TRUE(new_dex_file != nullptr);
+      uint32_t class_def_count = new_dex_file->NumClassDefs();
       ASSERT_LT(class_def_count, std::numeric_limits<uint16_t>::max());
+      ASSERT_GE(class_def_count, 2U);
+
+      // The new layout swaps the classes at indexes 0 and 1.
+      std::string old_class0 = old_dex_file->PrettyType(old_dex_file->GetClassDef(0).class_idx_);
+      std::string old_class1 = old_dex_file->PrettyType(old_dex_file->GetClassDef(1).class_idx_);
+      std::string new_class0 = new_dex_file->PrettyType(new_dex_file->GetClassDef(0).class_idx_);
+      std::string new_class1 = new_dex_file->PrettyType(new_dex_file->GetClassDef(1).class_idx_);
+      EXPECT_EQ(old_class0, new_class1);
+      EXPECT_EQ(old_class1, new_class0);
     }
 
     EXPECT_EQ(odex_file->GetCompilerFilter(), CompilerFilter::kLayoutProfile);
