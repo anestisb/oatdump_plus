@@ -39,6 +39,7 @@
 #include "jvalue.h"
 #include "object_callbacks.h"
 #include "offsets.h"
+#include "runtime.h"
 #include "runtime_stats.h"
 #include "stack.h"
 #include "thread_state.h"
@@ -948,15 +949,17 @@ class Thread {
   }
 
   std::vector<ArtMethod*>* GetStackTraceSample() const {
+    DCHECK(!Runtime::Current()->IsAotCompiler());
     return tlsPtr_.deps_or_stack_trace_sample.stack_trace_sample;
   }
 
   void SetStackTraceSample(std::vector<ArtMethod*>* sample) {
-    DCHECK(sample == nullptr || tlsPtr_.deps_or_stack_trace_sample.verifier_deps == nullptr);
+    DCHECK(!Runtime::Current()->IsAotCompiler());
     tlsPtr_.deps_or_stack_trace_sample.stack_trace_sample = sample;
   }
 
   verifier::VerifierDeps* GetVerifierDeps() const {
+    DCHECK(Runtime::Current()->IsAotCompiler());
     return tlsPtr_.deps_or_stack_trace_sample.verifier_deps;
   }
 
@@ -964,8 +967,8 @@ class Thread {
   // entry in the thread is cleared before destruction of the actual VerifierDeps
   // object, or the thread.
   void SetVerifierDeps(verifier::VerifierDeps* verifier_deps) {
-    DCHECK(verifier_deps == nullptr ||
-           tlsPtr_.deps_or_stack_trace_sample.stack_trace_sample == nullptr);
+    DCHECK(Runtime::Current()->IsAotCompiler());
+    DCHECK(verifier_deps == nullptr || tlsPtr_.deps_or_stack_trace_sample.verifier_deps == nullptr);
     tlsPtr_.deps_or_stack_trace_sample.verifier_deps = verifier_deps;
   }
 
