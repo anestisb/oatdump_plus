@@ -1636,7 +1636,7 @@ class Dex2Oat FINAL {
                                         soa.Decode<mirror::ClassLoader>(class_loader_).Ptr())));
       // Pre-register dex files so that we can access verification results without locks during
       // compilation and verification.
-      verification_results_->PreRegisterDexFile(dex_file);
+      verification_results_->AddDexFile(dex_file);
     }
 
     return true;
