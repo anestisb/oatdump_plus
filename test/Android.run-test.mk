@@ -791,6 +791,14 @@ ifdef TARGET_2ND_ARCH
 TEST_ART_TARGET_SYNC_DEPS += $(OUT_DIR)/$(ART_TEST_LIST_device_$(TARGET_2ND_ARCH)_libnativebridgetest)
 endif
 
+# Also need libopenjdkjvmti.
+TEST_ART_TARGET_SYNC_DEPS += $(OUT_DIR)/$(ART_TEST_LIST_device_$(TARGET_ARCH)_libopenjdkjvmti)
+TEST_ART_TARGET_SYNC_DEPS += $(OUT_DIR)/$(ART_TEST_LIST_device_$(TARGET_ARCH)_libopenjdkjvmtid)
+ifdef TARGET_2ND_ARCH
+TEST_ART_TARGET_SYNC_DEPS += $(OUT_DIR)/$(ART_TEST_LIST_device_$(TARGET_2ND_ARCH)_libopenjdkjvmti)
+TEST_ART_TARGET_SYNC_DEPS += $(OUT_DIR)/$(ART_TEST_LIST_device_$(TARGET_2ND_ARCH)_libopenjdkjvmtid)
+endif
+
 # All tests require the host executables. The tests also depend on the core images, but on
 # specific version depending on the compiler.
 ART_TEST_HOST_RUN_TEST_DEPENDENCIES := \
