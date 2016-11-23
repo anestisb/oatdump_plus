@@ -177,7 +177,15 @@ public abstract class Executor {
    * Executes runtime.
    */
   public void execute(String programName) {
-    executionResult = executeCommandWithTimeout(constructCommand(programName), true);
+    String command = "";
+    String androidRoot = Options.androidRoot.trim();
+    if (androidRoot.length() != 0) {
+      command = "PATH=" + androidRoot + "/bin ";
+      command += "ANDROID_ROOT=" + androidRoot + " ";
+      command += "LD_LIBRARY_PATH="+ androidRoot + "/lib:" + androidRoot + "/lib64 ";
+    }
+    command += constructCommand(programName);
+    executionResult = executeCommandWithTimeout(command, true);
   }
 
   /**
