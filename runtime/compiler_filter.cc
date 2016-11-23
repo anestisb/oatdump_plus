@@ -33,6 +33,7 @@ bool CompilerFilter::IsBytecodeCompilationEnabled(Filter filter) {
     case CompilerFilter::kTime:
     case CompilerFilter::kSpeedProfile:
     case CompilerFilter::kSpeed:
+    case CompilerFilter::kLayoutProfile:
     case CompilerFilter::kEverythingProfile:
     case CompilerFilter::kEverything: return true;
   }
@@ -52,6 +53,7 @@ bool CompilerFilter::IsJniCompilationEnabled(Filter filter) {
     case CompilerFilter::kTime:
     case CompilerFilter::kSpeedProfile:
     case CompilerFilter::kSpeed:
+    case CompilerFilter::kLayoutProfile:
     case CompilerFilter::kEverythingProfile:
     case CompilerFilter::kEverything: return true;
   }
@@ -71,6 +73,7 @@ bool CompilerFilter::IsVerificationEnabled(Filter filter) {
     case CompilerFilter::kTime:
     case CompilerFilter::kSpeedProfile:
     case CompilerFilter::kSpeed:
+    case CompilerFilter::kLayoutProfile:
     case CompilerFilter::kEverythingProfile:
     case CompilerFilter::kEverything: return true;
   }
@@ -97,6 +100,7 @@ bool CompilerFilter::DependsOnProfile(Filter filter) {
     case CompilerFilter::kVerifyProfile:
     case CompilerFilter::kSpaceProfile:
     case CompilerFilter::kSpeedProfile:
+    case CompilerFilter::kLayoutProfile:
     case CompilerFilter::kEverythingProfile: return true;
   }
   UNREACHABLE();
@@ -121,6 +125,7 @@ CompilerFilter::Filter CompilerFilter::GetNonProfileDependentFilterFrom(Filter f
       return CompilerFilter::kSpace;
 
     case CompilerFilter::kSpeedProfile:
+    case CompilerFilter::kLayoutProfile:
       return CompilerFilter::kSpeed;
 
     case CompilerFilter::kEverythingProfile:
@@ -146,6 +151,7 @@ std::string CompilerFilter::NameOfFilter(Filter filter) {
     case CompilerFilter::kTime: return "time";
     case CompilerFilter::kSpeedProfile: return "speed-profile";
     case CompilerFilter::kSpeed: return "speed";
+    case CompilerFilter::kLayoutProfile: return "layout-profile";
     case CompilerFilter::kEverythingProfile: return "everything-profile";
     case CompilerFilter::kEverything: return "everything";
   }
@@ -173,6 +179,8 @@ bool CompilerFilter::ParseCompilerFilter(const char* option, Filter* filter) {
     *filter = kSpeed;
   } else if (strcmp(option, "speed-profile") == 0) {
     *filter = kSpeedProfile;
+  } else if (strcmp(option, "layout-profile") == 0) {
+    *filter = kLayoutProfile;
   } else if (strcmp(option, "everything") == 0) {
     *filter = kEverything;
   } else if (strcmp(option, "everything-profile") == 0) {
