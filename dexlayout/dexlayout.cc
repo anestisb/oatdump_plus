@@ -1486,6 +1486,153 @@ void DexLayout::DumpDexFile() {
   }
 }
 
+std::vector<dex_ir::ClassDef*> DexLayout::LayoutClassDefsAndClassData(const DexFile* dex_file) {
+  std::vector<dex_ir::ClassDef*> new_class_def_order;
+  for (std::unique_ptr<dex_ir::ClassDef>& class_def : header_->GetCollections().ClassDefs()) {
+    dex::TypeIndex type_idx(class_def->ClassType()->GetIndex());
+    if (info_->ContainsClass(*dex_file, type_idx)) {
+      new_class_def_order.push_back(class_def.get());
+    }
+  }
+  for (std::unique_ptr<dex_ir::ClassDef>& class_def : header_->GetCollections().ClassDefs()) {
+    dex::TypeIndex type_idx(class_def->ClassType()->GetIndex());
+    if (!info_->ContainsClass(*dex_file, type_idx)) {
+      new_class_def_order.push_back(class_def.get());
+    }
+  }
+  uint32_t class_defs_offset = header_->GetCollections().ClassDefsOffset();
+  uint32_t class_data_offset = header_->GetCollections().ClassDatasOffset();
+  for (uint32_t i = 0; i < new_class_def_order.size(); ++i) {
+    dex_ir::ClassDef* class_def = new_class_def_order[i];
+    class_def->SetIndex(i);
+    class_def->SetOffset(class_defs_offset);
+    class_defs_offset += dex_ir::ClassDef::ItemSize();
+    if (class_def->GetClassData() != nullptr) {
+      class_def->GetClassData()->SetOffset(class_data_offset);
+      class_data_offset += class_def->GetClassData()->GetSize();
+    }
+  }
+  return new_class_def_order;
+}
+
+int32_t DexLayout::LayoutCodeItems(std::vector<dex_ir::ClassDef*> new_class_def_order) {
+  int32_t diff = 0;
+  uint32_t offset = header_->GetCollections().CodeItemsOffset();
+  for (dex_ir::ClassDef* class_def : new_class_def_order) {
+    dex_ir::ClassData* class_data = class_def->GetClassData();
+    if (class_data != nullptr) {
+      class_data->SetOffset(class_data->GetOffset() + diff);
+      for (auto& method : *class_data->DirectMethods()) {
+        dex_ir::CodeItem* code_item = method->GetCodeItem();
+        if (code_item != nullptr) {
+          diff += UnsignedLeb128Size(offset) - UnsignedLeb128Size(code_item->GetOffset());
+          code_item->SetOffset(offset);
+          offset += RoundUp(code_item->GetSize(), 4);
+        }
+      }
+      for (auto& method : *class_data->VirtualMethods()) {
+        dex_ir::CodeItem* code_item = method->GetCodeItem();
+        if (code_item != nullptr) {
+          diff += UnsignedLeb128Size(offset) - UnsignedLeb128Size(code_item->GetOffset());
+          code_item->SetOffset(offset);
+          offset += RoundUp(code_item->GetSize(), 4);
+        }
+      }
+    }
+  }
+
+  return diff;
+}
+
+// Adjust offsets of every item in the specified section by diff bytes.
+template<class T> void DexLayout::FixupSection(std::map<uint32_t, std::unique_ptr<T>>& map,
+                                               uint32_t diff) {
+  for (auto& pair : map) {
+    std::unique_ptr<T>& item = pair.second;
+    item->SetOffset(item->GetOffset() + diff);
+  }
+}
+
+// Adjust offsets of all sections with an address after the specified offset by diff bytes.
+void DexLayout::FixupSections(uint32_t offset, uint32_t diff) {
+  dex_ir::Collections& collections = header_->GetCollections();
+  uint32_t map_list_offset = collections.MapListOffset();
+  if (map_list_offset > offset) {
+    collections.SetMapListOffset(map_list_offset + diff);
+  }
+
+  uint32_t type_lists_offset = collections.TypeListsOffset();
+  if (type_lists_offset > offset) {
+    collections.SetTypeListsOffset(type_lists_offset + diff);
+    FixupSection(collections.TypeLists(), diff);
+  }
+
+  uint32_t annotation_set_ref_lists_offset = collections.AnnotationSetRefListsOffset();
+  if (annotation_set_ref_lists_offset > offset) {
+    collections.SetAnnotationSetRefListsOffset(annotation_set_ref_lists_offset + diff);
+    FixupSection(collections.AnnotationSetRefLists(), diff);
+  }
+
+  uint32_t annotation_set_items_offset = collections.AnnotationSetItemsOffset();
+  if (annotation_set_items_offset > offset) {
+    collections.SetAnnotationSetItemsOffset(annotation_set_items_offset + diff);
+    FixupSection(collections.AnnotationSetItems(), diff);
+  }
+
+  uint32_t class_datas_offset = collections.ClassDatasOffset();
+  if (class_datas_offset > offset) {
+    collections.SetClassDatasOffset(class_datas_offset + diff);
+    FixupSection(collections.ClassDatas(), diff);
+  }
+
+  uint32_t code_items_offset = collections.CodeItemsOffset();
+  if (code_items_offset > offset) {
+    collections.SetCodeItemsOffset(code_items_offset + diff);
+    FixupSection(collections.CodeItems(), diff);
+  }
+
+  uint32_t string_datas_offset = collections.StringDatasOffset();
+  if (string_datas_offset > offset) {
+    collections.SetStringDatasOffset(string_datas_offset + diff);
+    FixupSection(collections.StringDatas(), diff);
+  }
+
+  uint32_t debug_info_items_offset = collections.DebugInfoItemsOffset();
+  if (debug_info_items_offset > offset) {
+    collections.SetDebugInfoItemsOffset(debug_info_items_offset + diff);
+    FixupSection(collections.DebugInfoItems(), diff);
+  }
+
+  uint32_t annotation_items_offset = collections.AnnotationItemsOffset();
+  if (annotation_items_offset > offset) {
+    collections.SetAnnotationItemsOffset(annotation_items_offset + diff);
+    FixupSection(collections.AnnotationItems(), diff);
+  }
+
+  uint32_t encoded_array_items_offset = collections.EncodedArrayItemsOffset();
+  if (encoded_array_items_offset > offset) {
+    collections.SetEncodedArrayItemsOffset(encoded_array_items_offset + diff);
+    FixupSection(collections.EncodedArrayItems(), diff);
+  }
+
+  uint32_t annotations_directory_items_offset = collections.AnnotationsDirectoryItemsOffset();
+  if (annotations_directory_items_offset > offset) {
+    collections.SetAnnotationsDirectoryItemsOffset(annotations_directory_items_offset + diff);
+    FixupSection(collections.AnnotationsDirectoryItems(), diff);
+  }
+}
+
+void DexLayout::LayoutOutputFile(const DexFile* dex_file) {
+  std::vector<dex_ir::ClassDef*> new_class_def_order = LayoutClassDefsAndClassData(dex_file);
+  int32_t diff = LayoutCodeItems(new_class_def_order);
+  // Adjust diff to be 4-byte aligned.
+  diff = RoundUp(diff, 4);
+  // Move sections after ClassData by diff bytes.
+  FixupSections(header_->GetCollections().ClassDatasOffset(), diff);
+  // Update file size.
+  header_->SetFileSize(header_->FileSize() + diff);
+}
+
 void DexLayout::OutputDexFile(const std::string& dex_file_location) {
   std::string error_msg;
   std::unique_ptr<File> new_file;
@@ -1547,6 +1694,9 @@ void DexLayout::ProcessDexFile(const char* file_name,
 
   // Output dex file as file or memmap.
   if (options_.output_dex_directory_ != nullptr || options_.output_to_memmap_) {
+    if (info_ != nullptr) {
+      LayoutOutputFile(dex_file);
+    }
     OutputDexFile(dex_file->GetLocation());
   }
 }
