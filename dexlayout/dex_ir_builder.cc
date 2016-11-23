@@ -71,7 +71,7 @@ Header* DexIrBuilder(const DexFile& dex_file) {
     collections.CreateClassDef(dex_file, i);
   }
   // MapItem.
-  collections.SetMapItemOffset(disk_header.map_off_);
+  collections.SetMapListOffset(disk_header.map_off_);
 
   CheckAndSetRemainingOffsets(dex_file, &collections);
 
