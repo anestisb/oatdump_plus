@@ -1322,11 +1322,10 @@ void LocationsBuilderARMVIXL::HandleCondition(HCondition* cond) {
       }
       break;
 
-    // TODO(VIXL): https://android-review.googlesource.com/#/c/252265/
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble:
       locations->SetInAt(0, Location::RequiresFpuRegister());
-      locations->SetInAt(1, Location::RequiresFpuRegister());
+      locations->SetInAt(1, ArithmeticZeroOrFpuRegister(cond->InputAt(1)));
       if (!cond->IsEmittedAtUseSite()) {
         locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
       }
@@ -1346,13 +1345,20 @@ void InstructionCodeGeneratorARMVIXL::HandleCondition(HCondition* cond) {
     return;
   }
 
+  Location right = cond->GetLocations()->InAt(1);
   vixl32::Register out = OutputRegister(cond);
   vixl32::Label true_label, false_label;
 
   switch (cond->InputAt(0)->GetType()) {
     default: {
       // Integer case.
-      __ Cmp(InputRegisterAt(cond, 0), InputOperandAt(cond, 1));
+      if (right.IsRegister()) {
+        __ Cmp(InputRegisterAt(cond, 0), InputOperandAt(cond, 1));
+      } else {
+        DCHECK(right.IsConstant());
+        __ Cmp(InputRegisterAt(cond, 0),
+               CodeGenerator::GetInt32ValueOf(right.GetConstant()));
+      }
       AssemblerAccurateScope aas(GetVIXLAssembler(),
                                  kArmInstrMaxSizeInBytes * 3u,
                                  CodeBufferCheckScope::kMaximumSize);
@@ -2776,15 +2782,8 @@ void InstructionCodeGeneratorARMVIXL::VisitRem(HRem* rem) {
 
 
 void LocationsBuilderARMVIXL::VisitDivZeroCheck(HDivZeroCheck* instruction) {
-  // TODO(VIXL): https://android-review.googlesource.com/#/c/275337/
-  LocationSummary::CallKind call_kind = instruction->CanThrowIntoCatchBlock()
-      ? LocationSummary::kCallOnSlowPath
-      : LocationSummary::kNoCall;
-  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction, call_kind);
+  LocationSummary* locations = codegen_->CreateThrowingSlowPathLocations(instruction);
   locations->SetInAt(0, Location::RegisterOrConstant(instruction->InputAt(0)));
-  if (instruction->HasUses()) {
-    locations->SetOut(Location::SameAsFirstInput());
-  }
 }
 
 void InstructionCodeGeneratorARMVIXL::VisitDivZeroCheck(HDivZeroCheck* instruction) {
@@ -3956,15 +3955,8 @@ void InstructionCodeGeneratorARMVIXL::VisitUnresolvedStaticFieldSet(
 }
 
 void LocationsBuilderARMVIXL::VisitNullCheck(HNullCheck* instruction) {
-  // TODO(VIXL): https://android-review.googlesource.com/#/c/275337/
-  LocationSummary::CallKind call_kind = instruction->CanThrowIntoCatchBlock()
-      ? LocationSummary::kCallOnSlowPath
-      : LocationSummary::kNoCall;
-  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction, call_kind);
+  LocationSummary* locations = codegen_->CreateThrowingSlowPathLocations(instruction);
   locations->SetInAt(0, Location::RequiresRegister());
-  if (instruction->HasUses()) {
-    locations->SetOut(Location::SameAsFirstInput());
-  }
 }
 
 void CodeGeneratorARMVIXL::GenerateImplicitNullCheck(HNullCheck* instruction) {
@@ -4697,8 +4689,9 @@ void InstructionCodeGeneratorARMVIXL::VisitParallelMove(HParallelMove* instructi
 }
 
 void LocationsBuilderARMVIXL::VisitSuspendCheck(HSuspendCheck* instruction) {
-  new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCallOnSlowPath);
-  // TODO(VIXL): https://android-review.googlesource.com/#/c/275337/ and related.
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCallOnSlowPath);
+  locations->SetCustomSlowPathCallerSaves(RegisterSet::Empty());  // No caller-save registers.
 }
 
 void InstructionCodeGeneratorARMVIXL::VisitSuspendCheck(HSuspendCheck* instruction) {
@@ -5200,14 +5193,27 @@ void InstructionCodeGeneratorARMVIXL::VisitThrow(HThrow* instruction) {
   CheckEntrypointTypes<kQuickDeliverException, void, mirror::Object*>();
 }
 
-static bool TypeCheckNeedsATemporary(TypeCheckKind type_check_kind) {
-  return kEmitCompilerReadBarrier &&
-      (kUseBakerReadBarrier ||
-       type_check_kind == TypeCheckKind::kAbstractClassCheck ||
-       type_check_kind == TypeCheckKind::kClassHierarchyCheck ||
-       type_check_kind == TypeCheckKind::kArrayObjectCheck);
+// Temp is used for read barrier.
+static size_t NumberOfInstanceOfTemps(TypeCheckKind type_check_kind) {
+  if (kEmitCompilerReadBarrier &&
+       (kUseBakerReadBarrier ||
+          type_check_kind == TypeCheckKind::kAbstractClassCheck ||
+          type_check_kind == TypeCheckKind::kClassHierarchyCheck ||
+          type_check_kind == TypeCheckKind::kArrayObjectCheck)) {
+    return 1;
+  }
+  return 0;
 }
 
+// Interface case has 3 temps, one for holding the number of interfaces, one for the current
+// interface pointer, one for loading the current interface.
+// The other checks have one temp for loading the object's class.
+static size_t NumberOfCheckCastTemps(TypeCheckKind type_check_kind) {
+  if (type_check_kind == TypeCheckKind::kInterfaceCheck) {
+    return 3;
+  }
+  return 1 + NumberOfInstanceOfTemps(type_check_kind);
+}
 
 void LocationsBuilderARMVIXL::VisitInstanceOf(HInstanceOf* instruction) {
   LocationSummary::CallKind call_kind = LocationSummary::kNoCall;
@@ -5238,11 +5244,7 @@ void LocationsBuilderARMVIXL::VisitInstanceOf(HInstanceOf* instruction) {
   // The "out" register is used as a temporary, so it overlaps with the inputs.
   // Note that TypeCheckSlowPathARM uses this register too.
   locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
-  // When read barriers are enabled, we need a temporary register for
-  // some cases.
-  if (TypeCheckNeedsATemporary(type_check_kind)) {
-    locations->AddTemp(Location::RequiresRegister());
-  }
+  locations->AddRegisterTemps(NumberOfInstanceOfTemps(type_check_kind));
 }
 
 void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) {
@@ -5253,9 +5255,9 @@ void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) 
   vixl32::Register cls = InputRegisterAt(instruction, 1);
   Location out_loc = locations->Out();
   vixl32::Register out = OutputRegister(instruction);
-  Location maybe_temp_loc = TypeCheckNeedsATemporary(type_check_kind) ?
-      locations->GetTemp(0) :
-      Location::NoLocation();
+  const size_t num_temps = NumberOfInstanceOfTemps(type_check_kind);
+  DCHECK_LE(num_temps, 1u);
+  Location maybe_temp_loc = (num_temps >= 1) ? locations->GetTemp(0) : Location::NoLocation();
   uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
   uint32_t super_offset = mirror::Class::SuperClassOffset().Int32Value();
   uint32_t component_offset = mirror::Class::ComponentTypeOffset().Int32Value();
@@ -5276,7 +5278,8 @@ void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) 
                                         out_loc,
                                         obj_loc,
                                         class_offset,
-                                        maybe_temp_loc);
+                                        maybe_temp_loc,
+                                        kCompilerReadBarrierOption);
       __ Cmp(out, cls);
       // Classes must be equal for the instanceof to succeed.
       __ B(ne, &zero);
@@ -5291,13 +5294,18 @@ void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) 
                                         out_loc,
                                         obj_loc,
                                         class_offset,
-                                        maybe_temp_loc);
+                                        maybe_temp_loc,
+                                        kCompilerReadBarrierOption);
       // If the class is abstract, we eagerly fetch the super class of the
       // object to avoid doing a comparison we know will fail.
       vixl32::Label loop;
       __ Bind(&loop);
       // /* HeapReference<Class> */ out = out->super_class_
-      GenerateReferenceLoadOneRegister(instruction, out_loc, super_offset, maybe_temp_loc);
+      GenerateReferenceLoadOneRegister(instruction,
+                                       out_loc,
+                                       super_offset,
+                                       maybe_temp_loc,
+                                       kCompilerReadBarrierOption);
       // If `out` is null, we use it for the result, and jump to `done`.
       __ CompareAndBranchIfZero(out, &done, /* far_target */ false);
       __ Cmp(out, cls);
@@ -5315,14 +5323,19 @@ void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) 
                                         out_loc,
                                         obj_loc,
                                         class_offset,
-                                        maybe_temp_loc);
+                                        maybe_temp_loc,
+                                        kCompilerReadBarrierOption);
       // Walk over the class hierarchy to find a match.
       vixl32::Label loop, success;
       __ Bind(&loop);
       __ Cmp(out, cls);
       __ B(eq, &success);
       // /* HeapReference<Class> */ out = out->super_class_
-      GenerateReferenceLoadOneRegister(instruction, out_loc, super_offset, maybe_temp_loc);
+      GenerateReferenceLoadOneRegister(instruction,
+                                       out_loc,
+                                       super_offset,
+                                       maybe_temp_loc,
+                                       kCompilerReadBarrierOption);
       __ CompareAndBranchIfNonZero(out, &loop);
       // If `out` is null, we use it for the result, and jump to `done`.
       __ B(&done);
@@ -5340,14 +5353,19 @@ void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) 
                                         out_loc,
                                         obj_loc,
                                         class_offset,
-                                        maybe_temp_loc);
+                                        maybe_temp_loc,
+                                        kCompilerReadBarrierOption);
       // Do an exact check.
       vixl32::Label exact_check;
       __ Cmp(out, cls);
       __ B(eq, &exact_check);
       // Otherwise, we need to check that the object's class is a non-primitive array.
       // /* HeapReference<Class> */ out = out->component_type_
-      GenerateReferenceLoadOneRegister(instruction, out_loc, component_offset, maybe_temp_loc);
+      GenerateReferenceLoadOneRegister(instruction,
+                                       out_loc,
+                                       component_offset,
+                                       maybe_temp_loc,
+                                       kCompilerReadBarrierOption);
       // If `out` is null, we use it for the result, and jump to `done`.
       __ CompareAndBranchIfZero(out, &done, /* far_target */ false);
       GetAssembler()->LoadFromOffset(kLoadUnsignedHalfword, out, out, primitive_offset);
@@ -5360,12 +5378,14 @@ void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) 
     }
 
     case TypeCheckKind::kArrayCheck: {
+      // No read barrier since the slow path will retry upon failure.
       // /* HeapReference<Class> */ out = obj->klass_
       GenerateReferenceLoadTwoRegisters(instruction,
                                         out_loc,
                                         obj_loc,
                                         class_offset,
-                                        maybe_temp_loc);
+                                        maybe_temp_loc,
+                                        kWithoutReadBarrier);
       __ Cmp(out, cls);
       DCHECK(locations->OnlyCallsOnSlowPath());
       slow_path = new (GetGraph()->GetArena()) TypeCheckSlowPathARMVIXL(instruction,
@@ -5449,13 +5469,7 @@ void LocationsBuilderARMVIXL::VisitCheckCast(HCheckCast* instruction) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction, call_kind);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
-  // Note that TypeCheckSlowPathARM uses this "temp" register too.
-  locations->AddTemp(Location::RequiresRegister());
-  // When read barriers are enabled, we need an additional temporary
-  // register for some cases.
-  if (TypeCheckNeedsATemporary(type_check_kind)) {
-    locations->AddTemp(Location::RequiresRegister());
-  }
+  locations->AddRegisterTemps(NumberOfCheckCastTemps(type_check_kind));
 }
 
 void InstructionCodeGeneratorARMVIXL::VisitCheckCast(HCheckCast* instruction) {
@@ -5466,20 +5480,31 @@ void InstructionCodeGeneratorARMVIXL::VisitCheckCast(HCheckCast* instruction) {
   vixl32::Register cls = InputRegisterAt(instruction, 1);
   Location temp_loc = locations->GetTemp(0);
   vixl32::Register temp = RegisterFrom(temp_loc);
-  Location maybe_temp2_loc = TypeCheckNeedsATemporary(type_check_kind) ?
-      locations->GetTemp(1) :
-      Location::NoLocation();
-  uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
-  uint32_t super_offset = mirror::Class::SuperClassOffset().Int32Value();
-  uint32_t component_offset = mirror::Class::ComponentTypeOffset().Int32Value();
-  uint32_t primitive_offset = mirror::Class::PrimitiveTypeOffset().Int32Value();
+  const size_t num_temps = NumberOfCheckCastTemps(type_check_kind);
+  DCHECK_LE(num_temps, 3u);
+  Location maybe_temp2_loc = (num_temps >= 2) ? locations->GetTemp(1) : Location::NoLocation();
+  Location maybe_temp3_loc = (num_temps >= 3) ? locations->GetTemp(2) : Location::NoLocation();
+  const uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
+  const uint32_t super_offset = mirror::Class::SuperClassOffset().Int32Value();
+  const uint32_t component_offset = mirror::Class::ComponentTypeOffset().Int32Value();
+  const uint32_t primitive_offset = mirror::Class::PrimitiveTypeOffset().Int32Value();
+  const uint32_t iftable_offset = mirror::Class::IfTableOffset().Uint32Value();
+  const uint32_t array_length_offset = mirror::Array::LengthOffset().Uint32Value();
+  const uint32_t object_array_data_offset =
+      mirror::Array::DataOffset(kHeapReferenceSize).Uint32Value();
 
-  bool is_type_check_slow_path_fatal =
-      (type_check_kind == TypeCheckKind::kExactCheck ||
-       type_check_kind == TypeCheckKind::kAbstractClassCheck ||
-       type_check_kind == TypeCheckKind::kClassHierarchyCheck ||
-       type_check_kind == TypeCheckKind::kArrayObjectCheck) &&
-      !instruction->CanThrowIntoCatchBlock();
+  // Always false for read barriers since we may need to go to the entrypoint for non-fatal cases
+  // from false negatives. The false negatives may come from avoiding read barriers below. Avoiding
+  // read barriers is done for performance and code size reasons.
+  bool is_type_check_slow_path_fatal = false;
+  if (!kEmitCompilerReadBarrier) {
+    is_type_check_slow_path_fatal =
+        (type_check_kind == TypeCheckKind::kExactCheck ||
+         type_check_kind == TypeCheckKind::kAbstractClassCheck ||
+         type_check_kind == TypeCheckKind::kClassHierarchyCheck ||
+         type_check_kind == TypeCheckKind::kArrayObjectCheck) &&
+        !instruction->CanThrowIntoCatchBlock();
+  }
   SlowPathCodeARMVIXL* type_check_slow_path =
       new (GetGraph()->GetArena()) TypeCheckSlowPathARMVIXL(instruction,
                                                             is_type_check_slow_path_fatal);
@@ -5491,12 +5516,17 @@ void InstructionCodeGeneratorARMVIXL::VisitCheckCast(HCheckCast* instruction) {
     __ CompareAndBranchIfZero(obj, &done, /* far_target */ false);
   }
 
-  // /* HeapReference<Class> */ temp = obj->klass_
-  GenerateReferenceLoadTwoRegisters(instruction, temp_loc, obj_loc, class_offset, maybe_temp2_loc);
-
   switch (type_check_kind) {
     case TypeCheckKind::kExactCheck:
     case TypeCheckKind::kArrayCheck: {
+      // /* HeapReference<Class> */ temp = obj->klass_
+      GenerateReferenceLoadTwoRegisters(instruction,
+                                        temp_loc,
+                                        obj_loc,
+                                        class_offset,
+                                        maybe_temp2_loc,
+                                        kWithoutReadBarrier);
+
       __ Cmp(temp, cls);
       // Jump to slow path for throwing the exception or doing a
       // more involved array check.
@@ -5505,12 +5535,24 @@ void InstructionCodeGeneratorARMVIXL::VisitCheckCast(HCheckCast* instruction) {
     }
 
     case TypeCheckKind::kAbstractClassCheck: {
+      // /* HeapReference<Class> */ temp = obj->klass_
+      GenerateReferenceLoadTwoRegisters(instruction,
+                                        temp_loc,
+                                        obj_loc,
+                                        class_offset,
+                                        maybe_temp2_loc,
+                                        kWithoutReadBarrier);
+
       // If the class is abstract, we eagerly fetch the super class of the
       // object to avoid doing a comparison we know will fail.
       vixl32::Label loop;
       __ Bind(&loop);
       // /* HeapReference<Class> */ temp = temp->super_class_
-      GenerateReferenceLoadOneRegister(instruction, temp_loc, super_offset, maybe_temp2_loc);
+      GenerateReferenceLoadOneRegister(instruction,
+                                       temp_loc,
+                                       super_offset,
+                                       maybe_temp2_loc,
+                                       kWithoutReadBarrier);
 
       // If the class reference currently in `temp` is null, jump to the slow path to throw the
       // exception.
@@ -5523,6 +5565,14 @@ void InstructionCodeGeneratorARMVIXL::VisitCheckCast(HCheckCast* instruction) {
     }
 
     case TypeCheckKind::kClassHierarchyCheck: {
+      // /* HeapReference<Class> */ temp = obj->klass_
+      GenerateReferenceLoadTwoRegisters(instruction,
+                                        temp_loc,
+                                        obj_loc,
+                                        class_offset,
+                                        maybe_temp2_loc,
+                                        kWithoutReadBarrier);
+
       // Walk over the class hierarchy to find a match.
       vixl32::Label loop;
       __ Bind(&loop);
@@ -5530,7 +5580,11 @@ void InstructionCodeGeneratorARMVIXL::VisitCheckCast(HCheckCast* instruction) {
       __ B(eq, &done);
 
       // /* HeapReference<Class> */ temp = temp->super_class_
-      GenerateReferenceLoadOneRegister(instruction, temp_loc, super_offset, maybe_temp2_loc);
+      GenerateReferenceLoadOneRegister(instruction,
+                                       temp_loc,
+                                       super_offset,
+                                       maybe_temp2_loc,
+                                       kWithoutReadBarrier);
 
       // If the class reference currently in `temp` is null, jump to the slow path to throw the
       // exception.
@@ -5541,13 +5595,25 @@ void InstructionCodeGeneratorARMVIXL::VisitCheckCast(HCheckCast* instruction) {
     }
 
     case TypeCheckKind::kArrayObjectCheck:  {
+      // /* HeapReference<Class> */ temp = obj->klass_
+      GenerateReferenceLoadTwoRegisters(instruction,
+                                        temp_loc,
+                                        obj_loc,
+                                        class_offset,
+                                        maybe_temp2_loc,
+                                        kWithoutReadBarrier);
+
       // Do an exact check.
       __ Cmp(temp, cls);
       __ B(eq, &done);
 
       // Otherwise, we need to check that the object's class is a non-primitive array.
       // /* HeapReference<Class> */ temp = temp->component_type_
-      GenerateReferenceLoadOneRegister(instruction, temp_loc, component_offset, maybe_temp2_loc);
+      GenerateReferenceLoadOneRegister(instruction,
+                                       temp_loc,
+                                       component_offset,
+                                       maybe_temp2_loc,
+                                       kWithoutReadBarrier);
       // If the component type is null, jump to the slow path to throw the exception.
       __ CompareAndBranchIfZero(temp, type_check_slow_path->GetEntryLabel());
       // Otherwise,the object is indeed an array, jump to label `check_non_primitive_component_type`
@@ -5559,10 +5625,7 @@ void InstructionCodeGeneratorARMVIXL::VisitCheckCast(HCheckCast* instruction) {
     }
 
     case TypeCheckKind::kUnresolvedCheck:
-    case TypeCheckKind::kInterfaceCheck:
-      // We always go into the type check slow path for the unresolved
-      // and interface check cases.
-      //
+      // We always go into the type check slow path for the unresolved check case.
       // We cannot directly call the CheckCast runtime entry point
       // without resorting to a type checking slow path here (i.e. by
       // calling InvokeRuntime directly), as it would require to
@@ -5570,8 +5633,45 @@ void InstructionCodeGeneratorARMVIXL::VisitCheckCast(HCheckCast* instruction) {
       // instruction (following the runtime calling convention), which
       // might be cluttered by the potential first read barrier
       // emission at the beginning of this method.
+
       __ B(type_check_slow_path->GetEntryLabel());
       break;
+
+    case TypeCheckKind::kInterfaceCheck: {
+      // Avoid read barriers to improve performance of the fast path. We can not get false
+      // positives by doing this.
+      // /* HeapReference<Class> */ temp = obj->klass_
+      GenerateReferenceLoadTwoRegisters(instruction,
+                                        temp_loc,
+                                        obj_loc,
+                                        class_offset,
+                                        maybe_temp2_loc,
+                                        kWithoutReadBarrier);
+
+      // /* HeapReference<Class> */ temp = temp->iftable_
+      GenerateReferenceLoadTwoRegisters(instruction,
+                                        temp_loc,
+                                        temp_loc,
+                                        iftable_offset,
+                                        maybe_temp2_loc,
+                                        kWithoutReadBarrier);
+      // Iftable is never null.
+      __ Ldr(RegisterFrom(maybe_temp2_loc), MemOperand(temp, array_length_offset));
+      // Loop through the iftable and check if any class matches.
+      vixl32::Label start_loop;
+      __ Bind(&start_loop);
+      __ CompareAndBranchIfZero(RegisterFrom(maybe_temp2_loc),
+                                type_check_slow_path->GetEntryLabel());
+      __ Ldr(RegisterFrom(maybe_temp3_loc), MemOperand(temp, object_array_data_offset));
+      GetAssembler()->MaybeUnpoisonHeapReference(RegisterFrom(maybe_temp3_loc));
+      // Go to next interface.
+      __ Add(temp, temp, Operand::From(2 * kHeapReferenceSize));
+      __ Sub(RegisterFrom(maybe_temp2_loc), RegisterFrom(maybe_temp2_loc), 2);
+      // Compare the classes and continue the loop if they do not match.
+      __ Cmp(cls, RegisterFrom(maybe_temp3_loc));
+      __ B(ne, &start_loop);
+      break;
+    }
   }
   __ Bind(&done);
 
@@ -5862,7 +5962,8 @@ void InstructionCodeGeneratorARMVIXL::GenerateReferenceLoadOneRegister(
     HInstruction* instruction ATTRIBUTE_UNUSED,
     Location out,
     uint32_t offset,
-    Location maybe_temp ATTRIBUTE_UNUSED) {
+    Location maybe_temp ATTRIBUTE_UNUSED,
+    ReadBarrierOption read_barrier_option ATTRIBUTE_UNUSED) {
   vixl32::Register out_reg = RegisterFrom(out);
   if (kEmitCompilerReadBarrier) {
     TODO_VIXL32(FATAL);
@@ -5879,7 +5980,8 @@ void InstructionCodeGeneratorARMVIXL::GenerateReferenceLoadTwoRegisters(
     Location out,
     Location obj,
     uint32_t offset,
-    Location maybe_temp ATTRIBUTE_UNUSED) {
+    Location maybe_temp ATTRIBUTE_UNUSED,
+    ReadBarrierOption read_barrier_option ATTRIBUTE_UNUSED) {
   vixl32::Register out_reg = RegisterFrom(out);
   vixl32::Register obj_reg = RegisterFrom(obj);
   if (kEmitCompilerReadBarrier) {

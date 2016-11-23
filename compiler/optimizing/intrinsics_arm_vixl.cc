@@ -677,7 +677,10 @@ static void GenUnsafeGet(HInvoke* invoke,
       vixl32::Register trg_lo = LowRegisterFrom(trg_loc);
       vixl32::Register trg_hi = HighRegisterFrom(trg_loc);
       if (is_volatile && !codegen->GetInstructionSetFeatures().HasAtomicLdrdAndStrd()) {
-        __ Ldrexd(trg_lo, trg_hi, MemOperand(base, offset));
+        UseScratchRegisterScope temps(assembler->GetVIXLAssembler());
+        const vixl32::Register temp_reg = temps.Acquire();
+        __ Add(temp_reg, base, offset);
+        __ Ldrexd(trg_lo, trg_hi, MemOperand(temp_reg));
       } else {
         __ Ldrd(trg_lo, trg_hi, MemOperand(base, offset));
       }
