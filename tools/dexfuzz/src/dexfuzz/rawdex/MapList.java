@@ -162,10 +162,15 @@ public class MapList implements RawDexObject {
         case MapItem.TYPE_DEBUG_INFO_ITEM:
         {
           // We aren't interested in updating the debug data, so just read it as a blob.
-          int start = mapItem.offset.getOriginalOffset();
-          int end = mapItems.get(mapItemIdx + 1).offset.getOriginalOffset();
-          int size = end - start;
-          rawDexFile.debugInfoItem = new DebugInfoItem(size);
+          long start = mapItem.offset.getOriginalOffset();
+          long end = 0;
+          if (mapItemIdx + 1 == mapItems.size()) {
+            end = file.length();
+          } else {
+            end = mapItems.get(mapItemIdx + 1).offset.getOriginalOffset();
+          }
+          long size = end - start;
+          rawDexFile.debugInfoItem = new DebugInfoItem((int)size);
           rawDexFile.debugInfoItem.read(file);
           break;
         }
