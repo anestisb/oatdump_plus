@@ -54,13 +54,22 @@ art_cc_binary {
 
 art_cc_binary {
     name: "oatdumps",
-    defaults: ["oatdump-defaults"],
     device_supported: false,
+    static_executable: true,
+    defaults: ["oatdump-defaults"],
     target: {
         darwin: {
             enabled: false,
         },
     },
+    ldflags: [
+        // We need this because GC stress mode makes use of
+        // _Unwind_GetIP and _Unwind_Backtrace and the symbols are also
+        // defined in libgcc_eh.a(unwind-dw2.o)
+        // TODO: Having this is not ideal as it might obscure errors.
+        // Try to get rid of it.
+        "-z muldefs",
+    ],
     static_libs: [
         "libart",
         "libart-compiler",
@@ -72,16 +81,25 @@ art_cc_binary {
 
 art_cc_binary {
     name: "oatdumpds",
+    device_supported: false,
+    static_executable: true,
     defaults: [
         "art_debug_defaults",
         "oatdump-defaults",
     ],
-    device_supported: false,
     target: {
         darwin: {
             enabled: false,
         },
     },
+    ldflags: [
+        // We need this because GC stress mode makes use of
+        // _Unwind_GetIP and _Unwind_Backtrace and the symbols are also
+        // defined in libgcc_eh.a(unwind-dw2.o)
+        // TODO: Having this is not ideal as it might obscure errors.
+        // Try to get rid of it.
+        "-z muldefs",
+    ],
     static_libs: [
         "libartd",
         "libartd-compiler",
