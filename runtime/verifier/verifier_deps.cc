@@ -84,16 +84,18 @@ uint32_t VerifierDeps::GetClassDescriptorStringId(const DexFile& dex_file,
                                                   ObjPtr<mirror::Class> klass) {
   DCHECK(klass != nullptr);
   ObjPtr<mirror::DexCache> dex_cache = klass->GetDexCache();
-  // Array classes do not have a dex cache.
+  // Array and proxy classes do not have a dex cache.
   if (!klass->IsArrayClass() && !klass->IsProxyClass()) {
     DCHECK(dex_cache != nullptr) << klass->PrettyClass();
     if (dex_cache->GetDexFile() == &dex_file) {
       // FindStringId is slow, try to go through the class def if we have one.
       const DexFile::ClassDef* class_def = klass->GetClassDef();
       DCHECK(class_def != nullptr) << klass->PrettyClass();
-      std::string temp;
       const DexFile::TypeId& type_id = dex_file.GetTypeId(class_def->class_idx_);
-      DCHECK_EQ(GetIdFromString(dex_file, klass->GetDescriptor(&temp)), type_id.descriptor_idx_);
+      if (kIsDebugBuild) {
+        std::string temp;
+        CHECK_EQ(GetIdFromString(dex_file, klass->GetDescriptor(&temp)), type_id.descriptor_idx_);
+      }
       return type_id.descriptor_idx_;
     }
   }
