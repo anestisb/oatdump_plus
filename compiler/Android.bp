@@ -254,7 +254,10 @@ art_cc_library {
             },
         },
     },
-    shared_libs: ["libart"],
+    shared_libs: [
+        "libart",
+        "libart-dexlayout",
+    ],
 }
 
 art_cc_library {
@@ -291,7 +294,10 @@ art_cc_library {
             },
         },
     },
-    shared_libs: ["libartd"],
+    shared_libs: [
+        "libartd",
+        "libartd-dexlayout"
+    ],
 }
 
 art_cc_library {
