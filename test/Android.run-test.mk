@@ -792,12 +792,8 @@ TEST_ART_TARGET_SYNC_DEPS += $(OUT_DIR)/$(ART_TEST_LIST_device_$(TARGET_2ND_ARCH
 endif
 
 # Also need libopenjdkjvmti.
-TEST_ART_TARGET_SYNC_DEPS += $(OUT_DIR)/$(ART_TEST_LIST_device_$(TARGET_ARCH)_libopenjdkjvmti)
-TEST_ART_TARGET_SYNC_DEPS += $(OUT_DIR)/$(ART_TEST_LIST_device_$(TARGET_ARCH)_libopenjdkjvmtid)
-ifdef TARGET_2ND_ARCH
-TEST_ART_TARGET_SYNC_DEPS += $(OUT_DIR)/$(ART_TEST_LIST_device_$(TARGET_2ND_ARCH)_libopenjdkjvmti)
-TEST_ART_TARGET_SYNC_DEPS += $(OUT_DIR)/$(ART_TEST_LIST_device_$(TARGET_2ND_ARCH)_libopenjdkjvmtid)
-endif
+TEST_ART_TARGET_SYNC_DEPS += libopenjdkjvmti
+TEST_ART_TARGET_SYNC_DEPS += libopenjdkjvmtid
 
 # All tests require the host executables. The tests also depend on the core images, but on
 # specific version depending on the compiler.
