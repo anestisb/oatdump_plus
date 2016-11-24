@@ -7,3 +7,11 @@ Received exception: Expected (java.lang.String, java.lang.String)java.lang.Strin
 String constructors done.
 testReferenceReturnValueConversions done.
 testPrimitiveReturnValueConversions done.
+Hi
+Hi
+Hi
+Hi
+Expect Hi here: Hi
+Don't expect Hi now
+[3, 2, 1]
+[1, 2, 3]
