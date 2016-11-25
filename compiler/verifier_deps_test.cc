@@ -83,10 +83,13 @@ class VerifierDepsTest : public CommonCompilerTest {
     // The compiler driver handles the verifier deps in the callbacks, so
     // remove what this class did for unit testing.
     verifier_deps_.reset(nullptr);
-    callbacks_->SetVerifierDeps(nullptr);
-    compiler_driver_->Verify(class_loader_, dex_files_, deps, &timings);
+    callbacks_->SetVerifierDeps(deps);
+    compiler_driver_->Verify(class_loader_, dex_files_, &timings);
     // The compiler driver may have updated the VerifierDeps in the callback object.
-    verifier_deps_.reset(callbacks_->GetVerifierDeps());
+    if (callbacks_->GetVerifierDeps() != deps) {
+      verifier_deps_.reset(callbacks_->GetVerifierDeps());
+    }
+    callbacks_->SetVerifierDeps(nullptr);
   }
 
   void SetVerifierDeps(const std::vector<const DexFile*>& dex_files) {

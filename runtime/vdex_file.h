@@ -71,6 +71,13 @@ class VdexFile {
                         bool low_4gb,
                         std::string* error_msg);
 
+  static VdexFile* Open(int file_fd,
+                        size_t vdex_length,
+                        const std::string& vdex_filename,
+                        bool writable,
+                        bool low_4gb,
+                        std::string* error_msg);
+
   const uint8_t* Begin() const { return mmap_->Begin(); }
   const uint8_t* End() const { return mmap_->End(); }
   size_t Size() const { return mmap_->Size(); }
@@ -84,8 +91,36 @@ class VdexFile {
         Begin() + sizeof(Header) + GetHeader().GetDexSize(), GetHeader().GetVerifierDepsSize());
   }
 
+  ArrayRef<const uint8_t> GetQuickeningInfo() const {
+    return ArrayRef<const uint8_t>(
+        GetVerifierDepsData().data() + GetHeader().GetVerifierDepsSize(),
+        GetHeader().GetQuickeningInfoSize());
+  }
+
+  bool IsValid() const {
+    return mmap_->Size() >= sizeof(Header) && GetHeader().IsValid();
+  }
+
+  // This method is for iterating over the dex files in the vdex. If `cursor` is null,
+  // the first dex file is returned. If `cursor` is not null, it must point to a dex
+  // file and this method returns the next dex file if there is one, or null if there
+  // is none.
+  const uint8_t* GetNextDexFileData(const uint8_t* cursor) const;
+
  private:
   explicit VdexFile(MemMap* mmap) : mmap_(mmap) {}
+
+  bool HasDexSection() const {
+    return GetHeader().GetDexSize() != 0;
+  }
+
+  const uint8_t* DexBegin() const {
+    return Begin() + sizeof(Header);
+  }
+
+  const uint8_t* DexEnd() const {
+    return Begin() + sizeof(Header) + GetHeader().GetDexSize();
+  }
 
   std::unique_ptr<MemMap> mmap_;
 
