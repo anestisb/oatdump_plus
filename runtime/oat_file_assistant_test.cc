@@ -778,7 +778,7 @@ TEST_F(OatFileAssistantTest, NoSelfRelocation) {
 
 // Case: We have a DEX file, an ODEX file and an OAT file, where the ODEX and
 // OAT files both have patch delta of 0.
-// Expect: It shouldn't crash, and status is kPatchOatNeeded.
+// Expect: It shouldn't crash, and status is kSelfPatchOatNeeded.
 TEST_F(OatFileAssistantTest, OdexOatOverlap) {
   std::string dex_location = GetScratchDir() + "/OdexOatOverlap.jar";
   std::string odex_location = GetOdexDir() + "/OdexOatOverlap.odex";
@@ -796,7 +796,10 @@ TEST_F(OatFileAssistantTest, OdexOatOverlap) {
   OatFileAssistant oat_file_assistant(dex_location.c_str(),
       oat_location.c_str(), kRuntimeISA, true);
 
-  EXPECT_EQ(OatFileAssistant::kPatchOatNeeded,
+  // kSelfPatchOatNeeded is expected rather than kPatchOatNeeded based on the
+  // assumption that the oat location is more up-to-date than the odex
+  // location, even if they both need relocation.
+  EXPECT_EQ(OatFileAssistant::kSelfPatchOatNeeded,
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
