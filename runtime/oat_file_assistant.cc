@@ -62,7 +62,10 @@ OatFileAssistant::OatFileAssistant(const char* dex_location,
                                    const char* oat_location,
                                    const InstructionSet isa,
                                    bool load_executable)
-    : isa_(isa), load_executable_(load_executable), odex_(this), oat_(this) {
+    : isa_(isa),
+      load_executable_(load_executable),
+      odex_(this, /*is_oat_location*/ false),
+      oat_(this, /*is_oat_location*/ true) {
   CHECK(dex_location != nullptr) << "OatFileAssistant: null dex location";
   dex_location_.assign(dex_location);
 
@@ -139,14 +142,12 @@ bool OatFileAssistant::Lock(std::string* error_msg) {
 
 OatFileAssistant::DexOptNeeded
 OatFileAssistant::GetDexOptNeeded(CompilerFilter::Filter target, bool profile_changed) {
-  if (oat_.Status() != kOatOutOfDate) {
-    DexOptNeeded dexopt_needed = oat_.GetDexOptNeeded(target, profile_changed);
-    if (dexopt_needed == kPatchOatNeeded) {
-      dexopt_needed = kSelfPatchOatNeeded;
-    }
-    return dexopt_needed;
+  OatFileInfo& info = GetBestInfo();
+  DexOptNeeded dexopt_needed = info.GetDexOptNeeded(target, profile_changed);
+  if (dexopt_needed == kPatchOatNeeded && info.IsOatLocation()) {
+    dexopt_needed = kSelfPatchOatNeeded;
   }
-  return odex_.GetDexOptNeeded(target, profile_changed);
+  return dexopt_needed;
 }
 
 // Figure out the currently specified compile filter option in the runtime.
@@ -172,7 +173,7 @@ static bool GetRuntimeCompilerFilterOption(CompilerFilter::Filter* filter,
 }
 
 bool OatFileAssistant::IsUpToDate() {
-  return oat_.Status() == kOatUpToDate || odex_.Status() == kOatUpToDate;
+  return GetBestInfo().Status() == kOatUpToDate;
 }
 
 OatFileAssistant::ResultOfAttemptToUpdate
@@ -182,20 +183,21 @@ OatFileAssistant::MakeUpToDate(bool profile_changed, std::string* error_msg) {
     return kUpdateNotAttempted;
   }
 
-  switch (GetDexOptNeeded(target, profile_changed)) {
+  OatFileInfo& info = GetBestInfo();
+  switch (info.GetDexOptNeeded(target, profile_changed)) {
     case kNoDexOptNeeded: return kUpdateSucceeded;
     case kDex2OatNeeded: return GenerateOatFile(error_msg);
-    case kPatchOatNeeded: return RelocateOatFile(odex_.Filename(), error_msg);
-    case kSelfPatchOatNeeded: return RelocateOatFile(oat_.Filename(), error_msg);
+    case kPatchOatNeeded: return RelocateOatFile(info.Filename(), error_msg);
+
+    // kSelfPatchOatNeeded will never be returned by GetDexOptNeeded for an
+    // individual OatFileInfo.
+    case kSelfPatchOatNeeded: UNREACHABLE();
   }
   UNREACHABLE();
 }
 
 std::unique_ptr<OatFile> OatFileAssistant::GetBestOatFile() {
-  if (oat_.Status() != kOatOutOfDate) {
-    return oat_.ReleaseFileForUse();
-  }
-  return odex_.ReleaseFileForUse();
+  return GetBestInfo().ReleaseFileForUse();
 }
 
 std::string OatFileAssistant::GetStatusDump() {
@@ -758,6 +760,10 @@ uint32_t OatFileAssistant::GetCombinedImageChecksum() {
   return combined_image_checksum_;
 }
 
+OatFileAssistant::OatFileInfo& OatFileAssistant::GetBestInfo() {
+  return oat_.Status() != kOatOutOfDate ? oat_ : odex_;
+}
+
 std::unique_ptr<gc::space::ImageSpace> OatFileAssistant::OpenImageSpace(const OatFile* oat_file) {
   DCHECK(oat_file != nullptr);
   std::string art_file = ReplaceFileExtension(oat_file->GetLocation(), "art");
@@ -774,9 +780,14 @@ std::unique_ptr<gc::space::ImageSpace> OatFileAssistant::OpenImageSpace(const Oa
   return ret;
 }
 
-OatFileAssistant::OatFileInfo::OatFileInfo(OatFileAssistant* oat_file_assistant)
-  : oat_file_assistant_(oat_file_assistant)
+OatFileAssistant::OatFileInfo::OatFileInfo(OatFileAssistant* oat_file_assistant,
+                                           bool is_oat_location)
+  : oat_file_assistant_(oat_file_assistant), is_oat_location_(is_oat_location)
 {}
+
+bool OatFileAssistant::OatFileInfo::IsOatLocation() {
+  return is_oat_location_;
+}
 
 const std::string* OatFileAssistant::OatFileInfo::Filename() {
   return filename_provided_ ? &filename_ : nullptr;
