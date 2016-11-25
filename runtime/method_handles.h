@@ -46,23 +46,17 @@ enum MethodHandleKind {
   kInvokeStatic,
   kInvokeInterface,
   kInvokeTransform,
-  kInvokeCallSiteTransform,
   kInstanceGet,
   kInstancePut,
   kStaticGet,
   kStaticPut,
   kLastValidKind = kStaticPut,
-  kLastInvokeKind = kInvokeCallSiteTransform
+  kLastInvokeKind = kInvokeTransform
 };
 
 // Whether the given method handle kind is some variant of an invoke.
 inline bool IsInvoke(const MethodHandleKind handle_kind) {
   return handle_kind <= kLastInvokeKind;
-}
-
-// Whether the given method handle kind is some variant of a tranform.
-inline bool IsInvokeTransform(const MethodHandleKind handle_kind) {
-  return handle_kind == kInvokeTransform || handle_kind == kInvokeCallSiteTransform;
 }
 
 // Returns true if there is a possible conversion from |from| to |to|
