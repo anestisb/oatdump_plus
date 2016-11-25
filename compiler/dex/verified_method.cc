@@ -42,41 +42,17 @@ VerifiedMethod::VerifiedMethod(uint32_t encountered_error_types, bool has_runtim
       has_runtime_throw_(has_runtime_throw) {
 }
 
-const VerifiedMethod* VerifiedMethod::Create(verifier::MethodVerifier* method_verifier,
-                                             bool compile) {
+const VerifiedMethod* VerifiedMethod::Create(verifier::MethodVerifier* method_verifier) {
+  DCHECK(Runtime::Current()->IsAotCompiler());
   std::unique_ptr<VerifiedMethod> verified_method(
       new VerifiedMethod(method_verifier->GetEncounteredFailureTypes(),
                          method_verifier->HasInstructionThatWillThrow()));
-
-  if (compile) {
-    // TODO: move this out when DEX-to-DEX supports devirtualization.
-    if (method_verifier->HasVirtualOrInterfaceInvokes()) {
-      verified_method->GenerateDevirtMap(method_verifier);
-    }
-
-    // Only need dequicken info for JIT so far.
-    if (Runtime::Current()->UseJitCompilation() &&
-        !verified_method->GenerateDequickenMap(method_verifier)) {
-      return nullptr;
-    }
-  }
 
   if (method_verifier->HasCheckCasts()) {
     verified_method->GenerateSafeCastSet(method_verifier);
   }
 
   return verified_method.release();
-}
-
-const MethodReference* VerifiedMethod::GetDevirtTarget(uint32_t dex_pc) const {
-  auto it = devirt_map_.find(dex_pc);
-  return (it != devirt_map_.end()) ? &it->second : nullptr;
-}
-
-const DexFileReference* VerifiedMethod::GetDequickenIndex(uint32_t dex_pc) const {
-  DCHECK(Runtime::Current()->UseJitCompilation());
-  auto it = dequicken_map_.find(dex_pc);
-  return (it != dequicken_map_.end()) ? &it->second : nullptr;
 }
 
 bool VerifiedMethod::IsSafeCast(uint32_t pc) const {
@@ -124,82 +100,6 @@ bool VerifiedMethod::GenerateDequickenMap(verifier::MethodVerifier* method_verif
     }
   }
   return true;
-}
-
-void VerifiedMethod::GenerateDevirtMap(verifier::MethodVerifier* method_verifier) {
-  // It is risky to rely on reg_types for sharpening in cases of soft
-  // verification, we might end up sharpening to a wrong implementation. Just abort.
-  if (method_verifier->HasFailures()) {
-    return;
-  }
-
-  const DexFile::CodeItem* code_item = method_verifier->CodeItem();
-  const uint16_t* insns = code_item->insns_;
-  const Instruction* inst = Instruction::At(insns);
-  const Instruction* end = Instruction::At(insns + code_item->insns_size_in_code_units_);
-
-  for (; inst < end; inst = inst->Next()) {
-    const bool is_virtual = inst->Opcode() == Instruction::INVOKE_VIRTUAL ||
-        inst->Opcode() == Instruction::INVOKE_VIRTUAL_RANGE;
-    const bool is_interface = inst->Opcode() == Instruction::INVOKE_INTERFACE ||
-        inst->Opcode() == Instruction::INVOKE_INTERFACE_RANGE;
-
-    if (!is_interface && !is_virtual) {
-      continue;
-    }
-    // Get reg type for register holding the reference to the object that will be dispatched upon.
-    uint32_t dex_pc = inst->GetDexPc(insns);
-    verifier::RegisterLine* line = method_verifier->GetRegLine(dex_pc);
-    const bool is_range = inst->Opcode() == Instruction::INVOKE_VIRTUAL_RANGE ||
-        inst->Opcode() == Instruction::INVOKE_INTERFACE_RANGE;
-    const verifier::RegType&
-        reg_type(line->GetRegisterType(method_verifier,
-                                       is_range ? inst->VRegC_3rc() : inst->VRegC_35c()));
-
-    if (!reg_type.HasClass()) {
-      // We will compute devirtualization information only when we know the Class of the reg type.
-      continue;
-    }
-    mirror::Class* reg_class = reg_type.GetClass();
-    if (reg_class->IsInterface()) {
-      // We can't devirtualize when the known type of the register is an interface.
-      continue;
-    }
-    if (reg_class->IsAbstract() && !reg_class->IsArrayClass()) {
-      // We can't devirtualize abstract classes except on arrays of abstract classes.
-      continue;
-    }
-    auto* cl = Runtime::Current()->GetClassLinker();
-    PointerSize pointer_size = cl->GetImagePointerSize();
-    ArtMethod* abstract_method = method_verifier->GetDexCache()->GetResolvedMethod(
-        is_range ? inst->VRegB_3rc() : inst->VRegB_35c(), pointer_size);
-    if (abstract_method == nullptr) {
-      // If the method is not found in the cache this means that it was never found
-      // by ResolveMethodAndCheckAccess() called when verifying invoke_*.
-      continue;
-    }
-    // Find the concrete method.
-    ArtMethod* concrete_method = nullptr;
-    if (is_interface) {
-      concrete_method = reg_type.GetClass()->FindVirtualMethodForInterface(
-          abstract_method, pointer_size);
-    }
-    if (is_virtual) {
-      concrete_method = reg_type.GetClass()->FindVirtualMethodForVirtual(
-          abstract_method, pointer_size);
-    }
-    if (concrete_method == nullptr || !concrete_method->IsInvokable()) {
-      // In cases where concrete_method is not found, or is not invokable, continue to the next
-      // invoke.
-      continue;
-    }
-    if (reg_type.IsPreciseReference() || concrete_method->IsFinal() ||
-        concrete_method->GetDeclaringClass()->IsFinal()) {
-      // If we knew exactly the class being dispatched upon, or if the target method cannot be
-      // overridden record the target to be used in the compiler driver.
-      devirt_map_.Put(dex_pc, concrete_method->ToMethodReference());
-    }
-  }
 }
 
 void VerifiedMethod::GenerateSafeCastSet(verifier::MethodVerifier* method_verifier) {
