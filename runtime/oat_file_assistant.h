@@ -213,9 +213,6 @@ class OatFileAssistant {
   const std::string* OdexFileName();
   bool OdexFileExists();
   OatStatus OdexFileStatus();
-  bool OdexFileIsOutOfDate();
-  bool OdexFileNeedsRelocation();
-  bool OdexFileIsUpToDate();
   // Must only be called if the associated odex file exists, i.e, if
   // |OdexFileExists() == true|.
   CompilerFilter::Filter OdexFileCompilerFilter();
@@ -232,9 +229,6 @@ class OatFileAssistant {
   const std::string* OatFileName();
   bool OatFileExists();
   OatStatus OatFileStatus();
-  bool OatFileIsOutOfDate();
-  bool OatFileNeedsRelocation();
-  bool OatFileIsUpToDate();
   // Must only be called if the associated oat file exists, i.e, if
   // |OatFileExists() == true|.
   CompilerFilter::Filter OatFileCompilerFilter();
@@ -316,9 +310,6 @@ class OatFileAssistant {
     const std::string* Filename();
     bool Exists();
     OatStatus Status();
-    bool IsOutOfDate();
-    bool NeedsRelocation();
-    bool IsUpToDate();
     // Must only be called if the associated file exists, i.e, if
     // |Exists() == true|.
     CompilerFilter::Filter CompilerFilter();
