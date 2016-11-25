@@ -70,19 +70,26 @@ class OatFileAssistant {
   };
 
   enum OatStatus {
-    // kOatOutOfDate - An oat file is said to be out of date if the file does
-    // not exist, is out of date with respect to the dex file or boot image,
-    // or does not meet the target compilation type.
-    kOatOutOfDate,
+    // kOatCannotOpen - The oat file cannot be opened, because it does not
+    // exist, is unreadable, or otherwise corrupted.
+    kOatCannotOpen,
 
-    // kOatNeedsRelocation - An oat file is said to need relocation if the
-    // code is up to date, but not yet properly relocated for address space
-    // layout randomization (ASLR). In this case, the oat file is neither
-    // "out of date" nor "up to date".
-    kOatNeedsRelocation,
+    // kOatDexOutOfDate - The oat file is out of date with respect to the dex file.
+    kOatDexOutOfDate,
 
-    // kOatUpToDate - An oat file is said to be up to date if it is not out of
-    // date and has been properly relocated for the purposes of ASLR.
+    // kOatBootImageOutOfDate - The oat file is up to date with respect to the
+    // dex file, but is out of date with respect to the boot image.
+    kOatBootImageOutOfDate,
+
+    // kOatRelocationOutOfDate - The oat file is up to date with respect to
+    // the dex file and boot image, but contains compiled code that has the
+    // wrong patch delta with respect to the boot image. Patchoat should be
+    // run on the oat file to update the patch delta of the compiled code to
+    // match the boot image.
+    kOatRelocationOutOfDate,
+
+    // kOatUpToDate - The oat file is completely up to date with respect to
+    // the dex file and boot image.
     kOatUpToDate,
   };
 
@@ -209,22 +216,16 @@ class OatFileAssistant {
   // really an oat file. The odex file will often, but not always, have a
   // patch delta of 0 and need to be relocated before use for the purposes of
   // ASLR. The odex file is treated as if it were read-only.
-  // These methods return the location and status of the odex file for the dex
-  // location.
-  bool OdexFileExists();
+  //
+  // Returns the status of the odex file for the dex location.
   OatStatus OdexFileStatus();
 
   // When the dex files is compiled on the target device, the oat file is the
   // result. The oat file will have been relocated to some
   // (possibly-out-of-date) offset for ASLR.
-  // These methods return the location and status of the target oat file for
-  // the dex location.
-  bool OatFileExists();
+  //
+  // Returns the status of the oat file for the dex location.
   OatStatus OatFileStatus();
-
-  // Return the status for a given opened oat file with respect to the dex
-  // location.
-  OatStatus GivenOatFileStatus(const OatFile& file);
 
   // Generates the oat file by relocation from the named input file.
   // This does not check the current status before attempting to relocate the
@@ -301,11 +302,17 @@ class OatFileAssistant {
     bool IsOatLocation();
 
     const std::string* Filename();
-    bool Exists();
+
+    // Returns true if this oat file can be used for running code. The oat
+    // file can be used for running code as long as it is not out of date with
+    // respect to the dex code or boot image. An oat file that is out of date
+    // with respect to relocation is considered useable, because it's possible
+    // to interpret the dex code rather than run the unrelocated compiled
+    // code.
+    bool IsUseable();
+
+    // Returns the status of this oat file.
     OatStatus Status();
-    // Must only be called if the associated file exists, i.e, if
-    // |Exists() == true|.
-    CompilerFilter::Filter CompilerFilter();
 
     // Return the DexOptNeeded value for this oat file with respect to the
     // given target_compilation_filter.
@@ -380,6 +387,10 @@ class OatFileAssistant {
 
   // Return info for the best oat file.
   OatFileInfo& GetBestInfo();
+
+  // Return the status for a given opened oat file with respect to the dex
+  // location.
+  OatStatus GivenOatFileStatus(const OatFile& file);
 
   // Returns the current image location.
   // Returns an empty string if the image location could not be retrieved.
