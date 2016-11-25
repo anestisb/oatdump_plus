@@ -294,7 +294,11 @@ class OatFileAssistant {
     // Initially the info is for no file in particular. It will treat the
     // file as out of date until Reset is called with a real filename to use
     // the cache for.
-    explicit OatFileInfo(OatFileAssistant* oat_file_assistant);
+    // Pass true for is_oat_location if the information associated with this
+    // OatFileInfo is for the oat location, as opposed to the odex location.
+    OatFileInfo(OatFileAssistant* oat_file_assistant, bool is_oat_location);
+
+    bool IsOatLocation();
 
     const std::string* Filename();
     bool Exists();
@@ -356,8 +360,8 @@ class OatFileAssistant {
     // the OatFileInfo object.
     std::unique_ptr<OatFile> ReleaseFile();
 
-   private:
     OatFileAssistant* oat_file_assistant_;
+    const bool is_oat_location_;
 
     bool filename_provided_ = false;
     std::string filename_;
@@ -373,6 +377,9 @@ class OatFileAssistant {
     // OatFileInfo object is in a bad state and should no longer be used.
     bool file_released_ = false;
   };
+
+  // Return info for the best oat file.
+  OatFileInfo& GetBestInfo();
 
   // Returns the current image location.
   // Returns an empty string if the image location could not be retrieved.
