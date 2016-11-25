@@ -314,7 +314,6 @@ cc_defaults {
         "595-profile-saving/profile-saving.cc",
         "596-app-images/app_images.cc",
         "597-deopt-new-string/deopt.cc",
-        "626-const-class-linking/clear_dex_cache_types.cc",
     ],
     shared_libs: [
         "libbacktrace",
