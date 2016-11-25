@@ -574,10 +574,12 @@ void ArmVIXLJNIMacroAssembler::Jump(JNIMacroLabel* label,
 
   switch (condition) {
     case JNIMacroUnaryCondition::kZero:
-      ___ Cbz(test.AsArm().AsVIXLRegister(), ArmVIXLJNIMacroLabel::Cast(label)->AsArm());
+      ___ CompareAndBranchIfZero(test.AsArm().AsVIXLRegister(),
+                                 ArmVIXLJNIMacroLabel::Cast(label)->AsArm());
       break;
     case JNIMacroUnaryCondition::kNotZero:
-      ___ Cbnz(test.AsArm().AsVIXLRegister(), ArmVIXLJNIMacroLabel::Cast(label)->AsArm());
+      ___ CompareAndBranchIfNonZero(test.AsArm().AsVIXLRegister(),
+                                    ArmVIXLJNIMacroLabel::Cast(label)->AsArm());
       break;
     default:
       LOG(FATAL) << "Not implemented unary condition: " << static_cast<int>(condition);
