@@ -49,9 +49,9 @@ class OatFileAssistantTest : public Dex2oatEnvironmentTest {
   // Pre-Relocate the image to a known non-zero offset so we don't have to
   // deal with the runtime randomly relocating the image by 0 and messing up
   // the expected results of the tests.
-  bool PreRelocateImage(std::string* error_msg) {
+  bool PreRelocateImage(const std::string& image_location, std::string* error_msg) {
     std::string image;
-    if (!GetCachedImageFile(&image, error_msg)) {
+    if (!GetCachedImageFile(image_location, &image, error_msg)) {
       return false;
     }
 
@@ -60,7 +60,7 @@ class OatFileAssistantTest : public Dex2oatEnvironmentTest {
 
     std::vector<std::string> argv;
     argv.push_back(patchoat);
-    argv.push_back("--input-image-location=" + GetImageLocation());
+    argv.push_back("--input-image-location=" + image_location);
     argv.push_back("--output-image-file=" + image);
     argv.push_back("--instruction-set=" + std::string(GetInstructionSetString(kRuntimeISA)));
     argv.push_back("--base-offset-delta=0x00008000");
@@ -69,8 +69,8 @@ class OatFileAssistantTest : public Dex2oatEnvironmentTest {
 
   virtual void PreRuntimeCreate() {
     std::string error_msg;
-    ASSERT_TRUE(PreRelocateImage(&error_msg)) << error_msg;
-
+    ASSERT_TRUE(PreRelocateImage(GetImageLocation(), &error_msg)) << error_msg;
+    ASSERT_TRUE(PreRelocateImage(GetImageLocation2(), &error_msg)) << error_msg;
     UnreserveImageSpace();
   }
 
@@ -78,24 +78,32 @@ class OatFileAssistantTest : public Dex2oatEnvironmentTest {
     ReserveImageSpace();
   }
 
-  // Generate a non-PIC odex file for the purposes of test.
-  // The generated odex file will be un-relocated.
-  void GenerateOdexForTest(const std::string& dex_location,
-                           const std::string& odex_location,
-                           CompilerFilter::Filter filter,
-                           bool pic = false,
-                           bool with_patch_info = true) {
-    // Temporarily redirect the dalvik cache so dex2oat doesn't find the
-    // relocated image file.
+  // Generate an oat file for the purposes of test.
+  void GenerateOatForTest(const std::string& dex_location,
+                          const std::string& oat_location,
+                          CompilerFilter::Filter filter,
+                          bool relocate,
+                          bool pic,
+                          bool with_patch_info,
+                          bool with_alternate_image) {
     std::string dalvik_cache = GetDalvikCache(GetInstructionSetString(kRuntimeISA));
     std::string dalvik_cache_tmp = dalvik_cache + ".redirected";
-    ASSERT_EQ(0, rename(dalvik_cache.c_str(), dalvik_cache_tmp.c_str())) << strerror(errno);
+
+    if (!relocate) {
+      // Temporarily redirect the dalvik cache so dex2oat doesn't find the
+      // relocated image file.
+      ASSERT_EQ(0, rename(dalvik_cache.c_str(), dalvik_cache_tmp.c_str())) << strerror(errno);
+    }
 
     std::vector<std::string> args;
     args.push_back("--dex-file=" + dex_location);
-    args.push_back("--oat-file=" + odex_location);
+    args.push_back("--oat-file=" + oat_location);
     args.push_back("--compiler-filter=" + CompilerFilter::NameOfFilter(filter));
     args.push_back("--runtime-arg");
+
+    // Use -Xnorelocate regardless of the relocate argument.
+    // We control relocation by redirecting the dalvik cache when needed
+    // rather than use this flag.
     args.push_back("-Xnorelocate");
 
     if (pic) {
@@ -106,14 +114,22 @@ class OatFileAssistantTest : public Dex2oatEnvironmentTest {
       args.push_back("--include-patch-information");
     }
 
+    std::string image_location = GetImageLocation();
+    if (with_alternate_image) {
+      args.push_back("--boot-image=" + GetImageLocation2());
+    }
+
     std::string error_msg;
     ASSERT_TRUE(OatFileAssistant::Dex2Oat(args, &error_msg)) << error_msg;
-    ASSERT_EQ(0, rename(dalvik_cache_tmp.c_str(), dalvik_cache.c_str())) << strerror(errno);
 
-    // Verify the odex file was generated as expected and really is
-    // unrelocated.
-    std::unique_ptr<OatFile> odex_file(OatFile::Open(odex_location.c_str(),
-                                                     odex_location.c_str(),
+    if (!relocate) {
+      // Restore the dalvik cache if needed.
+      ASSERT_EQ(0, rename(dalvik_cache_tmp.c_str(), dalvik_cache.c_str())) << strerror(errno);
+    }
+
+    // Verify the odex file was generated as expected.
+    std::unique_ptr<OatFile> odex_file(OatFile::Open(oat_location.c_str(),
+                                                     oat_location.c_str(),
                                                      nullptr,
                                                      nullptr,
                                                      false,
@@ -125,24 +141,59 @@ class OatFileAssistantTest : public Dex2oatEnvironmentTest {
     EXPECT_EQ(with_patch_info, odex_file->HasPatchInfo());
     EXPECT_EQ(filter, odex_file->GetCompilerFilter());
 
-    if (CompilerFilter::IsBytecodeCompilationEnabled(filter)) {
-      const std::vector<gc::space::ImageSpace*> image_spaces =
-        Runtime::Current()->GetHeap()->GetBootImageSpaces();
-      ASSERT_TRUE(!image_spaces.empty() && image_spaces[0] != nullptr);
-      const ImageHeader& image_header = image_spaces[0]->GetImageHeader();
-      const OatHeader& oat_header = odex_file->GetOatHeader();
-      uint32_t combined_checksum = OatFileAssistant::CalculateCombinedImageChecksum();
-      EXPECT_EQ(combined_checksum, oat_header.GetImageFileLocationOatChecksum());
-      EXPECT_NE(reinterpret_cast<uintptr_t>(image_header.GetOatDataBegin()),
-          oat_header.GetImageFileLocationOatDataBegin());
-      EXPECT_NE(image_header.GetPatchDelta(), oat_header.GetImagePatchDelta());
+    std::unique_ptr<ImageHeader> image_header(
+            gc::space::ImageSpace::ReadImageHeader(image_location.c_str(),
+                                                   kRuntimeISA,
+                                                   &error_msg));
+    ASSERT_TRUE(image_header != nullptr) << error_msg;
+    const OatHeader& oat_header = odex_file->GetOatHeader();
+    uint32_t combined_checksum = OatFileAssistant::CalculateCombinedImageChecksum();
+
+    if (CompilerFilter::DependsOnImageChecksum(filter)) {
+      if (with_alternate_image) {
+        EXPECT_NE(combined_checksum, oat_header.GetImageFileLocationOatChecksum());
+      } else {
+        EXPECT_EQ(combined_checksum, oat_header.GetImageFileLocationOatChecksum());
+      }
     }
+
+    if (CompilerFilter::IsBytecodeCompilationEnabled(filter)) {
+      if (relocate) {
+        EXPECT_EQ(reinterpret_cast<uintptr_t>(image_header->GetOatDataBegin()),
+            oat_header.GetImageFileLocationOatDataBegin());
+        EXPECT_EQ(image_header->GetPatchDelta(), oat_header.GetImagePatchDelta());
+      } else {
+        EXPECT_NE(reinterpret_cast<uintptr_t>(image_header->GetOatDataBegin()),
+            oat_header.GetImageFileLocationOatDataBegin());
+        EXPECT_NE(image_header->GetPatchDelta(), oat_header.GetImagePatchDelta());
+      }
+    }
+  }
+
+  // Generate a non-PIC odex file for the purposes of test.
+  // The generated odex file will be un-relocated.
+  void GenerateOdexForTest(const std::string& dex_location,
+                           const std::string& odex_location,
+                           CompilerFilter::Filter filter) {
+    GenerateOatForTest(dex_location,
+                       odex_location,
+                       filter,
+                       /*relocate*/false,
+                       /*pic*/false,
+                       /*with_patch_info*/true,
+                       /*with_alternate_image*/false);
   }
 
   void GeneratePicOdexForTest(const std::string& dex_location,
                               const std::string& odex_location,
                               CompilerFilter::Filter filter) {
-    GenerateOdexForTest(dex_location, odex_location, filter, true, false);
+    GenerateOatForTest(dex_location,
+                       odex_location,
+                       filter,
+                       /*relocate*/false,
+                       /*pic*/true,
+                       /*with_patch_info*/false,
+                       /*with_alternate_image*/false);
   }
 
   // Generate a non-PIC odex file without patch information for the purposes
@@ -150,7 +201,43 @@ class OatFileAssistantTest : public Dex2oatEnvironmentTest {
   void GenerateNoPatchOdexForTest(const std::string& dex_location,
                                   const std::string& odex_location,
                                   CompilerFilter::Filter filter) {
-    GenerateOdexForTest(dex_location, odex_location, filter, false, false);
+    GenerateOatForTest(dex_location,
+                       odex_location,
+                       filter,
+                       /*relocate*/false,
+                       /*pic*/false,
+                       /*with_patch_info*/false,
+                       /*with_alternate_image*/false);
+  }
+
+  // Generate an oat file in the oat location.
+  void GenerateOatForTest(const char* dex_location,
+                          CompilerFilter::Filter filter,
+                          bool relocate,
+                          bool pic,
+                          bool with_patch_info,
+                          bool with_alternate_image) {
+    std::string oat_location;
+    std::string error_msg;
+    ASSERT_TRUE(OatFileAssistant::DexLocationToOatFilename(
+          dex_location, kRuntimeISA, &oat_location, &error_msg)) << error_msg;
+    GenerateOatForTest(dex_location,
+                       oat_location,
+                       filter,
+                       relocate,
+                       pic,
+                       with_patch_info,
+                       with_alternate_image);
+  }
+
+  // Generate a standard oat file in the oat location.
+  void GenerateOatForTest(const char* dex_location, CompilerFilter::Filter filter) {
+    GenerateOatForTest(dex_location,
+                       filter,
+                       /*relocate*/true,
+                       /*pic*/false,
+                       /*with_patch_info*/false,
+                       /*with_alternate_image*/false);
   }
 
  private:
@@ -211,36 +298,6 @@ class OatFileAssistantNoDex2OatTest : public OatFileAssistantTest {
   }
 };
 
-// Generate an oat file for the purposes of test, as opposed to testing
-// generation of oat files.
-static void GenerateOatForTest(const char* dex_location, CompilerFilter::Filter filter) {
-  // Use an oat file assistant to find the proper oat location.
-  std::string oat_location;
-  std::string error_msg;
-  ASSERT_TRUE(OatFileAssistant::DexLocationToOatFilename(
-        dex_location, kRuntimeISA, &oat_location, &error_msg)) << error_msg;
-
-  std::vector<std::string> args;
-  args.push_back("--dex-file=" + std::string(dex_location));
-  args.push_back("--oat-file=" + oat_location);
-  args.push_back("--compiler-filter=" + CompilerFilter::NameOfFilter(filter));
-  args.push_back("--runtime-arg");
-  args.push_back("-Xnorelocate");
-  ASSERT_TRUE(OatFileAssistant::Dex2Oat(args, &error_msg)) << error_msg;
-
-  // Verify the oat file was generated as expected.
-  std::unique_ptr<OatFile> oat_file(OatFile::Open(oat_location.c_str(),
-                                                  oat_location.c_str(),
-                                                  nullptr,
-                                                  nullptr,
-                                                  false,
-                                                  /*low_4gb*/false,
-                                                  dex_location,
-                                                  &error_msg));
-  ASSERT_TRUE(oat_file.get() != nullptr) << error_msg;
-  EXPECT_EQ(filter, oat_file->GetCompilerFilter());
-}
-
 // Case: We have a DEX file, but no OAT file for it.
 // Expect: The status is kDex2OatNeeded.
 TEST_F(OatFileAssistantTest, DexNoOat) {
@@ -259,10 +316,8 @@ TEST_F(OatFileAssistantTest, DexNoOat) {
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
-  EXPECT_FALSE(oat_file_assistant.OdexFileExists());
-  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OdexFileStatus());
-  EXPECT_FALSE(oat_file_assistant.OatFileExists());
-  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OatFileStatus());
+  EXPECT_EQ(OatFileAssistant::kOatCannotOpen, oat_file_assistant.OdexFileStatus());
+  EXPECT_EQ(OatFileAssistant::kOatCannotOpen, oat_file_assistant.OatFileStatus());
   EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
 }
 
@@ -305,9 +360,7 @@ TEST_F(OatFileAssistantTest, OatUpToDate) {
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kEverything));
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
-  EXPECT_FALSE(oat_file_assistant.OdexFileExists());
-  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OdexFileStatus());
-  EXPECT_TRUE(oat_file_assistant.OatFileExists());
+  EXPECT_EQ(OatFileAssistant::kOatCannotOpen, oat_file_assistant.OdexFileStatus());
   EXPECT_EQ(OatFileAssistant::kOatUpToDate, oat_file_assistant.OatFileStatus());
   EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
 }
@@ -331,10 +384,8 @@ TEST_F(OatFileAssistantTest, OatForDifferentDex) {
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
-  EXPECT_TRUE(oat_file_assistant.OdexFileExists());
-  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OdexFileStatus());
-  EXPECT_FALSE(oat_file_assistant.OatFileExists());
-  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OatFileStatus());
+  EXPECT_EQ(OatFileAssistant::kOatDexOutOfDate, oat_file_assistant.OdexFileStatus());
+  EXPECT_EQ(OatFileAssistant::kOatCannotOpen, oat_file_assistant.OatFileStatus());
 }
 
 // Case: We have a DEX file and speed-profile OAT file for it.
@@ -357,9 +408,7 @@ TEST_F(OatFileAssistantTest, ProfileOatUpToDate) {
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kInterpretOnly, true));
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
-  EXPECT_FALSE(oat_file_assistant.OdexFileExists());
-  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OdexFileStatus());
-  EXPECT_TRUE(oat_file_assistant.OatFileExists());
+  EXPECT_EQ(OatFileAssistant::kOatCannotOpen, oat_file_assistant.OdexFileStatus());
   EXPECT_EQ(OatFileAssistant::kOatUpToDate, oat_file_assistant.OatFileStatus());
   EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
 }
@@ -436,10 +485,10 @@ TEST_F(OatFileAssistantTest, RelativeEncodedDexLocation) {
   EXPECT_EQ(2u, dex_files.size());
 }
 
-// Case: We have a DEX file and out-of-date OAT file.
-// Expect: The status is kDex2OatNeeded.
-TEST_F(OatFileAssistantTest, OatOutOfDate) {
-  std::string dex_location = GetScratchDir() + "/OatOutOfDate.jar";
+// Case: We have a DEX file and an OAT file out of date with respect to the
+// dex checksum.
+TEST_F(OatFileAssistantTest, OatDexOutOfDate) {
+  std::string dex_location = GetScratchDir() + "/OatDexOutOfDate.jar";
 
   // We create a dex, generate an oat for it, then overwrite the dex with a
   // different dex to make the oat out of date.
@@ -454,10 +503,62 @@ TEST_F(OatFileAssistantTest, OatOutOfDate) {
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
-  EXPECT_FALSE(oat_file_assistant.OdexFileExists());
-  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OdexFileStatus());
-  EXPECT_TRUE(oat_file_assistant.OatFileExists());
-  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OatFileStatus());
+  EXPECT_EQ(OatFileAssistant::kOatCannotOpen, oat_file_assistant.OdexFileStatus());
+  EXPECT_EQ(OatFileAssistant::kOatDexOutOfDate, oat_file_assistant.OatFileStatus());
+  EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
+}
+
+// Case: We have a DEX file and an OAT file out of date with respect to the
+// boot image.
+TEST_F(OatFileAssistantTest, OatImageOutOfDate) {
+  std::string dex_location = GetScratchDir() + "/OatImageOutOfDate.jar";
+
+  Copy(GetDexSrc1(), dex_location);
+  GenerateOatForTest(dex_location.c_str(),
+                     CompilerFilter::kSpeed,
+                     /*relocate*/true,
+                     /*pic*/false,
+                     /*with_patch_info*/false,
+                     /*with_alternate_image*/true);
+
+  OatFileAssistant oat_file_assistant(dex_location.c_str(), kRuntimeISA, false);
+  EXPECT_EQ(OatFileAssistant::kDex2OatNeeded,
+      oat_file_assistant.GetDexOptNeeded(CompilerFilter::kVerifyAtRuntime));
+  EXPECT_EQ(OatFileAssistant::kDex2OatNeeded,
+      oat_file_assistant.GetDexOptNeeded(CompilerFilter::kInterpretOnly));
+  EXPECT_EQ(OatFileAssistant::kDex2OatNeeded,
+      oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
+
+  EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
+  EXPECT_EQ(OatFileAssistant::kOatCannotOpen, oat_file_assistant.OdexFileStatus());
+  EXPECT_EQ(OatFileAssistant::kOatBootImageOutOfDate, oat_file_assistant.OatFileStatus());
+  EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
+}
+
+// Case: We have a DEX file and a verify-at-runtime OAT file out of date with
+// respect to the boot image.
+// It shouldn't matter that the OAT file is out of date, because it is
+// verify-at-runtime.
+TEST_F(OatFileAssistantTest, OatVerifyAtRuntimeImageOutOfDate) {
+  std::string dex_location = GetScratchDir() + "/OatVerifyAtRuntimeImageOutOfDate.jar";
+
+  Copy(GetDexSrc1(), dex_location);
+  GenerateOatForTest(dex_location.c_str(),
+                     CompilerFilter::kVerifyAtRuntime,
+                     /*relocate*/true,
+                     /*pic*/false,
+                     /*with_patch_info*/false,
+                     /*with_alternate_image*/true);
+
+  OatFileAssistant oat_file_assistant(dex_location.c_str(), kRuntimeISA, false);
+  EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded,
+      oat_file_assistant.GetDexOptNeeded(CompilerFilter::kVerifyAtRuntime));
+  EXPECT_EQ(OatFileAssistant::kDex2OatNeeded,
+      oat_file_assistant.GetDexOptNeeded(CompilerFilter::kInterpretOnly));
+
+  EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
+  EXPECT_EQ(OatFileAssistant::kOatCannotOpen, oat_file_assistant.OdexFileStatus());
+  EXPECT_EQ(OatFileAssistant::kOatUpToDate, oat_file_assistant.OatFileStatus());
   EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
 }
 
@@ -480,10 +581,8 @@ TEST_F(OatFileAssistantTest, DexOdexNoOat) {
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
-  EXPECT_TRUE(oat_file_assistant.OdexFileExists());
-  EXPECT_EQ(OatFileAssistant::kOatNeedsRelocation, oat_file_assistant.OdexFileStatus());
-  EXPECT_FALSE(oat_file_assistant.OatFileExists());
-  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OatFileStatus());
+  EXPECT_EQ(OatFileAssistant::kOatRelocationOutOfDate, oat_file_assistant.OdexFileStatus());
+  EXPECT_EQ(OatFileAssistant::kOatCannotOpen, oat_file_assistant.OatFileStatus());
   EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
 
   // We should still be able to get the non-executable odex file to run from.
@@ -511,10 +610,8 @@ TEST_F(OatFileAssistantTest, StrippedDexOdexNoOat) {
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
-  EXPECT_TRUE(oat_file_assistant.OdexFileExists());
-  EXPECT_EQ(OatFileAssistant::kOatNeedsRelocation, oat_file_assistant.OdexFileStatus());
-  EXPECT_FALSE(oat_file_assistant.OatFileExists());
-  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OatFileStatus());
+  EXPECT_EQ(OatFileAssistant::kOatRelocationOutOfDate, oat_file_assistant.OdexFileStatus());
+  EXPECT_EQ(OatFileAssistant::kOatCannotOpen, oat_file_assistant.OatFileStatus());
   EXPECT_FALSE(oat_file_assistant.HasOriginalDexFiles());
 
   // Make the oat file up to date.
@@ -527,9 +624,7 @@ TEST_F(OatFileAssistantTest, StrippedDexOdexNoOat) {
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
-  EXPECT_TRUE(oat_file_assistant.OdexFileExists());
-  EXPECT_EQ(OatFileAssistant::kOatNeedsRelocation, oat_file_assistant.OdexFileStatus());
-  EXPECT_TRUE(oat_file_assistant.OatFileExists());
+  EXPECT_EQ(OatFileAssistant::kOatRelocationOutOfDate, oat_file_assistant.OdexFileStatus());
   EXPECT_EQ(OatFileAssistant::kOatUpToDate, oat_file_assistant.OatFileStatus());
   EXPECT_FALSE(oat_file_assistant.HasOriginalDexFiles());
 
@@ -570,10 +665,8 @@ TEST_F(OatFileAssistantTest, StrippedDexOdexOat) {
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kEverything));
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
-  EXPECT_TRUE(oat_file_assistant.OdexFileExists());
-  EXPECT_EQ(OatFileAssistant::kOatNeedsRelocation, oat_file_assistant.OdexFileStatus());
-  EXPECT_TRUE(oat_file_assistant.OatFileExists());
-  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OatFileStatus());
+  EXPECT_EQ(OatFileAssistant::kOatRelocationOutOfDate, oat_file_assistant.OdexFileStatus());
+  EXPECT_EQ(OatFileAssistant::kOatDexOutOfDate, oat_file_assistant.OatFileStatus());
   EXPECT_FALSE(oat_file_assistant.HasOriginalDexFiles());
 
   // Make the oat file up to date.
@@ -588,10 +681,7 @@ TEST_F(OatFileAssistantTest, StrippedDexOdexOat) {
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kEverything));
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
-  EXPECT_TRUE(oat_file_assistant.OdexFileExists());
-  EXPECT_EQ(OatFileAssistant::kOatNeedsRelocation, oat_file_assistant.OdexFileStatus());
-
-  EXPECT_TRUE(oat_file_assistant.OatFileExists());
+  EXPECT_EQ(OatFileAssistant::kOatRelocationOutOfDate, oat_file_assistant.OdexFileStatus());
   EXPECT_EQ(OatFileAssistant::kOatUpToDate, oat_file_assistant.OatFileStatus());
   EXPECT_FALSE(oat_file_assistant.HasOriginalDexFiles());
 
@@ -622,10 +712,8 @@ TEST_F(OatFileAssistantTest, ResourceOnlyDex) {
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kInterpretOnly));
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
-  EXPECT_FALSE(oat_file_assistant.OdexFileExists());
-  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OdexFileStatus());
-  EXPECT_FALSE(oat_file_assistant.OatFileExists());
-  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OatFileStatus());
+  EXPECT_EQ(OatFileAssistant::kOatCannotOpen, oat_file_assistant.OdexFileStatus());
+  EXPECT_EQ(OatFileAssistant::kOatCannotOpen, oat_file_assistant.OatFileStatus());
   EXPECT_FALSE(oat_file_assistant.HasOriginalDexFiles());
 
   // Make the oat file up to date. This should have no effect.
@@ -638,10 +726,8 @@ TEST_F(OatFileAssistantTest, ResourceOnlyDex) {
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
-  EXPECT_FALSE(oat_file_assistant.OdexFileExists());
-  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OdexFileStatus());
-  EXPECT_FALSE(oat_file_assistant.OatFileExists());
-  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OatFileStatus());
+  EXPECT_EQ(OatFileAssistant::kOatCannotOpen, oat_file_assistant.OdexFileStatus());
+  EXPECT_EQ(OatFileAssistant::kOatCannotOpen, oat_file_assistant.OatFileStatus());
   EXPECT_FALSE(oat_file_assistant.HasOriginalDexFiles());
 }
 
@@ -667,10 +753,8 @@ TEST_F(OatFileAssistantTest, SelfRelocation) {
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kEverything));
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
-  EXPECT_FALSE(oat_file_assistant.OdexFileExists());
-  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OdexFileStatus());
-  EXPECT_TRUE(oat_file_assistant.OatFileExists());
-  EXPECT_EQ(OatFileAssistant::kOatNeedsRelocation, oat_file_assistant.OatFileStatus());
+  EXPECT_EQ(OatFileAssistant::kOatCannotOpen, oat_file_assistant.OdexFileStatus());
+  EXPECT_EQ(OatFileAssistant::kOatRelocationOutOfDate, oat_file_assistant.OatFileStatus());
   EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
 
   // Make the oat file up to date.
@@ -683,9 +767,7 @@ TEST_F(OatFileAssistantTest, SelfRelocation) {
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
-  EXPECT_FALSE(oat_file_assistant.OdexFileExists());
-  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OdexFileStatus());
-  EXPECT_TRUE(oat_file_assistant.OatFileExists());
+  EXPECT_EQ(OatFileAssistant::kOatCannotOpen, oat_file_assistant.OdexFileStatus());
   EXPECT_EQ(OatFileAssistant::kOatUpToDate, oat_file_assistant.OatFileStatus());
   EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
 
@@ -757,10 +839,8 @@ TEST_F(OatFileAssistantTest, OdexOatOverlap) {
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
-  EXPECT_TRUE(oat_file_assistant.OdexFileExists());
-  EXPECT_EQ(OatFileAssistant::kOatNeedsRelocation, oat_file_assistant.OdexFileStatus());
-  EXPECT_TRUE(oat_file_assistant.OatFileExists());
-  EXPECT_EQ(OatFileAssistant::kOatNeedsRelocation, oat_file_assistant.OatFileStatus());
+  EXPECT_EQ(OatFileAssistant::kOatRelocationOutOfDate, oat_file_assistant.OdexFileStatus());
+  EXPECT_EQ(OatFileAssistant::kOatRelocationOutOfDate, oat_file_assistant.OatFileStatus());
   EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
 
   // Things aren't relocated, so it should fall back to interpreted.
@@ -792,10 +872,8 @@ TEST_F(OatFileAssistantTest, DexPicOdexNoOat) {
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kEverything));
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
-  EXPECT_TRUE(oat_file_assistant.OdexFileExists());
   EXPECT_EQ(OatFileAssistant::kOatUpToDate, oat_file_assistant.OdexFileStatus());
-  EXPECT_FALSE(oat_file_assistant.OatFileExists());
-  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OatFileStatus());
+  EXPECT_EQ(OatFileAssistant::kOatCannotOpen, oat_file_assistant.OatFileStatus());
   EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
 }
 
@@ -818,10 +896,8 @@ TEST_F(OatFileAssistantTest, DexVerifyAtRuntimeOdexNoOat) {
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
-  EXPECT_TRUE(oat_file_assistant.OdexFileExists());
   EXPECT_EQ(OatFileAssistant::kOatUpToDate, oat_file_assistant.OdexFileStatus());
-  EXPECT_FALSE(oat_file_assistant.OatFileExists());
-  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OatFileStatus());
+  EXPECT_EQ(OatFileAssistant::kOatCannotOpen, oat_file_assistant.OatFileStatus());
   EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
 }
 
@@ -909,7 +985,7 @@ TEST_F(OatFileAssistantTest, LoadDexNoAlternateOat) {
 
   // Verify it didn't create an oat in the default location.
   OatFileAssistant ofm(dex_location.c_str(), kRuntimeISA, false);
-  EXPECT_FALSE(ofm.OatFileExists());
+  EXPECT_EQ(OatFileAssistant::kOatCannotOpen, ofm.OatFileStatus());
 }
 
 // Case: We have a DEX file but can't write the oat file.
@@ -996,10 +1072,8 @@ TEST_F(OatFileAssistantTest, NonAbsoluteDexLocation) {
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
   EXPECT_EQ(OatFileAssistant::kDex2OatNeeded,
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
-  EXPECT_FALSE(oat_file_assistant.OdexFileExists());
-  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OdexFileStatus());
-  EXPECT_FALSE(oat_file_assistant.OatFileExists());
-  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OatFileStatus());
+  EXPECT_EQ(OatFileAssistant::kOatCannotOpen, oat_file_assistant.OdexFileStatus());
+  EXPECT_EQ(OatFileAssistant::kOatCannotOpen, oat_file_assistant.OatFileStatus());
 }
 
 // Case: Very short, non-existent Dex location.
@@ -1012,10 +1086,8 @@ TEST_F(OatFileAssistantTest, ShortDexLocation) {
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
   EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded,
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
-  EXPECT_FALSE(oat_file_assistant.OdexFileExists());
-  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OdexFileStatus());
-  EXPECT_FALSE(oat_file_assistant.OatFileExists());
-  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OatFileStatus());
+  EXPECT_EQ(OatFileAssistant::kOatCannotOpen, oat_file_assistant.OdexFileStatus());
+  EXPECT_EQ(OatFileAssistant::kOatCannotOpen, oat_file_assistant.OatFileStatus());
   EXPECT_FALSE(oat_file_assistant.HasOriginalDexFiles());
 
   // Trying to make it up to date should have no effect.
@@ -1038,10 +1110,8 @@ TEST_F(OatFileAssistantTest, LongDexExtension) {
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
-  EXPECT_FALSE(oat_file_assistant.OdexFileExists());
-  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OdexFileStatus());
-  EXPECT_FALSE(oat_file_assistant.OatFileExists());
-  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OatFileStatus());
+  EXPECT_EQ(OatFileAssistant::kOatCannotOpen, oat_file_assistant.OdexFileStatus());
+  EXPECT_EQ(OatFileAssistant::kOatCannotOpen, oat_file_assistant.OatFileStatus());
 }
 
 // A task to generate a dex location. Used by the RaceToGenerate test.
@@ -1242,9 +1312,6 @@ TEST_F(OatFileAssistantTest, DexOptStatusValues) {
 }
 
 // TODO: More Tests:
-//  * Image checksum change is out of date for kIntepretOnly, but not
-//    kVerifyAtRuntime. But target of kVerifyAtRuntime still says current
-//    kInterpretOnly is out of date.
 //  * Test class linker falls back to unquickened dex for DexNoOat
 //  * Test class linker falls back to unquickened dex for MultiDexNoOat
 //  * Test using secondary isa
@@ -1258,5 +1325,4 @@ TEST_F(OatFileAssistantTest, DexOptStatusValues) {
 //    because it's unrelocated and no dex2oat
 //  * Test unrelocated specific target compilation type can be relocated to
 //    make it up to date.
-
 }  // namespace art
