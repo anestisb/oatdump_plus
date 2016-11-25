@@ -303,7 +303,7 @@ static void GenNumberOfLeadingZeros(LocationSummary* locations,
     vixl32::Register in_reg_hi = HighRegisterFrom(in);
     vixl32::Label end;
     __ Clz(out, in_reg_hi);
-    __ Cbnz(in_reg_hi, &end);
+    __ CompareAndBranchIfNonZero(in_reg_hi, &end, /* far_target */ false);
     __ Clz(out, in_reg_lo);
     __ Add(out, out, 32);
     __ Bind(&end);
@@ -345,7 +345,7 @@ static void GenNumberOfTrailingZeros(LocationSummary* locations,
     vixl32::Label end;
     __ Rbit(out, in_reg_lo);
     __ Clz(out, out);
-    __ Cbnz(in_reg_lo, &end);
+    __ CompareAndBranchIfNonZero(in_reg_lo, &end, /* far_target */ false);
     __ Rbit(out, in_reg_hi);
     __ Clz(out, out);
     __ Add(out, out, 32);
@@ -1158,7 +1158,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringCompareTo(HInvoke* invoke) {
   if (can_slow_path) {
     slow_path = new (GetAllocator()) IntrinsicSlowPathARMVIXL(invoke);
     codegen_->AddSlowPath(slow_path);
-    __ Cbz(arg, slow_path->GetEntryLabel());
+    __ CompareAndBranchIfZero(arg, slow_path->GetEntryLabel());
   }
 
   // Reference equality check, return 0 if same reference.
@@ -1191,7 +1191,9 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringCompareTo(HInvoke* invoke) {
   }
 
   // Shorter string is empty?
-  __ Cbz(temp0, &end);
+  // Note that mirror::kUseStringCompression==true introduces lots of instructions,
+  // which makes &end label far away from this branch and makes it not 'CBZ-encodable'.
+  __ CompareAndBranchIfZero(temp0, &end, mirror::kUseStringCompression);
 
   if (mirror::kUseStringCompression) {
     // Check if both strings using same compression style to use this comparison loop.
@@ -1414,7 +1416,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringEquals(HInvoke* invoke) {
   StringEqualsOptimizations optimizations(invoke);
   if (!optimizations.GetArgumentNotNull()) {
     // Check if input is null, return false if it is.
-    __ Cbz(arg, &return_false);
+    __ CompareAndBranchIfZero(arg, &return_false, /* far_target */ false);
   }
 
   // Reference equality check, return true if same reference.
@@ -1442,7 +1444,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringEquals(HInvoke* invoke) {
   // Return true if both strings are empty. Even with string compression `count == 0` means empty.
   static_assert(static_cast<uint32_t>(mirror::StringCompressionFlag::kCompressed) == 0u,
                 "Expecting 0=compressed, 1=uncompressed");
-  __ Cbz(temp, &return_true);
+  __ CompareAndBranchIfZero(temp, &return_true, /* far_target */ false);
 
   // Assertions that must hold in order to compare strings 4 bytes at a time.
   DCHECK_ALIGNED(value_offset, 4);
@@ -1718,7 +1720,7 @@ static void CheckPosition(ArmVIXLAssembler* assembler,
   } else if (length_is_input_length) {
     // The only way the copy can succeed is if pos is zero.
     vixl32::Register pos_reg = RegisterFrom(pos);
-    __ Cbnz(pos_reg, slow_path->GetEntryLabel());
+    __ CompareAndBranchIfNonZero(pos_reg, slow_path->GetEntryLabel());
   } else {
     // Check that pos >= 0.
     vixl32::Register pos_reg = RegisterFrom(pos);
@@ -1815,12 +1817,12 @@ void IntrinsicCodeGeneratorARMVIXL::VisitSystemArrayCopy(HInvoke* invoke) {
 
   if (!optimizations.GetSourceIsNotNull()) {
     // Bail out if the source is null.
-    __ Cbz(src, intrinsic_slow_path->GetEntryLabel());
+    __ CompareAndBranchIfZero(src, intrinsic_slow_path->GetEntryLabel());
   }
 
   if (!optimizations.GetDestinationIsNotNull() && !optimizations.GetDestinationIsSource()) {
     // Bail out if the destination is null.
-    __ Cbz(dest, intrinsic_slow_path->GetEntryLabel());
+    __ CompareAndBranchIfZero(dest, intrinsic_slow_path->GetEntryLabel());
   }
 
   // If the length is negative, bail out.
@@ -1865,13 +1867,13 @@ void IntrinsicCodeGeneratorARMVIXL::VisitSystemArrayCopy(HInvoke* invoke) {
         // /* HeapReference<Class> */ temp1 = temp1->component_type_
         codegen_->GenerateFieldLoadWithBakerReadBarrier(
             invoke, temp1_loc, temp1, component_offset, temp2_loc, /* needs_null_check */ false);
-        __ Cbz(temp1, intrinsic_slow_path->GetEntryLabel());
+        __ CompareAndBranchIfZero(temp1, intrinsic_slow_path->GetEntryLabel());
         // If heap poisoning is enabled, `temp1` has been unpoisoned
         // by the the previous call to GenerateFieldLoadWithBakerReadBarrier.
         // /* uint16_t */ temp1 = static_cast<uint16>(temp1->primitive_type_);
         __ Ldrh(temp1, MemOperand(temp1, primitive_offset));
         static_assert(Primitive::kPrimNot == 0, "Expected 0 for kPrimNot");
-        __ Cbnz(temp1, intrinsic_slow_path->GetEntryLabel());
+        __ CompareAndBranchIfNonZero(temp1, intrinsic_slow_path->GetEntryLabel());
       }
 
       // /* HeapReference<Class> */ temp1 = dest->klass_
@@ -1889,13 +1891,13 @@ void IntrinsicCodeGeneratorARMVIXL::VisitSystemArrayCopy(HInvoke* invoke) {
         // /* HeapReference<Class> */ temp2 = temp1->component_type_
         codegen_->GenerateFieldLoadWithBakerReadBarrier(
             invoke, temp2_loc, temp1, component_offset, temp3_loc, /* needs_null_check */ false);
-        __ Cbz(temp2, intrinsic_slow_path->GetEntryLabel());
+        __ CompareAndBranchIfZero(temp2, intrinsic_slow_path->GetEntryLabel());
         // If heap poisoning is enabled, `temp2` has been unpoisoned
         // by the the previous call to GenerateFieldLoadWithBakerReadBarrier.
         // /* uint16_t */ temp2 = static_cast<uint16>(temp2->primitive_type_);
         __ Ldrh(temp2, MemOperand(temp2, primitive_offset));
         static_assert(Primitive::kPrimNot == 0, "Expected 0 for kPrimNot");
-        __ Cbnz(temp2, intrinsic_slow_path->GetEntryLabel());
+        __ CompareAndBranchIfNonZero(temp2, intrinsic_slow_path->GetEntryLabel());
       }
 
       // For the same reason given earlier, `temp1` is not trashed by the
@@ -1918,7 +1920,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitSystemArrayCopy(HInvoke* invoke) {
         // comparison with null below, and this reference is not
         // kept afterwards.
         __ Ldr(temp1, MemOperand(temp1, super_offset));
-        __ Cbnz(temp1, intrinsic_slow_path->GetEntryLabel());
+        __ CompareAndBranchIfNonZero(temp1, intrinsic_slow_path->GetEntryLabel());
         __ Bind(&do_copy);
       } else {
         __ B(ne, intrinsic_slow_path->GetEntryLabel());
@@ -1944,24 +1946,24 @@ void IntrinsicCodeGeneratorARMVIXL::VisitSystemArrayCopy(HInvoke* invoke) {
         // Bail out if the destination is not a non primitive array.
         // /* HeapReference<Class> */ temp3 = temp1->component_type_
         __ Ldr(temp3, MemOperand(temp1, component_offset));
-        __ Cbz(temp3, intrinsic_slow_path->GetEntryLabel());
+        __ CompareAndBranchIfZero(temp3, intrinsic_slow_path->GetEntryLabel());
         assembler->MaybeUnpoisonHeapReference(temp3);
         // /* uint16_t */ temp3 = static_cast<uint16>(temp3->primitive_type_);
         __ Ldrh(temp3, MemOperand(temp3, primitive_offset));
         static_assert(Primitive::kPrimNot == 0, "Expected 0 for kPrimNot");
-        __ Cbnz(temp3, intrinsic_slow_path->GetEntryLabel());
+        __ CompareAndBranchIfNonZero(temp3, intrinsic_slow_path->GetEntryLabel());
       }
 
       if (!optimizations.GetSourceIsNonPrimitiveArray()) {
         // Bail out if the source is not a non primitive array.
         // /* HeapReference<Class> */ temp3 = temp2->component_type_
         __ Ldr(temp3, MemOperand(temp2, component_offset));
-        __ Cbz(temp3, intrinsic_slow_path->GetEntryLabel());
+        __ CompareAndBranchIfZero(temp3, intrinsic_slow_path->GetEntryLabel());
         assembler->MaybeUnpoisonHeapReference(temp3);
         // /* uint16_t */ temp3 = static_cast<uint16>(temp3->primitive_type_);
         __ Ldrh(temp3, MemOperand(temp3, primitive_offset));
         static_assert(Primitive::kPrimNot == 0, "Expected 0 for kPrimNot");
-        __ Cbnz(temp3, intrinsic_slow_path->GetEntryLabel());
+        __ CompareAndBranchIfNonZero(temp3, intrinsic_slow_path->GetEntryLabel());
       }
 
       __ Cmp(temp1, temp2);
@@ -1978,7 +1980,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitSystemArrayCopy(HInvoke* invoke) {
         // /* HeapReference<Class> */ temp1 = temp1->super_class_
         __ Ldr(temp1, MemOperand(temp1, super_offset));
         // No need to unpoison the result, we're comparing against null.
-        __ Cbnz(temp1, intrinsic_slow_path->GetEntryLabel());
+        __ CompareAndBranchIfNonZero(temp1, intrinsic_slow_path->GetEntryLabel());
         __ Bind(&do_copy);
       } else {
         __ B(ne, intrinsic_slow_path->GetEntryLabel());
@@ -1994,7 +1996,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitSystemArrayCopy(HInvoke* invoke) {
       // /* HeapReference<Class> */ temp3 = temp1->component_type_
       codegen_->GenerateFieldLoadWithBakerReadBarrier(
           invoke, temp3_loc, temp1, component_offset, temp2_loc, /* needs_null_check */ false);
-      __ Cbz(temp3, intrinsic_slow_path->GetEntryLabel());
+      __ CompareAndBranchIfZero(temp3, intrinsic_slow_path->GetEntryLabel());
       // If heap poisoning is enabled, `temp3` has been unpoisoned
       // by the the previous call to GenerateFieldLoadWithBakerReadBarrier.
     } else {
@@ -2003,13 +2005,13 @@ void IntrinsicCodeGeneratorARMVIXL::VisitSystemArrayCopy(HInvoke* invoke) {
       assembler->MaybeUnpoisonHeapReference(temp1);
       // /* HeapReference<Class> */ temp3 = temp1->component_type_
       __ Ldr(temp3, MemOperand(temp1, component_offset));
-      __ Cbz(temp3, intrinsic_slow_path->GetEntryLabel());
+      __ CompareAndBranchIfZero(temp3, intrinsic_slow_path->GetEntryLabel());
       assembler->MaybeUnpoisonHeapReference(temp3);
     }
     // /* uint16_t */ temp3 = static_cast<uint16>(temp3->primitive_type_);
     __ Ldrh(temp3, MemOperand(temp3, primitive_offset));
     static_assert(Primitive::kPrimNot == 0, "Expected 0 for kPrimNot");
-    __ Cbnz(temp3, intrinsic_slow_path->GetEntryLabel());
+    __ CompareAndBranchIfNonZero(temp3, intrinsic_slow_path->GetEntryLabel());
   }
 
   int32_t element_size = Primitive::ComponentSize(Primitive::kPrimNot);

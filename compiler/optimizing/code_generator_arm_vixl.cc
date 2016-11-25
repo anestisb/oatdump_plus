@@ -1152,7 +1152,8 @@ void InstructionCodeGeneratorARMVIXL::GenerateCompareTestAndBranch(HCondition* c
 void InstructionCodeGeneratorARMVIXL::GenerateTestAndBranch(HInstruction* instruction,
                                                             size_t condition_input_index,
                                                             vixl32::Label* true_target,
-                                                            vixl32::Label* false_target) {
+                                                            vixl32::Label* false_target,
+                                                            bool far_target) {
   HInstruction* cond = instruction->InputAt(condition_input_index);
 
   if (true_target == nullptr && false_target == nullptr) {
@@ -1188,9 +1189,13 @@ void InstructionCodeGeneratorARMVIXL::GenerateTestAndBranch(HInstruction* instru
       DCHECK(cond_val.IsRegister());
     }
     if (true_target == nullptr) {
-      __ Cbz(InputRegisterAt(instruction, condition_input_index), false_target);
+      __ CompareAndBranchIfZero(InputRegisterAt(instruction, condition_input_index),
+                                false_target,
+                                far_target);
     } else {
-      __ Cbnz(InputRegisterAt(instruction, condition_input_index), true_target);
+      __ CompareAndBranchIfNonZero(InputRegisterAt(instruction, condition_input_index),
+                                   true_target,
+                                   far_target);
     }
   } else {
     // Condition has not been materialized. Use its inputs as the comparison and
@@ -1285,7 +1290,8 @@ void InstructionCodeGeneratorARMVIXL::VisitSelect(HSelect* select) {
   GenerateTestAndBranch(select,
                         /* condition_input_index */ 2,
                         /* true_target */ nullptr,
-                        &false_target);
+                        &false_target,
+                        /* far_target */ false);
   codegen_->MoveLocation(locations->Out(), locations->InAt(1), select->GetType());
   __ Bind(&false_target);
 }
@@ -2775,7 +2781,7 @@ void InstructionCodeGeneratorARMVIXL::VisitDivZeroCheck(HDivZeroCheck* instructi
     case Primitive::kPrimShort:
     case Primitive::kPrimInt: {
       if (value.IsRegister()) {
-        __ Cbz(InputRegisterAt(instruction, 0), slow_path->GetEntryLabel());
+        __ CompareAndBranchIfZero(InputRegisterAt(instruction, 0), slow_path->GetEntryLabel());
       } else {
         DCHECK(value.IsConstant()) << value;
         if (value.GetConstant()->AsIntConstant()->GetValue() == 0) {
@@ -3441,7 +3447,7 @@ void InstructionCodeGeneratorARMVIXL::GenerateWideAtomicStore(vixl32::Register a
   __ Ldrexd(temp1, temp2, addr);
   codegen_->MaybeRecordImplicitNullCheck(instruction);
   __ Strexd(temp1, value_lo, value_hi, addr);
-  __ Cbnz(temp1, &fail);
+  __ CompareAndBranchIfNonZero(temp1, &fail);
 }
 
 void LocationsBuilderARMVIXL::HandleFieldSet(
@@ -3957,7 +3963,7 @@ void CodeGeneratorARMVIXL::GenerateExplicitNullCheck(HNullCheck* instruction) {
   NullCheckSlowPathARMVIXL* slow_path =
       new (GetGraph()->GetArena()) NullCheckSlowPathARMVIXL(instruction);
   AddSlowPath(slow_path);
-  __ Cbz(InputRegisterAt(instruction, 0), slow_path->GetEntryLabel());
+  __ CompareAndBranchIfZero(InputRegisterAt(instruction, 0), slow_path->GetEntryLabel());
 }
 
 void InstructionCodeGeneratorARMVIXL::VisitNullCheck(HNullCheck* instruction) {
@@ -4413,7 +4419,7 @@ void InstructionCodeGeneratorARMVIXL::VisitArraySet(HArraySet* instruction) {
         codegen_->AddSlowPath(slow_path);
         if (instruction->GetValueCanBeNull()) {
           vixl32::Label non_zero;
-          __ Cbnz(value, &non_zero);
+          __ CompareAndBranchIfNonZero(value, &non_zero);
           if (index.IsConstant()) {
             size_t offset =
                (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
@@ -4461,7 +4467,7 @@ void InstructionCodeGeneratorARMVIXL::VisitArraySet(HArraySet* instruction) {
           GetAssembler()->LoadFromOffset(kLoadWord, temp1, temp1, super_offset);
           // If heap poisoning is enabled, no need to unpoison
           // `temp1`, as we are comparing against null below.
-          __ Cbnz(temp1, slow_path->GetEntryLabel());
+          __ CompareAndBranchIfNonZero(temp1, slow_path->GetEntryLabel());
           __ Bind(&do_put);
         } else {
           __ B(ne, slow_path->GetEntryLabel());
@@ -4638,7 +4644,7 @@ void CodeGeneratorARMVIXL::MarkGCCard(vixl32::Register temp,
                                       bool can_be_null) {
   vixl32::Label is_null;
   if (can_be_null) {
-    __ Cbz(value, &is_null);
+    __ CompareAndBranchIfZero(value, &is_null);
   }
   GetAssembler()->LoadFromOffset(
       kLoadWord, card, tr, Thread::CardTableOffset<kArmPointerSize>().Int32Value());
@@ -4697,10 +4703,10 @@ void InstructionCodeGeneratorARMVIXL::GenerateSuspendCheck(HSuspendCheck* instru
   GetAssembler()->LoadFromOffset(
       kLoadUnsignedHalfword, temp, tr, Thread::ThreadFlagsOffset<kArmPointerSize>().Int32Value());
   if (successor == nullptr) {
-    __ Cbnz(temp, slow_path->GetEntryLabel());
+    __ CompareAndBranchIfNonZero(temp, slow_path->GetEntryLabel());
     __ Bind(slow_path->GetReturnLabel());
   } else {
-    __ Cbz(temp, codegen_->GetLabelOf(successor));
+    __ CompareAndBranchIfZero(temp, codegen_->GetLabelOf(successor));
     __ B(slow_path->GetEntryLabel());
   }
 }
@@ -5015,7 +5021,7 @@ void InstructionCodeGeneratorARMVIXL::VisitLoadClass(HLoadClass* cls) {
         cls, cls, cls->GetDexPc(), cls->MustGenerateClinitCheck());
     codegen_->AddSlowPath(slow_path);
     if (generate_null_check) {
-      __ Cbz(out, slow_path->GetEntryLabel());
+      __ CompareAndBranchIfZero(out, slow_path->GetEntryLabel());
     }
     if (cls->MustGenerateClinitCheck()) {
       GenerateClassInitializationCheck(slow_path, out);
@@ -5206,7 +5212,7 @@ void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) 
   // Return 0 if `obj` is null.
   // avoid null check if we know obj is not null.
   if (instruction->MustDoNullCheck()) {
-    __ Cbz(obj, &zero);
+    __ CompareAndBranchIfZero(obj, &zero, /* far_target */ false);
   }
 
   switch (type_check_kind) {
@@ -5239,7 +5245,7 @@ void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) 
       // /* HeapReference<Class> */ out = out->super_class_
       GenerateReferenceLoadOneRegister(instruction, out_loc, super_offset, maybe_temp_loc);
       // If `out` is null, we use it for the result, and jump to `done`.
-      __ Cbz(out, &done);
+      __ CompareAndBranchIfZero(out, &done, /* far_target */ false);
       __ Cmp(out, cls);
       __ B(ne, &loop);
       __ Mov(out, 1);
@@ -5263,7 +5269,7 @@ void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) 
       __ B(eq, &success);
       // /* HeapReference<Class> */ out = out->super_class_
       GenerateReferenceLoadOneRegister(instruction, out_loc, super_offset, maybe_temp_loc);
-      __ Cbnz(out, &loop);
+      __ CompareAndBranchIfNonZero(out, &loop);
       // If `out` is null, we use it for the result, and jump to `done`.
       __ B(&done);
       __ Bind(&success);
@@ -5289,10 +5295,10 @@ void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) 
       // /* HeapReference<Class> */ out = out->component_type_
       GenerateReferenceLoadOneRegister(instruction, out_loc, component_offset, maybe_temp_loc);
       // If `out` is null, we use it for the result, and jump to `done`.
-      __ Cbz(out, &done);
+      __ CompareAndBranchIfZero(out, &done, /* far_target */ false);
       GetAssembler()->LoadFromOffset(kLoadUnsignedHalfword, out, out, primitive_offset);
       static_assert(Primitive::kPrimNot == 0, "Expected 0 for kPrimNot");
-      __ Cbnz(out, &zero);
+      __ CompareAndBranchIfNonZero(out, &zero, /* far_target */ false);
       __ Bind(&exact_check);
       __ Mov(out, 1);
       __ B(&done);
@@ -5428,7 +5434,7 @@ void InstructionCodeGeneratorARMVIXL::VisitCheckCast(HCheckCast* instruction) {
   vixl32::Label done;
   // Avoid null check if we know obj is not null.
   if (instruction->MustDoNullCheck()) {
-    __ Cbz(obj, &done);
+    __ CompareAndBranchIfZero(obj, &done, /* far_target */ false);
   }
 
   // /* HeapReference<Class> */ temp = obj->klass_
@@ -5454,7 +5460,7 @@ void InstructionCodeGeneratorARMVIXL::VisitCheckCast(HCheckCast* instruction) {
 
       // If the class reference currently in `temp` is null, jump to the slow path to throw the
       // exception.
-      __ Cbz(temp, type_check_slow_path->GetEntryLabel());
+      __ CompareAndBranchIfZero(temp, type_check_slow_path->GetEntryLabel());
 
       // Otherwise, compare the classes.
       __ Cmp(temp, cls);
@@ -5474,7 +5480,7 @@ void InstructionCodeGeneratorARMVIXL::VisitCheckCast(HCheckCast* instruction) {
 
       // If the class reference currently in `temp` is null, jump to the slow path to throw the
       // exception.
-      __ Cbz(temp, type_check_slow_path->GetEntryLabel());
+      __ CompareAndBranchIfZero(temp, type_check_slow_path->GetEntryLabel());
       // Otherwise, jump to the beginning of the loop.
       __ B(&loop);
       break;
@@ -5489,12 +5495,12 @@ void InstructionCodeGeneratorARMVIXL::VisitCheckCast(HCheckCast* instruction) {
       // /* HeapReference<Class> */ temp = temp->component_type_
       GenerateReferenceLoadOneRegister(instruction, temp_loc, component_offset, maybe_temp2_loc);
       // If the component type is null, jump to the slow path to throw the exception.
-      __ Cbz(temp, type_check_slow_path->GetEntryLabel());
+      __ CompareAndBranchIfZero(temp, type_check_slow_path->GetEntryLabel());
       // Otherwise,the object is indeed an array, jump to label `check_non_primitive_component_type`
       // to further check that this component type is not a primitive type.
       GetAssembler()->LoadFromOffset(kLoadUnsignedHalfword, temp, temp, primitive_offset);
       static_assert(Primitive::kPrimNot == 0, "Expected 0 for art::Primitive::kPrimNot");
-      __ Cbnz(temp, type_check_slow_path->GetEntryLabel());
+      __ CompareAndBranchIfNonZero(temp, type_check_slow_path->GetEntryLabel());
       break;
     }
 
