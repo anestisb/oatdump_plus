@@ -403,6 +403,35 @@ bool OatWriter::AddZippedDexFilesSource(File&& zip_fd,
   return true;
 }
 
+// Add dex file source(s) from a vdex file specified by a file handle.
+bool OatWriter::AddVdexDexFilesSource(const VdexFile& vdex_file,
+                                      const char* location,
+                                      CreateTypeLookupTable create_type_lookup_table) {
+  DCHECK(write_state_ == WriteState::kAddingDexFileSources);
+  const uint8_t* current_dex_data = nullptr;
+  for (size_t i = 0; ; ++i) {
+    current_dex_data = vdex_file.GetNextDexFileData(current_dex_data);
+    if (current_dex_data == nullptr) {
+      break;
+    }
+    if (!DexFile::IsMagicValid(current_dex_data)) {
+      LOG(ERROR) << "Invalid magic in vdex file created from " << location;
+      return false;
+    }
+    // We used `zipped_dex_file_locations_` to keep the strings in memory.
+    zipped_dex_file_locations_.push_back(DexFile::GetMultiDexLocation(i, location));
+    const char* full_location = zipped_dex_file_locations_.back().c_str();
+    oat_dex_files_.emplace_back(full_location,
+                                DexFileSource(current_dex_data),
+                                create_type_lookup_table);
+  }
+  if (oat_dex_files_.empty()) {
+    LOG(ERROR) << "No dex files in vdex file created from " << location;
+    return false;
+  }
+  return true;
+}
+
 // Add dex file source from raw memory.
 bool OatWriter::AddRawDexFileSource(const ArrayRef<const uint8_t>& data,
                                     const char* location,
