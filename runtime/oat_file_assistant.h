@@ -179,6 +179,10 @@ class OatFileAssistant {
   // the OatFileAssistant object.
   std::unique_ptr<OatFile> GetBestOatFile();
 
+  // Returns a human readable description of the status of the code for the
+  // dex file. The returned description is for debugging purposes only.
+  std::string GetStatusDump();
+
   // Open and returns an image space associated with the oat file.
   static std::unique_ptr<gc::space::ImageSpace> OpenImageSpace(const OatFile* oat_file);
 
@@ -207,31 +211,16 @@ class OatFileAssistant {
   // ASLR. The odex file is treated as if it were read-only.
   // These methods return the location and status of the odex file for the dex
   // location.
-  // Notes:
-  //  * OdexFileName may return null if the odex file name could not be
-  //    determined.
-  const std::string* OdexFileName();
   bool OdexFileExists();
   OatStatus OdexFileStatus();
-  // Must only be called if the associated odex file exists, i.e, if
-  // |OdexFileExists() == true|.
-  CompilerFilter::Filter OdexFileCompilerFilter();
 
   // When the dex files is compiled on the target device, the oat file is the
   // result. The oat file will have been relocated to some
   // (possibly-out-of-date) offset for ASLR.
   // These methods return the location and status of the target oat file for
   // the dex location.
-  //
-  // Notes:
-  //  * OatFileName may return null if the oat file name could not be
-  //    determined.
-  const std::string* OatFileName();
   bool OatFileExists();
   OatStatus OatFileStatus();
-  // Must only be called if the associated oat file exists, i.e, if
-  // |OatFileExists() == true|.
-  CompilerFilter::Filter OatFileCompilerFilter();
 
   // Return the status for a given opened oat file with respect to the dex
   // location.
