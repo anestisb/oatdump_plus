@@ -323,16 +323,19 @@ class OatFileAssistant {
     // |Exists() == true|.
     CompilerFilter::Filter CompilerFilter();
 
+    // Return the DexOptNeeded value for this oat file with respect to the
+    // given target_compilation_filter.
+    // profile_changed should be true to indicate the profile has recently
+    // changed for this dex location.
+    // If patchoat is needed, this function will return the kPatchOatNeeded
+    // status, not the kSelfPatchOatNeeded status.
+    DexOptNeeded GetDexOptNeeded(CompilerFilter::Filter target_compiler_filter,
+                                 bool profile_changed);
+
     // Returns the loaded file.
     // Loads the file if needed. Returns null if the file failed to load.
     // The caller shouldn't clean up or free the returned pointer.
     const OatFile* GetFile();
-
-    // Returns true if the compiler filter used to generate the file is at
-    // least as good as the given target filter. profile_changed should be
-    // true to indicate the profile has recently changed for this dex
-    // location.
-    bool CompilerFilterIsOkay(CompilerFilter::Filter target, bool profile_changed);
 
     // Returns true if the file is opened executable.
     bool IsExecutable();
@@ -347,6 +350,23 @@ class OatFileAssistant {
     // Clear any cached information and switch to getting info about the oat
     // file with the given filename.
     void Reset(const std::string& filename);
+
+    // Release the loaded oat file for runtime use.
+    // Returns null if the oat file hasn't been loaded or is out of date.
+    // Ensures the returned file is not loaded executable if it has unuseable
+    // compiled code.
+    //
+    // After this call, no other methods of the OatFileInfo should be
+    // called, because access to the loaded oat file has been taken away from
+    // the OatFileInfo object.
+    std::unique_ptr<OatFile> ReleaseFileForUse();
+
+   private:
+    // Returns true if the compiler filter used to generate the file is at
+    // least as good as the given target filter. profile_changed should be
+    // true to indicate the profile has recently changed for this dex
+    // location.
+    bool CompilerFilterIsOkay(CompilerFilter::Filter target, bool profile_changed);
 
     // Release the loaded oat file.
     // Returns null if the oat file hasn't been loaded.
