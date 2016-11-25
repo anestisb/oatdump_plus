@@ -42,6 +42,7 @@ class ProfileCompilationInfo;
 class OutputStream;
 class TimingLogger;
 class TypeLookupTable;
+class VdexFile;
 class ZipEntry;
 
 namespace debug {
@@ -116,7 +117,8 @@ class OatWriter {
   // To produce a valid oat file, the user must first add sources with any combination of
   //   - AddDexFileSource(),
   //   - AddZippedDexFilesSource(),
-  //   - AddRawDexFileSource().
+  //   - AddRawDexFileSource(),
+  //   - AddVdexDexFilesSource().
   // Then the user must call in order
   //   - WriteAndOpenDexFiles()
   //   - Initialize()
@@ -144,6 +146,11 @@ class OatWriter {
       const ArrayRef<const uint8_t>& data,
       const char* location,
       uint32_t location_checksum,
+      CreateTypeLookupTable create_type_lookup_table = CreateTypeLookupTable::kDefault);
+  // Add dex file source(s) from a vdex file.
+  bool AddVdexDexFilesSource(
+      const VdexFile& vdex_file,
+      const char* location,
       CreateTypeLookupTable create_type_lookup_table = CreateTypeLookupTable::kDefault);
   dchecked_vector<const char*> GetSourceLocations() const;
 
