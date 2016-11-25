@@ -429,5 +429,31 @@ void ArmVIXLAssembler::AddConstantInIt(vixl32::Register rd,
   }
 }
 
+void ArmVIXLMacroAssembler::CompareAndBranchIfZero(vixl32::Register rn,
+                                                   vixl32::Label* label,
+                                                   bool is_far_target) {
+  if (!is_far_target && rn.IsLow() && !label->IsBound()) {
+    // In T32, Cbz/Cbnz instructions have following limitations:
+    // - There are only 7 bits (i:imm5:0) to encode branch target address (cannot be far target).
+    // - Only low registers (i.e R0 .. R7) can be encoded.
+    // - Only forward branches (unbound labels) are supported.
+    Cbz(rn, label);
+    return;
+  }
+  Cmp(rn, 0);
+  B(eq, label);
+}
+
+void ArmVIXLMacroAssembler::CompareAndBranchIfNonZero(vixl32::Register rn,
+                                                      vixl32::Label* label,
+                                                      bool is_far_target) {
+  if (!is_far_target && rn.IsLow() && !label->IsBound()) {
+    Cbnz(rn, label);
+    return;
+  }
+  Cmp(rn, 0);
+  B(ne, label);
+}
+
 }  // namespace arm
 }  // namespace art

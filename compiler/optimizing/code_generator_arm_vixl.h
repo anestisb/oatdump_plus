@@ -369,7 +369,7 @@ class InstructionCodeGeneratorARMVIXL : public InstructionCodeGenerator {
   FOR_EACH_UNIMPLEMENTED_INSTRUCTION(DEFINE_UNIMPLEMENTED_INSTRUCTION_VISITOR)
 
   ArmVIXLAssembler* GetAssembler() const { return assembler_; }
-  vixl::aarch32::MacroAssembler* GetVIXLAssembler() { return GetAssembler()->GetVIXLAssembler(); }
+  ArmVIXLMacroAssembler* GetVIXLAssembler() { return GetAssembler()->GetVIXLAssembler(); }
 
  private:
   void VisitUnimplemementedInstruction(HInstruction* instruction) {
@@ -451,7 +451,8 @@ class InstructionCodeGeneratorARMVIXL : public InstructionCodeGenerator {
   void GenerateTestAndBranch(HInstruction* instruction,
                              size_t condition_input_index,
                              vixl::aarch32::Label* true_target,
-                             vixl::aarch32::Label* false_target);
+                             vixl::aarch32::Label* false_target,
+                             bool far_target = true);
   void GenerateCompareTestAndBranch(HCondition* condition,
                                     vixl::aarch32::Label* true_target,
                                     vixl::aarch32::Label* false_target);
@@ -504,7 +505,7 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
 
   const ArmVIXLAssembler& GetAssembler() const OVERRIDE { return assembler_; }
 
-  vixl::aarch32::MacroAssembler* GetVIXLAssembler() { return GetAssembler()->GetVIXLAssembler(); }
+  ArmVIXLMacroAssembler* GetVIXLAssembler() { return GetAssembler()->GetVIXLAssembler(); }
 
   size_t GetWordSize() const OVERRIDE { return kArmWordSize; }
 
