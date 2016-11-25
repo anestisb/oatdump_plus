@@ -45,6 +45,7 @@
 #include "dex_file-inl.h"
 #include "dex_instruction-inl.h"
 #include "dex/dex_to_dex_compiler.h"
+#include "dex/dex_to_dex_decompiler.h"
 #include "dex/verification_results.h"
 #include "dex/verified_method.h"
 #include "driver/compiler_options.h"
@@ -72,6 +73,7 @@
 #include "transaction.h"
 #include "utils/dex_cache_arrays_layout-inl.h"
 #include "utils/swap_space.h"
+#include "vdex_file.h"
 #include "verifier/method_verifier.h"
 #include "verifier/method_verifier-inl.h"
 #include "verifier/verifier_log_mode.h"
@@ -394,7 +396,6 @@ static void SetupIntrinsic(Thread* self,
 
 void CompilerDriver::CompileAll(jobject class_loader,
                                 const std::vector<const DexFile*>& dex_files,
-                                verifier::VerifierDeps* verifier_deps,
                                 TimingLogger* timings) {
   DCHECK(!Runtime::Current()->IsStarted());
 
@@ -406,7 +407,7 @@ void CompilerDriver::CompileAll(jobject class_loader,
   // 2) Resolve all classes
   // 3) Attempt to verify all classes
   // 4) Attempt to initialize image classes, and trivially initialized classes
-  PreCompile(class_loader, dex_files, verifier_deps, timings);
+  PreCompile(class_loader, dex_files, timings);
   if (GetCompilerOptions().IsBootImage()) {
     // We don't need to setup the intrinsics for non boot image compilation, as
     // those compilations will pick up a boot image that have the ArtMethod already
@@ -431,6 +432,72 @@ INTRINSICS_LIST(SETUP_INTRINSICS)
   }
 
   FreeThreadPools();
+}
+
+// In-place unquicken the given `dex_files` based on `quickening_info`.
+static void Unquicken(const std::vector<const DexFile*>& dex_files,
+                      const ArrayRef<const uint8_t>& quickening_info) {
+  const uint8_t* quickening_info_ptr = quickening_info.data();
+  const uint8_t* const quickening_info_end = quickening_info.data() + quickening_info.size();
+  for (const DexFile* dex_file : dex_files) {
+    for (uint32_t i = 0; i < dex_file->NumClassDefs(); ++i) {
+      const DexFile::ClassDef& class_def = dex_file->GetClassDef(i);
+      const uint8_t* class_data = dex_file->GetClassData(class_def);
+      if (class_data == nullptr) {
+        continue;
+      }
+      ClassDataItemIterator it(*dex_file, class_data);
+      // Skip fields
+      while (it.HasNextStaticField()) {
+        it.Next();
+      }
+      while (it.HasNextInstanceField()) {
+        it.Next();
+      }
+
+      // Unquicken each method.
+      while (it.HasNextDirectMethod()) {
+        const DexFile::CodeItem* code_item = it.GetMethodCodeItem();
+        if (code_item != nullptr) {
+          uint32_t quickening_size = *reinterpret_cast<const uint32_t*>(quickening_info_ptr);
+          quickening_info_ptr += sizeof(uint32_t);
+          optimizer::ArtDecompileDEX(
+              *code_item, ArrayRef<const uint8_t>(quickening_info_ptr, quickening_size));
+          quickening_info_ptr += quickening_size;
+        }
+        it.Next();
+      }
+
+      while (it.HasNextVirtualMethod()) {
+        const DexFile::CodeItem* code_item = it.GetMethodCodeItem();
+        if (code_item != nullptr) {
+          uint32_t quickening_size = *reinterpret_cast<const uint32_t*>(quickening_info_ptr);
+          quickening_info_ptr += sizeof(uint32_t);
+          optimizer::ArtDecompileDEX(
+              *code_item, ArrayRef<const uint8_t>(quickening_info_ptr, quickening_size));
+          quickening_info_ptr += quickening_size;
+        }
+        it.Next();
+      }
+      DCHECK(!it.HasNext());
+    }
+  }
+  DCHECK_EQ(quickening_info_ptr, quickening_info_end) << "Failed to use all quickening info";
+}
+
+void CompilerDriver::CompileAll(jobject class_loader,
+                                const std::vector<const DexFile*>& dex_files,
+                                VdexFile* vdex_file,
+                                TimingLogger* timings) {
+  if (vdex_file != nullptr) {
+    // TODO: we unquicken unconditionnally, as we don't know
+    // if the boot image has changed. How exactly we'll know is under
+    // experimentation.
+    Unquicken(dex_files, vdex_file->GetQuickeningInfo());
+    Runtime::Current()->GetCompilerCallbacks()->SetVerifierDeps(
+        new verifier::VerifierDeps(dex_files, vdex_file->GetVerifierDepsData()));
+  }
+  CompileAll(class_loader, dex_files, timings);
 }
 
 static optimizer::DexToDexCompilationLevel GetDexToDexCompilationLevel(
@@ -673,7 +740,7 @@ void CompilerDriver::CompileOne(Thread* self, ArtMethod* method, TimingLogger* t
 
   InitializeThreadPools();
 
-  PreCompile(jclass_loader, dex_files, /* verifier_deps */ nullptr, timings);
+  PreCompile(jclass_loader, dex_files, timings);
 
   // Can we run DEX-to-DEX compiler on this class ?
   optimizer::DexToDexCompilationLevel dex_to_dex_compilation_level =
@@ -870,7 +937,6 @@ inline void CompilerDriver::CheckThreadPools() {
 
 void CompilerDriver::PreCompile(jobject class_loader,
                                 const std::vector<const DexFile*>& dex_files,
-                                verifier::VerifierDeps* verifier_deps,
                                 TimingLogger* timings) {
   CheckThreadPools();
 
@@ -904,7 +970,7 @@ void CompilerDriver::PreCompile(jobject class_loader,
     VLOG(compiler) << "Resolve const-strings: " << GetMemoryUsageString(false);
   }
 
-  Verify(class_loader, dex_files, verifier_deps, timings);
+  Verify(class_loader, dex_files, timings);
   VLOG(compiler) << "Verify: " << GetMemoryUsageString(false);
 
   if (had_hard_verifier_failure_ && GetCompilerOptions().AbortOnHardVerifierFailure()) {
@@ -1936,8 +2002,10 @@ void CompilerDriver::SetVerified(jobject class_loader,
 
 void CompilerDriver::Verify(jobject jclass_loader,
                             const std::vector<const DexFile*>& dex_files,
-                            verifier::VerifierDeps* verifier_deps,
                             TimingLogger* timings) {
+  verifier::VerifierDeps* verifier_deps =
+      Runtime::Current()->GetCompilerCallbacks()->GetVerifierDeps();
+  // If there is an existing `VerifierDeps`, try to use it for fast verification.
   if (verifier_deps != nullptr) {
     TimingLogger::ScopedTiming t("Fast Verify", timings);
     ScopedObjectAccess soa(Thread::Current());
@@ -1975,16 +2043,15 @@ void CompilerDriver::Verify(jobject jclass_loader,
     }
   }
 
-  // If there is no passed `verifier_deps` (because of non-existing vdex), or
-  // the passed `verifier_deps` is not valid anymore, create a new one for
+  // If there is no existing `verifier_deps` (because of non-existing vdex), or
+  // the existing `verifier_deps` is not valid anymore, create a new one for
   // non boot image compilation. The verifier will need it to record the new dependencies.
   // Then dex2oat can update the vdex file with these new dependencies.
   if (!GetCompilerOptions().IsBootImage()) {
     // Create the main VerifierDeps, and set it to this thread.
-    Runtime::Current()->GetCompilerCallbacks()->SetVerifierDeps(
-        new verifier::VerifierDeps(dex_files));
-    Thread::Current()->SetVerifierDeps(
-        Runtime::Current()->GetCompilerCallbacks()->GetVerifierDeps());
+    verifier_deps = new verifier::VerifierDeps(dex_files);
+    Runtime::Current()->GetCompilerCallbacks()->SetVerifierDeps(verifier_deps);
+    Thread::Current()->SetVerifierDeps(verifier_deps);
     // Create per-thread VerifierDeps to avoid contention on the main one.
     // We will merge them after verification.
     for (ThreadPoolWorker* worker : parallel_thread_pool_->GetWorkers()) {
@@ -2005,13 +2072,11 @@ void CompilerDriver::Verify(jobject jclass_loader,
   }
 
   if (!GetCompilerOptions().IsBootImage()) {
-    verifier::VerifierDeps* main_deps =
-        Runtime::Current()->GetCompilerCallbacks()->GetVerifierDeps();
     // Merge all VerifierDeps into the main one.
     for (ThreadPoolWorker* worker : parallel_thread_pool_->GetWorkers()) {
       verifier::VerifierDeps* thread_deps = worker->GetThread()->GetVerifierDeps();
       worker->GetThread()->SetVerifierDeps(nullptr);
-      main_deps->MergeWith(*thread_deps, dex_files);;
+      verifier_deps->MergeWith(*thread_deps, dex_files);;
       delete thread_deps;
     }
     Thread::Current()->SetVerifierDeps(nullptr);

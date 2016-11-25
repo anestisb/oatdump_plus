@@ -20,6 +20,7 @@
 
 #include "base/logging.h"
 #include "base/unix_file/fd_file.h"
+#include "dex_file.h"
 
 namespace art {
 
@@ -73,10 +74,19 @@ VdexFile* VdexFile::Open(const std::string& vdex_filename,
     return nullptr;
   }
 
+  return Open(vdex_file->Fd(), vdex_length, vdex_filename, writable, low_4gb, error_msg);
+}
+
+VdexFile* VdexFile::Open(int file_fd,
+                         size_t vdex_length,
+                         const std::string& vdex_filename,
+                         bool writable,
+                         bool low_4gb,
+                         std::string* error_msg) {
   std::unique_ptr<MemMap> mmap(MemMap::MapFile(vdex_length,
                                                writable ? PROT_READ | PROT_WRITE : PROT_READ,
                                                MAP_SHARED,
-                                               vdex_file->Fd(),
+                                               file_fd,
                                                0 /* start offset */,
                                                low_4gb,
                                                vdex_filename.c_str(),
@@ -88,6 +98,18 @@ VdexFile* VdexFile::Open(const std::string& vdex_filename,
 
   *error_msg = "Success";
   return new VdexFile(mmap.release());
+}
+
+const uint8_t* VdexFile::GetNextDexFileData(const uint8_t* cursor) const {
+  DCHECK(cursor == nullptr || (cursor > Begin() && cursor <= End()));
+  if (cursor == nullptr) {
+    // Beginning of the iteration, return the first dex file if there is one.
+    return HasDexSection() ? DexBegin() : nullptr;
+  } else {
+    // Fetch the next dex file. Return null if there is none.
+    const uint8_t* data = cursor + reinterpret_cast<const DexFile::Header*>(cursor)->file_size_;
+    return (data == DexEnd()) ? nullptr : data;
+  }
 }
 
 }  // namespace art
