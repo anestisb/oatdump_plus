@@ -58,6 +58,7 @@ INSTRUCTION_SET_FEATURES=""
 ARGS=""
 EXTERNAL_LOG_TAGS="n" # if y respect externally set ANDROID_LOG_TAGS.
 DRY_RUN="n" # if y prepare to run the test but don't run it.
+TEST_VDEX="n"
 
 while true; do
     if [ "x$1" = "x--quiet" ]; then
@@ -242,6 +243,9 @@ while true; do
         shift
     elif [ "x$1" = "x--dry-run" ]; then
         DRY_RUN="y"
+        shift
+    elif [ "x$1" = "x--vdex" ]; then
+        TEST_VDEX="y"
         shift
     elif expr "x$1" : "x--" >/dev/null 2>&1; then
         echo "unknown $0 option: $1" 1>&2
@@ -444,6 +448,7 @@ if [ ${#VDEX_NAME} -gt $max_filename_size ]; then
 fi
 
 dex2oat_cmdline="true"
+vdex_cmdline="true"
 mkdir_locations="${DEX_LOCATION}/dalvik-cache/$ISA"
 strip_cmdline="true"
 
@@ -472,6 +477,9 @@ if [ "$PREBUILD" = "y" ]; then
     # Use SIGRTMIN+2 to try to dump threads.
     # Use -k 1m to SIGKILL it a minute later if it hasn't ended.
     dex2oat_cmdline="timeout -k 1m -s SIGRTMIN+2 1m ${dex2oat_cmdline}"
+  fi
+  if [ "$TEST_VDEX" = "y" ]; then
+    vdex_cmdline="${dex2oat_cmdline} --input-vdex=$DEX_LOCATION/oat/$ISA/$TEST_NAME.vdex"
   fi
 fi
 
@@ -513,6 +521,7 @@ dalvikvm_cmdline="$INVOKE_WITH $GDB $ANDROID_ROOT/bin/$DALVIKVM \
 # Remove whitespace.
 dex2oat_cmdline=$(echo $dex2oat_cmdline)
 dalvikvm_cmdline=$(echo $dalvikvm_cmdline)
+vdex_cmdline=$(echo $vdex_cmdline)
 
 if [ "$HOST" = "n" ]; then
     adb root > /dev/null
@@ -553,6 +562,7 @@ if [ "$HOST" = "n" ]; then
              export LD_LIBRARY_PATH=$LD_LIBRARY_PATH && \
              export PATH=$ANDROID_ROOT/bin:$PATH && \
              $dex2oat_cmdline && \
+             $vdex_cmdline && \
              $strip_cmdline && \
              $dalvikvm_cmdline"
 
@@ -626,7 +636,7 @@ else
     fi
 
     if [ "$DEV_MODE" = "y" ]; then
-      echo "mkdir -p ${mkdir_locations} && $dex2oat_cmdline && $strip_cmdline && $cmdline"
+      echo "mkdir -p ${mkdir_locations} && $dex2oat_cmdline && $vdex_cmdline && $strip_cmdline && $cmdline"
     fi
 
     cd $ANDROID_BUILD_TOP
@@ -634,6 +644,7 @@ else
     rm -rf ${DEX_LOCATION}/dalvik-cache/
     mkdir -p ${mkdir_locations} || exit 1
     $dex2oat_cmdline || { echo "Dex2oat failed." >&2 ; exit 2; }
+    $vdex_cmdline || { echo "Dex2oat failed." >&2 ; exit 2; }
     $strip_cmdline || { echo "Strip failed." >&2 ; exit 3; }
 
     # For running, we must turn off logging when dex2oat or patchoat are missing. Otherwise we use

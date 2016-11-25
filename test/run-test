@@ -351,6 +351,9 @@ while true; do
     elif [ "x$1" = "x--bisection-search" ]; then
         bisection_search="yes"
         shift
+    elif [ "x$1" = "x--vdex" ]; then
+        run_args="${run_args} --vdex"
+        shift
     elif expr "x$1" : "x--" >/dev/null 2>&1; then
         echo "unknown $0 option: $1" 1>&2
         usage="yes"
@@ -640,6 +643,7 @@ if [ "$usage" = "yes" ]; then
         echo "    --pic-test            Compile the test code position independent."
         echo "    --quiet               Don't print anything except failure messages"
         echo "    --bisection-search    Perform bisection bug search."
+        echo "    --vdex                Test using vdex as in input to dex2oat. Only works with --prebuild."
     ) 1>&2  # Direct to stderr so usage is not printed if --quiet is set.
     exit 1
 fi
