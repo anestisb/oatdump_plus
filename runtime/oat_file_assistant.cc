@@ -16,6 +16,8 @@
 
 #include "oat_file_assistant.h"
 
+#include <sstream>
+
 #include <sys/stat.h>
 #include "base/logging.h"
 #include "base/stringprintf.h"
@@ -196,6 +198,35 @@ std::unique_ptr<OatFile> OatFileAssistant::GetBestOatFile() {
   return odex_.ReleaseFileForUse();
 }
 
+std::string OatFileAssistant::GetStatusDump() {
+  std::ostringstream status;
+  bool oat_file_exists = false;
+  bool odex_file_exists = false;
+  if (oat_.Exists()) {
+    oat_file_exists = true;
+    status << *oat_.Filename() << " [compilation_filter=";
+    status << CompilerFilter::NameOfFilter(oat_.CompilerFilter());
+    status << ", status=" << oat_.Status();
+  }
+
+  if (odex_.Exists()) {
+    odex_file_exists = true;
+    if (oat_file_exists) {
+      status << "] ";
+    }
+    status << *odex_.Filename() << " [compilation_filter=";
+    status << CompilerFilter::NameOfFilter(odex_.CompilerFilter());
+    status << ", status=" << odex_.Status();
+  }
+
+  if (!oat_file_exists && !odex_file_exists) {
+    status << "invalid[";
+  }
+
+  status << "]";
+  return status.str();
+}
+
 std::vector<std::unique_ptr<const DexFile>> OatFileAssistant::LoadDexFiles(
     const OatFile& oat_file, const char* dex_location) {
   std::vector<std::unique_ptr<const DexFile>> dex_files;
@@ -243,10 +274,6 @@ bool OatFileAssistant::HasOriginalDexFiles() {
   return has_original_dex_files_;
 }
 
-const std::string* OatFileAssistant::OdexFileName() {
-  return odex_.Filename();
-}
-
 bool OatFileAssistant::OdexFileExists() {
   return odex_.Exists();
 }
@@ -255,24 +282,12 @@ OatFileAssistant::OatStatus OatFileAssistant::OdexFileStatus() {
   return odex_.Status();
 }
 
-CompilerFilter::Filter OatFileAssistant::OdexFileCompilerFilter() {
-  return odex_.CompilerFilter();
-}
-
-const std::string* OatFileAssistant::OatFileName() {
-  return oat_.Filename();
-}
-
 bool OatFileAssistant::OatFileExists() {
   return oat_.Exists();
 }
 
 OatFileAssistant::OatStatus OatFileAssistant::OatFileStatus() {
   return oat_.Status();
-}
-
-CompilerFilter::Filter OatFileAssistant::OatFileCompilerFilter() {
-  return oat_.CompilerFilter();
 }
 
 OatFileAssistant::OatStatus OatFileAssistant::GivenOatFileStatus(const OatFile& file) {
