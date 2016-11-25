@@ -260,14 +260,8 @@ TEST_F(OatFileAssistantTest, DexNoOat) {
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
   EXPECT_FALSE(oat_file_assistant.OdexFileExists());
-  EXPECT_TRUE(oat_file_assistant.OdexFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OdexFileNeedsRelocation());
-  EXPECT_FALSE(oat_file_assistant.OdexFileIsUpToDate());
   EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OdexFileStatus());
   EXPECT_FALSE(oat_file_assistant.OatFileExists());
-  EXPECT_TRUE(oat_file_assistant.OatFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OatFileNeedsRelocation());
-  EXPECT_FALSE(oat_file_assistant.OatFileIsUpToDate());
   EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OatFileStatus());
   EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
 }
@@ -312,12 +306,8 @@ TEST_F(OatFileAssistantTest, OatUpToDate) {
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
   EXPECT_FALSE(oat_file_assistant.OdexFileExists());
-  EXPECT_TRUE(oat_file_assistant.OdexFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OdexFileIsUpToDate());
+  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OdexFileStatus());
   EXPECT_TRUE(oat_file_assistant.OatFileExists());
-  EXPECT_FALSE(oat_file_assistant.OatFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OatFileNeedsRelocation());
-  EXPECT_TRUE(oat_file_assistant.OatFileIsUpToDate());
   EXPECT_EQ(OatFileAssistant::kOatUpToDate, oat_file_assistant.OatFileStatus());
   EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
 }
@@ -342,12 +332,9 @@ TEST_F(OatFileAssistantTest, OatForDifferentDex) {
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
   EXPECT_TRUE(oat_file_assistant.OdexFileExists());
-  EXPECT_TRUE(oat_file_assistant.OdexFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OdexFileIsUpToDate());
+  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OdexFileStatus());
   EXPECT_FALSE(oat_file_assistant.OatFileExists());
-  EXPECT_TRUE(oat_file_assistant.OatFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OatFileNeedsRelocation());
-  EXPECT_FALSE(oat_file_assistant.OatFileIsUpToDate());
+  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OatFileStatus());
 }
 
 // Case: We have a DEX file and speed-profile OAT file for it.
@@ -371,12 +358,8 @@ TEST_F(OatFileAssistantTest, ProfileOatUpToDate) {
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
   EXPECT_FALSE(oat_file_assistant.OdexFileExists());
-  EXPECT_TRUE(oat_file_assistant.OdexFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OdexFileIsUpToDate());
+  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OdexFileStatus());
   EXPECT_TRUE(oat_file_assistant.OatFileExists());
-  EXPECT_FALSE(oat_file_assistant.OatFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OatFileNeedsRelocation());
-  EXPECT_TRUE(oat_file_assistant.OatFileIsUpToDate());
   EXPECT_EQ(OatFileAssistant::kOatUpToDate, oat_file_assistant.OatFileStatus());
   EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
 }
@@ -472,11 +455,9 @@ TEST_F(OatFileAssistantTest, OatOutOfDate) {
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
   EXPECT_FALSE(oat_file_assistant.OdexFileExists());
-  EXPECT_TRUE(oat_file_assistant.OdexFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OdexFileIsUpToDate());
+  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OdexFileStatus());
   EXPECT_TRUE(oat_file_assistant.OatFileExists());
-  EXPECT_TRUE(oat_file_assistant.OatFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OatFileIsUpToDate());
+  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OatFileStatus());
   EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
 }
 
@@ -500,12 +481,9 @@ TEST_F(OatFileAssistantTest, DexOdexNoOat) {
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
   EXPECT_TRUE(oat_file_assistant.OdexFileExists());
-  EXPECT_FALSE(oat_file_assistant.OdexFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OdexFileIsUpToDate());
-  EXPECT_TRUE(oat_file_assistant.OdexFileNeedsRelocation());
+  EXPECT_EQ(OatFileAssistant::kOatNeedsRelocation, oat_file_assistant.OdexFileStatus());
   EXPECT_FALSE(oat_file_assistant.OatFileExists());
-  EXPECT_TRUE(oat_file_assistant.OatFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OatFileIsUpToDate());
+  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OatFileStatus());
   EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
 
   // We should still be able to get the non-executable odex file to run from.
@@ -534,11 +512,9 @@ TEST_F(OatFileAssistantTest, StrippedDexOdexNoOat) {
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
   EXPECT_TRUE(oat_file_assistant.OdexFileExists());
-  EXPECT_FALSE(oat_file_assistant.OdexFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OdexFileIsUpToDate());
+  EXPECT_EQ(OatFileAssistant::kOatNeedsRelocation, oat_file_assistant.OdexFileStatus());
   EXPECT_FALSE(oat_file_assistant.OatFileExists());
-  EXPECT_TRUE(oat_file_assistant.OatFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OatFileIsUpToDate());
+  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OatFileStatus());
   EXPECT_FALSE(oat_file_assistant.HasOriginalDexFiles());
 
   // Make the oat file up to date.
@@ -552,11 +528,9 @@ TEST_F(OatFileAssistantTest, StrippedDexOdexNoOat) {
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
   EXPECT_TRUE(oat_file_assistant.OdexFileExists());
-  EXPECT_FALSE(oat_file_assistant.OdexFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OdexFileIsUpToDate());
+  EXPECT_EQ(OatFileAssistant::kOatNeedsRelocation, oat_file_assistant.OdexFileStatus());
   EXPECT_TRUE(oat_file_assistant.OatFileExists());
-  EXPECT_FALSE(oat_file_assistant.OatFileIsOutOfDate());
-  EXPECT_TRUE(oat_file_assistant.OatFileIsUpToDate());
+  EXPECT_EQ(OatFileAssistant::kOatUpToDate, oat_file_assistant.OatFileStatus());
   EXPECT_FALSE(oat_file_assistant.HasOriginalDexFiles());
 
   // Verify we can load the dex files from it.
@@ -597,12 +571,9 @@ TEST_F(OatFileAssistantTest, StrippedDexOdexOat) {
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
   EXPECT_TRUE(oat_file_assistant.OdexFileExists());
-  EXPECT_FALSE(oat_file_assistant.OdexFileIsOutOfDate());
-  EXPECT_TRUE(oat_file_assistant.OdexFileNeedsRelocation());
-  EXPECT_FALSE(oat_file_assistant.OdexFileIsUpToDate());
+  EXPECT_EQ(OatFileAssistant::kOatNeedsRelocation, oat_file_assistant.OdexFileStatus());
   EXPECT_TRUE(oat_file_assistant.OatFileExists());
-  EXPECT_TRUE(oat_file_assistant.OatFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OatFileIsUpToDate());
+  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OatFileStatus());
   EXPECT_FALSE(oat_file_assistant.HasOriginalDexFiles());
 
   // Make the oat file up to date.
@@ -618,13 +589,10 @@ TEST_F(OatFileAssistantTest, StrippedDexOdexOat) {
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
   EXPECT_TRUE(oat_file_assistant.OdexFileExists());
-  EXPECT_FALSE(oat_file_assistant.OdexFileIsOutOfDate());
-  EXPECT_TRUE(oat_file_assistant.OdexFileNeedsRelocation());
-  EXPECT_FALSE(oat_file_assistant.OdexFileIsUpToDate());
+  EXPECT_EQ(OatFileAssistant::kOatNeedsRelocation, oat_file_assistant.OdexFileStatus());
+
   EXPECT_TRUE(oat_file_assistant.OatFileExists());
-  EXPECT_FALSE(oat_file_assistant.OatFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OatFileNeedsRelocation());
-  EXPECT_TRUE(oat_file_assistant.OatFileIsUpToDate());
+  EXPECT_EQ(OatFileAssistant::kOatUpToDate, oat_file_assistant.OatFileStatus());
   EXPECT_FALSE(oat_file_assistant.HasOriginalDexFiles());
 
   // Verify we can load the dex files from it.
@@ -655,12 +623,9 @@ TEST_F(OatFileAssistantTest, ResourceOnlyDex) {
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
   EXPECT_FALSE(oat_file_assistant.OdexFileExists());
-  EXPECT_TRUE(oat_file_assistant.OdexFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OdexFileNeedsRelocation());
-  EXPECT_FALSE(oat_file_assistant.OdexFileIsUpToDate());
+  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OdexFileStatus());
   EXPECT_FALSE(oat_file_assistant.OatFileExists());
-  EXPECT_TRUE(oat_file_assistant.OatFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OatFileIsUpToDate());
+  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OatFileStatus());
   EXPECT_FALSE(oat_file_assistant.HasOriginalDexFiles());
 
   // Make the oat file up to date. This should have no effect.
@@ -674,12 +639,9 @@ TEST_F(OatFileAssistantTest, ResourceOnlyDex) {
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
   EXPECT_FALSE(oat_file_assistant.OdexFileExists());
-  EXPECT_TRUE(oat_file_assistant.OdexFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OdexFileNeedsRelocation());
-  EXPECT_FALSE(oat_file_assistant.OdexFileIsUpToDate());
+  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OdexFileStatus());
   EXPECT_FALSE(oat_file_assistant.OatFileExists());
-  EXPECT_TRUE(oat_file_assistant.OatFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OatFileIsUpToDate());
+  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OatFileStatus());
   EXPECT_FALSE(oat_file_assistant.HasOriginalDexFiles());
 }
 
@@ -706,13 +668,9 @@ TEST_F(OatFileAssistantTest, SelfRelocation) {
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
   EXPECT_FALSE(oat_file_assistant.OdexFileExists());
-  EXPECT_TRUE(oat_file_assistant.OdexFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OdexFileNeedsRelocation());
-  EXPECT_FALSE(oat_file_assistant.OdexFileIsUpToDate());
+  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OdexFileStatus());
   EXPECT_TRUE(oat_file_assistant.OatFileExists());
-  EXPECT_TRUE(oat_file_assistant.OatFileNeedsRelocation());
-  EXPECT_FALSE(oat_file_assistant.OatFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OatFileIsUpToDate());
+  EXPECT_EQ(OatFileAssistant::kOatNeedsRelocation, oat_file_assistant.OatFileStatus());
   EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
 
   // Make the oat file up to date.
@@ -726,13 +684,9 @@ TEST_F(OatFileAssistantTest, SelfRelocation) {
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
   EXPECT_FALSE(oat_file_assistant.OdexFileExists());
-  EXPECT_TRUE(oat_file_assistant.OdexFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OdexFileNeedsRelocation());
-  EXPECT_FALSE(oat_file_assistant.OdexFileIsUpToDate());
+  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OdexFileStatus());
   EXPECT_TRUE(oat_file_assistant.OatFileExists());
-  EXPECT_FALSE(oat_file_assistant.OatFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OatFileNeedsRelocation());
-  EXPECT_TRUE(oat_file_assistant.OatFileIsUpToDate());
+  EXPECT_EQ(OatFileAssistant::kOatUpToDate, oat_file_assistant.OatFileStatus());
   EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
 
   std::unique_ptr<OatFile> oat_file = oat_file_assistant.GetBestOatFile();
@@ -804,11 +758,9 @@ TEST_F(OatFileAssistantTest, OdexOatOverlap) {
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
   EXPECT_TRUE(oat_file_assistant.OdexFileExists());
-  EXPECT_FALSE(oat_file_assistant.OdexFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OdexFileIsUpToDate());
+  EXPECT_EQ(OatFileAssistant::kOatNeedsRelocation, oat_file_assistant.OdexFileStatus());
   EXPECT_TRUE(oat_file_assistant.OatFileExists());
-  EXPECT_FALSE(oat_file_assistant.OatFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OatFileIsUpToDate());
+  EXPECT_EQ(OatFileAssistant::kOatNeedsRelocation, oat_file_assistant.OatFileStatus());
   EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
 
   // Things aren't relocated, so it should fall back to interpreted.
@@ -841,11 +793,9 @@ TEST_F(OatFileAssistantTest, DexPicOdexNoOat) {
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
   EXPECT_TRUE(oat_file_assistant.OdexFileExists());
-  EXPECT_FALSE(oat_file_assistant.OdexFileIsOutOfDate());
-  EXPECT_TRUE(oat_file_assistant.OdexFileIsUpToDate());
+  EXPECT_EQ(OatFileAssistant::kOatUpToDate, oat_file_assistant.OdexFileStatus());
   EXPECT_FALSE(oat_file_assistant.OatFileExists());
-  EXPECT_TRUE(oat_file_assistant.OatFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OatFileIsUpToDate());
+  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OatFileStatus());
   EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
 }
 
@@ -869,11 +819,9 @@ TEST_F(OatFileAssistantTest, DexVerifyAtRuntimeOdexNoOat) {
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
   EXPECT_TRUE(oat_file_assistant.OdexFileExists());
-  EXPECT_FALSE(oat_file_assistant.OdexFileIsOutOfDate());
-  EXPECT_TRUE(oat_file_assistant.OdexFileIsUpToDate());
+  EXPECT_EQ(OatFileAssistant::kOatUpToDate, oat_file_assistant.OdexFileStatus());
   EXPECT_FALSE(oat_file_assistant.OatFileExists());
-  EXPECT_TRUE(oat_file_assistant.OatFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OatFileIsUpToDate());
+  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OatFileStatus());
   EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
 }
 
@@ -1049,11 +997,9 @@ TEST_F(OatFileAssistantTest, NonAbsoluteDexLocation) {
   EXPECT_EQ(OatFileAssistant::kDex2OatNeeded,
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
   EXPECT_FALSE(oat_file_assistant.OdexFileExists());
+  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OdexFileStatus());
   EXPECT_FALSE(oat_file_assistant.OatFileExists());
-  EXPECT_TRUE(oat_file_assistant.OdexFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OdexFileIsUpToDate());
-  EXPECT_TRUE(oat_file_assistant.OatFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OatFileIsUpToDate());
+  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OatFileStatus());
 }
 
 // Case: Very short, non-existent Dex location.
@@ -1067,11 +1013,9 @@ TEST_F(OatFileAssistantTest, ShortDexLocation) {
   EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded,
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
   EXPECT_FALSE(oat_file_assistant.OdexFileExists());
+  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OdexFileStatus());
   EXPECT_FALSE(oat_file_assistant.OatFileExists());
-  EXPECT_TRUE(oat_file_assistant.OdexFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OdexFileIsUpToDate());
-  EXPECT_TRUE(oat_file_assistant.OatFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OatFileIsUpToDate());
+  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OatFileStatus());
   EXPECT_FALSE(oat_file_assistant.HasOriginalDexFiles());
 
   // Trying to make it up to date should have no effect.
@@ -1095,11 +1039,9 @@ TEST_F(OatFileAssistantTest, LongDexExtension) {
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
   EXPECT_FALSE(oat_file_assistant.OdexFileExists());
-  EXPECT_TRUE(oat_file_assistant.OdexFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OdexFileIsUpToDate());
+  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OdexFileStatus());
   EXPECT_FALSE(oat_file_assistant.OatFileExists());
-  EXPECT_TRUE(oat_file_assistant.OatFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OatFileIsUpToDate());
+  EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OatFileStatus());
 }
 
 // A task to generate a dex location. Used by the RaceToGenerate test.
