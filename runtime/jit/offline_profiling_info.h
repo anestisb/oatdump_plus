@@ -180,6 +180,7 @@ class ProfileCompilationInfo {
   friend class ProfileCompilationInfoTest;
   friend class CompilerDriverProfileTest;
   friend class ProfileAssistantTest;
+  friend class Dex2oatLayoutTest;
 
   DexFileToProfileInfoMap info_;
 };
