@@ -139,9 +139,14 @@ inline int32_t Int32ConstantFrom(Location location) {
   HConstant* instr = location.GetConstant();
   if (instr->IsIntConstant()) {
     return instr->AsIntConstant()->GetValue();
-  } else {
-    DCHECK(instr->IsNullConstant()) << instr->DebugName();
+  } else if (instr->IsNullConstant()) {
     return 0;
+  } else {
+    DCHECK(instr->IsLongConstant()) << instr->DebugName();
+    const int64_t ret = instr->AsLongConstant()->GetValue();
+    DCHECK_GE(ret, std::numeric_limits<int32_t>::min());
+    DCHECK_LE(ret, std::numeric_limits<int32_t>::max());
+    return ret;
   }
 }
 
@@ -161,7 +166,7 @@ inline vixl::aarch32::Operand OperandFrom(Location location, Primitive::Type typ
   if (location.IsRegister()) {
     return vixl::aarch32::Operand(RegisterFrom(location, type));
   } else {
-    return vixl::aarch32::Operand(Int64ConstantFrom(location));
+    return vixl::aarch32::Operand(Int32ConstantFrom(location));
   }
 }
 
