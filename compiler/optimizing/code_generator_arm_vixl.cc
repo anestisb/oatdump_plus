@@ -47,6 +47,7 @@ using helpers::InputRegister;
 using helpers::InputRegisterAt;
 using helpers::InputSRegisterAt;
 using helpers::InputVRegisterAt;
+using helpers::Int32ConstantFrom;
 using helpers::LocationFrom;
 using helpers::LowRegisterFrom;
 using helpers::LowSRegisterFrom;
@@ -132,7 +133,7 @@ static size_t SaveContiguousSRegisterList(size_t first,
       vixl32::Register base = sp;
       if (stack_offset != 0) {
         base = temps.Acquire();
-        __ Add(base, sp, stack_offset);
+        __ Add(base, sp, Operand::From(stack_offset));
       }
       __ Vstm(F64, base, NO_WRITE_BACK, DRegisterList(d_reg, number_of_d_regs));
     }
@@ -180,7 +181,7 @@ static size_t RestoreContiguousSRegisterList(size_t first,
       vixl32::Register base = sp;
       if (stack_offset != 0) {
         base = temps.Acquire();
-        __ Add(base, sp, stack_offset);
+        __ Add(base, sp, Operand::From(stack_offset));
       }
       __ Vldm(F64, base, NO_WRITE_BACK, DRegisterList(d_reg, number_of_d_regs));
     }
@@ -673,8 +674,8 @@ void JumpTableARMVIXL::EmitTable(CodeGeneratorARMVIXL* codegen) {
   DCHECK_GE(num_entries, kPackedSwitchCompareJumpThreshold);
 
   // We are about to use the assembler to place literals directly. Make sure we have enough
-  // underlying code buffer and we have generated the jump table with right size.
-  codegen->GetVIXLAssembler()->GetBuffer().Align();
+  // underlying code buffer and we have generated a jump table of the right size, using
+  // codegen->GetVIXLAssembler()->GetBuffer().Align();
   AssemblerAccurateScope aas(codegen->GetVIXLAssembler(),
                              num_entries * sizeof(int32_t),
                              CodeBufferCheckScope::kMaximumSize);
@@ -701,7 +702,7 @@ void JumpTableARMVIXL::FixTable(CodeGeneratorARMVIXL* codegen) {
     DCHECK_GT(jump_offset, std::numeric_limits<int32_t>::min());
     DCHECK_LE(jump_offset, std::numeric_limits<int32_t>::max());
 
-    bb_addresses_[i].get()->UpdateValue(jump_offset, &codegen->GetVIXLAssembler()->GetBuffer());
+    bb_addresses_[i].get()->UpdateValue(jump_offset, codegen->GetVIXLAssembler()->GetBuffer());
   }
 }
 
@@ -1667,7 +1668,20 @@ void InstructionCodeGeneratorARMVIXL::VisitInvokeInterface(HInvokeInterface* inv
   // Set the hidden (in r12) argument. It is done here, right before a BLX to prevent other
   // instruction from clobbering it as they might use r12 as a scratch register.
   DCHECK(hidden_reg.Is(r12));
-  __ Mov(hidden_reg, invoke->GetDexMethodIndex());
+
+  {
+    // The VIXL macro assembler may clobber any of the scratch registers that are available to it,
+    // so it checks if the application is using them (by passing them to the macro assembler
+    // methods). The following application of UseScratchRegisterScope corrects VIXL's notion of
+    // what is available, and is the opposite of the standard usage: Instead of requesting a
+    // temporary location, it imposes an external constraint (i.e. a specific register is reserved
+    // for the hidden argument). Note that this works even if VIXL needs a scratch register itself
+    // (to materialize the constant), since the destination register becomes available for such use
+    // internally for the duration of the macro instruction.
+    UseScratchRegisterScope temps(GetVIXLAssembler());
+    temps.Exclude(hidden_reg);
+    __ Mov(hidden_reg, invoke->GetDexMethodIndex());
+  }
 
   {
     AssemblerAccurateScope aas(GetVIXLAssembler(),
@@ -2458,13 +2472,13 @@ void InstructionCodeGeneratorARMVIXL::GenerateDivRemWithAnyConstant(HBinaryOpera
   vixl32::Register dividend = InputRegisterAt(instruction, 0);
   vixl32::Register temp1 = RegisterFrom(locations->GetTemp(0));
   vixl32::Register temp2 = RegisterFrom(locations->GetTemp(1));
-  int64_t imm = second.GetConstant()->AsIntConstant()->GetValue();
+  int32_t imm = Int32ConstantFrom(second);
 
   int64_t magic;
   int shift;
   CalculateMagicAndShiftForDivRem(imm, false /* is_long */, &magic, &shift);
 
-  __ Mov(temp1, magic);
+  __ Mov(temp1, Operand::From(magic));
   __ Smull(temp2, temp1, dividend, temp1);
 
   if (imm > 0 && magic < 0) {
@@ -2857,9 +2871,9 @@ void InstructionCodeGeneratorARMVIXL::HandleLongRotate(HRor* ror) {
     }
     // Rotate, or mov to out for zero or word size rotations.
     if (rot != 0u) {
-      __ Lsr(out_reg_hi, in_reg_hi, rot);
+      __ Lsr(out_reg_hi, in_reg_hi, Operand::From(rot));
       __ Orr(out_reg_hi, out_reg_hi, Operand(in_reg_lo, ShiftType::LSL, kArmBitsPerWord - rot));
-      __ Lsr(out_reg_lo, in_reg_lo, rot);
+      __ Lsr(out_reg_lo, in_reg_lo, Operand::From(rot));
       __ Orr(out_reg_lo, out_reg_lo, Operand(in_reg_hi, ShiftType::LSL, kArmBitsPerWord - rot));
     } else {
       __ Mov(out_reg_lo, in_reg_lo);
@@ -2874,7 +2888,7 @@ void InstructionCodeGeneratorARMVIXL::HandleLongRotate(HRor* ror) {
     __ And(shift_right, RegisterFrom(rhs), 0x1F);
     __ Lsrs(shift_left, RegisterFrom(rhs), 6);
     // TODO(VIXL): Check that flags are kept after "vixl32::LeaveFlags" enabled.
-    __ Rsb(shift_left, shift_right, kArmBitsPerWord);
+    __ Rsb(shift_left, shift_right, Operand::From(kArmBitsPerWord));
     __ B(cc, &shift_by_32_plus_shift_right);
 
     // out_reg_hi = (reg_hi << shift_left) | (reg_lo >> shift_right).
@@ -3040,11 +3054,11 @@ void InstructionCodeGeneratorARMVIXL::HandleShift(HBinaryOperation* op) {
           // Shift the high part
           __ Lsl(o_h, high, o_l);
           // Shift the low part and `or` what overflew on the high part
-          __ Rsb(temp, o_l, kArmBitsPerWord);
+          __ Rsb(temp, o_l, Operand::From(kArmBitsPerWord));
           __ Lsr(temp, low, temp);
           __ Orr(o_h, o_h, temp);
           // If the shift is > 32 bits, override the high part
-          __ Subs(temp, o_l, kArmBitsPerWord);
+          __ Subs(temp, o_l, Operand::From(kArmBitsPerWord));
           {
             AssemblerAccurateScope guard(GetVIXLAssembler(),
                                          3 * kArmInstrMaxSizeInBytes,
@@ -3059,11 +3073,11 @@ void InstructionCodeGeneratorARMVIXL::HandleShift(HBinaryOperation* op) {
           // Shift the low part
           __ Lsr(o_l, low, o_h);
           // Shift the high part and `or` what underflew on the low part
-          __ Rsb(temp, o_h, kArmBitsPerWord);
+          __ Rsb(temp, o_h, Operand::From(kArmBitsPerWord));
           __ Lsl(temp, high, temp);
           __ Orr(o_l, o_l, temp);
           // If the shift is > 32 bits, override the low part
-          __ Subs(temp, o_h, kArmBitsPerWord);
+          __ Subs(temp, o_h, Operand::From(kArmBitsPerWord));
           {
             AssemblerAccurateScope guard(GetVIXLAssembler(),
                                          3 * kArmInstrMaxSizeInBytes,
@@ -3077,10 +3091,10 @@ void InstructionCodeGeneratorARMVIXL::HandleShift(HBinaryOperation* op) {
           __ And(o_h, second_reg, kMaxLongShiftDistance);
           // same as Shr except we use `Lsr`s and not `Asr`s
           __ Lsr(o_l, low, o_h);
-          __ Rsb(temp, o_h, kArmBitsPerWord);
+          __ Rsb(temp, o_h, Operand::From(kArmBitsPerWord));
           __ Lsl(temp, high, temp);
           __ Orr(o_l, o_l, temp);
-          __ Subs(temp, o_h, kArmBitsPerWord);
+          __ Subs(temp, o_h, Operand::From(kArmBitsPerWord));
           {
             AssemblerAccurateScope guard(GetVIXLAssembler(),
                                          3 * kArmInstrMaxSizeInBytes,
@@ -3424,7 +3438,7 @@ void InstructionCodeGeneratorARMVIXL::GenerateWideAtomicLoad(vixl32::Register ad
     __ Add(temp, addr, offset);
     addr = temp;
   }
-  __ Ldrexd(out_lo, out_hi, addr);
+  __ Ldrexd(out_lo, out_hi, MemOperand(addr));
 }
 
 void InstructionCodeGeneratorARMVIXL::GenerateWideAtomicStore(vixl32::Register addr,
@@ -3444,9 +3458,9 @@ void InstructionCodeGeneratorARMVIXL::GenerateWideAtomicStore(vixl32::Register a
   __ Bind(&fail);
   // We need a load followed by store. (The address used in a STREX instruction must
   // be the same as the address in the most recently executed LDREX instruction.)
-  __ Ldrexd(temp1, temp2, addr);
+  __ Ldrexd(temp1, temp2, MemOperand(addr));
   codegen_->MaybeRecordImplicitNullCheck(instruction);
-  __ Strexd(temp1, value_lo, value_hi, addr);
+  __ Strexd(temp1, value_lo, value_hi, MemOperand(addr));
   __ CompareAndBranchIfNonZero(temp1, &fail);
 }
 
@@ -4648,7 +4662,7 @@ void CodeGeneratorARMVIXL::MarkGCCard(vixl32::Register temp,
   }
   GetAssembler()->LoadFromOffset(
       kLoadWord, card, tr, Thread::CardTableOffset<kArmPointerSize>().Int32Value());
-  __ Lsr(temp, object, gc::accounting::CardTable::kCardShift);
+  __ Lsr(temp, object, Operand::From(gc::accounting::CardTable::kCardShift));
   __ Strb(card, MemOperand(card, temp));
   if (can_be_null) {
     __ Bind(&is_null);

@@ -40,12 +40,12 @@ size_t Arm64Assembler::CodeSize() const {
 }
 
 const uint8_t* Arm64Assembler::CodeBufferBaseAddress() const {
-  return vixl_masm_.GetStartAddress<uint8_t*>();
+  return vixl_masm_.GetBuffer().GetStartAddress<const uint8_t*>();
 }
 
 void Arm64Assembler::FinalizeInstructions(const MemoryRegion& region) {
   // Copy the instructions from the buffer.
-  MemoryRegion from(vixl_masm_.GetStartAddress<void*>(), CodeSize());
+  MemoryRegion from(vixl_masm_.GetBuffer()->GetStartAddress<void*>(), CodeSize());
   region.CopyFrom(0, from);
 }
 

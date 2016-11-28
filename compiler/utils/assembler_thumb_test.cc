@@ -1753,7 +1753,10 @@ TEST_F(ArmVIXLAssemblerTest, VixlLoadFromOffset) {
   __ LoadFromOffset(kLoadWordPair, R2, R4, 0x40400);
   __ LoadFromOffset(kLoadWordPair, R4, R4, 0x40400);
 
+  vixl::aarch32::UseScratchRegisterScope temps(assembler.asm_.GetVIXLAssembler());
+  temps.Exclude(R12);
   __ LoadFromOffset(kLoadWord, R0, R12, 12);  // 32-bit because of R12.
+  temps.Include(R12);
   __ LoadFromOffset(kLoadWord, R2, R4, 0xa4 - 0x100000);
 
   __ LoadFromOffset(kLoadSignedByte, R2, R4, 12);
@@ -1783,7 +1786,10 @@ TEST_F(ArmVIXLAssemblerTest, VixlStoreToOffset) {
   __ StoreToOffset(kStoreWordPair, R2, R4, 0x40400);
   __ StoreToOffset(kStoreWordPair, R4, R4, 0x40400);
 
+  vixl::aarch32::UseScratchRegisterScope temps(assembler.asm_.GetVIXLAssembler());
+  temps.Exclude(R12);
   __ StoreToOffset(kStoreWord, R0, R12, 12);  // 32-bit because of R12.
+  temps.Include(R12);
   __ StoreToOffset(kStoreWord, R2, R4, 0xa4 - 0x100000);
 
   __ StoreToOffset(kStoreByte, R2, R4, 12);
