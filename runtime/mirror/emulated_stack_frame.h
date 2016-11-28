@@ -58,6 +58,10 @@ class MANAGED EmulatedStackFrame : public Object {
   // Sets the return value slot of this emulated stack frame to |value|.
   void SetReturnValue(Thread* self, const JValue& value) REQUIRES_SHARED(Locks::mutator_lock_);
 
+  mirror::MethodType* GetType() REQUIRES_SHARED(Locks::mutator_lock_) {
+    return GetFieldObject<MethodType>(OFFSET_OF_OBJECT_MEMBER(EmulatedStackFrame, type_));
+  }
+
   static void SetClass(Class* klass) REQUIRES_SHARED(Locks::mutator_lock_);
   static void ResetClass() REQUIRES_SHARED(Locks::mutator_lock_);
   static void VisitRoots(RootVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
@@ -65,10 +69,6 @@ class MANAGED EmulatedStackFrame : public Object {
  private:
   static mirror::Class* StaticClass() REQUIRES_SHARED(Locks::mutator_lock_) {
     return static_class_.Read();
-  }
-
-  mirror::MethodType* GetType() REQUIRES_SHARED(Locks::mutator_lock_) {
-    return GetFieldObject<MethodType>(OFFSET_OF_OBJECT_MEMBER(EmulatedStackFrame, type_));
   }
 
   mirror::ObjectArray<mirror::Object>* GetReferences() REQUIRES_SHARED(Locks::mutator_lock_) {
