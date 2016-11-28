@@ -427,7 +427,7 @@ static inline bool DoFieldPutCommon(Thread* self,
         if (!reg->VerifierInstanceOf(field_class.Ptr())) {
           // This should never happen.
           std::string temp1, temp2, temp3;
-          self->ThrowNewExceptionF("Ljava/lang/VirtualMachineError;",
+          self->ThrowNewExceptionF("Ljava/lang/InternalError;",
                                    "Put '%s' that is not instance of field '%s' in '%s'",
                                    reg->GetClass()->GetDescriptor(&temp1),
                                    field_class->GetDescriptor(&temp2),
@@ -1493,7 +1493,7 @@ static inline bool DoCallCommon(ArtMethod* called_method,
             if (!o->VerifierInstanceOf(arg_type)) {
               // This should never happen.
               std::string temp1, temp2;
-              self->ThrowNewExceptionF("Ljava/lang/VirtualMachineError;",
+              self->ThrowNewExceptionF("Ljava/lang/InternalError;",
                                        "Invoking %s with bad arg %d, type '%s' not instance of '%s'",
                                        new_shadow_frame->GetMethod()->GetName(), shorty_pos,
                                        o->GetClass()->GetDescriptor(&temp1),
