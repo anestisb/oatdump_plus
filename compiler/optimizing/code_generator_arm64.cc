@@ -572,8 +572,10 @@ void JumpTableARM64::EmitTable(CodeGeneratorARM64* codegen) {
 
   // We are about to use the assembler to place literals directly. Make sure we have enough
   // underlying code buffer and we have generated the jump table with right size.
-  CodeBufferCheckScope scope(codegen->GetVIXLAssembler(), num_entries * sizeof(int32_t),
-                             CodeBufferCheckScope::kCheck, CodeBufferCheckScope::kExactSize);
+  vixl::CodeBufferCheckScope scope(codegen->GetVIXLAssembler(),
+                                   num_entries * sizeof(int32_t),
+                                   vixl::CodeBufferCheckScope::kReserveBufferSpace,
+                                   vixl::CodeBufferCheckScope::kExactSize);
 
   __ Bind(&table_start_);
   const ArenaVector<HBasicBlock*>& successors = switch_instr_->GetBlock()->GetSuccessors();
@@ -2260,10 +2262,10 @@ void InstructionCodeGeneratorARM64::VisitMultiplyAccumulate(HMultiplyAccumulate*
         masm->GetCursorAddress<vixl::aarch64::Instruction*>() - kInstructionSize;
     if (prev->IsLoadOrStore()) {
       // Make sure we emit only exactly one nop.
-      vixl::aarch64::CodeBufferCheckScope scope(masm,
-                                                kInstructionSize,
-                                                vixl::aarch64::CodeBufferCheckScope::kCheck,
-                                                vixl::aarch64::CodeBufferCheckScope::kExactSize);
+      vixl::CodeBufferCheckScope scope(masm,
+                                       kInstructionSize,
+                                       vixl::CodeBufferCheckScope::kReserveBufferSpace,
+                                       vixl::CodeBufferCheckScope::kExactSize);
       __ nop();
     }
   }
@@ -4036,7 +4038,8 @@ void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invok
       vixl::aarch64::Label* label = &relative_call_patches_.back().label;
       SingleEmissionCheckScope guard(GetVIXLAssembler());
       __ Bind(label);
-      __ bl(0);  // Branch and link to itself. This will be overriden at link time.
+      // Branch and link to itself. This will be overriden at link time.
+      __ bl(static_cast<int64_t>(0));
       break;
     }
     case HInvokeStaticOrDirect::CodePtrLocation::kCallDirectWithFixup:
@@ -4167,7 +4170,7 @@ void CodeGeneratorARM64::EmitAdrpPlaceholder(vixl::aarch64::Label* fixup_label,
   DCHECK(reg.IsX());
   SingleEmissionCheckScope guard(GetVIXLAssembler());
   __ Bind(fixup_label);
-  __ adrp(reg, /* offset placeholder */ 0);
+  __ adrp(reg, /* offset placeholder */ static_cast<int64_t>(0));
 }
 
 void CodeGeneratorARM64::EmitAddPlaceholder(vixl::aarch64::Label* fixup_label,
