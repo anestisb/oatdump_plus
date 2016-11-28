@@ -287,7 +287,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           if (!obj_result->VerifierInstanceOf(return_type)) {
             // This should never happen.
             std::string temp1, temp2;
-            self->ThrowNewExceptionF("Ljava/lang/VirtualMachineError;",
+            self->ThrowNewExceptionF("Ljava/lang/InternalError;",
                                      "Returning '%s' that is not instance of return type '%s'",
                                      obj_result->GetClass()->GetDescriptor(&temp1),
                                      return_type->GetDescriptor(&temp2));
@@ -577,7 +577,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         } else if (do_assignability_check && !exception->GetClass()->IsThrowableClass()) {
           // This should never happen.
           std::string temp;
-          self->ThrowNewExceptionF("Ljava/lang/VirtualMachineError;",
+          self->ThrowNewExceptionF("Ljava/lang/InternalError;",
                                    "Throwing '%s' that is not instance of Throwable",
                                    exception->GetClass()->GetDescriptor(&temp));
         } else {
