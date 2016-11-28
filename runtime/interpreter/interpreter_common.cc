@@ -922,7 +922,7 @@ inline bool DoInvokePolymorphic(Thread* self,
         ThrowWrongMethodTypeException(check_type.Ptr(), callsite_type.Get());
         return false;
       }
-    } else {
+    } else if (!IsInvokeTransform(handle_kind)) {
       if (UNLIKELY(!IsCallerTransformer(callsite_type) &&
                    !callsite_type->IsConvertible(check_type.Ptr()))) {
         ThrowWrongMethodTypeException(check_type.Ptr(), callsite_type.Get());
@@ -990,33 +990,37 @@ inline bool DoInvokePolymorphic(Thread* self,
       CHECK(called_method != nullptr);
     }
 
-    bool call_success;
-    if (handle_kind == kInvokeTransform) {
-      call_success = DoCallTransform<is_range>(called_method,
-                                               callsite_type,
-                                               handle_type,
-                                               self,
-                                               shadow_frame,
-                                               method_handle /* receiver */,
-                                               result,
-                                               arg,
-                                               first_src_reg);
+    if (IsInvokeTransform(handle_kind)) {
+      // There are two cases here - method handles representing regular
+      // transforms and those representing call site transforms. Method
+      // handles for call site transforms adapt their MethodType to match
+      // the call site. For these, the |callee_type| is the same as the
+      // |callsite_type|. The VarargsCollector is such a tranform, its
+      // method type depends on the call site, ie. x(a) or x(a, b), or
+      // x(a, b, c). The VarargsCollector invokes a variable arity method
+      // with the arity arguments in an array.
+      Handle<mirror::MethodType> callee_type =
+          (handle_kind == kInvokeCallSiteTransform) ? callsite_type : handle_type;
+      return DoCallTransform<is_range>(called_method,
+                                       callsite_type,
+                                       callee_type,
+                                       self,
+                                       shadow_frame,
+                                       method_handle /* receiver */,
+                                       result,
+                                       arg,
+                                       first_src_reg);
     } else {
-      call_success = DoCallPolymorphic<is_range>(called_method,
-                                                 callsite_type,
-                                                 handle_type,
-                                                 self,
-                                                 shadow_frame,
-                                                 result,
-                                                 arg,
-                                                 first_src_reg,
-                                                 handle_kind);
+      return DoCallPolymorphic<is_range>(called_method,
+                                         callsite_type,
+                                         handle_type,
+                                         self,
+                                         shadow_frame,
+                                         result,
+                                         arg,
+                                         first_src_reg,
+                                         handle_kind);
     }
-    if (LIKELY(call_success && ConvertReturnValue(callsite_type, handle_type, result))) {
-      return true;
-    }
-    DCHECK(self->IsExceptionPending());
-    return false;
   } else {
     DCHECK(!is_range);
     ArtField* field = method_handle->GetTargetField();
@@ -1096,7 +1100,6 @@ static inline size_t GetInsForProxyOrNativeMethod(ArtMethod* method)
 
   return num_ins;
 }
-
 
 inline void PerformCall(Thread* self,
                         const DexFile::CodeItem* code_item,
@@ -1251,18 +1254,31 @@ static inline bool DoCallPolymorphic(ArtMethod* called_method,
   }
 
   PerformCall(self, code_item, shadow_frame.GetMethod(), first_dest_reg, new_shadow_frame, result);
+  if (self->IsExceptionPending()) {
+    return false;
+  }
 
   // If the caller of this signature polymorphic method was a transformer,
   // we need to copy the result back out to the emulated stack frame.
-  if (is_caller_transformer && !self->IsExceptionPending()) {
-    ObjPtr<mirror::EmulatedStackFrame> emulated_stack_frame(
-        reinterpret_cast<mirror::EmulatedStackFrame*>(
-            shadow_frame.GetVRegReference(first_src_reg)));
+  if (is_caller_transformer) {
+    StackHandleScope<2> hs(self);
+    Handle<mirror::EmulatedStackFrame> emulated_stack_frame(
+        hs.NewHandle(reinterpret_cast<mirror::EmulatedStackFrame*>(
+            shadow_frame.GetVRegReference(first_src_reg))));
+    Handle<mirror::MethodType> emulated_stack_type(hs.NewHandle(emulated_stack_frame->GetType()));
+    JValue local_result;
+    local_result.SetJ(result->GetJ());
 
-    emulated_stack_frame->SetReturnValue(self, *result);
+    if (ConvertReturnValue(emulated_stack_type, target_type, &local_result)) {
+      emulated_stack_frame->SetReturnValue(self, local_result);
+      return true;
+    } else {
+      DCHECK(self->IsExceptionPending());
+      return false;
+    }
+  } else {
+    return ConvertReturnValue(callsite_type, target_type, result);
   }
-
-  return !self->IsExceptionPending();
 }
 
 template <bool is_range>
@@ -1329,14 +1345,14 @@ static inline bool DoCallTransform(ArtMethod* called_method,
               0 /* first dest reg */,
               new_shadow_frame,
               result);
+  if (self->IsExceptionPending()) {
+    return false;
+  }
 
   // If the called transformer method we called has returned a value, then we
   // need to copy it back to |result|.
-  if (!self->IsExceptionPending()) {
-    sf->GetReturnValue(self, result);
-  }
-
-  return !self->IsExceptionPending();
+  sf->GetReturnValue(self, result);
+  return ConvertReturnValue(callsite_type, callee_type, result);
 }
 
 template <bool is_range,
