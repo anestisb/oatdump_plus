@@ -418,7 +418,7 @@ TEST_F(DexFileTest, FindTypeId) {
     const char* type_str = java_lang_dex_file_->StringByTypeIdx(dex::TypeIndex(i));
     const DexFile::StringId* type_str_id = java_lang_dex_file_->FindStringId(type_str);
     ASSERT_TRUE(type_str_id != nullptr);
-    uint32_t type_str_idx = java_lang_dex_file_->GetIndexForStringId(*type_str_id);
+    dex::StringIndex type_str_idx = java_lang_dex_file_->GetIndexForStringId(*type_str_id);
     const DexFile::TypeId* type_id = java_lang_dex_file_->FindTypeId(type_str_idx);
     ASSERT_EQ(type_id, java_lang_dex_file_->FindTypeId(type_str));
     ASSERT_TRUE(type_id != nullptr);

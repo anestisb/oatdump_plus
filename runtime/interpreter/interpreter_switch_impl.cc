@@ -373,7 +373,9 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         break;
       case Instruction::CONST_STRING: {
         PREAMBLE();
-        ObjPtr<mirror::String> s = ResolveString(self, shadow_frame,  inst->VRegB_21c());
+        ObjPtr<mirror::String> s = ResolveString(self,
+                                                 shadow_frame,
+                                                 dex::StringIndex(inst->VRegB_21c()));
         if (UNLIKELY(s == nullptr)) {
           HANDLE_PENDING_EXCEPTION();
         } else {
@@ -384,7 +386,9 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
       }
       case Instruction::CONST_STRING_JUMBO: {
         PREAMBLE();
-        ObjPtr<mirror::String> s = ResolveString(self, shadow_frame,  inst->VRegB_31c());
+        ObjPtr<mirror::String> s = ResolveString(self,
+                                                 shadow_frame,
+                                                 dex::StringIndex(inst->VRegB_31c()));
         if (UNLIKELY(s == nullptr)) {
           HANDLE_PENDING_EXCEPTION();
         } else {

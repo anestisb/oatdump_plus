@@ -54,7 +54,7 @@ ObjPtr<mirror::Class> ArtField::ResolveGetType(dex::TypeIndex type_idx) {
 
 ObjPtr<mirror::String> ArtField::ResolveGetStringName(Thread* self,
                                                       const DexFile& dex_file,
-                                                      uint32_t string_idx,
+                                                      dex::StringIndex string_idx,
                                                       ObjPtr<mirror::DexCache> dex_cache) {
   StackHandleScope<1> hs(self);
   return Runtime::Current()->GetClassLinker()->ResolveString(dex_file,

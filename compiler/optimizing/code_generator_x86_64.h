@@ -412,7 +412,7 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   void RecordTypePatch(HLoadClass* load_class);
   Label* NewStringBssEntryPatch(HLoadString* load_string);
   Label* NewPcRelativeDexCacheArrayPatch(const DexFile& dex_file, uint32_t element_offset);
-  Label* NewJitRootStringPatch(const DexFile& dex_file, uint32_t dex_index);
+  Label* NewJitRootStringPatch(const DexFile& dex_file, dex::StringIndex dex_index);
 
   void MoveFromReturnRegister(Location trg, Primitive::Type type) OVERRIDE;
 

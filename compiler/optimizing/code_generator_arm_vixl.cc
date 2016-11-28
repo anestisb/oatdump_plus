@@ -5116,7 +5116,7 @@ void InstructionCodeGeneratorARMVIXL::VisitLoadString(HLoadString* load) {
   // TODO: Re-add the compiler code to do string dex cache lookup again.
   DCHECK_EQ(load->GetLoadKind(), HLoadString::LoadKind::kDexCacheViaMethod);
   InvokeRuntimeCallingConventionARMVIXL calling_convention;
-  __ Mov(calling_convention.GetRegisterAt(0), load->GetStringIndex());
+  __ Mov(calling_convention.GetRegisterAt(0), load->GetStringIndex().index_);
   codegen_->InvokeRuntime(kQuickResolveString, load, load->GetDexPc());
   CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
 }

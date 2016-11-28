@@ -65,14 +65,15 @@ inline mirror::Class* ClassLinker::FindArrayClass(Thread* self,
   return array_class.Ptr();
 }
 
-inline mirror::String* ClassLinker::ResolveString(uint32_t string_idx, ArtMethod* referrer) {
+inline mirror::String* ClassLinker::ResolveString(dex::StringIndex string_idx,
+                                                  ArtMethod* referrer) {
   Thread::PoisonObjectPointersIfDebug();
   ObjPtr<mirror::Class> declaring_class = referrer->GetDeclaringClass();
   // MethodVerifier refuses methods with string_idx out of bounds.
-  DCHECK_LT(string_idx, declaring_class->GetDexFile().NumStringIds());
+  DCHECK_LT(string_idx.index_, declaring_class->GetDexFile().NumStringIds());
   ObjPtr<mirror::String> string =
         mirror::StringDexCachePair::Lookup(declaring_class->GetDexCacheStrings(),
-                                           string_idx,
+                                           string_idx.index_,
                                            mirror::DexCache::kDexCacheStringCacheSize).Read();
   if (UNLIKELY(string == nullptr)) {
     StackHandleScope<1> hs(Thread::Current());

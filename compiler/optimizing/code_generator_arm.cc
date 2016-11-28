@@ -430,7 +430,7 @@ class LoadStringSlowPathARM : public SlowPathCodeARM {
     LocationSummary* locations = instruction_->GetLocations();
     DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
     HLoadString* load = instruction_->AsLoadString();
-    const uint32_t string_index = load->GetStringIndex();
+    const uint32_t string_index = load->GetStringIndex().index_;
     Register out = locations->Out().AsRegister<Register>();
     Register temp = locations->GetTemp(0).AsRegister<Register>();
     constexpr bool call_saves_everything_except_r0 = (!kUseReadBarrier || kUseBakerReadBarrier);
@@ -5946,7 +5946,7 @@ void InstructionCodeGeneratorARM::VisitLoadString(HLoadString* load) {
     case HLoadString::LoadKind::kBootImageLinkTimePcRelative: {
       DCHECK(codegen_->GetCompilerOptions().IsBootImage());
       CodeGeneratorARM::PcRelativePatchInfo* labels =
-          codegen_->NewPcRelativeStringPatch(load->GetDexFile(), load->GetStringIndex());
+          codegen_->NewPcRelativeStringPatch(load->GetDexFile(), load->GetStringIndex().index_);
       __ BindTrackedLabel(&labels->movw_label);
       __ movw(out, /* placeholder */ 0u);
       __ BindTrackedLabel(&labels->movt_label);
@@ -5965,7 +5965,7 @@ void InstructionCodeGeneratorARM::VisitLoadString(HLoadString* load) {
       DCHECK(!codegen_->GetCompilerOptions().IsBootImage());
       Register temp = locations->GetTemp(0).AsRegister<Register>();
       CodeGeneratorARM::PcRelativePatchInfo* labels =
-          codegen_->NewPcRelativeStringPatch(load->GetDexFile(), load->GetStringIndex());
+          codegen_->NewPcRelativeStringPatch(load->GetDexFile(), load->GetStringIndex().index_);
       __ BindTrackedLabel(&labels->movw_label);
       __ movw(temp, /* placeholder */ 0u);
       __ BindTrackedLabel(&labels->movt_label);
@@ -5994,7 +5994,7 @@ void InstructionCodeGeneratorARM::VisitLoadString(HLoadString* load) {
   DCHECK(load_kind == HLoadString::LoadKind::kDexCacheViaMethod);
   InvokeRuntimeCallingConvention calling_convention;
   DCHECK_EQ(calling_convention.GetRegisterAt(0), out);
-  __ LoadImmediate(calling_convention.GetRegisterAt(0), load->GetStringIndex());
+  __ LoadImmediate(calling_convention.GetRegisterAt(0), load->GetStringIndex().index_);
   codegen_->InvokeRuntime(kQuickResolveString, load, load->GetDexPc());
   CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
 }
@@ -7340,7 +7340,7 @@ CodeGeneratorARM::PcRelativePatchInfo* CodeGeneratorARM::NewPcRelativePatch(
 }
 
 Literal* CodeGeneratorARM::DeduplicateBootImageStringLiteral(const DexFile& dex_file,
-                                                             uint32_t string_index) {
+                                                             dex::StringIndex string_index) {
   return boot_image_string_patches_.GetOrCreate(
       StringReference(&dex_file, string_index),
       [this]() { return __ NewLiteral<uint32_t>(/* placeholder */ 0u); });
@@ -7364,7 +7364,7 @@ Literal* CodeGeneratorARM::DeduplicateDexCacheAddressLiteral(uint32_t address) {
 }
 
 Literal* CodeGeneratorARM::DeduplicateJitStringLiteral(const DexFile& dex_file,
-                                                       uint32_t string_index) {
+                                                       dex::StringIndex string_index) {
   jit_string_roots_.Overwrite(StringReference(&dex_file, string_index), /* placeholder */ 0u);
   return jit_string_patches_.GetOrCreate(
       StringReference(&dex_file, string_index),
@@ -7436,7 +7436,7 @@ void CodeGeneratorARM::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patche
     uint32_t literal_offset = literal->GetLabel()->Position();
     linker_patches->push_back(LinkerPatch::StringPatch(literal_offset,
                                                        target_string.dex_file,
-                                                       target_string.string_index));
+                                                       target_string.string_index.index_));
   }
   if (!GetCompilerOptions().IsBootImage()) {
     EmitPcRelativeLinkerPatches<LinkerPatch::StringBssEntryPatch>(pc_relative_string_patches_,

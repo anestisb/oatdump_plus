@@ -560,14 +560,15 @@ class CodeGeneratorARM64 : public CodeGenerator {
       uint32_t element_offset,
       vixl::aarch64::Label* adrp_label = nullptr);
 
-  vixl::aarch64::Literal<uint32_t>* DeduplicateBootImageStringLiteral(const DexFile& dex_file,
-                                                                      uint32_t string_index);
+  vixl::aarch64::Literal<uint32_t>* DeduplicateBootImageStringLiteral(
+      const DexFile& dex_file,
+      dex::StringIndex string_index);
   vixl::aarch64::Literal<uint32_t>* DeduplicateBootImageTypeLiteral(const DexFile& dex_file,
                                                                     dex::TypeIndex type_index);
   vixl::aarch64::Literal<uint32_t>* DeduplicateBootImageAddressLiteral(uint64_t address);
   vixl::aarch64::Literal<uint64_t>* DeduplicateDexCacheAddressLiteral(uint64_t address);
   vixl::aarch64::Literal<uint32_t>* DeduplicateJitStringLiteral(const DexFile& dex_file,
-                                                                uint32_t string_index);
+                                                                dex::StringIndex string_index);
 
   void EmitAdrpPlaceholder(vixl::aarch64::Label* fixup_label, vixl::aarch64::Register reg);
   void EmitAddPlaceholder(vixl::aarch64::Label* fixup_label,

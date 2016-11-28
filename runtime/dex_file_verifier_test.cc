@@ -176,7 +176,7 @@ TEST_F(DexFileVerifierTest, MethodId) {
       "method_id_name_idx",
       [](DexFile* dex_file) {
         DexFile::MethodId* method_id = const_cast<DexFile::MethodId*>(&dex_file->GetMethodId(0));
-        method_id->name_idx_ = 0xFF;
+        method_id->name_idx_ = dex::StringIndex(0xFF);
       },
       "String index not available for method flags verification");
 }
@@ -247,7 +247,7 @@ static const uint8_t* FindMethodData(const DexFile* dex_file,
 
   while (it.HasNextDirectMethod() || it.HasNextVirtualMethod()) {
     uint32_t method_index = it.GetMemberIndex();
-    uint32_t name_index = dex_file->GetMethodId(method_index).name_idx_;
+    dex::StringIndex name_index = dex_file->GetMethodId(method_index).name_idx_;
     const DexFile::StringId& string_id = dex_file->GetStringId(name_index);
     const char* str = dex_file->GetStringData(string_id);
     if (strcmp(name, str) == 0) {
@@ -635,7 +635,7 @@ TEST_F(DexFileVerifierTest, B28552165) {
         uint32_t method_idx;
         FindMethodData(dex_file, "foo", &method_idx);
         auto* method_id = const_cast<DexFile::MethodId*>(&dex_file->GetMethodId(method_idx));
-        method_id->name_idx_ = dex_file->NumStringIds();
+        method_id->name_idx_ = dex::StringIndex(dex_file->NumStringIds());
       },
       "Method may have only one of public/protected/private, LMethodFlags;.(error)");
 }
@@ -856,7 +856,7 @@ static const uint8_t* FindFieldData(const DexFile* dex_file, const char* name) {
 
   while (it.HasNextStaticField() || it.HasNextInstanceField()) {
     uint32_t field_index = it.GetMemberIndex();
-    uint32_t name_index = dex_file->GetFieldId(field_index).name_idx_;
+    dex::StringIndex name_index = dex_file->GetFieldId(field_index).name_idx_;
     const DexFile::StringId& string_id = dex_file->GetStringId(name_index);
     const char* str = dex_file->GetStringData(string_id);
     if (strcmp(name, str) == 0) {
@@ -1451,12 +1451,12 @@ TEST_F(DexFileVerifierTest, ProtoOrdering) {
             // Swap the proto parameters and shorties to break the ordering.
             std::swap(const_cast<uint32_t&>(proto1.parameters_off_),
                       const_cast<uint32_t&>(proto2.parameters_off_));
-            std::swap(const_cast<uint32_t&>(proto1.shorty_idx_),
-                      const_cast<uint32_t&>(proto2.shorty_idx_));
+            std::swap(const_cast<dex::StringIndex&>(proto1.shorty_idx_),
+                      const_cast<dex::StringIndex&>(proto2.shorty_idx_));
           } else {
             // Copy the proto parameters and shorty to create duplicate proto id.
             const_cast<uint32_t&>(proto1.parameters_off_) = proto2.parameters_off_;
-            const_cast<uint32_t&>(proto1.shorty_idx_) = proto2.shorty_idx_;
+            const_cast<dex::StringIndex&>(proto1.shorty_idx_) = proto2.shorty_idx_;
           }
         },
         "Out-of-order proto_id arguments");

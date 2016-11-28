@@ -287,7 +287,7 @@ class PreloadDexCachesStringsVisitor : public SingleRootVisitor {
 
 // Based on ClassLinker::ResolveString.
 static void PreloadDexCachesResolveString(
-    Handle<mirror::DexCache> dex_cache, uint32_t string_idx, StringTable& strings)
+    Handle<mirror::DexCache> dex_cache, dex::StringIndex string_idx, StringTable& strings)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   ObjPtr<mirror::String>  string = dex_cache->GetResolvedString(string_idx);
   if (string != nullptr) {
@@ -450,7 +450,7 @@ static void PreloadDexCachesStatsFilled(DexCacheStats* filled)
       continue;
     }
     for (size_t j = 0; j < dex_cache->NumStrings(); j++) {
-      ObjPtr<mirror::String> string = dex_cache->GetResolvedString(j);
+      ObjPtr<mirror::String> string = dex_cache->GetResolvedString(dex::StringIndex(j));
       if (string != nullptr) {
         filled->num_strings++;
       }
@@ -514,7 +514,7 @@ static void VMRuntime_preloadDexCaches(JNIEnv* env, jobject) {
 
     if (kPreloadDexCachesStrings) {
       for (size_t j = 0; j < dex_cache->NumStrings(); j++) {
-        PreloadDexCachesResolveString(dex_cache, j, strings);
+        PreloadDexCachesResolveString(dex_cache, dex::StringIndex(j), strings);
       }
     }
 

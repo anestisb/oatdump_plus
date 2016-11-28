@@ -2023,7 +2023,8 @@ void Runtime::RecordWeakStringRemoval(ObjPtr<mirror::String> s) const {
   preinitialization_transaction_->RecordWeakStringRemoval(s);
 }
 
-void Runtime::RecordResolveString(ObjPtr<mirror::DexCache> dex_cache, uint32_t string_idx) const {
+void Runtime::RecordResolveString(ObjPtr<mirror::DexCache> dex_cache,
+                                  dex::StringIndex string_idx) const {
   DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
   preinitialization_transaction_->RecordResolveString(dex_cache, string_idx);

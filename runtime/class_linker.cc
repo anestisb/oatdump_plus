@@ -7557,7 +7557,7 @@ void ClassLinker::CreateReferenceInstanceOffsets(Handle<mirror::Class> klass) {
 }
 
 mirror::String* ClassLinker::ResolveString(const DexFile& dex_file,
-                                           uint32_t string_idx,
+                                           dex::StringIndex string_idx,
                                            Handle<mirror::DexCache> dex_cache) {
   DCHECK(dex_cache.Get() != nullptr);
   Thread::PoisonObjectPointersIfDebug();
@@ -7573,7 +7573,7 @@ mirror::String* ClassLinker::ResolveString(const DexFile& dex_file,
 }
 
 mirror::String* ClassLinker::LookupString(const DexFile& dex_file,
-                                          uint32_t string_idx,
+                                          dex::StringIndex string_idx,
                                           Handle<mirror::DexCache> dex_cache) {
   DCHECK(dex_cache.Get() != nullptr);
   ObjPtr<mirror::String> resolved = dex_cache->GetResolvedString(string_idx);
@@ -7582,7 +7582,8 @@ mirror::String* ClassLinker::LookupString(const DexFile& dex_file,
   }
   uint32_t utf16_length;
   const char* utf8_data = dex_file.StringDataAndUtf16LengthByIdx(string_idx, &utf16_length);
-  ObjPtr<mirror::String> string = intern_table_->LookupStrong(Thread::Current(), utf16_length, utf8_data);
+  ObjPtr<mirror::String> string =
+      intern_table_->LookupStrong(Thread::Current(), utf16_length, utf8_data);
   if (string != nullptr) {
     dex_cache->SetResolvedString(string_idx, string);
   }

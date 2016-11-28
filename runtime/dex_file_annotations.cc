@@ -167,7 +167,8 @@ const uint8_t* SearchEncodedAnnotation(const DexFile& dex_file,
 
   while (size != 0) {
     uint32_t element_name_index = DecodeUnsignedLeb128(&annotation);
-    const char* element_name = dex_file.GetStringData(dex_file.GetStringId(element_name_index));
+    const char* element_name =
+        dex_file.GetStringData(dex_file.GetStringId(dex::StringIndex(element_name_index)));
     if (strcmp(name, element_name) == 0) {
       return annotation;
     }
@@ -357,7 +358,7 @@ bool ProcessAnnotationValue(Handle<mirror::Class> klass,
         StackHandleScope<1> hs(self);
         Handle<mirror::DexCache> dex_cache(hs.NewHandle(klass->GetDexCache()));
         element_object = Runtime::Current()->GetClassLinker()->ResolveString(
-            klass->GetDexFile(), index, dex_cache);
+            klass->GetDexFile(), dex::StringIndex(index), dex_cache);
         set_object = true;
         if (element_object == nullptr) {
           return false;
@@ -592,7 +593,7 @@ mirror::Object* CreateAnnotationMember(Handle<mirror::Class> klass,
   ScopedObjectAccessUnchecked soa(self);
   StackHandleScope<5> hs(self);
   uint32_t element_name_index = DecodeUnsignedLeb128(annotation);
-  const char* name = dex_file.StringDataByIdx(element_name_index);
+  const char* name = dex_file.StringDataByIdx(dex::StringIndex(element_name_index));
   Handle<mirror::String> string_name(
       hs.NewHandle(mirror::String::AllocFromModifiedUtf8(self, name)));
 
@@ -1341,7 +1342,9 @@ void RuntimeEncodedStaticFieldValueIterator::ReadValueToField(ArtField* field) c
     case kDouble:  field->SetDouble<kTransactionActive>(field->GetDeclaringClass(), jval_.d); break;
     case kNull:    field->SetObject<kTransactionActive>(field->GetDeclaringClass(), nullptr); break;
     case kString: {
-      mirror::String* resolved = linker_->ResolveString(dex_file_, jval_.i, *dex_cache_);
+      mirror::String* resolved = linker_->ResolveString(dex_file_,
+                                                        dex::StringIndex(jval_.i),
+                                                        *dex_cache_);
       field->SetObject<kTransactionActive>(field->GetDeclaringClass(), resolved);
       break;
     }

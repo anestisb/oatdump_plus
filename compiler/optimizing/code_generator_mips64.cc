@@ -234,7 +234,7 @@ class LoadStringSlowPathMIPS64 : public SlowPathCodeMIPS64 {
     SaveLiveRegisters(codegen, locations);
 
     InvokeRuntimeCallingConvention calling_convention;
-    const uint32_t string_index = instruction_->AsLoadString()->GetStringIndex();
+    const uint32_t string_index = instruction_->AsLoadString()->GetStringIndex().index_;
     __ LoadConst32(calling_convention.GetRegisterAt(0), string_index);
     mips64_codegen->InvokeRuntime(kQuickResolveString,
                                   instruction_,
