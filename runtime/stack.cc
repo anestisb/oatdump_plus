@@ -614,6 +614,23 @@ std::string StackVisitor::DescribeLocation() const {
   return result;
 }
 
+static instrumentation::InstrumentationStackFrame& GetInstrumentationStackFrame(Thread* thread,
+                                                                                uint32_t depth) {
+  CHECK_LT(depth, thread->GetInstrumentationStack()->size());
+  return thread->GetInstrumentationStack()->at(depth);
+}
+
+void StackVisitor::SetMethod(ArtMethod* method) {
+  DCHECK(GetMethod() != nullptr);
+  if (cur_shadow_frame_ != nullptr) {
+    cur_shadow_frame_->SetMethod(method);
+  } else {
+    DCHECK(cur_quick_frame_ != nullptr);
+    CHECK(!IsInInlinedFrame()) << "We do not support setting inlined method's ArtMethod!";
+      *cur_quick_frame_ = method;
+  }
+}
+
 static void AssertPcIsWithinQuickCode(ArtMethod* method, uintptr_t pc)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   if (method->IsNative() || method->IsRuntimeMethod() || method->IsProxyMethod()) {
@@ -775,8 +792,8 @@ template <StackVisitor::CountTransitions kCount>
 void StackVisitor::WalkStack(bool include_transitions) {
   DCHECK(thread_ == Thread::Current() || thread_->IsSuspended());
   CHECK_EQ(cur_depth_, 0U);
+  size_t instrumentation_stack_depth = 0;
   bool exit_stubs_installed = Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled();
-  uint32_t instrumentation_stack_depth = 0;
   size_t inlined_frames_count = 0;
 
   for (const ManagedStack* current_fragment = thread_->GetManagedStack();
@@ -839,7 +856,7 @@ void StackVisitor::WalkStack(bool include_transitions) {
           if (reinterpret_cast<uintptr_t>(GetQuickInstrumentationExitPc()) == return_pc) {
             CHECK_LT(instrumentation_stack_depth, thread_->GetInstrumentationStack()->size());
             const instrumentation::InstrumentationStackFrame& instrumentation_frame =
-                thread_->GetInstrumentationStack()->at(instrumentation_stack_depth);
+                GetInstrumentationStackFrame(thread_, instrumentation_stack_depth);
             instrumentation_stack_depth++;
             if (GetMethod() ==
                 Runtime::Current()->GetCalleeSaveMethod(Runtime::kSaveAllCalleeSaves)) {
