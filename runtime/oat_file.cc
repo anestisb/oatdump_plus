@@ -719,7 +719,7 @@ bool DlOpenOatFile::Dlopen(const std::string& elf_filename,
     dlopen_handle_ = android_dlopen_ext(absolute_path.get(), RTLD_NOW, &extinfo);
 #else
     UNUSED(oat_file_begin);
-    static_assert(!kIsTargetBuild, "host_dlopen_handles_ will leak handles");
+    static_assert(!kIsTargetBuild || kIsTargetLinux, "host_dlopen_handles_ will leak handles");
     MutexLock mu(Thread::Current(), *Locks::host_dlopen_handles_lock_);
     dlopen_handle_ = dlopen(absolute_path.get(), RTLD_NOW);
     if (dlopen_handle_ != nullptr) {
