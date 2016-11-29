@@ -564,6 +564,8 @@ void ArmVIXLJNIMacroAssembler::CallFromThread(ThreadOffset32 offset ATTRIBUTE_UN
 }
 
 void ArmVIXLJNIMacroAssembler::GetCurrentThread(ManagedRegister mtr) {
+  UseScratchRegisterScope temps(asm_.GetVIXLAssembler());
+  temps.Exclude(mtr.AsArm().AsVIXLRegister());
   ___ Mov(mtr.AsArm().AsVIXLRegister(), tr);
 }
 
@@ -608,6 +610,8 @@ void ArmVIXLJNIMacroAssembler::Jump(JNIMacroLabel* label,
                                     ManagedRegister test) {
   CHECK(label != nullptr);
 
+  UseScratchRegisterScope temps(asm_.GetVIXLAssembler());
+  temps.Exclude(test.AsArm().AsVIXLRegister());
   switch (condition) {
     case JNIMacroUnaryCondition::kZero:
       ___ CompareAndBranchIfZero(test.AsArm().AsVIXLRegister(),
