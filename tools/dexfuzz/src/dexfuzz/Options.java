@@ -61,7 +61,6 @@ public class Options {
   public static boolean executeOnHost;
   public static boolean noBootImage;
   public static boolean useInterpreter;
-  public static boolean useQuick;
   public static boolean useOptimizing;
   public static boolean useArchArm;
   public static boolean useArchArm64;
@@ -101,7 +100,6 @@ public class Options {
     Log.always("    --execute-class=<c>  : When executing, execute this class (default: Main)");
     Log.always("");
     Log.always("    --interpreter        : Include the Interpreter in comparisons");
-    Log.always("    --quick              : Include the Quick Compiler in comparisons");
     Log.always("    --optimizing         : Include the Optimizing Compiler in comparisons");
     Log.always("");
     Log.always("    --arm                : Include ARM backends in comparisons");
@@ -160,8 +158,6 @@ public class Options {
       skipHostVerify = true;
     } else if (flag.equals("interpreter")) {
       useInterpreter = true;
-    } else if (flag.equals("quick")) {
-      useQuick = true;
     } else if (flag.equals("optimizing")) {
       useOptimizing = true;
     } else if (flag.equals("arm")) {
@@ -423,18 +419,15 @@ public class Options {
       if (useInterpreter) {
         backends++;
       }
-      if (useQuick) {
-        backends++;
-      }
       if (useOptimizing) {
         backends++;
       }
       if (useArchArm && useArchArm64) {
-        // Could just be comparing quick-ARM versus quick-ARM64?
+        // Could just be comparing optimizing-ARM versus optimizing-ARM64?
         backends++;
       }
       if (backends < 2) {
-        Log.error("Not enough backends specified! Try --quick --interpreter!");
+        Log.error("Not enough backends specified! Try --optimizing --interpreter!");
         return false;
       }
     }
