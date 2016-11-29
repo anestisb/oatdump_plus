@@ -25,6 +25,7 @@
 #include "base/enums.h"
 #include "base/macros.h"
 #include "utils/jni_macro_assembler.h"
+#include "utils/label.h"
 #include "offsets.h"
 
 namespace art {
@@ -159,8 +160,24 @@ class ArmJNIMacroAssembler : public JNIMacroAssembler<PointerSize::k32> {
 
   void MemoryBarrier(ManagedRegister scratch) OVERRIDE;
 
+  // Create a new label that can be used with Jump/Bind calls.
+  std::unique_ptr<JNIMacroLabel> CreateLabel() OVERRIDE;
+  // Emit an unconditional jump to the label.
+  void Jump(JNIMacroLabel* label) OVERRIDE;
+  // Emit a conditional jump to the label by applying a unary condition test to the register.
+  void Jump(JNIMacroLabel* label, JNIMacroUnaryCondition cond, ManagedRegister test) OVERRIDE;
+  // Code at this offset will serve as the target for the Jump call.
+  void Bind(JNIMacroLabel* label) OVERRIDE;
+
  private:
   std::unique_ptr<ArmAssembler> asm_;
+};
+
+class ArmJNIMacroLabel FINAL : public JNIMacroLabelCommon<ArmJNIMacroLabel, art::Label, kArm> {
+ public:
+  art::Label* AsArm() {
+    return AsPlatformLabel();
+  }
 };
 
 }  // namespace arm
