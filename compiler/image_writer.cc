@@ -838,64 +838,19 @@ bool ImageWriter::KeepClass(Class* klass) {
   return true;
 }
 
-class ImageWriter::PruneClassesVisitor : public ClassVisitor {
+class ImageWriter::NonImageClassesVisitor : public ClassVisitor {
  public:
-  PruneClassesVisitor(ImageWriter* image_writer, ObjPtr<mirror::ClassLoader> class_loader)
-      : image_writer_(image_writer),
-        class_loader_(class_loader),
-        classes_to_prune_(),
-        defined_class_count_(0u) { }
+  explicit NonImageClassesVisitor(ImageWriter* image_writer) : image_writer_(image_writer) {}
 
-  bool operator()(ObjPtr<mirror::Class> klass) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
+  bool operator()(ObjPtr<Class> klass) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     if (!image_writer_->KeepClass(klass.Ptr())) {
       classes_to_prune_.insert(klass.Ptr());
-      if (klass->GetClassLoader() == class_loader_) {
-        ++defined_class_count_;
-      }
     }
     return true;
   }
 
-  size_t Prune() REQUIRES_SHARED(Locks::mutator_lock_) {
-    ClassTable* class_table =
-        Runtime::Current()->GetClassLinker()->ClassTableForClassLoader(class_loader_);
-    for (mirror::Class* klass : classes_to_prune_) {
-      std::string storage;
-      const char* descriptor = klass->GetDescriptor(&storage);
-      bool result = class_table->Remove(descriptor);
-      DCHECK(result);
-    }
-    return defined_class_count_;
-  }
-
- private:
-  ImageWriter* const image_writer_;
-  const ObjPtr<mirror::ClassLoader> class_loader_;
   std::unordered_set<mirror::Class*> classes_to_prune_;
-  size_t defined_class_count_;
-};
-
-class ImageWriter::PruneClassLoaderClassesVisitor : public ClassLoaderVisitor {
- public:
-  explicit PruneClassLoaderClassesVisitor(ImageWriter* image_writer)
-      : image_writer_(image_writer), removed_class_count_(0) {}
-
-  virtual void Visit(ObjPtr<mirror::ClassLoader> class_loader) OVERRIDE
-      REQUIRES_SHARED(Locks::mutator_lock_) {
-    PruneClassesVisitor classes_visitor(image_writer_, class_loader);
-    ClassTable* class_table =
-        Runtime::Current()->GetClassLinker()->ClassTableForClassLoader(class_loader);
-    class_table->Visit(classes_visitor);
-    removed_class_count_ += classes_visitor.Prune();
-  }
-
-  size_t GetRemovedClassCount() const {
-    return removed_class_count_;
-  }
-
- private:
   ImageWriter* const image_writer_;
-  size_t removed_class_count_;
 };
 
 void ImageWriter::PruneNonImageClasses() {
@@ -907,13 +862,21 @@ void ImageWriter::PruneNonImageClasses() {
   // path dex caches.
   class_linker->ClearClassTableStrongRoots();
 
+  // Make a list of classes we would like to prune.
+  NonImageClassesVisitor visitor(this);
+  class_linker->VisitClasses(&visitor);
+
   // Remove the undesired classes from the class roots.
-  {
-    ReaderMutexLock mu(self, *Locks::classlinker_classes_lock_);
-    PruneClassLoaderClassesVisitor class_loader_visitor(this);
-    class_loader_visitor.Visit(nullptr);  // Visit boot class loader.
-    class_linker->VisitClassLoaders(&class_loader_visitor);
-    VLOG(compiler) << "Pruned " << class_loader_visitor.GetRemovedClassCount() << " classes";
+  VLOG(compiler) << "Pruning " << visitor.classes_to_prune_.size() << " classes";
+  for (mirror::Class* klass : visitor.classes_to_prune_) {
+    std::string temp;
+    const char* name = klass->GetDescriptor(&temp);
+    VLOG(compiler) << "Pruning class " << name;
+    if (!compile_app_image_) {
+      DCHECK(IsBootClassLoaderClass(klass));
+    }
+    bool result = class_linker->RemoveClass(name, klass->GetClassLoader());
+    DCHECK(result);
   }
 
   // Clear references to removed classes from the DexCaches.
@@ -1141,26 +1104,7 @@ mirror::Object* ImageWriter::TryAssignBinSlot(WorkStack& work_stack,
       DCHECK_NE(as_klass->GetStatus(), mirror::Class::kStatusError);
       if (compile_app_image_) {
         // Extra sanity, no boot loader classes should be left!
-        struct ImageRanges {
-          std::string Dump() const {
-            std::ostringstream oss;
-            const char* separator = "";
-            gc::Heap* const heap = Runtime::Current()->GetHeap();
-            for (gc::space::ImageSpace* boot_image_space : heap->GetBootImageSpaces()) {
-              const uint8_t* image_begin = boot_image_space->Begin();
-              // Real image end including ArtMethods and ArtField sections.
-              const uint8_t* image_end =
-                  image_begin + boot_image_space->GetImageHeader().GetImageSize();
-              oss << separator << static_cast<const void*>(image_begin)
-                  << "-" << static_cast<const void*>(image_end);
-              separator = ":";
-            }
-            return oss.str();
-          }
-        };
-        CHECK(!IsBootClassLoaderClass(as_klass)) << as_klass->PrettyClass()
-            << " " << static_cast<const void*>(as_klass)
-            << " " << ImageRanges().Dump();
+        CHECK(!IsBootClassLoaderClass(as_klass)) << as_klass->PrettyClass();
       }
       LengthPrefixedArray<ArtField>* fields[] = {
           as_klass->GetSFieldsPtr(), as_klass->GetIFieldsPtr(),
@@ -1563,10 +1507,8 @@ void ImageWriter::CalculateNewObjectOffsets() {
     }
     // Calculate the size of the class table.
     ReaderMutexLock mu(self, *Locks::classlinker_classes_lock_);
-    CHECK_EQ(class_loaders_.size(), compile_app_image_ ? 1u : 0u);
-    mirror::ClassLoader* class_loader = compile_app_image_ ? *class_loaders_.begin() : nullptr;
-    DCHECK_EQ(image_info.class_table_->NumZygoteClasses(class_loader), 0u);
-    if (image_info.class_table_->NumNonZygoteClasses(class_loader) != 0u) {
+    DCHECK_EQ(image_info.class_table_->NumZygoteClasses(), 0u);
+    if (image_info.class_table_->NumNonZygoteClasses() != 0u) {
       image_info.class_table_bytes_ += image_info.class_table_->WriteToMemory(nullptr);
     }
   }
@@ -1911,10 +1853,8 @@ void ImageWriter::CopyAndFixupNativeData(size_t oat_index) {
     // above comment for intern tables.
     ClassTable temp_class_table;
     temp_class_table.ReadFromMemory(class_table_memory_ptr);
-    CHECK_EQ(class_loaders_.size(), compile_app_image_ ? 1u : 0u);
-    mirror::ClassLoader* class_loader = compile_app_image_ ? *class_loaders_.begin() : nullptr;
-    CHECK_EQ(temp_class_table.NumZygoteClasses(class_loader),
-             table->NumNonZygoteClasses(class_loader) + table->NumZygoteClasses(class_loader));
+    CHECK_EQ(temp_class_table.NumZygoteClasses(), table->NumNonZygoteClasses() +
+             table->NumZygoteClasses());
     BufferedRootVisitor<kDefaultBufferedRootCount> buffered_visitor(&root_visitor,
                                                                     RootInfo(kRootUnknown));
     temp_class_table.VisitRoots(buffered_visitor);
