@@ -22,24 +22,18 @@ import dexfuzz.Timer;
 import dexfuzz.executors.Architecture;
 import dexfuzz.executors.Arm64InterpreterExecutor;
 import dexfuzz.executors.Arm64OptimizingBackendExecutor;
-import dexfuzz.executors.Arm64QuickBackendExecutor;
 import dexfuzz.executors.ArmInterpreterExecutor;
 import dexfuzz.executors.ArmOptimizingBackendExecutor;
-import dexfuzz.executors.ArmQuickBackendExecutor;
 import dexfuzz.executors.Device;
 import dexfuzz.executors.Executor;
 import dexfuzz.executors.Mips64InterpreterExecutor;
 import dexfuzz.executors.Mips64OptimizingBackendExecutor;
-import dexfuzz.executors.Mips64QuickBackendExecutor;
 import dexfuzz.executors.MipsInterpreterExecutor;
 import dexfuzz.executors.MipsOptimizingBackendExecutor;
-import dexfuzz.executors.MipsQuickBackendExecutor;
 import dexfuzz.executors.X86InterpreterExecutor;
 import dexfuzz.executors.X86OptimizingBackendExecutor;
-import dexfuzz.executors.X86QuickBackendExecutor;
 import dexfuzz.executors.X86_64InterpreterExecutor;
 import dexfuzz.executors.X86_64OptimizingBackendExecutor;
-import dexfuzz.executors.X86_64QuickBackendExecutor;
 import dexfuzz.listeners.BaseListener;
 import dexfuzz.program.Mutation;
 import dexfuzz.program.Program;
@@ -121,18 +115,13 @@ public abstract class Fuzzer {
     }
   }
 
-  private void addExecutorsForArchitecture(Device device, Class<? extends Executor> quick,
-      Class<? extends Executor> optimizing, Class<? extends Executor> interpreter) {
-    // NB: Currently QuickBackend MUST come immediately before same arch's Interpreter.
+  private void addExecutorsForArchitecture(Device device, Class<? extends Executor> optimizing,
+      Class<? extends Executor> interpreter) {
+    // NB: Currently OptimizingBackend MUST come immediately before same arch's Interpreter.
     // This is because intepreter execution relies on there being an OAT file already
     // created to produce correct debug information. Otherwise we will see
     // false-positive divergences.
     try {
-      if (Options.useQuick) {
-        Constructor<? extends Executor> constructor =
-            quick.getConstructor(BaseListener.class, Device.class);
-        executors.add(constructor.newInstance(listener, device));
-      }
       if (Options.useOptimizing) {
         Constructor<? extends Executor> constructor =
             optimizing.getConstructor(BaseListener.class, Device.class);
@@ -165,33 +154,33 @@ public abstract class Fuzzer {
     }
 
     if (Options.useArchArm64) {
-      addExecutorsForArchitecture(device, Arm64QuickBackendExecutor.class,
-          Arm64OptimizingBackendExecutor.class, Arm64InterpreterExecutor.class);
+      addExecutorsForArchitecture(device, Arm64OptimizingBackendExecutor.class,
+          Arm64InterpreterExecutor.class);
     }
 
     if (Options.useArchArm) {
-      addExecutorsForArchitecture(device, ArmQuickBackendExecutor.class,
-          ArmOptimizingBackendExecutor.class, ArmInterpreterExecutor.class);
+      addExecutorsForArchitecture(device, ArmOptimizingBackendExecutor.class,
+          ArmInterpreterExecutor.class);
     }
 
     if (Options.useArchX86_64) {
-      addExecutorsForArchitecture(device, X86_64QuickBackendExecutor.class,
-          X86_64OptimizingBackendExecutor.class, X86_64InterpreterExecutor.class);
+      addExecutorsForArchitecture(device, X86_64OptimizingBackendExecutor.class,
+          X86_64InterpreterExecutor.class);
     }
 
     if (Options.useArchX86) {
-      addExecutorsForArchitecture(device, X86QuickBackendExecutor.class,
-          X86OptimizingBackendExecutor.class, X86InterpreterExecutor.class);
+      addExecutorsForArchitecture(device, X86OptimizingBackendExecutor.class,
+          X86InterpreterExecutor.class);
     }
 
     if (Options.useArchMips64) {
-      addExecutorsForArchitecture(device, Mips64QuickBackendExecutor.class,
-          Mips64OptimizingBackendExecutor.class, Mips64InterpreterExecutor.class);
+      addExecutorsForArchitecture(device, Mips64OptimizingBackendExecutor.class,
+          Mips64InterpreterExecutor.class);
     }
 
     if (Options.useArchMips) {
-      addExecutorsForArchitecture(device, MipsQuickBackendExecutor.class,
-          MipsOptimizingBackendExecutor.class, MipsInterpreterExecutor.class);
+      addExecutorsForArchitecture(device, MipsOptimizingBackendExecutor.class,
+          MipsInterpreterExecutor.class);
     }
 
     // Add the first backend as the golden executor for self-divergence tests.
