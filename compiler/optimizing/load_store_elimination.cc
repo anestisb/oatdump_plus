@@ -15,6 +15,8 @@
  */
 
 #include "load_store_elimination.h"
+
+#include "escape.h"
 #include "side_effects_analysis.h"
 
 #include <iostream>
@@ -31,70 +33,12 @@ constexpr size_t kMaxNumberOfHeapLocations = 32;
 // whether it's a singleton, returned, etc.
 class ReferenceInfo : public ArenaObject<kArenaAllocMisc> {
  public:
-  ReferenceInfo(HInstruction* reference, size_t pos) : reference_(reference), position_(pos) {
-    is_singleton_ = true;
-    is_singleton_and_non_escaping_ = true;
-    if (!reference_->IsNewInstance() && !reference_->IsNewArray()) {
-      // For references not allocated in the method, don't assume anything.
-      is_singleton_ = false;
-      is_singleton_and_non_escaping_ = false;
-      return;
-    }
-
-    // Visit all uses to determine if this reference can spread into the heap,
-    // a method call, etc.
-    for (const HUseListNode<HInstruction*>& use : reference_->GetUses()) {
-      HInstruction* user = use.GetUser();
-      DCHECK(!user->IsNullCheck()) << "NullCheck should have been eliminated";
-      if (user->IsBoundType()) {
-        // BoundType shouldn't normally be necessary for a NewInstance.
-        // Just be conservative for the uncommon cases.
-        is_singleton_ = false;
-        is_singleton_and_non_escaping_ = false;
-        return;
-      }
-      if (user->IsPhi() || user->IsSelect() || user->IsInvoke() ||
-          (user->IsInstanceFieldSet() && (reference_ == user->InputAt(1))) ||
-          (user->IsUnresolvedInstanceFieldSet() && (reference_ == user->InputAt(1))) ||
-          (user->IsStaticFieldSet() && (reference_ == user->InputAt(1))) ||
-          (user->IsUnresolvedStaticFieldSet() && (reference_ == user->InputAt(0))) ||
-          (user->IsArraySet() && (reference_ == user->InputAt(2)))) {
-        // reference_ is merged to HPhi/HSelect, passed to a callee, or stored to heap.
-        // reference_ isn't the only name that can refer to its value anymore.
-        is_singleton_ = false;
-        is_singleton_and_non_escaping_ = false;
-        return;
-      }
-      if ((user->IsUnresolvedInstanceFieldGet() && (reference_ == user->InputAt(0))) ||
-          (user->IsUnresolvedInstanceFieldSet() && (reference_ == user->InputAt(0)))) {
-        // The field is accessed in an unresolved way. We mark the object as a non-singleton
-        // to disable load/store optimizations on it.
-        // Note that we could optimize this case and still perform some optimizations until
-        // we hit the unresolved access, but disabling is the simplest.
-        is_singleton_ = false;
-        is_singleton_and_non_escaping_ = false;
-        return;
-      }
-      if (user->IsReturn()) {
-        is_singleton_and_non_escaping_ = false;
-      }
-    }
-
-    if (!is_singleton_ || !is_singleton_and_non_escaping_) {
-      return;
-    }
-
-    // Look at Environment uses and if it's for HDeoptimize, it's treated the same
-    // as a return which escapes at the end of executing the compiled code. We don't
-    // do store elimination for singletons that escape through HDeoptimize.
-    // Other Environment uses are fine since LSE is disabled for debuggable.
-    for (const HUseListNode<HEnvironment*>& use : reference_->GetEnvUses()) {
-      HEnvironment* user = use.GetUser();
-      if (user->GetHolder()->IsDeoptimize()) {
-        is_singleton_and_non_escaping_ = false;
-        break;
-      }
-    }
+  ReferenceInfo(HInstruction* reference, size_t pos)
+      : reference_(reference),
+        position_(pos),
+        is_singleton_(true),
+        is_singleton_and_non_escaping_(true) {
+    CalculateEscape(reference_, nullptr, &is_singleton_, &is_singleton_and_non_escaping_);
   }
 
   HInstruction* GetReference() const {
