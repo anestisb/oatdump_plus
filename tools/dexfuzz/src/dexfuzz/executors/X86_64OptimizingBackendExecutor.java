@@ -29,6 +29,9 @@ public class X86_64OptimizingBackendExecutor extends Executor {
   protected String constructCommand(String programName) {
     StringBuilder commandBuilder = new StringBuilder();
     commandBuilder.append("dalvikvm64 -Xcompiler-option --compiler-backend=Optimizing ");
+    // The -Xno-dex-file-fallback option ensures that the execution does not default to
+    // interpreter if compilations fails.
+    commandBuilder.append("-Xno-dex-file-fallback ");
     commandBuilder.append("-cp ").append(testLocation).append("/").append(programName).append(" ");
     commandBuilder.append(executeClass);
     return commandBuilder.toString();
