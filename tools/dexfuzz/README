@@ -4,7 +4,7 @@ DexFuzz
 DexFuzz is primarily a tool for fuzzing DEX files. Fuzzing is the introduction of
 subtle changes ("mutations") to a file to produce a new test case. These test cases
 can be used to test the various modes of execution available to ART (Interpreter,
-Quick compiler, Optimizing compiler) to check for bugs in these modes of execution.
+Optimizing compiler) to check for bugs in these modes of execution.
 This is done by differential testing - each test file is executed with each mode of
 execution, and any differences between the resulting outputs may be an indication of
 a bug in one of the modes.
@@ -53,17 +53,16 @@ You MUST specify one of the following ISAs:
 
 And also at least two of the following backends:
   --interpreter
-  --quick
   --optimizing
 
 Note that if you wanted to test both ARM and ARM64 on an ARM64 device, you can use
 --allarm. Also in this case only one backend is needed, if i.e., you wanted to test
-ARM Quick Backend vs. ARM64 Quick Backend.
+ARM Optimizing Backend vs. ARM64 Optimizing Backend.
 
 Some legal examples:
-  --arm --quick --optimizing
-  --x86 --quick --optimizing --interpreter
-  --allarm --quick
+  --arm --optimizing --interpreter
+  --x86 --optimizing --interpreter
+  --allarm --optimizing
 
 Add in --device=<device name, e.g. device:generic> if you want to specify a device.
 Add in --execute-dir=<dir on device> if you want to specify an execution directory.
@@ -98,7 +97,6 @@ MutateFail - because mutation is a random process, and has attempt thresholds to
              those occurrences.
 Timed Out  - mutated files that timed out for one or more backends.
              Current timeouts are:
-               Quick - 5 seconds
                Optimizing - 5 seconds
                Intepreter - 30 seconds
               (use --short-timeouts to set all backends to 2 seconds.)
