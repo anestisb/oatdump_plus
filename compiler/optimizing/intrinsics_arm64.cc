@@ -2165,11 +2165,11 @@ void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopyChar(HInvoke* invoke) {
   __ Cbz(dst, slow_path->GetEntryLabel());
 
   if (!length.IsConstant()) {
-    // If the length is negative, bail out.
-    __ Tbnz(WRegisterFrom(length), kWRegSize - 1, slow_path->GetEntryLabel());
-    // If the length > 32 then (currently) prefer libcore's native implementation.
+    // Merge the following two comparisons into one:
+    //   If the length is negative, bail out (delegate to libcore's native implementation).
+    //   If the length > 32 then (currently) prefer libcore's native implementation.
     __ Cmp(WRegisterFrom(length), kSystemArrayCopyCharThreshold);
-    __ B(slow_path->GetEntryLabel(), gt);
+    __ B(slow_path->GetEntryLabel(), hi);
   } else {
     // We have already checked in the LocationsBuilder for the constant case.
     DCHECK_GE(length.GetConstant()->AsIntConstant()->GetValue(), 0);
@@ -2379,11 +2379,11 @@ void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopy(HInvoke* invoke) {
   if (!length.IsConstant() &&
       !optimizations.GetCountIsSourceLength() &&
       !optimizations.GetCountIsDestinationLength()) {
-    // If the length is negative, bail out.
-    __ Tbnz(WRegisterFrom(length), kWRegSize - 1, intrinsic_slow_path->GetEntryLabel());
-    // If the length >= 128 then (currently) prefer native implementation.
+    // Merge the following two comparisons into one:
+    //   If the length is negative, bail out (delegate to libcore's native implementation).
+    //   If the length >= 128 then (currently) prefer native implementation.
     __ Cmp(WRegisterFrom(length), kSystemArrayCopyThreshold);
-    __ B(intrinsic_slow_path->GetEntryLabel(), ge);
+    __ B(intrinsic_slow_path->GetEntryLabel(), hs);
   }
   // Validity checks: source.
   CheckSystemArrayCopyPosition(masm,
