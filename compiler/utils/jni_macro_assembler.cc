@@ -20,7 +20,7 @@
 #include <vector>
 
 #ifdef ART_ENABLE_CODEGEN_arm
-#include "arm/jni_macro_assembler_arm.h"
+#include "arm/jni_macro_assembler_arm_vixl.h"
 #endif
 #ifdef ART_ENABLE_CODEGEN_arm64
 #include "arm64/jni_macro_assembler_arm64.h"
@@ -58,7 +58,7 @@ MacroAsm32UniquePtr JNIMacroAssembler<PointerSize::k32>::Create(
 #ifdef ART_ENABLE_CODEGEN_arm
     case kArm:
     case kThumb2:
-      return MacroAsm32UniquePtr(new (arena) arm::ArmJNIMacroAssembler(arena, instruction_set));
+      return MacroAsm32UniquePtr(new (arena) arm::ArmVIXLJNIMacroAssembler(arena));
 #endif
 #ifdef ART_ENABLE_CODEGEN_mips
     case kMips:
