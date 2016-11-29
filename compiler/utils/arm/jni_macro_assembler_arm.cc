@@ -594,6 +594,41 @@ void ArmJNIMacroAssembler::ExceptionPoll(ManagedRegister mscratch, size_t stack_
   __ b(slow->Entry(), NE);
 }
 
+std::unique_ptr<JNIMacroLabel> ArmJNIMacroAssembler::CreateLabel() {
+  return std::unique_ptr<JNIMacroLabel>(new ArmJNIMacroLabel());
+}
+
+void ArmJNIMacroAssembler::Jump(JNIMacroLabel* label) {
+  CHECK(label != nullptr);
+  __ b(ArmJNIMacroLabel::Cast(label)->AsArm());
+}
+
+void ArmJNIMacroAssembler::Jump(JNIMacroLabel* label,
+                                JNIMacroUnaryCondition condition,
+                                ManagedRegister test) {
+  CHECK(label != nullptr);
+
+  arm::Condition arm_cond;
+  switch (condition) {
+    case JNIMacroUnaryCondition::kZero:
+      arm_cond = EQ;
+      break;
+    case JNIMacroUnaryCondition::kNotZero:
+      arm_cond = NE;
+      break;
+    default:
+      LOG(FATAL) << "Not implemented condition: " << static_cast<int>(condition);
+      UNREACHABLE();
+  }
+  __ cmp(test.AsArm().AsCoreRegister(), ShifterOperand(0));
+  __ b(ArmJNIMacroLabel::Cast(label)->AsArm(), arm_cond);
+}
+
+void ArmJNIMacroAssembler::Bind(JNIMacroLabel* label) {
+  CHECK(label != nullptr);
+  __ Bind(ArmJNIMacroLabel::Cast(label)->AsArm());
+}
+
 #undef __
 
 void ArmExceptionSlowPath::Emit(Assembler* sasm) {
