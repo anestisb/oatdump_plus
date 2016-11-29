@@ -333,6 +333,7 @@ void ResetQuickAllocEntryPoints(QuickEntryPoints* qpoints, bool is_marking) {
   }
 #else
   UNUSED(qpoints);
+  UNUSED(is_marking);
 #endif
   UNIMPLEMENTED(FATAL);
   UNREACHABLE();
