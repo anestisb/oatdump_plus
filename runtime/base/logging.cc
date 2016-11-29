@@ -80,7 +80,7 @@ void InitLogging(char* argv[], AbortFunction& abort_function) {
     gCmdLine.reset(new std::string("<unset>"));
   }
 
-#ifdef __ANDROID__
+#ifdef ART_TARGET_ANDROID
 #define INIT_LOGGING_DEFAULT_LOGGER android::base::LogdLogger()
 #else
 #define INIT_LOGGING_DEFAULT_LOGGER android::base::StderrLogger

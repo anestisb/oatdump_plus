@@ -2178,7 +2178,7 @@ void Runtime::RemoveSystemWeakHolder(gc::AbstractSystemWeakHolder* holder) {
 
 NO_RETURN
 void Runtime::Aborter(const char* abort_message) {
-#ifdef __ANDROID__
+#ifdef ART_TARGET_ANDROID
   android_set_abort_message(abort_message);
 #endif
   Runtime::Abort(abort_message);
