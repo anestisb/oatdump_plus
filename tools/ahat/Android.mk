@@ -48,7 +48,7 @@ include $(BUILD_PREBUILT)
 include $(CLEAR_VARS)
 LOCAL_SRC_FILES := $(call all-java-files-under, test)
 LOCAL_JAR_MANIFEST := test/manifest.txt
-LOCAL_STATIC_JAVA_LIBRARIES := ahat junit
+LOCAL_STATIC_JAVA_LIBRARIES := ahat junit-host
 LOCAL_IS_HOST_MODULE := true
 LOCAL_MODULE_TAGS := tests
 LOCAL_MODULE := ahat-tests
