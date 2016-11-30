@@ -133,7 +133,7 @@ JitCodeCache::JitCodeCache(MemMap* code_map,
                            size_t max_capacity,
                            bool garbage_collect_code)
     : lock_("Jit code cache", kJitCodeCacheLock),
-      lock_cond_("Jit code cache variable", lock_),
+      lock_cond_("Jit code cache condition variable", lock_),
       collection_in_progress_(false),
       code_map_(code_map),
       data_map_(data_map),
@@ -152,7 +152,9 @@ JitCodeCache::JitCodeCache(MemMap* code_map,
       number_of_collections_(0),
       histogram_stack_map_memory_use_("Memory used for stack maps", 16),
       histogram_code_memory_use_("Memory used for compiled code", 16),
-      histogram_profiling_info_memory_use_("Memory used for profiling info", 16) {
+      histogram_profiling_info_memory_use_("Memory used for profiling info", 16),
+      is_weak_access_enabled_(true),
+      inline_cache_cond_("Jit inline cache condition variable", lock_) {
 
   DCHECK_GE(max_capacity, initial_code_capacity + initial_data_capacity);
   code_mspace_ = create_mspace_with_base(code_map_->Begin(), code_end_, false /*locked*/);
@@ -327,6 +329,34 @@ void JitCodeCache::SweepRootTables(IsMarkedVisitor* visitor) {
       }
     }
   }
+  // Walk over inline caches to clear entries containing unloaded classes.
+  for (ProfilingInfo* info : profiling_infos_) {
+    for (size_t i = 0; i < info->number_of_inline_caches_; ++i) {
+      InlineCache* cache = &info->cache_[i];
+      for (size_t j = 0; j < InlineCache::kIndividualCacheSize; ++j) {
+        // This does not need a read barrier because this is called by GC.
+        mirror::Class* cls = cache->classes_[j].Read<kWithoutReadBarrier>();
+        if (cls != nullptr) {
+          // Look at the classloader of the class to know if it has been
+          // unloaded.
+          // This does not need a read barrier because this is called by GC.
+          mirror::Object* class_loader =
+              cls->GetClassLoader<kDefaultVerifyFlags, kWithoutReadBarrier>();
+          if (visitor->IsMarked(class_loader) != nullptr) {
+            // The class loader is live, update the entry if the class has moved.
+            mirror::Class* new_cls = down_cast<mirror::Class*>(visitor->IsMarked(cls));
+            // Note that new_object can be null for CMS and newly allocated objects.
+            if (new_cls != nullptr && new_cls != cls) {
+              cache->classes_[j] = GcRoot<mirror::Class>(new_cls);
+            }
+          } else {
+            // The class loader is not live, clear the entry.
+            cache->classes_[j] = GcRoot<mirror::Class>(nullptr);
+          }
+        }
+      }
+    }
+  }
 }
 
 void JitCodeCache::FreeCode(const void* code_ptr, ArtMethod* method ATTRIBUTE_UNUSED) {
@@ -375,11 +405,51 @@ void JitCodeCache::RemoveMethodsIn(Thread* self, const LinearAlloc& alloc) {
   }
 }
 
-void JitCodeCache::ClearGcRootsInInlineCaches(Thread* self) {
+bool JitCodeCache::IsWeakAccessEnabled(Thread* self) const {
+  return kUseReadBarrier
+      ? self->GetWeakRefAccessEnabled()
+      : is_weak_access_enabled_.LoadSequentiallyConsistent();
+}
+
+void JitCodeCache::WaitUntilInlineCacheAccessible(Thread* self) {
+  if (IsWeakAccessEnabled(self)) {
+    return;
+  }
+  ScopedThreadSuspension sts(self, kWaitingWeakGcRootRead);
   MutexLock mu(self, lock_);
-  for (ProfilingInfo* info : profiling_infos_) {
-    if (!info->IsInUseByCompiler()) {
-      info->ClearGcRootsInInlineCaches();
+  while (!IsWeakAccessEnabled(self)) {
+    inline_cache_cond_.Wait(self);
+  }
+}
+
+void JitCodeCache::BroadcastForInlineCacheAccess() {
+  Thread* self = Thread::Current();
+  MutexLock mu(self, lock_);
+  inline_cache_cond_.Broadcast(self);
+}
+
+void JitCodeCache::AllowInlineCacheAccess() {
+  DCHECK(!kUseReadBarrier);
+  is_weak_access_enabled_.StoreSequentiallyConsistent(true);
+  BroadcastForInlineCacheAccess();
+}
+
+void JitCodeCache::DisallowInlineCacheAccess() {
+  DCHECK(!kUseReadBarrier);
+  is_weak_access_enabled_.StoreSequentiallyConsistent(false);
+}
+
+void JitCodeCache::CopyInlineCacheInto(const InlineCache& ic,
+                                       Handle<mirror::ObjectArray<mirror::Class>> array) {
+  WaitUntilInlineCacheAccessible(Thread::Current());
+  // Note that we don't need to lock `lock_` here, the compiler calling
+  // this method has already ensured the inline cache will not be deleted.
+  for (size_t in_cache = 0, in_array = 0;
+       in_cache < InlineCache::kIndividualCacheSize;
+       ++in_cache) {
+    mirror::Class* object = ic.classes_[in_cache].Read();
+    if (object != nullptr) {
+      array->Set(in_array++, object);
     }
   }
 }
@@ -837,8 +907,6 @@ void JitCodeCache::DoCollection(Thread* self, bool collect_profiling_info) {
 
   if (collect_profiling_info) {
     ScopedThreadSuspension sts(self, kSuspended);
-    gc::ScopedGCCriticalSection gcs(
-        self, gc::kGcCauseJitCodeCache, gc::kCollectorTypeJitCodeCache);
     MutexLock mu(self, lock_);
     // Free all profiling infos of methods not compiled nor being compiled.
     auto profiling_kept_end = std::remove_if(profiling_infos_.begin(), profiling_infos_.end(),
@@ -852,10 +920,6 @@ void JitCodeCache::DoCollection(Thread* self, bool collect_profiling_info) {
         // code cache collection.
         if (ContainsPc(ptr) &&
             info->GetMethod()->GetProfilingInfo(kRuntimePointerSize) == nullptr) {
-          // We clear the inline caches as classes in it might be stalled.
-          info->ClearGcRootsInInlineCaches();
-          // Do a fence to make sure the clearing is seen before attaching to the method.
-          QuasiAtomic::ThreadFenceRelease();
           info->GetMethod()->SetProfilingInfo(info);
         } else if (info->GetMethod()->GetProfilingInfo(kRuntimePointerSize) != info) {
           // No need for this ProfilingInfo object anymore.
