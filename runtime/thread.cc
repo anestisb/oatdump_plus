@@ -122,27 +122,21 @@ void Thread::SetIsGcMarkingAndUpdateEntrypoints(bool is_marking) {
   CHECK(kUseReadBarrier);
   tls32_.is_gc_marking = is_marking;
   UpdateReadBarrierEntrypoints(&tlsPtr_.quick_entrypoints, is_marking);
-  if (kRuntimeISA == kX86_64) {
-    // Entrypoint switching is only implemented for X86_64.
-    ResetQuickAllocEntryPointsForThread(is_marking);
-  }
 }
 
 void Thread::InitTlsEntryPoints() {
   // Insert a placeholder so we can easily tell if we call an unimplemented entry point.
   uintptr_t* begin = reinterpret_cast<uintptr_t*>(&tlsPtr_.jni_entrypoints);
-  uintptr_t* end = reinterpret_cast<uintptr_t*>(
-      reinterpret_cast<uint8_t*>(&tlsPtr_.quick_entrypoints) + sizeof(tlsPtr_.quick_entrypoints));
+  uintptr_t* end = reinterpret_cast<uintptr_t*>(reinterpret_cast<uint8_t*>(&tlsPtr_.quick_entrypoints) +
+      sizeof(tlsPtr_.quick_entrypoints));
   for (uintptr_t* it = begin; it != end; ++it) {
     *it = reinterpret_cast<uintptr_t>(UnimplementedEntryPoint);
   }
   InitEntryPoints(&tlsPtr_.jni_entrypoints, &tlsPtr_.quick_entrypoints);
 }
 
-void Thread::ResetQuickAllocEntryPointsForThread(bool is_marking) {
-  // Entrypoint switching is currnetly only faster for X86_64 since other archs don't have TLAB
-  // fast path for non region space entrypoints.
-  ResetQuickAllocEntryPoints(&tlsPtr_.quick_entrypoints, is_marking);
+void Thread::ResetQuickAllocEntryPointsForThread() {
+  ResetQuickAllocEntryPoints(&tlsPtr_.quick_entrypoints);
 }
 
 class DeoptimizationContextRecord {
