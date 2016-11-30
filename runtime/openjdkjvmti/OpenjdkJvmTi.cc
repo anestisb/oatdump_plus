@@ -40,15 +40,16 @@
 #include "base/mutex.h"
 #include "events-inl.h"
 #include "jni_env_ext-inl.h"
-#include "object_tagging.h"
 #include "obj_ptr-inl.h"
+#include "object_tagging.h"
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
-#include "thread_list.h"
 #include "thread-inl.h"
+#include "thread_list.h"
 #include "ti_class.h"
 #include "ti_heap.h"
 #include "ti_method.h"
+#include "ti_redefine.h"
 #include "ti_stack.h"
 #include "transform.h"
 
@@ -1148,6 +1149,8 @@ class JvmtiFunctions {
     if (!IsValidEnv(env)) {
       return ERR(INVALID_ENVIRONMENT);
     }
+    jvmtiError res = OK;
+    std::string error;
     for (jclass klass : classes) {
       JNIEnv* jni_env = nullptr;
       jobject loader = nullptr;
@@ -1183,11 +1186,22 @@ class JvmtiFunctions {
            /*out*/&new_dex_data);
       // Check if anything actually changed.
       if ((new_data_len != 0 || new_dex_data != nullptr) && new_dex_data != dex_data) {
-        MoveTransformedFileIntoRuntime(klass, std::move(location), new_data_len, new_dex_data);
+        res = Redefiner::RedefineClass(env,
+                                       art::Runtime::Current(),
+                                       art::Thread::Current(),
+                                       klass,
+                                       location,
+                                       new_data_len,
+                                       new_dex_data,
+                                       &error);
         env->Deallocate(new_dex_data);
       }
       // Deallocate the old dex data.
       env->Deallocate(dex_data);
+      if (res != OK) {
+        LOG(ERROR) << "FAILURE TO REDEFINE " << error;
+        return res;
+      }
     }
     return OK;
   }

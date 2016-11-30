@@ -208,6 +208,17 @@ class PointerArray : public Array {
             typename Visitor>
   void Fixup(mirror::PointerArray* dest, PointerSize pointer_size, const Visitor& visitor)
       REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Works like memcpy(), except we guarantee not to allow tearing of array values (ie using smaller
+  // than element size copies). Arguments are assumed to be within the bounds of the array and the
+  // arrays non-null. Cannot be called in an active transaction.
+  template<bool kUnchecked = false>
+  void Memcpy(int32_t dst_pos,
+              ObjPtr<PointerArray> src,
+              int32_t src_pos,
+              int32_t count,
+              PointerSize pointer_size)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 };
 
 }  // namespace mirror
