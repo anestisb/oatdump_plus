@@ -1085,12 +1085,15 @@ MACRO1(ALLOC_OBJECT_TLAB_SLOW_PATH, cxx_name)
     RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER             // return or deliver exception
 END_MACRO
 
-// A hand-written override for GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_tlab, TLAB). May be called
-// for CC if the GC is not marking.
+// A hand-written override for GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_tlab, TLAB).
 DEFINE_FUNCTION art_quick_alloc_object_tlab
     // Fast path tlab allocation.
     // EAX: uint32_t type_idx/return value, ECX: ArtMethod*.
     // EBX, EDX: free.
+#if defined(USE_READ_BARRIER)
+    int3
+    int3
+#endif
     PUSH esi
     PUSH edi
     movl ART_METHOD_DEX_CACHE_TYPES_OFFSET_32(%ecx), %edx   // Load dex cache resolved types array
