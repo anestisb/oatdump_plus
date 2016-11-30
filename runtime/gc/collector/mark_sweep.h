@@ -250,7 +250,7 @@ class MarkSweep : public GarbageCollector {
 
   // Verify the roots of the heap and print out information related to any invalid roots.
   // Called in MarkObject, so may we may not hold the mutator lock.
-  void VerifySuspendedThreadRoots()
+  void VerifySuspendedThreadRoots(std::ostream& os)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Expand mark stack to 2x its current size.
