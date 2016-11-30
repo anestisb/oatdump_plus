@@ -26,6 +26,7 @@
 #include "class_reference.h"
 #include "method_reference.h"
 #include "safe_map.h"
+#include "utils/atomic_method_ref_map.h"
 
 namespace art {
 
@@ -54,26 +55,22 @@ class VerificationResults {
 
   bool IsCandidateForCompilation(MethodReference& method_ref, const uint32_t access_flags);
 
-  // Add a dex file array to the preregistered_dex_files_ array. These dex files require no locks to
-  // access. It is not safe to call if other callers are calling GetVerifiedMethod concurrently.
-  void PreRegisterDexFile(const DexFile* dex_file) REQUIRES(!verified_methods_lock_);
+  // Add a dex file to enable using the atomic map.
+  void AddDexFile(const DexFile* dex_file) REQUIRES(!verified_methods_lock_);
 
  private:
   // Verified methods. The method array is fixed to avoid needing a lock to extend it.
-  using DexFileMethodArray = dchecked_vector<Atomic<const VerifiedMethod*>>;
-  using DexFileResults = std::map<const DexFile*, DexFileMethodArray>;
+  using AtomicMap = AtomicMethodRefMap<const VerifiedMethod*>;
   using VerifiedMethodMap = SafeMap<MethodReference,
                                     const VerifiedMethod*,
                                     MethodReferenceComparator>;
 
-  static void DeleteResults(DexFileResults& array);
-
-  DexFileMethodArray* GetMethodArray(const DexFile* dex_file) REQUIRES(!verified_methods_lock_);
   VerifiedMethodMap verified_methods_ GUARDED_BY(verified_methods_lock_);
   const CompilerOptions* const compiler_options_;
 
-  // Dex2oat can preregister dex files to avoid locking when calling GetVerifiedMethod.
-  DexFileResults preregistered_dex_files_;
+  // Dex2oat can add dex files to atomic_verified_methods_ to avoid locking when calling
+  // GetVerifiedMethod.
+  AtomicMap atomic_verified_methods_;
 
   ReaderWriterMutex verified_methods_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
 
