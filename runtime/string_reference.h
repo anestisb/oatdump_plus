@@ -21,20 +21,22 @@
 
 #include "base/logging.h"
 #include "dex_file-inl.h"
+#include "dex_file_types.h"
 #include "utf-inl.h"
 
 namespace art {
 
 // A string is located by its DexFile and the string_ids_ table index into that DexFile.
 struct StringReference {
-  StringReference(const DexFile* file, uint32_t index) : dex_file(file), string_index(index) { }
+  StringReference(const DexFile* file, dex::StringIndex index)
+      : dex_file(file), string_index(index) { }
 
   const char* GetStringData() const {
     return dex_file->GetStringData(dex_file->GetStringId(string_index));
   }
 
   const DexFile* dex_file;
-  uint32_t string_index;
+  dex::StringIndex string_index;
 };
 
 // Compare only the reference and not the string contents.

@@ -221,7 +221,7 @@ class ArtField FINAL {
       REQUIRES_SHARED(Locks::mutator_lock_);
   ObjPtr<mirror::String> ResolveGetStringName(Thread* self,
                                               const DexFile& dex_file,
-                                              uint32_t string_idx,
+                                              dex::StringIndex string_idx,
                                               ObjPtr<mirror::DexCache> dex_cache)
       REQUIRES_SHARED(Locks::mutator_lock_);
 

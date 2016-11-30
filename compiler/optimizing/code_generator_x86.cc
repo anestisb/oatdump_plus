@@ -225,7 +225,7 @@ class LoadStringSlowPathX86 : public SlowPathCode {
     SaveLiveRegisters(codegen, locations);
 
     InvokeRuntimeCallingConvention calling_convention;
-    const uint32_t string_index = instruction_->AsLoadString()->GetStringIndex();
+    const uint32_t string_index = instruction_->AsLoadString()->GetStringIndex().index_;
     __ movl(calling_convention.GetRegisterAt(0), Immediate(string_index));
     x86_codegen->InvokeRuntime(kQuickResolveString, instruction_, instruction_->GetDexPc(), this);
     CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
@@ -4607,7 +4607,7 @@ void CodeGeneratorX86::RecordSimplePatch() {
 
 void CodeGeneratorX86::RecordBootStringPatch(HLoadString* load_string) {
   DCHECK(GetCompilerOptions().IsBootImage());
-  string_patches_.emplace_back(load_string->GetDexFile(), load_string->GetStringIndex());
+  string_patches_.emplace_back(load_string->GetDexFile(), load_string->GetStringIndex().index_);
   __ Bind(&string_patches_.back().label);
 }
 
@@ -4618,7 +4618,7 @@ void CodeGeneratorX86::RecordTypePatch(HLoadClass* load_class) {
 
 Label* CodeGeneratorX86::NewStringBssEntryPatch(HLoadString* load_string) {
   DCHECK(!GetCompilerOptions().IsBootImage());
-  string_patches_.emplace_back(load_string->GetDexFile(), load_string->GetStringIndex());
+  string_patches_.emplace_back(load_string->GetDexFile(), load_string->GetStringIndex().index_);
   return &string_patches_.back().label;
 }
 
@@ -6253,10 +6253,11 @@ void LocationsBuilderX86::VisitLoadString(HLoadString* load) {
   }
 }
 
-Label* CodeGeneratorX86::NewJitRootStringPatch(const DexFile& dex_file, uint32_t dex_index) {
+Label* CodeGeneratorX86::NewJitRootStringPatch(const DexFile& dex_file,
+                                               dex::StringIndex dex_index) {
   jit_string_roots_.Overwrite(StringReference(&dex_file, dex_index), /* placeholder */ 0u);
   // Add a patch entry and return the label.
-  jit_string_patches_.emplace_back(dex_file, dex_index);
+  jit_string_patches_.emplace_back(dex_file, dex_index.index_);
   PatchInfo<Label>* info = &jit_string_patches_.back();
   return &info->label;
 }
@@ -6313,7 +6314,7 @@ void InstructionCodeGeneratorX86::VisitLoadString(HLoadString* load) {
   // TODO: Re-add the compiler code to do string dex cache lookup again.
   InvokeRuntimeCallingConvention calling_convention;
   DCHECK_EQ(calling_convention.GetRegisterAt(0), out);
-  __ movl(calling_convention.GetRegisterAt(0), Immediate(load->GetStringIndex()));
+  __ movl(calling_convention.GetRegisterAt(0), Immediate(load->GetStringIndex().index_));
   codegen_->InvokeRuntime(kQuickResolveString, load, load->GetDexPc());
   CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
 }
@@ -7755,7 +7756,8 @@ void CodeGeneratorX86::MoveFromReturnRegister(Location target, Primitive::Type t
 
 void CodeGeneratorX86::EmitJitRootPatches(uint8_t* code, const uint8_t* roots_data) {
   for (const PatchInfo<Label>& info : jit_string_patches_) {
-    const auto& it = jit_string_roots_.find(StringReference(&info.dex_file, info.index));
+    const auto& it = jit_string_roots_.find(StringReference(&info.dex_file,
+                                                            dex::StringIndex(info.index)));
     DCHECK(it != jit_string_roots_.end());
     size_t index_in_table = it->second;
     uint32_t code_offset = info.label.Position() - kLabelPositionToLiteralOffsetAdjustment;

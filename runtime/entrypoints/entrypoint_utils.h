@@ -188,7 +188,7 @@ inline mirror::Class* ResolveVerifyAndClinit(dex::TypeIndex type_idx,
     REQUIRES_SHARED(Locks::mutator_lock_)
     REQUIRES(!Roles::uninterruptible_);
 
-inline mirror::String* ResolveStringFromCode(ArtMethod* referrer, uint32_t string_idx)
+inline mirror::String* ResolveStringFromCode(ArtMethod* referrer, dex::StringIndex string_idx)
     REQUIRES_SHARED(Locks::mutator_lock_)
     REQUIRES(!Roles::uninterruptible_);
 

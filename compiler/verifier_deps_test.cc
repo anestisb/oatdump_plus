@@ -460,20 +460,20 @@ TEST_F(VerifierDepsTest, StringToId) {
   ScopedObjectAccess soa(Thread::Current());
   LoadDexFile(&soa);
 
-  uint32_t id_Main1 = verifier_deps_->GetIdFromString(*primary_dex_file_, "LMain;");
-  ASSERT_LT(id_Main1, primary_dex_file_->NumStringIds());
+  dex::StringIndex id_Main1 = verifier_deps_->GetIdFromString(*primary_dex_file_, "LMain;");
+  ASSERT_LT(id_Main1.index_, primary_dex_file_->NumStringIds());
   ASSERT_EQ("LMain;", verifier_deps_->GetStringFromId(*primary_dex_file_, id_Main1));
 
-  uint32_t id_Main2 = verifier_deps_->GetIdFromString(*primary_dex_file_, "LMain;");
-  ASSERT_LT(id_Main2, primary_dex_file_->NumStringIds());
+  dex::StringIndex id_Main2 = verifier_deps_->GetIdFromString(*primary_dex_file_, "LMain;");
+  ASSERT_LT(id_Main2.index_, primary_dex_file_->NumStringIds());
   ASSERT_EQ("LMain;", verifier_deps_->GetStringFromId(*primary_dex_file_, id_Main2));
 
-  uint32_t id_Lorem1 = verifier_deps_->GetIdFromString(*primary_dex_file_, "Lorem ipsum");
-  ASSERT_GE(id_Lorem1, primary_dex_file_->NumStringIds());
+  dex::StringIndex id_Lorem1 = verifier_deps_->GetIdFromString(*primary_dex_file_, "Lorem ipsum");
+  ASSERT_GE(id_Lorem1.index_, primary_dex_file_->NumStringIds());
   ASSERT_EQ("Lorem ipsum", verifier_deps_->GetStringFromId(*primary_dex_file_, id_Lorem1));
 
-  uint32_t id_Lorem2 = verifier_deps_->GetIdFromString(*primary_dex_file_, "Lorem ipsum");
-  ASSERT_GE(id_Lorem2, primary_dex_file_->NumStringIds());
+  dex::StringIndex id_Lorem2 = verifier_deps_->GetIdFromString(*primary_dex_file_, "Lorem ipsum");
+  ASSERT_GE(id_Lorem2.index_, primary_dex_file_->NumStringIds());
   ASSERT_EQ("Lorem ipsum", verifier_deps_->GetStringFromId(*primary_dex_file_, id_Lorem2));
 
   ASSERT_EQ(id_Main1, id_Main2);
@@ -1306,9 +1306,10 @@ TEST_F(VerifierDepsTest, VerifyDeps) {
     bool found = false;
     for (const auto& entry : deps->fields_) {
       if (!entry.IsResolved()) {
+        constexpr dex::StringIndex kStringIndexZero(0);  // We know there is a class there.
         deps->fields_.insert(VerifierDeps::FieldResolution(0 /* we know there is a field there */,
                                                            VerifierDeps::kUnresolvedMarker - 1,
-                                                           0  /* we know there is a class there */));
+                                                           kStringIndexZero));
         found = true;
         break;
       }
@@ -1341,7 +1342,7 @@ TEST_F(VerifierDepsTest, VerifyDeps) {
     VerifierDeps::DexFileDeps* deps = decoded_deps.GetDexFileDeps(*primary_dex_file_);
     bool found = false;
     for (const auto& entry : deps->fields_) {
-      static constexpr uint32_t kNewTypeIndex = 0;
+      constexpr dex::StringIndex kNewTypeIndex(0);
       if (entry.GetDeclaringClassIndex() != kNewTypeIndex) {
         deps->fields_.insert(VerifierDeps::FieldResolution(entry.GetDexFieldIndex(),
                                                            entry.GetAccessFlags(),
@@ -1384,9 +1385,10 @@ TEST_F(VerifierDepsTest, VerifyDeps) {
       std::set<VerifierDeps::MethodResolution>* methods = GetMethods(deps, resolution_kind);
       for (const auto& entry : *methods) {
         if (!entry.IsResolved()) {
+          constexpr dex::StringIndex kStringIndexZero(0);  // We know there is a class there.
           methods->insert(VerifierDeps::MethodResolution(0 /* we know there is a method there */,
                                                          VerifierDeps::kUnresolvedMarker - 1,
-                                                         0  /* we know there is a class there */));
+                                                         kStringIndexZero));
           found = true;
           break;
         }
@@ -1421,7 +1423,7 @@ TEST_F(VerifierDepsTest, VerifyDeps) {
       bool found = false;
       std::set<VerifierDeps::MethodResolution>* methods = GetMethods(deps, resolution_kind);
       for (const auto& entry : *methods) {
-        static constexpr uint32_t kNewTypeIndex = 0;
+        constexpr dex::StringIndex kNewTypeIndex(0);
         if (entry.IsResolved() && entry.GetDeclaringClassIndex() != kNewTypeIndex) {
           methods->insert(VerifierDeps::MethodResolution(entry.GetDexMethodIndex(),
                                                          entry.GetAccessFlags(),

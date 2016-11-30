@@ -53,7 +53,7 @@ static std::vector<const char*> GetParamNames(const MethodDebugInfo* mi) {
       uint32_t parameters_size = DecodeUnsignedLeb128(&stream);
       for (uint32_t i = 0; i < parameters_size; ++i) {
         uint32_t id = DecodeUnsignedLeb128P1(&stream);
-        names.push_back(mi->dex_file->StringDataByIdx(id));
+        names.push_back(mi->dex_file->StringDataByIdx(dex::StringIndex(id)));
       }
     }
   }

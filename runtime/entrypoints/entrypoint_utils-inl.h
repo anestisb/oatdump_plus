@@ -826,7 +826,7 @@ inline mirror::Class* ResolveVerifyAndClinit(dex::TypeIndex type_idx,
   return h_class.Get();
 }
 
-inline mirror::String* ResolveStringFromCode(ArtMethod* referrer, uint32_t string_idx) {
+inline mirror::String* ResolveStringFromCode(ArtMethod* referrer, dex::StringIndex string_idx) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   return class_linker->ResolveString(string_idx, referrer);
 }
