@@ -386,6 +386,7 @@ class InstructionCodeGeneratorARMVIXL : public InstructionCodeGenerator {
   void GenerateAndConst(vixl::aarch32::Register out, vixl::aarch32::Register first, uint32_t value);
   void GenerateOrrConst(vixl::aarch32::Register out, vixl::aarch32::Register first, uint32_t value);
   void GenerateEorConst(vixl::aarch32::Register out, vixl::aarch32::Register first, uint32_t value);
+  void GenerateAddLongConst(Location out, Location first, uint64_t value);
   void HandleBitwiseOperation(HBinaryOperation* operation);
   void HandleCondition(HCondition* condition);
   void HandleIntegerRotate(HRor* ror);
