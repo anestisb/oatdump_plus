@@ -20,6 +20,7 @@
 #include "arch/x86/instruction_set_features_x86.h"
 #include "base/enums.h"
 #include "code_generator.h"
+#include "dex_file_types.h"
 #include "driver/compiler_options.h"
 #include "nodes.h"
 #include "parallel_move_resolver.h"
@@ -414,7 +415,7 @@ class CodeGeneratorX86 : public CodeGenerator {
   void RecordTypePatch(HLoadClass* load_class);
   Label* NewStringBssEntryPatch(HLoadString* load_string);
   Label* NewPcRelativeDexCacheArrayPatch(const DexFile& dex_file, uint32_t element_offset);
-  Label* NewJitRootStringPatch(const DexFile& dex_file, uint32_t dex_index);
+  Label* NewJitRootStringPatch(const DexFile& dex_file, dex::StringIndex dex_index);
 
   void MoveFromReturnRegister(Location trg, Primitive::Type type) OVERRIDE;
 

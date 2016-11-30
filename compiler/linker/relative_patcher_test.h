@@ -163,7 +163,8 @@ class RelativePatcherTest : public testing::Test {
                                                offset + patch.LiteralOffset(),
                                                target_offset);
           } else if (patch.GetType() == LinkerPatch::Type::kStringRelative) {
-            uint32_t target_offset = string_index_to_offset_map_.Get(patch.TargetStringIndex());
+            uint32_t target_offset =
+                string_index_to_offset_map_.Get(patch.TargetStringIndex().index_);
             patcher_->PatchPcRelativeReference(&patched_code_,
                                                patch,
                                                offset + patch.LiteralOffset(),

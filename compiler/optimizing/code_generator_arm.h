@@ -485,11 +485,12 @@ class CodeGeneratorARM : public CodeGenerator {
   PcRelativePatchInfo* NewPcRelativeTypePatch(const DexFile& dex_file, dex::TypeIndex type_index);
   PcRelativePatchInfo* NewPcRelativeDexCacheArrayPatch(const DexFile& dex_file,
                                                        uint32_t element_offset);
-  Literal* DeduplicateBootImageStringLiteral(const DexFile& dex_file, uint32_t string_index);
+  Literal* DeduplicateBootImageStringLiteral(const DexFile& dex_file,
+                                             dex::StringIndex string_index);
   Literal* DeduplicateBootImageTypeLiteral(const DexFile& dex_file, dex::TypeIndex type_index);
   Literal* DeduplicateBootImageAddressLiteral(uint32_t address);
   Literal* DeduplicateDexCacheAddressLiteral(uint32_t address);
-  Literal* DeduplicateJitStringLiteral(const DexFile& dex_file, uint32_t string_index);
+  Literal* DeduplicateJitStringLiteral(const DexFile& dex_file, dex::StringIndex string_index);
 
   void EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) OVERRIDE;
 

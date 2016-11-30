@@ -18,6 +18,7 @@
 
 #include <memory>
 
+#include "dex_file_types.h"
 #include "gtest/gtest.h"
 #include "utils/test_dex_file_builder.h"
 
@@ -34,15 +35,15 @@ TEST(StringReference, ValueComparator) {
   builder1.AddString("String1");
   std::unique_ptr<const DexFile> dex_file1 = builder1.Build("dummy location 1");
   ASSERT_EQ(1u, dex_file1->NumStringIds());
-  ASSERT_STREQ("String1", dex_file1->GetStringData(dex_file1->GetStringId(0)));
-  StringReference sr1(dex_file1.get(), 0);
+  ASSERT_STREQ("String1", dex_file1->GetStringData(dex_file1->GetStringId(dex::StringIndex(0))));
+  StringReference sr1(dex_file1.get(), dex::StringIndex(0));
 
   TestDexFileBuilder builder2;
   builder2.AddString("String2");
   std::unique_ptr<const DexFile> dex_file2 = builder2.Build("dummy location 2");
   ASSERT_EQ(1u, dex_file2->NumStringIds());
-  ASSERT_STREQ("String2", dex_file2->GetStringData(dex_file2->GetStringId(0)));
-  StringReference sr2(dex_file2.get(), 0);
+  ASSERT_STREQ("String2", dex_file2->GetStringData(dex_file2->GetStringId(dex::StringIndex(0))));
+  StringReference sr2(dex_file2.get(), dex::StringIndex(0));
 
   StringReferenceValueComparator cmp;
   EXPECT_TRUE(cmp(sr1, sr2));  // "String1" < "String2" is true.
@@ -80,7 +81,8 @@ TEST(StringReference, ValueComparator2) {
   std::unique_ptr<const DexFile> dex_file1 = builder1.Build("dummy location 1");
   ASSERT_EQ(arraysize(kDexFile1Strings), dex_file1->NumStringIds());
   for (size_t index = 0; index != arraysize(kDexFile1Strings); ++index) {
-    ASSERT_STREQ(kDexFile1Strings[index], dex_file1->GetStringData(dex_file1->GetStringId(index)));
+    ASSERT_STREQ(kDexFile1Strings[index],
+                 dex_file1->GetStringData(dex_file1->GetStringId(dex::StringIndex(index))));
   }
 
   TestDexFileBuilder builder2;
@@ -90,14 +92,15 @@ TEST(StringReference, ValueComparator2) {
   std::unique_ptr<const DexFile> dex_file2 = builder2.Build("dummy location 1");
   ASSERT_EQ(arraysize(kDexFile2Strings), dex_file2->NumStringIds());
   for (size_t index = 0; index != arraysize(kDexFile2Strings); ++index) {
-    ASSERT_STREQ(kDexFile2Strings[index], dex_file2->GetStringData(dex_file2->GetStringId(index)));
+    ASSERT_STREQ(kDexFile2Strings[index],
+                 dex_file2->GetStringData(dex_file2->GetStringId(dex::StringIndex(index))));
   }
 
   StringReferenceValueComparator cmp;
   for (size_t index1 = 0; index1 != arraysize(kDexFile1Strings); ++index1) {
     for (size_t index2 = 0; index2 != arraysize(kDexFile2Strings); ++index2) {
-      StringReference sr1(dex_file1.get(), index1);
-      StringReference sr2(dex_file2.get(), index2);
+      StringReference sr1(dex_file1.get(), dex::StringIndex(index1));
+      StringReference sr2(dex_file2.get(), dex::StringIndex(index2));
       EXPECT_EQ(expectedCmp12[index1][index2], cmp(sr1, sr2)) << index1 << " " << index2;
       EXPECT_EQ(expectedCmp21[index2][index1], cmp(sr2, sr1)) << index1 << " " << index2;
     }
