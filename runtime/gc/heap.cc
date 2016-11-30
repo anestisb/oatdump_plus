@@ -2742,12 +2742,6 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type,
     concurrent_start_bytes_ = std::numeric_limits<size_t>::max();
   }
 
-  // It's time to clear all inline caches, in case some classes can be unloaded.
-  if (((gc_type == collector::kGcTypeFull) || (gc_type == collector::kGcTypePartial)) &&
-      (runtime->GetJit() != nullptr)) {
-    runtime->GetJit()->GetCodeCache()->ClearGcRootsInInlineCaches(self);
-  }
-
   CHECK(collector != nullptr)
       << "Could not find garbage collector with collector_type="
       << static_cast<size_t>(collector_type_) << " and gc_type=" << gc_type;

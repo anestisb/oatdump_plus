@@ -28,7 +28,6 @@ class CompilerDriver;
 class DexCompilationUnit;
 class HGraph;
 class HInvoke;
-class InlineCache;
 class OptimizingCompilerStats;
 
 class HInliner : public HOptimization {
@@ -105,18 +104,18 @@ class HInliner : public HOptimization {
   // ... // inlined code
   bool TryInlineMonomorphicCall(HInvoke* invoke_instruction,
                                 ArtMethod* resolved_method,
-                                const InlineCache& ic)
+                                Handle<mirror::ObjectArray<mirror::Class>> classes)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Try to inline targets of a polymorphic call.
   bool TryInlinePolymorphicCall(HInvoke* invoke_instruction,
                                 ArtMethod* resolved_method,
-                                const InlineCache& ic)
+                                Handle<mirror::ObjectArray<mirror::Class>> classes)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool TryInlinePolymorphicCallToSameTarget(HInvoke* invoke_instruction,
                                             ArtMethod* resolved_method,
-                                            const InlineCache& ic)
+                                            Handle<mirror::ObjectArray<mirror::Class>> classes)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
 
