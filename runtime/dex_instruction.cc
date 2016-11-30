@@ -191,10 +191,11 @@ std::string Instruction::DumpString(const DexFile* file) const {
           if (file != nullptr) {
             uint32_t string_idx = VRegB_21c();
             if (string_idx < file->NumStringIds()) {
-              os << StringPrintf("const-string v%d, %s // string@%d",
-                                 VRegA_21c(),
-                                 PrintableString(file->StringDataByIdx(string_idx)).c_str(),
-                                 string_idx);
+              os << StringPrintf(
+                  "const-string v%d, %s // string@%d",
+                  VRegA_21c(),
+                  PrintableString(file->StringDataByIdx(dex::StringIndex(string_idx))).c_str(),
+                  string_idx);
             } else {
               os << StringPrintf("const-string v%d, <<invalid-string-idx-%d>> // string@%d",
                                  VRegA_21c(),
@@ -333,11 +334,12 @@ std::string Instruction::DumpString(const DexFile* file) const {
         uint32_t string_idx = VRegB_31c();
         if (file != nullptr) {
           if (string_idx < file->NumStringIds()) {
-            os << StringPrintf("%s v%d, %s // string@%d",
-                               opcode,
-                               VRegA_31c(),
-                               PrintableString(file->StringDataByIdx(string_idx)).c_str(),
-                               string_idx);
+            os << StringPrintf(
+                "%s v%d, %s // string@%d",
+                opcode,
+                VRegA_31c(),
+                PrintableString(file->StringDataByIdx(dex::StringIndex(string_idx))).c_str(),
+                string_idx);
           } else {
             os << StringPrintf("%s v%d, <<invalid-string-idx-%d>> // string@%d",
                                opcode,

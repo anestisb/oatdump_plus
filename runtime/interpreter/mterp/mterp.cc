@@ -291,7 +291,7 @@ extern "C" size_t MterpConstString(uint32_t index,
                                    ShadowFrame* shadow_frame,
                                    Thread* self)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  ObjPtr<mirror::String> s = ResolveString(self, *shadow_frame, index);
+  ObjPtr<mirror::String> s = ResolveString(self, *shadow_frame, dex::StringIndex(index));
   if (UNLIKELY(s == nullptr)) {
     return true;
   }

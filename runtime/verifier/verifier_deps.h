@@ -129,41 +129,43 @@ class VerifierDeps {
     uint16_t GetAccessFlags() const { return std::get<1>(*this); }
   };
 
-  using FieldResolutionBase = std::tuple<uint32_t, uint16_t, uint32_t>;
+  using FieldResolutionBase = std::tuple<uint32_t, uint16_t, dex::StringIndex>;
   struct FieldResolution : public FieldResolutionBase {
     FieldResolution() = default;
     FieldResolution(const FieldResolution&) = default;
-    FieldResolution(uint32_t field_idx, uint16_t access_flags, uint32_t declaring_class_idx)
+    FieldResolution(uint32_t field_idx, uint16_t access_flags, dex::StringIndex declaring_class_idx)
         : FieldResolutionBase(field_idx, access_flags, declaring_class_idx) {}
 
     bool IsResolved() const { return GetAccessFlags() != kUnresolvedMarker; }
     uint32_t GetDexFieldIndex() const { return std::get<0>(*this); }
     uint16_t GetAccessFlags() const { return std::get<1>(*this); }
-    uint32_t GetDeclaringClassIndex() const { return std::get<2>(*this); }
+    dex::StringIndex GetDeclaringClassIndex() const { return std::get<2>(*this); }
   };
 
-  using MethodResolutionBase = std::tuple<uint32_t, uint16_t, uint32_t>;
+  using MethodResolutionBase = std::tuple<uint32_t, uint16_t, dex::StringIndex>;
   struct MethodResolution : public MethodResolutionBase {
     MethodResolution() = default;
     MethodResolution(const MethodResolution&) = default;
-    MethodResolution(uint32_t method_idx, uint16_t access_flags, uint32_t declaring_class_idx)
+    MethodResolution(uint32_t method_idx,
+                     uint16_t access_flags,
+                     dex::StringIndex declaring_class_idx)
         : MethodResolutionBase(method_idx, access_flags, declaring_class_idx) {}
 
     bool IsResolved() const { return GetAccessFlags() != kUnresolvedMarker; }
     uint32_t GetDexMethodIndex() const { return std::get<0>(*this); }
     uint16_t GetAccessFlags() const { return std::get<1>(*this); }
-    uint32_t GetDeclaringClassIndex() const { return std::get<2>(*this); }
+    dex::StringIndex GetDeclaringClassIndex() const { return std::get<2>(*this); }
   };
 
-  using TypeAssignabilityBase = std::tuple<uint32_t, uint32_t>;
+  using TypeAssignabilityBase = std::tuple<dex::StringIndex, dex::StringIndex>;
   struct TypeAssignability : public TypeAssignabilityBase {
     TypeAssignability() = default;
     TypeAssignability(const TypeAssignability&) = default;
-    TypeAssignability(uint32_t destination_idx, uint32_t source_idx)
+    TypeAssignability(dex::StringIndex destination_idx, dex::StringIndex source_idx)
         : TypeAssignabilityBase(destination_idx, source_idx) {}
 
-    uint32_t GetDestination() const { return std::get<0>(*this); }
-    uint32_t GetSource() const { return std::get<1>(*this); }
+    dex::StringIndex GetDestination() const { return std::get<0>(*this); }
+    dex::StringIndex GetSource() const { return std::get<1>(*this); }
   };
 
   // Data structure representing dependencies collected during verification of
@@ -206,11 +208,11 @@ class VerifierDeps {
   // string ID. If not, an ID is assigned to the string and cached in `strings_`
   // of the corresponding DexFileDeps structure (either provided or inferred from
   // `dex_file`).
-  uint32_t GetIdFromString(const DexFile& dex_file, const std::string& str)
+  dex::StringIndex GetIdFromString(const DexFile& dex_file, const std::string& str)
       REQUIRES(!Locks::verifier_deps_lock_);
 
   // Returns the string represented by `id`.
-  std::string GetStringFromId(const DexFile& dex_file, uint32_t string_id) const;
+  std::string GetStringFromId(const DexFile& dex_file, dex::StringIndex string_id) const;
 
   // Returns the bytecode access flags of `element` (bottom 16 bits), or
   // `kUnresolvedMarker` if `element` is null.
@@ -220,17 +222,17 @@ class VerifierDeps {
 
   // Returns a string ID of the descriptor of the declaring class of `element`,
   // or `kUnresolvedMarker` if `element` is null.
-  uint32_t GetMethodDeclaringClassStringId(const DexFile& dex_file,
-                                           uint32_t dex_method_idx,
-                                           ArtMethod* method)
+  dex::StringIndex GetMethodDeclaringClassStringId(const DexFile& dex_file,
+                                                   uint32_t dex_method_idx,
+                                                   ArtMethod* method)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  uint32_t GetFieldDeclaringClassStringId(const DexFile& dex_file,
-                                          uint32_t dex_field_idx,
-                                          ArtField* field)
+  dex::StringIndex GetFieldDeclaringClassStringId(const DexFile& dex_file,
+                                                  uint32_t dex_field_idx,
+                                                  ArtField* field)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns a string ID of the descriptor of the class.
-  uint32_t GetClassDescriptorStringId(const DexFile& dex_file, ObjPtr<mirror::Class> klass)
+  dex::StringIndex GetClassDescriptorStringId(const DexFile& dex_file, ObjPtr<mirror::Class> klass)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::verifier_deps_lock_);
 

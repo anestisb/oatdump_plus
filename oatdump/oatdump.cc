@@ -703,13 +703,13 @@ class OatDumper {
         const Instruction* inst = Instruction::At(code_ptr);
         switch (inst->Opcode()) {
           case Instruction::CONST_STRING: {
-            const uint32_t string_index = inst->VRegB_21c();
+            const dex::StringIndex string_index(inst->VRegB_21c());
             unique_string_ids_from_code_.insert(StringReference(&dex_file, string_index));
             ++num_string_ids_from_code_;
             break;
           }
           case Instruction::CONST_STRING_JUMBO: {
-            const uint32_t string_index = inst->VRegB_31c();
+            const dex::StringIndex string_index(inst->VRegB_31c());
             unique_string_ids_from_code_.insert(StringReference(&dex_file, string_index));
             ++num_string_ids_from_code_;
             break;

@@ -66,7 +66,7 @@ extern "C" mirror::String* artResolveStringFromCode(int32_t string_idx, Thread* 
       // TODO: Change art_quick_resolve_string on MIPS and MIPS64 to kSaveEverything.
       (kRuntimeISA == kMips || kRuntimeISA == kMips64) ? Runtime::kSaveRefsOnly
                                                        : Runtime::kSaveEverything);
-  mirror::String* result = ResolveStringFromCode(caller, string_idx);
+  mirror::String* result = ResolveStringFromCode(caller, dex::StringIndex(string_idx));
   if (LIKELY(result != nullptr)) {
     // For AOT code, we need a write barrier for the class loader that holds
     // the GC roots in the .bss.

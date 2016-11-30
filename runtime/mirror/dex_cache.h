@@ -214,15 +214,15 @@ class MANAGED DexCache FINAL : public Object {
     return OFFSET_OF_OBJECT_MEMBER(DexCache, num_resolved_method_types_);
   }
 
-  mirror::String* GetResolvedString(uint32_t string_idx) ALWAYS_INLINE
+  mirror::String* GetResolvedString(dex::StringIndex string_idx) ALWAYS_INLINE
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void SetResolvedString(uint32_t string_idx, ObjPtr<mirror::String> resolved) ALWAYS_INLINE
+  void SetResolvedString(dex::StringIndex string_idx, ObjPtr<mirror::String> resolved) ALWAYS_INLINE
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Clear a string for a string_idx, used to undo string intern transactions to make sure
   // the string isn't kept live.
-  void ClearString(uint32_t string_idx) REQUIRES_SHARED(Locks::mutator_lock_);
+  void ClearString(dex::StringIndex string_idx) REQUIRES_SHARED(Locks::mutator_lock_);
 
   Class* GetResolvedType(dex::TypeIndex type_idx) REQUIRES_SHARED(Locks::mutator_lock_);
 

@@ -26,8 +26,6 @@
 
 namespace art {
 
-static const size_t kDexNoIndex = DexFile::kDexNoIndex;  // Make copy to prevent linking errors.
-
 class TransactionTest : public CommonRuntimeTest {
  public:
   // Tests failing class initialization due to native call with transaction rollback.
@@ -507,8 +505,8 @@ TEST_F(TransactionTest, ResolveString) {
   static const char* kResolvedString = "ResolvedString";
   const DexFile::StringId* string_id = dex_file->FindStringId(kResolvedString);
   ASSERT_TRUE(string_id != nullptr);
-  uint32_t string_idx = dex_file->GetIndexForStringId(*string_id);
-  ASSERT_NE(string_idx, kDexNoIndex);
+  dex::StringIndex string_idx = dex_file->GetIndexForStringId(*string_id);
+  ASSERT_TRUE(string_idx.IsValid());
   // String should only get resolved by the initializer.
   EXPECT_TRUE(class_linker_->LookupString(*dex_file, string_idx, h_dex_cache) == nullptr);
   EXPECT_TRUE(h_dex_cache->GetResolvedString(string_idx) == nullptr);

@@ -80,8 +80,8 @@ static bool IsDataSectionType(uint32_t map_type) {
   return true;
 }
 
-const char* DexFileVerifier::CheckLoadStringByIdx(uint32_t idx, const char* error_string) {
-  if (UNLIKELY(!CheckIndex(idx, dex_file_->NumStringIds(), error_string))) {
+const char* DexFileVerifier::CheckLoadStringByIdx(dex::StringIndex idx, const char* error_string) {
+  if (UNLIKELY(!CheckIndex(idx.index_, dex_file_->NumStringIds(), error_string))) {
     return nullptr;
   }
   return dex_file_->StringDataByIdx(idx);
@@ -92,9 +92,7 @@ const char* DexFileVerifier::CheckLoadStringByTypeIdx(dex::TypeIndex type_idx,
   if (UNLIKELY(!CheckIndex(type_idx.index_, dex_file_->NumTypeIds(), error_string))) {
     return nullptr;
   }
-  const DexFile::TypeId& type_id = dex_file_->GetTypeId(type_idx);
-  uint32_t idx = type_id.descriptor_idx_;
-  return CheckLoadStringByIdx(idx, error_string);
+  return CheckLoadStringByIdx(dex_file_->GetTypeId(type_idx).descriptor_idx_, error_string);
 }
 
 const DexFile::FieldId* DexFileVerifier::CheckLoadFieldId(uint32_t idx, const char* error_string) {
@@ -1782,7 +1780,8 @@ bool DexFileVerifier::CheckInterTypeIdItem() {
     const DexFile::TypeId* prev_item = reinterpret_cast<const DexFile::TypeId*>(previous_item_);
     if (UNLIKELY(prev_item->descriptor_idx_ >= item->descriptor_idx_)) {
       ErrorStringPrintf("Out-of-order type_ids: %x then %x",
-                        prev_item->descriptor_idx_, item->descriptor_idx_);
+                        prev_item->descriptor_idx_.index_,
+                        item->descriptor_idx_.index_);
       return false;
     }
   }
@@ -2500,14 +2499,15 @@ static bool CheckAtMostOneOfPublicProtectedPrivate(uint32_t flags) {
 
 static std::string GetStringOrError(const uint8_t* const begin,
                                     const DexFile::Header* const header,
-                                    uint32_t string_idx) {
+                                    dex::StringIndex string_idx) {
   // The `string_idx` is not guaranteed to be valid yet.
-  if (header->string_ids_size_ <= string_idx) {
+  if (header->string_ids_size_ <= string_idx.index_) {
     return "(error)";
   }
 
   const DexFile::StringId* string_id =
-      reinterpret_cast<const DexFile::StringId*>(begin + header->string_ids_off_) + string_idx;
+      reinterpret_cast<const DexFile::StringId*>(begin + header->string_ids_off_)
+          + string_idx.index_;
 
   // Assume that the data is OK at this point. String data has been checked at this point.
 
@@ -2664,7 +2664,7 @@ static bool FindMethodName(uint32_t method_index,
   }
   uint32_t string_idx =
       (reinterpret_cast<const DexFile::MethodId*>(begin + header->method_ids_off_) +
-          method_index)->name_idx_;
+          method_index)->name_idx_.index_;
   if (string_idx >= header->string_ids_size_) {
     *error_msg = "String index not available for method flags verification";
     return false;
