@@ -51,6 +51,7 @@ public class Options {
   public static boolean usingSpecificDevice = false;
   public static int repeat = 1;
   public static String executeDirectory = "/data/art-test";
+  public static String androidRoot = "";
   public static String dumpMutationsFile = "mutations.dump";
   public static String loadMutationsFile = "mutations.dump";
   public static String reportLogFile = "report.log";
@@ -95,6 +96,8 @@ public class Options {
     Log.always("                           the argument given to adb -s. Default execution mode.");
     Log.always("    --execute-dir=<dir>  : Push tests to this directory to execute them.");
     Log.always("                           (Default: /data/art-test)");
+    Log.always("    --android-root=<dir> : Set path where dalvikvm should look for binaries.");
+    Log.always("                           Use this when pushing binaries to a custom location.");
     Log.always("    --no-boot-image      : Use this flag when boot.art is not available.");
     Log.always("    --skip-host-verify   : When executing, skip host-verification stage");
     Log.always("    --execute-class=<c>  : When executing, execute this class (default: Main)");
@@ -257,6 +260,8 @@ public class Options {
       usingSpecificDevice = true;
     } else if (key.equals("execute-dir")) {
       executeDirectory = value;
+    } else if (key.equals("android-root")) {
+      androidRoot = value;
     } else {
       Log.error("Unrecognised key: --" + key);
       usage();
