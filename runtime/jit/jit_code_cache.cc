@@ -342,7 +342,7 @@ void JitCodeCache::SweepRootTables(IsMarkedVisitor* visitor) {
           // This does not need a read barrier because this is called by GC.
           mirror::Object* class_loader =
               cls->GetClassLoader<kDefaultVerifyFlags, kWithoutReadBarrier>();
-          if (visitor->IsMarked(class_loader) != nullptr) {
+          if (class_loader == nullptr || visitor->IsMarked(class_loader) != nullptr) {
             // The class loader is live, update the entry if the class has moved.
             mirror::Class* new_cls = down_cast<mirror::Class*>(visitor->IsMarked(cls));
             // Note that new_object can be null for CMS and newly allocated objects.
