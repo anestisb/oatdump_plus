@@ -1777,6 +1777,9 @@ void Runtime::DisallowNewSystemWeaks() {
   intern_table_->ChangeWeakRootState(gc::kWeakRootStateNoReadsOrWrites);
   java_vm_->DisallowNewWeakGlobals();
   heap_->DisallowNewAllocationRecords();
+  if (GetJit() != nullptr) {
+    GetJit()->GetCodeCache()->DisallowInlineCacheAccess();
+  }
 
   // All other generic system-weak holders.
   for (gc::AbstractSystemWeakHolder* holder : system_weak_holders_) {
@@ -1790,6 +1793,9 @@ void Runtime::AllowNewSystemWeaks() {
   intern_table_->ChangeWeakRootState(gc::kWeakRootStateNormal);  // TODO: Do this in the sweeping.
   java_vm_->AllowNewWeakGlobals();
   heap_->AllowNewAllocationRecords();
+  if (GetJit() != nullptr) {
+    GetJit()->GetCodeCache()->AllowInlineCacheAccess();
+  }
 
   // All other generic system-weak holders.
   for (gc::AbstractSystemWeakHolder* holder : system_weak_holders_) {
@@ -1805,6 +1811,9 @@ void Runtime::BroadcastForNewSystemWeaks(bool broadcast_for_checkpoint) {
   intern_table_->BroadcastForNewInterns();
   java_vm_->BroadcastForNewWeakGlobals();
   heap_->BroadcastForNewAllocationRecords();
+  if (GetJit() != nullptr) {
+    GetJit()->GetCodeCache()->BroadcastForInlineCacheAccess();
+  }
 
   // All other generic system-weak holders.
   for (gc::AbstractSystemWeakHolder* holder : system_weak_holders_) {

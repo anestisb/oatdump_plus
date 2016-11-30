@@ -36,15 +36,6 @@ ProfilingInfo::ProfilingInfo(ArtMethod* method, const std::vector<uint32_t>& ent
   for (size_t i = 0; i < number_of_inline_caches_; ++i) {
     cache_[i].dex_pc_ = entries[i];
   }
-  if (method->IsCopied()) {
-    // GetHoldingClassOfCopiedMethod is expensive, but creating a profiling info for a copied method
-    // appears to happen very rarely in practice.
-    holding_class_ = GcRoot<mirror::Class>(
-        Runtime::Current()->GetClassLinker()->GetHoldingClassOfCopiedMethod(method));
-  } else {
-    holding_class_ = GcRoot<mirror::Class>(method->GetDeclaringClass());
-  }
-  DCHECK(!holding_class_.IsNull());
 }
 
 bool ProfilingInfo::Create(Thread* self, ArtMethod* method, bool retry_allocation) {
@@ -116,14 +107,6 @@ void ProfilingInfo::AddInvokeInfo(uint32_t dex_pc, mirror::Class* cls) {
         --i;
       } else {
         // We successfully set `cls`, just return.
-        // Since the instrumentation is marked from the declaring class we need to mark the card so
-        // that mod-union tables and card rescanning know about the update.
-        // Note that the declaring class is not necessarily the holding class if the method is
-        // copied. We need the card mark to be in the holding class since that is from where we
-        // will visit the profiling info.
-        if (!holding_class_.IsNull()) {
-          Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(holding_class_.Read());
-        }
         return;
       }
     }
