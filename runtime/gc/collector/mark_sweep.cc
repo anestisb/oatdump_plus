@@ -413,42 +413,48 @@ class MarkSweep::MarkObjectSlowPath {
     if (UNLIKELY(obj == nullptr || !IsAligned<kPageSize>(obj) ||
                  (kIsDebugBuild && large_object_space != nullptr &&
                      !large_object_space->Contains(obj)))) {
-      LOG(FATAL_WITHOUT_ABORT) << "Tried to mark " << obj << " not contained by any spaces";
+      // Lowest priority logging first:
+      PrintFileToLog("/proc/self/maps", LogSeverity::FATAL_WITHOUT_ABORT);
+      MemMap::DumpMaps(LOG_STREAM(FATAL_WITHOUT_ABORT), true);
+      // Buffer the output in the string stream since it is more important than the stack traces
+      // and we want it to have log priority. The stack traces are printed from Runtime::Abort
+      // which is called from LOG(FATAL) but before the abort message.
+      std::ostringstream oss;
+      oss << "Tried to mark " << obj << " not contained by any spaces" << std::endl;
       if (holder_ != nullptr) {
         size_t holder_size = holder_->SizeOf();
         ArtField* field = holder_->FindFieldByOffset(offset_);
-        LOG(FATAL_WITHOUT_ABORT) << "Field info: "
-                            << " holder=" << holder_
-                            << " holder is "
-                            << (mark_sweep_->GetHeap()->IsLiveObjectLocked(holder_)
-                                ? "alive" : "dead")
-                            << " holder_size=" << holder_size
-                            << " holder_type=" << holder_->PrettyTypeOf()
-                            << " offset=" << offset_.Uint32Value()
-                            << " field=" << (field != nullptr ? field->GetName() : "nullptr")
-                            << " field_type="
-                            << (field != nullptr ? field->GetTypeDescriptor() : "")
-                            << " first_ref_field_offset="
-                            << (holder_->IsClass()
-                                ? holder_->AsClass()->GetFirstReferenceStaticFieldOffset(
-                                    kRuntimePointerSize)
-                                : holder_->GetClass()->GetFirstReferenceInstanceFieldOffset())
-                            << " num_of_ref_fields="
-                            << (holder_->IsClass()
-                                ? holder_->AsClass()->NumReferenceStaticFields()
-                                : holder_->GetClass()->NumReferenceInstanceFields());
+        oss << "Field info: "
+            << " holder=" << holder_
+            << " holder is "
+            << (mark_sweep_->GetHeap()->IsLiveObjectLocked(holder_)
+                ? "alive" : "dead")
+            << " holder_size=" << holder_size
+            << " holder_type=" << holder_->PrettyTypeOf()
+            << " offset=" << offset_.Uint32Value()
+            << " field=" << (field != nullptr ? field->GetName() : "nullptr")
+            << " field_type="
+            << (field != nullptr ? field->GetTypeDescriptor() : "")
+            << " first_ref_field_offset="
+            << (holder_->IsClass()
+                ? holder_->AsClass()->GetFirstReferenceStaticFieldOffset(
+                    kRuntimePointerSize)
+                : holder_->GetClass()->GetFirstReferenceInstanceFieldOffset())
+            << " num_of_ref_fields="
+            << (holder_->IsClass()
+                ? holder_->AsClass()->NumReferenceStaticFields()
+                : holder_->GetClass()->NumReferenceInstanceFields())
+            << std::endl;
         // Print the memory content of the holder.
         for (size_t i = 0; i < holder_size / sizeof(uint32_t); ++i) {
           uint32_t* p = reinterpret_cast<uint32_t*>(holder_);
-          LOG(FATAL_WITHOUT_ABORT) << &p[i] << ": " << "holder+" << (i * sizeof(uint32_t)) << " = "
-                              << std::hex << p[i];
+          oss << &p[i] << ": " << "holder+" << (i * sizeof(uint32_t)) << " = " << std::hex << p[i]
+              << std::endl;
         }
       }
-      PrintFileToLog("/proc/self/maps", LogSeverity::FATAL_WITHOUT_ABORT);
-      MemMap::DumpMaps(LOG_STREAM(FATAL_WITHOUT_ABORT), true);
-      LOG(FATAL_WITHOUT_ABORT) << "Attempting see if it's a bad thread root";
-      mark_sweep_->VerifySuspendedThreadRoots();
-      LOG(FATAL) << "Can't mark invalid object";
+      oss << "Attempting see if it's a bad thread root" << std::endl;
+      mark_sweep_->VerifySuspendedThreadRoots(oss);
+      LOG(FATAL) << oss.str();
     }
   }
 
@@ -567,6 +573,8 @@ void MarkSweep::VisitRoots(mirror::CompressedReference<mirror::Object>** roots,
 
 class MarkSweep::VerifyRootVisitor : public SingleRootVisitor {
  public:
+  explicit VerifyRootVisitor(std::ostream& os) : os_(os) {}
+
   void VisitRoot(mirror::Object* root, const RootInfo& info) OVERRIDE
       REQUIRES_SHARED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     // See if the root is on any space bitmap.
@@ -574,14 +582,17 @@ class MarkSweep::VerifyRootVisitor : public SingleRootVisitor {
     if (heap->GetLiveBitmap()->GetContinuousSpaceBitmap(root) == nullptr) {
       space::LargeObjectSpace* large_object_space = heap->GetLargeObjectsSpace();
       if (large_object_space != nullptr && !large_object_space->Contains(root)) {
-        LOG(FATAL_WITHOUT_ABORT) << "Found invalid root: " << root << " " << info;
+        os_ << "Found invalid root: " << root << " " << info << std::endl;
       }
     }
   }
+
+ private:
+  std::ostream& os_;
 };
 
-void MarkSweep::VerifySuspendedThreadRoots() {
-  VerifyRootVisitor visitor;
+void MarkSweep::VerifySuspendedThreadRoots(std::ostream& os) {
+  VerifyRootVisitor visitor(os);
   Runtime::Current()->GetThreadList()->VisitRootsForSuspendedThreads(&visitor);
 }
 
