@@ -31,7 +31,7 @@ void DefaultInitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) 
   jpoints->pDlsymLookup = art_jni_dlsym_lookup_stub;
 
   // Alloc
-  ResetQuickAllocEntryPoints(qpoints, /* is_marking */ true);
+  ResetQuickAllocEntryPoints(qpoints);
 
   // DexCache
   qpoints->pInitializeStaticStorage = art_quick_initialize_static_storage;
