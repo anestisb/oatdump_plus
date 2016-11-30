@@ -64,7 +64,7 @@ class TestVisitor : public StackVisitor {
       CHECK_EQ(value, 1u);
 
       bool success = GetVReg(m, 2, kIntVReg, &value);
-      if (!IsCurrentFrameInInterpreter() && GetCurrentOatQuickMethodHeader()->IsOptimized()) {
+      if (!IsShadowFrame() && GetCurrentOatQuickMethodHeader()->IsOptimized()) {
         CHECK(!success);
       }
 
