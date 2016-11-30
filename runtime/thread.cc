@@ -122,21 +122,26 @@ void Thread::SetIsGcMarkingAndUpdateEntrypoints(bool is_marking) {
   CHECK(kUseReadBarrier);
   tls32_.is_gc_marking = is_marking;
   UpdateReadBarrierEntrypoints(&tlsPtr_.quick_entrypoints, is_marking);
+  ResetQuickAllocEntryPointsForThread(is_marking);
 }
 
 void Thread::InitTlsEntryPoints() {
   // Insert a placeholder so we can easily tell if we call an unimplemented entry point.
   uintptr_t* begin = reinterpret_cast<uintptr_t*>(&tlsPtr_.jni_entrypoints);
-  uintptr_t* end = reinterpret_cast<uintptr_t*>(reinterpret_cast<uint8_t*>(&tlsPtr_.quick_entrypoints) +
-      sizeof(tlsPtr_.quick_entrypoints));
+  uintptr_t* end = reinterpret_cast<uintptr_t*>(
+      reinterpret_cast<uint8_t*>(&tlsPtr_.quick_entrypoints) + sizeof(tlsPtr_.quick_entrypoints));
   for (uintptr_t* it = begin; it != end; ++it) {
     *it = reinterpret_cast<uintptr_t>(UnimplementedEntryPoint);
   }
   InitEntryPoints(&tlsPtr_.jni_entrypoints, &tlsPtr_.quick_entrypoints);
 }
 
-void Thread::ResetQuickAllocEntryPointsForThread() {
-  ResetQuickAllocEntryPoints(&tlsPtr_.quick_entrypoints);
+void Thread::ResetQuickAllocEntryPointsForThread(bool is_marking) {
+  if (kUseReadBarrier && kRuntimeISA != kX86_64) {
+    // Allocation entrypoint switching is currently only implemented for X86_64.
+    is_marking = true;
+  }
+  ResetQuickAllocEntryPoints(&tlsPtr_.quick_entrypoints, is_marking);
 }
 
 class DeoptimizationContextRecord {

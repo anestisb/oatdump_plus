@@ -1819,7 +1819,7 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self,
           break;
         }
         // Try to transition the heap if the allocation failure was due to the space being full.
-        if (!IsOutOfMemoryOnAllocation<false>(allocator, alloc_size)) {
+        if (!IsOutOfMemoryOnAllocation(allocator, alloc_size, /*grow*/ false)) {
           // If we aren't out of memory then the OOM was probably from the non moving space being
           // full. Attempt to disable compaction and turn the main space into a non moving space.
           DisableMovingGc();
@@ -4217,6 +4217,73 @@ void Heap::SetGcPauseListener(GcPauseListener* l) {
 
 void Heap::RemoveGcPauseListener() {
   gc_pause_listener_.StoreRelaxed(nullptr);
+}
+
+mirror::Object* Heap::AllocWithNewTLAB(Thread* self,
+                                       size_t alloc_size,
+                                       bool grow,
+                                       size_t* bytes_allocated,
+                                       size_t* usable_size,
+                                       size_t* bytes_tl_bulk_allocated) {
+  const AllocatorType allocator_type = GetCurrentAllocator();
+  if (allocator_type == kAllocatorTypeTLAB) {
+    DCHECK(bump_pointer_space_ != nullptr);
+    const size_t new_tlab_size = alloc_size + kDefaultTLABSize;
+    if (UNLIKELY(IsOutOfMemoryOnAllocation(allocator_type, new_tlab_size, grow))) {
+      return nullptr;
+    }
+    // Try allocating a new thread local buffer, if the allocation fails the space must be
+    // full so return null.
+    if (!bump_pointer_space_->AllocNewTlab(self, new_tlab_size)) {
+      return nullptr;
+    }
+    *bytes_tl_bulk_allocated = new_tlab_size;
+  } else {
+    DCHECK(allocator_type == kAllocatorTypeRegionTLAB);
+    DCHECK(region_space_ != nullptr);
+    if (space::RegionSpace::kRegionSize >= alloc_size) {
+      // Non-large. Check OOME for a tlab.
+      if (LIKELY(!IsOutOfMemoryOnAllocation(allocator_type,
+                                            space::RegionSpace::kRegionSize,
+                                            grow))) {
+        // Try to allocate a tlab.
+        if (!region_space_->AllocNewTlab(self)) {
+          // Failed to allocate a tlab. Try non-tlab.
+          return region_space_->AllocNonvirtual<false>(alloc_size,
+                                                       bytes_allocated,
+                                                       usable_size,
+                                                       bytes_tl_bulk_allocated);
+        }
+        *bytes_tl_bulk_allocated = space::RegionSpace::kRegionSize;
+        // Fall-through to using the TLAB below.
+      } else {
+        // Check OOME for a non-tlab allocation.
+        if (!IsOutOfMemoryOnAllocation(allocator_type, alloc_size, grow)) {
+          return region_space_->AllocNonvirtual<false>(alloc_size,
+                                                       bytes_allocated,
+                                                       usable_size,
+                                                       bytes_tl_bulk_allocated);
+        }
+        // Neither tlab or non-tlab works. Give up.
+        return nullptr;
+      }
+    } else {
+      // Large. Check OOME.
+      if (LIKELY(!IsOutOfMemoryOnAllocation(allocator_type, alloc_size, grow))) {
+        return region_space_->AllocNonvirtual<false>(alloc_size,
+                                                     bytes_allocated,
+                                                     usable_size,
+                                                     bytes_tl_bulk_allocated);
+      }
+      return nullptr;
+    }
+  }
+  // Refilled TLAB, return.
+  mirror::Object* ret = self->AllocTlab(alloc_size);
+  DCHECK(ret != nullptr);
+  *bytes_allocated = alloc_size;
+  *usable_size = alloc_size;
+  return ret;
 }
 
 }  // namespace gc
