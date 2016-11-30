@@ -140,7 +140,7 @@ void dumpClass(const DexFile* pDexFile, u4 idx) {
   const DexFile::ClassDef& pClassDef = pDexFile->GetClassDef(idx);
 
   const char* fileName;
-  if (pClassDef.source_file_idx_ == DexFile::kDexNoIndex) {
+  if (!pClassDef.source_file_idx_.IsValid()) {
     fileName = nullptr;
   } else {
     fileName = pDexFile->StringDataByIdx(pClassDef.source_file_idx_);

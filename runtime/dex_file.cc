@@ -45,6 +45,8 @@
 
 namespace art {
 
+static_assert(sizeof(dex::StringIndex) == sizeof(uint32_t), "StringIndex size is wrong");
+static_assert(std::is_trivially_copyable<dex::StringIndex>::value, "StringIndex not trivial");
 static_assert(sizeof(dex::TypeIndex) == sizeof(uint16_t), "TypeIndex size is wrong");
 static_assert(std::is_trivially_copyable<dex::TypeIndex>::value, "TypeIndex not trivial");
 
@@ -602,7 +604,7 @@ const DexFile::FieldId* DexFile::FindFieldId(const DexFile::TypeId& declaring_kl
                                              const DexFile::TypeId& type) const {
   // Binary search MethodIds knowing that they are sorted by class_idx, name_idx then proto_idx
   const dex::TypeIndex class_idx = GetIndexForTypeId(declaring_klass);
-  const uint32_t name_idx = GetIndexForStringId(name);
+  const dex::StringIndex name_idx = GetIndexForStringId(name);
   const dex::TypeIndex type_idx = GetIndexForTypeId(type);
   int32_t lo = 0;
   int32_t hi = NumFieldIds() - 1;
@@ -637,7 +639,7 @@ const DexFile::MethodId* DexFile::FindMethodId(const DexFile::TypeId& declaring_
                                                const DexFile::ProtoId& signature) const {
   // Binary search MethodIds knowing that they are sorted by class_idx, name_idx then proto_idx
   const dex::TypeIndex class_idx = GetIndexForTypeId(declaring_klass);
-  const uint32_t name_idx = GetIndexForStringId(name);
+  const dex::StringIndex name_idx = GetIndexForStringId(name);
   const uint16_t proto_idx = GetIndexForProtoId(signature);
   int32_t lo = 0;
   int32_t hi = NumMethodIds() - 1;
@@ -672,7 +674,7 @@ const DexFile::StringId* DexFile::FindStringId(const char* string) const {
   int32_t hi = NumStringIds() - 1;
   while (hi >= lo) {
     int32_t mid = (hi + lo) / 2;
-    const DexFile::StringId& str_id = GetStringId(mid);
+    const DexFile::StringId& str_id = GetStringId(dex::StringIndex(mid));
     const char* str = GetStringData(str_id);
     int compare = CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(string, str);
     if (compare > 0) {
@@ -711,7 +713,7 @@ const DexFile::StringId* DexFile::FindStringId(const uint16_t* string, size_t le
   int32_t hi = NumStringIds() - 1;
   while (hi >= lo) {
     int32_t mid = (hi + lo) / 2;
-    const DexFile::StringId& str_id = GetStringId(mid);
+    const DexFile::StringId& str_id = GetStringId(dex::StringIndex(mid));
     const char* str = GetStringData(str_id);
     int compare = CompareModifiedUtf8ToUtf16AsCodePointValues(str, string, length);
     if (compare > 0) {
@@ -725,7 +727,7 @@ const DexFile::StringId* DexFile::FindStringId(const uint16_t* string, size_t le
   return nullptr;
 }
 
-const DexFile::TypeId* DexFile::FindTypeId(uint32_t string_idx) const {
+const DexFile::TypeId* DexFile::FindTypeId(dex::StringIndex string_idx) const {
   int32_t lo = 0;
   int32_t hi = NumTypeIds() - 1;
   while (hi >= lo) {
@@ -912,7 +914,7 @@ bool DexFile::DecodeDebugLocalInfo(const CodeItem* code_item, bool is_static, ui
     }
     uint32_t name_idx = DecodeUnsignedLeb128P1(&stream);
     const char* descriptor = it.GetDescriptor();
-    local_in_reg[arg_reg].name_ = StringDataByIdx(name_idx);
+    local_in_reg[arg_reg].name_ = StringDataByIdx(dex::StringIndex(name_idx));
     local_in_reg[arg_reg].descriptor_ = descriptor;
     local_in_reg[arg_reg].signature_ = nullptr;
     local_in_reg[arg_reg].start_address_ = 0;
@@ -975,10 +977,10 @@ bool DexFile::DecodeDebugLocalInfo(const CodeItem* code_item, bool is_static, ui
           local_cb(context, local_in_reg[reg]);
         }
 
-        local_in_reg[reg].name_ = StringDataByIdx(name_idx);
+        local_in_reg[reg].name_ = StringDataByIdx(dex::StringIndex(name_idx));
         local_in_reg[reg].descriptor_ =
             StringByTypeIdx(dex::TypeIndex(dchecked_integral_cast<uint16_t>(descriptor_idx)));;
-        local_in_reg[reg].signature_ = StringDataByIdx(signature_idx);
+        local_in_reg[reg].signature_ = StringDataByIdx(dex::StringIndex(signature_idx));
         local_in_reg[reg].start_address_ = address;
         local_in_reg[reg].reg_ = reg;
         local_in_reg[reg].is_live_ = true;
@@ -1080,7 +1082,7 @@ bool DexFile::DecodeDebugPositionInfo(const CodeItem* code_item, DexDebugNewPosi
         break;
       case DBG_SET_FILE: {
         uint32_t name_idx = DecodeUnsignedLeb128P1(&stream);
-        entry.source_file_ = StringDataByIdx(name_idx);
+        entry.source_file_ = StringDataByIdx(dex::StringIndex(name_idx));
         break;
       }
       default: {
@@ -1481,6 +1483,11 @@ void CatchHandlerIterator::Next() {
 }
 
 namespace dex {
+
+std::ostream& operator<<(std::ostream& os, const StringIndex& index) {
+  os << "StringIndex[" << index.index_ << "]";
+  return os;
+}
 
 std::ostream& operator<<(std::ostream& os, const TypeIndex& index) {
   os << "TypeIndex[" << index.index_ << "]";

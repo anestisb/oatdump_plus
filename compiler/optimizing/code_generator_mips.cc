@@ -280,7 +280,7 @@ class LoadStringSlowPathMIPS : public SlowPathCodeMIPS {
 
     InvokeRuntimeCallingConvention calling_convention;
     HLoadString* load = instruction_->AsLoadString();
-    const uint32_t string_index = load->GetStringIndex();
+    const uint32_t string_index = load->GetStringIndex().index_;
     __ LoadConst32(calling_convention.GetRegisterAt(0), string_index);
     mips_codegen->InvokeRuntime(kQuickResolveString, instruction_, instruction_->GetDexPc(), this);
     CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
@@ -1047,7 +1047,7 @@ void CodeGeneratorMIPS::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patch
     uint32_t literal_offset = __ GetLabelLocation(literal->GetLabel());
     linker_patches->push_back(LinkerPatch::StringPatch(literal_offset,
                                                        target_string.dex_file,
-                                                       target_string.string_index));
+                                                       target_string.string_index.index_));
   }
   for (const auto& entry : boot_image_type_patches_) {
     const TypeReference& target_type = entry.first;
@@ -1110,7 +1110,7 @@ Literal* CodeGeneratorMIPS::DeduplicateMethodCodeLiteral(MethodReference target_
 }
 
 Literal* CodeGeneratorMIPS::DeduplicateBootImageStringLiteral(const DexFile& dex_file,
-                                                              uint32_t string_index) {
+                                                              dex::StringIndex string_index) {
   return boot_image_string_patches_.GetOrCreate(
       StringReference(&dex_file, string_index),
       [this]() { return __ NewLiteral<uint32_t>(/* placeholder */ 0u); });
@@ -5743,7 +5743,7 @@ void InstructionCodeGeneratorMIPS::VisitLoadString(HLoadString* load) {
       DCHECK(!kEmitCompilerReadBarrier);
       DCHECK(codegen_->GetCompilerOptions().IsBootImage());
       CodeGeneratorMIPS::PcRelativePatchInfo* info =
-          codegen_->NewPcRelativeStringPatch(load->GetDexFile(), load->GetStringIndex());
+          codegen_->NewPcRelativeStringPatch(load->GetDexFile(), load->GetStringIndex().index_);
       codegen_->EmitPcRelativeAddressPlaceholder(info, out, base_or_current_method_reg);
       return;  // No dex cache slow path.
     }
@@ -5759,7 +5759,7 @@ void InstructionCodeGeneratorMIPS::VisitLoadString(HLoadString* load) {
     case HLoadString::LoadKind::kBssEntry: {
       DCHECK(!codegen_->GetCompilerOptions().IsBootImage());
       CodeGeneratorMIPS::PcRelativePatchInfo* info =
-          codegen_->NewPcRelativeStringPatch(load->GetDexFile(), load->GetStringIndex());
+          codegen_->NewPcRelativeStringPatch(load->GetDexFile(), load->GetStringIndex().index_);
       codegen_->EmitPcRelativeAddressPlaceholder(info, out, base_or_current_method_reg);
       __ LoadFromOffset(kLoadWord, out, out, 0);
       SlowPathCodeMIPS* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathMIPS(load);
@@ -5775,7 +5775,7 @@ void InstructionCodeGeneratorMIPS::VisitLoadString(HLoadString* load) {
   // TODO: Re-add the compiler code to do string dex cache lookup again.
   DCHECK(load_kind == HLoadString::LoadKind::kDexCacheViaMethod);
   InvokeRuntimeCallingConvention calling_convention;
-  __ LoadConst32(calling_convention.GetRegisterAt(0), load->GetStringIndex());
+  __ LoadConst32(calling_convention.GetRegisterAt(0), load->GetStringIndex().index_);
   codegen_->InvokeRuntime(kQuickResolveString, load, load->GetDexPc());
   CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
 }

@@ -150,7 +150,7 @@ class DexFileVerifier {
 
   // Load a string by (type) index. Checks whether the index is in bounds, printing the error if
   // not. If there is an error, null is returned.
-  const char* CheckLoadStringByIdx(uint32_t idx, const char* error_fmt);
+  const char* CheckLoadStringByIdx(dex::StringIndex idx, const char* error_fmt);
   const char* CheckLoadStringByTypeIdx(dex::TypeIndex type_idx, const char* error_fmt);
 
   // Load a field/method Id by index. Checks whether the index is in bounds, printing the error if

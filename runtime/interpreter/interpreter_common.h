@@ -236,7 +236,7 @@ bool DoIPutQuick(const ShadowFrame& shadow_frame, const Instruction* inst, uint1
 // java.lang.String class is initialized.
 static inline ObjPtr<mirror::String> ResolveString(Thread* self,
                                                    ShadowFrame& shadow_frame,
-                                                   uint32_t string_idx)
+                                                   dex::StringIndex string_idx)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   ObjPtr<mirror::Class> java_lang_string_class = mirror::String::GetJavaLangString();
   if (UNLIKELY(!java_lang_string_class->IsInitialized())) {
@@ -251,11 +251,11 @@ static inline ObjPtr<mirror::String> ResolveString(Thread* self,
   ArtMethod* method = shadow_frame.GetMethod();
   ObjPtr<mirror::Class> declaring_class = method->GetDeclaringClass();
   // MethodVerifier refuses methods with string_idx out of bounds.
-  DCHECK_LT(string_idx % mirror::DexCache::kDexCacheStringCacheSize,
+  DCHECK_LT(string_idx.index_ % mirror::DexCache::kDexCacheStringCacheSize,
             declaring_class->GetDexFile().NumStringIds());
   ObjPtr<mirror::String> string_ptr =
       mirror::StringDexCachePair::Lookup(declaring_class->GetDexCacheStrings(),
-                                         string_idx,
+                                         string_idx.index_,
                                          mirror::DexCache::kDexCacheStringCacheSize).Read();
   if (UNLIKELY(string_ptr == nullptr)) {
     StackHandleScope<1> hs(self);

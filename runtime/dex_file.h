@@ -152,7 +152,7 @@ class DexFile {
 
   // Raw type_id_item.
   struct TypeId {
-    uint32_t descriptor_idx_;  // index into string_ids
+    dex::StringIndex descriptor_idx_;  // index into string_ids
 
    private:
     DISALLOW_COPY_AND_ASSIGN(TypeId);
@@ -160,9 +160,9 @@ class DexFile {
 
   // Raw field_id_item.
   struct FieldId {
-    dex::TypeIndex class_idx_;  // index into type_ids_ array for defining class
-    dex::TypeIndex type_idx_;  // index into type_ids_ array for field type
-    uint32_t name_idx_;  // index into string_ids_ array for field name
+    dex::TypeIndex class_idx_;   // index into type_ids_ array for defining class
+    dex::TypeIndex type_idx_;    // index into type_ids_ array for field type
+    dex::StringIndex name_idx_;  // index into string_ids_ array for field name
 
    private:
     DISALLOW_COPY_AND_ASSIGN(FieldId);
@@ -170,10 +170,10 @@ class DexFile {
 
   // Raw proto_id_item.
   struct ProtoId {
-    uint32_t shorty_idx_;        // index into string_ids array for shorty descriptor
+    dex::StringIndex shorty_idx_;     // index into string_ids array for shorty descriptor
     dex::TypeIndex return_type_idx_;  // index into type_ids array for return type
-    uint16_t pad_;               // padding = 0
-    uint32_t parameters_off_;    // file offset to type_list for parameter types
+    uint16_t pad_;                    // padding = 0
+    uint32_t parameters_off_;         // file offset to type_list for parameter types
 
    private:
     DISALLOW_COPY_AND_ASSIGN(ProtoId);
@@ -182,8 +182,8 @@ class DexFile {
   // Raw method_id_item.
   struct MethodId {
     dex::TypeIndex class_idx_;   // index into type_ids_ array for defining class
-    uint16_t proto_idx_;  // index into proto_ids_ array for method prototype
-    uint32_t name_idx_;  // index into string_ids_ array for method name
+    uint16_t proto_idx_;         // index into proto_ids_ array for method prototype
+    dex::StringIndex name_idx_;  // index into string_ids_ array for method name
 
    private:
     DISALLOW_COPY_AND_ASSIGN(MethodId);
@@ -197,7 +197,7 @@ class DexFile {
     dex::TypeIndex superclass_idx_;  // index into type_ids_ array for superclass
     uint16_t pad2_;  // padding = 0
     uint32_t interfaces_off_;  // file offset to TypeList
-    uint32_t source_file_idx_;  // index into string_ids_ for source file name
+    dex::StringIndex source_file_idx_;  // index into string_ids_ for source file name
     uint32_t annotations_off_;  // file offset to annotations_directory_item
     uint32_t class_data_off_;  // file offset to class_data_item
     uint32_t static_values_off_;  // file offset to EncodedArray
@@ -501,15 +501,15 @@ class DexFile {
   }
 
   // Returns the StringId at the specified index.
-  const StringId& GetStringId(uint32_t idx) const {
-    DCHECK_LT(idx, NumStringIds()) << GetLocation();
-    return string_ids_[idx];
+  const StringId& GetStringId(dex::StringIndex idx) const {
+    DCHECK_LT(idx.index_, NumStringIds()) << GetLocation();
+    return string_ids_[idx.index_];
   }
 
-  uint32_t GetIndexForStringId(const StringId& string_id) const {
+  dex::StringIndex GetIndexForStringId(const StringId& string_id) const {
     CHECK_GE(&string_id, string_ids_) << GetLocation();
     CHECK_LT(&string_id, string_ids_ + header_->string_ids_size_) << GetLocation();
-    return &string_id - string_ids_;
+    return dex::StringIndex(&string_id - string_ids_);
   }
 
   int32_t GetStringLength(const StringId& string_id) const;
@@ -522,9 +522,9 @@ class DexFile {
   const char* GetStringData(const StringId& string_id) const;
 
   // Index version of GetStringDataAndUtf16Length.
-  const char* StringDataAndUtf16LengthByIdx(uint32_t idx, uint32_t* utf16_length) const;
+  const char* StringDataAndUtf16LengthByIdx(dex::StringIndex idx, uint32_t* utf16_length) const;
 
-  const char* StringDataByIdx(uint32_t idx) const;
+  const char* StringDataByIdx(dex::StringIndex idx) const;
 
   // Looks up a string id for a given modified utf8 string.
   const StringId* FindStringId(const char* string) const;
@@ -563,7 +563,7 @@ class DexFile {
   const char* GetTypeDescriptor(const TypeId& type_id) const;
 
   // Looks up a type for the given string index
-  const TypeId* FindTypeId(uint32_t string_idx) const;
+  const TypeId* FindTypeId(dex::StringIndex string_idx) const;
 
   // Returns the number of field identifiers in the .dex file.
   size_t NumFieldIds() const {
@@ -963,7 +963,7 @@ class DexFile {
                                void* context) const;
 
   const char* GetSourceFile(const ClassDef& class_def) const {
-    if (class_def.source_file_idx_ == 0xffffffff) {
+    if (!class_def.source_file_idx_.IsValid()) {
       return nullptr;
     } else {
       return StringDataByIdx(class_def.source_file_idx_);

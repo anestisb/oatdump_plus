@@ -167,9 +167,10 @@ void Transaction::RecordWriteArray(mirror::Array* array, size_t index, uint64_t 
   array_log.LogValue(index, value);
 }
 
-void Transaction::RecordResolveString(ObjPtr<mirror::DexCache> dex_cache, uint32_t string_idx) {
+void Transaction::RecordResolveString(ObjPtr<mirror::DexCache> dex_cache,
+                                      dex::StringIndex string_idx) {
   DCHECK(dex_cache != nullptr);
-  DCHECK_LT(string_idx, dex_cache->GetDexFile()->NumStringIds());
+  DCHECK_LT(string_idx.index_, dex_cache->GetDexFile()->NumStringIds());
   MutexLock mu(Thread::Current(), log_lock_);
   resolve_string_logs_.push_back(ResolveStringLog(dex_cache, string_idx));
 }
@@ -510,11 +511,11 @@ void Transaction::ResolveStringLog::Undo() {
 }
 
 Transaction::ResolveStringLog::ResolveStringLog(ObjPtr<mirror::DexCache> dex_cache,
-                                                uint32_t string_idx)
+                                                dex::StringIndex string_idx)
     : dex_cache_(dex_cache),
       string_idx_(string_idx) {
   DCHECK(dex_cache != nullptr);
-  DCHECK_LT(string_idx_, dex_cache->GetDexFile()->NumStringIds());
+  DCHECK_LT(string_idx_.index_, dex_cache->GetDexFile()->NumStringIds());
 }
 
 void Transaction::ResolveStringLog::VisitRoots(RootVisitor* visitor) {

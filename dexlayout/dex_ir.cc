@@ -340,7 +340,7 @@ void Collections::ReadEncodedValue(
 }
 
 void Collections::CreateStringId(const DexFile& dex_file, uint32_t i) {
-  const DexFile::StringId& disk_string_id = dex_file.GetStringId(i);
+  const DexFile::StringId& disk_string_id = dex_file.GetStringId(dex::StringIndex(i));
   StringData* string_data = new StringData(dex_file.GetStringData(disk_string_id));
   string_datas_.AddItem(string_data, disk_string_id.string_data_off_);
 
@@ -350,7 +350,7 @@ void Collections::CreateStringId(const DexFile& dex_file, uint32_t i) {
 
 void Collections::CreateTypeId(const DexFile& dex_file, uint32_t i) {
   const DexFile::TypeId& disk_type_id = dex_file.GetTypeId(dex::TypeIndex(i));
-  TypeId* type_id = new TypeId(GetStringId(disk_type_id.descriptor_idx_));
+  TypeId* type_id = new TypeId(GetStringId(disk_type_id.descriptor_idx_.index_));
   type_ids_.AddIndexedItem(type_id, TypeIdsOffset() + i * TypeId::ItemSize(), i);
 }
 
@@ -359,7 +359,7 @@ void Collections::CreateProtoId(const DexFile& dex_file, uint32_t i) {
   const DexFile::TypeList* type_list = dex_file.GetProtoParameters(disk_proto_id);
   TypeList* parameter_type_list = CreateTypeList(type_list, disk_proto_id.parameters_off_);
 
-  ProtoId* proto_id = new ProtoId(GetStringId(disk_proto_id.shorty_idx_),
+  ProtoId* proto_id = new ProtoId(GetStringId(disk_proto_id.shorty_idx_.index_),
                                   GetTypeId(disk_proto_id.return_type_idx_.index_),
                                   parameter_type_list);
   proto_ids_.AddIndexedItem(proto_id, ProtoIdsOffset() + i * ProtoId::ItemSize(), i);
@@ -369,7 +369,7 @@ void Collections::CreateFieldId(const DexFile& dex_file, uint32_t i) {
   const DexFile::FieldId& disk_field_id = dex_file.GetFieldId(i);
   FieldId* field_id = new FieldId(GetTypeId(disk_field_id.class_idx_.index_),
                                   GetTypeId(disk_field_id.type_idx_.index_),
-                                  GetStringId(disk_field_id.name_idx_));
+                                  GetStringId(disk_field_id.name_idx_.index_));
   field_ids_.AddIndexedItem(field_id, FieldIdsOffset() + i * FieldId::ItemSize(), i);
 }
 
@@ -377,7 +377,7 @@ void Collections::CreateMethodId(const DexFile& dex_file, uint32_t i) {
   const DexFile::MethodId& disk_method_id = dex_file.GetMethodId(i);
   MethodId* method_id = new MethodId(GetTypeId(disk_method_id.class_idx_.index_),
                                      GetProtoId(disk_method_id.proto_idx_),
-                                     GetStringId(disk_method_id.name_idx_));
+                                     GetStringId(disk_method_id.name_idx_.index_));
   method_ids_.AddIndexedItem(method_id, MethodIdsOffset() + i * MethodId::ItemSize(), i);
 }
 
@@ -390,7 +390,7 @@ void Collections::CreateClassDef(const DexFile& dex_file, uint32_t i) {
   const DexFile::TypeList* type_list = dex_file.GetInterfacesList(disk_class_def);
   TypeList* interfaces_type_list = CreateTypeList(type_list, disk_class_def.interfaces_off_);
 
-  const StringId* source_file = GetStringIdOrNullPtr(disk_class_def.source_file_idx_);
+  const StringId* source_file = GetStringIdOrNullPtr(disk_class_def.source_file_idx_.index_);
   // Annotations.
   AnnotationsDirectoryItem* annotations = nullptr;
   const DexFile::AnnotationsDirectoryItem* disk_annotations_directory_item =

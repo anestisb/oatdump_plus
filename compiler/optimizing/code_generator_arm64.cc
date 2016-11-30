@@ -349,7 +349,7 @@ class LoadStringSlowPathARM64 : public SlowPathCodeARM64 {
     SaveLiveRegisters(codegen, locations);
 
     InvokeRuntimeCallingConvention calling_convention;
-    const uint32_t string_index = instruction_->AsLoadString()->GetStringIndex();
+    const uint32_t string_index = instruction_->AsLoadString()->GetStringIndex().index_;
     __ Mov(calling_convention.GetRegisterAt(0).W(), string_index);
     arm64_codegen->InvokeRuntime(kQuickResolveString, instruction_, instruction_->GetDexPc(), this);
     CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
@@ -4132,7 +4132,7 @@ vixl::aarch64::Label* CodeGeneratorARM64::NewPcRelativePatch(
 }
 
 vixl::aarch64::Literal<uint32_t>* CodeGeneratorARM64::DeduplicateBootImageStringLiteral(
-    const DexFile& dex_file, uint32_t string_index) {
+    const DexFile& dex_file, dex::StringIndex string_index) {
   return boot_image_string_patches_.GetOrCreate(
       StringReference(&dex_file, string_index),
       [this]() { return __ CreateLiteralDestroyedWithPool<uint32_t>(/* placeholder */ 0u); });
@@ -4158,7 +4158,7 @@ vixl::aarch64::Literal<uint64_t>* CodeGeneratorARM64::DeduplicateDexCacheAddress
 }
 
 vixl::aarch64::Literal<uint32_t>* CodeGeneratorARM64::DeduplicateJitStringLiteral(
-    const DexFile& dex_file, uint32_t string_index) {
+    const DexFile& dex_file, dex::StringIndex string_index) {
   jit_string_roots_.Overwrite(StringReference(&dex_file, string_index), /* placeholder */ 0u);
   return jit_string_patches_.GetOrCreate(
       StringReference(&dex_file, string_index),
@@ -4246,7 +4246,7 @@ void CodeGeneratorARM64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patc
     vixl::aarch64::Literal<uint32_t>* literal = entry.second;
     linker_patches->push_back(LinkerPatch::StringPatch(literal->GetOffset(),
                                                        target_string.dex_file,
-                                                       target_string.string_index));
+                                                       target_string.string_index.index_));
   }
   if (!GetCompilerOptions().IsBootImage()) {
     EmitPcRelativeLinkerPatches<LinkerPatch::StringBssEntryPatch>(pc_relative_string_patches_,
@@ -4594,7 +4594,7 @@ void InstructionCodeGeneratorARM64::VisitLoadString(HLoadString* load) {
     case HLoadString::LoadKind::kBootImageLinkTimePcRelative: {
       // Add ADRP with its PC-relative String patch.
       const DexFile& dex_file = load->GetDexFile();
-      uint32_t string_index = load->GetStringIndex();
+      uint32_t string_index = load->GetStringIndex().index_;
       DCHECK(codegen_->GetCompilerOptions().IsBootImage());
       vixl::aarch64::Label* adrp_label = codegen_->NewPcRelativeStringPatch(dex_file, string_index);
       codegen_->EmitAdrpPlaceholder(adrp_label, out.X());
@@ -4612,7 +4612,7 @@ void InstructionCodeGeneratorARM64::VisitLoadString(HLoadString* load) {
     case HLoadString::LoadKind::kBssEntry: {
       // Add ADRP with its PC-relative String .bss entry patch.
       const DexFile& dex_file = load->GetDexFile();
-      uint32_t string_index = load->GetStringIndex();
+      uint32_t string_index = load->GetStringIndex().index_;
       DCHECK(!codegen_->GetCompilerOptions().IsBootImage());
       UseScratchRegisterScope temps(codegen_->GetVIXLAssembler());
       Register temp = temps.AcquireX();
@@ -4653,7 +4653,7 @@ void InstructionCodeGeneratorARM64::VisitLoadString(HLoadString* load) {
   // TODO: Re-add the compiler code to do string dex cache lookup again.
   InvokeRuntimeCallingConvention calling_convention;
   DCHECK_EQ(calling_convention.GetRegisterAt(0).GetCode(), out.GetCode());
-  __ Mov(calling_convention.GetRegisterAt(0).W(), load->GetStringIndex());
+  __ Mov(calling_convention.GetRegisterAt(0).W(), load->GetStringIndex().index_);
   codegen_->InvokeRuntime(kQuickResolveString, load, load->GetDexPc());
   CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
 }
