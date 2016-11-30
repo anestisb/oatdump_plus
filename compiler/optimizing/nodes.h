@@ -5698,7 +5698,7 @@ class HLoadString FINAL : public HInstruction {
   };
 
   HLoadString(HCurrentMethod* current_method,
-              uint32_t string_index,
+              dex::StringIndex string_index,
               const DexFile& dex_file,
               uint32_t dex_pc)
       : HInstruction(SideEffectsForArchRuntimeCalls(), dex_pc),
@@ -5717,7 +5717,7 @@ class HLoadString FINAL : public HInstruction {
 
   void SetLoadKindWithStringReference(LoadKind load_kind,
                                       const DexFile& dex_file,
-                                      uint32_t string_index) {
+                                      dex::StringIndex string_index) {
     DCHECK(HasStringReference(load_kind));
     load_data_.dex_file_ = &dex_file;
     string_index_ = string_index;
@@ -5730,7 +5730,7 @@ class HLoadString FINAL : public HInstruction {
 
   const DexFile& GetDexFile() const;
 
-  uint32_t GetStringIndex() const {
+  dex::StringIndex GetStringIndex() const {
     DCHECK(HasStringReference(GetLoadKind()) || /* For slow paths. */ !IsInDexCache());
     return string_index_;
   }
@@ -5744,7 +5744,7 @@ class HLoadString FINAL : public HInstruction {
 
   bool InstructionDataEquals(const HInstruction* other) const OVERRIDE;
 
-  size_t ComputeHashCode() const OVERRIDE { return string_index_; }
+  size_t ComputeHashCode() const OVERRIDE { return string_index_.index_; }
 
   // Will call the runtime if we need to load the string through
   // the dex cache and the string is not guaranteed to be there yet.
@@ -5823,7 +5823,7 @@ class HLoadString FINAL : public HInstruction {
 
   // String index serves also as the hash code and it's also needed for slow-paths,
   // so it must not be overwritten with other load data.
-  uint32_t string_index_;
+  dex::StringIndex string_index_;
 
   union {
     const DexFile* dex_file_;            // For string reference.

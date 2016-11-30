@@ -43,9 +43,9 @@ inline const char* DexFile::GetStringData(const StringId& string_id) const {
   return GetStringDataAndUtf16Length(string_id, &ignored);
 }
 
-inline const char* DexFile::StringDataAndUtf16LengthByIdx(uint32_t idx,
+inline const char* DexFile::StringDataAndUtf16LengthByIdx(dex::StringIndex idx,
                                                           uint32_t* utf16_length) const {
-  if (idx == kDexNoIndex) {
+  if (!idx.IsValid()) {
     *utf16_length = 0;
     return nullptr;
   }
@@ -53,7 +53,7 @@ inline const char* DexFile::StringDataAndUtf16LengthByIdx(uint32_t idx,
   return GetStringDataAndUtf16Length(string_id, utf16_length);
 }
 
-inline const char* DexFile::StringDataByIdx(uint32_t idx) const {
+inline const char* DexFile::StringDataByIdx(dex::StringIndex idx) const {
   uint32_t unicode_length;
   return StringDataAndUtf16LengthByIdx(idx, &unicode_length);
 }
@@ -130,8 +130,8 @@ inline const DexFile::TryItem* DexFile::GetTryItems(const CodeItem& code_item, u
       (RoundUp(reinterpret_cast<uintptr_t>(insns_end_), 4)) + offset;
 }
 
-static inline bool DexFileStringEquals(const DexFile* df1, uint32_t sidx1,
-                                       const DexFile* df2, uint32_t sidx2) {
+static inline bool DexFileStringEquals(const DexFile* df1, dex::StringIndex sidx1,
+                                       const DexFile* df2, dex::StringIndex sidx2) {
   uint32_t s1_len;  // Note: utf16 length != mutf8 length.
   const char* s1_data = df1->StringDataAndUtf16LengthByIdx(sidx1, &s1_len);
   uint32_t s2_len;

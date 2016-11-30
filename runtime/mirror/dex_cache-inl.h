@@ -40,13 +40,14 @@ inline uint32_t DexCache::ClassSize(PointerSize pointer_size) {
   return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0, 0, 0, pointer_size);
 }
 
-inline mirror::String* DexCache::GetResolvedString(uint32_t string_idx) {
-  DCHECK_LT(string_idx, GetDexFile()->NumStringIds());
-  return StringDexCachePair::Lookup(GetStrings(), string_idx, NumStrings()).Read();
+inline mirror::String* DexCache::GetResolvedString(dex::StringIndex string_idx) {
+  DCHECK_LT(string_idx.index_, GetDexFile()->NumStringIds());
+  return StringDexCachePair::Lookup(GetStrings(), string_idx.index_, NumStrings()).Read();
 }
 
-inline void DexCache::SetResolvedString(uint32_t string_idx, ObjPtr<mirror::String> resolved) {
-  StringDexCachePair::Assign(GetStrings(), string_idx, resolved.Ptr(), NumStrings());
+inline void DexCache::SetResolvedString(dex::StringIndex string_idx,
+                                        ObjPtr<mirror::String> resolved) {
+  StringDexCachePair::Assign(GetStrings(), string_idx.index_, resolved.Ptr(), NumStrings());
   Runtime* const runtime = Runtime::Current();
   if (UNLIKELY(runtime->IsActiveTransaction())) {
     DCHECK(runtime->IsAotCompiler());
@@ -56,12 +57,12 @@ inline void DexCache::SetResolvedString(uint32_t string_idx, ObjPtr<mirror::Stri
   runtime->GetHeap()->WriteBarrierEveryFieldOf(this);
 }
 
-inline void DexCache::ClearString(uint32_t string_idx) {
-  const uint32_t slot_idx = string_idx % NumStrings();
+inline void DexCache::ClearString(dex::StringIndex string_idx) {
+  const uint32_t slot_idx = string_idx.index_ % NumStrings();
   DCHECK(Runtime::Current()->IsAotCompiler());
   StringDexCacheType* slot = &GetStrings()[slot_idx];
   // This is racy but should only be called from the transactional interpreter.
-  if (slot->load(std::memory_order_relaxed).index == string_idx) {
+  if (slot->load(std::memory_order_relaxed).index == string_idx.index_) {
     StringDexCachePair cleared(
         nullptr,
         StringDexCachePair::InvalidIndexForSlot(slot_idx));

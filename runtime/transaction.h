@@ -20,6 +20,7 @@
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "base/value_object.h"
+#include "dex_file_types.h"
 #include "gc_root.h"
 #include "object_callbacks.h"
 #include "offsets.h"
@@ -97,7 +98,7 @@ class Transaction FINAL {
       REQUIRES(!log_lock_);
 
   // Record resolve string.
-  void RecordResolveString(ObjPtr<mirror::DexCache> dex_cache, uint32_t string_idx)
+  void RecordResolveString(ObjPtr<mirror::DexCache> dex_cache, dex::StringIndex string_idx)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!log_lock_);
 
@@ -197,7 +198,7 @@ class Transaction FINAL {
 
   class ResolveStringLog : public ValueObject {
    public:
-    ResolveStringLog(ObjPtr<mirror::DexCache> dex_cache, uint32_t string_idx);
+    ResolveStringLog(ObjPtr<mirror::DexCache> dex_cache, dex::StringIndex string_idx);
 
     void Undo() REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -205,7 +206,7 @@ class Transaction FINAL {
 
    private:
     GcRoot<mirror::DexCache> dex_cache_;
-    const uint32_t string_idx_;
+    const dex::StringIndex string_idx_;
   };
 
   void LogInternedString(const InternStringLog& log)

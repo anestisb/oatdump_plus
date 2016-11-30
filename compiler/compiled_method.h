@@ -315,11 +315,11 @@ class LinkerPatch {
     return target_dex_file_;
   }
 
-  uint32_t TargetStringIndex() const {
+  dex::StringIndex TargetStringIndex() const {
     DCHECK(patch_type_ == Type::kString ||
            patch_type_ == Type::kStringRelative ||
            patch_type_ == Type::kStringBssEntry);
-    return string_idx_;
+    return dex::StringIndex(string_idx_);
   }
 
   const DexFile* TargetDexCacheDexFile() const {

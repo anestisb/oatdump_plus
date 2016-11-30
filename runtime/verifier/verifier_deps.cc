@@ -80,8 +80,8 @@ uint16_t VerifierDeps::GetAccessFlags(T* element) {
   }
 }
 
-uint32_t VerifierDeps::GetClassDescriptorStringId(const DexFile& dex_file,
-                                                  ObjPtr<mirror::Class> klass) {
+dex::StringIndex VerifierDeps::GetClassDescriptorStringId(const DexFile& dex_file,
+                                                          ObjPtr<mirror::Class> klass) {
   DCHECK(klass != nullptr);
   ObjPtr<mirror::DexCache> dex_cache = klass->GetDexCache();
   // Array and proxy classes do not have a dex cache.
@@ -104,9 +104,9 @@ uint32_t VerifierDeps::GetClassDescriptorStringId(const DexFile& dex_file,
 }
 
 // Try to find the string descriptor of the class. type_idx is a best guess of a matching string id.
-static uint32_t TryGetClassDescriptorStringId(const DexFile& dex_file,
-                                              dex::TypeIndex type_idx,
-                                              ObjPtr<mirror::Class> klass)
+static dex::StringIndex TryGetClassDescriptorStringId(const DexFile& dex_file,
+                                                      dex::TypeIndex type_idx,
+                                                      ObjPtr<mirror::Class> klass)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   if (!klass->IsArrayClass()) {
     const DexFile::TypeId& type_id = dex_file.GetTypeId(type_idx);
@@ -117,21 +117,21 @@ static uint32_t TryGetClassDescriptorStringId(const DexFile& dex_file,
       return type_id.descriptor_idx_;
     }
   }
-  return DexFile::kDexNoIndex;
+  return dex::StringIndex::Invalid();
 }
 
-uint32_t VerifierDeps::GetMethodDeclaringClassStringId(const DexFile& dex_file,
-                                                       uint32_t dex_method_index,
-                                                       ArtMethod* method) {
+dex::StringIndex VerifierDeps::GetMethodDeclaringClassStringId(const DexFile& dex_file,
+                                                               uint32_t dex_method_index,
+                                                               ArtMethod* method) {
   static_assert(kAccJavaFlagsMask == 0xFFFF, "Unexpected value of a constant");
   if (method == nullptr) {
-    return VerifierDeps::kUnresolvedMarker;
+    return dex::StringIndex(VerifierDeps::kUnresolvedMarker);
   }
-  const uint32_t string_id = TryGetClassDescriptorStringId(
+  const dex::StringIndex string_id = TryGetClassDescriptorStringId(
       dex_file,
       dex_file.GetMethodId(dex_method_index).class_idx_,
       method->GetDeclaringClass());
-  if (string_id != DexFile::kDexNoIndex) {
+  if (string_id.IsValid()) {
     // Got lucky using the original dex file, return based on the input dex file.
     DCHECK_EQ(GetClassDescriptorStringId(dex_file, method->GetDeclaringClass()), string_id);
     return string_id;
@@ -139,18 +139,18 @@ uint32_t VerifierDeps::GetMethodDeclaringClassStringId(const DexFile& dex_file,
   return GetClassDescriptorStringId(dex_file, method->GetDeclaringClass());
 }
 
-uint32_t VerifierDeps::GetFieldDeclaringClassStringId(const DexFile& dex_file,
-                                                      uint32_t dex_field_idx,
-                                                      ArtField* field) {
+dex::StringIndex VerifierDeps::GetFieldDeclaringClassStringId(const DexFile& dex_file,
+                                                              uint32_t dex_field_idx,
+                                                              ArtField* field) {
   static_assert(kAccJavaFlagsMask == 0xFFFF, "Unexpected value of a constant");
   if (field == nullptr) {
-    return VerifierDeps::kUnresolvedMarker;
+    return dex::StringIndex(VerifierDeps::kUnresolvedMarker);
   }
-  const uint32_t string_id = TryGetClassDescriptorStringId(
+  const dex::StringIndex string_id = TryGetClassDescriptorStringId(
       dex_file,
       dex_file.GetFieldId(dex_field_idx).class_idx_,
       field->GetDeclaringClass());
-  if (string_id != DexFile::kDexNoIndex) {
+  if (string_id.IsValid()) {
     // Got lucky using the original dex file, return based on the input dex file.
     DCHECK_EQ(GetClassDescriptorStringId(dex_file, field->GetDeclaringClass()), string_id);
     return string_id;
@@ -190,7 +190,7 @@ static bool FindExistingStringId(const std::vector<std::string>& strings,
   return false;
 }
 
-uint32_t VerifierDeps::GetIdFromString(const DexFile& dex_file, const std::string& str) {
+dex::StringIndex VerifierDeps::GetIdFromString(const DexFile& dex_file, const std::string& str) {
   const DexFile::StringId* string_id = dex_file.FindStringId(str.c_str());
   if (string_id != nullptr) {
     // String is in the DEX file. Return its ID.
@@ -212,32 +212,33 @@ uint32_t VerifierDeps::GetIdFromString(const DexFile& dex_file, const std::strin
   {
     ReaderMutexLock mu(Thread::Current(), *Locks::verifier_deps_lock_);
     if (FindExistingStringId(deps->strings_, str, &found_id)) {
-      return num_ids_in_dex + found_id;
+      return dex::StringIndex(num_ids_in_dex + found_id);
     }
   }
   {
     WriterMutexLock mu(Thread::Current(), *Locks::verifier_deps_lock_);
     if (FindExistingStringId(deps->strings_, str, &found_id)) {
-      return num_ids_in_dex + found_id;
+      return dex::StringIndex(num_ids_in_dex + found_id);
     }
     deps->strings_.push_back(str);
-    uint32_t new_id = num_ids_in_dex + deps->strings_.size() - 1;
-    CHECK_GE(new_id, num_ids_in_dex);  // check for overflows
+    dex::StringIndex new_id(num_ids_in_dex + deps->strings_.size() - 1);
+    CHECK_GE(new_id.index_, num_ids_in_dex);  // check for overflows
     DCHECK_EQ(str, singleton->GetStringFromId(dex_file, new_id));
     return new_id;
   }
 }
 
-std::string VerifierDeps::GetStringFromId(const DexFile& dex_file, uint32_t string_id) const {
+std::string VerifierDeps::GetStringFromId(const DexFile& dex_file, dex::StringIndex string_id)
+    const {
   uint32_t num_ids_in_dex = dex_file.NumStringIds();
-  if (string_id < num_ids_in_dex) {
+  if (string_id.index_ < num_ids_in_dex) {
     return std::string(dex_file.StringDataByIdx(string_id));
   } else {
     const DexFileDeps* deps = GetDexFileDeps(dex_file);
     DCHECK(deps != nullptr);
-    string_id -= num_ids_in_dex;
-    CHECK_LT(string_id, deps->strings_.size());
-    return deps->strings_[string_id];
+    string_id.index_ -= num_ids_in_dex;
+    CHECK_LT(string_id.index_, deps->strings_.size());
+    return deps->strings_[string_id.index_];
   }
 }
 
@@ -389,8 +390,8 @@ void VerifierDeps::AddAssignability(const DexFile& dex_file,
   }
 
   // Get string IDs for both descriptors and store in the appropriate set.
-  uint32_t destination_id = GetClassDescriptorStringId(dex_file, destination);
-  uint32_t source_id = GetClassDescriptorStringId(dex_file, source);
+  dex::StringIndex destination_id = GetClassDescriptorStringId(dex_file, destination);
+  dex::StringIndex source_id = GetClassDescriptorStringId(dex_file, source);
 
   if (is_assignable) {
     dex_deps->assignable_types_.emplace(TypeAssignability(destination_id, source_id));
@@ -471,6 +472,9 @@ template<> inline uint32_t Encode<uint32_t>(uint32_t in) {
 template<> inline uint32_t Encode<dex::TypeIndex>(dex::TypeIndex in) {
   return in.index_;
 }
+template<> inline uint32_t Encode<dex::StringIndex>(dex::StringIndex in) {
+  return in.index_;
+}
 
 template<typename T> inline T Decode(uint32_t in);
 
@@ -482,6 +486,9 @@ template<> inline uint32_t Decode<uint32_t>(uint32_t in) {
 }
 template<> inline dex::TypeIndex Decode<dex::TypeIndex>(uint32_t in) {
   return dex::TypeIndex(in);
+}
+template<> inline dex::StringIndex Decode<dex::StringIndex>(uint32_t in) {
+  return dex::StringIndex(in);
 }
 
 template<typename T1, typename T2>
@@ -508,7 +515,7 @@ template<typename T1, typename T2, typename T3>
 static inline void DecodeTuple(const uint8_t** in, const uint8_t* end, std::tuple<T1, T2, T3>* t) {
   T1 v1 = Decode<T1>(DecodeUint32WithOverflowCheck(in, end));
   T2 v2 = Decode<T2>(DecodeUint32WithOverflowCheck(in, end));
-  T3 v3 = Decode<T2>(DecodeUint32WithOverflowCheck(in, end));
+  T3 v3 = Decode<T3>(DecodeUint32WithOverflowCheck(in, end));
   *t = std::make_tuple(v1, v2, v3);
 }
 

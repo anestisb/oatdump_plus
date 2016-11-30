@@ -49,7 +49,8 @@ TEST(TestDexFileBuilderTest, SimpleTest) {
   };
   ASSERT_EQ(arraysize(expected_strings), dex_file->NumStringIds());
   for (size_t i = 0; i != arraysize(expected_strings); ++i) {
-    EXPECT_STREQ(expected_strings[i], dex_file->GetStringData(dex_file->GetStringId(i))) << i;
+    EXPECT_STREQ(expected_strings[i],
+                 dex_file->GetStringData(dex_file->GetStringId(dex::StringIndex(i)))) << i;
   }
 
   static const char* const expected_types[] = {

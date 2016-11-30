@@ -237,18 +237,20 @@ class ClassLinker {
   // Resolve a String with the given index from the DexFile, storing the
   // result in the DexCache. The referrer is used to identify the
   // target DexCache and ClassLoader to use for resolution.
-  mirror::String* ResolveString(uint32_t string_idx, ArtMethod* referrer)
+  mirror::String* ResolveString(dex::StringIndex string_idx, ArtMethod* referrer)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Resolve a String with the given index from the DexFile, storing the
   // result in the DexCache.
-  mirror::String* ResolveString(const DexFile& dex_file, uint32_t string_idx,
+  mirror::String* ResolveString(const DexFile& dex_file,
+                                dex::StringIndex string_idx,
                                 Handle<mirror::DexCache> dex_cache)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Find a String with the given index from the DexFile, storing the
   // result in the DexCache if found. Return null if not found.
-  mirror::String* LookupString(const DexFile& dex_file, uint32_t string_idx,
+  mirror::String* LookupString(const DexFile& dex_file,
+                               dex::StringIndex string_idx,
                                Handle<mirror::DexCache> dex_cache)
       REQUIRES_SHARED(Locks::mutator_lock_);
 

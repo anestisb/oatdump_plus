@@ -475,9 +475,9 @@ static void dumpEncodedValue(const DexFile* pDexFile, const u1** data, u1 type, 
     case DexFile::kDexAnnotationString: {
       const u4 idx = static_cast<u4>(readVarWidth(data, arg, false));
       if (gOptions.outputFormat == OUTPUT_PLAIN) {
-        dumpEscapedString(pDexFile->StringDataByIdx(idx));
+        dumpEscapedString(pDexFile->StringDataByIdx(dex::StringIndex(idx)));
       } else {
-        dumpXmlAttribute(pDexFile->StringDataByIdx(idx));
+        dumpXmlAttribute(pDexFile->StringDataByIdx(dex::StringIndex(idx)));
       }
       break;
     }
@@ -518,7 +518,7 @@ static void dumpEncodedValue(const DexFile* pDexFile, const u1** data, u1 type, 
       for (u4 i = 0; i < size; i++) {
         const u4 name_idx = DecodeUnsignedLeb128(data);
         fputc(' ', gOutFile);
-        fputs(pDexFile->StringDataByIdx(name_idx), gOutFile);
+        fputs(pDexFile->StringDataByIdx(dex::StringIndex(name_idx)), gOutFile);
         fputc('=', gOutFile);
         dumpEncodedValue(pDexFile, data);
       }
@@ -599,7 +599,7 @@ static void dumpClassDef(const DexFile* pDexFile, int idx) {
   fprintf(gOutFile, "superclass_idx      : %d\n", pClassDef.superclass_idx_.index_);
   fprintf(gOutFile, "interfaces_off      : %d (0x%06x)\n",
           pClassDef.interfaces_off_, pClassDef.interfaces_off_);
-  fprintf(gOutFile, "source_file_idx     : %d\n", pClassDef.source_file_idx_);
+  fprintf(gOutFile, "source_file_idx     : %d\n", pClassDef.source_file_idx_.index_);
   fprintf(gOutFile, "annotations_off     : %d (0x%06x)\n",
           pClassDef.annotations_off_, pClassDef.annotations_off_);
   fprintf(gOutFile, "class_data_off      : %d (0x%06x)\n",
@@ -842,7 +842,7 @@ static std::unique_ptr<char[]> indexString(const DexFile* pDexFile,
       break;
     case Instruction::kIndexStringRef:
       if (index < pDexFile->GetHeader().string_ids_size_) {
-        const char* st = pDexFile->StringDataByIdx(index);
+        const char* st = pDexFile->StringDataByIdx(dex::StringIndex(index));
         outSize = snprintf(buf.get(), bufSize, "\"%s\" // string@%0*x", st, width, index);
       } else {
         outSize = snprintf(buf.get(), bufSize, "<string?> // string@%0*x", width, index);
@@ -1564,13 +1564,13 @@ static void dumpClass(const DexFile* pDexFile, int idx, char** pLastPackage) {
   // End of class.
   if (gOptions.outputFormat == OUTPUT_PLAIN) {
     const char* fileName;
-    if (pClassDef.source_file_idx_ != DexFile::kDexNoIndex) {
+    if (pClassDef.source_file_idx_.IsValid()) {
       fileName = pDexFile->StringDataByIdx(pClassDef.source_file_idx_);
     } else {
       fileName = "unknown";
     }
     fprintf(gOutFile, "  source_file_idx   : %d (%s)\n\n",
-            pClassDef.source_file_idx_, fileName);
+            pClassDef.source_file_idx_.index_, fileName);
   } else if (gOptions.outputFormat == OUTPUT_XML) {
     fprintf(gOutFile, "</class>\n");
   }

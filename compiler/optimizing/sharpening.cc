@@ -267,7 +267,7 @@ void HSharpening::ProcessLoadString(HLoadString* load_string) {
   DCHECK(!load_string->IsInDexCache());
 
   const DexFile& dex_file = load_string->GetDexFile();
-  uint32_t string_index = load_string->GetStringIndex();
+  dex::StringIndex string_index = load_string->GetStringIndex();
 
   HLoadString::LoadKind desired_load_kind = HLoadString::LoadKind::kDexCacheViaMethod;
   uint64_t address = 0u;  // String or dex cache element address.

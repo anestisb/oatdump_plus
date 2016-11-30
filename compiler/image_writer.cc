@@ -1451,7 +1451,8 @@ void ImageWriter::CalculateNewObjectOffsets() {
     InternTable* const intern_table = runtime->GetInternTable();
     for (size_t i = 0, count = dex_file->NumStringIds(); i < count; ++i) {
       uint32_t utf16_length;
-      const char* utf8_data = dex_file->StringDataAndUtf16LengthByIdx(i, &utf16_length);
+      const char* utf8_data = dex_file->StringDataAndUtf16LengthByIdx(dex::StringIndex(i),
+                                                                      &utf16_length);
       mirror::String* string = intern_table->LookupStrong(self, utf16_length, utf8_data).Ptr();
       TryAssignBinSlot(work_stack, string, oat_index);
     }

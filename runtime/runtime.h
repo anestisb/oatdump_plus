@@ -28,6 +28,7 @@
 
 #include "arch/instruction_set.h"
 #include "base/macros.h"
+#include "dex_file_types.h"
 #include "experimental_flags.h"
 #include "gc_root.h"
 #include "instrumentation.h"
@@ -520,7 +521,7 @@ class Runtime {
       REQUIRES(Locks::intern_table_lock_);
   void RecordWeakStringRemoval(ObjPtr<mirror::String> s) const
       REQUIRES(Locks::intern_table_lock_);
-  void RecordResolveString(ObjPtr<mirror::DexCache> dex_cache, uint32_t string_idx) const
+  void RecordResolveString(ObjPtr<mirror::DexCache> dex_cache, dex::StringIndex string_idx) const
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   void SetFaultMessage(const std::string& message) REQUIRES(!fault_message_lock_);

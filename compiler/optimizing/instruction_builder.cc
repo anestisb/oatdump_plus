@@ -2625,7 +2625,7 @@ bool HInstructionBuilder::ProcessDexInstruction(const Instruction& instruction, 
     }
 
     case Instruction::CONST_STRING: {
-      uint32_t string_index = instruction.VRegB_21c();
+      dex::StringIndex string_index(instruction.VRegB_21c());
       AppendInstruction(
           new (arena_) HLoadString(graph_->GetCurrentMethod(), string_index, *dex_file_, dex_pc));
       UpdateLocal(instruction.VRegA_21c(), current_block_->GetLastInstruction());
@@ -2633,7 +2633,7 @@ bool HInstructionBuilder::ProcessDexInstruction(const Instruction& instruction, 
     }
 
     case Instruction::CONST_STRING_JUMBO: {
-      uint32_t string_index = instruction.VRegB_31c();
+      dex::StringIndex string_index(instruction.VRegB_31c());
       AppendInstruction(
           new (arena_) HLoadString(graph_->GetCurrentMethod(), string_index, *dex_file_, dex_pc));
       UpdateLocal(instruction.VRegA_31c(), current_block_->GetLastInstruction());
