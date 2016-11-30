@@ -854,10 +854,6 @@ class Heap {
         allocator_type != kAllocatorTypeRegionTLAB;
   }
   static ALWAYS_INLINE bool AllocatorMayHaveConcurrentGC(AllocatorType allocator_type) {
-    if (kUseReadBarrier) {
-      // Read barrier may have the TLAB allocator but is always concurrent. TODO: clean this up.
-      return true;
-    }
     return
         allocator_type != kAllocatorTypeBumpPointer &&
         allocator_type != kAllocatorTypeTLAB;
@@ -927,20 +923,11 @@ class Heap {
                                               size_t* bytes_tl_bulk_allocated)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  mirror::Object* AllocWithNewTLAB(Thread* self,
-                                   size_t alloc_size,
-                                   bool grow,
-                                   size_t* bytes_allocated,
-                                   size_t* usable_size,
-                                   size_t* bytes_tl_bulk_allocated)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
   void ThrowOutOfMemoryError(Thread* self, size_t byte_count, AllocatorType allocator_type)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ALWAYS_INLINE bool IsOutOfMemoryOnAllocation(AllocatorType allocator_type,
-                                               size_t alloc_size,
-                                               bool grow);
+  template <bool kGrow>
+  ALWAYS_INLINE bool IsOutOfMemoryOnAllocation(AllocatorType allocator_type, size_t alloc_size);
 
   // Run the finalizers. If timeout is non zero, then we use the VMRuntime version.
   void RunFinalization(JNIEnv* env, uint64_t timeout);
