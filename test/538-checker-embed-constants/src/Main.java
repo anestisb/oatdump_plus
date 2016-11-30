@@ -105,7 +105,7 @@ public class Main {
   /// CHECK-NOT:            and{{(\.w)?}}
   /// CHECK-NOT:            bic{{(\.w)?}}
   /// CHECK-DAG:            and {{r\d+}}, {{r\d+}}, #0xff
-  /// CHECK-DAG:            movs {{r\d+}}, #0
+  /// CHECK-DAG:            mov{{s?}} {{r\d+}}, #0
   /// CHECK-NOT:            and{{(\.w)?}}
   /// CHECK-NOT:            bic{{(\.w)?}}
 
@@ -115,7 +115,7 @@ public class Main {
 
   /// CHECK-START-ARM: long Main.and511(long) disassembly (after)
   /// CHECK:                mov {{r\d+}}, #511
-  /// CHECK-NEXT:           movs {{r\d+}}, #0
+  /// CHECK-NEXT:           mov{{s?}} {{r\d+}}, #0
   /// CHECK-NOT:            and{{(\.w)?}}
   /// CHECK-NOT:            bic{{(\.w)?}}
   /// CHECK:                and{{(\.w)?}} {{r\d+}}, {{r\d+}}, {{r\d+}}
@@ -167,7 +167,7 @@ public class Main {
 
   /// CHECK-START-ARM: long Main.or511(long) disassembly (after)
   /// CHECK:                mov {{r\d+}}, #511
-  /// CHECK-NEXT:           movs {{r\d+}}, #0
+  /// CHECK-NEXT:           mov{{s?}} {{r\d+}}, #0
   /// CHECK-NOT:            orr{{(\.w)?}}
   /// CHECK-NOT:            orn
   /// CHECK:                orr{{(\.w)?}} {{r\d+}}, {{r\d+}}, {{r\d+}}
@@ -218,7 +218,7 @@ public class Main {
 
   /// CHECK-START-ARM: long Main.xor511(long) disassembly (after)
   /// CHECK:                mov {{r\d+}}, #511
-  /// CHECK-NEXT:           movs {{r\d+}}, #0
+  /// CHECK-NEXT:           mov{{s?}} {{r\d+}}, #0
   /// CHECK-NOT:            eor{{(\.w)?}}
   /// CHECK:                eor{{(\.w)?}} {{r\d+}}, {{r\d+}}, {{r\d+}}
   /// CHECK-NEXT:           eor{{(\.w)?}} {{r\d+}}, {{r\d+}}, {{r\d+}}
@@ -242,7 +242,7 @@ public class Main {
 
   // Note: No support for partial long constant embedding.
   /// CHECK-START-ARM: long Main.xor0xfffffff00000000f(long) disassembly (after)
-  /// CHECK-DAG:            movs {{r\d+}}, #15
+  /// CHECK-DAG:            mov{{s?}} {{r\d+}}, #15
   /// CHECK-DAG:            mvn {{r\d+}}, #15
   /// CHECK-NOT:            eor{{(\.w)?}}
   /// CHECK-DAG:            eor{{(\.w)?}} {{r\d+}}, {{r\d+}}, {{r\d+}}
@@ -507,7 +507,7 @@ public class Main {
   /// CHECK:     <<Arg:j\d+>>       ParameterValue
   /// CHECK:     <<ConstM1:j\d+>>   LongConstant -1
   /// CHECK:                        Add [<<Arg>>,<<ConstM1>>]
-  /// CHECK-NEXT:                   subs r{{\d+}}, #1
+  /// CHECK-NEXT:                   {{adds|subs}} r{{\d+}}, #{{4294967295|1}}
   /// CHECK-NEXT:                   adc r{{\d+}}, r{{\d+}}, #4294967295
   /// CHECK:                        Sub [<<Arg>>,<<ConstM1>>]
   /// CHECK-NEXT:                   adds r{{\d+}}, #1
