@@ -43,7 +43,7 @@ class OsrVisitor : public StackVisitor {
           Runtime::Current()->GetJit()->GetCodeCache()->LookupOsrMethodHeader(m);
       if (header != nullptr && header == GetCurrentOatQuickMethodHeader()) {
         in_osr_method_ = true;
-      } else if (IsCurrentFrameInInterpreter()) {
+      } else if (IsShadowFrame()) {
         in_interpreter_ = true;
       }
       return false;
