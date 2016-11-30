@@ -84,10 +84,14 @@ class ClassTable {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns the number of classes in previous snapshots.
-  size_t NumZygoteClasses() const REQUIRES(!lock_);
+  size_t NumZygoteClasses(ObjPtr<mirror::ClassLoader> defining_loader) const
+      REQUIRES(!lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns all off the classes in the lastest snapshot.
-  size_t NumNonZygoteClasses() const REQUIRES(!lock_);
+  size_t NumNonZygoteClasses(ObjPtr<mirror::ClassLoader> defining_loader) const
+      REQUIRES(!lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Update a class in the table with the new class. Returns the existing class which was replaced.
   mirror::Class* UpdateClass(const char* descriptor, mirror::Class* new_klass, size_t hash)
@@ -172,6 +176,11 @@ class ClassTable {
 
  private:
   void InsertWithoutLocks(ObjPtr<mirror::Class> klass) NO_THREAD_SAFETY_ANALYSIS;
+
+  size_t CountDefiningLoaderClasses(ObjPtr<mirror::ClassLoader> defining_loader,
+                                    const ClassSet& set) const
+      REQUIRES(lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Return true if we inserted the oat file, false if it already exists.
   bool InsertOatFileLocked(const OatFile* oat_file)
