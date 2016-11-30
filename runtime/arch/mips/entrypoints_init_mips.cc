@@ -71,7 +71,7 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
   jpoints->pDlsymLookup = art_jni_dlsym_lookup_stub;
 
   // Alloc
-  ResetQuickAllocEntryPoints(qpoints);
+  ResetQuickAllocEntryPoints(qpoints, /*is_marking*/ false);
 
   // Cast
   qpoints->pInstanceofNonTrivial = artInstanceOfFromCode;
