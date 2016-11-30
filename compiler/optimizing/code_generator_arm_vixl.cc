@@ -6242,16 +6242,34 @@ void CodeGeneratorARMVIXL::MoveFromReturnRegister(Location trg, Primitive::Type 
   }
 }
 
-void LocationsBuilderARMVIXL::VisitClassTableGet(
-    HClassTableGet* instruction ATTRIBUTE_UNUSED) {
-  TODO_VIXL32(FATAL);
+void LocationsBuilderARMVIXL::VisitClassTableGet(HClassTableGet* instruction) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister());
 }
 
-void InstructionCodeGeneratorARMVIXL::VisitClassTableGet(
-    HClassTableGet* instruction ATTRIBUTE_UNUSED) {
-  TODO_VIXL32(FATAL);
+void InstructionCodeGeneratorARMVIXL::VisitClassTableGet(HClassTableGet* instruction) {
+  if (instruction->GetTableKind() == HClassTableGet::TableKind::kVTable) {
+    uint32_t method_offset = mirror::Class::EmbeddedVTableEntryOffset(
+        instruction->GetIndex(), kArmPointerSize).SizeValue();
+    GetAssembler()->LoadFromOffset(kLoadWord,
+                                   OutputRegister(instruction),
+                                   InputRegisterAt(instruction, 0),
+                                   method_offset);
+  } else {
+    uint32_t method_offset = static_cast<uint32_t>(ImTable::OffsetOfElement(
+        instruction->GetIndex(), kArmPointerSize));
+    GetAssembler()->LoadFromOffset(kLoadWord,
+                                   OutputRegister(instruction),
+                                   InputRegisterAt(instruction, 0),
+                                   mirror::Class::ImtPtrOffset(kArmPointerSize).Uint32Value());
+    GetAssembler()->LoadFromOffset(kLoadWord,
+                                   OutputRegister(instruction),
+                                   OutputRegister(instruction),
+                                   method_offset);
+  }
 }
-
 
 #undef __
 #undef QUICK_ENTRY_POINT
