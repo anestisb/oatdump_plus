@@ -630,7 +630,7 @@ void Instrumentation::ConfigureStubs(const char* key, InstrumentationLevel desir
 }
 
 static void ResetQuickAllocEntryPointsForThread(Thread* thread, void* arg ATTRIBUTE_UNUSED) {
-  thread->ResetQuickAllocEntryPointsForThread();
+  thread->ResetQuickAllocEntryPointsForThread(kUseReadBarrier && thread->GetIsGcMarking());
 }
 
 void Instrumentation::SetEntrypointsInstrumented(bool instrumented) {
