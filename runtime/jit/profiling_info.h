@@ -39,46 +39,13 @@ class Class;
 // Once the classes_ array is full, we consider the INVOKE to be megamorphic.
 class InlineCache {
  public:
-  bool IsMonomorphic() const {
-    DCHECK_GE(kIndividualCacheSize, 2);
-    return !classes_[0].IsNull() && classes_[1].IsNull();
-  }
-
-  bool IsMegamorphic() const {
-    for (size_t i = 0; i < kIndividualCacheSize; ++i) {
-      if (classes_[i].IsNull()) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  mirror::Class* GetMonomorphicType() const REQUIRES_SHARED(Locks::mutator_lock_) {
-    // Note that we cannot ensure the inline cache is actually monomorphic
-    // at this point, as other threads may have updated it.
-    DCHECK(!classes_[0].IsNull());
-    return classes_[0].Read();
-  }
-
-  bool IsUninitialized() const {
-    return classes_[0].IsNull();
-  }
-
-  bool IsPolymorphic() const {
-    DCHECK_GE(kIndividualCacheSize, 3);
-    return !classes_[1].IsNull() && classes_[kIndividualCacheSize - 1].IsNull();
-  }
-
-  mirror::Class* GetTypeAt(size_t i) const REQUIRES_SHARED(Locks::mutator_lock_) {
-    return classes_[i].Read();
-  }
-
   static constexpr uint16_t kIndividualCacheSize = 5;
 
  private:
   uint32_t dex_pc_;
   GcRoot<mirror::Class> classes_[kIndividualCacheSize];
 
+  friend class jit::JitCodeCache;
   friend class ProfilingInfo;
 
   DISALLOW_COPY_AND_ASSIGN(InlineCache);
@@ -101,18 +68,6 @@ class ProfilingInfo {
       // which can be concurrently collected.
       REQUIRES(Roles::uninterruptible_)
       REQUIRES_SHARED(Locks::mutator_lock_);
-
-  // NO_THREAD_SAFETY_ANALYSIS since we don't know what the callback requires.
-  template<typename RootVisitorType>
-  void VisitRoots(RootVisitorType& visitor) NO_THREAD_SAFETY_ANALYSIS {
-    visitor.VisitRootIfNonNull(holding_class_.AddressWithoutBarrier());
-    for (size_t i = 0; i < number_of_inline_caches_; ++i) {
-      InlineCache* cache = &cache_[i];
-      for (size_t j = 0; j < InlineCache::kIndividualCacheSize; ++j) {
-        visitor.VisitRootIfNonNull(cache->classes_[j].AddressWithoutBarrier());
-      }
-    }
-  }
 
   ArtMethod* GetMethod() const {
     return method_;
@@ -174,9 +129,6 @@ class ProfilingInfo {
 
   // Method this profiling info is for.
   ArtMethod* const method_;
-
-  // Holding class for the method in case method is a copied method.
-  GcRoot<mirror::Class> holding_class_;
 
   // Whether the ArtMethod is currently being compiled. This flag
   // is implicitly guarded by the JIT code cache lock.
