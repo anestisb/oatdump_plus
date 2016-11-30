@@ -424,6 +424,29 @@ inline void PointerArray::Fixup(mirror::PointerArray* dest,
   }
 }
 
+template<bool kUnchecked>
+void PointerArray::Memcpy(int32_t dst_pos,
+                          ObjPtr<PointerArray> src,
+                          int32_t src_pos,
+                          int32_t count,
+                          PointerSize ptr_size) {
+  DCHECK(!Runtime::Current()->IsActiveTransaction());
+  DCHECK(!src.IsNull());
+  if (ptr_size == PointerSize::k64) {
+    LongArray* l_this = (kUnchecked ? down_cast<LongArray*>(static_cast<Object*>(this))
+                                    : AsLongArray());
+    LongArray* l_src = (kUnchecked ? down_cast<LongArray*>(static_cast<Object*>(src.Ptr()))
+                                   : src->AsLongArray());
+    l_this->Memcpy(dst_pos, l_src, src_pos, count);
+  } else {
+    IntArray* i_this = (kUnchecked ? down_cast<IntArray*>(static_cast<Object*>(this))
+                                   : AsIntArray());
+    IntArray* i_src = (kUnchecked ? down_cast<IntArray*>(static_cast<Object*>(src.Ptr()))
+                                  : src->AsIntArray());
+    i_this->Memcpy(dst_pos, i_src, src_pos, count);
+  }
+}
+
 template<typename T>
 inline void PrimitiveArray<T>::SetArrayClass(ObjPtr<Class> array_class) {
   CHECK(array_class_.IsNull());
