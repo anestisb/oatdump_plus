@@ -674,6 +674,8 @@ class MANAGED Class FINAL : public Object {
     return MemberOffset(OFFSETOF_MEMBER(Class, super_class_));
   }
 
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   ClassLoader* GetClassLoader() ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_);
 
   void SetClassLoader(ObjPtr<ClassLoader> new_cl) REQUIRES_SHARED(Locks::mutator_lock_);
