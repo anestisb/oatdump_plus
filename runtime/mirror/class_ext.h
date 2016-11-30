@@ -19,8 +19,11 @@
 
 #include "class-inl.h"
 
+#include "array.h"
+#include "dex_cache.h"
 #include "gc_root.h"
 #include "object.h"
+#include "object_array.h"
 #include "object_callbacks.h"
 #include "string.h"
 
@@ -49,6 +52,22 @@ class MANAGED ClassExt : public Object {
     return GetFieldObject<ClassExt>(OFFSET_OF_OBJECT_MEMBER(ClassExt, verify_error_));
   }
 
+  ObjectArray<DexCache>* GetObsoleteDexCaches() REQUIRES_SHARED(Locks::mutator_lock_) {
+    return GetFieldObject<ObjectArray<DexCache>>(
+        OFFSET_OF_OBJECT_MEMBER(ClassExt, obsolete_dex_caches_));
+  }
+
+  PointerArray* GetObsoleteMethods() REQUIRES_SHARED(Locks::mutator_lock_) {
+    return GetFieldObject<PointerArray>(OFFSET_OF_OBJECT_MEMBER(ClassExt, obsolete_methods_));
+  }
+
+  void SetObsoleteArrays(ObjPtr<PointerArray> methods, ObjPtr<ObjectArray<DexCache>> dex_caches)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Extend the obsolete arrays by the given amount.
+  bool ExtendObsoleteArrays(Thread* self, uint32_t increase)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   static void SetClass(ObjPtr<Class> dalvik_system_ClassExt);
   static void ResetClass();
   static void VisitRoots(RootVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
@@ -57,6 +76,13 @@ class MANAGED ClassExt : public Object {
 
  private:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
+  HeapReference<ObjectArray<DexCache>> obsolete_dex_caches_;
+
+  HeapReference<PointerArray> obsolete_methods_;
+
+  HeapReference<DexCache> original_dex_cache_;
+
+  // The saved verification error of this class.
   HeapReference<Object> verify_error_;
 
   static GcRoot<Class> dalvik_system_ClassExt_;

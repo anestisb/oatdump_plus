@@ -24,6 +24,7 @@ cc_defaults {
            "ti_heap.cc",
            "ti_method.cc",
            "ti_stack.cc",
+           "ti_redefine.cc",
            "transform.cc"],
     include_dirs: ["art/runtime"],
     shared_libs: [

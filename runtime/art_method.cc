@@ -35,6 +35,7 @@
 #include "jit/profiling_info.h"
 #include "jni_internal.h"
 #include "mirror/class-inl.h"
+#include "mirror/class_ext.h"
 #include "mirror/executable.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
@@ -55,6 +56,28 @@ ArtMethod* ArtMethod::FromReflectedMethod(const ScopedObjectAccessAlreadyRunnabl
   ObjPtr<mirror::Executable> executable = soa.Decode<mirror::Executable>(jlr_method);
   DCHECK(executable != nullptr);
   return executable->GetArtMethod();
+}
+
+mirror::DexCache* ArtMethod::GetObsoleteDexCache() {
+  DCHECK(!Runtime::Current()->IsAotCompiler()) << PrettyMethod();
+  DCHECK(IsObsolete());
+  ObjPtr<mirror::ClassExt> ext(GetDeclaringClass()->GetExtData());
+  CHECK(!ext.IsNull());
+  ObjPtr<mirror::PointerArray> obsolete_methods(ext->GetObsoleteMethods());
+  CHECK(!obsolete_methods.IsNull());
+  DCHECK(ext->GetObsoleteDexCaches() != nullptr);
+  int32_t len = obsolete_methods->GetLength();
+  DCHECK_EQ(len, ext->GetObsoleteDexCaches()->GetLength());
+  // TODO I think this is fine since images should never have obsolete methods in them.
+  PointerSize pointer_size = kRuntimePointerSize;
+  DCHECK_EQ(kRuntimePointerSize, Runtime::Current()->GetClassLinker()->GetImagePointerSize());
+  for (int32_t i = 0; i < len; i++) {
+    if (this == obsolete_methods->GetElementPtrSize<ArtMethod*>(i, pointer_size)) {
+      return ext->GetObsoleteDexCaches()->Get(i);
+    }
+  }
+  LOG(FATAL) << "This method does not appear in the obsolete map of its class!";
+  UNREACHABLE();
 }
 
 mirror::String* ArtMethod::GetNameAsString(Thread* self) {
