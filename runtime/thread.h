@@ -1007,7 +1007,7 @@ class Thread {
     tls32_.state_and_flags.as_atomic_int.FetchAndAndSequentiallyConsistent(-1 ^ flag);
   }
 
-  void ResetQuickAllocEntryPointsForThread(bool is_marking);
+  void ResetQuickAllocEntryPointsForThread();
 
   // Returns the remaining space in the TLAB.
   size_t TlabSize() const;
