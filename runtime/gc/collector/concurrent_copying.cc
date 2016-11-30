@@ -2145,14 +2145,18 @@ mirror::Object* ConcurrentCopying::Copy(mirror::Object* from_ref) {
       to_ref->SetReadBarrierState(ReadBarrier::GrayState());
     }
 
+    // Do a fence to prevent the field CAS in ConcurrentCopying::Process from possibly reordering
+    // before the object copy.
+    QuasiAtomic::ThreadFenceRelease();
+
     LockWord new_lock_word = LockWord::FromForwardingAddress(reinterpret_cast<size_t>(to_ref));
 
     // Try to atomically write the fwd ptr.
-    bool success = from_ref->CasLockWordWeakSequentiallyConsistent(old_lock_word, new_lock_word);
+    bool success = from_ref->CasLockWordWeakRelaxed(old_lock_word, new_lock_word);
     if (LIKELY(success)) {
       // The CAS succeeded.
-      objects_moved_.FetchAndAddSequentiallyConsistent(1);
-      bytes_moved_.FetchAndAddSequentiallyConsistent(region_space_alloc_size);
+      objects_moved_.FetchAndAddRelaxed(1);
+      bytes_moved_.FetchAndAddRelaxed(region_space_alloc_size);
       if (LIKELY(!fall_back_to_non_moving)) {
         DCHECK(region_space_->IsInToSpace(to_ref));
       } else {
