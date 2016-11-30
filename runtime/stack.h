@@ -755,10 +755,6 @@ class StackVisitor {
     return cur_shadow_frame_;
   }
 
-  bool IsCurrentFrameInInterpreter() const {
-    return cur_shadow_frame_ != nullptr;
-  }
-
   HandleScope* GetCurrentHandleScope(size_t pointer_size) const {
     ArtMethod** sp = GetCurrentQuickFrame();
     // Skip ArtMethod*; handle scope comes next;
