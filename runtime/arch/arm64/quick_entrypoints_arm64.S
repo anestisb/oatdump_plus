@@ -1317,6 +1317,7 @@ ENTRY art_quick_check_instance_of
     RESTORE_TWO_REGS_DECREASE_FRAME x0, x1, 32
     ret
     .cfi_restore_state                // Reset unwind info so following code unwinds.
+    .cfi_def_cfa_offset 32            // workaround for clang bug: 31975598
 
 .Lthrow_class_cast_exception:
     // Restore
@@ -1484,6 +1485,7 @@ ENTRY art_quick_aput_obj
     strb w3, [x3, x0]
     ret
     .cfi_restore_state            // Reset unwind info so following code unwinds.
+    .cfi_def_cfa_offset 32        // workaround for clang bug: 31975598
 .Lthrow_array_store_exception:
     RESTORE_TWO_REGS x2, xLR, 16
     RESTORE_TWO_REGS_DECREASE_FRAME x0, x1, 32

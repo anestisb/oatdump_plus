@@ -285,12 +285,15 @@ MterpDone:
  */
     cmp     wPROFILE, #0
     bgt     MterpProfileActive                      // if > 0, we may have some counts to report.
-    ldp     fp, lr, [sp, #64]
-    ldp     xPC, xFP, [sp, #48]
-    ldp     xSELF, xINST, [sp, #32]
-    ldp     xIBASE, xREFS, [sp, #16]
-    ldp     xPROFILE, x27, [sp], #80
+    .cfi_remember_state
+    RESTORE_TWO_REGS                fp, lr, 64
+    RESTORE_TWO_REGS                xPC, xFP, 48
+    RESTORE_TWO_REGS                xSELF, xINST, 32
+    RESTORE_TWO_REGS                xIBASE, xREFS, 16
+    RESTORE_TWO_REGS_DECREASE_FRAME xPROFILE, x27, 80
     ret
+    .cfi_restore_state                              // Reset unwind info so following code unwinds.
+    .cfi_def_cfa_offset 80                          // workaround for clang bug: 31975598
 
 MterpProfileActive:
     mov     xINST, x0                               // stash return value
@@ -301,11 +304,11 @@ MterpProfileActive:
     strh    wPROFILE, [x1, #SHADOWFRAME_HOTNESS_COUNTDOWN_OFFSET]
     bl      MterpAddHotnessBatch                    // (method, shadow_frame, self)
     mov     x0, xINST                               // restore return value
-    ldp     fp, lr, [sp, #64]
-    ldp     xPC, xFP, [sp, #48]
-    ldp     xSELF, xINST, [sp, #32]
-    ldp     xIBASE, xREFS, [sp, #16]
-    ldp     xPROFILE, x27, [sp], #80
+    RESTORE_TWO_REGS                fp, lr, 64
+    RESTORE_TWO_REGS                xPC, xFP, 48
+    RESTORE_TWO_REGS                xSELF, xINST, 32
+    RESTORE_TWO_REGS                xIBASE, xREFS, 16
+    RESTORE_TWO_REGS_DECREASE_FRAME xPROFILE, x27, 80
     ret
 
     .cfi_endproc
