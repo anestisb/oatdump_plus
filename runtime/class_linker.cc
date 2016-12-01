@@ -820,123 +820,6 @@ void ClassLinker::RunRootClinits() {
   }
 }
 
-static void SanityCheckArtMethod(ArtMethod* m,
-                                 ObjPtr<mirror::Class> expected_class,
-                                 const std::vector<gc::space::ImageSpace*>& spaces)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  if (m->IsRuntimeMethod()) {
-    ObjPtr<mirror::Class> declaring_class = m->GetDeclaringClassUnchecked();
-    CHECK(declaring_class == nullptr) << declaring_class << " " << m->PrettyMethod();
-  } else if (m->IsCopied()) {
-    CHECK(m->GetDeclaringClass() != nullptr) << m->PrettyMethod();
-  } else if (expected_class != nullptr) {
-    CHECK_EQ(m->GetDeclaringClassUnchecked(), expected_class) << m->PrettyMethod();
-  }
-  if (!spaces.empty()) {
-    bool contains = false;
-    for (gc::space::ImageSpace* space : spaces) {
-      auto& header = space->GetImageHeader();
-      size_t offset = reinterpret_cast<uint8_t*>(m) - space->Begin();
-
-      const ImageSection& methods = header.GetMethodsSection();
-      contains = contains || methods.Contains(offset);
-
-      const ImageSection& runtime_methods = header.GetRuntimeMethodsSection();
-      contains = contains || runtime_methods.Contains(offset);
-    }
-    CHECK(contains) << m << " not found";
-  }
-}
-
-static void SanityCheckArtMethodPointerArray(ObjPtr<mirror::PointerArray> arr,
-                                             ObjPtr<mirror::Class> expected_class,
-                                             PointerSize pointer_size,
-                                             const std::vector<gc::space::ImageSpace*>& spaces)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  CHECK(arr != nullptr);
-  for (int32_t j = 0; j < arr->GetLength(); ++j) {
-    auto* method = arr->GetElementPtrSize<ArtMethod*>(j, pointer_size);
-    // expected_class == null means we are a dex cache.
-    if (expected_class != nullptr) {
-      CHECK(method != nullptr);
-    }
-    if (method != nullptr) {
-      SanityCheckArtMethod(method, expected_class, spaces);
-    }
-  }
-}
-
-static void SanityCheckArtMethodPointerArray(ArtMethod** arr,
-                                             size_t size,
-                                             PointerSize pointer_size,
-                                             const std::vector<gc::space::ImageSpace*>& spaces)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  CHECK_EQ(arr != nullptr, size != 0u);
-  if (arr != nullptr) {
-    bool contains = false;
-    for (auto space : spaces) {
-      auto offset = reinterpret_cast<uint8_t*>(arr) - space->Begin();
-      if (space->GetImageHeader().GetImageSection(
-          ImageHeader::kSectionDexCacheArrays).Contains(offset)) {
-        contains = true;
-        break;
-      }
-    }
-    CHECK(contains);
-  }
-  for (size_t j = 0; j < size; ++j) {
-    ArtMethod* method = mirror::DexCache::GetElementPtrSize(arr, j, pointer_size);
-    // expected_class == null means we are a dex cache.
-    if (method != nullptr) {
-      SanityCheckArtMethod(method, nullptr, spaces);
-    }
-  }
-}
-
-static void SanityCheckObjectsCallback(mirror::Object* obj, void* arg ATTRIBUTE_UNUSED)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  DCHECK(obj != nullptr);
-  CHECK(obj->GetClass() != nullptr) << "Null class in object " << obj;
-  CHECK(obj->GetClass()->GetClass() != nullptr) << "Null class class " << obj;
-  if (obj->IsClass()) {
-    auto klass = obj->AsClass();
-    for (ArtField& field : klass->GetIFields()) {
-      CHECK_EQ(field.GetDeclaringClass(), klass);
-    }
-    for (ArtField& field : klass->GetSFields()) {
-      CHECK_EQ(field.GetDeclaringClass(), klass);
-    }
-    auto* runtime = Runtime::Current();
-    auto image_spaces = runtime->GetHeap()->GetBootImageSpaces();
-    auto pointer_size = runtime->GetClassLinker()->GetImagePointerSize();
-    for (auto& m : klass->GetMethods(pointer_size)) {
-      SanityCheckArtMethod(&m, klass, image_spaces);
-    }
-    auto* vtable = klass->GetVTable();
-    if (vtable != nullptr) {
-      SanityCheckArtMethodPointerArray(vtable, nullptr, pointer_size, image_spaces);
-    }
-    if (klass->ShouldHaveImt()) {
-      ImTable* imt = klass->GetImt(pointer_size);
-      for (size_t i = 0; i < ImTable::kSize; ++i) {
-        SanityCheckArtMethod(imt->Get(i, pointer_size), nullptr, image_spaces);
-      }
-    }
-    if (klass->ShouldHaveEmbeddedVTable()) {
-      for (int32_t i = 0; i < klass->GetEmbeddedVTableLength(); ++i) {
-        SanityCheckArtMethod(klass->GetEmbeddedVTableEntry(i, pointer_size), nullptr, image_spaces);
-      }
-    }
-    mirror::IfTable* iftable = klass->GetIfTable();
-    for (int32_t i = 0; i < klass->GetIfTableCount(); ++i) {
-      if (iftable->GetMethodArrayCount(i) > 0) {
-        SanityCheckArtMethodPointerArray(
-            iftable->GetMethodArray(i), nullptr, pointer_size, image_spaces);
-      }
-    }
-  }
-}
-
 // Set image methods' entry point to interpreter.
 class SetInterpreterEntrypointArtMethodVisitor : public ArtMethodVisitor {
  public:
@@ -1607,6 +1490,153 @@ bool ClassLinker::OpenImageDexFiles(gc::space::ImageSpace* space,
   return true;
 }
 
+// Helper class for ArtMethod checks when adding an image. Keeps all required functionality
+// together and caches some intermediate results.
+class ImageSanityChecks FINAL {
+ public:
+  static void CheckObjects(gc::Heap* heap, ClassLinker* class_linker)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    ImageSanityChecks isc(heap, class_linker);
+    heap->VisitObjects(ImageSanityChecks::SanityCheckObjectsCallback, &isc);
+  }
+
+  static void CheckPointerArray(gc::Heap* heap,
+                                ClassLinker* class_linker,
+                                ArtMethod** arr,
+                                size_t size)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    ImageSanityChecks isc(heap, class_linker);
+    isc.SanityCheckArtMethodPointerArray(arr, size);
+  }
+
+  static void SanityCheckObjectsCallback(mirror::Object* obj, void* arg)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    DCHECK(obj != nullptr);
+    CHECK(obj->GetClass() != nullptr) << "Null class in object " << obj;
+    CHECK(obj->GetClass()->GetClass() != nullptr) << "Null class class " << obj;
+    if (obj->IsClass()) {
+      ImageSanityChecks* isc = reinterpret_cast<ImageSanityChecks*>(arg);
+
+      auto klass = obj->AsClass();
+      for (ArtField& field : klass->GetIFields()) {
+        CHECK_EQ(field.GetDeclaringClass(), klass);
+      }
+      for (ArtField& field : klass->GetSFields()) {
+        CHECK_EQ(field.GetDeclaringClass(), klass);
+      }
+      const auto pointer_size = isc->pointer_size_;
+      for (auto& m : klass->GetMethods(pointer_size)) {
+        isc->SanityCheckArtMethod(&m, klass);
+      }
+      auto* vtable = klass->GetVTable();
+      if (vtable != nullptr) {
+        isc->SanityCheckArtMethodPointerArray(vtable, nullptr);
+      }
+      if (klass->ShouldHaveImt()) {
+        ImTable* imt = klass->GetImt(pointer_size);
+        for (size_t i = 0; i < ImTable::kSize; ++i) {
+          isc->SanityCheckArtMethod(imt->Get(i, pointer_size), nullptr);
+        }
+      }
+      if (klass->ShouldHaveEmbeddedVTable()) {
+        for (int32_t i = 0; i < klass->GetEmbeddedVTableLength(); ++i) {
+          isc->SanityCheckArtMethod(klass->GetEmbeddedVTableEntry(i, pointer_size), nullptr);
+        }
+      }
+      mirror::IfTable* iftable = klass->GetIfTable();
+      for (int32_t i = 0; i < klass->GetIfTableCount(); ++i) {
+        if (iftable->GetMethodArrayCount(i) > 0) {
+          isc->SanityCheckArtMethodPointerArray(iftable->GetMethodArray(i), nullptr);
+        }
+      }
+    }
+  }
+
+ private:
+  ImageSanityChecks(gc::Heap* heap, ClassLinker* class_linker)
+     :  spaces_(heap->GetBootImageSpaces()),
+        pointer_size_(class_linker->GetImagePointerSize()) {
+    space_begin_.reserve(spaces_.size());
+    method_sections_.reserve(spaces_.size());
+    runtime_method_sections_.reserve(spaces_.size());
+    for (gc::space::ImageSpace* space : spaces_) {
+      space_begin_.push_back(space->Begin());
+      auto& header = space->GetImageHeader();
+      method_sections_.push_back(&header.GetMethodsSection());
+      runtime_method_sections_.push_back(&header.GetRuntimeMethodsSection());
+    }
+  }
+
+  void SanityCheckArtMethod(ArtMethod* m, ObjPtr<mirror::Class> expected_class)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (m->IsRuntimeMethod()) {
+      ObjPtr<mirror::Class> declaring_class = m->GetDeclaringClassUnchecked();
+      CHECK(declaring_class == nullptr) << declaring_class << " " << m->PrettyMethod();
+    } else if (m->IsCopied()) {
+      CHECK(m->GetDeclaringClass() != nullptr) << m->PrettyMethod();
+    } else if (expected_class != nullptr) {
+      CHECK_EQ(m->GetDeclaringClassUnchecked(), expected_class) << m->PrettyMethod();
+    }
+    if (!spaces_.empty()) {
+      bool contains = false;
+      for (size_t i = 0; !contains && i != space_begin_.size(); ++i) {
+        const size_t offset = reinterpret_cast<uint8_t*>(m) - space_begin_[i];
+        contains = method_sections_[i]->Contains(offset) ||
+            runtime_method_sections_[i]->Contains(offset);
+      }
+      CHECK(contains) << m << " not found";
+    }
+  }
+
+  void SanityCheckArtMethodPointerArray(ObjPtr<mirror::PointerArray> arr,
+                                        ObjPtr<mirror::Class> expected_class)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    CHECK(arr != nullptr);
+    for (int32_t j = 0; j < arr->GetLength(); ++j) {
+      auto* method = arr->GetElementPtrSize<ArtMethod*>(j, pointer_size_);
+      // expected_class == null means we are a dex cache.
+      if (expected_class != nullptr) {
+        CHECK(method != nullptr);
+      }
+      if (method != nullptr) {
+        SanityCheckArtMethod(method, expected_class);
+      }
+    }
+  }
+
+  void SanityCheckArtMethodPointerArray(ArtMethod** arr, size_t size)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    CHECK_EQ(arr != nullptr, size != 0u);
+    if (arr != nullptr) {
+      bool contains = false;
+      for (auto space : spaces_) {
+        auto offset = reinterpret_cast<uint8_t*>(arr) - space->Begin();
+        if (space->GetImageHeader().GetImageSection(
+            ImageHeader::kSectionDexCacheArrays).Contains(offset)) {
+          contains = true;
+          break;
+        }
+      }
+      CHECK(contains);
+    }
+    for (size_t j = 0; j < size; ++j) {
+      ArtMethod* method = mirror::DexCache::GetElementPtrSize(arr, j, pointer_size_);
+      // expected_class == null means we are a dex cache.
+      if (method != nullptr) {
+        SanityCheckArtMethod(method, nullptr);
+      }
+    }
+  }
+
+  const std::vector<gc::space::ImageSpace*>& spaces_;
+  const PointerSize pointer_size_;
+
+  // Cached sections from the spaces.
+  std::vector<const uint8_t*> space_begin_;
+  std::vector<const ImageSection*> method_sections_;
+  std::vector<const ImageSection*> runtime_method_sections_;
+};
+
 bool ClassLinker::AddImageSpace(
     gc::space::ImageSpace* space,
     Handle<mirror::ClassLoader> class_loader,
@@ -1697,10 +1727,10 @@ bool ClassLinker::AddImageSpace(
       }
     } else {
       if (kSanityCheckObjects) {
-        SanityCheckArtMethodPointerArray(h_dex_cache->GetResolvedMethods(),
-                                         h_dex_cache->NumResolvedMethods(),
-                                         image_pointer_size_,
-                                         heap->GetBootImageSpaces());
+        ImageSanityChecks::CheckPointerArray(heap,
+                                             this,
+                                             h_dex_cache->GetResolvedMethods(),
+                                             h_dex_cache->NumResolvedMethods());
       }
       // Register dex files, keep track of existing ones that are conflicts.
       AppendToBootClassPath(*dex_file.get(), h_dex_cache);
@@ -1785,7 +1815,7 @@ bool ClassLinker::AddImageSpace(
       }
     }
     if (!app_image) {
-      heap->VisitObjects(SanityCheckObjectsCallback, nullptr);
+      ImageSanityChecks::CheckObjects(heap, this);
     }
   }
 
