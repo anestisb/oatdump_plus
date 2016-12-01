@@ -16,6 +16,7 @@
 
 #include "instruction_simplifier.h"
 
+#include "escape.h"
 #include "intrinsics.h"
 #include "mirror/class-inl.h"
 #include "scoped_thread_state_change-inl.h"
@@ -107,6 +108,8 @@ class InstructionSimplifierVisitor : public HGraphDelegateVisitor {
   void SimplifyStringCharAt(HInvoke* invoke);
   void SimplifyStringIsEmptyOrLength(HInvoke* invoke);
   void SimplifyNPEOnArgN(HInvoke* invoke, size_t);
+  void SimplifyReturnThis(HInvoke* invoke);
+  void SimplifyAllocationIntrinsic(HInvoke* invoke);
   void SimplifyMemBarrier(HInvoke* invoke, MemBarrierKind barrier_kind);
 
   OptimizingCompilerStats* stats_;
@@ -1864,8 +1867,58 @@ void InstructionSimplifierVisitor::SimplifyStringIsEmptyOrLength(HInvoke* invoke
 // is provably non-null, we can clear the flag.
 void InstructionSimplifierVisitor::SimplifyNPEOnArgN(HInvoke* invoke, size_t n) {
   HInstruction* arg = invoke->InputAt(n);
-  if (!arg->CanBeNull()) {
+  if (invoke->CanThrow() && !arg->CanBeNull()) {
     invoke->SetCanThrow(false);
+  }
+}
+
+// Methods that return "this" can replace the returned value with the receiver.
+void InstructionSimplifierVisitor::SimplifyReturnThis(HInvoke* invoke) {
+  if (invoke->HasUses()) {
+    HInstruction* receiver = invoke->InputAt(0);
+    invoke->ReplaceWith(receiver);
+    RecordSimplification();
+  }
+}
+
+// Helper method for StringBuffer escape analysis.
+static bool NoEscapeForStringBufferReference(HInstruction* reference, HInstruction* user) {
+  if (user->IsInvokeStaticOrDirect()) {
+    // Any constructor on StringBuffer is okay.
+    return user->AsInvokeStaticOrDirect()->GetResolvedMethod()->IsConstructor() &&
+           user->InputAt(0) == reference;
+  } else if (user->IsInvokeVirtual()) {
+    switch (user->AsInvokeVirtual()->GetIntrinsic()) {
+      case Intrinsics::kStringBufferLength:
+      case Intrinsics::kStringBufferToString:
+        DCHECK_EQ(user->InputAt(0), reference);
+        return true;
+      case Intrinsics::kStringBufferAppend:
+        // Returns "this", so only okay if no further uses.
+        DCHECK_EQ(user->InputAt(0), reference);
+        DCHECK_NE(user->InputAt(1), reference);
+        return !user->HasUses();
+      default:
+        break;
+    }
+  }
+  return false;
+}
+
+// Certain allocation intrinsics are not removed by dead code elimination
+// because of potentially throwing an OOM exception or other side effects.
+// This method removes such intrinsics when special circumstances allow.
+void InstructionSimplifierVisitor::SimplifyAllocationIntrinsic(HInvoke* invoke) {
+  if (!invoke->HasUses()) {
+    // Instruction has no uses. If unsynchronized, we can remove right away, safely ignoring
+    // the potential OOM of course. Otherwise, we must ensure the receiver object of this
+    // call does not escape since only thread-local synchronization may be removed.
+    bool is_synchronized = invoke->GetIntrinsic() == Intrinsics::kStringBufferToString;
+    HInstruction* receiver = invoke->InputAt(0);
+    if (!is_synchronized || DoesNotEscape(receiver, NoEscapeForStringBufferReference)) {
+      invoke->GetBlock()->RemoveInstruction(invoke);
+      RecordSimplification();
+    }
   }
 }
 
@@ -1925,6 +1978,14 @@ void InstructionSimplifierVisitor::VisitInvoke(HInvoke* instruction) {
     case Intrinsics::kStringStringIndexOf:
     case Intrinsics::kStringStringIndexOfAfter:
       SimplifyNPEOnArgN(instruction, 1);  // 0th has own NullCheck
+      break;
+    case Intrinsics::kStringBufferAppend:
+    case Intrinsics::kStringBuilderAppend:
+      SimplifyReturnThis(instruction);
+      break;
+    case Intrinsics::kStringBufferToString:
+    case Intrinsics::kStringBuilderToString:
+      SimplifyAllocationIntrinsic(instruction);
       break;
     case Intrinsics::kUnsafeLoadFence:
       SimplifyMemBarrier(instruction, MemBarrierKind::kLoadAny);
