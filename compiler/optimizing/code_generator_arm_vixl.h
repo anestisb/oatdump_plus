@@ -422,7 +422,8 @@ class InstructionCodeGeneratorARMVIXL : public InstructionCodeGenerator {
   void GenerateReferenceLoadOneRegister(HInstruction* instruction,
                                         Location out,
                                         uint32_t offset,
-                                        Location maybe_temp);
+                                        Location maybe_temp,
+                                        ReadBarrierOption read_barrier_option);
   // Generate a heap reference load using two different registers
   // `out` and `obj`:
   //
@@ -437,7 +438,8 @@ class InstructionCodeGeneratorARMVIXL : public InstructionCodeGenerator {
                                          Location out,
                                          Location obj,
                                          uint32_t offset,
-                                         Location maybe_temp);
+                                         Location maybe_temp,
+                                         ReadBarrierOption read_barrier_option);
 
   // Generate a GC root reference load:
   //
