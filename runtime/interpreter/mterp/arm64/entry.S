@@ -31,11 +31,11 @@
 
 ExecuteMterpImpl:
     .cfi_startproc
-    stp     xPROFILE, x27, [sp, #-80]!
-    stp     xIBASE, xREFS, [sp, #16]
-    stp     xSELF, xINST, [sp, #32]
-    stp     xPC, xFP, [sp, #48]
-    stp     fp, lr, [sp, #64]
+    SAVE_TWO_REGS_INCREASE_FRAME xPROFILE, x27, 80
+    SAVE_TWO_REGS                xIBASE, xREFS, 16
+    SAVE_TWO_REGS                xSELF, xINST, 32
+    SAVE_TWO_REGS                xPC, xFP, 48
+    SAVE_TWO_REGS                fp, lr, 64
     add     fp, sp, #64
 
     /* Remember the return register */
