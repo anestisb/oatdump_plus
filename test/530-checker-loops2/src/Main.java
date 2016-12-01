@@ -15,7 +15,7 @@
  */
 
 //
-// Test on loop optimizations.
+// Test on loop optimizations, in particular around less common induction.
 //
 public class Main {
 
