@@ -44,7 +44,7 @@ inline uint32_t OatFile::OatMethod::GetQuickCodeSizeOffset() const {
   if (method_header == nullptr) {
     return 0u;
   }
-  return reinterpret_cast<const uint8_t*>(&method_header->code_size_) - begin_;
+  return reinterpret_cast<const uint8_t*>(method_header->GetCodeSizeAddr()) - begin_;
 }
 
 inline size_t OatFile::OatMethod::GetFrameSizeInBytes() const {
@@ -52,7 +52,7 @@ inline size_t OatFile::OatMethod::GetFrameSizeInBytes() const {
   if (code == nullptr) {
     return 0u;
   }
-  return reinterpret_cast<const OatQuickMethodHeader*>(code)[-1].frame_info_.FrameSizeInBytes();
+  return reinterpret_cast<const OatQuickMethodHeader*>(code)[-1].GetFrameInfo().FrameSizeInBytes();
 }
 
 inline uint32_t OatFile::OatMethod::GetCoreSpillMask() const {
@@ -60,7 +60,7 @@ inline uint32_t OatFile::OatMethod::GetCoreSpillMask() const {
   if (code == nullptr) {
     return 0u;
   }
-  return reinterpret_cast<const OatQuickMethodHeader*>(code)[-1].frame_info_.CoreSpillMask();
+  return reinterpret_cast<const OatQuickMethodHeader*>(code)[-1].GetFrameInfo().CoreSpillMask();
 }
 
 inline uint32_t OatFile::OatMethod::GetFpSpillMask() const {
@@ -68,7 +68,7 @@ inline uint32_t OatFile::OatMethod::GetFpSpillMask() const {
   if (code == nullptr) {
     return 0u;
   }
-  return reinterpret_cast<const OatQuickMethodHeader*>(code)[-1].frame_info_.FpSpillMask();
+  return reinterpret_cast<const OatQuickMethodHeader*>(code)[-1].GetFrameInfo().FpSpillMask();
 }
 
 inline uint32_t OatFile::OatMethod::GetVmapTableOffset() const {
@@ -81,7 +81,7 @@ inline uint32_t OatFile::OatMethod::GetVmapTableOffsetOffset() const {
   if (method_header == nullptr) {
     return 0u;
   }
-  return reinterpret_cast<const uint8_t*>(&method_header->vmap_table_offset_) - begin_;
+  return reinterpret_cast<const uint8_t*>(method_header->GetVmapTableOffsetAddr()) - begin_;
 }
 
 inline const uint8_t* OatFile::OatMethod::GetVmapTable() const {
@@ -89,7 +89,7 @@ inline const uint8_t* OatFile::OatMethod::GetVmapTable() const {
   if (code == nullptr) {
     return nullptr;
   }
-  uint32_t offset = reinterpret_cast<const OatQuickMethodHeader*>(code)[-1].vmap_table_offset_;
+  uint32_t offset = reinterpret_cast<const OatQuickMethodHeader*>(code)[-1].GetVmapTableOffset();
   if (UNLIKELY(offset == 0u)) {
     return nullptr;
   }
@@ -101,7 +101,7 @@ inline uint32_t OatFile::OatMethod::GetQuickCodeSize() const {
   if (code == nullptr) {
     return 0u;
   }
-  return reinterpret_cast<const OatQuickMethodHeader*>(code)[-1].code_size_;
+  return reinterpret_cast<const OatQuickMethodHeader*>(code)[-1].GetCodeSize();
 }
 
 inline uint32_t OatFile::OatMethod::GetCodeOffset() const {

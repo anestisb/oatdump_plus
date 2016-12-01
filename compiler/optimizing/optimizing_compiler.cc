@@ -1208,7 +1208,9 @@ bool OptimizingCompiler::JitCompile(Thread* self,
       code_allocator.GetMemory().data(),
       code_allocator.GetSize(),
       osr,
-      roots);
+      roots,
+      codegen->GetGraph()->HasShouldDeoptimizeFlag(),
+      codegen->GetGraph()->GetCHASingleImplementationList());
 
   if (code == nullptr) {
     code_cache->ClearData(self, stack_map_data, roots_data);

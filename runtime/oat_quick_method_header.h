@@ -58,7 +58,7 @@ class PACKED(4) OatQuickMethodHeader {
   }
 
   bool IsOptimized() const {
-    return code_size_ != 0 && vmap_table_offset_ != 0;
+    return GetCodeSize() != 0 && vmap_table_offset_ != 0;
   }
 
   const void* GetOptimizedCodeInfoPtr() const {
@@ -81,7 +81,23 @@ class PACKED(4) OatQuickMethodHeader {
   }
 
   uint32_t GetCodeSize() const {
-    return code_size_;
+    return code_size_ & kCodeSizeMask;
+  }
+
+  const uint32_t* GetCodeSizeAddr() const {
+    return &code_size_;
+  }
+
+  uint32_t GetVmapTableOffset() const {
+    return vmap_table_offset_;
+  }
+
+  void SetVmapTableOffset(uint32_t offset) {
+    vmap_table_offset_ = offset;
+  }
+
+  const uint32_t* GetVmapTableOffsetAddr() const {
+    return &vmap_table_offset_;
   }
 
   const uint8_t* GetVmapTable() const {
@@ -96,7 +112,7 @@ class PACKED(4) OatQuickMethodHeader {
       // On Thumb-2, the pc is offset by one.
       code_start++;
     }
-    return code_start <= pc && pc <= (code_start + code_size_);
+    return code_start <= pc && pc <= (code_start + GetCodeSize());
   }
 
   const uint8_t* GetEntryPoint() const {
@@ -130,11 +146,25 @@ class PACKED(4) OatQuickMethodHeader {
 
   uint32_t ToDexPc(ArtMethod* method, const uintptr_t pc, bool abort_on_failure = true) const;
 
+  void SetHasShouldDeoptimizeFlag() {
+    DCHECK_EQ(code_size_ & kShouldDeoptimizeMask, 0u);
+    code_size_ |= kShouldDeoptimizeMask;
+  }
+
+  bool HasShouldDeoptimizeFlag() const {
+    return (code_size_ & kShouldDeoptimizeMask) != 0;
+  }
+
+ private:
+  static constexpr uint32_t kShouldDeoptimizeMask = 0x80000000;
+  static constexpr uint32_t kCodeSizeMask = ~kShouldDeoptimizeMask;
+
   // The offset in bytes from the start of the vmap table to the end of the header.
   uint32_t vmap_table_offset_;
   // The stack frame information.
   QuickMethodFrameInfo frame_info_;
-  // The code size in bytes.
+  // The code size in bytes. The highest bit is used to signify if the compiled
+  // code with the method header has should_deoptimize flag.
   uint32_t code_size_;
   // The actual code.
   uint8_t code_[0];

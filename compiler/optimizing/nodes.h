@@ -333,7 +333,8 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
         cached_double_constants_(std::less<int64_t>(), arena->Adapter(kArenaAllocConstantsMap)),
         cached_current_method_(nullptr),
         inexact_object_rti_(ReferenceTypeInfo::CreateInvalid()),
-        osr_(osr) {
+        osr_(osr),
+        cha_single_implementation_list_(arena->Adapter(kArenaAllocCHA)) {
     blocks_.reserve(kDefaultNumberOfBlocks);
   }
 
@@ -536,6 +537,20 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
 
   bool IsCompilingOsr() const { return osr_; }
 
+  ArenaSet<ArtMethod*>& GetCHASingleImplementationList() {
+    return cha_single_implementation_list_;
+  }
+
+  void AddCHASingleImplementationDependency(ArtMethod* method) {
+    cha_single_implementation_list_.insert(method);
+  }
+
+  bool HasShouldDeoptimizeFlag() const {
+    // TODO: if all CHA guards can be eliminated, there is no need for the flag
+    // even if cha_single_implementation_list_ is not empty.
+    return !cha_single_implementation_list_.empty();
+  }
+
   bool HasTryCatch() const { return has_try_catch_; }
   void SetHasTryCatch(bool value) { has_try_catch_ = value; }
 
@@ -671,6 +686,9 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   // make all loops seen as irreducible and emit special stack maps to mark
   // compiled code entries which the interpreter can directly jump to.
   const bool osr_;
+
+  // List of methods that are assumed to have single implementation.
+  ArenaSet<ArtMethod*> cha_single_implementation_list_;
 
   friend class SsaBuilder;           // For caching constants.
   friend class SsaLivenessAnalysis;  // For the linear order.
@@ -1240,6 +1258,7 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(ClinitCheck, Instruction)                                           \
   M(Compare, BinaryOperation)                                           \
   M(CurrentMethod, Instruction)                                         \
+  M(ShouldDeoptimizeFlag, Instruction)                                  \
   M(Deoptimize, Instruction)                                            \
   M(Div, BinaryOperation)                                               \
   M(DivZeroCheck, Instruction)                                          \
@@ -2873,6 +2892,27 @@ class HDeoptimize FINAL : public HTemplateInstruction<1> {
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HDeoptimize);
+};
+
+// Represents a should_deoptimize flag. Currently used for CHA-based devirtualization.
+// The compiled code checks this flag value in a guard before devirtualized call and
+// if it's true, starts to do deoptimization.
+// It has a 4-byte slot on stack.
+// TODO: allocate a register for this flag.
+class HShouldDeoptimizeFlag FINAL : public HExpression<0> {
+ public:
+  // TODO: use SideEffects to aid eliminating some CHA guards.
+  explicit HShouldDeoptimizeFlag(uint32_t dex_pc)
+      : HExpression(Primitive::kPrimInt, SideEffects::None(), dex_pc) {
+  }
+
+  // We don't eliminate CHA guards yet.
+  bool CanBeMoved() const OVERRIDE { return false; }
+
+  DECLARE_INSTRUCTION(ShouldDeoptimizeFlag);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HShouldDeoptimizeFlag);
 };
 
 // Represents the ArtMethod that was passed as a first argument to
