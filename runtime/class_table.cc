@@ -83,18 +83,29 @@ mirror::Class* ClassTable::UpdateClass(const char* descriptor, mirror::Class* kl
 
 #pragma clang diagnostic pop  // http://b/31104323
 
-size_t ClassTable::NumZygoteClasses() const {
+size_t ClassTable::CountDefiningLoaderClasses(ObjPtr<mirror::ClassLoader> defining_loader,
+                                              const ClassSet& set) const {
+  size_t count = 0;
+  for (const GcRoot<mirror::Class>& klass : set) {
+    if (klass.Read()->GetClassLoader() == defining_loader) {
+      ++count;
+    }
+  }
+  return count;
+}
+
+size_t ClassTable::NumZygoteClasses(ObjPtr<mirror::ClassLoader> defining_loader) const {
   ReaderMutexLock mu(Thread::Current(), lock_);
   size_t sum = 0;
   for (size_t i = 0; i < classes_.size() - 1; ++i) {
-    sum += classes_[i].Size();
+    sum += CountDefiningLoaderClasses(defining_loader, classes_[i]);
   }
   return sum;
 }
 
-size_t ClassTable::NumNonZygoteClasses() const {
+size_t ClassTable::NumNonZygoteClasses(ObjPtr<mirror::ClassLoader> defining_loader) const {
   ReaderMutexLock mu(Thread::Current(), lock_);
-  return classes_.back().Size();
+  return CountDefiningLoaderClasses(defining_loader, classes_.back());
 }
 
 mirror::Class* ClassTable::Lookup(const char* descriptor, size_t hash) {
@@ -102,7 +113,7 @@ mirror::Class* ClassTable::Lookup(const char* descriptor, size_t hash) {
   for (ClassSet& class_set : classes_) {
     auto it = class_set.FindWithHash(descriptor, hash);
     if (it != class_set.end()) {
-     return it->Read();
+      return it->Read();
     }
   }
   return nullptr;
@@ -142,7 +153,6 @@ uint32_t ClassTable::ClassDescriptorHashEquals::operator()(const GcRoot<mirror::
 
 bool ClassTable::ClassDescriptorHashEquals::operator()(const GcRoot<mirror::Class>& a,
                                                        const GcRoot<mirror::Class>& b) const {
-  DCHECK_EQ(a.Read()->GetClassLoader(), b.Read()->GetClassLoader());
   std::string temp;
   return a.Read()->DescriptorEquals(b.Read()->GetDescriptor(&temp));
 }
