@@ -29,7 +29,7 @@ namespace mirror {
 class Object;
 }  // namespace mirror
 
-union PACKED(4) JValue {
+union PACKED(alignof(mirror::Object*)) JValue {
   // We default initialize JValue instances to all-zeros.
   JValue() : j(0) {}
 
