@@ -300,6 +300,44 @@ codes.
   ldr     xIBASE, [xSELF, #THREAD_CURRENT_IBASE_OFFSET]
 .endm
 
+/*
+ * Save two registers to the stack.
+ */
+.macro SAVE_TWO_REGS reg1, reg2, offset
+    stp \reg1, \reg2, [sp, #(\offset)]
+    .cfi_rel_offset \reg1, (\offset)
+    .cfi_rel_offset \reg2, (\offset) + 8
+.endm
+
+/*
+ * Restore two registers from the stack.
+ */
+.macro RESTORE_TWO_REGS reg1, reg2, offset
+    ldp \reg1, \reg2, [sp, #(\offset)]
+    .cfi_restore \reg1
+    .cfi_restore \reg2
+.endm
+
+/*
+ * Increase frame size and save two registers to the bottom of the stack.
+ */
+.macro SAVE_TWO_REGS_INCREASE_FRAME reg1, reg2, frame_adjustment
+    stp \reg1, \reg2, [sp, #-(\frame_adjustment)]!
+    .cfi_adjust_cfa_offset (\frame_adjustment)
+    .cfi_rel_offset \reg1, 0
+    .cfi_rel_offset \reg2, 8
+.endm
+
+/*
+ * Restore two registers from the bottom of the stack and decrease frame size.
+ */
+.macro RESTORE_TWO_REGS_DECREASE_FRAME reg1, reg2, frame_adjustment
+    ldp \reg1, \reg2, [sp], #(\frame_adjustment)
+    .cfi_restore \reg1
+    .cfi_restore \reg2
+    .cfi_adjust_cfa_offset -(\frame_adjustment)
+.endm
+
 /* File: arm64/entry.S */
 /*
  * Copyright (C) 2016 The Android Open Source Project
@@ -334,11 +372,11 @@ codes.
 
 ExecuteMterpImpl:
     .cfi_startproc
-    stp     xPROFILE, x27, [sp, #-80]!
-    stp     xIBASE, xREFS, [sp, #16]
-    stp     xSELF, xINST, [sp, #32]
-    stp     xPC, xFP, [sp, #48]
-    stp     fp, lr, [sp, #64]
+    SAVE_TWO_REGS_INCREASE_FRAME xPROFILE, x27, 80
+    SAVE_TWO_REGS                xIBASE, xREFS, 16
+    SAVE_TWO_REGS                xSELF, xINST, 32
+    SAVE_TWO_REGS                xPC, xFP, 48
+    SAVE_TWO_REGS                fp, lr, 64
     add     fp, sp, #64
 
     /* Remember the return register */
@@ -7226,12 +7264,15 @@ MterpDone:
  */
     cmp     wPROFILE, #0
     bgt     MterpProfileActive                      // if > 0, we may have some counts to report.
-    ldp     fp, lr, [sp, #64]
-    ldp     xPC, xFP, [sp, #48]
-    ldp     xSELF, xINST, [sp, #32]
-    ldp     xIBASE, xREFS, [sp, #16]
-    ldp     xPROFILE, x27, [sp], #80
+    .cfi_remember_state
+    RESTORE_TWO_REGS                fp, lr, 64
+    RESTORE_TWO_REGS                xPC, xFP, 48
+    RESTORE_TWO_REGS                xSELF, xINST, 32
+    RESTORE_TWO_REGS                xIBASE, xREFS, 16
+    RESTORE_TWO_REGS_DECREASE_FRAME xPROFILE, x27, 80
     ret
+    .cfi_restore_state                              // Reset unwind info so following code unwinds.
+    .cfi_def_cfa_offset 80                          // workaround for clang bug: 31975598
 
 MterpProfileActive:
     mov     xINST, x0                               // stash return value
@@ -7242,11 +7283,11 @@ MterpProfileActive:
     strh    wPROFILE, [x1, #SHADOWFRAME_HOTNESS_COUNTDOWN_OFFSET]
     bl      MterpAddHotnessBatch                    // (method, shadow_frame, self)
     mov     x0, xINST                               // restore return value
-    ldp     fp, lr, [sp, #64]
-    ldp     xPC, xFP, [sp, #48]
-    ldp     xSELF, xINST, [sp, #32]
-    ldp     xIBASE, xREFS, [sp, #16]
-    ldp     xPROFILE, x27, [sp], #80
+    RESTORE_TWO_REGS                fp, lr, 64
+    RESTORE_TWO_REGS                xPC, xFP, 48
+    RESTORE_TWO_REGS                xSELF, xINST, 32
+    RESTORE_TWO_REGS                xIBASE, xREFS, 16
+    RESTORE_TWO_REGS_DECREASE_FRAME xPROFILE, x27, 80
     ret
 
     .cfi_endproc
