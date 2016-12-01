@@ -1855,8 +1855,8 @@ class Dex2Oat FINAL {
           return false;
         }
 
-        // VDEX finalized, seek back to the beginning and write the header.
-        if (!oat_writers_[i]->WriteVdexHeader(vdex_out.get())) {
+        // VDEX finalized, seek back to the beginning and write checksums and the header.
+        if (!oat_writers_[i]->WriteChecksumsAndVdexHeader(vdex_out.get())) {
           LOG(ERROR) << "Failed to write vdex header into VDEX " << vdex_file->GetPath();
           return false;
         }

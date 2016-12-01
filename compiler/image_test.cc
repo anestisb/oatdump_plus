@@ -29,6 +29,8 @@
 #include "elf_writer_quick.h"
 #include "gc/space/image_space.h"
 #include "image_writer.h"
+#include "linker/buffered_output_stream.h"
+#include "linker/file_output_stream.h"
 #include "linker/multi_oat_relative_patcher.h"
 #include "lock_word.h"
 #include "mirror/object-inl.h"
@@ -255,6 +257,16 @@ void CompilationHelper::Compile(CompilerDriver* driver,
       }
       bool image_space_ok = writer->PrepareImageAddressSpace();
       ASSERT_TRUE(image_space_ok);
+
+      if (kIsVdexEnabled) {
+        for (size_t i = 0, size = vdex_files.size(); i != size; ++i) {
+          std::unique_ptr<BufferedOutputStream> vdex_out(
+              MakeUnique<BufferedOutputStream>(
+                  MakeUnique<FileOutputStream>(vdex_files[i].GetFile())));
+          oat_writers[i]->WriteVerifierDeps(vdex_out.get(), nullptr);
+          oat_writers[i]->WriteChecksumsAndVdexHeader(vdex_out.get());
+        }
+      }
 
       for (size_t i = 0, size = oat_files.size(); i != size; ++i) {
         linker::MultiOatRelativePatcher patcher(driver->GetInstructionSet(),
