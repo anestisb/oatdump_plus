@@ -36,9 +36,11 @@ TEST_F(AtomicMethodRefMapTest, RunTests) {
   int value = 123;
   // Error case: Not already inserted.
   EXPECT_FALSE(map.Get(MethodReference(dex.get(), 1), &value));
+  EXPECT_FALSE(map.HaveDexFile(dex.get()));
   // Error case: Dex file not registered.
   EXPECT_TRUE(map.Insert(MethodReference(dex.get(), 1), 0, 1) == Map::kInsertResultInvalidDexFile);
   map.AddDexFile(dex.get());
+  EXPECT_TRUE(map.HaveDexFile(dex.get()));
   EXPECT_GT(dex->NumMethodIds(), 10u);
   // After we have added the get should succeed but return the default value.
   EXPECT_TRUE(map.Get(MethodReference(dex.get(), 1), &value));

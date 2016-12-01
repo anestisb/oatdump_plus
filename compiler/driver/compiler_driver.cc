@@ -71,6 +71,7 @@
 #include "thread_pool.h"
 #include "trampolines/trampoline_compiler.h"
 #include "transaction.h"
+#include "utils/atomic_method_ref_map-inl.h"
 #include "utils/dex_cache_arrays_layout-inl.h"
 #include "utils/swap_space.h"
 #include "vdex_file.h"
@@ -287,8 +288,6 @@ CompilerDriver::CompilerDriver(
       instruction_set_features_(instruction_set_features),
       requires_constructor_barrier_lock_("constructor barrier lock"),
       compiled_classes_lock_("compiled classes lock"),
-      compiled_methods_lock_("compiled method lock"),
-      compiled_methods_(MethodTable::key_compare()),
       non_relative_linker_patch_count_(0u),
       image_classes_(image_classes),
       classes_to_compile_(compiled_classes),
@@ -326,12 +325,12 @@ CompilerDriver::~CompilerDriver() {
     MutexLock mu(self, compiled_classes_lock_);
     STLDeleteValues(&compiled_classes_);
   }
-  {
-    MutexLock mu(self, compiled_methods_lock_);
-    for (auto& pair : compiled_methods_) {
-      CompiledMethod::ReleaseSwapAllocatedCompiledMethod(this, pair.second);
+  compiled_methods_.Visit([this](const MethodReference& ref ATTRIBUTE_UNUSED,
+                                 CompiledMethod* method) {
+    if (method != nullptr) {
+      CompiledMethod::ReleaseSwapAllocatedCompiledMethod(this, method);
     }
-  }
+  });
   compiler_->UnInit();
 }
 
@@ -575,8 +574,7 @@ static void CompileMethod(Thread* self,
                           const DexFile& dex_file,
                           optimizer::DexToDexCompilationLevel dex_to_dex_compilation_level,
                           bool compilation_enabled,
-                          Handle<mirror::DexCache> dex_cache)
-    REQUIRES(!driver->compiled_methods_lock_) {
+                          Handle<mirror::DexCache> dex_cache) {
   DCHECK(driver != nullptr);
   CompiledMethod* compiled_method = nullptr;
   uint64_t start_ns = kTimeCompileMethod ? NanoTime() : 0;
@@ -939,6 +937,13 @@ void CompilerDriver::PreCompile(jobject class_loader,
                                 const std::vector<const DexFile*>& dex_files,
                                 TimingLogger* timings) {
   CheckThreadPools();
+
+  for (const DexFile* dex_file : dex_files) {
+    // Can be already inserted if the caller is CompileOne. This happens for gtests.
+    if (!compiled_methods_.HaveDexFile(dex_file)) {
+      compiled_methods_.AddDexFile(dex_file);
+    }
+  }
 
   LoadImageClasses(timings);
   VLOG(compiler) << "LoadImageClasses: " << GetMemoryUsageString(false);
@@ -2616,28 +2621,13 @@ void CompilerDriver::AddCompiledMethod(const MethodReference& method_ref,
                                        size_t non_relative_linker_patch_count) {
   DCHECK(GetCompiledMethod(method_ref) == nullptr)
       << method_ref.dex_file->PrettyMethod(method_ref.dex_method_index);
-  {
-    MutexLock mu(Thread::Current(), compiled_methods_lock_);
-    compiled_methods_.Put(method_ref, compiled_method);
-    non_relative_linker_patch_count_ += non_relative_linker_patch_count;
-  }
+  MethodTable::InsertResult result = compiled_methods_.Insert(method_ref,
+                                                              /*expected*/ nullptr,
+                                                              compiled_method);
+  CHECK(result == MethodTable::kInsertResultSuccess);
+  non_relative_linker_patch_count_.FetchAndAddRelaxed(non_relative_linker_patch_count);
   DCHECK(GetCompiledMethod(method_ref) != nullptr)
       << method_ref.dex_file->PrettyMethod(method_ref.dex_method_index);
-}
-
-void CompilerDriver::RemoveCompiledMethod(const MethodReference& method_ref) {
-  CompiledMethod* compiled_method = nullptr;
-  {
-    MutexLock mu(Thread::Current(), compiled_methods_lock_);
-    auto it = compiled_methods_.find(method_ref);
-    if (it != compiled_methods_.end()) {
-      compiled_method = it->second;
-      compiled_methods_.erase(it);
-    }
-  }
-  if (compiled_method != nullptr) {
-    CompiledMethod::ReleaseSwapAllocatedCompiledMethod(this, compiled_method);
-  }
 }
 
 CompiledClass* CompilerDriver::GetCompiledClass(ClassReference ref) const {
@@ -2678,13 +2668,9 @@ void CompilerDriver::RecordClassStatus(ClassReference ref, mirror::Class::Status
 }
 
 CompiledMethod* CompilerDriver::GetCompiledMethod(MethodReference ref) const {
-  MutexLock mu(Thread::Current(), compiled_methods_lock_);
-  MethodTable::const_iterator it = compiled_methods_.find(ref);
-  if (it == compiled_methods_.end()) {
-    return nullptr;
-  }
-  CHECK(it->second != nullptr);
-  return it->second;
+  CompiledMethod* compiled_method = nullptr;
+  compiled_methods_.Get(ref, &compiled_method);
+  return compiled_method;
 }
 
 bool CompilerDriver::IsMethodVerifiedWithoutFailures(uint32_t method_idx,
@@ -2713,8 +2699,7 @@ bool CompilerDriver::IsMethodVerifiedWithoutFailures(uint32_t method_idx,
 }
 
 size_t CompilerDriver::GetNonRelativeLinkerPatchCount() const {
-  MutexLock mu(Thread::Current(), compiled_methods_lock_);
-  return non_relative_linker_patch_count_;
+  return non_relative_linker_patch_count_.LoadRelaxed();
 }
 
 void CompilerDriver::SetRequiresConstructorBarrier(Thread* self,

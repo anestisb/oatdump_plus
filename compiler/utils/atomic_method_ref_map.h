@@ -47,6 +47,10 @@ class AtomicMethodRefMap {
   // thread safe.
   void AddDexFile(const DexFile* dex_file);
 
+  bool HaveDexFile(const DexFile* dex_file) const {
+    return arrays_.find(dex_file) != arrays_.end();
+  }
+
   // Visit all of the dex files and elements.
   template <typename Visitor>
   void Visit(const Visitor& visitor);
