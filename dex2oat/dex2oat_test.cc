@@ -26,6 +26,7 @@
 #include "base/stringprintf.h"
 #include "dex_file-inl.h"
 #include "dex2oat_environment_test.h"
+#include "jit/offline_profiling_info.h"
 #include "oat.h"
 #include "oat_file.h"
 #include "utils.h"
@@ -552,31 +553,26 @@ TEST_F(Dex2oatVeryLargeTest, UseVeryLarge) {
   RunTest(CompilerFilter::kSpeed, true, { "--very-large-app-threshold=100" });
 }
 
-static const char kDexFileLayoutInputProfile[] = "cHJvADAwMgABAAwAAQABAOqMEeFEZXhOb09hdC5qYXIBAAEA";
-
-static void WriteFileBase64(const char* base64, const char* location) {
-  // Decode base64.
-  CHECK(base64 != nullptr);
-  size_t length;
-  std::unique_ptr<uint8_t[]> bytes(DecodeBase64(base64, &length));
-  CHECK(bytes.get() != nullptr);
-
-  // Write to provided file.
-  std::unique_ptr<File> file(OS::CreateEmptyFile(location));
-  CHECK(file.get() != nullptr);
-  if (!file->WriteFully(bytes.get(), length)) {
-    PLOG(FATAL) << "Failed to write base64 as file";
-  }
-  if (file->FlushCloseOrErase() != 0) {
-    PLOG(FATAL) << "Could not flush and close test file.";
-  }
-}
-
 class Dex2oatLayoutTest : public Dex2oatTest {
  protected:
   void CheckFilter(CompilerFilter::Filter input ATTRIBUTE_UNUSED,
                    CompilerFilter::Filter result ATTRIBUTE_UNUSED) OVERRIDE {
     // Ignore, we'll do our own checks.
+  }
+
+  // Emits a profile with a single dex file with the given location and a single class index of 1.
+  void GenerateProfile(const std::string& test_profile,
+                       const std::string& dex_location,
+                       uint32_t checksum) {
+    int profile_test_fd = open(test_profile.c_str(), O_CREAT | O_TRUNC | O_WRONLY, 0644);
+    CHECK_GE(profile_test_fd, 0);
+
+    ProfileCompilationInfo info;
+    std::string profile_key = ProfileCompilationInfo::GetProfileDexFileKey(dex_location);
+    info.AddClassIndex(profile_key, checksum, dex::TypeIndex(1));
+    bool result = info.Save(profile_test_fd);
+    close(profile_test_fd);
+    ASSERT_TRUE(result);
   }
 
   void RunTest() {
@@ -585,7 +581,13 @@ class Dex2oatLayoutTest : public Dex2oatTest {
     std::string odex_location = GetOdexDir() + "/DexOdexNoOat.odex";
 
     Copy(GetDexSrc2(), dex_location);
-    WriteFileBase64(kDexFileLayoutInputProfile, profile_location.c_str());
+    const char* location = dex_location.c_str();
+    std::string error_msg;
+    std::vector<std::unique_ptr<const DexFile>> dex_files;
+    ASSERT_TRUE(DexFile::Open(location, location, true, &error_msg, &dex_files));
+    EXPECT_EQ(dex_files.size(), 1U);
+    std::unique_ptr<const DexFile>& dex_file = dex_files[0];
+    GenerateProfile(profile_location, dex_location, dex_file->GetLocationChecksum());
 
     const std::vector<std::string>& extra_args = { "--profile-file=" + profile_location };
     GenerateOdexForTest(dex_location, odex_location, CompilerFilter::kLayoutProfile, extra_args);
