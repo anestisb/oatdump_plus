@@ -218,6 +218,12 @@ class ClassLinker {
 
   mirror::Class* FindPrimitiveClass(char type) REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // General class unloading is not supported, this is used to prune
+  // unwanted classes during image writing.
+  bool RemoveClass(const char* descriptor, ObjPtr<mirror::ClassLoader> class_loader)
+      REQUIRES(!Locks::classlinker_classes_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   void DumpAllClasses(int flags)
       REQUIRES(!Locks::classlinker_classes_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
