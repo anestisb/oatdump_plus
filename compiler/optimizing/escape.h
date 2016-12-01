@@ -31,9 +31,18 @@ class HInstruction;
  * allocation. The method assigns true to parameter 'is_singleton' if the reference
  * is the only name that can refer to its value during the lifetime of the method,
  * meaning that the reference is not aliased with something else, is not stored to
- * heap memory, and not passed to another method. The method assigns true to parameter
- * 'is_singleton_and_non_escaping' if the reference is a singleton and is not returned
- * to the caller or used as an environment local of an HDeoptimize instruction.
+ * heap memory, and not passed to another method. In addition, the method assigns
+ * true to parameter 'is_singleton_and_not_returned' if the reference is a singleton
+ * and not returned to the caller and to parameter 'is_singleton_and_not_deopt_visible'
+ * if the reference is a singleton and not used as an environment local of an
+ * HDeoptimize instruction (clients of the final value must run after BCE to ensure
+ * all such instructions have been introduced already).
+ *
+ * Note that being visible to a HDeoptimize instruction does not count for ordinary
+ * escape analysis, since switching between compiled code and interpreted code keeps
+ * non escaping references restricted to the lifetime of the method and the thread
+ * executing it. This property only concerns optimizations that are interested in
+ * escape analysis with respect to the *compiled* code (such as LSE).
  *
  * When set, the no_escape function is applied to any use of the allocation instruction
  * prior to any built-in escape analysis. This allows clients to define better escape
@@ -45,14 +54,14 @@ class HInstruction;
 void CalculateEscape(HInstruction* reference,
                      bool (*no_escape)(HInstruction*, HInstruction*),
                      /*out*/ bool* is_singleton,
-                     /*out*/ bool* is_singleton_and_non_escaping);
+                     /*out*/ bool* is_singleton_and_not_returned,
+                     /*out*/ bool* is_singleton_and_not_deopt_visible);
 
 /*
- * Convenience method for testing singleton and non-escaping property at once.
+ * Convenience method for testing the singleton and not returned properties at once.
  * Callers should be aware that this method invokes the full analysis at each call.
  */
-bool IsNonEscapingSingleton(HInstruction* reference,
-                            bool (*no_escape)(HInstruction*, HInstruction*));
+bool DoesNotEscape(HInstruction* reference, bool (*no_escape)(HInstruction*, HInstruction*));
 
 }  // namespace art
 

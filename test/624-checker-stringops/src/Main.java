@@ -98,9 +98,170 @@ public class Main {
     return k;
   }
 
+  //
+  // Allows combining of returned "this". Also ensures that similar looking append() calls
+  // are not combined somehow through returned result.
+  //
+  /// CHECK-START: int Main.bufferLen2() instruction_simplifier (before)
+  /// CHECK-DAG: <<New:l\d+>>     NewInstance
+  /// CHECK-DAG: <<String1:l\d+>> LoadString
+  /// CHECK-DAG: <<Append1:l\d+>> InvokeVirtual [<<New>>,<<String1>>]   intrinsic:StringBufferAppend
+  /// CHECK-DAG: <<String2:l\d+>> LoadString
+  /// CHECK-DAG: <<Null1:l\d+>>   NullCheck     [<<Append1>>]
+  /// CHECK-DAG: <<Append2:l\d+>> InvokeVirtual [<<Null1>>,<<String2>>] intrinsic:StringBufferAppend
+  /// CHECK-DAG: <<Null2:l\d+>>   NullCheck     [<<Append2>>]
+  /// CHECK-DAG:                  InvokeVirtual [<<Null2>>]             intrinsic:StringBufferLength
+  //
+  /// CHECK-START: int Main.bufferLen2() instruction_simplifier (after)
+  /// CHECK-DAG: <<New:l\d+>>     NewInstance
+  /// CHECK-DAG: <<String1:l\d+>> LoadString
+  /// CHECK-DAG: <<Append1:l\d+>> InvokeVirtual [<<New>>,<<String1>>] intrinsic:StringBufferAppend
+  /// CHECK-DAG: <<String2:l\d+>> LoadString
+  /// CHECK-DAG: <<Append2:l\d+>> InvokeVirtual [<<New>>,<<String2>>] intrinsic:StringBufferAppend
+  /// CHECK-DAG:                  InvokeVirtual [<<New>>]             intrinsic:StringBufferLength
+  static int bufferLen2() {
+    StringBuffer s = new StringBuffer();
+    return s.append("x").append("x").length();
+  }
+
+  //
+  // Allows combining of returned "this". Also ensures that similar looking append() calls
+  // are not combined somehow through returned result.
+  //
+  /// CHECK-START: int Main.builderLen2() instruction_simplifier (before)
+  /// CHECK-DAG: <<New:l\d+>>     NewInstance
+  /// CHECK-DAG: <<String1:l\d+>> LoadString
+  /// CHECK-DAG: <<Append1:l\d+>> InvokeVirtual [<<New>>,<<String1>>]   intrinsic:StringBuilderAppend
+  /// CHECK-DAG: <<String2:l\d+>> LoadString
+  /// CHECK-DAG: <<Null2:l\d+>>   NullCheck     [<<Append1>>]
+  /// CHECK-DAG: <<Append2:l\d+>> InvokeVirtual [<<Null2>>,<<String2>>] intrinsic:StringBuilderAppend
+  /// CHECK-DAG: <<Null3:l\d+>>   NullCheck     [<<Append2>>]
+  /// CHECK-DAG:                  InvokeVirtual [<<Null3>>]             intrinsic:StringBuilderLength
+  //
+  /// CHECK-START: int Main.builderLen2() instruction_simplifier (after)
+  /// CHECK-DAG: <<New:l\d+>>     NewInstance
+  /// CHECK-DAG: <<String1:l\d+>> LoadString
+  /// CHECK-DAG: <<Append1:l\d+>> InvokeVirtual [<<New>>,<<String1>>] intrinsic:StringBuilderAppend
+  /// CHECK-DAG: <<String2:l\d+>> LoadString
+  /// CHECK-DAG: <<Append2:l\d+>> InvokeVirtual [<<New>>,<<String2>>] intrinsic:StringBuilderAppend
+  /// CHECK-DAG:                  InvokeVirtual [<<New>>]             intrinsic:StringBuilderLength
+  static int builderLen2() {
+    StringBuilder s = new StringBuilder();
+    return s.append("x").append("x").length();
+  }
+
+  //
+  // Similar situation in a loop.
+  //
+  /// CHECK-START: int Main.bufferLoopAppender() instruction_simplifier (before)
+  /// CHECK-DAG: <<New:l\d+>>     NewInstance                                                         loop:none
+  /// CHECK-DAG: <<String1:l\d+>> LoadString                                                          loop:<<Loop:B\d+>>
+  /// CHECK-DAG: <<Null1:l\d+>>   NullCheck     [<<New>>]                                             loop:<<Loop>>
+  /// CHECK-DAG: <<Append1:l\d+>> InvokeVirtual [<<Null1>>,<<String1>>] intrinsic:StringBufferAppend  loop:<<Loop>>
+  /// CHECK-DAG: <<String2:l\d+>> LoadString                                                          loop:<<Loop>>
+  /// CHECK-DAG: <<Null2:l\d+>>   NullCheck     [<<Append1>>]                                         loop:<<Loop>>
+  /// CHECK-DAG: <<Append2:l\d+>> InvokeVirtual [<<Null2>>,<<String2>>] intrinsic:StringBufferAppend  loop:<<Loop>>
+  /// CHECK-DAG: <<String3:l\d+>> LoadString                                                          loop:<<Loop>>
+  /// CHECK-DAG: <<Null3:l\d+>>   NullCheck     [<<Append2>>]                                         loop:<<Loop>>
+  /// CHECK-DAG: <<Append3:l\d+>> InvokeVirtual [<<Null3>>,<<String3>>] intrinsic:StringBufferAppend  loop:<<Loop>>
+  /// CHECK-DAG: <<Null4:l\d+>>   NullCheck     [<<New>>]                                             loop:none
+  /// CHECK-DAG:                  InvokeVirtual [<<Null4>>]             intrinsic:StringBufferLength  loop:none
+  //
+  /// CHECK-START: int Main.bufferLoopAppender() instruction_simplifier (after)
+  /// CHECK-DAG: <<New:l\d+>>     NewInstance                                                       loop:none
+  /// CHECK-DAG: <<String1:l\d+>> LoadString                                                        loop:<<Loop:B\d+>>
+  /// CHECK-DAG: <<Append1:l\d+>> InvokeVirtual [<<New>>,<<String1>>] intrinsic:StringBufferAppend  loop:<<Loop>>
+  /// CHECK-DAG: <<String2:l\d+>> LoadString                                                        loop:<<Loop>>
+  /// CHECK-DAG: <<Append2:l\d+>> InvokeVirtual [<<New>>,<<String2>>] intrinsic:StringBufferAppend  loop:<<Loop>>
+  /// CHECK-DAG: <<String3:l\d+>> LoadString                                                        loop:<<Loop>>
+  /// CHECK-DAG: <<Append3:l\d+>> InvokeVirtual [<<New>>,<<String3>>] intrinsic:StringBufferAppend  loop:<<Loop>>
+  /// CHECK-DAG:                  InvokeVirtual [<<New>>]             intrinsic:StringBufferLength  loop:none
+  static int bufferLoopAppender() {
+    StringBuffer b = new StringBuffer();
+    for (int i = 0; i < 10; i++) {
+      b.append("x").append("y").append("z");
+    }
+    return b.length();
+  }
+
+  //
+  // Similar situation in a loop.
+  //
+  /// CHECK-START: int Main.builderLoopAppender() instruction_simplifier (before)
+  /// CHECK-DAG: <<New:l\d+>>     NewInstance                                                         loop:none
+  /// CHECK-DAG: <<String1:l\d+>> LoadString                                                          loop:<<Loop:B\d+>>
+  /// CHECK-DAG: <<Null1:l\d+>>   NullCheck     [<<New>>]                                             loop:<<Loop>>
+  /// CHECK-DAG: <<Append1:l\d+>> InvokeVirtual [<<Null1>>,<<String1>>] intrinsic:StringBuilderAppend loop:<<Loop>>
+  /// CHECK-DAG: <<String2:l\d+>> LoadString                                                          loop:<<Loop>>
+  /// CHECK-DAG: <<Null2:l\d+>>   NullCheck     [<<Append1>>]                                         loop:<<Loop>>
+  /// CHECK-DAG: <<Append2:l\d+>> InvokeVirtual [<<Null2>>,<<String2>>] intrinsic:StringBuilderAppend loop:<<Loop>>
+  /// CHECK-DAG: <<String3:l\d+>> LoadString                                                          loop:<<Loop>>
+  /// CHECK-DAG: <<Null3:l\d+>>   NullCheck     [<<Append2>>]                                         loop:<<Loop>>
+  /// CHECK-DAG: <<Append3:l\d+>> InvokeVirtual [<<Null3>>,<<String3>>] intrinsic:StringBuilderAppend loop:<<Loop>>
+  /// CHECK-DAG: <<Null4:l\d+>>   NullCheck     [<<New>>]                                             loop:none
+  /// CHECK-DAG:                  InvokeVirtual [<<Null4>>]             intrinsic:StringBuilderLength loop:none
+  //
+  /// CHECK-START: int Main.builderLoopAppender() instruction_simplifier (after)
+  /// CHECK-DAG: <<New:l\d+>>     NewInstance                                                       loop:none
+  /// CHECK-DAG: <<String1:l\d+>> LoadString                                                        loop:<<Loop:B\d+>>
+  /// CHECK-DAG: <<Append1:l\d+>> InvokeVirtual [<<New>>,<<String1>>] intrinsic:StringBuilderAppend loop:<<Loop>>
+  /// CHECK-DAG: <<String2:l\d+>> LoadString                                                        loop:<<Loop>>
+  /// CHECK-DAG: <<Append2:l\d+>> InvokeVirtual [<<New>>,<<String2>>] intrinsic:StringBuilderAppend loop:<<Loop>>
+  /// CHECK-DAG: <<String3:l\d+>> LoadString                                                        loop:<<Loop>>
+  /// CHECK-DAG: <<Append3:l\d+>> InvokeVirtual [<<New>>,<<String3>>] intrinsic:StringBuilderAppend loop:<<Loop>>
+  /// CHECK-DAG:                  InvokeVirtual [<<New>>]             intrinsic:StringBuilderLength loop:none
+  static int builderLoopAppender() {
+    StringBuilder b = new StringBuilder();
+    for (int i = 0; i < 10; i++) {
+      b.append("x").append("y").append("z");
+    }
+    return b.length();
+  }
+
+  //
+  // All calls in the loop-body and thus loop can be eliminated.
+  //
+  /// CHECK-START: int Main.bufferDeadLoop() instruction_simplifier (before)
+  /// CHECK-DAG: Phi                                              loop:<<Loop:B\d+>>
+  /// CHECK-DAG: InvokeVirtual intrinsic:StringBufferToString     loop:<<Loop>>
+  /// CHECK-DAG: InvokeVirtual intrinsic:StringStringIndexOfAfter loop:<<Loop>>
+  //
+  /// CHECK-START: int Main.bufferDeadLoop() loop_optimization (after)
+  /// CHECK-NOT: Phi
+  /// CHECK-NOT: InvokeVirtual intrinsic:StringBufferToString
+  /// CHECK-NOT: InvokeVirtual intrinsic:StringStringIndexOfAfter
+  static int bufferDeadLoop() {
+    StringBuffer b = new StringBuffer();
+    for (int i = 0; i < 10; i++) {
+      int d = b.toString().indexOf("x", 1);
+    }
+    return b.length();
+  }
+
+  //
+  // All calls in the loop-body and thus loop can be eliminated.
+  //
+  /// CHECK-START: int Main.builderDeadLoop() instruction_simplifier (before)
+  /// CHECK-DAG: Phi                                              loop:<<Loop:B\d+>>
+  /// CHECK-DAG: InvokeVirtual intrinsic:StringBuilderToString    loop:<<Loop>>
+  /// CHECK-DAG: InvokeVirtual intrinsic:StringStringIndexOfAfter loop:<<Loop>>
+  //
+  /// CHECK-START: int Main.builderDeadLoop() loop_optimization (after)
+  /// CHECK-NOT: Phi
+  /// CHECK-NOT: InvokeVirtual intrinsic:StringBuilderToString
+  /// CHECK-NOT: InvokeVirtual intrinsic:StringStringIndexOfAfter
+  static int builderDeadLoop() {
+    StringBuilder b = new StringBuilder();
+    for (int i = 0; i < 10; i++) {
+      int d = b.toString().indexOf("x", 1);
+    }
+    return b.length();
+  }
+
   public static void main(String[] args) {
     expectEquals(1865, liveIndexOf());
     expectEquals(29, deadIndexOf());
+
     try {
       indexOfExceptions(null, XYZ);
       throw new Error("Expected: NPE");
@@ -112,6 +273,13 @@ public class Main {
     } catch (NullPointerException e) {
     }
     expectEquals(598, indexOfExceptions(ABC, XYZ));
+
+    expectEquals(2, bufferLen2());
+    expectEquals(2, builderLen2());
+    expectEquals(30, bufferLoopAppender());
+    expectEquals(30, builderLoopAppender());
+    expectEquals(0, bufferDeadLoop());
+    expectEquals(0, builderDeadLoop());
 
     System.out.println("passed");
   }
