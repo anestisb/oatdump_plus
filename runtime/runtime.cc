@@ -62,6 +62,7 @@
 #include "base/stl_util.h"
 #include "base/systrace.h"
 #include "base/unix_file/fd_file.h"
+#include "cha.h"
 #include "class_linker-inl.h"
 #include "compiler_callbacks.h"
 #include "debugger.h"
@@ -349,6 +350,7 @@ Runtime::~Runtime() {
   delete monitor_list_;
   delete monitor_pool_;
   delete class_linker_;
+  delete cha_;
   delete heap_;
   delete intern_table_;
   delete oat_file_manager_;
@@ -1203,6 +1205,7 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
 
   CHECK_GE(GetHeap()->GetContinuousSpaces().size(), 1U);
   class_linker_ = new ClassLinker(intern_table_);
+  cha_ = new ClassHierarchyAnalysis;
   if (GetHeap()->HasBootImageSpace()) {
     bool result = class_linker_->InitFromBootImage(&error_msg);
     if (!result) {

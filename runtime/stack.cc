@@ -648,7 +648,7 @@ static void AssertPcIsWithinQuickCode(ArtMethod* method, uintptr_t pc)
     return;
   }
 
-  uint32_t code_size = OatQuickMethodHeader::FromEntryPoint(code)->code_size_;
+  uint32_t code_size = OatQuickMethodHeader::FromEntryPoint(code)->GetCodeSize();
   uintptr_t code_start = reinterpret_cast<uintptr_t>(code);
   CHECK(code_start <= pc && pc <= (code_start + code_size))
       << method->PrettyMethod()

@@ -1053,7 +1053,8 @@ class OatDumper {
       if (options_.absolute_addresses_) {
         vios->Stream() << StringPrintf("%p ", oat_method.GetVmapTable());
       }
-      uint32_t vmap_table_offset = method_header == nullptr ? 0 : method_header->vmap_table_offset_;
+      uint32_t vmap_table_offset = method_header ==
+          nullptr ? 0 : method_header->GetVmapTableOffset();
       vios->Stream() << StringPrintf("(offset=0x%08x)\n", vmap_table_offset);
 
       size_t vmap_table_offset_limit =
