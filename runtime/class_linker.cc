@@ -40,6 +40,7 @@
 #include "base/time_utils.h"
 #include "base/unix_file/fd_file.h"
 #include "base/value_object.h"
+#include "cha.h"
 #include "class_linker-inl.h"
 #include "class_table-inl.h"
 #include "compiler_callbacks.h"
@@ -96,6 +97,7 @@
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
+#include "thread_list.h"
 #include "trace.h"
 #include "utils.h"
 #include "utils/dex_cache_arrays_layout-inl.h"
@@ -5141,6 +5143,12 @@ bool ClassLinker::LinkClass(Thread* self,
     if (klass->ShouldHaveImt()) {
       klass->SetImt(imt, image_pointer_size_);
     }
+
+    // Update CHA info based on whether we override methods.
+    // Have to do this before setting the class as resolved which allows
+    // instantiation of klass.
+    Runtime::Current()->GetClassHierarchyAnalysis()->UpdateAfterLoadingOf(klass);
+
     // This will notify waiters on klass that saw the not yet resolved
     // class in the class_table_ during EnsureResolved.
     mirror::Class::SetStatus(klass, mirror::Class::kStatusResolved, self);
@@ -5183,6 +5191,11 @@ bool ClassLinker::LinkClass(Thread* self,
         new_class_roots_.push_back(GcRoot<mirror::Class>(h_new_class.Get()));
       }
     }
+
+    // Update CHA info based on whether we override methods.
+    // Have to do this before setting the class as resolved which allows
+    // instantiation of klass.
+    Runtime::Current()->GetClassHierarchyAnalysis()->UpdateAfterLoadingOf(h_new_class);
 
     // This will notify waiters on temp class that saw the not yet resolved class in the
     // class_table_ during EnsureResolved.

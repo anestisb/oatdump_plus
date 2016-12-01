@@ -1326,6 +1326,12 @@ void CodeGeneratorX86_64::GenerateFrameEntry() {
     }
   }
 
+  if (GetGraph()->HasShouldDeoptimizeFlag()) {
+    // Initialize should_deoptimize flag to 0.
+    __ movl(Address(CpuRegister(RSP), xmm_spill_location - kShouldDeoptimizeFlagSize),
+            Immediate(0));
+  }
+
   // Save the current method if we need it. Note that we do not
   // do this in HCurrentMethod, as the instruction might have been removed
   // in the SSA graph.
@@ -1745,6 +1751,17 @@ void InstructionCodeGeneratorX86_64::VisitDeoptimize(HDeoptimize* deoptimize) {
                                /* condition_input_index */ 0,
                                slow_path->GetEntryLabel(),
                                /* false_target */ nullptr);
+}
+
+void LocationsBuilderX86_64::VisitShouldDeoptimizeFlag(HShouldDeoptimizeFlag* flag) {
+  LocationSummary* locations = new (GetGraph()->GetArena())
+      LocationSummary(flag, LocationSummary::kNoCall);
+  locations->SetOut(Location::RequiresRegister());
+}
+
+void InstructionCodeGeneratorX86_64::VisitShouldDeoptimizeFlag(HShouldDeoptimizeFlag* flag) {
+  __ movl(flag->GetLocations()->Out().AsRegister<CpuRegister>(),
+          Address(CpuRegister(RSP), codegen_->GetStackOffsetOfShouldDeoptimizeFlag()));
 }
 
 static bool SelectCanUseCMOV(HSelect* select) {

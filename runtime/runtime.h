@@ -76,6 +76,7 @@ namespace verifier {
 }  // namespace verifier
 class ArenaPool;
 class ArtMethod;
+class ClassHierarchyAnalysis;
 class ClassLinker;
 class Closure;
 class CompilerCallbacks;
@@ -674,6 +675,10 @@ class Runtime {
   void AddSystemWeakHolder(gc::AbstractSystemWeakHolder* holder);
   void RemoveSystemWeakHolder(gc::AbstractSystemWeakHolder* holder);
 
+  ClassHierarchyAnalysis* GetClassHierarchyAnalysis() {
+    return cha_;
+  }
+
   NO_RETURN
   static void Aborter(const char* abort_message);
 
@@ -920,6 +925,8 @@ class Runtime {
 
   // Generic system-weak holders.
   std::vector<gc::AbstractSystemWeakHolder*> system_weak_holders_;
+
+  ClassHierarchyAnalysis* cha_;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };

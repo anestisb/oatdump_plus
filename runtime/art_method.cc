@@ -51,6 +51,17 @@ extern "C" void art_quick_invoke_stub(ArtMethod*, uint32_t*, uint32_t, Thread*, 
 extern "C" void art_quick_invoke_static_stub(ArtMethod*, uint32_t*, uint32_t, Thread*, JValue*,
                                              const char*);
 
+ArtMethod* ArtMethod::GetSingleImplementation() {
+  DCHECK(!IsNative());
+  if (!IsAbstract()) {
+    // A non-abstract's single implementation is itself.
+    return this;
+  }
+  // TODO: add single-implementation logic for abstract method by storing it
+  // in ptr_sized_fields_.
+  return nullptr;
+}
+
 ArtMethod* ArtMethod::FromReflectedMethod(const ScopedObjectAccessAlreadyRunnable& soa,
                                           jobject jlr_method) {
   ObjPtr<mirror::Executable> executable = soa.Decode<mirror::Executable>(jlr_method);
@@ -345,7 +356,7 @@ void ArtMethod::RegisterNative(const void* native_method, bool is_fast) {
   CHECK(!IsFastNative()) << PrettyMethod();
   CHECK(native_method != nullptr) << PrettyMethod();
   if (is_fast) {
-    SetAccessFlags(GetAccessFlags() | kAccFastNative);
+    AddAccessFlags(kAccFastNative);
   }
   SetEntryPointFromJni(native_method);
 }
@@ -503,7 +514,7 @@ const uint8_t* ArtMethod::GetQuickenedInfo(PointerSize pointer_size) {
     if (oat_file == nullptr) {
       return nullptr;
     }
-    return oat_file->DexBegin() + header->vmap_table_offset_;
+    return oat_file->DexBegin() + header->GetVmapTableOffset();
   } else {
     return oat_method.GetVmapTable();
   }
@@ -601,7 +612,7 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
   DCHECK(method_header->Contains(pc))
       << PrettyMethod()
       << " " << std::hex << pc << " " << oat_entry_point
-      << " " << (uintptr_t)(method_header->code_ + method_header->code_size_);
+      << " " << (uintptr_t)(method_header->GetCode() + method_header->GetCodeSize());
   return method_header;
 }
 
