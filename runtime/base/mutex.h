@@ -97,6 +97,7 @@ enum LockLevel {
   kMonitorPoolLock,
   kClassLinkerClassesLock,  // TODO rename.
   kJitCodeCacheLock,
+  kCHALock,
   kBreakpointLock,
   kMonitorLock,
   kMonitorListLock,
@@ -627,9 +628,12 @@ class Locks {
   // TODO: improve name, perhaps instrumentation_update_lock_.
   static Mutex* deoptimization_lock_ ACQUIRED_AFTER(alloc_tracker_lock_);
 
+  // Guards Class Hierarchy Analysis (CHA).
+  static Mutex* cha_lock_ ACQUIRED_AFTER(deoptimization_lock_);
+
   // The thread_list_lock_ guards ThreadList::list_. It is also commonly held to stop threads
   // attaching and detaching.
-  static Mutex* thread_list_lock_ ACQUIRED_AFTER(deoptimization_lock_);
+  static Mutex* thread_list_lock_ ACQUIRED_AFTER(cha_lock_);
 
   // Signaled when threads terminate. Used to determine when all non-daemons have terminated.
   static ConditionVariable* thread_exit_cond_ GUARDED_BY(Locks::thread_list_lock_);

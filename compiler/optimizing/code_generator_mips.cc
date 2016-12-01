@@ -4688,6 +4688,16 @@ void InstructionCodeGeneratorMIPS::GenConditionalMoveR6(HSelect* select) {
   }
 }
 
+void LocationsBuilderMIPS::VisitShouldDeoptimizeFlag(
+    HShouldDeoptimizeFlag* flag ATTRIBUTE_UNUSED) {
+  // TODO: to be implemented.
+}
+
+void InstructionCodeGeneratorMIPS::VisitShouldDeoptimizeFlag(
+    HShouldDeoptimizeFlag* flag ATTRIBUTE_UNUSED) {
+  // TODO: to be implemented.
+}
+
 void LocationsBuilderMIPS::VisitSelect(HSelect* select) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(select);
   CanMoveConditionally(select, codegen_->GetInstructionSetFeatures().IsR6(), locations);

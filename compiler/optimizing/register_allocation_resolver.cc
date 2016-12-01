@@ -87,6 +87,10 @@ void RegisterAllocationResolver::Resolve(ArrayRef<HInstruction* const> safepoint
       // Adjust the stack slot, now that we know the number of them for each type.
       // The way this implementation lays out the stack is the following:
       // [parameter slots       ]
+      // [art method (caller)   ]
+      // [entry spill (core)    ]
+      // [entry spill (float)   ]
+      // [should_deoptimize flag] (this is optional)
       // [catch phi spill slots ]
       // [double spill slots    ]
       // [long spill slots      ]

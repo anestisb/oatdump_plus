@@ -410,15 +410,15 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
       result.kind = kSoftFailure;
       if (method != nullptr &&
           !CanCompilerHandleVerificationFailure(verifier.encountered_failure_types_)) {
-        method->SetAccessFlags(method->GetAccessFlags() | kAccCompileDontBother);
+        method->AddAccessFlags(kAccCompileDontBother);
       }
     }
     if (method != nullptr) {
       if (verifier.HasInstructionThatWillThrow()) {
-        method->SetAccessFlags(method->GetAccessFlags() | kAccCompileDontBother);
+        method->AddAccessFlags(kAccCompileDontBother);
       }
       if ((verifier.encountered_failure_types_ & VerifyError::VERIFY_ERROR_LOCKING) != 0) {
-        method->SetAccessFlags(method->GetAccessFlags() | kAccMustCountLocks);
+        method->AddAccessFlags(kAccMustCountLocks);
       }
     }
   } else {

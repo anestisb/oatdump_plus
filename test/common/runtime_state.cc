@@ -157,4 +157,17 @@ extern "C" JNIEXPORT void JNICALL Java_Main_ensureJitCompiled(JNIEnv* env,
   }
 }
 
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_hasSingleImplementation(JNIEnv* env,
+                                                                        jclass,
+                                                                        jclass cls,
+                                                                        jstring method_name) {
+  ArtMethod* method = nullptr;
+  ScopedObjectAccess soa(Thread::Current());
+  ScopedUtfChars chars(env, method_name);
+  CHECK(chars.c_str() != nullptr);
+  method = soa.Decode<mirror::Class>(cls)->FindDeclaredVirtualMethodByName(
+      chars.c_str(), kRuntimePointerSize);
+  return method->HasSingleImplementation();
+}
+
 }  // namespace art
