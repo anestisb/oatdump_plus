@@ -279,6 +279,9 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
   Mips64Assembler* GetAssembler() OVERRIDE { return &assembler_; }
   const Mips64Assembler& GetAssembler() const OVERRIDE { return assembler_; }
 
+  // Emit linker patches.
+  void EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) OVERRIDE;
+
   void MarkGCCard(GpuRegister object, GpuRegister value, bool value_can_be_null);
 
   // Register allocation.
@@ -357,7 +360,44 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
   void GenerateImplicitNullCheck(HNullCheck* instruction) OVERRIDE;
   void GenerateExplicitNullCheck(HNullCheck* instruction) OVERRIDE;
 
+  // The PcRelativePatchInfo is used for PC-relative addressing of dex cache arrays,
+  // boot image strings and method calls. The only difference is the interpretation of
+  // the offset_or_index.
+  struct PcRelativePatchInfo {
+    PcRelativePatchInfo(const DexFile& dex_file, uint32_t off_or_idx)
+        : target_dex_file(dex_file), offset_or_index(off_or_idx) { }
+    PcRelativePatchInfo(PcRelativePatchInfo&& other) = default;
+
+    const DexFile& target_dex_file;
+    // Either the dex cache array element offset or the string/type/method index.
+    uint32_t offset_or_index;
+    // Label for the auipc instruction.
+    Mips64Label pc_rel_label;
+  };
+
+  PcRelativePatchInfo* NewPcRelativeDexCacheArrayPatch(const DexFile& dex_file,
+                                                       uint32_t element_offset);
+  PcRelativePatchInfo* NewPcRelativeCallPatch(const DexFile& dex_file,
+                                              uint32_t method_index);
+
+  void EmitPcRelativeAddressPlaceholderHigh(PcRelativePatchInfo* info, GpuRegister out);
+
  private:
+  using Uint64ToLiteralMap = ArenaSafeMap<uint64_t, Literal*>;
+  using MethodToLiteralMap = ArenaSafeMap<MethodReference, Literal*, MethodReferenceComparator>;
+  Literal* DeduplicateUint64Literal(uint64_t value);
+  Literal* DeduplicateMethodLiteral(MethodReference target_method, MethodToLiteralMap* map);
+  Literal* DeduplicateMethodAddressLiteral(MethodReference target_method);
+  Literal* DeduplicateMethodCodeLiteral(MethodReference target_method);
+
+  PcRelativePatchInfo* NewPcRelativePatch(const DexFile& dex_file,
+                                          uint32_t offset_or_index,
+                                          ArenaDeque<PcRelativePatchInfo>* patches);
+
+  template <LinkerPatch (*Factory)(size_t, const DexFile*, uint32_t, uint32_t)>
+  void EmitPcRelativeLinkerPatches(const ArenaDeque<PcRelativePatchInfo>& infos,
+                                   ArenaVector<LinkerPatch>* linker_patches);
+
   // Labels for each block that will be compiled.
   Mips64Label* block_labels_;  // Indexed by block id.
   Mips64Label frame_entry_label_;
@@ -366,6 +406,16 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
   ParallelMoveResolverMIPS64 move_resolver_;
   Mips64Assembler assembler_;
   const Mips64InstructionSetFeatures& isa_features_;
+
+  // Deduplication map for 64-bit literals, used for non-patchable method address or method code
+  // address.
+  Uint64ToLiteralMap uint64_literals_;
+  // Method patch info, map MethodReference to a literal for method address and method code.
+  MethodToLiteralMap method_patches_;
+  MethodToLiteralMap call_patches_;
+  // PC-relative patch info.
+  ArenaDeque<PcRelativePatchInfo> pc_relative_dex_cache_patches_;
+  ArenaDeque<PcRelativePatchInfo> relative_call_patches_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorMIPS64);
 };

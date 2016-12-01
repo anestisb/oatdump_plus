@@ -29,10 +29,10 @@ class Mips32r6RelativePatcherTest : public RelativePatcherTest {
   Mips32r6RelativePatcherTest() : RelativePatcherTest(kMips, "mips32r6") {}
 
  protected:
-  static const uint8_t UnpatchedPcRelativeRawCode[];
-  static const uint32_t LiteralOffset;
-  static const uint32_t AnchorOffset;
-  static const ArrayRef<const uint8_t> UnpatchedPcRelativeCode;
+  static const uint8_t kUnpatchedPcRelativeRawCode[];
+  static const uint32_t kLiteralOffset;
+  static const uint32_t kAnchorOffset;
+  static const ArrayRef<const uint8_t> kUnpatchedPcRelativeCode;
 
   uint32_t GetMethodOffset(uint32_t method_idx) {
     auto result = method_offset_map_.FindMethodOffset(MethodRef(method_idx));
@@ -45,24 +45,25 @@ class Mips32r6RelativePatcherTest : public RelativePatcherTest {
   void TestStringReference(uint32_t string_offset);
 };
 
-const uint8_t Mips32r6RelativePatcherTest::UnpatchedPcRelativeRawCode[] = {
+const uint8_t Mips32r6RelativePatcherTest::kUnpatchedPcRelativeRawCode[] = {
     0x34, 0x12, 0x5E, 0xEE,  // auipc s2, high(diff); placeholder = 0x1234
     0x78, 0x56, 0x52, 0x26,  // addiu s2, s2, low(diff); placeholder = 0x5678
 };
-const uint32_t Mips32r6RelativePatcherTest::LiteralOffset = 0;  // At auipc (where patching starts).
-const uint32_t Mips32r6RelativePatcherTest::AnchorOffset = 0;  // At auipc (where PC+0 points).
-const ArrayRef<const uint8_t> Mips32r6RelativePatcherTest::UnpatchedPcRelativeCode(
-    UnpatchedPcRelativeRawCode);
+const uint32_t Mips32r6RelativePatcherTest::kLiteralOffset = 0;  // At auipc (where
+                                                                 // patching starts).
+const uint32_t Mips32r6RelativePatcherTest::kAnchorOffset = 0;  // At auipc (where PC+0 points).
+const ArrayRef<const uint8_t> Mips32r6RelativePatcherTest::kUnpatchedPcRelativeCode(
+    kUnpatchedPcRelativeRawCode);
 
 void Mips32r6RelativePatcherTest::CheckPcRelativePatch(const ArrayRef<const LinkerPatch>& patches,
                                                        uint32_t target_offset) {
-  AddCompiledMethod(MethodRef(1u), UnpatchedPcRelativeCode, ArrayRef<const LinkerPatch>(patches));
+  AddCompiledMethod(MethodRef(1u), kUnpatchedPcRelativeCode, ArrayRef<const LinkerPatch>(patches));
   Link();
 
   auto result = method_offset_map_.FindMethodOffset(MethodRef(1u));
   ASSERT_TRUE(result.first);
 
-  uint32_t diff = target_offset - (result.second + AnchorOffset);
+  uint32_t diff = target_offset - (result.second + kAnchorOffset);
   if (patches[0].GetType() == LinkerPatch::Type::kDexCacheArray) {
     diff += kDexCacheArrayLwOffset;
   }
@@ -79,7 +80,7 @@ void Mips32r6RelativePatcherTest::TestDexCacheReference(uint32_t dex_cache_array
                                                         uint32_t element_offset) {
   dex_cache_arrays_begin_ = dex_cache_arrays_begin;
   LinkerPatch patches[] = {
-      LinkerPatch::DexCacheArrayPatch(LiteralOffset, nullptr, AnchorOffset, element_offset)
+      LinkerPatch::DexCacheArrayPatch(kLiteralOffset, nullptr, kAnchorOffset, element_offset)
   };
   CheckPcRelativePatch(ArrayRef<const LinkerPatch>(patches),
                        dex_cache_arrays_begin_ + element_offset);
@@ -89,7 +90,7 @@ void Mips32r6RelativePatcherTest::TestStringReference(uint32_t string_offset) {
   constexpr uint32_t kStringIndex = 1u;
   string_index_to_offset_map_.Put(kStringIndex, string_offset);
   LinkerPatch patches[] = {
-      LinkerPatch::RelativeStringPatch(LiteralOffset, nullptr, AnchorOffset, kStringIndex)
+      LinkerPatch::RelativeStringPatch(kLiteralOffset, nullptr, kAnchorOffset, kStringIndex)
   };
   CheckPcRelativePatch(ArrayRef<const LinkerPatch>(patches), string_offset);
 }
