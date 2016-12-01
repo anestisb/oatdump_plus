@@ -41,6 +41,7 @@
 #include "runtime.h"
 #include "safe_map.h"
 #include "thread_pool.h"
+#include "utils/atomic_method_ref_map.h"
 #include "utils/dex_cache_arrays_layout.h"
 
 namespace art {
@@ -131,7 +132,7 @@ class CompilerDriver {
   // Compile a single Method.
   void CompileOne(Thread* self, ArtMethod* method, TimingLogger* timings)
       REQUIRES_SHARED(Locks::mutator_lock_)
-      REQUIRES(!compiled_methods_lock_, !compiled_classes_lock_, !dex_to_dex_references_lock_);
+      REQUIRES(!compiled_classes_lock_, !dex_to_dex_references_lock_);
 
   VerificationResults* GetVerificationResults() const {
     DCHECK(Runtime::Current()->IsAotCompiler());
@@ -168,18 +169,12 @@ class CompilerDriver {
   CompiledClass* GetCompiledClass(ClassReference ref) const
       REQUIRES(!compiled_classes_lock_);
 
-  CompiledMethod* GetCompiledMethod(MethodReference ref) const
-      REQUIRES(!compiled_methods_lock_);
-  size_t GetNonRelativeLinkerPatchCount() const
-      REQUIRES(!compiled_methods_lock_);
-
+  CompiledMethod* GetCompiledMethod(MethodReference ref) const;
+  size_t GetNonRelativeLinkerPatchCount() const;
   // Add a compiled method.
   void AddCompiledMethod(const MethodReference& method_ref,
                          CompiledMethod* const compiled_method,
-                         size_t non_relative_linker_patch_count)
-      REQUIRES(!compiled_methods_lock_);
-  // Remove and delete a compiled method.
-  void RemoveCompiledMethod(const MethodReference& method_ref) REQUIRES(!compiled_methods_lock_);
+                         size_t non_relative_linker_patch_count);
 
   void SetRequiresConstructorBarrier(Thread* self,
                                      const DexFile* dex_file,
@@ -519,18 +514,15 @@ class CompilerDriver {
   mutable Mutex compiled_classes_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   ClassTable compiled_classes_ GUARDED_BY(compiled_classes_lock_);
 
-  typedef SafeMap<const MethodReference, CompiledMethod*, MethodReferenceComparator> MethodTable;
-
- public:
-  // Lock is public so that non-members can have lock annotations.
-  mutable Mutex compiled_methods_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  typedef AtomicMethodRefMap<CompiledMethod*> MethodTable;
 
  private:
   // All method references that this compiler has compiled.
-  MethodTable compiled_methods_ GUARDED_BY(compiled_methods_lock_);
+  MethodTable compiled_methods_;
+
   // Number of non-relative patches in all compiled methods. These patches need space
   // in the .oat_patches ELF section if requested in the compiler options.
-  size_t non_relative_linker_patch_count_ GUARDED_BY(compiled_methods_lock_);
+  Atomic<size_t> non_relative_linker_patch_count_;
 
   // If image_ is true, specifies the classes that will be included in the image.
   // Note if image_classes_ is null, all classes are included in the image.
