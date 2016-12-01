@@ -16,9 +16,6 @@
 
 # Known broken tests for the ARM VIXL backend.
 TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
-  103-string-append \
-  137-cfi \
   488-checker-inline-recursive-calls \
   552-checker-sharpening \
   562-checker-no-intermediate \
-  602-deoptimizeable \
