@@ -2370,6 +2370,14 @@ void InstructionCodeGeneratorARM::VisitInvokeInterface(HInvokeInterface* invoke)
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
 
+void LocationsBuilderARM::VisitInvokePolymorphic(HInvokePolymorphic* invoke) {
+  HandleInvoke(invoke);
+}
+
+void InstructionCodeGeneratorARM::VisitInvokePolymorphic(HInvokePolymorphic* invoke) {
+  codegen_->GenerateInvokePolymorphicCall(invoke);
+}
+
 void LocationsBuilderARM::VisitNeg(HNeg* neg) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(neg, LocationSummary::kNoCall);
