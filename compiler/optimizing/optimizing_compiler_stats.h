@@ -27,6 +27,7 @@ namespace art {
 
 enum MethodCompilationStat {
   kAttemptCompilation = 0,
+  kCHAInline,
   kCompiled,
   kInlinedInvoke,
   kReplacedInvokeWithSimplePattern,
@@ -106,6 +107,7 @@ class OptimizingCompilerStats {
     std::string name;
     switch (stat) {
       case kAttemptCompilation : name = "AttemptCompilation"; break;
+      case kCHAInline : name = "CHAInline"; break;
       case kCompiled : name = "Compiled"; break;
       case kInlinedInvoke : name = "InlinedInvoke"; break;
       case kReplacedInvokeWithSimplePattern: name = "ReplacedInvokeWithSimplePattern"; break;

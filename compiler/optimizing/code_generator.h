@@ -307,6 +307,12 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
     return POPCOUNT(GetSlowPathSpills(locations, core_registers));
   }
 
+  size_t GetStackOffsetOfShouldDeoptimizeFlag() const {
+    DCHECK(GetGraph()->HasShouldDeoptimizeFlag());
+    DCHECK_GE(GetFrameSize(), FrameEntrySpillSize() + kShouldDeoptimizeFlagSize);
+    return GetFrameSize() - FrameEntrySpillSize() - kShouldDeoptimizeFlagSize;
+  }
+
   // Record native to dex mapping for a suspend point.  Required by runtime.
   void RecordPcInfo(HInstruction* instruction, uint32_t dex_pc, SlowPathCode* slow_path = nullptr);
   // Check whether we have already recorded mapping at this PC.

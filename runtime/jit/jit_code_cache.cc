@@ -23,6 +23,7 @@
 #include "base/stl_util.h"
 #include "base/systrace.h"
 #include "base/time_utils.h"
+#include "cha.h"
 #include "debugger_interface.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "gc/accounting/bitmap-inl.h"
@@ -217,7 +218,9 @@ uint8_t* JitCodeCache::CommitCode(Thread* self,
                                   const uint8_t* code,
                                   size_t code_size,
                                   bool osr,
-                                  Handle<mirror::ObjectArray<mirror::Object>> roots) {
+                                  Handle<mirror::ObjectArray<mirror::Object>> roots,
+                                  bool has_should_deoptimize_flag,
+                                  const ArenaSet<ArtMethod*>& cha_single_implementation_list) {
   uint8_t* result = CommitCodeInternal(self,
                                        method,
                                        stack_map,
@@ -228,7 +231,9 @@ uint8_t* JitCodeCache::CommitCode(Thread* self,
                                        code,
                                        code_size,
                                        osr,
-                                       roots);
+                                       roots,
+                                       has_should_deoptimize_flag,
+                                       cha_single_implementation_list);
   if (result == nullptr) {
     // Retry.
     GarbageCollectCache(self);
@@ -242,7 +247,9 @@ uint8_t* JitCodeCache::CommitCode(Thread* self,
                                 code,
                                 code_size,
                                 osr,
-                                roots);
+                                roots,
+                                has_should_deoptimize_flag,
+                                cha_single_implementation_list);
   }
   return result;
 }
@@ -359,7 +366,7 @@ void JitCodeCache::SweepRootTables(IsMarkedVisitor* visitor) {
   }
 }
 
-void JitCodeCache::FreeCode(const void* code_ptr, ArtMethod* method ATTRIBUTE_UNUSED) {
+void JitCodeCache::FreeCode(const void* code_ptr) {
   uintptr_t allocation = FromCodeToAllocation(code_ptr);
   // Notify native debugger that we are about to remove the code.
   // It does nothing if we are not using native debugger.
@@ -368,41 +375,69 @@ void JitCodeCache::FreeCode(const void* code_ptr, ArtMethod* method ATTRIBUTE_UN
   FreeCode(reinterpret_cast<uint8_t*>(allocation));
 }
 
+void JitCodeCache::FreeAllMethodHeaders(
+    const std::unordered_set<OatQuickMethodHeader*>& method_headers) {
+  {
+    MutexLock mu(Thread::Current(), *Locks::cha_lock_);
+    Runtime::Current()->GetClassHierarchyAnalysis()
+        ->RemoveDependentsWithMethodHeaders(method_headers);
+  }
+
+  // We need to remove entries in method_headers from CHA dependencies
+  // first since once we do FreeCode() below, the memory can be reused
+  // so it's possible for the same method_header to start representing
+  // different compile code.
+  MutexLock mu(Thread::Current(), lock_);
+  ScopedCodeCacheWrite scc(code_map_.get());
+  for (const OatQuickMethodHeader* method_header : method_headers) {
+    FreeCode(method_header->GetCode());
+  }
+}
+
 void JitCodeCache::RemoveMethodsIn(Thread* self, const LinearAlloc& alloc) {
   ScopedTrace trace(__PRETTY_FUNCTION__);
-  MutexLock mu(self, lock_);
-  // We do not check if a code cache GC is in progress, as this method comes
-  // with the classlinker_classes_lock_ held, and suspending ourselves could
-  // lead to a deadlock.
+  // We use a set to first collect all method_headers whose code need to be
+  // removed. We need to free the underlying code after we remove CHA dependencies
+  // for entries in this set. And it's more efficient to iterate through
+  // the CHA dependency map just once with an unordered_set.
+  std::unordered_set<OatQuickMethodHeader*> method_headers;
   {
-    ScopedCodeCacheWrite scc(code_map_.get());
-    for (auto it = method_code_map_.begin(); it != method_code_map_.end();) {
-      if (alloc.ContainsUnsafe(it->second)) {
-        FreeCode(it->first, it->second);
-        it = method_code_map_.erase(it);
+    MutexLock mu(self, lock_);
+    // We do not check if a code cache GC is in progress, as this method comes
+    // with the classlinker_classes_lock_ held, and suspending ourselves could
+    // lead to a deadlock.
+    {
+      ScopedCodeCacheWrite scc(code_map_.get());
+      for (auto it = method_code_map_.begin(); it != method_code_map_.end();) {
+        if (alloc.ContainsUnsafe(it->second)) {
+          method_headers.insert(OatQuickMethodHeader::FromCodePointer(it->first));
+          it = method_code_map_.erase(it);
+        } else {
+          ++it;
+        }
+      }
+    }
+    for (auto it = osr_code_map_.begin(); it != osr_code_map_.end();) {
+      if (alloc.ContainsUnsafe(it->first)) {
+        // Note that the code has already been pushed to method_headers in the loop
+        // above and is going to be removed in FreeCode() below.
+        it = osr_code_map_.erase(it);
+      } else {
+        ++it;
+      }
+    }
+    for (auto it = profiling_infos_.begin(); it != profiling_infos_.end();) {
+      ProfilingInfo* info = *it;
+      if (alloc.ContainsUnsafe(info->GetMethod())) {
+        info->GetMethod()->SetProfilingInfo(nullptr);
+        FreeData(reinterpret_cast<uint8_t*>(info));
+        it = profiling_infos_.erase(it);
       } else {
         ++it;
       }
     }
   }
-  for (auto it = osr_code_map_.begin(); it != osr_code_map_.end();) {
-    if (alloc.ContainsUnsafe(it->first)) {
-      // Note that the code has already been removed in the loop above.
-      it = osr_code_map_.erase(it);
-    } else {
-      ++it;
-    }
-  }
-  for (auto it = profiling_infos_.begin(); it != profiling_infos_.end();) {
-    ProfilingInfo* info = *it;
-    if (alloc.ContainsUnsafe(info->GetMethod())) {
-      info->GetMethod()->SetProfilingInfo(nullptr);
-      FreeData(reinterpret_cast<uint8_t*>(info));
-      it = profiling_infos_.erase(it);
-    } else {
-      ++it;
-    }
-  }
+  FreeAllMethodHeaders(method_headers);
 }
 
 bool JitCodeCache::IsWeakAccessEnabled(Thread* self) const {
@@ -464,7 +499,10 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
                                           const uint8_t* code,
                                           size_t code_size,
                                           bool osr,
-                                          Handle<mirror::ObjectArray<mirror::Object>> roots) {
+                                          Handle<mirror::ObjectArray<mirror::Object>> roots,
+                                          bool has_should_deoptimize_flag,
+                                          const ArenaSet<ArtMethod*>&
+                                              cha_single_implementation_list) {
   DCHECK(stack_map != nullptr);
   size_t alignment = GetInstructionSetAlignment(kRuntimeISA);
   // Ensure the header ends up at expected instruction alignment.
@@ -506,12 +544,44 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
       // https://patchwork.kernel.org/patch/9047921/
       FlushInstructionCache(reinterpret_cast<char*>(code_ptr),
                             reinterpret_cast<char*>(code_ptr + code_size));
+      DCHECK(!Runtime::Current()->IsAotCompiler());
+      if (has_should_deoptimize_flag) {
+        method_header->SetHasShouldDeoptimizeFlag();
+      }
     }
 
     number_of_compilations_++;
   }
   // We need to update the entry point in the runnable state for the instrumentation.
   {
+    // Need cha_lock_ for checking all single-implementation flags and register
+    // dependencies.
+    MutexLock cha_mu(self, *Locks::cha_lock_);
+    bool single_impl_still_valid = true;
+    for (ArtMethod* single_impl : cha_single_implementation_list) {
+      if (!single_impl->HasSingleImplementation()) {
+        // We simply discard the compiled code. Clear the
+        // counter so that it may be recompiled later. Hopefully the
+        // class hierarchy will be more stable when compilation is retried.
+        single_impl_still_valid = false;
+        method->ClearCounter();
+        break;
+      }
+    }
+
+    // Discard the code if any single-implementation assumptions are now invalid.
+    if (!single_impl_still_valid) {
+      VLOG(jit) << "JIT discarded jitted code due to invalid single-implementation assumptions.";
+      return nullptr;
+    }
+    for (ArtMethod* single_impl : cha_single_implementation_list) {
+      Runtime::Current()->GetClassHierarchyAnalysis()->AddDependency(
+          single_impl, method, method_header);
+    }
+
+    // The following needs to be guarded by cha_lock_ also. Otherwise it's
+    // possible that the compiled code is considered invalidated by some class linking,
+    // but below we still make the compiled code valid for the method.
     MutexLock mu(self, lock_);
     method_code_map_.Put(code_ptr, method);
     // Fill the root table before updating the entry point.
@@ -535,7 +605,8 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
         << " ccache_size=" << PrettySize(CodeCacheSizeLocked()) << ": "
         << " dcache_size=" << PrettySize(DataCacheSizeLocked()) << ": "
         << reinterpret_cast<const void*>(method_header->GetEntryPoint()) << ","
-        << reinterpret_cast<const void*>(method_header->GetEntryPoint() + method_header->code_size_);
+        << reinterpret_cast<const void*>(method_header->GetEntryPoint() +
+                                         method_header->GetCodeSize());
     histogram_code_memory_use_.AddValue(code_size);
     if (code_size > kCodeSizeLogThreshold) {
       LOG(INFO) << "JIT allocated "
@@ -836,20 +907,23 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
 
 void JitCodeCache::RemoveUnmarkedCode(Thread* self) {
   ScopedTrace trace(__FUNCTION__);
-  MutexLock mu(self, lock_);
-  ScopedCodeCacheWrite scc(code_map_.get());
-  // Iterate over all compiled code and remove entries that are not marked.
-  for (auto it = method_code_map_.begin(); it != method_code_map_.end();) {
-    const void* code_ptr = it->first;
-    ArtMethod* method = it->second;
-    uintptr_t allocation = FromCodeToAllocation(code_ptr);
-    if (GetLiveBitmap()->Test(allocation)) {
-      ++it;
-    } else {
-      FreeCode(code_ptr, method);
-      it = method_code_map_.erase(it);
+  std::unordered_set<OatQuickMethodHeader*> method_headers;
+  {
+    MutexLock mu(self, lock_);
+    ScopedCodeCacheWrite scc(code_map_.get());
+    // Iterate over all compiled code and remove entries that are not marked.
+    for (auto it = method_code_map_.begin(); it != method_code_map_.end();) {
+      const void* code_ptr = it->first;
+      uintptr_t allocation = FromCodeToAllocation(code_ptr);
+      if (GetLiveBitmap()->Test(allocation)) {
+        ++it;
+      } else {
+        method_headers.insert(OatQuickMethodHeader::FromCodePointer(it->first));
+        it = method_code_map_.erase(it);
+      }
     }
   }
+  FreeAllMethodHeaders(method_headers);
 }
 
 void JitCodeCache::DoCollection(Thread* self, bool collect_profiling_info) {
