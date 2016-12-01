@@ -50,6 +50,7 @@ class ImageSpace;
 }  // namespace space
 }  // namespace gc
 
+class ClassLoaderVisitor;
 class ClassTable;
 
 static constexpr int kInvalidFd = -1;
@@ -372,6 +373,9 @@ class ImageWriter FINAL {
   // Preinitializes some otherwise lazy fields (such as Class name) to avoid runtime image dirtying.
   void ComputeLazyFieldsForImageClasses()
       REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Visit all class loaders.
+  void VisitClassLoaders(ClassLoaderVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Remove unwanted classes from various roots.
   void PruneNonImageClasses() REQUIRES_SHARED(Locks::mutator_lock_);
