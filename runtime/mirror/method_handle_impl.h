@@ -57,6 +57,8 @@ class MANAGED MethodHandle : public Object {
     return static_cast<MethodHandleKind>(handle_kind);
   }
 
+  static mirror::Class* StaticClass() REQUIRES_SHARED(Locks::mutator_lock_);
+
  private:
   HeapReference<mirror::MethodType> nominal_type_;
   HeapReference<mirror::MethodType> method_type_;
