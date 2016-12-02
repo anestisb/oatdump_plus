@@ -1326,7 +1326,9 @@ void Heap::ThrowOutOfMemoryError(Thread* self, size_t byte_count, AllocatorType 
   std::ostringstream oss;
   size_t total_bytes_free = GetFreeMemory();
   oss << "Failed to allocate a " << byte_count << " byte allocation with " << total_bytes_free
-      << " free bytes and " << PrettySize(GetFreeMemoryUntilOOME()) << " until OOM";
+      << " free bytes and " << PrettySize(GetFreeMemoryUntilOOME()) << " until OOM,"
+      << " max allowed footprint " << max_allowed_footprint_ << ", growth limit "
+      << growth_limit_;
   // If the allocation failed due to fragmentation, print out the largest continuous allocation.
   if (total_bytes_free >= byte_count) {
     space::AllocSpace* space = nullptr;
