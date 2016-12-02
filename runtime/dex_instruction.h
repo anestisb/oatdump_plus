@@ -189,6 +189,7 @@ class Instruction {
     kVerifyVarArgRangeNonZero = 0x100000,
     kVerifyRuntimeOnly        = 0x200000,
     kVerifyError              = 0x400000,
+    kVerifyRegHPrototype      = 0x800000
   };
 
   static constexpr uint32_t kMaxVarArgRegs = 5;
@@ -577,6 +578,10 @@ class Instruction {
   int GetVerifyTypeArgumentC() const {
     return (kInstructionVerifyFlags[Opcode()] & (kVerifyRegC | kVerifyRegCField |
         kVerifyRegCNewArray | kVerifyRegCType | kVerifyRegCWide));
+  }
+
+  int GetVerifyTypeArgumentH() const {
+    return (kInstructionVerifyFlags[Opcode()] & kVerifyRegHPrototype);
   }
 
   int GetVerifyExtraFlags() const {
