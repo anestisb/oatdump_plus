@@ -31,6 +31,8 @@ struct DexCacheOffsets;
 class DexFile;
 class ImageWriter;
 union JValue;
+class LinearAlloc;
+class Thread;
 
 namespace mirror {
 
@@ -137,19 +139,14 @@ class MANAGED DexCache FINAL : public Object {
     return sizeof(DexCache);
   }
 
-  void Init(const DexFile* dex_file,
-            ObjPtr<String> location,
-            StringDexCacheType* strings,
-            uint32_t num_strings,
-            GcRoot<Class>* resolved_types,
-            uint32_t num_resolved_types,
-            ArtMethod** resolved_methods,
-            uint32_t num_resolved_methods,
-            ArtField** resolved_fields,
-            uint32_t num_resolved_fields,
-            MethodTypeDexCacheType* resolved_methodtypes,
-            uint32_t num_resolved_methodtypes,
-            PointerSize pointer_size) REQUIRES_SHARED(Locks::mutator_lock_);
+  static void InitializeDexCache(Thread* self,
+                                 ObjPtr<mirror::DexCache> dex_cache,
+                                 ObjPtr<mirror::String> location,
+                                 const DexFile* dex_file,
+                                 LinearAlloc* linear_alloc,
+                                 PointerSize image_pointer_size)
+      REQUIRES_SHARED(Locks::mutator_lock_)
+      REQUIRES(Locks::dex_lock_);
 
   void Fixup(ArtMethod* trampoline, PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
@@ -339,6 +336,21 @@ class MANAGED DexCache FINAL : public Object {
   static void SetElementPtrSize(PtrType* ptr_array, size_t idx, PtrType ptr, PointerSize ptr_size);
 
  private:
+  void Init(const DexFile* dex_file,
+            ObjPtr<String> location,
+            StringDexCacheType* strings,
+            uint32_t num_strings,
+            GcRoot<Class>* resolved_types,
+            uint32_t num_resolved_types,
+            ArtMethod** resolved_methods,
+            uint32_t num_resolved_methods,
+            ArtField** resolved_fields,
+            uint32_t num_resolved_fields,
+            MethodTypeDexCacheType* resolved_methodtypes,
+            uint32_t num_resolved_methodtypes,
+            PointerSize pointer_size)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   // Visit instance fields of the dex cache as well as its associated arrays.
   template <bool kVisitNativeRoots,
             VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,

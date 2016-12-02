@@ -433,7 +433,7 @@ void ImageWriter::PrepareDexCacheArraySlots() {
 
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Thread* const self = Thread::Current();
-  ReaderMutexLock mu(self, *class_linker->DexLock());
+  ReaderMutexLock mu(self, *Locks::dex_lock_);
   for (const ClassLinker::DexCacheData& data : class_linker->GetDexCachesData()) {
     ObjPtr<mirror::DexCache> dex_cache =
         ObjPtr<mirror::DexCache>::DownCast(self->DecodeJObject(data.weak_root));
@@ -884,7 +884,7 @@ void ImageWriter::PruneNonImageClasses() {
 
   ScopedAssertNoThreadSuspension sa(__FUNCTION__);
   ReaderMutexLock mu(self, *Locks::classlinker_classes_lock_);  // For ClassInClassTable
-  ReaderMutexLock mu2(self, *class_linker->DexLock());
+  ReaderMutexLock mu2(self, *Locks::dex_lock_);
   for (const ClassLinker::DexCacheData& data : class_linker->GetDexCachesData()) {
     if (self->IsJWeakCleared(data.weak_root)) {
       continue;
@@ -1013,7 +1013,7 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots(size_t oat_index) const {
   // caches. We check that the number of dex caches does not change.
   size_t dex_cache_count = 0;
   {
-    ReaderMutexLock mu(self, *class_linker->DexLock());
+    ReaderMutexLock mu(self, *Locks::dex_lock_);
     // Count number of dex caches not in the boot image.
     for (const ClassLinker::DexCacheData& data : class_linker->GetDexCachesData()) {
       ObjPtr<mirror::DexCache> dex_cache =
@@ -1031,7 +1031,7 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots(size_t oat_index) const {
       hs.NewHandle(ObjectArray<Object>::Alloc(self, object_array_class.Get(), dex_cache_count)));
   CHECK(dex_caches.Get() != nullptr) << "Failed to allocate a dex cache array.";
   {
-    ReaderMutexLock mu(self, *class_linker->DexLock());
+    ReaderMutexLock mu(self, *Locks::dex_lock_);
     size_t non_image_dex_caches = 0;
     // Re-count number of non image dex caches.
     for (const ClassLinker::DexCacheData& data : class_linker->GetDexCachesData()) {
