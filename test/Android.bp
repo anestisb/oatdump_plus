@@ -244,8 +244,8 @@ art_cc_defaults {
     defaults: ["libartagent-defaults"],
     srcs: [
         "ti-agent/common_load.cc",
+        "ti-agent/common_helper.cc",
         "901-hello-ti-agent/basics.cc",
-        "902-hello-transformation/transform.cc",
         "903-hello-tagging/tagging.cc",
         "904-object-allocation/tracking.cc",
         "905-object-free/tracking_free.cc",
