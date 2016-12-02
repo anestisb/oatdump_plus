@@ -23,7 +23,6 @@
 #include "base/arena_containers.h"
 #include "base/bit_vector-inl.h"
 #include "base/stringprintf.h"
-#include "handle_scope-inl.h"
 
 namespace art {
 
@@ -448,7 +447,6 @@ void GraphChecker::VisitInstruction(HInstruction* instruction) {
 
   // Ensure that reference type instructions have reference type info.
   if (instruction->GetType() == Primitive::kPrimNot) {
-    ScopedObjectAccess soa(Thread::Current());
     if (!instruction->GetReferenceTypeInfo().IsValid()) {
       AddError(StringPrintf("Reference type instruction %s:%d does not have "
                             "valid reference type information.",
@@ -1011,7 +1009,6 @@ void GraphChecker::VisitConstant(HConstant* instruction) {
 void GraphChecker::VisitBoundType(HBoundType* instruction) {
   VisitInstruction(instruction);
 
-  ScopedObjectAccess soa(Thread::Current());
   if (!instruction->GetUpperBound().IsValid()) {
     AddError(StringPrintf(
         "%s %d does not have a valid upper bound RTI.",
