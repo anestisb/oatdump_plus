@@ -1,7 +1,7 @@
 ---
 true true
-root@root --(stack-local)--> 1@1000 [size=16, length=-1]
-root@root --(stack-local)--> 3000@0 [size=132, length=-1]
+root@root --(stack-local[id=1,tag=3000,depth=2,method=doFollowReferencesTestNonRoot,vreg=11,location= 31])--> 1@1000 [size=16, length=-1]
+root@root --(stack-local[id=1,tag=3000,depth=3,method=doFollowReferencesTest,vreg=1,location= 28])--> 3000@0 [size=132, length=-1]
 root@root --(thread)--> 3000@0 [size=132, length=-1]
 0@0 --(array-element@0)--> 1@1000 [size=16, length=-1]
 1001@0 --(superclass)--> 1000@0 [size=123, length=-1]
@@ -40,7 +40,9 @@ root@root --(thread)--> 3000@0 [size=132, length=-1]
 ---
 root@root --(jni-global)--> 1@1000 [size=16, length=-1]
 root@root --(jni-local[id=1,tag=3000,depth=0,method=followReferences])--> 1@1000 [size=16, length=-1]
-root@root --(stack-local)--> 1@1000 [size=16, length=-1]
+root@root --(stack-local[id=1,tag=3000,depth=1,method=doFollowReferencesTestImpl,vreg=10,location= 6])--> 1@1000 [size=16, length=-1]
+root@root --(stack-local[id=1,tag=3000,depth=1,method=doFollowReferencesTestImpl,vreg=5,location= 6])--> 1@1000 [size=16, length=-1]
+root@root --(stack-local[id=1,tag=3000,depth=2,method=doFollowReferencesTestRoot,vreg=3,location= 18])--> 1@1000 [size=16, length=-1]
 root@root --(thread)--> 1@1000 [size=16, length=-1]
 root@root --(thread)--> 3000@0 [size=132, length=-1]
 1001@0 --(superclass)--> 1000@0 [size=123, length=-1]
