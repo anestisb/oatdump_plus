@@ -22,6 +22,12 @@
 namespace art {
 namespace mirror {
 
+mirror::Class* MethodHandle::StaticClass() {
+  mirror::Class* klass = MethodHandleImpl::StaticClass()->GetSuperClass();
+  DCHECK(klass->DescriptorEquals("Ljava/lang/invoke/MethodHandle;"));
+  return klass;
+}
+
 GcRoot<mirror::Class> MethodHandleImpl::static_class_;
 
 void MethodHandleImpl::SetClass(Class* klass) {

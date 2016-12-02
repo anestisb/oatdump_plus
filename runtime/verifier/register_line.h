@@ -217,7 +217,6 @@ class RegisterLine {
    */
   const RegType& GetInvocationThis(MethodVerifier* verifier,
                                    const Instruction* inst,
-                                   bool is_range,
                                    bool allow_failure = false)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
