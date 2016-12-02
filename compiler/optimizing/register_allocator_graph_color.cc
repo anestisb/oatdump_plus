@@ -1749,7 +1749,7 @@ static std::bitset<kMaxNumRegs> BuildConflictMask(Container& intervals) {
 bool RegisterAllocatorGraphColor::IsCallerSave(size_t reg, bool processing_core_regs) {
   return processing_core_regs
       ? !codegen_->IsCoreCalleeSaveRegister(reg)
-      : !codegen_->IsCoreCalleeSaveRegister(reg);
+      : !codegen_->IsFloatingPointCalleeSaveRegister(reg);
 }
 
 static bool RegisterIsAligned(size_t reg) {
