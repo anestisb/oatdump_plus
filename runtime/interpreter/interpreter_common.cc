@@ -865,11 +865,6 @@ inline bool DoInvokePolymorphic(Thread* self,
   // The invoke_method_idx here is the name of the signature polymorphic method that
   // was symbolically invoked in bytecode (say MethodHandle.invoke or MethodHandle.invokeExact)
   // and not the method that we'll dispatch to in the end.
-  //
-  // TODO(narayan) We'll have to check in the verifier that this is in fact a
-  // signature polymorphic method so that we disallow calls via invoke-polymorphic
-  // to non sig-poly methods. This would also have the side effect of verifying
-  // that vRegC really is a reference type.
   StackHandleScope<6> hs(self);
   Handle<mirror::MethodHandleImpl> method_handle(hs.NewHandle(
       ObjPtr<mirror::MethodHandleImpl>::DownCast(
