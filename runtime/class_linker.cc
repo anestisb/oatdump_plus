@@ -341,9 +341,7 @@ static void ShuffleForward(size_t* current_field_idx,
 }
 
 ClassLinker::ClassLinker(InternTable* intern_table)
-    // dex_lock_ is recursive as it may be used in stack dumping.
-    : dex_lock_("ClassLinker dex lock", kDexLock),
-      failed_dex_cache_class_lookups_(0),
+    : failed_dex_cache_class_lookups_(0),
       class_roots_(nullptr),
       array_iftable_(nullptr),
       find_array_class_cache_next_victim_(0),
@@ -1329,7 +1327,7 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
         }
       }
       {
-        WriterMutexLock mu2(self, dex_lock_);
+        WriterMutexLock mu2(self, *Locks::dex_lock_);
         // Make sure to do this after we update the arrays since we store the resolved types array
         // in DexCacheData in RegisterDexFileLocked. We need the array pointer to be the one in the
         // BSS.
@@ -2144,109 +2142,6 @@ mirror::PointerArray* ClassLinker::AllocPointerArray(Thread* self, size_t length
           : static_cast<mirror::Array*>(mirror::IntArray::Alloc(self, length)));
 }
 
-void ClassLinker::InitializeDexCache(Thread* self,
-                                     ObjPtr<mirror::DexCache> dex_cache,
-                                     ObjPtr<mirror::String> location,
-                                     const DexFile& dex_file,
-                                     LinearAlloc* linear_alloc) {
-  ScopedAssertNoThreadSuspension sants(__FUNCTION__);
-  DexCacheArraysLayout layout(image_pointer_size_, &dex_file);
-  uint8_t* raw_arrays = nullptr;
-
-  const OatDexFile* const oat_dex = dex_file.GetOatDexFile();
-  if (oat_dex != nullptr && oat_dex->GetDexCacheArrays() != nullptr) {
-    raw_arrays = oat_dex->GetDexCacheArrays();
-  } else if (dex_file.NumStringIds() != 0u ||
-             dex_file.NumTypeIds() != 0u ||
-             dex_file.NumMethodIds() != 0u ||
-             dex_file.NumFieldIds() != 0u) {
-    // Zero-initialized.
-    raw_arrays = reinterpret_cast<uint8_t*>(linear_alloc->Alloc(self, layout.Size()));
-  }
-
-  mirror::StringDexCacheType* strings = (dex_file.NumStringIds() == 0u) ? nullptr :
-      reinterpret_cast<mirror::StringDexCacheType*>(raw_arrays + layout.StringsOffset());
-  GcRoot<mirror::Class>* types = (dex_file.NumTypeIds() == 0u) ? nullptr :
-      reinterpret_cast<GcRoot<mirror::Class>*>(raw_arrays + layout.TypesOffset());
-  ArtMethod** methods = (dex_file.NumMethodIds() == 0u) ? nullptr :
-      reinterpret_cast<ArtMethod**>(raw_arrays + layout.MethodsOffset());
-  ArtField** fields = (dex_file.NumFieldIds() == 0u) ? nullptr :
-      reinterpret_cast<ArtField**>(raw_arrays + layout.FieldsOffset());
-
-  size_t num_strings = mirror::DexCache::kDexCacheStringCacheSize;
-  if (dex_file.NumStringIds() < num_strings) {
-    num_strings = dex_file.NumStringIds();
-  }
-
-  // Note that we allocate the method type dex caches regardless of this flag,
-  // and we make sure here that they're not used by the runtime. This is in the
-  // interest of simplicity and to avoid extensive compiler and layout class changes.
-  //
-  // If this needs to be mitigated in a production system running this code,
-  // DexCache::kDexCacheMethodTypeCacheSize can be set to zero.
-  mirror::MethodTypeDexCacheType* method_types = nullptr;
-  size_t num_method_types = 0;
-
-  if (dex_file.NumProtoIds() < mirror::DexCache::kDexCacheMethodTypeCacheSize) {
-    num_method_types = dex_file.NumProtoIds();
-  } else {
-    num_method_types = mirror::DexCache::kDexCacheMethodTypeCacheSize;
-  }
-
-  if (num_method_types > 0) {
-    method_types = reinterpret_cast<mirror::MethodTypeDexCacheType*>(
-        raw_arrays + layout.MethodTypesOffset());
-  }
-
-  DCHECK_ALIGNED(raw_arrays, alignof(mirror::StringDexCacheType)) <<
-                 "Expected raw_arrays to align to StringDexCacheType.";
-  DCHECK_ALIGNED(layout.StringsOffset(), alignof(mirror::StringDexCacheType)) <<
-                 "Expected StringsOffset() to align to StringDexCacheType.";
-  DCHECK_ALIGNED(strings, alignof(mirror::StringDexCacheType)) <<
-                 "Expected strings to align to StringDexCacheType.";
-  static_assert(alignof(mirror::StringDexCacheType) == 8u,
-                "Expected StringDexCacheType to have align of 8.");
-  if (kIsDebugBuild) {
-    // Sanity check to make sure all the dex cache arrays are empty. b/28992179
-    for (size_t i = 0; i < num_strings; ++i) {
-      CHECK_EQ(strings[i].load(std::memory_order_relaxed).index, 0u);
-      CHECK(strings[i].load(std::memory_order_relaxed).object.IsNull());
-    }
-    for (size_t i = 0; i < dex_file.NumTypeIds(); ++i) {
-      CHECK(types[i].IsNull());
-    }
-    for (size_t i = 0; i < dex_file.NumMethodIds(); ++i) {
-      CHECK(mirror::DexCache::GetElementPtrSize(methods, i, image_pointer_size_) == nullptr);
-    }
-    for (size_t i = 0; i < dex_file.NumFieldIds(); ++i) {
-      CHECK(mirror::DexCache::GetElementPtrSize(fields, i, image_pointer_size_) == nullptr);
-    }
-    for (size_t i = 0; i < num_method_types; ++i) {
-      CHECK_EQ(method_types[i].load(std::memory_order_relaxed).index, 0u);
-      CHECK(method_types[i].load(std::memory_order_relaxed).object.IsNull());
-    }
-  }
-  if (strings != nullptr) {
-    mirror::StringDexCachePair::Initialize(strings);
-  }
-  if (method_types != nullptr) {
-    mirror::MethodTypeDexCachePair::Initialize(method_types);
-  }
-  dex_cache->Init(&dex_file,
-                  location,
-                  strings,
-                  num_strings,
-                  types,
-                  dex_file.NumTypeIds(),
-                  methods,
-                  dex_file.NumMethodIds(),
-                  fields,
-                  dex_file.NumFieldIds(),
-                  method_types,
-                  num_method_types,
-                  image_pointer_size_);
-}
-
 mirror::DexCache* ClassLinker::AllocDexCache(ObjPtr<mirror::String>* out_location,
                                              Thread* self,
                                              const DexFile& dex_file) {
@@ -2273,9 +2168,14 @@ mirror::DexCache* ClassLinker::AllocAndInitializeDexCache(Thread* self,
   ObjPtr<mirror::String> location = nullptr;
   ObjPtr<mirror::DexCache> dex_cache = AllocDexCache(&location, self, dex_file);
   if (dex_cache != nullptr) {
-    WriterMutexLock mu(self, dex_lock_);
+    WriterMutexLock mu(self, *Locks::dex_lock_);
     DCHECK(location != nullptr);
-    InitializeDexCache(self, dex_cache, location, dex_file, linear_alloc);
+    mirror::DexCache::InitializeDexCache(self,
+                                         dex_cache,
+                                         location,
+                                         &dex_file,
+                                         linear_alloc,
+                                         image_pointer_size_);
   }
   return dex_cache.Ptr();
 }
@@ -3295,7 +3195,7 @@ void ClassLinker::AppendToBootClassPath(const DexFile& dex_file,
 void ClassLinker::RegisterDexFileLocked(const DexFile& dex_file,
                                         Handle<mirror::DexCache> dex_cache) {
   Thread* const self = Thread::Current();
-  dex_lock_.AssertExclusiveHeld(self);
+  Locks::dex_lock_->AssertExclusiveHeld(self);
   CHECK(dex_cache.Get() != nullptr) << dex_file.GetLocation();
   // For app images, the dex cache location may be a suffix of the dex file location since the
   // dex file location is an absolute path.
@@ -3337,7 +3237,7 @@ mirror::DexCache* ClassLinker::RegisterDexFile(const DexFile& dex_file,
                                                ObjPtr<mirror::ClassLoader> class_loader) {
   Thread* self = Thread::Current();
   {
-    ReaderMutexLock mu(self, dex_lock_);
+    ReaderMutexLock mu(self, *Locks::dex_lock_);
     ObjPtr<mirror::DexCache> dex_cache = FindDexCacheLocked(self, dex_file, true);
     if (dex_cache != nullptr) {
       return dex_cache.Ptr();
@@ -3360,7 +3260,7 @@ mirror::DexCache* ClassLinker::RegisterDexFile(const DexFile& dex_file,
                                                                   dex_file)));
   Handle<mirror::String> h_location(hs.NewHandle(location));
   {
-    WriterMutexLock mu(self, dex_lock_);
+    WriterMutexLock mu(self, *Locks::dex_lock_);
     ObjPtr<mirror::DexCache> dex_cache = FindDexCacheLocked(self, dex_file, true);
     if (dex_cache != nullptr) {
       // Another thread managed to initialize the dex cache faster, so use that DexCache.
@@ -3376,7 +3276,12 @@ mirror::DexCache* ClassLinker::RegisterDexFile(const DexFile& dex_file,
     // Do InitializeDexCache while holding dex lock to make sure two threads don't call it at the
     // same time with the same dex cache. Since the .bss is shared this can cause failing DCHECK
     // that the arrays are null.
-    InitializeDexCache(self, h_dex_cache.Get(), h_location.Get(), dex_file, linear_alloc);
+    mirror::DexCache::InitializeDexCache(self,
+                                         h_dex_cache.Get(),
+                                         h_location.Get(),
+                                         &dex_file,
+                                         linear_alloc,
+                                         image_pointer_size_);
     RegisterDexFileLocked(dex_file, h_dex_cache);
   }
   table->InsertStrongRoot(h_dex_cache.Get());
@@ -3385,14 +3290,14 @@ mirror::DexCache* ClassLinker::RegisterDexFile(const DexFile& dex_file,
 
 void ClassLinker::RegisterDexFile(const DexFile& dex_file,
                                   Handle<mirror::DexCache> dex_cache) {
-  WriterMutexLock mu(Thread::Current(), dex_lock_);
+  WriterMutexLock mu(Thread::Current(), *Locks::dex_lock_);
   RegisterDexFileLocked(dex_file, dex_cache);
 }
 
 mirror::DexCache* ClassLinker::FindDexCache(Thread* self,
                                             const DexFile& dex_file,
                                             bool allow_failure) {
-  ReaderMutexLock mu(self, dex_lock_);
+  ReaderMutexLock mu(self, *Locks::dex_lock_);
   return FindDexCacheLocked(self, dex_file, allow_failure);
 }
 
@@ -3429,7 +3334,7 @@ mirror::DexCache* ClassLinker::FindDexCacheLocked(Thread* self,
 
 void ClassLinker::FixupDexCaches(ArtMethod* resolution_method) {
   Thread* const self = Thread::Current();
-  ReaderMutexLock mu(self, dex_lock_);
+  ReaderMutexLock mu(self, *Locks::dex_lock_);
   for (const DexCacheData& data : dex_caches_) {
     if (!self->IsJWeakCleared(data.weak_root)) {
       ObjPtr<mirror::DexCache> dex_cache = ObjPtr<mirror::DexCache>::DownCast(
@@ -3824,6 +3729,17 @@ bool ClassLinker::AttemptSupertypeVerification(Thread* self,
   return false;
 }
 
+// Ensures that methods have the kAccSkipAccessChecks bit set. We use the
+// kAccVerificationAttempted bit on the class access flags to determine whether this has been done
+// before.
+static void EnsureSkipAccessChecksMethods(Handle<mirror::Class> klass, PointerSize pointer_size)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  if (!klass->WasVerificationAttempted()) {
+    klass->SetSkipAccessChecksFlagOnAllMethods(pointer_size);
+    klass->SetVerificationAttempted();
+  }
+}
+
 verifier::MethodVerifier::FailureKind ClassLinker::VerifyClass(
     Thread* self, Handle<mirror::Class> klass, verifier::HardFailLogMode log_level) {
   {
@@ -3851,7 +3767,7 @@ verifier::MethodVerifier::FailureKind ClassLinker::VerifyClass(
 
     // Don't attempt to re-verify if already sufficiently verified.
     if (klass->IsVerified()) {
-      EnsureSkipAccessChecksMethods(klass);
+      EnsureSkipAccessChecksMethods(klass, image_pointer_size_);
       return verifier::MethodVerifier::kNoFailure;
     }
     if (klass->IsCompileTimeVerified() && Runtime::Current()->IsAotCompiler()) {
@@ -3870,7 +3786,7 @@ verifier::MethodVerifier::FailureKind ClassLinker::VerifyClass(
     // Skip verification if disabled.
     if (!Runtime::Current()->IsVerificationEnabled()) {
       mirror::Class::SetStatus(klass, mirror::Class::kStatusVerified, self);
-      EnsureSkipAccessChecksMethods(klass);
+      EnsureSkipAccessChecksMethods(klass, image_pointer_size_);
       return verifier::MethodVerifier::kNoFailure;
     }
   }
@@ -4005,17 +3921,10 @@ verifier::MethodVerifier::FailureKind ClassLinker::VerifyClass(
       // Mark the class as having a verification attempt to avoid re-running the verifier.
       klass->SetVerificationAttempted();
     } else {
-      EnsureSkipAccessChecksMethods(klass);
+      EnsureSkipAccessChecksMethods(klass, image_pointer_size_);
     }
   }
   return verifier_failure;
-}
-
-void ClassLinker::EnsureSkipAccessChecksMethods(Handle<mirror::Class> klass) {
-  if (!klass->WasVerificationAttempted()) {
-    klass->SetSkipAccessChecksFlagOnAllMethods(image_pointer_size_);
-    klass->SetVerificationAttempted();
-  }
 }
 
 bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file,
@@ -4987,7 +4896,7 @@ bool ClassLinker::EnsureInitialized(Thread* self,
                                     bool can_init_parents) {
   DCHECK(c.Get() != nullptr);
   if (c->IsInitialized()) {
-    EnsureSkipAccessChecksMethods(c);
+    EnsureSkipAccessChecksMethods(c, image_pointer_size_);
     self->AssertNoPendingException();
     return true;
   }
@@ -8010,42 +7919,6 @@ mirror::MethodType* ClassLinker::ResolveMethodType(const DexFile& dex_file,
   return type.Get();
 }
 
-const char* ClassLinker::MethodShorty(uint32_t method_idx,
-                                      ArtMethod* referrer,
-                                      uint32_t* length) {
-  ObjPtr<mirror::Class> declaring_class = referrer->GetDeclaringClass();
-  ObjPtr<mirror::DexCache> dex_cache = declaring_class->GetDexCache();
-  const DexFile& dex_file = *dex_cache->GetDexFile();
-  const DexFile::MethodId& method_id = dex_file.GetMethodId(method_idx);
-  return dex_file.GetMethodShorty(method_id, length);
-}
-
-class DumpClassVisitor : public ClassVisitor {
- public:
-  explicit DumpClassVisitor(int flags) : flags_(flags) {}
-
-  bool operator()(ObjPtr<mirror::Class> klass) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
-    klass->DumpClass(LOG_STREAM(ERROR), flags_);
-    return true;
-  }
-
- private:
-  const int flags_;
-};
-
-void ClassLinker::DumpAllClasses(int flags) {
-  DumpClassVisitor visitor(flags);
-  VisitClasses(&visitor);
-}
-
-static OatFile::OatMethod CreateOatMethod(const void* code) {
-  CHECK(code != nullptr);
-  const uint8_t* base = reinterpret_cast<const uint8_t*>(code);  // Base of data points at code.
-  base -= sizeof(void*);  // Move backward so that code_offset != 0.
-  const uint32_t code_offset = sizeof(void*);
-  return OatFile::OatMethod(base, code_offset);
-}
-
 bool ClassLinker::IsQuickResolutionStub(const void* entry_point) const {
   return (entry_point == GetQuickResolutionStub()) ||
       (quick_resolution_trampoline_ == entry_point);
@@ -8065,9 +7938,12 @@ const void* ClassLinker::GetRuntimeQuickGenericJniStub() const {
   return GetQuickGenericJniStub();
 }
 
-void ClassLinker::SetEntryPointsToCompiledCode(ArtMethod* method,
-                                               const void* method_code) const {
-  OatFile::OatMethod oat_method = CreateOatMethod(method_code);
+void ClassLinker::SetEntryPointsToCompiledCode(ArtMethod* method, const void* code) const {
+  CHECK(code != nullptr);
+  const uint8_t* base = reinterpret_cast<const uint8_t*>(code);  // Base of data points at code.
+  base -= sizeof(void*);  // Move backward so that code_offset != 0.
+  const uint32_t code_offset = sizeof(void*);
+  OatFile::OatMethod oat_method(base, code_offset);
   oat_method.LinkMethod(method);
 }
 
@@ -8075,9 +7951,7 @@ void ClassLinker::SetEntryPointsToInterpreter(ArtMethod* method) const {
   if (!method->IsNative()) {
     method->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
   } else {
-    const void* quick_method_code = GetQuickGenericJniStub();
-    OatFile::OatMethod oat_method = CreateOatMethod(quick_method_code);
-    oat_method.LinkMethod(method);
+    SetEntryPointsToCompiledCode(method, GetQuickGenericJniStub());
   }
 }
 
@@ -8128,7 +8002,7 @@ pid_t ClassLinker::GetClassesLockOwner() {
 }
 
 pid_t ClassLinker::GetDexLockOwner() {
-  return dex_lock_.GetExclusiveOwnerTid();
+  return Locks::dex_lock_->GetExclusiveOwnerTid();
 }
 
 void ClassLinker::SetClassRoot(ClassRoot class_root, ObjPtr<mirror::Class> klass) {
@@ -8294,20 +8168,6 @@ jobject ClassLinker::CreatePathClassLoader(Thread* self,
   return soa.Env()->NewGlobalRef(local_ref.get());
 }
 
-ArtMethod* ClassLinker::CreateRuntimeMethod(LinearAlloc* linear_alloc) {
-  const size_t method_alignment = ArtMethod::Alignment(image_pointer_size_);
-  const size_t method_size = ArtMethod::Size(image_pointer_size_);
-  LengthPrefixedArray<ArtMethod>* method_array = AllocArtMethodArray(
-      Thread::Current(),
-      linear_alloc,
-      1);
-  ArtMethod* method = &method_array->At(0, method_size, method_alignment);
-  CHECK(method != nullptr);
-  method->SetDexMethodIndex(DexFile::kDexNoIndex);
-  CHECK(method->IsRuntimeMethod());
-  return method;
-}
-
 void ClassLinker::DropFindArrayClassCache() {
   std::fill_n(find_array_class_cache_, kFindArrayCacheSize, GcRoot<mirror::Class>(nullptr));
   find_array_class_cache_next_victim_ = 0;
@@ -8381,7 +8241,7 @@ std::set<DexCacheResolvedClasses> ClassLinker::GetResolvedClasses(bool ignore_bo
   std::set<DexCacheResolvedClasses> ret;
   VLOG(class_linker) << "Collecting resolved classes";
   const uint64_t start_time = NanoTime();
-  ReaderMutexLock mu(soa.Self(), *DexLock());
+  ReaderMutexLock mu(soa.Self(), *Locks::dex_lock_);
   // Loop through all the dex caches and inspect resolved classes.
   for (const ClassLinker::DexCacheData& data : GetDexCachesData()) {
     if (soa.Self()->IsJWeakCleared(data.weak_root)) {
@@ -8450,7 +8310,7 @@ std::unordered_set<std::string> ClassLinker::GetClassDescriptorsForProfileKeys(
   std::unordered_map<std::string, const DexFile*> location_to_dex_file;
   ScopedObjectAccess soa(self);
   ScopedAssertNoThreadSuspension ants(__FUNCTION__);
-  ReaderMutexLock mu(self, *DexLock());
+  ReaderMutexLock mu(self, *Locks::dex_lock_);
   for (const ClassLinker::DexCacheData& data : GetDexCachesData()) {
     if (!self->IsJWeakCleared(data.weak_root)) {
       ObjPtr<mirror::DexCache> dex_cache = soa.Decode<mirror::DexCache>(data.weak_root);
