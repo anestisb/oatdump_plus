@@ -58,6 +58,21 @@
 
 namespace openjdkjvmti {
 
+jvmtiError GetClassLocation(ArtJvmTiEnv* env, jclass klass, /*out*/std::string* location) {
+  JNIEnv* jni_env = nullptr;
+  jint ret = env->art_vm->GetEnv(reinterpret_cast<void**>(&jni_env), JNI_VERSION_1_1);
+  if (ret != JNI_OK) {
+    // TODO Different error might be better?
+    return ERR(INTERNAL);
+  }
+  art::ScopedObjectAccess soa(jni_env);
+  art::StackHandleScope<1> hs(art::Thread::Current());
+  art::Handle<art::mirror::Class> hs_klass(hs.NewHandle(soa.Decode<art::mirror::Class>(klass)));
+  const art::DexFile& dex = hs_klass->GetDexFile();
+  *location = dex.GetLocation();
+  return OK;
+}
+
 // TODO Move this function somewhere more appropriate.
 // Gets the data surrounding the given class.
 jvmtiError GetTransformationData(ArtJvmTiEnv* env,
