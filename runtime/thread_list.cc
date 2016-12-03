@@ -375,7 +375,7 @@ size_t ThreadList::RunCheckpoint(Closure* checkpoint_function, Closure* callback
   return count;
 }
 
-size_t ThreadList::RunEmptyCheckpoint() {
+size_t ThreadList::RunEmptyCheckpoint(std::vector<uint32_t>& runnable_thread_ids) {
   Thread* self = Thread::Current();
   Locks::mutator_lock_->AssertNotExclusiveHeld(self);
   Locks::thread_list_lock_->AssertNotHeld(self);
@@ -392,6 +392,9 @@ size_t ThreadList::RunEmptyCheckpoint() {
             // This thread will run an empty checkpoint (decrement the empty checkpoint barrier)
             // some time in the near future.
             ++count;
+            if (kIsDebugBuild) {
+              runnable_thread_ids.push_back(thread->GetThreadId());
+            }
             break;
           }
           if (thread->GetState() != kRunnable) {

@@ -1394,6 +1394,7 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
     os << "  | group=\"" << group_name << "\""
        << " sCount=" << thread->tls32_.suspend_count
        << " dsCount=" << thread->tls32_.debug_suspend_count
+       << " flags=" << thread->tls32_.state_and_flags.as_struct.flags
        << " obj=" << reinterpret_cast<void*>(thread->tlsPtr_.opeer)
        << " self=" << reinterpret_cast<const void*>(thread) << "\n";
   }

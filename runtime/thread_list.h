@@ -27,6 +27,7 @@
 
 #include <bitset>
 #include <list>
+#include <vector>
 
 namespace art {
 namespace gc {
@@ -106,7 +107,9 @@ class ThreadList {
   // in-flight mutator heap access (eg. a read barrier.) Runnable threads will respond by
   // decrementing the empty checkpoint barrier count. This works even when the weak ref access is
   // disabled. Only one concurrent use is currently supported.
-  size_t RunEmptyCheckpoint()
+  // In debug build, runnable_thread_ids will be populated with the thread IDS of the runnable
+  // thread to wait for.
+  size_t RunEmptyCheckpoint(std::vector<uint32_t>& runnable_thread_ids)
       REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
 
   size_t RunCheckpointOnRunnableThreads(Closure* checkpoint_function)
