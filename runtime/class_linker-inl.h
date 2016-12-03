@@ -248,7 +248,7 @@ ArtMethod* ClassLinker::FindMethodForProxy(ObjPtr<mirror::Class> proxy_class,
   DCHECK(proxy_method->IsProxyMethod<kReadBarrierOption>());
   {
     Thread* const self = Thread::Current();
-    ReaderMutexLock mu(self, dex_lock_);
+    ReaderMutexLock mu(self, *Locks::dex_lock_);
     // Locate the dex cache of the original interface/Object
     for (const DexCacheData& data : dex_caches_) {
       if (!self->IsJWeakCleared(data.weak_root) &&
