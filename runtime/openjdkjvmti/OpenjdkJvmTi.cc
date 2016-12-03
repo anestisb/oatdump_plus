@@ -1142,6 +1142,34 @@ class JvmtiFunctions {
     return RetransformClassesWithHook(reinterpret_cast<ArtJvmTiEnv*>(env), classes, hook);
   }
 
+  static jvmtiError RedefineClassDirect(ArtJvmTiEnv* env,
+                                        jclass klass,
+                                        jint dex_size,
+                                        unsigned char* dex_file) {
+    if (!IsValidEnv(env)) {
+      return ERR(INVALID_ENVIRONMENT);
+    }
+    jvmtiError ret = OK;
+    std::string location;
+    if ((ret = GetClassLocation(env, klass, &location)) != OK) {
+      // TODO Do something more here? Maybe give log statements?
+      return ret;
+    }
+    std::string error;
+    ret = Redefiner::RedefineClass(env,
+                                    art::Runtime::Current(),
+                                    art::Thread::Current(),
+                                    klass,
+                                    location,
+                                    dex_size,
+                                    reinterpret_cast<uint8_t*>(dex_file),
+                                    &error);
+    if (ret != OK) {
+      LOG(ERROR) << "FAILURE TO REDEFINE " << error;
+    }
+    return ret;
+  }
+
   // TODO This will be called by the event handler for the art::ti Event Load Event
   static jvmtiError RetransformClassesWithHook(ArtJvmTiEnv* env,
                                                const std::vector<jclass>& classes,
@@ -1252,7 +1280,10 @@ const jvmtiInterface_1 gJvmtiInterface = {
   reinterpret_cast<void*>(JvmtiFunctions::RetransformClassWithHook),
   // nullptr,  // reserved1
   JvmtiFunctions::SetEventNotificationMode,
-  nullptr,  // reserved3
+  // SPECIAL FUNCTION: RedefineClassDirect Is normally reserved3
+  // TODO Remove once we have events working.
+  reinterpret_cast<void*>(JvmtiFunctions::RedefineClassDirect),
+  // nullptr,  // reserved3
   JvmtiFunctions::GetAllThreads,
   JvmtiFunctions::SuspendThread,
   JvmtiFunctions::ResumeThread,
