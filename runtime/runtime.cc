@@ -1736,9 +1736,24 @@ void Runtime::VisitImageRoots(RootVisitor* visitor) {
   }
 }
 
+static ArtMethod* CreateRuntimeMethod(ClassLinker* class_linker, LinearAlloc* linear_alloc) {
+  const PointerSize image_pointer_size = class_linker->GetImagePointerSize();
+  const size_t method_alignment = ArtMethod::Alignment(image_pointer_size);
+  const size_t method_size = ArtMethod::Size(image_pointer_size);
+  LengthPrefixedArray<ArtMethod>* method_array = class_linker->AllocArtMethodArray(
+      Thread::Current(),
+      linear_alloc,
+      1);
+  ArtMethod* method = &method_array->At(0, method_size, method_alignment);
+  CHECK(method != nullptr);
+  method->SetDexMethodIndex(DexFile::kDexNoIndex);
+  CHECK(method->IsRuntimeMethod());
+  return method;
+}
+
 ArtMethod* Runtime::CreateImtConflictMethod(LinearAlloc* linear_alloc) {
   ClassLinker* const class_linker = GetClassLinker();
-  ArtMethod* method = class_linker->CreateRuntimeMethod(linear_alloc);
+  ArtMethod* method = CreateRuntimeMethod(class_linker, linear_alloc);
   // When compiling, the code pointer will get set later when the image is loaded.
   const PointerSize pointer_size = GetInstructionSetPointerSize(instruction_set_);
   if (IsAotCompiler()) {
@@ -1759,7 +1774,7 @@ void Runtime::SetImtConflictMethod(ArtMethod* method) {
 }
 
 ArtMethod* Runtime::CreateResolutionMethod() {
-  auto* method = GetClassLinker()->CreateRuntimeMethod(GetLinearAlloc());
+  auto* method = CreateRuntimeMethod(GetClassLinker(), GetLinearAlloc());
   // When compiling, the code pointer will get set later when the image is loaded.
   if (IsAotCompiler()) {
     PointerSize pointer_size = GetInstructionSetPointerSize(instruction_set_);
@@ -1771,7 +1786,7 @@ ArtMethod* Runtime::CreateResolutionMethod() {
 }
 
 ArtMethod* Runtime::CreateCalleeSaveMethod() {
-  auto* method = GetClassLinker()->CreateRuntimeMethod(GetLinearAlloc());
+  auto* method = CreateRuntimeMethod(GetClassLinker(), GetLinearAlloc());
   PointerSize pointer_size = GetInstructionSetPointerSize(instruction_set_);
   method->SetEntryPointFromQuickCompiledCodePtrSize(nullptr, pointer_size);
   DCHECK_NE(instruction_set_, kNone);
