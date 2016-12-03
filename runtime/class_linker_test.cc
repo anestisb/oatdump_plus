@@ -1319,7 +1319,7 @@ TEST_F(ClassLinkerTest, RegisterDexFileName) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   MutableHandle<mirror::DexCache> dex_cache(hs.NewHandle<mirror::DexCache>(nullptr));
   {
-    ReaderMutexLock mu(soa.Self(), *class_linker->DexLock());
+    ReaderMutexLock mu(soa.Self(), *Locks::dex_lock_);
     for (const ClassLinker::DexCacheData& data : class_linker->GetDexCachesData()) {
       dex_cache.Assign(soa.Self()->DecodeJObject(data.weak_root)->AsDexCache());
       if (dex_cache.Get() != nullptr) {
@@ -1343,7 +1343,7 @@ TEST_F(ClassLinkerTest, RegisterDexFileName) {
                                                 0u,
                                                 nullptr));
   {
-    WriterMutexLock mu(soa.Self(), *class_linker->DexLock());
+    WriterMutexLock mu(soa.Self(), *Locks::dex_lock_);
     // Check that inserting with a UTF16 name works.
     class_linker->RegisterDexFileLocked(*dex_file, dex_cache);
   }

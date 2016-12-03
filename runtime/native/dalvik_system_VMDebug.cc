@@ -177,8 +177,22 @@ static void VMDebug_resetInstructionCount(JNIEnv* env, jclass) {
 }
 
 static void VMDebug_printLoadedClasses(JNIEnv* env, jclass, jint flags) {
+  class DumpClassVisitor : public ClassVisitor {
+   public:
+    explicit DumpClassVisitor(int dump_flags) : flags_(dump_flags) {}
+
+    bool operator()(ObjPtr<mirror::Class> klass) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
+      klass->DumpClass(LOG_STREAM(ERROR), flags_);
+      return true;
+    }
+
+   private:
+    const int flags_;
+  };
+  DumpClassVisitor visitor(flags);
+
   ScopedFastNativeObjectAccess soa(env);
-  return Runtime::Current()->GetClassLinker()->DumpAllClasses(flags);
+  return Runtime::Current()->GetClassLinker()->VisitClasses(&visitor);
 }
 
 static jint VMDebug_getLoadedClassCount(JNIEnv* env, jclass) {
