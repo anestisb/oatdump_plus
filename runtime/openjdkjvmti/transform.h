@@ -41,6 +41,8 @@
 
 namespace openjdkjvmti {
 
+jvmtiError GetClassLocation(ArtJvmTiEnv* env, jclass klass, /*out*/std::string* location);
+
 // Gets the data surrounding the given class.
 jvmtiError GetTransformationData(ArtJvmTiEnv* env,
                                  jclass klass,
