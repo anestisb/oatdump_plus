@@ -18,9 +18,19 @@
 #define ART_TEST_TI_AGENT_COMMON_HELPER_H_
 
 #include "jni.h"
+#include "openjdkjvmti/jvmti.h"
 #include "ScopedLocalRef.h"
 
 namespace art {
+namespace common_redefine {
+
+jint OnLoad(JavaVM* vm, char* options, void* reserved);
+
+}  // namespace common_redefine
+
+extern bool RuntimeIsJVM;
+
+bool IsJVM();
 
 template <typename T>
 static jobjectArray CreateObjectArray(JNIEnv* env,
@@ -53,11 +63,7 @@ static jobjectArray CreateObjectArray(JNIEnv* env,
   return ret.release();
 }
 
-static void SetAllCapabilities(jvmtiEnv* env) {
-  jvmtiCapabilities caps;
-  env->GetPotentialCapabilities(&caps);
-  env->AddCapabilities(&caps);
-}
+void SetAllCapabilities(jvmtiEnv* env);
 
 }  // namespace art
 

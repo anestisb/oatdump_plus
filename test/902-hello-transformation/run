@@ -27,12 +27,11 @@ if [[ "$@" == *"--jvm"* ]]; then
   arg="jvm"
 else
   arg="art"
-fi
-
-if [[ "$@" != *"--debuggable"* ]]; then
-  other_args=" -Xcompiler-option --debuggable "
-else
-  other_args=""
+  if [[ "$@" != *"--debuggable"* ]]; then
+    other_args=" -Xcompiler-option --debuggable "
+  else
+    other_args=""
+  fi
 fi
 
 ./default-run "$@" --experimental agents \
