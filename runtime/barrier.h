@@ -61,6 +61,8 @@ class Barrier {
   // another thread is still in Wait().  See above.
   void Init(Thread* self, int count) REQUIRES(!lock_);
 
+  int GetCount(Thread* self) REQUIRES(!lock_);
+
  private:
   void SetCountLocked(Thread* self, int count) REQUIRES(lock_);
 
