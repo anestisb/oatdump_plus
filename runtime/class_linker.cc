@@ -242,10 +242,11 @@ static void WrapExceptionInInitializer(Handle<mirror::Class> klass)
   ScopedLocalRef<jthrowable> cause(env, env->ExceptionOccurred());
   CHECK(cause.get() != nullptr);
 
-  // Boot classpath classes should not fail initialization.
-  if (!Runtime::Current()->IsAotCompiler()) {
+  // Boot classpath classes should not fail initialization. This is a sanity debug check. This
+  // cannot in general be guaranteed, but in all likelihood leads to breakage down the line.
+  if (klass->GetClassLoader() == nullptr && !Runtime::Current()->IsAotCompiler()) {
     std::string tmp;
-    CHECK(klass->GetClassLoader() != nullptr) << klass->GetDescriptor(&tmp);
+    LOG(kIsDebugBuild ? FATAL : WARNING) << klass->GetDescriptor(&tmp) << " failed initialization";
   }
 
   env->ExceptionClear();
