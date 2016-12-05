@@ -300,6 +300,7 @@ OatWriter::OatWriter(bool compiling_boot_image, TimingLogger* timings, ProfileCo
     oat_data_offset_(0u),
     oat_header_(nullptr),
     size_vdex_header_(0),
+    size_vdex_checksums_(0),
     size_dex_file_alignment_(0),
     size_executable_offset_alignment_(0),
     size_oat_header_(0),
@@ -409,10 +410,11 @@ bool OatWriter::AddVdexDexFilesSource(const VdexFile& vdex_file,
                                       CreateTypeLookupTable create_type_lookup_table) {
   DCHECK(write_state_ == WriteState::kAddingDexFileSources);
   const uint8_t* current_dex_data = nullptr;
-  for (size_t i = 0; ; ++i) {
+  for (size_t i = 0; i < vdex_file.GetHeader().GetNumberOfDexFiles(); ++i) {
     current_dex_data = vdex_file.GetNextDexFileData(current_dex_data);
     if (current_dex_data == nullptr) {
-      break;
+      LOG(ERROR) << "Unexpected number of dex files in vdex " << location;
+      return false;
     }
     if (!DexFile::IsMagicValid(current_dex_data)) {
       LOG(ERROR) << "Invalid magic in vdex file created from " << location;
@@ -424,7 +426,14 @@ bool OatWriter::AddVdexDexFilesSource(const VdexFile& vdex_file,
     oat_dex_files_.emplace_back(full_location,
                                 DexFileSource(current_dex_data),
                                 create_type_lookup_table);
+    oat_dex_files_.back().dex_file_location_checksum_ = vdex_file.GetLocationChecksum(i);
   }
+
+  if (vdex_file.GetNextDexFileData(current_dex_data) != nullptr) {
+    LOG(ERROR) << "Unexpected number of dex files in vdex " << location;
+    return false;
+  }
+
   if (oat_dex_files_.empty()) {
     LOG(ERROR) << "No dex files in vdex file created from " << location;
     return false;
@@ -488,8 +497,8 @@ bool OatWriter::WriteAndOpenDexFiles(
 
   // Initialize VDEX and OAT headers.
   if (kIsVdexEnabled) {
-    size_vdex_header_ = sizeof(VdexFile::Header);
-    vdex_size_ = size_vdex_header_;
+    // Reserve space for Vdex header and checksums.
+    vdex_size_ = sizeof(VdexFile::Header) + oat_dex_files_.size() * sizeof(VdexFile::VdexChecksum);
   }
   size_t oat_data_offset = InitOatHeader(instruction_set,
                                         instruction_set_features,
@@ -1837,6 +1846,7 @@ bool OatWriter::WriteCode(OutputStream* out) {
       size_total += (x);
 
     DO_STAT(size_vdex_header_);
+    DO_STAT(size_vdex_checksums_);
     DO_STAT(size_dex_file_alignment_);
     DO_STAT(size_executable_offset_alignment_);
     DO_STAT(size_oat_header_);
@@ -2383,6 +2393,7 @@ bool OatWriter::WriteDexFile(OutputStream* out,
 
   // Update dex file size and resize class offsets in the OatDexFile.
   // Note: For raw data, the checksum is passed directly to AddRawDexFileSource().
+  // Note: For vdex, the checksum is copied from the existing vdex file.
   oat_dex_file->dex_file_size_ = header->file_size_;
   oat_dex_file->class_offsets_.resize(header->class_defs_size_);
   return true;
@@ -2592,11 +2603,31 @@ bool OatWriter::WriteTypeLookupTables(
   return true;
 }
 
-bool OatWriter::WriteVdexHeader(OutputStream* vdex_out) {
+bool OatWriter::WriteChecksumsAndVdexHeader(OutputStream* vdex_out) {
   if (!kIsVdexEnabled) {
     return true;
   }
-  off_t actual_offset = vdex_out->Seek(0, kSeekSet);
+  // Write checksums
+  off_t actual_offset = vdex_out->Seek(sizeof(VdexFile::Header), kSeekSet);
+  if (actual_offset != sizeof(VdexFile::Header)) {
+    PLOG(ERROR) << "Failed to seek to the checksum location of vdex file. Actual: " << actual_offset
+                << " File: " << vdex_out->GetLocation();
+    return false;
+  }
+
+  for (size_t i = 0, size = oat_dex_files_.size(); i != size; ++i) {
+    OatDexFile* oat_dex_file = &oat_dex_files_[i];
+    if (!vdex_out->WriteFully(
+            &oat_dex_file->dex_file_location_checksum_, sizeof(VdexFile::VdexChecksum))) {
+      PLOG(ERROR) << "Failed to write dex file location checksum. File: "
+                  << vdex_out->GetLocation();
+      return false;
+    }
+    size_vdex_checksums_ += sizeof(VdexFile::VdexChecksum);
+  }
+
+  // Write header.
+  actual_offset = vdex_out->Seek(0, kSeekSet);
   if (actual_offset != 0) {
     PLOG(ERROR) << "Failed to seek to the beginning of vdex file. Actual: " << actual_offset
                 << " File: " << vdex_out->GetLocation();
@@ -2610,12 +2641,15 @@ bool OatWriter::WriteVdexHeader(OutputStream* vdex_out) {
   size_t verifier_deps_section_size = vdex_quickening_info_offset_ - vdex_verifier_deps_offset_;
   size_t quickening_info_section_size = vdex_size_ - vdex_quickening_info_offset_;
 
-  VdexFile::Header vdex_header(
-      dex_section_size, verifier_deps_section_size, quickening_info_section_size);
+  VdexFile::Header vdex_header(oat_dex_files_.size(),
+                               dex_section_size,
+                               verifier_deps_section_size,
+                               quickening_info_section_size);
   if (!vdex_out->WriteFully(&vdex_header, sizeof(VdexFile::Header))) {
     PLOG(ERROR) << "Failed to write vdex header. File: " << vdex_out->GetLocation();
     return false;
   }
+  size_vdex_header_ = sizeof(VdexFile::Header);
 
   if (!vdex_out->Flush()) {
     PLOG(ERROR) << "Failed to flush stream after writing to vdex file."

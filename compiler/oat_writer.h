@@ -124,7 +124,7 @@ class OatWriter {
   //   - Initialize()
   //   - WriteVerifierDeps()
   //   - WriteQuickeningInfo()
-  //   - WriteVdexHeader()
+  //   - WriteChecksumsAndVdexHeader()
   //   - PrepareLayout(),
   //   - WriteRodata(),
   //   - WriteCode(),
@@ -168,7 +168,7 @@ class OatWriter {
                             /*out*/ std::vector<std::unique_ptr<const DexFile>>* opened_dex_files);
   bool WriteQuickeningInfo(OutputStream* vdex_out);
   bool WriteVerifierDeps(OutputStream* vdex_out, verifier::VerifierDeps* verifier_deps);
-  bool WriteVdexHeader(OutputStream* vdex_out);
+  bool WriteChecksumsAndVdexHeader(OutputStream* vdex_out);
   // Initialize the writer with the given parameters.
   void Initialize(const CompilerDriver* compiler,
                   ImageWriter* image_writer,
@@ -387,6 +387,7 @@ class OatWriter {
 
   // output stats
   uint32_t size_vdex_header_;
+  uint32_t size_vdex_checksums_;
   uint32_t size_dex_file_alignment_;
   uint32_t size_executable_offset_alignment_;
   uint32_t size_oat_header_;

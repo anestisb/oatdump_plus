@@ -314,7 +314,7 @@ OatFileAssistant::OatStatus OatFileAssistant::GivenOatFileStatus(const OatFile& 
   const OatFile::OatDexFile* oat_dex_file = file.GetOatDexFile(
       dex_location_.c_str(), dex_checksum_pointer, &error_msg);
   if (oat_dex_file == nullptr) {
-    VLOG(oat) << error_msg;
+    LOG(ERROR) << error_msg;
     return kOatDexOutOfDate;
   }
 
