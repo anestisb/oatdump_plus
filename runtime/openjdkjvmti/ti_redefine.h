@@ -68,7 +68,7 @@ class Redefiner {
  public:
   // Redefine the given class with the given dex data. Note this function does not take ownership of
   // the dex_data pointer. It is not used after this call however and may be freed if desired.
-  // The caller is responsible for freeing it. The runtime makes it's own copy of the data.
+  // The caller is responsible for freeing it. The runtime makes its own copy of the data.
   static jvmtiError RedefineClass(ArtJvmTiEnv* env,
                                   art::Runtime* runtime,
                                   art::Thread* self,
@@ -146,6 +146,7 @@ class Redefiner {
   // This will check that no constraints are violated (more than 1 class in dex file, any changes in
   // number/declaration of methods & fields, changes in access flags, etc.)
   bool EnsureRedefinitionIsValid() {
+    LOG(WARNING) << "Redefinition is not checked for validity currently";
     return true;
   }
 

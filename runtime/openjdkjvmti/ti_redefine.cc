@@ -66,7 +66,8 @@ std::unique_ptr<art::MemMap> Redefiner::MoveDataToMemMap(const std::string& orig
     return map;
   }
   memcpy(map->Begin(), dex_data, data_len);
-  // Make the dex files mmap read only.
+  // Make the dex files mmap read only. This matches how other DexFiles are mmaped and prevents
+  // programs from corrupting it.
   map->Protect(PROT_READ);
   return map;
 }

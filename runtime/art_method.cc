@@ -79,7 +79,8 @@ mirror::DexCache* ArtMethod::GetObsoleteDexCache() {
   DCHECK(ext->GetObsoleteDexCaches() != nullptr);
   int32_t len = obsolete_methods->GetLength();
   DCHECK_EQ(len, ext->GetObsoleteDexCaches()->GetLength());
-  // TODO I think this is fine since images should never have obsolete methods in them.
+  // Using kRuntimePointerSize (instead of using the image's pointer size) is fine since images
+  // should never have obsolete methods in them so they should always be the same.
   PointerSize pointer_size = kRuntimePointerSize;
   DCHECK_EQ(kRuntimePointerSize, Runtime::Current()->GetClassLinker()->GetImagePointerSize());
   for (int32_t i = 0; i < len; i++) {
