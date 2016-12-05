@@ -46,8 +46,9 @@ void ClassExt::SetObsoleteArrays(ObjPtr<PointerArray> methods,
   SetFieldObject<false>(obsolete_methods_off, methods.Ptr());
 }
 
-// TODO We really need to be careful how we update this. If we ever in the future make it so that
-// these arrays are written into without all threads being suspended we have a race condition!
+// We really need to be careful how we update this. If we ever in the future make it so that
+// these arrays are written into without all threads being suspended we have a race condition! This
+// race could cause obsolete methods to be missed.
 bool ClassExt::ExtendObsoleteArrays(Thread* self, uint32_t increase) {
   DCHECK_EQ(GetLockOwnerThreadId(), Thread::Current()->GetThreadId())
       << "Obsolete arrays are set without synchronization!";
