@@ -66,7 +66,7 @@ public class Main {
     }
 
     try {
-      List<Future<Integer>> results = pool.invokeAll(queries, 5, TimeUnit.SECONDS);
+      List<Future<Integer>> results = pool.invokeAll(queries);
 
       int hash = obj.hashCode();
       for (int i = 0; i < numThreads; ++i) {
