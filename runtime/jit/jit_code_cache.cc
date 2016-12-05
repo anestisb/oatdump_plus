@@ -284,6 +284,10 @@ static void FillRootTableLength(uint8_t* roots_data, uint32_t length) {
   reinterpret_cast<uint32_t*>(roots_data)[length] = length;
 }
 
+static const uint8_t* FromStackMapToRoots(const uint8_t* stack_map_data) {
+  return stack_map_data - ComputeRootTableSize(GetNumberOfRoots(stack_map_data));
+}
+
 static void FillRootTable(uint8_t* roots_data, Handle<mirror::ObjectArray<mirror::Object>> roots)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   GcRoot<mirror::Object>* gc_roots = reinterpret_cast<GcRoot<mirror::Object>*>(roots_data);
@@ -300,7 +304,6 @@ static void FillRootTable(uint8_t* roots_data, Handle<mirror::ObjectArray<mirror
     }
     gc_roots[i] = GcRoot<mirror::Object>(object);
   }
-  FillRootTableLength(roots_data, length);
 }
 
 static uint8_t* GetRootTable(const void* code_ptr, uint32_t* number_of_roots = nullptr) {
@@ -508,7 +511,6 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
   // Ensure the header ends up at expected instruction alignment.
   size_t header_size = RoundUp(sizeof(OatQuickMethodHeader), alignment);
   size_t total_size = header_size + code_size;
-  const uint32_t num_roots = roots->GetLength();
 
   OatQuickMethodHeader* method_header = nullptr;
   uint8_t* code_ptr = nullptr;
@@ -521,9 +523,6 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
       ScopedCodeCacheWrite scc(code_map_.get());
       memory = AllocateCode(total_size);
       if (memory == nullptr) {
-        // Fill root table length so that ClearData works correctly in case of failure. Otherwise
-        // the length will be 0 and cause incorrect DCHECK failure.
-        FillRootTableLength(roots_data, num_roots);
         return nullptr;
       }
       code_ptr = memory + header_size;
@@ -585,6 +584,7 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
     MutexLock mu(self, lock_);
     method_code_map_.Put(code_ptr, method);
     // Fill the root table before updating the entry point.
+    DCHECK_EQ(FromStackMapToRoots(stack_map), roots_data);
     FillRootTable(roots_data, roots);
     if (osr) {
       number_of_osr_compilations_++;
@@ -637,10 +637,6 @@ size_t JitCodeCache::DataCacheSizeLocked() {
   return used_memory_for_data_;
 }
 
-static const uint8_t* FromStackMapToRoots(const uint8_t* stack_map_data) {
-  return stack_map_data - ComputeRootTableSize(GetNumberOfRoots(stack_map_data));
-}
-
 void JitCodeCache::ClearData(Thread* self,
                              uint8_t* stack_map_data,
                              uint8_t* roots_data) {
@@ -683,8 +679,14 @@ void JitCodeCache::ReserveData(Thread* self,
               << " for stack maps of "
               << ArtMethod::PrettyMethod(method);
   }
-  *roots_data = result;
-  *stack_map_data = result + table_size;
+  if (result != nullptr) {
+    *roots_data = result;
+    *stack_map_data = result + table_size;
+    FillRootTableLength(*roots_data, number_of_roots);
+  } else {
+    *roots_data = nullptr;
+    *stack_map_data = nullptr;
+  }
 }
 
 class MarkCodeVisitor FINAL : public StackVisitor {
