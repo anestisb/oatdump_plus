@@ -33,13 +33,13 @@
 #include "base/mutex.h"
 #include "entrypoints/jni/jni_entrypoints.h"
 #include "entrypoints/quick/quick_entrypoints.h"
+#include "gc_root.h"
 #include "globals.h"
 #include "handle_scope.h"
 #include "instrumentation.h"
 #include "jvalue.h"
 #include "object_callbacks.h"
 #include "offsets.h"
-#include "runtime.h"
 #include "runtime_stats.h"
 #include "stack.h"
 #include "thread_state.h"
@@ -87,7 +87,6 @@ class FrameIdToShadowFrame;
 class JavaVMExt;
 struct JNIEnvExt;
 class Monitor;
-class Runtime;
 class ScopedObjectAccessAlreadyRunnable;
 class ShadowFrame;
 class SingleStepControl;
@@ -949,17 +948,17 @@ class Thread {
   }
 
   std::vector<ArtMethod*>* GetStackTraceSample() const {
-    DCHECK(!Runtime::Current()->IsAotCompiler());
+    DCHECK(!IsAotCompiler());
     return tlsPtr_.deps_or_stack_trace_sample.stack_trace_sample;
   }
 
   void SetStackTraceSample(std::vector<ArtMethod*>* sample) {
-    DCHECK(!Runtime::Current()->IsAotCompiler());
+    DCHECK(!IsAotCompiler());
     tlsPtr_.deps_or_stack_trace_sample.stack_trace_sample = sample;
   }
 
   verifier::VerifierDeps* GetVerifierDeps() const {
-    DCHECK(Runtime::Current()->IsAotCompiler());
+    DCHECK(IsAotCompiler());
     return tlsPtr_.deps_or_stack_trace_sample.verifier_deps;
   }
 
@@ -967,7 +966,7 @@ class Thread {
   // entry in the thread is cleared before destruction of the actual VerifierDeps
   // object, or the thread.
   void SetVerifierDeps(verifier::VerifierDeps* verifier_deps) {
-    DCHECK(Runtime::Current()->IsAotCompiler());
+    DCHECK(IsAotCompiler());
     DCHECK(verifier_deps == nullptr || tlsPtr_.deps_or_stack_trace_sample.verifier_deps == nullptr);
     tlsPtr_.deps_or_stack_trace_sample.verifier_deps = verifier_deps;
   }
@@ -1245,6 +1244,8 @@ class Thread {
 
   // Install the protected region for implicit stack checks.
   void InstallImplicitProtection();
+
+  static bool IsAotCompiler();
 
   // 32 bits of atomically changed state and flags. Keeping as 32 bits allows and atomic CAS to
   // change from being Suspended to Runnable without a suspend request occurring.

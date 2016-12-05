@@ -3175,4 +3175,8 @@ void Thread::SetException(ObjPtr<mirror::Throwable> new_exception) {
   tlsPtr_.exception = new_exception.Ptr();
 }
 
+bool Thread::IsAotCompiler() {
+  return Runtime::Current()->IsAotCompiler();
+}
+
 }  // namespace art
