@@ -35,10 +35,12 @@ bool VdexFile::Header::IsVersionValid() const {
   return (memcmp(version_, kVdexVersion, sizeof(kVdexVersion)) == 0);
 }
 
-VdexFile::Header::Header(uint32_t dex_size,
+VdexFile::Header::Header(uint32_t number_of_dex_files,
+                         uint32_t dex_size,
                          uint32_t verifier_deps_size,
                          uint32_t quickening_info_size)
-    : dex_size_(dex_size),
+    : number_of_dex_files_(number_of_dex_files),
+      dex_size_(dex_size),
       verifier_deps_size_(verifier_deps_size),
       quickening_info_size_(quickening_info_size) {
   memcpy(magic_, kVdexMagic, sizeof(kVdexMagic));
