@@ -812,13 +812,13 @@ void ConcurrentCopying::ProcessFalseGrayStack() {
   false_gray_stack_.clear();
 }
 
-
 void ConcurrentCopying::IssueEmptyCheckpoint() {
   Thread* self = Thread::Current();
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
   Barrier* barrier = thread_list->EmptyCheckpointBarrier();
   barrier->Init(self, 0);
-  size_t barrier_count = thread_list->RunEmptyCheckpoint();
+  std::vector<uint32_t> runnable_thread_ids;  // Used in debug build only
+  size_t barrier_count = thread_list->RunEmptyCheckpoint(runnable_thread_ids);
   // If there are no threads to wait which implys that all the checkpoint functions are finished,
   // then no need to release the mutator lock.
   if (barrier_count == 0) {
@@ -828,7 +828,27 @@ void ConcurrentCopying::IssueEmptyCheckpoint() {
   Locks::mutator_lock_->SharedUnlock(self);
   {
     ScopedThreadStateChange tsc(self, kWaitingForCheckPointsToRun);
-    barrier->Increment(self, barrier_count);
+    if (kIsDebugBuild) {
+      static constexpr uint64_t kEmptyCheckpointTimeoutMs = 600 * 1000;  // 10 minutes.
+      bool timed_out = barrier->Increment(self, barrier_count, kEmptyCheckpointTimeoutMs);
+      if (timed_out) {
+        Runtime* runtime = Runtime::Current();
+        std::ostringstream ss;
+        ss << "Empty checkpoint timeout\n";
+        ss << "Barrier count " << barrier->GetCount(self) << "\n";
+        ss << "Runnable thread IDs";
+        for (uint32_t tid : runnable_thread_ids) {
+          ss << " " << tid;
+        }
+        ss << "\n";
+        Locks::mutator_lock_->Dump(ss);
+        ss << "\n";
+        runtime->GetThreadList()->Dump(ss);
+        LOG(FATAL) << ss.str();
+      }
+    } else {
+      barrier->Increment(self, barrier_count);
+    }
   }
   Locks::mutator_lock_->SharedLock(self);
 }

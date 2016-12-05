@@ -80,6 +80,11 @@ bool Barrier::Increment(Thread* self, int delta, uint32_t timeout_ms) {
   return timed_out;
 }
 
+int Barrier::GetCount(Thread* self) {
+  MutexLock mu(self, lock_);
+  return count_;
+}
+
 void Barrier::SetCountLocked(Thread* self, int count) {
   count_ = count;
   if (count == 0) {
