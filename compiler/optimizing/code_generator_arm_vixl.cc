@@ -67,7 +67,6 @@ static bool ExpectedPairLayout(Location location) {
 static constexpr size_t kArmWordSize = static_cast<size_t>(kArmPointerSize);
 static constexpr size_t kArmBitsPerWord = kArmWordSize * kBitsPerByte;
 static constexpr int kCurrentMethodStackOffset = 0;
-static constexpr size_t kArmInstrMaxSizeInBytes = 4u;
 static constexpr uint32_t kPackedSwitchCompareJumpThreshold = 7;
 
 #ifdef __
@@ -876,7 +875,7 @@ void CodeGeneratorARMVIXL::GenerateFrameEntry() {
     __ Sub(temp, sp, static_cast<int32_t>(GetStackOverflowReservedBytes(kArm)));
     // The load must immediately precede RecordPcInfo.
     AssemblerAccurateScope aas(GetVIXLAssembler(),
-                               kArmInstrMaxSizeInBytes,
+                               vixl32::kMaxInstructionSizeInBytes,
                                CodeBufferCheckScope::kMaximumSize);
     __ ldr(temp, MemOperand(temp));
     RecordPcInfo(nullptr, 0);
@@ -1117,10 +1116,14 @@ void CodeGeneratorARMVIXL::InvokeRuntime(QuickEntrypointEnum entrypoint,
                                          uint32_t dex_pc,
                                          SlowPathCode* slow_path) {
   ValidateInvokeRuntime(entrypoint, instruction, slow_path);
-  GenerateInvokeRuntime(GetThreadOffset<kArmPointerSize>(entrypoint).Int32Value());
+  __ Ldr(lr, MemOperand(tr, GetThreadOffset<kArmPointerSize>(entrypoint).Int32Value()));
+  // Ensure the pc position is recorded immediately after the `blx` instruction.
+  // blx in T32 has only 16bit encoding that's why a stricter check for the scope is used.
+  AssemblerAccurateScope aas(GetVIXLAssembler(),
+                             vixl32::k16BitT32InstructionSizeInBytes,
+                             CodeBufferCheckScope::kExactSize);
+  __ blx(lr);
   if (EntrypointRequiresStackMap(entrypoint)) {
-    // TODO(VIXL): If necessary, use a scope to ensure we record the pc info immediately after the
-    // previous instruction.
     RecordPcInfo(instruction, dex_pc, slow_path);
   }
 }
@@ -1129,11 +1132,7 @@ void CodeGeneratorARMVIXL::InvokeRuntimeWithoutRecordingPcInfo(int32_t entry_poi
                                                                HInstruction* instruction,
                                                                SlowPathCode* slow_path) {
   ValidateInvokeRuntimeWithoutRecordingPcInfo(instruction, slow_path);
-  GenerateInvokeRuntime(entry_point_offset);
-}
-
-void CodeGeneratorARMVIXL::GenerateInvokeRuntime(int32_t entry_point_offset) {
-  GetAssembler()->LoadFromOffset(kLoadWord, lr, tr, entry_point_offset);
+  __ Ldr(lr, MemOperand(tr, entry_point_offset));
   __ Blx(lr);
 }
 
@@ -1566,7 +1565,7 @@ void InstructionCodeGeneratorARMVIXL::HandleCondition(HCondition* cond) {
                CodeGenerator::GetInt32ValueOf(right.GetConstant()));
       }
       AssemblerAccurateScope aas(GetVIXLAssembler(),
-                                 kArmInstrMaxSizeInBytes * 3u,
+                                 3 * vixl32::kMaxInstructionSizeInBytes,
                                  CodeBufferCheckScope::kMaximumSize);
       __ ite(ARMCondition(cond->GetCondition()));
       __ mov(ARMCondition(cond->GetCondition()), OutputRegister(cond), 1);
@@ -1831,10 +1830,8 @@ void InstructionCodeGeneratorARMVIXL::VisitInvokeVirtual(HInvokeVirtual* invoke)
   }
 
   codegen_->GenerateVirtualCall(invoke, invoke->GetLocations()->GetTemp(0));
-  DCHECK(!codegen_->IsLeafMethod());
-  // TODO(VIXL): If necessary, use a scope to ensure we record the pc info immediately after the
-  // previous instruction.
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
+  DCHECK(!codegen_->IsLeafMethod());
 }
 
 void LocationsBuilderARMVIXL::VisitInvokeInterface(HInvokeInterface* invoke) {
@@ -1853,10 +1850,15 @@ void InstructionCodeGeneratorARMVIXL::VisitInvokeInterface(HInvokeInterface* inv
 
   DCHECK(!receiver.IsStackSlot());
 
-  // /* HeapReference<Class> */ temp = receiver->klass_
-  GetAssembler()->LoadFromOffset(kLoadWord, temp, RegisterFrom(receiver), class_offset);
-
-  codegen_->MaybeRecordImplicitNullCheck(invoke);
+  // Ensure the pc position is recorded immediately after the `ldr` instruction.
+  {
+    AssemblerAccurateScope aas(GetVIXLAssembler(),
+                               vixl32::kMaxInstructionSizeInBytes,
+                               CodeBufferCheckScope::kMaximumSize);
+    // /* HeapReference<Class> */ temp = receiver->klass_
+    __ ldr(temp, MemOperand(RegisterFrom(receiver), class_offset));
+    codegen_->MaybeRecordImplicitNullCheck(invoke);
+  }
   // Instead of simply (possibly) unpoisoning `temp` here, we should
   // emit a read barrier for the previous class reference load.
   // However this is not required in practice, as this is an
@@ -1895,15 +1897,16 @@ void InstructionCodeGeneratorARMVIXL::VisitInvokeInterface(HInvokeInterface* inv
     temps.Exclude(hidden_reg);
     __ Mov(hidden_reg, invoke->GetDexMethodIndex());
   }
-
   {
+    // Ensure the pc position is recorded immediately after the `blx` instruction.
+    // blx in T32 has only 16bit encoding that's why a stricter check for the scope is used.
     AssemblerAccurateScope aas(GetVIXLAssembler(),
-                               kArmInstrMaxSizeInBytes,
-                               CodeBufferCheckScope::kMaximumSize);
+                           vixl32::k16BitT32InstructionSizeInBytes,
+                           CodeBufferCheckScope::kExactSize);
     // LR();
     __ blx(lr);
-    DCHECK(!codegen_->IsLeafMethod());
     codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
+    DCHECK(!codegen_->IsLeafMethod());
   }
 }
 
@@ -3274,7 +3277,7 @@ void InstructionCodeGeneratorARMVIXL::HandleShift(HBinaryOperation* op) {
           __ Subs(temp, o_l, Operand::From(kArmBitsPerWord));
           {
             AssemblerAccurateScope guard(GetVIXLAssembler(),
-                                         3 * kArmInstrMaxSizeInBytes,
+                                         2 * vixl32::kMaxInstructionSizeInBytes,
                                          CodeBufferCheckScope::kMaximumSize);
             __ it(pl);
             __ lsl(pl, o_h, low, temp);
@@ -3293,7 +3296,7 @@ void InstructionCodeGeneratorARMVIXL::HandleShift(HBinaryOperation* op) {
           __ Subs(temp, o_h, Operand::From(kArmBitsPerWord));
           {
             AssemblerAccurateScope guard(GetVIXLAssembler(),
-                                         3 * kArmInstrMaxSizeInBytes,
+                                         2 * vixl32::kMaxInstructionSizeInBytes,
                                          CodeBufferCheckScope::kMaximumSize);
             __ it(pl);
             __ asr(pl, o_l, high, temp);
@@ -3310,7 +3313,7 @@ void InstructionCodeGeneratorARMVIXL::HandleShift(HBinaryOperation* op) {
           __ Subs(temp, o_h, Operand::From(kArmBitsPerWord));
           {
             AssemblerAccurateScope guard(GetVIXLAssembler(),
-                                         3 * kArmInstrMaxSizeInBytes,
+                                         2 * vixl32::kMaxInstructionSizeInBytes,
                                          CodeBufferCheckScope::kMaximumSize);
           __ it(pl);
           __ lsr(pl, o_l, high, temp);
@@ -3427,9 +3430,10 @@ void InstructionCodeGeneratorARMVIXL::VisitNewInstance(HNewInstance* instruction
     MemberOffset code_offset = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArmPointerSize);
     GetAssembler()->LoadFromOffset(kLoadWord, temp, tr, QUICK_ENTRY_POINT(pNewEmptyString));
     GetAssembler()->LoadFromOffset(kLoadWord, lr, temp, code_offset.Int32Value());
+    // blx in T32 has only 16bit encoding that's why a stricter check for the scope is used.
     AssemblerAccurateScope aas(GetVIXLAssembler(),
-                               kArmInstrMaxSizeInBytes,
-                               CodeBufferCheckScope::kMaximumSize);
+                               vixl32::k16BitT32InstructionSizeInBytes,
+                               CodeBufferCheckScope::kExactSize);
     __ blx(lr);
     codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
   } else {
@@ -3669,10 +3673,16 @@ void InstructionCodeGeneratorARMVIXL::GenerateWideAtomicStore(vixl32::Register a
     addr = temp;
   }
   __ Bind(&fail);
-  // We need a load followed by store. (The address used in a STREX instruction must
-  // be the same as the address in the most recently executed LDREX instruction.)
-  __ Ldrexd(temp1, temp2, MemOperand(addr));
-  codegen_->MaybeRecordImplicitNullCheck(instruction);
+  {
+    // Ensure the pc position is recorded immediately after the `ldrexd` instruction.
+    AssemblerAccurateScope aas(GetVIXLAssembler(),
+                               vixl32::kMaxInstructionSizeInBytes,
+                               CodeBufferCheckScope::kMaximumSize);
+    // We need a load followed by store. (The address used in a STREX instruction must
+    // be the same as the address in the most recently executed LDREX instruction.)
+    __ ldrexd(temp1, temp2, MemOperand(addr));
+    codegen_->MaybeRecordImplicitNullCheck(instruction);
+  }
   __ Strexd(temp1, value_lo, value_hi, MemOperand(addr));
   __ CompareAndBranchIfNonZero(temp1, &fail);
 }
@@ -3821,6 +3831,11 @@ void InstructionCodeGeneratorARMVIXL::HandleFieldSet(HInstruction* instruction,
 
   // Longs and doubles are handled in the switch.
   if (field_type != Primitive::kPrimLong && field_type != Primitive::kPrimDouble) {
+    // TODO(VIXL): Here and for other calls to `MaybeRecordImplicitNullCheck` in this method, we
+    // should use a scope and the assembler to emit the store instruction to guarantee that we
+    // record the pc at the correct position. But the `Assembler` does not automatically handle
+    // unencodable offsets. Practically, everything is fine because the helper and VIXL, at the time
+    // of writing, do generate the store instruction last.
     codegen_->MaybeRecordImplicitNullCheck(instruction);
   }
 
@@ -3995,7 +4010,6 @@ void InstructionCodeGeneratorARMVIXL::HandleFieldGet(HInstruction* instruction,
         TODO_VIXL32(FATAL);
       } else {
         GetAssembler()->LoadFromOffset(kLoadWord, RegisterFrom(out), base, offset);
-        // TODO(VIXL): Scope to guarantee the position immediately after the load.
         codegen_->MaybeRecordImplicitNullCheck(instruction);
         if (is_volatile) {
           codegen_->GenerateMemoryBarrier(MemBarrierKind::kLoadAny);
@@ -4032,7 +4046,6 @@ void InstructionCodeGeneratorARMVIXL::HandleFieldGet(HInstruction* instruction,
         __ Vmov(out_dreg, lo, hi);
       } else {
         GetAssembler()->LoadDFromOffset(out_dreg, base, offset);
-        // TODO(VIXL): Scope to guarantee the position immediately after the load.
         codegen_->MaybeRecordImplicitNullCheck(instruction);
       }
       break;
@@ -4048,6 +4061,11 @@ void InstructionCodeGeneratorARMVIXL::HandleFieldGet(HInstruction* instruction,
     // double fields, are handled in the previous switch statement.
   } else {
     // Address cases other than reference and double that may require an implicit null check.
+    // TODO(VIXL): Here and for other calls to `MaybeRecordImplicitNullCheck` in this method, we
+    // should use a scope and the assembler to emit the load instruction to guarantee that we
+    // record the pc at the correct position. But the `Assembler` does not automatically handle
+    // unencodable offsets. Practically, everything is fine because the helper and VIXL, at the time
+    // of writing, do generate the store instruction last.
     codegen_->MaybeRecordImplicitNullCheck(instruction);
   }
 
@@ -4172,8 +4190,9 @@ void CodeGeneratorARMVIXL::GenerateImplicitNullCheck(HNullCheck* instruction) {
   }
 
   UseScratchRegisterScope temps(GetVIXLAssembler());
+  // Ensure the pc position is recorded immediately after the `ldr` instruction.
   AssemblerAccurateScope aas(GetVIXLAssembler(),
-                             kArmInstrMaxSizeInBytes,
+                             vixl32::kMaxInstructionSizeInBytes,
                              CodeBufferCheckScope::kMaximumSize);
   __ ldr(temps.Acquire(), MemOperand(InputRegisterAt(instruction, 0)));
   RecordPcInfo(instruction, instruction->GetDexPc());
@@ -4440,6 +4459,11 @@ void InstructionCodeGeneratorARMVIXL::VisitArrayGet(HArrayGet* instruction) {
           size_t offset =
               (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
           GetAssembler()->LoadFromOffset(kLoadWord, out, obj, offset);
+          // TODO(VIXL): Here and for other calls to `MaybeRecordImplicitNullCheck` in this method,
+          // we should use a scope and the assembler to emit the load instruction to guarantee that
+          // we record the pc at the correct position. But the `Assembler` does not automatically
+          // handle unencodable offsets. Practically, everything is fine because the helper and
+          // VIXL, at the time of writing, do generate the store instruction last.
           codegen_->MaybeRecordImplicitNullCheck(instruction);
           // If read barriers are enabled, emit read barriers other than
           // Baker's using a slow path (and also unpoison the loaded
@@ -4462,7 +4486,9 @@ void InstructionCodeGeneratorARMVIXL::VisitArrayGet(HArrayGet* instruction) {
           }
           codegen_->LoadFromShiftedRegOffset(type, out_loc, temp, RegisterFrom(index));
           temps.Release(temp);
-
+          // TODO(VIXL): Use a scope to ensure that we record the pc position immediately after the
+          // load instruction. Practically, everything is fine because the helper and VIXL, at the
+          // time of writing, do generate the store instruction last.
           codegen_->MaybeRecordImplicitNullCheck(instruction);
           // If read barriers are enabled, emit read barriers other than
           // Baker's using a slow path (and also unpoison the loaded
@@ -4524,6 +4550,8 @@ void InstructionCodeGeneratorARMVIXL::VisitArrayGet(HArrayGet* instruction) {
     // Potential implicit null checks, in the case of reference
     // arrays, are handled in the previous switch statement.
   } else if (!maybe_compressed_char_at) {
+    // TODO(VIXL): Use a scope to ensure we record the pc info immediately after
+    // the preceding load instruction.
     codegen_->MaybeRecordImplicitNullCheck(instruction);
   }
 }
@@ -4624,6 +4652,8 @@ void InstructionCodeGeneratorARMVIXL::VisitArraySet(HArraySet* instruction) {
           codegen_->StoreToShiftedRegOffset(value_type, value_loc, temp, RegisterFrom(index));
           temps.Release(temp);
         }
+        // TODO(VIXL): Use a scope to ensure we record the pc info immediately after the preceding
+        // store instruction.
         codegen_->MaybeRecordImplicitNullCheck(instruction);
         DCHECK(!needs_write_barrier);
         DCHECK(!may_need_runtime_call_for_type_check);
@@ -4658,6 +4688,8 @@ void InstructionCodeGeneratorARMVIXL::VisitArraySet(HArraySet* instruction) {
             codegen_->StoreToShiftedRegOffset(value_type, value_loc, temp, RegisterFrom(index));
             temps.Release(temp);
           }
+          // TODO(VIXL): Use a scope to ensure we record the pc info immediately after the preceding
+          // store instruction.
           codegen_->MaybeRecordImplicitNullCheck(instruction);
           __ B(&done);
           __ Bind(&non_zero);
@@ -4671,9 +4703,15 @@ void InstructionCodeGeneratorARMVIXL::VisitArraySet(HArraySet* instruction) {
         // negative, in which case we would take the ArraySet slow
         // path.
 
-        // /* HeapReference<Class> */ temp1 = array->klass_
-        GetAssembler()->LoadFromOffset(kLoadWord, temp1, array, class_offset);
-        codegen_->MaybeRecordImplicitNullCheck(instruction);
+        {
+          // Ensure we record the pc position immediately after the `ldr` instruction.
+          AssemblerAccurateScope aas(GetVIXLAssembler(),
+                                     vixl32::kMaxInstructionSizeInBytes,
+                                     CodeBufferCheckScope::kMaximumSize);
+          // /* HeapReference<Class> */ temp1 = array->klass_
+          __ ldr(temp1, MemOperand(array, class_offset));
+          codegen_->MaybeRecordImplicitNullCheck(instruction);
+        }
         GetAssembler()->MaybeUnpoisonHeapReference(temp1);
 
         // /* HeapReference<Class> */ temp1 = temp1->component_type_
@@ -4730,6 +4768,8 @@ void InstructionCodeGeneratorARMVIXL::VisitArraySet(HArraySet* instruction) {
       }
 
       if (!may_need_runtime_call_for_type_check) {
+        // TODO(VIXL): Ensure we record the pc position immediately after the preceding store
+        // instruction.
         codegen_->MaybeRecordImplicitNullCheck(instruction);
       }
 
@@ -4798,6 +4838,8 @@ void InstructionCodeGeneratorARMVIXL::VisitArraySet(HArraySet* instruction) {
 
   // Objects are handled in the switch.
   if (value_type != Primitive::kPrimNot) {
+    // TODO(VIXL): Ensure we record the pc position immediately after the preceding store
+    // instruction.
     codegen_->MaybeRecordImplicitNullCheck(instruction);
   }
 }
@@ -4813,8 +4855,13 @@ void InstructionCodeGeneratorARMVIXL::VisitArrayLength(HArrayLength* instruction
   uint32_t offset = CodeGenerator::GetArrayLengthOffset(instruction);
   vixl32::Register obj = InputRegisterAt(instruction, 0);
   vixl32::Register out = OutputRegister(instruction);
-  GetAssembler()->LoadFromOffset(kLoadWord, out, obj, offset);
-  codegen_->MaybeRecordImplicitNullCheck(instruction);
+  {
+    AssemblerAccurateScope aas(GetVIXLAssembler(),
+                               vixl32::kMaxInstructionSizeInBytes,
+                               CodeBufferCheckScope::kMaximumSize);
+    __ ldr(out, MemOperand(obj, offset));
+    codegen_->MaybeRecordImplicitNullCheck(instruction);
+  }
   // Mask out compression flag from String's array length.
   if (mirror::kUseStringCompression && instruction->IsStringLength()) {
     __ Lsr(out, out, 1u);
@@ -6543,7 +6590,7 @@ void CodeGeneratorARMVIXL::GenerateStaticOrDirectCall(
                                           invoke->GetTargetMethod().dex_method_index);
       {
         AssemblerAccurateScope aas(GetVIXLAssembler(),
-                                   kArmInstrMaxSizeInBytes,
+                                   vixl32::kMaxInstructionSizeInBytes,
                                    CodeBufferCheckScope::kMaximumSize);
         __ bind(&relative_call_patches_.back().label);
         // Arbitrarily branch to the BL itself, override at link time.
@@ -6554,7 +6601,13 @@ void CodeGeneratorARMVIXL::GenerateStaticOrDirectCall(
     case HInvokeStaticOrDirect::CodePtrLocation::kCallDirect:
       // LR prepared above for better instruction scheduling.
       // LR()
-      __ Blx(lr);
+      {
+        // blx in T32 has only 16bit encoding that's why a stricter check for the scope is used.
+        AssemblerAccurateScope aas(GetVIXLAssembler(),
+                                   vixl32::k16BitT32InstructionSizeInBytes,
+                                   CodeBufferCheckScope::kExactSize);
+        __ blx(lr);
+      }
       break;
     case HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod:
       // LR = callee_method->entry_point_from_quick_compiled_code_
@@ -6563,8 +6616,14 @@ void CodeGeneratorARMVIXL::GenerateStaticOrDirectCall(
             lr,
             RegisterFrom(callee_method),
             ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArmPointerSize).Int32Value());
-      // LR()
-      __ Blx(lr);
+      {
+        // blx in T32 has only 16bit encoding that's why a stricter check for the scope is used.
+        AssemblerAccurateScope aas(GetVIXLAssembler(),
+                                   vixl32::k16BitT32InstructionSizeInBytes,
+                                   CodeBufferCheckScope::kExactSize);
+        // LR()
+        __ blx(lr);
+      }
       break;
   }
 
@@ -6583,9 +6642,15 @@ void CodeGeneratorARMVIXL::GenerateVirtualCall(HInvokeVirtual* invoke, Location 
   InvokeDexCallingConventionARMVIXL calling_convention;
   vixl32::Register receiver = calling_convention.GetRegisterAt(0);
   uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
-  // /* HeapReference<Class> */ temp = receiver->klass_
-  GetAssembler()->LoadFromOffset(kLoadWord, temp, receiver, class_offset);
-  MaybeRecordImplicitNullCheck(invoke);
+  {
+    // Make sure the pc is recorded immediately after the `ldr` instruction.
+    AssemblerAccurateScope aas(GetVIXLAssembler(),
+                               vixl32::kMaxInstructionSizeInBytes,
+                               CodeBufferCheckScope::kMaximumSize);
+    // /* HeapReference<Class> */ temp = receiver->klass_
+    __ ldr(temp, MemOperand(receiver, class_offset));
+    MaybeRecordImplicitNullCheck(invoke);
+  }
   // Instead of simply (possibly) unpoisoning `temp` here, we should
   // emit a read barrier for the previous class reference load.
   // However this is not required in practice, as this is an
@@ -6602,7 +6667,14 @@ void CodeGeneratorARMVIXL::GenerateVirtualCall(HInvokeVirtual* invoke, Location 
   // LR = temp->GetEntryPoint();
   GetAssembler()->LoadFromOffset(kLoadWord, lr, temp, entry_point);
   // LR();
-  __ Blx(lr);
+  // This `blx` *must* be the *last* instruction generated by this stub, so that calls to
+  // `RecordPcInfo()` immediately following record the correct pc. Use a scope to help guarantee
+  // that.
+  // blx in T32 has only 16bit encoding that's why a stricter check for the scope is used.
+  AssemblerAccurateScope aas(GetVIXLAssembler(),
+                             vixl32::k16BitT32InstructionSizeInBytes,
+                             CodeBufferCheckScope::kExactSize);
+  __ blx(lr);
 }
 
 CodeGeneratorARMVIXL::PcRelativePatchInfo* CodeGeneratorARMVIXL::NewPcRelativeStringPatch(
@@ -6869,7 +6941,7 @@ void CodeGeneratorARMVIXL::EmitMovwMovtPlaceholder(
     CodeGeneratorARMVIXL::PcRelativePatchInfo* labels,
     vixl32::Register out) {
   AssemblerAccurateScope aas(GetVIXLAssembler(),
-                             kArmInstrMaxSizeInBytes * 3,
+                             3 * vixl32::kMaxInstructionSizeInBytes,
                              CodeBufferCheckScope::kMaximumSize);
   // TODO(VIXL): Think about using mov instead of movw.
   __ bind(&labels->movw_label);
