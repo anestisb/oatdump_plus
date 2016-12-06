@@ -296,21 +296,22 @@ void HInductionVarAnalysis::ClassifyNonTrivial(HLoopInformation* loop) {
       update = SolveAddSub(
           loop, phi, instruction, instruction->InputAt(0), instruction->InputAt(1), kSub, true);
     } else if (instruction->IsMul()) {
-      update = SolveGeo(
+      update = SolveOp(
           loop, phi, instruction, instruction->InputAt(0), instruction->InputAt(1), kMul);
     } else if (instruction->IsDiv()) {
-      update = SolveGeo(
+      update = SolveOp(
           loop, phi, instruction, instruction->InputAt(0), instruction->InputAt(1), kDiv);
     } else if (instruction->IsRem()) {
-      update = SolveGeo(
-          loop, phi, instruction, instruction->InputAt(0), instruction->InputAt(1), kNop);
+      update = SolveOp(
+          loop, phi, instruction, instruction->InputAt(0), instruction->InputAt(1), kRem);
     } else if (instruction->IsShl()) {
       HInstruction* mulc = GetMultConstantForShift(loop, instruction);
       if (mulc != nullptr) {
-        update = SolveGeo(loop, phi, instruction, instruction->InputAt(0), mulc, kMul);
+        update = SolveOp(loop, phi, instruction, instruction->InputAt(0), mulc, kMul);
       }
     } else if (instruction->IsXor()) {
-      update = SolveXor(loop, phi, instruction, instruction->InputAt(0), instruction->InputAt(1));
+      update = SolveOp(
+          loop, phi, instruction, instruction->InputAt(0), instruction->InputAt(1), kXor);
     } else if (instruction->IsEqual()) {
       update = SolveTest(loop, phi, instruction, 0);
     } else if (instruction->IsNotEqual()) {
@@ -334,6 +335,7 @@ void HInductionVarAnalysis::ClassifyNonTrivial(HLoopInformation* loop) {
         FALLTHROUGH_INTENDED;
       case kPolynomial:
       case kGeometric:
+      case kWrapAround:
         // Classify first phi and then the rest of the cycle "on-demand".
         // Statements are scanned in order.
         AssignInfo(loop, phi, induction);
@@ -402,14 +404,15 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferAddSub(Indu
                                                                             InductionOp op) {
   // Transfer over an addition or subtraction: any invariant, linear, polynomial, geometric,
   // wrap-around, or periodic can be combined with an invariant to yield a similar result.
-  // Even two linear inputs can be combined. Other combinations fail.
+  // Two linear or two polynomial inputs can be combined too. Other combinations fail.
   if (a != nullptr && b != nullptr) {
     type_ = Narrowest(type_, Narrowest(a->type, b->type));
     if (a->induction_class == kInvariant && b->induction_class == kInvariant) {
       return CreateInvariantOp(op, a, b);
-    } else if (a->induction_class == kLinear && b->induction_class == kLinear) {
-      return CreateInduction(kLinear,
-                             kNop,
+    } else if ((a->induction_class == kLinear && b->induction_class == kLinear) ||
+               (a->induction_class == kPolynomial && b->induction_class == kPolynomial)) {
+      return CreateInduction(a->induction_class,
+                             a->operation,
                              TransferAddSub(a->op_a, b->op_a, op),
                              TransferAddSub(a->op_b, b->op_b, op),
                              /*fetch*/ nullptr,
@@ -555,18 +558,33 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::SolveAddSub(HLoopIn
                                                                          HInstruction* y,
                                                                          InductionOp op,
                                                                          bool is_first_call) {
-  // Solve within a cycle over an addition or subtraction: adding or subtracting an
-  // invariant value, seeded from phi, keeps adding to the stride of the linear induction.
+  // Solve within a cycle over an addition or subtraction.
   InductionInfo* b = LookupInfo(loop, y);
-  if (b != nullptr && b->induction_class == kInvariant) {
-    if (x == entry_phi) {
-      return (op == kAdd) ? b : CreateInvariantOp(kNeg, nullptr, b);
-    }
-    auto it = cycle_.find(x);
-    if (it != cycle_.end()) {
-      InductionInfo* a = it->second;
-      if (a->induction_class == kInvariant) {
-        return CreateInvariantOp(op, a, b);
+  if (b != nullptr) {
+    if (b->induction_class == kInvariant) {
+      // Adding or subtracting an invariant value, seeded from phi,
+      // keeps adding to the stride of the linear induction.
+      if (x == entry_phi) {
+        return (op == kAdd) ? b : CreateInvariantOp(kNeg, nullptr, b);
+      }
+      auto it = cycle_.find(x);
+      if (it != cycle_.end()) {
+        InductionInfo* a = it->second;
+        if (a->induction_class == kInvariant) {
+          return CreateInvariantOp(op, a, b);
+        }
+      }
+    } else if (op == kAdd && b->induction_class == kLinear) {
+      // Solve within a tight cycle that adds a term that is already classified as a linear
+      // induction for a polynomial induction k = k + i (represented as sum over linear terms).
+      if (x == entry_phi && entry_phi->InputCount() == 2 && instruction == entry_phi->InputAt(1)) {
+        InductionInfo* initial = LookupInfo(loop, entry_phi->InputAt(0));
+        return CreateInduction(kPolynomial,
+                               kNop,
+                               b,
+                               initial,
+                               /*fetch*/ nullptr,
+                               type_);
       }
     }
   }
@@ -593,58 +611,63 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::SolveAddSub(HLoopIn
       }
     }
   }
-
   return nullptr;
 }
 
-HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::SolveGeo(HLoopInformation* loop,
+HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::SolveOp(HLoopInformation* loop,
                                                                       HInstruction* entry_phi,
                                                                       HInstruction* instruction,
                                                                       HInstruction* x,
                                                                       HInstruction* y,
                                                                       InductionOp op) {
-  // Solve within a tight cycle that is formed by exactly two instructions, one phi and
-  // one update, for a geometric induction of the form k = k * c.
-  if (x == entry_phi && entry_phi->InputCount() == 2 && instruction == entry_phi->InputAt(1)) {
-    InductionInfo* initial = LookupInfo(loop, entry_phi->InputAt(0));
-    InductionInfo* b = LookupInfo(loop, y);
-    if (b != nullptr && b->induction_class == kInvariant && b->operation == kFetch) {
-      return CreateInduction(kGeometric,
-                             op,
-                             initial,
-                             CreateConstant(0, type_),
-                             b->fetch,
-                             type_);
-    }
-  }
-  return nullptr;
-}
-
-HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::SolveXor(HLoopInformation* loop,
-                                                                      HInstruction* entry_phi,
-                                                                      HInstruction* instruction,
-                                                                      HInstruction* x,
-                                                                      HInstruction* y) {
-  // Solve within a tight cycle on periodic idiom of the form x = c ^ x or x = x ^ c.
+  // Solve within a tight cycle for a binary operation k = k op c or, for some op, k = c op k.
   if (entry_phi->InputCount() == 2 && instruction == entry_phi->InputAt(1)) {
-    InductionInfo* initial = LookupInfo(loop, entry_phi->InputAt(0));
-    InductionInfo* a = LookupInfo(loop, x);
-    if (a != nullptr && a->induction_class == kInvariant && entry_phi == y) {
-      return CreateInduction(kPeriodic,
-                             kNop,
-                             CreateInvariantOp(kXor, a, initial),
-                             initial,
-                             /*fetch*/ nullptr,
-                             type_);
-    }
+    InductionInfo* c = nullptr;
     InductionInfo* b = LookupInfo(loop, y);
     if (b != nullptr && b->induction_class == kInvariant && entry_phi == x) {
-      return CreateInduction(kPeriodic,
-                             kNop,
-                             CreateInvariantOp(kXor, initial, b),
-                             initial,
-                             /*fetch*/ nullptr,
-                             type_);
+      c = b;
+    } else if (op != kDiv && op != kRem) {
+      InductionInfo* a = LookupInfo(loop, x);
+      if (a != nullptr && a->induction_class == kInvariant && entry_phi == y) {
+        c = a;
+      }
+    }
+    // Found suitable operand left or right?
+    if (c != nullptr) {
+      InductionInfo* initial = LookupInfo(loop, entry_phi->InputAt(0));
+      switch (op) {
+        case kMul:
+        case kDiv:
+          // Restrict base of geometric induction to direct fetch.
+          if (c->operation == kFetch) {
+            return CreateInduction(kGeometric,
+                                   op,
+                                   initial,
+                                   CreateConstant(0, type_),
+                                   c->fetch,
+                                   type_);
+          };
+          break;
+        case kRem:
+          // Idiomatic MOD wrap-around induction.
+          return CreateInduction(kWrapAround,
+                                 kNop,
+                                 initial,
+                                 CreateInvariantOp(kRem, initial, c),
+                                 /*fetch*/ nullptr,
+                                 type_);
+        case kXor:
+          // Idiomatic XOR periodic induction.
+          return CreateInduction(kPeriodic,
+                                 kNop,
+                                 CreateInvariantOp(kXor, initial, c),
+                                 initial,
+                                 /*fetch*/ nullptr,
+                                 type_);
+        default:
+          CHECK(false) << op;
+          break;
+      }
     }
   }
   return nullptr;
@@ -659,9 +682,9 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::SolveTest(HLoopInfo
   HInstruction* x = instruction->InputAt(0);
   HInstruction* y = instruction->InputAt(1);
   if (IsExact(LookupInfo(loop, x), &value) && value == opposite_value) {
-    return SolveXor(loop, entry_phi, instruction, graph_->GetIntConstant(1), y);
+    return SolveOp(loop, entry_phi, instruction, graph_->GetIntConstant(1), y, kXor);
   } else if (IsExact(LookupInfo(loop, y), &value) && value == opposite_value) {
-    return SolveXor(loop, entry_phi, instruction, x, graph_->GetIntConstant(1));
+    return SolveOp(loop, entry_phi, instruction, x, graph_->GetIntConstant(1), kXor);
   }
   return nullptr;
 }
@@ -1018,7 +1041,7 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::CreateSimplifiedInv
 HInstruction* HInductionVarAnalysis::GetMultConstantForShift(HLoopInformation* loop,
                                                              HInstruction* instruction) {
   // Obtain the constant needed to treat shift as equivalent multiplication. This yields an
-  // existing instruction if the constants is already there. Otherwise, this has a side effect
+  // existing instruction if the constant is already there. Otherwise, this has a side effect
   // on the HIR. The restriction on the shift factor avoids generating a negative constant
   // (viz. 1 << 31 and 1L << 63 set the sign bit). The code assumes that generalization for
   // shift factors outside [0,32) and [0,64) ranges is done by earlier simplification.
@@ -1102,6 +1125,7 @@ std::string HInductionVarAnalysis::InductionToString(InductionInfo* info) {
         case kNeg:   inv += " - ";  break;
         case kMul:   inv += " * ";  break;
         case kDiv:   inv += " / ";  break;
+        case kRem:   inv += " % ";  break;
         case kXor:   inv += " ^ ";  break;
         case kLT:    inv += " < ";  break;
         case kLE:    inv += " <= "; break;
@@ -1118,32 +1142,30 @@ std::string HInductionVarAnalysis::InductionToString(InductionInfo* info) {
       return inv;
     } else {
       if (info->induction_class == kLinear) {
+        DCHECK(info->operation == kNop);
         return "(" + InductionToString(info->op_a) + " * i + " +
                      InductionToString(info->op_b) + "):" +
                      Primitive::PrettyDescriptor(info->type);
       } else if (info->induction_class == kPolynomial) {
-        return "poly( sum_i(" + InductionToString(info->op_a) + ") + " +
+        DCHECK(info->operation == kNop);
+        return "poly(sum_lt(" + InductionToString(info->op_a) + ") + " +
                                 InductionToString(info->op_b) + "):" +
                                 Primitive::PrettyDescriptor(info->type);
       } else if (info->induction_class == kGeometric) {
+        DCHECK(info->operation == kMul || info->operation == kDiv);
         DCHECK(info->fetch != nullptr);
-        if (info->operation == kNop) {
-         return "geo(" + InductionToString(info->op_a) + " mod_i " +
-                         FetchToString(info->fetch) + " + " +
-                         InductionToString(info->op_b) + "):" +
-                         Primitive::PrettyDescriptor(info->type);
-        } else {
-         return "geo(" + InductionToString(info->op_a) + " * " +
-                         FetchToString(info->fetch) +
-                         (info->operation == kMul ? " ^ i + " : " ^ -i + ") +
-                         InductionToString(info->op_b) + "):" +
-                         Primitive::PrettyDescriptor(info->type);
-        }
+        return "geo(" + InductionToString(info->op_a) + " * " +
+                        FetchToString(info->fetch) +
+                        (info->operation == kMul ? " ^ i + " : " ^ -i + ") +
+                        InductionToString(info->op_b) + "):" +
+                        Primitive::PrettyDescriptor(info->type);
       } else if (info->induction_class == kWrapAround) {
+        DCHECK(info->operation == kNop);
         return "wrap(" + InductionToString(info->op_a) + ", " +
                          InductionToString(info->op_b) + "):" +
                          Primitive::PrettyDescriptor(info->type);
       } else if (info->induction_class == kPeriodic) {
+        DCHECK(info->operation == kNop);
         return "periodic(" + InductionToString(info->op_a) + ", " +
                              InductionToString(info->op_b) + "):" +
                              Primitive::PrettyDescriptor(info->type);

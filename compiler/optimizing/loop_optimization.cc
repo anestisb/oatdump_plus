@@ -64,7 +64,8 @@ HLoopOptimization::HLoopOptimization(HGraph* graph,
       top_loop_(nullptr),
       last_loop_(nullptr),
       iset_(nullptr),
-      induction_simplication_count_(0) {
+      induction_simplication_count_(0),
+      simplified_(false) {
 }
 
 void HLoopOptimization::Run() {
@@ -169,9 +170,15 @@ void HLoopOptimization::TraverseLoopsInnerToOuter(LoopNode* node) {
     if (current_induction_simplification_count != induction_simplication_count_) {
       induction_range_.ReVisit(node->loop_info);
     }
-    SimplifyBlocks(node);
-    SimplifyInduction(node);
-    SimplifyBlocks(node);
+    // Repeat simplifications until no more changes occur. Note that since
+    // each simplification consists of eliminating code (without introducing
+    // new code), this process is always finite.
+    do {
+      simplified_ = false;
+      SimplifyBlocks(node);
+      SimplifyInduction(node);
+    } while (simplified_);
+    // Remove inner loops when empty.
     if (node->inner == nullptr) {
       RemoveIfEmptyInnerLoop(node);
     }
@@ -198,63 +205,57 @@ void HLoopOptimization::SimplifyInduction(LoopNode* node) {
       for (HInstruction* i : *iset_) {
         RemoveFromCycle(i);
       }
+      simplified_ = true;
       induction_simplication_count_++;
     }
   }
 }
 
 void HLoopOptimization::SimplifyBlocks(LoopNode* node) {
-  // Repeat the block simplifications until no more changes occur. Note that since
-  // each simplification consists of eliminating code (without introducing new code),
-  // this process is always finite.
-  bool changed;
-  do {
-    changed = false;
-    // Iterate over all basic blocks in the loop-body.
-    for (HBlocksInLoopIterator it(*node->loop_info); !it.Done(); it.Advance()) {
-      HBasicBlock* block = it.Current();
-      // Remove dead instructions from the loop-body.
-      for (HBackwardInstructionIterator i(block->GetInstructions()); !i.Done(); i.Advance()) {
-        HInstruction* instruction = i.Current();
-        if (instruction->IsDeadAndRemovable()) {
-          changed = true;
-          block->RemoveInstruction(instruction);
-        }
+  // Iterate over all basic blocks in the loop-body.
+  for (HBlocksInLoopIterator it(*node->loop_info); !it.Done(); it.Advance()) {
+    HBasicBlock* block = it.Current();
+    // Remove dead instructions from the loop-body.
+    for (HBackwardInstructionIterator i(block->GetInstructions()); !i.Done(); i.Advance()) {
+      HInstruction* instruction = i.Current();
+      if (instruction->IsDeadAndRemovable()) {
+        simplified_ = true;
+        block->RemoveInstruction(instruction);
       }
-      // Remove trivial control flow blocks from the loop-body.
-      HBasicBlock* succ = nullptr;
-      if (IsGotoBlock(block, &succ) && succ->GetPredecessors().size() == 1) {
-        // Trivial goto block can be removed.
-        HBasicBlock* pred = block->GetSinglePredecessor();
-        changed = true;
-        pred->ReplaceSuccessor(block, succ);
-        block->RemoveDominatedBlock(succ);
-        block->DisconnectAndDelete();
-        pred->AddDominatedBlock(succ);
-        succ->SetDominator(pred);
-      } else if (block->GetSuccessors().size() == 2) {
-        // Trivial if block can be bypassed to either branch.
-        HBasicBlock* succ0 = block->GetSuccessors()[0];
-        HBasicBlock* succ1 = block->GetSuccessors()[1];
-        HBasicBlock* meet0 = nullptr;
-        HBasicBlock* meet1 = nullptr;
-        if (succ0 != succ1 &&
-            IsGotoBlock(succ0, &meet0) &&
-            IsGotoBlock(succ1, &meet1) &&
-            meet0 == meet1 &&  // meets again
-            meet0 != block &&  // no self-loop
-            meet0->GetPhis().IsEmpty()) {  // not used for merging
-          changed = true;
-          succ0->DisconnectAndDelete();
-          if (block->Dominates(meet0)) {
-            block->RemoveDominatedBlock(meet0);
-            succ1->AddDominatedBlock(meet0);
-            meet0->SetDominator(succ1);
-          }
+    }
+    // Remove trivial control flow blocks from the loop-body.
+    HBasicBlock* succ = nullptr;
+    if (IsGotoBlock(block, &succ) && succ->GetPredecessors().size() == 1) {
+      // Trivial goto block can be removed.
+      HBasicBlock* pred = block->GetSinglePredecessor();
+      simplified_ = true;
+      pred->ReplaceSuccessor(block, succ);
+      block->RemoveDominatedBlock(succ);
+      block->DisconnectAndDelete();
+      pred->AddDominatedBlock(succ);
+      succ->SetDominator(pred);
+    } else if (block->GetSuccessors().size() == 2) {
+      // Trivial if block can be bypassed to either branch.
+      HBasicBlock* succ0 = block->GetSuccessors()[0];
+      HBasicBlock* succ1 = block->GetSuccessors()[1];
+      HBasicBlock* meet0 = nullptr;
+      HBasicBlock* meet1 = nullptr;
+      if (succ0 != succ1 &&
+          IsGotoBlock(succ0, &meet0) &&
+          IsGotoBlock(succ1, &meet1) &&
+          meet0 == meet1 &&  // meets again
+          meet0 != block &&  // no self-loop
+          meet0->GetPhis().IsEmpty()) {  // not used for merging
+        simplified_ = true;
+        succ0->DisconnectAndDelete();
+        if (block->Dominates(meet0)) {
+          block->RemoveDominatedBlock(meet0);
+          succ1->AddDominatedBlock(meet0);
+          meet0->SetDominator(succ1);
         }
       }
     }
-  } while (changed);
+  }
 }
 
 void HLoopOptimization::RemoveIfEmptyInnerLoop(LoopNode* node) {

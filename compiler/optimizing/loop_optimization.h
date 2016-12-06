@@ -95,6 +95,9 @@ class HLoopOptimization : public HOptimization {
   // when the induction of inner loops has changed.
   int32_t induction_simplication_count_;
 
+  // Flag that tracks if any simplifications have occurred.
+  bool simplified_;
+
   friend class LoopOptimizationTest;
 
   DISALLOW_COPY_AND_ASSIGN(HLoopOptimization);
