@@ -32,6 +32,8 @@ class MethodVerifier;
 
 class VerifiedMethod {
  public:
+  VerifiedMethod(uint32_t encountered_error_types, bool has_runtime_throw);
+
   // Cast elision set type.
   // Since we're adding the dex PCs to the set in increasing order, a sorted vector
   // is better for performance (not just memory usage), especially for large sets.
@@ -80,8 +82,6 @@ class VerifiedMethod {
   }
 
  private:
-  VerifiedMethod(uint32_t encountered_error_types, bool has_runtime_throw);
-
   /*
    * Generate the GC map for a method that has just been verified (i.e. we're doing this as part of
    * verification). For type-precise determination we have all the data we need, so we just need to

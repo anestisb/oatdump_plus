@@ -47,6 +47,9 @@ class VerificationResults {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!verified_methods_lock_);
 
+  void CreateVerifiedMethodFor(MethodReference ref)
+      REQUIRES(!verified_methods_lock_);
+
   const VerifiedMethod* GetVerifiedMethod(MethodReference ref)
       REQUIRES(!verified_methods_lock_);
 

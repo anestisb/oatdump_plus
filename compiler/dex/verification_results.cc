@@ -103,6 +103,17 @@ const VerifiedMethod* VerificationResults::GetVerifiedMethod(MethodReference ref
   return (it != verified_methods_.end()) ? it->second : nullptr;
 }
 
+void VerificationResults::CreateVerifiedMethodFor(MethodReference ref) {
+  // This method should only be called for classes verified at compile time,
+  // which have no verifier error, nor has methods that we know will throw
+  // at runtime.
+  AtomicMap::InsertResult result = atomic_verified_methods_.Insert(
+      ref,
+      /*expected*/ nullptr,
+      new VerifiedMethod(/* encountered_error_types */ 0, /* has_runtime_throw */ false));
+  DCHECK_EQ(result, AtomicMap::kInsertResultSuccess);
+}
+
 void VerificationResults::AddRejectedClass(ClassReference ref) {
   {
     WriterMutexLock mu(Thread::Current(), rejected_classes_lock_);
