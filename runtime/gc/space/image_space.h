@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_GC_SPACE_IMAGE_SPACE_H_
 #define ART_RUNTIME_GC_SPACE_IMAGE_SPACE_H_
 
+#include "arch/instruction_set.h"
 #include "gc/accounting/space_bitmap.h"
 #include "runtime.h"
 #include "space.h"
@@ -35,18 +36,15 @@ class ImageSpace : public MemMapSpace {
     return kSpaceTypeImageSpace;
   }
 
-  // Create a boot image space from an image file for a specified instruction
-  // set. Cannot be used for future allocation or collected.
+  // Load boot image spaces from a primary image file for a specified instruction set.
   //
-  // Create also opens the OatFile associated with the image file so
-  // that it be contiguously allocated with the image before the
-  // creation of the alloc space. The ReleaseOatFile will later be
-  // used to transfer ownership of the OatFile to the ClassLinker when
-  // it is initialized.
-  static std::unique_ptr<ImageSpace> CreateBootImage(const char* image,
-                                     InstructionSet image_isa,
-                                     bool secondary_image,
-                                     std::string* error_msg)
+  // On successful return, the loaded spaces are added to boot_image_spaces (which must be
+  // empty on entry) and oat_file_end is updated with the (page-aligned) end of the last
+  // oat file.
+  static bool LoadBootImage(const std::string& image_file_name,
+                            const InstructionSet image_instruction_set,
+                            std::vector<space::ImageSpace*>* boot_image_spaces,
+                            uint8_t** oat_file_end)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Try to open an existing app image space.
@@ -189,6 +187,20 @@ class ImageSpace : public MemMapSpace {
   friend class Space;
 
  private:
+  // Create a boot image space from an image file for a specified instruction
+  // set. Cannot be used for future allocation or collected.
+  //
+  // Create also opens the OatFile associated with the image file so
+  // that it be contiguously allocated with the image before the
+  // creation of the alloc space. The ReleaseOatFile will later be
+  // used to transfer ownership of the OatFile to the ClassLinker when
+  // it is initialized.
+  static std::unique_ptr<ImageSpace> CreateBootImage(const char* image,
+                                     InstructionSet image_isa,
+                                     bool secondary_image,
+                                     std::string* error_msg)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   DISALLOW_COPY_AND_ASSIGN(ImageSpace);
 };
 
