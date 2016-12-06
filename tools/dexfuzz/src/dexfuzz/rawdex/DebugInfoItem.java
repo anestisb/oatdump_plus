@@ -16,6 +16,8 @@
 
 package dexfuzz.rawdex;
 
+import dexfuzz.Log;
+
 import java.io.IOException;
 
 // Right now we are not parsing debug_info_item, just take the raw size
@@ -32,6 +34,11 @@ public class DebugInfoItem implements RawDexObject {
     file.getOffsetTracker().getNewOffsettable(file, this);
     data = new byte[size];
     file.read(data);
+
+    // Since we are not parsing the section, ensure that the last byte is DBG_END_SEQUENCE.
+    if (data[size - 1] != 0) {
+      Log.errorAndQuit("Error reading debug_info_item. The last byte is not DBG_END_SEQUENCE.");
+    }
   }
 
   @Override

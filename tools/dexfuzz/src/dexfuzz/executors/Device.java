@@ -272,7 +272,7 @@ public class Device {
   }
 
   public void cleanCodeCache(Architecture architecture, String testLocation, String programName) {
-    String command = "rm -f " + getCacheLocation(architecture)
+    String command = getExecutionPrefixWithAdb("shell") + "rm -f " + getCacheLocation(architecture)
         + getOatFileName(testLocation, programName);
     executeCommand(command, false);
   }
@@ -280,7 +280,11 @@ public class Device {
   public void pushProgramToDevice(String programName, String testLocation) {
     assert(!isHost);
     if (!programPushed) {
-      executeCommand(getExecutionPrefixWithAdb("push") + programName + " " + testLocation, false);
+      String command = getExecutionPrefixWithAdb("push") + programName + " " + testLocation;
+      ExecutionResult result = executeCommand(command, false);
+      if (result.returnValue != 0) {
+        Log.errorAndQuit("Could not ADB PUSH program to device.");
+      }
       programPushed = true;
     }
   }
