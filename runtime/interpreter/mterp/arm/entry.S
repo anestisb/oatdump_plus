@@ -31,10 +31,19 @@
  *
  */
 
-ExecuteMterpImpl:
-    .fnstart
-    .save {r3-r10,fp,lr}
+ENTRY ExecuteMterpImpl
     stmfd   sp!, {r3-r10,fp,lr}         @ save 10 regs, (r3 just to align 64)
+    .cfi_adjust_cfa_offset 40
+    .cfi_rel_offset r3, 0
+    .cfi_rel_offset r4, 4
+    .cfi_rel_offset r5, 8
+    .cfi_rel_offset r6, 12
+    .cfi_rel_offset r7, 16
+    .cfi_rel_offset r8, 20
+    .cfi_rel_offset r9, 24
+    .cfi_rel_offset r10, 28
+    .cfi_rel_offset fp, 32
+    .cfi_rel_offset lr, 36
 
     /* Remember the return register */
     str     r3, [r2, #SHADOWFRAME_RESULT_REGISTER_OFFSET]
