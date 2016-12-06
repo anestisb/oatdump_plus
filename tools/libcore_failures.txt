@@ -173,6 +173,12 @@
   bug: 25178637
 },
 {
+  description: "Non-deterministic test because of a dependency on weak ref collection.",
+  result: EXEC_FAILED,
+  names: ["org.apache.harmony.tests.java.util.WeakHashMapTest#test_keySet"],
+  bug: 25437292
+},
+{
   description: "Missing resource in classpath",
   result: EXEC_FAILED,
   modes: [device],
