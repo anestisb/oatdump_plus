@@ -32,6 +32,7 @@ namespace art {
 
 namespace verifier {
 class MethodVerifier;
+class VerifierDepsTest;
 }  // namespace verifier
 
 class CompilerOptions;
@@ -80,6 +81,8 @@ class VerificationResults {
   // Rejected classes.
   ReaderWriterMutex rejected_classes_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   std::set<ClassReference> rejected_classes_ GUARDED_BY(rejected_classes_lock_);
+
+  friend class verifier::VerifierDepsTest;
 };
 
 }  // namespace art
