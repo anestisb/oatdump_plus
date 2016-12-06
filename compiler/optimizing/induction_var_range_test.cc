@@ -170,22 +170,46 @@ class InductionVarRangeTest : public CommonCompilerTest {
 
   /** Constructs a linear a * i + b induction. */
   HInductionVarAnalysis::InductionInfo* CreateLinear(int32_t a, int32_t b) {
-    return iva_->CreateInduction(
-        HInductionVarAnalysis::kLinear, CreateConst(a), CreateConst(b), Primitive::kPrimInt);
+    return iva_->CreateInduction(HInductionVarAnalysis::kLinear,
+                                 HInductionVarAnalysis::kNop,
+                                 CreateConst(a),
+                                 CreateConst(b),
+                                 nullptr,
+                                 Primitive::kPrimInt);
+  }
+
+  /** Constructs a geometric a * f^i + b induction. */
+  HInductionVarAnalysis::InductionInfo* CreateGeometric(int32_t a, int32_t b, int32_t f, char op) {
+    return iva_->CreateInduction(HInductionVarAnalysis::kGeometric,
+                                 op == '*' ? HInductionVarAnalysis::kMul :
+                                 op == '/' ? HInductionVarAnalysis::kDiv :
+                                             HInductionVarAnalysis::kNop,
+                                 CreateConst(a),
+                                 CreateConst(b),
+                                 graph_->GetIntConstant(f),
+                                 Primitive::kPrimInt);
   }
 
   /** Constructs a range [lo, hi] using a periodic induction. */
   HInductionVarAnalysis::InductionInfo* CreateRange(int32_t lo, int32_t hi) {
-    return iva_->CreateInduction(
-        HInductionVarAnalysis::kPeriodic, CreateConst(lo), CreateConst(hi), Primitive::kPrimInt);
+    return iva_->CreateInduction(HInductionVarAnalysis::kPeriodic,
+                                 HInductionVarAnalysis::kNop,
+                                 CreateConst(lo),
+                                 CreateConst(hi),
+                                 nullptr,
+                                 Primitive::kPrimInt);
   }
 
   /** Constructs a wrap-around induction consisting of a constant, followed info */
   HInductionVarAnalysis::InductionInfo* CreateWrapAround(
       int32_t initial,
       HInductionVarAnalysis::InductionInfo* info) {
-    return iva_->CreateInduction(
-        HInductionVarAnalysis::kWrapAround, CreateConst(initial), info, Primitive::kPrimInt);
+    return iva_->CreateInduction(HInductionVarAnalysis::kWrapAround,
+                                 HInductionVarAnalysis::kNop,
+                                 CreateConst(initial),
+                                 info,
+                                 nullptr,
+                                 Primitive::kPrimInt);
   }
 
   /** Constructs a wrap-around induction consisting of a constant, followed by a range. */
@@ -412,6 +436,33 @@ TEST_F(InductionVarRangeTest, GetMinMaxWrapAround) {
   ExpectEqual(Value(10), GetMax(CreateWrapAround(2, -1, 10), nullptr));
   ExpectEqual(Value(-1), GetMin(CreateWrapAround(20, -1, 10), nullptr));
   ExpectEqual(Value(20), GetMax(CreateWrapAround(20, -1, 10), nullptr));
+}
+
+TEST_F(InductionVarRangeTest, GetMinMaxGeometricMul) {
+  ExpectEqual(Value(), GetMin(CreateGeometric(1, 1, 1, '*'), nullptr));
+  ExpectEqual(Value(), GetMax(CreateGeometric(1, 1, 1, '*'), nullptr));
+}
+
+TEST_F(InductionVarRangeTest, GetMinMaxGeometricDiv) {
+  ExpectEqual(Value(5), GetMin(CreateGeometric(11, 5, 3, '/'), nullptr));
+  ExpectEqual(Value(16), GetMax(CreateGeometric(11, 5, 3, '/'), nullptr));
+  ExpectEqual(Value(-5), GetMin(CreateGeometric(11, -5, 3, '/'), nullptr));
+  ExpectEqual(Value(6), GetMax(CreateGeometric(11, -5, 3, '/'), nullptr));
+  ExpectEqual(Value(-6), GetMin(CreateGeometric(-11, 5, 3, '/'), nullptr));
+  ExpectEqual(Value(5), GetMax(CreateGeometric(-11, 5, 3, '/'), nullptr));
+  ExpectEqual(Value(-16), GetMin(CreateGeometric(-11, -5, 3, '/'), nullptr));
+  ExpectEqual(Value(-5), GetMax(CreateGeometric(-11, -5, 3, '/'), nullptr));
+}
+
+TEST_F(InductionVarRangeTest, GetMinMaxGeometricRem) {
+  ExpectEqual(Value(7), GetMin(CreateGeometric(11, 5, 3, '%'), nullptr));
+  ExpectEqual(Value(16), GetMax(CreateGeometric(11, 5, 3, '%'), nullptr));
+  ExpectEqual(Value(-3), GetMin(CreateGeometric(11, -5, 3, '%'), nullptr));
+  ExpectEqual(Value(6), GetMax(CreateGeometric(11, -5, 3, '%'), nullptr));
+  ExpectEqual(Value(-6), GetMin(CreateGeometric(-11, 5, 3, '%'), nullptr));
+  ExpectEqual(Value(3), GetMax(CreateGeometric(-11, 5, 3, '%'), nullptr));
+  ExpectEqual(Value(-16), GetMin(CreateGeometric(-11, -5, 3, '%'), nullptr));
+  ExpectEqual(Value(-7), GetMax(CreateGeometric(-11, -5, 3, '%'), nullptr));
 }
 
 TEST_F(InductionVarRangeTest, GetMinMaxPeriodic) {

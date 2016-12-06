@@ -51,14 +51,15 @@ class HInductionVarAnalysis : public HOptimization {
   enum InductionClass {
     kInvariant,
     kLinear,
+    kPolynomial,
+    kGeometric,
     kWrapAround,
     kPeriodic
   };
 
   enum InductionOp {
-    // No-operation: a true induction.
+    // Operations.
     kNop,
-    // Various invariant operations.
     kAdd,
     kSub,
     kNeg,
@@ -81,16 +82,18 @@ class HInductionVarAnalysis : public HOptimization {
   /**
    * Defines a detected induction as:
    *   (1) invariant:
-   *         operation: a + b, a - b, -b, a * b, a / b
-   *       or:
-   *         fetch: fetch from HIR
+   *         op: a + b, a - b, -b, a * b, a / b, a % b, a ^ b, fetch
    *   (2) linear:
    *         nop: a * i + b
-   *   (3) wrap-around
+   *   (3) polynomial:                        // TODO: coming soon
+   *         nop: sum_i(a) + b, for linear a
+   *   (4) geometric:
+   *         op: a * fetch^i + b, a * fetch^-i + b, a mod_i fetch + b
+   *   (5) wrap-around
    *         nop: a, then defined by b
-   *   (4) periodic
+   *   (6) periodic
    *         nop: a, then defined by b (repeated when exhausted)
-   *   (5) trip-count:
+   *   (7) trip-count:
    *         tc: defined by a, taken-test in b
    */
   struct InductionInfo : public ArenaObject<kArenaAllocInductionVarAnalysis> {
@@ -138,11 +141,13 @@ class HInductionVarAnalysis : public HOptimization {
   }
 
   InductionInfo* CreateInduction(InductionClass ic,
+                                 InductionOp op,
                                  InductionInfo* a,
                                  InductionInfo* b,
+                                 HInstruction* f,
                                  Primitive::Type type) {
     DCHECK(a != nullptr && b != nullptr);
-    return new (graph_->GetArena()) InductionInfo(ic, kNop, a, b, nullptr, type);
+    return new (graph_->GetArena()) InductionInfo(ic, op, a, b, f, type);
   }
 
   // Methods for analysis.
@@ -156,9 +161,8 @@ class HInductionVarAnalysis : public HOptimization {
   // Transfer operations.
   InductionInfo* TransferPhi(HLoopInformation* loop, HInstruction* phi, size_t input_index);
   InductionInfo* TransferAddSub(InductionInfo* a, InductionInfo* b, InductionOp op);
-  InductionInfo* TransferMul(InductionInfo* a, InductionInfo* b);
-  InductionInfo* TransferShl(InductionInfo* a, InductionInfo* b, Primitive::Type type);
   InductionInfo* TransferNeg(InductionInfo* a);
+  InductionInfo* TransferMul(InductionInfo* a, InductionInfo* b);
   InductionInfo* TransferCnv(InductionInfo* a, Primitive::Type from, Primitive::Type to);
 
   // Solvers.
@@ -173,6 +177,12 @@ class HInductionVarAnalysis : public HOptimization {
                              HInstruction* y,
                              InductionOp op,
                              bool is_first_call);  // possibly swaps x and y to try again
+  InductionInfo* SolveGeo(HLoopInformation* loop,
+                          HInstruction* entry_phi,
+                          HInstruction* instruction,
+                          HInstruction* x,
+                          HInstruction* y,
+                          InductionOp op);
   InductionInfo* SolveXor(HLoopInformation* loop,
                           HInstruction* entry_phi,
                           HInstruction* instruction,
@@ -214,6 +224,7 @@ class HInductionVarAnalysis : public HOptimization {
   InductionInfo* LookupInfo(HLoopInformation* loop, HInstruction* instruction);
   InductionInfo* CreateConstant(int64_t value, Primitive::Type type);
   InductionInfo* CreateSimplifiedInvariant(InductionOp op, InductionInfo* a, InductionInfo* b);
+  HInstruction* GetMultConstantForShift(HLoopInformation* loop, HInstruction* instruction);
   void AssignCycle(HPhi* phi);
   ArenaSet<HInstruction*>* LookupCycle(HPhi* phi);
 
@@ -224,6 +235,7 @@ class HInductionVarAnalysis : public HOptimization {
 
   // Helpers.
   static bool InductionEqual(InductionInfo* info1, InductionInfo* info2);
+  static std::string FetchToString(HInstruction* fetch);
   static std::string InductionToString(InductionInfo* info);
 
   // TODO: fine tune the following data structures, only keep relevant data.
