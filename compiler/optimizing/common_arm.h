@@ -17,6 +17,11 @@
 #ifndef ART_COMPILER_OPTIMIZING_COMMON_ARM_H_
 #define ART_COMPILER_OPTIMIZING_COMMON_ARM_H_
 
+#include "debug/dwarf/register.h"
+#include "locations.h"
+#include "nodes.h"
+#include "utils/arm/constants_arm.h"
+
 // TODO(VIXL): Make VIXL compile with -Wshadow.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wshadow"
