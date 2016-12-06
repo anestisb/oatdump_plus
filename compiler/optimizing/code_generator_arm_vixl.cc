@@ -46,8 +46,10 @@ using helpers::InputOperandAt;
 using helpers::InputRegister;
 using helpers::InputRegisterAt;
 using helpers::InputSRegisterAt;
+using helpers::InputVRegister;
 using helpers::InputVRegisterAt;
 using helpers::Int32ConstantFrom;
+using helpers::Int64ConstantFrom;
 using helpers::LocationFrom;
 using helpers::LowRegisterFrom;
 using helpers::LowSRegisterFrom;
@@ -56,6 +58,7 @@ using helpers::OutputSRegister;
 using helpers::OutputVRegister;
 using helpers::RegisterFrom;
 using helpers::SRegisterFrom;
+using helpers::Uint64ConstantFrom;
 
 using RegisterList = vixl32::RegisterList;
 
@@ -1375,7 +1378,7 @@ void CodeGeneratorARMVIXL::GenerateFrameEntry() {
   if (!skip_overflow_check) {
     UseScratchRegisterScope temps(GetVIXLAssembler());
     vixl32::Register temp = temps.Acquire();
-    __ Sub(temp, sp, static_cast<int32_t>(GetStackOverflowReservedBytes(kArm)));
+    __ Sub(temp, sp, Operand::From(GetStackOverflowReservedBytes(kArm)));
     // The load must immediately precede RecordPcInfo.
     AssemblerAccurateScope aas(GetVIXLAssembler(),
                                vixl32::kMaxInstructionSizeInBytes,
@@ -1792,7 +1795,7 @@ void InstructionCodeGeneratorARMVIXL::GenerateLongComparesAndJumps(HCondition* c
       break;
   }
   if (right.IsConstant()) {
-    int64_t value = right.GetConstant()->AsLongConstant()->GetValue();
+    int64_t value = Int64ConstantFrom(right);
     int32_t val_low = Low32Bits(value);
     int32_t val_high = High32Bits(value);
 
@@ -1877,7 +1880,7 @@ void InstructionCodeGeneratorARMVIXL::GenerateTestAndBranch(HInstruction* instru
         __ B(true_target);
       }
     } else {
-      DCHECK(cond->AsIntConstant()->IsFalse()) << cond->AsIntConstant()->GetValue();
+      DCHECK(cond->AsIntConstant()->IsFalse()) << Int32ConstantFrom(cond);
       if (false_target != nullptr) {
         __ B(false_target);
       }
@@ -2479,9 +2482,7 @@ void InstructionCodeGeneratorARMVIXL::VisitNeg(HNeg* neg) {
 
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble:
-      // TODO(VIXL): Consider introducing an InputVRegister()
-      // helper function (equivalent to InputRegister()).
-      __ Vneg(OutputVRegister(neg), InputVRegisterAt(neg, 0));
+      __ Vneg(OutputVRegister(neg), InputVRegister(neg));
       break;
 
     default:
@@ -2771,8 +2772,8 @@ void InstructionCodeGeneratorARMVIXL::VisitTypeConversion(HTypeConversion* conve
           } else {
             DCHECK(in.IsConstant());
             DCHECK(in.GetConstant()->IsLongConstant());
-            int64_t value = in.GetConstant()->AsLongConstant()->GetValue();
-            __ Mov(OutputRegister(conversion), static_cast<int32_t>(value));
+            int32_t value = Int32ConstantFrom(in);
+            __ Mov(OutputRegister(conversion), value);
           }
           break;
 
@@ -3111,8 +3112,8 @@ void InstructionCodeGeneratorARMVIXL::VisitMul(HMul* mul) {
       // Extra checks to protect caused by the existence of R1_R2.
       // The algorithm is wrong if out.hi is either in1.lo or in2.lo:
       // (e.g. in1=r0_r1, in2=r2_r3 and out=r1_r2);
-      DCHECK_NE(out_hi.GetCode(), in1_lo.GetCode());
-      DCHECK_NE(out_hi.GetCode(), in2_lo.GetCode());
+      DCHECK(!out_hi.Is(in1_lo));
+      DCHECK(!out_hi.Is(in2_lo));
 
       // input: in1 - 64 bits, in2 - 64 bits
       // output: out
@@ -3152,7 +3153,7 @@ void InstructionCodeGeneratorARMVIXL::DivRemOneOrMinusOne(HBinaryOperation* inst
 
   vixl32::Register out = OutputRegister(instruction);
   vixl32::Register dividend = InputRegisterAt(instruction, 0);
-  int32_t imm = second.GetConstant()->AsIntConstant()->GetValue();
+  int32_t imm = Int32ConstantFrom(second);
   DCHECK(imm == 1 || imm == -1);
 
   if (instruction->IsRem()) {
@@ -3177,7 +3178,7 @@ void InstructionCodeGeneratorARMVIXL::DivRemByPowerOfTwo(HBinaryOperation* instr
   vixl32::Register out = OutputRegister(instruction);
   vixl32::Register dividend = InputRegisterAt(instruction, 0);
   vixl32::Register temp = RegisterFrom(locations->GetTemp(0));
-  int32_t imm = second.GetConstant()->AsIntConstant()->GetValue();
+  int32_t imm = Int32ConstantFrom(second);
   uint32_t abs_imm = static_cast<uint32_t>(AbsOrMin(imm));
   int ctz_imm = CTZ(abs_imm);
 
@@ -3250,7 +3251,7 @@ void InstructionCodeGeneratorARMVIXL::GenerateDivRemConstantIntegral(
   Location second = instruction->GetLocations()->InAt(1);
   DCHECK(second.IsConstant());
 
-  int32_t imm = second.GetConstant()->AsIntConstant()->GetValue();
+  int32_t imm = Int32ConstantFrom(second);
   if (imm == 0) {
     // Do not generate anything. DivZeroCheck would prevent any code to be executed.
   } else if (imm == 1 || imm == -1) {
@@ -3284,7 +3285,7 @@ void LocationsBuilderARMVIXL::VisitDiv(HDiv* div) {
         locations->SetInAt(0, Location::RequiresRegister());
         locations->SetInAt(1, Location::ConstantLocation(div->InputAt(1)->AsConstant()));
         locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
-        int32_t value = div->InputAt(1)->AsIntConstant()->GetValue();
+        int32_t value = Int32ConstantFrom(div->InputAt(1));
         if (value == 1 || value == 0 || value == -1) {
           // No temp register required.
         } else {
@@ -3397,7 +3398,7 @@ void LocationsBuilderARMVIXL::VisitRem(HRem* rem) {
         locations->SetInAt(0, Location::RequiresRegister());
         locations->SetInAt(1, Location::ConstantLocation(rem->InputAt(1)->AsConstant()));
         locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
-        int32_t value = rem->InputAt(1)->AsIntConstant()->GetValue();
+        int32_t value = Int32ConstantFrom(rem->InputAt(1));
         if (value == 1 || value == 0 || value == -1) {
           // No temp register required.
         } else {
@@ -3532,7 +3533,7 @@ void InstructionCodeGeneratorARMVIXL::VisitDivZeroCheck(HDivZeroCheck* instructi
         __ CompareAndBranchIfZero(InputRegisterAt(instruction, 0), slow_path->GetEntryLabel());
       } else {
         DCHECK(value.IsConstant()) << value;
-        if (value.GetConstant()->AsIntConstant()->GetValue() == 0) {
+        if (Int32ConstantFrom(value) == 0) {
           __ B(slow_path->GetEntryLabel());
         }
       }
@@ -3546,7 +3547,7 @@ void InstructionCodeGeneratorARMVIXL::VisitDivZeroCheck(HDivZeroCheck* instructi
         __ B(eq, slow_path->GetEntryLabel());
       } else {
         DCHECK(value.IsConstant()) << value;
-        if (value.GetConstant()->AsLongConstant()->GetValue() == 0) {
+        if (Int64ConstantFrom(value) == 0) {
           __ B(slow_path->GetEntryLabel());
         }
       }
@@ -3756,7 +3757,7 @@ void InstructionCodeGeneratorARMVIXL::HandleShift(HBinaryOperation* op) {
           __ Lsr(out_reg, first_reg, out_reg);
         }
       } else {
-        int32_t cst = second.GetConstant()->AsIntConstant()->GetValue();
+        int32_t cst = Int32ConstantFrom(second);
         uint32_t shift_value = cst & kMaxIntShiftDistance;
         if (shift_value == 0) {  // ARM does not support shifting with 0 immediate.
           __ Mov(out_reg, first_reg);
@@ -3841,7 +3842,7 @@ void InstructionCodeGeneratorARMVIXL::HandleShift(HBinaryOperation* op) {
         // Register allocator doesn't create partial overlap.
         DCHECK(!o_l.Is(high));
         DCHECK(!o_h.Is(low));
-        int32_t cst = second.GetConstant()->AsIntConstant()->GetValue();
+        int32_t cst = Int32ConstantFrom(second);
         uint32_t shift_value = cst & kMaxLongShiftDistance;
         if (shift_value > 32) {
           if (op->IsShl()) {
@@ -4908,7 +4909,7 @@ void InstructionCodeGeneratorARMVIXL::VisitArrayGet(HArrayGet* instruction) {
         codegen_->MaybeRecordImplicitNullCheck(instruction);
       }
       if (index.IsConstant()) {
-        int32_t const_index = index.GetConstant()->AsIntConstant()->GetValue();
+        int32_t const_index = Int32ConstantFrom(index);
         if (maybe_compressed_char_at) {
           vixl32::Label uncompressed_load, done;
           __ Lsrs(length, length, 1u);  // LSRS has a 16-bit encoding, TST (immediate) does not.
@@ -4942,7 +4943,7 @@ void InstructionCodeGeneratorARMVIXL::VisitArrayGet(HArrayGet* instruction) {
           // `TryExtractArrayAccessAddress()`.
           if (kIsDebugBuild) {
             HIntermediateAddress* tmp = array_instr->AsIntermediateAddress();
-            DCHECK_EQ(tmp->GetOffset()->AsIntConstant()->GetValueAsUint64(), data_offset);
+            DCHECK_EQ(Uint64ConstantFrom(tmp->GetOffset()), data_offset);
           }
           temp = obj;
         } else {
@@ -4987,7 +4988,7 @@ void InstructionCodeGeneratorARMVIXL::VisitArrayGet(HArrayGet* instruction) {
         vixl32::Register out = OutputRegister(instruction);
         if (index.IsConstant()) {
           size_t offset =
-              (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
+              (Int32ConstantFrom(index) << TIMES_4) + data_offset;
           GetAssembler()->LoadFromOffset(kLoadWord, out, obj, offset);
           // TODO(VIXL): Here and for other calls to `MaybeRecordImplicitNullCheck` in this method,
           // we should use a scope and the assembler to emit the load instruction to guarantee that
@@ -5009,7 +5010,7 @@ void InstructionCodeGeneratorARMVIXL::VisitArrayGet(HArrayGet* instruction) {
             // `TryExtractArrayAccessAddress()`.
             if (kIsDebugBuild) {
               HIntermediateAddress* tmp = array_instr->AsIntermediateAddress();
-              DCHECK_EQ(tmp->GetOffset()->AsIntConstant()->GetValueAsUint64(), data_offset);
+              DCHECK_EQ(Uint64ConstantFrom(tmp->GetOffset()), data_offset);
             }
             temp = obj;
           } else {
@@ -5034,7 +5035,7 @@ void InstructionCodeGeneratorARMVIXL::VisitArrayGet(HArrayGet* instruction) {
     case Primitive::kPrimLong: {
       if (index.IsConstant()) {
         size_t offset =
-            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8) + data_offset;
+            (Int32ConstantFrom(index) << TIMES_8) + data_offset;
         GetAssembler()->LoadFromOffset(kLoadWordPair, LowRegisterFrom(out_loc), obj, offset);
       } else {
         UseScratchRegisterScope temps(GetVIXLAssembler());
@@ -5048,7 +5049,7 @@ void InstructionCodeGeneratorARMVIXL::VisitArrayGet(HArrayGet* instruction) {
     case Primitive::kPrimFloat: {
       vixl32::SRegister out = SRegisterFrom(out_loc);
       if (index.IsConstant()) {
-        size_t offset = (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
+        size_t offset = (Int32ConstantFrom(index) << TIMES_4) + data_offset;
         GetAssembler()->LoadSFromOffset(out, obj, offset);
       } else {
         UseScratchRegisterScope temps(GetVIXLAssembler());
@@ -5061,7 +5062,7 @@ void InstructionCodeGeneratorARMVIXL::VisitArrayGet(HArrayGet* instruction) {
 
     case Primitive::kPrimDouble: {
       if (index.IsConstant()) {
-        size_t offset = (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8) + data_offset;
+        size_t offset = (Int32ConstantFrom(index) << TIMES_8) + data_offset;
         GetAssembler()->LoadDFromOffset(DRegisterFrom(out_loc), obj, offset);
       } else {
         UseScratchRegisterScope temps(GetVIXLAssembler());
@@ -5135,7 +5136,7 @@ void InstructionCodeGeneratorARMVIXL::VisitArraySet(HArraySet* instruction) {
     case Primitive::kPrimChar:
     case Primitive::kPrimInt: {
       if (index.IsConstant()) {
-        int32_t const_index = index.GetConstant()->AsIntConstant()->GetValue();
+        int32_t const_index = Int32ConstantFrom(index);
         uint32_t full_offset =
             data_offset + (const_index << Primitive::ComponentSizeShift(value_type));
         StoreOperandType store_type = GetStoreOperandType(value_type);
@@ -5150,7 +5151,7 @@ void InstructionCodeGeneratorARMVIXL::VisitArraySet(HArraySet* instruction) {
           // `TryExtractArrayAccessAddress()`.
           if (kIsDebugBuild) {
             HIntermediateAddress* tmp = array_instr->AsIntermediateAddress();
-            DCHECK(tmp->GetOffset()->AsIntConstant()->GetValueAsUint64() == data_offset);
+            DCHECK_EQ(Uint64ConstantFrom(tmp->GetOffset()), data_offset);
           }
           temp = array;
         } else {
@@ -5171,7 +5172,7 @@ void InstructionCodeGeneratorARMVIXL::VisitArraySet(HArraySet* instruction) {
         // Just setting null.
         if (index.IsConstant()) {
           size_t offset =
-              (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
+              (Int32ConstantFrom(index) << TIMES_4) + data_offset;
           GetAssembler()->StoreToOffset(kStoreWord, value, array, offset);
         } else {
           DCHECK(index.IsRegister()) << index;
@@ -5207,7 +5208,7 @@ void InstructionCodeGeneratorARMVIXL::VisitArraySet(HArraySet* instruction) {
           __ CompareAndBranchIfNonZero(value, &non_zero);
           if (index.IsConstant()) {
             size_t offset =
-               (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
+               (Int32ConstantFrom(index) << TIMES_4) + data_offset;
             GetAssembler()->StoreToOffset(kStoreWord, value, array, offset);
           } else {
             DCHECK(index.IsRegister()) << index;
@@ -5281,7 +5282,7 @@ void InstructionCodeGeneratorARMVIXL::VisitArraySet(HArraySet* instruction) {
 
       if (index.IsConstant()) {
         size_t offset =
-            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
+            (Int32ConstantFrom(index) << TIMES_4) + data_offset;
         GetAssembler()->StoreToOffset(kStoreWord, source, array, offset);
       } else {
         DCHECK(index.IsRegister()) << index;
@@ -5318,7 +5319,7 @@ void InstructionCodeGeneratorARMVIXL::VisitArraySet(HArraySet* instruction) {
       Location value = locations->InAt(2);
       if (index.IsConstant()) {
         size_t offset =
-            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8) + data_offset;
+            (Int32ConstantFrom(index) << TIMES_8) + data_offset;
         GetAssembler()->StoreToOffset(kStoreWordPair, LowRegisterFrom(value), array, offset);
       } else {
         UseScratchRegisterScope temps(GetVIXLAssembler());
@@ -5333,7 +5334,7 @@ void InstructionCodeGeneratorARMVIXL::VisitArraySet(HArraySet* instruction) {
       Location value = locations->InAt(2);
       DCHECK(value.IsFpuRegister());
       if (index.IsConstant()) {
-        size_t offset = (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
+        size_t offset = (Int32ConstantFrom(index) << TIMES_4) + data_offset;
         GetAssembler()->StoreSToOffset(SRegisterFrom(value), array, offset);
       } else {
         UseScratchRegisterScope temps(GetVIXLAssembler());
@@ -5348,7 +5349,7 @@ void InstructionCodeGeneratorARMVIXL::VisitArraySet(HArraySet* instruction) {
       Location value = locations->InAt(2);
       DCHECK(value.IsFpuRegisterPair());
       if (index.IsConstant()) {
-        size_t offset = (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8) + data_offset;
+        size_t offset = (Int32ConstantFrom(index) << TIMES_8) + data_offset;
         GetAssembler()->StoreDToOffset(DRegisterFrom(value), array, offset);
       } else {
         UseScratchRegisterScope temps(GetVIXLAssembler());
@@ -5413,7 +5414,7 @@ void InstructionCodeGeneratorARMVIXL::VisitIntermediateAddress(HIntermediateAddr
   if (second.IsRegister()) {
     __ Add(out, first, RegisterFrom(second));
   } else {
-    __ Add(out, first, second.GetConstant()->AsIntConstant()->GetValue());
+    __ Add(out, first, Int32ConstantFrom(second));
   }
 }
 
@@ -5609,7 +5610,7 @@ void ParallelMoveResolverARMVIXL::EmitMove(size_t index) {
         GetAssembler()->StoreToOffset(kStoreWord, temp, sp, destination.GetStackIndex());
       }
     } else if (constant->IsLongConstant()) {
-      int64_t value = constant->AsLongConstant()->GetValue();
+      int64_t value = Int64ConstantFrom(source);
       if (destination.IsRegisterPair()) {
         __ Mov(LowRegisterFrom(destination), Low32Bits(value));
         __ Mov(HighRegisterFrom(destination), High32Bits(value));
