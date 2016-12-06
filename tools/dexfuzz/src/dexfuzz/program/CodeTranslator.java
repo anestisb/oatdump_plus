@@ -259,8 +259,15 @@ public class CodeTranslator {
       // Get the MInsns that form the start and end of the try block.
       int startLocation = tryItem.startAddr;
       mTryBlock.startInsn = insnLocationMap.get(startLocation);
-      int endLocation = tryItem.startAddr + tryItem.insnCount;
+
+      // The instructions vary in size, so we have to find the last instruction in the block in a
+      // few tries.
+      int endLocation = tryItem.startAddr + tryItem.insnCount - 1;
       mTryBlock.endInsn = insnLocationMap.get(endLocation);
+      while ((mTryBlock.endInsn == null) && (endLocation >= startLocation)) {
+        endLocation--;
+        mTryBlock.endInsn = insnLocationMap.get(endLocation);
+      }
 
       // Sanity checks.
       if (mTryBlock.startInsn == null) {
@@ -356,8 +363,9 @@ public class CodeTranslator {
       TryItem tryItem = codeItem.tries[tryItemIdx];
 
       tryItem.startAddr = mTryBlock.startInsn.location;
-      tryItem.insnCount =
-          (short) (mTryBlock.endInsn.location - mTryBlock.startInsn.location);
+      int insnCount = mTryBlock.endInsn.location - mTryBlock.startInsn.location +
+          mTryBlock.endInsn.insn.getSize();
+      tryItem.insnCount = (short) insnCount;
 
       // Get the EncodedCatchHandler.
       EncodedCatchHandler encodedCatchHandler =
