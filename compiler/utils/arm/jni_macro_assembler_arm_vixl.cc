@@ -428,8 +428,6 @@ void ArmVIXLJNIMacroAssembler::Copy(FrameOffset dst ATTRIBUTE_UNUSED,
   UNIMPLEMENTED(FATAL);
 }
 
-static constexpr uint32_t kArmInstrMaxSizeInBytes = 4;
-
 void ArmVIXLJNIMacroAssembler::CreateHandleScopeEntry(ManagedRegister mout_reg,
                                                       FrameOffset handle_scope_offset,
                                                       ManagedRegister min_reg,
@@ -458,14 +456,14 @@ void ArmVIXLJNIMacroAssembler::CreateHandleScopeEntry(ManagedRegister mout_reg,
     if (asm_.ShifterOperandCanHold(ADD, handle_scope_offset.Int32Value(), kCcDontCare)) {
       if (!out_reg.Equals(in_reg)) {
         AssemblerAccurateScope guard(asm_.GetVIXLAssembler(),
-                                     3 * kArmInstrMaxSizeInBytes,
+                                     3 * vixl32::kMaxInstructionSizeInBytes,
                                      CodeBufferCheckScope::kMaximumSize);
         ___ it(eq, 0xc);
         ___ mov(eq, out_reg.AsVIXLRegister(), 0);
         asm_.AddConstantInIt(out_reg.AsVIXLRegister(), sp, handle_scope_offset.Int32Value(), ne);
       } else {
         AssemblerAccurateScope guard(asm_.GetVIXLAssembler(),
-                                     2 * kArmInstrMaxSizeInBytes,
+                                     2 * vixl32::kMaxInstructionSizeInBytes,
                                      CodeBufferCheckScope::kMaximumSize);
         ___ it(ne, 0x8);
         asm_.AddConstantInIt(out_reg.AsVIXLRegister(), sp, handle_scope_offset.Int32Value(), ne);
@@ -496,7 +494,7 @@ void ArmVIXLJNIMacroAssembler::CreateHandleScopeEntry(FrameOffset out_off,
 
     if (asm_.ShifterOperandCanHold(ADD, handle_scope_offset.Int32Value(), kCcDontCare)) {
       AssemblerAccurateScope guard(asm_.GetVIXLAssembler(),
-                                   2 * kArmInstrMaxSizeInBytes,
+                                   2 * vixl32::kMaxInstructionSizeInBytes,
                                    CodeBufferCheckScope::kMaximumSize);
       ___ it(ne, 0x8);
       asm_.AddConstantInIt(scratch.AsVIXLRegister(), sp, handle_scope_offset.Int32Value(), ne);
@@ -589,7 +587,7 @@ void ArmVIXLJNIMacroAssembler::ExceptionPoll(ManagedRegister m_scratch, size_t s
   ___ Cmp(scratch.AsVIXLRegister(), 0);
   {
     AssemblerAccurateScope guard(asm_.GetVIXLAssembler(),
-                                 kArmInstrMaxSizeInBytes,
+                                 vixl32::kMaxInstructionSizeInBytes,
                                  CodeBufferCheckScope::kMaximumSize);
     ___ b(ne, Narrow, exception_blocks_.back()->Entry());
   }
