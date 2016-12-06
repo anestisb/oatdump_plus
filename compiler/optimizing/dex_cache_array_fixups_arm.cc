@@ -17,12 +17,24 @@
 #include "dex_cache_array_fixups_arm.h"
 
 #include "base/arena_containers.h"
+#ifdef ART_USE_VIXL_ARM_BACKEND
+#include "code_generator_arm_vixl.h"
+#include "intrinsics_arm_vixl.h"
+#else
 #include "code_generator_arm.h"
 #include "intrinsics_arm.h"
+#endif
 #include "utils/dex_cache_arrays_layout-inl.h"
 
 namespace art {
 namespace arm {
+#ifdef ART_USE_VIXL_ARM_BACKEND
+typedef CodeGeneratorARMVIXL CodeGeneratorARMType;
+typedef IntrinsicLocationsBuilderARMVIXL IntrinsicLocationsBuilderARMType;
+#else
+typedef CodeGeneratorARM CodeGeneratorARMType;
+typedef IntrinsicLocationsBuilderARM IntrinsicLocationsBuilderARMType;
+#endif
 
 /**
  * Finds instructions that need the dex cache arrays base as an input.
@@ -31,7 +43,7 @@ class DexCacheArrayFixupsVisitor : public HGraphVisitor {
  public:
   DexCacheArrayFixupsVisitor(HGraph* graph, CodeGenerator* codegen)
       : HGraphVisitor(graph),
-        codegen_(down_cast<CodeGeneratorARM*>(codegen)),
+        codegen_(down_cast<CodeGeneratorARMType*>(codegen)),
         dex_cache_array_bases_(std::less<const DexFile*>(),
                                // Attribute memory use to code generator.
                                graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {}
@@ -66,7 +78,7 @@ class DexCacheArrayFixupsVisitor : public HGraphVisitor {
     // If this is an invoke with PC-relative access to the dex cache methods array,
     // we need to add the dex cache arrays base as the special input.
     if (invoke->HasPcRelativeDexCache() &&
-        !IsCallFreeIntrinsic<IntrinsicLocationsBuilderARM>(invoke, codegen_)) {
+        !IsCallFreeIntrinsic<IntrinsicLocationsBuilderARMType>(invoke, codegen_)) {
       HArmDexCacheArraysBase* base = GetOrCreateDexCacheArrayBase(invoke->GetDexFile());
       // Update the element offset in base.
       DexCacheArraysLayout layout(kArmPointerSize, &invoke->GetDexFile());
@@ -94,7 +106,7 @@ class DexCacheArrayFixupsVisitor : public HGraphVisitor {
     return base;
   }
 
-  CodeGeneratorARM* codegen_;
+  CodeGeneratorARMType* codegen_;
 
   using DexCacheArraysBaseMap =
       ArenaSafeMap<const DexFile*, HArmDexCacheArraysBase*, std::less<const DexFile*>>;
