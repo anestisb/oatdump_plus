@@ -1,1 +1,1 @@
-Test on loop optimizations, in particular loop-based dynamic bce.
+Test on loop optimizations, in particular around loop-based dynamic bce.
