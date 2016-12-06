@@ -605,8 +605,7 @@ void PatchOat::PatchClassTable(const ImageHeader* image_header) {
   ClassTable temp_table;
   temp_table.ReadFromMemory(image_->Begin() + section.Offset());
   FixupRootVisitor visitor(this);
-  BufferedRootVisitor<kDefaultBufferedRootCount> buffered_visitor(&visitor, RootInfo(kRootUnknown));
-  temp_table.VisitRoots(buffered_visitor);
+  temp_table.VisitRoots(UnbufferedRootVisitor(&visitor, RootInfo(kRootUnknown)));
 }
 
 

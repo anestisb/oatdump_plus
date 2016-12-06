@@ -267,6 +267,43 @@ class BufferedRootVisitor {
   size_t buffer_pos_;
 };
 
+class UnbufferedRootVisitor {
+ public:
+  UnbufferedRootVisitor(RootVisitor* visitor, const RootInfo& root_info)
+      : visitor_(visitor), root_info_(root_info) {}
+
+  template <class MirrorType>
+  ALWAYS_INLINE void VisitRootIfNonNull(GcRoot<MirrorType>& root) const
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (!root.IsNull()) {
+      VisitRoot(root);
+    }
+  }
+
+  template <class MirrorType>
+  ALWAYS_INLINE void VisitRootIfNonNull(mirror::CompressedReference<MirrorType>* root) const
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (!root->IsNull()) {
+      VisitRoot(root);
+    }
+  }
+
+  template <class MirrorType>
+  void VisitRoot(GcRoot<MirrorType>& root) const REQUIRES_SHARED(Locks::mutator_lock_) {
+    VisitRoot(root.AddressWithoutBarrier());
+  }
+
+  template <class MirrorType>
+  void VisitRoot(mirror::CompressedReference<MirrorType>* root) const
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    visitor_->VisitRoots(&root, 1, root_info_);
+  }
+
+ private:
+  RootVisitor* const visitor_;
+  RootInfo root_info_;
+};
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_GC_ROOT_H_
