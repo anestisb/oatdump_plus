@@ -360,8 +360,10 @@ endif
 TEST_ART_BROKEN_NO_RELOCATE_TESTS :=
 
 # Temporarily disable some broken tests when forcing access checks in interpreter b/22414682
+# 629 requires compilation.
 TEST_ART_BROKEN_INTERPRETER_ACCESS_CHECK_TESTS := \
-  137-cfi
+  137-cfi \
+  629-vdex-speed
 
 ifneq (,$(filter interp-ac,$(COMPILER_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
@@ -470,12 +472,14 @@ TEST_ART_BROKEN_FALLBACK_RUN_TESTS :=
 # This test dynamically enables tracing to force a deoptimization. This makes the test meaningless
 # when already tracing, and writes an error message that we do not want to check for.
 # 130 occasional timeout b/32383962.
+# 629 requires compilation.
 TEST_ART_BROKEN_TRACING_RUN_TESTS := \
   087-gc-after-link \
   130-hprof \
   137-cfi \
   141-class-unload \
   570-checker-osr \
+  629-vdex-speed \
   802-deoptimization
 
 ifneq (,$(filter trace stream,$(TRACE_TYPES)))
@@ -486,9 +490,11 @@ endif
 
 # Known broken tests for the interpreter.
 # CFI unwinding expects managed frames.
+# 629 requires compilation.
 TEST_ART_BROKEN_INTERPRETER_RUN_TESTS := \
   137-cfi \
-  554-jit-profile-file
+  554-jit-profile-file \
+  629-vdex-speed
 
 ifneq (,$(filter interpreter,$(COMPILER_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
@@ -504,8 +510,10 @@ TEST_ART_BROKEN_INTERPRETER_RUN_TESTS :=
 # Test 906 iterates the heap filtering with different options. No instances should be created
 # between those runs to be able to have precise checks.
 # Test 902 hits races with the JIT compiler. b/32821077
+# Test 629 requires compilation.
 TEST_ART_BROKEN_JIT_RUN_TESTS := \
   137-cfi \
+  629-vdex-speed \
   902-hello-transformation \
   904-object-allocation \
   906-iterate-heap \
