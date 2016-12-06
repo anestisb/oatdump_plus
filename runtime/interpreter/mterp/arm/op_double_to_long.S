@@ -1,4 +1,3 @@
-@include "arm/unopWide.S" {"instr":"bl      __aeabi_d2lz"}
 %include "arm/unopWide.S" {"instr":"bl      d2l_doconv"}
 
 %break
@@ -10,43 +9,25 @@
  * to modest integer.  The EABI convert function isn't doing this for us.
  */
 d2l_doconv:
-    stmfd   sp!, {r4, r5, lr}           @ save regs
-    mov     r3, #0x43000000             @ maxlong, as a double (high word)
-    add     r3, #0x00e00000             @  0x43e00000
-    mov     r2, #0                      @ maxlong, as a double (low word)
-    sub     sp, sp, #4                  @ align for EABI
-    mov     r4, r0                      @ save a copy of r0
-    mov     r5, r1                      @  and r1
-    bl      __aeabi_dcmpge              @ is arg >= maxlong?
-    cmp     r0, #0                      @ nonzero == yes
-    mvnne   r0, #0                      @ return maxlong (7fffffffffffffff)
-    mvnne   r1, #0x80000000
-    bne     1f
-
-    mov     r0, r4                      @ recover arg
-    mov     r1, r5
-    mov     r3, #0xc3000000             @ minlong, as a double (high word)
-    add     r3, #0x00e00000             @  0xc3e00000
-    mov     r2, #0                      @ minlong, as a double (low word)
-    bl      __aeabi_dcmple              @ is arg <= minlong?
-    cmp     r0, #0                      @ nonzero == yes
-    movne   r0, #0                      @ return minlong (8000000000000000)
-    movne   r1, #0x80000000
-    bne     1f
-
-    mov     r0, r4                      @ recover arg
-    mov     r1, r5
-    mov     r2, r4                      @ compare against self
-    mov     r3, r5
-    bl      __aeabi_dcmpeq              @ is arg == self?
-    cmp     r0, #0                      @ zero == no
-    moveq   r1, #0                      @ return zero for NaN
-    beq     1f
-
-    mov     r0, r4                      @ recover arg
-    mov     r1, r5
-    bl      __aeabi_d2lz                @ convert double to long
-
-1:
-    add     sp, sp, #4
-    ldmfd   sp!, {r4, r5, pc}
+    ubfx    r2, r1, #20, #11            @ grab the exponent
+    movw    r3, #0x43e
+    cmp     r2, r3                      @ MINLONG < x > MAXLONG?
+    bhs     d2l_special_cases
+    b       __aeabi_d2lz                @ tail call to convert double to long
+d2l_special_cases:
+    movw    r3, #0x7ff
+    cmp     r2, r3
+    beq     d2l_maybeNaN                @ NaN?
+d2l_notNaN:
+    adds    r1, r1, r1                  @ sign bit to carry
+    mov     r0, #0xffffffff             @ assume maxlong for lsw
+    mov     r1, #0x7fffffff             @ assume maxlong for msw
+    adc     r0, r0, #0
+    adc     r1, r1, #0                  @ convert maxlong to minlong if exp negative
+    bx      lr                          @ return
+d2l_maybeNaN:
+    orrs    r3, r0, r1, lsl #12
+    beq     d2l_notNaN                  @ if fraction is non-zero, it's a NaN
+    mov     r0, #0
+    mov     r1, #0
+    bx      lr                          @ return 0 for NaN

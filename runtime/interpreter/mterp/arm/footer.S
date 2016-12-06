@@ -294,6 +294,5 @@ MterpProfileActive:
     mov     r0, rINST                               @ restore return value
     ldmfd   sp!, {r3-r10,fp,pc}                     @ restore 10 regs and return
 
-    .fnend
-    .size   ExecuteMterpImpl, .-ExecuteMterpImpl
+    END ExecuteMterpImpl
 
