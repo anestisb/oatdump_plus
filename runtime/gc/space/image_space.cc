@@ -1617,6 +1617,81 @@ std::unique_ptr<ImageSpace> ImageSpace::CreateBootImage(const char* image_locati
   return nullptr;
 }
 
+bool ImageSpace::LoadBootImage(const std::string& image_file_name,
+                               const InstructionSet image_instruction_set,
+                               std::vector<space::ImageSpace*>* boot_image_spaces,
+                               uint8_t** oat_file_end) {
+  DCHECK(boot_image_spaces != nullptr);
+  DCHECK(boot_image_spaces->empty());
+  DCHECK(oat_file_end != nullptr);
+  DCHECK_NE(image_instruction_set, InstructionSet::kNone);
+
+  if (image_file_name.empty()) {
+    return false;
+  }
+
+  // For code reuse, handle this like a work queue.
+  std::vector<std::string> image_file_names;
+  image_file_names.push_back(image_file_name);
+
+  bool error = false;
+  uint8_t* oat_file_end_tmp = *oat_file_end;
+
+  for (size_t index = 0; index < image_file_names.size(); ++index) {
+    std::string& image_name = image_file_names[index];
+    std::string error_msg;
+    std::unique_ptr<space::ImageSpace> boot_image_space_uptr = CreateBootImage(
+        image_name.c_str(),
+        image_instruction_set,
+        index > 0,
+        &error_msg);
+    if (boot_image_space_uptr != nullptr) {
+      space::ImageSpace* boot_image_space = boot_image_space_uptr.release();
+      boot_image_spaces->push_back(boot_image_space);
+      // Oat files referenced by image files immediately follow them in memory, ensure alloc space
+      // isn't going to get in the middle
+      uint8_t* oat_file_end_addr = boot_image_space->GetImageHeader().GetOatFileEnd();
+      CHECK_GT(oat_file_end_addr, boot_image_space->End());
+      oat_file_end_tmp = AlignUp(oat_file_end_addr, kPageSize);
+
+      if (index == 0) {
+        // If this was the first space, check whether there are more images to load.
+        const OatFile* boot_oat_file = boot_image_space->GetOatFile();
+        if (boot_oat_file == nullptr) {
+          continue;
+        }
+
+        const OatHeader& boot_oat_header = boot_oat_file->GetOatHeader();
+        const char* boot_classpath =
+            boot_oat_header.GetStoreValueByKey(OatHeader::kBootClassPathKey);
+        if (boot_classpath == nullptr) {
+          continue;
+        }
+
+        ExtractMultiImageLocations(image_file_name, boot_classpath, &image_file_names);
+      }
+    } else {
+      error = true;
+      LOG(ERROR) << "Could not create image space with image file '" << image_file_name << "'. "
+          << "Attempting to fall back to imageless running. Error was: " << error_msg
+          << "\nAttempted image: " << image_name;
+      break;
+    }
+  }
+
+  if (error) {
+    // Remove already loaded spaces.
+    for (space::Space* loaded_space : *boot_image_spaces) {
+      delete loaded_space;
+    }
+    boot_image_spaces->clear();
+    return false;
+  }
+
+  *oat_file_end = oat_file_end_tmp;
+  return true;
+}
+
 std::unique_ptr<ImageSpace> ImageSpace::CreateFromAppImage(const char* image,
                                                            const OatFile* oat_file,
                                                            std::string* error_msg) {
