@@ -427,6 +427,7 @@ ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),ndebug,$(PREB
 # explicitly test for them. These all also assume we have an image.
 # 147-stripped-dex-fallback is disabled because it requires --prebuild.
 # 554-jit-profile-file is disabled because it needs a primary oat file to know what it should save.
+# 629-vdex-speed requires compiled code.
 TEST_ART_BROKEN_FALLBACK_RUN_TESTS := \
   116-nodex2oat \
   117-nopatchoat \
@@ -435,7 +436,8 @@ TEST_ART_BROKEN_FALLBACK_RUN_TESTS := \
   137-cfi \
   138-duplicate-classes-check2 \
   147-stripped-dex-fallback \
-  554-jit-profile-file
+  554-jit-profile-file \
+  629-vdex-speed
 
 # This test fails without an image.
 TEST_ART_BROKEN_NO_IMAGE_RUN_TESTS := \
