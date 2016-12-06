@@ -294,66 +294,15 @@ Heap::Heap(size_t initial_size,
   }
 
   // Load image space(s).
-  if (!image_file_name.empty()) {
-    // For code reuse, handle this like a work queue.
-    std::vector<std::string> image_file_names;
-    image_file_names.push_back(image_file_name);
-    // The loaded spaces. Secondary images may fail to load, in which case we need to remove
-    // already added spaces.
-    std::vector<space::Space*> added_image_spaces;
-    uint8_t* const original_requested_alloc_space_begin = requested_alloc_space_begin;
-    for (size_t index = 0; index < image_file_names.size(); ++index) {
-      std::string& image_name = image_file_names[index];
-      std::string error_msg;
-      std::unique_ptr<space::ImageSpace> boot_image_space_uptr = space::ImageSpace::CreateBootImage(
-          image_name.c_str(),
-          image_instruction_set,
-          index > 0,
-          &error_msg);
-      if (boot_image_space_uptr != nullptr) {
-        space::ImageSpace* boot_image_space = boot_image_space_uptr.release();
-        AddSpace(boot_image_space);
-        added_image_spaces.push_back(boot_image_space);
-        // Oat files referenced by image files immediately follow them in memory, ensure alloc space
-        // isn't going to get in the middle
-        uint8_t* oat_file_end_addr = boot_image_space->GetImageHeader().GetOatFileEnd();
-        CHECK_GT(oat_file_end_addr, boot_image_space->End());
-        requested_alloc_space_begin = AlignUp(oat_file_end_addr, kPageSize);
-        boot_image_spaces_.push_back(boot_image_space);
-
-        if (index == 0) {
-          // If this was the first space, check whether there are more images to load.
-          const OatFile* boot_oat_file = boot_image_space->GetOatFile();
-          if (boot_oat_file == nullptr) {
-            continue;
-          }
-
-          const OatHeader& boot_oat_header = boot_oat_file->GetOatHeader();
-          const char* boot_classpath =
-              boot_oat_header.GetStoreValueByKey(OatHeader::kBootClassPathKey);
-          if (boot_classpath == nullptr) {
-            continue;
-          }
-
-          space::ImageSpace::ExtractMultiImageLocations(image_file_name,
-                                                        boot_classpath,
-                                                        &image_file_names);
-        }
-      } else {
-        LOG(ERROR) << "Could not create image space with image file '" << image_file_name << "'. "
-            << "Attempting to fall back to imageless running. Error was: " << error_msg
-            << "\nAttempted image: " << image_name;
-        // Remove already loaded spaces.
-        for (space::Space* loaded_space : added_image_spaces) {
-          RemoveSpace(loaded_space);
-          delete loaded_space;
-        }
-        boot_image_spaces_.clear();
-        requested_alloc_space_begin = original_requested_alloc_space_begin;
-        break;
-      }
+  if (space::ImageSpace::LoadBootImage(image_file_name,
+                                       image_instruction_set,
+                                       &boot_image_spaces_,
+                                       &requested_alloc_space_begin)) {
+    for (auto space : boot_image_spaces_) {
+      AddSpace(space);
     }
   }
+
   /*
   requested_alloc_space_begin ->     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
                                      +-  nonmoving space (non_moving_space_capacity)+-
