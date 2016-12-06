@@ -42,33 +42,91 @@ namespace mirror {
 // Each loader has a ClassTable
 class ClassTable {
  public:
+  class TableSlot {
+   public:
+    TableSlot() : data_(0u) {}
+
+    TableSlot(const TableSlot& copy) : data_(copy.data_.LoadRelaxed()) {}
+
+    explicit TableSlot(ObjPtr<mirror::Class> klass);
+
+    TableSlot(ObjPtr<mirror::Class> klass, uint32_t descriptor_hash);
+
+    TableSlot& operator=(const TableSlot& copy) {
+      data_.StoreRelaxed(copy.data_.LoadRelaxed());
+      return *this;
+    }
+
+    bool IsNull() const REQUIRES_SHARED(Locks::mutator_lock_) {
+      return Read<kWithoutReadBarrier>() == nullptr;
+    }
+
+    uint32_t Hash() const {
+      return MaskHash(data_.LoadRelaxed());
+    }
+
+    static uint32_t MaskHash(uint32_t hash) {
+      return hash & kHashMask;
+    }
+
+    bool MaskedHashEquals(uint32_t other) const {
+      return MaskHash(other) == Hash();
+    }
+
+    template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
+    mirror::Class* Read() const REQUIRES_SHARED(Locks::mutator_lock_);
+
+    // NO_THREAD_SAFETY_ANALYSIS since the visitor may require heap bitmap lock.
+    template<typename Visitor>
+    void VisitRoot(const Visitor& visitor) const NO_THREAD_SAFETY_ANALYSIS;
+
+   private:
+    // Extract a raw pointer from an address.
+    static ObjPtr<mirror::Class> ExtractPtr(uint32_t data)
+        REQUIRES_SHARED(Locks::mutator_lock_);
+
+    static uint32_t Encode(ObjPtr<mirror::Class> klass, uint32_t hash_bits)
+        REQUIRES_SHARED(Locks::mutator_lock_);
+
+    // Data contains the class pointer GcRoot as well as the low bits of the descriptor hash.
+    mutable Atomic<uint32_t> data_;
+    static const uint32_t kHashMask = kObjectAlignment - 1;
+  };
+
+  using DescriptorHashPair = std::pair<const char*, uint32_t>;
+
   class ClassDescriptorHashEquals {
    public:
     // uint32_t for cross compilation.
-    uint32_t operator()(const GcRoot<mirror::Class>& root) const NO_THREAD_SAFETY_ANALYSIS;
+    uint32_t operator()(const TableSlot& slot) const NO_THREAD_SAFETY_ANALYSIS;
     // Same class loader and descriptor.
-    bool operator()(const GcRoot<mirror::Class>& a, const GcRoot<mirror::Class>& b) const
+    bool operator()(const TableSlot& a, const TableSlot& b) const
         NO_THREAD_SAFETY_ANALYSIS;
     // Same descriptor.
-    bool operator()(const GcRoot<mirror::Class>& a, const char* descriptor) const
+    bool operator()(const TableSlot& a, const DescriptorHashPair& b) const
         NO_THREAD_SAFETY_ANALYSIS;
     // uint32_t for cross compilation.
-    uint32_t operator()(const char* descriptor) const NO_THREAD_SAFETY_ANALYSIS;
+    uint32_t operator()(const DescriptorHashPair& pair) const NO_THREAD_SAFETY_ANALYSIS;
   };
-  class GcRootEmptyFn {
+
+  class TableSlotEmptyFn {
    public:
-    void MakeEmpty(GcRoot<mirror::Class>& item) const {
-      item = GcRoot<mirror::Class>();
+    void MakeEmpty(TableSlot& item) const NO_THREAD_SAFETY_ANALYSIS {
+      item = TableSlot();
+      DCHECK(IsEmpty(item));
     }
-    bool IsEmpty(const GcRoot<mirror::Class>& item) const {
+    bool IsEmpty(const TableSlot& item) const NO_THREAD_SAFETY_ANALYSIS {
       return item.IsNull();
     }
   };
-  // hash set which hashes class descriptor, and compares descriptors and class loaders. Results
-  // should be compared for a matching Class descriptor and class loader.
-  typedef HashSet<GcRoot<mirror::Class>, GcRootEmptyFn, ClassDescriptorHashEquals,
-      ClassDescriptorHashEquals, TrackingAllocator<GcRoot<mirror::Class>, kAllocatorTagClassTable>>
-      ClassSet;
+
+  // Hash set that hashes class descriptor, and compares descriptors and class loaders. Results
+  // should be compared for a matching class descriptor and class loader.
+  typedef HashSet<TableSlot,
+                  TableSlotEmptyFn,
+                  ClassDescriptorHashEquals,
+                  ClassDescriptorHashEquals,
+                  TrackingAllocator<TableSlot, kAllocatorTagClassTable>> ClassSet;
 
   ClassTable();
 
