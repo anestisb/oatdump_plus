@@ -491,8 +491,6 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
                                            HInstruction* instruction,
                                            SlowPathCode* slow_path);
 
-  void GenerateInvokeRuntime(int32_t entry_point_offset);
-
   // Emit a write barrier.
   void MarkGCCard(vixl::aarch32::Register temp,
                   vixl::aarch32::Register card,
