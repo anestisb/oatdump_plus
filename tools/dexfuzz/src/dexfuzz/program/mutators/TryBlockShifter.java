@@ -81,12 +81,15 @@ public class TryBlockShifter extends CodeMutator {
 
   @Override
   protected boolean canMutate(MutatableCode mutatableCode) {
-    if (mutatableCode.triesSize > 0) {
-      return true;
+    if (mutatableCode.triesSize == 0) {
+      Log.debug("Method contains no tries.");
+      return false;
     }
-
-    Log.debug("Method contains no tries.");
-    return false;
+    if (mutatableCode.getInstructionCount() <= 1) {
+      Log.debug("Not enough instructions to shift try block.");
+      return false;
+    }
+    return true;
   }
 
   @Override
