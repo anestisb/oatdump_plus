@@ -190,6 +190,10 @@ class InductionVarRange {
                   HInductionVarAnalysis::InductionInfo* trip,
                   bool in_body,
                   bool is_min) const;
+  Value GetGeometric(HInductionVarAnalysis::InductionInfo* info,
+                     HInductionVarAnalysis::InductionInfo* trip,
+                     bool in_body,
+                     bool is_min) const;
   Value GetFetch(HInstruction* instruction,
                  HInductionVarAnalysis::InductionInfo* trip,
                  bool in_body,
@@ -244,6 +248,12 @@ class InductionVarRange {
                                 /*out*/ int64_t* stride_value,
                                 /*out*/ bool* needs_finite_test,
                                 /*out*/ bool* needs_taken_test) const;
+
+  bool GenerateLastValueGeometric(HInductionVarAnalysis::InductionInfo* info,
+                                  HInductionVarAnalysis::InductionInfo* trip,
+                                  HGraph* graph,
+                                  HBasicBlock* block,
+                                  /*out*/HInstruction** result) const;
 
   bool GenerateLastValuePeriodic(HInductionVarAnalysis::InductionInfo* info,
                                  HInductionVarAnalysis::InductionInfo* trip,
