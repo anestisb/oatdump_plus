@@ -1352,12 +1352,12 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
           ObjPtr<mirror::Class> klass = types[j].Read();
           if (space->HasAddress(klass.Ptr())) {
             DCHECK_NE(klass->GetStatus(), mirror::Class::kStatusError);
-            auto it = new_class_set->Find(GcRoot<mirror::Class>(klass));
+            auto it = new_class_set->Find(ClassTable::TableSlot(klass));
             DCHECK(it != new_class_set->end());
             DCHECK_EQ(it->Read(), klass);
             ObjPtr<mirror::Class> super_class = klass->GetSuperClass();
             if (super_class != nullptr && !heap->ObjectIsInBootImageSpace(super_class)) {
-              auto it2 = new_class_set->Find(GcRoot<mirror::Class>(super_class));
+              auto it2 = new_class_set->Find(ClassTable::TableSlot(super_class));
               DCHECK(it2 != new_class_set->end());
               DCHECK_EQ(it2->Read(), super_class);
             }
@@ -1859,7 +1859,7 @@ bool ClassLinker::AddImageSpace(
     UpdateClassLoaderAndResolvedStringsVisitor visitor(space,
                                                        class_loader.Get(),
                                                        forward_dex_cache_arrays);
-    for (GcRoot<mirror::Class>& root : temp_set) {
+    for (ClassTable::TableSlot& root : temp_set) {
       visitor(root.Read());
     }
     // forward_dex_cache_arrays is true iff we copied all of the dex cache arrays into the .bss.
@@ -1910,8 +1910,6 @@ void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
   const bool tracing_enabled = Trace::IsTracingEnabled();
   Thread* const self = Thread::Current();
   WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
-  BufferedRootVisitor<kDefaultBufferedRootCount> buffered_visitor(
-      visitor, RootInfo(kRootStickyClass));
   if ((flags & kVisitRootFlagAllRoots) != 0) {
     // Argument for how root visiting deals with ArtField and ArtMethod roots.
     // There is 3 GC cases to handle:
@@ -1928,8 +1926,12 @@ void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
     // Moving concurrent:
     // Need to make sure to not copy ArtMethods without doing read barriers since the roots are
     // marked concurrently and we don't hold the classlinker_classes_lock_ when we do the copy.
-    boot_class_table_.VisitRoots(buffered_visitor);
-
+    //
+    // Use an unbuffered visitor since the class table uses a temporary GcRoot for holding decoded
+    // ClassTable::TableSlot. The buffered root visiting would access a stale stack location for
+    // these objects.
+    UnbufferedRootVisitor root_visitor(visitor, RootInfo(kRootStickyClass));
+    boot_class_table_.VisitRoots(root_visitor);
     // If tracing is enabled, then mark all the class loaders to prevent unloading.
     if ((flags & kVisitRootFlagClassLoader) != 0 || tracing_enabled) {
       for (const ClassLoaderData& data : class_loaders_) {
@@ -1946,7 +1948,6 @@ void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
       CHECK_EQ(new_ref, old_ref);
     }
   }
-  buffered_visitor.Flush();  // Flush before clearing new_class_roots_.
   if ((flags & kVisitRootFlagClearRootLog) != 0) {
     new_class_roots_.clear();
   }
