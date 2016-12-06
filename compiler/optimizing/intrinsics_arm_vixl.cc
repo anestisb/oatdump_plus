@@ -71,7 +71,7 @@ class IntrinsicSlowPathARMVIXL : public SlowPathCodeARMVIXL {
       : SlowPathCodeARMVIXL(invoke), invoke_(invoke) {}
 
   Location MoveArguments(CodeGenerator* codegen) {
-    InvokeDexCallingConventionVisitorARM calling_convention_visitor;
+    InvokeDexCallingConventionVisitorARMVIXL calling_convention_visitor;
     IntrinsicVisitor::MoveArguments(invoke_, codegen, &calling_convention_visitor);
     return calling_convention_visitor.GetMethodLocation();
   }
