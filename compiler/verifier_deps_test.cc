@@ -19,8 +19,11 @@
 
 #include "class_linker.h"
 #include "compiler/common_compiler_test.h"
+#include "compiler/dex/verification_results.h"
+#include "compiler/dex/verified_method.h"
 #include "compiler/driver/compiler_options.h"
 #include "compiler/driver/compiler_driver.h"
+#include "compiler/utils/atomic_method_ref_map-inl.h"
 #include "compiler_callbacks.h"
 #include "dex_file.h"
 #include "dex_file_types.h"
@@ -90,6 +93,14 @@ class VerifierDepsTest : public CommonCompilerTest {
       verifier_deps_.reset(callbacks_->GetVerifierDeps());
     }
     callbacks_->SetVerifierDeps(nullptr);
+    // Clear entries in the verification results to avoid hitting a DCHECK that
+    // we always succeed inserting a new entry after verifying.
+    AtomicMethodRefMap<const VerifiedMethod*>* map =
+        &compiler_driver_->GetVerificationResults()->atomic_verified_methods_;
+    map->Visit([](const MethodReference& ref ATTRIBUTE_UNUSED, const VerifiedMethod* method) {
+      delete method;
+    });
+    map->ClearEntries();
   }
 
   void SetVerifierDeps(const std::vector<const DexFile*>& dex_files) {
@@ -111,6 +122,9 @@ class VerifierDepsTest : public CommonCompilerTest {
         hs.NewHandle(soa->Decode<mirror::ClassLoader>(class_loader_));
     for (const DexFile* dex_file : dex_files_) {
       class_linker_->RegisterDexFile(*dex_file, loader.Get());
+    }
+    for (const DexFile* dex_file : dex_files_) {
+      compiler_driver_->GetVerificationResults()->AddDexFile(dex_file);
     }
   }
 
