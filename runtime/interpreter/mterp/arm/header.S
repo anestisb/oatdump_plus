@@ -287,3 +287,24 @@ unspecified registers or condition codes.
 .macro REFRESH_IBASE
   ldr     rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]
 .endm
+
+/*
+ * cfi support macros.
+ */
+.macro ENTRY name
+    .arm
+    .type \name, #function
+    .hidden \name  // Hide this as a global symbol, so we do not incur plt calls.
+    .global \name
+    /* Cache alignment for function entry */
+    .balign 16
+\name:
+    .cfi_startproc
+    .fnstart
+.endm
+
+.macro END name
+    .fnend
+    .cfi_endproc
+    .size \name, .-\name
+.endm
