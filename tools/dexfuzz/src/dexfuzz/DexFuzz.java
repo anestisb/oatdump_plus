@@ -21,9 +21,9 @@ import dexfuzz.fuzzers.FuzzerMultipleExecute;
 import dexfuzz.fuzzers.FuzzerMultipleNoExecute;
 import dexfuzz.fuzzers.FuzzerSingleExecute;
 import dexfuzz.fuzzers.FuzzerSingleNoExecute;
-import dexfuzz.listeners.BaseListener;
 import dexfuzz.listeners.BisectionSearchListener;
 import dexfuzz.listeners.ConsoleLoggerListener;
+import dexfuzz.listeners.FinalStatusListener;
 import dexfuzz.listeners.LogFileListener;
 import dexfuzz.listeners.MultiplexerListener;
 import dexfuzz.listeners.UniqueProgramTrackerListener;
@@ -52,12 +52,15 @@ public class DexFuzz {
       Options.usage();
     }
 
-    // Create the Listener, which will listen for events and report them.
-    BaseListener listener = null;
+
+    // Create a Listener that is responsible for multiple Listeners.
+    MultiplexerListener multipleListener = new MultiplexerListener();
+    multipleListener.setup();
+
+    FinalStatusListener statusListener = new FinalStatusListener();
+    multipleListener.addListener(statusListener);
+
     if (Options.repeat > 1 && Options.execute) {
-      // Create a Listener that is responsible for multiple Listeners.
-      MultiplexerListener multipleListener = new MultiplexerListener();
-      multipleListener.setup();
       // Add the live updating listener, but only if we're not printing out lots of logs.
       if (!Log.likelyToLog()) {
         multipleListener.addListener(new UpdatingConsoleListener());
@@ -73,22 +76,21 @@ public class DexFuzz {
       }
       // Add the unique program tracker.
       multipleListener.addListener(new UniqueProgramTrackerListener(Options.uniqueDatabaseFile));
-      listener = multipleListener;
     } else {
       // Just use the basic listener.
-      listener = new ConsoleLoggerListener();
+      multipleListener.addListener(new ConsoleLoggerListener());
     }
 
     // Create the Fuzzer that uses a particular strategy for fuzzing.
     Fuzzer fuzzer = null;
     if ((Options.repeat > 1) && Options.execute) {
-      fuzzer = new FuzzerMultipleExecute(listener);
+      fuzzer = new FuzzerMultipleExecute(multipleListener);
     } else if ((Options.repeat > 1) && !Options.execute) {
-      fuzzer = new FuzzerMultipleNoExecute(listener);
+      fuzzer = new FuzzerMultipleNoExecute(multipleListener);
     } else if ((Options.repeat == 1) && Options.execute) {
-      fuzzer = new FuzzerSingleExecute(listener);
+      fuzzer = new FuzzerSingleExecute(multipleListener);
     } else if ((Options.repeat == 1) && !Options.execute) {
-      fuzzer = new FuzzerSingleNoExecute(listener);
+      fuzzer = new FuzzerSingleNoExecute(multipleListener);
     } else {
       Log.errorAndQuit("Invalid options provided, desired fuzzer unknown.");
     }
@@ -101,6 +103,10 @@ public class DexFuzz {
     fuzzer.shutdown();
 
     // Cleanup the Listener.
-    listener.shutdown();
+    multipleListener.shutdown();
+
+    if (!statusListener.isSuccessful()) {
+      System.exit(1);
+    }
   }
 }
