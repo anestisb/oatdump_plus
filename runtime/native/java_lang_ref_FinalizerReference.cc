@@ -31,8 +31,17 @@ static jboolean FinalizerReference_makeCircularListIfUnenqueued(JNIEnv* env, job
   return Runtime::Current()->GetHeap()->GetReferenceProcessor()->MakeCircularListIfUnenqueued(ref);
 }
 
+static jobject FinalizerReference_getReferent(JNIEnv* env, jobject javaThis) {
+  ScopedFastNativeObjectAccess soa(env);
+  ObjPtr<mirror::Reference> ref = soa.Decode<mirror::Reference>(javaThis);
+  ObjPtr<mirror::Object> const referent =
+      Runtime::Current()->GetHeap()->GetReferenceProcessor()->GetReferent(soa.Self(), ref);
+  return soa.AddLocalReference<jobject>(referent);
+}
+
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(FinalizerReference, makeCircularListIfUnenqueued, "!()Z"),
+  NATIVE_METHOD(FinalizerReference, getReferent, "!()Ljava/lang/Object;"),
 };
 
 void register_java_lang_ref_FinalizerReference(JNIEnv* env) {
