@@ -2005,6 +2005,35 @@ void CompilerDriver::SetVerified(jobject class_loader,
   }
 }
 
+static void PopulateVerifiedMethods(const DexFile& dex_file,
+                                    uint32_t class_def_index,
+                                    VerificationResults* verification_results) {
+  const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
+  const uint8_t* class_data = dex_file.GetClassData(class_def);
+  if (class_data == nullptr) {
+    return;
+  }
+  ClassDataItemIterator it(dex_file, class_data);
+  // Skip fields
+  while (it.HasNextStaticField()) {
+    it.Next();
+  }
+  while (it.HasNextInstanceField()) {
+    it.Next();
+  }
+
+  while (it.HasNextDirectMethod()) {
+    verification_results->CreateVerifiedMethodFor(MethodReference(&dex_file, it.GetMemberIndex()));
+    it.Next();
+  }
+
+  while (it.HasNextVirtualMethod()) {
+    verification_results->CreateVerifiedMethodFor(MethodReference(&dex_file, it.GetMemberIndex()));
+    it.Next();
+  }
+  DCHECK(!it.HasNext());
+}
+
 void CompilerDriver::Verify(jobject jclass_loader,
                             const std::vector<const DexFile*>& dex_files,
                             TimingLogger* timings) {
@@ -2041,6 +2070,13 @@ void CompilerDriver::Verify(jobject jclass_loader,
           } else if (set.find(class_def.class_idx_) == set.end()) {
             ObjectLock<mirror::Class> lock(soa.Self(), cls);
             mirror::Class::SetStatus(cls, mirror::Class::kStatusVerified, soa.Self());
+            // Create `VerifiedMethod`s for each methods, the compiler expects one for
+            // quickening or compiling.
+            // Note that this means:
+            // - We're only going to compile methods that did verify.
+            // - Quickening will not do checkcast ellision.
+            // TODO(ngeoffray): Reconsider this once we refactor compiler filters.
+            PopulateVerifiedMethods(*dex_file, i, verification_results_);
           }
         }
       }
