@@ -78,6 +78,15 @@ inline void AtomicMethodRefMap<T>::Visit(const Visitor& visitor) {
   }
 }
 
+template <typename T>
+inline void AtomicMethodRefMap<T>::ClearEntries() {
+  for (auto& it : arrays_) {
+    for (auto& element : it.second) {
+      element.StoreRelaxed(nullptr);
+    }
+  }
+}
+
 }  // namespace art
 
 #endif  // ART_COMPILER_UTILS_ATOMIC_METHOD_REF_MAP_INL_H_

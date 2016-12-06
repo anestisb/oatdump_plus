@@ -55,6 +55,8 @@ class AtomicMethodRefMap {
   template <typename Visitor>
   void Visit(const Visitor& visitor);
 
+  void ClearEntries();
+
  private:
   // Verified methods. The method array is fixed to avoid needing a lock to extend it.
   using ElementArray = dchecked_vector<Atomic<T>>;
