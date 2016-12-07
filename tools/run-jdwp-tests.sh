@@ -155,6 +155,7 @@ vogar $vm_command \
       --classpath $test_jack \
       --toolchain jack --language JN \
       --vm-arg -Xcompiler-option --vm-arg --debuggable \
+      --jack-arg -g \
       $test
 
 vogar_exit_status=$?
