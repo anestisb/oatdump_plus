@@ -23,6 +23,10 @@
 namespace art {
 namespace mips {
 
+//
+// JNI calling convention constants.
+//
+
 // Up to how many float-like (float, double) args can be enregistered in floating-point registers.
 // The rest of the args must go in integer registers or on the stack.
 constexpr size_t kMaxFloatOrDoubleRegisterArguments = 2u;
@@ -30,9 +34,17 @@ constexpr size_t kMaxFloatOrDoubleRegisterArguments = 2u;
 // enregistered. The rest of the args must go on the stack.
 constexpr size_t kMaxIntLikeRegisterArguments = 4u;
 
-static const Register kCoreArgumentRegisters[] = { A0, A1, A2, A3 };
-static const FRegister kFArgumentRegisters[] = { F12, F14 };
-static const DRegister kDArgumentRegisters[] = { D6, D7 };
+static const Register kJniCoreArgumentRegisters[] = { A0, A1, A2, A3 };
+static const FRegister kJniFArgumentRegisters[] = { F12, F14 };
+static const DRegister kJniDArgumentRegisters[] = { D6, D7 };
+
+//
+// Managed calling convention constants.
+//
+
+static const Register kManagedCoreArgumentRegisters[] = { A0, A1, A2, A3, T0, T1 };
+static const FRegister kManagedFArgumentRegisters[] = { F8, F10, F12, F14, F16, F18 };
+static const DRegister kManagedDArgumentRegisters[] = { D4, D5, D6, D7, D8, D9 };
 
 static constexpr ManagedRegister kCalleeSaveRegisters[] = {
     // Core registers.
@@ -133,30 +145,30 @@ const ManagedRegisterEntrySpills& MipsManagedRuntimeCallingConvention::EntrySpil
     for (ResetIterator(FrameOffset(0)); HasNext(); Next()) {
       if (IsCurrentParamAFloatOrDouble()) {
         if (IsCurrentParamADouble()) {
-          if (fpr_index < arraysize(kDArgumentRegisters)) {
+          if (fpr_index < arraysize(kManagedDArgumentRegisters)) {
             entry_spills_.push_back(
-                MipsManagedRegister::FromDRegister(kDArgumentRegisters[fpr_index++]));
+                MipsManagedRegister::FromDRegister(kManagedDArgumentRegisters[fpr_index++]));
           } else {
             entry_spills_.push_back(ManagedRegister::NoRegister(), 8);
           }
         } else {
-          if (fpr_index < arraysize(kFArgumentRegisters)) {
+          if (fpr_index < arraysize(kManagedFArgumentRegisters)) {
             entry_spills_.push_back(
-                MipsManagedRegister::FromFRegister(kFArgumentRegisters[fpr_index++]));
+                MipsManagedRegister::FromFRegister(kManagedFArgumentRegisters[fpr_index++]));
           } else {
             entry_spills_.push_back(ManagedRegister::NoRegister(), 4);
           }
         }
       } else {
         if (IsCurrentParamALong() && !IsCurrentParamAReference()) {
-          if (gpr_index == 1) {
-            // Don't use a1-a2 as a register pair, move to a2-a3 instead.
+          if (gpr_index == 1 || gpr_index == 3) {
+            // Don't use A1-A2(A3-T0) as a register pair, move to A2-A3(T0-T1) instead.
             gpr_index++;
           }
-          if (gpr_index < arraysize(kCoreArgumentRegisters) - 1) {
+          if (gpr_index < arraysize(kManagedCoreArgumentRegisters) - 1) {
             entry_spills_.push_back(
-                MipsManagedRegister::FromCoreRegister(kCoreArgumentRegisters[gpr_index++]));
-          } else if (gpr_index == arraysize(kCoreArgumentRegisters) - 1) {
+                MipsManagedRegister::FromCoreRegister(kManagedCoreArgumentRegisters[gpr_index++]));
+          } else if (gpr_index == arraysize(kManagedCoreArgumentRegisters) - 1) {
             gpr_index++;
             entry_spills_.push_back(ManagedRegister::NoRegister(), 4);
           } else {
@@ -164,9 +176,9 @@ const ManagedRegisterEntrySpills& MipsManagedRuntimeCallingConvention::EntrySpil
           }
         }
 
-        if (gpr_index < arraysize(kCoreArgumentRegisters)) {
+        if (gpr_index < arraysize(kManagedCoreArgumentRegisters)) {
           entry_spills_.push_back(
-            MipsManagedRegister::FromCoreRegister(kCoreArgumentRegisters[gpr_index++]));
+              MipsManagedRegister::FromCoreRegister(kManagedCoreArgumentRegisters[gpr_index++]));
         } else {
           entry_spills_.push_back(ManagedRegister::NoRegister(), 4);
         }
@@ -175,6 +187,7 @@ const ManagedRegisterEntrySpills& MipsManagedRuntimeCallingConvention::EntrySpil
   }
   return entry_spills_;
 }
+
 // JNI calling convention
 
 MipsJniCallingConvention::MipsJniCallingConvention(bool is_static,
@@ -285,7 +298,7 @@ MipsJniCallingConvention::MipsJniCallingConvention(bool is_static,
   //  | FLOAT | INT | DOUBLE  |
   //  |  F12  | A1  | A2 | A3 |
   // (c) first two arguments are floating-point (float, double)
-  //  | FLAOT | (PAD) | DOUBLE |  INT  |
+  //  | FLOAT | (PAD) | DOUBLE |  INT  |
   //  |  F12  |       |  F14   | SP+16 |
   // (d) first two arguments are floating-point (double, float)
   //  | DOUBLE | FLOAT | INT |
@@ -404,9 +417,9 @@ ManagedRegister MipsJniCallingConvention::CurrentParamRegister() {
   if (use_fp_arg_registers_ && (itr_args_ < kMaxFloatOrDoubleRegisterArguments)) {
     if (IsCurrentParamAFloatOrDouble()) {
       if (IsCurrentParamADouble()) {
-        return MipsManagedRegister::FromDRegister(kDArgumentRegisters[itr_args_]);
+        return MipsManagedRegister::FromDRegister(kJniDArgumentRegisters[itr_args_]);
       } else {
-        return MipsManagedRegister::FromFRegister(kFArgumentRegisters[itr_args_]);
+        return MipsManagedRegister::FromFRegister(kJniFArgumentRegisters[itr_args_]);
       }
     }
   }
@@ -420,7 +433,7 @@ ManagedRegister MipsJniCallingConvention::CurrentParamRegister() {
       return MipsManagedRegister::FromRegisterPair(A2_A3);
     }
   } else {
-    return MipsManagedRegister::FromCoreRegister(kCoreArgumentRegisters[itr_slots_]);
+    return MipsManagedRegister::FromCoreRegister(kJniCoreArgumentRegisters[itr_slots_]);
   }
 }
 
