@@ -3252,6 +3252,9 @@ void MipsAssembler::EmitLoad(ManagedRegister m_dst, Register src_register, int32
       CHECK_EQ(kMipsDoublewordSize, size) << dst;
       LoadDFromOffset(dst.AsFRegister(), src_register, src_offset);
     }
+  } else if (dst.IsDRegister()) {
+    CHECK_EQ(kMipsDoublewordSize, size) << dst;
+    LoadDFromOffset(dst.AsOverlappingDRegisterLow(), src_register, src_offset);
   }
 }
 
@@ -3396,6 +3399,9 @@ void MipsAssembler::Store(FrameOffset dest, ManagedRegister msrc, size_t size) {
       CHECK_EQ(kMipsDoublewordSize, size);
       StoreDToOffset(src.AsFRegister(), SP, dest.Int32Value());
     }
+  } else if (src.IsDRegister()) {
+    CHECK_EQ(kMipsDoublewordSize, size);
+    StoreDToOffset(src.AsOverlappingDRegisterLow(), SP, dest.Int32Value());
   }
 }
 

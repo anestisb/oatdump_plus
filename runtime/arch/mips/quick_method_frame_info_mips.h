@@ -26,12 +26,13 @@ namespace art {
 namespace mips {
 
 static constexpr uint32_t kMipsCalleeSaveAlwaysSpills =
-    (1 << art::mips::RA);
+    (1u << art::mips::RA);
 static constexpr uint32_t kMipsCalleeSaveRefSpills =
     (1 << art::mips::S2) | (1 << art::mips::S3) | (1 << art::mips::S4) | (1 << art::mips::S5) |
     (1 << art::mips::S6) | (1 << art::mips::S7) | (1 << art::mips::GP) | (1 << art::mips::FP);
 static constexpr uint32_t kMipsCalleeSaveArgSpills =
-    (1 << art::mips::A1) | (1 << art::mips::A2) | (1 << art::mips::A3);
+    (1 << art::mips::A1) | (1 << art::mips::A2) | (1 << art::mips::A3) | (1 << art::mips::T0) |
+    (1 << art::mips::T1);
 static constexpr uint32_t kMipsCalleeSaveAllSpills =
     (1 << art::mips::S0) | (1 << art::mips::S1);
 static constexpr uint32_t kMipsCalleeSaveEverythingSpills =
@@ -44,11 +45,13 @@ static constexpr uint32_t kMipsCalleeSaveEverythingSpills =
 static constexpr uint32_t kMipsCalleeSaveFpAlwaysSpills = 0;
 static constexpr uint32_t kMipsCalleeSaveFpRefSpills = 0;
 static constexpr uint32_t kMipsCalleeSaveFpArgSpills =
-    (1 << art::mips::F12) | (1 << art::mips::F13) | (1 << art::mips::F14) | (1 << art::mips::F15);
+    (1 << art::mips::F8) | (1 << art::mips::F9) | (1 << art::mips::F10) | (1 << art::mips::F11) |
+    (1 << art::mips::F12) | (1 << art::mips::F13) | (1 << art::mips::F14) | (1 << art::mips::F15) |
+    (1 << art::mips::F16) | (1 << art::mips::F17) | (1 << art::mips::F18) | (1 << art::mips::F19);
 static constexpr uint32_t kMipsCalleeSaveAllFPSpills =
     (1 << art::mips::F20) | (1 << art::mips::F21) | (1 << art::mips::F22) | (1 << art::mips::F23) |
     (1 << art::mips::F24) | (1 << art::mips::F25) | (1 << art::mips::F26) | (1 << art::mips::F27) |
-    (1 << art::mips::F28) | (1 << art::mips::F29) | (1 << art::mips::F30) | (1 << art::mips::F31);
+    (1 << art::mips::F28) | (1 << art::mips::F29) | (1 << art::mips::F30) | (1u << art::mips::F31);
 static constexpr uint32_t kMipsCalleeSaveFpEverythingSpills =
     (1 << art::mips::F0) | (1 << art::mips::F1) | (1 << art::mips::F2) | (1 << art::mips::F3) |
     (1 << art::mips::F4) | (1 << art::mips::F5) | (1 << art::mips::F6) | (1 << art::mips::F7) |
@@ -57,7 +60,7 @@ static constexpr uint32_t kMipsCalleeSaveFpEverythingSpills =
     (1 << art::mips::F16) | (1 << art::mips::F17) | (1 << art::mips::F18) | (1 << art::mips::F19) |
     (1 << art::mips::F20) | (1 << art::mips::F21) | (1 << art::mips::F22) | (1 << art::mips::F23) |
     (1 << art::mips::F24) | (1 << art::mips::F25) | (1 << art::mips::F26) | (1 << art::mips::F27) |
-    (1 << art::mips::F28) | (1 << art::mips::F29) | (1 << art::mips::F30) | (1 << art::mips::F31);
+    (1 << art::mips::F28) | (1 << art::mips::F29) | (1 << art::mips::F30) | (1u << art::mips::F31);
 
 constexpr uint32_t MipsCalleeSaveCoreSpills(Runtime::CalleeSaveType type) {
   return kMipsCalleeSaveAlwaysSpills | kMipsCalleeSaveRefSpills |
