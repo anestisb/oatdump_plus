@@ -32,6 +32,37 @@ namespace mirror {
 // C++ mirror of java.lang.invoke.MethodHandle
 class MANAGED MethodHandle : public Object {
  public:
+  // Defines the behaviour of a given method handle. The behaviour
+  // of a handle of a given kind is identical to the dex bytecode behaviour
+  // of the equivalent instruction.
+  //
+  // NOTE: These must be kept in sync with the constants defined in
+  // java.lang.invoke.MethodHandle.
+  enum Kind {
+    kInvokeVirtual = 0,
+    kInvokeSuper,
+    kInvokeDirect,
+    kInvokeStatic,
+    kInvokeInterface,
+    kInvokeTransform,
+    kInvokeCallSiteTransform,
+    kInstanceGet,
+    kInstancePut,
+    kStaticGet,
+    kStaticPut,
+    kLastValidKind = kStaticPut,
+    kFirstAccessorKind = kInstanceGet,
+    kLastAccessorKind = kStaticPut,
+    kLastInvokeKind = kInvokeCallSiteTransform
+  };
+
+  Kind GetHandleKind() REQUIRES_SHARED(Locks::mutator_lock_) {
+    const int32_t handle_kind = GetField32(OFFSET_OF_OBJECT_MEMBER(MethodHandle, handle_kind_));
+    DCHECK(handle_kind >= 0 &&
+           handle_kind <= static_cast<int32_t>(Kind::kLastValidKind));
+    return static_cast<Kind>(handle_kind);
+  }
+
   mirror::MethodType* GetMethodType() REQUIRES_SHARED(Locks::mutator_lock_) {
     return GetFieldObject<mirror::MethodType>(OFFSET_OF_OBJECT_MEMBER(MethodHandle, method_type_));
   }
@@ -48,13 +79,6 @@ class MANAGED MethodHandle : public Object {
   ArtMethod* GetTargetMethod() REQUIRES_SHARED(Locks::mutator_lock_) {
     return reinterpret_cast<ArtMethod*>(
         GetField64(OFFSET_OF_OBJECT_MEMBER(MethodHandle, art_field_or_method_)));
-  }
-
-  MethodHandleKind GetHandleKind() REQUIRES_SHARED(Locks::mutator_lock_) {
-    const int32_t handle_kind = GetField32(OFFSET_OF_OBJECT_MEMBER(MethodHandle, handle_kind_));
-
-    DCHECK(handle_kind >= 0 && handle_kind <= MethodHandleKind::kLastValidKind);
-    return static_cast<MethodHandleKind>(handle_kind);
   }
 
   static mirror::Class* StaticClass() REQUIRES_SHARED(Locks::mutator_lock_);
