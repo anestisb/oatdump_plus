@@ -35,9 +35,9 @@ enum Register {
   A1   =  5,
   A2   =  6,
   A3   =  7,
-  T0   =  8,  // Temporaries.
+  T0   =  8,  // Two extra arguments / temporaries.
   T1   =  9,
-  T2   = 10,
+  T2   = 10,  // Temporaries.
   T3   = 11,
   T4   = 12,
   T5   = 13,
@@ -100,7 +100,7 @@ enum FRegister {
   F29 = 29,
   F30 = 30,
   F31 = 31,
-  FTMP = F8,  // scratch register
+  FTMP = F6,  // scratch register
   kNumberOfFRegisters = 32,
   kNoFRegister = -1,
 };
