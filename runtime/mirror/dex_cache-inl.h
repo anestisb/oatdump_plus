@@ -71,6 +71,8 @@ inline void DexCache::ClearString(dex::StringIndex string_idx) {
 }
 
 inline Class* DexCache::GetResolvedType(dex::TypeIndex type_idx) {
+  // It is theorized that a load acquire is not required since obtaining the resolved class will
+  // always have an address depedency or a lock.
   DCHECK_LT(type_idx.index_, NumResolvedTypes());
   return GetResolvedTypes()[type_idx.index_].Read();
 }
@@ -78,7 +80,11 @@ inline Class* DexCache::GetResolvedType(dex::TypeIndex type_idx) {
 inline void DexCache::SetResolvedType(dex::TypeIndex type_idx, ObjPtr<Class> resolved) {
   DCHECK_LT(type_idx.index_, NumResolvedTypes());  // NOTE: Unchecked, i.e. not throwing AIOOB.
   // TODO default transaction support.
-  GetResolvedTypes()[type_idx.index_] = GcRoot<Class>(resolved);
+  // Use a release store for SetResolvedType. This is done to prevent other threads from seeing a
+  // class but not necessarily seeing the loaded members like the static fields array.
+  // See b/32075261.
+  reinterpret_cast<Atomic<GcRoot<mirror::Class>>&>(GetResolvedTypes()[type_idx.index_]).
+      StoreRelease(GcRoot<Class>(resolved));
   // TODO: Fine-grained marking, so that we don't need to go through all arrays in full.
   Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(this);
 }
