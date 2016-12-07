@@ -7425,7 +7425,7 @@ f2l_notNaN:
     adds    r0, r0, r0                  @ sign bit to carry
     mov     r0, #0xffffffff             @ assume maxlong for lsw
     mov     r1, #0x7fffffff             @ assume maxlong for msw
-    adcs    r0, r0, #0                  @ convert maxlong to minlong if exp negative
+    adc     r0, r0, #0
     adc     r1, r1, #0                  @ convert maxlong to minlong if exp negative
     bx      lr                          @ return
 f2l_maybeNaN:
@@ -7457,7 +7457,7 @@ d2l_notNaN:
     adds    r1, r1, r1                  @ sign bit to carry
     mov     r0, #0xffffffff             @ assume maxlong for lsw
     mov     r1, #0x7fffffff             @ assume maxlong for msw
-    adcs    r0, r0, #0
+    adc     r0, r0, #0
     adc     r1, r1, #0                  @ convert maxlong to minlong if exp negative
     bx      lr                          @ return
 d2l_maybeNaN:
@@ -12118,17 +12118,6 @@ MterpDone:
     cmp     rPROFILE, #0
     bgt     MterpProfileActive                      @ if > 0, we may have some counts to report.
     ldmfd   sp!, {r3-r10,fp,pc}                     @ restore 10 regs and return
-    .cfi_restore r3
-    .cfi_restore r4
-    .cfi_restore r5
-    .cfi_restore r6
-    .cfi_restore r7
-    .cfi_restore r9
-    .cfi_restore r9
-    .cfi_restore r10
-    .cfi_restore fp
-    .cfi_restore pc
-    .cfi_adjust_cfa_offset -40
 
 MterpProfileActive:
     mov     rINST, r0                               @ stash return value
@@ -12140,17 +12129,6 @@ MterpProfileActive:
     bl      MterpAddHotnessBatch                    @ (method, shadow_frame, self)
     mov     r0, rINST                               @ restore return value
     ldmfd   sp!, {r3-r10,fp,pc}                     @ restore 10 regs and return
-    .cfi_restore r3
-    .cfi_restore r4
-    .cfi_restore r5
-    .cfi_restore r6
-    .cfi_restore r7
-    .cfi_restore r9
-    .cfi_restore r9
-    .cfi_restore r10
-    .cfi_restore fp
-    .cfi_restore pc
-    .cfi_adjust_cfa_offset -40
 
     END ExecuteMterpImpl
 
