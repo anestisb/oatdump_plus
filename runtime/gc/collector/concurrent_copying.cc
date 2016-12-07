@@ -1360,9 +1360,10 @@ inline void ConcurrentCopying::ProcessMarkStackRef(mirror::Object* to_ref) {
         << " is_marked=" << IsMarked(to_ref);
   }
 #ifdef USE_BAKER_OR_BROOKS_READ_BARRIER
+  mirror::Object* referent = nullptr;
   if (UNLIKELY((to_ref->GetClass<kVerifyNone, kWithoutReadBarrier>()->IsTypeOfReferenceClass() &&
-                to_ref->AsReference()->GetReferent<kWithoutReadBarrier>() != nullptr &&
-                !IsInToSpace(to_ref->AsReference()->GetReferent<kWithoutReadBarrier>())))) {
+                (referent = to_ref->AsReference()->GetReferent<kWithoutReadBarrier>()) != nullptr &&
+                !IsInToSpace(referent)))) {
     // Leave this reference gray in the queue so that GetReferent() will trigger a read barrier. We
     // will change it to white later in ReferenceQueue::DequeuePendingReference().
     DCHECK(to_ref->AsReference()->GetPendingNext() != nullptr) << "Left unenqueued ref gray " << to_ref;
