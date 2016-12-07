@@ -355,7 +355,7 @@ class StubTest : public CommonRuntimeTest {
         "lw $a2, 8($sp)\n\t"
         "lw $t9, 12($sp)\n\t"
         "lw $s1, 16($sp)\n\t"
-        "lw $t0, 20($sp)\n\t"
+        "lw $t7, 20($sp)\n\t"
         "addiu $sp, $sp, 24\n\t"
 
         "jalr $t9\n\t"             // Call the stub.
