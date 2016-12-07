@@ -20,7 +20,7 @@ f2l_notNaN:
     adds    r0, r0, r0                  @ sign bit to carry
     mov     r0, #0xffffffff             @ assume maxlong for lsw
     mov     r1, #0x7fffffff             @ assume maxlong for msw
-    adcs    r0, r0, #0                  @ convert maxlong to minlong if exp negative
+    adc     r0, r0, #0
     adc     r1, r1, #0                  @ convert maxlong to minlong if exp negative
     bx      lr                          @ return
 f2l_maybeNaN:
