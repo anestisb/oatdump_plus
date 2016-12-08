@@ -97,14 +97,15 @@ class HInliner : public HOptimization {
     REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Create a new HInstanceFieldGet.
-  HInstanceFieldGet* CreateInstanceFieldGet(Handle<mirror::DexCache> dex_cache,
-                                            uint32_t field_index,
+  HInstanceFieldGet* CreateInstanceFieldGet(uint32_t field_index,
+                                            ArtMethod* referrer,
                                             HInstruction* obj);
   // Create a new HInstanceFieldSet.
-  HInstanceFieldSet* CreateInstanceFieldSet(Handle<mirror::DexCache> dex_cache,
-                                            uint32_t field_index,
+  HInstanceFieldSet* CreateInstanceFieldSet(uint32_t field_index,
+                                            ArtMethod* referrer,
                                             HInstruction* obj,
-                                            HInstruction* value);
+                                            HInstruction* value,
+                                            bool* is_final = nullptr);
 
   // Try to inline the target of a monomorphic call. If successful, the code
   // in the graph will look like:
