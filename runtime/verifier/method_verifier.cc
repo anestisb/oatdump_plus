@@ -3936,10 +3936,13 @@ ArtMethod* MethodVerifier::VerifyInvocationArgsFromIterator(
   /* caught by static verifier */
   DCHECK(is_range || expected_args <= 5);
 
-  if (expected_args > code_item_->outs_size_) {
-    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid argument count (" << expected_args
-                                      << ") exceeds outsSize (" << code_item_->outs_size_ << ")";
-    return nullptr;
+  // TODO(oth): Enable this path for invoke-polymorphic when b/33099829 is resolved.
+  if (method_type != METHOD_POLYMORPHIC) {
+    if (expected_args > code_item_->outs_size_) {
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid argument count (" << expected_args
+                                        << ") exceeds outsSize (" << code_item_->outs_size_ << ")";
+      return nullptr;
+    }
   }
 
   /*
