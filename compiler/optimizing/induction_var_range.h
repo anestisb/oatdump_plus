@@ -190,6 +190,10 @@ class InductionVarRange {
                   HInductionVarAnalysis::InductionInfo* trip,
                   bool in_body,
                   bool is_min) const;
+  Value GetPolynomial(HInductionVarAnalysis::InductionInfo* info,
+                      HInductionVarAnalysis::InductionInfo* trip,
+                      bool in_body,
+                      bool is_min) const;
   Value GetGeometric(HInductionVarAnalysis::InductionInfo* info,
                      HInductionVarAnalysis::InductionInfo* trip,
                      bool in_body,
@@ -212,6 +216,8 @@ class InductionVarRange {
                HInductionVarAnalysis::InductionInfo* trip,
                bool in_body,
                bool is_min) const;
+  Value GetRem(HInductionVarAnalysis::InductionInfo* info1,
+               HInductionVarAnalysis::InductionInfo* info2) const;
   Value GetXor(HInductionVarAnalysis::InductionInfo* info1,
                HInductionVarAnalysis::InductionInfo* info2) const;
 
@@ -249,11 +255,23 @@ class InductionVarRange {
                                 /*out*/ bool* needs_finite_test,
                                 /*out*/ bool* needs_taken_test) const;
 
+  bool GenerateLastValuePolynomial(HInductionVarAnalysis::InductionInfo* info,
+                                   HInductionVarAnalysis::InductionInfo* trip,
+                                   HGraph* graph,
+                                   HBasicBlock* block,
+                                   /*out*/HInstruction** result) const;
+
   bool GenerateLastValueGeometric(HInductionVarAnalysis::InductionInfo* info,
                                   HInductionVarAnalysis::InductionInfo* trip,
                                   HGraph* graph,
                                   HBasicBlock* block,
                                   /*out*/HInstruction** result) const;
+
+  bool GenerateLastValueWrapAround(HInductionVarAnalysis::InductionInfo* info,
+                                   HInductionVarAnalysis::InductionInfo* trip,
+                                   HGraph* graph,
+                                   HBasicBlock* block,
+                                   /*out*/HInstruction** result) const;
 
   bool GenerateLastValuePeriodic(HInductionVarAnalysis::InductionInfo* info,
                                  HInductionVarAnalysis::InductionInfo* trip,
