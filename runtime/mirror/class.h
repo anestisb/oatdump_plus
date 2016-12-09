@@ -1087,7 +1087,9 @@ class MANAGED Class FINAL : public Object {
   ArtField* GetStaticField(uint32_t i) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Find a static or instance field using the JLS resolution order
-  static ArtField* FindField(Thread* self, Handle<Class> klass, const StringPiece& name,
+  static ArtField* FindField(Thread* self,
+                             ObjPtr<Class> klass,
+                             const StringPiece& name,
                              const StringPiece& type)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -1108,7 +1110,7 @@ class MANAGED Class FINAL : public Object {
 
   // Finds the given static field in this class or a superclass.
   static ArtField* FindStaticField(Thread* self,
-                                   Handle<Class> klass,
+                                   ObjPtr<Class> klass,
                                    const StringPiece& name,
                                    const StringPiece& type)
       REQUIRES_SHARED(Locks::mutator_lock_);
@@ -1204,9 +1206,15 @@ class MANAGED Class FINAL : public Object {
 
   dex::TypeIndex GetDirectInterfaceTypeIdx(uint32_t idx) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  static ObjPtr<Class> GetDirectInterface(Thread* self,
-                                          Handle<Class> klass,
-                                          uint32_t idx)
+  // Get the direct interface of the `klass` at index `idx` if resolved, otherwise return null.
+  // If the caller expects the interface to be resolved, for example for a resolved `klass`,
+  // that assumption should be checked by `DCHECK(result != nullptr)`.
+  static ObjPtr<Class> GetDirectInterface(Thread* self, ObjPtr<Class> klass, uint32_t idx)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Resolve and get the direct interface of the `klass` at index `idx`.
+  // Returns null with a pending exception if the resolution fails.
+  static ObjPtr<Class> ResolveDirectInterface(Thread* self, Handle<Class> klass, uint32_t idx)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   const char* GetSourceFile() REQUIRES_SHARED(Locks::mutator_lock_);
