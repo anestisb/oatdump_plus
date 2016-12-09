@@ -276,7 +276,7 @@ void Class::DumpClass(std::ostream& os, int flags) {
   if (num_direct_interfaces > 0) {
     os << "  interfaces (" << num_direct_interfaces << "):\n";
     for (size_t i = 0; i < num_direct_interfaces; ++i) {
-      ObjPtr<Class> interface = GetDirectInterface(self, h_this, i);
+      ObjPtr<Class> interface = GetDirectInterface(self, h_this.Get(), i);
       if (interface == nullptr) {
         os << StringPrintf("    %2zd: nullptr!\n", i);
       } else {
@@ -799,24 +799,21 @@ ArtField* Class::FindDeclaredStaticField(ObjPtr<DexCache> dex_cache, uint32_t de
 }
 
 ArtField* Class::FindStaticField(Thread* self,
-                                 Handle<Class> klass,
+                                 ObjPtr<Class> klass,
                                  const StringPiece& name,
                                  const StringPiece& type) {
   // Is the field in this class (or its interfaces), or any of its
   // superclasses (or their interfaces)?
-  for (ObjPtr<Class> k = klass.Get(); k != nullptr; k = k->GetSuperClass()) {
+  for (ObjPtr<Class> k = klass; k != nullptr; k = k->GetSuperClass()) {
     // Is the field in this class?
     ArtField* f = k->FindDeclaredStaticField(name, type);
     if (f != nullptr) {
       return f;
     }
-    // Wrap k incase it moves during GetDirectInterface.
-    StackHandleScope<1> hs(self);
-    HandleWrapperObjPtr<Class> h_k(hs.NewHandleWrapper(&k));
     // Is this field in any of this class' interfaces?
-    for (uint32_t i = 0; i < h_k->NumDirectInterfaces(); ++i) {
-      StackHandleScope<1> hs2(self);
-      Handle<Class> interface(hs2.NewHandle(GetDirectInterface(self, h_k, i)));
+    for (uint32_t i = 0, num_interfaces = k->NumDirectInterfaces(); i != num_interfaces; ++i) {
+      ObjPtr<Class> interface = GetDirectInterface(self, k, i);
+      DCHECK(interface != nullptr);
       f = FindStaticField(self, interface, name, type);
       if (f != nullptr) {
         return f;
@@ -839,11 +836,10 @@ ArtField* Class::FindStaticField(Thread* self,
     // Though GetDirectInterface() should not cause thread suspension when called
     // from here, it takes a Handle as an argument, so we need to wrap `k`.
     ScopedAssertNoThreadSuspension ants(__FUNCTION__);
-    StackHandleScope<1> hs(self);
-    Handle<Class> h_k(hs.NewHandle(k));
     // Is this field in any of this class' interfaces?
-    for (uint32_t i = 0; i < h_k->NumDirectInterfaces(); ++i) {
-      ObjPtr<Class> interface = GetDirectInterface(self, h_k, i);
+    for (uint32_t i = 0, num_interfaces = k->NumDirectInterfaces(); i != num_interfaces; ++i) {
+      ObjPtr<Class> interface = GetDirectInterface(self, k, i);
+      DCHECK(interface != nullptr);
       f = FindStaticField(self, interface, dex_cache, dex_field_idx);
       if (f != nullptr) {
         return f;
@@ -854,11 +850,11 @@ ArtField* Class::FindStaticField(Thread* self,
 }
 
 ArtField* Class::FindField(Thread* self,
-                           Handle<Class> klass,
+                           ObjPtr<Class> klass,
                            const StringPiece& name,
                            const StringPiece& type) {
   // Find a field using the JLS field resolution order
-  for (ObjPtr<Class> k = klass.Get(); k != nullptr; k = k->GetSuperClass()) {
+  for (ObjPtr<Class> k = klass; k != nullptr; k = k->GetSuperClass()) {
     // Is the field in this class?
     ArtField* f = k->FindDeclaredInstanceField(name, type);
     if (f != nullptr) {
@@ -869,12 +865,10 @@ ArtField* Class::FindField(Thread* self,
       return f;
     }
     // Is this field in any of this class' interfaces?
-    StackHandleScope<1> hs(self);
-    HandleWrapperObjPtr<Class> h_k(hs.NewHandleWrapper(&k));
-    for (uint32_t i = 0; i < h_k->NumDirectInterfaces(); ++i) {
-      StackHandleScope<1> hs2(self);
-      Handle<Class> interface(hs2.NewHandle(GetDirectInterface(self, h_k, i)));
-      f = interface->FindStaticField(self, interface, name, type);
+    for (uint32_t i = 0, num_interfaces = k->NumDirectInterfaces(); i != num_interfaces; ++i) {
+      ObjPtr<Class> interface = GetDirectInterface(self, k, i);
+      DCHECK(interface != nullptr);
+      f = FindStaticField(self, interface, name, type);
       if (f != nullptr) {
         return f;
       }
@@ -929,34 +923,44 @@ dex::TypeIndex Class::GetDirectInterfaceTypeIdx(uint32_t idx) {
   return GetInterfaceTypeList()->GetTypeItem(idx).type_idx_;
 }
 
-ObjPtr<Class> Class::GetDirectInterface(Thread* self,
-                                        Handle<Class> klass,
-                                        uint32_t idx) {
-  DCHECK(klass.Get() != nullptr);
+ObjPtr<Class> Class::GetDirectInterface(Thread* self, ObjPtr<Class> klass, uint32_t idx) {
+  DCHECK(klass != nullptr);
   DCHECK(!klass->IsPrimitive());
   if (klass->IsArrayClass()) {
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+    // Use ClassLinker::LookupClass(); avoid poisoning ObjPtr<>s by ClassLinker::FindSystemClass().
+    ObjPtr<Class> interface;
     if (idx == 0) {
-      return class_linker->FindSystemClass(self, "Ljava/lang/Cloneable;");
+      interface = class_linker->LookupClass(self, "Ljava/lang/Cloneable;", nullptr);
     } else {
       DCHECK_EQ(1U, idx);
-      return class_linker->FindSystemClass(self, "Ljava/io/Serializable;");
+      interface = class_linker->LookupClass(self, "Ljava/io/Serializable;", nullptr);
     }
+    DCHECK(interface != nullptr);
+    return interface;
   } else if (klass->IsProxyClass()) {
-    ObjPtr<ObjectArray<Class>> interfaces = klass.Get()->GetInterfaces();
+    ObjPtr<ObjectArray<Class>> interfaces = klass->GetInterfaces();
     DCHECK(interfaces != nullptr);
     return interfaces->Get(idx);
   } else {
     dex::TypeIndex type_idx = klass->GetDirectInterfaceTypeIdx(idx);
     ObjPtr<Class> interface = klass->GetDexCache()->GetResolvedType(type_idx);
-    if (interface == nullptr) {
-      interface = Runtime::Current()->GetClassLinker()->ResolveType(klass->GetDexFile(),
-                                                                    type_idx,
-                                                                    klass.Get());
-      CHECK(interface != nullptr || self->IsExceptionPending());
-    }
     return interface;
   }
+}
+
+ObjPtr<Class> Class::ResolveDirectInterface(Thread* self, Handle<Class> klass, uint32_t idx) {
+  ObjPtr<Class> interface = GetDirectInterface(self, klass.Get(), idx);
+  if (interface == nullptr) {
+    DCHECK(!klass->IsArrayClass());
+    DCHECK(!klass->IsProxyClass());
+    dex::TypeIndex type_idx = klass->GetDirectInterfaceTypeIdx(idx);
+    interface = Runtime::Current()->GetClassLinker()->ResolveType(klass->GetDexFile(),
+                                                                  type_idx,
+                                                                  klass.Get());
+    CHECK(interface != nullptr || self->IsExceptionPending());
+  }
+  return interface;
 }
 
 ObjPtr<Class> Class::GetCommonSuperClass(Handle<Class> klass) {

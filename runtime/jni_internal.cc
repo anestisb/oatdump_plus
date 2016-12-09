@@ -224,8 +224,8 @@ static jfieldID FindFieldID(const ScopedObjectAccess& soa, jclass jni_class, con
   }
   std::string temp;
   if (is_static) {
-    field = mirror::Class::FindStaticField(soa.Self(), c, name,
-                                           field_type->GetDescriptor(&temp));
+    field = mirror::Class::FindStaticField(
+        soa.Self(), c.Get(), name, field_type->GetDescriptor(&temp));
   } else {
     field = c->FindInstanceField(name, field_type->GetDescriptor(&temp));
   }

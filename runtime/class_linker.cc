@@ -629,13 +629,13 @@ bool ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   // Sanity check Class[] and Object[]'s interfaces. GetDirectInterface may cause thread
   // suspension.
   CHECK_EQ(java_lang_Cloneable.Get(),
-           mirror::Class::GetDirectInterface(self, class_array_class, 0));
+           mirror::Class::GetDirectInterface(self, class_array_class.Get(), 0));
   CHECK_EQ(java_io_Serializable.Get(),
-           mirror::Class::GetDirectInterface(self, class_array_class, 1));
+           mirror::Class::GetDirectInterface(self, class_array_class.Get(), 1));
   CHECK_EQ(java_lang_Cloneable.Get(),
-           mirror::Class::GetDirectInterface(self, object_array_class, 0));
+           mirror::Class::GetDirectInterface(self, object_array_class.Get(), 0));
   CHECK_EQ(java_io_Serializable.Get(),
-           mirror::Class::GetDirectInterface(self, object_array_class, 1));
+           mirror::Class::GetDirectInterface(self, object_array_class.Get(), 1));
 
   CHECK_EQ(object_array_string.Get(),
            FindSystemClass(self, GetClassRootDescriptor(kJavaLangStringArrayClass)));
@@ -4486,7 +4486,7 @@ bool ClassLinker::InitializeClass(Thread* self, Handle<mirror::Class> klass,
       StackHandleScope<1> hs_iface(self);
       MutableHandle<mirror::Class> handle_scope_iface(hs_iface.NewHandle<mirror::Class>(nullptr));
       for (size_t i = 0; i < num_direct_interfaces; i++) {
-        handle_scope_iface.Assign(mirror::Class::GetDirectInterface(self, klass, i));
+        handle_scope_iface.Assign(mirror::Class::GetDirectInterface(self, klass.Get(), i));
         CHECK(handle_scope_iface.Get() != nullptr);
         CHECK(handle_scope_iface->IsInterface());
         if (handle_scope_iface->HasBeenRecursivelyInitialized()) {
@@ -4622,7 +4622,8 @@ bool ClassLinker::InitializeDefaultInterfaceRecursive(Thread* self,
     MutableHandle<mirror::Class> handle_super_iface(hs.NewHandle<mirror::Class>(nullptr));
     // First we initialize all of iface's super-interfaces recursively.
     for (size_t i = 0; i < num_direct_ifaces; i++) {
-      ObjPtr<mirror::Class> super_iface = mirror::Class::GetDirectInterface(self, iface, i);
+      ObjPtr<mirror::Class> super_iface = mirror::Class::GetDirectInterface(self, iface.Get(), i);
+      DCHECK(super_iface != nullptr);
       if (!super_iface->HasBeenRecursivelyInitialized()) {
         // Recursive step
         handle_super_iface.Assign(super_iface);
@@ -6383,7 +6384,7 @@ bool ClassLinker::SetupInterfaceLookupTable(Thread* self, Handle<mirror::Class> 
   for (size_t i = 0; i < num_interfaces; i++) {
     ObjPtr<mirror::Class> interface = have_interfaces
         ? interfaces->GetWithoutChecks(i)
-        : mirror::Class::GetDirectInterface(self, klass, i);
+        : mirror::Class::GetDirectInterface(self, klass.Get(), i);
     DCHECK(interface != nullptr);
     if (UNLIKELY(!interface->IsInterface())) {
       std::string temp;
@@ -6421,7 +6422,7 @@ bool ClassLinker::SetupInterfaceLookupTable(Thread* self, Handle<mirror::Class> 
     std::vector<mirror::Class*> to_add;
     for (size_t i = 0; i < num_interfaces; i++) {
       ObjPtr<mirror::Class> interface = have_interfaces ? interfaces->Get(i) :
-          mirror::Class::GetDirectInterface(self, klass, i);
+          mirror::Class::GetDirectInterface(self, klass.Get(), i);
       to_add.push_back(interface.Ptr());
     }
 
@@ -7796,16 +7797,14 @@ ArtField* ClassLinker::ResolveField(const DexFile& dex_file,
   }
   const DexFile::FieldId& field_id = dex_file.GetFieldId(field_idx);
   Thread* const self = Thread::Current();
-  StackHandleScope<1> hs(self);
-  Handle<mirror::Class> klass(
-      hs.NewHandle(ResolveType(dex_file, field_id.class_idx_, dex_cache, class_loader)));
-  if (klass.Get() == nullptr) {
+  ObjPtr<mirror::Class> klass = ResolveType(dex_file, field_id.class_idx_, dex_cache, class_loader);
+  if (klass == nullptr) {
     DCHECK(Thread::Current()->IsExceptionPending());
     return nullptr;
   }
 
   if (is_static) {
-    resolved = mirror::Class::FindStaticField(self, klass.Get(), dex_cache.Get(), field_idx);
+    resolved = mirror::Class::FindStaticField(self, klass, dex_cache.Get(), field_idx);
   } else {
     resolved = klass->FindInstanceField(dex_cache.Get(), field_idx);
   }
@@ -7819,7 +7818,7 @@ ArtField* ClassLinker::ResolveField(const DexFile& dex_file,
       resolved = klass->FindInstanceField(name, type);
     }
     if (resolved == nullptr) {
-      ThrowNoSuchFieldError(is_static ? "static " : "instance ", klass.Get(), type, name);
+      ThrowNoSuchFieldError(is_static ? "static " : "instance ", klass, type, name);
       return nullptr;
     }
   }
@@ -7839,10 +7838,8 @@ ArtField* ClassLinker::ResolveFieldJLS(const DexFile& dex_file,
   }
   const DexFile::FieldId& field_id = dex_file.GetFieldId(field_idx);
   Thread* self = Thread::Current();
-  StackHandleScope<1> hs(self);
-  Handle<mirror::Class> klass(
-      hs.NewHandle(ResolveType(dex_file, field_id.class_idx_, dex_cache, class_loader)));
-  if (klass.Get() == nullptr) {
+  ObjPtr<mirror::Class> klass(ResolveType(dex_file, field_id.class_idx_, dex_cache, class_loader));
+  if (klass == nullptr) {
     DCHECK(Thread::Current()->IsExceptionPending());
     return nullptr;
   }
@@ -7854,7 +7851,7 @@ ArtField* ClassLinker::ResolveFieldJLS(const DexFile& dex_file,
   if (resolved != nullptr) {
     dex_cache->SetResolvedField(field_idx, resolved, image_pointer_size_);
   } else {
-    ThrowNoSuchFieldError("", klass.Get(), type, name);
+    ThrowNoSuchFieldError("", klass, type, name);
   }
   return resolved;
 }
@@ -8078,7 +8075,7 @@ jobject ClassLinker::CreatePathClassLoader(Thread* self,
   ScopedObjectAccessUnchecked soa(self);
 
   // For now, create a libcore-level DexFile for each ART DexFile. This "explodes" multidex.
-  StackHandleScope<11> hs(self);
+  StackHandleScope<6> hs(self);
 
   ArtField* dex_elements_field =
       jni::DecodeArtField(WellKnownClasses::dalvik_system_DexPathList_dexElements);
@@ -8157,7 +8154,9 @@ jobject ClassLinker::CreatePathClassLoader(Thread* self,
   // Make a pretend boot-classpath.
   // TODO: Should we scan the image?
   ArtField* const parent_field =
-      mirror::Class::FindField(self, hs.NewHandle(h_path_class_loader->GetClass()), "parent",
+      mirror::Class::FindField(self,
+                               h_path_class_loader->GetClass(),
+                               "parent",
                                "Ljava/lang/ClassLoader;");
   DCHECK(parent_field != nullptr);
   ObjPtr<mirror::Object> boot_cl =
