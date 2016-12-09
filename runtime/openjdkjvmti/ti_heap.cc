@@ -484,7 +484,7 @@ class FollowReferencesHelper FINAL {
     art::Handle<art::mirror::Class> h_klass(hs.NewHandle<art::mirror::Class>(klass));
     for (size_t i = 0; i < h_klass->NumDirectInterfaces(); ++i) {
       art::ObjPtr<art::mirror::Class> inf_klass =
-          art::mirror::Class::GetDirectInterface(self, h_klass, i);
+          art::mirror::Class::ResolveDirectInterface(self, h_klass, i);
       if (inf_klass == nullptr) {
         // TODO: With a resolved class this should not happen...
         self->ClearException();
