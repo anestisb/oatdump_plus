@@ -1297,7 +1297,7 @@ TEST_F(OatFileAssistantTest, DexOptStatusValues) {
 
   for (std::pair<OatFileAssistant::DexOptNeeded, const char*> field : mapping) {
     ArtField* art_field = mirror::Class::FindStaticField(
-        soa.Self(), dexfile, field.second, "I");
+        soa.Self(), dexfile.Get(), field.second, "I");
     ASSERT_FALSE(art_field == nullptr);
     EXPECT_EQ(art_field->GetTypeAsPrimitiveType(), Primitive::kPrimInt);
     EXPECT_EQ(field.first, art_field->GetInt(dexfile.Get()));

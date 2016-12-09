@@ -1188,13 +1188,12 @@ void CompilerDriver::LoadImageClasses(TimingLogger* timings) {
   CHECK_NE(image_classes_->size(), 0U);
 }
 
-static void MaybeAddToImageClasses(Handle<mirror::Class> c,
+static void MaybeAddToImageClasses(Thread* self,
+                                   ObjPtr<mirror::Class> klass,
                                    std::unordered_set<std::string>* image_classes)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  Thread* self = Thread::Current();
+  DCHECK_EQ(self, Thread::Current());
   StackHandleScope<1> hs(self);
-  // Make a copy of the handle so that we don't clobber it doing Assign.
-  MutableHandle<mirror::Class> klass(hs.NewHandle(c.Get()));
   std::string temp;
   const PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
   while (!klass->IsObjectClass()) {
@@ -1205,19 +1204,16 @@ static void MaybeAddToImageClasses(Handle<mirror::Class> c,
       break;
     }
     VLOG(compiler) << "Adding " << descriptor << " to image classes";
-    for (size_t i = 0; i < klass->NumDirectInterfaces(); ++i) {
-      StackHandleScope<1> hs2(self);
-      // May cause thread suspension.
-      MaybeAddToImageClasses(hs2.NewHandle(mirror::Class::GetDirectInterface(self, klass, i)),
-                             image_classes);
+    for (size_t i = 0, num_interfaces = klass->NumDirectInterfaces(); i != num_interfaces; ++i) {
+      ObjPtr<mirror::Class> interface = mirror::Class::GetDirectInterface(self, klass, i);
+      DCHECK(interface != nullptr);
+      MaybeAddToImageClasses(self, interface, image_classes);
     }
-    for (auto& m : c->GetVirtualMethods(pointer_size)) {
-      StackHandleScope<1> hs2(self);
-      MaybeAddToImageClasses(hs2.NewHandle(m.GetDeclaringClass()), image_classes);
+    for (auto& m : klass->GetVirtualMethods(pointer_size)) {
+      MaybeAddToImageClasses(self, m.GetDeclaringClass(), image_classes);
     }
     if (klass->IsArrayClass()) {
-      StackHandleScope<1> hs2(self);
-      MaybeAddToImageClasses(hs2.NewHandle(klass->GetComponentType()), image_classes);
+      MaybeAddToImageClasses(self, klass->GetComponentType(), image_classes);
     }
     klass.Assign(klass->GetSuperClass());
   }
@@ -1268,8 +1264,10 @@ class ClinitImageUpdate {
     for (Handle<mirror::Class> klass_root : image_classes_) {
       VisitClinitClassesObject(klass_root.Get());
     }
+    Thread* self = Thread::Current();
+    ScopedAssertNoThreadSuspension ants(__FUNCTION__);
     for (Handle<mirror::Class> h_klass : to_insert_) {
-      MaybeAddToImageClasses(h_klass, image_class_descriptors_);
+      MaybeAddToImageClasses(self, h_klass.Get(), image_class_descriptors_);
     }
   }
 

@@ -140,9 +140,9 @@ TEST_F(ObjectTest, AllocObjectArray) {
   Handle<mirror::Class> klass(hs.NewHandle(oa->GetClass()));
   ASSERT_EQ(2U, klass->NumDirectInterfaces());
   EXPECT_OBJ_PTR_EQ(class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Cloneable;"),
-                    mirror::Class::GetDirectInterface(soa.Self(), klass, 0));
+                    mirror::Class::GetDirectInterface(soa.Self(), klass.Get(), 0));
   EXPECT_OBJ_PTR_EQ(class_linker_->FindSystemClass(soa.Self(), "Ljava/io/Serializable;"),
-                    mirror::Class::GetDirectInterface(soa.Self(), klass, 1));
+                    mirror::Class::GetDirectInterface(soa.Self(), klass.Get(), 1));
 }
 
 TEST_F(ObjectTest, AllocArray) {
@@ -708,19 +708,19 @@ TEST_F(ObjectTest, FindStaticField) {
   // Wrong type.
   EXPECT_TRUE(c->FindDeclaredStaticField("CASE_INSENSITIVE_ORDER", "I") == nullptr);
   EXPECT_TRUE(mirror::Class::FindStaticField(
-      soa.Self(), c, "CASE_INSENSITIVE_ORDER", "I") == nullptr);
+      soa.Self(), c.Get(), "CASE_INSENSITIVE_ORDER", "I") == nullptr);
 
   // Wrong name.
   EXPECT_TRUE(c->FindDeclaredStaticField(
       "cASE_INSENSITIVE_ORDER", "Ljava/util/Comparator;") == nullptr);
   EXPECT_TRUE(
-      mirror::Class::FindStaticField(soa.Self(), c, "cASE_INSENSITIVE_ORDER",
-                                     "Ljava/util/Comparator;") == nullptr);
+      mirror::Class::FindStaticField(
+          soa.Self(), c.Get(), "cASE_INSENSITIVE_ORDER", "Ljava/util/Comparator;") == nullptr);
 
   // Right name and type.
   ArtField* f1 = c->FindDeclaredStaticField("CASE_INSENSITIVE_ORDER", "Ljava/util/Comparator;");
-  ArtField* f2 = mirror::Class::FindStaticField(soa.Self(), c, "CASE_INSENSITIVE_ORDER",
-                                                "Ljava/util/Comparator;");
+  ArtField* f2 = mirror::Class::FindStaticField(
+      soa.Self(), c.Get(), "CASE_INSENSITIVE_ORDER", "Ljava/util/Comparator;");
   EXPECT_TRUE(f1 != nullptr);
   EXPECT_TRUE(f2 != nullptr);
   EXPECT_EQ(f1, f2);

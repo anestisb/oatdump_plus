@@ -51,27 +51,24 @@ class ObjPtr {
       REQUIRES_SHARED(Locks::mutator_lock_)
       : reference_(0u) {}
 
-  template <typename Type>
+  template <typename Type,
+            typename = typename std::enable_if<std::is_base_of<MirrorType, Type>::value>::type>
   ALWAYS_INLINE ObjPtr(Type* ptr)  // NOLINT
       REQUIRES_SHARED(Locks::mutator_lock_)
       : reference_(Encode(static_cast<MirrorType*>(ptr))) {
-    static_assert(std::is_base_of<MirrorType, Type>::value,
-                  "Input type must be a subtype of the ObjPtr type");
   }
 
-  template <typename Type>
+  template <typename Type,
+            typename = typename std::enable_if<std::is_base_of<MirrorType, Type>::value>::type>
   ALWAYS_INLINE ObjPtr(const ObjPtr<Type, kPoison>& other)  // NOLINT
       REQUIRES_SHARED(Locks::mutator_lock_)
       : reference_(Encode(static_cast<MirrorType*>(other.Ptr()))) {
-    static_assert(std::is_base_of<MirrorType, Type>::value,
-                  "Input type must be a subtype of the ObjPtr type");
   }
 
-  template <typename Type>
+  template <typename Type,
+            typename = typename std::enable_if<std::is_base_of<MirrorType, Type>::value>::type>
   ALWAYS_INLINE ObjPtr& operator=(const ObjPtr<Type, kPoison>& other)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    static_assert(std::is_base_of<MirrorType, Type>::value,
-                  "Input type must be a subtype of the ObjPtr type");
     reference_ = Encode(static_cast<MirrorType*>(other.Ptr()));
     return *this;
   }
