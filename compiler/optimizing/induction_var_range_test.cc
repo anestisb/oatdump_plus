@@ -135,6 +135,8 @@ class InductionVarRangeTest : public CommonCompilerTest {
       case 'n': op = HInductionVarAnalysis::kNeg; break;
       case '*': op = HInductionVarAnalysis::kMul; break;
       case '/': op = HInductionVarAnalysis::kDiv; break;
+      case '%': op = HInductionVarAnalysis::kRem; break;
+      case '^': op = HInductionVarAnalysis::kXor; break;
       case '<': op = HInductionVarAnalysis::kLT;  break;
       default:  op = HInductionVarAnalysis::kNop; break;
     }
@@ -178,12 +180,21 @@ class InductionVarRangeTest : public CommonCompilerTest {
                                  Primitive::kPrimInt);
   }
 
+  /** Constructs a polynomial sum(a * i + b) + c induction. */
+  HInductionVarAnalysis::InductionInfo* CreatePolynomial(int32_t a, int32_t b, int32_t c) {
+    return iva_->CreateInduction(HInductionVarAnalysis::kPolynomial,
+                                 HInductionVarAnalysis::kNop,
+                                 CreateLinear(a, b),
+                                 CreateConst(c),
+                                 nullptr,
+                                 Primitive::kPrimInt);
+  }
+
   /** Constructs a geometric a * f^i + b induction. */
   HInductionVarAnalysis::InductionInfo* CreateGeometric(int32_t a, int32_t b, int32_t f, char op) {
     return iva_->CreateInduction(HInductionVarAnalysis::kGeometric,
-                                 op == '*' ? HInductionVarAnalysis::kMul :
-                                 op == '/' ? HInductionVarAnalysis::kDiv :
-                                             HInductionVarAnalysis::kNop,
+                                 op == '*' ? HInductionVarAnalysis::kMul
+                                           : HInductionVarAnalysis::kDiv,
                                  CreateConst(a),
                                  CreateConst(b),
                                  graph_->GetIntConstant(f),
@@ -200,7 +211,7 @@ class InductionVarRangeTest : public CommonCompilerTest {
                                  Primitive::kPrimInt);
   }
 
-  /** Constructs a wrap-around induction consisting of a constant, followed info */
+  /** Constructs a wrap-around induction consisting of a constant, followed by info. */
   HInductionVarAnalysis::InductionInfo* CreateWrapAround(
       int32_t initial,
       HInductionVarAnalysis::InductionInfo* info) {
@@ -254,6 +265,16 @@ class InductionVarRangeTest : public CommonCompilerTest {
                HInductionVarAnalysis::InductionInfo* info2,
                bool is_min) {
     return range_.GetDiv(info1, info2, nullptr, /* in_body */ true, is_min);
+  }
+
+  Value GetRem(HInductionVarAnalysis::InductionInfo* info1,
+               HInductionVarAnalysis::InductionInfo* info2) {
+    return range_.GetRem(info1, info2);
+  }
+
+  Value GetXor(HInductionVarAnalysis::InductionInfo* info1,
+               HInductionVarAnalysis::InductionInfo* info2) {
+    return range_.GetXor(info1, info2);
   }
 
   bool IsExact(HInductionVarAnalysis::InductionInfo* info, int64_t* value) {
@@ -438,6 +459,27 @@ TEST_F(InductionVarRangeTest, GetMinMaxWrapAround) {
   ExpectEqual(Value(20), GetMax(CreateWrapAround(20, -1, 10), nullptr));
 }
 
+TEST_F(InductionVarRangeTest, GetMinMaxPolynomial) {
+  ExpectEqual(Value(7), GetMin(CreatePolynomial(3, 5, 7), nullptr));
+  ExpectEqual(Value(), GetMax(CreatePolynomial(3, 5, 7), nullptr));
+  ExpectEqual(Value(7), GetMin(CreatePolynomial(3, 5, 7), CreateTripCount(5, true, true)));
+  ExpectEqual(Value(45), GetMax(CreatePolynomial(3, 5, 7), CreateTripCount(5, true, true)));
+  ExpectEqual(Value(7), GetMin(CreatePolynomial(3, 5, 7), CreateTripCount(10, true, true)));
+  ExpectEqual(Value(160), GetMax(CreatePolynomial(3, 5, 7), CreateTripCount(10, true, true)));
+  ExpectEqual(Value(-7), GetMin(CreatePolynomial(11, 13, -7),
+                               CreateTripCount(5, true, true)));
+  ExpectEqual(Value(111), GetMax(CreatePolynomial(11, 13, -7),
+                                 CreateTripCount(5, true, true)));
+  ExpectEqual(Value(-7), GetMin(CreatePolynomial(11, 13, -7),
+                               CreateTripCount(10, true, true)));
+  ExpectEqual(Value(506), GetMax(CreatePolynomial(11, 13, -7),
+                                 CreateTripCount(10, true, true)));
+  ExpectEqual(Value(), GetMin(CreatePolynomial(-3, 5, 7), CreateTripCount(10, true, true)));
+  ExpectEqual(Value(), GetMax(CreatePolynomial(-3, 5, 7), CreateTripCount(10, true, true)));
+  ExpectEqual(Value(), GetMin(CreatePolynomial(3, -5, 7), CreateTripCount(10, true, true)));
+  ExpectEqual(Value(), GetMax(CreatePolynomial(3, -5, 7), CreateTripCount(10, true, true)));
+}
+
 TEST_F(InductionVarRangeTest, GetMinMaxGeometricMul) {
   ExpectEqual(Value(), GetMin(CreateGeometric(1, 1, 1, '*'), nullptr));
   ExpectEqual(Value(), GetMax(CreateGeometric(1, 1, 1, '*'), nullptr));
@@ -452,17 +494,6 @@ TEST_F(InductionVarRangeTest, GetMinMaxGeometricDiv) {
   ExpectEqual(Value(5), GetMax(CreateGeometric(-11, 5, 3, '/'), nullptr));
   ExpectEqual(Value(-16), GetMin(CreateGeometric(-11, -5, 3, '/'), nullptr));
   ExpectEqual(Value(-5), GetMax(CreateGeometric(-11, -5, 3, '/'), nullptr));
-}
-
-TEST_F(InductionVarRangeTest, GetMinMaxGeometricRem) {
-  ExpectEqual(Value(7), GetMin(CreateGeometric(11, 5, 3, '%'), nullptr));
-  ExpectEqual(Value(16), GetMax(CreateGeometric(11, 5, 3, '%'), nullptr));
-  ExpectEqual(Value(-3), GetMin(CreateGeometric(11, -5, 3, '%'), nullptr));
-  ExpectEqual(Value(6), GetMax(CreateGeometric(11, -5, 3, '%'), nullptr));
-  ExpectEqual(Value(-6), GetMin(CreateGeometric(-11, 5, 3, '%'), nullptr));
-  ExpectEqual(Value(3), GetMax(CreateGeometric(-11, 5, 3, '%'), nullptr));
-  ExpectEqual(Value(-16), GetMin(CreateGeometric(-11, -5, 3, '%'), nullptr));
-  ExpectEqual(Value(-7), GetMax(CreateGeometric(-11, -5, 3, '%'), nullptr));
 }
 
 TEST_F(InductionVarRangeTest, GetMinMaxPeriodic) {
@@ -528,6 +559,46 @@ TEST_F(InductionVarRangeTest, GetDivMax) {
   ExpectEqual(Value(), GetDiv(CreateRange(-1, 1), CreateRange(40, 1000), false));
   ExpectEqual(Value(), GetDiv(CreateRange(-1, 1), CreateRange(-1000, 40), false));
   ExpectEqual(Value(), GetDiv(CreateRange(-1, 1), CreateRange(-1, 1), false));
+}
+
+TEST_F(InductionVarRangeTest, GetMinMaxRem) {
+  ExpectEqual(Value(), GetMin(CreateInvariant('%', CreateConst(2), CreateRange(10, 20)), nullptr));
+  ExpectEqual(Value(), GetMax(CreateInvariant('%', CreateConst(2), CreateRange(10, 20)), nullptr));
+  ExpectEqual(Value(), GetMin(CreateInvariant('%', CreateRange(10, 20), CreateConst(2)), nullptr));
+  ExpectEqual(Value(), GetMax(CreateInvariant('%', CreateRange(10, 20), CreateConst(2)), nullptr));
+  ExpectEqual(Value(2), GetMin(CreateInvariant('%', CreateConst(2), CreateConst(5)), nullptr));
+  ExpectEqual(Value(2), GetMax(CreateInvariant('%', CreateConst(2), CreateConst(5)), nullptr));
+  ExpectEqual(Value(1), GetMin(CreateInvariant('%', CreateConst(11), CreateConst(5)), nullptr));
+  ExpectEqual(Value(1), GetMax(CreateInvariant('%', CreateConst(11), CreateConst(5)), nullptr));
+}
+
+TEST_F(InductionVarRangeTest, GetRem) {
+  ExpectEqual(Value(0), GetRem(CreateConst(1), CreateConst(1)));
+  ExpectEqual(Value(2), GetRem(CreateConst(2), CreateConst(5)));
+  ExpectEqual(Value(1), GetRem(CreateConst(11), CreateConst(5)));
+  ExpectEqual(Value(-2), GetRem(CreateConst(-2), CreateConst(5)));
+  ExpectEqual(Value(-1), GetRem(CreateConst(-11), CreateConst(5)));
+  ExpectEqual(Value(2), GetRem(CreateConst(2), CreateConst(-5)));
+  ExpectEqual(Value(1), GetRem(CreateConst(11), CreateConst(-5)));
+  ExpectEqual(Value(-2), GetRem(CreateConst(-2), CreateConst(-5)));
+  ExpectEqual(Value(-1), GetRem(CreateConst(-11), CreateConst(-5)));
+  ExpectEqual(Value(), GetRem(CreateConst(1), CreateConst(0)));
+}
+
+TEST_F(InductionVarRangeTest, GetMinMaxXor) {
+  ExpectEqual(Value(), GetMin(CreateInvariant('^', CreateConst(2), CreateRange(10, 20)), nullptr));
+  ExpectEqual(Value(), GetMax(CreateInvariant('^', CreateConst(2), CreateRange(10, 20)), nullptr));
+  ExpectEqual(Value(), GetMin(CreateInvariant('^', CreateRange(10, 20), CreateConst(2)), nullptr));
+  ExpectEqual(Value(), GetMax(CreateInvariant('^', CreateRange(10, 20), CreateConst(2)), nullptr));
+  ExpectEqual(Value(3), GetMin(CreateInvariant('^', CreateConst(1), CreateConst(2)), nullptr));
+  ExpectEqual(Value(3), GetMax(CreateInvariant('^', CreateConst(1), CreateConst(2)), nullptr));
+}
+
+TEST_F(InductionVarRangeTest, GetXor) {
+  ExpectEqual(Value(0), GetXor(CreateConst(1), CreateConst(1)));
+  ExpectEqual(Value(3), GetXor(CreateConst(1), CreateConst(2)));
+  ExpectEqual(Value(-2), GetXor(CreateConst(1), CreateConst(-1)));
+  ExpectEqual(Value(0), GetXor(CreateConst(-1), CreateConst(-1)));
 }
 
 TEST_F(InductionVarRangeTest, AddValue) {

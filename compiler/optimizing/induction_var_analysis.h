@@ -65,6 +65,7 @@ class HInductionVarAnalysis : public HOptimization {
     kNeg,
     kMul,
     kDiv,
+    kRem,
     kXor,
     kFetch,
     // Trip-counts.
@@ -85,10 +86,10 @@ class HInductionVarAnalysis : public HOptimization {
    *         op: a + b, a - b, -b, a * b, a / b, a % b, a ^ b, fetch
    *   (2) linear:
    *         nop: a * i + b
-   *   (3) polynomial:                        // TODO: coming soon
-   *         nop: sum_i(a) + b, for linear a
+   *   (3) polynomial:
+   *         nop: sum_lt(a) + b, for linear a
    *   (4) geometric:
-   *         op: a * fetch^i + b, a * fetch^-i + b, a mod_i fetch + b
+   *         op: a * fetch^i + b, a * fetch^-i + b
    *   (5) wrap-around
    *         nop: a, then defined by b
    *   (6) periodic
@@ -177,17 +178,12 @@ class HInductionVarAnalysis : public HOptimization {
                              HInstruction* y,
                              InductionOp op,
                              bool is_first_call);  // possibly swaps x and y to try again
-  InductionInfo* SolveGeo(HLoopInformation* loop,
-                          HInstruction* entry_phi,
-                          HInstruction* instruction,
-                          HInstruction* x,
-                          HInstruction* y,
-                          InductionOp op);
-  InductionInfo* SolveXor(HLoopInformation* loop,
-                          HInstruction* entry_phi,
-                          HInstruction* instruction,
-                          HInstruction* x,
-                          HInstruction* y);
+  InductionInfo* SolveOp(HLoopInformation* loop,
+                         HInstruction* entry_phi,
+                         HInstruction* instruction,
+                         HInstruction* x,
+                         HInstruction* y,
+                         InductionOp op);
   InductionInfo* SolveTest(HLoopInformation* loop,
                            HInstruction* entry_phi,
                            HInstruction* instruction,
