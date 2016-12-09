@@ -88,11 +88,9 @@ public class Main {
   //
   /// CHECK-START: int Main.geo4(int) loop_optimization (after)
   /// CHECK-DAG: <<Par:i\d+>> ParameterValue        loop:none
-  /// CHECK-DAG: <<Zer:i\d+>> IntConstant 0         loop:none
   /// CHECK-DAG: <<Int:i\d+>> IntConstant 7         loop:none
   /// CHECK-DAG: <<Rem:i\d+>> Rem [<<Par>>,<<Int>>] loop:none
-  /// CHECK-DAG: <<Add:i\d+>> Add [<<Rem>>,<<Zer>>] loop:none
-  /// CHECK-DAG:              Return [<<Add>>]      loop:none
+  /// CHECK-DAG:              Return [<<Rem>>]      loop:none
   //
   /// CHECK-START: int Main.geo4(int) loop_optimization (after)
   /// CHECK-NOT: Phi
@@ -104,6 +102,17 @@ public class Main {
   }
 
   // TODO: someday?
+  //
+  /// CHECK-START: int Main.geo1BCE() BCE (before)
+  /// CHECK-DAG: BoundsCheck loop:none
+  /// CHECK-DAG: BoundsCheck loop:{{B\d+}}
+  //
+  /// CHECK-START: int Main.geo1BCE() BCE (after)
+  /// CHECK-DAG: BoundsCheck loop:{{B\d+}}
+  //
+  /// CHECK-START: int Main.geo1BCE() BCE (after)
+  /// CHECK-NOT: BoundsCheck loop:none
+  /// CHECK-NOT: Deoptimize
   public static int geo1BCE() {
     int[] x = {  1,  2,  3,  4,  5,  6,  7,  8,  9, 10,
                 11, 12, 13, 14, 15, 16, 17, 19, 19, 20,
@@ -118,6 +127,17 @@ public class Main {
   }
 
   // TODO: someday?
+  //
+  /// CHECK-START: int Main.geo2BCE() BCE (before)
+  /// CHECK-DAG: BoundsCheck loop:none
+  /// CHECK-DAG: BoundsCheck loop:{{B\d+}}
+  //
+  /// CHECK-START: int Main.geo2BCE() BCE (after)
+  /// CHECK-DAG: BoundsCheck loop:{{B\d+}}
+  //
+  /// CHECK-START: int Main.geo2BCE() BCE (after)
+  /// CHECK-NOT: BoundsCheck loop:none
+  /// CHECK-NOT: Deoptimize
   public static int geo2BCE() {
     int[] x = {  1,  2,  3,  4,  5,  6,  7,  8,  9, 10,
                 11, 12, 13, 14, 15, 16, 17, 19, 19, 20,
@@ -225,16 +245,20 @@ public class Main {
     return a;
   }
 
-  // TODO: Rem is already optimized away by the time the loop optimizer runs;
-  //       we could still optimize this case with last value on wrap-around!
+  // Even though Rem is already optimized away by the time induction analysis
+  // and the loop optimizer run, the loop is optimized with a trivial
+  // wrap-around induction just as the wrap-around for REM would.
   //
   /// CHECK-START: int Main.geoRemBlackHole(int) loop_optimization (before)
   /// CHECK-DAG: Phi loop:<<Loop:B\d+>>
   /// CHECK-DAG: Phi loop:<<Loop>>
   //
   /// CHECK-START: int Main.geoRemBlackHole(int) loop_optimization (after)
-  /// CHECK-DAG: Phi loop:<<Loop:B\d+>>
-  /// CHECK-DAG: Phi loop:<<Loop>>
+  /// CHECK-DAG: <<Zero:i\d+>> IntConstant 0
+  /// CHECK-DAG:               Return [<<Zero>>]
+  //
+  /// CHECK-START: int Main.geoRemBlackHole(int) loop_optimization (after)
+  /// CHECK-NOT: Phi
   public static int geoRemBlackHole(int a) {
     for (int i = 0; i < 100; i++) {
       a %= 1;
