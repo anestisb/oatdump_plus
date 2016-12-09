@@ -5253,7 +5253,7 @@ HLoadClass::LoadKind CodeGeneratorARMVIXL::GetSupportedLoadClassKind(
     case HLoadClass::LoadKind::kBootImageAddress:
       // TODO(VIXL): Enable it back when literal pools are fixed in VIXL.
       return HLoadClass::LoadKind::kDexCacheViaMethod;
-    case HLoadClass::LoadKind::kDexCacheAddress:
+    case HLoadClass::LoadKind::kJitTableAddress:
       // TODO(VIXL): Enable it back when literal pools are fixed in VIXL.
       return HLoadClass::LoadKind::kDexCacheViaMethod;
     case HLoadClass::LoadKind::kDexCachePcRelative:
@@ -5345,7 +5345,7 @@ void InstructionCodeGeneratorARMVIXL::VisitLoadClass(HLoadClass* cls) {
       TODO_VIXL32(FATAL);
       break;
     }
-    case HLoadClass::LoadKind::kDexCacheAddress: {
+    case HLoadClass::LoadKind::kJitTableAddress: {
       TODO_VIXL32(FATAL);
       break;
     }

@@ -297,10 +297,11 @@ static void FillRootTable(uint8_t* roots_data, Handle<mirror::ObjectArray<mirror
     ObjPtr<mirror::Object> object = roots->Get(i);
     if (kIsDebugBuild) {
       // Ensure the string is strongly interned. b/32995596
-      CHECK(object->IsString());
-      ObjPtr<mirror::String> str = reinterpret_cast<mirror::String*>(object.Ptr());
-      ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-      CHECK(class_linker->GetInternTable()->LookupStrong(Thread::Current(), str) != nullptr);
+      if (object->IsString()) {
+        ObjPtr<mirror::String> str = reinterpret_cast<mirror::String*>(object.Ptr());
+        ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+        CHECK(class_linker->GetInternTable()->LookupStrong(Thread::Current(), str) != nullptr);
+      }
     }
     gc_roots[i] = GcRoot<mirror::Object>(object);
   }
@@ -316,6 +317,31 @@ static uint8_t* GetRootTable(const void* code_ptr, uint32_t* number_of_roots = n
   return data - ComputeRootTableSize(roots);
 }
 
+// Helper for the GC to process a weak class in a JIT root table.
+static inline void ProcessWeakClass(GcRoot<mirror::Class>* root_ptr, IsMarkedVisitor* visitor)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  // This does not need a read barrier because this is called by GC.
+  mirror::Class* cls = root_ptr->Read<kWithoutReadBarrier>();
+  if (cls != nullptr) {
+    DCHECK((cls->IsClass<kDefaultVerifyFlags, kWithoutReadBarrier>()));
+    // Look at the classloader of the class to know if it has been unloaded.
+    // This does not need a read barrier because this is called by GC.
+    mirror::Object* class_loader =
+        cls->GetClassLoader<kDefaultVerifyFlags, kWithoutReadBarrier>();
+    if (class_loader == nullptr || visitor->IsMarked(class_loader) != nullptr) {
+      // The class loader is live, update the entry if the class has moved.
+      mirror::Class* new_cls = down_cast<mirror::Class*>(visitor->IsMarked(cls));
+      // Note that new_object can be null for CMS and newly allocated objects.
+      if (new_cls != nullptr && new_cls != cls) {
+        *root_ptr = GcRoot<mirror::Class>(new_cls);
+      }
+    } else {
+      // The class loader is not live, clear the entry.
+      *root_ptr = GcRoot<mirror::Class>(nullptr);
+    }
+  }
+}
+
 void JitCodeCache::SweepRootTables(IsMarkedVisitor* visitor) {
   MutexLock mu(Thread::Current(), lock_);
   for (const auto& entry : method_code_map_) {
@@ -325,17 +351,22 @@ void JitCodeCache::SweepRootTables(IsMarkedVisitor* visitor) {
     for (uint32_t i = 0; i < number_of_roots; ++i) {
       // This does not need a read barrier because this is called by GC.
       mirror::Object* object = roots[i].Read<kWithoutReadBarrier>();
-      DCHECK(object != nullptr);
-      mirror::Object* new_object = visitor->IsMarked(object);
-      // We know the string is marked because it's a strongly-interned string that
-      // is always alive. The IsMarked implementation of the CMS collector returns
-      // null for newly allocated objects, but we know those haven't moved. Therefore,
-      // only update the entry if we get a different non-null string.
-      // TODO: Do not use IsMarked for j.l.Class, and adjust once we move this method
-      // out of the weak access/creation pause. b/32167580
-      if (new_object != nullptr && new_object != object) {
-        DCHECK(new_object->IsString());
-        roots[i] = GcRoot<mirror::Object>(new_object);
+      if (object == nullptr) {
+        // entry got deleted in a previous sweep.
+      } else if (object->IsString<kDefaultVerifyFlags, kWithoutReadBarrier>()) {
+        mirror::Object* new_object = visitor->IsMarked(object);
+        // We know the string is marked because it's a strongly-interned string that
+        // is always alive. The IsMarked implementation of the CMS collector returns
+        // null for newly allocated objects, but we know those haven't moved. Therefore,
+        // only update the entry if we get a different non-null string.
+        // TODO: Do not use IsMarked for j.l.Class, and adjust once we move this method
+        // out of the weak access/creation pause. b/32167580
+        if (new_object != nullptr && new_object != object) {
+          DCHECK(new_object->IsString());
+          roots[i] = GcRoot<mirror::Object>(new_object);
+        }
+      } else {
+        ProcessWeakClass(reinterpret_cast<GcRoot<mirror::Class>*>(&roots[i]), visitor);
       }
     }
   }
@@ -344,26 +375,7 @@ void JitCodeCache::SweepRootTables(IsMarkedVisitor* visitor) {
     for (size_t i = 0; i < info->number_of_inline_caches_; ++i) {
       InlineCache* cache = &info->cache_[i];
       for (size_t j = 0; j < InlineCache::kIndividualCacheSize; ++j) {
-        // This does not need a read barrier because this is called by GC.
-        mirror::Class* cls = cache->classes_[j].Read<kWithoutReadBarrier>();
-        if (cls != nullptr) {
-          // Look at the classloader of the class to know if it has been
-          // unloaded.
-          // This does not need a read barrier because this is called by GC.
-          mirror::Object* class_loader =
-              cls->GetClassLoader<kDefaultVerifyFlags, kWithoutReadBarrier>();
-          if (class_loader == nullptr || visitor->IsMarked(class_loader) != nullptr) {
-            // The class loader is live, update the entry if the class has moved.
-            mirror::Class* new_cls = down_cast<mirror::Class*>(visitor->IsMarked(cls));
-            // Note that new_object can be null for CMS and newly allocated objects.
-            if (new_cls != nullptr && new_cls != cls) {
-              cache->classes_[j] = GcRoot<mirror::Class>(new_cls);
-            }
-          } else {
-            // The class loader is not live, clear the entry.
-            cache->classes_[j] = GcRoot<mirror::Class>(nullptr);
-          }
-        }
+        ProcessWeakClass(&cache->classes_[j], visitor);
       }
     }
   }
