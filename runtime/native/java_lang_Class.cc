@@ -278,7 +278,7 @@ static mirror::Field* GetPublicFieldRecursive(
 
     uint32_t num_direct_interfaces = h_clazz->NumDirectInterfaces();
     for (uint32_t i = 0; i < num_direct_interfaces; i++) {
-      ObjPtr<mirror::Class> iface = mirror::Class::GetDirectInterface(self, h_clazz, i);
+      ObjPtr<mirror::Class> iface = mirror::Class::ResolveDirectInterface(self, h_clazz, i);
       if (UNLIKELY(iface == nullptr)) {
         self->AssertPendingException();
         return nullptr;
