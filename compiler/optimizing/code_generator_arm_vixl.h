@@ -576,7 +576,15 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
                                              uint32_t offset,
                                              Location temp,
                                              bool needs_null_check);
-
+  // Fast path implementation of ReadBarrier::Barrier for a heap
+  // reference array load when Baker's read barriers are used.
+  void GenerateArrayLoadWithBakerReadBarrier(HInstruction* instruction,
+                                             Location ref,
+                                             vixl::aarch32::Register obj,
+                                             uint32_t data_offset,
+                                             Location index,
+                                             Location temp,
+                                             bool needs_null_check);
   // Factored implementation, used by GenerateFieldLoadWithBakerReadBarrier,
   // GenerateArrayLoadWithBakerReadBarrier and some intrinsics.
   //
@@ -633,6 +641,19 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
                                     Location obj,
                                     uint32_t offset,
                                     Location index = Location::NoLocation());
+
+  // Generate a read barrier for a GC root within `instruction` using
+  // a slow path.
+  //
+  // A read barrier for an object reference GC root is implemented as
+  // a call to the artReadBarrierForRootSlow runtime entry point,
+  // which is passed the value in location `root`:
+  //
+  //   mirror::Object* artReadBarrierForRootSlow(GcRoot<mirror::Object>* root);
+  //
+  // The `out` location contains the value returned by
+  // artReadBarrierForRootSlow.
+  void GenerateReadBarrierForRootSlow(HInstruction* instruction, Location out, Location root);
 
   void GenerateNop() OVERRIDE;
 
