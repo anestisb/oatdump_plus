@@ -549,7 +549,8 @@ class Thread {
     return tlsPtr_.frame_id_to_shadow_frame != nullptr;
   }
 
-  void VisitRoots(RootVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
+  void VisitRoots(RootVisitor* visitor, VisitRootFlags flags = kVisitRootFlagAllRoots)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   ALWAYS_INLINE void VerifyStack() REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -1244,6 +1245,9 @@ class Thread {
 
   // Install the protected region for implicit stack checks.
   void InstallImplicitProtection();
+
+  template <bool kPrecise>
+  void VisitRoots(RootVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
 
   static bool IsAotCompiler();
 

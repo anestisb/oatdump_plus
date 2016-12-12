@@ -100,18 +100,6 @@ class Transaction;
 
 typedef std::vector<std::pair<std::string, const void*>> RuntimeOptions;
 
-// Not all combinations of flags are valid. You may not visit all roots as well as the new roots
-// (no logical reason to do this). You also may not start logging new roots and stop logging new
-// roots (also no logical reason to do this).
-enum VisitRootFlags : uint8_t {
-  kVisitRootFlagAllRoots = 0x1,
-  kVisitRootFlagNewRoots = 0x2,
-  kVisitRootFlagStartLoggingNewRoots = 0x4,
-  kVisitRootFlagStopLoggingNewRoots = 0x8,
-  kVisitRootFlagClearRootLog = 0x10,
-  kVisitRootFlagClassLoader = 0x20,
-};
-
 class Runtime {
  public:
   // Parse raw runtime options.
@@ -349,26 +337,14 @@ class Runtime {
   void VisitTransactionRoots(RootVisitor* visitor)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Visit all of the thread roots.
-  void VisitThreadRoots(RootVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
-
   // Flip thread roots from from-space refs to to-space refs.
   size_t FlipThreadRoots(Closure* thread_flip_visitor, Closure* flip_callback,
                          gc::collector::GarbageCollector* collector)
       REQUIRES(!Locks::mutator_lock_);
 
-  // Visit all other roots which must be done with mutators suspended.
-  void VisitNonConcurrentRoots(RootVisitor* visitor)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
   // Sweep system weaks, the system weak is deleted if the visitor return null. Otherwise, the
   // system weak is updated to be the visitor's returned value.
   void SweepSystemWeaks(IsMarkedVisitor* visitor)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  // Constant roots are the roots which never change after the runtime is initialized, they only
-  // need to be visited once per GC cycle.
-  void VisitConstantRoots(RootVisitor* visitor)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns a special method that calls into a trampoline for runtime method resolution
@@ -701,6 +677,19 @@ class Runtime {
   void StartSignalCatcher();
 
   void MaybeSaveJitProfilingInfo();
+
+  // Visit all of the thread roots.
+  void VisitThreadRoots(RootVisitor* visitor, VisitRootFlags flags)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Visit all other roots which must be done with mutators suspended.
+  void VisitNonConcurrentRoots(RootVisitor* visitor, VisitRootFlags flags)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Constant roots are the roots which never change after the runtime is initialized, they only
+  // need to be visited once per GC cycle.
+  void VisitConstantRoots(RootVisitor* visitor)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // A pointer to the active runtime or null.
   static Runtime* instance_;

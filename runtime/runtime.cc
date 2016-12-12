@@ -1695,13 +1695,13 @@ void Runtime::VisitNonThreadRoots(RootVisitor* visitor) {
   VisitTransactionRoots(visitor);
 }
 
-void Runtime::VisitNonConcurrentRoots(RootVisitor* visitor) {
-  thread_list_->VisitRoots(visitor);
+void Runtime::VisitNonConcurrentRoots(RootVisitor* visitor, VisitRootFlags flags) {
+  VisitThreadRoots(visitor, flags);
   VisitNonThreadRoots(visitor);
 }
 
-void Runtime::VisitThreadRoots(RootVisitor* visitor) {
-  thread_list_->VisitRoots(visitor);
+void Runtime::VisitThreadRoots(RootVisitor* visitor, VisitRootFlags flags) {
+  thread_list_->VisitRoots(visitor, flags);
 }
 
 size_t Runtime::FlipThreadRoots(Closure* thread_flip_visitor, Closure* flip_callback,
@@ -1710,7 +1710,7 @@ size_t Runtime::FlipThreadRoots(Closure* thread_flip_visitor, Closure* flip_call
 }
 
 void Runtime::VisitRoots(RootVisitor* visitor, VisitRootFlags flags) {
-  VisitNonConcurrentRoots(visitor);
+  VisitNonConcurrentRoots(visitor, flags);
   VisitConcurrentRoots(visitor, flags);
 }
 

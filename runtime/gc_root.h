@@ -86,6 +86,22 @@ inline std::ostream& operator<<(std::ostream& os, const RootInfo& root_info) {
   return os;
 }
 
+// Not all combinations of flags are valid. You may not visit all roots as well as the new roots
+// (no logical reason to do this). You also may not start logging new roots and stop logging new
+// roots (also no logical reason to do this).
+//
+// The precise flag ensures that more metadata is supplied. An example is vreg data for compiled
+// method frames.
+enum VisitRootFlags : uint8_t {
+  kVisitRootFlagAllRoots = 0x1,
+  kVisitRootFlagNewRoots = 0x2,
+  kVisitRootFlagStartLoggingNewRoots = 0x4,
+  kVisitRootFlagStopLoggingNewRoots = 0x8,
+  kVisitRootFlagClearRootLog = 0x10,
+  kVisitRootFlagClassLoader = 0x20,
+  kVisitRootFlagPrecise = 0x80,
+};
+
 class RootVisitor {
  public:
   virtual ~RootVisitor() { }

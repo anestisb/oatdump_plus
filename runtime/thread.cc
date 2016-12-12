@@ -2802,7 +2802,7 @@ bool Thread::HoldsLock(mirror::Object* object) const {
 }
 
 // RootVisitor parameters are: (const Object* obj, size_t vreg, const StackVisitor* visitor).
-template <typename RootVisitor>
+template <typename RootVisitor, bool kPrecise = false>
 class ReferenceMapVisitor : public StackVisitor {
  public:
   ReferenceMapVisitor(Thread* thread, Context* context, RootVisitor& visitor)
@@ -2889,7 +2889,9 @@ class ReferenceMapVisitor : public StackVisitor {
     }
   }
 
-  void VisitQuickFrame() REQUIRES_SHARED(Locks::mutator_lock_) {
+  template <typename T>
+  ALWAYS_INLINE
+  inline void VisitQuickFrameWithVregCallback() REQUIRES_SHARED(Locks::mutator_lock_) {
     ArtMethod** cur_quick_frame = GetCurrentQuickFrame();
     DCHECK(cur_quick_frame != nullptr);
     ArtMethod* m = *cur_quick_frame;
@@ -2906,6 +2908,9 @@ class ReferenceMapVisitor : public StackVisitor {
       CodeInfoEncoding encoding = code_info.ExtractEncoding();
       StackMap map = code_info.GetStackMapForNativePcOffset(native_pc_offset, encoding);
       DCHECK(map.IsValid());
+
+      T vreg_info(m, code_info, encoding, map, visitor_);
+
       // Visit stack entries that hold pointers.
       size_t number_of_bits = map.GetNumberOfStackMaskBits(encoding.stack_map_encoding);
       for (size_t i = 0; i < number_of_bits; ++i) {
@@ -2914,7 +2919,7 @@ class ReferenceMapVisitor : public StackVisitor {
           mirror::Object* ref = ref_addr->AsMirrorPtr();
           if (ref != nullptr) {
             mirror::Object* new_ref = ref;
-            visitor_(&new_ref, -1, this);
+            vreg_info.VisitStack(&new_ref, i, this);
             if (ref != new_ref) {
               ref_addr->Assign(new_ref);
             }
@@ -2935,11 +2940,117 @@ class ReferenceMapVisitor : public StackVisitor {
                        << "set in register_mask=" << register_mask << " at " << DescribeLocation();
           }
           if (*ref_addr != nullptr) {
-            visitor_(ref_addr, -1, this);
+            vreg_info.VisitRegister(ref_addr, i, this);
           }
         }
       }
     }
+  }
+
+  void VisitQuickFrame() REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (kPrecise) {
+      VisitQuickFramePrecise();
+    } else {
+      VisitQuickFrameNonPrecise();
+    }
+  }
+
+  void VisitQuickFrameNonPrecise() REQUIRES_SHARED(Locks::mutator_lock_) {
+    struct UndefinedVRegInfo {
+      UndefinedVRegInfo(ArtMethod* method ATTRIBUTE_UNUSED,
+                        const CodeInfo& code_info ATTRIBUTE_UNUSED,
+                        const CodeInfoEncoding& encoding ATTRIBUTE_UNUSED,
+                        const StackMap& map ATTRIBUTE_UNUSED,
+                        RootVisitor& _visitor)
+          : visitor(_visitor) {
+      }
+
+      ALWAYS_INLINE
+      void VisitStack(mirror::Object** ref,
+                      size_t stack_index ATTRIBUTE_UNUSED,
+                      const StackVisitor* stack_visitor)
+          REQUIRES_SHARED(Locks::mutator_lock_) {
+        visitor(ref, -1, stack_visitor);
+      }
+
+      ALWAYS_INLINE
+      void VisitRegister(mirror::Object** ref,
+                         size_t register_index ATTRIBUTE_UNUSED,
+                         const StackVisitor* stack_visitor)
+          REQUIRES_SHARED(Locks::mutator_lock_) {
+        visitor(ref, -1, stack_visitor);
+      }
+
+      RootVisitor& visitor;
+    };
+    VisitQuickFrameWithVregCallback<UndefinedVRegInfo>();
+  }
+
+  void VisitQuickFramePrecise() REQUIRES_SHARED(Locks::mutator_lock_) {
+    struct StackMapVRegInfo {
+      StackMapVRegInfo(ArtMethod* method,
+                       const CodeInfo& _code_info,
+                       const CodeInfoEncoding& _encoding,
+                       const StackMap& map,
+                       RootVisitor& _visitor)
+          : number_of_dex_registers(method->GetCodeItem()->registers_size_),
+            code_info(_code_info),
+            encoding(_encoding),
+            dex_register_map(code_info.GetDexRegisterMapOf(map,
+                                                           encoding,
+                                                           number_of_dex_registers)),
+            visitor(_visitor) {
+      }
+
+      // TODO: If necessary, we should consider caching a reverse map instead of the linear
+      //       lookups for each location.
+      void FindWithType(const size_t index,
+                        const DexRegisterLocation::Kind kind,
+                        mirror::Object** ref,
+                        const StackVisitor* stack_visitor)
+          REQUIRES_SHARED(Locks::mutator_lock_) {
+        bool found = false;
+        for (size_t dex_reg = 0; dex_reg != number_of_dex_registers; ++dex_reg) {
+          DexRegisterLocation location = dex_register_map.GetDexRegisterLocation(
+              dex_reg, number_of_dex_registers, code_info, encoding);
+          if (location.GetKind() == kind && static_cast<size_t>(location.GetValue()) == index) {
+            visitor(ref, dex_reg, stack_visitor);
+            found = true;
+          }
+        }
+
+        if (!found) {
+          // If nothing found, report with -1.
+          visitor(ref, -1, stack_visitor);
+        }
+      }
+
+      void VisitStack(mirror::Object** ref, size_t stack_index, const StackVisitor* stack_visitor)
+          REQUIRES_SHARED(Locks::mutator_lock_) {
+        const size_t stack_offset = stack_index * kFrameSlotSize;
+        FindWithType(stack_offset,
+                     DexRegisterLocation::Kind::kInStack,
+                     ref,
+                     stack_visitor);
+      }
+
+      void VisitRegister(mirror::Object** ref,
+                         size_t register_index,
+                         const StackVisitor* stack_visitor)
+          REQUIRES_SHARED(Locks::mutator_lock_) {
+        FindWithType(register_index,
+                     DexRegisterLocation::Kind::kInRegister,
+                     ref,
+                     stack_visitor);
+      }
+
+      size_t number_of_dex_registers;
+      const CodeInfo& code_info;
+      const CodeInfoEncoding& encoding;
+      DexRegisterMap dex_register_map;
+      RootVisitor& visitor;
+    };
+    VisitQuickFrameWithVregCallback<StackMapVRegInfo>();
   }
 
   // Visitor for when we visit a root.
@@ -2960,6 +3071,7 @@ class RootCallbackVisitor {
   const uint32_t tid_;
 };
 
+template <bool kPrecise>
 void Thread::VisitRoots(RootVisitor* visitor) {
   const uint32_t thread_id = GetThreadId();
   visitor->VisitRootIfNonNull(&tlsPtr_.opeer, RootInfo(kRootThreadObject, thread_id));
@@ -2977,7 +3089,7 @@ void Thread::VisitRoots(RootVisitor* visitor) {
   // Visit roots for deoptimization.
   if (tlsPtr_.stacked_shadow_frame_record != nullptr) {
     RootCallbackVisitor visitor_to_callback(visitor, thread_id);
-    ReferenceMapVisitor<RootCallbackVisitor> mapper(this, nullptr, visitor_to_callback);
+    ReferenceMapVisitor<RootCallbackVisitor, kPrecise> mapper(this, nullptr, visitor_to_callback);
     for (StackedShadowFrameRecord* record = tlsPtr_.stacked_shadow_frame_record;
          record != nullptr;
          record = record->GetLink()) {
@@ -3000,7 +3112,7 @@ void Thread::VisitRoots(RootVisitor* visitor) {
   }
   if (tlsPtr_.frame_id_to_shadow_frame != nullptr) {
     RootCallbackVisitor visitor_to_callback(visitor, thread_id);
-    ReferenceMapVisitor<RootCallbackVisitor> mapper(this, nullptr, visitor_to_callback);
+    ReferenceMapVisitor<RootCallbackVisitor, kPrecise> mapper(this, nullptr, visitor_to_callback);
     for (FrameIdToShadowFrame* record = tlsPtr_.frame_id_to_shadow_frame;
          record != nullptr;
          record = record->GetNext()) {
@@ -3013,11 +3125,19 @@ void Thread::VisitRoots(RootVisitor* visitor) {
   // Visit roots on this thread's stack
   Context* context = GetLongJumpContext();
   RootCallbackVisitor visitor_to_callback(visitor, thread_id);
-  ReferenceMapVisitor<RootCallbackVisitor> mapper(this, context, visitor_to_callback);
-  mapper.WalkStack();
+  ReferenceMapVisitor<RootCallbackVisitor, kPrecise> mapper(this, context, visitor_to_callback);
+  mapper.template WalkStack<StackVisitor::CountTransitions::kNo>(false);
   ReleaseLongJumpContext(context);
   for (instrumentation::InstrumentationStackFrame& frame : *GetInstrumentationStack()) {
     visitor->VisitRootIfNonNull(&frame.this_object_, RootInfo(kRootVMInternal, thread_id));
+  }
+}
+
+void Thread::VisitRoots(RootVisitor* visitor, VisitRootFlags flags) {
+  if ((flags & VisitRootFlags::kVisitRootFlagPrecise) != 0) {
+    VisitRoots<true>(visitor);
+  } else {
+    VisitRoots<false>(visitor);
   }
 }
 

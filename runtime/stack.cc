@@ -614,12 +614,6 @@ std::string StackVisitor::DescribeLocation() const {
   return result;
 }
 
-static instrumentation::InstrumentationStackFrame& GetInstrumentationStackFrame(Thread* thread,
-                                                                                uint32_t depth) {
-  CHECK_LT(depth, thread->GetInstrumentationStack()->size());
-  return thread->GetInstrumentationStack()->at(depth);
-}
-
 static void AssertPcIsWithinQuickCode(ArtMethod* method, uintptr_t pc)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   if (method->IsNative() || method->IsRuntimeMethod() || method->IsProxyMethod()) {
@@ -777,6 +771,7 @@ QuickMethodFrameInfo StackVisitor::GetCurrentQuickFrameInfo() const {
   return QuickMethodFrameInfo(frame_size, callee_info.CoreSpillMask(), callee_info.FpSpillMask());
 }
 
+template <StackVisitor::CountTransitions kCount>
 void StackVisitor::WalkStack(bool include_transitions) {
   DCHECK(thread_ == Thread::Current() || thread_->IsSuspended());
   CHECK_EQ(cur_depth_, 0U);
@@ -842,8 +837,9 @@ void StackVisitor::WalkStack(bool include_transitions) {
           // While profiling, the return pc is restored from the side stack, except when walking
           // the stack for an exception where the side stack will be unwound in VisitFrame.
           if (reinterpret_cast<uintptr_t>(GetQuickInstrumentationExitPc()) == return_pc) {
+            CHECK_LT(instrumentation_stack_depth, thread_->GetInstrumentationStack()->size());
             const instrumentation::InstrumentationStackFrame& instrumentation_frame =
-                GetInstrumentationStackFrame(thread_, instrumentation_stack_depth);
+                thread_->GetInstrumentationStack()->at(instrumentation_stack_depth);
             instrumentation_stack_depth++;
             if (GetMethod() ==
                 Runtime::Current()->GetCalleeSaveMethod(Runtime::kSaveAllCalleeSaves)) {
@@ -907,12 +903,17 @@ void StackVisitor::WalkStack(bool include_transitions) {
         return;
       }
     }
-    cur_depth_++;
+    if (kCount == CountTransitions::kYes) {
+      cur_depth_++;
+    }
   }
   if (num_frames_ != 0) {
     CHECK_EQ(cur_depth_, num_frames_);
   }
 }
+
+template void StackVisitor::WalkStack<StackVisitor::CountTransitions::kYes>(bool);
+template void StackVisitor::WalkStack<StackVisitor::CountTransitions::kNo>(bool);
 
 void JavaFrameRootInfo::Describe(std::ostream& os) const {
   const StackVisitor* visitor = stack_visitor_;
