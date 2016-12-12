@@ -73,6 +73,9 @@ class ClassTable {
       return MaskHash(other) == Hash();
     }
 
+    static uint32_t HashDescriptor(ObjPtr<mirror::Class> klass)
+        REQUIRES_SHARED(Locks::mutator_lock_);
+
     template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
     mirror::Class* Read() const REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -172,6 +175,10 @@ class ClassTable {
   // Stops visit if the visitor returns false.
   template <typename Visitor>
   bool Visit(Visitor& visitor)
+      REQUIRES(!lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  template <typename Visitor>
+  bool Visit(const Visitor& visitor)
       REQUIRES(!lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
