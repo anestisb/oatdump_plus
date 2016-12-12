@@ -62,6 +62,9 @@ uint64_t NanoTime();
 // Returns the thread-specific CPU-time clock in nanoseconds or -1 if unavailable.
 uint64_t ThreadCpuNanoTime();
 
+// Returns the process CPU-time clock in nanoseconds or -1 if unavailable.
+uint64_t ProcessCpuNanoTime();
+
 // Converts the given number of nanoseconds to milliseconds.
 static constexpr inline uint64_t NsToMs(uint64_t ns) {
   return ns / 1000 / 1000;

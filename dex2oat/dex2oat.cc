@@ -518,6 +518,7 @@ class Dex2Oat FINAL {
       runtime_(nullptr),
       thread_count_(sysconf(_SC_NPROCESSORS_CONF)),
       start_ns_(NanoTime()),
+      start_cputime_ns_(ProcessCpuNanoTime()),
       oat_fd_(-1),
       input_vdex_fd_(-1),
       output_vdex_fd_(-1),
@@ -2595,7 +2596,9 @@ class Dex2Oat FINAL {
     // Note: when creation of a runtime fails, e.g., when trying to compile an app but when there
     //       is no image, there won't be a Runtime::Current().
     // Note: driver creation can fail when loading an invalid dex file.
-    LOG(INFO) << "dex2oat took " << PrettyDuration(NanoTime() - start_ns_)
+    LOG(INFO) << "dex2oat took "
+              << PrettyDuration(NanoTime() - start_ns_)
+              << "(" << PrettyDuration(ProcessCpuNanoTime() - start_cputime_ns_) << " cpu)"
               << " (threads: " << thread_count_ << ") "
               << ((Runtime::Current() != nullptr && driver_ != nullptr) ?
                   driver_->GetMemoryUsageString(kIsDebugBuild || VLOG_IS_ON(compiler)) :
@@ -2643,6 +2646,7 @@ class Dex2Oat FINAL {
 
   size_t thread_count_;
   uint64_t start_ns_;
+  uint64_t start_cputime_ns_;
   std::unique_ptr<WatchDog> watchdog_;
   std::vector<std::unique_ptr<File>> oat_files_;
   std::vector<std::unique_ptr<File>> vdex_files_;
