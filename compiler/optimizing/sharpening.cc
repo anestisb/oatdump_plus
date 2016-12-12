@@ -151,7 +151,7 @@ void HSharpening::ProcessLoadClass(HLoadClass* load_class) {
 
   bool is_in_dex_cache = false;
   bool is_in_boot_image = false;
-  HLoadClass::LoadKind desired_load_kind;
+  HLoadClass::LoadKind desired_load_kind = static_cast<HLoadClass::LoadKind>(-1);
   uint64_t address = 0u;  // Class or dex cache element address.
   {
     ScopedObjectAccess soa(Thread::Current());
@@ -190,18 +190,19 @@ void HSharpening::ProcessLoadClass(HLoadClass* load_class) {
           // TODO: Use direct pointers for all non-moving spaces, not just boot image. Bug: 29530787
           desired_load_kind = HLoadClass::LoadKind::kBootImageAddress;
           address = reinterpret_cast64<uint64_t>(klass);
+        } else if (is_in_dex_cache) {
+          desired_load_kind = HLoadClass::LoadKind::kJitTableAddress;
+          // We store in the address field the location of the stack reference maintained
+          // by the handle. We do this now so that the code generation does not need to figure
+          // out which class loader to use.
+          address = reinterpret_cast<uint64_t>(handles_->NewHandle(klass).GetReference());
         } else {
-          // Note: If the class is not in the dex cache or isn't initialized, the
-          // instruction needs environment and will not be inlined across dex files.
-          // Within a dex file, the slow-path helper loads the correct class and
-          // inlined frames are used correctly for OOM stack trace.
-          // TODO: Write a test for this. Bug: 29416588
-          desired_load_kind = HLoadClass::LoadKind::kDexCacheAddress;
-          void* dex_cache_element_address = &dex_cache->GetResolvedTypes()[type_index.index_];
-          address = reinterpret_cast64<uint64_t>(dex_cache_element_address);
+          // Class not loaded yet. Fallback to the dex cache.
+          // TODO(ngeoffray): Generate HDeoptimize instead.
+          desired_load_kind = HLoadClass::LoadKind::kDexCacheViaMethod;
         }
-        // AOT app compilation. Check if the class is in the boot image.
       } else if (is_in_boot_image && !codegen_->GetCompilerOptions().GetCompilePic()) {
+        // AOT app compilation. Check if the class is in the boot image.
         desired_load_kind = HLoadClass::LoadKind::kBootImageAddress;
         address = reinterpret_cast64<uint64_t>(klass);
       } else {
@@ -215,6 +216,7 @@ void HSharpening::ProcessLoadClass(HLoadClass* load_class) {
       }
     }
   }
+  DCHECK_NE(desired_load_kind, static_cast<HLoadClass::LoadKind>(-1));
 
   if (is_in_boot_image) {
     load_class->MarkInBootImage();
@@ -245,7 +247,7 @@ void HSharpening::ProcessLoadClass(HLoadClass* load_class) {
       load_class->SetLoadKindWithTypeReference(load_kind, dex_file, type_index);
       break;
     case HLoadClass::LoadKind::kBootImageAddress:
-    case HLoadClass::LoadKind::kDexCacheAddress:
+    case HLoadClass::LoadKind::kJitTableAddress:
       DCHECK_NE(address, 0u);
       load_class->SetLoadKindWithAddress(load_kind, address);
       break;
