@@ -1080,7 +1080,7 @@ public class Main {
       return result;
     }
     public static Long sumToReference(int... ints) {
-      System.err.println("Hi");
+      System.out.println("Hi");
       return new Long(sumToPrimitive(ints));
     }
     public static MethodHandles.Lookup lookup() {
@@ -1432,13 +1432,13 @@ public class Main {
     assertEquals(Long.valueOf(10l), (Long) mh.invoke(1, 2, 3, 4));
     try {
       // WrongMethodTypeException should be raised before invoke here.
-      System.err.print("Expect Hi here: ");
+      System.out.print("Expect Hi here: ");
       assertEquals(Long.valueOf(10l), (Byte) mh.invoke(1, 2, 3, 4));
       fail();
     } catch (ClassCastException e) {}
     try {
       // WrongMethodTypeException should be raised before invoke here.
-      System.err.println("Don't expect Hi now");
+      System.out.println("Don't expect Hi now");
       byte b = (byte) mh.invoke(1, 2, 3, 4);
       fail();
     } catch (WrongMethodTypeException e) {}
