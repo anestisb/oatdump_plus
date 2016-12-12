@@ -595,6 +595,12 @@ class StackVisitor {
   // Return 'true' if we should continue to visit more frames, 'false' to stop.
   virtual bool VisitFrame() REQUIRES_SHARED(Locks::mutator_lock_) = 0;
 
+  enum class CountTransitions {
+    kYes,
+    kNo,
+  };
+
+  template <CountTransitions kCount = CountTransitions::kYes>
   void WalkStack(bool include_transitions = false)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
