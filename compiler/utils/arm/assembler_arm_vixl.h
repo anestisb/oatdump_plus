@@ -54,6 +54,77 @@ class ArmVIXLMacroAssembler FINAL : public vixl32::MacroAssembler {
   void CompareAndBranchIfNonZero(vixl32::Register rn,
                                  vixl32::Label* label,
                                  bool is_far_target = true);
+
+  // In T32 some of the instructions (add, mov, etc) outside an IT block
+  // have only 32-bit encodings. But there are 16-bit flag setting
+  // versions of these instructions (adds, movs, etc). In most of the
+  // cases in ART we don't care if the instructions keep flags or not;
+  // thus we can benefit from smaller code size.
+  // VIXL will never generate flag setting versions (for example, adds
+  // for Add macro instruction) unless vixl32::DontCare option is
+  // explicitly specified. That's why we introduce wrappers to use
+  // DontCare option by default.
+#define WITH_FLAGS_DONT_CARE_RD_RN_OP(func_name) \
+  void (func_name)(vixl32::Register rd, vixl32::Register rn, const vixl32::Operand& operand) { \
+    MacroAssembler::func_name(vixl32::DontCare, rd, rn, operand); \
+  } \
+  using MacroAssembler::func_name
+
+  WITH_FLAGS_DONT_CARE_RD_RN_OP(Adc);
+  WITH_FLAGS_DONT_CARE_RD_RN_OP(Sub);
+  WITH_FLAGS_DONT_CARE_RD_RN_OP(Sbc);
+  WITH_FLAGS_DONT_CARE_RD_RN_OP(Rsb);
+  WITH_FLAGS_DONT_CARE_RD_RN_OP(Rsc);
+
+  WITH_FLAGS_DONT_CARE_RD_RN_OP(Eor);
+  WITH_FLAGS_DONT_CARE_RD_RN_OP(Orr);
+  WITH_FLAGS_DONT_CARE_RD_RN_OP(Orn);
+  WITH_FLAGS_DONT_CARE_RD_RN_OP(And);
+  WITH_FLAGS_DONT_CARE_RD_RN_OP(Bic);
+
+  WITH_FLAGS_DONT_CARE_RD_RN_OP(Asr);
+  WITH_FLAGS_DONT_CARE_RD_RN_OP(Lsr);
+  WITH_FLAGS_DONT_CARE_RD_RN_OP(Lsl);
+  WITH_FLAGS_DONT_CARE_RD_RN_OP(Ror);
+
+#undef WITH_FLAGS_DONT_CARE_RD_RN_OP
+
+#define WITH_FLAGS_DONT_CARE_RD_OP(func_name) \
+  void (func_name)(vixl32::Register rd, const vixl32::Operand& operand) { \
+    MacroAssembler::func_name(vixl32::DontCare, rd, operand); \
+  } \
+  using MacroAssembler::func_name
+
+  WITH_FLAGS_DONT_CARE_RD_OP(Mvn);
+  WITH_FLAGS_DONT_CARE_RD_OP(Mov);
+
+#undef WITH_FLAGS_DONT_CARE_RD_OP
+
+  // The following two functions don't fall into above categories. Overload them separately.
+  void Rrx(vixl32::Register rd, vixl32::Register rn) {
+    MacroAssembler::Rrx(vixl32::DontCare, rd, rn);
+  }
+  using MacroAssembler::Rrx;
+
+  void Mul(vixl32::Register rd, vixl32::Register rn, vixl32::Register rm) {
+    MacroAssembler::Mul(vixl32::DontCare, rd, rn, rm);
+  }
+  using MacroAssembler::Mul;
+
+  // TODO: Remove when MacroAssembler::Add(FlagsUpdate, Condition, Register, Register, Operand)
+  // makes the right decision about 16-bit encodings.
+  void Add(vixl32::Register rd, vixl32::Register rn, const vixl32::Operand& operand) {
+    if (rd.Is(rn)) {
+      MacroAssembler::Add(rd, rn, operand);
+    } else {
+      MacroAssembler::Add(vixl32::DontCare, rd, rn, operand);
+    }
+  }
+  using MacroAssembler::Add;
+
+  // These interfaces try to use 16-bit T2 encoding of B instruction.
+  void B(vixl32::Label* label);
+  void B(vixl32::Condition cond, vixl32::Label* label);
 };
 
 class ArmVIXLAssembler FINAL : public Assembler {

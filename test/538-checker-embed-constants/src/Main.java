@@ -308,7 +308,7 @@ public class Main {
   }
 
   /// CHECK-START-ARM: long Main.shl32(long) disassembly (after)
-  /// CHECK-DAG:            mov {{r\d+}}, {{r\d+}}
+  /// CHECK-DAG:            mov{{s?}} {{r\d+}}, {{r\d+}}
   /// CHECK-DAG:            mov{{s?|\.w}} {{r\d+}}, #0
 
   /// CHECK-START-ARM: long Main.shl32(long) disassembly (after)
@@ -377,7 +377,7 @@ public class Main {
 
   /// CHECK-START-ARM: long Main.shr32(long) disassembly (after)
   /// CHECK-DAG:            asr{{s?|\.w}} {{r\d+}}, <<high:r\d+>>, #31
-  /// CHECK-DAG:            mov {{r\d+}}, <<high>>
+  /// CHECK-DAG:            mov{{s?}} {{r\d+}}, <<high>>
 
   /// CHECK-START-ARM: long Main.shr32(long) disassembly (after)
   /// CHECK-NOT:            asr{{s?|\.w}} {{r\d+}}, {{r\d+}}, {{r\d+}}
@@ -445,7 +445,7 @@ public class Main {
   }
 
   /// CHECK-START-ARM: long Main.ushr32(long) disassembly (after)
-  /// CHECK-DAG:            mov {{r\d+}}, {{r\d+}}
+  /// CHECK-DAG:            mov{{s?}} {{r\d+}}, {{r\d+}}
   /// CHECK-DAG:            mov{{s?|\.w}} {{r\d+}}, #0
 
   /// CHECK-START-ARM: long Main.ushr32(long) disassembly (after)

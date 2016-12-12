@@ -1400,10 +1400,25 @@ void CodeGeneratorARMVIXL::GenerateFrameEntry() {
     GetAssembler()->cfi().AdjustCFAOffset(kArmWordSize * POPCOUNT(fpu_spill_mask_));
     GetAssembler()->cfi().RelOffsetForMany(DWARFReg(s0), 0, fpu_spill_mask_, kArmWordSize);
   }
+
+  if (GetGraph()->HasShouldDeoptimizeFlag()) {
+    UseScratchRegisterScope temps(GetVIXLAssembler());
+    vixl32::Register temp = temps.Acquire();
+    // Initialize should_deoptimize flag to 0.
+    __ Mov(temp, 0);
+    GetAssembler()->StoreToOffset(kStoreWord, temp, sp, -kShouldDeoptimizeFlagSize);
+  }
+
   int adjust = GetFrameSize() - FrameEntrySpillSize();
   __ Sub(sp, sp, adjust);
   GetAssembler()->cfi().AdjustCFAOffset(adjust);
-  GetAssembler()->StoreToOffset(kStoreWord, kMethodRegister, sp, 0);
+
+  // Save the current method if we need it. Note that we do not
+  // do this in HCurrentMethod, as the instruction might have been removed
+  // in the SSA graph.
+  if (RequiresCurrentMethod()) {
+    GetAssembler()->StoreToOffset(kStoreWord, kMethodRegister, sp, 0);
+  }
 }
 
 void CodeGeneratorARMVIXL::GenerateFrameExit() {
@@ -3606,8 +3621,7 @@ void InstructionCodeGeneratorARMVIXL::HandleLongRotate(HRor* ror) {
 
     __ And(shift_right, RegisterFrom(rhs), 0x1F);
     __ Lsrs(shift_left, RegisterFrom(rhs), 6);
-    // TODO(VIXL): Check that flags are kept after "vixl32::LeaveFlags" enabled.
-    __ Rsb(shift_left, shift_right, Operand::From(kArmBitsPerWord));
+    __ Rsb(LeaveFlags, shift_left, shift_right, Operand::From(kArmBitsPerWord));
     __ B(cc, &shift_by_32_plus_shift_right);
 
     // out_reg_hi = (reg_hi << shift_left) | (reg_lo >> shift_right).
@@ -6758,9 +6772,9 @@ void InstructionCodeGeneratorARMVIXL::GenerateAddLongConst(Location out,
     return;
   }
   __ Adds(out_low, first_low, value_low);
-  if (GetAssembler()->ShifterOperandCanHold(ADC, value_high, kCcKeep)) {
+  if (GetAssembler()->ShifterOperandCanHold(ADC, value_high, kCcDontCare)) {
     __ Adc(out_high, first_high, value_high);
-  } else if (GetAssembler()->ShifterOperandCanHold(SBC, ~value_high, kCcKeep)) {
+  } else if (GetAssembler()->ShifterOperandCanHold(SBC, ~value_high, kCcDontCare)) {
     __ Sbc(out_high, first_high, ~value_high);
   } else {
     LOG(FATAL) << "Unexpected constant " << value_high;
