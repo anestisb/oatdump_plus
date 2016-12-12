@@ -1260,7 +1260,8 @@ CodeGeneratorX86_64::CodeGeneratorX86_64(HGraph* graph,
         string_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
         type_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
         fixups_to_jump_tables_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
-        jit_string_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
+        jit_string_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+        jit_class_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
   AddAllocatedRegister(Location::RegisterLocation(kFakeReturnRegister));
 }
 
@@ -5460,8 +5461,7 @@ HLoadClass::LoadKind CodeGeneratorX86_64::GetSupportedLoadClassKind(
       break;
     case HLoadClass::LoadKind::kBootImageAddress:
       break;
-    case HLoadClass::LoadKind::kDexCacheAddress:
-      DCHECK(Runtime::Current()->UseJitCompilation());
+    case HLoadClass::LoadKind::kJitTableAddress:
       break;
     case HLoadClass::LoadKind::kDexCachePcRelative:
       DCHECK(!Runtime::Current()->UseJitCompilation());
@@ -5498,6 +5498,16 @@ void LocationsBuilderX86_64::VisitLoadClass(HLoadClass* cls) {
     locations->SetInAt(0, Location::RequiresRegister());
   }
   locations->SetOut(Location::RequiresRegister());
+}
+
+Label* CodeGeneratorX86_64::NewJitRootClassPatch(const DexFile& dex_file,
+                                                 dex::TypeIndex dex_index,
+                                                 uint64_t address) {
+  jit_class_roots_.Overwrite(TypeReference(&dex_file, dex_index), address);
+  // Add a patch entry and return the label.
+  jit_class_patches_.emplace_back(dex_file, dex_index.index_);
+  PatchInfo<Label>* info = &jit_class_patches_.back();
+  return &info->label;
 }
 
 void InstructionCodeGeneratorX86_64::VisitLoadClass(HLoadClass* cls) {
@@ -5543,26 +5553,13 @@ void InstructionCodeGeneratorX86_64::VisitLoadClass(HLoadClass* cls) {
       codegen_->RecordSimplePatch();
       break;
     }
-    case HLoadClass::LoadKind::kDexCacheAddress: {
-      DCHECK_NE(cls->GetAddress(), 0u);
+    case HLoadClass::LoadKind::kJitTableAddress: {
+      Address address = Address::Absolute(CodeGeneratorX86_64::kDummy32BitOffset,
+                                          /* no_rip */ true);
+      Label* fixup_label =
+          codegen_->NewJitRootClassPatch(cls->GetDexFile(), cls->GetTypeIndex(), cls->GetAddress());
       // /* GcRoot<mirror::Class> */ out = *address
-      if (IsUint<32>(cls->GetAddress())) {
-        Address address = Address::Absolute(cls->GetAddress(), /* no_rip */ true);
-        GenerateGcRootFieldLoad(cls,
-                                out_loc,
-                                address,
-                                /* fixup_label */ nullptr,
-                                read_barrier_option);
-      } else {
-        // TODO: Consider using opcode A1, i.e. movl eax, moff32 (with 64-bit address).
-        __ movq(out, Immediate(cls->GetAddress()));
-        GenerateGcRootFieldLoad(cls,
-                                out_loc,
-                                Address(out, 0),
-                                /* fixup_label */ nullptr,
-                                read_barrier_option);
-      }
-      generate_null_check = !cls->IsInDexCache();
+      GenerateGcRootFieldLoad(cls, out_loc, address, fixup_label, kCompilerReadBarrierOption);
       break;
     }
     case HLoadClass::LoadKind::kDexCachePcRelative: {
@@ -7127,18 +7124,31 @@ void CodeGeneratorX86_64::MoveInt64ToAddress(const Address& addr_low,
   }
 }
 
+void CodeGeneratorX86_64::PatchJitRootUse(uint8_t* code,
+                                          const uint8_t* roots_data,
+                                          const PatchInfo<Label>& info,
+                                          uint64_t index_in_table) const {
+  uint32_t code_offset = info.label.Position() - kLabelPositionToLiteralOffsetAdjustment;
+  uintptr_t address =
+      reinterpret_cast<uintptr_t>(roots_data) + index_in_table * sizeof(GcRoot<mirror::Object>);
+  typedef __attribute__((__aligned__(1))) uint32_t unaligned_uint32_t;
+  reinterpret_cast<unaligned_uint32_t*>(code + code_offset)[0] =
+     dchecked_integral_cast<uint32_t>(address);
+}
+
 void CodeGeneratorX86_64::EmitJitRootPatches(uint8_t* code, const uint8_t* roots_data) {
   for (const PatchInfo<Label>& info : jit_string_patches_) {
-    const auto& it = jit_string_roots_.find(StringReference(&info.dex_file,
-                                                            dex::StringIndex(info.index)));
+    const auto& it = jit_string_roots_.find(
+        StringReference(&info.dex_file, dex::StringIndex(info.index)));
     DCHECK(it != jit_string_roots_.end());
-    size_t index_in_table = it->second;
-    uint32_t code_offset = info.label.Position() - kLabelPositionToLiteralOffsetAdjustment;
-    uintptr_t address =
-        reinterpret_cast<uintptr_t>(roots_data) + index_in_table * sizeof(GcRoot<mirror::Object>);
-    typedef __attribute__((__aligned__(1))) uint32_t unaligned_uint32_t;
-    reinterpret_cast<unaligned_uint32_t*>(code + code_offset)[0] =
-       dchecked_integral_cast<uint32_t>(address);
+    PatchJitRootUse(code, roots_data, info, it->second);
+  }
+
+  for (const PatchInfo<Label>& info : jit_class_patches_) {
+    const auto& it = jit_class_roots_.find(
+        TypeReference(&info.dex_file, dex::TypeIndex(info.index)));
+    DCHECK(it != jit_class_roots_.end());
+    PatchJitRootUse(code, roots_data, info, it->second);
   }
 }
 
