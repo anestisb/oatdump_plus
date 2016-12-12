@@ -190,12 +190,15 @@ void HSharpening::ProcessLoadClass(HLoadClass* load_class) {
           // TODO: Use direct pointers for all non-moving spaces, not just boot image. Bug: 29530787
           desired_load_kind = HLoadClass::LoadKind::kBootImageAddress;
           address = reinterpret_cast64<uint64_t>(klass);
-        } else if (is_in_dex_cache) {
-          desired_load_kind = HLoadClass::LoadKind::kJitTableAddress;
-          // We store in the address field the location of the stack reference maintained
-          // by the handle. We do this now so that the code generation does not need to figure
-          // out which class loader to use.
-          address = reinterpret_cast<uint64_t>(handles_->NewHandle(klass).GetReference());
+        } else {
+          // Note: If the class is not in the dex cache or isn't initialized, the
+          // instruction needs environment and will not be inlined across dex files.
+          // Within a dex file, the slow-path helper loads the correct class and
+          // inlined frames are used correctly for OOM stack trace.
+          // TODO: Write a test for this. Bug: 29416588
+          desired_load_kind = HLoadClass::LoadKind::kDexCacheAddress;
+          void* dex_cache_element_address = &dex_cache->GetResolvedTypes()[type_index.index_];
+          address = reinterpret_cast64<uint64_t>(dex_cache_element_address);
         }
         // AOT app compilation. Check if the class is in the boot image.
       } else if (is_in_boot_image && !codegen_->GetCompilerOptions().GetCompilePic()) {
@@ -242,7 +245,7 @@ void HSharpening::ProcessLoadClass(HLoadClass* load_class) {
       load_class->SetLoadKindWithTypeReference(load_kind, dex_file, type_index);
       break;
     case HLoadClass::LoadKind::kBootImageAddress:
-    case HLoadClass::LoadKind::kJitTableAddress:
+    case HLoadClass::LoadKind::kDexCacheAddress:
       DCHECK_NE(address, 0u);
       load_class->SetLoadKindWithAddress(load_kind, address);
       break;
