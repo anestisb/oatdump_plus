@@ -155,7 +155,7 @@ class ThreadList {
                !Locks::thread_list_lock_,
                !Locks::thread_suspend_count_lock_);
 
-  void VisitRoots(RootVisitor* visitor) const
+  void VisitRoots(RootVisitor* visitor, VisitRootFlags flags) const
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   void VisitRootsForSuspendedThreads(RootVisitor* visitor)
