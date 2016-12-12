@@ -35,11 +35,13 @@ class HSharpening : public HOptimization {
   HSharpening(HGraph* graph,
               CodeGenerator* codegen,
               const DexCompilationUnit& compilation_unit,
-              CompilerDriver* compiler_driver)
+              CompilerDriver* compiler_driver,
+              VariableSizedHandleScope* handles)
       : HOptimization(graph, kSharpeningPassName),
         codegen_(codegen),
         compilation_unit_(compilation_unit),
-        compiler_driver_(compiler_driver) { }
+        compiler_driver_(compiler_driver),
+        handles_(handles) { }
 
   void Run() OVERRIDE;
 
@@ -53,6 +55,7 @@ class HSharpening : public HOptimization {
   CodeGenerator* codegen_;
   const DexCompilationUnit& compilation_unit_;
   CompilerDriver* compiler_driver_;
+  VariableSizedHandleScope* handles_;
 };
 
 }  // namespace art

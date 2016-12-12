@@ -1216,7 +1216,9 @@ CodeGeneratorARM::CodeGeneratorARM(HGraph* graph,
       boot_image_address_patches_(std::less<uint32_t>(),
                                   graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       jit_string_patches_(StringReferenceValueComparator(),
-                          graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
+                          graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      jit_class_patches_(TypeReferenceValueComparator(),
+                         graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
   // Always save the LR register to mimic Quick.
   AddAllocatedRegister(Location::RegisterLocation(LR));
 }
@@ -5712,8 +5714,7 @@ HLoadClass::LoadKind CodeGeneratorARM::GetSupportedLoadClassKind(
       break;
     case HLoadClass::LoadKind::kBootImageAddress:
       break;
-    case HLoadClass::LoadKind::kDexCacheAddress:
-      DCHECK(Runtime::Current()->UseJitCompilation());
+    case HLoadClass::LoadKind::kJitTableAddress:
       break;
     case HLoadClass::LoadKind::kDexCachePcRelative:
       DCHECK(!Runtime::Current()->UseJitCompilation());
@@ -5814,22 +5815,12 @@ void InstructionCodeGeneratorARM::VisitLoadClass(HLoadClass* cls) {
       __ LoadLiteral(out, codegen_->DeduplicateBootImageAddressLiteral(address));
       break;
     }
-    case HLoadClass::LoadKind::kDexCacheAddress: {
-      DCHECK_NE(cls->GetAddress(), 0u);
-      uint32_t address = dchecked_integral_cast<uint32_t>(cls->GetAddress());
-      // 16-bit LDR immediate has a 5-bit offset multiplied by the size and that gives
-      // a 128B range. To try and reduce the number of literals if we load multiple types,
-      // simply split the dex cache address to a 128B aligned base loaded from a literal
-      // and the remaining offset embedded in the load.
-      static_assert(sizeof(GcRoot<mirror::Class>) == 4u, "Expected GC root to be 4 bytes.");
-      DCHECK_ALIGNED(cls->GetAddress(), 4u);
-      constexpr size_t offset_bits = /* encoded bits */ 5 + /* scale */ 2;
-      uint32_t base_address = address & ~MaxInt<uint32_t>(offset_bits);
-      uint32_t offset = address & MaxInt<uint32_t>(offset_bits);
-      __ LoadLiteral(out, codegen_->DeduplicateDexCacheAddressLiteral(base_address));
-      // /* GcRoot<mirror::Class> */ out = *(base_address + offset)
-      GenerateGcRootFieldLoad(cls, out_loc, out, offset, read_barrier_option);
-      generate_null_check = !cls->IsInDexCache();
+    case HLoadClass::LoadKind::kJitTableAddress: {
+      __ LoadLiteral(out, codegen_->DeduplicateJitClassLiteral(cls->GetDexFile(),
+                                                               cls->GetTypeIndex(),
+                                                               cls->GetAddress()));
+      // /* GcRoot<mirror::Class> */ out = *out
+      GenerateGcRootFieldLoad(cls, out_loc, out, /* offset */ 0, kCompilerReadBarrierOption);
       break;
     }
     case HLoadClass::LoadKind::kDexCachePcRelative: {
@@ -7391,6 +7382,15 @@ Literal* CodeGeneratorARM::DeduplicateJitStringLiteral(const DexFile& dex_file,
       [this]() { return __ NewLiteral<uint32_t>(/* placeholder */ 0u); });
 }
 
+Literal* CodeGeneratorARM::DeduplicateJitClassLiteral(const DexFile& dex_file,
+                                                      dex::TypeIndex type_index,
+                                                      uint64_t address) {
+  jit_class_roots_.Overwrite(TypeReference(&dex_file, type_index), address);
+  return jit_class_patches_.GetOrCreate(
+      TypeReference(&dex_file, type_index),
+      [this]() { return __ NewLiteral<uint32_t>(/* placeholder */ 0u); });
+}
+
 template <LinkerPatch (*Factory)(size_t, const DexFile*, uint32_t, uint32_t)>
 inline void CodeGeneratorARM::EmitPcRelativeLinkerPatches(
     const ArenaDeque<PcRelativePatchInfo>& infos,
@@ -7707,18 +7707,28 @@ void InstructionCodeGeneratorARM::VisitClassTableGet(HClassTableGet* instruction
   }
 }
 
+static void PatchJitRootUse(uint8_t* code,
+                            const uint8_t* roots_data,
+                            Literal* literal,
+                            uint64_t index_in_table) {
+  DCHECK(literal->GetLabel()->IsBound());
+  uint32_t literal_offset = literal->GetLabel()->Position();
+  uintptr_t address =
+      reinterpret_cast<uintptr_t>(roots_data) + index_in_table * sizeof(GcRoot<mirror::Object>);
+  uint8_t* data = code + literal_offset;
+  reinterpret_cast<uint32_t*>(data)[0] = dchecked_integral_cast<uint32_t>(address);
+}
+
 void CodeGeneratorARM::EmitJitRootPatches(uint8_t* code, const uint8_t* roots_data) {
   for (const auto& entry : jit_string_patches_) {
     const auto& it = jit_string_roots_.find(entry.first);
     DCHECK(it != jit_string_roots_.end());
-    size_t index_in_table = it->second;
-    Literal* literal = entry.second;
-    DCHECK(literal->GetLabel()->IsBound());
-    uint32_t literal_offset = literal->GetLabel()->Position();
-    uintptr_t address =
-        reinterpret_cast<uintptr_t>(roots_data) + index_in_table * sizeof(GcRoot<mirror::Object>);
-    uint8_t* data = code + literal_offset;
-    reinterpret_cast<uint32_t*>(data)[0] = dchecked_integral_cast<uint32_t>(address);
+    PatchJitRootUse(code, roots_data, entry.second, it->second);
+  }
+  for (const auto& entry : jit_class_patches_) {
+    const auto& it = jit_class_roots_.find(entry.first);
+    DCHECK(it != jit_class_roots_.end());
+    PatchJitRootUse(code, roots_data, entry.second, it->second);
   }
 }
 
