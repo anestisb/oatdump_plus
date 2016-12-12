@@ -440,9 +440,11 @@ TEST_ART_BROKEN_FALLBACK_RUN_TESTS := \
   629-vdex-speed
 
 # This test fails without an image.
+# 964 often times out due to the large number of classes it tries to compile.
 TEST_ART_BROKEN_NO_IMAGE_RUN_TESTS := \
   137-cfi \
-  138-duplicate-classes-check
+  138-duplicate-classes-check \
+  964-default-iface-init
 
 ifneq (,$(filter no-dex2oat,$(PREBUILD_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),no-dex2oat, \
