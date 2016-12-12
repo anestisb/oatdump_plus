@@ -269,6 +269,43 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_followReferences(JNIEnv* env
       jvmtiHeapReferenceInfo info_;
     };
 
+    class StackLocalElement : public Elem {
+     public:
+      StackLocalElement(const std::string& referrer,
+                        const std::string& referree,
+                        jlong size,
+                        jint length,
+                        const jvmtiHeapReferenceInfo* reference_info)
+          : Elem(referrer, referree, size, length) {
+        memcpy(&info_, reference_info, sizeof(jvmtiHeapReferenceInfo));
+      }
+
+     protected:
+      std::string PrintArrowType() const OVERRIDE {
+        char* name = nullptr;
+        if (info_.stack_local.method != nullptr) {
+          jvmti_env->GetMethodName(info_.stack_local.method, &name, nullptr, nullptr);
+        }
+        std::string ret = StringPrintf("stack-local[id=%" PRId64 ",tag=%" PRId64 ",depth=%d,"
+                                       "method=%s,vreg=%d,location=% " PRId64 "]",
+                                       info_.stack_local.thread_id,
+                                       info_.stack_local.thread_tag,
+                                       info_.stack_local.depth,
+                                       name == nullptr ? "<null>" : name,
+                                       info_.stack_local.slot,
+                                       info_.stack_local.location);
+        if (name != nullptr) {
+          jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(name));
+        }
+
+        return ret;
+      }
+
+     private:
+      const std::string string_;
+      jvmtiHeapReferenceInfo info_;
+    };
+
     // For simple or unimplemented cases.
     class StringElement : public Elem {
      public:
@@ -380,11 +417,11 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_followReferences(JNIEnv* env
                                                          length,
                                                          "monitor"));
         case JVMTI_HEAP_REFERENCE_STACK_LOCAL:
-          return std::unique_ptr<Elem>(new StringElement(referrer,
-                                                         referree,
-                                                         size,
-                                                         length,
-                                                         "stack-local"));
+          return std::unique_ptr<Elem>(new StackLocalElement(referrer,
+                                                             referree,
+                                                             size,
+                                                             length,
+                                                             reference_info));
         case JVMTI_HEAP_REFERENCE_JNI_LOCAL:
           return std::unique_ptr<Elem>(new JNILocalElement(referrer,
                                                            referree,
