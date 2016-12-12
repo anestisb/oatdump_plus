@@ -1395,10 +1395,10 @@ void ThreadList::VisitRootsForSuspendedThreads(RootVisitor* visitor) {
   }
 }
 
-void ThreadList::VisitRoots(RootVisitor* visitor) const {
+void ThreadList::VisitRoots(RootVisitor* visitor, VisitRootFlags flags) const {
   MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
   for (const auto& thread : list_) {
-    thread->VisitRoots(visitor);
+    thread->VisitRoots(visitor, flags);
   }
 }
 
