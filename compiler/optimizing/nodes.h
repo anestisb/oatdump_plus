@@ -5493,8 +5493,9 @@ class HLoadClass FINAL : public HInstruction {
     // GetIncludePatchInformation().
     kBootImageAddress,
 
-    // Load from the root table associated with the JIT compiled method.
-    kJitTableAddress,
+    // Load from the resolved types array at an absolute address.
+    // Used for classes outside the boot image referenced by JIT-compiled code.
+    kDexCacheAddress,
 
     // Load from resolved types array in the dex cache using a PC-relative load.
     // Used for classes outside boot image when we know that we can access
@@ -5587,6 +5588,7 @@ class HLoadClass FINAL : public HInstruction {
            NeedsAccessCheck();
   }
 
+
   bool CanThrow() const OVERRIDE {
     return CanCallRuntime();
   }
@@ -5611,9 +5613,7 @@ class HLoadClass FINAL : public HInstruction {
     return load_data_.address;
   }
 
-  bool NeedsDexCacheOfDeclaringClass() const OVERRIDE {
-    return !IsReferrersClass();
-  }
+  bool NeedsDexCacheOfDeclaringClass() const OVERRIDE { return !IsReferrersClass(); }
 
   static SideEffects SideEffectsForArchRuntimeCalls() {
     return SideEffects::CanTriggerGC();
@@ -5672,8 +5672,7 @@ class HLoadClass FINAL : public HInstruction {
   }
 
   static bool HasAddress(LoadKind load_kind) {
-    return load_kind == LoadKind::kBootImageAddress ||
-        load_kind == LoadKind::kJitTableAddress;
+    return load_kind == LoadKind::kBootImageAddress || load_kind == LoadKind::kDexCacheAddress;
   }
 
   static bool HasDexCacheReference(LoadKind load_kind) {
@@ -5692,7 +5691,7 @@ class HLoadClass FINAL : public HInstruction {
 
   union {
     uint32_t dex_cache_element_index;   // Only for dex cache reference.
-    uint64_t address;  // Up to 64-bit, needed for kJitTableAddress on 64-bit targets.
+    uint64_t address;  // Up to 64-bit, needed for kDexCacheAddress on 64-bit targets.
   } load_data_;
 
   ReferenceTypeInfo loaded_class_rti_;
