@@ -85,7 +85,7 @@ public class Main {
     v.add("0@0", "1@1000");  // tmpStorage[0] --(array-element)--> a.
 
     doFollowReferencesTestImpl(null, Integer.MAX_VALUE, -1, null, v, null);
-    doFollowReferencesTestImpl(a.foo, Integer.MAX_VALUE, -1, null, v, "2@1000");
+    doFollowReferencesTestImpl(a.foo2, Integer.MAX_VALUE, -1, null, v, "3@1001");
 
     tmpStorage.clear();
   }
@@ -96,7 +96,7 @@ public class Main {
     A a = createTree(v);
 
     doFollowReferencesTestImpl(null, Integer.MAX_VALUE, -1, a, v, null);
-    doFollowReferencesTestImpl(a.foo, Integer.MAX_VALUE, -1, a, v, "2@1000");
+    doFollowReferencesTestImpl(a.foo2, Integer.MAX_VALUE, -1, a, v, "3@1001");
   }
 
   private static void doFollowReferencesTestImpl(A root, int stopAfter, int followSet,

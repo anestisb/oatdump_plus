@@ -174,10 +174,11 @@ jvmtiError HeapUtil::IterateThroughHeap(jvmtiEnv* env ATTRIBUTE_UNUSED,
 class FollowReferencesHelper FINAL {
  public:
   FollowReferencesHelper(HeapUtil* h,
-                         art::ObjPtr<art::mirror::Object> initial_object ATTRIBUTE_UNUSED,
+                         art::ObjPtr<art::mirror::Object> initial_object,
                          const jvmtiHeapCallbacks* callbacks,
                          const void* user_data)
       : tag_table_(h->GetTags()),
+        initial_object_(initial_object),
         callbacks_(callbacks),
         user_data_(user_data),
         start_(0),
@@ -187,13 +188,18 @@ class FollowReferencesHelper FINAL {
   void Init()
       REQUIRES_SHARED(art::Locks::mutator_lock_)
       REQUIRES(!*tag_table_->GetAllowDisallowLock()) {
-    CollectAndReportRootsVisitor carrv(this, tag_table_, &worklist_, &visited_);
-    art::Runtime::Current()->VisitRoots(&carrv);
-    art::Runtime::Current()->VisitImageRoots(&carrv);
-    stop_reports_ = carrv.IsStopReports();
+    if (initial_object_.IsNull()) {
+      CollectAndReportRootsVisitor carrv(this, tag_table_, &worklist_, &visited_);
+      art::Runtime::Current()->VisitRoots(&carrv);
+      art::Runtime::Current()->VisitImageRoots(&carrv);
+      stop_reports_ = carrv.IsStopReports();
 
-    if (stop_reports_) {
-      worklist_.clear();
+      if (stop_reports_) {
+        worklist_.clear();
+      }
+    } else {
+      visited_.insert(initial_object_.Ptr());
+      worklist_.push_back(initial_object_.Ptr());
     }
   }
 
@@ -616,6 +622,7 @@ class FollowReferencesHelper FINAL {
   }
 
   ObjectTagTable* tag_table_;
+  art::ObjPtr<art::mirror::Object> initial_object_;
   const jvmtiHeapCallbacks* callbacks_;
   const void* user_data_;
 
@@ -646,20 +653,28 @@ jvmtiError HeapUtil::FollowReferences(jvmtiEnv* env ATTRIBUTE_UNUSED,
   }
 
   art::Thread* self = art::Thread::Current();
-  art::ScopedObjectAccess soa(self);      // Now we know we have the shared lock.
 
-  art::Runtime::Current()->GetHeap()->IncrementDisableMovingGC(self);
+  art::gc::Heap* heap = art::Runtime::Current()->GetHeap();
+  if (heap->IsGcConcurrentAndMoving()) {
+    // Need to take a heap dump while GC isn't running. See the
+    // comment in Heap::VisitObjects().
+    heap->IncrementDisableMovingGC(self);
+  }
   {
-    art::ObjPtr<art::mirror::Object> o_initial = soa.Decode<art::mirror::Object>(initial_object);
-
+    art::ScopedObjectAccess soa(self);      // Now we know we have the shared lock.
     art::ScopedThreadSuspension sts(self, art::kWaitingForVisitObjects);
     art::ScopedSuspendAll ssa("FollowReferences");
 
-    FollowReferencesHelper frh(this, o_initial, callbacks, user_data);
+    FollowReferencesHelper frh(this,
+                               self->DecodeJObject(initial_object),
+                               callbacks,
+                               user_data);
     frh.Init();
     frh.Work();
   }
-  art::Runtime::Current()->GetHeap()->DecrementDisableMovingGC(self);
+  if (heap->IsGcConcurrentAndMoving()) {
+    heap->DecrementDisableMovingGC(self);
+  }
 
   return ERR(NONE);
 }
