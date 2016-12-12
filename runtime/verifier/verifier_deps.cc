@@ -345,8 +345,15 @@ void VerifierDeps::AddAssignability(const DexFile& dex_file,
   // merely on no issues with linking (valid access flags, superclass and
   // implemented interfaces). If the class at any point reached the IsResolved
   // status, the requirement holds. This is guaranteed by RegTypeCache::ResolveClass.
-  DCHECK(destination != nullptr && !destination->IsPrimitive());
-  DCHECK(source != nullptr && !source->IsPrimitive());
+  DCHECK(destination != nullptr);
+  DCHECK(source != nullptr);
+
+  if (destination->IsPrimitive() || source->IsPrimitive()) {
+    // Primitive types are trivially non-assignable to anything else.
+    // We do not need to record trivial assignability, as it will
+    // not change across releases.
+    return;
+  }
 
   if (destination == source ||
       destination->IsObjectClass() ||
