@@ -455,5 +455,27 @@ void ArmVIXLMacroAssembler::CompareAndBranchIfNonZero(vixl32::Register rn,
   B(ne, label);
 }
 
+void ArmVIXLMacroAssembler::B(vixl32::Label* label) {
+  if (!label->IsBound()) {
+    // Try to use 16-bit T2 encoding of B instruction.
+    DCHECK(OutsideITBlock());
+    AssemblerAccurateScope ass(this,
+                               kMaxInstructionSizeInBytes,
+                               CodeBufferCheckScope::kMaximumSize);
+    b(al, Narrow, label);
+    AddBranchLabel(label);
+    return;
+  }
+  MacroAssembler::B(label);
+}
+
+void ArmVIXLMacroAssembler::B(vixl32::Condition cond, vixl32::Label* label) {
+  // To further reduce the Bcc encoding size and use 16-bit T1 encoding,
+  // we can provide a hint to this function: i.e. far_target=false.
+  // By default this function uses 'EncodingSizeType::Best' which generates 32-bit T3 encoding.
+  MacroAssembler::B(cond, label);
+}
+
+
 }  // namespace arm
 }  // namespace art
