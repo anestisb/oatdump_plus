@@ -2598,7 +2598,7 @@ class Dex2Oat FINAL {
     // Note: driver creation can fail when loading an invalid dex file.
     LOG(INFO) << "dex2oat took "
               << PrettyDuration(NanoTime() - start_ns_)
-              << "(" << PrettyDuration(ProcessCpuNanoTime() - start_cputime_ns_) << " cpu)"
+              << " (" << PrettyDuration(ProcessCpuNanoTime() - start_cputime_ns_) << " cpu)"
               << " (threads: " << thread_count_ << ") "
               << ((Runtime::Current() != nullptr && driver_ != nullptr) ?
                   driver_->GetMemoryUsageString(kIsDebugBuild || VLOG_IS_ON(compiler)) :
