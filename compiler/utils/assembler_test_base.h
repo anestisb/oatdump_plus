@@ -23,6 +23,8 @@
 #include <iterator>
 #include <sys/stat.h>
 
+#include "android-base/strings.h"
+
 #include "common_runtime_test.h"  // For ScratchFile
 #include "utils.h"
 
@@ -221,7 +223,7 @@ class AssemblerTestInfrastructure {
     args.push_back("-o");
     args.push_back(to_file);
     args.push_back(from_file);
-    std::string cmd = Join(args, ' ');
+    std::string cmd = android::base::Join(args, ' ');
 
     args.clear();
     args.push_back("/bin/sh");
@@ -257,7 +259,7 @@ class AssemblerTestInfrastructure {
     args.push_back(file);
     args.push_back(">");
     args.push_back(file+".dump");
-    std::string cmd = Join(args, ' ');
+    std::string cmd = android::base::Join(args, ' ');
 
     args.clear();
     args.push_back("/bin/sh");
@@ -338,7 +340,7 @@ class AssemblerTestInfrastructure {
     args.push_back("| sed -n \'/<.data>/,$p\' | sed -e \'s/.*://\'");
     args.push_back(">");
     args.push_back(file+".dis");
-    std::string cmd = Join(args, ' ');
+    std::string cmd = android::base::Join(args, ' ');
 
     args.clear();
     args.push_back("/bin/sh");
@@ -500,7 +502,7 @@ class AssemblerTestInfrastructure {
     std::string tmp_file = GetTmpnam();
     args.push_back(">");
     args.push_back(tmp_file);
-    std::string sh_args = Join(args, ' ');
+    std::string sh_args = android::base::Join(args, ' ');
 
     args.clear();
     args.push_back("/bin/sh");
@@ -541,7 +543,7 @@ class AssemblerTestInfrastructure {
     args.push_back("sort");
     args.push_back(">");
     args.push_back(tmp_file);
-    std::string sh_args = Join(args, ' ');
+    std::string sh_args = android::base::Join(args, ' ');
 
     args.clear();
     args.push_back("/bin/sh");

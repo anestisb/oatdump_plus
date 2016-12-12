@@ -25,6 +25,8 @@
 #include <string>
 #include <vector>
 
+#include "android-base/strings.h"
+
 #include "base/dumpable.h"
 #include "base/scoped_flock.h"
 #include "base/stringpiece.h"
@@ -48,7 +50,7 @@ static std::string CommandLine() {
   for (int i = 0; i < original_argc; ++i) {
     command.push_back(original_argv[i]);
   }
-  return Join(command, ' ');
+  return android::base::Join(command, ' ');
 }
 
 static constexpr int kInvalidFd = -1;

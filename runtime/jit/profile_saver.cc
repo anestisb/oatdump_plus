@@ -20,6 +20,8 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#include "android-base/strings.h"
+
 #include "art_method-inl.h"
 #include "base/enums.h"
 #include "base/systrace.h"
@@ -412,7 +414,7 @@ void ProfileSaver::Start(const ProfileSaverOptions& options,
   }
 
   VLOG(profiler) << "Starting profile saver using output file: " << output_filename
-      << ". Tracking: " << Join(code_paths_to_profile, ':');
+      << ". Tracking: " << android::base::Join(code_paths_to_profile, ':');
 
   instance_ = new ProfileSaver(options,
                                output_filename,

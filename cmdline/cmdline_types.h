@@ -22,6 +22,8 @@
 #include "detail/cmdline_debug_detail.h"
 #include "cmdline_type_parser.h"
 
+#include "android-base/strings.h"
+
 // Includes for the types that are being specialized
 #include <string>
 #include "base/logging.h"
@@ -447,7 +449,7 @@ struct ParseStringList {
   }
 
   std::string Join() const {
-    return art::Join(list_, Separator);
+    return android::base::Join(list_, Separator);
   }
 
   static ParseStringList<Separator> Split(const std::string& str) {
@@ -709,43 +711,43 @@ struct CmdlineType<ProfileSaverOptions> : CmdlineTypeParser<ProfileSaverOptions>
     // The rest of these options are always the wildcard from '-Xps-*'
     std::string suffix = RemovePrefix(option);
 
-    if (StartsWith(option, "min-save-period-ms:")) {
+    if (android::base::StartsWith(option, "min-save-period-ms:")) {
       CmdlineType<unsigned int> type_parser;
       return ParseInto(existing,
              &ProfileSaverOptions::min_save_period_ms_,
              type_parser.Parse(suffix));
     }
-    if (StartsWith(option, "save-resolved-classes-delay-ms:")) {
+    if (android::base::StartsWith(option, "save-resolved-classes-delay-ms:")) {
       CmdlineType<unsigned int> type_parser;
       return ParseInto(existing,
              &ProfileSaverOptions::save_resolved_classes_delay_ms_,
              type_parser.Parse(suffix));
     }
-    if (StartsWith(option, "startup-method-samples:")) {
+    if (android::base::StartsWith(option, "startup-method-samples:")) {
       CmdlineType<unsigned int> type_parser;
       return ParseInto(existing,
              &ProfileSaverOptions::startup_method_samples_,
              type_parser.Parse(suffix));
     }
-    if (StartsWith(option, "min-methods-to-save:")) {
+    if (android::base::StartsWith(option, "min-methods-to-save:")) {
       CmdlineType<unsigned int> type_parser;
       return ParseInto(existing,
              &ProfileSaverOptions::min_methods_to_save_,
              type_parser.Parse(suffix));
     }
-    if (StartsWith(option, "min-classes-to-save:")) {
+    if (android::base::StartsWith(option, "min-classes-to-save:")) {
       CmdlineType<unsigned int> type_parser;
       return ParseInto(existing,
              &ProfileSaverOptions::min_classes_to_save_,
              type_parser.Parse(suffix));
     }
-    if (StartsWith(option, "min-notification-before-wake:")) {
+    if (android::base::StartsWith(option, "min-notification-before-wake:")) {
       CmdlineType<unsigned int> type_parser;
       return ParseInto(existing,
              &ProfileSaverOptions::min_notification_before_wake_,
              type_parser.Parse(suffix));
     }
-    if (StartsWith(option, "max-notification-before-wake:")) {
+    if (android::base::StartsWith(option, "max-notification-before-wake:")) {
       CmdlineType<unsigned int> type_parser;
       return ParseInto(existing,
              &ProfileSaverOptions::max_notification_before_wake_,

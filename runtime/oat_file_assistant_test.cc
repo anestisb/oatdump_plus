@@ -20,6 +20,7 @@
 #include <vector>
 #include <sys/param.h>
 
+#include "android-base/strings.h"
 #include <backtrace/BacktraceMap.h>
 #include <gtest/gtest.h>
 
@@ -1057,7 +1058,7 @@ static std::string MakePathRelative(const std::string& target) {
 
   // Reverse again to get the right path order, and join to get the result.
   std::reverse(target_path.begin(), target_path.end());
-  return Join(target_path, '/');
+  return android::base::Join(target_path, '/');
 }
 
 // Case: Non-absolute path to Dex location.
@@ -1134,7 +1135,7 @@ class RaceGenerateTask : public Task {
         /*dex_elements*/nullptr,
         &oat_file,
         &error_msgs);
-    CHECK(!dex_files.empty()) << Join(error_msgs, '\n');
+    CHECK(!dex_files.empty()) << android::base::Join(error_msgs, '\n');
     CHECK(dex_files[0]->GetOatDexFile() != nullptr) << dex_files[0]->GetLocation();
     loaded_oat_file_ = dex_files[0]->GetOatDexFile()->GetOatFile();
     CHECK_EQ(loaded_oat_file_, oat_file);
