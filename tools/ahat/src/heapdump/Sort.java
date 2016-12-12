@@ -14,13 +14,8 @@
  * limitations under the License.
  */
 
-package com.android.ahat;
+package com.android.ahat.heapdump;
 
-import com.android.ahat.heapdump.AhatHeap;
-import com.android.ahat.heapdump.AhatInstance;
-import com.android.ahat.heapdump.AhatSnapshot;
-import com.android.ahat.heapdump.NativeAllocation;
-import com.android.ahat.heapdump.Site;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -35,30 +30,20 @@ import java.util.List;
  * with equals. They should not be used for element lookup or search. They
  * should only be used for showing elements to the user in different orders.
  */
-class Sort {
-  /**
-   * Compare instances by their instance id.
-   * This sorts instances from smaller id to larger id.
-   */
-  public static class InstanceById implements Comparator<AhatInstance> {
-    @Override
-    public int compare(AhatInstance a, AhatInstance b) {
-      return Long.compare(a.getId(), b.getId());
-    }
-  }
-
+public class Sort {
   /**
    * Compare instances by their total retained size.
    * Different instances with the same total retained size are considered
    * equal for the purposes of comparison.
    * This sorts instances from larger retained size to smaller retained size.
    */
-  public static class InstanceByTotalRetainedSize implements Comparator<AhatInstance> {
+  public static final Comparator<AhatInstance> INSTANCE_BY_TOTAL_RETAINED_SIZE
+    = new Comparator<AhatInstance>() {
     @Override
     public int compare(AhatInstance a, AhatInstance b) {
       return Long.compare(b.getTotalRetainedSize(), a.getTotalRetainedSize());
     }
-  }
+  };
 
   /**
    * Compare instances by their retained size for a given heap index.
@@ -115,7 +100,7 @@ class Sort {
     }
 
     // Next is by total retained size.
-    comparators.add(new InstanceByTotalRetainedSize());
+    comparators.add(INSTANCE_BY_TOTAL_RETAINED_SIZE);
     return new WithPriority<AhatInstance>(comparators);
   }
 
@@ -142,12 +127,12 @@ class Sort {
    * Compare Sites by the total size of objects allocated.
    * This sorts sites from larger size to smaller size.
    */
-  public static class SiteByTotalSize implements Comparator<Site> {
+  public static final Comparator<Site> SITE_BY_TOTAL_SIZE = new Comparator<Site>() {
     @Override
     public int compare(Site a, Site b) {
       return Long.compare(b.getTotalSize(), a.getTotalSize());
     }
-  }
+  };
 
   public static Comparator<Site> defaultSiteCompare(AhatSnapshot snapshot) {
     List<Comparator<Site>> comparators = new ArrayList<Comparator<Site>>();
@@ -159,7 +144,7 @@ class Sort {
     }
 
     // Next is by total size.
-    comparators.add(new SiteByTotalSize());
+    comparators.add(SITE_BY_TOTAL_SIZE);
     return new WithPriority<Site>(comparators);
   }
 
@@ -169,63 +154,40 @@ class Sort {
    * equal for the purposes of comparison.
    * This sorts object infos from larger retained size to smaller size.
    */
-  public static class ObjectsInfoBySize implements Comparator<Site.ObjectsInfo> {
+  public static final Comparator<Site.ObjectsInfo> OBJECTS_INFO_BY_SIZE
+    = new Comparator<Site.ObjectsInfo>() {
     @Override
     public int compare(Site.ObjectsInfo a, Site.ObjectsInfo b) {
       return Long.compare(b.numBytes, a.numBytes);
     }
-  }
+  };
 
   /**
    * Compare Site.ObjectsInfo by heap name.
    * Different object infos with the same heap name are considered equal for
    * the purposes of comparison.
    */
-  public static class ObjectsInfoByHeapName implements Comparator<Site.ObjectsInfo> {
+  public static final Comparator<Site.ObjectsInfo> OBJECTS_INFO_BY_HEAP_NAME
+    = new Comparator<Site.ObjectsInfo>() {
     @Override
     public int compare(Site.ObjectsInfo a, Site.ObjectsInfo b) {
       return a.heap.getName().compareTo(b.heap.getName());
     }
-  }
+  };
 
   /**
    * Compare Site.ObjectsInfo by class name.
    * Different object infos with the same class name are considered equal for
    * the purposes of comparison.
    */
-  public static class ObjectsInfoByClassName implements Comparator<Site.ObjectsInfo> {
+  public static final Comparator<Site.ObjectsInfo> OBJECTS_INFO_BY_CLASS_NAME
+    = new Comparator<Site.ObjectsInfo>() {
     @Override
     public int compare(Site.ObjectsInfo a, Site.ObjectsInfo b) {
       String aName = a.getClassName();
       String bName = b.getClassName();
       return aName.compareTo(bName);
     }
-  }
-
-  /**
-   * Compare NativeAllocation by heap name.
-   * Different allocations with the same heap name are considered equal for
-   * the purposes of comparison.
-   */
-  public static class NativeAllocationByHeapName
-      implements Comparator<NativeAllocation> {
-    @Override
-    public int compare(NativeAllocation a, NativeAllocation b) {
-      return a.heap.getName().compareTo(b.heap.getName());
-    }
-  }
-
-  /**
-   * Compare NativeAllocation by their size.
-   * Different allocations with the same size are considered equal for the
-   * purposes of comparison.
-   * This sorts allocations from larger size to smaller size.
-   */
-  public static class NativeAllocationBySize implements Comparator<NativeAllocation> {
-    @Override
-    public int compare(NativeAllocation a, NativeAllocation b) {
-      return Long.compare(b.size, a.size);
-    }
-  }
+  };
 }
 

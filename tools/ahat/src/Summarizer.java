@@ -36,25 +36,40 @@ class Summarizer {
   public static DocString summarize(AhatInstance inst) {
     DocString formatted = new DocString();
     if (inst == null) {
-      formatted.append("(null)");
+      formatted.append("null");
       return formatted;
+    }
+
+    // Annotate new objects as new.
+    if (inst.getBaseline().isPlaceHolder()) {
+      formatted.append(DocString.added("new "));
+    }
+
+    // Annotate deleted objects as deleted.
+    if (inst.isPlaceHolder()) {
+      formatted.append(DocString.removed("del "));
     }
 
     // Annotate roots as roots.
     if (inst.isRoot()) {
-      formatted.append("(root) ");
+      formatted.append("root ");
     }
 
     // Annotate classes as classes.
-    DocString link = new DocString();
+    DocString linkText = new DocString();
     if (inst.isClassObj()) {
-      link.append("class ");
+      linkText.append("class ");
     }
 
-    link.append(inst.toString());
+    linkText.append(inst.toString());
 
-    URI objTarget = DocString.formattedUri("object?id=%d", inst.getId());
-    formatted.appendLink(objTarget, link);
+    if (inst.isPlaceHolder()) {
+      // Don't make links to placeholder objects.
+      formatted.append(linkText);
+    } else {
+      URI objTarget = DocString.formattedUri("object?id=%d", inst.getId());
+      formatted.appendLink(objTarget, linkText);
+    }
 
     // Annotate Strings with their values.
     String stringValue = inst.asString(kMaxChars);
@@ -82,7 +97,6 @@ class Summarizer {
         formatted.append("...");
       }
     }
-
 
     // Annotate bitmaps with a thumbnail.
     AhatInstance bitmap = inst.getAssociatedBitmapInstance();

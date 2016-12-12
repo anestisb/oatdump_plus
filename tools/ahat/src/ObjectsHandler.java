@@ -19,6 +19,7 @@ package com.android.ahat;
 import com.android.ahat.heapdump.AhatInstance;
 import com.android.ahat.heapdump.AhatSnapshot;
 import com.android.ahat.heapdump.Site;
+import com.android.ahat.heapdump.Sort;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -52,14 +53,20 @@ class ObjectsHandler implements AhatHandler {
     Collections.sort(insts, Sort.defaultInstanceCompare(mSnapshot));
 
     doc.title("Objects");
+
     doc.table(
         new Column("Size", Column.Align.RIGHT),
+        new Column("Δ", Column.Align.RIGHT, mSnapshot.isDiffed()),
         new Column("Heap"),
         new Column("Object"));
+
     SubsetSelector<AhatInstance> selector = new SubsetSelector(query, OBJECTS_ID, insts);
     for (AhatInstance inst : selector.selected()) {
+      AhatInstance base = inst.getBaseline();
       doc.row(
-          DocString.format("%,d", inst.getSize()),
+          DocString.format("%,14d", inst.getSize()),
+          DocString.delta(inst.isPlaceHolder(), base.isPlaceHolder(),
+            inst.getSize(), base.getSize()),
           DocString.text(inst.getHeap().getName()),
           Summarizer.summarize(inst));
     }

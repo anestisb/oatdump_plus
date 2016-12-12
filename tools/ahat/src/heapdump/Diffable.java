@@ -16,16 +16,23 @@
 
 package com.android.ahat.heapdump;
 
-public class NativeAllocation {
-  public long size;
-  public AhatHeap heap;
-  public long pointer;
-  public AhatInstance referent;
+/**
+ * An interface for objects that have corresponding objects in a baseline heap
+ * dump.
+ */
+public interface Diffable<T> {
+  /**
+   * Return the baseline object that corresponds to this one.
+   */
+  T getBaseline();
 
-  public NativeAllocation(long size, AhatHeap heap, long pointer, AhatInstance referent) {
-    this.size = size;
-    this.heap = heap;
-    this.pointer = pointer;
-    this.referent = referent;
-  }
+  /**
+   * Returns true if this is a placeholder object.
+   * A placeholder object is used to indicate there is some object in the
+   * baseline heap dump that is not in this heap dump. In that case, we create
+   * a dummy place holder object in this heap dump as an indicator of the
+   * object removed from the baseline heap dump.
+   */
+  boolean isPlaceHolder();
 }
+

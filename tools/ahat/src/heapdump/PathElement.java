@@ -16,7 +16,7 @@
 
 package com.android.ahat.heapdump;
 
-public class PathElement {
+public class PathElement implements Diffable<PathElement> {
   public final AhatInstance instance;
   public final String field;
   public boolean isDominator;
@@ -25,5 +25,13 @@ public class PathElement {
     this.instance = instance;
     this.field = field;
     this.isDominator = false;
+  }
+
+  @Override public PathElement getBaseline() {
+    return this;
+  }
+
+  @Override public boolean isPlaceHolder() {
+    return false;
   }
 }

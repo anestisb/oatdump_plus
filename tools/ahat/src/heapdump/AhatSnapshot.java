@@ -38,7 +38,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class AhatSnapshot {
+public class AhatSnapshot implements Diffable<AhatSnapshot> {
   private final Site mRootSite = new Site("ROOT");
 
   // Collection of objects whose immediate dominator is the SENTINEL_ROOT.
@@ -50,9 +50,9 @@ public class AhatSnapshot {
   // Map from class name to class object.
   private final Map<String, AhatClassObj> mClasses = new HashMap<String, AhatClassObj>();
 
-  private final AhatHeap[] mHeaps;
+  private final List<AhatHeap> mHeaps = new ArrayList<AhatHeap>();
 
-  private final List<NativeAllocation> mNativeAllocations = new ArrayList<NativeAllocation>();
+  private AhatSnapshot mBaseline = this;
 
   /**
    * Create an AhatSnapshot from an hprof file.
@@ -98,10 +98,11 @@ public class AhatSnapshot {
 
     // Create mappings from id to ahat instance and heaps.
     Collection<Heap> heaps = snapshot.getHeaps();
-    mHeaps = new AhatHeap[heaps.size()];
     for (Heap heap : heaps) {
-      int heapIndex = snapshot.getHeapIndex(heap);
-      mHeaps[heapIndex] = new AhatHeap(heap.getName(), snapshot.getHeapIndex(heap));
+      // Note: mHeaps will not be in index order if snapshot.getHeaps does not
+      // return heaps in index order. That's fine, because we don't rely on
+      // mHeaps being in index order.
+      mHeaps.add(new AhatHeap(heap.getName(), snapshot.getHeapIndex(heap)));
       TObjectProcedure<Instance> doCreate = new TObjectProcedure<Instance>() {
         @Override
         public boolean execute(Instance inst) {
@@ -165,14 +166,6 @@ public class AhatSnapshot {
       }
     }
     snapshot.dispose();
-
-    // Update the native allocations.
-    for (AhatInstance ahat : mInstances) {
-      NativeAllocation alloc = ahat.getNativeAllocation();
-      if (alloc != null) {
-        mNativeAllocations.add(alloc);
-      }
-    }
   }
 
   /**
@@ -233,8 +226,10 @@ public class AhatSnapshot {
 
   /**
    * Returns a list of heaps in the snapshot in canonical order.
+   * Modifications to the returned list are visible to this AhatSnapshot,
+   * which is used by diff to insert place holder heaps.
    */
-  public AhatHeap[] getHeaps() {
+  public List<AhatHeap> getHeaps() {
     return mHeaps;
   }
 
@@ -247,10 +242,10 @@ public class AhatSnapshot {
   }
 
   /**
-   * Returns a list of native allocations identified in the heap dump.
+   * Returns the root site for this snapshot.
    */
-  public List<NativeAllocation> getNativeAllocations() {
-    return mNativeAllocations;
+  public Site getRootSite() {
+    return mRootSite;
   }
 
   // Get the site associated with the given id and depth.
@@ -274,5 +269,25 @@ public class AhatSnapshot {
       value = findInstance(((Instance)value).getId());
     }
     return value == null ? null : new Value(value);
+  }
+
+  public void setBaseline(AhatSnapshot baseline) {
+    mBaseline = baseline;
+  }
+
+  /**
+   * Returns true if this snapshot has been diffed against another, different
+   * snapshot.
+   */
+  public boolean isDiffed() {
+    return mBaseline != this;
+  }
+
+  @Override public AhatSnapshot getBaseline() {
+    return mBaseline;
+  }
+
+  @Override public boolean isPlaceHolder() {
+    return false;
   }
 }

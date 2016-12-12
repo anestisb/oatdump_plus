@@ -143,55 +143,6 @@ public class AhatClassInstance extends AhatInstance {
     return null;
   }
 
-  @Override public NativeAllocation getNativeAllocation() {
-    if (!isInstanceOfClass("libcore.util.NativeAllocationRegistry$CleanerThunk")) {
-      return null;
-    }
-
-    Long pointer = getLongField("nativePtr", null);
-    if (pointer == null) {
-      return null;
-    }
-
-    // Search for the registry field of inst.
-    AhatInstance registry = null;
-    for (FieldValue field : mFieldValues) {
-      Value fieldValue = field.getValue();
-      if (fieldValue.isAhatInstance()) {
-        AhatClassInstance fieldInst = fieldValue.asAhatInstance().asClassInstance();
-        if (fieldInst != null
-            && fieldInst.isInstanceOfClass("libcore.util.NativeAllocationRegistry")) {
-          registry = fieldInst;
-          break;
-        }
-      }
-    }
-
-    if (registry == null || !registry.isClassInstance()) {
-      return null;
-    }
-
-    Long size = registry.asClassInstance().getLongField("size", null);
-    if (size == null) {
-      return null;
-    }
-
-    AhatInstance referent = null;
-    for (AhatInstance ref : getHardReverseReferences()) {
-      if (ref.isClassInstance() && ref.asClassInstance().isInstanceOfClass("sun.misc.Cleaner")) {
-        referent = ref.getReferent();
-        if (referent != null) {
-          break;
-        }
-      }
-    }
-
-    if (referent == null) {
-      return null;
-    }
-    return new NativeAllocation(size, getHeap(), pointer, referent);
-  }
-
   @Override public String getDexCacheLocation(int maxChars) {
     if (isInstanceOfClass("java.lang.DexCache")) {
       AhatInstance location = getRefField("location");

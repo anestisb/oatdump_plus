@@ -107,5 +107,9 @@ public class AhatClassObj extends AhatInstance {
   @Override public String toString() {
     return mClassName;
   }
+
+  @Override AhatInstance newPlaceHolderInstance() {
+    return new AhatPlaceHolderClassObj(this);
+  }
 }
 

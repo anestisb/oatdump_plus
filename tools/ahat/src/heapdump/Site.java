@@ -23,7 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class Site {
+public class Site implements Diffable<Site> {
   // The site that this site was directly called from.
   // mParent is null for the root site.
   private Site mParent;
@@ -54,17 +54,21 @@ public class Site {
   private List<ObjectsInfo> mObjectsInfos;
   private Map<AhatHeap, Map<AhatClassObj, ObjectsInfo>> mObjectsInfoMap;
 
-  public static class ObjectsInfo {
+  private Site mBaseline;
+
+  public static class ObjectsInfo implements Diffable<ObjectsInfo> {
     public AhatHeap heap;
-    public AhatClassObj classObj;
+    public AhatClassObj classObj;   // May be null.
     public long numInstances;
     public long numBytes;
+    private ObjectsInfo baseline;
 
     public ObjectsInfo(AhatHeap heap, AhatClassObj classObj, long numInstances, long numBytes) {
       this.heap = heap;
       this.classObj = classObj;
       this.numInstances = numInstances;
       this.numBytes = numBytes;
+      this.baseline = this;
     }
 
     /**
@@ -72,6 +76,18 @@ public class Site {
      */
     public String getClassName() {
       return classObj == null ? "???" : classObj.getName();
+    }
+
+    public void setBaseline(ObjectsInfo baseline) {
+      this.baseline = baseline;
+    }
+
+    @Override public ObjectsInfo getBaseline() {
+      return baseline;
+    }
+
+    @Override public boolean isPlaceHolder() {
+      return false;
     }
   }
 
@@ -96,6 +112,7 @@ public class Site {
     mObjects = new ArrayList<AhatInstance>();
     mObjectsInfos = new ArrayList<ObjectsInfo>();
     mObjectsInfoMap = new HashMap<AhatHeap, Map<AhatClassObj, ObjectsInfo>>();
+    mBaseline = this;
   }
 
   /**
@@ -122,19 +139,7 @@ public class Site {
       }
       site.mSizesByHeap[heap.getIndex()] += inst.getSize();
 
-      Map<AhatClassObj, ObjectsInfo> classToObjectsInfo = site.mObjectsInfoMap.get(inst.getHeap());
-      if (classToObjectsInfo == null) {
-        classToObjectsInfo = new HashMap<AhatClassObj, ObjectsInfo>();
-        site.mObjectsInfoMap.put(inst.getHeap(), classToObjectsInfo);
-      }
-
-      ObjectsInfo info = classToObjectsInfo.get(inst.getClassObj());
-      if (info == null) {
-        info = new ObjectsInfo(inst.getHeap(), inst.getClassObj(), 0, 0);
-        site.mObjectsInfos.add(info);
-        classToObjectsInfo.put(inst.getClassObj(), info);
-      }
-
+      ObjectsInfo info = site.getObjectsInfo(inst.getHeap(), inst.getClassObj());
       info.numInstances++;
       info.numBytes += inst.getSize();
 
@@ -167,7 +172,7 @@ public class Site {
   // Get the size of a site for a specific heap.
   public long getSize(AhatHeap heap) {
     int index = heap.getIndex();
-    return index < mSizesByHeap.length ? mSizesByHeap[index] : 0;
+    return index >= 0 && index < mSizesByHeap.length ? mSizesByHeap[index] : 0;
   }
 
   /**
@@ -176,6 +181,26 @@ public class Site {
    */
   public Collection<AhatInstance> getObjects() {
     return mObjects;
+  }
+
+  /**
+   * Returns the ObjectsInfo at this site for the given heap and class
+   * objects. Creates a new empty ObjectsInfo if none existed before.
+   */
+  ObjectsInfo getObjectsInfo(AhatHeap heap, AhatClassObj classObj) {
+    Map<AhatClassObj, ObjectsInfo> classToObjectsInfo = mObjectsInfoMap.get(heap);
+    if (classToObjectsInfo == null) {
+      classToObjectsInfo = new HashMap<AhatClassObj, ObjectsInfo>();
+      mObjectsInfoMap.put(heap, classToObjectsInfo);
+    }
+
+    ObjectsInfo info = classToObjectsInfo.get(classObj);
+    if (info == null) {
+      info = new ObjectsInfo(heap, classObj, 0, 0);
+      mObjectsInfos.add(info);
+      classToObjectsInfo.put(classObj, info);
+    }
+    return info;
   }
 
   public List<ObjectsInfo> getObjectsInfos() {
@@ -232,5 +257,26 @@ public class Site {
 
   public List<Site> getChildren() {
     return mChildren;
+  }
+
+  void setBaseline(Site baseline) {
+    mBaseline = baseline;
+  }
+
+  @Override public Site getBaseline() {
+    return mBaseline;
+  }
+
+  @Override public boolean isPlaceHolder() {
+    return false;
+  }
+
+  /**
+   * Adds a place holder instance to this site and all parent sites.
+   */
+  void addPlaceHolderInstance(AhatInstance placeholder) {
+    for (Site site = this; site != null; site = site.mParent) {
+      site.mObjects.add(placeholder);
+    }
   }
 }

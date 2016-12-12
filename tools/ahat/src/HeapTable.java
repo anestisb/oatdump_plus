@@ -18,6 +18,7 @@ package com.android.ahat;
 
 import com.android.ahat.heapdump.AhatHeap;
 import com.android.ahat.heapdump.AhatSnapshot;
+import com.android.ahat.heapdump.Diffable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -44,12 +45,22 @@ class HeapTable {
     List<ValueConfig<T>> getValueConfigs();
   }
 
+  private static DocString sizeString(long size, boolean isPlaceHolder) {
+    DocString string = new DocString();
+    if (isPlaceHolder) {
+      string.append(DocString.removed("del"));
+    } else if (size != 0) {
+      string.appendFormat("%,14d", size);
+    }
+    return string;
+  }
+
   /**
    * Render the table to the given document.
    * @param query - The page query.
    * @param id - A unique identifier for the table on the page.
    */
-  public static <T> void render(Doc doc, Query query, String id,
+  public static <T extends Diffable<T>> void render(Doc doc, Query query, String id,
       TableConfig<T> config, AhatSnapshot snapshot, List<T> elements) {
     // Only show the heaps that have non-zero entries.
     List<AhatHeap> heaps = new ArrayList<AhatHeap>();
@@ -62,14 +73,14 @@ class HeapTable {
     List<ValueConfig<T>> values = config.getValueConfigs();
 
     // Print the heap and values descriptions.
-    boolean showTotal = heaps.size() > 1;
     List<Column> subcols = new ArrayList<Column>();
     for (AhatHeap heap : heaps) {
       subcols.add(new Column(heap.getName(), Column.Align.RIGHT));
+      subcols.add(new Column("Δ", Column.Align.RIGHT, snapshot.isDiffed()));
     }
-    if (showTotal) {
-      subcols.add(new Column("Total", Column.Align.RIGHT));
-    }
+    boolean showTotal = heaps.size() > 1;
+    subcols.add(new Column("Total", Column.Align.RIGHT, showTotal));
+    subcols.add(new Column("Δ", Column.Align.RIGHT, showTotal && snapshot.isDiffed()));
     List<Column> cols = new ArrayList<Column>();
     for (ValueConfig value : values) {
       cols.add(new Column(value.getDescription()));
@@ -80,16 +91,20 @@ class HeapTable {
     SubsetSelector<T> selector = new SubsetSelector(query, id, elements);
     ArrayList<DocString> vals = new ArrayList<DocString>();
     for (T elem : selector.selected()) {
+      T base = elem.getBaseline();
       vals.clear();
       long total = 0;
+      long basetotal = 0;
       for (AhatHeap heap : heaps) {
         long size = config.getSize(elem, heap);
+        long basesize = config.getSize(base, heap.getBaseline());
         total += size;
-        vals.add(size == 0 ? DocString.text("") : DocString.format("%,14d", size));
+        basetotal += basesize;
+        vals.add(sizeString(size, elem.isPlaceHolder()));
+        vals.add(DocString.delta(elem.isPlaceHolder(), base.isPlaceHolder(), size, basesize));
       }
-      if (showTotal) {
-        vals.add(total == 0 ? DocString.text("") : DocString.format("%,14d", total));
-      }
+      vals.add(sizeString(total, elem.isPlaceHolder()));
+      vals.add(DocString.delta(elem.isPlaceHolder(), base.isPlaceHolder(), total, basetotal));
 
       for (ValueConfig<T> value : values) {
         vals.add(value.render(elem));
@@ -101,26 +116,35 @@ class HeapTable {
     List<T> remaining = selector.remaining();
     if (!remaining.isEmpty()) {
       Map<AhatHeap, Long> summary = new HashMap<AhatHeap, Long>();
+      Map<AhatHeap, Long> basesummary = new HashMap<AhatHeap, Long>();
       for (AhatHeap heap : heaps) {
         summary.put(heap, 0L);
+        basesummary.put(heap, 0L);
       }
 
       for (T elem : remaining) {
         for (AhatHeap heap : heaps) {
-          summary.put(heap, summary.get(heap) + config.getSize(elem, heap));
+          long size = config.getSize(elem, heap);
+          summary.put(heap, summary.get(heap) + size);
+
+          long basesize = config.getSize(elem.getBaseline(), heap.getBaseline());
+          basesummary.put(heap, basesummary.get(heap) + basesize);
         }
       }
 
       vals.clear();
       long total = 0;
+      long basetotal = 0;
       for (AhatHeap heap : heaps) {
         long size = summary.get(heap);
+        long basesize = basesummary.get(heap);
         total += size;
-        vals.add(DocString.format("%,14d", size));
+        basetotal += basesize;
+        vals.add(sizeString(size, false));
+        vals.add(DocString.delta(false, false, size, basesize));
       }
-      if (showTotal) {
-        vals.add(DocString.format("%,14d", total));
-      }
+      vals.add(sizeString(total, false));
+      vals.add(DocString.delta(false, false, total, basetotal));
 
       for (ValueConfig<T> value : values) {
         vals.add(DocString.text("..."));
@@ -132,11 +156,13 @@ class HeapTable {
   }
 
   // Returns true if the given heap has a non-zero size entry.
-  public static <T> boolean hasNonZeroEntry(AhatHeap heap,
+  public static <T extends Diffable<T>> boolean hasNonZeroEntry(AhatHeap heap,
       TableConfig<T> config, List<T> elements) {
-    if (heap.getSize() > 0) {
+    AhatHeap baseheap = heap.getBaseline();
+    if (heap.getSize() > 0 || baseheap.getSize() > 0) {
       for (T element : elements) {
-        if (config.getSize(element, heap) > 0) {
+        if (config.getSize(element, heap) > 0 ||
+            config.getSize(element.getBaseline(), baseheap) > 0) {
           return true;
         }
       }

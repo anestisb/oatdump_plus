@@ -19,6 +19,7 @@ package com.android.ahat;
 import com.android.ahat.heapdump.AhatHeap;
 import com.android.ahat.heapdump.AhatInstance;
 import com.android.ahat.heapdump.AhatSnapshot;
+import com.android.ahat.heapdump.Sort;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;

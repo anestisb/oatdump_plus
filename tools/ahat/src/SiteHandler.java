@@ -19,6 +19,7 @@ package com.android.ahat;
 import com.android.ahat.heapdump.AhatHeap;
 import com.android.ahat.heapdump.AhatSnapshot;
 import com.android.ahat.heapdump.Site;
+import com.android.ahat.heapdump.Sort;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Comparator;
@@ -79,27 +80,34 @@ class SiteHandler implements AhatHandler {
     }
 
     doc.section("Objects Allocated");
+
     doc.table(
         new Column("Reachable Bytes Allocated", Column.Align.RIGHT),
+        new Column("Δ", Column.Align.RIGHT, mSnapshot.isDiffed()),
         new Column("Instances", Column.Align.RIGHT),
+        new Column("Δ", Column.Align.RIGHT, mSnapshot.isDiffed()),
         new Column("Heap"),
         new Column("Class"));
+
     List<Site.ObjectsInfo> infos = site.getObjectsInfos();
     Comparator<Site.ObjectsInfo> compare = new Sort.WithPriority<Site.ObjectsInfo>(
-        new Sort.ObjectsInfoByHeapName(),
-        new Sort.ObjectsInfoBySize(),
-        new Sort.ObjectsInfoByClassName());
+        Sort.OBJECTS_INFO_BY_HEAP_NAME,
+        Sort.OBJECTS_INFO_BY_SIZE,
+        Sort.OBJECTS_INFO_BY_CLASS_NAME);
     Collections.sort(infos, compare);
     SubsetSelector<Site.ObjectsInfo> selector
       = new SubsetSelector(query, OBJECTS_ALLOCATED_ID, infos);
     for (Site.ObjectsInfo info : selector.selected()) {
+      Site.ObjectsInfo baseinfo = info.getBaseline();
       String className = info.getClassName();
       doc.row(
           DocString.format("%,14d", info.numBytes),
+          DocString.delta(false, false, info.numBytes, baseinfo.numBytes),
           DocString.link(
             DocString.formattedUri("objects?id=%d&depth=%d&heap=%s&class=%s",
-                site.getId(), site.getDepth(), info.heap.getName(), className),
+              site.getId(), site.getDepth(), info.heap.getName(), className),
             DocString.format("%,14d", info.numInstances)),
+          DocString.delta(false, false, info.numInstances, baseinfo.numInstances),
           DocString.text(info.heap.getName()),
           Summarizer.summarize(info.classObj));
     }

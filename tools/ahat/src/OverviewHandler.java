@@ -18,7 +18,7 @@ package com.android.ahat;
 
 import com.android.ahat.heapdump.AhatHeap;
 import com.android.ahat.heapdump.AhatSnapshot;
-import com.android.ahat.heapdump.NativeAllocation;
+import com.android.ahat.heapdump.Diffable;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
@@ -30,10 +30,12 @@ class OverviewHandler implements AhatHandler {
 
   private AhatSnapshot mSnapshot;
   private File mHprof;
+  private File mBaseHprof;
 
-  public OverviewHandler(AhatSnapshot snapshot, File hprof) {
+  public OverviewHandler(AhatSnapshot snapshot, File hprof, File basehprof) {
     mSnapshot = snapshot;
     mHprof = hprof;
+    mBaseHprof = basehprof;
   }
 
   @Override
@@ -46,42 +48,40 @@ class OverviewHandler implements AhatHandler {
         DocString.text("ahat version"),
         DocString.format("ahat-%s", OverviewHandler.class.getPackage().getImplementationVersion()));
     doc.description(DocString.text("hprof file"), DocString.text(mHprof.toString()));
+    if (mBaseHprof != null) {
+      doc.description(DocString.text("baseline hprof file"), DocString.text(mBaseHprof.toString()));
+    }
     doc.end();
 
     doc.section("Heap Sizes");
     printHeapSizes(doc, query);
 
-    List<NativeAllocation> allocs = mSnapshot.getNativeAllocations();
-    if (!allocs.isEmpty()) {
-      doc.section("Registered Native Allocations");
-      long totalSize = 0;
-      for (NativeAllocation alloc : allocs) {
-        totalSize += alloc.size;
-      }
-      doc.descriptions();
-      doc.description(DocString.text("Number of Registered Native Allocations"),
-          DocString.format("%,14d", allocs.size()));
-      doc.description(DocString.text("Total Size of Registered Native Allocations"),
-          DocString.format("%,14d", totalSize));
-      doc.end();
-    }
-
     doc.big(Menu.getMenu());
   }
 
-  private void printHeapSizes(Doc doc, Query query) {
-    List<Object> dummy = Collections.singletonList(null);
+  private static class TableElem implements Diffable<TableElem> {
+    @Override public TableElem getBaseline() {
+      return this;
+    }
 
-    HeapTable.TableConfig<Object> table = new HeapTable.TableConfig<Object>() {
+    @Override public boolean isPlaceHolder() {
+      return false;
+    }
+  }
+
+  private void printHeapSizes(Doc doc, Query query) {
+    List<TableElem> dummy = Collections.singletonList(new TableElem());
+
+    HeapTable.TableConfig<TableElem> table = new HeapTable.TableConfig<TableElem>() {
       public String getHeapsDescription() {
         return "Bytes Retained by Heap";
       }
 
-      public long getSize(Object element, AhatHeap heap) {
+      public long getSize(TableElem element, AhatHeap heap) {
         return heap.getSize();
       }
 
-      public List<HeapTable.ValueConfig<Object>> getValueConfigs() {
+      public List<HeapTable.ValueConfig<TableElem>> getValueConfigs() {
         return Collections.emptyList();
       }
     };

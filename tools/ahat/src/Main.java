@@ -17,6 +17,7 @@
 package com.android.ahat;
 
 import com.android.ahat.heapdump.AhatSnapshot;
+import com.android.ahat.heapdump.Diff;
 import com.android.tools.perflib.heap.ProguardMap;
 import com.sun.net.httpserver.HttpServer;
 import java.io.File;
@@ -30,15 +31,18 @@ import java.util.concurrent.Executors;
 public class Main {
 
   public static void help(PrintStream out) {
-    out.println("java -jar ahat.jar [-p port] [--proguard-map FILE] FILE");
-    out.println("  Launch an http server for viewing "
-        + "the given Android heap-dump FILE.");
+    out.println("java -jar ahat.jar [OPTIONS] FILE");
+    out.println("  Launch an http server for viewing the given Android heap dump FILE.");
     out.println("");
-    out.println("Options:");
+    out.println("OPTIONS:");
     out.println("  -p <port>");
     out.println("     Serve pages on the given port. Defaults to 7100.");
     out.println("  --proguard-map FILE");
     out.println("     Use the proguard map FILE to deobfuscate the heap dump.");
+    out.println("  --baseline FILE");
+    out.println("     Diff the heap dump against the given baseline heap dump FILE.");
+    out.println("  --baseline-proguard-map FILE");
+    out.println("     Use the proguard map FILE to deobfuscate the baseline heap dump.");
     out.println("");
   }
 
@@ -52,7 +56,9 @@ public class Main {
     }
 
     File hprof = null;
+    File hprofbase = null;
     ProguardMap map = new ProguardMap();
+    ProguardMap mapbase = new ProguardMap();
     for (int i = 0; i < args.length; i++) {
       if ("-p".equals(args[i]) && i + 1 < args.length) {
         i++;
@@ -65,6 +71,22 @@ public class Main {
           System.out.println("Unable to read proguard map: " + ex);
           System.out.println("The proguard map will not be used.");
         }
+      } else if ("--baseline-proguard-map".equals(args[i]) && i + 1 < args.length) {
+        i++;
+        try {
+          mapbase.readFromFile(new File(args[i]));
+        } catch (IOException|ParseException ex) {
+          System.out.println("Unable to read baselline proguard map: " + ex);
+          System.out.println("The proguard map will not be used.");
+        }
+      } else if ("--baseline".equals(args[i]) && i + 1 < args.length) {
+        i++;
+        if (hprofbase != null) {
+          System.err.println("multiple baseline heap dumps.");
+          help(System.err);
+          return;
+        }
+        hprofbase = new File(args[i]);
       } else {
         if (hprof != null) {
           System.err.println("multiple input files.");
@@ -89,14 +111,21 @@ public class Main {
 
     System.out.println("Processing hprof file...");
     AhatSnapshot ahat = AhatSnapshot.fromHprof(hprof, map);
-    server.createContext("/", new AhatHttpHandler(new OverviewHandler(ahat, hprof)));
+
+    if (hprofbase != null) {
+      System.out.println("Processing baseline hprof file...");
+      AhatSnapshot base = AhatSnapshot.fromHprof(hprofbase, mapbase);
+
+      System.out.println("Diffing hprof files...");
+      Diff.snapshots(ahat, base);
+    }
+
+    server.createContext("/", new AhatHttpHandler(new OverviewHandler(ahat, hprof, hprofbase)));
     server.createContext("/rooted", new AhatHttpHandler(new RootedHandler(ahat)));
     server.createContext("/object", new AhatHttpHandler(new ObjectHandler(ahat)));
     server.createContext("/objects", new AhatHttpHandler(new ObjectsHandler(ahat)));
     server.createContext("/site", new AhatHttpHandler(new SiteHandler(ahat)));
-    server.createContext("/native", new AhatHttpHandler(new NativeAllocationsHandler(ahat)));
     server.createContext("/bitmap", new BitmapHandler(ahat));
-    server.createContext("/help", new HelpHandler());
     server.createContext("/style.css", new StaticHandler("style.css", "text/css"));
     server.setExecutor(Executors.newFixedThreadPool(1));
     System.out.println("Server started on localhost:" + port);

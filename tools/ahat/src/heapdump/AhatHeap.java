@@ -16,14 +16,35 @@
 
 package com.android.ahat.heapdump;
 
-public class AhatHeap {
+public class AhatHeap implements Diffable<AhatHeap> {
   private String mName;
   private long mSize = 0;
   private int mIndex;
+  private AhatHeap mBaseline;
+  private boolean mIsPlaceHolder = false;
 
   AhatHeap(String name, int index) {
     mName = name;
     mIndex = index;
+    mBaseline = this;
+  }
+
+  /**
+   * Construct a place holder heap.
+   */
+  private AhatHeap(String name, AhatHeap baseline) {
+    mName = name;
+    mIndex = -1;
+    mBaseline = baseline;
+    baseline.setBaseline(this);
+    mIsPlaceHolder = true;
+  }
+
+  /**
+   * Construct a new place holder heap that has the given baseline heap.
+   */
+  static AhatHeap newPlaceHolderHeap(String name, AhatHeap baseline) {
+    return new AhatHeap(name, baseline);
   }
 
   void addToSize(long increment) {
@@ -32,7 +53,7 @@ public class AhatHeap {
 
   /**
    * Returns a unique instance for this heap between 0 and the total number of
-   * heaps in this snapshot.
+   * heaps in this snapshot, or -1 if this is a placeholder heap.
    */
   int getIndex() {
     return mIndex;
@@ -50,5 +71,19 @@ public class AhatHeap {
    */
   public long getSize() {
     return mSize;
+  }
+
+  void setBaseline(AhatHeap baseline) {
+    mBaseline = baseline;
+  }
+
+  @Override
+  public AhatHeap getBaseline() {
+    return mBaseline;
+  }
+
+  @Override
+  public boolean isPlaceHolder() {
+    return mIsPlaceHolder;
   }
 }

@@ -53,7 +53,6 @@ class DocString {
   public static DocString link(URI uri, DocString content) {
     DocString doc = new DocString();
     return doc.appendLink(uri, content);
-
   }
 
   /**
@@ -83,6 +82,78 @@ class DocString {
 
   public DocString append(DocString str) {
     mStringBuilder.append(str.html());
+    return this;
+  }
+
+  /**
+   * Adorn the given string to indicate it represents something added relative
+   * to a baseline.
+   */
+  public static DocString added(DocString str) {
+    DocString string = new DocString();
+    string.mStringBuilder.append("<span class=\"added\">");
+    string.mStringBuilder.append(str.html());
+    string.mStringBuilder.append("</span>");
+    return string;
+  }
+
+  /**
+   * Adorn the given string to indicate it represents something added relative
+   * to a baseline.
+   */
+  public static DocString added(String str) {
+    return added(text(str));
+  }
+
+  /**
+   * Adorn the given string to indicate it represents something removed relative
+   * to a baseline.
+   */
+  public static DocString removed(DocString str) {
+    DocString string = new DocString();
+    string.mStringBuilder.append("<span class=\"removed\">");
+    string.mStringBuilder.append(str.html());
+    string.mStringBuilder.append("</span>");
+    return string;
+  }
+
+  /**
+   * Adorn the given string to indicate it represents something removed relative
+   * to a baseline.
+   */
+  public static DocString removed(String str) {
+    return removed(text(str));
+  }
+
+  /**
+   * Standard formatted DocString for describing a change in size relative to
+   * a baseline.
+   * @param noCurrent - whether no current object exists.
+   * @param noBaseline - whether no basline object exists.
+   * @param current - the size of the current object.
+   * @param baseline - the size of the baseline object.
+   */
+  public static DocString delta(boolean noCurrent, boolean noBaseline,
+      long current, long baseline) {
+    DocString doc = new DocString();
+    return doc.appendDelta(noCurrent, noBaseline, current, baseline);
+  }
+
+  /**
+   * Standard formatted DocString for describing a change in size relative to
+   * a baseline.
+   */
+  public DocString appendDelta(boolean noCurrent, boolean noBaseline,
+      long current, long baseline) {
+    if (noCurrent) {
+      append(removed(format("%+,14d", 0 - baseline)));
+    } else if (noBaseline) {
+      append(added("new"));
+    } else if (current > baseline) {
+      append(added(format("%+,14d", current - baseline)));
+    } else if (current < baseline) {
+      append(removed(format("%+,14d", current - baseline)));
+    }
     return this;
   }
 

@@ -26,7 +26,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-public abstract class AhatInstance {
+public abstract class AhatInstance implements Diffable<AhatInstance> {
   private long mId;
   private long mSize;
   private long mTotalRetainedSize;
@@ -47,8 +47,11 @@ public abstract class AhatInstance {
   // List of instances this instance immediately dominates.
   private List<AhatInstance> mDominated = new ArrayList<AhatInstance>();
 
+  private AhatInstance mBaseline;
+
   public AhatInstance(long id) {
     mId = id;
+    mBaseline = this;
   }
 
   /**
@@ -62,8 +65,8 @@ public abstract class AhatInstance {
     mSize = inst.getSize();
     mTotalRetainedSize = inst.getTotalRetainedSize();
 
-    AhatHeap[] heaps = snapshot.getHeaps();
-    mRetainedSizes = new long[heaps.length];
+    List<AhatHeap> heaps = snapshot.getHeaps();
+    mRetainedSizes = new long[heaps.size()];
     for (AhatHeap heap : heaps) {
       mRetainedSizes[heap.getIndex()] = inst.getRetainedSize(heap.getIndex());
     }
@@ -134,7 +137,8 @@ public abstract class AhatInstance {
    * retains.
    */
   public long getRetainedSize(AhatHeap heap) {
-    return mRetainedSizes[heap.getIndex()];
+    int index = heap.getIndex();
+    return 0 <= index && index < mRetainedSizes.length ? mRetainedSizes[heap.getIndex()] : 0;
   }
 
   /**
@@ -254,16 +258,6 @@ public abstract class AhatInstance {
    */
   public AhatArrayInstance asArrayInstance() {
     // Overridden by AhatArrayInstance.
-    return null;
-  }
-
-  /**
-   * Assuming this instance represents a NativeAllocation, return information
-   * about the native allocation. Returns null if the given instance does not
-   * represent a native allocation.
-   */
-  public NativeAllocation getNativeAllocation() {
-    // Overridden by AhatClassInstance.
     return null;
   }
 
@@ -429,5 +423,24 @@ public abstract class AhatInstance {
    */
   byte[] asByteArray() {
     return null;
+  }
+
+  public void setBaseline(AhatInstance baseline) {
+    mBaseline = baseline;
+  }
+
+  @Override public AhatInstance getBaseline() {
+    return mBaseline;
+  }
+
+  @Override public boolean isPlaceHolder() {
+    return false;
+  }
+
+  /**
+   * Returns a new place holder instance corresponding to this instance.
+   */
+  AhatInstance newPlaceHolderInstance() {
+    return new AhatPlaceHolderInstance(this);
   }
 }

@@ -19,7 +19,6 @@ import java.io.IOException;
 import java.lang.ref.PhantomReference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
-import libcore.util.NativeAllocationRegistry;
 import org.apache.harmony.dalvik.ddmc.DdmVmInternal;
 
 /**
@@ -38,6 +37,25 @@ public class Main {
       this.left = left;
       this.right = right;
     }
+  }
+
+  public static class AddedObject {
+  }
+
+  public static class RemovedObject {
+  }
+
+  public static class UnchangedObject {
+  }
+
+  public static class ModifiedObject {
+    public int value;
+    public String modifiedRefField;
+    public String unmodifiedRefField;
+  }
+
+  public static class StackSmasher {
+    public StackSmasher child;
   }
 
   // We will take a heap dump that includes a single instance of this
@@ -62,17 +80,44 @@ public class Main {
           new ObjectTree(null, null)),
       null};
     public Object[] basicStringRef;
+    public AddedObject addedObject;
+    public UnchangedObject unchangedObject = new UnchangedObject();
+    public RemovedObject removedObject;
+    public ModifiedObject modifiedObject;
+    public StackSmasher stackSmasher;
+    public StackSmasher stackSmasherAdded;
+    public static String modifiedStaticField;
+    public int[] modifiedArray;
 
-    DumpedStuff() {
-      int N = 1000000;
+    DumpedStuff(boolean baseline) {
+      int N = baseline ? 400000 : 1000000;
       bigArray = new byte[N];
       for (int i = 0; i < N; i++) {
         bigArray[i] = (byte)((i*i) & 0xFF);
       }
 
-      NativeAllocationRegistry registry = new NativeAllocationRegistry(
-          Main.class.getClassLoader(), 0x12345, 42);
-      registry.registerNativeAllocation(anObject, 0xABCDABCD);
+      addedObject = baseline ? null : new AddedObject();
+      removedObject = baseline ? new RemovedObject() : null;
+      modifiedObject = new ModifiedObject();
+      modifiedObject.value = baseline ? 5 : 8;
+      modifiedObject.modifiedRefField = baseline ? "A1" : "A2";
+      modifiedObject.unmodifiedRefField = "B";
+      modifiedStaticField = baseline ? "C1" : "C2";
+      modifiedArray = baseline ? new int[]{0,1,2,3} : new int[]{3,1,2,0};
+
+      // Deep matching dominator trees shouldn't smash the stack when we try
+      // to diff them. Make some deep dominator trees to help test it.
+      for (int i = 0; i < 10000; i++) {
+        StackSmasher smasher = new StackSmasher();
+        smasher.child = stackSmasher;
+        stackSmasher = smasher;
+
+        if (!baseline) {
+          smasher = new StackSmasher();
+          smasher.child = stackSmasherAdded;
+          stackSmasherAdded = smasher;
+        }
+      }
 
       gcPathArray[2].right.left = gcPathArray[2].left.right;
     }
@@ -85,11 +130,15 @@ public class Main {
     }
     String file = args[0];
 
+    // If a --base argument is provided, it means we should generate a
+    // baseline hprof file suitable for using in testing diff.
+    boolean baseline = args.length > 1 && args[1].equals("--base");
+
     // Enable allocation tracking so we get stack traces in the heap dump.
     DdmVmInternal.enableRecentAllocations(true);
 
     // Allocate the instance of DumpedStuff.
-    stuff = new DumpedStuff();
+    stuff = new DumpedStuff(baseline);
 
     // Create a bunch of unreachable objects pointing to basicString for the
     // reverseReferencesAreNotUnreachable test

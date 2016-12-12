@@ -115,4 +115,19 @@ public class Value {
   public String toString() {
     return mObject.toString();
   }
+
+  public static Value getBaseline(Value value) {
+    if (value == null || !value.isAhatInstance()) {
+      return value;
+    }
+    return new Value(value.asAhatInstance().getBaseline());
+  }
+
+  @Override public boolean equals(Object other) {
+    if (other instanceof Value) {
+      Value value = (Value)other;
+      return mObject.equals(value.mObject);
+    }
+    return false;
+  }
 }
