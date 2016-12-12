@@ -5250,9 +5250,9 @@ HLoadClass::LoadKind CodeGeneratorMIPS::GetSupportedLoadClassKind(
       break;
     case HLoadClass::LoadKind::kBootImageAddress:
       break;
-    case HLoadClass::LoadKind::kJitTableAddress:
+    case HLoadClass::LoadKind::kDexCacheAddress:
       DCHECK(Runtime::Current()->UseJitCompilation());
-      fallback_load = true;
+      fallback_load = false;
       break;
     case HLoadClass::LoadKind::kDexCachePcRelative:
       DCHECK(!Runtime::Current()->UseJitCompilation());
@@ -5613,8 +5613,17 @@ void InstructionCodeGeneratorMIPS::VisitLoadClass(HLoadClass* cls) {
                      codegen_->DeduplicateBootImageAddressLiteral(address));
       break;
     }
-    case HLoadClass::LoadKind::kJitTableAddress: {
-      LOG(FATAL) << "Unimplemented";
+    case HLoadClass::LoadKind::kDexCacheAddress: {
+      DCHECK_NE(cls->GetAddress(), 0u);
+      uint32_t address = dchecked_integral_cast<uint32_t>(cls->GetAddress());
+      static_assert(sizeof(GcRoot<mirror::Class>) == 4u, "Expected GC root to be 4 bytes.");
+      DCHECK_ALIGNED(cls->GetAddress(), 4u);
+      int16_t offset = Low16Bits(address);
+      uint32_t base_address = address - offset;  // This accounts for offset sign extension.
+      __ Lui(out, High16Bits(base_address));
+      // /* GcRoot<mirror::Class> */ out = *(base_address + offset)
+      GenerateGcRootFieldLoad(cls, out_loc, out, offset);
+      generate_null_check = !cls->IsInDexCache();
       break;
     }
     case HLoadClass::LoadKind::kDexCachePcRelative: {

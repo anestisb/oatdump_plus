@@ -1013,7 +1013,6 @@ CodeGeneratorX86::CodeGeneratorX86(HGraph* graph,
       string_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       type_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       jit_string_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
-      jit_class_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       constant_area_start_(-1),
       fixups_to_jump_tables_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       method_address_offset_(-1) {
@@ -6035,7 +6034,7 @@ HLoadClass::LoadKind CodeGeneratorX86::GetSupportedLoadClassKind(
       break;
     case HLoadClass::LoadKind::kBootImageAddress:
       break;
-    case HLoadClass::LoadKind::kJitTableAddress:
+    case HLoadClass::LoadKind::kDexCacheAddress:
       DCHECK(Runtime::Current()->UseJitCompilation());
       break;
     case HLoadClass::LoadKind::kDexCacheViaMethod:
@@ -6072,16 +6071,6 @@ void LocationsBuilderX86::VisitLoadClass(HLoadClass* cls) {
     locations->SetInAt(0, Location::RequiresRegister());
   }
   locations->SetOut(Location::RequiresRegister());
-}
-
-Label* CodeGeneratorX86::NewJitRootClassPatch(const DexFile& dex_file,
-                                              dex::TypeIndex dex_index,
-                                              uint64_t address) {
-  jit_class_roots_.Overwrite(TypeReference(&dex_file, dex_index), address);
-  // Add a patch entry and return the label.
-  jit_class_patches_.emplace_back(dex_file, dex_index.index_);
-  PatchInfo<Label>* info = &jit_class_patches_.back();
-  return &info->label;
 }
 
 void InstructionCodeGeneratorX86::VisitLoadClass(HLoadClass* cls) {
@@ -6135,12 +6124,16 @@ void InstructionCodeGeneratorX86::VisitLoadClass(HLoadClass* cls) {
       codegen_->RecordSimplePatch();
       break;
     }
-    case HLoadClass::LoadKind::kJitTableAddress: {
-      Address address = Address::Absolute(CodeGeneratorX86::kDummy32BitOffset);
-      Label* fixup_label = codegen_->NewJitRootClassPatch(
-          cls->GetDexFile(), cls->GetTypeIndex(), cls->GetAddress());
+    case HLoadClass::LoadKind::kDexCacheAddress: {
+      DCHECK_NE(cls->GetAddress(), 0u);
+      uint32_t address = dchecked_integral_cast<uint32_t>(cls->GetAddress());
       // /* GcRoot<mirror::Class> */ out = *address
-      GenerateGcRootFieldLoad(cls, out_loc, address, fixup_label, kCompilerReadBarrierOption);
+      GenerateGcRootFieldLoad(cls,
+                              out_loc,
+                              Address::Absolute(address),
+                              /* fixup_label */ nullptr,
+                              read_barrier_option);
+      generate_null_check = !cls->IsInDexCache();
       break;
     }
     case HLoadClass::LoadKind::kDexCachePcRelative: {
@@ -7777,31 +7770,18 @@ void CodeGeneratorX86::MoveFromReturnRegister(Location target, Primitive::Type t
   }
 }
 
-void CodeGeneratorX86::PatchJitRootUse(uint8_t* code,
-                                       const uint8_t* roots_data,
-                                       const PatchInfo<Label>& info,
-                                       uint64_t index_in_table) const {
-  uint32_t code_offset = info.label.Position() - kLabelPositionToLiteralOffsetAdjustment;
-  uintptr_t address =
-      reinterpret_cast<uintptr_t>(roots_data) + index_in_table * sizeof(GcRoot<mirror::Object>);
-  typedef __attribute__((__aligned__(1))) uint32_t unaligned_uint32_t;
-  reinterpret_cast<unaligned_uint32_t*>(code + code_offset)[0] =
-     dchecked_integral_cast<uint32_t>(address);
-}
-
 void CodeGeneratorX86::EmitJitRootPatches(uint8_t* code, const uint8_t* roots_data) {
   for (const PatchInfo<Label>& info : jit_string_patches_) {
-    const auto& it = jit_string_roots_.find(
-        StringReference(&info.dex_file, dex::StringIndex(info.index)));
+    const auto& it = jit_string_roots_.find(StringReference(&info.dex_file,
+                                                            dex::StringIndex(info.index)));
     DCHECK(it != jit_string_roots_.end());
-    PatchJitRootUse(code, roots_data, info, it->second);
-  }
-
-  for (const PatchInfo<Label>& info : jit_class_patches_) {
-    const auto& it = jit_class_roots_.find(
-        TypeReference(&info.dex_file, dex::TypeIndex(info.index)));
-    DCHECK(it != jit_class_roots_.end());
-    PatchJitRootUse(code, roots_data, info, it->second);
+    size_t index_in_table = it->second;
+    uint32_t code_offset = info.label.Position() - kLabelPositionToLiteralOffsetAdjustment;
+    uintptr_t address =
+        reinterpret_cast<uintptr_t>(roots_data) + index_in_table * sizeof(GcRoot<mirror::Object>);
+    typedef __attribute__((__aligned__(1))) uint32_t unaligned_uint32_t;
+    reinterpret_cast<unaligned_uint32_t*>(code + code_offset)[0] =
+       dchecked_integral_cast<uint32_t>(address);
   }
 }
 
