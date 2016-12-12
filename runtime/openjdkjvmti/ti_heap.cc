@@ -190,7 +190,12 @@ class FollowReferencesHelper FINAL {
       REQUIRES(!*tag_table_->GetAllowDisallowLock()) {
     if (initial_object_.IsNull()) {
       CollectAndReportRootsVisitor carrv(this, tag_table_, &worklist_, &visited_);
-      art::Runtime::Current()->VisitRoots(&carrv);
+
+      // We need precise info (e.g., vregs).
+      constexpr art::VisitRootFlags kRootFlags = static_cast<art::VisitRootFlags>(
+          art::VisitRootFlags::kVisitRootFlagAllRoots | art::VisitRootFlags::kVisitRootFlagPrecise);
+      art::Runtime::Current()->VisitRoots(&carrv, kRootFlags);
+
       art::Runtime::Current()->VisitImageRoots(&carrv);
       stop_reports_ = carrv.IsStopReports();
 
@@ -322,7 +327,36 @@ class FollowReferencesHelper FINAL {
         }
 
         case art::RootType::kRootJavaFrame:
+        {
+          uint32_t thread_id = info.GetThreadId();
+          ref_info->stack_local.thread_id = thread_id;
+
+          art::Thread* thread = FindThread(info);
+          if (thread != nullptr) {
+            art::mirror::Object* thread_obj = thread->GetPeer();
+            if (thread->IsStillStarting()) {
+              thread_obj = nullptr;
+            } else {
+              thread_obj = thread->GetPeer();
+            }
+            if (thread_obj != nullptr) {
+              ref_info->stack_local.thread_tag = tag_table_->GetTagOrZero(thread_obj);
+            }
+          }
+
+          auto& java_info = static_cast<const art::JavaFrameRootInfo&>(info);
+          ref_info->stack_local.slot = static_cast<jint>(java_info.GetVReg());
+          const art::StackVisitor* visitor = java_info.GetVisitor();
+          ref_info->stack_local.location =
+              static_cast<jlocation>(visitor->GetDexPc(false /* abort_on_failure */));
+          ref_info->stack_local.depth = static_cast<jint>(visitor->GetFrameDepth());
+          art::ArtMethod* method = visitor->GetMethod();
+          if (method != nullptr) {
+            ref_info->stack_local.method = art::jni::EncodeArtMethod(method);
+          }
+
           return JVMTI_HEAP_REFERENCE_STACK_LOCAL;
+        }
 
         case art::RootType::kRootNativeStack:
         case art::RootType::kRootThreadBlock:
