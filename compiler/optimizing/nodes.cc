@@ -2487,8 +2487,8 @@ std::ostream& operator<<(std::ostream& os, HLoadClass::LoadKind rhs) {
       return os << "BootImageLinkTimePcRelative";
     case HLoadClass::LoadKind::kBootImageAddress:
       return os << "BootImageAddress";
-    case HLoadClass::LoadKind::kJitTableAddress:
-      return os << "JitTableAddress";
+    case HLoadClass::LoadKind::kDexCacheAddress:
+      return os << "DexCacheAddress";
     case HLoadClass::LoadKind::kDexCachePcRelative:
       return os << "DexCachePcRelative";
     case HLoadClass::LoadKind::kDexCacheViaMethod:
