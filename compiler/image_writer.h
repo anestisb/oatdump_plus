@@ -50,6 +50,7 @@ class ImageSpace;
 }  // namespace space
 }  // namespace gc
 
+class ClassLoaderVisitor;
 class ClassTable;
 
 static constexpr int kInvalidFd = -1;
@@ -373,6 +374,9 @@ class ImageWriter FINAL {
   void ComputeLazyFieldsForImageClasses()
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // Visit all class loaders.
+  void VisitClassLoaders(ClassLoaderVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
+
   // Remove unwanted classes from various roots.
   void PruneNonImageClasses() REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -588,7 +592,8 @@ class ImageWriter FINAL {
   class FixupVisitor;
   class GetRootsVisitor;
   class NativeLocationVisitor;
-  class NonImageClassesVisitor;
+  class PruneClassesVisitor;
+  class PruneClassLoaderClassesVisitor;
   class VisitReferencesVisitor;
 
   DISALLOW_COPY_AND_ASSIGN(ImageWriter);
