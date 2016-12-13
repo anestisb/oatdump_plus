@@ -305,8 +305,11 @@ inline int32_t String::GetHashCode() {
 
 template<typename MemoryType>
 bool String::AllASCII(const MemoryType* const chars, const int length) {
+  static_assert(std::is_unsigned<MemoryType>::value, "Expecting unsigned MemoryType");
   for (int i = 0; i < length; ++i) {
-    if (chars[i] >= 0x80) {
+    // Valid ASCII characters are in range 1..0x7f. Zero is not considered ASCII
+    // because it would complicate the detection of ASCII strings in Modified-UTF8.
+    if ((chars[i] - 1u) >= 0x7fu) {
       return false;
     }
   }
