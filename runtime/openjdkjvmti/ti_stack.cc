@@ -67,14 +67,10 @@ struct GetStackTraceVisitor : public art::StackVisitor {
       m = m->GetInterfaceMethodIfProxy(art::kRuntimePointerSize);
       jmethodID id = art::jni::EncodeArtMethod(m);
 
-      art::mirror::DexCache* dex_cache = m->GetDexCache();
-      int32_t line_number = -1;
-      if (dex_cache != nullptr) {  // be tolerant of bad input
-        const art::DexFile* dex_file = dex_cache->GetDexFile();
-        line_number = art::annotations::GetLineNumFromPC(dex_file, m, GetDexPc(false));
-      }
+      uint32_t dex_pc = GetDexPc(false);
+      jlong dex_location = (dex_pc == art::DexFile::kDexNoIndex) ? -1 : static_cast<jlong>(dex_pc);
 
-      jvmtiFrameInfo info = { id, static_cast<jlong>(line_number) };
+      jvmtiFrameInfo info = { id, dex_location };
       frames.push_back(info);
 
       if (stop == 1) {
