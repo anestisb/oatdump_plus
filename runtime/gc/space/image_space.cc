@@ -22,6 +22,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "android-base/strings.h"
+
 #include "art_method.h"
 #include "base/enums.h"
 #include "base/macros.h"
@@ -137,7 +139,7 @@ static bool GenerateImage(const std::string& image_filename,
     arg_vector.push_back(compiler_options[i].c_str());
   }
 
-  std::string command_line(Join(arg_vector, ' '));
+  std::string command_line(android::base::Join(arg_vector, ' '));
   LOG(INFO) << "GenerateImage: " << command_line;
   return Exec(arg_vector, error_msg);
 }
@@ -257,7 +259,7 @@ static bool RelocateImage(const char* image_location,
   argv.push_back(instruction_set_arg);
   argv.push_back(base_offset_arg);
 
-  std::string command_line(Join(argv, ' '));
+  std::string command_line(android::base::Join(argv, ' '));
   LOG(INFO) << "RelocateImage: " << command_line;
   return Exec(argv, error_msg);
 }

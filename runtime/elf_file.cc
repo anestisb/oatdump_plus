@@ -20,6 +20,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "android-base/strings.h"
+
 #include "arch/instruction_set.h"
 #include "base/logging.h"
 #include "base/stringprintf.h"
@@ -1451,7 +1453,7 @@ bool ElfFileImpl<ElfTypes>::Strip(File* file, std::string* error_msg) {
       section_headers_original_indexes.push_back(0);
       continue;
     }
-    if (StartsWith(name, ".debug")
+    if (android::base::StartsWith(name, ".debug")
         || (strcmp(name, ".strtab") == 0)
         || (strcmp(name, ".symtab") == 0)) {
       continue;
