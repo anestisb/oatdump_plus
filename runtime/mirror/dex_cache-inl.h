@@ -72,7 +72,7 @@ inline void DexCache::ClearString(dex::StringIndex string_idx) {
 
 inline Class* DexCache::GetResolvedType(dex::TypeIndex type_idx) {
   // It is theorized that a load acquire is not required since obtaining the resolved class will
-  // always have an address depedency or a lock.
+  // always have an address dependency or a lock.
   DCHECK_LT(type_idx.index_, NumResolvedTypes());
   return GetResolvedTypes()[type_idx.index_].Read();
 }

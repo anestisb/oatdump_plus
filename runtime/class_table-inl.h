@@ -71,6 +71,19 @@ bool ClassTable::Visit(Visitor& visitor) {
   return true;
 }
 
+template <typename Visitor>
+bool ClassTable::Visit(const Visitor& visitor) {
+  ReaderMutexLock mu(Thread::Current(), lock_);
+  for (ClassSet& class_set : classes_) {
+    for (TableSlot& table_slot : class_set) {
+      if (!visitor(table_slot.Read())) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 template<ReadBarrierOption kReadBarrierOption>
 inline mirror::Class* ClassTable::TableSlot::Read() const {
   const uint32_t before = data_.LoadRelaxed();
