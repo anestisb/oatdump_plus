@@ -92,6 +92,31 @@ public class Main {
 
         testCompareToAndEquals();
         testIndexOf();
+
+        String s0_0 = "\u0000";
+        String s0_1 = new String(s0_0);
+        String s0_2 = new String(new char[] { '\u0000' });
+        String s0_3 = s0_0 + "";
+        System.out.println(
+            " " + $noinline$equals(s0_0, s0_0) +
+            " " + $noinline$equals(s0_0, s0_1) +
+            " " + $noinline$equals(s0_0, s0_2) +
+            " " + $noinline$equals(s0_0, s0_3));
+        System.out.println(
+            " " + $noinline$equals(s0_1, s0_0) +
+            " " + $noinline$equals(s0_1, s0_1) +
+            " " + $noinline$equals(s0_1, s0_2) +
+            " " + $noinline$equals(s0_1, s0_3));
+        System.out.println(
+            " " + $noinline$equals(s0_2, s0_0) +
+            " " + $noinline$equals(s0_2, s0_1) +
+            " " + $noinline$equals(s0_2, s0_2) +
+            " " + $noinline$equals(s0_2, s0_3));
+        System.out.println(
+            " " + $noinline$equals(s0_3, s0_0) +
+            " " + $noinline$equals(s0_3, s0_1) +
+            " " + $noinline$equals(s0_3, s0_2) +
+            " " + $noinline$equals(s0_3, s0_3));
     }
 
     public static void testCompareToAndEquals() {
