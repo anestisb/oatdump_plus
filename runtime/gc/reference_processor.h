@@ -73,6 +73,9 @@ class ReferenceProcessor {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::reference_processor_lock_,
                !Locks::reference_queue_finalizer_references_lock_);
+  void ClearReferent(ObjPtr<mirror::Reference> ref)
+      REQUIRES_SHARED(Locks::mutator_lock_)
+      REQUIRES(!Locks::reference_processor_lock_);
 
  private:
   bool SlowPathEnabled() REQUIRES_SHARED(Locks::mutator_lock_);
@@ -84,6 +87,10 @@ class ReferenceProcessor {
   // referents.
   void StartPreservingReferences(Thread* self) REQUIRES(!Locks::reference_processor_lock_);
   void StopPreservingReferences(Thread* self) REQUIRES(!Locks::reference_processor_lock_);
+  // Wait until reference processing is done.
+  void WaitUntilDoneProcessingReferences(Thread* self)
+      REQUIRES_SHARED(Locks::mutator_lock_)
+      REQUIRES(Locks::reference_processor_lock_);
   // Collector which is clearing references, used by the GetReferent to return referents which are
   // already marked.
   collector::GarbageCollector* collector_ GUARDED_BY(Locks::reference_processor_lock_);

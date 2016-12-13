@@ -269,11 +269,23 @@ void ReferenceProcessor::EnqueueClearedReferences(Thread* self) {
   }
 }
 
-bool ReferenceProcessor::MakeCircularListIfUnenqueued(
-    ObjPtr<mirror::FinalizerReference> reference) {
+void ReferenceProcessor::ClearReferent(ObjPtr<mirror::Reference> ref) {
   Thread* self = Thread::Current();
   MutexLock mu(self, *Locks::reference_processor_lock_);
-  // Wait untul we are done processing reference.
+  // Need to wait until reference processing is done since IsMarkedHeapReference does not have a
+  // CAS. If we do not wait, it can result in the GC un-clearing references due to race conditions.
+  // This also handles the race where the referent gets cleared after a null check but before
+  // IsMarkedHeapReference is called.
+  WaitUntilDoneProcessingReferences(self);
+  if (Runtime::Current()->IsActiveTransaction()) {
+    ref->ClearReferent<true>();
+  } else {
+    ref->ClearReferent<false>();
+  }
+}
+
+void ReferenceProcessor::WaitUntilDoneProcessingReferences(Thread* self) {
+  // Wait until we are done processing reference.
   while ((!kUseReadBarrier && SlowPathEnabled()) ||
          (kUseReadBarrier && !self->GetWeakRefAccessEnabled())) {
     // Check and run the empty checkpoint before blocking so the empty checkpoint will work in the
@@ -281,6 +293,13 @@ bool ReferenceProcessor::MakeCircularListIfUnenqueued(
     self->CheckEmptyCheckpoint();
     condition_.WaitHoldingLocks(self);
   }
+}
+
+bool ReferenceProcessor::MakeCircularListIfUnenqueued(
+    ObjPtr<mirror::FinalizerReference> reference) {
+  Thread* self = Thread::Current();
+  MutexLock mu(self, *Locks::reference_processor_lock_);
+  WaitUntilDoneProcessingReferences(self);
   // At this point, since the sentinel of the reference is live, it is guaranteed to not be
   // enqueued if we just finished processing references. Otherwise, we may be doing the main GC
   // phase. Since we are holding the reference processor lock, it guarantees that reference
