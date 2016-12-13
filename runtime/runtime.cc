@@ -37,6 +37,8 @@
 #include <vector>
 #include <fcntl.h>
 
+#include "android-base/strings.h"
+
 #include "JniConstants.h"
 #include "ScopedLocalRef.h"
 #include "arch/arm/quick_method_frame_info_arm.h"
@@ -869,7 +871,7 @@ static bool OpenDexFilesFromImage(const std::string& image_location,
         ImageHeader::GetOatLocationFromImageLocation(image_locations[index].c_str());
     // Note: in the multi-image case, the image location may end in ".jar," and not ".art." Handle
     //       that here.
-    if (EndsWith(oat_location, ".jar")) {
+    if (android::base::EndsWith(oat_location, ".jar")) {
       oat_location.replace(oat_location.length() - 3, 3, "oat");
     }
     std::string error_msg;
@@ -1225,7 +1227,7 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
       for (const DexFile* dex_file : boot_class_path) {
         dex_locations.push_back(dex_file->GetLocation());
       }
-      boot_class_path_string_ = Join(dex_locations, ':');
+      boot_class_path_string_ = android::base::Join(dex_locations, ':');
     }
     {
       ScopedTrace trace2("AddImageStringsToTable");
@@ -1892,7 +1894,7 @@ void Runtime::RegisterAppInfo(const std::vector<std::string>& code_paths,
   }
 
   VLOG(profiler) << "Register app with " << profile_output_filename
-      << " " << Join(code_paths, ':');
+      << " " << android::base::Join(code_paths, ':');
 
   if (profile_output_filename.empty()) {
     LOG(WARNING) << "JIT profile information will not be recorded: profile filename is empty.";

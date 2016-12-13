@@ -24,6 +24,8 @@
 #include "signal.h"
 #include <fstream>
 
+#include "android-base/strings.h"
+
 #include "base/stringprintf.h"
 #include "utils.h"  // For Trim.
 
@@ -271,7 +273,7 @@ ArmInstructionSetFeatures::AddFeaturesFromSplitString(
   bool has_atomic_ldrd_strd = has_atomic_ldrd_strd_;
   bool has_div = has_div_;
   for (auto i = features.begin(); i != features.end(); i++) {
-    std::string feature = Trim(*i);
+    std::string feature = android::base::Trim(*i);
     if (feature == "div") {
       has_div = true;
     } else if (feature == "-div") {

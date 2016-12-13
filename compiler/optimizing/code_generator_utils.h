@@ -18,6 +18,8 @@
 #define ART_COMPILER_OPTIMIZING_CODE_GENERATOR_UTILS_H_
 
 #include <cstdint>
+#include <cstdlib>
+#include <limits>
 
 namespace art {
 
@@ -31,6 +33,12 @@ void CalculateMagicAndShiftForDivRem(int64_t divisor, bool is_long, int64_t* mag
 // `cond_input` is a conditional input of the currently emitted instruction and
 // that it has been previously visited by the InstructionCodeGenerator.
 bool IsBooleanValueOrMaterializedCondition(HInstruction* cond_input);
+
+template <typename T> T AbsOrMin(T value) {
+  return (value == std::numeric_limits<T>::min())
+      ? value
+      : std::abs(value);
+}
 
 }  // namespace art
 

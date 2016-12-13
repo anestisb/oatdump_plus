@@ -19,6 +19,8 @@
 #include <stdio.h>
 #include <memory>
 
+#include "android-base/strings.h"
+
 #include "class_linker-inl.h"
 #include "common_runtime_test.h"
 #include "dex_file.h"
@@ -42,7 +44,7 @@ class MethodVerifierTest : public CommonRuntimeTest {
     MethodVerifier::FailureKind failure = MethodVerifier::VerifyClass(
         self, klass, nullptr, true, HardFailLogMode::kLogWarning, &error_msg);
 
-    if (StartsWith(descriptor, "Ljava/lang/invoke")) {
+    if (android::base::StartsWith(descriptor, "Ljava/lang/invoke")) {
       ASSERT_TRUE(failure == MethodVerifier::kSoftFailure ||
                   failure == MethodVerifier::kNoFailure) << error_msg;
 
