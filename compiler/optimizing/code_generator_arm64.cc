@@ -4171,11 +4171,6 @@ vixl::aarch64::Literal<uint32_t>* CodeGeneratorARM64::DeduplicateBootImageAddres
   return DeduplicateUint32Literal(dchecked_integral_cast<uint32_t>(address), map);
 }
 
-vixl::aarch64::Literal<uint64_t>* CodeGeneratorARM64::DeduplicateDexCacheAddressLiteral(
-    uint64_t address) {
-  return DeduplicateUint64Literal(address);
-}
-
 vixl::aarch64::Literal<uint32_t>* CodeGeneratorARM64::DeduplicateJitStringLiteral(
     const DexFile& dex_file, dex::StringIndex string_index) {
   jit_string_roots_.Overwrite(StringReference(&dex_file, string_index), /* placeholder */ 0u);
