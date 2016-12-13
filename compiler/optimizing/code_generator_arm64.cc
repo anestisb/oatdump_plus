@@ -1162,7 +1162,9 @@ CodeGeneratorARM64::CodeGeneratorARM64(HGraph* graph,
       boot_image_address_patches_(std::less<uint32_t>(),
                                   graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       jit_string_patches_(StringReferenceValueComparator(),
-                          graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
+                          graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      jit_class_patches_(TypeReferenceValueComparator(),
+                         graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
   // Save the link register (containing the return address) to mimic Quick.
   AddAllocatedRegister(LocationFrom(lr));
 }
@@ -4182,6 +4184,14 @@ vixl::aarch64::Literal<uint32_t>* CodeGeneratorARM64::DeduplicateJitStringLitera
       [this]() { return __ CreateLiteralDestroyedWithPool<uint32_t>(/* placeholder */ 0u); });
 }
 
+vixl::aarch64::Literal<uint32_t>* CodeGeneratorARM64::DeduplicateJitClassLiteral(
+    const DexFile& dex_file, dex::TypeIndex type_index, uint64_t address) {
+  jit_class_roots_.Overwrite(TypeReference(&dex_file, type_index), address);
+  return jit_class_patches_.GetOrCreate(
+      TypeReference(&dex_file, type_index),
+      [this]() { return __ CreateLiteralDestroyedWithPool<uint32_t>(/* placeholder */ 0u); });
+}
+
 void CodeGeneratorARM64::EmitAdrpPlaceholder(vixl::aarch64::Label* fixup_label,
                                              vixl::aarch64::Register reg) {
   DCHECK(reg.IsX());
@@ -4359,7 +4369,7 @@ HLoadClass::LoadKind CodeGeneratorARM64::GetSupportedLoadClassKind(
       break;
     case HLoadClass::LoadKind::kBootImageAddress:
       break;
-    case HLoadClass::LoadKind::kDexCacheAddress:
+    case HLoadClass::LoadKind::kJitTableAddress:
       DCHECK(Runtime::Current()->UseJitCompilation());
       break;
     case HLoadClass::LoadKind::kDexCachePcRelative:
@@ -4452,26 +4462,16 @@ void InstructionCodeGeneratorARM64::VisitLoadClass(HLoadClass* cls) {
       __ Ldr(out.W(), codegen_->DeduplicateBootImageAddressLiteral(cls->GetAddress()));
       break;
     }
-    case HLoadClass::LoadKind::kDexCacheAddress: {
-      DCHECK_NE(cls->GetAddress(), 0u);
-      // LDR immediate has a 12-bit offset multiplied by the size and for 32-bit loads
-      // that gives a 16KiB range. To try and reduce the number of literals if we load
-      // multiple types, simply split the dex cache address to a 16KiB aligned base
-      // loaded from a literal and the remaining offset embedded in the load.
-      static_assert(sizeof(GcRoot<mirror::Class>) == 4u, "Expected GC root to be 4 bytes.");
-      DCHECK_ALIGNED(cls->GetAddress(), 4u);
-      constexpr size_t offset_bits = /* encoded bits */ 12 + /* scale */ 2;
-      uint64_t base_address = cls->GetAddress() & ~MaxInt<uint64_t>(offset_bits);
-      uint32_t offset = cls->GetAddress() & MaxInt<uint64_t>(offset_bits);
-      __ Ldr(out.X(), codegen_->DeduplicateDexCacheAddressLiteral(base_address));
-      // /* GcRoot<mirror::Class> */ out = *(base_address + offset)
+    case HLoadClass::LoadKind::kJitTableAddress: {
+      __ Ldr(out, codegen_->DeduplicateJitClassLiteral(cls->GetDexFile(),
+                                                       cls->GetTypeIndex(),
+                                                       cls->GetAddress()));
       GenerateGcRootFieldLoad(cls,
                               out_loc,
                               out.X(),
-                              offset,
+                              /* offset */ 0,
                               /* fixup_label */ nullptr,
-                              read_barrier_option);
-      generate_null_check = !cls->IsInDexCache();
+                              kCompilerReadBarrierOption);
       break;
     }
     case HLoadClass::LoadKind::kDexCachePcRelative: {
@@ -5782,17 +5782,27 @@ void InstructionCodeGeneratorARM64::VisitClassTableGet(HClassTableGet* instructi
   }
 }
 
+static void PatchJitRootUse(uint8_t* code,
+                            const uint8_t* roots_data,
+                            vixl::aarch64::Literal<uint32_t>* literal,
+                            uint64_t index_in_table) {
+  uint32_t literal_offset = literal->GetOffset();
+  uintptr_t address =
+      reinterpret_cast<uintptr_t>(roots_data) + index_in_table * sizeof(GcRoot<mirror::Object>);
+  uint8_t* data = code + literal_offset;
+  reinterpret_cast<uint32_t*>(data)[0] = dchecked_integral_cast<uint32_t>(address);
+}
+
 void CodeGeneratorARM64::EmitJitRootPatches(uint8_t* code, const uint8_t* roots_data) {
   for (const auto& entry : jit_string_patches_) {
     const auto& it = jit_string_roots_.find(entry.first);
     DCHECK(it != jit_string_roots_.end());
-    size_t index_in_table = it->second;
-    vixl::aarch64::Literal<uint32_t>* literal = entry.second;
-    uint32_t literal_offset = literal->GetOffset();
-    uintptr_t address =
-        reinterpret_cast<uintptr_t>(roots_data) + index_in_table * sizeof(GcRoot<mirror::Object>);
-    uint8_t* data = code + literal_offset;
-    reinterpret_cast<uint32_t*>(data)[0] = dchecked_integral_cast<uint32_t>(address);
+    PatchJitRootUse(code, roots_data, entry.second, it->second);
+  }
+  for (const auto& entry : jit_class_patches_) {
+    const auto& it = jit_class_roots_.find(entry.first);
+    DCHECK(it != jit_class_roots_.end());
+    PatchJitRootUse(code, roots_data, entry.second, it->second);
   }
 }
 
