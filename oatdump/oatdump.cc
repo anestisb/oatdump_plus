@@ -26,6 +26,8 @@
 #include <unordered_set>
 #include <vector>
 
+#include "android-base/strings.h"
+
 #include "arch/instruction_set_features.h"
 #include "art_field-inl.h"
 #include "art_method-inl.h"
@@ -668,6 +670,12 @@ class OatDumper {
     }
 
   private:
+    // All of the elements from one container to another.
+    template <typename Dest, typename Src>
+    static void AddAll(Dest& dest, const Src& src) {
+      dest.insert(src.begin(), src.end());
+    }
+
     void WalkClass(const DexFile& dex_file, const DexFile::ClassDef& class_def) {
       const uint8_t* class_data = dex_file.GetClassData(class_def);
       if (class_data == nullptr) {  // empty class such as a marker interface?
@@ -2952,7 +2960,7 @@ class IMTDumper {
           table_index++;
 
           std::string p_name = ptr2->PrettyMethod(true);
-          if (StartsWith(p_name, method.c_str())) {
+          if (android::base::StartsWith(p_name, method.c_str())) {
             std::cerr << "  Slot "
                       << index
                       << " ("
@@ -2965,7 +2973,7 @@ class IMTDumper {
         }
       } else {
         std::string p_name = ptr->PrettyMethod(true);
-        if (StartsWith(p_name, method.c_str())) {
+        if (android::base::StartsWith(p_name, method.c_str())) {
           std::cerr << "  Slot " << index << " (1)" << std::endl;
           std::cerr << "    " << p_name << std::endl;
         } else {
@@ -2978,7 +2986,7 @@ class IMTDumper {
               for (ArtMethod& iface_method : iface->GetMethods(pointer_size)) {
                 if (ImTable::GetImtIndex(&iface_method) == index) {
                   std::string i_name = iface_method.PrettyMethod(true);
-                  if (StartsWith(i_name, method.c_str())) {
+                  if (android::base::StartsWith(i_name, method.c_str())) {
                     std::cerr << "  Slot " << index << " (1)" << std::endl;
                     std::cerr << "    " << p_name << " (" << i_name << ")" << std::endl;
                   }
@@ -2997,7 +3005,7 @@ class IMTDumper {
     while (in_stream.good()) {
       std::string dot;
       std::getline(in_stream, dot);
-      if (StartsWith(dot, "#") || dot.empty()) {
+      if (android::base::StartsWith(dot, "#") || dot.empty()) {
         continue;
       }
       output.push_back(dot);

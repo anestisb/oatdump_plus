@@ -33,6 +33,8 @@
 #include <sys/utsname.h>
 #endif
 
+#include "android-base/strings.h"
+
 #include "arch/instruction_set_features.h"
 #include "arch/mips/instruction_set_features_mips.h"
 #include "art_method-inl.h"
@@ -96,7 +98,7 @@ static std::string CommandLine() {
   for (int i = 0; i < original_argc; ++i) {
     command.push_back(original_argv[i]);
   }
-  return Join(command, ' ');
+  return android::base::Join(command, ' ');
 }
 
 // A stripped version. Remove some less essential parameters. If we see a "--zip-fd=" parameter, be
@@ -108,7 +110,7 @@ static std::string StrippedCommandLine() {
   // Do a pre-pass to look for zip-fd.
   bool saw_zip_fd = false;
   for (int i = 0; i < original_argc; ++i) {
-    if (StartsWith(original_argv[i], "--zip-fd=")) {
+    if (android::base::StartsWith(original_argv[i], "--zip-fd=")) {
       saw_zip_fd = true;
       break;
     }
@@ -123,17 +125,17 @@ static std::string StrippedCommandLine() {
     }
 
     // Any instruction-setXXX is dropped.
-    if (StartsWith(original_argv[i], "--instruction-set")) {
+    if (android::base::StartsWith(original_argv[i], "--instruction-set")) {
       continue;
     }
 
     // The boot image is dropped.
-    if (StartsWith(original_argv[i], "--boot-image=")) {
+    if (android::base::StartsWith(original_argv[i], "--boot-image=")) {
       continue;
     }
 
     // The image format is dropped.
-    if (StartsWith(original_argv[i], "--image-format=")) {
+    if (android::base::StartsWith(original_argv[i], "--image-format=")) {
       continue;
     }
 
@@ -142,11 +144,11 @@ static std::string StrippedCommandLine() {
     // However, we prefer to drop this when we saw --zip-fd.
     if (saw_zip_fd) {
       // Drop anything --zip-X, --dex-X, --oat-X, --swap-X, or --app-image-X
-      if (StartsWith(original_argv[i], "--zip-") ||
-          StartsWith(original_argv[i], "--dex-") ||
-          StartsWith(original_argv[i], "--oat-") ||
-          StartsWith(original_argv[i], "--swap-") ||
-          StartsWith(original_argv[i], "--app-image-")) {
+      if (android::base::StartsWith(original_argv[i], "--zip-") ||
+          android::base::StartsWith(original_argv[i], "--dex-") ||
+          android::base::StartsWith(original_argv[i], "--oat-") ||
+          android::base::StartsWith(original_argv[i], "--swap-") ||
+          android::base::StartsWith(original_argv[i], "--app-image-")) {
         continue;
       }
     }
@@ -159,7 +161,7 @@ static std::string StrippedCommandLine() {
     // It seems only "/system/bin/dex2oat" is left, or not even that. Use a pretty line.
     return "Starting dex2oat.";
   }
-  return Join(command, ' ');
+  return android::base::Join(command, ' ');
 }
 
 static void UsageErrorV(const char* fmt, va_list ap) {
@@ -999,7 +1001,7 @@ class Dex2Oat FINAL {
       if (last_dex_dot != std::string::npos) {
         dex_file = dex_file.substr(0, last_dex_dot);
       }
-      if (StartsWith(dex_file, "core-")) {
+      if (android::base::StartsWith(dex_file, "core-")) {
         infix = dex_file.substr(strlen("core"));
       }
     }
@@ -1059,7 +1061,7 @@ class Dex2Oat FINAL {
         in.insert(last_dot, infix);
       }
     }
-    if (EndsWith(in, ".jar")) {
+    if (android::base::EndsWith(in, ".jar")) {
       in = in.substr(0, in.length() - strlen(".jar")) +
           (replace_suffix != nullptr ? replace_suffix : "");
     }
@@ -1484,7 +1486,7 @@ class Dex2Oat FINAL {
         for (const gc::space::ImageSpace* image_space : image_spaces) {
           image_filenames.push_back(image_space->GetImageFilename());
         }
-        std::string image_file_location = Join(image_filenames, ':');
+        std::string image_file_location = android::base::Join(image_filenames, ':');
         if (!image_file_location.empty()) {
           key_value_store_->Put(OatHeader::kImageLocationKey, image_file_location);
         }
@@ -1687,7 +1689,7 @@ class Dex2Oat FINAL {
               }
             }
 
-            if (StartsWith(dex_location, filter.c_str())) {
+            if (android::base::StartsWith(dex_location, filter.c_str())) {
               VLOG(compiler) << "Disabling inlining from " << dex_file->GetLocation();
               no_inline_from_dex_files_.push_back(dex_file);
               break;
@@ -2362,10 +2364,10 @@ class Dex2Oat FINAL {
     RuntimeOptions raw_options;
     if (boot_image_filename_.empty()) {
       std::string boot_class_path = "-Xbootclasspath:";
-      boot_class_path += Join(dex_filenames_, ':');
+      boot_class_path += android::base::Join(dex_filenames_, ':');
       raw_options.push_back(std::make_pair(boot_class_path, nullptr));
       std::string boot_class_path_locations = "-Xbootclasspath-locations:";
-      boot_class_path_locations += Join(dex_locations_, ':');
+      boot_class_path_locations += android::base::Join(dex_locations_, ':');
       raw_options.push_back(std::make_pair(boot_class_path_locations, nullptr));
     } else {
       std::string boot_image_option = "-Ximage:";
@@ -2579,7 +2581,7 @@ class Dex2Oat FINAL {
     while (in_stream.good()) {
       std::string dot;
       std::getline(in_stream, dot);
-      if (StartsWith(dot, "#") || dot.empty()) {
+      if (android::base::StartsWith(dot, "#") || dot.empty()) {
         continue;
       }
       if (process != nullptr) {

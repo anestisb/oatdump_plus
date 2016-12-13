@@ -19,6 +19,9 @@
 #include <sstream>
 
 #include <sys/stat.h>
+
+#include "android-base/strings.h"
+
 #include "base/logging.h"
 #include "base/stringprintf.h"
 #include "compiler_filter.h"
@@ -456,7 +459,7 @@ OatFileAssistant::RelocateOatFile(const std::string* input_file, std::string* er
   argv.push_back("--output-oat-file=" + oat_file_name);
   argv.push_back("--patched-image-location=" + image_info->location);
 
-  std::string command_line(Join(argv, ' '));
+  std::string command_line(android::base::Join(argv, ' '));
   if (!Exec(argv, error_msg)) {
     // Manually delete the file. This ensures there is no garbage left over if
     // the process unexpectedly died.
@@ -605,7 +608,7 @@ bool OatFileAssistant::Dex2Oat(const std::vector<std::string>& args,
 
   argv.insert(argv.end(), args.begin(), args.end());
 
-  std::string command_line(Join(argv, ' '));
+  std::string command_line(android::base::Join(argv, ' '));
   return Exec(argv, error_msg);
 }
 

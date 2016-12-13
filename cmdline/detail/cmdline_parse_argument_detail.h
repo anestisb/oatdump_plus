@@ -25,6 +25,8 @@
 #include <numeric>
 #include <memory>
 
+#include "android-base/strings.h"
+
 #include "cmdline_parse_result.h"
 #include "cmdline_types.h"
 #include "token_range.h"
@@ -399,7 +401,7 @@ namespace art {
             allowed_values.push_back(name);
           }
 
-          std::string allowed_values_flat = Join(allowed_values, ',');
+          std::string allowed_values_flat = android::base::Join(allowed_values, ',');
           return CmdlineResult(CmdlineResult::kFailure,
                                "Argument value '" + argument + "' does not match any of known valid"
                                 "values: {" + allowed_values_flat + "}");
@@ -426,7 +428,7 @@ namespace art {
             allowed_values.push_back(arg_name);
           }
 
-          std::string allowed_values_flat = Join(allowed_values, ',');
+          std::string allowed_values_flat = android::base::Join(allowed_values, ',');
           return CmdlineResult(CmdlineResult::kFailure,
                                "Argument value '" + argument + "' does not match any of known valid"
                                 "values: {" + allowed_values_flat + "}");

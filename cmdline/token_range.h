@@ -23,6 +23,8 @@
 #include <algorithm>
 #include <memory>
 
+#include "android-base/strings.h"
+
 namespace art {
 // A range of tokens to make token matching algorithms easier.
 //
@@ -374,7 +376,7 @@ struct TokenRange {
   // e.g. ["hello", "world"].join('$') == "hello$world"
   std::string Join(char separator) const {
     TokenList tmp(begin(), end());
-    return art::Join(tmp, separator);
+    return android::base::Join(tmp, separator);
     // TODO: Join should probably take an offset or iterators
   }
 
