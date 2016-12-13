@@ -64,43 +64,10 @@ bool ParseInt(const char* in, T* out) {
   return true;
 }
 
-// Return whether x / divisor == x * (1.0f / divisor), for every float x.
-static constexpr bool CanDivideByReciprocalMultiplyFloat(int32_t divisor) {
-  // True, if the most significant bits of divisor are 0.
-  return ((divisor & 0x7fffff) == 0);
-}
-
-// Return whether x / divisor == x * (1.0 / divisor), for every double x.
-static constexpr bool CanDivideByReciprocalMultiplyDouble(int64_t divisor) {
-  // True, if the most significant bits of divisor are 0.
-  return ((divisor & ((UINT64_C(1) << 52) - 1)) == 0);
-}
-
 static inline uint32_t PointerToLowMemUInt32(const void* p) {
   uintptr_t intp = reinterpret_cast<uintptr_t>(p);
   DCHECK_LE(intp, 0xFFFFFFFFU);
   return intp & 0xFFFFFFFFU;
-}
-
-static inline bool NeedsEscaping(uint16_t ch) {
-  return (ch < ' ' || ch > '~');
-}
-
-template <typename T> T SafeAbs(T value) {
-  // std::abs has undefined behavior on min limits.
-  DCHECK_NE(value, std::numeric_limits<T>::min());
-  return std::abs(value);
-}
-
-template <typename T> T AbsOrMin(T value) {
-  return (value == std::numeric_limits<T>::min())
-      ? value
-      : std::abs(value);
-}
-
-template <typename T>
-inline typename std::make_unsigned<T>::type MakeUnsigned(T x) {
-  return static_cast<typename std::make_unsigned<T>::type>(x);
 }
 
 uint8_t* DecodeBase64(const char* src, size_t* dst_size);
@@ -110,12 +77,6 @@ std::string PrintableChar(uint16_t ch);
 // Returns an ASCII string corresponding to the given UTF-8 string.
 // Java escapes are used for non-ASCII characters.
 std::string PrintableString(const char* utf8);
-
-// Tests whether 's' starts with 'prefix'.
-bool StartsWith(const std::string& s, const char* prefix);
-
-// Tests whether 's' ends with 'suffix'.
-bool EndsWith(const std::string& s, const char* suffix);
 
 // Used to implement PrettyClass, PrettyField, PrettyMethod, and PrettyTypeOf,
 // one of which is probably more useful to you.
@@ -167,26 +128,14 @@ bool PrintFileToLog(const std::string& file_name, LogSeverity level);
 // strings. Empty strings will be omitted.
 void Split(const std::string& s, char separator, std::vector<std::string>* result);
 
-// Trims whitespace off both ends of the given string.
-std::string Trim(const std::string& s);
-
-// Joins a vector of strings into a single string, using the given separator.
-template <typename StringT> std::string Join(const std::vector<StringT>& strings, char separator);
-
 // Returns the calling thread's tid. (The C libraries don't expose this.)
 pid_t GetTid();
 
 // Returns the given thread's name.
 std::string GetThreadName(pid_t tid);
 
-// Returns details of the given thread's stack.
-void GetThreadStack(pthread_t thread, void** stack_base, size_t* stack_size, size_t* guard_size);
-
 // Reads data from "/proc/self/task/${tid}/stat".
 void GetTaskStats(pid_t tid, char* state, int* utime, int* stime, int* task_cpu);
-
-// Returns the name of the scheduler group for the given thread the current process, or the empty string.
-std::string GetSchedulerGroupName(pid_t tid);
 
 // Sets the name of the current thread. The name may be truncated to an
 // implementation-defined limit.
@@ -250,15 +199,6 @@ class VoidFunctor {
   inline void operator() (A a ATTRIBUTE_UNUSED, B b ATTRIBUTE_UNUSED, C c ATTRIBUTE_UNUSED) const {
   }
 };
-
-template <typename Vector>
-void Push32(Vector* buf, int32_t data) {
-  static_assert(std::is_same<typename Vector::value_type, uint8_t>::value, "Invalid value type");
-  buf->push_back(data & 0xff);
-  buf->push_back((data >> 8) & 0xff);
-  buf->push_back((data >> 16) & 0xff);
-  buf->push_back((data >> 24) & 0xff);
-}
 
 inline bool TestBitmap(size_t idx, const uint8_t* bitmap) {
   return ((bitmap[idx / kBitsPerByte] >> (idx % kBitsPerByte)) & 0x01) != 0;
@@ -332,12 +272,6 @@ static T GetRandomNumber(T min, T max) {
   std::uniform_int_distribution<T> dist(min, max);
   RNG rng;
   return dist(rng);
-}
-
-// All of the elements from one container to another.
-template <typename Dest, typename Src>
-static void AddAll(Dest& dest, const Src& src) {
-  dest.insert(src.begin(), src.end());
 }
 
 // Return the file size in bytes or -1 if the file does not exists.

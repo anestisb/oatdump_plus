@@ -22,6 +22,8 @@
 
 #include <stdint.h>
 
+#include "android-base/strings.h"
+
 #ifdef ART_ENABLE_CODEGEN_arm
 #include "dex_cache_array_fixups_arm.h"
 #endif
@@ -1115,7 +1117,8 @@ Compiler* CreateOptimizingCompiler(CompilerDriver* driver) {
 bool IsCompilingWithCoreImage() {
   const std::string& image = Runtime::Current()->GetImageLocation();
   // TODO: This is under-approximating...
-  if (EndsWith(image, "core.art") || EndsWith(image, "core-optimizing.art")) {
+  if (android::base::EndsWith(image, "core.art") ||
+      android::base::EndsWith(image, "core-optimizing.art")) {
     return true;
   }
   return false;

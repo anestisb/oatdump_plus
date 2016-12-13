@@ -873,6 +873,62 @@ void Thread::SetThreadName(const char* name) {
   Dbg::DdmSendThreadNotification(this, CHUNK_TYPE("THNM"));
 }
 
+static void GetThreadStack(pthread_t thread,
+                           void** stack_base,
+                           size_t* stack_size,
+                           size_t* guard_size) {
+#if defined(__APPLE__)
+  *stack_size = pthread_get_stacksize_np(thread);
+  void* stack_addr = pthread_get_stackaddr_np(thread);
+
+  // Check whether stack_addr is the base or end of the stack.
+  // (On Mac OS 10.7, it's the end.)
+  int stack_variable;
+  if (stack_addr > &stack_variable) {
+    *stack_base = reinterpret_cast<uint8_t*>(stack_addr) - *stack_size;
+  } else {
+    *stack_base = stack_addr;
+  }
+
+  // This is wrong, but there doesn't seem to be a way to get the actual value on the Mac.
+  pthread_attr_t attributes;
+  CHECK_PTHREAD_CALL(pthread_attr_init, (&attributes), __FUNCTION__);
+  CHECK_PTHREAD_CALL(pthread_attr_getguardsize, (&attributes, guard_size), __FUNCTION__);
+  CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attributes), __FUNCTION__);
+#else
+  pthread_attr_t attributes;
+  CHECK_PTHREAD_CALL(pthread_getattr_np, (thread, &attributes), __FUNCTION__);
+  CHECK_PTHREAD_CALL(pthread_attr_getstack, (&attributes, stack_base, stack_size), __FUNCTION__);
+  CHECK_PTHREAD_CALL(pthread_attr_getguardsize, (&attributes, guard_size), __FUNCTION__);
+  CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attributes), __FUNCTION__);
+
+#if defined(__GLIBC__)
+  // If we're the main thread, check whether we were run with an unlimited stack. In that case,
+  // glibc will have reported a 2GB stack for our 32-bit process, and our stack overflow detection
+  // will be broken because we'll die long before we get close to 2GB.
+  bool is_main_thread = (::art::GetTid() == getpid());
+  if (is_main_thread) {
+    rlimit stack_limit;
+    if (getrlimit(RLIMIT_STACK, &stack_limit) == -1) {
+      PLOG(FATAL) << "getrlimit(RLIMIT_STACK) failed";
+    }
+    if (stack_limit.rlim_cur == RLIM_INFINITY) {
+      size_t old_stack_size = *stack_size;
+
+      // Use the kernel default limit as our size, and adjust the base to match.
+      *stack_size = 8 * MB;
+      *stack_base = reinterpret_cast<uint8_t*>(*stack_base) + (old_stack_size - *stack_size);
+
+      VLOG(threads) << "Limiting unlimited stack (reported as " << PrettySize(old_stack_size) << ")"
+                    << " to " << PrettySize(*stack_size)
+                    << " with base " << *stack_base;
+    }
+  }
+#endif
+
+#endif
+}
+
 bool Thread::InitStackHwm() {
   void* read_stack_base;
   size_t read_stack_size;
@@ -1321,6 +1377,32 @@ void Thread::FullSuspendCheck() {
   ScopedThreadSuspension(this, kSuspended);
   VLOG(threads) << this << " self-reviving";
 }
+
+static std::string GetSchedulerGroupName(pid_t tid) {
+  // /proc/<pid>/cgroup looks like this:
+  // 2:devices:/
+  // 1:cpuacct,cpu:/
+  // We want the third field from the line whose second field contains the "cpu" token.
+  std::string cgroup_file;
+  if (!ReadFileToString(StringPrintf("/proc/self/task/%d/cgroup", tid), &cgroup_file)) {
+    return "";
+  }
+  std::vector<std::string> cgroup_lines;
+  Split(cgroup_file, '\n', &cgroup_lines);
+  for (size_t i = 0; i < cgroup_lines.size(); ++i) {
+    std::vector<std::string> cgroup_fields;
+    Split(cgroup_lines[i], ':', &cgroup_fields);
+    std::vector<std::string> cgroups;
+    Split(cgroup_fields[1], ',', &cgroups);
+    for (size_t j = 0; j < cgroups.size(); ++j) {
+      if (cgroups[j] == "cpu") {
+        return cgroup_fields[2].substr(1);  // Skip the leading slash.
+      }
+    }
+  }
+  return "";
+}
+
 
 void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
   std::string group_name;

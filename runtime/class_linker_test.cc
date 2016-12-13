@@ -19,6 +19,8 @@
 #include <memory>
 #include <string>
 
+#include "android-base/strings.h"
+
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "base/enums.h"
@@ -800,12 +802,12 @@ TEST_F(ClassLinkerTest, GetDexFiles) {
   jobject jclass_loader = LoadDex("Nested");
   std::vector<const DexFile*> dex_files(GetDexFiles(jclass_loader));
   ASSERT_EQ(dex_files.size(), 1U);
-  EXPECT_TRUE(EndsWith(dex_files[0]->GetLocation(), "Nested.jar"));
+  EXPECT_TRUE(android::base::EndsWith(dex_files[0]->GetLocation(), "Nested.jar"));
 
   jobject jclass_loader2 = LoadDex("MultiDex");
   std::vector<const DexFile*> dex_files2(GetDexFiles(jclass_loader2));
   ASSERT_EQ(dex_files2.size(), 2U);
-  EXPECT_TRUE(EndsWith(dex_files2[0]->GetLocation(), "MultiDex.jar"));
+  EXPECT_TRUE(android::base::EndsWith(dex_files2[0]->GetLocation(), "MultiDex.jar"));
 }
 
 TEST_F(ClassLinkerTest, FindClassNested) {

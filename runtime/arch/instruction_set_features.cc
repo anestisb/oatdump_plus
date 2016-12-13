@@ -16,6 +16,8 @@
 
 #include "instruction_set_features.h"
 
+#include "android-base/strings.h"
+
 #include "base/casts.h"
 #include "utils.h"
 
@@ -224,7 +226,7 @@ std::unique_ptr<const InstructionSetFeatures> InstructionSetFeatures::AddFeature
       *error_msg = "Unexpected instruction set features after 'default'";
       return std::unique_ptr<const InstructionSetFeatures>();
     }
-    std::string feature = Trim(*it);
+    std::string feature = android::base::Trim(*it);
     bool erase = false;
     if (feature == "default") {
       if (!first) {
