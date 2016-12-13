@@ -413,10 +413,16 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   Label* NewStringBssEntryPatch(HLoadString* load_string);
   Label* NewPcRelativeDexCacheArrayPatch(const DexFile& dex_file, uint32_t element_offset);
   Label* NewJitRootStringPatch(const DexFile& dex_file, dex::StringIndex dex_index);
+  Label* NewJitRootClassPatch(const DexFile& dex_file, dex::TypeIndex dex_index, uint64_t address);
 
   void MoveFromReturnRegister(Location trg, Primitive::Type type) OVERRIDE;
 
   void EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) OVERRIDE;
+
+  void PatchJitRootUse(uint8_t* code,
+                       const uint8_t* roots_data,
+                       const PatchInfo<Label>& info,
+                       uint64_t index_in_table) const;
 
   void EmitJitRootPatches(uint8_t* code, const uint8_t* roots_data) OVERRIDE;
 
@@ -607,6 +613,9 @@ class CodeGeneratorX86_64 : public CodeGenerator {
 
   // Patches for string literals in JIT compiled code.
   ArenaDeque<PatchInfo<Label>> jit_string_patches_;
+
+  // Patches for class literals in JIT compiled code.
+  ArenaDeque<PatchInfo<Label>> jit_class_patches_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorX86_64);
 };

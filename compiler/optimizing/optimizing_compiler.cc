@@ -375,7 +375,8 @@ class OptimizingCompiler FINAL : public Compiler {
                             const DexFile& dex_file,
                             Handle<mirror::DexCache> dex_cache,
                             ArtMethod* method,
-                            bool osr) const;
+                            bool osr,
+                            VariableSizedHandleScope* handles) const;
 
   void MaybeRunInliner(HGraph* graph,
                        CodeGenerator* codegen,
@@ -495,7 +496,7 @@ static HOptimization* BuildOptimization(
                                 number_of_dex_registers,
                                 /* depth */ 0);
   } else if (opt_name == HSharpening::kSharpeningPassName) {
-    return new (arena) HSharpening(graph, codegen, dex_compilation_unit, driver);
+    return new (arena) HSharpening(graph, codegen, dex_compilation_unit, driver, handles);
   } else if (opt_name == HSelectGenerator::kSelectGeneratorPassName) {
     return new (arena) HSelectGenerator(graph, stats);
   } else if (opt_name == HInductionVarAnalysis::kInductionPassName) {
@@ -767,7 +768,8 @@ void OptimizingCompiler::RunOptimizations(HGraph* graph,
   HInductionVarAnalysis* induction = new (arena) HInductionVarAnalysis(graph);
   BoundsCheckElimination* bce = new (arena) BoundsCheckElimination(graph, *side_effects, induction);
   HLoopOptimization* loop = new (arena) HLoopOptimization(graph, induction);
-  HSharpening* sharpening = new (arena) HSharpening(graph, codegen, dex_compilation_unit, driver);
+  HSharpening* sharpening = new (arena) HSharpening(
+      graph, codegen, dex_compilation_unit, driver, handles);
   InstructionSimplifier* simplify2 = new (arena) InstructionSimplifier(
       graph, stats, "instruction_simplifier$after_inlining");
   InstructionSimplifier* simplify3 = new (arena) InstructionSimplifier(
@@ -866,7 +868,8 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
                                               const DexFile& dex_file,
                                               Handle<mirror::DexCache> dex_cache,
                                               ArtMethod* method,
-                                              bool osr) const {
+                                              bool osr,
+                                              VariableSizedHandleScope* handles) const {
   MaybeRecordStat(MethodCompilationStat::kAttemptCompilation);
   CompilerDriver* compiler_driver = GetCompilerDriver();
   InstructionSet instruction_set = compiler_driver->GetInstructionSet();
@@ -976,63 +979,55 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
                              compiler_driver,
                              dump_mutex_);
 
-  VLOG(compiler) << "Building " << pass_observer.GetMethodName();
-
   {
-    ScopedObjectAccess soa(Thread::Current());
-    VariableSizedHandleScope handles(soa.Self());
-    // Do not hold `mutator_lock_` between optimizations.
-    ScopedThreadSuspension sts(soa.Self(), kNative);
-
-    {
-      PassScope scope(HGraphBuilder::kBuilderPassName, &pass_observer);
-      HGraphBuilder builder(graph,
-                            &dex_compilation_unit,
-                            &dex_compilation_unit,
-                            &dex_file,
-                            *code_item,
-                            compiler_driver,
-                            compilation_stats_.get(),
-                            interpreter_metadata,
-                            dex_cache,
-                            &handles);
-      GraphAnalysisResult result = builder.BuildGraph();
-      if (result != kAnalysisSuccess) {
-        switch (result) {
-          case kAnalysisSkipped:
-            MaybeRecordStat(MethodCompilationStat::kNotCompiledSkipped);
-            break;
-          case kAnalysisInvalidBytecode:
-            MaybeRecordStat(MethodCompilationStat::kNotCompiledInvalidBytecode);
-            break;
-          case kAnalysisFailThrowCatchLoop:
-            MaybeRecordStat(MethodCompilationStat::kNotCompiledThrowCatchLoop);
-            break;
-          case kAnalysisFailAmbiguousArrayOp:
-            MaybeRecordStat(MethodCompilationStat::kNotCompiledAmbiguousArrayOp);
-            break;
-          case kAnalysisSuccess:
-            UNREACHABLE();
-        }
-        pass_observer.SetGraphInBadState();
-        return nullptr;
+    VLOG(compiler) << "Building " << pass_observer.GetMethodName();
+    PassScope scope(HGraphBuilder::kBuilderPassName, &pass_observer);
+    HGraphBuilder builder(graph,
+                          &dex_compilation_unit,
+                          &dex_compilation_unit,
+                          &dex_file,
+                          *code_item,
+                          compiler_driver,
+                          compilation_stats_.get(),
+                          interpreter_metadata,
+                          dex_cache,
+                          handles);
+    GraphAnalysisResult result = builder.BuildGraph();
+    if (result != kAnalysisSuccess) {
+      switch (result) {
+        case kAnalysisSkipped:
+          MaybeRecordStat(MethodCompilationStat::kNotCompiledSkipped);
+          break;
+        case kAnalysisInvalidBytecode:
+          MaybeRecordStat(MethodCompilationStat::kNotCompiledInvalidBytecode);
+          break;
+        case kAnalysisFailThrowCatchLoop:
+          MaybeRecordStat(MethodCompilationStat::kNotCompiledThrowCatchLoop);
+          break;
+        case kAnalysisFailAmbiguousArrayOp:
+          MaybeRecordStat(MethodCompilationStat::kNotCompiledAmbiguousArrayOp);
+          break;
+        case kAnalysisSuccess:
+          UNREACHABLE();
       }
+      pass_observer.SetGraphInBadState();
+      return nullptr;
     }
-
-    RunOptimizations(graph,
-                     codegen.get(),
-                     compiler_driver,
-                     dex_compilation_unit,
-                     &pass_observer,
-                     &handles);
-
-    RegisterAllocator::Strategy regalloc_strategy =
-      compiler_options.GetRegisterAllocationStrategy();
-    AllocateRegisters(graph, codegen.get(), &pass_observer, regalloc_strategy);
-
-    codegen->Compile(code_allocator);
-    pass_observer.DumpDisassembly();
   }
+
+  RunOptimizations(graph,
+                   codegen.get(),
+                   compiler_driver,
+                   dex_compilation_unit,
+                   &pass_observer,
+                   handles);
+
+  RegisterAllocator::Strategy regalloc_strategy =
+    compiler_options.GetRegisterAllocationStrategy();
+  AllocateRegisters(graph, codegen.get(), &pass_observer, regalloc_strategy);
+
+  codegen->Compile(code_allocator);
+  pass_observer.DumpDisassembly();
 
   return codegen.release();
 }
@@ -1055,19 +1050,27 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
             verified_method->GetEncounteredVerificationFailures())) {
     ArenaAllocator arena(Runtime::Current()->GetArenaPool());
     CodeVectorAllocator code_allocator(&arena);
-    std::unique_ptr<CodeGenerator> codegen(
-        TryCompile(&arena,
-                   &code_allocator,
-                   code_item,
-                   access_flags,
-                   invoke_type,
-                   class_def_idx,
-                   method_idx,
-                   jclass_loader,
-                   dex_file,
-                   dex_cache,
-                   nullptr,
-                   /* osr */ false));
+    std::unique_ptr<CodeGenerator> codegen;
+    {
+      ScopedObjectAccess soa(Thread::Current());
+      VariableSizedHandleScope handles(soa.Self());
+      // Go to native so that we don't block GC during compilation.
+      ScopedThreadSuspension sts(soa.Self(), kNative);
+      codegen.reset(
+          TryCompile(&arena,
+                     &code_allocator,
+                     code_item,
+                     access_flags,
+                     invoke_type,
+                     class_def_idx,
+                     method_idx,
+                     jclass_loader,
+                     dex_file,
+                     dex_cache,
+                     nullptr,
+                     /* osr */ false,
+                     &handles));
+    }
     if (codegen.get() != nullptr) {
       MaybeRecordStat(MethodCompilationStat::kCompiled);
       method = Emit(&arena, &code_allocator, codegen.get(), compiler_driver, code_item);
@@ -1138,6 +1141,8 @@ bool OptimizingCompiler::JitCompile(Thread* self,
 
   ArenaAllocator arena(Runtime::Current()->GetJitArenaPool());
   CodeVectorAllocator code_allocator(&arena);
+  VariableSizedHandleScope handles(self);
+
   std::unique_ptr<CodeGenerator> codegen;
   {
     // Go to native so that we don't block GC during compilation.
@@ -1154,7 +1159,8 @@ bool OptimizingCompiler::JitCompile(Thread* self,
                    *dex_file,
                    dex_cache,
                    method,
-                   osr));
+                   osr,
+                   &handles));
     if (codegen.get() == nullptr) {
       return false;
     }
