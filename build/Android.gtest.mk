@@ -86,6 +86,7 @@ ART_GTEST_dex2oat_environment_tests_DEX_DEPS := Main MainStripped MultiDex Multi
 
 ART_GTEST_atomic_method_ref_map_test_DEX_DEPS := Interfaces
 ART_GTEST_class_linker_test_DEX_DEPS := Interfaces MethodTypes MultiDex MyClass Nested Statics StaticsFromCode
+ART_GTEST_class_table_test_DEX_DEPS := XandY
 ART_GTEST_compiler_driver_test_DEX_DEPS := AbstractMethod StaticLeafMethods ProfileTestMultiDex
 ART_GTEST_dex_cache_test_DEX_DEPS := Main Packages MethodTypes
 ART_GTEST_dex_file_test_DEX_DEPS := GetMethodSignature Main Nested
@@ -598,6 +599,7 @@ ART_TEST_TARGET_VALGRIND_GTEST$(2ND_ART_PHONY_TEST_TARGET_SUFFIX)_RULES :=
 ART_TEST_TARGET_VALGRIND_GTEST_RULES :=
 ART_GTEST_TARGET_ANDROID_ROOT :=
 ART_GTEST_class_linker_test_DEX_DEPS :=
+ART_GTEST_class_table_test_DEX_DEPS :=
 ART_GTEST_compiler_driver_test_DEX_DEPS :=
 ART_GTEST_dex_file_test_DEX_DEPS :=
 ART_GTEST_exception_test_DEX_DEPS :=
