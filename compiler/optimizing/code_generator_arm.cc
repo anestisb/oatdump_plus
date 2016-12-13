@@ -7370,10 +7370,6 @@ Literal* CodeGeneratorARM::DeduplicateBootImageAddressLiteral(uint32_t address) 
   return DeduplicateUint32Literal(dchecked_integral_cast<uint32_t>(address), map);
 }
 
-Literal* CodeGeneratorARM::DeduplicateDexCacheAddressLiteral(uint32_t address) {
-  return DeduplicateUint32Literal(address, &uint32_literals_);
-}
-
 Literal* CodeGeneratorARM::DeduplicateJitStringLiteral(const DexFile& dex_file,
                                                        dex::StringIndex string_index) {
   jit_string_roots_.Overwrite(StringReference(&dex_file, string_index), /* placeholder */ 0u);
