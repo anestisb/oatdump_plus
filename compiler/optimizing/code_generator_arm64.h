@@ -566,7 +566,6 @@ class CodeGeneratorARM64 : public CodeGenerator {
   vixl::aarch64::Literal<uint32_t>* DeduplicateBootImageTypeLiteral(const DexFile& dex_file,
                                                                     dex::TypeIndex type_index);
   vixl::aarch64::Literal<uint32_t>* DeduplicateBootImageAddressLiteral(uint64_t address);
-  vixl::aarch64::Literal<uint64_t>* DeduplicateDexCacheAddressLiteral(uint64_t address);
   vixl::aarch64::Literal<uint32_t>* DeduplicateJitStringLiteral(const DexFile& dex_file,
                                                                 dex::StringIndex string_index);
   vixl::aarch64::Literal<uint32_t>* DeduplicateJitClassLiteral(const DexFile& dex_file,
@@ -736,8 +735,7 @@ class CodeGeneratorARM64 : public CodeGenerator {
 
   // Deduplication map for 32-bit literals, used for non-patchable boot image addresses.
   Uint32ToLiteralMap uint32_literals_;
-  // Deduplication map for 64-bit literals, used for non-patchable method address, method code
-  // or string dex cache address.
+  // Deduplication map for 64-bit literals, used for non-patchable method address or method code.
   Uint64ToLiteralMap uint64_literals_;
   // Method patch info, map MethodReference to a literal for method address and method code.
   MethodToLiteralMap method_patches_;
