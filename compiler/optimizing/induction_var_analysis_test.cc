@@ -87,6 +87,7 @@ class InductionVarAnalysisTest : public CommonCompilerTest {
     constant2_ = graph_->GetIntConstant(2);
     constant7_ = graph_->GetIntConstant(7);
     constant100_ = graph_->GetIntConstant(100);
+    constantm1_ = graph_->GetIntConstant(-1);
     float_constant0_ = graph_->GetFloatConstant(0.0f);
     return_->AddInstruction(new (&allocator_) HReturnVoid());
     exit_->AddInstruction(new (&allocator_) HExit());
@@ -196,6 +197,7 @@ class InductionVarAnalysisTest : public CommonCompilerTest {
   HInstruction* constant2_;
   HInstruction* constant7_;
   HInstruction* constant100_;
+  HInstruction* constantm1_;
   HInstruction* float_constant0_;
 
   // Loop specifics.
@@ -610,6 +612,45 @@ TEST_F(InductionVarAnalysisTest, FindGeometricDivInductionAndDerived) {
   EXPECT_STREQ("", GetInductionInfo(mul, 0).c_str());
   EXPECT_STREQ("", GetInductionInfo(shl, 0).c_str());
   EXPECT_STREQ("", GetInductionInfo(div, 0).c_str());
+}
+
+TEST_F(InductionVarAnalysisTest, FindGeometricShrInduction) {
+  // Setup:
+  // k = 100;
+  // for (int i = 0; i < 100; i++) {
+  //   k = k >> 1;  // geometric (/ 2)
+  // }
+  BuildLoopNest(1);
+  HPhi* k_header = InsertLoopPhi(0, 0);
+  k_header->AddInput(constant100_);
+
+  HInstruction* shr = InsertInstruction(
+      new (&allocator_) HShr(Primitive::kPrimInt, k_header, constant1_), 0);
+  k_header->AddInput(shr);
+  PerformInductionVarAnalysis();
+
+  // Note, only the phi in the cycle is classified.
+  EXPECT_STREQ("geo((100) * 2 ^ -i + (0)):PrimInt", GetInductionInfo(k_header, 0).c_str());
+  EXPECT_STREQ("", GetInductionInfo(shr, 0).c_str());
+}
+
+TEST_F(InductionVarAnalysisTest, FindNotGeometricShrInduction) {
+  // Setup:
+  // k = -1;
+  // for (int i = 0; i < 100; i++) {
+  //   k = k >> 1;  // initial value is negative
+  // }
+  BuildLoopNest(1);
+  HPhi* k_header = InsertLoopPhi(0, 0);
+  k_header->AddInput(constantm1_);
+
+  HInstruction* shr = InsertInstruction(
+      new (&allocator_) HShr(Primitive::kPrimInt, k_header, constant1_), 0);
+  k_header->AddInput(shr);
+  PerformInductionVarAnalysis();
+
+  EXPECT_STREQ("", GetInductionInfo(k_header, 0).c_str());
+  EXPECT_STREQ("", GetInductionInfo(shr, 0).c_str());
 }
 
 TEST_F(InductionVarAnalysisTest, FindRemWrapAroundInductionAndDerived) {

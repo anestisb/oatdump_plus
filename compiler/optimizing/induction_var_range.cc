@@ -983,10 +983,10 @@ bool InductionVarRange::GenerateLastValuePolynomial(HInductionVarAnalysis::Induc
   int64_t a = 0;
   int64_t b = 0;
   int64_t m = 0;
-  if (IsConstant(info->op_a->op_a, kExact, &a) && a >= 0 &&
-      IsConstant(info->op_a->op_b, kExact, &b) && b >= 0 &&
+  if (IsConstant(info->op_a->op_a, kExact, &a) &&
+      IsConstant(info->op_a->op_b, kExact, &b) &&
       IsConstant(trip->op_a, kExact, &m) && m >= 1) {
-    // Evaluate bounds on sum_i=0^m-1(a * i + b) + c with a,b >= 0 for known
+    // Evaluate bounds on sum_i=0^m-1(a * i + b) + c for known
     // maximum index value m as a * (m * (m-1)) / 2 + b * m + c.
     // TODO: generalize
     HInstruction* c_instr = nullptr;

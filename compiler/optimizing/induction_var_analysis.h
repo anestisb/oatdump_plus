@@ -115,7 +115,7 @@ class HInductionVarAnalysis : public HOptimization {
     InductionInfo* op_a;
     InductionInfo* op_b;
     HInstruction* fetch;
-    Primitive::Type type;  // precision of induction
+    Primitive::Type type;  // precision of operation
   };
 
   bool IsVisitedNode(HInstruction* instruction) const {
@@ -160,14 +160,17 @@ class HInductionVarAnalysis : public HOptimization {
   InductionInfo* RotatePeriodicInduction(InductionInfo* induction, InductionInfo* last);
 
   // Transfer operations.
-  InductionInfo* TransferPhi(HLoopInformation* loop, HInstruction* phi, size_t input_index);
+  InductionInfo* TransferPhi(HLoopInformation* loop,
+                             HInstruction* phi,
+                             size_t input_index,
+                             size_t adjust_input_size);
   InductionInfo* TransferAddSub(InductionInfo* a, InductionInfo* b, InductionOp op);
   InductionInfo* TransferNeg(InductionInfo* a);
   InductionInfo* TransferMul(InductionInfo* a, InductionInfo* b);
   InductionInfo* TransferCnv(InductionInfo* a, Primitive::Type from, Primitive::Type to);
 
   // Solvers.
-  InductionInfo* SolvePhi(HInstruction* phi, size_t input_index);
+  InductionInfo* SolvePhi(HInstruction* phi, size_t input_index, size_t adjust_input_size);
   InductionInfo* SolvePhiAllInputs(HLoopInformation* loop,
                                    HInstruction* entry_phi,
                                    HInstruction* phi);
@@ -220,7 +223,9 @@ class HInductionVarAnalysis : public HOptimization {
   InductionInfo* LookupInfo(HLoopInformation* loop, HInstruction* instruction);
   InductionInfo* CreateConstant(int64_t value, Primitive::Type type);
   InductionInfo* CreateSimplifiedInvariant(InductionOp op, InductionInfo* a, InductionInfo* b);
-  HInstruction* GetMultConstantForShift(HLoopInformation* loop, HInstruction* instruction);
+  HInstruction* GetShiftConstant(HLoopInformation* loop,
+                                 HInstruction* instruction,
+                                 InductionInfo* initial);
   void AssignCycle(HPhi* phi);
   ArenaSet<HInstruction*>* LookupCycle(HPhi* phi);
 
