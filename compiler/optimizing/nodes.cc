@@ -2440,6 +2440,17 @@ std::ostream& operator<<(std::ostream& os, HInvokeStaticOrDirect::ClinitCheckReq
   }
 }
 
+// Helper for InstructionDataEquals to fetch the mirror Class out
+// from a kJitTableAddress LoadClass kind.
+// NO_THREAD_SAFETY_ANALYSIS because even though we're accessing
+// mirrors, they are stored in a variable size handle scope which is always
+// visited during a pause. Also, the only caller of this helper
+// only uses the mirror for pointer comparison.
+static inline mirror::Class* AsMirrorInternal(uint64_t address)
+    NO_THREAD_SAFETY_ANALYSIS {
+  return reinterpret_cast<StackReference<mirror::Class>*>(address)->AsMirrorPtr();
+}
+
 bool HLoadClass::InstructionDataEquals(const HInstruction* other) const {
   const HLoadClass* other_load_class = other->AsLoadClass();
   // TODO: To allow GVN for HLoadClass from different dex files, we should compare the type
@@ -2448,16 +2459,14 @@ bool HLoadClass::InstructionDataEquals(const HInstruction* other) const {
       GetPackedFields() != other_load_class->GetPackedFields()) {
     return false;
   }
-  LoadKind load_kind = GetLoadKind();
-  if (HasAddress(load_kind)) {
-    return GetAddress() == other_load_class->GetAddress();
-  } else if (HasTypeReference(load_kind)) {
-    return IsSameDexFile(GetDexFile(), other_load_class->GetDexFile());
-  } else {
-    DCHECK(HasDexCacheReference(load_kind)) << load_kind;
-    // If the type indexes and dex files are the same, dex cache element offsets
-    // must also be the same, so we don't need to compare them.
-    return IsSameDexFile(GetDexFile(), other_load_class->GetDexFile());
+  switch (GetLoadKind()) {
+    case LoadKind::kBootImageAddress:
+      return GetAddress() == other_load_class->GetAddress();
+    case LoadKind::kJitTableAddress:
+      return AsMirrorInternal(GetAddress()) == AsMirrorInternal(other_load_class->GetAddress());
+    default:
+      DCHECK(HasTypeReference(GetLoadKind()) || HasDexCacheReference(GetLoadKind()));
+      return IsSameDexFile(GetDexFile(), other_load_class->GetDexFile());
   }
 }
 

@@ -197,7 +197,9 @@ void HSharpening::ProcessLoadClass(HLoadClass* load_class) {
           // out which class loader to use.
           address = reinterpret_cast<uint64_t>(handles_->NewHandle(klass).GetReference());
         } else {
-          // Class not loaded yet. Fallback to the dex cache.
+          // Class not loaded yet. This happens when the dex code requesting
+          // this `HLoadClass` hasn't been executed in the interpreter.
+          // Fallback to the dex cache.
           // TODO(ngeoffray): Generate HDeoptimize instead.
           desired_load_kind = HLoadClass::LoadKind::kDexCacheViaMethod;
         }
