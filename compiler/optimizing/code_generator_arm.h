@@ -491,6 +491,9 @@ class CodeGeneratorARM : public CodeGenerator {
   Literal* DeduplicateBootImageAddressLiteral(uint32_t address);
   Literal* DeduplicateDexCacheAddressLiteral(uint32_t address);
   Literal* DeduplicateJitStringLiteral(const DexFile& dex_file, dex::StringIndex string_index);
+  Literal* DeduplicateJitClassLiteral(const DexFile& dex_file,
+                                      dex::TypeIndex type_index,
+                                      uint64_t address);
 
   void EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) OVERRIDE;
 
@@ -599,9 +602,9 @@ class CodeGeneratorARM : public CodeGenerator {
   using StringToLiteralMap = ArenaSafeMap<StringReference,
                                           Literal*,
                                           StringReferenceValueComparator>;
-  using BootTypeToLiteralMap = ArenaSafeMap<TypeReference,
-                                            Literal*,
-                                            TypeReferenceValueComparator>;
+  using TypeToLiteralMap = ArenaSafeMap<TypeReference,
+                                        Literal*,
+                                        TypeReferenceValueComparator>;
 
   Literal* DeduplicateUint32Literal(uint32_t value, Uint32ToLiteralMap* map);
   Literal* DeduplicateMethodLiteral(MethodReference target_method, MethodToLiteralMap* map);
@@ -638,7 +641,7 @@ class CodeGeneratorARM : public CodeGenerator {
   // PC-relative String patch info; type depends on configuration (app .bss or boot image PIC).
   ArenaDeque<PcRelativePatchInfo> pc_relative_string_patches_;
   // Deduplication map for boot type literals for kBootImageLinkTimeAddress.
-  BootTypeToLiteralMap boot_image_type_patches_;
+  TypeToLiteralMap boot_image_type_patches_;
   // PC-relative type patch info.
   ArenaDeque<PcRelativePatchInfo> pc_relative_type_patches_;
   // Deduplication map for patchable boot image addresses.
@@ -646,6 +649,8 @@ class CodeGeneratorARM : public CodeGenerator {
 
   // Patches for string literals in JIT compiled code.
   StringToLiteralMap jit_string_patches_;
+  // Patches for class literals in JIT compiled code.
+  TypeToLiteralMap jit_class_patches_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorARM);
 };

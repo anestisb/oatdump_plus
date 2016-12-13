@@ -1444,7 +1444,7 @@ size_t HInliner::RunOptimizations(HGraph* callee_graph,
   // optimization that could lead to a HDeoptimize. The following optimizations do not.
   HDeadCodeElimination dce(callee_graph, stats_, "dead_code_elimination$inliner");
   HConstantFolding fold(callee_graph, "constant_folding$inliner");
-  HSharpening sharpening(callee_graph, codegen_, dex_compilation_unit, compiler_driver_);
+  HSharpening sharpening(callee_graph, codegen_, dex_compilation_unit, compiler_driver_, handles_);
   InstructionSimplifier simplify(callee_graph, stats_);
   IntrinsicsRecognizer intrinsics(callee_graph, stats_);
 
