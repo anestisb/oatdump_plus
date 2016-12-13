@@ -16,11 +16,13 @@
 
 #include "stack_trace.h"
 
+#include <inttypes.h>
 #include <memory>
 #include <stdio.h>
 
 #include "base/logging.h"
 #include "base/macros.h"
+#include "base/stringprintf.h"
 #include "jni.h"
 #include "openjdkjvmti/jvmti.h"
 #include "ScopedLocalRef.h"
@@ -65,11 +67,13 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getStackTrace(
           return (name == nullptr) ? nullptr : env->NewStringUTF(name);
         case 1:
           return (sig == nullptr) ? nullptr : env->NewStringUTF(sig);
+        case 2:
+          return env->NewStringUTF(StringPrintf("%" PRId64, frames[method_index].location).c_str());
       }
       LOG(FATAL) << "Unreachable";
       UNREACHABLE();
     };
-    jobjectArray inner_array = CreateObjectArray(env, 2, "java/lang/String", inner_callback);
+    jobjectArray inner_array = CreateObjectArray(env, 3, "java/lang/String", inner_callback);
 
     if (name != nullptr) {
       jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(name));
