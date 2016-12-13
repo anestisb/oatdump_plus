@@ -19,6 +19,8 @@
 #include <fstream>
 #include <sstream>
 
+#include "android-base/strings.h"
+
 #include "base/stringprintf.h"
 #include "utils.h"  // For Trim.
 
@@ -105,7 +107,7 @@ Mips64InstructionSetFeatures::AddFeaturesFromSplitString(
   auto i = features.begin();
   if (i != features.end()) {
     // We don't have any features.
-    std::string feature = Trim(*i);
+    std::string feature = android::base::Trim(*i);
     *error_msg = StringPrintf("Unknown instruction set feature: '%s'", feature.c_str());
     return nullptr;
   }

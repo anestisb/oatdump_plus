@@ -25,6 +25,8 @@
 #include <unistd.h>
 #include <memory>
 
+#include "android-base/strings.h"
+
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "dex_file-inl.h"
@@ -137,59 +139,6 @@ std::string GetThreadName(pid_t tid) {
     result = "<unknown>";
   }
   return result;
-}
-
-void GetThreadStack(pthread_t thread, void** stack_base, size_t* stack_size, size_t* guard_size) {
-#if defined(__APPLE__)
-  *stack_size = pthread_get_stacksize_np(thread);
-  void* stack_addr = pthread_get_stackaddr_np(thread);
-
-  // Check whether stack_addr is the base or end of the stack.
-  // (On Mac OS 10.7, it's the end.)
-  int stack_variable;
-  if (stack_addr > &stack_variable) {
-    *stack_base = reinterpret_cast<uint8_t*>(stack_addr) - *stack_size;
-  } else {
-    *stack_base = stack_addr;
-  }
-
-  // This is wrong, but there doesn't seem to be a way to get the actual value on the Mac.
-  pthread_attr_t attributes;
-  CHECK_PTHREAD_CALL(pthread_attr_init, (&attributes), __FUNCTION__);
-  CHECK_PTHREAD_CALL(pthread_attr_getguardsize, (&attributes, guard_size), __FUNCTION__);
-  CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attributes), __FUNCTION__);
-#else
-  pthread_attr_t attributes;
-  CHECK_PTHREAD_CALL(pthread_getattr_np, (thread, &attributes), __FUNCTION__);
-  CHECK_PTHREAD_CALL(pthread_attr_getstack, (&attributes, stack_base, stack_size), __FUNCTION__);
-  CHECK_PTHREAD_CALL(pthread_attr_getguardsize, (&attributes, guard_size), __FUNCTION__);
-  CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attributes), __FUNCTION__);
-
-#if defined(__GLIBC__)
-  // If we're the main thread, check whether we were run with an unlimited stack. In that case,
-  // glibc will have reported a 2GB stack for our 32-bit process, and our stack overflow detection
-  // will be broken because we'll die long before we get close to 2GB.
-  bool is_main_thread = (::art::GetTid() == getpid());
-  if (is_main_thread) {
-    rlimit stack_limit;
-    if (getrlimit(RLIMIT_STACK, &stack_limit) == -1) {
-      PLOG(FATAL) << "getrlimit(RLIMIT_STACK) failed";
-    }
-    if (stack_limit.rlim_cur == RLIM_INFINITY) {
-      size_t old_stack_size = *stack_size;
-
-      // Use the kernel default limit as our size, and adjust the base to match.
-      *stack_size = 8 * MB;
-      *stack_base = reinterpret_cast<uint8_t*>(*stack_base) + (old_stack_size - *stack_size);
-
-      VLOG(threads) << "Limiting unlimited stack (reported as " << PrettySize(old_stack_size) << ")"
-                    << " to " << PrettySize(*stack_size)
-                    << " with base " << *stack_base;
-    }
-  }
-#endif
-
-#endif
 }
 
 bool ReadFileToString(const std::string& file_name, std::string* result) {
@@ -409,6 +358,10 @@ std::string PrettySize(int64_t byte_count) {
   }
   return StringPrintf("%s%" PRId64 "%s",
                       negative_str, byte_count / kBytesPerUnit[i], kUnitStrings[i]);
+}
+
+static inline constexpr bool NeedsEscaping(uint16_t ch) {
+  return (ch < ' ' || ch > '~');
 }
 
 std::string PrintableChar(uint16_t ch) {
@@ -782,67 +735,6 @@ void Split(const std::string& s, char separator, std::vector<std::string>* resul
   }
 }
 
-std::string Trim(const std::string& s) {
-  std::string result;
-  unsigned int start_index = 0;
-  unsigned int end_index = s.size() - 1;
-
-  // Skip initial whitespace.
-  while (start_index < s.size()) {
-    if (!isspace(s[start_index])) {
-      break;
-    }
-    start_index++;
-  }
-
-  // Skip terminating whitespace.
-  while (end_index >= start_index) {
-    if (!isspace(s[end_index])) {
-      break;
-    }
-    end_index--;
-  }
-
-  // All spaces, no beef.
-  if (end_index < start_index) {
-    return "";
-  }
-  // Start_index is the first non-space, end_index is the last one.
-  return s.substr(start_index, end_index - start_index + 1);
-}
-
-template <typename StringT>
-std::string Join(const std::vector<StringT>& strings, char separator) {
-  if (strings.empty()) {
-    return "";
-  }
-
-  std::string result(strings[0]);
-  for (size_t i = 1; i < strings.size(); ++i) {
-    result += separator;
-    result += strings[i];
-  }
-  return result;
-}
-
-// Explicit instantiations.
-template std::string Join<std::string>(const std::vector<std::string>& strings, char separator);
-template std::string Join<const char*>(const std::vector<const char*>& strings, char separator);
-
-bool StartsWith(const std::string& s, const char* prefix) {
-  return s.compare(0, strlen(prefix), prefix) == 0;
-}
-
-bool EndsWith(const std::string& s, const char* suffix) {
-  size_t suffix_length = strlen(suffix);
-  size_t string_length = s.size();
-  if (suffix_length > string_length) {
-    return false;
-  }
-  size_t offset = string_length - suffix_length;
-  return s.compare(offset, suffix_length, suffix) == 0;
-}
-
 void SetThreadName(const char* thread_name) {
   int hasAt = 0;
   int hasDot = 0;
@@ -890,31 +782,6 @@ void GetTaskStats(pid_t tid, char* state, int* utime, int* stime, int* task_cpu)
   *utime = strtoull(fields[11].c_str(), nullptr, 10);
   *stime = strtoull(fields[12].c_str(), nullptr, 10);
   *task_cpu = strtoull(fields[36].c_str(), nullptr, 10);
-}
-
-std::string GetSchedulerGroupName(pid_t tid) {
-  // /proc/<pid>/cgroup looks like this:
-  // 2:devices:/
-  // 1:cpuacct,cpu:/
-  // We want the third field from the line whose second field contains the "cpu" token.
-  std::string cgroup_file;
-  if (!ReadFileToString(StringPrintf("/proc/self/task/%d/cgroup", tid), &cgroup_file)) {
-    return "";
-  }
-  std::vector<std::string> cgroup_lines;
-  Split(cgroup_file, '\n', &cgroup_lines);
-  for (size_t i = 0; i < cgroup_lines.size(); ++i) {
-    std::vector<std::string> cgroup_fields;
-    Split(cgroup_lines[i], ':', &cgroup_fields);
-    std::vector<std::string> cgroups;
-    Split(cgroup_fields[1], ',', &cgroups);
-    for (size_t j = 0; j < cgroups.size(); ++j) {
-      if (cgroups[j] == "cpu") {
-        return cgroup_fields[2].substr(1);  // Skip the leading slash.
-      }
-    }
-  }
-  return "";
 }
 
 const char* GetAndroidRoot() {
@@ -1005,7 +872,9 @@ bool GetDalvikCacheFilename(const char* location, const char* cache_location,
     return false;
   }
   std::string cache_file(&location[1]);  // skip leading slash
-  if (!EndsWith(location, ".dex") && !EndsWith(location, ".art") && !EndsWith(location, ".oat")) {
+  if (!android::base::EndsWith(location, ".dex") &&
+      !android::base::EndsWith(location, ".art") &&
+      !android::base::EndsWith(location, ".oat")) {
     cache_file += "/";
     cache_file += DexFile::kClassesDex;
   }
@@ -1032,7 +901,7 @@ std::string GetSystemImageFilename(const char* location, const InstructionSet is
 }
 
 int ExecAndReturnCode(std::vector<std::string>& arg_vector, std::string* error_msg) {
-  const std::string command_line(Join(arg_vector, ' '));
+  const std::string command_line(android::base::Join(arg_vector, ' '));
   CHECK_GE(arg_vector.size(), 1U) << command_line;
 
   // Convert the args to char pointers.
@@ -1091,7 +960,7 @@ int ExecAndReturnCode(std::vector<std::string>& arg_vector, std::string* error_m
 bool Exec(std::vector<std::string>& arg_vector, std::string* error_msg) {
   int status = ExecAndReturnCode(arg_vector, error_msg);
   if (status != 0) {
-    const std::string command_line(Join(arg_vector, ' '));
+    const std::string command_line(android::base::Join(arg_vector, ' '));
     *error_msg = StringPrintf("Failed execv(%s) because non-0 exit status",
                               command_line.c_str());
     return false;

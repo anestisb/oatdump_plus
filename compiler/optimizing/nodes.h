@@ -125,6 +125,11 @@ enum GraphAnalysisResult {
   kAnalysisSuccess,
 };
 
+template <typename T>
+static inline typename std::make_unsigned<T>::type MakeUnsigned(T x) {
+  return static_cast<typename std::make_unsigned<T>::type>(x);
+}
+
 class HInstructionList : public ValueObject {
  public:
   HInstructionList() : first_instruction_(nullptr), last_instruction_(nullptr) {}
