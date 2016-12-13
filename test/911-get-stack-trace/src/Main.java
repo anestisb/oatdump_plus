@@ -109,13 +109,14 @@ public class Main {
     t.join();
   }
 
-  public static void print(String[] stack) {
+  public static void print(String[][] stack) {
     System.out.println("---------");
-    for (int i = 0; i < stack.length; i += 2) {
-      System.out.print(' ');
-      System.out.print(stack[i]);
-      System.out.print(' ');
-      System.out.println(stack[i + 1]);
+    for (String[] stackElement : stack) {
+      for (String part : stackElement) {
+        System.out.print(' ');
+        System.out.print(part);
+      }
+      System.out.println();
     }
   }
 
@@ -174,5 +175,5 @@ public class Main {
     volatile boolean stop = false;
   }
 
-  public static native String[] getStackTrace(Thread thread, int start, int max);
+  public static native String[][] getStackTrace(Thread thread, int start, int max);
 }

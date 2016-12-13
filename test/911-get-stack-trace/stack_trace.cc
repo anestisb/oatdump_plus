@@ -16,10 +16,13 @@
 
 #include "stack_trace.h"
 
+#include <inttypes.h>
 #include <memory>
 #include <stdio.h>
 
 #include "base/logging.h"
+#include "base/macros.h"
+#include "base/stringprintf.h"
 #include "jni.h"
 #include "openjdkjvmti/jvmti.h"
 #include "ScopedLocalRef.h"
@@ -44,8 +47,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getStackTrace(
     }
   }
 
-  auto callback = [&](jint i) -> jstring {
-    size_t method_index = static_cast<size_t>(i) / 2;
+  auto callback = [&](jint method_index) -> jobjectArray {
     char* name;
     char* sig;
     char* gen;
@@ -58,12 +60,20 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getStackTrace(
         return nullptr;
       }
     }
-    jstring callback_result;
-    if (i % 2 == 0) {
-      callback_result = name == nullptr ? nullptr : env->NewStringUTF(name);
-    } else {
-      callback_result = sig == nullptr ? nullptr : env->NewStringUTF(sig);
-    }
+
+    auto inner_callback = [&](jint component_index) -> jstring {
+      switch (component_index) {
+        case 0:
+          return (name == nullptr) ? nullptr : env->NewStringUTF(name);
+        case 1:
+          return (sig == nullptr) ? nullptr : env->NewStringUTF(sig);
+        case 2:
+          return env->NewStringUTF(StringPrintf("%" PRId64, frames[method_index].location).c_str());
+      }
+      LOG(FATAL) << "Unreachable";
+      UNREACHABLE();
+    };
+    jobjectArray inner_array = CreateObjectArray(env, 3, "java/lang/String", inner_callback);
 
     if (name != nullptr) {
       jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(name));
@@ -74,9 +84,10 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getStackTrace(
     if (gen != nullptr) {
       jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(gen));
     }
-    return callback_result;
+
+    return inner_array;
   };
-  return CreateObjectArray(env, 2 * count, "java/lang/String", callback);
+  return CreateObjectArray(env, count, "[Ljava/lang/String;", callback);
 }
 
 // Don't do anything
