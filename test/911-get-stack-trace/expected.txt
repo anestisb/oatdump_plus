@@ -3,7 +3,7 @@
 ###################
 From top
 ---------
- getStackTrace (Ljava/lang/Thread;II)[Ljava/lang/String;
+ getStackTrace (Ljava/lang/Thread;II)[[Ljava/lang/String;
  print (Ljava/lang/Thread;II)V
  printOrWait (IILMain$ControlData;)V
  baz (IIILMain$ControlData;)Ljava/lang/Object;
@@ -44,7 +44,7 @@ From top
  doTest ()V
  main ([Ljava/lang/String;)V
 ---------
- getStackTrace (Ljava/lang/Thread;II)[Ljava/lang/String;
+ getStackTrace (Ljava/lang/Thread;II)[[Ljava/lang/String;
  print (Ljava/lang/Thread;II)V
  printOrWait (IILMain$ControlData;)V
  baz (IIILMain$ControlData;)Ljava/lang/Object;
