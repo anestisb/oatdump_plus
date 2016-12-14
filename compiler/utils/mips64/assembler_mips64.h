@@ -17,9 +17,11 @@
 #ifndef ART_COMPILER_UTILS_MIPS64_ASSEMBLER_MIPS64_H_
 #define ART_COMPILER_UTILS_MIPS64_ASSEMBLER_MIPS64_H_
 
+#include <deque>
 #include <utility>
 #include <vector>
 
+#include "base/arena_containers.h"
 #include "base/enums.h"
 #include "base/macros.h"
 #include "constants_mips64.h"
@@ -312,6 +314,49 @@ class Mips64Label : public Label {
   DISALLOW_COPY_AND_ASSIGN(Mips64Label);
 };
 
+// Assembler literal is a value embedded in code, retrieved using a PC-relative load.
+class Literal {
+ public:
+  static constexpr size_t kMaxSize = 8;
+
+  Literal(uint32_t size, const uint8_t* data)
+      : label_(), size_(size) {
+    DCHECK_LE(size, Literal::kMaxSize);
+    memcpy(data_, data, size);
+  }
+
+  template <typename T>
+  T GetValue() const {
+    DCHECK_EQ(size_, sizeof(T));
+    T value;
+    memcpy(&value, data_, sizeof(T));
+    return value;
+  }
+
+  uint32_t GetSize() const {
+    return size_;
+  }
+
+  const uint8_t* GetData() const {
+    return data_;
+  }
+
+  Mips64Label* GetLabel() {
+    return &label_;
+  }
+
+  const Mips64Label* GetLabel() const {
+    return &label_;
+  }
+
+ private:
+  Mips64Label label_;
+  const uint32_t size_;
+  uint8_t data_[kMaxSize];
+
+  DISALLOW_COPY_AND_ASSIGN(Literal);
+};
+
 // Slowpath entered when Thread::Current()->_exception is non-null.
 class Mips64ExceptionSlowPath {
  public:
@@ -341,6 +386,8 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
       : Assembler(arena),
         overwriting_(false),
         overwrite_location_(0),
+        literals_(arena->Adapter(kArenaAllocAssembler)),
+        long_literals_(arena->Adapter(kArenaAllocAssembler)),
         last_position_adjustment_(0),
         last_old_position_(0),
         last_branch_id_(0) {
@@ -386,18 +433,18 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
   void Nor(GpuRegister rd, GpuRegister rs, GpuRegister rt);
 
   void Bitswap(GpuRegister rd, GpuRegister rt);
-  void Dbitswap(GpuRegister rd, GpuRegister rt);
+  void Dbitswap(GpuRegister rd, GpuRegister rt);  // MIPS64
   void Seb(GpuRegister rd, GpuRegister rt);
   void Seh(GpuRegister rd, GpuRegister rt);
-  void Dsbh(GpuRegister rd, GpuRegister rt);
-  void Dshd(GpuRegister rd, GpuRegister rt);
+  void Dsbh(GpuRegister rd, GpuRegister rt);  // MIPS64
+  void Dshd(GpuRegister rd, GpuRegister rt);  // MIPS64
   void Dext(GpuRegister rs, GpuRegister rt, int pos, int size);  // MIPS64
   void Dinsu(GpuRegister rt, GpuRegister rs, int pos, int size);  // MIPS64
   void Wsbh(GpuRegister rd, GpuRegister rt);
   void Sc(GpuRegister rt, GpuRegister base, int16_t imm9 = 0);
-  void Scd(GpuRegister rt, GpuRegister base, int16_t imm9 = 0);
+  void Scd(GpuRegister rt, GpuRegister base, int16_t imm9 = 0);  // MIPS64
   void Ll(GpuRegister rt, GpuRegister base, int16_t imm9 = 0);
-  void Lld(GpuRegister rt, GpuRegister base, int16_t imm9 = 0);
+  void Lld(GpuRegister rt, GpuRegister base, int16_t imm9 = 0);  // MIPS64
 
   void Sll(GpuRegister rd, GpuRegister rt, int shamt);
   void Srl(GpuRegister rd, GpuRegister rt, int shamt);
@@ -409,7 +456,7 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
   void Srav(GpuRegister rd, GpuRegister rt, GpuRegister rs);
   void Dsll(GpuRegister rd, GpuRegister rt, int shamt);  // MIPS64
   void Dsrl(GpuRegister rd, GpuRegister rt, int shamt);  // MIPS64
-  void Drotr(GpuRegister rd, GpuRegister rt, int shamt);
+  void Drotr(GpuRegister rd, GpuRegister rt, int shamt);  // MIPS64
   void Dsra(GpuRegister rd, GpuRegister rt, int shamt);  // MIPS64
   void Dsll32(GpuRegister rd, GpuRegister rt, int shamt);  // MIPS64
   void Dsrl32(GpuRegister rd, GpuRegister rt, int shamt);  // MIPS64
@@ -427,6 +474,9 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
   void Lbu(GpuRegister rt, GpuRegister rs, uint16_t imm16);
   void Lhu(GpuRegister rt, GpuRegister rs, uint16_t imm16);
   void Lwu(GpuRegister rt, GpuRegister rs, uint16_t imm16);  // MIPS64
+  void Lwpc(GpuRegister rs, uint32_t imm19);
+  void Lwupc(GpuRegister rs, uint32_t imm19);  // MIPS64
+  void Ldpc(GpuRegister rs, uint32_t imm18);  // MIPS64
   void Lui(GpuRegister rt, uint16_t imm16);
   void Dahi(GpuRegister rs, uint16_t imm16);  // MIPS64
   void Dati(GpuRegister rs, uint16_t imm16);  // MIPS64
@@ -445,8 +495,8 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
   void Selnez(GpuRegister rd, GpuRegister rs, GpuRegister rt);
   void Clz(GpuRegister rd, GpuRegister rs);
   void Clo(GpuRegister rd, GpuRegister rs);
-  void Dclz(GpuRegister rd, GpuRegister rs);
-  void Dclo(GpuRegister rd, GpuRegister rs);
+  void Dclz(GpuRegister rd, GpuRegister rs);  // MIPS64
+  void Dclo(GpuRegister rd, GpuRegister rs);  // MIPS64
 
   void Jalr(GpuRegister rd, GpuRegister rs);
   void Jalr(GpuRegister rs);
@@ -454,6 +504,7 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
   void Auipc(GpuRegister rs, uint16_t imm16);
   void Addiupc(GpuRegister rs, uint32_t imm19);
   void Bc(uint32_t imm26);
+  void Balc(uint32_t imm26);
   void Jic(GpuRegister rt, uint16_t imm16);
   void Jialc(GpuRegister rt, uint16_t imm16);
   void Bltc(GpuRegister rs, GpuRegister rt, uint16_t imm16);
@@ -605,8 +656,26 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
     UNREACHABLE();
   }
 
+  // Create a new literal with a given value.
+  // NOTE: Force the template parameter to be explicitly specified.
+  template <typename T>
+  Literal* NewLiteral(typename Identity<T>::type value) {
+    static_assert(std::is_integral<T>::value, "T must be an integral type.");
+    return NewLiteral(sizeof(value), reinterpret_cast<const uint8_t*>(&value));
+  }
+
+  // Load label address using PC-relative loads. To be used with data labels in the literal /
+  // jump table area only and not with regular code labels.
+  void LoadLabelAddress(GpuRegister dest_reg, Mips64Label* label);
+
+  // Create a new literal with the given data.
+  Literal* NewLiteral(size_t size, const uint8_t* data);
+
+  // Load literal using PC-relative loads.
+  void LoadLiteral(GpuRegister dest_reg, LoadOperandType load_type, Literal* literal);
+
   void Bc(Mips64Label* label);
-  void Jialc(Mips64Label* label, GpuRegister indirect_reg);
+  void Balc(Mips64Label* label);
   void Bltc(GpuRegister rs, GpuRegister rt, Mips64Label* label);
   void Bltzc(GpuRegister rt, Mips64Label* label);
   void Bgtzc(GpuRegister rt, Mips64Label* label);
@@ -756,12 +825,15 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
 
   // Returns the (always-)current location of a label (can be used in class CodeGeneratorMIPS64,
   // must be used instead of Mips64Label::GetPosition()).
-  uint32_t GetLabelLocation(Mips64Label* label) const;
+  uint32_t GetLabelLocation(const Mips64Label* label) const;
 
   // Get the final position of a label after local fixup based on the old position
   // recorded before FinalizeCode().
   uint32_t GetAdjustedPosition(uint32_t old_position);
 
+  // Note that PC-relative literal loads are handled as pseudo branches because they need very
+  // similar relocation and may similarly expand in size to accomodate for larger offsets relative
+  // to PC.
   enum BranchCondition {
     kCondLT,
     kCondGE,
@@ -791,10 +863,22 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
       kUncondBranch,
       kCondBranch,
       kCall,
+      // Near label.
+      kLabel,
+      // Near literals.
+      kLiteral,
+      kLiteralUnsigned,
+      kLiteralLong,
       // Long branches.
       kLongUncondBranch,
       kLongCondBranch,
       kLongCall,
+      // Far label.
+      kFarLabel,
+      // Far literals.
+      kFarLiteral,
+      kFarLiteralUnsigned,
+      kFarLiteralLong,
     };
 
     // Bit sizes of offsets defined as enums to minimize chance of typos.
@@ -830,16 +914,16 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
     };
     static const BranchInfo branch_info_[/* Type */];
 
-    // Unconditional branch.
-    Branch(uint32_t location, uint32_t target);
+    // Unconditional branch or call.
+    Branch(uint32_t location, uint32_t target, bool is_call);
     // Conditional branch.
     Branch(uint32_t location,
            uint32_t target,
            BranchCondition condition,
            GpuRegister lhs_reg,
-           GpuRegister rhs_reg = ZERO);
-    // Call (branch and link) that stores the target address in a given register (i.e. T9).
-    Branch(uint32_t location, uint32_t target, GpuRegister indirect_reg);
+           GpuRegister rhs_reg);
+    // Label address (in literal area) or literal.
+    Branch(uint32_t location, GpuRegister dest_reg, Type label_or_literal_type);
 
     // Some conditional branches with lhs = rhs are effectively NOPs, while some
     // others are effectively unconditional. MIPSR6 conditional branches require lhs != rhs.
@@ -923,7 +1007,7 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
 
    private:
     // Completes branch construction by determining and recording its type.
-    void InitializeType(bool is_call);
+    void InitializeType(Type initial_type);
     // Helper for the above.
     void InitShortOrLong(OffsetBits ofs_size, Type short_type, Type long_type);
 
@@ -932,7 +1016,7 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
     uint32_t target_;            // Offset into assembler buffer in bytes.
 
     GpuRegister lhs_reg_;        // Left-hand side register in conditional branches or
-                                 // indirect call register.
+                                 // destination register in literals.
     GpuRegister rhs_reg_;        // Right-hand side register in conditional branches.
     BranchCondition condition_;  // Condition for conditional branches.
 
@@ -957,12 +1041,13 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
              BranchCondition condition,
              GpuRegister lhs,
              GpuRegister rhs = ZERO);
-  void Call(Mips64Label* label, GpuRegister indirect_reg);
+  void Call(Mips64Label* label);
   void FinalizeLabeledBranch(Mips64Label* label);
 
   Branch* GetBranch(uint32_t branch_id);
   const Branch* GetBranch(uint32_t branch_id) const;
 
+  void EmitLiterals();
   void PromoteBranches();
   void EmitBranch(Branch* branch);
   void EmitBranches();
@@ -980,6 +1065,11 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
   bool overwriting_;
   // The current overwrite location.
   uint32_t overwrite_location_;
+
+  // Use std::deque<> for literal labels to allow insertions at the end
+  // without invalidating pointers and references to existing elements.
+  ArenaDeque<Literal> literals_;
+  ArenaDeque<Literal> long_literals_;  // 64-bit literals separated for alignment reasons.
 
   // Data for AdjustedPosition(), see the description there.
   uint32_t last_position_adjustment_;

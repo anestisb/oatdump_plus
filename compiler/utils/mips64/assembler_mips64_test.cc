@@ -576,83 +576,80 @@ TEST_F(AssemblerMIPS64Test, Jalr) {
             RepeatRRNoDupes(&mips64::Mips64Assembler::Jalr, "jalr ${reg1}, ${reg2}"), "jalr");
 }
 
-TEST_F(AssemblerMIPS64Test, Jialc) {
+TEST_F(AssemblerMIPS64Test, Balc) {
   mips64::Mips64Label label1, label2;
-  __ Jialc(&label1, mips64::T9);
+  __ Balc(&label1);
   constexpr size_t kAdduCount1 = 63;
   for (size_t i = 0; i != kAdduCount1; ++i) {
     __ Addu(mips64::ZERO, mips64::ZERO, mips64::ZERO);
   }
   __ Bind(&label1);
-  __ Jialc(&label2, mips64::T9);
+  __ Balc(&label2);
   constexpr size_t kAdduCount2 = 64;
   for (size_t i = 0; i != kAdduCount2; ++i) {
     __ Addu(mips64::ZERO, mips64::ZERO, mips64::ZERO);
   }
   __ Bind(&label2);
-  __ Jialc(&label1, mips64::T9);
+  __ Balc(&label1);
 
   std::string expected =
       ".set noreorder\n"
-      "lapc $t9, 1f\n"
-      "jialc $t9, 0\n" +
+      "balc 1f\n" +
       RepeatInsn(kAdduCount1, "addu $zero, $zero, $zero\n") +
       "1:\n"
-      "lapc $t9, 2f\n"
-      "jialc $t9, 0\n" +
+      "balc 2f\n" +
       RepeatInsn(kAdduCount2, "addu $zero, $zero, $zero\n") +
       "2:\n"
-      "lapc $t9, 1b\n"
-      "jialc $t9, 0\n";
-  DriverStr(expected, "Jialc");
+      "balc 1b\n";
+  DriverStr(expected, "Balc");
 }
 
-TEST_F(AssemblerMIPS64Test, LongJialc) {
+TEST_F(AssemblerMIPS64Test, LongBalc) {
   mips64::Mips64Label label1, label2;
-  __ Jialc(&label1, mips64::T9);
-  constexpr uint32_t kAdduCount1 = (1u << 18) + 1;
-  for (uint32_t i = 0; i != kAdduCount1; ++i) {
-    __ Addu(mips64::ZERO, mips64::ZERO, mips64::ZERO);
+  __ Balc(&label1);
+  constexpr uint32_t kNopCount1 = (1u << 25) + 1;
+  for (uint32_t i = 0; i != kNopCount1; ++i) {
+    __ Nop();
   }
   __ Bind(&label1);
-  __ Jialc(&label2, mips64::T9);
-  constexpr uint32_t kAdduCount2 = (1u << 18) + 1;
-  for (uint32_t i = 0; i != kAdduCount2; ++i) {
-    __ Addu(mips64::ZERO, mips64::ZERO, mips64::ZERO);
+  __ Balc(&label2);
+  constexpr uint32_t kNopCount2 = (1u << 25) + 1;
+  for (uint32_t i = 0; i != kNopCount2; ++i) {
+    __ Nop();
   }
   __ Bind(&label2);
-  __ Jialc(&label1, mips64::T9);
+  __ Balc(&label1);
 
-  uint32_t offset_forward1 = 3 + kAdduCount1;  // 3: account for auipc, daddiu and jic.
+  uint32_t offset_forward1 = 2 + kNopCount1;  // 2: account for auipc and jialc.
   offset_forward1 <<= 2;
-  offset_forward1 += (offset_forward1 & 0x8000) << 1;  // Account for sign extension in daddiu.
+  offset_forward1 += (offset_forward1 & 0x8000) << 1;  // Account for sign extension in jialc.
 
-  uint32_t offset_forward2 = 3 + kAdduCount2;  // 3: account for auipc, daddiu and jic.
+  uint32_t offset_forward2 = 2 + kNopCount2;  // 2: account for auipc and jialc.
   offset_forward2 <<= 2;
-  offset_forward2 += (offset_forward2 & 0x8000) << 1;  // Account for sign extension in daddiu.
+  offset_forward2 += (offset_forward2 & 0x8000) << 1;  // Account for sign extension in jialc.
 
-  uint32_t offset_back = -(3 + kAdduCount2);  // 3: account for auipc, daddiu and jic.
+  uint32_t offset_back = -(2 + kNopCount2);  // 2: account for auipc and jialc.
   offset_back <<= 2;
-  offset_back += (offset_back & 0x8000) << 1;  // Account for sign extension in daddiu.
+  offset_back += (offset_back & 0x8000) << 1;  // Account for sign extension in jialc.
 
+  // Note, we're using the ".fill" directive to tell the assembler to generate many NOPs
+  // instead of generating them ourselves in the source code. This saves a few minutes
+  // of test time.
   std::ostringstream oss;
   oss <<
       ".set noreorder\n"
-      "auipc $t9, 0x" << std::hex << High16Bits(offset_forward1) << "\n"
-      "daddiu $t9, 0x" << std::hex << Low16Bits(offset_forward1) << "\n"
-      "jialc $t9, 0\n" <<
-      RepeatInsn(kAdduCount1, "addu $zero, $zero, $zero\n") <<
+      "auipc $at, 0x" << std::hex << High16Bits(offset_forward1) << "\n"
+      "jialc $at, 0x" << std::hex << Low16Bits(offset_forward1) << "\n"
+      ".fill 0x" << std::hex << kNopCount1 << " , 4, 0\n"
       "1:\n"
-      "auipc $t9, 0x" << std::hex << High16Bits(offset_forward2) << "\n"
-      "daddiu $t9, 0x" << std::hex << Low16Bits(offset_forward2) << "\n"
-      "jialc $t9, 0\n" <<
-      RepeatInsn(kAdduCount2, "addu $zero, $zero, $zero\n") <<
+      "auipc $at, 0x" << std::hex << High16Bits(offset_forward2) << "\n"
+      "jialc $at, 0x" << std::hex << Low16Bits(offset_forward2) << "\n"
+      ".fill 0x" << std::hex << kNopCount2 << " , 4, 0\n"
       "2:\n"
-      "auipc $t9, 0x" << std::hex << High16Bits(offset_back) << "\n"
-      "daddiu $t9, 0x" << std::hex << Low16Bits(offset_back) << "\n"
-      "jialc $t9, 0\n";
+      "auipc $at, 0x" << std::hex << High16Bits(offset_back) << "\n"
+      "jialc $at, 0x" << std::hex << Low16Bits(offset_back) << "\n";
   std::string expected = oss.str();
-  DriverStr(expected, "LongJialc");
+  DriverStr(expected, "LongBalc");
 }
 
 TEST_F(AssemblerMIPS64Test, Bc) {
@@ -826,6 +823,258 @@ TEST_F(AssemblerMIPS64Test, LongBeqc) {
 //////////
 // MISC //
 //////////
+
+TEST_F(AssemblerMIPS64Test, Lwpc) {
+  // Lwpc() takes an unsigned 19-bit immediate, while the GNU assembler needs a signed offset,
+  // hence the sign extension from bit 18 with `imm - ((imm & 0x40000) << 1)`.
+  // The GNU assembler also wants the offset to be a multiple of 4, which it will shift right
+  // by 2 positions when encoding, hence `<< 2` to compensate for that shift.
+  // We capture the value of the immediate with `.set imm, {imm}` because the value is needed
+  // twice for the sign extension, but `{imm}` is substituted only once.
+  const char* code = ".set imm, {imm}\nlw ${reg}, ((imm - ((imm & 0x40000) << 1)) << 2)($pc)";
+  DriverStr(RepeatRIb(&mips64::Mips64Assembler::Lwpc, 19, code), "Lwpc");
+}
+
+TEST_F(AssemblerMIPS64Test, Lwupc) {
+  // The comment for the Lwpc test applies here as well.
+  const char* code = ".set imm, {imm}\nlwu ${reg}, ((imm - ((imm & 0x40000) << 1)) << 2)($pc)";
+  DriverStr(RepeatRIb(&mips64::Mips64Assembler::Lwupc, 19, code), "Lwupc");
+}
+
+TEST_F(AssemblerMIPS64Test, Ldpc) {
+  // The comment for the Lwpc test applies here as well.
+  const char* code = ".set imm, {imm}\nld ${reg}, ((imm - ((imm & 0x20000) << 1)) << 3)($pc)";
+  DriverStr(RepeatRIb(&mips64::Mips64Assembler::Ldpc, 18, code), "Ldpc");
+}
+
+TEST_F(AssemblerMIPS64Test, LoadFarthestNearLabelAddress) {
+  mips64::Mips64Label label;
+  __ LoadLabelAddress(mips64::V0, &label);
+  constexpr uint32_t kAdduCount = 0x3FFDE;
+  for (uint32_t i = 0; i != kAdduCount; ++i) {
+    __ Addu(mips64::ZERO, mips64::ZERO, mips64::ZERO);
+  }
+  __ Bind(&label);
+
+  std::string expected =
+      "lapc $v0, 1f\n" +
+      RepeatInsn(kAdduCount, "addu $zero, $zero, $zero\n") +
+      "1:\n";
+  DriverStr(expected, "LoadFarthestNearLabelAddress");
+  EXPECT_EQ(__ GetLabelLocation(&label), (1 + kAdduCount) * 4);
+}
+
+TEST_F(AssemblerMIPS64Test, LoadNearestFarLabelAddress) {
+  mips64::Mips64Label label;
+  __ LoadLabelAddress(mips64::V0, &label);
+  constexpr uint32_t kAdduCount = 0x3FFDF;
+  for (uint32_t i = 0; i != kAdduCount; ++i) {
+    __ Addu(mips64::ZERO, mips64::ZERO, mips64::ZERO);
+  }
+  __ Bind(&label);
+
+  std::string expected =
+      "1:\n"
+      "auipc $at, %hi(2f - 1b)\n"
+      "addiu $v0, $at, %lo(2f - 1b)\n" +
+      RepeatInsn(kAdduCount, "addu $zero, $zero, $zero\n") +
+      "2:\n";
+  DriverStr(expected, "LoadNearestFarLabelAddress");
+  EXPECT_EQ(__ GetLabelLocation(&label), (2 + kAdduCount) * 4);
+}
+
+TEST_F(AssemblerMIPS64Test, LoadFarthestNearLiteral) {
+  mips64::Literal* literal = __ NewLiteral<uint32_t>(0x12345678);
+  __ LoadLiteral(mips64::V0, mips64::kLoadWord, literal);
+  constexpr uint32_t kAdduCount = 0x3FFDE;
+  for (uint32_t i = 0; i != kAdduCount; ++i) {
+    __ Addu(mips64::ZERO, mips64::ZERO, mips64::ZERO);
+  }
+
+  std::string expected =
+      "lwpc $v0, 1f\n" +
+      RepeatInsn(kAdduCount, "addu $zero, $zero, $zero\n") +
+      "1:\n"
+      ".word 0x12345678\n";
+  DriverStr(expected, "LoadFarthestNearLiteral");
+  EXPECT_EQ(__ GetLabelLocation(literal->GetLabel()), (1 + kAdduCount) * 4);
+}
+
+TEST_F(AssemblerMIPS64Test, LoadNearestFarLiteral) {
+  mips64::Literal* literal = __ NewLiteral<uint32_t>(0x12345678);
+  __ LoadLiteral(mips64::V0, mips64::kLoadWord, literal);
+  constexpr uint32_t kAdduCount = 0x3FFDF;
+  for (uint32_t i = 0; i != kAdduCount; ++i) {
+    __ Addu(mips64::ZERO, mips64::ZERO, mips64::ZERO);
+  }
+
+  std::string expected =
+      "1:\n"
+      "auipc $at, %hi(2f - 1b)\n"
+      "lw $v0, %lo(2f - 1b)($at)\n" +
+      RepeatInsn(kAdduCount, "addu $zero, $zero, $zero\n") +
+      "2:\n"
+      ".word 0x12345678\n";
+  DriverStr(expected, "LoadNearestFarLiteral");
+  EXPECT_EQ(__ GetLabelLocation(literal->GetLabel()), (2 + kAdduCount) * 4);
+}
+
+TEST_F(AssemblerMIPS64Test, LoadFarthestNearLiteralUnsigned) {
+  mips64::Literal* literal = __ NewLiteral<uint32_t>(0x12345678);
+  __ LoadLiteral(mips64::V0, mips64::kLoadUnsignedWord, literal);
+  constexpr uint32_t kAdduCount = 0x3FFDE;
+  for (uint32_t i = 0; i != kAdduCount; ++i) {
+    __ Addu(mips64::ZERO, mips64::ZERO, mips64::ZERO);
+  }
+
+  std::string expected =
+      "lwupc $v0, 1f\n" +
+      RepeatInsn(kAdduCount, "addu $zero, $zero, $zero\n") +
+      "1:\n"
+      ".word 0x12345678\n";
+  DriverStr(expected, "LoadFarthestNearLiteralUnsigned");
+  EXPECT_EQ(__ GetLabelLocation(literal->GetLabel()), (1 + kAdduCount) * 4);
+}
+
+TEST_F(AssemblerMIPS64Test, LoadNearestFarLiteralUnsigned) {
+  mips64::Literal* literal = __ NewLiteral<uint32_t>(0x12345678);
+  __ LoadLiteral(mips64::V0, mips64::kLoadUnsignedWord, literal);
+  constexpr uint32_t kAdduCount = 0x3FFDF;
+  for (uint32_t i = 0; i != kAdduCount; ++i) {
+    __ Addu(mips64::ZERO, mips64::ZERO, mips64::ZERO);
+  }
+
+  std::string expected =
+      "1:\n"
+      "auipc $at, %hi(2f - 1b)\n"
+      "lwu $v0, %lo(2f - 1b)($at)\n" +
+      RepeatInsn(kAdduCount, "addu $zero, $zero, $zero\n") +
+      "2:\n"
+      ".word 0x12345678\n";
+  DriverStr(expected, "LoadNearestFarLiteralUnsigned");
+  EXPECT_EQ(__ GetLabelLocation(literal->GetLabel()), (2 + kAdduCount) * 4);
+}
+
+TEST_F(AssemblerMIPS64Test, LoadFarthestNearLiteralLong) {
+  mips64::Literal* literal = __ NewLiteral<uint64_t>(UINT64_C(0x0123456789ABCDEF));
+  __ LoadLiteral(mips64::V0, mips64::kLoadDoubleword, literal);
+  constexpr uint32_t kAdduCount = 0x3FFDD;
+  for (uint32_t i = 0; i != kAdduCount; ++i) {
+    __ Addu(mips64::ZERO, mips64::ZERO, mips64::ZERO);
+  }
+
+  std::string expected =
+      "ldpc $v0, 1f\n" +
+      RepeatInsn(kAdduCount, "addu $zero, $zero, $zero\n") +
+      "1:\n"
+      ".dword 0x0123456789ABCDEF\n";
+  DriverStr(expected, "LoadFarthestNearLiteralLong");
+  EXPECT_EQ(__ GetLabelLocation(literal->GetLabel()), (1 + kAdduCount) * 4);
+}
+
+TEST_F(AssemblerMIPS64Test, LoadNearestFarLiteralLong) {
+  mips64::Literal* literal = __ NewLiteral<uint64_t>(UINT64_C(0x0123456789ABCDEF));
+  __ LoadLiteral(mips64::V0, mips64::kLoadDoubleword, literal);
+  constexpr uint32_t kAdduCount = 0x3FFDE;
+  for (uint32_t i = 0; i != kAdduCount; ++i) {
+    __ Addu(mips64::ZERO, mips64::ZERO, mips64::ZERO);
+  }
+
+  std::string expected =
+      "1:\n"
+      "auipc $at, %hi(2f - 1b)\n"
+      "ld $v0, %lo(2f - 1b)($at)\n" +
+      RepeatInsn(kAdduCount, "addu $zero, $zero, $zero\n") +
+      "2:\n"
+      ".dword 0x0123456789ABCDEF\n";
+  DriverStr(expected, "LoadNearestFarLiteralLong");
+  EXPECT_EQ(__ GetLabelLocation(literal->GetLabel()), (2 + kAdduCount) * 4);
+}
+
+TEST_F(AssemblerMIPS64Test, LongLiteralAlignmentNop) {
+  mips64::Literal* literal1 = __ NewLiteral<uint64_t>(UINT64_C(0x0123456789ABCDEF));
+  mips64::Literal* literal2 = __ NewLiteral<uint64_t>(UINT64_C(0x5555555555555555));
+  mips64::Literal* literal3 = __ NewLiteral<uint64_t>(UINT64_C(0xAAAAAAAAAAAAAAAA));
+  __ LoadLiteral(mips64::A1, mips64::kLoadDoubleword, literal1);
+  __ LoadLiteral(mips64::A2, mips64::kLoadDoubleword, literal2);
+  __ LoadLiteral(mips64::A3, mips64::kLoadDoubleword, literal3);
+  __ LoadLabelAddress(mips64::V0, literal1->GetLabel());
+  __ LoadLabelAddress(mips64::V1, literal2->GetLabel());
+  // A nop will be inserted here before the 64-bit literals.
+
+  std::string expected =
+      "ldpc $a1, 1f\n"
+      // The GNU assembler incorrectly requires the ldpc instruction to be located
+      // at an address that's a multiple of 8. TODO: Remove this workaround if/when
+      // the assembler is fixed.
+      // "ldpc $a2, 2f\n"
+      ".word 0xECD80004\n"
+      "ldpc $a3, 3f\n"
+      "lapc $v0, 1f\n"
+      "lapc $v1, 2f\n"
+      "nop\n"
+      "1:\n"
+      ".dword 0x0123456789ABCDEF\n"
+      "2:\n"
+      ".dword 0x5555555555555555\n"
+      "3:\n"
+      ".dword 0xAAAAAAAAAAAAAAAA\n";
+  DriverStr(expected, "LongLiteralAlignmentNop");
+  EXPECT_EQ(__ GetLabelLocation(literal1->GetLabel()), 6 * 4u);
+  EXPECT_EQ(__ GetLabelLocation(literal2->GetLabel()), 8 * 4u);
+  EXPECT_EQ(__ GetLabelLocation(literal3->GetLabel()), 10 * 4u);
+}
+
+TEST_F(AssemblerMIPS64Test, LongLiteralAlignmentNoNop) {
+  mips64::Literal* literal1 = __ NewLiteral<uint64_t>(UINT64_C(0x0123456789ABCDEF));
+  mips64::Literal* literal2 = __ NewLiteral<uint64_t>(UINT64_C(0x5555555555555555));
+  __ LoadLiteral(mips64::A1, mips64::kLoadDoubleword, literal1);
+  __ LoadLiteral(mips64::A2, mips64::kLoadDoubleword, literal2);
+  __ LoadLabelAddress(mips64::V0, literal1->GetLabel());
+  __ LoadLabelAddress(mips64::V1, literal2->GetLabel());
+
+  std::string expected =
+      "ldpc $a1, 1f\n"
+      // The GNU assembler incorrectly requires the ldpc instruction to be located
+      // at an address that's a multiple of 8. TODO: Remove this workaround if/when
+      // the assembler is fixed.
+      // "ldpc $a2, 2f\n"
+      ".word 0xECD80003\n"
+      "lapc $v0, 1f\n"
+      "lapc $v1, 2f\n"
+      "1:\n"
+      ".dword 0x0123456789ABCDEF\n"
+      "2:\n"
+      ".dword 0x5555555555555555\n";
+  DriverStr(expected, "LongLiteralAlignmentNoNop");
+  EXPECT_EQ(__ GetLabelLocation(literal1->GetLabel()), 4 * 4u);
+  EXPECT_EQ(__ GetLabelLocation(literal2->GetLabel()), 6 * 4u);
+}
+
+TEST_F(AssemblerMIPS64Test, FarLongLiteralAlignmentNop) {
+  mips64::Literal* literal = __ NewLiteral<uint64_t>(UINT64_C(0x0123456789ABCDEF));
+  __ LoadLiteral(mips64::V0, mips64::kLoadDoubleword, literal);
+  __ LoadLabelAddress(mips64::V1, literal->GetLabel());
+  constexpr uint32_t kAdduCount = 0x3FFDF;
+  for (uint32_t i = 0; i != kAdduCount; ++i) {
+    __ Addu(mips64::ZERO, mips64::ZERO, mips64::ZERO);
+  }
+  // A nop will be inserted here before the 64-bit literal.
+
+  std::string expected =
+      "1:\n"
+      "auipc $at, %hi(3f - 1b)\n"
+      "ld $v0, %lo(3f - 1b)($at)\n"
+      "2:\n"
+      "auipc $at, %hi(3f - 2b)\n"
+      "addiu $v1, $at, %lo(3f - 2b)\n" +
+      RepeatInsn(kAdduCount, "addu $zero, $zero, $zero\n") +
+      "nop\n"
+      "3:\n"
+      ".dword 0x0123456789ABCDEF\n";
+  DriverStr(expected, "FarLongLiteralAlignmentNop");
+  EXPECT_EQ(__ GetLabelLocation(literal->GetLabel()), (5 + kAdduCount) * 4);
+}
 
 TEST_F(AssemblerMIPS64Test, Bitswap) {
   DriverStr(RepeatRR(&mips64::Mips64Assembler::Bitswap, "bitswap ${reg1}, ${reg2}"), "bitswap");
