@@ -217,6 +217,11 @@ class JitCodeCache {
   void DisallowInlineCacheAccess() REQUIRES(!lock_);
   void BroadcastForInlineCacheAccess() REQUIRES(!lock_);
 
+  // Notify the code cache that the method at the pointer 'old_method' is being moved to the pointer
+  // 'new_method' since it is being made obsolete.
+  void MoveObsoleteMethod(ArtMethod* old_method, ArtMethod* new_method)
+      REQUIRES(!lock_) REQUIRES(Locks::mutator_lock_);
+
  private:
   // Take ownership of maps.
   JitCodeCache(MemMap* code_map,
