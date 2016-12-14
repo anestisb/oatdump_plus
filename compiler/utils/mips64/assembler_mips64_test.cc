@@ -605,15 +605,18 @@ TEST_F(AssemblerMIPS64Test, Balc) {
 }
 
 TEST_F(AssemblerMIPS64Test, LongBalc) {
+  constexpr uint32_t kNopCount1 = (1u << 25) + 1;
+  constexpr uint32_t kNopCount2 = (1u << 25) + 1;
+  constexpr uint32_t kRequiredCapacity = (kNopCount1 + kNopCount2 + 6u) * 4u;
+  ASSERT_LT(__ GetBuffer()->Capacity(), kRequiredCapacity);
+  __ GetBuffer()->ExtendCapacity(kRequiredCapacity);
   mips64::Mips64Label label1, label2;
   __ Balc(&label1);
-  constexpr uint32_t kNopCount1 = (1u << 25) + 1;
   for (uint32_t i = 0; i != kNopCount1; ++i) {
     __ Nop();
   }
   __ Bind(&label1);
   __ Balc(&label2);
-  constexpr uint32_t kNopCount2 = (1u << 25) + 1;
   for (uint32_t i = 0; i != kNopCount2; ++i) {
     __ Nop();
   }
