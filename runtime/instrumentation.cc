@@ -557,13 +557,23 @@ void Instrumentation::RemoveListener(InstrumentationListener* listener, uint32_t
 }
 
 Instrumentation::InstrumentationLevel Instrumentation::GetCurrentInstrumentationLevel() const {
-  if (interpreter_stubs_installed_) {
+  if (interpreter_stubs_installed_ && interpret_only_) {
     return InstrumentationLevel::kInstrumentWithInterpreter;
+  } else if (interpreter_stubs_installed_) {
+    return InstrumentationLevel::kInstrumentWithInterpreterAndJit;
   } else if (entry_exit_stubs_installed_) {
     return InstrumentationLevel::kInstrumentWithInstrumentationStubs;
   } else {
     return InstrumentationLevel::kInstrumentNothing;
   }
+}
+
+bool Instrumentation::RequiresInstrumentationInstallation(InstrumentationLevel new_level) const {
+  // We need to reinstall instrumentation if we go to a different level or if the current level is
+  // kInstrumentWithInterpreterAndJit since that level does not force all code to always use the
+  // interpreter and so we might have started running optimized code again.
+  return new_level == InstrumentationLevel::kInstrumentWithInterpreterAndJit ||
+      GetCurrentInstrumentationLevel() != new_level;
 }
 
 void Instrumentation::ConfigureStubs(const char* key, InstrumentationLevel desired_level) {
@@ -585,8 +595,7 @@ void Instrumentation::ConfigureStubs(const char* key, InstrumentationLevel desir
   interpret_only_ = (requested_level == InstrumentationLevel::kInstrumentWithInterpreter) ||
                     forced_interpret_only_;
 
-  InstrumentationLevel current_level = GetCurrentInstrumentationLevel();
-  if (requested_level == current_level) {
+  if (!RequiresInstrumentationInstallation(requested_level)) {
     // We're already set.
     return;
   }
@@ -595,7 +604,7 @@ void Instrumentation::ConfigureStubs(const char* key, InstrumentationLevel desir
   Locks::mutator_lock_->AssertExclusiveHeld(self);
   Locks::thread_list_lock_->AssertNotHeld(self);
   if (requested_level > InstrumentationLevel::kInstrumentNothing) {
-    if (requested_level == InstrumentationLevel::kInstrumentWithInterpreter) {
+    if (requested_level >= InstrumentationLevel::kInstrumentWithInterpreterAndJit) {
       interpreter_stubs_installed_ = true;
       entry_exit_stubs_installed_ = true;
     } else {
@@ -842,7 +851,8 @@ void Instrumentation::EnableDeoptimization() {
 void Instrumentation::DisableDeoptimization(const char* key) {
   CHECK_EQ(deoptimization_enabled_, true);
   // If we deoptimized everything, undo it.
-  if (interpreter_stubs_installed_) {
+  InstrumentationLevel level = GetCurrentInstrumentationLevel();
+  if (level == InstrumentationLevel::kInstrumentWithInterpreter) {
     UndeoptimizeEverything(key);
   }
   // Undeoptimized selected methods.
@@ -867,6 +877,14 @@ bool Instrumentation::ShouldNotifyMethodEnterExitEvents() const {
     return false;
   }
   return !deoptimization_enabled_ && !interpreter_stubs_installed_;
+}
+
+// TODO we don't check deoptimization_enabled_ because currently there isn't really any support for
+// multiple users of instrumentation. Since this is just a temporary state anyway pending work to
+// ensure that the current_method doesn't get kept across suspend points this should be okay.
+// TODO Remove once b/33630159 is resolved.
+void Instrumentation::ReJitEverything(const char* key) {
+  ConfigureStubs(key, InstrumentationLevel::kInstrumentWithInterpreterAndJit);
 }
 
 void Instrumentation::DeoptimizeEverything(const char* key) {
