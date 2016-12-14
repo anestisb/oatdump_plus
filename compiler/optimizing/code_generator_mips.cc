@@ -5689,11 +5689,7 @@ void InstructionCodeGeneratorMIPS::VisitClearException(HClearException* clear AT
 }
 
 void LocationsBuilderMIPS::VisitLoadString(HLoadString* load) {
-  LocationSummary::CallKind call_kind = (load->NeedsEnvironment() || kEmitCompilerReadBarrier)
-      ? ((load->GetLoadKind() == HLoadString::LoadKind::kDexCacheViaMethod)
-          ? LocationSummary::kCallOnMainOnly
-          : LocationSummary::kCallOnSlowPath)
-      : LocationSummary::kNoCall;
+  LocationSummary::CallKind call_kind = CodeGenerator::GetLoadStringCallKind(load);
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(load, call_kind);
   HLoadString::LoadKind load_kind = load->GetLoadKind();
   switch (load_kind) {
@@ -5743,14 +5739,12 @@ void InstructionCodeGeneratorMIPS::VisitLoadString(HLoadString* load) {
 
   switch (load_kind) {
     case HLoadString::LoadKind::kBootImageLinkTimeAddress:
-      DCHECK(!kEmitCompilerReadBarrier);
       __ LoadLiteral(out,
                      base_or_current_method_reg,
                      codegen_->DeduplicateBootImageStringLiteral(load->GetDexFile(),
                                                                  load->GetStringIndex()));
       return;  // No dex cache slow path.
     case HLoadString::LoadKind::kBootImageLinkTimePcRelative: {
-      DCHECK(!kEmitCompilerReadBarrier);
       DCHECK(codegen_->GetCompilerOptions().IsBootImage());
       CodeGeneratorMIPS::PcRelativePatchInfo* info =
           codegen_->NewPcRelativeStringPatch(load->GetDexFile(), load->GetStringIndex().index_);
@@ -5758,7 +5752,6 @@ void InstructionCodeGeneratorMIPS::VisitLoadString(HLoadString* load) {
       return;  // No dex cache slow path.
     }
     case HLoadString::LoadKind::kBootImageAddress: {
-      DCHECK(!kEmitCompilerReadBarrier);
       DCHECK_NE(load->GetAddress(), 0u);
       uint32_t address = dchecked_integral_cast<uint32_t>(load->GetAddress());
       __ LoadLiteral(out,
