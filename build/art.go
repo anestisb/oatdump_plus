@@ -259,7 +259,7 @@ func artDefaultsFactory() (blueprint.Module, []interface{}) {
 }
 
 func artLibrary() (blueprint.Module, []interface{}) {
-	library, _ := cc.NewLibrary(android.HostAndDeviceSupported, true, true)
+	library, _ := cc.NewLibrary(android.HostAndDeviceSupported)
 	module, props := library.Init()
 
 	props = installCodegenCustomizer(module, props, true)
