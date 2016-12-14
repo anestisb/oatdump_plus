@@ -75,11 +75,10 @@ ObjPtr<mirror::Object> ReferenceProcessor::GetReferent(Thread* self,
   MutexLock mu(self, *Locks::reference_processor_lock_);
   while ((!kUseReadBarrier && SlowPathEnabled()) ||
          (kUseReadBarrier && !self->GetWeakRefAccessEnabled())) {
-    mirror::HeapReference<mirror::Object>* const referent_addr =
-        reference->GetReferentReferenceAddr();
+    ObjPtr<mirror::Object> referent = reference->GetReferent<kWithoutReadBarrier>();
     // If the referent became cleared, return it. Don't need barrier since thread roots can't get
     // updated until after we leave the function due to holding the mutator lock.
-    if (referent_addr->AsMirrorPtr() == nullptr) {
+    if (referent == nullptr) {
       return nullptr;
     }
     // Try to see if the referent is already marked by using the is_marked_callback. We can return
@@ -91,10 +90,15 @@ ObjPtr<mirror::Object> ReferenceProcessor::GetReferent(Thread* self,
       // case only black nodes can be safely returned. If the GC is preserving references, the
       // mutator could take a white field from a grey or white node and move it somewhere else
       // in the heap causing corruption since this field would get swept.
-      if (collector_->IsMarkedHeapReference(referent_addr)) {
+      // Use the cached referent instead of calling GetReferent since other threads could call
+      // Reference.clear() after we did the null check resulting in a null pointer being
+      // incorrectly passed to IsMarked. b/33569625
+      ObjPtr<mirror::Object> forwarded_ref = collector_->IsMarked(referent.Ptr());
+      if (forwarded_ref != nullptr) {
+        // Non null means that it is marked.
         if (!preserving_references_ ||
            (LIKELY(!reference->IsFinalizerReferenceInstance()) && reference->IsUnprocessed())) {
-          return referent_addr->AsMirrorPtr();
+          return forwarded_ref;
         }
       }
     }
