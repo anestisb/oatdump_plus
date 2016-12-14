@@ -47,6 +47,9 @@ using helpers::SRegisterFrom;
 
 using namespace vixl::aarch32;  // NOLINT(build/namespaces)
 
+using vixl::ExactAssemblyScope;
+using vixl::CodeBufferCheckScope;
+
 ArmVIXLAssembler* IntrinsicCodeGeneratorARMVIXL::GetAssembler() {
   return codegen_->GetAssembler();
 }
@@ -467,9 +470,9 @@ static void GenMinMax(HInvoke* invoke, bool is_min, ArmVIXLAssembler* assembler)
   __ Cmp(op1, op2);
 
   {
-    AssemblerAccurateScope aas(assembler->GetVIXLAssembler(),
-                               3 * kMaxInstructionSizeInBytes,
-                               CodeBufferCheckScope::kMaximumSize);
+    ExactAssemblyScope aas(assembler->GetVIXLAssembler(),
+                           3 * kMaxInstructionSizeInBytes,
+                           CodeBufferCheckScope::kMaximumSize);
 
     __ ite(is_min ? lt : gt);
     __ mov(is_min ? lt : gt, out, op1);
@@ -1050,9 +1053,9 @@ static void GenCas(HInvoke* invoke, Primitive::Type type, CodeGeneratorARMVIXL* 
   __ Subs(tmp, tmp, expected);
 
   {
-    AssemblerAccurateScope aas(assembler->GetVIXLAssembler(),
-                               3 * kMaxInstructionSizeInBytes,
-                               CodeBufferCheckScope::kMaximumSize);
+    ExactAssemblyScope aas(assembler->GetVIXLAssembler(),
+                           3 * kMaxInstructionSizeInBytes,
+                           CodeBufferCheckScope::kMaximumSize);
 
     __ itt(eq);
     __ strex(eq, tmp, value, MemOperand(tmp_ptr));
@@ -1066,9 +1069,9 @@ static void GenCas(HInvoke* invoke, Primitive::Type type, CodeGeneratorARMVIXL* 
   __ Rsbs(out, tmp, 1);
 
   {
-    AssemblerAccurateScope aas(assembler->GetVIXLAssembler(),
-                               2 * kMaxInstructionSizeInBytes,
-                               CodeBufferCheckScope::kMaximumSize);
+    ExactAssemblyScope aas(assembler->GetVIXLAssembler(),
+                           2 * kMaxInstructionSizeInBytes,
+                           CodeBufferCheckScope::kMaximumSize);
 
     __ it(cc);
     __ mov(cc, out, 0);
@@ -1185,9 +1188,9 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringCompareTo(HInvoke* invoke) {
   // temp0 = min(len(str), len(arg)).
 
   {
-    AssemblerAccurateScope aas(assembler->GetVIXLAssembler(),
-                               2 * kMaxInstructionSizeInBytes,
-                               CodeBufferCheckScope::kMaximumSize);
+    ExactAssemblyScope aas(assembler->GetVIXLAssembler(),
+                           2 * kMaxInstructionSizeInBytes,
+                           CodeBufferCheckScope::kMaximumSize);
 
     __ it(gt);
     __ mov(gt, temp0, temp1);
@@ -1207,9 +1210,9 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringCompareTo(HInvoke* invoke) {
     // This could in theory exceed INT32_MAX, so treat temp0 as unsigned.
     __ Lsls(temp3, temp3, 31u);  // Extract purely the compression flag.
 
-    AssemblerAccurateScope aas(assembler->GetVIXLAssembler(),
-                               2 * kMaxInstructionSizeInBytes,
-                               CodeBufferCheckScope::kMaximumSize);
+    ExactAssemblyScope aas(assembler->GetVIXLAssembler(),
+                           2 * kMaxInstructionSizeInBytes,
+                           CodeBufferCheckScope::kMaximumSize);
 
     __ it(ne);
     __ add(ne, temp0, temp0, temp0);
@@ -1324,9 +1327,9 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringCompareTo(HInvoke* invoke) {
     __ Mov(temp2, arg);
     __ Lsrs(temp3, temp3, 1u);                // Continue the move of the compression flag.
     {
-      AssemblerAccurateScope aas(assembler->GetVIXLAssembler(),
-                                 3 * kMaxInstructionSizeInBytes,
-                                 CodeBufferCheckScope::kMaximumSize);
+      ExactAssemblyScope aas(assembler->GetVIXLAssembler(),
+                             3 * kMaxInstructionSizeInBytes,
+                             CodeBufferCheckScope::kMaximumSize);
       __ itt(cs);                             // Interleave with selection of temp1 and temp2.
       __ mov(cs, temp1, arg);                 // Preserves flags.
       __ mov(cs, temp2, str);                 // Preserves flags.
@@ -1361,9 +1364,9 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringCompareTo(HInvoke* invoke) {
     static_assert(static_cast<uint32_t>(mirror::StringCompressionFlag::kCompressed) == 0u,
                   "Expecting 0=compressed, 1=uncompressed");
 
-    AssemblerAccurateScope aas(assembler->GetVIXLAssembler(),
-                               2 * kMaxInstructionSizeInBytes,
-                               CodeBufferCheckScope::kMaximumSize);
+    ExactAssemblyScope aas(assembler->GetVIXLAssembler(),
+                           2 * kMaxInstructionSizeInBytes,
+                           CodeBufferCheckScope::kMaximumSize);
     __ it(cc);
     __ rsb(cc, out, out, 0);
   }
@@ -1457,9 +1460,9 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringEquals(HInvoke* invoke) {
     // For string compression, calculate the number of bytes to compare (not chars).
     // This could in theory exceed INT32_MAX, so treat temp as unsigned.
     __ Lsrs(temp, temp, 1u);                        // Extract length and check compression flag.
-    AssemblerAccurateScope aas(assembler->GetVIXLAssembler(),
-                               2 * kMaxInstructionSizeInBytes,
-                               CodeBufferCheckScope::kMaximumSize);
+    ExactAssemblyScope aas(assembler->GetVIXLAssembler(),
+                           2 * kMaxInstructionSizeInBytes,
+                           CodeBufferCheckScope::kMaximumSize);
     __ it(cs);                                      // If uncompressed,
     __ add(cs, temp, temp, temp);                   //   double the byte count.
   }

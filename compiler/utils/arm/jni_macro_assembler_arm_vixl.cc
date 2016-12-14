@@ -24,6 +24,9 @@
 using namespace vixl::aarch32;  // NOLINT(build/namespaces)
 namespace vixl32 = vixl::aarch32;
 
+using vixl::ExactAssemblyScope;
+using vixl::CodeBufferCheckScope;
+
 namespace art {
 namespace arm {
 
@@ -455,16 +458,16 @@ void ArmVIXLJNIMacroAssembler::CreateHandleScopeEntry(ManagedRegister mout_reg,
 
     if (asm_.ShifterOperandCanHold(ADD, handle_scope_offset.Int32Value(), kCcDontCare)) {
       if (!out_reg.Equals(in_reg)) {
-        AssemblerAccurateScope guard(asm_.GetVIXLAssembler(),
-                                     3 * vixl32::kMaxInstructionSizeInBytes,
-                                     CodeBufferCheckScope::kMaximumSize);
+        ExactAssemblyScope guard(asm_.GetVIXLAssembler(),
+                                 3 * vixl32::kMaxInstructionSizeInBytes,
+                                 CodeBufferCheckScope::kMaximumSize);
         ___ it(eq, 0xc);
         ___ mov(eq, out_reg.AsVIXLRegister(), 0);
         asm_.AddConstantInIt(out_reg.AsVIXLRegister(), sp, handle_scope_offset.Int32Value(), ne);
       } else {
-        AssemblerAccurateScope guard(asm_.GetVIXLAssembler(),
-                                     2 * vixl32::kMaxInstructionSizeInBytes,
-                                     CodeBufferCheckScope::kMaximumSize);
+        ExactAssemblyScope guard(asm_.GetVIXLAssembler(),
+                                 2 * vixl32::kMaxInstructionSizeInBytes,
+                                 CodeBufferCheckScope::kMaximumSize);
         ___ it(ne, 0x8);
         asm_.AddConstantInIt(out_reg.AsVIXLRegister(), sp, handle_scope_offset.Int32Value(), ne);
       }
@@ -493,9 +496,9 @@ void ArmVIXLJNIMacroAssembler::CreateHandleScopeEntry(FrameOffset out_off,
     ___ Cmp(scratch.AsVIXLRegister(), 0);
 
     if (asm_.ShifterOperandCanHold(ADD, handle_scope_offset.Int32Value(), kCcDontCare)) {
-      AssemblerAccurateScope guard(asm_.GetVIXLAssembler(),
-                                   2 * vixl32::kMaxInstructionSizeInBytes,
-                                   CodeBufferCheckScope::kMaximumSize);
+      ExactAssemblyScope guard(asm_.GetVIXLAssembler(),
+                               2 * vixl32::kMaxInstructionSizeInBytes,
+                               CodeBufferCheckScope::kMaximumSize);
       ___ it(ne, 0x8);
       asm_.AddConstantInIt(scratch.AsVIXLRegister(), sp, handle_scope_offset.Int32Value(), ne);
     } else {
@@ -586,9 +589,9 @@ void ArmVIXLJNIMacroAssembler::ExceptionPoll(ManagedRegister m_scratch, size_t s
 
   ___ Cmp(scratch.AsVIXLRegister(), 0);
   {
-    AssemblerAccurateScope guard(asm_.GetVIXLAssembler(),
-                                 vixl32::kMaxInstructionSizeInBytes,
-                                 CodeBufferCheckScope::kMaximumSize);
+    ExactAssemblyScope guard(asm_.GetVIXLAssembler(),
+                             vixl32::kMaxInstructionSizeInBytes,
+                             CodeBufferCheckScope::kMaximumSize);
     ___ b(ne, Narrow, exception_blocks_.back()->Entry());
   }
   // TODO: think about using CBNZ here.

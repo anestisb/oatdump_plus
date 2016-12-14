@@ -23,6 +23,9 @@
 
 using namespace vixl::aarch32;  // NOLINT(build/namespaces)
 
+using vixl::ExactAssemblyScope;
+using vixl::CodeBufferCheckScope;
+
 namespace art {
 namespace arm {
 
@@ -459,9 +462,9 @@ void ArmVIXLMacroAssembler::B(vixl32::Label* label) {
   if (!label->IsBound()) {
     // Try to use 16-bit T2 encoding of B instruction.
     DCHECK(OutsideITBlock());
-    AssemblerAccurateScope ass(this,
-                               kMaxInstructionSizeInBytes,
-                               CodeBufferCheckScope::kMaximumSize);
+    ExactAssemblyScope ass(this,
+                           kMaxInstructionSizeInBytes,
+                           CodeBufferCheckScope::kMaximumSize);
     b(al, Narrow, label);
     AddBranchLabel(label);
     return;
