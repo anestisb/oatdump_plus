@@ -569,6 +569,11 @@ void CodeGeneratorMIPS64::GenerateFrameEntry() {
                   "kCurrentMethodStackOffset must fit into int16_t");
     __ Sd(kMethodRegisterArgument, SP, kCurrentMethodStackOffset);
   }
+
+  if (GetGraph()->HasShouldDeoptimizeFlag()) {
+    // Initialize should_deoptimize flag to 0.
+    __ StoreToOffset(kStoreWord, ZERO, SP, GetStackOffsetOfShouldDeoptimizeFlag());
+  }
 }
 
 void CodeGeneratorMIPS64::GenerateFrameExit() {
@@ -2737,14 +2742,17 @@ void InstructionCodeGeneratorMIPS64::VisitDeoptimize(HDeoptimize* deoptimize) {
                         /* false_target */ nullptr);
 }
 
-void LocationsBuilderMIPS64::VisitShouldDeoptimizeFlag(
-    HShouldDeoptimizeFlag* flag ATTRIBUTE_UNUSED) {
-  // TODO: to be implemented.
+void LocationsBuilderMIPS64::VisitShouldDeoptimizeFlag(HShouldDeoptimizeFlag* flag) {
+  LocationSummary* locations = new (GetGraph()->GetArena())
+      LocationSummary(flag, LocationSummary::kNoCall);
+  locations->SetOut(Location::RequiresRegister());
 }
 
-void InstructionCodeGeneratorMIPS64::VisitShouldDeoptimizeFlag(
-    HShouldDeoptimizeFlag* flag ATTRIBUTE_UNUSED) {
-  // TODO: to be implemented.
+void InstructionCodeGeneratorMIPS64::VisitShouldDeoptimizeFlag(HShouldDeoptimizeFlag* flag) {
+  __ LoadFromOffset(kLoadWord,
+                    flag->GetLocations()->Out().AsRegister<GpuRegister>(),
+                    SP,
+                    codegen_->GetStackOffsetOfShouldDeoptimizeFlag());
 }
 
 void LocationsBuilderMIPS64::VisitSelect(HSelect* select) {
