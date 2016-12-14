@@ -22,6 +22,8 @@
 #include "android-base/logging.h"
 #include "android-base/stringprintf.h"
 
+#include "base/bit_utils.h"
+
 using android::base::StringPrintf;
 
 namespace art {
@@ -154,6 +156,7 @@ static const MipsInstruction gMipsInstructions[] = {
   { kSpecial3Mask | 0x3f, (31 << kOpcodeShift), "ext", "TSAZ", },
   { kSpecial3Mask | 0x3f, (31 << kOpcodeShift) | 3, "dext", "TSAZ", },
   { kSpecial3Mask | 0x3f, (31 << kOpcodeShift) | 4, "ins", "TSAz", },
+  { kSpecial3Mask | 0x3f, (31 << kOpcodeShift) | 6, "dinsu", "TSFz", },
   { kSpecial3Mask | (0x1f << 21) | (0x1f << 6) | 0x3f,
     (31 << kOpcodeShift) | (16 << 6) | 32,
     "seb",
@@ -218,8 +221,8 @@ static const MipsInstruction gMipsInstructions[] = {
   { kITypeMask, 12 << kOpcodeShift, "andi", "TSi", },
   { kITypeMask, 13 << kOpcodeShift, "ori", "TSi", },
   { kITypeMask, 14 << kOpcodeShift, "xori", "TSi", },
-  { kITypeMask | (0x1f << 21), 15 << kOpcodeShift, "lui", "TI", },
-  { kITypeMask, 15 << kOpcodeShift, "aui", "TSI", },
+  { kITypeMask | (0x1f << 21), 15 << kOpcodeShift, "lui", "Ti", },
+  { kITypeMask, 15 << kOpcodeShift, "aui", "TSi", },
 
   { kITypeMask | (0x3e3 << 16), (17 << kOpcodeShift) | (8 << 21), "bc1f", "cB" },
   { kITypeMask | (0x3e3 << 16), (17 << kOpcodeShift) | (8 << 21) | (1 << 16), "bc1t", "cB" },
@@ -335,6 +338,8 @@ static const MipsInstruction gMipsInstructions[] = {
   { kITypeMask | (0x1f << 16), (59u << kOpcodeShift) | (30 << 16), "auipc", "Si" },
   { kITypeMask | (0x3 << 19), (59u << kOpcodeShift) | (0 << 19), "addiupc", "Sp" },
   { kITypeMask | (0x3 << 19), (59u << kOpcodeShift) | (1 << 19), "lwpc", "So" },
+  { kITypeMask | (0x3 << 19), (59u << kOpcodeShift) | (2 << 19), "lwupc", "So" },
+  { kITypeMask | (0x7 << 18), (59u << kOpcodeShift) | (6 << 18), "ldpc", "S0" },
   { kITypeMask, 61u << kOpcodeShift, "sdc1", "tO", },
   { kITypeMask | (0x1f << 21), 62u << kOpcodeShift, "jialc", "Ti" },
   { kITypeMask | (1 << 21), (62u << kOpcodeShift) | (1 << 21), "bnezc", "Sb" },  // TODO: de-dup?
@@ -468,6 +473,7 @@ size_t DisassemblerMips::Dump(std::ostream& os, const uint8_t* instr_ptr) {
           case 'D': args << 'r' << rd; break;
           case 'd': args << 'f' << rd; break;
           case 'a': args << 'f' << sa; break;
+          case 'F': args << (sa + 32); break;  // dinsu position.
           case 'f':  // Floating point "fmt".
             {
               size_t fmt = (instruction >> 21) & 0x7;  // TODO: other fmts?
@@ -481,9 +487,6 @@ size_t DisassemblerMips::Dump(std::ostream& os, const uint8_t* instr_ptr) {
               }
               continue;  // No ", ".
             }
-          case 'I':  // Upper 16-bit immediate.
-            args << reinterpret_cast<void*>((instruction & 0xffff) << 16);
-            break;
           case 'i':  // Sign-extended lower 16-bit immediate.
             args << static_cast<int16_t>(instruction & 0xffff);
             break;
@@ -512,11 +515,20 @@ size_t DisassemblerMips::Dump(std::ostream& os, const uint8_t* instr_ptr) {
               }
             }
             break;
-          case 'o':  // 19-bit offset in lwpc.
+          case 'o':  // 19-bit offset in lwpc and lwupc.
             {
               int32_t offset = (instruction & 0x7ffff) - ((instruction & 0x40000) << 1);
               offset <<= 2;
               args << FormatInstructionPointer(instr_ptr + offset);
+              args << StringPrintf("  ; %+d", offset);
+            }
+            break;
+          case '0':  // 18-bit offset in ldpc.
+            {
+              int32_t offset = (instruction & 0x3ffff) - ((instruction & 0x20000) << 1);
+              offset <<= 3;
+              uintptr_t ptr = RoundDown(reinterpret_cast<uintptr_t>(instr_ptr), 8);
+              args << FormatInstructionPointer(reinterpret_cast<const uint8_t*>(ptr + offset));
               args << StringPrintf("  ; %+d", offset);
             }
             break;
@@ -541,7 +553,7 @@ size_t DisassemblerMips::Dump(std::ostream& os, const uint8_t* instr_ptr) {
           case 'T': args << 'r' << rt; break;
           case 't': args << 'f' << rt; break;
           case 'Z': args << (rd + 1); break;  // sz ([d]ext size).
-          case 'z': args << (rd - sa + 1); break;  // sz ([d]ins size).
+          case 'z': args << (rd - sa + 1); break;  // sz ([d]ins, dinsu size).
         }
         if (*(args_fmt + 1)) {
           args << ", ";
@@ -551,17 +563,14 @@ size_t DisassemblerMips::Dump(std::ostream& os, const uint8_t* instr_ptr) {
     }
   }
 
-  // TODO: Simplify this once these sequences are simplified in the compiler.
   // Special cases for sequences of:
   //   pc-relative +/- 2GB branch:
   //     auipc  reg, imm
   //     jic    reg, imm
   //   pc-relative +/- 2GB branch and link:
   //     auipc  reg, imm
-  //     daddiu reg, reg, imm
-  //     jialc  reg, 0
-  if (((op == 0x36 && rs == 0 && rt != 0) ||  // jic
-       (op == 0x19 && rs == rt && rt != 0)) &&  // daddiu
+  //     jialc  reg, imm
+  if (((op == 0x36 || op == 0x3E) && rs == 0 && rt != 0) &&  // ji[al]c
       last_ptr_ && (intptr_t)instr_ptr - (intptr_t)last_ptr_ == 4 &&
       (last_instr_ & 0xFC1F0000) == 0xEC1E0000 &&  // auipc
       ((last_instr_ >> 21) & 0x1F) == rt) {
@@ -569,9 +578,9 @@ size_t DisassemblerMips::Dump(std::ostream& os, const uint8_t* instr_ptr) {
     offset -= (offset & 0x8000) << 1;
     offset -= 4;
     if (op == 0x36) {
-      args << "  ; b ";
+      args << "  ; bc ";
     } else {
-      args << "  ; move r" << rt << ", ";
+      args << "  ; balc ";
     }
     args << FormatInstructionPointer(instr_ptr + (int32_t)offset);
     args << StringPrintf("  ; %+d", (int32_t)offset);
