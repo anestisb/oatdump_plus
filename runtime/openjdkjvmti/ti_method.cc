@@ -130,4 +130,63 @@ jvmtiError MethodUtil::GetMethodModifiers(jvmtiEnv* env ATTRIBUTE_UNUSED,
   return ERR(NONE);
 }
 
+using LineNumberContext = std::vector<jvmtiLineNumberEntry>;
+
+static bool CollectLineNumbers(void* void_context, const art::DexFile::PositionInfo& entry) {
+  LineNumberContext* context = reinterpret_cast<LineNumberContext*>(void_context);
+  jvmtiLineNumberEntry jvmti_entry = { static_cast<jlocation>(entry.address_),
+                                       static_cast<jint>(entry.line_) };
+  context->push_back(jvmti_entry);
+  return false;  // Collect all, no early exit.
+}
+
+jvmtiError MethodUtil::GetLineNumberTable(jvmtiEnv* env,
+                                          jmethodID method,
+                                          jint* entry_count_ptr,
+                                          jvmtiLineNumberEntry** table_ptr) {
+  if (method == nullptr) {
+    return ERR(NULL_POINTER);
+  }
+  art::ArtMethod* art_method = art::jni::DecodeArtMethod(method);
+  DCHECK(!art_method->IsRuntimeMethod());
+
+  const art::DexFile::CodeItem* code_item;
+  const art::DexFile* dex_file;
+  {
+    art::ScopedObjectAccess soa(art::Thread::Current());
+
+    if (art_method->IsProxyMethod()) {
+      return ERR(ABSENT_INFORMATION);
+    }
+    if (art_method->IsNative()) {
+      return ERR(NATIVE_METHOD);
+    }
+    if (entry_count_ptr == nullptr || table_ptr == nullptr) {
+      return ERR(NULL_POINTER);
+    }
+
+    code_item = art_method->GetCodeItem();
+    dex_file = art_method->GetDexFile();
+    DCHECK(code_item != nullptr) << art_method->PrettyMethod() << " " << dex_file->GetLocation();
+  }
+
+  LineNumberContext context;
+  bool success = dex_file->DecodeDebugPositionInfo(code_item, CollectLineNumbers, &context);
+  if (!success) {
+    return ERR(ABSENT_INFORMATION);
+  }
+
+  unsigned char* data;
+  jlong mem_size = context.size() * sizeof(jvmtiLineNumberEntry);
+  jvmtiError alloc_error = env->Allocate(mem_size, &data);
+  if (alloc_error != ERR(NONE)) {
+    return alloc_error;
+  }
+  *table_ptr = reinterpret_cast<jvmtiLineNumberEntry*>(data);
+  memcpy(*table_ptr, context.data(), mem_size);
+  *entry_count_ptr = static_cast<jint>(context.size());
+
+  return ERR(NONE);
+}
+
 }  // namespace openjdkjvmti

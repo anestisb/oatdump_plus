@@ -3,206 +3,206 @@
 ###################
 From top
 ---------
- getStackTrace (Ljava/lang/Thread;II)[[Ljava/lang/String; -1
- print (Ljava/lang/Thread;II)V 0
- printOrWait (IILMain$ControlData;)V 6
- baz (IIILMain$ControlData;)Ljava/lang/Object; 2
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- doTest ()V 38
- main ([Ljava/lang/String;)V 6
+ getStackTrace (Ljava/lang/Thread;II)[[Ljava/lang/String; -1 -2
+ print (Ljava/lang/Thread;II)V 0 124
+ printOrWait (IILMain$ControlData;)V 6 151
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 2 142
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ doTest ()V 38 34
+ main ([Ljava/lang/String;)V 6 24
 ---------
- print (Ljava/lang/Thread;II)V 0
- printOrWait (IILMain$ControlData;)V 6
- baz (IIILMain$ControlData;)Ljava/lang/Object; 2
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- doTest ()V 42
- main ([Ljava/lang/String;)V 6
+ print (Ljava/lang/Thread;II)V 0 124
+ printOrWait (IILMain$ControlData;)V 6 151
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 2 142
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ doTest ()V 42 35
+ main ([Ljava/lang/String;)V 6 24
 ---------
- getStackTrace (Ljava/lang/Thread;II)[[Ljava/lang/String; -1
- print (Ljava/lang/Thread;II)V 0
- printOrWait (IILMain$ControlData;)V 6
- baz (IIILMain$ControlData;)Ljava/lang/Object; 2
- bar (IIILMain$ControlData;)J 0
+ getStackTrace (Ljava/lang/Thread;II)[[Ljava/lang/String; -1 -2
+ print (Ljava/lang/Thread;II)V 0 124
+ printOrWait (IILMain$ControlData;)V 6 151
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 2 142
+ bar (IIILMain$ControlData;)J 0 136
 ---------
- printOrWait (IILMain$ControlData;)V 6
- baz (IIILMain$ControlData;)Ljava/lang/Object; 2
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
+ printOrWait (IILMain$ControlData;)V 6 151
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 2 142
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
 From bottom
 ---------
- main ([Ljava/lang/String;)V 6
+ main ([Ljava/lang/String;)V 6 24
 ---------
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- doTest ()V 65
- main ([Ljava/lang/String;)V 6
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ doTest ()V 65 41
+ main ([Ljava/lang/String;)V 6 24
 ---------
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
 
 ################################
 ### Other thread (suspended) ###
 ################################
 From top
 ---------
- wait ()V -1
- printOrWait (IILMain$ControlData;)V 24
- baz (IIILMain$ControlData;)Ljava/lang/Object; 2
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- run ()V 4
+ wait ()V -1 -2
+ printOrWait (IILMain$ControlData;)V 24 157
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 2 142
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ run ()V 4 54
 ---------
- printOrWait (IILMain$ControlData;)V 24
- baz (IIILMain$ControlData;)Ljava/lang/Object; 2
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- run ()V 4
+ printOrWait (IILMain$ControlData;)V 24 157
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 2 142
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ run ()V 4 54
 ---------
- wait ()V -1
- printOrWait (IILMain$ControlData;)V 24
- baz (IIILMain$ControlData;)Ljava/lang/Object; 2
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
+ wait ()V -1 -2
+ printOrWait (IILMain$ControlData;)V 24 157
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 2 142
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
 ---------
- baz (IIILMain$ControlData;)Ljava/lang/Object; 2
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 2 142
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136
 From bottom
 ---------
- run ()V 4
+ run ()V 4 54
 ---------
- foo (IIILMain$ControlData;)I 0
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- run ()V 4
+ foo (IIILMain$ControlData;)I 0 131
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ run ()V 4 54
 ---------
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136
 
 ###########################
 ### Other thread (live) ###
 ###########################
 From top
 ---------
- printOrWait (IILMain$ControlData;)V 44
- baz (IIILMain$ControlData;)Ljava/lang/Object; 2
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- run ()V 4
+ printOrWait (IILMain$ControlData;)V 44 164
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 2 142
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ run ()V 4 88
 ---------
- baz (IIILMain$ControlData;)Ljava/lang/Object; 2
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- run ()V 4
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 2 142
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ run ()V 4 88
 ---------
- printOrWait (IILMain$ControlData;)V 44
- baz (IIILMain$ControlData;)Ljava/lang/Object; 2
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
+ printOrWait (IILMain$ControlData;)V 44 164
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 2 142
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
 ---------
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
 From bottom
 ---------
- run ()V 4
+ run ()V 4 88
 ---------
- foo (IIILMain$ControlData;)I 0
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- run ()V 4
+ foo (IIILMain$ControlData;)I 0 131
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ run ()V 4 88
 ---------
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
- foo (IIILMain$ControlData;)I 0
- baz (IIILMain$ControlData;)Ljava/lang/Object; 9
- bar (IIILMain$ControlData;)J 0
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136
+ foo (IIILMain$ControlData;)I 0 131
+ baz (IIILMain$ControlData;)Ljava/lang/Object; 9 144
+ bar (IIILMain$ControlData;)J 0 136

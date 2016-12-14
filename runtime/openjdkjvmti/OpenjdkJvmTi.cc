@@ -700,7 +700,7 @@ class JvmtiFunctions {
                                        jmethodID method,
                                        jint* entry_count_ptr,
                                        jvmtiLineNumberEntry** table_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return MethodUtil::GetLineNumberTable(env, method, entry_count_ptr, table_ptr);
   }
 
   static jvmtiError GetMethodLocation(jvmtiEnv* env,
