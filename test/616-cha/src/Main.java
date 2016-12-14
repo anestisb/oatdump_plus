@@ -179,7 +179,7 @@ public class Main {
     }
   }
 
-  // Test scanerios under which CHA-based devirtualization happens,
+  // Test scenarios under which CHA-based devirtualization happens,
   // and class loading that overrides a method can invalidate compiled code.
   // Also test pure non-overriding case, which is more for checking generated
   // code form.
@@ -205,11 +205,6 @@ public class Main {
 
     // sMain1 is an instance of Main1. Main2 hasn't bee loaded yet.
     sMain1 = new Main1();
-
-    // Loop enough to get testOverride() JITed.
-    for (int i=0; i<100; i++) {
-      testOverride(false, false, false);
-    }
 
     ensureJitCompiled(Main.class, "testOverride");
     testOverride(false, false, true);
@@ -244,7 +239,7 @@ public class Main {
   private static native boolean hasSingleImplementation(Class<?> clazz, String method_name);
 }
 
-// Do it in another class to avoid class loading due to verifier.
+// Put createMain2() in another class to avoid class loading due to verifier.
 class Dummy {
   static Main1 createMain2() {
     return new Main2();
