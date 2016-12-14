@@ -1401,39 +1401,20 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
   return true;
 }
 
-// Update the class loader and resolved string dex cache array of classes. Should only be used on
-// classes in the image space.
-class UpdateClassLoaderAndResolvedStringsVisitor {
+// Update the class loader. Should only be used on classes in the image space.
+class UpdateClassLoaderVisitor {
  public:
-  UpdateClassLoaderAndResolvedStringsVisitor(gc::space::ImageSpace* space,
-                                             ObjPtr<mirror::ClassLoader> class_loader,
-                                             bool forward_strings)
+  UpdateClassLoaderVisitor(gc::space::ImageSpace* space, ObjPtr<mirror::ClassLoader> class_loader)
       : space_(space),
-        class_loader_(class_loader),
-        forward_strings_(forward_strings) {}
+        class_loader_(class_loader) {}
 
   bool operator()(ObjPtr<mirror::Class> klass) const REQUIRES_SHARED(Locks::mutator_lock_) {
-    if (forward_strings_) {
-      mirror::StringDexCacheType* strings = klass->GetDexCacheStrings();
-      if (strings != nullptr) {
-        DCHECK(
-            space_->GetImageHeader().GetImageSection(ImageHeader::kSectionDexCacheArrays).Contains(
-                reinterpret_cast<uint8_t*>(strings) - space_->Begin()))
-            << "String dex cache array for " << klass->PrettyClass() << " is not in app image";
-        // Dex caches have already been updated, so take the strings pointer from there.
-        mirror::StringDexCacheType* new_strings = klass->GetDexCache()->GetStrings();
-        DCHECK_NE(strings, new_strings);
-        klass->SetDexCacheStrings(new_strings);
-      }
-    }
-    // Finally, update class loader.
     klass->SetClassLoader(class_loader_);
     return true;
   }
 
   gc::space::ImageSpace* const space_;
   ObjPtr<mirror::ClassLoader> const class_loader_;
-  const bool forward_strings_;
 };
 
 static std::unique_ptr<const DexFile> OpenOatDexFile(const OatFile* oat_file,
@@ -1856,10 +1837,8 @@ bool ClassLinker::AddImageSpace(
     }
     // Update class loader and resolved strings. If added_class_table is false, the resolved
     // strings were forwarded UpdateAppImageClassLoadersAndDexCaches.
-    UpdateClassLoaderAndResolvedStringsVisitor visitor(space,
-                                                       class_loader.Get(),
-                                                       forward_dex_cache_arrays);
-    for (ClassTable::TableSlot& root : temp_set) {
+    UpdateClassLoaderVisitor visitor(space, class_loader.Get());
+    for (const ClassTable::TableSlot& root : temp_set) {
       visitor(root.Read());
     }
     // forward_dex_cache_arrays is true iff we copied all of the dex cache arrays into the .bss.
@@ -3010,7 +2989,6 @@ void ClassLinker::SetupClass(const DexFile& dex_file,
 
   klass->SetDexClassDefIndex(dex_file.GetIndexForClassDef(dex_class_def));
   klass->SetDexTypeIndex(dex_class_def.class_idx_);
-  CHECK(klass->GetDexCacheStrings() != nullptr);
 }
 
 void ClassLinker::LoadClass(Thread* self,

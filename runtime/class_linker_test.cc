@@ -278,8 +278,6 @@ class ClassLinkerTest : public CommonRuntimeTest {
     EXPECT_FALSE(klass->IsArrayClass());
     EXPECT_TRUE(klass->GetComponentType() == nullptr);
     EXPECT_TRUE(klass->IsInSamePackage(klass.Get()));
-    EXPECT_TRUE(klass->GetDexCacheStrings() != nullptr);
-    EXPECT_EQ(klass->GetDexCacheStrings(), klass->GetDexCache()->GetStrings());
     std::string temp2;
     EXPECT_TRUE(mirror::Class::IsInSamePackage(klass->GetDescriptor(&temp),
                                                klass->GetDescriptor(&temp2)));
@@ -590,7 +588,6 @@ struct ClassOffsets : public CheckOffsets<mirror::Class> {
     addOffset(OFFSETOF_MEMBER(mirror::Class, component_type_), "componentType");
     addOffset(OFFSETOF_MEMBER(mirror::Class, copied_methods_offset_), "copiedMethodsOffset");
     addOffset(OFFSETOF_MEMBER(mirror::Class, dex_cache_), "dexCache");
-    addOffset(OFFSETOF_MEMBER(mirror::Class, dex_cache_strings_), "dexCacheStrings");
     addOffset(OFFSETOF_MEMBER(mirror::Class, dex_class_def_idx_), "dexClassDefIndex");
     addOffset(OFFSETOF_MEMBER(mirror::Class, dex_type_idx_), "dexTypeIndex");
     addOffset(OFFSETOF_MEMBER(mirror::Class, ext_data_), "extData");

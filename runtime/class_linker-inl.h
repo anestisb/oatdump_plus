@@ -72,7 +72,7 @@ inline mirror::String* ClassLinker::ResolveString(dex::StringIndex string_idx,
   // MethodVerifier refuses methods with string_idx out of bounds.
   DCHECK_LT(string_idx.index_, declaring_class->GetDexFile().NumStringIds());
   ObjPtr<mirror::String> string =
-        mirror::StringDexCachePair::Lookup(declaring_class->GetDexCacheStrings(),
+        mirror::StringDexCachePair::Lookup(declaring_class->GetDexCache()->GetStrings(),
                                            string_idx.index_,
                                            mirror::DexCache::kDexCacheStringCacheSize).Read();
   if (UNLIKELY(string == nullptr)) {

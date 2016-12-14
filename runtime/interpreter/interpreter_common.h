@@ -254,7 +254,7 @@ static inline ObjPtr<mirror::String> ResolveString(Thread* self,
   DCHECK_LT(string_idx.index_ % mirror::DexCache::kDexCacheStringCacheSize,
             declaring_class->GetDexFile().NumStringIds());
   ObjPtr<mirror::String> string_ptr =
-      mirror::StringDexCachePair::Lookup(declaring_class->GetDexCacheStrings(),
+      mirror::StringDexCachePair::Lookup(declaring_class->GetDexCache()->GetStrings(),
                                          string_idx.index_,
                                          mirror::DexCache::kDexCacheStringCacheSize).Read();
   if (UNLIKELY(string_ptr == nullptr)) {
