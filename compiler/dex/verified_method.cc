@@ -218,35 +218,18 @@ void VerifiedMethod::GenerateSafeCastSet(verifier::MethodVerifier* method_verifi
 
   for (; inst < end; inst = inst->Next()) {
     Instruction::Code code = inst->Opcode();
-    if ((code == Instruction::CHECK_CAST) || (code == Instruction::APUT_OBJECT)) {
+    if (code == Instruction::CHECK_CAST) {
       uint32_t dex_pc = inst->GetDexPc(code_item->insns_);
       if (!method_verifier->GetInstructionFlags(dex_pc).IsVisited()) {
         // Do not attempt to quicken this instruction, it's unreachable anyway.
         continue;
       }
       const verifier::RegisterLine* line = method_verifier->GetRegLine(dex_pc);
-      bool is_safe_cast = false;
-      if (code == Instruction::CHECK_CAST) {
-        const verifier::RegType& reg_type(line->GetRegisterType(method_verifier,
-                                                                inst->VRegA_21c()));
-        const verifier::RegType& cast_type =
-            method_verifier->ResolveCheckedClass(dex::TypeIndex(inst->VRegB_21c()));
-        is_safe_cast = cast_type.IsStrictlyAssignableFrom(reg_type, method_verifier);
-      } else {
-        const verifier::RegType& array_type(line->GetRegisterType(method_verifier,
-                                                                  inst->VRegB_23x()));
-        // We only know its safe to assign to an array if the array type is precise. For example,
-        // an Object[] can have any type of object stored in it, but it may also be assigned a
-        // String[] in which case the stores need to be of Strings.
-        if (array_type.IsPreciseReference()) {
-          const verifier::RegType& value_type(line->GetRegisterType(method_verifier,
-                                                                    inst->VRegA_23x()));
-          const verifier::RegType& component_type = method_verifier->GetRegTypeCache()
-              ->GetComponentType(array_type, method_verifier->GetClassLoader());
-          is_safe_cast = component_type.IsStrictlyAssignableFrom(value_type, method_verifier);
-        }
-      }
-      if (is_safe_cast) {
+      const verifier::RegType& reg_type(line->GetRegisterType(method_verifier,
+                                                              inst->VRegA_21c()));
+      const verifier::RegType& cast_type =
+          method_verifier->ResolveCheckedClass(dex::TypeIndex(inst->VRegB_21c()));
+      if (cast_type.IsStrictlyAssignableFrom(reg_type, method_verifier)) {
         // Verify ordering for push_back() to the sorted vector.
         DCHECK(safe_cast_set_.empty() || safe_cast_set_.back() < dex_pc);
         safe_cast_set_.push_back(dex_pc);
