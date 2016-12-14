@@ -23,10 +23,11 @@
 #include <inttypes.h>
 #include <unordered_map>
 
+#include "android-base/stringprintf.h"
+
 #include "base/mutex.h"
 #include "base/hash_set.h"
 #include "base/stl_util.h"
-#include "base/stringprintf.h"
 #include "base/time_utils.h"
 
 namespace art {
@@ -238,13 +239,13 @@ std::string DedupeSet<InKey, StoreKey, Alloc, HashType, HashFunc, kShard>::DumpS
   for (HashType shard = 0; shard < kShard; ++shard) {
     shards_[shard]->UpdateStats(self, &stats);
   }
-  return StringPrintf("%zu collisions, %zu max hash collisions, "
-                      "%zu/%zu probe distance, %" PRIu64 " ns hash time",
-                      stats.collision_sum,
-                      stats.collision_max,
-                      stats.total_probe_distance,
-                      stats.total_size,
-                      hash_time_);
+  return android::base::StringPrintf("%zu collisions, %zu max hash collisions, "
+                                     "%zu/%zu probe distance, %" PRIu64 " ns hash time",
+                                     stats.collision_sum,
+                                     stats.collision_max,
+                                     stats.total_probe_distance,
+                                     stats.total_size,
+                                     hash_time_);
 }
 
 

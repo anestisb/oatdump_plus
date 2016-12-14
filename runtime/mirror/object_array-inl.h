@@ -17,12 +17,13 @@
 #ifndef ART_RUNTIME_MIRROR_OBJECT_ARRAY_INL_H_
 #define ART_RUNTIME_MIRROR_OBJECT_ARRAY_INL_H_
 
-#include <string>
-
 #include "object_array.h"
 
+#include <string>
+
+#include "android-base/stringprintf.h"
+
 #include "array-inl.h"
-#include "base/stringprintf.h"
 #include "gc/heap.h"
 #include "mirror/class.h"
 #include "obj_ptr-inl.h"
@@ -330,13 +331,15 @@ inline void ObjectArray<T>::AssignableCheckingMemcpy(int32_t dst_pos,
     std::string actualSrcType(mirror::Object::PrettyTypeOf(o));
     std::string dstType(PrettyTypeOf());
     Thread* self = Thread::Current();
+    std::string msg = android::base::StringPrintf(
+        "source[%d] of type %s cannot be stored in destination array of type %s",
+        src_pos + i,
+        actualSrcType.c_str(),
+        dstType.c_str());
     if (throw_exception) {
-      self->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
-                               "source[%d] of type %s cannot be stored in destination array of type %s",
-                               src_pos + i, actualSrcType.c_str(), dstType.c_str());
+      self->ThrowNewException("Ljava/lang/ArrayStoreException;", msg.c_str());
     } else {
-      LOG(FATAL) << StringPrintf("source[%d] of type %s cannot be stored in destination array of type %s",
-                                 src_pos + i, actualSrcType.c_str(), dstType.c_str());
+      LOG(FATAL) << msg;
     }
   }
 }

@@ -18,7 +18,8 @@
 
 #include <inttypes.h>
 
-#include "base/stringprintf.h"
+#include "android-base/stringprintf.h"
+
 #include "jdwp/jdwp_priv.h"
 
 namespace art {
@@ -100,7 +101,7 @@ MethodId Request::ReadMethodId() {
 
 ObjectId Request::ReadObjectId(const char* specific_kind) {
   ObjectId id = Read8BE();
-  VLOG(jdwp) << StringPrintf("    %s id %#" PRIx64, specific_kind, id);
+  VLOG(jdwp) << android::base::StringPrintf("    %s id %#" PRIx64, specific_kind, id);
   return id;
 }
 

@@ -24,17 +24,20 @@
 #include <iostream>
 #include <sstream>
 
+#include "android-base/stringprintf.h"
+
 #include "base/dumpable.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "base/mutex.h"
-#include "base/stringprintf.h"
 #include "native_stack_dump.h"
 #include "thread-inl.h"
 #include "thread_list.h"
 #include "utils.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 static constexpr bool kUseSigRTTimeout = true;
 static constexpr bool kDumpNativeStackOnTimeout = true;

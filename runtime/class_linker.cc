@@ -28,6 +28,8 @@
 #include <utility>
 #include <vector>
 
+#include "android-base/stringprintf.h"
+
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "base/arena_allocator.h"
@@ -105,6 +107,8 @@
 #include "well_known_classes.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 static constexpr bool kSanityCheckObjects = kIsDebugBuild;
 static constexpr bool kVerifyArtMethodDeclaringClasses = kIsDebugBuild;

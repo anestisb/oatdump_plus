@@ -20,14 +20,17 @@
 
 #include "time_utils.h"
 
+#include "android-base/stringprintf.h"
+
 #include "base/logging.h"
-#include "base/stringprintf.h"
 
 #if defined(__APPLE__)
 #include <sys/time.h>
 #endif
 
 namespace art {
+
+using android::base::StringPrintf;
 
 std::string PrettyDuration(uint64_t nano_duration, size_t max_fraction_digits) {
   if (nano_duration == 0) {

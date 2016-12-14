@@ -19,6 +19,8 @@
 
 #include "indirect_reference_table.h"
 
+#include "android-base/stringprintf.h"
+
 #include "base/dumpable.h"
 #include "gc_root-inl.h"
 #include "obj_ptr-inl.h"
@@ -38,15 +40,15 @@ inline bool IndirectReferenceTable::GetChecked(IndirectRef iref) const {
     return false;
   }
   if (UNLIKELY(GetIndirectRefKind(iref) == kHandleScopeOrInvalid)) {
-    AbortIfNoCheckJNI(StringPrintf("JNI ERROR (app bug): invalid %s %p",
-                                   GetIndirectRefKindString(kind_),
-                                   iref));
+    AbortIfNoCheckJNI(android::base::StringPrintf("JNI ERROR (app bug): invalid %s %p",
+                                                  GetIndirectRefKindString(kind_),
+                                                  iref));
     return false;
   }
   const uint32_t top_index = segment_state_.top_index;
   uint32_t idx = ExtractIndex(iref);
   if (UNLIKELY(idx >= top_index)) {
-    std::string msg = StringPrintf(
+    std::string msg = android::base::StringPrintf(
         "JNI ERROR (app bug): accessed stale %s %p  (index %d in a table of size %d)",
         GetIndirectRefKindString(kind_),
         iref,
@@ -56,9 +58,9 @@ inline bool IndirectReferenceTable::GetChecked(IndirectRef iref) const {
     return false;
   }
   if (UNLIKELY(table_[idx].GetReference()->IsNull())) {
-    AbortIfNoCheckJNI(StringPrintf("JNI ERROR (app bug): accessed deleted %s %p",
-                                   GetIndirectRefKindString(kind_),
-                                   iref));
+    AbortIfNoCheckJNI(android::base::StringPrintf("JNI ERROR (app bug): accessed deleted %s %p",
+                                                  GetIndirectRefKindString(kind_),
+                                                  iref));
     return false;
   }
   if (UNLIKELY(!CheckEntry("use", iref, idx))) {
@@ -73,7 +75,7 @@ inline bool IndirectReferenceTable::CheckEntry(const char* what,
                                                uint32_t idx) const {
   IndirectRef checkRef = ToIndirectRef(idx);
   if (UNLIKELY(checkRef != iref)) {
-    std::string msg = StringPrintf(
+    std::string msg = android::base::StringPrintf(
         "JNI ERROR (app bug): attempt to %s stale %s %p (should be %p)",
         what,
         GetIndirectRefKindString(kind_),

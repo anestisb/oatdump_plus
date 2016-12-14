@@ -22,7 +22,6 @@
 
 #include "common_runtime_test.h"
 
-#include "base/stringprintf.h"
 #include "base/unix_file/fd_file.h"
 #include "runtime/arch/instruction_set.h"
 #include "runtime/gc/heap.h"

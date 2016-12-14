@@ -28,10 +28,11 @@
 #include <sstream>
 #include <type_traits>
 
+#include "android-base/stringprintf.h"
+
 #include "base/enums.h"
 #include "base/file_magic.h"
 #include "base/logging.h"
-#include "base/stringprintf.h"
 #include "base/systrace.h"
 #include "base/unix_file/fd_file.h"
 #include "dex_file-inl.h"
@@ -44,6 +45,8 @@
 #include "zip_archive.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 static_assert(sizeof(dex::StringIndex) == sizeof(uint32_t), "StringIndex size is wrong");
 static_assert(std::is_trivially_copyable<dex::StringIndex>::value, "StringIndex not trivial");

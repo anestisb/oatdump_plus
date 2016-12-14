@@ -20,11 +20,14 @@
 #include <string>
 #include <sstream>
 
+#include "android-base/stringprintf.h"
+
 #include "base/arena_containers.h"
 #include "base/bit_vector-inl.h"
-#include "base/stringprintf.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 static bool IsAllowedToJumpToExitBlock(HInstruction* instruction) {
   return instruction->IsThrow() || instruction->IsReturn() || instruction->IsReturnVoid();

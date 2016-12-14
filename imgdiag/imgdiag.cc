@@ -26,9 +26,10 @@
 #include <map>
 #include <unordered_set>
 
+#include "android-base/stringprintf.h"
+
 #include "art_method-inl.h"
 #include "base/unix_file/fd_file.h"
-#include "base/stringprintf.h"
 #include "gc/space/image_space.h"
 #include "gc/heap.h"
 #include "mirror/class-inl.h"
@@ -45,6 +46,8 @@
 #include <signal.h>
 
 namespace art {
+
+using android::base::StringPrintf;
 
 class ImgDiagDumper {
  public:

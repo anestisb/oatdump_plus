@@ -18,6 +18,8 @@
 
 #include <dlfcn.h>
 
+#include "android-base/stringprintf.h"
+
 #include "art_method.h"
 #include "base/dumpable.h"
 #include "base/mutex.h"
@@ -41,6 +43,9 @@
 #include "thread_list.h"
 
 namespace art {
+
+using android::base::StringAppendF;
+using android::base::StringAppendV;
 
 static constexpr size_t kGlobalsMax = 51200;  // Arbitrary sanity check. (Must fit in 16 bits.)
 

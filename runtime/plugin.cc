@@ -17,10 +17,14 @@
 #include "plugin.h"
 
 #include <dlfcn.h>
-#include "base/stringprintf.h"
+
+#include "android-base/stringprintf.h"
+
 #include "base/logging.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 const char* PLUGIN_INITIALIZATION_FUNCTION_NAME = "ArtPlugin_Initialize";
 const char* PLUGIN_DEINITIALIZATION_FUNCTION_NAME = "ArtPlugin_Deinitialize";

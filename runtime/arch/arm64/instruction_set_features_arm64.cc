@@ -19,13 +19,15 @@
 #include <fstream>
 #include <sstream>
 
+#include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 
+#include "base/logging.h"
 #include "base/stl_util.h"
-#include "base/stringprintf.h"
-#include "utils.h"  // For Trim.
 
 namespace art {
+
+using android::base::StringPrintf;
 
 Arm64FeaturesUniquePtr Arm64InstructionSetFeatures::FromVariant(
     const std::string& variant, std::string* error_msg) {

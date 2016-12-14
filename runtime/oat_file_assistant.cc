@@ -23,7 +23,6 @@
 #include "android-base/strings.h"
 
 #include "base/logging.h"
-#include "base/stringprintf.h"
 #include "compiler_filter.h"
 #include "class_linker.h"
 #include "gc/heap.h"
