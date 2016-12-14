@@ -32,6 +32,23 @@
 namespace art {
 namespace Test911GetStackTrace {
 
+static jint FindLineNumber(jint line_number_count,
+                           jvmtiLineNumberEntry* line_number_table,
+                           jlocation location) {
+  if (line_number_table == nullptr) {
+    return -2;
+  }
+
+  jint line_number = -1;
+  for (jint i = 0; i != line_number_count; ++i) {
+    if (line_number_table[i].start_location > location) {
+      return line_number;
+    }
+    line_number = line_number_table[i].line_number;
+  }
+  return line_number;
+}
+
 extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getStackTrace(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jthread thread, jint start, jint max) {
   std::unique_ptr<jvmtiFrameInfo[]> frames(new jvmtiFrameInfo[max]);
@@ -61,6 +78,26 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getStackTrace(
       }
     }
 
+    jint line_number_count;
+    jvmtiLineNumberEntry* line_number_table;
+    {
+      jvmtiError line_result = jvmti_env->GetLineNumberTable(frames[method_index].method,
+                                                             &line_number_count,
+                                                             &line_number_table);
+      if (line_result != JVMTI_ERROR_NONE) {
+        // Accept absent info and native method errors.
+        if (line_result != JVMTI_ERROR_ABSENT_INFORMATION &&
+            line_result != JVMTI_ERROR_NATIVE_METHOD) {
+          char* err;
+          jvmti_env->GetErrorName(line_result, &err);
+          printf("Failure running GetLineNumberTable: %s\n", err);
+          return nullptr;
+        }
+        line_number_table = nullptr;
+        line_number_count = 0;
+      }
+    }
+
     auto inner_callback = [&](jint component_index) -> jstring {
       switch (component_index) {
         case 0:
@@ -69,11 +106,17 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getStackTrace(
           return (sig == nullptr) ? nullptr : env->NewStringUTF(sig);
         case 2:
           return env->NewStringUTF(StringPrintf("%" PRId64, frames[method_index].location).c_str());
+        case 3: {
+          jint line_number = FindLineNumber(line_number_count,
+                                            line_number_table,
+                                            frames[method_index].location);
+          return env->NewStringUTF(StringPrintf("%d", line_number).c_str());
+        }
       }
       LOG(FATAL) << "Unreachable";
       UNREACHABLE();
     };
-    jobjectArray inner_array = CreateObjectArray(env, 3, "java/lang/String", inner_callback);
+    jobjectArray inner_array = CreateObjectArray(env, 4, "java/lang/String", inner_callback);
 
     if (name != nullptr) {
       jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(name));
@@ -83,6 +126,9 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getStackTrace(
     }
     if (gen != nullptr) {
       jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(gen));
+    }
+    if (line_number_table != nullptr) {
+      jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(line_number_table));
     }
 
     return inner_array;
