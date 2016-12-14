@@ -120,7 +120,7 @@ class JumpTableARMVIXL : public DeletableArenaObject<kArenaAllocSwitchTable> {
         bb_addresses_(switch_instr->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
     uint32_t num_entries = switch_instr_->GetNumEntries();
     for (uint32_t i = 0; i < num_entries; i++) {
-      IntLiteral *lit = new IntLiteral(0);
+      IntLiteral *lit = new IntLiteral(0, vixl32::RawLiteral::kManuallyPlaced);
       bb_addresses_.emplace_back(lit);
     }
   }
