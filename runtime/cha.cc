@@ -100,7 +100,11 @@ class CHAStackVisitor FINAL  : public StackVisitor {
 
   bool VisitFrame() OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     ArtMethod* method = GetMethod();
-    if (method == nullptr || method->IsRuntimeMethod() || method->IsNative()) {
+    // Avoid types of methods that do not have an oat quick method header.
+    if (method == nullptr ||
+        method->IsRuntimeMethod() ||
+        method->IsNative() ||
+        method->IsProxyMethod()) {
       return true;
     }
     if (GetCurrentQuickFrame() == nullptr) {
@@ -110,6 +114,7 @@ class CHAStackVisitor FINAL  : public StackVisitor {
     // Method may have multiple versions of compiled code. Check
     // the method header to see if it has should_deoptimize flag.
     const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
+    DCHECK(method_header != nullptr);
     if (!method_header->HasShouldDeoptimizeFlag()) {
       // This compiled version doesn't have should_deoptimize flag. Skip.
       return true;
