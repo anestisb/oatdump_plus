@@ -52,6 +52,11 @@ class MethodUtil {
   static jvmtiError GetMethodModifiers(jvmtiEnv* env,
                                        jmethodID method,
                                        jint* modifiers_ptr);
+
+  static jvmtiError GetLineNumberTable(jvmtiEnv* env,
+                                       jmethodID method,
+                                       jint* entry_count_ptr,
+                                       jvmtiLineNumberEntry** table_ptr);
 };
 
 }  // namespace openjdkjvmti
