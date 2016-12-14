@@ -757,6 +757,11 @@ void CodeGeneratorMIPS::GenerateFrameEntry() {
   if (RequiresCurrentMethod()) {
     __ StoreToOffset(kStoreWord, kMethodRegisterArgument, SP, kCurrentMethodStackOffset);
   }
+
+  if (GetGraph()->HasShouldDeoptimizeFlag()) {
+    // Initialize should deoptimize flag to 0.
+    __ StoreToOffset(kStoreWord, ZERO, SP, GetStackOffsetOfShouldDeoptimizeFlag());
+  }
 }
 
 void CodeGeneratorMIPS::GenerateFrameExit() {
@@ -4689,14 +4694,17 @@ void InstructionCodeGeneratorMIPS::GenConditionalMoveR6(HSelect* select) {
   }
 }
 
-void LocationsBuilderMIPS::VisitShouldDeoptimizeFlag(
-    HShouldDeoptimizeFlag* flag ATTRIBUTE_UNUSED) {
-  // TODO: to be implemented.
+void LocationsBuilderMIPS::VisitShouldDeoptimizeFlag(HShouldDeoptimizeFlag* flag) {
+  LocationSummary* locations = new (GetGraph()->GetArena())
+      LocationSummary(flag, LocationSummary::kNoCall);
+  locations->SetOut(Location::RequiresRegister());
 }
 
-void InstructionCodeGeneratorMIPS::VisitShouldDeoptimizeFlag(
-    HShouldDeoptimizeFlag* flag ATTRIBUTE_UNUSED) {
-  // TODO: to be implemented.
+void InstructionCodeGeneratorMIPS::VisitShouldDeoptimizeFlag(HShouldDeoptimizeFlag* flag) {
+  __ LoadFromOffset(kLoadWord,
+                    flag->GetLocations()->Out().AsRegister<Register>(),
+                    SP,
+                    codegen_->GetStackOffsetOfShouldDeoptimizeFlag());
 }
 
 void LocationsBuilderMIPS::VisitSelect(HSelect* select) {
