@@ -145,6 +145,7 @@ art_cc_defaults {
         mips64: {
             srcs: [
                 "jni/quick/mips64/calling_convention_mips64.cc",
+                "linker/mips64/relative_patcher_mips64.cc",
                 "optimizing/code_generator_mips64.cc",
                 "optimizing/intrinsics_mips64.cc",
                 "utils/mips64/assembler_mips64.cc",
@@ -379,6 +380,11 @@ art_cc_test {
             srcs: [
                 "linker/mips/relative_patcher_mips_test.cc",
                 "linker/mips/relative_patcher_mips32r6_test.cc",
+            ],
+        },
+        mips64: {
+            srcs: [
+                "linker/mips64/relative_patcher_mips64_test.cc",
             ],
         },
         x86: {

@@ -25,6 +25,9 @@
 #ifdef ART_ENABLE_CODEGEN_mips
 #include "linker/mips/relative_patcher_mips.h"
 #endif
+#ifdef ART_ENABLE_CODEGEN_mips64
+#include "linker/mips64/relative_patcher_mips64.h"
+#endif
 #ifdef ART_ENABLE_CODEGEN_x86
 #include "linker/x86/relative_patcher_x86.h"
 #endif
@@ -102,6 +105,10 @@ std::unique_ptr<RelativePatcher> RelativePatcher::Create(
     case kMips:
       return std::unique_ptr<RelativePatcher>(
           new MipsRelativePatcher(features->AsMipsInstructionSetFeatures()));
+#endif
+#ifdef ART_ENABLE_CODEGEN_mips64
+    case kMips64:
+      return std::unique_ptr<RelativePatcher>(new Mips64RelativePatcher());
 #endif
     default:
       return std::unique_ptr<RelativePatcher>(new RelativePatcherNone);
