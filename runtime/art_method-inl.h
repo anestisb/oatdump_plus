@@ -134,8 +134,7 @@ inline ArtMethod* ArtMethod::GetDexCacheResolvedMethod(uint16_t method_index,
   // NOTE: Unchecked, i.e. not throwing AIOOB. We don't even know the length here
   // without accessing the DexCache and we don't want to do that in release build.
   DCHECK_LT(method_index,
-            GetInterfaceMethodIfProxy(pointer_size)->GetDeclaringClass()
-                ->GetDexCache()->NumResolvedMethods());
+            GetInterfaceMethodIfProxy(pointer_size)->GetDexCache()->NumResolvedMethods());
   ArtMethod* method = mirror::DexCache::GetElementPtrSize(GetDexCacheResolvedMethods(pointer_size),
                                                           method_index,
                                                           pointer_size);
@@ -154,8 +153,7 @@ inline void ArtMethod::SetDexCacheResolvedMethod(uint16_t method_index,
   // NOTE: Unchecked, i.e. not throwing AIOOB. We don't even know the length here
   // without accessing the DexCache and we don't want to do that in release build.
   DCHECK_LT(method_index,
-            GetInterfaceMethodIfProxy(pointer_size)->GetDeclaringClass()
-                ->GetDexCache()->NumResolvedMethods());
+            GetInterfaceMethodIfProxy(pointer_size)->GetDexCache()->NumResolvedMethods());
   DCHECK(new_method == nullptr || new_method->GetDeclaringClass() != nullptr);
   mirror::DexCache::SetElementPtrSize(GetDexCacheResolvedMethods(pointer_size),
                                       method_index,
@@ -186,8 +184,7 @@ template <bool kWithCheck>
 inline mirror::Class* ArtMethod::GetDexCacheResolvedType(dex::TypeIndex type_index,
                                                          PointerSize pointer_size) {
   if (kWithCheck) {
-    mirror::DexCache* dex_cache =
-        GetInterfaceMethodIfProxy(pointer_size)->GetDeclaringClass()->GetDexCache();
+    mirror::DexCache* dex_cache = GetInterfaceMethodIfProxy(pointer_size)->GetDexCache();
     if (UNLIKELY(type_index.index_ >= dex_cache->NumResolvedTypes())) {
       ThrowArrayIndexOutOfBoundsException(type_index.index_, dex_cache->NumResolvedTypes());
       return nullptr;
@@ -333,7 +330,7 @@ inline const char* ArtMethod::GetName() {
 }
 
 inline const DexFile::CodeItem* ArtMethod::GetCodeItem() {
-  return GetDeclaringClass()->GetDexFile().GetCodeItem(GetCodeItemOffset());
+  return GetDexFile()->GetCodeItem(GetCodeItemOffset());
 }
 
 inline bool ArtMethod::IsResolvedTypeIdx(dex::TypeIndex type_idx, PointerSize pointer_size) {
@@ -398,11 +395,20 @@ inline mirror::ClassLoader* ArtMethod::GetClassLoader() {
 }
 
 inline mirror::DexCache* ArtMethod::GetDexCache() {
-  DCHECK(!IsProxyMethod());
-  if (UNLIKELY(IsObsolete())) {
-    return GetObsoleteDexCache();
-  } else {
+  if (LIKELY(!IsObsolete())) {
     return GetDeclaringClass()->GetDexCache();
+  } else {
+    DCHECK(!IsProxyMethod());
+    return GetObsoleteDexCache();
+  }
+}
+
+inline mirror::StringDexCacheType* ArtMethod::GetDexCacheStrings() {
+  if (LIKELY(!IsObsolete())) {
+    return GetDeclaringClass()->GetDexCacheStrings();
+  } else {
+    DCHECK(!IsProxyMethod());
+    return GetObsoleteDexCache()->GetStrings();
   }
 }
 
