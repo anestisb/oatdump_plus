@@ -19,6 +19,7 @@
 
 #include "array.h"
 #include "art_field.h"
+#include "art_method.h"
 #include "class.h"
 #include "dex_file_types.h"
 #include "object.h"
@@ -26,7 +27,6 @@
 
 namespace art {
 
-class ArtMethod;
 struct DexCacheOffsets;
 class DexFile;
 class ImageWriter;
