@@ -284,6 +284,12 @@ inline void FlushInstructionCache(char* begin, char* end) {
   __builtin___clear_cache(begin, end);
 }
 
+inline void FlushDataCache(char* begin, char* end) {
+  // Same as FlushInstructionCache for lack of other builtin. __builtin___clear_cache
+  // flushes both caches.
+  __builtin___clear_cache(begin, end);
+}
+
 template <typename T>
 constexpr PointerSize ConvertToPointerSize(T any) {
   if (any == 4 || any == 8) {
