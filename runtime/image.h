@@ -189,6 +189,7 @@ class PACKED(4) ImageHeader {
   enum ImageRoot {
     kDexCaches,
     kClassRoots,
+    kClassLoader,  // App image only.
     kImageRootsMax,
   };
 
@@ -205,6 +206,10 @@ class PACKED(4) ImageHeader {
     kSectionImageBitmap,
     kSectionCount,  // Number of elements in enum.
   };
+
+  static size_t NumberOfImageRoots(bool app_image) {
+    return app_image ? kImageRootsMax : kImageRootsMax - 1u;
+  }
 
   ArtMethod* GetImageMethod(ImageMethod index) const;
   void SetImageMethod(ImageMethod index, ArtMethod* method);

@@ -1721,7 +1721,7 @@ void Runtime::VisitImageRoots(RootVisitor* visitor) {
     if (space->IsImageSpace()) {
       auto* image_space = space->AsImageSpace();
       const auto& image_header = image_space->GetImageHeader();
-      for (size_t i = 0; i < ImageHeader::kImageRootsMax; ++i) {
+      for (int32_t i = 0, size = image_header.GetImageRoots()->GetLength(); i != size; ++i) {
         auto* obj = image_header.GetImageRoot(static_cast<ImageHeader::ImageRoot>(i));
         if (obj != nullptr) {
           auto* after_obj = obj;

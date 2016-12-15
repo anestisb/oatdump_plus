@@ -89,6 +89,7 @@ const char* image_methods_descriptions_[] = {
 const char* image_roots_descriptions_[] = {
   "kDexCaches",
   "kClassRoots",
+  "kClassLoader",
 };
 
 // Map is so that we don't allocate multiple dex files for the same OatDexFile.
@@ -1506,12 +1507,13 @@ class ImageDumper {
       os << "ROOTS: " << reinterpret_cast<void*>(image_header_.GetImageRoots()) << "\n";
       static_assert(arraysize(image_roots_descriptions_) ==
           static_cast<size_t>(ImageHeader::kImageRootsMax), "sizes must match");
-      for (int i = 0; i < ImageHeader::kImageRootsMax; i++) {
+      DCHECK_LE(image_header_.GetImageRoots()->GetLength(), ImageHeader::kImageRootsMax);
+      for (int32_t i = 0, size = image_header_.GetImageRoots()->GetLength(); i != size; ++i) {
         ImageHeader::ImageRoot image_root = static_cast<ImageHeader::ImageRoot>(i);
         const char* image_root_description = image_roots_descriptions_[i];
         mirror::Object* image_root_object = image_header_.GetImageRoot(image_root);
         indent_os << StringPrintf("%s: %p\n", image_root_description, image_root_object);
-        if (image_root_object->IsObjectArray()) {
+        if (image_root_object != nullptr && image_root_object->IsObjectArray()) {
           mirror::ObjectArray<mirror::Object>* image_root_object_array
               = image_root_object->AsObjectArray<mirror::Object>();
           ScopedIndentation indent2(&vios_);
