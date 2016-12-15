@@ -96,7 +96,29 @@ public class Main {
   /// CHECK-NOT: Phi
   public static int geo4(int a) {
     for (int i = 0; i < 10; i++) {
-      a %= 7;
+      a %= 7;  // a wrap-around induction
+    }
+    return a;
+  }
+
+  /// CHECK-START: int Main.geo5() loop_optimization (before)
+  /// CHECK-DAG: Phi loop:<<Loop:B\d+>>
+  /// CHECK-DAG: Shr loop:<<Loop>>
+  //
+  /// CHECK-START: int Main.geo5() loop_optimization (after)
+  /// CHECK-DAG: <<Zero:i\d+>> IntConstant 0          loop:none
+  /// CHECK-DAG: <<Int1:i\d+>> IntConstant 2147483647 loop:none
+  /// CHECK-DAG: <<Int2:i\d+>> IntConstant 1024       loop:none
+  /// CHECK-DAG: <<Div:i\d+>>  Div [<<Int1>>,<<Int2>>] loop:none
+  /// CHECK-DAG: <<Add:i\d+>>  Add [<<Div>>,<<Zero>>]  loop:none
+  /// CHECK-DAG:               Return [<<Add>>]        loop:none
+  //
+  /// CHECK-START: int Main.geo5() loop_optimization (after)
+  /// CHECK-NOT: Phi
+  public static int geo5() {
+    int a = 0x7fffffff;
+    for (int i = 0; i < 10; i++) {
+      a >>= 1;
     }
     return a;
   }
@@ -186,7 +208,7 @@ public class Main {
     int r = 0;
     for (int i = 0; i < 100; i++) {  // a converges to 0
       r += x[a];
-      a %= 5;
+      a %= 5;  // a wrap-around induction
     }
     return r;
   }
@@ -304,6 +326,8 @@ public class Main {
     for (int i = -100; i <= 100; i++) {
       expectEquals(i % 7, geo4(i));
     }
+
+    expectEquals(0x1fffff, geo5());
 
     expectEquals(34,  geo1BCE());
     expectEquals(36,  geo2BCE());
