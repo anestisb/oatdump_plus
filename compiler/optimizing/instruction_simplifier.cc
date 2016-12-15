@@ -1897,7 +1897,8 @@ void InstructionSimplifierVisitor::SimplifyReturnThis(HInvoke* invoke) {
 static bool NoEscapeForStringBufferReference(HInstruction* reference, HInstruction* user) {
   if (user->IsInvokeStaticOrDirect()) {
     // Any constructor on StringBuffer is okay.
-    return user->AsInvokeStaticOrDirect()->GetResolvedMethod()->IsConstructor() &&
+    return user->AsInvokeStaticOrDirect()->GetResolvedMethod() != nullptr &&
+           user->AsInvokeStaticOrDirect()->GetResolvedMethod()->IsConstructor() &&
            user->InputAt(0) == reference;
   } else if (user->IsInvokeVirtual()) {
     switch (user->AsInvokeVirtual()->GetIntrinsic()) {
