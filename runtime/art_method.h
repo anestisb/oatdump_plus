@@ -27,7 +27,6 @@
 #include "invoke_type.h"
 #include "method_reference.h"
 #include "modifiers.h"
-#include "mirror/dex_cache.h"
 #include "mirror/object.h"
 #include "obj_ptr.h"
 #include "read_barrier_option.h"
@@ -221,12 +220,6 @@ class ArtMethod FINAL {
     return !IsIntrinsic() && (GetAccessFlags() & kAccObsoleteMethod) != 0;
   }
 
-  void SetIsObsolete() {
-    // TODO We should really support redefining intrinsic if possible.
-    DCHECK(!IsIntrinsic());
-    SetAccessFlags(GetAccessFlags() | kAccObsoleteMethod);
-  }
-
   template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   bool IsNative() {
     return (GetAccessFlags<kReadBarrierOption>() & kAccNative) != 0;
@@ -333,10 +326,6 @@ class ArtMethod FINAL {
   ALWAYS_INLINE ArtMethod* GetDexCacheResolvedMethod(uint16_t method_index,
                                                      PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
-
-  ALWAYS_INLINE mirror::StringDexCacheType* GetDexCacheStrings()
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
   ALWAYS_INLINE void SetDexCacheResolvedMethod(uint16_t method_index,
                                                ArtMethod* new_method,
                                                PointerSize pointer_size)

@@ -18,11 +18,8 @@
 
 #include <stdio.h>
 
-#include "art_method.h"
 #include "jni.h"
 #include "openjdkjvmti/jvmti.h"
-#include "scoped_thread_state_change-inl.h"
-#include "stack.h"
 #include "ti-agent/common_load.h"
 #include "utils.h"
 
