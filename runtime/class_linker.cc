@@ -1655,13 +1655,6 @@ bool ClassLinker::AddImageSpace(
   Runtime* const runtime = Runtime::Current();
   gc::Heap* const heap = runtime->GetHeap();
   Thread* const self = Thread::Current();
-  StackHandleScope<2> hs(self);
-  Handle<mirror::ObjectArray<mirror::DexCache>> dex_caches(
-      hs.NewHandle(dex_caches_object->AsObjectArray<mirror::DexCache>()));
-  Handle<mirror::ObjectArray<mirror::Class>> class_roots(hs.NewHandle(
-      header.GetImageRoot(ImageHeader::kClassRoots)->AsObjectArray<mirror::Class>()));
-  const OatFile* oat_file = space->GetOatFile();
-  std::unordered_set<mirror::ClassLoader*> image_class_loaders;
   // Check that the image is what we are expecting.
   if (image_pointer_size_ != space->GetImageHeader().GetPointerSize()) {
     *error_msg = StringPrintf("Application image pointer size does not match runtime: %zu vs %zu",
@@ -1669,6 +1662,22 @@ bool ClassLinker::AddImageSpace(
                               image_pointer_size_);
     return false;
   }
+  size_t expected_image_roots = ImageHeader::NumberOfImageRoots(app_image);
+  if (static_cast<size_t>(header.GetImageRoots()->GetLength()) != expected_image_roots) {
+    *error_msg = StringPrintf("Expected %zu image roots but got %d",
+                              expected_image_roots,
+                              header.GetImageRoots()->GetLength());
+    return false;
+  }
+  StackHandleScope<3> hs(self);
+  Handle<mirror::ObjectArray<mirror::DexCache>> dex_caches(
+      hs.NewHandle(dex_caches_object->AsObjectArray<mirror::DexCache>()));
+  Handle<mirror::ObjectArray<mirror::Class>> class_roots(hs.NewHandle(
+      header.GetImageRoot(ImageHeader::kClassRoots)->AsObjectArray<mirror::Class>()));
+  static_assert(ImageHeader::kClassLoader + 1u == ImageHeader::kImageRootsMax,
+                "Class loader should be the last image root.");
+  MutableHandle<mirror::ClassLoader> image_class_loader(hs.NewHandle(
+      app_image ? header.GetImageRoot(ImageHeader::kClassLoader)->AsClassLoader() : nullptr));
   DCHECK(class_roots.Get() != nullptr);
   if (class_roots->GetLength() != static_cast<int32_t>(kClassRootsMax)) {
     *error_msg = StringPrintf("Expected %d class roots but got %d",
@@ -1683,6 +1692,7 @@ bool ClassLinker::AddImageSpace(
       return false;
     }
   }
+  const OatFile* oat_file = space->GetOatFile();
   if (oat_file->GetOatHeader().GetDexFileCount() !=
       static_cast<uint32_t>(dex_caches->GetLength())) {
     *error_msg = "Dex cache count and dex file count mismatch while trying to initialize from "
@@ -1715,15 +1725,11 @@ bool ClassLinker::AddImageSpace(
       // The current dex file field is bogus, overwrite it so that we can get the dex file in the
       // loop below.
       h_dex_cache->SetDexFile(dex_file.get());
-      // Check that each class loader resolved the same way.
-      // TODO: Store image class loaders as image roots.
       GcRoot<mirror::Class>* const types = h_dex_cache->GetResolvedTypes();
       for (int32_t j = 0, num_types = h_dex_cache->NumResolvedTypes(); j < num_types; j++) {
         ObjPtr<mirror::Class> klass = types[j].Read();
         if (klass != nullptr) {
           DCHECK_NE(klass->GetStatus(), mirror::Class::kStatusError);
-          ObjPtr<mirror::ClassLoader> image_class_loader = klass->GetClassLoader();
-          image_class_loaders.insert(image_class_loader.Ptr());
         }
       }
     } else {
@@ -1749,59 +1755,57 @@ bool ClassLinker::AddImageSpace(
     // for PathClassLoader does this by looping through the array of dex files. To ensure they
     // resolve the same way, simply flatten the hierarchy in the way the resolution order would be,
     // and check that the dex file names are the same.
-    for (ObjPtr<mirror::ClassLoader> image_class_loader : image_class_loaders) {
-      if (IsBootClassLoader(soa, image_class_loader)) {
-        // The dex cache can reference types from the boot class loader.
-        continue;
+    if (IsBootClassLoader(soa, image_class_loader.Get())) {
+      *error_msg = "Unexpected BootClassLoader in app image";
+      return false;
+    }
+    std::list<mirror::String*> image_dex_file_names;
+    std::string temp_error_msg;
+    if (!FlattenPathClassLoader(image_class_loader.Get(), &image_dex_file_names, &temp_error_msg)) {
+      *error_msg = StringPrintf("Failed to flatten image class loader hierarchy '%s'",
+                                temp_error_msg.c_str());
+      return false;
+    }
+    std::list<mirror::String*> loader_dex_file_names;
+    if (!FlattenPathClassLoader(class_loader.Get(), &loader_dex_file_names, &temp_error_msg)) {
+      *error_msg = StringPrintf("Failed to flatten class loader hierarchy '%s'",
+                                temp_error_msg.c_str());
+      return false;
+    }
+    // Add the temporary dex path list elements at the end.
+    auto elements = soa.Decode<mirror::ObjectArray<mirror::Object>>(dex_elements);
+    for (size_t i = 0, num_elems = elements->GetLength(); i < num_elems; ++i) {
+      ObjPtr<mirror::Object> element = elements->GetWithoutChecks(i);
+      if (element != nullptr) {
+        // If we are somewhere in the middle of the array, there may be nulls at the end.
+        loader_dex_file_names.push_back(GetDexPathListElementName(element));
       }
-      std::list<mirror::String*> image_dex_file_names;
-      std::string temp_error_msg;
-      if (!FlattenPathClassLoader(image_class_loader, &image_dex_file_names, &temp_error_msg)) {
-        *error_msg = StringPrintf("Failed to flatten image class loader hierarchy '%s'",
-                                  temp_error_msg.c_str());
-        return false;
+    }
+    // Ignore the number of image dex files since we are adding those to the class loader anyways.
+    CHECK_GE(static_cast<size_t>(image_dex_file_names.size()),
+             static_cast<size_t>(dex_caches->GetLength()));
+    size_t image_count = image_dex_file_names.size() - dex_caches->GetLength();
+    // Check that the dex file names match.
+    bool equal = image_count == loader_dex_file_names.size();
+    if (equal) {
+      auto it1 = image_dex_file_names.begin();
+      auto it2 = loader_dex_file_names.begin();
+      for (size_t i = 0; equal && i < image_count; ++i, ++it1, ++it2) {
+        equal = equal && (*it1)->Equals(*it2);
       }
-      std::list<mirror::String*> loader_dex_file_names;
-      if (!FlattenPathClassLoader(class_loader.Get(), &loader_dex_file_names, &temp_error_msg)) {
-        *error_msg = StringPrintf("Failed to flatten class loader hierarchy '%s'",
-                                  temp_error_msg.c_str());
-        return false;
+    }
+    if (!equal) {
+      VLOG(image) << "Image dex files " << image_dex_file_names.size();
+      for (ObjPtr<mirror::String> name : image_dex_file_names) {
+        VLOG(image) << name->ToModifiedUtf8();
       }
-      // Add the temporary dex path list elements at the end.
-      auto elements = soa.Decode<mirror::ObjectArray<mirror::Object>>(dex_elements);
-      for (size_t i = 0, num_elems = elements->GetLength(); i < num_elems; ++i) {
-        ObjPtr<mirror::Object> element = elements->GetWithoutChecks(i);
-        if (element != nullptr) {
-          // If we are somewhere in the middle of the array, there may be nulls at the end.
-          loader_dex_file_names.push_back(GetDexPathListElementName(element));
-        }
+      VLOG(image) << "Loader dex files " << loader_dex_file_names.size();
+      for (ObjPtr<mirror::String> name : loader_dex_file_names) {
+        VLOG(image) << name->ToModifiedUtf8();
       }
-      // Ignore the number of image dex files since we are adding those to the class loader anyways.
-      CHECK_GE(static_cast<size_t>(image_dex_file_names.size()),
-               static_cast<size_t>(dex_caches->GetLength()));
-      size_t image_count = image_dex_file_names.size() - dex_caches->GetLength();
-      // Check that the dex file names match.
-      bool equal = image_count == loader_dex_file_names.size();
-      if (equal) {
-        auto it1 = image_dex_file_names.begin();
-        auto it2 = loader_dex_file_names.begin();
-        for (size_t i = 0; equal && i < image_count; ++i, ++it1, ++it2) {
-          equal = equal && (*it1)->Equals(*it2);
-        }
-      }
-      if (!equal) {
-        VLOG(image) << "Image dex files " << image_dex_file_names.size();
-        for (ObjPtr<mirror::String> name : image_dex_file_names) {
-          VLOG(image) << name->ToModifiedUtf8();
-        }
-        VLOG(image) << "Loader dex files " << loader_dex_file_names.size();
-        for (ObjPtr<mirror::String> name : loader_dex_file_names) {
-          VLOG(image) << name->ToModifiedUtf8();
-        }
-        *error_msg = "Rejecting application image due to class loader mismatch";
-        // Ignore class loader mismatch for now since these would just use possibly incorrect
-        // oat code anyways. The structural class check should be done in the parent.
-      }
+      *error_msg = "Rejecting application image due to class loader mismatch";
+      // Ignore class loader mismatch for now since these would just use possibly incorrect
+      // oat code anyways. The structural class check should be done in the parent.
     }
   }
 
