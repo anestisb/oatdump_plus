@@ -258,6 +258,20 @@ public class Main {
     return b.length();
   }
 
+  // Regression b/33656359: StringBuffer x is passed to constructor of String
+  // (this caused old code to crash due to missing nullptr check).
+  //
+  /// CHECK-START: void Main.doesNothing() instruction_simplifier (before)
+  /// CHECK-DAG: InvokeVirtual intrinsic:StringBufferToString
+  //
+  /// CHECK-START: void Main.doesNothing() instruction_simplifier (after)
+  /// CHECK-DAG: InvokeVirtual intrinsic:StringBufferToString
+  static void doesNothing() {
+    StringBuffer x = new StringBuffer();
+    String y = new String(x);
+    x.toString();
+  }
+
   public static void main(String[] args) {
     expectEquals(1865, liveIndexOf());
     expectEquals(29, deadIndexOf());
@@ -280,6 +294,8 @@ public class Main {
     expectEquals(30, builderLoopAppender());
     expectEquals(0, bufferDeadLoop());
     expectEquals(0, builderDeadLoop());
+
+    doesNothing();
 
     System.out.println("passed");
   }
