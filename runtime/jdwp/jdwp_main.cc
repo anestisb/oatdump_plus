@@ -20,6 +20,8 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "android-base/stringprintf.h"
+
 #include "atomic.h"
 #include "base/logging.h"
 #include "base/time_utils.h"
@@ -30,6 +32,8 @@
 namespace art {
 
 namespace JDWP {
+
+using android::base::StringPrintf;
 
 static void* StartJdwpThread(void* arg);
 

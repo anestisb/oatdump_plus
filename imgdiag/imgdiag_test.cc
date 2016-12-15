@@ -20,12 +20,13 @@
 
 #include "common_runtime_test.h"
 
+#include "android-base/stringprintf.h"
+
 #include "runtime/os.h"
 #include "runtime/arch/instruction_set.h"
 #include "runtime/utils.h"
 #include "runtime/gc/space/image_space.h"
 #include "runtime/gc/heap.h"
-#include "base/stringprintf.h"
 
 #include <sys/types.h>
 #include <unistd.h>
@@ -57,7 +58,7 @@ class ImgDiagTest : public CommonRuntimeTest {
 
   virtual void SetUpRuntimeOptions(RuntimeOptions* options) OVERRIDE {
     // Needs to live until CommonRuntimeTest::SetUp finishes, since we pass it a cstring.
-    runtime_args_image_ = StringPrintf("-Ximage:%s", GetCoreArtLocation().c_str());
+    runtime_args_image_ = android::base::StringPrintf("-Ximage:%s", GetCoreArtLocation().c_str());
     options->push_back(std::make_pair(runtime_args_image_, nullptr));
   }
 

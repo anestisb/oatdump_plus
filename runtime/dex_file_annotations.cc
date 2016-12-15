@@ -18,6 +18,8 @@
 
 #include <stdlib.h>
 
+#include "android-base/stringprintf.h"
+
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "class_linker-inl.h"
@@ -30,6 +32,8 @@
 #include "thread.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 struct DexFile::AnnotationValue {
   JValue value_;

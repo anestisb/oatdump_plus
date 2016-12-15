@@ -19,12 +19,14 @@
 #include <fstream>
 #include <sstream>
 
+#include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 
-#include "base/stringprintf.h"
-#include "utils.h"  // For Trim.
+#include "base/logging.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 Mips64FeaturesUniquePtr Mips64InstructionSetFeatures::FromVariant(
     const std::string& variant, std::string* error_msg ATTRIBUTE_UNUSED) {

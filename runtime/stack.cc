@@ -16,6 +16,8 @@
 
 #include "stack.h"
 
+#include "android-base/stringprintf.h"
+
 #include "arch/context.h"
 #include "art_method-inl.h"
 #include "base/enums.h"
@@ -38,6 +40,8 @@
 #include "verify_object-inl.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 static constexpr bool kDebugStackWalk = false;
 

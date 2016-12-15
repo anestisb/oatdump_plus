@@ -26,6 +26,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 
 #include "arch/instruction_set_features.h"
@@ -75,6 +76,8 @@
 #include "cmdline.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 const char* image_methods_descriptions_[] = {
   "kResolutionMethod",

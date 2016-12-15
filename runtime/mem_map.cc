@@ -24,7 +24,8 @@
 #include <memory>
 #include <sstream>
 
-#include "base/stringprintf.h"
+#include "android-base/stringprintf.h"
+
 #include "base/unix_file/fd_file.h"
 #include "os.h"
 #include "thread-inl.h"
@@ -41,6 +42,8 @@
 #endif
 
 namespace art {
+
+using android::base::StringPrintf;
 
 static std::ostream& operator<<(
     std::ostream& os,

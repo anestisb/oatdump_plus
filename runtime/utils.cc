@@ -25,6 +25,7 @@
 #include <unistd.h>
 #include <memory>
 
+#include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 
 #include "base/stl_util.h"
@@ -47,6 +48,9 @@
 #endif
 
 namespace art {
+
+using android::base::StringAppendF;
+using android::base::StringPrintf;
 
 static const uint8_t kBase64Map[256] = {
   255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,

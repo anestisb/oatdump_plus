@@ -19,10 +19,11 @@
 
 #include "array.h"
 
+#include "android-base/stringprintf.h"
+
 #include "base/bit_utils.h"
 #include "base/casts.h"
 #include "base/logging.h"
-#include "base/stringprintf.h"
 #include "class-inl.h"
 #include "gc/heap-inl.h"
 #include "obj_ptr-inl.h"
@@ -167,9 +168,9 @@ inline Array* Array::Alloc(Thread* self,
 #else
   // 32-bit.
   if (UNLIKELY(size == 0)) {
-    self->ThrowOutOfMemoryError(StringPrintf("%s of length %d would overflow",
-                                             array_class->PrettyDescriptor().c_str(),
-                                             component_count).c_str());
+    self->ThrowOutOfMemoryError(android::base::StringPrintf("%s of length %d would overflow",
+                                                            array_class->PrettyDescriptor().c_str(),
+                                                            component_count).c_str());
     return nullptr;
   }
 #endif

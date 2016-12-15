@@ -18,6 +18,8 @@
 
 #include <vector>
 
+#include "android-base/stringprintf.h"
+
 #include "art_method-inl.h"
 #include "base/mutex.h"
 #include "base/stl_util.h"
@@ -37,6 +39,8 @@
 #include "well_known_classes.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 static constexpr uint64_t kLongWaitMs = 100;
 

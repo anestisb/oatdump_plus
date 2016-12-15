@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
+#include "android-base/stringprintf.h"
+
 #include "base/arena_allocator.h"
-#include "base/stringprintf.h"
 #include "builder.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
@@ -35,7 +36,7 @@ class SsaPrettyPrinter : public HPrettyPrinter {
   explicit SsaPrettyPrinter(HGraph* graph) : HPrettyPrinter(graph), str_("") {}
 
   void PrintInt(int value) OVERRIDE {
-    str_ += StringPrintf("%d", value);
+    str_ += android::base::StringPrintf("%d", value);
   }
 
   void PrintString(const char* value) OVERRIDE {

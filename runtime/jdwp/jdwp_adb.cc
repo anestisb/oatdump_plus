@@ -20,8 +20,9 @@
 #include <sys/un.h>
 #include <unistd.h>
 
+#include "android-base/stringprintf.h"
+
 #include "base/logging.h"
-#include "base/stringprintf.h"
 #include "jdwp/jdwp_priv.h"
 
 #ifdef ART_TARGET_ANDROID
@@ -51,6 +52,8 @@
 namespace art {
 
 namespace JDWP {
+
+using android::base::StringPrintf;
 
 struct JdwpAdbState : public JdwpNetStateBase {
  public:

@@ -20,6 +20,8 @@
 #include <queue>
 #include <vector>
 
+#include "android-base/stringprintf.h"
+
 #include "base/logging.h"
 #include "base/stl_util.h"
 #include "base/systrace.h"
@@ -37,6 +39,8 @@
 #include "thread_list.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 // If true, then we attempt to load the application image if it exists.
 static constexpr bool kEnableAppImage = true;

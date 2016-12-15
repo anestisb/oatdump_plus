@@ -19,20 +19,21 @@
 #include <string>
 #include <vector>
 
+#include <sys/wait.h>
+#include <unistd.h>
+
+#include "android-base/stringprintf.h"
+
 #include "common_runtime_test.h"
 
 #include "base/logging.h"
 #include "base/macros.h"
-#include "base/stringprintf.h"
 #include "dex_file-inl.h"
 #include "dex2oat_environment_test.h"
 #include "jit/offline_profiling_info.h"
 #include "oat.h"
 #include "oat_file.h"
 #include "utils.h"
-
-#include <sys/wait.h>
-#include <unistd.h>
 
 namespace art {
 
@@ -217,7 +218,7 @@ class Dex2oatSwapTest : public Dex2oatTest {
     std::unique_ptr<ScratchFile> sf;
     if (use_fd) {
       sf.reset(new ScratchFile());
-      copy.push_back(StringPrintf("--swap-fd=%d", sf->GetFd()));
+      copy.push_back(android::base::StringPrintf("--swap-fd=%d", sf->GetFd()));
     } else {
       std::string swap_location = GetOdexDir() + "/Dex2OatSwapTest.odex.swap";
       copy.push_back("--swap-file=" + swap_location);

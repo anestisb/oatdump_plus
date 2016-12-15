@@ -24,16 +24,18 @@
 #include "signal.h"
 #include <fstream>
 
+#include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 
-#include "base/stringprintf.h"
-#include "utils.h"  // For Trim.
+#include "base/logging.h"
 
 #if defined(__arm__)
 extern "C" bool artCheckForArmSdivInstruction();
 #endif
 
 namespace art {
+
+using android::base::StringPrintf;
 
 ArmFeaturesUniquePtr ArmInstructionSetFeatures::FromVariant(
     const std::string& variant, std::string* error_msg) {

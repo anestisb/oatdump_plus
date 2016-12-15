@@ -22,10 +22,13 @@
 #include "android-base/properties.h"
 #endif
 
+#include "android-base/stringprintf.h"
+
 #include "base/logging.h"
-#include "base/stringprintf.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 #ifdef ART_TARGET_ANDROID
 #if defined(__aarch64__)

@@ -22,7 +22,8 @@
 #include <limits>
 #include <memory>
 
-#include "base/stringprintf.h"
+#include "android-base/stringprintf.h"
+
 #include "dex_file-inl.h"
 #include "experimental_flags.h"
 #include "leb128.h"
@@ -31,6 +32,9 @@
 #include "utils.h"
 
 namespace art {
+
+using android::base::StringAppendV;
+using android::base::StringPrintf;
 
 static constexpr uint32_t kTypeIdLimit = std::numeric_limits<uint16_t>::max();
 

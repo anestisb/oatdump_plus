@@ -21,10 +21,11 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "android-base/stringprintf.h"
+
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "base/logging.h"
-#include "base/stringprintf.h"
 #include "debugger.h"
 #include "jdwp/jdwp_constants.h"
 #include "jdwp/jdwp_expand_buf.h"
@@ -102,6 +103,8 @@ don't allow anyone else to interfere with us.
 namespace art {
 
 namespace JDWP {
+
+using android::base::StringPrintf;
 
 /*
  * Stuff to compare against when deciding if a mod matches.  Only the
