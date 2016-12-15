@@ -16,8 +16,9 @@
 
 #include "space_bitmap-inl.h"
 
+#include "android-base/stringprintf.h"
+
 #include "art_field-inl.h"
-#include "base/stringprintf.h"
 #include "dex_file-inl.h"
 #include "mem_map.h"
 #include "mirror/object-inl.h"
@@ -27,6 +28,8 @@
 namespace art {
 namespace gc {
 namespace accounting {
+
+using android::base::StringPrintf;
 
 template<size_t kAlignment>
 size_t SpaceBitmap<kAlignment>::ComputeBitmapSize(uint64_t capacity) {

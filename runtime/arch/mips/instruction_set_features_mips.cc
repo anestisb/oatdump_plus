@@ -19,13 +19,15 @@
 #include <fstream>
 #include <sstream>
 
+#include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 
+#include "base/logging.h"
 #include "base/stl_util.h"
-#include "base/stringprintf.h"
-#include "utils.h"  // For Trim.
 
 namespace art {
+
+using android::base::StringPrintf;
 
 // An enum for the Mips revision.
 enum class MipsLevel {

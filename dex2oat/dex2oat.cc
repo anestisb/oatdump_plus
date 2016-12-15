@@ -33,6 +33,7 @@
 #include <sys/utsname.h>
 #endif
 
+#include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 
 #include "arch/instruction_set_features.h"
@@ -86,6 +87,9 @@
 #include "zip_archive.h"
 
 namespace art {
+
+using android::base::StringAppendV;
+using android::base::StringPrintf;
 
 static constexpr size_t kDefaultMinDexFilesForSwap = 2;
 static constexpr size_t kDefaultMinDexFileCumulativeSizeForSwap = 20 * MB;

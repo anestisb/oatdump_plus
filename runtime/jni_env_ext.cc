@@ -19,6 +19,8 @@
 #include <algorithm>
 #include <vector>
 
+#include "android-base/stringprintf.h"
+
 #include "check_jni.h"
 #include "indirect_reference_table.h"
 #include "java_vm_ext.h"
@@ -29,6 +31,8 @@
 #include "thread-inl.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 static constexpr size_t kMonitorsInitial = 32;  // Arbitrary.
 static constexpr size_t kMonitorsMax = 4096;  // Arbitrary sanity check.

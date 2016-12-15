@@ -19,7 +19,8 @@
 
 #include "reflection.h"
 
-#include "base/stringprintf.h"
+#include "android-base/stringprintf.h"
+
 #include "common_throws.h"
 #include "jvalue-inl.h"
 #include "mirror/object-inl.h"
@@ -103,13 +104,14 @@ inline bool ConvertPrimitiveValue(bool unbox_for_result,
   }
 
   if (!unbox_for_result) {
-    ThrowIllegalArgumentException(StringPrintf("Invalid primitive conversion from %s to %s",
-                                               PrettyDescriptor(srcType).c_str(),
-                                               PrettyDescriptor(dstType).c_str()).c_str());
+    ThrowIllegalArgumentException(
+        android::base::StringPrintf("Invalid primitive conversion from %s to %s",
+                                    PrettyDescriptor(srcType).c_str(),
+                                    PrettyDescriptor(dstType).c_str()).c_str());
   } else {
-    ThrowClassCastException(StringPrintf("Couldn't convert result of type %s to %s",
-                                         PrettyDescriptor(srcType).c_str(),
-                                         PrettyDescriptor(dstType).c_str()).c_str());
+    ThrowClassCastException(android::base::StringPrintf("Couldn't convert result of type %s to %s",
+                                                        PrettyDescriptor(srcType).c_str(),
+                                                        PrettyDescriptor(dstType).c_str()).c_str());
   }
   return false;
 }

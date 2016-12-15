@@ -1098,10 +1098,14 @@ TwoWordReturn Instrumentation::PopInstrumentationStackFrame(Thread* self, uintpt
                     Dbg::IsForcedInterpreterNeededForUpcall(self, visitor.caller));
   if (deoptimize && Runtime::Current()->IsDeoptimizeable(*return_pc)) {
     if (kVerboseInstrumentation) {
-      LOG(INFO) << StringPrintf("Deoptimizing %s by returning from %s with result %#" PRIx64 " in ",
-                                visitor.caller->PrettyMethod().c_str(),
-                                method->PrettyMethod().c_str(),
-                                return_value.GetJ()) << *self;
+      LOG(INFO) << "Deoptimizing "
+                << visitor.caller->PrettyMethod()
+                << " by returning from "
+                << method->PrettyMethod()
+                << " with result "
+                << std::hex << return_value.GetJ() << std::dec
+                << " in "
+                << *self;
     }
     self->PushDeoptimizationContext(return_value,
                                     return_shorty == 'L',

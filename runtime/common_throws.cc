@@ -18,6 +18,7 @@
 
 #include <sstream>
 
+#include "android-base/stringprintf.h"
 #include "ScopedLocalRef.h"
 
 #include "art_field-inl.h"
@@ -36,6 +37,9 @@
 #include "verifier/method_verifier.h"
 
 namespace art {
+
+using android::base::StringAppendV;
+using android::base::StringPrintf;
 
 static void AddReferrerLocation(std::ostream& os, ObjPtr<mirror::Class> referrer)
     REQUIRES_SHARED(Locks::mutator_lock_) {

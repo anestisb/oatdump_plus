@@ -24,6 +24,7 @@
 #include <string>
 #include <vector>
 
+#include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 
 #include "art_field-inl.h"
@@ -31,7 +32,6 @@
 #include "base/dumpable.h"
 #include "base/scoped_flock.h"
 #include "base/stringpiece.h"
-#include "base/stringprintf.h"
 #include "base/unix_file/fd_file.h"
 #include "base/unix_file/random_access_file_utils.h"
 #include "elf_utils.h"
@@ -939,7 +939,7 @@ static std::string CommandLine() {
 
 static void UsageErrorV(const char* fmt, va_list ap) {
   std::string error;
-  StringAppendV(&error, fmt, ap);
+  android::base::StringAppendV(&error, fmt, ap);
   LOG(ERROR) << error;
 }
 

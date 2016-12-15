@@ -19,13 +19,15 @@
 #include <fstream>
 #include <sstream>
 
+#include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 
 #include "arch/x86_64/instruction_set_features_x86_64.h"
-#include "base/stringprintf.h"
-#include "utils.h"  // For Trim.
+#include "base/logging.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 // Feature-support arrays.
 

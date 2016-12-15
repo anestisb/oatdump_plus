@@ -16,6 +16,8 @@
 
 #include "reg_type-inl.h"
 
+#include "android-base/stringprintf.h"
+
 #include "base/arena_bit_vector.h"
 #include "base/bit_vector-inl.h"
 #include "base/casts.h"
@@ -34,6 +36,8 @@
 
 namespace art {
 namespace verifier {
+
+using android::base::StringPrintf;
 
 const UndefinedType* UndefinedType::instance_ = nullptr;
 const ConflictType* ConflictType::instance_ = nullptr;

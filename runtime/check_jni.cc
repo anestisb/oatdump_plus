@@ -20,6 +20,8 @@
 #include <sys/mman.h>
 #include <zlib.h>
 
+#include "android-base/stringprintf.h"
+
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "base/logging.h"
@@ -41,6 +43,9 @@
 #include "well_known_classes.h"
 
 namespace art {
+
+using android::base::StringAppendF;
+using android::base::StringPrintf;
 
 /*
  * ===========================================================================

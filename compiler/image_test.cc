@@ -20,6 +20,8 @@
 #include <string>
 #include <vector>
 
+#include "android-base/stringprintf.h"
+
 #include "base/unix_file/fd_file.h"
 #include "class_linker-inl.h"
 #include "common_compiler_test.h"
@@ -134,7 +136,8 @@ void CompilationHelper::Compile(CompilerDriver* driver,
     // Create a generic tmp file, to be the base of the .art and .oat temporary files.
     ScratchFile location;
     for (int i = 0; i < static_cast<int>(class_path.size()); ++i) {
-      std::string cur_location(StringPrintf("%s-%d.art", location.GetFilename().c_str(), i));
+      std::string cur_location =
+          android::base::StringPrintf("%s-%d.art", location.GetFilename().c_str(), i);
       image_locations.push_back(ScratchFile(cur_location));
     }
   }

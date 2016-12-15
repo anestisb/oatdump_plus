@@ -20,7 +20,6 @@
 #include <dlfcn.h>
 #include <jni.h>  // for jint, JavaVM* etc declarations
 
-#include "base/stringprintf.h"
 #include "runtime.h"
 #include "utils.h"
 

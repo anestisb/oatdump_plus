@@ -33,6 +33,8 @@
 
 #include <limits>
 
+#include "android-base/stringprintf.h"
+
 #include "art_jvmti.h"
 #include "base/logging.h"
 #include "events-inl.h"
@@ -49,13 +51,15 @@
 
 namespace openjdkjvmti {
 
+using android::base::StringPrintf;
+
 // Moves dex data to an anonymous, read-only mmap'd region.
 std::unique_ptr<art::MemMap> Redefiner::MoveDataToMemMap(const std::string& original_location,
                                                          jint data_len,
                                                          unsigned char* dex_data,
                                                          std::string* error_msg) {
   std::unique_ptr<art::MemMap> map(art::MemMap::MapAnonymous(
-      art::StringPrintf("%s-transformed", original_location.c_str()).c_str(),
+      StringPrintf("%s-transformed", original_location.c_str()).c_str(),
       nullptr,
       data_len,
       PROT_READ|PROT_WRITE,
@@ -246,9 +250,9 @@ art::mirror::LongArray* Redefiner::AllocateDexFileCookie(
 }
 
 void Redefiner::RecordFailure(jvmtiError result, const std::string& error_msg) {
-  *error_msg_ = art::StringPrintf("Unable to perform redefinition of '%s': %s",
-                                  class_sig_,
-                                  error_msg.c_str());
+  *error_msg_ = StringPrintf("Unable to perform redefinition of '%s': %s",
+                             class_sig_,
+                             error_msg.c_str());
   result_ = result;
 }
 

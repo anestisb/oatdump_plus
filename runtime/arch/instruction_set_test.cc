@@ -19,7 +19,6 @@
 #include <gtest/gtest.h>
 
 #include "base/enums.h"
-#include "base/stringprintf.h"
 
 namespace art {
 

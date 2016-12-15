@@ -23,7 +23,6 @@
 #include <unistd.h>
 #include <vector>
 
-#include "base/stringprintf.h"
 #include "base/unix_file/fd_file.h"
 
 namespace art {

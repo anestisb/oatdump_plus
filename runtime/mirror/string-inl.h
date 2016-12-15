@@ -16,6 +16,10 @@
 #ifndef ART_RUNTIME_MIRROR_STRING_INL_H_
 #define ART_RUNTIME_MIRROR_STRING_INL_H_
 
+#include "string.h"
+
+#include "android-base/stringprintf.h"
+
 #include "array.h"
 #include "base/bit_utils.h"
 #include "class.h"
@@ -24,7 +28,6 @@
 #include "globals.h"
 #include "intern_table.h"
 #include "runtime.h"
-#include "string.h"
 #include "thread.h"
 #include "utf.h"
 #include "utils.h"
@@ -228,9 +231,10 @@ inline String* String::Alloc(Thread* self, int32_t utf16_length_with_flag,
                 "kObjectAlignment must be at least as big as Java char alignment");
   const size_t max_length = RoundDown(max_alloc_length, kObjectAlignment / block_size);
   if (UNLIKELY(length > max_length)) {
-    self->ThrowOutOfMemoryError(StringPrintf("%s of length %d would overflow",
-                                             Class::PrettyDescriptor(string_class).c_str(),
-                                             static_cast<int>(length)).c_str());
+    self->ThrowOutOfMemoryError(
+        android::base::StringPrintf("%s of length %d would overflow",
+                                    Class::PrettyDescriptor(string_class).c_str(),
+                                    static_cast<int>(length)).c_str());
     return nullptr;
   }
 

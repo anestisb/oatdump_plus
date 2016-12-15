@@ -16,11 +16,14 @@
 
 #include "assembler_thumb2.h"
 
+#include "android-base/stringprintf.h"
+
 #include "base/stl_util.h"
-#include "base/stringprintf.h"
 #include "utils/assembler_test.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 class AssemblerThumb2Test : public AssemblerTest<arm::Thumb2Assembler,
                                                  arm::Register, arm::SRegister,

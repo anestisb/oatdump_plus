@@ -15,11 +15,16 @@
  */
 
 #include "agent.h"
+
+#include "android-base/stringprintf.h"
+
 #include "java_vm_ext.h"
 #include "runtime.h"
 
 namespace art {
 namespace ti {
+
+using android::base::StringPrintf;
 
 const char* AGENT_ON_LOAD_FUNCTION_NAME = "Agent_OnLoad";
 const char* AGENT_ON_ATTACH_FUNCTION_NAME = "Agent_OnAttach";

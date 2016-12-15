@@ -16,6 +16,8 @@
 
 #include "throwable.h"
 
+#include "android-base/stringprintf.h"
+
 #include "art_method-inl.h"
 #include "base/enums.h"
 #include "class-inl.h"
@@ -30,6 +32,8 @@
 
 namespace art {
 namespace mirror {
+
+using android::base::StringPrintf;
 
 GcRoot<Class> Throwable::java_lang_Throwable_;
 

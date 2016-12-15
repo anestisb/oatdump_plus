@@ -20,6 +20,8 @@
 
 #include <sstream>
 
+#include "android-base/stringprintf.h"
+
 #include "base/logging.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "jni_internal.h"
@@ -189,7 +191,7 @@ jmethodID CacheMethod(JNIEnv* env, jclass c, bool is_static,
 static jmethodID CachePrimitiveBoxingMethod(JNIEnv* env, char prim_name, const char* boxed_name) {
   ScopedLocalRef<jclass> boxed_class(env, env->FindClass(boxed_name));
   return CacheMethod(env, boxed_class.get(), true, "valueOf",
-                     StringPrintf("(%c)L%s;", prim_name, boxed_name).c_str());
+                     android::base::StringPrintf("(%c)L%s;", prim_name, boxed_name).c_str());
 }
 
 #define STRING_INIT_LIST(V) \
