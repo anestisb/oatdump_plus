@@ -21,7 +21,6 @@
 
 #include "base/logging.h"
 #include "base/mutex.h"
-#include "base/stringprintf.h"
 #include "thread-inl.h"
 #include "utils.h"
 

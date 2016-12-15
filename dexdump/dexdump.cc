@@ -42,7 +42,8 @@
 #include <sstream>
 #include <vector>
 
-#include "base/stringprintf.h"
+#include "android-base/stringprintf.h"
+
 #include "dexdump_cfg.h"
 #include "dex_file-inl.h"
 #include "dex_file_types.h"
@@ -887,8 +888,10 @@ static std::unique_ptr<char[]> indexString(const DexFile* pDexFile,
           const char* name = pDexFile->StringDataByIdx(pMethodId.name_idx_);
           const Signature signature = pDexFile->GetMethodSignature(pMethodId);
           const char* backDescriptor = pDexFile->StringByTypeIdx(pMethodId.class_idx_);
-          method = StringPrintf("%s.%s:%s",
-                                backDescriptor, name, signature.ToString().c_str());
+          method = android::base::StringPrintf("%s.%s:%s",
+                                               backDescriptor,
+                                               name,
+                                               signature.ToString().c_str());
         }
         if (secondary_index < pDexFile->GetHeader().proto_ids_size_) {
           const DexFile::ProtoId& protoId = pDexFile->GetProtoId(secondary_index);

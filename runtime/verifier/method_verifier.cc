@@ -18,6 +18,8 @@
 
 #include <iostream>
 
+#include "android-base/stringprintf.h"
+
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "base/enums.h"
@@ -54,6 +56,8 @@
 
 namespace art {
 namespace verifier {
+
+using android::base::StringPrintf;
 
 static constexpr bool kTimeVerifyMethod = !kIsDebugBuild;
 static constexpr bool kDebugVerify = false;

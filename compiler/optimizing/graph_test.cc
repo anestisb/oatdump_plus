@@ -15,7 +15,6 @@
  */
 
 #include "base/arena_allocator.h"
-#include "base/stringprintf.h"
 #include "builder.h"
 #include "nodes.h"
 #include "optimizing_unit_test.h"

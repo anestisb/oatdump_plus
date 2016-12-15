@@ -20,12 +20,15 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include "android-base/stringprintf.h"
+
 #include "base/logging.h"
 #include "base/unix_file/fd_file.h"
 #include "dex_file.h"
-#include "stringprintf.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 File OpenAndReadMagic(const char* filename, uint32_t* magic, std::string* error_msg) {
   CHECK(magic != nullptr);

@@ -21,7 +21,6 @@
 
 #include "mutex.h"
 
-#include "base/stringprintf.h"
 #include "base/value_object.h"
 #include "thread.h"
 #include "utils.h"

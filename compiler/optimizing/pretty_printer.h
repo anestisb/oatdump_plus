@@ -17,7 +17,8 @@
 #ifndef ART_COMPILER_OPTIMIZING_PRETTY_PRINTER_H_
 #define ART_COMPILER_OPTIMIZING_PRETTY_PRINTER_H_
 
-#include "base/stringprintf.h"
+#include "android-base/stringprintf.h"
+
 #include "nodes.h"
 
 namespace art {
@@ -108,7 +109,7 @@ class StringPrettyPrinter : public HPrettyPrinter {
       : HPrettyPrinter(graph), str_(""), current_block_(nullptr) { }
 
   void PrintInt(int value) OVERRIDE {
-    str_ += StringPrintf("%d", value);
+    str_ += android::base::StringPrintf("%d", value);
   }
 
   void PrintString(const char* value) OVERRIDE {

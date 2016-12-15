@@ -16,6 +16,8 @@
 
 #include "malloc_space.h"
 
+#include "android-base/stringprintf.h"
+
 #include "gc/accounting/card_table-inl.h"
 #include "gc/accounting/space_bitmap-inl.h"
 #include "gc/heap.h"
@@ -32,6 +34,8 @@
 namespace art {
 namespace gc {
 namespace space {
+
+using android::base::StringPrintf;
 
 size_t MallocSpace::bitmap_index_ = 0;
 

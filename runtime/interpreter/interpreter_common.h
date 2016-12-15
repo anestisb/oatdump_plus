@@ -25,6 +25,8 @@
 #include <sstream>
 #include <atomic>
 
+#include "android-base/stringprintf.h"
+
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "base/enums.h"
@@ -430,12 +432,12 @@ static inline void TraceExecution(const ShadowFrame& shadow_frame, const Instruc
 #define TRACE_LOG std::cerr
     std::ostringstream oss;
     oss << shadow_frame.GetMethod()->PrettyMethod()
-        << StringPrintf("\n0x%x: ", dex_pc)
+        << android::base::StringPrintf("\n0x%x: ", dex_pc)
         << inst->DumpString(shadow_frame.GetMethod()->GetDexFile()) << "\n";
     for (uint32_t i = 0; i < shadow_frame.NumberOfVRegs(); ++i) {
       uint32_t raw_value = shadow_frame.GetVReg(i);
       ObjPtr<mirror::Object> ref_value = shadow_frame.GetVRegReference(i);
-      oss << StringPrintf(" vreg%u=0x%08X", i, raw_value);
+      oss << android::base::StringPrintf(" vreg%u=0x%08X", i, raw_value);
       if (ref_value != nullptr) {
         if (ref_value->GetClass()->IsStringClass() &&
             !ref_value->AsString()->IsValueNull()) {

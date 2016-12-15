@@ -18,6 +18,8 @@
 
 #include "garbage_collector.h"
 
+#include "android-base/stringprintf.h"
+
 #include "base/dumpable.h"
 #include "base/histogram-inl.h"
 #include "base/logging.h"
@@ -81,7 +83,7 @@ void GarbageCollector::ResetCumulativeStatistics() {
 }
 
 void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
-  ScopedTrace trace(StringPrintf("%s %s GC", PrettyCause(gc_cause), GetName()));
+  ScopedTrace trace(android::base::StringPrintf("%s %s GC", PrettyCause(gc_cause), GetName()));
   Thread* self = Thread::Current();
   uint64_t start_time = NanoTime();
   Iteration* current_iteration = GetCurrentIteration();

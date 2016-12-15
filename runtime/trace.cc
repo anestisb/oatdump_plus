@@ -19,6 +19,8 @@
 #include <sys/uio.h>
 #include <unistd.h>
 
+#include "android-base/stringprintf.h"
+
 #include "art_method-inl.h"
 #include "base/casts.h"
 #include "base/enums.h"
@@ -45,6 +47,8 @@
 #include "entrypoints/quick/quick_entrypoints.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 static constexpr size_t TraceActionBits = MinimumBitsToStore(
     static_cast<size_t>(kTraceMethodActionMask));

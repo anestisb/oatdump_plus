@@ -18,9 +18,10 @@
 
 #include <sstream>
 
+#include "android-base/stringprintf.h"
+
 #include "base/logging.h"
 #include "base/stl_util.h"
-#include "base/stringprintf.h"
 #include "class_linker.h"
 #include "common_throws.h"
 #include "compiler_filter.h"
@@ -42,6 +43,8 @@
 #include "zip_archive.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 static bool ConvertJavaArrayToDexFiles(
     JNIEnv* env,

@@ -16,6 +16,8 @@
 
 #include "dex_to_dex_compiler.h"
 
+#include "android-base/stringprintf.h"
+
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "base/logging.h"
@@ -31,6 +33,8 @@
 
 namespace art {
 namespace optimizer {
+
+using android::base::StringPrintf;
 
 // Controls quickening activation.
 const bool kEnableQuickening = true;

@@ -16,6 +16,8 @@
 
 #include "dalvik_system_InMemoryDexClassLoader_DexData.h"
 
+#include "android-base/stringprintf.h"
+
 #include "class_linker.h"
 #include "common_throws.h"
 #include "dex_file.h"
@@ -28,6 +30,8 @@
 #include "ScopedUtfChars.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 static std::unique_ptr<MemMap> AllocateDexMemoryMap(JNIEnv* env, jint start, jint end) {
   if (end <= start) {

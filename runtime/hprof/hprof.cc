@@ -37,9 +37,10 @@
 
 #include <set>
 
+#include "android-base/stringprintf.h"
+
 #include "art_field-inl.h"
 #include "base/logging.h"
-#include "base/stringprintf.h"
 #include "base/time_utils.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
@@ -797,8 +798,9 @@ class Hprof : public SingleRootVisitor {
       file->Erase();
     }
     if (!okay) {
-      std::string msg(StringPrintf("Couldn't dump heap; writing \"%s\" failed: %s",
-                                   filename_.c_str(), strerror(errno)));
+      std::string msg(android::base::StringPrintf("Couldn't dump heap; writing \"%s\" failed: %s",
+                                                  filename_.c_str(),
+                                                  strerror(errno)));
       ThrowRuntimeException("%s", msg.c_str());
       LOG(ERROR) << msg;
     }

@@ -34,6 +34,8 @@
 
 namespace art {
 
+using android::base::StringPrintf;
+
 class ArgArray {
  public:
   ArgArray(const char* shorty, uint32_t shorty_len)

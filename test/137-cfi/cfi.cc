@@ -25,11 +25,11 @@
 
 #include "jni.h"
 
+#include "android-base/stringprintf.h"
 #include <backtrace/Backtrace.h>
 
 #include "base/logging.h"
 #include "base/macros.h"
-#include "base/stringprintf.h"
 #include "gc/heap.h"
 #include "gc/space/image_space.h"
 #include "oat_file.h"
@@ -91,7 +91,7 @@ static bool CheckStack(Backtrace* bt, const std::vector<std::string>& seq) {
 static void MoreErrorInfo(pid_t pid, bool sig_quit_on_fail) {
   printf("Secondary pid is %d\n", pid);
 
-  PrintFileToLog(StringPrintf("/proc/%d/maps", pid), ::android::base::ERROR);
+  PrintFileToLog(android::base::StringPrintf("/proc/%d/maps", pid), ::android::base::ERROR);
 
   if (sig_quit_on_fail) {
     int res = kill(pid, SIGQUIT);

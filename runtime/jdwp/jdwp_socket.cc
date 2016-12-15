@@ -26,8 +26,9 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "android-base/stringprintf.h"
+
 #include "base/logging.h"
-#include "base/stringprintf.h"
 #include "jdwp/jdwp_priv.h"
 
 namespace art {
@@ -500,7 +501,7 @@ bool JdwpSocketState::ProcessIncoming() {
    */
   if (IsAwaitingHandshake()) {
     if (memcmp(input_buffer_, kMagicHandshake, kMagicHandshakeLen) != 0) {
-      LOG(ERROR) << StringPrintf("ERROR: bad handshake '%.14s'", input_buffer_);
+      LOG(ERROR) << android::base::StringPrintf("ERROR: bad handshake '%.14s'", input_buffer_);
       goto fail;
     }
 

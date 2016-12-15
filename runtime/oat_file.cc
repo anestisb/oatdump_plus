@@ -32,6 +32,8 @@
 #include "android/dlext.h"
 #endif
 
+#include "android-base/stringprintf.h"
+
 #include "art_method-inl.h"
 #include "base/bit_vector.h"
 #include "base/enums.h"
@@ -57,6 +59,8 @@
 #include "vdex_file.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 // Whether OatFile::Open will try dlopen. Fallback is our own ELF loader.
 static constexpr bool kUseDlopen = true;
