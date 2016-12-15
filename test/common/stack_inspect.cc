@@ -52,53 +52,6 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_isInterpreted(JNIEnv* env, jclas
   return IsInterpreted(env, klass, 1);
 }
 
-// public static native boolean isInterpreted(int depth);
-
-extern "C" JNIEXPORT jboolean JNICALL Java_Main_isInterpretedAt(JNIEnv* env,
-                                                                jclass klass,
-                                                                jint depth) {
-  return IsInterpreted(env, klass, depth);
-}
-
-
-// public static native boolean isInterpretedFunction(String smali);
-
-struct MethodIsInterpretedVisitor : public StackVisitor {
- public:
-  MethodIsInterpretedVisitor(Thread* thread, std::string shorty)
-      : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
-        shorty_(shorty),
-        method_is_interpreted_(false) {}
-
-  virtual bool VisitFrame() OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
-    if (!GetMethod()->IsRuntimeMethod() && shorty_ == GetMethod()->GetShorty()) {
-      method_is_interpreted_ = IsShadowFrame();
-      return false;
-    }
-    return true;
-  }
-
-  bool IsInterpreted() {
-    return method_is_interpreted_;
-  }
-
- private:
-  const std::string shorty_;
-  bool method_is_interpreted_;
-};
-
-extern "C" JNIEXPORT jboolean JNICALL Java_Main_isInterpretedFunction(JNIEnv* env,
-                                                                      jclass klass ATTRIBUTE_UNUSED,
-                                                                      jstring name) {
-  if (Runtime::Current() == nullptr) {
-    return JNI_TRUE;
-  }
-  ScopedObjectAccess soa(env);
-  MethodIsInterpretedVisitor v(soa.Self(), soa.Decode<mirror::String>(name)->ToModifiedUtf8());
-  v.WalkStack();
-  return v.IsInterpreted();
-}
-
 // public static native void assertIsInterpreted();
 
 extern "C" JNIEXPORT void JNICALL Java_Main_assertIsInterpreted(JNIEnv* env, jclass klass) {
