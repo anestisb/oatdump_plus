@@ -1,1 +1,0 @@
-Tests basic obsolete method support
