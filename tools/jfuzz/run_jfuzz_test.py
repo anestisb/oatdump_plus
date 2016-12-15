@@ -414,14 +414,16 @@ class JFuzzTester(object):
       retc2: int, normalized return code of second runner
     """
     if retc1 == retc2:
-      # Non-divergent in return code.
+      # No divergence in return code.
       if retc1 == RetCode.SUCCESS:
         # Both compilations and runs were successful, inspect generated output.
         runner1_out = self._runner1.output_file
         runner2_out = self._runner2.output_file
         if not filecmp.cmp(runner1_out, runner2_out, shallow=False):
+          # Divergence in output.
           self.ReportDivergence(retc1, retc2, is_output_divergence=True)
         else:
+          # No divergence in output.
           self._num_success += 1
       elif retc1 == RetCode.TIMEOUT:
         self._num_timed_out += 1
@@ -429,8 +431,12 @@ class JFuzzTester(object):
         self._num_not_compiled += 1
       else:
         self._num_not_run += 1
+    elif self._true_divergence_only and RetCode.TIMEOUT in (retc1, retc2):
+      # When only true divergences are requested, any divergence in return
+      # code where one is a time out is treated as a regular time out.
+      self._num_timed_out += 1
     else:
-      # Divergent in return code.
+      # Divergence in return code.
       self.ReportDivergence(retc1, retc2, is_output_divergence=False)
 
   def GetCurrentDivergenceDir(self):
@@ -450,13 +456,12 @@ class JFuzzTester(object):
     os.mkdir(ddir)
     for f in glob('*.txt') + ['Test.java']:
       shutil.copy(f, ddir)
-    if not (self._true_divergence_only and RetCode.TIMEOUT in (retc1, retc2)):
-      # Maybe run bisection bug search.
-      if retc1 in BISECTABLE_RET_CODES and retc2 in BISECTABLE_RET_CODES:
-        self.MaybeBisectDivergence(retc1, retc2, is_output_divergence)
-      # Call reporting script.
-      if self._report_script:
-        self.RunReportScript(retc1, retc2, is_output_divergence)
+    # Maybe run bisection bug search.
+    if retc1 in BISECTABLE_RET_CODES and retc2 in BISECTABLE_RET_CODES:
+      self.MaybeBisectDivergence(retc1, retc2, is_output_divergence)
+    # Call reporting script.
+    if self._report_script:
+      self.RunReportScript(retc1, retc2, is_output_divergence)
 
   def RunReportScript(self, retc1, retc2, is_output_divergence):
     """Runs report script."""
