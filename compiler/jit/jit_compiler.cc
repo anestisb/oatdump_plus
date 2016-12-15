@@ -16,6 +16,8 @@
 
 #include "jit_compiler.h"
 
+#include "android-base/stringprintf.h"
+
 #include "arch/instruction_set.h"
 #include "arch/instruction_set_features.h"
 #include "art_method-inl.h"
@@ -81,7 +83,7 @@ NO_RETURN static void Usage(const char* fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
   std::string error;
-  StringAppendV(&error, fmt, ap);
+  android::base::StringAppendV(&error, fmt, ap);
   LOG(FATAL) << error;
   va_end(ap);
   exit(EXIT_FAILURE);

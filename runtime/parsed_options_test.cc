@@ -19,7 +19,6 @@
 #include <memory>
 
 #include "arch/instruction_set.h"
-#include "base/stringprintf.h"
 #include "common_runtime_test.h"
 
 namespace art {

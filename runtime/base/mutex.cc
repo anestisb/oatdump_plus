@@ -19,6 +19,8 @@
 #include <errno.h>
 #include <sys/time.h>
 
+#include "android-base/stringprintf.h"
+
 #include "atomic.h"
 #include "base/logging.h"
 #include "base/time_utils.h"
@@ -29,6 +31,8 @@
 #include "thread-inl.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 static Atomic<Locks::ClientCallback*> safe_to_call_abort_callback(nullptr);
 

@@ -25,12 +25,12 @@
 #include <string>
 #include <vector>
 
+#include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 
 #include "base/dumpable.h"
 #include "base/scoped_flock.h"
 #include "base/stringpiece.h"
-#include "base/stringprintf.h"
 #include "base/time_utils.h"
 #include "base/unix_file/fd_file.h"
 #include "dex_file.h"
@@ -61,7 +61,7 @@ static bool FdIsValid(int fd) {
 
 static void UsageErrorV(const char* fmt, va_list ap) {
   std::string error;
-  StringAppendV(&error, fmt, ap);
+  android::base::StringAppendV(&error, fmt, ap);
   LOG(ERROR) << error;
 }
 

@@ -24,10 +24,12 @@
 #include <iostream>
 #include <string>
 
-#include "runtime.h"
+#include "android-base/stringprintf.h"
+
+#include "base/logging.h"
 #include "base/stringpiece.h"
 #include "noop_compiler_callbacks.h"
-#include "base/logging.h"
+#include "runtime.h"
 
 #if !defined(NDEBUG)
 #define DBG_LOG LOG(INFO)
@@ -197,7 +199,7 @@ struct CmdlineArgs {
         "      Example: --boot-image=/system/framework/boot.art\n"
         "               (specifies /system/framework/<arch>/boot.art as the image file)\n"
         "\n";
-    usage += StringPrintf(  // Optional.
+    usage += android::base::StringPrintf(  // Optional.
         "  --instruction-set=(arm|arm64|mips|mips64|x86|x86_64): for locating the image\n"
         "      file based on the image location set.\n"
         "      Example: --instruction-set=x86\n"
@@ -264,8 +266,8 @@ struct CmdlineArgs {
       // Check that the boot image location points to a valid file name.
       std::string file_name;
       if (!LocationToFilename(boot_image_location, instruction_set_, &file_name)) {
-        *error_msg = StringPrintf("No corresponding file for location '%s' exists",
-                                  file_name.c_str());
+        *error_msg = android::base::StringPrintf("No corresponding file for location '%s' exists",
+                                                 file_name.c_str());
         return false;
       }
 

@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-#include "method_handles.h"
-
 #include "method_handles-inl.h"
+
+#include "android-base/stringprintf.h"
+
 #include "jvalue.h"
 #include "jvalue-inl.h"
 #include "reflection.h"
@@ -24,6 +25,8 @@
 #include "well_known_classes.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 namespace {
 

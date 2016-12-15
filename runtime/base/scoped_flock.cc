@@ -19,11 +19,14 @@
 #include <sys/file.h>
 #include <sys/stat.h>
 
+#include "android-base/stringprintf.h"
+
 #include "base/logging.h"
-#include "base/stringprintf.h"
 #include "base/unix_file/fd_file.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 bool ScopedFlock::Init(const char* filename, std::string* error_msg) {
   return Init(filename, O_CREAT | O_RDWR, true, error_msg);

@@ -25,6 +25,7 @@
 #include <locale>
 #include <unordered_map>
 
+#include "android-base/stringprintf.h"
 #include "ScopedLocalRef.h"
 
 #include "art_method-inl.h"
@@ -55,6 +56,9 @@
 
 namespace art {
 namespace interpreter {
+
+using android::base::StringAppendV;
+using android::base::StringPrintf;
 
 static void AbortTransactionOrFail(Thread* self, const char* fmt, ...)
     __attribute__((__format__(__printf__, 2, 3)))

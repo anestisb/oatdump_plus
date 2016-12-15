@@ -22,9 +22,10 @@
 
 #include <vector>
 
+#include "android-base/stringprintf.h"
+
 #include "base/logging.h"
 #include "base/macros.h"
-#include "base/stringprintf.h"
 #include "jit/jit.h"
 #include "jni.h"
 #include "native_stack_dump.h"
@@ -38,6 +39,8 @@
 
 namespace art {
 namespace Test913Heaps {
+
+using android::base::StringPrintf;
 
 extern "C" JNIEXPORT void JNICALL Java_Main_forceGarbageCollection(JNIEnv* env ATTRIBUTE_UNUSED,
                                                                    jclass klass ATTRIBUTE_UNUSED) {

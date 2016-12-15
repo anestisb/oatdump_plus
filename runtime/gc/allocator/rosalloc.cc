@@ -16,6 +16,13 @@
 
 #include "rosalloc.h"
 
+#include <map>
+#include <list>
+#include <sstream>
+#include <vector>
+
+#include "android-base/stringprintf.h"
+
 #include "base/memory_tool.h"
 #include "base/mutex-inl.h"
 #include "gc/space/memory_tool_settings.h"
@@ -26,14 +33,11 @@
 #include "thread-inl.h"
 #include "thread_list.h"
 
-#include <map>
-#include <list>
-#include <sstream>
-#include <vector>
-
 namespace art {
 namespace gc {
 namespace allocator {
+
+using android::base::StringPrintf;
 
 static constexpr bool kUsePrefetchDuringAllocRun = false;
 static constexpr bool kPrefetchNewRunDataByZeroing = false;

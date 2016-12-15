@@ -16,7 +16,8 @@
 
 #include "register_line.h"
 
-#include "base/stringprintf.h"
+#include "android-base/stringprintf.h"
+
 #include "dex_instruction-inl.h"
 #include "method_verifier-inl.h"
 #include "register_line-inl.h"
@@ -24,6 +25,8 @@
 
 namespace art {
 namespace verifier {
+
+using android::base::StringPrintf;
 
 bool RegisterLine::CheckConstructorReturn(MethodVerifier* verifier) const {
   if (kIsDebugBuild && this_initialized_) {

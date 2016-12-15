@@ -16,6 +16,8 @@
 
 #include "class.h"
 
+#include "android-base/stringprintf.h"
+
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "class_ext.h"
@@ -39,6 +41,8 @@
 
 namespace art {
 namespace mirror {
+
+using android::base::StringPrintf;
 
 GcRoot<Class> Class::java_lang_Class_;
 

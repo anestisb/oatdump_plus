@@ -16,6 +16,8 @@
 
 #include "java_lang_reflect_Executable.h"
 
+#include "android-base/stringprintf.h"
+
 #include "art_method-inl.h"
 #include "dex_file_annotations.h"
 #include "handle.h"
@@ -29,6 +31,8 @@
 #include "well_known_classes.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 static jobjectArray Executable_getDeclaredAnnotationsNative(JNIEnv* env, jobject javaMethod) {
   ScopedFastNativeObjectAccess soa(env);

@@ -16,6 +16,8 @@
 
 #include "reference_table.h"
 
+#include "android-base/stringprintf.h"
+
 #include "base/mutex.h"
 #include "indirect_reference_table.h"
 #include "mirror/array.h"
@@ -29,6 +31,9 @@
 #include "utils.h"
 
 namespace art {
+
+using android::base::StringAppendF;
+using android::base::StringPrintf;
 
 ReferenceTable::ReferenceTable(const char* name, size_t initial_size, size_t max_size)
     : name_(name), max_size_(max_size) {

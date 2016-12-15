@@ -16,6 +16,8 @@
 
 #include "java_lang_reflect_Field.h"
 
+#include "android-base/stringprintf.h"
+
 #include "class_linker.h"
 #include "class_linker-inl.h"
 #include "common_throws.h"
@@ -29,6 +31,8 @@
 #include "utils.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 template<bool kIsSet>
 ALWAYS_INLINE inline static bool VerifyFieldAccess(Thread* self,

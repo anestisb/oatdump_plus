@@ -16,6 +16,8 @@
 
 #include "jni_internal.h"
 
+#include "android-base/stringprintf.h"
+
 #include "art_method-inl.h"
 #include "common_compiler_test.h"
 #include "indirect_reference_table.h"
@@ -26,6 +28,8 @@
 #include "ScopedLocalRef.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 // TODO: Convert to CommonRuntimeTest. Currently MakeExecutable is used.
 class JniInternalTest : public CommonCompilerTest {

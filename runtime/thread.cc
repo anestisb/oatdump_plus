@@ -28,6 +28,8 @@
 #include <list>
 #include <sstream>
 
+#include "android-base/stringprintf.h"
+
 #include "arch/context.h"
 #include "art_field-inl.h"
 #include "art_method-inl.h"
@@ -87,6 +89,9 @@
 #endif  // ART_USE_FUTEXES
 
 namespace art {
+
+using android::base::StringAppendV;
+using android::base::StringPrintf;
 
 extern "C" NO_RETURN void artDeoptimize(Thread* self);
 
