@@ -28,8 +28,11 @@ class CompiledClass {
   mirror::Class::Status GetStatus() const {
     return status_;
   }
+  void SetStatus(mirror::Class::Status status) {
+    status_ = status;
+  }
  private:
-  const mirror::Class::Status status_;
+  mirror::Class::Status status_;
 };
 
 }  // namespace art

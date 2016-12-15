@@ -440,9 +440,12 @@ class CompilerDriver {
                       TimingLogger* timings)
       REQUIRES(!Locks::mutator_lock_);
 
+  // NO_THREAD_SAFETY_ANALYSIS as the method accesses a guarded value in a
+  // single-threaded way.
   void Verify(jobject class_loader,
               const std::vector<const DexFile*>& dex_files,
-              TimingLogger* timings);
+              TimingLogger* timings)
+    NO_THREAD_SAFETY_ANALYSIS;
 
   void VerifyDexFile(jobject class_loader,
                      const DexFile& dex_file,
