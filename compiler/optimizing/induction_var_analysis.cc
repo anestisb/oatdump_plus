@@ -211,7 +211,7 @@ uint32_t HInductionVarAnalysis::VisitDescendant(HLoopInformation* loop, HInstruc
 void HInductionVarAnalysis::ClassifyTrivial(HLoopInformation* loop, HInstruction* instruction) {
   InductionInfo* info = nullptr;
   if (instruction->IsPhi()) {
-    info = TransferPhi(loop, instruction, /* input_index */ 0);
+    info = TransferPhi(loop, instruction, /*input_index*/ 0, /*adjust_input_size*/ 0);
   } else if (instruction->IsAdd()) {
     info = TransferAddSub(LookupInfo(loop, instruction->InputAt(0)),
                           LookupInfo(loop, instruction->InputAt(1)), kAdd);
@@ -224,11 +224,13 @@ void HInductionVarAnalysis::ClassifyTrivial(HLoopInformation* loop, HInstruction
     info = TransferMul(LookupInfo(loop, instruction->InputAt(0)),
                        LookupInfo(loop, instruction->InputAt(1)));
   } else if (instruction->IsShl()) {
-    HInstruction* mulc = GetMultConstantForShift(loop, instruction);
+    HInstruction* mulc = GetShiftConstant(loop, instruction, /*initial*/ nullptr);
     if (mulc != nullptr) {
       info = TransferMul(LookupInfo(loop, instruction->InputAt(0)),
                          LookupInfo(loop, mulc));
     }
+  } else if (instruction->IsSelect()) {
+    info = TransferPhi(loop, instruction, /*input_index*/ 0, /*adjust_input_size*/ 1);
   } else if (instruction->IsTypeConversion()) {
     info = TransferCnv(LookupInfo(loop, instruction->InputAt(0)),
                        instruction->AsTypeConversion()->GetInputType(),
@@ -270,7 +272,7 @@ void HInductionVarAnalysis::ClassifyNonTrivial(HLoopInformation* loop) {
 
   // Singleton is wrap-around induction if all internal links have the same meaning.
   if (size == 1) {
-    InductionInfo* update = TransferPhi(loop, phi, /* input_index */ 1);
+    InductionInfo* update = TransferPhi(loop, phi, /*input_index*/ 1, /*adjust_input_size*/ 0);
     if (update != nullptr) {
       AssignInfo(loop, phi, CreateInduction(kWrapAround,
                                             kNop,
@@ -305,9 +307,14 @@ void HInductionVarAnalysis::ClassifyNonTrivial(HLoopInformation* loop) {
       update = SolveOp(
           loop, phi, instruction, instruction->InputAt(0), instruction->InputAt(1), kRem);
     } else if (instruction->IsShl()) {
-      HInstruction* mulc = GetMultConstantForShift(loop, instruction);
+      HInstruction* mulc = GetShiftConstant(loop, instruction, /*initial*/ nullptr);
       if (mulc != nullptr) {
         update = SolveOp(loop, phi, instruction, instruction->InputAt(0), mulc, kMul);
+      }
+    } else if (instruction->IsShr() || instruction->IsUShr()) {
+      HInstruction* divc = GetShiftConstant(loop, instruction, initial);
+      if (divc != nullptr) {
+        update = SolveOp(loop, phi, instruction, instruction->InputAt(0), divc, kDiv);
       }
     } else if (instruction->IsXor()) {
       update = SolveOp(
@@ -316,6 +323,8 @@ void HInductionVarAnalysis::ClassifyNonTrivial(HLoopInformation* loop) {
       update = SolveTest(loop, phi, instruction, 0);
     } else if (instruction->IsNotEqual()) {
       update = SolveTest(loop, phi, instruction, 1);
+    } else if (instruction->IsSelect()) {
+      update = SolvePhi(instruction, /*input_index*/ 0, /*adjust_input_size*/ 1);  // acts like Phi
     } else if (instruction->IsTypeConversion()) {
       update = SolveCnv(instruction->AsTypeConversion());
     }
@@ -326,7 +335,7 @@ void HInductionVarAnalysis::ClassifyNonTrivial(HLoopInformation* loop) {
   }
 
   // Success if all internal links received the same temporary meaning.
-  InductionInfo* induction = SolvePhi(phi, /* input_index */ 1);
+  InductionInfo* induction = SolvePhi(phi, /*input_index*/ 1, /*adjust_input_size*/ 0);
   if (induction != nullptr) {
     switch (induction->induction_class) {
       case kInvariant:
@@ -385,12 +394,13 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::RotatePeriodicInduc
 
 HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferPhi(HLoopInformation* loop,
                                                                          HInstruction* phi,
-                                                                         size_t input_index) {
+                                                                         size_t input_index,
+                                                                         size_t adjust_input_size) {
   // Match all phi inputs from input_index onwards exactly.
   HInputsRef inputs = phi->GetInputs();
   DCHECK_LT(input_index, inputs.size());
   InductionInfo* a = LookupInfo(loop, inputs[input_index]);
-  for (size_t i = input_index + 1; i < inputs.size(); i++) {
+  for (size_t i = input_index + 1, n = inputs.size() - adjust_input_size; i < n; i++) {
     InductionInfo* b = LookupInfo(loop, inputs[i]);
     if (!InductionEqual(a, b)) {
       return nullptr;
@@ -504,13 +514,14 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferCnv(Inducti
 }
 
 HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::SolvePhi(HInstruction* phi,
-                                                                      size_t input_index) {
+                                                                      size_t input_index,
+                                                                      size_t adjust_input_size) {
   // Match all phi inputs from input_index onwards exactly.
   HInputsRef inputs = phi->GetInputs();
   DCHECK_LT(input_index, inputs.size());
   auto ita = cycle_.find(inputs[input_index]);
   if (ita != cycle_.end()) {
-    for (size_t i = input_index + 1; i < inputs.size(); i++) {
+    for (size_t i = input_index + 1, n = inputs.size() - adjust_input_size; i < n; i++) {
       auto itb = cycle_.find(inputs[i]);
       if (itb == cycle_.end() ||
           !HInductionVarAnalysis::InductionEqual(ita->second, itb->second)) {
@@ -527,7 +538,7 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::SolvePhiAllInputs(
     HInstruction* entry_phi,
     HInstruction* phi) {
   // Match all phi inputs.
-  InductionInfo* match = SolvePhi(phi, /* input_index */ 0);
+  InductionInfo* match = SolvePhi(phi, /*input_index*/ 0, /*adjust_input_size*/ 0);
   if (match != nullptr) {
     return match;
   }
@@ -542,7 +553,7 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::SolvePhiAllInputs(
         InductionInfo* initial = LookupInfo(loop, entry_phi->InputAt(0));
         return CreateInduction(kPeriodic, kNop, a, initial, /*fetch*/ nullptr, type_);
       }
-      InductionInfo* b = SolvePhi(phi, /* input_index */ 1);
+      InductionInfo* b = SolvePhi(phi, /*input_index*/ 1, /*adjust_input_size*/ 0);
       if (b != nullptr && b->induction_class == kPeriodic) {
         return CreateInduction(kPeriodic, kNop, a, b, /*fetch*/ nullptr, type_);
       }
@@ -574,14 +585,14 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::SolveAddSub(HLoopIn
           return CreateInvariantOp(op, a, b);
         }
       }
-    } else if (op == kAdd && b->induction_class == kLinear) {
+    } else if (b->induction_class == kLinear) {
       // Solve within a tight cycle that adds a term that is already classified as a linear
       // induction for a polynomial induction k = k + i (represented as sum over linear terms).
       if (x == entry_phi && entry_phi->InputCount() == 2 && instruction == entry_phi->InputAt(1)) {
         InductionInfo* initial = LookupInfo(loop, entry_phi->InputAt(0));
         return CreateInduction(kPolynomial,
                                kNop,
-                               b,
+                               op == kAdd ? b : TransferNeg(b),
                                initial,
                                /*fetch*/ nullptr,
                                type_);
@@ -1038,13 +1049,23 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::CreateSimplifiedInv
   return new (graph_->GetArena()) InductionInfo(kInvariant, op, a, b, nullptr, b->type);
 }
 
-HInstruction* HInductionVarAnalysis::GetMultConstantForShift(HLoopInformation* loop,
-                                                             HInstruction* instruction) {
-  // Obtain the constant needed to treat shift as equivalent multiplication. This yields an
-  // existing instruction if the constant is already there. Otherwise, this has a side effect
-  // on the HIR. The restriction on the shift factor avoids generating a negative constant
-  // (viz. 1 << 31 and 1L << 63 set the sign bit). The code assumes that generalization for
-  // shift factors outside [0,32) and [0,64) ranges is done by earlier simplification.
+HInstruction* HInductionVarAnalysis::GetShiftConstant(HLoopInformation* loop,
+                                                      HInstruction* instruction,
+                                                      InductionInfo* initial) {
+  DCHECK(instruction->IsShl() || instruction->IsShr() || instruction->IsUShr());
+  // Shift-rights are only the same as division for non-negative initial inputs.
+  // Otherwise we would round incorrectly.
+  if (initial != nullptr) {
+    int64_t value = -1;
+    if (!IsAtLeast(initial, &value) || value < 0) {
+      return nullptr;
+    }
+  }
+  // Obtain the constant needed to treat shift as equivalent multiplication or division.
+  // This yields an existing instruction if the constant is already there. Otherwise, this
+  // has a side effect on the HIR. The restriction on the shift factor avoids generating a
+  // negative constant (viz. 1 << 31 and 1L << 63 set the sign bit). The code assumes that
+  // generalization for shift factors outside [0,32) and [0,64) ranges is done earlier.
   InductionInfo* b = LookupInfo(loop, instruction->InputAt(1));
   int64_t value = -1;
   if (IsExact(b, &value)) {
