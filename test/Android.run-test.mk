@@ -492,6 +492,24 @@ ifneq (,$(filter trace stream,$(TRACE_TYPES)))
       $(PICTEST_TYPES),$(DEBUGGABLE_TYPES), $(TEST_ART_BROKEN_TRACING_RUN_TESTS),$(ALL_ADDRESS_SIZES))
 endif
 
+TEST_ART_BROKEN_TRACING_RUN_TESTS :=
+
+# These tests expect JIT compilation, which is suppressed when tracing.
+TEST_ART_BROKEN_JIT_TRACING_RUN_TESTS := \
+  604-hot-static-interface \
+  612-jit-dex-cache \
+  613-inlining-dex-cache \
+  616-cha \
+  626-set-resolved-string \
+
+ifneq (,$(filter trace stream,$(TRACE_TYPES)))
+  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
+      jit,$(RELOCATE_TYPES),trace stream,$(GC_TYPES),$(JNI_TYPES),$(IMAGE_TYPES), \
+      $(PICTEST_TYPES),$(DEBUGGABLE_TYPES), $(TEST_ART_BROKEN_JIT_TRACING_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+endif
+
+TEST_ART_BROKEN_JIT_TRACING_RUN_TESTS :=
+
 # Known broken tests for the interpreter.
 # CFI unwinding expects managed frames.
 # 629 requires compilation.
