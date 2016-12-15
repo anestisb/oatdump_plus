@@ -20,9 +20,10 @@
 #include <dirent.h>
 #include <dlfcn.h>
 
+#include "android-base/stringprintf.h"
+
 #include "base/logging.h"
 #include "base/macros.h"
-#include "base/stringprintf.h"
 #include "base/unix_file/fd_file.h"
 #include "globals.h"
 #include "os.h"
@@ -56,7 +57,7 @@ static void DeleteDirectoryContents(const std::string& dir, bool recurse) {
       continue;
     }
     // We only want to delete regular files and symbolic links.
-    std::string file = StringPrintf("%s/%s", dir.c_str(), name);
+    std::string file = android::base::StringPrintf("%s/%s", dir.c_str(), name);
     if (de->d_type != DT_REG && de->d_type != DT_LNK) {
       if (de->d_type == DT_DIR) {
         if (recurse) {

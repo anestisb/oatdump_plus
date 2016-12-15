@@ -21,6 +21,8 @@
 #include <unwind.h>  // For GC verification.
 #include <vector>
 
+#include "android-base/stringprintf.h"
+
 #include "allocation_listener.h"
 #include "art_field-inl.h"
 #include "base/allocator.h"
@@ -81,6 +83,8 @@
 namespace art {
 
 namespace gc {
+
+using android::base::StringPrintf;
 
 static constexpr size_t kCollectorTransitionStressIterations = 0;
 static constexpr size_t kCollectorTransitionStressWait = 10 * 1000;  // Microseconds
@@ -3919,7 +3923,7 @@ void Heap::RegisterNativeFree(JNIEnv* env, size_t bytes) {
       ScopedObjectAccess soa(env);
       env->ThrowNew(WellKnownClasses::java_lang_RuntimeException,
                     StringPrintf("Attempted to free %zd native bytes with only %zd native bytes "
-                                 "registered as allocated", bytes, expected_size).c_str());
+                    "registered as allocated", bytes, expected_size).c_str());
       break;
     }
   } while (!native_bytes_allocated_.CompareExchangeWeakRelaxed(expected_size,

@@ -19,11 +19,14 @@
 #include <string.h>
 #include <zlib.h>
 
+#include "android-base/stringprintf.h"
+
 #include "arch/instruction_set_features.h"
 #include "base/bit_utils.h"
-#include "base/stringprintf.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 constexpr uint8_t OatHeader::kOatMagic[4];
 constexpr uint8_t OatHeader::kOatVersion[4];

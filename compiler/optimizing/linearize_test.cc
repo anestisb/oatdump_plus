@@ -18,7 +18,6 @@
 
 #include "arch/x86/instruction_set_features_x86.h"
 #include "base/arena_allocator.h"
-#include "base/stringprintf.h"
 #include "builder.h"
 #include "code_generator.h"
 #include "code_generator_x86.h"

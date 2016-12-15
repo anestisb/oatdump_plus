@@ -20,11 +20,12 @@
 #include <memory>
 #include <string>
 
+#include "android-base/stringprintf.h"
+
 #include "atomic.h"
 #include "base/hex_dump.h"
 #include "base/logging.h"
 #include "base/macros.h"
-#include "base/stringprintf.h"
 #include "debugger.h"
 #include "jdwp/jdwp_constants.h"
 #include "jdwp/jdwp_event.h"
@@ -38,6 +39,8 @@
 namespace art {
 
 namespace JDWP {
+
+using android::base::StringPrintf;
 
 std::string DescribeField(const FieldId& field_id) {
   return StringPrintf("%#" PRIx64 " (%s)", field_id, Dbg::GetFieldName(field_id).c_str());

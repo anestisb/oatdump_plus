@@ -30,7 +30,8 @@
 #include <sstream>
 #include <vector>
 
-#include "base/stringprintf.h"
+#include "android-base/stringprintf.h"
+
 #include "dex_ir_builder.h"
 #include "dex_file-inl.h"
 #include "dex_instruction-inl.h"
@@ -42,6 +43,8 @@
 #include "utils.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 /*
  * Flags for use with createAccessFlagStr().

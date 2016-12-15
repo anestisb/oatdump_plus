@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "array.h"
+#include "array-inl.h"
 
 #include "class.h"
 #include "class-inl.h"
@@ -23,7 +23,6 @@
 #include "dex_file-inl.h"
 #include "gc/accounting/card_table-inl.h"
 #include "object-inl.h"
-#include "object_array.h"
 #include "object_array-inl.h"
 #include "handle_scope-inl.h"
 #include "thread.h"
@@ -31,6 +30,8 @@
 
 namespace art {
 namespace mirror {
+
+using android::base::StringPrintf;
 
 // Create a multi-dimensional array of Objects or primitive types.
 //

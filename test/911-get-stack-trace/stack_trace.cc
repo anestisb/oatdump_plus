@@ -20,9 +20,10 @@
 #include <memory>
 #include <stdio.h>
 
+#include "android-base/stringprintf.h"
+
 #include "base/logging.h"
 #include "base/macros.h"
-#include "base/stringprintf.h"
 #include "jni.h"
 #include "openjdkjvmti/jvmti.h"
 #include "ScopedLocalRef.h"
@@ -31,6 +32,8 @@
 
 namespace art {
 namespace Test911GetStackTrace {
+
+using android::base::StringPrintf;
 
 static jint FindLineNumber(jint line_number_count,
                            jvmtiLineNumberEntry* line_number_table,

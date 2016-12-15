@@ -16,6 +16,8 @@
 
 #include "reference_table.h"
 
+#include "android-base/stringprintf.h"
+
 #include "class_linker.h"
 #include "common_runtime_test.h"
 #include "handle_scope-inl.h"
@@ -29,6 +31,8 @@
 #include "thread-inl.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 class ReferenceTableTest : public CommonRuntimeTest {};
 

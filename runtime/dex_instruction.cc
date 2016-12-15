@@ -21,11 +21,14 @@
 #include <iomanip>
 #include <sstream>
 
-#include "base/stringprintf.h"
+#include "android-base/stringprintf.h"
+
 #include "dex_file-inl.h"
 #include "utils.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 const char* const Instruction::kInstructionNames[] = {
 #define INSTRUCTION_NAME(o, c, pname, f, i, a, v) pname,

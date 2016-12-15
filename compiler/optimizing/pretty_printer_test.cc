@@ -15,7 +15,6 @@
  */
 
 #include "base/arena_allocator.h"
-#include "base/stringprintf.h"
 #include "builder.h"
 #include "dex_file.h"
 #include "dex_instruction.h"

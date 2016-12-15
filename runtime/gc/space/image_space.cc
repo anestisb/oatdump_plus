@@ -22,6 +22,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 
 #include "art_method.h"
@@ -44,6 +45,9 @@
 namespace art {
 namespace gc {
 namespace space {
+
+using android::base::StringAppendF;
+using android::base::StringPrintf;
 
 Atomic<uint32_t> ImageSpace::bitmap_index_(0);
 

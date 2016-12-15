@@ -24,11 +24,12 @@
 #include <stdlib.h>
 
 #include "../../external/icu/icu4c/source/common/unicode/uvernum.h"
+#include "android-base/stringprintf.h"
+
 #include "art_field-inl.h"
 #include "base/macros.h"
 #include "base/logging.h"
 #include "base/stl_util.h"
-#include "base/stringprintf.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "compiler_callbacks.h"
@@ -64,6 +65,8 @@ int main(int argc, char **argv) {
 }
 
 namespace art {
+
+using android::base::StringPrintf;
 
 ScratchFile::ScratchFile() {
   // ANDROID_DATA needs to be set

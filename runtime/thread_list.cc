@@ -25,6 +25,8 @@
 
 #include <sstream>
 
+#include "android-base/stringprintf.h"
+
 #include "base/histogram-inl.h"
 #include "base/mutex-inl.h"
 #include "base/systrace.h"
@@ -51,6 +53,8 @@
 #endif  // ART_USE_FUTEXES
 
 namespace art {
+
+using android::base::StringPrintf;
 
 static constexpr uint64_t kLongThreadSuspendThreshold = MsToNs(5);
 static constexpr uint64_t kThreadSuspendTimeoutMs = 30 * 1000;  // 30s.

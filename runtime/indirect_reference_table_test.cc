@@ -16,12 +16,16 @@
 
 #include "indirect_reference_table-inl.h"
 
+#include "android-base/stringprintf.h"
+
 #include "class_linker-inl.h"
 #include "common_runtime_test.h"
 #include "mirror/object-inl.h"
 #include "scoped_thread_state_change-inl.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 class IndirectReferenceTableTest : public CommonRuntimeTest {};
 

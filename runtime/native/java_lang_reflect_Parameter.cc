@@ -16,6 +16,8 @@
 
 #include "java_lang_reflect_Parameter.h"
 
+#include "android-base/stringprintf.h"
+
 #include "art_method-inl.h"
 #include "common_throws.h"
 #include "dex_file-inl.h"
@@ -25,6 +27,8 @@
 #include "utils.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 static jobject Parameter_getAnnotationNative(JNIEnv* env,
                                              jclass,
