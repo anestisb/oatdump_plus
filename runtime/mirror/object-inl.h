@@ -97,6 +97,12 @@ inline bool Object::CasLockWordWeakRelaxed(LockWord old_val, LockWord new_val) {
       OFFSET_OF_OBJECT_MEMBER(Object, monitor_), old_val.GetValue(), new_val.GetValue());
 }
 
+inline bool Object::CasLockWordWeakAcquire(LockWord old_val, LockWord new_val) {
+  // Force use of non-transactional mode and do not check.
+  return CasFieldWeakAcquire32<false, false>(
+      OFFSET_OF_OBJECT_MEMBER(Object, monitor_), old_val.GetValue(), new_val.GetValue());
+}
+
 inline bool Object::CasLockWordWeakRelease(LockWord old_val, LockWord new_val) {
   // Force use of non-transactional mode and do not check.
   return CasFieldWeakRelease32<false, false>(
@@ -756,6 +762,24 @@ inline bool Object::CasFieldWeakRelaxed32(MemberOffset field_offset,
   AtomicInteger* atomic_addr = reinterpret_cast<AtomicInteger*>(raw_addr);
 
   return atomic_addr->CompareExchangeWeakRelaxed(old_value, new_value);
+}
+
+template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
+inline bool Object::CasFieldWeakAcquire32(MemberOffset field_offset,
+                                          int32_t old_value, int32_t new_value) {
+  if (kCheckTransaction) {
+    DCHECK_EQ(kTransactionActive, Runtime::Current()->IsActiveTransaction());
+  }
+  if (kTransactionActive) {
+    Runtime::Current()->RecordWriteField32(this, field_offset, old_value, true);
+  }
+  if (kVerifyFlags & kVerifyThis) {
+    VerifyObject(this);
+  }
+  uint8_t* raw_addr = reinterpret_cast<uint8_t*>(this) + field_offset.Int32Value();
+  AtomicInteger* atomic_addr = reinterpret_cast<AtomicInteger*>(raw_addr);
+
+  return atomic_addr->CompareExchangeWeakAcquire(old_value, new_value);
 }
 
 template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
