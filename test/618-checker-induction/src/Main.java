@@ -248,6 +248,33 @@ public class Main {
     return closed;  // only needs last value
   }
 
+  /// CHECK-START: int Main.closedFormInductionTrivialIf() loop_optimization (before)
+  /// CHECK-DAG: <<Phi1:i\d+>> Phi               loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: <<Phi2:i\d+>> Phi               loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG:               Select            loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG:               Return [<<Phi1>>] loop:none
+  //
+  /// CHECK-START: int Main.closedFormInductionTrivialIf() loop_optimization (after)
+  /// CHECK-NOT:               Phi
+  /// CHECK-NOT:               Select
+  //
+  /// CHECK-START: int Main.closedFormInductionTrivialIf() instruction_simplifier$after_bce (after)
+  /// CHECK-DAG: <<Int:i\d+>>  IntConstant 81    loop:none
+  /// CHECK-DAG:               Return [<<Int>>]  loop:none
+  static int closedFormInductionTrivialIf() {
+    int closed = 11;
+    for (int i = 0; i < 10; i++) {
+      // Trivial if becomes trivial select at HIR level.
+      // Make sure this is still recognized as induction.
+      if (i < 5) {
+        closed += 7;
+      } else {
+        closed += 7;
+      }
+    }
+    return closed;  // only needs last value
+  }
+
   /// CHECK-START: int Main.closedFormNested() loop_optimization (before)
   /// CHECK-DAG: <<Phi1:i\d+>> Phi               loop:<<Loop1:B\d+>> outer_loop:none
   /// CHECK-DAG: <<Phi2:i\d+>> Phi               loop:<<Loop1>>      outer_loop:none
@@ -732,6 +759,7 @@ public class Main {
 
     expectEquals(12395, closedFormInductionUp());
     expectEquals(12295, closedFormInductionInAndDown(12345));
+    expectEquals(81, closedFormInductionTrivialIf());
     expectEquals(10 * 10, closedFormNested());
     expectEquals(12345 + 17 * 23 * 7, closedFormNestedAlt());
     for (int n = -4; n < 10; n++) {
