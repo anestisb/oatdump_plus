@@ -122,8 +122,14 @@ inline vixl::aarch32::VRegister InputVRegisterAt(HInstruction* instr, int input_
   if (type == Primitive::kPrimFloat) {
     return InputSRegisterAt(instr, input_index);
   } else {
+    DCHECK_EQ(type, Primitive::kPrimDouble);
     return InputDRegisterAt(instr, input_index);
   }
+}
+
+inline vixl::aarch32::VRegister InputVRegister(HInstruction* instr) {
+  DCHECK_EQ(instr->InputCount(), 1u);
+  return InputVRegisterAt(instr, 0);
 }
 
 inline vixl::aarch32::Register OutputRegister(HInstruction* instr) {
@@ -140,8 +146,7 @@ inline vixl::aarch32::Register InputRegister(HInstruction* instr) {
   return InputRegisterAt(instr, 0);
 }
 
-inline int32_t Int32ConstantFrom(Location location) {
-  HConstant* instr = location.GetConstant();
+inline int32_t Int32ConstantFrom(HInstruction* instr) {
   if (instr->IsIntConstant()) {
     return instr->AsIntConstant()->GetValue();
   } else if (instr->IsNullConstant()) {
@@ -155,6 +160,10 @@ inline int32_t Int32ConstantFrom(Location location) {
   }
 }
 
+inline int32_t Int32ConstantFrom(Location location) {
+  return Int32ConstantFrom(location.GetConstant());
+}
+
 inline int64_t Int64ConstantFrom(Location location) {
   HConstant* instr = location.GetConstant();
   if (instr->IsIntConstant()) {
@@ -165,6 +174,11 @@ inline int64_t Int64ConstantFrom(Location location) {
     DCHECK(instr->IsLongConstant()) << instr->DebugName();
     return instr->AsLongConstant()->GetValue();
   }
+}
+
+inline uint64_t Uint64ConstantFrom(HInstruction* instr) {
+  DCHECK(instr->IsConstant()) << instr->DebugName();
+  return instr->AsConstant()->GetValueAsUint64();
 }
 
 inline vixl::aarch32::Operand OperandFrom(Location location, Primitive::Type type) {
