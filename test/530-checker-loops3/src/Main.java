@@ -235,6 +235,59 @@ public class Main {
     }
   }
 
+  /// CHECK-START: void Main.shortBound1(int[], short) BCE (before)
+  /// CHECK-DAG: BoundsCheck loop:{{B\d+}}
+  //
+  /// CHECK-START: void Main.shortBound1(int[], short) BCE (after)
+  /// CHECK-DAG: Deoptimize loop:none
+  /// CHECK-DAG: Deoptimize loop:none
+  /// CHECK-DAG: Deoptimize loop:none
+  /// CHECK-NOT: Deoptimize
+  //
+  /// CHECK-START: void Main.shortBound1(int[], short) BCE (after)
+  /// CHECK-NOT: BoundsCheck
+  public static void shortBound1(int[] array, short s) {
+    // Lower precision bound will appear in deopt arithmetic
+    // and follows normal implicit widening conversion.
+    for (int i = 0; i < s; i++) {
+      array[i] = 222;
+    }
+  }
+
+  /// CHECK-START: void Main.shortBound2(int[], short) BCE (before)
+  /// CHECK-DAG: BoundsCheck loop:{{B\d+}}
+  //
+  /// CHECK-START: void Main.shortBound2(int[], short) BCE (after)
+  /// CHECK-DAG: Deoptimize loop:none
+  /// CHECK-DAG: Deoptimize loop:none
+  /// CHECK-DAG: Deoptimize loop:none
+  /// CHECK-NOT: Deoptimize
+  //
+  /// CHECK-START: void Main.shortBound2(int[], short) BCE (after)
+  /// CHECK-NOT: BoundsCheck
+  public static void shortBound2(int[] array, short s) {
+    // Lower precision bound will appear in deopt arithmetic
+    // and follows normal implicit widening conversion.
+    for (int i = 0; s > i; i++) {
+      array[i] = 444;
+    }
+  }
+
+  /// CHECK-START: void Main.narrowingFromLong(int[], int) BCE (before)
+  /// CHECK-DAG: BoundsCheck loop:{{B\d+}}
+  //
+  /// CHECK-START: void Main.narrowingFromLong(int[], int) BCE (after)
+  /// CHECK-DAG: BoundsCheck loop:{{B\d+}}
+  public static void narrowingFromLong(int[] array, int n) {
+    // Parallel induction in long precision that is narrowed provides type
+    // conversion challenges for BCE in deopt arithmetic when combined
+    // with the int loop induction. Therefore, currently skipped.
+    long l = 0;
+    for (int i = 0; i < n; i++, l++) {
+      array[(int)l] = 888;
+    }
+  }
+
   //
   // Verifier.
   //
@@ -314,6 +367,38 @@ public class Main {
       multipleUnitStridesConditional(a, b1);
       throw new Error("Should throw AIOOBE");
     } catch (ArrayIndexOutOfBoundsException e) {
+    }
+
+    shortBound1(a, (short)a.length);
+    for (int i = 0; i < a.length; i++) {
+      expectEquals(222, a[i]);
+    }
+    shortBound2(a, (short)a.length);
+    for (int i = 0; i < a.length; i++) {
+      expectEquals(444, a[i]);
+    }
+
+    try {
+      shortBound1(a, (short)(a.length + 1));
+      throw new Error("Should throw AIOOBE");
+    } catch (ArrayIndexOutOfBoundsException e) {
+    }
+    for (int i = 0; i < a.length; i++) {
+      expectEquals(222, a[i]);
+    }
+
+    try {
+      shortBound2(a, (short)(a.length + 1));
+      throw new Error("Should throw AIOOBE");
+    } catch (ArrayIndexOutOfBoundsException e) {
+    }
+    for (int i = 0; i < a.length; i++) {
+      expectEquals(444, a[i]);
+    }
+
+    narrowingFromLong(a, a.length);
+    for (int i = 0; i < a.length; i++) {
+      expectEquals(888, a[i]);
     }
 
     System.out.println("passed");

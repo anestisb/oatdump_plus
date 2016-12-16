@@ -174,6 +174,12 @@ class InductionVarAnalysisTest : public CommonCompilerTest {
       iva_->LookupInfo(loop_body_[0]->GetLoopInformation(), instruction2));
   }
 
+  // Returns true for narrowing linear induction.
+  bool IsNarrowingLinear(HInstruction* instruction) {
+    return HInductionVarAnalysis::IsNarrowingLinear(
+        iva_->LookupInfo(loop_body_[0]->GetLoopInformation(), instruction));
+  }
+
   // Performs InductionVarAnalysis (after proper set up).
   void PerformInductionVarAnalysis() {
     graph_->BuildDominatorTree();
@@ -1066,15 +1072,19 @@ TEST_F(InductionVarAnalysisTest, ByteInductionIntLoopControl) {
   // }
   BuildLoopNest(1);
   HInstruction* conv = InsertInstruction(
-      new (&allocator_) HTypeConversion(Primitive::kPrimByte, basic_[0], -1), 0);
+      new (&allocator_) HTypeConversion(Primitive::kPrimByte, basic_[0], kNoDexPc), 0);
   HInstruction* store1 = InsertArrayStore(conv, 0);
   HInstruction* store2 = InsertArrayStore(basic_[0], 0);
   PerformInductionVarAnalysis();
 
-  // Regular int induction (i) is "transferred" over conversion into byte induction (k).
+  // Regular int induction (i) is transferred over conversion into byte induction (k).
   EXPECT_STREQ("((1) * i + (0)):PrimByte", GetInductionInfo(store1->InputAt(1), 0).c_str());
   EXPECT_STREQ("((1) * i + (0)):PrimInt",  GetInductionInfo(store2->InputAt(1), 0).c_str());
   EXPECT_STREQ("((1) * i + (1)):PrimInt",  GetInductionInfo(increment_[0], 0).c_str());
+
+  // Narrowing detected.
+  EXPECT_TRUE(IsNarrowingLinear(store1->InputAt(1)));
+  EXPECT_FALSE(IsNarrowingLinear(store2->InputAt(1)));
 
   // Type matters!
   EXPECT_FALSE(HaveSameInduction(store1->InputAt(1), store2->InputAt(1)));
@@ -1093,7 +1103,7 @@ TEST_F(InductionVarAnalysisTest, ByteInductionDerivedIntLoopControl) {
   // }
   BuildLoopNest(1);
   HInstruction* conv = InsertInstruction(
-      new (&allocator_) HTypeConversion(Primitive::kPrimByte, basic_[0], -1), 0);
+      new (&allocator_) HTypeConversion(Primitive::kPrimByte, basic_[0], kNoDexPc), 0);
   HInstruction* store1 = InsertArrayStore(conv, 0);
   HInstruction* add = InsertInstruction(
       new (&allocator_) HAdd(Primitive::kPrimInt, conv, constant1_), 0);
@@ -1101,11 +1111,86 @@ TEST_F(InductionVarAnalysisTest, ByteInductionDerivedIntLoopControl) {
 
   PerformInductionVarAnalysis();
 
-  // Byte induction (k) is "transferred" over conversion into addition (k + 1).
-  // This means only values within byte range can be trusted (even though
-  // addition can jump out of the range of course).
+  // Byte induction (k) is detected, but it does not transfer over the addition,
+  // since this may yield out-of-type values.
   EXPECT_STREQ("((1) * i + (0)):PrimByte", GetInductionInfo(store1->InputAt(1), 0).c_str());
-  EXPECT_STREQ("((1) * i + (1)):PrimByte", GetInductionInfo(store2->InputAt(1), 0).c_str());
+  EXPECT_STREQ("", GetInductionInfo(store2->InputAt(1), 0).c_str());
+
+  // Narrowing detected.
+  EXPECT_TRUE(IsNarrowingLinear(store1->InputAt(1)));
+  EXPECT_FALSE(IsNarrowingLinear(store2->InputAt(1)));  // works for null
+}
+
+TEST_F(InductionVarAnalysisTest, ByteInduction) {
+  // Setup:
+  // k = -128;
+  // for (int i = 0; i < 100; i++) {
+  //   k = k + 1;
+  //   k = (byte) k;
+  // }
+  BuildLoopNest(1);
+  HPhi* k_header = InsertLoopPhi(0, 0);
+  k_header->AddInput(graph_->GetIntConstant(-128));
+
+  HInstruction* add = InsertInstruction(
+      new (&allocator_) HAdd(Primitive::kPrimInt, k_header, constant1_), 0);
+  HInstruction* conv = InsertInstruction(
+      new (&allocator_) HTypeConversion(Primitive::kPrimByte, add, kNoDexPc), 0);
+  k_header->AddInput(conv);
+  PerformInductionVarAnalysis();
+
+  // Byte induction (k) is detected, but it does not transfer over the addition,
+  // since this may yield out-of-type values.
+  EXPECT_STREQ("((1) * i + (-128)):PrimByte", GetInductionInfo(k_header, 0).c_str());
+  EXPECT_STREQ("", GetInductionInfo(add, 0).c_str());
+
+  // Narrowing detected.
+  EXPECT_TRUE(IsNarrowingLinear(k_header));
+  EXPECT_FALSE(IsNarrowingLinear(add));  // works for null
+}
+
+TEST_F(InductionVarAnalysisTest, NoByteInduction1) {
+  // Setup:
+  // k = -129;  / does not fit!
+  // for (int i = 0; i < 100; i++) {
+  //   k = k + 1;
+  //   k = (byte) k;
+  // }
+  BuildLoopNest(1);
+  HPhi* k_header = InsertLoopPhi(0, 0);
+  k_header->AddInput(graph_->GetIntConstant(-129));
+
+  HInstruction* add = InsertInstruction(
+      new (&allocator_) HAdd(Primitive::kPrimInt, k_header, constant1_), 0);
+  HInstruction* conv = InsertInstruction(
+      new (&allocator_) HTypeConversion(Primitive::kPrimByte, add, kNoDexPc), 0);
+  k_header->AddInput(conv);
+  PerformInductionVarAnalysis();
+
+  EXPECT_STREQ("", GetInductionInfo(k_header, 0).c_str());
+  EXPECT_STREQ("", GetInductionInfo(add, 0).c_str());
+}
+
+TEST_F(InductionVarAnalysisTest, NoByteInduction2) {
+  // Setup:
+  // k = 0;
+  // for (int i = 0; i < 100; i++) {
+  //   k = (byte) k;   // conversion not done last!
+  //   k = k + 1;
+  // }
+  BuildLoopNest(1);
+  HPhi* k_header = InsertLoopPhi(0, 0);
+  k_header->AddInput(constant0_);
+
+  HInstruction* conv = InsertInstruction(
+      new (&allocator_) HTypeConversion(Primitive::kPrimByte, k_header, kNoDexPc), 0);
+  HInstruction* add = InsertInstruction(
+      new (&allocator_) HAdd(Primitive::kPrimInt, conv, constant1_), 0);
+  k_header->AddInput(add);
+  PerformInductionVarAnalysis();
+
+  EXPECT_STREQ("", GetInductionInfo(k_header, 0).c_str());
+  EXPECT_STREQ("", GetInductionInfo(add, 0).c_str());
 }
 
 TEST_F(InductionVarAnalysisTest, ByteLoopControl1) {
@@ -1116,12 +1201,20 @@ TEST_F(InductionVarAnalysisTest, ByteLoopControl1) {
   basic_[0]->ReplaceInput(graph_->GetIntConstant(-128), 0);
   HInstruction* ifs = loop_header_[0]->GetLastInstruction()->GetPrevious();
   ifs->ReplaceInput(graph_->GetIntConstant(127), 1);
-  HInstruction* conv = new(&allocator_) HTypeConversion(Primitive::kPrimByte, increment_[0], -1);
+  HInstruction* conv =
+      new (&allocator_) HTypeConversion(Primitive::kPrimByte, increment_[0], kNoDexPc);
   loop_body_[0]->InsertInstructionBefore(conv, increment_[0]->GetNext());
   basic_[0]->ReplaceInput(conv, 1);
   PerformInductionVarAnalysis();
 
-  EXPECT_STREQ("((1) * i + ((-128) + (1))):PrimByte", GetInductionInfo(increment_[0], 0).c_str());
+  // Recorded at the phi, but not transferred to increment.
+  EXPECT_STREQ("((1) * i + (-128)):PrimByte", GetInductionInfo(basic_[0], 0).c_str());
+  EXPECT_STREQ("", GetInductionInfo(increment_[0], 0).c_str());
+
+  // Narrowing detected.
+  EXPECT_TRUE(IsNarrowingLinear(basic_[0]));
+  EXPECT_FALSE(IsNarrowingLinear(increment_[0]));  // works for null
+
   // Trip-count.
   EXPECT_STREQ("(((127) - (-128)) (TC-loop) ((-128) < (127)))", GetTripCount(0).c_str());
 }
@@ -1134,12 +1227,20 @@ TEST_F(InductionVarAnalysisTest, ByteLoopControl2) {
   basic_[0]->ReplaceInput(graph_->GetIntConstant(-128), 0);
   HInstruction* ifs = loop_header_[0]->GetLastInstruction()->GetPrevious();
   ifs->ReplaceInput(graph_->GetIntConstant(128), 1);
-  HInstruction* conv = new(&allocator_) HTypeConversion(Primitive::kPrimByte, increment_[0], -1);
+  HInstruction* conv =
+      new (&allocator_) HTypeConversion(Primitive::kPrimByte, increment_[0], kNoDexPc);
   loop_body_[0]->InsertInstructionBefore(conv, increment_[0]->GetNext());
   basic_[0]->ReplaceInput(conv, 1);
   PerformInductionVarAnalysis();
 
-  EXPECT_STREQ("((1) * i + ((-128) + (1))):PrimByte", GetInductionInfo(increment_[0], 0).c_str());
+  // Recorded at the phi, but not transferred to increment.
+  EXPECT_STREQ("((1) * i + (-128)):PrimByte", GetInductionInfo(basic_[0], 0).c_str());
+  EXPECT_STREQ("", GetInductionInfo(increment_[0], 0).c_str());
+
+  // Narrowing detected.
+  EXPECT_TRUE(IsNarrowingLinear(basic_[0]));
+  EXPECT_FALSE(IsNarrowingLinear(increment_[0]));  // works for null
+
   // Trip-count undefined.
   EXPECT_STREQ("", GetTripCount(0).c_str());
 }
@@ -1152,13 +1253,20 @@ TEST_F(InductionVarAnalysisTest, ShortLoopControl1) {
   basic_[0]->ReplaceInput(graph_->GetIntConstant(-32768), 0);
   HInstruction* ifs = loop_header_[0]->GetLastInstruction()->GetPrevious();
   ifs->ReplaceInput(graph_->GetIntConstant(32767), 1);
-  HInstruction* conv = new(&allocator_) HTypeConversion(Primitive::kPrimShort, increment_[0], -1);
+  HInstruction* conv =
+      new (&allocator_) HTypeConversion(Primitive::kPrimShort, increment_[0], kNoDexPc);
   loop_body_[0]->InsertInstructionBefore(conv, increment_[0]->GetNext());
   basic_[0]->ReplaceInput(conv, 1);
   PerformInductionVarAnalysis();
 
-  EXPECT_STREQ("((1) * i + ((-32768) + (1))):PrimShort",
-               GetInductionInfo(increment_[0], 0).c_str());
+  // Recorded at the phi, but not transferred to increment.
+  EXPECT_STREQ("((1) * i + (-32768)):PrimShort", GetInductionInfo(basic_[0], 0).c_str());
+  EXPECT_STREQ("", GetInductionInfo(increment_[0], 0).c_str());
+
+  // Narrowing detected.
+  EXPECT_TRUE(IsNarrowingLinear(basic_[0]));
+  EXPECT_FALSE(IsNarrowingLinear(increment_[0]));  // works for null
+
   // Trip-count.
   EXPECT_STREQ("(((32767) - (-32768)) (TC-loop) ((-32768) < (32767)))", GetTripCount(0).c_str());
 }
@@ -1171,13 +1279,20 @@ TEST_F(InductionVarAnalysisTest, ShortLoopControl2) {
   basic_[0]->ReplaceInput(graph_->GetIntConstant(-32768), 0);
   HInstruction* ifs = loop_header_[0]->GetLastInstruction()->GetPrevious();
   ifs->ReplaceInput(graph_->GetIntConstant(32768), 1);
-  HInstruction* conv = new(&allocator_) HTypeConversion(Primitive::kPrimShort, increment_[0], -1);
+  HInstruction* conv =
+      new (&allocator_) HTypeConversion(Primitive::kPrimShort, increment_[0], kNoDexPc);
   loop_body_[0]->InsertInstructionBefore(conv, increment_[0]->GetNext());
   basic_[0]->ReplaceInput(conv, 1);
   PerformInductionVarAnalysis();
 
-  EXPECT_STREQ("((1) * i + ((-32768) + (1))):PrimShort",
-               GetInductionInfo(increment_[0], 0).c_str());
+  // Recorded at the phi, but not transferred to increment.
+  EXPECT_STREQ("((1) * i + (-32768)):PrimShort", GetInductionInfo(basic_[0], 0).c_str());
+  EXPECT_STREQ("", GetInductionInfo(increment_[0], 0).c_str());
+
+  // Narrowing detected.
+  EXPECT_TRUE(IsNarrowingLinear(basic_[0]));
+  EXPECT_FALSE(IsNarrowingLinear(increment_[0]));  // works for null
+
   // Trip-count undefined.
   EXPECT_STREQ("", GetTripCount(0).c_str());
 }
@@ -1189,12 +1304,20 @@ TEST_F(InductionVarAnalysisTest, CharLoopControl1) {
   BuildLoopNest(1);
   HInstruction* ifs = loop_header_[0]->GetLastInstruction()->GetPrevious();
   ifs->ReplaceInput(graph_->GetIntConstant(65535), 1);
-  HInstruction* conv = new(&allocator_) HTypeConversion(Primitive::kPrimChar, increment_[0], -1);
+  HInstruction* conv =
+      new (&allocator_) HTypeConversion(Primitive::kPrimChar, increment_[0], kNoDexPc);
   loop_body_[0]->InsertInstructionBefore(conv, increment_[0]->GetNext());
   basic_[0]->ReplaceInput(conv, 1);
   PerformInductionVarAnalysis();
 
-  EXPECT_STREQ("((1) * i + (1)):PrimChar", GetInductionInfo(increment_[0], 0).c_str());
+  // Recorded at the phi, but not transferred to increment.
+  EXPECT_STREQ("((1) * i + (0)):PrimChar", GetInductionInfo(basic_[0], 0).c_str());
+  EXPECT_STREQ("", GetInductionInfo(increment_[0], 0).c_str());
+
+  // Narrowing detected.
+  EXPECT_TRUE(IsNarrowingLinear(basic_[0]));
+  EXPECT_FALSE(IsNarrowingLinear(increment_[0]));  // works for null
+
   // Trip-count.
   EXPECT_STREQ("((65535) (TC-loop) ((0) < (65535)))", GetTripCount(0).c_str());
 }
@@ -1206,12 +1329,20 @@ TEST_F(InductionVarAnalysisTest, CharLoopControl2) {
   BuildLoopNest(1);
   HInstruction* ifs = loop_header_[0]->GetLastInstruction()->GetPrevious();
   ifs->ReplaceInput(graph_->GetIntConstant(65536), 1);
-  HInstruction* conv = new(&allocator_) HTypeConversion(Primitive::kPrimChar, increment_[0], -1);
+  HInstruction* conv =
+      new (&allocator_) HTypeConversion(Primitive::kPrimChar, increment_[0], kNoDexPc);
   loop_body_[0]->InsertInstructionBefore(conv, increment_[0]->GetNext());
   basic_[0]->ReplaceInput(conv, 1);
   PerformInductionVarAnalysis();
 
-  EXPECT_STREQ("((1) * i + (1)):PrimChar", GetInductionInfo(increment_[0], 0).c_str());
+  // Recorded at the phi, but not transferred to increment.
+  EXPECT_STREQ("((1) * i + (0)):PrimChar", GetInductionInfo(basic_[0], 0).c_str());
+  EXPECT_STREQ("", GetInductionInfo(increment_[0], 0).c_str());
+
+  // Narrowing detected.
+  EXPECT_TRUE(IsNarrowingLinear(basic_[0]));
+  EXPECT_FALSE(IsNarrowingLinear(increment_[0]));  // works for null
+
   // Trip-count undefined.
   EXPECT_STREQ("", GetTripCount(0).c_str());
 }
