@@ -2667,6 +2667,8 @@ mirror::Class* ClassLinker::DefineClass(Thread* self,
 
   ObjectLock<mirror::Class> lock(self, klass);
   klass->SetClinitThreadId(self->GetTid());
+  // Make sure we have a valid empty iftable even if there are errors.
+  klass->SetIfTable(GetClassRoot(kJavaLangObject)->GetIfTable());
 
   // Add the newly loaded class to the loaded classes table.
   ObjPtr<mirror::Class> existing = InsertClass(descriptor, klass.Get(), hash);
