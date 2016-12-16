@@ -25,7 +25,7 @@
 namespace art {
 
 const uint8_t ImageHeader::kImageMagic[] = { 'a', 'r', 't', '\n' };
-const uint8_t ImageHeader::kImageVersion[] = { '0', '3', '3', '\0' };
+const uint8_t ImageHeader::kImageVersion[] = { '0', '3', '4', '\0' };  // mirror::Class update
 
 ImageHeader::ImageHeader(uint32_t image_begin,
                          uint32_t image_size,
