@@ -396,19 +396,14 @@ void Redefiner::RestoreJavaDexFile(art::ObjPtr<art::mirror::Object> java_dex_fil
   }
 }
 
-// Performs updates to class that will allow us to verify it.
-bool Redefiner::UpdateClass(art::ObjPtr<art::mirror::Class> mclass,
-                            art::ObjPtr<art::mirror::DexCache> new_dex_cache) {
+bool Redefiner::UpdateMethods(art::ObjPtr<art::mirror::Class> mclass,
+                              art::ObjPtr<art::mirror::DexCache> new_dex_cache,
+                              const art::DexFile::ClassDef& class_def) {
   art::ClassLinker* linker = runtime_->GetClassLinker();
   art::PointerSize image_pointer_size = linker->GetImagePointerSize();
-  const art::DexFile::ClassDef* class_def = art::OatFile::OatDexFile::FindClassDef(
-      *dex_file_, class_sig_, art::ComputeModifiedUtf8Hash(class_sig_));
-  if (class_def == nullptr) {
-    RecordFailure(ERR(INVALID_CLASS_FORMAT), "Unable to find ClassDef!");
-    return false;
-  }
-  const art::DexFile::TypeId& declaring_class_id = dex_file_->GetTypeId(class_def->class_idx_);
+  const art::DexFile::TypeId& declaring_class_id = dex_file_->GetTypeId(class_def.class_idx_);
   const art::DexFile& old_dex_file = mclass->GetDexFile();
+  // Update methods.
   for (art::ArtMethod& method : mclass->GetMethods(image_pointer_size)) {
     const art::DexFile::StringId* new_name_id = dex_file_->FindStringId(method.GetName());
     art::dex::TypeIndex method_return_idx =
@@ -435,10 +430,54 @@ bool Redefiner::UpdateClass(art::ObjPtr<art::mirror::Class> mclass,
     uint32_t dex_method_idx = dex_file_->GetIndexForMethodId(*method_id);
     method.SetDexMethodIndex(dex_method_idx);
     linker->SetEntryPointsToInterpreter(&method);
-    method.SetCodeItemOffset(dex_file_->FindCodeItemOffset(*class_def, dex_method_idx));
+    method.SetCodeItemOffset(dex_file_->FindCodeItemOffset(class_def, dex_method_idx));
     method.SetDexCacheResolvedMethods(new_dex_cache->GetResolvedMethods(), image_pointer_size);
     method.SetDexCacheResolvedTypes(new_dex_cache->GetResolvedTypes(), image_pointer_size);
   }
+  return true;
+}
+
+bool Redefiner::UpdateFields(art::ObjPtr<art::mirror::Class> mclass) {
+  // TODO The IFields & SFields pointers should be combined like the methods_ arrays were.
+  for (auto fields_iter : {mclass->GetIFields(), mclass->GetSFields()}) {
+    for (art::ArtField& field : fields_iter) {
+      std::string declaring_class_name;
+      const art::DexFile::TypeId* new_declaring_id =
+          dex_file_->FindTypeId(field.GetDeclaringClass()->GetDescriptor(&declaring_class_name));
+      const art::DexFile::StringId* new_name_id = dex_file_->FindStringId(field.GetName());
+      const art::DexFile::TypeId* new_type_id = dex_file_->FindTypeId(field.GetTypeDescriptor());
+      // TODO Handle error, cleanup.
+      CHECK(new_name_id != nullptr && new_type_id != nullptr && new_declaring_id != nullptr);
+      const art::DexFile::FieldId* new_field_id =
+          dex_file_->FindFieldId(*new_declaring_id, *new_name_id, *new_type_id);
+      CHECK(new_field_id != nullptr);
+      // We only need to update the index since the other data in the ArtField cannot be updated.
+      field.SetDexFieldIndex(dex_file_->GetIndexForFieldId(*new_field_id));
+    }
+  }
+  return true;
+}
+
+// Performs updates to class that will allow us to verify it.
+bool Redefiner::UpdateClass(art::ObjPtr<art::mirror::Class> mclass,
+                            art::ObjPtr<art::mirror::DexCache> new_dex_cache) {
+  const art::DexFile::ClassDef* class_def = art::OatFile::OatDexFile::FindClassDef(
+      *dex_file_, class_sig_, art::ComputeModifiedUtf8Hash(class_sig_));
+  if (class_def == nullptr) {
+    RecordFailure(ERR(INVALID_CLASS_FORMAT), "Unable to find ClassDef!");
+    return false;
+  }
+  if (!UpdateMethods(mclass, new_dex_cache, *class_def)) {
+    // TODO Investigate appropriate error types.
+    RecordFailure(ERR(INTERNAL), "Unable to update class methods.");
+    return false;
+  }
+  if (!UpdateFields(mclass)) {
+    // TODO Investigate appropriate error types.
+    RecordFailure(ERR(INTERNAL), "Unable to update class fields.");
+    return false;
+  }
+
   // Update the class fields.
   // Need to update class last since the ArtMethod gets its DexFile from the class (which is needed
   // to call GetReturnTypeDescriptor and GetParameterTypeList above).
