@@ -74,8 +74,6 @@ DEFINE_CHECK_EQ(static_cast<int32_t>(ART_METHOD_QUICK_CODE_OFFSET_32), (static_c
 DEFINE_CHECK_EQ(static_cast<int32_t>(ART_METHOD_QUICK_CODE_OFFSET_64), (static_cast<int32_t>(art::ArtMethod:: EntryPointFromQuickCompiledCodeOffset(art::PointerSize::k64).Int32Value())))
 #define ART_METHOD_DECLARING_CLASS_OFFSET 0
 DEFINE_CHECK_EQ(static_cast<int32_t>(ART_METHOD_DECLARING_CLASS_OFFSET), (static_cast<int32_t>(art::ArtMethod:: DeclaringClassOffset().Int32Value())))
-#define DECLARING_CLASS_DEX_CACHE_STRINGS_OFFSET 40
-DEFINE_CHECK_EQ(static_cast<int32_t>(DECLARING_CLASS_DEX_CACHE_STRINGS_OFFSET), (static_cast<int32_t>(art::mirror::Class:: DexCacheStringsOffset().Int32Value())))
 #define STRING_DEX_CACHE_ELEMENT_SIZE_SHIFT 3
 DEFINE_CHECK_EQ(static_cast<int32_t>(STRING_DEX_CACHE_ELEMENT_SIZE_SHIFT), (static_cast<int32_t>(art::WhichPowerOf2(sizeof(art::mirror::StringDexCachePair)))))
 #define STRING_DEX_CACHE_SIZE_MINUS_ONE 1023
