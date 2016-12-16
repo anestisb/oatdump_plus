@@ -159,6 +159,14 @@ class Redefiner {
                           art::ObjPtr<art::mirror::LongArray> original_cookie)
       REQUIRES(art::Locks::mutator_lock_);
 
+  bool UpdateFields(art::ObjPtr<art::mirror::Class> mclass)
+      REQUIRES(art::Locks::mutator_lock_);
+
+  bool UpdateMethods(art::ObjPtr<art::mirror::Class> mclass,
+                     art::ObjPtr<art::mirror::DexCache> new_dex_cache,
+                     const art::DexFile::ClassDef& class_def)
+      REQUIRES(art::Locks::mutator_lock_);
+
   bool UpdateClass(art::ObjPtr<art::mirror::Class> mclass,
                    art::ObjPtr<art::mirror::DexCache> new_dex_cache)
       REQUIRES(art::Locks::mutator_lock_);
