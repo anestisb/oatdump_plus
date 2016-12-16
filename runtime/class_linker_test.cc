@@ -1175,6 +1175,24 @@ TEST_F(ClassLinkerTest, ResolveVerifyAndClinit) {
   EXPECT_TRUE(init->IsInitialized());
 }
 
+TEST_F(ClassLinkerTest, ErroneousClass) {
+  ScopedObjectAccess soa(Thread::Current());
+  jobject jclass_loader = LoadMultiDex("ErroneousA", "ErroneousB");
+  StackHandleScope<1> hs(soa.Self());
+  Handle<mirror::ClassLoader> class_loader(
+      hs.NewHandle(soa.Decode<mirror::ClassLoader>(jclass_loader)));
+  hs.Self()->AssertNoPendingException();
+  const char* descriptor = "LErroneous;";
+  ObjPtr<mirror::Class> klass = class_linker_->FindClass(soa.Self(), descriptor, class_loader);
+  // Erronenous since we are extending final class.
+  hs.Self()->AssertPendingException();
+  EXPECT_TRUE(klass == nullptr);
+  klass = class_linker_->LookupClass(soa.Self(), descriptor, class_loader.Get());
+  EXPECT_FALSE(klass == nullptr);
+  EXPECT_TRUE(klass->IsErroneous());
+  EXPECT_TRUE(klass->GetIfTable() != nullptr);
+}
+
 TEST_F(ClassLinkerTest, FinalizableBit) {
   ScopedObjectAccess soa(Thread::Current());
   mirror::Class* c;
