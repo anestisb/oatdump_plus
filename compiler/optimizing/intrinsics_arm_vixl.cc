@@ -1509,7 +1509,7 @@ static void GenerateVisitStringIndexOf(HInvoke* invoke,
   SlowPathCodeARMVIXL* slow_path = nullptr;
   HInstruction* code_point = invoke->InputAt(1);
   if (code_point->IsIntConstant()) {
-    if (static_cast<uint32_t>(code_point->AsIntConstant()->GetValue()) >
+    if (static_cast<uint32_t>(Int32ConstantFrom(code_point)) >
         std::numeric_limits<uint16_t>::max()) {
       // Always needs the slow-path. We could directly dispatch to it, but this case should be
       // rare, so for simplicity just put the full slow-path down and branch unconditionally.
