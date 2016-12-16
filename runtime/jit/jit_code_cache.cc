@@ -217,6 +217,7 @@ uint8_t* JitCodeCache::CommitCode(Thread* self,
                                   size_t fp_spill_mask,
                                   const uint8_t* code,
                                   size_t code_size,
+                                  size_t data_size,
                                   bool osr,
                                   Handle<mirror::ObjectArray<mirror::Object>> roots,
                                   bool has_should_deoptimize_flag,
@@ -230,6 +231,7 @@ uint8_t* JitCodeCache::CommitCode(Thread* self,
                                        fp_spill_mask,
                                        code,
                                        code_size,
+                                       data_size,
                                        osr,
                                        roots,
                                        has_should_deoptimize_flag,
@@ -246,6 +248,7 @@ uint8_t* JitCodeCache::CommitCode(Thread* self,
                                 fp_spill_mask,
                                 code,
                                 code_size,
+                                data_size,
                                 osr,
                                 roots,
                                 has_should_deoptimize_flag,
@@ -513,6 +516,7 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
                                           size_t fp_spill_mask,
                                           const uint8_t* code,
                                           size_t code_size,
+                                          size_t data_size,
                                           bool osr,
                                           Handle<mirror::ObjectArray<mirror::Object>> roots,
                                           bool has_should_deoptimize_flag,
@@ -547,6 +551,11 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
           core_spill_mask,
           fp_spill_mask,
           code_size);
+      DCHECK_EQ(FromStackMapToRoots(stack_map), roots_data);
+      DCHECK_LE(roots_data, stack_map);
+      // Flush data cache, as compiled code references literals in it.
+      FlushDataCache(reinterpret_cast<char*>(roots_data),
+                     reinterpret_cast<char*>(roots_data + data_size));
       // Flush caches before we remove write permission because on some ARMv8 hardware,
       // flushing caches require write permissions.
       //
@@ -657,12 +666,12 @@ void JitCodeCache::ClearData(Thread* self,
   FreeData(reinterpret_cast<uint8_t*>(roots_data));
 }
 
-void JitCodeCache::ReserveData(Thread* self,
-                               size_t stack_map_size,
-                               size_t number_of_roots,
-                               ArtMethod* method,
-                               uint8_t** stack_map_data,
-                               uint8_t** roots_data) {
+size_t JitCodeCache::ReserveData(Thread* self,
+                                 size_t stack_map_size,
+                                 size_t number_of_roots,
+                                 ArtMethod* method,
+                                 uint8_t** stack_map_data,
+                                 uint8_t** roots_data) {
   size_t table_size = ComputeRootTableSize(number_of_roots);
   size_t size = RoundUp(stack_map_size + table_size, sizeof(void*));
   uint8_t* result = nullptr;
@@ -695,9 +704,11 @@ void JitCodeCache::ReserveData(Thread* self,
     *roots_data = result;
     *stack_map_data = result + table_size;
     FillRootTableLength(*roots_data, number_of_roots);
+    return size;
   } else {
     *roots_data = nullptr;
     *stack_map_data = nullptr;
+    return 0;
   }
 }
 
