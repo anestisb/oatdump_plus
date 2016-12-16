@@ -443,7 +443,6 @@ bool Redefiner::UpdateClass(art::ObjPtr<art::mirror::Class> mclass,
   // Need to update class last since the ArtMethod gets its DexFile from the class (which is needed
   // to call GetReturnTypeDescriptor and GetParameterTypeList above).
   mclass->SetDexCache(new_dex_cache.Ptr());
-  mclass->SetDexCacheStrings(new_dex_cache->GetStrings());
   mclass->SetDexClassDefIndex(dex_file_->GetIndexForClassDef(*class_def));
   mclass->SetDexTypeIndex(dex_file_->GetIndexForTypeId(*dex_file_->FindTypeId(class_sig_)));
   return true;
