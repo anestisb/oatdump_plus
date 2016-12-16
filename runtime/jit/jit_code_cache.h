@@ -106,6 +106,7 @@ class JitCodeCache {
                       size_t fp_spill_mask,
                       const uint8_t* code,
                       size_t code_size,
+                      size_t data_size,
                       bool osr,
                       Handle<mirror::ObjectArray<mirror::Object>> roots,
                       bool has_should_deoptimize_flag,
@@ -121,12 +122,13 @@ class JitCodeCache {
 
   // Allocate a region of data that contain `size` bytes, and potentially space
   // for storing `number_of_roots` roots. Returns null if there is no more room.
-  void ReserveData(Thread* self,
-                   size_t size,
-                   size_t number_of_roots,
-                   ArtMethod* method,
-                   uint8_t** stack_map_data,
-                   uint8_t** roots_data)
+  // Return the number of bytes allocated.
+  size_t ReserveData(Thread* self,
+                     size_t size,
+                     size_t number_of_roots,
+                     ArtMethod* method,
+                     uint8_t** stack_map_data,
+                     uint8_t** roots_data)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!lock_);
 
@@ -237,6 +239,7 @@ class JitCodeCache {
                               size_t fp_spill_mask,
                               const uint8_t* code,
                               size_t code_size,
+                              size_t data_size,
                               bool osr,
                               Handle<mirror::ObjectArray<mirror::Object>> roots,
                               bool has_should_deoptimize_flag,
