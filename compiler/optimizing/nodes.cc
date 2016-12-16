@@ -1108,13 +1108,23 @@ size_t HInstruction::EnvironmentSize() const {
   return HasEnvironment() ? environment_->Size() : 0;
 }
 
-void HPhi::AddInput(HInstruction* input) {
+void HVariableInputSizeInstruction::AddInput(HInstruction* input) {
   DCHECK(input->GetBlock() != nullptr);
   inputs_.push_back(HUserRecord<HInstruction*>(input));
   input->AddUseAt(this, inputs_.size() - 1);
 }
 
-void HPhi::RemoveInputAt(size_t index) {
+void HVariableInputSizeInstruction::InsertInputAt(size_t index, HInstruction* input) {
+  inputs_.insert(inputs_.begin() + index, HUserRecord<HInstruction*>(input));
+  input->AddUseAt(this, index);
+  // Update indexes in use nodes of inputs that have been pushed further back by the insert().
+  for (size_t i = index + 1u, e = inputs_.size(); i < e; ++i) {
+    DCHECK_EQ(inputs_[i].GetUseNode()->GetIndex(), i - 1u);
+    inputs_[i].GetUseNode()->SetIndex(i);
+  }
+}
+
+void HVariableInputSizeInstruction::RemoveInputAt(size_t index) {
   RemoveAsUserOfInput(index);
   inputs_.erase(inputs_.begin() + index);
   // Update indexes in use nodes of inputs that have been pulled forward by the erase().
@@ -2384,26 +2394,6 @@ bool HInvokeStaticOrDirect::NeedsDexCacheOfDeclaringClass() const {
   }
   IntrinsicOptimizations opt(*this);
   return !opt.GetDoesNotNeedDexCache();
-}
-
-void HInvokeStaticOrDirect::InsertInputAt(size_t index, HInstruction* input) {
-  inputs_.insert(inputs_.begin() + index, HUserRecord<HInstruction*>(input));
-  input->AddUseAt(this, index);
-  // Update indexes in use nodes of inputs that have been pushed further back by the insert().
-  for (size_t i = index + 1u, e = inputs_.size(); i < e; ++i) {
-    DCHECK_EQ(inputs_[i].GetUseNode()->GetIndex(), i - 1u);
-    inputs_[i].GetUseNode()->SetIndex(i);
-  }
-}
-
-void HInvokeStaticOrDirect::RemoveInputAt(size_t index) {
-  RemoveAsUserOfInput(index);
-  inputs_.erase(inputs_.begin() + index);
-  // Update indexes in use nodes of inputs that have been pulled forward by the erase().
-  for (size_t i = index, e = inputs_.size(); i < e; ++i) {
-    DCHECK_EQ(inputs_[i].GetUseNode()->GetIndex(), i + 1u);
-    inputs_[i].GetUseNode()->SetIndex(i);
-  }
 }
 
 std::ostream& operator<<(std::ostream& os, HInvokeStaticOrDirect::MethodLoadKind rhs) {
