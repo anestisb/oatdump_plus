@@ -2347,6 +2347,27 @@ class HBackwardInstructionIterator : public ValueObject {
   DISALLOW_COPY_AND_ASSIGN(HBackwardInstructionIterator);
 };
 
+class HVariableInputSizeInstruction : public HInstruction {
+ public:
+  void AddInput(HInstruction* input);
+  void InsertInputAt(size_t index, HInstruction* input);
+  void RemoveInputAt(size_t index);
+
+ protected:
+  HVariableInputSizeInstruction(SideEffects side_effects,
+                                uint32_t dex_pc,
+                                ArenaAllocator* arena,
+                                size_t number_of_inputs,
+                                ArenaAllocKind kind)
+      : HInstruction(side_effects, dex_pc),
+        inputs_(number_of_inputs, arena->Adapter(kind)) {}
+
+  ArenaVector<HUserRecord<HInstruction*>> inputs_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HVariableInputSizeInstruction);
+};
+
 template<size_t N>
 class HTemplateInstruction: public HInstruction {
  public:
@@ -2438,15 +2459,19 @@ class HReturn FINAL : public HTemplateInstruction<1> {
   DISALLOW_COPY_AND_ASSIGN(HReturn);
 };
 
-class HPhi FINAL : public HInstruction {
+class HPhi FINAL : public HVariableInputSizeInstruction {
  public:
   HPhi(ArenaAllocator* arena,
        uint32_t reg_number,
        size_t number_of_inputs,
        Primitive::Type type,
        uint32_t dex_pc = kNoDexPc)
-      : HInstruction(SideEffects::None(), dex_pc),
-        inputs_(number_of_inputs, arena->Adapter(kArenaAllocPhiInputs)),
+      : HVariableInputSizeInstruction(
+            SideEffects::None(),
+            dex_pc,
+            arena,
+            number_of_inputs,
+            kArenaAllocPhiInputs),
         reg_number_(reg_number) {
     SetPackedField<TypeField>(ToPhiType(type));
     DCHECK_NE(GetType(), Primitive::kPrimVoid);
@@ -2468,9 +2493,6 @@ class HPhi FINAL : public HInstruction {
   ArrayRef<HUserRecord<HInstruction*>> GetInputRecords() OVERRIDE FINAL {
     return ArrayRef<HUserRecord<HInstruction*>>(inputs_);
   }
-
-  void AddInput(HInstruction* input);
-  void RemoveInputAt(size_t index);
 
   Primitive::Type GetType() const OVERRIDE { return GetPackedField<TypeField>(); }
   void SetType(Primitive::Type new_type) {
@@ -2527,7 +2549,6 @@ class HPhi FINAL : public HInstruction {
   static_assert(kNumberOfPhiPackedBits <= kMaxNumberOfPackedBits, "Too many packed fields.");
   using TypeField = BitField<Primitive::Type, kFieldType, kFieldTypeSize>;
 
-  ArenaVector<HUserRecord<HInstruction*>> inputs_;
   const uint32_t reg_number_;
 
   DISALLOW_COPY_AND_ASSIGN(HPhi);
@@ -3791,7 +3812,7 @@ enum IntrinsicExceptions {
   kCanThrow  // Intrinsic may throw exceptions.
 };
 
-class HInvoke : public HInstruction {
+class HInvoke : public HVariableInputSizeInstruction {
  public:
   bool NeedsEnvironment() const OVERRIDE;
 
@@ -3878,12 +3899,14 @@ class HInvoke : public HInstruction {
           uint32_t dex_method_index,
           ArtMethod* resolved_method,
           InvokeType invoke_type)
-    : HInstruction(
-          SideEffects::AllExceptGCDependency(), dex_pc),  // Assume write/read on all fields/arrays.
+    : HVariableInputSizeInstruction(
+          SideEffects::AllExceptGCDependency(),  // Assume write/read on all fields/arrays.
+          dex_pc,
+          arena,
+          number_of_arguments + number_of_other_inputs,
+          kArenaAllocInvokeInputs),
       number_of_arguments_(number_of_arguments),
       resolved_method_(resolved_method),
-      inputs_(number_of_arguments + number_of_other_inputs,
-              arena->Adapter(kArenaAllocInvokeInputs)),
       dex_method_index_(dex_method_index),
       intrinsic_(Intrinsics::kNone),
       intrinsic_optimizations_(0) {
@@ -3894,7 +3917,6 @@ class HInvoke : public HInstruction {
 
   uint32_t number_of_arguments_;
   ArtMethod* const resolved_method_;
-  ArenaVector<HUserRecord<HInstruction*>> inputs_;
   const uint32_t dex_method_index_;
   Intrinsics intrinsic_;
 
@@ -4183,10 +4205,6 @@ class HInvokeStaticOrDirect FINAL : public HInvoke {
   }
 
   DECLARE_INSTRUCTION(InvokeStaticOrDirect);
-
- protected:
-  void InsertInputAt(size_t index, HInstruction* input);
-  void RemoveInputAt(size_t index);
 
  private:
   static constexpr size_t kFieldClinitCheckRequirement = kNumberOfInvokePackedBits;
