@@ -2077,6 +2077,9 @@ void CompilerDriver::Verify(jobject jclass_loader,
               if (cls.Get() != nullptr) {
                 ObjectLock<mirror::Class> lock(soa.Self(), cls);
                 mirror::Class::SetStatus(cls, mirror::Class::kStatusVerified, soa.Self());
+              } else {
+                DCHECK(soa.Self()->IsExceptionPending());
+                soa.Self()->ClearException();
               }
               // Create `VerifiedMethod`s for each methods, the compiler expects one for
               // quickening or compiling.
