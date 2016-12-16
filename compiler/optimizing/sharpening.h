@@ -47,6 +47,14 @@ class HSharpening : public HOptimization {
 
   static constexpr const char* kSharpeningPassName = "sharpening";
 
+  // Used internally but also by the inliner.
+  static void SharpenClass(HLoadClass* load_class,
+                           mirror::Class* klass,
+                           VariableSizedHandleScope* handles,
+                           CodeGenerator* codegen,
+                           CompilerDriver* compiler_driver)
+    REQUIRES_SHARED(Locks::mutator_lock_);
+
  private:
   void ProcessInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke);
   void ProcessLoadClass(HLoadClass* load_class);

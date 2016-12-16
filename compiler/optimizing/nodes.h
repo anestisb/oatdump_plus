@@ -5519,9 +5519,7 @@ class HLoadClass FINAL : public HInstruction {
              const DexFile& dex_file,
              bool is_referrers_class,
              uint32_t dex_pc,
-             bool needs_access_check,
-             bool is_in_dex_cache,
-             bool is_in_boot_image)
+             bool needs_access_check)
       : HInstruction(SideEffectsForArchRuntimeCalls(), dex_pc),
         special_input_(HUserRecord<HInstruction*>(current_method)),
         type_index_(type_index),
@@ -5534,8 +5532,8 @@ class HLoadClass FINAL : public HInstruction {
     SetPackedField<LoadKindField>(
         is_referrers_class ? LoadKind::kReferrersClass : LoadKind::kDexCacheViaMethod);
     SetPackedFlag<kFlagNeedsAccessCheck>(needs_access_check);
-    SetPackedFlag<kFlagIsInDexCache>(is_in_dex_cache);
-    SetPackedFlag<kFlagIsInBootImage>(is_in_boot_image);
+    SetPackedFlag<kFlagIsInDexCache>(false);
+    SetPackedFlag<kFlagIsInBootImage>(false);
     SetPackedFlag<kFlagGenerateClInitCheck>(false);
   }
 

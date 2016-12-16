@@ -480,13 +480,11 @@ bool HInliner::TryInlineMonomorphicCall(HInvoke* invoke_instruction,
   }
 
   // We successfully inlined, now add a guard.
-  bool is_referrer =
-      (GetMonomorphicType(classes) == outermost_graph_->GetArtMethod()->GetDeclaringClass());
   AddTypeGuard(receiver,
                cursor,
                bb_cursor,
                class_index,
-               is_referrer,
+               GetMonomorphicType(classes),
                invoke_instruction,
                /* with_deoptimization */ true);
 
@@ -525,33 +523,37 @@ HInstruction* HInliner::AddTypeGuard(HInstruction* receiver,
                                      HInstruction* cursor,
                                      HBasicBlock* bb_cursor,
                                      dex::TypeIndex class_index,
-                                     bool is_referrer,
+                                     mirror::Class* klass,
                                      HInstruction* invoke_instruction,
                                      bool with_deoptimization) {
+  ScopedAssertNoThreadSuspension sants("Adding compiler type guard");
+
   ClassLinker* class_linker = caller_compilation_unit_.GetClassLinker();
   HInstanceFieldGet* receiver_class = BuildGetReceiverClass(
       class_linker, receiver, invoke_instruction->GetDexPc());
-
-  const DexFile& caller_dex_file = *caller_compilation_unit_.GetDexFile();
-  // Note that we will just compare the classes, so we don't need Java semantics access checks.
-  // Also, the caller of `AddTypeGuard` must have guaranteed that the class is in the dex cache.
-  HLoadClass* load_class = new (graph_->GetArena()) HLoadClass(graph_->GetCurrentMethod(),
-                                                               class_index,
-                                                               caller_dex_file,
-                                                               is_referrer,
-                                                               invoke_instruction->GetDexPc(),
-                                                               /* needs_access_check */ false,
-                                                               /* is_in_dex_cache */ true,
-                                                               /* is_in_boot_image */ false);
-
-  HNotEqual* compare = new (graph_->GetArena()) HNotEqual(load_class, receiver_class);
-  // TODO: Extend reference type propagation to understand the guard.
   if (cursor != nullptr) {
     bb_cursor->InsertInstructionAfter(receiver_class, cursor);
   } else {
     bb_cursor->InsertInstructionBefore(receiver_class, bb_cursor->GetFirstInstruction());
   }
+
+  const DexFile& caller_dex_file = *caller_compilation_unit_.GetDexFile();
+  bool is_referrer = (klass == outermost_graph_->GetArtMethod()->GetDeclaringClass());
+  // Note that we will just compare the classes, so we don't need Java semantics access checks.
+  // Note that the type index and the dex file are relative to the method this type guard is
+  // inlined into.
+  HLoadClass* load_class = new (graph_->GetArena()) HLoadClass(graph_->GetCurrentMethod(),
+                                                               class_index,
+                                                               caller_dex_file,
+                                                               is_referrer,
+                                                               invoke_instruction->GetDexPc(),
+                                                               /* needs_access_check */ false);
   bb_cursor->InsertInstructionAfter(load_class, receiver_class);
+  // Sharpen after adding the instruction, as the sharpening may remove inputs.
+  HSharpening::SharpenClass(load_class, klass, handles_, codegen_, compiler_driver_);
+
+  // TODO: Extend reference type propagation to understand the guard.
+  HNotEqual* compare = new (graph_->GetArena()) HNotEqual(load_class, receiver_class);
   bb_cursor->InsertInstructionAfter(compare, load_class);
   if (with_deoptimization) {
     HDeoptimize* deoptimize = new (graph_->GetArena()) HDeoptimize(
@@ -604,7 +606,6 @@ bool HInliner::TryInlinePolymorphicCall(HInvoke* invoke_instruction,
       all_targets_inlined = false;
     } else {
       one_target_inlined = true;
-      bool is_referrer = (classes->Get(i) == outermost_graph_->GetArtMethod()->GetDeclaringClass());
 
       // If we have inlined all targets before, and this receiver is the last seen,
       // we deoptimize instead of keeping the original invoke instruction.
@@ -616,8 +617,13 @@ bool HInliner::TryInlinePolymorphicCall(HInvoke* invoke_instruction,
         // We do not support HDeoptimize in OSR methods.
         deoptimize = false;
       }
-      HInstruction* compare = AddTypeGuard(
-          receiver, cursor, bb_cursor, class_index, is_referrer, invoke_instruction, deoptimize);
+      HInstruction* compare = AddTypeGuard(receiver,
+                                           cursor,
+                                           bb_cursor,
+                                           class_index,
+                                           classes->Get(i),
+                                           invoke_instruction,
+                                           deoptimize);
       if (deoptimize) {
         if (return_replacement != nullptr) {
           invoke_instruction->ReplaceWith(return_replacement);
