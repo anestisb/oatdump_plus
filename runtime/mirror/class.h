@@ -1247,13 +1247,6 @@ class MANAGED Class FINAL : public Object {
   bool GetSlowPathEnabled() REQUIRES_SHARED(Locks::mutator_lock_);
   void SetSlowPath(bool enabled) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  StringDexCacheType* GetDexCacheStrings() REQUIRES_SHARED(Locks::mutator_lock_);
-  void SetDexCacheStrings(StringDexCacheType* new_dex_cache_strings)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  static MemberOffset DexCacheStringsOffset() {
-    return OFFSET_OF_OBJECT_MEMBER(Class, dex_cache_strings_);
-  }
-
   // May cause thread suspension due to EqualParameters.
   ArtMethod* GetDeclaredConstructor(Thread* self,
                                     Handle<ObjectArray<Class>> args,
@@ -1437,9 +1430,6 @@ class MANAGED Class FINAL : public Object {
   // appended. For abstract classes, methods may be created in the vtable that aren't in
   // virtual_ methods_ for miranda methods.
   HeapReference<PointerArray> vtable_;
-
-  // Short cuts to dex_cache_ member for fast compiled code access.
-  uint64_t dex_cache_strings_;
 
   // instance fields
   //

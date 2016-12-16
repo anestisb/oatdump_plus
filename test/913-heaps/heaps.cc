@@ -183,7 +183,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_followReferences(JNIEnv* env
       if (*tag_ptr >= 1000) {
         // This is a class or interface, the size of which will be dependent on the architecture.
         // Do not print the size, but detect known values and "normalize" for the golden file.
-        if ((sizeof(void*) == 4 && size == 180) || (sizeof(void*) == 8 && size == 232)) {
+        if ((sizeof(void*) == 4 && size == 172) || (sizeof(void*) == 8 && size == 224)) {
           adapted_size = 123;
         }
       }
