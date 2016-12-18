@@ -45,10 +45,6 @@ class PCRelativeHandlerVisitor : public HGraphVisitor {
   }
 
  private:
-  void VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) OVERRIDE {
-    HandleInvoke(invoke);
-  }
-
   void InitializePCRelativeBasePointer() {
     // Ensure we only initialize the pointer once.
     if (base_ != nullptr) {
@@ -110,38 +106,6 @@ class PCRelativeHandlerVisitor : public HGraphVisitor {
         base_,
         switch_insn->GetDexPc());
     block->ReplaceAndRemoveInstructionWith(switch_insn, mips_switch);
-  }
-
-  void HandleInvoke(HInvoke* invoke) {
-    // If this is an invoke-static/-direct with PC-relative dex cache array
-    // addressing, we need the PC-relative address base.
-    HInvokeStaticOrDirect* invoke_static_or_direct = invoke->AsInvokeStaticOrDirect();
-    if (invoke_static_or_direct != nullptr) {
-      HInvokeStaticOrDirect::MethodLoadKind method_load_kind =
-          invoke_static_or_direct->GetMethodLoadKind();
-      HInvokeStaticOrDirect::CodePtrLocation code_ptr_location =
-          invoke_static_or_direct->GetCodePtrLocation();
-
-      bool has_extra_input =
-          (method_load_kind == HInvokeStaticOrDirect::MethodLoadKind::kDirectAddressWithFixup) ||
-          (code_ptr_location == HInvokeStaticOrDirect::CodePtrLocation::kCallDirectWithFixup);
-
-      // We can't add a pointer to the constant area if we already have a current
-      // method pointer. This may arise when sharpening doesn't remove the current
-      // method pointer from the invoke.
-      if (invoke_static_or_direct->HasCurrentMethodInput()) {
-        DCHECK(!invoke_static_or_direct->HasPcRelativeDexCache());
-        CHECK(!has_extra_input);
-        return;
-      }
-
-      if (has_extra_input &&
-          !IsCallFreeIntrinsic<IntrinsicLocationsBuilderMIPS>(invoke, codegen_)) {
-        InitializePCRelativeBasePointer();
-        // Add the extra parameter base_.
-        invoke_static_or_direct->AddSpecialInput(base_);
-      }
-    }
   }
 
   CodeGeneratorMIPS* codegen_;
