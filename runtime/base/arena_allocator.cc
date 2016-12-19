@@ -83,18 +83,19 @@ const char* const ArenaAllocatorStatsImpl<kCount>::kAllocNames[] = {
   "GraphChecker ",
   "Verifier     ",
   "CallingConv  ",
+  "CHA          ",
 };
 
 template <bool kCount>
 ArenaAllocatorStatsImpl<kCount>::ArenaAllocatorStatsImpl()
-    : num_allocations_(0u) {
-  std::fill_n(alloc_stats_, arraysize(alloc_stats_), 0u);
+    : num_allocations_(0u),
+      alloc_stats_(kNumArenaAllocKinds, 0u) {
 }
 
 template <bool kCount>
 void ArenaAllocatorStatsImpl<kCount>::Copy(const ArenaAllocatorStatsImpl& other) {
   num_allocations_ = other.num_allocations_;
-  std::copy(other.alloc_stats_, other.alloc_stats_ + arraysize(alloc_stats_), alloc_stats_);
+  std::copy_n(other.alloc_stats_.begin(), kNumArenaAllocKinds, alloc_stats_.begin());
 }
 
 template <bool kCount>
@@ -111,7 +112,7 @@ size_t ArenaAllocatorStatsImpl<kCount>::NumAllocations() const {
 template <bool kCount>
 size_t ArenaAllocatorStatsImpl<kCount>::BytesAllocated() const {
   const size_t init = 0u;  // Initial value of the correct type.
-  return std::accumulate(alloc_stats_, alloc_stats_ + arraysize(alloc_stats_), init);
+  return std::accumulate(alloc_stats_.begin(), alloc_stats_.end(), init);
 }
 
 template <bool kCount>
