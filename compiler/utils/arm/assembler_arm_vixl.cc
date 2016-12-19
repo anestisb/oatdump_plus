@@ -479,6 +479,5 @@ void ArmVIXLMacroAssembler::B(vixl32::Condition cond, vixl32::Label* label) {
   MacroAssembler::B(cond, label);
 }
 
-
 }  // namespace arm
 }  // namespace art
