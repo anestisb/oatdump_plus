@@ -73,10 +73,18 @@ static bool IsNarrowingIntegralConversion(Primitive::Type from, Primitive::Type 
 }
 
 /**
- * Returns narrowest data type.
+ * Returns result of implicit widening type conversion done in HIR.
  */
-static Primitive::Type Narrowest(Primitive::Type type1, Primitive::Type type2) {
-  return Primitive::ComponentSize(type1) <= Primitive::ComponentSize(type2) ? type1 : type2;
+static Primitive::Type ImplicitConversion(Primitive::Type type) {
+  switch (type) {
+    case Primitive::kPrimShort:
+    case Primitive::kPrimChar:
+    case Primitive::kPrimByte:
+    case Primitive::kPrimBoolean:
+      return Primitive::kPrimInt;
+    default:
+      return type;
+  }
 }
 
 //
@@ -232,9 +240,9 @@ void HInductionVarAnalysis::ClassifyTrivial(HLoopInformation* loop, HInstruction
   } else if (instruction->IsSelect()) {
     info = TransferPhi(loop, instruction, /*input_index*/ 0, /*adjust_input_size*/ 1);
   } else if (instruction->IsTypeConversion()) {
-    info = TransferCnv(LookupInfo(loop, instruction->InputAt(0)),
-                       instruction->AsTypeConversion()->GetInputType(),
-                       instruction->AsTypeConversion()->GetResultType());
+    info = TransferConversion(LookupInfo(loop, instruction->InputAt(0)),
+                              instruction->AsTypeConversion()->GetInputType(),
+                              instruction->AsTypeConversion()->GetResultType());
   } else if (instruction->IsBoundsCheck()) {
     info = LookupInfo(loop, instruction->InputAt(0));  // Pass-through.
   }
@@ -267,8 +275,12 @@ void HInductionVarAnalysis::ClassifyNonTrivial(HLoopInformation* loop) {
     return;
   }
 
-  // Store interesting cycle.
-  AssignCycle(phi->AsPhi());
+  // Store interesting cycle in each loop phi.
+  for (size_t i = 0; i < size; i++) {
+    if (scc_[i]->IsLoopHeaderPhi()) {
+      AssignCycle(scc_[i]->AsPhi());
+    }
+  }
 
   // Singleton is wrap-around induction if all internal links have the same meaning.
   if (size == 1) {
@@ -326,7 +338,7 @@ void HInductionVarAnalysis::ClassifyNonTrivial(HLoopInformation* loop) {
     } else if (instruction->IsSelect()) {
       update = SolvePhi(instruction, /*input_index*/ 0, /*adjust_input_size*/ 1);  // acts like Phi
     } else if (instruction->IsTypeConversion()) {
-      update = SolveCnv(instruction->AsTypeConversion());
+      update = SolveConversion(loop, phi, instruction->AsTypeConversion());
     }
     if (update == nullptr) {
       return;
@@ -416,8 +428,9 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferAddSub(Indu
   // wrap-around, or periodic can be combined with an invariant to yield a similar result.
   // Two linear or two polynomial inputs can be combined too. Other combinations fail.
   if (a != nullptr && b != nullptr) {
-    type_ = Narrowest(type_, Narrowest(a->type, b->type));
-    if (a->induction_class == kInvariant && b->induction_class == kInvariant) {
+    if (IsNarrowingLinear(a) || IsNarrowingLinear(b)) {
+      return nullptr;  // no transfer
+    } else if (a->induction_class == kInvariant && b->induction_class == kInvariant) {
       return CreateInvariantOp(op, a, b);
     } else if ((a->induction_class == kLinear && b->induction_class == kLinear) ||
                (a->induction_class == kPolynomial && b->induction_class == kPolynomial)) {
@@ -452,8 +465,9 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferNeg(Inducti
   // Transfer over a unary negation: an invariant, linear, polynomial, geometric (mul),
   // wrap-around, or periodic input yields a similar but negated induction as result.
   if (a != nullptr) {
-    type_ = Narrowest(type_, a->type);
-    if (a->induction_class == kInvariant) {
+    if (IsNarrowingLinear(a)) {
+      return nullptr;  // no transfer
+    } else if (a->induction_class == kInvariant) {
       return CreateInvariantOp(kNeg, nullptr, a);
     } else if (a->induction_class != kGeometric || a->operation == kMul) {
       return CreateInduction(a->induction_class,
@@ -473,8 +487,9 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferMul(Inducti
   // wrap-around, or periodic can be multiplied with an invariant to yield a similar
   // but multiplied result. Two non-invariant inputs cannot be multiplied, however.
   if (a != nullptr && b != nullptr) {
-    type_ = Narrowest(type_, Narrowest(a->type, b->type));
-    if (a->induction_class == kInvariant && b->induction_class == kInvariant) {
+    if (IsNarrowingLinear(a) || IsNarrowingLinear(b)) {
+      return nullptr;  // no transfer
+    } else if (a->induction_class == kInvariant && b->induction_class == kInvariant) {
       return CreateInvariantOp(kMul, a, b);
     } else if (a->induction_class == kInvariant && (b->induction_class != kGeometric ||
                                                     b->operation == kMul)) {
@@ -497,17 +512,17 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferMul(Inducti
   return nullptr;
 }
 
-HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferCnv(InductionInfo* a,
-                                                                         Primitive::Type from,
-                                                                         Primitive::Type to) {
+HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferConversion(
+    InductionInfo* a,
+    Primitive::Type from,
+    Primitive::Type to) {
   if (a != nullptr) {
-    // Allow narrowing conversion on linear induction in certain cases.
-    if (IsNarrowingIntegralConversion(from, to)) {
-      if (a->induction_class == kLinear) {
-        if (a->type == to || (a->type == from && IsNarrowingIntegralConversion(from, to))) {
-          return CreateInduction(kLinear, kNop, a->op_a, a->op_b, /*fetch*/ nullptr, to);
-        }
-      }
+    // Allow narrowing conversion on linear induction in certain cases:
+    // induction is already at narrow type, or can be made narrower.
+    if (IsNarrowingIntegralConversion(from, to) &&
+        a->induction_class == kLinear &&
+        (a->type == to || IsNarrowingIntegralConversion(a->type, to))) {
+      return CreateInduction(kLinear, kNop, a->op_a, a->op_b, /*fetch*/ nullptr, to);
     }
   }
   return nullptr;
@@ -700,16 +715,29 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::SolveTest(HLoopInfo
   return nullptr;
 }
 
-HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::SolveCnv(HTypeConversion* conversion) {
+HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::SolveConversion(
+    HLoopInformation* loop,
+    HInstruction* entry_phi,
+    HTypeConversion* conversion) {
   Primitive::Type from = conversion->GetInputType();
   Primitive::Type to = conversion->GetResultType();
-  // A narrowing conversion is allowed within the cycle of a linear induction, provided that the
-  // narrowest encountered type is recorded with the induction to account for the precision loss.
-  if (IsNarrowingIntegralConversion(from, to)) {
-    auto it = cycle_.find(conversion->GetInput());
-    if (it != cycle_.end() && it->second->induction_class == kInvariant) {
-      type_ = Narrowest(type_, to);
-      return it->second;
+  // A narrowing conversion is allowed as *last* operation of the cycle of a linear induction
+  // with an initial value that fits the type, provided that the narrowest encountered type is
+  // recorded with the induction to account for the precision loss. The narrower induction does
+  // *not* transfer to any wider operations, however, since these may yield out-of-type values
+  if (entry_phi->InputCount() == 2 && conversion == entry_phi->InputAt(1)) {
+    int64_t min = Primitive::MinValueOfIntegralType(to);
+    int64_t max = Primitive::MaxValueOfIntegralType(to);
+    int64_t value = 0;
+    InductionInfo* initial = LookupInfo(loop, entry_phi->InputAt(0));
+    if (IsNarrowingIntegralConversion(from, to) &&
+        IsAtLeast(initial, &value) && value >= min &&
+        IsAtMost(initial, &value)  && value <= max) {
+      auto it = cycle_.find(conversion->GetInput());
+      if (it != cycle_.end() && it->second->induction_class == kInvariant) {
+        type_ = to;
+        return it->second;
+      }
     }
   }
   return nullptr;
@@ -729,7 +757,7 @@ void HInductionVarAnalysis::VisitControl(HLoopInformation* loop) {
       HCondition* condition = if_expr->AsCondition();
       InductionInfo* a = LookupInfo(loop, condition->InputAt(0));
       InductionInfo* b = LookupInfo(loop, condition->InputAt(1));
-      Primitive::Type type = condition->InputAt(0)->GetType();
+      Primitive::Type type = ImplicitConversion(condition->InputAt(0)->GetType());
       // Determine if the loop control uses a known sequence on an if-exit (X outside) or on
       // an if-iterate (X inside), expressed as if-iterate when passed into VisitCondition().
       if (a == nullptr || b == nullptr) {
@@ -901,8 +929,8 @@ bool HInductionVarAnalysis::IsFinite(InductionInfo* upper_expr,
                                      int64_t stride_value,
                                      Primitive::Type type,
                                      IfCondition cmp) {
-  const int64_t min = Primitive::MinValueOfIntegralType(type);
-  const int64_t max = Primitive::MaxValueOfIntegralType(type);
+  int64_t min = Primitive::MinValueOfIntegralType(type);
+  int64_t max = Primitive::MaxValueOfIntegralType(type);
   // Some rules under which it is certain at compile-time that the loop is finite.
   int64_t value;
   switch (cmp) {
@@ -938,8 +966,6 @@ bool HInductionVarAnalysis::FitsNarrowerControl(InductionInfo* lower_expr,
     min++;
   }
   // Do both bounds fit the range?
-  // Note: The `value` is initialized to please valgrind - the compiler can reorder
-  // the return value check with the `value` check, b/27651442 .
   int64_t value = 0;
   return IsAtLeast(lower_expr, &value) && value >= min &&
          IsAtMost(lower_expr, &value)  && value <= max &&
@@ -1046,7 +1072,8 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::CreateSimplifiedInv
       return CreateSimplifiedInvariant(kSub, b->op_b, b->op_a);
     }
   }
-  return new (graph_->GetArena()) InductionInfo(kInvariant, op, a, b, nullptr, b->type);
+  return new (graph_->GetArena()) InductionInfo(
+      kInvariant, op, a, b, nullptr, ImplicitConversion(b->type));
 }
 
 HInstruction* HInductionVarAnalysis::GetShiftConstant(HLoopInformation* loop,
@@ -1106,6 +1133,16 @@ bool HInductionVarAnalysis::IsAtMost(InductionInfo* info, int64_t* value) {
 
 bool HInductionVarAnalysis::IsAtLeast(InductionInfo* info, int64_t* value) {
   return InductionVarRange(this).IsConstant(info, InductionVarRange::kAtLeast, value);
+}
+
+bool HInductionVarAnalysis::IsNarrowingLinear(InductionInfo* info) {
+  return info != nullptr &&
+      info->induction_class == kLinear &&
+      (info->type == Primitive::kPrimByte ||
+       info->type == Primitive::kPrimShort ||
+       info->type == Primitive::kPrimChar ||
+       (info->type == Primitive::kPrimInt && (info->op_a->type == Primitive::kPrimLong ||
+                                              info->op_b->type == Primitive::kPrimLong)));
 }
 
 bool HInductionVarAnalysis::InductionEqual(InductionInfo* info1,

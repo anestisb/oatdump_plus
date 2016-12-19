@@ -169,8 +169,8 @@ static InductionVarRange::Value CorrectForType(InductionVarRange::Value v, Primi
     case Primitive::kPrimByte: {
       // Constants within range only.
       // TODO: maybe some room for improvement, like allowing widening conversions
-      const int32_t min = Primitive::MinValueOfIntegralType(type);
-      const int32_t max = Primitive::MaxValueOfIntegralType(type);
+      int32_t min = Primitive::MinValueOfIntegralType(type);
+      int32_t max = Primitive::MaxValueOfIntegralType(type);
       return (IsConstantValue(v) && min <= v.b_constant && v.b_constant <= max)
           ? v
           : InductionVarRange::Value();
@@ -551,7 +551,7 @@ InductionVarRange::Value InductionVarRange::GetPolynomial(HInductionVarAnalysis:
   int64_t b = 0;
   if (IsConstant(info->op_a->op_a, kExact, &a) && CanLongValueFitIntoInt(a) && a >= 0 &&
       IsConstant(info->op_a->op_b, kExact, &b) && CanLongValueFitIntoInt(b) && b >= 0) {
-    // Evaluate bounds on sum_i=0^m-1(a * i + b) + c with a,b >= 0 for known
+    // Evaluate bounds on sum_i=0^m-1(a * i + b) + c with a,b >= 0 for
     // maximum index value m as a * (m * (m-1)) / 2 + b * m + c.
     Value c = GetVal(info->op_b, trip, in_body, is_min);
     if (is_min) {
@@ -629,6 +629,7 @@ InductionVarRange::Value InductionVarRange::GetFetch(HInstruction* instruction,
     }
   } else if (instruction->IsTypeConversion()) {
     // Since analysis is 32-bit (or narrower), chase beyond widening along the path.
+    // For example, this discovers the length in: for (long i = 0; i < a.length; i++);
     if (instruction->AsTypeConversion()->GetInputType() == Primitive::kPrimInt &&
         instruction->AsTypeConversion()->GetResultType() == Primitive::kPrimLong) {
       return GetFetch(instruction->InputAt(0), trip, in_body, is_min);
@@ -843,7 +844,7 @@ InductionVarRange::Value InductionVarRange::DivRangeAndConstant(
 
 InductionVarRange::Value InductionVarRange::AddValue(Value v1, Value v2) const {
   if (v1.is_known && v2.is_known && IsSafeAdd(v1.b_constant, v2.b_constant)) {
-    const int32_t b = v1.b_constant + v2.b_constant;
+    int32_t b = v1.b_constant + v2.b_constant;
     if (v1.a_constant == 0) {
       return Value(v2.instruction, v2.a_constant, b);
     } else if (v2.a_constant == 0) {
@@ -857,7 +858,7 @@ InductionVarRange::Value InductionVarRange::AddValue(Value v1, Value v2) const {
 
 InductionVarRange::Value InductionVarRange::SubValue(Value v1, Value v2) const {
   if (v1.is_known && v2.is_known && IsSafeSub(v1.b_constant, v2.b_constant)) {
-    const int32_t b = v1.b_constant - v2.b_constant;
+    int32_t b = v1.b_constant - v2.b_constant;
     if (v1.a_constant == 0 && IsSafeSub(0, v2.a_constant)) {
       return Value(v2.instruction, -v2.a_constant, b);
     } else if (v2.a_constant == 0) {
@@ -988,13 +989,16 @@ bool InductionVarRange::GenerateLastValuePolynomial(HInductionVarAnalysis::Induc
       IsConstant(trip->op_a, kExact, &m) && m >= 1) {
     // Evaluate bounds on sum_i=0^m-1(a * i + b) + c for known
     // maximum index value m as a * (m * (m-1)) / 2 + b * m + c.
-    // TODO: generalize
-    HInstruction* c_instr = nullptr;
-    if (GenerateCode(info->op_b, nullptr, graph, block, graph ? &c_instr : nullptr, false, false)) {
+    HInstruction* c = nullptr;
+    if (GenerateCode(info->op_b, nullptr, graph, block, graph ? &c : nullptr, false, false)) {
       if (graph != nullptr) {
+        Primitive::Type type = info->type;
         int64_t sum = a * ((m * (m - 1)) / 2) + b * m;
-        *result = Insert(block, new (graph->GetArena()) HAdd(info->type,
-                                                             graph->GetIntConstant(sum), c_instr));
+        if (type != Primitive::kPrimLong) {
+          sum = static_cast<int32_t>(sum);  // okay to truncate
+        }
+        *result =
+            Insert(block, new (graph->GetArena()) HAdd(type, graph->GetConstant(type, sum), c));
       }
       return true;
     }
@@ -1011,35 +1015,33 @@ bool InductionVarRange::GenerateLastValueGeometric(HInductionVarAnalysis::Induct
   DCHECK_EQ(info->induction_class, HInductionVarAnalysis::kGeometric);
   // Detect known base and trip count (always taken).
   int64_t f = 0;
-  int64_t t = 0;
-  if (IsIntAndGet(info->fetch, &f) && f >= 1 && IsConstant(trip->op_a, kExact, &t) && t >= 1) {
+  int64_t m = 0;
+  if (IsIntAndGet(info->fetch, &f) && f >= 1 && IsConstant(trip->op_a, kExact, &m) && m >= 1) {
     HInstruction* opa = nullptr;
     HInstruction* opb = nullptr;
     if (GenerateCode(info->op_a, nullptr, graph, block, &opa, false, false) &&
         GenerateCode(info->op_b, nullptr, graph, block, &opb, false, false)) {
-      // Compute f ^ t.
-      int64_t fpowt = IntPow(f, t);
+      // Compute f ^ m for known maximum index value m.
+      int64_t fpow = IntPow(f, m);
       if (graph != nullptr) {
-        DCHECK(info->type == Primitive::kPrimInt);  // due to codegen, generalize?
-        if (fpowt == 0) {
+        DCHECK(info->operation == HInductionVarAnalysis::kMul ||
+               info->operation == HInductionVarAnalysis::kDiv);
+        Primitive::Type type = info->type;
+        if (fpow == 0) {
           // Special case: repeated mul/div always yields zero.
-          *result = graph->GetIntConstant(0);
-        } else if (info->operation == HInductionVarAnalysis::kMul) {
-          // Last value multiplication: a * f ^ t + b.
-          HInstruction* mul = Insert(block,
-                                     new (graph->GetArena()) HMul(info->type,
-                                                                  opa,
-                                                                  graph->GetIntConstant(fpowt)));
-          *result = Insert(block, new (graph->GetArena()) HAdd(info->type, mul, opb));
+          *result = graph->GetConstant(type, 0);
         } else {
-          // Last value multiplication: a * f ^ -t + b.
-          DCHECK_EQ(info->operation, HInductionVarAnalysis::kDiv);
-          HInstruction* div = Insert(block,
-                                     new (graph->GetArena()) HDiv(info->type,
-                                                                  opa,
-                                                                  graph->GetIntConstant(fpowt),
-                                                                  kNoDexPc));
-          *result = Insert(block, new (graph->GetArena()) HAdd(info->type, div, opb));
+          // Last value: a * f ^ m + b or a * f ^ -m + b.
+          if (type != Primitive::kPrimLong) {
+            fpow = static_cast<int32_t>(fpow);  // okay to truncate
+          }
+          HInstruction* e = nullptr;
+          if (info->operation == HInductionVarAnalysis::kMul) {
+            e = new (graph->GetArena()) HMul(type, opa, graph->GetConstant(type, fpow));
+          } else {
+            e = new (graph->GetArena()) HDiv(type, opa, graph->GetConstant(type, fpow), kNoDexPc);
+          }
+          *result = Insert(block, new (graph->GetArena()) HAdd(type, Insert(block, e), opb));
         }
       }
       return true;
@@ -1060,12 +1062,11 @@ bool InductionVarRange::GenerateLastValueWrapAround(HInductionVarAnalysis::Induc
   for (; info->induction_class == HInductionVarAnalysis::kWrapAround;
        info = info->op_b, ++depth) {}
   // Handle wrap(x, wrap(.., y)) if trip count reaches an invariant at end.
-  // TODO: generalize
-  int64_t t = 0;
+  // TODO: generalize, but be careful to adjust the terminal.
+  int64_t m = 0;
   if (info->induction_class == HInductionVarAnalysis::kInvariant &&
-      IsConstant(trip->op_a, kExact, &t) && t >= depth &&
-      GenerateCode(info, nullptr, graph, block, result, false, false)) {
-    return true;
+      IsConstant(trip->op_a, kExact, &m) && m >= depth) {
+    return GenerateCode(info, nullptr, graph, block, result, false, false);
   }
   return false;
 }
@@ -1079,43 +1080,49 @@ bool InductionVarRange::GenerateLastValuePeriodic(HInductionVarAnalysis::Inducti
   DCHECK(info != nullptr);
   DCHECK_EQ(info->induction_class, HInductionVarAnalysis::kPeriodic);
   // Count period.
-  int32_t period = 1;
+  int64_t period = 1;
   for (HInductionVarAnalysis::InductionInfo* p = info;
        p->induction_class == HInductionVarAnalysis::kPeriodic;
        p = p->op_b, ++period) {}
-  // Handle periodic(x, y) case for restricted types.
-  // TODO: generalize
-  if (period != 2 ||
-      trip->op_a->type != Primitive::kPrimInt ||
-      (info->type != Primitive::kPrimInt && info->type != Primitive::kPrimBoolean)) {
-    return false;
+  // Handle any periodic(x, periodic(.., y)) for known maximum index value m.
+  int64_t m = 0;
+  if (IsConstant(trip->op_a, kExact, &m) && m >= 1) {
+    int64_t li = m % period;
+    for (int64_t i = 0; i < li; info = info->op_b, i++) {}
+    if (info->induction_class == HInductionVarAnalysis::kPeriodic) {
+      info = info->op_a;
+    }
+    return GenerateCode(info, nullptr, graph, block, result, false, false);
   }
-  HInstruction* x_instr = nullptr;
-  HInstruction* y_instr = nullptr;
-  HInstruction* trip_expr = nullptr;
-  if (GenerateCode(info->op_a, nullptr, graph, block, graph ? &x_instr   : nullptr, false, false) &&
-      GenerateCode(info->op_b, nullptr, graph, block, graph ? &y_instr   : nullptr, false, false) &&
-      GenerateCode(trip->op_a, nullptr, graph, block, graph ? &trip_expr : nullptr, false, false)) {
-    // During actual code generation (graph != nullptr),
-    // generate is_even ? x : y select instruction.
+  // Handle periodic(x, y) using even/odd-select on trip count. Enter trip count expression
+  // directly to obtain the maximum index value t even if taken test is needed.
+  HInstruction* x = nullptr;
+  HInstruction* y = nullptr;
+  HInstruction* t = nullptr;
+  if (period == 2 &&
+      GenerateCode(info->op_a, nullptr, graph, block, graph ? &x : nullptr, false, false) &&
+      GenerateCode(info->op_b, nullptr, graph, block, graph ? &y : nullptr, false, false) &&
+      GenerateCode(trip->op_a, nullptr, graph, block, graph ? &t : nullptr, false, false)) {
+    // During actual code generation (graph != nullptr), generate is_even ? x : y.
     if (graph != nullptr) {
-      HInstruction* is_even = Insert(block, new (graph->GetArena()) HEqual(
-          Insert(block, new (graph->GetArena()) HAnd(
-              Primitive::kPrimInt, trip_expr, graph->GetIntConstant(1))),
-          graph->GetIntConstant(0), kNoDexPc));
-      *result = Insert(block, new (graph->GetArena()) HSelect(is_even, x_instr, y_instr, kNoDexPc));
+      Primitive::Type type = trip->type;
+      HInstruction* msk =
+          Insert(block, new (graph->GetArena()) HAnd(type, t, graph->GetConstant(type, 1)));
+      HInstruction* is_even =
+          Insert(block, new (graph->GetArena()) HEqual(msk, graph->GetConstant(type, 0), kNoDexPc));
+      *result = Insert(block, new (graph->GetArena()) HSelect(is_even, x, y, kNoDexPc));
     }
     // Guard select with taken test if needed.
     if (*needs_taken_test) {
-      HInstruction* taken_test = nullptr;
-      if (!GenerateCode(
-          trip->op_b, nullptr, graph, block, graph ? &taken_test : nullptr, false, false)) {
+      HInstruction* is_taken = nullptr;
+      if (GenerateCode(trip->op_b, nullptr, graph, block, graph ? &is_taken : nullptr, false, false)) {
+        if (graph != nullptr) {
+          *result = Insert(block, new (graph->GetArena()) HSelect(is_taken, *result, x, kNoDexPc));
+        }
+        *needs_taken_test = false;  // taken care of
+      } else {
         return false;
-      } else if (graph != nullptr) {
-         *result = Insert(block,
-                          new (graph->GetArena()) HSelect(taken_test, *result, x_instr, kNoDexPc));
       }
-      *needs_taken_test = false;  // taken care of
     }
     return true;
   }
@@ -1134,13 +1141,8 @@ bool InductionVarRange::GenerateCode(HInductionVarAnalysis::InductionInfo* info,
     if (graph != nullptr && result == nullptr) {
       return true;
     }
-    // Verify type safety.
-    // TODO: generalize
-    Primitive::Type type = Primitive::kPrimInt;
-    if (info->type != Primitive::kPrimInt && info->type != Primitive::kPrimBoolean) {
-      return false;
-    }
     // Handle current operation.
+    Primitive::Type type = info->type;
     HInstruction* opa = nullptr;
     HInstruction* opb = nullptr;
     switch (info->induction_class) {
@@ -1214,15 +1216,15 @@ bool InductionVarRange::GenerateCode(HInductionVarAnalysis::InductionInfo* info,
           case HInductionVarAnalysis::kTripCountInBodyUnsafe:
             if (is_min) {
               if (graph != nullptr) {
-                *result = graph->GetIntConstant(0);
+                *result = graph->GetConstant(type, 0);
               }
               return true;
             } else if (in_body) {
               if (GenerateCode(info->op_a, trip, graph, block, &opb, in_body, is_min)) {
                 if (graph != nullptr) {
-                  *result = Insert(block,
-                                   new (graph->GetArena())
-                                       HSub(type, opb, graph->GetIntConstant(1)));
+                  *result =
+                      Insert(block,
+                             new (graph->GetArena()) HSub(type, opb, graph->GetConstant(type, 1)));
                 }
                 return true;
               }
@@ -1236,26 +1238,31 @@ bool InductionVarRange::GenerateCode(HInductionVarAnalysis::InductionInfo* info,
         // Linear induction a * i + b, for normalized 0 <= i < TC. For ranges, this should
         // be restricted to a unit stride to avoid arithmetic wrap-around situations that
         // are harder to guard against. For a last value, requesting min/max based on any
-        // stride yields right value.
-        int64_t stride_value = 0;
-        if (IsConstant(info->op_a, kExact, &stride_value)) {
-          const bool is_min_a = stride_value >= 0 ? is_min : !is_min;
-          if (GenerateCode(trip,       trip, graph, block, &opa, in_body, is_min_a) &&
-              GenerateCode(info->op_b, trip, graph, block, &opb, in_body, is_min)) {
-            if (graph != nullptr) {
-              HInstruction* oper;
-              if (stride_value == 1) {
-                oper = new (graph->GetArena()) HAdd(type, opa, opb);
-              } else if (stride_value == -1) {
-                oper = new (graph->GetArena()) HSub(type, opb, opa);
-              } else {
-                HInstruction* mul = new (graph->GetArena()) HMul(
-                    type, graph->GetIntConstant(stride_value), opa);
-                oper = new (graph->GetArena()) HAdd(type, Insert(block, mul), opb);
+        // known stride yields right value. Always avoid any narrowing linear induction or
+        // any type mismatch between the linear induction and the trip count expression.
+        // TODO: careful runtime type conversions could generalize this latter restriction.
+        if (!HInductionVarAnalysis::IsNarrowingLinear(info) && trip->type == type) {
+          int64_t stride_value = 0;
+          if (IsConstant(info->op_a, kExact, &stride_value) &&
+              CanLongValueFitIntoInt(stride_value)) {
+            const bool is_min_a = stride_value >= 0 ? is_min : !is_min;
+            if (GenerateCode(trip,       trip, graph, block, &opa, in_body, is_min_a) &&
+                GenerateCode(info->op_b, trip, graph, block, &opb, in_body, is_min)) {
+              if (graph != nullptr) {
+                HInstruction* oper;
+                if (stride_value == 1) {
+                  oper = new (graph->GetArena()) HAdd(type, opa, opb);
+                } else if (stride_value == -1) {
+                  oper = new (graph->GetArena()) HSub(type, opb, opa);
+                } else {
+                  HInstruction* mul =
+                      new (graph->GetArena()) HMul(type, graph->GetConstant(type, stride_value), opa);
+                  oper = new (graph->GetArena()) HAdd(type, Insert(block, mul), opb);
+                }
+                *result = Insert(block, oper);
               }
-              *result = Insert(block, oper);
+              return true;
             }
-            return true;
           }
         }
         break;
@@ -1270,7 +1277,7 @@ bool InductionVarRange::GenerateCode(HInductionVarAnalysis::InductionInfo* info,
         Value extreme = GetVal(info, trip, in_body, is_min);
         if (IsConstantValue(extreme)) {
           if (graph != nullptr) {
-            *result = graph->GetIntConstant(extreme.b_constant);
+            *result = graph->GetConstant(type, extreme.b_constant);
           }
           return true;
         }

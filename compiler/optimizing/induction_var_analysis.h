@@ -167,7 +167,7 @@ class HInductionVarAnalysis : public HOptimization {
   InductionInfo* TransferAddSub(InductionInfo* a, InductionInfo* b, InductionOp op);
   InductionInfo* TransferNeg(InductionInfo* a);
   InductionInfo* TransferMul(InductionInfo* a, InductionInfo* b);
-  InductionInfo* TransferCnv(InductionInfo* a, Primitive::Type from, Primitive::Type to);
+  InductionInfo* TransferConversion(InductionInfo* a, Primitive::Type from, Primitive::Type to);
 
   // Solvers.
   InductionInfo* SolvePhi(HInstruction* phi, size_t input_index, size_t adjust_input_size);
@@ -191,7 +191,9 @@ class HInductionVarAnalysis : public HOptimization {
                            HInstruction* entry_phi,
                            HInstruction* instruction,
                            int64_t oppositive_value);
-  InductionInfo* SolveCnv(HTypeConversion* conversion);
+  InductionInfo* SolveConversion(HLoopInformation* loop,
+                                 HInstruction* entry_phi,
+                                 HTypeConversion* conversion);
 
   // Trip count information.
   void VisitControl(HLoopInformation* loop);
@@ -235,6 +237,7 @@ class HInductionVarAnalysis : public HOptimization {
   bool IsAtLeast(InductionInfo* info, /*out*/ int64_t* value);
 
   // Helpers.
+  static bool IsNarrowingLinear(InductionInfo* info);
   static bool InductionEqual(InductionInfo* info1, InductionInfo* info2);
   static std::string FetchToString(HInstruction* fetch);
   static std::string InductionToString(InductionInfo* info);
