@@ -107,20 +107,20 @@ static const size_t kRuntimeParameterFpuRegistersLengthVIXL =
     arraysize(kRuntimeParameterFpuRegistersVIXL);
 
 class LoadClassSlowPathARMVIXL;
-
 class CodeGeneratorARMVIXL;
+
+using VIXLInt32Literal = vixl::aarch32::Literal<int32_t>;
+using VIXLUInt32Literal = vixl::aarch32::Literal<uint32_t>;
 
 class JumpTableARMVIXL : public DeletableArenaObject<kArenaAllocSwitchTable> {
  public:
-  typedef vixl::aarch32::Literal<int32_t> IntLiteral;
-
   explicit JumpTableARMVIXL(HPackedSwitch* switch_instr)
       : switch_instr_(switch_instr),
         table_start_(),
         bb_addresses_(switch_instr->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
     uint32_t num_entries = switch_instr_->GetNumEntries();
     for (uint32_t i = 0; i < num_entries; i++) {
-      IntLiteral *lit = new IntLiteral(0, vixl32::RawLiteral::kManuallyPlaced);
+      VIXLInt32Literal *lit = new VIXLInt32Literal(0, vixl32::RawLiteral::kManuallyPlaced);
       bb_addresses_.emplace_back(lit);
     }
   }
@@ -133,7 +133,7 @@ class JumpTableARMVIXL : public DeletableArenaObject<kArenaAllocSwitchTable> {
  private:
   HPackedSwitch* const switch_instr_;
   vixl::aarch32::Label table_start_;
-  ArenaVector<std::unique_ptr<IntLiteral>> bb_addresses_;
+  ArenaVector<std::unique_ptr<VIXLInt32Literal>> bb_addresses_;
 
   DISALLOW_COPY_AND_ASSIGN(JumpTableARMVIXL);
 };
@@ -566,7 +566,21 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
   PcRelativePatchInfo* NewPcRelativeTypePatch(const DexFile& dex_file, dex::TypeIndex type_index);
   PcRelativePatchInfo* NewPcRelativeDexCacheArrayPatch(const DexFile& dex_file,
                                                        uint32_t element_offset);
+  VIXLUInt32Literal* DeduplicateBootImageStringLiteral(const DexFile& dex_file,
+                                                       dex::StringIndex string_index);
+  VIXLUInt32Literal* DeduplicateBootImageTypeLiteral(const DexFile& dex_file,
+                                                     dex::TypeIndex type_index);
+  VIXLUInt32Literal* DeduplicateBootImageAddressLiteral(uint32_t address);
+  VIXLUInt32Literal* DeduplicateDexCacheAddressLiteral(uint32_t address);
+  VIXLUInt32Literal* DeduplicateJitStringLiteral(const DexFile& dex_file,
+                                                 dex::StringIndex string_index);
+  VIXLUInt32Literal* DeduplicateJitClassLiteral(const DexFile& dex_file,
+                                                dex::TypeIndex type_index,
+                                                uint64_t address);
+
   void EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) OVERRIDE;
+
+  void EmitJitRootPatches(uint8_t* code, const uint8_t* roots_data) OVERRIDE;
 
   // Fast path implementation of ReadBarrier::Barrier for a heap
   // reference field load when Baker's read barriers are used.
@@ -673,10 +687,21 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
   vixl::aarch32::Register GetInvokeStaticOrDirectExtraParameter(HInvokeStaticOrDirect* invoke,
                                                                 vixl::aarch32::Register temp);
 
-  using Uint32ToLiteralMap = ArenaSafeMap<uint32_t, vixl::aarch32::Literal<uint32_t>*>;
+  using Uint32ToLiteralMap = ArenaSafeMap<uint32_t, VIXLUInt32Literal*>;
   using MethodToLiteralMap =
-      ArenaSafeMap<MethodReference, vixl::aarch32::Literal<uint32_t>*, MethodReferenceComparator>;
+      ArenaSafeMap<MethodReference, VIXLUInt32Literal*, MethodReferenceComparator>;
+  using StringToLiteralMap = ArenaSafeMap<StringReference,
+                                          VIXLUInt32Literal*,
+                                          StringReferenceValueComparator>;
+  using TypeToLiteralMap = ArenaSafeMap<TypeReference,
+                                        VIXLUInt32Literal*,
+                                        TypeReferenceValueComparator>;
 
+  VIXLUInt32Literal* DeduplicateUint32Literal(uint32_t value, Uint32ToLiteralMap* map);
+  VIXLUInt32Literal* DeduplicateMethodLiteral(MethodReference target_method,
+                                              MethodToLiteralMap* map);
+  VIXLUInt32Literal* DeduplicateMethodAddressLiteral(MethodReference target_method);
+  VIXLUInt32Literal* DeduplicateMethodCodeLiteral(MethodReference target_method);
   PcRelativePatchInfo* NewPcRelativePatch(const DexFile& dex_file,
                                           uint32_t offset_or_index,
                                           ArenaDeque<PcRelativePatchInfo>* patches);
@@ -697,15 +722,31 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
   ArmVIXLAssembler assembler_;
   const ArmInstructionSetFeatures& isa_features_;
 
+  // Deduplication map for 32-bit literals, used for non-patchable boot image addresses.
+  Uint32ToLiteralMap uint32_literals_;
+  // Method patch info, map MethodReference to a literal for method address and method code.
+  MethodToLiteralMap method_patches_;
+  MethodToLiteralMap call_patches_;
   // Relative call patch info.
   // Using ArenaDeque<> which retains element addresses on push/emplace_back().
   ArenaDeque<PatchInfo<vixl::aarch32::Label>> relative_call_patches_;
   // PC-relative patch info for each HArmDexCacheArraysBase.
   ArenaDeque<PcRelativePatchInfo> pc_relative_dex_cache_patches_;
+  // Deduplication map for boot string literals for kBootImageLinkTimeAddress.
+  StringToLiteralMap boot_image_string_patches_;
   // PC-relative String patch info; type depends on configuration (app .bss or boot image PIC).
   ArenaDeque<PcRelativePatchInfo> pc_relative_string_patches_;
+  // Deduplication map for boot type literals for kBootImageLinkTimeAddress.
+  TypeToLiteralMap boot_image_type_patches_;
   // PC-relative type patch info.
   ArenaDeque<PcRelativePatchInfo> pc_relative_type_patches_;
+  // Deduplication map for patchable boot image addresses.
+  Uint32ToLiteralMap boot_image_address_patches_;
+
+  // Patches for string literals in JIT compiled code.
+  StringToLiteralMap jit_string_patches_;
+  // Patches for class literals in JIT compiled code.
+  TypeToLiteralMap jit_class_patches_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorARMVIXL);
 };
