@@ -188,7 +188,8 @@ class MarkSweep : public GarbageCollector {
   void VerifyIsLive(const mirror::Object* obj)
       REQUIRES_SHARED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
 
-  virtual bool IsMarkedHeapReference(mirror::HeapReference<mirror::Object>* ref) OVERRIDE
+  virtual bool IsNullOrMarkedHeapReference(mirror::HeapReference<mirror::Object>* ref,
+                                           bool do_atomic_update) OVERRIDE
       REQUIRES(Locks::heap_bitmap_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
