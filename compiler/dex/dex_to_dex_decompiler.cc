@@ -27,10 +27,13 @@ namespace optimizer {
 
 class DexDecompiler {
  public:
-  DexDecompiler(const DexFile::CodeItem& code_item, const ArrayRef<const uint8_t>& quickened_info)
+  DexDecompiler(const DexFile::CodeItem& code_item,
+                const ArrayRef<const uint8_t>& quickened_info,
+                bool decompile_return_instruction)
     : code_item_(code_item),
       quickened_info_ptr_(quickened_info.data()),
-      quickened_info_end_(quickened_info.data() + quickened_info.size()) {}
+      quickened_info_end_(quickened_info.data() + quickened_info.size()),
+      decompile_return_instruction_(decompile_return_instruction) {}
 
   bool Decompile();
 
@@ -87,6 +90,7 @@ class DexDecompiler {
   const DexFile::CodeItem& code_item_;
   const uint8_t* quickened_info_ptr_;
   const uint8_t* const quickened_info_end_;
+  const bool decompile_return_instruction_;
 
   DISALLOW_COPY_AND_ASSIGN(DexDecompiler);
 };
@@ -102,7 +106,9 @@ bool DexDecompiler::Decompile() {
 
     switch (inst->Opcode()) {
       case Instruction::RETURN_VOID_NO_BARRIER:
-        inst->SetOpcode(Instruction::RETURN_VOID);
+        if (decompile_return_instruction_) {
+          inst->SetOpcode(Instruction::RETURN_VOID);
+        }
         break;
 
       case Instruction::NOP:
@@ -189,8 +195,12 @@ bool DexDecompiler::Decompile() {
 }
 
 bool ArtDecompileDEX(const DexFile::CodeItem& code_item,
-                     const ArrayRef<const uint8_t>& quickened_info) {
-  DexDecompiler decompiler(code_item, quickened_info);
+                     const ArrayRef<const uint8_t>& quickened_info,
+                     bool decompile_return_instruction) {
+  if (quickened_info.size() == 0 && !decompile_return_instruction) {
+    return true;
+  }
+  DexDecompiler decompiler(code_item, quickened_info, decompile_return_instruction);
   return decompiler.Decompile();
 }
 
