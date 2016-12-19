@@ -1717,6 +1717,11 @@ TEST_F(ArmVIXLAssemblerTest, VixlJniHelpers) {
 
   __ ExceptionPoll(scratch_register, 0);
 
+  // Push the target out of range of branch emitted by ExceptionPoll.
+  for (int i = 0; i < 64; i++) {
+    __ Store(FrameOffset(2047), scratch_register, 4);
+  }
+
   __ DecreaseFrameSize(4096);
   __ DecreaseFrameSize(32);
   __ RemoveFrame(frame_size, callee_save_regs);
