@@ -421,18 +421,6 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
     if (method != nullptr) {
       if (verifier.HasInstructionThatWillThrow()) {
         method->AddAccessFlags(kAccCompileDontBother);
-        if (Runtime::Current()->IsAotCompiler() && !callbacks->IsBootImage()) {
-          // When compiling apps, make HasInstructionThatWillThrow a soft error to trigger
-          // re-verification at runtime.
-          // The dead code after the throw is not verified and might be invalid. This may cause
-          // the JIT compiler to crash since it assumes that all the code is valid.
-          //
-          // There's a strong assumption that the entire boot image is verified and all its dex
-          // code is valid (even the dead and unverified one). As such this is done only for apps.
-          // (CompilerDriver DCHECKs in VerifyClassVisitor that methods from boot image are
-          // fully verified).
-          result.kind = kSoftFailure;
-        }
       }
       if ((verifier.encountered_failure_types_ & VerifyError::VERIFY_ERROR_LOCKING) != 0) {
         method->AddAccessFlags(kAccMustCountLocks);
