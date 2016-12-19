@@ -102,7 +102,8 @@ class DexToDexDecompilerTest : public CommonCompilerTest {
         if (compiled_method != nullptr) {
           table = compiled_method->GetVmapTable();
         }
-        optimizer::ArtDecompileDEX(*it.GetMethodCodeItem(), table);
+        optimizer::ArtDecompileDEX(
+            *it.GetMethodCodeItem(), table, /* decompile_return_instruction */ true);
         it.Next();
       }
       while (it.HasNextVirtualMethod()) {
@@ -113,7 +114,8 @@ class DexToDexDecompilerTest : public CommonCompilerTest {
         if (compiled_method != nullptr) {
           table = compiled_method->GetVmapTable();
         }
-        optimizer::ArtDecompileDEX(*it.GetMethodCodeItem(), table);
+        optimizer::ArtDecompileDEX(
+            *it.GetMethodCodeItem(), table, /* decompile_return_instruction */ true);
         it.Next();
       }
       DCHECK(!it.HasNext());
