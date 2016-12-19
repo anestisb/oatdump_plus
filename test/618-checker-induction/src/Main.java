@@ -465,6 +465,20 @@ public class Main {
     return i;
   }
 
+  // TODO: handle as closed/empty eventually?
+  static int mainIndexShort1(short s) {
+    int i = 0;
+    for (i = 0; i < s; i++) { }
+    return i;
+  }
+
+  // TODO: handle as closed/empty eventually?
+  static int mainIndexShort2(short s) {
+    int i = 0;
+    for (i = 0; s > i; i++) { }
+    return i;
+  }
+
   /// CHECK-START: int Main.periodicReturnedN(int) loop_optimization (before)
   /// CHECK-DAG: <<Phi1:i\d+>> Phi               loop:<<Loop:B\d+>> outer_loop:none
   /// CHECK-DAG: <<Phi2:i\d+>> Phi               loop:<<Loop>>      outer_loop:none
@@ -693,6 +707,75 @@ public class Main {
     return x;
   }
 
+  /// CHECK-START: float Main.periodicFloat10() loop_optimization (before)
+  /// CHECK-DAG: <<Phi1:i\d+>> Phi               loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: <<Phi2:f\d+>> Phi               loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: <<Phi3:f\d+>> Phi               loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: <<Phi4:f\d+>> Phi               loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG:               Return [<<Phi2>>] loop:none
+  //
+  /// CHECK-START: float Main.periodicFloat10() loop_optimization (after)
+  /// CHECK-NOT: Phi
+  //
+  /// CHECK-START: float Main.periodicFloat10() loop_optimization (after)
+  /// CHECK-DAG: <<Float:f\d+>>  FloatConstant 2    loop:none
+  /// CHECK-DAG:                 Return [<<Float>>] loop:none
+  private static float periodicFloat10() {
+    float r = 4.5f;
+    float s = 2.0f;
+    float t = -1.0f;
+    for (int i = 0; i < 10; i++) {
+      float tmp = t; t = r; r = s; s = tmp;
+    }
+    return r;
+  }
+
+  /// CHECK-START: float Main.periodicFloat11() loop_optimization (before)
+  /// CHECK-DAG: <<Phi1:i\d+>> Phi               loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: <<Phi2:f\d+>> Phi               loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: <<Phi3:f\d+>> Phi               loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: <<Phi4:f\d+>> Phi               loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG:               Return [<<Phi2>>] loop:none
+  //
+  /// CHECK-START: float Main.periodicFloat11() loop_optimization (after)
+  /// CHECK-NOT: Phi
+  //
+  /// CHECK-START: float Main.periodicFloat11() loop_optimization (after)
+  /// CHECK-DAG: <<Float:f\d+>>  FloatConstant -1   loop:none
+  /// CHECK-DAG:                 Return [<<Float>>] loop:none
+  private static float periodicFloat11() {
+    float r = 4.5f;
+    float s = 2.0f;
+    float t = -1.0f;
+    for (int i = 0; i < 11; i++) {
+      float tmp = t; t = r; r = s; s = tmp;
+    }
+    return r;
+  }
+
+  /// CHECK-START: float Main.periodicFloat12() loop_optimization (before)
+  /// CHECK-DAG: <<Phi1:i\d+>> Phi               loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: <<Phi2:f\d+>> Phi               loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: <<Phi3:f\d+>> Phi               loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: <<Phi4:f\d+>> Phi               loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG:               Return [<<Phi2>>] loop:none
+  //
+  /// CHECK-START: float Main.periodicFloat12() loop_optimization (after)
+  /// CHECK-NOT: Phi
+  //
+  /// CHECK-START: float Main.periodicFloat12() loop_optimization (after)
+  /// CHECK-DAG: <<Float:f\d+>>  FloatConstant 4.5  loop:none
+  /// CHECK-DAG:                 Return [<<Float>>] loop:none
+  private static float periodicFloat12() {
+    float r = 4.5f;
+    float s = 2.0f;
+    float t = -1.0f;
+    for (int i = 0; i < 12; i++) {
+      float tmp = t; t = r; r = s; s = tmp;
+    }
+    return r;
+  }
+
   private static int exceptionExitBeforeAdd() {
     int k = 0;
     try {
@@ -779,6 +862,8 @@ public class Main {
     for (int n = -4; n < 4; n++) {
       int tc = (n <= 0) ? 0 : n;
       expectEquals(tc, mainIndexReturnedN(n));
+      expectEquals(tc, mainIndexShort1((short) n));
+      expectEquals(tc, mainIndexShort2((short) n));
       expectEquals(tc & 1, periodicReturnedN(n));
       expectEquals((tc * (tc + 1)) / 2, getSumN(n));
     }
@@ -803,6 +888,10 @@ public class Main {
       expectEquals(!even, periodicBoolIdiom3N(false, n));
     }
 
+    expectEquals( 2.0f, periodicFloat10());
+    expectEquals(-1.0f, periodicFloat11());
+    expectEquals( 4.5f, periodicFloat12());
+
     expectEquals(100, exceptionExitBeforeAdd());
     expectEquals(100, exceptionExitAfterAdd());
     a = null;
@@ -813,6 +902,12 @@ public class Main {
     expectEquals(-51, exceptionExitAfterAdd());
 
     System.out.println("passed");
+  }
+
+  private static void expectEquals(float expected, float result) {
+    if (expected != result) {
+      throw new Error("Expected: " + expected + ", found: " + result);
+    }
   }
 
   private static void expectEquals(int expected, int result) {
