@@ -30,7 +30,8 @@ namespace optimizer {
 // consistent with DexToDexCompiler, but we should really change it to
 // DexFile::CodeItem*.
 bool ArtDecompileDEX(const DexFile::CodeItem& code_item,
-                     const ArrayRef<const uint8_t>& quickened_data);
+                     const ArrayRef<const uint8_t>& quickened_data,
+                     bool decompile_return_instruction);
 
 }  // namespace optimizer
 }  // namespace art

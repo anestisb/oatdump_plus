@@ -435,7 +435,8 @@ INTRINSICS_LIST(SETUP_INTRINSICS)
 
 // In-place unquicken the given `dex_files` based on `quickening_info`.
 static void Unquicken(const std::vector<const DexFile*>& dex_files,
-                      const ArrayRef<const uint8_t>& quickening_info) {
+                      const ArrayRef<const uint8_t>& quickening_info,
+                      bool decompile_return_instruction) {
   const uint8_t* quickening_info_ptr = quickening_info.data();
   const uint8_t* const quickening_info_end = quickening_info.data() + quickening_info.size();
   for (const DexFile* dex_file : dex_files) {
@@ -454,14 +455,14 @@ static void Unquicken(const std::vector<const DexFile*>& dex_files,
         it.Next();
       }
 
-      // Unquicken each method.
       while (it.HasNextDirectMethod()) {
         const DexFile::CodeItem* code_item = it.GetMethodCodeItem();
         if (code_item != nullptr) {
           uint32_t quickening_size = *reinterpret_cast<const uint32_t*>(quickening_info_ptr);
           quickening_info_ptr += sizeof(uint32_t);
-          optimizer::ArtDecompileDEX(
-              *code_item, ArrayRef<const uint8_t>(quickening_info_ptr, quickening_size));
+          optimizer::ArtDecompileDEX(*code_item,
+                                     ArrayRef<const uint8_t>(quickening_info_ptr, quickening_size),
+                                     decompile_return_instruction);
           quickening_info_ptr += quickening_size;
         }
         it.Next();
@@ -472,8 +473,9 @@ static void Unquicken(const std::vector<const DexFile*>& dex_files,
         if (code_item != nullptr) {
           uint32_t quickening_size = *reinterpret_cast<const uint32_t*>(quickening_info_ptr);
           quickening_info_ptr += sizeof(uint32_t);
-          optimizer::ArtDecompileDEX(
-              *code_item, ArrayRef<const uint8_t>(quickening_info_ptr, quickening_size));
+          optimizer::ArtDecompileDEX(*code_item,
+                                     ArrayRef<const uint8_t>(quickening_info_ptr, quickening_size),
+                                     decompile_return_instruction);
           quickening_info_ptr += quickening_size;
         }
         it.Next();
@@ -493,7 +495,10 @@ void CompilerDriver::CompileAll(jobject class_loader,
     // if the boot image has changed. How exactly we'll know is under
     // experimentation.
     TimingLogger::ScopedTiming t("Unquicken", timings);
-    Unquicken(dex_files, vdex_file->GetQuickeningInfo());
+    // We do not decompile a RETURN_VOID_NO_BARRIER into a RETURN_VOID, as the quickening
+    // optimization does not depend on the boot image (the optimization relies on not
+    // having final fields in a class, which does not change for an app).
+    Unquicken(dex_files, vdex_file->GetQuickeningInfo(), /* decompile_return_instruction */ false);
     Runtime::Current()->GetCompilerCallbacks()->SetVerifierDeps(
         new verifier::VerifierDeps(dex_files, vdex_file->GetVerifierDepsData()));
   }
