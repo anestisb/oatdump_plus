@@ -171,6 +171,7 @@ class HInstructionList : public ValueObject {
   friend class HGraph;
   friend class HInstruction;
   friend class HInstructionIterator;
+  friend class HInstructionIteratorHandleChanges;
   friend class HBackwardInstructionIterator;
 
   DISALLOW_COPY_AND_ASSIGN(HInstructionList);
@@ -2312,6 +2313,9 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
 };
 std::ostream& operator<<(std::ostream& os, const HInstruction::InstructionKind& rhs);
 
+// Iterates over the instructions, while preserving the next instruction
+// in case the current instruction gets removed from the list by the user
+// of this iterator.
 class HInstructionIterator : public ValueObject {
  public:
   explicit HInstructionIterator(const HInstructionList& instructions)
@@ -2332,6 +2336,28 @@ class HInstructionIterator : public ValueObject {
 
   DISALLOW_COPY_AND_ASSIGN(HInstructionIterator);
 };
+
+// Iterates over the instructions without saving the next instruction,
+// therefore handling changes in the graph potentially made by the user
+// of this iterator.
+class HInstructionIteratorHandleChanges : public ValueObject {
+ public:
+  explicit HInstructionIteratorHandleChanges(const HInstructionList& instructions)
+      : instruction_(instructions.first_instruction_) {
+  }
+
+  bool Done() const { return instruction_ == nullptr; }
+  HInstruction* Current() const { return instruction_; }
+  void Advance() {
+    instruction_ = instruction_->GetNext();
+  }
+
+ private:
+  HInstruction* instruction_;
+
+  DISALLOW_COPY_AND_ASSIGN(HInstructionIteratorHandleChanges);
+};
+
 
 class HBackwardInstructionIterator : public ValueObject {
  public:
@@ -5056,60 +5082,62 @@ class HNullCheck FINAL : public HExpression<1> {
   DISALLOW_COPY_AND_ASSIGN(HNullCheck);
 };
 
+// Embeds an ArtField and all the information required by the compiler. We cache
+// that information to avoid requiring the mutator lock every time we need it.
 class FieldInfo : public ValueObject {
  public:
-  FieldInfo(MemberOffset field_offset,
+  FieldInfo(ArtField* field,
+            MemberOffset field_offset,
             Primitive::Type field_type,
             bool is_volatile,
             uint32_t index,
             uint16_t declaring_class_def_index,
-            const DexFile& dex_file,
-            Handle<mirror::DexCache> dex_cache)
-      : field_offset_(field_offset),
+            const DexFile& dex_file)
+      : field_(field),
+        field_offset_(field_offset),
         field_type_(field_type),
         is_volatile_(is_volatile),
         index_(index),
         declaring_class_def_index_(declaring_class_def_index),
-        dex_file_(dex_file),
-        dex_cache_(dex_cache) {}
+        dex_file_(dex_file) {}
 
+  ArtField* GetField() const { return field_; }
   MemberOffset GetFieldOffset() const { return field_offset_; }
   Primitive::Type GetFieldType() const { return field_type_; }
   uint32_t GetFieldIndex() const { return index_; }
   uint16_t GetDeclaringClassDefIndex() const { return declaring_class_def_index_;}
   const DexFile& GetDexFile() const { return dex_file_; }
   bool IsVolatile() const { return is_volatile_; }
-  Handle<mirror::DexCache> GetDexCache() const { return dex_cache_; }
 
  private:
+  ArtField* const field_;
   const MemberOffset field_offset_;
   const Primitive::Type field_type_;
   const bool is_volatile_;
   const uint32_t index_;
   const uint16_t declaring_class_def_index_;
   const DexFile& dex_file_;
-  const Handle<mirror::DexCache> dex_cache_;
 };
 
 class HInstanceFieldGet FINAL : public HExpression<1> {
  public:
   HInstanceFieldGet(HInstruction* value,
+                    ArtField* field,
                     Primitive::Type field_type,
                     MemberOffset field_offset,
                     bool is_volatile,
                     uint32_t field_idx,
                     uint16_t declaring_class_def_index,
                     const DexFile& dex_file,
-                    Handle<mirror::DexCache> dex_cache,
                     uint32_t dex_pc)
       : HExpression(field_type, SideEffects::FieldReadOfType(field_type, is_volatile), dex_pc),
-        field_info_(field_offset,
+        field_info_(field,
+                    field_offset,
                     field_type,
                     is_volatile,
                     field_idx,
                     declaring_class_def_index,
-                    dex_file,
-                    dex_cache) {
+                    dex_file) {
     SetRawInputAt(0, value);
   }
 
@@ -5145,22 +5173,22 @@ class HInstanceFieldSet FINAL : public HTemplateInstruction<2> {
  public:
   HInstanceFieldSet(HInstruction* object,
                     HInstruction* value,
+                    ArtField* field,
                     Primitive::Type field_type,
                     MemberOffset field_offset,
                     bool is_volatile,
                     uint32_t field_idx,
                     uint16_t declaring_class_def_index,
                     const DexFile& dex_file,
-                    Handle<mirror::DexCache> dex_cache,
                     uint32_t dex_pc)
       : HTemplateInstruction(SideEffects::FieldWriteOfType(field_type, is_volatile), dex_pc),
-        field_info_(field_offset,
+        field_info_(field,
+                    field_offset,
                     field_type,
                     is_volatile,
                     field_idx,
                     declaring_class_def_index,
-                    dex_file,
-                    dex_cache) {
+                    dex_file) {
     SetPackedFlag<kFlagValueCanBeNull>(true);
     SetRawInputAt(0, object);
     SetRawInputAt(1, value);
@@ -5949,22 +5977,22 @@ class HClinitCheck FINAL : public HExpression<1> {
 class HStaticFieldGet FINAL : public HExpression<1> {
  public:
   HStaticFieldGet(HInstruction* cls,
+                  ArtField* field,
                   Primitive::Type field_type,
                   MemberOffset field_offset,
                   bool is_volatile,
                   uint32_t field_idx,
                   uint16_t declaring_class_def_index,
                   const DexFile& dex_file,
-                  Handle<mirror::DexCache> dex_cache,
                   uint32_t dex_pc)
       : HExpression(field_type, SideEffects::FieldReadOfType(field_type, is_volatile), dex_pc),
-        field_info_(field_offset,
+        field_info_(field,
+                    field_offset,
                     field_type,
                     is_volatile,
                     field_idx,
                     declaring_class_def_index,
-                    dex_file,
-                    dex_cache) {
+                    dex_file) {
     SetRawInputAt(0, cls);
   }
 
@@ -5997,22 +6025,22 @@ class HStaticFieldSet FINAL : public HTemplateInstruction<2> {
  public:
   HStaticFieldSet(HInstruction* cls,
                   HInstruction* value,
+                  ArtField* field,
                   Primitive::Type field_type,
                   MemberOffset field_offset,
                   bool is_volatile,
                   uint32_t field_idx,
                   uint16_t declaring_class_def_index,
                   const DexFile& dex_file,
-                  Handle<mirror::DexCache> dex_cache,
                   uint32_t dex_pc)
       : HTemplateInstruction(SideEffects::FieldWriteOfType(field_type, is_volatile), dex_pc),
-        field_info_(field_offset,
+        field_info_(field,
+                    field_offset,
                     field_type,
                     is_volatile,
                     field_idx,
                     declaring_class_def_index,
-                    dex_file,
-                    dex_cache) {
+                    dex_file) {
     SetPackedFlag<kFlagValueCanBeNull>(true);
     SetRawInputAt(0, cls);
     SetRawInputAt(1, value);

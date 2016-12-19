@@ -428,13 +428,13 @@ HInstanceFieldGet* HInliner::BuildGetReceiverClass(ClassLinker* class_linker,
   DCHECK_EQ(std::string(field->GetName()), "shadow$_klass_");
   HInstanceFieldGet* result = new (graph_->GetArena()) HInstanceFieldGet(
       receiver,
+      field,
       Primitive::kPrimNot,
       field->GetOffset(),
       field->IsVolatile(),
       field->GetDexFieldIndex(),
       field->GetDeclaringClass()->GetDexClassDefIndex(),
       *field->GetDexFile(),
-      handles_->NewHandle(field->GetDexCache()),
       dex_pc);
   // The class of a field is effectively final, and does not have any memory dependencies.
   result->SetSideEffects(SideEffects::None());
@@ -613,6 +613,9 @@ bool HInliner::TryInlinePolymorphicCall(HInvoke* invoke_instruction,
     } else {
       one_target_inlined = true;
 
+      VLOG(compiler) << "Polymorphic call to " << ArtMethod::PrettyMethod(resolved_method)
+                     << " has inlined " << ArtMethod::PrettyMethod(method);
+
       // If we have inlined all targets before, and this receiver is the last seen,
       // we deoptimize instead of keeping the original invoke instruction.
       bool deoptimize = all_targets_inlined &&
@@ -650,6 +653,7 @@ bool HInliner::TryInlinePolymorphicCall(HInvoke* invoke_instruction,
                    << " of its targets could be inlined";
     return false;
   }
+
   MaybeRecordStat(kInlinedPolymorphicCall);
 
   // Run type propagation to get the guards typed.
@@ -1150,13 +1154,13 @@ HInstanceFieldGet* HInliner::CreateInstanceFieldGet(Handle<mirror::DexCache> dex
   DCHECK(resolved_field != nullptr);
   HInstanceFieldGet* iget = new (graph_->GetArena()) HInstanceFieldGet(
       obj,
+      resolved_field,
       resolved_field->GetTypeAsPrimitiveType(),
       resolved_field->GetOffset(),
       resolved_field->IsVolatile(),
       field_index,
       resolved_field->GetDeclaringClass()->GetDexClassDefIndex(),
       *dex_cache->GetDexFile(),
-      dex_cache,
       // Read barrier generates a runtime call in slow path and we need a valid
       // dex pc for the associated stack map. 0 is bogus but valid. Bug: 26854537.
       /* dex_pc */ 0);
@@ -1179,13 +1183,13 @@ HInstanceFieldSet* HInliner::CreateInstanceFieldSet(Handle<mirror::DexCache> dex
   HInstanceFieldSet* iput = new (graph_->GetArena()) HInstanceFieldSet(
       obj,
       value,
+      resolved_field,
       resolved_field->GetTypeAsPrimitiveType(),
       resolved_field->GetOffset(),
       resolved_field->IsVolatile(),
       field_index,
       resolved_field->GetDeclaringClass()->GetDexClassDefIndex(),
       *dex_cache->GetDexFile(),
-      dex_cache,
       // Read barrier generates a runtime call in slow path and we need a valid
       // dex pc for the associated stack map. 0 is bogus but valid. Bug: 26854537.
       /* dex_pc */ 0);
@@ -1559,6 +1563,13 @@ bool HInliner::ReturnTypeMoreSpecific(HInvoke* invoke_instruction,
                                     /* declared_can_be_null */ true,
                                     return_replacement)) {
         return true;
+      } else if (return_replacement->IsInstanceFieldGet()) {
+        HInstanceFieldGet* field_get = return_replacement->AsInstanceFieldGet();
+        ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+        if (field_get->GetFieldInfo().GetField() ==
+              class_linker->GetClassRoot(ClassLinker::kJavaLangObject)->GetInstanceField(0)) {
+          return true;
+        }
       }
     } else if (return_replacement->IsInstanceOf()) {
       // Inlining InstanceOf into an If may put a tighter bound on reference types.
