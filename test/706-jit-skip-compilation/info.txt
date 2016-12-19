@@ -1,0 +1,4 @@
+Regression test for the JIT crashing when compiling a method with invalid
+dead dex code. For not compilable methods we don't gather samples and we don't
+trigger JIT compilation. However kAccDontBotherCompile is not persisted in the
+oat file and so we may end up compiling a method which we shouldn't.
