@@ -90,6 +90,8 @@ void* ThreadPoolWorker::Callback(void* arg) {
   Runtime* runtime = Runtime::Current();
   CHECK(runtime->AttachCurrentThread(worker->name_.c_str(), true, nullptr, false));
   worker->thread_ = Thread::Current();
+  // Thread pool workers cannot call into java.
+  worker->thread_->SetCanCallIntoJava(false);
   // Do work until its time to shut down.
   worker->Run();
   runtime->DetachCurrentThread();
