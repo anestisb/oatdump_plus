@@ -205,6 +205,15 @@ class ArmVIXLAssembler FINAL : public Assembler {
                        int32_t value,
                        vixl32::Condition cond = vixl32::al);
 
+  template <typename T>
+  vixl::aarch32::Literal<T>* CreateLiteralDestroyedWithPool(T value) {
+    vixl::aarch32::Literal<T>* literal =
+        new vixl::aarch32::Literal<T>(value,
+                                      vixl32::RawLiteral::kPlacedWhenUsed,
+                                      vixl32::RawLiteral::kDeletedOnPoolDestruction);
+    return literal;
+  }
+
  private:
   // VIXL assembler.
   ArmVIXLMacroAssembler vixl_masm_;
