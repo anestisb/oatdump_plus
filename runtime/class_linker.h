@@ -652,6 +652,8 @@ class ClassLinker {
   };
 
  private:
+  class LinkInterfaceMethodsHelper;
+
   struct ClassLoaderData {
     jweak weak_root;  // Weak root to enable class unloading.
     ClassTable* class_table;
@@ -1087,6 +1089,12 @@ class ClassLinker {
   // Check that c1 == FindSystemClass(self, descriptor). Abort with class dumps otherwise.
   void CheckSystemClass(Thread* self, Handle<mirror::Class> c1, const char* descriptor)
       REQUIRES(!Locks::dex_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Allocate method arrays for interfaces.
+  bool AllocateIfTableMethodArrays(Thread* self,
+                                   Handle<mirror::Class> klass,
+                                   Handle<mirror::IfTable> iftable)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Sets imt_ref appropriately for LinkInterfaceMethods.
