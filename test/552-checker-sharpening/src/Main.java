@@ -55,6 +55,9 @@ public class Main {
   /// CHECK-NOT:            MipsDexCacheArraysBase
   /// CHECK:                InvokeStaticOrDirect method_load_kind:dex_cache_pc_relative
 
+  /// CHECK-START-MIPS64: int Main.testSimple(int) sharpening (after)
+  /// CHECK:                InvokeStaticOrDirect method_load_kind:dex_cache_pc_relative
+
   /// CHECK-START-X86: int Main.testSimple(int) sharpening (after)
   /// CHECK-NOT:            X86ComputeBaseMethodAddress
   /// CHECK:                InvokeStaticOrDirect method_load_kind:dex_cache_pc_relative
@@ -93,6 +96,10 @@ public class Main {
 
   /// CHECK-START-MIPS: int Main.testDiamond(boolean, int) sharpening (after)
   /// CHECK-NOT:            MipsDexCacheArraysBase
+  /// CHECK:                InvokeStaticOrDirect method_load_kind:dex_cache_pc_relative
+  /// CHECK:                InvokeStaticOrDirect method_load_kind:dex_cache_pc_relative
+
+  /// CHECK-START-MIPS64: int Main.testDiamond(boolean, int) sharpening (after)
   /// CHECK:                InvokeStaticOrDirect method_load_kind:dex_cache_pc_relative
   /// CHECK:                InvokeStaticOrDirect method_load_kind:dex_cache_pc_relative
 
@@ -274,6 +281,11 @@ public class Main {
   // TODO: Remove DexCacheViaMethod when read barrier config supports BootImageAddress.
   /// CHECK:                LoadString load_kind:{{BootImageAddress|BssEntry|DexCacheViaMethod}}
 
+  /// CHECK-START-MIPS64: java.lang.String Main.$noinline$getBootImageString() sharpening (after)
+  // Note: load kind depends on PIC/non-PIC
+  // TODO: Remove DexCacheViaMethod when read barrier config supports BootImageAddress.
+  /// CHECK:                LoadString load_kind:{{BootImageAddress|BssEntry|DexCacheViaMethod}}
+
   public static String $noinline$getBootImageString() {
     // Prevent inlining to avoid the string comparison being optimized away.
     if (doThrow) { throw new Error(); }
@@ -301,6 +313,9 @@ public class Main {
   /// CHECK:                LoadString load_kind:BssEntry
 
   /// CHECK-START-MIPS: java.lang.String Main.$noinline$getNonBootImageString() sharpening (after)
+  /// CHECK:                LoadString load_kind:BssEntry
+
+  /// CHECK-START-MIPS64: java.lang.String Main.$noinline$getNonBootImageString() sharpening (after)
   /// CHECK:                LoadString load_kind:BssEntry
 
   public static String $noinline$getNonBootImageString() {
@@ -334,6 +349,11 @@ public class Main {
   /// CHECK:                LoadClass load_kind:{{BootImageAddress|DexCachePcRelative|DexCacheViaMethod}} class_name:java.lang.String
 
   /// CHECK-START-MIPS: java.lang.Class Main.$noinline$getStringClass() sharpening (after)
+  // Note: load kind depends on PIC/non-PIC
+  // TODO: Remove DexCacheViaMethod when read barrier config supports BootImageAddress.
+  /// CHECK:                LoadClass load_kind:{{BootImageAddress|DexCachePcRelative|DexCacheViaMethod}} class_name:java.lang.String
+
+  /// CHECK-START-MIPS64: java.lang.Class Main.$noinline$getStringClass() sharpening (after)
   // Note: load kind depends on PIC/non-PIC
   // TODO: Remove DexCacheViaMethod when read barrier config supports BootImageAddress.
   /// CHECK:                LoadClass load_kind:{{BootImageAddress|DexCachePcRelative|DexCacheViaMethod}} class_name:java.lang.String
@@ -374,6 +394,9 @@ public class Main {
   /// CHECK-START-MIPS: java.lang.Class Main.$noinline$getOtherClass() dex_cache_array_fixups_mips (after)
   /// CHECK-DAG:            MipsDexCacheArraysBase
   /// CHECK-DAG:            LoadClass load_kind:DexCachePcRelative class_name:Other
+
+  /// CHECK-START-MIPS64: java.lang.Class Main.$noinline$getOtherClass() sharpening (after)
+  /// CHECK:                LoadClass load_kind:DexCachePcRelative class_name:Other
 
   public static Class<?> $noinline$getOtherClass() {
     // Prevent inlining to avoid the string comparison being optimized away.
