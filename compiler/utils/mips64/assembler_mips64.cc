@@ -1829,10 +1829,10 @@ void Mips64Assembler::EmitBranch(Mips64Assembler::Branch* branch) {
 
     // Far label.
     case Branch::kFarLabel:
-      offset += (offset & 0x8000) << 1;  // Account for sign extension in addiu.
+      offset += (offset & 0x8000) << 1;  // Account for sign extension in daddiu.
       CHECK_EQ(overwrite_location_, branch->GetOffsetLocation());
       Auipc(AT, High16Bits(offset));
-      Addiu(lhs, AT, Low16Bits(offset));
+      Daddiu(lhs, AT, Low16Bits(offset));
       break;
     // Far literals.
     case Branch::kFarLiteral:
