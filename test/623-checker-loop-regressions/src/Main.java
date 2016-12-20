@@ -82,6 +82,88 @@ public class Main {
     return 0;
   }
 
+  // Regression test for b/33774618: transfer operations involving
+  // narrowing linear induction should be done correctly.
+  //
+  /// CHECK-START: int Main.transferNarrowWrap() loop_optimization (before)
+  /// CHECK-DAG: Phi loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: Phi loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: Phi loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: Phi loop:<<Loop>>      outer_loop:none
+  //
+  /// CHECK-START: int Main.transferNarrowWrap() loop_optimization (after)
+  /// CHECK-DAG: Phi loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: Phi loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: Phi loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: Phi loop:<<Loop>>      outer_loop:none
+  static int transferNarrowWrap() {
+    short x = 0;
+    int w = 10;
+    int v = 3;
+    for (int i = 0; i < 10; i++) {
+      v = w + 1;    // transfer on wrap-around
+      w = x;   // wrap-around
+      x += 2;  // narrowing linear
+    }
+    return v;
+  }
+
+  // Regression test for b/33774618: transfer operations involving
+  // narrowing linear induction should be done correctly
+  // (currently rejected, could be improved).
+  //
+  /// CHECK-START: int Main.polynomialShort() loop_optimization (before)
+  /// CHECK-DAG: Phi loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: Phi loop:<<Loop>>      outer_loop:none
+  //
+  /// CHECK-START: int Main.polynomialShort() loop_optimization (after)
+  /// CHECK-DAG: Phi loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: Phi loop:<<Loop>>      outer_loop:none
+  static int polynomialShort() {
+    int x = 0;
+    for (short i = 0; i < 10; i++) {
+      x = x - i;  // polynomial on narrowing linear
+    }
+    return x;
+  }
+
+  // Regression test for b/33774618: transfer operations involving
+  // narrowing linear induction should be done correctly
+  // (currently rejected, could be improved).
+  //
+  /// CHECK-START: int Main.polynomialIntFromLong() loop_optimization (before)
+  /// CHECK-DAG: Phi loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: Phi loop:<<Loop>>      outer_loop:none
+  //
+  /// CHECK-START: int Main.polynomialIntFromLong() loop_optimization (after)
+  /// CHECK-DAG: Phi loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: Phi loop:<<Loop>>      outer_loop:none
+  static int polynomialIntFromLong() {
+    int x = 0;
+    for (long i = 0; i < 10; i++) {
+      x = x - (int) i;  // polynomial on narrowing linear
+    }
+    return x;
+  }
+
+  /// CHECK-START: int Main.polynomialInt() loop_optimization (before)
+  /// CHECK-DAG: Phi loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: Phi loop:<<Loop>>      outer_loop:none
+  //
+  /// CHECK-START: int Main.polynomialInt() loop_optimization (after)
+  /// CHECK-NOT: Phi
+  //
+  /// CHECK-START: int Main.polynomialInt() instruction_simplifier$after_bce (after)
+  /// CHECK-DAG: <<Int:i\d+>>  IntConstant -45 loop:none
+  /// CHECK-DAG:               Return [<<Int>>]  loop:none
+  static int polynomialInt() {
+    int x = 0;
+    for (int i = 0; i < 10; i++) {
+      x = x - i;
+    }
+    return x;
+  }
+
   public static void main(String[] args) {
     expectEquals(10, earlyExitFirst(-1));
     for (int i = 0; i <= 10; i++) {
@@ -97,6 +179,11 @@ public class Main {
     expectEquals(10, earlyExitLast(11));
 
     expectEquals(2, earlyExitNested());
+
+    expectEquals(17, transferNarrowWrap());
+    expectEquals(-45, polynomialShort());
+    expectEquals(-45, polynomialIntFromLong());
+    expectEquals(-45, polynomialInt());
 
     System.out.println("passed");
   }
