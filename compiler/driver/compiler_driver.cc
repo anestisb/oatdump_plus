@@ -423,7 +423,7 @@ INTRINSICS_LIST(SETUP_INTRINSICS)
   // Compile:
   // 1) Compile all classes and methods enabled for compilation. May fall back to dex-to-dex
   //    compilation.
-  if (!GetCompilerOptions().VerifyAtRuntime() && !GetCompilerOptions().VerifyOnlyProfile()) {
+  if (GetCompilerOptions().IsAnyMethodCompilationEnabled()) {
     Compile(class_loader, dex_files, timings);
   }
   if (dump_stats_) {
@@ -494,11 +494,15 @@ void CompilerDriver::CompileAll(jobject class_loader,
     // TODO: we unquicken unconditionnally, as we don't know
     // if the boot image has changed. How exactly we'll know is under
     // experimentation.
-    TimingLogger::ScopedTiming t("Unquicken", timings);
-    // We do not decompile a RETURN_VOID_NO_BARRIER into a RETURN_VOID, as the quickening
-    // optimization does not depend on the boot image (the optimization relies on not
-    // having final fields in a class, which does not change for an app).
-    Unquicken(dex_files, vdex_file->GetQuickeningInfo(), /* decompile_return_instruction */ false);
+    if (vdex_file->GetQuickeningInfo().size() != 0) {
+      TimingLogger::ScopedTiming t("Unquicken", timings);
+      // We do not decompile a RETURN_VOID_NO_BARRIER into a RETURN_VOID, as the quickening
+      // optimization does not depend on the boot image (the optimization relies on not
+      // having final fields in a class, which does not change for an app).
+      Unquicken(dex_files,
+                vdex_file->GetQuickeningInfo(),
+                /* decompile_return_instruction */ false);
+    }
     Runtime::Current()->GetCompilerCallbacks()->SetVerifierDeps(
         new verifier::VerifierDeps(dex_files, vdex_file->GetVerifierDepsData()));
   }
@@ -510,10 +514,7 @@ static optimizer::DexToDexCompilationLevel GetDexToDexCompilationLevel(
     const DexFile& dex_file, const DexFile::ClassDef& class_def)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   auto* const runtime = Runtime::Current();
-  if (runtime->UseJitCompilation() || driver.GetCompilerOptions().VerifyAtRuntime()) {
-    // Verify at runtime shouldn't dex to dex since we didn't resolve of verify.
-    return optimizer::DexToDexCompilationLevel::kDontDexToDexCompile;
-  }
+  DCHECK(driver.GetCompilerOptions().IsAnyMethodCompilationEnabled());
   const char* descriptor = dex_file.GetClassDescriptor(class_def);
   ClassLinker* class_linker = runtime->GetClassLinker();
   mirror::Class* klass = class_linker->FindClass(self, descriptor, class_loader);
@@ -954,24 +955,17 @@ void CompilerDriver::PreCompile(jobject class_loader,
   LoadImageClasses(timings);
   VLOG(compiler) << "LoadImageClasses: " << GetMemoryUsageString(false);
 
-  const bool verification_enabled = compiler_options_->IsVerificationEnabled();
-  const bool never_verify = compiler_options_->NeverVerify();
-  const bool verify_only_profile = compiler_options_->VerifyOnlyProfile();
-
-  // We need to resolve for never_verify since it needs to run dex to dex to add the
-  // RETURN_VOID_NO_BARRIER.
-  // Let the verifier resolve as needed for the verify_only_profile case.
-  if ((never_verify || verification_enabled) && !verify_only_profile) {
+  if (compiler_options_->IsAnyMethodCompilationEnabled()) {
     Resolve(class_loader, dex_files, timings);
     VLOG(compiler) << "Resolve: " << GetMemoryUsageString(false);
   }
 
-  if (never_verify) {
+  if (compiler_options_->AssumeClassesAreVerified()) {
     VLOG(compiler) << "Verify none mode specified, skipping verification.";
     SetVerified(class_loader, dex_files, timings);
   }
 
-  if (!verification_enabled) {
+  if (!compiler_options_->IsVerificationEnabled()) {
     return;
   }
 
@@ -989,7 +983,7 @@ void CompilerDriver::PreCompile(jobject class_loader,
                << "situations. Please check the log.";
   }
 
-  if (!verify_only_profile) {
+  if (compiler_options_->IsAnyMethodCompilationEnabled()) {
     InitializeClasses(class_loader, dex_files, timings);
     VLOG(compiler) << "InitializeClasses: " << GetMemoryUsageString(false);
   }
@@ -2069,7 +2063,7 @@ void CompilerDriver::Verify(jobject jclass_loader,
         for (uint32_t i = 0; i < dex_file->NumClassDefs(); ++i) {
           const DexFile::ClassDef& class_def = dex_file->GetClassDef(i);
           if (set.find(class_def.class_idx_) == set.end()) {
-            if (GetCompilerOptions().VerifyOnlyProfile()) {
+            if (!GetCompilerOptions().IsAnyMethodCompilationEnabled()) {
               // Just update the compiled_classes_ map. The compiler doesn't need to resolve
               // the type.
               compiled_classes_.Overwrite(
