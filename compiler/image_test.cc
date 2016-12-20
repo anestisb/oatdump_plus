@@ -244,6 +244,7 @@ void CompilationHelper::Compile(CompilerDriver* driver,
             driver->GetInstructionSetFeatures(),
             &key_value_store,
             /* verify */ false,           // Dex files may be dex-to-dex-ed, don't verify.
+            /* update_input_vdex */ false,
             &cur_opened_dex_files_map,
             &cur_opened_dex_files);
         ASSERT_TRUE(dex_files_ok);
