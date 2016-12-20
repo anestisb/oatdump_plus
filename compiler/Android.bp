@@ -49,6 +49,7 @@ art_cc_defaults {
         "optimizing/block_builder.cc",
         "optimizing/bounds_check_elimination.cc",
         "optimizing/builder.cc",
+        "optimizing/cha_guard_optimization.cc",
         "optimizing/code_generator.cc",
         "optimizing/code_generator_utils.cc",
         "optimizing/constant_folding.cc",
