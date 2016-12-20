@@ -60,6 +60,7 @@ ARGS=""
 EXTERNAL_LOG_TAGS="n" # if y respect externally set ANDROID_LOG_TAGS.
 DRY_RUN="n" # if y prepare to run the test but don't run it.
 TEST_VDEX="n"
+APP_IMAGE="y"
 
 while true; do
     if [ "x$1" = "x--quiet" ]; then
@@ -135,6 +136,9 @@ while true; do
         shift
     elif [ "x$1" = "x--prebuild" ]; then
         PREBUILD="y"
+        shift
+    elif [ "x$1" = "x--no-app-image" ]; then
+        APP_IMAGE="n"
         shift
     elif [ "x$1" = "x--strip-dex" ]; then
         STRIP_DEX="y"
@@ -373,8 +377,8 @@ fi
 if [ "$JIT" = "y" ]; then
     INT_OPTS="-Xusejit:true"
     if [ "$VERIFY" = "y" ] ; then
-      INT_OPTS="${INT_OPTS} -Xcompiler-option --compiler-filter=verify-at-runtime"
-      COMPILE_FLAGS="${COMPILE_FLAGS} --compiler-filter=verify-at-runtime"
+      INT_OPTS="${INT_OPTS} -Xcompiler-option --compiler-filter=interpret-only"
+      COMPILE_FLAGS="${COMPILE_FLAGS} --compiler-filter=interpret-only"
     else
       INT_OPTS="${INT_OPTS} -Xcompiler-option --compiler-filter=verify-none"
       COMPILE_FLAGS="${COMPILE_FLAGS} --compiler-filter=verify-none"
@@ -479,11 +483,14 @@ vdex_cmdline="true"
 mkdir_locations="${DEX_LOCATION}/dalvik-cache/$ISA"
 strip_cmdline="true"
 
-# Pick a base that will force the app image to get relocated.
-app_image="--base=0x4000 --app-image-file=$DEX_LOCATION/oat/$ISA/$TEST_NAME.art"
 
 if [ "$PREBUILD" = "y" ]; then
   mkdir_locations="${mkdir_locations} ${DEX_LOCATION}/oat/$ISA"
+  if [ "$APP_IMAGE" = "y" ]; then
+    # Pick a base that will force the app image to get relocated.
+    app_image="--base=0x4000 --app-image-file=$DEX_LOCATION/oat/$ISA/$TEST_NAME.art"
+  fi
+
   dex2oat_cmdline="$INVOKE_WITH $ANDROID_ROOT/bin/dex2oatd \
                       $COMPILE_FLAGS \
                       --boot-image=${BOOT_IMAGE} \
