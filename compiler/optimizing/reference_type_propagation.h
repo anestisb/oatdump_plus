@@ -33,6 +33,7 @@ namespace art {
 class ReferenceTypePropagation : public HOptimization {
  public:
   ReferenceTypePropagation(HGraph* graph,
+                           Handle<mirror::ClassLoader> class_loader,
                            Handle<mirror::DexCache> hint_dex_cache,
                            VariableSizedHandleScope* handles,
                            bool is_first_run,
@@ -104,6 +105,8 @@ class ReferenceTypePropagation : public HOptimization {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   void ValidateTypes();
+
+  Handle<mirror::ClassLoader> class_loader_;
 
   // Note: hint_dex_cache_ is usually, but not necessarily, the dex cache associated with
   // graph_->GetDexFile(). Since we may look up also in other dex files, it's used only
