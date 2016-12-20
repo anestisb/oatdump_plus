@@ -179,6 +179,12 @@ class Jit {
     return thread_pool_.get();
   }
 
+  // Stop the JIT by waiting for all current compilations and enqueued compilations to finish.
+  void Stop();
+
+  // Start JIT threads.
+  void Start();
+
  private:
   Jit();
 
