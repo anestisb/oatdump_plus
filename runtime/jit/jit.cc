@@ -291,7 +291,7 @@ void Jit::CreateThreadPool() {
   // is not null when we instrument.
   thread_pool_.reset(new ThreadPool("Jit thread pool", 1));
   thread_pool_->SetPthreadPriority(kJitPoolThreadPthreadPriority);
-  thread_pool_->StartWorkers(Thread::Current());
+  Start();
 }
 
 void Jit::DeleteThreadPool() {
@@ -710,14 +710,23 @@ void Jit::WaitForCompilationToFinish(Thread* self) {
   }
 }
 
+void Jit::Stop() {
+  Thread* self = Thread::Current();
+  // TODO(ngeoffray): change API to not require calling WaitForCompilationToFinish twice.
+  WaitForCompilationToFinish(self);
+  GetThreadPool()->StopWorkers(self);
+  WaitForCompilationToFinish(self);
+}
+
+void Jit::Start() {
+  GetThreadPool()->StartWorkers(Thread::Current());
+}
+
 ScopedJitSuspend::ScopedJitSuspend() {
   jit::Jit* jit = Runtime::Current()->GetJit();
   was_on_ = (jit != nullptr) && (jit->GetThreadPool() != nullptr);
   if (was_on_) {
-    Thread* self = Thread::Current();
-    jit->WaitForCompilationToFinish(self);
-    jit->GetThreadPool()->StopWorkers(self);
-    jit->WaitForCompilationToFinish(self);
+    jit->Stop();
   }
 }
 
@@ -725,7 +734,7 @@ ScopedJitSuspend::~ScopedJitSuspend() {
   if (was_on_) {
     DCHECK(Runtime::Current()->GetJit() != nullptr);
     DCHECK(Runtime::Current()->GetJit()->GetThreadPool() != nullptr);
-    Runtime::Current()->GetJit()->GetThreadPool()->StartWorkers(Thread::Current());
+    Runtime::Current()->GetJit()->Start();
   }
 }
 
