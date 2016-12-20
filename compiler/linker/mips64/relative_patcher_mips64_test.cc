@@ -45,7 +45,7 @@ class Mips64RelativePatcherTest : public RelativePatcherTest {
 
 const uint8_t Mips64RelativePatcherTest::kUnpatchedPcRelativeRawCode[] = {
     0x34, 0x12, 0x5E, 0xEE,  // auipc s2, high(diff); placeholder = 0x1234
-    0x78, 0x56, 0x52, 0x26,  // addiu s2, s2, low(diff); placeholder = 0x5678
+    0x78, 0x56, 0x52, 0x66,  // daddiu s2, s2, low(diff); placeholder = 0x5678
 };
 const uint8_t Mips64RelativePatcherTest::kUnpatchedPcRelativeCallRawCode[] = {
     0x34, 0x12, 0x3E, 0xEC,  // auipc at, high(diff); placeholder = 0x1234
@@ -71,7 +71,7 @@ void Mips64RelativePatcherTest::CheckPcRelativePatch(const ArrayRef<const Linker
 
   const uint8_t expected_code[] = {
       static_cast<uint8_t>(diff >> 16), static_cast<uint8_t>(diff >> 24), 0x5E, 0xEE,
-      static_cast<uint8_t>(diff), static_cast<uint8_t>(diff >> 8), 0x52, 0x26,
+      static_cast<uint8_t>(diff), static_cast<uint8_t>(diff >> 8), 0x52, 0x66,
   };
   EXPECT_TRUE(CheckLinkedMethod(MethodRef(1u), ArrayRef<const uint8_t>(expected_code)));
 }
