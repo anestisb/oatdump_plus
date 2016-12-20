@@ -187,7 +187,7 @@ class ReadBarrierSystemArrayCopySlowPathARMVIXL : public SlowPathCodeARMVIXL {
     assembler->MaybePoisonHeapReference(tmp);
     __ Str(tmp, MemOperand(dst_curr_addr, element_size, PostIndex));
     __ Cmp(src_curr_addr, src_stop_addr);
-    __ B(ne, &loop);
+    __ B(ne, &loop, /* far_target */ false);
     __ B(GetExitLabel());
   }
 
@@ -851,7 +851,7 @@ static void GenUnsafePut(LocationSummary* locations,
       __ Ldrexd(temp_lo, temp_hi, MemOperand(temp_reg));
       __ Strexd(temp_lo, value_lo, value_hi, MemOperand(temp_reg));
       __ Cmp(temp_lo, 0);
-      __ B(ne, &loop_head);
+      __ B(ne, &loop_head, /* far_target */ false);
     } else {
       __ Strd(value_lo, value_hi, MemOperand(base, offset));
     }
@@ -1062,7 +1062,7 @@ static void GenCas(HInvoke* invoke, Primitive::Type type, CodeGeneratorARMVIXL* 
     __ cmp(eq, tmp, 1);
   }
 
-  __ B(eq, &loop_head);
+  __ B(eq, &loop_head, /* far_target */ false);
 
   __ Dmb(vixl32::ISH);
 
@@ -1238,23 +1238,23 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringCompareTo(HInvoke* invoke) {
   __ Ldr(temp_reg, MemOperand(str, temp1));
   __ Ldr(temp2, MemOperand(arg, temp1));
   __ Cmp(temp_reg, temp2);
-  __ B(ne, &find_char_diff);
+  __ B(ne, &find_char_diff, /* far_target */ false);
   __ Add(temp1, temp1, char_size * 2);
 
   __ Ldr(temp_reg, MemOperand(str, temp1));
   __ Ldr(temp2, MemOperand(arg, temp1));
   __ Cmp(temp_reg, temp2);
-  __ B(ne, &find_char_diff_2nd_cmp);
+  __ B(ne, &find_char_diff_2nd_cmp, /* far_target */ false);
   __ Add(temp1, temp1, char_size * 2);
   // With string compression, we have compared 8 bytes, otherwise 4 chars.
   __ Subs(temp0, temp0, (mirror::kUseStringCompression ? 8 : 4));
-  __ B(hi, &loop);
+  __ B(hi, &loop, /* far_target */ false);
   __ B(&end);
 
   __ Bind(&find_char_diff_2nd_cmp);
   if (mirror::kUseStringCompression) {
     __ Subs(temp0, temp0, 4);  // 4 bytes previously compared.
-    __ B(ls, &end);  // Was the second comparison fully beyond the end?
+    __ B(ls, &end, /* far_target */ false);  // Was the second comparison fully beyond the end?
   } else {
     // Without string compression, we can start treating temp0 as signed
     // and rely on the signed comparison below.
@@ -1282,7 +1282,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringCompareTo(HInvoke* invoke) {
   // the remaining string data, so just return length diff (out).
   // The comparison is unsigned for string compression, otherwise signed.
   __ Cmp(temp0, Operand(temp1, vixl32::LSR, (mirror::kUseStringCompression ? 3 : 4)));
-  __ B((mirror::kUseStringCompression ? ls : le), &end);
+  __ B((mirror::kUseStringCompression ? ls : le), &end, /* far_target */ false);
 
   // Extract the characters and calculate the difference.
   if (mirror::kUseStringCompression) {
@@ -1349,9 +1349,9 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringCompareTo(HInvoke* invoke) {
     __ Ldrb(temp_reg, MemOperand(temp1, c_char_size, PostIndex));
     __ Ldrh(temp3, MemOperand(temp2, char_size, PostIndex));
     __ Cmp(temp_reg, temp3);
-    __ B(ne, &different_compression_diff);
+    __ B(ne, &different_compression_diff, /* far_target */ false);
     __ Subs(temp0, temp0, 2);
-    __ B(hi, &different_compression_loop);
+    __ B(hi, &different_compression_loop, /* far_target */ false);
     __ B(&end);
 
     // Calculate the difference.
@@ -1427,7 +1427,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringEquals(HInvoke* invoke) {
 
   // Reference equality check, return true if same reference.
   __ Cmp(str, arg);
-  __ B(eq, &return_true);
+  __ B(eq, &return_true, /* far_target */ false);
 
   if (!optimizations.GetArgumentIsString()) {
     // Instanceof check for the argument by comparing class fields.
@@ -1437,7 +1437,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringEquals(HInvoke* invoke) {
     __ Ldr(temp, MemOperand(str, class_offset));
     __ Ldr(temp1, MemOperand(arg, class_offset));
     __ Cmp(temp, temp1);
-    __ B(ne, &return_false);
+    __ B(ne, &return_false, /* far_target */ false);
   }
 
   // Load `count` fields of this and argument strings.
@@ -1446,7 +1446,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringEquals(HInvoke* invoke) {
   // Check if `count` fields are equal, return false if they're not.
   // Also compares the compression style, if differs return false.
   __ Cmp(temp, temp1);
-  __ B(ne, &return_false);
+  __ B(ne, &return_false, /* far_target */ false);
   // Return true if both strings are empty. Even with string compression `count == 0` means empty.
   static_assert(static_cast<uint32_t>(mirror::StringCompressionFlag::kCompressed) == 0u,
                 "Expecting 0=compressed, 1=uncompressed");
@@ -1477,10 +1477,10 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringEquals(HInvoke* invoke) {
   __ Ldr(temp2, MemOperand(arg, temp1));
   __ Add(temp1, temp1, Operand::From(sizeof(uint32_t)));
   __ Cmp(out, temp2);
-  __ B(ne, &return_false);
+  __ B(ne, &return_false, /* far_target */ false);
   // With string compression, we have compared 4 bytes, otherwise 2 chars.
   __ Subs(temp, temp, mirror::kUseStringCompression ? 4 : 2);
-  __ B(hi, &loop);
+  __ B(hi, &loop, /* far_target */ false);
 
   // Return true and exit the function.
   // If loop does not result in returning false, we return true.
@@ -1800,7 +1800,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitSystemArrayCopy(HInvoke* invoke) {
     } else {
       if (!optimizations.GetDestinationIsSource()) {
         __ Cmp(src, dest);
-        __ B(ne, &conditions_on_positions_validated);
+        __ B(ne, &conditions_on_positions_validated, /* far_target */ false);
       }
       __ Cmp(RegisterFrom(dest_pos), src_pos_constant);
       __ B(gt, intrinsic_slow_path->GetEntryLabel());
@@ -1808,7 +1808,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitSystemArrayCopy(HInvoke* invoke) {
   } else {
     if (!optimizations.GetDestinationIsSource()) {
       __ Cmp(src, dest);
-      __ B(ne, &conditions_on_positions_validated);
+      __ B(ne, &conditions_on_positions_validated, /* far_target */ false);
     }
     if (dest_pos.IsConstant()) {
       int32_t dest_pos_constant = Int32ConstantFrom(dest_pos);
@@ -1916,7 +1916,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitSystemArrayCopy(HInvoke* invoke) {
 
       if (optimizations.GetDestinationIsTypedObjectArray()) {
         vixl32::Label do_copy;
-        __ B(eq, &do_copy);
+        __ B(eq, &do_copy, /* far_target */ false);
         // /* HeapReference<Class> */ temp1 = temp1->component_type_
         codegen_->GenerateFieldLoadWithBakerReadBarrier(
             invoke, temp1_loc, temp1, component_offset, temp2_loc, /* needs_null_check */ false);
@@ -1976,7 +1976,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitSystemArrayCopy(HInvoke* invoke) {
 
       if (optimizations.GetDestinationIsTypedObjectArray()) {
         vixl32::Label do_copy;
-        __ B(eq, &do_copy);
+        __ B(eq, &do_copy, /* far_target */ false);
         if (!did_unpoison) {
           assembler->MaybeUnpoisonHeapReference(temp1);
         }
@@ -2069,7 +2069,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitSystemArrayCopy(HInvoke* invoke) {
 
     // Don't enter copy loop if `length == 0`.
     __ Cmp(temp1, temp3);
-    __ B(eq, &done);
+    __ B(eq, &done, /* far_target */ false);
 
     // /* int32_t */ monitor = src->monitor_
     __ Ldr(temp2, MemOperand(src, monitor_offset));
@@ -2122,7 +2122,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitSystemArrayCopy(HInvoke* invoke) {
     }
 
     __ Cmp(temp1, temp3);
-    __ B(ne, &loop);
+    __ B(ne, &loop, /* far_target */ false);
 
     __ Bind(read_barrier_slow_path->GetExitLabel());
     __ Bind(&done);
@@ -2142,7 +2142,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitSystemArrayCopy(HInvoke* invoke) {
     // poison/unpoison.
     vixl32::Label loop, done;
     __ Cmp(temp1, temp3);
-    __ B(eq, &done);
+    __ B(eq, &done, /* far_target */ false);
     __ Bind(&loop);
 
     {
@@ -2154,7 +2154,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitSystemArrayCopy(HInvoke* invoke) {
     }
 
     __ Cmp(temp1, temp3);
-    __ B(ne, &loop);
+    __ B(ne, &loop, /* far_target */ false);
     __ Bind(&done);
   }
 
@@ -2560,7 +2560,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringGetCharsNoCheck(HInvoke* invoke) 
 
   __ Subs(num_chr, srcEnd, srcBegin);
   // Early out for valid zero-length retrievals.
-  __ B(eq, &done);
+  __ B(eq, &done, /* far_target */ false);
 
   // src range to copy.
   __ Add(src_ptr, srcObj, value_offset);
@@ -2576,7 +2576,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringGetCharsNoCheck(HInvoke* invoke) 
     __ Ldr(temp, MemOperand(srcObj, count_offset));
     __ Tst(temp, 1);
     temps.Release(temp);
-    __ B(eq, &compressed_string_preloop);
+    __ B(eq, &compressed_string_preloop, /* far_target */ false);
   }
   __ Add(src_ptr, src_ptr, Operand(srcBegin, vixl32::LSL, 1));
 
@@ -2586,7 +2586,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringGetCharsNoCheck(HInvoke* invoke) 
   temp = temps.Acquire();
   // Save repairing the value of num_chr on the < 4 character path.
   __ Subs(temp, num_chr, 4);
-  __ B(lt, &remainder);
+  __ B(lt, &remainder, /* far_target */ false);
 
   // Keep the result of the earlier subs, we are going to fetch at least 4 characters.
   __ Mov(num_chr, temp);
@@ -2601,10 +2601,10 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringGetCharsNoCheck(HInvoke* invoke) 
   __ Ldr(temp, MemOperand(src_ptr, char_size * 4, PostIndex));
   __ Str(temp, MemOperand(dst_ptr, char_size * 4, PostIndex));
   temps.Release(temp);
-  __ B(ge, &loop);
+  __ B(ge, &loop, /* far_target */ false);
 
   __ Adds(num_chr, num_chr, 4);
-  __ B(eq, &done);
+  __ B(eq, &done, /* far_target */ false);
 
   // Main loop for < 4 character case and remainder handling. Loads and stores one
   // 16-bit Java character at a time.
@@ -2614,7 +2614,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringGetCharsNoCheck(HInvoke* invoke) 
   __ Subs(num_chr, num_chr, 1);
   __ Strh(temp, MemOperand(dst_ptr, char_size, PostIndex));
   temps.Release(temp);
-  __ B(gt, &remainder);
+  __ B(gt, &remainder, /* far_target */ false);
 
   if (mirror::kUseStringCompression) {
     __ B(&done);
@@ -2630,7 +2630,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringGetCharsNoCheck(HInvoke* invoke) 
     __ Strh(temp, MemOperand(dst_ptr, char_size, PostIndex));
     temps.Release(temp);
     __ Subs(num_chr, num_chr, 1);
-    __ B(gt, &compressed_string_loop);
+    __ B(gt, &compressed_string_loop, /* far_target */ false);
   }
 
   __ Bind(&done);
