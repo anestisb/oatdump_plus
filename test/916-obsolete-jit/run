@@ -14,6 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# We are testing the redefinition of compiled code but with jvmti we only allow
+# jitted compiled code so always add the --jit argument.
+if [[ "$@" == *"--jit"* ]]; then
+  other_args=""
+else
+  other_args="--jit"
+fi
 ./default-run "$@" --experimental agents \
                    --experimental runtime-plugins \
+                   ${other_args} \
                    --jvmti
