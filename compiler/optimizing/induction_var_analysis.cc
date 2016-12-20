@@ -431,16 +431,17 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferAddSub(Indu
     if (IsNarrowingLinear(a) || IsNarrowingLinear(b)) {
       return nullptr;  // no transfer
     } else if (a->induction_class == kInvariant && b->induction_class == kInvariant) {
-      return CreateInvariantOp(op, a, b);
+      return CreateInvariantOp(op, a, b);  // direct invariant
     } else if ((a->induction_class == kLinear && b->induction_class == kLinear) ||
                (a->induction_class == kPolynomial && b->induction_class == kPolynomial)) {
-      return CreateInduction(a->induction_class,
-                             a->operation,
-                             TransferAddSub(a->op_a, b->op_a, op),
-                             TransferAddSub(a->op_b, b->op_b, op),
-                             /*fetch*/ nullptr,
-                             type_);
+      // Rule induc(a, b) + induc(a', b') -> induc(a + a', b + b').
+      InductionInfo* new_a = TransferAddSub(a->op_a, b->op_a, op);
+      InductionInfo* new_b = TransferAddSub(a->op_b, b->op_b, op);
+      if (new_a != nullptr && new_b != nullptr)  {
+        return CreateInduction(a->induction_class, a->operation, new_a, new_b, a->fetch, type_);
+      }
     } else if (a->induction_class == kInvariant) {
+      // Rule a + induc(a', b') -> induc(a', a + b') or induc(a + a', a + b').
       InductionInfo* new_a = b->op_a;
       InductionInfo* new_b = TransferAddSub(a, b->op_b, op);
       if (b->induction_class == kWrapAround || b->induction_class == kPeriodic) {
@@ -448,14 +449,19 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferAddSub(Indu
       } else if (op == kSub) {  // Negation required.
         new_a = TransferNeg(new_a);
       }
-      return CreateInduction(b->induction_class, b->operation, new_a, new_b, b->fetch, type_);
+      if (new_a != nullptr && new_b != nullptr)  {
+        return CreateInduction(b->induction_class, b->operation, new_a, new_b, b->fetch, type_);
+      }
     } else if (b->induction_class == kInvariant) {
+      // Rule induc(a, b) + b' -> induc(a, b + b') or induc(a + b', b + b').
       InductionInfo* new_a = a->op_a;
       InductionInfo* new_b = TransferAddSub(a->op_b, b, op);
       if (a->induction_class == kWrapAround || a->induction_class == kPeriodic) {
         new_a = TransferAddSub(new_a, b, op);
       }
-      return CreateInduction(a->induction_class, a->operation, new_a, new_b, a->fetch, type_);
+      if (new_a != nullptr && new_b != nullptr)  {
+        return CreateInduction(a->induction_class, a->operation, new_a, new_b, a->fetch, type_);
+      }
     }
   }
   return nullptr;
@@ -468,14 +474,14 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferNeg(Inducti
     if (IsNarrowingLinear(a)) {
       return nullptr;  // no transfer
     } else if (a->induction_class == kInvariant) {
-      return CreateInvariantOp(kNeg, nullptr, a);
+      return CreateInvariantOp(kNeg, nullptr, a);  // direct invariant
     } else if (a->induction_class != kGeometric || a->operation == kMul) {
-      return CreateInduction(a->induction_class,
-                             a->operation,
-                             TransferNeg(a->op_a),
-                             TransferNeg(a->op_b),
-                             a->fetch,
-                             type_);
+      // Rule - induc(a, b) -> induc(-a, -b).
+      InductionInfo* new_a = TransferNeg(a->op_a);
+      InductionInfo* new_b = TransferNeg(a->op_b);
+      if (new_a != nullptr && new_b != nullptr) {
+        return CreateInduction(a->induction_class, a->operation, new_a, new_b, a->fetch, type_);
+      }
     }
   }
   return nullptr;
@@ -490,23 +496,23 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferMul(Inducti
     if (IsNarrowingLinear(a) || IsNarrowingLinear(b)) {
       return nullptr;  // no transfer
     } else if (a->induction_class == kInvariant && b->induction_class == kInvariant) {
-      return CreateInvariantOp(kMul, a, b);
+      return CreateInvariantOp(kMul, a, b);  // direct invariant
     } else if (a->induction_class == kInvariant && (b->induction_class != kGeometric ||
                                                     b->operation == kMul)) {
-      return CreateInduction(b->induction_class,
-                             b->operation,
-                             TransferMul(a, b->op_a),
-                             TransferMul(a, b->op_b),
-                             b->fetch,
-                             type_);
+      // Rule a * induc(a', b') -> induc(a * a', b * b').
+      InductionInfo* new_a = TransferMul(a, b->op_a);
+      InductionInfo* new_b = TransferMul(a, b->op_b);
+      if (new_a != nullptr && new_b != nullptr) {
+        return CreateInduction(b->induction_class, b->operation, new_a, new_b, b->fetch, type_);
+      }
     } else if (b->induction_class == kInvariant && (a->induction_class != kGeometric ||
                                                     a->operation == kMul)) {
-      return CreateInduction(a->induction_class,
-                             a->operation,
-                             TransferMul(a->op_a, b),
-                             TransferMul(a->op_b, b),
-                             a->fetch,
-                             type_);
+      // Rule induc(a, b) * b' -> induc(a * b', b * b').
+      InductionInfo* new_a = TransferMul(a->op_a, b);
+      InductionInfo* new_b = TransferMul(a->op_b, b);
+      if (new_a != nullptr && new_b != nullptr) {
+        return CreateInduction(a->induction_class, a->operation, new_a, new_b, a->fetch, type_);
+      }
     }
   }
   return nullptr;
@@ -522,7 +528,7 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferConversion(
     if (IsNarrowingIntegralConversion(from, to) &&
         a->induction_class == kLinear &&
         (a->type == to || IsNarrowingIntegralConversion(a->type, to))) {
-      return CreateInduction(kLinear, kNop, a->op_a, a->op_b, /*fetch*/ nullptr, to);
+      return CreateInduction(kLinear, kNop, a->op_a, a->op_b, a->fetch, to);
     }
   }
   return nullptr;
@@ -600,17 +606,15 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::SolveAddSub(HLoopIn
           return CreateInvariantOp(op, a, b);
         }
       }
-    } else if (b->induction_class == kLinear) {
+    } else if (b->induction_class == kLinear && b->type == type_) {
       // Solve within a tight cycle that adds a term that is already classified as a linear
       // induction for a polynomial induction k = k + i (represented as sum over linear terms).
       if (x == entry_phi && entry_phi->InputCount() == 2 && instruction == entry_phi->InputAt(1)) {
         InductionInfo* initial = LookupInfo(loop, entry_phi->InputAt(0));
-        return CreateInduction(kPolynomial,
-                               kNop,
-                               op == kAdd ? b : TransferNeg(b),
-                               initial,
-                               /*fetch*/ nullptr,
-                               type_);
+        InductionInfo* new_a = op == kAdd ? b : TransferNeg(b);
+        if (new_a != nullptr) {
+          return CreateInduction(kPolynomial, kNop, new_a, initial, /*fetch*/ nullptr, type_);
+        }
       }
     }
   }
