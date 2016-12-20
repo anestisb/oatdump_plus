@@ -55,11 +55,15 @@ public class Main {
     }
 
     private static void testOatFilesUnloaded(int pid) throws Exception {
+        System.loadLibrary(nativeLibraryName);
+        // Stop the JIT to ensure its threads and work queue are not keeping classes
+        // artifically alive.
+        stopJit();
+        Runtime.getRuntime().gc();
+        System.runFinalization();
         BufferedReader reader = new BufferedReader(new FileReader ("/proc/" + pid + "/maps"));
         String line;
         int count = 0;
-        Runtime.getRuntime().gc();
-        System.runFinalization();
         while ((line = reader.readLine()) != null) {
             if (line.contains("@141-class-unload-ex.jar")) {
                 System.out.println(line);
@@ -67,6 +71,7 @@ public class Main {
             }
         }
         System.out.println("Number of loaded unload-ex maps " + count);
+        startJit();
     }
 
     private static void stressTest(Constructor<?> constructor) throws Exception {
@@ -229,4 +234,7 @@ public class Main {
     private static int getPid() throws Exception {
       return Integer.parseInt(new File("/proc/self").getCanonicalFile().getName());
     }
+
+    public static native void stopJit();
+    public static native void startJit();
 }

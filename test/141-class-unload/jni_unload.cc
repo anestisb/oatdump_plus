@@ -32,5 +32,19 @@ extern "C" JNIEXPORT void JNICALL Java_IntHolder_waitForCompilation(JNIEnv*, jcl
   }
 }
 
+extern "C" JNIEXPORT void JNICALL Java_Main_stopJit(JNIEnv*, jclass) {
+  jit::Jit* jit = Runtime::Current()->GetJit();
+  if (jit != nullptr) {
+    jit->Stop();
+  }
+}
+
+extern "C" JNIEXPORT void JNICALL Java_Main_startJit(JNIEnv*, jclass) {
+  jit::Jit* jit = Runtime::Current()->GetJit();
+  if (jit != nullptr) {
+    jit->Start();
+  }
+}
+
 }  // namespace
 }  // namespace art
