@@ -618,6 +618,17 @@ std::string StackVisitor::DescribeLocation() const {
   return result;
 }
 
+void StackVisitor::SetMethod(ArtMethod* method) {
+  DCHECK(GetMethod() != nullptr);
+  if (cur_shadow_frame_ != nullptr) {
+    cur_shadow_frame_->SetMethod(method);
+  } else {
+    DCHECK(cur_quick_frame_ != nullptr);
+    CHECK(!IsInInlinedFrame()) << "We do not support setting inlined method's ArtMethod!";
+      *cur_quick_frame_ = method;
+  }
+}
+
 static void AssertPcIsWithinQuickCode(ArtMethod* method, uintptr_t pc)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   if (method->IsNative() || method->IsRuntimeMethod() || method->IsProxyMethod()) {

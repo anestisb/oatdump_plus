@@ -64,6 +64,8 @@
 namespace openjdkjvmti {
 
 // Class that can redefine a single class's methods.
+// TODO We should really make this be driven by an outside class so we can do multiple classes at
+// the same time and have less required cleanup.
 class Redefiner {
  public:
   // Redefine the given class with the given dex data. Note this function does not take ownership of
@@ -124,6 +126,14 @@ class Redefiner {
   // in the future. For now we will just take the memory hit.
   bool EnsureClassAllocationsFinished() REQUIRES_SHARED(art::Locks::mutator_lock_);
 
+  // Ensure that obsolete methods are deoptimized. This is needed since optimized methods may have
+  // pointers to their ArtMethods stashed in registers that they then use to attempt to hit the
+  // DexCache.
+  void EnsureObsoleteMethodsAreDeoptimized()
+      REQUIRES(art::Locks::mutator_lock_)
+      REQUIRES(!art::Locks::thread_list_lock_,
+               !art::Locks::classlinker_classes_lock_);
+
   art::mirror::ClassLoader* GetClassLoader() REQUIRES_SHARED(art::Locks::mutator_lock_);
 
   // This finds the java.lang.DexFile we will add the native DexFile to as part of the classpath.
@@ -169,6 +179,13 @@ class Redefiner {
 
   bool UpdateClass(art::ObjPtr<art::mirror::Class> mclass,
                    art::ObjPtr<art::mirror::DexCache> new_dex_cache)
+      REQUIRES(art::Locks::mutator_lock_);
+
+  bool FindAndAllocateObsoleteMethods(art::mirror::Class* art_klass)
+      REQUIRES(art::Locks::mutator_lock_);
+
+  void FillObsoleteMethodMap(art::mirror::Class* art_klass,
+                             const std::unordered_map<art::ArtMethod*, art::ArtMethod*>& obsoletes)
       REQUIRES(art::Locks::mutator_lock_);
 };
 
