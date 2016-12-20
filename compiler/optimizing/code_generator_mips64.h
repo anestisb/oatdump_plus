@@ -22,6 +22,7 @@
 #include "nodes.h"
 #include "parallel_move_resolver.h"
 #include "utils/mips64/assembler_mips64.h"
+#include "utils/type_reference.h"
 
 namespace art {
 namespace mips64 {
@@ -227,6 +228,15 @@ class InstructionCodeGeneratorMIPS64 : public InstructionCodeGenerator {
                       const FieldInfo& field_info,
                       bool value_can_be_null);
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
+  // Generate a GC root reference load:
+  //
+  //   root <- *(obj + offset)
+  //
+  // while honoring read barriers (if any).
+  void GenerateGcRootFieldLoad(HInstruction* instruction,
+                               Location root,
+                               GpuRegister obj,
+                               uint32_t offset);
   void GenerateTestAndBranch(HInstruction* instruction,
                              size_t condition_input_index,
                              Mips64Label* true_target,
@@ -375,16 +385,31 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
     Mips64Label pc_rel_label;
   };
 
+  PcRelativePatchInfo* NewPcRelativeStringPatch(const DexFile& dex_file, uint32_t string_index);
+  PcRelativePatchInfo* NewPcRelativeTypePatch(const DexFile& dex_file, dex::TypeIndex type_index);
   PcRelativePatchInfo* NewPcRelativeDexCacheArrayPatch(const DexFile& dex_file,
                                                        uint32_t element_offset);
   PcRelativePatchInfo* NewPcRelativeCallPatch(const DexFile& dex_file,
                                               uint32_t method_index);
+  Literal* DeduplicateBootImageStringLiteral(const DexFile& dex_file,
+                                             dex::StringIndex string_index);
+  Literal* DeduplicateBootImageTypeLiteral(const DexFile& dex_file, dex::TypeIndex type_index);
+  Literal* DeduplicateBootImageAddressLiteral(uint64_t address);
 
   void EmitPcRelativeAddressPlaceholderHigh(PcRelativePatchInfo* info, GpuRegister out);
 
  private:
+  using Uint32ToLiteralMap = ArenaSafeMap<uint32_t, Literal*>;
   using Uint64ToLiteralMap = ArenaSafeMap<uint64_t, Literal*>;
   using MethodToLiteralMap = ArenaSafeMap<MethodReference, Literal*, MethodReferenceComparator>;
+  using BootStringToLiteralMap = ArenaSafeMap<StringReference,
+                                              Literal*,
+                                              StringReferenceValueComparator>;
+  using BootTypeToLiteralMap = ArenaSafeMap<TypeReference,
+                                            Literal*,
+                                            TypeReferenceValueComparator>;
+
+  Literal* DeduplicateUint32Literal(uint32_t value, Uint32ToLiteralMap* map);
   Literal* DeduplicateUint64Literal(uint64_t value);
   Literal* DeduplicateMethodLiteral(MethodReference target_method, MethodToLiteralMap* map);
   Literal* DeduplicateMethodAddressLiteral(MethodReference target_method);
@@ -407,6 +432,8 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
   Mips64Assembler assembler_;
   const Mips64InstructionSetFeatures& isa_features_;
 
+  // Deduplication map for 32-bit literals, used for non-patchable boot image addresses.
+  Uint32ToLiteralMap uint32_literals_;
   // Deduplication map for 64-bit literals, used for non-patchable method address or method code
   // address.
   Uint64ToLiteralMap uint64_literals_;
@@ -416,6 +443,16 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
   // PC-relative patch info.
   ArenaDeque<PcRelativePatchInfo> pc_relative_dex_cache_patches_;
   ArenaDeque<PcRelativePatchInfo> relative_call_patches_;
+  // Deduplication map for boot string literals for kBootImageLinkTimeAddress.
+  BootStringToLiteralMap boot_image_string_patches_;
+  // PC-relative String patch info; type depends on configuration (app .bss or boot image PIC).
+  ArenaDeque<PcRelativePatchInfo> pc_relative_string_patches_;
+  // Deduplication map for boot type literals for kBootImageLinkTimeAddress.
+  BootTypeToLiteralMap boot_image_type_patches_;
+  // PC-relative type patch info.
+  ArenaDeque<PcRelativePatchInfo> pc_relative_type_patches_;
+  // Deduplication map for patchable boot image addresses.
+  Uint32ToLiteralMap boot_image_address_patches_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorMIPS64);
 };

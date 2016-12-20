@@ -879,7 +879,7 @@ TEST_F(AssemblerMIPS64Test, LoadNearestFarLabelAddress) {
   std::string expected =
       "1:\n"
       "auipc $at, %hi(2f - 1b)\n"
-      "addiu $v0, $at, %lo(2f - 1b)\n" +
+      "daddiu $v0, $at, %lo(2f - 1b)\n" +
       RepeatInsn(kAdduCount, "addu $zero, $zero, $zero\n") +
       "2:\n";
   DriverStr(expected, "LoadNearestFarLabelAddress");
@@ -1070,7 +1070,7 @@ TEST_F(AssemblerMIPS64Test, FarLongLiteralAlignmentNop) {
       "ld $v0, %lo(3f - 1b)($at)\n"
       "2:\n"
       "auipc $at, %hi(3f - 2b)\n"
-      "addiu $v1, $at, %lo(3f - 2b)\n" +
+      "daddiu $v1, $at, %lo(3f - 2b)\n" +
       RepeatInsn(kAdduCount, "addu $zero, $zero, $zero\n") +
       "nop\n"
       "3:\n"
