@@ -805,7 +805,7 @@ class ReadBarrierMarkAndUpdateFieldSlowPathARMVIXL : public SlowPathCodeARMVIXL 
     // as-is.
     vixl32::Label done;
     __ Cmp(temp1_, ref_reg);
-    __ B(eq, &done);
+    __ B(eq, &done, /* far_target */ false);
 
     // Update the the holder's field atomically.  This may fail if
     // mutator updates before us, but it's OK.  This is achieved
@@ -857,11 +857,11 @@ class ReadBarrierMarkAndUpdateFieldSlowPathARMVIXL : public SlowPathCodeARMVIXL 
       __ clrex(ne);
     }
 
-    __ B(ne, &exit_loop);
+    __ B(ne, &exit_loop, /* far_target */ false);
 
     __ Strex(tmp, value, MemOperand(tmp_ptr));
     __ Cmp(tmp, 1);
-    __ B(eq, &loop_head);
+    __ B(eq, &loop_head, /* far_target */ false);
 
     __ Bind(&exit_loop);
 
@@ -3642,7 +3642,7 @@ void InstructionCodeGeneratorARMVIXL::HandleLongRotate(HRor* ror) {
     __ And(shift_right, RegisterFrom(rhs), 0x1F);
     __ Lsrs(shift_left, RegisterFrom(rhs), 6);
     __ Rsb(LeaveFlags, shift_left, shift_right, Operand::From(kArmBitsPerWord));
-    __ B(cc, &shift_by_32_plus_shift_right);
+    __ B(cc, &shift_by_32_plus_shift_right, /* far_target */ false);
 
     // out_reg_hi = (reg_hi << shift_left) | (reg_lo >> shift_right).
     // out_reg_lo = (reg_lo << shift_left) | (reg_hi >> shift_right).
@@ -4114,8 +4114,8 @@ void InstructionCodeGeneratorARMVIXL::VisitCompare(HCompare* compare) {
     }
     case Primitive::kPrimLong: {
       __ Cmp(HighRegisterFrom(left), HighRegisterFrom(right));  // Signed compare.
-      __ B(lt, &less);
-      __ B(gt, &greater);
+      __ B(lt, &less, /* far_target */ false);
+      __ B(gt, &greater, /* far_target */ false);
       // Emit move to `out` before the last `Cmp`, as `Mov` might affect the status flags.
       __ Mov(out, 0);
       __ Cmp(LowRegisterFrom(left), LowRegisterFrom(right));  // Unsigned compare.
@@ -4136,8 +4136,8 @@ void InstructionCodeGeneratorARMVIXL::VisitCompare(HCompare* compare) {
       UNREACHABLE();
   }
 
-  __ B(eq, &done);
-  __ B(less_cond, &less);
+  __ B(eq, &done, /* far_target */ false);
+  __ B(less_cond, &less, /* far_target */ false);
 
   __ Bind(&greater);
   __ Mov(out, 1);
@@ -4934,7 +4934,7 @@ void InstructionCodeGeneratorARMVIXL::VisitArrayGet(HArrayGet* instruction) {
           __ Lsrs(length, length, 1u);  // LSRS has a 16-bit encoding, TST (immediate) does not.
           static_assert(static_cast<uint32_t>(mirror::StringCompressionFlag::kCompressed) == 0u,
                         "Expecting 0=compressed, 1=uncompressed");
-          __ B(cs, &uncompressed_load);
+          __ B(cs, &uncompressed_load, /* far_target */ false);
           GetAssembler()->LoadFromOffset(kLoadUnsignedByte,
                                          RegisterFrom(out_loc),
                                          obj,
@@ -4973,7 +4973,7 @@ void InstructionCodeGeneratorARMVIXL::VisitArrayGet(HArrayGet* instruction) {
           __ Lsrs(length, length, 1u);  // LSRS has a 16-bit encoding, TST (immediate) does not.
           static_assert(static_cast<uint32_t>(mirror::StringCompressionFlag::kCompressed) == 0u,
                         "Expecting 0=compressed, 1=uncompressed");
-          __ B(cs, &uncompressed_load);
+          __ B(cs, &uncompressed_load, /* far_target */ false);
           __ Ldrb(RegisterFrom(out_loc), MemOperand(temp, RegisterFrom(index), vixl32::LSL, 0));
           __ B(&done);
           __ Bind(&uncompressed_load);
@@ -5272,7 +5272,7 @@ void InstructionCodeGeneratorARMVIXL::VisitArraySet(HArraySet* instruction) {
 
         if (instruction->StaticTypeOfArrayIsObjectArray()) {
           vixl32::Label do_put;
-          __ B(eq, &do_put);
+          __ B(eq, &do_put, /* far_target */ false);
           // If heap poisoning is enabled, the `temp1` reference has
           // not been unpoisoned yet; unpoison it now.
           GetAssembler()->MaybeUnpoisonHeapReference(temp1);
@@ -6213,7 +6213,7 @@ void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) 
                                         kCompilerReadBarrierOption);
       __ Cmp(out, cls);
       // Classes must be equal for the instanceof to succeed.
-      __ B(ne, &zero);
+      __ B(ne, &zero, /* far_target */ false);
       __ Mov(out, 1);
       __ B(&done);
       break;
@@ -6240,7 +6240,7 @@ void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) 
       // If `out` is null, we use it for the result, and jump to `done`.
       __ CompareAndBranchIfZero(out, &done, /* far_target */ false);
       __ Cmp(out, cls);
-      __ B(ne, &loop);
+      __ B(ne, &loop, /* far_target */ false);
       __ Mov(out, 1);
       if (zero.IsReferenced()) {
         __ B(&done);
@@ -6260,7 +6260,7 @@ void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) 
       vixl32::Label loop, success;
       __ Bind(&loop);
       __ Cmp(out, cls);
-      __ B(eq, &success);
+      __ B(eq, &success, /* far_target */ false);
       // /* HeapReference<Class> */ out = out->super_class_
       GenerateReferenceLoadOneRegister(instruction,
                                        out_loc,
@@ -6289,7 +6289,7 @@ void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) 
       // Do an exact check.
       vixl32::Label exact_check;
       __ Cmp(out, cls);
-      __ B(eq, &exact_check);
+      __ B(eq, &exact_check, /* far_target */ false);
       // Otherwise, we need to check that the object's class is a non-primitive array.
       // /* HeapReference<Class> */ out = out->component_type_
       GenerateReferenceLoadOneRegister(instruction,
@@ -6491,7 +6491,7 @@ void InstructionCodeGeneratorARMVIXL::VisitCheckCast(HCheckCast* instruction) {
 
       // Otherwise, compare the classes.
       __ Cmp(temp, cls);
-      __ B(ne, &loop);
+      __ B(ne, &loop, /* far_target */ false);
       break;
     }
 
@@ -6508,7 +6508,7 @@ void InstructionCodeGeneratorARMVIXL::VisitCheckCast(HCheckCast* instruction) {
       vixl32::Label loop;
       __ Bind(&loop);
       __ Cmp(temp, cls);
-      __ B(eq, &done);
+      __ B(eq, &done, /* far_target */ false);
 
       // /* HeapReference<Class> */ temp = temp->super_class_
       GenerateReferenceLoadOneRegister(instruction,
@@ -6536,7 +6536,7 @@ void InstructionCodeGeneratorARMVIXL::VisitCheckCast(HCheckCast* instruction) {
 
       // Do an exact check.
       __ Cmp(temp, cls);
-      __ B(eq, &done);
+      __ B(eq, &done, /* far_target */ false);
 
       // Otherwise, we need to check that the object's class is a non-primitive array.
       // /* HeapReference<Class> */ temp = temp->component_type_
@@ -6600,7 +6600,7 @@ void InstructionCodeGeneratorARMVIXL::VisitCheckCast(HCheckCast* instruction) {
       __ Sub(RegisterFrom(maybe_temp2_loc), RegisterFrom(maybe_temp2_loc), 2);
       // Compare the classes and continue the loop if they do not match.
       __ Cmp(cls, RegisterFrom(maybe_temp3_loc));
-      __ B(ne, &start_loop);
+      __ B(ne, &start_loop, /* far_target */ false);
       break;
     }
   }

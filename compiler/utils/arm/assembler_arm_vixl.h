@@ -114,7 +114,7 @@ class ArmVIXLMacroAssembler FINAL : public vixl32::MacroAssembler {
   // TODO: Remove when MacroAssembler::Add(FlagsUpdate, Condition, Register, Register, Operand)
   // makes the right decision about 16-bit encodings.
   void Add(vixl32::Register rd, vixl32::Register rn, const vixl32::Operand& operand) {
-    if (rd.Is(rn)) {
+    if (rd.Is(rn) && operand.IsPlainRegister()) {
       MacroAssembler::Add(rd, rn, operand);
     } else {
       MacroAssembler::Add(vixl32::DontCare, rd, rn, operand);
@@ -124,7 +124,10 @@ class ArmVIXLMacroAssembler FINAL : public vixl32::MacroAssembler {
 
   // These interfaces try to use 16-bit T2 encoding of B instruction.
   void B(vixl32::Label* label);
-  void B(vixl32::Condition cond, vixl32::Label* label);
+  // For B(label), we always try to use Narrow encoding, because 16-bit T2 encoding supports
+  // jumping within 2KB range. For B(cond, label), because the supported branch range is 256
+  // bytes; we use the far_target hint to try to use 16-bit T1 encoding for short range jumps.
+  void B(vixl32::Condition cond, vixl32::Label* label, bool is_far_target = true);
 };
 
 class ArmVIXLAssembler FINAL : public Assembler {
