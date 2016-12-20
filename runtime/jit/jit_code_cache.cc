@@ -594,6 +594,9 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
       VLOG(jit) << "JIT discarded jitted code due to invalid single-implementation assumptions.";
       return nullptr;
     }
+    DCHECK(cha_single_implementation_list.empty() || !Runtime::Current()->IsDebuggable())
+        << "Should not be using cha on debuggable apps/runs!";
+
     for (ArtMethod* single_impl : cha_single_implementation_list) {
       Runtime::Current()->GetClassHierarchyAnalysis()->AddDependency(
           single_impl, method, method_header);
@@ -643,6 +646,69 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
 size_t JitCodeCache::CodeCacheSize() {
   MutexLock mu(Thread::Current(), lock_);
   return CodeCacheSizeLocked();
+}
+
+// This notifies the code cache that the given method has been redefined and that it should remove
+// any cached information it has on the method. All threads must be suspended before calling this
+// method. The compiled code for the method (if there is any) must not be in any threads call stack.
+void JitCodeCache::NotifyMethodRedefined(ArtMethod* method) {
+  MutexLock mu(Thread::Current(), lock_);
+  if (method->IsNative()) {
+    return;
+  }
+  ProfilingInfo* info = method->GetProfilingInfo(kRuntimePointerSize);
+  if (info != nullptr) {
+    auto profile = std::find(profiling_infos_.begin(), profiling_infos_.end(), info);
+    DCHECK(profile != profiling_infos_.end());
+    profiling_infos_.erase(profile);
+  }
+  method->SetProfilingInfo(nullptr);
+  ScopedCodeCacheWrite ccw(code_map_.get());
+  for (auto code_iter = method_code_map_.begin();
+       code_iter != method_code_map_.end();
+       ++code_iter) {
+    if (code_iter->second == method) {
+      FreeCode(code_iter->first);
+      method_code_map_.erase(code_iter);
+    }
+  }
+  auto code_map = osr_code_map_.find(method);
+  if (code_map != osr_code_map_.end()) {
+    osr_code_map_.erase(code_map);
+  }
+}
+
+// This invalidates old_method. Once this function returns one can no longer use old_method to
+// execute code unless it is fixed up. This fixup will happen later in the process of installing a
+// class redefinition.
+// TODO We should add some info to ArtMethod to note that 'old_method' has been invalidated and
+// shouldn't be used since it is no longer logically in the jit code cache.
+// TODO We should add DCHECKS that validate that the JIT is paused when this method is entered.
+void JitCodeCache::MoveObsoleteMethod(ArtMethod* old_method, ArtMethod* new_method) {
+  MutexLock mu(Thread::Current(), lock_);
+  // Update ProfilingInfo to the new one and remove it from the old_method.
+  if (old_method->GetProfilingInfo(kRuntimePointerSize) != nullptr) {
+    DCHECK_EQ(old_method->GetProfilingInfo(kRuntimePointerSize)->GetMethod(), old_method);
+    ProfilingInfo* info = old_method->GetProfilingInfo(kRuntimePointerSize);
+    old_method->SetProfilingInfo(nullptr);
+    // Since the JIT should be paused and all threads suspended by the time this is called these
+    // checks should always pass.
+    DCHECK(!info->IsInUseByCompiler());
+    new_method->SetProfilingInfo(info);
+    info->method_ = new_method;
+  }
+  // Update method_code_map_ to point to the new method.
+  for (auto& it : method_code_map_) {
+    if (it.second == old_method) {
+      it.second = new_method;
+    }
+  }
+  // Update osr_code_map_ to point to the new method.
+  auto code_map = osr_code_map_.find(old_method);
+  if (code_map != osr_code_map_.end()) {
+    osr_code_map_.Put(new_method, code_map->second);
+    osr_code_map_.erase(old_method);
+  }
 }
 
 size_t JitCodeCache::CodeCacheSizeLocked() {
