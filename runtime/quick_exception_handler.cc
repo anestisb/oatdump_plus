@@ -347,9 +347,11 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
       callee_method_ = method;
       return true;
     } else if (!single_frame_deopt_ &&
-               !Runtime::Current()->IsDeoptimizeable(GetCurrentQuickFramePc())) {
+               !Runtime::Current()->IsAsyncDeoptimizeable(GetCurrentQuickFramePc())) {
       // We hit some code that's not deoptimizeable. However, Single-frame deoptimization triggered
       // from compiled code is always allowed since HDeoptimize always saves the full environment.
+      LOG(WARNING) << "Got request to deoptimize un-deoptimizable method "
+                   << method->PrettyMethod();
       FinishStackWalk();
       return false;  // End stack walk.
     } else {
