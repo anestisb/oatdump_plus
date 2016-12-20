@@ -70,6 +70,7 @@ AgentLib agents[] = {
   { "915-obsolete-2", common_redefine::OnLoad, nullptr },
   { "916-obsolete-jit", common_redefine::OnLoad, nullptr },
   { "917-fields-transformation", common_redefine::OnLoad, nullptr },
+  { "918-obsolete-fields", common_redefine::OnLoad, nullptr },
 };
 
 static AgentLib* FindAgent(char* name) {
