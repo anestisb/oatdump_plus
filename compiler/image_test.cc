@@ -24,8 +24,10 @@
 
 #include "base/unix_file/fd_file.h"
 #include "class_linker-inl.h"
+#include "compiler_callbacks.h"
 #include "common_compiler_test.h"
 #include "debug/method_debug_info.h"
+#include "dex/quick_compiler_callbacks.h"
 #include "driver/compiler_options.h"
 #include "elf_writer.h"
 #include "elf_writer_quick.h"
@@ -75,6 +77,14 @@ class ImageTest : public CommonCompilerTest {
                CompilationHelper& out_helper,
                const std::string& extra_dex = "",
                const std::string& image_class = "");
+
+  void SetUpRuntimeOptions(RuntimeOptions* options) OVERRIDE {
+    CommonCompilerTest::SetUpRuntimeOptions(options);
+    callbacks_.reset(new QuickCompilerCallbacks(
+        verification_results_.get(),
+        CompilerCallbacks::CallbackMode::kCompileBootImage));
+    options->push_back(std::make_pair("compilercallbacks", callbacks_.get()));
+  }
 
   std::unordered_set<std::string>* GetImageClasses() OVERRIDE {
     return new std::unordered_set<std::string>(image_classes_);
