@@ -14,30 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-plugin=libopenjdkjvmtid.so
-agent=libtiagentd.so
-lib=tiagentd
-if  [[ "$@" == *"-O"* ]]; then
-  agent=libtiagent.so
-  plugin=libopenjdkjvmti.so
-  lib=tiagent
-fi
-
-if [[ "$@" == *"--jvm"* ]]; then
-  arg="jvm"
-else
-  arg="art"
-fi
-
-if [[ "$@" != *"--debuggable"* ]]; then
-  other_args=" -Xcompiler-option --debuggable "
-else
-  other_args=""
-fi
-
 ./default-run "$@" --experimental agents \
                    --experimental runtime-plugins \
-                   --runtime-option -agentpath:${agent}=903-hello-tagging,${arg} \
-                   --android-runtime-option -Xplugin:${plugin} \
-                   ${other_args} \
-                   --args ${lib}
+                   --jvmti
