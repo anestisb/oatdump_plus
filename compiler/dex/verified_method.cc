@@ -229,7 +229,21 @@ void VerifiedMethod::GenerateSafeCastSet(verifier::MethodVerifier* method_verifi
                                                               inst->VRegA_21c()));
       const verifier::RegType& cast_type =
           method_verifier->ResolveCheckedClass(dex::TypeIndex(inst->VRegB_21c()));
-      if (cast_type.IsStrictlyAssignableFrom(reg_type, method_verifier)) {
+      // Pass null for the method verifier to not record the VerifierDeps dependency
+      // if the types are not assignable.
+      if (cast_type.IsStrictlyAssignableFrom(reg_type, /* method_verifier */ nullptr)) {
+        // The types are assignable, we record that dependency in the VerifierDeps so
+        // that if this changes after OTA, we will re-verify again.
+        // We check if reg_type has a class, as the verifier may have inferred it's
+        // 'null'.
+        if (reg_type.HasClass()) {
+          DCHECK(cast_type.HasClass());
+          verifier::VerifierDeps::MaybeRecordAssignability(method_verifier->GetDexFile(),
+                                                           cast_type.GetClass(),
+                                                           reg_type.GetClass(),
+                                                           /* strict */ true,
+                                                           /* assignable */ true);
+        }
         // Verify ordering for push_back() to the sorted vector.
         DCHECK(safe_cast_set_.empty() || safe_cast_set_.back() < dex_pc);
         safe_cast_set_.push_back(dex_pc);
