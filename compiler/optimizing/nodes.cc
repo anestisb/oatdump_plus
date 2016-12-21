@@ -2406,8 +2406,6 @@ std::ostream& operator<<(std::ostream& os, HInvokeStaticOrDirect::MethodLoadKind
       return os << "recursive";
     case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddress:
       return os << "direct";
-    case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddressWithFixup:
-      return os << "direct_fixup";
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative:
       return os << "dex_cache_pc_relative";
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod:
