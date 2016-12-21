@@ -1,1 +1,0 @@
-Tests obsolete method field access support
