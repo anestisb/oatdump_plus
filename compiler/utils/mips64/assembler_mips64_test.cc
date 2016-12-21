@@ -1888,9 +1888,9 @@ TEST_F(AssemblerMIPS64Test, StoreFpuToOffset) {
   DriverStr(expected, "StoreFpuToOffset");
 }
 
-///////////////////////
-// Loading Constants //
-///////////////////////
+//////////////////////////////
+// Loading/adding Constants //
+//////////////////////////////
 
 TEST_F(AssemblerMIPS64Test, LoadConst32) {
   // IsUint<16>(value)
@@ -1931,6 +1931,31 @@ TEST_F(AssemblerMIPS64Test, LoadConst32) {
       "ori $v0, 1\n"                //                 "
       "lui $v0, 32768\n";           // __ LoadConst32(mips64::V0, -2147483648);
   DriverStr(expected, "LoadConst32");
+}
+
+TEST_F(AssemblerMIPS64Test, Addiu32) {
+  __ Addiu32(mips64::A1, mips64::A2, -0x8000);
+  __ Addiu32(mips64::A1, mips64::A2, +0);
+  __ Addiu32(mips64::A1, mips64::A2, +0x7FFF);
+  __ Addiu32(mips64::A1, mips64::A2, -0x8001);
+  __ Addiu32(mips64::A1, mips64::A2, +0x8000);
+  __ Addiu32(mips64::A1, mips64::A2, -0x10000);
+  __ Addiu32(mips64::A1, mips64::A2, +0x10000);
+  __ Addiu32(mips64::A1, mips64::A2, +0x12345678);
+
+  const char* expected =
+      "addiu $a1, $a2, -0x8000\n"
+      "addiu $a1, $a2, 0\n"
+      "addiu $a1, $a2, 0x7FFF\n"
+      "aui $a1, $a2, 0xFFFF\n"
+      "addiu $a1, $a1, 0x7FFF\n"
+      "aui $a1, $a2, 1\n"
+      "addiu $a1, $a1, -0x8000\n"
+      "aui $a1, $a2, 0xFFFF\n"
+      "aui $a1, $a2, 1\n"
+      "aui $a1, $a2, 0x1234\n"
+      "addiu $a1, $a1, 0x5678\n";
+  DriverStr(expected, "Addiu32");
 }
 
 static uint64_t SignExtend16To64(uint16_t n) {

@@ -357,6 +357,36 @@ class Literal {
   DISALLOW_COPY_AND_ASSIGN(Literal);
 };
 
+// Jump table: table of labels emitted after the code and before the literals. Similar to literals.
+class JumpTable {
+ public:
+  explicit JumpTable(std::vector<Mips64Label*>&& labels)
+      : label_(), labels_(std::move(labels)) {
+  }
+
+  size_t GetSize() const {
+    return labels_.size() * sizeof(uint32_t);
+  }
+
+  const std::vector<Mips64Label*>& GetData() const {
+    return labels_;
+  }
+
+  Mips64Label* GetLabel() {
+    return &label_;
+  }
+
+  const Mips64Label* GetLabel() const {
+    return &label_;
+  }
+
+ private:
+  Mips64Label label_;
+  std::vector<Mips64Label*> labels_;
+
+  DISALLOW_COPY_AND_ASSIGN(JumpTable);
+};
+
 // Slowpath entered when Thread::Current()->_exception is non-null.
 class Mips64ExceptionSlowPath {
  public:
@@ -388,6 +418,7 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
         overwrite_location_(0),
         literals_(arena->Adapter(kArenaAllocAssembler)),
         long_literals_(arena->Adapter(kArenaAllocAssembler)),
+        jump_tables_(arena->Adapter(kArenaAllocAssembler)),
         last_position_adjustment_(0),
         last_old_position_(0),
         last_branch_id_(0) {
@@ -478,6 +509,7 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
   void Lwupc(GpuRegister rs, uint32_t imm19);  // MIPS64
   void Ldpc(GpuRegister rs, uint32_t imm18);  // MIPS64
   void Lui(GpuRegister rt, uint16_t imm16);
+  void Aui(GpuRegister rt, GpuRegister rs, uint16_t imm16);
   void Dahi(GpuRegister rs, uint16_t imm16);  // MIPS64
   void Dati(GpuRegister rs, uint16_t imm16);  // MIPS64
   void Sync(uint32_t stype);
@@ -617,6 +649,7 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
   // This function is only used for testing purposes.
   void RecordLoadConst64Path(int value);
 
+  void Addiu32(GpuRegister rt, GpuRegister rs, int32_t value);
   void Daddiu64(GpuRegister rt, GpuRegister rs, int64_t value, GpuRegister rtmp = AT);  // MIPS64
 
   void Bind(Label* label) OVERRIDE {
@@ -673,6 +706,12 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
 
   // Load literal using PC-relative loads.
   void LoadLiteral(GpuRegister dest_reg, LoadOperandType load_type, Literal* literal);
+
+  // Create a jump table for the given labels that will be emitted when finalizing.
+  // When the table is emitted, offsets will be relative to the location of the table.
+  // The table location is determined by the location of its label (the label precedes
+  // the table data) and should be loaded using LoadLabelAddress().
+  JumpTable* CreateJumpTable(std::vector<Mips64Label*>&& labels);
 
   void Bc(Mips64Label* label);
   void Balc(Mips64Label* label);
@@ -1048,6 +1087,8 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
   const Branch* GetBranch(uint32_t branch_id) const;
 
   void EmitLiterals();
+  void ReserveJumpTableSpace();
+  void EmitJumpTables();
   void PromoteBranches();
   void EmitBranch(Branch* branch);
   void EmitBranches();
@@ -1070,6 +1111,9 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
   // without invalidating pointers and references to existing elements.
   ArenaDeque<Literal> literals_;
   ArenaDeque<Literal> long_literals_;  // 64-bit literals separated for alignment reasons.
+
+  // Jump table list.
+  ArenaDeque<JumpTable> jump_tables_;
 
   // Data for AdjustedPosition(), see the description there.
   uint32_t last_position_adjustment_;

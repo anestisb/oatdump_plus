@@ -217,6 +217,14 @@ class InstructionCodeGeneratorMIPS64 : public InstructionCodeGenerator {
 
   Mips64Assembler* GetAssembler() const { return assembler_; }
 
+  // Compare-and-jump packed switch generates approx. 3 + 2.5 * N 32-bit
+  // instructions for N cases.
+  // Table-based packed switch generates approx. 11 32-bit instructions
+  // and N 32-bit data words for N cases.
+  // At N = 6 they come out as 18 and 17 32-bit words respectively.
+  // We switch to the table-based method starting with 7 cases.
+  static constexpr uint32_t kPackedSwitchJumpTableThreshold = 6;
+
  private:
   void GenerateClassInitializationCheck(SlowPathCodeMIPS64* slow_path, GpuRegister class_reg);
   void GenerateMemoryBarrier(MemBarrierKind kind);
@@ -256,6 +264,16 @@ class InstructionCodeGeneratorMIPS64 : public InstructionCodeGenerator {
                                   LocationSummary* locations,
                                   Mips64Label* label);
   void HandleGoto(HInstruction* got, HBasicBlock* successor);
+  void GenPackedSwitchWithCompares(GpuRegister value_reg,
+                                   int32_t lower_bound,
+                                   uint32_t num_entries,
+                                   HBasicBlock* switch_block,
+                                   HBasicBlock* default_block);
+  void GenTableBasedPackedSwitch(GpuRegister value_reg,
+                                 int32_t lower_bound,
+                                 uint32_t num_entries,
+                                 HBasicBlock* switch_block,
+                                 HBasicBlock* default_block);
 
   Mips64Assembler* const assembler_;
   CodeGeneratorMIPS64* const codegen_;
