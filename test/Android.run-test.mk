@@ -288,7 +288,6 @@ TEST_ART_BROKEN_TARGET_TESTS += \
   915-obsolete-2 \
   916-obsolete-jit \
   917-fields-transformation \
-  918-obsolete-fields \
 
 ifneq (,$(filter target,$(TARGET_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,target,$(RUN_TYPES),$(PREBUILD_TYPES), \
