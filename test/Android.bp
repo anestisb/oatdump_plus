@@ -243,9 +243,6 @@ art_cc_defaults {
     name: "libtiagent-defaults",
     defaults: ["libartagent-defaults"],
     srcs: [
-        // This is to get the IsInterpreted native method.
-        "common/stack_inspect.cc",
-        "common/runtime_state.cc",
         "ti-agent/common_load.cc",
         "ti-agent/common_helper.cc",
         "901-hello-ti-agent/basics.cc",
