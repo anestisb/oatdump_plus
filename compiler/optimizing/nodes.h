@@ -3982,12 +3982,6 @@ class HInvokeStaticOrDirect FINAL : public HInvoke {
     // Used for app->boot calls with non-relocatable image and for JIT-compiled calls.
     kDirectAddress,
 
-    // Use ArtMethod* at an address that will be known at link time, embed the direct
-    // address in the code. If the image is relocatable, emit .patch_oat entry.
-    // Used for app->boot calls with relocatable image and boot->boot calls, whether
-    // the image relocatable or not.
-    kDirectAddressWithFixup,
-
     // Load from resolved methods array in the dex cache using a PC-relative load.
     // Used when we need to use the dex cache, for example for invoke-static that
     // may cause class initialization (the entry may point to a resolution method),
@@ -4006,20 +4000,6 @@ class HInvokeStaticOrDirect FINAL : public HInvoke {
     // Recursive call, use local PC-relative call instruction.
     kCallSelf,
 
-    // Use PC-relative call instruction patched at link time.
-    // Used for calls within an oat file, boot->boot or app->app.
-    kCallPCRelative,
-
-    // Call to a known target address, embed the direct address in code.
-    // Used for app->boot call with non-relocatable image and for JIT-compiled calls.
-    kCallDirect,
-
-    // Call to a target address that will be known at link time, embed the direct
-    // address in code. If the image is relocatable, emit .patch_oat entry.
-    // Used for app->boot calls with relocatable image and boot->boot calls, whether
-    // the image relocatable or not.
-    kCallDirectWithFixup,
-
     // Use code pointer from the ArtMethod*.
     // Used when we don't know the target code. This is also the last-resort-kind used when
     // other kinds are unimplemented or impractical (i.e. slow) on a particular architecture.
@@ -4035,7 +4015,6 @@ class HInvokeStaticOrDirect FINAL : public HInvoke {
     //   - the method address for kDirectAddress
     //   - the dex cache arrays offset for kDexCachePcRel.
     uint64_t method_load_data;
-    uint64_t direct_code_ptr;
   };
 
   HInvokeStaticOrDirect(ArenaAllocator* arena,
@@ -4145,7 +4124,6 @@ class HInvokeStaticOrDirect FINAL : public HInvoke {
       return false;
     }
   }
-  bool HasDirectCodePtr() const { return GetCodePtrLocation() == CodePtrLocation::kCallDirect; }
 
   QuickEntrypointEnum GetStringInitEntryPoint() const {
     DCHECK(IsStringInit());
@@ -4160,11 +4138,6 @@ class HInvokeStaticOrDirect FINAL : public HInvoke {
   uint32_t GetDexCacheArrayOffset() const {
     DCHECK(HasPcRelativeDexCache());
     return dispatch_info_.method_load_data;
-  }
-
-  uint64_t GetDirectCodePtr() const {
-    DCHECK(HasDirectCodePtr());
-    return dispatch_info_.direct_code_ptr;
   }
 
   ClinitCheckRequirement GetClinitCheckRequirement() const {

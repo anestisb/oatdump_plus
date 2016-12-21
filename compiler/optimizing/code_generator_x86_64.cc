@@ -960,19 +960,7 @@ inline Condition X86_64FPCondition(IfCondition cond) {
 HInvokeStaticOrDirect::DispatchInfo CodeGeneratorX86_64::GetSupportedInvokeStaticOrDirectDispatch(
       const HInvokeStaticOrDirect::DispatchInfo& desired_dispatch_info,
       HInvokeStaticOrDirect* invoke ATTRIBUTE_UNUSED) {
-  switch (desired_dispatch_info.code_ptr_location) {
-    case HInvokeStaticOrDirect::CodePtrLocation::kCallDirectWithFixup:
-    case HInvokeStaticOrDirect::CodePtrLocation::kCallDirect:
-      // For direct code, we actually prefer to call via the code pointer from ArtMethod*.
-      return HInvokeStaticOrDirect::DispatchInfo {
-        desired_dispatch_info.method_load_kind,
-        HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod,
-        desired_dispatch_info.method_load_data,
-        0u
-      };
-    default:
-      return desired_dispatch_info;
-  }
+  return desired_dispatch_info;
 }
 
 Location CodeGeneratorX86_64::GenerateCalleeMethodStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
@@ -992,12 +980,6 @@ Location CodeGeneratorX86_64::GenerateCalleeMethodStaticOrDirectCall(HInvokeStat
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddress:
       __ movq(temp.AsRegister<CpuRegister>(), Immediate(invoke->GetMethodAddress()));
-      break;
-    case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddressWithFixup:
-      __ movl(temp.AsRegister<CpuRegister>(), Immediate(0));  // Placeholder.
-      method_patches_.emplace_back(*invoke->GetTargetMethod().dex_file,
-                                   invoke->GetTargetMethod().dex_method_index);
-      __ Bind(&method_patches_.back().label);  // Bind the label at the end of the "movl" insn.
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative: {
       __ movq(temp.AsRegister<CpuRegister>(),
@@ -1042,19 +1024,6 @@ void CodeGeneratorX86_64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invo
     case HInvokeStaticOrDirect::CodePtrLocation::kCallSelf:
       __ call(&frame_entry_label_);
       break;
-    case HInvokeStaticOrDirect::CodePtrLocation::kCallPCRelative: {
-      relative_call_patches_.emplace_back(*invoke->GetTargetMethod().dex_file,
-                                          invoke->GetTargetMethod().dex_method_index);
-      Label* label = &relative_call_patches_.back().label;
-      __ call(label);  // Bind to the patch label, override at link time.
-      __ Bind(label);  // Bind the label at the end of the "call" insn.
-      break;
-    }
-    case HInvokeStaticOrDirect::CodePtrLocation::kCallDirectWithFixup:
-    case HInvokeStaticOrDirect::CodePtrLocation::kCallDirect:
-      // Filtered out by GetSupportedInvokeStaticOrDirectDispatch().
-      LOG(FATAL) << "Unsupported";
-      UNREACHABLE();
     case HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod:
       // (callee_method + offset_of_quick_compiled_code)()
       __ call(Address(callee_method.AsRegister<CpuRegister>(),
@@ -1146,22 +1115,11 @@ inline void CodeGeneratorX86_64::EmitPcRelativeLinkerPatches(
 void CodeGeneratorX86_64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) {
   DCHECK(linker_patches->empty());
   size_t size =
-      method_patches_.size() +
-      relative_call_patches_.size() +
       pc_relative_dex_cache_patches_.size() +
       simple_patches_.size() +
       string_patches_.size() +
       type_patches_.size();
   linker_patches->reserve(size);
-  for (const PatchInfo<Label>& info : method_patches_) {
-    uint32_t literal_offset = info.label.Position() - kLabelPositionToLiteralOffsetAdjustment;
-    linker_patches->push_back(LinkerPatch::MethodPatch(literal_offset, &info.dex_file, info.index));
-  }
-  for (const PatchInfo<Label>& info : relative_call_patches_) {
-    uint32_t literal_offset = info.label.Position() - kLabelPositionToLiteralOffsetAdjustment;
-    linker_patches->push_back(
-        LinkerPatch::RelativeCodePatch(literal_offset, &info.dex_file, info.index));
-  }
   EmitPcRelativeLinkerPatches<LinkerPatch::DexCacheArrayPatch>(pc_relative_dex_cache_patches_,
                                                                linker_patches);
   for (const Label& label : simple_patches_) {
@@ -1253,8 +1211,6 @@ CodeGeneratorX86_64::CodeGeneratorX86_64(HGraph* graph,
         assembler_(graph->GetArena()),
         isa_features_(isa_features),
         constant_area_start_(0),
-        method_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
-        relative_call_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
         pc_relative_dex_cache_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
         simple_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
         string_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
