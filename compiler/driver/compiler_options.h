@@ -109,12 +109,16 @@ class CompilerOptions FINAL {
     return CompilerFilter::IsVerificationEnabled(compiler_filter_);
   }
 
-  bool NeverVerify() const {
+  bool AssumeClassesAreVerified() const {
     return compiler_filter_ == CompilerFilter::kVerifyNone;
   }
 
   bool VerifyOnlyProfile() const {
     return compiler_filter_ == CompilerFilter::kVerifyProfile;
+  }
+
+  bool IsAnyMethodCompilationEnabled() const {
+    return CompilerFilter::IsAnyMethodCompilationEnabled(compiler_filter_);
   }
 
   size_t GetHugeMethodThreshold() const {

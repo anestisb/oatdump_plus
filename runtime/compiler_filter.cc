@@ -60,6 +60,26 @@ bool CompilerFilter::IsJniCompilationEnabled(Filter filter) {
   UNREACHABLE();
 }
 
+bool CompilerFilter::IsAnyMethodCompilationEnabled(Filter filter) {
+  switch (filter) {
+    case CompilerFilter::kVerifyNone:
+    case CompilerFilter::kVerifyAtRuntime:
+    case CompilerFilter::kVerifyProfile: return false;
+
+    case CompilerFilter::kInterpretOnly:
+    case CompilerFilter::kSpaceProfile:
+    case CompilerFilter::kSpace:
+    case CompilerFilter::kBalanced:
+    case CompilerFilter::kTime:
+    case CompilerFilter::kSpeedProfile:
+    case CompilerFilter::kSpeed:
+    case CompilerFilter::kLayoutProfile:
+    case CompilerFilter::kEverythingProfile:
+    case CompilerFilter::kEverything: return true;
+  }
+  UNREACHABLE();
+}
+
 bool CompilerFilter::IsVerificationEnabled(Filter filter) {
   switch (filter) {
     case CompilerFilter::kVerifyNone:
