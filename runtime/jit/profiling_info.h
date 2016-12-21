@@ -128,9 +128,7 @@ class ProfilingInfo {
   const uint32_t number_of_inline_caches_;
 
   // Method this profiling info is for.
-  // Not 'const' as JVMTI introduces obsolete methods that we implement by creating new ArtMethods.
-  // See JitCodeCache::MoveObsoleteMethod.
-  ArtMethod* method_;
+  ArtMethod* const method_;
 
   // Whether the ArtMethod is currently being compiled. This flag
   // is implicitly guarded by the JIT code cache lock.
