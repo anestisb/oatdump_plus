@@ -30,7 +30,6 @@ HOST="n"
 INTERPRETER="n"
 JIT="n"
 INVOKE_WITH=""
-IS_JVMTI_TEST="n"
 ISA=x86
 LIBRARY_DIRECTORY="lib"
 TEST_DIRECTORY="nativetest"
@@ -65,9 +64,6 @@ APP_IMAGE="y"
 while true; do
     if [ "x$1" = "x--quiet" ]; then
         QUIET="y"
-        shift
-    elif [ "x$1" = "x--jvmti" ]; then
-        IS_JVMTI_TEST="y"
         shift
     elif [ "x$1" = "x-O" ]; then
         # Ignore this option.
@@ -384,28 +380,6 @@ if [ "$JIT" = "y" ]; then
       COMPILE_FLAGS="${COMPILE_FLAGS} --compiler-filter=verify-none"
       DEX_VERIFY="${DEX_VERIFY} -Xverify:none"
     fi
-fi
-
-if [ "$IS_JVMTI_TEST" = "y" ]; then
-  plugin=libopenjdkjvmtid.so
-  agent=libtiagentd.so
-  lib=tiagentd
-  if  [[ "$@" == *"-O"* ]]; then
-    agent=libtiagent.so
-    plugin=libopenjdkjvmti.so
-    lib=tiagent
-  fi
-
-  ARGS="${ARGS} ${lib}"
-  if [[ "$USE_JVM" = "y" ]]; then
-    FLAGS="${FLAGS} -agentpath:${agent}=${TEST_NAME},jvm"
-  else
-    FLAGS="${FLAGS} -agentpath:${agent}=${TEST_NAME},art"
-    FLAGS="${FLAGS} -Xplugin:${plugin}"
-    FLAGS="${FLAGS} -Xfully-deoptable"
-    # Always make the compilation be debuggable.
-    COMPILE_FLAGS="${COMPILE_FLAGS} --debuggable"
-  fi
 fi
 
 JNI_OPTS="-Xjnigreflimit:512 -Xcheck:jni"
