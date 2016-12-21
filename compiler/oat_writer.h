@@ -158,12 +158,15 @@ class OatWriter {
   // Supporting data structures are written into the .rodata section of the oat file.
   // The `verify` setting dictates whether the dex file verifier should check the dex files.
   // This is generally the case, and should only be false for tests.
+  // If `update_input_vdex` is true, then this method won't actually write the dex files,
+  // and the compiler will just re-use the existing vdex file.
   bool WriteAndOpenDexFiles(File* vdex_file,
                             OutputStream* oat_rodata,
                             InstructionSet instruction_set,
                             const InstructionSetFeatures* instruction_set_features,
                             SafeMap<std::string, std::string>* key_value_store,
                             bool verify,
+                            bool update_input_vdex,
                             /*out*/ std::unique_ptr<MemMap>* opened_dex_files_map,
                             /*out*/ std::vector<std::unique_ptr<const DexFile>>* opened_dex_files);
   bool WriteQuickeningInfo(OutputStream* vdex_out);
@@ -263,8 +266,13 @@ class OatWriter {
   // with a given DexMethodVisitor.
   bool VisitDexMethods(DexMethodVisitor* visitor);
 
-  bool WriteDexFiles(OutputStream* out, File* file);
-  bool WriteDexFile(OutputStream* out, File* file, OatDexFile* oat_dex_file);
+  // If `update_input_vdex` is true, then this method won't actually write the dex files,
+  // and the compiler will just re-use the existing vdex file.
+  bool WriteDexFiles(OutputStream* out, File* file, bool update_input_vdex);
+  bool WriteDexFile(OutputStream* out,
+                    File* file,
+                    OatDexFile* oat_dex_file,
+                    bool update_input_vdex);
   bool SeekToDexFile(OutputStream* out, File* file, OatDexFile* oat_dex_file);
   bool LayoutAndWriteDexFile(OutputStream* out, OatDexFile* oat_dex_file);
   bool WriteDexFile(OutputStream* out,
@@ -275,7 +283,10 @@ class OatWriter {
                     File* file,
                     OatDexFile* oat_dex_file,
                     File* dex_file);
-  bool WriteDexFile(OutputStream* out, OatDexFile* oat_dex_file, const uint8_t* dex_file);
+  bool WriteDexFile(OutputStream* out,
+                    OatDexFile* oat_dex_file,
+                    const uint8_t* dex_file,
+                    bool update_input_vdex);
   bool OpenDexFiles(File* file,
                     bool verify,
                     /*out*/ std::unique_ptr<MemMap>* opened_dex_files_map,
@@ -306,6 +317,7 @@ class OatWriter {
                              const std::vector<std::unique_ptr<const DexFile>>& opened_dex_files);
   bool WriteCodeAlignment(OutputStream* out, uint32_t aligned_code_delta);
   void SetMultiOatRelativePatcherAdjustment();
+  void CloseSources();
 
   enum class WriteState {
     kAddingDexFileSources,

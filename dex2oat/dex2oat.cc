@@ -1295,17 +1295,23 @@ class Dex2Oat FINAL {
 
         DCHECK_EQ(output_vdex_fd_, -1);
         std::string vdex_filename = ReplaceFileExtension(oat_filename, "vdex");
-        std::unique_ptr<File> vdex_file(OS::CreateEmptyFile(vdex_filename.c_str()));
-        if (vdex_file.get() == nullptr) {
-          PLOG(ERROR) << "Failed to open vdex file: " << vdex_filename;
-          return false;
+        if (vdex_filename == input_vdex_) {
+          update_input_vdex_ = true;
+          std::unique_ptr<File> vdex_file(OS::OpenFileReadWrite(vdex_filename.c_str()));
+          vdex_files_.push_back(std::move(vdex_file));
+        } else {
+          std::unique_ptr<File> vdex_file(OS::CreateEmptyFile(vdex_filename.c_str()));
+          if (vdex_file.get() == nullptr) {
+            PLOG(ERROR) << "Failed to open vdex file: " << vdex_filename;
+            return false;
+          }
+          if (fchmod(vdex_file->Fd(), 0644) != 0) {
+            PLOG(ERROR) << "Failed to make vdex file world readable: " << vdex_filename;
+            vdex_file->Erase();
+            return false;
+          }
+          vdex_files_.push_back(std::move(vdex_file));
         }
-        if (fchmod(vdex_file->Fd(), 0644) != 0) {
-          PLOG(ERROR) << "Failed to make vdex file world readable: " << vdex_filename;
-          vdex_file->Erase();
-          return false;
-        }
-        vdex_files_.push_back(std::move(vdex_file));
       }
     } else {
       std::unique_ptr<File> oat_file(new File(oat_fd_, oat_location_, /* check_usage */ true));
@@ -1319,7 +1325,6 @@ class Dex2Oat FINAL {
       }
       oat_files_.push_back(std::move(oat_file));
 
-      DCHECK_NE(input_vdex_fd_, output_vdex_fd_);
       if (input_vdex_fd_ != -1) {
         struct stat s;
         int rc = TEMP_FAILURE_RETRY(fstat(input_vdex_fd_, &s));
@@ -1352,8 +1357,13 @@ class Dex2Oat FINAL {
         return false;
       }
       vdex_file->DisableAutoClose();
-      if (vdex_file->SetLength(0) != 0) {
-        PLOG(WARNING) << "Truncating vdex file " << vdex_location << " failed.";
+      if (input_vdex_file_ != nullptr && output_vdex_fd_ == input_vdex_fd_) {
+        update_input_vdex_ = true;
+      } else {
+        if (vdex_file->SetLength(0) != 0) {
+          PLOG(ERROR) << "Truncating vdex file " << vdex_location << " failed.";
+          return false;
+        }
       }
       vdex_files_.push_back(std::move(vdex_file));
 
@@ -1542,6 +1552,7 @@ class Dex2Oat FINAL {
             instruction_set_features_.get(),
             key_value_store_.get(),
             verify,
+            update_input_vdex_,
             &opened_dex_files_map,
             &opened_dex_files)) {
           return false;
@@ -2731,6 +2742,9 @@ class Dex2Oat FINAL {
 
   // See CompilerOptions.force_determinism_.
   bool force_determinism_;
+
+  // Whether the given input vdex is also the output.
+  bool update_input_vdex_ = false;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(Dex2Oat);
 };
