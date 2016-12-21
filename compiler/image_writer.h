@@ -27,7 +27,6 @@
 #include <string>
 #include <ostream>
 
-#include "art_method.h"
 #include "base/bit_utils.h"
 #include "base/dchecked_vector.h"
 #include "base/enums.h"
