@@ -227,8 +227,10 @@ $(shell echo $(1) | tr '[:lower:]' '[:upper:]' | tr '-' '_')
 endef  # name-to-var
 
 # Disable 153-reference-stress temporarily until a fix arrives. b/33389022.
+# Disable 080-oom-fragmentation due to flakes. b/33795328
 ART_TEST_RUN_TEST_SKIP += \
-  153-reference-stress
+  153-reference-stress \
+  080-oom-fragmentation
 
 ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
         $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
@@ -675,15 +677,6 @@ ifeq ($(ART_USE_READ_BARRIER),true)
           $(TEST_ART_BROKEN_JIT_NON_BAKER_READ_BARRIER_RUN_TESTS),$(ALL_ADDRESS_SIZES))
     endif
   endif
-endif
-
-# Tests disabled for GSS.
-TEST_ART_BROKEN_GSS_RUN_TESTS := 080-oom-fragmentation
-ifeq ($(ART_DEFAULT_GC_TYPE),GSS)
-  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES), \
-      $(PREBUILD_TYPES),$(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES), \
-      $(JNI_TYPES),$(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES), \
-      $(TEST_ART_BROKEN_GSS_RUN_TESTS),$(ALL_ADDRESS_SIZES))
 endif
 
 TEST_ART_BROKEN_OPTIMIZING_READ_BARRIER_RUN_TESTS :=
