@@ -66,6 +66,9 @@ AgentLib agents[] = {
   { "911-get-stack-trace", Test911GetStackTrace::OnLoad, nullptr },
   { "912-classes", Test912Classes::OnLoad, nullptr },
   { "913-heaps", Test913Heaps::OnLoad, nullptr },
+  { "914-hello-obsolescence", common_redefine::OnLoad, nullptr },
+  { "915-obsolete-2", common_redefine::OnLoad, nullptr },
+  { "916-obsolete-jit", common_redefine::OnLoad, nullptr },
   { "917-fields-transformation", common_redefine::OnLoad, nullptr },
 };
 
