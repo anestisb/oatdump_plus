@@ -613,9 +613,6 @@ class CodeGeneratorX86 : public CodeGenerator {
   X86Assembler assembler_;
   const X86InstructionSetFeatures& isa_features_;
 
-  // Method patch info. Using ArenaDeque<> which retains element addresses on push/emplace_back().
-  ArenaDeque<PatchInfo<Label>> method_patches_;
-  ArenaDeque<PatchInfo<Label>> relative_call_patches_;
   // PC-relative DexCache access info.
   ArenaDeque<PatchInfo<Label>> pc_relative_dex_cache_patches_;
   // Patch locations for patchoat where the linker doesn't do any other work.
