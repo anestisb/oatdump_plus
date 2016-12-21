@@ -355,6 +355,12 @@ void VerifierDeps::AddAssignability(const DexFile& dex_file,
     return;
   }
 
+  if (source->IsObjectClass() && !is_assignable) {
+    // j.l.Object is trivially non-assignable to other types, don't
+    // record it.
+    return;
+  }
+
   if (destination == source ||
       destination->IsObjectClass() ||
       (!is_strict && destination->IsInterface())) {
@@ -395,6 +401,21 @@ void VerifierDeps::AddAssignability(const DexFile& dex_file,
     // No need to record a dependency.
     return;
   }
+
+  if (!IsInClassPath(source) && !source->IsInterface() && !destination->IsInterface()) {
+    // Find the super class at the classpath boundary. Only that class
+    // can change the assignability.
+    // TODO: also chase the boundary for interfaces.
+    do {
+      source = source->GetSuperClass();
+    } while (!IsInClassPath(source));
+
+    // If that class is the actual destination, no need to record it.
+    if (source == destination) {
+      return;
+    }
+  }
+
 
   // Get string IDs for both descriptors and store in the appropriate set.
   dex::StringIndex destination_id = GetClassDescriptorStringId(dex_file, destination);
