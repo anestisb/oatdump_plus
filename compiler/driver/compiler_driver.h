@@ -378,13 +378,6 @@ class CompilerDriver {
     return current_dex_to_dex_methods_;
   }
 
-  // Compute constant code and method pointers when possible.
-  void GetCodeAndMethodForDirectCall(const mirror::Class* referrer_class,
-                                     ArtMethod* method,
-                                     /* out */ uintptr_t* direct_code,
-                                     /* out */ uintptr_t* direct_method)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
  private:
   // Return whether the declaring class of `resolved_member` is
   // available to `referrer_class` for read or write access using two
