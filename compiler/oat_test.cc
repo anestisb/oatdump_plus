@@ -198,6 +198,7 @@ class OatTest : public CommonCompilerTest {
                                          compiler_driver_->GetInstructionSetFeatures(),
                                          &key_value_store,
                                          verify,
+                                         /* update_input_vdex */ false,
                                          &opened_dex_files_map,
                                          &opened_dex_files)) {
       return false;
