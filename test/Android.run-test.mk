@@ -543,6 +543,11 @@ TEST_ART_BROKEN_INTERPRETER_RUN_TESTS :=
 # Test 902 hits races with the JIT compiler. b/32821077
 # Test 626-const-class-linking can deadlock with JIT. b/33567581
 # Test 629 requires compilation.
+# Test 914, 915, 917, & 918 are very sensitive to the exact state of the stack,
+# including the jit-inserted runtime frames. This causes them to be somewhat
+# flaky as JIT tests. This should be fixed once b/33630159 or b/33616143 are
+# resolved but until then just disable them. Test 916 already checks this
+# feature for JIT use cases in a way that is resilient to the jit frames.
 TEST_ART_BROKEN_JIT_RUN_TESTS := \
   137-cfi \
   626-const-class-linking \
@@ -550,6 +555,10 @@ TEST_ART_BROKEN_JIT_RUN_TESTS := \
   902-hello-transformation \
   904-object-allocation \
   906-iterate-heap \
+  914-hello-obsolescence \
+  915-obsolete-2 \
+  917-fields-transformation \
+  918-obsolete-fields \
 
 ifneq (,$(filter jit,$(COMPILER_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
