@@ -14,14 +14,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# We are testing the redefinition of compiled code but with jvmti we only allow
-# jitted compiled code so always add the --jit argument.
+plugin=libopenjdkjvmtid.so
+agent=libtiagentd.so
+lib=tiagentd
+if  [[ "$@" == *"-O"* ]]; then
+  agent=libtiagent.so
+  plugin=libopenjdkjvmti.so
+  lib=tiagent
+fi
+
 if [[ "$@" == *"--jit"* ]]; then
   other_args=""
 else
   other_args="--jit"
 fi
+if [[ "$@" == *"--jvm"* ]]; then
+  arg="jvm"
+else
+  arg="art"
+  if [[ "$@" != *"--debuggable"* ]]; then
+    other_args="$other_args -Xcompiler-option --debuggable "
+  fi
+fi
+
+
 ./default-run "$@" --experimental agents \
                    --experimental runtime-plugins \
+                   --runtime-option -agentpath:${agent}=915-obsolete-2,${arg} \
+                   --android-runtime-option -Xplugin:${plugin} \
+                   --android-runtime-option -Xfully-deoptable \
                    ${other_args} \
-                   --jvmti
+                   --args ${lib}
