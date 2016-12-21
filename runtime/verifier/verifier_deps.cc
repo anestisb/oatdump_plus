@@ -249,11 +249,12 @@ bool VerifierDeps::IsInClassPath(ObjPtr<mirror::Class> klass) const {
   if (dex_cache == nullptr) {
     // This is a synthesized class, in this case always an array. They are not
     // defined in the compiled DEX files and therefore are part of the classpath.
-    // We could avoid recording dependencies on arrays with component types in
-    // the compiled DEX files but we choose to record them anyway so as to
-    // record the access flags VM sets for array classes.
+    // We do not record dependencies on arrays with component types in
+    // the compiled DEX files, as the only thing that might change is their
+    // access flags. If we were to change these flags in a breaking way, we would
+    // need to enforce full verification again anyways by updating the vdex version.
     DCHECK(klass->IsArrayClass()) << klass->PrettyDescriptor();
-    return true;
+    return false;
   }
 
   const DexFile* dex_file = dex_cache->GetDexFile();
