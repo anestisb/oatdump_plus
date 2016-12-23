@@ -1,1 +1,0 @@
-Tests on floating-point Math.abs.
