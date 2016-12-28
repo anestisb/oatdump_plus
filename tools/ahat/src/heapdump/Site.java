@@ -129,19 +129,21 @@ public class Site implements Diffable<Site> {
     while (true) {
       site.mObjects.add(inst);
 
-      AhatHeap heap = inst.getHeap();
-      if (heap.getIndex() >= site.mSizesByHeap.length) {
-        long[] newSizes = new long[heap.getIndex() + 1];
-        for (int i = 0; i < site.mSizesByHeap.length; i++) {
-          newSizes[i] = site.mSizesByHeap[i];
-        }
-        site.mSizesByHeap = newSizes;
-      }
-      site.mSizesByHeap[heap.getIndex()] += inst.getSize();
-
       ObjectsInfo info = site.getObjectsInfo(inst.getHeap(), inst.getClassObj());
-      info.numInstances++;
-      info.numBytes += inst.getSize();
+      if (inst.isReachable()) {
+        AhatHeap heap = inst.getHeap();
+        if (heap.getIndex() >= site.mSizesByHeap.length) {
+          long[] newSizes = new long[heap.getIndex() + 1];
+          for (int i = 0; i < site.mSizesByHeap.length; i++) {
+            newSizes[i] = site.mSizesByHeap[i];
+          }
+          site.mSizesByHeap = newSizes;
+        }
+        site.mSizesByHeap[heap.getIndex()] += inst.getSize();
+
+        info.numInstances++;
+        info.numBytes += inst.getSize();
+      }
 
       if (depth > 0) {
         StackFrame next = frames[depth - 1];

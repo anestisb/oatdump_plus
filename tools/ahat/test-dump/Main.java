@@ -18,6 +18,7 @@ import dalvik.system.VMDebug;
 import java.io.IOException;
 import java.lang.ref.PhantomReference;
 import java.lang.ref.ReferenceQueue;
+import java.lang.ref.SoftReference;
 import java.lang.ref.WeakReference;
 import org.apache.harmony.dalvik.ddmc.DdmVmInternal;
 
@@ -73,6 +74,7 @@ public class Main {
     public PhantomReference aPhantomReference = new PhantomReference(anObject, referenceQueue);
     public WeakReference aWeakReference = new WeakReference(anObject, referenceQueue);
     public WeakReference aNullReferentReference = new WeakReference(null, referenceQueue);
+    public SoftReference aSoftReference = new SoftReference(new Object());
     public byte[] bigArray;
     public ObjectTree[] gcPathArray = new ObjectTree[]{null, null,
       new ObjectTree(

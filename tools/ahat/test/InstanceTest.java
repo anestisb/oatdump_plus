@@ -223,6 +223,16 @@ public class InstanceTest {
   }
 
   @Test
+  public void unreachableReferent() throws IOException {
+    // The test dump program should never be under enough GC pressure for the
+    // soft reference to be cleared. Ensure that ahat will show the soft
+    // reference as having a non-null referent.
+    TestDump dump = TestDump.getTestDump();
+    AhatInstance ref = dump.getDumpedAhatInstance("aSoftReference");
+    assertNotNull(ref.getReferent());
+  }
+
+  @Test
   public void gcRootPath() throws IOException {
     TestDump dump = TestDump.getTestDump();
 
@@ -356,14 +366,6 @@ public class InstanceTest {
     AhatInstance obj = dump.getDumpedAhatInstance("anObject");
     assertFalse(obj.isRoot());
     assertNull(obj.getRootTypes());
-  }
-
-  @Test
-  public void reverseReferencesAreNotUnreachable() throws IOException {
-    TestDump dump = TestDump.getTestDump();
-    AhatInstance obj = dump.getDumpedAhatInstance("basicString");
-    assertEquals(2, obj.getHardReverseReferences().size());
-    assertEquals(0, obj.getSoftReverseReferences().size());
   }
 
   @Test

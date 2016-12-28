@@ -50,6 +50,11 @@ class Summarizer {
       formatted.append(DocString.removed("del "));
     }
 
+    // Annotate unreachable objects as such.
+    if (!inst.isReachable()) {
+      formatted.append("unreachable ");
+    }
+
     // Annotate roots as roots.
     if (inst.isRoot()) {
       formatted.append("root ");

@@ -106,17 +106,15 @@ public class AhatSnapshot implements Diffable<AhatSnapshot> {
       TObjectProcedure<Instance> doCreate = new TObjectProcedure<Instance>() {
         @Override
         public boolean execute(Instance inst) {
-          if (inst.isReachable()) {
-            long id = inst.getId();
-            if (inst instanceof ClassInstance) {
-              mInstances.add(new AhatClassInstance(id));
-            } else if (inst instanceof ArrayInstance) {
-              mInstances.add(new AhatArrayInstance(id));
-            } else if (inst instanceof ClassObj) {
-              AhatClassObj classObj = new AhatClassObj(id);
-              mInstances.add(classObj);
-              mClasses.put(((ClassObj)inst).getClassName(), classObj);
-            }
+          long id = inst.getId();
+          if (inst instanceof ClassInstance) {
+            mInstances.add(new AhatClassInstance(id));
+          } else if (inst instanceof ArrayInstance) {
+            mInstances.add(new AhatArrayInstance(id));
+          } else if (inst instanceof ClassObj) {
+            AhatClassObj classObj = new AhatClassObj(id);
+            mInstances.add(classObj);
+            mClasses.put(((ClassObj)inst).getClassName(), classObj);
           }
           return true;
         }
@@ -146,7 +144,9 @@ public class AhatSnapshot implements Diffable<AhatSnapshot> {
         mRooted.add(ahat);
       }
 
-      ahat.getHeap().addToSize(ahat.getSize());
+      if (inst.isReachable()) {
+        ahat.getHeap().addToSize(ahat.getSize());
+      }
 
       // Update sites.
       StackFrame[] frames = null;

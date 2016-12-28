@@ -31,6 +31,7 @@ public abstract class AhatInstance implements Diffable<AhatInstance> {
   private long mSize;
   private long mTotalRetainedSize;
   private long mRetainedSizes[];      // Retained size indexed by heap index
+  private boolean mIsReachable;
   private AhatHeap mHeap;
   private AhatInstance mImmediateDominator;
   private AhatInstance mNextInstanceToGcRoot;
@@ -64,6 +65,7 @@ public abstract class AhatInstance implements Diffable<AhatInstance> {
     mId = inst.getId();
     mSize = inst.getSize();
     mTotalRetainedSize = inst.getTotalRetainedSize();
+    mIsReachable = inst.isReachable();
 
     List<AhatHeap> heaps = snapshot.getHeaps();
     mRetainedSizes = new long[heaps.size()];
@@ -146,6 +148,13 @@ public abstract class AhatInstance implements Diffable<AhatInstance> {
    */
   public long getTotalRetainedSize() {
     return mTotalRetainedSize;
+  }
+
+  /**
+   * Returns whether this object is strongly-reachable.
+   */
+  public boolean isReachable() {
+    return mIsReachable;
   }
 
   /**
