@@ -4160,9 +4160,12 @@ void InstructionCodeGeneratorMIPS64::VisitTypeConversion(HTypeConversion* conver
         break;
       case Primitive::kPrimInt:
       case Primitive::kPrimLong:
-        // Sign-extend 32-bit int into bits 32 through 63 for
-        // int-to-long and long-to-int conversions
-        __ Sll(dst, src, 0);
+        // Sign-extend 32-bit int into bits 32 through 63 for int-to-long and long-to-int
+        // conversions, except when the input and output registers are the same and we are not
+        // converting longs to shorter types. In these cases, do nothing.
+        if ((input_type == Primitive::kPrimLong) || (dst != src)) {
+          __ Sll(dst, src, 0);
+        }
         break;
 
       default:
