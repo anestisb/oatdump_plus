@@ -320,6 +320,10 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
     block_labels_ = CommonInitializeLabels<Mips64Label>();
   }
 
+  // We prefer aligned loads and stores (less code), so spill and restore registers in slow paths
+  // at aligned locations.
+  uint32_t GetPreferredSlotsAlignment() const OVERRIDE { return kMips64DoublewordSize; }
+
   void Finalize(CodeAllocator* allocator) OVERRIDE;
 
   // Code generation helpers.
