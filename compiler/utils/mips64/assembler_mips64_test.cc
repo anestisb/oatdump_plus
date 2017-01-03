@@ -1141,6 +1141,22 @@ TEST_F(AssemblerMIPS64Test, Dinsu) {
   DriverStr(expected.str(), "Dinsu");
 }
 
+TEST_F(AssemblerMIPS64Test, Lsa) {
+  DriverStr(RepeatRRRIb(&mips64::Mips64Assembler::Lsa,
+                        2,
+                        "lsa ${reg1}, ${reg2}, ${reg3}, {imm}",
+                        1),
+            "lsa");
+}
+
+TEST_F(AssemblerMIPS64Test, Dlsa) {
+  DriverStr(RepeatRRRIb(&mips64::Mips64Assembler::Dlsa,
+                        2,
+                        "dlsa ${reg1}, ${reg2}, ${reg3}, {imm}",
+                        1),
+            "dlsa");
+}
+
 TEST_F(AssemblerMIPS64Test, Wsbh) {
   DriverStr(RepeatRR(&mips64::Mips64Assembler::Wsbh, "wsbh ${reg1}, ${reg2}"), "wsbh");
 }

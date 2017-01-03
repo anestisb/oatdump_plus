@@ -440,6 +440,8 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
   void Dshd(GpuRegister rd, GpuRegister rt);  // MIPS64
   void Dext(GpuRegister rs, GpuRegister rt, int pos, int size);  // MIPS64
   void Dinsu(GpuRegister rt, GpuRegister rs, int pos, int size);  // MIPS64
+  void Lsa(GpuRegister rd, GpuRegister rs, GpuRegister rt, int saPlusOne);
+  void Dlsa(GpuRegister rd, GpuRegister rs, GpuRegister rt, int saPlusOne);  // MIPS64
   void Wsbh(GpuRegister rd, GpuRegister rt);
   void Sc(GpuRegister rt, GpuRegister base, int16_t imm9 = 0);
   void Scd(GpuRegister rt, GpuRegister base, int16_t imm9 = 0);  // MIPS64
