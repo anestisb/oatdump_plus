@@ -1846,6 +1846,84 @@ void IntrinsicCodeGeneratorMIPS64::VisitDoubleIsInfinite(HInvoke* invoke) {
   GenIsInfinite(invoke->GetLocations(), /* is64bit */ true, GetAssembler());
 }
 
+// void java.lang.String.getChars(int srcBegin, int srcEnd, char[] dst, int dstBegin)
+void IntrinsicLocationsBuilderMIPS64::VisitStringGetCharsNoCheck(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kCallOnMainOnly,
+                                                            kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetInAt(2, Location::RequiresRegister());
+  locations->SetInAt(3, Location::RequiresRegister());
+  locations->SetInAt(4, Location::RequiresRegister());
+
+  // We will call memcpy() to do the actual work. Allocate the temporary
+  // registers to use the correct input registers, and output register.
+  // memcpy() uses the normal MIPS calling conventions.
+  InvokeRuntimeCallingConvention calling_convention;
+
+  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
+
+  Location outLocation = calling_convention.GetReturnLocation(Primitive::kPrimLong);
+  locations->AddTemp(Location::RegisterLocation(outLocation.AsRegister<GpuRegister>()));
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitStringGetCharsNoCheck(HInvoke* invoke) {
+  Mips64Assembler* assembler = GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  // Check assumption that sizeof(Char) is 2 (used in scaling below).
+  const size_t char_size = Primitive::ComponentSize(Primitive::kPrimChar);
+  DCHECK_EQ(char_size, 2u);
+  const size_t char_shift = Primitive::ComponentSizeShift(Primitive::kPrimChar);
+
+  GpuRegister srcObj = locations->InAt(0).AsRegister<GpuRegister>();
+  GpuRegister srcBegin = locations->InAt(1).AsRegister<GpuRegister>();
+  GpuRegister srcEnd = locations->InAt(2).AsRegister<GpuRegister>();
+  GpuRegister dstObj = locations->InAt(3).AsRegister<GpuRegister>();
+  GpuRegister dstBegin = locations->InAt(4).AsRegister<GpuRegister>();
+
+  GpuRegister dstPtr = locations->GetTemp(0).AsRegister<GpuRegister>();
+  DCHECK_EQ(dstPtr, A0);
+  GpuRegister srcPtr = locations->GetTemp(1).AsRegister<GpuRegister>();
+  DCHECK_EQ(srcPtr, A1);
+  GpuRegister numChrs = locations->GetTemp(2).AsRegister<GpuRegister>();
+  DCHECK_EQ(numChrs, A2);
+
+  GpuRegister dstReturn = locations->GetTemp(3).AsRegister<GpuRegister>();
+  DCHECK_EQ(dstReturn, V0);
+
+  Mips64Label done;
+
+  // Location of data in char array buffer.
+  const uint32_t data_offset = mirror::Array::DataOffset(char_size).Uint32Value();
+
+  // Get offset of value field within a string object.
+  const int32_t value_offset = mirror::String::ValueOffset().Int32Value();
+
+  __ Beqc(srcEnd, srcBegin, &done);  // No characters to move.
+
+  // Calculate number of characters to be copied.
+  __ Dsubu(numChrs, srcEnd, srcBegin);
+
+  // Calculate destination address.
+  __ Daddiu(dstPtr, dstObj, data_offset);
+  __ Dlsa(dstPtr, dstBegin, dstPtr, char_shift);
+
+  // Calculate source address.
+  __ Daddiu(srcPtr, srcObj, value_offset);
+  __ Dlsa(srcPtr, srcBegin, srcPtr, char_shift);
+
+  // Calculate number of bytes to copy from number of characters.
+  __ Dsll(numChrs, numChrs, char_shift);
+
+  codegen_->InvokeRuntime(kQuickMemcpy, invoke, invoke->GetDexPc(), nullptr);
+
+  __ Bind(&done);
+}
+
 static void GenHighestOneBit(LocationSummary* locations,
                              Primitive::Type type,
                              Mips64Assembler* assembler) {
@@ -1925,7 +2003,6 @@ void IntrinsicCodeGeneratorMIPS64::VisitLongLowestOneBit(HInvoke* invoke) {
 }
 
 UNIMPLEMENTED_INTRINSIC(MIPS64, ReferenceGetReferent)
-UNIMPLEMENTED_INTRINSIC(MIPS64, StringGetCharsNoCheck)
 UNIMPLEMENTED_INTRINSIC(MIPS64, SystemArrayCopyChar)
 UNIMPLEMENTED_INTRINSIC(MIPS64, SystemArrayCopy)
 
