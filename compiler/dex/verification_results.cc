@@ -46,9 +46,7 @@ VerificationResults::~VerificationResults() {
 void VerificationResults::ProcessVerifiedMethod(verifier::MethodVerifier* method_verifier) {
   DCHECK(method_verifier != nullptr);
   MethodReference ref = method_verifier->GetMethodReference();
-  bool compile = IsCandidateForCompilation(ref, method_verifier->GetAccessFlags());
-  std::unique_ptr<const VerifiedMethod> verified_method(
-      VerifiedMethod::Create(method_verifier, compile));
+  std::unique_ptr<const VerifiedMethod> verified_method(VerifiedMethod::Create(method_verifier));
   if (verified_method == nullptr) {
     // We'll punt this later.
     return;
@@ -84,7 +82,6 @@ void VerificationResults::ProcessVerifiedMethod(verifier::MethodVerifier* method
     // TODO: Investigate why are we doing the work again for this method and try to avoid it.
     LOG(WARNING) << "Method processed more than once: " << ref.PrettyMethod();
     if (!Runtime::Current()->UseJitCompilation()) {
-      DCHECK_EQ(existing->GetDevirtMap().size(), verified_method->GetDevirtMap().size());
       DCHECK_EQ(existing->GetSafeCastSet().size(), verified_method->GetSafeCastSet().size());
     }
     // Let the unique_ptr delete the new verified method since there was already an existing one
