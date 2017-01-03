@@ -145,7 +145,8 @@ class AssemblerTest : public testing::Test {
                                               const std::vector<Reg2*> reg2_registers,
                                               std::string (AssemblerTest::*GetName1)(const Reg1&),
                                               std::string (AssemblerTest::*GetName2)(const Reg2&),
-                                              const std::string& fmt) {
+                                              const std::string& fmt,
+                                              int bias = 0) {
     std::string str;
     std::vector<int64_t> imms = CreateImmediateValuesBits(abs(imm_bits), (imm_bits > 0));
 
@@ -153,7 +154,7 @@ class AssemblerTest : public testing::Test {
       for (auto reg2 : reg2_registers) {
         for (int64_t imm : imms) {
           ImmType new_imm = CreateImmediate(imm);
-          (assembler_.get()->*f)(*reg1, *reg2, new_imm);
+          (assembler_.get()->*f)(*reg1, *reg2, new_imm + bias);
           std::string base = fmt;
 
           std::string reg1_string = (this->*GetName1)(*reg1);
@@ -171,7 +172,7 @@ class AssemblerTest : public testing::Test {
           size_t imm_index = base.find(IMM_TOKEN);
           if (imm_index != std::string::npos) {
             std::ostringstream sreg;
-            sreg << imm;
+            sreg << imm + bias;
             std::string imm_string = sreg.str();
             base.replace(imm_index, ConstexprStrLen(IMM_TOKEN), imm_string);
           }
@@ -180,6 +181,67 @@ class AssemblerTest : public testing::Test {
             str += "\n";
           }
           str += base;
+        }
+      }
+    }
+    // Add a newline at the end.
+    str += "\n";
+    return str;
+  }
+
+  template <typename Reg1, typename Reg2, typename Reg3, typename ImmType>
+  std::string RepeatTemplatedRegistersImmBits(void (Ass::*f)(Reg1, Reg2, Reg3, ImmType),
+                                              int imm_bits,
+                                              const std::vector<Reg1*> reg1_registers,
+                                              const std::vector<Reg2*> reg2_registers,
+                                              const std::vector<Reg3*> reg3_registers,
+                                              std::string (AssemblerTest::*GetName1)(const Reg1&),
+                                              std::string (AssemblerTest::*GetName2)(const Reg2&),
+                                              std::string (AssemblerTest::*GetName3)(const Reg3&),
+                                              std::string fmt,
+                                              int bias) {
+    std::string str;
+    std::vector<int64_t> imms = CreateImmediateValuesBits(abs(imm_bits), (imm_bits > 0));
+
+    for (auto reg1 : reg1_registers) {
+      for (auto reg2 : reg2_registers) {
+        for (auto reg3 : reg3_registers) {
+          for (int64_t imm : imms) {
+            ImmType new_imm = CreateImmediate(imm);
+            (assembler_.get()->*f)(*reg1, *reg2, *reg3, new_imm + bias);
+            std::string base = fmt;
+
+            std::string reg1_string = (this->*GetName1)(*reg1);
+            size_t reg1_index;
+            while ((reg1_index = base.find(REG1_TOKEN)) != std::string::npos) {
+              base.replace(reg1_index, ConstexprStrLen(REG1_TOKEN), reg1_string);
+            }
+
+            std::string reg2_string = (this->*GetName2)(*reg2);
+            size_t reg2_index;
+            while ((reg2_index = base.find(REG2_TOKEN)) != std::string::npos) {
+              base.replace(reg2_index, ConstexprStrLen(REG2_TOKEN), reg2_string);
+            }
+
+            std::string reg3_string = (this->*GetName3)(*reg3);
+            size_t reg3_index;
+            while ((reg3_index = base.find(REG3_TOKEN)) != std::string::npos) {
+              base.replace(reg3_index, ConstexprStrLen(REG3_TOKEN), reg3_string);
+            }
+
+            size_t imm_index = base.find(IMM_TOKEN);
+            if (imm_index != std::string::npos) {
+              std::ostringstream sreg;
+              sreg << imm + bias;
+              std::string imm_string = sreg.str();
+              base.replace(imm_index, ConstexprStrLen(IMM_TOKEN), imm_string);
+            }
+
+            if (str.size() > 0) {
+              str += "\n";
+            }
+            str += base;
+          }
         }
       }
     }
@@ -245,14 +307,15 @@ class AssemblerTest : public testing::Test {
                                              int imm_bits,
                                              const std::vector<Reg*> registers,
                                              std::string (AssemblerTest::*GetName)(const RegType&),
-                                             const std::string& fmt) {
+                                             const std::string& fmt,
+                                             int bias) {
     std::string str;
     std::vector<int64_t> imms = CreateImmediateValuesBits(abs(imm_bits), (imm_bits > 0));
 
     for (auto reg : registers) {
       for (int64_t imm : imms) {
         ImmType new_imm = CreateImmediate(imm);
-        (assembler_.get()->*f)(*reg, new_imm);
+        (assembler_.get()->*f)(*reg, new_imm + bias);
         std::string base = fmt;
 
         std::string reg_string = (this->*GetName)(*reg);
@@ -264,7 +327,7 @@ class AssemblerTest : public testing::Test {
         size_t imm_index = base.find(IMM_TOKEN);
         if (imm_index != std::string::npos) {
           std::ostringstream sreg;
-          sreg << imm;
+          sreg << imm + bias;
           std::string imm_string = sreg.str();
           base.replace(imm_index, ConstexprStrLen(IMM_TOKEN), imm_string);
         }
@@ -281,36 +344,60 @@ class AssemblerTest : public testing::Test {
   }
 
   template <typename ImmType>
-  std::string RepeatRRIb(void (Ass::*f)(Reg, Reg, ImmType), int imm_bits, const std::string& fmt) {
+  std::string RepeatRRIb(void (Ass::*f)(Reg, Reg, ImmType),
+                         int imm_bits,
+                         const std::string& fmt,
+                         int bias = 0) {
     return RepeatTemplatedRegistersImmBits<Reg, Reg, ImmType>(f,
         imm_bits,
         GetRegisters(),
         GetRegisters(),
         &AssemblerTest::GetRegName<RegisterView::kUsePrimaryName>,
         &AssemblerTest::GetRegName<RegisterView::kUsePrimaryName>,
-        fmt);
+        fmt,
+        bias);
   }
 
   template <typename ImmType>
-  std::string RepeatRIb(void (Ass::*f)(Reg, ImmType), int imm_bits, const std::string& fmt) {
+  std::string RepeatRRRIb(void (Ass::*f)(Reg, Reg, Reg, ImmType),
+                          int imm_bits,
+                          const std::string& fmt,
+                          int bias = 0) {
+    return RepeatTemplatedRegistersImmBits<Reg, Reg, Reg, ImmType>(f,
+        imm_bits,
+        GetRegisters(),
+        GetRegisters(),
+        GetRegisters(),
+        &AssemblerTest::GetRegName<RegisterView::kUsePrimaryName>,
+        &AssemblerTest::GetRegName<RegisterView::kUsePrimaryName>,
+        &AssemblerTest::GetRegName<RegisterView::kUsePrimaryName>,
+        fmt,
+        bias);
+  }
+
+  template <typename ImmType>
+  std::string RepeatRIb(void (Ass::*f)(Reg, ImmType), int imm_bits, std::string fmt, int bias = 0) {
     return RepeatTemplatedRegisterImmBits<Reg, ImmType>(f,
         imm_bits,
         GetRegisters(),
         &AssemblerTest::GetRegName<RegisterView::kUsePrimaryName>,
-        fmt);
+        fmt,
+        bias);
   }
 
   template <typename ImmType>
   std::string RepeatFRIb(void (Ass::*f)(FPReg, Reg, ImmType),
                          int imm_bits,
-                         const std::string& fmt) {
+                         const std::string& fmt,
+                         int bias = 0) {
     return RepeatTemplatedRegistersImmBits<FPReg, Reg, ImmType>(f,
         imm_bits,
         GetFPRegisters(),
         GetRegisters(),
         &AssemblerTest::GetFPRegName,
         &AssemblerTest::GetRegName<RegisterView::kUsePrimaryName>,
-        fmt);
+        fmt,
+        bias);
   }
 
   std::string RepeatFF(void (Ass::*f)(FPReg, FPReg), const std::string& fmt) {
