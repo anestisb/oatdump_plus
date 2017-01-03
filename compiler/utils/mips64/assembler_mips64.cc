@@ -319,6 +319,18 @@ void Mips64Assembler::Dinsu(GpuRegister rt, GpuRegister rs, int pos, int size) {
   EmitR(0x1f, rs, rt, static_cast<GpuRegister>(pos + size - 33), pos - 32, 0x6);
 }
 
+void Mips64Assembler::Lsa(GpuRegister rd, GpuRegister rs, GpuRegister rt, int saPlusOne) {
+  CHECK(1 <= saPlusOne && saPlusOne <= 4) << saPlusOne;
+  int sa = saPlusOne - 1;
+  EmitR(0x0, rs, rt, rd, sa, 0x05);
+}
+
+void Mips64Assembler::Dlsa(GpuRegister rd, GpuRegister rs, GpuRegister rt, int saPlusOne) {
+  CHECK(1 <= saPlusOne && saPlusOne <= 4) << saPlusOne;
+  int sa = saPlusOne - 1;
+  EmitR(0x0, rs, rt, rd, sa, 0x15);
+}
+
 void Mips64Assembler::Wsbh(GpuRegister rd, GpuRegister rt) {
   EmitRtd(0x1f, rt, rd, 2, 0x20);
 }
