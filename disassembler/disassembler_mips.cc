@@ -139,6 +139,8 @@ static const MipsInstruction gMipsInstructions[] = {
   { kSpecial0Mask | (0x1f << 16) | 0x7ff, (0x01 << 6) | 0x11, "clo", "DS" },
   { kSpecial0Mask | (0x1f << 16) | 0x7ff, (0x01 << 6) | 0x12, "dclz", "DS" },
   { kSpecial0Mask | (0x1f << 16) | 0x7ff, (0x01 << 6) | 0x13, "dclo", "DS" },
+  { kSpecial0Mask | 0x73f, 0x05, "lsa", "DSTj" },
+  { kSpecial0Mask | 0x73f, 0x15, "dlsa", "DSTj" },
   // TODO: sdbbp
 
   // SPECIAL2
@@ -489,6 +491,9 @@ size_t DisassemblerMips::Dump(std::ostream& os, const uint8_t* instr_ptr) {
             }
           case 'i':  // Sign-extended lower 16-bit immediate.
             args << static_cast<int16_t>(instruction & 0xffff);
+            break;
+          case 'j':  // sa value for lsa/dlsa.
+            args << (sa + 1);
             break;
           case 'L':  // Jump label.
             {
