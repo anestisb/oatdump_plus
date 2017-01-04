@@ -250,7 +250,6 @@ class ArtMethod FINAL {
   }
 
   void SetSkipAccessChecks() {
-    DCHECK(!SkipAccessChecks());
     AddAccessFlags(kAccSkipAccessChecks);
   }
 
