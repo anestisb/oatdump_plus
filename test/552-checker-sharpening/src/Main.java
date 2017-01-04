@@ -52,7 +52,6 @@ public class Main {
   /// CHECK:                InvokeStaticOrDirect method_load_kind:dex_cache_pc_relative
 
   /// CHECK-START-MIPS: int Main.testSimple(int) sharpening (after)
-  /// CHECK-NOT:            MipsDexCacheArraysBase
   /// CHECK:                InvokeStaticOrDirect method_load_kind:dex_cache_pc_relative
 
   /// CHECK-START-MIPS64: int Main.testSimple(int) sharpening (after)
@@ -68,10 +67,6 @@ public class Main {
   /// CHECK-START-ARM: int Main.testSimple(int) dex_cache_array_fixups_arm (after)
   /// CHECK:                ArmDexCacheArraysBase
   /// CHECK-NOT:            ArmDexCacheArraysBase
-
-  /// CHECK-START-MIPS: int Main.testSimple(int) dex_cache_array_fixups_mips (after)
-  /// CHECK:                MipsDexCacheArraysBase
-  /// CHECK-NOT:            MipsDexCacheArraysBase
 
   /// CHECK-START-X86: int Main.testSimple(int) pc_relative_fixups_x86 (after)
   /// CHECK:                X86ComputeBaseMethodAddress
@@ -95,7 +90,6 @@ public class Main {
   /// CHECK:                InvokeStaticOrDirect method_load_kind:dex_cache_pc_relative
 
   /// CHECK-START-MIPS: int Main.testDiamond(boolean, int) sharpening (after)
-  /// CHECK-NOT:            MipsDexCacheArraysBase
   /// CHECK:                InvokeStaticOrDirect method_load_kind:dex_cache_pc_relative
   /// CHECK:                InvokeStaticOrDirect method_load_kind:dex_cache_pc_relative
 
@@ -118,14 +112,6 @@ public class Main {
 
   /// CHECK-START-ARM: int Main.testDiamond(boolean, int) dex_cache_array_fixups_arm (after)
   /// CHECK:                ArmDexCacheArraysBase
-  /// CHECK-NEXT:           If
-
-  /// CHECK-START-MIPS: int Main.testDiamond(boolean, int) dex_cache_array_fixups_mips (after)
-  /// CHECK:                MipsDexCacheArraysBase
-  /// CHECK-NOT:            MipsDexCacheArraysBase
-
-  /// CHECK-START-MIPS: int Main.testDiamond(boolean, int) dex_cache_array_fixups_mips (after)
-  /// CHECK:                MipsDexCacheArraysBase
   /// CHECK-NEXT:           If
 
   /// CHECK-START-X86: int Main.testDiamond(boolean, int) pc_relative_fixups_x86 (after)
@@ -182,24 +168,6 @@ public class Main {
   /// CHECK:                begin_block
   /// CHECK:                InvokeStaticOrDirect method_load_kind:dex_cache_pc_relative
 
-  /// CHECK-START-MIPS: int Main.testLoop(int[], int) dex_cache_array_fixups_mips (before)
-  /// CHECK-NOT:            MipsDexCacheArraysBase
-
-  /// CHECK-START-MIPS: int Main.testLoop(int[], int) dex_cache_array_fixups_mips (after)
-  /// CHECK:                MipsDexCacheArraysBase
-  /// CHECK-NOT:            MipsDexCacheArraysBase
-
-  /// CHECK-START-MIPS: int Main.testLoop(int[], int) dex_cache_array_fixups_mips (after)
-  /// CHECK:                InvokeStaticOrDirect
-  /// CHECK-NOT:            InvokeStaticOrDirect
-
-  /// CHECK-START-MIPS: int Main.testLoop(int[], int) dex_cache_array_fixups_mips (after)
-  /// CHECK:                ArrayLength
-  /// CHECK-NEXT:           MipsDexCacheArraysBase
-  /// CHECK-NEXT:           Goto
-  /// CHECK:                begin_block
-  /// CHECK:                InvokeStaticOrDirect method_load_kind:dex_cache_pc_relative
-
   public static int testLoop(int[] array, int x) {
     // PC-relative bases used by ARM, MIPS and X86 should be pulled before the loop.
     for (int i : array) {
@@ -226,16 +194,6 @@ public class Main {
   /// CHECK:                begin_block
   /// CHECK:                ArrayLength
   /// CHECK-NEXT:           ArmDexCacheArraysBase
-  /// CHECK-NEXT:           Goto
-
-  /// CHECK-START-MIPS: int Main.testLoopWithDiamond(int[], boolean, int) dex_cache_array_fixups_mips (before)
-  /// CHECK-NOT:            MipsDexCacheArraysBase
-
-  /// CHECK-START-MIPS: int Main.testLoopWithDiamond(int[], boolean, int) dex_cache_array_fixups_mips (after)
-  /// CHECK:                If
-  /// CHECK:                begin_block
-  /// CHECK:                ArrayLength
-  /// CHECK-NEXT:           MipsDexCacheArraysBase
   /// CHECK-NEXT:           Goto
 
   public static int testLoopWithDiamond(int[] array, boolean negate, int x) {
@@ -390,10 +348,6 @@ public class Main {
 
   /// CHECK-START-MIPS: java.lang.Class Main.$noinline$getOtherClass() sharpening (after)
   /// CHECK:                LoadClass load_kind:BssEntry class_name:Other
-
-  /// CHECK-START-MIPS: java.lang.Class Main.$noinline$getOtherClass() dex_cache_array_fixups_mips (after)
-  /// CHECK-DAG:            MipsDexCacheArraysBase
-  /// CHECK-DAG:            LoadClass load_kind:BssEntry class_name:Other
 
   /// CHECK-START-MIPS64: java.lang.Class Main.$noinline$getOtherClass() sharpening (after)
   /// CHECK:                LoadClass load_kind:BssEntry class_name:Other
