@@ -1133,11 +1133,15 @@ void CodeGeneratorMIPS::EmitPcRelativeAddressPlaceholder(
   __ SetReorder(reordering);
 }
 
-void CodeGeneratorMIPS::MarkGCCard(Register object, Register value) {
+void CodeGeneratorMIPS::MarkGCCard(Register object,
+                                   Register value,
+                                   bool value_can_be_null) {
   MipsLabel done;
   Register card = AT;
   Register temp = TMP;
-  __ Beqz(value, &done);
+  if (value_can_be_null) {
+    __ Beqz(value, &done);
+  }
   __ LoadFromOffset(kLoadWord,
                     card,
                     TR,
@@ -1145,7 +1149,9 @@ void CodeGeneratorMIPS::MarkGCCard(Register object, Register value) {
   __ Srl(temp, object, gc::accounting::CardTable::kCardShift);
   __ Addu(temp, card, temp);
   __ Sb(card, temp, 0);
-  __ Bind(&done);
+  if (value_can_be_null) {
+    __ Bind(&done);
+  }
 }
 
 void CodeGeneratorMIPS::SetupBlockedRegisters() const {
@@ -2064,7 +2070,7 @@ void InstructionCodeGeneratorMIPS::VisitArraySet(HArraySet* instruction) {
           __ StoreToOffset(kStoreWord, value, base_reg, data_offset, null_checker);
           if (needs_write_barrier) {
             DCHECK_EQ(value_type, Primitive::kPrimNot);
-            codegen_->MarkGCCard(obj, value);
+            codegen_->MarkGCCard(obj, value, instruction->GetValueCanBeNull());
           }
         }
       } else {
@@ -4868,7 +4874,8 @@ void LocationsBuilderMIPS::HandleFieldSet(HInstruction* instruction, const Field
 
 void InstructionCodeGeneratorMIPS::HandleFieldSet(HInstruction* instruction,
                                                   const FieldInfo& field_info,
-                                                  uint32_t dex_pc) {
+                                                  uint32_t dex_pc,
+                                                  bool value_can_be_null) {
   Primitive::Type type = field_info.GetFieldType();
   LocationSummary* locations = instruction->GetLocations();
   Register obj = locations->InAt(0).AsRegister<Register>();
@@ -4963,7 +4970,7 @@ void InstructionCodeGeneratorMIPS::HandleFieldSet(HInstruction* instruction,
   // TODO: memory barriers?
   if (CodeGenerator::StoreNeedsWriteBarrier(type, instruction->InputAt(1))) {
     Register src = value_location.AsRegister<Register>();
-    codegen_->MarkGCCard(obj, src);
+    codegen_->MarkGCCard(obj, src, value_can_be_null);
   }
 
   if (is_volatile) {
@@ -4984,7 +4991,10 @@ void LocationsBuilderMIPS::VisitInstanceFieldSet(HInstanceFieldSet* instruction)
 }
 
 void InstructionCodeGeneratorMIPS::VisitInstanceFieldSet(HInstanceFieldSet* instruction) {
-  HandleFieldSet(instruction, instruction->GetFieldInfo(), instruction->GetDexPc());
+  HandleFieldSet(instruction,
+                 instruction->GetFieldInfo(),
+                 instruction->GetDexPc(),
+                 instruction->GetValueCanBeNull());
 }
 
 void InstructionCodeGeneratorMIPS::GenerateGcRootFieldLoad(
@@ -6175,7 +6185,10 @@ void LocationsBuilderMIPS::VisitStaticFieldSet(HStaticFieldSet* instruction) {
 }
 
 void InstructionCodeGeneratorMIPS::VisitStaticFieldSet(HStaticFieldSet* instruction) {
-  HandleFieldSet(instruction, instruction->GetFieldInfo(), instruction->GetDexPc());
+  HandleFieldSet(instruction,
+                 instruction->GetFieldInfo(),
+                 instruction->GetDexPc(),
+                 instruction->GetValueCanBeNull());
 }
 
 void LocationsBuilderMIPS::VisitUnresolvedInstanceFieldGet(
