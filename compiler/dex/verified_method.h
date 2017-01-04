@@ -39,9 +39,6 @@ class VerifiedMethod {
   // is better for performance (not just memory usage), especially for large sets.
   typedef std::vector<uint32_t> SafeCastSet;
 
-  // Devirtualization map type maps dex offset to field / method idx.
-  typedef SafeMap<uint32_t, DexFileReference> DequickenMap;
-
   static const VerifiedMethod* Create(verifier::MethodVerifier* method_verifier)
       REQUIRES_SHARED(Locks::mutator_lock_);
   ~VerifiedMethod() = default;
@@ -68,17 +65,10 @@ class VerifiedMethod {
   }
 
  private:
-  // Generate dequickening map into dequicken_map_. Returns false if there is an error.
-  bool GenerateDequickenMap(verifier::MethodVerifier* method_verifier)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
   // Generate safe case set into safe_cast_set_.
   void GenerateSafeCastSet(verifier::MethodVerifier* method_verifier)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Dequicken map is required for compiling quickened byte codes. The quicken maps from
-  // dex PC to dex method index or dex field index based on the instruction.
-  DequickenMap dequicken_map_;
   SafeCastSet safe_cast_set_;
 
   const uint32_t encountered_error_types_;
