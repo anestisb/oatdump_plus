@@ -2356,19 +2356,40 @@ void InstructionCodeGeneratorMIPS64::GenerateIntLongCompare(IfCondition cond,
   switch (cond) {
     case kCondEQ:
     case kCondNE:
-      if (use_imm && IsUint<16>(rhs_imm)) {
-        __ Xori(dst, lhs, rhs_imm);
-      } else {
-        if (use_imm) {
-          rhs_reg = TMP;
-          __ LoadConst64(rhs_reg, rhs_imm);
+      if (use_imm && IsInt<16>(-rhs_imm)) {
+        if (rhs_imm == 0) {
+          if (cond == kCondEQ) {
+            __ Sltiu(dst, lhs, 1);
+          } else {
+            __ Sltu(dst, ZERO, lhs);
+          }
+        } else {
+          if (is64bit) {
+            __ Daddiu(dst, lhs, -rhs_imm);
+          } else {
+            __ Addiu(dst, lhs, -rhs_imm);
+          }
+          if (cond == kCondEQ) {
+            __ Sltiu(dst, dst, 1);
+          } else {
+            __ Sltu(dst, ZERO, dst);
+          }
         }
-        __ Xor(dst, lhs, rhs_reg);
-      }
-      if (cond == kCondEQ) {
-        __ Sltiu(dst, dst, 1);
       } else {
-        __ Sltu(dst, ZERO, dst);
+        if (use_imm && IsUint<16>(rhs_imm)) {
+          __ Xori(dst, lhs, rhs_imm);
+        } else {
+          if (use_imm) {
+            rhs_reg = TMP;
+            __ LoadConst64(rhs_reg, rhs_imm);
+          }
+          __ Xor(dst, lhs, rhs_reg);
+        }
+        if (cond == kCondEQ) {
+          __ Sltiu(dst, dst, 1);
+        } else {
+          __ Sltu(dst, ZERO, dst);
+        }
       }
       break;
 
