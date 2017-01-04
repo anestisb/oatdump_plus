@@ -59,49 +59,6 @@ bool VerifiedMethod::IsSafeCast(uint32_t pc) const {
   return std::binary_search(safe_cast_set_.begin(), safe_cast_set_.end(), pc);
 }
 
-bool VerifiedMethod::GenerateDequickenMap(verifier::MethodVerifier* method_verifier) {
-  if (method_verifier->HasFailures()) {
-    return false;
-  }
-  const DexFile::CodeItem* code_item = method_verifier->CodeItem();
-  const uint16_t* insns = code_item->insns_;
-  const Instruction* inst = Instruction::At(insns);
-  const Instruction* end = Instruction::At(insns + code_item->insns_size_in_code_units_);
-  for (; inst < end; inst = inst->Next()) {
-    const bool is_virtual_quick = inst->Opcode() == Instruction::INVOKE_VIRTUAL_QUICK;
-    const bool is_range_quick = inst->Opcode() == Instruction::INVOKE_VIRTUAL_RANGE_QUICK;
-    if (is_virtual_quick || is_range_quick) {
-      uint32_t dex_pc = inst->GetDexPc(insns);
-      verifier::RegisterLine* line = method_verifier->GetRegLine(dex_pc);
-      ArtMethod* method =
-          method_verifier->GetQuickInvokedMethod(inst, line, is_range_quick, true);
-      if (method == nullptr) {
-        // It can be null if the line wasn't verified since it was unreachable.
-        return false;
-      }
-      // The verifier must know what the type of the object was or else we would have gotten a
-      // failure. Put the dex method index in the dequicken map since we need this to get number of
-      // arguments in the compiler.
-      dequicken_map_.Put(dex_pc, DexFileReference(method->GetDexFile(),
-                                                  method->GetDexMethodIndex()));
-    } else if (IsInstructionIGetQuickOrIPutQuick(inst->Opcode())) {
-      uint32_t dex_pc = inst->GetDexPc(insns);
-      verifier::RegisterLine* line = method_verifier->GetRegLine(dex_pc);
-      ArtField* field = method_verifier->GetQuickFieldAccess(inst, line);
-      if (field == nullptr) {
-        // It can be null if the line wasn't verified since it was unreachable.
-        return false;
-      }
-      // The verifier must know what the type of the field was or else we would have gotten a
-      // failure. Put the dex field index in the dequicken map since we need this for lowering
-      // in the compiler.
-      // TODO: Putting a field index in a method reference is gross.
-      dequicken_map_.Put(dex_pc, DexFileReference(field->GetDexFile(), field->GetDexFieldIndex()));
-    }
-  }
-  return true;
-}
-
 void VerifiedMethod::GenerateSafeCastSet(verifier::MethodVerifier* method_verifier) {
   /*
    * Walks over the method code and adds any cast instructions in which
