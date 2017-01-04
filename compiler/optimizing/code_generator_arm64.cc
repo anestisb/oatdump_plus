@@ -1533,8 +1533,17 @@ void CodeGeneratorARM64::MoveLocation(Location destination,
       DCHECK(source.IsStackSlot() || source.IsDoubleStackSlot());
       DCHECK(source.IsDoubleStackSlot() == destination.IsDoubleStackSlot());
       UseScratchRegisterScope temps(GetVIXLAssembler());
-      // There is generally less pressure on FP registers.
-      FPRegister temp = destination.IsDoubleStackSlot() ? temps.AcquireD() : temps.AcquireS();
+      // Use any scratch register (a core or a floating-point one)
+      // from VIXL scratch register pools as a temporary.
+      //
+      // We used to only use the FP scratch register pool, but in some
+      // rare cases the only register from this pool (D31) would
+      // already be used (e.g. within a ParallelMove instruction, when
+      // a move is blocked by a another move requiring a scratch FP
+      // register, which would reserve D31). To prevent this issue, we
+      // ask for a scratch register of any type (core or FP).
+      CPURegister temp =
+          temps.AcquireCPURegisterOfSize(destination.IsDoubleStackSlot() ? kXRegSize : kWRegSize);
       __ Ldr(temp, StackOperandFrom(source));
       __ Str(temp, StackOperandFrom(destination));
     }
