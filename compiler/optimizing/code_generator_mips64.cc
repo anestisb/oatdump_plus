@@ -1929,9 +1929,6 @@ void InstructionCodeGeneratorMIPS64::HandleCondition(HCondition* instruction) {
 
   Primitive::Type type = instruction->InputAt(0)->GetType();
   LocationSummary* locations = instruction->GetLocations();
-  GpuRegister dst = locations->Out().AsRegister<GpuRegister>();
-  Mips64Label true_label;
-
   switch (type) {
     default:
       // Integer case.
@@ -1940,29 +1937,11 @@ void InstructionCodeGeneratorMIPS64::HandleCondition(HCondition* instruction) {
     case Primitive::kPrimLong:
       GenerateIntLongCompare(instruction->GetCondition(), /* is64bit */ true, locations);
       return;
-
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble:
-      // TODO: don't use branches.
-      GenerateFpCompareAndBranch(instruction->GetCondition(),
-                                 instruction->IsGtBias(),
-                                 type,
-                                 locations,
-                                 &true_label);
-      break;
+      GenerateFpCompare(instruction->GetCondition(), instruction->IsGtBias(), type, locations);
+     return;
   }
-
-  // Convert the branches into the result.
-  Mips64Label done;
-
-  // False case: result = 0.
-  __ LoadConst32(dst, 0);
-  __ Bc(&done);
-
-  // True case: result = 1.
-  __ Bind(&true_label);
-  __ LoadConst32(dst, 1);
-  __ Bind(&done);
 }
 
 void InstructionCodeGeneratorMIPS64::DivRemOneOrMinusOne(HBinaryOperation* instruction) {
@@ -2572,6 +2551,121 @@ void InstructionCodeGeneratorMIPS64::GenerateIntLongCompareAndBranch(IfCondition
       case kCondA:
         __ Bltuc(rhs_reg, lhs, label);
         break;
+    }
+  }
+}
+
+void InstructionCodeGeneratorMIPS64::GenerateFpCompare(IfCondition cond,
+                                                       bool gt_bias,
+                                                       Primitive::Type type,
+                                                       LocationSummary* locations) {
+  GpuRegister dst = locations->Out().AsRegister<GpuRegister>();
+  FpuRegister lhs = locations->InAt(0).AsFpuRegister<FpuRegister>();
+  FpuRegister rhs = locations->InAt(1).AsFpuRegister<FpuRegister>();
+  if (type == Primitive::kPrimFloat) {
+    switch (cond) {
+      case kCondEQ:
+        __ CmpEqS(FTMP, lhs, rhs);
+        __ Mfc1(dst, FTMP);
+        __ Andi(dst, dst, 1);
+        break;
+      case kCondNE:
+        __ CmpEqS(FTMP, lhs, rhs);
+        __ Mfc1(dst, FTMP);
+        __ Addiu(dst, dst, 1);
+        break;
+      case kCondLT:
+        if (gt_bias) {
+          __ CmpLtS(FTMP, lhs, rhs);
+        } else {
+          __ CmpUltS(FTMP, lhs, rhs);
+        }
+        __ Mfc1(dst, FTMP);
+        __ Andi(dst, dst, 1);
+        break;
+      case kCondLE:
+        if (gt_bias) {
+          __ CmpLeS(FTMP, lhs, rhs);
+        } else {
+          __ CmpUleS(FTMP, lhs, rhs);
+        }
+        __ Mfc1(dst, FTMP);
+        __ Andi(dst, dst, 1);
+        break;
+      case kCondGT:
+        if (gt_bias) {
+          __ CmpUltS(FTMP, rhs, lhs);
+        } else {
+          __ CmpLtS(FTMP, rhs, lhs);
+        }
+        __ Mfc1(dst, FTMP);
+        __ Andi(dst, dst, 1);
+        break;
+      case kCondGE:
+        if (gt_bias) {
+          __ CmpUleS(FTMP, rhs, lhs);
+        } else {
+          __ CmpLeS(FTMP, rhs, lhs);
+        }
+        __ Mfc1(dst, FTMP);
+        __ Andi(dst, dst, 1);
+        break;
+      default:
+        LOG(FATAL) << "Unexpected non-floating-point condition " << cond;
+        UNREACHABLE();
+    }
+  } else {
+    DCHECK_EQ(type, Primitive::kPrimDouble);
+    switch (cond) {
+      case kCondEQ:
+        __ CmpEqD(FTMP, lhs, rhs);
+        __ Mfc1(dst, FTMP);
+        __ Andi(dst, dst, 1);
+        break;
+      case kCondNE:
+        __ CmpEqD(FTMP, lhs, rhs);
+        __ Mfc1(dst, FTMP);
+        __ Addiu(dst, dst, 1);
+        break;
+      case kCondLT:
+        if (gt_bias) {
+          __ CmpLtD(FTMP, lhs, rhs);
+        } else {
+          __ CmpUltD(FTMP, lhs, rhs);
+        }
+        __ Mfc1(dst, FTMP);
+        __ Andi(dst, dst, 1);
+        break;
+      case kCondLE:
+        if (gt_bias) {
+          __ CmpLeD(FTMP, lhs, rhs);
+        } else {
+          __ CmpUleD(FTMP, lhs, rhs);
+        }
+        __ Mfc1(dst, FTMP);
+        __ Andi(dst, dst, 1);
+        break;
+      case kCondGT:
+        if (gt_bias) {
+          __ CmpUltD(FTMP, rhs, lhs);
+        } else {
+          __ CmpLtD(FTMP, rhs, lhs);
+        }
+        __ Mfc1(dst, FTMP);
+        __ Andi(dst, dst, 1);
+        break;
+      case kCondGE:
+        if (gt_bias) {
+          __ CmpUleD(FTMP, rhs, lhs);
+        } else {
+          __ CmpLeD(FTMP, rhs, lhs);
+        }
+        __ Mfc1(dst, FTMP);
+        __ Andi(dst, dst, 1);
+        break;
+      default:
+        LOG(FATAL) << "Unexpected non-floating-point condition " << cond;
+        UNREACHABLE();
     }
   }
 }
