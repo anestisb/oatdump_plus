@@ -236,7 +236,10 @@ class InstructionCodeGeneratorMIPS : public InstructionCodeGenerator {
   void HandleBinaryOp(HBinaryOperation* operation);
   void HandleCondition(HCondition* instruction);
   void HandleShift(HBinaryOperation* operation);
-  void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info, uint32_t dex_pc);
+  void HandleFieldSet(HInstruction* instruction,
+                      const FieldInfo& field_info,
+                      uint32_t dex_pc,
+                      bool value_can_be_null);
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info, uint32_t dex_pc);
   // Generate a GC root reference load:
   //
@@ -350,7 +353,7 @@ class CodeGeneratorMIPS : public CodeGenerator {
   // Emit linker patches.
   void EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) OVERRIDE;
 
-  void MarkGCCard(Register object, Register value);
+  void MarkGCCard(Register object, Register value, bool value_can_be_null);
 
   // Register allocation.
 
