@@ -250,6 +250,10 @@ class InstructionCodeGeneratorMIPS64 : public InstructionCodeGenerator {
                                        bool is64bit,
                                        LocationSummary* locations,
                                        Mips64Label* label);
+  void GenerateFpCompare(IfCondition cond,
+                         bool gt_bias,
+                         Primitive::Type type,
+                         LocationSummary* locations);
   void GenerateFpCompareAndBranch(IfCondition cond,
                                   bool gt_bias,
                                   Primitive::Type type,
