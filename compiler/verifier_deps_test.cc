@@ -539,21 +539,9 @@ TEST_F(VerifierDepsTest, Assignable_BothArrays_Resolved) {
   ASSERT_TRUE(HasAssignable("Ljava/util/TimeZone;", "Ljava/util/SimpleTimeZone;", true));
 }
 
-TEST_F(VerifierDepsTest, Assignable_BothArrays_Erroneous) {
-  ASSERT_TRUE(TestAssignabilityRecording(/* dst */ "[[Ljava/util/TimeZone;",
-                                         /* src */ "[[LMyErroneousTimeZone;",
-                                         /* is_strict */ true,
-                                         /* is_assignable */ true));
-  // If the component type of an array is erroneous, we record the dependency on
-  // the array type.
-  ASSERT_FALSE(HasAssignable("[[Ljava/util/TimeZone;", "[[LMyErroneousTimeZone;", true));
-  ASSERT_TRUE(HasAssignable("[Ljava/util/TimeZone;", "[LMyErroneousTimeZone;", true));
-  ASSERT_FALSE(HasAssignable("Ljava/util/TimeZone;", "LMyErroneousTimeZone;", true));
-}
-
-  // We test that VerifierDeps does not try to optimize by storing assignability
-  // of the component types. This is due to the fact that the component type may
-  // be an erroneous class, even though the array type has resolved status.
+// We test that VerifierDeps does not try to optimize by storing assignability
+// of the component types. This is due to the fact that the component type may
+// be an erroneous class, even though the array type has resolved status.
 
 TEST_F(VerifierDepsTest, Assignable_ArrayToInterface1) {
   ASSERT_TRUE(TestAssignabilityRecording(/* dst */ "Ljava/io/Serializable;",
@@ -606,16 +594,6 @@ TEST_F(VerifierDepsTest, NotAssignable_BothArrays) {
 TEST_F(VerifierDepsTest, ArgumentType_ResolvedClass) {
   ASSERT_TRUE(VerifyMethod("ArgumentType_ResolvedClass"));
   ASSERT_TRUE(HasClass("Ljava/lang/Thread;", true, "public"));
-}
-
-TEST_F(VerifierDepsTest, ArgumentType_ResolvedReferenceArray) {
-  ASSERT_TRUE(VerifyMethod("ArgumentType_ResolvedReferenceArray"));
-  ASSERT_TRUE(HasClass("[Ljava/lang/Thread;", true, "public final abstract"));
-}
-
-TEST_F(VerifierDepsTest, ArgumentType_ResolvedPrimitiveArray) {
-  ASSERT_TRUE(VerifyMethod("ArgumentType_ResolvedPrimitiveArray"));
-  ASSERT_TRUE(HasClass("[B", true, "public final abstract"));
 }
 
 TEST_F(VerifierDepsTest, ArgumentType_UnresolvedClass) {
@@ -712,11 +690,6 @@ TEST_F(VerifierDepsTest, NewInstance_Resolved) {
 TEST_F(VerifierDepsTest, NewInstance_Unresolved) {
   ASSERT_TRUE(VerifyMethod("NewInstance_Unresolved"));
   ASSERT_TRUE(HasClass("LUnresolvedClass;", false));
-}
-
-TEST_F(VerifierDepsTest, NewArray_Resolved) {
-  ASSERT_TRUE(VerifyMethod("NewArray_Resolved"));
-  ASSERT_TRUE(HasClass("[Ljava/lang/IllegalStateException;", true, "public final abstract"));
 }
 
 TEST_F(VerifierDepsTest, NewArray_Unresolved) {
