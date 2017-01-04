@@ -270,7 +270,7 @@ void ReferenceTypePropagation::BoundTypeForIfNotNull(HBasicBlock* block) {
         ScopedObjectAccess soa(Thread::Current());
         HInstruction* insert_point = notNullBlock->GetFirstInstruction();
         ReferenceTypeInfo object_rti = ReferenceTypeInfo::Create(
-            handle_cache_.GetObjectClassHandle(), /* is_exact */ true);
+            handle_cache_.GetObjectClassHandle(), /* is_exact */ false);
         if (ShouldCreateBoundType(insert_point, obj, object_rti, nullptr, notNullBlock)) {
           bound_type = new (graph_->GetArena()) HBoundType(obj);
           bound_type->SetUpperBound(object_rti, /* bound_can_be_null */ false);
@@ -411,7 +411,9 @@ void ReferenceTypePropagation::BoundTypeForIfInstanceOf(HBasicBlock* block) {
         HInstruction* insert_point = instanceOfTrueBlock->GetFirstInstruction();
         if (ShouldCreateBoundType(insert_point, obj, class_rti, nullptr, instanceOfTrueBlock)) {
           bound_type = new (graph_->GetArena()) HBoundType(obj);
-          bound_type->SetUpperBound(class_rti, /* InstanceOf fails for null. */ false);
+          bool is_exact = class_rti.GetTypeHandle()->CannotBeAssignedFromOtherTypes();
+          bound_type->SetUpperBound(ReferenceTypeInfo::Create(class_rti.GetTypeHandle(), is_exact),
+                                    /* InstanceOf fails for null. */ false);
           instanceOfTrueBlock->InsertInstructionBefore(bound_type, insert_point);
         } else {
           // We already have a bound type on the position we would need to insert
@@ -605,15 +607,17 @@ void ReferenceTypePropagation::RTPVisitor::VisitBoundType(HBoundType* instr) {
     // Narrow the type as much as possible.
     HInstruction* obj = instr->InputAt(0);
     ReferenceTypeInfo obj_rti = obj->GetReferenceTypeInfo();
-    if (class_rti.GetTypeHandle()->CannotBeAssignedFromOtherTypes()) {
-      instr->SetReferenceTypeInfo(
-          ReferenceTypeInfo::Create(class_rti.GetTypeHandle(), /* is_exact */ true));
+    if (class_rti.IsExact()) {
+      instr->SetReferenceTypeInfo(class_rti);
     } else if (obj_rti.IsValid()) {
       if (class_rti.IsSupertypeOf(obj_rti)) {
         // Object type is more specific.
         instr->SetReferenceTypeInfo(obj_rti);
       } else {
-        // Upper bound is more specific.
+        // Upper bound is more specific, or unrelated to the object's type.
+        // Note that the object might then be exact, and we know the code dominated by this
+        // bound type is dead. To not confuse potential other optimizations, we mark
+        // the bound as non-exact.
         instr->SetReferenceTypeInfo(
             ReferenceTypeInfo::Create(class_rti.GetTypeHandle(), /* is_exact */ false));
       }
@@ -644,8 +648,11 @@ void ReferenceTypePropagation::RTPVisitor::VisitCheckCast(HCheckCast* check_cast
 
   if (class_rti.IsValid()) {
     DCHECK(is_first_run_);
+    ScopedObjectAccess soa(Thread::Current());
     // This is the first run of RTP and class is resolved.
-    bound_type->SetUpperBound(class_rti, /* CheckCast succeeds for nulls. */ true);
+    bool is_exact = class_rti.GetTypeHandle()->CannotBeAssignedFromOtherTypes();
+    bound_type->SetUpperBound(ReferenceTypeInfo::Create(class_rti.GetTypeHandle(), is_exact),
+                              /* CheckCast succeeds for nulls. */ true);
   } else {
     // This is the first run of RTP and class is unresolved. Remove the binding.
     // The instruction itself is removed in VisitBoundType so as to not
@@ -795,21 +802,25 @@ void ReferenceTypePropagation::RTPVisitor::VisitArrayGet(HArrayGet* instr) {
 }
 
 void ReferenceTypePropagation::UpdateBoundType(HBoundType* instr) {
-  ReferenceTypeInfo new_rti = instr->InputAt(0)->GetReferenceTypeInfo();
-  if (!new_rti.IsValid()) {
+  ReferenceTypeInfo input_rti = instr->InputAt(0)->GetReferenceTypeInfo();
+  if (!input_rti.IsValid()) {
     return;  // No new info yet.
   }
 
-  // Make sure that we don't go over the bounded type.
   ReferenceTypeInfo upper_bound_rti = instr->GetUpperBound();
-  if (!upper_bound_rti.IsSupertypeOf(new_rti)) {
-    // Note that the input might be exact, in which case we know the branch leading
-    // to the bound type is dead. We play it safe by not marking the bound type as
-    // exact.
-    bool is_exact = upper_bound_rti.GetTypeHandle()->CannotBeAssignedFromOtherTypes();
-    new_rti = ReferenceTypeInfo::Create(upper_bound_rti.GetTypeHandle(), is_exact);
+  if (upper_bound_rti.IsExact()) {
+    instr->SetReferenceTypeInfo(upper_bound_rti);
+  } else if (upper_bound_rti.IsSupertypeOf(input_rti)) {
+    // input is more specific.
+    instr->SetReferenceTypeInfo(input_rti);
+  } else {
+    // upper_bound is more specific or unrelated.
+    // Note that the object might then be exact, and we know the code dominated by this
+    // bound type is dead. To not confuse potential other optimizations, we mark
+    // the bound as non-exact.
+    instr->SetReferenceTypeInfo(
+        ReferenceTypeInfo::Create(upper_bound_rti.GetTypeHandle(), /* is_exact */ false));
   }
-  instr->SetReferenceTypeInfo(new_rti);
 }
 
 // NullConstant inputs are ignored during merging as they do not provide any useful information.
