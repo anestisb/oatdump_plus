@@ -4517,27 +4517,20 @@ void LocationsBuilderMIPS64::VisitPackedSwitch(HPackedSwitch* switch_instr) {
   locations->SetInAt(0, Location::RequiresRegister());
 }
 
-void InstructionCodeGeneratorMIPS64::VisitPackedSwitch(HPackedSwitch* switch_instr) {
-  int32_t lower_bound = switch_instr->GetStartValue();
-  int32_t num_entries = switch_instr->GetNumEntries();
-  LocationSummary* locations = switch_instr->GetLocations();
-  GpuRegister value_reg = locations->InAt(0).AsRegister<GpuRegister>();
-  HBasicBlock* default_block = switch_instr->GetDefaultBlock();
-
+void InstructionCodeGeneratorMIPS64::GenPackedSwitchWithCompares(GpuRegister value_reg,
+                                                                 int32_t lower_bound,
+                                                                 uint32_t num_entries,
+                                                                 HBasicBlock* switch_block,
+                                                                 HBasicBlock* default_block) {
   // Create a set of compare/jumps.
   GpuRegister temp_reg = TMP;
-  if (IsInt<16>(-lower_bound)) {
-    __ Addiu(temp_reg, value_reg, -lower_bound);
-  } else {
-    __ LoadConst32(AT, -lower_bound);
-    __ Addu(temp_reg, value_reg, AT);
-  }
+  __ Addiu32(temp_reg, value_reg, -lower_bound);
   // Jump to default if index is negative
   // Note: We don't check the case that index is positive while value < lower_bound, because in
   // this case, index >= num_entries must be true. So that we can save one branch instruction.
   __ Bltzc(temp_reg, codegen_->GetLabelOf(default_block));
 
-  const ArenaVector<HBasicBlock*>& successors = switch_instr->GetBlock()->GetSuccessors();
+  const ArenaVector<HBasicBlock*>& successors = switch_block->GetSuccessors();
   // Jump to successors[0] if value == lower_bound.
   __ Beqzc(temp_reg, codegen_->GetLabelOf(successors[0]));
   int32_t last_index = 0;
@@ -4555,8 +4548,63 @@ void InstructionCodeGeneratorMIPS64::VisitPackedSwitch(HPackedSwitch* switch_ins
   }
 
   // And the default for any other value.
-  if (!codegen_->GoesToNextBlock(switch_instr->GetBlock(), default_block)) {
+  if (!codegen_->GoesToNextBlock(switch_block, default_block)) {
     __ Bc(codegen_->GetLabelOf(default_block));
+  }
+}
+
+void InstructionCodeGeneratorMIPS64::GenTableBasedPackedSwitch(GpuRegister value_reg,
+                                                               int32_t lower_bound,
+                                                               uint32_t num_entries,
+                                                               HBasicBlock* switch_block,
+                                                               HBasicBlock* default_block) {
+  // Create a jump table.
+  std::vector<Mips64Label*> labels(num_entries);
+  const ArenaVector<HBasicBlock*>& successors = switch_block->GetSuccessors();
+  for (uint32_t i = 0; i < num_entries; i++) {
+    labels[i] = codegen_->GetLabelOf(successors[i]);
+  }
+  JumpTable* table = __ CreateJumpTable(std::move(labels));
+
+  // Is the value in range?
+  __ Addiu32(TMP, value_reg, -lower_bound);
+  __ LoadConst32(AT, num_entries);
+  __ Bgeuc(TMP, AT, codegen_->GetLabelOf(default_block));
+
+  // We are in the range of the table.
+  // Load the target address from the jump table, indexing by the value.
+  __ LoadLabelAddress(AT, table->GetLabel());
+  __ Sll(TMP, TMP, 2);
+  __ Daddu(TMP, TMP, AT);
+  __ Lw(TMP, TMP, 0);
+  // Compute the absolute target address by adding the table start address
+  // (the table contains offsets to targets relative to its start).
+  __ Daddu(TMP, TMP, AT);
+  // And jump.
+  __ Jr(TMP);
+  __ Nop();
+}
+
+void InstructionCodeGeneratorMIPS64::VisitPackedSwitch(HPackedSwitch* switch_instr) {
+  int32_t lower_bound = switch_instr->GetStartValue();
+  uint32_t num_entries = switch_instr->GetNumEntries();
+  LocationSummary* locations = switch_instr->GetLocations();
+  GpuRegister value_reg = locations->InAt(0).AsRegister<GpuRegister>();
+  HBasicBlock* switch_block = switch_instr->GetBlock();
+  HBasicBlock* default_block = switch_instr->GetDefaultBlock();
+
+  if (num_entries > kPackedSwitchJumpTableThreshold) {
+    GenTableBasedPackedSwitch(value_reg,
+                              lower_bound,
+                              num_entries,
+                              switch_block,
+                              default_block);
+  } else {
+    GenPackedSwitchWithCompares(value_reg,
+                                lower_bound,
+                                num_entries,
+                                switch_block,
+                                default_block);
   }
 }
 
