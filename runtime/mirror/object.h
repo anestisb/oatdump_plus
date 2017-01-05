@@ -153,6 +153,8 @@ class MANAGED LOCKABLE Object {
       REQUIRES_SHARED(Locks::mutator_lock_);
   bool CasLockWordWeakRelaxed(LockWord old_val, LockWord new_val)
       REQUIRES_SHARED(Locks::mutator_lock_);
+  bool CasLockWordWeakAcquire(LockWord old_val, LockWord new_val)
+      REQUIRES_SHARED(Locks::mutator_lock_);
   bool CasLockWordWeakRelease(LockWord old_val, LockWord new_val)
       REQUIRES_SHARED(Locks::mutator_lock_);
   uint32_t GetLockOwnerThreadId();
@@ -455,6 +457,12 @@ class MANAGED LOCKABLE Object {
   template<bool kTransactionActive, bool kCheckTransaction = true,
       VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool CasFieldWeakRelaxed32(MemberOffset field_offset, int32_t old_value,
+                             int32_t new_value) ALWAYS_INLINE
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  template<bool kTransactionActive, bool kCheckTransaction = true,
+      VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  bool CasFieldWeakAcquire32(MemberOffset field_offset, int32_t old_value,
                              int32_t new_value) ALWAYS_INLINE
       REQUIRES_SHARED(Locks::mutator_lock_);
 
