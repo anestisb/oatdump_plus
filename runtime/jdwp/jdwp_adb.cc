@@ -24,6 +24,7 @@
 
 #include "base/logging.h"
 #include "jdwp/jdwp_priv.h"
+#include "thread-inl.h"
 
 #ifdef ART_TARGET_ANDROID
 #include "cutils/sockets.h"
@@ -57,7 +58,9 @@ using android::base::StringPrintf;
 
 struct JdwpAdbState : public JdwpNetStateBase {
  public:
-  explicit JdwpAdbState(JdwpState* state) : JdwpNetStateBase(state) {
+  explicit JdwpAdbState(JdwpState* state)
+      : JdwpNetStateBase(state),
+        state_lock_("JdwpAdbState lock", kJdwpAdbStateLock) {
     control_sock_ = -1;
     shutting_down_ = false;
 
@@ -77,20 +80,23 @@ struct JdwpAdbState : public JdwpNetStateBase {
     }
   }
 
-  virtual bool Accept();
+  virtual bool Accept() REQUIRES(!state_lock_);
 
   virtual bool Establish(const JdwpOptions*) {
     return false;
   }
 
-  virtual void Shutdown() {
-    shutting_down_ = true;
-
-    int control_sock = this->control_sock_;
-    int local_clientSock = this->clientSock;
-
-    /* clear these out so it doesn't wake up and try to reuse them */
-    this->control_sock_ = this->clientSock = -1;
+  virtual void Shutdown() REQUIRES(!state_lock_) {
+    int control_sock;
+    int local_clientSock;
+    {
+      MutexLock mu(Thread::Current(), state_lock_);
+      shutting_down_ = true;
+      control_sock = this->control_sock_;
+      local_clientSock = this->clientSock;
+      /* clear these out so it doesn't wake up and try to reuse them */
+      this->control_sock_ = this->clientSock = -1;
+    }
 
     if (local_clientSock != -1) {
       shutdown(local_clientSock, SHUT_RDWR);
@@ -103,13 +109,27 @@ struct JdwpAdbState : public JdwpNetStateBase {
     WakePipe();
   }
 
-  virtual bool ProcessIncoming();
+  virtual bool ProcessIncoming() REQUIRES(!state_lock_);
 
  private:
-  int ReceiveClientFd();
+  int ReceiveClientFd() REQUIRES(!state_lock_);
 
-  int control_sock_;
-  bool shutting_down_;
+  bool IsDown() REQUIRES(!state_lock_) {
+    MutexLock mu(Thread::Current(), state_lock_);
+    return shutting_down_;
+  }
+
+  int ControlSock() REQUIRES(!state_lock_) {
+    MutexLock mu(Thread::Current(), state_lock_);
+    if (shutting_down_) {
+      CHECK_EQ(control_sock_, -1);
+    }
+    return control_sock_;
+  }
+
+  int control_sock_ GUARDED_BY(state_lock_);
+  bool shutting_down_ GUARDED_BY(state_lock_);
+  Mutex state_lock_;
 
   socklen_t control_addr_len_;
   union {
@@ -162,12 +182,13 @@ int JdwpAdbState::ReceiveClientFd() {
   cmsg->cmsg_type  = SCM_RIGHTS;
   (reinterpret_cast<int*>(CMSG_DATA(cmsg)))[0] = -1;
 
-  int rc = TEMP_FAILURE_RETRY(recvmsg(control_sock_, &msg, 0));
+  int rc = TEMP_FAILURE_RETRY(recvmsg(ControlSock(), &msg, 0));
 
   if (rc <= 0) {
     if (rc == -1) {
-      PLOG(WARNING) << "Receiving file descriptor from ADB failed (socket " << control_sock_ << ")";
+      PLOG(WARNING) << "Receiving file descriptor from ADB failed (socket " << ControlSock() << ")";
     }
+    MutexLock mu(Thread::Current(), state_lock_);
     close(control_sock_);
     control_sock_ = -1;
     return -1;
@@ -189,23 +210,29 @@ bool JdwpAdbState::Accept() {
   /* first, ensure that we get a connection to the ADB daemon */
 
  retry:
-  if (shutting_down_) {
+  if (IsDown()) {
     return false;
   }
 
-  if (control_sock_ == -1) {
+  if (ControlSock() == -1) {
     int        sleep_ms     = 500;
     const int  sleep_max_ms = 2*1000;
     char       buff[5];
 
-    control_sock_ = socket(PF_UNIX, SOCK_STREAM, 0);
-    if (control_sock_ < 0) {
+    int sock = socket(PF_UNIX, SOCK_STREAM, 0);
+    if (sock < 0) {
       PLOG(ERROR) << "Could not create ADB control socket";
       return false;
     }
-
-    if (!MakePipe()) {
-      return false;
+    {
+      MutexLock mu(Thread::Current(), state_lock_);
+      control_sock_ = sock;
+      if (shutting_down_) {
+        return false;
+      }
+      if (!MakePipe()) {
+        return false;
+      }
     }
 
     snprintf(buff, sizeof(buff), "%04x", getpid());
@@ -225,11 +252,12 @@ bool JdwpAdbState::Accept() {
        * up after a few minutes in case somebody ships an app with
        * the debuggable flag set.
        */
-      int  ret = connect(control_sock_, &control_addr_.controlAddrPlain, control_addr_len_);
+      int  ret = connect(ControlSock(), &control_addr_.controlAddrPlain, control_addr_len_);
       if (!ret) {
+        int control_sock = ControlSock();
 #ifdef ART_TARGET_ANDROID
-        if (!socket_peer_is_trusted(control_sock_)) {
-          if (shutdown(control_sock_, SHUT_RDWR)) {
+        if (control_sock < 0 || !socket_peer_is_trusted(control_sock)) {
+          if (control_sock >= 0 && shutdown(control_sock, SHUT_RDWR)) {
             PLOG(ERROR) << "trouble shutting down socket";
           }
           return false;
@@ -237,7 +265,7 @@ bool JdwpAdbState::Accept() {
 #endif
 
         /* now try to send our pid to the ADB daemon */
-        ret = TEMP_FAILURE_RETRY(send(control_sock_, buff, 4, 0));
+        ret = TEMP_FAILURE_RETRY(send(control_sock, buff, 4, 0));
         if (ret >= 0) {
           VLOG(jdwp) << StringPrintf("PID sent as '%.*s' to ADB", 4, buff);
           break;
@@ -256,7 +284,7 @@ bool JdwpAdbState::Accept() {
       if (sleep_ms > sleep_max_ms) {
         sleep_ms = sleep_max_ms;
       }
-      if (shutting_down_) {
+      if (IsDown()) {
         return false;
       }
     }
@@ -264,9 +292,13 @@ bool JdwpAdbState::Accept() {
 
   VLOG(jdwp) << "trying to receive file descriptor from ADB";
   /* now we can receive a client file descriptor */
-  clientSock = ReceiveClientFd();
-  if (shutting_down_) {
-    return false;       // suppress logs and additional activity
+  int sock = ReceiveClientFd();
+  {
+    MutexLock mu(Thread::Current(), state_lock_);
+    clientSock = sock;
+    if (shutting_down_) {
+      return false;       // suppress logs and additional activity
+    }
   }
   if (clientSock == -1) {
     if (++retryCount > 5) {
@@ -314,7 +346,7 @@ bool JdwpAdbState::ProcessIncoming() {
       FD_ZERO(&readfds);
 
       /* configure fds; note these may get zapped by another thread */
-      fd = control_sock_;
+      fd = ControlSock();
       if (fd >= 0) {
         FD_SET(fd, &readfds);
         if (maxfd < fd) {
@@ -368,13 +400,14 @@ bool JdwpAdbState::ProcessIncoming() {
         VLOG(jdwp) << "Got wake-up signal, bailing out of select";
         goto fail;
       }
-      if (control_sock_ >= 0 && FD_ISSET(control_sock_, &readfds)) {
+      int control_sock = ControlSock();
+      if (control_sock >= 0 && FD_ISSET(control_sock, &readfds)) {
         int  sock = ReceiveClientFd();
         if (sock >= 0) {
           LOG(INFO) << "Ignoring second debugger -- accepting and dropping";
           close(sock);
         } else {
-          CHECK_EQ(control_sock_, -1);
+          CHECK_EQ(ControlSock(), -1);
           /*
            * Remote side most likely went away, so our next read
            * on clientSock will fail and throw us out of the loop.
