@@ -81,9 +81,6 @@ inline mirror::String* ClassLinker::ResolveString(dex::StringIndex string_idx,
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
     const DexFile& dex_file = *dex_cache->GetDexFile();
     string = ResolveString(dex_file, string_idx, dex_cache);
-    if (string != nullptr) {
-      DCHECK_EQ(dex_cache->GetResolvedString(string_idx), string);
-    }
   }
   return string.Ptr();
 }
