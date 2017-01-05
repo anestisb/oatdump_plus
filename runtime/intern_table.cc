@@ -319,7 +319,9 @@ std::size_t InternTable::StringHashEquals::operator()(const GcRoot<mirror::Strin
   if (kIsDebugBuild) {
     Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
   }
-  return static_cast<size_t>(root.Read<kWithoutReadBarrier>()->GetHashCode());
+  // An additional cast to prevent undesired sign extension.
+  return static_cast<size_t>(
+      static_cast<uint32_t>(root.Read<kWithoutReadBarrier>()->GetHashCode()));
 }
 
 bool InternTable::StringHashEquals::operator()(const GcRoot<mirror::String>& a,

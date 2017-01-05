@@ -16,6 +16,7 @@
 
 #include "intern_table.h"
 
+#include "base/hash_set.h"
 #include "common_runtime_test.h"
 #include "mirror/object.h"
 #include "handle_scope-inl.h"
@@ -60,6 +61,25 @@ TEST_F(InternTableTest, Size) {
   EXPECT_EQ(1U, t.Size());
   t.InternStrong(3, "bar");
   EXPECT_EQ(2U, t.Size());
+}
+
+// Check if table indexes match on 64 and 32 bit machines.
+// This is done by ensuring hash values are the same on every machine and limited to 32-bit wide.
+// Otherwise cross compilation can cause a table to be filled on host using one indexing algorithm
+// and later on a device with different sizeof(size_t) can use another indexing algorithm.
+// Thus the table may provide wrong data.
+TEST_F(InternTableTest, CrossHash) {
+  ScopedObjectAccess soa(Thread::Current());
+  InternTable t;
+
+  // A string that has a negative hash value.
+  GcRoot<mirror::String> str(mirror::String::AllocFromModifiedUtf8(soa.Self(), "00000000"));
+
+  MutexLock mu(Thread::Current(), *Locks::intern_table_lock_);
+  for (InternTable::Table::UnorderedSet& table : t.strong_interns_.tables_) {
+    // The negative hash value shall be 32-bit wide on every host.
+    ASSERT_TRUE(IsUint<32>(table.hashfn_(str)));
+  }
 }
 
 class TestPredicate : public IsMarkedVisitor {
