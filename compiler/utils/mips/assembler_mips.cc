@@ -635,6 +635,13 @@ void MipsAssembler::Ins(Register rd, Register rt, int pos, int size) {
   DsFsmInstrRrr(EmitR(0x1f, rt, rd, static_cast<Register>(pos + size - 1), pos, 0x04), rd, rd, rt);
 }
 
+void MipsAssembler::Lsa(Register rd, Register rs, Register rt, int saPlusOne) {
+  CHECK(IsR6());
+  CHECK(1 <= saPlusOne && saPlusOne <= 4) << saPlusOne;
+  int sa = saPlusOne - 1;
+  DsFsmInstrRrr(EmitR(0x0, rs, rt, rd, sa, 0x05), rd, rs, rt);
+}
+
 void MipsAssembler::Lb(Register rt, Register rs, uint16_t imm16) {
   DsFsmInstrRrr(EmitI(0x20, rs, rt, imm16), rt, rs, rs);
 }
