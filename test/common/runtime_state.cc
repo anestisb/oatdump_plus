@@ -19,6 +19,7 @@
 #include "base/enums.h"
 #include "base/logging.h"
 #include "dex_file-inl.h"
+#include "instrumentation.h"
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
 #include "mirror/class-inl.h"
@@ -29,6 +30,16 @@
 #include "thread-inl.h"
 
 namespace art {
+
+// public static native boolean hasJit();
+
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_hasJit(JNIEnv*, jclass) {
+  Runtime* runtime = Runtime::Current();
+  return runtime != nullptr
+      && runtime->GetJit() != nullptr
+      && runtime->GetInstrumentation()->GetCurrentInstrumentationLevel() !=
+            instrumentation::Instrumentation::InstrumentationLevel::kInstrumentWithInterpreter;
+}
 
 // public static native boolean hasOatFile();
 

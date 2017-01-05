@@ -40,6 +40,8 @@
 #include "events-inl.h"
 #include "gc/allocation_listener.h"
 #include "instrumentation.h"
+#include "jit/jit.h"
+#include "jit/jit_code_cache.h"
 #include "jni_env_ext-inl.h"
 #include "jvmti_allocator.h"
 #include "mirror/class.h"
@@ -52,6 +54,143 @@
 namespace openjdkjvmti {
 
 using android::base::StringPrintf;
+
+// This visitor walks thread stacks and allocates and sets up the obsolete methods. It also does
+// some basic sanity checks that the obsolete method is sane.
+class ObsoleteMethodStackVisitor : public art::StackVisitor {
+ protected:
+  ObsoleteMethodStackVisitor(
+      art::Thread* thread,
+      art::LinearAlloc* allocator,
+      const std::unordered_set<art::ArtMethod*>& obsoleted_methods,
+      /*out*/std::unordered_map<art::ArtMethod*, art::ArtMethod*>* obsolete_maps,
+      /*out*/bool* success,
+      /*out*/std::string* error_msg)
+        : StackVisitor(thread,
+                       /*context*/nullptr,
+                       StackVisitor::StackWalkKind::kIncludeInlinedFrames),
+          allocator_(allocator),
+          obsoleted_methods_(obsoleted_methods),
+          obsolete_maps_(obsolete_maps),
+          success_(success),
+          is_runtime_frame_(false),
+          error_msg_(error_msg) {
+    *success_ = true;
+  }
+
+  ~ObsoleteMethodStackVisitor() OVERRIDE {}
+
+ public:
+  // Returns true if we successfully installed obsolete methods on this thread, filling
+  // obsolete_maps_ with the translations if needed. Returns false and fills error_msg if we fail.
+  // The stack is cleaned up when we fail.
+  static bool UpdateObsoleteFrames(
+      art::Thread* thread,
+      art::LinearAlloc* allocator,
+      const std::unordered_set<art::ArtMethod*>& obsoleted_methods,
+      /*out*/std::unordered_map<art::ArtMethod*, art::ArtMethod*>* obsolete_maps,
+      /*out*/std::string* error_msg) REQUIRES(art::Locks::mutator_lock_) {
+    bool success = true;
+    ObsoleteMethodStackVisitor visitor(thread,
+                                       allocator,
+                                       obsoleted_methods,
+                                       obsolete_maps,
+                                       &success,
+                                       error_msg);
+    visitor.WalkStack();
+    if (!success) {
+      RestoreFrames(thread, *obsolete_maps, error_msg);
+      return false;
+    } else {
+      return true;
+    }
+  }
+
+  static void RestoreFrames(
+      art::Thread* thread ATTRIBUTE_UNUSED,
+      const std::unordered_map<art::ArtMethod*, art::ArtMethod*>& obsolete_maps ATTRIBUTE_UNUSED,
+      std::string* error_msg)
+        REQUIRES(art::Locks::mutator_lock_) {
+    LOG(FATAL) << "Restoring stack frames is not yet supported. Error was: " << *error_msg;
+  }
+
+  bool VisitFrame() OVERRIDE REQUIRES(art::Locks::mutator_lock_) {
+    art::ArtMethod* old_method = GetMethod();
+    // TODO REMOVE once either current_method doesn't stick around through suspend points or deopt
+    // works through runtime methods.
+    bool prev_was_runtime_frame_ = is_runtime_frame_;
+    is_runtime_frame_ = old_method->IsRuntimeMethod();
+    if (obsoleted_methods_.find(old_method) != obsoleted_methods_.end()) {
+      // The check below works since when we deoptimize we set shadow frames for all frames until a
+      // native/runtime transition and for those set the return PC to a function that will complete
+      // the deoptimization. This does leave us with the unfortunate side-effect that frames just
+      // below runtime frames cannot be deoptimized at the moment.
+      // TODO REMOVE once either current_method doesn't stick around through suspend points or deopt
+      // works through runtime methods.
+      // TODO b/33616143
+      if (!IsShadowFrame() && prev_was_runtime_frame_) {
+        *error_msg_ = StringPrintf("Deoptimization failed due to runtime method in stack.");
+        *success_ = false;
+        return false;
+      }
+      // We cannot ensure that the right dex file is used in inlined frames so we don't support
+      // redefining them.
+      DCHECK(!IsInInlinedFrame()) << "Inlined frames are not supported when using redefinition";
+      // TODO We should really support intrinsic obsolete methods.
+      // TODO We should really support redefining intrinsics.
+      // We don't support intrinsics so check for them here.
+      DCHECK(!old_method->IsIntrinsic());
+      art::ArtMethod* new_obsolete_method = nullptr;
+      auto obsolete_method_pair = obsolete_maps_->find(old_method);
+      if (obsolete_method_pair == obsolete_maps_->end()) {
+        // Create a new Obsolete Method and put it in the list.
+        art::Runtime* runtime = art::Runtime::Current();
+        art::ClassLinker* cl = runtime->GetClassLinker();
+        auto ptr_size = cl->GetImagePointerSize();
+        const size_t method_size = art::ArtMethod::Size(ptr_size);
+        auto* method_storage = allocator_->Alloc(GetThread(), method_size);
+        if (method_storage == nullptr) {
+          *success_ = false;
+          *error_msg_ = StringPrintf("Unable to allocate storage for obsolete version of '%s'",
+                                     old_method->PrettyMethod().c_str());
+          return false;
+        }
+        new_obsolete_method = new (method_storage) art::ArtMethod();
+        new_obsolete_method->CopyFrom(old_method, ptr_size);
+        DCHECK_EQ(new_obsolete_method->GetDeclaringClass(), old_method->GetDeclaringClass());
+        new_obsolete_method->SetIsObsolete();
+        obsolete_maps_->insert({old_method, new_obsolete_method});
+        // Update JIT Data structures to point to the new method.
+        art::jit::Jit* jit = art::Runtime::Current()->GetJit();
+        if (jit != nullptr) {
+          // Notify the JIT we are making this obsolete method. It will update the jit's internal
+          // structures to keep track of the new obsolete method.
+          jit->GetCodeCache()->MoveObsoleteMethod(old_method, new_obsolete_method);
+        }
+      } else {
+        new_obsolete_method = obsolete_method_pair->second;
+      }
+      DCHECK(new_obsolete_method != nullptr);
+      SetMethod(new_obsolete_method);
+    }
+    return true;
+  }
+
+ private:
+  // The linear allocator we should use to make new methods.
+  art::LinearAlloc* allocator_;
+  // The set of all methods which could be obsoleted.
+  const std::unordered_set<art::ArtMethod*>& obsoleted_methods_;
+  // A map from the original to the newly allocated obsolete method for frames on this thread. The
+  // values in this map must be added to the obsolete_methods_ (and obsolete_dex_caches_) fields of
+  // the redefined classes ClassExt by the caller.
+  std::unordered_map<art::ArtMethod*, art::ArtMethod*>* obsolete_maps_;
+  bool* success_;
+  // TODO REMOVE once either current_method doesn't stick around through suspend points or deopt
+  // works through runtime methods.
+  bool is_runtime_frame_;
+  std::string* error_msg_;
+};
 
 // Moves dex data to an anonymous, read-only mmap'd region.
 std::unique_ptr<art::MemMap> Redefiner::MoveDataToMemMap(const std::string& original_location,
@@ -76,6 +215,8 @@ std::unique_ptr<art::MemMap> Redefiner::MoveDataToMemMap(const std::string& orig
   return map;
 }
 
+// TODO This should handle doing multiple classes at once so we need to do less cleanup when things
+// go wrong.
 jvmtiError Redefiner::RedefineClass(ArtJvmTiEnv* env,
                                     art::Runtime* runtime,
                                     art::Thread* self,
@@ -116,6 +257,9 @@ jvmtiError Redefiner::RedefineClass(ArtJvmTiEnv* env,
     *error_msg = os.str();
     return ERR(INVALID_CLASS_FORMAT);
   }
+  // Stop JIT for the duration of this redefine since the JIT might concurrently compile a method we
+  // are going to redefine.
+  art::jit::ScopedJitSuspend suspend_jit;
   // Get shared mutator lock.
   art::ScopedObjectAccess soa(self);
   art::StackHandleScope<1> hs(self);
@@ -296,6 +440,107 @@ bool Redefiner::FinishRemainingAllocations(
   return true;
 }
 
+struct CallbackCtx {
+  Redefiner* const r;
+  art::LinearAlloc* allocator;
+  std::unordered_map<art::ArtMethod*, art::ArtMethod*> obsolete_map;
+  std::unordered_set<art::ArtMethod*> obsolete_methods;
+  bool success;
+  std::string* error_msg;
+
+  CallbackCtx(Redefiner* self, art::LinearAlloc* alloc, std::string* error)
+      : r(self), allocator(alloc), success(true), error_msg(error) {}
+};
+
+void DoRestoreObsoleteMethodsCallback(art::Thread* t, void* vdata) NO_THREAD_SAFETY_ANALYSIS {
+  CallbackCtx* data = reinterpret_cast<CallbackCtx*>(vdata);
+  ObsoleteMethodStackVisitor::RestoreFrames(t, data->obsolete_map, data->error_msg);
+}
+
+void DoAllocateObsoleteMethodsCallback(art::Thread* t, void* vdata) NO_THREAD_SAFETY_ANALYSIS {
+  CallbackCtx* data = reinterpret_cast<CallbackCtx*>(vdata);
+  if (data->success) {
+    // Don't do anything if we already failed once.
+    data->success = ObsoleteMethodStackVisitor::UpdateObsoleteFrames(t,
+                                                                     data->allocator,
+                                                                     data->obsolete_methods,
+                                                                     &data->obsolete_map,
+                                                                     data->error_msg);
+  }
+}
+
+// This creates any ArtMethod* structures needed for obsolete methods and ensures that the stack is
+// updated so they will be run.
+bool Redefiner::FindAndAllocateObsoleteMethods(art::mirror::Class* art_klass) {
+  art::ScopedAssertNoThreadSuspension ns("No thread suspension during thread stack walking");
+  art::mirror::ClassExt* ext = art_klass->GetExtData();
+  CHECK(ext->GetObsoleteMethods() != nullptr);
+  CallbackCtx ctx(this, art_klass->GetClassLoader()->GetAllocator(), error_msg_);
+  // Add all the declared methods to the map
+  for (auto& m : art_klass->GetDeclaredMethods(art::kRuntimePointerSize)) {
+    ctx.obsolete_methods.insert(&m);
+  }
+  for (art::ArtMethod* old_method : ctx.obsolete_methods) {
+    if (old_method->IsIntrinsic()) {
+      *error_msg_ = StringPrintf("Method '%s' is intrinsic and cannot be made obsolete!",
+                                 old_method->PrettyMethod().c_str());
+      return false;
+    }
+  }
+  {
+    art::MutexLock mu(self_, *art::Locks::thread_list_lock_);
+    art::ThreadList* list = art::Runtime::Current()->GetThreadList();
+    list->ForEach(DoAllocateObsoleteMethodsCallback, static_cast<void*>(&ctx));
+    if (!ctx.success) {
+      list->ForEach(DoRestoreObsoleteMethodsCallback, static_cast<void*>(&ctx));
+      return false;
+    }
+  }
+  FillObsoleteMethodMap(art_klass, ctx.obsolete_map);
+  return true;
+}
+
+// Fills the obsolete method map in the art_klass's extData. This is so obsolete methods are able to
+// figure out their DexCaches.
+void Redefiner::FillObsoleteMethodMap(
+    art::mirror::Class* art_klass,
+    const std::unordered_map<art::ArtMethod*, art::ArtMethod*>& obsoletes) {
+  int32_t index = 0;
+  art::mirror::ClassExt* ext_data = art_klass->GetExtData();
+  art::mirror::PointerArray* obsolete_methods = ext_data->GetObsoleteMethods();
+  art::mirror::ObjectArray<art::mirror::DexCache>* obsolete_dex_caches =
+      ext_data->GetObsoleteDexCaches();
+  int32_t num_method_slots = obsolete_methods->GetLength();
+  // Find the first empty index.
+  for (; index < num_method_slots; index++) {
+    if (obsolete_methods->GetElementPtrSize<art::ArtMethod*>(
+          index, art::kRuntimePointerSize) == nullptr) {
+      break;
+    }
+  }
+  // Make sure we have enough space.
+  CHECK_GT(num_method_slots, static_cast<int32_t>(obsoletes.size() + index));
+  CHECK(obsolete_dex_caches->Get(index) == nullptr);
+  // Fill in the map.
+  for (auto& obs : obsoletes) {
+    obsolete_methods->SetElementPtrSize(index, obs.second, art::kRuntimePointerSize);
+    obsolete_dex_caches->Set(index, art_klass->GetDexCache());
+    index++;
+  }
+}
+
+// TODO It should be possible to only deoptimize the specific obsolete methods.
+// TODO ReJitEverything can (sort of) fail. In certain cases it will skip deoptimizing some frames.
+// If one of these frames is an obsolete method we have a problem. b/33616143
+// TODO This shouldn't be necessary once we can ensure that the current method is not kept in
+// registers across suspend points.
+// TODO Pending b/33630159
+void Redefiner::EnsureObsoleteMethodsAreDeoptimized() {
+  art::ScopedAssertNoThreadSuspension nts("Deoptimizing everything!");
+  art::instrumentation::Instrumentation* i = runtime_->GetInstrumentation();
+  i->ReJitEverything("libOpenJkdJvmti - Class Redefinition");
+}
+
 jvmtiError Redefiner::Run() {
   art::StackHandleScope<5> hs(self_);
   // TODO We might want to have a global lock (or one based on the class being redefined at least)
@@ -338,6 +583,11 @@ jvmtiError Redefiner::Run() {
   self_->TransitionFromRunnableToSuspended(art::ThreadState::kNative);
   runtime_->GetThreadList()->SuspendAll(
       "Final installation of redefined Class!", /*long_suspend*/true);
+  // TODO We need to invalidate all breakpoints in the redefined class with the debugger.
+  // TODO We need to deal with any instrumentation/debugger deoptimized_methods_.
+  // TODO We need to update all debugger MethodIDs so they note the method they point to is
+  // obsolete or implement some other well defined semantics.
+  // TODO We need to decide on & implement semantics for JNI jmethodids when we redefine methods.
   // TODO Might want to move this into a different type.
   // Now we reach the part where we must do active cleanup if something fails.
   // TODO We should really Retry if this fails instead of simply aborting.
@@ -345,7 +595,8 @@ jvmtiError Redefiner::Run() {
   art::ObjPtr<art::mirror::LongArray> original_dex_file_cookie(nullptr);
   if (!UpdateJavaDexFile(java_dex_file.Get(),
                          new_dex_file_cookie.Get(),
-                         &original_dex_file_cookie)) {
+                         &original_dex_file_cookie) ||
+      !FindAndAllocateObsoleteMethods(art_class.Get())) {
     // Release suspendAll
     runtime_->GetThreadList()->ResumeAll();
     // Get back shared mutator lock as expected for return.
@@ -361,23 +612,25 @@ jvmtiError Redefiner::Run() {
     self_->TransitionFromSuspendedToRunnable();
     return result_;
   }
-  // Update the ClassObjects Keep the old DexCache (and other stuff) around so we can restore
-  // functions/fields.
-  // Verify the new Class.
-  //   Failure then undo updates to class
-  // Do stack walks and allocate obsolete methods
-  // Shrink the obsolete method maps if possible?
-  // TODO find appropriate class loader. Allocate new dex files array. Pause all java treads.
-  // Replace dex files array. Do stack scan + allocate obsoletes. Remove array if possible.
-  // TODO We might want to ensure that all threads are stopped for this!
-  // AddDexToClassPath();
-  // TODO
-  // Release suspendAll
+  // Ensure that obsolete methods are deoptimized. This is needed since optimized methods may have
+  // pointers to their ArtMethod's stashed in registers that they then use to attempt to hit the
+  // DexCache.
+  // TODO This can fail (leave some methods optimized) near runtime methods (including
+  // quick-to-interpreter transition function).
+  // TODO We probably don't need this at all once we have a way to ensure that the
+  // current_art_method is never stashed in a (physical) register by the JIT and lost to the
+  // stack-walker.
+  EnsureObsoleteMethodsAreDeoptimized();
+  // TODO Verify the new Class.
+  // TODO   Failure then undo updates to class
+  // TODO Shrink the obsolete method maps if possible?
+  // TODO find appropriate class loader.
   // TODO Put this into a scoped thing.
   runtime_->GetThreadList()->ResumeAll();
   // Get back shared mutator lock as expected for return.
   self_->TransitionFromSuspendedToRunnable();
-  // TODO Do this at a more reasonable place.
+  // TODO Do the dex_file_ release at a more reasonable place. This works but it muddles who really
+  // owns the DexFile.
   dex_file_.release();
   return OK;
 }
@@ -420,19 +673,24 @@ bool Redefiner::UpdateMethods(art::ObjPtr<art::mirror::Class> mclass,
     }
     const art::DexFile::ProtoId* proto_id = dex_file_->FindProtoId(method_return_idx,
                                                                    new_type_list);
-    CHECK(proto_id != nullptr || old_type_list == nullptr);
     // TODO Return false, cleanup.
+    CHECK(proto_id != nullptr || old_type_list == nullptr);
     const art::DexFile::MethodId* method_id = dex_file_->FindMethodId(declaring_class_id,
                                                                       *new_name_id,
                                                                       *proto_id);
-    CHECK(method_id != nullptr);
     // TODO Return false, cleanup.
+    CHECK(method_id != nullptr);
     uint32_t dex_method_idx = dex_file_->GetIndexForMethodId(*method_id);
     method.SetDexMethodIndex(dex_method_idx);
     linker->SetEntryPointsToInterpreter(&method);
     method.SetCodeItemOffset(dex_file_->FindCodeItemOffset(class_def, dex_method_idx));
     method.SetDexCacheResolvedMethods(new_dex_cache->GetResolvedMethods(), image_pointer_size);
     method.SetDexCacheResolvedTypes(new_dex_cache->GetResolvedTypes(), image_pointer_size);
+    // Notify the jit that this method is redefined.
+    art::jit::Jit* jit = runtime_->GetJit();
+    if (jit != nullptr) {
+      jit->GetCodeCache()->NotifyMethodRedefined(&method);
+    }
   }
   return true;
 }
