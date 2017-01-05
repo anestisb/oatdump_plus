@@ -35,12 +35,14 @@ void Mips64Assembler::FinalizeCode() {
   for (auto& exception_block : exception_blocks_) {
     EmitExceptionPoll(&exception_block);
   }
+  ReserveJumpTableSpace();
   EmitLiterals();
   PromoteBranches();
 }
 
 void Mips64Assembler::FinalizeInstructions(const MemoryRegion& region) {
   EmitBranches();
+  EmitJumpTables();
   Assembler::FinalizeInstructions(region);
   PatchCFI();
 }
@@ -480,6 +482,10 @@ void Mips64Assembler::Ldpc(GpuRegister rs, uint32_t imm18) {
 
 void Mips64Assembler::Lui(GpuRegister rt, uint16_t imm16) {
   EmitI(0xf, static_cast<GpuRegister>(0), rt, imm16);
+}
+
+void Mips64Assembler::Aui(GpuRegister rt, GpuRegister rs, uint16_t imm16) {
+  EmitI(0xf, rs, rt, imm16);
 }
 
 void Mips64Assembler::Dahi(GpuRegister rs, uint16_t imm16) {
@@ -1081,6 +1087,20 @@ void Mips64Assembler::LoadConst64(GpuRegister rd, int64_t value) {
   TemplateLoadConst64(this, rd, value);
 }
 
+void Mips64Assembler::Addiu32(GpuRegister rt, GpuRegister rs, int32_t value) {
+  if (IsInt<16>(value)) {
+    Addiu(rt, rs, value);
+  } else {
+    int16_t high = High16Bits(value);
+    int16_t low = Low16Bits(value);
+    high += (low < 0) ? 1 : 0;  // Account for sign extension in addiu.
+    Aui(rt, rs, high);
+    if (low != 0) {
+      Addiu(rt, rt, low);
+    }
+  }
+}
+
 void Mips64Assembler::Daddiu64(GpuRegister rt, GpuRegister rs, int64_t value, GpuRegister rtmp) {
   if (IsInt<16>(value)) {
     Daddiu(rt, rs, value);
@@ -1651,6 +1671,67 @@ void Mips64Assembler::LoadLiteral(GpuRegister dest_reg,
   DCHECK(!label->IsBound());
   branches_.emplace_back(buffer_.Size(), dest_reg, literal_type);
   FinalizeLabeledBranch(label);
+}
+
+JumpTable* Mips64Assembler::CreateJumpTable(std::vector<Mips64Label*>&& labels) {
+  jump_tables_.emplace_back(std::move(labels));
+  JumpTable* table = &jump_tables_.back();
+  DCHECK(!table->GetLabel()->IsBound());
+  return table;
+}
+
+void Mips64Assembler::ReserveJumpTableSpace() {
+  if (!jump_tables_.empty()) {
+    for (JumpTable& table : jump_tables_) {
+      Mips64Label* label = table.GetLabel();
+      Bind(label);
+
+      // Bulk ensure capacity, as this may be large.
+      size_t orig_size = buffer_.Size();
+      size_t required_capacity = orig_size + table.GetSize();
+      if (required_capacity > buffer_.Capacity()) {
+        buffer_.ExtendCapacity(required_capacity);
+      }
+#ifndef NDEBUG
+      buffer_.has_ensured_capacity_ = true;
+#endif
+
+      // Fill the space with dummy data as the data is not final
+      // until the branches have been promoted. And we shouldn't
+      // be moving uninitialized data during branch promotion.
+      for (size_t cnt = table.GetData().size(), i = 0; i < cnt; i++) {
+        buffer_.Emit<uint32_t>(0x1abe1234u);
+      }
+
+#ifndef NDEBUG
+      buffer_.has_ensured_capacity_ = false;
+#endif
+    }
+  }
+}
+
+void Mips64Assembler::EmitJumpTables() {
+  if (!jump_tables_.empty()) {
+    CHECK(!overwriting_);
+    // Switch from appending instructions at the end of the buffer to overwriting
+    // existing instructions (here, jump tables) in the buffer.
+    overwriting_ = true;
+
+    for (JumpTable& table : jump_tables_) {
+      Mips64Label* table_label = table.GetLabel();
+      uint32_t start = GetLabelLocation(table_label);
+      overwrite_location_ = start;
+
+      for (Mips64Label* target : table.GetData()) {
+        CHECK_EQ(buffer_.Load<uint32_t>(overwrite_location_), 0x1abe1234u);
+        // The table will contain target addresses relative to the table start.
+        uint32_t offset = GetLabelLocation(target) - start;
+        Emit(offset);
+      }
+    }
+
+    overwriting_ = false;
+  }
 }
 
 void Mips64Assembler::EmitLiterals() {
