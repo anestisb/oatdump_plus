@@ -539,7 +539,6 @@ TEST_ART_BROKEN_INTERPRETER_RUN_TESTS :=
 # Test 906 iterates the heap filtering with different options. No instances should be created
 # between those runs to be able to have precise checks.
 # Test 902 hits races with the JIT compiler. b/32821077
-# Test 626-const-class-linking can deadlock with JIT. b/33567581
 # Test 629 requires compilation.
 # Test 914, 915, 917, & 918 are very sensitive to the exact state of the stack,
 # including the jit-inserted runtime frames. This causes them to be somewhat
@@ -548,7 +547,6 @@ TEST_ART_BROKEN_INTERPRETER_RUN_TESTS :=
 # feature for JIT use cases in a way that is resilient to the jit frames.
 TEST_ART_BROKEN_JIT_RUN_TESTS := \
   137-cfi \
-  626-const-class-linking \
   629-vdex-speed \
   902-hello-transformation \
   904-object-allocation \
