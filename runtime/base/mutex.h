@@ -60,6 +60,7 @@ enum LockLevel {
   kUnexpectedSignalLock,
   kThreadSuspendCountLock,
   kAbortLock,
+  kJdwpAdbStateLock,
   kJdwpSocketLock,
   kRegionSpaceRegionLock,
   kRosAllocGlobalLock,
