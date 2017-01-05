@@ -268,7 +268,7 @@ class Runtime {
     return java_vm_.get();
   }
 
-  size_t GetMaxSpinsBeforeThinkLockInflation() const {
+  size_t GetMaxSpinsBeforeThinLockInflation() const {
     return max_spins_before_thin_lock_inflation_;
   }
 
