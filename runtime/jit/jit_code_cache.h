@@ -75,6 +75,10 @@ class JitCodeCache {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!lock_);
 
+  void NotifyMethodRedefined(ArtMethod* method)
+      REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!lock_);
+
   // Notify to the code cache that the compiler wants to use the
   // profiling info of `method` to drive optimizations,
   // and therefore ensure the returned profiling info object is not
@@ -218,6 +222,11 @@ class JitCodeCache {
   void AllowInlineCacheAccess() REQUIRES(!lock_);
   void DisallowInlineCacheAccess() REQUIRES(!lock_);
   void BroadcastForInlineCacheAccess() REQUIRES(!lock_);
+
+  // Notify the code cache that the method at the pointer 'old_method' is being moved to the pointer
+  // 'new_method' since it is being made obsolete.
+  void MoveObsoleteMethod(ArtMethod* old_method, ArtMethod* new_method)
+      REQUIRES(!lock_) REQUIRES(Locks::mutator_lock_);
 
  private:
   // Take ownership of maps.
