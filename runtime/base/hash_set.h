@@ -672,6 +672,8 @@ class HashSet {
   T* data_;  // Backing storage.
   double min_load_factor_;
   double max_load_factor_;
+
+  ART_FRIEND_TEST(InternTableTest, CrossHash);
 };
 
 template <class T, class EmptyFn, class HashFn, class Pred, class Alloc>

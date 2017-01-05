@@ -163,7 +163,11 @@ class InternTable {
         NO_THREAD_SAFETY_ANALYSIS;
 
     // Utf8String can be used for lookup.
-    std::size_t operator()(const Utf8String& key) const { return key.GetHash(); }
+    std::size_t operator()(const Utf8String& key) const {
+      // A cast to prevent undesired sign extension.
+      return static_cast<uint32_t>(key.GetHash());
+    }
+
     bool operator()(const GcRoot<mirror::String>& a, const Utf8String& b) const
         NO_THREAD_SAFETY_ANALYSIS;
   };
@@ -217,6 +221,8 @@ class InternTable {
     // We call AddNewTable when we create the zygote to reduce private dirty pages caused by
     // modifying the zygote intern table. The back of table is modified when strings are interned.
     std::vector<UnorderedSet> tables_;
+
+    ART_FRIEND_TEST(InternTableTest, CrossHash);
   };
 
   // Insert if non null, otherwise return null. Must be called holding the mutator lock.
@@ -276,6 +282,7 @@ class InternTable {
   gc::WeakRootState weak_root_state_ GUARDED_BY(Locks::intern_table_lock_);
 
   friend class Transaction;
+  ART_FRIEND_TEST(InternTableTest, CrossHash);
   DISALLOW_COPY_AND_ASSIGN(InternTable);
 };
 
