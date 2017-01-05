@@ -344,6 +344,7 @@ bool HInliner::TryInline(HInvoke* invoke_instruction) {
   if (actual_method != nullptr) {
     bool result = TryInlineAndReplace(invoke_instruction,
                                       actual_method,
+                                      ReferenceTypeInfo::CreateInvalid(),
                                       /* do_rtp */ true,
                                       cha_devirtualize);
     if (result && !invoke_instruction->IsInvokeStaticOrDirect()) {
@@ -471,9 +472,10 @@ bool HInliner::TryInlineMonomorphicCall(HInvoke* invoke_instruction,
   HInstruction* receiver = invoke_instruction->InputAt(0);
   HInstruction* cursor = invoke_instruction->GetPrevious();
   HBasicBlock* bb_cursor = invoke_instruction->GetBlock();
-
+  Handle<mirror::Class> handle = handles_->NewHandle(GetMonomorphicType(classes));
   if (!TryInlineAndReplace(invoke_instruction,
                            resolved_method,
+                           ReferenceTypeInfo::Create(handle, /* is_exact */ true),
                            /* do_rtp */ false,
                            /* cha_devirtualize */ false)) {
     return false;
@@ -591,13 +593,13 @@ bool HInliner::TryInlinePolymorphicCall(HInvoke* invoke_instruction,
       break;
     }
     ArtMethod* method = nullptr;
+
+    Handle<mirror::Class> handle = handles_->NewHandle(classes->Get(i));
     if (invoke_instruction->IsInvokeInterface()) {
-      method = classes->Get(i)->FindVirtualMethodForInterface(
-          resolved_method, pointer_size);
+      method = handle->FindVirtualMethodForInterface(resolved_method, pointer_size);
     } else {
       DCHECK(invoke_instruction->IsInvokeVirtual());
-      method = classes->Get(i)->FindVirtualMethodForVirtual(
-          resolved_method, pointer_size);
+      method = handle->FindVirtualMethodForVirtual(resolved_method, pointer_size);
     }
 
     HInstruction* receiver = invoke_instruction->InputAt(0);
@@ -605,10 +607,13 @@ bool HInliner::TryInlinePolymorphicCall(HInvoke* invoke_instruction,
     HBasicBlock* bb_cursor = invoke_instruction->GetBlock();
 
     dex::TypeIndex class_index = FindClassIndexIn(
-        classes->Get(i), caller_dex_file, caller_compilation_unit_.GetDexCache());
+        handle.Get(), caller_dex_file, caller_compilation_unit_.GetDexCache());
     HInstruction* return_replacement = nullptr;
     if (!class_index.IsValid() ||
-        !TryBuildAndInline(invoke_instruction, method, &return_replacement)) {
+        !TryBuildAndInline(invoke_instruction,
+                           method,
+                           ReferenceTypeInfo::Create(handle, /* is_exact */ true),
+                           &return_replacement)) {
       all_targets_inlined = false;
     } else {
       one_target_inlined = true;
@@ -627,7 +632,7 @@ bool HInliner::TryInlinePolymorphicCall(HInvoke* invoke_instruction,
                                            cursor,
                                            bb_cursor,
                                            class_index,
-                                           classes->Get(i),
+                                           handle.Get(),
                                            invoke_instruction,
                                            deoptimize);
       if (deoptimize) {
@@ -792,7 +797,10 @@ bool HInliner::TryInlinePolymorphicCallToSameTarget(
   HBasicBlock* bb_cursor = invoke_instruction->GetBlock();
 
   HInstruction* return_replacement = nullptr;
-  if (!TryBuildAndInline(invoke_instruction, actual_method, &return_replacement)) {
+  if (!TryBuildAndInline(invoke_instruction,
+                         actual_method,
+                         ReferenceTypeInfo::CreateInvalid(),
+                         &return_replacement)) {
     return false;
   }
 
@@ -857,13 +865,14 @@ bool HInliner::TryInlinePolymorphicCallToSameTarget(
 
 bool HInliner::TryInlineAndReplace(HInvoke* invoke_instruction,
                                    ArtMethod* method,
+                                   ReferenceTypeInfo receiver_type,
                                    bool do_rtp,
                                    bool cha_devirtualize) {
   HInstruction* return_replacement = nullptr;
   uint32_t dex_pc = invoke_instruction->GetDexPc();
   HInstruction* cursor = invoke_instruction->GetPrevious();
   HBasicBlock* bb_cursor = invoke_instruction->GetBlock();
-  if (!TryBuildAndInline(invoke_instruction, method, &return_replacement)) {
+  if (!TryBuildAndInline(invoke_instruction, method, receiver_type, &return_replacement)) {
     if (invoke_instruction->IsInvokeInterface()) {
       // Turn an invoke-interface into an invoke-virtual. An invoke-virtual is always
       // better than an invoke-interface because:
@@ -921,6 +930,7 @@ bool HInliner::TryInlineAndReplace(HInvoke* invoke_instruction,
 
 bool HInliner::TryBuildAndInline(HInvoke* invoke_instruction,
                                  ArtMethod* method,
+                                 ReferenceTypeInfo receiver_type,
                                  HInstruction** return_replacement) {
   if (method->IsProxyMethod()) {
     VLOG(compiler) << "Method " << method->PrettyMethod()
@@ -997,7 +1007,8 @@ bool HInliner::TryBuildAndInline(HInvoke* invoke_instruction,
     return false;
   }
 
-  if (!TryBuildAndInlineHelper(invoke_instruction, method, same_dex_file, return_replacement)) {
+  if (!TryBuildAndInlineHelper(
+          invoke_instruction, method, receiver_type, same_dex_file, return_replacement)) {
     return false;
   }
 
@@ -1194,8 +1205,10 @@ HInstanceFieldSet* HInliner::CreateInstanceFieldSet(Handle<mirror::DexCache> dex
 
 bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
                                        ArtMethod* resolved_method,
+                                       ReferenceTypeInfo receiver_type,
                                        bool same_dex_file,
                                        HInstruction** return_replacement) {
+  DCHECK(!(resolved_method->IsStatic() && receiver_type.IsValid()));
   ScopedObjectAccess soa(Thread::Current());
   const DexFile::CodeItem* code_item = resolved_method->GetCodeItem();
   const DexFile& callee_dex_file = *resolved_method->GetDexFile();
@@ -1286,12 +1299,13 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
   }
 
   size_t parameter_index = 0;
+  bool run_rtp = false;
   for (HInstructionIterator instructions(callee_graph->GetEntryBlock()->GetInstructions());
        !instructions.Done();
        instructions.Advance()) {
     HInstruction* current = instructions.Current();
     if (current->IsParameterValue()) {
-      HInstruction* argument = invoke_instruction->InputAt(parameter_index++);
+      HInstruction* argument = invoke_instruction->InputAt(parameter_index);
       if (argument->IsNullConstant()) {
         current->ReplaceWith(callee_graph->GetNullConstant());
       } else if (argument->IsIntConstant()) {
@@ -1305,15 +1319,21 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
         current->ReplaceWith(
             callee_graph->GetDoubleConstant(argument->AsDoubleConstant()->GetValue()));
       } else if (argument->GetType() == Primitive::kPrimNot) {
-        current->SetReferenceTypeInfo(argument->GetReferenceTypeInfo());
+        if (!resolved_method->IsStatic() && parameter_index == 0 && receiver_type.IsValid()) {
+          run_rtp = true;
+          current->SetReferenceTypeInfo(receiver_type);
+        } else {
+          current->SetReferenceTypeInfo(argument->GetReferenceTypeInfo());
+        }
         current->AsParameterValue()->SetCanBeNull(argument->CanBeNull());
       }
+      ++parameter_index;
     }
   }
 
   // We have replaced formal arguments with actual arguments. If actual types
   // are more specific than the declared ones, run RTP again on the inner graph.
-  if (ArgumentTypesMoreSpecific(invoke_instruction, resolved_method)) {
+  if (run_rtp || ArgumentTypesMoreSpecific(invoke_instruction, resolved_method)) {
     ReferenceTypePropagation(callee_graph,
                              dex_compilation_unit.GetDexCache(),
                              handles_,
@@ -1502,7 +1522,7 @@ static bool IsReferenceTypeRefinement(ReferenceTypeInfo declared_rti,
 
   ReferenceTypeInfo actual_rti = actual_obj->GetReferenceTypeInfo();
   return (actual_rti.IsExact() && !declared_rti.IsExact()) ||
-         declared_rti.IsStrictSupertypeOf(actual_rti);
+          declared_rti.IsStrictSupertypeOf(actual_rti);
 }
 
 ReferenceTypeInfo HInliner::GetClassRTI(mirror::Class* klass) {
