@@ -55,15 +55,13 @@ extern "C" void art_quick_invoke_stub(ArtMethod*, uint32_t*, uint32_t, Thread*, 
 extern "C" void art_quick_invoke_static_stub(ArtMethod*, uint32_t*, uint32_t, Thread*, JValue*,
                                              const char*);
 
-ArtMethod* ArtMethod::GetSingleImplementation() {
+ArtMethod* ArtMethod::GetSingleImplementation(PointerSize pointer_size) {
   DCHECK(!IsNative());
   if (!IsAbstract()) {
     // A non-abstract's single implementation is itself.
     return this;
   }
-  // TODO: add single-implementation logic for abstract method by storing it
-  // in ptr_sized_fields_.
-  return nullptr;
+  return reinterpret_cast<ArtMethod*>(GetDataPtrSize(pointer_size));
 }
 
 ArtMethod* ArtMethod::FromReflectedMethod(const ScopedObjectAccessAlreadyRunnable& soa,
