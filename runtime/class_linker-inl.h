@@ -189,20 +189,15 @@ inline ArtField* ClassLinker::GetResolvedField(uint32_t field_idx,
   return dex_cache->GetResolvedField(field_idx, image_pointer_size_);
 }
 
-inline ArtField* ClassLinker::GetResolvedField(uint32_t field_idx,
-                                               ObjPtr<mirror::Class> field_declaring_class) {
-  return GetResolvedField(field_idx, MakeObjPtr(field_declaring_class->GetDexCache()));
-}
-
 inline ArtField* ClassLinker::ResolveField(uint32_t field_idx,
                                            ArtMethod* referrer,
                                            bool is_static) {
   Thread::PoisonObjectPointersIfDebug();
   ObjPtr<mirror::Class> declaring_class = referrer->GetDeclaringClass();
-  ArtField* resolved_field = GetResolvedField(field_idx, declaring_class);
+  ArtField* resolved_field = GetResolvedField(field_idx, referrer->GetDexCache());
   if (UNLIKELY(resolved_field == nullptr)) {
     StackHandleScope<2> hs(Thread::Current());
-    Handle<mirror::DexCache> dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
+    Handle<mirror::DexCache> dex_cache(hs.NewHandle(referrer->GetDexCache()));
     Handle<mirror::ClassLoader> class_loader(hs.NewHandle(declaring_class->GetClassLoader()));
     const DexFile& dex_file = *dex_cache->GetDexFile();
     resolved_field = ResolveField(dex_file, field_idx, dex_cache, class_loader, is_static);

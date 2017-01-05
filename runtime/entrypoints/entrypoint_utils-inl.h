@@ -563,7 +563,7 @@ inline ArtMethod* FindMethodFromCode(uint32_t method_idx,
       HandleWrapperObjPtr<mirror::Object> h_this(hs2.NewHandleWrapper(this_object));
       Handle<mirror::Class> h_referring_class(hs2.NewHandle(referrer->GetDeclaringClass()));
       const dex::TypeIndex method_type_idx =
-          h_referring_class->GetDexFile().GetMethodId(method_idx).class_idx_;
+          referrer->GetDexFile()->GetMethodId(method_idx).class_idx_;
       mirror::Class* method_reference_class = class_linker->ResolveType(method_type_idx, referrer);
       if (UNLIKELY(method_reference_class == nullptr)) {
         // Bad type idx.
@@ -673,8 +673,7 @@ inline ArtField* FindFieldFast(uint32_t field_idx, ArtMethod* referrer, FindFiel
                                size_t expected_size) {
   ScopedAssertNoThreadSuspension ants(__FUNCTION__);
   ArtField* resolved_field =
-      referrer->GetDeclaringClass()->GetDexCache()->GetResolvedField(field_idx,
-                                                                     kRuntimePointerSize);
+      referrer->GetDexCache()->GetResolvedField(field_idx, kRuntimePointerSize);
   if (UNLIKELY(resolved_field == nullptr)) {
     return nullptr;
   }
@@ -733,7 +732,7 @@ inline ArtMethod* FindMethodFast(uint32_t method_idx,
   }
   mirror::Class* referring_class = referrer->GetDeclaringClass();
   ArtMethod* resolved_method =
-      referring_class->GetDexCache()->GetResolvedMethod(method_idx, kRuntimePointerSize);
+      referrer->GetDexCache()->GetResolvedMethod(method_idx, kRuntimePointerSize);
   if (UNLIKELY(resolved_method == nullptr)) {
     return nullptr;
   }
@@ -759,9 +758,9 @@ inline ArtMethod* FindMethodFast(uint32_t method_idx,
   } else if (type == kSuper) {
     // TODO This lookup is rather slow.
     dex::TypeIndex method_type_idx =
-        referring_class->GetDexFile().GetMethodId(method_idx).class_idx_;
+        referrer->GetDexFile()->GetMethodId(method_idx).class_idx_;
     mirror::Class* method_reference_class =
-        referring_class->GetDexCache()->GetResolvedType(method_type_idx);
+        referrer->GetDexCache()->GetResolvedType(method_type_idx);
     if (method_reference_class == nullptr) {
       // Need to do full type resolution...
       return nullptr;

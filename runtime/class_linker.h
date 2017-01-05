@@ -327,8 +327,6 @@ class ClassLinker {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::dex_lock_, !Roles::uninterruptible_);
 
-  ArtField* GetResolvedField(uint32_t field_idx, ObjPtr<mirror::Class> field_declaring_class)
-      REQUIRES_SHARED(Locks::mutator_lock_);
   ArtField* GetResolvedField(uint32_t field_idx, ObjPtr<mirror::DexCache> dex_cache)
       REQUIRES_SHARED(Locks::mutator_lock_);
   ArtField* ResolveField(uint32_t field_idx, ArtMethod* referrer, bool is_static)
