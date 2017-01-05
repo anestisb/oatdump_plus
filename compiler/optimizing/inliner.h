@@ -66,17 +66,20 @@ class HInliner : public HOptimization {
   // a CHA guard needs to be added for the inlining.
   bool TryInlineAndReplace(HInvoke* invoke_instruction,
                            ArtMethod* resolved_method,
+                           ReferenceTypeInfo receiver_type,
                            bool do_rtp,
                            bool cha_devirtualize)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool TryBuildAndInline(HInvoke* invoke_instruction,
                          ArtMethod* resolved_method,
+                         ReferenceTypeInfo receiver_type,
                          HInstruction** return_replacement)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool TryBuildAndInlineHelper(HInvoke* invoke_instruction,
                                ArtMethod* resolved_method,
+                               ReferenceTypeInfo receiver_type,
                                bool same_dex_file,
                                HInstruction** return_replacement);
 
