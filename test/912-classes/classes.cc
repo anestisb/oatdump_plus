@@ -61,6 +61,32 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getClassSignature(
   return ret;
 }
 
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_isInterface(
+    JNIEnv* env ATTRIBUTE_UNUSED, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
+  jboolean is_interface = JNI_FALSE;
+  jvmtiError result = jvmti_env->IsInterface(klass, &is_interface);
+  if (result != JVMTI_ERROR_NONE) {
+    char* err;
+    jvmti_env->GetErrorName(result, &err);
+    printf("Failure running IsInterface: %s\n", err);
+    return JNI_FALSE;
+  }
+  return is_interface;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_isArrayClass(
+    JNIEnv* env ATTRIBUTE_UNUSED, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
+  jboolean is_array_class = JNI_FALSE;
+  jvmtiError result = jvmti_env->IsArrayClass(klass, &is_array_class);
+  if (result != JVMTI_ERROR_NONE) {
+    char* err;
+    jvmti_env->GetErrorName(result, &err);
+    printf("Failure running IsArrayClass: %s\n", err);
+    return JNI_FALSE;
+  }
+  return is_array_class;
+}
+
 // Don't do anything
 jint OnLoad(JavaVM* vm,
             char* options ATTRIBUTE_UNUSED,
