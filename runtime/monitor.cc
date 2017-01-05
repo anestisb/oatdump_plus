@@ -161,7 +161,7 @@ bool Monitor::Install(Thread* self) {
   }
   LockWord fat(this, lw.GCState());
   // Publish the updated lock word, which may race with other threads.
-  bool success = GetObject()->CasLockWordWeakSequentiallyConsistent(lw, fat);
+  bool success = GetObject()->CasLockWordWeakRelease(lw, fat);
   // Lock profiling.
   if (success && owner_ != nullptr && lock_profiling_threshold_ != 0) {
     // Do not abort on dex pc errors. This can easily happen when we want to dump a stack trace on
@@ -879,13 +879,16 @@ mirror::Object* Monitor::MonitorEnter(Thread* self, mirror::Object* obj, bool tr
   StackHandleScope<1> hs(self);
   Handle<mirror::Object> h_obj(hs.NewHandle(obj));
   while (true) {
-    LockWord lock_word = h_obj->GetLockWord(true);
+    // We initially read the lockword with ordinary Java/relaxed semantics. When stronger
+    // semantics are needed, we address it below. Since GetLockWord bottoms out to a relaxed load,
+    // we can fix it later, in an infrequently executed case, with a fence.
+    LockWord lock_word = h_obj->GetLockWord(false);
     switch (lock_word.GetState()) {
       case LockWord::kUnlocked: {
+        // No ordering required for preceding lockword read, since we retest.
         LockWord thin_locked(LockWord::FromThinLockId(thread_id, 0, lock_word.GCState()));
-        if (h_obj->CasLockWordWeakSequentiallyConsistent(lock_word, thin_locked)) {
+        if (h_obj->CasLockWordWeakAcquire(lock_word, thin_locked)) {
           AtraceMonitorLock(self, h_obj.Get(), false /* is_wait */);
-          // CasLockWord enforces more than the acquire ordering we need here.
           return h_obj.Get();  // Success!
         }
         continue;  // Go again.
@@ -893,19 +896,22 @@ mirror::Object* Monitor::MonitorEnter(Thread* self, mirror::Object* obj, bool tr
       case LockWord::kThinLocked: {
         uint32_t owner_thread_id = lock_word.ThinLockOwner();
         if (owner_thread_id == thread_id) {
+          // No ordering required for initial lockword read.
           // We own the lock, increase the recursion count.
           uint32_t new_count = lock_word.ThinLockCount() + 1;
           if (LIKELY(new_count <= LockWord::kThinLockMaxCount)) {
             LockWord thin_locked(LockWord::FromThinLockId(thread_id,
                                                           new_count,
                                                           lock_word.GCState()));
+            // Only this thread pays attention to the count. Thus there is no need for stronger
+            // than relaxed memory ordering.
             if (!kUseReadBarrier) {
-              h_obj->SetLockWord(thin_locked, true);
+              h_obj->SetLockWord(thin_locked, false /* volatile */);
               AtraceMonitorLock(self, h_obj.Get(), false /* is_wait */);
               return h_obj.Get();  // Success!
             } else {
               // Use CAS to preserve the read barrier state.
-              if (h_obj->CasLockWordWeakSequentiallyConsistent(lock_word, thin_locked)) {
+              if (h_obj->CasLockWordWeakRelaxed(lock_word, thin_locked)) {
                 AtraceMonitorLock(self, h_obj.Get(), false /* is_wait */);
                 return h_obj.Get();  // Success!
               }
@@ -922,20 +928,28 @@ mirror::Object* Monitor::MonitorEnter(Thread* self, mirror::Object* obj, bool tr
           // Contention.
           contention_count++;
           Runtime* runtime = Runtime::Current();
-          if (contention_count <= runtime->GetMaxSpinsBeforeThinkLockInflation()) {
+          if (contention_count <= runtime->GetMaxSpinsBeforeThinLockInflation()) {
             // TODO: Consider switching the thread state to kBlocked when we are yielding.
             // Use sched_yield instead of NanoSleep since NanoSleep can wait much longer than the
             // parameter you pass in. This can cause thread suspension to take excessively long
             // and make long pauses. See b/16307460.
+            // TODO: We should literally spin first, without sched_yield. Sched_yield either does
+            // nothing (at significant expense), or guarantees that we wait at least microseconds.
+            // If the owner is running, I would expect the median lock hold time to be hundreds
+            // of nanoseconds or less.
             sched_yield();
           } else {
             contention_count = 0;
+            // No ordering required for initial lockword read. Install rereads it anyway.
             InflateThinLocked(self, h_obj, lock_word, 0);
           }
         }
         continue;  // Start from the beginning.
       }
       case LockWord::kFatLocked: {
+        // We should have done an acquire read of the lockword initially, to ensure
+        // visibility of the monitor data structure. Use an explicit fence instead.
+        QuasiAtomic::ThreadFenceAcquire();
         Monitor* mon = lock_word.FatLockMonitor();
         if (trylock) {
           return mon->TryLock(self) ? h_obj.Get() : nullptr;
@@ -946,6 +960,8 @@ mirror::Object* Monitor::MonitorEnter(Thread* self, mirror::Object* obj, bool tr
       }
       case LockWord::kHashCode:
         // Inflate with the existing hashcode.
+        // Again no ordering required for initial lockword read, since we don't rely
+        // on the visibility of any prior computation.
         Inflate(self, nullptr, h_obj.Get(), lock_word.GetHashCode());
         continue;  // Start from the beginning.
       default: {
@@ -988,13 +1004,16 @@ bool Monitor::MonitorExit(Thread* self, mirror::Object* obj) {
           }
           if (!kUseReadBarrier) {
             DCHECK_EQ(new_lw.ReadBarrierState(), 0U);
+            // TODO: This really only needs memory_order_release, but we currently have
+            // no way to specify that. In fact there seem to be no legitimate uses of SetLockWord
+            // with a final argument of true. This slows down x86 and ARMv7, but probably not v8.
             h_obj->SetLockWord(new_lw, true);
             AtraceMonitorUnlock();
             // Success!
             return true;
           } else {
             // Use CAS to preserve the read barrier state.
-            if (h_obj->CasLockWordWeakSequentiallyConsistent(lock_word, new_lw)) {
+            if (h_obj->CasLockWordWeakRelease(lock_word, new_lw)) {
               AtraceMonitorUnlock();
               // Success!
               return true;
