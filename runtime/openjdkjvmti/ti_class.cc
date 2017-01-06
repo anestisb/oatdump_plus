@@ -113,6 +113,41 @@ jvmtiError ClassUtil::GetClassSignature(jvmtiEnv* env,
   return ERR(NONE);
 }
 
+jvmtiError ClassUtil::GetClassStatus(jvmtiEnv* env ATTRIBUTE_UNUSED,
+                                     jclass jklass,
+                                     jint* status_ptr) {
+  art::ScopedObjectAccess soa(art::Thread::Current());
+  art::ObjPtr<art::mirror::Class> klass = soa.Decode<art::mirror::Class>(jklass);
+  if (klass == nullptr) {
+    return ERR(INVALID_CLASS);
+  }
+
+  if (status_ptr == nullptr) {
+    return ERR(NULL_POINTER);
+  }
+
+  if (klass->IsArrayClass()) {
+    *status_ptr = JVMTI_CLASS_STATUS_ARRAY;
+  } else if (klass->IsPrimitive()) {
+    *status_ptr = JVMTI_CLASS_STATUS_PRIMITIVE;
+  } else {
+    *status_ptr = JVMTI_CLASS_STATUS_VERIFIED;  // All loaded classes are structurally verified.
+    // This is finicky. If there's an error, we'll say it wasn't prepared.
+    if (klass->IsResolved()) {
+      *status_ptr |= JVMTI_CLASS_STATUS_PREPARED;
+    }
+    if (klass->IsInitialized()) {
+      *status_ptr |= JVMTI_CLASS_STATUS_INITIALIZED;
+    }
+    // Technically the class may be erroneous for other reasons, but we do not have enough info.
+    if (klass->IsErroneous()) {
+      *status_ptr |= JVMTI_CLASS_STATUS_ERROR;
+    }
+  }
+
+  return ERR(NONE);
+}
+
 template <typename T>
 static jvmtiError ClassIsT(jclass jklass, T test, jboolean* is_t_ptr) {
   art::ScopedObjectAccess soa(art::Thread::Current());

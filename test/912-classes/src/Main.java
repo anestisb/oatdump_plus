@@ -47,6 +47,16 @@ public class Main {
     testClassFields(Integer.class);
     testClassFields(int.class);
     testClassFields(String[].class);
+
+    testClassStatus(int.class);
+    testClassStatus(String[].class);
+    testClassStatus(Object.class);
+    testClassStatus(TestForNonInit.class);
+    try {
+      System.out.println(TestForInitFail.dummy);
+    } catch (ExceptionInInitializerError e) {
+    }
+    testClassStatus(TestForInitFail.class);
   }
 
   private static Class<?> proxyClass = null;
@@ -80,10 +90,24 @@ public class Main {
     System.out.println(Arrays.toString(getClassFields(c)));
   }
 
+  private static void testClassStatus(Class<?> c) {
+    System.out.println(c + " " + Integer.toBinaryString(getClassStatus(c)));
+  }
+
   private static native String[] getClassSignature(Class<?> c);
 
   private static native boolean isInterface(Class<?> c);
   private static native boolean isArrayClass(Class<?> c);
 
   private static native Object[] getClassFields(Class<?> c);
+
+  private static native int getClassStatus(Class<?> c);
+
+  private static class TestForNonInit {
+    public static double dummy = Math.random();  // So it can't be compile-time initialized.
+  }
+
+  private static class TestForInitFail {
+    public static int dummy = ((int)Math.random())/0;  // So it throws when initializing.
+  }
 }
