@@ -34,6 +34,19 @@ public class Main {
 
     testClass(int.class);
     testClass(double[].class);
+
+    testClassType(int.class);
+    testClassType(getProxyClass());
+    testClassType(Runnable.class);
+    testClassType(String.class);
+
+    testClassType(int[].class);
+    testClassType(Runnable[].class);
+    testClassType(String[].class);
+
+    testClassFields(Integer.class);
+    testClassFields(int.class);
+    testClassFields(String[].class);
   }
 
   private static Class<?> proxyClass = null;
@@ -57,5 +70,20 @@ public class Main {
     System.out.println(Arrays.toString(result));
   }
 
+  private static void testClassType(Class<?> c) throws Exception {
+    boolean isInterface = isInterface(c);
+    boolean isArray = isArrayClass(c);
+    System.out.println(c.getName() + " interface=" + isInterface + " array=" + isArray);
+  }
+
+  private static void testClassFields(Class<?> c) throws Exception {
+    System.out.println(Arrays.toString(getClassFields(c)));
+  }
+
   private static native String[] getClassSignature(Class<?> c);
+
+  private static native boolean isInterface(Class<?> c);
+  private static native boolean isArrayClass(Class<?> c);
+
+  private static native Object[] getClassFields(Class<?> c);
 }

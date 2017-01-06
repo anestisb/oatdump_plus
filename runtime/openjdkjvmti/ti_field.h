@@ -29,30 +29,39 @@
  * questions.
  */
 
-#ifndef ART_RUNTIME_OPENJDKJVMTI_TI_CLASS_H_
-#define ART_RUNTIME_OPENJDKJVMTI_TI_CLASS_H_
+#ifndef ART_RUNTIME_OPENJDKJVMTI_TI_FIELD_H_
+#define ART_RUNTIME_OPENJDKJVMTI_TI_FIELD_H_
 
 #include "jni.h"
 #include "jvmti.h"
 
 namespace openjdkjvmti {
 
-class ClassUtil {
+class FieldUtil {
  public:
-  static jvmtiError GetClassFields(jvmtiEnv* env,
-                                   jclass klass,
-                                   jint* field_count_ptr,
-                                   jfieldID** fields_ptr);
+  static jvmtiError GetFieldName(jvmtiEnv* env,
+                                 jclass klass,
+                                 jfieldID field,
+                                 char** name_ptr,
+                                 char** signature_ptr,
+                                 char** generic_ptr);
 
-  static jvmtiError GetClassSignature(jvmtiEnv* env,
+  static jvmtiError GetFieldDeclaringClass(jvmtiEnv* env,
+                                           jclass klass,
+                                           jfieldID field,
+                                           jclass* declaring_class_ptr);
+
+  static jvmtiError GetFieldModifiers(jvmtiEnv* env,
                                       jclass klass,
-                                      char** signature_ptr,
-                                      char** generic_ptr);
+                                      jfieldID field,
+                                      jint* modifiers_ptr);
 
-  static jvmtiError IsInterface(jvmtiEnv* env, jclass klass, jboolean* is_interface_ptr);
-  static jvmtiError IsArrayClass(jvmtiEnv* env, jclass klass, jboolean* is_array_class_ptr);
+  static jvmtiError IsFieldSynthetic(jvmtiEnv* env,
+                                     jclass klass,
+                                     jfieldID field,
+                                     jboolean* is_synthetic_ptr);
 };
 
 }  // namespace openjdkjvmti
 
-#endif  // ART_RUNTIME_OPENJDKJVMTI_TI_CLASS_H_
+#endif  // ART_RUNTIME_OPENJDKJVMTI_TI_FIELD_H_

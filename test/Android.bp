@@ -260,6 +260,7 @@ art_cc_defaults {
         "911-get-stack-trace/stack_trace.cc",
         "912-classes/classes.cc",
         "913-heaps/heaps.cc",
+        "918-fields/fields.cc",
     ],
     shared_libs: [
         "libbase",
