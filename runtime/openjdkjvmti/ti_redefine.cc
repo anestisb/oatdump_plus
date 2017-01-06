@@ -39,6 +39,7 @@
 #include "base/logging.h"
 #include "events-inl.h"
 #include "gc/allocation_listener.h"
+#include "gc/heap.h"
 #include "instrumentation.h"
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
@@ -574,6 +575,13 @@ jvmtiError Redefiner::Run() {
   }
   // Get the mirror class now that we aren't allocating anymore.
   art::Handle<art::mirror::Class> art_class(hs.NewHandle(GetMirrorClass()));
+  // Disable GC and wait for it to be done if we are a moving GC.  This is fine since we are done
+  // allocating so no deadlocks.
+  art::gc::Heap* heap = runtime_->GetHeap();
+  if (heap->IsGcConcurrentAndMoving()) {
+    // GC moving objects can cause deadlocks as we are deoptimizing the stack.
+    heap->IncrementDisableMovingGC(self_);
+  }
   // Enable assertion that this thread isn't interrupted during this installation.
   // After this we will need to do real cleanup in case of failure. Prior to this we could simply
   // return and would let everything get cleaned up or harmlessly leaked.
@@ -601,6 +609,9 @@ jvmtiError Redefiner::Run() {
     runtime_->GetThreadList()->ResumeAll();
     // Get back shared mutator lock as expected for return.
     self_->TransitionFromSuspendedToRunnable();
+    if (heap->IsGcConcurrentAndMoving()) {
+      heap->DecrementDisableMovingGC(self_);
+    }
     return result_;
   }
   if (!UpdateClass(art_class.Get(), new_dex_cache.Get())) {
@@ -610,6 +621,9 @@ jvmtiError Redefiner::Run() {
     runtime_->GetThreadList()->ResumeAll();
     // Get back shared mutator lock as expected for return.
     self_->TransitionFromSuspendedToRunnable();
+    if (heap->IsGcConcurrentAndMoving()) {
+      heap->DecrementDisableMovingGC(self_);
+    }
     return result_;
   }
   // Ensure that obsolete methods are deoptimized. This is needed since optimized methods may have
@@ -632,6 +646,9 @@ jvmtiError Redefiner::Run() {
   // TODO Do the dex_file_ release at a more reasonable place. This works but it muddles who really
   // owns the DexFile.
   dex_file_.release();
+  if (heap->IsGcConcurrentAndMoving()) {
+    heap->DecrementDisableMovingGC(self_);
+  }
   return OK;
 }
 
