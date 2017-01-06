@@ -111,6 +111,19 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getClassFields(
   return CreateObjectArray(env, count, "java/lang/Object", callback);
 }
 
+extern "C" JNIEXPORT jint JNICALL Java_Main_getClassStatus(
+    JNIEnv* env ATTRIBUTE_UNUSED, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
+  jint status;
+  jvmtiError result = jvmti_env->GetClassStatus(klass, &status);
+  if (result != JVMTI_ERROR_NONE) {
+    char* err;
+    jvmti_env->GetErrorName(result, &err);
+    printf("Failure running GetClassStatus: %s\n", err);
+    return JNI_FALSE;
+  }
+  return status;
+}
+
 // Don't do anything
 jint OnLoad(JavaVM* vm,
             char* options ATTRIBUTE_UNUSED,
