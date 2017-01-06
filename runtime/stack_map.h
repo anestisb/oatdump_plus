@@ -1093,7 +1093,9 @@ class CodeInfo {
   }
 
   CodeInfoEncoding ExtractEncoding() const {
-    return CodeInfoEncoding(region_.start());
+    CodeInfoEncoding encoding(region_.start());
+    AssertValidStackMap(encoding);
+    return encoding;
   }
 
   bool HasInlineInfo(const CodeInfoEncoding& encoding) const {
@@ -1253,6 +1255,18 @@ class CodeInfo {
             uint32_t code_offset,
             uint16_t number_of_dex_registers,
             bool dump_stack_maps) const;
+
+  // Check that the code info has valid stack map and abort if it does not.
+  void AssertValidStackMap(const CodeInfoEncoding& encoding) const {
+    if (region_.size() != 0 && region_.size() < GetStackMapsSize(encoding)) {
+      LOG(FATAL) << region_.size() << "\n"
+                 << encoding.header_size << "\n"
+                 << encoding.non_header_size << "\n"
+                 << encoding.number_of_location_catalog_entries << "\n"
+                 << encoding.number_of_stack_maps << "\n"
+                 << encoding.stack_map_size_in_bytes;
+    }
+  }
 
  private:
   MemoryRegion GetStackMaps(const CodeInfoEncoding& encoding) const {
