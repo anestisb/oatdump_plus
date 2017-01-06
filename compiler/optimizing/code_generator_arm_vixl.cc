@@ -5681,13 +5681,13 @@ void ParallelMoveResolverARMVIXL::Exchange(vixl32::Register reg, int mem) {
 void ParallelMoveResolverARMVIXL::Exchange(int mem1, int mem2) {
   // TODO(VIXL32): Double check the performance of this implementation.
   UseScratchRegisterScope temps(GetAssembler()->GetVIXLAssembler());
-  vixl32::Register temp = temps.Acquire();
-  vixl32::SRegister temp_s = temps.AcquireS();
+  vixl32::SRegister temp_1 = temps.AcquireS();
+  vixl32::SRegister temp_2 = temps.AcquireS();
 
-  __ Ldr(temp, MemOperand(sp, mem1));
-  __ Vldr(temp_s, MemOperand(sp, mem2));
-  __ Str(temp, MemOperand(sp, mem2));
-  __ Vstr(temp_s, MemOperand(sp, mem1));
+  __ Vldr(temp_1, MemOperand(sp, mem1));
+  __ Vldr(temp_2, MemOperand(sp, mem2));
+  __ Vstr(temp_1, MemOperand(sp, mem2));
+  __ Vstr(temp_2, MemOperand(sp, mem1));
 }
 
 void ParallelMoveResolverARMVIXL::EmitSwap(size_t index) {
