@@ -560,7 +560,7 @@ class JvmtiFunctions {
                                    jclass klass,
                                    jint* field_count_ptr,
                                    jfieldID** fields_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return ClassUtil::GetClassFields(env, klass, field_count_ptr, fields_ptr);
   }
 
   static jvmtiError GetImplementedInterfaces(jvmtiEnv* env,
