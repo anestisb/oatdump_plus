@@ -87,6 +87,30 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_isArrayClass(
   return is_array_class;
 }
 
+extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getClassFields(
+    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
+  jint count = 0;
+  jfieldID* fields = nullptr;
+  jvmtiError result = jvmti_env->GetClassFields(klass, &count, &fields);
+  if (result != JVMTI_ERROR_NONE) {
+    char* err;
+    jvmti_env->GetErrorName(result, &err);
+    printf("Failure running GetClassFields: %s\n", err);
+    return nullptr;
+  }
+
+  auto callback = [&](jint i) {
+    jint modifiers;
+    // Ignore any errors for simplicity.
+    jvmti_env->GetFieldModifiers(klass, fields[i], &modifiers);
+    constexpr jint kStatic = 0x8;
+    return env->ToReflectedField(klass,
+                                 fields[i],
+                                 (modifiers & kStatic) != 0 ? JNI_TRUE : JNI_FALSE);
+  };
+  return CreateObjectArray(env, count, "java/lang/Object", callback);
+}
+
 // Don't do anything
 jint OnLoad(JavaVM* vm,
             char* options ATTRIBUTE_UNUSED,
