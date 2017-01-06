@@ -52,7 +52,6 @@ jvmtiError ClassUtil::GetClassFields(jvmtiEnv* env,
     return ERR(NULL_POINTER);
   }
 
-  art::StackHandleScope<1> hs(soa.Self());
   art::IterationRange<art::StrideIterator<art::ArtField>> ifields = klass->GetIFields();
   art::IterationRange<art::StrideIterator<art::ArtField>> sfields = klass->GetSFields();
   size_t array_size = klass->NumInstanceFields() + klass->NumStaticFields();
@@ -79,6 +78,49 @@ jvmtiError ClassUtil::GetClassFields(jvmtiEnv* env,
 
   return ERR(NONE);
 }
+
+jvmtiError ClassUtil::GetClassMethods(jvmtiEnv* env,
+                                      jclass jklass,
+                                      jint* method_count_ptr,
+                                      jmethodID** methods_ptr) {
+  art::ScopedObjectAccess soa(art::Thread::Current());
+  art::ObjPtr<art::mirror::Class> klass = soa.Decode<art::mirror::Class>(jklass);
+  if (klass == nullptr) {
+    return ERR(INVALID_CLASS);
+  }
+
+  if (method_count_ptr == nullptr || methods_ptr == nullptr) {
+    return ERR(NULL_POINTER);
+  }
+
+  size_t array_size = klass->NumDeclaredVirtualMethods() + klass->NumDirectMethods();
+  unsigned char* out_ptr;
+  jvmtiError allocError = env->Allocate(array_size * sizeof(jmethodID), &out_ptr);
+  if (allocError != ERR(NONE)) {
+    return allocError;
+  }
+  jmethodID* method_array = reinterpret_cast<jmethodID*>(out_ptr);
+
+  if (art::kIsDebugBuild) {
+    size_t count = 0;
+    for (auto& m ATTRIBUTE_UNUSED : klass->GetDeclaredMethods(art::kRuntimePointerSize)) {
+      count++;
+    }
+    CHECK_EQ(count, klass->NumDirectMethods() + klass->NumDeclaredVirtualMethods());
+  }
+
+  size_t array_idx = 0;
+  for (auto& m : klass->GetDeclaredMethods(art::kRuntimePointerSize)) {
+    method_array[array_idx] = art::jni::EncodeArtMethod(&m);
+    ++array_idx;
+  }
+
+  *method_count_ptr = static_cast<jint>(array_size);
+  *methods_ptr = method_array;
+
+  return ERR(NONE);
+}
+
 
 jvmtiError ClassUtil::GetClassSignature(jvmtiEnv* env,
                                          jclass jklass,
