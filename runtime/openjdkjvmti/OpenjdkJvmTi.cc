@@ -546,7 +546,7 @@ class JvmtiFunctions {
   }
 
   static jvmtiError GetClassModifiers(jvmtiEnv* env, jclass klass, jint* modifiers_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return ClassUtil::GetClassModifiers(env, klass, modifiers_ptr);
   }
 
   static jvmtiError GetClassMethods(jvmtiEnv* env,
