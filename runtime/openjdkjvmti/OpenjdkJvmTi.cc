@@ -538,7 +538,7 @@ class JvmtiFunctions {
   }
 
   static jvmtiError GetClassStatus(jvmtiEnv* env, jclass klass, jint* status_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return ClassUtil::GetClassStatus(env, klass, status_ptr);
   }
 
   static jvmtiError GetSourceFileName(jvmtiEnv* env, jclass klass, char** source_name_ptr) {

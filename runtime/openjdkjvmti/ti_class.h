@@ -49,6 +49,8 @@ class ClassUtil {
                                       char** signature_ptr,
                                       char** generic_ptr);
 
+  static jvmtiError GetClassStatus(jvmtiEnv* env, jclass klass, jint* status_ptr);
+
   static jvmtiError IsInterface(jvmtiEnv* env, jclass klass, jboolean* is_interface_ptr);
   static jvmtiError IsArrayClass(jvmtiEnv* env, jclass klass, jboolean* is_array_class_ptr);
 };
