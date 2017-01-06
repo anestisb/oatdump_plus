@@ -245,18 +245,18 @@ std::string VerifierDeps::GetStringFromId(const DexFile& dex_file, dex::StringIn
 bool VerifierDeps::IsInClassPath(ObjPtr<mirror::Class> klass) const {
   DCHECK(klass != nullptr);
 
-  ObjPtr<mirror::DexCache> dex_cache = klass->GetDexCache();
-  if (dex_cache == nullptr) {
-    // This is a synthesized class, in this case always an array. They are not
-    // defined in the compiled DEX files and therefore are part of the classpath.
-    // We do not record dependencies on arrays with component types in
-    // the compiled DEX files, as the only thing that might change is their
-    // access flags. If we were to change these flags in a breaking way, we would
-    // need to enforce full verification again anyways by updating the vdex version.
-    DCHECK(klass->IsArrayClass()) << klass->PrettyDescriptor();
-    return false;
+  // For array types, we return whether the non-array component type
+  // is in the classpath.
+  while (klass->IsArrayClass()) {
+    klass = klass->GetComponentType();
   }
 
+  if (klass->IsPrimitive()) {
+    return true;
+  }
+
+  ObjPtr<mirror::DexCache> dex_cache = klass->GetDexCache();
+  DCHECK(dex_cache != nullptr);
   const DexFile* dex_file = dex_cache->GetDexFile();
   DCHECK(dex_file != nullptr);
 
