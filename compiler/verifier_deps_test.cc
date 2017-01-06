@@ -1101,6 +1101,16 @@ TEST_F(VerifierDepsTest, InvokeSuper_ThisNotAssignable) {
       "virtual", "Ljava/lang/Integer;", "intValue", "()I", true, "public", "Ljava/lang/Integer;"));
 }
 
+TEST_F(VerifierDepsTest, ArgumentType_ResolvedReferenceArray) {
+  ASSERT_TRUE(VerifyMethod("ArgumentType_ResolvedReferenceArray"));
+  ASSERT_TRUE(HasClass("[Ljava/lang/Thread;", true, "public final abstract"));
+}
+
+TEST_F(VerifierDepsTest, NewArray_Resolved) {
+  ASSERT_TRUE(VerifyMethod("NewArray_Resolved"));
+  ASSERT_TRUE(HasClass("[Ljava/lang/IllegalStateException;", true, "public final abstract"));
+}
+
 TEST_F(VerifierDepsTest, EncodeDecode) {
   VerifyDexFile();
 
