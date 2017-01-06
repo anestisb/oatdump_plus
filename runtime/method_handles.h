@@ -23,47 +23,15 @@
 #include "handle.h"
 #include "jvalue.h"
 #include "mirror/class.h"
-#include "mirror/method_type.h"
 
 namespace art {
 
 namespace mirror {
+  class MethodHandleImpl;
   class MethodType;
-}
+}  // mirror
 
 class ShadowFrame;
-
-// Defines the behaviour of a given method handle. The behaviour
-// of a handle of a given kind is identical to the dex bytecode behaviour
-// of the equivalent instruction.
-//
-// NOTE: These must be kept in sync with the constants defined in
-// java.lang.invoke.MethodHandle.
-enum MethodHandleKind {
-  kInvokeVirtual = 0,
-  kInvokeSuper,
-  kInvokeDirect,
-  kInvokeStatic,
-  kInvokeInterface,
-  kInvokeTransform,
-  kInvokeCallSiteTransform,
-  kInstanceGet,
-  kInstancePut,
-  kStaticGet,
-  kStaticPut,
-  kLastValidKind = kStaticPut,
-  kLastInvokeKind = kInvokeCallSiteTransform
-};
-
-// Whether the given method handle kind is some variant of an invoke.
-inline bool IsInvoke(const MethodHandleKind handle_kind) {
-  return handle_kind <= kLastInvokeKind;
-}
-
-// Whether the given method handle kind is some variant of a tranform.
-inline bool IsInvokeTransform(const MethodHandleKind handle_kind) {
-  return handle_kind == kInvokeTransform || handle_kind == kInvokeCallSiteTransform;
-}
 
 // Returns true if there is a possible conversion from |from| to |to|
 // for a MethodHandle parameter.
@@ -158,19 +126,6 @@ bool PerformConversions(Thread* self,
                         S* setter,
                         int32_t num_conversions) REQUIRES_SHARED(Locks::mutator_lock_);
 
-// A convenience wrapper around |PerformConversions|, for the case where
-// the setter and getter are both ShadowFrame based.
-template <bool is_range>
-bool ConvertAndCopyArgumentsFromCallerFrame(Thread* self,
-                                            Handle<mirror::MethodType> callsite_type,
-                                            Handle<mirror::MethodType> callee_type,
-                                            const ShadowFrame& caller_frame,
-                                            uint32_t first_src_reg,
-                                            uint32_t first_dest_reg,
-                                            const uint32_t (&arg)[Instruction::kMaxVarArgRegs],
-                                            ShadowFrame* callee_frame)
-    REQUIRES_SHARED(Locks::mutator_lock_);
-
 // A convenience class that allows for iteration through a list of
 // input argument registers |arg| for non-range invokes or a list of
 // consecutive registers starting with a given based for range
@@ -178,7 +133,8 @@ bool ConvertAndCopyArgumentsFromCallerFrame(Thread* self,
 //
 // This is used to iterate over input arguments while performing standard
 // argument conversions.
-template <bool is_range> class ShadowFrameGetter {
+template <bool is_range>
+class ShadowFrameGetter {
  public:
   ShadowFrameGetter(size_t first_src_reg,
                     const uint32_t (&arg)[Instruction::kMaxVarArgRegs],
@@ -245,6 +201,17 @@ class ShadowFrameSetter {
   ShadowFrame* shadow_frame_;
   size_t arg_index_;
 };
+
+template <bool is_range, bool do_assignability_check>
+bool DoInvokePolymorphic(Thread* self,
+                         ArtMethod* invoke_method,
+                         ShadowFrame& shadow_frame,
+                         Handle<mirror::MethodHandleImpl> method_handle,
+                         Handle<mirror::MethodType> callsite_type,
+                         const uint32_t (&args)[Instruction::kMaxVarArgRegs],
+                         uint32_t first_arg,
+                         JValue* result)
+    REQUIRES_SHARED(Locks::mutator_lock_);
 
 }  // namespace art
 
