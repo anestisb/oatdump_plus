@@ -224,4 +224,40 @@ jvmtiError ClassUtil::IsArrayClass(jvmtiEnv* env ATTRIBUTE_UNUSED,
   return ClassIsT(jklass, test, is_array_class_ptr);
 }
 
+// Keep this in sync with Class.getModifiers().
+static uint32_t ClassGetModifiers(art::Thread* self, art::ObjPtr<art::mirror::Class> klass)
+    REQUIRES_SHARED(art::Locks::mutator_lock_) {
+  if (klass->IsArrayClass()) {
+    uint32_t component_modifiers = ClassGetModifiers(self, klass->GetComponentType());
+    if ((component_modifiers & art::kAccInterface) != 0) {
+      component_modifiers &= ~(art::kAccInterface | art::kAccStatic);
+    }
+    return art::kAccAbstract | art::kAccFinal | component_modifiers;
+  }
+
+  uint32_t modifiers = klass->GetAccessFlags() & art::kAccJavaFlagsMask;
+
+  art::StackHandleScope<1> hs(self);
+  art::Handle<art::mirror::Class> h_klass(hs.NewHandle(klass));
+  return art::mirror::Class::GetInnerClassFlags(h_klass, modifiers);
+}
+
+jvmtiError ClassUtil::GetClassModifiers(jvmtiEnv* env ATTRIBUTE_UNUSED,
+                                        jclass jklass,
+                                        jint* modifiers_ptr) {
+  art::ScopedObjectAccess soa(art::Thread::Current());
+  art::ObjPtr<art::mirror::Class> klass = soa.Decode<art::mirror::Class>(jklass);
+  if (klass == nullptr) {
+    return ERR(INVALID_CLASS);
+  }
+
+  if (modifiers_ptr == nullptr) {
+    return ERR(NULL_POINTER);
+  }
+
+  *modifiers_ptr = ClassGetModifiers(soa.Self(), klass);
+
+  return ERR(NONE);
+}
+
 }  // namespace openjdkjvmti

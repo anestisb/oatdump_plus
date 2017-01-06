@@ -82,6 +82,11 @@ public class Main {
   private static void testClass(Class<?> base) throws Exception {
     String[] result = getClassSignature(base);
     System.out.println(Arrays.toString(result));
+    int mod = getClassModifiers(base);
+    if (mod != base.getModifiers()) {
+      throw new RuntimeException("Unexpected modifiers: " + base.getModifiers() + " vs " + mod);
+    }
+    System.out.println(Integer.toHexString(mod));
   }
 
   private static void testClassType(Class<?> c) throws Exception {
@@ -106,6 +111,8 @@ public class Main {
 
   private static native boolean isInterface(Class<?> c);
   private static native boolean isArrayClass(Class<?> c);
+
+  private static native int getClassModifiers(Class<?> c);
 
   private static native Object[] getClassFields(Class<?> c);
   private static native Object[] getClassMethods(Class<?> c);

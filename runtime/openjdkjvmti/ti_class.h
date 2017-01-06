@@ -49,6 +49,8 @@ class ClassUtil {
                                     jint* method_count_ptr,
                                     jmethodID** methods_ptr);
 
+  static jvmtiError GetClassModifiers(jvmtiEnv* env, jclass klass, jint* modifiers_ptr);
+
   static jvmtiError GetClassSignature(jvmtiEnv* env,
                                       jclass klass,
                                       char** signature_ptr,
