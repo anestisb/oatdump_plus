@@ -832,7 +832,6 @@ void ConcurrentCopying::IssueEmptyCheckpoint() {
       static constexpr uint64_t kEmptyCheckpointTimeoutMs = 600 * 1000;  // 10 minutes.
       bool timed_out = barrier->Increment(self, barrier_count, kEmptyCheckpointTimeoutMs);
       if (timed_out) {
-        Runtime* runtime = Runtime::Current();
         std::ostringstream ss;
         ss << "Empty checkpoint timeout\n";
         ss << "Barrier count " << barrier->GetCount(self) << "\n";
@@ -845,11 +844,11 @@ void ConcurrentCopying::IssueEmptyCheckpoint() {
         ss << "\n";
         LOG(FATAL_WITHOUT_ABORT) << ss.str();
         // Some threads in 'runnable_thread_ids' are probably stuck. Try to dump their stacks.
-        // Avoid using ThreadList::Dump() because it is likely to get stuck as well.
+        // Avoid using ThreadList::Dump() initially because it is likely to get stuck as well.
         {
           ReaderMutexLock mu0(self, *Locks::mutator_lock_);
           MutexLock mu1(self, *Locks::thread_list_lock_);
-          for (Thread* thread : runtime->GetThreadList()->GetList()) {
+          for (Thread* thread : thread_list->GetList()) {
             uint32_t tid = thread->GetThreadId();
             bool is_in_runnable_thread_ids =
                 std::find(runnable_thread_ids.begin(), runnable_thread_ids.end(), tid) !=
@@ -862,7 +861,11 @@ void ConcurrentCopying::IssueEmptyCheckpoint() {
             }
           }
         }
-        LOG(FATAL) << "Dumped runnable threads that haven't responded to empty checkpoint.";
+        LOG(FATAL_WITHOUT_ABORT)
+            << "Dumped runnable threads that haven't responded to empty checkpoint.";
+        // Now use ThreadList::Dump() to dump more threads, noting it may get stuck.
+        thread_list->Dump(LOG_STREAM(FATAL_WITHOUT_ABORT));
+        LOG(FATAL) << "Dumped all threads.";
       }
     } else {
       barrier->Increment(self, barrier_count);
