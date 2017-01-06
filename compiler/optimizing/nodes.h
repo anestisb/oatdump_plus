@@ -5762,7 +5762,6 @@ class HLoadString FINAL : public HInstruction {
       : HInstruction(SideEffectsForArchRuntimeCalls(), dex_pc),
         special_input_(HUserRecord<HInstruction*>(current_method)),
         string_index_(string_index) {
-    SetPackedFlag<kFlagIsInDexCache>(false);
     SetPackedField<LoadKindField>(LoadKind::kDexCacheViaMethod);
     load_data_.dex_file_ = &dex_file;
   }
@@ -5789,7 +5788,6 @@ class HLoadString FINAL : public HInstruction {
   const DexFile& GetDexFile() const;
 
   dex::StringIndex GetStringIndex() const {
-    DCHECK(HasStringReference(GetLoadKind()) || /* For slow paths. */ !IsInDexCache());
     return string_index_;
   }
 
@@ -5814,7 +5812,7 @@ class HLoadString FINAL : public HInstruction {
         load_kind == LoadKind::kJitTableAddress) {
       return false;
     }
-    return !IsInDexCache();
+    return true;
   }
 
   bool NeedsDexCacheOfDeclaringClass() const OVERRIDE {
@@ -5826,15 +5824,6 @@ class HLoadString FINAL : public HInstruction {
 
   static SideEffects SideEffectsForArchRuntimeCalls() {
     return SideEffects::CanTriggerGC();
-  }
-
-  bool IsInDexCache() const { return GetPackedFlag<kFlagIsInDexCache>(); }
-
-  void MarkInDexCache() {
-    SetPackedFlag<kFlagIsInDexCache>(true);
-    DCHECK(!NeedsEnvironment());
-    RemoveEnvironment();
-    SetSideEffects(SideEffects::None());
   }
 
   void AddSpecialInput(HInstruction* special_input);
@@ -5852,8 +5841,7 @@ class HLoadString FINAL : public HInstruction {
   DECLARE_INSTRUCTION(LoadString);
 
  private:
-  static constexpr size_t kFlagIsInDexCache = kNumberOfGenericPackedBits;
-  static constexpr size_t kFieldLoadKind = kFlagIsInDexCache + 1;
+  static constexpr size_t kFieldLoadKind = kNumberOfGenericPackedBits;
   static constexpr size_t kFieldLoadKindSize =
       MinimumBitsToStore(static_cast<size_t>(LoadKind::kLast));
   static constexpr size_t kNumberOfLoadStringPackedBits = kFieldLoadKind + kFieldLoadKindSize;
