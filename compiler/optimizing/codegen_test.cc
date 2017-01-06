@@ -1041,6 +1041,31 @@ TEST_F(CodegenTest, ComparisonsLong) {
   }
 }
 
+#ifdef ART_ENABLE_CODEGEN_arm
+TEST_F(CodegenTest, ARMVIXLParallelMoveResolver) {
+  std::unique_ptr<const ArmInstructionSetFeatures> features(
+      ArmInstructionSetFeatures::FromCppDefines());
+  ArenaPool pool;
+  ArenaAllocator allocator(&pool);
+  HGraph* graph = CreateGraph(&allocator);
+  arm::CodeGeneratorARMVIXL codegen(graph, *features.get(), CompilerOptions());
+
+  codegen.Initialize();
+
+  // This will result in calling EmitSwap -> void ParallelMoveResolverARMVIXL::Exchange(int mem1,
+  // int mem2) which was faulty (before the fix). So previously GPR and FP scratch registers were
+  // used as temps; however GPR scratch register is required for big stack offsets which don't fit
+  // LDR encoding. So the following code is a regression test for that situation.
+  HParallelMove* move = new (graph->GetArena()) HParallelMove(graph->GetArena());
+  move->AddMove(Location::StackSlot(0), Location::StackSlot(8192), Primitive::kPrimInt, nullptr);
+  move->AddMove(Location::StackSlot(8192), Location::StackSlot(0), Primitive::kPrimInt, nullptr);
+  codegen.GetMoveResolver()->EmitNativeCode(move);
+
+  InternalCodeAllocator code_allocator;
+  codegen.Finalize(&code_allocator);
+}
+#endif
+
 #ifdef ART_ENABLE_CODEGEN_mips
 TEST_F(CodegenTest, MipsClobberRA) {
   std::unique_ptr<const MipsInstructionSetFeatures> features_mips(
