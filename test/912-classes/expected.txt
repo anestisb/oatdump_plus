@@ -15,3 +15,8 @@ java.lang.String interface=false array=false
 [public static final int java.lang.Integer.BYTES, static final char[] java.lang.Integer.DigitOnes, static final char[] java.lang.Integer.DigitTens, public static final int java.lang.Integer.MAX_VALUE, public static final int java.lang.Integer.MIN_VALUE, public static final int java.lang.Integer.SIZE, private static final java.lang.String[] java.lang.Integer.SMALL_NEG_VALUES, private static final java.lang.String[] java.lang.Integer.SMALL_NONNEG_VALUES, public static final java.lang.Class java.lang.Integer.TYPE, static final char[] java.lang.Integer.digits, private static final long java.lang.Integer.serialVersionUID, static final int[] java.lang.Integer.sizeTable, private final int java.lang.Integer.value]
 []
 []
+int 100000
+class [Ljava.lang.String; 10000
+class java.lang.Object 111
+class Main$TestForNonInit 11
+class Main$TestForInitFail 1001
