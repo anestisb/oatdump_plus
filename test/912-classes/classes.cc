@@ -87,6 +87,19 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_isArrayClass(
   return is_array_class;
 }
 
+extern "C" JNIEXPORT jint JNICALL Java_Main_getClassModifiers(
+    JNIEnv* env ATTRIBUTE_UNUSED, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
+  jint mod;
+  jvmtiError result = jvmti_env->GetClassModifiers(klass, &mod);
+  if (result != JVMTI_ERROR_NONE) {
+    char* err;
+    jvmti_env->GetErrorName(result, &err);
+    printf("Failure running GetClassModifiers: %s\n", err);
+    return JNI_FALSE;
+  }
+  return mod;
+}
+
 extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getClassFields(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
   jint count = 0;
