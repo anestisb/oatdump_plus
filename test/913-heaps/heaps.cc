@@ -49,6 +49,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_forceGarbageCollection(JNIEnv* env A
     char* err;
     jvmti_env->GetErrorName(ret, &err);
     printf("Error forcing a garbage collection: %s\n", err);
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
   }
 }
 
@@ -106,6 +107,7 @@ static bool Run(jint heap_filter,
     char* err;
     jvmti_env->GetErrorName(ret, &err);
     printf("Failure running FollowReferences: %s\n", err);
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
     return false;
   }
   return true;

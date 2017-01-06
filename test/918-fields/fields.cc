@@ -42,6 +42,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getFieldName(
     char* err;
     jvmti_env->GetErrorName(result, &err);
     printf("Failure running GetFieldName: %s\n", err);
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
     return nullptr;
   }
 
@@ -73,6 +74,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getFieldName(
     char* err;
     jvmti_env->GetErrorName(result2, &err);
     printf("Failure running GetFieldName(null, null, null): %s\n", err);
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
     return nullptr;
   }
 
@@ -89,6 +91,7 @@ extern "C" JNIEXPORT jclass JNICALL Java_Main_getFieldDeclaringClass(
     char* err;
     jvmti_env->GetErrorName(result, &err);
     printf("Failure running GetFieldDeclaringClass: %s\n", err);
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
     return nullptr;
   }
 
@@ -105,6 +108,7 @@ extern "C" JNIEXPORT jint JNICALL Java_Main_getFieldModifiers(
     char* err;
     jvmti_env->GetErrorName(result, &err);
     printf("Failure running GetFieldModifiers: %s\n", err);
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
     return 0;
   }
 
@@ -121,6 +125,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_isFieldSynthetic(
     char* err;
     jvmti_env->GetErrorName(result, &err);
     printf("Failure running IsFieldSynthetic: %s\n", err);
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
     return 0;
   }
 

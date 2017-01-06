@@ -1067,8 +1067,15 @@ class JvmtiFunctions {
     ENSURE_NON_NULL(name_ptr);
     switch (error) {
 #define ERROR_CASE(e) case (JVMTI_ERROR_ ## e) : do { \
-          *name_ptr = const_cast<char*>("JVMTI_ERROR_"#e); \
-          return OK; \
+          jvmtiError res = CopyString(env, \
+                                      "JVMTI_ERROR_"#e, \
+                                      reinterpret_cast<unsigned char**>(name_ptr)); \
+          if (res != OK) { \
+            *name_ptr = nullptr; \
+            return res; \
+          } else { \
+            return OK; \
+          } \
         } while (false)
       ERROR_CASE(NONE);
       ERROR_CASE(INVALID_THREAD);
@@ -1120,8 +1127,15 @@ class JvmtiFunctions {
       ERROR_CASE(INVALID_ENVIRONMENT);
 #undef ERROR_CASE
       default: {
-        *name_ptr = const_cast<char*>("JVMTI_ERROR_UNKNOWN");
-        return ERR(ILLEGAL_ARGUMENT);
+        jvmtiError res = CopyString(env,
+                                    "JVMTI_ERROR_UNKNOWN",
+                                    reinterpret_cast<unsigned char**>(name_ptr));
+        if (res != OK) {
+          *name_ptr = nullptr;
+          return res;
+        } else {
+          return ERR(ILLEGAL_ARGUMENT);
+        }
       }
     }
   }

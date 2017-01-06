@@ -38,6 +38,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getClassSignature(
     char* err;
     jvmti_env->GetErrorName(result, &err);
     printf("Failure running GetClassSignature: %s\n", err);
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
     return nullptr;
   }
 
@@ -69,6 +70,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_isInterface(
     char* err;
     jvmti_env->GetErrorName(result, &err);
     printf("Failure running IsInterface: %s\n", err);
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
     return JNI_FALSE;
   }
   return is_interface;
@@ -82,6 +84,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_isArrayClass(
     char* err;
     jvmti_env->GetErrorName(result, &err);
     printf("Failure running IsArrayClass: %s\n", err);
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
     return JNI_FALSE;
   }
   return is_array_class;
@@ -96,6 +99,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getClassFields(
     char* err;
     jvmti_env->GetErrorName(result, &err);
     printf("Failure running GetClassFields: %s\n", err);
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
     return nullptr;
   }
 
@@ -119,6 +123,7 @@ extern "C" JNIEXPORT jint JNICALL Java_Main_getClassStatus(
     char* err;
     jvmti_env->GetErrorName(result, &err);
     printf("Failure running GetClassStatus: %s\n", err);
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
     return JNI_FALSE;
   }
   return status;

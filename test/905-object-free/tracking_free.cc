@@ -50,6 +50,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_setupObjectFreeCallback(
     char* err;
     jvmti_env->GetErrorName(ret, &err);
     printf("Error setting callbacks: %s\n", err);
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
   }
 }
 
@@ -64,6 +65,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_enableFreeTracking(JNIEnv* env ATTRI
     char* err;
     jvmti_env->GetErrorName(ret, &err);
     printf("Error enabling/disabling object-free callbacks: %s\n", err);
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
   }
 }
 
