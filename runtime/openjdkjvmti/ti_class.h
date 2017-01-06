@@ -39,6 +39,11 @@ namespace openjdkjvmti {
 
 class ClassUtil {
  public:
+  static jvmtiError GetClassFields(jvmtiEnv* env,
+                                   jclass klass,
+                                   jint* field_count_ptr,
+                                   jfieldID** fields_ptr);
+
   static jvmtiError GetClassSignature(jvmtiEnv* env,
                                       jclass klass,
                                       char** signature_ptr,
