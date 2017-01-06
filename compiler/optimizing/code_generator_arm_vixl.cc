@@ -3948,7 +3948,6 @@ void LocationsBuilderARMVIXL::VisitNewInstance(HNewInstance* instruction) {
   } else {
     InvokeRuntimeCallingConventionARMVIXL calling_convention;
     locations->SetInAt(0, LocationFrom(calling_convention.GetRegisterAt(0)));
-    locations->SetInAt(1, LocationFrom(calling_convention.GetRegisterAt(1)));
   }
   locations->SetOut(LocationFrom(r0));
 }
@@ -3970,7 +3969,7 @@ void InstructionCodeGeneratorARMVIXL::VisitNewInstance(HNewInstance* instruction
     codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
   } else {
     codegen_->InvokeRuntime(instruction->GetEntrypoint(), instruction, instruction->GetDexPc());
-    CheckEntrypointTypes<kQuickAllocObjectWithAccessCheck, void*, uint32_t, ArtMethod*>();
+    CheckEntrypointTypes<kQuickAllocObjectWithChecks, void*, mirror::Class*>();
   }
 }
 
