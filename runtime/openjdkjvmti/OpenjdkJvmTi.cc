@@ -47,6 +47,7 @@
 #include "thread-inl.h"
 #include "thread_list.h"
 #include "ti_class.h"
+#include "ti_field.h"
 #include "ti_heap.h"
 #include "ti_method.h"
 #include "ti_redefine.h"
@@ -640,28 +641,28 @@ class JvmtiFunctions {
                                  char** name_ptr,
                                  char** signature_ptr,
                                  char** generic_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return FieldUtil::GetFieldName(env, klass, field, name_ptr, signature_ptr, generic_ptr);
   }
 
   static jvmtiError GetFieldDeclaringClass(jvmtiEnv* env,
                                            jclass klass,
                                            jfieldID field,
                                            jclass* declaring_class_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return FieldUtil::GetFieldDeclaringClass(env, klass, field, declaring_class_ptr);
   }
 
   static jvmtiError GetFieldModifiers(jvmtiEnv* env,
                                       jclass klass,
                                       jfieldID field,
                                       jint* modifiers_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return FieldUtil::GetFieldModifiers(env, klass, field, modifiers_ptr);
   }
 
   static jvmtiError IsFieldSynthetic(jvmtiEnv* env,
                                      jclass klass,
                                      jfieldID field,
                                      jboolean* is_synthetic_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return FieldUtil::IsFieldSynthetic(env, klass, field, is_synthetic_ptr);
   }
 
   static jvmtiError GetMethodName(jvmtiEnv* env,

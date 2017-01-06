@@ -37,6 +37,7 @@
 #include "jni_internal.h"
 #include "modifiers.h"
 #include "scoped_thread_state_change-inl.h"
+#include "thread-inl.h"
 
 namespace openjdkjvmti {
 

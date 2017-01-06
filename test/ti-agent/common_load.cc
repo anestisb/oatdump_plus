@@ -37,6 +37,7 @@
 #include "911-get-stack-trace/stack_trace.h"
 #include "912-classes/classes.h"
 #include "913-heaps/heaps.h"
+#include "918-fields/fields.h"
 
 namespace art {
 
@@ -70,6 +71,7 @@ AgentLib agents[] = {
   { "915-obsolete-2", common_redefine::OnLoad, nullptr },
   { "916-obsolete-jit", common_redefine::OnLoad, nullptr },
   { "917-fields-transformation", common_redefine::OnLoad, nullptr },
+  { "918-fields", Test918Fields::OnLoad, nullptr },
 };
 
 static AgentLib* FindAgent(char* name) {
