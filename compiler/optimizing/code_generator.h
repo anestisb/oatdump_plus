@@ -509,11 +509,10 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
       uint32_t dex_pc,
       const FieldAccessCallingConvention& calling_convention);
 
-  // TODO: This overlaps a bit with MoveFromReturnRegister. Refactor for a better design.
-  static void CreateLoadClassLocationSummary(HLoadClass* cls,
-                                             Location runtime_type_index_location,
-                                             Location runtime_return_location,
-                                             bool code_generator_supports_read_barrier = false);
+  static void CreateLoadClassRuntimeCallLocationSummary(HLoadClass* cls,
+                                                        Location runtime_type_index_location,
+                                                        Location runtime_return_location);
+  void GenerateLoadClassRuntimeCall(HLoadClass* cls);
 
   static void CreateSystemArrayCopyLocationSummary(HInvoke* invoke);
 
@@ -523,7 +522,7 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
   virtual void InvokeRuntime(QuickEntrypointEnum entrypoint,
                              HInstruction* instruction,
                              uint32_t dex_pc,
-                             SlowPathCode* slow_path) = 0;
+                             SlowPathCode* slow_path = nullptr) = 0;
 
   // Check if the desired_string_load_kind is supported. If it is, return it,
   // otherwise return a fall-back kind that should be used instead.

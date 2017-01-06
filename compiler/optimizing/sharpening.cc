@@ -154,13 +154,24 @@ void HSharpening::SharpenClass(HLoadClass* load_class,
   DCHECK(load_class->GetLoadKind() == HLoadClass::LoadKind::kDexCacheViaMethod ||
          load_class->GetLoadKind() == HLoadClass::LoadKind::kReferrersClass)
       << load_class->GetLoadKind();
-  DCHECK(!load_class->IsInDexCache()) << "HLoadClass should not be optimized before sharpening.";
   DCHECK(!load_class->IsInBootImage()) << "HLoadClass should not be optimized before sharpening.";
+
+  if (load_class->NeedsAccessCheck()) {
+    // We need to call the runtime anyway, so we simply get the class as that call's return value.
+    return;
+  }
+
+  if (load_class->GetLoadKind() == HLoadClass::LoadKind::kReferrersClass) {
+    // Loading from the ArtMethod* is the most efficient retrieval in code size.
+    // TODO: This may not actually be true for all architectures and
+    // locations of target classes. The additional register pressure
+    // for using the ArtMethod* should be considered.
+    return;
+  }
 
   const DexFile& dex_file = load_class->GetDexFile();
   dex::TypeIndex type_index = load_class->GetTypeIndex();
 
-  bool is_in_dex_cache = false;
   bool is_in_boot_image = false;
   HLoadClass::LoadKind desired_load_kind = static_cast<HLoadClass::LoadKind>(-1);
   uint64_t address = 0u;  // Class or dex cache element address.
@@ -174,12 +185,11 @@ void HSharpening::SharpenClass(HLoadClass* load_class,
     } else if ((klass != nullptr) && compiler_driver->IsImageClass(
         dex_file.StringDataByIdx(dex_file.GetTypeId(type_index).descriptor_idx_))) {
       is_in_boot_image = true;
-      is_in_dex_cache = true;
       desired_load_kind = codegen->GetCompilerOptions().GetCompilePic()
           ? HLoadClass::LoadKind::kBootImageLinkTimePcRelative
           : HLoadClass::LoadKind::kBootImageLinkTimeAddress;
     } else {
-      // Not a boot image class. We must go through the dex cache.
+      // Not a boot image class. We must call the runtime entrypoint.
       // TODO: Implement kBssEntry similar to HLoadString::LoadKind::kBssEntry.
       DCHECK(ContainsElement(compiler_driver->GetDexFilesForOatFile(), &dex_file));
       desired_load_kind = HLoadClass::LoadKind::kDexCacheViaMethod;
@@ -189,12 +199,11 @@ void HSharpening::SharpenClass(HLoadClass* load_class,
     if (runtime->UseJitCompilation()) {
       // TODO: Make sure we don't set the "compile PIC" flag for JIT as that's bogus.
       // DCHECK(!codegen_->GetCompilerOptions().GetCompilePic());
-      is_in_dex_cache = (klass != nullptr);
       if (is_in_boot_image) {
         // TODO: Use direct pointers for all non-moving spaces, not just boot image. Bug: 29530787
         desired_load_kind = HLoadClass::LoadKind::kBootImageAddress;
         address = reinterpret_cast64<uint64_t>(klass);
-      } else if (is_in_dex_cache) {
+      } else if (klass != nullptr) {
         desired_load_kind = HLoadClass::LoadKind::kJitTableAddress;
         // We store in the address field the location of the stack reference maintained
         // by the handle. We do this now so that the code generation does not need to figure
@@ -213,7 +222,7 @@ void HSharpening::SharpenClass(HLoadClass* load_class,
       address = reinterpret_cast64<uint64_t>(klass);
     } else {
       // Not JIT and either the klass is not in boot image or we are compiling in PIC mode.
-      // We must go through the dex cache.
+      // We must call the runtime entrypoint.
       // TODO: Implement kBssEntry similar to HLoadString::LoadKind::kBssEntry.
       desired_load_kind = HLoadClass::LoadKind::kDexCacheViaMethod;
     }
@@ -222,23 +231,6 @@ void HSharpening::SharpenClass(HLoadClass* load_class,
 
   if (is_in_boot_image) {
     load_class->MarkInBootImage();
-  }
-
-  if (load_class->NeedsAccessCheck()) {
-    // We need to call the runtime anyway, so we simply get the class as that call's return value.
-    return;
-  }
-
-  if (load_class->GetLoadKind() == HLoadClass::LoadKind::kReferrersClass) {
-    // Loading from the ArtMethod* is the most efficient retrieval in code size.
-    // TODO: This may not actually be true for all architectures and
-    // locations of target classes. The additional register pressure
-    // for using the ArtMethod* should be considered.
-    return;
-  }
-
-  if (is_in_dex_cache) {
-    load_class->MarkInDexCache();
   }
 
   HLoadClass::LoadKind load_kind = codegen->GetSupportedLoadClassKind(desired_load_kind);

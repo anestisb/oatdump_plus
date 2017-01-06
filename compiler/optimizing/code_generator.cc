@@ -497,30 +497,33 @@ void CodeGenerator::GenerateUnresolvedFieldAccess(
   }
 }
 
-// TODO: Remove argument `code_generator_supports_read_barrier` when
-// all code generators have read barrier support.
-void CodeGenerator::CreateLoadClassLocationSummary(HLoadClass* cls,
-                                                   Location runtime_type_index_location,
-                                                   Location runtime_return_location,
-                                                   bool code_generator_supports_read_barrier) {
-  ArenaAllocator* allocator = cls->GetBlock()->GetGraph()->GetArena();
-  LocationSummary::CallKind call_kind = cls->NeedsAccessCheck()
-      ? LocationSummary::kCallOnMainOnly
-      : (((code_generator_supports_read_barrier && kEmitCompilerReadBarrier) ||
-          cls->CanCallRuntime())
-            ? LocationSummary::kCallOnSlowPath
-            : LocationSummary::kNoCall);
-  LocationSummary* locations = new (allocator) LocationSummary(cls, call_kind);
-  if (cls->NeedsAccessCheck()) {
-    locations->SetInAt(0, Location::NoLocation());
-    locations->AddTemp(runtime_type_index_location);
-    locations->SetOut(runtime_return_location);
-  } else {
-    locations->SetInAt(0, Location::RequiresRegister());
-    locations->SetOut(Location::RequiresRegister());
-  }
+void CodeGenerator::CreateLoadClassRuntimeCallLocationSummary(HLoadClass* cls,
+                                                              Location runtime_type_index_location,
+                                                              Location runtime_return_location) {
+  DCHECK_EQ(cls->GetLoadKind(), HLoadClass::LoadKind::kDexCacheViaMethod);
+  DCHECK_EQ(cls->InputCount(), 1u);
+  LocationSummary* locations = new (cls->GetBlock()->GetGraph()->GetArena()) LocationSummary(
+      cls, LocationSummary::kCallOnMainOnly);
+  locations->SetInAt(0, Location::NoLocation());
+  locations->AddTemp(runtime_type_index_location);
+  locations->SetOut(runtime_return_location);
 }
 
+void CodeGenerator::GenerateLoadClassRuntimeCall(HLoadClass* cls) {
+  DCHECK_EQ(cls->GetLoadKind(), HLoadClass::LoadKind::kDexCacheViaMethod);
+  LocationSummary* locations = cls->GetLocations();
+  MoveConstant(locations->GetTemp(0), cls->GetTypeIndex().index_);
+  if (cls->NeedsAccessCheck()) {
+    CheckEntrypointTypes<kQuickInitializeTypeAndVerifyAccess, void*, uint32_t>();
+    InvokeRuntime(kQuickInitializeTypeAndVerifyAccess, cls, cls->GetDexPc());
+  } else if (cls->MustGenerateClinitCheck()) {
+    CheckEntrypointTypes<kQuickInitializeStaticStorage, void*, uint32_t>();
+    InvokeRuntime(kQuickInitializeStaticStorage, cls, cls->GetDexPc());
+  } else {
+    CheckEntrypointTypes<kQuickInitializeType, void*, uint32_t>();
+    InvokeRuntime(kQuickInitializeType, cls, cls->GetDexPc());
+  }
+}
 
 void CodeGenerator::BlockIfInRegister(Location location, bool is_out) const {
   // The DCHECKS below check that a register is not specified twice in
