@@ -270,7 +270,6 @@ void HSharpening::SharpenClass(HLoadClass* load_class,
 
 void HSharpening::ProcessLoadString(HLoadString* load_string) {
   DCHECK_EQ(load_string->GetLoadKind(), HLoadString::LoadKind::kDexCacheViaMethod);
-  DCHECK(!load_string->IsInDexCache());
 
   const DexFile& dex_file = load_string->GetDexFile();
   dex::StringIndex string_index = load_string->GetStringIndex();
