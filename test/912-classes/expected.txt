@@ -5,3 +5,10 @@
 [L$Proxy0;, null]
 [I, null]
 [[D, null]
+int interface=false array=false
+$Proxy0 interface=false array=false
+java.lang.Runnable interface=true array=false
+java.lang.String interface=false array=false
+[I interface=false array=true
+[Ljava.lang.Runnable; interface=false array=true
+[Ljava.lang.String; interface=false array=true

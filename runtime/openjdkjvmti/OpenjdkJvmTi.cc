@@ -585,13 +585,13 @@ class JvmtiFunctions {
   }
 
   static jvmtiError IsInterface(jvmtiEnv* env, jclass klass, jboolean* is_interface_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return ClassUtil::IsInterface(env, klass, is_interface_ptr);
   }
 
   static jvmtiError IsArrayClass(jvmtiEnv* env,
                                  jclass klass,
                                  jboolean* is_array_class_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return ClassUtil::IsArrayClass(env, klass, is_array_class_ptr);
   }
 
   static jvmtiError IsModifiableClass(jvmtiEnv* env,
