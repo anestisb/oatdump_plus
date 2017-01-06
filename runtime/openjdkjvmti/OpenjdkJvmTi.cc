@@ -553,7 +553,7 @@ class JvmtiFunctions {
                                     jclass klass,
                                     jint* method_count_ptr,
                                     jmethodID** methods_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return ClassUtil::GetClassMethods(env, klass, method_count_ptr, methods_ptr);
   }
 
   static jvmtiError GetClassFields(jvmtiEnv* env,

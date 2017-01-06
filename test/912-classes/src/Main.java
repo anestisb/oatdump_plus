@@ -48,6 +48,10 @@ public class Main {
     testClassFields(int.class);
     testClassFields(String[].class);
 
+    testClassMethods(Integer.class);
+    testClassMethods(int.class);
+    testClassMethods(String[].class);
+
     testClassStatus(int.class);
     testClassStatus(String[].class);
     testClassStatus(Object.class);
@@ -90,6 +94,10 @@ public class Main {
     System.out.println(Arrays.toString(getClassFields(c)));
   }
 
+  private static void testClassMethods(Class<?> c) throws Exception {
+    System.out.println(Arrays.toString(getClassMethods(c)));
+  }
+
   private static void testClassStatus(Class<?> c) {
     System.out.println(c + " " + Integer.toBinaryString(getClassStatus(c)));
   }
@@ -100,6 +108,7 @@ public class Main {
   private static native boolean isArrayClass(Class<?> c);
 
   private static native Object[] getClassFields(Class<?> c);
+  private static native Object[] getClassMethods(Class<?> c);
 
   private static native int getClassStatus(Class<?> c);
 
