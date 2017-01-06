@@ -2742,14 +2742,36 @@ void IntrinsicCodeGeneratorARMVIXL::VisitReferenceGetReferent(HInvoke* invoke) {
   __ Bind(slow_path->GetExitLabel());
 }
 
+void IntrinsicLocationsBuilderARMVIXL::VisitMathCeil(HInvoke* invoke) {
+  if (features_.HasARMv8AInstructions()) {
+    CreateFPToFPLocations(arena_, invoke);
+  }
+}
+
+void IntrinsicCodeGeneratorARMVIXL::VisitMathCeil(HInvoke* invoke) {
+  ArmVIXLAssembler* assembler = GetAssembler();
+  DCHECK(codegen_->GetInstructionSetFeatures().HasARMv8AInstructions());
+  __ Vrintp(F64, F64, OutputDRegister(invoke), InputDRegisterAt(invoke, 0));
+}
+
+void IntrinsicLocationsBuilderARMVIXL::VisitMathFloor(HInvoke* invoke) {
+  if (features_.HasARMv8AInstructions()) {
+    CreateFPToFPLocations(arena_, invoke);
+  }
+}
+
+void IntrinsicCodeGeneratorARMVIXL::VisitMathFloor(HInvoke* invoke) {
+  ArmVIXLAssembler* assembler = GetAssembler();
+  DCHECK(codegen_->GetInstructionSetFeatures().HasARMv8AInstructions());
+  __ Vrintm(F64, F64, OutputDRegister(invoke), InputDRegisterAt(invoke, 0));
+}
+
 UNIMPLEMENTED_INTRINSIC(ARMVIXL, MathMinDoubleDouble)
 UNIMPLEMENTED_INTRINSIC(ARMVIXL, MathMinFloatFloat)
 UNIMPLEMENTED_INTRINSIC(ARMVIXL, MathMaxDoubleDouble)
 UNIMPLEMENTED_INTRINSIC(ARMVIXL, MathMaxFloatFloat)
 UNIMPLEMENTED_INTRINSIC(ARMVIXL, MathMinLongLong)
 UNIMPLEMENTED_INTRINSIC(ARMVIXL, MathMaxLongLong)
-UNIMPLEMENTED_INTRINSIC(ARMVIXL, MathCeil)          // Could be done by changing rounding mode, maybe?
-UNIMPLEMENTED_INTRINSIC(ARMVIXL, MathFloor)         // Could be done by changing rounding mode, maybe?
 UNIMPLEMENTED_INTRINSIC(ARMVIXL, MathRint)
 UNIMPLEMENTED_INTRINSIC(ARMVIXL, MathRoundDouble)   // Could be done by changing rounding mode, maybe?
 UNIMPLEMENTED_INTRINSIC(ARMVIXL, MathRoundFloat)    // Could be done by changing rounding mode, maybe?
