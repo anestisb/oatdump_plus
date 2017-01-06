@@ -44,6 +44,11 @@ class ClassUtil {
                                    jint* field_count_ptr,
                                    jfieldID** fields_ptr);
 
+  static jvmtiError GetClassMethods(jvmtiEnv* env,
+                                    jclass klass,
+                                    jint* method_count_ptr,
+                                    jmethodID** methods_ptr);
+
   static jvmtiError GetClassSignature(jvmtiEnv* env,
                                       jclass klass,
                                       char** signature_ptr,
