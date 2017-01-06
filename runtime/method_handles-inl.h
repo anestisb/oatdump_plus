@@ -134,36 +134,6 @@ bool PerformConversions(Thread* self,
   return true;
 }
 
-template <bool is_range>
-bool ConvertAndCopyArgumentsFromCallerFrame(Thread* self,
-                                            Handle<mirror::MethodType> callsite_type,
-                                            Handle<mirror::MethodType> callee_type,
-                                            const ShadowFrame& caller_frame,
-                                            uint32_t first_src_reg,
-                                            uint32_t first_dest_reg,
-                                            const uint32_t (&arg)[Instruction::kMaxVarArgRegs],
-                                            ShadowFrame* callee_frame)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  ObjPtr<mirror::ObjectArray<mirror::Class>> from_types(callsite_type->GetPTypes());
-  ObjPtr<mirror::ObjectArray<mirror::Class>> to_types(callee_type->GetPTypes());
-
-  const int32_t num_method_params = from_types->GetLength();
-  if (to_types->GetLength() != num_method_params) {
-    ThrowWrongMethodTypeException(callee_type.Get(), callsite_type.Get());
-    return false;
-  }
-
-  ShadowFrameGetter<is_range> getter(first_src_reg, arg, caller_frame);
-  ShadowFrameSetter setter(callee_frame, first_dest_reg);
-
-  return PerformConversions<ShadowFrameGetter<is_range>, ShadowFrameSetter>(self,
-                                                                            callsite_type,
-                                                                            callee_type,
-                                                                            &getter,
-                                                                            &setter,
-                                                                            num_method_params);
-}
-
 }  // namespace art
 
 #endif  // ART_RUNTIME_METHOD_HANDLES_INL_H_
