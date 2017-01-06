@@ -63,6 +63,7 @@ struct WellKnownClasses {
   static jclass java_lang_Error;
   static jclass java_lang_ExceptionInInitializerError;
   static jclass java_lang_IllegalAccessError;
+  static jclass java_lang_invoke_MethodHandle;
   static jclass java_lang_NoClassDefFoundError;
   static jclass java_lang_Object;
   static jclass java_lang_OutOfMemoryError;
@@ -103,6 +104,8 @@ struct WellKnownClasses {
   static jmethodID java_lang_Double_valueOf;
   static jmethodID java_lang_Float_valueOf;
   static jmethodID java_lang_Integer_valueOf;
+  static jmethodID java_lang_invoke_MethodHandle_invoke;
+  static jmethodID java_lang_invoke_MethodHandle_invokeExact;
   static jmethodID java_lang_Long_valueOf;
   static jmethodID java_lang_ref_FinalizerReference_add;
   static jmethodID java_lang_ref_ReferenceQueue_add;

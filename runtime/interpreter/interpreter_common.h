@@ -33,6 +33,7 @@
 #include "base/logging.h"
 #include "base/macros.h"
 #include "class_linker-inl.h"
+#include "common_dex_operations.h"
 #include "common_throws.h"
 #include "dex_file-inl.h"
 #include "dex_instruction-inl.h"
@@ -48,6 +49,7 @@
 #include "obj_ptr.h"
 #include "stack.h"
 #include "thread.h"
+#include "unstarted_runtime.h"
 #include "well_known_classes.h"
 
 namespace art {
@@ -153,8 +155,10 @@ static inline bool DoInvoke(Thread* self,
 
 // Performs a signature polymorphic invoke (invoke-polymorphic/invoke-polymorphic-range).
 template<bool is_range, bool do_access_check>
-bool DoInvokePolymorphic(Thread* self, ShadowFrame& shadow_frame,
-                         const Instruction* inst, uint16_t inst_data,
+bool DoInvokePolymorphic(Thread* self,
+                         ShadowFrame& shadow_frame,
+                         const Instruction* inst,
+                         uint16_t inst_data,
                          JValue* result);
 
 // Handles invoke-virtual-quick and invoke-virtual-quick-range instructions.
