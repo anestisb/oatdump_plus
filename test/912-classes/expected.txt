@@ -39,3 +39,7 @@ interface Main$InfC [interface Main$InfB]
 class Main$ClassA [interface Main$InfA]
 class Main$ClassB [interface Main$InfB]
 class Main$ClassC [interface Main$InfA, interface Main$InfC]
+class java.lang.String null
+class [Ljava.lang.String; null
+interface Main$InfA dalvik.system.PathClassLoader
+class $Proxy0 dalvik.system.PathClassLoader
