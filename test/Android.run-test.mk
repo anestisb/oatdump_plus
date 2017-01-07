@@ -291,6 +291,7 @@ TEST_ART_BROKEN_TARGET_TESTS += \
   916-obsolete-jit \
   917-fields-transformation \
   918-fields \
+  919-obsolete-fields \
 
 ifneq (,$(filter target,$(TARGET_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,target,$(RUN_TYPES),$(PREBUILD_TYPES), \
@@ -544,7 +545,7 @@ TEST_ART_BROKEN_INTERPRETER_RUN_TESTS :=
 # between those runs to be able to have precise checks.
 # Test 902 hits races with the JIT compiler. b/32821077
 # Test 629 requires compilation.
-# Test 914, 915, 917, & 918 are very sensitive to the exact state of the stack,
+# Test 914, 915, 917, & 919 are very sensitive to the exact state of the stack,
 # including the jit-inserted runtime frames. This causes them to be somewhat
 # flaky as JIT tests. This should be fixed once b/33630159 or b/33616143 are
 # resolved but until then just disable them. Test 916 already checks this
@@ -558,7 +559,7 @@ TEST_ART_BROKEN_JIT_RUN_TESTS := \
   914-hello-obsolescence \
   915-obsolete-2 \
   917-fields-transformation \
-  918-obsolete-fields \
+  919-obsolete-fields \
 
 ifneq (,$(filter jit,$(COMPILER_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
