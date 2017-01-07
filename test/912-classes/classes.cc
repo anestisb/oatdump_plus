@@ -191,6 +191,20 @@ extern "C" JNIEXPORT jint JNICALL Java_Main_getClassStatus(
   return status;
 }
 
+extern "C" JNIEXPORT jobject JNICALL Java_Main_getClassLoader(
+    JNIEnv* env ATTRIBUTE_UNUSED, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
+  jobject classloader;
+  jvmtiError result = jvmti_env->GetClassLoader(klass, &classloader);
+  if (result != JVMTI_ERROR_NONE) {
+    char* err;
+    jvmti_env->GetErrorName(result, &err);
+    printf("Failure running GetClassLoader: %s\n", err);
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
+    return nullptr;
+  }
+  return classloader;
+}
+
 // Don't do anything
 jint OnLoad(JavaVM* vm,
             char* options ATTRIBUTE_UNUSED,

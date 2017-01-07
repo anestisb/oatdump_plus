@@ -602,7 +602,7 @@ class JvmtiFunctions {
   }
 
   static jvmtiError GetClassLoader(jvmtiEnv* env, jclass klass, jobject* classloader_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return ClassUtil::GetClassLoader(env, klass, classloader_ptr);
   }
 
   static jvmtiError GetSourceDebugExtension(jvmtiEnv* env,
