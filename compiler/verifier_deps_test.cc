@@ -524,7 +524,7 @@ TEST_F(VerifierDepsTest, Assignable_DestinationInBoot3) {
                                          /* src */ "LMyThreadSet;",
                                          /* is_strict */ true,
                                          /* is_assignable */ true));
-  ASSERT_TRUE(HasAssignable("Ljava/util/Collection;", "LMyThreadSet;", true));
+  ASSERT_TRUE(HasAssignable("Ljava/util/Collection;", "Ljava/util/Set;", true));
 }
 
 TEST_F(VerifierDepsTest, Assignable_BothArrays_Resolved) {
@@ -537,26 +537,6 @@ TEST_F(VerifierDepsTest, Assignable_BothArrays_Resolved) {
   ASSERT_FALSE(HasAssignable("[[Ljava/util/TimeZone;", "[[Ljava/util/SimpleTimeZone;", true));
   ASSERT_FALSE(HasAssignable("[Ljava/util/TimeZone;", "[Ljava/util/SimpleTimeZone;", true));
   ASSERT_TRUE(HasAssignable("Ljava/util/TimeZone;", "Ljava/util/SimpleTimeZone;", true));
-}
-
-// We test that VerifierDeps does not try to optimize by storing assignability
-// of the component types. This is due to the fact that the component type may
-// be an erroneous class, even though the array type has resolved status.
-
-TEST_F(VerifierDepsTest, Assignable_ArrayToInterface1) {
-  ASSERT_TRUE(TestAssignabilityRecording(/* dst */ "Ljava/io/Serializable;",
-                                         /* src */ "[Ljava/util/TimeZone;",
-                                         /* is_strict */ true,
-                                         /* is_assignable */ true));
-  ASSERT_TRUE(HasAssignable("Ljava/io/Serializable;", "[Ljava/util/TimeZone;", true));
-}
-
-TEST_F(VerifierDepsTest, Assignable_ArrayToInterface2) {
-  ASSERT_TRUE(TestAssignabilityRecording(/* dst */ "Ljava/io/Serializable;",
-                                         /* src */ "[LMyThreadSet;",
-                                         /* is_strict */ true,
-                                         /* is_assignable */ true));
-  ASSERT_TRUE(HasAssignable("Ljava/io/Serializable;", "[LMyThreadSet;", true));
 }
 
 TEST_F(VerifierDepsTest, NotAssignable_BothInBoot) {
@@ -1083,7 +1063,7 @@ TEST_F(VerifierDepsTest, InvokeInterface_Unresolved2) {
 TEST_F(VerifierDepsTest, InvokeSuper_ThisAssignable) {
   ASSERT_TRUE(VerifyMethod("InvokeSuper_ThisAssignable"));
   ASSERT_TRUE(HasClass("Ljava/lang/Runnable;", true, "public abstract interface"));
-  ASSERT_TRUE(HasAssignable("Ljava/lang/Runnable;", "LMain;", true));
+  ASSERT_TRUE(HasAssignable("Ljava/lang/Runnable;", "Ljava/lang/Thread;", true));
   ASSERT_TRUE(HasMethod("interface",
                         "Ljava/lang/Runnable;",
                         "run",
