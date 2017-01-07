@@ -71,6 +71,11 @@ public class Main {
     testInterfaces(ClassA.class);
     testInterfaces(ClassB.class);
     testInterfaces(ClassC.class);
+
+    testClassLoader(String.class);
+    testClassLoader(String[].class);
+    testClassLoader(InfA.class);
+    testClassLoader(getProxyClass());
   }
 
   private static Class<?> proxyClass = null;
@@ -121,6 +126,29 @@ public class Main {
     System.out.println(c + " " + Arrays.toString(getImplementedInterfaces(c)));
   }
 
+  private static boolean IsBootClassLoader(ClassLoader l) {
+    // Hacky check for Android's fake boot classloader.
+    return l.getClass().getName().equals("java.lang.BootClassLoader");
+  }
+
+  private static void testClassLoader(Class<?> c) {
+    Object cl = getClassLoader(c);
+    System.out.println(c + " " + (cl != null ? cl.getClass().getName() : "null"));
+    if (cl == null) {
+      if (c.getClassLoader() != null && !IsBootClassLoader(c.getClassLoader())) {
+        throw new RuntimeException("Expected " + c.getClassLoader() + ", but got null.");
+      }
+    } else {
+      if (!(cl instanceof ClassLoader)) {
+        throw new RuntimeException("Unexpected \"classloader\": " + cl + " (" + cl.getClass() +
+            ")");
+      }
+      if (cl != c.getClassLoader()) {
+        throw new RuntimeException("Unexpected classloader: " + c.getClassLoader() + " vs " + cl);
+      }
+    }
+  }
+
   private static native String[] getClassSignature(Class<?> c);
 
   private static native boolean isInterface(Class<?> c);
@@ -133,6 +161,8 @@ public class Main {
   private static native Class[] getImplementedInterfaces(Class<?> c);
 
   private static native int getClassStatus(Class<?> c);
+
+  private static native Object getClassLoader(Class<?> c);
 
   private static class TestForNonInit {
     public static double dummy = Math.random();  // So it can't be compile-time initialized.

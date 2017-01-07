@@ -310,4 +310,22 @@ jvmtiError ClassUtil::GetClassModifiers(jvmtiEnv* env ATTRIBUTE_UNUSED,
   return ERR(NONE);
 }
 
+jvmtiError ClassUtil::GetClassLoader(jvmtiEnv* env ATTRIBUTE_UNUSED,
+                                     jclass jklass,
+                                     jobject* classloader_ptr) {
+  art::ScopedObjectAccess soa(art::Thread::Current());
+  art::ObjPtr<art::mirror::Class> klass = soa.Decode<art::mirror::Class>(jklass);
+  if (klass == nullptr) {
+    return ERR(INVALID_CLASS);
+  }
+
+  if (classloader_ptr == nullptr) {
+    return ERR(NULL_POINTER);
+  }
+
+  *classloader_ptr = soa.AddLocalReference<jobject>(klass->GetClassLoader());
+
+  return ERR(NONE);
+}
+
 }  // namespace openjdkjvmti
