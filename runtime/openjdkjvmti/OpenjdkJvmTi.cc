@@ -567,7 +567,7 @@ class JvmtiFunctions {
                                              jclass klass,
                                              jint* interface_count_ptr,
                                              jclass** interfaces_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return ClassUtil::GetImplementedInterfaces(env, klass, interface_count_ptr, interfaces_ptr);
   }
 
   static jvmtiError GetClassVersionNumbers(jvmtiEnv* env,

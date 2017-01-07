@@ -61,6 +61,16 @@ public class Main {
     } catch (ExceptionInInitializerError e) {
     }
     testClassStatus(TestForInitFail.class);
+
+    testInterfaces(int.class);
+    testInterfaces(String[].class);
+    testInterfaces(Object.class);
+    testInterfaces(InfA.class);
+    testInterfaces(InfB.class);
+    testInterfaces(InfC.class);
+    testInterfaces(ClassA.class);
+    testInterfaces(ClassB.class);
+    testInterfaces(ClassC.class);
   }
 
   private static Class<?> proxyClass = null;
@@ -107,6 +117,10 @@ public class Main {
     System.out.println(c + " " + Integer.toBinaryString(getClassStatus(c)));
   }
 
+  private static void testInterfaces(Class<?> c) {
+    System.out.println(c + " " + Arrays.toString(getImplementedInterfaces(c)));
+  }
+
   private static native String[] getClassSignature(Class<?> c);
 
   private static native boolean isInterface(Class<?> c);
@@ -116,6 +130,7 @@ public class Main {
 
   private static native Object[] getClassFields(Class<?> c);
   private static native Object[] getClassMethods(Class<?> c);
+  private static native Class[] getImplementedInterfaces(Class<?> c);
 
   private static native int getClassStatus(Class<?> c);
 
@@ -125,5 +140,19 @@ public class Main {
 
   private static class TestForInitFail {
     public static int dummy = ((int)Math.random())/0;  // So it throws when initializing.
+  }
+
+  public static interface InfA {
+  }
+  public static interface InfB extends InfA {
+  }
+  public static interface InfC extends InfB {
+  }
+
+  public abstract static class ClassA implements InfA {
+  }
+  public abstract static class ClassB extends ClassA implements InfB {
+  }
+  public abstract static class ClassC implements InfA, InfC {
   }
 }
