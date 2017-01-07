@@ -30,3 +30,12 @@ class [Ljava.lang.String; 10000
 class java.lang.Object 111
 class Main$TestForNonInit 11
 class Main$TestForInitFail 1001
+int []
+class [Ljava.lang.String; []
+class java.lang.Object []
+interface Main$InfA []
+interface Main$InfB [interface Main$InfA]
+interface Main$InfC [interface Main$InfB]
+class Main$ClassA [interface Main$InfA]
+class Main$ClassB [interface Main$InfB]
+class Main$ClassC [interface Main$InfA, interface Main$InfC]

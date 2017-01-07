@@ -121,7 +121,11 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getClassFields(
                                  fields[i],
                                  (modifiers & kStatic) != 0 ? JNI_TRUE : JNI_FALSE);
   };
-  return CreateObjectArray(env, count, "java/lang/Object", callback);
+  jobjectArray ret = CreateObjectArray(env, count, "java/lang/Object", callback);
+  if (fields != nullptr) {
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(fields));
+  }
+  return ret;
 }
 
 extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getClassMethods(
@@ -145,7 +149,33 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getClassMethods(
                                   methods[i],
                                   (modifiers & kStatic) != 0 ? JNI_TRUE : JNI_FALSE);
   };
-  return CreateObjectArray(env, count, "java/lang/Object", callback);
+  jobjectArray ret = CreateObjectArray(env, count, "java/lang/Object", callback);
+  if (methods != nullptr) {
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(methods));
+  }
+  return ret;
+}
+
+extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getImplementedInterfaces(
+    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
+  jint count = 0;
+  jclass* classes = nullptr;
+  jvmtiError result = jvmti_env->GetImplementedInterfaces(klass, &count, &classes);
+  if (result != JVMTI_ERROR_NONE) {
+    char* err;
+    jvmti_env->GetErrorName(result, &err);
+    printf("Failure running GetImplementedInterfaces: %s\n", err);
+    return nullptr;
+  }
+
+  auto callback = [&](jint i) {
+    return classes[i];
+  };
+  jobjectArray ret = CreateObjectArray(env, count, "java/lang/Class", callback);
+  if (classes != nullptr) {
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(classes));
+  }
+  return ret;
 }
 
 extern "C" JNIEXPORT jint JNICALL Java_Main_getClassStatus(

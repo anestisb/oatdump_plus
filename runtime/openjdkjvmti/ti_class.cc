@@ -121,6 +121,56 @@ jvmtiError ClassUtil::GetClassMethods(jvmtiEnv* env,
   return ERR(NONE);
 }
 
+jvmtiError ClassUtil::GetImplementedInterfaces(jvmtiEnv* env,
+                                               jclass jklass,
+                                               jint* interface_count_ptr,
+                                               jclass** interfaces_ptr) {
+  art::ScopedObjectAccess soa(art::Thread::Current());
+  art::ObjPtr<art::mirror::Class> klass = soa.Decode<art::mirror::Class>(jklass);
+  if (klass == nullptr) {
+    return ERR(INVALID_CLASS);
+  }
+
+  if (interface_count_ptr == nullptr || interfaces_ptr == nullptr) {
+    return ERR(NULL_POINTER);
+  }
+
+  // Need to handle array specifically. Arrays implement Serializable and Cloneable, but the
+  // spec says these should not be reported.
+  if (klass->IsArrayClass()) {
+    *interface_count_ptr = 0;
+    *interfaces_ptr = nullptr;  // TODO: Should we allocate a dummy here?
+    return ERR(NONE);
+  }
+
+  size_t array_size = klass->NumDirectInterfaces();
+  unsigned char* out_ptr;
+  jvmtiError allocError = env->Allocate(array_size * sizeof(jclass), &out_ptr);
+  if (allocError != ERR(NONE)) {
+    return allocError;
+  }
+  jclass* interface_array = reinterpret_cast<jclass*>(out_ptr);
+
+  art::StackHandleScope<1> hs(soa.Self());
+  art::Handle<art::mirror::Class> h_klass(hs.NewHandle(klass));
+
+  for (uint32_t idx = 0; idx != array_size; ++idx) {
+    art::ObjPtr<art::mirror::Class> inf_klass =
+        art::mirror::Class::ResolveDirectInterface(soa.Self(), h_klass, idx);
+    if (inf_klass == nullptr) {
+      soa.Self()->ClearException();
+      env->Deallocate(out_ptr);
+      // TODO: What is the right error code here?
+      return ERR(INTERNAL);
+    }
+    interface_array[idx] = soa.AddLocalReference<jclass>(inf_klass);
+  }
+
+  *interface_count_ptr = static_cast<jint>(array_size);
+  *interfaces_ptr = interface_array;
+
+  return ERR(NONE);
+}
 
 jvmtiError ClassUtil::GetClassSignature(jvmtiEnv* env,
                                          jclass jklass,
