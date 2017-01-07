@@ -51,6 +51,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_setupGcCallback(
     char* err;
     jvmti_env->GetErrorName(ret, &err);
     printf("Error setting callbacks: %s\n", err);
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
   }
 }
 
@@ -65,6 +66,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_enableGcTracking(JNIEnv* env ATTRIBU
     char* err;
     jvmti_env->GetErrorName(ret, &err);
     printf("Error enabling/disabling gc callbacks: %s\n", err);
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
   }
   ret = jvmti_env->SetEventNotificationMode(
       enable ? JVMTI_ENABLE : JVMTI_DISABLE,
@@ -74,6 +76,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_enableGcTracking(JNIEnv* env ATTRIBU
     char* err;
     jvmti_env->GetErrorName(ret, &err);
     printf("Error enabling/disabling gc callbacks: %s\n", err);
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
   }
 }
 

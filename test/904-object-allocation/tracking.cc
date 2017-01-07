@@ -69,6 +69,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_setupObjectAllocCallback(
     char* err;
     jvmti_env->GetErrorName(ret, &err);
     printf("Error setting callbacks: %s\n", err);
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
   }
 }
 
@@ -84,6 +85,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_enableAllocationTracking(JNIEnv* env
     char* err;
     jvmti_env->GetErrorName(ret, &err);
     printf("Error enabling/disabling allocation tracking: %s\n", err);
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
   }
 }
 

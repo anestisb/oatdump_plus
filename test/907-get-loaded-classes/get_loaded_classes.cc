@@ -48,6 +48,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getLoadedClasses(
     char* err;
     jvmti_env->GetErrorName(result, &err);
     printf("Failure running GetLoadedClasses: %s\n", err);
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
     return nullptr;
   }
 
