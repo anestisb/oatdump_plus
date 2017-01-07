@@ -61,6 +61,7 @@ static bool Run(jint heap_filter, jclass klass_filter, IterationConfig* config) 
     char* err;
     jvmti_env->GetErrorName(ret, &err);
     printf("Failure running IterateThroughHeap: %s\n", err);
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
     return false;
   }
   return true;
