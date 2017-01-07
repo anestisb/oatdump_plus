@@ -44,6 +44,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_setTag(JNIEnv* env ATTRIBUTE_UNUSED,
     char* err;
     jvmti_env->GetErrorName(ret, &err);
     printf("Error setting tag: %s\n", err);
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
   }
 }
 
@@ -56,6 +57,7 @@ extern "C" JNIEXPORT jlong JNICALL Java_Main_getTag(JNIEnv* env ATTRIBUTE_UNUSED
     char* err;
     jvmti_env->GetErrorName(ret, &err);
     printf("Error getting tag: %s\n", err);
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
   }
   return tag;
 }
@@ -90,6 +92,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getTaggedObjects(JNIEnv* env
     char* err;
     jvmti_env->GetErrorName(ret, &err);
     printf("Failure running GetLoadedClasses: %s\n", err);
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
     return nullptr;
   }
 
