@@ -47,8 +47,16 @@
  *    JDWP-handshake, etc...
  */
 
-#define kJdwpControlName    "\0jdwp-control"
-#define kJdwpControlNameLen (sizeof(kJdwpControlName)-1)
+static constexpr char kJdwpControlName[] = "\0jdwp-control";
+static constexpr size_t kJdwpControlNameLen = sizeof(kJdwpControlName) - 1;
+/* This timeout is for connect/send with control socket. In practice, the
+ * connect should never timeout since it's just connect to a local unix domain
+ * socket. But in case adb is buggy and doesn't respond to any connection, the
+ * connect will block. For send, actually it would never block since we only send
+ * several bytes and the kernel buffer is big enough to accept it. 10 seconds
+ * should be far enough.
+ */
+static constexpr int kControlSockSendTimeout = 10;
 
 namespace art {
 
@@ -224,6 +232,10 @@ bool JdwpAdbState::Accept() {
       PLOG(ERROR) << "Could not create ADB control socket";
       return false;
     }
+    struct timeval timeout;
+    timeout.tv_sec = kControlSockSendTimeout;
+    timeout.tv_usec = 0;
+    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
     {
       MutexLock mu(Thread::Current(), state_lock_);
       control_sock_ = sock;
