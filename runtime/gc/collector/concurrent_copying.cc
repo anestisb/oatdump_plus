@@ -58,7 +58,7 @@ ConcurrentCopying::ConcurrentCopying(Heap* heap,
                                      bool measure_read_barrier_slow_path)
     : GarbageCollector(heap,
                        name_prefix + (name_prefix.empty() ? "" : " ") +
-                       "concurrent copying + mark sweep"),
+                       "concurrent copying"),
       region_space_(nullptr), gc_barrier_(new Barrier(0)),
       gc_mark_stack_(accounting::ObjectStack::Create("concurrent copying gc mark stack",
                                                      kDefaultGcMarkStackSize,

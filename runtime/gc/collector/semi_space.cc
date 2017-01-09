@@ -89,7 +89,7 @@ void SemiSpace::BindBitmaps() {
 
 SemiSpace::SemiSpace(Heap* heap, bool generational, const std::string& name_prefix)
     : GarbageCollector(heap,
-                       name_prefix + (name_prefix.empty() ? "" : " ") + "marksweep + semispace"),
+                       name_prefix + (name_prefix.empty() ? "" : " ") + "semispace"),
       mark_stack_(nullptr),
       is_large_object_space_immune_(false),
       to_space_(nullptr),
