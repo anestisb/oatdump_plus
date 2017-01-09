@@ -50,6 +50,7 @@
 #include "ti_field.h"
 #include "ti_heap.h"
 #include "ti_method.h"
+#include "ti_object.h"
 #include "ti_redefine.h"
 #include "ti_stack.h"
 #include "transform.h"
@@ -622,11 +623,11 @@ class JvmtiFunctions {
   }
 
   static jvmtiError GetObjectSize(jvmtiEnv* env, jobject object, jlong* size_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return ObjectUtil::GetObjectSize(env, object, size_ptr);
   }
 
   static jvmtiError GetObjectHashCode(jvmtiEnv* env, jobject object, jint* hash_code_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return ObjectUtil::GetObjectHashCode(env, object, hash_code_ptr);
   }
 
   static jvmtiError GetObjectMonitorUsage(jvmtiEnv* env,
