@@ -689,13 +689,13 @@ class JvmtiFunctions {
   static jvmtiError GetMaxLocals(jvmtiEnv* env,
                                  jmethodID method,
                                  jint* max_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return MethodUtil::GetMaxLocals(env, method, max_ptr);
   }
 
   static jvmtiError GetArgumentsSize(jvmtiEnv* env,
                                      jmethodID method,
                                      jint* size_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return MethodUtil::GetArgumentsSize(env, method, size_ptr);
   }
 
   static jvmtiError GetLineNumberTable(jvmtiEnv* env,
@@ -709,7 +709,7 @@ class JvmtiFunctions {
                                       jmethodID method,
                                       jlocation* start_location_ptr,
                                       jlocation* end_location_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return MethodUtil::GetMethodLocation(env, method, start_location_ptr, end_location_ptr);
   }
 
   static jvmtiError GetLocalVariableTable(jvmtiEnv* env,

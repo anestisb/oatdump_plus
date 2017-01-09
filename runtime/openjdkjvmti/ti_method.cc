@@ -41,6 +41,64 @@
 
 namespace openjdkjvmti {
 
+jvmtiError MethodUtil::GetArgumentsSize(jvmtiEnv* env ATTRIBUTE_UNUSED,
+                                        jmethodID method,
+                                        jint* size_ptr) {
+  if (method == nullptr) {
+    return ERR(INVALID_METHODID);
+  }
+  art::ArtMethod* art_method = art::jni::DecodeArtMethod(method);
+
+  if (art_method->IsNative()) {
+    return ERR(NATIVE_METHOD);
+  }
+
+  if (size_ptr == nullptr) {
+    return ERR(NULL_POINTER);
+  }
+
+  art::ScopedObjectAccess soa(art::Thread::Current());
+  if (art_method->IsProxyMethod() || art_method->IsAbstract()) {
+    // This isn't specified as an error case, so return 0.
+    *size_ptr = 0;
+    return ERR(NONE);
+  }
+
+  DCHECK_NE(art_method->GetCodeItemOffset(), 0u);
+  *size_ptr = art_method->GetCodeItem()->ins_size_;
+
+  return ERR(NONE);
+}
+
+jvmtiError MethodUtil::GetMaxLocals(jvmtiEnv* env ATTRIBUTE_UNUSED,
+                                    jmethodID method,
+                                    jint* max_ptr) {
+  if (method == nullptr) {
+    return ERR(INVALID_METHODID);
+  }
+  art::ArtMethod* art_method = art::jni::DecodeArtMethod(method);
+
+  if (art_method->IsNative()) {
+    return ERR(NATIVE_METHOD);
+  }
+
+  if (max_ptr == nullptr) {
+    return ERR(NULL_POINTER);
+  }
+
+  art::ScopedObjectAccess soa(art::Thread::Current());
+  if (art_method->IsProxyMethod() || art_method->IsAbstract()) {
+    // This isn't specified as an error case, so return 0.
+    *max_ptr = 0;
+    return ERR(NONE);
+  }
+
+  DCHECK_NE(art_method->GetCodeItemOffset(), 0u);
+  *max_ptr = art_method->GetCodeItem()->registers_size_;
+
+  return ERR(NONE);
+}
+
 jvmtiError MethodUtil::GetMethodName(jvmtiEnv* env,
                                      jmethodID method,
                                      char** name_ptr,
@@ -103,6 +161,38 @@ jvmtiError MethodUtil::GetMethodDeclaringClass(jvmtiEnv* env ATTRIBUTE_UNUSED,
   art::ScopedObjectAccess soa(art::Thread::Current());
   art::mirror::Class* klass = art_method->GetDeclaringClass();
   *declaring_class_ptr = soa.AddLocalReference<jclass>(klass);
+
+  return ERR(NONE);
+}
+
+jvmtiError MethodUtil::GetMethodLocation(jvmtiEnv* env ATTRIBUTE_UNUSED,
+                                         jmethodID method,
+                                         jlocation* start_location_ptr,
+                                         jlocation* end_location_ptr) {
+  if (method == nullptr) {
+    return ERR(INVALID_METHODID);
+  }
+  art::ArtMethod* art_method = art::jni::DecodeArtMethod(method);
+
+  if (art_method->IsNative()) {
+    return ERR(NATIVE_METHOD);
+  }
+
+  if (start_location_ptr == nullptr || end_location_ptr == nullptr) {
+    return ERR(NULL_POINTER);
+  }
+
+  art::ScopedObjectAccess soa(art::Thread::Current());
+  if (art_method->IsProxyMethod() || art_method->IsAbstract()) {
+    // This isn't specified as an error case, so return 0/0.
+    *start_location_ptr = 0;
+    *end_location_ptr = 0;
+    return ERR(NONE);
+  }
+
+  DCHECK_NE(art_method->GetCodeItemOffset(), 0u);
+  *start_location_ptr = 0;
+  *end_location_ptr = art_method->GetCodeItem()->insns_size_in_code_units_ - 1;
 
   return ERR(NONE);
 }
