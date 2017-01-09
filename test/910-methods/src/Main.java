@@ -68,9 +68,41 @@ public class Main {
       throw new RuntimeException("Modifiers not equal: " + m.getModifiers() + " vs " + modifiers);
     }
     System.out.println(modifiers);
+
+    System.out.print("Max locals: ");
+    try {
+      System.out.println(getMaxLocals(m));
+    } catch (RuntimeException e) {
+      System.out.println(e.getMessage());
+    }
+
+    System.out.print("Argument size: ");
+    try {
+      System.out.println(getArgumentsSize(m));
+    } catch (RuntimeException e) {
+      System.out.println(e.getMessage());
+    }
+
+    System.out.print("Location start: ");
+    try {
+      System.out.println(getMethodLocationStart(m));
+    } catch (RuntimeException e) {
+      System.out.println(e.getMessage());
+    }
+
+    System.out.print("Location end: ");
+    try {
+      System.out.println(getMethodLocationEnd(m));
+    } catch (RuntimeException e) {
+      System.out.println(e.getMessage());
+    }
   }
 
   private static native String[] getMethodName(Method m);
   private static native Class<?> getMethodDeclaringClass(Method m);
   private static native int getMethodModifiers(Method m);
+  private static native int getMaxLocals(Method m);
+  private static native int getArgumentsSize(Method m);
+  private static native long getMethodLocationStart(Method m);
+  private static native long getMethodLocationEnd(Method m);
 }
