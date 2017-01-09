@@ -840,19 +840,28 @@ class JvmtiFunctions {
   static jvmtiError GetExtensionFunctions(jvmtiEnv* env,
                                           jint* extension_count_ptr,
                                           jvmtiExtensionFunctionInfo** extensions) {
-    return ERR(NOT_IMPLEMENTED);
+    // We do not have any extension functions.
+    *extension_count_ptr = 0;
+    *extensions = nullptr;
+
+    return ERR(NONE);
   }
 
   static jvmtiError GetExtensionEvents(jvmtiEnv* env,
                                        jint* extension_count_ptr,
                                        jvmtiExtensionEventInfo** extensions) {
-    return ERR(NOT_IMPLEMENTED);
+    // We do not have any extension events.
+    *extension_count_ptr = 0;
+    *extensions = nullptr;
+
+    return ERR(NONE);
   }
 
   static jvmtiError SetExtensionEventCallback(jvmtiEnv* env,
                                               jint extension_event_index,
                                               jvmtiExtensionEvent callback) {
-    return ERR(NOT_IMPLEMENTED);
+    // We do not have any extension events, so any call is illegal.
+    return ERR(ILLEGAL_ARGUMENT);
   }
 
   static jvmtiError GetPotentialCapabilities(jvmtiEnv* env, jvmtiCapabilities* capabilities_ptr) {
