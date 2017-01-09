@@ -39,6 +39,10 @@ namespace openjdkjvmti {
 
 class MethodUtil {
  public:
+  static jvmtiError GetArgumentsSize(jvmtiEnv* env, jmethodID method, jint* size_ptr);
+
+  static jvmtiError GetMaxLocals(jvmtiEnv* env, jmethodID method, jint* max_ptr);
+
   static jvmtiError GetMethodName(jvmtiEnv* env,
                                   jmethodID method,
                                   char** name_ptr,
@@ -48,6 +52,11 @@ class MethodUtil {
   static jvmtiError GetMethodDeclaringClass(jvmtiEnv* env,
                                             jmethodID method,
                                             jclass* declaring_class_ptr);
+
+  static jvmtiError GetMethodLocation(jvmtiEnv* env,
+                                      jmethodID method,
+                                      jlocation* start_location_ptr,
+                                      jlocation* end_location_ptr);
 
   static jvmtiError GetMethodModifiers(jvmtiEnv* env,
                                        jmethodID method,
