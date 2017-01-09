@@ -4137,8 +4137,9 @@ vixl::aarch64::Literal<uint32_t>* CodeGeneratorARM64::DeduplicateBootImageAddres
 }
 
 vixl::aarch64::Literal<uint32_t>* CodeGeneratorARM64::DeduplicateJitStringLiteral(
-    const DexFile& dex_file, dex::StringIndex string_index) {
-  jit_string_roots_.Overwrite(StringReference(&dex_file, string_index), /* placeholder */ 0u);
+    const DexFile& dex_file, dex::StringIndex string_index, Handle<mirror::String> handle) {
+  jit_string_roots_.Overwrite(StringReference(&dex_file, string_index),
+                              reinterpret_cast64<uint64_t>(handle.GetReference()));
   return jit_string_patches_.GetOrCreate(
       StringReference(&dex_file, string_index),
       [this]() { return __ CreateLiteralDestroyedWithPool<uint32_t>(/* placeholder */ 0u); });
@@ -4527,7 +4528,9 @@ void LocationsBuilderARM64::VisitLoadString(HLoadString* load) {
   }
 }
 
-void InstructionCodeGeneratorARM64::VisitLoadString(HLoadString* load) {
+// NO_THREAD_SAFETY_ANALYSIS as we manipulate handles whose internal object we know does not
+// move.
+void InstructionCodeGeneratorARM64::VisitLoadString(HLoadString* load) NO_THREAD_SAFETY_ANALYSIS {
   Register out = OutputRegister(load);
   Location out_loc = load->GetLocations()->Out();
 
@@ -4550,8 +4553,10 @@ void InstructionCodeGeneratorARM64::VisitLoadString(HLoadString* load) {
       return;  // No dex cache slow path.
     }
     case HLoadString::LoadKind::kBootImageAddress: {
-      DCHECK(load->GetAddress() != 0u && IsUint<32>(load->GetAddress()));
-      __ Ldr(out.W(), codegen_->DeduplicateBootImageAddressLiteral(load->GetAddress()));
+      uint32_t address = dchecked_integral_cast<uint32_t>(
+          reinterpret_cast<uintptr_t>(load->GetString().Get()));
+      DCHECK_NE(address, 0u);
+      __ Ldr(out.W(), codegen_->DeduplicateBootImageAddressLiteral(address));
       return;  // No dex cache slow path.
     }
     case HLoadString::LoadKind::kBssEntry: {
@@ -4582,7 +4587,8 @@ void InstructionCodeGeneratorARM64::VisitLoadString(HLoadString* load) {
     }
     case HLoadString::LoadKind::kJitTableAddress: {
       __ Ldr(out, codegen_->DeduplicateJitStringLiteral(load->GetDexFile(),
-                                                        load->GetStringIndex()));
+                                                        load->GetStringIndex(),
+                                                        load->GetString()));
       GenerateGcRootFieldLoad(load,
                               out_loc,
                               out.X(),

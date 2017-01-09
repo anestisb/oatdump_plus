@@ -275,7 +275,6 @@ void HSharpening::ProcessLoadString(HLoadString* load_string) {
   dex::StringIndex string_index = load_string->GetStringIndex();
 
   HLoadString::LoadKind desired_load_kind = HLoadString::LoadKind::kDexCacheViaMethod;
-  uint64_t address = 0u;  // String or dex cache element address.
   {
     Runtime* runtime = Runtime::Current();
     ClassLinker* class_linker = runtime->GetClassLinker();
@@ -284,12 +283,13 @@ void HSharpening::ProcessLoadString(HLoadString* load_string) {
     Handle<mirror::DexCache> dex_cache = IsSameDexFile(dex_file, *compilation_unit_.GetDexFile())
         ? compilation_unit_.GetDexCache()
         : hs.NewHandle(class_linker->FindDexCache(soa.Self(), dex_file));
+    mirror::String* string = nullptr;
 
     if (codegen_->GetCompilerOptions().IsBootImage()) {
       // Compiling boot image. Resolve the string and allocate it if needed, to ensure
       // the string will be added to the boot image.
       DCHECK(!runtime->UseJitCompilation());
-      mirror::String* string = class_linker->ResolveString(dex_file, string_index, dex_cache);
+      string = class_linker->ResolveString(dex_file, string_index, dex_cache);
       CHECK(string != nullptr);
       if (compiler_driver_->GetSupportBootImageFixup()) {
         DCHECK(ContainsElement(compiler_driver_->GetDexFilesForOatFile(), &dex_file));
@@ -303,43 +303,32 @@ void HSharpening::ProcessLoadString(HLoadString* load_string) {
     } else if (runtime->UseJitCompilation()) {
       // TODO: Make sure we don't set the "compile PIC" flag for JIT as that's bogus.
       // DCHECK(!codegen_->GetCompilerOptions().GetCompilePic());
-      mirror::String* string = class_linker->LookupString(dex_file, string_index, dex_cache);
+      string = class_linker->LookupString(dex_file, string_index, dex_cache);
       if (string != nullptr) {
         if (runtime->GetHeap()->ObjectIsInBootImageSpace(string)) {
           desired_load_kind = HLoadString::LoadKind::kBootImageAddress;
-          address = reinterpret_cast64<uint64_t>(string);
         } else {
           desired_load_kind = HLoadString::LoadKind::kJitTableAddress;
         }
       }
     } else {
       // AOT app compilation. Try to lookup the string without allocating if not found.
-      mirror::String* string = class_linker->LookupString(dex_file, string_index, dex_cache);
+      string = class_linker->LookupString(dex_file, string_index, dex_cache);
       if (string != nullptr &&
           runtime->GetHeap()->ObjectIsInBootImageSpace(string) &&
           !codegen_->GetCompilerOptions().GetCompilePic()) {
         desired_load_kind = HLoadString::LoadKind::kBootImageAddress;
-        address = reinterpret_cast64<uint64_t>(string);
       } else {
         desired_load_kind = HLoadString::LoadKind::kBssEntry;
       }
     }
+    if (string != nullptr) {
+      load_string->SetString(handles_->NewHandle(string));
+    }
   }
 
   HLoadString::LoadKind load_kind = codegen_->GetSupportedLoadStringKind(desired_load_kind);
-  switch (load_kind) {
-    case HLoadString::LoadKind::kBootImageLinkTimeAddress:
-    case HLoadString::LoadKind::kBootImageLinkTimePcRelative:
-    case HLoadString::LoadKind::kBssEntry:
-    case HLoadString::LoadKind::kDexCacheViaMethod:
-    case HLoadString::LoadKind::kJitTableAddress:
-      load_string->SetLoadKindWithStringReference(load_kind, dex_file, string_index);
-      break;
-    case HLoadString::LoadKind::kBootImageAddress:
-      DCHECK_NE(address, 0u);
-      load_string->SetLoadKindWithAddress(load_kind, address);
-      break;
-  }
+  load_string->SetLoadKind(load_kind);
 }
 
 }  // namespace art

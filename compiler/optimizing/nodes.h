@@ -5761,39 +5761,31 @@ class HLoadString FINAL : public HInstruction {
               uint32_t dex_pc)
       : HInstruction(SideEffectsForArchRuntimeCalls(), dex_pc),
         special_input_(HUserRecord<HInstruction*>(current_method)),
-        string_index_(string_index) {
+        string_index_(string_index),
+        dex_file_(dex_file) {
     SetPackedField<LoadKindField>(LoadKind::kDexCacheViaMethod);
-    load_data_.dex_file_ = &dex_file;
   }
 
-  void SetLoadKindWithAddress(LoadKind load_kind, uint64_t address) {
-    DCHECK(HasAddress(load_kind));
-    load_data_.address = address;
-    SetLoadKindInternal(load_kind);
-  }
-
-  void SetLoadKindWithStringReference(LoadKind load_kind,
-                                      const DexFile& dex_file,
-                                      dex::StringIndex string_index) {
-    DCHECK(HasStringReference(load_kind));
-    load_data_.dex_file_ = &dex_file;
-    string_index_ = string_index;
-    SetLoadKindInternal(load_kind);
-  }
+  void SetLoadKind(LoadKind load_kind);
 
   LoadKind GetLoadKind() const {
     return GetPackedField<LoadKindField>();
   }
 
-  const DexFile& GetDexFile() const;
+  const DexFile& GetDexFile() const {
+    return dex_file_;
+  }
 
   dex::StringIndex GetStringIndex() const {
     return string_index_;
   }
 
-  uint64_t GetAddress() const {
-    DCHECK(HasAddress(GetLoadKind()));
-    return load_data_.address;
+  Handle<mirror::String> GetString() const {
+    return string_;
+  }
+
+  void SetString(Handle<mirror::String> str) {
+    string_ = str;
   }
 
   bool CanBeMoved() const OVERRIDE { return true; }
@@ -5848,18 +5840,6 @@ class HLoadString FINAL : public HInstruction {
   static_assert(kNumberOfLoadStringPackedBits <= kMaxNumberOfPackedBits, "Too many packed fields.");
   using LoadKindField = BitField<LoadKind, kFieldLoadKind, kFieldLoadKindSize>;
 
-  static bool HasStringReference(LoadKind load_kind) {
-    return load_kind == LoadKind::kBootImageLinkTimeAddress ||
-        load_kind == LoadKind::kBootImageLinkTimePcRelative ||
-        load_kind == LoadKind::kBssEntry ||
-        load_kind == LoadKind::kDexCacheViaMethod ||
-        load_kind == LoadKind::kJitTableAddress;
-  }
-
-  static bool HasAddress(LoadKind load_kind) {
-    return load_kind == LoadKind::kBootImageAddress;
-  }
-
   void SetLoadKindInternal(LoadKind load_kind);
 
   // The special input is the HCurrentMethod for kDexCacheViaMethod.
@@ -5867,24 +5847,14 @@ class HLoadString FINAL : public HInstruction {
   // for PC-relative loads, i.e. kDexCachePcRelative or kBootImageLinkTimePcRelative.
   HUserRecord<HInstruction*> special_input_;
 
-  // String index serves also as the hash code and it's also needed for slow-paths,
-  // so it must not be overwritten with other load data.
   dex::StringIndex string_index_;
+  const DexFile& dex_file_;
 
-  union {
-    const DexFile* dex_file_;            // For string reference.
-    uint64_t address;  // Up to 64-bit, needed for kDexCacheAddress on 64-bit targets.
-  } load_data_;
+  Handle<mirror::String> string_;
 
   DISALLOW_COPY_AND_ASSIGN(HLoadString);
 };
 std::ostream& operator<<(std::ostream& os, HLoadString::LoadKind rhs);
-
-// Note: defined outside class to see operator<<(., HLoadString::LoadKind).
-inline const DexFile& HLoadString::GetDexFile() const {
-  DCHECK(HasStringReference(GetLoadKind())) << GetLoadKind();
-  return *load_data_.dex_file_;
-}
 
 // Note: defined outside class to see operator<<(., HLoadString::LoadKind).
 inline void HLoadString::AddSpecialInput(HInstruction* special_input) {
