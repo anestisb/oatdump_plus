@@ -1024,10 +1024,11 @@ define define-test-art-run-test
     test_groups += ART_RUN_TEST_$$(uc_host_or_target)_NO_IMAGE_RULES
     run_test_options += --no-image
     # Add the core dependency. This is required for pre-building.
+    # Use the PIC image, as it is the default in run-test, to match dependencies.
     ifeq ($(1),host)
-      prereq_rule += $$(HOST_CORE_IMAGE_$$(image_suffix)_no-pic_$(13))
+      prereq_rule += $$(HOST_CORE_IMAGE_$$(image_suffix)_pic_$(13))
     else
-      prereq_rule += $$(TARGET_CORE_IMAGE_$$(image_suffix)_no-pic_$(13))
+      prereq_rule += $$(TARGET_CORE_IMAGE_$$(image_suffix)_pic_$(13))
     endif
   else
     ifeq ($(9),npicimage)
