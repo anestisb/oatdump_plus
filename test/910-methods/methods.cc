@@ -114,6 +114,80 @@ extern "C" JNIEXPORT jint JNICALL Java_Main_getMethodModifiers(
   return modifiers;
 }
 
+static bool ErrorToException(JNIEnv* env, jvmtiError error) {
+  if (error == JVMTI_ERROR_NONE) {
+    return false;
+  }
+
+  ScopedLocalRef<jclass> rt_exception(env, env->FindClass("java/lang/RuntimeException"));
+  if (rt_exception.get() == nullptr) {
+    // CNFE should be pending.
+    return true;
+  }
+
+  char* err;
+  jvmti_env->GetErrorName(error, &err);
+
+  env->ThrowNew(rt_exception.get(), err);
+
+  jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
+  return true;
+}
+
+extern "C" JNIEXPORT jint JNICALL Java_Main_getMaxLocals(
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject method) {
+  jmethodID id = env->FromReflectedMethod(method);
+
+  jint max_locals;
+  jvmtiError result = jvmti_env->GetMaxLocals(id, &max_locals);
+  if (ErrorToException(env, result)) {
+    return -1;
+  }
+
+  return max_locals;
+}
+
+extern "C" JNIEXPORT jint JNICALL Java_Main_getArgumentsSize(
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject method) {
+  jmethodID id = env->FromReflectedMethod(method);
+
+  jint arguments;
+  jvmtiError result = jvmti_env->GetArgumentsSize(id, &arguments);
+  if (ErrorToException(env, result)) {
+    return -1;
+  }
+
+  return arguments;
+}
+
+extern "C" JNIEXPORT jlong JNICALL Java_Main_getMethodLocationStart(
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject method) {
+  jmethodID id = env->FromReflectedMethod(method);
+
+  jlong start;
+  jlong end;
+  jvmtiError result = jvmti_env->GetMethodLocation(id, &start, &end);
+  if (ErrorToException(env, result)) {
+    return -1;
+  }
+
+  return start;
+}
+
+extern "C" JNIEXPORT jlong JNICALL Java_Main_getMethodLocationEnd(
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject method) {
+  jmethodID id = env->FromReflectedMethod(method);
+
+  jlong start;
+  jlong end;
+  jvmtiError result = jvmti_env->GetMethodLocation(id, &start, &end);
+  if (ErrorToException(env, result)) {
+    return -1;
+  }
+
+  return end;
+}
+
 // Don't do anything
 jint OnLoad(JavaVM* vm,
             char* options ATTRIBUTE_UNUSED,
