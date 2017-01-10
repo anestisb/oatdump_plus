@@ -653,7 +653,7 @@ void ThreadList::SuspendAllInternal(Thread* self,
   // is done with a timeout so that we can detect problems.
 #if ART_USE_FUTEXES
   timespec wait_timeout;
-  InitTimeSpec(true, CLOCK_MONOTONIC, 10000, 0, &wait_timeout);
+  InitTimeSpec(false, CLOCK_MONOTONIC, 10000, 0, &wait_timeout);
 #endif
   while (true) {
     int32_t cur_val = pending_threads.LoadRelaxed();
