@@ -107,7 +107,9 @@ public class Main {
   private static void testClassType(Class<?> c) throws Exception {
     boolean isInterface = isInterface(c);
     boolean isArray = isArrayClass(c);
-    System.out.println(c.getName() + " interface=" + isInterface + " array=" + isArray);
+    boolean isModifiable = isModifiableClass(c);
+    System.out.println(c.getName() + " interface=" + isInterface + " array=" + isArray +
+        " modifiable=" + isModifiable);
   }
 
   private static void testClassFields(Class<?> c) throws Exception {
@@ -149,6 +151,7 @@ public class Main {
     }
   }
 
+  private static native boolean isModifiableClass(Class<?> c);
   private static native String[] getClassSignature(Class<?> c);
 
   private static native boolean isInterface(Class<?> c);
