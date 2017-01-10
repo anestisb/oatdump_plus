@@ -710,7 +710,7 @@ bool DlOpenOatFile::Dlopen(const std::string& elf_filename,
       return false;
     }
 #ifdef ART_TARGET_ANDROID
-    android_dlextinfo extinfo;
+    android_dlextinfo extinfo = {};
     extinfo.flags = ANDROID_DLEXT_FORCE_LOAD |                  // Force-load, don't reuse handle
                                                                 //   (open oat files multiple
                                                                 //    times).
