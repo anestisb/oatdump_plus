@@ -26,7 +26,7 @@
 
 // Headers for LogMessage::LogLine.
 #ifdef ART_TARGET_ANDROID
-#include <android/log.h>
+#include <log/log.h>
 #else
 #include <sys/types.h>
 #include <unistd.h>
