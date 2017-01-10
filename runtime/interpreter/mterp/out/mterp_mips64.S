@@ -12293,13 +12293,7 @@ MterpExceptionReturn:
  */
 MterpReturn:
     ld      a2, OFF_FP_RESULT_REGISTER(rFP)
-    lw      ra, THREAD_FLAGS_OFFSET(rSELF)
     sd      a0, 0(a2)
-    move    a0, rSELF
-    and     ra, ra, THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
-    beqzc   ra, check2
-    jal     MterpSuspendCheck                       # (self)
-check2:
     li      v0, 1                                   # signal return to caller.
 MterpDone:
 /*
