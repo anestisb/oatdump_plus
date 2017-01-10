@@ -280,4 +280,43 @@ jvmtiError MethodUtil::GetLineNumberTable(jvmtiEnv* env,
   return ERR(NONE);
 }
 
+template <typename T>
+static jvmtiError IsMethodT(jvmtiEnv* env ATTRIBUTE_UNUSED,
+                            jmethodID method,
+                            T test,
+                            jboolean* is_t_ptr) {
+  if (method == nullptr) {
+    return ERR(INVALID_METHODID);
+  }
+  if (is_t_ptr == nullptr) {
+    return ERR(NULL_POINTER);
+  }
+
+  art::ArtMethod* art_method = art::jni::DecodeArtMethod(method);
+  *is_t_ptr = test(art_method) ? JNI_TRUE : JNI_FALSE;
+
+  return ERR(NONE);
+}
+
+jvmtiError MethodUtil::IsMethodNative(jvmtiEnv* env, jmethodID m, jboolean* is_native_ptr) {
+  auto test = [](art::ArtMethod* method) {
+    return method->IsNative();
+  };
+  return IsMethodT(env, m, test, is_native_ptr);
+}
+
+jvmtiError MethodUtil::IsMethodObsolete(jvmtiEnv* env, jmethodID m, jboolean* is_obsolete_ptr) {
+  auto test = [](art::ArtMethod* method) {
+    return method->IsObsolete();
+  };
+  return IsMethodT(env, m, test, is_obsolete_ptr);
+}
+
+jvmtiError MethodUtil::IsMethodSynthetic(jvmtiEnv* env, jmethodID m, jboolean* is_synthetic_ptr) {
+  auto test = [](art::ArtMethod* method) {
+    return method->IsSynthetic();
+  };
+  return IsMethodT(env, m, test, is_synthetic_ptr);
+}
+
 }  // namespace openjdkjvmti

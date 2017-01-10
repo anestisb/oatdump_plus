@@ -32,6 +32,10 @@ public class Main {
     testMethod("java.util.List", "add", Object.class);
 
     testMethod(getProxyClass(), "run");
+
+    // Find a synthetic method in the dummy inner class. Do not print the name. Javac and Jack
+    // disagree on the naming of synthetic accessors.
+    testMethod(findSyntheticMethod(), NestedSynthetic.class, false);
   }
 
   private static Class<?> proxyClass = null;
@@ -54,8 +58,17 @@ public class Main {
   private static void testMethod(Class<?> base, String methodName, Class<?>... types)
       throws Exception {
     Method m = base.getDeclaredMethod(methodName, types);
+    testMethod(m, base, true);
+  }
+
+  private static void testMethod(Method m, Class<?> base, boolean printName) {
     String[] result = getMethodName(m);
-    System.out.println(Arrays.toString(result));
+    if (!result[0].equals(m.getName())) {
+      throw new RuntimeException("Name not equal: " + m.getName() + " vs " + result[0]);
+    }
+    if (printName) {
+      System.out.println(Arrays.toString(result));
+    }
 
     Class<?> declClass = getMethodDeclaringClass(m);
     if (base != declClass) {
@@ -96,6 +109,29 @@ public class Main {
     } catch (RuntimeException e) {
       System.out.println(e.getMessage());
     }
+
+    System.out.println("Is native: " + isMethodNative(m));
+    System.out.println("Is obsolete: " + isMethodObsolete(m));
+    System.out.println("Is synthetic: " + isMethodSynthetic(m));
+  }
+
+  private static class NestedSynthetic {
+    // Accessing this private field will create a synthetic accessor method;
+    private static String dummy;
+  }
+
+  private static void dummyAccess() {
+    System.out.println(NestedSynthetic.dummy);
+  }
+
+  private static Method findSyntheticMethod() throws Exception {
+    Method methods[] = NestedSynthetic.class.getDeclaredMethods();
+    for (Method m : methods) {
+      if (m.isSynthetic()) {
+        return m;
+      }
+    }
+    throw new RuntimeException("Could not find synthetic method");
   }
 
   private static native String[] getMethodName(Method m);
@@ -105,4 +141,7 @@ public class Main {
   private static native int getArgumentsSize(Method m);
   private static native long getMethodLocationStart(Method m);
   private static native long getMethodLocationEnd(Method m);
+  private static native boolean isMethodNative(Method m);
+  private static native boolean isMethodObsolete(Method m);
+  private static native boolean isMethodSynthetic(Method m);
 }

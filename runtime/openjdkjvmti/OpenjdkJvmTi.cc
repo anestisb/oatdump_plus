@@ -727,15 +727,15 @@ class JvmtiFunctions {
   }
 
   static jvmtiError IsMethodNative(jvmtiEnv* env, jmethodID method, jboolean* is_native_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return MethodUtil::IsMethodNative(env, method, is_native_ptr);
   }
 
   static jvmtiError IsMethodSynthetic(jvmtiEnv* env, jmethodID method, jboolean* is_synthetic_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return MethodUtil::IsMethodSynthetic(env, method, is_synthetic_ptr);
   }
 
   static jvmtiError IsMethodObsolete(jvmtiEnv* env, jmethodID method, jboolean* is_obsolete_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return MethodUtil::IsMethodObsolete(env, method, is_obsolete_ptr);
   }
 
   static jvmtiError SetNativeMethodPrefix(jvmtiEnv* env, const char* prefix) {
