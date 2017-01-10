@@ -75,7 +75,6 @@ AgentLib agents[] = {
   { "918-fields", Test918Fields::OnLoad, nullptr },
   { "919-obsolete-fields", common_redefine::OnLoad, nullptr },
   { "920-objects", Test920Objects::OnLoad, nullptr },
-  { "921-hello-failure", common_redefine::OnLoad, nullptr },
 };
 
 static AgentLib* FindAgent(char* name) {
