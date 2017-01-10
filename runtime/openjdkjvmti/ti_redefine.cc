@@ -37,6 +37,8 @@
 
 #include "art_jvmti.h"
 #include "base/logging.h"
+#include "dex_file.h"
+#include "dex_file_types.h"
 #include "events-inl.h"
 #include "gc/allocation_listener.h"
 #include "gc/heap.h"
@@ -542,6 +544,118 @@ void Redefiner::EnsureObsoleteMethodsAreDeoptimized() {
   i->ReJitEverything("libOpenJkdJvmti - Class Redefinition");
 }
 
+bool Redefiner::CheckClass() {
+  // TODO Might just want to put it in a ObjPtr and NoSuspend assert.
+  art::StackHandleScope<1> hs(self_);
+  // Easy check that only 1 class def is present.
+  if (dex_file_->NumClassDefs() != 1) {
+    RecordFailure(ERR(ILLEGAL_ARGUMENT),
+                  StringPrintf("Expected 1 class def in dex file but found %d",
+                               dex_file_->NumClassDefs()));
+    return false;
+  }
+  // Get the ClassDef from the new DexFile.
+  // Since the dex file has only a single class def the index is always 0.
+  const art::DexFile::ClassDef& def = dex_file_->GetClassDef(0);
+  // Get the class as it is now.
+  art::Handle<art::mirror::Class> current_class(hs.NewHandle(GetMirrorClass()));
+
+  // Check the access flags didn't change.
+  if (def.GetJavaAccessFlags() != (current_class->GetAccessFlags() & art::kAccValidClassFlags)) {
+    RecordFailure(ERR(UNSUPPORTED_REDEFINITION_CLASS_MODIFIERS_CHANGED),
+                  "Cannot change modifiers of class by redefinition");
+    return false;
+  }
+
+  // Check class name.
+  // These should have been checked by the dexfile verifier on load.
+  DCHECK_NE(def.class_idx_, art::dex::TypeIndex::Invalid()) << "Invalid type index";
+  const char* descriptor = dex_file_->StringByTypeIdx(def.class_idx_);
+  DCHECK(descriptor != nullptr) << "Invalid dex file structure!";
+  if (!current_class->DescriptorEquals(descriptor)) {
+    std::string storage;
+    RecordFailure(ERR(NAMES_DONT_MATCH),
+                  StringPrintf("expected file to contain class called '%s' but found '%s'!",
+                               current_class->GetDescriptor(&storage),
+                               descriptor));
+    return false;
+  }
+  if (current_class->IsObjectClass()) {
+    if (def.superclass_idx_ != art::dex::TypeIndex::Invalid()) {
+      RecordFailure(ERR(UNSUPPORTED_REDEFINITION_HIERARCHY_CHANGED), "Superclass added!");
+      return false;
+    }
+  } else {
+    const char* super_descriptor = dex_file_->StringByTypeIdx(def.superclass_idx_);
+    DCHECK(descriptor != nullptr) << "Invalid dex file structure!";
+    if (!current_class->GetSuperClass()->DescriptorEquals(super_descriptor)) {
+      RecordFailure(ERR(UNSUPPORTED_REDEFINITION_HIERARCHY_CHANGED), "Superclass changed");
+      return false;
+    }
+  }
+  const art::DexFile::TypeList* interfaces = dex_file_->GetInterfacesList(def);
+  if (interfaces == nullptr) {
+    if (current_class->NumDirectInterfaces() != 0) {
+      RecordFailure(ERR(UNSUPPORTED_REDEFINITION_HIERARCHY_CHANGED), "Interfaces added");
+      return false;
+    }
+  } else {
+    DCHECK(!current_class->IsProxyClass());
+    const art::DexFile::TypeList* current_interfaces = current_class->GetInterfaceTypeList();
+    if (current_interfaces == nullptr || current_interfaces->Size() != interfaces->Size()) {
+      RecordFailure(ERR(UNSUPPORTED_REDEFINITION_HIERARCHY_CHANGED), "Interfaces added or removed");
+      return false;
+    }
+    // The order of interfaces is (barely) meaningful so we error if it changes.
+    const art::DexFile& orig_dex_file = current_class->GetDexFile();
+    for (uint32_t i = 0; i < interfaces->Size(); i++) {
+      if (strcmp(
+            dex_file_->StringByTypeIdx(interfaces->GetTypeItem(i).type_idx_),
+            orig_dex_file.StringByTypeIdx(current_interfaces->GetTypeItem(i).type_idx_)) != 0) {
+        RecordFailure(ERR(UNSUPPORTED_REDEFINITION_HIERARCHY_CHANGED),
+                      "Interfaces changed or re-ordered");
+        return false;
+      }
+    }
+  }
+  LOG(WARNING) << "No verification is done on annotations of redefined classes.";
+
+  return true;
+}
+
+// TODO Move this to use IsRedefinable when that function is made.
+bool Redefiner::CheckRedefinable() {
+  art::ObjPtr<art::mirror::Class> klass(GetMirrorClass());
+  if (klass->IsPrimitive()) {
+    RecordFailure(ERR(UNMODIFIABLE_CLASS),
+                  "Modification of primitive classes is not supported");
+    return false;
+  } else if (klass->IsInterface()) {
+    RecordFailure(ERR(UNMODIFIABLE_CLASS),
+                  "Modification of Interface classes is currently not supported");
+    return false;
+  } else if (klass->IsArrayClass()) {
+    RecordFailure(ERR(UNMODIFIABLE_CLASS),
+                  "Modification of Array classes is not supported");
+    return false;
+  } else if (klass->IsProxyClass()) {
+    RecordFailure(ERR(UNMODIFIABLE_CLASS),
+                  "Modification of proxy classes is not supported");
+    return false;
+  }
+
+  // TODO We should check if the class has non-obsoletable methods on the stack
+  LOG(WARNING) << "presence of non-obsoletable methods on stacks is not currently checked";
+  return true;
+}
+
+bool Redefiner::CheckRedefinitionIsValid() {
+  return CheckRedefinable() &&
+      CheckClass() &&
+      CheckSameFields() &&
+      CheckSameMethods();
+}
+
 jvmtiError Redefiner::Run() {
   art::StackHandleScope<5> hs(self_);
   // TODO We might want to have a global lock (or one based on the class being redefined at least)
@@ -552,7 +666,7 @@ jvmtiError Redefiner::Run() {
   // doing a try loop. The other allocations we need to ensure that nothing has changed in the time
   // between allocating them and pausing all threads before we can update them so we need to do a
   // try loop.
-  if (!EnsureRedefinitionIsValid() || !EnsureClassAllocationsFinished()) {
+  if (!CheckRedefinitionIsValid() || !EnsureClassAllocationsFinished()) {
     return result_;
   }
   art::MutableHandle<art::mirror::ClassLoader> source_class_loader(
