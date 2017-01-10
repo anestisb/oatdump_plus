@@ -152,28 +152,13 @@ class Redefiner {
 
   void RecordFailure(jvmtiError result, const std::string& error_msg);
 
+  // TODO Actually write this.
   // This will check that no constraints are violated (more than 1 class in dex file, any changes in
   // number/declaration of methods & fields, changes in access flags, etc.)
-  bool CheckRedefinitionIsValid() REQUIRES_SHARED(art::Locks::mutator_lock_);
-
-  // Checks that the class can even be redefined.
-  bool CheckRedefinable() REQUIRES_SHARED(art::Locks::mutator_lock_);
-
-  // Checks that the dex file does not add/remove methods.
-  bool CheckSameMethods() REQUIRES_SHARED(art::Locks::mutator_lock_) {
-    LOG(WARNING) << "methods are not checked for modification currently";
+  bool EnsureRedefinitionIsValid() {
+    LOG(WARNING) << "Redefinition is not checked for validity currently";
     return true;
   }
-
-  // Checks that the dex file does not modify fields
-  bool CheckSameFields() REQUIRES_SHARED(art::Locks::mutator_lock_) {
-    LOG(WARNING) << "Fields are not checked for modification currently";
-    return true;
-  }
-
-  // Checks that the dex file contains only the single expected class and that the top-level class
-  // data has not been modified in an incompatible manner.
-  bool CheckClass() REQUIRES_SHARED(art::Locks::mutator_lock_);
 
   bool UpdateJavaDexFile(art::ObjPtr<art::mirror::Object> java_dex_file,
                          art::ObjPtr<art::mirror::LongArray> new_cookie,

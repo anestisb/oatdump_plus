@@ -17,7 +17,6 @@
 #include "ti-agent/common_helper.h"
 
 #include <stdio.h>
-#include <sstream>
 
 #include "art_method.h"
 #include "jni.h"
@@ -42,24 +41,8 @@ void SetAllCapabilities(jvmtiEnv* env) {
 
 namespace common_redefine {
 
-static void throwRedefinitionError(jvmtiEnv* jvmti, JNIEnv* env, jclass target, jvmtiError res) {
-  std::stringstream err;
-  char* signature = nullptr;
-  char* generic = nullptr;
-  jvmti->GetClassSignature(target, &signature, &generic);
-  char* error = nullptr;
-  jvmti->GetErrorName(res, &error);
-  err << "Failed to redefine class <" << signature << "> due to " << error;
-  std::string message = err.str();
-  jvmti->Deallocate(reinterpret_cast<unsigned char*>(signature));
-  jvmti->Deallocate(reinterpret_cast<unsigned char*>(generic));
-  jvmti->Deallocate(reinterpret_cast<unsigned char*>(error));
-  env->ThrowNew(env->FindClass("java/lang/Exception"), message.c_str());
-}
-
 using RedefineDirectFunction = jvmtiError (*)(jvmtiEnv*, jclass, jint, const unsigned char*);
-static void DoClassTransformation(jvmtiEnv* jvmti_env,
-                                  JNIEnv* env,
+static void DoClassTransformation(jvmtiEnv* jvmti_env, JNIEnv* env,
                                   jclass target,
                                   jbyteArray class_file_bytes,
                                   jbyteArray dex_file_bytes) {
@@ -80,7 +63,7 @@ static void DoClassTransformation(jvmtiEnv* jvmti_env,
     res = f(jvmti_env, target, len, redef_bytes);
   }
   if (res != JVMTI_ERROR_NONE) {
-    throwRedefinitionError(jvmti_env, env, target, res);
+    printf("Redefinition failed!");
   }
 }
 
