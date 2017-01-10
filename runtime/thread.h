@@ -177,7 +177,7 @@ class Thread {
   void CheckEmptyCheckpoint() REQUIRES_SHARED(Locks::mutator_lock_);
 
   static Thread* FromManagedThread(const ScopedObjectAccessAlreadyRunnable& ts,
-                                   mirror::Object* thread_peer)
+                                   ObjPtr<mirror::Object> thread_peer)
       REQUIRES(Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
   static Thread* FromManagedThread(const ScopedObjectAccessAlreadyRunnable& ts, jobject thread)
@@ -312,7 +312,7 @@ class Thread {
 
   size_t NumberOfHeldMutexes() const;
 
-  bool HoldsLock(mirror::Object*) const REQUIRES_SHARED(Locks::mutator_lock_);
+  bool HoldsLock(ObjPtr<mirror::Object> object) const REQUIRES_SHARED(Locks::mutator_lock_);
 
   /*
    * Changes the priority of this thread to match that of the java.lang.Thread object.
@@ -413,7 +413,7 @@ class Thread {
 
   // Returns whether the given exception was thrown by the current Java method being executed
   // (Note that this includes native Java methods).
-  bool IsExceptionThrownByCurrentMethod(mirror::Throwable* exception) const
+  bool IsExceptionThrownByCurrentMethod(ObjPtr<mirror::Throwable> exception) const
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   void SetTopOfStack(ArtMethod** top_method) {
@@ -925,9 +925,11 @@ class Thread {
   void PushDeoptimizationContext(const JValue& return_value,
                                  bool is_reference,
                                  bool from_code,
-                                 mirror::Throwable* exception)
+                                 ObjPtr<mirror::Throwable> exception)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  void PopDeoptimizationContext(JValue* result, mirror::Throwable** exception, bool* from_code)
+  void PopDeoptimizationContext(JValue* result,
+                                ObjPtr<mirror::Throwable>* exception,
+                                bool* from_code)
       REQUIRES_SHARED(Locks::mutator_lock_);
   void AssertHasDeoptimizationContext()
       REQUIRES_SHARED(Locks::mutator_lock_);

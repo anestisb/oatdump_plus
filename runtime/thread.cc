@@ -154,18 +154,18 @@ class DeoptimizationContextRecord {
   DeoptimizationContextRecord(const JValue& ret_val,
                               bool is_reference,
                               bool from_code,
-                              mirror::Throwable* pending_exception,
+                              ObjPtr<mirror::Throwable> pending_exception,
                               DeoptimizationContextRecord* link)
       : ret_val_(ret_val),
         is_reference_(is_reference),
         from_code_(from_code),
-        pending_exception_(pending_exception),
+        pending_exception_(pending_exception.Ptr()),
         link_(link) {}
 
   JValue GetReturnValue() const { return ret_val_; }
   bool IsReference() const { return is_reference_; }
   bool GetFromCode() const { return from_code_; }
-  mirror::Throwable* GetPendingException() const { return pending_exception_; }
+  ObjPtr<mirror::Throwable> GetPendingException() const { return pending_exception_; }
   DeoptimizationContextRecord* GetLink() const { return link_; }
   mirror::Object** GetReturnValueAsGCRoot() {
     DCHECK(is_reference_);
@@ -219,7 +219,7 @@ class StackedShadowFrameRecord {
 void Thread::PushDeoptimizationContext(const JValue& return_value,
                                        bool is_reference,
                                        bool from_code,
-                                       mirror::Throwable* exception) {
+                                       ObjPtr<mirror::Throwable> exception) {
   DeoptimizationContextRecord* record = new DeoptimizationContextRecord(
       return_value,
       is_reference,
@@ -230,7 +230,7 @@ void Thread::PushDeoptimizationContext(const JValue& return_value,
 }
 
 void Thread::PopDeoptimizationContext(JValue* result,
-                                      mirror::Throwable** exception,
+                                      ObjPtr<mirror::Throwable>* exception,
                                       bool* from_code) {
   AssertHasDeoptimizationContext();
   DeoptimizationContextRecord* record = tlsPtr_.deoptimization_context_stack;
@@ -434,7 +434,7 @@ void* Thread::CreateCallback(void* arg) {
     Dbg::PostThreadStart(self);
 
     // Invoke the 'run' method of our java.lang.Thread.
-    mirror::Object* receiver = self->tlsPtr_.opeer;
+    ObjPtr<mirror::Object> receiver = self->tlsPtr_.opeer;
     jmethodID mid = WellKnownClasses::java_lang_Thread_run;
     ScopedLocalRef<jobject> ref(soa.Env(), soa.AddLocalReference<jobject>(receiver));
     InvokeVirtualOrInterfaceWithJValues(soa, ref.get(), mid, nullptr);
@@ -446,7 +446,7 @@ void* Thread::CreateCallback(void* arg) {
 }
 
 Thread* Thread::FromManagedThread(const ScopedObjectAccessAlreadyRunnable& soa,
-                                  mirror::Object* thread_peer) {
+                                  ObjPtr<mirror::Object> thread_peer) {
   ArtField* f = jni::DecodeArtField(WellKnownClasses::java_lang_Thread_nativePeer);
   Thread* result = reinterpret_cast<Thread*>(static_cast<uintptr_t>(f->GetLong(thread_peer)));
   // Sanity check that if we have a result it is either suspended or we hold the thread_list_lock_
@@ -1573,8 +1573,8 @@ struct StackDumpVisitor : public StackVisitor {
     }
     m = m->GetInterfaceMethodIfProxy(kRuntimePointerSize);
     const int kMaxRepetition = 3;
-    mirror::Class* c = m->GetDeclaringClass();
-    mirror::DexCache* dex_cache = c->GetDexCache();
+    ObjPtr<mirror::Class> c = m->GetDeclaringClass();
+    ObjPtr<mirror::DexCache> dex_cache = c->GetDexCache();
     int line_number = -1;
     if (dex_cache != nullptr) {  // be tolerant of bad input
       const DexFile* dex_file = dex_cache->GetDexFile();
@@ -1860,17 +1860,15 @@ void Thread::AssertPendingOOMException() const {
 void Thread::AssertNoPendingException() const {
   if (UNLIKELY(IsExceptionPending())) {
     ScopedObjectAccess soa(Thread::Current());
-    mirror::Throwable* exception = GetException();
-    LOG(FATAL) << "No pending exception expected: " << exception->Dump();
+    LOG(FATAL) << "No pending exception expected: " << GetException()->Dump();
   }
 }
 
 void Thread::AssertNoPendingExceptionForNewException(const char* msg) const {
   if (UNLIKELY(IsExceptionPending())) {
     ScopedObjectAccess soa(Thread::Current());
-    mirror::Throwable* exception = GetException();
     LOG(FATAL) << "Throwing new exception '" << msg << "' with unexpected pending exception: "
-        << exception->Dump();
+        << GetException()->Dump();
   }
 }
 
@@ -2213,7 +2211,7 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
     // class of the ArtMethod pointers.
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     StackHandleScope<1> hs(self_);
-    mirror::Class* array_class = class_linker->GetClassRoot(ClassLinker::kObjectArrayClass);
+    ObjPtr<mirror::Class> array_class = class_linker->GetClassRoot(ClassLinker::kObjectArrayClass);
     // The first element is the methods and dex pc array, the other elements are declaring classes
     // for the methods to ensure classes in the stack trace don't get unloaded.
     Handle<mirror::ObjectArray<mirror::Object>> trace(
@@ -2225,7 +2223,8 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
       self_->AssertPendingOOMException();
       return false;
     }
-    mirror::PointerArray* methods_and_pcs = class_linker->AllocPointerArray(self_, depth * 2);
+    ObjPtr<mirror::PointerArray> methods_and_pcs =
+        class_linker->AllocPointerArray(self_, depth * 2);
     const char* last_no_suspend_cause =
         self_->StartAssertNoThreadSuspension("Building internal stack trace");
     if (methods_and_pcs == nullptr) {
@@ -2255,7 +2254,7 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
     if (m->IsRuntimeMethod()) {
       return true;  // Ignore runtime frames (in particular callee save).
     }
-    mirror::PointerArray* trace_methods_and_pcs = GetTraceMethodsAndPCs();
+    ObjPtr<mirror::PointerArray> trace_methods_and_pcs = GetTraceMethodsAndPCs();
     trace_methods_and_pcs->SetElementPtrSize<kTransactionActive>(count_, m, pointer_size_);
     trace_methods_and_pcs->SetElementPtrSize<kTransactionActive>(
         trace_methods_and_pcs->GetLength() / 2 + count_,
@@ -2268,8 +2267,8 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
     return true;
   }
 
-  mirror::PointerArray* GetTraceMethodsAndPCs() const REQUIRES_SHARED(Locks::mutator_lock_) {
-    return down_cast<mirror::PointerArray*>(trace_->Get(0));
+  ObjPtr<mirror::PointerArray> GetTraceMethodsAndPCs() const REQUIRES_SHARED(Locks::mutator_lock_) {
+    return ObjPtr<mirror::PointerArray>::DownCast(MakeObjPtr(trace_->Get(0)));
   }
 
   mirror::ObjectArray<mirror::Object>* GetInternalStackTrace() const {
@@ -2311,7 +2310,7 @@ jobject Thread::CreateInternalStackTrace(const ScopedObjectAccessAlreadyRunnable
   build_trace_visitor.WalkStack();
   mirror::ObjectArray<mirror::Object>* trace = build_trace_visitor.GetInternalStackTrace();
   if (kIsDebugBuild) {
-    mirror::PointerArray* trace_methods = build_trace_visitor.GetTraceMethodsAndPCs();
+    ObjPtr<mirror::PointerArray> trace_methods = build_trace_visitor.GetTraceMethodsAndPCs();
     // Second half of trace_methods is dex PCs.
     for (uint32_t i = 0; i < static_cast<uint32_t>(trace_methods->GetLength() / 2); ++i) {
       auto* method = trace_methods->GetElementPtrSize<ArtMethod*>(
@@ -2326,7 +2325,7 @@ template jobject Thread::CreateInternalStackTrace<false>(
 template jobject Thread::CreateInternalStackTrace<true>(
     const ScopedObjectAccessAlreadyRunnable& soa) const;
 
-bool Thread::IsExceptionThrownByCurrentMethod(mirror::Throwable* exception) const {
+bool Thread::IsExceptionThrownByCurrentMethod(ObjPtr<mirror::Throwable> exception) const {
   CountStackDepthVisitor count_visitor(const_cast<Thread*>(this));
   count_visitor.WalkStack();
   return count_visitor.GetDepth() == exception->GetStackDepth();
@@ -2368,12 +2367,12 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(
   }
 
   for (int32_t i = 0; i < depth; ++i) {
-    mirror::ObjectArray<mirror::Object>* decoded_traces =
+    ObjPtr<mirror::ObjectArray<mirror::Object>> decoded_traces =
         soa.Decode<mirror::Object>(internal)->AsObjectArray<mirror::Object>();
     // Methods and dex PC trace is element 0.
     DCHECK(decoded_traces->Get(0)->IsIntArray() || decoded_traces->Get(0)->IsLongArray());
-    mirror::PointerArray* const method_trace =
-        down_cast<mirror::PointerArray*>(decoded_traces->Get(0));
+    ObjPtr<mirror::PointerArray> const method_trace =
+        ObjPtr<mirror::PointerArray>::DownCast(MakeObjPtr(decoded_traces->Get(0)));
     // Prepare parameters for StackTraceElement(String cls, String method, String file, int line)
     ArtMethod* method = method_trace->GetElementPtrSize<ArtMethod*>(i, kRuntimePointerSize);
     uint32_t dex_pc = method_trace->GetElementPtrSize<uint32_t>(
@@ -2415,8 +2414,11 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(
     if (method_name_object.Get() == nullptr) {
       return nullptr;
     }
-    mirror::StackTraceElement* obj = mirror::StackTraceElement::Alloc(
-        soa.Self(), class_name_object, method_name_object, source_name_object, line_number);
+    ObjPtr<mirror::StackTraceElement> obj =mirror::StackTraceElement::Alloc(soa.Self(),
+                                                                            class_name_object,
+                                                                            method_name_object,
+                                                                            source_name_object,
+                                                                            line_number);
     if (obj == nullptr) {
       return nullptr;
     }
@@ -2447,7 +2449,7 @@ void Thread::ThrowNewException(const char* exception_class_descriptor,
   ThrowNewWrappedException(exception_class_descriptor, msg);
 }
 
-static mirror::ClassLoader* GetCurrentClassLoader(Thread* self)
+static ObjPtr<mirror::ClassLoader> GetCurrentClassLoader(Thread* self)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   ArtMethod* method = self->GetCurrentMethod(nullptr);
   return method != nullptr
@@ -2794,7 +2796,7 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset) {
 
 void Thread::QuickDeliverException() {
   // Get exception from thread.
-  mirror::Throwable* exception = GetException();
+  ObjPtr<mirror::Throwable> exception = GetException();
   CHECK(exception != nullptr);
   if (exception == GetDeoptimizationException()) {
     artDeoptimize(this);
@@ -2807,8 +2809,8 @@ void Thread::QuickDeliverException() {
       IsExceptionThrownByCurrentMethod(exception)) {
     // Instrumentation may cause GC so keep the exception object safe.
     StackHandleScope<1> hs(this);
-    HandleWrapper<mirror::Throwable> h_exception(hs.NewHandleWrapper(&exception));
-    instrumentation->ExceptionCaughtEvent(this, exception);
+    HandleWrapperObjPtr<mirror::Throwable> h_exception(hs.NewHandleWrapper(&exception));
+    instrumentation->ExceptionCaughtEvent(this, exception.Ptr());
   }
   // Does instrumentation need to deoptimize the stack?
   // Note: we do this *after* reporting the exception to instrumentation in case it
@@ -2870,7 +2872,7 @@ struct CurrentMethodVisitor FINAL : public StackVisitor {
     dex_pc_ = GetDexPc(abort_on_error_);
     return false;
   }
-  mirror::Object* this_object_;
+  ObjPtr<mirror::Object> this_object_;
   ArtMethod* method_;
   uint32_t dex_pc_;
   const bool abort_on_error_;
@@ -2885,11 +2887,8 @@ ArtMethod* Thread::GetCurrentMethod(uint32_t* dex_pc, bool abort_on_error) const
   return visitor.method_;
 }
 
-bool Thread::HoldsLock(mirror::Object* object) const {
-  if (object == nullptr) {
-    return false;
-  }
-  return object->GetLockOwnerThreadId() == GetThreadId();
+bool Thread::HoldsLock(ObjPtr<mirror::Object> object) const {
+  return object != nullptr && object->GetLockOwnerThreadId() == GetThreadId();
 }
 
 // RootVisitor parameters are: (const Object* obj, size_t vreg, const StackVisitor* visitor).
@@ -2945,7 +2944,7 @@ class ReferenceMapVisitor : public StackVisitor {
   void VisitDeclaringClass(ArtMethod* method)
       REQUIRES_SHARED(Locks::mutator_lock_)
       NO_THREAD_SAFETY_ANALYSIS {
-    mirror::Class* klass = method->GetDeclaringClassUnchecked<kWithoutReadBarrier>();
+    ObjPtr<mirror::Class> klass = method->GetDeclaringClassUnchecked<kWithoutReadBarrier>();
     // klass can be null for runtime methods.
     if (klass != nullptr) {
       if (kVerifyImageObjectsMarked) {
@@ -2954,10 +2953,10 @@ class ReferenceMapVisitor : public StackVisitor {
                                                                                 /*fail_ok*/true);
         if (space != nullptr && space->IsImageSpace()) {
           bool failed = false;
-          if (!space->GetLiveBitmap()->Test(klass)) {
+          if (!space->GetLiveBitmap()->Test(klass.Ptr())) {
             failed = true;
             LOG(FATAL_WITHOUT_ABORT) << "Unmarked object in image " << *space;
-          } else if (!heap->GetLiveBitmap()->Test(klass)) {
+          } else if (!heap->GetLiveBitmap()->Test(klass.Ptr())) {
             failed = true;
             LOG(FATAL_WITHOUT_ABORT) << "Unmarked object in image through live bitmap " << *space;
           }
@@ -2965,17 +2964,17 @@ class ReferenceMapVisitor : public StackVisitor {
             GetThread()->Dump(LOG_STREAM(FATAL_WITHOUT_ABORT));
             space->AsImageSpace()->DumpSections(LOG_STREAM(FATAL_WITHOUT_ABORT));
             LOG(FATAL_WITHOUT_ABORT) << "Method@" << method->GetDexMethodIndex() << ":" << method
-                                     << " klass@" << klass;
+                                     << " klass@" << klass.Ptr();
             // Pretty info last in case it crashes.
             LOG(FATAL) << "Method " << method->PrettyMethod() << " klass "
                        << klass->PrettyClass();
           }
         }
       }
-      mirror::Object* new_ref = klass;
+      mirror::Object* new_ref = klass.Ptr();
       visitor_(&new_ref, -1, this);
       if (new_ref != klass) {
-        method->CASDeclaringClass(klass, new_ref->AsClass());
+        method->CASDeclaringClass(klass.Ptr(), new_ref->AsClass());
       }
     }
   }
@@ -3367,7 +3366,7 @@ void Thread::DeoptimizeWithDeoptimizationException(JValue* result) {
   ClearException();
   ShadowFrame* shadow_frame =
       PopStackedShadowFrame(StackedShadowFrameType::kDeoptimizationShadowFrame);
-  mirror::Throwable* pending_exception = nullptr;
+  ObjPtr<mirror::Throwable> pending_exception;
   bool from_code = false;
   PopDeoptimizationContext(result, &pending_exception, &from_code);
   SetTopOfStack(nullptr);

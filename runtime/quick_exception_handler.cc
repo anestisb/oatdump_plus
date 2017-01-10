@@ -140,7 +140,7 @@ class CatchBlockStackVisitor FINAL : public StackVisitor {
   DISALLOW_COPY_AND_ASSIGN(CatchBlockStackVisitor);
 };
 
-void QuickExceptionHandler::FindCatch(mirror::Throwable* exception) {
+void QuickExceptionHandler::FindCatch(ObjPtr<mirror::Throwable> exception) {
   DCHECK(!is_deoptimization_);
   if (kDebugExceptionDelivery) {
     mirror::String* msg = exception->GetDetailMessage();
