@@ -1843,11 +1843,11 @@ void InstructionSimplifierVisitor::SimplifyStringCharAt(HInvoke* invoke) {
   // so create the HArrayLength, HBoundsCheck and HArrayGet.
   HArrayLength* length = new (arena) HArrayLength(str, dex_pc, /* is_string_length */ true);
   invoke->GetBlock()->InsertInstructionBefore(length, invoke);
-  HBoundsCheck* bounds_check =
-      new (arena) HBoundsCheck(index, length, dex_pc, invoke->GetDexMethodIndex());
+  HBoundsCheck* bounds_check = new (arena) HBoundsCheck(
+      index, length, dex_pc, invoke->GetDexMethodIndex());
   invoke->GetBlock()->InsertInstructionBefore(bounds_check, invoke);
-  HArrayGet* array_get =
-      new (arena) HArrayGet(str, index, Primitive::kPrimChar, dex_pc, /* is_string_char_at */ true);
+  HArrayGet* array_get = new (arena) HArrayGet(
+      str, bounds_check, Primitive::kPrimChar, dex_pc, /* is_string_char_at */ true);
   invoke->GetBlock()->ReplaceAndRemoveInstructionWith(invoke, array_get);
   bounds_check->CopyEnvironmentFrom(invoke->GetEnvironment());
   GetGraph()->SetHasBoundsChecks(true);
