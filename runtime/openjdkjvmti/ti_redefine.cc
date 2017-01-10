@@ -195,6 +195,45 @@ class ObsoleteMethodStackVisitor : public art::StackVisitor {
   std::string* error_msg_;
 };
 
+jvmtiError Redefiner::IsModifiableClass(jvmtiEnv* env ATTRIBUTE_UNUSED,
+                                        jclass klass,
+                                        jboolean* is_redefinable) {
+  // TODO Check for the appropriate feature flags once we have enabled them.
+  art::Thread* self = art::Thread::Current();
+  art::ScopedObjectAccess soa(self);
+  art::StackHandleScope<1> hs(self);
+  art::ObjPtr<art::mirror::Object> obj(self->DecodeJObject(klass));
+  if (obj.IsNull()) {
+    return ERR(INVALID_CLASS);
+  }
+  art::Handle<art::mirror::Class> h_klass(hs.NewHandle(obj->AsClass()));
+  std::string err_unused;
+  *is_redefinable =
+      Redefiner::GetClassRedefinitionError(h_klass, &err_unused) == OK ? JNI_TRUE : JNI_FALSE;
+  return OK;
+}
+
+jvmtiError Redefiner::GetClassRedefinitionError(art::Handle<art::mirror::Class> klass,
+                                                /*out*/std::string* error_msg) {
+  if (klass->IsPrimitive()) {
+    *error_msg = "Modification of primitive classes is not supported";
+    return ERR(UNMODIFIABLE_CLASS);
+  } else if (klass->IsInterface()) {
+    *error_msg = "Modification of Interface classes is currently not supported";
+    return ERR(UNMODIFIABLE_CLASS);
+  } else if (klass->IsArrayClass()) {
+    *error_msg = "Modification of Array classes is not supported";
+    return ERR(UNMODIFIABLE_CLASS);
+  } else if (klass->IsProxyClass()) {
+    *error_msg = "Modification of proxy classes is not supported";
+    return ERR(UNMODIFIABLE_CLASS);
+  }
+
+  // TODO We should check if the class has non-obsoletable methods on the stack
+  LOG(WARNING) << "presence of non-obsoletable methods on stacks is not currently checked";
+  return OK;
+}
+
 // Moves dex data to an anonymous, read-only mmap'd region.
 std::unique_ptr<art::MemMap> Redefiner::MoveDataToMemMap(const std::string& original_location,
                                                          jint data_len,
@@ -625,28 +664,17 @@ bool Redefiner::CheckClass() {
 
 // TODO Move this to use IsRedefinable when that function is made.
 bool Redefiner::CheckRedefinable() {
-  art::ObjPtr<art::mirror::Class> klass(GetMirrorClass());
-  if (klass->IsPrimitive()) {
-    RecordFailure(ERR(UNMODIFIABLE_CLASS),
-                  "Modification of primitive classes is not supported");
-    return false;
-  } else if (klass->IsInterface()) {
-    RecordFailure(ERR(UNMODIFIABLE_CLASS),
-                  "Modification of Interface classes is currently not supported");
-    return false;
-  } else if (klass->IsArrayClass()) {
-    RecordFailure(ERR(UNMODIFIABLE_CLASS),
-                  "Modification of Array classes is not supported");
-    return false;
-  } else if (klass->IsProxyClass()) {
-    RecordFailure(ERR(UNMODIFIABLE_CLASS),
-                  "Modification of proxy classes is not supported");
-    return false;
-  }
+  std::string err;
+  art::StackHandleScope<1> hs(self_);
 
-  // TODO We should check if the class has non-obsoletable methods on the stack
-  LOG(WARNING) << "presence of non-obsoletable methods on stacks is not currently checked";
-  return true;
+  art::Handle<art::mirror::Class> h_klass(hs.NewHandle(GetMirrorClass()));
+  jvmtiError res = Redefiner::GetClassRedefinitionError(h_klass, &err);
+  if (res != OK) {
+    RecordFailure(res, err);
+    return false;
+  } else {
+    return true;
+  }
 }
 
 bool Redefiner::CheckRedefinitionIsValid() {
