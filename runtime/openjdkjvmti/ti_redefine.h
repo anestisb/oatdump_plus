@@ -80,6 +80,8 @@ class Redefiner {
                                   unsigned char* dex_data,
                                   std::string* error_msg);
 
+  static jvmtiError IsModifiableClass(jvmtiEnv* env, jclass klass, jboolean* is_redefinable);
+
  private:
   jvmtiError result_;
   art::Runtime* runtime_;
@@ -105,6 +107,10 @@ class Redefiner {
         dex_file_(std::move(redefined_dex_file)),
         error_msg_(error_msg),
         class_sig_(class_sig) { }
+
+  static jvmtiError GetClassRedefinitionError(art::Handle<art::mirror::Class> klass,
+                                              /*out*/std::string* error_msg)
+      REQUIRES_SHARED(art::Locks::mutator_lock_);
 
   static std::unique_ptr<art::MemMap> MoveDataToMemMap(const std::string& original_location,
                                                        jint data_len,
