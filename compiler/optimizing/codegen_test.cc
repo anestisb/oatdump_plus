@@ -15,6 +15,7 @@
  */
 
 #include <functional>
+#include <memory>
 
 #include "arch/instruction_set.h"
 #include "arch/arm/instruction_set_features_arm.h"
@@ -299,8 +300,8 @@ static void RunCode(CodegenTargetConfig target_config,
                     bool has_result,
                     Expected expected) {
   CompilerOptions compiler_options;
-  CodeGenerator* codegen = target_config.CreateCodeGenerator(graph, compiler_options);
-  RunCode(codegen, graph, hook_before_codegen, has_result, expected);
+  std::unique_ptr<CodeGenerator> codegen(target_config.CreateCodeGenerator(graph, compiler_options));
+  RunCode(codegen.get(), graph, hook_before_codegen, has_result, expected);
 }
 
 #ifdef ART_ENABLE_CODEGEN_arm

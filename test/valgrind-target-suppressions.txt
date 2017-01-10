@@ -36,8 +36,7 @@
    MemCpySelfAssign
    Memcheck:Overlap
    fun:memcpy
-   fun:je_tsd_set
-   fun:je_tsd_fetch
+   ...
    fun:je_malloc_tsd_boot0
 }
 
@@ -58,4 +57,13 @@
    fun:malloc
    ...
    fun:_ZN3art7Runtime17InitNativeMethodsEv
+}
+
+# art::MemMap::MapInternal() uses msync() to check for the existence of memory mappings.
+{
+  art::MemMap::MapInternal()
+  Memcheck:Param
+  msync(start)
+  fun:msync
+  fun:_ZN3art6MemMap11MapInternalEPvmiiilb
 }
