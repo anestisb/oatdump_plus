@@ -1190,7 +1190,7 @@ class JvmtiFunctions {
                                     reinterpret_cast<uint8_t*>(dex_file),
                                     &error);
     if (ret != OK) {
-      LOG(ERROR) << "FAILURE TO REDEFINE " << error;
+      LOG(WARNING) << "FAILURE TO REDEFINE " << error;
     }
     return ret;
   }
