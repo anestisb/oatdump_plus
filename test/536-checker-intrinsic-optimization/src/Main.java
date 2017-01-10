@@ -153,8 +153,8 @@ public class Main {
   /// CHECK-DAG:  <<Pos:i\d+>>      ParameterValue
   /// CHECK-DAG:  <<NullCk:l\d+>>   NullCheck [<<String>>]
   /// CHECK-DAG:  <<Length:i\d+>>   ArrayLength [<<NullCk>>] is_string_length:true
-  /// CHECK-DAG:                    BoundsCheck [<<Pos>>,<<Length>>] is_string_char_at:true
-  /// CHECK-DAG:  <<Char:c\d+>>     ArrayGet [<<NullCk>>,<<Pos>>] is_string_char_at:true
+  /// CHECK-DAG:  <<Bounds:i\d+>>   BoundsCheck [<<Pos>>,<<Length>>] is_string_char_at:true
+  /// CHECK-DAG:  <<Char:c\d+>>     ArrayGet [<<NullCk>>,<<Bounds>>] is_string_char_at:true
   /// CHECK-DAG:                    Return [<<Char>>]
 
   /// CHECK-START: char Main.$opt$noinline$stringCharAt(java.lang.String, int) instruction_simplifier (after)
@@ -174,8 +174,8 @@ public class Main {
   /// CHECK-DAG:  <<Pos:i\d+>>      ParameterValue
   /// CHECK-DAG:  <<NullCk:l\d+>>   NullCheck [<<String>>]
   /// CHECK-DAG:  <<Length:i\d+>>   ArrayLength [<<NullCk>>] is_string_length:true
-  /// CHECK-DAG:                    BoundsCheck [<<Pos>>,<<Length>>] is_string_char_at:true
-  /// CHECK-DAG:  <<Char:c\d+>>     ArrayGet [<<NullCk>>,<<Pos>>] is_string_char_at:true
+  /// CHECK-DAG:  <<Bounds:i\d+>>   BoundsCheck [<<Pos>>,<<Length>>] is_string_char_at:true
+  /// CHECK-DAG:  <<Char:c\d+>>     ArrayGet [<<NullCk>>,<<Bounds>>] is_string_char_at:true
   /// CHECK-DAG:                    Return [<<Char>>]
 
   /// CHECK-START: char Main.$opt$noinline$stringCharAtCatch(java.lang.String, int) instruction_simplifier (after)
