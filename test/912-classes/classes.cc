@@ -29,20 +29,6 @@
 namespace art {
 namespace Test912Classes {
 
-extern "C" JNIEXPORT jboolean JNICALL Java_Main_isModifiableClass(
-    JNIEnv* env ATTRIBUTE_UNUSED, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
-  jboolean res = JNI_FALSE;
-  jvmtiError result = jvmti_env->IsModifiableClass(klass, &res);
-  if (result != JVMTI_ERROR_NONE) {
-    char* err;
-    jvmti_env->GetErrorName(result, &err);
-    printf("Failure running IsModifiableClass: %s\n", err);
-    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
-    return JNI_FALSE;
-  }
-  return res;
-}
-
 extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getClassSignature(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
   char* sig;

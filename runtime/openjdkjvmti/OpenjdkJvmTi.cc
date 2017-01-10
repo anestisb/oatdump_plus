@@ -599,7 +599,7 @@ class JvmtiFunctions {
   static jvmtiError IsModifiableClass(jvmtiEnv* env,
                                       jclass klass,
                                       jboolean* is_modifiable_class_ptr) {
-    return Redefiner::IsModifiableClass(env, klass, is_modifiable_class_ptr);
+    return ERR(NOT_IMPLEMENTED);
   }
 
   static jvmtiError GetClassLoader(jvmtiEnv* env, jclass klass, jobject* classloader_ptr) {

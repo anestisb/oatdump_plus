@@ -12,13 +12,13 @@
 411
 [[D, null]
 411
-int interface=false array=false modifiable=false
-$Proxy0 interface=false array=false modifiable=false
-java.lang.Runnable interface=true array=false modifiable=false
-java.lang.String interface=false array=false modifiable=true
-[I interface=false array=true modifiable=false
-[Ljava.lang.Runnable; interface=false array=true modifiable=false
-[Ljava.lang.String; interface=false array=true modifiable=false
+int interface=false array=false
+$Proxy0 interface=false array=false
+java.lang.Runnable interface=true array=false
+java.lang.String interface=false array=false
+[I interface=false array=true
+[Ljava.lang.Runnable; interface=false array=true
+[Ljava.lang.String; interface=false array=true
 [public static final int java.lang.Integer.BYTES, static final char[] java.lang.Integer.DigitOnes, static final char[] java.lang.Integer.DigitTens, public static final int java.lang.Integer.MAX_VALUE, public static final int java.lang.Integer.MIN_VALUE, public static final int java.lang.Integer.SIZE, private static final java.lang.String[] java.lang.Integer.SMALL_NEG_VALUES, private static final java.lang.String[] java.lang.Integer.SMALL_NONNEG_VALUES, public static final java.lang.Class java.lang.Integer.TYPE, static final char[] java.lang.Integer.digits, private static final long java.lang.Integer.serialVersionUID, static final int[] java.lang.Integer.sizeTable, private final int java.lang.Integer.value]
 []
 []
