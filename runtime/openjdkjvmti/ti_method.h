@@ -66,6 +66,10 @@ class MethodUtil {
                                        jmethodID method,
                                        jint* entry_count_ptr,
                                        jvmtiLineNumberEntry** table_ptr);
+
+  static jvmtiError IsMethodNative(jvmtiEnv* env, jmethodID method, jboolean* is_native_ptr);
+  static jvmtiError IsMethodObsolete(jvmtiEnv* env, jmethodID method, jboolean* is_obsolete_ptr);
+  static jvmtiError IsMethodSynthetic(jvmtiEnv* env, jmethodID method, jboolean* is_synthetic_ptr);
 };
 
 }  // namespace openjdkjvmti
