@@ -188,6 +188,45 @@ extern "C" JNIEXPORT jlong JNICALL Java_Main_getMethodLocationEnd(
   return end;
 }
 
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_isMethodNative(
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject method) {
+  jmethodID id = env->FromReflectedMethod(method);
+
+  jboolean is_native;
+  jvmtiError result = jvmti_env->IsMethodNative(id, &is_native);
+  if (ErrorToException(env, result)) {
+    return JNI_FALSE;
+  }
+
+  return is_native;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_isMethodObsolete(
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject method) {
+  jmethodID id = env->FromReflectedMethod(method);
+
+  jboolean is_obsolete;
+  jvmtiError result = jvmti_env->IsMethodObsolete(id, &is_obsolete);
+  if (ErrorToException(env, result)) {
+    return JNI_FALSE;
+  }
+
+  return is_obsolete;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_isMethodSynthetic(
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject method) {
+  jmethodID id = env->FromReflectedMethod(method);
+
+  jboolean is_synthetic;
+  jvmtiError result = jvmti_env->IsMethodSynthetic(id, &is_synthetic);
+  if (ErrorToException(env, result)) {
+    return JNI_FALSE;
+  }
+
+  return is_synthetic;
+}
+
 // Don't do anything
 jint OnLoad(JavaVM* vm,
             char* options ATTRIBUTE_UNUSED,
