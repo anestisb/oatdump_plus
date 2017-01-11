@@ -40,6 +40,26 @@ void SetAllCapabilities(jvmtiEnv* env) {
   env->AddCapabilities(&caps);
 }
 
+bool JvmtiErrorToException(JNIEnv* env, jvmtiError error) {
+  if (error == JVMTI_ERROR_NONE) {
+    return false;
+  }
+
+  ScopedLocalRef<jclass> rt_exception(env, env->FindClass("java/lang/RuntimeException"));
+  if (rt_exception.get() == nullptr) {
+    // CNFE should be pending.
+    return true;
+  }
+
+  char* err;
+  jvmti_env->GetErrorName(error, &err);
+
+  env->ThrowNew(rt_exception.get(), err);
+
+  jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
+  return true;
+}
+
 namespace common_redefine {
 
 static void throwRedefinitionError(jvmtiEnv* jvmti, JNIEnv* env, jclass target, jvmtiError res) {

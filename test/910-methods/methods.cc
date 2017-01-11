@@ -114,33 +114,13 @@ extern "C" JNIEXPORT jint JNICALL Java_Main_getMethodModifiers(
   return modifiers;
 }
 
-static bool ErrorToException(JNIEnv* env, jvmtiError error) {
-  if (error == JVMTI_ERROR_NONE) {
-    return false;
-  }
-
-  ScopedLocalRef<jclass> rt_exception(env, env->FindClass("java/lang/RuntimeException"));
-  if (rt_exception.get() == nullptr) {
-    // CNFE should be pending.
-    return true;
-  }
-
-  char* err;
-  jvmti_env->GetErrorName(error, &err);
-
-  env->ThrowNew(rt_exception.get(), err);
-
-  jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
-  return true;
-}
-
 extern "C" JNIEXPORT jint JNICALL Java_Main_getMaxLocals(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject method) {
   jmethodID id = env->FromReflectedMethod(method);
 
   jint max_locals;
   jvmtiError result = jvmti_env->GetMaxLocals(id, &max_locals);
-  if (ErrorToException(env, result)) {
+  if (JvmtiErrorToException(env, result)) {
     return -1;
   }
 
@@ -153,7 +133,7 @@ extern "C" JNIEXPORT jint JNICALL Java_Main_getArgumentsSize(
 
   jint arguments;
   jvmtiError result = jvmti_env->GetArgumentsSize(id, &arguments);
-  if (ErrorToException(env, result)) {
+  if (JvmtiErrorToException(env, result)) {
     return -1;
   }
 
@@ -167,7 +147,7 @@ extern "C" JNIEXPORT jlong JNICALL Java_Main_getMethodLocationStart(
   jlong start;
   jlong end;
   jvmtiError result = jvmti_env->GetMethodLocation(id, &start, &end);
-  if (ErrorToException(env, result)) {
+  if (JvmtiErrorToException(env, result)) {
     return -1;
   }
 
@@ -181,7 +161,7 @@ extern "C" JNIEXPORT jlong JNICALL Java_Main_getMethodLocationEnd(
   jlong start;
   jlong end;
   jvmtiError result = jvmti_env->GetMethodLocation(id, &start, &end);
-  if (ErrorToException(env, result)) {
+  if (JvmtiErrorToException(env, result)) {
     return -1;
   }
 
@@ -194,7 +174,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_isMethodNative(
 
   jboolean is_native;
   jvmtiError result = jvmti_env->IsMethodNative(id, &is_native);
-  if (ErrorToException(env, result)) {
+  if (JvmtiErrorToException(env, result)) {
     return JNI_FALSE;
   }
 
@@ -207,7 +187,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_isMethodObsolete(
 
   jboolean is_obsolete;
   jvmtiError result = jvmti_env->IsMethodObsolete(id, &is_obsolete);
-  if (ErrorToException(env, result)) {
+  if (JvmtiErrorToException(env, result)) {
     return JNI_FALSE;
   }
 
@@ -220,7 +200,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_isMethodSynthetic(
 
   jboolean is_synthetic;
   jvmtiError result = jvmti_env->IsMethodSynthetic(id, &is_synthetic);
-  if (ErrorToException(env, result)) {
+  if (JvmtiErrorToException(env, result)) {
     return JNI_FALSE;
   }
 

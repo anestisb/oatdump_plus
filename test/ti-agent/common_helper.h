@@ -65,6 +65,8 @@ static jobjectArray CreateObjectArray(JNIEnv* env,
 
 void SetAllCapabilities(jvmtiEnv* env);
 
+bool JvmtiErrorToException(JNIEnv* env, jvmtiError error);
+
 }  // namespace art
 
 #endif  // ART_TEST_TI_AGENT_COMMON_HELPER_H_
