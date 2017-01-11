@@ -41,59 +41,54 @@ ArmFeaturesUniquePtr ArmInstructionSetFeatures::FromVariant(
     const std::string& variant, std::string* error_msg) {
   // Look for variants that have divide support.
   static const char* arm_variants_with_div[] = {
-          "cortex-a7", "cortex-a12", "cortex-a15", "cortex-a17", "cortex-a53", "cortex-a57",
-          "cortex-a53.a57", "cortex-m3", "cortex-m4", "cortex-r4", "cortex-r5",
-          "cyclone", "denver", "krait", "swift" };
+      "cortex-a7",
+      "cortex-a12",
+      "cortex-a15",
+      "cortex-a17",
+      "cortex-a53",
+      "cortex-a53.a57",
+      "cortex-a57",
+      "denver",
+      "krait",
+  };
 
-  bool has_div = FindVariantInArray(arm_variants_with_div, arraysize(arm_variants_with_div),
+  bool has_div = FindVariantInArray(arm_variants_with_div,
+                                    arraysize(arm_variants_with_div),
                                     variant);
 
   // Look for variants that have LPAE support.
   static const char* arm_variants_with_lpae[] = {
-      "cortex-a7", "cortex-a15", "krait", "denver", "cortex-a53", "cortex-a57", "cortex-a53.a57"
+      "cortex-a7",
+      "cortex-a12",
+      "cortex-a15",
+      "cortex-a17",
+      "cortex-a53",
+      "cortex-a53.a57",
+      "cortex-a57",
+      "denver",
+      "krait",
   };
-  bool has_lpae = FindVariantInArray(arm_variants_with_lpae, arraysize(arm_variants_with_lpae),
+  bool has_lpae = FindVariantInArray(arm_variants_with_lpae,
+                                     arraysize(arm_variants_with_lpae),
                                      variant);
 
   if (has_div == false && has_lpae == false) {
-    // Avoid unsupported variants.
-    static const char* unsupported_arm_variants[] = {
-        // ARM processors that aren't ARMv7 compatible aren't supported.
-        "arm2", "arm250", "arm3", "arm6", "arm60", "arm600", "arm610", "arm620",
-        "cortex-m0", "cortex-m0plus", "cortex-m1",
-        "fa526", "fa626", "fa606te", "fa626te", "fmp626", "fa726te",
-        "iwmmxt", "iwmmxt2",
-        "strongarm", "strongarm110", "strongarm1100", "strongarm1110",
-        "xscale"
-    };
-    if (FindVariantInArray(unsupported_arm_variants, arraysize(unsupported_arm_variants),
-                           variant)) {
-      *error_msg = StringPrintf("Attempt to use unsupported ARM variant: %s", variant.c_str());
-      return ArmFeaturesUniquePtr();
-    }
-    // Warn if the variant is unknown.
-    // TODO: some of the variants below may have feature support, but that support is currently
-    //       unknown so we'll choose conservative (sub-optimal) defaults without warning.
-    // TODO: some of the architectures may not support all features required by ART and should be
-    //       moved to unsupported_arm_variants[] above.
-    static const char* arm_variants_without_known_features[] = {
+    static const char* arm_variants_with_default_features[] = {
+        "cortex-a5",
+        "cortex-a8",
+        "cortex-a9",
+        "cortex-a9-mp",
         "default",
-        "arm7", "arm7m", "arm7d", "arm7dm", "arm7di", "arm7dmi", "arm70", "arm700", "arm700i",
-        "arm710", "arm710c", "arm7100", "arm720", "arm7500", "arm7500fe", "arm7tdmi", "arm7tdmi-s",
-        "arm710t", "arm720t", "arm740t",
-        "arm8", "arm810",
-        "arm9", "arm9e", "arm920", "arm920t", "arm922t", "arm946e-s", "arm966e-s", "arm968e-s",
-        "arm926ej-s", "arm940t", "arm9tdmi",
-        "arm10tdmi", "arm1020t", "arm1026ej-s", "arm10e", "arm1020e", "arm1022e",
-        "arm1136j-s", "arm1136jf-s",
-        "arm1156t2-s", "arm1156t2f-s", "arm1176jz-s", "arm1176jzf-s",
-        "cortex-a5", "cortex-a8", "cortex-a9", "cortex-a9-mp", "cortex-r4f",
-        "marvell-pj4", "mpcore", "mpcorenovfp"
+        "generic"
     };
-    if (!FindVariantInArray(arm_variants_without_known_features,
-                            arraysize(arm_variants_without_known_features),
+    if (!FindVariantInArray(arm_variants_with_default_features,
+                            arraysize(arm_variants_with_default_features),
                             variant)) {
-      LOG(WARNING) << "Unknown instruction set features for ARM CPU variant (" << variant
+      *error_msg = StringPrintf("Attempt to use unsupported ARM variant: %s", variant.c_str());
+      return nullptr;
+    } else {
+      // Warn if we use the default features.
+      LOG(WARNING) << "Using default instruction set features for ARM CPU variant (" << variant
           << ") using conservative defaults";
     }
   }

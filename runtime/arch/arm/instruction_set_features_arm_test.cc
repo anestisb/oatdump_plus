@@ -48,17 +48,17 @@ TEST(ArmInstructionSetFeaturesTest, ArmFeaturesFromVariant) {
   EXPECT_EQ(denver_features->AsBitmap(), 3U);
 
   // Build features for a 32-bit ARMv7 processor.
-  std::unique_ptr<const InstructionSetFeatures> arm7_features(
-      InstructionSetFeatures::FromVariant(kArm, "arm7", &error_msg));
-  ASSERT_TRUE(arm7_features.get() != nullptr) << error_msg;
+  std::unique_ptr<const InstructionSetFeatures> generic_features(
+      InstructionSetFeatures::FromVariant(kArm, "generic", &error_msg));
+  ASSERT_TRUE(generic_features.get() != nullptr) << error_msg;
 
-  EXPECT_TRUE(arm7_features->Equals(arm7_features.get()));
-  EXPECT_FALSE(arm7_features->Equals(krait_features.get()));
-  EXPECT_FALSE(krait_features->Equals(arm7_features.get()));
-  EXPECT_FALSE(arm7_features->AsArmInstructionSetFeatures()->HasDivideInstruction());
-  EXPECT_FALSE(arm7_features->AsArmInstructionSetFeatures()->HasAtomicLdrdAndStrd());
-  EXPECT_STREQ("-div,-atomic_ldrd_strd", arm7_features->GetFeatureString().c_str());
-  EXPECT_EQ(arm7_features->AsBitmap(), 0U);
+  EXPECT_TRUE(generic_features->Equals(generic_features.get()));
+  EXPECT_FALSE(generic_features->Equals(krait_features.get()));
+  EXPECT_FALSE(krait_features->Equals(generic_features.get()));
+  EXPECT_FALSE(generic_features->AsArmInstructionSetFeatures()->HasDivideInstruction());
+  EXPECT_FALSE(generic_features->AsArmInstructionSetFeatures()->HasAtomicLdrdAndStrd());
+  EXPECT_STREQ("-div,-atomic_ldrd_strd", generic_features->GetFeatureString().c_str());
+  EXPECT_EQ(generic_features->AsBitmap(), 0U);
 
   // ARM6 is not a supported architecture variant.
   std::unique_ptr<const InstructionSetFeatures> arm6_features(
@@ -70,7 +70,7 @@ TEST(ArmInstructionSetFeaturesTest, ArmFeaturesFromVariant) {
 TEST(ArmInstructionSetFeaturesTest, ArmAddFeaturesFromString) {
   std::string error_msg;
   std::unique_ptr<const InstructionSetFeatures> base_features(
-      InstructionSetFeatures::FromVariant(kArm, "arm7", &error_msg));
+      InstructionSetFeatures::FromVariant(kArm, "generic", &error_msg));
   ASSERT_TRUE(base_features.get() != nullptr) << error_msg;
 
   // Build features for a 32-bit ARM with LPAE and div processor.
@@ -99,17 +99,17 @@ TEST(ArmInstructionSetFeaturesTest, ArmAddFeaturesFromString) {
   EXPECT_EQ(denver_features->AsBitmap(), 3U);
 
   // Build features for a 32-bit default ARM processor.
-  std::unique_ptr<const InstructionSetFeatures> arm7_features(
+  std::unique_ptr<const InstructionSetFeatures> generic_features(
       base_features->AddFeaturesFromString("default", &error_msg));
-  ASSERT_TRUE(arm7_features.get() != nullptr) << error_msg;
+  ASSERT_TRUE(generic_features.get() != nullptr) << error_msg;
 
-  EXPECT_TRUE(arm7_features->Equals(arm7_features.get()));
-  EXPECT_FALSE(arm7_features->Equals(krait_features.get()));
-  EXPECT_FALSE(krait_features->Equals(arm7_features.get()));
-  EXPECT_FALSE(arm7_features->AsArmInstructionSetFeatures()->HasDivideInstruction());
-  EXPECT_FALSE(arm7_features->AsArmInstructionSetFeatures()->HasAtomicLdrdAndStrd());
-  EXPECT_STREQ("-div,-atomic_ldrd_strd", arm7_features->GetFeatureString().c_str());
-  EXPECT_EQ(arm7_features->AsBitmap(), 0U);
+  EXPECT_TRUE(generic_features->Equals(generic_features.get()));
+  EXPECT_FALSE(generic_features->Equals(krait_features.get()));
+  EXPECT_FALSE(krait_features->Equals(generic_features.get()));
+  EXPECT_FALSE(generic_features->AsArmInstructionSetFeatures()->HasDivideInstruction());
+  EXPECT_FALSE(generic_features->AsArmInstructionSetFeatures()->HasAtomicLdrdAndStrd());
+  EXPECT_STREQ("-div,-atomic_ldrd_strd", generic_features->GetFeatureString().c_str());
+  EXPECT_EQ(generic_features->AsBitmap(), 0U);
 }
 
 }  // namespace art
