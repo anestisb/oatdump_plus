@@ -262,6 +262,7 @@ art_cc_defaults {
         "913-heaps/heaps.cc",
         "918-fields/fields.cc",
         "920-objects/objects.cc",
+        "922-properties/properties.cc",
     ],
     shared_libs: [
         "libbase",
