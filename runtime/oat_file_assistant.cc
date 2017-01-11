@@ -203,10 +203,6 @@ OatFileAssistant::MakeUpToDate(bool profile_changed, std::string* error_msg) {
     case kDex2OatForRelocation:
     case kDex2OatForFilter:
       return GenerateOatFile(error_msg);
-
-    case kPatchoatForRelocation: {
-      return RelocateOatFile(info.Filename(), error_msg);
-    }
   }
   UNREACHABLE();
 }
@@ -417,58 +413,6 @@ OatFileAssistant::OatStatus OatFileAssistant::GivenOatFileStatus(const OatFile& 
     VLOG(oat) << "Oat relocation test skipped for compiler filter " << current_compiler_filter;
   }
   return kOatUpToDate;
-}
-
-OatFileAssistant::ResultOfAttemptToUpdate
-OatFileAssistant::RelocateOatFile(const std::string* input_file, std::string* error_msg) {
-  CHECK(error_msg != nullptr);
-
-  if (input_file == nullptr) {
-    *error_msg = "Patching of oat file for dex location " + dex_location_
-      + " not attempted because the input file name could not be determined.";
-    return kUpdateNotAttempted;
-  }
-  const std::string& input_file_name = *input_file;
-
-  if (oat_.Filename() == nullptr) {
-    *error_msg = "Patching of oat file for dex location " + dex_location_
-      + " not attempted because the oat file name could not be determined.";
-    return kUpdateNotAttempted;
-  }
-  const std::string& oat_file_name = *oat_.Filename();
-
-  const ImageInfo* image_info = GetImageInfo();
-  Runtime* runtime = Runtime::Current();
-  if (image_info == nullptr) {
-    *error_msg = "Patching of oat file " + oat_file_name
-      + " not attempted because no image location was found.";
-    return kUpdateNotAttempted;
-  }
-
-  if (!runtime->IsDex2OatEnabled()) {
-    *error_msg = "Patching of oat file " + oat_file_name
-      + " not attempted because dex2oat is disabled";
-    return kUpdateNotAttempted;
-  }
-
-  std::vector<std::string> argv;
-  argv.push_back(runtime->GetPatchoatExecutable());
-  argv.push_back("--instruction-set=" + std::string(GetInstructionSetString(isa_)));
-  argv.push_back("--input-oat-file=" + input_file_name);
-  argv.push_back("--output-oat-file=" + oat_file_name);
-  argv.push_back("--patched-image-location=" + image_info->location);
-
-  std::string command_line(android::base::Join(argv, ' '));
-  if (!Exec(argv, error_msg)) {
-    // Manually delete the file. This ensures there is no garbage left over if
-    // the process unexpectedly died.
-    unlink(oat_file_name.c_str());
-    return kUpdateFailed;
-  }
-
-  // Mark that the oat file has changed and we should try to reload.
-  oat_.Reset();
-  return kUpdateSucceeded;
 }
 
 OatFileAssistant::ResultOfAttemptToUpdate
@@ -852,13 +796,7 @@ OatFileAssistant::DexOptNeeded OatFileAssistant::OatFileInfo::GetDexOptNeeded(
     return kNoDexOptNeeded;
   }
 
-  if (filter_okay && Status() == kOatRelocationOutOfDate && HasPatchInfo()) {
-    return kPatchoatForRelocation;
-  }
-
   if (oat_file_assistant_->HasOriginalDexFiles()) {
-    // Run dex2oat for relocation if we didn't have the patch info necessary
-    // to use patchoat.
     if (filter_okay && Status() == kOatRelocationOutOfDate) {
       return kDex2OatForRelocation;
     }
@@ -919,11 +857,6 @@ bool OatFileAssistant::OatFileInfo::CompilerFilterIsOkay(
 bool OatFileAssistant::OatFileInfo::IsExecutable() {
   const OatFile* file = GetFile();
   return (file != nullptr && file->IsExecutable());
-}
-
-bool OatFileAssistant::OatFileInfo::HasPatchInfo() {
-  const OatFile* file = GetFile();
-  return (file != nullptr && file->HasPatchInfo());
 }
 
 void OatFileAssistant::OatFileInfo::Reset() {
