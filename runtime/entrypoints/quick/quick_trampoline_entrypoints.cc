@@ -705,7 +705,7 @@ extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self,
       QuickExceptionHandler::DumpFramesWithType(self, true);
     }
 
-    mirror::Throwable* pending_exception = nullptr;
+    ObjPtr<mirror::Throwable> pending_exception;
     bool from_code = false;
     self->PopDeoptimizationContext(&result, &pending_exception, /* out */ &from_code);
 
