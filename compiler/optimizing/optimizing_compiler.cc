@@ -1205,7 +1205,7 @@ bool OptimizingCompiler::JitCompile(Thread* self,
   }
   MaybeRecordStat(MethodCompilationStat::kCompiled);
   codegen->BuildStackMaps(MemoryRegion(stack_map_data, stack_map_size), *code_item);
-  codegen->EmitJitRoots(code_allocator.GetData(), roots, roots_data, dex_cache);
+  codegen->EmitJitRoots(code_allocator.GetData(), roots, roots_data);
 
   const void* code = code_cache->CommitCode(
       self,

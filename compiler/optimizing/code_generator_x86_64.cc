@@ -5630,15 +5630,19 @@ void LocationsBuilderX86_64::VisitLoadString(HLoadString* load) {
 }
 
 Label* CodeGeneratorX86_64::NewJitRootStringPatch(const DexFile& dex_file,
-                                                  dex::StringIndex dex_index) {
-  jit_string_roots_.Overwrite(StringReference(&dex_file, dex_index), /* placeholder */ 0u);
+                                                  dex::StringIndex dex_index,
+                                                  Handle<mirror::String> handle) {
+  jit_string_roots_.Overwrite(
+      StringReference(&dex_file, dex_index), reinterpret_cast64<uint64_t>(handle.GetReference()));
   // Add a patch entry and return the label.
   jit_string_patches_.emplace_back(dex_file, dex_index.index_);
   PatchInfo<Label>* info = &jit_string_patches_.back();
   return &info->label;
 }
 
-void InstructionCodeGeneratorX86_64::VisitLoadString(HLoadString* load) {
+// NO_THREAD_SAFETY_ANALYSIS as we manipulate handles whose internal object we know does not
+// move.
+void InstructionCodeGeneratorX86_64::VisitLoadString(HLoadString* load) NO_THREAD_SAFETY_ANALYSIS {
   LocationSummary* locations = load->GetLocations();
   Location out_loc = locations->Out();
   CpuRegister out = out_loc.AsRegister<CpuRegister>();
@@ -5650,8 +5654,9 @@ void InstructionCodeGeneratorX86_64::VisitLoadString(HLoadString* load) {
       return;  // No dex cache slow path.
     }
     case HLoadString::LoadKind::kBootImageAddress: {
-      DCHECK_NE(load->GetAddress(), 0u);
-      uint32_t address = dchecked_integral_cast<uint32_t>(load->GetAddress());
+      uint32_t address = dchecked_integral_cast<uint32_t>(
+          reinterpret_cast<uintptr_t>(load->GetString().Get()));
+      DCHECK_NE(address, 0u);
       __ movl(out, Immediate(address));  // Zero-extended.
       codegen_->RecordSimplePatch();
       return;  // No dex cache slow path.
@@ -5672,8 +5677,8 @@ void InstructionCodeGeneratorX86_64::VisitLoadString(HLoadString* load) {
     case HLoadString::LoadKind::kJitTableAddress: {
       Address address = Address::Absolute(CodeGeneratorX86_64::kDummy32BitOffset,
                                           /* no_rip */ true);
-      Label* fixup_label =
-          codegen_->NewJitRootStringPatch(load->GetDexFile(), load->GetStringIndex());
+      Label* fixup_label = codegen_->NewJitRootStringPatch(
+          load->GetDexFile(), load->GetStringIndex(), load->GetString());
       // /* GcRoot<mirror::String> */ out = *address
       GenerateGcRootFieldLoad(load, out_loc, address, fixup_label, kCompilerReadBarrierOption);
       return;

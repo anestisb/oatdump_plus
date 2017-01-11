@@ -5625,7 +5625,9 @@ void LocationsBuilderMIPS::VisitLoadString(HLoadString* load) {
   }
 }
 
-void InstructionCodeGeneratorMIPS::VisitLoadString(HLoadString* load) {
+// NO_THREAD_SAFETY_ANALYSIS as we manipulate handles whose internal object we know does not
+// move.
+void InstructionCodeGeneratorMIPS::VisitLoadString(HLoadString* load) NO_THREAD_SAFETY_ANALYSIS {
   HLoadString::LoadKind load_kind = load->GetLoadKind();
   LocationSummary* locations = load->GetLocations();
   Location out_loc = locations->Out();
@@ -5660,8 +5662,9 @@ void InstructionCodeGeneratorMIPS::VisitLoadString(HLoadString* load) {
       return;  // No dex cache slow path.
     }
     case HLoadString::LoadKind::kBootImageAddress: {
-      DCHECK_NE(load->GetAddress(), 0u);
-      uint32_t address = dchecked_integral_cast<uint32_t>(load->GetAddress());
+      uint32_t address = dchecked_integral_cast<uint32_t>(
+          reinterpret_cast<uintptr_t>(load->GetString().Get()));
+      DCHECK_NE(address, 0u);
       __ LoadLiteral(out,
                      base_or_current_method_reg,
                      codegen_->DeduplicateBootImageAddressLiteral(address));
