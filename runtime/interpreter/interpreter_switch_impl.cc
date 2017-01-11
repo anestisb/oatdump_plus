@@ -508,9 +508,8 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
             gc::AllocatorType allocator_type = Runtime::Current()->GetHeap()->GetCurrentAllocator();
             obj = mirror::String::AllocEmptyString<true>(self, allocator_type);
           } else {
-            obj = AllocObjectFromCode<do_access_check, true>(
-                dex::TypeIndex(inst->VRegB_21c()),
-                shadow_frame.GetMethod(),
+            obj = AllocObjectFromCode<true>(
+                c.Ptr(),
                 self,
                 Runtime::Current()->GetHeap()->GetCurrentAllocator());
           }
