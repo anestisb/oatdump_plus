@@ -4080,14 +4080,6 @@ void CodeGeneratorARM64::GenerateVirtualCall(HInvokeVirtual* invoke, Location te
   __ Blr(lr);
 }
 
-void LocationsBuilderARM64::VisitInvokePolymorphic(HInvokePolymorphic* invoke) {
-  HandleInvoke(invoke);
-}
-
-void InstructionCodeGeneratorARM64::VisitInvokePolymorphic(HInvokePolymorphic* invoke) {
-  codegen_->GenerateInvokePolymorphicCall(invoke);
-}
-
 vixl::aarch64::Label* CodeGeneratorARM64::NewPcRelativeStringPatch(
     const DexFile& dex_file,
     uint32_t string_index,

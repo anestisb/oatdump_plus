@@ -175,17 +175,6 @@ class HInstructionBuilder : public ValueObject {
                    uint32_t* args,
                    uint32_t register_index);
 
-  // Builds an invocation node for invoke-polymorphic and returns whether the
-  // instruction is supported.
-  bool BuildInvokePolymorphic(const Instruction& instruction,
-                              uint32_t dex_pc,
-                              uint32_t method_idx,
-                              uint32_t proto_idx,
-                              uint32_t number_of_vreg_arguments,
-                              bool is_range,
-                              uint32_t* args,
-                              uint32_t register_index);
-
   // Builds a new array node and the instructions that fill it.
   void BuildFilledNewArray(uint32_t dex_pc,
                            dex::TypeIndex type_index,

@@ -1,4 +1,3 @@
-
 /*
  * Copyright (C) 2016 The Android Open Source Project
  *
@@ -904,33 +903,6 @@ bool HInstructionBuilder::BuildInvoke(const Instruction& instruction,
                       is_range,
                       descriptor,
                       clinit_check,
-                      false /* is_unresolved */);
-}
-
-bool HInstructionBuilder::BuildInvokePolymorphic(const Instruction& instruction ATTRIBUTE_UNUSED,
-                                                 uint32_t dex_pc,
-                                                 uint32_t method_idx,
-                                                 uint32_t proto_idx,
-                                                 uint32_t number_of_vreg_arguments,
-                                                 bool is_range,
-                                                 uint32_t* args,
-                                                 uint32_t register_index) {
-  const char* descriptor = dex_file_->GetShorty(proto_idx);
-  DCHECK_EQ(1 + ArtMethod::NumArgRegisters(descriptor), number_of_vreg_arguments);
-  Primitive::Type return_type = Primitive::GetType(descriptor[0]);
-  size_t number_of_arguments = strlen(descriptor);
-  HInvoke* invoke = new (arena_) HInvokePolymorphic(arena_,
-                                                    number_of_arguments,
-                                                    return_type,
-                                                    dex_pc,
-                                                    method_idx);
-  return HandleInvoke(invoke,
-                      number_of_vreg_arguments,
-                      args,
-                      register_index,
-                      is_range,
-                      descriptor,
-                      nullptr /* clinit_check */,
                       false /* is_unresolved */);
 }
 
@@ -1941,37 +1913,6 @@ bool HInstructionBuilder::ProcessDexInstruction(const Instruction& instruction, 
         return false;
       }
       break;
-    }
-
-    case Instruction::INVOKE_POLYMORPHIC: {
-      uint16_t method_idx = instruction.VRegB_45cc();
-      uint16_t proto_idx = instruction.VRegH_45cc();
-      uint32_t number_of_vreg_arguments = instruction.VRegA_45cc();
-      uint32_t args[5];
-      instruction.GetVarArgs(args);
-      return BuildInvokePolymorphic(instruction,
-                                    dex_pc,
-                                    method_idx,
-                                    proto_idx,
-                                    number_of_vreg_arguments,
-                                    false,
-                                    args,
-                                    -1);
-    }
-
-    case Instruction::INVOKE_POLYMORPHIC_RANGE: {
-      uint16_t method_idx = instruction.VRegB_4rcc();
-      uint16_t proto_idx = instruction.VRegH_4rcc();
-      uint32_t number_of_vreg_arguments = instruction.VRegA_4rcc();
-      uint32_t register_index = instruction.VRegC_4rcc();
-      return BuildInvokePolymorphic(instruction,
-                                    dex_pc,
-                                    method_idx,
-                                    proto_idx,
-                                    number_of_vreg_arguments,
-                                    true,
-                                    nullptr,
-                                    register_index);
     }
 
     case Instruction::NEG_INT: {
