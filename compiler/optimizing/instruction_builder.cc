@@ -1235,13 +1235,13 @@ bool HInstructionBuilder::BuildInstanceFieldAccess(const Instruction& instructio
       uint16_t class_def_index = resolved_field->GetDeclaringClass()->GetDexClassDefIndex();
       field_set = new (arena_) HInstanceFieldSet(object,
                                                  value,
+                                                 resolved_field,
                                                  field_type,
                                                  resolved_field->GetOffset(),
                                                  resolved_field->IsVolatile(),
                                                  field_index,
                                                  class_def_index,
                                                  *dex_file_,
-                                                 dex_compilation_unit_->GetDexCache(),
                                                  dex_pc);
     }
     AppendInstruction(field_set);
@@ -1256,13 +1256,13 @@ bool HInstructionBuilder::BuildInstanceFieldAccess(const Instruction& instructio
     } else {
       uint16_t class_def_index = resolved_field->GetDeclaringClass()->GetDexClassDefIndex();
       field_get = new (arena_) HInstanceFieldGet(object,
+                                                 resolved_field,
                                                  field_type,
                                                  resolved_field->GetOffset(),
                                                  resolved_field->IsVolatile(),
                                                  field_index,
                                                  class_def_index,
                                                  *dex_file_,
-                                                 dex_compilation_unit_->GetDexCache(),
                                                  dex_pc);
     }
     AppendInstruction(field_get);
@@ -1311,9 +1311,9 @@ bool HInstructionBuilder::IsOutermostCompilingClass(dex::TypeIndex type_index) c
 }
 
 void HInstructionBuilder::BuildUnresolvedStaticFieldAccess(const Instruction& instruction,
-                                                     uint32_t dex_pc,
-                                                     bool is_put,
-                                                     Primitive::Type field_type) {
+                                                           uint32_t dex_pc,
+                                                           bool is_put,
+                                                           Primitive::Type field_type) {
   uint32_t source_or_dest_reg = instruction.VRegA_21c();
   uint16_t field_index = instruction.VRegB_21c();
 
@@ -1400,23 +1400,23 @@ bool HInstructionBuilder::BuildStaticFieldAccess(const Instruction& instruction,
     DCHECK_EQ(HPhi::ToPhiType(value->GetType()), HPhi::ToPhiType(field_type));
     AppendInstruction(new (arena_) HStaticFieldSet(cls,
                                                    value,
+                                                   resolved_field,
                                                    field_type,
                                                    resolved_field->GetOffset(),
                                                    resolved_field->IsVolatile(),
                                                    field_index,
                                                    class_def_index,
                                                    *dex_file_,
-                                                   dex_cache_,
                                                    dex_pc));
   } else {
     AppendInstruction(new (arena_) HStaticFieldGet(cls,
+                                                   resolved_field,
                                                    field_type,
                                                    resolved_field->GetOffset(),
                                                    resolved_field->IsVolatile(),
                                                    field_index,
                                                    class_def_index,
                                                    *dex_file_,
-                                                   dex_cache_,
                                                    dex_pc));
     UpdateLocal(source_or_dest_reg, current_block_->GetLastInstruction());
   }
