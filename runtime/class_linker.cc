@@ -4280,9 +4280,10 @@ std::string ClassLinker::GetDescriptorForProxy(ObjPtr<mirror::Class> proxy_class
 
 void ClassLinker::CreateProxyConstructor(Handle<mirror::Class> klass, ArtMethod* out) {
   // Create constructor for Proxy that must initialize the method.
-  CHECK_EQ(GetClassRoot(kJavaLangReflectProxy)->NumDirectMethods(), 18u);
+  CHECK_EQ(GetClassRoot(kJavaLangReflectProxy)->NumDirectMethods(), 23u);
+
   ArtMethod* proxy_constructor = GetClassRoot(kJavaLangReflectProxy)->GetDirectMethodUnchecked(
-      2, image_pointer_size_);
+      8, image_pointer_size_);
   DCHECK_EQ(std::string(proxy_constructor->GetName()), "<init>");
   // Ensure constructor is in dex cache so that we can use the dex cache to look up the overridden
   // constructor method.
