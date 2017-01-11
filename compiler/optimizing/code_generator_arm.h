@@ -489,7 +489,9 @@ class CodeGeneratorARM : public CodeGenerator {
                                              dex::StringIndex string_index);
   Literal* DeduplicateBootImageTypeLiteral(const DexFile& dex_file, dex::TypeIndex type_index);
   Literal* DeduplicateBootImageAddressLiteral(uint32_t address);
-  Literal* DeduplicateJitStringLiteral(const DexFile& dex_file, dex::StringIndex string_index);
+  Literal* DeduplicateJitStringLiteral(const DexFile& dex_file,
+                                       dex::StringIndex string_index,
+                                       Handle<mirror::String> handle);
   Literal* DeduplicateJitClassLiteral(const DexFile& dex_file,
                                       dex::TypeIndex type_index,
                                       uint64_t address);
