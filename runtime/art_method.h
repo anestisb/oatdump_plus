@@ -95,18 +95,20 @@ class ArtMethod FINAL {
 
   // This setter guarantees atomicity.
   void AddAccessFlags(uint32_t flag) {
-    uint32_t old_access_flags = access_flags_.load(std::memory_order_relaxed);
+    uint32_t old_access_flags;
     uint32_t new_access_flags;
     do {
+      old_access_flags = access_flags_.load(std::memory_order_relaxed);
       new_access_flags = old_access_flags | flag;
     } while (!access_flags_.compare_exchange_weak(old_access_flags, new_access_flags));
   }
 
   // This setter guarantees atomicity.
   void ClearAccessFlags(uint32_t flag) {
-    uint32_t old_access_flags = access_flags_.load(std::memory_order_relaxed);
+    uint32_t old_access_flags;
     uint32_t new_access_flags;
     do {
+      old_access_flags = access_flags_.load(std::memory_order_relaxed);
       new_access_flags = old_access_flags & ~flag;
     } while (!access_flags_.compare_exchange_weak(old_access_flags, new_access_flags));
   }
