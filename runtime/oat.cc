@@ -469,10 +469,6 @@ bool OatHeader::IsPic() const {
   return IsKeyEnabled(OatHeader::kPicKey);
 }
 
-bool OatHeader::HasPatchInfo() const {
-  return IsKeyEnabled(OatHeader::kHasPatchInfoKey);
-}
-
 bool OatHeader::IsDebuggable() const {
   return IsKeyEnabled(OatHeader::kDebuggableKey);
 }
