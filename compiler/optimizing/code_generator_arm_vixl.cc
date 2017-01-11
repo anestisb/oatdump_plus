@@ -6021,7 +6021,9 @@ void LocationsBuilderARMVIXL::VisitLoadString(HLoadString* load) {
   }
 }
 
-void InstructionCodeGeneratorARMVIXL::VisitLoadString(HLoadString* load) {
+// NO_THREAD_SAFETY_ANALYSIS as we manipulate handles whose internal object we know does not
+// move.
+void InstructionCodeGeneratorARMVIXL::VisitLoadString(HLoadString* load) NO_THREAD_SAFETY_ANALYSIS {
   LocationSummary* locations = load->GetLocations();
   Location out_loc = locations->Out();
   vixl32::Register out = OutputRegister(load);
@@ -6041,8 +6043,9 @@ void InstructionCodeGeneratorARMVIXL::VisitLoadString(HLoadString* load) {
       return;  // No dex cache slow path.
     }
     case HLoadString::LoadKind::kBootImageAddress: {
-      DCHECK_NE(load->GetAddress(), 0u);
-      uint32_t address = dchecked_integral_cast<uint32_t>(load->GetAddress());
+      uint32_t address = dchecked_integral_cast<uint32_t>(
+          reinterpret_cast<uintptr_t>(load->GetString().Get()));
+      DCHECK_NE(address, 0u);
       __ Ldr(out, codegen_->DeduplicateBootImageAddressLiteral(address));
       return;  // No dex cache slow path.
     }
@@ -6062,7 +6065,8 @@ void InstructionCodeGeneratorARMVIXL::VisitLoadString(HLoadString* load) {
     }
     case HLoadString::LoadKind::kJitTableAddress: {
       __ Ldr(out, codegen_->DeduplicateJitStringLiteral(load->GetDexFile(),
-                                                        load->GetStringIndex()));
+                                                        load->GetStringIndex(),
+                                                        load->GetString()));
       // /* GcRoot<mirror::String> */ out = *out
       GenerateGcRootFieldLoad(load, out_loc, out, /* offset */ 0, kCompilerReadBarrierOption);
       return;
@@ -7443,9 +7447,12 @@ VIXLUInt32Literal* CodeGeneratorARMVIXL::DeduplicateDexCacheAddressLiteral(uint3
   return DeduplicateUint32Literal(address, &uint32_literals_);
 }
 
-VIXLUInt32Literal* CodeGeneratorARMVIXL::DeduplicateJitStringLiteral(const DexFile& dex_file,
-                                                       dex::StringIndex string_index) {
-  jit_string_roots_.Overwrite(StringReference(&dex_file, string_index), /* placeholder */ 0u);
+VIXLUInt32Literal* CodeGeneratorARMVIXL::DeduplicateJitStringLiteral(
+    const DexFile& dex_file,
+    dex::StringIndex string_index,
+    Handle<mirror::String> handle) {
+  jit_string_roots_.Overwrite(StringReference(&dex_file, string_index),
+                              reinterpret_cast64<uint64_t>(handle.GetReference()));
   return jit_string_patches_.GetOrCreate(
       StringReference(&dex_file, string_index),
       [this]() {

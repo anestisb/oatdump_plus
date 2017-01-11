@@ -1378,28 +1378,21 @@ uint32_t CodeGenerator::GetReferenceDisableFlagOffset() const {
 
 void CodeGenerator::EmitJitRoots(uint8_t* code,
                                  Handle<mirror::ObjectArray<mirror::Object>> roots,
-                                 const uint8_t* roots_data,
-                                 Handle<mirror::DexCache> outer_dex_cache) {
+                                 const uint8_t* roots_data) {
   DCHECK_EQ(static_cast<size_t>(roots->GetLength()), GetNumberOfJitRoots());
-  StackHandleScope<1> hs(Thread::Current());
-  MutableHandle<mirror::DexCache> h_dex_cache(hs.NewHandle<mirror::DexCache>(nullptr));
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   size_t index = 0;
   for (auto& entry : jit_string_roots_) {
-    const DexFile& entry_dex_file = *entry.first.dex_file;
-    // Avoid the expensive FindDexCache call by checking if the string is
-    // in the compiled method's dex file.
-    h_dex_cache.Assign(IsSameDexFile(*outer_dex_cache->GetDexFile(), entry_dex_file)
-        ? outer_dex_cache.Get()
-        : class_linker->FindDexCache(hs.Self(), entry_dex_file));
-    mirror::String* string = class_linker->LookupString(
-        entry_dex_file, entry.first.string_index, h_dex_cache);
-    DCHECK(string != nullptr) << "JIT roots require strings to have been loaded";
+    // Update the `roots` with the string, and replace the address temporarily
+    // stored to the index in the table.
+    uint64_t address = entry.second;
+    roots->Set(index, reinterpret_cast<StackReference<mirror::String>*>(address)->AsMirrorPtr());
+    DCHECK(roots->Get(index) != nullptr);
+    entry.second = index;
     // Ensure the string is strongly interned. This is a requirement on how the JIT
     // handles strings. b/32995596
-    class_linker->GetInternTable()->InternStrong(string);
-    roots->Set(index, string);
-    entry.second = index;
+    class_linker->GetInternTable()->InternStrong(
+        reinterpret_cast<mirror::String*>(roots->Get(index)));
     ++index;
   }
   for (auto& entry : jit_class_roots_) {
@@ -1407,6 +1400,7 @@ void CodeGenerator::EmitJitRoots(uint8_t* code,
     // stored to the index in the table.
     uint64_t address = entry.second;
     roots->Set(index, reinterpret_cast<StackReference<mirror::Class>*>(address)->AsMirrorPtr());
+    DCHECK(roots->Get(index) != nullptr);
     entry.second = index;
     ++index;
   }
