@@ -67,14 +67,9 @@ class OatFileAssistant {
     kDex2OatForFilter = 3,
 
     // dex2oat should be run to update the apk/jar because the existing code
-    // is not relocated to match the boot image and does not have the
-    // necessary patch information to use patchoat.
+    // is not relocated to match the boot image.
     // Matches Java: dalvik.system.DexFile.DEX2OAT_FOR_RELOCATION
     kDex2OatForRelocation = 4,
-
-    // patchoat should be run to update the apk/jar.
-    // Matches Java: dalvik.system.DexFile.PATCHOAT_FOR_RELOCATION
-    kPatchoatForRelocation = 5,
   };
 
   enum OatStatus {
@@ -237,15 +232,6 @@ class OatFileAssistant {
   // Returns the status of the oat file for the dex location.
   OatStatus OatFileStatus();
 
-  // Generates the oat file by relocation from the named input file.
-  // This does not check the current status before attempting to relocate the
-  // oat file.
-  //
-  // If the result is not kUpdateSucceeded, the value of error_msg will be set
-  // to a string describing why there was a failure or the update was not
-  // attempted. error_msg must not be null.
-  ResultOfAttemptToUpdate RelocateOatFile(const std::string* input_file, std::string* error_msg);
-
   // Generate the oat file from the dex file using the current runtime
   // compiler options.
   // This does not check the current status before attempting to generate the
@@ -328,8 +314,6 @@ class OatFileAssistant {
     // given target_compilation_filter.
     // profile_changed should be true to indicate the profile has recently
     // changed for this dex location.
-    // If patchoat is needed, this function will return the kPatchOatNeeded
-    // status, not the kSelfPatchOatNeeded status.
     DexOptNeeded GetDexOptNeeded(CompilerFilter::Filter target_compiler_filter,
                                  bool profile_changed);
 
@@ -340,9 +324,6 @@ class OatFileAssistant {
 
     // Returns true if the file is opened executable.
     bool IsExecutable();
-
-    // Returns true if the file has patch info required to run patchoat.
-    bool HasPatchInfo();
 
     // Clear any cached information about the file that depends on the
     // contents of the file. This does not reset the provided filename.
