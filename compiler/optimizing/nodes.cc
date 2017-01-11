@@ -2498,6 +2498,17 @@ std::ostream& operator<<(std::ostream& os, HLoadClass::LoadKind rhs) {
   }
 }
 
+// Helper for InstructionDataEquals to fetch the mirror String out
+// from a kJitTableAddress LoadString kind.
+// NO_THREAD_SAFETY_ANALYSIS because even though we're accessing
+// mirrors, they are stored in a variable size handle scope which is always
+// visited during a pause. Also, the only caller of this helper
+// only uses the mirror for pointer comparison.
+static inline mirror::String* AsMirrorInternal(Handle<mirror::String> handle)
+    NO_THREAD_SAFETY_ANALYSIS {
+  return handle.Get();
+}
+
 bool HLoadString::InstructionDataEquals(const HInstruction* other) const {
   const HLoadString* other_load_string = other->AsLoadString();
   // TODO: To allow GVN for HLoadString from different dex files, we should compare the strings
@@ -2506,16 +2517,16 @@ bool HLoadString::InstructionDataEquals(const HInstruction* other) const {
       GetPackedFields() != other_load_string->GetPackedFields()) {
     return false;
   }
-  LoadKind load_kind = GetLoadKind();
-  if (HasAddress(load_kind)) {
-    return GetAddress() == other_load_string->GetAddress();
-  } else {
-    DCHECK(HasStringReference(load_kind)) << load_kind;
-    return IsSameDexFile(GetDexFile(), other_load_string->GetDexFile());
+  switch (GetLoadKind()) {
+    case LoadKind::kBootImageAddress:
+    case LoadKind::kJitTableAddress:
+      return AsMirrorInternal(GetString()) == AsMirrorInternal(other_load_string->GetString());
+    default:
+      return IsSameDexFile(GetDexFile(), other_load_string->GetDexFile());
   }
 }
 
-void HLoadString::SetLoadKindInternal(LoadKind load_kind) {
+void HLoadString::SetLoadKind(LoadKind load_kind) {
   // Once sharpened, the load kind should not be changed again.
   DCHECK_EQ(GetLoadKind(), LoadKind::kDexCacheViaMethod);
   SetPackedField<LoadKindField>(load_kind);

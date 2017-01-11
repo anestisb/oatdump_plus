@@ -567,7 +567,8 @@ class CodeGeneratorARM64 : public CodeGenerator {
                                                                     dex::TypeIndex type_index);
   vixl::aarch64::Literal<uint32_t>* DeduplicateBootImageAddressLiteral(uint64_t address);
   vixl::aarch64::Literal<uint32_t>* DeduplicateJitStringLiteral(const DexFile& dex_file,
-                                                                dex::StringIndex string_index);
+                                                                dex::StringIndex string_index,
+                                                                Handle<mirror::String> handle);
   vixl::aarch64::Literal<uint32_t>* DeduplicateJitClassLiteral(const DexFile& dex_file,
                                                                dex::TypeIndex string_index,
                                                                uint64_t address);
