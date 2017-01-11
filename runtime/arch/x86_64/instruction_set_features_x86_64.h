@@ -68,15 +68,19 @@ class X86_64InstructionSetFeatures FINAL : public X86InstructionSetFeatures {
  protected:
   // Parse a string of the form "ssse3" adding these to a new InstructionSetFeatures.
   std::unique_ptr<const InstructionSetFeatures>
-      AddFeaturesFromSplitString(const bool smp, const std::vector<std::string>& features,
+      AddFeaturesFromSplitString(const std::vector<std::string>& features,
                                  std::string* error_msg) const OVERRIDE {
-    return X86InstructionSetFeatures::AddFeaturesFromSplitString(smp, features, true, error_msg);
+    return X86InstructionSetFeatures::AddFeaturesFromSplitString(features, true, error_msg);
   }
 
  private:
-  X86_64InstructionSetFeatures(bool smp, bool has_SSSE3, bool has_SSE4_1, bool has_SSE4_2,
-                               bool has_AVX, bool has_AVX2, bool has_POPCNT)
-      : X86InstructionSetFeatures(smp, has_SSSE3, has_SSE4_1, has_SSE4_2, has_AVX,
+  X86_64InstructionSetFeatures(bool has_SSSE3,
+                               bool has_SSE4_1,
+                               bool has_SSE4_2,
+                               bool has_AVX,
+                               bool has_AVX2,
+                               bool has_POPCNT)
+      : X86InstructionSetFeatures(has_SSSE3, has_SSE4_1, has_SSE4_2, has_AVX,
                                   has_AVX2, has_POPCNT) {
   }
 

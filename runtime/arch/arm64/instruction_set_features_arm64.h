@@ -73,20 +73,19 @@ class Arm64InstructionSetFeatures FINAL : public InstructionSetFeatures {
  protected:
   // Parse a vector of the form "a53" adding these to a new ArmInstructionSetFeatures.
   std::unique_ptr<const InstructionSetFeatures>
-      AddFeaturesFromSplitString(const bool smp, const std::vector<std::string>& features,
+      AddFeaturesFromSplitString(const std::vector<std::string>& features,
                                  std::string* error_msg) const OVERRIDE;
 
  private:
-  Arm64InstructionSetFeatures(bool smp, bool needs_a53_835769_fix, bool needs_a53_843419_fix)
-      : InstructionSetFeatures(smp),
+  Arm64InstructionSetFeatures(bool needs_a53_835769_fix, bool needs_a53_843419_fix)
+      : InstructionSetFeatures(),
         fix_cortex_a53_835769_(needs_a53_835769_fix),
         fix_cortex_a53_843419_(needs_a53_843419_fix) {
   }
 
   // Bitmap positions for encoding features as a bitmap.
   enum {
-    kSmpBitfield = 1,
-    kA53Bitfield = 2,
+    kA53Bitfield = 1 << 0,
   };
 
   const bool fix_cortex_a53_835769_;

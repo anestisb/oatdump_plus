@@ -29,7 +29,7 @@ class Mips64InstructionSetFeatures FINAL : public InstructionSetFeatures {
  public:
   // Process a CPU variant string like "r4000" and create InstructionSetFeatures.
   static Mips64FeaturesUniquePtr FromVariant(const std::string& variant,
-                                                                         std::string* error_msg);
+                                             std::string* error_msg);
 
   // Parse a bitmap and create an InstructionSetFeatures.
   static Mips64FeaturesUniquePtr FromBitmap(uint32_t bitmap);
@@ -63,18 +63,12 @@ class Mips64InstructionSetFeatures FINAL : public InstructionSetFeatures {
  protected:
   // Parse a vector of the form "fpu32", "mips2" adding these to a new Mips64InstructionSetFeatures.
   std::unique_ptr<const InstructionSetFeatures>
-      AddFeaturesFromSplitString(const bool smp,
-                                 const std::vector<std::string>& features,
+      AddFeaturesFromSplitString(const std::vector<std::string>& features,
                                  std::string* error_msg) const OVERRIDE;
 
  private:
-  explicit Mips64InstructionSetFeatures(bool smp) : InstructionSetFeatures(smp) {
+  Mips64InstructionSetFeatures() : InstructionSetFeatures() {
   }
-
-  // Bitmap positions for encoding features as a bitmap.
-  enum {
-    kSmpBitfield = 1,
-  };
 
   DISALLOW_COPY_AND_ASSIGN(Mips64InstructionSetFeatures);
 };
