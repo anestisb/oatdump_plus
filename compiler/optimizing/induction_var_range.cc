@@ -368,10 +368,14 @@ void InductionVarRange::Replace(HInstruction* instruction,
   }
 }
 
-bool InductionVarRange::IsFinite(HLoopInformation* loop) const {
+bool InductionVarRange::IsFinite(HLoopInformation* loop, /*out*/ int64_t* tc) const {
   HInductionVarAnalysis::InductionInfo *trip =
       induction_analysis_->LookupInfo(loop, GetLoopControl(loop));
-  return trip != nullptr && !IsUnsafeTripCount(trip);
+  if (trip != nullptr && !IsUnsafeTripCount(trip)) {
+    IsConstant(trip->op_a, kExact, tc);
+    return true;
+  }
+  return false;
 }
 
 //

@@ -1853,6 +1853,14 @@ void HBasicBlock::DisconnectAndDelete() {
   SetGraph(nullptr);
 }
 
+void HBasicBlock::MergeInstructionsWith(HBasicBlock* other) {
+  DCHECK(EndsWithControlFlowInstruction());
+  RemoveInstruction(GetLastInstruction());
+  instructions_.Add(other->GetInstructions());
+  other->instructions_.SetBlockOfInstructions(this);
+  other->instructions_.Clear();
+}
+
 void HBasicBlock::MergeWith(HBasicBlock* other) {
   DCHECK_EQ(GetGraph(), other->GetGraph());
   DCHECK(ContainsElement(dominated_blocks_, other));
@@ -1861,11 +1869,7 @@ void HBasicBlock::MergeWith(HBasicBlock* other) {
   DCHECK(other->GetPhis().IsEmpty());
 
   // Move instructions from `other` to `this`.
-  DCHECK(EndsWithControlFlowInstruction());
-  RemoveInstruction(GetLastInstruction());
-  instructions_.Add(other->GetInstructions());
-  other->instructions_.SetBlockOfInstructions(this);
-  other->instructions_.Clear();
+  MergeInstructionsWith(other);
 
   // Remove `other` from the loops it is included in.
   for (HLoopInformationOutwardIterator it(*other); !it.Done(); it.Advance()) {
