@@ -375,10 +375,9 @@ extern "C" size_t MterpNewInstance(ShadowFrame* shadow_frame, Thread* self, uint
       gc::AllocatorType allocator_type = Runtime::Current()->GetHeap()->GetCurrentAllocator();
       obj = mirror::String::AllocEmptyString<true>(self, allocator_type);
     } else {
-      obj = AllocObjectFromCode<false, true>(dex::TypeIndex(inst->VRegB_21c()),
-                                             shadow_frame->GetMethod(),
-                                             self,
-                                             Runtime::Current()->GetHeap()->GetCurrentAllocator());
+      obj = AllocObjectFromCode<true>(c,
+                                      self,
+                                      Runtime::Current()->GetHeap()->GetCurrentAllocator());
     }
   }
   if (UNLIKELY(obj == nullptr)) {
