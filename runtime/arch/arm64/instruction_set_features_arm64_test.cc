@@ -28,8 +28,8 @@ TEST(Arm64InstructionSetFeaturesTest, Arm64Features) {
   ASSERT_TRUE(arm64_features.get() != nullptr) << error_msg;
   EXPECT_EQ(arm64_features->GetInstructionSet(), kArm64);
   EXPECT_TRUE(arm64_features->Equals(arm64_features.get()));
-  EXPECT_STREQ("smp,a53", arm64_features->GetFeatureString().c_str());
-  EXPECT_EQ(arm64_features->AsBitmap(), 3U);
+  EXPECT_STREQ("a53", arm64_features->GetFeatureString().c_str());
+  EXPECT_EQ(arm64_features->AsBitmap(), 1U);
 }
 
 }  // namespace art
