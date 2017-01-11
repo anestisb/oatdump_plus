@@ -76,6 +76,7 @@ class ReferenceTypePropagation::RTPVisitor : public HGraphDelegateVisitor {
       worklist_(worklist),
       is_first_run_(is_first_run) {}
 
+  void VisitDeoptimize(HDeoptimize* deopt) OVERRIDE;
   void VisitNewInstance(HNewInstance* new_instance) OVERRIDE;
   void VisitLoadClass(HLoadClass* load_class) OVERRIDE;
   void VisitClinitCheck(HClinitCheck* clinit_check) OVERRIDE;
@@ -151,38 +152,6 @@ void ReferenceTypePropagation::Visit(HInstruction* instruction) {
   instruction->Accept(&visitor);
 }
 
-void ReferenceTypePropagation::Run() {
-  worklist_.reserve(kDefaultWorklistSize);
-
-  // To properly propagate type info we need to visit in the dominator-based order.
-  // Reverse post order guarantees a node's dominators are visited first.
-  // We take advantage of this order in `VisitBasicBlock`.
-  for (HBasicBlock* block : graph_->GetReversePostOrder()) {
-    VisitBasicBlock(block);
-  }
-
-  ProcessWorklist();
-  ValidateTypes();
-}
-
-void ReferenceTypePropagation::VisitBasicBlock(HBasicBlock* block) {
-  RTPVisitor visitor(graph_, hint_dex_cache_, &handle_cache_, &worklist_, is_first_run_);
-  // Handle Phis first as there might be instructions in the same block who depend on them.
-  for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
-    VisitPhi(it.Current()->AsPhi());
-  }
-
-  // Handle instructions.
-  for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
-    HInstruction* instr = it.Current();
-    instr->Accept(&visitor);
-  }
-
-  // Add extra nodes to bound types.
-  BoundTypeForIfNotNull(block);
-  BoundTypeForIfInstanceOf(block);
-}
-
 // Check if we should create a bound type for the given object at the specified
 // position. Because of inlining and the fact we run RTP more than once and we
 // might have a HBoundType already. If we do, we should not create a new one.
@@ -225,6 +194,153 @@ static bool ShouldCreateBoundType(HInstruction* position,
   return false;
 }
 
+// Helper method to bound the type of `receiver` for all instructions dominated
+// by `start_block`, or `start_instruction` if `start_block` is null. The new
+// bound type will have its upper bound be `class_rti`.
+static void BoundTypeIn(HInstruction* receiver,
+                        HBasicBlock* start_block,
+                        HInstruction* start_instruction,
+                        const ReferenceTypeInfo& class_rti) {
+  // We only need to bound the type if we have uses in the relevant block.
+  // So start with null and create the HBoundType lazily, only if it's needed.
+  HBoundType* bound_type = nullptr;
+  DCHECK(!receiver->IsLoadClass()) << "We should not replace HLoadClass instructions";
+  const HUseList<HInstruction*>& uses = receiver->GetUses();
+  for (auto it = uses.begin(), end = uses.end(); it != end; /* ++it below */) {
+    HInstruction* user = it->GetUser();
+    size_t index = it->GetIndex();
+    // Increment `it` now because `*it` may disappear thanks to user->ReplaceInput().
+    ++it;
+    bool dominates = (start_instruction != nullptr)
+        ? start_instruction->StrictlyDominates(user)
+        : start_block->Dominates(user->GetBlock());
+    if (!dominates) {
+      continue;
+    }
+    if (bound_type == nullptr) {
+      ScopedObjectAccess soa(Thread::Current());
+      HInstruction* insert_point = (start_instruction != nullptr)
+          ? start_instruction->GetNext()
+          : start_block->GetFirstInstruction();
+      if (ShouldCreateBoundType(
+            insert_point, receiver, class_rti, start_instruction, start_block)) {
+        bound_type = new (receiver->GetBlock()->GetGraph()->GetArena()) HBoundType(receiver);
+        bound_type->SetUpperBound(class_rti, /* bound_can_be_null */ false);
+        start_block->InsertInstructionBefore(bound_type, insert_point);
+        // To comply with the RTP algorithm, don't type the bound type just yet, it will
+        // be handled in RTPVisitor::VisitBoundType.
+      } else {
+        // We already have a bound type on the position we would need to insert
+        // the new one. The existing bound type should dominate all the users
+        // (dchecked) so there's no need to continue.
+        break;
+      }
+    }
+    user->ReplaceInput(bound_type, index);
+  }
+  // If the receiver is a null check, also bound the type of the actual
+  // receiver.
+  if (receiver->IsNullCheck()) {
+    BoundTypeIn(receiver->InputAt(0), start_block, start_instruction, class_rti);
+  }
+}
+
+// Recognize the patterns:
+// if (obj.shadow$_klass_ == Foo.class) ...
+// deoptimize if (obj.shadow$_klass_ == Foo.class)
+static void BoundTypeForClassCheck(HInstruction* check) {
+  if (!check->IsIf() && !check->IsDeoptimize()) {
+    return;
+  }
+  HInstruction* compare = check->InputAt(0);
+  if (!compare->IsEqual() && !compare->IsNotEqual()) {
+    return;
+  }
+  HInstruction* input_one = compare->InputAt(0);
+  HInstruction* input_two = compare->InputAt(1);
+  HLoadClass* load_class = input_one->IsLoadClass()
+      ? input_one->AsLoadClass()
+      : input_two->AsLoadClass();
+  if (load_class == nullptr) {
+    return;
+  }
+
+  ReferenceTypeInfo class_rti = load_class->GetLoadedClassRTI();
+  if (!class_rti.IsValid()) {
+    // We have loaded an unresolved class. Don't bother bounding the type.
+    return;
+  }
+
+  HInstanceFieldGet* field_get = (load_class == input_one)
+      ? input_two->AsInstanceFieldGet()
+      : input_one->AsInstanceFieldGet();
+  if (field_get == nullptr) {
+    return;
+  }
+  HInstruction* receiver = field_get->InputAt(0);
+  ReferenceTypeInfo receiver_type = receiver->GetReferenceTypeInfo();
+  if (receiver_type.IsExact()) {
+    // If we already know the receiver type, don't bother updating its users.
+    return;
+  }
+
+  {
+    ScopedObjectAccess soa(Thread::Current());
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+    ArtField* field = class_linker->GetClassRoot(ClassLinker::kJavaLangObject)->GetInstanceField(0);
+    DCHECK_EQ(std::string(field->GetName()), "shadow$_klass_");
+    if (field_get->GetFieldInfo().GetField() != field) {
+      return;
+    }
+  }
+
+  if (check->IsIf()) {
+    HBasicBlock* trueBlock = check->IsEqual()
+        ? check->AsIf()->IfTrueSuccessor()
+        : check->AsIf()->IfFalseSuccessor();
+    BoundTypeIn(receiver, trueBlock, /* start_instruction */ nullptr, class_rti);
+  } else {
+    DCHECK(check->IsDeoptimize());
+    if (check->IsEqual()) {
+      BoundTypeIn(receiver, check->GetBlock(), check, class_rti);
+    }
+  }
+}
+
+void ReferenceTypePropagation::Run() {
+  worklist_.reserve(kDefaultWorklistSize);
+
+  // To properly propagate type info we need to visit in the dominator-based order.
+  // Reverse post order guarantees a node's dominators are visited first.
+  // We take advantage of this order in `VisitBasicBlock`.
+  for (HBasicBlock* block : graph_->GetReversePostOrder()) {
+    VisitBasicBlock(block);
+  }
+
+  ProcessWorklist();
+  ValidateTypes();
+}
+
+void ReferenceTypePropagation::VisitBasicBlock(HBasicBlock* block) {
+  RTPVisitor visitor(graph_, hint_dex_cache_, &handle_cache_, &worklist_, is_first_run_);
+  // Handle Phis first as there might be instructions in the same block who depend on them.
+  for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
+    VisitPhi(it.Current()->AsPhi());
+  }
+
+  // Handle instructions. Since RTP may add HBoundType instructions just after the
+  // last visited instruction, use `HInstructionIteratorHandleChanges` iterator.
+  for (HInstructionIteratorHandleChanges it(block->GetInstructions()); !it.Done(); it.Advance()) {
+    HInstruction* instr = it.Current();
+    instr->Accept(&visitor);
+  }
+
+  // Add extra nodes to bound types.
+  BoundTypeForIfNotNull(block);
+  BoundTypeForIfInstanceOf(block);
+  BoundTypeForClassCheck(block->GetLastInstruction());
+}
+
 void ReferenceTypePropagation::BoundTypeForIfNotNull(HBasicBlock* block) {
   HIf* ifInstruction = block->GetLastInstruction()->AsIf();
   if (ifInstruction == nullptr) {
@@ -254,40 +370,14 @@ void ReferenceTypePropagation::BoundTypeForIfNotNull(HBasicBlock* block) {
 
   // We only need to bound the type if we have uses in the relevant block.
   // So start with null and create the HBoundType lazily, only if it's needed.
-  HBoundType* bound_type = nullptr;
   HBasicBlock* notNullBlock = ifInput->IsNotEqual()
       ? ifInstruction->IfTrueSuccessor()
       : ifInstruction->IfFalseSuccessor();
 
-  const HUseList<HInstruction*>& uses = obj->GetUses();
-  for (auto it = uses.begin(), end = uses.end(); it != end; /* ++it below */) {
-    HInstruction* user = it->GetUser();
-    size_t index = it->GetIndex();
-    // Increment `it` now because `*it` may disappear thanks to user->ReplaceInput().
-    ++it;
-    if (notNullBlock->Dominates(user->GetBlock())) {
-      if (bound_type == nullptr) {
-        ScopedObjectAccess soa(Thread::Current());
-        HInstruction* insert_point = notNullBlock->GetFirstInstruction();
-        ReferenceTypeInfo object_rti = ReferenceTypeInfo::Create(
-            handle_cache_.GetObjectClassHandle(), /* is_exact */ false);
-        if (ShouldCreateBoundType(insert_point, obj, object_rti, nullptr, notNullBlock)) {
-          bound_type = new (graph_->GetArena()) HBoundType(obj);
-          bound_type->SetUpperBound(object_rti, /* bound_can_be_null */ false);
-          if (obj->GetReferenceTypeInfo().IsValid()) {
-            bound_type->SetReferenceTypeInfo(obj->GetReferenceTypeInfo());
-          }
-          notNullBlock->InsertInstructionBefore(bound_type, insert_point);
-        } else {
-          // We already have a bound type on the position we would need to insert
-          // the new one. The existing bound type should dominate all the users
-          // (dchecked) so there's no need to continue.
-          break;
-        }
-      }
-      user->ReplaceInput(bound_type, index);
-    }
-  }
+  ReferenceTypeInfo object_rti = ReferenceTypeInfo::Create(
+      handle_cache_.GetObjectClassHandle(), /* is_exact */ false);
+
+  BoundTypeIn(obj, notNullBlock, /* start_instruction */ nullptr, object_rti);
 }
 
 // Returns true if one of the patterns below has been recognized. If so, the
@@ -378,15 +468,10 @@ void ReferenceTypePropagation::BoundTypeForIfInstanceOf(HBasicBlock* block) {
 
   HLoadClass* load_class = instanceOf->InputAt(1)->AsLoadClass();
   ReferenceTypeInfo class_rti = load_class->GetLoadedClassRTI();
-  {
-    if (!class_rti.IsValid()) {
-      // He have loaded an unresolved class. Don't bother bounding the type.
-      return;
-    }
+  if (!class_rti.IsValid()) {
+    // He have loaded an unresolved class. Don't bother bounding the type.
+    return;
   }
-  // We only need to bound the type if we have uses in the relevant block.
-  // So start with null and create the HBoundType lazily, only if it's needed.
-  HBoundType* bound_type = nullptr;
 
   HInstruction* obj = instanceOf->InputAt(0);
   if (obj->GetReferenceTypeInfo().IsExact() && !obj->IsPhi()) {
@@ -398,33 +483,14 @@ void ReferenceTypePropagation::BoundTypeForIfInstanceOf(HBasicBlock* block) {
     // input.
     return;
   }
-  DCHECK(!obj->IsLoadClass()) << "We should not replace HLoadClass instructions";
-  const HUseList<HInstruction*>& uses = obj->GetUses();
-  for (auto it = uses.begin(), end = uses.end(); it != end; /* ++it below */) {
-    HInstruction* user = it->GetUser();
-    size_t index = it->GetIndex();
-    // Increment `it` now because `*it` may disappear thanks to user->ReplaceInput().
-    ++it;
-    if (instanceOfTrueBlock->Dominates(user->GetBlock())) {
-      if (bound_type == nullptr) {
-        ScopedObjectAccess soa(Thread::Current());
-        HInstruction* insert_point = instanceOfTrueBlock->GetFirstInstruction();
-        if (ShouldCreateBoundType(insert_point, obj, class_rti, nullptr, instanceOfTrueBlock)) {
-          bound_type = new (graph_->GetArena()) HBoundType(obj);
-          bool is_exact = class_rti.GetTypeHandle()->CannotBeAssignedFromOtherTypes();
-          bound_type->SetUpperBound(ReferenceTypeInfo::Create(class_rti.GetTypeHandle(), is_exact),
-                                    /* InstanceOf fails for null. */ false);
-          instanceOfTrueBlock->InsertInstructionBefore(bound_type, insert_point);
-        } else {
-          // We already have a bound type on the position we would need to insert
-          // the new one. The existing bound type should dominate all the users
-          // (dchecked) so there's no need to continue.
-          break;
-        }
-      }
-      user->ReplaceInput(bound_type, index);
+
+  {
+    ScopedObjectAccess soa(Thread::Current());
+    if (!class_rti.GetTypeHandle()->CannotBeAssignedFromOtherTypes()) {
+      class_rti = ReferenceTypeInfo::Create(class_rti.GetTypeHandle(), /* is_exact */ false);
     }
   }
+  BoundTypeIn(obj, instanceOfTrueBlock, /* start_instruction */ nullptr, class_rti);
 }
 
 void ReferenceTypePropagation::RTPVisitor::SetClassAsTypeInfo(HInstruction* instr,
@@ -462,6 +528,10 @@ void ReferenceTypePropagation::RTPVisitor::SetClassAsTypeInfo(HInstruction* inst
   } else {
     instr->SetReferenceTypeInfo(instr->GetBlock()->GetGraph()->GetInexactObjectRti());
   }
+}
+
+void ReferenceTypePropagation::RTPVisitor::VisitDeoptimize(HDeoptimize* instr) {
+  BoundTypeForClassCheck(instr);
 }
 
 void ReferenceTypePropagation::RTPVisitor::UpdateReferenceTypeInfo(HInstruction* instr,
@@ -515,16 +585,9 @@ void ReferenceTypePropagation::RTPVisitor::UpdateFieldAccessTypeInfo(HInstructio
   ScopedObjectAccess soa(Thread::Current());
   ObjPtr<mirror::Class> klass;
 
-  // The field index is unknown only during tests.
-  if (info.GetFieldIndex() != kUnknownFieldIndex) {
-    ClassLinker* cl = Runtime::Current()->GetClassLinker();
-    ArtField* field = cl->GetResolvedField(info.GetFieldIndex(),
-                                           MakeObjPtr(info.GetDexCache().Get()));
-    // TODO: There are certain cases where we can't resolve the field.
-    // b/21914925 is open to keep track of a repro case for this issue.
-    if (field != nullptr) {
-      klass = field->GetType<false>();
-    }
+  // The field is unknown only during tests.
+  if (info.GetField() != nullptr) {
+    klass = info.GetField()->GetType<false>();
   }
 
   SetClassAsTypeInfo(instr, klass, /* is_exact */ false);
