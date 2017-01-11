@@ -3106,19 +3106,16 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         break;
       }
       const uint32_t proto_idx = (is_range) ? inst->VRegH_4rcc() : inst->VRegH_45cc();
-      const char* descriptor =
+      const char* return_descriptor =
           dex_file_->GetReturnTypeDescriptor(dex_file_->GetProtoId(proto_idx));
       const RegType& return_type =
-          reg_types_.FromDescriptor(GetClassLoader(), descriptor, false);
+          reg_types_.FromDescriptor(GetClassLoader(), return_descriptor, false);
       if (!return_type.IsLowHalf()) {
         work_line_->SetResultRegisterType(this, return_type);
       } else {
         work_line_->SetResultRegisterTypeWide(return_type, return_type.HighHalf(&reg_types_));
       }
-      // TODO(oth): remove when compiler support is available.
-      Fail(VERIFY_ERROR_FORCE_INTERPRETER)
-          << "invoke-polymorphic is not supported by compiler";
-      have_pending_experimental_failure_ = true;
+      just_set_result = true;
       break;
     }
     case Instruction::NEG_INT:
