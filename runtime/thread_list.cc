@@ -653,8 +653,9 @@ void ThreadList::SuspendAllInternal(Thread* self,
   // is done with a timeout so that we can detect problems.
 #if ART_USE_FUTEXES
   timespec wait_timeout;
-  InitTimeSpec(false, CLOCK_MONOTONIC, 10000, 0, &wait_timeout);
+  InitTimeSpec(false, CLOCK_MONOTONIC, kIsDebugBuild ? 50000 : 10000, 0, &wait_timeout);
 #endif
+  const uint64_t start_time = NanoTime();
   while (true) {
     int32_t cur_val = pending_threads.LoadRelaxed();
     if (LIKELY(cur_val > 0)) {
@@ -664,7 +665,8 @@ void ThreadList::SuspendAllInternal(Thread* self,
         if ((errno != EAGAIN) && (errno != EINTR)) {
           if (errno == ETIMEDOUT) {
             LOG(kIsDebugBuild ? ::android::base::FATAL : ::android::base::ERROR)
-                << "Unexpected time out during suspend all.";
+                << "Timed out waiting for threads to suspend, waited for "
+                << PrettyDuration(NanoTime() - start_time);
           } else {
             PLOG(FATAL) << "futex wait failed for SuspendAllInternal()";
           }
@@ -672,6 +674,7 @@ void ThreadList::SuspendAllInternal(Thread* self,
       }  // else re-check pending_threads in the next iteration (this may be a spurious wake-up).
 #else
       // Spin wait. This is likely to be slow, but on most architecture ART_USE_FUTEXES is set.
+      UNUSED(start_time);
 #endif
     } else {
       CHECK_EQ(cur_val, 0);
