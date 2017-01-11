@@ -105,9 +105,10 @@ class JvmtiDeleter {
 
 using JvmtiUniquePtr = std::unique_ptr<unsigned char, JvmtiDeleter>;
 
+template <typename T>
 ALWAYS_INLINE
-static inline JvmtiUniquePtr MakeJvmtiUniquePtr(jvmtiEnv* env, unsigned char* mem) {
-  return JvmtiUniquePtr(mem, JvmtiDeleter(env));
+static inline JvmtiUniquePtr MakeJvmtiUniquePtr(jvmtiEnv* env, T* mem) {
+  return JvmtiUniquePtr(reinterpret_cast<unsigned char*>(mem), JvmtiDeleter(env));
 }
 
 ALWAYS_INLINE

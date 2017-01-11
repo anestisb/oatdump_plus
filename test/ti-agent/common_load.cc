@@ -39,6 +39,7 @@
 #include "913-heaps/heaps.h"
 #include "918-fields/fields.h"
 #include "920-objects/objects.h"
+#include "922-properties/properties.h"
 
 namespace art {
 
@@ -76,6 +77,7 @@ AgentLib agents[] = {
   { "919-obsolete-fields", common_redefine::OnLoad, nullptr },
   { "920-objects", Test920Objects::OnLoad, nullptr },
   { "921-hello-failure", common_redefine::OnLoad, nullptr },
+  { "922-properties", Test922Properties::OnLoad, nullptr },
 };
 
 static AgentLib* FindAgent(char* name) {
