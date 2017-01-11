@@ -573,7 +573,8 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
   VIXLUInt32Literal* DeduplicateBootImageAddressLiteral(uint32_t address);
   VIXLUInt32Literal* DeduplicateDexCacheAddressLiteral(uint32_t address);
   VIXLUInt32Literal* DeduplicateJitStringLiteral(const DexFile& dex_file,
-                                                 dex::StringIndex string_index);
+                                                 dex::StringIndex string_index,
+                                                 Handle<mirror::String> handle);
   VIXLUInt32Literal* DeduplicateJitClassLiteral(const DexFile& dex_file,
                                                 dex::TypeIndex type_index,
                                                 uint64_t address);

@@ -351,8 +351,7 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
   // Also emits literal patches.
   void EmitJitRoots(uint8_t* code,
                     Handle<mirror::ObjectArray<mirror::Object>> roots,
-                    const uint8_t* roots_data,
-                    Handle<mirror::DexCache> outer_dex_cache)
+                    const uint8_t* roots_data)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool IsLeafMethod() const {
@@ -713,9 +712,9 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
   const ArenaVector<HBasicBlock*>* block_order_;
 
   // Maps a StringReference (dex_file, string_index) to the index in the literal table.
-  // Entries are intially added with a 0 index, and `EmitJitRoots` will compute all the
-  // indices.
-  ArenaSafeMap<StringReference, uint32_t, StringReferenceValueComparator> jit_string_roots_;
+  // Entries are intially added with a pointer in the handle zone, and `EmitJitRoots`
+  // will compute all the indices.
+  ArenaSafeMap<StringReference, uint64_t, StringReferenceValueComparator> jit_string_roots_;
 
   // Maps a ClassReference (dex_file, type_index) to the index in the literal table.
   // Entries are intially added with a pointer in the handle zone, and `EmitJitRoots`

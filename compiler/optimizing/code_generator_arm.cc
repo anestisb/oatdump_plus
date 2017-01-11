@@ -5936,7 +5936,9 @@ void LocationsBuilderARM::VisitLoadString(HLoadString* load) {
   }
 }
 
-void InstructionCodeGeneratorARM::VisitLoadString(HLoadString* load) {
+// NO_THREAD_SAFETY_ANALYSIS as we manipulate handles whose internal object we know does not
+// move.
+void InstructionCodeGeneratorARM::VisitLoadString(HLoadString* load) NO_THREAD_SAFETY_ANALYSIS {
   LocationSummary* locations = load->GetLocations();
   Location out_loc = locations->Out();
   Register out = out_loc.AsRegister<Register>();
@@ -5961,8 +5963,9 @@ void InstructionCodeGeneratorARM::VisitLoadString(HLoadString* load) {
       return;  // No dex cache slow path.
     }
     case HLoadString::LoadKind::kBootImageAddress: {
-      DCHECK_NE(load->GetAddress(), 0u);
-      uint32_t address = dchecked_integral_cast<uint32_t>(load->GetAddress());
+      uint32_t address = dchecked_integral_cast<uint32_t>(
+          reinterpret_cast<uintptr_t>(load->GetString().Get()));
+      DCHECK_NE(address, 0u);
       __ LoadLiteral(out, codegen_->DeduplicateBootImageAddressLiteral(address));
       return;  // No dex cache slow path.
     }
@@ -5986,7 +5989,8 @@ void InstructionCodeGeneratorARM::VisitLoadString(HLoadString* load) {
     }
     case HLoadString::LoadKind::kJitTableAddress: {
       __ LoadLiteral(out, codegen_->DeduplicateJitStringLiteral(load->GetDexFile(),
-                                                                load->GetStringIndex()));
+                                                                load->GetStringIndex(),
+                                                                load->GetString()));
       // /* GcRoot<mirror::String> */ out = *out
       GenerateGcRootFieldLoad(load, out_loc, out, /* offset */ 0, kCompilerReadBarrierOption);
       return;
@@ -7316,8 +7320,10 @@ Literal* CodeGeneratorARM::DeduplicateBootImageAddressLiteral(uint32_t address) 
 }
 
 Literal* CodeGeneratorARM::DeduplicateJitStringLiteral(const DexFile& dex_file,
-                                                       dex::StringIndex string_index) {
-  jit_string_roots_.Overwrite(StringReference(&dex_file, string_index), /* placeholder */ 0u);
+                                                       dex::StringIndex string_index,
+                                                       Handle<mirror::String> handle) {
+  jit_string_roots_.Overwrite(StringReference(&dex_file, string_index),
+                              reinterpret_cast64<uint64_t>(handle.GetReference()));
   return jit_string_patches_.GetOrCreate(
       StringReference(&dex_file, string_index),
       [this]() { return __ NewLiteral<uint32_t>(/* placeholder */ 0u); });
