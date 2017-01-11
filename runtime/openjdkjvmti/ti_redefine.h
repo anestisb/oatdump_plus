@@ -181,28 +181,24 @@ class Redefiner {
   // data has not been modified in an incompatible manner.
   bool CheckClass() REQUIRES_SHARED(art::Locks::mutator_lock_);
 
-  bool UpdateJavaDexFile(art::ObjPtr<art::mirror::Object> java_dex_file,
+  void UpdateJavaDexFile(art::ObjPtr<art::mirror::Object> java_dex_file,
                          art::ObjPtr<art::mirror::LongArray> new_cookie,
                          /*out*/art::ObjPtr<art::mirror::LongArray>* original_cookie)
       REQUIRES(art::Locks::mutator_lock_);
 
-  void RestoreJavaDexFile(art::ObjPtr<art::mirror::Object> java_dex_file,
-                          art::ObjPtr<art::mirror::LongArray> original_cookie)
+  void UpdateFields(art::ObjPtr<art::mirror::Class> mclass)
       REQUIRES(art::Locks::mutator_lock_);
 
-  bool UpdateFields(art::ObjPtr<art::mirror::Class> mclass)
-      REQUIRES(art::Locks::mutator_lock_);
-
-  bool UpdateMethods(art::ObjPtr<art::mirror::Class> mclass,
+  void UpdateMethods(art::ObjPtr<art::mirror::Class> mclass,
                      art::ObjPtr<art::mirror::DexCache> new_dex_cache,
                      const art::DexFile::ClassDef& class_def)
       REQUIRES(art::Locks::mutator_lock_);
 
-  bool UpdateClass(art::ObjPtr<art::mirror::Class> mclass,
+  void UpdateClass(art::ObjPtr<art::mirror::Class> mclass,
                    art::ObjPtr<art::mirror::DexCache> new_dex_cache)
       REQUIRES(art::Locks::mutator_lock_);
 
-  bool FindAndAllocateObsoleteMethods(art::mirror::Class* art_klass)
+  void FindAndAllocateObsoleteMethods(art::mirror::Class* art_klass)
       REQUIRES(art::Locks::mutator_lock_);
 
   void FillObsoleteMethodMap(art::mirror::Class* art_klass,
