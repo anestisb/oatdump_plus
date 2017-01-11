@@ -106,7 +106,6 @@ void DefaultInitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) 
       art_quick_invoke_super_trampoline_with_access_check;
   qpoints->pInvokeVirtualTrampolineWithAccessCheck =
       art_quick_invoke_virtual_trampoline_with_access_check;
-  qpoints->pInvokePolymorphic = art_quick_invoke_polymorphic;
 
   // Thread
   qpoints->pTestSuspend = art_quick_test_suspend;

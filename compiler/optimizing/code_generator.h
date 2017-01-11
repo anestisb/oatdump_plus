@@ -426,12 +426,12 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
   }
 
 
-  // Performs checks pertaining to an InvokeRuntime call.
+  // Perfoms checks pertaining to an InvokeRuntime call.
   void ValidateInvokeRuntime(QuickEntrypointEnum entrypoint,
                              HInstruction* instruction,
                              SlowPathCode* slow_path);
 
-  // Performs checks pertaining to an InvokeRuntimeWithoutRecordingPcInfo call.
+  // Perfoms checks pertaining to an InvokeRuntimeWithoutRecordingPcInfo call.
   static void ValidateInvokeRuntimeWithoutRecordingPcInfo(HInstruction* instruction,
                                                           SlowPathCode* slow_path);
 
@@ -494,8 +494,6 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
       HInvoke* invoke, InvokeDexCallingConventionVisitor* visitor);
 
   void GenerateInvokeUnresolvedRuntimeCall(HInvokeUnresolved* invoke);
-
-  void GenerateInvokePolymorphicCall(HInvokePolymorphic* invoke);
 
   void CreateUnresolvedFieldLocationSummary(
       HInstruction* field_access,
