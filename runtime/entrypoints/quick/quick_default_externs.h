@@ -109,7 +109,12 @@ extern "C" void art_quick_invoke_direct_trampoline_with_access_check(uint32_t, v
 extern "C" void art_quick_invoke_interface_trampoline_with_access_check(uint32_t, void*);
 extern "C" void art_quick_invoke_static_trampoline_with_access_check(uint32_t, void*);
 extern "C" void art_quick_invoke_super_trampoline_with_access_check(uint32_t, void*);
+
 extern "C" void art_quick_invoke_virtual_trampoline_with_access_check(uint32_t, void*);
+
+// Invoke polymorphic entrypoint. Return type is dynamic and may be void, a primitive value, or
+// reference return type.
+extern "C" void art_quick_invoke_polymorphic(uint32_t, void*);
 
 // Thread entrypoints.
 extern "C" void art_quick_test_suspend();
