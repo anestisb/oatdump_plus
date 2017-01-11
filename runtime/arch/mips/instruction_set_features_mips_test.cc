@@ -27,8 +27,8 @@ TEST(MipsInstructionSetFeaturesTest, MipsFeatures) {
   ASSERT_TRUE(mips_features.get() != nullptr) << error_msg;
   EXPECT_EQ(mips_features->GetInstructionSet(), kMips);
   EXPECT_TRUE(mips_features->Equals(mips_features.get()));
-  EXPECT_STREQ("smp,fpu32,mips2", mips_features->GetFeatureString().c_str());
-  EXPECT_EQ(mips_features->AsBitmap(), 7U);
+  EXPECT_STREQ("fpu32,mips2", mips_features->GetFeatureString().c_str());
+  EXPECT_EQ(mips_features->AsBitmap(), 3U);
 }
 
 }  // namespace art
