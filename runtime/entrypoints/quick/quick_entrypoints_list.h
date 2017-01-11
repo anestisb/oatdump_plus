@@ -133,7 +133,6 @@
   V(InvokeStaticTrampolineWithAccessCheck, void, uint32_t, void*) \
   V(InvokeSuperTrampolineWithAccessCheck, void, uint32_t, void*) \
   V(InvokeVirtualTrampolineWithAccessCheck, void, uint32_t, void*) \
-  V(InvokePolymorphic, void, uint32_t, void*) \
 \
   V(TestSuspend, void, void) \
 \

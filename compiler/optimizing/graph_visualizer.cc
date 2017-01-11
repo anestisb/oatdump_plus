@@ -464,11 +464,6 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
     StartAttributeStream("intrinsic") << invoke->GetIntrinsic();
   }
 
-  void VisitInvokePolymorphic(HInvokePolymorphic* invoke) OVERRIDE {
-    VisitInvoke(invoke);
-    StartAttributeStream("invoke_type") << "InvokePolymorphic";
-  }
-
   void VisitInstanceFieldGet(HInstanceFieldGet* iget) OVERRIDE {
     StartAttributeStream("field_name") <<
         iget->GetFieldInfo().GetDexFile().PrettyField(iget->GetFieldInfo().GetFieldIndex(),
