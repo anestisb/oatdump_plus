@@ -218,7 +218,6 @@ std::unique_ptr<const InstructionSetFeatures> InstructionSetFeatures::AddFeature
   }
   std::vector<std::string> features;
   Split(feature_list, ',', &features);
-  bool smp = smp_;
   bool use_default = false;  // Have we seen the 'default' feature?
   bool first = false;  // Is this first feature?
   for (auto it = features.begin(); it != features.end();) {
@@ -236,14 +235,7 @@ std::unique_ptr<const InstructionSetFeatures> InstructionSetFeatures::AddFeature
         *error_msg = "Unexpected instruction set features before 'default'";
         return std::unique_ptr<const InstructionSetFeatures>();
       }
-    } else if (feature == "smp") {
-      smp = true;
-      erase = true;
-    } else if (feature == "-smp") {
-      smp = false;
-      erase = true;
     }
-    // Erase the smp feature once processed.
     if (!erase) {
       ++it;
     } else {
@@ -252,11 +244,11 @@ std::unique_ptr<const InstructionSetFeatures> InstructionSetFeatures::AddFeature
     first = true;
   }
   // Expectation: "default" is standalone, no other flags. But an empty features vector after
-  // processing can also come along if the handled flags (at the moment only smp) are the only
-  // ones in the list. So logically, we check "default -> features.empty."
+  // processing can also come along if the handled flags are the only ones in the list. So
+  // logically, we check "default -> features.empty."
   DCHECK(!use_default || features.empty());
 
-  return AddFeaturesFromSplitString(smp, features, error_msg);
+  return AddFeaturesFromSplitString(features, error_msg);
 }
 
 const ArmInstructionSetFeatures* InstructionSetFeatures::AsArmInstructionSetFeatures() const {
