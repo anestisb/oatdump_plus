@@ -358,7 +358,7 @@ std::string Instruction::DumpString(const DexFile* file) const {
       }
       break;
     case k35c: {
-      uint32_t arg[5];
+      uint32_t arg[kMaxVarArgRegs];
       GetVarArgs(arg);
       switch (Opcode()) {
         case FILLED_NEW_ARRAY:
@@ -443,8 +443,50 @@ std::string Instruction::DumpString(const DexFile* file) const {
       }
       break;
     }
+    case k45cc: {
+      uint32_t arg[kMaxVarArgRegs];
+      GetVarArgs(arg);
+      uint32_t method_idx = VRegB_45cc();
+      uint32_t proto_idx = VRegH_45cc();
+      os << opcode << " {";
+      for (int i = 0; i < VRegA_45cc(); ++i) {
+        if (i != 0) {
+          os << ", ";
+        }
+        os << "v" << arg[i];
+      }
+      os << "}";
+      if (file != nullptr) {
+        os << ", " << file->PrettyMethod(method_idx) << ", " << file->GetShorty(proto_idx)
+           << " // ";
+      } else {
+        os << ", ";
+      }
+      os << "method@" << method_idx << ", proto@" << proto_idx;
+      break;
+    }
+    case k4rcc:
+      switch (Opcode()) {
+        case INVOKE_POLYMORPHIC_RANGE: {
+          if (file != nullptr) {
+            uint32_t method_idx = VRegB_4rcc();
+            uint32_t proto_idx = VRegH_4rcc();
+            os << opcode << ", {v" << VRegC_4rcc() << " .. v" << (VRegC_4rcc() + VRegA_4rcc())
+               << "}, " << file->PrettyMethod(method_idx) << ", " << file->GetShorty(proto_idx)
+               << " // method@" << method_idx << ", proto@" << proto_idx;
+            break;
+          }
+        }
+        FALLTHROUGH_INTENDED;
+        default: {
+          uint32_t method_idx = VRegB_4rcc();
+          uint32_t proto_idx = VRegH_4rcc();
+          os << opcode << ", {v" << VRegC_4rcc() << " .. v" << (VRegC_4rcc() + VRegA_4rcc())
+             << "}, method@" << method_idx << ", proto@" << proto_idx;
+        }
+      }
+      break;
     case k51l: os << StringPrintf("%s v%d, #%+" PRId64, opcode, VRegA_51l(), VRegB_51l()); break;
-    default: os << " unknown format (" << DumpHex(5) << ")"; break;
   }
   return os.str();
 }

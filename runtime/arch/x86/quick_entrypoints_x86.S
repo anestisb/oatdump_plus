@@ -468,7 +468,7 @@ TWO_ARG_RUNTIME_EXCEPTION_SAVE_EVERYTHING art_quick_throw_string_bounds, artThro
      * The helper will attempt to locate the target and return a 64-bit result in r0/r1 consisting
      * of the target Method* in r0 and method->code_ in r1.
      *
-     * If unsuccessful, the helper will return null/null will bea pending exception in the
+     * If unsuccessful, the helper will return null/null and there will be a pending exception in the
      * thread and we branch to another stub to deliver it.
      *
      * On success this wrapper will restore arguments and *jump* to the target, leaving the lr
@@ -2222,6 +2222,98 @@ DEFINE_FUNCTION art_quick_osr_stub
     rep movsb                     // while (ecx--) { *edi++ = *esi++ }
     jmp *%ebx
 END_FUNCTION art_quick_osr_stub
+
+DEFINE_FUNCTION art_quick_invoke_polymorphic
+    SETUP_SAVE_REFS_AND_ARGS_FRAME  ebx, ebx       // Save frame.
+    mov %esp, %edx                                 // Remember SP.
+    subl LITERAL(16), %esp                         // Make space for JValue result.
+    CFI_ADJUST_CFA_OFFSET(16)
+    movl LITERAL(0), (%esp)                        // Initialize result to zero.
+    movl LITERAL(0), 4(%esp)
+    mov %esp, %eax                                 // Store pointer to JValue result in eax.
+    PUSH edx                                       // pass SP
+    pushl %fs:THREAD_SELF_OFFSET                   // pass Thread::Current()
+    CFI_ADJUST_CFA_OFFSET(4)
+    PUSH ecx                                       // pass receiver (method handle)
+    PUSH eax                                       // pass JResult
+    call SYMBOL(artInvokePolymorphic)              // (result, receiver, Thread*, SP)
+    subl LITERAL('A'), %eax                        // Eliminate out of bounds options
+    cmpb LITERAL('Z' - 'A'), %al
+    ja .Lcleanup_and_return
+    movzbl %al, %eax
+    call .Lput_eip_in_ecx
+.Lbranch_start:
+    add $(.Lhandler_table - .Lbranch_start), %eax  // Add offset of handler table to index.
+    addl %ecx, %eax                                // Add EIP relative address of table.
+    movzbl (%eax), %eax                            // Lookup relative branch in table.
+    addl %ecx, %eax                                // Add EIP relative offset.
+    jmp *%eax                                      // Branch to handler.
+
+    // Handlers for different return types.
+.Lstore_boolean_result:
+    movzbl 16(%esp), %eax                          // Copy boolean result to the accumulator.
+    jmp .Lcleanup_and_return
+.Lstore_char_result:
+    movzwl 16(%esp), %eax                          // Copy char result to the accumulator.
+    jmp .Lcleanup_and_return
+.Lstore_float_result:
+    movd 16(%esp), %xmm0                           // Copy float result to the context restored by
+    movd %xmm0, 36(%esp)                           // RESTORE_SAVE_REFS_ONLY_FRAME.
+    jmp .Lcleanup_and_return
+.Lstore_double_result:
+    movsd 16(%esp), %xmm0                          // Copy double result to the context restored by
+    movsd %xmm0, 36(%esp)                          // RESTORE_SAVE_REFS_ONLY_FRAME.
+    jmp .Lcleanup_and_return
+.Lstore_long_result:
+    movl 20(%esp), %edx                            // Copy upper-word of result to the context restored by
+    movl %edx, 72(%esp)                            // RESTORE_SAVE_REFS_ONLY_FRAME.
+    // Fall-through for lower bits.
+.Lstore_int_result:
+    movl 16(%esp), %eax                            // Copy int result to the accumulator.
+    // Fall-through to clean up and return.
+.Lcleanup_and_return:
+    addl LITERAL(32), %esp                         // Pop arguments and stack allocated JValue result.
+    CFI_ADJUST_CFA_OFFSET(-32)
+    RESTORE_SAVE_REFS_AND_ARGS_FRAME
+    RETURN_OR_DELIVER_PENDING_EXCEPTION
+
+.Lput_eip_in_ecx:                                  // Internal function that puts address of
+    movl 0(%esp), %ecx                             // next instruction into ECX when CALL
+    ret
+
+    // Handler table to handlers for given type.
+.Lhandler_table:
+MACRO1(HANDLER_TABLE_ENTRY, handler_label)
+    .byte RAW_VAR(handler_label) - .Lbranch_start
+END_MACRO
+    HANDLER_TABLE_ENTRY(.Lcleanup_and_return)      // A
+    HANDLER_TABLE_ENTRY(.Lstore_int_result)        // B (byte)
+    HANDLER_TABLE_ENTRY(.Lstore_char_result)       // C (char)
+    HANDLER_TABLE_ENTRY(.Lstore_double_result)     // D (double)
+    HANDLER_TABLE_ENTRY(.Lcleanup_and_return)      // E
+    HANDLER_TABLE_ENTRY(.Lstore_float_result)      // F (float)
+    HANDLER_TABLE_ENTRY(.Lcleanup_and_return)      // G
+    HANDLER_TABLE_ENTRY(.Lcleanup_and_return)      // H
+    HANDLER_TABLE_ENTRY(.Lstore_int_result)        // I (int)
+    HANDLER_TABLE_ENTRY(.Lstore_long_result)       // J (long)
+    HANDLER_TABLE_ENTRY(.Lcleanup_and_return)      // K
+    HANDLER_TABLE_ENTRY(.Lstore_int_result)        // L (object)
+    HANDLER_TABLE_ENTRY(.Lcleanup_and_return)      // M
+    HANDLER_TABLE_ENTRY(.Lcleanup_and_return)      // N
+    HANDLER_TABLE_ENTRY(.Lcleanup_and_return)      // O
+    HANDLER_TABLE_ENTRY(.Lcleanup_and_return)      // P
+    HANDLER_TABLE_ENTRY(.Lcleanup_and_return)      // Q
+    HANDLER_TABLE_ENTRY(.Lcleanup_and_return)      // R
+    HANDLER_TABLE_ENTRY(.Lstore_int_result)        // S (short)
+    HANDLER_TABLE_ENTRY(.Lcleanup_and_return)      // T
+    HANDLER_TABLE_ENTRY(.Lcleanup_and_return)      // U
+    HANDLER_TABLE_ENTRY(.Lcleanup_and_return)      // V (void)
+    HANDLER_TABLE_ENTRY(.Lcleanup_and_return)      // W
+    HANDLER_TABLE_ENTRY(.Lcleanup_and_return)      // X
+    HANDLER_TABLE_ENTRY(.Lcleanup_and_return)      // Y
+    HANDLER_TABLE_ENTRY(.Lstore_boolean_result)    // Z (boolean)
+
+END_FUNCTION art_quick_invoke_polymorphic
 
     // TODO: implement these!
 UNIMPLEMENTED art_quick_memcmp16
