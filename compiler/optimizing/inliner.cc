@@ -308,10 +308,8 @@ ArtMethod* HInliner::TryCHADevirtualization(ArtMethod* resolved_method) {
 }
 
 bool HInliner::TryInline(HInvoke* invoke_instruction) {
-  if (invoke_instruction->IsInvokeUnresolved() ||
-      invoke_instruction->IsInvokePolymorphic()) {
-    return false;  // Don't bother to move further if we know the method is unresolved or an
-                   // invoke-polymorphic.
+  if (invoke_instruction->IsInvokeUnresolved()) {
+    return false;  // Don't bother to move further if we know the method is unresolved.
   }
 
   ScopedObjectAccess soa(Thread::Current());
