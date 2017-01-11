@@ -51,6 +51,7 @@
 #include "ti_heap.h"
 #include "ti_method.h"
 #include "ti_object.h"
+#include "ti_properties.h"
 #include "ti_redefine.h"
 #include "ti_stack.h"
 #include "transform.h"
@@ -1034,15 +1035,15 @@ class JvmtiFunctions {
   }
 
   static jvmtiError GetSystemProperties(jvmtiEnv* env, jint* count_ptr, char*** property_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return PropertiesUtil::GetSystemProperties(env, count_ptr, property_ptr);
   }
 
   static jvmtiError GetSystemProperty(jvmtiEnv* env, const char* property, char** value_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return PropertiesUtil::GetSystemProperty(env, property, value_ptr);
   }
 
   static jvmtiError SetSystemProperty(jvmtiEnv* env, const char* property, const char* value) {
-    return ERR(NOT_IMPLEMENTED);
+    return PropertiesUtil::SetSystemProperty(env, property, value);
   }
 
   static jvmtiError GetPhase(jvmtiEnv* env, jvmtiPhase* phase_ptr) {
