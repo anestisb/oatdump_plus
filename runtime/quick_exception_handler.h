@@ -46,7 +46,7 @@ class QuickExceptionHandler {
   }
 
   // Find the catch handler for the given exception.
-  void FindCatch(mirror::Throwable* exception) REQUIRES_SHARED(Locks::mutator_lock_);
+  void FindCatch(ObjPtr<mirror::Throwable> exception) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Deoptimize the stack to the upcall/some code that's not deoptimizeable. For
   // every compiled frame, we create a "copy" shadow frame that will be executed
