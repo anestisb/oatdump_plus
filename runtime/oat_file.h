@@ -104,8 +104,6 @@ class OatFile {
     return is_executable_;
   }
 
-  bool HasPatchInfo() const;
-
   bool IsPic() const;
 
   // Indicates whether the oat file was compiled with full debugging capability.
