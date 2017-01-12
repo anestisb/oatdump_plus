@@ -3774,9 +3774,10 @@ class HCompare FINAL : public HBinaryOperation {
   DISALLOW_COPY_AND_ASSIGN(HCompare);
 };
 
-class HNewInstance FINAL : public HExpression<1> {
+class HNewInstance FINAL : public HExpression<2> {
  public:
   HNewInstance(HInstruction* cls,
+               HCurrentMethod* current_method,
                uint32_t dex_pc,
                dex::TypeIndex type_index,
                const DexFile& dex_file,
@@ -3790,6 +3791,7 @@ class HNewInstance FINAL : public HExpression<1> {
     SetPackedFlag<kFlagNeedsAccessCheck>(needs_access_check);
     SetPackedFlag<kFlagFinalizable>(finalizable);
     SetRawInputAt(0, cls);
+    SetRawInputAt(1, current_method);
   }
 
   dex::TypeIndex GetTypeIndex() const { return type_index_; }
