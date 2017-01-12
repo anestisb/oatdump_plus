@@ -34,6 +34,15 @@ HeapReference<MirrorType> HeapReference<MirrorType>::FromObjPtr(ObjPtr<MirrorTyp
   return HeapReference<MirrorType>(ptr.Ptr());
 }
 
+template<class MirrorType>
+bool HeapReference<MirrorType>::CasWeakRelaxed(MirrorType* expected_ptr, MirrorType* new_ptr) {
+  HeapReference<Object> expected_ref(HeapReference<Object>::FromMirrorPtr(expected_ptr));
+  HeapReference<Object> new_ref(HeapReference<Object>::FromMirrorPtr(new_ptr));
+  Atomic<uint32_t>* atomic_reference = reinterpret_cast<Atomic<uint32_t>*>(&this->reference_);
+  return atomic_reference->CompareExchangeWeakRelaxed(expected_ref.reference_,
+                                                      new_ref.reference_);
+}
+
 }  // namespace mirror
 }  // namespace art
 

@@ -187,7 +187,10 @@ class GarbageCollector : public RootVisitor, public IsMarkedVisitor, public Mark
   // and will be used for reading system weaks while the GC is running.
   virtual mirror::Object* IsMarked(mirror::Object* obj)
       REQUIRES_SHARED(Locks::mutator_lock_) = 0;
-  virtual bool IsMarkedHeapReference(mirror::HeapReference<mirror::Object>* obj)
+  // Returns true if the given heap reference is null or is already marked. If it's already marked,
+  // update the reference (uses a CAS if do_atomic_update is true. Otherwise, returns false.
+  virtual bool IsNullOrMarkedHeapReference(mirror::HeapReference<mirror::Object>* obj,
+                                           bool do_atomic_update)
       REQUIRES_SHARED(Locks::mutator_lock_) = 0;
   // Used by reference processor.
   virtual void ProcessMarkStack() REQUIRES_SHARED(Locks::mutator_lock_) = 0;
