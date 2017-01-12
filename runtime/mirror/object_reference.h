@@ -94,6 +94,9 @@ class MANAGED HeapReference : public ObjectReference<kPoisonHeapReferences, Mirr
   static HeapReference<MirrorType> FromObjPtr(ObjPtr<MirrorType> ptr)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  bool CasWeakRelaxed(MirrorType* old_ptr, MirrorType* new_ptr)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
  private:
   explicit HeapReference(MirrorType* mirror_ptr) REQUIRES_SHARED(Locks::mutator_lock_)
       : ObjectReference<kPoisonHeapReferences, MirrorType>(mirror_ptr) {}

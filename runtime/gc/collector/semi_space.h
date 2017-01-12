@@ -166,7 +166,8 @@ class SemiSpace : public GarbageCollector {
       REQUIRES(Locks::mutator_lock_)
       REQUIRES_SHARED(Locks::heap_bitmap_lock_);
 
-  virtual bool IsMarkedHeapReference(mirror::HeapReference<mirror::Object>* object) OVERRIDE
+  virtual bool IsNullOrMarkedHeapReference(mirror::HeapReference<mirror::Object>* object,
+                                           bool do_atomic_update) OVERRIDE
       REQUIRES(Locks::mutator_lock_)
       REQUIRES_SHARED(Locks::heap_bitmap_lock_);
 

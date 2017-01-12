@@ -2406,16 +2406,29 @@ void ConcurrentCopying::FinishPhase() {
   }
 }
 
-bool ConcurrentCopying::IsMarkedHeapReference(mirror::HeapReference<mirror::Object>* field) {
+bool ConcurrentCopying::IsNullOrMarkedHeapReference(mirror::HeapReference<mirror::Object>* field,
+                                                    bool do_atomic_update) {
   mirror::Object* from_ref = field->AsMirrorPtr();
+  if (from_ref == nullptr) {
+    return true;
+  }
   mirror::Object* to_ref = IsMarked(from_ref);
   if (to_ref == nullptr) {
     return false;
   }
   if (from_ref != to_ref) {
-    QuasiAtomic::ThreadFenceRelease();
-    field->Assign(to_ref);
-    QuasiAtomic::ThreadFenceSequentiallyConsistent();
+    if (do_atomic_update) {
+      do {
+        if (field->AsMirrorPtr() != from_ref) {
+          // Concurrently overwritten by a mutator.
+          break;
+        }
+      } while (!field->CasWeakRelaxed(from_ref, to_ref));
+    } else {
+      QuasiAtomic::ThreadFenceRelease();
+      field->Assign(to_ref);
+      QuasiAtomic::ThreadFenceSequentiallyConsistent();
+    }
   }
   return true;
 }

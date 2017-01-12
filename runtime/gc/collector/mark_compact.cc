@@ -472,9 +472,15 @@ mirror::Object* MarkCompact::IsMarked(mirror::Object* object) {
   return mark_bitmap_->Test(object) ? object : nullptr;
 }
 
-bool MarkCompact::IsMarkedHeapReference(mirror::HeapReference<mirror::Object>* ref_ptr) {
+bool MarkCompact::IsNullOrMarkedHeapReference(mirror::HeapReference<mirror::Object>* ref_ptr,
+                                              // MarkCompact does the GC in a pause. No CAS needed.
+                                              bool do_atomic_update ATTRIBUTE_UNUSED) {
   // Side effect free since we call this before ever moving objects.
-  return IsMarked(ref_ptr->AsMirrorPtr()) != nullptr;
+  mirror::Object* obj = ref_ptr->AsMirrorPtr();
+  if (obj == nullptr) {
+    return true;
+  }
+  return IsMarked(obj) != nullptr;
 }
 
 void MarkCompact::SweepSystemWeaks() {
