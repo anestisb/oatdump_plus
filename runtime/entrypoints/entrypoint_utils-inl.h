@@ -127,21 +127,43 @@ inline ArtMethod* GetCalleeSaveMethodCaller(Thread* self, Runtime::CalleeSaveTyp
       self->GetManagedStack()->GetTopQuickFrame(), type, true /* do_caller_check */);
 }
 
-ALWAYS_INLINE inline mirror::Class* CheckObjectAlloc(mirror::Class* klass,
-                                                     Thread* self,
-                                                     bool* slow_path)
-    REQUIRES_SHARED(Locks::mutator_lock_)
-    REQUIRES(!Roles::uninterruptible_) {
-  if (UNLIKELY(!klass->IsInstantiable())) {
-    self->ThrowNewException("Ljava/lang/InstantiationError;", klass->PrettyDescriptor().c_str());
+template <const bool kAccessCheck>
+ALWAYS_INLINE
+inline mirror::Class* CheckObjectAlloc(dex::TypeIndex type_idx,
+                                       ArtMethod* method,
+                                       Thread* self,
+                                       bool* slow_path) {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  PointerSize pointer_size = class_linker->GetImagePointerSize();
+  mirror::Class* klass = method->GetDexCacheResolvedType<false>(type_idx, pointer_size);
+  if (UNLIKELY(klass == nullptr)) {
+    klass = class_linker->ResolveType(type_idx, method);
     *slow_path = true;
-    return nullptr;  // Failure
+    if (klass == nullptr) {
+      DCHECK(self->IsExceptionPending());
+      return nullptr;  // Failure
+    } else {
+      DCHECK(!self->IsExceptionPending());
+    }
   }
-  if (UNLIKELY(klass->IsClassClass())) {
-    ThrowIllegalAccessError(nullptr, "Class %s is inaccessible",
-                            klass->PrettyDescriptor().c_str());
-    *slow_path = true;
-    return nullptr;  // Failure
+  if (kAccessCheck) {
+    if (UNLIKELY(!klass->IsInstantiable())) {
+      self->ThrowNewException("Ljava/lang/InstantiationError;", klass->PrettyDescriptor().c_str());
+      *slow_path = true;
+      return nullptr;  // Failure
+    }
+    if (UNLIKELY(klass->IsClassClass())) {
+      ThrowIllegalAccessError(nullptr, "Class %s is inaccessible",
+                              klass->PrettyDescriptor().c_str());
+      *slow_path = true;
+      return nullptr;  // Failure
+    }
+    mirror::Class* referrer = method->GetDeclaringClass();
+    if (UNLIKELY(!referrer->CanAccess(klass))) {
+      ThrowIllegalAccessErrorClass(referrer, klass);
+      *slow_path = true;
+      return nullptr;  // Failure
+    }
   }
   if (UNLIKELY(!klass->IsInitialized())) {
     StackHandleScope<1> hs(self);
@@ -169,9 +191,7 @@ ALWAYS_INLINE inline mirror::Class* CheckObjectAlloc(mirror::Class* klass,
 ALWAYS_INLINE
 inline mirror::Class* CheckClassInitializedForObjectAlloc(mirror::Class* klass,
                                                           Thread* self,
-                                                          bool* slow_path)
-    REQUIRES_SHARED(Locks::mutator_lock_)
-    REQUIRES(!Roles::uninterruptible_) {
+                                                          bool* slow_path) {
   if (UNLIKELY(!klass->IsInitialized())) {
     StackHandleScope<1> hs(self);
     Handle<mirror::Class> h_class(hs.NewHandle(klass));
@@ -193,15 +213,18 @@ inline mirror::Class* CheckClassInitializedForObjectAlloc(mirror::Class* klass,
   return klass;
 }
 
-// Allocate an instance of klass. Throws InstantationError if klass is not instantiable,
-// or IllegalAccessError if klass is j.l.Class. Performs a clinit check too.
-template <bool kInstrumented>
+// Given the context of a calling Method, use its DexCache to resolve a type to a Class. If it
+// cannot be resolved, throw an error. If it can, use it to create an instance.
+// When verification/compiler hasn't been able to verify access, optionally perform an access
+// check.
+template <bool kAccessCheck, bool kInstrumented>
 ALWAYS_INLINE
-inline mirror::Object* AllocObjectFromCode(mirror::Class* klass,
+inline mirror::Object* AllocObjectFromCode(dex::TypeIndex type_idx,
+                                           ArtMethod* method,
                                            Thread* self,
                                            gc::AllocatorType allocator_type) {
   bool slow_path = false;
-  klass = CheckObjectAlloc(klass, self, &slow_path);
+  mirror::Class* klass = CheckObjectAlloc<kAccessCheck>(type_idx, method, self, &slow_path);
   if (UNLIKELY(slow_path)) {
     if (klass == nullptr) {
       return nullptr;
