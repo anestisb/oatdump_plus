@@ -390,8 +390,13 @@ inline void MarkSweep::MarkObjectNonNullParallel(mirror::Object* obj) {
   }
 }
 
-bool MarkSweep::IsMarkedHeapReference(mirror::HeapReference<mirror::Object>* ref) {
-  return IsMarked(ref->AsMirrorPtr());
+bool MarkSweep::IsNullOrMarkedHeapReference(mirror::HeapReference<mirror::Object>* ref,
+                                            bool do_atomic_update ATTRIBUTE_UNUSED) {
+  mirror::Object* obj = ref->AsMirrorPtr();
+  if (obj == nullptr) {
+    return true;
+  }
+  return IsMarked(obj);
 }
 
 class MarkSweep::MarkObjectSlowPath {
