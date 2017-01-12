@@ -50,6 +50,7 @@
 #include "ti_field.h"
 #include "ti_heap.h"
 #include "ti_method.h"
+#include "ti_monitor.h"
 #include "ti_object.h"
 #include "ti_properties.h"
 #include "ti_redefine.h"
@@ -748,31 +749,31 @@ class JvmtiFunctions {
   }
 
   static jvmtiError CreateRawMonitor(jvmtiEnv* env, const char* name, jrawMonitorID* monitor_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return MonitorUtil::CreateRawMonitor(env, name, monitor_ptr);
   }
 
   static jvmtiError DestroyRawMonitor(jvmtiEnv* env, jrawMonitorID monitor) {
-    return ERR(NOT_IMPLEMENTED);
+    return MonitorUtil::DestroyRawMonitor(env, monitor);
   }
 
   static jvmtiError RawMonitorEnter(jvmtiEnv* env, jrawMonitorID monitor) {
-    return ERR(NOT_IMPLEMENTED);
+    return MonitorUtil::RawMonitorEnter(env, monitor);
   }
 
   static jvmtiError RawMonitorExit(jvmtiEnv* env, jrawMonitorID monitor) {
-    return ERR(NOT_IMPLEMENTED);
+    return MonitorUtil::RawMonitorExit(env, monitor);
   }
 
   static jvmtiError RawMonitorWait(jvmtiEnv* env, jrawMonitorID monitor, jlong millis) {
-    return ERR(NOT_IMPLEMENTED);
+    return MonitorUtil::RawMonitorWait(env, monitor, millis);
   }
 
   static jvmtiError RawMonitorNotify(jvmtiEnv* env, jrawMonitorID monitor) {
-    return ERR(NOT_IMPLEMENTED);
+    return MonitorUtil::RawMonitorNotify(env, monitor);
   }
 
   static jvmtiError RawMonitorNotifyAll(jvmtiEnv* env, jrawMonitorID monitor) {
-    return ERR(NOT_IMPLEMENTED);
+    return MonitorUtil::RawMonitorNotifyAll(env, monitor);
   }
 
   static jvmtiError SetJNIFunctionTable(jvmtiEnv* env, const jniNativeInterface* function_table) {
