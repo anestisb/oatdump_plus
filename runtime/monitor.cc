@@ -1361,8 +1361,10 @@ void MonitorList::BroadcastForNewMonitors() {
 void MonitorList::Add(Monitor* m) {
   Thread* self = Thread::Current();
   MutexLock mu(self, monitor_list_lock_);
-  while (UNLIKELY((!kUseReadBarrier && !allow_new_monitors_) ||
-                  (kUseReadBarrier && !self->GetWeakRefAccessEnabled()))) {
+  // CMS needs this to block for concurrent reference processing because an object allocated during
+  // the GC won't be marked and concurrent reference processing would incorrectly clear the JNI weak
+  // ref. But CC (kUseReadBarrier == true) doesn't because of the to-space invariant.
+  while (!kUseReadBarrier && UNLIKELY(!allow_new_monitors_)) {
     // Check and run the empty checkpoint before blocking so the empty checkpoint will work in the
     // presence of threads blocking for weak ref access.
     self->CheckEmptyCheckpoint();
