@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include "objects.h"
-
 #include <stdio.h>
 
 #include "base/macros.h"
@@ -59,18 +57,6 @@ extern "C" JNIEXPORT jint JNICALL Java_Main_getObjectHashCode(
   }
 
   return hash;
-}
-
-// Don't do anything
-jint OnLoad(JavaVM* vm,
-            char* options ATTRIBUTE_UNUSED,
-            void* reserved ATTRIBUTE_UNUSED) {
-  if (vm->GetEnv(reinterpret_cast<void**>(&jvmti_env), JVMTI_VERSION_1_0)) {
-    printf("Unable to get jvmti env!\n");
-    return 1;
-  }
-  SetAllCapabilities(jvmti_env);
-  return 0;
 }
 
 }  // namespace Test920Objects
