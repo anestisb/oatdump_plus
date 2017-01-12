@@ -203,7 +203,9 @@ void ReferenceProcessor::DelayReferenceReferent(ObjPtr<mirror::Class> klass,
   DCHECK(klass != nullptr);
   DCHECK(klass->IsTypeOfReferenceClass());
   mirror::HeapReference<mirror::Object>* referent = ref->GetReferentReferenceAddr();
-  if (referent->AsMirrorPtr() != nullptr && !collector->IsMarkedHeapReference(referent)) {
+  // do_atomic_update needs to be true because this happens outside of the reference processing
+  // phase.
+  if (!collector->IsNullOrMarkedHeapReference(referent, /*do_atomic_update*/true)) {
     Thread* self = Thread::Current();
     // TODO: Remove these locks, and use atomic stacks for storing references?
     // We need to check that the references haven't already been enqueued since we can end up
