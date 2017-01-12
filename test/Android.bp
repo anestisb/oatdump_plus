@@ -264,6 +264,7 @@ art_cc_defaults {
         "920-objects/objects.cc",
         "922-properties/properties.cc",
         "923-monitors/monitors.cc",
+        "924-threads/threads.cc",
     ],
     shared_libs: [
         "libbase",
