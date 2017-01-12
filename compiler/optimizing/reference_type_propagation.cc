@@ -499,18 +499,19 @@ void ReferenceTypePropagation::RTPVisitor::SetClassAsTypeInfo(HInstruction* inst
   if (instr->IsInvokeStaticOrDirect() && instr->AsInvokeStaticOrDirect()->IsStringInit()) {
     // Calls to String.<init> are replaced with a StringFactory.
     if (kIsDebugBuild) {
-      HInvoke* invoke = instr->AsInvoke();
+      HInvokeStaticOrDirect* invoke = instr->AsInvokeStaticOrDirect();
       ClassLinker* cl = Runtime::Current()->GetClassLinker();
       Thread* self = Thread::Current();
       StackHandleScope<2> hs(self);
+      const DexFile& dex_file = *invoke->GetTargetMethod().dex_file;
       Handle<mirror::DexCache> dex_cache(
-          hs.NewHandle(FindDexCacheWithHint(self, invoke->GetDexFile(), hint_dex_cache_)));
+          hs.NewHandle(FindDexCacheWithHint(self, dex_file, hint_dex_cache_)));
       // Use a null loader. We should probably use the compiling method's class loader,
       // but then we would need to pass it to RTPVisitor just for this debug check. Since
       // the method is from the String class, the null loader is good enough.
       Handle<mirror::ClassLoader> loader;
       ArtMethod* method = cl->ResolveMethod<ClassLinker::kNoICCECheckForCache>(
-          invoke->GetDexFile(), invoke->GetDexMethodIndex(), dex_cache, loader, nullptr, kDirect);
+          dex_file, invoke->GetDexMethodIndex(), dex_cache, loader, nullptr, kDirect);
       DCHECK(method != nullptr);
       mirror::Class* declaring_class = method->GetDeclaringClass();
       DCHECK(declaring_class != nullptr);
@@ -844,10 +845,8 @@ void ReferenceTypePropagation::RTPVisitor::VisitInvoke(HInvoke* instr) {
 
   ScopedObjectAccess soa(Thread::Current());
   ClassLinker* cl = Runtime::Current()->GetClassLinker();
-  mirror::DexCache* dex_cache =
-      FindDexCacheWithHint(soa.Self(), instr->GetDexFile(), hint_dex_cache_);
   PointerSize pointer_size = cl->GetImagePointerSize();
-  ArtMethod* method = dex_cache->GetResolvedMethod(instr->GetDexMethodIndex(), pointer_size);
+  ArtMethod* method = instr->GetResolvedMethod();
   mirror::Class* klass = (method == nullptr) ? nullptr : method->GetReturnType(false, pointer_size);
   SetClassAsTypeInfo(instr, klass, /* is_exact */ false);
 }

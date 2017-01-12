@@ -3994,7 +3994,7 @@ void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invok
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative: {
       // Add ADRP with its PC-relative DexCache access patch.
-      const DexFile& dex_file = invoke->GetDexFile();
+      const DexFile& dex_file = invoke->GetDexFileForPcRelativeDexCache();
       uint32_t element_offset = invoke->GetDexCacheArrayOffset();
       vixl::aarch64::Label* adrp_label = NewPcRelativeDexCacheArrayPatch(dex_file, element_offset);
       EmitAdrpPlaceholder(adrp_label, XRegisterFrom(temp));

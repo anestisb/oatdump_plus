@@ -986,7 +986,7 @@ Location CodeGeneratorX86_64::GenerateCalleeMethodStaticOrDirectCall(HInvokeStat
               Address::Absolute(kDummy32BitOffset, /* no_rip */ false));
       // Bind a new fixup label at the end of the "movl" insn.
       uint32_t offset = invoke->GetDexCacheArrayOffset();
-      __ Bind(NewPcRelativeDexCacheArrayPatch(invoke->GetDexFile(), offset));
+      __ Bind(NewPcRelativeDexCacheArrayPatch(invoke->GetDexFileForPcRelativeDexCache(), offset));
       break;
     }
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod: {

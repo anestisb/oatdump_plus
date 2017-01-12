@@ -16,6 +16,9 @@
 
 #include "prepare_for_register_allocation.h"
 
+#include "jni_internal.h"
+#include "well_known_classes.h"
+
 namespace art {
 
 void PrepareForRegisterAllocation::Run() {
@@ -42,16 +45,12 @@ void PrepareForRegisterAllocation::VisitBoundsCheck(HBoundsCheck* check) {
   if (check->IsStringCharAt()) {
     // Add a fake environment for String.charAt() inline info as we want
     // the exception to appear as being thrown from there.
-    const DexFile& dex_file = check->GetEnvironment()->GetDexFile();
-    DCHECK_STREQ(dex_file.PrettyMethod(check->GetStringCharAtMethodIndex()).c_str(),
-                 "char java.lang.String.charAt(int)");
+    ArtMethod* char_at_method = jni::DecodeArtMethod(WellKnownClasses::java_lang_String_charAt);
     ArenaAllocator* arena = GetGraph()->GetArena();
     HEnvironment* environment = new (arena) HEnvironment(arena,
                                                          /* number_of_vregs */ 0u,
-                                                         dex_file,
-                                                         check->GetStringCharAtMethodIndex(),
+                                                         char_at_method,
                                                          /* dex_pc */ DexFile::kDexNoIndex,
-                                                         kVirtual,
                                                          check);
     check->InsertRawEnvironment(environment);
   }
@@ -232,8 +231,7 @@ bool PrepareForRegisterAllocation::CanMoveClinitCheck(HInstruction* input,
       return false;
     }
     if (user_environment->GetDexPc() != input_environment->GetDexPc() ||
-        user_environment->GetMethodIdx() != input_environment->GetMethodIdx() ||
-        !IsSameDexFile(user_environment->GetDexFile(), input_environment->GetDexFile())) {
+        user_environment->GetMethod() != input_environment->GetMethod()) {
       return false;
     }
     user_environment = user_environment->GetParent();

@@ -79,9 +79,10 @@ class DexCacheArrayFixupsVisitor : public HGraphVisitor {
     // we need to add the dex cache arrays base as the special input.
     if (invoke->HasPcRelativeDexCache() &&
         !IsCallFreeIntrinsic<IntrinsicLocationsBuilderARMType>(invoke, codegen_)) {
-      HArmDexCacheArraysBase* base = GetOrCreateDexCacheArrayBase(invoke->GetDexFile());
+      HArmDexCacheArraysBase* base =
+          GetOrCreateDexCacheArrayBase(invoke->GetDexFileForPcRelativeDexCache());
       // Update the element offset in base.
-      DexCacheArraysLayout layout(kArmPointerSize, &invoke->GetDexFile());
+      DexCacheArraysLayout layout(kArmPointerSize, &invoke->GetDexFileForPcRelativeDexCache());
       base->UpdateElementOffset(layout.MethodOffset(invoke->GetDexMethodIndex()));
       // Add the special argument base to the method.
       DCHECK(!invoke->HasCurrentMethodInput());

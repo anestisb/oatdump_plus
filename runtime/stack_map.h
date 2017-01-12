@@ -35,6 +35,7 @@ static constexpr ssize_t kFrameSlotSize = 4;
 // Size of Dex virtual registers.
 static constexpr size_t kVRegSize = 4;
 
+class ArtMethod;
 class CodeInfo;
 class StackMapEncoding;
 struct CodeInfoEncoding;
@@ -887,7 +888,7 @@ class InlineInfoEncoding {
  public:
   void SetFromSizes(size_t method_index_max,
                     size_t dex_pc_max,
-                    size_t invoke_type_max,
+                    size_t extra_data_max,
                     size_t dex_register_map_size) {
     total_bit_size_ = kMethodIndexBitOffset;
     total_bit_size_ += MinimumBitsToStore(method_index_max);
@@ -899,8 +900,8 @@ class InlineInfoEncoding {
       total_bit_size_ += MinimumBitsToStore(1 /* kNoDexPc */ + dex_pc_max);
     }
 
-    invoke_type_bit_offset_ = dchecked_integral_cast<uint8_t>(total_bit_size_);
-    total_bit_size_ += MinimumBitsToStore(invoke_type_max);
+    extra_data_bit_offset_ = dchecked_integral_cast<uint8_t>(total_bit_size_);
+    total_bit_size_ += MinimumBitsToStore(extra_data_max);
 
     // We also need +1 for kNoDexRegisterMap, but since the size is strictly
     // greater than any offset we might try to encode, we already implicitly have it.
@@ -912,10 +913,10 @@ class InlineInfoEncoding {
     return FieldEncoding(kMethodIndexBitOffset, dex_pc_bit_offset_);
   }
   ALWAYS_INLINE FieldEncoding GetDexPcEncoding() const {
-    return FieldEncoding(dex_pc_bit_offset_, invoke_type_bit_offset_, -1 /* min_value */);
+    return FieldEncoding(dex_pc_bit_offset_, extra_data_bit_offset_, -1 /* min_value */);
   }
-  ALWAYS_INLINE FieldEncoding GetInvokeTypeEncoding() const {
-    return FieldEncoding(invoke_type_bit_offset_, dex_register_map_bit_offset_);
+  ALWAYS_INLINE FieldEncoding GetExtraDataEncoding() const {
+    return FieldEncoding(extra_data_bit_offset_, dex_register_map_bit_offset_);
   }
   ALWAYS_INLINE FieldEncoding GetDexRegisterMapEncoding() const {
     return FieldEncoding(dex_register_map_bit_offset_, total_bit_size_, -1 /* min_value */);
@@ -930,7 +931,7 @@ class InlineInfoEncoding {
   static constexpr uint8_t kIsLastBitOffset = 0;
   static constexpr uint8_t kMethodIndexBitOffset = 1;
   uint8_t dex_pc_bit_offset_;
-  uint8_t invoke_type_bit_offset_;
+  uint8_t extra_data_bit_offset_;
   uint8_t dex_register_map_bit_offset_;
   uint8_t total_bit_size_;
 };
@@ -938,7 +939,11 @@ class InlineInfoEncoding {
 /**
  * Inline information for a specific PC. The information is of the form:
  *
- *   [is_last, method_index, dex_pc, invoke_type, dex_register_map_offset]+.
+ *   [is_last,
+ *    method_index (or ArtMethod high bits),
+ *    dex_pc,
+ *    extra_data (ArtMethod low bits or 1),
+ *    dex_register_map_offset]+.
  */
 class InlineInfo {
  public:
@@ -960,6 +965,7 @@ class InlineInfo {
 
   ALWAYS_INLINE uint32_t GetMethodIndexAtDepth(const InlineInfoEncoding& encoding,
                                                uint32_t depth) const {
+    DCHECK(!EncodesArtMethodAtDepth(encoding, depth));
     return encoding.GetMethodIndexEncoding().Load(GetRegionAtDepth(encoding, depth));
   }
 
@@ -980,15 +986,28 @@ class InlineInfo {
     encoding.GetDexPcEncoding().Store(GetRegionAtDepth(encoding, depth), dex_pc);
   }
 
-  ALWAYS_INLINE uint32_t GetInvokeTypeAtDepth(const InlineInfoEncoding& encoding,
-                                              uint32_t depth) const {
-    return encoding.GetInvokeTypeEncoding().Load(GetRegionAtDepth(encoding, depth));
+  ALWAYS_INLINE bool EncodesArtMethodAtDepth(const InlineInfoEncoding& encoding,
+                                             uint32_t depth) const {
+    return (encoding.GetExtraDataEncoding().Load(GetRegionAtDepth(encoding, depth)) & 1) == 0;
   }
 
-  ALWAYS_INLINE void SetInvokeTypeAtDepth(const InlineInfoEncoding& encoding,
-                                          uint32_t depth,
-                                          uint32_t invoke_type) {
-    encoding.GetInvokeTypeEncoding().Store(GetRegionAtDepth(encoding, depth), invoke_type);
+  ALWAYS_INLINE void SetExtraDataAtDepth(const InlineInfoEncoding& encoding,
+                                         uint32_t depth,
+                                         uint32_t extra_data) {
+    encoding.GetExtraDataEncoding().Store(GetRegionAtDepth(encoding, depth), extra_data);
+  }
+
+  ALWAYS_INLINE ArtMethod* GetArtMethodAtDepth(const InlineInfoEncoding& encoding,
+                                               uint32_t depth) const {
+    uint32_t low_bits = encoding.GetExtraDataEncoding().Load(GetRegionAtDepth(encoding, depth));
+    uint32_t high_bits = encoding.GetMethodIndexEncoding().Load(GetRegionAtDepth(encoding, depth));
+    if (high_bits == 0) {
+      return reinterpret_cast<ArtMethod*>(low_bits);
+    } else {
+      uint64_t address = high_bits;
+      address = address << 32;
+      return reinterpret_cast<ArtMethod*>(address | low_bits);
+    }
   }
 
   ALWAYS_INLINE uint32_t GetDexRegisterMapOffsetAtDepth(const InlineInfoEncoding& encoding,

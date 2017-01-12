@@ -207,10 +207,8 @@ void HInstructionBuilder::InitializeInstruction(HInstruction* instruction) {
     HEnvironment* environment = new (arena_) HEnvironment(
         arena_,
         current_locals_->size(),
-        graph_->GetDexFile(),
-        graph_->GetMethodIdx(),
+        graph_->GetArtMethod(),
         instruction->GetDexPc(),
-        graph_->GetInvokeType(),
         instruction);
     environment->CopyFrom(*current_locals_);
     instruction->SetRawEnvironment(environment);
