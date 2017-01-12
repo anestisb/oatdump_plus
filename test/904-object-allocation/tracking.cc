@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include "tracking.h"
-
 #include <iostream>
 #include <pthread.h>
 #include <stdio.h>
@@ -87,19 +85,6 @@ extern "C" JNIEXPORT void JNICALL Java_Main_enableAllocationTracking(JNIEnv* env
     printf("Error enabling/disabling allocation tracking: %s\n", err);
     jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
   }
-}
-
-// Don't do anything
-jint OnLoad(JavaVM* vm,
-            char* options ATTRIBUTE_UNUSED,
-            void* reserved ATTRIBUTE_UNUSED) {
-  if (vm->GetEnv(reinterpret_cast<void**>(&jvmti_env), JVMTI_VERSION_1_0)) {
-    printf("Unable to get jvmti env!\n");
-    return 1;
-  }
-  jvmti_env->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_VM_OBJECT_ALLOC, nullptr);
-  SetAllCapabilities(jvmti_env);
-  return 0;
 }
 
 }  // namespace Test904ObjectAllocation
