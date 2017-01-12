@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include "heaps.h"
-
 #include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
@@ -493,18 +491,6 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_followReferences(JNIEnv* env
   }
 
   return ret;
-}
-
-// Don't do anything
-jint OnLoad(JavaVM* vm,
-            char* options ATTRIBUTE_UNUSED,
-            void* reserved ATTRIBUTE_UNUSED) {
-  if (vm->GetEnv(reinterpret_cast<void**>(&jvmti_env), JVMTI_VERSION_1_0)) {
-    printf("Unable to get jvmti env!\n");
-    return 1;
-  }
-  SetAllCapabilities(jvmti_env);
-  return 0;
 }
 
 }  // namespace Test913Heaps

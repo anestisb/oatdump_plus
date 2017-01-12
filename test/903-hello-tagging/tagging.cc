@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include "tagging.h"
-
 #include <iostream>
 #include <pthread.h>
 #include <stdio.h>
@@ -139,18 +137,6 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getTaggedObjects(JNIEnv* env
   env->SetObjectArrayElement(resultArray, 2, count_integer);
 
   return resultArray;
-}
-
-// Don't do anything
-jint OnLoad(JavaVM* vm,
-            char* options ATTRIBUTE_UNUSED,
-            void* reserved ATTRIBUTE_UNUSED) {
-  if (vm->GetEnv(reinterpret_cast<void**>(&jvmti_env), JVMTI_VERSION_1_0)) {
-    printf("Unable to get jvmti env!\n");
-    return 1;
-  }
-  SetAllCapabilities(jvmti_env);
-  return 0;
 }
 
 }  // namespace Test903HelloTagging
