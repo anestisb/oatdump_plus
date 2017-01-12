@@ -29,6 +29,7 @@ cc_defaults {
            "ti_properties.cc",
            "ti_stack.cc",
            "ti_redefine.cc",
+           "ti_thread.cc",
            "transform.cc"],
     include_dirs: ["art/runtime"],
     shared_libs: [
