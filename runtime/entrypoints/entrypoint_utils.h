@@ -45,10 +45,27 @@ class OatQuickMethodHeader;
 class ScopedObjectAccessAlreadyRunnable;
 class Thread;
 
+template <const bool kAccessCheck>
+ALWAYS_INLINE inline mirror::Class* CheckObjectAlloc(dex::TypeIndex type_idx,
+                                                     ArtMethod* method,
+                                                     Thread* self,
+                                                     bool* slow_path)
+    REQUIRES_SHARED(Locks::mutator_lock_)
+    REQUIRES(!Roles::uninterruptible_);
+
+ALWAYS_INLINE inline mirror::Class* CheckClassInitializedForObjectAlloc(mirror::Class* klass,
+                                                                        Thread* self,
+                                                                        bool* slow_path)
+    REQUIRES_SHARED(Locks::mutator_lock_)
+    REQUIRES(!Roles::uninterruptible_);
+
 // Given the context of a calling Method, use its DexCache to resolve a type to a Class. If it
 // cannot be resolved, throw an error. If it can, use it to create an instance.
-template <bool kInstrumented>
-ALWAYS_INLINE inline mirror::Object* AllocObjectFromCode(mirror::Class* klass,
+// When verification/compiler hasn't been able to verify access, optionally perform an access
+// check.
+template <bool kAccessCheck, bool kInstrumented>
+ALWAYS_INLINE inline mirror::Object* AllocObjectFromCode(dex::TypeIndex type_idx,
+                                                         ArtMethod* method,
                                                          Thread* self,
                                                          gc::AllocatorType allocator_type)
     REQUIRES_SHARED(Locks::mutator_lock_)

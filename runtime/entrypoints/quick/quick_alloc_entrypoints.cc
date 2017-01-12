@@ -29,58 +29,87 @@ namespace art {
 
 static constexpr bool kUseTlabFastPath = true;
 
-template <bool kInitialized,
-          bool kFinalize,
-          bool kInstrumented,
-          gc::AllocatorType allocator_type>
-static ALWAYS_INLINE inline mirror::Object* artAllocObjectFromCode(
-    mirror::Class* klass,
-    Thread* self) REQUIRES_SHARED(Locks::mutator_lock_) {
-  ScopedQuickEntrypointChecks sqec(self);
-  DCHECK(klass != nullptr);
-  if (kUseTlabFastPath && !kInstrumented && allocator_type == gc::kAllocatorTypeTLAB) {
-    if (kInitialized || klass->IsInitialized()) {
-      if (!kFinalize || !klass->IsFinalizable()) {
-        size_t byte_count = klass->GetObjectSize();
-        byte_count = RoundUp(byte_count, gc::space::BumpPointerSpace::kAlignment);
-        mirror::Object* obj;
-        if (LIKELY(byte_count < self->TlabSize())) {
-          obj = self->AllocTlab(byte_count);
-          DCHECK(obj != nullptr) << "AllocTlab can't fail";
-          obj->SetClass(klass);
-          if (kUseBakerReadBarrier) {
-            obj->AssertReadBarrierState();
-          }
-          QuasiAtomic::ThreadFenceForConstructor();
-          return obj;
-        }
-      }
-    }
-  }
-  if (kInitialized) {
-    return AllocObjectFromCodeInitialized<kInstrumented>(klass, self, allocator_type);
-  } else if (!kFinalize) {
-    return AllocObjectFromCodeResolved<kInstrumented>(klass, self, allocator_type);
-  } else {
-    return AllocObjectFromCode<kInstrumented>(klass, self, allocator_type);
-  }
-}
-
 #define GENERATE_ENTRYPOINTS_FOR_ALLOCATOR_INST(suffix, suffix2, instrumented_bool, allocator_type) \
-extern "C" mirror::Object* artAllocObjectFromCodeWithChecks##suffix##suffix2( \
-    mirror::Class* klass, Thread* self) \
+extern "C" mirror::Object* artAllocObjectFromCode ##suffix##suffix2( \
+    uint32_t type_idx, ArtMethod* method, Thread* self) \
     REQUIRES_SHARED(Locks::mutator_lock_) { \
-  return artAllocObjectFromCode<false, true, instrumented_bool, allocator_type>(klass, self); \
+  ScopedQuickEntrypointChecks sqec(self); \
+  if (kUseTlabFastPath && !(instrumented_bool) && (allocator_type) == gc::kAllocatorTypeTLAB) { \
+    mirror::Class* klass = method->GetDexCacheResolvedType<false>(dex::TypeIndex(type_idx), \
+                                                                  kRuntimePointerSize); \
+    if (LIKELY(klass != nullptr && klass->IsInitialized() && !klass->IsFinalizable())) { \
+      size_t byte_count = klass->GetObjectSize(); \
+      byte_count = RoundUp(byte_count, gc::space::BumpPointerSpace::kAlignment); \
+      mirror::Object* obj; \
+      if (LIKELY(byte_count < self->TlabSize())) { \
+        obj = self->AllocTlab(byte_count); \
+        DCHECK(obj != nullptr) << "AllocTlab can't fail"; \
+        obj->SetClass(klass); \
+        if (kUseBakerReadBarrier) { \
+          obj->AssertReadBarrierState(); \
+        } \
+        QuasiAtomic::ThreadFenceForConstructor(); \
+        return obj; \
+      } \
+    } \
+  } \
+  return AllocObjectFromCode<false, instrumented_bool>(dex::TypeIndex(type_idx), \
+                                                       method, \
+                                                       self, \
+                                                       allocator_type); \
 } \
 extern "C" mirror::Object* artAllocObjectFromCodeResolved##suffix##suffix2( \
-    mirror::Class* klass, Thread* self) \
+    mirror::Class* klass, ArtMethod* method ATTRIBUTE_UNUSED, Thread* self) \
     REQUIRES_SHARED(Locks::mutator_lock_) { \
-  return artAllocObjectFromCode<false, false, instrumented_bool, allocator_type>(klass, self); \
+  ScopedQuickEntrypointChecks sqec(self); \
+  if (kUseTlabFastPath && !(instrumented_bool) && (allocator_type) == gc::kAllocatorTypeTLAB) { \
+    if (LIKELY(klass->IsInitialized())) { \
+      size_t byte_count = klass->GetObjectSize(); \
+      byte_count = RoundUp(byte_count, gc::space::BumpPointerSpace::kAlignment); \
+      mirror::Object* obj; \
+      if (LIKELY(byte_count < self->TlabSize())) { \
+        obj = self->AllocTlab(byte_count); \
+        DCHECK(obj != nullptr) << "AllocTlab can't fail"; \
+        obj->SetClass(klass); \
+        if (kUseBakerReadBarrier) { \
+          obj->AssertReadBarrierState(); \
+        } \
+        QuasiAtomic::ThreadFenceForConstructor(); \
+        return obj; \
+      } \
+    } \
+  } \
+  return AllocObjectFromCodeResolved<instrumented_bool>(klass, self, allocator_type); \
 } \
 extern "C" mirror::Object* artAllocObjectFromCodeInitialized##suffix##suffix2( \
-    mirror::Class* klass, Thread* self) \
+    mirror::Class* klass, ArtMethod* method ATTRIBUTE_UNUSED, Thread* self) \
     REQUIRES_SHARED(Locks::mutator_lock_) { \
-  return artAllocObjectFromCode<true, false, instrumented_bool, allocator_type>(klass, self); \
+  ScopedQuickEntrypointChecks sqec(self); \
+  if (kUseTlabFastPath && !(instrumented_bool) && (allocator_type) == gc::kAllocatorTypeTLAB) { \
+    size_t byte_count = klass->GetObjectSize(); \
+    byte_count = RoundUp(byte_count, gc::space::BumpPointerSpace::kAlignment); \
+    mirror::Object* obj; \
+    if (LIKELY(byte_count < self->TlabSize())) { \
+      obj = self->AllocTlab(byte_count); \
+      DCHECK(obj != nullptr) << "AllocTlab can't fail"; \
+      obj->SetClass(klass); \
+      if (kUseBakerReadBarrier) { \
+        obj->AssertReadBarrierState(); \
+      } \
+      QuasiAtomic::ThreadFenceForConstructor(); \
+      return obj; \
+    } \
+  } \
+  return AllocObjectFromCodeInitialized<instrumented_bool>(klass, self, allocator_type); \
+} \
+extern "C" mirror::Object* artAllocObjectFromCodeWithAccessCheck##suffix##suffix2( \
+    uint32_t type_idx, ArtMethod* method, Thread* self) \
+    REQUIRES_SHARED(Locks::mutator_lock_) { \
+  ScopedQuickEntrypointChecks sqec(self); \
+  return AllocObjectFromCode<true, instrumented_bool>(dex::TypeIndex(type_idx), \
+                                                      method, \
+                                                      self, \
+                                                      allocator_type); \
 } \
 extern "C" mirror::Array* artAllocArrayFromCode##suffix##suffix2( \
     uint32_t type_idx, int32_t component_count, ArtMethod* method, Thread* self) \
@@ -191,9 +220,10 @@ GENERATE_ENTRYPOINTS_FOR_ALLOCATOR(RegionTLAB, gc::kAllocatorTypeRegionTLAB)
 extern "C" void* art_quick_alloc_array##suffix(uint32_t, int32_t, ArtMethod* ref); \
 extern "C" void* art_quick_alloc_array_resolved##suffix(mirror::Class* klass, int32_t, ArtMethod* ref); \
 extern "C" void* art_quick_alloc_array_with_access_check##suffix(uint32_t, int32_t, ArtMethod* ref); \
-extern "C" void* art_quick_alloc_object_resolved##suffix(mirror::Class* klass); \
-extern "C" void* art_quick_alloc_object_initialized##suffix(mirror::Class* klass); \
-extern "C" void* art_quick_alloc_object_with_checks##suffix(mirror::Class* klass); \
+extern "C" void* art_quick_alloc_object##suffix(uint32_t type_idx, ArtMethod* ref); \
+extern "C" void* art_quick_alloc_object_resolved##suffix(mirror::Class* klass, ArtMethod* ref); \
+extern "C" void* art_quick_alloc_object_initialized##suffix(mirror::Class* klass, ArtMethod* ref); \
+extern "C" void* art_quick_alloc_object_with_access_check##suffix(uint32_t type_idx, ArtMethod* ref); \
 extern "C" void* art_quick_check_and_alloc_array##suffix(uint32_t, int32_t, ArtMethod* ref); \
 extern "C" void* art_quick_check_and_alloc_array_with_access_check##suffix(uint32_t, int32_t, ArtMethod* ref); \
 extern "C" void* art_quick_alloc_string_from_bytes##suffix(void*, int32_t, int32_t, int32_t); \
@@ -203,9 +233,9 @@ extern "C" void* art_quick_alloc_array##suffix##_instrumented(uint32_t, int32_t,
 extern "C" void* art_quick_alloc_array_resolved##suffix##_instrumented(mirror::Class* klass, int32_t, ArtMethod* ref); \
 extern "C" void* art_quick_alloc_array_with_access_check##suffix##_instrumented(uint32_t, int32_t, ArtMethod* ref); \
 extern "C" void* art_quick_alloc_object##suffix##_instrumented(uint32_t type_idx, ArtMethod* ref); \
-extern "C" void* art_quick_alloc_object_resolved##suffix##_instrumented(mirror::Class* klass); \
-extern "C" void* art_quick_alloc_object_initialized##suffix##_instrumented(mirror::Class* klass); \
-extern "C" void* art_quick_alloc_object_with_checks##suffix##_instrumented(mirror::Class* klass); \
+extern "C" void* art_quick_alloc_object_resolved##suffix##_instrumented(mirror::Class* klass, ArtMethod* ref); \
+extern "C" void* art_quick_alloc_object_initialized##suffix##_instrumented(mirror::Class* klass, ArtMethod* ref); \
+extern "C" void* art_quick_alloc_object_with_access_check##suffix##_instrumented(uint32_t type_idx, ArtMethod* ref); \
 extern "C" void* art_quick_check_and_alloc_array##suffix##_instrumented(uint32_t, int32_t, ArtMethod* ref); \
 extern "C" void* art_quick_check_and_alloc_array_with_access_check##suffix##_instrumented(uint32_t, int32_t, ArtMethod* ref); \
 extern "C" void* art_quick_alloc_string_from_bytes##suffix##_instrumented(void*, int32_t, int32_t, int32_t); \
@@ -216,9 +246,10 @@ void SetQuickAllocEntryPoints##suffix(QuickEntryPoints* qpoints, bool instrument
     qpoints->pAllocArray = art_quick_alloc_array##suffix##_instrumented; \
     qpoints->pAllocArrayResolved = art_quick_alloc_array_resolved##suffix##_instrumented; \
     qpoints->pAllocArrayWithAccessCheck = art_quick_alloc_array_with_access_check##suffix##_instrumented; \
+    qpoints->pAllocObject = art_quick_alloc_object##suffix##_instrumented; \
     qpoints->pAllocObjectResolved = art_quick_alloc_object_resolved##suffix##_instrumented; \
     qpoints->pAllocObjectInitialized = art_quick_alloc_object_initialized##suffix##_instrumented; \
-    qpoints->pAllocObjectWithChecks = art_quick_alloc_object_with_checks##suffix##_instrumented; \
+    qpoints->pAllocObjectWithAccessCheck = art_quick_alloc_object_with_access_check##suffix##_instrumented; \
     qpoints->pCheckAndAllocArray = art_quick_check_and_alloc_array##suffix##_instrumented; \
     qpoints->pCheckAndAllocArrayWithAccessCheck = art_quick_check_and_alloc_array_with_access_check##suffix##_instrumented; \
     qpoints->pAllocStringFromBytes = art_quick_alloc_string_from_bytes##suffix##_instrumented; \
@@ -228,9 +259,10 @@ void SetQuickAllocEntryPoints##suffix(QuickEntryPoints* qpoints, bool instrument
     qpoints->pAllocArray = art_quick_alloc_array##suffix; \
     qpoints->pAllocArrayResolved = art_quick_alloc_array_resolved##suffix; \
     qpoints->pAllocArrayWithAccessCheck = art_quick_alloc_array_with_access_check##suffix; \
+    qpoints->pAllocObject = art_quick_alloc_object##suffix; \
     qpoints->pAllocObjectResolved = art_quick_alloc_object_resolved##suffix; \
     qpoints->pAllocObjectInitialized = art_quick_alloc_object_initialized##suffix; \
-    qpoints->pAllocObjectWithChecks = art_quick_alloc_object_with_checks##suffix; \
+    qpoints->pAllocObjectWithAccessCheck = art_quick_alloc_object_with_access_check##suffix; \
     qpoints->pCheckAndAllocArray = art_quick_check_and_alloc_array##suffix; \
     qpoints->pCheckAndAllocArrayWithAccessCheck = art_quick_check_and_alloc_array_with_access_check##suffix; \
     qpoints->pAllocStringFromBytes = art_quick_alloc_string_from_bytes##suffix; \

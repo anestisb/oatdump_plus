@@ -23,9 +23,10 @@
   V(AllocArray, void*, uint32_t, int32_t, ArtMethod*) \
   V(AllocArrayResolved, void*, mirror::Class*, int32_t, ArtMethod*) \
   V(AllocArrayWithAccessCheck, void*, uint32_t, int32_t, ArtMethod*) \
-  V(AllocObjectResolved, void*, mirror::Class*) \
-  V(AllocObjectInitialized, void*, mirror::Class*) \
-  V(AllocObjectWithChecks, void*, mirror::Class*) \
+  V(AllocObject, void*, uint32_t, ArtMethod*) \
+  V(AllocObjectResolved, void*, mirror::Class*, ArtMethod*) \
+  V(AllocObjectInitialized, void*, mirror::Class*, ArtMethod*) \
+  V(AllocObjectWithAccessCheck, void*, uint32_t, ArtMethod*) \
   V(CheckAndAllocArray, void*, uint32_t, int32_t, ArtMethod*) \
   V(CheckAndAllocArrayWithAccessCheck, void*, uint32_t, int32_t, ArtMethod*) \
   V(AllocStringFromBytes, void*, void*, int32_t, int32_t, int32_t) \

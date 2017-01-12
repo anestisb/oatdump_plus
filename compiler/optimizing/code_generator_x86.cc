@@ -4150,6 +4150,7 @@ void LocationsBuilderX86::VisitNewInstance(HNewInstance* instruction) {
   } else {
     InvokeRuntimeCallingConvention calling_convention;
     locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+    locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
   }
 }
 
@@ -4165,7 +4166,7 @@ void InstructionCodeGeneratorX86::VisitNewInstance(HNewInstance* instruction) {
     codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
   } else {
     codegen_->InvokeRuntime(instruction->GetEntrypoint(), instruction, instruction->GetDexPc());
-    CheckEntrypointTypes<kQuickAllocObjectWithChecks, void*, mirror::Class*>();
+    CheckEntrypointTypes<kQuickAllocObjectWithAccessCheck, void*, uint32_t, ArtMethod*>();
     DCHECK(!codegen_->IsLeafMethod());
   }
 }
