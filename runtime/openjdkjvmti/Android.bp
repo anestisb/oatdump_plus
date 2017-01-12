@@ -24,6 +24,7 @@ cc_defaults {
            "ti_field.cc",
            "ti_heap.cc",
            "ti_method.cc",
+           "ti_monitor.cc",
            "ti_object.cc",
            "ti_properties.cc",
            "ti_stack.cc",
