@@ -55,6 +55,7 @@
 #include "ti_properties.h"
 #include "ti_redefine.h"
 #include "ti_stack.h"
+#include "ti_thread.h"
 #include "transform.h"
 
 // TODO Remove this at some point by annotating all the methods. It was put in to make the skeleton
@@ -121,7 +122,7 @@ class JvmtiFunctions {
   }
 
   static jvmtiError GetCurrentThread(jvmtiEnv* env, jthread* thread_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return ThreadUtil::GetCurrentThread(env, thread_ptr);
   }
 
   static jvmtiError GetAllThreads(jvmtiEnv* env, jint* threads_count_ptr, jthread** threads_ptr) {
@@ -159,7 +160,7 @@ class JvmtiFunctions {
   }
 
   static jvmtiError GetThreadInfo(jvmtiEnv* env, jthread thread, jvmtiThreadInfo* info_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return ThreadUtil::GetThreadInfo(env, thread, info_ptr);
   }
 
   static jvmtiError GetOwnedMonitorInfo(jvmtiEnv* env,
