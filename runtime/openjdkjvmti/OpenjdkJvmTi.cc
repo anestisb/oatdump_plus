@@ -237,7 +237,7 @@ class JvmtiFunctions {
                                       jint max_frame_count,
                                       jvmtiStackInfo** stack_info_ptr,
                                       jint* thread_count_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return StackUtil::GetAllStackTraces(env, max_frame_count, stack_info_ptr, thread_count_ptr);
   }
 
   static jvmtiError GetThreadListStackTraces(jvmtiEnv* env,
