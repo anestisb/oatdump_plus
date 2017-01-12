@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
 public class Main {
@@ -24,6 +27,10 @@ public class Main {
     doTest();
     doTestOtherThreadWait();
     doTestOtherThreadBusyLoop();
+
+    doTestAllStackTraces();
+
+    System.out.println("Done");
   }
 
   public static void doTest() throws Exception {
@@ -109,6 +116,47 @@ public class Main {
     t.join();
   }
 
+  public static void doTestAllStackTraces() throws Exception {
+    System.out.println();
+    System.out.println("################################");
+    System.out.println("### Other threads (suspended) ###");
+    System.out.println("################################");
+
+    final int N = 10;
+
+    final ControlData data = new ControlData(N);
+    data.waitFor = new Object();
+
+    Thread threads[] = new Thread[N];
+
+    for (int i = 0; i < N; i++) {
+      Thread t = new Thread() {
+        public void run() {
+          Recurse.foo(4, 0, 0, data);
+        }
+      };
+      t.start();
+      threads[i] = t;
+    }
+    data.reached.await();
+    Thread.yield();
+    Thread.sleep(500);  // A little bit of time...
+
+    printAll(0);
+
+    printAll(5);
+
+    printAll(25);
+
+    // Let the thread make progress and die.
+    synchronized(data.waitFor) {
+      data.waitFor.notifyAll();
+    }
+    for (int i = 0; i < N; i++) {
+      threads[i].join();
+    }
+  }
+
   public static void print(String[][] stack) {
     System.out.println("---------");
     for (String[] stackElement : stack) {
@@ -122,6 +170,42 @@ public class Main {
 
   public static void print(Thread t, int start, int max) {
     print(getStackTrace(t, start, max));
+  }
+
+  public static void printAll(Object[][] stacks) {
+    List<String> stringified = new ArrayList<String>(stacks.length);
+
+    for (Object[] stackInfo : stacks) {
+      Thread t = (Thread)stackInfo[0];
+      String name = (t != null) ? t.getName() : "null";
+      String stackSerialization;
+      if (name.contains("Daemon")) {
+        // Do not print daemon stacks, as they're non-deterministic.
+        stackSerialization = "<not printed>";
+      } else {
+        StringBuilder sb = new StringBuilder();
+        for (String[] stackElement : (String[][])stackInfo[1]) {
+          for (String part : stackElement) {
+            sb.append(' ');
+            sb.append(part);
+          }
+          sb.append('\n');
+        }
+        stackSerialization = sb.toString();
+      }
+      stringified.add(name + "\n" + stackSerialization);
+    }
+
+    Collections.sort(stringified);
+
+    for (String s : stringified) {
+      System.out.println("---------");
+      System.out.println(s);
+    }
+  }
+
+  public static void printAll(int max) {
+    printAll(getAllStackTraces(max));
   }
 
   // Wrap generated stack traces into a class to separate them nicely.
@@ -170,10 +254,22 @@ public class Main {
   }
 
   public static class ControlData {
-    CountDownLatch reached = new CountDownLatch(1);
+    CountDownLatch reached;
     Object waitFor = null;
     volatile boolean stop = false;
+
+    public ControlData() {
+      this(1);
+    }
+
+    public ControlData(int latchCount) {
+      reached = new CountDownLatch(latchCount);
+    }
   }
 
   public static native String[][] getStackTrace(Thread thread, int start, int max);
+  // Get all stack traces. This will return an array with an element for each thread. The element
+  // is an array itself with the first element being the thread, and the second element a nested
+  // String array as in getStackTrace.
+  public static native Object[][] getAllStackTraces(int max);
 }
