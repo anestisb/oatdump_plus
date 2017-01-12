@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include "gc_callbacks.h"
-
 #include <stdio.h>
 #include <string.h>
 
@@ -92,18 +90,6 @@ extern "C" JNIEXPORT jint JNICALL Java_Main_getGcFinishes(JNIEnv* env ATTRIBUTE_
   jint result = static_cast<jint>(finishes);
   finishes = 0;
   return result;
-}
-
-// Don't do anything
-jint OnLoad(JavaVM* vm,
-            char* options ATTRIBUTE_UNUSED,
-            void* reserved ATTRIBUTE_UNUSED) {
-  if (vm->GetEnv(reinterpret_cast<void**>(&jvmti_env), JVMTI_VERSION_1_0)) {
-    printf("Unable to get jvmti env!\n");
-    return 1;
-  }
-  SetAllCapabilities(jvmti_env);
-  return 0;
 }
 
 }  // namespace Test908GcStartFinish
