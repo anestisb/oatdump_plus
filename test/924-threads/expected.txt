@@ -1,0 +1,21 @@
+currentThread OK
+main
+5
+false
+java.lang.ThreadGroup[name=main,maxpri=10]
+class dalvik.system.PathClassLoader
+main
+5
+false
+java.lang.ThreadGroup[name=main,maxpri=10]
+class dalvik.system.PathClassLoader
+Daemon Thread
+5
+true
+java.lang.ThreadGroup[name=main,maxpri=10]
+class dalvik.system.PathClassLoader
+Daemon Thread
+5
+true
+java.lang.ThreadGroup[name=main,maxpri=10]
+class dalvik.system.PathClassLoader
