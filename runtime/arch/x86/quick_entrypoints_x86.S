@@ -956,42 +956,52 @@ END_MACRO
 // Generate the allocation entrypoints for each allocator.
 GENERATE_ALLOC_ENTRYPOINTS_FOR_EACH_ALLOCATOR
 
-// A hand-written override for GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_rosalloc, RosAlloc).
-DEFINE_FUNCTION art_quick_alloc_object_resolved_rosalloc
+// A hand-written override for GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_rosalloc, RosAlloc).
+DEFINE_FUNCTION art_quick_alloc_object_rosalloc
     // Fast path rosalloc allocation.
-    // eax: type/return value
-    // ecx, ebx, edx: free
+    // eax: uint32_t type_idx/return value, ecx: ArtMethod*
+    // ebx, edx: free
+    PUSH edi
+    movl ART_METHOD_DEX_CACHE_TYPES_OFFSET_32(%ecx), %edx  // Load dex cache resolved types array
+                                                        // Load the class (edx)
+    movl 0(%edx, %eax, COMPRESSED_REFERENCE_SIZE), %edx
+    testl %edx, %edx                                    // Check null class
+    jz   .Lart_quick_alloc_object_rosalloc_slow_path
+
     movl %fs:THREAD_SELF_OFFSET, %ebx                   // ebx = thread
                                                         // Check if the thread local allocation
                                                         // stack has room
-    movl THREAD_LOCAL_ALLOC_STACK_TOP_OFFSET(%ebx), %ecx
-    cmpl THREAD_LOCAL_ALLOC_STACK_END_OFFSET(%ebx), %ecx
-    jae  .Lart_quick_alloc_object_resolved_rosalloc_slow_path
+    movl THREAD_LOCAL_ALLOC_STACK_TOP_OFFSET(%ebx), %edi
+    cmpl THREAD_LOCAL_ALLOC_STACK_END_OFFSET(%ebx), %edi
+    jae  .Lart_quick_alloc_object_rosalloc_slow_path
 
-    movl MIRROR_CLASS_OBJECT_SIZE_ALLOC_FAST_PATH_OFFSET(%eax), %ecx  // Load the object size (ecx)
+    movl MIRROR_CLASS_OBJECT_SIZE_ALLOC_FAST_PATH_OFFSET(%edx), %edi  // Load the object size (edi)
                                                         // Check if the size is for a thread
                                                         // local allocation. Also does the
                                                         // finalizable and initialization check.
-    cmpl LITERAL(ROSALLOC_MAX_THREAD_LOCAL_BRACKET_SIZE), %ecx
-    ja   .Lart_quick_alloc_object_resolved_rosalloc_slow_path
-    shrl LITERAL(ROSALLOC_BRACKET_QUANTUM_SIZE_SHIFT), %ecx // Calculate the rosalloc bracket index
+    cmpl LITERAL(ROSALLOC_MAX_THREAD_LOCAL_BRACKET_SIZE), %edi
+    ja   .Lart_quick_alloc_object_rosalloc_slow_path
+    shrl LITERAL(ROSALLOC_BRACKET_QUANTUM_SIZE_SHIFT), %edi // Calculate the rosalloc bracket index
                                                             // from object size.
                                                         // Load thread local rosalloc run (ebx)
                                                         // Subtract __SIZEOF_POINTER__ to subtract
                                                         // one from edi as there is no 0 byte run
                                                         // and the size is already aligned.
-    movl (THREAD_ROSALLOC_RUNS_OFFSET - __SIZEOF_POINTER__)(%ebx, %ecx, __SIZEOF_POINTER__), %ebx
+    movl (THREAD_ROSALLOC_RUNS_OFFSET - __SIZEOF_POINTER__)(%ebx, %edi, __SIZEOF_POINTER__), %ebx
                                                         // Load free_list head (edi),
                                                         // this will be the return value.
-    movl (ROSALLOC_RUN_FREE_LIST_OFFSET + ROSALLOC_RUN_FREE_LIST_HEAD_OFFSET)(%ebx), %ecx
-    jecxz   .Lart_quick_alloc_object_resolved_rosalloc_slow_path
+    movl (ROSALLOC_RUN_FREE_LIST_OFFSET + ROSALLOC_RUN_FREE_LIST_HEAD_OFFSET)(%ebx), %edi
+    test %edi, %edi
+    jz   .Lart_quick_alloc_object_rosalloc_slow_path
                                                         // Point of no slow path. Won't go to
-                                                        // the slow path from here on.
+                                                        // the slow path from here on. Ok to
+                                                        // clobber eax and ecx.
+    movl %edi, %eax
                                                         // Load the next pointer of the head
                                                         // and update head of free list with
                                                         // next pointer
-    movl ROSALLOC_SLOT_NEXT_OFFSET(%ecx), %edx
-    movl %edx, (ROSALLOC_RUN_FREE_LIST_OFFSET + ROSALLOC_RUN_FREE_LIST_HEAD_OFFSET)(%ebx)
+    movl ROSALLOC_SLOT_NEXT_OFFSET(%eax), %edi
+    movl %edi, (ROSALLOC_RUN_FREE_LIST_OFFSET + ROSALLOC_RUN_FREE_LIST_HEAD_OFFSET)(%ebx)
                                                         // Decrement size of free list by 1
     decl (ROSALLOC_RUN_FREE_LIST_OFFSET + ROSALLOC_RUN_FREE_LIST_SIZE_OFFSET)(%ebx)
                                                         // Store the class pointer in the
@@ -1001,104 +1011,141 @@ DEFINE_FUNCTION art_quick_alloc_object_resolved_rosalloc
 #if ROSALLOC_SLOT_NEXT_OFFSET != MIRROR_OBJECT_CLASS_OFFSET
 #error "Class pointer needs to overwrite next pointer."
 #endif
-    POISON_HEAP_REF eax
-    movl %eax, MIRROR_OBJECT_CLASS_OFFSET(%ecx)
+    POISON_HEAP_REF edx
+    movl %edx, MIRROR_OBJECT_CLASS_OFFSET(%eax)
     movl %fs:THREAD_SELF_OFFSET, %ebx                   // ebx = thread
                                                         // Push the new object onto the thread
                                                         // local allocation stack and
                                                         // increment the thread local
                                                         // allocation stack top.
-    movl THREAD_LOCAL_ALLOC_STACK_TOP_OFFSET(%ebx), %eax
-    movl %ecx, (%eax)
-    addl LITERAL(COMPRESSED_REFERENCE_SIZE), %eax
-    movl %eax, THREAD_LOCAL_ALLOC_STACK_TOP_OFFSET(%ebx)
+    movl THREAD_LOCAL_ALLOC_STACK_TOP_OFFSET(%ebx), %edi
+    movl %eax, (%edi)
+    addl LITERAL(COMPRESSED_REFERENCE_SIZE), %edi
+    movl %edi, THREAD_LOCAL_ALLOC_STACK_TOP_OFFSET(%ebx)
                                                         // No fence needed for x86.
-    movl %ecx, %eax                                     // Move object to return register
+    POP edi
     ret
-.Lart_quick_alloc_object_resolved_rosalloc_slow_path:
+.Lart_quick_alloc_object_rosalloc_slow_path:
+    POP edi
     SETUP_SAVE_REFS_ONLY_FRAME ebx, ebx          // save ref containing registers for GC
     // Outgoing argument set up
-    subl LITERAL(8), %esp                       // alignment padding
+    PUSH eax                      // alignment padding
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
     CFI_ADJUST_CFA_OFFSET(4)
+    PUSH ecx
     PUSH eax
-    call SYMBOL(artAllocObjectFromCodeResolvedRosAlloc)  // cxx_name(arg0, Thread*)
+    call SYMBOL(artAllocObjectFromCodeRosAlloc)  // cxx_name(arg0, arg1, Thread*)
     addl LITERAL(16), %esp                       // pop arguments
     CFI_ADJUST_CFA_OFFSET(-16)
     RESTORE_SAVE_REFS_ONLY_FRAME                 // restore frame up to return address
     RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER      // return or deliver exception
-END_FUNCTION art_quick_alloc_object_resolved_rosalloc
+END_FUNCTION art_quick_alloc_object_rosalloc
 
-// The common fast path code for art_quick_alloc_object_resolved_tlab
-// and art_quick_alloc_object_resolved_region_tlab.
+// The common fast path code for art_quick_alloc_object_tlab and art_quick_alloc_object_region_tlab.
 //
-// EAX: type/return_value
-MACRO1(ALLOC_OBJECT_RESOLVED_TLAB_FAST_PATH, slowPathLabel)
+// EAX: type_idx/return_value, ECX: ArtMethod*, EDX: the class.
+MACRO1(ALLOC_OBJECT_TLAB_FAST_PATH, slowPathLabel)
+    testl %edx, %edx                                    // Check null class
+    jz   VAR(slowPathLabel)
     movl %fs:THREAD_SELF_OFFSET, %ebx                   // ebx = thread
     movl THREAD_LOCAL_END_OFFSET(%ebx), %edi            // Load thread_local_end.
     subl THREAD_LOCAL_POS_OFFSET(%ebx), %edi            // Compute the remaining buffer size.
-    movl MIRROR_CLASS_OBJECT_SIZE_ALLOC_FAST_PATH_OFFSET(%eax), %ecx  // Load the object size.
-    cmpl %edi, %ecx                                     // Check if it fits.
+    movl MIRROR_CLASS_OBJECT_SIZE_ALLOC_FAST_PATH_OFFSET(%edx), %esi  // Load the object size.
+    cmpl %edi, %esi                                     // Check if it fits.
     ja   VAR(slowPathLabel)
-    movl THREAD_LOCAL_POS_OFFSET(%ebx), %edx            // Load thread_local_pos
+    movl THREAD_LOCAL_POS_OFFSET(%ebx), %eax            // Load thread_local_pos
                                                         // as allocated object.
-    addl %edx, %ecx                                     // Add the object size.
-    movl %ecx, THREAD_LOCAL_POS_OFFSET(%ebx)            // Update thread_local_pos.
+    addl %eax, %esi                                     // Add the object size.
+    movl %esi, THREAD_LOCAL_POS_OFFSET(%ebx)            // Update thread_local_pos.
     incl THREAD_LOCAL_OBJECTS_OFFSET(%ebx)              // Increase thread_local_objects.
                                                         // Store the class pointer in the header.
                                                         // No fence needed for x86.
-    POISON_HEAP_REF eax
-    movl %eax, MIRROR_OBJECT_CLASS_OFFSET(%edx)
-    movl %edx, %eax
+    POISON_HEAP_REF edx
+    movl %edx, MIRROR_OBJECT_CLASS_OFFSET(%eax)
     POP edi
+    POP esi
     ret                                                 // Fast path succeeded.
 END_MACRO
 
-// The common slow path code for art_quick_alloc_object_resolved_tlab
-// and art_quick_alloc_object_resolved_region_tlab.
-MACRO1(ALLOC_OBJECT_RESOLVED_TLAB_SLOW_PATH, cxx_name)
+// The common slow path code for art_quick_alloc_object_tlab and art_quick_alloc_object_region_tlab.
+MACRO1(ALLOC_OBJECT_TLAB_SLOW_PATH, cxx_name)
     POP edi
+    POP esi
     SETUP_SAVE_REFS_ONLY_FRAME ebx, ebx                 // save ref containing registers for GC
     // Outgoing argument set up
-    subl LITERAL(8), %esp                               // alignment padding
-    CFI_ADJUST_CFA_OFFSET(8)
+    PUSH eax                                            // alignment padding
     pushl %fs:THREAD_SELF_OFFSET                        // pass Thread::Current()
     CFI_ADJUST_CFA_OFFSET(4)
+    PUSH ecx
     PUSH eax
-    call CALLVAR(cxx_name)                              // cxx_name(arg0, Thread*)
+    call CALLVAR(cxx_name)                              // cxx_name(arg0, arg1, Thread*)
     addl LITERAL(16), %esp
     CFI_ADJUST_CFA_OFFSET(-16)
     RESTORE_SAVE_REFS_ONLY_FRAME                        // restore frame up to return address
     RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER             // return or deliver exception
 END_MACRO
 
-// A hand-written override for GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_tlab, TLAB). May be called
+// A hand-written override for GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_tlab, TLAB). May be called
 // for CC if the GC is not marking.
-DEFINE_FUNCTION art_quick_alloc_object_resolved_tlab
+DEFINE_FUNCTION art_quick_alloc_object_tlab
     // Fast path tlab allocation.
-    // EAX: type
-    // EBX, ECX, EDX: free.
+    // EAX: uint32_t type_idx/return value, ECX: ArtMethod*.
+    // EBX, EDX: free.
+    PUSH esi
     PUSH edi
-    ALLOC_OBJECT_RESOLVED_TLAB_FAST_PATH .Lart_quick_alloc_object_resolved_tlab_slow_path
-.Lart_quick_alloc_object_resolved_tlab_slow_path:
-    ALLOC_OBJECT_RESOLVED_TLAB_SLOW_PATH artAllocObjectFromCodeResolvedTLAB
-END_FUNCTION art_quick_alloc_object_resolved_tlab
+    movl ART_METHOD_DEX_CACHE_TYPES_OFFSET_32(%ecx), %edx   // Load dex cache resolved types array
+    // Might need to break down into multiple instructions to get the base address in a register.
+                                                            // Load the class
+    movl 0(%edx, %eax, COMPRESSED_REFERENCE_SIZE), %edx
+    ALLOC_OBJECT_TLAB_FAST_PATH .Lart_quick_alloc_object_tlab_slow_path
+.Lart_quick_alloc_object_tlab_slow_path:
+    ALLOC_OBJECT_TLAB_SLOW_PATH artAllocObjectFromCodeTLAB
+END_FUNCTION art_quick_alloc_object_tlab
 
-// A hand-written override for GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_region_tlab, RegionTLAB).
-DEFINE_FUNCTION art_quick_alloc_object_resolved_region_tlab
+// A hand-written override for GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_region_tlab, RegionTLAB).
+DEFINE_FUNCTION art_quick_alloc_object_region_tlab
     // Fast path region tlab allocation.
-    // EAX: type/return value
-    // EBX, ECX, EDX: free.
+    // EAX: uint32_t type_idx/return value, ECX: ArtMethod*.
+    // EBX, EDX: free.
 #if !defined(USE_READ_BARRIER)
     int3
     int3
 #endif
+    PUSH esi
     PUSH edi
-    ALLOC_OBJECT_RESOLVED_TLAB_FAST_PATH .Lart_quick_alloc_object_resolved_region_tlab_slow_path
-.Lart_quick_alloc_object_resolved_region_tlab_slow_path:
-    ALLOC_OBJECT_RESOLVED_TLAB_SLOW_PATH artAllocObjectFromCodeResolvedRegionTLAB
-END_FUNCTION art_quick_alloc_object_resolved_region_tlab
-
+    movl ART_METHOD_DEX_CACHE_TYPES_OFFSET_32(%ecx), %edx   // Load dex cache resolved types array
+    // Might need to break down into multiple instructions to get the base address in a register.
+                                                            // Load the class
+    movl 0(%edx, %eax, COMPRESSED_REFERENCE_SIZE), %edx
+                                                            // Read barrier for class load.
+    cmpl LITERAL(0), %fs:THREAD_IS_GC_MARKING_OFFSET
+    jz .Lart_quick_alloc_object_region_tlab_class_load_read_barrier_slow_path_exit
+    // Null check so that we can load the lock word.
+    testl %edx, %edx
+    jz .Lart_quick_alloc_object_region_tlab_class_load_read_barrier_slow_path_exit
+    // Check the mark bit, if it is 1 return.
+    testl LITERAL(LOCK_WORD_MARK_BIT_MASK_SHIFTED), MIRROR_OBJECT_LOCK_WORD_OFFSET(%edx)
+    jz .Lart_quick_alloc_object_region_tlab_class_load_read_barrier_slow_path
+.Lart_quick_alloc_object_region_tlab_class_load_read_barrier_slow_path_exit:
+    ALLOC_OBJECT_TLAB_FAST_PATH .Lart_quick_alloc_object_region_tlab_slow_path
+.Lart_quick_alloc_object_region_tlab_class_load_read_barrier_slow_path:
+    // The read barrier slow path. Mark the class.
+    PUSH eax
+    PUSH ecx
+    // Outgoing argument set up
+    subl MACRO_LITERAL(8), %esp                             // Alignment padding
+    CFI_ADJUST_CFA_OFFSET(8)
+    PUSH edx                                                // Pass the class as the first param.
+    call SYMBOL(artReadBarrierMark)                         // cxx_name(mirror::Object* obj)
+    movl %eax, %edx
+    addl MACRO_LITERAL(12), %esp
+    CFI_ADJUST_CFA_OFFSET(-12)
+    POP ecx
+    POP eax
+    jmp .Lart_quick_alloc_object_region_tlab_class_load_read_barrier_slow_path_exit
+.Lart_quick_alloc_object_region_tlab_slow_path:
+    ALLOC_OBJECT_TLAB_SLOW_PATH artAllocObjectFromCodeRegionTLAB
+END_FUNCTION art_quick_alloc_object_region_tlab
 
 DEFINE_FUNCTION art_quick_resolve_string
     SETUP_SAVE_EVERYTHING_FRAME ebx, ebx

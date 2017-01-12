@@ -1,0 +1,1 @@
+Tests for removing useless load class.
