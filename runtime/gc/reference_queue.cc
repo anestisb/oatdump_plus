@@ -129,8 +129,9 @@ void ReferenceQueue::ClearWhiteReferences(ReferenceQueue* cleared_references,
   while (!IsEmpty()) {
     ObjPtr<mirror::Reference> ref = DequeuePendingReference();
     mirror::HeapReference<mirror::Object>* referent_addr = ref->GetReferentReferenceAddr();
-    if (referent_addr->AsMirrorPtr() != nullptr &&
-        !collector->IsMarkedHeapReference(referent_addr)) {
+    // do_atomic_update is false because this happens during the reference processing phase where
+    // Reference.clear() would block.
+    if (!collector->IsNullOrMarkedHeapReference(referent_addr, /*do_atomic_update*/false)) {
       // Referent is white, clear it.
       if (Runtime::Current()->IsActiveTransaction()) {
         ref->ClearReferent<true>();
@@ -147,8 +148,9 @@ void ReferenceQueue::EnqueueFinalizerReferences(ReferenceQueue* cleared_referenc
   while (!IsEmpty()) {
     ObjPtr<mirror::FinalizerReference> ref = DequeuePendingReference()->AsFinalizerReference();
     mirror::HeapReference<mirror::Object>* referent_addr = ref->GetReferentReferenceAddr();
-    if (referent_addr->AsMirrorPtr() != nullptr &&
-        !collector->IsMarkedHeapReference(referent_addr)) {
+    // do_atomic_update is false because this happens during the reference processing phase where
+    // Reference.clear() would block.
+    if (!collector->IsNullOrMarkedHeapReference(referent_addr, /*do_atomic_update*/false)) {
       ObjPtr<mirror::Object> forward_address = collector->MarkObject(referent_addr->AsMirrorPtr());
       // Move the updated referent to the zombie field.
       if (Runtime::Current()->IsActiveTransaction()) {
