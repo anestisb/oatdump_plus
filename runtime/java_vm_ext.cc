@@ -566,7 +566,10 @@ jweak JavaVMExt::AddWeakGlobalRef(Thread* self, ObjPtr<mirror::Object> obj) {
     return nullptr;
   }
   MutexLock mu(self, *Locks::jni_weak_globals_lock_);
-  while (UNLIKELY(!MayAccessWeakGlobals(self))) {
+  // CMS needs this to block for concurrent reference processing because an object allocated during
+  // the GC won't be marked and concurrent reference processing would incorrectly clear the JNI weak
+  // ref. But CC (kUseReadBarrier == true) doesn't because of the to-space invariant.
+  while (!kUseReadBarrier && UNLIKELY(!MayAccessWeakGlobals(self))) {
     // Check and run the empty checkpoint before blocking so the empty checkpoint will work in the
     // presence of threads blocking for weak ref access.
     self->CheckEmptyCheckpoint();
