@@ -26,21 +26,7 @@
 #include "common_helper.h"
 
 #include "901-hello-ti-agent/basics.h"
-#include "903-hello-tagging/tagging.h"
-#include "904-object-allocation/tracking.h"
-#include "905-object-free/tracking_free.h"
-#include "906-iterate-heap/iterate_heap.h"
-#include "907-get-loaded-classes/get_loaded_classes.h"
-#include "908-gc-start-finish/gc_callbacks.h"
 #include "909-attach-agent/attach.h"
-#include "910-methods/methods.h"
-#include "911-get-stack-trace/stack_trace.h"
-#include "912-classes/classes.h"
-#include "913-heaps/heaps.h"
-#include "918-fields/fields.h"
-#include "920-objects/objects.h"
-#include "922-properties/properties.h"
-#include "923-monitors/monitors.h"
 
 namespace art {
 
@@ -55,31 +41,30 @@ struct AgentLib {
   OnAttach attach;
 };
 
-// A list of all the agents we have for testing.
+// A trivial OnLoad implementation that only initializes the global jvmti_env.
+static jint MinimalOnLoad(JavaVM* vm,
+                          char* options ATTRIBUTE_UNUSED,
+                          void* reserved ATTRIBUTE_UNUSED) {
+  if (vm->GetEnv(reinterpret_cast<void**>(&jvmti_env), JVMTI_VERSION_1_0)) {
+    printf("Unable to get jvmti env!\n");
+    return 1;
+  }
+  SetAllCapabilities(jvmti_env);
+  return 0;
+}
+
+// A list of all non-standard the agents we have for testing. All other agents will use
+// MinimalOnLoad.
 AgentLib agents[] = {
   { "901-hello-ti-agent", Test901HelloTi::OnLoad, nullptr },
   { "902-hello-transformation", common_redefine::OnLoad, nullptr },
-  { "903-hello-tagging", Test903HelloTagging::OnLoad, nullptr },
-  { "904-object-allocation", Test904ObjectAllocation::OnLoad, nullptr },
-  { "905-object-free", Test905ObjectFree::OnLoad, nullptr },
-  { "906-iterate-heap", Test906IterateHeap::OnLoad, nullptr },
-  { "907-get-loaded-classes", Test907GetLoadedClasses::OnLoad, nullptr },
-  { "908-gc-start-finish", Test908GcStartFinish::OnLoad, nullptr },
   { "909-attach-agent", nullptr, Test909AttachAgent::OnAttach },
-  { "910-methods", Test910Methods::OnLoad, nullptr },
-  { "911-get-stack-trace", Test911GetStackTrace::OnLoad, nullptr },
-  { "912-classes", Test912Classes::OnLoad, nullptr },
-  { "913-heaps", Test913Heaps::OnLoad, nullptr },
   { "914-hello-obsolescence", common_redefine::OnLoad, nullptr },
   { "915-obsolete-2", common_redefine::OnLoad, nullptr },
   { "916-obsolete-jit", common_redefine::OnLoad, nullptr },
   { "917-fields-transformation", common_redefine::OnLoad, nullptr },
-  { "918-fields", Test918Fields::OnLoad, nullptr },
   { "919-obsolete-fields", common_redefine::OnLoad, nullptr },
-  { "920-objects", Test920Objects::OnLoad, nullptr },
   { "921-hello-failure", common_redefine::OnLoad, nullptr },
-  { "922-properties", Test922Properties::OnLoad, nullptr },
-  { "923-monitors", Test923Monitors::OnLoad, nullptr },
 };
 
 static AgentLib* FindAgent(char* name) {
@@ -120,18 +105,21 @@ extern "C" JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM* vm, char* options, void* 
     printf("Unable to find agent name in options: %s\n", options);
     return -1;
   }
-  AgentLib* lib = FindAgent(name_option);
-  if (lib == nullptr) {
-    printf("Unable to find agent named: %s, add it to the list in test/ti-agent/common_load.cc\n",
-           name_option);
-    return -2;
-  }
-  if (lib->load == nullptr) {
-    printf("agent: %s does not include an OnLoad method.\n", name_option);
-    return -3;
-  }
+
   SetIsJVM(remaining_options);
-  return lib->load(vm, remaining_options, reserved);
+
+  AgentLib* lib = FindAgent(name_option);
+  OnLoad fn = nullptr;
+  if (lib == nullptr) {
+    fn = &MinimalOnLoad;
+  } else {
+    if (lib->load == nullptr) {
+      printf("agent: %s does not include an OnLoad method.\n", name_option);
+      return -3;
+    }
+    fn = lib->load;
+  }
+  return fn(vm, remaining_options, reserved);
 }
 
 extern "C" JNIEXPORT jint JNICALL Agent_OnAttach(JavaVM* vm, char* options, void* reserved) {

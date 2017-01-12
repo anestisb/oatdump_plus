@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include "iterate_heap.h"
-
 #include <iostream>
 #include <pthread.h>
 #include <stdio.h>
@@ -172,18 +170,6 @@ extern "C" JNIEXPORT void JNICALL Java_Main_iterateThroughHeapAdd(JNIEnv* env AT
 
   AddIterationConfig config;
   Run(heap_filter, klass_filter, &config);
-}
-
-// Don't do anything
-jint OnLoad(JavaVM* vm,
-            char* options ATTRIBUTE_UNUSED,
-            void* reserved ATTRIBUTE_UNUSED) {
-  if (vm->GetEnv(reinterpret_cast<void**>(&jvmti_env), JVMTI_VERSION_1_0)) {
-    printf("Unable to get jvmti env!\n");
-    return 1;
-  }
-  SetAllCapabilities(jvmti_env);
-  return 0;
 }
 
 }  // namespace Test906IterateHeap
