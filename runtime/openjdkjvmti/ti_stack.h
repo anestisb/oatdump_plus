@@ -53,6 +53,12 @@ class StackUtil {
                                   jint max_frame_count,
                                   jvmtiFrameInfo* frame_buffer,
                                   jint* count_ptr);
+
+  static jvmtiError GetThreadListStackTraces(jvmtiEnv* env,
+                                             jint thread_count,
+                                             const jthread* thread_list,
+                                             jint max_frame_count,
+                                             jvmtiStackInfo** stack_info_ptr);
 };
 
 }  // namespace openjdkjvmti

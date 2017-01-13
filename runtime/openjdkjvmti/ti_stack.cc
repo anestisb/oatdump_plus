@@ -31,6 +31,7 @@
 
 #include "ti_stack.h"
 
+#include <algorithm>
 #include <list>
 #include <unordered_map>
 #include <vector>
@@ -42,6 +43,7 @@
 #include "base/mutex.h"
 #include "dex_file.h"
 #include "dex_file_annotations.h"
+#include "handle_scope-inl.h"
 #include "jni_env_ext.h"
 #include "jni_internal.h"
 #include "mirror/class.h"
@@ -370,6 +372,193 @@ jvmtiError StackUtil::GetAllStackTraces(jvmtiEnv* env,
 
   *stack_info_ptr = stack_info;
   *thread_count_ptr = static_cast<jint>(frames.size());
+
+  return ERR(NONE);
+}
+
+jvmtiError StackUtil::GetThreadListStackTraces(jvmtiEnv* env,
+                                               jint thread_count,
+                                               const jthread* thread_list,
+                                               jint max_frame_count,
+                                               jvmtiStackInfo** stack_info_ptr) {
+  if (max_frame_count < 0) {
+    return ERR(ILLEGAL_ARGUMENT);
+  }
+  if (thread_count < 0) {
+    return ERR(ILLEGAL_ARGUMENT);
+  }
+  if (thread_count == 0) {
+    *stack_info_ptr = nullptr;
+    return ERR(NONE);
+  }
+  if (stack_info_ptr == nullptr || stack_info_ptr == nullptr) {
+    return ERR(NULL_POINTER);
+  }
+
+  art::Thread* current = art::Thread::Current();
+  art::ScopedObjectAccess soa(current);      // Now we know we have the shared lock.
+
+  // Decode all threads to raw pointers. Put them into a handle scope to avoid any moving GC bugs.
+  art::VariableSizedHandleScope hs(current);
+  std::vector<art::Handle<art::mirror::Object>> handles;
+  for (jint i = 0; i != thread_count; ++i) {
+    if (thread_list[i] == nullptr) {
+      return ERR(INVALID_THREAD);
+    }
+    if (!soa.Env()->IsInstanceOf(thread_list[i], art::WellKnownClasses::java_lang_Thread)) {
+      return ERR(INVALID_THREAD);
+    }
+    handles.push_back(hs.NewHandle(soa.Decode<art::mirror::Object>(thread_list[i])));
+  }
+
+  std::vector<art::Thread*> threads;
+  std::vector<size_t> thread_list_indices;
+  std::vector<std::vector<jvmtiFrameInfo>> frames;
+
+  {
+    art::ScopedThreadSuspension sts(current, art::kWaitingForDebuggerSuspension);
+    art::ScopedSuspendAll ssa("GetThreadListStackTraces");
+
+    {
+      std::list<art::Thread*> art_thread_list;
+      {
+        art::MutexLock mu(current, *art::Locks::thread_list_lock_);
+        art_thread_list = art::Runtime::Current()->GetThreadList()->GetList();
+      }
+
+      for (art::Thread* thread : art_thread_list) {
+        if (thread->IsStillStarting()) {
+          // Skip this. We can't get the jpeer, and if it is for a thread in the thread_list,
+          // we'll just report STARTING.
+          continue;
+        }
+
+        // Get the peer, and check whether we know it.
+        art::ObjPtr<art::mirror::Object> peer = thread->GetPeer();
+        for (size_t index = 0; index != handles.size(); ++index) {
+          if (peer == handles[index].Get()) {
+            // Found the thread.
+            GetStackTraceClosure closure(0u, static_cast<size_t>(max_frame_count));
+            thread->RequestSynchronousCheckpoint(&closure);
+
+            threads.push_back(thread);
+            thread_list_indices.push_back(index);
+            frames.emplace_back();
+            frames.back().swap(closure.frames);
+
+            continue;
+          }
+        }
+
+        // Must be not started, or dead. We'll deal with it at the end.
+      }
+    }
+  }
+
+  // Convert the data into our output format.
+
+  // Note: we use an array of jvmtiStackInfo for convenience. The spec says we need to
+  //       allocate one big chunk for this and the actual frames, which means we need
+  //       to either be conservative or rearrange things later (the latter is implemented).
+  std::unique_ptr<jvmtiStackInfo[]> stack_info_array(new jvmtiStackInfo[frames.size()]);
+  std::vector<std::unique_ptr<jvmtiFrameInfo[]>> frame_infos;
+  frame_infos.reserve(frames.size());
+
+  // Now run through and add data for each thread.
+  size_t sum_frames = 0;
+  for (size_t index = 0; index < frames.size(); ++index) {
+    jvmtiStackInfo& stack_info = stack_info_array.get()[index];
+    memset(&stack_info, 0, sizeof(jvmtiStackInfo));
+
+    art::Thread* self = threads[index];
+    const std::vector<jvmtiFrameInfo>& thread_frames = frames[index];
+
+    // For the time being, set the thread to null. We don't have good ScopedLocalRef
+    // infrastructure.
+    DCHECK(self->GetPeer() != nullptr);
+    stack_info.thread = nullptr;
+    stack_info.state = JVMTI_THREAD_STATE_SUSPENDED;
+
+    size_t collected_frames = thread_frames.size();
+    if (max_frame_count == 0 || collected_frames == 0) {
+      stack_info.frame_count = 0;
+      stack_info.frame_buffer = nullptr;
+      continue;
+    }
+    DCHECK_LE(collected_frames, static_cast<size_t>(max_frame_count));
+
+    jvmtiFrameInfo* frame_info = new jvmtiFrameInfo[collected_frames];
+    frame_infos.emplace_back(frame_info);
+
+    jint count;
+    jvmtiError translate_result = TranslateFrameVector(thread_frames,
+                                                       0,
+                                                       0,
+                                                       static_cast<jint>(collected_frames),
+                                                       frame_info,
+                                                       &count);
+    DCHECK(translate_result == JVMTI_ERROR_NONE);
+    stack_info.frame_count = static_cast<jint>(collected_frames);
+    stack_info.frame_buffer = frame_info;
+    sum_frames += static_cast<size_t>(count);
+  }
+
+  // No errors, yet. Now put it all into an output buffer. Note that this is not frames.size(),
+  // potentially.
+  size_t rounded_stack_info_size = art::RoundUp(sizeof(jvmtiStackInfo) * thread_count,
+                                                alignof(jvmtiFrameInfo));
+  size_t chunk_size = rounded_stack_info_size + sum_frames * sizeof(jvmtiFrameInfo);
+  unsigned char* chunk_data;
+  jvmtiError alloc_result = env->Allocate(chunk_size, &chunk_data);
+  if (alloc_result != ERR(NONE)) {
+    return alloc_result;
+  }
+
+  jvmtiStackInfo* stack_info = reinterpret_cast<jvmtiStackInfo*>(chunk_data);
+  jvmtiFrameInfo* frame_info = reinterpret_cast<jvmtiFrameInfo*>(
+      chunk_data + rounded_stack_info_size);
+
+  for (size_t i = 0; i < static_cast<size_t>(thread_count); ++i) {
+    // Check whether we found a running thread for this.
+    // Note: For simplicity, and with the expectation that the list is usually small, use a simple
+    //       search. (The list is *not* sorted!)
+    auto it = std::find(thread_list_indices.begin(), thread_list_indices.end(), i);
+    if (it == thread_list_indices.end()) {
+      // No native thread. Must be new or dead. We need to fill out the stack info now.
+      // (Need to read the Java "started" field to know whether this is starting or terminated.)
+      art::ObjPtr<art::mirror::Object> peer = soa.Decode<art::mirror::Object>(thread_list[i]);
+      art::ObjPtr<art::mirror::Class> klass = peer->GetClass();
+      art::ArtField* started_field = klass->FindDeclaredInstanceField("started", "Z");
+      CHECK(started_field != nullptr);
+      bool started = started_field->GetBoolean(peer) != 0;
+      constexpr jint kStartedState = JVMTI_JAVA_LANG_THREAD_STATE_NEW;
+      constexpr jint kTerminatedState = JVMTI_THREAD_STATE_TERMINATED |
+          JVMTI_JAVA_LANG_THREAD_STATE_TERMINATED;
+      stack_info[i].thread = reinterpret_cast<JNIEnv*>(soa.Env())->NewLocalRef(thread_list[i]);
+      stack_info[i].state = started ? kTerminatedState : kStartedState;
+      stack_info[i].frame_count = 0;
+      stack_info[i].frame_buffer = nullptr;
+    } else {
+      // Had a native thread and frames.
+      size_t f_index = it - thread_list_indices.begin();
+
+      jvmtiStackInfo& old_stack_info = stack_info_array.get()[f_index];
+      jvmtiStackInfo& new_stack_info = stack_info[i];
+
+      memcpy(&new_stack_info, &old_stack_info, sizeof(jvmtiStackInfo));
+      new_stack_info.thread = reinterpret_cast<JNIEnv*>(soa.Env())->NewLocalRef(thread_list[i]);
+      if (old_stack_info.frame_count > 0) {
+        // Only copy when there's data - leave the nullptr alone.
+        size_t frames_size =
+            static_cast<size_t>(old_stack_info.frame_count) * sizeof(jvmtiFrameInfo);
+        memcpy(frame_info, old_stack_info.frame_buffer, frames_size);
+        new_stack_info.frame_buffer = frame_info;
+        frame_info += old_stack_info.frame_count;
+      }
+    }
+  }
+
+  * stack_info_ptr = stack_info;
 
   return ERR(NONE);
 }
