@@ -322,6 +322,28 @@ if [ "$DEBUGGER" = "y" ]; then
   DEBUGGER_OPTS="-agentlib:jdwp=transport=dt_socket,address=$PORT,server=y,suspend=y"
 fi
 
+if [ "$IS_JVMTI_TEST" = "y" ]; then
+  plugin=libopenjdkjvmtid.so
+  agent=libtiagentd.so
+  lib=tiagentd
+  if  [[ "$TEST_IS_NDEBUG" = "y" ]]; then
+    agent=libtiagent.so
+    plugin=libopenjdkjvmti.so
+    lib=tiagent
+  fi
+
+  ARGS="${ARGS} ${lib}"
+  if [[ "$USE_JVM" = "y" ]]; then
+    FLAGS="${FLAGS} -agentpath:${ANDROID_HOST_OUT}/nativetest64/${agent}=${TEST_NAME},jvm"
+  else
+    FLAGS="${FLAGS} -agentpath:${agent}=${TEST_NAME},art"
+    FLAGS="${FLAGS} -Xplugin:${plugin}"
+    FLAGS="${FLAGS} -Xfully-deoptable"
+    # Always make the compilation be debuggable.
+    COMPILE_FLAGS="${COMPILE_FLAGS} --debuggable"
+  fi
+fi
+
 if [ "$USE_JVM" = "y" ]; then
   export LD_LIBRARY_PATH=${ANDROID_HOST_OUT}/lib64
   # Xmx is necessary since we don't pass down the ART flags to JVM.
@@ -385,28 +407,6 @@ if [ "$JIT" = "y" ]; then
       COMPILE_FLAGS="${COMPILE_FLAGS} --compiler-filter=verify-none"
       DEX_VERIFY="${DEX_VERIFY} -Xverify:none"
     fi
-fi
-
-if [ "$IS_JVMTI_TEST" = "y" ]; then
-  plugin=libopenjdkjvmtid.so
-  agent=libtiagentd.so
-  lib=tiagentd
-  if  [[ "$TEST_IS_NDEBUG" = "y" ]]; then
-    agent=libtiagent.so
-    plugin=libopenjdkjvmti.so
-    lib=tiagent
-  fi
-
-  ARGS="${ARGS} ${lib}"
-  if [[ "$USE_JVM" = "y" ]]; then
-    FLAGS="${FLAGS} -agentpath:${agent}=${TEST_NAME},jvm"
-  else
-    FLAGS="${FLAGS} -agentpath:${agent}=${TEST_NAME},art"
-    FLAGS="${FLAGS} -Xplugin:${plugin}"
-    FLAGS="${FLAGS} -Xfully-deoptable"
-    # Always make the compilation be debuggable.
-    COMPILE_FLAGS="${COMPILE_FLAGS} --debuggable"
-  fi
 fi
 
 JNI_OPTS="-Xjnigreflimit:512 -Xcheck:jni"
