@@ -189,10 +189,9 @@ void HSharpening::SharpenClass(HLoadClass* load_class,
           ? HLoadClass::LoadKind::kBootImageLinkTimePcRelative
           : HLoadClass::LoadKind::kBootImageLinkTimeAddress;
     } else {
-      // Not a boot image class. We must call the runtime entrypoint.
-      // TODO: Implement kBssEntry for boot image.
+      // Not a boot image class.
       DCHECK(ContainsElement(compiler_driver->GetDexFilesForOatFile(), &dex_file));
-      desired_load_kind = HLoadClass::LoadKind::kDexCacheViaMethod;
+      desired_load_kind = HLoadClass::LoadKind::kBssEntry;
     }
   } else {
     is_in_boot_image = (klass != nullptr) && runtime->GetHeap()->ObjectIsInBootImageSpace(klass);
