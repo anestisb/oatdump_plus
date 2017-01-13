@@ -297,6 +297,7 @@ TEST_ART_BROKEN_TARGET_TESTS += \
   922-properties \
   923-monitors \
   924-threads \
+  925-threadgroups \
 
 ifneq (,$(filter target,$(TARGET_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,target,$(RUN_TYPES),$(PREBUILD_TYPES), \
