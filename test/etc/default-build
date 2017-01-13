@@ -63,7 +63,6 @@ fi
 DX_FLAGS=""
 SKIP_DX_MERGER="false"
 EXPERIMENTAL=""
-JACK_ARGS=""
 
 # The key for default arguments if no experimental things are enabled.
 DEFAULT_EXPERIMENT="no-experiment"
@@ -118,10 +117,6 @@ while true; do
     # We have a specific experimental configuration so don't use the default.
     DEFAULT_EXPERIMENT=""
     EXPERIMENTAL="${EXPERIMENTAL} $1"
-    shift
-  elif [ "x$1" = "x--jack-option" ]; then
-    shift
-    JACK_ARGS="${JACK_ARGS} $1"
     shift
   elif expr "x$1" : "x--" >/dev/null 2>&1; then
     echo "unknown $0 option: $1" 1>&2
