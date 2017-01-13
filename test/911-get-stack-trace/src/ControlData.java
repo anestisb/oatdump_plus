@@ -14,24 +14,18 @@
  * limitations under the License.
  */
 
-public class Main {
-  public static void main(String[] args) throws Exception {
-    System.loadLibrary(args[1]);
+import java.util.concurrent.CountDownLatch;
 
-    SameThread.doTest();
+public class ControlData {
+  CountDownLatch reached;
+  Object waitFor = null;
+  volatile boolean stop = false;
 
-    System.out.println();
+  public ControlData() {
+    this(1);
+  }
 
-    OtherThread.doTestOtherThreadWait();
-
-    System.out.println();
-
-    OtherThread.doTestOtherThreadBusyLoop();
-
-    System.out.println();
-
-    AllTraces.doTest();
-
-    System.out.println("Done");
+  public ControlData(int latchCount) {
+    reached = new CountDownLatch(latchCount);
   }
 }
