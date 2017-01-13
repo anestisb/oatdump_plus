@@ -118,7 +118,7 @@ class JvmtiFunctions {
   }
 
   static jvmtiError GetThreadState(jvmtiEnv* env, jthread thread, jint* thread_state_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return ThreadUtil::GetThreadState(env, thread, thread_state_ptr);
   }
 
   static jvmtiError GetCurrentThread(jvmtiEnv* env, jthread* thread_ptr) {

@@ -199,4 +199,159 @@ jvmtiError ThreadUtil::GetThreadInfo(jvmtiEnv* env, jthread thread, jvmtiThreadI
   return ERR(NONE);
 }
 
+// Return the thread's (or current thread, if null) thread state. Return kStarting in case
+// there's no native counterpart (thread hasn't been started, yet, or is dead).
+static art::ThreadState GetNativeThreadState(jthread thread,
+                                             const art::ScopedObjectAccessAlreadyRunnable& soa,
+                                             art::Thread** native_thread)
+    REQUIRES_SHARED(art::Locks::mutator_lock_) {
+  art::Thread* self = nullptr;
+  art::MutexLock mu(soa.Self(), *art::Locks::thread_list_lock_);
+  if (thread == nullptr) {
+    self = art::Thread::Current();
+  } else {
+    self = art::Thread::FromManagedThread(soa, thread);
+  }
+  *native_thread = self;
+  if (self == nullptr || self->IsStillStarting()) {
+    return art::ThreadState::kStarting;
+  }
+  return self->GetState();
+}
+
+static jint GetJvmtiThreadStateFromInternal(art::ThreadState internal_thread_state) {
+  jint jvmti_state = JVMTI_THREAD_STATE_ALIVE;
+
+  if (internal_thread_state == art::ThreadState::kSuspended) {
+    jvmti_state |= JVMTI_THREAD_STATE_SUSPENDED;
+    // Note: We do not have data about the previous state. Otherwise we should load the previous
+    //       state here.
+  }
+
+  if (internal_thread_state == art::ThreadState::kNative) {
+    jvmti_state |= JVMTI_THREAD_STATE_IN_NATIVE;
+  }
+
+  if (internal_thread_state == art::ThreadState::kRunnable ||
+      internal_thread_state == art::ThreadState::kWaitingWeakGcRootRead ||
+      internal_thread_state == art::ThreadState::kSuspended) {
+    jvmti_state |= JVMTI_THREAD_STATE_RUNNABLE;
+  } else if (internal_thread_state == art::ThreadState::kBlocked) {
+    jvmti_state |= JVMTI_THREAD_STATE_BLOCKED_ON_MONITOR_ENTER;
+  } else {
+    // Should be in waiting state.
+    jvmti_state |= JVMTI_THREAD_STATE_WAITING;
+
+    if (internal_thread_state == art::ThreadState::kTimedWaiting ||
+        internal_thread_state == art::ThreadState::kSleeping) {
+      jvmti_state |= JVMTI_THREAD_STATE_WAITING_WITH_TIMEOUT;
+    } else {
+      jvmti_state |= JVMTI_THREAD_STATE_WAITING_INDEFINITELY;
+    }
+
+    if (internal_thread_state == art::ThreadState::kSleeping) {
+      jvmti_state |= JVMTI_THREAD_STATE_SLEEPING;
+    }
+
+    if (internal_thread_state == art::ThreadState::kTimedWaiting ||
+        internal_thread_state == art::ThreadState::kWaiting) {
+      jvmti_state |= JVMTI_THREAD_STATE_IN_OBJECT_WAIT;
+    }
+
+    // TODO: PARKED. We'll have to inspect the stack.
+  }
+
+  return jvmti_state;
+}
+
+static jint GetJavaStateFromInternal(art::ThreadState internal_thread_state) {
+  switch (internal_thread_state) {
+    case art::ThreadState::kTerminated:
+      return JVMTI_JAVA_LANG_THREAD_STATE_TERMINATED;
+
+    case art::ThreadState::kRunnable:
+    case art::ThreadState::kNative:
+    case art::ThreadState::kWaitingWeakGcRootRead:
+    case art::ThreadState::kSuspended:
+      return JVMTI_JAVA_LANG_THREAD_STATE_RUNNABLE;
+
+    case art::ThreadState::kTimedWaiting:
+    case art::ThreadState::kSleeping:
+      return JVMTI_JAVA_LANG_THREAD_STATE_TIMED_WAITING;
+
+    case art::ThreadState::kBlocked:
+      return JVMTI_JAVA_LANG_THREAD_STATE_BLOCKED;
+
+    case art::ThreadState::kStarting:
+      return JVMTI_JAVA_LANG_THREAD_STATE_NEW;
+
+    case art::ThreadState::kWaiting:
+    case art::ThreadState::kWaitingForGcToComplete:
+    case art::ThreadState::kWaitingPerformingGc:
+    case art::ThreadState::kWaitingForCheckPointsToRun:
+    case art::ThreadState::kWaitingForDebuggerSend:
+    case art::ThreadState::kWaitingForDebuggerToAttach:
+    case art::ThreadState::kWaitingInMainDebuggerLoop:
+    case art::ThreadState::kWaitingForDebuggerSuspension:
+    case art::ThreadState::kWaitingForDeoptimization:
+    case art::ThreadState::kWaitingForGetObjectsAllocated:
+    case art::ThreadState::kWaitingForJniOnLoad:
+    case art::ThreadState::kWaitingForSignalCatcherOutput:
+    case art::ThreadState::kWaitingInMainSignalCatcherLoop:
+    case art::ThreadState::kWaitingForMethodTracingStart:
+    case art::ThreadState::kWaitingForVisitObjects:
+    case art::ThreadState::kWaitingForGcThreadFlip:
+      return JVMTI_JAVA_LANG_THREAD_STATE_WAITING;
+  }
+  LOG(FATAL) << "Unreachable";
+  UNREACHABLE();
+}
+
+jvmtiError ThreadUtil::GetThreadState(jvmtiEnv* env ATTRIBUTE_UNUSED,
+                                      jthread thread,
+                                      jint* thread_state_ptr) {
+  if (thread_state_ptr == nullptr) {
+    return ERR(NULL_POINTER);
+  }
+
+  art::ScopedObjectAccess soa(art::Thread::Current());
+  art::Thread* native_thread = nullptr;
+  art::ThreadState internal_thread_state = GetNativeThreadState(thread, soa, &native_thread);
+
+  if (internal_thread_state == art::ThreadState::kStarting) {
+    if (thread == nullptr) {
+      // No native thread, and no Java thread? We must be starting up. Report as wrong phase.
+      return ERR(WRONG_PHASE);
+    }
+
+    // Need to read the Java "started" field to know whether this is starting or terminated.
+    art::ObjPtr<art::mirror::Object> peer = soa.Decode<art::mirror::Object>(thread);
+    art::ObjPtr<art::mirror::Class> klass = peer->GetClass();
+    art::ArtField* started_field = klass->FindDeclaredInstanceField("started", "Z");
+    CHECK(started_field != nullptr);
+    bool started = started_field->GetBoolean(peer) != 0;
+    constexpr jint kStartedState = JVMTI_JAVA_LANG_THREAD_STATE_NEW;
+    constexpr jint kTerminatedState = JVMTI_THREAD_STATE_TERMINATED |
+                                      JVMTI_JAVA_LANG_THREAD_STATE_TERMINATED;
+    *thread_state_ptr = started ? kTerminatedState : kStartedState;
+    return ERR(NONE);
+  }
+  DCHECK(native_thread != nullptr);
+
+  // Translate internal thread state to JVMTI and Java state.
+  jint jvmti_state = GetJvmtiThreadStateFromInternal(internal_thread_state);
+  if (native_thread->IsInterrupted()) {
+    jvmti_state |= JVMTI_THREAD_STATE_INTERRUPTED;
+  }
+
+  // Java state is derived from nativeGetState.
+  // Note: Our implementation assigns "runnable" to suspended. As such, we will have slightly
+  //       different mask. However, this is for consistency with the Java view.
+  jint java_state = GetJavaStateFromInternal(internal_thread_state);
+
+  *thread_state_ptr = jvmti_state | java_state;
+
+  return ERR(NONE);
+}
+
 }  // namespace openjdkjvmti
