@@ -4181,8 +4181,9 @@ vixl::aarch64::Literal<uint32_t>* CodeGeneratorARM64::DeduplicateJitStringLitera
 }
 
 vixl::aarch64::Literal<uint32_t>* CodeGeneratorARM64::DeduplicateJitClassLiteral(
-    const DexFile& dex_file, dex::TypeIndex type_index, uint64_t address) {
-  jit_class_roots_.Overwrite(TypeReference(&dex_file, type_index), address);
+    const DexFile& dex_file, dex::TypeIndex type_index, Handle<mirror::Class> handle) {
+  jit_class_roots_.Overwrite(TypeReference(&dex_file, type_index),
+                             reinterpret_cast64<uint64_t>(handle.GetReference()));
   return jit_class_patches_.GetOrCreate(
       TypeReference(&dex_file, type_index),
       [this]() { return __ CreateLiteralDestroyedWithPool<uint32_t>(/* placeholder */ 0u); });
@@ -4377,7 +4378,9 @@ void LocationsBuilderARM64::VisitLoadClass(HLoadClass* cls) {
   locations->SetOut(Location::RequiresRegister());
 }
 
-void InstructionCodeGeneratorARM64::VisitLoadClass(HLoadClass* cls) {
+// NO_THREAD_SAFETY_ANALYSIS as we manipulate handles whose internal object we know does not
+// move.
+void InstructionCodeGeneratorARM64::VisitLoadClass(HLoadClass* cls) NO_THREAD_SAFETY_ANALYSIS {
   HLoadClass::LoadKind load_kind = cls->GetLoadKind();
   if (load_kind == HLoadClass::LoadKind::kDexCacheViaMethod) {
     codegen_->GenerateLoadClassRuntimeCall(cls);
@@ -4426,8 +4429,10 @@ void InstructionCodeGeneratorARM64::VisitLoadClass(HLoadClass* cls) {
     }
     case HLoadClass::LoadKind::kBootImageAddress: {
       DCHECK_EQ(read_barrier_option, kWithoutReadBarrier);
-      DCHECK(cls->GetAddress() != 0u && IsUint<32>(cls->GetAddress()));
-      __ Ldr(out.W(), codegen_->DeduplicateBootImageAddressLiteral(cls->GetAddress()));
+      uint32_t address = dchecked_integral_cast<uint32_t>(
+          reinterpret_cast<uintptr_t>(cls->GetClass().Get()));
+      DCHECK_NE(address, 0u);
+      __ Ldr(out.W(), codegen_->DeduplicateBootImageAddressLiteral(address));
       break;
     }
     case HLoadClass::LoadKind::kBssEntry: {
@@ -4452,7 +4457,7 @@ void InstructionCodeGeneratorARM64::VisitLoadClass(HLoadClass* cls) {
     case HLoadClass::LoadKind::kJitTableAddress: {
       __ Ldr(out, codegen_->DeduplicateJitClassLiteral(cls->GetDexFile(),
                                                        cls->GetTypeIndex(),
-                                                       cls->GetAddress()));
+                                                       cls->GetClass()));
       GenerateGcRootFieldLoad(cls,
                               out_loc,
                               out.X(),

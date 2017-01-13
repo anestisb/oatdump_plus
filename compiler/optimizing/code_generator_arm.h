@@ -496,7 +496,7 @@ class CodeGeneratorARM : public CodeGenerator {
                                        Handle<mirror::String> handle);
   Literal* DeduplicateJitClassLiteral(const DexFile& dex_file,
                                       dex::TypeIndex type_index,
-                                      uint64_t address);
+                                      Handle<mirror::Class> handle);
 
   void EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) OVERRIDE;
 

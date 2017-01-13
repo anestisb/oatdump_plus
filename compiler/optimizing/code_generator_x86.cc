@@ -6055,15 +6055,18 @@ void LocationsBuilderX86::VisitLoadClass(HLoadClass* cls) {
 
 Label* CodeGeneratorX86::NewJitRootClassPatch(const DexFile& dex_file,
                                               dex::TypeIndex dex_index,
-                                              uint64_t address) {
-  jit_class_roots_.Overwrite(TypeReference(&dex_file, dex_index), address);
+                                              Handle<mirror::Class> handle) {
+  jit_class_roots_.Overwrite(TypeReference(&dex_file, dex_index),
+                             reinterpret_cast64<uint64_t>(handle.GetReference()));
   // Add a patch entry and return the label.
   jit_class_patches_.emplace_back(dex_file, dex_index.index_);
   PatchInfo<Label>* info = &jit_class_patches_.back();
   return &info->label;
 }
 
-void InstructionCodeGeneratorX86::VisitLoadClass(HLoadClass* cls) {
+// NO_THREAD_SAFETY_ANALYSIS as we manipulate handles whose internal object we know does not
+// move.
+void InstructionCodeGeneratorX86::VisitLoadClass(HLoadClass* cls) NO_THREAD_SAFETY_ANALYSIS {
   HLoadClass::LoadKind load_kind = cls->GetLoadKind();
   if (load_kind == HLoadClass::LoadKind::kDexCacheViaMethod) {
     codegen_->GenerateLoadClassRuntimeCall(cls);
@@ -6110,8 +6113,9 @@ void InstructionCodeGeneratorX86::VisitLoadClass(HLoadClass* cls) {
     }
     case HLoadClass::LoadKind::kBootImageAddress: {
       DCHECK_EQ(read_barrier_option, kWithoutReadBarrier);
-      DCHECK_NE(cls->GetAddress(), 0u);
-      uint32_t address = dchecked_integral_cast<uint32_t>(cls->GetAddress());
+      uint32_t address = dchecked_integral_cast<uint32_t>(
+          reinterpret_cast<uintptr_t>(cls->GetClass().Get()));
+      DCHECK_NE(address, 0u);
       __ movl(out, Immediate(address));
       codegen_->RecordSimplePatch();
       break;
@@ -6127,7 +6131,7 @@ void InstructionCodeGeneratorX86::VisitLoadClass(HLoadClass* cls) {
     case HLoadClass::LoadKind::kJitTableAddress: {
       Address address = Address::Absolute(CodeGeneratorX86::kDummy32BitOffset);
       Label* fixup_label = codegen_->NewJitRootClassPatch(
-          cls->GetDexFile(), cls->GetTypeIndex(), cls->GetAddress());
+          cls->GetDexFile(), cls->GetTypeIndex(), cls->GetClass());
       // /* GcRoot<mirror::Class> */ out = *address
       GenerateGcRootFieldLoad(cls, out_loc, address, fixup_label, kCompilerReadBarrierOption);
       break;
