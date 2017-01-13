@@ -127,7 +127,7 @@ static jobjectArray TranslateJvmtiFrameInfoArray(JNIEnv* env,
   return CreateObjectArray(env, count, "[Ljava/lang/String;", callback);
 }
 
-extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getStackTrace(
+extern "C" JNIEXPORT jobjectArray JNICALL Java_PrintThread_getStackTrace(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jthread thread, jint start, jint max) {
   std::unique_ptr<jvmtiFrameInfo[]> frames(new jvmtiFrameInfo[max]);
 
@@ -146,7 +146,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getStackTrace(
   return TranslateJvmtiFrameInfoArray(env, frames.get(), count);
 }
 
-extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getAllStackTraces(
+extern "C" JNIEXPORT jobjectArray JNICALL Java_AllTraces_getAllStackTraces(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jint max) {
   std::unique_ptr<jvmtiFrameInfo[]> frames(new jvmtiFrameInfo[max]);
 
