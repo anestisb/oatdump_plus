@@ -161,26 +161,27 @@ void HLoopOptimization::RemoveLoop(LoopNode* node) {
 
 void HLoopOptimization::TraverseLoopsInnerToOuter(LoopNode* node) {
   for ( ; node != nullptr; node = node->next) {
+    // Visit inner loops first.
     int current_induction_simplification_count = induction_simplication_count_;
     if (node->inner != nullptr) {
       TraverseLoopsInnerToOuter(node->inner);
     }
-    // Visit loop after its inner loops have been visited. If the induction of any inner
-    // loop has been simplified, recompute the induction information of this loop first.
+    // Recompute induction information of this loop if the induction
+    // of any inner loop has been simplified.
     if (current_induction_simplification_count != induction_simplication_count_) {
       induction_range_.ReVisit(node->loop_info);
     }
-    // Repeat simplifications until no more changes occur. Note that since
-    // each simplification consists of eliminating code (without introducing
-    // new code), this process is always finite.
+    // Repeat simplifications in the body of this loop until no more changes occur.
+    // Note that since each simplification consists of eliminating code (without
+    // introducing new code), this process is always finite.
     do {
       simplified_ = false;
-      SimplifyBlocks(node);
       SimplifyInduction(node);
+      SimplifyBlocks(node);
     } while (simplified_);
-    // Remove inner loops when empty.
+    // Simplify inner loop.
     if (node->inner == nullptr) {
-      RemoveIfEmptyInnerLoop(node);
+      SimplifyInnerLoop(node);
     }
   }
 }
@@ -198,7 +199,7 @@ void HLoopOptimization::SimplifyInduction(LoopNode* node) {
     iset_->clear();
     int32_t use_count = 0;
     if (IsPhiInduction(phi) &&
-        IsOnlyUsedAfterLoop(node->loop_info, phi, &use_count) &&
+        IsOnlyUsedAfterLoop(node->loop_info, phi, /*collect_loop_uses*/ false, &use_count) &&
         // No uses, or no early-exit with proper replacement.
         (use_count == 0 ||
          (!IsEarlyExit(node->loop_info) && TryReplaceWithLastValue(phi, preheader)))) {
@@ -206,7 +207,6 @@ void HLoopOptimization::SimplifyInduction(LoopNode* node) {
         RemoveFromCycle(i);
       }
       simplified_ = true;
-      induction_simplication_count_++;
     }
   }
 }
@@ -216,24 +216,14 @@ void HLoopOptimization::SimplifyBlocks(LoopNode* node) {
   for (HBlocksInLoopIterator it(*node->loop_info); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
     // Remove dead instructions from the loop-body.
-    for (HBackwardInstructionIterator i(block->GetInstructions()); !i.Done(); i.Advance()) {
-      HInstruction* instruction = i.Current();
-      if (instruction->IsDeadAndRemovable()) {
-        simplified_ = true;
-        block->RemoveInstruction(instruction);
-      }
-    }
+    RemoveDeadInstructions(block->GetPhis());
+    RemoveDeadInstructions(block->GetInstructions());
     // Remove trivial control flow blocks from the loop-body.
-    HBasicBlock* succ = nullptr;
-    if (IsGotoBlock(block, &succ) && succ->GetPredecessors().size() == 1) {
-      // Trivial goto block can be removed.
-      HBasicBlock* pred = block->GetSinglePredecessor();
+    if (block->GetPredecessors().size() == 1 &&
+        block->GetSuccessors().size() == 1 &&
+        block->GetSingleSuccessor()->GetPredecessors().size() == 1) {
       simplified_ = true;
-      pred->ReplaceSuccessor(block, succ);
-      block->RemoveDominatedBlock(succ);
-      block->DisconnectAndDelete();
-      pred->AddDominatedBlock(succ);
-      succ->SetDominator(pred);
+      block->MergeWith(block->GetSingleSuccessor());
     } else if (block->GetSuccessors().size() == 2) {
       // Trivial if block can be bypassed to either branch.
       HBasicBlock* succ0 = block->GetSuccessors()[0];
@@ -258,55 +248,66 @@ void HLoopOptimization::SimplifyBlocks(LoopNode* node) {
   }
 }
 
-void HLoopOptimization::RemoveIfEmptyInnerLoop(LoopNode* node) {
+bool HLoopOptimization::SimplifyInnerLoop(LoopNode* node) {
   HBasicBlock* header = node->loop_info->GetHeader();
   HBasicBlock* preheader = node->loop_info->GetPreHeader();
   // Ensure loop header logic is finite.
-  if (!induction_range_.IsFinite(node->loop_info)) {
-    return;
+  int64_t tc = 0;
+  if (!induction_range_.IsFinite(node->loop_info, &tc)) {
+    return false;
   }
   // Ensure there is only a single loop-body (besides the header).
   HBasicBlock* body = nullptr;
   for (HBlocksInLoopIterator it(*node->loop_info); !it.Done(); it.Advance()) {
     if (it.Current() != header) {
       if (body != nullptr) {
-        return;
+        return false;
       }
       body = it.Current();
     }
   }
   // Ensure there is only a single exit point.
   if (header->GetSuccessors().size() != 2) {
-    return;
+    return false;
   }
   HBasicBlock* exit = (header->GetSuccessors()[0] == body)
       ? header->GetSuccessors()[1]
       : header->GetSuccessors()[0];
   // Ensure exit can only be reached by exiting loop.
   if (exit->GetPredecessors().size() != 1) {
-    return;
+    return false;
   }
-  // Detect an empty loop: no side effects other than plain iteration. Replace
-  // subsequent index uses, if any, with the last value and remove the loop.
+  // Detect either an empty loop (no side effects other than plain iteration) or
+  // a trivial loop (just iterating once). Replace subsequent index uses, if any,
+  // with the last value and remove the loop, possibly after unrolling its body.
+  HInstruction* phi = header->GetFirstPhi();
   iset_->clear();
   int32_t use_count = 0;
-  if (IsEmptyHeader(header) &&
-      IsEmptyBody(body) &&
-      IsOnlyUsedAfterLoop(node->loop_info, header->GetFirstPhi(), &use_count) &&
-      // No uses, or proper replacement.
-      (use_count == 0 || TryReplaceWithLastValue(header->GetFirstPhi(), preheader))) {
-    body->DisconnectAndDelete();
-    exit->RemovePredecessor(header);
-    header->RemoveSuccessor(exit);
-    header->RemoveDominatedBlock(exit);
-    header->DisconnectAndDelete();
-    preheader->AddSuccessor(exit);
-    preheader->AddInstruction(new (graph_->GetArena()) HGoto());  // global allocator
-    preheader->AddDominatedBlock(exit);
-    exit->SetDominator(preheader);
-    // Update hierarchy.
-    RemoveLoop(node);
+  if (IsEmptyHeader(header)) {
+    bool is_empty = IsEmptyBody(body);
+    if ((is_empty || tc == 1) &&
+        IsOnlyUsedAfterLoop(node->loop_info, phi, /*collect_loop_uses*/ true, &use_count) &&
+        // No uses, or proper replacement.
+        (use_count == 0 || TryReplaceWithLastValue(phi, preheader))) {
+      if (!is_empty) {
+        // Unroll the loop body, which sees initial value of the index.
+        phi->ReplaceWith(phi->InputAt(0));
+        preheader->MergeInstructionsWith(body);
+      }
+      body->DisconnectAndDelete();
+      exit->RemovePredecessor(header);
+      header->RemoveSuccessor(exit);
+      header->RemoveDominatedBlock(exit);
+      header->DisconnectAndDelete();
+      preheader->AddSuccessor(exit);
+      preheader->AddInstruction(new (graph_->GetArena()) HGoto());  // global allocator
+      preheader->AddDominatedBlock(exit);
+      exit->SetDominator(preheader);
+      RemoveLoop(node);  // update hierarchy
+      return true;
+    }
   }
+  return false;
 }
 
 bool HLoopOptimization::IsPhiInduction(HPhi* phi) {
@@ -374,12 +375,19 @@ bool HLoopOptimization::IsEmptyBody(HBasicBlock* block) {
 
 bool HLoopOptimization::IsOnlyUsedAfterLoop(HLoopInformation* loop_info,
                                             HInstruction* instruction,
+                                            bool collect_loop_uses,
                                             /*out*/ int32_t* use_count) {
   for (const HUseListNode<HInstruction*>& use : instruction->GetUses()) {
     HInstruction* user = use.GetUser();
     if (iset_->find(user) == iset_->end()) {  // not excluded?
       HLoopInformation* other_loop_info = user->GetBlock()->GetLoopInformation();
       if (other_loop_info != nullptr && other_loop_info->IsIn(*loop_info)) {
+        // If collect_loop_uses is set, simply keep adding those uses to the set.
+        // Otherwise, reject uses inside the loop that were not already in the set.
+        if (collect_loop_uses) {
+          iset_->insert(user);
+          continue;
+        }
         return false;
       }
       ++*use_count;
@@ -388,40 +396,48 @@ bool HLoopOptimization::IsOnlyUsedAfterLoop(HLoopInformation* loop_info,
   return true;
 }
 
-void HLoopOptimization::ReplaceAllUses(HInstruction* instruction, HInstruction* replacement) {
-  const HUseList<HInstruction*>& uses = instruction->GetUses();
-  for (auto it = uses.begin(), end = uses.end(); it != end;) {
-    HInstruction* user = it->GetUser();
-    size_t index = it->GetIndex();
-    ++it;  // increment before replacing
-    if (iset_->find(user) == iset_->end()) {  // not excluded?
-      user->ReplaceInput(replacement, index);
-      induction_range_.Replace(user, instruction, replacement);  // update induction
-    }
-  }
-  const HUseList<HEnvironment*>& env_uses = instruction->GetEnvUses();
-  for (auto it = env_uses.begin(), end = env_uses.end(); it != end;) {
-    HEnvironment* user = it->GetUser();
-    size_t index = it->GetIndex();
-    ++it;  // increment before replacing
-    if (iset_->find(user->GetHolder()) == iset_->end()) {  // not excluded?
-      user->RemoveAsUserOfInput(index);
-      user->SetRawEnvAt(index, replacement);
-      replacement->AddEnvUseAt(user, index);
-    }
-  }
-}
-
 bool HLoopOptimization::TryReplaceWithLastValue(HInstruction* instruction, HBasicBlock* block) {
   // Try to replace outside uses with the last value. Environment uses can consume this
   // value too, since any first true use is outside the loop (although this may imply
   // that de-opting may look "ahead" a bit on the phi value). If there are only environment
   // uses, the value is dropped altogether, since the computations have no effect.
   if (induction_range_.CanGenerateLastValue(instruction)) {
-    ReplaceAllUses(instruction, induction_range_.GenerateLastValue(instruction, graph_, block));
+    HInstruction* replacement = induction_range_.GenerateLastValue(instruction, graph_, block);
+    const HUseList<HInstruction*>& uses = instruction->GetUses();
+    for (auto it = uses.begin(), end = uses.end(); it != end;) {
+      HInstruction* user = it->GetUser();
+      size_t index = it->GetIndex();
+      ++it;  // increment before replacing
+      if (iset_->find(user) == iset_->end()) {  // not excluded?
+        user->ReplaceInput(replacement, index);
+        induction_range_.Replace(user, instruction, replacement);  // update induction
+      }
+    }
+    const HUseList<HEnvironment*>& env_uses = instruction->GetEnvUses();
+    for (auto it = env_uses.begin(), end = env_uses.end(); it != end;) {
+      HEnvironment* user = it->GetUser();
+      size_t index = it->GetIndex();
+      ++it;  // increment before replacing
+      if (iset_->find(user->GetHolder()) == iset_->end()) {  // not excluded?
+        user->RemoveAsUserOfInput(index);
+        user->SetRawEnvAt(index, replacement);
+        replacement->AddEnvUseAt(user, index);
+      }
+    }
+    induction_simplication_count_++;
     return true;
   }
   return false;
+}
+
+void HLoopOptimization::RemoveDeadInstructions(const HInstructionList& list) {
+  for (HBackwardInstructionIterator i(list); !i.Done(); i.Advance()) {
+    HInstruction* instruction = i.Current();
+    if (instruction->IsDeadAndRemovable()) {
+      simplified_ = true;
+      instruction->GetBlock()->RemoveInstructionOrPhi(instruction);
+    }
+  }
 }
 
 }  // namespace art
