@@ -22,6 +22,7 @@ public class Main implements Runnable {
 
     public static void main(String[] args) throws Exception {
         final Thread[] threads = new Thread[numberOfThreads];
+        test_getStackTraces();
         for (int t = 0; t < threads.length; t++) {
             threads[t] = new Thread(new Main());
             threads[t].start();
@@ -30,6 +31,19 @@ public class Main implements Runnable {
             t.join();
         }
         System.out.println("Finishing");
+    }
+
+    static void test_getStackTraces() {
+        // Check all the current threads for positive IDs.
+        Map<Thread, StackTraceElement[]> map = Thread.getAllStackTraces();
+        for (Map.Entry<Thread, StackTraceElement[]> pair : map.entrySet()) {
+            Thread thread = pair.getKey();
+            // Expect empty stack trace since we do not support suspending the GC thread for
+            // obtaining stack traces. See b/28261069.
+            if (thread.getName().equals("HeapTaskDaemon")) {
+                System.out.println(thread.getName() + " depth " + pair.getValue().length); 
+            }
+        }
     }
 
     public void test_getId() {
