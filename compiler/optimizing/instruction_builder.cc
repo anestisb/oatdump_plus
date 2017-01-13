@@ -917,11 +917,11 @@ bool HInstructionBuilder::BuildNewInstance(dex::TypeIndex type_index, uint32_t d
   bool finalizable;
   bool needs_access_check = NeedsAccessCheck(type_index, dex_cache, &finalizable);
 
-  // Only the non-resolved entrypoint handles the finalizable class case. If we
+  // Only the access check entrypoint handles the finalizable class case. If we
   // need access checks, then we haven't resolved the method and the class may
   // again be finalizable.
   QuickEntrypointEnum entrypoint = (finalizable || needs_access_check)
-      ? kQuickAllocObject
+      ? kQuickAllocObjectWithChecks
       : kQuickAllocObjectInitialized;
 
   if (outer_dex_cache.Get() != dex_cache.Get()) {
@@ -946,7 +946,6 @@ bool HInstructionBuilder::BuildNewInstance(dex::TypeIndex type_index, uint32_t d
 
   AppendInstruction(new (arena_) HNewInstance(
       cls,
-      graph_->GetCurrentMethod(),
       dex_pc,
       type_index,
       *dex_compilation_unit_->GetDexFile(),
