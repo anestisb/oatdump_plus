@@ -152,12 +152,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_ensureJitCompiled(JNIEnv* env,
                                                              jclass,
                                                              jclass cls,
                                                              jstring method_name) {
-  Runtime* runtime = Runtime::Current();
-  if (runtime == nullptr) {
-    // We must be on the RI. We will just roll with it.
-    return;
-  }
-  jit::Jit* jit = runtime->GetJit();
+  jit::Jit* jit = Runtime::Current()->GetJit();
   if (jit == nullptr) {
     return;
   }
@@ -171,11 +166,6 @@ extern "C" JNIEXPORT void JNICALL Java_Main_ensureJitCompiled(JNIEnv* env,
     CHECK(chars.c_str() != nullptr);
     method = soa.Decode<mirror::Class>(cls)->FindDeclaredDirectMethodByName(
         chars.c_str(), kRuntimePointerSize);
-    if (method == nullptr) {
-      method = soa.Decode<mirror::Class>(cls)->FindDeclaredVirtualMethodByName(
-          chars.c_str(), kRuntimePointerSize);
-    }
-    DCHECK(method != nullptr) << "Unable to find method called " << chars.c_str();
   }
 
   jit::JitCodeCache* code_cache = jit->GetCodeCache();
