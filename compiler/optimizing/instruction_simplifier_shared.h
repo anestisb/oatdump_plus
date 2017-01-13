@@ -21,6 +21,33 @@
 
 namespace art {
 
+namespace helpers {
+
+inline bool CanFitInShifterOperand(HInstruction* instruction) {
+  if (instruction->IsTypeConversion()) {
+    HTypeConversion* conversion = instruction->AsTypeConversion();
+    Primitive::Type result_type = conversion->GetResultType();
+    Primitive::Type input_type = conversion->GetInputType();
+    // We don't expect to see the same type as input and result.
+    return Primitive::IsIntegralType(result_type) && Primitive::IsIntegralType(input_type) &&
+        (result_type != input_type);
+  } else {
+    return (instruction->IsShl() && instruction->AsShl()->InputAt(1)->IsIntConstant()) ||
+        (instruction->IsShr() && instruction->AsShr()->InputAt(1)->IsIntConstant()) ||
+        (instruction->IsUShr() && instruction->AsUShr()->InputAt(1)->IsIntConstant());
+  }
+}
+
+inline bool HasShifterOperand(HInstruction* instr, InstructionSet isa) {
+  // On ARM64 `neg` instructions are an alias of `sub` using the zero register
+  // as the first register input.
+  bool res = instr->IsAdd() || instr->IsAnd() || (isa == kArm64 && instr->IsNeg()) ||
+      instr->IsOr() || instr->IsSub() || instr->IsXor();
+  return res;
+}
+
+}  // namespace helpers
+
 bool TryCombineMultiplyAccumulate(HMul* mul, InstructionSet isa);
 // For bitwise operations (And/Or/Xor) with a negated input, try to use
 // a negated bitwise instruction.
