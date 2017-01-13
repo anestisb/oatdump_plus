@@ -56,6 +56,7 @@
 #include "ti_redefine.h"
 #include "ti_stack.h"
 #include "ti_thread.h"
+#include "ti_threadgroup.h"
 #include "transform.h"
 
 // TODO Remove this at some point by annotating all the methods. It was put in to make the skeleton
@@ -202,13 +203,13 @@ class JvmtiFunctions {
   static jvmtiError GetTopThreadGroups(jvmtiEnv* env,
                                        jint* group_count_ptr,
                                        jthreadGroup** groups_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return ThreadGroupUtil::GetTopThreadGroups(env, group_count_ptr, groups_ptr);
   }
 
   static jvmtiError GetThreadGroupInfo(jvmtiEnv* env,
                                        jthreadGroup group,
                                        jvmtiThreadGroupInfo* info_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return ThreadGroupUtil::GetThreadGroupInfo(env, group, info_ptr);
   }
 
   static jvmtiError GetThreadGroupChildren(jvmtiEnv* env,
@@ -217,7 +218,12 @@ class JvmtiFunctions {
                                            jthread** threads_ptr,
                                            jint* group_count_ptr,
                                            jthreadGroup** groups_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return ThreadGroupUtil::GetThreadGroupChildren(env,
+                                                   group,
+                                                   thread_count_ptr,
+                                                   threads_ptr,
+                                                   group_count_ptr,
+                                                   groups_ptr);
   }
 
   static jvmtiError GetStackTrace(jvmtiEnv* env,
