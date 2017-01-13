@@ -116,11 +116,20 @@ public class Main {
     t.join();
   }
 
+  private final static List<Object> RETAIN = new ArrayList<Object>();
+
   public static void doTestAllStackTraces() throws Exception {
     System.out.println();
     System.out.println("################################");
     System.out.println("### Other threads (suspended) ###");
     System.out.println("################################");
+
+    // Also create an unstarted and a dead thread.
+    RETAIN.add(new Thread());
+    Thread deadThread = new Thread();
+    RETAIN.add(deadThread);
+    deadThread.start();
+    deadThread.join();
 
     final int N = 10;
 
@@ -155,6 +164,8 @@ public class Main {
     for (int i = 0; i < N; i++) {
       threads[i].join();
     }
+
+    RETAIN.clear();
   }
 
   public static void print(String[][] stack) {
