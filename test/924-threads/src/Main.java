@@ -17,6 +17,7 @@
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.concurrent.CountDownLatch;
 import java.util.HashMap;
 import java.util.List;
@@ -53,6 +54,8 @@ public class Main {
     printThreadInfo(t3);
 
     doStateTests();
+
+    doAllThreadsTests();
   }
 
   private static class Holder {
@@ -155,6 +158,18 @@ public class Main {
     printThreadState(t);
   }
 
+  private static void doAllThreadsTests() {
+    Thread[] threads = getAllThreads();
+    Arrays.sort(threads, THREAD_COMP);
+    System.out.println(Arrays.toString(threads));
+  }
+
+  private final static Comparator<Thread> THREAD_COMP = new Comparator<Thread>() {
+    public int compare(Thread o1, Thread o2) {
+      return o1.getName().compareTo(o2.getName());
+    }
+  };
+
   private final static Map<Integer, String> STATE_NAMES = new HashMap<Integer, String>();
   private final static List<Integer> STATE_KEYS = new ArrayList<Integer>();
   static {
@@ -213,4 +228,5 @@ public class Main {
   private static native Thread getCurrentThread();
   private static native Object[] getThreadInfo(Thread t);
   private static native int getThreadState(Thread t);
+  private static native Thread[] getAllThreads();
 }
