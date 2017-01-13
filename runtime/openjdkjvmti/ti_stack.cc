@@ -272,6 +272,11 @@ jvmtiError StackUtil::GetAllStackTraces(jvmtiEnv* env,
     }
 
     for (art::Thread* thread : thread_list) {
+      // Skip threads that are still starting.
+      if (thread->IsStillStarting()) {
+        continue;
+      }
+
       GetStackTraceClosure closure(0u, static_cast<size_t>(max_frame_count));
       thread->RequestSynchronousCheckpoint(&closure);
 
