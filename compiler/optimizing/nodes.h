@@ -1097,6 +1097,9 @@ class HBasicBlock : public ArenaObject<kArenaAllocBasicBlock> {
   // with a control flow instruction).
   void ReplaceWith(HBasicBlock* other);
 
+  // Merges the instructions of `other` at the end of `this`.
+  void MergeInstructionsWith(HBasicBlock* other);
+
   // Merge `other` at the end of `this`. This method updates loops, reverse post
   // order, links to predecessors, successors, dominators and deletes the block
   // from the graph. The two blocks must be successive, i.e. `this` the only
