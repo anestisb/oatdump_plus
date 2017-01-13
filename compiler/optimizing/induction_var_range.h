@@ -150,9 +150,9 @@ class InductionVarRange {
   }
 
   /**
-   * Checks if header logic of a loop terminates.
+   * Checks if header logic of a loop terminates. Sets trip-count tc if known.
    */
-  bool IsFinite(HLoopInformation* loop) const;
+  bool IsFinite(HLoopInformation* loop, /*out*/ int64_t* tc) const;
 
  private:
   /*
