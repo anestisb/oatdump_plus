@@ -5903,7 +5903,6 @@ void LocationsBuilderMIPS::VisitNewInstance(HNewInstance* instruction) {
     locations->AddTemp(Location::RegisterLocation(kMethodRegisterArgument));
   } else {
     locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
-    locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
   }
   locations->SetOut(calling_convention.GetReturnLocation(Primitive::kPrimNot));
 }
@@ -5920,7 +5919,7 @@ void InstructionCodeGeneratorMIPS::VisitNewInstance(HNewInstance* instruction) {
     codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
   } else {
     codegen_->InvokeRuntime(instruction->GetEntrypoint(), instruction, instruction->GetDexPc());
-    CheckEntrypointTypes<kQuickAllocObjectWithAccessCheck, void*, uint32_t, ArtMethod*>();
+    CheckEntrypointTypes<kQuickAllocObjectWithChecks, void*, mirror::Class*>();
   }
 }
 

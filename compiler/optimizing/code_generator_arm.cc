@@ -3936,7 +3936,6 @@ void LocationsBuilderARM::VisitNewInstance(HNewInstance* instruction) {
   } else {
     InvokeRuntimeCallingConvention calling_convention;
     locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
-    locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
   }
   locations->SetOut(Location::RegisterLocation(R0));
 }
@@ -3954,7 +3953,7 @@ void InstructionCodeGeneratorARM::VisitNewInstance(HNewInstance* instruction) {
     codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
   } else {
     codegen_->InvokeRuntime(instruction->GetEntrypoint(), instruction, instruction->GetDexPc());
-    CheckEntrypointTypes<kQuickAllocObjectWithAccessCheck, void*, uint32_t, ArtMethod*>();
+    CheckEntrypointTypes<kQuickAllocObjectWithChecks, void*, mirror::Class*>();
   }
 }
 
