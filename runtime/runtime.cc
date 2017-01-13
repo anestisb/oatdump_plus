@@ -1384,11 +1384,6 @@ static bool EnsureJvmtiPlugin(Runtime* runtime,
 
   Plugin new_plugin = Plugin::Create(plugin_name);
 
-  // Suspend all threads to protect ourself somewhat.
-  Thread* self = Thread::Current();
-  ScopedObjectAccess soa(self);      // Now we know we have the shared lock.
-  ScopedThreadSuspension sts(self, art::kWaitingForDebuggerToAttach);
-  ScopedSuspendAll ssa("EnsureJvmtiPlugin");
   if (!new_plugin.Load(error_msg)) {
     return false;
   }
@@ -2235,6 +2230,8 @@ void Runtime::AddSystemWeakHolder(gc::AbstractSystemWeakHolder* holder) {
   gc::ScopedGCCriticalSection gcs(Thread::Current(),
                                   gc::kGcCauseAddRemoveSystemWeakHolder,
                                   gc::kCollectorTypeAddRemoveSystemWeakHolder);
+  // Note: The ScopedGCCriticalSection also ensures that the rest of the function is in
+  //       a critical section.
   system_weak_holders_.push_back(holder);
 }
 
