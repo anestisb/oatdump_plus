@@ -14,24 +14,20 @@
  * limitations under the License.
  */
 
-public class Main {
-  public static void main(String[] args) throws Exception {
-    System.loadLibrary(args[1]);
+public class SameThread {
+  public static void doTest() throws Exception {
+    System.out.println("###################");
+    System.out.println("### Same thread ###");
+    System.out.println("###################");
+    System.out.println("From top");
+    Recurse.foo(4, 0, 25, null);
+    Recurse.foo(4, 1, 25, null);
+    Recurse.foo(4, 0, 5, null);
+    Recurse.foo(4, 2, 5, null);
 
-    SameThread.doTest();
-
-    System.out.println();
-
-    OtherThread.doTestOtherThreadWait();
-
-    System.out.println();
-
-    OtherThread.doTestOtherThreadBusyLoop();
-
-    System.out.println();
-
-    AllTraces.doTest();
-
-    System.out.println("Done");
+    System.out.println("From bottom");
+    Recurse.foo(4, -1, 25, null);
+    Recurse.foo(4, -5, 5, null);
+    Recurse.foo(4, -7, 5, null);
   }
 }
