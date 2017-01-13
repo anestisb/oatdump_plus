@@ -21,3 +21,11 @@ hello2 - MultiRedef
 Transformation error : java.lang.Exception(Failed to redefine classes <LTransform;, LTransform2;> due to JVMTI_ERROR_NAMES_DONT_MATCH)
 hello - MultiRedef
 hello2 - MultiRedef
+hello - MultiRetrans
+hello2 - MultiRetrans
+Transformation error : java.lang.Exception(Failed to retransform classes <LTransform2;, LTransform;> due to JVMTI_ERROR_NAMES_DONT_MATCH)
+hello - MultiRetrans
+hello2 - MultiRetrans
+Transformation error : java.lang.Exception(Failed to retransform classes <LTransform;, LTransform2;> due to JVMTI_ERROR_NAMES_DONT_MATCH)
+hello - MultiRetrans
+hello2 - MultiRetrans

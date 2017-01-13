@@ -43,16 +43,30 @@ namespace openjdkjvmti {
 
 jvmtiError GetClassLocation(ArtJvmTiEnv* env, jclass klass, /*out*/std::string* location);
 
-// Gets the data surrounding the given class.
-jvmtiError GetTransformationData(ArtJvmTiEnv* env,
-                                 jclass klass,
-                                 /*out*/std::string* location,
-                                 /*out*/JNIEnv** jni_env_ptr,
-                                 /*out*/jobject* loader,
-                                 /*out*/std::string* name,
-                                 /*out*/jobject* protection_domain,
-                                 /*out*/jint* data_len,
-                                 /*out*/unsigned char** dex_data);
+class Transformer {
+ public:
+  static jvmtiError RetransformClassesDirect(
+      ArtJvmTiEnv* env, art::Thread* self, /*in-out*/std::vector<ArtClassDefinition>* definitions);
+
+  static jvmtiError RetransformClasses(ArtJvmTiEnv* env,
+                                       art::Runtime* runtime,
+                                       art::Thread* self,
+                                       jint class_count,
+                                       const jclass* classes,
+                                       /*out*/std::string* error_msg);
+
+  // Gets the data surrounding the given class.
+  static jvmtiError FillInTransformationData(ArtJvmTiEnv* env,
+                                             jclass klass,
+                                             ArtClassDefinition* def);
+
+ private:
+  static jvmtiError GetDexDataForRetransformation(ArtJvmTiEnv* env,
+                                                  art::Handle<art::mirror::Class> klass,
+                                                  /*out*/jint* dex_data_length,
+                                                  /*out*/unsigned char** dex_data)
+      REQUIRES_SHARED(art::Locks::mutator_lock_);
+};
 
 }  // namespace openjdkjvmti
 
