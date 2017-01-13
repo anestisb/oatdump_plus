@@ -32,6 +32,10 @@ public class Main {
 
     AllTraces.doTest();
 
+    System.out.println();
+
+    ThreadListTraces.doTest();
+
     System.out.println("Done");
   }
 }
