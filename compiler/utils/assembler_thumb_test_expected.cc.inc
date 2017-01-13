@@ -5610,7 +5610,7 @@ const char* const VixlJniHelpersResults[] = {
   " 214:	ecbd 8a10 	vpop	{s16-s31}\n",
   " 218:	e8bd 8de0 	ldmia.w	sp!, {r5, r6, r7, r8, sl, fp, pc}\n",
   " 21c:	4660      	mov	r0, ip\n",
-  " 21e:	f8d9 c2b0 	ldr.w	ip, [r9, #688]	; 0x2b0\n",
+  " 21e:	f8d9 c2ac 	ldr.w	ip, [r9, #684]	; 0x2ac\n",
   " 222:	47e0      	blx	ip\n",
   nullptr
 };
