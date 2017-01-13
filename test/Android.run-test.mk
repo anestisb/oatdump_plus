@@ -722,6 +722,16 @@ endif
 
 TEST_ART_BROKEN_OPTIMIZING_HEAP_POISONING_RUN_TESTS :=
 
+# Tests that check semantics for a non-debuggable app.
+TEST_ART_BROKEN_DEBUGGABLE_RUN_TESTS := \
+  909-attach-agent \
+
+ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
+    $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+    $(IMAGE_TYPES),$(PICTEST_TYPES),debuggable,$(TEST_ART_BROKEN_DEBUGGABLE_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+
+TEST_ART_BROKEN_DEBUGGABLE_RUN_TESTS :=
+
 # Tests incompatible with bisection bug search. Sorted by incompatibility reason.
 # 000 through 595 do not compile anything. 089 tests a build failure. 018 through 137
 # run dalvikvm more than once. 115 and 088 assume they are always compiled.

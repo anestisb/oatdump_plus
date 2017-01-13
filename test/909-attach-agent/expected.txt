@@ -1,3 +1,11 @@
 Hello, world!
 Attached Agent for test 909-attach-agent
 Goodbye!
+Hello, world!
+Attached Agent for test 909-attach-agent
+Goodbye!
+Hello, world!
+java.io.IOException: Process is not debuggable.
+	at dalvik.system.VMDebug.attachAgent(Native Method)
+	at Main.main(Main.java:27)
+Goodbye!
