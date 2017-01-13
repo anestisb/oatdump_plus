@@ -752,8 +752,9 @@ static void MathAbsFP(LocationSummary* locations,
   FRegister in = locations->InAt(0).AsFpuRegister<FRegister>();
   FRegister out = locations->Out().AsFpuRegister<FRegister>();
 
-  // As a "quality of implementation", rather than pure "spec compliance", it is required that
-  // Math.abs() clears the sign bit (but changes nothing else) for all numbers, including NaN.
+  // Note, as a "quality of implementation", rather than pure "spec compliance", we require that
+  // Math.abs() clears the sign bit (but changes nothing else) for all numbers, including NaN
+  // (signaling NaN may become quiet though).
   //
   // The ABS.fmt instructions (abs.s and abs.d) do exactly that when NAN2008=1 (R6). For this case,
   // both regular floating point numbers and NAN values are treated alike, only the sign bit is
