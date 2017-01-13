@@ -15,15 +15,13 @@
  */
 
 .macro GENERATE_ALLOC_ENTRYPOINTS c_suffix, cxx_suffix
-// Called by managed code to allocate an object.
-TWO_ARG_DOWNCALL art_quick_alloc_object\c_suffix, artAllocObjectFromCode\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 // Called by managed code to allocate an object of a resolved class.
-TWO_ARG_DOWNCALL art_quick_alloc_object_resolved\c_suffix, artAllocObjectFromCodeResolved\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+ONE_ARG_DOWNCALL art_quick_alloc_object_resolved\c_suffix, artAllocObjectFromCodeResolved\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 // Called by managed code to allocate an object of an initialized class.
-TWO_ARG_DOWNCALL art_quick_alloc_object_initialized\c_suffix, artAllocObjectFromCodeInitialized\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+ONE_ARG_DOWNCALL art_quick_alloc_object_initialized\c_suffix, artAllocObjectFromCodeInitialized\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 // Called by managed code to allocate an object when the caller doesn't know whether it has access
 // to the created type.
-TWO_ARG_DOWNCALL art_quick_alloc_object_with_access_check\c_suffix, artAllocObjectFromCodeWithAccessCheck\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+ONE_ARG_DOWNCALL art_quick_alloc_object_with_checks\c_suffix, artAllocObjectFromCodeWithChecks\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 // Called by managed code to allocate an array.
 THREE_ARG_DOWNCALL art_quick_alloc_array\c_suffix, artAllocArrayFromCode\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 // Called by managed code to allocate an array of a resolve class.
@@ -61,14 +59,12 @@ GENERATE_ALLOC_ENTRYPOINTS _region_tlab_instrumented, RegionTLABInstrumented
 // Generate the allocation entrypoints for each allocator. This is used as an alternative to
 // GNERATE_ALL_ALLOC_ENTRYPOINTS for selectively implementing allocation fast paths in
 // hand-written assembly.
-#define GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(c_suffix, cxx_suffix) \
-  TWO_ARG_DOWNCALL art_quick_alloc_object ## c_suffix, artAllocObjectFromCode ## cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 #define GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(c_suffix, cxx_suffix) \
-  TWO_ARG_DOWNCALL art_quick_alloc_object_resolved ## c_suffix, artAllocObjectFromCodeResolved ## cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+  ONE_ARG_DOWNCALL art_quick_alloc_object_resolved ## c_suffix, artAllocObjectFromCodeResolved ## cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 #define GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_INITIALIZED(c_suffix, cxx_suffix) \
-  TWO_ARG_DOWNCALL art_quick_alloc_object_initialized ## c_suffix, artAllocObjectFromCodeInitialized ## cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+  ONE_ARG_DOWNCALL art_quick_alloc_object_initialized ## c_suffix, artAllocObjectFromCodeInitialized ## cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 #define GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_WITH_ACCESS_CHECK(c_suffix, cxx_suffix) \
-  TWO_ARG_DOWNCALL art_quick_alloc_object_with_access_check ## c_suffix, artAllocObjectFromCodeWithAccessCheck ## cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+  ONE_ARG_DOWNCALL art_quick_alloc_object_with_checks ## c_suffix, artAllocObjectFromCodeWithChecks ## cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 #define GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY(c_suffix, cxx_suffix) \
   THREE_ARG_DOWNCALL art_quick_alloc_array ## c_suffix, artAllocArrayFromCode ## cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 #define GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED(c_suffix, cxx_suffix) \
@@ -93,8 +89,7 @@ GENERATE_ALLOC_ENTRYPOINTS_FOR_REGION_TLAB_ALLOCATOR
 
 .macro GENERATE_ALLOC_ENTRYPOINTS_FOR_REGION_TLAB_ALLOCATOR
 // This is to be separately defined for each architecture to allow a hand-written assembly fast path.
-// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_region_tlab, RegionTLAB)
-GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_region_tlab, RegionTLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_region_tlab, RegionTLAB)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_INITIALIZED(_region_tlab, RegionTLAB)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_WITH_ACCESS_CHECK(_region_tlab, RegionTLAB)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY(_region_tlab, RegionTLAB)
@@ -109,8 +104,7 @@ GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_STRING(_region_tlab, RegionTLAB)
 
 .macro GENERATE_ALLOC_ENTRYPOINTS_FOR_TLAB_ALLOCATOR
 // This is to be separately defined for each architecture to allow a hand-written assembly fast path.
-// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_tlab, TLAB)
-GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_tlab, TLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_tlab, TLAB)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_INITIALIZED(_tlab, TLAB)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_WITH_ACCESS_CHECK(_tlab, TLAB)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY(_tlab, TLAB)
@@ -129,7 +123,6 @@ GENERATE_ALLOC_ENTRYPOINTS_FOR_TLAB_ALLOCATOR
 .endm
 
 .macro GENERATE_ALLOC_ENTRYPOINTS_FOR_NON_TLAB_ALLOCATORS
-GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_dlmalloc, DlMalloc)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_dlmalloc, DlMalloc)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_INITIALIZED(_dlmalloc, DlMalloc)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_WITH_ACCESS_CHECK(_dlmalloc, DlMalloc)
@@ -142,7 +135,6 @@ GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_BYTES(_dlmalloc, DlMalloc)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_CHARS(_dlmalloc, DlMalloc)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_STRING(_dlmalloc, DlMalloc)
 
-GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_dlmalloc_instrumented, DlMallocInstrumented)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_dlmalloc_instrumented, DlMallocInstrumented)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_INITIALIZED(_dlmalloc_instrumented, DlMallocInstrumented)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_WITH_ACCESS_CHECK(_dlmalloc_instrumented, DlMallocInstrumented)
@@ -156,8 +148,7 @@ GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_CHARS(_dlmalloc_instrumented, DlMal
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_STRING(_dlmalloc_instrumented, DlMallocInstrumented)
 
 // This is to be separately defined for each architecture to allow a hand-written assembly fast path.
-// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_rosalloc, RosAlloc)
-GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_rosalloc, RosAlloc)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_rosalloc, RosAlloc)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_INITIALIZED(_rosalloc, RosAlloc)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_WITH_ACCESS_CHECK(_rosalloc, RosAlloc)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY(_rosalloc, RosAlloc)
@@ -169,7 +160,6 @@ GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_BYTES(_rosalloc, RosAlloc)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_CHARS(_rosalloc, RosAlloc)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_STRING(_rosalloc, RosAlloc)
 
-GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_rosalloc_instrumented, RosAllocInstrumented)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_rosalloc_instrumented, RosAllocInstrumented)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_INITIALIZED(_rosalloc_instrumented, RosAllocInstrumented)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_WITH_ACCESS_CHECK(_rosalloc_instrumented, RosAllocInstrumented)
@@ -182,7 +172,6 @@ GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_BYTES(_rosalloc_instrumented, RosAl
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_CHARS(_rosalloc_instrumented, RosAllocInstrumented)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_STRING(_rosalloc_instrumented, RosAllocInstrumented)
 
-GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_bump_pointer, BumpPointer)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_bump_pointer, BumpPointer)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_INITIALIZED(_bump_pointer, BumpPointer)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_WITH_ACCESS_CHECK(_bump_pointer, BumpPointer)
@@ -195,7 +184,6 @@ GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_BYTES(_bump_pointer, BumpPointer)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_CHARS(_bump_pointer, BumpPointer)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_STRING(_bump_pointer, BumpPointer)
 
-GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_bump_pointer_instrumented, BumpPointerInstrumented)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_bump_pointer_instrumented, BumpPointerInstrumented)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_INITIALIZED(_bump_pointer_instrumented, BumpPointerInstrumented)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_WITH_ACCESS_CHECK(_bump_pointer_instrumented, BumpPointerInstrumented)
@@ -208,7 +196,6 @@ GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_BYTES(_bump_pointer_instrumented, B
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_CHARS(_bump_pointer_instrumented, BumpPointerInstrumented)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_STRING(_bump_pointer_instrumented, BumpPointerInstrumented)
 
-GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_tlab_instrumented, TLABInstrumented)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_tlab_instrumented, TLABInstrumented)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_INITIALIZED(_tlab_instrumented, TLABInstrumented)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_WITH_ACCESS_CHECK(_tlab_instrumented, TLABInstrumented)
@@ -221,7 +208,6 @@ GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_BYTES(_tlab_instrumented, TLABInstr
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_CHARS(_tlab_instrumented, TLABInstrumented)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_STRING(_tlab_instrumented, TLABInstrumented)
 
-GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_region, Region)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_region, Region)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_INITIALIZED(_region, Region)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_WITH_ACCESS_CHECK(_region, Region)
@@ -234,7 +220,6 @@ GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_BYTES(_region, Region)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_CHARS(_region, Region)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_STRING(_region, Region)
 
-GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_region_instrumented, RegionInstrumented)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_region_instrumented, RegionInstrumented)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_INITIALIZED(_region_instrumented, RegionInstrumented)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_WITH_ACCESS_CHECK(_region_instrumented, RegionInstrumented)
@@ -247,7 +232,6 @@ GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_BYTES(_region_instrumented, RegionI
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_CHARS(_region_instrumented, RegionInstrumented)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_STRING(_region_instrumented, RegionInstrumented)
 
-GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_region_tlab_instrumented, RegionTLABInstrumented)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_region_tlab_instrumented, RegionTLABInstrumented)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_INITIALIZED(_region_tlab_instrumented, RegionTLABInstrumented)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_WITH_ACCESS_CHECK(_region_tlab_instrumented, RegionTLABInstrumented)
