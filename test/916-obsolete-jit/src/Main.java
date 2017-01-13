@@ -157,38 +157,13 @@ public class Main {
         doCommonClassRedefinition(Transform.class, CLASS_BYTES, DEX_BYTES);
       }
     };
-    // This does nothing.
-    Runnable noop = () -> {};
     // This just prints something out to show we are running the Runnable.
     Runnable say_nothing = () -> { w.accept("Not doing anything here"); };
-    // This checks to see if we have jitted the methods we are testing.
-    Runnable check_interpreting = () -> {
-      // TODO remove the second check when we remove the doCall function. We need to check that
-      // both of these functions aren't being interpreted because if sayHi is the test doesn't do
-      // anything and if doCall is then there will be a runtime call right above the sayHi
-      // function preventing sayHi from being deoptimized.
-      interpreting = has_jit && (Main.isInterpretedFunction(say_hi_method, true) ||
-                                 Main.isInterpretedFunction(do_call_method, false));
-    };
     do {
-      w.clear();
-      // Wait for the methods to be jitted
-      long j = 0;
-      do {
-        for (int i = 0; i < 10000; i++) {
-          t.sayHi(noop, w);
-          j++;
-          // Clear so that we won't OOM if we go around a few times.
-          w.clear();
-        }
-        t.sayHi(check_interpreting, w);
-        if (j >= 1000000) {
-          System.out.println("FAIL: Could not make sayHi be Jitted!");
-          return;
-        }
-        j++;
-      } while(interpreting);
-      // Clear output. Now we try for real.
+      // Run ensureJitCompiled here since it might get GCd
+      ensureJitCompiled(Transform.class, "sayHi");
+      ensureJitCompiled(Main.class, "doCall");
+      // Clear output.
       w.clear();
       // Try and redefine.
       t.sayHi(say_nothing, w);
@@ -202,6 +177,8 @@ public class Main {
   private static native boolean hasJit();
 
   private static native boolean isInterpretedFunction(Method m, boolean require_deoptimizable);
+
+  private static native void ensureJitCompiled(Class c, String name);
 
   // Transforms the class
   private static native void doCommonClassRedefinition(Class<?> target,
