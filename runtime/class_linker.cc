@@ -6953,13 +6953,19 @@ void ClassLinker::LinkInterfaceMethodsHelper::ReallocMethods() {
   StrideIterator<ArtMethod> out(methods->begin(method_size_, method_alignment_) + old_method_count);
   // Copy over miranda methods before copying vtable since CopyOf may cause thread suspension and
   // we want the roots of the miranda methods to get visited.
-  for (ArtMethod* mir_method : miranda_methods_) {
+  for (size_t i = 0; i < miranda_methods_.size(); ++i) {
+    ArtMethod* mir_method = miranda_methods_[i];
     ArtMethod& new_method = *out;
     new_method.CopyFrom(mir_method, pointer_size);
     new_method.SetAccessFlags(new_method.GetAccessFlags() | kAccMiranda | kAccCopied);
     DCHECK_NE(new_method.GetAccessFlags() & kAccAbstract, 0u)
         << "Miranda method should be abstract!";
     move_table_.emplace(mir_method, &new_method);
+    // Update the entry in the method array, as the array will be used for future lookups,
+    // where thread suspension is allowed.
+    // As such, the array should not contain locally allocated ArtMethod, otherwise the GC
+    // would not see them.
+    miranda_methods_[i] = &new_method;
     ++out;
   }
   // We need to copy the default methods into our own method table since the runtime requires that
@@ -6968,9 +6974,10 @@ void ClassLinker::LinkInterfaceMethodsHelper::ReallocMethods() {
   // interface but will have different ArtMethod*s for them. This also means we cannot compare a
   // default method found on a class with one found on the declaring interface directly and must
   // look at the declaring class to determine if they are the same.
-  for (const ScopedArenaVector<ArtMethod*>& methods_vec : {default_methods_,
-                                                           overriding_default_methods_}) {
-    for (ArtMethod* def_method : methods_vec) {
+  for (ScopedArenaVector<ArtMethod*>* methods_vec : {&default_methods_,
+                                                     &overriding_default_methods_}) {
+    for (size_t i = 0; i < methods_vec->size(); ++i) {
+      ArtMethod* def_method = (*methods_vec)[i];
       ArtMethod& new_method = *out;
       new_method.CopyFrom(def_method, pointer_size);
       // Clear the kAccSkipAccessChecks flag if it is present. Since this class hasn't been
@@ -6981,12 +6988,18 @@ void ClassLinker::LinkInterfaceMethodsHelper::ReallocMethods() {
       constexpr uint32_t kMaskFlags = ~kAccSkipAccessChecks;
       new_method.SetAccessFlags((new_method.GetAccessFlags() | kSetFlags) & kMaskFlags);
       move_table_.emplace(def_method, &new_method);
+      // Update the entry in the method array, as the array will be used for future lookups,
+      // where thread suspension is allowed.
+      // As such, the array should not contain locally allocated ArtMethod, otherwise the GC
+      // would not see them.
+      (*methods_vec)[i] = &new_method;
       ++out;
     }
   }
-  for (const ScopedArenaVector<ArtMethod*>& methods_vec : {default_conflict_methods_,
-                                                           overriding_default_conflict_methods_}) {
-    for (ArtMethod* conf_method : methods_vec) {
+  for (ScopedArenaVector<ArtMethod*>* methods_vec : {&default_conflict_methods_,
+                                                     &overriding_default_conflict_methods_}) {
+    for (size_t i = 0; i < methods_vec->size(); ++i) {
+      ArtMethod* conf_method = (*methods_vec)[i];
       ArtMethod& new_method = *out;
       new_method.CopyFrom(conf_method, pointer_size);
       // This is a type of default method (there are default method impls, just a conflict) so
@@ -7002,6 +7015,11 @@ void ClassLinker::LinkInterfaceMethodsHelper::ReallocMethods() {
       // that the compiler will not invoke the implementation of whatever method we copied from.
       EnsureThrowsInvocationError(class_linker_, &new_method);
       move_table_.emplace(conf_method, &new_method);
+      // Update the entry in the method array, as the array will be used for future lookups,
+      // where thread suspension is allowed.
+      // As such, the array should not contain locally allocated ArtMethod, otherwise the GC
+      // would not see them.
+      (*methods_vec)[i] = &new_method;
       ++out;
     }
   }
@@ -7034,12 +7052,7 @@ ObjPtr<mirror::PointerArray> ClassLinker::LinkInterfaceMethodsHelper::UpdateVtab
                                                            default_conflict_methods_,
                                                            miranda_methods_}) {
     // These are the functions that are not already in the vtable!
-    for (ArtMethod* new_method : methods_vec) {
-      auto translated_method_it = move_table_.find(new_method);
-      CHECK(translated_method_it != move_table_.end())
-          << "We must have a translation for methods added to the classes methods_ array! We "
-          << "could not find the ArtMethod added for " << ArtMethod::PrettyMethod(new_method);
-      ArtMethod* new_vtable_method = translated_method_it->second;
+    for (ArtMethod* new_vtable_method : methods_vec) {
       // Leave the declaring class alone the method's dex_code_item_offset_ and dex_method_index_
       // fields are references into the dex file the method was defined in. Since the ArtMethod
       // does not store that information it uses declaring_class_->dex_cache_.
@@ -7056,7 +7069,6 @@ ObjPtr<mirror::PointerArray> ClassLinker::LinkInterfaceMethodsHelper::UpdateVtab
     ArtMethod* translated_method = vtable->GetElementPtrSize<ArtMethod*>(i, pointer_size);
     // Try and find what we need to change this method to.
     auto translation_it = default_translations.find(i);
-    bool found_translation = false;
     if (translation_it != default_translations.end()) {
       if (translation_it->second.IsInConflict()) {
         // Find which conflict method we are to use for this method.
@@ -7080,30 +7092,28 @@ ObjPtr<mirror::PointerArray> ClassLinker::LinkInterfaceMethodsHelper::UpdateVtab
         // Normal default method (changed from an older default or abstract interface method).
         DCHECK(translation_it->second.IsTranslation());
         translated_method = translation_it->second.GetTranslation();
+        auto it = move_table_.find(translated_method);
+        DCHECK(it != move_table_.end());
+        translated_method = it->second;
       }
-      found_translation = true;
+    } else {
+      auto it = move_table_.find(translated_method);
+      translated_method = (it != move_table_.end()) ? it->second : nullptr;
     }
-    DCHECK(translated_method != nullptr);
-    auto it = move_table_.find(translated_method);
-    if (it != move_table_.end()) {
-      auto* new_method = it->second;
-      DCHECK(new_method != nullptr);
+
+    if (translated_method != nullptr) {
       // Make sure the new_methods index is set.
-      if (new_method->GetMethodIndexDuringLinking() != i) {
+      if (translated_method->GetMethodIndexDuringLinking() != i) {
         if (kIsDebugBuild) {
           auto* methods = klass_->GetMethodsPtr();
           CHECK_LE(reinterpret_cast<uintptr_t>(&*methods->begin(method_size_, method_alignment_)),
-                   reinterpret_cast<uintptr_t>(new_method));
-          CHECK_LT(reinterpret_cast<uintptr_t>(new_method),
+                   reinterpret_cast<uintptr_t>(translated_method));
+          CHECK_LT(reinterpret_cast<uintptr_t>(translated_method),
                    reinterpret_cast<uintptr_t>(&*methods->end(method_size_, method_alignment_)));
         }
-        new_method->SetMethodIndex(0xFFFF & i);
+        translated_method->SetMethodIndex(0xFFFF & i);
       }
-      vtable->SetElementPtrSize(i, new_method, pointer_size);
-    } else {
-      // If it was not going to be updated we wouldn't have put it into the default_translations
-      // map.
-      CHECK(!found_translation) << "We were asked to update this vtable entry. Must not fail.";
+      vtable->SetElementPtrSize(i, translated_method, pointer_size);
     }
   }
   klass_->SetVTable(vtable.Ptr());
