@@ -16,6 +16,26 @@
 
 public class Main {
   public static void main(String[] args) {
+    System.loadLibrary(args[1]);
+
     System.out.println("Hello, world!");
+
+    set(0);  // OTHER
+    set(1);  // GC
+    set(2);  // CLASS
+    set(4);  // JNI
+    set(8);  // Error.
   }
+
+  private static void set(int i) {
+    System.out.println(i);
+    try {
+      setVerboseFlag(i, true);
+      setVerboseFlag(i, false);
+    } catch (RuntimeException e) {
+      System.out.println(e.getMessage());
+    }
+  }
+
+  private static native void setVerboseFlag(int flag, boolean value);
 }
