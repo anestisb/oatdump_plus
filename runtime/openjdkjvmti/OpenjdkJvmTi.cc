@@ -260,7 +260,7 @@ class JvmtiFunctions {
   }
 
   static jvmtiError GetFrameCount(jvmtiEnv* env, jthread thread, jint* count_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return StackUtil::GetFrameCount(env, thread, count_ptr);
   }
 
   static jvmtiError PopFrame(jvmtiEnv* env, jthread thread) {
@@ -272,7 +272,7 @@ class JvmtiFunctions {
                                      jint depth,
                                      jmethodID* method_ptr,
                                      jlocation* location_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return StackUtil::GetFrameLocation(env, thread, depth, method_ptr, location_ptr);
   }
 
   static jvmtiError NotifyFramePop(jvmtiEnv* env, jthread thread, jint depth) {

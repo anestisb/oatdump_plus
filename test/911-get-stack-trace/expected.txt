@@ -773,4 +773,64 @@ main
  doTest ()V 101 54
  main ([Ljava/lang/String;)V 38 37
 
+
+###################
+### Same thread ###
+###################
+4
+JVMTI_ERROR_ILLEGAL_ARGUMENT
+[public static native java.lang.Object[] Frames.getFrameLocation(java.lang.Thread,int), ffffffff]
+[public static void Frames.doTestSameThread(), 38]
+[public static void Frames.doTest() throws java.lang.Exception, 0]
+[public static void Main.main(java.lang.String[]) throws java.lang.Exception, 2e]
+JVMTI_ERROR_NO_MORE_FRAMES
+
+################################
+### Other thread (suspended) ###
+################################
+18
+JVMTI_ERROR_ILLEGAL_ARGUMENT
+[public final native void java.lang.Object.wait() throws java.lang.InterruptedException, ffffffff]
+[private static void Recurse.printOrWait(int,int,ControlData), 18]
+[private static java.lang.Object Recurse.baz(int,int,int,ControlData), 2]
+[private static long Recurse.bar(int,int,int,ControlData), 0]
+[public static int Recurse.foo(int,int,int,ControlData), 0]
+[private static java.lang.Object Recurse.baz(int,int,int,ControlData), 9]
+[private static long Recurse.bar(int,int,int,ControlData), 0]
+[public static int Recurse.foo(int,int,int,ControlData), 0]
+[private static java.lang.Object Recurse.baz(int,int,int,ControlData), 9]
+[private static long Recurse.bar(int,int,int,ControlData), 0]
+[public static int Recurse.foo(int,int,int,ControlData), 0]
+[private static java.lang.Object Recurse.baz(int,int,int,ControlData), 9]
+[private static long Recurse.bar(int,int,int,ControlData), 0]
+[public static int Recurse.foo(int,int,int,ControlData), 0]
+[private static java.lang.Object Recurse.baz(int,int,int,ControlData), 9]
+[private static long Recurse.bar(int,int,int,ControlData), 0]
+[public static int Recurse.foo(int,int,int,ControlData), 0]
+[public void Frames$1.run(), 4]
+JVMTI_ERROR_NO_MORE_FRAMES
+
+###########################
+### Other thread (live) ###
+###########################
+17
+JVMTI_ERROR_ILLEGAL_ARGUMENT
+[private static void Recurse.printOrWait(int,int,ControlData), 2c]
+[private static java.lang.Object Recurse.baz(int,int,int,ControlData), 2]
+[private static long Recurse.bar(int,int,int,ControlData), 0]
+[public static int Recurse.foo(int,int,int,ControlData), 0]
+[private static java.lang.Object Recurse.baz(int,int,int,ControlData), 9]
+[private static long Recurse.bar(int,int,int,ControlData), 0]
+[public static int Recurse.foo(int,int,int,ControlData), 0]
+[private static java.lang.Object Recurse.baz(int,int,int,ControlData), 9]
+[private static long Recurse.bar(int,int,int,ControlData), 0]
+[public static int Recurse.foo(int,int,int,ControlData), 0]
+[private static java.lang.Object Recurse.baz(int,int,int,ControlData), 9]
+[private static long Recurse.bar(int,int,int,ControlData), 0]
+[public static int Recurse.foo(int,int,int,ControlData), 0]
+[private static java.lang.Object Recurse.baz(int,int,int,ControlData), 9]
+[private static long Recurse.bar(int,int,int,ControlData), 0]
+[public static int Recurse.foo(int,int,int,ControlData), 0]
+[public void Frames$2.run(), 4]
+JVMTI_ERROR_NO_MORE_FRAMES
 Done
