@@ -13,3 +13,11 @@ hello2 - MissingInterface
 hello2 - ReorderInterface
 Transformation error : java.lang.Exception(Failed to redefine class <LTransform2;> due to JVMTI_ERROR_UNSUPPORTED_REDEFINITION_HIERARCHY_CHANGED)
 hello2 - ReorderInterface
+hello - MultiRedef
+hello2 - MultiRedef
+Transformation error : java.lang.Exception(Failed to redefine classes <LTransform2;, LTransform;> due to JVMTI_ERROR_NAMES_DONT_MATCH)
+hello - MultiRedef
+hello2 - MultiRedef
+Transformation error : java.lang.Exception(Failed to redefine classes <LTransform;, LTransform2;> due to JVMTI_ERROR_NAMES_DONT_MATCH)
+hello - MultiRedef
+hello2 - MultiRedef

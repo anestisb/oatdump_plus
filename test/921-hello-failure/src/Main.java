@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import java.util.ArrayList;
 public class Main {
 
   public static void main(String[] args) {
@@ -23,10 +24,30 @@ public class Main {
     NewInterface.doTest(new Transform2());
     MissingInterface.doTest(new Transform2());
     ReorderInterface.doTest(new Transform2());
+    MultiRedef.doTest(new Transform(), new Transform2());
   }
 
   // Transforms the class. This throws an exception if something goes wrong.
   public static native void doCommonClassRedefinition(Class<?> target,
                                                       byte[] classfile,
                                                       byte[] dexfile) throws Exception;
+
+  public static void doMultiClassRedefinition(CommonClassDefinition... defs) throws Exception {
+    ArrayList<Class<?>> classes = new ArrayList<>();
+    ArrayList<byte[]> class_files = new ArrayList<>();
+    ArrayList<byte[]> dex_files = new ArrayList<>();
+
+    for (CommonClassDefinition d : defs) {
+      classes.add(d.target);
+      class_files.add(d.class_file_bytes);
+      dex_files.add(d.dex_file_bytes);
+    }
+    doCommonMultiClassRedefinition(classes.toArray(new Class<?>[0]),
+                                   class_files.toArray(new byte[0][]),
+                                   dex_files.toArray(new byte[0][]));
+  }
+
+  public static native void doCommonMultiClassRedefinition(Class<?>[] targets,
+                                                           byte[][] classfiles,
+                                                           byte[][] dexfiles) throws Exception;
 }
