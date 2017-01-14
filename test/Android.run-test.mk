@@ -298,6 +298,7 @@ TEST_ART_BROKEN_TARGET_TESTS += \
   923-monitors \
   924-threads \
   925-threadgroups \
+  926-multi-obsolescence \
 
 ifneq (,$(filter target,$(TARGET_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,target,$(RUN_TYPES),$(PREBUILD_TYPES), \
@@ -566,6 +567,7 @@ TEST_ART_BROKEN_JIT_RUN_TESTS := \
   915-obsolete-2 \
   917-fields-transformation \
   919-obsolete-fields \
+  926-multi-obsolescence \
 
 ifneq (,$(filter jit,$(COMPILER_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
