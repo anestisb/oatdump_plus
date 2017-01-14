@@ -100,6 +100,7 @@ ART_GTEST_instrumentation_test_DEX_DEPS := Instrumentation
 ART_GTEST_jni_compiler_test_DEX_DEPS := MyClassNatives
 ART_GTEST_jni_internal_test_DEX_DEPS := AllFields StaticLeafMethods
 ART_GTEST_oat_file_assistant_test_DEX_DEPS := $(ART_GTEST_dex2oat_environment_tests_DEX_DEPS)
+ART_GTEST_dexoptanalyzer_test_DEX_DEPS := $(ART_GTEST_dex2oat_environment_tests_DEX_DEPS)
 ART_GTEST_oat_file_test_DEX_DEPS := Main MultiDex
 ART_GTEST_oat_test_DEX_DEPS := Main
 ART_GTEST_object_test_DEX_DEPS := ProtoCompare ProtoCompare2 StaticsFromCode XandY
@@ -136,6 +137,12 @@ ART_GTEST_oat_file_assistant_test_HOST_DEPS := \
 ART_GTEST_oat_file_assistant_test_TARGET_DEPS := \
   $(ART_GTEST_dex2oat_environment_tests_TARGET_DEPS)
 
+ART_GTEST_dexoptanalyzer_test_HOST_DEPS := \
+  $(ART_GTEST_dex2oat_environment_tests_HOST_DEPS) \
+  $(HOST_OUT_EXECUTABLES)/dexoptanalyzerd
+ART_GTEST_dexoptanalyzer_test_TARGET_DEPS := \
+  $(ART_GTEST_dex2oat_environment_tests_TARGET_DEPS) \
+  dexoptanalyzerd
 
 ART_GTEST_dex2oat_test_HOST_DEPS := \
   $(ART_GTEST_dex2oat_environment_tests_HOST_DEPS)
@@ -219,6 +226,7 @@ ART_TEST_MODULES := \
     art_dexdump_tests \
     art_dexlayout_tests \
     art_dexlist_tests \
+    art_dexoptanalyzer_tests \
     art_imgdiag_tests \
     art_oatdump_tests \
     art_profman_tests \
@@ -614,6 +622,9 @@ ART_GTEST_jni_internal_test_DEX_DEPS :=
 ART_GTEST_oat_file_assistant_test_DEX_DEPS :=
 ART_GTEST_oat_file_assistant_test_HOST_DEPS :=
 ART_GTEST_oat_file_assistant_test_TARGET_DEPS :=
+ART_GTEST_dexoptanalyzer_test_DEX_DEPS :=
+ART_GTEST_dexoptanalyzer_test_HOST_DEPS :=
+ART_GTEST_dexoptanalyzer_test_TARGET_DEPS :=
 ART_GTEST_dex2oat_test_DEX_DEPS :=
 ART_GTEST_dex2oat_test_HOST_DEPS :=
 ART_GTEST_dex2oat_test_TARGET_DEPS :=

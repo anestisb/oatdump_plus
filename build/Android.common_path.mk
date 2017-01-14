@@ -109,6 +109,7 @@ endif
 
 ART_CORE_DEBUGGABLE_EXECUTABLES := \
     dex2oat \
+    dexoptanalyzer \
     imgdiag \
     oatdump \
     patchoat \
