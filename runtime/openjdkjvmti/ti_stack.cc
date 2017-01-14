@@ -161,24 +161,43 @@ static jvmtiError TranslateFrameVector(const std::vector<jvmtiFrameInfo>& frames
   return ERR(NONE);
 }
 
+static jvmtiError GetThread(JNIEnv* env, jthread java_thread, art::Thread** thread) {
+  if (java_thread == nullptr) {
+    *thread = art::Thread::Current();
+    if (*thread == nullptr) {
+      // GetStackTrace can only be run during the live phase, so the current thread should be
+      // attached and thus available. Getting a null for current means we're starting up or
+      // dying.
+      return ERR(WRONG_PHASE);
+    }
+  } else {
+    if (!env->IsInstanceOf(java_thread, art::WellKnownClasses::java_lang_Thread)) {
+      return ERR(INVALID_THREAD);
+    }
+
+    // TODO: Need non-aborting call here, to return JVMTI_ERROR_INVALID_THREAD.
+    art::ScopedObjectAccess soa(art::Thread::Current());
+    art::MutexLock mu(soa.Self(), *art::Locks::thread_list_lock_);
+    *thread = art::Thread::FromManagedThread(soa, java_thread);
+    if (*thread == nullptr) {
+      return ERR(THREAD_NOT_ALIVE);
+    }
+  }
+  return ERR(NONE);
+}
+
 jvmtiError StackUtil::GetStackTrace(jvmtiEnv* jvmti_env ATTRIBUTE_UNUSED,
                                     jthread java_thread,
                                     jint start_depth,
                                     jint max_frame_count,
                                     jvmtiFrameInfo* frame_buffer,
                                     jint* count_ptr) {
-  if (java_thread == nullptr) {
-    return ERR(INVALID_THREAD);
-  }
-
   art::Thread* thread;
-  {
-    // TODO: Need non-aborting call here, to return JVMTI_ERROR_INVALID_THREAD.
-    art::ScopedObjectAccess soa(art::Thread::Current());
-    art::MutexLock mu(soa.Self(), *art::Locks::thread_list_lock_);
-    thread = art::Thread::FromManagedThread(soa, java_thread);
-    DCHECK(thread != nullptr);
+  jvmtiError thread_error = GetThread(art::Thread::Current()->GetJniEnv(), java_thread, &thread);
+  if (thread_error != ERR(NONE)) {
+    return thread_error;
   }
+  DCHECK(thread != nullptr);
 
   art::ThreadState state = thread->GetState();
   if (state == art::ThreadState::kStarting ||
@@ -559,6 +578,146 @@ jvmtiError StackUtil::GetThreadListStackTraces(jvmtiEnv* env,
   }
 
   * stack_info_ptr = stack_info;
+
+  return ERR(NONE);
+}
+
+// Walks up the stack counting Java frames. This is not StackVisitor::ComputeNumFrames, as
+// runtime methods and transitions must not be counted.
+struct GetFrameCountVisitor : public art::StackVisitor {
+  explicit GetFrameCountVisitor(art::Thread* thread)
+      : art::StackVisitor(thread, nullptr, art::StackVisitor::StackWalkKind::kIncludeInlinedFrames),
+        count(0) {}
+
+  bool VisitFrame() REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    art::ArtMethod* m = GetMethod();
+    const bool do_count = !(m == nullptr || m->IsRuntimeMethod());
+    if (do_count) {
+      count++;
+    }
+    return true;
+  }
+
+  size_t count;
+};
+
+struct GetFrameCountClosure : public art::Closure {
+ public:
+  GetFrameCountClosure() : count(0) {}
+
+  void Run(art::Thread* self) OVERRIDE REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    GetFrameCountVisitor visitor(self);
+    visitor.WalkStack(false);
+
+    count = visitor.count;
+  }
+
+  size_t count;
+};
+
+jvmtiError StackUtil::GetFrameCount(jvmtiEnv* env ATTRIBUTE_UNUSED,
+                                    jthread java_thread,
+                                    jint* count_ptr) {
+  art::Thread* thread;
+  jvmtiError thread_error = GetThread(art::Thread::Current()->GetJniEnv(), java_thread, &thread);
+  if (thread_error != ERR(NONE)) {
+    return thread_error;
+  }
+  DCHECK(thread != nullptr);
+
+  if (count_ptr == nullptr) {
+    return ERR(NULL_POINTER);
+  }
+
+  GetFrameCountClosure closure;
+  thread->RequestSynchronousCheckpoint(&closure);
+
+  *count_ptr = closure.count;
+  return ERR(NONE);
+}
+
+// Walks up the stack 'n' callers, when used with Thread::WalkStack.
+struct GetLocationVisitor : public art::StackVisitor {
+  GetLocationVisitor(art::Thread* thread, size_t n_in)
+      : art::StackVisitor(thread, nullptr, art::StackVisitor::StackWalkKind::kIncludeInlinedFrames),
+        n(n_in),
+        count(0),
+        caller(nullptr),
+        caller_dex_pc(0) {}
+
+  bool VisitFrame() REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    art::ArtMethod* m = GetMethod();
+    const bool do_count = !(m == nullptr || m->IsRuntimeMethod());
+    if (do_count) {
+      DCHECK(caller == nullptr);
+      if (count == n) {
+        caller = m;
+        caller_dex_pc = GetDexPc(false);
+        return false;
+      }
+      count++;
+    }
+    return true;
+  }
+
+  const size_t n;
+  size_t count;
+  art::ArtMethod* caller;
+  uint32_t caller_dex_pc;
+};
+
+struct GetLocationClosure : public art::Closure {
+ public:
+  explicit GetLocationClosure(size_t n_in) : n(n_in), method(nullptr), dex_pc(0) {}
+
+  void Run(art::Thread* self) OVERRIDE REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    GetLocationVisitor visitor(self, n);
+    visitor.WalkStack(false);
+
+    method = visitor.caller;
+    dex_pc = visitor.caller_dex_pc;
+  }
+
+  const size_t n;
+  art::ArtMethod* method;
+  uint32_t dex_pc;
+};
+
+jvmtiError StackUtil::GetFrameLocation(jvmtiEnv* env ATTRIBUTE_UNUSED,
+                                       jthread java_thread,
+                                       jint depth,
+                                       jmethodID* method_ptr,
+                                       jlocation* location_ptr) {
+  art::Thread* thread;
+  jvmtiError thread_error = GetThread(art::Thread::Current()->GetJniEnv(), java_thread, &thread);
+  if (thread_error != ERR(NONE)) {
+    return thread_error;
+  }
+  DCHECK(thread != nullptr);
+
+  if (depth < 0) {
+    return ERR(ILLEGAL_ARGUMENT);
+  }
+  if (method_ptr == nullptr || location_ptr == nullptr) {
+    return ERR(NULL_POINTER);
+  }
+
+  GetLocationClosure closure(static_cast<size_t>(depth));
+  thread->RequestSynchronousCheckpoint(&closure);
+
+  if (closure.method == nullptr) {
+    return ERR(NO_MORE_FRAMES);
+  }
+
+  *method_ptr = art::jni::EncodeArtMethod(closure.method);
+  if (closure.method->IsNative()) {
+    *location_ptr = -1;
+  } else {
+    if (closure.dex_pc == art::DexFile::kDexNoIndex) {
+      return ERR(INTERNAL);
+    }
+    *location_ptr = static_cast<jlocation>(closure.dex_pc);
+  }
 
   return ERR(NONE);
 }

@@ -36,6 +36,10 @@ public class Main {
 
     ThreadListTraces.doTest();
 
+    System.out.println();
+
+    Frames.doTest();
+
     System.out.println("Done");
   }
 }
