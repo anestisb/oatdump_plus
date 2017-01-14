@@ -20,6 +20,7 @@
 
 #include "android-base/stringprintf.h"
 
+#include "android-base/stringprintf.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "jni.h"
@@ -199,6 +200,56 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_ThreadListTraces_getThreadListSta
   };
   jobjectArray ret = CreateObjectArray(env, thread_count, "[Ljava/lang/Object;", callback);
   jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(stack_infos));
+  return ret;
+}
+
+extern "C" JNIEXPORT jint JNICALL Java_Frames_getFrameCount(
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jthread thread) {
+  jint count;
+  jvmtiError result = jvmti_env->GetFrameCount(thread, &count);
+  if (JvmtiErrorToException(env, result)) {
+    return -1;
+  }
+  return count;
+}
+
+extern "C" JNIEXPORT jobjectArray JNICALL Java_Frames_getFrameLocation(
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jthread thread, jint depth) {
+  jmethodID method;
+  jlocation location;
+
+  jvmtiError result = jvmti_env->GetFrameLocation(thread, depth, &method, &location);
+  if (JvmtiErrorToException(env, result)) {
+    return nullptr;
+  }
+
+  auto callback = [&](jint index) -> jobject {
+    switch (index) {
+      case 0:
+      {
+        jclass decl_class;
+        jvmtiError class_result = jvmti_env->GetMethodDeclaringClass(method, &decl_class);
+        if (JvmtiErrorToException(env, class_result)) {
+          return nullptr;
+        }
+        jint modifiers;
+        jvmtiError mod_result = jvmti_env->GetMethodModifiers(method, &modifiers);
+        if (JvmtiErrorToException(env, mod_result)) {
+          return nullptr;
+        }
+        constexpr jint kStatic = 0x8;
+        return env->ToReflectedMethod(decl_class,
+                                      method,
+                                      (modifiers & kStatic) != 0 ? JNI_TRUE : JNI_FALSE);
+      }
+      case 1:
+        return env->NewStringUTF(
+            android::base::StringPrintf("%x", static_cast<uint32_t>(location)).c_str());
+    }
+    LOG(FATAL) << "Unreachable";
+    UNREACHABLE();
+  };
+  jobjectArray ret = CreateObjectArray(env, 2, "java/lang/Object", callback);
   return ret;
 }
 
