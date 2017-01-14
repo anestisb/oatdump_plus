@@ -62,46 +62,62 @@ bool JvmtiErrorToException(JNIEnv* env, jvmtiError error) {
 
 namespace common_redefine {
 
-static void throwRedefinitionError(jvmtiEnv* jvmti, JNIEnv* env, jclass target, jvmtiError res) {
+static void throwRedefinitionError(jvmtiEnv* jvmti,
+                                   JNIEnv* env,
+                                   jint num_targets,
+                                   jclass* target,
+                                   jvmtiError res) {
   std::stringstream err;
-  char* signature = nullptr;
-  char* generic = nullptr;
-  jvmti->GetClassSignature(target, &signature, &generic);
   char* error = nullptr;
   jvmti->GetErrorName(res, &error);
-  err << "Failed to redefine class <" << signature << "> due to " << error;
+  err << "Failed to redefine class";
+  if (num_targets > 1) {
+    err << "es";
+  }
+  err << " <";
+  for (jint i = 0; i < num_targets; i++) {
+    char* signature = nullptr;
+    char* generic = nullptr;
+    jvmti->GetClassSignature(target[i], &signature, &generic);
+    if (i != 0) {
+      err << ", ";
+    }
+    err << signature;
+    jvmti->Deallocate(reinterpret_cast<unsigned char*>(signature));
+    jvmti->Deallocate(reinterpret_cast<unsigned char*>(generic));
+  }
+  err << "> due to " << error;
   std::string message = err.str();
-  jvmti->Deallocate(reinterpret_cast<unsigned char*>(signature));
-  jvmti->Deallocate(reinterpret_cast<unsigned char*>(generic));
   jvmti->Deallocate(reinterpret_cast<unsigned char*>(error));
   env->ThrowNew(env->FindClass("java/lang/Exception"), message.c_str());
 }
 
-using RedefineDirectFunction = jvmtiError (*)(jvmtiEnv*, jclass, jint, const unsigned char*);
-static void DoClassTransformation(jvmtiEnv* jvmti_env,
-                                  JNIEnv* env,
-                                  jclass target,
-                                  jbyteArray class_file_bytes,
-                                  jbyteArray dex_file_bytes) {
-  jbyteArray desired_array = IsJVM() ? class_file_bytes : dex_file_bytes;
-  jint len = static_cast<jint>(env->GetArrayLength(desired_array));
-  const unsigned char* redef_bytes = reinterpret_cast<const unsigned char*>(
-      env->GetByteArrayElements(desired_array, nullptr));
-  jvmtiError res;
-  if (IsJVM()) {
-    jvmtiClassDefinition def;
-    def.klass = target;
-    def.class_byte_count = static_cast<jint>(len);
-    def.class_bytes = redef_bytes;
-    res = jvmti_env->RedefineClasses(1, &def);
-  } else {
-    RedefineDirectFunction f =
-        reinterpret_cast<RedefineDirectFunction>(jvmti_env->functions->reserved3);
-    res = f(jvmti_env, target, len, redef_bytes);
+static void DoMultiClassRedefine(jvmtiEnv* jvmti_env,
+                                 JNIEnv* env,
+                                 jint num_redefines,
+                                 jclass* targets,
+                                 jbyteArray* class_file_bytes,
+                                 jbyteArray* dex_file_bytes) {
+  std::vector<jvmtiClassDefinition> defs;
+  for (jint i = 0; i < num_redefines; i++) {
+    jbyteArray desired_array = IsJVM() ? class_file_bytes[i] : dex_file_bytes[i];
+    jint len = static_cast<jint>(env->GetArrayLength(desired_array));
+    const unsigned char* redef_bytes = reinterpret_cast<const unsigned char*>(
+        env->GetByteArrayElements(desired_array, nullptr));
+    defs.push_back({targets[i], static_cast<jint>(len), redef_bytes});
   }
+  jvmtiError res = jvmti_env->RedefineClasses(num_redefines, defs.data());
   if (res != JVMTI_ERROR_NONE) {
-    throwRedefinitionError(jvmti_env, env, target, res);
+    throwRedefinitionError(jvmti_env, env, num_redefines, targets, res);
   }
+}
+
+static void DoClassRedefine(jvmtiEnv* jvmti_env,
+                            JNIEnv* env,
+                            jclass target,
+                            jbyteArray class_file_bytes,
+                            jbyteArray dex_file_bytes) {
+  return DoMultiClassRedefine(jvmti_env, env, 1, &target, &class_file_bytes, &dex_file_bytes);
 }
 
 // Magic JNI export that classes can use for redefining classes.
@@ -111,7 +127,38 @@ extern "C" JNIEXPORT void JNICALL Java_Main_doCommonClassRedefinition(JNIEnv* en
                                                                       jclass target,
                                                                       jbyteArray class_file_bytes,
                                                                       jbyteArray dex_file_bytes) {
-  DoClassTransformation(jvmti_env, env, target, class_file_bytes, dex_file_bytes);
+  DoClassRedefine(jvmti_env, env, target, class_file_bytes, dex_file_bytes);
+}
+
+// Magic JNI export that classes can use for redefining classes.
+// To use classes should declare this as a native function with signature
+// ([Ljava/lang/Class;[[B[[B)V
+extern "C" JNIEXPORT void JNICALL Java_Main_doCommonMultiClassRedefinition(
+    JNIEnv* env,
+    jclass,
+    jobjectArray targets,
+    jobjectArray class_file_bytes,
+    jobjectArray dex_file_bytes) {
+  std::vector<jclass> classes;
+  std::vector<jbyteArray> class_files;
+  std::vector<jbyteArray> dex_files;
+  jint len = env->GetArrayLength(targets);
+  if (len != env->GetArrayLength(class_file_bytes) || len != env->GetArrayLength(dex_file_bytes)) {
+    env->ThrowNew(env->FindClass("java/lang/IllegalArgumentException"),
+                  "the three array arguments passed to this function have different lengths!");
+    return;
+  }
+  for (jint i = 0; i < len; i++) {
+    classes.push_back(static_cast<jclass>(env->GetObjectArrayElement(targets, i)));
+    dex_files.push_back(static_cast<jbyteArray>(env->GetObjectArrayElement(dex_file_bytes, i)));
+    class_files.push_back(static_cast<jbyteArray>(env->GetObjectArrayElement(class_file_bytes, i)));
+  }
+  return DoMultiClassRedefine(jvmti_env,
+                              env,
+                              len,
+                              classes.data(),
+                              class_files.data(),
+                              dex_files.data());
 }
 
 // Don't do anything
