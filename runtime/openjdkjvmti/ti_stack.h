@@ -47,6 +47,14 @@ class StackUtil {
                                       jint* thread_count_ptr)
       REQUIRES(!art::Locks::thread_list_lock_);
 
+  static jvmtiError GetFrameCount(jvmtiEnv* env, jthread thread, jint* count_ptr);
+
+  static jvmtiError GetFrameLocation(jvmtiEnv* env,
+                                     jthread thread,
+                                     jint depth,
+                                     jmethodID* method_ptr,
+                                     jlocation* location_ptr);
+
   static jvmtiError GetStackTrace(jvmtiEnv* env,
                                   jthread thread,
                                   jint start_depth,
