@@ -323,8 +323,10 @@ bool OatFileBase::Setup(const char* abs_dex_location, std::string* error_msg) {
   }
 
   PointerSize pointer_size = GetInstructionSetPointerSize(GetOatHeader().GetInstructionSet());
-  uint8_t* dex_cache_arrays = bss_begin_;
-  uint8_t* dex_cache_arrays_end = (bss_roots_ != nullptr) ? bss_roots_ : bss_end_;
+  uint8_t* dex_cache_arrays = (bss_begin_ == bss_roots_) ? nullptr : bss_begin_;
+  uint8_t* dex_cache_arrays_end =
+      (bss_begin_ == bss_roots_) ? nullptr : (bss_roots_ != nullptr) ? bss_roots_ : bss_end_;
+  DCHECK_EQ(dex_cache_arrays != nullptr, dex_cache_arrays_end != nullptr);
   uint32_t dex_file_count = GetOatHeader().GetDexFileCount();
   oat_dex_files_storage_.reserve(dex_file_count);
   for (size_t i = 0; i < dex_file_count; i++) {
