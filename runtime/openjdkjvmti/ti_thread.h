@@ -39,6 +39,8 @@ namespace openjdkjvmti {
 
 class ThreadUtil {
  public:
+  static jvmtiError GetAllThreads(jvmtiEnv* env, jint* threads_count_ptr, jthread** threads_ptr);
+
   static jvmtiError GetCurrentThread(jvmtiEnv* env, jthread* thread_ptr);
 
   static jvmtiError GetThreadInfo(jvmtiEnv* env, jthread thread, jvmtiThreadInfo* info_ptr);
