@@ -1140,6 +1140,14 @@ class Thread {
     return debug_disallow_read_barrier_;
   }
 
+  const void* GetCustomTLS() const {
+    return custom_tls_;
+  }
+
+  void SetCustomTLS(const void* data) {
+    custom_tls_ = data;
+  }
+
   // Returns true if the current thread is the jit sensitive thread.
   bool IsJitSensitiveThread() const {
     return this == jit_sensitive_thread_;
@@ -1599,6 +1607,10 @@ class Thread {
 
   // Pending extra checkpoints if checkpoint_function_ is already used.
   std::list<Closure*> checkpoint_overflow_ GUARDED_BY(Locks::thread_suspend_count_lock_);
+
+  // Custom TLS field that can be used by plugins.
+  // TODO: Generalize once we have more plugins.
+  const void* custom_tls_;
 
   // True if the thread is allowed to call back into java (for e.g. during class resolution).
   // By default this is true.

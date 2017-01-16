@@ -46,6 +46,9 @@ class ThreadUtil {
   static jvmtiError GetThreadInfo(jvmtiEnv* env, jthread thread, jvmtiThreadInfo* info_ptr);
 
   static jvmtiError GetThreadState(jvmtiEnv* env, jthread thread, jint* thread_state_ptr);
+
+  static jvmtiError SetThreadLocalStorage(jvmtiEnv* env, jthread thread, const void* data);
+  static jvmtiError GetThreadLocalStorage(jvmtiEnv* env, jthread thread, void** data_ptr);
 };
 
 }  // namespace openjdkjvmti

@@ -35,11 +35,14 @@
 #include "art_jvmti.h"
 #include "base/logging.h"
 #include "base/mutex.h"
+#include "gc/system_weak.h"
+#include "gc_root-inl.h"
 #include "jni_internal.h"
 #include "mirror/class.h"
 #include "mirror/object-inl.h"
 #include "mirror/string.h"
 #include "obj_ptr.h"
+#include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
 #include "thread_list.h"
@@ -400,7 +403,43 @@ jvmtiError ThreadUtil::GetAllThreads(jvmtiEnv* env,
     *threads_count_ptr = static_cast<jint>(peers.size());
     *threads_ptr = threads;
   }
+  return ERR(NONE);
+}
 
+jvmtiError ThreadUtil::SetThreadLocalStorage(jvmtiEnv* env ATTRIBUTE_UNUSED,
+                                             jthread thread,
+                                             const void* data) {
+  art::ScopedObjectAccess soa(art::Thread::Current());
+  art::Thread* self = GetNativeThread(thread, soa);
+  if (self == nullptr && thread == nullptr) {
+    return ERR(INVALID_THREAD);
+  }
+  if (self == nullptr) {
+    return ERR(THREAD_NOT_ALIVE);
+  }
+
+  self->SetCustomTLS(data);
+
+  return ERR(NONE);
+}
+
+jvmtiError ThreadUtil::GetThreadLocalStorage(jvmtiEnv* env ATTRIBUTE_UNUSED,
+                                             jthread thread,
+                                             void** data_ptr) {
+  if (data_ptr == nullptr) {
+    return ERR(NULL_POINTER);
+  }
+
+  art::ScopedObjectAccess soa(art::Thread::Current());
+  art::Thread* self = GetNativeThread(thread, soa);
+  if (self == nullptr && thread == nullptr) {
+    return ERR(INVALID_THREAD);
+  }
+  if (self == nullptr) {
+    return ERR(THREAD_NOT_ALIVE);
+  }
+
+  *data_ptr = const_cast<void*>(self->GetCustomTLS());
   return ERR(NONE);
 }
 
