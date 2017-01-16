@@ -1950,65 +1950,81 @@ static void PopulateVerifiedMethods(const DexFile& dex_file,
   DCHECK(!it.HasNext());
 }
 
-void CompilerDriver::Verify(jobject jclass_loader,
-                            const std::vector<const DexFile*>& dex_files,
-                            TimingLogger* timings) {
+bool CompilerDriver::FastVerify(jobject jclass_loader,
+                                const std::vector<const DexFile*>& dex_files,
+                                TimingLogger* timings) {
   verifier::VerifierDeps* verifier_deps =
       Runtime::Current()->GetCompilerCallbacks()->GetVerifierDeps();
   // If there is an existing `VerifierDeps`, try to use it for fast verification.
-  if (verifier_deps != nullptr) {
-    TimingLogger::ScopedTiming t("Fast Verify", timings);
-    ScopedObjectAccess soa(Thread::Current());
-    StackHandleScope<2> hs(soa.Self());
-    Handle<mirror::ClassLoader> class_loader(
-        hs.NewHandle(soa.Decode<mirror::ClassLoader>(jclass_loader)));
-    MutableHandle<mirror::Class> cls(hs.NewHandle<mirror::Class>(nullptr));
-    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    if (verifier_deps->ValidateDependencies(class_loader, soa.Self())) {
-      // We successfully validated the dependencies, now update class status
-      // of verified classes. Note that the dependencies also record which classes
-      // could not be fully verified; we could try again, but that would hurt verification
-      // time. So instead we assume these classes still need to be verified at
-      // runtime.
-      for (const DexFile* dex_file : dex_files) {
-        // Fetch the list of unverified classes and turn it into a set for faster
-        // lookups.
-        const std::vector<dex::TypeIndex>& unverified_classes =
-            verifier_deps->GetUnverifiedClasses(*dex_file);
-        std::set<dex::TypeIndex> set(unverified_classes.begin(), unverified_classes.end());
-        for (uint32_t i = 0; i < dex_file->NumClassDefs(); ++i) {
-          const DexFile::ClassDef& class_def = dex_file->GetClassDef(i);
-          if (set.find(class_def.class_idx_) == set.end()) {
-            if (!GetCompilerOptions().IsAnyMethodCompilationEnabled()) {
-              // Just update the compiled_classes_ map. The compiler doesn't need to resolve
-              // the type.
-              compiled_classes_.Overwrite(
-                  ClassReference(dex_file, i), new CompiledClass(mirror::Class::kStatusVerified));
-            } else {
-              // Resolve the type, so later compilation stages know they don't need to verify
-              // the class.
-              const char* descriptor = dex_file->GetClassDescriptor(class_def);
-              cls.Assign(class_linker->FindClass(soa.Self(), descriptor, class_loader));
-              if (cls.Get() != nullptr) {
-                ObjectLock<mirror::Class> lock(soa.Self(), cls);
-                mirror::Class::SetStatus(cls, mirror::Class::kStatusVerified, soa.Self());
-              } else {
-                DCHECK(soa.Self()->IsExceptionPending());
-                soa.Self()->ClearException();
-              }
-              // Create `VerifiedMethod`s for each methods, the compiler expects one for
-              // quickening or compiling.
-              // Note that this means:
-              // - We're only going to compile methods that did verify.
-              // - Quickening will not do checkcast ellision.
-              // TODO(ngeoffray): Reconsider this once we refactor compiler filters.
-              PopulateVerifiedMethods(*dex_file, i, verification_results_);
+  if (verifier_deps == nullptr) {
+    return false;
+  }
+  TimingLogger::ScopedTiming t("Fast Verify", timings);
+  ScopedObjectAccess soa(Thread::Current());
+  StackHandleScope<2> hs(soa.Self());
+  Handle<mirror::ClassLoader> class_loader(
+      hs.NewHandle(soa.Decode<mirror::ClassLoader>(jclass_loader)));
+  MutableHandle<mirror::Class> cls(hs.NewHandle<mirror::Class>(nullptr));
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  if (!verifier_deps->ValidateDependencies(class_loader, soa.Self())) {
+    return false;
+  }
+
+  // We successfully validated the dependencies, now update class status
+  // of verified classes. Note that the dependencies also record which classes
+  // could not be fully verified; we could try again, but that would hurt verification
+  // time. So instead we assume these classes still need to be verified at
+  // runtime.
+  for (const DexFile* dex_file : dex_files) {
+    // Fetch the list of unverified classes and turn it into a set for faster
+    // lookups.
+    const std::vector<dex::TypeIndex>& unverified_classes =
+        verifier_deps->GetUnverifiedClasses(*dex_file);
+    std::set<dex::TypeIndex> set(unverified_classes.begin(), unverified_classes.end());
+    for (uint32_t i = 0; i < dex_file->NumClassDefs(); ++i) {
+      const DexFile::ClassDef& class_def = dex_file->GetClassDef(i);
+      if (set.find(class_def.class_idx_) == set.end()) {
+        if (!GetCompilerOptions().IsAnyMethodCompilationEnabled()) {
+          // Just update the compiled_classes_ map. The compiler doesn't need to resolve
+          // the type.
+          compiled_classes_.Overwrite(
+              ClassReference(dex_file, i), new CompiledClass(mirror::Class::kStatusVerified));
+        } else {
+          // Resolve the type, so later compilation stages know they don't need to verify
+          // the class.
+          const char* descriptor = dex_file->GetClassDescriptor(class_def);
+          cls.Assign(class_linker->FindClass(soa.Self(), descriptor, class_loader));
+          if (cls.Get() != nullptr) {
+            // Check that the class is resolved with the current dex file. We might get
+            // a boot image class, or a class in a different dex file for multidex, and
+            // we should not update the status in that case.
+            if (&cls->GetDexFile() == dex_file) {
+              ObjectLock<mirror::Class> lock(soa.Self(), cls);
+              mirror::Class::SetStatus(cls, mirror::Class::kStatusVerified, soa.Self());
             }
+          } else {
+            DCHECK(soa.Self()->IsExceptionPending());
+            soa.Self()->ClearException();
           }
+          // Create `VerifiedMethod`s for each methods, the compiler expects one for
+          // quickening or compiling.
+          // Note that this means:
+          // - We're only going to compile methods that did verify.
+          // - Quickening will not do checkcast ellision.
+          // TODO(ngeoffray): Reconsider this once we refactor compiler filters.
+          PopulateVerifiedMethods(*dex_file, i, verification_results_);
         }
       }
-      return;
     }
+  }
+  return true;
+}
+
+void CompilerDriver::Verify(jobject jclass_loader,
+                            const std::vector<const DexFile*>& dex_files,
+                            TimingLogger* timings) {
+  if (FastVerify(jclass_loader, dex_files, timings)) {
+    return;
   }
 
   // If there is no existing `verifier_deps` (because of non-existing vdex), or
@@ -2017,7 +2033,7 @@ void CompilerDriver::Verify(jobject jclass_loader,
   // Then dex2oat can update the vdex file with these new dependencies.
   if (!GetCompilerOptions().IsBootImage()) {
     // Create the main VerifierDeps, and set it to this thread.
-    verifier_deps = new verifier::VerifierDeps(dex_files);
+    verifier::VerifierDeps* verifier_deps = new verifier::VerifierDeps(dex_files);
     Runtime::Current()->GetCompilerCallbacks()->SetVerifierDeps(verifier_deps);
     Thread::Current()->SetVerifierDeps(verifier_deps);
     // Create per-thread VerifierDeps to avoid contention on the main one.
@@ -2026,6 +2042,7 @@ void CompilerDriver::Verify(jobject jclass_loader,
       worker->GetThread()->SetVerifierDeps(new verifier::VerifierDeps(dex_files));
     }
   }
+
   // Note: verification should not be pulling in classes anymore when compiling the boot image,
   //       as all should have been resolved before. As such, doing this in parallel should still
   //       be deterministic.
@@ -2041,6 +2058,7 @@ void CompilerDriver::Verify(jobject jclass_loader,
 
   if (!GetCompilerOptions().IsBootImage()) {
     // Merge all VerifierDeps into the main one.
+    verifier::VerifierDeps* verifier_deps = Thread::Current()->GetVerifierDeps();
     for (ThreadPoolWorker* worker : parallel_thread_pool_->GetWorkers()) {
       verifier::VerifierDeps* thread_deps = worker->GetThread()->GetVerifierDeps();
       worker->GetThread()->SetVerifierDeps(nullptr);
@@ -2061,7 +2079,10 @@ class VerifyClassVisitor : public CompilationVisitor {
     ScopedObjectAccess soa(Thread::Current());
     const DexFile& dex_file = *manager_->GetDexFile();
     if (!manager_->GetCompiler()->ShouldVerifyClassBasedOnProfile(dex_file, class_def_index)) {
-      // Skip verification since the class is not in the profile.
+      // Skip verification since the class is not in the profile, and let the VerifierDeps know
+      // that the class will need to be verified at runtime.
+      verifier::VerifierDeps::MaybeRecordVerificationStatus(
+          dex_file, dex::TypeIndex(class_def_index), verifier::MethodVerifier::kSoftFailure);
       return;
     }
     const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
