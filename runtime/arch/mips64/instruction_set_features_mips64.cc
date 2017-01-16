@@ -70,7 +70,7 @@ uint32_t Mips64InstructionSetFeatures::AsBitmap() const {
 }
 
 std::string Mips64InstructionSetFeatures::GetFeatureString() const {
-  return "";
+  return "default";
 }
 
 std::unique_ptr<const InstructionSetFeatures>
