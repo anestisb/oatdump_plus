@@ -126,7 +126,7 @@ class JvmtiFunctions {
   }
 
   static jvmtiError GetAllThreads(jvmtiEnv* env, jint* threads_count_ptr, jthread** threads_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return ThreadUtil::GetAllThreads(env, threads_count_ptr, threads_ptr);
   }
 
   static jvmtiError SuspendThread(jvmtiEnv* env, jthread thread) {
