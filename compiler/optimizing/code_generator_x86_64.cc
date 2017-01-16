@@ -5426,9 +5426,6 @@ HLoadClass::LoadKind CodeGeneratorX86_64::GetSupportedLoadClassKind(
       break;
     case HLoadClass::LoadKind::kJitTableAddress:
       break;
-    case HLoadClass::LoadKind::kDexCachePcRelative:
-      DCHECK(!Runtime::Current()->UseJitCompilation());
-      break;
     case HLoadClass::LoadKind::kDexCacheViaMethod:
       break;
   }
@@ -5523,16 +5520,6 @@ void InstructionCodeGeneratorX86_64::VisitLoadClass(HLoadClass* cls) {
           codegen_->NewJitRootClassPatch(cls->GetDexFile(), cls->GetTypeIndex(), cls->GetAddress());
       // /* GcRoot<mirror::Class> */ out = *address
       GenerateGcRootFieldLoad(cls, out_loc, address, fixup_label, kCompilerReadBarrierOption);
-      break;
-    }
-    case HLoadClass::LoadKind::kDexCachePcRelative: {
-      uint32_t offset = cls->GetDexCacheElementOffset();
-      Label* fixup_label = codegen_->NewPcRelativeDexCacheArrayPatch(cls->GetDexFile(), offset);
-      Address address = Address::Absolute(CodeGeneratorX86_64::kDummy32BitOffset,
-                                          /* no_rip */ false);
-      // /* GcRoot<mirror::Class> */ out = *address  /* PC-relative */
-      GenerateGcRootFieldLoad(cls, out_loc, address, fixup_label, read_barrier_option);
-      generate_null_check = !cls->IsInDexCache();
       break;
     }
     case HLoadClass::LoadKind::kDexCacheViaMethod: {

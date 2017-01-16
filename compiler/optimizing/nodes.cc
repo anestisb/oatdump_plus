@@ -2459,7 +2459,7 @@ bool HLoadClass::InstructionDataEquals(const HInstruction* other) const {
     case LoadKind::kJitTableAddress:
       return AsMirrorInternal(GetAddress()) == AsMirrorInternal(other_load_class->GetAddress());
     default:
-      DCHECK(HasTypeReference(GetLoadKind()) || HasDexCacheReference(GetLoadKind()));
+      DCHECK(HasTypeReference(GetLoadKind()));
       return IsSameDexFile(GetDexFile(), other_load_class->GetDexFile());
   }
 }
@@ -2492,8 +2492,6 @@ std::ostream& operator<<(std::ostream& os, HLoadClass::LoadKind rhs) {
       return os << "BootImageAddress";
     case HLoadClass::LoadKind::kJitTableAddress:
       return os << "JitTableAddress";
-    case HLoadClass::LoadKind::kDexCachePcRelative:
-      return os << "DexCachePcRelative";
     case HLoadClass::LoadKind::kDexCacheViaMethod:
       return os << "DexCacheViaMethod";
     default:

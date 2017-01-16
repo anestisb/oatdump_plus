@@ -5552,11 +5552,6 @@ class HLoadClass FINAL : public HInstruction {
     // Load from the root table associated with the JIT compiled method.
     kJitTableAddress,
 
-    // Load from resolved types array in the dex cache using a PC-relative load.
-    // Used for classes outside boot image when we know that we can access
-    // the dex cache arrays using a PC-relative load.
-    kDexCachePcRelative,
-
     // Load from resolved types array accessed through the class loaded from
     // the compiled method's own ArtMethod*. This is the default access type when
     // all other types are unavailable.
@@ -5575,6 +5570,7 @@ class HLoadClass FINAL : public HInstruction {
         special_input_(HUserRecord<HInstruction*>(current_method)),
         type_index_(type_index),
         dex_file_(dex_file),
+        address_(0u),
         loaded_class_rti_(ReferenceTypeInfo::CreateInvalid()) {
     // Referrers class should not need access check. We never inline unverified
     // methods so we can't possibly end up in this situation.
@@ -5590,7 +5586,8 @@ class HLoadClass FINAL : public HInstruction {
 
   void SetLoadKindWithAddress(LoadKind load_kind, uint64_t address) {
     DCHECK(HasAddress(load_kind));
-    load_data_.address = address;
+    DCHECK_NE(address, 0u);
+    address_ = address;
     SetLoadKindInternal(load_kind);
   }
 
@@ -5600,15 +5597,6 @@ class HLoadClass FINAL : public HInstruction {
     DCHECK(HasTypeReference(load_kind));
     DCHECK(IsSameDexFile(dex_file_, dex_file));
     DCHECK_EQ(type_index_, type_index);
-    SetLoadKindInternal(load_kind);
-  }
-
-  void SetLoadKindWithDexCacheReference(LoadKind load_kind,
-                                        const DexFile& dex_file,
-                                        uint32_t element_index) {
-    DCHECK(HasDexCacheReference(load_kind));
-    DCHECK(IsSameDexFile(dex_file_, dex_file));
-    load_data_.dex_cache_element_index = element_index;
     SetLoadKindInternal(load_kind);
   }
 
@@ -5658,11 +5646,9 @@ class HLoadClass FINAL : public HInstruction {
   dex::TypeIndex GetTypeIndex() const { return type_index_; }
   const DexFile& GetDexFile() const { return dex_file_; }
 
-  uint32_t GetDexCacheElementOffset() const;
-
   uint64_t GetAddress() const {
     DCHECK(HasAddress(GetLoadKind()));
-    return load_data_.address;
+    return address_;
   }
 
   bool NeedsDexCacheOfDeclaringClass() const OVERRIDE {
@@ -5730,24 +5716,17 @@ class HLoadClass FINAL : public HInstruction {
         load_kind == LoadKind::kJitTableAddress;
   }
 
-  static bool HasDexCacheReference(LoadKind load_kind) {
-    return load_kind == LoadKind::kDexCachePcRelative;
-  }
-
   void SetLoadKindInternal(LoadKind load_kind);
 
   // The special input is the HCurrentMethod for kDexCacheViaMethod or kReferrersClass.
   // For other load kinds it's empty or possibly some architecture-specific instruction
-  // for PC-relative loads, i.e. kDexCachePcRelative or kBootImageLinkTimePcRelative.
+  // for PC-relative loads, i.e. kBootImageLinkTimePcRelative.
   HUserRecord<HInstruction*> special_input_;
 
   const dex::TypeIndex type_index_;
   const DexFile& dex_file_;
 
-  union {
-    uint32_t dex_cache_element_index;   // Only for dex cache reference.
-    uint64_t address;  // Up to 64-bit, needed for kJitTableAddress on 64-bit targets.
-  } load_data_;
+  uint64_t address_;  // Up to 64-bit, needed for kJitTableAddress on 64-bit targets.
 
   ReferenceTypeInfo loaded_class_rti_;
 
@@ -5756,17 +5735,10 @@ class HLoadClass FINAL : public HInstruction {
 std::ostream& operator<<(std::ostream& os, HLoadClass::LoadKind rhs);
 
 // Note: defined outside class to see operator<<(., HLoadClass::LoadKind).
-inline uint32_t HLoadClass::GetDexCacheElementOffset() const {
-  DCHECK(HasDexCacheReference(GetLoadKind())) << GetLoadKind();
-  return load_data_.dex_cache_element_index;
-}
-
-// Note: defined outside class to see operator<<(., HLoadClass::LoadKind).
 inline void HLoadClass::AddSpecialInput(HInstruction* special_input) {
   // The special input is used for PC-relative loads on some architectures,
   // including literal pool loads, which are PC-relative too.
   DCHECK(GetLoadKind() == LoadKind::kBootImageLinkTimePcRelative ||
-         GetLoadKind() == LoadKind::kDexCachePcRelative ||
          GetLoadKind() == LoadKind::kBootImageLinkTimeAddress ||
          GetLoadKind() == LoadKind::kBootImageAddress) << GetLoadKind();
   DCHECK(special_input_.GetInstruction() == nullptr);
@@ -5896,7 +5868,7 @@ class HLoadString FINAL : public HInstruction {
 
   // The special input is the HCurrentMethod for kDexCacheViaMethod.
   // For other load kinds it's empty or possibly some architecture-specific instruction
-  // for PC-relative loads, i.e. kDexCachePcRelative or kBootImageLinkTimePcRelative.
+  // for PC-relative loads, i.e. kBssEntry or kBootImageLinkTimePcRelative.
   HUserRecord<HInstruction*> special_input_;
 
   dex::StringIndex string_index_;

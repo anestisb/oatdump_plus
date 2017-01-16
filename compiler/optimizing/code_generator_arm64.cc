@@ -4309,9 +4309,6 @@ HLoadClass::LoadKind CodeGeneratorARM64::GetSupportedLoadClassKind(
     case HLoadClass::LoadKind::kJitTableAddress:
       DCHECK(Runtime::Current()->UseJitCompilation());
       break;
-    case HLoadClass::LoadKind::kDexCachePcRelative:
-      DCHECK(!Runtime::Current()->UseJitCompilation());
-      break;
     case HLoadClass::LoadKind::kDexCacheViaMethod:
       break;
   }
@@ -4409,26 +4406,6 @@ void InstructionCodeGeneratorARM64::VisitLoadClass(HLoadClass* cls) {
                               /* offset */ 0,
                               /* fixup_label */ nullptr,
                               kCompilerReadBarrierOption);
-      break;
-    }
-    case HLoadClass::LoadKind::kDexCachePcRelative: {
-      // Add ADRP with its PC-relative DexCache access patch.
-      const DexFile& dex_file = cls->GetDexFile();
-      uint32_t element_offset = cls->GetDexCacheElementOffset();
-      vixl::aarch64::Label* adrp_label =
-          codegen_->NewPcRelativeDexCacheArrayPatch(dex_file, element_offset);
-      codegen_->EmitAdrpPlaceholder(adrp_label, out.X());
-      // Add LDR with its PC-relative DexCache access patch.
-      vixl::aarch64::Label* ldr_label =
-          codegen_->NewPcRelativeDexCacheArrayPatch(dex_file, element_offset, adrp_label);
-      // /* GcRoot<mirror::Class> */ out = *(base_address + offset)  /* PC-relative */
-      GenerateGcRootFieldLoad(cls,
-                              out_loc,
-                              out.X(),
-                              /* offset placeholder */ 0,
-                              ldr_label,
-                              read_barrier_option);
-      generate_null_check = !cls->IsInDexCache();
       break;
     }
     case HLoadClass::LoadKind::kDexCacheViaMethod: {
