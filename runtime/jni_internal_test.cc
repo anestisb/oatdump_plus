@@ -2346,4 +2346,39 @@ TEST_F(JniInternalTest, JNIEnvExtOffsets) {
   EXPECT_EQ(segment_state_now, segment_state_computed);
 }
 
+static size_t gGlobalRefCount = 0;
+static const JNINativeInterface* gOriginalEnv = nullptr;
+
+static jobject CountNewGlobalRef(JNIEnv* env, jobject o) {
+  ++gGlobalRefCount;
+  return gOriginalEnv->NewGlobalRef(env, o);
+}
+
+// Test the table override.
+TEST_F(JniInternalTest, JNIEnvExtTableOverride) {
+  JNINativeInterface env_override;
+  memcpy(&env_override, env_->functions, sizeof(JNINativeInterface));
+
+  gOriginalEnv = env_->functions;
+  env_override.NewGlobalRef = CountNewGlobalRef;
+  gGlobalRefCount = 0;
+
+  jclass local = env_->FindClass("java/lang/Object");
+  ASSERT_TRUE(local != nullptr);
+
+  // Set the table, add a global ref, see whether the counter increases.
+  JNIEnvExt::SetTableOverride(&env_override);
+
+  jobject global = env_->NewGlobalRef(local);
+  EXPECT_EQ(1u, gGlobalRefCount);
+  env_->DeleteGlobalRef(global);
+
+  // Reset
+  JNIEnvExt::SetTableOverride(nullptr);
+
+  jobject global2 = env_->NewGlobalRef(local);
+  EXPECT_EQ(1u, gGlobalRefCount);
+  env_->DeleteGlobalRef(global2);
+}
+
 }  // namespace art
