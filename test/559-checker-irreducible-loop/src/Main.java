@@ -67,3 +67,6 @@ public class Main {
 
   int myField;
 }
+
+class Other {
+}
