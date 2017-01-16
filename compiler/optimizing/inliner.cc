@@ -1538,8 +1538,6 @@ bool HInliner::ArgumentTypesMoreSpecific(HInvoke* invoke_instruction, ArtMethod*
     }
   }
 
-  PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
-
   // Iterate over the list of parameter types and test whether any of the
   // actual inputs has a more specific reference type than the type declared in
   // the signature.
@@ -1551,9 +1549,9 @@ bool HInliner::ArgumentTypesMoreSpecific(HInvoke* invoke_instruction, ArtMethod*
        ++param_idx, ++input_idx) {
     HInstruction* input = invoke_instruction->InputAt(input_idx);
     if (input->GetType() == Primitive::kPrimNot) {
-      mirror::Class* param_cls = resolved_method->GetDexCacheResolvedType(
+      mirror::Class* param_cls = resolved_method->GetClassFromTypeIndex(
           param_list->GetTypeItem(param_idx).type_idx_,
-          pointer_size);
+          /* resolve */ false);
       if (IsReferenceTypeRefinement(GetClassRTI(param_cls),
                                     /* declared_can_be_null */ true,
                                     input)) {
@@ -1602,8 +1600,7 @@ void HInliner::FixUpReturnReferenceType(ArtMethod* resolved_method,
         // TODO: we could be more precise by merging the phi inputs but that requires
         // some functionality from the reference type propagation.
         DCHECK(return_replacement->IsPhi());
-        PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
-        mirror::Class* cls = resolved_method->GetReturnType(false /* resolve */, pointer_size);
+        mirror::Class* cls = resolved_method->GetReturnType(false /* resolve */);
         return_replacement->SetReferenceTypeInfo(GetClassRTI(cls));
       }
     }

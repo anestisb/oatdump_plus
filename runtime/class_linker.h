@@ -653,7 +653,7 @@ class ClassLinker {
     // jweak decode that triggers read barriers (and mark them alive unnecessarily and mess with
     // class unloading.)
     const DexFile* dex_file;
-    GcRoot<mirror::Class>* resolved_types;
+    ArtMethod** resolved_methods;
   };
 
  private:
