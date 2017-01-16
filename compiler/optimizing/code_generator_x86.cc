@@ -5984,9 +5984,7 @@ HLoadClass::LoadKind CodeGeneratorX86::GetSupportedLoadClassKind(
       break;
     case HLoadClass::LoadKind::kBootImageLinkTimePcRelative:
       DCHECK(GetCompilerOptions().GetCompilePic());
-      FALLTHROUGH_INTENDED;
-    case HLoadClass::LoadKind::kDexCachePcRelative:
-      DCHECK(!Runtime::Current()->UseJitCompilation());  // Note: boot image is also non-JIT.
+      DCHECK(!Runtime::Current()->UseJitCompilation());
       // We disable pc-relative load when there is an irreducible loop, as the optimization
       // is incompatible with it.
       // TODO: Create as many X86ComputeBaseMethodAddress instructions as needed for methods
@@ -6029,8 +6027,7 @@ void LocationsBuilderX86::VisitLoadClass(HLoadClass* cls) {
   HLoadClass::LoadKind load_kind = cls->GetLoadKind();
   if (load_kind == HLoadClass::LoadKind::kReferrersClass ||
       load_kind == HLoadClass::LoadKind::kDexCacheViaMethod ||
-      load_kind == HLoadClass::LoadKind::kBootImageLinkTimePcRelative ||
-      load_kind == HLoadClass::LoadKind::kDexCachePcRelative) {
+      load_kind == HLoadClass::LoadKind::kBootImageLinkTimePcRelative) {
     locations->SetInAt(0, Location::RequiresRegister());
   }
   locations->SetOut(Location::RequiresRegister());
@@ -6103,19 +6100,6 @@ void InstructionCodeGeneratorX86::VisitLoadClass(HLoadClass* cls) {
           cls->GetDexFile(), cls->GetTypeIndex(), cls->GetAddress());
       // /* GcRoot<mirror::Class> */ out = *address
       GenerateGcRootFieldLoad(cls, out_loc, address, fixup_label, kCompilerReadBarrierOption);
-      break;
-    }
-    case HLoadClass::LoadKind::kDexCachePcRelative: {
-      Register base_reg = locations->InAt(0).AsRegister<Register>();
-      uint32_t offset = cls->GetDexCacheElementOffset();
-      Label* fixup_label = codegen_->NewPcRelativeDexCacheArrayPatch(cls->GetDexFile(), offset);
-      // /* GcRoot<mirror::Class> */ out = *(base + offset)  /* PC-relative */
-      GenerateGcRootFieldLoad(cls,
-                              out_loc,
-                              Address(base_reg, CodeGeneratorX86::kDummy32BitOffset),
-                              fixup_label,
-                              read_barrier_option);
-      generate_null_check = !cls->IsInDexCache();
       break;
     }
     case HLoadClass::LoadKind::kDexCacheViaMethod: {

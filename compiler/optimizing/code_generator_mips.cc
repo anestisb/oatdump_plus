@@ -5234,11 +5234,6 @@ HLoadClass::LoadKind CodeGeneratorMIPS::GetSupportedLoadClassKind(
       DCHECK(Runtime::Current()->UseJitCompilation());
       fallback_load = true;
       break;
-    case HLoadClass::LoadKind::kDexCachePcRelative:
-      DCHECK(!Runtime::Current()->UseJitCompilation());
-      // TODO: Create as many MipsDexCacheArraysBase instructions as needed for methods
-      // with irreducible loops.
-      break;
     case HLoadClass::LoadKind::kDexCacheViaMethod:
       fallback_load = false;
       break;
@@ -5459,8 +5454,6 @@ void LocationsBuilderMIPS::VisitLoadClass(HLoadClass* cls) {
         break;
       }
       FALLTHROUGH_INTENDED;
-    // We need an extra register for PC-relative dex cache accesses.
-    case HLoadClass::LoadKind::kDexCachePcRelative:
     case HLoadClass::LoadKind::kReferrersClass:
     case HLoadClass::LoadKind::kDexCacheViaMethod:
       locations->SetInAt(0, Location::RequiresRegister());
@@ -5492,8 +5485,6 @@ void InstructionCodeGeneratorMIPS::VisitLoadClass(HLoadClass* cls) {
     case HLoadClass::LoadKind::kBootImageLinkTimePcRelative:
       base_or_current_method_reg = isR6 ? ZERO : locations->InAt(0).AsRegister<Register>();
       break;
-    // We need an extra register for PC-relative dex cache accesses.
-    case HLoadClass::LoadKind::kDexCachePcRelative:
     case HLoadClass::LoadKind::kReferrersClass:
     case HLoadClass::LoadKind::kDexCacheViaMethod:
       base_or_current_method_reg = locations->InAt(0).AsRegister<Register>();
@@ -5540,15 +5531,6 @@ void InstructionCodeGeneratorMIPS::VisitLoadClass(HLoadClass* cls) {
     }
     case HLoadClass::LoadKind::kJitTableAddress: {
       LOG(FATAL) << "Unimplemented";
-      break;
-    }
-    case HLoadClass::LoadKind::kDexCachePcRelative: {
-      HMipsDexCacheArraysBase* base = cls->InputAt(0)->AsMipsDexCacheArraysBase();
-      int32_t offset =
-          cls->GetDexCacheElementOffset() - base->GetElementOffset() - kDexCacheArrayLwOffset;
-      // /* GcRoot<mirror::Class> */ out = *(dex_cache_arrays_base + offset)
-      GenerateGcRootFieldLoad(cls, out_loc, base_or_current_method_reg, offset);
-      generate_null_check = !cls->IsInDexCache();
       break;
     }
     case HLoadClass::LoadKind::kDexCacheViaMethod: {

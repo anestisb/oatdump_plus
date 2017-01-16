@@ -180,8 +180,9 @@ void HSharpening::SharpenClass(HLoadClass* load_class,
           : HLoadClass::LoadKind::kBootImageLinkTimeAddress;
     } else {
       // Not a boot image class. We must go through the dex cache.
+      // TODO: Implement kBssEntry similar to HLoadString::LoadKind::kBssEntry.
       DCHECK(ContainsElement(compiler_driver->GetDexFilesForOatFile(), &dex_file));
-      desired_load_kind = HLoadClass::LoadKind::kDexCachePcRelative;
+      desired_load_kind = HLoadClass::LoadKind::kDexCacheViaMethod;
     }
   } else {
     is_in_boot_image = (klass != nullptr) && runtime->GetHeap()->ObjectIsInBootImageSpace(klass);
@@ -212,12 +213,9 @@ void HSharpening::SharpenClass(HLoadClass* load_class,
       address = reinterpret_cast64<uint64_t>(klass);
     } else {
       // Not JIT and either the klass is not in boot image or we are compiling in PIC mode.
-      // Use PC-relative load from the dex cache if the dex file belongs
-      // to the oat file that we're currently compiling.
-      desired_load_kind =
-          ContainsElement(compiler_driver->GetDexFilesForOatFile(), &load_class->GetDexFile())
-              ? HLoadClass::LoadKind::kDexCachePcRelative
-              : HLoadClass::LoadKind::kDexCacheViaMethod;
+      // We must go through the dex cache.
+      // TODO: Implement kBssEntry similar to HLoadString::LoadKind::kBssEntry.
+      desired_load_kind = HLoadClass::LoadKind::kDexCacheViaMethod;
     }
   }
   DCHECK_NE(desired_load_kind, static_cast<HLoadClass::LoadKind>(-1));
@@ -255,13 +253,6 @@ void HSharpening::SharpenClass(HLoadClass* load_class,
       DCHECK_NE(address, 0u);
       load_class->SetLoadKindWithAddress(load_kind, address);
       break;
-    case HLoadClass::LoadKind::kDexCachePcRelative: {
-      PointerSize pointer_size = InstructionSetPointerSize(codegen->GetInstructionSet());
-      DexCacheArraysLayout layout(pointer_size, &dex_file);
-      size_t element_index = layout.TypeOffset(type_index);
-      load_class->SetLoadKindWithDexCacheReference(load_kind, dex_file, element_index);
-      break;
-    }
     default:
       LOG(FATAL) << "Unexpected load kind: " << load_kind;
       UNREACHABLE();
