@@ -180,7 +180,7 @@ void HSharpening::SharpenClass(HLoadClass* load_class,
     // Compiling boot image. Check if the class is a boot image class.
     DCHECK(!runtime->UseJitCompilation());
     if (!compiler_driver->GetSupportBootImageFixup()) {
-      // MIPS64 or compiler_driver_test. Do not sharpen.
+      // compiler_driver_test. Do not sharpen.
       desired_load_kind = HLoadClass::LoadKind::kDexCacheViaMethod;
     } else if ((klass != nullptr) && compiler_driver->IsImageClass(
         dex_file.StringDataByIdx(dex_file.GetTypeId(type_index).descriptor_idx_))) {
@@ -190,7 +190,7 @@ void HSharpening::SharpenClass(HLoadClass* load_class,
           : HLoadClass::LoadKind::kBootImageLinkTimeAddress;
     } else {
       // Not a boot image class. We must call the runtime entrypoint.
-      // TODO: Implement kBssEntry similar to HLoadString::LoadKind::kBssEntry.
+      // TODO: Implement kBssEntry for boot image.
       DCHECK(ContainsElement(compiler_driver->GetDexFilesForOatFile(), &dex_file));
       desired_load_kind = HLoadClass::LoadKind::kDexCacheViaMethod;
     }
@@ -222,9 +222,7 @@ void HSharpening::SharpenClass(HLoadClass* load_class,
       address = reinterpret_cast64<uint64_t>(klass);
     } else {
       // Not JIT and either the klass is not in boot image or we are compiling in PIC mode.
-      // We must call the runtime entrypoint.
-      // TODO: Implement kBssEntry similar to HLoadString::LoadKind::kBssEntry.
-      desired_load_kind = HLoadClass::LoadKind::kDexCacheViaMethod;
+      desired_load_kind = HLoadClass::LoadKind::kBssEntry;
     }
   }
   DCHECK_NE(desired_load_kind, static_cast<HLoadClass::LoadKind>(-1));
@@ -237,6 +235,7 @@ void HSharpening::SharpenClass(HLoadClass* load_class,
   switch (load_kind) {
     case HLoadClass::LoadKind::kBootImageLinkTimeAddress:
     case HLoadClass::LoadKind::kBootImageLinkTimePcRelative:
+    case HLoadClass::LoadKind::kBssEntry:
     case HLoadClass::LoadKind::kDexCacheViaMethod:
       load_class->SetLoadKindWithTypeReference(load_kind, dex_file, type_index);
       break;
@@ -257,7 +256,7 @@ void HSharpening::ProcessLoadString(HLoadString* load_string) {
   const DexFile& dex_file = load_string->GetDexFile();
   dex::StringIndex string_index = load_string->GetStringIndex();
 
-  HLoadString::LoadKind desired_load_kind = HLoadString::LoadKind::kDexCacheViaMethod;
+  HLoadString::LoadKind desired_load_kind = static_cast<HLoadString::LoadKind>(-1);
   {
     Runtime* runtime = Runtime::Current();
     ClassLinker* class_linker = runtime->GetClassLinker();
@@ -280,8 +279,8 @@ void HSharpening::ProcessLoadString(HLoadString* load_string) {
             ? HLoadString::LoadKind::kBootImageLinkTimePcRelative
             : HLoadString::LoadKind::kBootImageLinkTimeAddress;
       } else {
-        // MIPS64 or compiler_driver_test. Do not sharpen.
-        DCHECK_EQ(desired_load_kind, HLoadString::LoadKind::kDexCacheViaMethod);
+        // compiler_driver_test. Do not sharpen.
+        desired_load_kind = HLoadString::LoadKind::kDexCacheViaMethod;
       }
     } else if (runtime->UseJitCompilation()) {
       // TODO: Make sure we don't set the "compile PIC" flag for JIT as that's bogus.
@@ -293,6 +292,8 @@ void HSharpening::ProcessLoadString(HLoadString* load_string) {
         } else {
           desired_load_kind = HLoadString::LoadKind::kJitTableAddress;
         }
+      } else {
+        desired_load_kind = HLoadString::LoadKind::kDexCacheViaMethod;
       }
     } else {
       // AOT app compilation. Try to lookup the string without allocating if not found.
@@ -309,6 +310,7 @@ void HSharpening::ProcessLoadString(HLoadString* load_string) {
       load_string->SetString(handles_->NewHandle(string));
     }
   }
+  DCHECK_NE(desired_load_kind, static_cast<HLoadString::LoadKind>(-1));
 
   HLoadString::LoadKind load_kind = codegen_->GetSupportedLoadStringKind(desired_load_kind);
   load_string->SetLoadKind(load_kind);

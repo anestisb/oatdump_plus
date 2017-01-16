@@ -540,7 +540,7 @@ class CodeGeneratorARM64 : public CodeGenerator {
   // ADRP (pass `adrp_label = null`) or the ADD (pass `adrp_label` pointing
   // to the associated ADRP patch label).
   vixl::aarch64::Label* NewPcRelativeStringPatch(const DexFile& dex_file,
-                                                 uint32_t string_index,
+                                                 dex::StringIndex string_index,
                                                  vixl::aarch64::Label* adrp_label = nullptr);
 
   // Add a new PC-relative type patch for an instruction and return the label
@@ -744,7 +744,7 @@ class CodeGeneratorARM64 : public CodeGenerator {
   ArenaDeque<PcRelativePatchInfo> pc_relative_string_patches_;
   // Deduplication map for boot type literals for kBootImageLinkTimeAddress.
   TypeToLiteralMap boot_image_type_patches_;
-  // PC-relative type patch info.
+  // PC-relative type patch info; type depends on configuration (app .bss or boot image PIC).
   ArenaDeque<PcRelativePatchInfo> pc_relative_type_patches_;
   // Deduplication map for patchable boot image addresses.
   Uint32ToLiteralMap boot_image_address_patches_;

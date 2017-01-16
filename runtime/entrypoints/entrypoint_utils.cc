@@ -261,11 +261,8 @@ bool FillArrayData(ObjPtr<mirror::Object> obj, const Instruction::ArrayDataPaylo
   return true;
 }
 
-ArtMethod* GetCalleeSaveMethodCaller(ArtMethod** sp,
-                                     Runtime::CalleeSaveType type,
-                                     bool do_caller_check)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  ScopedAssertNoThreadSuspension ants(__FUNCTION__);
+static inline std::pair<ArtMethod*, uintptr_t> DoGetCalleeSaveMethodOuterCallerAndPc(
+    ArtMethod** sp, Runtime::CalleeSaveType type) REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK_EQ(*sp, Runtime::Current()->GetCalleeSaveMethod(type));
 
   const size_t callee_frame_size = GetCalleeSaveFrameSize(kRuntimeISA, type);
@@ -275,6 +272,13 @@ ArtMethod* GetCalleeSaveMethodCaller(ArtMethod** sp,
   uintptr_t caller_pc = *reinterpret_cast<uintptr_t*>(
       (reinterpret_cast<uint8_t*>(sp) + callee_return_pc_offset));
   ArtMethod* outer_method = *caller_sp;
+  return std::make_pair(outer_method, caller_pc);
+}
+
+static inline ArtMethod* DoGetCalleeSaveMethodCaller(ArtMethod* outer_method,
+                                                     uintptr_t caller_pc,
+                                                     bool do_caller_check)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   ArtMethod* caller = outer_method;
   if (LIKELY(caller_pc != reinterpret_cast<uintptr_t>(GetQuickInstrumentationExitPc()))) {
     if (outer_method != nullptr) {
@@ -308,8 +312,33 @@ ArtMethod* GetCalleeSaveMethodCaller(ArtMethod** sp,
     visitor.WalkStack();
     caller = visitor.caller;
   }
-
   return caller;
 }
+
+ArtMethod* GetCalleeSaveMethodCaller(ArtMethod** sp,
+                                     Runtime::CalleeSaveType type,
+                                     bool do_caller_check)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  ScopedAssertNoThreadSuspension ants(__FUNCTION__);
+  auto outer_caller_and_pc = DoGetCalleeSaveMethodOuterCallerAndPc(sp, type);
+  ArtMethod* outer_method = outer_caller_and_pc.first;
+  uintptr_t caller_pc = outer_caller_and_pc.second;
+  ArtMethod* caller = DoGetCalleeSaveMethodCaller(outer_method, caller_pc, do_caller_check);
+  return caller;
+}
+
+CallerAndOuterMethod GetCalleeSaveMethodCallerAndOuterMethod(Thread* self,
+                                                             Runtime::CalleeSaveType type) {
+  CallerAndOuterMethod result;
+  ScopedAssertNoThreadSuspension ants(__FUNCTION__);
+  ArtMethod** sp = self->GetManagedStack()->GetTopQuickFrame();
+  auto outer_caller_and_pc = DoGetCalleeSaveMethodOuterCallerAndPc(sp, type);
+  result.outer_method = outer_caller_and_pc.first;
+  uintptr_t caller_pc = outer_caller_and_pc.second;
+  result.caller =
+      DoGetCalleeSaveMethodCaller(result.outer_method, caller_pc, /* do_caller_check */ true);
+  return result;
+}
+
 
 }  // namespace art

@@ -201,7 +201,13 @@ ArtMethod* GetCalleeSaveMethodCaller(ArtMethod** sp,
                                      bool do_caller_check = false)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
-ArtMethod* GetCalleeSaveMethodCaller(Thread* self, Runtime::CalleeSaveType type)
+struct CallerAndOuterMethod {
+  ArtMethod* caller;
+  ArtMethod* outer_method;
+};
+
+CallerAndOuterMethod GetCalleeSaveMethodCallerAndOuterMethod(Thread* self,
+                                                             Runtime::CalleeSaveType type)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
 }  // namespace art

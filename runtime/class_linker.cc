@@ -3307,6 +3307,7 @@ mirror::DexCache* ClassLinker::RegisterDexFile(const DexFile& dex_file,
     ReaderMutexLock mu(self, *Locks::dex_lock_);
     ObjPtr<mirror::DexCache> dex_cache = FindDexCacheLocked(self, dex_file, true);
     if (dex_cache != nullptr) {
+      // TODO: Check if the dex file was registered with the same class loader. Bug: 34193123
       return dex_cache.Ptr();
     }
   }
