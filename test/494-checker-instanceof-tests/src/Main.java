@@ -142,11 +142,11 @@ public class Main {
   /// CHECK:                LoadClass
   /// CHECK:                Return [<<Const>>]
   public static boolean knownTestWithUnloadedClass() {
-    return $inline$returnMain() instanceof String;
+    return $inline$returnUnrelated() instanceof String;
   }
 
-  public static Object $inline$returnMain() {
-    return new Main();
+  public static Object $inline$returnUnrelated() {
+    return new Unrelated();
   }
 
   public static void expect(boolean expected, boolean actual) {

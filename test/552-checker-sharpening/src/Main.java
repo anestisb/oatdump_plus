@@ -331,32 +331,32 @@ public class Main {
   /// CHECK-START-X86: java.lang.Class Main.$noinline$getStringClass() sharpening (after)
   // Note: load kind depends on PIC/non-PIC
   // TODO: Remove DexCacheViaMethod when read barrier config supports BootImageAddress.
-  /// CHECK:                LoadClass load_kind:{{BootImageAddress|DexCachePcRelative|DexCacheViaMethod}} class_name:java.lang.String
+  /// CHECK:                LoadClass load_kind:{{BootImageAddress|BssEntry|DexCacheViaMethod}} class_name:java.lang.String
 
   /// CHECK-START-X86_64: java.lang.Class Main.$noinline$getStringClass() sharpening (after)
   // Note: load kind depends on PIC/non-PIC
   // TODO: Remove DexCacheViaMethod when read barrier config supports BootImageAddress.
-  /// CHECK:                LoadClass load_kind:{{BootImageAddress|DexCachePcRelative|DexCacheViaMethod}} class_name:java.lang.String
+  /// CHECK:                LoadClass load_kind:{{BootImageAddress|BssEntry|DexCacheViaMethod}} class_name:java.lang.String
 
   /// CHECK-START-ARM: java.lang.Class Main.$noinline$getStringClass() sharpening (after)
   // Note: load kind depends on PIC/non-PIC
   // TODO: Remove DexCacheViaMethod when read barrier config supports BootImageAddress.
-  /// CHECK:                LoadClass load_kind:{{BootImageAddress|DexCachePcRelative|DexCacheViaMethod}} class_name:java.lang.String
+  /// CHECK:                LoadClass load_kind:{{BootImageAddress|BssEntry|DexCacheViaMethod}} class_name:java.lang.String
 
   /// CHECK-START-ARM64: java.lang.Class Main.$noinline$getStringClass() sharpening (after)
   // Note: load kind depends on PIC/non-PIC
   // TODO: Remove DexCacheViaMethod when read barrier config supports BootImageAddress.
-  /// CHECK:                LoadClass load_kind:{{BootImageAddress|DexCachePcRelative|DexCacheViaMethod}} class_name:java.lang.String
+  /// CHECK:                LoadClass load_kind:{{BootImageAddress|BssEntry|DexCacheViaMethod}} class_name:java.lang.String
 
   /// CHECK-START-MIPS: java.lang.Class Main.$noinline$getStringClass() sharpening (after)
   // Note: load kind depends on PIC/non-PIC
   // TODO: Remove DexCacheViaMethod when read barrier config supports BootImageAddress.
-  /// CHECK:                LoadClass load_kind:{{BootImageAddress|DexCachePcRelative|DexCacheViaMethod}} class_name:java.lang.String
+  /// CHECK:                LoadClass load_kind:{{BootImageAddress|BssEntry|DexCacheViaMethod}} class_name:java.lang.String
 
   /// CHECK-START-MIPS64: java.lang.Class Main.$noinline$getStringClass() sharpening (after)
   // Note: load kind depends on PIC/non-PIC
   // TODO: Remove DexCacheViaMethod when read barrier config supports BootImageAddress.
-  /// CHECK:                LoadClass load_kind:{{BootImageAddress|DexCachePcRelative|DexCacheViaMethod}} class_name:java.lang.String
+  /// CHECK:                LoadClass load_kind:{{BootImageAddress|BssEntry|DexCacheViaMethod}} class_name:java.lang.String
 
   public static Class<?> $noinline$getStringClass() {
     // Prevent inlining to avoid the string comparison being optimized away.
@@ -369,34 +369,34 @@ public class Main {
   /// CHECK:                LoadClass load_kind:DexCacheViaMethod class_name:Other
 
   /// CHECK-START-X86: java.lang.Class Main.$noinline$getOtherClass() sharpening (after)
-  /// CHECK:                LoadClass load_kind:DexCachePcRelative class_name:Other
+  /// CHECK:                LoadClass load_kind:BssEntry class_name:Other
 
   /// CHECK-START-X86: java.lang.Class Main.$noinline$getOtherClass() pc_relative_fixups_x86 (after)
   /// CHECK-DAG:            X86ComputeBaseMethodAddress
-  /// CHECK-DAG:            LoadClass load_kind:DexCachePcRelative class_name:Other
+  /// CHECK-DAG:            LoadClass load_kind:BssEntry class_name:Other
 
   /// CHECK-START-X86_64: java.lang.Class Main.$noinline$getOtherClass() sharpening (after)
-  /// CHECK:                LoadClass load_kind:DexCachePcRelative class_name:Other
+  /// CHECK:                LoadClass load_kind:BssEntry class_name:Other
 
   /// CHECK-START-ARM: java.lang.Class Main.$noinline$getOtherClass() sharpening (after)
-  /// CHECK:                LoadClass load_kind:DexCachePcRelative class_name:Other
+  /// CHECK:                LoadClass load_kind:BssEntry class_name:Other
 
   /// CHECK-START-ARM: java.lang.Class Main.$noinline$getOtherClass() dex_cache_array_fixups_arm (after)
   /// CHECK-DAG:            ArmDexCacheArraysBase
-  /// CHECK-DAG:            LoadClass load_kind:DexCachePcRelative class_name:Other
+  /// CHECK-DAG:            LoadClass load_kind:BssEntry class_name:Other
 
   /// CHECK-START-ARM64: java.lang.Class Main.$noinline$getOtherClass() sharpening (after)
-  /// CHECK:                LoadClass load_kind:DexCachePcRelative class_name:Other
+  /// CHECK:                LoadClass load_kind:BssEntry class_name:Other
 
   /// CHECK-START-MIPS: java.lang.Class Main.$noinline$getOtherClass() sharpening (after)
-  /// CHECK:                LoadClass load_kind:DexCachePcRelative class_name:Other
+  /// CHECK:                LoadClass load_kind:BssEntry class_name:Other
 
   /// CHECK-START-MIPS: java.lang.Class Main.$noinline$getOtherClass() dex_cache_array_fixups_mips (after)
   /// CHECK-DAG:            MipsDexCacheArraysBase
-  /// CHECK-DAG:            LoadClass load_kind:DexCachePcRelative class_name:Other
+  /// CHECK-DAG:            LoadClass load_kind:BssEntry class_name:Other
 
   /// CHECK-START-MIPS64: java.lang.Class Main.$noinline$getOtherClass() sharpening (after)
-  /// CHECK:                LoadClass load_kind:DexCachePcRelative class_name:Other
+  /// CHECK:                LoadClass load_kind:BssEntry class_name:Other
 
   public static Class<?> $noinline$getOtherClass() {
     // Prevent inlining to avoid the string comparison being optimized away.

@@ -82,10 +82,10 @@ class MyClassLoader extends ClassLoader {
 
 class LoadedByMyClassLoader {
   /// CHECK-START: void LoadedByMyClassLoader.bar() inliner (before)
-  /// CHECK:      LoadClass
+  /// CHECK:      LoadClass class_name:FirstSeenByMyClassLoader
   /// CHECK-NEXT: ClinitCheck
   /// CHECK-NEXT: InvokeStaticOrDirect
-  /// CHECK-NEXT: LoadClass
+  /// CHECK-NEXT: LoadClass class_name:java.lang.System
   /// CHECK-NEXT: ClinitCheck
   /// CHECK-NEXT: StaticFieldGet
   /// CHECK-NEXT: LoadString
@@ -93,10 +93,10 @@ class LoadedByMyClassLoader {
   /// CHECK-NEXT: InvokeVirtual
 
   /// CHECK-START: void LoadedByMyClassLoader.bar() inliner (after)
-  /// CHECK:      LoadClass
+  /// CHECK:      LoadClass class_name:FirstSeenByMyClassLoader
   /// CHECK-NEXT: ClinitCheck
                 /* We inlined FirstSeenByMyClassLoader.$inline$bar */
-  /// CHECK-NEXT: LoadClass
+  /// CHECK-NEXT: LoadClass class_name:java.lang.System
   /// CHECK-NEXT: ClinitCheck
   /// CHECK-NEXT: StaticFieldGet
   /// CHECK-NEXT: LoadString
@@ -105,12 +105,15 @@ class LoadedByMyClassLoader {
 
   /// CHECK-START: void LoadedByMyClassLoader.bar() register (before)
                 /* Load and initialize FirstSeenByMyClassLoader */
-  /// CHECK:      LoadClass gen_clinit_check:true
+  /// CHECK:      LoadClass class_name:FirstSeenByMyClassLoader gen_clinit_check:true
                 /* Load and initialize System */
   // There may be MipsComputeBaseMethodAddress here.
-  /// CHECK:      LoadClass gen_clinit_check:true
-  /// CHECK-NEXT: StaticFieldGet
-  // There may be HArmDexCacheArraysBase or HX86ComputeBaseMethodAddress here.
+  /// CHECK:      LoadClass class_name:java.lang.System
+  // The ClinitCheck may (PIC) or may not (non-PIC) be merged into the LoadClass.
+  // (The merging checks for environment match but HLoadClass/kBootImageAddress
+  // used for non-PIC mode does not have an environment at all.)
+  /// CHECK:      StaticFieldGet
+  // There may be HX86ComputeBaseMethodAddress or MipsComputeBaseMethodAddress here.
   /// CHECK:      LoadString
   /// CHECK-NEXT: NullCheck
   /// CHECK-NEXT: InvokeVirtual

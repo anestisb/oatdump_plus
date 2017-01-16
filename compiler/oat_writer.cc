@@ -296,6 +296,7 @@ OatWriter::OatWriter(bool compiling_boot_image, TimingLogger* timings, ProfileCo
     bss_start_(0u),
     bss_size_(0u),
     bss_roots_offset_(0u),
+    bss_type_entries_(),
     bss_string_entries_(),
     oat_data_offset_(0u),
     oat_header_(nullptr),
@@ -585,7 +586,7 @@ void OatWriter::PrepareLayout(linker::MultiOatRelativePatcher* relative_patcher)
   }
   oat_size_ = offset;
 
-  if (!HasBootImage()) {
+  {
     TimingLogger::ScopedTiming split("InitBssLayout", timings_);
     InitBssLayout(instruction_set);
   }
@@ -846,6 +847,10 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
           for (const LinkerPatch& patch : compiled_method->GetPatches()) {
             if (!patch.IsPcRelative()) {
               writer_->absolute_patch_locations_.push_back(base_loc + patch.LiteralOffset());
+            }
+            if (patch.GetType() == LinkerPatch::Type::kTypeBssEntry) {
+              TypeReference ref(patch.TargetTypeDexFile(), patch.TargetTypeIndex());
+              writer_->bss_type_entries_.Overwrite(ref, /* placeholder */ 0u);
             }
             if (patch.GetType() == LinkerPatch::Type::kStringBssEntry) {
               StringReference ref(patch.TargetStringDexFile(), patch.TargetStringIndex());
@@ -1179,6 +1184,15 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
               }
               case LinkerPatch::Type::kTypeRelative: {
                 uint32_t target_offset = GetTargetObjectOffset(GetTargetType(patch));
+                writer_->relative_patcher_->PatchPcRelativeReference(&patched_code_,
+                                                                     patch,
+                                                                     offset_ + literal_offset,
+                                                                     target_offset);
+                break;
+              }
+              case LinkerPatch::Type::kTypeBssEntry: {
+                TypeReference ref(patch.TargetTypeDexFile(), patch.TargetTypeIndex());
+                uint32_t target_offset = writer_->bss_type_entries_.Get(ref);
                 writer_->relative_patcher_->PatchPcRelativeReference(&patched_code_,
                                                                      patch,
                                                                      offset_ + literal_offset,
@@ -1619,20 +1633,34 @@ size_t OatWriter::InitOatCodeDexFiles(size_t offset) {
 }
 
 void OatWriter::InitBssLayout(InstructionSet instruction_set) {
-  DCHECK(!HasBootImage());
+  if (HasBootImage()) {
+    DCHECK(bss_string_entries_.empty());
+    if (bss_type_entries_.empty()) {
+      // Nothing to put to the .bss section.
+      return;
+    }
+  }
 
   // Allocate space for app dex cache arrays in the .bss section.
   bss_start_ = RoundUp(oat_size_, kPageSize);
-  PointerSize pointer_size = GetInstructionSetPointerSize(instruction_set);
   bss_size_ = 0u;
-  for (const DexFile* dex_file : *dex_files_) {
-    dex_cache_arrays_offsets_.Put(dex_file, bss_start_ + bss_size_);
-    DexCacheArraysLayout layout(pointer_size, dex_file);
-    bss_size_ += layout.Size();
+  if (!HasBootImage()) {
+    PointerSize pointer_size = GetInstructionSetPointerSize(instruction_set);
+    for (const DexFile* dex_file : *dex_files_) {
+      dex_cache_arrays_offsets_.Put(dex_file, bss_start_ + bss_size_);
+      DexCacheArraysLayout layout(pointer_size, dex_file);
+      bss_size_ += layout.Size();
+    }
   }
 
   bss_roots_offset_ = bss_size_;
 
+  // Prepare offsets for .bss Class entries.
+  for (auto& entry : bss_type_entries_) {
+    DCHECK_EQ(entry.second, 0u);
+    entry.second = bss_start_ + bss_size_;
+    bss_size_ += sizeof(GcRoot<mirror::Class>);
+  }
   // Prepare offsets for .bss String entries.
   for (auto& entry : bss_string_entries_) {
     DCHECK_EQ(entry.second, 0u);

@@ -351,7 +351,7 @@ ClassLinker::ClassLinker(InternTable* intern_table)
       array_iftable_(nullptr),
       find_array_class_cache_next_victim_(0),
       init_done_(false),
-      log_new_class_table_roots_(false),
+      log_new_roots_(false),
       intern_table_(intern_table),
       quick_resolution_trampoline_(nullptr),
       quick_imt_conflict_trampoline_(nullptr),
@@ -1865,12 +1865,10 @@ bool ClassLinker::AddImageSpace(
                     << reinterpret_cast<const void*>(section_end);
       }
     }
-    if (!oat_file->GetBssGcRoots().empty()) {
-      // Insert oat file to class table for visiting .bss GC roots.
-      class_table->InsertOatFile(oat_file);
-    }
-  } else {
-    DCHECK(oat_file->GetBssGcRoots().empty());
+  }
+  if (!oat_file->GetBssGcRoots().empty()) {
+    // Insert oat file to class table for visiting .bss GC roots.
+    class_table->InsertOatFile(oat_file);
   }
   if (added_class_table) {
     WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
@@ -1934,14 +1932,27 @@ void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
       // Concurrent moving GC marked new roots through the to-space invariant.
       CHECK_EQ(new_ref, old_ref);
     }
+    for (const OatFile* oat_file : new_bss_roots_boot_oat_files_) {
+      for (GcRoot<mirror::Object>& root : oat_file->GetBssGcRoots()) {
+        ObjPtr<mirror::Object> old_ref = root.Read<kWithoutReadBarrier>();
+        if (old_ref != nullptr) {
+          DCHECK(old_ref->IsClass());
+          root.VisitRoot(visitor, RootInfo(kRootStickyClass));
+          ObjPtr<mirror::Object> new_ref = root.Read<kWithoutReadBarrier>();
+          // Concurrent moving GC marked new roots through the to-space invariant.
+          CHECK_EQ(new_ref, old_ref);
+        }
+      }
+    }
   }
   if ((flags & kVisitRootFlagClearRootLog) != 0) {
     new_class_roots_.clear();
+    new_bss_roots_boot_oat_files_.clear();
   }
   if ((flags & kVisitRootFlagStartLoggingNewRoots) != 0) {
-    log_new_class_table_roots_ = true;
+    log_new_roots_ = true;
   } else if ((flags & kVisitRootFlagStopLoggingNewRoots) != 0) {
-    log_new_class_table_roots_ = false;
+    log_new_roots_ = false;
   }
   // We deliberately ignore the class roots in the image since we
   // handle image roots by using the MS/CMS rescanning of dirty cards.
@@ -3307,6 +3318,7 @@ mirror::DexCache* ClassLinker::RegisterDexFile(const DexFile& dex_file,
     ReaderMutexLock mu(self, *Locks::dex_lock_);
     ObjPtr<mirror::DexCache> dex_cache = FindDexCacheLocked(self, dex_file, true);
     if (dex_cache != nullptr) {
+      // TODO: Check if the dex file was registered with the same class loader. Bug: 34193123
       return dex_cache.Ptr();
     }
   }
@@ -3651,7 +3663,7 @@ mirror::Class* ClassLinker::InsertClass(const char* descriptor, ObjPtr<mirror::C
       // This is necessary because we need to have the card dirtied for remembered sets.
       Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(class_loader);
     }
-    if (log_new_class_table_roots_) {
+    if (log_new_roots_) {
       new_class_roots_.push_back(GcRoot<mirror::Class>(klass));
     }
   }
@@ -3662,6 +3674,14 @@ mirror::Class* ClassLinker::InsertClass(const char* descriptor, ObjPtr<mirror::C
     }
   }
   return nullptr;
+}
+
+void ClassLinker::WriteBarrierForBootOatFileBssRoots(const OatFile* oat_file) {
+  WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
+  DCHECK(!oat_file->GetBssGcRoots().empty()) << oat_file->GetLocation();
+  if (log_new_roots_ && !ContainsElement(new_bss_roots_boot_oat_files_, oat_file)) {
+    new_bss_roots_boot_oat_files_.push_back(oat_file);
+  }
 }
 
 // TODO This should really be in mirror::Class.
@@ -5161,7 +5181,7 @@ bool ClassLinker::LinkClass(Thread* self,
         Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(class_loader);
       }
       CHECK_EQ(existing, klass.Get());
-      if (log_new_class_table_roots_) {
+      if (log_new_roots_) {
         new_class_roots_.push_back(GcRoot<mirror::Class>(h_new_class.Get()));
       }
     }
