@@ -295,13 +295,13 @@ static void BoundTypeForClassCheck(HInstruction* check) {
   }
 
   if (check->IsIf()) {
-    HBasicBlock* trueBlock = check->IsEqual()
+    HBasicBlock* trueBlock = compare->IsEqual()
         ? check->AsIf()->IfTrueSuccessor()
         : check->AsIf()->IfFalseSuccessor();
     BoundTypeIn(receiver, trueBlock, /* start_instruction */ nullptr, class_rti);
   } else {
     DCHECK(check->IsDeoptimize());
-    if (check->IsEqual()) {
+    if (compare->IsEqual()) {
       BoundTypeIn(receiver, check->GetBlock(), check, class_rti);
     }
   }
