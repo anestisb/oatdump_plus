@@ -297,7 +297,6 @@ TEST_ART_BROKEN_TARGET_TESTS += \
   922-properties \
   923-monitors \
   924-threads \
-  925-threadgroups \
   926-multi-obsolescence \
 
 ifneq (,$(filter target,$(TARGET_TYPES)))
