@@ -5718,16 +5718,6 @@ HLoadClass::LoadKind CodeGeneratorARM::GetSupportedLoadClassKind(
       break;
     case HLoadClass::LoadKind::kJitTableAddress:
       break;
-    case HLoadClass::LoadKind::kDexCachePcRelative:
-      DCHECK(!Runtime::Current()->UseJitCompilation());
-      // We disable pc-relative load when there is an irreducible loop, as the optimization
-      // is incompatible with it.
-      // TODO: Create as many ArmDexCacheArraysBase instructions as needed for methods
-      // with irreducible loops.
-      if (GetGraph()->HasIrreducibleLoops()) {
-        return HLoadClass::LoadKind::kDexCacheViaMethod;
-      }
-      break;
     case HLoadClass::LoadKind::kDexCacheViaMethod:
       break;
   }
@@ -5756,8 +5746,7 @@ void LocationsBuilderARM::VisitLoadClass(HLoadClass* cls) {
 
   HLoadClass::LoadKind load_kind = cls->GetLoadKind();
   if (load_kind == HLoadClass::LoadKind::kReferrersClass ||
-      load_kind == HLoadClass::LoadKind::kDexCacheViaMethod ||
-      load_kind == HLoadClass::LoadKind::kDexCachePcRelative) {
+      load_kind == HLoadClass::LoadKind::kDexCacheViaMethod) {
     locations->SetInAt(0, Location::RequiresRegister());
   }
   locations->SetOut(Location::RequiresRegister());
@@ -5823,15 +5812,6 @@ void InstructionCodeGeneratorARM::VisitLoadClass(HLoadClass* cls) {
                                                                cls->GetAddress()));
       // /* GcRoot<mirror::Class> */ out = *out
       GenerateGcRootFieldLoad(cls, out_loc, out, /* offset */ 0, kCompilerReadBarrierOption);
-      break;
-    }
-    case HLoadClass::LoadKind::kDexCachePcRelative: {
-      Register base_reg = locations->InAt(0).AsRegister<Register>();
-      HArmDexCacheArraysBase* base = cls->InputAt(0)->AsArmDexCacheArraysBase();
-      int32_t offset = cls->GetDexCacheElementOffset() - base->GetElementOffset();
-      // /* GcRoot<mirror::Class> */ out = *(dex_cache_arrays_base + offset)
-      GenerateGcRootFieldLoad(cls, out_loc, base_reg, offset, read_barrier_option);
-      generate_null_check = !cls->IsInDexCache();
       break;
     }
     case HLoadClass::LoadKind::kDexCacheViaMethod: {
