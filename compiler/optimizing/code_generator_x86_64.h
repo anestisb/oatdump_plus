@@ -410,6 +410,7 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   void RecordSimplePatch();
   void RecordBootStringPatch(HLoadString* load_string);
   void RecordTypePatch(HLoadClass* load_class);
+  Label* NewTypeBssEntryPatch(HLoadClass* load_class);
   Label* NewStringBssEntryPatch(HLoadString* load_string);
   Label* NewPcRelativeDexCacheArrayPatch(const DexFile& dex_file, uint32_t element_offset);
   Label* NewJitRootStringPatch(const DexFile& dex_file,
@@ -604,7 +605,7 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   ArenaDeque<Label> simple_patches_;
   // String patch locations; type depends on configuration (app .bss or boot image PIC).
   ArenaDeque<PatchInfo<Label>> string_patches_;
-  // Type patch locations.
+  // Type patch locations; type depends on configuration (app .bss or boot image PIC).
   ArenaDeque<PatchInfo<Label>> type_patches_;
 
   // Fixups for jump tables need to be handled specially.

@@ -31,6 +31,7 @@
 #include "os.h"
 #include "safe_map.h"
 #include "string_reference.h"
+#include "utils/type_reference.h"
 
 namespace art {
 
@@ -371,6 +372,11 @@ class OatWriter {
 
   // The offset of the GC roots in .bss section.
   size_t bss_roots_offset_;
+
+  // Map for allocating Class entries in .bss. Indexed by TypeReference for the source
+  // type in the dex file with the "type value comparator" for deduplication. The value
+  // is the target offset for patching, starting at `bss_start_ + bss_roots_offset_`.
+  SafeMap<TypeReference, size_t, TypeReferenceValueComparator> bss_type_entries_;
 
   // Map for allocating String entries in .bss. Indexed by StringReference for the source
   // string in the dex file with the "string value comparator" for deduplication. The value

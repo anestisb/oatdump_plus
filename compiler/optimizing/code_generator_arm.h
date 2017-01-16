@@ -481,7 +481,8 @@ class CodeGeneratorARM : public CodeGenerator {
     Label add_pc_label;
   };
 
-  PcRelativePatchInfo* NewPcRelativeStringPatch(const DexFile& dex_file, uint32_t string_index);
+  PcRelativePatchInfo* NewPcRelativeStringPatch(const DexFile& dex_file,
+                                                dex::StringIndex string_index);
   PcRelativePatchInfo* NewPcRelativeTypePatch(const DexFile& dex_file, dex::TypeIndex type_index);
   PcRelativePatchInfo* NewPcRelativeDexCacheArrayPatch(const DexFile& dex_file,
                                                        uint32_t element_offset);
@@ -635,7 +636,7 @@ class CodeGeneratorARM : public CodeGenerator {
   ArenaDeque<PcRelativePatchInfo> pc_relative_string_patches_;
   // Deduplication map for boot type literals for kBootImageLinkTimeAddress.
   TypeToLiteralMap boot_image_type_patches_;
-  // PC-relative type patch info.
+  // PC-relative type patch info; type depends on configuration (app .bss or boot image PIC).
   ArenaDeque<PcRelativePatchInfo> pc_relative_type_patches_;
   // Deduplication map for patchable boot image addresses.
   Uint32ToLiteralMap boot_image_address_patches_;
