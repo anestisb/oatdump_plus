@@ -757,6 +757,7 @@ struct MethodHandleImplOffsets : public CheckOffsets<mirror::MethodHandleImpl> {
 struct EmulatedStackFrameOffsets : public CheckOffsets<mirror::EmulatedStackFrame> {
   EmulatedStackFrameOffsets() : CheckOffsets<mirror::EmulatedStackFrame>(
       false, "Ldalvik/system/EmulatedStackFrame;") {
+    addOffset(OFFSETOF_MEMBER(mirror::EmulatedStackFrame, callsite_type_), "callsiteType");
     addOffset(OFFSETOF_MEMBER(mirror::EmulatedStackFrame, references_), "references");
     addOffset(OFFSETOF_MEMBER(mirror::EmulatedStackFrame, stack_frame_), "stackFrame");
     addOffset(OFFSETOF_MEMBER(mirror::EmulatedStackFrame, type_), "type");
