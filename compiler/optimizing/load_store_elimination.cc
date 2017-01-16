@@ -943,6 +943,10 @@ class LSEVisitor : public HGraphVisitor {
     HandleInvoke(invoke);
   }
 
+  void VisitInvokePolymorphic(HInvokePolymorphic* invoke) OVERRIDE {
+    HandleInvoke(invoke);
+  }
+
   void VisitClinitCheck(HClinitCheck* clinit) OVERRIDE {
     HandleInvoke(clinit);
   }

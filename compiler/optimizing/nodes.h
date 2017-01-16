@@ -1294,6 +1294,7 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(InvokeInterface, Invoke)                                            \
   M(InvokeStaticOrDirect, Invoke)                                       \
   M(InvokeVirtual, Invoke)                                              \
+  M(InvokePolymorphic, Invoke)                                          \
   M(LessThan, Condition)                                                \
   M(LessThanOrEqual, Condition)                                         \
   M(LoadClass, Instruction)                                             \
@@ -3984,6 +3985,28 @@ class HInvokeUnresolved FINAL : public HInvoke {
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HInvokeUnresolved);
+};
+
+class HInvokePolymorphic FINAL : public HInvoke {
+ public:
+  HInvokePolymorphic(ArenaAllocator* arena,
+                     uint32_t number_of_arguments,
+                     Primitive::Type return_type,
+                     uint32_t dex_pc,
+                     uint32_t dex_method_index)
+      : HInvoke(arena,
+                number_of_arguments,
+                0u /* number_of_other_inputs */,
+                return_type,
+                dex_pc,
+                dex_method_index,
+                nullptr,
+                kVirtual) {}
+
+  DECLARE_INSTRUCTION(InvokePolymorphic);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HInvokePolymorphic);
 };
 
 class HInvokeStaticOrDirect FINAL : public HInvoke {
