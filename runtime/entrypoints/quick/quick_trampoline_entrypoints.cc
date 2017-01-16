@@ -2427,7 +2427,7 @@ extern "C" uintptr_t artInvokePolymorphic(
   const size_t shorty_length = strlen(shorty);
   static const bool kMethodIsStatic = false;  // invoke() and invokeExact() are not static.
   RememberForGcArgumentVisitor gc_visitor(sp, kMethodIsStatic, shorty, shorty_length, &soa);
-  gc_visitor.Visit();
+  gc_visitor.VisitArguments();
 
   // Wrap raw_method_handle in a Handle for safety.
   StackHandleScope<5> hs(self);
