@@ -196,7 +196,7 @@
   const-class v0, LMain;
   if-ne v0, v2, :exit
   :other_loop_entry
-  const-class v1, Ljava/lang/Class;  # LoadClass that can throw
+  const-class v1, LOther;  # LoadClass that can throw
   goto :loop_entry
   :exit
   return-object v0
@@ -250,7 +250,7 @@
   const/4 v0, 0
   if-ne p0, v0, :other_loop_entry
   :loop_entry
-  const-class v1, Ljava/lang/Class;  # LoadClass that can throw
+  const-class v1, LOther;  # LoadClass that can throw
   if-ne v0, p0, :exit
   :other_loop_entry
   sub-int v1, p0, p0
@@ -286,7 +286,7 @@
 .method public static licm3(III)I
   .registers 4
   :loop_entry
-  const-class v0, Ljava/lang/Class;  # LoadClass that can throw
+  const-class v0, LOther;  # LoadClass that can throw
   if-ne p1, p2, :exit
   goto :loop_body
 

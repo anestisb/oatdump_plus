@@ -3479,38 +3479,36 @@ void InstructionCodeGeneratorMIPS64::VisitInvokeVirtual(HInvokeVirtual* invoke) 
 }
 
 void LocationsBuilderMIPS64::VisitLoadClass(HLoadClass* cls) {
-  if (cls->NeedsAccessCheck()) {
+  HLoadClass::LoadKind load_kind = cls->GetLoadKind();
+  if (load_kind == HLoadClass::LoadKind::kDexCacheViaMethod) {
     InvokeRuntimeCallingConvention calling_convention;
-    CodeGenerator::CreateLoadClassLocationSummary(
+    CodeGenerator::CreateLoadClassRuntimeCallLocationSummary(
         cls,
         Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
-        calling_convention.GetReturnLocation(Primitive::kPrimNot),
-        /* code_generator_supports_read_barrier */ false);
+        calling_convention.GetReturnLocation(Primitive::kPrimNot));
     return;
   }
+  DCHECK(!cls->NeedsAccessCheck());
 
   LocationSummary::CallKind call_kind = (cls->NeedsEnvironment() || kEmitCompilerReadBarrier)
       ? LocationSummary::kCallOnSlowPath
       : LocationSummary::kNoCall;
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(cls, call_kind);
-  HLoadClass::LoadKind load_kind = cls->GetLoadKind();
-  if (load_kind == HLoadClass::LoadKind::kReferrersClass ||
-      load_kind == HLoadClass::LoadKind::kDexCacheViaMethod) {
+  if (load_kind == HLoadClass::LoadKind::kReferrersClass) {
     locations->SetInAt(0, Location::RequiresRegister());
   }
   locations->SetOut(Location::RequiresRegister());
 }
 
 void InstructionCodeGeneratorMIPS64::VisitLoadClass(HLoadClass* cls) {
-  LocationSummary* locations = cls->GetLocations();
-  if (cls->NeedsAccessCheck()) {
-    codegen_->MoveConstant(locations->GetTemp(0), cls->GetTypeIndex().index_);
-    codegen_->InvokeRuntime(kQuickInitializeTypeAndVerifyAccess, cls, cls->GetDexPc());
-    CheckEntrypointTypes<kQuickInitializeTypeAndVerifyAccess, void*, uint32_t>();
+  HLoadClass::LoadKind load_kind = cls->GetLoadKind();
+  if (load_kind == HLoadClass::LoadKind::kDexCacheViaMethod) {
+    codegen_->GenerateLoadClassRuntimeCall(cls);
     return;
   }
+  DCHECK(!cls->NeedsAccessCheck());
 
-  HLoadClass::LoadKind load_kind = cls->GetLoadKind();
+  LocationSummary* locations = cls->GetLocations();
   Location out_loc = locations->Out();
   GpuRegister out = out_loc.AsRegister<GpuRegister>();
   GpuRegister current_method_reg = ZERO;
@@ -3558,18 +3556,9 @@ void InstructionCodeGeneratorMIPS64::VisitLoadClass(HLoadClass* cls) {
       LOG(FATAL) << "Unimplemented";
       break;
     }
-    case HLoadClass::LoadKind::kDexCacheViaMethod: {
-      // /* GcRoot<mirror::Class>[] */ out =
-      //        current_method.ptr_sized_fields_->dex_cache_resolved_types_
-      __ LoadFromOffset(kLoadDoubleword,
-                        out,
-                        current_method_reg,
-                        ArtMethod::DexCacheResolvedTypesOffset(kMips64PointerSize).Int32Value());
-      // /* GcRoot<mirror::Class> */ out = out[type_index]
-      size_t offset = CodeGenerator::GetCacheOffset(cls->GetTypeIndex().index_);
-      GenerateGcRootFieldLoad(cls, out_loc, out, offset);
-      generate_null_check = !cls->IsInDexCache();
-    }
+    case HLoadClass::LoadKind::kDexCacheViaMethod:
+      LOG(FATAL) << "UNREACHABLE";
+      UNREACHABLE();
   }
 
   if (generate_null_check || cls->MustGenerateClinitCheck()) {
