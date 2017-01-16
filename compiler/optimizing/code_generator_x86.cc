@@ -2244,6 +2244,14 @@ void InstructionCodeGeneratorX86::VisitInvokeInterface(HInvokeInterface* invoke)
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
 
+void LocationsBuilderX86::VisitInvokePolymorphic(HInvokePolymorphic* invoke) {
+  HandleInvoke(invoke);
+}
+
+void InstructionCodeGeneratorX86::VisitInvokePolymorphic(HInvokePolymorphic* invoke) {
+  codegen_->GenerateInvokePolymorphicCall(invoke);
+}
+
 void LocationsBuilderX86::VisitNeg(HNeg* neg) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(neg, LocationSummary::kNoCall);

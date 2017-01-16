@@ -428,6 +428,8 @@ static bool IsValidImplicitCheck(uintptr_t addr, ArtMethod* method, const Instru
     case Instruction::INVOKE_VIRTUAL_RANGE:
     case Instruction::INVOKE_INTERFACE:
     case Instruction::INVOKE_INTERFACE_RANGE:
+    case Instruction::INVOKE_POLYMORPHIC:
+    case Instruction::INVOKE_POLYMORPHIC_RANGE:
     case Instruction::INVOKE_VIRTUAL_QUICK:
     case Instruction::INVOKE_VIRTUAL_RANGE_QUICK: {
       // Without inlining, we could just check that the offset is the class offset.
@@ -550,6 +552,12 @@ void ThrowNullPointerExceptionFromDexPC(bool check_address, uintptr_t addr) {
       break;
     case Instruction::INVOKE_INTERFACE_RANGE:
       ThrowNullPointerExceptionForMethodAccess(instr->VRegB_3rc(), kInterface);
+      break;
+    case Instruction::INVOKE_POLYMORPHIC:
+      ThrowNullPointerExceptionForMethodAccess(instr->VRegB_45cc(), kVirtual);
+      break;
+    case Instruction::INVOKE_POLYMORPHIC_RANGE:
+      ThrowNullPointerExceptionForMethodAccess(instr->VRegB_4rcc(), kVirtual);
       break;
     case Instruction::INVOKE_VIRTUAL_QUICK:
     case Instruction::INVOKE_VIRTUAL_RANGE_QUICK: {

@@ -2105,7 +2105,7 @@ ENTRY_NO_GP art_quick_indexof
   li    $v0,-1          #     return -1;
 
   sll   $v0,$a2,1       # $a0 += $a2 * 2
-  daddu $a0,$a0,$v0     #  "  "   "  " "
+  daddu $a0,$a0,$v0     #  "  ditto  "
   move  $v0,$a2         # Set i to fromIndex.
 
 1:
@@ -2123,5 +2123,66 @@ ENTRY_NO_GP art_quick_indexof
   j     $ra
   nop
 END art_quick_indexof
+
+.extern artInvokePolymorphic
+ENTRY art_quick_invoke_polymorphic
+    SETUP_SAVE_REFS_AND_ARGS_FRAME
+    move   $a2, rSELF                          # Make $a2 an alias for the current Thread.
+    move   $a3, $sp                            # Make $a3 a pointer to the saved frame context.
+    daddiu $sp, $sp, -8                        # Reserve space for JValue result.
+    .cfi_adjust_cfa_offset 8
+    sd     $zero, 0($sp)                       # Initialize JValue result.
+    move   $a0, $sp                            # Make $a0 a pointer to the JValue result
+    jal    artInvokePolymorphic                # (result, receiver, Thread*, context)
+    nop
+.macro MATCH_RETURN_TYPE c, handler
+    li     $t0, \c
+    beq    $v0, $t0, \handler
+.endm
+    MATCH_RETURN_TYPE 'V', .Lcleanup_and_return
+    MATCH_RETURN_TYPE 'L', .Lstore_ref_result
+    MATCH_RETURN_TYPE 'I', .Lstore_long_result
+    MATCH_RETURN_TYPE 'J', .Lstore_long_result
+    MATCH_RETURN_TYPE 'B', .Lstore_long_result
+    MATCH_RETURN_TYPE 'C', .Lstore_char_result
+    MATCH_RETURN_TYPE 'D', .Lstore_double_result
+    MATCH_RETURN_TYPE 'F', .Lstore_float_result
+    MATCH_RETURN_TYPE 'S', .Lstore_long_result
+.purgem MATCH_RETURN_TYPE
+    nop
+    b .Lcleanup_and_return
+    nop
+.Lstore_boolean_result:
+    lbu    $v0, 0($sp)                         # Move byte from JValue result to return value register.
+    b      .Lcleanup_and_return
+    nop
+.Lstore_char_result:
+    lhu    $v0, 0($sp)                         # Move char from JValue result to return value register.
+    b      .Lcleanup_and_return
+    nop
+.Lstore_double_result:
+.Lstore_float_result:
+    l.d    $f0, 0($sp)                         # Move double/float from JValue result to return value register.
+    b      .Lcleanup_and_return
+    nop
+.Lstore_ref_result:
+    lwu    $v0, 0($sp)                         # Move zero extended lower 32-bits to return value register.
+    b      .Lcleanup_and_return
+    nop
+.Lstore_long_result:
+    ld     $v0, 0($sp)                         # Move long from JValue result to return value register.
+    // Fall-through to clean up and return.
+.Lcleanup_and_return:
+    daddiu $sp, $sp, 8                         # Remove space for JValue result.
+    .cfi_adjust_cfa_offset -8
+    ld     $t0, THREAD_EXCEPTION_OFFSET(rSELF) # Load Thread::Current()->exception_
+    RESTORE_SAVE_REFS_AND_ARGS_FRAME
+    bnez   $t0, 1f                             # Success if no exception is pending.
+    nop
+    jalr   $zero, $ra
+    nop
+1:
+    DELIVER_PENDING_EXCEPTION
+END art_quick_invoke_polymorphic
 
   .set pop
