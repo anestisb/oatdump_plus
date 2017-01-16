@@ -27,7 +27,7 @@ TEST(Mips64InstructionSetFeaturesTest, Mips64Features) {
   ASSERT_TRUE(mips64_features.get() != nullptr) << error_msg;
   EXPECT_EQ(mips64_features->GetInstructionSet(), kMips64);
   EXPECT_TRUE(mips64_features->Equals(mips64_features.get()));
-  EXPECT_STREQ("", mips64_features->GetFeatureString().c_str());
+  EXPECT_STREQ("default", mips64_features->GetFeatureString().c_str());
   EXPECT_EQ(mips64_features->AsBitmap(), 0U);
 }
 
