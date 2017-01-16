@@ -432,7 +432,7 @@ class LoadClassSlowPathARMVIXL : public SlowPathCodeARMVIXL {
       // kSaveEverything and use a temporary for the .bss entry address in the fast path,
       // so that we can avoid another calculation here.
       CodeGeneratorARMVIXL::PcRelativePatchInfo* labels =
-          arm_codegen->NewPcRelativeTypePatch(cls_->GetDexFile(), type_index);
+          arm_codegen->NewTypeBssEntryPatch(cls_->GetDexFile(), type_index);
       arm_codegen->EmitMovwMovtPlaceholder(labels, ip);
       __ Str(OutputRegister(cls_), MemOperand(ip));
     }
@@ -1261,6 +1261,7 @@ CodeGeneratorARMVIXL::CodeGeneratorARMVIXL(HGraph* graph,
       boot_image_type_patches_(TypeReferenceValueComparator(),
                                graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       pc_relative_type_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      type_bss_entry_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       boot_image_address_patches_(std::less<uint32_t>(),
                                   graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       jit_string_patches_(StringReferenceValueComparator(),
@@ -5897,9 +5898,8 @@ void InstructionCodeGeneratorARMVIXL::VisitLoadClass(HLoadClass* cls) {
       break;
     }
     case HLoadClass::LoadKind::kBssEntry: {
-      DCHECK(!codegen_->GetCompilerOptions().IsBootImage());
       CodeGeneratorARMVIXL::PcRelativePatchInfo* labels =
-          codegen_->NewPcRelativeTypePatch(cls->GetDexFile(), cls->GetTypeIndex());
+          codegen_->NewTypeBssEntryPatch(cls->GetDexFile(), cls->GetTypeIndex());
       codegen_->EmitMovwMovtPlaceholder(labels, out);
       GenerateGcRootFieldLoad(cls, out_loc, out, 0, kCompilerReadBarrierOption);
       generate_null_check = true;
@@ -7405,6 +7405,11 @@ CodeGeneratorARMVIXL::PcRelativePatchInfo* CodeGeneratorARMVIXL::NewPcRelativeTy
   return NewPcRelativePatch(dex_file, type_index.index_, &pc_relative_type_patches_);
 }
 
+CodeGeneratorARMVIXL::PcRelativePatchInfo* CodeGeneratorARMVIXL::NewTypeBssEntryPatch(
+    const DexFile& dex_file, dex::TypeIndex type_index) {
+  return NewPcRelativePatch(dex_file, type_index.index_, &type_bss_entry_patches_);
+}
+
 CodeGeneratorARMVIXL::PcRelativePatchInfo* CodeGeneratorARMVIXL::NewPcRelativeDexCacheArrayPatch(
     const DexFile& dex_file, uint32_t element_offset) {
   return NewPcRelativePatch(dex_file, element_offset, &pc_relative_dex_cache_patches_);
@@ -7498,6 +7503,7 @@ void CodeGeneratorARMVIXL::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_pa
       /* MOVW+MOVT for each entry */ 2u * pc_relative_string_patches_.size() +
       boot_image_type_patches_.size() +
       /* MOVW+MOVT for each entry */ 2u * pc_relative_type_patches_.size() +
+      /* MOVW+MOVT for each entry */ 2u * type_bss_entry_patches_.size() +
       boot_image_address_patches_.size();
   linker_patches->reserve(size);
   EmitPcRelativeLinkerPatches<LinkerPatch::DexCacheArrayPatch>(pc_relative_dex_cache_patches_,
@@ -7512,8 +7518,7 @@ void CodeGeneratorARMVIXL::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_pa
                                                        target_string.string_index.index_));
   }
   if (!GetCompilerOptions().IsBootImage()) {
-    EmitPcRelativeLinkerPatches<LinkerPatch::TypeBssEntryPatch>(pc_relative_type_patches_,
-                                                                linker_patches);
+    DCHECK(pc_relative_type_patches_.empty());
     EmitPcRelativeLinkerPatches<LinkerPatch::StringBssEntryPatch>(pc_relative_string_patches_,
                                                                   linker_patches);
   } else {
@@ -7522,6 +7527,8 @@ void CodeGeneratorARMVIXL::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_pa
     EmitPcRelativeLinkerPatches<LinkerPatch::RelativeStringPatch>(pc_relative_string_patches_,
                                                                   linker_patches);
   }
+  EmitPcRelativeLinkerPatches<LinkerPatch::TypeBssEntryPatch>(type_bss_entry_patches_,
+                                                              linker_patches);
   for (const auto& entry : boot_image_type_patches_) {
     const TypeReference& target_type = entry.first;
     VIXLUInt32Literal* literal = entry.second;
@@ -7538,6 +7545,7 @@ void CodeGeneratorARMVIXL::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_pa
     uint32_t literal_offset = literal->GetLocation();
     linker_patches->push_back(LinkerPatch::RecordPosition(literal_offset));
   }
+  DCHECK_EQ(size, linker_patches->size());
 }
 
 VIXLUInt32Literal* CodeGeneratorARMVIXL::DeduplicateUint32Literal(

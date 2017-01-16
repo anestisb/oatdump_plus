@@ -39,13 +39,17 @@ static inline void BssWriteBarrier(ArtMethod* outer_method) REQUIRES_SHARED(Lock
       dex_file->GetOatDexFile() != nullptr &&
       !dex_file->GetOatDexFile()->GetOatFile()->GetBssGcRoots().empty()) {
     mirror::ClassLoader* class_loader = outer_method->GetClassLoader();
-    DCHECK(class_loader != nullptr);  // We do not use .bss GC roots for boot image.
-    DCHECK(!class_loader->GetClassTable()->InsertOatFile(dex_file->GetOatDexFile()->GetOatFile()))
-        << "Oat file with .bss GC roots was not registered in class table: "
-        << dex_file->GetOatDexFile()->GetOatFile()->GetLocation();
-    // Note that we emit the barrier before the compiled code stores the String or Class
-    // as a GC root. This is OK as there is no suspend point point in between.
-    Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(class_loader);
+    if (class_loader != nullptr) {
+      DCHECK(!class_loader->GetClassTable()->InsertOatFile(dex_file->GetOatDexFile()->GetOatFile()))
+          << "Oat file with .bss GC roots was not registered in class table: "
+          << dex_file->GetOatDexFile()->GetOatFile()->GetLocation();
+      // Note that we emit the barrier before the compiled code stores the String or Class
+      // as a GC root. This is OK as there is no suspend point point in between.
+      Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(class_loader);
+    } else {
+      Runtime::Current()->GetClassLinker()->WriteBarrierForBootOatFileBssRoots(
+          dex_file->GetOatDexFile()->GetOatFile());
+    }
   }
 }
 
