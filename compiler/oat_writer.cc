@@ -586,7 +586,7 @@ void OatWriter::PrepareLayout(linker::MultiOatRelativePatcher* relative_patcher)
   }
   oat_size_ = offset;
 
-  if (!HasBootImage()) {
+  {
     TimingLogger::ScopedTiming split("InitBssLayout", timings_);
     InitBssLayout(instruction_set);
   }
@@ -1633,16 +1633,24 @@ size_t OatWriter::InitOatCodeDexFiles(size_t offset) {
 }
 
 void OatWriter::InitBssLayout(InstructionSet instruction_set) {
-  DCHECK(!HasBootImage());
+  if (HasBootImage()) {
+    DCHECK(bss_string_entries_.empty());
+    if (bss_type_entries_.empty()) {
+      // Nothing to put to the .bss section.
+      return;
+    }
+  }
 
   // Allocate space for app dex cache arrays in the .bss section.
   bss_start_ = RoundUp(oat_size_, kPageSize);
-  PointerSize pointer_size = GetInstructionSetPointerSize(instruction_set);
   bss_size_ = 0u;
-  for (const DexFile* dex_file : *dex_files_) {
-    dex_cache_arrays_offsets_.Put(dex_file, bss_start_ + bss_size_);
-    DexCacheArraysLayout layout(pointer_size, dex_file);
-    bss_size_ += layout.Size();
+  if (!HasBootImage()) {
+    PointerSize pointer_size = GetInstructionSetPointerSize(instruction_set);
+    for (const DexFile* dex_file : *dex_files_) {
+      dex_cache_arrays_offsets_.Put(dex_file, bss_start_ + bss_size_);
+      DexCacheArraysLayout layout(pointer_size, dex_file);
+      bss_size_ += layout.Size();
+    }
   }
 
   bss_roots_offset_ = bss_size_;

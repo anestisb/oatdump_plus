@@ -318,10 +318,10 @@ class LoadClassSlowPathARM64 : public SlowPathCodeARM64 {
       // kSaveEverything and use a temporary for the ADRP in the fast path, so that we
       // can avoid the ADRP here.
       vixl::aarch64::Label* adrp_label =
-          arm64_codegen->NewPcRelativeTypePatch(dex_file, type_index);
+          arm64_codegen->NewBssEntryTypePatch(dex_file, type_index);
       arm64_codegen->EmitAdrpPlaceholder(adrp_label, temp);
       vixl::aarch64::Label* strp_label =
-          arm64_codegen->NewPcRelativeTypePatch(dex_file, type_index, adrp_label);
+          arm64_codegen->NewBssEntryTypePatch(dex_file, type_index, adrp_label);
       {
         SingleEmissionCheckScope guard(arm64_codegen->GetVIXLAssembler());
         __ Bind(strp_label);
@@ -1172,6 +1172,7 @@ CodeGeneratorARM64::CodeGeneratorARM64(HGraph* graph,
       boot_image_type_patches_(TypeReferenceValueComparator(),
                                graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       pc_relative_type_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      type_bss_entry_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       boot_image_address_patches_(std::less<uint32_t>(),
                                   graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       jit_string_patches_(StringReferenceValueComparator(),
@@ -4121,6 +4122,13 @@ vixl::aarch64::Label* CodeGeneratorARM64::NewPcRelativeTypePatch(
   return NewPcRelativePatch(dex_file, type_index.index_, adrp_label, &pc_relative_type_patches_);
 }
 
+vixl::aarch64::Label* CodeGeneratorARM64::NewBssEntryTypePatch(
+    const DexFile& dex_file,
+    dex::TypeIndex type_index,
+    vixl::aarch64::Label* adrp_label) {
+  return NewPcRelativePatch(dex_file, type_index.index_, adrp_label, &type_bss_entry_patches_);
+}
+
 vixl::aarch64::Label* CodeGeneratorARM64::NewPcRelativeDexCacheArrayPatch(
     const DexFile& dex_file,
     uint32_t element_offset,
@@ -4227,6 +4235,7 @@ void CodeGeneratorARM64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patc
       pc_relative_string_patches_.size() +
       boot_image_type_patches_.size() +
       pc_relative_type_patches_.size() +
+      type_bss_entry_patches_.size() +
       boot_image_address_patches_.size();
   linker_patches->reserve(size);
   for (const PcRelativePatchInfo& info : pc_relative_dex_cache_patches_) {
@@ -4243,8 +4252,7 @@ void CodeGeneratorARM64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patc
                                                        target_string.string_index.index_));
   }
   if (!GetCompilerOptions().IsBootImage()) {
-    EmitPcRelativeLinkerPatches<LinkerPatch::TypeBssEntryPatch>(pc_relative_type_patches_,
-                                                                linker_patches);
+    DCHECK(pc_relative_type_patches_.empty());
     EmitPcRelativeLinkerPatches<LinkerPatch::StringBssEntryPatch>(pc_relative_string_patches_,
                                                                   linker_patches);
   } else {
@@ -4253,6 +4261,8 @@ void CodeGeneratorARM64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patc
     EmitPcRelativeLinkerPatches<LinkerPatch::RelativeStringPatch>(pc_relative_string_patches_,
                                                                   linker_patches);
   }
+  EmitPcRelativeLinkerPatches<LinkerPatch::TypeBssEntryPatch>(type_bss_entry_patches_,
+                                                              linker_patches);
   for (const auto& entry : boot_image_type_patches_) {
     const TypeReference& target_type = entry.first;
     vixl::aarch64::Literal<uint32_t>* literal = entry.second;
@@ -4265,6 +4275,7 @@ void CodeGeneratorARM64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patc
     vixl::aarch64::Literal<uint32_t>* literal = entry.second;
     linker_patches->push_back(LinkerPatch::RecordPosition(literal->GetOffset()));
   }
+  DCHECK_EQ(size, linker_patches->size());
 }
 
 vixl::aarch64::Literal<uint32_t>* CodeGeneratorARM64::DeduplicateUint32Literal(uint32_t value,
@@ -4423,12 +4434,11 @@ void InstructionCodeGeneratorARM64::VisitLoadClass(HLoadClass* cls) {
       // Add ADRP with its PC-relative Class .bss entry patch.
       const DexFile& dex_file = cls->GetDexFile();
       dex::TypeIndex type_index = cls->GetTypeIndex();
-      DCHECK(!codegen_->GetCompilerOptions().IsBootImage());
-      vixl::aarch64::Label* adrp_label = codegen_->NewPcRelativeTypePatch(dex_file, type_index);
+      vixl::aarch64::Label* adrp_label = codegen_->NewBssEntryTypePatch(dex_file, type_index);
       codegen_->EmitAdrpPlaceholder(adrp_label, out.X());
       // Add LDR with its PC-relative Class patch.
       vixl::aarch64::Label* ldr_label =
-          codegen_->NewPcRelativeTypePatch(dex_file, type_index, adrp_label);
+          codegen_->NewBssEntryTypePatch(dex_file, type_index, adrp_label);
       // /* GcRoot<mirror::Class> */ out = *(base_address + offset)  /* PC-relative */
       GenerateGcRootFieldLoad(cls,
                               cls->GetLocations()->Out(),

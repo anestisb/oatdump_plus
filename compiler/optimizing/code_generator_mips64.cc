@@ -208,7 +208,7 @@ class LoadClassSlowPathMIPS64 : public SlowPathCodeMIPS64 {
       // so that we can avoid another calculation here.
       DCHECK_NE(out.AsRegister<GpuRegister>(), AT);
       CodeGeneratorMIPS64::PcRelativePatchInfo* info =
-          mips64_codegen->NewPcRelativeTypePatch(cls_->GetDexFile(), type_index);
+          mips64_codegen->NewTypeBssEntryPatch(cls_->GetDexFile(), type_index);
       mips64_codegen->EmitPcRelativeAddressPlaceholderHigh(info, AT);
       __ Sw(out.AsRegister<GpuRegister>(), AT, /* placeholder */ 0x5678);
     }
@@ -432,6 +432,7 @@ CodeGeneratorMIPS64::CodeGeneratorMIPS64(HGraph* graph,
       boot_image_type_patches_(TypeReferenceValueComparator(),
                                graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       pc_relative_type_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      type_bss_entry_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       boot_image_address_patches_(std::less<uint32_t>(),
                                   graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
   // Save RA (containing the return address) to mimic Quick.
@@ -932,6 +933,7 @@ void CodeGeneratorMIPS64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_pat
       pc_relative_dex_cache_patches_.size() +
       pc_relative_string_patches_.size() +
       pc_relative_type_patches_.size() +
+      type_bss_entry_patches_.size() +
       boot_image_string_patches_.size() +
       boot_image_type_patches_.size() +
       boot_image_address_patches_.size();
@@ -939,8 +941,7 @@ void CodeGeneratorMIPS64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_pat
   EmitPcRelativeLinkerPatches<LinkerPatch::DexCacheArrayPatch>(pc_relative_dex_cache_patches_,
                                                                linker_patches);
   if (!GetCompilerOptions().IsBootImage()) {
-    EmitPcRelativeLinkerPatches<LinkerPatch::TypeBssEntryPatch>(pc_relative_type_patches_,
-                                                                linker_patches);
+    DCHECK(pc_relative_type_patches_.empty());
     EmitPcRelativeLinkerPatches<LinkerPatch::StringBssEntryPatch>(pc_relative_string_patches_,
                                                                   linker_patches);
   } else {
@@ -949,6 +950,8 @@ void CodeGeneratorMIPS64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_pat
     EmitPcRelativeLinkerPatches<LinkerPatch::RelativeStringPatch>(pc_relative_string_patches_,
                                                                   linker_patches);
   }
+  EmitPcRelativeLinkerPatches<LinkerPatch::TypeBssEntryPatch>(type_bss_entry_patches_,
+                                                              linker_patches);
   for (const auto& entry : boot_image_string_patches_) {
     const StringReference& target_string = entry.first;
     Literal* literal = entry.second;
@@ -974,6 +977,7 @@ void CodeGeneratorMIPS64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_pat
     uint32_t literal_offset = __ GetLabelLocation(literal->GetLabel());
     linker_patches->push_back(LinkerPatch::RecordPosition(literal_offset));
   }
+  DCHECK_EQ(size, linker_patches->size());
 }
 
 CodeGeneratorMIPS64::PcRelativePatchInfo* CodeGeneratorMIPS64::NewPcRelativeStringPatch(
@@ -984,6 +988,11 @@ CodeGeneratorMIPS64::PcRelativePatchInfo* CodeGeneratorMIPS64::NewPcRelativeStri
 CodeGeneratorMIPS64::PcRelativePatchInfo* CodeGeneratorMIPS64::NewPcRelativeTypePatch(
     const DexFile& dex_file, dex::TypeIndex type_index) {
   return NewPcRelativePatch(dex_file, type_index.index_, &pc_relative_type_patches_);
+}
+
+CodeGeneratorMIPS64::PcRelativePatchInfo* CodeGeneratorMIPS64::NewTypeBssEntryPatch(
+    const DexFile& dex_file, dex::TypeIndex type_index) {
+  return NewPcRelativePatch(dex_file, type_index.index_, &type_bss_entry_patches_);
 }
 
 CodeGeneratorMIPS64::PcRelativePatchInfo* CodeGeneratorMIPS64::NewPcRelativeDexCacheArrayPatch(
@@ -3568,9 +3577,8 @@ void InstructionCodeGeneratorMIPS64::VisitLoadClass(HLoadClass* cls) {
       break;
     }
     case HLoadClass::LoadKind::kBssEntry: {
-      DCHECK(!codegen_->GetCompilerOptions().IsBootImage());
       CodeGeneratorMIPS64::PcRelativePatchInfo* info =
-          codegen_->NewPcRelativeTypePatch(cls->GetDexFile(), cls->GetTypeIndex());
+          codegen_->NewTypeBssEntryPatch(cls->GetDexFile(), cls->GetTypeIndex());
       codegen_->EmitPcRelativeAddressPlaceholderHigh(info, AT);
       __ Lwu(out, AT, /* placeholder */ 0x5678);
       generate_null_check = true;
