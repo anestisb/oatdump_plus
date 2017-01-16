@@ -409,7 +409,7 @@ class LoadClassSlowPathARM : public SlowPathCodeARM {
       // kSaveEverything and use a temporary for the .bss entry address in the fast path,
       // so that we can avoid another calculation here.
       CodeGeneratorARM::PcRelativePatchInfo* labels =
-          arm_codegen->NewPcRelativeTypePatch(cls_->GetDexFile(), type_index);
+          arm_codegen->NewTypeBssEntryPatch(cls_->GetDexFile(), type_index);
       __ BindTrackedLabel(&labels->movw_label);
       __ movw(IP, /* placeholder */ 0u);
       __ BindTrackedLabel(&labels->movt_label);
@@ -1222,6 +1222,7 @@ CodeGeneratorARM::CodeGeneratorARM(HGraph* graph,
       boot_image_type_patches_(TypeReferenceValueComparator(),
                                graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       pc_relative_type_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      type_bss_entry_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       boot_image_address_patches_(std::less<uint32_t>(),
                                   graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       jit_string_patches_(StringReferenceValueComparator(),
@@ -5826,9 +5827,8 @@ void InstructionCodeGeneratorARM::VisitLoadClass(HLoadClass* cls) {
       break;
     }
     case HLoadClass::LoadKind::kBssEntry: {
-      DCHECK(!codegen_->GetCompilerOptions().IsBootImage());
       CodeGeneratorARM::PcRelativePatchInfo* labels =
-          codegen_->NewPcRelativeTypePatch(cls->GetDexFile(), cls->GetTypeIndex());
+          codegen_->NewTypeBssEntryPatch(cls->GetDexFile(), cls->GetTypeIndex());
       __ BindTrackedLabel(&labels->movw_label);
       __ movw(out, /* placeholder */ 0u);
       __ BindTrackedLabel(&labels->movt_label);
@@ -7300,6 +7300,11 @@ CodeGeneratorARM::PcRelativePatchInfo* CodeGeneratorARM::NewPcRelativeTypePatch(
   return NewPcRelativePatch(dex_file, type_index.index_, &pc_relative_type_patches_);
 }
 
+CodeGeneratorARM::PcRelativePatchInfo* CodeGeneratorARM::NewTypeBssEntryPatch(
+    const DexFile& dex_file, dex::TypeIndex type_index) {
+  return NewPcRelativePatch(dex_file, type_index.index_, &type_bss_entry_patches_);
+}
+
 CodeGeneratorARM::PcRelativePatchInfo* CodeGeneratorARM::NewPcRelativeDexCacheArrayPatch(
     const DexFile& dex_file, uint32_t element_offset) {
   return NewPcRelativePatch(dex_file, element_offset, &pc_relative_dex_cache_patches_);
@@ -7378,6 +7383,7 @@ void CodeGeneratorARM::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patche
       /* MOVW+MOVT for each entry */ 2u * pc_relative_string_patches_.size() +
       boot_image_type_patches_.size() +
       /* MOVW+MOVT for each entry */ 2u * pc_relative_type_patches_.size() +
+      /* MOVW+MOVT for each entry */ 2u * type_bss_entry_patches_.size() +
       boot_image_address_patches_.size();
   linker_patches->reserve(size);
   EmitPcRelativeLinkerPatches<LinkerPatch::DexCacheArrayPatch>(pc_relative_dex_cache_patches_,
@@ -7392,8 +7398,7 @@ void CodeGeneratorARM::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patche
                                                        target_string.string_index.index_));
   }
   if (!GetCompilerOptions().IsBootImage()) {
-    EmitPcRelativeLinkerPatches<LinkerPatch::TypeBssEntryPatch>(pc_relative_type_patches_,
-                                                                linker_patches);
+    DCHECK(pc_relative_type_patches_.empty());
     EmitPcRelativeLinkerPatches<LinkerPatch::StringBssEntryPatch>(pc_relative_string_patches_,
                                                                   linker_patches);
   } else {
@@ -7402,6 +7407,8 @@ void CodeGeneratorARM::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patche
     EmitPcRelativeLinkerPatches<LinkerPatch::RelativeStringPatch>(pc_relative_string_patches_,
                                                                   linker_patches);
   }
+  EmitPcRelativeLinkerPatches<LinkerPatch::TypeBssEntryPatch>(type_bss_entry_patches_,
+                                                              linker_patches);
   for (const auto& entry : boot_image_type_patches_) {
     const TypeReference& target_type = entry.first;
     Literal* literal = entry.second;
@@ -7418,6 +7425,7 @@ void CodeGeneratorARM::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patche
     uint32_t literal_offset = literal->GetLabel()->Position();
     linker_patches->push_back(LinkerPatch::RecordPosition(literal_offset));
   }
+  DCHECK_EQ(size, linker_patches->size());
 }
 
 Literal* CodeGeneratorARM::DeduplicateUint32Literal(uint32_t value, Uint32ToLiteralMap* map) {

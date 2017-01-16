@@ -1084,15 +1084,15 @@ void CodeGeneratorX86_64::RecordBootStringPatch(HLoadString* load_string) {
   __ Bind(&string_patches_.back().label);
 }
 
-void CodeGeneratorX86_64::RecordTypePatch(HLoadClass* load_class) {
-  type_patches_.emplace_back(load_class->GetDexFile(), load_class->GetTypeIndex().index_);
-  __ Bind(&type_patches_.back().label);
+void CodeGeneratorX86_64::RecordBootTypePatch(HLoadClass* load_class) {
+  boot_image_type_patches_.emplace_back(load_class->GetDexFile(),
+                                        load_class->GetTypeIndex().index_);
+  __ Bind(&boot_image_type_patches_.back().label);
 }
 
 Label* CodeGeneratorX86_64::NewTypeBssEntryPatch(HLoadClass* load_class) {
-  DCHECK(!GetCompilerOptions().IsBootImage());
-  type_patches_.emplace_back(load_class->GetDexFile(), load_class->GetTypeIndex().index_);
-  return &type_patches_.back().label;
+  type_bss_entry_patches_.emplace_back(load_class->GetDexFile(), load_class->GetTypeIndex().index_);
+  return &type_bss_entry_patches_.back().label;
 }
 
 Label* CodeGeneratorX86_64::NewStringBssEntryPatch(HLoadString* load_string) {
@@ -1129,7 +1129,8 @@ void CodeGeneratorX86_64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_pat
       pc_relative_dex_cache_patches_.size() +
       simple_patches_.size() +
       string_patches_.size() +
-      type_patches_.size();
+      boot_image_type_patches_.size() +
+      type_bss_entry_patches_.size();
   linker_patches->reserve(size);
   EmitPcRelativeLinkerPatches<LinkerPatch::DexCacheArrayPatch>(pc_relative_dex_cache_patches_,
                                                                linker_patches);
@@ -1138,13 +1139,17 @@ void CodeGeneratorX86_64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_pat
     linker_patches->push_back(LinkerPatch::RecordPosition(literal_offset));
   }
   if (!GetCompilerOptions().IsBootImage()) {
-    EmitPcRelativeLinkerPatches<LinkerPatch::TypeBssEntryPatch>(type_patches_, linker_patches);
+    DCHECK(boot_image_type_patches_.empty());
     EmitPcRelativeLinkerPatches<LinkerPatch::StringBssEntryPatch>(string_patches_, linker_patches);
   } else {
     // These are always PC-relative, see GetSupportedLoadClassKind()/GetSupportedLoadStringKind().
-    EmitPcRelativeLinkerPatches<LinkerPatch::RelativeTypePatch>(type_patches_, linker_patches);
+    EmitPcRelativeLinkerPatches<LinkerPatch::RelativeTypePatch>(boot_image_type_patches_,
+                                                                linker_patches);
     EmitPcRelativeLinkerPatches<LinkerPatch::RelativeStringPatch>(string_patches_, linker_patches);
   }
+  EmitPcRelativeLinkerPatches<LinkerPatch::TypeBssEntryPatch>(type_bss_entry_patches_,
+                                                              linker_patches);
+  DCHECK_EQ(size, linker_patches->size());
 }
 
 void CodeGeneratorX86_64::DumpCoreRegister(std::ostream& stream, int reg) const {
@@ -1225,7 +1230,8 @@ CodeGeneratorX86_64::CodeGeneratorX86_64(HGraph* graph,
         pc_relative_dex_cache_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
         simple_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
         string_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
-        type_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+        boot_image_type_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+        type_bss_entry_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
         fixups_to_jump_tables_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
         jit_string_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
         jit_class_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
@@ -5518,7 +5524,7 @@ void InstructionCodeGeneratorX86_64::VisitLoadClass(HLoadClass* cls) {
       DCHECK(codegen_->GetCompilerOptions().IsBootImage());
       DCHECK_EQ(read_barrier_option, kWithoutReadBarrier);
       __ leal(out, Address::Absolute(CodeGeneratorX86_64::kDummy32BitOffset, /* no_rip */ false));
-      codegen_->RecordTypePatch(cls);
+      codegen_->RecordBootTypePatch(cls);
       break;
     case HLoadClass::LoadKind::kBootImageAddress: {
       DCHECK_EQ(read_barrier_option, kWithoutReadBarrier);
