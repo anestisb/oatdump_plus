@@ -100,5 +100,25 @@ extern "C" JNIEXPORT jint JNICALL Java_Main_getThreadState(
   return state;
 }
 
+extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getAllThreads(
+    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED) {
+  jint thread_count;
+  jthread* threads;
+
+  jvmtiError result = jvmti_env->GetAllThreads(&thread_count, &threads);
+  if (JvmtiErrorToException(env, result)) {
+    return nullptr;
+  }
+
+  auto callback = [&](jint index) {
+    return threads[index];
+  };
+  jobjectArray ret = CreateObjectArray(env, thread_count, "java/lang/Thread", callback);
+
+  jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(threads));
+
+  return ret;
+}
+
 }  // namespace Test924Threads
 }  // namespace art
