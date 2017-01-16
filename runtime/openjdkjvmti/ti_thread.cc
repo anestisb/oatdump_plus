@@ -42,6 +42,7 @@
 #include "obj_ptr.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
+#include "thread_list.h"
 #include "well_known_classes.h"
 
 namespace openjdkjvmti {
@@ -350,6 +351,55 @@ jvmtiError ThreadUtil::GetThreadState(jvmtiEnv* env ATTRIBUTE_UNUSED,
   jint java_state = GetJavaStateFromInternal(internal_thread_state);
 
   *thread_state_ptr = jvmti_state | java_state;
+
+  return ERR(NONE);
+}
+
+jvmtiError ThreadUtil::GetAllThreads(jvmtiEnv* env,
+                                     jint* threads_count_ptr,
+                                     jthread** threads_ptr) {
+  if (threads_count_ptr == nullptr || threads_ptr == nullptr) {
+    return ERR(NULL_POINTER);
+  }
+
+  art::Thread* current = art::Thread::Current();
+
+  art::ScopedObjectAccess soa(current);
+
+  art::MutexLock mu(current, *art::Locks::thread_list_lock_);
+  std::list<art::Thread*> thread_list = art::Runtime::Current()->GetThreadList()->GetList();
+
+  std::vector<art::ObjPtr<art::mirror::Object>> peers;
+
+  for (art::Thread* thread : thread_list) {
+    // Skip threads that are still starting.
+    if (thread->IsStillStarting()) {
+      continue;
+    }
+
+    art::ObjPtr<art::mirror::Object> peer = thread->GetPeer();
+    if (peer != nullptr) {
+      peers.push_back(peer);
+    }
+  }
+
+  if (peers.empty()) {
+    *threads_count_ptr = 0;
+    *threads_ptr = nullptr;
+  } else {
+    unsigned char* data;
+    jvmtiError data_result = env->Allocate(peers.size() * sizeof(jthread), &data);
+    if (data_result != ERR(NONE)) {
+      return data_result;
+    }
+    jthread* threads = reinterpret_cast<jthread*>(data);
+    for (size_t i = 0; i != peers.size(); ++i) {
+      threads[i] = soa.AddLocalReference<jthread>(peers[i]);
+    }
+
+    *threads_count_ptr = static_cast<jint>(peers.size());
+    *threads_ptr = threads;
+  }
 
   return ERR(NONE);
 }
