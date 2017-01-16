@@ -276,22 +276,23 @@ class LoadClassSlowPathARM64 : public SlowPathCodeARM64 {
                          HInstruction* at,
                          uint32_t dex_pc,
                          bool do_clinit)
-      : SlowPathCodeARM64(at), cls_(cls), at_(at), dex_pc_(dex_pc), do_clinit_(do_clinit) {
+      : SlowPathCodeARM64(at), cls_(cls), dex_pc_(dex_pc), do_clinit_(do_clinit) {
     DCHECK(at->IsLoadClass() || at->IsClinitCheck());
   }
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
-    LocationSummary* locations = at_->GetLocations();
+    LocationSummary* locations = instruction_->GetLocations();
     CodeGeneratorARM64* arm64_codegen = down_cast<CodeGeneratorARM64*>(codegen);
 
     __ Bind(GetEntryLabel());
     SaveLiveRegisters(codegen, locations);
 
     InvokeRuntimeCallingConvention calling_convention;
-    __ Mov(calling_convention.GetRegisterAt(0).W(), cls_->GetTypeIndex().index_);
+    dex::TypeIndex type_index = cls_->GetTypeIndex();
+    __ Mov(calling_convention.GetRegisterAt(0).W(), type_index.index_);
     QuickEntrypointEnum entrypoint = do_clinit_ ? kQuickInitializeStaticStorage
                                                 : kQuickInitializeType;
-    arm64_codegen->InvokeRuntime(entrypoint, at_, dex_pc_, this);
+    arm64_codegen->InvokeRuntime(entrypoint, instruction_, dex_pc_, this);
     if (do_clinit_) {
       CheckEntrypointTypes<kQuickInitializeStaticStorage, void*, uint32_t>();
     } else {
@@ -302,11 +303,32 @@ class LoadClassSlowPathARM64 : public SlowPathCodeARM64 {
     Location out = locations->Out();
     if (out.IsValid()) {
       DCHECK(out.IsRegister() && !locations->GetLiveRegisters()->ContainsCoreRegister(out.reg()));
-      Primitive::Type type = at_->GetType();
+      Primitive::Type type = instruction_->GetType();
       arm64_codegen->MoveLocation(out, calling_convention.GetReturnLocation(type), type);
     }
-
     RestoreLiveRegisters(codegen, locations);
+    // For HLoadClass/kBssEntry, store the resolved Class to the BSS entry.
+    DCHECK_EQ(instruction_->IsLoadClass(), cls_ == instruction_);
+    if (cls_ == instruction_ && cls_->GetLoadKind() == HLoadClass::LoadKind::kBssEntry) {
+      DCHECK(out.IsValid());
+      UseScratchRegisterScope temps(arm64_codegen->GetVIXLAssembler());
+      Register temp = temps.AcquireX();
+      const DexFile& dex_file = cls_->GetDexFile();
+      // TODO: Change art_quick_initialize_type/art_quick_initialize_static_storage to
+      // kSaveEverything and use a temporary for the ADRP in the fast path, so that we
+      // can avoid the ADRP here.
+      vixl::aarch64::Label* adrp_label =
+          arm64_codegen->NewPcRelativeTypePatch(dex_file, type_index);
+      arm64_codegen->EmitAdrpPlaceholder(adrp_label, temp);
+      vixl::aarch64::Label* strp_label =
+          arm64_codegen->NewPcRelativeTypePatch(dex_file, type_index, adrp_label);
+      {
+        SingleEmissionCheckScope guard(arm64_codegen->GetVIXLAssembler());
+        __ Bind(strp_label);
+        __ str(RegisterFrom(locations->Out(), Primitive::kPrimNot),
+               MemOperand(temp, /* offset placeholder */ 0));
+      }
+    }
     __ B(GetExitLabel());
   }
 
@@ -315,10 +337,6 @@ class LoadClassSlowPathARM64 : public SlowPathCodeARM64 {
  private:
   // The class this slow path will load.
   HLoadClass* const cls_;
-
-  // The instruction where this slow path is happening.
-  // (Might be the load class or an initialization check).
-  HInstruction* const at_;
 
   // The dex PC of `at_`.
   const uint32_t dex_pc_;
@@ -349,8 +367,8 @@ class LoadStringSlowPathARM64 : public SlowPathCodeARM64 {
     SaveLiveRegisters(codegen, locations);
 
     InvokeRuntimeCallingConvention calling_convention;
-    const uint32_t string_index = instruction_->AsLoadString()->GetStringIndex().index_;
-    __ Mov(calling_convention.GetRegisterAt(0).W(), string_index);
+    const dex::StringIndex string_index = instruction_->AsLoadString()->GetStringIndex();
+    __ Mov(calling_convention.GetRegisterAt(0).W(), string_index.index_);
     arm64_codegen->InvokeRuntime(kQuickResolveString, instruction_, instruction_->GetDexPc(), this);
     CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
     Primitive::Type type = instruction_->GetType();
@@ -4090,9 +4108,10 @@ void InstructionCodeGeneratorARM64::VisitInvokePolymorphic(HInvokePolymorphic* i
 
 vixl::aarch64::Label* CodeGeneratorARM64::NewPcRelativeStringPatch(
     const DexFile& dex_file,
-    uint32_t string_index,
+    dex::StringIndex string_index,
     vixl::aarch64::Label* adrp_label) {
-  return NewPcRelativePatch(dex_file, string_index, adrp_label, &pc_relative_string_patches_);
+  return
+      NewPcRelativePatch(dex_file, string_index.index_, adrp_label, &pc_relative_string_patches_);
 }
 
 vixl::aarch64::Label* CodeGeneratorARM64::NewPcRelativeTypePatch(
@@ -4224,9 +4243,13 @@ void CodeGeneratorARM64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patc
                                                        target_string.string_index.index_));
   }
   if (!GetCompilerOptions().IsBootImage()) {
+    EmitPcRelativeLinkerPatches<LinkerPatch::TypeBssEntryPatch>(pc_relative_type_patches_,
+                                                                linker_patches);
     EmitPcRelativeLinkerPatches<LinkerPatch::StringBssEntryPatch>(pc_relative_string_patches_,
                                                                   linker_patches);
   } else {
+    EmitPcRelativeLinkerPatches<LinkerPatch::RelativeTypePatch>(pc_relative_type_patches_,
+                                                                linker_patches);
     EmitPcRelativeLinkerPatches<LinkerPatch::RelativeStringPatch>(pc_relative_string_patches_,
                                                                   linker_patches);
   }
@@ -4237,8 +4260,6 @@ void CodeGeneratorARM64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patc
                                                      target_type.dex_file,
                                                      target_type.type_index.index_));
   }
-  EmitPcRelativeLinkerPatches<LinkerPatch::RelativeTypePatch>(pc_relative_type_patches_,
-                                                                linker_patches);
   for (const auto& entry : boot_image_address_patches_) {
     DCHECK(GetCompilerOptions().GetIncludePatchInformation());
     vixl::aarch64::Literal<uint32_t>* literal = entry.second;
@@ -4305,6 +4326,9 @@ HLoadClass::LoadKind CodeGeneratorARM64::GetSupportedLoadClassKind(
       DCHECK(GetCompilerOptions().GetCompilePic());
       break;
     case HLoadClass::LoadKind::kBootImageAddress:
+      break;
+    case HLoadClass::LoadKind::kBssEntry:
+      DCHECK(!Runtime::Current()->UseJitCompilation());
       break;
     case HLoadClass::LoadKind::kJitTableAddress:
       DCHECK(Runtime::Current()->UseJitCompilation());
@@ -4395,6 +4419,26 @@ void InstructionCodeGeneratorARM64::VisitLoadClass(HLoadClass* cls) {
       __ Ldr(out.W(), codegen_->DeduplicateBootImageAddressLiteral(cls->GetAddress()));
       break;
     }
+    case HLoadClass::LoadKind::kBssEntry: {
+      // Add ADRP with its PC-relative Class .bss entry patch.
+      const DexFile& dex_file = cls->GetDexFile();
+      dex::TypeIndex type_index = cls->GetTypeIndex();
+      DCHECK(!codegen_->GetCompilerOptions().IsBootImage());
+      vixl::aarch64::Label* adrp_label = codegen_->NewPcRelativeTypePatch(dex_file, type_index);
+      codegen_->EmitAdrpPlaceholder(adrp_label, out.X());
+      // Add LDR with its PC-relative Class patch.
+      vixl::aarch64::Label* ldr_label =
+          codegen_->NewPcRelativeTypePatch(dex_file, type_index, adrp_label);
+      // /* GcRoot<mirror::Class> */ out = *(base_address + offset)  /* PC-relative */
+      GenerateGcRootFieldLoad(cls,
+                              cls->GetLocations()->Out(),
+                              out.X(),
+                              /* placeholder */ 0u,
+                              ldr_label,
+                              kCompilerReadBarrierOption);
+      generate_null_check = true;
+      break;
+    }
     case HLoadClass::LoadKind::kJitTableAddress: {
       __ Ldr(out, codegen_->DeduplicateJitClassLiteral(cls->GetDexFile(),
                                                        cls->GetTypeIndex(),
@@ -4464,10 +4508,10 @@ HLoadString::LoadKind CodeGeneratorARM64::GetSupportedLoadStringKind(
     case HLoadString::LoadKind::kBssEntry:
       DCHECK(!Runtime::Current()->UseJitCompilation());
       break;
-    case HLoadString::LoadKind::kDexCacheViaMethod:
-      break;
     case HLoadString::LoadKind::kJitTableAddress:
       DCHECK(Runtime::Current()->UseJitCompilation());
+      break;
+    case HLoadString::LoadKind::kDexCacheViaMethod:
       break;
   }
   return desired_string_load_kind;
@@ -4512,7 +4556,7 @@ void InstructionCodeGeneratorARM64::VisitLoadString(HLoadString* load) NO_THREAD
     case HLoadString::LoadKind::kBootImageLinkTimePcRelative: {
       // Add ADRP with its PC-relative String patch.
       const DexFile& dex_file = load->GetDexFile();
-      uint32_t string_index = load->GetStringIndex().index_;
+      const dex::StringIndex string_index = load->GetStringIndex();
       DCHECK(codegen_->GetCompilerOptions().IsBootImage());
       vixl::aarch64::Label* adrp_label = codegen_->NewPcRelativeStringPatch(dex_file, string_index);
       codegen_->EmitAdrpPlaceholder(adrp_label, out.X());
@@ -4532,7 +4576,7 @@ void InstructionCodeGeneratorARM64::VisitLoadString(HLoadString* load) NO_THREAD
     case HLoadString::LoadKind::kBssEntry: {
       // Add ADRP with its PC-relative String .bss entry patch.
       const DexFile& dex_file = load->GetDexFile();
-      uint32_t string_index = load->GetStringIndex().index_;
+      const dex::StringIndex string_index = load->GetStringIndex();
       DCHECK(!codegen_->GetCompilerOptions().IsBootImage());
       UseScratchRegisterScope temps(codegen_->GetVIXLAssembler());
       Register temp = temps.AcquireX();
