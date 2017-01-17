@@ -33,7 +33,11 @@
 
 #include <limits>
 
+#ifndef __APPLE__
 #include <time.h>
+#else
+#include <sys/time.h>
+#endif
 #include <unistd.h>
 
 #include "art_jvmti.h"
@@ -70,10 +74,18 @@ jvmtiError TimerUtil::GetTime(jvmtiEnv* env ATTRIBUTE_UNUSED, jlong* nanos_ptr) 
     return ERR(NULL_POINTER);
   }
 
+#ifndef __APPLE__
   // Use the same implementation as System.nanoTime.
   struct timespec now;
   clock_gettime(CLOCK_MONOTONIC, &now);
   *nanos_ptr = now.tv_sec * 1000000000LL + now.tv_nsec;
+#else
+  // No CLOCK_MONOTONIC support on older Mac OS.
+  struct timeval t;
+  t.tv_sec = t.tv_usec = 0;
+  gettimeofday(&t, NULL);
+  *nanos_ptr = static_cast<jlong>(t.tv_sec)*1000000000LL + static_cast<jlong>(t.tv_usec)*1000LL;
+#endif
 
   return ERR(NONE);
 }
