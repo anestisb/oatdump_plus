@@ -81,6 +81,10 @@ class MANAGED EmulatedStackFrame : public Object {
         OFFSET_OF_OBJECT_MEMBER(EmulatedStackFrame, stack_frame_));
   }
 
+  static MemberOffset CallsiteTypeOffset() {
+    return MemberOffset(OFFSETOF_MEMBER(EmulatedStackFrame, callsite_type_));
+  }
+
   static MemberOffset TypeOffset() {
     return MemberOffset(OFFSETOF_MEMBER(EmulatedStackFrame, type_));
   }
@@ -93,6 +97,7 @@ class MANAGED EmulatedStackFrame : public Object {
     return MemberOffset(OFFSETOF_MEMBER(EmulatedStackFrame, stack_frame_));
   }
 
+  HeapReference<mirror::MethodType> callsite_type_;
   HeapReference<mirror::ObjectArray<mirror::Object>> references_;
   HeapReference<mirror::ByteArray> stack_frame_;
   HeapReference<mirror::MethodType> type_;

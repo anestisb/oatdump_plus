@@ -33,6 +33,7 @@ public class Main {
     testBindTo();
     testFilterReturnValue();
     testPermuteArguments();
+    testInvokers();
   }
 
   public static void testThrowException() throws Throwable {
@@ -885,6 +886,38 @@ public class Main {
       permutation.invoke(42, Boolean.TRUE);
       permutation.invoke(Integer.valueOf(42), true);
       permutation.invoke(Integer.valueOf(42), Boolean.TRUE);
+    }
+  }
+
+  private static Object returnBar() {
+    return "bar";
+  }
+
+  public static void testInvokers() throws Throwable {
+    final MethodType targetType = MethodType.methodType(String.class, String.class);
+    final MethodHandle target = MethodHandles.lookup().findVirtual(
+        String.class, "concat", targetType);
+
+    MethodHandle invoker = MethodHandles.invoker(target.type());
+    assertEquals("barbar", (String) invoker.invoke(target, "bar", "bar"));
+    assertEquals("barbar", (String) invoker.invoke(target, (Object) returnBar(), "bar"));
+    try {
+      String foo = (String) invoker.invoke(target, "bar", "bar", 24);
+      fail();
+    } catch (WrongMethodTypeException expected) {
+    }
+
+    MethodHandle exactInvoker = MethodHandles.exactInvoker(target.type());
+    assertEquals("barbar", (String) exactInvoker.invoke(target, "bar", "bar"));
+    try {
+      String foo = (String) exactInvoker.invoke(target, (Object) returnBar(), "bar");
+      fail();
+    } catch (WrongMethodTypeException expected) {
+    }
+    try {
+      String foo = (String) exactInvoker.invoke(target, "bar", "bar", 24);
+      fail();
+    } catch (WrongMethodTypeException expected) {
     }
   }
 

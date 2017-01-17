@@ -195,6 +195,7 @@ mirror::EmulatedStackFrame* EmulatedStackFrame::CreateFromShadowFrameAndArgs(
   // Step 5: Construct the EmulatedStackFrame object.
   Handle<EmulatedStackFrame> sf(hs.NewHandle(
       ObjPtr<EmulatedStackFrame>::DownCast(StaticClass()->AllocObject(self))));
+  sf->SetFieldObject<false>(CallsiteTypeOffset(), caller_type.Get());
   sf->SetFieldObject<false>(TypeOffset(), callee_type.Get());
   sf->SetFieldObject<false>(ReferencesOffset(), references.Get());
   sf->SetFieldObject<false>(StackFrameOffset(), stack_frame.Get());
