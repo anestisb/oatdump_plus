@@ -43,3 +43,19 @@ class java.lang.String null
 class [Ljava.lang.String; null
 interface Main$InfA dalvik.system.PathClassLoader
 class $Proxy0 dalvik.system.PathClassLoader
+
+boot <- src <- src-ex (A,B)
+912-classes-ex.jar+ -> 912-classes.jar+ -> 
+[class A, class B, class java.lang.Object]
+912-classes.jar+ -> 
+[class B, class java.lang.Object]
+
+boot <- src (B) <- src-ex (A, List)
+912-classes-ex.jar+ -> 912-classes.jar+ -> 
+[class A, class java.lang.Object, interface java.util.List]
+912-classes.jar+ -> 
+[class B, class java.lang.Object]
+
+boot <- src+src-ex (A,B)
+912-classes.jar+ -> 
+[class A, class B, class java.lang.Object]

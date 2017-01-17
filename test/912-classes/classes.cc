@@ -222,5 +222,24 @@ extern "C" JNIEXPORT jobject JNICALL Java_Main_getClassLoader(
   return classloader;
 }
 
+extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getClassLoaderClasses(
+    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jobject jclassloader) {
+  jint count = 0;
+  jclass* classes = nullptr;
+  jvmtiError result = jvmti_env->GetClassLoaderClasses(jclassloader, &count, &classes);
+  if (JvmtiErrorToException(env, result)) {
+    return nullptr;
+  }
+
+  auto callback = [&](jint i) {
+    return classes[i];
+  };
+  jobjectArray ret = CreateObjectArray(env, count, "java/lang/Class", callback);
+  if (classes != nullptr) {
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(classes));
+  }
+  return ret;
+}
+
 }  // namespace Test912Classes
 }  // namespace art
