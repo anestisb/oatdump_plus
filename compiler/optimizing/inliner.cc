@@ -474,10 +474,10 @@ bool HInliner::TryInlineMonomorphicCall(HInvoke* invoke_instruction,
   HInstruction* receiver = invoke_instruction->InputAt(0);
   HInstruction* cursor = invoke_instruction->GetPrevious();
   HBasicBlock* bb_cursor = invoke_instruction->GetBlock();
-  Handle<mirror::Class> handle = handles_->NewHandle(GetMonomorphicType(classes));
+  Handle<mirror::Class> monomorphic_type = handles_->NewHandle(GetMonomorphicType(classes));
   if (!TryInlineAndReplace(invoke_instruction,
                            resolved_method,
-                           ReferenceTypeInfo::Create(handle, /* is_exact */ true),
+                           ReferenceTypeInfo::Create(monomorphic_type, /* is_exact */ true),
                            /* do_rtp */ false,
                            /* cha_devirtualize */ false)) {
     return false;
@@ -488,7 +488,7 @@ bool HInliner::TryInlineMonomorphicCall(HInvoke* invoke_instruction,
                cursor,
                bb_cursor,
                class_index,
-               GetMonomorphicType(classes),
+               monomorphic_type,
                invoke_instruction,
                /* with_deoptimization */ true);
 
@@ -533,11 +533,9 @@ HInstruction* HInliner::AddTypeGuard(HInstruction* receiver,
                                      HInstruction* cursor,
                                      HBasicBlock* bb_cursor,
                                      dex::TypeIndex class_index,
-                                     mirror::Class* klass,
+                                     Handle<mirror::Class> klass,
                                      HInstruction* invoke_instruction,
                                      bool with_deoptimization) {
-  ScopedAssertNoThreadSuspension sants("Adding compiler type guard");
-
   ClassLinker* class_linker = caller_compilation_unit_.GetClassLinker();
   HInstanceFieldGet* receiver_class = BuildGetReceiverClass(
       class_linker, receiver, invoke_instruction->GetDexPc());
@@ -548,19 +546,20 @@ HInstruction* HInliner::AddTypeGuard(HInstruction* receiver,
   }
 
   const DexFile& caller_dex_file = *caller_compilation_unit_.GetDexFile();
-  bool is_referrer = (klass == outermost_graph_->GetArtMethod()->GetDeclaringClass());
+  bool is_referrer = (klass.Get() == outermost_graph_->GetArtMethod()->GetDeclaringClass());
   // Note that we will just compare the classes, so we don't need Java semantics access checks.
   // Note that the type index and the dex file are relative to the method this type guard is
   // inlined into.
   HLoadClass* load_class = new (graph_->GetArena()) HLoadClass(graph_->GetCurrentMethod(),
                                                                class_index,
                                                                caller_dex_file,
+                                                               klass,
                                                                is_referrer,
                                                                invoke_instruction->GetDexPc(),
                                                                /* needs_access_check */ false);
   bb_cursor->InsertInstructionAfter(load_class, receiver_class);
   // Sharpen after adding the instruction, as the sharpening may remove inputs.
-  HSharpening::SharpenClass(load_class, klass, handles_, codegen_, compiler_driver_);
+  HSharpening::SharpenClass(load_class, codegen_, compiler_driver_);
 
   // TODO: Extend reference type propagation to understand the guard.
   HNotEqual* compare = new (graph_->GetArena()) HNotEqual(load_class, receiver_class);
@@ -637,7 +636,7 @@ bool HInliner::TryInlinePolymorphicCall(HInvoke* invoke_instruction,
                                            cursor,
                                            bb_cursor,
                                            class_index,
-                                           handle.Get(),
+                                           handle,
                                            invoke_instruction,
                                            deoptimize);
       if (deoptimize) {
