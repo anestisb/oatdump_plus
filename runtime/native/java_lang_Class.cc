@@ -428,6 +428,10 @@ static jobjectArray Class_getDeclaredMethodsUnchecked(JNIEnv* env, jobject javaT
   }
   auto ret = hs.NewHandle(mirror::ObjectArray<mirror::Method>::Alloc(
       soa.Self(), mirror::Method::ArrayClass(), num_methods));
+  if (ret.Get() == nullptr) {
+    soa.Self()->AssertPendingOOMException();
+    return nullptr;
+  }
   num_methods = 0;
   for (auto& m : klass->GetDeclaredMethods(kRuntimePointerSize)) {
     auto modifiers = m.GetAccessFlags();
