@@ -979,7 +979,7 @@ class LSEVisitor : public HGraphVisitor {
     }
     if (ref_info->IsSingletonAndRemovable() &&
         !new_instance->IsFinalizable() &&
-        !new_instance->NeedsAccessCheck()) {
+        !new_instance->NeedsChecks()) {
       singleton_new_instances_.push_back(new_instance);
     }
     ArenaVector<HInstruction*>& heap_values =

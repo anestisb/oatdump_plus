@@ -63,7 +63,8 @@ class HGraphBuilder : public ValueObject {
                              driver,
                              interpreter_metadata,
                              compiler_stats,
-                             dex_cache) {}
+                             dex_cache,
+                             handles) {}
 
   // Only for unit testing.
   HGraphBuilder(HGraph* graph,
@@ -90,7 +91,8 @@ class HGraphBuilder : public ValueObject {
                              /* compiler_driver */ nullptr,
                              /* interpreter_metadata */ nullptr,
                              /* compiler_stats */ nullptr,
-                             null_dex_cache_) {}
+                             null_dex_cache_,
+                             handles) {}
 
   GraphAnalysisResult BuildGraph();
 

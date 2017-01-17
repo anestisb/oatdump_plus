@@ -579,7 +579,7 @@ class CodeGeneratorARM64 : public CodeGenerator {
                                                                 Handle<mirror::String> handle);
   vixl::aarch64::Literal<uint32_t>* DeduplicateJitClassLiteral(const DexFile& dex_file,
                                                                dex::TypeIndex string_index,
-                                                               uint64_t address);
+                                                               Handle<mirror::Class> handle);
 
   void EmitAdrpPlaceholder(vixl::aarch64::Label* fixup_label, vixl::aarch64::Register reg);
   void EmitAddPlaceholder(vixl::aarch64::Label* fixup_label,

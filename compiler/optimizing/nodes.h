@@ -3768,14 +3768,12 @@ class HNewInstance FINAL : public HExpression<1> {
                uint32_t dex_pc,
                dex::TypeIndex type_index,
                const DexFile& dex_file,
-               bool needs_access_check,
                bool finalizable,
                QuickEntrypointEnum entrypoint)
       : HExpression(Primitive::kPrimNot, SideEffects::CanTriggerGC(), dex_pc),
         type_index_(type_index),
         dex_file_(dex_file),
         entrypoint_(entrypoint) {
-    SetPackedFlag<kFlagNeedsAccessCheck>(needs_access_check);
     SetPackedFlag<kFlagFinalizable>(finalizable);
     SetRawInputAt(0, cls);
   }
@@ -3789,8 +3787,9 @@ class HNewInstance FINAL : public HExpression<1> {
   // Can throw errors when out-of-memory or if it's not instantiable/accessible.
   bool CanThrow() const OVERRIDE { return true; }
 
-  // Needs to call into runtime to make sure it's instantiable/accessible.
-  bool NeedsAccessCheck() const { return GetPackedFlag<kFlagNeedsAccessCheck>(); }
+  bool NeedsChecks() const {
+    return entrypoint_ == kQuickAllocObjectWithChecks;
+  }
 
   bool IsFinalizable() const { return GetPackedFlag<kFlagFinalizable>(); }
 
@@ -3807,8 +3806,7 @@ class HNewInstance FINAL : public HExpression<1> {
   DECLARE_INSTRUCTION(NewInstance);
 
  private:
-  static constexpr size_t kFlagNeedsAccessCheck = kNumberOfExpressionPackedBits;
-  static constexpr size_t kFlagFinalizable = kFlagNeedsAccessCheck + 1;
+  static constexpr size_t kFlagFinalizable = kNumberOfExpressionPackedBits;
   static constexpr size_t kNumberOfNewInstancePackedBits = kFlagFinalizable + 1;
   static_assert(kNumberOfNewInstancePackedBits <= kMaxNumberOfPackedBits,
                 "Too many packed fields.");
@@ -5544,6 +5542,7 @@ class HLoadClass FINAL : public HInstruction {
   HLoadClass(HCurrentMethod* current_method,
              dex::TypeIndex type_index,
              const DexFile& dex_file,
+             Handle<mirror::Class> klass,
              bool is_referrers_class,
              uint32_t dex_pc,
              bool needs_access_check)
@@ -5551,7 +5550,7 @@ class HLoadClass FINAL : public HInstruction {
         special_input_(HUserRecord<HInstruction*>(current_method)),
         type_index_(type_index),
         dex_file_(dex_file),
-        address_(0u),
+        klass_(klass),
         loaded_class_rti_(ReferenceTypeInfo::CreateInvalid()) {
     // Referrers class should not need access check. We never inline unverified
     // methods so we can't possibly end up in this situation.
@@ -5564,10 +5563,7 @@ class HLoadClass FINAL : public HInstruction {
     SetPackedFlag<kFlagGenerateClInitCheck>(false);
   }
 
-  void SetLoadKindWithAddress(LoadKind load_kind, uint64_t address) {
-    DCHECK(HasAddress(load_kind));
-    DCHECK_NE(address, 0u);
-    address_ = address;
+  void SetLoadKind(LoadKind load_kind) {
     SetLoadKindInternal(load_kind);
   }
 
@@ -5634,11 +5630,6 @@ class HLoadClass FINAL : public HInstruction {
   dex::TypeIndex GetTypeIndex() const { return type_index_; }
   const DexFile& GetDexFile() const { return dex_file_; }
 
-  uint64_t GetAddress() const {
-    DCHECK(HasAddress(GetLoadKind()));
-    return address_;
-  }
-
   bool NeedsDexCacheOfDeclaringClass() const OVERRIDE {
     return GetLoadKind() == LoadKind::kDexCacheViaMethod;
   }
@@ -5668,6 +5659,10 @@ class HLoadClass FINAL : public HInstruction {
     return Primitive::kPrimNot;
   }
 
+  Handle<mirror::Class> GetClass() const {
+    return klass_;
+  }
+
   DECLARE_INSTRUCTION(LoadClass);
 
  private:
@@ -5691,11 +5686,6 @@ class HLoadClass FINAL : public HInstruction {
         load_kind == LoadKind::kDexCacheViaMethod;
   }
 
-  static bool HasAddress(LoadKind load_kind) {
-    return load_kind == LoadKind::kBootImageAddress ||
-        load_kind == LoadKind::kJitTableAddress;
-  }
-
   void SetLoadKindInternal(LoadKind load_kind);
 
   // The special input is the HCurrentMethod for kDexCacheViaMethod or kReferrersClass.
@@ -5706,7 +5696,7 @@ class HLoadClass FINAL : public HInstruction {
   const dex::TypeIndex type_index_;
   const DexFile& dex_file_;
 
-  uint64_t address_;  // Up to 64-bit, needed for kJitTableAddress on 64-bit targets.
+  Handle<mirror::Class> klass_;
 
   ReferenceTypeInfo loaded_class_rti_;
 
