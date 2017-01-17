@@ -3395,7 +3395,7 @@ void CodeGeneratorMIPS64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invo
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative: {
       uint32_t offset = invoke->GetDexCacheArrayOffset();
       CodeGeneratorMIPS64::PcRelativePatchInfo* info =
-          NewPcRelativeDexCacheArrayPatch(invoke->GetDexFile(), offset);
+          NewPcRelativeDexCacheArrayPatch(invoke->GetDexFileForPcRelativeDexCache(), offset);
       EmitPcRelativeAddressPlaceholderHigh(info, AT);
       __ Ld(temp.AsRegister<GpuRegister>(), AT, /* placeholder */ 0x5678);
       break;

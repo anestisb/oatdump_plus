@@ -113,6 +113,7 @@ struct WellKnownClasses {
   static jmethodID java_lang_reflect_Proxy_invoke;
   static jmethodID java_lang_Runtime_nativeLoad;
   static jmethodID java_lang_Short_valueOf;
+  static jmethodID java_lang_String_charAt;
   static jmethodID java_lang_System_runFinalization;
   static jmethodID java_lang_Thread_dispatchUncaughtException;
   static jmethodID java_lang_Thread_init;

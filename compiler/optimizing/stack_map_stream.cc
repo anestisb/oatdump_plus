@@ -13,7 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #include "stack_map_stream.h"
+
+#include "art_method.h"
+#include "runtime.h"
+#include "scoped_thread_state_change-inl.h"
 
 namespace art {
 
@@ -98,15 +103,27 @@ void StackMapStream::AddDexRegisterEntry(DexRegisterLocation::Kind kind, int32_t
   current_dex_register_++;
 }
 
-void StackMapStream::BeginInlineInfoEntry(uint32_t method_index,
+static bool EncodeArtMethodInInlineInfo(ArtMethod* method ATTRIBUTE_UNUSED) {
+  // Note: the runtime is null only for unit testing.
+  return Runtime::Current() == nullptr || !Runtime::Current()->IsAotCompiler();
+}
+
+void StackMapStream::BeginInlineInfoEntry(ArtMethod* method,
                                           uint32_t dex_pc,
-                                          InvokeType invoke_type,
-                                          uint32_t num_dex_registers) {
+                                          uint32_t num_dex_registers,
+                                          const DexFile* outer_dex_file) {
   DCHECK(!in_inline_frame_);
   in_inline_frame_ = true;
-  current_inline_info_.method_index = method_index;
+  if (EncodeArtMethodInInlineInfo(method)) {
+    current_inline_info_.method = method;
+  } else {
+    if (dex_pc != static_cast<uint32_t>(-1) && kIsDebugBuild) {
+      ScopedObjectAccess soa(Thread::Current());
+      DCHECK(IsSameDexFile(*outer_dex_file, *method->GetDexFile()));
+    }
+    current_inline_info_.method_index = method->GetDexMethodIndexUnchecked();
+  }
   current_inline_info_.dex_pc = dex_pc;
-  current_inline_info_.invoke_type = invoke_type;
   current_inline_info_.num_dex_registers = num_dex_registers;
   current_inline_info_.dex_register_locations_start_index = dex_register_locations_.size();
   if (num_dex_registers != 0) {
@@ -229,25 +246,32 @@ size_t StackMapStream::ComputeDexRegisterMapsSize() const {
 void StackMapStream::ComputeInlineInfoEncoding() {
   uint32_t method_index_max = 0;
   uint32_t dex_pc_max = DexFile::kDexNoIndex;
-  uint32_t invoke_type_max = 0;
+  uint32_t extra_data_max = 0;
 
   uint32_t inline_info_index = 0;
   for (const StackMapEntry& entry : stack_maps_) {
     for (size_t j = 0; j < entry.inlining_depth; ++j) {
       InlineInfoEntry inline_entry = inline_infos_[inline_info_index++];
-      method_index_max = std::max(method_index_max, inline_entry.method_index);
+      if (inline_entry.method == nullptr) {
+        method_index_max = std::max(method_index_max, inline_entry.method_index);
+        extra_data_max = std::max(extra_data_max, 1u);
+      } else {
+        method_index_max = std::max(
+            method_index_max, High32Bits(reinterpret_cast<uintptr_t>(inline_entry.method)));
+        extra_data_max = std::max(
+            extra_data_max, Low32Bits(reinterpret_cast<uintptr_t>(inline_entry.method)));
+      }
       if (inline_entry.dex_pc != DexFile::kDexNoIndex &&
           (dex_pc_max == DexFile::kDexNoIndex || dex_pc_max < inline_entry.dex_pc)) {
         dex_pc_max = inline_entry.dex_pc;
       }
-      invoke_type_max = std::max(invoke_type_max, static_cast<uint32_t>(inline_entry.invoke_type));
     }
   }
   DCHECK_EQ(inline_info_index, inline_infos_.size());
 
   inline_info_encoding_.SetFromSizes(method_index_max,
                                      dex_pc_max,
-                                     invoke_type_max,
+                                     extra_data_max,
                                      dex_register_maps_size_);
 }
 
@@ -354,9 +378,20 @@ void StackMapStream::FillIn(MemoryRegion region) {
       DCHECK_LE(entry.inline_infos_start_index + entry.inlining_depth, inline_infos_.size());
       for (size_t depth = 0; depth < entry.inlining_depth; ++depth) {
         InlineInfoEntry inline_entry = inline_infos_[depth + entry.inline_infos_start_index];
-        inline_info.SetMethodIndexAtDepth(inline_info_encoding_, depth, inline_entry.method_index);
+        if (inline_entry.method != nullptr) {
+          inline_info.SetMethodIndexAtDepth(
+              inline_info_encoding_,
+              depth,
+              High32Bits(reinterpret_cast<uintptr_t>(inline_entry.method)));
+          inline_info.SetExtraDataAtDepth(
+              inline_info_encoding_,
+              depth,
+              Low32Bits(reinterpret_cast<uintptr_t>(inline_entry.method)));
+        } else {
+          inline_info.SetMethodIndexAtDepth(inline_info_encoding_, depth, inline_entry.method_index);
+          inline_info.SetExtraDataAtDepth(inline_info_encoding_, depth, 1);
+        }
         inline_info.SetDexPcAtDepth(inline_info_encoding_, depth, inline_entry.dex_pc);
-        inline_info.SetInvokeTypeAtDepth(inline_info_encoding_, depth, inline_entry.invoke_type);
         if (inline_entry.num_dex_registers == 0) {
           // No dex map available.
           inline_info.SetDexRegisterMapOffsetAtDepth(inline_info_encoding_,
@@ -544,10 +579,13 @@ void StackMapStream::CheckCodeInfo(MemoryRegion region) const {
         InlineInfoEntry inline_entry = inline_infos_[inline_info_index];
         DCHECK_EQ(inline_info.GetDexPcAtDepth(encoding.inline_info_encoding, d),
                   inline_entry.dex_pc);
-        DCHECK_EQ(inline_info.GetMethodIndexAtDepth(encoding.inline_info_encoding, d),
-                  inline_entry.method_index);
-        DCHECK_EQ(inline_info.GetInvokeTypeAtDepth(encoding.inline_info_encoding, d),
-                  inline_entry.invoke_type);
+        if (inline_info.EncodesArtMethodAtDepth(encoding.inline_info_encoding, d)) {
+          DCHECK_EQ(inline_info.GetArtMethodAtDepth(encoding.inline_info_encoding, d),
+                    inline_entry.method);
+        } else {
+          DCHECK_EQ(inline_info.GetMethodIndexAtDepth(encoding.inline_info_encoding, d),
+                    inline_entry.method_index);
+        }
 
         CheckDexRegisterMap(code_info,
                             code_info.GetDexRegisterMapAtDepth(

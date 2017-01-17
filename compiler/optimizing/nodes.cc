@@ -2391,6 +2391,14 @@ bool HInvoke::NeedsEnvironment() const {
   return !opt.GetDoesNotNeedEnvironment();
 }
 
+const DexFile& HInvokeStaticOrDirect::GetDexFileForPcRelativeDexCache() const {
+  ArtMethod* caller = GetEnvironment()->GetMethod();
+  ScopedObjectAccess soa(Thread::Current());
+  // `caller` is null for a top-level graph representing a method whose declaring
+  // class was not resolved.
+  return caller == nullptr ? GetBlock()->GetGraph()->GetDexFile() : *caller->GetDexFile();
+}
+
 bool HInvokeStaticOrDirect::NeedsDexCacheOfDeclaringClass() const {
   if (GetMethodLoadKind() != MethodLoadKind::kDexCacheViaMethod) {
     return false;

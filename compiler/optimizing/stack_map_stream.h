@@ -109,8 +109,8 @@ class StackMapStream : public ValueObject {
 
   struct InlineInfoEntry {
     uint32_t dex_pc;  // DexFile::kDexNoIndex for intrinsified native methods.
+    ArtMethod* method;
     uint32_t method_index;
-    InvokeType invoke_type;
     uint32_t num_dex_registers;
     BitVector* live_dex_registers_mask;
     size_t dex_register_locations_start_index;
@@ -126,10 +126,10 @@ class StackMapStream : public ValueObject {
 
   void AddDexRegisterEntry(DexRegisterLocation::Kind kind, int32_t value);
 
-  void BeginInlineInfoEntry(uint32_t method_index,
+  void BeginInlineInfoEntry(ArtMethod* method,
                             uint32_t dex_pc,
-                            InvokeType invoke_type,
-                            uint32_t num_dex_registers);
+                            uint32_t num_dex_registers,
+                            const DexFile* outer_dex_file = nullptr);
   void EndInlineInfoEntry();
 
   size_t GetNumberOfStackMaps() const {

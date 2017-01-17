@@ -103,6 +103,7 @@ jmethodID WellKnownClasses::java_lang_reflect_Parameter_init;
 jmethodID WellKnownClasses::java_lang_reflect_Proxy_invoke;
 jmethodID WellKnownClasses::java_lang_Runtime_nativeLoad;
 jmethodID WellKnownClasses::java_lang_Short_valueOf;
+jmethodID WellKnownClasses::java_lang_String_charAt;
 jmethodID WellKnownClasses::java_lang_System_runFinalization = nullptr;
 jmethodID WellKnownClasses::java_lang_Thread_dispatchUncaughtException;
 jmethodID WellKnownClasses::java_lang_Thread_init;
@@ -337,6 +338,7 @@ void WellKnownClasses::Init(JNIEnv* env) {
   java_lang_ref_ReferenceQueue_add = CacheMethod(env, java_lang_ref_ReferenceQueue.get(), true, "add", "(Ljava/lang/ref/Reference;)V");
 
   java_lang_reflect_Parameter_init = CacheMethod(env, java_lang_reflect_Parameter, false, "<init>", "(Ljava/lang/String;ILjava/lang/reflect/Executable;I)V");
+  java_lang_String_charAt = CacheMethod(env, java_lang_String, false, "charAt", "(I)C");
   java_lang_Thread_dispatchUncaughtException = CacheMethod(env, java_lang_Thread, false, "dispatchUncaughtException", "(Ljava/lang/Throwable;)V");
   java_lang_Thread_init = CacheMethod(env, java_lang_Thread, false, "<init>", "(Ljava/lang/ThreadGroup;Ljava/lang/String;IZ)V");
   java_lang_Thread_run = CacheMethod(env, java_lang_Thread, false, "run", "()V");
