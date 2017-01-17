@@ -53,6 +53,30 @@ public class Main {
         }
     }
 
+    public static Object eatAllMemory() {
+        Object[] result = null;
+        int size = 1000000;
+        while (result == null && size != 0) {
+            try {
+                result = new Object[size];
+            } catch (OutOfMemoryError oome) {
+                size /= 2;
+            }
+        }
+        if (result != null) {
+            int index = 0;
+            while (index != result.length && size != 0) {
+                try {
+                    result[index] = new byte[size];
+                    ++index;
+                } catch (OutOfMemoryError oome) {
+                    size /= 2;
+                }
+            }
+        }
+        return result;
+    }
+
     static boolean triggerArrayOOM() {
         ArrayMemEater.blowup(new char[128 * 1024][]);
         return ArrayMemEater.sawOome;
@@ -73,6 +97,9 @@ public class Main {
     public static void main(String[] args) {
         if (triggerReflectionOOM()) {
             System.out.println("Test reflection correctly threw");
+        }
+        if (triggerReflectionOOM2()) {
+            System.out.println("Test reflection2 correctly threw");
         }
 
         if (triggerArrayOOM()) {
@@ -124,5 +151,21 @@ public class Main {
             return false;
         }
         return true;
+    }
+
+    static boolean triggerReflectionOOM2() {
+        Object memory = eatAllMemory();
+        boolean result = false;
+        try {
+            Main.class.getDeclaredMethods();
+        } catch (OutOfMemoryError e) {
+            result = true;
+        }
+        if (!result) {
+            boolean memoryWasAllocated = (memory != null);
+            memory = null;
+            System.out.println("memoryWasAllocated = " + memoryWasAllocated);
+        }
+        return result;
     }
 }
