@@ -645,6 +645,10 @@ class ClassLinker {
   mirror::Class* GetHoldingClassOfCopiedMethod(ArtMethod* method)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // Returns null if not found.
+  ClassTable* ClassTableForClassLoader(ObjPtr<mirror::ClassLoader> class_loader)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   struct DexCacheData {
     // Weak root to the DexCache. Note: Do not decode this unnecessarily or else class unloading may
     // not work properly.
@@ -1038,10 +1042,6 @@ class ClassLinker {
   void RegisterClassLoader(ObjPtr<mirror::ClassLoader> class_loader)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(Locks::classlinker_classes_lock_);
-
-  // Returns null if not found.
-  ClassTable* ClassTableForClassLoader(ObjPtr<mirror::ClassLoader> class_loader)
-      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Insert a new class table if not found.
   ClassTable* InsertClassTableForClassLoader(ObjPtr<mirror::ClassLoader> class_loader)
