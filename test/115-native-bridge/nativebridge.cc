@@ -285,6 +285,10 @@ extern "C" bool native_bridge_initialize(const android::NativeBridgeRuntimeCallb
 }
 
 extern "C" void* native_bridge_loadLibrary(const char* libpath, int flag) {
+  if (strstr(libpath, "libinvalid.so") != nullptr) {
+    printf("Was to load 'libinvalid.so', force fail.\n");
+    return nullptr;
+  }
   size_t len = strlen(libpath);
   char* tmp = new char[len + 10];
   strncpy(tmp, libpath, len);
@@ -300,7 +304,7 @@ extern "C" void* native_bridge_loadLibrary(const char* libpath, int flag) {
     printf("Handle = nullptr!\n");
     printf("Was looking for %s.\n", libpath);
     printf("Error = %s.\n", dlerror());
-    char cwd[1024];
+    char cwd[1024] = {'\0'};
     if (getcwd(cwd, sizeof(cwd)) != nullptr) {
       printf("Current working dir: %s\n", cwd);
     }
@@ -437,8 +441,8 @@ extern "C" int native_bridge_unloadLibrary(void* handle ATTRIBUTE_UNUSED) {
 }
 
 extern "C" const char* native_bridge_getError() {
-  printf("dlerror() in native bridge.\n");
-  return nullptr;
+  printf("getError() in native bridge.\n");
+  return "";
 }
 
 extern "C" bool native_bridge_isPathSupported(const char* library_path ATTRIBUTE_UNUSED) {
