@@ -587,6 +587,7 @@ class OatDumper {
       kByteKindCodeInfoLocationCatalog,
       kByteKindCodeInfoDexRegisterMap,
       kByteKindCodeInfoEncoding,
+      kByteKindCodeInfoInvokeInfo,
       kByteKindCodeInfoStackMasks,
       kByteKindCodeInfoRegisterMasks,
       kByteKindStackMapNativePc,
@@ -637,6 +638,7 @@ class OatDumper {
         Dump(os, "CodeInfoDexRegisterMap          ", bits[kByteKindCodeInfoDexRegisterMap], sum);
         Dump(os, "CodeInfoStackMasks              ", bits[kByteKindCodeInfoStackMasks], sum);
         Dump(os, "CodeInfoRegisterMasks           ", bits[kByteKindCodeInfoRegisterMasks], sum);
+        Dump(os, "CodeInfoInvokeInfo              ", bits[kByteKindCodeInfoInvokeInfo], sum);
         // Stack map section.
         const int64_t stack_map_bits = std::accumulate(bits + kByteKindStackMapFirst,
                                                        bits + kByteKindStackMapLast + 1,
@@ -1592,10 +1594,8 @@ class OatDumper {
         CodeInfoEncoding encoding(helper.GetEncoding());
         StackMapEncoding stack_map_encoding(encoding.stack_map.encoding);
         const size_t num_stack_maps = encoding.stack_map.num_entries;
-        std::vector<uint8_t> size_vector;
-        encoding.Compress(&size_vector);
         if (stats_.AddBitsIfUnique(Stats::kByteKindCodeInfoEncoding,
-                                   size_vector.size() * kBitsPerByte,
+                                   encoding.HeaderSize() * kBitsPerByte,
                                    oat_method.GetVmapTable())) {
           // Stack maps
           stats_.AddBits(
@@ -1626,6 +1626,13 @@ class OatDumper {
           stats_.AddBits(
               Stats::kByteKindCodeInfoRegisterMasks,
               encoding.register_mask.encoding.BitSize() * encoding.register_mask.num_entries);
+
+          // Invoke infos
+          if (encoding.invoke_info.num_entries > 0u) {
+            stats_.AddBits(
+                Stats::kByteKindCodeInfoInvokeInfo,
+                encoding.invoke_info.encoding.BitSize() * encoding.invoke_info.num_entries);
+          }
 
           // Location catalog
           const size_t location_catalog_bytes =

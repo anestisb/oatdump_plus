@@ -118,6 +118,8 @@ class StackMapStream : public ValueObject {
     uint32_t register_mask_index;
     DexRegisterMapEntry dex_register_entry;
     size_t dex_register_map_index;
+    InvokeType invoke_type;
+    uint32_t dex_method_index;
   };
 
   struct InlineInfoEntry {
@@ -137,6 +139,8 @@ class StackMapStream : public ValueObject {
   void EndStackMapEntry();
 
   void AddDexRegisterEntry(DexRegisterLocation::Kind kind, int32_t value);
+
+  void AddInvoke(InvokeType type, uint32_t dex_method_index);
 
   void BeginInlineInfoEntry(ArtMethod* method,
                             uint32_t dex_pc,
@@ -182,6 +186,14 @@ class StackMapStream : public ValueObject {
 
   // Return true if the two dex register map entries are equal.
   bool DexRegisterMapEntryEquals(const DexRegisterMapEntry& a, const DexRegisterMapEntry& b) const;
+
+  // Fill in the corresponding entries of a register map.
+  void ComputeInvokeInfoEncoding(CodeInfoEncoding* encoding);
+
+  // Returns the index of an entry with the same dex register map as the current_entry,
+  // or kNoSameDexMapFound if no such entry exists.
+  size_t FindEntryWithTheSameDexMap();
+  bool HaveTheSameDexMaps(const StackMapEntry& a, const StackMapEntry& b) const;
 
   // Fill in the corresponding entries of a register map.
   void FillInDexRegisterMap(DexRegisterMap dex_register_map,
