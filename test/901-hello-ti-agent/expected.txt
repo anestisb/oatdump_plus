@@ -1,2 +1,8 @@
 Loaded Agent for test 901-hello-ti-agent
 Hello, world!
+0
+1
+2
+4
+8
+JVMTI_ERROR_ILLEGAL_ARGUMENT
