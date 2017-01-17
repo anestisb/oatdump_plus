@@ -170,7 +170,7 @@ class HInliner : public HOptimization {
                              HInstruction* cursor,
                              HBasicBlock* bb_cursor,
                              dex::TypeIndex class_index,
-                             mirror::Class* klass,
+                             Handle<mirror::Class> klass,
                              HInstruction* invoke_instruction,
                              bool with_deoptimization)
     REQUIRES_SHARED(Locks::mutator_lock_);

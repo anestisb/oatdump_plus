@@ -2448,9 +2448,9 @@ std::ostream& operator<<(std::ostream& os, HInvokeStaticOrDirect::ClinitCheckReq
 // mirrors, they are stored in a variable size handle scope which is always
 // visited during a pause. Also, the only caller of this helper
 // only uses the mirror for pointer comparison.
-static inline mirror::Class* AsMirrorInternal(uint64_t address)
+static inline mirror::Class* AsMirrorInternal(Handle<mirror::Class> handle)
     NO_THREAD_SAFETY_ANALYSIS {
-  return reinterpret_cast<StackReference<mirror::Class>*>(address)->AsMirrorPtr();
+  return handle.Get();
 }
 
 bool HLoadClass::InstructionDataEquals(const HInstruction* other) const {
@@ -2463,9 +2463,8 @@ bool HLoadClass::InstructionDataEquals(const HInstruction* other) const {
   }
   switch (GetLoadKind()) {
     case LoadKind::kBootImageAddress:
-      return GetAddress() == other_load_class->GetAddress();
     case LoadKind::kJitTableAddress:
-      return AsMirrorInternal(GetAddress()) == AsMirrorInternal(other_load_class->GetAddress());
+      return AsMirrorInternal(GetClass()) == AsMirrorInternal(other_load_class->GetClass());
     default:
       DCHECK(HasTypeReference(GetLoadKind()));
       return IsSameDexFile(GetDexFile(), other_load_class->GetDexFile());
