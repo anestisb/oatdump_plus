@@ -433,12 +433,18 @@ class CompilerDriver {
                       TimingLogger* timings)
       REQUIRES(!Locks::mutator_lock_);
 
+  // Do fast verification through VerifierDeps if possible. Return whether
+  // verification was successful.
   // NO_THREAD_SAFETY_ANALYSIS as the method accesses a guarded value in a
   // single-threaded way.
+  bool FastVerify(jobject class_loader,
+                  const std::vector<const DexFile*>& dex_files,
+                  TimingLogger* timings)
+      NO_THREAD_SAFETY_ANALYSIS;
+
   void Verify(jobject class_loader,
               const std::vector<const DexFile*>& dex_files,
-              TimingLogger* timings)
-    NO_THREAD_SAFETY_ANALYSIS;
+              TimingLogger* timings);
 
   void VerifyDexFile(jobject class_loader,
                      const DexFile& dex_file,
