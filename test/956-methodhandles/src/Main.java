@@ -76,6 +76,7 @@ public class Main {
     testStringConstructors();
     testReturnValueConversions();
     testVariableArity();
+    testVariableArity_MethodHandles_bind();
   }
 
   public static void testfindSpecial_invokeSuperBehaviour() throws Throwable {
@@ -1461,6 +1462,25 @@ public class Main {
     assertEquals("[true, false, true]", mh.invoke(true, false, true));
     assertEquals("[true, false, true]", mh.invoke(new boolean[] { true, false, true}));
     assertEquals("[false, true]", mh.invoke(Boolean.valueOf(false), Boolean.valueOf(true)));
+    try {
+      mh.invoke(true, true, 0);
+      fail();
+    } catch (WrongMethodTypeException e) {}
+  }
+
+  // The same tests as the above, except that we use use MethodHandles.bind instead of
+  // MethodHandle.bindTo.
+  public static void testVariableArity_MethodHandles_bind() throws Throwable {
+    VariableArityTester vat = new VariableArityTester();
+    MethodHandle mh = MethodHandles.lookup().bind(vat, "update",
+            MethodType.methodType(String.class, boolean[].class));
+    assertTrue(mh.isVarargsCollector());
+
+    assertEquals("[]", mh.invoke());
+    assertEquals("[true, false, true]", mh.invoke(true, false, true));
+    assertEquals("[true, false, true]", mh.invoke(new boolean[] { true, false, true}));
+    assertEquals("[false, true]", mh.invoke(Boolean.valueOf(false), Boolean.valueOf(true)));
+
     try {
       mh.invoke(true, true, 0);
       fail();
