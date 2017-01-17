@@ -62,6 +62,7 @@ DRY_RUN="n" # if y prepare to run the test but don't run it.
 TEST_VDEX="n"
 TEST_IS_NDEBUG="n"
 APP_IMAGE="y"
+VDEX_FILTER=""
 
 while true; do
     if [ "x$1" = "x--quiet" ]; then
@@ -255,6 +256,11 @@ while true; do
         shift
     elif [ "x$1" = "x--vdex" ]; then
         TEST_VDEX="y"
+        shift
+    elif [ "x$1" = "x--vdex-filter" ]; then
+        shift
+        option="$1"
+        VDEX_FILTER="--compiler-filter=$option"
         shift
     elif expr "x$1" : "x--" >/dev/null 2>&1; then
         echo "unknown $0 option: $1" 1>&2
@@ -514,7 +520,7 @@ if [ "$PREBUILD" = "y" ]; then
     dex2oat_cmdline="timeout -k 1m -s SIGRTMIN+2 1m ${dex2oat_cmdline}"
   fi
   if [ "$TEST_VDEX" = "y" ]; then
-    vdex_cmdline="${dex2oat_cmdline} --input-vdex=$DEX_LOCATION/oat/$ISA/$TEST_NAME.vdex"
+    vdex_cmdline="${dex2oat_cmdline} ${VDEX_FILTER} --input-vdex=$DEX_LOCATION/oat/$ISA/$TEST_NAME.vdex"
   fi
 fi
 
