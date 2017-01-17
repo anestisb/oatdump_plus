@@ -30,6 +30,7 @@
  */
 
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include <jni.h>
@@ -37,6 +38,7 @@
 #include "openjdkjvmti/jvmti.h"
 
 #include "art_jvmti.h"
+#include "base/logging.h"
 #include "base/mutex.h"
 #include "events-inl.h"
 #include "jni_env_ext-inl.h"
@@ -1168,7 +1170,57 @@ class JvmtiFunctions {
   }
 
   static jvmtiError SetVerboseFlag(jvmtiEnv* env, jvmtiVerboseFlag flag, jboolean value) {
-    return ERR(NOT_IMPLEMENTED);
+    if (flag == jvmtiVerboseFlag::JVMTI_VERBOSE_OTHER) {
+      // OTHER is special, as it's 0, so can't do a bit check.
+      bool val = (value == JNI_TRUE) ? true : false;
+
+      art::gLogVerbosity.collector = val;
+      art::gLogVerbosity.compiler = val;
+      art::gLogVerbosity.deopt = val;
+      art::gLogVerbosity.heap = val;
+      art::gLogVerbosity.jdwp = val;
+      art::gLogVerbosity.jit = val;
+      art::gLogVerbosity.monitor = val;
+      art::gLogVerbosity.oat = val;
+      art::gLogVerbosity.profiler = val;
+      art::gLogVerbosity.signals = val;
+      art::gLogVerbosity.simulator = val;
+      art::gLogVerbosity.startup = val;
+      art::gLogVerbosity.third_party_jni = val;
+      art::gLogVerbosity.threads = val;
+      art::gLogVerbosity.verifier = val;
+      art::gLogVerbosity.image = val;
+
+      // Note: can't switch systrace_lock_logging. That requires changing entrypoints.
+
+      art::gLogVerbosity.agents = val;
+    } else {
+      // Spec isn't clear whether "flag" is a mask or supposed to be single. We implement the mask
+      // semantics.
+      constexpr std::underlying_type<jvmtiVerboseFlag>::type kMask =
+          jvmtiVerboseFlag::JVMTI_VERBOSE_GC |
+          jvmtiVerboseFlag::JVMTI_VERBOSE_CLASS |
+          jvmtiVerboseFlag::JVMTI_VERBOSE_JNI;
+      if ((flag & ~kMask) != 0) {
+        return ERR(ILLEGAL_ARGUMENT);
+      }
+
+      bool val = (value == JNI_TRUE) ? true : false;
+
+      if ((flag & jvmtiVerboseFlag::JVMTI_VERBOSE_GC) != 0) {
+        art::gLogVerbosity.gc = val;
+      }
+
+      if ((flag & jvmtiVerboseFlag::JVMTI_VERBOSE_CLASS) != 0) {
+        art::gLogVerbosity.class_linker = val;
+      }
+
+      if ((flag & jvmtiVerboseFlag::JVMTI_VERBOSE_JNI) != 0) {
+        art::gLogVerbosity.jni = val;
+      }
+    }
+
+    return ERR(NONE);
   }
 
   static jvmtiError GetJLocationFormat(jvmtiEnv* env, jvmtiJlocationFormat* format_ptr) {
