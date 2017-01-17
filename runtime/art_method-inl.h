@@ -121,7 +121,7 @@ inline uint16_t ArtMethod::GetMethodIndexDuringLinking() {
 inline uint32_t ArtMethod::GetDexMethodIndex() {
   DCHECK(IsRuntimeMethod() || GetDeclaringClass()->IsIdxLoaded() ||
          GetDeclaringClass()->IsErroneous());
-  return dex_method_index_;
+  return GetDexMethodIndexUnchecked();
 }
 
 inline ArtMethod** ArtMethod::GetDexCacheResolvedMethods(PointerSize pointer_size) {

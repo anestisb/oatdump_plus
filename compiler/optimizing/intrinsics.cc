@@ -145,7 +145,7 @@ void IntrinsicsRecognizer::Run() {
           if (!CheckInvokeType(intrinsic, invoke)) {
             LOG(WARNING) << "Found an intrinsic with unexpected invoke type: "
                 << intrinsic << " for "
-                << invoke->GetDexFile().PrettyMethod(invoke->GetDexMethodIndex())
+                << art_method->PrettyMethod()
                 << invoke->DebugName();
           } else {
             invoke->SetIntrinsic(intrinsic,

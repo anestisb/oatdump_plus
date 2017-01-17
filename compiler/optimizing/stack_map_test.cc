@@ -16,6 +16,7 @@
 
 #include "stack_map.h"
 
+#include "art_method.h"
 #include "base/arena_bit_vector.h"
 #include "stack_map_stream.h"
 
@@ -128,6 +129,7 @@ TEST(StackMapTest, Test2) {
   ArenaPool pool;
   ArenaAllocator arena(&pool);
   StackMapStream stream(&arena);
+  ArtMethod art_method;
 
   ArenaBitVector sp_mask1(&arena, 0, true);
   sp_mask1.SetBit(2);
@@ -137,9 +139,9 @@ TEST(StackMapTest, Test2) {
   stream.BeginStackMapEntry(0, 64, 0x3, &sp_mask1, number_of_dex_registers, 2);
   stream.AddDexRegisterEntry(Kind::kInStack, 0);         // Short location.
   stream.AddDexRegisterEntry(Kind::kConstant, -2);       // Large location.
-  stream.BeginInlineInfoEntry(82, 3, kDirect, number_of_dex_registers_in_inline_info);
+  stream.BeginInlineInfoEntry(&art_method, 3, number_of_dex_registers_in_inline_info);
   stream.EndInlineInfoEntry();
-  stream.BeginInlineInfoEntry(42, 2, kStatic, number_of_dex_registers_in_inline_info);
+  stream.BeginInlineInfoEntry(&art_method, 2, number_of_dex_registers_in_inline_info);
   stream.EndInlineInfoEntry();
   stream.EndStackMapEntry();
 
@@ -238,12 +240,10 @@ TEST(StackMapTest, Test2) {
     ASSERT_TRUE(stack_map.HasInlineInfo(encoding.stack_map_encoding));
     InlineInfo inline_info = code_info.GetInlineInfoOf(stack_map, encoding);
     ASSERT_EQ(2u, inline_info.GetDepth(encoding.inline_info_encoding));
-    ASSERT_EQ(82u, inline_info.GetMethodIndexAtDepth(encoding.inline_info_encoding, 0));
-    ASSERT_EQ(42u, inline_info.GetMethodIndexAtDepth(encoding.inline_info_encoding, 1));
     ASSERT_EQ(3u, inline_info.GetDexPcAtDepth(encoding.inline_info_encoding, 0));
     ASSERT_EQ(2u, inline_info.GetDexPcAtDepth(encoding.inline_info_encoding, 1));
-    ASSERT_EQ(kDirect, inline_info.GetInvokeTypeAtDepth(encoding.inline_info_encoding, 0));
-    ASSERT_EQ(kStatic, inline_info.GetInvokeTypeAtDepth(encoding.inline_info_encoding, 1));
+    ASSERT_TRUE(inline_info.EncodesArtMethodAtDepth(encoding.inline_info_encoding, 0));
+    ASSERT_TRUE(inline_info.EncodesArtMethodAtDepth(encoding.inline_info_encoding, 1));
   }
 
   // Second stack map.
@@ -662,6 +662,7 @@ TEST(StackMapTest, InlineTest) {
   ArenaPool pool;
   ArenaAllocator arena(&pool);
   StackMapStream stream(&arena);
+  ArtMethod art_method;
 
   ArenaBitVector sp_mask1(&arena, 0, true);
   sp_mask1.SetBit(2);
@@ -672,10 +673,10 @@ TEST(StackMapTest, InlineTest) {
   stream.AddDexRegisterEntry(Kind::kInStack, 0);
   stream.AddDexRegisterEntry(Kind::kConstant, 4);
 
-  stream.BeginInlineInfoEntry(42, 2, kStatic, 1);
+  stream.BeginInlineInfoEntry(&art_method, 2, 1);
   stream.AddDexRegisterEntry(Kind::kInStack, 8);
   stream.EndInlineInfoEntry();
-  stream.BeginInlineInfoEntry(82, 3, kStatic, 3);
+  stream.BeginInlineInfoEntry(&art_method, 3, 3);
   stream.AddDexRegisterEntry(Kind::kInStack, 16);
   stream.AddDexRegisterEntry(Kind::kConstant, 20);
   stream.AddDexRegisterEntry(Kind::kInRegister, 15);
@@ -688,15 +689,15 @@ TEST(StackMapTest, InlineTest) {
   stream.AddDexRegisterEntry(Kind::kInStack, 56);
   stream.AddDexRegisterEntry(Kind::kConstant, 0);
 
-  stream.BeginInlineInfoEntry(42, 2, kDirect, 1);
+  stream.BeginInlineInfoEntry(&art_method, 2, 1);
   stream.AddDexRegisterEntry(Kind::kInStack, 12);
   stream.EndInlineInfoEntry();
-  stream.BeginInlineInfoEntry(82, 3, kStatic, 3);
+  stream.BeginInlineInfoEntry(&art_method, 3, 3);
   stream.AddDexRegisterEntry(Kind::kInStack, 80);
   stream.AddDexRegisterEntry(Kind::kConstant, 10);
   stream.AddDexRegisterEntry(Kind::kInRegister, 5);
   stream.EndInlineInfoEntry();
-  stream.BeginInlineInfoEntry(52, 5, kVirtual, 0);
+  stream.BeginInlineInfoEntry(&art_method, 5, 0);
   stream.EndInlineInfoEntry();
 
   stream.EndStackMapEntry();
@@ -712,12 +713,12 @@ TEST(StackMapTest, InlineTest) {
   stream.AddDexRegisterEntry(Kind::kInStack, 56);
   stream.AddDexRegisterEntry(Kind::kConstant, 0);
 
-  stream.BeginInlineInfoEntry(42, 2, kVirtual, 0);
+  stream.BeginInlineInfoEntry(&art_method, 2, 0);
   stream.EndInlineInfoEntry();
-  stream.BeginInlineInfoEntry(52, 5, kInterface, 1);
+  stream.BeginInlineInfoEntry(&art_method, 5, 1);
   stream.AddDexRegisterEntry(Kind::kInRegister, 2);
   stream.EndInlineInfoEntry();
-  stream.BeginInlineInfoEntry(52, 10, kStatic, 2);
+  stream.BeginInlineInfoEntry(&art_method, 10, 2);
   stream.AddDexRegisterEntry(Kind::kNone, 0);
   stream.AddDexRegisterEntry(Kind::kInRegister, 3);
   stream.EndInlineInfoEntry();
@@ -743,11 +744,9 @@ TEST(StackMapTest, InlineTest) {
     InlineInfo if0 = ci.GetInlineInfoOf(sm0, encoding);
     ASSERT_EQ(2u, if0.GetDepth(encoding.inline_info_encoding));
     ASSERT_EQ(2u, if0.GetDexPcAtDepth(encoding.inline_info_encoding, 0));
-    ASSERT_EQ(42u, if0.GetMethodIndexAtDepth(encoding.inline_info_encoding, 0));
-    ASSERT_EQ(kStatic, if0.GetInvokeTypeAtDepth(encoding.inline_info_encoding, 0));
+    ASSERT_TRUE(if0.EncodesArtMethodAtDepth(encoding.inline_info_encoding, 0));
     ASSERT_EQ(3u, if0.GetDexPcAtDepth(encoding.inline_info_encoding, 1));
-    ASSERT_EQ(82u, if0.GetMethodIndexAtDepth(encoding.inline_info_encoding, 1));
-    ASSERT_EQ(kStatic, if0.GetInvokeTypeAtDepth(encoding.inline_info_encoding, 1));
+    ASSERT_TRUE(if0.EncodesArtMethodAtDepth(encoding.inline_info_encoding, 1));
 
     DexRegisterMap dex_registers1 = ci.GetDexRegisterMapAtDepth(0, if0, encoding, 1);
     ASSERT_EQ(8, dex_registers1.GetStackOffsetInBytes(0, 1, ci, encoding));
@@ -769,14 +768,11 @@ TEST(StackMapTest, InlineTest) {
     InlineInfo if1 = ci.GetInlineInfoOf(sm1, encoding);
     ASSERT_EQ(3u, if1.GetDepth(encoding.inline_info_encoding));
     ASSERT_EQ(2u, if1.GetDexPcAtDepth(encoding.inline_info_encoding, 0));
-    ASSERT_EQ(42u, if1.GetMethodIndexAtDepth(encoding.inline_info_encoding, 0));
-    ASSERT_EQ(kDirect, if1.GetInvokeTypeAtDepth(encoding.inline_info_encoding, 0));
+    ASSERT_TRUE(if1.EncodesArtMethodAtDepth(encoding.inline_info_encoding, 0));
     ASSERT_EQ(3u, if1.GetDexPcAtDepth(encoding.inline_info_encoding, 1));
-    ASSERT_EQ(82u, if1.GetMethodIndexAtDepth(encoding.inline_info_encoding, 1));
-    ASSERT_EQ(kStatic, if1.GetInvokeTypeAtDepth(encoding.inline_info_encoding, 1));
+    ASSERT_TRUE(if1.EncodesArtMethodAtDepth(encoding.inline_info_encoding, 1));
     ASSERT_EQ(5u, if1.GetDexPcAtDepth(encoding.inline_info_encoding, 2));
-    ASSERT_EQ(52u, if1.GetMethodIndexAtDepth(encoding.inline_info_encoding, 2));
-    ASSERT_EQ(kVirtual, if1.GetInvokeTypeAtDepth(encoding.inline_info_encoding, 2));
+    ASSERT_TRUE(if1.EncodesArtMethodAtDepth(encoding.inline_info_encoding, 2));
 
     DexRegisterMap dex_registers1 = ci.GetDexRegisterMapAtDepth(0, if1, encoding, 1);
     ASSERT_EQ(12, dex_registers1.GetStackOffsetInBytes(0, 1, ci, encoding));
@@ -810,14 +806,11 @@ TEST(StackMapTest, InlineTest) {
     InlineInfo if2 = ci.GetInlineInfoOf(sm3, encoding);
     ASSERT_EQ(3u, if2.GetDepth(encoding.inline_info_encoding));
     ASSERT_EQ(2u, if2.GetDexPcAtDepth(encoding.inline_info_encoding, 0));
-    ASSERT_EQ(42u, if2.GetMethodIndexAtDepth(encoding.inline_info_encoding, 0));
-    ASSERT_EQ(kVirtual, if2.GetInvokeTypeAtDepth(encoding.inline_info_encoding, 0));
+    ASSERT_TRUE(if2.EncodesArtMethodAtDepth(encoding.inline_info_encoding, 0));
     ASSERT_EQ(5u, if2.GetDexPcAtDepth(encoding.inline_info_encoding, 1));
-    ASSERT_EQ(52u, if2.GetMethodIndexAtDepth(encoding.inline_info_encoding, 1));
-    ASSERT_EQ(kInterface, if2.GetInvokeTypeAtDepth(encoding.inline_info_encoding, 1));
+    ASSERT_TRUE(if2.EncodesArtMethodAtDepth(encoding.inline_info_encoding, 1));
     ASSERT_EQ(10u, if2.GetDexPcAtDepth(encoding.inline_info_encoding, 2));
-    ASSERT_EQ(52u, if2.GetMethodIndexAtDepth(encoding.inline_info_encoding, 2));
-    ASSERT_EQ(kStatic, if2.GetInvokeTypeAtDepth(encoding.inline_info_encoding, 2));
+    ASSERT_TRUE(if2.EncodesArtMethodAtDepth(encoding.inline_info_encoding, 2));
 
     ASSERT_FALSE(if2.HasDexRegisterMapAtDepth(encoding.inline_info_encoding, 0));
 
