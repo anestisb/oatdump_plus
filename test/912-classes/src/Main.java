@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Proxy;
 import java.util.Arrays;
+import java.util.Comparator;
 
 public class Main {
   public static void main(String[] args) throws Exception {
@@ -76,6 +78,8 @@ public class Main {
     testClassLoader(String[].class);
     testClassLoader(InfA.class);
     testClassLoader(getProxyClass());
+
+    testClassLoaderClasses();
   }
 
   private static Class<?> proxyClass = null;
@@ -151,6 +155,95 @@ public class Main {
     }
   }
 
+  private static void testClassLoaderClasses() throws Exception {
+    ClassLoader boot = ClassLoader.getSystemClassLoader().getParent();
+    while (boot.getParent() != null) {
+      boot = boot.getParent();
+    }
+
+    System.out.println();
+    System.out.println("boot <- src <- src-ex (A,B)");
+    ClassLoader cl1 = create(create(boot, DEX1), DEX2);
+    Class.forName("B", false, cl1);
+    Class.forName("A", false, cl1);
+    printClassLoaderClasses(cl1);
+
+    System.out.println();
+    System.out.println("boot <- src (B) <- src-ex (A, List)");
+    ClassLoader cl2 = create(create(boot, DEX1), DEX2);
+    Class.forName("A", false, cl2);
+    Class.forName("java.util.List", false, cl2);
+    Class.forName("B", false, cl2.getParent());
+    printClassLoaderClasses(cl2);
+
+    System.out.println();
+    System.out.println("boot <- src+src-ex (A,B)");
+    ClassLoader cl3 = create(boot, DEX1, DEX2);
+    Class.forName("B", false, cl3);
+    Class.forName("A", false, cl3);
+    printClassLoaderClasses(cl3);
+
+    // Check that the boot classloader dumps something non-empty.
+    Class<?>[] bootClasses = getClassLoaderClasses(boot);
+    if (bootClasses.length == 0) {
+      throw new RuntimeException("No classes initiated by boot classloader.");
+    }
+    // Check that at least java.util.List is loaded.
+    boolean foundList = false;
+    for (Class<?> c : bootClasses) {
+      if (c == java.util.List.class) {
+        foundList = true;
+        break;
+      }
+    }
+    if (!foundList) {
+      System.out.println(Arrays.toString(bootClasses));
+      throw new RuntimeException("Could not find class java.util.List.");
+    }
+  }
+
+  private static void printClassLoaderClasses(ClassLoader cl) {
+    for (;;) {
+      if (cl == null || !cl.getClass().getName().startsWith("dalvik.system")) {
+        break;
+      }
+
+      ClassLoader saved = cl;
+      for (;;) {
+        if (cl == null || !cl.getClass().getName().startsWith("dalvik.system")) {
+          break;
+        }
+        String s = cl.toString();
+        int index1 = s.indexOf("zip file");
+        int index2 = s.indexOf(']', index1);
+        if (index2 < 0) {
+          throw new RuntimeException("Unexpected classloader " + s);
+        }
+        String zip_file = s.substring(index1, index2);
+        int index3 = zip_file.indexOf('"');
+        int index4 = zip_file.indexOf('"', index3 + 1);
+        if (index4 < 0) {
+          throw new RuntimeException("Unexpected classloader " + s);
+        }
+        String paths = zip_file.substring(index3 + 1, index4);
+        String pathArray[] = paths.split(":");
+        for (String path : pathArray) {
+          int index5 = path.lastIndexOf('/');
+          System.out.print(path.substring(index5 + 1));
+          System.out.print('+');
+        }
+        System.out.print(" -> ");
+        cl = cl.getParent();
+      }
+      System.out.println();
+      Class<?> classes[] = getClassLoaderClasses(saved);
+      Arrays.sort(classes, new ClassNameComparator());
+      System.out.println(Arrays.toString(classes));
+
+      cl = saved.getParent();
+    }
+  }
+
   private static native boolean isModifiableClass(Class<?> c);
   private static native String[] getClassSignature(Class<?> c);
 
@@ -161,11 +254,13 @@ public class Main {
 
   private static native Object[] getClassFields(Class<?> c);
   private static native Object[] getClassMethods(Class<?> c);
-  private static native Class[] getImplementedInterfaces(Class<?> c);
+  private static native Class<?>[] getImplementedInterfaces(Class<?> c);
 
   private static native int getClassStatus(Class<?> c);
 
   private static native Object getClassLoader(Class<?> c);
+
+  private static native Class<?>[] getClassLoaderClasses(ClassLoader cl);
 
   private static class TestForNonInit {
     public static double dummy = Math.random();  // So it can't be compile-time initialized.
@@ -187,5 +282,24 @@ public class Main {
   public abstract static class ClassB extends ClassA implements InfB {
   }
   public abstract static class ClassC implements InfA, InfC {
+  }
+
+  private static final String DEX1 = System.getenv("DEX_LOCATION") + "/912-classes.jar";
+  private static final String DEX2 = System.getenv("DEX_LOCATION") + "/912-classes-ex.jar";
+
+  private static ClassLoader create(ClassLoader parent, String... elements) throws Exception {
+    // Note: We use a PathClassLoader, as we do not care about code performance. We only load
+    //       the classes, and they're empty.
+    Class<?> pathClassLoaderClass = Class.forName("dalvik.system.PathClassLoader");
+    Constructor<?> pathClassLoaderInit = pathClassLoaderClass.getConstructor(String.class,
+                                                                             ClassLoader.class);
+    String path = String.join(":", elements);
+    return (ClassLoader) pathClassLoaderInit.newInstance(path, parent);
+  }
+
+  private static class ClassNameComparator implements Comparator<Class<?>> {
+    public int compare(Class<?> c1, Class<?> c2) {
+      return c1.getName().compareTo(c2.getName());
+    }
   }
 }

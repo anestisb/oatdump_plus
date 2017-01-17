@@ -537,7 +537,7 @@ class JvmtiFunctions {
                                           jobject initiating_loader,
                                           jint* class_count_ptr,
                                           jclass** classes_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return ClassUtil::GetClassLoaderClasses(env, initiating_loader, class_count_ptr, classes_ptr);
   }
 
   static jvmtiError GetClassSignature(jvmtiEnv* env,
