@@ -32,7 +32,10 @@
 #include "ti_class.h"
 
 #include "art_jvmti.h"
+#include "class_table-inl.h"
+#include "class_linker.h"
 #include "jni_internal.h"
+#include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
 
@@ -324,6 +327,92 @@ jvmtiError ClassUtil::GetClassLoader(jvmtiEnv* env ATTRIBUTE_UNUSED,
   }
 
   *classloader_ptr = soa.AddLocalReference<jobject>(klass->GetClassLoader());
+
+  return ERR(NONE);
+}
+
+jvmtiError ClassUtil::GetClassLoaderClasses(jvmtiEnv* env,
+                                            jobject initiating_loader,
+                                            jint* class_count_ptr,
+                                            jclass** classes_ptr) {
+  UNUSED(env, initiating_loader, class_count_ptr, classes_ptr);
+
+  if (class_count_ptr == nullptr || classes_ptr == nullptr) {
+    return ERR(NULL_POINTER);
+  }
+  art::Thread* self = art::Thread::Current();
+  if (!self->GetJniEnv()->IsInstanceOf(initiating_loader,
+                                       art::WellKnownClasses::java_lang_ClassLoader)) {
+    return ERR(ILLEGAL_ARGUMENT);
+  }
+  if (self->GetJniEnv()->IsInstanceOf(initiating_loader,
+                                      art::WellKnownClasses::java_lang_BootClassLoader)) {
+    // Need to use null for the BootClassLoader.
+    initiating_loader = nullptr;
+  }
+
+  art::ScopedObjectAccess soa(self);
+  art::ObjPtr<art::mirror::ClassLoader> class_loader =
+      soa.Decode<art::mirror::ClassLoader>(initiating_loader);
+
+  art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
+
+  art::ReaderMutexLock mu(self, *art::Locks::classlinker_classes_lock_);
+
+  art::ClassTable* class_table = class_linker->ClassTableForClassLoader(class_loader);
+  if (class_table == nullptr) {
+    // Nothing loaded.
+    *class_count_ptr = 0;
+    *classes_ptr = nullptr;
+    return ERR(NONE);
+  }
+
+  struct ClassTableCount {
+    bool operator()(art::ObjPtr<art::mirror::Class> klass) {
+      DCHECK(klass != nullptr);
+      ++count;
+      return true;
+    }
+
+    size_t count = 0;
+  };
+  ClassTableCount ctc;
+  class_table->Visit(ctc);
+
+  if (ctc.count == 0) {
+    // Nothing loaded.
+    *class_count_ptr = 0;
+    *classes_ptr = nullptr;
+    return ERR(NONE);
+  }
+
+  unsigned char* data;
+  jvmtiError data_result = env->Allocate(ctc.count * sizeof(jclass), &data);
+  if (data_result != ERR(NONE)) {
+    return data_result;
+  }
+  jclass* class_array = reinterpret_cast<jclass*>(data);
+
+  struct ClassTableFill {
+    bool operator()(art::ObjPtr<art::mirror::Class> klass)
+        REQUIRES_SHARED(art::Locks::mutator_lock_) {
+      DCHECK(klass != nullptr);
+      DCHECK_LT(count, ctc_ref.count);
+      local_class_array[count++] = soa_ptr->AddLocalReference<jclass>(klass);
+      return true;
+    }
+
+    jclass* local_class_array;
+    const ClassTableCount& ctc_ref;
+    art::ScopedObjectAccess* soa_ptr;
+    size_t count;
+  };
+  ClassTableFill ctf = { class_array, ctc, &soa, 0 };
+  class_table->Visit(ctf);
+  DCHECK_EQ(ctc.count, ctf.count);
+
+  *class_count_ptr = ctc.count;
+  *classes_ptr = class_array;
 
   return ERR(NONE);
 }
