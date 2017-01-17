@@ -986,8 +986,48 @@ TEST_F(AssemblerX86_64Test, Movaps) {
   DriverStr(RepeatFF(&x86_64::X86_64Assembler::movaps, "movaps %{reg2}, %{reg1}"), "movaps");
 }
 
+TEST_F(AssemblerX86_64Test, MovapsAddr) {
+  GetAssembler()->movaps(x86_64::XmmRegister(x86_64::XMM0), x86_64::Address(x86_64::CpuRegister(x86_64::RSP), 4));
+  GetAssembler()->movaps(x86_64::Address(x86_64::CpuRegister(x86_64::RSP), 2), x86_64::XmmRegister(x86_64::XMM1));
+  const char* expected =
+    "movaps 0x4(%RSP), %xmm0\n"
+    "movaps %xmm1, 0x2(%RSP)\n";
+  DriverStr(expected, "movaps_address");
+}
+
+TEST_F(AssemblerX86_64Test, MovupsAddr) {
+  GetAssembler()->movups(x86_64::XmmRegister(x86_64::XMM0), x86_64::Address(x86_64::CpuRegister(x86_64::RSP), 4));
+  GetAssembler()->movups(x86_64::Address(x86_64::CpuRegister(x86_64::RSP), 2), x86_64::XmmRegister(x86_64::XMM1));
+  const char* expected =
+    "movups 0x4(%RSP), %xmm0\n"
+    "movups %xmm1, 0x2(%RSP)\n";
+  DriverStr(expected, "movups_address");
+}
+
 TEST_F(AssemblerX86_64Test, Movss) {
   DriverStr(RepeatFF(&x86_64::X86_64Assembler::movss, "movss %{reg2}, %{reg1}"), "movss");
+}
+
+TEST_F(AssemblerX86_64Test, Movapd) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::movapd, "movapd %{reg2}, %{reg1}"), "movapd");
+}
+
+TEST_F(AssemblerX86_64Test, MovapdAddr) {
+  GetAssembler()->movapd(x86_64::XmmRegister(x86_64::XMM0), x86_64::Address(x86_64::CpuRegister(x86_64::RSP), 4));
+  GetAssembler()->movapd(x86_64::Address(x86_64::CpuRegister(x86_64::RSP), 2), x86_64::XmmRegister(x86_64::XMM1));
+  const char* expected =
+    "movapd 0x4(%RSP), %xmm0\n"
+    "movapd %xmm1, 0x2(%RSP)\n";
+  DriverStr(expected, "movapd_address");
+}
+
+TEST_F(AssemblerX86_64Test, MovupdAddr) {
+  GetAssembler()->movupd(x86_64::XmmRegister(x86_64::XMM0), x86_64::Address(x86_64::CpuRegister(x86_64::RSP), 4));
+  GetAssembler()->movupd(x86_64::Address(x86_64::CpuRegister(x86_64::RSP), 2), x86_64::XmmRegister(x86_64::XMM1));
+  const char* expected =
+    "movupd 0x4(%RSP), %xmm0\n"
+    "movupd %xmm1, 0x2(%RSP)\n";
+  DriverStr(expected, "movupd_address");
 }
 
 TEST_F(AssemblerX86_64Test, Movsd) {
@@ -1010,12 +1050,28 @@ TEST_F(AssemblerX86_64Test, Addsd) {
   DriverStr(RepeatFF(&x86_64::X86_64Assembler::addsd, "addsd %{reg2}, %{reg1}"), "addsd");
 }
 
+TEST_F(AssemblerX86_64Test, Addps) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::addps, "addps %{reg2}, %{reg1}"), "addps");
+}
+
+TEST_F(AssemblerX86_64Test, Addpd) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::addpd, "addpd %{reg2}, %{reg1}"), "addpd");
+}
+
 TEST_F(AssemblerX86_64Test, Subss) {
   DriverStr(RepeatFF(&x86_64::X86_64Assembler::subss, "subss %{reg2}, %{reg1}"), "subss");
 }
 
 TEST_F(AssemblerX86_64Test, Subsd) {
   DriverStr(RepeatFF(&x86_64::X86_64Assembler::subsd, "subsd %{reg2}, %{reg1}"), "subsd");
+}
+
+TEST_F(AssemblerX86_64Test, Subps) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::subps, "subps %{reg2}, %{reg1}"), "subps");
+}
+
+TEST_F(AssemblerX86_64Test, Subpd) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::subpd, "subpd %{reg2}, %{reg1}"), "subpd");
 }
 
 TEST_F(AssemblerX86_64Test, Mulss) {
@@ -1026,12 +1082,28 @@ TEST_F(AssemblerX86_64Test, Mulsd) {
   DriverStr(RepeatFF(&x86_64::X86_64Assembler::mulsd, "mulsd %{reg2}, %{reg1}"), "mulsd");
 }
 
+TEST_F(AssemblerX86_64Test, Mulps) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::mulps, "mulps %{reg2}, %{reg1}"), "mulps");
+}
+
+TEST_F(AssemblerX86_64Test, Mulpd) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::mulpd, "mulpd %{reg2}, %{reg1}"), "mulpd");
+}
+
 TEST_F(AssemblerX86_64Test, Divss) {
   DriverStr(RepeatFF(&x86_64::X86_64Assembler::divss, "divss %{reg2}, %{reg1}"), "divss");
 }
 
 TEST_F(AssemblerX86_64Test, Divsd) {
   DriverStr(RepeatFF(&x86_64::X86_64Assembler::divsd, "divsd %{reg2}, %{reg1}"), "divsd");
+}
+
+TEST_F(AssemblerX86_64Test, Divps) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::divps, "divps %{reg2}, %{reg1}"), "divps");
+}
+
+TEST_F(AssemblerX86_64Test, Divpd) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::divpd, "divpd %{reg2}, %{reg1}"), "divpd");
 }
 
 TEST_F(AssemblerX86_64Test, Cvtsi2ss) {
