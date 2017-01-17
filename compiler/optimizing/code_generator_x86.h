@@ -419,7 +419,9 @@ class CodeGeneratorX86 : public CodeGenerator {
   Label* NewJitRootStringPatch(const DexFile& dex_file,
                                dex::StringIndex dex_index,
                                Handle<mirror::String> handle);
-  Label* NewJitRootClassPatch(const DexFile& dex_file, dex::TypeIndex dex_index, uint64_t address);
+  Label* NewJitRootClassPatch(const DexFile& dex_file,
+                              dex::TypeIndex dex_index,
+                              Handle<mirror::Class> handle);
 
   void MoveFromReturnRegister(Location trg, Primitive::Type type) OVERRIDE;
 

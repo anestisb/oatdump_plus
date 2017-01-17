@@ -620,14 +620,10 @@ void ReferenceTypePropagation::RTPVisitor::VisitUnresolvedStaticFieldGet(
 
 void ReferenceTypePropagation::RTPVisitor::VisitLoadClass(HLoadClass* instr) {
   ScopedObjectAccess soa(Thread::Current());
-  // Get type from dex cache assuming it was populated by the verifier.
-  mirror::Class* resolved_class = GetClassFromDexCache(soa.Self(),
-                                                       instr->GetDexFile(),
-                                                       instr->GetTypeIndex(),
-                                                       hint_dex_cache_);
-  if (IsAdmissible(resolved_class)) {
+  Handle<mirror::Class> resolved_class = instr->GetClass();
+  if (IsAdmissible(resolved_class.Get())) {
     instr->SetLoadedClassRTI(ReferenceTypeInfo::Create(
-        handle_cache_->NewHandle(resolved_class), /* is_exact */ true));
+        resolved_class, /* is_exact */ true));
   }
   instr->SetReferenceTypeInfo(
       ReferenceTypeInfo::Create(handle_cache_->GetClassClassHandle(), /* is_exact */ true));

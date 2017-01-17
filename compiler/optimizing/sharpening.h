@@ -49,8 +49,6 @@ class HSharpening : public HOptimization {
 
   // Used internally but also by the inliner.
   static void SharpenClass(HLoadClass* load_class,
-                           mirror::Class* klass,
-                           VariableSizedHandleScope* handles,
                            CodeGenerator* codegen,
                            CompilerDriver* compiler_driver)
     REQUIRES_SHARED(Locks::mutator_lock_);
