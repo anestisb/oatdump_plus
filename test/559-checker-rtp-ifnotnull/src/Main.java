@@ -18,7 +18,6 @@
 public class Main {
 
   /// CHECK-START: void Main.boundTypeForIfNotNull() builder (after)
-  /// CHECK-DAG:     <<Method:(i|j)\d+>>  CurrentMethod
   /// CHECK-DAG:     <<Null:l\d+>>        NullConstant
   /// CHECK-DAG:     <<Cst5:i\d+>>        IntConstant 5
   /// CHECK-DAG:     <<Cst10:i\d+>>       IntConstant 10
@@ -28,10 +27,12 @@ public class Main {
   /// CHECK-DAG:     <<LoopPhi>>          Phi [<<Null>>,<<MergePhi:l\d+>>] klass:int[]
 
   /// CHECK-DAG:     <<BoundType:l\d+>>   BoundType [<<LoopPhi>>] klass:int[] can_be_null:false
-  /// CHECK-DAG:     <<NewArray10:l\d+>>  NewArray [<<Cst10>>,<<Method>>] klass:int[]
+  /// CHECK-DAG:     <<LoadClass1:l\d+>>  LoadClass
+  /// CHECK-DAG:     <<LoadClass2:l\d+>>  LoadClass
+  /// CHECK-DAG:     <<NewArray10:l\d+>>  NewArray [<<LoadClass2>>,<<Cst10>>] klass:int[]
   /// CHECK-DAG:     <<NotNullPhi:l\d+>>  Phi [<<BoundType>>,<<NewArray10>>] klass:int[]
 
-  /// CHECK-DAG:     <<NewArray5:l\d+>>   NewArray [<<Cst5>>,<<Method>>] klass:int[]
+  /// CHECK-DAG:     <<NewArray5:l\d+>>   NewArray [<<LoadClass1>>,<<Cst5>>] klass:int[]
   /// CHECK-DAG:     <<MergePhi>>         Phi [<<NewArray5>>,<<NotNullPhi>>] klass:int[]
 
   public static void boundTypeForIfNotNull() {
