@@ -22,6 +22,9 @@
 #include "base/macros.h"
 #include "openjdkjvmti/jvmti.h"
 
+#include "ti-agent/common_helper.h"
+#include "ti-agent/common_load.h"
+
 namespace art {
 namespace Test901HelloTi {
 
@@ -72,9 +75,22 @@ jint OnLoad(JavaVM* vm,
   CHECK_CALL_SUCCESS(env->DisposeEnvironment());
   CHECK_CALL_SUCCESS(env2->DisposeEnvironment());
 #undef CHECK_CALL_SUCCESS
+
+  if (vm->GetEnv(reinterpret_cast<void**>(&jvmti_env), JVMTI_VERSION_1_0)) {
+    printf("Unable to get jvmti env!\n");
+    return 1;
+  }
+  SetAllCapabilities(jvmti_env);
+
   return JNI_OK;
 }
 
+extern "C" JNIEXPORT void JNICALL Java_Main_setVerboseFlag(
+    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jint iflag, jboolean val) {
+  jvmtiVerboseFlag flag = static_cast<jvmtiVerboseFlag>(iflag);
+  jvmtiError result = jvmti_env->SetVerboseFlag(flag, val);
+  JvmtiErrorToException(env, result);
+}
 
 }  // namespace Test901HelloTi
 }  // namespace art
