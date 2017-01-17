@@ -35,7 +35,6 @@ class DexCacheMethodHandlesTest : public DexCacheTest {
  protected:
   virtual void SetUpRuntimeOptions(RuntimeOptions* options) OVERRIDE {
     CommonRuntimeTest::SetUpRuntimeOptions(options);
-    options->push_back(std::make_pair("-Xexperimental:method-handles", nullptr));
   }
 };
 
