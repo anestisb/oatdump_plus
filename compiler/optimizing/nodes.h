@@ -1724,28 +1724,22 @@ class HEnvironment : public ArenaObject<kArenaAllocEnvironment> {
  public:
   HEnvironment(ArenaAllocator* arena,
                size_t number_of_vregs,
-               const DexFile& dex_file,
-               uint32_t method_idx,
+               ArtMethod* method,
                uint32_t dex_pc,
-               InvokeType invoke_type,
                HInstruction* holder)
      : vregs_(number_of_vregs, arena->Adapter(kArenaAllocEnvironmentVRegs)),
        locations_(number_of_vregs, arena->Adapter(kArenaAllocEnvironmentLocations)),
        parent_(nullptr),
-       dex_file_(dex_file),
-       method_idx_(method_idx),
+       method_(method),
        dex_pc_(dex_pc),
-       invoke_type_(invoke_type),
        holder_(holder) {
   }
 
   HEnvironment(ArenaAllocator* arena, const HEnvironment& to_copy, HInstruction* holder)
       : HEnvironment(arena,
                      to_copy.Size(),
-                     to_copy.GetDexFile(),
-                     to_copy.GetMethodIdx(),
+                     to_copy.GetMethod(),
                      to_copy.GetDexPc(),
-                     to_copy.GetInvokeType(),
                      holder) {}
 
   void SetAndCopyParentChain(ArenaAllocator* allocator, HEnvironment* parent) {
@@ -1794,16 +1788,8 @@ class HEnvironment : public ArenaObject<kArenaAllocEnvironment> {
     return dex_pc_;
   }
 
-  uint32_t GetMethodIdx() const {
-    return method_idx_;
-  }
-
-  InvokeType GetInvokeType() const {
-    return invoke_type_;
-  }
-
-  const DexFile& GetDexFile() const {
-    return dex_file_;
+  ArtMethod* GetMethod() const {
+    return method_;
   }
 
   HInstruction* GetHolder() const {
@@ -1819,10 +1805,8 @@ class HEnvironment : public ArenaObject<kArenaAllocEnvironment> {
   ArenaVector<HUserRecord<HEnvironment*>> vregs_;
   ArenaVector<Location> locations_;
   HEnvironment* parent_;
-  const DexFile& dex_file_;
-  const uint32_t method_idx_;
+  ArtMethod* method_;
   const uint32_t dex_pc_;
-  const InvokeType invoke_type_;
 
   // The instruction that holds this environment.
   HInstruction* const holder_;
@@ -3870,7 +3854,6 @@ class HInvoke : public HVariableInputSizeInstruction {
   Primitive::Type GetType() const OVERRIDE { return GetPackedField<ReturnTypeField>(); }
 
   uint32_t GetDexMethodIndex() const { return dex_method_index_; }
-  const DexFile& GetDexFile() const { return GetEnvironment()->GetDexFile(); }
 
   InvokeType GetInvokeType() const {
     return GetPackedField<InvokeTypeField>();
@@ -4189,6 +4172,8 @@ class HInvokeStaticOrDirect FINAL : public HInvoke {
     DCHECK(HasPcRelativeDexCache());
     return dispatch_info_.method_load_data;
   }
+
+  const DexFile& GetDexFileForPcRelativeDexCache() const;
 
   ClinitCheckRequirement GetClinitCheckRequirement() const {
     return GetPackedField<ClinitCheckRequirementField>();
@@ -5449,10 +5434,10 @@ class HBoundsCheck FINAL : public HExpression<2> {
   HBoundsCheck(HInstruction* index,
                HInstruction* length,
                uint32_t dex_pc,
-               uint32_t string_char_at_method_index = DexFile::kDexNoIndex)
-      : HExpression(index->GetType(), SideEffects::CanTriggerGC(), dex_pc),
-        string_char_at_method_index_(string_char_at_method_index) {
+               bool string_char_at = false)
+      : HExpression(index->GetType(), SideEffects::CanTriggerGC(), dex_pc) {
     DCHECK_EQ(Primitive::kPrimInt, Primitive::PrimitiveKind(index->GetType()));
+    SetPackedFlag<kFlagIsStringCharAt>(string_char_at);
     SetRawInputAt(0, index);
     SetRawInputAt(1, length);
   }
@@ -5466,22 +5451,14 @@ class HBoundsCheck FINAL : public HExpression<2> {
 
   bool CanThrow() const OVERRIDE { return true; }
 
-  bool IsStringCharAt() const { return GetStringCharAtMethodIndex() != DexFile::kDexNoIndex; }
-  uint32_t GetStringCharAtMethodIndex() const { return string_char_at_method_index_; }
+  bool IsStringCharAt() const { return GetPackedFlag<kFlagIsStringCharAt>(); }
 
   HInstruction* GetIndex() const { return InputAt(0); }
 
   DECLARE_INSTRUCTION(BoundsCheck);
 
  private:
-  // We treat a String as an array, creating the HBoundsCheck from String.charAt()
-  // intrinsic in the instruction simplifier. We want to include the String.charAt()
-  // in the stack trace if we actually throw the StringIndexOutOfBoundsException,
-  // so we need to create an HEnvironment which will be translated to an InlineInfo
-  // indicating the extra stack frame. Since we add this HEnvironment quite late,
-  // in the PrepareForRegisterAllocation pass, we need to remember the method index
-  // from the invoke as we don't want to look again at the dex bytecode.
-  uint32_t string_char_at_method_index_;  // DexFile::kDexNoIndex if regular array.
+  static constexpr size_t kFlagIsStringCharAt = kNumberOfExpressionPackedBits;
 
   DISALLOW_COPY_AND_ASSIGN(HBoundsCheck);
 };
