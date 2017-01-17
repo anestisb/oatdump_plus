@@ -4521,7 +4521,7 @@ Location CodeGeneratorX86::GenerateCalleeMethodStaticOrDirectCall(HInvokeStaticO
       __ movl(temp.AsRegister<Register>(), Address(base_reg, kDummy32BitOffset));
       // Bind a new fixup label at the end of the "movl" insn.
       uint32_t offset = invoke->GetDexCacheArrayOffset();
-      __ Bind(NewPcRelativeDexCacheArrayPatch(invoke->GetDexFile(), offset));
+      __ Bind(NewPcRelativeDexCacheArrayPatch(invoke->GetDexFileForPcRelativeDexCache(), offset));
       break;
     }
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod: {
