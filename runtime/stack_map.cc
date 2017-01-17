@@ -18,8 +18,9 @@
 
 #include <stdint.h>
 
+#include "art_method.h"
 #include "indenter.h"
-#include "invoke_type.h"
+#include "scoped_thread_state_change-inl.h"
 
 namespace art {
 
@@ -106,7 +107,7 @@ void InlineInfoEncoding::Dump(VariableIndentationOutputStream* vios) const {
       << "InlineInfoEncoding"
       << " (method_index_bit_offset=" << static_cast<uint32_t>(kMethodIndexBitOffset)
       << ", dex_pc_bit_offset=" << static_cast<uint32_t>(dex_pc_bit_offset_)
-      << ", invoke_type_bit_offset=" << static_cast<uint32_t>(invoke_type_bit_offset_)
+      << ", extra_data_bit_offset=" << static_cast<uint32_t>(extra_data_bit_offset_)
       << ", dex_register_map_bit_offset=" << static_cast<uint32_t>(dex_register_map_bit_offset_)
       << ", total_bit_size=" << static_cast<uint32_t>(total_bit_size_)
       << ")\n";
@@ -230,12 +231,16 @@ void InlineInfo::Dump(VariableIndentationOutputStream* vios,
     vios->Stream()
         << " At depth " << i
         << std::hex
-        << " (dex_pc=0x" << GetDexPcAtDepth(inline_info_encoding, i)
-        << std::dec
-        << ", method_index=" << GetMethodIndexAtDepth(inline_info_encoding, i)
-        << ", invoke_type=" << static_cast<InvokeType>(GetInvokeTypeAtDepth(inline_info_encoding,
-                                                                            i))
-        << ")\n";
+        << " (dex_pc=0x" << GetDexPcAtDepth(inline_info_encoding, i);
+    if (EncodesArtMethodAtDepth(inline_info_encoding, i)) {
+      ScopedObjectAccess soa(Thread::Current());
+      vios->Stream() << ", method=" << GetArtMethodAtDepth(inline_info_encoding, i)->PrettyMethod();
+    } else {
+      vios->Stream()
+          << std::dec
+          << ", method_index=" << GetMethodIndexAtDepth(inline_info_encoding, i);
+    }
+    vios->Stream() << ")\n";
     if (HasDexRegisterMapAtDepth(inline_info_encoding, i) && (number_of_dex_registers != nullptr)) {
       CodeInfoEncoding encoding = code_info.ExtractEncoding();
       DexRegisterMap dex_register_map =

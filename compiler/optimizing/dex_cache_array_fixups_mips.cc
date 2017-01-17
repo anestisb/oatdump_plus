@@ -59,9 +59,10 @@ class DexCacheArrayFixupsVisitor : public HGraphVisitor {
     if (invoke->HasPcRelativeDexCache() &&
         !IsCallFreeIntrinsic<IntrinsicLocationsBuilderMIPS>(invoke, codegen_)) {
       // Initialize base for target method dex file if needed.
-      HMipsDexCacheArraysBase* base = GetOrCreateDexCacheArrayBase(invoke->GetDexFile());
+      HMipsDexCacheArraysBase* base =
+          GetOrCreateDexCacheArrayBase(invoke->GetDexFileForPcRelativeDexCache());
       // Update the element offset in base.
-      DexCacheArraysLayout layout(kMipsPointerSize, &invoke->GetDexFile());
+      DexCacheArraysLayout layout(kMipsPointerSize, &invoke->GetDexFileForPcRelativeDexCache());
       base->UpdateElementOffset(layout.MethodOffset(invoke->GetDexMethodIndex()));
       // Add the special argument base to the method.
       DCHECK(!invoke->HasCurrentMethodInput());
