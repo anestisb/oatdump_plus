@@ -66,10 +66,7 @@ void DefaultInitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) 
   qpoints->pGetObjStatic = art_quick_get_obj_static;
 
   // Array
-  qpoints->pAputObjectWithNullAndBoundCheck = art_quick_aput_obj_with_null_and_bound_check;
-  qpoints->pAputObjectWithBoundCheck = art_quick_aput_obj_with_bound_check;
   qpoints->pAputObject = art_quick_aput_obj;
-  qpoints->pHandleFillArrayData = art_quick_handle_fill_data;
 
   // JNI
   qpoints->pJniMethodStart = JniMethodStart;
