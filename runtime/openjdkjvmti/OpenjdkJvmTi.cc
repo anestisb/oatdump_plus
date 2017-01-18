@@ -51,6 +51,7 @@
 #include "ti_class.h"
 #include "ti_field.h"
 #include "ti_heap.h"
+#include "ti_jni.h"
 #include "ti_method.h"
 #include "ti_monitor.h"
 #include "ti_object.h"
@@ -802,11 +803,11 @@ class JvmtiFunctions {
   }
 
   static jvmtiError SetJNIFunctionTable(jvmtiEnv* env, const jniNativeInterface* function_table) {
-    return ERR(NOT_IMPLEMENTED);
+    return JNIUtil::SetJNIFunctionTable(env, function_table);
   }
 
   static jvmtiError GetJNIFunctionTable(jvmtiEnv* env, jniNativeInterface** function_table) {
-    return ERR(NOT_IMPLEMENTED);
+    return JNIUtil::GetJNIFunctionTable(env, function_table);
   }
 
   // TODO: This will require locking, so that an agent can't remove callbacks when we're dispatching
