@@ -1360,29 +1360,6 @@ END art_quick_check_instance_of
 #endif  // USE_READ_BARRIER
 .endm
 
-    /*
-     * Entry from managed code for array put operations of objects where the value being stored
-     * needs to be checked for compatibility.
-     * a0 = array, a1 = index, a2 = value
-     */
-ENTRY art_quick_aput_obj_with_null_and_bound_check
-    bne    $a0, $zero, .Lart_quick_aput_obj_with_bound_check_gp_set
-    nop
-    b art_quick_throw_null_pointer_exception
-    .cpreturn                       # Restore gp from t8 in branch delay slot.
-END art_quick_aput_obj_with_null_and_bound_check
-
-ENTRY art_quick_aput_obj_with_bound_check
-    lwu  $t0, MIRROR_ARRAY_LENGTH_OFFSET($a0)
-    sltu $t1, $a1, $t0
-    bne  $t1, $zero, .Lart_quick_aput_obj_gp_set
-    nop
-    move $a0, $a1
-    move $a1, $t0
-    b art_quick_throw_array_bounds
-    .cpreturn                       # Restore gp from t8 in branch delay slot.
-END art_quick_aput_obj_with_bound_check
-
 ENTRY art_quick_aput_obj
     beq  $a2, $zero, .Ldo_aput_null
     nop

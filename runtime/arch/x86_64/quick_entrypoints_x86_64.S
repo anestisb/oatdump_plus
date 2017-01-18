@@ -989,8 +989,6 @@ GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_WITH_ACCESS_CHECK(_region_tlab, RegionTL
 // GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY(_region_tlab, RegionTLAB)
 // GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED(_region_tlab, RegionTLAB)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_WITH_ACCESS_CHECK(_region_tlab, RegionTLAB)
-GENERATE_ALLOC_ENTRYPOINTS_CHECK_AND_ALLOC_ARRAY(_region_tlab, RegionTLAB)
-GENERATE_ALLOC_ENTRYPOINTS_CHECK_AND_ALLOC_ARRAY_WITH_ACCESS_CHECK(_region_tlab, RegionTLAB)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_BYTES(_region_tlab, RegionTLAB)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_CHARS(_region_tlab, RegionTLAB)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_STRING(_region_tlab, RegionTLAB)
@@ -1000,8 +998,6 @@ GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_STRING(_region_tlab, RegionTLAB)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_WITH_ACCESS_CHECK(_tlab, TLAB)
 // GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED(_tlab, TLAB)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_WITH_ACCESS_CHECK(_tlab, TLAB)
-GENERATE_ALLOC_ENTRYPOINTS_CHECK_AND_ALLOC_ARRAY(_tlab, TLAB)
-GENERATE_ALLOC_ENTRYPOINTS_CHECK_AND_ALLOC_ARRAY_WITH_ACCESS_CHECK(_tlab, TLAB)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_BYTES(_tlab, TLAB)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_CHARS(_tlab, TLAB)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_STRING(_tlab, TLAB)
@@ -1466,7 +1462,7 @@ END_MACRO
      * 64b PUSH/POP and 32b argument.
      * TODO: When read barrier has a fast path, add heap unpoisoning support for the fast path.
      *
-     * As with art_quick_aput_obj* functions, the 64b versions are in comments.
+     * As with art_quick_aput_obj function, the 64b versions are in comments.
      */
 MACRO4(READ_BARRIER, obj_reg, offset, dest_reg32, dest_reg64)
 #ifdef USE_READ_BARRIER
@@ -1502,46 +1498,6 @@ MACRO4(READ_BARRIER, obj_reg, offset, dest_reg32, dest_reg64)
     UNPOISON_HEAP_REF RAW_VAR(dest_reg32) // UNPOISON_HEAP_REF only takes a 32b register
 #endif  // USE_READ_BARRIER
 END_MACRO
-
-    /*
-     * Entry from managed code for array put operations of objects where the value being stored
-     * needs to be checked for compatibility.
-     *
-     * Currently all the parameters should fit into the 32b portions of the registers. Index always
-     * will. So we optimize for a tighter encoding. The 64b versions are in comments.
-     *
-     * rdi(edi) = array, rsi(esi) = index, rdx(edx) = value
-     */
-DEFINE_FUNCTION art_quick_aput_obj_with_null_and_bound_check
-#if defined(__APPLE__)
-    int3
-    int3
-#else
-    testl %edi, %edi
-//  testq %rdi, %rdi
-    jnz art_quick_aput_obj_with_bound_check
-    jmp art_quick_throw_null_pointer_exception
-#endif  // __APPLE__
-END_FUNCTION art_quick_aput_obj_with_null_and_bound_check
-
-
-DEFINE_FUNCTION art_quick_aput_obj_with_bound_check
-#if defined(__APPLE__)
-    int3
-    int3
-#else
-    movl MIRROR_ARRAY_LENGTH_OFFSET(%edi), %ecx
-//  movl MIRROR_ARRAY_LENGTH_OFFSET(%rdi), %ecx  // This zero-extends, so value(%rcx)=value(%ecx)
-    cmpl %ecx, %esi
-    jb art_quick_aput_obj
-    mov %esi, %edi
-//  mov %rsi, %rdi
-    mov %ecx, %esi
-//  mov %rcx, %rsi
-    jmp art_quick_throw_array_bounds
-#endif  // __APPLE__
-END_FUNCTION art_quick_aput_obj_with_bound_check
-
 
 DEFINE_FUNCTION art_quick_aput_obj
     testl %edx, %edx                // store of null

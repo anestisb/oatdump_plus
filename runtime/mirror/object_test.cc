@@ -306,23 +306,6 @@ TEST_F(ObjectTest, PrimitiveArray_Float_Alloc) {
 }
 
 
-TEST_F(ObjectTest, CheckAndAllocArrayFromCode) {
-  // pretend we are trying to call 'new char[3]' from String.toCharArray
-  ScopedObjectAccess soa(Thread::Current());
-  Class* java_util_Arrays = class_linker_->FindSystemClass(soa.Self(), "Ljava/util/Arrays;");
-  ArtMethod* sort = java_util_Arrays->FindDirectMethod("sort", "([I)V", kRuntimePointerSize);
-  const DexFile::TypeId* type_id = java_lang_dex_file_->FindTypeId("[I");
-  ASSERT_TRUE(type_id != nullptr);
-  dex::TypeIndex type_idx = java_lang_dex_file_->GetIndexForTypeId(*type_id);
-  Object* array = CheckAndAllocArrayFromCodeInstrumented(
-      type_idx, 3, sort, Thread::Current(), false,
-      Runtime::Current()->GetHeap()->GetCurrentAllocator());
-  EXPECT_TRUE(array->IsArrayInstance());
-  EXPECT_EQ(3, array->AsArray()->GetLength());
-  EXPECT_TRUE(array->GetClass()->IsArrayClass());
-  EXPECT_TRUE(array->GetClass()->GetComponentType()->IsPrimitive());
-}
-
 TEST_F(ObjectTest, CreateMultiArray) {
   ScopedObjectAccess soa(Thread::Current());
 

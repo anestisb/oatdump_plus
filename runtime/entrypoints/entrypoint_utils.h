@@ -102,24 +102,6 @@ ALWAYS_INLINE inline mirror::Array* AllocArrayFromCodeResolved(mirror::Class* kl
     REQUIRES_SHARED(Locks::mutator_lock_)
     REQUIRES(!Roles::uninterruptible_);
 
-mirror::Array* CheckAndAllocArrayFromCode(dex::TypeIndex type_idx,
-                                          int32_t component_count,
-                                          ArtMethod* method,
-                                          Thread* self,
-                                          bool access_check,
-                                          gc::AllocatorType allocator_type)
-    REQUIRES_SHARED(Locks::mutator_lock_)
-    REQUIRES(!Roles::uninterruptible_);
-
-mirror::Array* CheckAndAllocArrayFromCodeInstrumented(dex::TypeIndex type_idx,
-                                                      int32_t component_count,
-                                                      ArtMethod* method,
-                                                      Thread* self,
-                                                      bool access_check,
-                                                      gc::AllocatorType allocator_type)
-    REQUIRES_SHARED(Locks::mutator_lock_)
-    REQUIRES(!Roles::uninterruptible_);
-
 // Type of find field operation for fast and slow case.
 enum FindFieldType {
   InstanceObjectRead,
