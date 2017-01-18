@@ -2901,9 +2901,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       ArtMethod* called_method = VerifyInvocationArgs(inst, type, is_range);
       const RegType* return_type = nullptr;
       if (called_method != nullptr) {
-        PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
-        mirror::Class* return_type_class = called_method->GetReturnType(can_load_classes_,
-                                                                        pointer_size);
+        mirror::Class* return_type_class = called_method->GetReturnType(can_load_classes_);
         if (return_type_class != nullptr) {
           return_type = &FromClass(called_method->GetReturnTypeDescriptor(),
                                    return_type_class,
@@ -2946,9 +2944,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       } else {
         is_constructor = called_method->IsConstructor();
         return_type_descriptor = called_method->GetReturnTypeDescriptor();
-        PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
-        mirror::Class* return_type_class = called_method->GetReturnType(can_load_classes_,
-                                                                        pointer_size);
+        mirror::Class* return_type_class = called_method->GetReturnType(can_load_classes_);
         if (return_type_class != nullptr) {
           return_type = &FromClass(return_type_descriptor,
                                    return_type_class,
@@ -5133,9 +5129,7 @@ InstructionFlags* MethodVerifier::CurrentInsnFlags() {
 const RegType& MethodVerifier::GetMethodReturnType() {
   if (return_type_ == nullptr) {
     if (mirror_method_ != nullptr) {
-      PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
-      mirror::Class* return_type_class = mirror_method_->GetReturnType(can_load_classes_,
-                                                                       pointer_size);
+      mirror::Class* return_type_class = mirror_method_->GetReturnType(can_load_classes_);
       if (return_type_class != nullptr) {
         return_type_ = &FromClass(mirror_method_->GetReturnTypeDescriptor(),
                                   return_type_class,

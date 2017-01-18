@@ -840,10 +840,8 @@ void ReferenceTypePropagation::RTPVisitor::VisitInvoke(HInvoke* instr) {
   }
 
   ScopedObjectAccess soa(Thread::Current());
-  ClassLinker* cl = Runtime::Current()->GetClassLinker();
-  PointerSize pointer_size = cl->GetImagePointerSize();
   ArtMethod* method = instr->GetResolvedMethod();
-  mirror::Class* klass = (method == nullptr) ? nullptr : method->GetReturnType(false, pointer_size);
+  mirror::Class* klass = (method == nullptr) ? nullptr : method->GetReturnType(/* resolve */ false);
   SetClassAsTypeInfo(instr, klass, /* is_exact */ false);
 }
 

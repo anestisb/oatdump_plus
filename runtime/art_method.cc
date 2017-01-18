@@ -236,7 +236,6 @@ uint32_t ArtMethod::FindCatchBlock(Handle<mirror::Class> exception_type,
   // Default to handler not found.
   uint32_t found_dex_pc = DexFile::kDexNoIndex;
   // Iterate over the catch handlers associated with dex_pc.
-  PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
   for (CatchHandlerIterator it(*code_item, dex_pc); it.HasNext(); it.Next()) {
     dex::TypeIndex iter_type_idx = it.GetHandlerTypeIndex();
     // Catch all case
@@ -245,9 +244,7 @@ uint32_t ArtMethod::FindCatchBlock(Handle<mirror::Class> exception_type,
       break;
     }
     // Does this catch exception type apply?
-    mirror::Class* iter_exception_type = GetClassFromTypeIndex(iter_type_idx,
-                                                               true /* resolve */,
-                                                               pointer_size);
+    mirror::Class* iter_exception_type = GetClassFromTypeIndex(iter_type_idx, true /* resolve */);
     if (UNLIKELY(iter_exception_type == nullptr)) {
       // Now have a NoClassDefFoundError as exception. Ignore in case the exception class was
       // removed by a pro-guard like tool.

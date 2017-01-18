@@ -241,10 +241,9 @@ inline mirror::Class* CheckArrayAlloc(dex::TypeIndex type_idx,
     *slow_path = true;
     return nullptr;  // Failure
   }
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  PointerSize pointer_size = class_linker->GetImagePointerSize();
-  mirror::Class* klass = method->GetDexCacheResolvedType<false>(type_idx, pointer_size);
+  mirror::Class* klass = method->GetDexCache()->GetResolvedType(type_idx);
   if (UNLIKELY(klass == nullptr)) {  // Not in dex cache so try to resolve
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     klass = class_linker->ResolveType(type_idx, method);
     *slow_path = true;
     if (klass == nullptr) {  // Error
