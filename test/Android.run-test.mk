@@ -280,6 +280,7 @@ TEST_ART_BROKEN_TARGET_TESTS := \
 # These 9** tests are not supported in current form due to linker
 # restrictions. See b/31681198
 TEST_ART_BROKEN_TARGET_TESTS += \
+  901-hello-ti-agent \
   902-hello-transformation \
   903-hello-tagging \
   904-object-allocation \
