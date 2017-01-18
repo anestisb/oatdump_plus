@@ -856,27 +856,6 @@ END art_quick_check_instance_of
 #endif  // USE_READ_BARRIER
 .endm
 
-    /*
-     * Entry from managed code for array put operations of objects where the value being stored
-     * needs to be checked for compatibility.
-     * r0 = array, r1 = index, r2 = value
-     */
-ENTRY art_quick_aput_obj_with_null_and_bound_check
-    tst r0, r0
-    bne art_quick_aput_obj_with_bound_check
-    b art_quick_throw_null_pointer_exception
-END art_quick_aput_obj_with_null_and_bound_check
-
-    .hidden art_quick_aput_obj_with_bound_check
-ENTRY art_quick_aput_obj_with_bound_check
-    ldr r3, [r0, #MIRROR_ARRAY_LENGTH_OFFSET]
-    cmp r3, r1
-    bhi art_quick_aput_obj
-    mov r0, r1
-    mov r1, r3
-    b art_quick_throw_array_bounds
-END art_quick_aput_obj_with_bound_check
-
 #ifdef USE_READ_BARRIER
     .extern artReadBarrierSlow
 #endif
