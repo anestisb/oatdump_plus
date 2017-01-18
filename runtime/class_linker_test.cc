@@ -906,6 +906,41 @@ TEST_F(ClassLinkerTest, LookupResolvedType) {
       klass);
 }
 
+TEST_F(ClassLinkerTest, LookupResolvedTypeArray) {
+  ScopedObjectAccess soa(Thread::Current());
+  StackHandleScope<2> hs(soa.Self());
+  Handle<mirror::ClassLoader> class_loader(
+      hs.NewHandle(soa.Decode<mirror::ClassLoader>(LoadDex("AllFields"))));
+  // Get the AllFields class for the dex cache and dex file.
+  ObjPtr<mirror::Class> all_fields_klass
+      = class_linker_->FindClass(soa.Self(), "LAllFields;", class_loader);
+  ASSERT_OBJ_PTR_NE(all_fields_klass, ObjPtr<mirror::Class>(nullptr));
+  Handle<mirror::DexCache> dex_cache = hs.NewHandle(all_fields_klass->GetDexCache());
+  const DexFile& dex_file = *dex_cache->GetDexFile();
+  // Get the index of the array class we want to test.
+  const DexFile::TypeId* array_id = dex_file.FindTypeId("[Ljava/lang/Object;");
+  ASSERT_TRUE(array_id != nullptr);
+  dex::TypeIndex array_idx = dex_file.GetIndexForTypeId(*array_id);
+  // Check that the array class wasn't resolved yet.
+  EXPECT_OBJ_PTR_EQ(
+      class_linker_->LookupResolvedType(dex_file, array_idx, dex_cache.Get(), class_loader.Get()),
+      ObjPtr<mirror::Class>(nullptr));
+  // Resolve the array class we want to test.
+  ObjPtr<mirror::Class> array_klass
+      = class_linker_->FindClass(soa.Self(), "[Ljava/lang/Object;", class_loader);
+  ASSERT_OBJ_PTR_NE(array_klass, ObjPtr<mirror::Class>(nullptr));
+  // Test that LookupResolvedType() finds the array class.
+  EXPECT_OBJ_PTR_EQ(
+      class_linker_->LookupResolvedType(dex_file, array_idx, dex_cache.Get(), class_loader.Get()),
+      array_klass);
+  // Zero out the resolved type and make sure LookupResolvedType() still finds it.
+  dex_cache->SetResolvedType(array_idx, nullptr);
+  EXPECT_TRUE(dex_cache->GetResolvedType(array_idx) == nullptr);
+  EXPECT_OBJ_PTR_EQ(
+      class_linker_->LookupResolvedType(dex_file, array_idx, dex_cache.Get(), class_loader.Get()),
+      array_klass);
+}
+
 TEST_F(ClassLinkerTest, LibCore) {
   ScopedObjectAccess soa(Thread::Current());
   ASSERT_TRUE(java_lang_dex_file_ != nullptr);
