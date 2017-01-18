@@ -265,6 +265,7 @@ art_cc_defaults {
         "922-properties/properties.cc",
         "923-monitors/monitors.cc",
         "924-threads/threads.cc",
+        "925-threadgroups/threadgroups.cc",
         "927-timers/timers.cc",
     ],
     shared_libs: [
