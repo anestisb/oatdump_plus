@@ -25,7 +25,6 @@
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache-inl.h"
 #include "mirror/iftable.h"
-#include "mirror/throwable.h"
 #include "mirror/object_array.h"
 #include "handle_scope-inl.h"
 #include "scoped_thread_state_change-inl.h"
@@ -90,25 +89,16 @@ inline mirror::Class* ClassLinker::ResolveType(dex::TypeIndex type_idx, ArtMetho
   if (kIsDebugBuild) {
     Thread::Current()->AssertNoPendingException();
   }
-  ObjPtr<mirror::Class> resolved_type =
-      referrer->GetDexCacheResolvedType(type_idx, image_pointer_size_);
+  ObjPtr<mirror::Class> resolved_type = referrer->GetDexCache()->GetResolvedType(type_idx);
   if (UNLIKELY(resolved_type == nullptr)) {
     StackHandleScope<2> hs(Thread::Current());
-    // There could be an out of bounds exception from GetDexCacheResolvedType, don't call
-    // ResolveType for this case.
-    if (LIKELY(!hs.Self()->IsExceptionPending())) {
-      ObjPtr<mirror::Class> declaring_class = referrer->GetDeclaringClass();
-      Handle<mirror::DexCache> dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
-      Handle<mirror::ClassLoader> class_loader(hs.NewHandle(declaring_class->GetClassLoader()));
-      const DexFile& dex_file = *dex_cache->GetDexFile();
-      resolved_type = ResolveType(dex_file, type_idx, dex_cache, class_loader);
-      // Note: We cannot check here to see whether we added the type to the cache. The type
-      //       might be an erroneous class, which results in it being hidden from us.
-    } else {
-      // Make sure its an array out of bounds exception.
-      DCHECK(hs.Self()->GetException()->GetClass()->DescriptorEquals(
-          "Ljava/lang/ArrayIndexOutOfBoundsException;"));
-    }
+    ObjPtr<mirror::Class> declaring_class = referrer->GetDeclaringClass();
+    Handle<mirror::DexCache> dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
+    Handle<mirror::ClassLoader> class_loader(hs.NewHandle(declaring_class->GetClassLoader()));
+    const DexFile& dex_file = *dex_cache->GetDexFile();
+    resolved_type = ResolveType(dex_file, type_idx, dex_cache, class_loader);
+    // Note: We cannot check here to see whether we added the type to the cache. The type
+    //       might be an erroneous class, which results in it being hidden from us.
   }
   return resolved_type.Ptr();
 }
@@ -256,8 +246,8 @@ ArtMethod* ClassLinker::FindMethodForProxy(ObjPtr<mirror::Class> proxy_class,
     // Locate the dex cache of the original interface/Object
     for (const DexCacheData& data : dex_caches_) {
       if (!self->IsJWeakCleared(data.weak_root) &&
-          proxy_method->HasSameDexCacheResolvedTypes(data.resolved_types,
-                                                     image_pointer_size_)) {
+          proxy_method->HasSameDexCacheResolvedMethods(data.resolved_methods,
+                                                       image_pointer_size_)) {
         ObjPtr<mirror::DexCache> dex_cache =
             ObjPtr<mirror::DexCache>::DownCast(self->DecodeJObject(data.weak_root));
         if (dex_cache != nullptr) {
