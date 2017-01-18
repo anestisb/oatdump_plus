@@ -1231,7 +1231,12 @@ class JvmtiFunctions {
   }
 
   static jvmtiError GetJLocationFormat(jvmtiEnv* env, jvmtiJlocationFormat* format_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    // Report BCI as jlocation format. We report dex bytecode indices.
+    if (format_ptr == nullptr) {
+      return ERR(NULL_POINTER);
+    }
+    *format_ptr = jvmtiJlocationFormat::JVMTI_JLOCATION_JVMBCI;
+    return ERR(NONE);
   }
 
   // TODO Remove this once events are working.
