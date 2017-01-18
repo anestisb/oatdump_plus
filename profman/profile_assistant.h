@@ -21,7 +21,7 @@
 #include <vector>
 
 #include "base/scoped_flock.h"
-#include "jit/offline_profiling_info.h"
+#include "jit/profile_compilation_info.h"
 
 namespace art {
 

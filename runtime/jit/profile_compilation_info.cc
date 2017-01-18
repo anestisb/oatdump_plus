@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "offline_profiling_info.h"
+#include "profile_compilation_info.h"
 
 #include "errno.h"
 #include <limits.h>

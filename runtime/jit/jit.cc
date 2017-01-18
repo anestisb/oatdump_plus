@@ -26,7 +26,7 @@
 #include "jit_code_cache.h"
 #include "oat_file_manager.h"
 #include "oat_quick_method_header.h"
-#include "offline_profiling_info.h"
+#include "profile_compilation_info.h"
 #include "profile_saver.h"
 #include "runtime.h"
 #include "runtime_options.h"
