@@ -3801,6 +3801,15 @@ class HNewInstance FINAL : public HExpression<1> {
     entrypoint_ = entrypoint;
   }
 
+  HLoadClass* GetLoadClass() const {
+    HInstruction* input = InputAt(0);
+    if (input->IsClinitCheck()) {
+      input = input->InputAt(0);
+    }
+    DCHECK(input->IsLoadClass());
+    return input->AsLoadClass();
+  }
+
   bool IsStringAlloc() const;
 
   DECLARE_INSTRUCTION(NewInstance);
@@ -4355,22 +4364,11 @@ class HNeg FINAL : public HUnaryOperation {
 
 class HNewArray FINAL : public HExpression<2> {
  public:
-  HNewArray(HInstruction* length,
-            HCurrentMethod* current_method,
-            uint32_t dex_pc,
-            dex::TypeIndex type_index,
-            const DexFile& dex_file,
-            QuickEntrypointEnum entrypoint)
-      : HExpression(Primitive::kPrimNot, SideEffects::CanTriggerGC(), dex_pc),
-        type_index_(type_index),
-        dex_file_(dex_file),
-        entrypoint_(entrypoint) {
-    SetRawInputAt(0, length);
-    SetRawInputAt(1, current_method);
+  HNewArray(HInstruction* cls, HInstruction* length, uint32_t dex_pc)
+      : HExpression(Primitive::kPrimNot, SideEffects::CanTriggerGC(), dex_pc) {
+    SetRawInputAt(0, cls);
+    SetRawInputAt(1, length);
   }
-
-  dex::TypeIndex GetTypeIndex() const { return type_index_; }
-  const DexFile& GetDexFile() const { return dex_file_; }
 
   // Calls runtime so needs an environment.
   bool NeedsEnvironment() const OVERRIDE { return true; }
@@ -4380,15 +4378,18 @@ class HNewArray FINAL : public HExpression<2> {
 
   bool CanBeNull() const OVERRIDE { return false; }
 
-  QuickEntrypointEnum GetEntrypoint() const { return entrypoint_; }
+  HLoadClass* GetLoadClass() const {
+    DCHECK(InputAt(0)->IsLoadClass());
+    return InputAt(0)->AsLoadClass();
+  }
+
+  HInstruction* GetLength() const {
+    return InputAt(1);
+  }
 
   DECLARE_INSTRUCTION(NewArray);
 
  private:
-  const dex::TypeIndex type_index_;
-  const DexFile& dex_file_;
-  const QuickEntrypointEnum entrypoint_;
-
   DISALLOW_COPY_AND_ASSIGN(HNewArray);
 };
 
@@ -5891,7 +5892,10 @@ class HClinitCheck FINAL : public HExpression<1> {
 
   bool CanThrow() const OVERRIDE { return true; }
 
-  HLoadClass* GetLoadClass() const { return InputAt(0)->AsLoadClass(); }
+  HLoadClass* GetLoadClass() const {
+    DCHECK(InputAt(0)->IsLoadClass());
+    return InputAt(0)->AsLoadClass();
+  }
 
   DECLARE_INSTRUCTION(ClinitCheck);
 
@@ -6755,6 +6759,23 @@ inline void MakeRoomFor(ArenaVector<HBasicBlock*>* blocks,
   size_t new_size = old_size + number_of_new_blocks;
   blocks->resize(new_size);
   std::copy_backward(blocks->begin() + after + 1u, blocks->begin() + old_size, blocks->end());
+}
+
+/*
+ * Hunt "under the hood" of array lengths (leading to array references),
+ * null checks (also leading to array references), and new arrays
+ * (leading to the actual length). This makes it more likely related
+ * instructions become actually comparable.
+ */
+inline HInstruction* HuntForDeclaration(HInstruction* instruction) {
+  while (instruction->IsArrayLength() ||
+         instruction->IsNullCheck() ||
+         instruction->IsNewArray()) {
+    instruction = instruction->IsNewArray()
+        ? instruction->AsNewArray()->GetLength()
+        : instruction->InputAt(0);
+  }
+  return instruction;
 }
 
 }  // namespace art

@@ -153,21 +153,6 @@ class ValueBound : public ValueObject {
     return instruction_ == bound.instruction_ && constant_ == bound.constant_;
   }
 
-  /*
-   * Hunt "under the hood" of array lengths (leading to array references),
-   * null checks (also leading to array references), and new arrays
-   * (leading to the actual length). This makes it more likely related
-   * instructions become actually comparable.
-   */
-  static HInstruction* HuntForDeclaration(HInstruction* instruction) {
-    while (instruction->IsArrayLength() ||
-           instruction->IsNullCheck() ||
-           instruction->IsNewArray()) {
-      instruction = instruction->InputAt(0);
-    }
-    return instruction;
-  }
-
   static bool Equal(HInstruction* instruction1, HInstruction* instruction2) {
     if (instruction1 == instruction2) {
       return true;
@@ -1136,7 +1121,7 @@ class BCEVisitor : public HGraphVisitor {
   }
 
   void VisitNewArray(HNewArray* new_array) OVERRIDE {
-    HInstruction* len = new_array->InputAt(0);
+    HInstruction* len = new_array->GetLength();
     if (!len->IsIntConstant()) {
       HInstruction *left;
       int32_t right_const;
@@ -1324,7 +1309,7 @@ class BCEVisitor : public HGraphVisitor {
     InductionVarRange::Value v2;
     bool needs_finite_test = false;
     HInstruction* index = context->InputAt(0);
-    HInstruction* hint = ValueBound::HuntForDeclaration(context->InputAt(1));
+    HInstruction* hint = HuntForDeclaration(context->InputAt(1));
     if (induction_range_.GetInductionRange(context, index, hint, &v1, &v2, &needs_finite_test)) {
       if (v1.is_known && (v1.a_constant == 0 || v1.a_constant == 1) &&
           v2.is_known && (v2.a_constant == 0 || v2.a_constant == 1)) {
