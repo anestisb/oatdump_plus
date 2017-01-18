@@ -74,7 +74,7 @@ typedef jobject jthreadGroup;
 typedef jlong jlocation;
 struct _jrawMonitorID;
 typedef struct _jrawMonitorID *jrawMonitorID;
-typedef struct JNINativeInterface_ jniNativeInterface;
+typedef struct JNINativeInterface jniNativeInterface;
 
     /* Constants */
 
