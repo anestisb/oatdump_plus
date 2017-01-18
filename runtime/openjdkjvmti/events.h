@@ -30,22 +30,70 @@ struct ArtJvmTiEnv;
 class JvmtiAllocationListener;
 class JvmtiGcPauseListener;
 
+// an enum for ArtEvents.
+enum class ArtJvmtiEvent {
+    kMinEventTypeVal = JVMTI_MIN_EVENT_TYPE_VAL,
+    kVmInit = JVMTI_EVENT_VM_INIT,
+    kVmDeath = JVMTI_EVENT_VM_DEATH,
+    kThreadStart = JVMTI_EVENT_THREAD_START,
+    kThreadEnd = JVMTI_EVENT_THREAD_END,
+    kClassFileLoadHook = JVMTI_EVENT_CLASS_FILE_LOAD_HOOK,
+    kClassLoad = JVMTI_EVENT_CLASS_LOAD,
+    kClassPrepare = JVMTI_EVENT_CLASS_PREPARE,
+    kVmStart = JVMTI_EVENT_VM_START,
+    kException = JVMTI_EVENT_EXCEPTION,
+    kExceptionCatch = JVMTI_EVENT_EXCEPTION_CATCH,
+    kSingleStep = JVMTI_EVENT_SINGLE_STEP,
+    kFramePop = JVMTI_EVENT_FRAME_POP,
+    kBreakpoint = JVMTI_EVENT_BREAKPOINT,
+    kFieldAccess = JVMTI_EVENT_FIELD_ACCESS,
+    kFieldModification = JVMTI_EVENT_FIELD_MODIFICATION,
+    kMethodEntry = JVMTI_EVENT_METHOD_ENTRY,
+    kMethodExit = JVMTI_EVENT_METHOD_EXIT,
+    kNativeMethodBind = JVMTI_EVENT_NATIVE_METHOD_BIND,
+    kCompiledMethodLoad = JVMTI_EVENT_COMPILED_METHOD_LOAD,
+    kCompiledMethodUnload = JVMTI_EVENT_COMPILED_METHOD_UNLOAD,
+    kDynamicCodeGenerated = JVMTI_EVENT_DYNAMIC_CODE_GENERATED,
+    kDataDumpRequest = JVMTI_EVENT_DATA_DUMP_REQUEST,
+    kMonitorWait = JVMTI_EVENT_MONITOR_WAIT,
+    kMonitorWaited = JVMTI_EVENT_MONITOR_WAITED,
+    kMonitorContendedEnter = JVMTI_EVENT_MONITOR_CONTENDED_ENTER,
+    kMonitorContendedEntered = JVMTI_EVENT_MONITOR_CONTENDED_ENTERED,
+    kResourceExhausted = JVMTI_EVENT_RESOURCE_EXHAUSTED,
+    kGarbageCollectionStart = JVMTI_EVENT_GARBAGE_COLLECTION_START,
+    kGarbageCollectionFinish = JVMTI_EVENT_GARBAGE_COLLECTION_FINISH,
+    kObjectFree = JVMTI_EVENT_OBJECT_FREE,
+    kVmObjectAlloc = JVMTI_EVENT_VM_OBJECT_ALLOC,
+    kMaxEventTypeVal = JVMTI_MAX_EVENT_TYPE_VAL,
+};
+
+// Convert a jvmtiEvent into a ArtJvmtiEvent
+ALWAYS_INLINE static inline ArtJvmtiEvent GetArtJvmtiEvent(ArtJvmTiEnv* env, jvmtiEvent e);
+
+ALWAYS_INLINE static inline jvmtiEvent GetJvmtiEvent(ArtJvmtiEvent e) {
+  return static_cast<jvmtiEvent>(e);
+}
+
 struct EventMask {
-  static constexpr size_t kEventsSize = JVMTI_MAX_EVENT_TYPE_VAL - JVMTI_MIN_EVENT_TYPE_VAL + 1;
+  static constexpr size_t kEventsSize =
+      static_cast<size_t>(ArtJvmtiEvent::kMaxEventTypeVal) -
+      static_cast<size_t>(ArtJvmtiEvent::kMinEventTypeVal) + 1;
   std::bitset<kEventsSize> bit_set;
 
-  static bool EventIsInRange(jvmtiEvent event) {
-    return event >= JVMTI_MIN_EVENT_TYPE_VAL && event <= JVMTI_MAX_EVENT_TYPE_VAL;
+  static bool EventIsInRange(ArtJvmtiEvent event) {
+    return event >= ArtJvmtiEvent::kMinEventTypeVal && event <= ArtJvmtiEvent::kMaxEventTypeVal;
   }
 
-  void Set(jvmtiEvent event, bool value = true) {
+  void Set(ArtJvmtiEvent event, bool value = true) {
     DCHECK(EventIsInRange(event));
-    bit_set.set(event - JVMTI_MIN_EVENT_TYPE_VAL, value);
+    bit_set.set(static_cast<size_t>(event) - static_cast<size_t>(ArtJvmtiEvent::kMinEventTypeVal),
+                value);
   }
 
-  bool Test(jvmtiEvent event) const {
+  bool Test(ArtJvmtiEvent event) const {
     DCHECK(EventIsInRange(event));
-    return bit_set.test(event - JVMTI_MIN_EVENT_TYPE_VAL);
+    return bit_set.test(
+        static_cast<size_t>(event) - static_cast<size_t>(ArtJvmtiEvent::kMinEventTypeVal));
   }
 };
 
@@ -68,8 +116,8 @@ struct EventMasks {
 
   EventMask& GetEventMask(art::Thread* thread);
   EventMask* GetEventMaskOrNull(art::Thread* thread);
-  void EnableEvent(art::Thread* thread, jvmtiEvent event);
-  void DisableEvent(art::Thread* thread, jvmtiEvent event);
+  void EnableEvent(art::Thread* thread, ArtJvmtiEvent event);
+  void DisableEvent(art::Thread* thread, ArtJvmtiEvent event);
 };
 
 // Helper class for event handling.
@@ -82,20 +130,27 @@ class EventHandler {
   // enabled, yet.
   void RegisterArtJvmTiEnv(ArtJvmTiEnv* env);
 
-  bool IsEventEnabledAnywhere(jvmtiEvent event) {
+  bool IsEventEnabledAnywhere(ArtJvmtiEvent event) const {
     if (!EventMask::EventIsInRange(event)) {
       return false;
     }
     return global_mask.Test(event);
   }
 
-  jvmtiError SetEvent(ArtJvmTiEnv* env, art::Thread* thread, jvmtiEvent event, jvmtiEventMode mode);
+  jvmtiError SetEvent(ArtJvmTiEnv* env,
+                      art::Thread* thread,
+                      ArtJvmtiEvent event,
+                      jvmtiEventMode mode);
 
   template <typename ...Args>
-  ALWAYS_INLINE inline void DispatchEvent(art::Thread* thread, jvmtiEvent event, Args... args);
+  ALWAYS_INLINE
+  inline void DispatchEvent(art::Thread* thread, ArtJvmtiEvent event, Args... args) const;
 
  private:
-  void HandleEventType(jvmtiEvent event, bool enable);
+  ALWAYS_INLINE
+  static inline bool ShouldDispatch(ArtJvmtiEvent event, ArtJvmTiEnv* env, art::Thread* thread);
+
+  void HandleEventType(ArtJvmtiEvent event, bool enable);
 
   // List of all JvmTiEnv objects that have been created, in their creation order.
   std::vector<ArtJvmTiEnv*> envs;
