@@ -126,14 +126,15 @@ class Instruction {
 
   enum IndexType {
     kIndexUnknown = 0,
-    kIndexNone,              // has no index
-    kIndexTypeRef,           // type reference index
-    kIndexStringRef,         // string reference index
-    kIndexMethodRef,         // method reference index
-    kIndexFieldRef,          // field reference index
-    kIndexFieldOffset,       // field offset (for static linked fields)
-    kIndexVtableOffset,      // vtable offset (for static linked methods)
-    kIndexMethodAndProtoRef  // method and a proto reference index (for invoke-polymorphic)
+    kIndexNone,               // has no index
+    kIndexTypeRef,            // type reference index
+    kIndexStringRef,          // string reference index
+    kIndexMethodRef,          // method reference index
+    kIndexFieldRef,           // field reference index
+    kIndexFieldOffset,        // field offset (for static linked fields)
+    kIndexVtableOffset,       // vtable offset (for static linked methods)
+    kIndexMethodAndProtoRef,  // method and a proto reference index (for invoke-polymorphic)
+    kIndexCallSiteRef,        // call site reference index
   };
 
   enum Flags {
@@ -165,31 +166,32 @@ class Instruction {
   };
 
   enum VerifyFlag {
-    kVerifyNone               = 0x000000,
-    kVerifyRegA               = 0x000001,
-    kVerifyRegAWide           = 0x000002,
-    kVerifyRegB               = 0x000004,
-    kVerifyRegBField          = 0x000008,
-    kVerifyRegBMethod         = 0x000010,
-    kVerifyRegBNewInstance    = 0x000020,
-    kVerifyRegBString         = 0x000040,
-    kVerifyRegBType           = 0x000080,
-    kVerifyRegBWide           = 0x000100,
-    kVerifyRegC               = 0x000200,
-    kVerifyRegCField          = 0x000400,
-    kVerifyRegCNewArray       = 0x000800,
-    kVerifyRegCType           = 0x001000,
-    kVerifyRegCWide           = 0x002000,
-    kVerifyArrayData          = 0x004000,
-    kVerifyBranchTarget       = 0x008000,
-    kVerifySwitchTargets      = 0x010000,
-    kVerifyVarArg             = 0x020000,
-    kVerifyVarArgNonZero      = 0x040000,
-    kVerifyVarArgRange        = 0x080000,
-    kVerifyVarArgRangeNonZero = 0x100000,
-    kVerifyRuntimeOnly        = 0x200000,
-    kVerifyError              = 0x400000,
-    kVerifyRegHPrototype      = 0x800000
+    kVerifyNone               = 0x0000000,
+    kVerifyRegA               = 0x0000001,
+    kVerifyRegAWide           = 0x0000002,
+    kVerifyRegB               = 0x0000004,
+    kVerifyRegBField          = 0x0000008,
+    kVerifyRegBMethod         = 0x0000010,
+    kVerifyRegBNewInstance    = 0x0000020,
+    kVerifyRegBString         = 0x0000040,
+    kVerifyRegBType           = 0x0000080,
+    kVerifyRegBWide           = 0x0000100,
+    kVerifyRegC               = 0x0000200,
+    kVerifyRegCField          = 0x0000400,
+    kVerifyRegCNewArray       = 0x0000800,
+    kVerifyRegCType           = 0x0001000,
+    kVerifyRegCWide           = 0x0002000,
+    kVerifyArrayData          = 0x0004000,
+    kVerifyBranchTarget       = 0x0008000,
+    kVerifySwitchTargets      = 0x0010000,
+    kVerifyVarArg             = 0x0020000,
+    kVerifyVarArgNonZero      = 0x0040000,
+    kVerifyVarArgRange        = 0x0080000,
+    kVerifyVarArgRangeNonZero = 0x0100000,
+    kVerifyRuntimeOnly        = 0x0200000,
+    kVerifyError              = 0x0400000,
+    kVerifyRegHPrototype      = 0x0800000,
+    kVerifyRegBCallSite       = 0x1000000
   };
 
   static constexpr uint32_t kMaxVarArgRegs = 5;

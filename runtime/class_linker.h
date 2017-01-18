@@ -55,6 +55,8 @@ namespace mirror {
   class DexCacheMethodHandlesTest_Open_Test;
   class DexCacheTest_Open_Test;
   class IfTable;
+  class MethodHandle;
+  class MethodHandlesLookup;
   class MethodType;
   template<class T> class ObjectArray;
   class StackTraceElement;
@@ -106,7 +108,9 @@ class ClassLinker {
     kJavaLangReflectConstructorArrayClass,
     kJavaLangReflectFieldArrayClass,
     kJavaLangReflectMethodArrayClass,
+    kJavaLangInvokeCallSite,
     kJavaLangInvokeMethodHandleImpl,
+    kJavaLangInvokeMethodHandlesLookup,
     kJavaLangInvokeMethodType,
     kJavaLangClassLoader,
     kJavaLangThrowable,
@@ -365,6 +369,12 @@ class ClassLinker {
                                         Handle<mirror::ClassLoader> class_loader)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::dex_lock_, !Roles::uninterruptible_);
+
+  // Resolve a method handle with a given ID from the DexFile. The
+  // result is not cached in the DexCache as the instance will only be
+  // used once in most circumstances.
+  mirror::MethodHandle* ResolveMethodHandle(uint32_t method_handle_idx, ArtMethod* referrer)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns true on success, false if there's an exception pending.
   // can_run_clinit=false allows the compiler to attempt to init a class,

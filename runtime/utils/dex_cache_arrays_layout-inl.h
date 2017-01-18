@@ -29,7 +29,8 @@
 namespace art {
 
 inline DexCacheArraysLayout::DexCacheArraysLayout(PointerSize pointer_size,
-                                                  const DexFile::Header& header)
+                                                  const DexFile::Header& header,
+                                                  uint32_t num_call_sites)
     : pointer_size_(pointer_size),
       /* types_offset_ is always 0u, so it's constexpr */
       methods_offset_(
@@ -40,12 +41,14 @@ inline DexCacheArraysLayout::DexCacheArraysLayout(PointerSize pointer_size,
           RoundUp(strings_offset_ + StringsSize(header.string_ids_size_), FieldsAlignment())),
       method_types_offset_(
           RoundUp(fields_offset_ + FieldsSize(header.field_ids_size_), MethodTypesAlignment())),
-      size_(
-          RoundUp(method_types_offset_ + MethodTypesSize(header.proto_ids_size_), Alignment())) {
+    call_sites_offset_(
+        RoundUp(method_types_offset_ + MethodTypesSize(header.proto_ids_size_),
+                MethodTypesAlignment())),
+      size_(RoundUp(call_sites_offset_ + CallSitesSize(num_call_sites), Alignment())) {
 }
 
 inline DexCacheArraysLayout::DexCacheArraysLayout(PointerSize pointer_size, const DexFile* dex_file)
-    : DexCacheArraysLayout(pointer_size, dex_file->GetHeader()) {
+    : DexCacheArraysLayout(pointer_size, dex_file->GetHeader(), dex_file->NumCallSiteIds()) {
 }
 
 inline constexpr size_t DexCacheArraysLayout::Alignment() {
@@ -131,8 +134,16 @@ inline size_t DexCacheArraysLayout::MethodTypesSize(size_t num_elements) const {
 
 inline size_t DexCacheArraysLayout::MethodTypesAlignment() const {
   static_assert(alignof(mirror::MethodTypeDexCacheType) == 8,
-                "alignof(MethodTypeDexCacheType) != 8");
+                "Expecting alignof(MethodTypeDexCacheType) == 8");
   return alignof(mirror::MethodTypeDexCacheType);
+}
+
+inline size_t DexCacheArraysLayout::CallSitesSize(size_t num_elements) const {
+  return ArraySize(GcRootAsPointerSize<mirror::CallSite>(), num_elements);
+}
+
+inline size_t DexCacheArraysLayout::CallSitesAlignment() const {
+  return alignof(GcRoot<mirror::CallSite>);
 }
 
 inline size_t DexCacheArraysLayout::ElementOffset(PointerSize element_size, uint32_t idx) {
