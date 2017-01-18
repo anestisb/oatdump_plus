@@ -227,11 +227,11 @@ class ArgArray {
     for (size_t i = 1, args_offset = 0; i < shorty_len_; ++i, ++args_offset) {
       ObjPtr<mirror::Object> arg(args->Get(args_offset));
       if (((shorty_[i] == 'L') && (arg != nullptr)) || ((arg == nullptr && shorty_[i] != 'L'))) {
-        PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+        // Note: The method's parameter's type must have been previously resolved.
         ObjPtr<mirror::Class> dst_class(
             m->GetClassFromTypeIndex(classes->GetTypeItem(args_offset).type_idx_,
-                                     true /* resolve */,
-                                     pointer_size));
+                                     false /* resolve */));
+        DCHECK(dst_class != nullptr) << m->PrettyMethod() << " arg #" << i;
         if (UNLIKELY(arg == nullptr || !arg->InstanceOf(dst_class))) {
           ThrowIllegalArgumentException(
               StringPrintf("method %s argument %zd has type %s, got %s",
@@ -363,12 +363,9 @@ static void CheckMethodArguments(JavaVMExt* vm, ArtMethod* m, uint32_t* args)
   }
   // TODO: If args contain object references, it may cause problems.
   Thread* const self = Thread::Current();
-  PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
   for (uint32_t i = 0; i < num_params; i++) {
     dex::TypeIndex type_idx = params->GetTypeItem(i).type_idx_;
-    ObjPtr<mirror::Class> param_type(m->GetClassFromTypeIndex(type_idx,
-                                                              true /* resolve*/,
-                                                              pointer_size));
+    ObjPtr<mirror::Class> param_type(m->GetClassFromTypeIndex(type_idx, true /* resolve */));
     if (param_type == nullptr) {
       CHECK(self->IsExceptionPending());
       LOG(ERROR) << "Internal error: unresolvable type for argument type in JNI invoke: "

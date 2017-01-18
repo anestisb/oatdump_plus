@@ -180,20 +180,6 @@ inline GcRoot<mirror::Class>* ArtMethod::GetDexCacheResolvedTypes(PointerSize po
                                                   pointer_size);
 }
 
-template <bool kWithCheck>
-inline mirror::Class* ArtMethod::GetDexCacheResolvedType(dex::TypeIndex type_index,
-                                                         PointerSize pointer_size) {
-  if (kWithCheck) {
-    mirror::DexCache* dex_cache = GetInterfaceMethodIfProxy(pointer_size)->GetDexCache();
-    if (UNLIKELY(type_index.index_ >= dex_cache->NumResolvedTypes())) {
-      ThrowArrayIndexOutOfBoundsException(type_index.index_, dex_cache->NumResolvedTypes());
-      return nullptr;
-    }
-  }
-  mirror::Class* klass = GetDexCacheResolvedTypes(pointer_size)[type_index.index_].Read();
-  return (klass != nullptr && !klass->IsErroneous()) ? klass : nullptr;
-}
-
 inline bool ArtMethod::HasDexCacheResolvedTypes(PointerSize pointer_size) {
   return GetDexCacheResolvedTypes(pointer_size) != nullptr;
 }
@@ -207,15 +193,15 @@ inline bool ArtMethod::HasSameDexCacheResolvedTypes(ArtMethod* other, PointerSiz
   return GetDexCacheResolvedTypes(pointer_size) == other->GetDexCacheResolvedTypes(pointer_size);
 }
 
-inline mirror::Class* ArtMethod::GetClassFromTypeIndex(dex::TypeIndex type_idx,
-                                                       bool resolve,
-                                                       PointerSize pointer_size) {
-  mirror::Class* type = GetDexCacheResolvedType(type_idx, pointer_size);
-  if (type == nullptr && resolve) {
-    type = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, this);
+inline mirror::Class* ArtMethod::GetClassFromTypeIndex(dex::TypeIndex type_idx, bool resolve) {
+  ObjPtr<mirror::DexCache> dex_cache = GetDexCache();
+  ObjPtr<mirror::Class> type = dex_cache->GetResolvedType(type_idx);
+  if (UNLIKELY(type == nullptr) && resolve) {
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+    type = class_linker->ResolveType(type_idx, this);
     CHECK(type != nullptr || Thread::Current()->IsExceptionPending());
   }
-  return type;
+  return type.Ptr();
 }
 
 inline bool ArtMethod::CheckIncompatibleClassChange(InvokeType type) {
@@ -333,9 +319,9 @@ inline const DexFile::CodeItem* ArtMethod::GetCodeItem() {
   return GetDexFile()->GetCodeItem(GetCodeItemOffset());
 }
 
-inline bool ArtMethod::IsResolvedTypeIdx(dex::TypeIndex type_idx, PointerSize pointer_size) {
+inline bool ArtMethod::IsResolvedTypeIdx(dex::TypeIndex type_idx) {
   DCHECK(!IsProxyMethod());
-  return GetDexCacheResolvedType(type_idx, pointer_size) != nullptr;
+  return GetClassFromTypeIndex(type_idx, /* resolve */ false) != nullptr;
 }
 
 inline int32_t ArtMethod::GetLineNumFromDexPC(uint32_t dex_pc) {
@@ -435,18 +421,13 @@ inline void ArtMethod::SetDexCacheResolvedTypes(GcRoot<mirror::Class>* new_dex_c
   SetNativePointer(DexCacheResolvedTypesOffset(pointer_size), new_dex_cache_types, pointer_size);
 }
 
-inline mirror::Class* ArtMethod::GetReturnType(bool resolve, PointerSize pointer_size) {
+inline mirror::Class* ArtMethod::GetReturnType(bool resolve) {
   DCHECK(!IsProxyMethod());
   const DexFile* dex_file = GetDexFile();
   const DexFile::MethodId& method_id = dex_file->GetMethodId(GetDexMethodIndex());
   const DexFile::ProtoId& proto_id = dex_file->GetMethodPrototype(method_id);
   dex::TypeIndex return_type_idx = proto_id.return_type_idx_;
-  mirror::Class* type = GetDexCacheResolvedType(return_type_idx, pointer_size);
-  if (type == nullptr && resolve) {
-    type = Runtime::Current()->GetClassLinker()->ResolveType(return_type_idx, this);
-    CHECK(type != nullptr || Thread::Current()->IsExceptionPending());
-  }
-  return type;
+  return GetClassFromTypeIndex(return_type_idx, resolve);
 }
 
 inline bool ArtMethod::HasSingleImplementation() {
