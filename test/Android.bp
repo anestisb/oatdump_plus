@@ -267,6 +267,7 @@ art_cc_defaults {
         "924-threads/threads.cc",
         "925-threadgroups/threadgroups.cc",
         "927-timers/timers.cc",
+        "928-jni-table/jni_table.cc",
         "929-search/search.cc",
     ],
     shared_libs: [
