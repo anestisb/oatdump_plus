@@ -341,27 +341,69 @@ TEST_F(OatFileAssistantTest, OatUpToDate) {
   EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
 }
 
-// Case: We have a DEX file and ODEX file for a different dex location.
-// Expect: The status is kDex2OatNeeded.
-TEST_F(OatFileAssistantTest, OatForDifferentDex) {
-  // Generate an odex file for OatForDifferentDex_A.jar
-  std::string dex_location_a = GetScratchDir() + "/OatForDifferentDex_A.jar";
-  std::string odex_location = GetOdexDir() + "/OatForDifferentDex.odex";
-  Copy(GetDexSrc1(), dex_location_a);
-  GenerateOdexForTest(dex_location_a, odex_location, CompilerFilter::kSpeed);
+// Case: We have a DEX file and up-to-date (ODEX) VDEX file for it, but no
+// ODEX file.
+TEST_F(OatFileAssistantTest, VdexUpToDateNoOdex) {
+  // This test case is only meaningful if vdex is enabled.
+  if (!kIsVdexEnabled) {
+    return;
+  }
 
-  // Try to use that odex file for OatForDifferentDex.jar
-  std::string dex_location = GetScratchDir() + "/OatForDifferentDex.jar";
+  std::string dex_location = GetScratchDir() + "/VdexUpToDateNoOdex.jar";
+  std::string oat_location = GetOdexDir() + "/VdexUpToDateNoOdex.oat";
+
   Copy(GetDexSrc1(), dex_location);
+
+  // Generating and deleting the oat file should have the side effect of
+  // creating an up-to-date vdex file.
+  GenerateOdexForTest(dex_location, oat_location, CompilerFilter::kSpeed);
+  ASSERT_EQ(0, unlink(oat_location.c_str()));
+
+  OatFileAssistant oat_file_assistant(dex_location.c_str(),
+                                      oat_location.c_str(),
+                                      kRuntimeISA,
+                                      false);
+
+  // Even though the vdex file is up to date, because we don't have the oat
+  // file, we can't know that the vdex depends on the boot image and is up to
+  // date with respect to the boot image. Instead we must assume the vdex file
+  // depends on the boot image and is out of date with respect to the boot
+  // image.
+  EXPECT_EQ(-OatFileAssistant::kDex2OatForBootImage,
+      oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
+
+  // Make sure we don't crash in this case when we dump the status. We don't
+  // care what the actual dumped value is.
+  oat_file_assistant.GetStatusDump();
+}
+
+// Case: We have a DEX file and up-to-date (OAT) VDEX file for it, but no OAT
+// file.
+TEST_F(OatFileAssistantTest, VdexUpToDateNoOat) {
+  // This test case is only meaningful if vdex is enabled.
+  if (!kIsVdexEnabled) {
+    return;
+  }
+
+  std::string dex_location = GetScratchDir() + "/VdexUpToDateNoOat.jar";
+  std::string oat_location;
+  std::string error_msg;
+  ASSERT_TRUE(OatFileAssistant::DexLocationToOatFilename(
+        dex_location, kRuntimeISA, &oat_location, &error_msg)) << error_msg;
+
+  Copy(GetDexSrc1(), dex_location);
+  GenerateOatForTest(dex_location.c_str(), CompilerFilter::kSpeed);
+  ASSERT_EQ(0, unlink(oat_location.c_str()));
 
   OatFileAssistant oat_file_assistant(dex_location.c_str(), kRuntimeISA, false);
 
-  EXPECT_EQ(OatFileAssistant::kDex2OatFromScratch,
+  // Even though the vdex file is up to date, because we don't have the oat
+  // file, we can't know that the vdex depends on the boot image and is up to
+  // date with respect to the boot image. Instead we must assume the vdex file
+  // depends on the boot image and is out of date with respect to the boot
+  // image.
+  EXPECT_EQ(OatFileAssistant::kDex2OatForBootImage,
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
-
-  EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
-  EXPECT_EQ(OatFileAssistant::kOatDexOutOfDate, oat_file_assistant.OdexFileStatus());
-  EXPECT_EQ(OatFileAssistant::kOatCannotOpen, oat_file_assistant.OatFileStatus());
 }
 
 // Case: We have a DEX file and speed-profile OAT file for it.
@@ -482,6 +524,56 @@ TEST_F(OatFileAssistantTest, OatDexOutOfDate) {
   EXPECT_EQ(OatFileAssistant::kOatCannotOpen, oat_file_assistant.OdexFileStatus());
   EXPECT_EQ(OatFileAssistant::kOatDexOutOfDate, oat_file_assistant.OatFileStatus());
   EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
+}
+
+// Case: We have a DEX file and an (ODEX) VDEX file out of date with respect
+// to the dex checksum, but no ODEX file.
+TEST_F(OatFileAssistantTest, VdexDexOutOfDate) {
+  // This test case is only meaningful if vdex is enabled.
+  if (!kIsVdexEnabled) {
+    return;
+  }
+
+  std::string dex_location = GetScratchDir() + "/VdexDexOutOfDate.jar";
+  std::string oat_location = GetOdexDir() + "/VdexDexOutOfDate.oat";
+
+  Copy(GetDexSrc1(), dex_location);
+  GenerateOdexForTest(dex_location, oat_location, CompilerFilter::kSpeed);
+  ASSERT_EQ(0, unlink(oat_location.c_str()));
+  Copy(GetDexSrc2(), dex_location);
+
+  OatFileAssistant oat_file_assistant(dex_location.c_str(),
+                                      oat_location.c_str(),
+                                      kRuntimeISA,
+                                      false);
+
+  EXPECT_EQ(OatFileAssistant::kDex2OatFromScratch,
+      oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
+}
+
+// Case: We have a MultiDEX (ODEX) VDEX file where the secondary dex file is
+// out of date and there is no corresponding ODEX file.
+TEST_F(OatFileAssistantTest, VdexMultiDexSecondaryOutOfDate) {
+  // This test case is only meaningful if vdex is enabled.
+  if (!kIsVdexEnabled) {
+    return;
+  }
+
+  std::string dex_location = GetScratchDir() + "/VdexMultiDexSecondaryOutOfDate.jar";
+  std::string oat_location = GetOdexDir() + "/VdexMultiDexSecondaryOutOfDate.oat";
+
+  Copy(GetMultiDexSrc1(), dex_location);
+  GenerateOdexForTest(dex_location, oat_location, CompilerFilter::kSpeed);
+  ASSERT_EQ(0, unlink(oat_location.c_str()));
+  Copy(GetMultiDexSrc2(), dex_location);
+
+  OatFileAssistant oat_file_assistant(dex_location.c_str(),
+                                      oat_location.c_str(),
+                                      kRuntimeISA,
+                                      false);
+
+  EXPECT_EQ(OatFileAssistant::kDex2OatFromScratch,
+      oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
 }
 
 // Case: We have a DEX file and an OAT file out of date with respect to the
@@ -1175,6 +1267,4 @@ TEST_F(OatFileAssistantTest, DexOptStatusValues) {
 //    - Dex is stripped, don't have odex.
 //    - Oat file corrupted after status check, before reload unexecutable
 //    because it's unrelocated and no dex2oat
-//  * Test unrelocated specific target compilation type can be relocated to
-//    make it up to date.
 }  // namespace art
