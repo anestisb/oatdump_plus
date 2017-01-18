@@ -1100,6 +1100,7 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   if (runtime_options.Exists(Opt::JdwpOptions)) {
     Dbg::ConfigureJdwp(runtime_options.GetOrDefault(Opt::JdwpOptions));
   }
+  callbacks_.AddThreadLifecycleCallback(Dbg::GetThreadLifecycleCallback());
 
   jit_options_.reset(jit::JitOptions::CreateFromRuntimeArguments(runtime_options));
   if (IsAotCompiler()) {
