@@ -777,7 +777,7 @@ void InstructionSimplifierVisitor::VisitArrayLength(HArrayLength* instruction) {
   // If the array is a NewArray with constant size, replace the array length
   // with the constant instruction. This helps the bounds check elimination phase.
   if (input->IsNewArray()) {
-    input = input->InputAt(0);
+    input = input->AsNewArray()->GetLength();
     if (input->IsIntConstant()) {
       instruction->ReplaceWith(input);
     }
@@ -1774,7 +1774,7 @@ static bool IsArrayLengthOf(HInstruction* potential_length, HInstruction* potent
   }
 
   if (potential_array->IsNewArray()) {
-    return potential_array->InputAt(0) == potential_length;
+    return potential_array->AsNewArray()->GetLength() == potential_length;
   }
 
   return false;
