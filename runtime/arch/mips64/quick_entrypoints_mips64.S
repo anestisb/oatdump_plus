@@ -2132,9 +2132,8 @@ ENTRY art_quick_invoke_polymorphic
     daddiu $sp, $sp, -8                        # Reserve space for JValue result.
     .cfi_adjust_cfa_offset 8
     sd     $zero, 0($sp)                       # Initialize JValue result.
-    move   $a0, $sp                            # Make $a0 a pointer to the JValue result
     jal    artInvokePolymorphic                # (result, receiver, Thread*, context)
-    nop
+    move   $a0, $sp                            # Make $a0 a pointer to the JValue result
 .macro MATCH_RETURN_TYPE c, handler
     li     $t0, \c
     beq    $v0, $t0, \handler
@@ -2148,27 +2147,24 @@ ENTRY art_quick_invoke_polymorphic
     MATCH_RETURN_TYPE 'D', .Lstore_double_result
     MATCH_RETURN_TYPE 'F', .Lstore_float_result
     MATCH_RETURN_TYPE 'S', .Lstore_long_result
+    MATCH_RETURN_TYPE 'Z', .Lstore_boolean_result
 .purgem MATCH_RETURN_TYPE
     nop
     b .Lcleanup_and_return
     nop
 .Lstore_boolean_result:
+    b      .Lcleanup_and_return
     lbu    $v0, 0($sp)                         # Move byte from JValue result to return value register.
-    b      .Lcleanup_and_return
-    nop
 .Lstore_char_result:
-    lhu    $v0, 0($sp)                         # Move char from JValue result to return value register.
     b      .Lcleanup_and_return
-    nop
+    lhu    $v0, 0($sp)                         # Move char from JValue result to return value register.
 .Lstore_double_result:
 .Lstore_float_result:
+    b      .Lcleanup_and_return
     l.d    $f0, 0($sp)                         # Move double/float from JValue result to return value register.
-    b      .Lcleanup_and_return
-    nop
 .Lstore_ref_result:
-    lwu    $v0, 0($sp)                         # Move zero extended lower 32-bits to return value register.
     b      .Lcleanup_and_return
-    nop
+    lwu    $v0, 0($sp)                         # Move zero extended lower 32-bits to return value register.
 .Lstore_long_result:
     ld     $v0, 0($sp)                         # Move long from JValue result to return value register.
     // Fall-through to clean up and return.
