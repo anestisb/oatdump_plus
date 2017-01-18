@@ -28,6 +28,8 @@
 #include <vector>
 
 #include "gc_root.h"
+#include "class_linker.h"
+#include "handle.h"
 #include "jdwp/jdwp.h"
 #include "jni.h"
 #include "jvalue.h"
@@ -502,8 +504,6 @@ class Dbg {
       REQUIRES_SHARED(Locks::mutator_lock_);
   static void PostException(mirror::Throwable* exception)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  static void PostClassPrepare(mirror::Class* c)
-      REQUIRES_SHARED(Locks::mutator_lock_);
 
   static void UpdateDebugger(Thread* thread, mirror::Object* this_object,
                              ArtMethod* method, uint32_t new_dex_pc,
@@ -706,6 +706,9 @@ class Dbg {
   static ThreadLifecycleCallback* GetThreadLifecycleCallback() {
     return &thread_lifecycle_callback_;
   }
+  static ClassLoadCallback* GetClassLoadCallback() {
+    return &class_load_callback_;
+  }
 
  private:
   static void ExecuteMethodWithoutPendingException(ScopedObjectAccess& soa, DebugInvokeReq* pReq)
@@ -731,6 +734,9 @@ class Dbg {
   static void PostThreadDeath(Thread* t)
       REQUIRES_SHARED(Locks::mutator_lock_);
   static void PostThreadStartOrStop(Thread*, uint32_t)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  static void PostClassPrepare(mirror::Class* c)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   static void PostLocationEvent(ArtMethod* method, int pcOffset,
@@ -800,7 +806,15 @@ class Dbg {
     void ThreadDeath(Thread* self) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_);
   };
 
+  class DbgClassLoadCallback : public ClassLoadCallback {
+   public:
+    void ClassLoad(Handle<mirror::Class> klass) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_);
+    void ClassPrepare(Handle<mirror::Class> temp_klass,
+                      Handle<mirror::Class> klass) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_);
+  };
+
   static DbgThreadLifecycleCallback thread_lifecycle_callback_;
+  static DbgClassLoadCallback class_load_callback_;
 
   DISALLOW_COPY_AND_ASSIGN(Dbg);
 };

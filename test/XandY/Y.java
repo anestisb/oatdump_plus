@@ -14,4 +14,8 @@
  * limitations under the License.
  */
 
-class Y extends X {}
+class Y extends X {
+  static Z z = new Z();
+  static class Z {
+  }
+}

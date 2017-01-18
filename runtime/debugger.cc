@@ -321,6 +321,7 @@ size_t Dbg::exception_catch_event_ref_count_ = 0;
 uint32_t Dbg::instrumentation_events_ = 0;
 
 Dbg::DbgThreadLifecycleCallback Dbg::thread_lifecycle_callback_;
+Dbg::DbgClassLoadCallback Dbg::class_load_callback_;
 
 // Breakpoints.
 static std::vector<Breakpoint> gBreakpoints GUARDED_BY(Locks::breakpoint_lock_);
@@ -5143,6 +5144,14 @@ void Dbg::DbgThreadLifecycleCallback::ThreadStart(Thread* self) {
 
 void Dbg::DbgThreadLifecycleCallback::ThreadDeath(Thread* self) {
   Dbg::PostThreadDeath(self);
+}
+
+void Dbg::DbgClassLoadCallback::ClassLoad(Handle<mirror::Class> klass ATTRIBUTE_UNUSED) {
+  // Ignore ClassLoad;
+}
+void Dbg::DbgClassLoadCallback::ClassPrepare(Handle<mirror::Class> temp_klass ATTRIBUTE_UNUSED,
+                                             Handle<mirror::Class> klass) {
+  Dbg::PostClassPrepare(klass.Get());
 }
 
 }  // namespace art
