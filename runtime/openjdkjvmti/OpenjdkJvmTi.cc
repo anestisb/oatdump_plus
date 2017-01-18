@@ -856,7 +856,8 @@ class JvmtiFunctions {
       }
     }
 
-    return gEventHandler.SetEvent(ArtJvmTiEnv::AsArtJvmTiEnv(env), art_thread, event_type, mode);
+    ArtJvmTiEnv* art_env = ArtJvmTiEnv::AsArtJvmTiEnv(env);
+    return gEventHandler.SetEvent(art_env, art_thread, GetArtJvmtiEvent(art_env, event_type), mode);
   }
 
   static jvmtiError GenerateEvents(jvmtiEnv* env, jvmtiEvent event_type) {

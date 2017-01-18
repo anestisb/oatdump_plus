@@ -177,7 +177,7 @@ bool ObjectTagTable::SetLocked(art::Thread* self, art::mirror::Object* obj, jlon
 }
 
 void ObjectTagTable::Sweep(art::IsMarkedVisitor* visitor) {
-  if (event_handler_->IsEventEnabledAnywhere(JVMTI_EVENT_OBJECT_FREE)) {
+  if (event_handler_->IsEventEnabledAnywhere(ArtJvmtiEvent::kObjectFree)) {
     SweepImpl<true>(visitor);
   } else {
     SweepImpl<false>(visitor);
@@ -207,7 +207,7 @@ void ObjectTagTable::SweepImpl(art::IsMarkedVisitor* visitor) {
 }
 
 void ObjectTagTable::HandleNullSweep(jlong tag) {
-  event_handler_->DispatchEvent(nullptr, JVMTI_EVENT_OBJECT_FREE, tag);
+  event_handler_->DispatchEvent(nullptr, ArtJvmtiEvent::kObjectFree, tag);
 }
 
 template <typename T, ObjectTagTable::TableUpdateNullTarget kTargetNull>
