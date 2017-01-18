@@ -751,16 +751,14 @@ static inline bool DoCallCommon(ArtMethod* called_method,
         case 'L': {
           ObjPtr<mirror::Object> o = shadow_frame.GetVRegReference(src_reg);
           if (do_assignability_check && o != nullptr) {
-            PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
             const dex::TypeIndex type_idx = params->GetTypeItem(shorty_pos).type_idx_;
-            ObjPtr<mirror::Class> arg_type = method->GetDexCacheResolvedType(type_idx,
-                                                                             pointer_size);
+            ObjPtr<mirror::Class> arg_type = method->GetDexCache()->GetResolvedType(type_idx);
             if (arg_type == nullptr) {
               StackHandleScope<1> hs(self);
               // Preserve o since it is used below and GetClassFromTypeIndex may cause thread
               // suspension.
               HandleWrapperObjPtr<mirror::Object> h = hs.NewHandleWrapper(&o);
-              arg_type = method->GetClassFromTypeIndex(type_idx, true /* resolve */, pointer_size);
+              arg_type = method->GetClassFromTypeIndex(type_idx, true /* resolve */);
               if (arg_type == nullptr) {
                 CHECK(self->IsExceptionPending());
                 return false;

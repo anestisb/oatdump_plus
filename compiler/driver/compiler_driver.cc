@@ -1060,13 +1060,13 @@ class ResolveCatchBlockExceptionsClassVisitor : public ClassVisitor {
   virtual bool operator()(ObjPtr<mirror::Class> c) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     const auto pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
     for (auto& m : c->GetMethods(pointer_size)) {
-      ResolveExceptionsForMethod(&m, pointer_size);
+      ResolveExceptionsForMethod(&m);
     }
     return true;
   }
 
  private:
-  void ResolveExceptionsForMethod(ArtMethod* method_handle, PointerSize pointer_size)
+  void ResolveExceptionsForMethod(ArtMethod* method_handle)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     const DexFile::CodeItem* code_item = method_handle->GetCodeItem();
     if (code_item == nullptr) {
@@ -1088,8 +1088,7 @@ class ResolveCatchBlockExceptionsClassVisitor : public ClassVisitor {
         dex::TypeIndex encoded_catch_handler_handlers_type_idx =
             dex::TypeIndex(DecodeUnsignedLeb128(&encoded_catch_handler_list));
         // Add to set of types to resolve if not already in the dex cache resolved types
-        if (!method_handle->IsResolvedTypeIdx(encoded_catch_handler_handlers_type_idx,
-                                              pointer_size)) {
+        if (!method_handle->IsResolvedTypeIdx(encoded_catch_handler_handlers_type_idx)) {
           exceptions_to_resolve_.emplace(encoded_catch_handler_handlers_type_idx,
                                          method_handle->GetDexFile());
         }

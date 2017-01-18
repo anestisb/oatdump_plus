@@ -48,10 +48,9 @@ static inline mirror::Class* CheckFilledNewArrayAlloc(dex::TypeIndex type_idx,
     ThrowNegativeArraySizeException(component_count);
     return nullptr;  // Failure
   }
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  PointerSize pointer_size = class_linker->GetImagePointerSize();
-  mirror::Class* klass = referrer->GetDexCacheResolvedType<false>(type_idx, pointer_size);
+  mirror::Class* klass = referrer->GetDexCache()->GetResolvedType(type_idx);
   if (UNLIKELY(klass == nullptr)) {  // Not in dex cache so try to resolve
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     klass = class_linker->ResolveType(type_idx, referrer);
     if (klass == nullptr) {  // Error
       DCHECK(self->IsExceptionPending());
@@ -129,7 +128,7 @@ void CheckReferenceResult(Handle<mirror::Object> o, Thread* self) {
   }
   // Make sure that the result is an instance of the type this method was expected to return.
   ArtMethod* method = self->GetCurrentMethod(nullptr);
-  mirror::Class* return_type = method->GetReturnType(true /* resolve */, kRuntimePointerSize);
+  mirror::Class* return_type = method->GetReturnType(true /* resolve */);
 
   if (!o->InstanceOf(return_type)) {
     Runtime::Current()->GetJavaVM()->JniAbortF(nullptr,
@@ -192,8 +191,7 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
       ArtMethod* interface_method =
           soa.Decode<mirror::Method>(interface_method_jobj)->GetArtMethod();
       // This can cause thread suspension.
-      PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
-      mirror::Class* result_type = interface_method->GetReturnType(true /* resolve */, pointer_size);
+      mirror::Class* result_type = interface_method->GetReturnType(true /* resolve */);
       ObjPtr<mirror::Object> result_ref = soa.Decode<mirror::Object>(result);
       JValue result_unboxed;
       if (!UnboxPrimitiveForResult(result_ref.Ptr(), result_type, &result_unboxed)) {
