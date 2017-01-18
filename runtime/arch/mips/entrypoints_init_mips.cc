@@ -142,16 +142,8 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
   static_assert(!IsDirectEntrypoint(kQuickGetObjStatic), "Non-direct C stub marked direct.");
 
   // Array
-  qpoints->pAputObjectWithNullAndBoundCheck = art_quick_aput_obj_with_null_and_bound_check;
-  static_assert(!IsDirectEntrypoint(kQuickAputObjectWithNullAndBoundCheck),
-                "Non-direct C stub marked direct.");
-  qpoints->pAputObjectWithBoundCheck = art_quick_aput_obj_with_bound_check;
-  static_assert(!IsDirectEntrypoint(kQuickAputObjectWithBoundCheck),
-                "Non-direct C stub marked direct.");
   qpoints->pAputObject = art_quick_aput_obj;
   static_assert(!IsDirectEntrypoint(kQuickAputObject), "Non-direct C stub marked direct.");
-  qpoints->pHandleFillArrayData = art_quick_handle_fill_data;
-  static_assert(!IsDirectEntrypoint(kQuickHandleFillArrayData), "Non-direct C stub marked direct.");
 
   // JNI
   qpoints->pJniMethodStart = JniMethodStart;
