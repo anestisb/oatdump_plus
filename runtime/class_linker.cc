@@ -1099,23 +1099,7 @@ class FixupArtMethodArrayVisitor : public ArtMethodVisitor {
   explicit FixupArtMethodArrayVisitor(const ImageHeader& header) : header_(header) {}
 
   virtual void Visit(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_) {
-    GcRoot<mirror::Class>* resolved_types = method->GetDexCacheResolvedTypes(kRuntimePointerSize);
     const bool is_copied = method->IsCopied();
-    if (resolved_types != nullptr) {
-      bool in_image_space = false;
-      if (kIsDebugBuild || is_copied) {
-        in_image_space = header_.GetImageSection(ImageHeader::kSectionDexCacheArrays).Contains(
-            reinterpret_cast<const uint8_t*>(resolved_types) - header_.GetImageBegin());
-      }
-      // Must be in image space for non-miranda method.
-      DCHECK(is_copied || in_image_space)
-          << resolved_types << " is not in image starting at "
-          << reinterpret_cast<void*>(header_.GetImageBegin());
-      if (!is_copied || in_image_space) {
-        method->SetDexCacheResolvedTypes(method->GetDexCache()->GetResolvedTypes(),
-                                         kRuntimePointerSize);
-      }
-    }
     ArtMethod** resolved_methods = method->GetDexCacheResolvedMethods(kRuntimePointerSize);
     if (resolved_methods != nullptr) {
       bool in_image_space = false;
@@ -3207,7 +3191,6 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
   dst->SetCodeItemOffset(it.GetMethodCodeItemOffset());
 
   dst->SetDexCacheResolvedMethods(klass->GetDexCache()->GetResolvedMethods(), image_pointer_size_);
-  dst->SetDexCacheResolvedTypes(klass->GetDexCache()->GetResolvedTypes(), image_pointer_size_);
 
   uint32_t access_flags = it.GetMethodAccessFlags();
 
@@ -4365,7 +4348,6 @@ void ClassLinker::CheckProxyMethod(ArtMethod* method, ArtMethod* prototype) cons
   // The proxy method doesn't have its own dex cache or dex file and so it steals those of its
   // interface prototype. The exception to this are Constructors and the Class of the Proxy itself.
   CHECK(prototype->HasSameDexCacheResolvedMethods(method, image_pointer_size_));
-  CHECK(prototype->HasSameDexCacheResolvedTypes(method, image_pointer_size_));
   auto* np = method->GetInterfaceMethodIfProxy(image_pointer_size_);
   CHECK_EQ(prototype->GetDeclaringClass()->GetDexCache(), np->GetDexCache());
   CHECK_EQ(prototype->GetDexMethodIndex(), method->GetDexMethodIndex());

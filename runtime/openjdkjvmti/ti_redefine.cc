@@ -958,7 +958,6 @@ void Redefiner::ClassRedefinition::UpdateMethods(art::ObjPtr<art::mirror::Class>
     linker->SetEntryPointsToInterpreter(&method);
     method.SetCodeItemOffset(dex_file_->FindCodeItemOffset(class_def, dex_method_idx));
     method.SetDexCacheResolvedMethods(new_dex_cache->GetResolvedMethods(), image_pointer_size);
-    method.SetDexCacheResolvedTypes(new_dex_cache->GetResolvedTypes(), image_pointer_size);
     // Notify the jit that this method is redefined.
     art::jit::Jit* jit = driver_->runtime_->GetJit();
     if (jit != nullptr) {

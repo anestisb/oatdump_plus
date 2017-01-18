@@ -60,13 +60,13 @@ DEFINE_CHECK_EQ(static_cast<uint32_t>(ACCESS_FLAGS_CLASS_IS_FINALIZABLE_BIT), (s
 DEFINE_CHECK_EQ(static_cast<int32_t>(ART_METHOD_DEX_CACHE_METHODS_OFFSET_32), (static_cast<int32_t>(art::ArtMethod:: DexCacheResolvedMethodsOffset(art::PointerSize::k32).Int32Value())))
 #define ART_METHOD_DEX_CACHE_METHODS_OFFSET_64 24
 DEFINE_CHECK_EQ(static_cast<int32_t>(ART_METHOD_DEX_CACHE_METHODS_OFFSET_64), (static_cast<int32_t>(art::ArtMethod:: DexCacheResolvedMethodsOffset(art::PointerSize::k64).Int32Value())))
-#define ART_METHOD_JNI_OFFSET_32 28
+#define ART_METHOD_JNI_OFFSET_32 24
 DEFINE_CHECK_EQ(static_cast<int32_t>(ART_METHOD_JNI_OFFSET_32), (static_cast<int32_t>(art::ArtMethod:: EntryPointFromJniOffset(art::PointerSize::k32).Int32Value())))
-#define ART_METHOD_JNI_OFFSET_64 40
+#define ART_METHOD_JNI_OFFSET_64 32
 DEFINE_CHECK_EQ(static_cast<int32_t>(ART_METHOD_JNI_OFFSET_64), (static_cast<int32_t>(art::ArtMethod:: EntryPointFromJniOffset(art::PointerSize::k64).Int32Value())))
-#define ART_METHOD_QUICK_CODE_OFFSET_32 32
+#define ART_METHOD_QUICK_CODE_OFFSET_32 28
 DEFINE_CHECK_EQ(static_cast<int32_t>(ART_METHOD_QUICK_CODE_OFFSET_32), (static_cast<int32_t>(art::ArtMethod:: EntryPointFromQuickCompiledCodeOffset(art::PointerSize::k32).Int32Value())))
-#define ART_METHOD_QUICK_CODE_OFFSET_64 48
+#define ART_METHOD_QUICK_CODE_OFFSET_64 40
 DEFINE_CHECK_EQ(static_cast<int32_t>(ART_METHOD_QUICK_CODE_OFFSET_64), (static_cast<int32_t>(art::ArtMethod:: EntryPointFromQuickCompiledCodeOffset(art::PointerSize::k64).Int32Value())))
 #define ART_METHOD_DECLARING_CLASS_OFFSET 0
 DEFINE_CHECK_EQ(static_cast<int32_t>(ART_METHOD_DECLARING_CLASS_OFFSET), (static_cast<int32_t>(art::ArtMethod:: DeclaringClassOffset().Int32Value())))
