@@ -1498,16 +1498,8 @@ void HInstructionBuilder::BuildFilledNewArray(uint32_t dex_pc,
                                               uint32_t* args,
                                               uint32_t register_index) {
   HInstruction* length = graph_->GetIntConstant(number_of_vreg_arguments, dex_pc);
-  bool finalizable;
-  QuickEntrypointEnum entrypoint = NeedsAccessCheck(type_index, &finalizable)
-      ? kQuickAllocArrayWithAccessCheck
-      : kQuickAllocArray;
-  HInstruction* object = new (arena_) HNewArray(length,
-                                                graph_->GetCurrentMethod(),
-                                                dex_pc,
-                                                type_index,
-                                                *dex_compilation_unit_->GetDexFile(),
-                                                entrypoint);
+  HLoadClass* cls = BuildLoadClass(type_index, dex_pc, /* check_access */ true);
+  HInstruction* object = new (arena_) HNewArray(cls, length, dex_pc);
   AppendInstruction(object);
 
   const char* descriptor = dex_file_->StringByTypeIdx(type_index);
@@ -2503,16 +2495,8 @@ bool HInstructionBuilder::ProcessDexInstruction(const Instruction& instruction, 
     case Instruction::NEW_ARRAY: {
       dex::TypeIndex type_index(instruction.VRegC_22c());
       HInstruction* length = LoadLocal(instruction.VRegB_22c(), Primitive::kPrimInt);
-      bool finalizable;
-      QuickEntrypointEnum entrypoint = NeedsAccessCheck(type_index, &finalizable)
-          ? kQuickAllocArrayWithAccessCheck
-          : kQuickAllocArray;
-      AppendInstruction(new (arena_) HNewArray(length,
-                                               graph_->GetCurrentMethod(),
-                                               dex_pc,
-                                               type_index,
-                                               *dex_compilation_unit_->GetDexFile(),
-                                               entrypoint));
+      HLoadClass* cls = BuildLoadClass(type_index, dex_pc, /* check_access */ true);
+      AppendInstruction(new (arena_) HNewArray(cls, length, dex_pc));
       UpdateLocal(instruction.VRegA_22c(), current_block_->GetLastInstruction());
       break;
     }

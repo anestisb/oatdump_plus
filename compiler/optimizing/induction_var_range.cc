@@ -114,12 +114,7 @@ static bool IsMaxAtHint(
     }
   } else {
     *suitable = instruction;
-    while (instruction->IsArrayLength() ||
-           instruction->IsNullCheck() ||
-           instruction->IsNewArray()) {
-      instruction = instruction->InputAt(0);
-    }
-    return instruction == hint;
+    return HuntForDeclaration(instruction) == hint;
   }
   return false;
 }
@@ -629,7 +624,7 @@ InductionVarRange::Value InductionVarRange::GetFetch(HInstruction* instruction,
     if (chase_hint_ == nullptr) {
       return is_min ? Value(0) : Value(std::numeric_limits<int32_t>::max());
     } else if (instruction->InputAt(0)->IsNewArray()) {
-      return GetFetch(instruction->InputAt(0)->InputAt(0), trip, in_body, is_min);
+      return GetFetch(instruction->InputAt(0)->AsNewArray()->GetLength(), trip, in_body, is_min);
     }
   } else if (instruction->IsTypeConversion()) {
     // Since analysis is 32-bit (or narrower), chase beyond widening along the path.
