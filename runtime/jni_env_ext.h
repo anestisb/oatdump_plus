@@ -43,7 +43,7 @@ struct JNIEnvExt : public JNIEnv {
   void DumpReferenceTables(std::ostream& os)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void SetCheckJniEnabled(bool enabled);
+  void SetCheckJniEnabled(bool enabled) REQUIRES(!Locks::jni_function_table_lock_);
 
   void PushFrame(int capacity) REQUIRES_SHARED(Locks::mutator_lock_);
   void PopFrame() REQUIRES_SHARED(Locks::mutator_lock_);
@@ -104,10 +104,27 @@ struct JNIEnvExt : public JNIEnv {
   // Set the functions to the runtime shutdown functions.
   void SetFunctionsToRuntimeShutdownFunctions();
 
+  // Set the function table override. This will install the override (or original table, if null)
+  // to all threads.
+  // Note: JNI function table overrides are sensitive to the order of operations wrt/ CheckJNI.
+  //       After overriding the JNI function table, CheckJNI toggling is ignored.
+  static void SetTableOverride(const JNINativeInterface* table_override)
+      REQUIRES(!Locks::thread_list_lock_, !Locks::jni_function_table_lock_);
+
+  // Return either the regular, or the CheckJNI function table. Will return table_override_ instead
+  // if it is not null.
+  static const JNINativeInterface* GetFunctionTable(bool check_jni)
+      REQUIRES(Locks::jni_function_table_lock_);
+
  private:
+  // Override of function tables. This applies to both default as well as instrumented (CheckJNI)
+  // function tables.
+  static const JNINativeInterface* table_override_ GUARDED_BY(Locks::jni_function_table_lock_);
+
   // The constructor should not be called directly. It may leave the object in an erroneous state,
   // and the result needs to be checked.
-  JNIEnvExt(Thread* self, JavaVMExt* vm, std::string* error_msg);
+  JNIEnvExt(Thread* self, JavaVMExt* vm, std::string* error_msg)
+      REQUIRES(!Locks::jni_function_table_lock_);
 
   // All locked objects, with the (Java caller) stack frame that locked them. Used in CheckJNI
   // to ensure that only monitors locked in this native frame are being unlocked, and that at
