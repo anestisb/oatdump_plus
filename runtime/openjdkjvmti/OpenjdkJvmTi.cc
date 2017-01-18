@@ -56,6 +56,7 @@
 #include "ti_object.h"
 #include "ti_properties.h"
 #include "ti_redefine.h"
+#include "ti_search.h"
 #include "ti_stack.h"
 #include "ti_thread.h"
 #include "ti_threadgroup.h"
@@ -1052,11 +1053,11 @@ class JvmtiFunctions {
   }
 
   static jvmtiError AddToBootstrapClassLoaderSearch(jvmtiEnv* env, const char* segment) {
-    return ERR(NOT_IMPLEMENTED);
+    return SearchUtil::AddToBootstrapClassLoaderSearch(env, segment);
   }
 
   static jvmtiError AddToSystemClassLoaderSearch(jvmtiEnv* env, const char* segment) {
-    return ERR(NOT_IMPLEMENTED);
+    return SearchUtil::AddToSystemClassLoaderSearch(env, segment);
   }
 
   static jvmtiError GetSystemProperties(jvmtiEnv* env, jint* count_ptr, char*** property_ptr) {

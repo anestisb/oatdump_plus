@@ -306,6 +306,7 @@ TEST_ART_BROKEN_TARGET_TESTS += \
   925-threadgroups \
   926-multi-obsolescence \
   927-timers \
+  929-search \
 
 ifneq (,$(filter target,$(TARGET_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,target,$(RUN_TYPES),$(PREBUILD_TYPES), \
