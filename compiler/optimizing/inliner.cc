@@ -1429,15 +1429,6 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
         return false;
       }
 
-      if (current->IsNewArray() &&
-          (current->AsNewArray()->GetEntrypoint() == kQuickAllocArrayWithAccessCheck)) {
-        VLOG(compiler) << "Method " << callee_dex_file.PrettyMethod(method_index)
-                       << " could not be inlined because it is using an entrypoint"
-                       << " with access checks";
-        // Allocation entrypoint does not handle inlined frames.
-        return false;
-      }
-
       if (current->IsUnresolvedStaticFieldGet() ||
           current->IsUnresolvedInstanceFieldGet() ||
           current->IsUnresolvedStaticFieldSet() ||

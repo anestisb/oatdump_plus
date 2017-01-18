@@ -34,7 +34,6 @@
 
 //                         New macro suffix          Method Name (of the Offset method)
 DEFINE_ART_METHOD_OFFSET_SIZED(DEX_CACHE_METHODS,    DexCacheResolvedMethods)
-DEFINE_ART_METHOD_OFFSET_SIZED(DEX_CACHE_TYPES,      DexCacheResolvedTypes)
 DEFINE_ART_METHOD_OFFSET_SIZED(JNI,                  EntryPointFromJni)
 DEFINE_ART_METHOD_OFFSET_SIZED(QUICK_CODE,           EntryPointFromQuickCompiledCode)
 DEFINE_ART_METHOD_OFFSET(DECLARING_CLASS,            DeclaringClass)
