@@ -27,6 +27,7 @@ cc_defaults {
            "ti_monitor.cc",
            "ti_object.cc",
            "ti_properties.cc",
+           "ti_search.cc",
            "ti_stack.cc",
            "ti_redefine.cc",
            "ti_thread.cc",
