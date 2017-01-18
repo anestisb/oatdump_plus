@@ -1352,26 +1352,6 @@ MACRO4(READ_BARRIER, obj_reg, offset, dest_reg, pop_eax)
 #endif  // USE_READ_BARRIER
 END_MACRO
 
-    /*
-     * Entry from managed code for array put operations of objects where the value being stored
-     * needs to be checked for compatibility.
-     * eax = array, ecx = index, edx = value
-     */
-DEFINE_FUNCTION art_quick_aput_obj_with_null_and_bound_check
-    testl %eax, %eax
-    jnz SYMBOL(art_quick_aput_obj_with_bound_check)
-    jmp SYMBOL(art_quick_throw_null_pointer_exception)
-END_FUNCTION art_quick_aput_obj_with_null_and_bound_check
-
-DEFINE_FUNCTION art_quick_aput_obj_with_bound_check
-    movl MIRROR_ARRAY_LENGTH_OFFSET(%eax), %ebx
-    cmpl %ebx, %ecx
-    jb SYMBOL(art_quick_aput_obj)
-    mov %ecx, %eax
-    mov %ebx, %ecx
-    jmp SYMBOL(art_quick_throw_array_bounds)
-END_FUNCTION art_quick_aput_obj_with_bound_check
-
 DEFINE_FUNCTION art_quick_aput_obj
     test %edx, %edx              // store of null
     jz .Ldo_aput_null
