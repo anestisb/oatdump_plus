@@ -68,6 +68,7 @@ enum LockLevel {
   kRosAllocBulkFreeLock,
   kMarkSweepMarkStackLock,
   kTransactionLogLock,
+  kJniFunctionTableLock,
   kJniWeakGlobalsLock,
   kJniGlobalsLock,
   kReferenceQueueSoftReferencesLock,
@@ -698,8 +699,11 @@ class Locks {
   // Guard accesses to the JNI Weak Global Reference table.
   static Mutex* jni_weak_globals_lock_ ACQUIRED_AFTER(jni_globals_lock_);
 
+  // Guard accesses to the JNI function table override.
+  static Mutex* jni_function_table_lock_ ACQUIRED_AFTER(jni_weak_globals_lock_);
+
   // Have an exclusive aborting thread.
-  static Mutex* abort_lock_ ACQUIRED_AFTER(jni_weak_globals_lock_);
+  static Mutex* abort_lock_ ACQUIRED_AFTER(jni_function_table_lock_);
 
   // Allow mutual exclusion when manipulating Thread::suspend_count_.
   // TODO: Does the trade-off of a per-thread lock make sense?
