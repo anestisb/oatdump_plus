@@ -1182,6 +1182,17 @@ class CodeInfo {
     }
   }
 
+  size_t GetDexRegisterMapsSize(const CodeInfoEncoding& encoding,
+                                uint32_t number_of_dex_registers) const {
+    size_t total = 0;
+    for (size_t i = 0, e = GetNumberOfStackMaps(encoding); i < e; ++i) {
+      StackMap stack_map = GetStackMapAt(i, encoding);
+      DexRegisterMap map(GetDexRegisterMapOf(stack_map, encoding, number_of_dex_registers));
+      total += map.Size();
+    }
+    return total;
+  }
+
   // Return the `DexRegisterMap` pointed by `inline_info` at depth `depth`.
   DexRegisterMap GetDexRegisterMapAtDepth(uint8_t depth,
                                           InlineInfo inline_info,

@@ -529,6 +529,12 @@ class OatDumper {
       }
     }
 
+    {
+      os << "OAT FILE STATS:\n";
+      VariableIndentationOutputStream vios(&os);
+      stats_.Dump(vios);
+    }
+
     os << std::flush;
     return success;
   }
@@ -573,6 +579,116 @@ class OatDumper {
     }
     return nullptr;
   }
+
+  struct Stats {
+    enum ByteKind {
+      kByteKindCode,
+      kByteKindQuickMethodHeader,
+      kByteKindCodeInfoLocationCatalog,
+      kByteKindCodeInfoDexRegisterMap,
+      kByteKindCodeInfoInlineInfo,
+      kByteKindCodeInfoEncoding,
+      kByteKindCodeInfoOther,
+      kByteKindStackMapNativePc,
+      kByteKindStackMapDexPc,
+      kByteKindStackMapDexRegisterMap,
+      kByteKindStackMapInlineInfo,
+      kByteKindStackMapRegisterMask,
+      kByteKindStackMapMask,
+      kByteKindStackMapOther,
+      kByteKindCount,
+      kByteKindStackMapFirst = kByteKindCodeInfoOther,
+      kByteKindStackMapLast = kByteKindStackMapOther,
+    };
+    int64_t bits[kByteKindCount] = {};
+    // Since code has deduplication, seen tracks already seen pointers to avoid double counting
+    // deduplicated code and tables.
+    std::unordered_set<const void*> seen;
+
+    // Returns true if it was newly added.
+    bool AddBitsIfUnique(ByteKind kind, int64_t count, const void* address) {
+      if (seen.insert(address).second == true) {
+        // True means the address was not already in the set.
+        AddBits(kind, count);
+        return true;
+      }
+      return false;
+    }
+
+    void AddBits(ByteKind kind, int64_t count) {
+      bits[kind] += count;
+    }
+
+    void Dump(VariableIndentationOutputStream& os) {
+      const int64_t sum = std::accumulate(bits, bits + kByteKindCount, 0u);
+      os.Stream() << "Dumping cumulative use of " << sum / kBitsPerByte << " accounted bytes\n";
+      if (sum > 0) {
+        const int64_t stack_map_bits = std::accumulate(bits + kByteKindStackMapFirst,
+                                                       bits + kByteKindStackMapLast + 1,
+                                                       0u);
+        Dump(os, "Code                           ", bits[kByteKindCode], sum);
+        Dump(os, "QuickMethodHeader              ", bits[kByteKindQuickMethodHeader], sum);
+        Dump(os, "CodeInfoEncoding               ", bits[kByteKindCodeInfoEncoding], sum);
+        Dump(os, "CodeInfoLocationCatalog        ", bits[kByteKindCodeInfoLocationCatalog], sum);
+        Dump(os, "CodeInfoDexRegisterMap         ", bits[kByteKindCodeInfoDexRegisterMap], sum);
+        Dump(os, "CodeInfoInlineInfo             ", bits[kByteKindCodeInfoInlineInfo], sum);
+        Dump(os, "CodeInfoStackMap               ", stack_map_bits, sum);
+        {
+          ScopedIndentation indent1(&os);
+          Dump(os,
+               "StackMapNativePc             ",
+               bits[kByteKindStackMapNativePc],
+               stack_map_bits,
+               "stack map");
+          Dump(os,
+               "StackMapDexPcEncoding        ",
+               bits[kByteKindStackMapDexPc],
+               stack_map_bits,
+               "stack map");
+          Dump(os,
+               "StackMapDexRegisterMap       ",
+               bits[kByteKindStackMapDexRegisterMap],
+               stack_map_bits,
+               "stack map");
+          Dump(os,
+               "StackMapInlineInfo           ",
+               bits[kByteKindStackMapInlineInfo],
+               stack_map_bits,
+               "stack map");
+          Dump(os,
+               "StackMapRegisterMaskEncoding ",
+               bits[kByteKindStackMapRegisterMask],
+               stack_map_bits,
+               "stack map");
+          Dump(os,
+               "StackMapMask                 ",
+               bits[kByteKindStackMapMask],
+               stack_map_bits,
+               "stack map");
+          Dump(os,
+               "StackMapOther                ",
+               bits[kByteKindStackMapOther],
+               stack_map_bits,
+               "stack map");
+        }
+      }
+      os.Stream() << "\n" << std::flush;
+    }
+
+   private:
+    void Dump(VariableIndentationOutputStream& os,
+              const char* name,
+              int64_t size,
+              int64_t total,
+              const char* sum_of = "total") {
+      const double percent = (static_cast<double>(size) / static_cast<double>(total)) * 100;
+      os.Stream() << StringPrintf("%s = %8" PRId64 " (%2.0f%% of %s)\n",
+                                  name,
+                                  size / kBitsPerByte,
+                                  percent,
+                                  sum_of);
+    }
+  };
 
  private:
   void AddAllOffsets() {
@@ -1046,7 +1162,9 @@ class OatDumper {
       vios->Stream() << "OatQuickMethodHeader ";
       uint32_t method_header_offset = oat_method.GetOatQuickMethodHeaderOffset();
       const OatQuickMethodHeader* method_header = oat_method.GetOatQuickMethodHeader();
-
+      stats_.AddBitsIfUnique(Stats::kByteKindQuickMethodHeader,
+                             sizeof(*method_header) * kBitsPerByte,
+                             method_header);
       if (options_.absolute_addresses_) {
         vios->Stream() << StringPrintf("%p ", method_header);
       }
@@ -1118,6 +1236,7 @@ class OatDumper {
         const void* code = oat_method.GetQuickCode();
         uint32_t aligned_code_begin = AlignCodeOffset(code_offset);
         uint64_t aligned_code_end = aligned_code_begin + code_size;
+        stats_.AddBitsIfUnique(Stats::kByteKindCode, code_size * kBitsPerByte, code);
 
         if (options_.absolute_addresses_) {
           vios->Stream() << StringPrintf("%p ", code);
@@ -1431,6 +1550,60 @@ class OatDumper {
     } else if (!bad_input && IsMethodGeneratedByOptimizingCompiler(oat_method, code_item)) {
       // The optimizing compiler outputs its CodeInfo data in the vmap table.
       StackMapsHelper helper(oat_method.GetVmapTable(), instruction_set_);
+      {
+        CodeInfoEncoding encoding(helper.GetEncoding());
+        StackMapEncoding stack_map_encoding(encoding.stack_map_encoding);
+        // helper.GetCodeInfo().GetStackMapAt(0, encoding).;
+        const size_t num_stack_maps = encoding.number_of_stack_maps;
+        std::vector<uint8_t> size_vector;
+        encoding.Compress(&size_vector);
+        if (stats_.AddBitsIfUnique(Stats::kByteKindCodeInfoEncoding,
+                                   size_vector.size() * kBitsPerByte,
+                                   oat_method.GetVmapTable())) {
+          stats_.AddBits(
+              Stats::kByteKindStackMapNativePc,
+              stack_map_encoding.GetNativePcEncoding().BitSize() * num_stack_maps);
+          stats_.AddBits(
+              Stats::kByteKindStackMapDexPc,
+              stack_map_encoding.GetDexPcEncoding().BitSize() * num_stack_maps);
+          stats_.AddBits(
+              Stats::kByteKindStackMapDexRegisterMap,
+              stack_map_encoding.GetDexRegisterMapEncoding().BitSize() * num_stack_maps);
+          stats_.AddBits(
+              Stats::kByteKindStackMapInlineInfo,
+              stack_map_encoding.GetInlineInfoEncoding().BitSize() * num_stack_maps);
+          stats_.AddBits(
+              Stats::kByteKindStackMapRegisterMask,
+              stack_map_encoding.GetRegisterMaskEncoding().BitSize() * num_stack_maps);
+          const size_t stack_mask_bits = encoding.stack_map_size_in_bytes * kBitsPerByte -
+              stack_map_encoding.GetStackMaskBitOffset();
+          stats_.AddBits(
+              Stats::kByteKindStackMapMask,
+              stack_mask_bits * num_stack_maps);
+          const size_t stack_map_bits =
+              stack_map_encoding.GetStackMaskBitOffset() + stack_mask_bits;
+          stats_.AddBits(
+              Stats::kByteKindStackMapOther,
+              (encoding.stack_map_size_in_bytes * kBitsPerByte - stack_map_bits) * num_stack_maps);
+          const size_t stack_map_bytes = helper.GetCodeInfo().GetStackMapsSize(encoding);
+          const size_t location_catalog_bytes =
+              helper.GetCodeInfo().GetDexRegisterLocationCatalogSize(encoding);
+          stats_.AddBits(Stats::kByteKindCodeInfoLocationCatalog,
+                         kBitsPerByte * location_catalog_bytes);
+          const size_t dex_register_bytes =
+              helper.GetCodeInfo().GetDexRegisterMapsSize(encoding, code_item->registers_size_);
+          stats_.AddBits(
+              Stats::kByteKindCodeInfoDexRegisterMap,
+              kBitsPerByte * dex_register_bytes);
+          const size_t inline_info_bytes =
+              encoding.non_header_size -
+              stack_map_bytes -
+              location_catalog_bytes -
+              dex_register_bytes;
+          stats_.AddBits(Stats::kByteKindCodeInfoInlineInfo,
+                         inline_info_bytes * kBitsPerByte);
+        }
+      }
       const uint8_t* quick_native_pc = reinterpret_cast<const uint8_t*>(quick_code);
       size_t offset = 0;
       while (offset < code_size) {
@@ -1468,6 +1641,7 @@ class OatDumper {
   const InstructionSet instruction_set_;
   std::set<uintptr_t> offsets_;
   Disassembler* disassembler_;
+  Stats stats_;
 };
 
 class ImageDumper {
@@ -2140,7 +2314,6 @@ class ImageDumper {
 
     size_t managed_code_bytes;
     size_t managed_code_bytes_ignoring_deduplication;
-    size_t managed_to_native_code_bytes;
     size_t native_to_managed_code_bytes;
     size_t class_initializer_code_bytes;
     size_t large_initializer_code_bytes;
@@ -2169,7 +2342,6 @@ class ImageDumper {
           alignment_bytes(0),
           managed_code_bytes(0),
           managed_code_bytes_ignoring_deduplication(0),
-          managed_to_native_code_bytes(0),
           native_to_managed_code_bytes(0),
           class_initializer_code_bytes(0),
           large_initializer_code_bytes(0),
@@ -2367,7 +2539,6 @@ class ImageDumper {
 
       os << StringPrintf("oat_file_bytes               = %8zd\n"
                          "managed_code_bytes           = %8zd (%2.0f%% of oat file bytes)\n"
-                         "managed_to_native_code_bytes = %8zd (%2.0f%% of oat file bytes)\n"
                          "native_to_managed_code_bytes = %8zd (%2.0f%% of oat file bytes)\n\n"
                          "class_initializer_code_bytes = %8zd (%2.0f%% of oat file bytes)\n"
                          "large_initializer_code_bytes = %8zd (%2.0f%% of oat file bytes)\n"
@@ -2375,8 +2546,6 @@ class ImageDumper {
                          oat_file_bytes,
                          managed_code_bytes,
                          PercentOfOatBytes(managed_code_bytes),
-                         managed_to_native_code_bytes,
-                         PercentOfOatBytes(managed_to_native_code_bytes),
                          native_to_managed_code_bytes,
                          PercentOfOatBytes(native_to_managed_code_bytes),
                          class_initializer_code_bytes,
