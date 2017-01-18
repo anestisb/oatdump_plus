@@ -1404,33 +1404,6 @@ END art_quick_check_instance_of
 #endif  // USE_READ_BARRIER
 .endm
 
-    /*
-     * Entry from managed code for array put operations of objects where the value being stored
-     * needs to be checked for compatibility.
-     * x0 = array, x1 = index, x2 = value
-     *
-     * Currently all values should fit into w0/w1/w2, and w1 always will as indices are 32b. We
-     * assume, though, that the upper 32b are zeroed out. At least for x1/w1 we can do better by
-     * using index-zero-extension in load/stores.
-     *
-     * Temporaries: x3, x4
-     * TODO: x4 OK? ip seems wrong here.
-     */
-ENTRY art_quick_aput_obj_with_null_and_bound_check
-    tst x0, x0
-    bne art_quick_aput_obj_with_bound_check
-    b art_quick_throw_null_pointer_exception
-END art_quick_aput_obj_with_null_and_bound_check
-
-ENTRY art_quick_aput_obj_with_bound_check
-    ldr w3, [x0, #MIRROR_ARRAY_LENGTH_OFFSET]
-    cmp w3, w1
-    bhi art_quick_aput_obj
-    mov x0, x1
-    mov x1, x3
-    b art_quick_throw_array_bounds
-END art_quick_aput_obj_with_bound_check
-
 #ifdef USE_READ_BARRIER
     .extern artReadBarrierSlow
 #endif
@@ -1675,8 +1648,6 @@ GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_WITH_ACCESS_CHECK(_region_tlab, RegionTL
 // GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY(_region_tlab, RegionTLAB) implemented in asm
 // GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED(_region_tlab, RegionTLAB)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_WITH_ACCESS_CHECK(_region_tlab, RegionTLAB)
-GENERATE_ALLOC_ENTRYPOINTS_CHECK_AND_ALLOC_ARRAY(_region_tlab, RegionTLAB)
-GENERATE_ALLOC_ENTRYPOINTS_CHECK_AND_ALLOC_ARRAY_WITH_ACCESS_CHECK(_region_tlab, RegionTLAB)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_BYTES(_region_tlab, RegionTLAB)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_CHARS(_region_tlab, RegionTLAB)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_STRING(_region_tlab, RegionTLAB)

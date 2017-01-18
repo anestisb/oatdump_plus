@@ -109,46 +109,6 @@ extern "C" mirror::Array* artAllocArrayFromCodeWithAccessCheck##suffix##suffix2(
                                                      self, \
                                                      allocator_type); \
 } \
-extern "C" mirror::Array* artCheckAndAllocArrayFromCode##suffix##suffix2( \
-    uint32_t type_idx, int32_t component_count, ArtMethod* method, Thread* self) \
-    REQUIRES_SHARED(Locks::mutator_lock_) { \
-  ScopedQuickEntrypointChecks sqec(self); \
-  if (!(instrumented_bool)) { \
-    return CheckAndAllocArrayFromCode(dex::TypeIndex(type_idx), \
-                                      component_count, \
-                                      method, \
-                                      self, \
-                                      false, \
-                                      allocator_type); \
-  } else { \
-    return CheckAndAllocArrayFromCodeInstrumented(dex::TypeIndex(type_idx), \
-                                                  component_count, \
-                                                  method, \
-                                                  self, \
-                                                  false, \
-                                                  allocator_type); \
-  } \
-} \
-extern "C" mirror::Array* artCheckAndAllocArrayFromCodeWithAccessCheck##suffix##suffix2( \
-    uint32_t type_idx, int32_t component_count, ArtMethod* method, Thread* self) \
-    REQUIRES_SHARED(Locks::mutator_lock_) { \
-  ScopedQuickEntrypointChecks sqec(self); \
-  if (!(instrumented_bool)) { \
-    return CheckAndAllocArrayFromCode(dex::TypeIndex(type_idx), \
-                                      component_count, \
-                                      method, \
-                                      self, \
-                                      true, \
-                                      allocator_type); \
-  } else { \
-    return CheckAndAllocArrayFromCodeInstrumented(dex::TypeIndex(type_idx), \
-                                                  component_count, \
-                                                  method, \
-                                                  self, \
-                                                  true, \
-                                                  allocator_type); \
-  } \
-} \
 extern "C" mirror::String* artAllocStringFromBytesFromCode##suffix##suffix2( \
     mirror::ByteArray* byte_array, int32_t high, int32_t offset, int32_t byte_count, \
     Thread* self) \
@@ -219,8 +179,6 @@ void SetQuickAllocEntryPoints##suffix(QuickEntryPoints* qpoints, bool instrument
     qpoints->pAllocObjectResolved = art_quick_alloc_object_resolved##suffix##_instrumented; \
     qpoints->pAllocObjectInitialized = art_quick_alloc_object_initialized##suffix##_instrumented; \
     qpoints->pAllocObjectWithChecks = art_quick_alloc_object_with_checks##suffix##_instrumented; \
-    qpoints->pCheckAndAllocArray = art_quick_check_and_alloc_array##suffix##_instrumented; \
-    qpoints->pCheckAndAllocArrayWithAccessCheck = art_quick_check_and_alloc_array_with_access_check##suffix##_instrumented; \
     qpoints->pAllocStringFromBytes = art_quick_alloc_string_from_bytes##suffix##_instrumented; \
     qpoints->pAllocStringFromChars = art_quick_alloc_string_from_chars##suffix##_instrumented; \
     qpoints->pAllocStringFromString = art_quick_alloc_string_from_string##suffix##_instrumented; \
@@ -231,8 +189,6 @@ void SetQuickAllocEntryPoints##suffix(QuickEntryPoints* qpoints, bool instrument
     qpoints->pAllocObjectResolved = art_quick_alloc_object_resolved##suffix; \
     qpoints->pAllocObjectInitialized = art_quick_alloc_object_initialized##suffix; \
     qpoints->pAllocObjectWithChecks = art_quick_alloc_object_with_checks##suffix; \
-    qpoints->pCheckAndAllocArray = art_quick_check_and_alloc_array##suffix; \
-    qpoints->pCheckAndAllocArrayWithAccessCheck = art_quick_check_and_alloc_array_with_access_check##suffix; \
     qpoints->pAllocStringFromBytes = art_quick_alloc_string_from_bytes##suffix; \
     qpoints->pAllocStringFromChars = art_quick_alloc_string_from_chars##suffix; \
     qpoints->pAllocStringFromString = art_quick_alloc_string_from_string##suffix; \
