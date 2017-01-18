@@ -431,10 +431,12 @@ class LoadClassSlowPathARMVIXL : public SlowPathCodeARMVIXL {
       // TODO: Change art_quick_initialize_type/art_quick_initialize_static_storage to
       // kSaveEverything and use a temporary for the .bss entry address in the fast path,
       // so that we can avoid another calculation here.
+      UseScratchRegisterScope temps(down_cast<CodeGeneratorARMVIXL*>(codegen)->GetVIXLAssembler());
+      vixl32::Register temp = temps.Acquire();
       CodeGeneratorARMVIXL::PcRelativePatchInfo* labels =
           arm_codegen->NewTypeBssEntryPatch(cls_->GetDexFile(), type_index);
-      arm_codegen->EmitMovwMovtPlaceholder(labels, ip);
-      __ Str(OutputRegister(cls_), MemOperand(ip));
+      arm_codegen->EmitMovwMovtPlaceholder(labels, temp);
+      __ Str(OutputRegister(cls_), MemOperand(temp));
     }
     __ B(GetExitLabel());
   }
