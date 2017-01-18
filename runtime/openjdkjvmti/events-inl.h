@@ -23,8 +23,13 @@
 
 namespace openjdkjvmti {
 
+static inline ArtJvmtiEvent GetArtJvmtiEvent(ArtJvmTiEnv* env ATTRIBUTE_UNUSED,
+                                                           jvmtiEvent e) {
+  return static_cast<ArtJvmtiEvent>(e);
+}
+
 template <typename FnType>
-ALWAYS_INLINE static inline FnType* GetCallback(ArtJvmTiEnv* env, jvmtiEvent event) {
+ALWAYS_INLINE static inline FnType* GetCallback(ArtJvmTiEnv* env, ArtJvmtiEvent event) {
   if (env->event_callbacks == nullptr) {
     return nullptr;
   }
@@ -33,90 +38,97 @@ ALWAYS_INLINE static inline FnType* GetCallback(ArtJvmTiEnv* env, jvmtiEvent eve
   //       function.
 
   switch (event) {
-    case JVMTI_EVENT_VM_INIT:
+    case ArtJvmtiEvent::kVmInit:
       return reinterpret_cast<FnType*>(env->event_callbacks->VMInit);
-    case JVMTI_EVENT_VM_DEATH:
+    case ArtJvmtiEvent::kVmDeath:
       return reinterpret_cast<FnType*>(env->event_callbacks->VMDeath);
-    case JVMTI_EVENT_THREAD_START:
+    case ArtJvmtiEvent::kThreadStart:
       return reinterpret_cast<FnType*>(env->event_callbacks->ThreadStart);
-    case JVMTI_EVENT_THREAD_END:
+    case ArtJvmtiEvent::kThreadEnd:
       return reinterpret_cast<FnType*>(env->event_callbacks->ThreadEnd);
-    case JVMTI_EVENT_CLASS_FILE_LOAD_HOOK:
+    case ArtJvmtiEvent::kClassFileLoadHook:
       return reinterpret_cast<FnType*>(env->event_callbacks->ClassFileLoadHook);
-    case JVMTI_EVENT_CLASS_LOAD:
+    case ArtJvmtiEvent::kClassLoad:
       return reinterpret_cast<FnType*>(env->event_callbacks->ClassLoad);
-    case JVMTI_EVENT_CLASS_PREPARE:
+    case ArtJvmtiEvent::kClassPrepare:
       return reinterpret_cast<FnType*>(env->event_callbacks->ClassPrepare);
-    case JVMTI_EVENT_VM_START:
+    case ArtJvmtiEvent::kVmStart:
       return reinterpret_cast<FnType*>(env->event_callbacks->VMStart);
-    case JVMTI_EVENT_EXCEPTION:
+    case ArtJvmtiEvent::kException:
       return reinterpret_cast<FnType*>(env->event_callbacks->Exception);
-    case JVMTI_EVENT_EXCEPTION_CATCH:
+    case ArtJvmtiEvent::kExceptionCatch:
       return reinterpret_cast<FnType*>(env->event_callbacks->ExceptionCatch);
-    case JVMTI_EVENT_SINGLE_STEP:
+    case ArtJvmtiEvent::kSingleStep:
       return reinterpret_cast<FnType*>(env->event_callbacks->SingleStep);
-    case JVMTI_EVENT_FRAME_POP:
+    case ArtJvmtiEvent::kFramePop:
       return reinterpret_cast<FnType*>(env->event_callbacks->FramePop);
-    case JVMTI_EVENT_BREAKPOINT:
+    case ArtJvmtiEvent::kBreakpoint:
       return reinterpret_cast<FnType*>(env->event_callbacks->Breakpoint);
-    case JVMTI_EVENT_FIELD_ACCESS:
+    case ArtJvmtiEvent::kFieldAccess:
       return reinterpret_cast<FnType*>(env->event_callbacks->FieldAccess);
-    case JVMTI_EVENT_FIELD_MODIFICATION:
+    case ArtJvmtiEvent::kFieldModification:
       return reinterpret_cast<FnType*>(env->event_callbacks->FieldModification);
-    case JVMTI_EVENT_METHOD_ENTRY:
+    case ArtJvmtiEvent::kMethodEntry:
       return reinterpret_cast<FnType*>(env->event_callbacks->MethodEntry);
-    case JVMTI_EVENT_METHOD_EXIT:
+    case ArtJvmtiEvent::kMethodExit:
       return reinterpret_cast<FnType*>(env->event_callbacks->MethodExit);
-    case JVMTI_EVENT_NATIVE_METHOD_BIND:
+    case ArtJvmtiEvent::kNativeMethodBind:
       return reinterpret_cast<FnType*>(env->event_callbacks->NativeMethodBind);
-    case JVMTI_EVENT_COMPILED_METHOD_LOAD:
+    case ArtJvmtiEvent::kCompiledMethodLoad:
       return reinterpret_cast<FnType*>(env->event_callbacks->CompiledMethodLoad);
-    case JVMTI_EVENT_COMPILED_METHOD_UNLOAD:
+    case ArtJvmtiEvent::kCompiledMethodUnload:
       return reinterpret_cast<FnType*>(env->event_callbacks->CompiledMethodUnload);
-    case JVMTI_EVENT_DYNAMIC_CODE_GENERATED:
+    case ArtJvmtiEvent::kDynamicCodeGenerated:
       return reinterpret_cast<FnType*>(env->event_callbacks->DynamicCodeGenerated);
-    case JVMTI_EVENT_DATA_DUMP_REQUEST:
+    case ArtJvmtiEvent::kDataDumpRequest:
       return reinterpret_cast<FnType*>(env->event_callbacks->DataDumpRequest);
-    case JVMTI_EVENT_MONITOR_WAIT:
+    case ArtJvmtiEvent::kMonitorWait:
       return reinterpret_cast<FnType*>(env->event_callbacks->MonitorWait);
-    case JVMTI_EVENT_MONITOR_WAITED:
+    case ArtJvmtiEvent::kMonitorWaited:
       return reinterpret_cast<FnType*>(env->event_callbacks->MonitorWaited);
-    case JVMTI_EVENT_MONITOR_CONTENDED_ENTER:
+    case ArtJvmtiEvent::kMonitorContendedEnter:
       return reinterpret_cast<FnType*>(env->event_callbacks->MonitorContendedEnter);
-    case JVMTI_EVENT_MONITOR_CONTENDED_ENTERED:
+    case ArtJvmtiEvent::kMonitorContendedEntered:
       return reinterpret_cast<FnType*>(env->event_callbacks->MonitorContendedEntered);
-    case JVMTI_EVENT_RESOURCE_EXHAUSTED:
+    case ArtJvmtiEvent::kResourceExhausted:
       return reinterpret_cast<FnType*>(env->event_callbacks->ResourceExhausted);
-    case JVMTI_EVENT_GARBAGE_COLLECTION_START:
+    case ArtJvmtiEvent::kGarbageCollectionStart:
       return reinterpret_cast<FnType*>(env->event_callbacks->GarbageCollectionStart);
-    case JVMTI_EVENT_GARBAGE_COLLECTION_FINISH:
+    case ArtJvmtiEvent::kGarbageCollectionFinish:
       return reinterpret_cast<FnType*>(env->event_callbacks->GarbageCollectionFinish);
-    case JVMTI_EVENT_OBJECT_FREE:
+    case ArtJvmtiEvent::kObjectFree:
       return reinterpret_cast<FnType*>(env->event_callbacks->ObjectFree);
-    case JVMTI_EVENT_VM_OBJECT_ALLOC:
+    case ArtJvmtiEvent::kVmObjectAlloc:
       return reinterpret_cast<FnType*>(env->event_callbacks->VMObjectAlloc);
   }
   return nullptr;
 }
 
 template <typename ...Args>
-inline void EventHandler::DispatchEvent(art::Thread* thread, jvmtiEvent event, Args... args) {
+inline void EventHandler::DispatchEvent(art::Thread* thread,
+                                        ArtJvmtiEvent event,
+                                        Args... args) const {
   using FnType = void(jvmtiEnv*, Args...);
   for (ArtJvmTiEnv* env : envs) {
-    bool dispatch = env->event_masks.global_event_mask.Test(event);
-
-    if (!dispatch && thread != nullptr && env->event_masks.unioned_thread_event_mask.Test(event)) {
-      EventMask* mask = env->event_masks.GetEventMaskOrNull(thread);
-      dispatch = mask != nullptr && mask->Test(event);
-    }
-
-    if (dispatch) {
+    if (ShouldDispatch(event, env, thread)) {
       FnType* callback = GetCallback<FnType>(env, event);
       if (callback != nullptr) {
         (*callback)(env, args...);
       }
     }
   }
+}
+
+inline bool EventHandler::ShouldDispatch(ArtJvmtiEvent event,
+                                         ArtJvmTiEnv* env,
+                                         art::Thread* thread) {
+  bool dispatch = env->event_masks.global_event_mask.Test(event);
+
+  if (!dispatch && thread != nullptr && env->event_masks.unioned_thread_event_mask.Test(event)) {
+    EventMask* mask = env->event_masks.GetEventMaskOrNull(thread);
+    dispatch = mask != nullptr && mask->Test(event);
+  }
+  return dispatch;
 }
 
 }  // namespace openjdkjvmti
