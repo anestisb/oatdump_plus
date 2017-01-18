@@ -466,10 +466,12 @@ TEST_ART_BROKEN_FALLBACK_RUN_TESTS := \
   629-vdex-speed
 
 # This test fails without an image.
-# 964 often times out due to the large number of classes it tries to compile.
+# 018, 961, 964 often time out. b/34369284
 TEST_ART_BROKEN_NO_IMAGE_RUN_TESTS := \
   137-cfi \
   138-duplicate-classes-check \
+  018-stack-overflow \
+  961-default-iface-resolution-gen \
   964-default-iface-init
 
 ifneq (,$(filter no-dex2oat,$(PREBUILD_TYPES)))
