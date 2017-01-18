@@ -846,7 +846,7 @@ void ConcurrentCopying::IssueEmptyCheckpoint() {
         // Some threads in 'runnable_thread_ids' are probably stuck. Try to dump their stacks.
         // Avoid using ThreadList::Dump() initially because it is likely to get stuck as well.
         {
-          ReaderMutexLock mu0(self, *Locks::mutator_lock_);
+          ScopedObjectAccess soa(self);
           MutexLock mu1(self, *Locks::thread_list_lock_);
           for (Thread* thread : thread_list->GetList()) {
             uint32_t tid = thread->GetThreadId();
