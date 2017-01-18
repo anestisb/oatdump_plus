@@ -1704,6 +1704,14 @@ class ScopedTransitioningToRunnable : public ValueObject {
   Thread* const self_;
 };
 
+class ThreadLifecycleCallback {
+ public:
+  virtual ~ThreadLifecycleCallback() {}
+
+  virtual void ThreadStart(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_) = 0;
+  virtual void ThreadDeath(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_) = 0;
+};
+
 std::ostream& operator<<(std::ostream& os, const Thread& thread);
 std::ostream& operator<<(std::ostream& os, const StackedShadowFrameType& thread);
 

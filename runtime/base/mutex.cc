@@ -61,6 +61,7 @@ Mutex* Locks::reference_queue_finalizer_references_lock_ = nullptr;
 Mutex* Locks::reference_queue_phantom_references_lock_ = nullptr;
 Mutex* Locks::reference_queue_soft_references_lock_ = nullptr;
 Mutex* Locks::reference_queue_weak_references_lock_ = nullptr;
+ReaderWriterMutex* Locks::runtime_callbacks_lock_ = nullptr;
 Mutex* Locks::runtime_shutdown_lock_ = nullptr;
 Mutex* Locks::cha_lock_ = nullptr;
 Mutex* Locks::thread_list_lock_ = nullptr;
@@ -967,6 +968,7 @@ void Locks::Init() {
     DCHECK(trace_lock_ != nullptr);
     DCHECK(unexpected_signal_lock_ != nullptr);
     DCHECK(dex_lock_ != nullptr);
+    DCHECK(runtime_callbacks_lock_ != nullptr);
   } else {
     // Create global locks in level order from highest lock level to lowest.
     LockLevel current_lock_level = kInstrumentEntrypointsLock;
@@ -997,6 +999,10 @@ void Locks::Init() {
     UPDATE_CURRENT_LOCK_LEVEL(kRuntimeShutdownLock);
     DCHECK(runtime_shutdown_lock_ == nullptr);
     runtime_shutdown_lock_ = new Mutex("runtime shutdown lock", current_lock_level);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kRuntimeCallbacksLock);
+    DCHECK(runtime_callbacks_lock_ == nullptr);
+    runtime_callbacks_lock_ = new ReaderWriterMutex("runtime callbacks lock", current_lock_level);
 
     UPDATE_CURRENT_LOCK_LEVEL(kProfilerLock);
     DCHECK(profiler_lock_ == nullptr);
