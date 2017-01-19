@@ -34,7 +34,7 @@
 #include "base/time_utils.h"
 #include "base/unix_file/fd_file.h"
 #include "dex_file.h"
-#include "jit/offline_profiling_info.h"
+#include "jit/profile_compilation_info.h"
 #include "runtime.h"
 #include "utils.h"
 #include "zip_archive.h"

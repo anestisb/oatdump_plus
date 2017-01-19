@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_JIT_OFFLINE_PROFILING_INFO_H_
-#define ART_RUNTIME_JIT_OFFLINE_PROFILING_INFO_H_
+#ifndef ART_RUNTIME_JIT_PROFILE_COMPILATION_INFO_H_
+#define ART_RUNTIME_JIT_PROFILE_COMPILATION_INFO_H_
 
 #include <set>
 #include <vector>
@@ -29,7 +29,6 @@
 
 namespace art {
 
-// TODO: rename file.
 /**
  * Profile information in a format suitable to be queried by the compiler and
  * performing profile guided compilation.
@@ -187,4 +186,4 @@ class ProfileCompilationInfo {
 
 }  // namespace art
 
-#endif  // ART_RUNTIME_JIT_OFFLINE_PROFILING_INFO_H_
+#endif  // ART_RUNTIME_JIT_PROFILE_COMPILATION_INFO_H_

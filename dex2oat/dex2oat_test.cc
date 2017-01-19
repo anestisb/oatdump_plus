@@ -30,7 +30,7 @@
 #include "base/macros.h"
 #include "dex_file-inl.h"
 #include "dex2oat_environment_test.h"
-#include "jit/offline_profiling_info.h"
+#include "jit/profile_compilation_info.h"
 #include "oat.h"
 #include "oat_file.h"
 #include "utils.h"
