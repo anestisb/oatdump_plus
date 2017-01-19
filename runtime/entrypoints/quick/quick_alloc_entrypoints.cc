@@ -82,32 +82,12 @@ extern "C" mirror::Object* artAllocObjectFromCodeInitialized##suffix##suffix2( \
     REQUIRES_SHARED(Locks::mutator_lock_) { \
   return artAllocObjectFromCode<true, false, instrumented_bool, allocator_type>(klass, self); \
 } \
-extern "C" mirror::Array* artAllocArrayFromCode##suffix##suffix2( \
-    uint32_t type_idx, int32_t component_count, ArtMethod* method, Thread* self) \
-    REQUIRES_SHARED(Locks::mutator_lock_) { \
-  ScopedQuickEntrypointChecks sqec(self); \
-  return AllocArrayFromCode<false, instrumented_bool>(dex::TypeIndex(type_idx), \
-                                                      component_count, \
-                                                      method, \
-                                                      self, \
-                                                      allocator_type); \
-} \
 extern "C" mirror::Array* artAllocArrayFromCodeResolved##suffix##suffix2( \
     mirror::Class* klass, int32_t component_count, Thread* self) \
     REQUIRES_SHARED(Locks::mutator_lock_) { \
   ScopedQuickEntrypointChecks sqec(self); \
   return AllocArrayFromCodeResolved<instrumented_bool>(klass, component_count, self, \
                                                        allocator_type); \
-} \
-extern "C" mirror::Array* artAllocArrayFromCodeWithAccessCheck##suffix##suffix2( \
-    uint32_t type_idx, int32_t component_count, ArtMethod* method, Thread* self) \
-    REQUIRES_SHARED(Locks::mutator_lock_) { \
-  ScopedQuickEntrypointChecks sqec(self); \
-  return AllocArrayFromCode<true, instrumented_bool>(dex::TypeIndex(type_idx), \
-                                                     component_count, \
-                                                     method, \
-                                                     self, \
-                                                     allocator_type); \
 } \
 extern "C" mirror::String* artAllocStringFromBytesFromCode##suffix##suffix2( \
     mirror::ByteArray* byte_array, int32_t high, int32_t offset, int32_t byte_count, \
@@ -148,9 +128,7 @@ GENERATE_ENTRYPOINTS_FOR_ALLOCATOR(Region, gc::kAllocatorTypeRegion)
 GENERATE_ENTRYPOINTS_FOR_ALLOCATOR(RegionTLAB, gc::kAllocatorTypeRegionTLAB)
 
 #define GENERATE_ENTRYPOINTS(suffix) \
-extern "C" void* art_quick_alloc_array##suffix(uint32_t, int32_t, ArtMethod* ref); \
 extern "C" void* art_quick_alloc_array_resolved##suffix(mirror::Class* klass, int32_t); \
-extern "C" void* art_quick_alloc_array_with_access_check##suffix(uint32_t, int32_t, ArtMethod* ref); \
 extern "C" void* art_quick_alloc_object_resolved##suffix(mirror::Class* klass); \
 extern "C" void* art_quick_alloc_object_initialized##suffix(mirror::Class* klass); \
 extern "C" void* art_quick_alloc_object_with_checks##suffix(mirror::Class* klass); \
@@ -173,9 +151,7 @@ extern "C" void* art_quick_alloc_string_from_chars##suffix##_instrumented(int32_
 extern "C" void* art_quick_alloc_string_from_string##suffix##_instrumented(void*); \
 void SetQuickAllocEntryPoints##suffix(QuickEntryPoints* qpoints, bool instrumented) { \
   if (instrumented) { \
-    qpoints->pAllocArray = art_quick_alloc_array##suffix##_instrumented; \
     qpoints->pAllocArrayResolved = art_quick_alloc_array_resolved##suffix##_instrumented; \
-    qpoints->pAllocArrayWithAccessCheck = art_quick_alloc_array_with_access_check##suffix##_instrumented; \
     qpoints->pAllocObjectResolved = art_quick_alloc_object_resolved##suffix##_instrumented; \
     qpoints->pAllocObjectInitialized = art_quick_alloc_object_initialized##suffix##_instrumented; \
     qpoints->pAllocObjectWithChecks = art_quick_alloc_object_with_checks##suffix##_instrumented; \
@@ -183,9 +159,7 @@ void SetQuickAllocEntryPoints##suffix(QuickEntryPoints* qpoints, bool instrument
     qpoints->pAllocStringFromChars = art_quick_alloc_string_from_chars##suffix##_instrumented; \
     qpoints->pAllocStringFromString = art_quick_alloc_string_from_string##suffix##_instrumented; \
   } else { \
-    qpoints->pAllocArray = art_quick_alloc_array##suffix; \
     qpoints->pAllocArrayResolved = art_quick_alloc_array_resolved##suffix; \
-    qpoints->pAllocArrayWithAccessCheck = art_quick_alloc_array_with_access_check##suffix; \
     qpoints->pAllocObjectResolved = art_quick_alloc_object_resolved##suffix; \
     qpoints->pAllocObjectInitialized = art_quick_alloc_object_initialized##suffix; \
     qpoints->pAllocObjectWithChecks = art_quick_alloc_object_with_checks##suffix; \

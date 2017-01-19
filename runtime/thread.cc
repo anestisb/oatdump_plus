@@ -2626,9 +2626,7 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset) {
       os << #x; \
       return; \
     }
-  QUICK_ENTRY_POINT_INFO(pAllocArray)
   QUICK_ENTRY_POINT_INFO(pAllocArrayResolved)
-  QUICK_ENTRY_POINT_INFO(pAllocArrayWithAccessCheck)
   QUICK_ENTRY_POINT_INFO(pAllocObjectResolved)
   QUICK_ENTRY_POINT_INFO(pAllocObjectInitialized)
   QUICK_ENTRY_POINT_INFO(pAllocObjectWithChecks)
