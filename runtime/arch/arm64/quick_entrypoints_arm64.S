@@ -1645,7 +1645,7 @@ GENERATE_ALLOC_ENTRYPOINTS_FOR_NON_REGION_TLAB_ALLOCATORS
 // GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_region_tlab, RegionTLAB)
 // GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_INITIALIZED(_region_tlab, RegionTLAB)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_WITH_ACCESS_CHECK(_region_tlab, RegionTLAB)
-GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY(_region_tlab, RegionTLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY(_region_tlab, RegionTLAB) implemented in asm
 // GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED(_region_tlab, RegionTLAB)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_WITH_ACCESS_CHECK(_region_tlab, RegionTLAB)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_BYTES(_region_tlab, RegionTLAB)
@@ -1733,6 +1733,13 @@ ENTRY art_quick_alloc_object_resolved_rosalloc
     RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 END art_quick_alloc_object_resolved_rosalloc
 
+
+// The common fast path code for art_quick_alloc_array_region_tlab.
+.macro ALLOC_ARRAY_TLAB_FAST_PATH slowPathLabel, xClass, wClass, xCount, wCount, xTemp0, wTemp0, xTemp1, wTemp1, xTemp2, wTemp2
+    // Check null class
+    cbz    \wClass, \slowPathLabel
+    ALLOC_ARRAY_TLAB_FAST_PATH_RESOLVED \slowPathLabel, \xClass, \wClass, \xCount, \wCount, \xTemp0, \wTemp0, \xTemp1, \wTemp1, \xTemp2, \wTemp2
+.endm
 
 // The common fast path code for art_quick_alloc_array_region_tlab.
 .macro ALLOC_ARRAY_TLAB_FAST_PATH_RESOLVED slowPathLabel, xClass, wClass, xCount, wCount, xTemp0, wTemp0, xTemp1, wTemp1, xTemp2, wTemp2
@@ -1871,31 +1878,64 @@ GENERATE_ALLOC_OBJECT_RESOLVED_REGION_TLAB art_quick_alloc_object_initialized_re
 // TODO: We could use this macro for the normal tlab allocator too.
 
 // The common code for art_quick_alloc_array_*region_tlab
-.macro GENERATE_ALLOC_ARRAY_REGION_TLAB name, entrypoint, fast_path
+.macro GENERATE_ALLOC_ARRAY_REGION_TLAB name, entrypoint, fast_path, is_resolved
 ENTRY \name
     // Fast path array allocation for region tlab allocation.
-    // x0: mirror::Class* type
+    // x0: uint32_t type_idx
     // x1: int32_t component_count
-    // x2-x7: free.
+    // x2: ArtMethod* method
+    // x3-x7: free.
 #if !defined(USE_READ_BARRIER)
     mvn    x0, xzr                                            // Read barrier must be enabled here.
     ret                                                       // Return -1.
 #endif
+.if \is_resolved
     mov    x3, x0
+    // If already resolved, class is stored in x0
+.else
+    ldr    x3, [x2, #ART_METHOD_DEX_CACHE_TYPES_OFFSET_64]    // Load dex cache resolved types array
+                                                              // Load the class (x2)
+    ldr    w3, [x3, x0, lsl #COMPRESSED_REFERENCE_SIZE_SHIFT]
+.endif
+    // Most common case: GC is not marking.
+    ldr    w4, [xSELF, #THREAD_IS_GC_MARKING_OFFSET]
+    cbnz   x4, .Lmarking\name
+.Ldo_allocation\name:
     \fast_path .Lslow_path\name, x3, w3, x1, w1, x4, w4, x5, w5, x6, w6
+.Lmarking\name:
+    // GC is marking, check the lock word of the class for the mark bit.
+    // If the class is null, go slow path. The check is required to read the lock word.
+    cbz    w3, .Lslow_path\name
+    // Class is not null, check mark bit in lock word.
+    ldr    w4, [x3, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
+    // If the bit is not zero, do the allocation.
+    tbnz   w4, #LOCK_WORD_MARK_BIT_SHIFT, .Ldo_allocation\name
+                                                              // The read barrier slow path. Mark
+                                                              // the class.
+    stp    x0, x1, [sp, #-32]!                                // Save registers (x0, x1, x2, lr).
+    stp    x2, xLR, [sp, #16]
+    mov    x0, x3                                             // Pass the class as the first param.
+    bl     artReadBarrierMark
+    mov    x3, x0                                             // Get the (marked) class back.
+    ldp    x2, xLR, [sp, #16]
+    ldp    x0, x1, [sp], #32                                  // Restore registers.
+    b      .Ldo_allocation\name
 .Lslow_path\name:
-    // x0: mirror::Class* klass
+    // x0: uint32_t type_idx / mirror::Class* klass (if resolved)
     // x1: int32_t component_count
-    // x2: Thread* self
+    // x2: ArtMethod* method
+    // x3: Thread* self
     SETUP_SAVE_REFS_ONLY_FRAME        // save callee saves in case of GC
-    mov    x2, xSELF                  // pass Thread::Current
+    mov    x3, xSELF                  // pass Thread::Current
     bl     \entrypoint
     RESTORE_SAVE_REFS_ONLY_FRAME
     RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 END \name
 .endm
 
-GENERATE_ALLOC_ARRAY_REGION_TLAB art_quick_alloc_array_resolved_region_tlab, artAllocArrayFromCodeResolvedRegionTLAB, ALLOC_ARRAY_TLAB_FAST_PATH_RESOLVED
+GENERATE_ALLOC_ARRAY_REGION_TLAB art_quick_alloc_array_region_tlab, artAllocArrayFromCodeRegionTLAB, ALLOC_ARRAY_TLAB_FAST_PATH, 0
+// TODO: art_quick_alloc_array_resolved_region_tlab seems to not get called. Investigate compiler.
+GENERATE_ALLOC_ARRAY_REGION_TLAB art_quick_alloc_array_resolved_region_tlab, artAllocArrayFromCodeResolvedRegionTLAB, ALLOC_ARRAY_TLAB_FAST_PATH_RESOLVED, 1
 
     /*
      * Called by managed code when the thread has been asked to suspend.
