@@ -596,11 +596,13 @@ static HInstruction* BuildSSAGraph3(HGraph* graph,
   HBasicBlock* block = new (allocator) HBasicBlock(graph);
   graph->AddBlock(block);
   entry->AddSuccessor(block);
-  // We pass a bogus constant for the class to avoid mocking one.
   HInstruction* new_array = new (allocator) HNewArray(
       constant_10,
-      constant_10,
-      0);
+      graph->GetCurrentMethod(),
+      0,
+      dex::TypeIndex(static_cast<uint16_t>(Primitive::kPrimInt)),
+      graph->GetDexFile(),
+      kQuickAllocArray);
   block->AddInstruction(new_array);
   block->AddInstruction(new (allocator) HGoto());
 

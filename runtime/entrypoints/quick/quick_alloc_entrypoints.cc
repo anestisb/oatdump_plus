@@ -93,11 +93,11 @@ extern "C" mirror::Array* artAllocArrayFromCode##suffix##suffix2( \
                                                       allocator_type); \
 } \
 extern "C" mirror::Array* artAllocArrayFromCodeResolved##suffix##suffix2( \
-    mirror::Class* klass, int32_t component_count, Thread* self) \
+    mirror::Class* klass, int32_t component_count, ArtMethod* method, Thread* self) \
     REQUIRES_SHARED(Locks::mutator_lock_) { \
   ScopedQuickEntrypointChecks sqec(self); \
-  return AllocArrayFromCodeResolved<instrumented_bool>(klass, component_count, self, \
-                                                       allocator_type); \
+  return AllocArrayFromCodeResolved<false, instrumented_bool>(klass, component_count, method, self, \
+                                                              allocator_type); \
 } \
 extern "C" mirror::Array* artAllocArrayFromCodeWithAccessCheck##suffix##suffix2( \
     uint32_t type_idx, int32_t component_count, ArtMethod* method, Thread* self) \
@@ -149,7 +149,7 @@ GENERATE_ENTRYPOINTS_FOR_ALLOCATOR(RegionTLAB, gc::kAllocatorTypeRegionTLAB)
 
 #define GENERATE_ENTRYPOINTS(suffix) \
 extern "C" void* art_quick_alloc_array##suffix(uint32_t, int32_t, ArtMethod* ref); \
-extern "C" void* art_quick_alloc_array_resolved##suffix(mirror::Class* klass, int32_t); \
+extern "C" void* art_quick_alloc_array_resolved##suffix(mirror::Class* klass, int32_t, ArtMethod* ref); \
 extern "C" void* art_quick_alloc_array_with_access_check##suffix(uint32_t, int32_t, ArtMethod* ref); \
 extern "C" void* art_quick_alloc_object_resolved##suffix(mirror::Class* klass); \
 extern "C" void* art_quick_alloc_object_initialized##suffix(mirror::Class* klass); \
@@ -160,7 +160,7 @@ extern "C" void* art_quick_alloc_string_from_bytes##suffix(void*, int32_t, int32
 extern "C" void* art_quick_alloc_string_from_chars##suffix(int32_t, int32_t, void*); \
 extern "C" void* art_quick_alloc_string_from_string##suffix(void*); \
 extern "C" void* art_quick_alloc_array##suffix##_instrumented(uint32_t, int32_t, ArtMethod* ref); \
-extern "C" void* art_quick_alloc_array_resolved##suffix##_instrumented(mirror::Class* klass, int32_t); \
+extern "C" void* art_quick_alloc_array_resolved##suffix##_instrumented(mirror::Class* klass, int32_t, ArtMethod* ref); \
 extern "C" void* art_quick_alloc_array_with_access_check##suffix##_instrumented(uint32_t, int32_t, ArtMethod* ref); \
 extern "C" void* art_quick_alloc_object##suffix##_instrumented(uint32_t type_idx, ArtMethod* ref); \
 extern "C" void* art_quick_alloc_object_resolved##suffix##_instrumented(mirror::Class* klass); \
