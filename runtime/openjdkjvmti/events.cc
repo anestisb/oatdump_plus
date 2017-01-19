@@ -47,6 +47,10 @@
 
 namespace openjdkjvmti {
 
+bool EventMasks::IsEnabledAnywhere(ArtJvmtiEvent event) {
+  return global_event_mask.Test(event) || unioned_thread_event_mask.Test(event);
+}
+
 EventMask& EventMasks::GetEventMask(art::Thread* thread) {
   if (thread == nullptr) {
     return global_event_mask;
@@ -104,6 +108,35 @@ void EventMasks::DisableEvent(art::Thread* thread, ArtJvmtiEvent event) {
       }
     }
     unioned_thread_event_mask.Set(event, union_value);
+  }
+}
+
+void EventMasks::HandleChangedCapabilities(const jvmtiCapabilities& caps, bool caps_added) {
+  if (UNLIKELY(caps.can_retransform_classes == 1)) {
+    // If we are giving this env the retransform classes cap we need to switch all events of
+    // NonTransformable to Transformable and vice versa.
+    ArtJvmtiEvent to_remove = caps_added ? ArtJvmtiEvent::kClassFileLoadHookNonRetransformable
+                                         : ArtJvmtiEvent::kClassFileLoadHookRetransformable;
+    ArtJvmtiEvent to_add = caps_added ? ArtJvmtiEvent::kClassFileLoadHookRetransformable
+                                      : ArtJvmtiEvent::kClassFileLoadHookNonRetransformable;
+    if (global_event_mask.Test(to_remove)) {
+      CHECK(!global_event_mask.Test(to_add));
+      global_event_mask.Set(to_remove, false);
+      global_event_mask.Set(to_add, true);
+    }
+
+    if (unioned_thread_event_mask.Test(to_remove)) {
+      CHECK(!unioned_thread_event_mask.Test(to_add));
+      unioned_thread_event_mask.Set(to_remove, false);
+      unioned_thread_event_mask.Set(to_add, true);
+    }
+    for (auto thread_mask : thread_event_masks) {
+      if (thread_mask.second.Test(to_remove)) {
+        CHECK(!thread_mask.second.Test(to_add));
+        thread_mask.second.Set(to_remove, false);
+        thread_mask.second.Set(to_add, true);
+      }
+    }
   }
 }
 
@@ -293,17 +326,7 @@ jvmtiError EventHandler::SetEvent(ArtJvmTiEnv* env,
     DCHECK_EQ(mode, JVMTI_DISABLE);
 
     env->event_masks.DisableEvent(thread, event);
-
-    // Gotta recompute the global mask.
-    bool union_value = false;
-    for (const ArtJvmTiEnv* stored_env : envs) {
-      union_value |= stored_env->event_masks.global_event_mask.Test(event);
-      union_value |= stored_env->event_masks.unioned_thread_event_mask.Test(event);
-      if (union_value) {
-        break;
-      }
-    }
-    global_mask.Set(event, union_value);
+    RecalculateGlobalEventMask(event);
   }
 
   bool new_state = global_mask.Test(event);
