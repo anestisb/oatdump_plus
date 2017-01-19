@@ -47,7 +47,7 @@ using Kind = DexRegisterLocation::Kind;
 TEST(StackMapTest, Test1) {
   ArenaPool pool;
   ArenaAllocator arena(&pool);
-  StackMapStream stream(&arena);
+  StackMapStream stream(&arena, kRuntimeISA);
 
   ArenaBitVector sp_mask(&arena, 0, false);
   size_t number_of_dex_registers = 2;
@@ -78,7 +78,7 @@ TEST(StackMapTest, Test1) {
   ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForDexPc(0, encoding)));
   ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForNativePcOffset(64, encoding)));
   ASSERT_EQ(0u, stack_map.GetDexPc(encoding.stack_map_encoding));
-  ASSERT_EQ(64u, stack_map.GetNativePcOffset(encoding.stack_map_encoding));
+  ASSERT_EQ(64u, stack_map.GetNativePcOffset(encoding.stack_map_encoding, kRuntimeISA));
   ASSERT_EQ(0x3u, stack_map.GetRegisterMask(encoding.stack_map_encoding));
 
   ASSERT_TRUE(CheckStackMask(stack_map, encoding.stack_map_encoding, sp_mask));
@@ -128,7 +128,7 @@ TEST(StackMapTest, Test1) {
 TEST(StackMapTest, Test2) {
   ArenaPool pool;
   ArenaAllocator arena(&pool);
-  StackMapStream stream(&arena);
+  StackMapStream stream(&arena, kRuntimeISA);
   ArtMethod art_method;
 
   ArenaBitVector sp_mask1(&arena, 0, true);
@@ -193,7 +193,7 @@ TEST(StackMapTest, Test2) {
     ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForDexPc(0, encoding)));
     ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForNativePcOffset(64, encoding)));
     ASSERT_EQ(0u, stack_map.GetDexPc(encoding.stack_map_encoding));
-    ASSERT_EQ(64u, stack_map.GetNativePcOffset(encoding.stack_map_encoding));
+    ASSERT_EQ(64u, stack_map.GetNativePcOffset(encoding.stack_map_encoding, kRuntimeISA));
     ASSERT_EQ(0x3u, stack_map.GetRegisterMask(encoding.stack_map_encoding));
 
     ASSERT_TRUE(CheckStackMask(stack_map, encoding.stack_map_encoding, sp_mask1));
@@ -252,7 +252,7 @@ TEST(StackMapTest, Test2) {
     ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForDexPc(1u, encoding)));
     ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForNativePcOffset(128u, encoding)));
     ASSERT_EQ(1u, stack_map.GetDexPc(encoding.stack_map_encoding));
-    ASSERT_EQ(128u, stack_map.GetNativePcOffset(encoding.stack_map_encoding));
+    ASSERT_EQ(128u, stack_map.GetNativePcOffset(encoding.stack_map_encoding, kRuntimeISA));
     ASSERT_EQ(0xFFu, stack_map.GetRegisterMask(encoding.stack_map_encoding));
 
     ASSERT_TRUE(CheckStackMask(stack_map, encoding.stack_map_encoding, sp_mask2));
@@ -306,7 +306,7 @@ TEST(StackMapTest, Test2) {
     ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForDexPc(2u, encoding)));
     ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForNativePcOffset(192u, encoding)));
     ASSERT_EQ(2u, stack_map.GetDexPc(encoding.stack_map_encoding));
-    ASSERT_EQ(192u, stack_map.GetNativePcOffset(encoding.stack_map_encoding));
+    ASSERT_EQ(192u, stack_map.GetNativePcOffset(encoding.stack_map_encoding, kRuntimeISA));
     ASSERT_EQ(0xABu, stack_map.GetRegisterMask(encoding.stack_map_encoding));
 
     ASSERT_TRUE(CheckStackMask(stack_map, encoding.stack_map_encoding, sp_mask3));
@@ -360,7 +360,7 @@ TEST(StackMapTest, Test2) {
     ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForDexPc(3u, encoding)));
     ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForNativePcOffset(256u, encoding)));
     ASSERT_EQ(3u, stack_map.GetDexPc(encoding.stack_map_encoding));
-    ASSERT_EQ(256u, stack_map.GetNativePcOffset(encoding.stack_map_encoding));
+    ASSERT_EQ(256u, stack_map.GetNativePcOffset(encoding.stack_map_encoding, kRuntimeISA));
     ASSERT_EQ(0xCDu, stack_map.GetRegisterMask(encoding.stack_map_encoding));
 
     ASSERT_TRUE(CheckStackMask(stack_map, encoding.stack_map_encoding, sp_mask4));
@@ -412,7 +412,7 @@ TEST(StackMapTest, Test2) {
 TEST(StackMapTest, TestNonLiveDexRegisters) {
   ArenaPool pool;
   ArenaAllocator arena(&pool);
-  StackMapStream stream(&arena);
+  StackMapStream stream(&arena, kRuntimeISA);
 
   ArenaBitVector sp_mask(&arena, 0, false);
   uint32_t number_of_dex_registers = 2;
@@ -442,7 +442,7 @@ TEST(StackMapTest, TestNonLiveDexRegisters) {
   ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForDexPc(0, encoding)));
   ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForNativePcOffset(64, encoding)));
   ASSERT_EQ(0u, stack_map.GetDexPc(encoding.stack_map_encoding));
-  ASSERT_EQ(64u, stack_map.GetNativePcOffset(encoding.stack_map_encoding));
+  ASSERT_EQ(64u, stack_map.GetNativePcOffset(encoding.stack_map_encoding, kRuntimeISA));
   ASSERT_EQ(0x3u, stack_map.GetRegisterMask(encoding.stack_map_encoding));
 
   ASSERT_TRUE(stack_map.HasDexRegisterMap(encoding.stack_map_encoding));
@@ -491,7 +491,7 @@ TEST(StackMapTest, TestNonLiveDexRegisters) {
 TEST(StackMapTest, DexRegisterMapOffsetOverflow) {
   ArenaPool pool;
   ArenaAllocator arena(&pool);
-  StackMapStream stream(&arena);
+  StackMapStream stream(&arena, kRuntimeISA);
 
   ArenaBitVector sp_mask(&arena, 0, false);
   uint32_t number_of_dex_registers = 1024;
@@ -554,7 +554,7 @@ TEST(StackMapTest, DexRegisterMapOffsetOverflow) {
 TEST(StackMapTest, TestShareDexRegisterMap) {
   ArenaPool pool;
   ArenaAllocator arena(&pool);
-  StackMapStream stream(&arena);
+  StackMapStream stream(&arena, kRuntimeISA);
 
   ArenaBitVector sp_mask(&arena, 0, false);
   uint32_t number_of_dex_registers = 2;
@@ -612,7 +612,7 @@ TEST(StackMapTest, TestShareDexRegisterMap) {
 TEST(StackMapTest, TestNoDexRegisterMap) {
   ArenaPool pool;
   ArenaAllocator arena(&pool);
-  StackMapStream stream(&arena);
+  StackMapStream stream(&arena, kRuntimeISA);
 
   ArenaBitVector sp_mask(&arena, 0, false);
   uint32_t number_of_dex_registers = 0;
@@ -620,7 +620,7 @@ TEST(StackMapTest, TestNoDexRegisterMap) {
   stream.EndStackMapEntry();
 
   number_of_dex_registers = 1;
-  stream.BeginStackMapEntry(1, 67, 0x4, &sp_mask, number_of_dex_registers, 0);
+  stream.BeginStackMapEntry(1, 68, 0x4, &sp_mask, number_of_dex_registers, 0);
   stream.EndStackMapEntry();
 
   size_t size = stream.PrepareForFillIn();
@@ -641,7 +641,7 @@ TEST(StackMapTest, TestNoDexRegisterMap) {
   ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForDexPc(0, encoding)));
   ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForNativePcOffset(64, encoding)));
   ASSERT_EQ(0u, stack_map.GetDexPc(encoding.stack_map_encoding));
-  ASSERT_EQ(64u, stack_map.GetNativePcOffset(encoding.stack_map_encoding));
+  ASSERT_EQ(64u, stack_map.GetNativePcOffset(encoding.stack_map_encoding, kRuntimeISA));
   ASSERT_EQ(0x3u, stack_map.GetRegisterMask(encoding.stack_map_encoding));
 
   ASSERT_FALSE(stack_map.HasDexRegisterMap(encoding.stack_map_encoding));
@@ -649,9 +649,9 @@ TEST(StackMapTest, TestNoDexRegisterMap) {
 
   stack_map = code_info.GetStackMapAt(1, encoding);
   ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForDexPc(1, encoding)));
-  ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForNativePcOffset(67, encoding)));
+  ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForNativePcOffset(68, encoding)));
   ASSERT_EQ(1u, stack_map.GetDexPc(encoding.stack_map_encoding));
-  ASSERT_EQ(67u, stack_map.GetNativePcOffset(encoding.stack_map_encoding));
+  ASSERT_EQ(68u, stack_map.GetNativePcOffset(encoding.stack_map_encoding, kRuntimeISA));
   ASSERT_EQ(0x4u, stack_map.GetRegisterMask(encoding.stack_map_encoding));
 
   ASSERT_FALSE(stack_map.HasDexRegisterMap(encoding.stack_map_encoding));
@@ -661,7 +661,7 @@ TEST(StackMapTest, TestNoDexRegisterMap) {
 TEST(StackMapTest, InlineTest) {
   ArenaPool pool;
   ArenaAllocator arena(&pool);
-  StackMapStream stream(&arena);
+  StackMapStream stream(&arena, kRuntimeISA);
   ArtMethod art_method;
 
   ArenaBitVector sp_mask1(&arena, 0, true);
@@ -821,6 +821,22 @@ TEST(StackMapTest, InlineTest) {
     ASSERT_FALSE(dex_registers2.IsDexRegisterLive(0));
     ASSERT_EQ(3, dex_registers2.GetMachineRegister(1, 2, ci, encoding));
   }
+}
+
+TEST(StackMapTest, CodeOffsetTest) {
+  // Test minimum alignments, encoding, and decoding.
+  CodeOffset offset_thumb2 = CodeOffset::FromOffset(kThumb2InstructionAlignment, kThumb2);
+  CodeOffset offset_arm64 = CodeOffset::FromOffset(kArm64InstructionAlignment, kArm64);
+  CodeOffset offset_x86 = CodeOffset::FromOffset(kX86InstructionAlignment, kX86);
+  CodeOffset offset_x86_64 = CodeOffset::FromOffset(kX86_64InstructionAlignment, kX86_64);
+  CodeOffset offset_mips = CodeOffset::FromOffset(kMipsInstructionAlignment, kMips);
+  CodeOffset offset_mips64 = CodeOffset::FromOffset(kMips64InstructionAlignment, kMips64);
+  EXPECT_EQ(offset_thumb2.Uint32Value(kThumb2), kThumb2InstructionAlignment);
+  EXPECT_EQ(offset_arm64.Uint32Value(kArm64), kArm64InstructionAlignment);
+  EXPECT_EQ(offset_x86.Uint32Value(kX86), kX86InstructionAlignment);
+  EXPECT_EQ(offset_x86_64.Uint32Value(kX86_64), kX86_64InstructionAlignment);
+  EXPECT_EQ(offset_mips.Uint32Value(kMips), kMipsInstructionAlignment);
+  EXPECT_EQ(offset_mips64.Uint32Value(kMips64), kMips64InstructionAlignment);
 }
 
 }  // namespace art

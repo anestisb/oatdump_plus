@@ -608,7 +608,7 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
         number_of_register_pairs_(number_of_register_pairs),
         core_callee_save_mask_(core_callee_save_mask),
         fpu_callee_save_mask_(fpu_callee_save_mask),
-        stack_map_stream_(graph->GetArena()),
+        stack_map_stream_(graph->GetArena(), graph->GetInstructionSet()),
         block_order_(nullptr),
         jit_string_roots_(StringReferenceValueComparator(),
                           graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
