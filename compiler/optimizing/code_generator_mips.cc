@@ -5897,21 +5897,14 @@ void LocationsBuilderMIPS::VisitNewArray(HNewArray* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCallOnMainOnly);
   InvokeRuntimeCallingConvention calling_convention;
-  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
-  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
   locations->SetOut(calling_convention.GetReturnLocation(Primitive::kPrimNot));
-  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+  locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
 }
 
 void InstructionCodeGeneratorMIPS::VisitNewArray(HNewArray* instruction) {
-  InvokeRuntimeCallingConvention calling_convention;
-  Register current_method_register = calling_convention.GetRegisterAt(2);
-  __ Lw(current_method_register, SP, kCurrentMethodStackOffset);
-  // Move an uint16_t value to a register.
-  __ LoadConst32(calling_convention.GetRegisterAt(0), instruction->GetTypeIndex().index_);
-  codegen_->InvokeRuntime(instruction->GetEntrypoint(), instruction, instruction->GetDexPc());
-  CheckEntrypointTypes<kQuickAllocArrayWithAccessCheck,
-                       void*, uint32_t, int32_t, ArtMethod*>();
+  codegen_->InvokeRuntime(kQuickAllocArrayResolved, instruction, instruction->GetDexPc());
+  CheckEntrypointTypes<kQuickAllocArrayResolved, void*, mirror::Class*, int32_t>();
 }
 
 void LocationsBuilderMIPS::VisitNewInstance(HNewInstance* instruction) {
