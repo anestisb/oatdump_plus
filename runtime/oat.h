@@ -43,6 +43,7 @@ class PACKED(4) OatHeader {
   static constexpr const char* kCompilerFilter = "compiler-filter";
   static constexpr const char* kClassPathKey = "classpath";
   static constexpr const char* kBootClassPathKey = "bootclasspath";
+  static constexpr const char* kConcurrentCopying = "concurrent-copying";
 
   static constexpr const char kTrueValue[] = "true";
   static constexpr const char kFalseValue[] = "false";
@@ -112,6 +113,7 @@ class PACKED(4) OatHeader {
   bool IsDebuggable() const;
   bool IsNativeDebuggable() const;
   CompilerFilter::Filter GetCompilerFilter() const;
+  bool IsConcurrentCopying() const;
 
  private:
   bool KeyHasValue(const char* key, const char* value, size_t value_size) const;
