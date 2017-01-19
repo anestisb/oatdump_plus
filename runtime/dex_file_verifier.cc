@@ -91,6 +91,66 @@ const char* DexFileVerifier::CheckLoadStringByIdx(dex::StringIndex idx, const ch
   return dex_file_->StringDataByIdx(idx);
 }
 
+// Try to find the name of the method with the given index. We do not want to rely on DexFile
+// infrastructure at this point, so do it all by hand. begin and header correspond to begin_ and
+// header_ of the DexFileVerifier. str will contain the pointer to the method name on success
+// (flagged by the return value), otherwise error_msg will contain an error string.
+static bool FindMethodName(uint32_t method_index,
+                           const uint8_t* begin,
+                           const DexFile::Header* header,
+                           const char** str,
+                           std::string* error_msg) {
+  if (method_index >= header->method_ids_size_) {
+    *error_msg = "Method index not available for method flags verification";
+    return false;
+  }
+  uint32_t string_idx =
+      (reinterpret_cast<const DexFile::MethodId*>(begin + header->method_ids_off_) +
+          method_index)->name_idx_.index_;
+  if (string_idx >= header->string_ids_size_) {
+    *error_msg = "String index not available for method flags verification";
+    return false;
+  }
+  uint32_t string_off =
+      (reinterpret_cast<const DexFile::StringId*>(begin + header->string_ids_off_) + string_idx)->
+          string_data_off_;
+  if (string_off >= header->file_size_) {
+    *error_msg = "String offset out of bounds for method flags verification";
+    return false;
+  }
+  const uint8_t* str_data_ptr = begin + string_off;
+  uint32_t dummy;
+  if (!DecodeUnsignedLeb128Checked(&str_data_ptr, begin + header->file_size_, &dummy)) {
+    *error_msg = "String size out of bounds for method flags verification";
+    return false;
+  }
+  *str = reinterpret_cast<const char*>(str_data_ptr);
+  return true;
+}
+
+// Gets constructor flags based on the |method_name|. Returns true if
+// method_name is either <clinit> or <init> and sets
+// |constructor_flags_by_name| appropriately. Otherwise set
+// |constructor_flags_by_name| to zero and returns whether
+// |method_name| is valid.
+bool GetConstructorFlagsForMethodName(const char* method_name,
+                                      uint32_t* constructor_flags_by_name) {
+  if (method_name[0] != '<') {
+    *constructor_flags_by_name = 0;
+    return true;
+  }
+  if (strcmp(method_name + 1, "clinit>") == 0) {
+    *constructor_flags_by_name = kAccStatic | kAccConstructor;
+    return true;
+  }
+  if (strcmp(method_name + 1, "init>") == 0) {
+    *constructor_flags_by_name = kAccConstructor;
+    return true;
+  }
+  *constructor_flags_by_name = 0;
+  return false;
+}
+
 const char* DexFileVerifier::CheckLoadStringByTypeIdx(dex::TypeIndex type_idx,
                                                       const char* error_string) {
   if (UNLIKELY(!CheckIndex(type_idx.index_, dex_file_->NumTypeIds(), error_string))) {
@@ -111,6 +171,13 @@ const DexFile::MethodId* DexFileVerifier::CheckLoadMethodId(uint32_t idx, const 
     return nullptr;
   }
   return &dex_file_->GetMethodId(idx);
+}
+
+const DexFile::ProtoId* DexFileVerifier::CheckLoadProtoId(uint32_t idx, const char* err_string) {
+  if (UNLIKELY(!CheckIndex(idx, dex_file_->NumProtoIds(), err_string))) {
+    return nullptr;
+  }
+  return &dex_file_->GetProtoId(idx);
 }
 
 // Helper macro to load string and return false on error.
@@ -606,17 +673,36 @@ bool DexFileVerifier::CheckClassDataItemMethod(uint32_t idx,
     return false;
   }
 
-  // Check method access flags.
-  bool has_code = (code_offset != 0);
   std::string error_msg;
+  const char* method_name;
+  if (!FindMethodName(idx, begin_, header_, &method_name, &error_msg)) {
+    ErrorStringPrintf("%s", error_msg.c_str());
+    return false;
+  }
+
+  uint32_t constructor_flags_by_name = 0;
+  if (!GetConstructorFlagsForMethodName(method_name, &constructor_flags_by_name)) {
+    ErrorStringPrintf("Bad method name: %s", method_name);
+    return false;
+  }
+
+  bool has_code = (code_offset != 0);
   if (!CheckMethodAccessFlags(idx,
                               access_flags,
                               class_access_flags,
+                              constructor_flags_by_name,
                               has_code,
                               expect_direct,
                               &error_msg)) {
     ErrorStringPrintf("%s", error_msg.c_str());
     return false;
+  }
+
+  if (constructor_flags_by_name != 0) {
+    if (!CheckConstructorProperties(idx, constructor_flags_by_name)) {
+      DCHECK(FailureReasonIsSet());
+      return false;
+    }
   }
 
   return true;
@@ -2653,46 +2739,10 @@ bool DexFileVerifier::CheckFieldAccessFlags(uint32_t idx,
   return true;
 }
 
-// Try to find the name of the method with the given index. We do not want to rely on DexFile
-// infrastructure at this point, so do it all by hand. begin and header correspond to begin_ and
-// header_ of the DexFileVerifier. str will contain the pointer to the method name on success
-// (flagged by the return value), otherwise error_msg will contain an error string.
-static bool FindMethodName(uint32_t method_index,
-                           const uint8_t* begin,
-                           const DexFile::Header* header,
-                           const char** str,
-                           std::string* error_msg) {
-  if (method_index >= header->method_ids_size_) {
-    *error_msg = "Method index not available for method flags verification";
-    return false;
-  }
-  uint32_t string_idx =
-      (reinterpret_cast<const DexFile::MethodId*>(begin + header->method_ids_off_) +
-          method_index)->name_idx_.index_;
-  if (string_idx >= header->string_ids_size_) {
-    *error_msg = "String index not available for method flags verification";
-    return false;
-  }
-  uint32_t string_off =
-      (reinterpret_cast<const DexFile::StringId*>(begin + header->string_ids_off_) + string_idx)->
-          string_data_off_;
-  if (string_off >= header->file_size_) {
-    *error_msg = "String offset out of bounds for method flags verification";
-    return false;
-  }
-  const uint8_t* str_data_ptr = begin + string_off;
-  uint32_t dummy;
-  if (!DecodeUnsignedLeb128Checked(&str_data_ptr, begin + header->file_size_, &dummy)) {
-    *error_msg = "String size out of bounds for method flags verification";
-    return false;
-  }
-  *str = reinterpret_cast<const char*>(str_data_ptr);
-  return true;
-}
-
 bool DexFileVerifier::CheckMethodAccessFlags(uint32_t method_index,
                                              uint32_t method_access_flags,
                                              uint32_t class_access_flags,
+                                             uint32_t constructor_flags_by_name,
                                              bool has_code,
                                              bool expect_direct,
                                              std::string* error_msg) {
@@ -2728,36 +2778,23 @@ bool DexFileVerifier::CheckMethodAccessFlags(uint32_t method_index,
     return false;
   }
 
-  // Try to find the name, to check for constructor properties.
-  const char* str;
-  if (!FindMethodName(method_index, begin_, header_, &str, error_msg)) {
-    return false;
-  }
-  bool is_init_by_name = false;
-  constexpr const char* kInitName = "<init>";
-  size_t str_offset = (reinterpret_cast<const uint8_t*>(str) - begin_);
-  if (header_->file_size_ - str_offset >= sizeof(kInitName)) {
-    is_init_by_name = strcmp(kInitName, str) == 0;
-  }
-  bool is_clinit_by_name = false;
-  constexpr const char* kClinitName = "<clinit>";
-  if (header_->file_size_ - str_offset >= sizeof(kClinitName)) {
-    is_clinit_by_name = strcmp(kClinitName, str) == 0;
-  }
-  bool is_constructor = is_init_by_name || is_clinit_by_name;
+  constexpr uint32_t kConstructorFlags = kAccStatic | kAccConstructor;
+  const bool is_constructor_by_name = (constructor_flags_by_name & kConstructorFlags) != 0;
+  const bool is_clinit_by_name = constructor_flags_by_name == kConstructorFlags;
 
   // Only methods named "<clinit>" or "<init>" may be marked constructor. Note: we cannot enforce
   // the reverse for backwards compatibility reasons.
-  if (((method_access_flags & kAccConstructor) != 0) && !is_constructor) {
+  if (((method_access_flags & kAccConstructor) != 0) && !is_constructor_by_name) {
     *error_msg =
         StringPrintf("Method %" PRIu32 "(%s) is marked constructor, but doesn't match name",
-                     method_index,
-                     GetMethodDescriptionOrError(begin_, header_, method_index).c_str());
+                      method_index,
+                      GetMethodDescriptionOrError(begin_, header_, method_index).c_str());
     return false;
   }
-  // Check that the static constructor (= static initializer) is named "<clinit>" and that the
-  // instance constructor is called "<init>".
-  if (is_constructor) {
+
+  if (is_constructor_by_name) {
+    // Check that the static constructor (= static initializer) is named "<clinit>" and that the
+    // instance constructor is called "<init>".
     bool is_static = (method_access_flags & kAccStatic) != 0;
     if (is_static ^ is_clinit_by_name) {
       *error_msg = StringPrintf("Constructor %" PRIu32 "(%s) is not flagged correctly wrt/ static.",
@@ -2772,9 +2809,11 @@ bool DexFileVerifier::CheckMethodAccessFlags(uint32_t method_index,
       }
     }
   }
+
   // Check that static and private methods, as well as constructors, are in the direct methods list,
   // and other methods in the virtual methods list.
-  bool is_direct = (method_access_flags & (kAccStatic | kAccPrivate)) != 0 || is_constructor;
+  bool is_direct = ((method_access_flags & (kAccStatic | kAccPrivate)) != 0) ||
+                   is_constructor_by_name;
   if (is_direct != expect_direct) {
     *error_msg = StringPrintf("Direct/virtual method %" PRIu32 "(%s) not in expected list %d",
                               method_index,
@@ -2782,7 +2821,6 @@ bool DexFileVerifier::CheckMethodAccessFlags(uint32_t method_index,
                               expect_direct);
     return false;
   }
-
 
   // From here on out it is easier to mask out the bits we're supposed to ignore.
   method_access_flags &= kMethodAccessFlags;
@@ -2819,7 +2857,7 @@ bool DexFileVerifier::CheckMethodAccessFlags(uint32_t method_index,
       return false;
     }
     // Constructors must always have code.
-    if (is_constructor) {
+    if (is_constructor_by_name) {
       *error_msg = StringPrintf("Constructor %u(%s) must not be abstract or native",
                                 method_index,
                                 GetMethodDescriptionOrError(begin_, header_, method_index).c_str());
@@ -2881,7 +2919,7 @@ bool DexFileVerifier::CheckMethodAccessFlags(uint32_t method_index,
   }
 
   // Instance constructors must not be synchronized and a few other flags.
-  if (is_init_by_name) {
+  if (constructor_flags_by_name == kAccConstructor) {
     static constexpr uint32_t kInitAllowed =
         kAccPrivate | kAccProtected | kAccPublic | kAccStrict | kAccVarargs | kAccSynthetic;
     if ((method_access_flags & ~kInitAllowed) != 0) {
@@ -2891,6 +2929,46 @@ bool DexFileVerifier::CheckMethodAccessFlags(uint32_t method_index,
                                 method_access_flags);
       return false;
     }
+  }
+
+  return true;
+}
+
+bool DexFileVerifier::CheckConstructorProperties(
+      uint32_t method_index,
+      uint32_t constructor_flags) {
+  DCHECK(constructor_flags == kAccConstructor ||
+         constructor_flags == (kAccConstructor | kAccStatic));
+
+  // Check signature matches expectations.
+  const DexFile::MethodId* const method_id = CheckLoadMethodId(method_index,
+                                                               "Bad <init>/<clinit> method id");
+  if (method_id == nullptr) {
+    return false;
+  }
+
+  // Check the ProtoId for the corresponding method.
+  //
+  // TODO(oth): the error message here is to satisfy the MethodId test
+  // in the DexFileVerifierTest. The test is checking that the error
+  // contains this string if the index is out of range.
+  const DexFile::ProtoId* const proto_id = CheckLoadProtoId(method_id->proto_idx_,
+                                                            "inter_method_id_item proto_idx");
+  if (proto_id == nullptr) {
+    return false;
+  }
+
+  Signature signature = dex_file_->GetMethodSignature(*method_id);
+  if (constructor_flags == (kAccStatic | kAccConstructor)) {
+    if (!signature.IsVoid() || signature.GetNumberOfParameters() != 0) {
+      ErrorStringPrintf("<clinit> must have descriptor ()V");
+      return false;
+    }
+  } else if (!signature.IsVoid()) {
+    ErrorStringPrintf("Constructor %u(%s) must be void",
+                      method_index,
+                      GetMethodDescriptionOrError(begin_, header_, method_index).c_str());
+    return false;
   }
 
   return true;
