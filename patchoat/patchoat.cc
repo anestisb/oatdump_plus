@@ -790,8 +790,6 @@ void PatchOat::FixupMethod(ArtMethod* object, ArtMethod* copy) {
   copy->SetDeclaringClass(RelocatedAddressOfPointer(object->GetDeclaringClass()));
   copy->SetDexCacheResolvedMethods(
       RelocatedAddressOfPointer(object->GetDexCacheResolvedMethods(pointer_size)), pointer_size);
-  copy->SetDexCacheResolvedTypes(
-      RelocatedAddressOfPointer(object->GetDexCacheResolvedTypes(pointer_size)), pointer_size);
   copy->SetEntryPointFromQuickCompiledCodePtrSize(RelocatedAddressOfPointer(
       object->GetEntryPointFromQuickCompiledCodePtrSize(pointer_size)), pointer_size);
   // No special handling for IMT conflict table since all pointers are moved by the same offset.

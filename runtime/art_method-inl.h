@@ -175,24 +175,6 @@ inline bool ArtMethod::HasSameDexCacheResolvedMethods(ArtMethod* other, PointerS
       other->GetDexCacheResolvedMethods(pointer_size);
 }
 
-inline GcRoot<mirror::Class>* ArtMethod::GetDexCacheResolvedTypes(PointerSize pointer_size) {
-  return GetNativePointer<GcRoot<mirror::Class>*>(DexCacheResolvedTypesOffset(pointer_size),
-                                                  pointer_size);
-}
-
-inline bool ArtMethod::HasDexCacheResolvedTypes(PointerSize pointer_size) {
-  return GetDexCacheResolvedTypes(pointer_size) != nullptr;
-}
-
-inline bool ArtMethod::HasSameDexCacheResolvedTypes(GcRoot<mirror::Class>* other_cache,
-                                                    PointerSize pointer_size) {
-  return GetDexCacheResolvedTypes(pointer_size) == other_cache;
-}
-
-inline bool ArtMethod::HasSameDexCacheResolvedTypes(ArtMethod* other, PointerSize pointer_size) {
-  return GetDexCacheResolvedTypes(pointer_size) == other->GetDexCacheResolvedTypes(pointer_size);
-}
-
 inline mirror::Class* ArtMethod::GetClassFromTypeIndex(dex::TypeIndex type_idx, bool resolve) {
   ObjPtr<mirror::DexCache> dex_cache = GetDexCache();
   ObjPtr<mirror::Class> type = dex_cache->GetResolvedType(type_idx);
@@ -416,11 +398,6 @@ inline void ArtMethod::SetDexCacheResolvedMethods(ArtMethod** new_dex_cache_meth
                    pointer_size);
 }
 
-inline void ArtMethod::SetDexCacheResolvedTypes(GcRoot<mirror::Class>* new_dex_cache_types,
-                                                PointerSize pointer_size) {
-  SetNativePointer(DexCacheResolvedTypesOffset(pointer_size), new_dex_cache_types, pointer_size);
-}
-
 inline mirror::Class* ArtMethod::GetReturnType(bool resolve) {
   DCHECK(!IsProxyMethod());
   const DexFile* dex_file = GetDexFile();
@@ -510,11 +487,6 @@ inline void ArtMethod::UpdateObjectsForImageRelocation(const Visitor& visitor,
   ArtMethod** new_methods = visitor(old_methods);
   if (old_methods != new_methods) {
     SetDexCacheResolvedMethods(new_methods, pointer_size);
-  }
-  GcRoot<mirror::Class>* old_types = GetDexCacheResolvedTypes(pointer_size);
-  GcRoot<mirror::Class>* new_types = visitor(old_types);
-  if (old_types != new_types) {
-    SetDexCacheResolvedTypes(new_types, pointer_size);
   }
 }
 
