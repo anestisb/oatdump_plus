@@ -67,6 +67,7 @@
 #include "quick/quick_method_frame_info.h"
 #include "reflection.h"
 #include "runtime.h"
+#include "runtime_callbacks.h"
 #include "scoped_thread_state_change-inl.h"
 #include "ScopedLocalRef.h"
 #include "ScopedUtfChars.h"
@@ -432,7 +433,7 @@ void* Thread::CreateCallback(void* arg) {
     ArtField* priorityField = jni::DecodeArtField(WellKnownClasses::java_lang_Thread_priority);
     self->SetNativePriority(priorityField->GetInt(self->tlsPtr_.opeer));
 
-    runtime->GetRuntimeCallbacks().ThreadStart(self);
+    runtime->GetRuntimeCallbacks()->ThreadStart(self);
 
     // Invoke the 'run' method of our java.lang.Thread.
     ObjPtr<mirror::Object> receiver = self->tlsPtr_.opeer;
@@ -794,7 +795,7 @@ Thread* Thread::Attach(const char* thread_name, bool as_daemon, jobject thread_g
 
   {
     ScopedObjectAccess soa(self);
-    runtime->GetRuntimeCallbacks().ThreadStart(self);
+    runtime->GetRuntimeCallbacks()->ThreadStart(self);
   }
 
   return self;
@@ -1932,7 +1933,7 @@ void Thread::Destroy() {
     }
     Runtime* runtime = Runtime::Current();
     if (runtime != nullptr) {
-      runtime->GetRuntimeCallbacks().ThreadDeath(self);
+      runtime->GetRuntimeCallbacks()->ThreadDeath(self);
     }
 
 
