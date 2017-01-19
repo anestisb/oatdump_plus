@@ -242,12 +242,8 @@ class ClassLinkerTest : public CommonRuntimeTest {
     EXPECT_TRUE(method->GetSignature() != Signature::NoSignature());
 
     EXPECT_TRUE(method->HasDexCacheResolvedMethods(kRuntimePointerSize));
-    EXPECT_TRUE(method->HasDexCacheResolvedTypes(kRuntimePointerSize));
     EXPECT_TRUE(method->HasSameDexCacheResolvedMethods(
         method->GetDeclaringClass()->GetDexCache()->GetResolvedMethods(),
-        kRuntimePointerSize));
-    EXPECT_TRUE(method->HasSameDexCacheResolvedTypes(
-        method->GetDeclaringClass()->GetDexCache()->GetResolvedTypes(),
         kRuntimePointerSize));
   }
 
