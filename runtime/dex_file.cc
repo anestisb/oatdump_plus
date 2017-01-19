@@ -1274,6 +1274,16 @@ std::string Signature::ToString() const {
   return result;
 }
 
+uint32_t Signature::GetNumberOfParameters() const {
+  const DexFile::TypeList* params = dex_file_->GetProtoParameters(*proto_id_);
+  return (params != nullptr) ? params->Size() : 0;
+}
+
+bool Signature::IsVoid() const {
+  const char* return_type = dex_file_->GetReturnTypeDescriptor(*proto_id_);
+  return strcmp(return_type, "V") == 0;
+}
+
 bool Signature::operator==(const StringPiece& rhs) const {
   if (dex_file_ == nullptr) {
     return false;
