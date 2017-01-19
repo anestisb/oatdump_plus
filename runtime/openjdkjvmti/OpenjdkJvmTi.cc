@@ -905,11 +905,15 @@ class JvmtiFunctions {
     ENSURE_NON_NULL(capabilities_ptr);
     ArtJvmTiEnv* art_env = static_cast<ArtJvmTiEnv*>(env);
     jvmtiError ret = OK;
+    jvmtiCapabilities changed;
 #define ADD_CAPABILITY(e) \
     do { \
       if (capabilities_ptr->e == 1) { \
         if (kPotentialCapabilities.e == 1) { \
-          art_env->capabilities.e = 1;\
+          if (art_env->capabilities.e != 1) { \
+            art_env->capabilities.e = 1; \
+            changed.e = 1; \
+          }\
         } else { \
           ret = ERR(NOT_AVAILABLE); \
         } \
@@ -958,6 +962,9 @@ class JvmtiFunctions {
     ADD_CAPABILITY(can_generate_resource_exhaustion_heap_events);
     ADD_CAPABILITY(can_generate_resource_exhaustion_threads_events);
 #undef ADD_CAPABILITY
+    gEventHandler.HandleChangedCapabilities(ArtJvmTiEnv::AsArtJvmTiEnv(env),
+                                            changed,
+                                            /*added*/true);
     return ret;
   }
 
@@ -966,10 +973,14 @@ class JvmtiFunctions {
     ENSURE_VALID_ENV(env);
     ENSURE_NON_NULL(capabilities_ptr);
     ArtJvmTiEnv* art_env = reinterpret_cast<ArtJvmTiEnv*>(env);
+    jvmtiCapabilities changed;
 #define DEL_CAPABILITY(e) \
     do { \
       if (capabilities_ptr->e == 1) { \
-        art_env->capabilities.e = 0;\
+        if (art_env->capabilities.e == 1) { \
+          art_env->capabilities.e = 0;\
+          changed.e = 1; \
+        } \
       } \
     } while (false)
 
@@ -1015,6 +1026,9 @@ class JvmtiFunctions {
     DEL_CAPABILITY(can_generate_resource_exhaustion_heap_events);
     DEL_CAPABILITY(can_generate_resource_exhaustion_threads_events);
 #undef DEL_CAPABILITY
+    gEventHandler.HandleChangedCapabilities(ArtJvmTiEnv::AsArtJvmTiEnv(env),
+                                            changed,
+                                            /*added*/false);
     return OK;
   }
 
