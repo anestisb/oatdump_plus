@@ -351,15 +351,6 @@ class ArtMethod FINAL {
   bool HasSameDexCacheResolvedMethods(ArtMethod** other_cache, PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void SetDexCacheResolvedTypes(GcRoot<mirror::Class>* new_dex_cache_types,
-                                PointerSize pointer_size)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  bool HasDexCacheResolvedTypes(PointerSize pointer_size) REQUIRES_SHARED(Locks::mutator_lock_);
-  bool HasSameDexCacheResolvedTypes(ArtMethod* other, PointerSize pointer_size)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  bool HasSameDexCacheResolvedTypes(GcRoot<mirror::Class>* other_cache, PointerSize pointer_size)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
   // Get the Class* from the type index into this method's dex cache.
   mirror::Class* GetClassFromTypeIndex(dex::TypeIndex type_idx, bool resolve)
       REQUIRES_SHARED(Locks::mutator_lock_);
@@ -409,12 +400,6 @@ class ArtMethod FINAL {
   static MemberOffset DexCacheResolvedMethodsOffset(PointerSize pointer_size) {
     return MemberOffset(PtrSizedFieldsOffset(pointer_size) + OFFSETOF_MEMBER(
         PtrSizedFields, dex_cache_resolved_methods_) / sizeof(void*)
-            * static_cast<size_t>(pointer_size));
-  }
-
-  static MemberOffset DexCacheResolvedTypesOffset(PointerSize pointer_size) {
-    return MemberOffset(PtrSizedFieldsOffset(pointer_size) + OFFSETOF_MEMBER(
-        PtrSizedFields, dex_cache_resolved_types_) / sizeof(void*)
             * static_cast<size_t>(pointer_size));
   }
 
@@ -604,9 +589,6 @@ class ArtMethod FINAL {
   void CopyFrom(ArtMethod* src, PointerSize image_pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ALWAYS_INLINE GcRoot<mirror::Class>* GetDexCacheResolvedTypes(PointerSize pointer_size)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
   // Note, hotness_counter_ updates are non-atomic but it doesn't need to be precise.  Also,
   // given that the counter is only 16 bits wide we can expect wrap-around in some
   // situations.  Consumers of hotness_count_ must be able to deal with that.
@@ -652,8 +634,6 @@ class ArtMethod FINAL {
   // Returns the JNI native function name for the overloaded method 'm'.
   std::string JniLongName()
       REQUIRES_SHARED(Locks::mutator_lock_);
-
-
 
   // Update heap objects and non-entrypoint pointers by the passed in visitor for image relocation.
   // Does not use read barrier.
@@ -702,9 +682,6 @@ class ArtMethod FINAL {
   struct PtrSizedFields {
     // Short cuts to declaring_class_->dex_cache_ member for fast compiled code access.
     ArtMethod** dex_cache_resolved_methods_;
-
-    // Short cuts to declaring_class_->dex_cache_ member for fast compiled code access.
-    GcRoot<mirror::Class>* dex_cache_resolved_types_;
 
     // Pointer to JNI function registered to this method, or a function to resolve the JNI function,
     // or the profiling data for non-native methods, or an ImtConflictTable.
