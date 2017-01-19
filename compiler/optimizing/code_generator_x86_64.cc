@@ -4088,21 +4088,16 @@ void LocationsBuilderX86_64::VisitNewArray(HNewArray* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCallOnMainOnly);
   InvokeRuntimeCallingConvention calling_convention;
-  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
   locations->SetOut(Location::RegisterLocation(RAX));
-  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
-  locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
+  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+  locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
 }
 
 void InstructionCodeGeneratorX86_64::VisitNewArray(HNewArray* instruction) {
-  InvokeRuntimeCallingConvention calling_convention;
-  codegen_->Load64BitValue(CpuRegister(calling_convention.GetRegisterAt(0)),
-                           instruction->GetTypeIndex().index_);
   // Note: if heap poisoning is enabled, the entry point takes cares
   // of poisoning the reference.
-  codegen_->InvokeRuntime(instruction->GetEntrypoint(), instruction, instruction->GetDexPc());
-  CheckEntrypointTypes<kQuickAllocArrayWithAccessCheck, void*, uint32_t, int32_t, ArtMethod*>();
-
+  codegen_->InvokeRuntime(kQuickAllocArrayResolved, instruction, instruction->GetDexPc());
+  CheckEntrypointTypes<kQuickAllocArrayResolved, void*, mirror::Class*, int32_t>();
   DCHECK(!codegen_->IsLeafMethod());
 }
 

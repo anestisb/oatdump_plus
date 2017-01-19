@@ -3997,19 +3997,16 @@ void LocationsBuilderARMVIXL::VisitNewArray(HNewArray* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCallOnMainOnly);
   InvokeRuntimeCallingConventionARMVIXL calling_convention;
-  locations->AddTemp(LocationFrom(calling_convention.GetRegisterAt(0)));
   locations->SetOut(LocationFrom(r0));
   locations->SetInAt(0, LocationFrom(calling_convention.GetRegisterAt(1)));
   locations->SetInAt(1, LocationFrom(calling_convention.GetRegisterAt(2)));
 }
 
 void InstructionCodeGeneratorARMVIXL::VisitNewArray(HNewArray* instruction) {
-  InvokeRuntimeCallingConventionARMVIXL calling_convention;
-  __ Mov(calling_convention.GetRegisterAt(0), instruction->GetTypeIndex().index_);
   // Note: if heap poisoning is enabled, the entry point takes cares
   // of poisoning the reference.
-  codegen_->InvokeRuntime(instruction->GetEntrypoint(), instruction, instruction->GetDexPc());
-  CheckEntrypointTypes<kQuickAllocArrayWithAccessCheck, void*, uint32_t, int32_t, ArtMethod*>();
+  codegen_->InvokeRuntime(kQuickAllocArrayResolved, instruction, instruction->GetDexPc());
+  CheckEntrypointTypes<kQuickAllocArrayResolved, void*, mirror::Class*, int32_t>();
 }
 
 void LocationsBuilderARMVIXL::VisitParameterValue(HParameterValue* instruction) {
