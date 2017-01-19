@@ -25,7 +25,7 @@ ONE_ARG_DOWNCALL art_quick_alloc_object_with_checks\c_suffix, artAllocObjectFrom
 // Called by managed code to allocate an array.
 THREE_ARG_DOWNCALL art_quick_alloc_array\c_suffix, artAllocArrayFromCode\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 // Called by managed code to allocate an array of a resolve class.
-TWO_ARG_DOWNCALL art_quick_alloc_array_resolved\c_suffix, artAllocArrayFromCodeResolved\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+THREE_ARG_DOWNCALL art_quick_alloc_array_resolved\c_suffix, artAllocArrayFromCodeResolved\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 // Called by managed code to allocate an array when the caller doesn't know whether it has access
 // to the created type.
 THREE_ARG_DOWNCALL art_quick_alloc_array_with_access_check\c_suffix, artAllocArrayFromCodeWithAccessCheck\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
@@ -64,7 +64,7 @@ GENERATE_ALLOC_ENTRYPOINTS _region_tlab_instrumented, RegionTLABInstrumented
 #define GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY(c_suffix, cxx_suffix) \
   THREE_ARG_DOWNCALL art_quick_alloc_array ## c_suffix, artAllocArrayFromCode ## cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 #define GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED(c_suffix, cxx_suffix) \
-  TWO_ARG_DOWNCALL art_quick_alloc_array_resolved ## c_suffix, artAllocArrayFromCodeResolved ## cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+  THREE_ARG_DOWNCALL art_quick_alloc_array_resolved ## c_suffix, artAllocArrayFromCodeResolved ## cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 #define GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_WITH_ACCESS_CHECK(c_suffix, cxx_suffix) \
   THREE_ARG_DOWNCALL art_quick_alloc_array_with_access_check ## c_suffix, artAllocArrayFromCodeWithAccessCheck ## cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 #define GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_BYTES(c_suffix, cxx_suffix) \
