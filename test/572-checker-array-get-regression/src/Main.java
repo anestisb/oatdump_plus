@@ -21,10 +21,10 @@ public class Main {
   }
 
   /// CHECK-START: java.lang.Integer Main.test() builder (after)
-  /// CHECK-DAG:     <<Method:[ij]\d+>>    CurrentMethod
   /// CHECK-DAG:     <<Const2P19:i\d+>>    IntConstant 524288
   /// CHECK-DAG:     <<ConstM1:i\d+>>      IntConstant -1
-  /// CHECK-DAG:     <<Array:l\d+>>        NewArray [<<Const2P19>>,<<Method>>]
+  /// CHECK-DAG:     <<LoadClass:l\d+>>    LoadClass
+  /// CHECK-DAG:     <<Array:l\d+>>        NewArray [<<LoadClass>>,<<Const2P19>>]
   /// CHECK-DAG:     <<Length1:i\d+>>      ArrayLength [<<Array>>]
   /// CHECK-DAG:     <<Index:i\d+>>        Add [<<Length1>>,<<ConstM1>>]
   /// CHECK-DAG:     <<Length2:i\d+>>      ArrayLength [<<Array>>]
@@ -34,10 +34,10 @@ public class Main {
 
 
   /// CHECK-START: java.lang.Integer Main.test() register (before)
-  /// CHECK-DAG:     <<Method:[ij]\d+>>    CurrentMethod
   /// CHECK-DAG:     <<Const2P19:i\d+>>    IntConstant 524288
   /// CHECK-DAG:     <<Const2P19M1:i\d+>>  IntConstant 524287
-  /// CHECK-DAG:     <<Array:l\d+>>        NewArray [<<Const2P19>>,<<Method>>]
+  /// CHECK-DAG:     <<LoadClass:l\d+>>    LoadClass
+  /// CHECK-DAG:     <<Array:l\d+>>        NewArray [<<LoadClass>>,<<Const2P19>>]
   /// CHECK-DAG:     <<LastElement:l\d+>>  ArrayGet [<<Array>>,<<Const2P19M1>>]
   /// CHECK-DAG:                           Return [<<LastElement>>]
 
