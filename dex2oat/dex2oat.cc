@@ -1095,6 +1095,8 @@ class Dex2Oat FINAL {
         compiler_options_->GetNativeDebuggable() ? OatHeader::kTrueValue : OatHeader::kFalseValue);
     key_value_store_->Put(OatHeader::kCompilerFilter,
         CompilerFilter::NameOfFilter(compiler_options_->GetCompilerFilter()));
+    key_value_store_->Put(OatHeader::kConcurrentCopying,
+                          kUseReadBarrier ? OatHeader::kTrueValue : OatHeader::kFalseValue);
   }
 
   // Parse the arguments from the command line. In case of an unrecognized option or impossible
