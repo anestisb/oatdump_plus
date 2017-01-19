@@ -40,7 +40,6 @@
 #include "process_state.h"
 #include "quick/quick_method_frame_info.h"
 #include "runtime_stats.h"
-#include "safe_map.h"
 
 namespace art {
 
