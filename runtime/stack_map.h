@@ -1127,7 +1127,7 @@ class CodeInfo {
         GetDexRegisterLocationCatalogSize(encoding)));
   }
 
-  StackMap GetStackMapAt(size_t i, const CodeInfoEncoding& encoding) const {
+  ALWAYS_INLINE StackMap GetStackMapAt(size_t i, const CodeInfoEncoding& encoding) const {
     size_t stack_map_size = encoding.stack_map_size_in_bytes;
     return StackMap(GetStackMaps(encoding).Subregion(i * stack_map_size, stack_map_size));
   }
@@ -1288,7 +1288,7 @@ class CodeInfo {
   }
 
  private:
-  MemoryRegion GetStackMaps(const CodeInfoEncoding& encoding) const {
+  ALWAYS_INLINE MemoryRegion GetStackMaps(const CodeInfoEncoding& encoding) const {
     return region_.size() == 0
         ? MemoryRegion()
         : region_.Subregion(GetStackMapsOffset(encoding), GetStackMapsSize(encoding));
