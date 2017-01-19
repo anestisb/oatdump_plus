@@ -31,7 +31,7 @@
 
 #include "dex_ir.h"
 #include "dexlayout.h"
-#include "jit/offline_profiling_info.h"
+#include "jit/profile_compilation_info.h"
 
 namespace art {
 

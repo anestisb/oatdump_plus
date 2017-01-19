@@ -25,7 +25,7 @@
 #include "jit/profile_saver_options.h"
 #include "obj_ptr.h"
 #include "object_callbacks.h"
-#include "offline_profiling_info.h"
+#include "profile_compilation_info.h"
 #include "thread_pool.h"
 
 namespace art {

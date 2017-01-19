@@ -30,7 +30,7 @@
 #include <fcntl.h>
 
 #include "base/logging.h"
-#include "jit/offline_profiling_info.h"
+#include "jit/profile_compilation_info.h"
 #include "runtime.h"
 #include "mem_map.h"
 
