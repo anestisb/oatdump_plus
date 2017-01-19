@@ -37,7 +37,7 @@
 #include "dex_instruction-inl.h"
 #include "dex_visualize.h"
 #include "dex_writer.h"
-#include "jit/offline_profiling_info.h"
+#include "jit/profile_compilation_info.h"
 #include "mem_map.h"
 #include "os.h"
 #include "utils.h"

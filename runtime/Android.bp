@@ -112,7 +112,7 @@ cc_defaults {
         "jit/debugger_interface.cc",
         "jit/jit.cc",
         "jit/jit_code_cache.cc",
-        "jit/offline_profiling_info.cc",
+        "jit/profile_compilation_info.cc",
         "jit/profiling_info.cc",
         "jit/profile_saver.cc",
         "jni_internal.cc",
