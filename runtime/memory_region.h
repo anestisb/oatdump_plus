@@ -148,14 +148,14 @@ class MemoryRegion FINAL : public ValueObject {
   void CopyFrom(size_t offset, const MemoryRegion& from) const;
 
   // Compute a sub memory region based on an existing one.
-  MemoryRegion Subregion(uintptr_t offset, uintptr_t size_in) const {
+  ALWAYS_INLINE MemoryRegion Subregion(uintptr_t offset, uintptr_t size_in) const {
     CHECK_GE(this->size(), size_in);
     CHECK_LE(offset,  this->size() - size_in);
     return MemoryRegion(reinterpret_cast<void*>(start() + offset), size_in);
   }
 
   // Compute an extended memory region based on an existing one.
-  void Extend(const MemoryRegion& region, uintptr_t extra) {
+  ALWAYS_INLINE void Extend(const MemoryRegion& region, uintptr_t extra) {
     pointer_ = region.pointer();
     size_ = (region.size() + extra);
   }
