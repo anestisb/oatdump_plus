@@ -141,16 +141,6 @@ mirror::Object* LargeObjectMapSpace::Alloc(Thread* self, size_t num_bytes,
     return nullptr;
   }
   mirror::Object* const obj = reinterpret_cast<mirror::Object*>(mem_map->Begin());
-  if (kIsDebugBuild) {
-    ReaderMutexLock mu2(Thread::Current(), *Locks::heap_bitmap_lock_);
-    auto* heap = Runtime::Current()->GetHeap();
-    auto* live_bitmap = heap->GetLiveBitmap();
-    auto* space_bitmap = live_bitmap->GetContinuousSpaceBitmap(obj);
-    CHECK(space_bitmap == nullptr) << obj << " overlaps with bitmap " << *space_bitmap;
-    auto* obj_end = reinterpret_cast<mirror::Object*>(mem_map->End());
-    space_bitmap = live_bitmap->GetContinuousSpaceBitmap(obj_end - 1);
-    CHECK(space_bitmap == nullptr) << obj_end << " overlaps with bitmap " << *space_bitmap;
-  }
   MutexLock mu(self, lock_);
   large_objects_.Put(obj, LargeObject {mem_map, false /* not zygote */});
   const size_t allocation_size = mem_map->BaseSize();
