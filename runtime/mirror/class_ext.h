@@ -61,6 +61,12 @@ class MANAGED ClassExt : public Object {
     return GetFieldObject<PointerArray>(OFFSET_OF_OBJECT_MEMBER(ClassExt, obsolete_methods_));
   }
 
+  ByteArray* GetOriginalDexFileBytes() REQUIRES_SHARED(Locks::mutator_lock_) {
+    return GetFieldObject<ByteArray>(OFFSET_OF_OBJECT_MEMBER(ClassExt, original_dex_file_bytes_));
+  }
+
+  void SetOriginalDexFileBytes(ObjPtr<ByteArray> bytes) REQUIRES_SHARED(Locks::mutator_lock_);
+
   void SetObsoleteArrays(ObjPtr<PointerArray> methods, ObjPtr<ObjectArray<DexCache>> dex_caches)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -80,7 +86,7 @@ class MANAGED ClassExt : public Object {
 
   HeapReference<PointerArray> obsolete_methods_;
 
-  HeapReference<DexCache> original_dex_cache_;
+  HeapReference<ByteArray> original_dex_file_bytes_;
 
   // The saved verification error of this class.
   HeapReference<Object> verify_error_;

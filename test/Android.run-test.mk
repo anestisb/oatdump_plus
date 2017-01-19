@@ -311,6 +311,7 @@ TEST_ART_BROKEN_TARGET_TESTS += \
   929-search \
   930-hello-retransform \
   931-agent-thread \
+  932-transform-saves \
 
 ifneq (,$(filter target,$(TARGET_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,target,$(RUN_TYPES),$(PREBUILD_TYPES), \
