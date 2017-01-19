@@ -150,12 +150,9 @@ class EntrypointsOrderTest : public CommonRuntimeTest {
   }
 
   void CheckQuickEntryPoints() {
-    CHECKED(OFFSETOF_MEMBER(QuickEntryPoints, pAllocArray) == 0,
-                QuickEntryPoints_start_with_allocarray);
-    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pAllocArray, pAllocArrayResolved, sizeof(void*));
-    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pAllocArrayResolved, pAllocArrayWithAccessCheck,
-                         sizeof(void*));
-    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pAllocArrayWithAccessCheck, pAllocObjectResolved,
+    CHECKED(OFFSETOF_MEMBER(QuickEntryPoints, pAllocArrayResolved) == 0,
+            QuickEntryPoints_start_with_allocarray_resoved);
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pAllocArrayResolved, pAllocObjectResolved,
                          sizeof(void*));
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pAllocObjectResolved, pAllocObjectInitialized,
                          sizeof(void*));
