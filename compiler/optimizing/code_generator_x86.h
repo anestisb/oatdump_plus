@@ -110,7 +110,9 @@ class FieldAccessCallingConventionX86 : public FieldAccessCallingConvention {
   }
   Location GetSetValueLocation(Primitive::Type type, bool is_instance) const OVERRIDE {
     return Primitive::Is64BitType(type)
-        ? Location::RegisterPairLocation(EDX, EBX)
+        ? (is_instance
+            ? Location::RegisterPairLocation(EDX, EBX)
+            : Location::RegisterPairLocation(ECX, EDX))
         : (is_instance
             ? Location::RegisterLocation(EDX)
             : Location::RegisterLocation(ECX));

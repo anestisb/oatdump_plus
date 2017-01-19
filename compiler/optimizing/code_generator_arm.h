@@ -128,7 +128,9 @@ class FieldAccessCallingConventionARM : public FieldAccessCallingConvention {
   }
   Location GetSetValueLocation(Primitive::Type type, bool is_instance) const OVERRIDE {
     return Primitive::Is64BitType(type)
-        ? Location::RegisterPairLocation(R2, R3)
+        ? (is_instance
+            ? Location::RegisterPairLocation(R2, R3)
+            : Location::RegisterPairLocation(R1, R2))
         : (is_instance
             ? Location::RegisterLocation(R2)
             : Location::RegisterLocation(R1));
