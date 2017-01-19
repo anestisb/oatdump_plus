@@ -2346,8 +2346,6 @@ void ImageWriter::CopyAndFixupMethod(ArtMethod* orig,
   copy->SetDeclaringClass(GetImageAddress(orig->GetDeclaringClassUnchecked()));
   ArtMethod** orig_resolved_methods = orig->GetDexCacheResolvedMethods(target_ptr_size_);
   copy->SetDexCacheResolvedMethods(NativeLocationInImage(orig_resolved_methods), target_ptr_size_);
-  GcRoot<mirror::Class>* orig_resolved_types = orig->GetDexCacheResolvedTypes(target_ptr_size_);
-  copy->SetDexCacheResolvedTypes(NativeLocationInImage(orig_resolved_types), target_ptr_size_);
 
   // OatWriter replaces the code_ with an offset value. Here we re-adjust to a pointer relative to
   // oat_begin_
