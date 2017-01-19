@@ -28,7 +28,6 @@
 
 #include "arch/instruction_set.h"
 #include "base/macros.h"
-#include "base/mutex.h"
 #include "dex_file_types.h"
 #include "experimental_flags.h"
 #include "gc_root.h"
@@ -40,7 +39,6 @@
 #include "offsets.h"
 #include "process_state.h"
 #include "quick/quick_method_frame_info.h"
-#include "runtime_callbacks.h"
 #include "runtime_stats.h"
 #include "safe_map.h"
 
@@ -662,10 +660,6 @@ class Runtime {
 
   void AttachAgent(const std::string& agent_arg);
 
-  RuntimeCallbacks& GetRuntimeCallbacks() {
-    return callbacks_;
-  }
-
  private:
   static void InitPlatformSignalHandlers();
 
@@ -922,8 +916,6 @@ class Runtime {
   std::vector<gc::AbstractSystemWeakHolder*> system_weak_holders_;
 
   ClassHierarchyAnalysis* cha_;
-
-  RuntimeCallbacks callbacks_;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };
