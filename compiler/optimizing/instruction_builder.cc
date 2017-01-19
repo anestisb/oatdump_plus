@@ -1498,16 +1498,8 @@ void HInstructionBuilder::BuildFilledNewArray(uint32_t dex_pc,
                                               uint32_t* args,
                                               uint32_t register_index) {
   HInstruction* length = graph_->GetIntConstant(number_of_vreg_arguments, dex_pc);
-  bool finalizable;
-  QuickEntrypointEnum entrypoint = NeedsAccessCheck(type_index, &finalizable)
-      ? kQuickAllocArrayWithAccessCheck
-      : kQuickAllocArray;
-  HInstruction* object = new (arena_) HNewArray(length,
-                                                graph_->GetCurrentMethod(),
-                                                dex_pc,
-                                                type_index,
-                                                *dex_compilation_unit_->GetDexFile(),
-                                                entrypoint);
+  HLoadClass* cls = BuildLoadClass(type_index, dex_pc, /* check_access */ true);
+  HInstruction* object = new (arena_) HNewArray(cls, length, dex_pc);
   AppendInstruction(object);
 
   const char* descriptor = dex_file_->StringByTypeIdx(type_index);
@@ -1644,9 +1636,13 @@ HLoadClass* HInstructionBuilder::BuildLoadClass(dex::TypeIndex type_index,
   const DexCompilationUnit* compilation_unit =
       outer ? outer_compilation_unit_ : dex_compilation_unit_;
   const DexFile& dex_file = *compilation_unit->GetDexFile();
-  Handle<mirror::DexCache> dex_cache = compilation_unit->GetDexCache();
+  StackHandleScope<1> hs(soa.Self());
+  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
+      soa.Decode<mirror::ClassLoader>(dex_compilation_unit_->GetClassLoader())));
+  Handle<mirror::Class> klass = handles_->NewHandle(compiler_driver_->ResolveClass(
+      soa, compilation_unit->GetDexCache(), class_loader, type_index, compilation_unit));
+
   bool is_accessible = false;
-  Handle<mirror::Class> klass = handles_->NewHandle(dex_cache->GetResolvedType(type_index));
   if (!check_access) {
     is_accessible = true;
   } else if (klass.Get() != nullptr) {
@@ -2503,16 +2499,8 @@ bool HInstructionBuilder::ProcessDexInstruction(const Instruction& instruction, 
     case Instruction::NEW_ARRAY: {
       dex::TypeIndex type_index(instruction.VRegC_22c());
       HInstruction* length = LoadLocal(instruction.VRegB_22c(), Primitive::kPrimInt);
-      bool finalizable;
-      QuickEntrypointEnum entrypoint = NeedsAccessCheck(type_index, &finalizable)
-          ? kQuickAllocArrayWithAccessCheck
-          : kQuickAllocArray;
-      AppendInstruction(new (arena_) HNewArray(length,
-                                               graph_->GetCurrentMethod(),
-                                               dex_pc,
-                                               type_index,
-                                               *dex_compilation_unit_->GetDexFile(),
-                                               entrypoint));
+      HLoadClass* cls = BuildLoadClass(type_index, dex_pc, /* check_access */ true);
+      AppendInstruction(new (arena_) HNewArray(cls, length, dex_pc));
       UpdateLocal(instruction.VRegA_22c(), current_block_->GetLastInstruction());
       break;
     }
