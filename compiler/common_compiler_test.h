@@ -23,7 +23,7 @@
 
 #include "common_runtime_test.h"
 #include "compiler.h"
-#include "jit/offline_profiling_info.h"
+#include "jit/profile_compilation_info.h"
 #include "oat_file.h"
 
 namespace art {
