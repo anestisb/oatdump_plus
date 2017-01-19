@@ -30,14 +30,15 @@ struct ArtJvmTiEnv;
 class JvmtiAllocationListener;
 class JvmtiGcPauseListener;
 
-// an enum for ArtEvents.
+// an enum for ArtEvents. This differs from the JVMTI events only in that we distinguish between
+// retransformation capable and incapable loading
 enum class ArtJvmtiEvent {
     kMinEventTypeVal = JVMTI_MIN_EVENT_TYPE_VAL,
     kVmInit = JVMTI_EVENT_VM_INIT,
     kVmDeath = JVMTI_EVENT_VM_DEATH,
     kThreadStart = JVMTI_EVENT_THREAD_START,
     kThreadEnd = JVMTI_EVENT_THREAD_END,
-    kClassFileLoadHook = JVMTI_EVENT_CLASS_FILE_LOAD_HOOK,
+    kClassFileLoadHookNonRetransformable = JVMTI_EVENT_CLASS_FILE_LOAD_HOOK,
     kClassLoad = JVMTI_EVENT_CLASS_LOAD,
     kClassPrepare = JVMTI_EVENT_CLASS_PREPARE,
     kVmStart = JVMTI_EVENT_VM_START,
@@ -64,14 +65,19 @@ enum class ArtJvmtiEvent {
     kGarbageCollectionFinish = JVMTI_EVENT_GARBAGE_COLLECTION_FINISH,
     kObjectFree = JVMTI_EVENT_OBJECT_FREE,
     kVmObjectAlloc = JVMTI_EVENT_VM_OBJECT_ALLOC,
-    kMaxEventTypeVal = JVMTI_MAX_EVENT_TYPE_VAL,
+    kClassFileLoadHookRetransformable = JVMTI_MAX_EVENT_TYPE_VAL + 1,
+    kMaxEventTypeVal = kClassFileLoadHookRetransformable,
 };
 
 // Convert a jvmtiEvent into a ArtJvmtiEvent
 ALWAYS_INLINE static inline ArtJvmtiEvent GetArtJvmtiEvent(ArtJvmTiEnv* env, jvmtiEvent e);
 
-ALWAYS_INLINE static inline jvmtiEvent GetJvmtiEvent(ArtJvmtiEvent e) {
-  return static_cast<jvmtiEvent>(e);
+static inline jvmtiEvent GetJvmtiEvent(ArtJvmtiEvent e) {
+  if (UNLIKELY(e == ArtJvmtiEvent::kClassFileLoadHookRetransformable)) {
+    return JVMTI_EVENT_CLASS_FILE_LOAD_HOOK;
+  } else {
+    return static_cast<jvmtiEvent>(e);
+  }
 }
 
 struct EventMask {
@@ -118,6 +124,11 @@ struct EventMasks {
   EventMask* GetEventMaskOrNull(art::Thread* thread);
   void EnableEvent(art::Thread* thread, ArtJvmtiEvent event);
   void DisableEvent(art::Thread* thread, ArtJvmtiEvent event);
+  bool IsEnabledAnywhere(ArtJvmtiEvent event);
+  // Make any changes to event masks needed for the given capability changes. If caps_added is true
+  // then caps is all the newly set capabilities of the jvmtiEnv. If it is false then caps is the
+  // set of all capabilities that were removed from the jvmtiEnv.
+  void HandleChangedCapabilities(const jvmtiCapabilities& caps, bool caps_added);
 };
 
 // Helper class for event handling.
@@ -146,9 +157,26 @@ class EventHandler {
   ALWAYS_INLINE
   inline void DispatchEvent(art::Thread* thread, ArtJvmtiEvent event, Args... args) const;
 
+  // Tell the event handler capabilities were added/lost so it can adjust the sent events.If
+  // caps_added is true then caps is all the newly set capabilities of the jvmtiEnv. If it is false
+  // then caps is the set of all capabilities that were removed from the jvmtiEnv.
+  ALWAYS_INLINE
+  inline void HandleChangedCapabilities(ArtJvmTiEnv* env,
+                                        const jvmtiCapabilities& caps,
+                                        bool added);
+
  private:
   ALWAYS_INLINE
   static inline bool ShouldDispatch(ArtJvmtiEvent event, ArtJvmTiEnv* env, art::Thread* thread);
+
+  ALWAYS_INLINE
+  inline bool NeedsEventUpdate(ArtJvmTiEnv* env,
+                               const jvmtiCapabilities& caps,
+                               bool added);
+
+  // Recalculates the event mask for the given event.
+  ALWAYS_INLINE
+  inline void RecalculateGlobalEventMask(ArtJvmtiEvent event);
 
   void HandleEventType(ArtJvmtiEvent event, bool enable);
 

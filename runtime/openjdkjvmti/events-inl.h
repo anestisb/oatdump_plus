@@ -17,15 +17,24 @@
 #ifndef ART_RUNTIME_OPENJDKJVMTI_EVENTS_INL_H_
 #define ART_RUNTIME_OPENJDKJVMTI_EVENTS_INL_H_
 
+#include <array>
+
 #include "events.h"
 
 #include "art_jvmti.h"
 
 namespace openjdkjvmti {
 
-static inline ArtJvmtiEvent GetArtJvmtiEvent(ArtJvmTiEnv* env ATTRIBUTE_UNUSED,
-                                                           jvmtiEvent e) {
-  return static_cast<ArtJvmtiEvent>(e);
+static inline ArtJvmtiEvent GetArtJvmtiEvent(ArtJvmTiEnv* env, jvmtiEvent e) {
+  if (UNLIKELY(e == JVMTI_EVENT_CLASS_FILE_LOAD_HOOK)) {
+    if (env->capabilities.can_retransform_classes) {
+      return ArtJvmtiEvent::kClassFileLoadHookRetransformable;
+    } else {
+      return ArtJvmtiEvent::kClassFileLoadHookNonRetransformable;
+    }
+  } else {
+    return static_cast<ArtJvmtiEvent>(e);
+  }
 }
 
 template <typename FnType>
@@ -46,7 +55,8 @@ ALWAYS_INLINE static inline FnType* GetCallback(ArtJvmTiEnv* env, ArtJvmtiEvent 
       return reinterpret_cast<FnType*>(env->event_callbacks->ThreadStart);
     case ArtJvmtiEvent::kThreadEnd:
       return reinterpret_cast<FnType*>(env->event_callbacks->ThreadEnd);
-    case ArtJvmtiEvent::kClassFileLoadHook:
+    case ArtJvmtiEvent::kClassFileLoadHookRetransformable:
+    case ArtJvmtiEvent::kClassFileLoadHookNonRetransformable:
       return reinterpret_cast<FnType*>(env->event_callbacks->ClassFileLoadHook);
     case ArtJvmtiEvent::kClassLoad:
       return reinterpret_cast<FnType*>(env->event_callbacks->ClassLoad);
@@ -129,6 +139,40 @@ inline bool EventHandler::ShouldDispatch(ArtJvmtiEvent event,
     dispatch = mask != nullptr && mask->Test(event);
   }
   return dispatch;
+}
+
+inline void EventHandler::RecalculateGlobalEventMask(ArtJvmtiEvent event) {
+  bool union_value = false;
+  for (const ArtJvmTiEnv* stored_env : envs) {
+    union_value |= stored_env->event_masks.global_event_mask.Test(event);
+    union_value |= stored_env->event_masks.unioned_thread_event_mask.Test(event);
+    if (union_value) {
+      break;
+    }
+  }
+  global_mask.Set(event, union_value);
+}
+
+inline bool EventHandler::NeedsEventUpdate(ArtJvmTiEnv* env,
+                                           const jvmtiCapabilities& caps,
+                                           bool added) {
+  ArtJvmtiEvent event = added ? ArtJvmtiEvent::kClassFileLoadHookNonRetransformable
+                              : ArtJvmtiEvent::kClassFileLoadHookRetransformable;
+  return caps.can_retransform_classes == 1 &&
+      IsEventEnabledAnywhere(event) &&
+      env->event_masks.IsEnabledAnywhere(event);
+}
+
+inline void EventHandler::HandleChangedCapabilities(ArtJvmTiEnv* env,
+                                                    const jvmtiCapabilities& caps,
+                                                    bool added) {
+  if (UNLIKELY(NeedsEventUpdate(env, caps, added))) {
+    env->event_masks.HandleChangedCapabilities(caps, added);
+    if (caps.can_retransform_classes == 1) {
+      RecalculateGlobalEventMask(ArtJvmtiEvent::kClassFileLoadHookRetransformable);
+      RecalculateGlobalEventMask(ArtJvmtiEvent::kClassFileLoadHookNonRetransformable);
+    }
+  }
 }
 
 }  // namespace openjdkjvmti
