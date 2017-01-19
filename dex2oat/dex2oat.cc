@@ -64,7 +64,7 @@
 #include "gc/space/space-inl.h"
 #include "image_writer.h"
 #include "interpreter/unstarted_runtime.h"
-#include "jit/offline_profiling_info.h"
+#include "jit/profile_compilation_info.h"
 #include "leb128.h"
 #include "linker/buffered_output_stream.h"
 #include "linker/file_output_stream.h"
