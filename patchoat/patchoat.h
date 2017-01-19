@@ -44,7 +44,17 @@ class Class;
 
 class PatchOat {
  public:
-  static bool Patch(const std::string& image_location,
+  // Patch only the oat file
+  static bool Patch(File* oat_in, off_t delta, File* oat_out, TimingLogger* timings,
+                    bool output_oat_opened_from_fd,  // Was this using --oatput-oat-fd ?
+                    bool new_oat_out);               // Output oat was a new file created by us?
+
+  // Patch only the image (art file)
+  static bool Patch(const std::string& art_location, off_t delta, File* art_out, InstructionSet isa,
+                    TimingLogger* timings);
+
+  // Patch both the image and the oat file
+  static bool Patch(const std::string& art_location,
                     off_t delta,
                     const std::string& output_directory,
                     InstructionSet isa,
@@ -54,11 +64,18 @@ class PatchOat {
   PatchOat(PatchOat&&) = default;
 
  private:
-  // All pointers are only borrowed.
-  PatchOat(InstructionSet isa, MemMap* image,
+  // Takes ownership only of the ElfFile. All other pointers are only borrowed.
+  PatchOat(ElfFile* oat_file, off_t delta, TimingLogger* timings)
+      : oat_file_(oat_file), image_(nullptr), bitmap_(nullptr), heap_(nullptr), delta_(delta),
+        isa_(kNone), space_map_(nullptr), timings_(timings) {}
+  PatchOat(InstructionSet isa, MemMap* image, gc::accounting::ContinuousSpaceBitmap* bitmap,
+           MemMap* heap, off_t delta, TimingLogger* timings)
+      : image_(image), bitmap_(bitmap), heap_(heap),
+        delta_(delta), isa_(isa), space_map_(nullptr), timings_(timings) {}
+  PatchOat(InstructionSet isa, ElfFile* oat_file, MemMap* image,
            gc::accounting::ContinuousSpaceBitmap* bitmap, MemMap* heap, off_t delta,
            std::map<gc::space::ImageSpace*, std::unique_ptr<MemMap>>* map, TimingLogger* timings)
-      : image_(image), bitmap_(bitmap), heap_(heap),
+      : oat_file_(oat_file), image_(image), bitmap_(bitmap), heap_(heap),
         delta_(delta), isa_(isa), space_map_(map), timings_(timings) {}
 
   // Was the .art image at image_path made with --compile-pic ?
@@ -77,7 +94,9 @@ class PatchOat {
   // Attempt to replace the file with a symlink
   // Returns false if it fails
   static bool ReplaceOatFileWithSymlink(const std::string& input_oat_filename,
-                                        const std::string& output_oat_filename);
+                                        const std::string& output_oat_filename,
+                                        bool output_oat_opened_from_fd,
+                                        bool new_oat_out);  // Output oat was newly created?
 
   static void BitmapCallback(mirror::Object* obj, void* arg)
       REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -88,6 +107,13 @@ class PatchOat {
       REQUIRES_SHARED(Locks::mutator_lock_);
   void FixupMethod(ArtMethod* object, ArtMethod* copy)
       REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Patches oat in place, modifying the oat_file given to the constructor.
+  bool PatchElf();
+  template <typename ElfFileImpl>
+  bool PatchElf(ElfFileImpl* oat_file);
+  template <typename ElfFileImpl>
+  bool PatchOatHeader(ElfFileImpl* oat_file);
 
   bool PatchImage(bool primary_image) REQUIRES_SHARED(Locks::mutator_lock_);
   void PatchArtFields(const ImageHeader* image_header) REQUIRES_SHARED(Locks::mutator_lock_);
@@ -102,6 +128,7 @@ class PatchOat {
   void PatchDexFileArrays(mirror::ObjectArray<mirror::Object>* img_roots)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  bool WriteElf(File* out);
   bool WriteImage(File* out);
 
   template <typename T>
@@ -148,6 +175,19 @@ class PatchOat {
     return reinterpret_cast<T*>(ret);
   }
 
+  template <typename T>
+  T RelocatedAddressOfIntPointer(T obj) const {
+    if (obj == 0) {
+      return obj;
+    }
+    T ret = obj + delta_;
+    // Trim off high bits in case negative relocation with 64 bit patchoat.
+    if (Is32BitISA()) {
+      ret = static_cast<T>(static_cast<uint32_t>(ret));
+    }
+    return ret;
+  }
+
   bool Is32BitISA() const {
     return InstructionSetPointerSize(isa_) == PointerSize::k32;
   }
@@ -173,6 +213,8 @@ class PatchOat {
     mirror::Object* const copy_;
   };
 
+  // The elf file we are patching.
+  std::unique_ptr<ElfFile> oat_file_;
   // A mmap of the image we are patching. This is modified.
   const MemMap* const image_;
   // The bitmap over the image within the heap we are patching. This is not modified.
