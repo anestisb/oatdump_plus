@@ -131,12 +131,12 @@ class ArtMethod FINAL {
     return (GetAccessFlags() & kAccStatic) != 0;
   }
 
-  // Returns true if the method is a constructor.
+  // Returns true if the method is a constructor according to access flags.
   bool IsConstructor() {
     return (GetAccessFlags() & kAccConstructor) != 0;
   }
 
-  // Returns true if the method is a class initializer.
+  // Returns true if the method is a class initializer according to access flags.
   bool IsClassInitializer() {
     return IsConstructor() && IsStatic();
   }
