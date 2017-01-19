@@ -431,10 +431,7 @@ void* Thread::CreateCallback(void* arg) {
 
     ArtField* priorityField = jni::DecodeArtField(WellKnownClasses::java_lang_Thread_priority);
     self->SetNativePriority(priorityField->GetInt(self->tlsPtr_.opeer));
-    {
-      ReaderMutexLock mu(self, *Locks::runtime_callbacks_lock_);
-      runtime->GetRuntimeCallbacks().ThreadStart(self);
-    }
+    Dbg::PostThreadStart(self);
 
     // Invoke the 'run' method of our java.lang.Thread.
     ObjPtr<mirror::Object> receiver = self->tlsPtr_.opeer;
@@ -796,8 +793,7 @@ Thread* Thread::Attach(const char* thread_name, bool as_daemon, jobject thread_g
 
   {
     ScopedObjectAccess soa(self);
-    ReaderMutexLock mu(self, *Locks::runtime_callbacks_lock_);
-    runtime->GetRuntimeCallbacks().ThreadStart(self);
+    Dbg::PostThreadStart(self);
   }
 
   return self;
@@ -1933,12 +1929,7 @@ void Thread::Destroy() {
       jni::DecodeArtField(WellKnownClasses::java_lang_Thread_nativePeer)
           ->SetLong<false>(tlsPtr_.opeer, 0);
     }
-    Runtime* runtime = Runtime::Current();
-    if (runtime != nullptr) {
-      ReaderMutexLock mu(self, *Locks::runtime_callbacks_lock_);
-      runtime->GetRuntimeCallbacks().ThreadDeath(self);
-    }
-
+    Dbg::PostThreadDeath(self);
 
     // Thread.join() is implemented as an Object.wait() on the Thread.lock object. Signal anyone
     // who is waiting.
