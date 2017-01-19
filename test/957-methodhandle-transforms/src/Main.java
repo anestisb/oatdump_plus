@@ -36,6 +36,7 @@ public class Main {
     testInvokers();
     testSpreaders_reference();
     testSpreaders_primitive();
+    testInvokeWithArguments();
   }
 
   public static void testThrowException() throws Throwable {
@@ -1221,6 +1222,34 @@ public class Main {
     assertEquals(51, ret);
     ret = (int) spreader.invokeExact("a", new double[] { 1.0, 2.0 });
     assertEquals(51, ret);
+  }
+
+  public static void testInvokeWithArguments() throws Throwable {
+    MethodType methodType = MethodType.methodType(int.class,
+        new Class<?>[] { String.class, String.class, String.class });
+    MethodHandle handle = MethodHandles.lookup().findStatic(
+        Main.class, "spreadReferences", methodType);
+
+    Object ret = handle.invokeWithArguments(new Object[] { "a", "b", "c"});
+    assertEquals(42, (int) ret);
+    handle.invokeWithArguments(new String[] { "a", "b", "c" });
+    assertEquals(42, (int) ret);
+
+    // Pass in an array that's too small. Should throw an IAE.
+    try {
+      handle.invokeWithArguments(new Object[] { "a", "b" });
+      fail();
+    } catch (IllegalArgumentException expected) {
+    }
+
+    // Test implicit unboxing.
+    MethodType methodType2 = MethodType.methodType(int.class,
+        new Class<?>[] { String.class, int.class });
+    MethodHandle handle2 = MethodHandles.lookup().findStatic(
+        Main.class, "spreadReferences_Unbox", methodType2);
+
+    ret = (int) handle2.invokeWithArguments(new Object[] { "a", 43 });
+    assertEquals(43, (int) ret);
   }
 
   public static void fail() {
