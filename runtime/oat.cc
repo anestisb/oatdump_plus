@@ -473,6 +473,10 @@ bool OatHeader::IsDebuggable() const {
   return IsKeyEnabled(OatHeader::kDebuggableKey);
 }
 
+bool OatHeader::IsConcurrentCopying() const {
+  return IsKeyEnabled(OatHeader::kConcurrentCopying);
+}
+
 bool OatHeader::IsNativeDebuggable() const {
   return IsKeyEnabled(OatHeader::kNativeDebuggableKey);
 }
