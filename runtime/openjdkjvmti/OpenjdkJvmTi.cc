@@ -631,7 +631,17 @@ class JvmtiFunctions {
   }
 
   static jvmtiError RetransformClasses(jvmtiEnv* env, jint class_count, const jclass* classes) {
-    return ERR(NOT_IMPLEMENTED);
+    std::string error_msg;
+    jvmtiError res = Transformer::RetransformClasses(ArtJvmTiEnv::AsArtJvmTiEnv(env),
+                                                     art::Runtime::Current(),
+                                                     art::Thread::Current(),
+                                                     class_count,
+                                                     classes,
+                                                     &error_msg);
+    if (res != OK) {
+      LOG(WARNING) << "FAILURE TO RETRANFORM " << error_msg;
+    }
+    return res;
   }
 
   static jvmtiError RedefineClasses(jvmtiEnv* env,
@@ -1255,78 +1265,6 @@ class JvmtiFunctions {
     *format_ptr = jvmtiJlocationFormat::JVMTI_JLOCATION_JVMBCI;
     return ERR(NONE);
   }
-
-  // TODO Remove this once events are working.
-  static jvmtiError RetransformClassWithHook(jvmtiEnv* env,
-                                             jclass klass,
-                                             jvmtiEventClassFileLoadHook hook) {
-    std::vector<jclass> classes;
-    classes.push_back(klass);
-    return RetransformClassesWithHook(reinterpret_cast<ArtJvmTiEnv*>(env), classes, hook);
-  }
-
-  // TODO This will be called by the event handler for the art::ti Event Load Event
-  static jvmtiError RetransformClassesWithHook(ArtJvmTiEnv* env,
-                                               const std::vector<jclass>& classes,
-                                               jvmtiEventClassFileLoadHook hook) {
-    if (!IsValidEnv(env)) {
-      return ERR(INVALID_ENVIRONMENT);
-    }
-    jvmtiError res = OK;
-    std::string error;
-    for (jclass klass : classes) {
-      JNIEnv* jni_env = nullptr;
-      jobject loader = nullptr;
-      std::string name;
-      jobject protection_domain = nullptr;
-      jint data_len = 0;
-      unsigned char* dex_data = nullptr;
-      jvmtiError ret = OK;
-      std::string location;
-      if ((ret = GetTransformationData(env,
-                                       klass,
-                                       /*out*/&location,
-                                       /*out*/&jni_env,
-                                       /*out*/&loader,
-                                       /*out*/&name,
-                                       /*out*/&protection_domain,
-                                       /*out*/&data_len,
-                                       /*out*/&dex_data)) != OK) {
-        // TODO Do something more here? Maybe give log statements?
-        return ret;
-      }
-      jint new_data_len = 0;
-      unsigned char* new_dex_data = nullptr;
-      hook(env,
-           jni_env,
-           klass,
-           loader,
-           name.c_str(),
-           protection_domain,
-           data_len,
-           dex_data,
-           /*out*/&new_data_len,
-           /*out*/&new_dex_data);
-      // Check if anything actually changed.
-      if ((new_data_len != 0 || new_dex_data != nullptr) && new_dex_data != dex_data) {
-        jvmtiClassDefinition def = { klass, new_data_len, new_dex_data };
-        res = Redefiner::RedefineClasses(env,
-                                         art::Runtime::Current(),
-                                         art::Thread::Current(),
-                                         1,
-                                         &def,
-                                         &error);
-        env->Deallocate(new_dex_data);
-      }
-      // Deallocate the old dex data.
-      env->Deallocate(dex_data);
-      if (res != OK) {
-        LOG(ERROR) << "FAILURE TO REDEFINE " << error;
-        return res;
-      }
-    }
-    return OK;
-  }
 };
 
 static bool IsJvmtiVersion(jint version) {
@@ -1369,10 +1307,7 @@ extern "C" bool ArtPlugin_Initialize() {
 
 // The actual struct holding all of the entrypoints into the jvmti interface.
 const jvmtiInterface_1 gJvmtiInterface = {
-  // SPECIAL FUNCTION: RetransformClassWithHook Is normally reserved1
-  // TODO Remove once we have events working.
-  reinterpret_cast<void*>(JvmtiFunctions::RetransformClassWithHook),
-  // nullptr,  // reserved1
+  nullptr,  // reserved1
   JvmtiFunctions::SetEventNotificationMode,
   nullptr,  // reserved3
   JvmtiFunctions::GetAllThreads,
