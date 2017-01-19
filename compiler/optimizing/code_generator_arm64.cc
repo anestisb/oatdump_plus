@@ -4747,16 +4747,22 @@ void LocationsBuilderARM64::VisitNewArray(HNewArray* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCallOnMainOnly);
   InvokeRuntimeCallingConvention calling_convention;
+  locations->AddTemp(LocationFrom(calling_convention.GetRegisterAt(0)));
   locations->SetOut(LocationFrom(x0));
-  locations->SetInAt(0, LocationFrom(calling_convention.GetRegisterAt(0)));
-  locations->SetInAt(1, LocationFrom(calling_convention.GetRegisterAt(1)));
+  locations->SetInAt(0, LocationFrom(calling_convention.GetRegisterAt(1)));
+  locations->SetInAt(1, LocationFrom(calling_convention.GetRegisterAt(2)));
 }
 
 void InstructionCodeGeneratorARM64::VisitNewArray(HNewArray* instruction) {
+  LocationSummary* locations = instruction->GetLocations();
+  InvokeRuntimeCallingConvention calling_convention;
+  Register type_index = RegisterFrom(locations->GetTemp(0), Primitive::kPrimInt);
+  DCHECK(type_index.Is(w0));
+  __ Mov(type_index, instruction->GetTypeIndex().index_);
   // Note: if heap poisoning is enabled, the entry point takes cares
   // of poisoning the reference.
-  codegen_->InvokeRuntime(kQuickAllocArrayResolved, instruction, instruction->GetDexPc());
-  CheckEntrypointTypes<kQuickAllocArrayResolved, void*, mirror::Class*, int32_t>();
+  codegen_->InvokeRuntime(instruction->GetEntrypoint(), instruction, instruction->GetDexPc());
+  CheckEntrypointTypes<kQuickAllocArrayWithAccessCheck, void*, uint32_t, int32_t, ArtMethod*>();
 }
 
 void LocationsBuilderARM64::VisitNewInstance(HNewInstance* instruction) {
