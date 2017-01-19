@@ -1038,38 +1038,13 @@ TEST_F(StubTest, AllocObjectArray) {
   ScopedObjectAccess soa(self);
   // garbage is created during ClassLinker::Init
 
-  StackHandleScope<2> hs(self);
+  StackHandleScope<1> hs(self);
   Handle<mirror::Class> c(
       hs.NewHandle(class_linker_->FindSystemClass(soa.Self(), "[Ljava/lang/Object;")));
-
-  // Needed to have a linked method.
-  Handle<mirror::Class> c_obj(
-      hs.NewHandle(class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Object;")));
 
   // Play with it...
 
   EXPECT_FALSE(self->IsExceptionPending());
-
-  // For some reason this does not work, as the type_idx is artificial and outside what the
-  // resolved types of c_obj allow...
-
-  if ((false)) {
-    // Use an arbitrary method from c to use as referrer
-    size_t result = Invoke3(
-        static_cast<size_t>(c->GetDexTypeIndex().index_),    // type_idx
-        10U,
-        // arbitrary
-        reinterpret_cast<size_t>(c_obj->GetVirtualMethod(0, kRuntimePointerSize)),
-        StubTest::GetEntrypoint(self, kQuickAllocArray),
-        self);
-
-    EXPECT_FALSE(self->IsExceptionPending());
-    EXPECT_NE(reinterpret_cast<size_t>(nullptr), result);
-    mirror::Array* obj = reinterpret_cast<mirror::Array*>(result);
-    EXPECT_EQ(c.Get(), obj->GetClass());
-    VerifyObject(obj);
-    EXPECT_EQ(obj->GetLength(), 10);
-  }
 
   {
     // We can use null in the second argument as we do not need a method here (not used in
