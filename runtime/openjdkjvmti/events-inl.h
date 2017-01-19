@@ -115,9 +115,95 @@ ALWAYS_INLINE static inline FnType* GetCallback(ArtJvmTiEnv* env, ArtJvmtiEvent 
 }
 
 template <typename ...Args>
+inline void EventHandler::DispatchClassFileLoadHookEvent(art::Thread*,
+                                                         ArtJvmtiEvent event,
+                                                         Args... args ATTRIBUTE_UNUSED) const {
+  CHECK(event == ArtJvmtiEvent::kClassFileLoadHookRetransformable ||
+        event == ArtJvmtiEvent::kClassFileLoadHookNonRetransformable);
+  LOG(FATAL) << "Incorrect arguments to ClassFileLoadHook!";
+}
+
+// TODO Locking of some type!
+template <>
+inline void EventHandler::DispatchClassFileLoadHookEvent(art::Thread* thread,
+                                                         ArtJvmtiEvent event,
+                                                         JNIEnv* jnienv,
+                                                         jclass class_being_redefined,
+                                                         jobject loader,
+                                                         const char* name,
+                                                         jobject protection_domain,
+                                                         jint class_data_len,
+                                                         const unsigned char* class_data,
+                                                         jint* new_class_data_len,
+                                                         unsigned char** new_class_data) const {
+  CHECK(event == ArtJvmtiEvent::kClassFileLoadHookRetransformable ||
+        event == ArtJvmtiEvent::kClassFileLoadHookNonRetransformable);
+  using FnType = void(jvmtiEnv*            /* jvmti_env */,
+                      JNIEnv*              /* jnienv */,
+                      jclass               /* class_being_redefined */,
+                      jobject              /* loader */,
+                      const char*          /* name */,
+                      jobject              /* protection_domain */,
+                      jint                 /* class_data_len */,
+                      const unsigned char* /* class_data */,
+                      jint*                /* new_class_data_len */,
+                      unsigned char**      /* new_class_data */);
+  jint current_len = class_data_len;
+  unsigned char* current_class_data = const_cast<unsigned char*>(class_data);
+  ArtJvmTiEnv* last_env = nullptr;
+  for (ArtJvmTiEnv* env : envs) {
+    if (ShouldDispatch(event, env, thread)) {
+      jint new_len;
+      unsigned char* new_data;
+      FnType* callback = GetCallback<FnType>(env, event);
+      callback(env,
+               jnienv,
+               class_being_redefined,
+               loader,
+               name,
+               protection_domain,
+               current_len,
+               current_class_data,
+               &new_len,
+               &new_data);
+      if (new_data != nullptr && new_data != current_class_data) {
+        // Destroy the data the last transformer made. We skip this if the previous state was the
+        // initial one since we don't know here which jvmtiEnv allocated it.
+        // NB Currently this doesn't matter since all allocations just go to malloc but in the
+        // future we might have jvmtiEnv's keep track of their allocations for leak-checking.
+        if (last_env != nullptr) {
+          last_env->Deallocate(current_class_data);
+        }
+        last_env = env;
+        current_class_data = new_data;
+        current_len = new_len;
+      }
+    }
+  }
+  if (last_env != nullptr) {
+    *new_class_data_len = current_len;
+    *new_class_data = current_class_data;
+  }
+}
+
+template <typename ...Args>
 inline void EventHandler::DispatchEvent(art::Thread* thread,
                                         ArtJvmtiEvent event,
                                         Args... args) const {
+  switch (event) {
+    case ArtJvmtiEvent::kClassFileLoadHookRetransformable:
+    case ArtJvmtiEvent::kClassFileLoadHookNonRetransformable:
+      return DispatchClassFileLoadHookEvent(thread, event, args...);
+    default:
+      return GenericDispatchEvent(thread, event, args...);
+  }
+}
+
+// TODO Locking of some type!
+template <typename ...Args>
+inline void EventHandler::GenericDispatchEvent(art::Thread* thread,
+                                               ArtJvmtiEvent event,
+                                               Args... args) const {
   using FnType = void(jvmtiEnv*, Args...);
   for (ArtJvmTiEnv* env : envs) {
     if (ShouldDispatch(event, env, thread)) {
