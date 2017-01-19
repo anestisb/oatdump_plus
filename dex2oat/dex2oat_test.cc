@@ -66,7 +66,7 @@ class Dex2oatTest : public Dex2oatEnvironmentTest {
     bool success = Dex2Oat(args, &error_msg);
 
     if (expect_success) {
-      ASSERT_TRUE(success) << error_msg;
+      ASSERT_TRUE(success) << error_msg << std::endl << output_;
 
       // Verify the odex file was generated as expected.
       std::unique_ptr<OatFile> odex_file(OatFile::Open(odex_location.c_str(),
@@ -656,6 +656,43 @@ class Dex2oatLayoutTest : public Dex2oatTest {
 
 TEST_F(Dex2oatLayoutTest, TestLayout) {
   RunTest();
+}
+
+class Dex2oatWatchdogTest : public Dex2oatTest {
+ protected:
+  void RunTest(bool expect_success, const std::vector<std::string>& extra_args = {}) {
+    std::string dex_location = GetScratchDir() + "/Dex2OatSwapTest.jar";
+    std::string odex_location = GetOdexDir() + "/Dex2OatSwapTest.odex";
+
+    Copy(GetTestDexFileName(), dex_location);
+
+    std::vector<std::string> copy(extra_args);
+
+    std::string swap_location = GetOdexDir() + "/Dex2OatSwapTest.odex.swap";
+    copy.push_back("--swap-file=" + swap_location);
+    GenerateOdexForTest(dex_location,
+                        odex_location,
+                        CompilerFilter::kSpeed,
+                        copy,
+                        expect_success);
+  }
+
+  std::string GetTestDexFileName() {
+    return GetDexSrc1();
+  }
+};
+
+TEST_F(Dex2oatWatchdogTest, TestWatchdogOK) {
+  // Check with default.
+  RunTest(true);
+
+  // Check with ten minutes.
+  RunTest(true, { "--watchdog-timeout=600000" });
+}
+
+TEST_F(Dex2oatWatchdogTest, TestWatchdogTrigger) {
+  // Check with ten milliseconds.
+  RunTest(false, { "--watchdog-timeout=10" });
 }
 
 }  // namespace art
