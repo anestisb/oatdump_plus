@@ -1414,7 +1414,14 @@ TEST_F(VerifierDepsTest, VerifyDeps) {
       ASSERT_FALSE(decoded_deps.ValidateDependencies(new_class_loader, soa.Self()));
     }
 
-    {
+    // The two tests below make sure that fiddling with the method kind
+    // (static, virtual, interface) is detected by `ValidateDependencies`.
+
+    // An interface method lookup can succeed with a virtual method lookup on the same class.
+    // That's OK, as we only want to make sure there is a method being defined with the right
+    // flags. Therefore, polluting the interface methods with virtual methods does not have
+    // to fail verification.
+    if (resolution_kind != kVirtualMethodResolution) {
       VerifierDeps decoded_deps(dex_files_, ArrayRef<const uint8_t>(buffer));
       VerifierDeps::DexFileDeps* deps = decoded_deps.GetDexFileDeps(*primary_dex_file_);
       bool found = false;
@@ -1433,7 +1440,8 @@ TEST_F(VerifierDepsTest, VerifyDeps) {
       ASSERT_FALSE(decoded_deps.ValidateDependencies(new_class_loader, soa.Self()));
     }
 
-    {
+    // See comment above that applies the same way.
+    if (resolution_kind != kInterfaceMethodResolution) {
       VerifierDeps decoded_deps(dex_files_, ArrayRef<const uint8_t>(buffer));
       VerifierDeps::DexFileDeps* deps = decoded_deps.GetDexFileDeps(*primary_dex_file_);
       bool found = false;

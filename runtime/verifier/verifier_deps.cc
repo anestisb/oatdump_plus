@@ -963,20 +963,25 @@ bool VerifierDeps::VerifyFields(Handle<mirror::ClassLoader> class_loader,
   // Check recorded fields are resolved the same way, have the same recorded class,
   // and have the same recorded flags.
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  StackHandleScope<1> hs(self);
-  Handle<mirror::DexCache> dex_cache(
-      hs.NewHandle(class_linker->FindDexCache(self, dex_file, /* allow_failure */ false)));
   for (const auto& entry : fields) {
-    ArtField* field = class_linker->ResolveFieldJLS(
-        dex_file, entry.GetDexFieldIndex(), dex_cache, class_loader);
-
-    if (field == nullptr) {
-      DCHECK(self->IsExceptionPending());
-      self->ClearException();
+    const DexFile::FieldId& field_id = dex_file.GetFieldId(entry.GetDexFieldIndex());
+    StringPiece name(dex_file.StringDataByIdx(field_id.name_idx_));
+    StringPiece type(dex_file.StringDataByIdx(dex_file.GetTypeId(field_id.type_idx_).descriptor_idx_));
+    // Only use field_id.class_idx_ when the entry is unresolved, which is rare.
+    // Otherwise, we might end up resolving an application class, which is expensive.
+    std::string expected_decl_klass = entry.IsResolved()
+        ? GetStringFromId(dex_file, entry.GetDeclaringClassIndex())
+        : dex_file.StringByTypeIdx(field_id.class_idx_);
+    mirror::Class* cls = FindClassAndClearException(
+        class_linker, self, expected_decl_klass.c_str(), class_loader);
+    if (cls == nullptr) {
+      LOG(INFO) << "VerifierDeps: Could not resolve class " << expected_decl_klass;
+      return false;
     }
+    DCHECK(cls->IsResolved());
 
+    ArtField* field = mirror::Class::FindField(self, cls, name, type);
     if (entry.IsResolved()) {
-      std::string expected_decl_klass = GetStringFromId(dex_file, entry.GetDeclaringClassIndex());
       std::string temp;
       if (field == nullptr) {
         LOG(INFO) << "VerifierDeps: Could not resolve field "
@@ -1025,11 +1030,16 @@ bool VerifierDeps::VerifyMethods(Handle<mirror::ClassLoader> class_loader,
 
     const char* name = dex_file.GetMethodName(method_id);
     const Signature signature = dex_file.GetMethodSignature(method_id);
-    const char* descriptor = dex_file.GetMethodDeclaringClassDescriptor(method_id);
+    // Only use method_id.class_idx_ when the entry is unresolved, which is rare.
+    // Otherwise, we might end up resolving an application class, which is expensive.
+    std::string expected_decl_klass = entry.IsResolved()
+        ? GetStringFromId(dex_file, entry.GetDeclaringClassIndex())
+        : dex_file.StringByTypeIdx(method_id.class_idx_);
 
-    mirror::Class* cls = FindClassAndClearException(class_linker, self, descriptor, class_loader);
+    mirror::Class* cls = FindClassAndClearException(
+        class_linker, self, expected_decl_klass.c_str(), class_loader);
     if (cls == nullptr) {
-      LOG(INFO) << "VerifierDeps: Could not resolve class " << descriptor;
+      LOG(INFO) << "VerifierDeps: Could not resolve class " << expected_decl_klass;
       return false;
     }
     DCHECK(cls->IsResolved());
@@ -1045,7 +1055,6 @@ bool VerifierDeps::VerifyMethods(Handle<mirror::ClassLoader> class_loader,
 
     if (entry.IsResolved()) {
       std::string temp;
-      std::string expected_decl_klass = GetStringFromId(dex_file, entry.GetDeclaringClassIndex());
       if (method == nullptr) {
         LOG(INFO) << "VerifierDeps: Could not resolve "
                   << kind
