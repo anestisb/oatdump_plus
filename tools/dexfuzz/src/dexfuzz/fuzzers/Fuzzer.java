@@ -298,13 +298,13 @@ public abstract class Fuzzer {
   }
 
   private boolean checkGoldenExecutorForSelfDivergence(String programName) {
-    // Run golden executor 5 times, make sure it always produces
+    // Run golden executor multiple times, make sure it always produces
     // the same output, otherwise report that it is self-divergent.
 
     // TODO: Instead, produce a list of acceptable outputs, and see if the divergent
     // outputs of the backends fall within this set of outputs.
     String seenOutput = null;
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < Options.divergenceRetry + 1; i++) {
       goldenExecutor.reset();
       goldenExecutor.execute(programName);
       String output = goldenExecutor.getResult().getFlattenedOutput();
