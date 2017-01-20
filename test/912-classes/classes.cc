@@ -241,5 +241,23 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getClassLoaderClasses(
   return ret;
 }
 
+extern "C" JNIEXPORT jintArray JNICALL Java_Main_getClassVersion(
+    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
+  jint major, minor;
+  jvmtiError result = jvmti_env->GetClassVersionNumbers(klass, &minor, &major);
+  if (JvmtiErrorToException(env, result)) {
+    return nullptr;
+  }
+
+  jintArray int_array = env->NewIntArray(2);
+  if (int_array == nullptr) {
+    return nullptr;
+  }
+  jint buf[2] = { major, minor };
+  env->SetIntArrayRegion(int_array, 0, 2, buf);
+
+  return int_array;
+}
+
 }  // namespace Test912Classes
 }  // namespace art

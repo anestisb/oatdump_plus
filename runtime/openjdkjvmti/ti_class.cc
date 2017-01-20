@@ -417,4 +417,35 @@ jvmtiError ClassUtil::GetClassLoaderClasses(jvmtiEnv* env,
   return ERR(NONE);
 }
 
+jvmtiError ClassUtil::GetClassVersionNumbers(jvmtiEnv* env ATTRIBUTE_UNUSED,
+                                             jclass jklass,
+                                             jint* minor_version_ptr,
+                                             jint* major_version_ptr) {
+  art::ScopedObjectAccess soa(art::Thread::Current());
+  if (jklass == nullptr) {
+    return ERR(INVALID_CLASS);
+  }
+  art::ObjPtr<art::mirror::Object> jklass_obj = soa.Decode<art::mirror::Object>(jklass);
+  if (!jklass_obj->IsClass()) {
+    return ERR(INVALID_CLASS);
+  }
+  art::ObjPtr<art::mirror::Class> klass = jklass_obj->AsClass();
+  if (klass->IsPrimitive() || klass->IsArrayClass()) {
+    return ERR(INVALID_CLASS);
+  }
+
+  if (minor_version_ptr == nullptr || major_version_ptr == nullptr) {
+    return ERR(NULL_POINTER);
+  }
+
+  // Note: proxies will show the dex file version of java.lang.reflect.Proxy, as that is
+  //       what their dex cache copies from.
+  uint32_t version = klass->GetDexFile().GetHeader().GetVersion();
+
+  *major_version_ptr = static_cast<jint>(version);
+  *minor_version_ptr = 0;
+
+  return ERR(NONE);
+}
+
 }  // namespace openjdkjvmti
