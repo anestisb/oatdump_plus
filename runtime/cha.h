@@ -112,7 +112,9 @@ class ClassHierarchyAnalysis {
   void UpdateAfterLoadingOf(Handle<mirror::Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
-  void InitSingleImplementationFlag(Handle<mirror::Class> klass, ArtMethod* method)
+  void InitSingleImplementationFlag(Handle<mirror::Class> klass,
+                                    ArtMethod* method,
+                                    PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // `virtual_method` in `klass` overrides `method_in_super`.
@@ -123,12 +125,16 @@ class ClassHierarchyAnalysis {
       Handle<mirror::Class> klass,
       ArtMethod* virtual_method,
       ArtMethod* method_in_super,
-      std::unordered_set<ArtMethod*>& invalidated_single_impl_methods)
+      std::unordered_set<ArtMethod*>& invalidated_single_impl_methods,
+      PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Verify all methods in the same vtable slot from verify_class and its supers
-  // don't have single-implementation.
-  void VerifyNonSingleImplementation(mirror::Class* verify_class, uint16_t verify_index)
+  // For all methods in vtable slot at `verify_index` of `verify_class` and its
+  // superclasses, single-implementation status should be false, except if the
+  // method is `excluded_method`.
+  void VerifyNonSingleImplementation(mirror::Class* verify_class,
+                                     uint16_t verify_index,
+                                     ArtMethod* excluded_method)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // A map that maps a method to a set of compiled code that assumes that method has a
