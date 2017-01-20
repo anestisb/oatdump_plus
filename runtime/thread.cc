@@ -723,8 +723,8 @@ bool Thread::Init(ThreadList* thread_list, JavaVMExt* java_vm, JNIEnvExt* jni_en
   return true;
 }
 
-Thread* Thread::Attach(const char* thread_name, bool as_daemon, jobject thread_group,
-                       bool create_peer) {
+template <typename PeerAction>
+Thread* Thread::Attach(const char* thread_name, bool as_daemon, PeerAction peer_action) {
   Runtime* runtime = Runtime::Current();
   if (runtime == nullptr) {
     LOG(ERROR) << "Thread attaching to non-existent runtime: " << thread_name;
@@ -753,32 +753,11 @@ Thread* Thread::Attach(const char* thread_name, bool as_daemon, jobject thread_g
   CHECK_NE(self->GetState(), kRunnable);
   self->SetState(kNative);
 
-  // If we're the main thread, ClassLinker won't be created until after we're attached,
-  // so that thread needs a two-stage attach. Regular threads don't need this hack.
-  // In the compiler, all threads need this hack, because no-one's going to be getting
-  // a native peer!
-  if (create_peer) {
-    self->CreatePeer(thread_name, as_daemon, thread_group);
-    if (self->IsExceptionPending()) {
-      // We cannot keep the exception around, as we're deleting self. Try to be helpful and log it.
-      {
-        ScopedObjectAccess soa(self);
-        LOG(ERROR) << "Exception creating thread peer:";
-        LOG(ERROR) << self->GetException()->Dump();
-        self->ClearException();
-      }
-      runtime->GetThreadList()->Unregister(self);
-      // Unregister deletes self, no need to do this here.
-      return nullptr;
-    }
-  } else {
-    // These aren't necessary, but they improve diagnostics for unit tests & command-line tools.
-    if (thread_name != nullptr) {
-      self->tlsPtr_.name->assign(thread_name);
-      ::art::SetThreadName(thread_name);
-    } else if (self->GetJniEnv()->check_jni) {
-      LOG(WARNING) << *Thread::Current() << " attached without supplying a name";
-    }
+  // Run the action that is acting on the peer.
+  if (!peer_action(self)) {
+    runtime->GetThreadList()->Unregister(self);
+    // Unregister deletes self, no need to do this here.
+    return nullptr;
   }
 
   if (VLOG_IS_ON(threads)) {
@@ -797,6 +776,57 @@ Thread* Thread::Attach(const char* thread_name, bool as_daemon, jobject thread_g
   }
 
   return self;
+}
+
+Thread* Thread::Attach(const char* thread_name,
+                       bool as_daemon,
+                       jobject thread_group,
+                       bool create_peer) {
+  auto create_peer_action = [&](Thread* self) {
+    // If we're the main thread, ClassLinker won't be created until after we're attached,
+    // so that thread needs a two-stage attach. Regular threads don't need this hack.
+    // In the compiler, all threads need this hack, because no-one's going to be getting
+    // a native peer!
+    if (create_peer) {
+      self->CreatePeer(thread_name, as_daemon, thread_group);
+      if (self->IsExceptionPending()) {
+        // We cannot keep the exception around, as we're deleting self. Try to be helpful and log it.
+        {
+          ScopedObjectAccess soa(self);
+          LOG(ERROR) << "Exception creating thread peer:";
+          LOG(ERROR) << self->GetException()->Dump();
+          self->ClearException();
+        }
+        return false;
+      }
+    } else {
+      // These aren't necessary, but they improve diagnostics for unit tests & command-line tools.
+      if (thread_name != nullptr) {
+        self->tlsPtr_.name->assign(thread_name);
+        ::art::SetThreadName(thread_name);
+      } else if (self->GetJniEnv()->check_jni) {
+        LOG(WARNING) << *Thread::Current() << " attached without supplying a name";
+      }
+    }
+    return true;
+  };
+  return Attach(thread_name, as_daemon, create_peer_action);
+}
+
+Thread* Thread::Attach(const char* thread_name, bool as_daemon, jobject thread_peer) {
+  auto set_peer_action = [&](Thread* self) {
+    // Install the given peer.
+    {
+      DCHECK(self == Thread::Current());
+      ScopedObjectAccess soa(self);
+      self->tlsPtr_.opeer = soa.Decode<mirror::Object>(thread_peer).Ptr();
+    }
+    self->GetJniEnv()->SetLongField(thread_peer,
+                                    WellKnownClasses::java_lang_Thread_nativePeer,
+                                    reinterpret_cast<jlong>(self));
+    return true;
+  };
+  return Attach(thread_name, as_daemon, set_peer_action);
 }
 
 void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) {

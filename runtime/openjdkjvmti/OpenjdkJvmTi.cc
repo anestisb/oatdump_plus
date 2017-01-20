@@ -194,7 +194,7 @@ class JvmtiFunctions {
                                    jvmtiStartFunction proc,
                                    const void* arg,
                                    jint priority) {
-    return ERR(NOT_IMPLEMENTED);
+    return ThreadUtil::RunAgentThread(env, thread, proc, arg, priority);
   }
 
   static jvmtiError SetThreadLocalStorage(jvmtiEnv* env, jthread thread, const void* data) {
