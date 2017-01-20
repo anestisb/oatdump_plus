@@ -82,6 +82,17 @@ jint OnLoad(JavaVM* vm,
   }
   SetAllCapabilities(jvmti_env);
 
+  jvmtiPhase current_phase;
+  jvmtiError phase_result = jvmti_env->GetPhase(&current_phase);
+  if (phase_result != JVMTI_ERROR_NONE) {
+    printf("Could not get phase");
+    return 1;
+  }
+  if (current_phase != JVMTI_PHASE_ONLOAD) {
+    printf("Wrong phase");
+    return 1;
+  }
+
   return JNI_OK;
 }
 
@@ -90,6 +101,16 @@ extern "C" JNIEXPORT void JNICALL Java_Main_setVerboseFlag(
   jvmtiVerboseFlag flag = static_cast<jvmtiVerboseFlag>(iflag);
   jvmtiError result = jvmti_env->SetVerboseFlag(flag, val);
   JvmtiErrorToException(env, result);
+}
+
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_checkLivePhase(
+    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED) {
+  jvmtiPhase current_phase;
+  jvmtiError phase_result = jvmti_env->GetPhase(&current_phase);
+  if (JvmtiErrorToException(env, phase_result)) {
+    return JNI_FALSE;
+  }
+  return (current_phase == JVMTI_PHASE_LIVE) ? JNI_TRUE : JNI_FALSE;
 }
 
 }  // namespace Test901HelloTi

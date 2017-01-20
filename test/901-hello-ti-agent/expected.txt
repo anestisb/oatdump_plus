@@ -1,5 +1,6 @@
 Loaded Agent for test 901-hello-ti-agent
 Hello, world!
+Agent in live phase.
 0
 1
 2
