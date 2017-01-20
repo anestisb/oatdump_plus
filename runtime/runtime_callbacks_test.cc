@@ -17,14 +17,20 @@
 #include "runtime_callbacks.h"
 
 #include "jni.h"
+
+#include <initializer_list>
 #include <memory>
 #include <string>
 
 #include "art_method-inl.h"
 #include "base/mutex.h"
-#include "mirror/class-inl.h"
+#include "class_linker.h"
 #include "common_runtime_test.h"
+#include "handle.h"
+#include "handle_scope-inl.h"
 #include "mem_map.h"
+#include "mirror/class-inl.h"
+#include "mirror/class_loader.h"
 #include "obj_ptr.h"
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
@@ -129,7 +135,6 @@ class ThreadLifecycleCallbackRuntimeCallbacksTest : public RuntimeCallbacksTest 
   Callback cb_;
 };
 
-
 TEST_F(ThreadLifecycleCallbackRuntimeCallbacksTest, ThreadLifecycleCallbackJava) {
   Thread* self = Thread::Current();
 
@@ -205,6 +210,84 @@ TEST_F(ThreadLifecycleCallbackRuntimeCallbacksTest, ThreadLifecycleCallbackAttac
 
   // Detach is not a ThreadDeath event, so we expect to be in state Started.
   EXPECT_TRUE(cb_.state == CallbackState::kStarted) << static_cast<int>(cb_.state);
+}
+
+class ClassLoadCallbackRuntimeCallbacksTest : public RuntimeCallbacksTest {
+ protected:
+  void AddListener() OVERRIDE REQUIRES(Locks::mutator_lock_) {
+    Runtime::Current()->GetRuntimeCallbacks().AddClassLoadCallback(&cb_);
+  }
+  void RemoveListener() OVERRIDE REQUIRES(Locks::mutator_lock_) {
+    Runtime::Current()->GetRuntimeCallbacks().RemoveClassLoadCallback(&cb_);
+  }
+
+  bool Expect(std::initializer_list<const char*> list) {
+    if (cb_.data.size() != list.size()) {
+      PrintError(list);
+      return false;
+    }
+
+    if (!std::equal(cb_.data.begin(), cb_.data.end(), list.begin())) {
+      PrintError(list);
+      return false;
+    }
+
+    return true;
+  }
+
+  void PrintError(std::initializer_list<const char*> list) {
+    LOG(ERROR) << "Expected:";
+    for (const char* expected : list) {
+      LOG(ERROR) << "  " << expected;
+    }
+    LOG(ERROR) << "Found:";
+    for (const auto& s : cb_.data) {
+      LOG(ERROR) << "  " << s;
+    }
+  }
+
+  struct Callback : public ClassLoadCallback {
+    void ClassLoad(Handle<mirror::Class> klass) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
+      std::string tmp;
+      std::string event = std::string("Load:") + klass->GetDescriptor(&tmp);
+      data.push_back(event);
+    }
+
+    void ClassPrepare(Handle<mirror::Class> temp_klass,
+                      Handle<mirror::Class> klass) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
+      std::string tmp, tmp2;
+      std::string event = std::string("Prepare:") + klass->GetDescriptor(&tmp)
+          + "[" + temp_klass->GetDescriptor(&tmp2) + "]";
+      data.push_back(event);
+    }
+
+    std::vector<std::string> data;
+  };
+
+  Callback cb_;
+};
+
+TEST_F(ClassLoadCallbackRuntimeCallbacksTest, ClassLoadCallback) {
+  ScopedObjectAccess soa(Thread::Current());
+  jobject jclass_loader = LoadDex("XandY");
+  VariableSizedHandleScope hs(soa.Self());
+  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
+      soa.Decode<mirror::ClassLoader>(jclass_loader)));
+
+  const char* descriptor_y = "LY;";
+  Handle<mirror::Class> h_Y(
+      hs.NewHandle(class_linker_->FindClass(soa.Self(), descriptor_y, class_loader)));
+  ASSERT_TRUE(h_Y.Get() != nullptr);
+
+  bool expect1 = Expect({ "Load:LX;", "Prepare:LX;[LX;]", "Load:LY;", "Prepare:LY;[LY;]" });
+  EXPECT_TRUE(expect1);
+
+  cb_.data.clear();
+
+  ASSERT_TRUE(class_linker_->EnsureInitialized(Thread::Current(), h_Y, true, true));
+
+  bool expect2 = Expect({ "Load:LY$Z;", "Prepare:LY$Z;[LY$Z;]" });
+  EXPECT_TRUE(expect2);
 }
 
 }  // namespace art
