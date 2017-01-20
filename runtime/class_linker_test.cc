@@ -612,7 +612,7 @@ struct ClassExtOffsets : public CheckOffsets<mirror::ClassExt> {
   ClassExtOffsets() : CheckOffsets<mirror::ClassExt>(false, "Ldalvik/system/ClassExt;") {
     addOffset(OFFSETOF_MEMBER(mirror::ClassExt, obsolete_dex_caches_), "obsoleteDexCaches");
     addOffset(OFFSETOF_MEMBER(mirror::ClassExt, obsolete_methods_), "obsoleteMethods");
-    addOffset(OFFSETOF_MEMBER(mirror::ClassExt, original_dex_cache_), "originalDexCache");
+    addOffset(OFFSETOF_MEMBER(mirror::ClassExt, original_dex_file_bytes_), "originalDexFile");
     addOffset(OFFSETOF_MEMBER(mirror::ClassExt, verify_error_), "verifyError");
   }
 };
