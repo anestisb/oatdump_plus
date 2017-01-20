@@ -1552,6 +1552,12 @@ void Runtime::DumpForSigQuit(std::ostream& os) {
 
   thread_list_->DumpForSigQuit(os);
   BaseMutex::DumpAll(os);
+
+  // Inform anyone else who is interested in SigQuit.
+  {
+    ScopedObjectAccess soa(Thread::Current());
+    callbacks_->SigQuit();
+  }
 }
 
 void Runtime::DumpLockHolders(std::ostream& os) {

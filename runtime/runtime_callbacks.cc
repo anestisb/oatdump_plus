@@ -18,6 +18,7 @@
 
 #include <algorithm>
 
+#include "base/macros.h"
 #include "class_linker.h"
 #include "thread.h"
 
@@ -27,11 +28,17 @@ void RuntimeCallbacks::AddThreadLifecycleCallback(ThreadLifecycleCallback* cb) {
   thread_callbacks_.push_back(cb);
 }
 
-void RuntimeCallbacks::RemoveThreadLifecycleCallback(ThreadLifecycleCallback* cb) {
-  auto it = std::find(thread_callbacks_.begin(), thread_callbacks_.end(), cb);
-  if (it != thread_callbacks_.end()) {
-    thread_callbacks_.erase(it);
+template <typename T>
+ALWAYS_INLINE
+static inline void Remove(T* cb, std::vector<T*>* data) {
+  auto it = std::find(data->begin(), data->end(), cb);
+  if (it != data->end()) {
+    data->erase(it);
   }
+}
+
+void RuntimeCallbacks::RemoveThreadLifecycleCallback(ThreadLifecycleCallback* cb) {
+  Remove(cb, &thread_callbacks_);
 }
 
 void RuntimeCallbacks::ThreadStart(Thread* self) {
@@ -51,10 +58,7 @@ void RuntimeCallbacks::AddClassLoadCallback(ClassLoadCallback* cb) {
 }
 
 void RuntimeCallbacks::RemoveClassLoadCallback(ClassLoadCallback* cb) {
-  auto it = std::find(class_callbacks_.begin(), class_callbacks_.end(), cb);
-  if (it != class_callbacks_.end()) {
-    class_callbacks_.erase(it);
-  }
+  Remove(cb, &class_callbacks_);
 }
 
 void RuntimeCallbacks::ClassLoad(Handle<mirror::Class> klass) {
@@ -66,6 +70,20 @@ void RuntimeCallbacks::ClassLoad(Handle<mirror::Class> klass) {
 void RuntimeCallbacks::ClassPrepare(Handle<mirror::Class> temp_klass, Handle<mirror::Class> klass) {
   for (ClassLoadCallback* cb : class_callbacks_) {
     cb->ClassPrepare(temp_klass, klass);
+  }
+}
+
+void RuntimeCallbacks::AddRuntimeSigQuitCallback(RuntimeSigQuitCallback* cb) {
+  sigquit_callbacks_.push_back(cb);
+}
+
+void RuntimeCallbacks::RemoveRuntimeSigQuitCallback(RuntimeSigQuitCallback* cb) {
+  Remove(cb, &sigquit_callbacks_);
+}
+
+void RuntimeCallbacks::SigQuit() {
+  for (RuntimeSigQuitCallback* cb : sigquit_callbacks_) {
+    cb->SigQuit();
   }
 }
 
