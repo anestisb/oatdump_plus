@@ -152,15 +152,17 @@ class OatFileAssistantTest : public Dex2oatEnvironmentTest {
       }
     }
 
-    if (CompilerFilter::IsBytecodeCompilationEnabled(filter)) {
-      if (relocate) {
-        EXPECT_EQ(reinterpret_cast<uintptr_t>(image_header->GetOatDataBegin()),
-            oat_header.GetImageFileLocationOatDataBegin());
-        EXPECT_EQ(image_header->GetPatchDelta(), oat_header.GetImagePatchDelta());
-      } else {
-        EXPECT_NE(reinterpret_cast<uintptr_t>(image_header->GetOatDataBegin()),
-            oat_header.GetImageFileLocationOatDataBegin());
-        EXPECT_NE(image_header->GetPatchDelta(), oat_header.GetImagePatchDelta());
+    if (!with_alternate_image) {
+      if (CompilerFilter::IsBytecodeCompilationEnabled(filter)) {
+        if (relocate) {
+          EXPECT_EQ(reinterpret_cast<uintptr_t>(image_header->GetOatDataBegin()),
+              oat_header.GetImageFileLocationOatDataBegin());
+          EXPECT_EQ(image_header->GetPatchDelta(), oat_header.GetImagePatchDelta());
+        } else {
+          EXPECT_NE(reinterpret_cast<uintptr_t>(image_header->GetOatDataBegin()),
+              oat_header.GetImageFileLocationOatDataBegin());
+          EXPECT_NE(image_header->GetPatchDelta(), oat_header.GetImagePatchDelta());
+        }
       }
     }
   }
