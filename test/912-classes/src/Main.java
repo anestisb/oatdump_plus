@@ -80,6 +80,10 @@ public class Main {
     testClassLoader(getProxyClass());
 
     testClassLoaderClasses();
+
+    System.out.println();
+
+    testClassVersion();
   }
 
   private static Class<?> proxyClass = null;
@@ -202,6 +206,10 @@ public class Main {
     }
   }
 
+  private static void testClassVersion() {
+    System.out.println(Arrays.toString(getClassVersion(Main.class)));
+  }
+
   private static void printClassLoaderClasses(ClassLoader cl) {
     for (;;) {
       if (cl == null || !cl.getClass().getName().startsWith("dalvik.system")) {
@@ -261,6 +269,8 @@ public class Main {
   private static native Object getClassLoader(Class<?> c);
 
   private static native Class<?>[] getClassLoaderClasses(ClassLoader cl);
+
+  private static native int[] getClassVersion(Class<?> c);
 
   private static class TestForNonInit {
     public static double dummy = Math.random();  // So it can't be compile-time initialized.
