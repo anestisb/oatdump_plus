@@ -25,6 +25,7 @@ public class Main {
     MissingInterface.doTest(new Transform2());
     ReorderInterface.doTest(new Transform2());
     MultiRedef.doTest(new Transform(), new Transform2());
+    MultiRetrans.doTest(new Transform(), new Transform2());
   }
 
   // Transforms the class. This throws an exception if something goes wrong.
@@ -47,7 +48,20 @@ public class Main {
                                    dex_files.toArray(new byte[0][]));
   }
 
+  public static void addMultiTransformationResults(CommonClassDefinition... defs) throws Exception {
+    for (CommonClassDefinition d : defs) {
+      addCommonTransformationResult(d.target.getCanonicalName(),
+                                    d.class_file_bytes,
+                                    d.dex_file_bytes);
+    }
+  }
+
   public static native void doCommonMultiClassRedefinition(Class<?>[] targets,
                                                            byte[][] classfiles,
                                                            byte[][] dexfiles) throws Exception;
+  public static native void doCommonClassRetransformation(Class<?>... target) throws Exception;
+  public static native void enableCommonRetransformation(boolean enable);
+  public static native void addCommonTransformationResult(String target_name,
+                                                          byte[] class_bytes,
+                                                          byte[] dex_bytes);
 }

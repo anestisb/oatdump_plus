@@ -178,6 +178,15 @@ class EventHandler {
   ALWAYS_INLINE
   inline void RecalculateGlobalEventMask(ArtJvmtiEvent event);
 
+  template <typename ...Args>
+  ALWAYS_INLINE inline void GenericDispatchEvent(art::Thread* thread,
+                                                 ArtJvmtiEvent event,
+                                                 Args... args) const;
+  template <typename ...Args>
+  ALWAYS_INLINE inline void DispatchClassFileLoadHookEvent(art::Thread* thread,
+                                                           ArtJvmtiEvent event,
+                                                           Args... args) const;
+
   void HandleEventType(ArtJvmtiEvent event, bool enable);
 
   // List of all JvmTiEnv objects that have been created, in their creation order.
