@@ -1105,6 +1105,7 @@ class JvmtiFunctions {
 
   static jvmtiError DisposeEnvironment(jvmtiEnv* env) {
     ENSURE_VALID_ENV(env);
+    gEventHandler.RemoveArtJvmTiEnv(ArtJvmTiEnv::AsArtJvmTiEnv(env));
     delete env;
     return OK;
   }
@@ -1307,7 +1308,7 @@ extern "C" bool ArtPlugin_Initialize() {
   } else {
     PhaseUtil::SetToOnLoad();
   }
-  PhaseUtil::Register();
+  PhaseUtil::Register(&gEventHandler);
 
   runtime->GetJavaVM()->AddEnvironmentHook(GetEnvHandler);
   runtime->AddSystemWeakHolder(&gObjectTagTable);

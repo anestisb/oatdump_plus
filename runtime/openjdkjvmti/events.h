@@ -141,6 +141,9 @@ class EventHandler {
   // enabled, yet.
   void RegisterArtJvmTiEnv(ArtJvmTiEnv* env);
 
+  // Remove an env.
+  void RemoveArtJvmTiEnv(ArtJvmTiEnv* env);
+
   bool IsEventEnabledAnywhere(ArtJvmtiEvent event) const {
     if (!EventMask::EventIsInRange(event)) {
       return false;
