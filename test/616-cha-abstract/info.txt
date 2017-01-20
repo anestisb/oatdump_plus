@@ -1,1 +1,0 @@
-Test for Class Hierarchy Analysis (CHA) on abstract method.
