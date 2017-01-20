@@ -47,6 +47,7 @@
 #include "mem_map.h"
 #include "mirror/array.h"
 #include "mirror/class-inl.h"
+#include "mirror/class_ext.h"
 #include "mirror/class_loader-inl.h"
 #include "mirror/string-inl.h"
 #include "oat_file.h"
@@ -138,28 +139,41 @@ jvmtiError GetClassLocation(ArtJvmTiEnv* env, jclass klass, /*out*/std::string* 
   return OK;
 }
 
-// TODO Implement this for real once transformed dex data is actually saved.
+static jvmtiError CopyDataIntoJvmtiBuffer(ArtJvmTiEnv* env,
+                                          const unsigned char* source,
+                                          jint len,
+                                          /*out*/unsigned char** dest) {
+  jvmtiError res = env->Allocate(len, dest);
+  if (res != OK) {
+    return res;
+  }
+  memcpy(reinterpret_cast<void*>(*dest),
+         reinterpret_cast<const void*>(source),
+         len);
+  return OK;
+}
+
 jvmtiError Transformer::GetDexDataForRetransformation(ArtJvmTiEnv* env,
                                                       art::Handle<art::mirror::Class> klass,
                                                       /*out*/jint* dex_data_len,
                                                       /*out*/unsigned char** dex_data) {
+  art::StackHandleScope<2> hs(art::Thread::Current());
+  art::Handle<art::mirror::ClassExt> ext(hs.NewHandle(klass->GetExtData()));
+  if (!ext.IsNull()) {
+    art::Handle<art::mirror::ByteArray> orig_dex(hs.NewHandle(ext->GetOriginalDexFileBytes()));
+    if (!orig_dex.IsNull()) {
+      *dex_data_len = static_cast<jint>(orig_dex->GetLength());
+      return CopyDataIntoJvmtiBuffer(env,
+                                     reinterpret_cast<const unsigned char*>(orig_dex->GetData()),
+                                     *dex_data_len,
+                                     /*out*/dex_data);
+    }
+  }
   // TODO De-quicken the dex file before passing it to the agents.
   LOG(WARNING) << "Dex file is not de-quickened yet! Quickened dex instructions might be present";
-  LOG(WARNING) << "Caching of initial dex data is not yet performed! Dex data might have been "
-               << "transformed by agent already";
   const art::DexFile& dex = klass->GetDexFile();
   *dex_data_len = static_cast<jint>(dex.Size());
-  unsigned char* new_dex_data = nullptr;
-  jvmtiError alloc_error = env->Allocate(*dex_data_len, &new_dex_data);
-  if (alloc_error != OK) {
-    return alloc_error;
-  }
-  // Copy the data into a temporary buffer.
-  memcpy(reinterpret_cast<void*>(new_dex_data),
-         reinterpret_cast<const void*>(dex.Begin()),
-         *dex_data_len);
-  *dex_data = new_dex_data;
-  return OK;
+  return CopyDataIntoJvmtiBuffer(env, dex.Begin(), *dex_data_len, /*out*/dex_data);
 }
 
 // TODO Move this function somewhere more appropriate.
