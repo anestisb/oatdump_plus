@@ -133,7 +133,9 @@ void ScratchFile::Unlink() {
 
 static bool unstarted_initialized_ = false;
 
-CommonRuntimeTestImpl::CommonRuntimeTestImpl() {}
+CommonRuntimeTestImpl::CommonRuntimeTestImpl()
+    : class_linker_(nullptr), java_lang_dex_file_(nullptr) {
+}
 
 CommonRuntimeTestImpl::~CommonRuntimeTestImpl() {
   // Ensure the dex files are cleaned up before the runtime.
@@ -425,7 +427,9 @@ void CommonRuntimeTestImpl::TearDown() {
   TearDownAndroidData(android_data_, true);
   dalvik_cache_.clear();
 
-  Runtime::Current()->GetHeap()->VerifyHeap();  // Check for heap corruption after the test
+  if (runtime_ != nullptr) {
+    runtime_->GetHeap()->VerifyHeap();  // Check for heap corruption after the test
+  }
 }
 
 static std::string GetDexFileName(const std::string& jar_prefix, bool host) {

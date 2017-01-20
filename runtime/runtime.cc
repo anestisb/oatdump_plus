@@ -304,6 +304,13 @@ Runtime::~Runtime() {
 
   Trace::Shutdown();
 
+  // Report death. Clients me require a working thread, still, so do it before GC completes and
+  // all non-daemon threads are done.
+  {
+    ScopedObjectAccess soa(self);
+    callbacks_->NextRuntimePhase(RuntimePhaseCallback::RuntimePhase::kDeath);
+  }
+
   if (attach_shutdown_thread) {
     DetachCurrentThread();
     self = nullptr;
@@ -706,6 +713,13 @@ bool Runtime::Start() {
 
   Thread::FinishStartup();
 
+  // Send the start phase event. We have to wait till here as this is when the main thread peer
+  // has just been generated, important root clinits have been run and JNI is completely functional.
+  {
+    ScopedObjectAccess soa(self);
+    callbacks_->NextRuntimePhase(RuntimePhaseCallback::RuntimePhase::kStart);
+  }
+
   system_class_loader_ = CreateSystemClassLoader(this);
 
   if (!is_zygote_) {
@@ -740,6 +754,12 @@ bool Runtime::Start() {
                  trace_config_->trace_output_mode,
                  trace_config_->trace_mode,
                  0);
+  }
+
+  // Send the initialized phase event.
+  {
+    ScopedObjectAccess soa(self);
+    callbacks_->NextRuntimePhase(RuntimePhaseCallback::RuntimePhase::kInit);
   }
 
   return true;
