@@ -47,6 +47,7 @@
 namespace openjdkjvmti {
 
 extern const jvmtiInterface_1 gJvmtiInterface;
+extern EventHandler gEventHandler;
 
 // A structure that is a jvmtiEnv with additional information for the runtime.
 struct ArtJvmTiEnv : public jvmtiEnv {
@@ -124,6 +125,29 @@ static inline jvmtiError CopyString(jvmtiEnv* env, const char* src, unsigned cha
   return ret;
 }
 
+struct ArtClassDefinition {
+  jclass klass;
+  jobject loader;
+  std::string name;
+  jobject protection_domain;
+  jint dex_len;
+  JvmtiUniquePtr dex_data;
+  bool modified;
+
+  ArtClassDefinition() = default;
+  ArtClassDefinition(ArtClassDefinition&& o) = default;
+
+  void SetNewDexData(ArtJvmTiEnv* env, jint new_dex_len, unsigned char* new_dex_data) {
+    if (new_dex_data == nullptr) {
+      return;
+    } else if (new_dex_data != dex_data.get() || new_dex_len != dex_len) {
+      modified = true;
+      dex_len = new_dex_len;
+      dex_data = MakeJvmtiUniquePtr(env, new_dex_data);
+    }
+  }
+};
+
 const jvmtiCapabilities kPotentialCapabilities = {
     .can_tag_objects                                 = 1,
     .can_generate_field_modification_events          = 0,
@@ -134,7 +158,7 @@ const jvmtiCapabilities kPotentialCapabilities = {
     .can_get_current_contended_monitor               = 0,
     .can_get_monitor_info                            = 0,
     .can_pop_frame                                   = 0,
-    .can_redefine_classes                            = 0,
+    .can_redefine_classes                            = 1,
     .can_signal_thread                               = 0,
     .can_get_source_file_name                        = 0,
     .can_get_line_numbers                            = 0,
@@ -162,7 +186,7 @@ const jvmtiCapabilities kPotentialCapabilities = {
     .can_get_owned_monitor_stack_depth_info          = 0,
     .can_get_constant_pool                           = 0,
     .can_set_native_method_prefix                    = 0,
-    .can_retransform_classes                         = 0,
+    .can_retransform_classes                         = 1,
     .can_retransform_any_class                       = 0,
     .can_generate_resource_exhaustion_heap_events    = 0,
     .can_generate_resource_exhaustion_threads_events = 0,
