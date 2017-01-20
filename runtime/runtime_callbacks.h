@@ -55,6 +55,19 @@ class RuntimeSigQuitCallback {
   virtual void SigQuit() REQUIRES_SHARED(Locks::mutator_lock_) = 0;
 };
 
+class RuntimePhaseCallback {
+ public:
+  enum RuntimePhase {
+    kStart,  // The runtime is started.
+    kInit,   // The runtime is initialized (and will run user code soon).
+    kDeath,  // The runtime just died.
+  };
+
+  virtual ~RuntimePhaseCallback() {}
+
+  virtual void NextRuntimePhase(RuntimePhase phase) REQUIRES_SHARED(Locks::mutator_lock_) = 0;
+};
+
 class RuntimeCallbacks {
  public:
   void AddThreadLifecycleCallback(ThreadLifecycleCallback* cb) REQUIRES(Locks::mutator_lock_);
@@ -77,6 +90,14 @@ class RuntimeCallbacks {
 
   void SigQuit() REQUIRES_SHARED(Locks::mutator_lock_);
 
+  void AddRuntimePhaseCallback(RuntimePhaseCallback* cb)
+      REQUIRES(Locks::mutator_lock_);
+  void RemoveRuntimePhaseCallback(RuntimePhaseCallback* cb)
+      REQUIRES(Locks::mutator_lock_);
+
+  void NextRuntimePhase(RuntimePhaseCallback::RuntimePhase phase)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
  private:
   std::vector<ThreadLifecycleCallback*> thread_callbacks_
       GUARDED_BY(Locks::mutator_lock_);
@@ -84,6 +105,8 @@ class RuntimeCallbacks {
       GUARDED_BY(Locks::mutator_lock_);
   std::vector<RuntimeSigQuitCallback*> sigquit_callbacks_
       GUARDED_BY(Locks::mutator_lock_);
+  std::vector<RuntimePhaseCallback*> phase_callbacks_
+        GUARDED_BY(Locks::mutator_lock_);
 };
 
 }  // namespace art
