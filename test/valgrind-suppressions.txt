@@ -22,3 +22,27 @@
    ...
    fun:_ZN3art7Runtime17InitNativeMethodsEv
 }
+
+# SigQuit runs libbacktrace
+{
+   BackTraceReading64
+   Memcheck:Addr8
+   fun:access_mem_unrestricted
+   fun:_Uelf64_memory_read
+   fun:_Uelf64_valid_object_memory
+   fun:map_create_list
+   fun:unw_map_local_create
+   fun:_ZN14UnwindMapLocal5BuildEv
+   fun:_ZN12BacktraceMap6CreateEib
+}
+{
+   BackTraceReading32
+   Memcheck:Addr4
+   fun:access_mem_unrestricted
+   fun:_Uelf32_memory_read
+   fun:_Uelf32_valid_object_memory
+   fun:map_create_list
+   fun:unw_map_local_create
+   fun:_ZN14UnwindMapLocal5BuildEv
+   fun:_ZN12BacktraceMap6CreateEib
+}
