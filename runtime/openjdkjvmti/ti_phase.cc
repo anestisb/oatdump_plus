@@ -33,8 +33,10 @@
 
 #include "art_jvmti.h"
 #include "base/macros.h"
+#include "events-inl.h"
 #include "runtime.h"
 #include "runtime_callbacks.h"
+#include "ScopedLocalRef.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
 #include "thread_list.h"
@@ -44,6 +46,15 @@ namespace openjdkjvmti {
 jvmtiPhase PhaseUtil::current_phase_ = static_cast<jvmtiPhase>(0);
 
 struct PhaseUtil::PhaseCallback : public art::RuntimePhaseCallback {
+  inline static JNIEnv* GetJniEnv() {
+    return reinterpret_cast<JNIEnv*>(art::Thread::Current()->GetJniEnv());
+  }
+
+  inline static jthread GetCurrentJThread() {
+    art::ScopedObjectAccess soa(art::Thread::Current());
+    return soa.AddLocalReference<jthread>(soa.Self()->GetPeer());
+  }
+
   void NextRuntimePhase(RuntimePhase phase) OVERRIDE {
     // TODO: Events.
     switch (phase) {
@@ -51,16 +62,28 @@ struct PhaseUtil::PhaseCallback : public art::RuntimePhaseCallback {
         PhaseUtil::current_phase_ = JVMTI_PHASE_PRIMORDIAL;
         break;
       case RuntimePhase::kStart:
+        event_handler->DispatchEvent(nullptr, ArtJvmtiEvent::kVmStart, GetJniEnv());
         PhaseUtil::current_phase_ = JVMTI_PHASE_START;
         break;
       case RuntimePhase::kInit:
-        PhaseUtil::current_phase_ = JVMTI_PHASE_LIVE;
+        {
+          ScopedLocalRef<jthread> thread(GetJniEnv(), GetCurrentJThread());
+          event_handler->DispatchEvent(nullptr,
+                                       ArtJvmtiEvent::kVmInit,
+                                       GetJniEnv(),
+                                       thread.get());
+          PhaseUtil::current_phase_ = JVMTI_PHASE_LIVE;
+        }
         break;
       case RuntimePhase::kDeath:
+        event_handler->DispatchEvent(nullptr, ArtJvmtiEvent::kVmDeath, GetJniEnv());
         PhaseUtil::current_phase_ = JVMTI_PHASE_DEAD;
+        // TODO: Block events now.
         break;
     }
   }
+
+  EventHandler* event_handler = nullptr;
 };
 
 PhaseUtil::PhaseCallback gPhaseCallback;
@@ -94,7 +117,8 @@ void PhaseUtil::SetToLive() {
   PhaseUtil::current_phase_ = JVMTI_PHASE_LIVE;
 }
 
-void PhaseUtil::Register() {
+void PhaseUtil::Register(EventHandler* handler) {
+  gPhaseCallback.event_handler = handler;
   art::ScopedThreadStateChange stsc(art::Thread::Current(),
                                     art::ThreadState::kWaitingForDebuggerToAttach);
   art::ScopedSuspendAll ssa("Add phase callback");

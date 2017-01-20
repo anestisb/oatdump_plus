@@ -144,6 +144,18 @@ void EventHandler::RegisterArtJvmTiEnv(ArtJvmTiEnv* env) {
   envs.push_back(env);
 }
 
+void EventHandler::RemoveArtJvmTiEnv(ArtJvmTiEnv* env) {
+  auto it = std::find(envs.begin(), envs.end(), env);
+  if (it != envs.end()) {
+    envs.erase(it);
+    for (size_t i = static_cast<size_t>(ArtJvmtiEvent::kMinEventTypeVal);
+         i <= static_cast<size_t>(ArtJvmtiEvent::kMaxEventTypeVal);
+         ++i) {
+      RecalculateGlobalEventMask(static_cast<ArtJvmtiEvent>(i));
+    }
+  }
+}
+
 static bool IsThreadControllable(ArtJvmtiEvent event) {
   switch (event) {
     case ArtJvmtiEvent::kVmInit:
