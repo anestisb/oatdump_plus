@@ -48,6 +48,13 @@ class ThreadLifecycleCallback;
 //       any state checking (is the listener enabled) in the listener itself. For an example, see
 //       Dbg.
 
+class RuntimeSigQuitCallback {
+ public:
+  virtual ~RuntimeSigQuitCallback() {}
+
+  virtual void SigQuit() REQUIRES_SHARED(Locks::mutator_lock_) = 0;
+};
+
 class RuntimeCallbacks {
  public:
   void AddThreadLifecycleCallback(ThreadLifecycleCallback* cb) REQUIRES(Locks::mutator_lock_);
@@ -63,10 +70,19 @@ class RuntimeCallbacks {
   void ClassPrepare(Handle<mirror::Class> temp_klass, Handle<mirror::Class> klass)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  void AddRuntimeSigQuitCallback(RuntimeSigQuitCallback* cb)
+      REQUIRES(Locks::mutator_lock_);
+  void RemoveRuntimeSigQuitCallback(RuntimeSigQuitCallback* cb)
+      REQUIRES(Locks::mutator_lock_);
+
+  void SigQuit() REQUIRES_SHARED(Locks::mutator_lock_);
+
  private:
   std::vector<ThreadLifecycleCallback*> thread_callbacks_
       GUARDED_BY(Locks::mutator_lock_);
   std::vector<ClassLoadCallback*> class_callbacks_
+      GUARDED_BY(Locks::mutator_lock_);
+  std::vector<RuntimeSigQuitCallback*> sigquit_callbacks_
       GUARDED_BY(Locks::mutator_lock_);
 };
 
