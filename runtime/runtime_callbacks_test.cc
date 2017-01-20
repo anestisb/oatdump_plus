@@ -62,7 +62,6 @@ class RuntimeCallbacksTest : public CommonRuntimeTest {
       ScopedObjectAccess soa(self);
       ScopedThreadSuspension sts(self, kWaitingForDebuggerToAttach);
       ScopedSuspendAll ssa("RuntimeCallbacksTest TearDown");
-      AddListener();
       RemoveListener();
     }
 
@@ -334,6 +333,69 @@ TEST_F(RuntimeSigQuitCallbackRuntimeCallbacksTest, SigQuit) {
     }
   }
   EXPECT_EQ(1u, cb_.sigquit_count);
+}
+
+class RuntimePhaseCallbackRuntimeCallbacksTest : public RuntimeCallbacksTest {
+ protected:
+  void AddListener() OVERRIDE REQUIRES(Locks::mutator_lock_) {
+    Runtime::Current()->GetRuntimeCallbacks()->AddRuntimePhaseCallback(&cb_);
+  }
+  void RemoveListener() OVERRIDE REQUIRES(Locks::mutator_lock_) {
+    Runtime::Current()->GetRuntimeCallbacks()->RemoveRuntimePhaseCallback(&cb_);
+  }
+
+  void TearDown() OVERRIDE {
+    // Bypass RuntimeCallbacksTest::TearDown, as the runtime is already gone.
+    CommonRuntimeTest::TearDown();
+  }
+
+  struct Callback : public RuntimePhaseCallback {
+    void NextRuntimePhase(RuntimePhaseCallback::RuntimePhase p) OVERRIDE {
+      if (p == RuntimePhaseCallback::RuntimePhase::kStart) {
+        if (init_seen > 0) {
+          LOG(FATAL) << "Init seen before start.";
+        }
+        ++start_seen;
+      } else if (p == RuntimePhaseCallback::RuntimePhase::kInit) {
+        ++init_seen;
+      } else if (p == RuntimePhaseCallback::RuntimePhase::kDeath) {
+        ++death_seen;
+      } else {
+        LOG(FATAL) << "Unknown phase " << static_cast<uint32_t>(p);
+      }
+    }
+
+    size_t start_seen = 0;
+    size_t init_seen = 0;
+    size_t death_seen = 0;
+  };
+
+  Callback cb_;
+};
+
+TEST_F(RuntimePhaseCallbackRuntimeCallbacksTest, Phases) {
+  ASSERT_EQ(0u, cb_.start_seen);
+  ASSERT_EQ(0u, cb_.init_seen);
+  ASSERT_EQ(0u, cb_.death_seen);
+
+  // Start the runtime.
+  {
+    Thread* self = Thread::Current();
+    self->TransitionFromSuspendedToRunnable();
+    bool started = runtime_->Start();
+    ASSERT_TRUE(started);
+  }
+
+  ASSERT_EQ(1u, cb_.start_seen);
+  ASSERT_EQ(1u, cb_.init_seen);
+  ASSERT_EQ(0u, cb_.death_seen);
+
+  // Delete the runtime.
+  runtime_.reset();
+
+  ASSERT_EQ(1u, cb_.start_seen);
+  ASSERT_EQ(1u, cb_.init_seen);
+  ASSERT_EQ(1u, cb_.death_seen);
 }
 
 }  // namespace art

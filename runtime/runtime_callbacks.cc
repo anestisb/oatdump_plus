@@ -87,4 +87,18 @@ void RuntimeCallbacks::SigQuit() {
   }
 }
 
+void RuntimeCallbacks::AddRuntimePhaseCallback(RuntimePhaseCallback* cb) {
+  phase_callbacks_.push_back(cb);
+}
+
+void RuntimeCallbacks::RemoveRuntimePhaseCallback(RuntimePhaseCallback* cb) {
+  Remove(cb, &phase_callbacks_);
+}
+
+void RuntimeCallbacks::NextRuntimePhase(RuntimePhaseCallback::RuntimePhase phase) {
+  for (RuntimePhaseCallback* cb : phase_callbacks_) {
+    cb->NextRuntimePhase(phase);
+  }
+}
+
 }  // namespace art
