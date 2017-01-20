@@ -17,6 +17,9 @@
 #include "runtime_callbacks.h"
 
 #include "jni.h"
+#include <signal.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include <initializer_list>
 #include <memory>
@@ -288,6 +291,49 @@ TEST_F(ClassLoadCallbackRuntimeCallbacksTest, ClassLoadCallback) {
 
   bool expect2 = Expect({ "Load:LY$Z;", "Prepare:LY$Z;[LY$Z;]" });
   EXPECT_TRUE(expect2);
+}
+
+class RuntimeSigQuitCallbackRuntimeCallbacksTest : public RuntimeCallbacksTest {
+ protected:
+  void AddListener() OVERRIDE REQUIRES(Locks::mutator_lock_) {
+    Runtime::Current()->GetRuntimeCallbacks()->AddRuntimeSigQuitCallback(&cb_);
+  }
+  void RemoveListener() OVERRIDE REQUIRES(Locks::mutator_lock_) {
+    Runtime::Current()->GetRuntimeCallbacks()->RemoveRuntimeSigQuitCallback(&cb_);
+  }
+
+  struct Callback : public RuntimeSigQuitCallback {
+    void SigQuit() OVERRIDE {
+      ++sigquit_count;
+    }
+
+    size_t sigquit_count = 0;
+  };
+
+  Callback cb_;
+};
+
+TEST_F(RuntimeSigQuitCallbackRuntimeCallbacksTest, SigQuit) {
+  // The runtime needs to be started for the signal handler.
+  Thread* self = Thread::Current();
+
+  self->TransitionFromSuspendedToRunnable();
+  bool started = runtime_->Start();
+  ASSERT_TRUE(started);
+
+  EXPECT_EQ(0u, cb_.sigquit_count);
+
+  kill(getpid(), SIGQUIT);
+
+  // Try a few times.
+  for (size_t i = 0; i != 30; ++i) {
+    if (cb_.sigquit_count == 0) {
+      sleep(1);
+    } else {
+      break;
+    }
+  }
+  EXPECT_EQ(1u, cb_.sigquit_count);
 }
 
 }  // namespace art
