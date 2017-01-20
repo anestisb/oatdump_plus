@@ -456,7 +456,7 @@ class ArtMethod FINAL {
     }
   }
 
-  ArtMethod* GetSingleImplementation(PointerSize pointer_size)
+  ArtMethod* GetSingleImplementation()
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   ALWAYS_INLINE void SetSingleImplementation(ArtMethod* method, PointerSize pointer_size) {
@@ -684,8 +684,7 @@ class ArtMethod FINAL {
     ArtMethod** dex_cache_resolved_methods_;
 
     // Pointer to JNI function registered to this method, or a function to resolve the JNI function,
-    // or the profiling data for non-native methods, or an ImtConflictTable, or the
-    // single-implementation of an abstract method.
+    // or the profiling data for non-native methods, or an ImtConflictTable.
     void* data_;
 
     // Method dispatch from quick compiled code invokes this pointer which may cause bridging into
