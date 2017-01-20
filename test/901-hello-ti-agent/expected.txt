@@ -1,8 +1,12 @@
 Loaded Agent for test 901-hello-ti-agent
+VMStart
+VMInit
 Hello, world!
+Agent in live phase.
 0
 1
 2
 4
 8
 JVMTI_ERROR_ILLEGAL_ARGUMENT
+VMDeath

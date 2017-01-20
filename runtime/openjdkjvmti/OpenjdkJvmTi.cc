@@ -55,6 +55,7 @@
 #include "ti_method.h"
 #include "ti_monitor.h"
 #include "ti_object.h"
+#include "ti_phase.h"
 #include "ti_properties.h"
 #include "ti_redefine.h"
 #include "ti_search.h"
@@ -1099,11 +1100,12 @@ class JvmtiFunctions {
   }
 
   static jvmtiError GetPhase(jvmtiEnv* env, jvmtiPhase* phase_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return PhaseUtil::GetPhase(env, phase_ptr);
   }
 
   static jvmtiError DisposeEnvironment(jvmtiEnv* env) {
     ENSURE_VALID_ENV(env);
+    gEventHandler.RemoveArtJvmTiEnv(ArtJvmTiEnv::AsArtJvmTiEnv(env));
     delete env;
     return OK;
   }
@@ -1300,8 +1302,17 @@ static jint GetEnvHandler(art::JavaVMExt* vm, /*out*/void** env, jint version) {
 // The plugin initialization function. This adds the jvmti environment.
 extern "C" bool ArtPlugin_Initialize() {
   art::Runtime* runtime = art::Runtime::Current();
+
+  if (runtime->IsStarted()) {
+    PhaseUtil::SetToLive();
+  } else {
+    PhaseUtil::SetToOnLoad();
+  }
+  PhaseUtil::Register(&gEventHandler);
+
   runtime->GetJavaVM()->AddEnvironmentHook(GetEnvHandler);
   runtime->AddSystemWeakHolder(&gObjectTagTable);
+
   return true;
 }
 

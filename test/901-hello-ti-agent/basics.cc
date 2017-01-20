@@ -28,6 +28,46 @@
 namespace art {
 namespace Test901HelloTi {
 
+static void EnableEvent(jvmtiEnv* env, jvmtiEvent evt) {
+  jvmtiError error = env->SetEventNotificationMode(JVMTI_ENABLE, evt, nullptr);
+  if (error != JVMTI_ERROR_NONE) {
+    printf("Failed to enable event");
+  }
+}
+
+static void JNICALL VMStartCallback(jvmtiEnv *jenv ATTRIBUTE_UNUSED,
+                                     JNIEnv* jni_env ATTRIBUTE_UNUSED) {
+  printf("VMStart\n");
+}
+
+static void JNICALL VMInitCallback(jvmtiEnv *jvmti_env ATTRIBUTE_UNUSED,
+                                   JNIEnv* jni_env ATTRIBUTE_UNUSED,
+                                   jthread thread ATTRIBUTE_UNUSED) {
+  printf("VMInit\n");
+}
+
+static void JNICALL VMDeatchCallback(jvmtiEnv *jenv ATTRIBUTE_UNUSED,
+                                     JNIEnv* jni_env ATTRIBUTE_UNUSED) {
+  printf("VMDeath\n");
+}
+
+
+static void InstallVMEvents(jvmtiEnv* env) {
+  jvmtiEventCallbacks callbacks;
+  memset(&callbacks, 0, sizeof(jvmtiEventCallbacks));
+  callbacks.VMStart = VMStartCallback;
+  callbacks.VMInit = VMInitCallback;
+  callbacks.VMDeath = VMDeatchCallback;
+  jvmtiError ret = env->SetEventCallbacks(&callbacks, sizeof(callbacks));
+  if (ret != JVMTI_ERROR_NONE) {
+    printf("Failed to install callbacks");
+  }
+
+  EnableEvent(env, JVMTI_EVENT_VM_START);
+  EnableEvent(env, JVMTI_EVENT_VM_INIT);
+  EnableEvent(env, JVMTI_EVENT_VM_DEATH);
+}
+
 jint OnLoad(JavaVM* vm,
             char* options ATTRIBUTE_UNUSED,
             void* reserved ATTRIBUTE_UNUSED) {
@@ -72,6 +112,10 @@ jint OnLoad(JavaVM* vm,
     printf("Unexpected version number!\n");
     return -1;
   }
+
+  InstallVMEvents(env);
+  InstallVMEvents(env2);
+
   CHECK_CALL_SUCCESS(env->DisposeEnvironment());
   CHECK_CALL_SUCCESS(env2->DisposeEnvironment());
 #undef CHECK_CALL_SUCCESS
@@ -82,6 +126,19 @@ jint OnLoad(JavaVM* vm,
   }
   SetAllCapabilities(jvmti_env);
 
+  jvmtiPhase current_phase;
+  jvmtiError phase_result = jvmti_env->GetPhase(&current_phase);
+  if (phase_result != JVMTI_ERROR_NONE) {
+    printf("Could not get phase");
+    return 1;
+  }
+  if (current_phase != JVMTI_PHASE_ONLOAD) {
+    printf("Wrong phase");
+    return 1;
+  }
+
+  InstallVMEvents(jvmti_env);
+
   return JNI_OK;
 }
 
@@ -90,6 +147,16 @@ extern "C" JNIEXPORT void JNICALL Java_Main_setVerboseFlag(
   jvmtiVerboseFlag flag = static_cast<jvmtiVerboseFlag>(iflag);
   jvmtiError result = jvmti_env->SetVerboseFlag(flag, val);
   JvmtiErrorToException(env, result);
+}
+
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_checkLivePhase(
+    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED) {
+  jvmtiPhase current_phase;
+  jvmtiError phase_result = jvmti_env->GetPhase(&current_phase);
+  if (JvmtiErrorToException(env, phase_result)) {
+    return JNI_FALSE;
+  }
+  return (current_phase == JVMTI_PHASE_LIVE) ? JNI_TRUE : JNI_FALSE;
 }
 
 }  // namespace Test901HelloTi
