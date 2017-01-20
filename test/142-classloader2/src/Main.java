@@ -74,16 +74,25 @@ public class Main {
         // Try to load a dex file with bad dex code. Use new instance to force verification.
         try {
           Class<?> badClass = Main.class.getClassLoader().loadClass("B");
+          System.out.println("Loaded class B.");
           badClass.newInstance();
-          System.out.println("Should not be able to load class from bad dex file.");
+          System.out.println("Should not be able to instantiate B with bad dex bytecode.");
         } catch (VerifyError e) {
+          System.out.println("Caught VerifyError.");
         }
 
         // Make sure the same error is rethrown when reloading the bad class.
         try {
           Class<?> badClass = Main.class.getClassLoader().loadClass("B");
-          System.out.println("Should not be able to load class from bad dex file.");
-        } catch (VerifyError e) {
+          System.out.println("Loaded class B.");
+          badClass.newInstance();
+          System.out.println("Should not be able to instantiate B with bad dex bytecode.");
+        } catch (NoClassDefFoundError e) {
+          if (e.getCause() instanceof VerifyError) {
+            System.out.println("Caught wrapped VerifyError.");
+          } else {
+            e.printStackTrace();
+          }
         }
 
         System.out.println("Everything OK.");

@@ -2199,7 +2199,7 @@ class SetVerifiedClassVisitor : public CompilationVisitor {
     if (klass.Get() != nullptr) {
       // Only do this if the class is resolved. If even resolution fails, quickening will go very,
       // very wrong.
-      if (klass->IsResolved()) {
+      if (klass->IsResolved() && !klass->IsErroneousResolved()) {
         if (klass->GetStatus() < mirror::Class::kStatusVerified) {
           ObjectLock<mirror::Class> lock(soa.Self(), klass);
           // Set class status to verified.
@@ -2626,7 +2626,8 @@ CompiledClass* CompilerDriver::GetCompiledClass(ClassReference ref) const {
 void CompilerDriver::RecordClassStatus(ClassReference ref, mirror::Class::Status status) {
   switch (status) {
     case mirror::Class::kStatusNotReady:
-    case mirror::Class::kStatusError:
+    case mirror::Class::kStatusErrorResolved:
+    case mirror::Class::kStatusErrorUnresolved:
     case mirror::Class::kStatusRetryVerificationAtRuntime:
     case mirror::Class::kStatusVerified:
     case mirror::Class::kStatusInitialized:

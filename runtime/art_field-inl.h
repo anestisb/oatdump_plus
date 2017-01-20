@@ -52,7 +52,7 @@ inline uint32_t ArtField::GetAccessFlags() {
 }
 
 inline MemberOffset ArtField::GetOffset() {
-  DCHECK(GetDeclaringClass()->IsResolved() || GetDeclaringClass()->IsErroneous());
+  DCHECK(GetDeclaringClass()->IsResolved());
   return MemberOffset(offset_);
 }
 
