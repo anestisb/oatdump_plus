@@ -72,13 +72,25 @@ class Redefiner {
  public:
   // Redefine the given classes with the given dex data. Note this function does not take ownership
   // of the dex_data pointers. It is not used after this call however and may be freed if desired.
+  // The caller is responsible for freeing it. The runtime makes its own copy of the data. This
+  // function does not call the transformation events.
+  // TODO Check modified flag of the definitions.
+  static jvmtiError RedefineClassesDirect(ArtJvmTiEnv* env,
+                                          art::Runtime* runtime,
+                                          art::Thread* self,
+                                          const std::vector<ArtClassDefinition>& definitions,
+                                          /*out*/std::string* error_msg);
+
+  // Redefine the given classes with the given dex data. Note this function does not take ownership
+  // of the dex_data pointers. It is not used after this call however and may be freed if desired.
   // The caller is responsible for freeing it. The runtime makes its own copy of the data.
+  // TODO This function should call the transformation events.
   static jvmtiError RedefineClasses(ArtJvmTiEnv* env,
                                     art::Runtime* runtime,
                                     art::Thread* self,
                                     jint class_count,
                                     const jvmtiClassDefinition* definitions,
-                                    std::string* error_msg);
+                                    /*out*/std::string* error_msg);
 
   static jvmtiError IsModifiableClass(jvmtiEnv* env, jclass klass, jboolean* is_redefinable);
 
@@ -209,7 +221,7 @@ class Redefiner {
         redefinitions_(),
         error_msg_(error_msg) { }
 
-  jvmtiError AddRedefinition(ArtJvmTiEnv* env, const jvmtiClassDefinition& def)
+  jvmtiError AddRedefinition(ArtJvmTiEnv* env, const ArtClassDefinition& def)
       REQUIRES_SHARED(art::Locks::mutator_lock_);
 
   static jvmtiError GetClassRedefinitionError(art::Handle<art::mirror::Class> klass,
