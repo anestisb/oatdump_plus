@@ -198,11 +198,11 @@ class JvmtiFunctions {
   }
 
   static jvmtiError SetThreadLocalStorage(jvmtiEnv* env, jthread thread, const void* data) {
-    return ERR(NOT_IMPLEMENTED);
+    return ThreadUtil::SetThreadLocalStorage(env, thread, data);
   }
 
   static jvmtiError GetThreadLocalStorage(jvmtiEnv* env, jthread thread, void** data_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return ThreadUtil::GetThreadLocalStorage(env, thread, data_ptr);
   }
 
   static jvmtiError GetTopThreadGroups(jvmtiEnv* env,
