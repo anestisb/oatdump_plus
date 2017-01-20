@@ -64,8 +64,9 @@ AgentLib agents[] = {
   { "916-obsolete-jit", common_redefine::OnLoad, nullptr },
   { "917-fields-transformation", common_redefine::OnLoad, nullptr },
   { "919-obsolete-fields", common_redefine::OnLoad, nullptr },
-  { "921-hello-failure", common_redefine::OnLoad, nullptr },
+  { "921-hello-failure", common_retransform::OnLoad, nullptr },
   { "926-multi-obsolescence", common_redefine::OnLoad, nullptr },
+  { "930-hello-retransform", common_retransform::OnLoad, nullptr },
 };
 
 static AgentLib* FindAgent(char* name) {
