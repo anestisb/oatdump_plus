@@ -21,9 +21,15 @@
 
 #include "base/macros.h"
 #include "base/mutex.h"
+#include "handle.h"
 
 namespace art {
 
+namespace mirror {
+class Class;
+}  // namespace mirror
+
+class ClassLoadCallback;
 class Thread;
 class ThreadLifecycleCallback;
 
@@ -44,18 +50,23 @@ class ThreadLifecycleCallback;
 
 class RuntimeCallbacks {
  public:
-  void AddThreadLifecycleCallback(ThreadLifecycleCallback* cb)
-      REQUIRES(Locks::mutator_lock_);
-  void RemoveThreadLifecycleCallback(ThreadLifecycleCallback* cb)
-      REQUIRES(Locks::mutator_lock_);
+  void AddThreadLifecycleCallback(ThreadLifecycleCallback* cb) REQUIRES(Locks::mutator_lock_);
+  void RemoveThreadLifecycleCallback(ThreadLifecycleCallback* cb) REQUIRES(Locks::mutator_lock_);
 
-  void ThreadStart(Thread* self)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  void ThreadDeath(Thread* self)
+  void ThreadStart(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_);
+  void ThreadDeath(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_);
+
+  void AddClassLoadCallback(ClassLoadCallback* cb) REQUIRES(Locks::mutator_lock_);
+  void RemoveClassLoadCallback(ClassLoadCallback* cb) REQUIRES(Locks::mutator_lock_);
+
+  void ClassLoad(Handle<mirror::Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);
+  void ClassPrepare(Handle<mirror::Class> temp_klass, Handle<mirror::Class> klass)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
   std::vector<ThreadLifecycleCallback*> thread_callbacks_
+      GUARDED_BY(Locks::mutator_lock_);
+  std::vector<ClassLoadCallback*> class_callbacks_
       GUARDED_BY(Locks::mutator_lock_);
 };
 
