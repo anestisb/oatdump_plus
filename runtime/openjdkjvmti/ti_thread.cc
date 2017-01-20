@@ -443,4 +443,80 @@ jvmtiError ThreadUtil::GetThreadLocalStorage(jvmtiEnv* env ATTRIBUTE_UNUSED,
   return ERR(NONE);
 }
 
+struct AgentData {
+  const void* arg;
+  jvmtiStartFunction proc;
+  jthread thread;
+  JavaVM* java_vm;
+  jvmtiEnv* jvmti_env;
+  jint priority;
+};
+
+static void* AgentCallback(void* arg) {
+  std::unique_ptr<AgentData> data(reinterpret_cast<AgentData*>(arg));
+  CHECK(data->thread != nullptr);
+
+  // We already have a peer. So call our special Attach function.
+  art::Thread* self = art::Thread::Attach("JVMTI Agent thread", true, data->thread);
+  CHECK(self != nullptr);
+  // The name in Attach() is only for logging. Set the thread name. This is important so
+  // that the thread is no longer seen as starting up.
+  {
+    art::ScopedObjectAccess soa(self);
+    self->SetThreadName("JVMTI Agent thread");
+  }
+
+  // Release the peer.
+  JNIEnv* env = self->GetJniEnv();
+  env->DeleteGlobalRef(data->thread);
+  data->thread = nullptr;
+
+  // Run the agent code.
+  data->proc(data->jvmti_env, env, const_cast<void*>(data->arg));
+
+  // Detach the thread.
+  int detach_result = data->java_vm->DetachCurrentThread();
+  CHECK_EQ(detach_result, 0);
+
+  return nullptr;
+}
+
+jvmtiError ThreadUtil::RunAgentThread(jvmtiEnv* jvmti_env,
+                                      jthread thread,
+                                      jvmtiStartFunction proc,
+                                      const void* arg,
+                                      jint priority) {
+  if (priority < JVMTI_THREAD_MIN_PRIORITY || priority > JVMTI_THREAD_MAX_PRIORITY) {
+    return ERR(INVALID_PRIORITY);
+  }
+  JNIEnv* env = art::Thread::Current()->GetJniEnv();
+  if (thread == nullptr || !env->IsInstanceOf(thread, art::WellKnownClasses::java_lang_Thread)) {
+    return ERR(INVALID_THREAD);
+  }
+  if (proc == nullptr) {
+    return ERR(NULL_POINTER);
+  }
+
+  std::unique_ptr<AgentData> data(new AgentData);
+  data->arg = arg;
+  data->proc = proc;
+  // We need a global ref for Java objects, as local refs will be invalid.
+  data->thread = env->NewGlobalRef(thread);
+  data->java_vm = art::Runtime::Current()->GetJavaVM();
+  data->jvmti_env = jvmti_env;
+  data->priority = priority;
+
+  pthread_t pthread;
+  int pthread_create_result = pthread_create(&pthread,
+                                             nullptr,
+                                             &AgentCallback,
+                                             reinterpret_cast<void*>(data.get()));
+  if (pthread_create_result != 0) {
+    return ERR(INTERNAL);
+  }
+  data.release();
+
+  return ERR(NONE);
+}
+
 }  // namespace openjdkjvmti
