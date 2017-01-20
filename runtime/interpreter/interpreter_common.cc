@@ -596,7 +596,7 @@ bool DoInvokePolymorphic(Thread* self,
     // Get the register arguments for the invoke.
     inst->GetVarArgs(args, inst_data);
     // Drop the first register which is the method handle performing the invoke.
-    memcpy(args, args + 1, sizeof(args[0]) * (Instruction::kMaxVarArgRegs - 1));
+    memmove(args, args + 1, sizeof(args[0]) * (Instruction::kMaxVarArgRegs - 1));
     args[Instruction::kMaxVarArgRegs - 1] = 0;
     return DoInvokePolymorphic<is_range, do_access_check>(self,
                                                           invoke_method,
