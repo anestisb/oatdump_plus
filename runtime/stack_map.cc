@@ -198,7 +198,7 @@ void StackMap::Dump(VariableIndentationOutputStream* vios,
       << "StackMap" << header_suffix
       << std::hex
       << " [native_pc=0x" << code_offset + pc_offset << "]"
-      << " [entry_size=0x" << encoding.stack_map_size_in_bytes << "]"
+      << " [entry_size=0x" << encoding.stack_map_size_in_bits << " bits]"
       << " (dex_pc=0x" << GetDexPc(stack_map_encoding)
       << ", native_pc_offset=0x" << pc_offset
       << ", dex_register_map_offset=0x" << GetDexRegisterMapOffset(stack_map_encoding)
@@ -206,7 +206,7 @@ void StackMap::Dump(VariableIndentationOutputStream* vios,
       << ", register_mask=0x" << GetRegisterMask(stack_map_encoding)
       << std::dec
       << ", stack_mask=0b";
-  for (size_t i = 0, e = GetNumberOfStackMaskBits(stack_map_encoding); i < e; ++i) {
+  for (size_t i = 0, e = code_info.GetNumberOfStackMaskBits(encoding); i < e; ++i) {
     vios->Stream() << GetStackMaskBit(stack_map_encoding, e - i - 1);
   }
   vios->Stream() << ")\n";
