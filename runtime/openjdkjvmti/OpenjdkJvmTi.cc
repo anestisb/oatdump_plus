@@ -593,7 +593,7 @@ class JvmtiFunctions {
                                            jclass klass,
                                            jint* minor_version_ptr,
                                            jint* major_version_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    return ClassUtil::GetClassVersionNumbers(env, klass, minor_version_ptr, major_version_ptr);
   }
 
   static jvmtiError GetConstantPool(jvmtiEnv* env,
