@@ -160,7 +160,7 @@ class Dex2oatEnvironmentTest : public CommonRuntimeTest {
   // image at GetImageLocation(). This is used for testing mismatched
   // image checksums in the oat_file_assistant_tests.
   std::string GetImageLocation2() const {
-    return GetImageDirectory() + "/core-npic.art";
+    return GetImageDirectory() + "/core-interpreter.art";
   }
 
   std::string GetDexSrc1() const {
