@@ -351,8 +351,13 @@ class RuntimePhaseCallbackRuntimeCallbacksTest : public RuntimeCallbacksTest {
 
   struct Callback : public RuntimePhaseCallback {
     void NextRuntimePhase(RuntimePhaseCallback::RuntimePhase p) OVERRIDE {
-      if (p == RuntimePhaseCallback::RuntimePhase::kStart) {
-        if (init_seen > 0) {
+      if (p == RuntimePhaseCallback::RuntimePhase::kInitialAgents) {
+        if (start_seen > 0 || init_seen > 0 || death_seen > 0) {
+          LOG(FATAL) << "Unexpected order";
+        }
+        ++initial_agents_seen;
+      } else if (p == RuntimePhaseCallback::RuntimePhase::kStart) {
+        if (init_seen > 0 || death_seen > 0) {
           LOG(FATAL) << "Init seen before start.";
         }
         ++start_seen;
@@ -365,6 +370,7 @@ class RuntimePhaseCallbackRuntimeCallbacksTest : public RuntimeCallbacksTest {
       }
     }
 
+    size_t initial_agents_seen = 0;
     size_t start_seen = 0;
     size_t init_seen = 0;
     size_t death_seen = 0;
@@ -374,6 +380,7 @@ class RuntimePhaseCallbackRuntimeCallbacksTest : public RuntimeCallbacksTest {
 };
 
 TEST_F(RuntimePhaseCallbackRuntimeCallbacksTest, Phases) {
+  ASSERT_EQ(0u, cb_.initial_agents_seen);
   ASSERT_EQ(0u, cb_.start_seen);
   ASSERT_EQ(0u, cb_.init_seen);
   ASSERT_EQ(0u, cb_.death_seen);
@@ -386,6 +393,7 @@ TEST_F(RuntimePhaseCallbackRuntimeCallbacksTest, Phases) {
     ASSERT_TRUE(started);
   }
 
+  ASSERT_EQ(0u, cb_.initial_agents_seen);
   ASSERT_EQ(1u, cb_.start_seen);
   ASSERT_EQ(1u, cb_.init_seen);
   ASSERT_EQ(0u, cb_.death_seen);
@@ -393,6 +401,7 @@ TEST_F(RuntimePhaseCallbackRuntimeCallbacksTest, Phases) {
   // Delete the runtime.
   runtime_.reset();
 
+  ASSERT_EQ(0u, cb_.initial_agents_seen);
   ASSERT_EQ(1u, cb_.start_seen);
   ASSERT_EQ(1u, cb_.init_seen);
   ASSERT_EQ(1u, cb_.death_seen);

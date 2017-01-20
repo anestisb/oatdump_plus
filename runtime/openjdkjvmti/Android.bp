@@ -27,6 +27,7 @@ cc_defaults {
            "ti_method.cc",
            "ti_monitor.cc",
            "ti_object.cc",
+           "ti_phase.cc",
            "ti_properties.cc",
            "ti_search.cc",
            "ti_stack.cc",
