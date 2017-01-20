@@ -58,9 +58,10 @@ class RuntimeSigQuitCallback {
 class RuntimePhaseCallback {
  public:
   enum RuntimePhase {
-    kStart,  // The runtime is started.
-    kInit,   // The runtime is initialized (and will run user code soon).
-    kDeath,  // The runtime just died.
+    kInitialAgents,   // Initial agent loading is done.
+    kStart,           // The runtime is started.
+    kInit,            // The runtime is initialized (and will run user code soon).
+    kDeath,           // The runtime just died.
   };
 
   virtual ~RuntimePhaseCallback() {}
