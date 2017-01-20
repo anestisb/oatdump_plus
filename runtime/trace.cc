@@ -54,6 +54,7 @@ static constexpr size_t TraceActionBits = MinimumBitsToStore(
     static_cast<size_t>(kTraceMethodActionMask));
 static constexpr uint8_t kOpNewMethod = 1U;
 static constexpr uint8_t kOpNewThread = 2U;
+static constexpr uint8_t kOpTraceSummary = 3U;
 
 class BuildStackTraceVisitor : public StackVisitor {
  public:
@@ -700,20 +701,19 @@ void Trace::FinishTracing() {
   std::string header(os.str());
 
   if (trace_output_mode_ == TraceOutputMode::kStreaming) {
-    File file(streaming_file_name_ + ".sec", O_CREAT | O_WRONLY, true);
-    if (!file.IsOpened()) {
-      LOG(WARNING) << "Could not open secondary trace file!";
-      return;
-    }
-    if (!file.WriteFully(header.c_str(), header.length())) {
-      file.Erase();
-      std::string detail(StringPrintf("Trace data write failed: %s", strerror(errno)));
-      PLOG(ERROR) << detail;
-      ThrowRuntimeException("%s", detail.c_str());
-    }
-    if (file.FlushCloseOrErase() != 0) {
-      PLOG(ERROR) << "Could not write secondary file";
-    }
+    MutexLock mu(Thread::Current(), *streaming_lock_);  // To serialize writing.
+    // Write a special token to mark the end of trace records and the start of
+    // trace summary.
+    uint8_t buf[7];
+    Append2LE(buf, 0);
+    buf[2] = kOpTraceSummary;
+    Append4LE(buf + 3, static_cast<uint32_t>(header.length()));
+    WriteToBuf(buf, sizeof(buf));
+    // Write the trace summary. The summary is identical to the file header when
+    // the output mode is not streaming (except for methods).
+    WriteToBuf(reinterpret_cast<const uint8_t*>(header.c_str()), header.length());
+    // Flush the buffer, which may include some trace records before the summary.
+    FlushBuf();
   } else {
     if (trace_file_.get() == nullptr) {
       iovec iov[2];
@@ -892,6 +892,14 @@ void Trace::WriteToBuf(const uint8_t* src, size_t src_size) {
   cur_offset_.StoreRelease(new_offset);
   // Fill in data.
   memcpy(buf_.get() + old_offset, src, src_size);
+}
+
+void Trace::FlushBuf() {
+  int32_t offset = cur_offset_.LoadRelaxed();
+  if (!trace_file_->WriteFully(buf_.get(), offset)) {
+    PLOG(WARNING) << "Failed flush the remaining data in streaming.";
+  }
+  cur_offset_.StoreRelease(0);
 }
 
 void Trace::LogMethodTraceEvent(Thread* thread, ArtMethod* method,
