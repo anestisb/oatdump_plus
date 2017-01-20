@@ -253,11 +253,12 @@ void JNICALL CommonClassFileLoadHookRetransformable(jvmtiEnv* jvmti_env,
                                                     jint* new_class_data_len,
                                                     unsigned char** new_class_data) {
   std::string name_str(name);
-  if (gTransformations.find(name_str) != gTransformations.end()) {
+  if (gTransformations.find(name_str) != gTransformations.end() &&
+      gTransformations[name_str].size() > 0) {
     CommonTransformationResult& res = gTransformations[name_str][0];
     const std::vector<unsigned char>& desired_array = IsJVM() ? res.class_bytes : res.dex_bytes;
     unsigned char* new_data;
-    jvmti_env->Allocate(desired_array.size(), &new_data);
+    CHECK_EQ(JVMTI_ERROR_NONE, jvmti_env->Allocate(desired_array.size(), &new_data));
     memcpy(new_data, desired_array.data(), desired_array.size());
     *new_class_data = new_data;
     *new_class_data_len = desired_array.size();
