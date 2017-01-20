@@ -34,6 +34,7 @@
 #include "dex_file.h"
 #include "dex_file_types.h"
 #include "gc_root.h"
+#include "handle.h"
 #include "jni.h"
 #include "mirror/class.h"
 #include "object_callbacks.h"
@@ -1192,6 +1193,21 @@ class ClassLinker {
   ART_FRIEND_TEST(mirror::DexCacheMethodHandlesTest, Open);  // for AllocDexCache
   ART_FRIEND_TEST(mirror::DexCacheTest, Open);  // for AllocDexCache
   DISALLOW_COPY_AND_ASSIGN(ClassLinker);
+};
+
+class ClassLoadCallback {
+ public:
+  virtual ~ClassLoadCallback() {}
+
+  // A class has been loaded.
+  // Note: the class may be temporary, in which case a following ClassPrepare event will be a
+  //       different object. It is the listener's responsibility to handle this.
+  virtual void ClassLoad(Handle<mirror::Class> klass) REQUIRES_SHARED(Locks::mutator_lock_) = 0;
+
+  // A class has been prepared, i.e., resolved. As the ClassLoad event might have been for a
+  // temporary class, provide both the former and the current class.
+  virtual void ClassPrepare(Handle<mirror::Class> temp_klass,
+                            Handle<mirror::Class> klass) REQUIRES_SHARED(Locks::mutator_lock_) = 0;
 };
 
 }  // namespace art

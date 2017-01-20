@@ -28,6 +28,8 @@
 #include <vector>
 
 #include "gc_root.h"
+#include "class_linker.h"
+#include "handle.h"
 #include "jdwp/jdwp.h"
 #include "jni.h"
 #include "jvalue.h"
@@ -502,12 +504,6 @@ class Dbg {
       REQUIRES_SHARED(Locks::mutator_lock_);
   static void PostException(mirror::Throwable* exception)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  static void PostThreadStart(Thread* t)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  static void PostThreadDeath(Thread* t)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  static void PostClassPrepare(mirror::Class* c)
-      REQUIRES_SHARED(Locks::mutator_lock_);
 
   static void UpdateDebugger(Thread* thread, mirror::Object* this_object,
                              ArtMethod* method, uint32_t new_dex_pc,
@@ -707,6 +703,13 @@ class Dbg {
     return instrumentation_events_;
   }
 
+  static ThreadLifecycleCallback* GetThreadLifecycleCallback() {
+    return &thread_lifecycle_callback_;
+  }
+  static ClassLoadCallback* GetClassLoadCallback() {
+    return &class_load_callback_;
+  }
+
  private:
   static void ExecuteMethodWithoutPendingException(ScopedObjectAccess& soa, DebugInvokeReq* pReq)
       REQUIRES_SHARED(Locks::mutator_lock_);
@@ -725,7 +728,15 @@ class Dbg {
       REQUIRES(!Locks::thread_list_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
 
   static void DdmBroadcast(bool connect) REQUIRES_SHARED(Locks::mutator_lock_);
+
+  static void PostThreadStart(Thread* t)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  static void PostThreadDeath(Thread* t)
+      REQUIRES_SHARED(Locks::mutator_lock_);
   static void PostThreadStartOrStop(Thread*, uint32_t)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  static void PostClassPrepare(mirror::Class* c)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   static void PostLocationEvent(ArtMethod* method, int pcOffset,
@@ -788,6 +799,22 @@ class Dbg {
   static size_t field_write_event_ref_count_ GUARDED_BY(Locks::deoptimization_lock_);
   static size_t exception_catch_event_ref_count_ GUARDED_BY(Locks::deoptimization_lock_);
   static uint32_t instrumentation_events_ GUARDED_BY(Locks::mutator_lock_);
+
+  class DbgThreadLifecycleCallback : public ThreadLifecycleCallback {
+   public:
+    void ThreadStart(Thread* self) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_);
+    void ThreadDeath(Thread* self) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_);
+  };
+
+  class DbgClassLoadCallback : public ClassLoadCallback {
+   public:
+    void ClassLoad(Handle<mirror::Class> klass) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_);
+    void ClassPrepare(Handle<mirror::Class> temp_klass,
+                      Handle<mirror::Class> klass) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_);
+  };
+
+  static DbgThreadLifecycleCallback thread_lifecycle_callback_;
+  static DbgClassLoadCallback class_load_callback_;
 
   DISALLOW_COPY_AND_ASSIGN(Dbg);
 };

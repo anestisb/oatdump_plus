@@ -137,6 +137,7 @@
 #include "jit/profile_saver.h"
 #include "quick/quick_method_frame_info.h"
 #include "reflection.h"
+#include "runtime_callbacks.h"
 #include "runtime_options.h"
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change-inl.h"
@@ -253,10 +254,12 @@ Runtime::Runtime()
       pruned_dalvik_cache_(false),
       // Initially assume we perceive jank in case the process state is never updated.
       process_state_(kProcessStateJankPerceptible),
-      zygote_no_threads_(false) {
+      zygote_no_threads_(false),
+      cha_(nullptr) {
   CheckAsmSupportOffsetsAndSizes();
   std::fill(callee_save_methods_, callee_save_methods_ + arraysize(callee_save_methods_), 0u);
   interpreter::CheckInterpreterAsmConstants();
+  callbacks_.reset(new RuntimeCallbacks());
 }
 
 Runtime::~Runtime() {
@@ -1100,6 +1103,8 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   if (runtime_options.Exists(Opt::JdwpOptions)) {
     Dbg::ConfigureJdwp(runtime_options.GetOrDefault(Opt::JdwpOptions));
   }
+  callbacks_->AddThreadLifecycleCallback(Dbg::GetThreadLifecycleCallback());
+  callbacks_->AddClassLoadCallback(Dbg::GetClassLoadCallback());
 
   jit_options_.reset(jit::JitOptions::CreateFromRuntimeArguments(runtime_options));
   if (IsAotCompiler()) {
@@ -2251,6 +2256,10 @@ void Runtime::Aborter(const char* abort_message) {
   android_set_abort_message(abort_message);
 #endif
   Runtime::Abort(abort_message);
+}
+
+RuntimeCallbacks* Runtime::GetRuntimeCallbacks() {
+  return callbacks_.get();
 }
 
 }  // namespace art
