@@ -59,3 +59,5 @@ boot <- src (B) <- src-ex (A, List)
 boot <- src+src-ex (A,B)
 912-classes.jar+ -> 
 [class A, class B, class java.lang.Object]
+
+[37, 0]
