@@ -735,6 +735,13 @@ bool Runtime::Start() {
                             GetInstructionSetString(kRuntimeISA));
   }
 
+  // Send the initialized phase event. Send it before starting daemons, as otherwise
+  // sending thread events becomes complicated.
+  {
+    ScopedObjectAccess soa(self);
+    callbacks_->NextRuntimePhase(RuntimePhaseCallback::RuntimePhase::kInit);
+  }
+
   StartDaemonThreads();
 
   {
@@ -754,12 +761,6 @@ bool Runtime::Start() {
                  trace_config_->trace_output_mode,
                  trace_config_->trace_mode,
                  0);
-  }
-
-  // Send the initialized phase event.
-  {
-    ScopedObjectAccess soa(self);
-    callbacks_->NextRuntimePhase(RuntimePhaseCallback::RuntimePhase::kInit);
   }
 
   return true;

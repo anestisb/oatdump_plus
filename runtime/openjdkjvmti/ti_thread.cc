@@ -31,10 +31,12 @@
 
 #include "ti_thread.h"
 
+#include "android-base/strings.h"
 #include "art_field.h"
 #include "art_jvmti.h"
 #include "base/logging.h"
 #include "base/mutex.h"
+#include "events-inl.h"
 #include "gc/system_weak.h"
 #include "gc_root-inl.h"
 #include "jni_internal.h"
@@ -43,12 +45,84 @@
 #include "mirror/string.h"
 #include "obj_ptr.h"
 #include "runtime.h"
+#include "runtime_callbacks.h"
+#include "ScopedLocalRef.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
 #include "thread_list.h"
 #include "well_known_classes.h"
 
 namespace openjdkjvmti {
+
+struct ThreadCallback : public art::ThreadLifecycleCallback, public art::RuntimePhaseCallback {
+  jthread GetThreadObject(art::Thread* self) REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    if (self->GetPeer() == nullptr) {
+      return nullptr;
+    }
+    return self->GetJniEnv()->AddLocalReference<jthread>(self->GetPeer());
+  }
+  void Post(art::Thread* self, ArtJvmtiEvent type) REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    DCHECK_EQ(self, art::Thread::Current());
+    ScopedLocalRef<jthread> thread(self->GetJniEnv(), GetThreadObject(self));
+    event_handler->DispatchEvent(self, type, self->GetJniEnv(), thread.get());
+  }
+
+  void ThreadStart(art::Thread* self) OVERRIDE REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    if (!started) {
+      // Runtime isn't started. We only expect at most the signal handler or JIT threads to be
+      // started here.
+      if (art::kIsDebugBuild) {
+        std::string name;
+        self->GetThreadName(name);
+        if (name != "Signal Catcher" && !android::base::StartsWith(name, "Jit thread pool")) {
+          LOG(FATAL) << "Unexpected thread before start: " << name;
+        }
+      }
+      return;
+    }
+    Post(self, ArtJvmtiEvent::kThreadStart);
+  }
+
+  void ThreadDeath(art::Thread* self) OVERRIDE REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    Post(self, ArtJvmtiEvent::kThreadEnd);
+  }
+
+  void NextRuntimePhase(RuntimePhase phase) OVERRIDE REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    if (phase == RuntimePhase::kInit) {
+      // We moved to VMInit. Report the main thread as started (it was attached early, and must
+      // not be reported until Init.
+      started = true;
+      Post(art::Thread::Current(), ArtJvmtiEvent::kThreadStart);
+    }
+  }
+
+  EventHandler* event_handler = nullptr;
+  bool started = false;
+};
+
+ThreadCallback gThreadCallback;
+
+void ThreadUtil::Register(EventHandler* handler) {
+  art::Runtime* runtime = art::Runtime::Current();
+
+  gThreadCallback.started = runtime->IsStarted();
+  gThreadCallback.event_handler = handler;
+
+  art::ScopedThreadStateChange stsc(art::Thread::Current(),
+                                    art::ThreadState::kWaitingForDebuggerToAttach);
+  art::ScopedSuspendAll ssa("Add thread callback");
+  runtime->GetRuntimeCallbacks()->AddThreadLifecycleCallback(&gThreadCallback);
+  runtime->GetRuntimeCallbacks()->AddRuntimePhaseCallback(&gThreadCallback);
+}
+
+void ThreadUtil::Unregister() {
+  art::ScopedThreadStateChange stsc(art::Thread::Current(),
+                                    art::ThreadState::kWaitingForDebuggerToAttach);
+  art::ScopedSuspendAll ssa("Remove thread callback");
+  art::Runtime* runtime = art::Runtime::Current();
+  runtime->GetRuntimeCallbacks()->RemoveThreadLifecycleCallback(&gThreadCallback);
+  runtime->GetRuntimeCallbacks()->RemoveRuntimePhaseCallback(&gThreadCallback);
+}
 
 jvmtiError ThreadUtil::GetCurrentThread(jvmtiEnv* env ATTRIBUTE_UNUSED, jthread* thread_ptr) {
   art::Thread* self = art::Thread::Current();
