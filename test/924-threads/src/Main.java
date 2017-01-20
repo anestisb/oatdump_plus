@@ -56,6 +56,8 @@ public class Main {
     doStateTests();
 
     doAllThreadsTests();
+
+    doTLSTests();
   }
 
   private static class Holder {
@@ -164,6 +166,68 @@ public class Main {
     System.out.println(Arrays.toString(threads));
   }
 
+  private static void doTLSTests() throws Exception {
+    doTLSNonLiveTests();
+    doTLSLiveTests();
+  }
+
+  private static void doTLSNonLiveTests() throws Exception {
+    Thread t = new Thread();
+    try {
+      setTLS(t, 1);
+      System.out.println("Expected failure setting TLS for non-live thread");
+    } catch (Exception e) {
+      System.out.println(e.getMessage());
+    }
+    t.start();
+    t.join();
+    try {
+      setTLS(t, 1);
+      System.out.println("Expected failure setting TLS for non-live thread");
+    } catch (Exception e) {
+      System.out.println(e.getMessage());
+    }
+  }
+
+  private static void doTLSLiveTests() throws Exception {
+    setTLS(Thread.currentThread(), 1);
+
+    long l = getTLS(Thread.currentThread());
+    if (l != 1) {
+      throw new RuntimeException("Unexpected TLS value: " + l);
+    };
+
+    final CountDownLatch cdl1 = new CountDownLatch(1);
+    final CountDownLatch cdl2 = new CountDownLatch(1);
+
+    Runnable r = new Runnable() {
+      @Override
+      public void run() {
+        try {
+          cdl1.countDown();
+          cdl2.await();
+          setTLS(Thread.currentThread(), 2);
+          if (getTLS(Thread.currentThread()) != 2) {
+            throw new RuntimeException("Different thread issue");
+          }
+        } catch (Exception e) {
+          throw new RuntimeException(e);
+        }
+      }
+    };
+
+    Thread t = new Thread(r);
+    t.start();
+    cdl1.await();
+    setTLS(Thread.currentThread(), 1);
+    cdl2.countDown();
+
+    t.join();
+    if (getTLS(Thread.currentThread()) != 1) {
+      throw new RuntimeException("Got clobbered");
+    }
+  }
+
   private final static Comparator<Thread> THREAD_COMP = new Comparator<Thread>() {
     public int compare(Thread o1, Thread o2) {
       return o1.getName().compareTo(o2.getName());
@@ -229,4 +293,6 @@ public class Main {
   private static native Object[] getThreadInfo(Thread t);
   private static native int getThreadState(Thread t);
   private static native Thread[] getAllThreads();
+  private static native void setTLS(Thread t, long l);
+  private static native long getTLS(Thread t);
 }

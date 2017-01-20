@@ -120,5 +120,22 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getAllThreads(
   return ret;
 }
 
+extern "C" JNIEXPORT jlong JNICALL Java_Main_getTLS(
+    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jthread thread) {
+  void* tls;
+  jvmtiError result = jvmti_env->GetThreadLocalStorage(thread, &tls);
+  if (JvmtiErrorToException(env, result)) {
+    return 0;
+  }
+  return static_cast<jlong>(reinterpret_cast<uintptr_t>(tls));
+}
+
+extern "C" JNIEXPORT void JNICALL Java_Main_setTLS(
+    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jthread thread, jlong val) {
+  const void* tls = reinterpret_cast<void*>(static_cast<uintptr_t>(val));
+  jvmtiError result = jvmti_env->SetThreadLocalStorage(thread, tls);
+  JvmtiErrorToException(env, result);
+}
+
 }  // namespace Test924Threads
 }  // namespace art
