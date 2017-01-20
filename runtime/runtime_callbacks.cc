@@ -18,6 +18,7 @@
 
 #include <algorithm>
 
+#include "class_linker.h"
 #include "thread.h"
 
 namespace art {
@@ -42,6 +43,29 @@ void RuntimeCallbacks::ThreadStart(Thread* self) {
 void RuntimeCallbacks::ThreadDeath(Thread* self) {
   for (ThreadLifecycleCallback* cb : thread_callbacks_) {
     cb->ThreadDeath(self);
+  }
+}
+
+void RuntimeCallbacks::AddClassLoadCallback(ClassLoadCallback* cb) {
+  class_callbacks_.push_back(cb);
+}
+
+void RuntimeCallbacks::RemoveClassLoadCallback(ClassLoadCallback* cb) {
+  auto it = std::find(class_callbacks_.begin(), class_callbacks_.end(), cb);
+  if (it != class_callbacks_.end()) {
+    class_callbacks_.erase(it);
+  }
+}
+
+void RuntimeCallbacks::ClassLoad(Handle<mirror::Class> klass) {
+  for (ClassLoadCallback* cb : class_callbacks_) {
+    cb->ClassLoad(klass);
+  }
+}
+
+void RuntimeCallbacks::ClassPrepare(Handle<mirror::Class> temp_klass, Handle<mirror::Class> klass) {
+  for (ClassLoadCallback* cb : class_callbacks_) {
+    cb->ClassPrepare(temp_klass, klass);
   }
 }
 
