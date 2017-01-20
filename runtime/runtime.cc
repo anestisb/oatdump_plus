@@ -1383,6 +1383,10 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
       LOG(ERROR) << "Unable to load an agent: " << err;
     }
   }
+  {
+    ScopedObjectAccess soa(self);
+    callbacks_->NextRuntimePhase(RuntimePhaseCallback::RuntimePhase::kInitialAgents);
+  }
 
   VLOG(startup) << "Runtime::Init exiting";
 
@@ -1395,7 +1399,7 @@ static bool EnsureJvmtiPlugin(Runtime* runtime,
   constexpr const char* plugin_name = kIsDebugBuild ? "libopenjdkjvmtid.so" : "libopenjdkjvmti.so";
 
   // Is the plugin already loaded?
-  for (Plugin p : *plugins) {
+  for (const Plugin& p : *plugins) {
     if (p.GetLibrary() == plugin_name) {
       return true;
     }
