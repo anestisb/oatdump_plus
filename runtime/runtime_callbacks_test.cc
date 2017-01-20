@@ -96,10 +96,10 @@ class ThreadLifecycleCallbackRuntimeCallbacksTest : public RuntimeCallbacksTest 
 
  protected:
   void AddListener() OVERRIDE REQUIRES(Locks::mutator_lock_) {
-    Runtime::Current()->GetRuntimeCallbacks().AddThreadLifecycleCallback(&cb_);
+    Runtime::Current()->GetRuntimeCallbacks()->AddThreadLifecycleCallback(&cb_);
   }
   void RemoveListener() OVERRIDE REQUIRES(Locks::mutator_lock_) {
-    Runtime::Current()->GetRuntimeCallbacks().RemoveThreadLifecycleCallback(&cb_);
+    Runtime::Current()->GetRuntimeCallbacks()->RemoveThreadLifecycleCallback(&cb_);
   }
 
   enum CallbackState {
@@ -215,10 +215,10 @@ TEST_F(ThreadLifecycleCallbackRuntimeCallbacksTest, ThreadLifecycleCallbackAttac
 class ClassLoadCallbackRuntimeCallbacksTest : public RuntimeCallbacksTest {
  protected:
   void AddListener() OVERRIDE REQUIRES(Locks::mutator_lock_) {
-    Runtime::Current()->GetRuntimeCallbacks().AddClassLoadCallback(&cb_);
+    Runtime::Current()->GetRuntimeCallbacks()->AddClassLoadCallback(&cb_);
   }
   void RemoveListener() OVERRIDE REQUIRES(Locks::mutator_lock_) {
-    Runtime::Current()->GetRuntimeCallbacks().RemoveClassLoadCallback(&cb_);
+    Runtime::Current()->GetRuntimeCallbacks()->RemoveClassLoadCallback(&cb_);
   }
 
   bool Expect(std::initializer_list<const char*> list) {

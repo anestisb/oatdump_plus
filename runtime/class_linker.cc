@@ -96,6 +96,7 @@
 #include "object_lock.h"
 #include "os.h"
 #include "runtime.h"
+#include "runtime_callbacks.h"
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
@@ -2681,7 +2682,7 @@ mirror::Class* ClassLinker::DefineClass(Thread* self,
 
   // At this point the class is loaded. Publish a ClassLoad even.
   // Note: this may be a temporary class. It is a listener's responsibility to handle this.
-  Runtime::Current()->GetRuntimeCallbacks().ClassLoad(klass);
+  Runtime::Current()->GetRuntimeCallbacks()->ClassLoad(klass);
 
   // Link the class (if necessary)
   CHECK(!klass->IsResolved());
@@ -2723,7 +2724,7 @@ mirror::Class* ClassLinker::DefineClass(Thread* self,
    * The class has been prepared and resolved but possibly not yet verified
    * at this point.
    */
-  Runtime::Current()->GetRuntimeCallbacks().ClassPrepare(klass, h_new_class);
+  Runtime::Current()->GetRuntimeCallbacks()->ClassPrepare(klass, h_new_class);
 
   // Notify native debugger of the new class and its layout.
   jit::Jit::NewTypeLoadedIfUsingJit(h_new_class.Get());
