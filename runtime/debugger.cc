@@ -320,6 +320,8 @@ size_t Dbg::field_write_event_ref_count_ = 0;
 size_t Dbg::exception_catch_event_ref_count_ = 0;
 uint32_t Dbg::instrumentation_events_ = 0;
 
+Dbg::DbgThreadLifecycleCallback Dbg::thread_lifecycle_callback_;
+
 // Breakpoints.
 static std::vector<Breakpoint> gBreakpoints GUARDED_BY(Locks::breakpoint_lock_);
 
@@ -5133,6 +5135,14 @@ void Dbg::VisitRoots(RootVisitor* visitor) {
   for (Breakpoint& breakpoint : gBreakpoints) {
     breakpoint.Method()->VisitRoots(root_visitor, kRuntimePointerSize);
   }
+}
+
+void Dbg::DbgThreadLifecycleCallback::ThreadStart(Thread* self) {
+  Dbg::PostThreadStart(self);
+}
+
+void Dbg::DbgThreadLifecycleCallback::ThreadDeath(Thread* self) {
+  Dbg::PostThreadDeath(self);
 }
 
 }  // namespace art
