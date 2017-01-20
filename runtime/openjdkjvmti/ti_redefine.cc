@@ -36,6 +36,7 @@
 #include "android-base/stringprintf.h"
 
 #include "art_jvmti.h"
+#include "base/array_slice.h"
 #include "base/logging.h"
 #include "dex_file.h"
 #include "dex_file_types.h"
@@ -228,11 +229,17 @@ std::unique_ptr<art::MemMap> Redefiner::MoveDataToMemMap(const std::string& orig
   return map;
 }
 
-Redefiner::ClassRedefinition::ClassRedefinition(Redefiner* driver,
-                                                jclass klass,
-                                                const art::DexFile* redefined_dex_file,
-                                                const char* class_sig) :
-      driver_(driver), klass_(klass), dex_file_(redefined_dex_file), class_sig_(class_sig) {
+Redefiner::ClassRedefinition::ClassRedefinition(
+    Redefiner* driver,
+    jclass klass,
+    const art::DexFile* redefined_dex_file,
+    const char* class_sig,
+    art::ArraySlice<const unsigned char> orig_dex_file) :
+      driver_(driver),
+      klass_(klass),
+      dex_file_(redefined_dex_file),
+      class_sig_(class_sig),
+      original_dex_file_(orig_dex_file) {
   GetMirrorClass()->MonitorEnter(driver_->self_);
 }
 
@@ -280,7 +287,9 @@ jvmtiError Redefiner::RedefineClasses(ArtJvmTiEnv* env,
     def.dex_len = definitions[i].class_byte_count;
     def.dex_data = MakeJvmtiUniquePtr(env, class_bytes_copy);
     // We are definitely modified.
-    def.modified = true;
+    def.SetModified();
+    def.original_dex_file = art::ArraySlice<const unsigned char>(definitions[i].class_bytes,
+                                                                 definitions[i].class_byte_count);
     res = Transformer::FillInTransformationData(env, definitions[i].klass, &def);
     if (res != OK) {
       return res;
@@ -313,12 +322,10 @@ jvmtiError Redefiner::RedefineClassesDirect(ArtJvmTiEnv* env,
   art::jit::ScopedJitSuspend suspend_jit;
   // Get shared mutator lock so we can lock all the classes.
   art::ScopedObjectAccess soa(self);
-  std::vector<Redefiner::ClassRedefinition> redefinitions;
-  redefinitions.reserve(definitions.size());
   Redefiner r(runtime, self, error_msg);
   for (const ArtClassDefinition& def : definitions) {
     // Only try to transform classes that have been modified.
-    if (def.modified) {
+    if (def.IsModified(self)) {
       jvmtiError res = r.AddRedefinition(env, def);
       if (res != OK) {
         return res;
@@ -371,7 +378,11 @@ jvmtiError Redefiner::AddRedefinition(ArtJvmTiEnv* env, const ArtClassDefinition
     return ERR(INVALID_CLASS_FORMAT);
   }
   redefinitions_.push_back(
-      Redefiner::ClassRedefinition(this, def.klass, dex_file.release(), signature_ptr));
+      Redefiner::ClassRedefinition(this,
+                                   def.klass,
+                                   dex_file.release(),
+                                   signature_ptr,
+                                   def.original_dex_file));
   return OK;
 }
 
@@ -509,44 +520,48 @@ void Redefiner::RecordFailure(jvmtiError result,
   result_ = result;
 }
 
-bool Redefiner::ClassRedefinition::FinishRemainingAllocations(
-    /*out*/art::MutableHandle<art::mirror::ClassLoader>* source_class_loader,
-    /*out*/art::MutableHandle<art::mirror::Object>* java_dex_file_obj,
-    /*out*/art::MutableHandle<art::mirror::LongArray>* new_dex_file_cookie,
-    /*out*/art::MutableHandle<art::mirror::DexCache>* new_dex_cache) {
-  art::StackHandleScope<4> hs(driver_->self_);
-  // This shouldn't allocate
-  art::Handle<art::mirror::ClassLoader> loader(hs.NewHandle(GetClassLoader()));
-  if (loader.Get() == nullptr) {
-    // TODO Better error msg.
-    RecordFailure(ERR(INTERNAL), "Unable to find class loader!");
-    return false;
+// Allocates a ByteArray big enough to store the given number of bytes and copies them from the
+// bytes pointer.
+static art::mirror::ByteArray* AllocateAndFillBytes(art::Thread* self,
+                                                    const uint8_t* bytes,
+                                                    int32_t num_bytes)
+    REQUIRES_SHARED(art::Locks::mutator_lock_) {
+  art::StackHandleScope<1> hs(self);
+  art::Handle<art::mirror::ByteArray> arr(hs.NewHandle(
+      art::mirror::ByteArray::Alloc(self, num_bytes)));
+  if (!arr.IsNull()) {
+    // Copy it in. Just skip if it's null
+    memcpy(arr->GetData(), bytes, num_bytes);
   }
-  art::Handle<art::mirror::Object> dex_file_obj(hs.NewHandle(FindSourceDexFileObject(loader)));
-  if (dex_file_obj.Get() == nullptr) {
-    // TODO Better error msg.
-    RecordFailure(ERR(INTERNAL), "Unable to find class loader!");
-    return false;
+  return arr.Get();
+}
+
+art::mirror::ByteArray* Redefiner::ClassRedefinition::AllocateOrGetOriginalDexFileBytes() {
+  // If we have been specifically given a new set of bytes use that
+  if (original_dex_file_.size() != 0) {
+    return AllocateAndFillBytes(driver_->self_,
+                                &original_dex_file_.At(0),
+                                original_dex_file_.size());
   }
-  art::Handle<art::mirror::LongArray> new_cookie(hs.NewHandle(AllocateDexFileCookie(dex_file_obj)));
-  if (new_cookie.Get() == nullptr) {
-    driver_->self_->AssertPendingOOMException();
-    driver_->self_->ClearException();
-    RecordFailure(ERR(OUT_OF_MEMORY), "Unable to allocate dex file array for class loader");
-    return false;
+
+  // See if we already have one set.
+  art::ObjPtr<art::mirror::ClassExt> ext(GetMirrorClass()->GetExtData());
+  if (!ext.IsNull()) {
+    art::ObjPtr<art::mirror::ByteArray> old_original_bytes(ext->GetOriginalDexFileBytes());
+    if (!old_original_bytes.IsNull()) {
+      // We do. Use it.
+      return old_original_bytes.Ptr();
+    }
   }
-  art::Handle<art::mirror::DexCache> dex_cache(hs.NewHandle(CreateNewDexCache(loader)));
-  if (dex_cache.Get() == nullptr) {
-    driver_->self_->AssertPendingOOMException();
-    driver_->self_->ClearException();
-    RecordFailure(ERR(OUT_OF_MEMORY), "Unable to allocate DexCache");
-    return false;
+
+  // Copy the current dex_file
+  const art::DexFile& current_dex_file = GetMirrorClass()->GetDexFile();
+  // TODO Handle this or make it so it cannot happen.
+  if (current_dex_file.NumClassDefs() != 1) {
+    LOG(WARNING) << "Current dex file has more than one class in it. Calling RetransformClasses "
+                 << "on this class might fail if no transformations are applied to it!";
   }
-  source_class_loader->Assign(loader.Get());
-  java_dex_file_obj->Assign(dex_file_obj.Get());
-  new_dex_file_cookie->Assign(new_cookie.Get());
-  new_dex_cache->Assign(dex_cache.Get());
-  return true;
+  return AllocateAndFillBytes(driver_->self_, current_dex_file.Begin(), current_dex_file.Size());
 }
 
 struct CallbackCtx {
@@ -741,9 +756,10 @@ class RedefinitionDataHolder {
     kSlotNewDexFileCookie = 2,
     kSlotNewDexCache = 3,
     kSlotMirrorClass = 4,
+    kSlotOrigDexFile = 5,
 
     // Must be last one.
-    kNumSlots = 5,
+    kNumSlots = 6,
   };
 
   // This needs to have a HandleScope passed in that is capable of creating a new Handle without
@@ -784,6 +800,11 @@ class RedefinitionDataHolder {
     return art::down_cast<art::mirror::Class*>(GetSlot(klass_index, kSlotMirrorClass));
   }
 
+  art::mirror::ByteArray* GetOriginalDexFileBytes(jint klass_index)
+      REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    return art::down_cast<art::mirror::ByteArray*>(GetSlot(klass_index, kSlotOrigDexFile));
+  }
+
   void SetSourceClassLoader(jint klass_index, art::mirror::ClassLoader* loader)
       REQUIRES_SHARED(art::Locks::mutator_lock_) {
     SetSlot(klass_index, kSlotSourceClassLoader, loader);
@@ -803,6 +824,10 @@ class RedefinitionDataHolder {
   void SetMirrorClass(jint klass_index, art::mirror::Class* klass)
       REQUIRES_SHARED(art::Locks::mutator_lock_) {
     SetSlot(klass_index, kSlotMirrorClass, klass);
+  }
+  void SetOriginalDexFileBytes(jint klass_index, art::mirror::ByteArray* bytes)
+      REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    SetSlot(klass_index, kSlotOrigDexFile, bytes);
   }
 
   int32_t Length() REQUIRES_SHARED(art::Locks::mutator_lock_) {
@@ -829,6 +854,51 @@ class RedefinitionDataHolder {
   DISALLOW_COPY_AND_ASSIGN(RedefinitionDataHolder);
 };
 
+bool Redefiner::ClassRedefinition::FinishRemainingAllocations(
+    int32_t klass_index, /*out*/RedefinitionDataHolder* holder) {
+  art::StackHandleScope<2> hs(driver_->self_);
+  holder->SetMirrorClass(klass_index, GetMirrorClass());
+  // This shouldn't allocate
+  art::Handle<art::mirror::ClassLoader> loader(hs.NewHandle(GetClassLoader()));
+  holder->SetSourceClassLoader(klass_index, loader.Get());
+  if (loader.Get() == nullptr) {
+    // TODO Better error msg.
+    RecordFailure(ERR(INTERNAL), "Unable to find class loader!");
+    return false;
+  }
+  art::Handle<art::mirror::Object> dex_file_obj(hs.NewHandle(FindSourceDexFileObject(loader)));
+  holder->SetJavaDexFile(klass_index, dex_file_obj.Get());
+  if (dex_file_obj.Get() == nullptr) {
+    // TODO Better error msg.
+    RecordFailure(ERR(INTERNAL), "Unable to find class loader!");
+    return false;
+  }
+  holder->SetNewDexFileCookie(klass_index, AllocateDexFileCookie(dex_file_obj));
+  if (holder->GetNewDexFileCookie(klass_index) == nullptr) {
+    driver_->self_->AssertPendingOOMException();
+    driver_->self_->ClearException();
+    RecordFailure(ERR(OUT_OF_MEMORY), "Unable to allocate dex file array for class loader");
+    return false;
+  }
+  holder->SetNewDexCache(klass_index, CreateNewDexCache(loader));
+  if (holder->GetNewDexCache(klass_index) == nullptr) {
+    driver_->self_->AssertPendingOOMException();
+    driver_->self_->ClearException();
+    RecordFailure(ERR(OUT_OF_MEMORY), "Unable to allocate DexCache");
+    return false;
+  }
+
+  // We won't always need to set this field.
+  holder->SetOriginalDexFileBytes(klass_index, AllocateOrGetOriginalDexFileBytes());
+  if (holder->GetOriginalDexFileBytes(klass_index) == nullptr) {
+    driver_->self_->AssertPendingOOMException();
+    driver_->self_->ClearException();
+    RecordFailure(ERR(OUT_OF_MEMORY), "Unable to allocate array for original dex file");
+    return false;
+  }
+  return true;
+}
+
 bool Redefiner::CheckAllRedefinitionAreValid() {
   for (Redefiner::ClassRedefinition& redef : redefinitions_) {
     if (!redef.CheckRedefinitionIsValid()) {
@@ -849,33 +919,11 @@ bool Redefiner::EnsureAllClassAllocationsFinished() {
 
 bool Redefiner::FinishAllRemainingAllocations(RedefinitionDataHolder& holder) {
   int32_t cnt = 0;
-  art::StackHandleScope<4> hs(self_);
-  art::MutableHandle<art::mirror::Object> java_dex_file(hs.NewHandle<art::mirror::Object>(nullptr));
-  art::MutableHandle<art::mirror::ClassLoader> source_class_loader(
-      hs.NewHandle<art::mirror::ClassLoader>(nullptr));
-  art::MutableHandle<art::mirror::LongArray> new_dex_file_cookie(
-      hs.NewHandle<art::mirror::LongArray>(nullptr));
-  art::MutableHandle<art::mirror::DexCache> new_dex_cache(
-      hs.NewHandle<art::mirror::DexCache>(nullptr));
   for (Redefiner::ClassRedefinition& redef : redefinitions_) {
-    // Reset the out pointers to null
-    source_class_loader.Assign(nullptr);
-    java_dex_file.Assign(nullptr);
-    new_dex_file_cookie.Assign(nullptr);
-    new_dex_cache.Assign(nullptr);
     // Allocate the data this redefinition requires.
-    if (!redef.FinishRemainingAllocations(&source_class_loader,
-                                          &java_dex_file,
-                                          &new_dex_file_cookie,
-                                          &new_dex_cache)) {
+    if (!redef.FinishRemainingAllocations(cnt, &holder)) {
       return false;
     }
-    // Save the allocated data into the holder.
-    holder.SetSourceClassLoader(cnt, source_class_loader.Get());
-    holder.SetJavaDexFile(cnt, java_dex_file.Get());
-    holder.SetNewDexFileCookie(cnt, new_dex_file_cookie.Get());
-    holder.SetNewDexCache(cnt, new_dex_cache.Get());
-    holder.SetMirrorClass(cnt, redef.GetMirrorClass());
     cnt++;
   }
   return true;
@@ -941,7 +989,7 @@ jvmtiError Redefiner::Run() {
     redef.UpdateJavaDexFile(holder.GetJavaDexFile(cnt), holder.GetNewDexFileCookie(cnt));
     // TODO Rewrite so we don't do a stack walk for each and every class.
     redef.FindAndAllocateObsoleteMethods(klass);
-    redef.UpdateClass(klass, holder.GetNewDexCache(cnt));
+    redef.UpdateClass(klass, holder.GetNewDexCache(cnt), holder.GetOriginalDexFileBytes(cnt));
     cnt++;
   }
   // Ensure that obsolete methods are deoptimized. This is needed since optimized methods may have
@@ -1034,8 +1082,10 @@ void Redefiner::ClassRedefinition::UpdateFields(art::ObjPtr<art::mirror::Class> 
 }
 
 // Performs updates to class that will allow us to verify it.
-void Redefiner::ClassRedefinition::UpdateClass(art::ObjPtr<art::mirror::Class> mclass,
-                                               art::ObjPtr<art::mirror::DexCache> new_dex_cache) {
+void Redefiner::ClassRedefinition::UpdateClass(
+    art::ObjPtr<art::mirror::Class> mclass,
+    art::ObjPtr<art::mirror::DexCache> new_dex_cache,
+    art::ObjPtr<art::mirror::ByteArray> original_dex_file) {
   DCHECK_EQ(dex_file_->NumClassDefs(), 1u);
   const art::DexFile::ClassDef& class_def = dex_file_->GetClassDef(0);
   UpdateMethods(mclass, new_dex_cache, class_def);
@@ -1047,6 +1097,9 @@ void Redefiner::ClassRedefinition::UpdateClass(art::ObjPtr<art::mirror::Class> m
   mclass->SetDexCache(new_dex_cache.Ptr());
   mclass->SetDexClassDefIndex(dex_file_->GetIndexForClassDef(class_def));
   mclass->SetDexTypeIndex(dex_file_->GetIndexForTypeId(*dex_file_->FindTypeId(class_sig_.c_str())));
+  art::ObjPtr<art::mirror::ClassExt> ext(mclass->GetExtData());
+  CHECK(!ext.IsNull());
+  ext->SetOriginalDexFileBytes(original_dex_file);
 }
 
 void Redefiner::ClassRedefinition::UpdateJavaDexFile(

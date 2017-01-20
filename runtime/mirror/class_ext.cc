@@ -113,6 +113,11 @@ void ClassExt::SetVerifyError(ObjPtr<Object> err) {
   }
 }
 
+void ClassExt::SetOriginalDexFileBytes(ObjPtr<ByteArray> bytes) {
+  DCHECK(!Runtime::Current()->IsActiveTransaction());
+  SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(ClassExt, original_dex_file_bytes_), bytes);
+}
+
 void ClassExt::SetClass(ObjPtr<Class> dalvik_system_ClassExt) {
   CHECK(dalvik_system_ClassExt != nullptr);
   dalvik_system_ClassExt_ = GcRoot<Class>(dalvik_system_ClassExt);

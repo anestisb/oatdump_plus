@@ -36,6 +36,7 @@
 
 #include <jni.h>
 
+#include "base/array_slice.h"
 #include "base/casts.h"
 #include "base/logging.h"
 #include "base/macros.h"
@@ -124,29 +125,6 @@ static inline jvmtiError CopyString(jvmtiEnv* env, const char* src, unsigned cha
   *copy = buf;
   return ret;
 }
-
-struct ArtClassDefinition {
-  jclass klass;
-  jobject loader;
-  std::string name;
-  jobject protection_domain;
-  jint dex_len;
-  JvmtiUniquePtr dex_data;
-  bool modified;
-
-  ArtClassDefinition() = default;
-  ArtClassDefinition(ArtClassDefinition&& o) = default;
-
-  void SetNewDexData(ArtJvmTiEnv* env, jint new_dex_len, unsigned char* new_dex_data) {
-    if (new_dex_data == nullptr) {
-      return;
-    } else if (new_dex_data != dex_data.get() || new_dex_len != dex_len) {
-      modified = true;
-      dex_len = new_dex_len;
-      dex_data = MakeJvmtiUniquePtr(env, new_dex_data);
-    }
-  }
-};
 
 const jvmtiCapabilities kPotentialCapabilities = {
     .can_tag_objects                                 = 1,

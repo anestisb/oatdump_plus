@@ -1,4 +1,4 @@
-/* Copyright (C) 2016 The Android Open Source Project
+/* Copyright (C) 2017 The Android Open Source Project
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This file implements interfaces from the file jvmti.h. This implementation
@@ -29,47 +29,49 @@
  * questions.
  */
 
-#ifndef ART_RUNTIME_OPENJDKJVMTI_TRANSFORM_H_
-#define ART_RUNTIME_OPENJDKJVMTI_TRANSFORM_H_
-
-#include <string>
-
-#include <jni.h>
+#ifndef ART_RUNTIME_OPENJDKJVMTI_TI_CLASS_DEFINITION_H_
+#define ART_RUNTIME_OPENJDKJVMTI_TI_CLASS_DEFINITION_H_
 
 #include "art_jvmti.h"
-#include "ti_class_definition.h"
-#include "jvmti.h"
 
 namespace openjdkjvmti {
 
-jvmtiError GetClassLocation(ArtJvmTiEnv* env, jclass klass, /*out*/std::string* location);
-
-class Transformer {
+// A struct that stores data needed for redefining/transforming classes. This structure should only
+// even be accessed from a single thread and must not survive past the completion of the
+// redefinition/retransformation function that created it.
+struct ArtClassDefinition {
  public:
-  static jvmtiError RetransformClassesDirect(
-      ArtJvmTiEnv* env, art::Thread* self, /*in-out*/std::vector<ArtClassDefinition>* definitions);
+  jclass klass;
+  jobject loader;
+  std::string name;
+  jobject protection_domain;
+  jint dex_len;
+  JvmtiUniquePtr dex_data;
+  art::ArraySlice<const unsigned char> original_dex_file;
 
-  static jvmtiError RetransformClasses(ArtJvmTiEnv* env,
-                                       art::Runtime* runtime,
-                                       art::Thread* self,
-                                       jint class_count,
-                                       const jclass* classes,
-                                       /*out*/std::string* error_msg);
+  ArtClassDefinition() = default;
+  ArtClassDefinition(ArtClassDefinition&& o) = default;
 
-  // Gets the data surrounding the given class.
-  static jvmtiError FillInTransformationData(ArtJvmTiEnv* env,
-                                             jclass klass,
-                                             ArtClassDefinition* def);
+  void SetNewDexData(ArtJvmTiEnv* env, jint new_dex_len, unsigned char* new_dex_data) {
+    if (new_dex_data == nullptr) {
+      return;
+    } else if (new_dex_data != dex_data.get() || new_dex_len != dex_len) {
+      SetModified();
+      dex_len = new_dex_len;
+      dex_data = MakeJvmtiUniquePtr(env, new_dex_data);
+    }
+  }
+
+  void SetModified() {
+    modified = true;
+  }
+
+  bool IsModified(art::Thread* self) const REQUIRES_SHARED(art::Locks::mutator_lock_);
 
  private:
-  static jvmtiError GetDexDataForRetransformation(ArtJvmTiEnv* env,
-                                                  art::Handle<art::mirror::Class> klass,
-                                                  /*out*/jint* dex_data_length,
-                                                  /*out*/unsigned char** dex_data)
-      REQUIRES_SHARED(art::Locks::mutator_lock_);
+  bool modified;
 };
 
 }  // namespace openjdkjvmti
 
-#endif  // ART_RUNTIME_OPENJDKJVMTI_TRANSFORM_H_
-
+#endif  // ART_RUNTIME_OPENJDKJVMTI_TI_CLASS_DEFINITION_H_
