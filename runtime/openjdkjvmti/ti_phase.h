@@ -37,11 +37,13 @@
 
 namespace openjdkjvmti {
 
+class EventHandler;
+
 class PhaseUtil {
  public:
   static jvmtiError GetPhase(jvmtiEnv* env, jvmtiPhase* phase_ptr);
 
-  static void Register();
+  static void Register(EventHandler* event_handler);
 
   // Move the phase from unitialized to LOAD.
   static void SetToOnLoad();
