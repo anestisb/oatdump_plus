@@ -50,6 +50,7 @@ public class Options {
   public static String deviceName = "";
   public static boolean usingSpecificDevice = false;
   public static int repeat = 1;
+  public static int divergenceRetry = 10;
   public static String executeDirectory = "/data/art-test";
   public static String androidRoot = "";
   public static String dumpMutationsFile = "mutations.dump";
@@ -118,6 +119,8 @@ public class Options {
     Log.always("    --repeat=<n>         : Fuzz N programs, executing each one.");
     Log.always("    --short-timeouts     : Shorten timeouts (faster; use if");
     Log.always("                           you want to focus on output divergences)");
+    Log.always("    --divergence-retry=<n> : Number of retries when checking if test is");
+    Log.always("                           self-divergent. (Default: 10)");
     Log.always("  --seed=<seed>          : RNG seed to use");
     Log.always("  --method-mutations=<n> : Maximum number of mutations to perform on each method.");
     Log.always("                           (Default: 3)");
@@ -239,6 +242,8 @@ public class Options {
       maxMethods = Integer.parseInt(value);
     } else if (key.equals("repeat")) {
       repeat = Integer.parseInt(value);
+    } else if (key.equals("divergence-retry")) {
+      divergenceRetry = Integer.parseInt(value);
     } else if (key.equals("log")) {
       Log.setLoggingLevel(LogTag.valueOf(value.toUpperCase()));
     } else if (key.equals("likelihoods")) {
@@ -358,6 +363,10 @@ public class Options {
     // Now check for hard failures.
     if (repeat < 1) {
       Log.error("--repeat must be at least 1!");
+      return false;
+    }
+    if (divergenceRetry < 0) {
+      Log.error("--divergence-retry cannot be negative!");
       return false;
     }
     if (usingProvidedSeed && repeat > 1) {
