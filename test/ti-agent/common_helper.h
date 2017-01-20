@@ -71,6 +71,12 @@ void SetAllCapabilities(jvmtiEnv* env);
 
 bool JvmtiErrorToException(JNIEnv* env, jvmtiError error);
 
+// Load the class through JNI. Inspect it, find all native methods. Construct the corresponding
+// mangled name, run dlsym and bind the method.
+//
+// This will abort on failure.
+void BindFunctions(jvmtiEnv* jvmti_env, JNIEnv* env, const char* class_name);
+
 }  // namespace art
 
 #endif  // ART_TEST_TI_AGENT_COMMON_HELPER_H_
