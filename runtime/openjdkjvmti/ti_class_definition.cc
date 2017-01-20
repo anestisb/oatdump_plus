@@ -29,47 +29,27 @@
  * questions.
  */
 
-#ifndef ART_RUNTIME_OPENJDKJVMTI_TRANSFORM_H_
-#define ART_RUNTIME_OPENJDKJVMTI_TRANSFORM_H_
-
-#include <string>
-
-#include <jni.h>
-
-#include "art_jvmti.h"
 #include "ti_class_definition.h"
-#include "jvmti.h"
+
+#include "dex_file.h"
+#include "handle_scope-inl.h"
+#include "handle.h"
+#include "mirror/class-inl.h"
+#include "mirror/object-inl.h"
+#include "thread.h"
 
 namespace openjdkjvmti {
 
-jvmtiError GetClassLocation(ArtJvmTiEnv* env, jclass klass, /*out*/std::string* location);
-
-class Transformer {
- public:
-  static jvmtiError RetransformClassesDirect(
-      ArtJvmTiEnv* env, art::Thread* self, /*in-out*/std::vector<ArtClassDefinition>* definitions);
-
-  static jvmtiError RetransformClasses(ArtJvmTiEnv* env,
-                                       art::Runtime* runtime,
-                                       art::Thread* self,
-                                       jint class_count,
-                                       const jclass* classes,
-                                       /*out*/std::string* error_msg);
-
-  // Gets the data surrounding the given class.
-  static jvmtiError FillInTransformationData(ArtJvmTiEnv* env,
-                                             jclass klass,
-                                             ArtClassDefinition* def);
-
- private:
-  static jvmtiError GetDexDataForRetransformation(ArtJvmTiEnv* env,
-                                                  art::Handle<art::mirror::Class> klass,
-                                                  /*out*/jint* dex_data_length,
-                                                  /*out*/unsigned char** dex_data)
-      REQUIRES_SHARED(art::Locks::mutator_lock_);
-};
+bool ArtClassDefinition::IsModified(art::Thread* self) const {
+  if (modified) {
+    return true;
+  }
+  // Check if the dex file we want to set is the same as the current one.
+  art::StackHandleScope<1> hs(self);
+  art::Handle<art::mirror::Class> h_klass(hs.NewHandle(self->DecodeJObject(klass)->AsClass()));
+  const art::DexFile& cur_dex_file = h_klass->GetDexFile();
+  return static_cast<jint>(cur_dex_file.Size()) != dex_len ||
+      memcmp(cur_dex_file.Begin(), dex_data.get(), dex_len) != 0;
+}
 
 }  // namespace openjdkjvmti
-
-#endif  // ART_RUNTIME_OPENJDKJVMTI_TRANSFORM_H_
-

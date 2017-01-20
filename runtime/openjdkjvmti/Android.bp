@@ -21,6 +21,7 @@ cc_defaults {
            "object_tagging.cc",
            "OpenjdkJvmTi.cc",
            "ti_class.cc",
+           "ti_class_definition.cc",
            "ti_field.cc",
            "ti_heap.cc",
            "ti_jni.cc",
