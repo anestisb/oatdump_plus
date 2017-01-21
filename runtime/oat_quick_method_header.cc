@@ -80,7 +80,7 @@ uintptr_t OatQuickMethodHeader::ToNativeQuickPc(ArtMethod* method,
                                    : code_info.GetStackMapForDexPc(dex_pc, encoding);
   if (stack_map.IsValid()) {
     return reinterpret_cast<uintptr_t>(entry_point) +
-           stack_map.GetNativePcOffset(encoding.stack_map_encoding);
+           stack_map.GetNativePcOffset(encoding.stack_map_encoding, kRuntimeISA);
   }
   if (abort_on_failure) {
     ScopedObjectAccess soa(Thread::Current());
