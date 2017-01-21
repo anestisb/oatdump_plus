@@ -55,7 +55,6 @@ public class Main {
     "AAIgAAAMAAAAXAEAAAMgAAACAAAA4QEAAAAgAAABAAAA8AEAAAAQAAABAAAABAIAAA==");
 
   public static void main(String[] args) {
-    System.loadLibrary(args[1]);
     doTest(new Transform("Hello", "Goodbye"),
            new Transform("start", "end"));
   }

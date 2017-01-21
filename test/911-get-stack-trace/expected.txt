@@ -22,7 +22,7 @@ From top
  bar (IIILControlData;)J 0 24
  foo (IIILControlData;)I 0 19
  doTest ()V 38 23
- main ([Ljava/lang/String;)V 6 21
+ main ([Ljava/lang/String;)V 3 21
 ---------
  print (Ljava/lang/Thread;II)V 0 34
  printOrWait (IILControlData;)V 6 39
@@ -42,7 +42,7 @@ From top
  bar (IIILControlData;)J 0 24
  foo (IIILControlData;)I 0 19
  doTest ()V 42 24
- main ([Ljava/lang/String;)V 6 21
+ main ([Ljava/lang/String;)V 3 21
 ---------
  getStackTrace (Ljava/lang/Thread;II)[[Ljava/lang/String; -1 -2
  print (Ljava/lang/Thread;II)V 0 34
@@ -57,13 +57,13 @@ From top
  baz (IIILControlData;)Ljava/lang/Object; 9 32
 From bottom
 ---------
- main ([Ljava/lang/String;)V 6 21
+ main ([Ljava/lang/String;)V 3 21
 ---------
  baz (IIILControlData;)Ljava/lang/Object; 9 32
  bar (IIILControlData;)J 0 24
  foo (IIILControlData;)I 0 19
  doTest ()V 65 30
- main ([Ljava/lang/String;)V 6 21
+ main ([Ljava/lang/String;)V 3 21
 ---------
  bar (IIILControlData;)J 0 24
  foo (IIILControlData;)I 0 19
@@ -358,7 +358,7 @@ main
  getAllStackTraces (I)[[Ljava/lang/Object; -1 -2
  printAll (I)V 0 73
  doTest ()V 102 57
- main ([Ljava/lang/String;)V 30 33
+ main ([Ljava/lang/String;)V 27 33
 
 ---------
 FinalizerDaemon
@@ -590,7 +590,7 @@ main
  getAllStackTraces (I)[[Ljava/lang/Object; -1 -2
  printAll (I)V 0 73
  doTest ()V 107 59
- main ([Ljava/lang/String;)V 30 33
+ main ([Ljava/lang/String;)V 27 33
 
 
 ########################################
@@ -659,7 +659,7 @@ main
  getThreadListStackTraces ([Ljava/lang/Thread;I)[[Ljava/lang/Object; -1 -2
  printList ([Ljava/lang/Thread;I)V 0 66
  doTest ()V 96 52
- main ([Ljava/lang/String;)V 38 37
+ main ([Ljava/lang/String;)V 35 37
 
 ---------
 Thread-14
@@ -771,7 +771,7 @@ main
  getThreadListStackTraces ([Ljava/lang/Thread;I)[[Ljava/lang/Object; -1 -2
  printList ([Ljava/lang/Thread;I)V 0 66
  doTest ()V 101 54
- main ([Ljava/lang/String;)V 38 37
+ main ([Ljava/lang/String;)V 35 37
 
 
 ###################
@@ -782,7 +782,7 @@ JVMTI_ERROR_ILLEGAL_ARGUMENT
 [public static native java.lang.Object[] Frames.getFrameLocation(java.lang.Thread,int), ffffffff]
 [public static void Frames.doTestSameThread(), 38]
 [public static void Frames.doTest() throws java.lang.Exception, 0]
-[public static void Main.main(java.lang.String[]) throws java.lang.Exception, 2e]
+[public static void Main.main(java.lang.String[]) throws java.lang.Exception, 2b]
 JVMTI_ERROR_NO_MORE_FRAMES
 
 ################################
