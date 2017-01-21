@@ -92,7 +92,8 @@ std::vector<VariableLocation> GetVariableLocations(
     bool is64bitValue,
     uint64_t compilation_unit_code_address,
     uint32_t dex_pc_low,
-    uint32_t dex_pc_high) {
+    uint32_t dex_pc_high,
+    InstructionSet isa) {
   std::vector<VariableLocation> variable_locations;
 
   // Get stack maps sorted by pc (they might not be sorted internally).
@@ -111,7 +112,7 @@ std::vector<VariableLocation> GetVariableLocations(
       // The main reason for this is to save space by avoiding undefined gaps.
       continue;
     }
-    const uint32_t pc_offset = stack_map.GetNativePcOffset(encoding.stack_map_encoding);
+    const uint32_t pc_offset = stack_map.GetNativePcOffset(encoding.stack_map_encoding, isa);
     DCHECK_LE(pc_offset, method_info->code_size);
     DCHECK_LE(compilation_unit_code_address, method_info->code_address);
     const uint32_t low_pc = dchecked_integral_cast<uint32_t>(
@@ -196,7 +197,8 @@ static void WriteDebugLocEntry(const MethodDebugInfo* method_info,
       is64bitValue,
       compilation_unit_code_address,
       dex_pc_low,
-      dex_pc_high);
+      dex_pc_high,
+      isa);
 
   // Write .debug_loc entries.
   dwarf::Writer<> debug_loc(debug_loc_buffer);

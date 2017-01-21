@@ -116,7 +116,8 @@ void InlineInfoEncoding::Dump(VariableIndentationOutputStream* vios) const {
 void CodeInfo::Dump(VariableIndentationOutputStream* vios,
                     uint32_t code_offset,
                     uint16_t number_of_dex_registers,
-                    bool dump_stack_maps) const {
+                    bool dump_stack_maps,
+                    InstructionSet instruction_set) const {
   CodeInfoEncoding encoding = ExtractEncoding();
   size_t number_of_stack_maps = GetNumberOfStackMaps(encoding);
   vios->Stream()
@@ -139,6 +140,7 @@ void CodeInfo::Dump(VariableIndentationOutputStream* vios,
                      encoding,
                      code_offset,
                      number_of_dex_registers,
+                     instruction_set,
                      " " + std::to_string(i));
     }
   }
@@ -188,14 +190,16 @@ void StackMap::Dump(VariableIndentationOutputStream* vios,
                     const CodeInfoEncoding& encoding,
                     uint32_t code_offset,
                     uint16_t number_of_dex_registers,
+                    InstructionSet instruction_set,
                     const std::string& header_suffix) const {
   StackMapEncoding stack_map_encoding = encoding.stack_map_encoding;
+  const uint32_t pc_offset = GetNativePcOffset(stack_map_encoding, instruction_set);
   vios->Stream()
       << "StackMap" << header_suffix
       << std::hex
-      << " [native_pc=0x" << code_offset + GetNativePcOffset(stack_map_encoding) << "]"
+      << " [native_pc=0x" << code_offset + pc_offset << "]"
       << " (dex_pc=0x" << GetDexPc(stack_map_encoding)
-      << ", native_pc_offset=0x" << GetNativePcOffset(stack_map_encoding)
+      << ", native_pc_offset=0x" << pc_offset
       << ", dex_register_map_offset=0x" << GetDexRegisterMapOffset(stack_map_encoding)
       << ", inline_info_offset=0x" << GetInlineDescriptorOffset(stack_map_encoding)
       << ", register_mask=0x" << GetRegisterMask(stack_map_encoding)

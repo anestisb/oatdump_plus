@@ -59,8 +59,10 @@ class DexRegisterLocationHashFn {
  */
 class StackMapStream : public ValueObject {
  public:
-  explicit StackMapStream(ArenaAllocator* allocator)
+  explicit StackMapStream(ArenaAllocator* allocator,
+                          InstructionSet instruction_set)
       : allocator_(allocator),
+        instruction_set_(instruction_set),
         stack_maps_(allocator->Adapter(kArenaAllocStackMapStream)),
         location_catalog_entries_(allocator->Adapter(kArenaAllocStackMapStream)),
         location_catalog_entries_indices_(allocator->Adapter(kArenaAllocStackMapStream)),
@@ -95,7 +97,7 @@ class StackMapStream : public ValueObject {
   // See runtime/stack_map.h to know what these fields contain.
   struct StackMapEntry {
     uint32_t dex_pc;
-    uint32_t native_pc_offset;
+    CodeOffset native_pc_code_offset;
     uint32_t register_mask;
     BitVector* sp_mask;
     uint32_t num_dex_registers;
@@ -141,10 +143,8 @@ class StackMapStream : public ValueObject {
   }
 
   void SetStackMapNativePcOffset(size_t i, uint32_t native_pc_offset) {
-    stack_maps_[i].native_pc_offset = native_pc_offset;
+    stack_maps_[i].native_pc_code_offset = CodeOffset::FromOffset(native_pc_offset, instruction_set_);
   }
-
-  uint32_t ComputeMaxNativePcOffset() const;
 
   // Prepares the stream to fill in a memory region. Must be called before FillIn.
   // Returns the size (in bytes) needed to store this stream.
@@ -157,6 +157,8 @@ class StackMapStream : public ValueObject {
                                    const BitVector* live_dex_registers_mask) const;
   size_t ComputeDexRegisterMapsSize() const;
   void ComputeInlineInfoEncoding();
+
+  CodeOffset ComputeMaxNativePcCodeOffset() const;
 
   // Returns the index of an entry with the same dex register map as the current_entry,
   // or kNoSameDexMapFound if no such entry exists.
@@ -175,6 +177,7 @@ class StackMapStream : public ValueObject {
   void CheckCodeInfo(MemoryRegion region) const;
 
   ArenaAllocator* allocator_;
+  const InstructionSet instruction_set_;
   ArenaVector<StackMapEntry> stack_maps_;
 
   // A catalog of unique [location_kind, register_value] pairs (per method).

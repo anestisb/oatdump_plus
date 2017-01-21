@@ -31,7 +31,7 @@ void StackMapStream::BeginStackMapEntry(uint32_t dex_pc,
   DCHECK_EQ(0u, current_entry_.dex_pc) << "EndStackMapEntry not called after BeginStackMapEntry";
   DCHECK_NE(dex_pc, static_cast<uint32_t>(-1)) << "invalid dex_pc";
   current_entry_.dex_pc = dex_pc;
-  current_entry_.native_pc_offset = native_pc_offset;
+  current_entry_.native_pc_code_offset = CodeOffset::FromOffset(native_pc_offset, instruction_set_);
   current_entry_.register_mask = register_mask;
   current_entry_.sp_mask = sp_mask;
   current_entry_.num_dex_registers = num_dex_registers;
@@ -144,10 +144,10 @@ void StackMapStream::EndInlineInfoEntry() {
   current_inline_info_ = InlineInfoEntry();
 }
 
-uint32_t StackMapStream::ComputeMaxNativePcOffset() const {
-  uint32_t max_native_pc_offset = 0u;
+CodeOffset StackMapStream::ComputeMaxNativePcCodeOffset() const {
+  CodeOffset max_native_pc_offset;
   for (const StackMapEntry& entry : stack_maps_) {
-    max_native_pc_offset = std::max(max_native_pc_offset, entry.native_pc_offset);
+    max_native_pc_offset = std::max(max_native_pc_offset, entry.native_pc_code_offset);
   }
   return max_native_pc_offset;
 }
@@ -157,8 +157,9 @@ size_t StackMapStream::PrepareForFillIn() {
   dex_register_maps_size_ = ComputeDexRegisterMapsSize();
   ComputeInlineInfoEncoding();  // needs dex_register_maps_size_.
   inline_info_size_ = inline_infos_.size() * inline_info_encoding_.GetEntrySize();
-  uint32_t max_native_pc_offset = ComputeMaxNativePcOffset();
-  size_t stack_map_size = stack_map_encoding_.SetFromSizes(max_native_pc_offset,
+  CodeOffset max_native_pc_offset = ComputeMaxNativePcCodeOffset();
+  // The stack map contains compressed native offsets.
+  size_t stack_map_size = stack_map_encoding_.SetFromSizes(max_native_pc_offset.CompressedValue(),
                                                            dex_pc_max_,
                                                            dex_register_maps_size_,
                                                            inline_info_size_,
@@ -319,7 +320,7 @@ void StackMapStream::FillIn(MemoryRegion region) {
     StackMapEntry entry = stack_maps_[i];
 
     stack_map.SetDexPc(stack_map_encoding_, entry.dex_pc);
-    stack_map.SetNativePcOffset(stack_map_encoding_, entry.native_pc_offset);
+    stack_map.SetNativePcCodeOffset(stack_map_encoding_, entry.native_pc_code_offset);
     stack_map.SetRegisterMask(stack_map_encoding_, entry.register_mask);
     size_t number_of_stack_mask_bits = stack_map.GetNumberOfStackMaskBits(stack_map_encoding_);
     if (entry.sp_mask != nullptr) {
@@ -546,7 +547,8 @@ void StackMapStream::CheckCodeInfo(MemoryRegion region) const {
     StackMapEntry entry = stack_maps_[s];
 
     // Check main stack map fields.
-    DCHECK_EQ(stack_map.GetNativePcOffset(stack_map_encoding), entry.native_pc_offset);
+    DCHECK_EQ(stack_map.GetNativePcOffset(stack_map_encoding, instruction_set_),
+              entry.native_pc_code_offset.Uint32Value(instruction_set_));
     DCHECK_EQ(stack_map.GetDexPc(stack_map_encoding), entry.dex_pc);
     DCHECK_EQ(stack_map.GetRegisterMask(stack_map_encoding), entry.register_mask);
     size_t num_stack_mask_bits = stack_map.GetNumberOfStackMaskBits(stack_map_encoding);
