@@ -34,6 +34,14 @@ namespace Test911GetStackTrace {
 
 using android::base::StringPrintf;
 
+extern "C" JNIEXPORT void JNICALL Java_Main_bindTest911Classes(
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
+  BindFunctions(jvmti_env, env, "AllTraces");
+  BindFunctions(jvmti_env, env, "Frames");
+  BindFunctions(jvmti_env, env, "PrintThread");
+  BindFunctions(jvmti_env, env, "ThreadListTraces");
+}
+
 static jint FindLineNumber(jint line_number_count,
                            jvmtiLineNumberEntry* line_number_table,
                            jlocation location) {
