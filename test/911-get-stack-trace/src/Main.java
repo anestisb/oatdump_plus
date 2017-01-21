@@ -16,7 +16,7 @@
 
 public class Main {
   public static void main(String[] args) throws Exception {
-    System.loadLibrary(args[1]);
+    bindTest911Classes();
 
     SameThread.doTest();
 
@@ -42,4 +42,6 @@ public class Main {
 
     System.out.println("Done");
   }
+
+  private static native void bindTest911Classes();
 }

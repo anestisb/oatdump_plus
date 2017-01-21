@@ -16,8 +16,6 @@
 
 public class Main {
   public static void main(String[] args) throws Exception {
-    System.loadLibrary(args[1]);
-
     doJNITableTest();
 
     System.out.println("Done");
