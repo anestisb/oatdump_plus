@@ -113,7 +113,6 @@ public class Main {
   }
 
   public static void main(String[] args) {
-    System.loadLibrary(args[1]);
     doTest(new Transform(), new TestWatcher());
   }
 
