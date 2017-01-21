@@ -61,7 +61,7 @@ class ExceptionTest : public CommonRuntimeTest {
 
     ArenaPool pool;
     ArenaAllocator allocator(&pool);
-    StackMapStream stack_maps(&allocator);
+    StackMapStream stack_maps(&allocator, kRuntimeISA);
     stack_maps.BeginStackMapEntry(/* dex_pc */ 3u,
                                   /* native_pc_offset */ 3u,
                                   /* register_mask */ 0u,

@@ -75,6 +75,14 @@ static constexpr size_t kMipsAlignment = 8;
 // X86 instruction alignment. This is the recommended alignment for maximum performance.
 static constexpr size_t kX86Alignment = 16;
 
+// Different than code alignment since code alignment is only first instruction of method.
+static constexpr size_t kThumb2InstructionAlignment = 2;
+static constexpr size_t kArm64InstructionAlignment = 4;
+static constexpr size_t kX86InstructionAlignment = 1;
+static constexpr size_t kX86_64InstructionAlignment = 1;
+static constexpr size_t kMipsInstructionAlignment = 2;
+static constexpr size_t kMips64InstructionAlignment = 2;
+
 const char* GetInstructionSetString(InstructionSet isa);
 
 // Note: Returns kNone when the string cannot be parsed to a known value.
@@ -104,6 +112,17 @@ static inline PointerSize GetInstructionSetPointerSize(InstructionSet isa) {
     default:
       InstructionSetAbort(isa);
   }
+}
+
+ALWAYS_INLINE static inline constexpr size_t GetInstructionSetInstructionAlignment(
+    InstructionSet isa) {
+  return (isa == kThumb2 || isa == kArm) ? kThumb2InstructionAlignment :
+         (isa == kArm64) ? kArm64InstructionAlignment :
+         (isa == kX86) ? kX86InstructionAlignment :
+         (isa == kX86_64) ? kX86_64InstructionAlignment :
+         (isa == kMips) ? kMipsInstructionAlignment :
+         (isa == kMips64) ? kMips64InstructionAlignment :
+         0;  // Invalid case, but constexpr doesn't support asserts.
 }
 
 static inline bool IsValidInstructionSet(InstructionSet isa) {

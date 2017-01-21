@@ -1239,7 +1239,8 @@ void CodeGeneratorARM::Finalize(CodeAllocator* allocator) {
 
   // Adjust native pc offsets in stack maps.
   for (size_t i = 0, num = stack_map_stream_.GetNumberOfStackMaps(); i != num; ++i) {
-    uint32_t old_position = stack_map_stream_.GetStackMap(i).native_pc_offset;
+    uint32_t old_position =
+        stack_map_stream_.GetStackMap(i).native_pc_code_offset.Uint32Value(kThumb2);
     uint32_t new_position = __ GetAdjustedPosition(old_position);
     stack_map_stream_.SetStackMapNativePcOffset(i, new_position);
   }
