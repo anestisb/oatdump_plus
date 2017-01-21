@@ -64,6 +64,7 @@ struct ThreadCallback : public art::ThreadLifecycleCallback, public art::Runtime
   void Post(art::Thread* self, ArtJvmtiEvent type) REQUIRES_SHARED(art::Locks::mutator_lock_) {
     DCHECK_EQ(self, art::Thread::Current());
     ScopedLocalRef<jthread> thread(self->GetJniEnv(), GetThreadObject(self));
+    art::ScopedThreadSuspension sts(self, art::ThreadState::kNative);
     event_handler->DispatchEvent(self, type, self->GetJniEnv(), thread.get());
   }
 

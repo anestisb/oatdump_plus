@@ -55,19 +55,23 @@ struct PhaseUtil::PhaseCallback : public art::RuntimePhaseCallback {
     return soa.AddLocalReference<jthread>(soa.Self()->GetPeer());
   }
 
-  void NextRuntimePhase(RuntimePhase phase) OVERRIDE {
+  void NextRuntimePhase(RuntimePhase phase) REQUIRES_SHARED(art::Locks::mutator_lock_) OVERRIDE {
     // TODO: Events.
     switch (phase) {
       case RuntimePhase::kInitialAgents:
         PhaseUtil::current_phase_ = JVMTI_PHASE_PRIMORDIAL;
         break;
       case RuntimePhase::kStart:
-        event_handler->DispatchEvent(nullptr, ArtJvmtiEvent::kVmStart, GetJniEnv());
-        PhaseUtil::current_phase_ = JVMTI_PHASE_START;
+        {
+          art::ScopedThreadSuspension sts(art::Thread::Current(), art::ThreadState::kNative);
+          event_handler->DispatchEvent(nullptr, ArtJvmtiEvent::kVmStart, GetJniEnv());
+          PhaseUtil::current_phase_ = JVMTI_PHASE_START;
+        }
         break;
       case RuntimePhase::kInit:
         {
           ScopedLocalRef<jthread> thread(GetJniEnv(), GetCurrentJThread());
+          art::ScopedThreadSuspension sts(art::Thread::Current(), art::ThreadState::kNative);
           event_handler->DispatchEvent(nullptr,
                                        ArtJvmtiEvent::kVmInit,
                                        GetJniEnv(),
@@ -76,8 +80,11 @@ struct PhaseUtil::PhaseCallback : public art::RuntimePhaseCallback {
         }
         break;
       case RuntimePhase::kDeath:
-        event_handler->DispatchEvent(nullptr, ArtJvmtiEvent::kVmDeath, GetJniEnv());
-        PhaseUtil::current_phase_ = JVMTI_PHASE_DEAD;
+        {
+          art::ScopedThreadSuspension sts(art::Thread::Current(), art::ThreadState::kNative);
+          event_handler->DispatchEvent(nullptr, ArtJvmtiEvent::kVmDeath, GetJniEnv());
+          PhaseUtil::current_phase_ = JVMTI_PHASE_DEAD;
+        }
         // TODO: Block events now.
         break;
     }
