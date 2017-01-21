@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "common_load.h"
+
 #include <jni.h>
 #include <stdio.h>
 // TODO I don't know?
@@ -22,7 +24,6 @@
 #include "art_method-inl.h"
 #include "base/logging.h"
 #include "base/macros.h"
-#include "common_load.h"
 #include "common_helper.h"
 
 #include "901-hello-ti-agent/basics.h"
@@ -31,6 +32,8 @@
 namespace art {
 
 jvmtiEnv* jvmti_env;
+
+namespace {
 
 using OnLoad   = jint (*)(JavaVM* vm, char* options, void* reserved);
 using OnAttach = jint (*)(JavaVM* vm, char* options, void* reserved);
@@ -41,11 +44,50 @@ struct AgentLib {
   OnAttach attach;
 };
 
+static void JNICALL VMInitCallback(jvmtiEnv *jvmti_env,
+                                   JNIEnv* jni_env,
+                                   jthread thread ATTRIBUTE_UNUSED) {
+  // Bind Main native methods.
+  BindFunctions(jvmti_env, jni_env, "Main");
+}
+
+// Install a phase callback that will bind JNI functions on VMInit.
+bool InstallBindCallback(JavaVM* vm) {
+  // Use a new jvmtiEnv. Otherwise we might collide with table changes.
+  jvmtiEnv* install_env;
+  if (vm->GetEnv(reinterpret_cast<void**>(&install_env), JVMTI_VERSION_1_0) != 0) {
+    return false;
+  }
+  SetAllCapabilities(install_env);
+
+  {
+    jvmtiEventCallbacks callbacks;
+    memset(&callbacks, 0, sizeof(jvmtiEventCallbacks));
+    callbacks.VMInit = VMInitCallback;
+
+    jvmtiError install_error = install_env->SetEventCallbacks(&callbacks, sizeof(callbacks));
+    if (install_error != JVMTI_ERROR_NONE) {
+      return false;
+    }
+  }
+
+  {
+    jvmtiError enable_error = install_env->SetEventNotificationMode(JVMTI_ENABLE,
+                                                                    JVMTI_EVENT_VM_INIT,
+                                                                    nullptr);
+    if (enable_error != JVMTI_ERROR_NONE) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 // A trivial OnLoad implementation that only initializes the global jvmti_env.
 static jint MinimalOnLoad(JavaVM* vm,
                           char* options ATTRIBUTE_UNUSED,
                           void* reserved ATTRIBUTE_UNUSED) {
-  if (vm->GetEnv(reinterpret_cast<void**>(&jvmti_env), JVMTI_VERSION_1_0)) {
+  if (vm->GetEnv(reinterpret_cast<void**>(&jvmti_env), JVMTI_VERSION_1_0) != 0) {
     printf("Unable to get jvmti env!\n");
     return 1;
   }
@@ -55,7 +97,7 @@ static jint MinimalOnLoad(JavaVM* vm,
 
 // A list of all non-standard the agents we have for testing. All other agents will use
 // MinimalOnLoad.
-AgentLib agents[] = {
+static AgentLib agents[] = {
   { "901-hello-ti-agent", Test901HelloTi::OnLoad, nullptr },
   { "902-hello-transformation", common_redefine::OnLoad, nullptr },
   { "909-attach-agent", nullptr, Test909AttachAgent::OnAttach },
@@ -101,6 +143,28 @@ static void SetIsJVM(char* options) {
   RuntimeIsJVM = strncmp(options, "jvm", 3) == 0;
 }
 
+static bool BindFunctionsAttached(JavaVM* vm, const char* class_name) {
+  // Get a JNIEnv. As the thread is attached, we must not destroy it.
+  JNIEnv* env;
+  if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != 0) {
+    printf("Unable to get JNI env!\n");
+    return false;
+  }
+
+  jvmtiEnv* jenv;
+  if (vm->GetEnv(reinterpret_cast<void**>(&jenv), JVMTI_VERSION_1_0) != 0) {
+    printf("Unable to get jvmti env!\n");
+    return false;
+  }
+  SetAllCapabilities(jenv);
+
+  BindFunctions(jenv, env, class_name);
+
+  return true;
+}
+
+}  // namespace
+
 extern "C" JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM* vm, char* options, void* reserved) {
   char* remaining_options = nullptr;
   char* name_option = nullptr;
@@ -110,6 +174,10 @@ extern "C" JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM* vm, char* options, void* 
   }
 
   SetIsJVM(remaining_options);
+
+  if (!InstallBindCallback(vm)) {
+    return 1;
+  }
 
   AgentLib* lib = FindAgent(name_option);
   OnLoad fn = nullptr;
@@ -132,6 +200,9 @@ extern "C" JNIEXPORT jint JNICALL Agent_OnAttach(JavaVM* vm, char* options, void
     printf("Unable to find agent name in options: %s\n", options);
     return -1;
   }
+
+  BindFunctionsAttached(vm, "Main");
+
   AgentLib* lib = FindAgent(name_option);
   if (lib == nullptr) {
     printf("Unable to find agent named: %s, add it to the list in test/ti-agent/common_load.cc\n",
