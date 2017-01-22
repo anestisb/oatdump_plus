@@ -20,6 +20,7 @@
 #include "barrier.h"
 #include "base/histogram.h"
 #include "base/mutex.h"
+#include "base/time_utils.h"
 #include "base/value_object.h"
 #include "gc_root.h"
 #include "jni.h"
@@ -41,11 +42,12 @@ class TimingLogger;
 
 class ThreadList {
  public:
-  static const uint32_t kMaxThreadId = 0xFFFF;
-  static const uint32_t kInvalidThreadId = 0;
-  static const uint32_t kMainThreadId = 1;
+  static constexpr uint32_t kMaxThreadId = 0xFFFF;
+  static constexpr uint32_t kInvalidThreadId = 0;
+  static constexpr uint32_t kMainThreadId = 1;
+  static constexpr uint64_t kDefaultThreadSuspendTimeout = MsToNs(kIsDebugBuild ? 50000 : 10000);
 
-  explicit ThreadList();
+  explicit ThreadList(uint64_t thread_suspend_timeout_ns);
   ~ThreadList();
 
   void DumpForSigQuit(std::ostream& os)
@@ -218,6 +220,9 @@ class ThreadList {
 
   // Whether or not the current thread suspension is long.
   bool long_suspend_;
+
+  // Thread suspension timeout in nanoseconds.
+  const uint64_t thread_suspend_timeout_ns_;
 
   std::unique_ptr<Barrier> empty_checkpoint_barrier_;
 
