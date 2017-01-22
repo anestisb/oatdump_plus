@@ -131,6 +131,7 @@ pic_image_suffix=""
 multi_image_suffix=""
 android_root="/system"
 bisection_search="no"
+suspend_timeout="500000"
 # By default we will use optimizing.
 image_args=""
 image_suffix=""
@@ -218,6 +219,10 @@ while true; do
     elif [ "x$1" = "x--gcstress" ]; then
         basic_verify="true"
         gc_stress="true"
+        shift
+    elif [ "x$1" = "x--suspend-timeout" ]; then
+        shift
+        suspend_timeout="$1"
         shift
     elif [ "x$1" = "x--image" ]; then
         shift
@@ -401,6 +406,9 @@ function err_echo() {
 noncanonical_tmp_dir=$tmp_dir
 tmp_dir="`cd $oldwd ; python -c "import os; print os.path.realpath('$tmp_dir')"`"
 mkdir -p $tmp_dir
+
+# Add thread suspend timeout flag
+run_args="${run_args} --runtime-option -XX:ThreadSuspendTimeout=$suspend_timeout"
 
 if [ "$basic_verify" = "true" ]; then
   # Set HspaceCompactForOOMMinIntervalMs to zero to run hspace compaction for OOM more frequently in tests.
@@ -649,6 +657,7 @@ if [ "$usage" = "yes" ]; then
         echo "    --quiet               Don't print anything except failure messages"
         echo "    --bisection-search    Perform bisection bug search."
         echo "    --vdex                Test using vdex as in input to dex2oat. Only works with --prebuild."
+        echo "    --suspend-timeout     Change thread suspend timeout ms (default 500000)."
     ) 1>&2  # Direct to stderr so usage is not printed if --quiet is set.
     exit 1
 fi

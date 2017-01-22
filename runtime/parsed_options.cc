@@ -302,6 +302,9 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
           .IntoKey(M::Plugins)
       .Define("-Xfully-deoptable")
           .IntoKey(M::FullyDeoptable)
+      .Define("-XX:ThreadSuspendTimeout=_")  // in ms
+          .WithType<MillisecondsToNanoseconds>()  // store as ns
+          .IntoKey(M::ThreadSuspendTimeout)
       .Ignore({
           "-ea", "-da", "-enableassertions", "-disableassertions", "--runtime-arg", "-esa",
           "-dsa", "-enablesystemassertions", "-disablesystemassertions", "-Xrs", "-Xint:_",
@@ -724,6 +727,7 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -XX:MaxSpinsBeforeThinLockInflation=integervalue\n");
   UsageMessage(stream, "  -XX:LongPauseLogThreshold=integervalue\n");
   UsageMessage(stream, "  -XX:LongGCLogThreshold=integervalue\n");
+  UsageMessage(stream, "  -XX:ThreadSuspendTimeout=integervalue\n");
   UsageMessage(stream, "  -XX:DumpGCPerformanceOnShutdown\n");
   UsageMessage(stream, "  -XX:DumpJITInfoOnShutdown\n");
   UsageMessage(stream, "  -XX:IgnoreMaxFootprint\n");
