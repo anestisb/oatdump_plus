@@ -1023,7 +1023,8 @@ CodeGeneratorX86::CodeGeneratorX86(HGraph* graph,
       jit_class_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       constant_area_start_(-1),
       fixups_to_jump_tables_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
-      method_address_offset_(-1) {
+      method_address_offset_(std::less<uint32_t>(),
+                             graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
   // Use a fake return address register to mimic Quick.
   AddAllocatedRegister(Location::RegisterLocation(kFakeReturnRegister));
 }
@@ -1498,8 +1499,9 @@ void InstructionCodeGeneratorX86::GenerateFPCompare(Location lhs,
       DCHECK(const_area->IsEmittedAtUseSite());
       __ ucomisd(lhs.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralDoubleAddress(
-                   const_area->GetConstant()->AsDoubleConstant()->GetValue(),
-                   const_area->GetLocations()->InAt(0).AsRegister<Register>()));
+                     const_area->GetConstant()->AsDoubleConstant()->GetValue(),
+                     const_area->GetBaseMethodAddress(),
+                     const_area->GetLocations()->InAt(0).AsRegister<Register>()));
     } else {
       DCHECK(rhs.IsDoubleStackSlot());
       __ ucomisd(lhs.AsFpuRegister<XmmRegister>(), Address(ESP, rhs.GetStackIndex()));
@@ -1511,8 +1513,9 @@ void InstructionCodeGeneratorX86::GenerateFPCompare(Location lhs,
       DCHECK(const_area->IsEmittedAtUseSite());
       __ ucomiss(lhs.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralFloatAddress(
-                   const_area->GetConstant()->AsFloatConstant()->GetValue(),
-                   const_area->GetLocations()->InAt(0).AsRegister<Register>()));
+                     const_area->GetConstant()->AsFloatConstant()->GetValue(),
+                     const_area->GetBaseMethodAddress(),
+                     const_area->GetLocations()->InAt(0).AsRegister<Register>()));
     } else {
       DCHECK(rhs.IsStackSlot());
       __ ucomiss(lhs.AsFpuRegister<XmmRegister>(), Address(ESP, rhs.GetStackIndex()));
@@ -2360,10 +2363,14 @@ void InstructionCodeGeneratorX86::VisitX86FPNeg(HX86FPNeg* neg) {
   Register constant_area = locations->InAt(1).AsRegister<Register>();
   XmmRegister mask = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
   if (neg->GetType() == Primitive::kPrimFloat) {
-    __ movss(mask, codegen_->LiteralInt32Address(INT32_C(0x80000000), constant_area));
+    __ movss(mask, codegen_->LiteralInt32Address(INT32_C(0x80000000),
+                                                 neg->GetBaseMethodAddress(),
+                                                 constant_area));
     __ xorps(out.AsFpuRegister<XmmRegister>(), mask);
   } else {
-     __ movsd(mask, codegen_->LiteralInt64Address(INT64_C(0x8000000000000000), constant_area));
+     __ movsd(mask, codegen_->LiteralInt64Address(INT64_C(0x8000000000000000),
+                                                  neg->GetBaseMethodAddress(),
+                                                  constant_area));
      __ xorpd(out.AsFpuRegister<XmmRegister>(), mask);
   }
 }
@@ -3012,8 +3019,9 @@ void InstructionCodeGeneratorX86::VisitAdd(HAdd* add) {
         DCHECK(const_area->IsEmittedAtUseSite());
         __ addss(first.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralFloatAddress(
-                   const_area->GetConstant()->AsFloatConstant()->GetValue(),
-                   const_area->GetLocations()->InAt(0).AsRegister<Register>()));
+                     const_area->GetConstant()->AsFloatConstant()->GetValue(),
+                     const_area->GetBaseMethodAddress(),
+                     const_area->GetLocations()->InAt(0).AsRegister<Register>()));
       } else {
         DCHECK(second.IsStackSlot());
         __ addss(first.AsFpuRegister<XmmRegister>(), Address(ESP, second.GetStackIndex()));
@@ -3029,8 +3037,9 @@ void InstructionCodeGeneratorX86::VisitAdd(HAdd* add) {
         DCHECK(const_area->IsEmittedAtUseSite());
         __ addsd(first.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralDoubleAddress(
-                   const_area->GetConstant()->AsDoubleConstant()->GetValue(),
-                   const_area->GetLocations()->InAt(0).AsRegister<Register>()));
+                     const_area->GetConstant()->AsDoubleConstant()->GetValue(),
+                     const_area->GetBaseMethodAddress(),
+                     const_area->GetLocations()->InAt(0).AsRegister<Register>()));
       } else {
         DCHECK(second.IsDoubleStackSlot());
         __ addsd(first.AsFpuRegister<XmmRegister>(), Address(ESP, second.GetStackIndex()));
@@ -3116,8 +3125,9 @@ void InstructionCodeGeneratorX86::VisitSub(HSub* sub) {
         DCHECK(const_area->IsEmittedAtUseSite());
         __ subss(first.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralFloatAddress(
-                   const_area->GetConstant()->AsFloatConstant()->GetValue(),
-                   const_area->GetLocations()->InAt(0).AsRegister<Register>()));
+                     const_area->GetConstant()->AsFloatConstant()->GetValue(),
+                     const_area->GetBaseMethodAddress(),
+                     const_area->GetLocations()->InAt(0).AsRegister<Register>()));
       } else {
         DCHECK(second.IsStackSlot());
         __ subss(first.AsFpuRegister<XmmRegister>(), Address(ESP, second.GetStackIndex()));
@@ -3134,6 +3144,7 @@ void InstructionCodeGeneratorX86::VisitSub(HSub* sub) {
         __ subsd(first.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralDoubleAddress(
                      const_area->GetConstant()->AsDoubleConstant()->GetValue(),
+                     const_area->GetBaseMethodAddress(),
                      const_area->GetLocations()->InAt(0).AsRegister<Register>()));
       } else {
         DCHECK(second.IsDoubleStackSlot());
@@ -3304,6 +3315,7 @@ void InstructionCodeGeneratorX86::VisitMul(HMul* mul) {
         __ mulss(first.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralFloatAddress(
                      const_area->GetConstant()->AsFloatConstant()->GetValue(),
+                     const_area->GetBaseMethodAddress(),
                      const_area->GetLocations()->InAt(0).AsRegister<Register>()));
       } else {
         DCHECK(second.IsStackSlot());
@@ -3322,6 +3334,7 @@ void InstructionCodeGeneratorX86::VisitMul(HMul* mul) {
         __ mulsd(first.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralDoubleAddress(
                      const_area->GetConstant()->AsDoubleConstant()->GetValue(),
+                     const_area->GetBaseMethodAddress(),
                      const_area->GetLocations()->InAt(0).AsRegister<Register>()));
       } else {
         DCHECK(second.IsDoubleStackSlot());
@@ -3690,6 +3703,7 @@ void InstructionCodeGeneratorX86::VisitDiv(HDiv* div) {
         __ divss(first.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralFloatAddress(
                    const_area->GetConstant()->AsFloatConstant()->GetValue(),
+                   const_area->GetBaseMethodAddress(),
                    const_area->GetLocations()->InAt(0).AsRegister<Register>()));
       } else {
         DCHECK(second.IsStackSlot());
@@ -3706,8 +3720,9 @@ void InstructionCodeGeneratorX86::VisitDiv(HDiv* div) {
         DCHECK(const_area->IsEmittedAtUseSite());
         __ divsd(first.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralDoubleAddress(
-                   const_area->GetConstant()->AsDoubleConstant()->GetValue(),
-                   const_area->GetLocations()->InAt(0).AsRegister<Register>()));
+                     const_area->GetConstant()->AsDoubleConstant()->GetValue(),
+                     const_area->GetBaseMethodAddress(),
+                     const_area->GetLocations()->InAt(0).AsRegister<Register>()));
       } else {
         DCHECK(second.IsDoubleStackSlot());
         __ divsd(first.AsFpuRegister<XmmRegister>(), Address(ESP, second.GetStackIndex()));
@@ -4454,18 +4469,7 @@ void CodeGeneratorX86::GenerateMemoryBarrier(MemBarrierKind kind) {
 HInvokeStaticOrDirect::DispatchInfo CodeGeneratorX86::GetSupportedInvokeStaticOrDirectDispatch(
       const HInvokeStaticOrDirect::DispatchInfo& desired_dispatch_info,
       HInvokeStaticOrDirect* invoke ATTRIBUTE_UNUSED) {
-  HInvokeStaticOrDirect::DispatchInfo dispatch_info = desired_dispatch_info;
-
-  // We disable pc-relative load when there is an irreducible loop, as the optimization
-  // is incompatible with it.
-  // TODO: Create as many X86ComputeBaseMethodAddress instructions
-  // as needed for methods with irreducible loops.
-  if (GetGraph()->HasIrreducibleLoops() &&
-      (dispatch_info.method_load_kind ==
-          HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative)) {
-    dispatch_info.method_load_kind = HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod;
-  }
-  return dispatch_info;
+  return desired_dispatch_info;
 }
 
 Register CodeGeneratorX86::GetInvokeStaticOrDirectExtraParameter(HInvokeStaticOrDirect* invoke,
@@ -4518,7 +4522,10 @@ Location CodeGeneratorX86::GenerateCalleeMethodStaticOrDirectCall(HInvokeStaticO
       __ movl(temp.AsRegister<Register>(), Address(base_reg, kDummy32BitOffset));
       // Bind a new fixup label at the end of the "movl" insn.
       uint32_t offset = invoke->GetDexCacheArrayOffset();
-      __ Bind(NewPcRelativeDexCacheArrayPatch(invoke->GetDexFileForPcRelativeDexCache(), offset));
+      __ Bind(NewPcRelativeDexCacheArrayPatch(
+          invoke->InputAt(invoke->GetSpecialInputIndex())->AsX86ComputeBaseMethodAddress(),
+          invoke->GetDexFileForPcRelativeDexCache(),
+          offset));
       break;
     }
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod: {
@@ -4603,31 +4610,54 @@ void CodeGeneratorX86::RecordSimplePatch() {
 
 void CodeGeneratorX86::RecordBootStringPatch(HLoadString* load_string) {
   DCHECK(GetCompilerOptions().IsBootImage());
-  string_patches_.emplace_back(load_string->GetDexFile(), load_string->GetStringIndex().index_);
+  HX86ComputeBaseMethodAddress* address = nullptr;
+  if (GetCompilerOptions().GetCompilePic()) {
+    address = load_string->InputAt(0)->AsX86ComputeBaseMethodAddress();
+  } else {
+    DCHECK_EQ(load_string->InputCount(), 0u);
+  }
+  string_patches_.emplace_back(address,
+                               load_string->GetDexFile(),
+                               load_string->GetStringIndex().index_);
   __ Bind(&string_patches_.back().label);
 }
 
 void CodeGeneratorX86::RecordBootTypePatch(HLoadClass* load_class) {
-  boot_image_type_patches_.emplace_back(load_class->GetDexFile(),
+  HX86ComputeBaseMethodAddress* address = nullptr;
+  if (GetCompilerOptions().GetCompilePic()) {
+    address = load_class->InputAt(0)->AsX86ComputeBaseMethodAddress();
+  } else {
+    DCHECK_EQ(load_class->InputCount(), 0u);
+  }
+  boot_image_type_patches_.emplace_back(address,
+                                        load_class->GetDexFile(),
                                         load_class->GetTypeIndex().index_);
   __ Bind(&boot_image_type_patches_.back().label);
 }
 
 Label* CodeGeneratorX86::NewTypeBssEntryPatch(HLoadClass* load_class) {
-  type_bss_entry_patches_.emplace_back(load_class->GetDexFile(), load_class->GetTypeIndex().index_);
+  HX86ComputeBaseMethodAddress* address =
+      load_class->InputAt(0)->AsX86ComputeBaseMethodAddress();
+  type_bss_entry_patches_.emplace_back(
+      address, load_class->GetDexFile(), load_class->GetTypeIndex().index_);
   return &type_bss_entry_patches_.back().label;
 }
 
 Label* CodeGeneratorX86::NewStringBssEntryPatch(HLoadString* load_string) {
   DCHECK(!GetCompilerOptions().IsBootImage());
-  string_patches_.emplace_back(load_string->GetDexFile(), load_string->GetStringIndex().index_);
+  HX86ComputeBaseMethodAddress* address =
+      load_string->InputAt(0)->AsX86ComputeBaseMethodAddress();
+  string_patches_.emplace_back(
+      address, load_string->GetDexFile(), load_string->GetStringIndex().index_);
   return &string_patches_.back().label;
 }
 
-Label* CodeGeneratorX86::NewPcRelativeDexCacheArrayPatch(const DexFile& dex_file,
-                                                         uint32_t element_offset) {
+Label* CodeGeneratorX86::NewPcRelativeDexCacheArrayPatch(
+    HX86ComputeBaseMethodAddress* method_address,
+    const DexFile& dex_file,
+    uint32_t element_offset) {
   // Add the patch entry and bind its label at the end of the instruction.
-  pc_relative_dex_cache_patches_.emplace_back(dex_file, element_offset);
+  pc_relative_dex_cache_patches_.emplace_back(method_address, dex_file, element_offset);
   return &pc_relative_dex_cache_patches_.back().label;
 }
 
@@ -4637,12 +4667,12 @@ constexpr uint32_t kLabelPositionToLiteralOffsetAdjustment = 4u;
 
 template <LinkerPatch (*Factory)(size_t, const DexFile*, uint32_t, uint32_t)>
 inline void CodeGeneratorX86::EmitPcRelativeLinkerPatches(
-    const ArenaDeque<PatchInfo<Label>>& infos,
+    const ArenaDeque<X86PcRelativePatchInfo>& infos,
     ArenaVector<LinkerPatch>* linker_patches) {
-  for (const PatchInfo<Label>& info : infos) {
+  for (const X86PcRelativePatchInfo& info : infos) {
     uint32_t literal_offset = info.label.Position() - kLabelPositionToLiteralOffsetAdjustment;
-    linker_patches->push_back(
-        Factory(literal_offset, &info.dex_file, GetMethodAddressOffset(), info.index));
+    linker_patches->push_back(Factory(
+        literal_offset, &info.dex_file, GetMethodAddressOffset(info.method_address), info.index));
   }
 }
 
@@ -6002,13 +6032,6 @@ HLoadClass::LoadKind CodeGeneratorX86::GetSupportedLoadClassKind(
       FALLTHROUGH_INTENDED;
     case HLoadClass::LoadKind::kBssEntry:
       DCHECK(!Runtime::Current()->UseJitCompilation());  // Note: boot image is also non-JIT.
-      // We disable pc-relative load when there is an irreducible loop, as the optimization
-      // is incompatible with it.
-      // TODO: Create as many X86ComputeBaseMethodAddress instructions as needed for methods
-      // with irreducible loops.
-      if (GetGraph()->HasIrreducibleLoops()) {
-        return HLoadClass::LoadKind::kDexCacheViaMethod;
-      }
       break;
     case HLoadClass::LoadKind::kBootImageAddress:
       break;
@@ -6195,13 +6218,6 @@ HLoadString::LoadKind CodeGeneratorX86::GetSupportedLoadStringKind(
       FALLTHROUGH_INTENDED;
     case HLoadString::LoadKind::kBssEntry:
       DCHECK(!Runtime::Current()->UseJitCompilation());  // Note: boot image is also non-JIT.
-      // We disable pc-relative load when there is an irreducible loop, as the optimization
-      // is incompatible with it.
-      // TODO: Create as many X86ComputeBaseMethodAddress instructions as needed for methods
-      // with irreducible loops.
-      if (GetGraph()->HasIrreducibleLoops()) {
-        return HLoadString::LoadKind::kDexCacheViaMethod;
-      }
       break;
     case HLoadString::LoadKind::kBootImageAddress:
       break;
@@ -7489,7 +7505,7 @@ void InstructionCodeGeneratorX86::VisitX86ComputeBaseMethodAddress(
   __ Bind(&next_instruction);
 
   // Remember this offset for later use with constant area.
-  codegen_->SetMethodAddressOffset(GetAssembler()->CodeSize());
+  codegen_->AddMethodAddressOffset(insn, GetAssembler()->CodeSize());
 
   // Grab the return address off the stack.
   __ popl(reg);
@@ -7536,17 +7552,20 @@ void InstructionCodeGeneratorX86::VisitX86LoadFromConstantTable(HX86LoadFromCons
   switch (insn->GetType()) {
     case Primitive::kPrimFloat:
       __ movss(out.AsFpuRegister<XmmRegister>(),
-               codegen_->LiteralFloatAddress(value->AsFloatConstant()->GetValue(), const_area));
+               codegen_->LiteralFloatAddress(
+                  value->AsFloatConstant()->GetValue(), insn->GetBaseMethodAddress(), const_area));
       break;
 
     case Primitive::kPrimDouble:
       __ movsd(out.AsFpuRegister<XmmRegister>(),
-               codegen_->LiteralDoubleAddress(value->AsDoubleConstant()->GetValue(), const_area));
+               codegen_->LiteralDoubleAddress(
+                  value->AsDoubleConstant()->GetValue(), insn->GetBaseMethodAddress(), const_area));
       break;
 
     case Primitive::kPrimInt:
       __ movl(out.AsRegister<Register>(),
-              codegen_->LiteralInt32Address(value->AsIntConstant()->GetValue(), const_area));
+              codegen_->LiteralInt32Address(
+                  value->AsIntConstant()->GetValue(), insn->GetBaseMethodAddress(), const_area));
       break;
 
     default:
@@ -7559,13 +7578,18 @@ void InstructionCodeGeneratorX86::VisitX86LoadFromConstantTable(HX86LoadFromCons
  */
 class RIPFixup : public AssemblerFixup, public ArenaObject<kArenaAllocCodeGenerator> {
  public:
-  RIPFixup(CodeGeneratorX86& codegen, size_t offset)
-      : codegen_(&codegen), offset_into_constant_area_(offset) {}
+  RIPFixup(CodeGeneratorX86& codegen,
+           HX86ComputeBaseMethodAddress* base_method_address,
+           size_t offset)
+      : codegen_(&codegen),
+        base_method_address_(base_method_address),
+        offset_into_constant_area_(offset) {}
 
  protected:
   void SetOffset(size_t offset) { offset_into_constant_area_ = offset; }
 
   CodeGeneratorX86* codegen_;
+  HX86ComputeBaseMethodAddress* base_method_address_;
 
  private:
   void Process(const MemoryRegion& region, int pos) OVERRIDE {
@@ -7574,7 +7598,8 @@ class RIPFixup : public AssemblerFixup, public ArenaObject<kArenaAllocCodeGenera
     // The value to patch is the distance from the offset in the constant area
     // from the address computed by the HX86ComputeBaseMethodAddress instruction.
     int32_t constant_offset = codegen_->ConstantAreaStart() + offset_into_constant_area_;
-    int32_t relative_position = constant_offset - codegen_->GetMethodAddressOffset();
+    int32_t relative_position =
+        constant_offset - codegen_->GetMethodAddressOffset(base_method_address_);
 
     // Patch in the right value.
     region.StoreUnaligned<int32_t>(pos - 4, relative_position);
@@ -7591,7 +7616,8 @@ class RIPFixup : public AssemblerFixup, public ArenaObject<kArenaAllocCodeGenera
 class JumpTableRIPFixup : public RIPFixup {
  public:
   JumpTableRIPFixup(CodeGeneratorX86& codegen, HX86PackedSwitch* switch_instr)
-      : RIPFixup(codegen, static_cast<size_t>(-1)), switch_instr_(switch_instr) {}
+      : RIPFixup(codegen, switch_instr->GetBaseMethodAddress(), static_cast<size_t>(-1)),
+        switch_instr_(switch_instr) {}
 
   void CreateJumpTable() {
     X86Assembler* assembler = codegen_->GetAssembler();
@@ -7602,7 +7628,7 @@ class JumpTableRIPFixup : public RIPFixup {
 
     // The label values in the jump table are computed relative to the
     // instruction addressing the constant area.
-    const int32_t relative_offset = codegen_->GetMethodAddressOffset();
+    const int32_t relative_offset = codegen_->GetMethodAddressOffset(base_method_address_);
 
     // Populate the jump table with the correct values for the jump table.
     int32_t num_entries = switch_instr_->GetNumEntries();
@@ -7644,23 +7670,32 @@ void CodeGeneratorX86::Finalize(CodeAllocator* allocator) {
   CodeGenerator::Finalize(allocator);
 }
 
-Address CodeGeneratorX86::LiteralDoubleAddress(double v, Register reg) {
-  AssemblerFixup* fixup = new (GetGraph()->GetArena()) RIPFixup(*this, __ AddDouble(v));
+Address CodeGeneratorX86::LiteralDoubleAddress(double v,
+                                               HX86ComputeBaseMethodAddress* method_base,
+                                               Register reg) {
+  AssemblerFixup* fixup =
+      new (GetGraph()->GetArena()) RIPFixup(*this, method_base, __ AddDouble(v));
   return Address(reg, kDummy32BitOffset, fixup);
 }
 
-Address CodeGeneratorX86::LiteralFloatAddress(float v, Register reg) {
-  AssemblerFixup* fixup = new (GetGraph()->GetArena()) RIPFixup(*this, __ AddFloat(v));
+Address CodeGeneratorX86::LiteralFloatAddress(float v,
+                                              HX86ComputeBaseMethodAddress* method_base,
+                                              Register reg) {
+  AssemblerFixup* fixup = new (GetGraph()->GetArena()) RIPFixup(*this, method_base, __ AddFloat(v));
   return Address(reg, kDummy32BitOffset, fixup);
 }
 
-Address CodeGeneratorX86::LiteralInt32Address(int32_t v, Register reg) {
-  AssemblerFixup* fixup = new (GetGraph()->GetArena()) RIPFixup(*this, __ AddInt32(v));
+Address CodeGeneratorX86::LiteralInt32Address(int32_t v,
+                                              HX86ComputeBaseMethodAddress* method_base,
+                                              Register reg) {
+  AssemblerFixup* fixup = new (GetGraph()->GetArena()) RIPFixup(*this, method_base, __ AddInt32(v));
   return Address(reg, kDummy32BitOffset, fixup);
 }
 
-Address CodeGeneratorX86::LiteralInt64Address(int64_t v, Register reg) {
-  AssemblerFixup* fixup = new (GetGraph()->GetArena()) RIPFixup(*this, __ AddInt64(v));
+Address CodeGeneratorX86::LiteralInt64Address(int64_t v,
+                                              HX86ComputeBaseMethodAddress* method_base,
+                                              Register reg) {
+  AssemblerFixup* fixup = new (GetGraph()->GetArena()) RIPFixup(*this, method_base, __ AddInt64(v));
   return Address(reg, kDummy32BitOffset, fixup);
 }
 
