@@ -1045,7 +1045,7 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
 
   monitor_list_ = new MonitorList;
   monitor_pool_ = MonitorPool::Create();
-  thread_list_ = new ThreadList;
+  thread_list_ = new ThreadList(runtime_options.GetOrDefault(Opt::ThreadSuspendTimeout));
   intern_table_ = new InternTable;
 
   verify_ = runtime_options.GetOrDefault(Opt::Verify);
