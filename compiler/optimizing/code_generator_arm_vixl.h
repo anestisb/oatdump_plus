@@ -537,6 +537,7 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
       const HInvokeStaticOrDirect::DispatchInfo& desired_dispatch_info,
       HInvokeStaticOrDirect* invoke) OVERRIDE;
 
+  Location GenerateCalleeMethodStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp);
   void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) OVERRIDE;
   void GenerateVirtualCall(HInvokeVirtual* invoke, Location temp) OVERRIDE;
 
