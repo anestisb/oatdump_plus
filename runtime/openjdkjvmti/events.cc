@@ -212,7 +212,7 @@ class JvmtiAllocationListener : public art::gc::AllocationListener {
                               thread.get(),
                               object.get(),
                               klass.get(),
-                              byte_count);
+                              static_cast<jlong>(byte_count));
     }
   }
 

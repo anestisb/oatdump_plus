@@ -349,7 +349,7 @@ static void BindMethod(jvmtiEnv* jenv,
     names[1] = m->JniLongName();
   }
   for (const std::string& mangled_name : names) {
-    void* sym = dlsym(nullptr, mangled_name.c_str());
+    void* sym = dlsym(RTLD_DEFAULT, mangled_name.c_str());
     if (sym == nullptr) {
       continue;
     }
