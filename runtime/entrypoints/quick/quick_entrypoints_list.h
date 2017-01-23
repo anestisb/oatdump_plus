@@ -21,6 +21,10 @@
 
 #define QUICK_ENTRYPOINT_LIST(V) \
   V(AllocArrayResolved, void*, mirror::Class*, int32_t) \
+  V(AllocArrayResolved8, void*, mirror::Class*, int32_t) \
+  V(AllocArrayResolved16, void*, mirror::Class*, int32_t) \
+  V(AllocArrayResolved32, void*, mirror::Class*, int32_t) \
+  V(AllocArrayResolved64, void*, mirror::Class*, int32_t) \
   V(AllocObjectResolved, void*, mirror::Class*) \
   V(AllocObjectInitialized, void*, mirror::Class*) \
   V(AllocObjectWithChecks, void*, mirror::Class*) \
