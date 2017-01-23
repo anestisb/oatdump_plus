@@ -31,15 +31,118 @@
 
 #include "ti_class.h"
 
+#include <mutex>
+#include <unordered_set>
+
 #include "art_jvmti.h"
+#include "base/macros.h"
 #include "class_table-inl.h"
 #include "class_linker.h"
+#include "events-inl.h"
+#include "handle.h"
+#include "jni_env_ext-inl.h"
 #include "jni_internal.h"
 #include "runtime.h"
+#include "runtime_callbacks.h"
+#include "ScopedLocalRef.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
+#include "thread_list.h"
 
 namespace openjdkjvmti {
+
+struct ClassCallback : public art::ClassLoadCallback {
+  void ClassLoad(art::Handle<art::mirror::Class> klass) REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    if (event_handler->IsEventEnabledAnywhere(ArtJvmtiEvent::kClassLoad)) {
+      art::Thread* thread = art::Thread::Current();
+      ScopedLocalRef<jclass> jklass(thread->GetJniEnv(),
+                                    thread->GetJniEnv()->AddLocalReference<jclass>(klass.Get()));
+      ScopedLocalRef<jclass> jthread(
+          thread->GetJniEnv(), thread->GetJniEnv()->AddLocalReference<jclass>(thread->GetPeer()));
+      {
+        art::ScopedThreadSuspension sts(thread, art::ThreadState::kNative);
+        event_handler->DispatchEvent(thread,
+                                     ArtJvmtiEvent::kClassLoad,
+                                     reinterpret_cast<JNIEnv*>(thread->GetJniEnv()),
+                                     jthread.get(),
+                                     jklass.get());
+      }
+      AddTempClass(thread, jklass.get());
+    }
+  }
+
+  void ClassPrepare(art::Handle<art::mirror::Class> temp_klass ATTRIBUTE_UNUSED,
+                    art::Handle<art::mirror::Class> klass)
+      REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    if (event_handler->IsEventEnabledAnywhere(ArtJvmtiEvent::kClassPrepare)) {
+      art::Thread* thread = art::Thread::Current();
+      ScopedLocalRef<jclass> jklass(thread->GetJniEnv(),
+                                    thread->GetJniEnv()->AddLocalReference<jclass>(klass.Get()));
+      ScopedLocalRef<jclass> jthread(
+          thread->GetJniEnv(), thread->GetJniEnv()->AddLocalReference<jclass>(thread->GetPeer()));
+      art::ScopedThreadSuspension sts(thread, art::ThreadState::kNative);
+      event_handler->DispatchEvent(thread,
+                                   ArtJvmtiEvent::kClassPrepare,
+                                   reinterpret_cast<JNIEnv*>(thread->GetJniEnv()),
+                                   jthread.get(),
+                                   jklass.get());
+    }
+  }
+
+  void AddTempClass(art::Thread* self, jclass klass) {
+    std::unique_lock<std::mutex> mu(temp_classes_lock);
+    temp_classes.push_back(reinterpret_cast<jclass>(self->GetJniEnv()->NewGlobalRef(klass)));
+  }
+
+  void HandleTempClass(art::Handle<art::mirror::Class> temp_klass,
+                       art::Handle<art::mirror::Class> klass)
+      REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    std::unique_lock<std::mutex> mu(temp_classes_lock);
+    if (temp_classes.empty()) {
+      return;
+    }
+
+    art::Thread* self = art::Thread::Current();
+    for (auto it = temp_classes.begin(); it != temp_classes.end(); ++it) {
+      if (temp_klass.Get() == art::ObjPtr<art::mirror::Class>::DownCast(self->DecodeJObject(*it))) {
+        temp_classes.erase(it);
+        FixupTempClass(temp_klass, klass);
+      }
+    }
+  }
+
+  void FixupTempClass(art::Handle<art::mirror::Class> temp_klass ATTRIBUTE_UNUSED,
+                      art::Handle<art::mirror::Class> klass ATTRIBUTE_UNUSED)
+     REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    // TODO: Implement.
+  }
+
+  // A set of all the temp classes we have handed out. We have to fix up references to these.
+  // For simplicity, we store the temp classes as JNI global references in a vector. Normally a
+  // Prepare event will closely follow, so the vector should be small.
+  std::mutex temp_classes_lock;
+  std::vector<jclass> temp_classes;
+
+  EventHandler* event_handler = nullptr;
+};
+
+ClassCallback gClassCallback;
+
+void ClassUtil::Register(EventHandler* handler) {
+  gClassCallback.event_handler = handler;
+  art::ScopedThreadStateChange stsc(art::Thread::Current(),
+                                    art::ThreadState::kWaitingForDebuggerToAttach);
+  art::ScopedSuspendAll ssa("Add load callback");
+  art::Runtime::Current()->GetRuntimeCallbacks()->AddClassLoadCallback(&gClassCallback);
+}
+
+void ClassUtil::Unregister() {
+  art::ScopedThreadStateChange stsc(art::Thread::Current(),
+                                    art::ThreadState::kWaitingForDebuggerToAttach);
+  art::ScopedSuspendAll ssa("Remove thread callback");
+  art::Runtime* runtime = art::Runtime::Current();
+  runtime->GetRuntimeCallbacks()->RemoveClassLoadCallback(&gClassCallback);
+}
 
 jvmtiError ClassUtil::GetClassFields(jvmtiEnv* env,
                                      jclass jklass,
@@ -200,7 +303,9 @@ jvmtiError ClassUtil::GetClassSignature(jvmtiEnv* env,
   }
 
   // TODO: Support generic signature.
-  *generic_ptr = nullptr;
+  if (generic_ptr != nullptr) {
+    *generic_ptr = nullptr;
+  }
 
   // Everything is fine, release the buffers.
   sig_copy.release();
