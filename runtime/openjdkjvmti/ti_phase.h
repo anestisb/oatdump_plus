@@ -57,6 +57,8 @@ class PhaseUtil {
 
   struct PhaseCallback;
 
+  static jvmtiPhase GetPhaseUnchecked();
+
  private:
   static jvmtiPhase current_phase_;
 };
