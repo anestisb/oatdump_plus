@@ -37,8 +37,13 @@
 
 namespace openjdkjvmti {
 
+class EventHandler;
+
 class ThreadUtil {
  public:
+  static void Register(EventHandler* event_handler);
+  static void Unregister();
+
   static jvmtiError GetAllThreads(jvmtiEnv* env, jint* threads_count_ptr, jthread** threads_ptr);
 
   static jvmtiError GetCurrentThread(jvmtiEnv* env, jthread* thread_ptr);

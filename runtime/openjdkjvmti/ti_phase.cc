@@ -125,5 +125,11 @@ void PhaseUtil::Register(EventHandler* handler) {
   art::Runtime::Current()->GetRuntimeCallbacks()->AddRuntimePhaseCallback(&gPhaseCallback);
 }
 
+void PhaseUtil::Unregister() {
+  art::ScopedThreadStateChange stsc(art::Thread::Current(),
+                                    art::ThreadState::kWaitingForDebuggerToAttach);
+  art::ScopedSuspendAll ssa("Remove phase callback");
+  art::Runtime::Current()->GetRuntimeCallbacks()->RemoveRuntimePhaseCallback(&gPhaseCallback);
+}
 
 }  // namespace openjdkjvmti
