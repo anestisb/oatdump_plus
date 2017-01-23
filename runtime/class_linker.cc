@@ -1398,7 +1398,11 @@ class UpdateClassLoaderVisitor {
         class_loader_(class_loader) {}
 
   bool operator()(ObjPtr<mirror::Class> klass) const REQUIRES_SHARED(Locks::mutator_lock_) {
-    klass->SetClassLoader(class_loader_);
+    // Do not update class loader for boot image classes where the app image
+    // class loader is only the initiating loader but not the defining loader.
+    if (klass->GetClassLoader() != nullptr) {
+      klass->SetClassLoader(class_loader_);
+    }
     return true;
   }
 
@@ -2458,10 +2462,8 @@ mirror::Class* ClassLinker::FindClass(Thread* self,
     return EnsureResolved(self, descriptor, klass);
   }
   // Class is not yet loaded.
-  if (descriptor[0] == '[') {
-    return CreateArrayClass(self, descriptor, hash, class_loader);
-  } else if (class_loader.Get() == nullptr) {
-    // The boot class loader, search the boot class path.
+  if (descriptor[0] != '[' && class_loader.Get() == nullptr) {
+    // Non-array class and the boot class loader, search the boot class path.
     ClassPathEntry pair = FindInClassPath(descriptor, hash, boot_class_path_);
     if (pair.second != nullptr) {
       return DefineClass(self,
@@ -2474,14 +2476,21 @@ mirror::Class* ClassLinker::FindClass(Thread* self,
       // The boot class loader is searched ahead of the application class loader, failures are
       // expected and will be wrapped in a ClassNotFoundException. Use the pre-allocated error to
       // trigger the chaining with a proper stack trace.
-      ObjPtr<mirror::Throwable> pre_allocated = Runtime::Current()->GetPreAllocatedNoClassDefFoundError();
+      ObjPtr<mirror::Throwable> pre_allocated =
+          Runtime::Current()->GetPreAllocatedNoClassDefFoundError();
       self->SetException(pre_allocated);
       return nullptr;
     }
+  }
+  ObjPtr<mirror::Class> result_ptr;
+  bool descriptor_equals;
+  if (descriptor[0] == '[') {
+    result_ptr = CreateArrayClass(self, descriptor, hash, class_loader);
+    DCHECK_EQ(result_ptr == nullptr, self->IsExceptionPending());
+    DCHECK(result_ptr == nullptr || result_ptr->DescriptorEquals(descriptor));
+    descriptor_equals = true;
   } else {
     ScopedObjectAccessUnchecked soa(self);
-    ObjPtr<mirror::Class> result_ptr;
-    bool descriptor_equals;
     bool known_hierarchy =
         FindClassInBaseDexClassLoader(soa, self, descriptor, hash, class_loader, &result_ptr);
     if (result_ptr != nullptr) {
@@ -2525,16 +2534,7 @@ mirror::Class* ClassLinker::FindClass(Thread* self,
                                                  WellKnownClasses::java_lang_ClassLoader_loadClass,
                                                  class_name_object.get()));
       }
-      if (self->IsExceptionPending()) {
-        // If the ClassLoader threw, pass that exception up.
-        // However, to comply with the RI behavior, first check if another thread succeeded.
-        result_ptr = LookupClass(self, descriptor, hash, class_loader.Get());
-        if (result_ptr != nullptr && !result_ptr->IsErroneous()) {
-          self->ClearException();
-          return EnsureResolved(self, descriptor, result_ptr);
-        }
-        return nullptr;
-      } else if (result.get() == nullptr) {
+      if (result.get() == nullptr && !self->IsExceptionPending()) {
         // broken loader - throw NPE to be compatible with Dalvik
         ThrowNullPointerException(StringPrintf("ClassLoader.loadClass returned null for %s",
                                                class_name_string.c_str()).c_str());
@@ -2542,50 +2542,60 @@ mirror::Class* ClassLinker::FindClass(Thread* self,
       }
       result_ptr = soa.Decode<mirror::Class>(result.get());
       // Check the name of the returned class.
-      descriptor_equals = result_ptr->DescriptorEquals(descriptor);
+      descriptor_equals = (result_ptr != nullptr) && result_ptr->DescriptorEquals(descriptor);
     }
-
-    // Try to insert the class to the class table, checking for mismatch.
-    ObjPtr<mirror::Class> old;
-    {
-      WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
-      ClassTable* const class_table = InsertClassTableForClassLoader(class_loader.Get());
-      old = class_table->Lookup(descriptor, hash);
-      if (old == nullptr) {
-        old = result_ptr;  // For the comparison below, after releasing the lock.
-        if (descriptor_equals) {
-          class_table->InsertWithHash(result_ptr.Ptr(), hash);
-          Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(class_loader.Get());
-        }  // else throw below, after releasing the lock.
-      }
-    }
-    if (UNLIKELY(old != result_ptr)) {
-      // Return `old` (even if `!descriptor_equals`) to mimic the RI behavior for parallel
-      // capable class loaders.  (All class loaders are considered parallel capable on Android.)
-      mirror::Class* loader_class = class_loader->GetClass();
-      const char* loader_class_name =
-          loader_class->GetDexFile().StringByTypeIdx(loader_class->GetDexTypeIndex());
-      LOG(WARNING) << "Initiating class loader of type " << DescriptorToDot(loader_class_name)
-          << " is not well-behaved; it returned a different Class for racing loadClass(\""
-          << DescriptorToDot(descriptor) << "\").";
-      return EnsureResolved(self, descriptor, old);
-    }
-    if (UNLIKELY(!descriptor_equals)) {
-      std::string result_storage;
-      const char* result_name = result_ptr->GetDescriptor(&result_storage);
-      std::string loader_storage;
-      const char* loader_class_name = class_loader->GetClass()->GetDescriptor(&loader_storage);
-      ThrowNoClassDefFoundError(
-          "Initiating class loader of type %s returned class %s instead of %s.",
-          DescriptorToDot(loader_class_name).c_str(),
-          DescriptorToDot(result_name).c_str(),
-          DescriptorToDot(descriptor).c_str());
-      return nullptr;
-    }
-    // success, return mirror::Class*
-    return result_ptr.Ptr();
   }
-  UNREACHABLE();
+
+  if (self->IsExceptionPending()) {
+    // If the ClassLoader threw or array class allocation failed, pass that exception up.
+    // However, to comply with the RI behavior, first check if another thread succeeded.
+    result_ptr = LookupClass(self, descriptor, hash, class_loader.Get());
+    if (result_ptr != nullptr && !result_ptr->IsErroneous()) {
+      self->ClearException();
+      return EnsureResolved(self, descriptor, result_ptr);
+    }
+    return nullptr;
+  }
+
+  // Try to insert the class to the class table, checking for mismatch.
+  ObjPtr<mirror::Class> old;
+  {
+    WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
+    ClassTable* const class_table = InsertClassTableForClassLoader(class_loader.Get());
+    old = class_table->Lookup(descriptor, hash);
+    if (old == nullptr) {
+      old = result_ptr;  // For the comparison below, after releasing the lock.
+      if (descriptor_equals) {
+        class_table->InsertWithHash(result_ptr.Ptr(), hash);
+        Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(class_loader.Get());
+      }  // else throw below, after releasing the lock.
+    }
+  }
+  if (UNLIKELY(old != result_ptr)) {
+    // Return `old` (even if `!descriptor_equals`) to mimic the RI behavior for parallel
+    // capable class loaders.  (All class loaders are considered parallel capable on Android.)
+    mirror::Class* loader_class = class_loader->GetClass();
+    const char* loader_class_name =
+        loader_class->GetDexFile().StringByTypeIdx(loader_class->GetDexTypeIndex());
+    LOG(WARNING) << "Initiating class loader of type " << DescriptorToDot(loader_class_name)
+        << " is not well-behaved; it returned a different Class for racing loadClass(\""
+        << DescriptorToDot(descriptor) << "\").";
+    return EnsureResolved(self, descriptor, old);
+  }
+  if (UNLIKELY(!descriptor_equals)) {
+    std::string result_storage;
+    const char* result_name = result_ptr->GetDescriptor(&result_storage);
+    std::string loader_storage;
+    const char* loader_class_name = class_loader->GetClass()->GetDescriptor(&loader_storage);
+    ThrowNoClassDefFoundError(
+        "Initiating class loader of type %s returned class %s instead of %s.",
+        DescriptorToDot(loader_class_name).c_str(),
+        DescriptorToDot(result_name).c_str(),
+        DescriptorToDot(descriptor).c_str());
+    return nullptr;
+  }
+  // success, return mirror::Class*
+  return result_ptr.Ptr();
 }
 
 mirror::Class* ClassLinker::DefineClass(Thread* self,
@@ -3494,7 +3504,8 @@ mirror::Class* ClassLinker::CreateArrayClass(Thread* self, const char* descripto
   // class to the hash table --- necessary because of possible races with
   // other threads.)
   if (class_loader.Get() != component_type->GetClassLoader()) {
-    ObjPtr<mirror::Class> new_class = LookupClass(self, descriptor, hash, component_type->GetClassLoader());
+    ObjPtr<mirror::Class> new_class =
+        LookupClass(self, descriptor, hash, component_type->GetClassLoader());
     if (new_class != nullptr) {
       return new_class.Ptr();
     }
@@ -7712,7 +7723,7 @@ ObjPtr<mirror::Class> ClassLinker::LookupResolvedType(const DexFile& dex_file,
       type = LookupClass(self, descriptor, hash, class_loader.Ptr());
     }
   }
-  if (type != nullptr || type->IsResolved()) {
+  if (type != nullptr && type->IsResolved()) {
     return type.Ptr();
   }
   return nullptr;
