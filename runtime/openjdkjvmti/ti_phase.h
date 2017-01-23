@@ -44,6 +44,7 @@ class PhaseUtil {
   static jvmtiError GetPhase(jvmtiEnv* env, jvmtiPhase* phase_ptr);
 
   static void Register(EventHandler* event_handler);
+  static void Unregister();
 
   // Move the phase from unitialized to LOAD.
   static void SetToOnLoad();

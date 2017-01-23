@@ -56,6 +56,8 @@ public class Main {
     doAllThreadsTests();
 
     doTLSTests();
+
+    doTestEvents();
   }
 
   private static class Holder {
@@ -226,6 +228,22 @@ public class Main {
     }
   }
 
+  private static void doTestEvents() throws Exception {
+    enableThreadEvents(true);
+
+    Thread t = new Thread("EventTestThread");
+
+    System.out.println("Constructed thread");
+    Thread.yield();
+
+    t.start();
+    t.join();
+
+    System.out.println("Thread joined");
+
+    enableThreadEvents(false);
+  }
+
   private final static Comparator<Thread> THREAD_COMP = new Comparator<Thread>() {
     public int compare(Thread o1, Thread o2) {
       return o1.getName().compareTo(o2.getName());
@@ -293,4 +311,5 @@ public class Main {
   private static native Thread[] getAllThreads();
   private static native void setTLS(Thread t, long l);
   private static native long getTLS(Thread t);
+  private static native void enableThreadEvents(boolean b);
 }

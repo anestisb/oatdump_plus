@@ -137,5 +137,71 @@ extern "C" JNIEXPORT void JNICALL Java_Main_setTLS(
   JvmtiErrorToException(env, result);
 }
 
+static void JNICALL ThreadEvent(jvmtiEnv* jvmti_env,
+                                JNIEnv* jni_env,
+                                jthread thread,
+                                bool is_start) {
+  jvmtiThreadInfo info;
+  jvmtiError result = jvmti_env->GetThreadInfo(thread, &info);
+  if (result != JVMTI_ERROR_NONE) {
+    printf("Error getting thread info");
+    return;
+  }
+  printf("Thread(%s): %s\n", info.name, is_start ? "start" : "end");
+
+  jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(info.name));
+  jni_env->DeleteLocalRef(info.thread_group);
+  jni_env->DeleteLocalRef(info.context_class_loader);
+}
+
+static void JNICALL ThreadStart(jvmtiEnv* jvmti_env,
+                                JNIEnv* jni_env,
+                                jthread thread) {
+  ThreadEvent(jvmti_env, jni_env, thread, true);
+}
+
+static void JNICALL ThreadEnd(jvmtiEnv* jvmti_env,
+                              JNIEnv* jni_env,
+                              jthread thread) {
+  ThreadEvent(jvmti_env, jni_env, thread, false);
+}
+
+extern "C" JNIEXPORT void JNICALL Java_Main_enableThreadEvents(
+    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jboolean b) {
+  if (b == JNI_FALSE) {
+    jvmtiError ret = jvmti_env->SetEventNotificationMode(JVMTI_DISABLE,
+                                                         JVMTI_EVENT_THREAD_START,
+                                                         nullptr);
+    if (JvmtiErrorToException(env, ret)) {
+      return;
+    }
+    ret = jvmti_env->SetEventNotificationMode(JVMTI_DISABLE,
+                                              JVMTI_EVENT_THREAD_END,
+                                              nullptr);
+    JvmtiErrorToException(env, ret);
+    return;
+  }
+
+  jvmtiEventCallbacks callbacks;
+  memset(&callbacks, 0, sizeof(jvmtiEventCallbacks));
+  callbacks.ThreadStart = ThreadStart;
+  callbacks.ThreadEnd = ThreadEnd;
+  jvmtiError ret = jvmti_env->SetEventCallbacks(&callbacks, sizeof(callbacks));
+  if (JvmtiErrorToException(env, ret)) {
+    return;
+  }
+
+  ret = jvmti_env->SetEventNotificationMode(JVMTI_ENABLE,
+                                            JVMTI_EVENT_THREAD_START,
+                                            nullptr);
+  if (JvmtiErrorToException(env, ret)) {
+    return;
+  }
+  ret = jvmti_env->SetEventNotificationMode(JVMTI_ENABLE,
+                                            JVMTI_EVENT_THREAD_END,
+                                            nullptr);
+  JvmtiErrorToException(env, ret);
+}
+
 }  // namespace Test924Threads
 }  // namespace art
