@@ -129,6 +129,19 @@ void ClassTable::Insert(ObjPtr<mirror::Class> klass) {
   classes_.back().InsertWithHash(TableSlot(klass, hash), hash);
 }
 
+void ClassTable::CopyWithoutLocks(const ClassTable& source_table) {
+  if (kIsDebugBuild) {
+    for (ClassSet& class_set : classes_) {
+      CHECK(class_set.Empty());
+    }
+  }
+  for (const ClassSet& class_set : source_table.classes_) {
+    for (const TableSlot& slot : class_set) {
+      classes_.back().Insert(slot);
+    }
+  }
+}
+
 void ClassTable::InsertWithoutLocks(ObjPtr<mirror::Class> klass) {
   const uint32_t hash = TableSlot::HashDescriptor(klass);
   classes_.back().InsertWithHash(TableSlot(klass, hash), hash);
