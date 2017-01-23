@@ -2626,13 +2626,26 @@ mirror::Class* ClassLinker::DefineClass(Thread* self,
     self->AssertPendingOOMException();
     return nullptr;
   }
-  ObjPtr<mirror::DexCache> dex_cache = RegisterDexFile(dex_file, class_loader.Get());
+  // Get the real dex file. This will return the input if there aren't any callbacks or they do
+  // nothing.
+  DexFile const* new_dex_file = nullptr;
+  DexFile::ClassDef const* new_class_def = nullptr;
+  // TODO We should ideally figure out some way to move this after we get a lock on the klass so it
+  // will only be called once.
+  Runtime::Current()->GetRuntimeCallbacks()->ClassPreDefine(descriptor,
+                                                            klass,
+                                                            class_loader,
+                                                            dex_file,
+                                                            dex_class_def,
+                                                            &new_dex_file,
+                                                            &new_class_def);
+  ObjPtr<mirror::DexCache> dex_cache = RegisterDexFile(*new_dex_file, class_loader.Get());
   if (dex_cache == nullptr) {
     self->AssertPendingOOMException();
     return nullptr;
   }
   klass->SetDexCache(dex_cache);
-  SetupClass(dex_file, dex_class_def, klass, class_loader.Get());
+  SetupClass(*new_dex_file, *new_class_def, klass, class_loader.Get());
 
   // Mark the string class by setting its access flag.
   if (UNLIKELY(!init_done_)) {
@@ -2658,7 +2671,7 @@ mirror::Class* ClassLinker::DefineClass(Thread* self,
   // end up allocating unfree-able linear alloc resources and then lose the race condition. The
   // other reason is that the field roots are only visited from the class table. So we need to be
   // inserted before we allocate / fill in these fields.
-  LoadClass(self, dex_file, dex_class_def, klass);
+  LoadClass(self, *new_dex_file, *new_class_def, klass);
   if (self->IsExceptionPending()) {
     VLOG(class_linker) << self->GetException()->Dump();
     // An exception occured during load, set status to erroneous while holding klass' lock in case
@@ -2671,7 +2684,7 @@ mirror::Class* ClassLinker::DefineClass(Thread* self,
 
   // Finish loading (if necessary) by finding parents
   CHECK(!klass->IsLoaded());
-  if (!LoadSuperAndInterfaces(klass, dex_file)) {
+  if (!LoadSuperAndInterfaces(klass, *new_dex_file)) {
     // Loading failed.
     if (!klass->IsErroneous()) {
       mirror::Class::SetStatus(klass, mirror::Class::kStatusError, self);
