@@ -277,42 +277,6 @@ TEST_ART_BROKEN_TARGET_TESTS := \
   147-stripped-dex-fallback \
   569-checker-pattern-replacement
 
-# These 9** tests are not supported in current form due to linker
-# restrictions. See b/31681198
-TEST_ART_BROKEN_TARGET_TESTS += \
-  901-hello-ti-agent \
-  902-hello-transformation \
-  903-hello-tagging \
-  904-object-allocation \
-  905-object-free \
-  906-iterate-heap \
-  907-get-loaded-classes \
-  908-gc-start-finish \
-  909-attach-agent \
-  910-methods \
-  911-get-stack-trace \
-  912-classes \
-  913-heaps \
-  914-hello-obsolescence \
-  915-obsolete-2 \
-  916-obsolete-jit \
-  917-fields-transformation \
-  918-fields \
-  919-obsolete-fields \
-  920-objects \
-  921-hello-failure \
-  922-properties \
-  923-monitors \
-  924-threads \
-  925-threadgroups \
-  926-multi-obsolescence \
-  927-timers \
-  928-jni-table \
-  929-search \
-  930-hello-retransform \
-  931-agent-thread \
-  932-transform-saves \
-
 ifneq (,$(filter target,$(TARGET_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,target,$(RUN_TYPES),$(PREBUILD_TYPES), \
       $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
