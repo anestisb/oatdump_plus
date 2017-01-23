@@ -2773,7 +2773,65 @@ void IntrinsicCodeGeneratorARM64::VisitDoubleIsInfinite(HInvoke* invoke) {
   GenIsInfinite(invoke->GetLocations(), /* is64bit */ true, GetVIXLAssembler());
 }
 
-UNIMPLEMENTED_INTRINSIC(ARM64, ReferenceGetReferent)
+void IntrinsicLocationsBuilderARM64::VisitReferenceGetReferent(HInvoke* invoke) {
+  if (kEmitCompilerReadBarrier) {
+    // Do not intrinsify this call with the read barrier configuration.
+    return;
+  }
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kCallOnSlowPath,
+                                                            kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetOut(Location::SameAsFirstInput());
+  locations->AddTemp(Location::RequiresRegister());
+}
+
+void IntrinsicCodeGeneratorARM64::VisitReferenceGetReferent(HInvoke* invoke) {
+  DCHECK(!kEmitCompilerReadBarrier);
+  MacroAssembler* masm = GetVIXLAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  Register obj = InputRegisterAt(invoke, 0);
+  Register out = OutputRegister(invoke);
+
+  SlowPathCodeARM64* slow_path = new (GetAllocator()) IntrinsicSlowPathARM64(invoke);
+  codegen_->AddSlowPath(slow_path);
+
+  // Load ArtMethod first.
+  HInvokeStaticOrDirect* invoke_direct = invoke->AsInvokeStaticOrDirect();
+  DCHECK(invoke_direct != nullptr);
+  Register temp0 = XRegisterFrom(codegen_->GenerateCalleeMethodStaticOrDirectCall(
+                                 invoke_direct, locations->GetTemp(0)));
+
+  // Now get declaring class.
+  __ Ldr(temp0.W(), MemOperand(temp0, ArtMethod::DeclaringClassOffset().Int32Value()));
+
+  uint32_t slow_path_flag_offset = codegen_->GetReferenceSlowFlagOffset();
+  uint32_t disable_flag_offset = codegen_->GetReferenceDisableFlagOffset();
+  DCHECK_NE(slow_path_flag_offset, 0u);
+  DCHECK_NE(disable_flag_offset, 0u);
+  DCHECK_NE(slow_path_flag_offset, disable_flag_offset);
+
+  // Check static flags that prevent using intrinsic.
+  if (slow_path_flag_offset == disable_flag_offset + 1) {
+    // Load two adjacent flags in one 64-bit load.
+    __ Ldr(temp0, MemOperand(temp0, disable_flag_offset));
+  } else {
+    UseScratchRegisterScope temps(masm);
+    Register temp1 = temps.AcquireW();
+    __ Ldr(temp1.W(), MemOperand(temp0, disable_flag_offset));
+    __ Ldr(temp0.W(), MemOperand(temp0, slow_path_flag_offset));
+    __ Orr(temp0, temp1, temp0);
+  }
+  __ Cbnz(temp0, slow_path->GetEntryLabel());
+
+  // Fast path.
+  __ Ldr(out, HeapOperand(obj, mirror::Reference::ReferentOffset().Int32Value()));
+  codegen_->MaybeRecordImplicitNullCheck(invoke);
+  codegen_->GetAssembler()->MaybeUnpoisonHeapReference(out);
+  __ Bind(slow_path->GetExitLabel());
+}
+
 UNIMPLEMENTED_INTRINSIC(ARM64, IntegerHighestOneBit)
 UNIMPLEMENTED_INTRINSIC(ARM64, LongHighestOneBit)
 UNIMPLEMENTED_INTRINSIC(ARM64, IntegerLowestOneBit)

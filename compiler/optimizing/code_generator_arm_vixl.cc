@@ -7262,7 +7262,7 @@ vixl32::Register CodeGeneratorARMVIXL::GetInvokeStaticOrDirectExtraParameter(
   return RegisterFrom(location);
 }
 
-void CodeGeneratorARMVIXL::GenerateStaticOrDirectCall(
+Location CodeGeneratorARMVIXL::GenerateCalleeMethodStaticOrDirectCall(
     HInvokeStaticOrDirect* invoke, Location temp) {
   Location callee_method = temp;  // For all kinds except kRecursive, callee will be in temp.
   switch (invoke->GetMethodLoadKind()) {
@@ -7313,6 +7313,12 @@ void CodeGeneratorARMVIXL::GenerateStaticOrDirectCall(
       break;
     }
   }
+  return callee_method;
+}
+
+void CodeGeneratorARMVIXL::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
+                                                      Location temp) {
+  Location callee_method = GenerateCalleeMethodStaticOrDirectCall(invoke, temp);
 
   switch (invoke->GetCodePtrLocation()) {
     case HInvokeStaticOrDirect::CodePtrLocation::kCallSelf:
