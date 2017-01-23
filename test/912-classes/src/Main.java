@@ -82,6 +82,10 @@ public class Main {
     System.out.println();
 
     testClassVersion();
+
+    System.out.println();
+
+    testClassEvents();
   }
 
   private static Class<?> proxyClass = null;
@@ -208,6 +212,60 @@ public class Main {
     System.out.println(Arrays.toString(getClassVersion(Main.class)));
   }
 
+  private static void testClassEvents() throws Exception {
+    ClassLoader cl = Main.class.getClassLoader();
+    while (cl.getParent() != null) {
+      cl = cl.getParent();
+    }
+    final ClassLoader boot = cl;
+
+    enableClassLoadEvents(true);
+
+    ClassLoader cl1 = create(boot, DEX1, DEX2);
+    System.out.println("B, false");
+    Class.forName("B", false, cl1);
+
+    ClassLoader cl2 = create(boot, DEX1, DEX2);
+    System.out.println("B, true");
+    Class.forName("B", true, cl2);
+
+    ClassLoader cl3 = create(boot, DEX1, DEX2);
+    System.out.println("C, false");
+    Class.forName("C", false, cl3);
+    System.out.println("A, false");
+    Class.forName("A", false, cl3);
+
+    ClassLoader cl4 = create(boot, DEX1, DEX2);
+    System.out.println("C, true");
+    Class.forName("C", true, cl4);
+    System.out.println("A, true");
+    Class.forName("A", true, cl4);
+
+    ClassLoader cl5 = create(boot, DEX1, DEX2);
+    System.out.println("A, true");
+    Class.forName("A", true, cl5);
+    System.out.println("C, true");
+    Class.forName("C", true, cl5);
+
+    Runnable r = new Runnable() {
+      @Override
+      public void run() {
+        try {
+          ClassLoader cl6 = create(boot, DEX1, DEX2);
+          System.out.println("C, true");
+          Class.forName("C", true, cl6);
+        } catch (Exception e) {
+          throw new RuntimeException(e);
+        }
+      }
+    };
+    Thread t = new Thread(r, "TestRunner");
+    t.start();
+    t.join();
+
+    enableClassLoadEvents(false);
+  }
+
   private static void printClassLoaderClasses(ClassLoader cl) {
     for (;;) {
       if (cl == null || !cl.getClass().getName().startsWith("dalvik.system")) {
@@ -269,6 +327,8 @@ public class Main {
   private static native Class<?>[] getClassLoaderClasses(ClassLoader cl);
 
   private static native int[] getClassVersion(Class<?> c);
+
+  private static native void enableClassLoadEvents(boolean b);
 
   private static class TestForNonInit {
     public static double dummy = Math.random();  // So it can't be compile-time initialized.

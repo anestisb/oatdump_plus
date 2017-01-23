@@ -61,3 +61,35 @@ boot <- src+src-ex (A,B)
 [class A, class B, class java.lang.Object]
 
 [37, 0]
+
+B, false
+Load: LB; on main
+Prepare: LB; on main (cur=main)
+B, true
+Load: LB; on main
+Prepare: LB; on main (cur=main)
+C, false
+Load: LA; on main
+Prepare: LA; on main (cur=main)
+Load: LC; on main
+Prepare: LC; on main (cur=main)
+A, false
+C, true
+Load: LA; on main
+Prepare: LA; on main (cur=main)
+Load: LC; on main
+Prepare: LC; on main (cur=main)
+A, true
+A, true
+Load: LA; on main
+Prepare: LA; on main (cur=main)
+C, true
+Load: LC; on main
+Prepare: LC; on main (cur=main)
+Load: LMain$1; on main
+Prepare: LMain$1; on main (cur=main)
+C, true
+Load: LA; on TestRunner
+Prepare: LA; on TestRunner (cur=TestRunner)
+Load: LC; on TestRunner
+Prepare: LC; on TestRunner (cur=TestRunner)
