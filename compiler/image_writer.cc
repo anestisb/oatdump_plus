@@ -1166,9 +1166,9 @@ mirror::Object* ImageWriter::TryAssignBinSlot(WorkStack& work_stack,
       // belongs.
       oat_index = GetOatIndexForDexCache(dex_cache);
       ImageInfo& image_info = GetImageInfo(oat_index);
-      {
-        // Note: This table is only accessed from the image writer, avoid locking to prevent lock
-        // order violations from root visiting.
+      if (!compile_app_image_) {
+        // Note: Avoid locking to prevent lock order violations from root visiting;
+        // image_info.class_table_ is only accessed from the image writer.
         image_info.class_table_->InsertWithoutLocks(as_klass);
       }
       for (LengthPrefixedArray<ArtField>* cur_fields : fields) {
@@ -1265,7 +1265,14 @@ mirror::Object* ImageWriter::TryAssignBinSlot(WorkStack& work_stack,
       // class loader.
       mirror::ClassLoader* class_loader = obj->AsClassLoader();
       if (class_loader->GetClassTable() != nullptr) {
+        DCHECK(compile_app_image_);
+        DCHECK(class_loaders_.empty());
         class_loaders_.insert(class_loader);
+        ImageInfo& image_info = GetImageInfo(oat_index);
+        // Note: Avoid locking to prevent lock order violations from root visiting;
+        // image_info.class_table_ table is only accessed from the image writer
+        // and class_loader->GetClassTable() is iterated but not modified.
+        image_info.class_table_->CopyWithoutLocks(*class_loader->GetClassTable());
       }
     }
     AssignImageBinSlot(obj, oat_index);

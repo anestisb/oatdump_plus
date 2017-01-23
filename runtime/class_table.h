@@ -240,6 +240,7 @@ class ClassTable {
   }
 
  private:
+  void CopyWithoutLocks(const ClassTable& source_table) NO_THREAD_SAFETY_ANALYSIS;
   void InsertWithoutLocks(ObjPtr<mirror::Class> klass) NO_THREAD_SAFETY_ANALYSIS;
 
   size_t CountDefiningLoaderClasses(ObjPtr<mirror::ClassLoader> defining_loader,
