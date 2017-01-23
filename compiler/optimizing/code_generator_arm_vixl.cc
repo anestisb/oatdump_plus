@@ -7233,18 +7233,7 @@ void CodeGeneratorARMVIXL::GenerateReadBarrierForRootSlow(HInstruction* instruct
 HInvokeStaticOrDirect::DispatchInfo CodeGeneratorARMVIXL::GetSupportedInvokeStaticOrDirectDispatch(
     const HInvokeStaticOrDirect::DispatchInfo& desired_dispatch_info,
     HInvokeStaticOrDirect* invoke ATTRIBUTE_UNUSED) {
-  HInvokeStaticOrDirect::DispatchInfo dispatch_info = desired_dispatch_info;
-  // We disable pc-relative load when there is an irreducible loop, as the optimization
-  // is incompatible with it.
-  // TODO: Create as many ArmDexCacheArraysBase instructions as needed for methods
-  // with irreducible loops.
-  if (GetGraph()->HasIrreducibleLoops() &&
-      (dispatch_info.method_load_kind ==
-          HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative)) {
-    dispatch_info.method_load_kind = HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod;
-  }
-
-  return dispatch_info;
+  return desired_dispatch_info;
 }
 
 vixl32::Register CodeGeneratorARMVIXL::GetInvokeStaticOrDirectExtraParameter(
