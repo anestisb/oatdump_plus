@@ -1477,7 +1477,7 @@ static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGenerat
                         // If we use 'value' directly, we would lose 'value'
                         // in the case that the store fails.  Whether the
                         // store succeeds, or fails, it will load the
-                        // correct boolean value into the 'out' register.
+                        // correct Boolean value into the 'out' register.
   if (type == Primitive::kPrimLong) {
     __ Scd(out, TMP);
   } else {

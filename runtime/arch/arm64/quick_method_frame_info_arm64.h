@@ -85,7 +85,7 @@ constexpr uint32_t Arm64CalleeSaveCoreSpills(Runtime::CalleeSaveType type) {
 
 constexpr uint32_t Arm64CalleeSaveFpSpills(Runtime::CalleeSaveType type) {
   return kArm64CalleeSaveFpAlwaysSpills | kArm64CalleeSaveFpRefSpills |
-      (type == Runtime::kSaveRefsAndArgs ? kArm64CalleeSaveFpArgSpills: 0) |
+      (type == Runtime::kSaveRefsAndArgs ? kArm64CalleeSaveFpArgSpills : 0) |
       (type == Runtime::kSaveAllCalleeSaves ? kArm64CalleeSaveFpAllSpills : 0) |
       (type == Runtime::kSaveEverything ? kArm64CalleeSaveFpEverythingSpills : 0);
 }
