@@ -360,7 +360,7 @@ Heap::Heap(size_t initial_size,
     // If we are the zygote, the non moving space becomes the zygote space when we run
     // PreZygoteFork the first time. In this case, call the map "zygote space" since we can't
     // rename the mem map later.
-    const char* space_name = is_zygote ? kZygoteSpaceName: kNonMovingSpaceName;
+    const char* space_name = is_zygote ? kZygoteSpaceName : kNonMovingSpaceName;
     // Reserve the non moving mem map before the other two since it needs to be at a specific
     // address.
     non_moving_space_mem_map.reset(
