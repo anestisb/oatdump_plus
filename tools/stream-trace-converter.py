@@ -124,12 +124,20 @@ class Rewriter:
     self._threads.append('%d\t%s\n' % (tid, str))
     print 'New thread: %d/%s' % (tid, str)
 
+  def ProcessTraceSummary(self, input):
+    summaryLength = ReadIntLE(input)
+    str = input.read(summaryLength)
+    self._summary = str
+    print 'Summary: \"%s\"' % str
+
   def ProcessSpecial(self, input):
     code = ord(input.read(1))
     if code == 1:
       self.ProcessMethod(input)
     elif code == 2:
       self.ProcessThread(input)
+    elif code == 3:
+      self.ProcessTraceSummary(input)
     else:
       raise MyException("Unknown special!")
 
@@ -147,9 +155,24 @@ class Rewriter:
       print 'Buffer underrun, file was probably truncated. Results should still be usable.'
 
   def Finalize(self, header):
-    header.write('*threads\n')
-    for t in self._threads:
-      header.write(t)
+    # If the summary is present in the input file, use it as the header except
+    # for the methods section which is emtpy in the input file. If not present,
+    # apppend header with the threads that are recorded in the input stream.
+    if (self._summary):
+      # Erase the contents that's already written earlier by PrintHeader.
+      header.seek(0)
+      header.truncate()
+      # Copy the lines from the input summary to the output header until
+      # the methods section is seen.
+      for line in self._summary.splitlines(True):
+        if line == "*methods\n":
+          break
+        else:
+          header.write(line)
+    else:
+      header.write('*threads\n')
+      for t in self._threads:
+        header.write(t)
     header.write('*methods\n')
     for m in self._methods:
       header.write(m)
@@ -166,6 +189,7 @@ class Rewriter:
 
     self._methods = []
     self._threads = []
+    self._summary = None
     self.Process(input, body)
 
     self.Finalize(header)
