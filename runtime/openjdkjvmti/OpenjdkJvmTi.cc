@@ -1309,9 +1309,17 @@ extern "C" bool ArtPlugin_Initialize() {
     PhaseUtil::SetToOnLoad();
   }
   PhaseUtil::Register(&gEventHandler);
+  ThreadUtil::Register(&gEventHandler);
 
   runtime->GetJavaVM()->AddEnvironmentHook(GetEnvHandler);
   runtime->AddSystemWeakHolder(&gObjectTagTable);
+
+  return true;
+}
+
+extern "C" bool ArtPlugin_Deinitialize() {
+  PhaseUtil::Unregister();
+  ThreadUtil::Unregister();
 
   return true;
 }
