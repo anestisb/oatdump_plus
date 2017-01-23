@@ -1809,7 +1809,7 @@ void InstructionCodeGeneratorX86_64::VisitSelect(HSelect* select) {
         cond = X86_64IntegerCondition(condition->GetCondition());
       }
     } else {
-      // Must be a boolean condition, which needs to be compared to 0.
+      // Must be a Boolean condition, which needs to be compared to 0.
       CpuRegister cond_reg = locations->InAt(2).AsRegister<CpuRegister>();
       __ testl(cond_reg, cond_reg);
     }
@@ -4210,7 +4210,7 @@ void InstructionCodeGeneratorX86_64::VisitPhi(HPhi* instruction ATTRIBUTE_UNUSED
 
 void CodeGeneratorX86_64::GenerateMemoryBarrier(MemBarrierKind kind) {
   /*
-   * According to the JSR-133 Cookbook, for x86 only StoreLoad/AnyAny barriers need memory fence.
+   * According to the JSR-133 Cookbook, for x86-64 only StoreLoad/AnyAny barriers need memory fence.
    * All other barriers (LoadAny, AnyStore, StoreStore) are nops due to the x86-64 memory model.
    * For those cases, all we need to ensure is that there is a scheduling barrier in place.
    */
