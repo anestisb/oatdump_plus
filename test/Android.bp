@@ -270,6 +270,7 @@ art_cc_defaults {
         "928-jni-table/jni_table.cc",
         "929-search/search.cc",
         "931-agent-thread/agent_thread.cc",
+        "933-misc-events/misc_events.cc",
     ],
     shared_libs: [
         "libbase",
