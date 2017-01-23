@@ -565,7 +565,7 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   ArtMethod* GetArtMethod() const { return art_method_; }
   void SetArtMethod(ArtMethod* method) { art_method_ = method; }
 
-  // Returns an instruction with the opposite boolean value from 'cond'.
+  // Returns an instruction with the opposite Boolean value from 'cond'.
   // The instruction has been inserted into the graph, either as a constant, or
   // before cursor.
   HInstruction* InsertOppositeCondition(HInstruction* cond, HInstruction* cursor);

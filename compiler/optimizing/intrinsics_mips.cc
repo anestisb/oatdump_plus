@@ -1878,7 +1878,7 @@ static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGenerat
                         // If we use 'value' directly, we would lose 'value'
                         // in the case that the store fails.  Whether the
                         // store succeeds, or fails, it will load the
-                        // correct boolean value into the 'out' register.
+                        // correct Boolean value into the 'out' register.
   // This test isn't really necessary. We only support Primitive::kPrimInt,
   // Primitive::kPrimNot, and we already verified that we're working on one
   // of those two types. It's left here in case the code needs to support

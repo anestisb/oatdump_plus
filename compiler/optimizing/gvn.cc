@@ -399,7 +399,7 @@ class GlobalValueNumberer : public ValueObject {
   ArenaVector<ValueSet*> sets_;
 
   // BitVector which serves as a fast-access map from block id to
-  // visited/unvisited boolean.
+  // visited/unvisited Boolean.
   ArenaBitVector visited_blocks_;
 
   DISALLOW_COPY_AND_ASSIGN(GlobalValueNumberer);

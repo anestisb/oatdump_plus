@@ -1778,7 +1778,7 @@ void InstructionCodeGeneratorX86::VisitSelect(HSelect* select) {
         cond = X86Condition(condition->GetCondition());
       }
     } else {
-      // Must be a boolean condition, which needs to be compared to 0.
+      // Must be a Boolean condition, which needs to be compared to 0.
       Register cond_reg = locations->InAt(2).AsRegister<Register>();
       __ testl(cond_reg, cond_reg);
     }

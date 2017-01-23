@@ -487,7 +487,7 @@ struct CheckOffsets {
       // says AccessibleObject is 9 bytes but sizeof(AccessibleObject) is 12 bytes due to padding.
       // The RoundUp is to get around this case.
       static constexpr size_t kPackAlignment = 4;
-      size_t expected_size = RoundUp(is_static ? klass->GetClassSize(): klass->GetObjectSize(),
+      size_t expected_size = RoundUp(is_static ? klass->GetClassSize() : klass->GetObjectSize(),
           kPackAlignment);
       if (sizeof(T) != expected_size) {
         LOG(ERROR) << "Class size mismatch:"
