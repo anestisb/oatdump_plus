@@ -78,7 +78,7 @@ constexpr uint32_t Mips64CalleeSaveCoreSpills(Runtime::CalleeSaveType type) {
 
 constexpr uint32_t Mips64CalleeSaveFpSpills(Runtime::CalleeSaveType type) {
   return kMips64CalleeSaveFpRefSpills |
-      (type == Runtime::kSaveRefsAndArgs ? kMips64CalleeSaveFpArgSpills: 0) |
+      (type == Runtime::kSaveRefsAndArgs ? kMips64CalleeSaveFpArgSpills : 0) |
       (type == Runtime::kSaveAllCalleeSaves ? kMips64CalleeSaveFpAllSpills : 0) |
       (type == Runtime::kSaveEverything ? kMips64CalleeSaveFpEverythingSpills : 0);
 }

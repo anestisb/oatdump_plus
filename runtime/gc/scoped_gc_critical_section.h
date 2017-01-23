@@ -27,8 +27,8 @@ class Thread;
 
 namespace gc {
 
-// Wait until the GC is finished and then prevent GC from starting until the destructor. Used
-// to prevent deadlocks in places where we call ClassLinker::VisitClass with all th threads
+// Wait until the GC is finished and then prevent the GC from starting until the destructor. Used
+// to prevent deadlocks in places where we call ClassLinker::VisitClass with all the threads
 // suspended.
 class ScopedGCCriticalSection {
  public:

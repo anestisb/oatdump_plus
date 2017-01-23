@@ -42,7 +42,7 @@ class GarbageCollector;
 
 class Heap;
 
-// Used to process java.lang.References concurrently or paused.
+// Used to process java.lang.ref.Reference instances concurrently or paused.
 class ReferenceProcessor {
  public:
   explicit ReferenceProcessor();

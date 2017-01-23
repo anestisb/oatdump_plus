@@ -284,7 +284,7 @@ CompilerDriver::CompilerDriver(
       verification_results_(verification_results),
       compiler_(Compiler::Create(this, compiler_kind)),
       compiler_kind_(compiler_kind),
-      instruction_set_(instruction_set == kArm ? kThumb2: instruction_set),
+      instruction_set_(instruction_set == kArm ? kThumb2 : instruction_set),
       instruction_set_features_(instruction_set_features),
       requires_constructor_barrier_lock_("constructor barrier lock"),
       compiled_classes_lock_("compiled classes lock"),
@@ -1251,7 +1251,7 @@ class ClinitImageUpdate {
     }
   }
 
-  // java.lang.Reference visitor for VisitReferences.
+  // java.lang.ref.Reference visitor for VisitReferences.
   void operator()(ObjPtr<mirror::Class> klass ATTRIBUTE_UNUSED,
                   ObjPtr<mirror::Reference> ref ATTRIBUTE_UNUSED) const {}
 
