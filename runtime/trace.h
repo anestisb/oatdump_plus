@@ -202,7 +202,8 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
       // This causes the negative annotations to incorrectly have a false positive. TODO: Figure out
       // how to annotate this.
       NO_THREAD_SAFETY_ANALYSIS;
-  void FinishTracing() REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!*unique_methods_lock_);
+  void FinishTracing()
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!*unique_methods_lock_, !*streaming_lock_);
 
   void ReadClocks(Thread* thread, uint32_t* thread_clock_diff, uint32_t* wall_clock_diff);
 
@@ -228,6 +229,9 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
   // Copy a temporary buffer to the main buffer. Used for streaming. Exposed here for lock
   // annotation.
   void WriteToBuf(const uint8_t* src, size_t src_size)
+      REQUIRES(streaming_lock_);
+  // Flush the main buffer to file. Used for streaming. Exposed here for lock annotation.
+  void FlushBuf()
       REQUIRES(streaming_lock_);
 
   uint32_t EncodeTraceMethod(ArtMethod* method) REQUIRES(!*unique_methods_lock_);
