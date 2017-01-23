@@ -49,6 +49,7 @@
 #include "thread-inl.h"
 #include "thread_list.h"
 #include "ti_class.h"
+#include "ti_dump.h"
 #include "ti_field.h"
 #include "ti_heap.h"
 #include "ti_jni.h"
@@ -1311,6 +1312,7 @@ extern "C" bool ArtPlugin_Initialize() {
   PhaseUtil::Register(&gEventHandler);
   ThreadUtil::Register(&gEventHandler);
   ClassUtil::Register(&gEventHandler);
+  DumpUtil::Register(&gEventHandler);
 
   runtime->GetJavaVM()->AddEnvironmentHook(GetEnvHandler);
   runtime->AddSystemWeakHolder(&gObjectTagTable);
@@ -1322,6 +1324,7 @@ extern "C" bool ArtPlugin_Deinitialize() {
   PhaseUtil::Unregister();
   ThreadUtil::Unregister();
   ClassUtil::Unregister();
+  DumpUtil::Unregister();
 
   return true;
 }
