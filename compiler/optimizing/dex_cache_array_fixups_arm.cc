@@ -65,7 +65,7 @@ class DexCacheArrayFixupsVisitor : public HGraphVisitor {
     if (invoke->HasPcRelativeDexCache() &&
         !IsCallFreeIntrinsic<IntrinsicLocationsBuilderARMType>(invoke, codegen_)) {
       HArmDexCacheArraysBase* base =
-          GetOrCreateDexCacheArrayBase(invoke->GetDexFileForPcRelativeDexCache());
+          GetOrCreateDexCacheArrayBase(invoke, invoke->GetDexFileForPcRelativeDexCache());
       // Update the element offset in base.
       DexCacheArraysLayout layout(kArmPointerSize, &invoke->GetDexFileForPcRelativeDexCache());
       base->UpdateElementOffset(layout.MethodOffset(invoke->GetDexMethodIndex()));
@@ -75,21 +75,28 @@ class DexCacheArrayFixupsVisitor : public HGraphVisitor {
     }
   }
 
-  HArmDexCacheArraysBase* GetOrCreateDexCacheArrayBase(const DexFile& dex_file) {
-    // Ensure we only initialize the pointer once for each dex file.
-    auto lb = dex_cache_array_bases_.lower_bound(&dex_file);
-    if (lb != dex_cache_array_bases_.end() &&
-        !dex_cache_array_bases_.key_comp()(&dex_file, lb->first)) {
-      return lb->second;
-    }
+  HArmDexCacheArraysBase* GetOrCreateDexCacheArrayBase(HInstruction* cursor,
+                                                       const DexFile& dex_file) {
+    if (GetGraph()->HasIrreducibleLoops()) {
+      HArmDexCacheArraysBase* base = new (GetGraph()->GetArena()) HArmDexCacheArraysBase(dex_file);
+      cursor->GetBlock()->InsertInstructionBefore(base, cursor);
+      return base;
+    } else {
+      // Ensure we only initialize the pointer once for each dex file.
+      auto lb = dex_cache_array_bases_.lower_bound(&dex_file);
+      if (lb != dex_cache_array_bases_.end() &&
+          !dex_cache_array_bases_.key_comp()(&dex_file, lb->first)) {
+        return lb->second;
+      }
 
-    // Insert the base at the start of the entry block, move it to a better
-    // position later in MoveBaseIfNeeded().
-    HArmDexCacheArraysBase* base = new (GetGraph()->GetArena()) HArmDexCacheArraysBase(dex_file);
-    HBasicBlock* entry_block = GetGraph()->GetEntryBlock();
-    entry_block->InsertInstructionBefore(base, entry_block->GetFirstInstruction());
-    dex_cache_array_bases_.PutBefore(lb, &dex_file, base);
-    return base;
+      // Insert the base at the start of the entry block, move it to a better
+      // position later in MoveBaseIfNeeded().
+      HArmDexCacheArraysBase* base = new (GetGraph()->GetArena()) HArmDexCacheArraysBase(dex_file);
+      HBasicBlock* entry_block = GetGraph()->GetEntryBlock();
+      entry_block->InsertInstructionBefore(base, entry_block->GetFirstInstruction());
+      dex_cache_array_bases_.PutBefore(lb, &dex_file, base);
+      return base;
+    }
   }
 
   CodeGeneratorARMType* codegen_;
@@ -100,11 +107,6 @@ class DexCacheArrayFixupsVisitor : public HGraphVisitor {
 };
 
 void DexCacheArrayFixups::Run() {
-  if (graph_->HasIrreducibleLoops()) {
-    // Do not run this optimization, as irreducible loops do not work with an instruction
-    // that can be live-in at the irreducible loop header.
-    return;
-  }
   DexCacheArrayFixupsVisitor visitor(graph_, codegen_);
   visitor.VisitInsertionOrder();
   visitor.MoveBasesIfNeeded();
