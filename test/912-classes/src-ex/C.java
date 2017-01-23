@@ -14,5 +14,5 @@
  * limitations under the License.
  */
 
-public class A {
+public class C extends A {
 }
