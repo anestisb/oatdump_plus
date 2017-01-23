@@ -326,6 +326,7 @@ cc_defaults {
         "570-checker-osr/osr.cc",
         "595-profile-saving/profile-saving.cc",
         "596-app-images/app_images.cc",
+        "596-monitor-inflation/monitor_inflation.cc",
         "597-deopt-new-string/deopt.cc",
         "626-const-class-linking/clear_dex_cache_types.cc",
     ],

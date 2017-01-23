@@ -1394,6 +1394,12 @@ void MonitorList::SweepMonitorList(IsMarkedVisitor* visitor) {
   }
 }
 
+size_t MonitorList::Size() {
+  Thread* self = Thread::Current();
+  MutexLock mu(self, monitor_list_lock_);
+  return list_.size();
+}
+
 class MonitorDeflateVisitor : public IsMarkedVisitor {
  public:
   MonitorDeflateVisitor() : self_(Thread::Current()), deflate_count_(0) {}

@@ -331,6 +331,7 @@ class MonitorList {
   void BroadcastForNewMonitors() REQUIRES(!monitor_list_lock_);
   // Returns how many monitors were deflated.
   size_t DeflateMonitors() REQUIRES(!monitor_list_lock_) REQUIRES(Locks::mutator_lock_);
+  size_t Size() REQUIRES(!monitor_list_lock_);
 
   typedef std::list<Monitor*, TrackingAllocator<Monitor*, kAllocatorTagMonitorList>> Monitors;
 
