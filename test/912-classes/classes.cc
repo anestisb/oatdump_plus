@@ -20,6 +20,7 @@
 #include "jni.h"
 #include "openjdkjvmti/jvmti.h"
 #include "ScopedLocalRef.h"
+#include "thread-inl.h"
 
 #include "ti-agent/common_helper.h"
 #include "ti-agent/common_load.h"
@@ -257,6 +258,121 @@ extern "C" JNIEXPORT jintArray JNICALL Java_Main_getClassVersion(
   env->SetIntArrayRegion(int_array, 0, 2, buf);
 
   return int_array;
+}
+
+static std::string GetClassName(jvmtiEnv* jenv, JNIEnv* jni_env, jclass klass) {
+  char* name;
+  jvmtiError result = jenv->GetClassSignature(klass, &name, nullptr);
+  if (result != JVMTI_ERROR_NONE) {
+    if (jni_env != nullptr) {
+      JvmtiErrorToException(jni_env, result);
+    } else {
+      printf("Failed to get class signature.\n");
+    }
+    return "";
+  }
+
+  std::string tmp(name);
+  jenv->Deallocate(reinterpret_cast<unsigned char*>(name));
+
+  return tmp;
+}
+
+static std::string GetThreadName(jvmtiEnv* jenv, JNIEnv* jni_env, jthread thread) {
+  jvmtiThreadInfo info;
+  jvmtiError result = jenv->GetThreadInfo(thread, &info);
+  if (result != JVMTI_ERROR_NONE) {
+    if (jni_env != nullptr) {
+      JvmtiErrorToException(jni_env, result);
+    } else {
+      printf("Failed to get thread name.\n");
+    }
+    return "";
+  }
+
+  std::string tmp(info.name);
+  jenv->Deallocate(reinterpret_cast<unsigned char*>(info.name));
+  jni_env->DeleteLocalRef(info.context_class_loader);
+  jni_env->DeleteLocalRef(info.thread_group);
+
+  return tmp;
+}
+
+static std::string GetThreadName(Thread* thread) {
+  std::string tmp;
+  thread->GetThreadName(tmp);
+  return tmp;
+}
+
+static void JNICALL ClassPrepareCallback(jvmtiEnv* jenv,
+                                         JNIEnv* jni_env,
+                                         jthread thread,
+                                         jclass klass) {
+  std::string name = GetClassName(jenv, jni_env, klass);
+  if (name == "") {
+    return;
+  }
+  std::string thread_name = GetThreadName(jenv, jni_env, thread);
+  if (thread_name == "") {
+    return;
+  }
+  std::string cur_thread_name = GetThreadName(Thread::Current());
+  printf("Prepare: %s on %s (cur=%s)\n",
+         name.c_str(),
+         thread_name.c_str(),
+         cur_thread_name.c_str());
+}
+
+static void JNICALL ClassLoadCallback(jvmtiEnv* jenv,
+                                      JNIEnv* jni_env,
+                                      jthread thread,
+                                      jclass klass) {
+  std::string name = GetClassName(jenv, jni_env, klass);
+  if (name == "") {
+    return;
+  }
+  std::string thread_name = GetThreadName(jenv, jni_env, thread);
+  if (thread_name == "") {
+    return;
+  }
+  printf("Load: %s on %s\n", name.c_str(), thread_name.c_str());
+}
+
+extern "C" JNIEXPORT void JNICALL Java_Main_enableClassLoadEvents(
+    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jboolean b) {
+  if (b == JNI_FALSE) {
+    jvmtiError ret = jvmti_env->SetEventNotificationMode(JVMTI_DISABLE,
+                                                         JVMTI_EVENT_CLASS_LOAD,
+                                                         nullptr);
+    if (JvmtiErrorToException(env, ret)) {
+      return;
+    }
+    ret = jvmti_env->SetEventNotificationMode(JVMTI_DISABLE,
+                                              JVMTI_EVENT_CLASS_PREPARE,
+                                              nullptr);
+    JvmtiErrorToException(env, ret);
+    return;
+  }
+
+  jvmtiEventCallbacks callbacks;
+  memset(&callbacks, 0, sizeof(jvmtiEventCallbacks));
+  callbacks.ClassLoad = ClassLoadCallback;
+  callbacks.ClassPrepare = ClassPrepareCallback;
+  jvmtiError ret = jvmti_env->SetEventCallbacks(&callbacks, sizeof(callbacks));
+  if (JvmtiErrorToException(env, ret)) {
+    return;
+  }
+
+  ret = jvmti_env->SetEventNotificationMode(JVMTI_ENABLE,
+                                            JVMTI_EVENT_CLASS_LOAD,
+                                            nullptr);
+  if (JvmtiErrorToException(env, ret)) {
+    return;
+  }
+  ret = jvmti_env->SetEventNotificationMode(JVMTI_ENABLE,
+                                            JVMTI_EVENT_CLASS_PREPARE,
+                                            nullptr);
+  JvmtiErrorToException(env, ret);
 }
 
 }  // namespace Test912Classes
