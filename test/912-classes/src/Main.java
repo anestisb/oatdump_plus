@@ -219,6 +219,19 @@ public class Main {
     }
     final ClassLoader boot = cl;
 
+    Runnable r = new Runnable() {
+      @Override
+      public void run() {
+        try {
+          ClassLoader cl6 = create(boot, DEX1, DEX2);
+          System.out.println("C, true");
+          Class.forName("C", true, cl6);
+        } catch (Exception e) {
+          throw new RuntimeException(e);
+        }
+      }
+    };
+
     enableClassLoadEvents(true);
 
     ClassLoader cl1 = create(boot, DEX1, DEX2);
@@ -247,18 +260,6 @@ public class Main {
     System.out.println("C, true");
     Class.forName("C", true, cl5);
 
-    Runnable r = new Runnable() {
-      @Override
-      public void run() {
-        try {
-          ClassLoader cl6 = create(boot, DEX1, DEX2);
-          System.out.println("C, true");
-          Class.forName("C", true, cl6);
-        } catch (Exception e) {
-          throw new RuntimeException(e);
-        }
-      }
-    };
     Thread t = new Thread(r, "TestRunner");
     t.start();
     t.join();
