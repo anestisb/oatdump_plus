@@ -173,12 +173,13 @@ art_cc_library {
     whole_static_libs: [
         "libart-compiler-gtest",
         "libart-runtime-gtest",
-        "libgtest",
+        "libgtest"
     ],
     shared_libs: [
         "libartd",
         "libartd-compiler",
         "libbase",
+        "libbacktrace"
     ],
     target: {
         android: {

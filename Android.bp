@@ -27,6 +27,7 @@ subdirs = [
     "dexdump",
     "dexlayout",
     "dexlist",
+    "dexoptanalyzer",
     "disassembler",
     "imgdiag",
     "oatdump",
