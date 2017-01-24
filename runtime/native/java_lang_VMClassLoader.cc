@@ -81,14 +81,12 @@ static jclass VMClassLoader_findLoadedClass(JNIEnv* env, jclass, jobject javaLoa
   if (c != nullptr && c->IsErroneous()) {
     cl->ThrowEarlierClassFailure(c.Ptr());
     Thread* self = soa.Self();
-    ObjPtr<mirror::Class> eiie_class =
-        self->DecodeJObject(WellKnownClasses::java_lang_ExceptionInInitializerError)->AsClass();
     ObjPtr<mirror::Class> iae_class =
         self->DecodeJObject(WellKnownClasses::java_lang_IllegalAccessError)->AsClass();
     ObjPtr<mirror::Class> ncdfe_class =
         self->DecodeJObject(WellKnownClasses::java_lang_NoClassDefFoundError)->AsClass();
     ObjPtr<mirror::Class> exception = self->GetException()->GetClass();
-    if (exception == eiie_class || exception == iae_class || exception == ncdfe_class) {
+    if (exception == iae_class || exception == ncdfe_class) {
       self->ThrowNewWrappedException("Ljava/lang/ClassNotFoundException;",
                                      c->PrettyDescriptor().c_str());
     }

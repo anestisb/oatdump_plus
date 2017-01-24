@@ -1169,7 +1169,7 @@ void Hprof::DumpHeapObject(mirror::Object* obj) {
 }
 
 void Hprof::DumpHeapClass(mirror::Class* klass) {
-  if (!klass->IsResolved() && !klass->IsErroneous()) {
+  if (!klass->IsResolved()) {
     // Class is allocated but not yet resolved: we cannot access its fields or super class.
     return;
   }

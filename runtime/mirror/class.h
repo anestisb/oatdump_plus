@@ -84,6 +84,13 @@ class MANAGED Class FINAL : public Object {
   // will be gc'ed once all refs to the class point to the newly
   // cloned version.
   //
+  // kStatusErrorUnresolved, kStatusErrorResolved: Class is erroneous. We need
+  // to distinguish between classes that have been resolved and classes that
+  // have not. This is important because the const-class instruction needs to
+  // return a previously resolved class even if its subsequent initialization
+  // failed. We also need this to decide whether to wrap a previous
+  // initialization failure in ClassDefNotFound error or not.
+  //
   // kStatusNotReady: If a Class cannot be found in the class table by
   // FindClass, it allocates an new one with AllocClass in the
   // kStatusNotReady and calls LoadClass. Note if it does find a
@@ -119,8 +126,9 @@ class MANAGED Class FINAL : public Object {
   //
   // TODO: Explain the other states
   enum Status {
-    kStatusRetired = -2,  // Retired, should not be used. Use the newly cloned one instead.
-    kStatusError = -1,
+    kStatusRetired = -3,  // Retired, should not be used. Use the newly cloned one instead.
+    kStatusErrorResolved = -2,
+    kStatusErrorUnresolved = -1,
     kStatusNotReady = 0,
     kStatusIdx = 1,  // Loaded, DEX idx in super_class_type_idx_ and interfaces_type_idx_.
     kStatusLoaded = 2,  // DEX idx values resolved.
@@ -158,8 +166,25 @@ class MANAGED Class FINAL : public Object {
 
   // Returns true if the class has failed to link.
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  bool IsErroneousUnresolved() REQUIRES_SHARED(Locks::mutator_lock_) {
+    return GetStatus<kVerifyFlags>() == kStatusErrorUnresolved;
+  }
+
+  // Returns true if the class has failed to initialize.
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  bool IsErroneousResolved() REQUIRES_SHARED(Locks::mutator_lock_) {
+    return GetStatus<kVerifyFlags>() == kStatusErrorResolved;
+  }
+
+  // Returns true if the class status indicets that the class has failed to link or initialize.
+  static bool IsErroneous(Status status) {
+    return status == kStatusErrorUnresolved || status == kStatusErrorResolved;
+  }
+
+  // Returns true if the class has failed to link or initialize.
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool IsErroneous() REQUIRES_SHARED(Locks::mutator_lock_) {
-    return GetStatus<kVerifyFlags>() == kStatusError;
+    return IsErroneous(GetStatus<kVerifyFlags>());
   }
 
   // Returns true if the class has been loaded.
@@ -177,7 +202,8 @@ class MANAGED Class FINAL : public Object {
   // Returns true if the class has been linked.
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool IsResolved() REQUIRES_SHARED(Locks::mutator_lock_) {
-    return GetStatus<kVerifyFlags>() >= kStatusResolved;
+    Status status = GetStatus<kVerifyFlags>();
+    return status >= kStatusResolved || status == kStatusErrorResolved;
   }
 
   // Returns true if the class was compile-time verified.
@@ -345,7 +371,7 @@ class MANAGED Class FINAL : public Object {
   // be replaced with a class with the right size for embedded imt/vtable.
   bool IsTemp() REQUIRES_SHARED(Locks::mutator_lock_) {
     Status s = GetStatus();
-    return s < Status::kStatusResolving && ShouldHaveEmbeddedVTable();
+    return s < Status::kStatusResolving && s != kStatusErrorResolved && ShouldHaveEmbeddedVTable();
   }
 
   String* GetName() REQUIRES_SHARED(Locks::mutator_lock_);  // Returns the cached name.
@@ -1017,7 +1043,7 @@ class MANAGED Class FINAL : public Object {
   // Returns the number of instance fields containing reference types. Does not count fields in any
   // super classes.
   uint32_t NumReferenceInstanceFields() REQUIRES_SHARED(Locks::mutator_lock_) {
-    DCHECK(IsResolved() || IsErroneous());
+    DCHECK(IsResolved());
     return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, num_reference_instance_fields_));
   }
 
@@ -1045,7 +1071,7 @@ class MANAGED Class FINAL : public Object {
 
   // Returns the number of static fields containing reference types.
   uint32_t NumReferenceStaticFields() REQUIRES_SHARED(Locks::mutator_lock_) {
-    DCHECK(IsResolved() || IsErroneous());
+    DCHECK(IsResolved());
     return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, num_reference_static_fields_));
   }
 
