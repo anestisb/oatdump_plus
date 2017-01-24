@@ -109,8 +109,7 @@ inline uint32_t ArtMethod::GetAccessFlags() {
 }
 
 inline uint16_t ArtMethod::GetMethodIndex() {
-  DCHECK(IsRuntimeMethod() || GetDeclaringClass()->IsResolved() ||
-         GetDeclaringClass()->IsErroneous());
+  DCHECK(IsRuntimeMethod() || GetDeclaringClass()->IsResolved());
   return method_index_;
 }
 

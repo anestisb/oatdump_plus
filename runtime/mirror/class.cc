@@ -115,7 +115,9 @@ void Class::SetStatus(Handle<Class> h_this, Status new_status, Thread* self) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   bool class_linker_initialized = class_linker != nullptr && class_linker->IsInitialized();
   if (LIKELY(class_linker_initialized)) {
-    if (UNLIKELY(new_status <= old_status && new_status != kStatusError &&
+    if (UNLIKELY(new_status <= old_status &&
+                 new_status != kStatusErrorUnresolved &&
+                 new_status != kStatusErrorResolved &&
                  new_status != kStatusRetired)) {
       LOG(FATAL) << "Unexpected change back of class status for " << h_this->PrettyClass()
                  << " " << old_status << " -> " << new_status;
@@ -127,10 +129,12 @@ void Class::SetStatus(Handle<Class> h_this, Status new_status, Thread* self) {
             << h_this->PrettyClass() << " " << old_status << " -> " << new_status;
     }
   }
-  if (UNLIKELY(new_status == kStatusError)) {
-    CHECK_NE(h_this->GetStatus(), kStatusError)
+  if (UNLIKELY(IsErroneous(new_status))) {
+    CHECK(!h_this->IsErroneous())
         << "Attempt to set as erroneous an already erroneous class "
-        << h_this->PrettyClass();
+        << h_this->PrettyClass()
+        << " old_status: " << old_status << " new_status: " << new_status;
+    CHECK_EQ(new_status == kStatusErrorResolved, old_status >= kStatusResolved);
     if (VLOG_IS_ON(class_linker)) {
       LOG(ERROR) << "Setting " << h_this->PrettyDescriptor() << " to erroneous.";
       if (self->IsExceptionPending()) {
@@ -177,7 +181,7 @@ void Class::SetStatus(Handle<Class> h_this, Status new_status, Thread* self) {
       // Class is a temporary one, ensure that waiters for resolution get notified of retirement
       // so that they can grab the new version of the class from the class linker's table.
       CHECK_LT(new_status, kStatusResolved) << h_this->PrettyDescriptor();
-      if (new_status == kStatusRetired || new_status == kStatusError) {
+      if (new_status == kStatusRetired || new_status == kStatusErrorUnresolved) {
         h_this->NotifyAll(self);
       }
     } else {
@@ -305,7 +309,7 @@ void Class::DumpClass(std::ostream& os, int flags) {
     }
     if (h_this->NumStaticFields() > 0) {
       os << "  static fields (" << h_this->NumStaticFields() << " entries):\n";
-      if (h_this->IsResolved() || h_this->IsErroneous()) {
+      if (h_this->IsResolved()) {
         for (size_t i = 0; i < h_this->NumStaticFields(); ++i) {
           os << StringPrintf("    %2zd: %s\n", i,
                              ArtField::PrettyField(h_this->GetStaticField(i)).c_str());
@@ -316,7 +320,7 @@ void Class::DumpClass(std::ostream& os, int flags) {
     }
     if (h_this->NumInstanceFields() > 0) {
       os << "  instance fields (" << h_this->NumInstanceFields() << " entries):\n";
-      if (h_this->IsResolved() || h_this->IsErroneous()) {
+      if (h_this->IsResolved()) {
         for (size_t i = 0; i < h_this->NumInstanceFields(); ++i) {
           os << StringPrintf("    %2zd: %s\n", i,
                              ArtField::PrettyField(h_this->GetInstanceField(i)).c_str());
