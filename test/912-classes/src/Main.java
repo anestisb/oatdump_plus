@@ -232,6 +232,12 @@ public class Main {
       }
     };
 
+    Thread dummyThread = new Thread();
+    dummyThread.start();
+    dummyThread.join();
+
+    ensureJitCompiled(Main.class, "testClassEvents");
+
     enableClassLoadEvents(true);
 
     ClassLoader cl1 = create(boot, DEX1, DEX2);
@@ -330,6 +336,8 @@ public class Main {
   private static native int[] getClassVersion(Class<?> c);
 
   private static native void enableClassLoadEvents(boolean b);
+
+  private static native void ensureJitCompiled(Class c, String name);
 
   private static class TestForNonInit {
     public static double dummy = Math.random();  // So it can't be compile-time initialized.
