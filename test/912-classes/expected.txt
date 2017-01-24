@@ -29,7 +29,7 @@ int 100000
 class [Ljava.lang.String; 10000
 class java.lang.Object 111
 class Main$TestForNonInit 11
-class Main$TestForInitFail 1001
+class Main$TestForInitFail 1011
 int []
 class [Ljava.lang.String; []
 class java.lang.Object []

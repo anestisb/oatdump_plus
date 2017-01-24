@@ -87,6 +87,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
     EXPECT_FALSE(primitive->IsErroneous());
     EXPECT_TRUE(primitive->IsLoaded());
     EXPECT_TRUE(primitive->IsResolved());
+    EXPECT_FALSE(primitive->IsErroneousResolved());
     EXPECT_TRUE(primitive->IsVerified());
     EXPECT_TRUE(primitive->IsInitialized());
     EXPECT_FALSE(primitive->IsArrayInstance());
@@ -125,6 +126,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
     EXPECT_FALSE(JavaLangObject->IsErroneous());
     EXPECT_TRUE(JavaLangObject->IsLoaded());
     EXPECT_TRUE(JavaLangObject->IsResolved());
+    EXPECT_FALSE(JavaLangObject->IsErroneousResolved());
     EXPECT_TRUE(JavaLangObject->IsVerified());
     EXPECT_TRUE(JavaLangObject->IsInitialized());
     EXPECT_FALSE(JavaLangObject->IsArrayInstance());
@@ -199,6 +201,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
     EXPECT_FALSE(array->IsErroneous());
     EXPECT_TRUE(array->IsLoaded());
     EXPECT_TRUE(array->IsResolved());
+    EXPECT_FALSE(array->IsErroneousResolved());
     EXPECT_TRUE(array->IsVerified());
     EXPECT_TRUE(array->IsInitialized());
     EXPECT_FALSE(array->IsArrayInstance());
@@ -270,6 +273,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
     EXPECT_TRUE(klass->GetDexCache() != nullptr);
     EXPECT_TRUE(klass->IsLoaded());
     EXPECT_TRUE(klass->IsResolved());
+    EXPECT_FALSE(klass->IsErroneousResolved());
     EXPECT_FALSE(klass->IsErroneous());
     EXPECT_FALSE(klass->IsArrayClass());
     EXPECT_TRUE(klass->GetComponentType() == nullptr);
@@ -857,6 +861,7 @@ TEST_F(ClassLinkerTest, FindClass) {
   EXPECT_FALSE(MyClass->IsErroneous());
   EXPECT_TRUE(MyClass->IsLoaded());
   EXPECT_TRUE(MyClass->IsResolved());
+  EXPECT_FALSE(MyClass->IsErroneousResolved());
   EXPECT_FALSE(MyClass->IsVerified());
   EXPECT_FALSE(MyClass->IsInitialized());
   EXPECT_FALSE(MyClass->IsArrayInstance());
@@ -939,6 +944,47 @@ TEST_F(ClassLinkerTest, LookupResolvedTypeArray) {
   EXPECT_OBJ_PTR_EQ(
       class_linker_->LookupResolvedType(dex_file, array_idx, dex_cache.Get(), class_loader.Get()),
       array_klass);
+}
+
+TEST_F(ClassLinkerTest, LookupResolvedTypeErroneousInit) {
+  ScopedObjectAccess soa(Thread::Current());
+  StackHandleScope<3> hs(soa.Self());
+  Handle<mirror::ClassLoader> class_loader(
+      hs.NewHandle(soa.Decode<mirror::ClassLoader>(LoadDex("ErroneousInit"))));
+  AssertNonExistentClass("LErroneousInit;");
+  Handle<mirror::Class> klass =
+      hs.NewHandle(class_linker_->FindClass(soa.Self(), "LErroneousInit;", class_loader));
+  ASSERT_OBJ_PTR_NE(klass.Get(), ObjPtr<mirror::Class>(nullptr));
+  dex::TypeIndex type_idx = klass->GetClassDef()->class_idx_;
+  Handle<mirror::DexCache> dex_cache = hs.NewHandle(klass->GetDexCache());
+  const DexFile& dex_file = klass->GetDexFile();
+  EXPECT_OBJ_PTR_EQ(
+      class_linker_->LookupResolvedType(dex_file, type_idx, dex_cache.Get(), class_loader.Get()),
+      klass.Get());
+  // Zero out the resolved type and make sure LookupResolvedType still finds it.
+  dex_cache->SetResolvedType(type_idx, nullptr);
+  EXPECT_TRUE(dex_cache->GetResolvedType(type_idx) == nullptr);
+  EXPECT_OBJ_PTR_EQ(
+      class_linker_->LookupResolvedType(dex_file, type_idx, dex_cache.Get(), class_loader.Get()),
+      klass.Get());
+  // Force initialization to turn the class erroneous.
+  bool initialized = class_linker_->EnsureInitialized(soa.Self(),
+                                                      klass,
+                                                      /* can_init_fields */ true,
+                                                      /* can_init_parents */ true);
+  EXPECT_FALSE(initialized);
+  EXPECT_TRUE(soa.Self()->IsExceptionPending());
+  soa.Self()->ClearException();
+  // Check that the LookupResolvedType() can still find the resolved type.
+  EXPECT_OBJ_PTR_EQ(
+      class_linker_->LookupResolvedType(dex_file, type_idx, dex_cache.Get(), class_loader.Get()),
+      klass.Get());
+  // Zero out the resolved type and make sure LookupResolvedType() still finds it.
+  dex_cache->SetResolvedType(type_idx, nullptr);
+  EXPECT_TRUE(dex_cache->GetResolvedType(type_idx) == nullptr);
+  EXPECT_OBJ_PTR_EQ(
+      class_linker_->LookupResolvedType(dex_file, type_idx, dex_cache.Get(), class_loader.Get()),
+      klass.Get());
 }
 
 TEST_F(ClassLinkerTest, LibCore) {

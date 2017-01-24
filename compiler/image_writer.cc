@@ -756,7 +756,7 @@ bool ImageWriter::PruneAppImageClassInternal(
   bool my_early_exit = false;  // Only for ourselves, ignore caller.
   // Remove classes that failed to verify since we don't want to have java.lang.VerifyError in the
   // app image.
-  if (klass->GetStatus() == mirror::Class::kStatusError) {
+  if (klass->IsErroneous()) {
     result = true;
   } else {
     ObjPtr<mirror::ClassExt> ext(klass->GetExtData());
@@ -777,8 +777,8 @@ bool ImageWriter::PruneAppImageClassInternal(
                                                   visited);
   }
   // Check static fields and their classes.
-  size_t num_static_fields = klass->NumReferenceStaticFields();
-  if (num_static_fields != 0 && klass->IsResolved()) {
+  if (klass->IsResolved() && klass->NumReferenceStaticFields() != 0) {
+    size_t num_static_fields = klass->NumReferenceStaticFields();
     // Presumably GC can happen when we are cross compiling, it should not cause performance
     // problems to do pointer size logic.
     MemberOffset field_offset = klass->GetFirstReferenceStaticFieldOffset(
@@ -1147,7 +1147,7 @@ mirror::Object* ImageWriter::TryAssignBinSlot(WorkStack& work_stack,
       // Visit and assign offsets for fields and field arrays.
       mirror::Class* as_klass = obj->AsClass();
       mirror::DexCache* dex_cache = as_klass->GetDexCache();
-      DCHECK_NE(as_klass->GetStatus(), mirror::Class::kStatusError);
+      DCHECK(!as_klass->IsErroneous()) << as_klass->GetStatus();
       if (compile_app_image_) {
         // Extra sanity, no boot loader classes should be left!
         CHECK(!IsBootClassLoaderClass(as_klass)) << as_klass->PrettyClass();
