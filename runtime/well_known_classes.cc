@@ -51,7 +51,6 @@ jclass WellKnownClasses::java_lang_ClassLoader;
 jclass WellKnownClasses::java_lang_ClassNotFoundException;
 jclass WellKnownClasses::java_lang_Daemons;
 jclass WellKnownClasses::java_lang_Error;
-jclass WellKnownClasses::java_lang_ExceptionInInitializerError;
 jclass WellKnownClasses::java_lang_invoke_MethodHandle;
 jclass WellKnownClasses::java_lang_IllegalAccessError;
 jclass WellKnownClasses::java_lang_NoClassDefFoundError;
@@ -290,7 +289,6 @@ void WellKnownClasses::Init(JNIEnv* env) {
   java_lang_Object = CacheClass(env, "java/lang/Object");
   java_lang_OutOfMemoryError = CacheClass(env, "java/lang/OutOfMemoryError");
   java_lang_Error = CacheClass(env, "java/lang/Error");
-  java_lang_ExceptionInInitializerError = CacheClass(env, "java/lang/ExceptionInInitializerError");
   java_lang_IllegalAccessError = CacheClass(env, "java/lang/IllegalAccessError");
   java_lang_invoke_MethodHandle = CacheClass(env, "java/lang/invoke/MethodHandle");
   java_lang_NoClassDefFoundError = CacheClass(env, "java/lang/NoClassDefFoundError");

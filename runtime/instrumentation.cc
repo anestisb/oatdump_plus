@@ -88,11 +88,11 @@ Instrumentation::Instrumentation()
 }
 
 void Instrumentation::InstallStubsForClass(mirror::Class* klass) {
-  if (klass->IsErroneous()) {
-    // We can't execute code in a erroneous class: do nothing.
-  } else if (!klass->IsResolved()) {
+  if (!klass->IsResolved()) {
     // We need the class to be resolved to install/uninstall stubs. Otherwise its methods
     // could not be initialized or linked with regards to class inheritance.
+  } else if (klass->IsErroneousResolved()) {
+    // We can't execute code in a erroneous class: do nothing.
   } else {
     for (ArtMethod& method : klass->GetMethods(kRuntimePointerSize)) {
       InstallStubsForMethod(&method);
