@@ -17,10 +17,9 @@
 .super Ljava/lang/Object;
 
 ## CHECK-START-X86: int IrreducibleLoop.simpleLoop(int) dead_code_elimination$initial (before)
-## CHECK-DAG: <<Method:(i|j)\d+>> CurrentMethod
 ## CHECK-DAG: <<Constant:i\d+>>   IntConstant 42
-## CHECK-DAG:                     InvokeStaticOrDirect [<<Constant>>,<<Method>>] loop:{{B\d+}} irreducible:true
-## CHECK-DAG:                     InvokeStaticOrDirect [<<Constant>>,<<Method>>] loop:none
+## CHECK-DAG:                     InvokeStaticOrDirect [<<Constant>>] loop:{{B\d+}} irreducible:true
+## CHECK-DAG:                     InvokeStaticOrDirect [<<Constant>>] loop:none
 .method public static simpleLoop(I)I
    .registers 3
    const/16 v0, 42

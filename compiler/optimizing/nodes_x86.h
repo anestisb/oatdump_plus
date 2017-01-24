@@ -71,6 +71,10 @@ class HX86FPNeg FINAL : public HExpression<2> {
     SetRawInputAt(1, method_base);
   }
 
+  HX86ComputeBaseMethodAddress* GetBaseMethodAddress() const {
+    return InputAt(1)->AsX86ComputeBaseMethodAddress();
+  }
+
   DECLARE_INSTRUCTION(X86FPNeg);
 
  private:

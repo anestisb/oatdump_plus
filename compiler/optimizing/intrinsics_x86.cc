@@ -356,23 +356,28 @@ static void CreateFloatToFloat(ArenaAllocator* arena, HInvoke* invoke) {
   }
 }
 
-static void MathAbsFP(LocationSummary* locations,
+static void MathAbsFP(HInvoke* invoke,
                       bool is64bit,
                       X86Assembler* assembler,
                       CodeGeneratorX86* codegen) {
+  LocationSummary* locations = invoke->GetLocations();
   Location output = locations->Out();
 
   DCHECK(output.IsFpuRegister());
   if (locations->GetInputCount() == 2 && locations->InAt(1).IsValid()) {
+    HX86ComputeBaseMethodAddress* method_address =
+        invoke->InputAt(1)->AsX86ComputeBaseMethodAddress();
     DCHECK(locations->InAt(1).IsRegister());
     // We also have a constant area pointer.
     Register constant_area = locations->InAt(1).AsRegister<Register>();
     XmmRegister temp = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
     if (is64bit) {
-      __ movsd(temp, codegen->LiteralInt64Address(INT64_C(0x7FFFFFFFFFFFFFFF), constant_area));
+      __ movsd(temp, codegen->LiteralInt64Address(
+          INT64_C(0x7FFFFFFFFFFFFFFF), method_address, constant_area));
       __ andpd(output.AsFpuRegister<XmmRegister>(), temp);
     } else {
-      __ movss(temp, codegen->LiteralInt32Address(INT32_C(0x7FFFFFFF), constant_area));
+      __ movss(temp, codegen->LiteralInt32Address(
+          INT32_C(0x7FFFFFFF), method_address, constant_area));
       __ andps(output.AsFpuRegister<XmmRegister>(), temp);
     }
   } else {
@@ -396,7 +401,7 @@ void IntrinsicLocationsBuilderX86::VisitMathAbsDouble(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorX86::VisitMathAbsDouble(HInvoke* invoke) {
-  MathAbsFP(invoke->GetLocations(), /* is64bit */ true, GetAssembler(), codegen_);
+  MathAbsFP(invoke, /* is64bit */ true, GetAssembler(), codegen_);
 }
 
 void IntrinsicLocationsBuilderX86::VisitMathAbsFloat(HInvoke* invoke) {
@@ -404,7 +409,7 @@ void IntrinsicLocationsBuilderX86::VisitMathAbsFloat(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorX86::VisitMathAbsFloat(HInvoke* invoke) {
-  MathAbsFP(invoke->GetLocations(), /* is64bit */ false, GetAssembler(), codegen_);
+  MathAbsFP(invoke, /* is64bit */ false, GetAssembler(), codegen_);
 }
 
 static void CreateAbsIntLocation(ArenaAllocator* arena, HInvoke* invoke) {
@@ -486,11 +491,12 @@ void IntrinsicCodeGeneratorX86::VisitMathAbsLong(HInvoke* invoke) {
   GenAbsLong(invoke->GetLocations(), GetAssembler());
 }
 
-static void GenMinMaxFP(LocationSummary* locations,
+static void GenMinMaxFP(HInvoke* invoke,
                         bool is_min,
                         bool is_double,
                         X86Assembler* assembler,
                         CodeGeneratorX86* codegen) {
+  LocationSummary* locations = invoke->GetLocations();
   Location op1_loc = locations->InAt(0);
   Location op2_loc = locations->InAt(1);
   Location out_loc = locations->Out();
@@ -553,12 +559,14 @@ static void GenMinMaxFP(LocationSummary* locations,
   __ Bind(&nan);
   // Do we have a constant area pointer?
   if (locations->GetInputCount() == 3 && locations->InAt(2).IsValid()) {
+    HX86ComputeBaseMethodAddress* method_address =
+        invoke->InputAt(2)->AsX86ComputeBaseMethodAddress();
     DCHECK(locations->InAt(2).IsRegister());
     Register constant_area = locations->InAt(2).AsRegister<Register>();
     if (is_double) {
-      __ movsd(out, codegen->LiteralInt64Address(kDoubleNaN, constant_area));
+      __ movsd(out, codegen->LiteralInt64Address(kDoubleNaN, method_address, constant_area));
     } else {
-      __ movss(out, codegen->LiteralInt32Address(kFloatNaN, constant_area));
+      __ movss(out, codegen->LiteralInt32Address(kFloatNaN, method_address, constant_area));
     }
   } else {
     if (is_double) {
@@ -608,7 +616,7 @@ void IntrinsicLocationsBuilderX86::VisitMathMinDoubleDouble(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorX86::VisitMathMinDoubleDouble(HInvoke* invoke) {
-  GenMinMaxFP(invoke->GetLocations(),
+  GenMinMaxFP(invoke,
               /* is_min */ true,
               /* is_double */ true,
               GetAssembler(),
@@ -620,7 +628,7 @@ void IntrinsicLocationsBuilderX86::VisitMathMinFloatFloat(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorX86::VisitMathMinFloatFloat(HInvoke* invoke) {
-  GenMinMaxFP(invoke->GetLocations(),
+  GenMinMaxFP(invoke,
               /* is_min */ true,
               /* is_double */ false,
               GetAssembler(),
@@ -632,7 +640,7 @@ void IntrinsicLocationsBuilderX86::VisitMathMaxDoubleDouble(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorX86::VisitMathMaxDoubleDouble(HInvoke* invoke) {
-  GenMinMaxFP(invoke->GetLocations(),
+  GenMinMaxFP(invoke,
               /* is_min */ false,
               /* is_double */ true,
               GetAssembler(),
@@ -644,7 +652,7 @@ void IntrinsicLocationsBuilderX86::VisitMathMaxFloatFloat(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorX86::VisitMathMaxFloatFloat(HInvoke* invoke) {
-  GenMinMaxFP(invoke->GetLocations(),
+  GenMinMaxFP(invoke,
               /* is_min */ false,
               /* is_double */ false,
               GetAssembler(),
@@ -905,10 +913,16 @@ void IntrinsicCodeGeneratorX86::VisitMathRoundFloat(HInvoke* invoke) {
   __ subss(t2, t1);
   if (locations->GetInputCount() == 2 && locations->InAt(1).IsValid()) {
     // Direct constant area available.
+    HX86ComputeBaseMethodAddress* method_address =
+        invoke->InputAt(1)->AsX86ComputeBaseMethodAddress();
     Register constant_area = locations->InAt(1).AsRegister<Register>();
-    __ comiss(t2, codegen_->LiteralInt32Address(bit_cast<int32_t, float>(0.5f), constant_area));
+    __ comiss(t2, codegen_->LiteralInt32Address(bit_cast<int32_t, float>(0.5f),
+                                                method_address,
+                                                constant_area));
     __ j(kBelow, &skip_incr);
-    __ addss(t1, codegen_->LiteralInt32Address(bit_cast<int32_t, float>(1.0f), constant_area));
+    __ addss(t1, codegen_->LiteralInt32Address(bit_cast<int32_t, float>(1.0f),
+                                               method_address,
+                                               constant_area));
     __ Bind(&skip_incr);
   } else {
     // No constant area: go through stack.
