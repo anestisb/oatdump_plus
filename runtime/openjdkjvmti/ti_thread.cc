@@ -61,11 +61,14 @@ struct ThreadCallback : public art::ThreadLifecycleCallback, public art::Runtime
     }
     return self->GetJniEnv()->AddLocalReference<jthread>(self->GetPeer());
   }
-  void Post(art::Thread* self, ArtJvmtiEvent type) REQUIRES_SHARED(art::Locks::mutator_lock_) {
+  template <ArtJvmtiEvent kEvent>
+  void Post(art::Thread* self) REQUIRES_SHARED(art::Locks::mutator_lock_) {
     DCHECK_EQ(self, art::Thread::Current());
     ScopedLocalRef<jthread> thread(self->GetJniEnv(), GetThreadObject(self));
     art::ScopedThreadSuspension sts(self, art::ThreadState::kNative);
-    event_handler->DispatchEvent(self, type, self->GetJniEnv(), thread.get());
+    event_handler->DispatchEvent<kEvent>(self,
+                                         reinterpret_cast<JNIEnv*>(self->GetJniEnv()),
+                                         thread.get());
   }
 
   void ThreadStart(art::Thread* self) OVERRIDE REQUIRES_SHARED(art::Locks::mutator_lock_) {
@@ -81,11 +84,11 @@ struct ThreadCallback : public art::ThreadLifecycleCallback, public art::Runtime
       }
       return;
     }
-    Post(self, ArtJvmtiEvent::kThreadStart);
+    Post<ArtJvmtiEvent::kThreadStart>(self);
   }
 
   void ThreadDeath(art::Thread* self) OVERRIDE REQUIRES_SHARED(art::Locks::mutator_lock_) {
-    Post(self, ArtJvmtiEvent::kThreadEnd);
+    Post<ArtJvmtiEvent::kThreadEnd>(self);
   }
 
   void NextRuntimePhase(RuntimePhase phase) OVERRIDE REQUIRES_SHARED(art::Locks::mutator_lock_) {
@@ -93,7 +96,7 @@ struct ThreadCallback : public art::ThreadLifecycleCallback, public art::Runtime
       // We moved to VMInit. Report the main thread as started (it was attached early, and must
       // not be reported until Init.
       started = true;
-      Post(art::Thread::Current(), ArtJvmtiEvent::kThreadStart);
+      Post<ArtJvmtiEvent::kThreadStart>(art::Thread::Current());
     }
   }
 
