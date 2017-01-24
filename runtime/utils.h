@@ -143,11 +143,17 @@ void SetThreadName(const char* thread_name);
 
 // Find $ANDROID_ROOT, /system, or abort.
 const char* GetAndroidRoot();
+// Find $ANDROID_ROOT, /system, or return null.
+const char* GetAndroidRootSafe(std::string* error_msg);
 
 // Find $ANDROID_DATA, /data, or abort.
 const char* GetAndroidData();
 // Find $ANDROID_DATA, /data, or return null.
 const char* GetAndroidDataSafe(std::string* error_msg);
+
+// Returns the default boot image location (ANDROID_ROOT/framework/boot.art).
+// Returns an empty string if ANDROID_ROOT is not set.
+std::string GetDefaultBootImageLocation(std::string* error_msg);
 
 // Returns the dalvik-cache location, with subdir appended. Returns the empty string if the cache
 // could not be found.

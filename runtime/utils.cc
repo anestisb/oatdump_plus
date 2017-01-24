@@ -788,49 +788,58 @@ void GetTaskStats(pid_t tid, char* state, int* utime, int* stime, int* task_cpu)
   *task_cpu = strtoull(fields[36].c_str(), nullptr, 10);
 }
 
-const char* GetAndroidRoot() {
-  const char* android_root = getenv("ANDROID_ROOT");
-  if (android_root == nullptr) {
-    if (OS::DirectoryExists("/system")) {
-      android_root = "/system";
+static const char* GetAndroidDirSafe(const char* env_var,
+                                     const char* default_dir,
+                                     std::string* error_msg) {
+  const char* android_dir = getenv(env_var);
+  if (android_dir == nullptr) {
+    if (OS::DirectoryExists(default_dir)) {
+      android_dir = default_dir;
     } else {
-      LOG(FATAL) << "ANDROID_ROOT not set and /system does not exist";
-      return "";
+      *error_msg = StringPrintf("%s not set and %s does not exist", env_var, default_dir);
+      return nullptr;
     }
   }
-  if (!OS::DirectoryExists(android_root)) {
-    LOG(FATAL) << "Failed to find ANDROID_ROOT directory " << android_root;
-    return "";
+  if (!OS::DirectoryExists(android_dir)) {
+    *error_msg = StringPrintf("Failed to find %s directory %s", env_var, android_dir);
+    return nullptr;
   }
-  return android_root;
+  return android_dir;
 }
 
-const char* GetAndroidData() {
+const char* GetAndroidDir(const char* env_var, const char* default_dir) {
   std::string error_msg;
-  const char* dir = GetAndroidDataSafe(&error_msg);
+  const char* dir = GetAndroidDirSafe(env_var, default_dir, &error_msg);
   if (dir != nullptr) {
     return dir;
   } else {
     LOG(FATAL) << error_msg;
-    return "";
+    return nullptr;
   }
 }
 
+const char* GetAndroidRoot() {
+  return GetAndroidDir("ANDROID_ROOT", "/system");
+}
+
+const char* GetAndroidRootSafe(std::string* error_msg) {
+  return GetAndroidDirSafe("ANDROID_ROOT", "/system", error_msg);
+}
+
+const char* GetAndroidData() {
+  return GetAndroidDir("ANDROID_DATA", "/data");
+}
+
 const char* GetAndroidDataSafe(std::string* error_msg) {
-  const char* android_data = getenv("ANDROID_DATA");
-  if (android_data == nullptr) {
-    if (OS::DirectoryExists("/data")) {
-      android_data = "/data";
-    } else {
-      *error_msg = "ANDROID_DATA not set and /data does not exist";
-      return nullptr;
-    }
+  return GetAndroidDirSafe("ANDROID_DATA", "/data", error_msg);
+}
+
+std::string GetDefaultBootImageLocation(std::string* error_msg) {
+  const char* android_root = GetAndroidRootSafe(error_msg);
+  if (android_root == nullptr) {
+    return "";
   }
-  if (!OS::DirectoryExists(android_data)) {
-    *error_msg = StringPrintf("Failed to find ANDROID_DATA directory %s", android_data);
-    return nullptr;
-  }
-  return android_data;
+  return StringPrintf("%s/framework/boot.art", android_root);
 }
 
 void GetDalvikCache(const char* subdir, const bool create_if_absent, std::string* dalvik_cache,
