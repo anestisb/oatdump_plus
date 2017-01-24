@@ -474,10 +474,14 @@ art_cc_library {
 art_cc_library {
     name: "libart-runtime-gtest",
     defaults: ["libart-gtest-defaults"],
-    srcs: ["common_runtime_test.cc"],
+    srcs: [
+        "common_runtime_test.cc",
+        "dexopt_test.cc"
+    ],
     shared_libs: [
         "libartd",
         "libbase",
+        "libbacktrace"
     ],
 }
 
