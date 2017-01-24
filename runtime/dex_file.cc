@@ -74,7 +74,6 @@ struct DexFile::AnnotationValue {
 
 bool DexFile::GetChecksum(const char* filename, uint32_t* checksum, std::string* error_msg) {
   CHECK(checksum != nullptr);
-  uint32_t magic;
 
   // Strip ":...", which is the location
   const char* zip_entry_name = kClassesDex;
@@ -88,7 +87,29 @@ bool DexFile::GetChecksum(const char* filename, uint32_t* checksum, std::string*
     DCHECK_EQ(zip_entry_name[-1], kMultiDexSeparator);
   }
 
-  File fd = OpenAndReadMagic(file_part, &magic, error_msg);
+  std::vector<uint32_t> checksums;
+  if (!GetMultiDexChecksums(file_part, &checksums, error_msg)) {
+    return false;
+  }
+
+  for (size_t i = 0; i < checksums.size(); i++) {
+    if (GetMultiDexClassesDexName(i) == std::string(zip_entry_name)) {
+      *checksum = checksums[i];
+      return true;
+    }
+  }
+
+  *error_msg = StringPrintf("Failed to find entry '%s' in '%s'", zip_entry_name, file_part);
+  return false;
+}
+
+bool DexFile::GetMultiDexChecksums(const char* filename,
+                                   std::vector<uint32_t>* checksums,
+                                   std::string* error_msg) {
+  CHECK(checksums != nullptr);
+  uint32_t magic;
+
+  File fd = OpenAndReadMagic(filename, &magic, error_msg);
   if (fd.Fd() == -1) {
     DCHECK(!error_msg->empty());
     return false;
@@ -97,17 +118,25 @@ bool DexFile::GetChecksum(const char* filename, uint32_t* checksum, std::string*
     std::unique_ptr<ZipArchive> zip_archive(
         ZipArchive::OpenFromFd(fd.Release(), filename, error_msg));
     if (zip_archive.get() == nullptr) {
-      *error_msg = StringPrintf("Failed to open zip archive '%s' (error msg: %s)", file_part,
+      *error_msg = StringPrintf("Failed to open zip archive '%s' (error msg: %s)", filename,
                                 error_msg->c_str());
       return false;
     }
-    std::unique_ptr<ZipEntry> zip_entry(zip_archive->Find(zip_entry_name, error_msg));
+
+    uint32_t i = 0;
+    std::string zip_entry_name = GetMultiDexClassesDexName(i++);
+    std::unique_ptr<ZipEntry> zip_entry(zip_archive->Find(zip_entry_name.c_str(), error_msg));
     if (zip_entry.get() == nullptr) {
-      *error_msg = StringPrintf("Zip archive '%s' doesn't contain %s (error msg: %s)", file_part,
-                                zip_entry_name, error_msg->c_str());
+      *error_msg = StringPrintf("Zip archive '%s' doesn't contain %s (error msg: %s)", filename,
+          zip_entry_name.c_str(), error_msg->c_str());
       return false;
     }
-    *checksum = zip_entry->GetCrc32();
+
+    do {
+      checksums->push_back(zip_entry->GetCrc32());
+      zip_entry_name = DexFile::GetMultiDexClassesDexName(i++);
+      zip_entry.reset(zip_archive->Find(zip_entry_name.c_str(), error_msg));
+    } while (zip_entry.get() != nullptr);
     return true;
   }
   if (IsDexMagic(magic)) {
@@ -116,7 +145,7 @@ bool DexFile::GetChecksum(const char* filename, uint32_t* checksum, std::string*
     if (dex_file.get() == nullptr) {
       return false;
     }
-    *checksum = dex_file->GetHeader().checksum_;
+    checksums->push_back(dex_file->GetHeader().checksum_);
     return true;
   }
   *error_msg = StringPrintf("Expected valid zip or dex file: '%s'", filename);

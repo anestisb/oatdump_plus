@@ -334,6 +334,29 @@ TEST_F(DexFileTest, GetChecksum) {
   EXPECT_EQ(java_lang_dex_file_->GetLocationChecksum(), checksum);
 }
 
+TEST_F(DexFileTest, GetMultiDexChecksums) {
+  std::string error_msg;
+  std::vector<uint32_t> checksums;
+  std::string multidex_file = GetTestDexFileName("MultiDex");
+  EXPECT_TRUE(DexFile::GetMultiDexChecksums(multidex_file.c_str(),
+                                            &checksums,
+                                            &error_msg)) << error_msg;
+
+  uint32_t checksum0 = 0;
+  EXPECT_TRUE(DexFile::GetChecksum(DexFile::GetMultiDexLocation(0, multidex_file.c_str()).c_str(),
+                                   &checksum0,
+                                   &error_msg)) << error_msg;
+
+  uint32_t checksum1 = 0;
+  EXPECT_TRUE(DexFile::GetChecksum(DexFile::GetMultiDexLocation(1, multidex_file.c_str()).c_str(),
+                                   &checksum1,
+                                   &error_msg)) << error_msg;
+
+  ASSERT_EQ(2u, checksums.size());
+  EXPECT_EQ(checksums[0], checksum0);
+  EXPECT_EQ(checksums[1], checksum1);
+}
+
 TEST_F(DexFileTest, ClassDefs) {
   ScopedObjectAccess soa(Thread::Current());
   std::unique_ptr<const DexFile> raw(OpenTestDexFile("Nested"));

@@ -430,6 +430,15 @@ class DexFile {
   // Return true if the checksum could be found, false otherwise.
   static bool GetChecksum(const char* filename, uint32_t* checksum, std::string* error_msg);
 
+  // Returns the checksums of a file for comparison with GetLocationChecksum().
+  // For .dex files, this is the single header checksum.
+  // For zip files, this is the zip entry CRC32 checksum for classes.dex and
+  // each additional multidex entry classes2.dex, classes3.dex, etc.
+  // Return true if the checksums could be found, false otherwise.
+  static bool GetMultiDexChecksums(const char* filename,
+                                   std::vector<uint32_t>* checksums,
+                                   std::string* error_msg);
+
   // Opens .dex file, backed by existing memory
   static std::unique_ptr<const DexFile> Open(const uint8_t* base,
                                              size_t size,
