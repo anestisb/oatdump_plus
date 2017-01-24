@@ -34,6 +34,8 @@ public class Main {
     testFilterReturnValue();
     testPermuteArguments();
     testInvokers();
+    testSpreaders_reference();
+    testSpreaders_primitive();
   }
 
   public static void testThrowException() throws Throwable {
@@ -921,6 +923,306 @@ public class Main {
     }
   }
 
+  public static int spreadReferences(String a, String b, String c) {
+    System.out.println("a: " + a + ", b:" + b + ", c: " + c);
+    return 42;
+  }
+
+  public static int spreadReferences_Unbox(String a, int b) {
+    System.out.println("a: " + a + ", b:" + b);
+    return 43;
+  }
+
+  public static void testSpreaders_reference() throws Throwable {
+    MethodType methodType = MethodType.methodType(int.class,
+        new Class<?>[] { String.class, String.class, String.class });
+    MethodHandle delegate = MethodHandles.lookup().findStatic(
+        Main.class, "spreadReferences", methodType);
+
+    // Basic checks on array lengths.
+    //
+    // Array size = 0
+    MethodHandle mhAsSpreader = delegate.asSpreader(String[].class, 0);
+    int ret = (int) mhAsSpreader.invoke("a", "b", "c", new String[] {});
+    assertEquals(42, ret);
+    // Array size = 1
+    mhAsSpreader = delegate.asSpreader(String[].class, 1);
+    ret = (int) mhAsSpreader.invoke("a", "b", new String[] { "c" });
+    assertEquals(42, ret);
+    // Array size = 2
+    mhAsSpreader = delegate.asSpreader(String[].class, 2);
+    ret = (int) mhAsSpreader.invoke("a", new String[] { "b", "c" });
+    assertEquals(42, ret);
+    // Array size = 3
+    mhAsSpreader = delegate.asSpreader(String[].class, 3);
+    ret = (int) mhAsSpreader.invoke(new String[] { "a", "b", "c"});
+    assertEquals(42, ret);
+
+    // Exception case, array size = 4 is illegal.
+    try {
+      delegate.asSpreader(String[].class, 4);
+      fail();
+    } catch (IllegalArgumentException expected) {
+    }
+
+    // Exception case, calling with an arg of the wrong size.
+    // Array size = 3
+    mhAsSpreader = delegate.asSpreader(String[].class, 3);
+    try {
+      ret = (int) mhAsSpreader.invoke(new String[] { "a", "b"});
+    } catch (IllegalArgumentException expected) {
+    }
+
+    // Various other hijinks, pass as Object[] arrays, Object etc.
+    mhAsSpreader = delegate.asSpreader(Object[].class, 2);
+    ret = (int) mhAsSpreader.invoke("a", new String[] { "b", "c" });
+    assertEquals(42, ret);
+
+    mhAsSpreader = delegate.asSpreader(Object[].class, 2);
+    ret = (int) mhAsSpreader.invoke("a", new Object[] { "b", "c" });
+    assertEquals(42, ret);
+
+    mhAsSpreader = delegate.asSpreader(Object[].class, 2);
+    ret = (int) mhAsSpreader.invoke("a", (Object) new Object[] { "b", "c" });
+    assertEquals(42, ret);
+
+    // Test implicit unboxing.
+    MethodType methodType2 = MethodType.methodType(int.class,
+        new Class<?>[] { String.class, int.class });
+    MethodHandle delegate2 = MethodHandles.lookup().findStatic(
+        Main.class, "spreadReferences_Unbox", methodType2);
+
+    // .. with an Integer[] array.
+    mhAsSpreader = delegate2.asSpreader(Integer[].class, 1);
+    ret = (int) mhAsSpreader.invoke("a", new Integer[] { 43 });
+    assertEquals(43, ret);
+
+    // .. with an Integer[] array declared as an Object[] argument type.
+    mhAsSpreader = delegate2.asSpreader(Object[].class, 1);
+    ret = (int) mhAsSpreader.invoke("a", new Integer[] { 43 });
+    assertEquals(43, ret);
+
+    // .. with an Object[] array.
+    mhAsSpreader = delegate2.asSpreader(Object[].class, 1);
+    ret = (int) mhAsSpreader.invoke("a", new Object[] { Integer.valueOf(43)});
+    assertEquals(43, ret);
+
+    // -- Part 2--
+    // Run a subset of these tests on MethodHandles.spreadInvoker, which only accepts
+    // a trailing argument type of Object[].
+    MethodHandle spreadInvoker = MethodHandles.spreadInvoker(methodType2, 1);
+    ret = (int) spreadInvoker.invoke(delegate2, "a", new Object[] { Integer.valueOf(43)});
+    assertEquals(43, ret);
+
+    ret = (int) spreadInvoker.invoke(delegate2, "a", new Integer[] { 43 });
+    assertEquals(43, ret);
+
+    // NOTE: Annoyingly, the second argument here is leadingArgCount and not
+    // arrayLength.
+    spreadInvoker = MethodHandles.spreadInvoker(methodType, 3);
+    ret = (int) spreadInvoker.invoke(delegate, "a", "b", "c", new String[] {});
+    assertEquals(42, ret);
+
+    spreadInvoker = MethodHandles.spreadInvoker(methodType, 0);
+    ret = (int) spreadInvoker.invoke(delegate, new String[] { "a", "b", "c" });
+    assertEquals(42, ret);
+
+    // Exact invokes: Double check that the expected parameter type is
+    // Object[] and not T[].
+    try {
+      spreadInvoker.invokeExact(delegate, new String[] { "a", "b", "c" });
+      fail();
+    } catch (WrongMethodTypeException expected) {
+    }
+
+    ret = (int) spreadInvoker.invoke(delegate, new Object[] { "a", "b", "c" });
+    assertEquals(42, ret);
+  }
+
+  public static int spreadBoolean(String a, Boolean b, boolean c) {
+    System.out.println("a: " + a + ", b:" + b + ", c: " + c);
+    return 44;
+  }
+
+  public static int spreadByte(String a, Byte b, byte c,
+      short d, int e, long f, float g, double h) {
+    System.out.println("a: " + a + ", b:" + b + ", c: " + c +
+        ", d: " + d + ", e: " + e + ", f:" + f + ", g: " + g +
+        ", h: " + h);
+    return 45;
+  }
+
+  public static int spreadChar(String a, Character b, char c,
+      int d, long e, float f, double g) {
+    System.out.println("a: " + a + ", b:" + b + ", c: " + c +
+        ", d: " + d + ", e: " + e + ", f:" + f + ", g: " + g);
+    return 46;
+  }
+
+  public static int spreadShort(String a, Short b, short c,
+      int d, long e, float f, double g) {
+    System.out.println("a: " + a + ", b:" + b + ", c: " + c +
+        ", d: " + d + ", e: " + e + ", f:" + f + ", g:" + g);
+    return 47;
+  }
+
+  public static int spreadInt(String a, Integer b, int c,
+      long d, float e, double f) {
+    System.out.println("a: " + a + ", b:" + b + ", c: " + c +
+        ", d: " + d + ", e: " + e + ", f:" + f);
+    return 48;
+  }
+
+  public static int spreadLong(String a, Long b, long c, float d, double e) {
+    System.out.println("a: " + a + ", b:" + b + ", c: " + c +
+        ", d: " + d + ", e: " + e);
+    return 49;
+  }
+
+  public static int spreadFloat(String a, Float b, float c, double d) {
+    System.out.println("a: " + a + ", b:" + b + ", c: " + c + ", d: " + d);
+    return 50;
+  }
+
+  public static int spreadDouble(String a, Double b, double c) {
+    System.out.println("a: " + a + ", b:" + b + ", c: " + c);
+    return 51;
+  }
+
+  public static void testSpreaders_primitive() throws Throwable {
+    // boolean[]
+    // ---------------------
+    MethodType type = MethodType.methodType(int.class,
+        new Class<?>[] { String.class, Boolean.class, boolean.class });
+    MethodHandle delegate = MethodHandles.lookup().findStatic(
+        Main.class, "spreadBoolean", type);
+
+    MethodHandle spreader = delegate.asSpreader(boolean[].class, 2);
+    int ret = (int) spreader.invokeExact("a", new boolean[] { true, false });
+    assertEquals(44, ret);
+    ret = (int) spreader.invoke("a", new boolean[] { true, false });
+    assertEquals(44, ret);
+
+    // boolean can't be cast to String (the first argument to the method).
+    try {
+      delegate.asSpreader(boolean[].class, 3);
+      fail();
+    } catch (WrongMethodTypeException expected) {
+    }
+
+    // int can't be cast to boolean to supply the last argument to the method.
+    try {
+      delegate.asSpreader(int[].class, 1);
+      fail();
+    } catch (WrongMethodTypeException expected) {
+    }
+
+    // byte[]
+    // ---------------------
+    type = MethodType.methodType(int.class,
+        new Class<?>[] {
+          String.class, Byte.class, byte.class,
+          short.class, int.class, long.class,
+          float.class, double.class });
+    delegate = MethodHandles.lookup().findStatic(Main.class, "spreadByte", type);
+
+    spreader = delegate.asSpreader(byte[].class, 7);
+    ret = (int) spreader.invokeExact("a",
+        new byte[] { 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7 });
+    assertEquals(45, ret);
+    ret = (int) spreader.invoke("a",
+        new byte[] { 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7 });
+    assertEquals(45, ret);
+
+    // char[]
+    // ---------------------
+    type = MethodType.methodType(int.class,
+        new Class<?>[] {
+          String.class, Character.class,char.class,
+          int.class, long.class, float.class, double.class });
+    delegate = MethodHandles.lookup().findStatic(Main.class, "spreadChar", type);
+
+    spreader = delegate.asSpreader(char[].class, 6);
+    ret = (int) spreader.invokeExact("a",
+        new char[] { '1', '2', '3', '4', '5', '6' });
+    assertEquals(46, ret);
+    ret = (int) spreader.invokeExact("a",
+        new char[] { '1', '2', '3', '4', '5', '6' });
+    assertEquals(46, ret);
+
+    // short[]
+    // ---------------------
+    type = MethodType.methodType(int.class,
+        new Class<?>[] {
+          String.class, Short.class, short.class,
+          int.class, long.class, float.class, double.class });
+    delegate = MethodHandles.lookup().findStatic(Main.class, "spreadShort", type);
+
+    spreader = delegate.asSpreader(short[].class, 6);
+    ret = (int) spreader.invokeExact("a",
+        new short[] { 0x1, 0x2, 0x3, 0x4, 0x5, 0x6 });
+    assertEquals(47, ret);
+    ret = (int) spreader.invoke("a",
+        new short[] { 0x1, 0x2, 0x3, 0x4, 0x5, 0x6 });
+    assertEquals(47, ret);
+
+    // int[]
+    // ---------------------
+    type = MethodType.methodType(int.class,
+        new Class<?>[] {
+          String.class, Integer.class, int.class,
+          long.class, float.class, double.class });
+    delegate = MethodHandles.lookup().findStatic(Main.class, "spreadInt", type);
+
+    spreader = delegate.asSpreader(int[].class, 5);
+    ret = (int) spreader.invokeExact("a", new int[] { 1, 2, 3, 4, 5 });
+    assertEquals(48, ret);
+    ret = (int) spreader.invokeExact("a", new int[] { 1, 2, 3, 4, 5 });
+    assertEquals(48, ret);
+
+    // long[]
+    // ---------------------
+    type = MethodType.methodType(int.class,
+        new Class<?>[] {
+          String.class, Long.class, long.class, float.class, double.class });
+    delegate = MethodHandles.lookup().findStatic(Main.class, "spreadLong", type);
+
+    spreader = delegate.asSpreader(long[].class, 4);
+    ret = (int) spreader.invokeExact("a",
+        new long[] { 0x1, 0x2, 0x3, 0x4 });
+    assertEquals(49, ret);
+    ret = (int) spreader.invoke("a",
+        new long[] { 0x1, 0x2, 0x3, 0x4 });
+    assertEquals(49, ret);
+
+    // float[]
+    // ---------------------
+    type = MethodType.methodType(int.class,
+        new Class<?>[] {
+          String.class, Float.class, float.class, double.class });
+    delegate = MethodHandles.lookup().findStatic(Main.class, "spreadFloat", type);
+
+    spreader = delegate.asSpreader(float[].class, 3);
+    ret = (int) spreader.invokeExact("a",
+        new float[] { 1.0f, 2.0f, 3.0f });
+    assertEquals(50, ret);
+    ret = (int) spreader.invokeExact("a",
+        new float[] { 1.0f, 2.0f, 3.0f });
+    assertEquals(50, ret);
+
+    // double[]
+    // ---------------------
+    type = MethodType.methodType(int.class,
+        new Class<?>[] { String.class, Double.class, double.class });
+    delegate = MethodHandles.lookup().findStatic(Main.class, "spreadDouble", type);
+
+    spreader = delegate.asSpreader(double[].class, 2);
+    ret = (int) spreader.invokeExact("a", new double[] { 1.0, 2.0 });
+    assertEquals(51, ret);
+    ret = (int) spreader.invokeExact("a", new double[] { 1.0, 2.0 });
+    assertEquals(51, ret);
+  }
+
   public static void fail() {
     System.out.println("FAIL");
     Thread.dumpStack();
@@ -929,6 +1231,10 @@ public class Main {
   public static void fail(String message) {
     System.out.println("fail: " + message);
     Thread.dumpStack();
+  }
+
+  public static void assertEquals(int i1, int i2) {
+    if (i1 != i2) throw new AssertionError("Expected: " + i1 + " was " + i2);
   }
 
   public static void assertEquals(String s1, String s2) {
