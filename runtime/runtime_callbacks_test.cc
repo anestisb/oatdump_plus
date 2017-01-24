@@ -255,7 +255,7 @@ class ClassLoadCallbackRuntimeCallbacksTest : public RuntimeCallbacksTest {
                                 const DexFile& initial_dex_file,
                                 const DexFile::ClassDef& initial_class_def ATTRIBUTE_UNUSED,
                                 /*out*/DexFile const** final_dex_file ATTRIBUTE_UNUSED,
-                                /*out*/DexFile::ClassDef const** final_dex_cache ATTRIBUTE_UNUSED)
+                                /*out*/DexFile::ClassDef const** final_class_def ATTRIBUTE_UNUSED)
         OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
       std::string location(initial_dex_file.GetLocation());
       std::string event =
