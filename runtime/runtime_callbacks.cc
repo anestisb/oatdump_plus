@@ -67,6 +67,36 @@ void RuntimeCallbacks::ClassLoad(Handle<mirror::Class> klass) {
   }
 }
 
+void RuntimeCallbacks::ClassPreDefine(const char* descriptor,
+                                      Handle<mirror::Class> temp_class,
+                                      Handle<mirror::ClassLoader> loader,
+                                      const DexFile& initial_dex_file,
+                                      const DexFile::ClassDef& initial_class_def,
+                                      /*out*/DexFile const** final_dex_file,
+                                      /*out*/DexFile::ClassDef const** final_class_def) {
+  DexFile const* current_dex_file = &initial_dex_file;
+  DexFile::ClassDef const* current_class_def = &initial_class_def;
+  for (ClassLoadCallback* cb : class_callbacks_) {
+    DexFile const* new_dex_file = nullptr;
+    DexFile::ClassDef const* new_class_def = nullptr;
+    cb->ClassPreDefine(descriptor,
+                       temp_class,
+                       loader,
+                       *current_dex_file,
+                       *current_class_def,
+                       &new_dex_file,
+                       &new_class_def);
+    if ((new_dex_file != nullptr && new_dex_file != current_dex_file) ||
+        (new_class_def != nullptr && new_class_def != current_class_def)) {
+      DCHECK(new_dex_file != nullptr && new_class_def != nullptr);
+      current_dex_file = new_dex_file;
+      current_class_def = new_class_def;
+    }
+  }
+  *final_dex_file = current_dex_file;
+  *final_class_def = current_class_def;
+}
+
 void RuntimeCallbacks::ClassPrepare(Handle<mirror::Class> temp_klass, Handle<mirror::Class> klass) {
   for (ClassLoadCallback* cb : class_callbacks_) {
     cb->ClassPrepare(temp_klass, klass);
