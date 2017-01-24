@@ -260,9 +260,9 @@ class Heap {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   void RegisterNativeAllocation(JNIEnv* env, size_t bytes)
-      REQUIRES(!*gc_complete_lock_, !*pending_task_lock_, !native_histogram_lock_);
+      REQUIRES(!*gc_complete_lock_, !*pending_task_lock_);
   void RegisterNativeFree(JNIEnv* env, size_t bytes)
-      REQUIRES(!*gc_complete_lock_, !*pending_task_lock_, !native_histogram_lock_);
+      REQUIRES(!*gc_complete_lock_, !*pending_task_lock_);
 
   // Change the allocator, updates entrypoints.
   void ChangeAllocator(AllocatorType allocator)
@@ -562,7 +562,7 @@ class Heap {
   space::Space* FindSpaceFromAddress(const void* ptr) const
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void DumpForSigQuit(std::ostream& os) REQUIRES(!*gc_complete_lock_, !native_histogram_lock_);
+  void DumpForSigQuit(std::ostream& os) REQUIRES(!*gc_complete_lock_);
 
   // Do a pending collector transition.
   void DoPendingCollectorTransition() REQUIRES(!*gc_complete_lock_, !*pending_task_lock_);
@@ -679,7 +679,7 @@ class Heap {
 
   // GC performance measuring
   void DumpGcPerformanceInfo(std::ostream& os)
-      REQUIRES(!*gc_complete_lock_, !native_histogram_lock_);
+      REQUIRES(!*gc_complete_lock_);
   void ResetGcPerformanceInfo() REQUIRES(!*gc_complete_lock_);
 
   // Thread pool.
@@ -979,10 +979,6 @@ class Heap {
   void PostGcVerificationPaused(collector::GarbageCollector* gc)
       REQUIRES(Locks::mutator_lock_, !*gc_complete_lock_);
 
-  // Update the watermark for the native allocated bytes based on the current number of native
-  // bytes allocated and the target utilization ratio.
-  void UpdateMaxNativeFootprint();
-
   // Find a collector based on GC type.
   collector::GarbageCollector* FindCollectorByGcType(collector::GcType gc_type);
 
@@ -1065,6 +1061,36 @@ class Heap {
   void CheckGcStressMode(Thread* self, ObjPtr<mirror::Object>* obj)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!*gc_complete_lock_, !*pending_task_lock_, !*backtrace_lock_);
+
+  collector::GcType NonStickyGcType() const {
+    return HasZygoteSpace() ? collector::kGcTypePartial : collector::kGcTypeFull;
+  }
+
+  // Helper function for RegisterNativeAllocation. Request a non-sticky GC for
+  // NativeAlloc if one isn't currently running. The GC is performed in place
+  // if the garbage collector is not concurrent.
+  void TriggerGcForNativeAlloc(Thread* self) REQUIRES(!*gc_complete_lock_, !*pending_task_lock_);
+
+  // How large new_native_bytes_allocated_ can grow before we trigger a new
+  // GC.
+  ALWAYS_INLINE size_t NativeAllocationGcWatermark() const {
+    // Reuse max_free_ for the native allocation gc watermark, so that the
+    // native heap is treated in the same way as the Java heap in the case
+    // where the gc watermark update would exceed max_free_. Using max_free_
+    // instead of the target utilization means the watermark doesn't depend on
+    // the current number of registered native allocations.
+    return max_free_;
+  }
+
+  // How large new_native_bytes_allocated_ can grow while GC is in progress
+  // before we block the allocating thread to allow GC to catch up.
+  ALWAYS_INLINE size_t NativeAllocationBlockingGcWatermark() const {
+    // Historically the native allocations were bounded by growth_limit_. This
+    // uses that same value, dividing growth_limit_ by 2 to account for
+    // the fact that now the bound is relative to the number of retained
+    // registered native allocations rather than absolute.
+    return growth_limit_ / 2;
+  }
 
   // All-known continuous spaces, where objects lie within fixed bounds.
   std::vector<space::ContinuousSpace*> continuous_spaces_ GUARDED_BY(Locks::mutator_lock_);
@@ -1184,12 +1210,6 @@ class Heap {
   // a GC should be triggered.
   size_t max_allowed_footprint_;
 
-  // The watermark at which a concurrent GC is requested by registerNativeAllocation.
-  size_t native_footprint_gc_watermark_;
-
-  // Whether or not we need to run finalizers in the next native allocation.
-  bool native_need_to_run_finalization_;
-
   // When num_bytes_allocated_ exceeds this amount then a concurrent GC should be requested so that
   // it completes ahead of an allocation failing.
   size_t concurrent_start_bytes_;
@@ -1203,13 +1223,18 @@ class Heap {
   // Number of bytes allocated.  Adjusted after each allocation and free.
   Atomic<size_t> num_bytes_allocated_;
 
-  // Bytes which are allocated and managed by native code but still need to be accounted for.
-  Atomic<size_t> native_bytes_allocated_;
+  // Number of registered native bytes allocated since the last time GC was
+  // triggered. Adjusted after each RegisterNativeAllocation and
+  // RegisterNativeFree. Used to determine when to trigger GC for native
+  // allocations.
+  // See the REDESIGN section of go/understanding-register-native-allocation.
+  Atomic<size_t> new_native_bytes_allocated_;
 
-  // Native allocation stats.
-  Mutex native_histogram_lock_;
-  Histogram<uint64_t> native_allocation_histogram_;
-  Histogram<uint64_t> native_free_histogram_;
+  // Number of registered native bytes allocated prior to the last time GC was
+  // triggered, for debugging purposes. The current number of registered
+  // native bytes is determined by taking the sum of
+  // old_native_bytes_allocated_ and new_native_bytes_allocated_.
+  Atomic<size_t> old_native_bytes_allocated_;
 
   // Number of bytes freed by thread local buffer revokes. This will
   // cancel out the ahead-of-time bulk counting of bytes allocated in
