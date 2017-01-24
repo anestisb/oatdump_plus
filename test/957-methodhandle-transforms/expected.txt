@@ -16,3 +16,34 @@ target: target, 42, 56
 fallback: fallback, 42, 56
 target: target, 42, 56
 target: target, 42, 56
+a: a, b:b, c: c
+a: a, b:b, c: c
+a: a, b:b, c: c
+a: a, b:b, c: c
+a: a, b:b, c: c
+a: a, b:b, c: c
+a: a, b:b, c: c
+a: a, b:43
+a: a, b:43
+a: a, b:43
+a: a, b:43
+a: a, b:43
+a: a, b:b, c: c
+a: a, b:b, c: c
+a: a, b:b, c: c
+a: a, b:true, c: false
+a: a, b:true, c: false
+a: a, b:1, c: 2, d: 3, e: 4, f:5, g: 6.0, h: 7.0
+a: a, b:1, c: 2, d: 3, e: 4, f:5, g: 6.0, h: 7.0
+a: a, b:1, c: 2, d: 51, e: 52, f:53.0, g: 54.0
+a: a, b:1, c: 2, d: 51, e: 52, f:53.0, g: 54.0
+a: a, b:1, c: 2, d: 3, e: 4, f:5.0, g:6.0
+a: a, b:1, c: 2, d: 3, e: 4, f:5.0, g:6.0
+a: a, b:1, c: 2, d: 3, e: 4.0, f:5.0
+a: a, b:1, c: 2, d: 3, e: 4.0, f:5.0
+a: a, b:1, c: 2, d: 3.0, e: 4.0
+a: a, b:1, c: 2, d: 3.0, e: 4.0
+a: a, b:1.0, c: 2.0, d: 3.0
+a: a, b:1.0, c: 2.0, d: 3.0
+a: a, b:1.0, c: 2.0
+a: a, b:1.0, c: 2.0
