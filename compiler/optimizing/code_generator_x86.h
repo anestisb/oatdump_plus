@@ -415,7 +415,9 @@ class CodeGeneratorX86 : public CodeGenerator {
   void RecordBootTypePatch(HLoadClass* load_class);
   Label* NewTypeBssEntryPatch(HLoadClass* load_class);
   Label* NewStringBssEntryPatch(HLoadString* load_string);
-  Label* NewPcRelativeDexCacheArrayPatch(const DexFile& dex_file, uint32_t element_offset);
+  Label* NewPcRelativeDexCacheArrayPatch(HX86ComputeBaseMethodAddress* method_address,
+                                         const DexFile& dex_file,
+                                         uint32_t element_offset);
   Label* NewJitRootStringPatch(const DexFile& dex_file,
                                dex::StringIndex dex_index,
                                Handle<mirror::String> handle);
@@ -463,22 +465,22 @@ class CodeGeneratorX86 : public CodeGenerator {
     return isa_features_;
   }
 
-  void SetMethodAddressOffset(int32_t offset) {
-    method_address_offset_ = offset;
+  void AddMethodAddressOffset(HX86ComputeBaseMethodAddress* method_base, int32_t offset) {
+    method_address_offset_.Put(method_base->GetId(), offset);
   }
 
-  int32_t GetMethodAddressOffset() const {
-    return method_address_offset_;
+  int32_t GetMethodAddressOffset(HX86ComputeBaseMethodAddress* method_base) const {
+    return method_address_offset_.Get(method_base->GetId());
   }
 
   int32_t ConstantAreaStart() const {
     return constant_area_start_;
   }
 
-  Address LiteralDoubleAddress(double v, Register reg);
-  Address LiteralFloatAddress(float v, Register reg);
-  Address LiteralInt32Address(int32_t v, Register reg);
-  Address LiteralInt64Address(int64_t v, Register reg);
+  Address LiteralDoubleAddress(double v, HX86ComputeBaseMethodAddress* method_base, Register reg);
+  Address LiteralFloatAddress(float v, HX86ComputeBaseMethodAddress* method_base, Register reg);
+  Address LiteralInt32Address(int32_t v, HX86ComputeBaseMethodAddress* method_base, Register reg);
+  Address LiteralInt64Address(int64_t v, HX86ComputeBaseMethodAddress* method_base, Register reg);
 
   // Load a 32-bit value into a register in the most efficient manner.
   void Load32BitValue(Register dest, int32_t value);
@@ -603,11 +605,20 @@ class CodeGeneratorX86 : public CodeGenerator {
   static constexpr int32_t kDummy32BitOffset = 256;
 
  private:
-  Register GetInvokeStaticOrDirectExtraParameter(HInvokeStaticOrDirect* invoke, Register temp);
+  struct X86PcRelativePatchInfo : PatchInfo<Label> {
+    X86PcRelativePatchInfo(HX86ComputeBaseMethodAddress* address,
+                           const DexFile& target_dex_file,
+                           uint32_t target_index)
+        : PatchInfo(target_dex_file, target_index),
+          method_address(address) {}
+    HX86ComputeBaseMethodAddress* method_address;
+  };
 
   template <LinkerPatch (*Factory)(size_t, const DexFile*, uint32_t, uint32_t)>
-  void EmitPcRelativeLinkerPatches(const ArenaDeque<PatchInfo<Label>>& infos,
+  void EmitPcRelativeLinkerPatches(const ArenaDeque<X86PcRelativePatchInfo>& infos,
                                    ArenaVector<LinkerPatch>* linker_patches);
+
+  Register GetInvokeStaticOrDirectExtraParameter(HInvokeStaticOrDirect* invoke, Register temp);
 
   // Labels for each block that will be compiled.
   Label* block_labels_;  // Indexed by block id.
@@ -619,15 +630,15 @@ class CodeGeneratorX86 : public CodeGenerator {
   const X86InstructionSetFeatures& isa_features_;
 
   // PC-relative DexCache access info.
-  ArenaDeque<PatchInfo<Label>> pc_relative_dex_cache_patches_;
+  ArenaDeque<X86PcRelativePatchInfo> pc_relative_dex_cache_patches_;
   // Patch locations for patchoat where the linker doesn't do any other work.
   ArenaDeque<Label> simple_patches_;
   // String patch locations; type depends on configuration (app .bss or boot image PIC/non-PIC).
-  ArenaDeque<PatchInfo<Label>> string_patches_;
+  ArenaDeque<X86PcRelativePatchInfo> string_patches_;
   // Type patch locations for boot image; type depends on configuration (boot image PIC/non-PIC).
-  ArenaDeque<PatchInfo<Label>> boot_image_type_patches_;
+  ArenaDeque<X86PcRelativePatchInfo> boot_image_type_patches_;
   // Type patch locations for kBssEntry.
-  ArenaDeque<PatchInfo<Label>> type_bss_entry_patches_;
+  ArenaDeque<X86PcRelativePatchInfo> type_bss_entry_patches_;
 
   // Patches for string root accesses in JIT compiled code.
   ArenaDeque<PatchInfo<Label>> jit_string_patches_;
@@ -642,11 +653,9 @@ class CodeGeneratorX86 : public CodeGenerator {
   // Fixups for jump tables that need to be patched after the constant table is generated.
   ArenaVector<JumpTableRIPFixup*> fixups_to_jump_tables_;
 
-  // If there is a HX86ComputeBaseMethodAddress instruction in the graph
-  // (which shall be the sole instruction of this kind), subtracting this offset
-  // from the value contained in the out register of this HX86ComputeBaseMethodAddress
-  // instruction gives the address of the start of this method.
-  int32_t method_address_offset_;
+  // Maps a HX86ComputeBaseMethodAddress instruction id, to its offset in the
+  // compiled code.
+  ArenaSafeMap<uint32_t, int32_t> method_address_offset_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorX86);
 };
