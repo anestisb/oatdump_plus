@@ -86,8 +86,6 @@ Prepare: LA; on main (cur=main)
 C, true
 Load: LC; on main
 Prepare: LC; on main (cur=main)
-Load: LMain$1; on main
-Prepare: LMain$1; on main (cur=main)
 C, true
 Load: LA; on TestRunner
 Prepare: LA; on TestRunner (cur=TestRunner)
