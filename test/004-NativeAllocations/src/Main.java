@@ -16,7 +16,6 @@
 
 import java.lang.reflect.*;
 import java.lang.Runtime;
-import dalvik.system.VMRuntime;
 
 public class Main {
     static Object nativeLock = new Object();
@@ -34,19 +33,10 @@ public class Main {
         NativeAllocation(int bytes, boolean testingDeadlock) throws Exception {
             this.bytes = bytes;
             register_native_allocation.invoke(runtime, bytes);
-
-            // Register native allocation can only provide guarantees bounding
-            // the maximum outstanding allocations if finalizers don't time
-            // out. In case finalizers have timed out, wait longer for them
-            // now to complete so we can test the guarantees.
-            if (!testingDeadlock) {
-              VMRuntime.runFinalization(0);
-            }
-
             synchronized (nativeLock) {
                 if (!testingDeadlock) {
                     nativeBytes += bytes;
-                    if (nativeBytes > 2 * maxMem) {
+                    if (nativeBytes > maxMem) {
                         throw new OutOfMemoryError();
                     }
                 }
