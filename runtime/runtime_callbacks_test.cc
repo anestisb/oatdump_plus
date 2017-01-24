@@ -249,6 +249,21 @@ class ClassLoadCallbackRuntimeCallbacksTest : public RuntimeCallbacksTest {
   }
 
   struct Callback : public ClassLoadCallback {
+    virtual void ClassPreDefine(const char* descriptor,
+                                Handle<mirror::Class> klass ATTRIBUTE_UNUSED,
+                                Handle<mirror::ClassLoader> class_loader ATTRIBUTE_UNUSED,
+                                const DexFile& initial_dex_file,
+                                const DexFile::ClassDef& initial_class_def ATTRIBUTE_UNUSED,
+                                /*out*/DexFile const** final_dex_file ATTRIBUTE_UNUSED,
+                                /*out*/DexFile::ClassDef const** final_dex_cache ATTRIBUTE_UNUSED)
+        OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
+      std::string location(initial_dex_file.GetLocation());
+      std::string event =
+          std::string("PreDefine:") + descriptor + " <" +
+          location.substr(location.rfind("/") + 1, location.size()) + ">";
+      data.push_back(event);
+    }
+
     void ClassLoad(Handle<mirror::Class> klass) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
       std::string tmp;
       std::string event = std::string("Load:") + klass->GetDescriptor(&tmp);
@@ -281,14 +296,21 @@ TEST_F(ClassLoadCallbackRuntimeCallbacksTest, ClassLoadCallback) {
       hs.NewHandle(class_linker_->FindClass(soa.Self(), descriptor_y, class_loader)));
   ASSERT_TRUE(h_Y.Get() != nullptr);
 
-  bool expect1 = Expect({ "Load:LX;", "Prepare:LX;[LX;]", "Load:LY;", "Prepare:LY;[LY;]" });
+  bool expect1 = Expect({ "PreDefine:LY; <art-gtest-XandY.jar>",
+                          "PreDefine:LX; <art-gtest-XandY.jar>",
+                          "Load:LX;",
+                          "Prepare:LX;[LX;]",
+                          "Load:LY;",
+                          "Prepare:LY;[LY;]" });
   EXPECT_TRUE(expect1);
 
   cb_.data.clear();
 
   ASSERT_TRUE(class_linker_->EnsureInitialized(Thread::Current(), h_Y, true, true));
 
-  bool expect2 = Expect({ "Load:LY$Z;", "Prepare:LY$Z;[LY$Z;]" });
+  bool expect2 = Expect({ "PreDefine:LY$Z; <art-gtest-XandY.jar>",
+                          "Load:LY$Z;",
+                          "Prepare:LY$Z;[LY$Z;]" });
   EXPECT_TRUE(expect2);
 }
 
