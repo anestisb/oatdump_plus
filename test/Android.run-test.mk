@@ -536,12 +536,14 @@ TEST_ART_BROKEN_INTERPRETER_RUN_TESTS :=
 # flaky as JIT tests. This should be fixed once b/33630159 or b/33616143 are
 # resolved but until then just disable them. Test 916 already checks this
 # feature for JIT use cases in a way that is resilient to the jit frames.
+# 912: b/34655682
 TEST_ART_BROKEN_JIT_RUN_TESTS := \
   137-cfi \
   629-vdex-speed \
   902-hello-transformation \
   904-object-allocation \
   906-iterate-heap \
+  912-classes \
   914-hello-obsolescence \
   915-obsolete-2 \
   917-fields-transformation \
