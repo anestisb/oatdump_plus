@@ -17,9 +17,14 @@
 #include <stdio.h>
 
 #include "base/macros.h"
+#include "class_linker.h"
 #include "jni.h"
+#include "mirror/class_loader.h"
 #include "openjdkjvmti/jvmti.h"
+#include "runtime.h"
 #include "ScopedLocalRef.h"
+#include "ScopedUtfChars.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
 
 #include "ti-agent/common_helper.h"
@@ -278,69 +283,11 @@ static std::string GetClassName(jvmtiEnv* jenv, JNIEnv* jni_env, jclass klass) {
   return tmp;
 }
 
-static std::string GetThreadName(jvmtiEnv* jenv, JNIEnv* jni_env, jthread thread) {
-  jvmtiThreadInfo info;
-  jvmtiError result = jenv->GetThreadInfo(thread, &info);
-  if (result != JVMTI_ERROR_NONE) {
-    if (jni_env != nullptr) {
-      JvmtiErrorToException(jni_env, result);
-    } else {
-      printf("Failed to get thread name.\n");
-    }
-    return "";
-  }
-
-  std::string tmp(info.name);
-  jenv->Deallocate(reinterpret_cast<unsigned char*>(info.name));
-  jni_env->DeleteLocalRef(info.context_class_loader);
-  jni_env->DeleteLocalRef(info.thread_group);
-
-  return tmp;
-}
-
-static std::string GetThreadName(Thread* thread) {
-  std::string tmp;
-  thread->GetThreadName(tmp);
-  return tmp;
-}
-
-static void JNICALL ClassPrepareCallback(jvmtiEnv* jenv,
-                                         JNIEnv* jni_env,
-                                         jthread thread,
-                                         jclass klass) {
-  std::string name = GetClassName(jenv, jni_env, klass);
-  if (name == "") {
-    return;
-  }
-  std::string thread_name = GetThreadName(jenv, jni_env, thread);
-  if (thread_name == "") {
-    return;
-  }
-  std::string cur_thread_name = GetThreadName(Thread::Current());
-  printf("Prepare: %s on %s (cur=%s)\n",
-         name.c_str(),
-         thread_name.c_str(),
-         cur_thread_name.c_str());
-}
-
-static void JNICALL ClassLoadCallback(jvmtiEnv* jenv,
-                                      JNIEnv* jni_env,
-                                      jthread thread,
-                                      jclass klass) {
-  std::string name = GetClassName(jenv, jni_env, klass);
-  if (name == "") {
-    return;
-  }
-  std::string thread_name = GetThreadName(jenv, jni_env, thread);
-  if (thread_name == "") {
-    return;
-  }
-  printf("Load: %s on %s\n", name.c_str(), thread_name.c_str());
-}
-
-extern "C" JNIEXPORT void JNICALL Java_Main_enableClassLoadEvents(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jboolean b) {
-  if (b == JNI_FALSE) {
+static void EnableEvents(JNIEnv* env,
+                         jboolean enable,
+                         decltype(jvmtiEventCallbacks().ClassLoad) class_load,
+                         decltype(jvmtiEventCallbacks().ClassPrepare) class_prepare) {
+  if (enable == JNI_FALSE) {
     jvmtiError ret = jvmti_env->SetEventNotificationMode(JVMTI_DISABLE,
                                                          JVMTI_EVENT_CLASS_LOAD,
                                                          nullptr);
@@ -356,8 +303,8 @@ extern "C" JNIEXPORT void JNICALL Java_Main_enableClassLoadEvents(
 
   jvmtiEventCallbacks callbacks;
   memset(&callbacks, 0, sizeof(jvmtiEventCallbacks));
-  callbacks.ClassLoad = ClassLoadCallback;
-  callbacks.ClassPrepare = ClassPrepareCallback;
+  callbacks.ClassLoad = class_load;
+  callbacks.ClassPrepare = class_prepare;
   jvmtiError ret = jvmti_env->SetEventCallbacks(&callbacks, sizeof(callbacks));
   if (JvmtiErrorToException(env, ret)) {
     return;
@@ -373,6 +320,114 @@ extern "C" JNIEXPORT void JNICALL Java_Main_enableClassLoadEvents(
                                             JVMTI_EVENT_CLASS_PREPARE,
                                             nullptr);
   JvmtiErrorToException(env, ret);
+}
+
+class ClassLoadPreparePrinter {
+ public:
+  static void JNICALL ClassLoadCallback(jvmtiEnv* jenv,
+                                        JNIEnv* jni_env,
+                                        jthread thread,
+                                        jclass klass) {
+    std::string name = GetClassName(jenv, jni_env, klass);
+    if (name == "") {
+      return;
+    }
+    std::string thread_name = GetThreadName(jenv, jni_env, thread);
+    if (thread_name == "") {
+      return;
+    }
+    printf("Load: %s on %s\n", name.c_str(), thread_name.c_str());
+  }
+
+  static void JNICALL ClassPrepareCallback(jvmtiEnv* jenv,
+                                           JNIEnv* jni_env,
+                                           jthread thread,
+                                           jclass klass) {
+    std::string name = GetClassName(jenv, jni_env, klass);
+    if (name == "") {
+      return;
+    }
+    std::string thread_name = GetThreadName(jenv, jni_env, thread);
+    if (thread_name == "") {
+      return;
+    }
+    std::string cur_thread_name = GetThreadName(Thread::Current());
+    printf("Prepare: %s on %s (cur=%s)\n",
+           name.c_str(),
+           thread_name.c_str(),
+           cur_thread_name.c_str());
+  }
+
+ private:
+  static std::string GetThreadName(jvmtiEnv* jenv, JNIEnv* jni_env, jthread thread) {
+    jvmtiThreadInfo info;
+    jvmtiError result = jenv->GetThreadInfo(thread, &info);
+    if (result != JVMTI_ERROR_NONE) {
+      if (jni_env != nullptr) {
+        JvmtiErrorToException(jni_env, result);
+      } else {
+        printf("Failed to get thread name.\n");
+      }
+      return "";
+    }
+
+    std::string tmp(info.name);
+    jenv->Deallocate(reinterpret_cast<unsigned char*>(info.name));
+    jni_env->DeleteLocalRef(info.context_class_loader);
+    jni_env->DeleteLocalRef(info.thread_group);
+
+    return tmp;
+  }
+
+  static std::string GetThreadName(Thread* thread) {
+    std::string tmp;
+    thread->GetThreadName(tmp);
+    return tmp;
+  }
+};
+
+extern "C" JNIEXPORT void JNICALL Java_Main_enableClassLoadPreparePrintEvents(
+    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jboolean enable) {
+  EnableEvents(env,
+               enable,
+               ClassLoadPreparePrinter::ClassLoadCallback,
+               ClassLoadPreparePrinter::ClassPrepareCallback);
+}
+
+struct ClassLoadSeen {
+  static void JNICALL ClassLoadSeenCallback(jvmtiEnv* jenv ATTRIBUTE_UNUSED,
+                                            JNIEnv* jni_env ATTRIBUTE_UNUSED,
+                                            jthread thread ATTRIBUTE_UNUSED,
+                                            jclass klass ATTRIBUTE_UNUSED) {
+    saw_event = true;
+  }
+
+  static bool saw_event;
+};
+bool ClassLoadSeen::saw_event = false;
+
+extern "C" JNIEXPORT void JNICALL Java_Main_enableClassLoadSeenEvents(
+    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jboolean b) {
+  EnableEvents(env, b, ClassLoadSeen::ClassLoadSeenCallback, nullptr);
+}
+
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_hadLoadEvent(
+    JNIEnv* env ATTRIBUTE_UNUSED, jclass Main_klass ATTRIBUTE_UNUSED) {
+  return ClassLoadSeen::saw_event ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_isLoadedClass(
+    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jstring class_name) {
+  ScopedUtfChars name(env, class_name);
+  ScopedObjectAccess soa(Thread::Current());
+  Runtime* current = Runtime::Current();
+  ClassLinker* class_linker = current->GetClassLinker();
+  bool found =
+      class_linker->LookupClass(
+          soa.Self(),
+          name.c_str(),
+          soa.Decode<mirror::ClassLoader>(current->GetSystemClassLoader())) != nullptr;
+  return found ? JNI_TRUE : JNI_FALSE;
 }
 
 }  // namespace Test912Classes
