@@ -340,15 +340,29 @@ static void BindMethod(jvmtiEnv* jenv,
     LOG(FATAL) << "Could not get methods";
   }
 
-  ArtMethod* m = jni::DecodeArtMethod(method);
-
   std::string names[2];
-  {
+  if (IsJVM()) {
+    // TODO Get the JNI long name
+    char* klass_name;
+    jvmtiError klass_result = jenv->GetClassSignature(klass, &klass_name, nullptr);
+    if (klass_result == JVMTI_ERROR_NONE) {
+      std::string name_str(name);
+      std::string klass_str(klass_name);
+      names[0] = GetJniShortName(klass_str, name_str);
+      jenv->Deallocate(reinterpret_cast<unsigned char*>(klass_name));
+    } else {
+      LOG(FATAL) << "Could not get class name!";
+    }
+  } else {
     ScopedObjectAccess soa(Thread::Current());
+    ArtMethod* m = jni::DecodeArtMethod(method);
     names[0] = m->JniShortName();
     names[1] = m->JniLongName();
   }
   for (const std::string& mangled_name : names) {
+    if (mangled_name == "") {
+      continue;
+    }
     void* sym = dlsym(RTLD_DEFAULT, mangled_name.c_str());
     if (sym == nullptr) {
       continue;
