@@ -37,96 +37,84 @@ static inline ArtJvmtiEvent GetArtJvmtiEvent(ArtJvmTiEnv* env, jvmtiEvent e) {
   }
 }
 
-template <typename FnType>
-ALWAYS_INLINE static inline FnType* GetCallback(ArtJvmTiEnv* env, ArtJvmtiEvent event) {
-  if (env->event_callbacks == nullptr) {
-    return nullptr;
-  }
+namespace impl {
 
-  // TODO: Add a type check. Can be done, for example, by an explicitly instantiated template
-  //       function.
+// Infrastructure to achieve type safety for event dispatch.
 
-  switch (event) {
-    case ArtJvmtiEvent::kVmInit:
-      return reinterpret_cast<FnType*>(env->event_callbacks->VMInit);
-    case ArtJvmtiEvent::kVmDeath:
-      return reinterpret_cast<FnType*>(env->event_callbacks->VMDeath);
-    case ArtJvmtiEvent::kThreadStart:
-      return reinterpret_cast<FnType*>(env->event_callbacks->ThreadStart);
-    case ArtJvmtiEvent::kThreadEnd:
-      return reinterpret_cast<FnType*>(env->event_callbacks->ThreadEnd);
-    case ArtJvmtiEvent::kClassFileLoadHookRetransformable:
-    case ArtJvmtiEvent::kClassFileLoadHookNonRetransformable:
-      return reinterpret_cast<FnType*>(env->event_callbacks->ClassFileLoadHook);
-    case ArtJvmtiEvent::kClassLoad:
-      return reinterpret_cast<FnType*>(env->event_callbacks->ClassLoad);
-    case ArtJvmtiEvent::kClassPrepare:
-      return reinterpret_cast<FnType*>(env->event_callbacks->ClassPrepare);
-    case ArtJvmtiEvent::kVmStart:
-      return reinterpret_cast<FnType*>(env->event_callbacks->VMStart);
-    case ArtJvmtiEvent::kException:
-      return reinterpret_cast<FnType*>(env->event_callbacks->Exception);
-    case ArtJvmtiEvent::kExceptionCatch:
-      return reinterpret_cast<FnType*>(env->event_callbacks->ExceptionCatch);
-    case ArtJvmtiEvent::kSingleStep:
-      return reinterpret_cast<FnType*>(env->event_callbacks->SingleStep);
-    case ArtJvmtiEvent::kFramePop:
-      return reinterpret_cast<FnType*>(env->event_callbacks->FramePop);
-    case ArtJvmtiEvent::kBreakpoint:
-      return reinterpret_cast<FnType*>(env->event_callbacks->Breakpoint);
-    case ArtJvmtiEvent::kFieldAccess:
-      return reinterpret_cast<FnType*>(env->event_callbacks->FieldAccess);
-    case ArtJvmtiEvent::kFieldModification:
-      return reinterpret_cast<FnType*>(env->event_callbacks->FieldModification);
-    case ArtJvmtiEvent::kMethodEntry:
-      return reinterpret_cast<FnType*>(env->event_callbacks->MethodEntry);
-    case ArtJvmtiEvent::kMethodExit:
-      return reinterpret_cast<FnType*>(env->event_callbacks->MethodExit);
-    case ArtJvmtiEvent::kNativeMethodBind:
-      return reinterpret_cast<FnType*>(env->event_callbacks->NativeMethodBind);
-    case ArtJvmtiEvent::kCompiledMethodLoad:
-      return reinterpret_cast<FnType*>(env->event_callbacks->CompiledMethodLoad);
-    case ArtJvmtiEvent::kCompiledMethodUnload:
-      return reinterpret_cast<FnType*>(env->event_callbacks->CompiledMethodUnload);
-    case ArtJvmtiEvent::kDynamicCodeGenerated:
-      return reinterpret_cast<FnType*>(env->event_callbacks->DynamicCodeGenerated);
-    case ArtJvmtiEvent::kDataDumpRequest:
-      return reinterpret_cast<FnType*>(env->event_callbacks->DataDumpRequest);
-    case ArtJvmtiEvent::kMonitorWait:
-      return reinterpret_cast<FnType*>(env->event_callbacks->MonitorWait);
-    case ArtJvmtiEvent::kMonitorWaited:
-      return reinterpret_cast<FnType*>(env->event_callbacks->MonitorWaited);
-    case ArtJvmtiEvent::kMonitorContendedEnter:
-      return reinterpret_cast<FnType*>(env->event_callbacks->MonitorContendedEnter);
-    case ArtJvmtiEvent::kMonitorContendedEntered:
-      return reinterpret_cast<FnType*>(env->event_callbacks->MonitorContendedEntered);
-    case ArtJvmtiEvent::kResourceExhausted:
-      return reinterpret_cast<FnType*>(env->event_callbacks->ResourceExhausted);
-    case ArtJvmtiEvent::kGarbageCollectionStart:
-      return reinterpret_cast<FnType*>(env->event_callbacks->GarbageCollectionStart);
-    case ArtJvmtiEvent::kGarbageCollectionFinish:
-      return reinterpret_cast<FnType*>(env->event_callbacks->GarbageCollectionFinish);
-    case ArtJvmtiEvent::kObjectFree:
-      return reinterpret_cast<FnType*>(env->event_callbacks->ObjectFree);
-    case ArtJvmtiEvent::kVmObjectAlloc:
-      return reinterpret_cast<FnType*>(env->event_callbacks->VMObjectAlloc);
-  }
-  return nullptr;
+#define FORALL_EVENT_TYPES(fn)                                                       \
+  fn(VMInit,                  ArtJvmtiEvent::kVmInit)                                \
+  fn(VMDeath,                 ArtJvmtiEvent::kVmDeath)                               \
+  fn(ThreadStart,             ArtJvmtiEvent::kThreadStart)                           \
+  fn(ThreadEnd,               ArtJvmtiEvent::kThreadEnd)                             \
+  fn(ClassFileLoadHook,       ArtJvmtiEvent::kClassFileLoadHookRetransformable)      \
+  fn(ClassFileLoadHook,       ArtJvmtiEvent::kClassFileLoadHookNonRetransformable)   \
+  fn(ClassLoad,               ArtJvmtiEvent::kClassLoad)                             \
+  fn(ClassPrepare,            ArtJvmtiEvent::kClassPrepare)                          \
+  fn(VMStart,                 ArtJvmtiEvent::kVmStart)                               \
+  fn(Exception,               ArtJvmtiEvent::kException)                             \
+  fn(ExceptionCatch,          ArtJvmtiEvent::kExceptionCatch)                        \
+  fn(SingleStep,              ArtJvmtiEvent::kSingleStep)                            \
+  fn(FramePop,                ArtJvmtiEvent::kFramePop)                              \
+  fn(Breakpoint,              ArtJvmtiEvent::kBreakpoint)                            \
+  fn(FieldAccess,             ArtJvmtiEvent::kFieldAccess)                           \
+  fn(FieldModification,       ArtJvmtiEvent::kFieldModification)                     \
+  fn(MethodEntry,             ArtJvmtiEvent::kMethodEntry)                           \
+  fn(MethodExit,              ArtJvmtiEvent::kMethodExit)                            \
+  fn(NativeMethodBind,        ArtJvmtiEvent::kNativeMethodBind)                      \
+  fn(CompiledMethodLoad,      ArtJvmtiEvent::kCompiledMethodLoad)                    \
+  fn(CompiledMethodUnload,    ArtJvmtiEvent::kCompiledMethodUnload)                  \
+  fn(DynamicCodeGenerated,    ArtJvmtiEvent::kDynamicCodeGenerated)                  \
+  fn(DataDumpRequest,         ArtJvmtiEvent::kDataDumpRequest)                       \
+  fn(MonitorWait,             ArtJvmtiEvent::kMonitorWait)                           \
+  fn(MonitorWaited,           ArtJvmtiEvent::kMonitorWaited)                         \
+  fn(MonitorContendedEnter,   ArtJvmtiEvent::kMonitorContendedEnter)                 \
+  fn(MonitorContendedEntered, ArtJvmtiEvent::kMonitorContendedEntered)               \
+  fn(ResourceExhausted,       ArtJvmtiEvent::kResourceExhausted)                     \
+  fn(GarbageCollectionStart,  ArtJvmtiEvent::kGarbageCollectionStart)                \
+  fn(GarbageCollectionFinish, ArtJvmtiEvent::kGarbageCollectionFinish)               \
+  fn(ObjectFree,              ArtJvmtiEvent::kObjectFree)                            \
+  fn(VMObjectAlloc,           ArtJvmtiEvent::kVmObjectAlloc)
+
+template <ArtJvmtiEvent kEvent>
+struct EventFnType {
+};
+
+#define EVENT_FN_TYPE(name, enum_name)               \
+template <>                                          \
+struct EventFnType<enum_name> {                      \
+  using type = decltype(jvmtiEventCallbacks().name); \
+};
+
+FORALL_EVENT_TYPES(EVENT_FN_TYPE)
+
+#undef EVENT_FN_TYPE
+
+template <ArtJvmtiEvent kEvent>
+ALWAYS_INLINE inline typename EventFnType<kEvent>::type GetCallback(ArtJvmTiEnv* env);
+
+#define GET_CALLBACK(name, enum_name)                                     \
+template <>                                                               \
+ALWAYS_INLINE inline EventFnType<enum_name>::type GetCallback<enum_name>( \
+    ArtJvmTiEnv* env) {                                                   \
+  if (env->event_callbacks == nullptr) {                                  \
+    return nullptr;                                                       \
+  }                                                                       \
+  return env->event_callbacks->name;                                      \
 }
 
-template <typename ...Args>
-inline void EventHandler::DispatchClassFileLoadHookEvent(art::Thread*,
-                                                         ArtJvmtiEvent event,
-                                                         Args... args ATTRIBUTE_UNUSED) const {
-  CHECK(event == ArtJvmtiEvent::kClassFileLoadHookRetransformable ||
-        event == ArtJvmtiEvent::kClassFileLoadHookNonRetransformable);
-  LOG(FATAL) << "Incorrect arguments to ClassFileLoadHook!";
-}
+FORALL_EVENT_TYPES(GET_CALLBACK)
 
+#undef GET_CALLBACK
+
+#undef FORALL_EVENT_TYPES
+
+}  // namespace impl
+
+// C++ does not allow partial template function specialization. The dispatch for our separated
+// ClassFileLoadHook event types is the same, so use this helper for code deduplication.
 // TODO Locking of some type!
-template <>
+template <ArtJvmtiEvent kEvent>
 inline void EventHandler::DispatchClassFileLoadHookEvent(art::Thread* thread,
-                                                         ArtJvmtiEvent event,
                                                          JNIEnv* jnienv,
                                                          jclass class_being_redefined,
                                                          jobject loader,
@@ -136,26 +124,16 @@ inline void EventHandler::DispatchClassFileLoadHookEvent(art::Thread* thread,
                                                          const unsigned char* class_data,
                                                          jint* new_class_data_len,
                                                          unsigned char** new_class_data) const {
-  CHECK(event == ArtJvmtiEvent::kClassFileLoadHookRetransformable ||
-        event == ArtJvmtiEvent::kClassFileLoadHookNonRetransformable);
-  using FnType = void(jvmtiEnv*            /* jvmti_env */,
-                      JNIEnv*              /* jnienv */,
-                      jclass               /* class_being_redefined */,
-                      jobject              /* loader */,
-                      const char*          /* name */,
-                      jobject              /* protection_domain */,
-                      jint                 /* class_data_len */,
-                      const unsigned char* /* class_data */,
-                      jint*                /* new_class_data_len */,
-                      unsigned char**      /* new_class_data */);
+  static_assert(kEvent == ArtJvmtiEvent::kClassFileLoadHookRetransformable ||
+                kEvent == ArtJvmtiEvent::kClassFileLoadHookNonRetransformable, "Unsupported event");
   jint current_len = class_data_len;
   unsigned char* current_class_data = const_cast<unsigned char*>(class_data);
   ArtJvmTiEnv* last_env = nullptr;
   for (ArtJvmTiEnv* env : envs) {
-    if (ShouldDispatch(event, env, thread)) {
+    if (ShouldDispatch<kEvent>(env, thread)) {
       jint new_len;
       unsigned char* new_data;
-      FnType* callback = GetCallback<FnType>(env, event);
+      auto callback = impl::GetCallback<kEvent>(env);
       callback(env,
                jnienv,
                class_being_redefined,
@@ -186,28 +164,16 @@ inline void EventHandler::DispatchClassFileLoadHookEvent(art::Thread* thread,
   }
 }
 
-template <typename ...Args>
-inline void EventHandler::DispatchEvent(art::Thread* thread,
-                                        ArtJvmtiEvent event,
-                                        Args... args) const {
-  switch (event) {
-    case ArtJvmtiEvent::kClassFileLoadHookRetransformable:
-    case ArtJvmtiEvent::kClassFileLoadHookNonRetransformable:
-      return DispatchClassFileLoadHookEvent(thread, event, args...);
-    default:
-      return GenericDispatchEvent(thread, event, args...);
-  }
-}
+// Our goal for DispatchEvent: Do not allow implicit type conversion. Types of ...args must match
+// exactly the argument types of the corresponding Jvmti kEvent function pointer.
 
-// TODO Locking of some type!
-template <typename ...Args>
-inline void EventHandler::GenericDispatchEvent(art::Thread* thread,
-                                               ArtJvmtiEvent event,
-                                               Args... args) const {
+template <ArtJvmtiEvent kEvent, typename ...Args>
+inline void EventHandler::DispatchEvent(art::Thread* thread,
+                                        Args... args) const {
   using FnType = void(jvmtiEnv*, Args...);
   for (ArtJvmTiEnv* env : envs) {
-    if (ShouldDispatch(event, env, thread)) {
-      FnType* callback = GetCallback<FnType>(env, event);
+    if (ShouldDispatch<kEvent>(env, thread)) {
+      FnType* callback = impl::GetCallback<kEvent>(env);
       if (callback != nullptr) {
         (*callback)(env, args...);
       }
@@ -215,14 +181,66 @@ inline void EventHandler::GenericDispatchEvent(art::Thread* thread,
   }
 }
 
-inline bool EventHandler::ShouldDispatch(ArtJvmtiEvent event,
-                                         ArtJvmTiEnv* env,
-                                         art::Thread* thread) {
-  bool dispatch = env->event_masks.global_event_mask.Test(event);
+// C++ does not allow partial template function specialization. The dispatch for our separated
+// ClassFileLoadHook event types is the same, and in the DispatchClassFileLoadHookEvent helper.
+// The following two DispatchEvent specializations dispatch to it.
+template <>
+inline void EventHandler::DispatchEvent<ArtJvmtiEvent::kClassFileLoadHookRetransformable>(
+    art::Thread* thread,
+    JNIEnv* jnienv,
+    jclass class_being_redefined,
+    jobject loader,
+    const char* name,
+    jobject protection_domain,
+    jint class_data_len,
+    const unsigned char* class_data,
+    jint* new_class_data_len,
+    unsigned char** new_class_data) const {
+  return DispatchClassFileLoadHookEvent<ArtJvmtiEvent::kClassFileLoadHookRetransformable>(
+      thread,
+      jnienv,
+      class_being_redefined,
+      loader,
+      name,
+      protection_domain,
+      class_data_len,
+      class_data,
+      new_class_data_len,
+      new_class_data);
+}
+template <>
+inline void EventHandler::DispatchEvent<ArtJvmtiEvent::kClassFileLoadHookNonRetransformable>(
+    art::Thread* thread,
+    JNIEnv* jnienv,
+    jclass class_being_redefined,
+    jobject loader,
+    const char* name,
+    jobject protection_domain,
+    jint class_data_len,
+    const unsigned char* class_data,
+    jint* new_class_data_len,
+    unsigned char** new_class_data) const {
+  return DispatchClassFileLoadHookEvent<ArtJvmtiEvent::kClassFileLoadHookNonRetransformable>(
+      thread,
+      jnienv,
+      class_being_redefined,
+      loader,
+      name,
+      protection_domain,
+      class_data_len,
+      class_data,
+      new_class_data_len,
+      new_class_data);
+}
 
-  if (!dispatch && thread != nullptr && env->event_masks.unioned_thread_event_mask.Test(event)) {
+template <ArtJvmtiEvent kEvent>
+inline bool EventHandler::ShouldDispatch(ArtJvmTiEnv* env,
+                                         art::Thread* thread) {
+  bool dispatch = env->event_masks.global_event_mask.Test(kEvent);
+
+  if (!dispatch && thread != nullptr && env->event_masks.unioned_thread_event_mask.Test(kEvent)) {
     EventMask* mask = env->event_masks.GetEventMaskOrNull(thread);
-    dispatch = mask != nullptr && mask->Test(event);
+    dispatch = mask != nullptr && mask->Test(kEvent);
   }
   return dispatch;
 }

@@ -57,15 +57,15 @@ struct ClassCallback : public art::ClassLoadCallback {
       art::Thread* thread = art::Thread::Current();
       ScopedLocalRef<jclass> jklass(thread->GetJniEnv(),
                                     thread->GetJniEnv()->AddLocalReference<jclass>(klass.Get()));
-      ScopedLocalRef<jclass> jthread(
-          thread->GetJniEnv(), thread->GetJniEnv()->AddLocalReference<jclass>(thread->GetPeer()));
+      ScopedLocalRef<jthread> thread_jni(
+          thread->GetJniEnv(), thread->GetJniEnv()->AddLocalReference<jthread>(thread->GetPeer()));
       {
         art::ScopedThreadSuspension sts(thread, art::ThreadState::kNative);
-        event_handler->DispatchEvent(thread,
-                                     ArtJvmtiEvent::kClassLoad,
-                                     reinterpret_cast<JNIEnv*>(thread->GetJniEnv()),
-                                     jthread.get(),
-                                     jklass.get());
+        event_handler->DispatchEvent<ArtJvmtiEvent::kClassLoad>(
+            thread,
+            static_cast<JNIEnv*>(thread->GetJniEnv()),
+            thread_jni.get(),
+            jklass.get());
       }
       AddTempClass(thread, jklass.get());
     }
@@ -78,14 +78,14 @@ struct ClassCallback : public art::ClassLoadCallback {
       art::Thread* thread = art::Thread::Current();
       ScopedLocalRef<jclass> jklass(thread->GetJniEnv(),
                                     thread->GetJniEnv()->AddLocalReference<jclass>(klass.Get()));
-      ScopedLocalRef<jclass> jthread(
-          thread->GetJniEnv(), thread->GetJniEnv()->AddLocalReference<jclass>(thread->GetPeer()));
+      ScopedLocalRef<jthread> thread_jni(
+          thread->GetJniEnv(), thread->GetJniEnv()->AddLocalReference<jthread>(thread->GetPeer()));
       art::ScopedThreadSuspension sts(thread, art::ThreadState::kNative);
-      event_handler->DispatchEvent(thread,
-                                   ArtJvmtiEvent::kClassPrepare,
-                                   reinterpret_cast<JNIEnv*>(thread->GetJniEnv()),
-                                   jthread.get(),
-                                   jklass.get());
+      event_handler->DispatchEvent<ArtJvmtiEvent::kClassPrepare>(
+          thread,
+          static_cast<JNIEnv*>(thread->GetJniEnv()),
+          thread_jni.get(),
+          jklass.get());
     }
   }
 

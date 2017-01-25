@@ -48,7 +48,7 @@ struct DumpCallback : public art::RuntimeSigQuitCallback {
   void SigQuit() OVERRIDE REQUIRES_SHARED(art::Locks::mutator_lock_) {
     art::Thread* thread = art::Thread::Current();
     art::ScopedThreadSuspension sts(thread, art::ThreadState::kNative);
-    event_handler->DispatchEvent(nullptr, ArtJvmtiEvent::kDataDumpRequest);
+    event_handler->DispatchEvent<ArtJvmtiEvent::kDataDumpRequest>(nullptr);
   }
 
   EventHandler* event_handler = nullptr;
