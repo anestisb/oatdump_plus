@@ -90,7 +90,8 @@ static void VMDebug_startMethodTracingDdmsImpl(JNIEnv*, jclass, jint bufferSize,
 
 static void VMDebug_startMethodTracingFd(JNIEnv* env, jclass, jstring javaTraceFilename,
                                          jobject javaFd, jint bufferSize, jint flags,
-                                         jboolean samplingEnabled, jint intervalUs) {
+                                         jboolean samplingEnabled, jint intervalUs,
+                                         jboolean streamingOutput) {
   int originalFd = jniGetFDFromFileDescriptor(env, javaFd);
   if (originalFd < 0) {
     return;
@@ -108,7 +109,10 @@ static void VMDebug_startMethodTracingFd(JNIEnv* env, jclass, jstring javaTraceF
   if (traceFilename.c_str() == nullptr) {
     return;
   }
-  Trace::Start(traceFilename.c_str(), fd, bufferSize, flags, Trace::TraceOutputMode::kFile,
+  Trace::TraceOutputMode outputMode = streamingOutput
+                                          ? Trace::TraceOutputMode::kStreaming
+                                          : Trace::TraceOutputMode::kFile;
+  Trace::Start(traceFilename.c_str(), fd, bufferSize, flags, outputMode,
                samplingEnabled ? Trace::TraceMode::kSampling : Trace::TraceMode::kMethodTracing,
                intervalUs);
 }
@@ -547,7 +551,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMDebug, startEmulatorTracing, "()V"),
   NATIVE_METHOD(VMDebug, startInstructionCounting, "()V"),
   NATIVE_METHOD(VMDebug, startMethodTracingDdmsImpl, "(IIZI)V"),
-  NATIVE_METHOD(VMDebug, startMethodTracingFd, "(Ljava/lang/String;Ljava/io/FileDescriptor;IIZI)V"),
+  NATIVE_METHOD(VMDebug, startMethodTracingFd, "(Ljava/lang/String;Ljava/io/FileDescriptor;IIZIZ)V"),
   NATIVE_METHOD(VMDebug, startMethodTracingFilename, "(Ljava/lang/String;IIZI)V"),
   NATIVE_METHOD(VMDebug, stopAllocCounting, "()V"),
   NATIVE_METHOD(VMDebug, stopEmulatorTracing, "()V"),
