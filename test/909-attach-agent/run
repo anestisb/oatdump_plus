@@ -21,17 +21,11 @@ if  [[ "$@" == *"-O"* ]]; then
   plugin=libopenjdkjvmti.so
 fi
 
-./default-run "$@" --experimental agents \
-                   --experimental runtime-plugins \
-                   --android-runtime-option -Xplugin:${plugin} \
+./default-run "$@" --android-runtime-option -Xplugin:${plugin} \
                    --android-runtime-option -Xfully-deoptable \
                    --args agent:${agent}=909-attach-agent
 
-./default-run "$@" --experimental agents \
-                   --experimental runtime-plugins \
-                   --android-runtime-option -Xfully-deoptable \
+./default-run "$@" --android-runtime-option -Xfully-deoptable \
                    --args agent:${agent}=909-attach-agent
 
-./default-run "$@" --experimental agents \
-                   --experimental runtime-plugins \
-                   --args agent:${agent}=909-attach-agent
+./default-run "$@" --args agent:${agent}=909-attach-agent
