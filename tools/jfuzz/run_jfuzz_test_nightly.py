@@ -26,9 +26,6 @@ from glob import glob
 from tempfile import mkdtemp
 from tempfile import TemporaryFile
 
-# Default arguments for run_jfuzz_test.py.
-DEFAULT_ARGS = ['--num_tests=20000']
-
 # run_jfuzz_test.py success string.
 SUCCESS_STRING = 'success (no divergences)'
 
@@ -36,17 +33,22 @@ SUCCESS_STRING = 'success (no divergences)'
 NOT_FOUND = -1
 
 def main(argv):
+  # Set up.
   cwd = os.path.dirname(os.path.realpath(__file__))
-  cmd = [cwd + '/run_jfuzz_test.py'] + DEFAULT_ARGS
+  cmd = [cwd + '/run_jfuzz_test.py']
   parser = argparse.ArgumentParser()
   parser.add_argument('--num_proc', default=8,
                       type=int, help='number of processes to run')
   # Unknown arguments are passed to run_jfuzz_test.py.
   (args, unknown_args) = parser.parse_known_args()
+  # Run processes.
+  cmd = cmd + unknown_args
+  print('\n**** Running ****\n\n', cmd, '\n')
   output_files = [TemporaryFile('wb+') for _ in range(args.num_proc)]
   processes = []
-  for output_file in output_files:
-    processes.append(subprocess.Popen(cmd + unknown_args, stdout=output_file,
+  for i, output_file in enumerate(output_files):
+    print('Tester', i)
+    processes.append(subprocess.Popen(cmd, stdout=output_file,
                                       stderr=subprocess.STDOUT))
   try:
     # Wait for processes to terminate.
@@ -56,6 +58,7 @@ def main(argv):
     for proc in processes:
       proc.kill()
   # Output results.
+  print('\n**** Results ****\n')
   output_dirs = []
   for i, output_file in enumerate(output_files):
     output_file.seek(0)
@@ -65,20 +68,24 @@ def main(argv):
     directory_match = re.search(r'Directory[^:]*: ([^\n]+)\n', output_str)
     if directory_match:
       output_dirs.append(directory_match.group(1))
-    print('Tester', i)
     if output_str.find(SUCCESS_STRING) == NOT_FOUND:
-      print(output_str)
+      print('Tester', i, output_str)
     else:
-      print(SUCCESS_STRING)
+      print('Tester', i, SUCCESS_STRING)
   # Gather divergences.
   global_out_dir = mkdtemp('jfuzz_nightly')
-  divergence_nr = 1
+  divergence_nr = 0
   for out_dir in output_dirs:
     for divergence_dir in glob(out_dir + '/divergence*/'):
+      divergence_nr += 1
       shutil.copytree(divergence_dir,
                       global_out_dir + '/divergence' + str(divergence_nr))
-      divergence_nr += 1
-  print('Global output directory:', global_out_dir)
+  if divergence_nr > 0:
+    print('\n!!!! Divergences !!!!', divergence_nr)
+  else:
+    print ('\nSuccess')
+  print('\nGlobal output directory:', global_out_dir)
+  print()
 
 if __name__ == '__main__':
   main(sys.argv)
