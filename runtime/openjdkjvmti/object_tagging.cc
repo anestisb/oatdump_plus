@@ -207,7 +207,7 @@ void ObjectTagTable::SweepImpl(art::IsMarkedVisitor* visitor) {
 }
 
 void ObjectTagTable::HandleNullSweep(jlong tag) {
-  event_handler_->DispatchEvent(nullptr, ArtJvmtiEvent::kObjectFree, tag);
+  event_handler_->DispatchEvent<ArtJvmtiEvent::kObjectFree>(nullptr, tag);
 }
 
 template <typename T, ObjectTagTable::TableUpdateNullTarget kTargetNull>
