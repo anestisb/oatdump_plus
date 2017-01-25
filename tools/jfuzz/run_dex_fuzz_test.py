@@ -19,7 +19,7 @@ import os
 import shutil
 import sys
 
-from subprocess import check_call
+from subprocess import call
 from tempfile import mkdtemp
 
 sys.path.append(os.path.dirname(os.path.dirname(
@@ -75,6 +75,9 @@ class DexFuzzTester(object):
     top = GetEnvVariableOrError('ANDROID_BUILD_TOP')
     self._dexfuzz_env['PATH'] = (top + '/art/tools/bisection_search:' +
                                  self._dexfuzz_env['PATH'])
+    android_root = GetEnvVariableOrError('ANDROID_HOST_OUT')
+    self._dexfuzz_env['ANDROID_ROOT'] = android_root
+    self._dexfuzz_env['LD_LIBRARY_PATH'] = android_root + '/lib'
     os.chdir(self._dexfuzz_dir)
     os.mkdir('divergent_programs')
     os.mkdir('bisection_outputs')
@@ -119,24 +122,30 @@ class DexFuzzTester(object):
   def RunDexFuzz(self):
     """Starts the DexFuzz testing."""
     os.chdir(self._dexfuzz_dir)
-    dexfuzz_args = ['--inputs=' + self._inputs_dir, '--execute',
-                    '--execute-class=Test', '--repeat=' + str(self._num_tests),
-                    '--dump-output', '--interpreter', '--optimizing',
+    dexfuzz_args = ['--inputs=' + self._inputs_dir,
+                    '--execute',
+                    '--execute-class=Test',
+                    '--repeat=' + str(self._num_tests),
+                    '--dump-output', '--dump-verify',
+                    '--interpreter', '--optimizing',
                     '--bisection-search']
     if self._device is not None:
       dexfuzz_args += ['--device=' + self._device, '--allarm']
     else:
       dexfuzz_args += ['--host']  # Assume host otherwise.
-    check_call(['dexfuzz'] + dexfuzz_args, env=self._dexfuzz_env)
-    # TODO: summarize findings.
+    cmd = ['dexfuzz'] + dexfuzz_args
+    print('**** Running ****\n\n', cmd, '\n')
+    call(cmd, env=self._dexfuzz_env)
+    print('\n**** Results (report.log) ****\n')
+    call(['tail', '-n 24', 'report.log'])
 
 
 def main():
   # Handle arguments.
   parser = argparse.ArgumentParser()
-  parser.add_argument('--num_tests', default=10000,
+  parser.add_argument('--num_tests', default=1000,
                       type=int, help='number of tests to run')
-  parser.add_argument('--num_inputs', default=50,
+  parser.add_argument('--num_inputs', default=10,
                       type=int, help='number of JFuzz program to generate')
   parser.add_argument('--device', help='target device serial number')
   args = parser.parse_args()
