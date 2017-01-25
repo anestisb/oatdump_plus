@@ -156,9 +156,9 @@ class EventHandler {
                       ArtJvmtiEvent event,
                       jvmtiEventMode mode);
 
-  template <typename ...Args>
+  template <ArtJvmtiEvent kEvent, typename ...Args>
   ALWAYS_INLINE
-  inline void DispatchEvent(art::Thread* thread, ArtJvmtiEvent event, Args... args) const;
+  inline void DispatchEvent(art::Thread* thread, Args... args) const;
 
   // Tell the event handler capabilities were added/lost so it can adjust the sent events.If
   // caps_added is true then caps is all the newly set capabilities of the jvmtiEnv. If it is false
@@ -169,8 +169,9 @@ class EventHandler {
                                         bool added);
 
  private:
+  template <ArtJvmtiEvent kEvent>
   ALWAYS_INLINE
-  static inline bool ShouldDispatch(ArtJvmtiEvent event, ArtJvmTiEnv* env, art::Thread* thread);
+  static inline bool ShouldDispatch(ArtJvmTiEnv* env, art::Thread* thread);
 
   ALWAYS_INLINE
   inline bool NeedsEventUpdate(ArtJvmTiEnv* env,
@@ -181,14 +182,17 @@ class EventHandler {
   ALWAYS_INLINE
   inline void RecalculateGlobalEventMask(ArtJvmtiEvent event);
 
-  template <typename ...Args>
-  ALWAYS_INLINE inline void GenericDispatchEvent(art::Thread* thread,
-                                                 ArtJvmtiEvent event,
-                                                 Args... args) const;
-  template <typename ...Args>
+  template <ArtJvmtiEvent kEvent>
   ALWAYS_INLINE inline void DispatchClassFileLoadHookEvent(art::Thread* thread,
-                                                           ArtJvmtiEvent event,
-                                                           Args... args) const;
+                                                           JNIEnv* jnienv,
+                                                           jclass class_being_redefined,
+                                                           jobject loader,
+                                                           const char* name,
+                                                           jobject protection_domain,
+                                                           jint class_data_len,
+                                                           const unsigned char* class_data,
+                                                           jint* new_class_data_len,
+                                                           unsigned char** new_class_data) const;
 
   void HandleEventType(ArtJvmtiEvent event, bool enable);
 
