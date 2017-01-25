@@ -207,6 +207,19 @@ inline void PrimitiveArray<T>::VisitRoots(RootVisitor* visitor) {
 }
 
 template<typename T>
+inline PrimitiveArray<T>* PrimitiveArray<T>::AllocateAndFill(Thread* self,
+                                                             const T* data,
+                                                             size_t length) {
+  StackHandleScope<1> hs(self);
+  Handle<PrimitiveArray<T>> arr(hs.NewHandle(PrimitiveArray<T>::Alloc(self, length)));
+  if (!arr.IsNull()) {
+    // Copy it in. Just skip if it's null
+    memcpy(arr->GetData(), data, sizeof(T) * length);
+  }
+  return arr.Get();
+}
+
+template<typename T>
 inline PrimitiveArray<T>* PrimitiveArray<T>::Alloc(Thread* self, size_t length) {
   Array* raw_array = Array::Alloc<true>(self,
                                         GetArrayClass(),

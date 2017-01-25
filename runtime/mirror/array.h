@@ -119,6 +119,10 @@ class MANAGED PrimitiveArray : public Array {
   static PrimitiveArray<T>* Alloc(Thread* self, size_t length)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
+  static PrimitiveArray<T>* AllocateAndFill(Thread* self, const T* data, size_t length)
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
+
+
   const T* GetData() const ALWAYS_INLINE  REQUIRES_SHARED(Locks::mutator_lock_) {
     return reinterpret_cast<const T*>(GetRawData(sizeof(T), 0));
   }

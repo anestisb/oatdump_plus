@@ -96,6 +96,11 @@ class Redefiner {
 
   static jvmtiError IsModifiableClass(jvmtiEnv* env, jclass klass, jboolean* is_redefinable);
 
+  static std::unique_ptr<art::MemMap> MoveDataToMemMap(const std::string& original_location,
+                                                       jint data_len,
+                                                       const unsigned char* dex_data,
+                                                       std::string* error_msg);
+
  private:
   class ClassRedefinition {
    public:
@@ -233,11 +238,6 @@ class Redefiner {
   static jvmtiError GetClassRedefinitionError(art::Handle<art::mirror::Class> klass,
                                               /*out*/std::string* error_msg)
       REQUIRES_SHARED(art::Locks::mutator_lock_);
-
-  static std::unique_ptr<art::MemMap> MoveDataToMemMap(const std::string& original_location,
-                                                       jint data_len,
-                                                       const unsigned char* dex_data,
-                                                       std::string* error_msg);
 
   // TODO Put on all the lock qualifiers.
   jvmtiError Run() REQUIRES_SHARED(art::Locks::mutator_lock_);
