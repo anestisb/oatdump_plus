@@ -44,6 +44,10 @@ class DexCacheResolvedClasses {
     return dex_location_.compare(other.dex_location_);
   }
 
+  bool AddClass(dex::TypeIndex index) const {
+    return classes_.insert(index).second;
+  }
+
   template <class InputIt>
   void AddClasses(InputIt begin, InputIt end) const {
     classes_.insert(begin, end);
