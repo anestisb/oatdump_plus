@@ -2650,6 +2650,10 @@ mirror::Class* ClassLinker::DefineClass(Thread* self,
                                                             dex_class_def,
                                                             &new_dex_file,
                                                             &new_class_def);
+  // Check to see if an exception happened during runtime callbacks. Return if so.
+  if (self->IsExceptionPending()) {
+    return nullptr;
+  }
   ObjPtr<mirror::DexCache> dex_cache = RegisterDexFile(*new_dex_file, class_loader.Get());
   if (dex_cache == nullptr) {
     self->AssertPendingOOMException();

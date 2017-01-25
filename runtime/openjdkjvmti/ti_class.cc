@@ -31,6 +31,8 @@
 
 #include "ti_class.h"
 
+#include "android-base/stringprintf.h"
+
 #include <mutex>
 #include <unordered_set>
 
@@ -38,20 +40,208 @@
 #include "base/macros.h"
 #include "class_table-inl.h"
 #include "class_linker.h"
+#include "common_throws.h"
 #include "events-inl.h"
 #include "handle.h"
 #include "jni_env_ext-inl.h"
 #include "jni_internal.h"
+#include "mirror/array-inl.h"
+#include "mirror/class-inl.h"
+#include "mirror/class_ext.h"
 #include "runtime.h"
 #include "runtime_callbacks.h"
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
 #include "thread_list.h"
+#include "ti_redefine.h"
+#include "utils.h"
 
 namespace openjdkjvmti {
 
+using android::base::StringPrintf;
+
+static std::unique_ptr<const art::DexFile> MakeSingleDexFile(art::Thread* self,
+                                                             const char* descriptor,
+                                                             const std::string& orig_location,
+                                                             jint final_len,
+                                                             const unsigned char* final_dex_data)
+      REQUIRES_SHARED(art::Locks::mutator_lock_) {
+  // Make the mmap
+  std::string error_msg;
+  std::unique_ptr<art::MemMap> map(Redefiner::MoveDataToMemMap(orig_location,
+                                                               final_len,
+                                                               final_dex_data,
+                                                               &error_msg));
+  if (map.get() == nullptr) {
+    LOG(WARNING) << "Unable to allocate mmap for redefined dex file! Error was: " << error_msg;
+    self->ThrowOutOfMemoryError(StringPrintf(
+        "Unable to allocate dex file for transformation of %s", descriptor).c_str());
+    return nullptr;
+  }
+
+  // Make a dex-file
+  if (map->Size() < sizeof(art::DexFile::Header)) {
+    LOG(WARNING) << "Could not read dex file header because dex_data was too short";
+    art::ThrowClassFormatError(nullptr,
+                               "Unable to read transformed dex file of %s",
+                               descriptor);
+    return nullptr;
+  }
+  uint32_t checksum = reinterpret_cast<const art::DexFile::Header*>(map->Begin())->checksum_;
+  std::unique_ptr<const art::DexFile> dex_file(art::DexFile::Open(map->GetName(),
+                                                                  checksum,
+                                                                  std::move(map),
+                                                                  /*verify*/true,
+                                                                  /*verify_checksum*/true,
+                                                                  &error_msg));
+  if (dex_file.get() == nullptr) {
+    LOG(WARNING) << "Unable to load modified dex file for " << descriptor << ": " << error_msg;
+    art::ThrowClassFormatError(nullptr,
+                               "Unable to read transformed dex file of %s because %s",
+                               descriptor,
+                               error_msg.c_str());
+    return nullptr;
+  }
+  if (dex_file->NumClassDefs() != 1) {
+    LOG(WARNING) << "Dex file contains more than 1 class_def. Ignoring.";
+    // TODO Throw some other sort of error here maybe?
+    art::ThrowClassFormatError(
+        nullptr,
+        "Unable to use transformed dex file of %s because it contained too many classes",
+        descriptor);
+    return nullptr;
+  }
+  return dex_file;
+}
+
 struct ClassCallback : public art::ClassLoadCallback {
+  void ClassPreDefine(const char* descriptor,
+                      art::Handle<art::mirror::Class> klass,
+                      art::Handle<art::mirror::ClassLoader> class_loader,
+                      const art::DexFile& initial_dex_file,
+                      const art::DexFile::ClassDef& initial_class_def ATTRIBUTE_UNUSED,
+                      /*out*/art::DexFile const** final_dex_file,
+                      /*out*/art::DexFile::ClassDef const** final_class_def)
+      OVERRIDE REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    bool is_enabled =
+        event_handler->IsEventEnabledAnywhere(ArtJvmtiEvent::kClassFileLoadHookRetransformable) ||
+        event_handler->IsEventEnabledAnywhere(ArtJvmtiEvent::kClassFileLoadHookNonRetransformable);
+    if (!is_enabled) {
+      return;
+    }
+    if (descriptor[0] != 'L') {
+      // It is a primitive or array. Just return
+      return;
+    }
+    std::string name(art::PrettyDescriptor(descriptor));
+
+    art::Thread* self = art::Thread::Current();
+    art::JNIEnvExt* env = self->GetJniEnv();
+    ScopedLocalRef<jobject> loader(
+        env, class_loader.IsNull() ? nullptr : env->AddLocalReference<jobject>(class_loader.Get()));
+    // Go back to native.
+    art::ScopedThreadSuspension sts(self, art::ThreadState::kNative);
+    // Call all Non-retransformable agents.
+    jint post_no_redefine_len = 0;
+    unsigned char* post_no_redefine_dex_data = nullptr;
+    std::unique_ptr<const unsigned char> post_no_redefine_unique_ptr(nullptr);
+    event_handler->DispatchEvent<ArtJvmtiEvent::kClassFileLoadHookNonRetransformable>(
+        self,
+        static_cast<JNIEnv*>(env),
+        static_cast<jclass>(nullptr),  // The class doesn't really exist yet so send null.
+        loader.get(),
+        name.c_str(),
+        static_cast<jobject>(nullptr),  // Android doesn't seem to have protection domains
+        static_cast<jint>(initial_dex_file.Size()),
+        static_cast<const unsigned char*>(initial_dex_file.Begin()),
+        static_cast<jint*>(&post_no_redefine_len),
+        static_cast<unsigned char**>(&post_no_redefine_dex_data));
+    if (post_no_redefine_dex_data == nullptr) {
+      DCHECK_EQ(post_no_redefine_len, 0);
+      post_no_redefine_dex_data = const_cast<unsigned char*>(initial_dex_file.Begin());
+      post_no_redefine_len = initial_dex_file.Size();
+    } else {
+      post_no_redefine_unique_ptr = std::unique_ptr<const unsigned char>(post_no_redefine_dex_data);
+      DCHECK_GT(post_no_redefine_len, 0);
+    }
+    // Call all retransformable agents.
+    jint final_len = 0;
+    unsigned char* final_dex_data = nullptr;
+    std::unique_ptr<const unsigned char> final_dex_unique_ptr(nullptr);
+    event_handler->DispatchEvent<ArtJvmtiEvent::kClassFileLoadHookRetransformable>(
+        self,
+        static_cast<JNIEnv*>(env),
+        static_cast<jclass>(nullptr),  // The class doesn't really exist yet so send null.
+        loader.get(),
+        name.c_str(),
+        static_cast<jobject>(nullptr),  // Android doesn't seem to have protection domains
+        static_cast<jint>(post_no_redefine_len),
+        static_cast<const unsigned char*>(post_no_redefine_dex_data),
+        static_cast<jint*>(&final_len),
+        static_cast<unsigned char**>(&final_dex_data));
+    if (final_dex_data == nullptr) {
+      DCHECK_EQ(final_len, 0);
+      final_dex_data = post_no_redefine_dex_data;
+      final_len = post_no_redefine_len;
+    } else {
+      final_dex_unique_ptr = std::unique_ptr<const unsigned char>(final_dex_data);
+      DCHECK_GT(final_len, 0);
+    }
+
+    if (final_dex_data != initial_dex_file.Begin()) {
+      LOG(WARNING) << "Changing class " << descriptor;
+      art::ScopedObjectAccess soa(self);
+      art::StackHandleScope<2> hs(self);
+      // Save the results of all the non-retransformable agents.
+      // First allocate the ClassExt
+      art::Handle<art::mirror::ClassExt> ext(hs.NewHandle(klass->EnsureExtDataPresent(self)));
+      // Make sure we have a ClassExt. This is fine even though we are a temporary since it will
+      // get copied.
+      if (ext.IsNull()) {
+        // We will just return failure if we fail to allocate
+        LOG(WARNING) << "Could not allocate ext-data for class '" << descriptor << "'. "
+                     << "Aborting transformation since we will be unable to store it.";
+        self->AssertPendingOOMException();
+        return;
+      }
+
+      // Allocate the byte array to store the dex file bytes in.
+      art::Handle<art::mirror::ByteArray> arr(hs.NewHandle(
+          art::mirror::ByteArray::AllocateAndFill(
+              self,
+              reinterpret_cast<const signed char*>(post_no_redefine_dex_data),
+              post_no_redefine_len)));
+      if (arr.IsNull()) {
+        LOG(WARNING) << "Unable to allocate byte array for initial dex-file bytes. Aborting "
+                     << "transformation";
+        self->AssertPendingOOMException();
+        return;
+      }
+
+      std::unique_ptr<const art::DexFile> dex_file(MakeSingleDexFile(self,
+                                                                     descriptor,
+                                                                     initial_dex_file.GetLocation(),
+                                                                     final_len,
+                                                                     final_dex_data));
+      if (dex_file.get() == nullptr) {
+        return;
+      }
+
+      // TODO Check Redefined dex file for invariants.
+      LOG(WARNING) << "Dex file created by class-definition time transformation of "
+                   << descriptor << " is not checked for all retransformation invariants.";
+      // TODO Put it in classpath
+      LOG(WARNING) << "Dex file created for class-definition time transformation of "
+                   << descriptor << " was not added to any classpaths!";
+      // Actually set the ClassExt's original bytes once we have actually succeeded.
+      ext->SetOriginalDexFileBytes(arr.Get());
+      // Set the return values
+      *final_class_def = &dex_file->GetClassDef(0);
+      *final_dex_file = dex_file.release();
+    }
+  }
+
   void ClassLoad(art::Handle<art::mirror::Class> klass) REQUIRES_SHARED(art::Locks::mutator_lock_) {
     if (event_handler->IsEventEnabledAnywhere(ArtJvmtiEvent::kClassLoad)) {
       art::Thread* thread = art::Thread::Current();

@@ -137,20 +137,6 @@ jvmtiError GetClassLocation(ArtJvmTiEnv* env, jclass klass, /*out*/std::string* 
   return OK;
 }
 
-static jvmtiError CopyDataIntoJvmtiBuffer(ArtJvmTiEnv* env,
-                                          const unsigned char* source,
-                                          jint len,
-                                          /*out*/unsigned char** dest) {
-  jvmtiError res = env->Allocate(len, dest);
-  if (res != OK) {
-    return res;
-  }
-  memcpy(reinterpret_cast<void*>(*dest),
-         reinterpret_cast<const void*>(source),
-         len);
-  return OK;
-}
-
 jvmtiError Transformer::GetDexDataForRetransformation(ArtJvmTiEnv* env,
                                                       art::Handle<art::mirror::Class> klass,
                                                       /*out*/jint* dex_data_len,
