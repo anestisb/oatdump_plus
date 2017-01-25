@@ -1069,16 +1069,13 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   experimental_flags_ = runtime_options.GetOrDefault(Opt::Experimental);
   is_low_memory_mode_ = runtime_options.Exists(Opt::LowMemoryMode);
 
-  if (experimental_flags_ & ExperimentalFlags::kRuntimePlugins) {
-    plugins_ = runtime_options.ReleaseOrDefault(Opt::Plugins);
-  }
-  if (experimental_flags_ & ExperimentalFlags::kAgents) {
-    agents_ = runtime_options.ReleaseOrDefault(Opt::AgentPath);
-    // TODO Add back in -agentlib
-    // for (auto lib : runtime_options.ReleaseOrDefault(Opt::AgentLib)) {
-    //   agents_.push_back(lib);
-    // }
-  }
+  plugins_ = runtime_options.ReleaseOrDefault(Opt::Plugins);
+  agents_ = runtime_options.ReleaseOrDefault(Opt::AgentPath);
+  // TODO Add back in -agentlib
+  // for (auto lib : runtime_options.ReleaseOrDefault(Opt::AgentLib)) {
+  //   agents_.push_back(lib);
+  // }
+
   XGcOption xgc_option = runtime_options.GetOrDefault(Opt::GcOption);
   heap_ = new gc::Heap(runtime_options.GetOrDefault(Opt::MemoryInitialSize),
                        runtime_options.GetOrDefault(Opt::HeapGrowthLimit),
