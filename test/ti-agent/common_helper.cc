@@ -329,6 +329,38 @@ jint OnLoad(JavaVM* vm,
 
 }  // namespace common_retransform
 
+namespace common_transform {
+
+using art::common_retransform::CommonClassFileLoadHookRetransformable;
+
+// Get all capabilities except those related to retransformation.
+jint OnLoad(JavaVM* vm,
+            char* options ATTRIBUTE_UNUSED,
+            void* reserved ATTRIBUTE_UNUSED) {
+  if (vm->GetEnv(reinterpret_cast<void**>(&jvmti_env), JVMTI_VERSION_1_0)) {
+    printf("Unable to get jvmti env!\n");
+    return 1;
+  }
+  // Don't set the retransform caps
+  jvmtiCapabilities caps;
+  jvmti_env->GetPotentialCapabilities(&caps);
+  caps.can_retransform_classes = 0;
+  caps.can_retransform_any_class = 0;
+  jvmti_env->AddCapabilities(&caps);
+
+  // Use the same callback as the retransform test.
+  jvmtiEventCallbacks cb;
+  memset(&cb, 0, sizeof(cb));
+  cb.ClassFileLoadHook = CommonClassFileLoadHookRetransformable;
+  if (jvmti_env->SetEventCallbacks(&cb, sizeof(cb)) != JVMTI_ERROR_NONE) {
+    printf("Unable to set class file load hook cb!\n");
+    return 1;
+  }
+  return 0;
+}
+
+}  // namespace common_transform
+
 static void BindMethod(jvmtiEnv* jenv,
                        JNIEnv* env,
                        jclass klass,
