@@ -33,4 +33,36 @@ void MemoryRegion::CopyFrom(size_t offset, const MemoryRegion& from) const {
           from.pointer(), from.size());
 }
 
+void MemoryRegion::StoreBits(uintptr_t bit_offset, uint32_t value, size_t length) {
+  DCHECK_LE(value, MaxInt<uint32_t>(length));
+  DCHECK_LE(length, BitSizeOf<uint32_t>());
+  DCHECK_LE(bit_offset + length, size_in_bits());
+  if (length == 0) {
+    return;
+  }
+  // Bits are stored in this order {7 6 5 4 3 2 1 0}.
+  // How many remaining bits in current byte is (bit_offset % kBitsPerByte) + 1.
+  uint8_t* out = ComputeInternalPointer<uint8_t>(bit_offset >> kBitsPerByteLog2);
+  auto orig_len = length;
+  auto orig_value = value;
+  uintptr_t bit_remainder = bit_offset % kBitsPerByte;
+  while (true) {
+    const uintptr_t remaining_bits = kBitsPerByte - bit_remainder;
+    if (length <= remaining_bits) {
+      // Length is smaller than all of remainder bits.
+      size_t mask = ((1 << length) - 1) << bit_remainder;
+      *out = (*out & ~mask) | (value << bit_remainder);
+      break;
+    }
+    // Copy remaining bits in current byte.
+    size_t value_mask = (1 << remaining_bits) - 1;
+    *out = (*out & ~(value_mask << bit_remainder)) | ((value & value_mask) << bit_remainder);
+    value >>= remaining_bits;
+    bit_remainder = 0;
+    length -= remaining_bits;
+    ++out;
+  }
+  DCHECK_EQ(LoadBits(bit_offset, orig_len), orig_value) << bit_offset << " " << orig_len;
+}
+
 }  // namespace art
