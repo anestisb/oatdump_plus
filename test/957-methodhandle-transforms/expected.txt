@@ -50,3 +50,12 @@ a: a, b:1.0, c: 2.0
 a: a, b:b, c: c
 a: a, b:b, c: c
 a: a, b:43
+a: a, b:b, c: c
+a: a, b:true, c: false
+a: a, b:1, c: 2
+a: a, b:a, c: b
+a: a, b:3, c: 4
+a: a, b:42, c: 43
+a: a, b:100, c: 99
+a: a, b:8.9, c: 9.1
+a: a, b:6.7, c: 7.8
