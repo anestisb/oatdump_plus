@@ -114,6 +114,21 @@ static inline JvmtiUniquePtr MakeJvmtiUniquePtr(jvmtiEnv* env, T* mem) {
 }
 
 ALWAYS_INLINE
+static inline jvmtiError CopyDataIntoJvmtiBuffer(ArtJvmTiEnv* env,
+                                                 const unsigned char* source,
+                                                 jint len,
+                                                 /*out*/unsigned char** dest) {
+  jvmtiError res = env->Allocate(len, dest);
+  if (res != OK) {
+    return res;
+  }
+  memcpy(reinterpret_cast<void*>(*dest),
+         reinterpret_cast<const void*>(source),
+         len);
+  return OK;
+}
+
+ALWAYS_INLINE
 static inline jvmtiError CopyString(jvmtiEnv* env, const char* src, unsigned char** copy) {
   size_t len = strlen(src) + 1;
   unsigned char* buf;

@@ -520,28 +520,13 @@ void Redefiner::RecordFailure(jvmtiError result,
   result_ = result;
 }
 
-// Allocates a ByteArray big enough to store the given number of bytes and copies them from the
-// bytes pointer.
-static art::mirror::ByteArray* AllocateAndFillBytes(art::Thread* self,
-                                                    const uint8_t* bytes,
-                                                    int32_t num_bytes)
-    REQUIRES_SHARED(art::Locks::mutator_lock_) {
-  art::StackHandleScope<1> hs(self);
-  art::Handle<art::mirror::ByteArray> arr(hs.NewHandle(
-      art::mirror::ByteArray::Alloc(self, num_bytes)));
-  if (!arr.IsNull()) {
-    // Copy it in. Just skip if it's null
-    memcpy(arr->GetData(), bytes, num_bytes);
-  }
-  return arr.Get();
-}
-
 art::mirror::ByteArray* Redefiner::ClassRedefinition::AllocateOrGetOriginalDexFileBytes() {
   // If we have been specifically given a new set of bytes use that
   if (original_dex_file_.size() != 0) {
-    return AllocateAndFillBytes(driver_->self_,
-                                &original_dex_file_.At(0),
-                                original_dex_file_.size());
+    return art::mirror::ByteArray::AllocateAndFill(
+        driver_->self_,
+        reinterpret_cast<const signed char*>(&original_dex_file_.At(0)),
+        original_dex_file_.size());
   }
 
   // See if we already have one set.
@@ -561,7 +546,10 @@ art::mirror::ByteArray* Redefiner::ClassRedefinition::AllocateOrGetOriginalDexFi
     LOG(WARNING) << "Current dex file has more than one class in it. Calling RetransformClasses "
                  << "on this class might fail if no transformations are applied to it!";
   }
-  return AllocateAndFillBytes(driver_->self_, current_dex_file.Begin(), current_dex_file.Size());
+  return art::mirror::ByteArray::AllocateAndFill(
+      driver_->self_,
+      reinterpret_cast<const signed char*>(current_dex_file.Begin()),
+      current_dex_file.Size());
 }
 
 struct CallbackCtx {

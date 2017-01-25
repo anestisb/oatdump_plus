@@ -27,9 +27,14 @@ namespace common_redefine {
 jint OnLoad(JavaVM* vm, char* options, void* reserved);
 
 }  // namespace common_redefine
+
 namespace common_retransform {
 jint OnLoad(JavaVM* vm, char* options, void* reserved);
 }  // namespace common_retransform
+
+namespace common_transform {
+jint OnLoad(JavaVM* vm, char* options, void* reserved);
+}  // namespace common_transform
 
 
 extern bool RuntimeIsJVM;
