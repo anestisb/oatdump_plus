@@ -206,13 +206,12 @@ class JvmtiAllocationListener : public art::gc::AllocationListener {
       ScopedLocalRef<jclass> klass(
           jni_env, jni_env->AddLocalReference<jclass>(obj->Ptr()->GetClass()));
 
-      handler_->DispatchEvent(self,
-                              ArtJvmtiEvent::kVmObjectAlloc,
-                              jni_env,
-                              thread.get(),
-                              object.get(),
-                              klass.get(),
-                              static_cast<jlong>(byte_count));
+      handler_->DispatchEvent<ArtJvmtiEvent::kVmObjectAlloc>(self,
+                                                             reinterpret_cast<JNIEnv*>(jni_env),
+                                                             thread.get(),
+                                                             object.get(),
+                                                             klass.get(),
+                                                             static_cast<jlong>(byte_count));
     }
   }
 
@@ -241,11 +240,11 @@ class JvmtiGcPauseListener : public art::gc::GcPauseListener {
         finish_enabled_(false) {}
 
   void StartPause() OVERRIDE {
-    handler_->DispatchEvent(nullptr, ArtJvmtiEvent::kGarbageCollectionStart);
+    handler_->DispatchEvent<ArtJvmtiEvent::kGarbageCollectionStart>(nullptr);
   }
 
   void EndPause() OVERRIDE {
-    handler_->DispatchEvent(nullptr, ArtJvmtiEvent::kGarbageCollectionFinish);
+    handler_->DispatchEvent<ArtJvmtiEvent::kGarbageCollectionFinish>(nullptr);
   }
 
   bool IsEnabled() {
