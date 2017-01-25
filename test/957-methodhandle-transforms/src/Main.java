@@ -37,6 +37,7 @@ public class Main {
     testSpreaders_reference();
     testSpreaders_primitive();
     testInvokeWithArguments();
+    testAsCollector();
   }
 
   public static void testThrowException() throws Throwable {
@@ -1240,6 +1241,7 @@ public class Main {
       handle.invokeWithArguments(new Object[] { "a", "b" });
       fail();
     } catch (IllegalArgumentException expected) {
+    } catch (WrongMethodTypeException expected) {
     }
 
     // Test implicit unboxing.
@@ -1250,6 +1252,126 @@ public class Main {
 
     ret = (int) handle2.invokeWithArguments(new Object[] { "a", 43 });
     assertEquals(43, (int) ret);
+  }
+
+  public static int collectBoolean(String a, boolean[] b) {
+    System.out.println("a: " + a + ", b:" + b[0] + ", c: " + b[1]);
+    return 44;
+  }
+
+  public static int collectByte(String a, byte[] b) {
+    System.out.println("a: " + a + ", b:" + b[0] + ", c: " + b[1]);
+    return 45;
+  }
+
+  public static int collectChar(String a, char[] b) {
+    System.out.println("a: " + a + ", b:" + b[0] + ", c: " + b[1]);
+    return 46;
+  }
+
+  public static int collectShort(String a, short[] b) {
+    System.out.println("a: " + a + ", b:" + b[0] + ", c: " + b[1]);
+    return 47;
+  }
+
+  public static int collectInt(String a, int[] b) {
+    System.out.println("a: " + a + ", b:" + b[0] + ", c: " + b[1]);
+    return 48;
+  }
+
+  public static int collectLong(String a, long[] b) {
+    System.out.println("a: " + a + ", b:" + b[0] + ", c: " + b[1]);
+    return 49;
+  }
+
+  public static int collectFloat(String a, float[] b) {
+    System.out.println("a: " + a + ", b:" + b[0] + ", c: " + b[1]);
+    return 50;
+  }
+
+  public static int collectDouble(String a, double[] b) {
+    System.out.println("a: " + a + ", b:" + b[0] + ", c: " + b[1]);
+    return 51;
+  }
+
+  public static int collectCharSequence(String a, CharSequence[] b) {
+    System.out.println("a: " + a + ", b:" + b[0] + ", c: " + b[1]);
+    return 99;
+  }
+
+  public static void testAsCollector() throws Throwable {
+    // Reference arrays.
+    // -------------------
+    MethodHandle trailingRef = MethodHandles.lookup().findStatic(
+        Main.class, "collectCharSequence",
+        MethodType.methodType(int.class, String.class, CharSequence[].class));
+
+    // int[] is not convertible to CharSequence[].class.
+    try {
+      trailingRef.asCollector(int[].class, 1);
+      fail();
+    } catch (IllegalArgumentException expected) {
+    }
+
+    // Object[] is not convertible to CharSequence[].class.
+    try {
+      trailingRef.asCollector(Object[].class, 1);
+      fail();
+    } catch (IllegalArgumentException expected) {
+    }
+
+    // String[].class is convertible to CharSequence.class
+    MethodHandle collector = trailingRef.asCollector(String[].class, 2);
+    assertEquals(99, (int) collector.invoke("a", "b", "c"));
+
+    // Too few arguments should fail with a WMTE.
+    try {
+      collector.invoke("a", "b");
+      fail();
+    } catch (WrongMethodTypeException expected) {
+    }
+
+    // Too many arguments should fail with a WMTE.
+    try {
+      collector.invoke("a", "b", "c", "d");
+      fail();
+    } catch (WrongMethodTypeException expected) {
+    }
+
+    // Sanity checks on other array types.
+
+    MethodHandle target = MethodHandles.lookup().findStatic(
+        Main.class, "collectBoolean",
+        MethodType.methodType(int.class, String.class, boolean[].class));
+    assertEquals(44, (int) target.asCollector(boolean[].class, 2).invoke("a", true, false));
+
+    target = MethodHandles.lookup().findStatic(Main.class, "collectByte",
+        MethodType.methodType(int.class, String.class, byte[].class));
+    assertEquals(45, (int) target.asCollector(byte[].class, 2).invoke("a", (byte) 1, (byte) 2));
+
+    target = MethodHandles.lookup().findStatic(Main.class, "collectChar",
+        MethodType.methodType(int.class, String.class, char[].class));
+    assertEquals(46, (int) target.asCollector(char[].class, 2).invoke("a", 'a', 'b'));
+
+    target = MethodHandles.lookup().findStatic(Main.class, "collectShort",
+        MethodType.methodType(int.class, String.class, short[].class));
+    assertEquals(47, (int) target.asCollector(short[].class, 2).invoke("a", (short) 3, (short) 4));
+
+    target = MethodHandles.lookup().findStatic(Main.class, "collectInt",
+        MethodType.methodType(int.class, String.class, int[].class));
+    assertEquals(48, (int) target.asCollector(int[].class, 2).invoke("a", 42, 43));
+
+    target = MethodHandles.lookup().findStatic(Main.class, "collectLong",
+        MethodType.methodType(int.class, String.class, long[].class));
+    assertEquals(49, (int) target.asCollector(long[].class, 2).invoke("a", 100, 99));
+
+    target = MethodHandles.lookup().findStatic(Main.class, "collectFloat",
+        MethodType.methodType(int.class, String.class, float[].class));
+    assertEquals(50, (int) target.asCollector(float[].class, 2).invoke("a", 8.9f, 9.1f));
+
+    target = MethodHandles.lookup().findStatic(Main.class, "collectDouble",
+        MethodType.methodType(int.class, String.class, double[].class));
+    assertEquals(51, (int) target.asCollector(double[].class, 2).invoke("a", 6.7, 7.8));
   }
 
   public static void fail() {
