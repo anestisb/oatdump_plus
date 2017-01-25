@@ -599,42 +599,6 @@ bool ParsedOptions::DoParse(const RuntimeOptions& options,
     args.Set(M::HeapGrowthLimit, args.GetOrDefault(M::MemoryMaximumSize));
   }
 
-  if (args.GetOrDefault(M::Experimental) & ExperimentalFlags::kRuntimePlugins) {
-    LOG(WARNING) << "Experimental runtime plugin support has been enabled. No guarantees are made "
-                 << "about stability or usage of this plugin support. Use at your own risk. Do "
-                 << "not attempt to write shipping code that relies on the implementation of "
-                 << "runtime plugins.";
-  } else if (!args.GetOrDefault(M::Plugins).empty()) {
-    LOG(WARNING) << "Experimental runtime plugin support has not been enabled. Ignored options: ";
-    for (const auto& op : args.GetOrDefault(M::Plugins)) {
-      LOG(WARNING) << "    -plugin:" << op.GetLibrary();
-    }
-  }
-
-  if (args.GetOrDefault(M::Experimental) & ExperimentalFlags::kAgents) {
-    LOG(WARNING) << "Experimental runtime agent support has been enabled. No guarantees are made "
-                 << "the completeness, accuracy, reliability, or stability of the agent "
-                 << "implementation. Use at your own risk. Do not attempt to write shipping code "
-                 << "that relies on the implementation of any part of this api.";
-  } else if (!args.GetOrDefault(M::AgentLib).empty() || !args.GetOrDefault(M::AgentPath).empty()) {
-    LOG(WARNING) << "agent support has not been enabled. Enable experimental agent "
-                 << " support with '-XExperimental:agent'. Ignored options are:";
-    for (const auto& op : args.GetOrDefault(M::AgentLib)) {
-      if (op.HasArgs()) {
-        LOG(WARNING) << "    -agentlib:" << op.GetName() << "=" << op.GetArgs();
-      } else {
-        LOG(WARNING) << "    -agentlib:" << op.GetName();
-      }
-    }
-    for (const auto& op : args.GetOrDefault(M::AgentPath)) {
-      if (op.HasArgs()) {
-        LOG(WARNING) << "    -agentpath:" << op.GetName() << "=" << op.GetArgs();
-      } else {
-        LOG(WARNING) << "    -agentpath:" << op.GetName();
-      }
-    }
-  }
-
   *runtime_options = std::move(args);
   return true;
 }

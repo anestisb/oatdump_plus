@@ -18,7 +18,5 @@
 # In certain configurations, the app images may be valid even in a new classloader. Turn off
 # app images to avoid the issue.
 
-./default-run "$@" --experimental agents \
-                   --experimental runtime-plugins \
-                   --jvmti \
+./default-run "$@" --jvmti \
                    --no-app-image

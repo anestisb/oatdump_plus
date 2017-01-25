@@ -766,10 +766,6 @@ struct CmdlineType<ExperimentalFlags> : CmdlineTypeParser<ExperimentalFlags> {
   Result ParseAndAppend(const std::string& option, ExperimentalFlags& existing) {
     if (option == "none") {
       existing = ExperimentalFlags::kNone;
-    } else if (option == "agents") {
-      existing = existing | ExperimentalFlags::kAgents;
-    } else if (option == "runtime-plugins") {
-      existing = existing | ExperimentalFlags::kRuntimePlugins;
     } else {
       return Result::Failure(std::string("Unknown option '") + option + "'");
     }
