@@ -379,6 +379,7 @@ TEST_ART_BROKEN_INTERPRETER_ACCESS_CHECK_TESTS :=
 #   slows down allocations significantly which these tests do a lot.
 TEST_ART_BROKEN_GCSTRESS_RUN_TESTS := \
   137-cfi \
+  154-gc-loop \
   908-gc-start-finish \
   913-heaps \
   961-default-iface-resolution-gen \
