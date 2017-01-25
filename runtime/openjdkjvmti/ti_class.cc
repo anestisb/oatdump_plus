@@ -54,6 +54,7 @@
 #include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
 #include "thread_list.h"
+#include "ti_class_loader.h"
 #include "ti_redefine.h"
 #include "utils.h"
 
@@ -228,12 +229,15 @@ struct ClassCallback : public art::ClassLoadCallback {
         return;
       }
 
-      // TODO Check Redefined dex file for invariants.
+      // TODO Check Redefined dex file for all invariants.
       LOG(WARNING) << "Dex file created by class-definition time transformation of "
                    << descriptor << " is not checked for all retransformation invariants.";
-      // TODO Put it in classpath
-      LOG(WARNING) << "Dex file created for class-definition time transformation of "
-                   << descriptor << " was not added to any classpaths!";
+
+      if (!ClassLoaderHelper::AddToClassLoader(self, class_loader, dex_file.get())) {
+        LOG(ERROR) << "Unable to add " << descriptor << " to class loader!";
+        return;
+      }
+
       // Actually set the ClassExt's original bytes once we have actually succeeded.
       ext->SetOriginalDexFileBytes(arr.Get());
       // Set the return values

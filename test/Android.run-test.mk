@@ -521,13 +521,10 @@ TEST_ART_BROKEN_JIT_TRACING_RUN_TESTS :=
 # Known broken tests for the interpreter.
 # CFI unwinding expects managed frames.
 # 629 requires compilation.
-# 934 and 935 are broken due to the PreDefine hook not yet inserting them into the classpath. This should be fixed shortly
 TEST_ART_BROKEN_INTERPRETER_RUN_TESTS := \
   137-cfi \
   554-jit-profile-file \
-  629-vdex-speed \
-  934-load-transform \
-  935-non-retransformable \
+  629-vdex-speed
 
 ifneq (,$(filter interpreter,$(COMPILER_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
@@ -550,7 +547,6 @@ TEST_ART_BROKEN_INTERPRETER_RUN_TESTS :=
 # resolved but until then just disable them. Test 916 already checks this
 # feature for JIT use cases in a way that is resilient to the jit frames.
 # 912: b/34655682
-# 934 and 935 are broken due to the PreDefine hook not yet inserting them into the classpath. This should be fixed shortly
 TEST_ART_BROKEN_JIT_RUN_TESTS := \
   137-cfi \
   629-vdex-speed \
@@ -563,8 +559,6 @@ TEST_ART_BROKEN_JIT_RUN_TESTS := \
   917-fields-transformation \
   919-obsolete-fields \
   926-multi-obsolescence \
-  934-load-transform \
-  935-non-retransformable \
 
 ifneq (,$(filter jit,$(COMPILER_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
