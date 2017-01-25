@@ -48,7 +48,7 @@
 #include "jit/jit_code_cache.h"
 #include "jni_env_ext-inl.h"
 #include "jvmti_allocator.h"
-#include "mirror/class.h"
+#include "mirror/class-inl.h"
 #include "mirror/class_ext.h"
 #include "mirror/object.h"
 #include "object_lock.h"
@@ -488,6 +488,143 @@ void Redefiner::ClassRedefinition::FillObsoleteMethodMap(
     obsolete_dex_caches->Set(index, art_klass->GetDexCache());
     index++;
   }
+}
+
+// Try and get the declared method. First try to get a virtual method then a direct method if that's
+// not found.
+static art::ArtMethod* FindMethod(art::Handle<art::mirror::Class> klass,
+                                  const char* name,
+                                  art::Signature sig) REQUIRES_SHARED(art::Locks::mutator_lock_) {
+  art::ArtMethod* m = klass->FindDeclaredVirtualMethod(name, sig, art::kRuntimePointerSize);
+  if (m == nullptr) {
+    m = klass->FindDeclaredDirectMethod(name, sig, art::kRuntimePointerSize);
+  }
+  return m;
+}
+
+bool Redefiner::ClassRedefinition::CheckSameMethods() {
+  art::StackHandleScope<1> hs(driver_->self_);
+  art::Handle<art::mirror::Class> h_klass(hs.NewHandle(GetMirrorClass()));
+  DCHECK_EQ(dex_file_->NumClassDefs(), 1u);
+
+  art::ClassDataItemIterator new_iter(*dex_file_,
+                                      dex_file_->GetClassData(dex_file_->GetClassDef(0)));
+
+  // Make sure we have the same number of methods.
+  uint32_t num_new_method = new_iter.NumVirtualMethods() + new_iter.NumDirectMethods();
+  uint32_t num_old_method = h_klass->GetDeclaredMethodsSlice(art::kRuntimePointerSize).size();
+  if (num_new_method != num_old_method) {
+    bool bigger = num_new_method > num_old_method;
+    RecordFailure(bigger ? ERR(UNSUPPORTED_REDEFINITION_METHOD_ADDED)
+                         : ERR(UNSUPPORTED_REDEFINITION_METHOD_DELETED),
+                  StringPrintf("Total number of declared methods changed from %d to %d",
+                               num_old_method, num_new_method));
+    return false;
+  }
+
+  // Skip all of the fields. We should have already checked this.
+  while (new_iter.HasNextStaticField() || new_iter.HasNextInstanceField()) {
+    new_iter.Next();
+  }
+  // Check each of the methods. NB we don't need to specifically check for removals since the 2 dex
+  // files have the same number of methods, which means there must be an equal amount of additions
+  // and removals.
+  for (; new_iter.HasNextVirtualMethod() || new_iter.HasNextDirectMethod(); new_iter.Next()) {
+    // Get the data on the method we are searching for
+    const art::DexFile::MethodId& new_method_id = dex_file_->GetMethodId(new_iter.GetMemberIndex());
+    const char* new_method_name = dex_file_->GetMethodName(new_method_id);
+    art::Signature new_method_signature = dex_file_->GetMethodSignature(new_method_id);
+    art::ArtMethod* old_method = FindMethod(h_klass, new_method_name, new_method_signature);
+    // If we got past the check for the same number of methods above that means there must be at
+    // least one added and one removed method. We will return the ADDED failure message since it is
+    // easier to get a useful error report for it.
+    if (old_method == nullptr) {
+      RecordFailure(ERR(UNSUPPORTED_REDEFINITION_METHOD_ADDED),
+                    StringPrintf("Unknown method '%s' (sig: %s) was added!",
+                                  new_method_name,
+                                  new_method_signature.ToString().c_str()));
+      return false;
+    }
+    // Since direct methods have different flags than virtual ones (specifically direct methods must
+    // have kAccPrivate or kAccStatic or kAccConstructor flags) we can tell if a method changes from
+    // virtual to direct.
+    uint32_t new_flags = new_iter.GetMethodAccessFlags();
+    if (new_flags != (old_method->GetAccessFlags() & art::kAccValidMethodFlags)) {
+      RecordFailure(ERR(UNSUPPORTED_REDEFINITION_METHOD_MODIFIERS_CHANGED),
+                    StringPrintf("method '%s' (sig: %s) had different access flags",
+                                 new_method_name,
+                                 new_method_signature.ToString().c_str()));
+      return false;
+    }
+  }
+  return true;
+}
+
+bool Redefiner::ClassRedefinition::CheckSameFields() {
+  art::StackHandleScope<1> hs(driver_->self_);
+  art::Handle<art::mirror::Class> h_klass(hs.NewHandle(GetMirrorClass()));
+  DCHECK_EQ(dex_file_->NumClassDefs(), 1u);
+  art::ClassDataItemIterator new_iter(*dex_file_,
+                                      dex_file_->GetClassData(dex_file_->GetClassDef(0)));
+  const art::DexFile& old_dex_file = h_klass->GetDexFile();
+  art::ClassDataItemIterator old_iter(old_dex_file,
+                                      old_dex_file.GetClassData(*h_klass->GetClassDef()));
+  // Instance and static fields can be differentiated by their flags so no need to check them
+  // separately.
+  while (new_iter.HasNextInstanceField() || new_iter.HasNextStaticField()) {
+    // Get the data on the method we are searching for
+    const art::DexFile::FieldId& new_field_id = dex_file_->GetFieldId(new_iter.GetMemberIndex());
+    const char* new_field_name = dex_file_->GetFieldName(new_field_id);
+    const char* new_field_type = dex_file_->GetFieldTypeDescriptor(new_field_id);
+
+    if (!(old_iter.HasNextInstanceField() || old_iter.HasNextStaticField())) {
+      // We are missing the old version of this method!
+      RecordFailure(ERR(UNSUPPORTED_REDEFINITION_SCHEMA_CHANGED),
+                    StringPrintf("Unknown field '%s' (type: %s) added!",
+                                  new_field_name,
+                                  new_field_type));
+      return false;
+    }
+
+    const art::DexFile::FieldId& old_field_id = old_dex_file.GetFieldId(old_iter.GetMemberIndex());
+    const char* old_field_name = old_dex_file.GetFieldName(old_field_id);
+    const char* old_field_type = old_dex_file.GetFieldTypeDescriptor(old_field_id);
+
+    // Check name and type.
+    if (strcmp(old_field_name, new_field_name) != 0 ||
+        strcmp(old_field_type, new_field_type) != 0) {
+      RecordFailure(ERR(UNSUPPORTED_REDEFINITION_SCHEMA_CHANGED),
+                    StringPrintf("Field changed from '%s' (sig: %s) to '%s' (sig: %s)!",
+                                  old_field_name,
+                                  old_field_type,
+                                  new_field_name,
+                                  new_field_type));
+      return false;
+    }
+
+    // Since static fields have different flags than instance ones (specifically static fields must
+    // have the kAccStatic flag) we can tell if a field changes from static to instance.
+    if (new_iter.GetFieldAccessFlags() != old_iter.GetFieldAccessFlags()) {
+      RecordFailure(ERR(UNSUPPORTED_REDEFINITION_SCHEMA_CHANGED),
+                    StringPrintf("Field '%s' (sig: %s) had different access flags",
+                                  new_field_name,
+                                  new_field_type));
+      return false;
+    }
+
+    new_iter.Next();
+    old_iter.Next();
+  }
+  if (old_iter.HasNextInstanceField() || old_iter.HasNextStaticField()) {
+    RecordFailure(ERR(UNSUPPORTED_REDEFINITION_SCHEMA_CHANGED),
+                  StringPrintf("field '%s' (sig: %s) is missing!",
+                                old_dex_file.GetFieldName(old_dex_file.GetFieldId(
+                                    old_iter.GetMemberIndex())),
+                                old_dex_file.GetFieldTypeDescriptor(old_dex_file.GetFieldId(
+                                    old_iter.GetMemberIndex()))));
+    return false;
+  }
+  return true;
 }
 
 bool Redefiner::ClassRedefinition::CheckClass() {

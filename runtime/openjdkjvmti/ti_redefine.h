@@ -170,17 +170,11 @@ class Redefiner {
     // Checks that the class can even be redefined.
     bool CheckRedefinable() REQUIRES_SHARED(art::Locks::mutator_lock_);
 
-    // Checks that the dex file does not add/remove methods.
-    bool CheckSameMethods() REQUIRES_SHARED(art::Locks::mutator_lock_) {
-      LOG(WARNING) << "methods are not checked for modification currently";
-      return true;
-    }
+    // Checks that the dex file does not add/remove methods, or change their modifiers or types.
+    bool CheckSameMethods() REQUIRES_SHARED(art::Locks::mutator_lock_);
 
-    // Checks that the dex file does not modify fields
-    bool CheckSameFields() REQUIRES_SHARED(art::Locks::mutator_lock_) {
-      LOG(WARNING) << "Fields are not checked for modification currently";
-      return true;
-    }
+    // Checks that the dex file does not modify fields types or modifiers.
+    bool CheckSameFields() REQUIRES_SHARED(art::Locks::mutator_lock_);
 
     void UpdateJavaDexFile(art::ObjPtr<art::mirror::Object> java_dex_file,
                            art::ObjPtr<art::mirror::LongArray> new_cookie)
