@@ -301,11 +301,36 @@ static void DoClassRetransformation(jvmtiEnv* jvmti_env, JNIEnv* env, jobjectArr
   }
 }
 
-// TODO Write something useful.
 extern "C" JNIEXPORT void JNICALL Java_Main_doCommonClassRetransformation(JNIEnv* env,
                                                                           jclass,
                                                                           jobjectArray targets) {
-  DoClassRetransformation(jvmti_env, env, targets);
+  jvmtiCapabilities caps;
+  jvmtiError caps_err = jvmti_env->GetCapabilities(&caps);
+  if (caps_err != JVMTI_ERROR_NONE) {
+    env->ThrowNew(env->FindClass("java/lang/Exception"),
+                  "Unable to get current jvmtiEnv capabilities");
+    return;
+  }
+
+  // Allocate a new environment if we don't have the can_retransform_classes capability needed to
+  // call the RetransformClasses function.
+  jvmtiEnv* real_env = nullptr;
+  if (caps.can_retransform_classes != 1) {
+    JavaVM* vm = nullptr;
+    if (env->GetJavaVM(&vm) != 0 ||
+        vm->GetEnv(reinterpret_cast<void**>(&real_env), JVMTI_VERSION_1_0) != 0) {
+      env->ThrowNew(env->FindClass("java/lang/Exception"),
+                    "Unable to create temporary jvmtiEnv for RetransformClasses call.");
+      return;
+    }
+    SetAllCapabilities(real_env);
+  } else {
+    real_env = jvmti_env;
+  }
+  DoClassRetransformation(real_env, env, targets);
+  if (caps.can_retransform_classes != 1) {
+    real_env->DisposeEnvironment();
+  }
 }
 
 // Get all capabilities except those related to retransformation.

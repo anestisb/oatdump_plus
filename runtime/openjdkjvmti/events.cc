@@ -302,6 +302,64 @@ void EventHandler::HandleEventType(ArtJvmtiEvent event, bool enable) {
   }
 }
 
+// Checks to see if the env has the capabilities associated with the given event.
+static bool HasAssociatedCapability(ArtJvmTiEnv* env,
+                                    ArtJvmtiEvent event) {
+  jvmtiCapabilities caps = env->capabilities;
+  switch (event) {
+    case ArtJvmtiEvent::kBreakpoint:
+      return caps.can_generate_breakpoint_events == 1;
+
+    case ArtJvmtiEvent::kCompiledMethodLoad:
+    case ArtJvmtiEvent::kCompiledMethodUnload:
+      return caps.can_generate_compiled_method_load_events == 1;
+
+    case ArtJvmtiEvent::kException:
+    case ArtJvmtiEvent::kExceptionCatch:
+      return caps.can_generate_exception_events == 1;
+
+    case ArtJvmtiEvent::kFieldAccess:
+      return caps.can_generate_field_access_events == 1;
+
+    case ArtJvmtiEvent::kFieldModification:
+      return caps.can_generate_field_modification_events == 1;
+
+    case ArtJvmtiEvent::kFramePop:
+      return caps.can_generate_frame_pop_events == 1;
+
+    case ArtJvmtiEvent::kGarbageCollectionStart:
+    case ArtJvmtiEvent::kGarbageCollectionFinish:
+      return caps.can_generate_garbage_collection_events == 1;
+
+    case ArtJvmtiEvent::kMethodEntry:
+      return caps.can_generate_method_entry_events == 1;
+
+    case ArtJvmtiEvent::kMethodExit:
+      return caps.can_generate_method_exit_events == 1;
+
+    case ArtJvmtiEvent::kMonitorContendedEnter:
+    case ArtJvmtiEvent::kMonitorContendedEntered:
+    case ArtJvmtiEvent::kMonitorWait:
+    case ArtJvmtiEvent::kMonitorWaited:
+      return caps.can_generate_monitor_events == 1;
+
+    case ArtJvmtiEvent::kNativeMethodBind:
+      return caps.can_generate_native_method_bind_events == 1;
+
+    case ArtJvmtiEvent::kObjectFree:
+      return caps.can_generate_object_free_events == 1;
+
+    case ArtJvmtiEvent::kSingleStep:
+      return caps.can_generate_single_step_events == 1;
+
+    case ArtJvmtiEvent::kVmObjectAlloc:
+      return caps.can_generate_vm_object_alloc_events == 1;
+
+    default:
+      return true;
+  }
+}
+
 jvmtiError EventHandler::SetEvent(ArtJvmTiEnv* env,
                                   art::Thread* thread,
                                   ArtJvmtiEvent event,
@@ -318,14 +376,16 @@ jvmtiError EventHandler::SetEvent(ArtJvmTiEnv* env,
     }
   }
 
-  // TODO: Capability check.
-
   if (mode != JVMTI_ENABLE && mode != JVMTI_DISABLE) {
     return ERR(ILLEGAL_ARGUMENT);
   }
 
   if (!EventMask::EventIsInRange(event)) {
     return ERR(INVALID_EVENT_TYPE);
+  }
+
+  if (!HasAssociatedCapability(env, event)) {
+    return ERR(MUST_POSSESS_CAPABILITY);
   }
 
   bool old_state = global_mask.Test(event);
