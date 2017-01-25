@@ -21,7 +21,5 @@ if [[ "$@" == *"--jit"* ]]; then
 else
   other_args="--jit"
 fi
-./default-run "$@" --experimental agents \
-                   --experimental runtime-plugins \
-                   ${other_args} \
+./default-run "$@" ${other_args} \
                    --jvmti

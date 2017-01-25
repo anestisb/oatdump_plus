@@ -18,7 +18,5 @@ plugin=libartagentd.so
 if  [[ "$@" == *"-O"* ]]; then
   plugin=libartagent.so
 fi
-./default-run "$@" --experimental agents \
-                   --experimental runtime-plugins \
-                   --runtime-option -agentpath:${plugin}=test_900 \
+./default-run "$@" --runtime-option -agentpath:${plugin}=test_900 \
                    --android-runtime-option -Xplugin:${plugin}
