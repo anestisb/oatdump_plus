@@ -341,11 +341,14 @@ TEST_ART_BROKEN_NO_PREBUILD_TESTS :=
 
 # Note 117-nopatchoat is not broken per-se it just doesn't work (and isn't meant to) without
 # --prebuild --relocate
+# 934 & 935 are broken due to dex2dex issues and app-images
 TEST_ART_BROKEN_NO_RELOCATE_TESTS := \
   117-nopatchoat \
   118-noimage-dex2oat \
   119-noimage-patchoat \
-  554-jit-profile-file
+  554-jit-profile-file \
+  934-load-transform \
+  935-non-retransformable \
 
 ifneq (,$(filter no-relocate,$(RELOCATE_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
