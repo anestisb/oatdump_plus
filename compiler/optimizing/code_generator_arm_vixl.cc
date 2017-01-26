@@ -3998,8 +3998,8 @@ void LocationsBuilderARMVIXL::VisitNewArray(HNewArray* instruction) {
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCallOnMainOnly);
   InvokeRuntimeCallingConventionARMVIXL calling_convention;
   locations->SetOut(LocationFrom(r0));
-  locations->SetInAt(0, LocationFrom(calling_convention.GetRegisterAt(1)));
-  locations->SetInAt(1, LocationFrom(calling_convention.GetRegisterAt(2)));
+  locations->SetInAt(0, LocationFrom(calling_convention.GetRegisterAt(0)));
+  locations->SetInAt(1, LocationFrom(calling_convention.GetRegisterAt(1)));
 }
 
 void InstructionCodeGeneratorARMVIXL::VisitNewArray(HNewArray* instruction) {
