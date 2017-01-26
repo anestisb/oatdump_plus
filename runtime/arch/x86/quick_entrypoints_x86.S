@@ -1582,7 +1582,8 @@ DEFINE_FUNCTION art_quick_set64_instance
     SETUP_SAVE_REFS_ONLY_FRAME ebx, ebx  // save ref containing registers for GC
     movd %xmm0, %ebx
     // Outgoing argument set up
-    PUSH eax                       // alignment padding
+    subl LITERAL(12), %esp         // alignment padding
+    CFI_ADJUST_CFA_OFFSET(12)
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
     CFI_ADJUST_CFA_OFFSET(4)
     PUSH ebx                      // pass high half of new_val
