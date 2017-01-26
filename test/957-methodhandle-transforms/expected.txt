@@ -59,3 +59,20 @@ a: a, b:42, c: 43
 a: a, b:100, c: 99
 a: a, b:8.9, c: 9.1
 a: a, b:6.7, c: 7.8
+a: a, b: b, c:c, d:d
+a: a, b: b, c:c, d:d
+a: a, b: b, c:c, d:d
+a: a+b, b: c, c: d
+a: a, b: b+c, c: d
+a: a, b: b, c: c+d
+voidFilter
+a: a, b: b, c: c
+voidFilter
+a: a, b: b, c: c
+a: foo, b:45, c:56, d:bar
+a: foo, b:56, c:57, d:bar
+a: foo, b:56, c:57, d:bar
+a: foo, b:45, c:46, d:bar
+a: c+d ,b:c ,c:d ,d:e
+c+d
+a: a ,b:c ,c:d ,d:e
