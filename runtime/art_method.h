@@ -563,6 +563,7 @@ class ArtMethod FINAL {
 
   mirror::ClassLoader* GetClassLoader() REQUIRES_SHARED(Locks::mutator_lock_);
 
+  template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   mirror::DexCache* GetDexCache() REQUIRES_SHARED(Locks::mutator_lock_);
   mirror::DexCache* GetObsoleteDexCache() REQUIRES_SHARED(Locks::mutator_lock_);
 

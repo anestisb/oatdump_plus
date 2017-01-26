@@ -722,7 +722,8 @@ class MANAGED Class FINAL : public Object {
 
   void DumpClass(std::ostream& os, int flags) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   DexCache* GetDexCache() REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Also updates the dex_cache_strings_ variable from new_dex_cache.
