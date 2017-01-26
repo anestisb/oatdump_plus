@@ -357,9 +357,12 @@ TEST_ART_BROKEN_NO_RELOCATE_TESTS :=
 
 # Temporarily disable some broken tests when forcing access checks in interpreter b/22414682
 # 629 requires compilation.
+# 934 & 935 are broken due to dex2dex issues and app-images
 TEST_ART_BROKEN_INTERPRETER_ACCESS_CHECK_TESTS := \
   137-cfi \
-  629-vdex-speed
+  629-vdex-speed \
+  934-load-transform \
+  935-non-retransformable \
 
 ifneq (,$(filter interp-ac,$(COMPILER_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
@@ -425,6 +428,7 @@ ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),ndebug,$(PREB
 # 147-stripped-dex-fallback is disabled because it requires --prebuild.
 # 554-jit-profile-file is disabled because it needs a primary oat file to know what it should save.
 # 629-vdex-speed requires compiled code.
+# 934 & 935 are broken due to dex2dex issues and app-images
 TEST_ART_BROKEN_FALLBACK_RUN_TESTS := \
   116-nodex2oat \
   117-nopatchoat \
@@ -434,7 +438,9 @@ TEST_ART_BROKEN_FALLBACK_RUN_TESTS := \
   138-duplicate-classes-check2 \
   147-stripped-dex-fallback \
   554-jit-profile-file \
-  629-vdex-speed
+  629-vdex-speed \
+  934-load-transform \
+  935-non-retransformable \
 
 # This test fails without an image.
 # 018, 961, 964 often time out. b/34369284
