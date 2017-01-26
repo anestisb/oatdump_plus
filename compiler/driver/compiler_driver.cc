@@ -529,9 +529,15 @@ static optimizer::DexToDexCompilationLevel GetDexToDexCompilationLevel(
   // We store the verification information in the class status in the oat file, which the linker
   // can validate (checksums) and use to skip load-time verification. It is thus safe to
   // optimize when a class has been fully verified before.
+  optimizer::DexToDexCompilationLevel max_level = optimizer::DexToDexCompilationLevel::kOptimize;
+  if (driver.GetCompilerOptions().GetDebuggable()) {
+    // We are debuggable so definitions of classes might be changed. We don't want to do any
+    // optimizations that could break that.
+    max_level = optimizer::DexToDexCompilationLevel::kRequired;
+  }
   if (klass->IsVerified()) {
     // Class is verified so we can enable DEX-to-DEX compilation for performance.
-    return optimizer::DexToDexCompilationLevel::kOptimize;
+    return max_level;
   } else if (klass->IsCompileTimeVerified()) {
     // Class verification has soft-failed. Anyway, ensure at least correctness.
     DCHECK_EQ(klass->GetStatus(), mirror::Class::kStatusRetryVerificationAtRuntime);
