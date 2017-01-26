@@ -201,11 +201,6 @@ class PACKED(sizeof(T)) Atomic : public std::atomic<T> {
     return this->load(std::memory_order_acquire);
   }
 
-  // Disable optimizations for Atomic::LoadJavaData on x86 devices.
-  // Bug: http://b/34287931
-#if defined(DISABLE_LOAD_JAVA_DATA_OPTIMIZATIONS)
-  #pragma clang optimize off
-#endif
   // Word tearing allowed, but may race.
   // TODO: Optimize?
   // There has been some discussion of eventually disallowing word
@@ -213,9 +208,6 @@ class PACKED(sizeof(T)) Atomic : public std::atomic<T> {
   T LoadJavaData() const {
     return this->load(std::memory_order_relaxed);
   }
-#if defined(DISABLE_LOAD_JAVA_DATA_OPTIMIZATIONS)
-  #pragma clang optimize on
-#endif
 
   // Load from memory with a total ordering.
   // Corresponds exactly to a Java volatile load.
