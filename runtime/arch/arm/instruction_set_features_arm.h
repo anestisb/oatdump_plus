@@ -49,6 +49,8 @@ class ArmInstructionSetFeatures FINAL : public InstructionSetFeatures {
 
   bool Equals(const InstructionSetFeatures* other) const OVERRIDE;
 
+  bool HasAtLeast(const InstructionSetFeatures* other) const OVERRIDE;
+
   InstructionSet GetInstructionSet() const OVERRIDE {
     return kArm;
   }
@@ -69,6 +71,11 @@ class ArmInstructionSetFeatures FINAL : public InstructionSetFeatures {
     return has_atomic_ldrd_strd_;
   }
 
+  // Are ARMv8-A instructions available?
+  bool HasARMv8AInstructions() const {
+    return has_armv8a_;
+  }
+
   virtual ~ArmInstructionSetFeatures() {}
 
  protected:
@@ -78,19 +85,24 @@ class ArmInstructionSetFeatures FINAL : public InstructionSetFeatures {
                                  std::string* error_msg) const OVERRIDE;
 
  private:
-  ArmInstructionSetFeatures(bool has_div, bool has_atomic_ldrd_strd)
+  ArmInstructionSetFeatures(bool has_div,
+                            bool has_atomic_ldrd_strd,
+                            bool has_armv8a)
       : InstructionSetFeatures(),
-        has_div_(has_div), has_atomic_ldrd_strd_(has_atomic_ldrd_strd) {
-  }
+        has_div_(has_div),
+        has_atomic_ldrd_strd_(has_atomic_ldrd_strd),
+        has_armv8a_(has_armv8a) {}
 
   // Bitmap positions for encoding features as a bitmap.
   enum {
     kDivBitfield = 1 << 0,
     kAtomicLdrdStrdBitfield = 1 << 1,
+    kARMv8A = 1 << 2,
   };
 
   const bool has_div_;
   const bool has_atomic_ldrd_strd_;
+  const bool has_armv8a_;
 
   DISALLOW_COPY_AND_ASSIGN(ArmInstructionSetFeatures);
 };

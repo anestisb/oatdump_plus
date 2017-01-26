@@ -52,7 +52,7 @@ TEST(InstructionSetFeaturesTest, FeaturesFromSystemPropertyVariant) {
         InstructionSetFeatures::FromVariant(kRuntimeISA, dex2oat_isa_variant, &error_msg));
     ASSERT_TRUE(property_features.get() != nullptr) << error_msg;
 
-    EXPECT_TRUE(property_features->Equals(instruction_set_features.get()))
+    EXPECT_TRUE(property_features->HasAtLeast(instruction_set_features.get()))
       << "System property features: " << *property_features.get()
       << "\nFeatures from build: " << *instruction_set_features.get();
   }
@@ -89,7 +89,7 @@ TEST(InstructionSetFeaturesTest, FeaturesFromSystemPropertyString) {
           base_features->AddFeaturesFromString(dex2oat_isa_features, &error_msg));
       ASSERT_TRUE(property_features.get() != nullptr) << error_msg;
 
-      EXPECT_TRUE(property_features->Equals(instruction_set_features.get()))
+      EXPECT_TRUE(property_features->HasAtLeast(instruction_set_features.get()))
       << "System property features: " << *property_features.get()
       << "\nFeatures from build: " << *instruction_set_features.get();
     }
@@ -109,7 +109,7 @@ TEST(InstructionSetFeaturesTest, FeaturesFromCpuInfo) {
   // Check we get the same instruction set features using /proc/cpuinfo.
   std::unique_ptr<const InstructionSetFeatures> cpuinfo_features(
       InstructionSetFeatures::FromCpuInfo());
-  EXPECT_TRUE(cpuinfo_features->Equals(instruction_set_features.get()))
+  EXPECT_TRUE(cpuinfo_features->HasAtLeast(instruction_set_features.get()))
       << "CPU Info features: " << *cpuinfo_features.get()
       << "\nFeatures from build: " << *instruction_set_features.get();
 }
@@ -124,7 +124,7 @@ TEST(InstructionSetFeaturesTest, HostFeaturesFromCppDefines) {
 
   std::unique_ptr<const InstructionSetFeatures> cpp_features(
       InstructionSetFeatures::FromCppDefines());
-  EXPECT_TRUE(default_features->Equals(cpp_features.get()))
+  EXPECT_TRUE(cpp_features->HasAtLeast(default_features.get()))
       << "Default variant features: " << *default_features.get()
       << "\nFeatures from build: " << *cpp_features.get();
 }
@@ -143,7 +143,7 @@ TEST(InstructionSetFeaturesTest, FeaturesFromHwcap) {
   // Check we get the same instruction set features using AT_HWCAP.
   std::unique_ptr<const InstructionSetFeatures> hwcap_features(
       InstructionSetFeatures::FromHwcap());
-  EXPECT_TRUE(hwcap_features->Equals(instruction_set_features.get()))
+  EXPECT_TRUE(hwcap_features->HasAtLeast(instruction_set_features.get()))
       << "Hwcap features: " << *hwcap_features.get()
       << "\nFeatures from build: " << *instruction_set_features.get();
 }
@@ -156,7 +156,7 @@ TEST(InstructionSetFeaturesTest, FeaturesFromAssembly) {
   // Check we get the same instruction set features using assembly tests.
   std::unique_ptr<const InstructionSetFeatures> assembly_features(
       InstructionSetFeatures::FromAssembly());
-  EXPECT_TRUE(assembly_features->Equals(instruction_set_features.get()))
+  EXPECT_TRUE(assembly_features->HasAtLeast(instruction_set_features.get()))
       << "Assembly features: " << *assembly_features.get()
       << "\nFeatures from build: " << *instruction_set_features.get();
 }
