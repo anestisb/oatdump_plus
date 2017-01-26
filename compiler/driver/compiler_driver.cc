@@ -1062,23 +1062,6 @@ bool CompilerDriver::ShouldCompileBasedOnProfile(const MethodReference& method_r
   return result;
 }
 
-bool CompilerDriver::ShouldVerifyClassBasedOnProfile(const DexFile& dex_file,
-                                                     uint16_t class_idx) const {
-  if (!compiler_options_->VerifyOnlyProfile()) {
-    // No profile, verify everything.
-    return true;
-  }
-  DCHECK(profile_compilation_info_ != nullptr);
-  const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_idx);
-  dex::TypeIndex type_idx = class_def.class_idx_;
-  bool result = profile_compilation_info_->ContainsClass(dex_file, type_idx);
-  if (kDebugProfileGuidedCompilation) {
-    LOG(INFO) << "[ProfileGuidedCompilation] " << (result ? "Verified" : "Skipped") << " method:"
-        << dex_file.GetClassDescriptor(class_def);
-  }
-  return result;
-}
-
 class ResolveCatchBlockExceptionsClassVisitor : public ClassVisitor {
  public:
   explicit ResolveCatchBlockExceptionsClassVisitor(
@@ -2126,13 +2109,6 @@ class VerifyClassVisitor : public CompilationVisitor {
     ATRACE_CALL();
     ScopedObjectAccess soa(Thread::Current());
     const DexFile& dex_file = *manager_->GetDexFile();
-    if (!manager_->GetCompiler()->ShouldVerifyClassBasedOnProfile(dex_file, class_def_index)) {
-      // Skip verification since the class is not in the profile, and let the VerifierDeps know
-      // that the class will need to be verified at runtime.
-      verifier::VerifierDeps::MaybeRecordVerificationStatus(
-          dex_file, dex::TypeIndex(class_def_index), verifier::MethodVerifier::kSoftFailure);
-      return;
-    }
     const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
     const char* descriptor = dex_file.GetClassDescriptor(class_def);
     ClassLinker* class_linker = manager_->GetClassLinker();
