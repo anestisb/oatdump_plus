@@ -719,21 +719,7 @@ std::string ArtMethod::PrettyMethod(bool with_signature) {
 }
 
 std::string ArtMethod::JniShortName() {
-  std::string class_name(GetDeclaringClassDescriptor());
-  // Remove the leading 'L' and trailing ';'...
-  CHECK_EQ(class_name[0], 'L') << class_name;
-  CHECK_EQ(class_name[class_name.size() - 1], ';') << class_name;
-  class_name.erase(0, 1);
-  class_name.erase(class_name.size() - 1, 1);
-
-  std::string method_name(GetName());
-
-  std::string short_name;
-  short_name += "Java_";
-  short_name += MangleForJni(class_name);
-  short_name += "_";
-  short_name += MangleForJni(method_name);
-  return short_name;
+  return GetJniShortName(GetDeclaringClassDescriptor(), GetName());
 }
 
 std::string ArtMethod::JniLongName() {
