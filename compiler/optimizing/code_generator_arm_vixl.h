@@ -199,7 +199,9 @@ class FieldAccessCallingConventionARMVIXL : public FieldAccessCallingConvention 
   }
   Location GetSetValueLocation(Primitive::Type type, bool is_instance) const OVERRIDE {
     return Primitive::Is64BitType(type)
-        ? helpers::LocationFrom(vixl::aarch32::r2, vixl::aarch32::r3)
+        ? (is_instance
+            ? helpers::LocationFrom(vixl::aarch32::r2, vixl::aarch32::r3)
+            : helpers::LocationFrom(vixl::aarch32::r1, vixl::aarch32::r2))
         : (is_instance
             ? helpers::LocationFrom(vixl::aarch32::r2)
             : helpers::LocationFrom(vixl::aarch32::r1));

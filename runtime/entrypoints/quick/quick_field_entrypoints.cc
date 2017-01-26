@@ -55,261 +55,207 @@ ALWAYS_INLINE static inline ArtField* FindInstanceField(uint32_t field_idx,
   return field;
 }
 
-extern "C" ssize_t artGetByteStaticFromCode(uint32_t field_idx, ArtMethod* referrer, Thread* self)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  ScopedQuickEntrypointChecks sqec(self);
-  ArtField* field = FindFieldFast(field_idx, referrer, StaticPrimitiveRead, sizeof(int8_t));
-  if (LIKELY(field != nullptr)) {
-    return field->GetByte(field->GetDeclaringClass());
+static ArtMethod* GetReferrer(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_) {
+  if (kIsDebugBuild) {
+    // stub_test doesn't call this code with a proper frame, so get the outer, and if
+    // it does not have compiled code return it.
+    ArtMethod* outer = GetCalleeSaveOuterMethod(self, Runtime::kSaveRefsOnly);
+    if (outer->GetEntryPointFromQuickCompiledCode() == nullptr) {
+      return outer;
+    }
   }
-  field = FindFieldFromCode<StaticPrimitiveRead, true>(field_idx, referrer, self, sizeof(int8_t));
-  if (LIKELY(field != nullptr)) {
-    return field->GetByte(field->GetDeclaringClass());
-  }
-  return 0;  // Will throw exception by checking with Thread::Current.
+  return GetCalleeSaveMethodCallerAndOuterMethod(self, Runtime::kSaveRefsOnly).caller;
 }
 
-extern "C" size_t artGetBooleanStaticFromCode(uint32_t field_idx, ArtMethod* referrer, Thread* self)
+#define ART_GET_FIELD_FROM_CODE(Kind, PrimitiveType, RetType, SetType,         \
+                                PrimitiveOrObject, IsObject, Ptr)              \
+  extern "C" RetType artGet ## Kind ## StaticFromCode(uint32_t field_idx,      \
+                                                      ArtMethod* referrer,     \
+                                                      Thread* self)            \
+      REQUIRES_SHARED(Locks::mutator_lock_) {                                  \
+    ScopedQuickEntrypointChecks sqec(self);                                    \
+    ArtField* field = FindFieldFast(                                           \
+        field_idx, referrer, Static ## PrimitiveOrObject ## Read,              \
+        sizeof(PrimitiveType));                                                \
+    if (LIKELY(field != nullptr)) {                                            \
+      return field->Get ## Kind (field->GetDeclaringClass())Ptr;               \
+    }                                                                          \
+    field = FindFieldFromCode<Static ## PrimitiveOrObject ## Read, true>(      \
+        field_idx, referrer, self, sizeof(PrimitiveType));                     \
+    if (LIKELY(field != nullptr)) {                                            \
+      return field->Get ## Kind (field->GetDeclaringClass())Ptr;               \
+    }                                                                          \
+    /* Will throw exception by checking with Thread::Current. */               \
+    return 0;                                                                  \
+  }                                                                            \
+                                                                               \
+  extern "C" RetType artGet ## Kind ## InstanceFromCode(uint32_t field_idx,    \
+                                                        mirror::Object* obj,   \
+                                                        ArtMethod* referrer,   \
+                                                        Thread* self)          \
+      REQUIRES_SHARED(Locks::mutator_lock_) {                                  \
+    ScopedQuickEntrypointChecks sqec(self);                                    \
+    ArtField* field = FindFieldFast(                                           \
+        field_idx, referrer, Instance ## PrimitiveOrObject ## Read,            \
+        sizeof(PrimitiveType));                                                \
+    if (LIKELY(field != nullptr) && obj != nullptr) {                          \
+      return field->Get ## Kind (obj)Ptr;                                      \
+    }                                                                          \
+    field = FindInstanceField<Instance ## PrimitiveOrObject ## Read, true>(    \
+        field_idx, referrer, self, sizeof(PrimitiveType), &obj);               \
+    if (LIKELY(field != nullptr)) {                                            \
+      return field->Get ## Kind (obj)Ptr;                                      \
+    }                                                                          \
+    /* Will throw exception by checking with Thread::Current. */               \
+    return 0;                                                                  \
+  }                                                                            \
+                                                                               \
+  extern "C" int artSet ## Kind ## StaticFromCode(uint32_t field_idx,          \
+                                                  SetType new_value,           \
+                                                  ArtMethod* referrer,         \
+                                                  Thread* self)                \
+      REQUIRES_SHARED(Locks::mutator_lock_) {                                  \
+    ScopedQuickEntrypointChecks sqec(self);                                    \
+    ArtField* field = FindFieldFast(                                           \
+        field_idx, referrer, Static ## PrimitiveOrObject ## Write,             \
+        sizeof(PrimitiveType));                                                \
+    if (LIKELY(field != nullptr)) {                                            \
+      field->Set ## Kind <false>(field->GetDeclaringClass(), new_value);       \
+      return 0;                                                                \
+    }                                                                          \
+    if (IsObject) {                                                            \
+      StackHandleScope<1> hs(self);                                            \
+      HandleWrapper<mirror::Object> h_obj(hs.NewHandleWrapper(                 \
+          reinterpret_cast<mirror::Object**>(&new_value)));                    \
+      field = FindFieldFromCode<Static ## PrimitiveOrObject ## Write, true>(   \
+          field_idx, referrer, self, sizeof(PrimitiveType));                   \
+    } else {                                                                   \
+      field = FindFieldFromCode<Static ## PrimitiveOrObject ## Write, true>(   \
+          field_idx, referrer, self, sizeof(PrimitiveType));                   \
+    }                                                                          \
+    if (LIKELY(field != nullptr)) {                                            \
+      field->Set ## Kind <false>(field->GetDeclaringClass(), new_value);       \
+      return 0;                                                                \
+    }                                                                          \
+    return -1;                                                                 \
+  }                                                                            \
+                                                                               \
+  extern "C" int artSet ## Kind ## InstanceFromCode(uint32_t field_idx,        \
+                                                    mirror::Object* obj,       \
+                                                    SetType new_value,         \
+                                                    ArtMethod* referrer,       \
+                                                    Thread* self)              \
+    REQUIRES_SHARED(Locks::mutator_lock_) {                                    \
+    ScopedQuickEntrypointChecks sqec(self);                                    \
+    ArtField* field = FindFieldFast(                                           \
+        field_idx, referrer, Instance ## PrimitiveOrObject ## Write,           \
+        sizeof(PrimitiveType));                                                \
+    if (LIKELY(field != nullptr && obj != nullptr)) {                          \
+      field->Set ## Kind <false>(obj, new_value);                              \
+      return 0;                                                                \
+    }                                                                          \
+    if (IsObject) {                                                            \
+      StackHandleScope<1> hs(self);                                            \
+      HandleWrapper<mirror::Object> h_obj(hs.NewHandleWrapper(                 \
+          reinterpret_cast<mirror::Object**>(&new_value)));                    \
+      field = FindInstanceField<Instance ## PrimitiveOrObject ## Write, true>( \
+          field_idx,                                                           \
+          referrer,                                                            \
+          self,                                                                \
+          sizeof(PrimitiveType),                                               \
+          &obj);                                                               \
+    } else {                                                                   \
+      field = FindInstanceField<Instance ## PrimitiveOrObject ## Write, true>( \
+          field_idx,                                                           \
+          referrer,                                                            \
+          self,                                                                \
+          sizeof(PrimitiveType),                                               \
+          &obj);                                                               \
+    }                                                                          \
+    if (LIKELY(field != nullptr)) {                                            \
+      field->Set ## Kind<false>(obj, new_value);                               \
+      return 0;                                                                \
+    }                                                                          \
+    return -1;                                                                 \
+  }                                                                            \
+                                                                               \
+  extern "C" RetType artGet ## Kind ## StaticFromCompiledCode(                 \
+      uint32_t field_idx,                                                      \
+      Thread* self)                                                            \
+      REQUIRES_SHARED(Locks::mutator_lock_) {                                  \
+    return artGet ## Kind ## StaticFromCode(                                   \
+        field_idx, GetReferrer(self), self);                                   \
+  }                                                                            \
+                                                                               \
+  extern "C" RetType artGet ## Kind ## InstanceFromCompiledCode(               \
+      uint32_t field_idx,                                                      \
+      mirror::Object* obj,                                                     \
+      Thread* self)                                                            \
+      REQUIRES_SHARED(Locks::mutator_lock_) {                                  \
+    return artGet ## Kind ## InstanceFromCode(                                 \
+        field_idx, obj, GetReferrer(self), self);                              \
+  }                                                                            \
+                                                                               \
+  extern "C" int artSet ## Kind ## StaticFromCompiledCode(                     \
+      uint32_t field_idx,                                                      \
+      SetType new_value,                                                       \
+      Thread* self)                                                            \
+      REQUIRES_SHARED(Locks::mutator_lock_) {                                  \
+    return artSet ## Kind ## StaticFromCode(                                   \
+        field_idx, new_value, GetReferrer(self), self);                        \
+  }                                                                            \
+                                                                               \
+  extern "C" int artSet ## Kind ## InstanceFromCompiledCode(                   \
+      uint32_t field_idx,                                                      \
+      mirror::Object* obj,                                                     \
+      SetType new_value,                                                       \
+      Thread* self)                                                            \
+      REQUIRES_SHARED(Locks::mutator_lock_) {                                  \
+    return artSet ## Kind ## InstanceFromCode(                                 \
+        field_idx, obj, new_value, GetReferrer(self), self);                   \
+  }
+
+ART_GET_FIELD_FROM_CODE(Byte, int8_t, ssize_t, uint32_t, Primitive, false, )
+ART_GET_FIELD_FROM_CODE(Boolean, int8_t, size_t, uint32_t, Primitive, false, )
+ART_GET_FIELD_FROM_CODE(Short, int16_t, ssize_t, uint16_t, Primitive, false, )
+ART_GET_FIELD_FROM_CODE(Char, int16_t, size_t, uint16_t, Primitive, false, )
+ART_GET_FIELD_FROM_CODE(32, int32_t, size_t, uint32_t, Primitive, false, )
+ART_GET_FIELD_FROM_CODE(64, int64_t, uint64_t, uint64_t, Primitive, false, )
+ART_GET_FIELD_FROM_CODE(Obj, mirror::HeapReference<mirror::Object>, mirror::Object*,
+                        mirror::Object*, Object, true, .Ptr())
+
+
+// To cut on the number of entrypoints, we have shared entries for
+// byte/boolean and char/short for setting an instance or static field. We just
+// forward those to the unsigned variant.
+extern "C" int artSet8StaticFromCompiledCode(uint32_t field_idx,
+                                             uint32_t new_value,
+                                             Thread* self)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  ScopedQuickEntrypointChecks sqec(self);
-  ArtField* field = FindFieldFast(field_idx, referrer, StaticPrimitiveRead, sizeof(int8_t));
-  if (LIKELY(field != nullptr)) {
-    return field->GetBoolean(field->GetDeclaringClass());
-  }
-  field = FindFieldFromCode<StaticPrimitiveRead, true>(field_idx, referrer, self, sizeof(int8_t));
-  if (LIKELY(field != nullptr)) {
-    return field->GetBoolean(field->GetDeclaringClass());
-  }
-  return 0;  // Will throw exception by checking with Thread::Current.
+  return artSetBooleanStaticFromCode(field_idx, new_value, GetReferrer(self), self);
 }
 
-extern "C" ssize_t artGetShortStaticFromCode(uint32_t field_idx, ArtMethod* referrer, Thread* self)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  ScopedQuickEntrypointChecks sqec(self);
-  ArtField* field = FindFieldFast(field_idx, referrer, StaticPrimitiveRead, sizeof(int16_t));
-  if (LIKELY(field != nullptr)) {
-    return field->GetShort(field->GetDeclaringClass());
-  }
-  field = FindFieldFromCode<StaticPrimitiveRead, true>(field_idx, referrer, self, sizeof(int16_t));
-  if (LIKELY(field != nullptr)) {
-    return field->GetShort(field->GetDeclaringClass());
-  }
-  return 0;  // Will throw exception by checking with Thread::Current.
-}
-
-extern "C" size_t artGetCharStaticFromCode(uint32_t field_idx, ArtMethod* referrer, Thread* self)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  ScopedQuickEntrypointChecks sqec(self);
-  ArtField* field = FindFieldFast(field_idx, referrer, StaticPrimitiveRead, sizeof(int16_t));
-  if (LIKELY(field != nullptr)) {
-    return field->GetChar(field->GetDeclaringClass());
-  }
-  field = FindFieldFromCode<StaticPrimitiveRead, true>(field_idx, referrer, self, sizeof(int16_t));
-  if (LIKELY(field != nullptr)) {
-    return field->GetChar(field->GetDeclaringClass());
-  }
-  return 0;  // Will throw exception by checking with Thread::Current.
-}
-
-extern "C" size_t artGet32StaticFromCode(uint32_t field_idx, ArtMethod* referrer, Thread* self)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  ScopedQuickEntrypointChecks sqec(self);
-  ArtField* field = FindFieldFast(field_idx, referrer, StaticPrimitiveRead, sizeof(int32_t));
-  if (LIKELY(field != nullptr)) {
-    return field->Get32(field->GetDeclaringClass());
-  }
-  field = FindFieldFromCode<StaticPrimitiveRead, true>(field_idx, referrer, self, sizeof(int32_t));
-  if (LIKELY(field != nullptr)) {
-    return field->Get32(field->GetDeclaringClass());
-  }
-  return 0;  // Will throw exception by checking with Thread::Current.
-}
-
-extern "C" uint64_t artGet64StaticFromCode(uint32_t field_idx,
-                                           ArtMethod* referrer,
-                                           Thread* self)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  ScopedQuickEntrypointChecks sqec(self);
-  ArtField* field = FindFieldFast(field_idx, referrer, StaticPrimitiveRead, sizeof(int64_t));
-  if (LIKELY(field != nullptr)) {
-    return field->Get64(field->GetDeclaringClass());
-  }
-  field = FindFieldFromCode<StaticPrimitiveRead, true>(field_idx, referrer, self, sizeof(int64_t));
-  if (LIKELY(field != nullptr)) {
-    return field->Get64(field->GetDeclaringClass());
-  }
-  return 0;  // Will throw exception by checking with Thread::Current.
-}
-
-extern "C" mirror::Object* artGetObjStaticFromCode(uint32_t field_idx,
-                                                   ArtMethod* referrer,
-                                                   Thread* self)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  ScopedQuickEntrypointChecks sqec(self);
-  ArtField* field = FindFieldFast(field_idx,
-                                  referrer,
-                                  StaticObjectRead,
-                                  sizeof(mirror::HeapReference<mirror::Object>));
-  if (LIKELY(field != nullptr)) {
-    return field->GetObj(field->GetDeclaringClass()).Ptr();
-  }
-  field = FindFieldFromCode<StaticObjectRead, true>(field_idx,
-                                                    referrer,
-                                                    self,
-                                                    sizeof(mirror::HeapReference<mirror::Object>));
-  if (LIKELY(field != nullptr)) {
-    return field->GetObj(field->GetDeclaringClass()).Ptr();
-  }
-  return nullptr;  // Will throw exception by checking with Thread::Current.
-}
-
-extern "C" ssize_t artGetByteInstanceFromCode(uint32_t field_idx,
-                                              mirror::Object* obj,
-                                              ArtMethod* referrer,
+extern "C" int artSet16StaticFromCompiledCode(uint32_t field_idx,
+                                              uint16_t new_value,
                                               Thread* self)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  ScopedQuickEntrypointChecks sqec(self);
-  ArtField* field = FindFieldFast(field_idx, referrer, InstancePrimitiveRead, sizeof(int8_t));
-  if (LIKELY(field != nullptr && obj != nullptr)) {
-    return field->GetByte(obj);
-  }
-  field = FindInstanceField<InstancePrimitiveRead, true>(field_idx,
-                                                         referrer,
-                                                         self,
-                                                         sizeof(int8_t),
-                                                         &obj);
-  if (LIKELY(field != nullptr)) {
-    return field->GetByte(obj);
-  }
-  return 0;  // Will throw exception by checking with Thread::Current.
+  return artSetCharStaticFromCode(field_idx, new_value, GetReferrer(self), self);
 }
 
-extern "C" size_t artGetBooleanInstanceFromCode(uint32_t field_idx,
-                                                mirror::Object* obj,
-                                                ArtMethod* referrer,
-                                                Thread* self)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  ScopedQuickEntrypointChecks sqec(self);
-  ArtField* field = FindFieldFast(field_idx, referrer, InstancePrimitiveRead, sizeof(int8_t));
-  if (LIKELY(field != nullptr && obj != nullptr)) {
-    return field->GetBoolean(obj);
-  }
-  field = FindInstanceField<InstancePrimitiveRead, true>(field_idx,
-                                                         referrer,
-                                                         self,
-                                                         sizeof(int8_t),
-                                                         &obj);
-  if (LIKELY(field != nullptr)) {
-    return field->GetBoolean(obj);
-  }
-  return 0;  // Will throw exception by checking with Thread::Current.
-}
-extern "C" ssize_t artGetShortInstanceFromCode(uint32_t field_idx,
+extern "C" int artSet8InstanceFromCompiledCode(uint32_t field_idx,
                                                mirror::Object* obj,
-                                               ArtMethod* referrer,
+                                               uint8_t new_value,
                                                Thread* self)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  ScopedQuickEntrypointChecks sqec(self);
-  ArtField* field = FindFieldFast(field_idx, referrer, InstancePrimitiveRead, sizeof(int16_t));
-  if (LIKELY(field != nullptr && obj != nullptr)) {
-    return field->GetShort(obj);
-  }
-  field = FindInstanceField<InstancePrimitiveRead, true>(field_idx,
-                                                         referrer,
-                                                         self,
-                                                         sizeof(int16_t),
-                                                         &obj);
-  if (LIKELY(field != nullptr)) {
-    return field->GetShort(obj);
-  }
-  return 0;  // Will throw exception by checking with Thread::Current.
+  return artSetBooleanInstanceFromCode(field_idx, obj, new_value, GetReferrer(self), self);
 }
 
-extern "C" size_t artGetCharInstanceFromCode(uint32_t field_idx,
-                                             mirror::Object* obj,
-                                             ArtMethod* referrer,
-                                             Thread* self)
+extern "C" int artSet16InstanceFromCompiledCode(uint32_t field_idx,
+                                                mirror::Object* obj,
+                                                uint16_t new_value,
+                                                Thread* self)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  ScopedQuickEntrypointChecks sqec(self);
-  ArtField* field = FindFieldFast(field_idx, referrer, InstancePrimitiveRead, sizeof(int16_t));
-  if (LIKELY(field != nullptr && obj != nullptr)) {
-    return field->GetChar(obj);
-  }
-  field = FindInstanceField<InstancePrimitiveRead, true>(field_idx,
-                                                         referrer,
-                                                         self,
-                                                         sizeof(int16_t),
-                                                         &obj);
-  if (LIKELY(field != nullptr)) {
-    return field->GetChar(obj);
-  }
-  return 0;  // Will throw exception by checking with Thread::Current.
-}
-
-extern "C" size_t artGet32InstanceFromCode(uint32_t field_idx,
-                                           mirror::Object* obj,
-                                           ArtMethod* referrer,
-                                           Thread* self)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  ScopedQuickEntrypointChecks sqec(self);
-  ArtField* field = FindFieldFast(field_idx, referrer, InstancePrimitiveRead, sizeof(int32_t));
-  if (LIKELY(field != nullptr && obj != nullptr)) {
-    return field->Get32(obj);
-  }
-  field = FindInstanceField<InstancePrimitiveRead, true>(field_idx,
-                                                         referrer,
-                                                         self,
-                                                         sizeof(int32_t),
-                                                         &obj);
-  if (LIKELY(field != nullptr)) {
-    return field->Get32(obj);
-  }
-  return 0;  // Will throw exception by checking with Thread::Current.
-}
-
-extern "C" uint64_t artGet64InstanceFromCode(uint32_t field_idx,
-                                             mirror::Object* obj,
-                                             ArtMethod* referrer,
-                                             Thread* self)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  ScopedQuickEntrypointChecks sqec(self);
-  ArtField* field = FindFieldFast(field_idx, referrer, InstancePrimitiveRead, sizeof(int64_t));
-  if (LIKELY(field != nullptr && obj != nullptr)) {
-    return field->Get64(obj);
-  }
-  field = FindInstanceField<InstancePrimitiveRead, true>(field_idx,
-                                                         referrer,
-                                                         self,
-                                                         sizeof(int64_t),
-                                                         &obj);
-  if (LIKELY(field != nullptr)) {
-    return field->Get64(obj);
-  }
-  return 0;  // Will throw exception by checking with Thread::Current.
-}
-
-extern "C" mirror::Object* artGetObjInstanceFromCode(uint32_t field_idx,
-                                                     mirror::Object* obj,
-                                                     ArtMethod* referrer,
-                                                     Thread* self)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  ScopedQuickEntrypointChecks sqec(self);
-  ArtField* field = FindFieldFast(field_idx,
-                                  referrer,
-                                  InstanceObjectRead,
-                                  sizeof(mirror::HeapReference<mirror::Object>));
-  if (LIKELY(field != nullptr && obj != nullptr)) {
-    return field->GetObj(obj).Ptr();
-  }
-  field = FindInstanceField<InstanceObjectRead, true>(field_idx,
-                                                      referrer,
-                                                      self,
-                                                      sizeof(mirror::HeapReference<mirror::Object>),
-                                                      &obj);
-  if (LIKELY(field != nullptr)) {
-    return field->GetObj(obj).Ptr();
-  }
-  return nullptr;  // Will throw exception by checking with Thread::Current.
+  return artSetCharInstanceFromCode(field_idx, obj, new_value, GetReferrer(self), self);
 }
 
 extern "C" int artSet8StaticFromCode(uint32_t field_idx,
@@ -317,32 +263,7 @@ extern "C" int artSet8StaticFromCode(uint32_t field_idx,
                                      ArtMethod* referrer,
                                      Thread* self)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  ScopedQuickEntrypointChecks sqec(self);
-  ArtField* field = FindFieldFast(field_idx, referrer, StaticPrimitiveWrite, sizeof(int8_t));
-  if (LIKELY(field != nullptr)) {
-    Primitive::Type type = field->GetTypeAsPrimitiveType();
-    // Compiled code can't use transactional mode.
-    if (type == Primitive::kPrimBoolean) {
-      field->SetBoolean<false>(field->GetDeclaringClass(), new_value);
-    } else {
-      DCHECK_EQ(Primitive::kPrimByte, type);
-      field->SetByte<false>(field->GetDeclaringClass(), new_value);
-    }
-    return 0;  // success
-  }
-  field = FindFieldFromCode<StaticPrimitiveWrite, true>(field_idx, referrer, self, sizeof(int8_t));
-  if (LIKELY(field != nullptr)) {
-    Primitive::Type type = field->GetTypeAsPrimitiveType();
-    // Compiled code can't use transactional mode.
-    if (type == Primitive::kPrimBoolean) {
-      field->SetBoolean<false>(field->GetDeclaringClass(), new_value);
-    } else {
-      DCHECK_EQ(Primitive::kPrimByte, type);
-      field->SetByte<false>(field->GetDeclaringClass(), new_value);
-    }
-    return 0;  // success
-  }
-  return -1;  // failure
+  return artSetBooleanStaticFromCode(field_idx, new_value, referrer, self);
 }
 
 extern "C" int artSet16StaticFromCode(uint32_t field_idx,
@@ -350,108 +271,7 @@ extern "C" int artSet16StaticFromCode(uint32_t field_idx,
                                       ArtMethod* referrer,
                                       Thread* self)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  ScopedQuickEntrypointChecks sqec(self);
-  ArtField* field = FindFieldFast(field_idx, referrer, StaticPrimitiveWrite, sizeof(int16_t));
-  if (LIKELY(field != nullptr)) {
-    Primitive::Type type = field->GetTypeAsPrimitiveType();
-    // Compiled code can't use transactional mode.
-    if (type == Primitive::kPrimChar) {
-      field->SetChar<false>(field->GetDeclaringClass(), new_value);
-    } else {
-      DCHECK_EQ(Primitive::kPrimShort, type);
-      field->SetShort<false>(field->GetDeclaringClass(), new_value);
-    }
-    return 0;  // success
-  }
-  field = FindFieldFromCode<StaticPrimitiveWrite, true>(field_idx, referrer, self, sizeof(int16_t));
-  if (LIKELY(field != nullptr)) {
-    Primitive::Type type = field->GetTypeAsPrimitiveType();
-    // Compiled code can't use transactional mode.
-    if (type == Primitive::kPrimChar) {
-      field->SetChar<false>(field->GetDeclaringClass(), new_value);
-    } else {
-      DCHECK_EQ(Primitive::kPrimShort, type);
-      field->SetShort<false>(field->GetDeclaringClass(), new_value);
-    }
-    return 0;  // success
-  }
-  return -1;  // failure
-}
-
-extern "C" int artSet32StaticFromCode(uint32_t field_idx,
-                                      uint32_t new_value,
-                                      ArtMethod* referrer,
-                                      Thread* self)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  ScopedQuickEntrypointChecks sqec(self);
-  ArtField* field = FindFieldFast(field_idx, referrer, StaticPrimitiveWrite, sizeof(int32_t));
-  if (LIKELY(field != nullptr)) {
-    // Compiled code can't use transactional mode.
-    field->Set32<false>(field->GetDeclaringClass(), new_value);
-    return 0;  // success
-  }
-  field = FindFieldFromCode<StaticPrimitiveWrite, true>(field_idx, referrer, self, sizeof(int32_t));
-  if (LIKELY(field != nullptr)) {
-    // Compiled code can't use transactional mode.
-    field->Set32<false>(field->GetDeclaringClass(), new_value);
-    return 0;  // success
-  }
-  return -1;  // failure
-}
-
-extern "C" int artSet64StaticFromCode(uint32_t field_idx,
-                                      ArtMethod* referrer,
-                                      uint64_t new_value,
-                                      Thread* self)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  ScopedQuickEntrypointChecks sqec(self);
-  ArtField* field = FindFieldFast(field_idx, referrer, StaticPrimitiveWrite, sizeof(int64_t));
-  if (LIKELY(field != nullptr)) {
-    // Compiled code can't use transactional mode.
-    field->Set64<false>(field->GetDeclaringClass(), new_value);
-    return 0;  // success
-  }
-  field = FindFieldFromCode<StaticPrimitiveWrite, true>(field_idx, referrer, self, sizeof(int64_t));
-  if (LIKELY(field != nullptr)) {
-    // Compiled code can't use transactional mode.
-    field->Set64<false>(field->GetDeclaringClass(), new_value);
-    return 0;  // success
-  }
-  return -1;  // failure
-}
-
-extern "C" int artSetObjStaticFromCode(uint32_t field_idx,
-                                       mirror::Object* new_value,
-                                       ArtMethod* referrer,
-                                       Thread* self)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  ScopedQuickEntrypointChecks sqec(self);
-  ArtField* field = FindFieldFast(field_idx,
-                                  referrer,
-                                  StaticObjectWrite,
-                                  sizeof(mirror::HeapReference<mirror::Object>));
-  if (LIKELY(field != nullptr)) {
-    if (LIKELY(!field->IsPrimitiveType())) {
-      // Compiled code can't use transactional mode.
-      field->SetObj<false>(field->GetDeclaringClass(), new_value);
-      return 0;  // success
-    }
-  }
-  {
-    StackHandleScope<1> hs(self);
-    HandleWrapper<mirror::Object> h_obj(hs.NewHandleWrapper(&new_value));
-    field = FindFieldFromCode<StaticObjectWrite, true>(
-        field_idx,
-        referrer,
-        self,
-        sizeof(mirror::HeapReference<mirror::Object>));
-  }
-  if (LIKELY(field != nullptr)) {
-    // Compiled code can't use transactional mode.
-    field->SetObj<false>(field->GetDeclaringClass(), new_value);
-    return 0;  // success
-  }
-  return -1;  // failure
+  return artSetCharStaticFromCode(field_idx, new_value, referrer, self);
 }
 
 extern "C" int artSet8InstanceFromCode(uint32_t field_idx,
@@ -460,35 +280,7 @@ extern "C" int artSet8InstanceFromCode(uint32_t field_idx,
                                        ArtMethod* referrer,
                                        Thread* self)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  ScopedQuickEntrypointChecks sqec(self);
-  ArtField* field = FindFieldFast(field_idx, referrer, InstancePrimitiveWrite, sizeof(int8_t));
-  if (LIKELY(field != nullptr && obj != nullptr)) {
-    Primitive::Type type = field->GetTypeAsPrimitiveType();
-    // Compiled code can't use transactional mode.
-    if (type == Primitive::kPrimBoolean) {
-      field->SetBoolean<false>(obj, new_value);
-    } else {
-      DCHECK_EQ(Primitive::kPrimByte, type);
-      field->SetByte<false>(obj, new_value);
-    }
-    return 0;  // success
-  }
-  field = FindInstanceField<InstancePrimitiveWrite, true>(field_idx,
-                                                          referrer,
-                                                          self,
-                                                          sizeof(int8_t),
-                                                          &obj);
-  if (LIKELY(field != nullptr)) {
-    Primitive::Type type = field->GetTypeAsPrimitiveType();
-    // Compiled code can't use transactional mode.
-    if (type == Primitive::kPrimBoolean) {
-      field->SetBoolean<false>(obj, new_value);
-    } else {
-      field->SetByte<false>(obj, new_value);
-    }
-    return 0;  // success
-  }
-  return -1;  // failure
+  return artSetBooleanInstanceFromCode(field_idx, obj, new_value, referrer, self);
 }
 
 extern "C" int artSet16InstanceFromCode(uint32_t field_idx,
@@ -497,126 +289,7 @@ extern "C" int artSet16InstanceFromCode(uint32_t field_idx,
                                         ArtMethod* referrer,
                                         Thread* self)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  ScopedQuickEntrypointChecks sqec(self);
-  ArtField* field = FindFieldFast(field_idx, referrer, InstancePrimitiveWrite, sizeof(int16_t));
-  if (LIKELY(field != nullptr && obj != nullptr)) {
-    Primitive::Type type = field->GetTypeAsPrimitiveType();
-    // Compiled code can't use transactional mode.
-    if (type == Primitive::kPrimChar) {
-      field->SetChar<false>(obj, new_value);
-    } else {
-      DCHECK_EQ(Primitive::kPrimShort, type);
-      field->SetShort<false>(obj, new_value);
-    }
-    return 0;  // success
-  }
-  field = FindInstanceField<InstancePrimitiveWrite, true>(field_idx,
-                                                          referrer,
-                                                          self,
-                                                          sizeof(int16_t),
-                                                          &obj);
-  if (LIKELY(field != nullptr)) {
-    Primitive::Type type = field->GetTypeAsPrimitiveType();
-    // Compiled code can't use transactional mode.
-    if (type == Primitive::kPrimChar) {
-      field->SetChar<false>(obj, new_value);
-    } else {
-      DCHECK_EQ(Primitive::kPrimShort, type);
-      field->SetShort<false>(obj, new_value);
-    }
-    return 0;  // success
-  }
-  return -1;  // failure
-}
-
-extern "C" int artSet32InstanceFromCode(uint32_t field_idx,
-                                        mirror::Object* obj,
-                                        uint32_t new_value,
-                                        ArtMethod* referrer,
-                                        Thread* self)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  ScopedQuickEntrypointChecks sqec(self);
-  ArtField* field = FindFieldFast(field_idx, referrer, InstancePrimitiveWrite, sizeof(int32_t));
-  if (LIKELY(field != nullptr && obj != nullptr)) {
-    // Compiled code can't use transactional mode.
-    field->Set32<false>(obj, new_value);
-    return 0;  // success
-  }
-  field = FindInstanceField<InstancePrimitiveWrite, true>(field_idx,
-                                                          referrer,
-                                                          self,
-                                                          sizeof(int32_t),
-                                                          &obj);
-  if (LIKELY(field != nullptr)) {
-    // Compiled code can't use transactional mode.
-    field->Set32<false>(obj, new_value);
-    return 0;  // success
-  }
-  return -1;  // failure
-}
-
-extern "C" int artSet64InstanceFromCode(uint32_t field_idx,
-                                        mirror::Object* obj,
-                                        uint64_t new_value,
-                                        ArtMethod* referrer,
-                                        Thread* self)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  ScopedQuickEntrypointChecks sqec(self);
-  ArtField* field = FindFieldFast(field_idx, referrer, InstancePrimitiveWrite, sizeof(int64_t));
-  if (LIKELY(field != nullptr  && obj != nullptr)) {
-    // Compiled code can't use transactional mode.
-    field->Set64<false>(obj, new_value);
-    return 0;  // success
-  }
-  field = FindInstanceField<InstancePrimitiveWrite, true>(field_idx,
-                                                          referrer,
-                                                          self,
-                                                          sizeof(int64_t),
-                                                          &obj);
-  if (LIKELY(field != nullptr)) {
-    // Compiled code can't use transactional mode.
-    field->Set64<false>(obj, new_value);
-    return 0;
-  }
-  return -1;  // failure
-}
-
-extern "C" int artSetObjInstanceFromCode(uint32_t field_idx,
-                                         mirror::Object* obj,
-                                         mirror::Object* new_value,
-                                         ArtMethod* referrer,
-                                         Thread* self)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  ScopedQuickEntrypointChecks sqec(self);
-  ArtField* field = FindFieldFast(field_idx,
-                                  referrer,
-                                  InstanceObjectWrite,
-                                  sizeof(mirror::HeapReference<mirror::Object>));
-  if (LIKELY(field != nullptr && obj != nullptr)) {
-    // Compiled code can't use transactional mode.
-    field->SetObj<false>(obj, new_value);
-    return 0;  // success
-  }
-  {
-    StackHandleScope<2> hs(self);
-    HandleWrapper<mirror::Object> h_obj(hs.NewHandleWrapper(&obj));
-    HandleWrapper<mirror::Object> h_new_value(hs.NewHandleWrapper(&new_value));
-    field = FindFieldFromCode<InstanceObjectWrite, true>(
-        field_idx,
-        referrer,
-        self,
-        sizeof(mirror::HeapReference<mirror::Object>));
-  }
-  if (LIKELY(field != nullptr)) {
-    if (UNLIKELY(obj == nullptr)) {
-      ThrowNullPointerExceptionForFieldAccess(field, false);
-    } else {
-      // Compiled code can't use transactional mode.
-      field->SetObj<false>(obj, new_value);
-      return 0;  // success
-    }
-  }
-  return -1;  // failure
+  return artSetCharInstanceFromCode(field_idx, obj, new_value, referrer, self);
 }
 
 extern "C" mirror::Object* artReadBarrierMark(mirror::Object* obj) {
