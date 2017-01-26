@@ -210,12 +210,11 @@ class FieldAccessCallingConventionARM64 : public FieldAccessCallingConvention {
   Location GetReturnLocation(Primitive::Type type ATTRIBUTE_UNUSED) const OVERRIDE {
     return helpers::LocationFrom(vixl::aarch64::x0);
   }
-  Location GetSetValueLocation(Primitive::Type type, bool is_instance) const OVERRIDE {
-    return Primitive::Is64BitType(type)
+  Location GetSetValueLocation(Primitive::Type type ATTRIBUTE_UNUSED,
+                               bool is_instance) const OVERRIDE {
+    return is_instance
         ? helpers::LocationFrom(vixl::aarch64::x2)
-        : (is_instance
-            ? helpers::LocationFrom(vixl::aarch64::x2)
-            : helpers::LocationFrom(vixl::aarch64::x1));
+        : helpers::LocationFrom(vixl::aarch64::x1);
   }
   Location GetFpuLocation(Primitive::Type type ATTRIBUTE_UNUSED) const OVERRIDE {
     return helpers::LocationFrom(vixl::aarch64::d0);

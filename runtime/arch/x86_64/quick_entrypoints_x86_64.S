@@ -919,11 +919,10 @@ END_MACRO
 
 MACRO3(ONE_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
     DEFINE_FUNCTION VAR(c_name)
-    movq 8(%rsp), %rsi                  // pass referrer
     SETUP_SAVE_REFS_ONLY_FRAME
                                         // arg0 is in rdi
-    movq %gs:THREAD_SELF_OFFSET, %rdx   // pass Thread::Current()
-    call CALLVAR(cxx_name)              // cxx_name(arg0, referrer, Thread*)
+    movq %gs:THREAD_SELF_OFFSET, %rsi   // pass Thread::Current()
+    call CALLVAR(cxx_name)              // cxx_name(arg0, Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME        // restore frame up to return address
     CALL_MACRO(return_macro)
     END_FUNCTION VAR(c_name)
@@ -931,11 +930,10 @@ END_MACRO
 
 MACRO3(TWO_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
     DEFINE_FUNCTION VAR(c_name)
-    movq 8(%rsp), %rdx                  // pass referrer
     SETUP_SAVE_REFS_ONLY_FRAME
                                         // arg0 and arg1 are in rdi/rsi
-    movq %gs:THREAD_SELF_OFFSET, %rcx   // pass Thread::Current()
-    call CALLVAR(cxx_name)              // (arg0, arg1, referrer, Thread*)
+    movq %gs:THREAD_SELF_OFFSET, %rdx   // pass Thread::Current()
+    call CALLVAR(cxx_name)              // (arg0, arg1, Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME        // restore frame up to return address
     CALL_MACRO(return_macro)
     END_FUNCTION VAR(c_name)
@@ -943,11 +941,10 @@ END_MACRO
 
 MACRO3(THREE_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
     DEFINE_FUNCTION VAR(c_name)
-    movq 8(%rsp), %rcx                  // pass referrer
     SETUP_SAVE_REFS_ONLY_FRAME
                                         // arg0, arg1, and arg2 are in rdi/rsi/rdx
-    movq %gs:THREAD_SELF_OFFSET, %r8    // pass Thread::Current()
-    call CALLVAR(cxx_name)              // cxx_name(arg0, arg1, arg2, referrer, Thread*)
+    movq %gs:THREAD_SELF_OFFSET, %rcx   // pass Thread::Current()
+    call CALLVAR(cxx_name)              // cxx_name(arg0, arg1, arg2, Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME        // restore frame up to return address
     CALL_MACRO(return_macro)            // return or deliver exception
     END_FUNCTION VAR(c_name)
@@ -1239,7 +1236,7 @@ DEFINE_FUNCTION art_quick_resolve_string
     // Outgoing argument set up
     movl %eax, %edi                             // pass string index
     movq %gs:THREAD_SELF_OFFSET, %rsi           // pass Thread::Current()
-    call SYMBOL(artResolveStringFromCode)       // artResolveStringFromCode(arg0, referrer, Thread*)
+    call SYMBOL(artResolveStringFromCode)       // artResolveStringFromCode(arg0, Thread*)
 
     testl %eax, %eax                            // If result is null, deliver the OOME.
     jz 1f
@@ -1551,45 +1548,33 @@ UNIMPLEMENTED art_quick_lshl
 UNIMPLEMENTED art_quick_lshr
 UNIMPLEMENTED art_quick_lushr
 
-THREE_ARG_REF_DOWNCALL art_quick_set8_instance, artSet8InstanceFromCode, RETURN_IF_EAX_ZERO
-THREE_ARG_REF_DOWNCALL art_quick_set16_instance, artSet16InstanceFromCode, RETURN_IF_EAX_ZERO
-THREE_ARG_REF_DOWNCALL art_quick_set32_instance, artSet32InstanceFromCode, RETURN_IF_EAX_ZERO
-THREE_ARG_REF_DOWNCALL art_quick_set64_instance, artSet64InstanceFromCode, RETURN_IF_EAX_ZERO
-THREE_ARG_REF_DOWNCALL art_quick_set_obj_instance, artSetObjInstanceFromCode, RETURN_IF_EAX_ZERO
+THREE_ARG_REF_DOWNCALL art_quick_set8_instance, artSet8InstanceFromCompiledCode, RETURN_IF_EAX_ZERO
+THREE_ARG_REF_DOWNCALL art_quick_set16_instance, artSet16InstanceFromCompiledCode, RETURN_IF_EAX_ZERO
+THREE_ARG_REF_DOWNCALL art_quick_set32_instance, artSet32InstanceFromCompiledCode, RETURN_IF_EAX_ZERO
+THREE_ARG_REF_DOWNCALL art_quick_set64_instance, artSet64InstanceFromCompiledCode, RETURN_IF_EAX_ZERO
+THREE_ARG_REF_DOWNCALL art_quick_set_obj_instance, artSetObjInstanceFromCompiledCode, RETURN_IF_EAX_ZERO
 
-TWO_ARG_REF_DOWNCALL art_quick_get_byte_instance, artGetByteInstanceFromCode, RETURN_OR_DELIVER_PENDING_EXCEPTION
-TWO_ARG_REF_DOWNCALL art_quick_get_boolean_instance, artGetBooleanInstanceFromCode, RETURN_OR_DELIVER_PENDING_EXCEPTION
-TWO_ARG_REF_DOWNCALL art_quick_get_short_instance, artGetShortInstanceFromCode, RETURN_OR_DELIVER_PENDING_EXCEPTION
-TWO_ARG_REF_DOWNCALL art_quick_get_char_instance, artGetCharInstanceFromCode, RETURN_OR_DELIVER_PENDING_EXCEPTION
-TWO_ARG_REF_DOWNCALL art_quick_get32_instance, artGet32InstanceFromCode, RETURN_OR_DELIVER_PENDING_EXCEPTION
-TWO_ARG_REF_DOWNCALL art_quick_get64_instance, artGet64InstanceFromCode, RETURN_OR_DELIVER_PENDING_EXCEPTION
-TWO_ARG_REF_DOWNCALL art_quick_get_obj_instance, artGetObjInstanceFromCode, RETURN_OR_DELIVER_PENDING_EXCEPTION
+TWO_ARG_REF_DOWNCALL art_quick_get_byte_instance, artGetByteInstanceFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION
+TWO_ARG_REF_DOWNCALL art_quick_get_boolean_instance, artGetBooleanInstanceFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION
+TWO_ARG_REF_DOWNCALL art_quick_get_short_instance, artGetShortInstanceFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION
+TWO_ARG_REF_DOWNCALL art_quick_get_char_instance, artGetCharInstanceFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION
+TWO_ARG_REF_DOWNCALL art_quick_get32_instance, artGet32InstanceFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION
+TWO_ARG_REF_DOWNCALL art_quick_get64_instance, artGet64InstanceFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION
+TWO_ARG_REF_DOWNCALL art_quick_get_obj_instance, artGetObjInstanceFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION
 
-TWO_ARG_REF_DOWNCALL art_quick_set8_static, artSet8StaticFromCode, RETURN_IF_EAX_ZERO
-TWO_ARG_REF_DOWNCALL art_quick_set16_static, artSet16StaticFromCode, RETURN_IF_EAX_ZERO
-TWO_ARG_REF_DOWNCALL art_quick_set32_static, artSet32StaticFromCode, RETURN_IF_EAX_ZERO
-TWO_ARG_REF_DOWNCALL art_quick_set_obj_static, artSetObjStaticFromCode, RETURN_IF_EAX_ZERO
+TWO_ARG_REF_DOWNCALL art_quick_set8_static, artSet8StaticFromCompiledCode, RETURN_IF_EAX_ZERO
+TWO_ARG_REF_DOWNCALL art_quick_set16_static, artSet16StaticFromCompiledCode, RETURN_IF_EAX_ZERO
+TWO_ARG_REF_DOWNCALL art_quick_set32_static, artSet32StaticFromCompiledCode, RETURN_IF_EAX_ZERO
+TWO_ARG_REF_DOWNCALL art_quick_set64_static, artSet64StaticFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION
+TWO_ARG_REF_DOWNCALL art_quick_set_obj_static, artSetObjStaticFromCompiledCode, RETURN_IF_EAX_ZERO
 
-ONE_ARG_REF_DOWNCALL art_quick_get_byte_static, artGetByteStaticFromCode, RETURN_OR_DELIVER_PENDING_EXCEPTION
-ONE_ARG_REF_DOWNCALL art_quick_get_boolean_static, artGetBooleanStaticFromCode, RETURN_OR_DELIVER_PENDING_EXCEPTION
-ONE_ARG_REF_DOWNCALL art_quick_get_short_static, artGetShortStaticFromCode, RETURN_OR_DELIVER_PENDING_EXCEPTION
-ONE_ARG_REF_DOWNCALL art_quick_get_char_static, artGetCharStaticFromCode, RETURN_OR_DELIVER_PENDING_EXCEPTION
-ONE_ARG_REF_DOWNCALL art_quick_get32_static, artGet32StaticFromCode, RETURN_OR_DELIVER_PENDING_EXCEPTION
-ONE_ARG_REF_DOWNCALL art_quick_get64_static, artGet64StaticFromCode, RETURN_OR_DELIVER_PENDING_EXCEPTION
-ONE_ARG_REF_DOWNCALL art_quick_get_obj_static, artGetObjStaticFromCode, RETURN_OR_DELIVER_PENDING_EXCEPTION
-
-// This is singled out as the argument order is different.
-DEFINE_FUNCTION art_quick_set64_static
-                                         // new_val is already in %rdx
-    movq 8(%rsp), %rsi                   // pass referrer
-    SETUP_SAVE_REFS_ONLY_FRAME
-                                         // field_idx is in rdi
-    movq %gs:THREAD_SELF_OFFSET, %rcx    // pass Thread::Current()
-    call SYMBOL(artSet64StaticFromCode)  // (field_idx, referrer, new_val, Thread*)
-    RESTORE_SAVE_REFS_ONLY_FRAME         // restore frame up to return address
-    RETURN_IF_EAX_ZERO                   // return or deliver exception
-END_FUNCTION art_quick_set64_static
-
+ONE_ARG_REF_DOWNCALL art_quick_get_byte_static, artGetByteStaticFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION
+ONE_ARG_REF_DOWNCALL art_quick_get_boolean_static, artGetBooleanStaticFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION
+ONE_ARG_REF_DOWNCALL art_quick_get_short_static, artGetShortStaticFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION
+ONE_ARG_REF_DOWNCALL art_quick_get_char_static, artGetCharStaticFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION
+ONE_ARG_REF_DOWNCALL art_quick_get32_static, artGet32StaticFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION
+ONE_ARG_REF_DOWNCALL art_quick_get64_static, artGet64StaticFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION
+ONE_ARG_REF_DOWNCALL art_quick_get_obj_static, artGetObjStaticFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION
 
 DEFINE_FUNCTION art_quick_proxy_invoke_handler
     SETUP_SAVE_REFS_AND_ARGS_FRAME_WITH_METHOD_IN_RDI
