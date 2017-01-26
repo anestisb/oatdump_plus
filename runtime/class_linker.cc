@@ -14,12 +14,6 @@
  * limitations under the License.
  */
 
-// Disable optimizations for Atomic::LoadJavaData on x86 devices.
-// Bug: http://b/34287931
-#if defined(__i386__)
-#define DISABLE_LOAD_JAVA_DATA_OPTIMIZATIONS
-#endif
-
 #include "class_linker.h"
 
 #include <algorithm>
