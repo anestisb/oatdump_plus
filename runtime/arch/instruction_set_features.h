@@ -67,6 +67,24 @@ class InstructionSetFeatures {
   // Are these features the same as the other given features?
   virtual bool Equals(const InstructionSetFeatures* other) const = 0;
 
+  // For testing purposes we want to make sure that the system we run on has at
+  // least the options we claim it has. In this cases Equals() does not
+  // suffice and will cause the test to fail, since the runtime cpu feature
+  // detection claims more capabilities then statically specified from the
+  // build system.
+  //
+  // A good example of this is the armv8 ART test target that declares
+  // "CPU_VARIANT=generic". If the generic target is specified and the code
+  // is run on a platform with enhanced capabilities, the
+  // instruction_set_features test will fail if we resort to using Equals()
+  // between statically defined cpu features and runtime cpu features.
+  //
+  // For now we default this to Equals() in case the architecture does not
+  // provide it.
+  virtual bool HasAtLeast(const InstructionSetFeatures* other) const {
+    return Equals(other);
+  }
+
   // Return the ISA these features relate to.
   virtual InstructionSet GetInstructionSet() const = 0;
 
