@@ -101,6 +101,8 @@ std::string PrettySize(int64_t size_in_bytes);
 // of the JNI spec.
 std::string MangleForJni(const std::string& s);
 
+std::string GetJniShortName(const std::string& class_name, const std::string& method_name);
+
 // Turn "java.lang.String" into "Ljava/lang/String;".
 std::string DotToDescriptor(const char* class_name);
 
