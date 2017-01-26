@@ -1589,7 +1589,7 @@ DEFINE_FUNCTION art_quick_set64_instance
     PUSH edx                      // pass low half of new_val
     PUSH ecx                      // pass object
     PUSH eax                      // pass field_idx
-    call SYMBOL(artSet64InstanceFromCode)  // (field_idx, Object*, new_val, Thread*)
+    call SYMBOL(artSet64InstanceFromCompiledCode)  // (field_idx, Object*, new_val, Thread*)
     addl LITERAL(32), %esp        // pop arguments
     CFI_ADJUST_CFA_OFFSET(-32)
     RESTORE_SAVE_REFS_ONLY_FRAME  // restore frame up to return address
