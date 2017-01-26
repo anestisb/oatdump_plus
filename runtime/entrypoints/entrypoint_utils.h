@@ -191,6 +191,9 @@ CallerAndOuterMethod GetCalleeSaveMethodCallerAndOuterMethod(Thread* self,
                                                              Runtime::CalleeSaveType type)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
+ArtMethod* GetCalleeSaveOuterMethod(Thread* self, Runtime::CalleeSaveType type)
+    REQUIRES_SHARED(Locks::mutator_lock_);
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_ENTRYPOINTS_ENTRYPOINT_UTILS_H_

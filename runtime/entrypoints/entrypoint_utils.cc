@@ -254,5 +254,10 @@ CallerAndOuterMethod GetCalleeSaveMethodCallerAndOuterMethod(Thread* self,
   return result;
 }
 
+ArtMethod* GetCalleeSaveOuterMethod(Thread* self, Runtime::CalleeSaveType type) {
+  ScopedAssertNoThreadSuspension ants(__FUNCTION__);
+  ArtMethod** sp = self->GetManagedStack()->GetTopQuickFrame();
+  return DoGetCalleeSaveMethodOuterCallerAndPc(sp, type).first;
+}
 
 }  // namespace art

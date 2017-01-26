@@ -92,12 +92,11 @@ class FieldAccessCallingConventionX86_64 : public FieldAccessCallingConvention {
   Location GetReturnLocation(Primitive::Type type ATTRIBUTE_UNUSED) const OVERRIDE {
     return Location::RegisterLocation(RAX);
   }
-  Location GetSetValueLocation(Primitive::Type type, bool is_instance) const OVERRIDE {
-    return Primitive::Is64BitType(type)
+  Location GetSetValueLocation(Primitive::Type type ATTRIBUTE_UNUSED, bool is_instance)
+      const OVERRIDE {
+    return is_instance
         ? Location::RegisterLocation(RDX)
-        : (is_instance
-            ? Location::RegisterLocation(RDX)
-            : Location::RegisterLocation(RSI));
+        : Location::RegisterLocation(RSI);
   }
   Location GetFpuLocation(Primitive::Type type ATTRIBUTE_UNUSED) const OVERRIDE {
     return Location::FpuRegisterLocation(XMM0);
