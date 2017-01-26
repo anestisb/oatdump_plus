@@ -303,6 +303,7 @@ std::string Monitor::PrettyContentionInfo(const std::string& owner_name,
                                           ArtMethod* owners_method,
                                           uint32_t owners_dex_pc,
                                           size_t num_waiters) {
+  Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
   const char* owners_filename;
   int32_t owners_line_number = 0;
   if (owners_method != nullptr) {
@@ -359,7 +360,7 @@ void Monitor::Lock(Thread* self) {
     self->SetMonitorEnterObject(GetObject());
     {
       uint32_t original_owner_thread_id = 0u;
-      ScopedThreadStateChange tsc(self, kBlocked);  // Change to blocked and give up mutator_lock_.
+      ScopedThreadSuspension tsc(self, kBlocked);  // Change to blocked and give up mutator_lock_.
       {
         // Reacquire monitor_lock_ without mutator_lock_ for Wait.
         MutexLock mu2(self, monitor_lock_);
@@ -367,22 +368,26 @@ void Monitor::Lock(Thread* self) {
           original_owner_thread_id = owner_->GetThreadId();
           if (ATRACE_ENABLED()) {
             std::ostringstream oss;
-            std::string name;
-            owner_->GetThreadName(name);
-            oss << PrettyContentionInfo(name,
-                                        owner_->GetTid(),
-                                        owners_method,
-                                        owners_dex_pc,
-                                        num_waiters);
-            // Add info for contending thread.
-            uint32_t pc;
-            ArtMethod* m = self->GetCurrentMethod(&pc);
-            const char* filename;
-            int32_t line_number;
-            TranslateLocation(m, pc, &filename, &line_number);
-            oss << " blocking from "
-                << ArtMethod::PrettyMethod(m) << "(" << (filename != nullptr ? filename : "null")
-                << ":" << line_number << ")";
+            {
+              // Reacquire mutator_lock_ for getting the location info.
+              ScopedObjectAccess soa(self);
+              std::string name;
+              owner_->GetThreadName(name);
+              oss << PrettyContentionInfo(name,
+                                          owner_->GetTid(),
+                                          owners_method,
+                                          owners_dex_pc,
+                                          num_waiters);
+              // Add info for contending thread.
+              uint32_t pc;
+              ArtMethod* m = self->GetCurrentMethod(&pc);
+              const char* filename;
+              int32_t line_number;
+              TranslateLocation(m, pc, &filename, &line_number);
+              oss << " blocking from "
+                  << ArtMethod::PrettyMethod(m) << "(" << (filename != nullptr ? filename : "null")
+                  << ":" << line_number << ")";
+            }
             ATRACE_BEGIN(oss.str().c_str());
           }
           monitor_contenders_.Wait(self);  // Still contended so wait.
@@ -414,6 +419,8 @@ void Monitor::Lock(Thread* self) {
               sample_percent = 100 * wait_ms / lock_profiling_threshold_;
             }
             if (sample_percent != 0 && (static_cast<uint32_t>(rand() % 100) < sample_percent)) {
+              // Reacquire mutator_lock_ for logging.
+              ScopedObjectAccess soa(self);
               if (wait_ms > kLongWaitMs && owners_method != nullptr) {
                 uint32_t pc;
                 ArtMethod* m = self->GetCurrentMethod(&pc);
