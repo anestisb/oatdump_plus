@@ -104,7 +104,7 @@ ADD_TEST_EQ(THREAD_LOCAL_OBJECTS_OFFSET,
 
 // Offset of field Thread::tlsPtr_.mterp_current_ibase.
 #define THREAD_CURRENT_IBASE_OFFSET \
-    (THREAD_LOCAL_OBJECTS_OFFSET + __SIZEOF_SIZE_T__ + (1 + 157) * __SIZEOF_POINTER__)
+    (THREAD_LOCAL_OBJECTS_OFFSET + __SIZEOF_SIZE_T__ + (1 + 161) * __SIZEOF_POINTER__)
 ADD_TEST_EQ(THREAD_CURRENT_IBASE_OFFSET,
             art::Thread::MterpCurrentIBaseOffset<POINTER_SIZE>().Int32Value())
 // Offset of field Thread::tlsPtr_.mterp_default_ibase.

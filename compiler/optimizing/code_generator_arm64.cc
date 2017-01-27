@@ -4762,7 +4762,9 @@ void LocationsBuilderARM64::VisitNewArray(HNewArray* instruction) {
 void InstructionCodeGeneratorARM64::VisitNewArray(HNewArray* instruction) {
   // Note: if heap poisoning is enabled, the entry point takes cares
   // of poisoning the reference.
-  codegen_->InvokeRuntime(kQuickAllocArrayResolved, instruction, instruction->GetDexPc());
+  QuickEntrypointEnum entrypoint =
+      CodeGenerator::GetArrayAllocationEntrypoint(instruction->GetLoadClass()->GetClass());
+  codegen_->InvokeRuntime(entrypoint, instruction, instruction->GetDexPc());
   CheckEntrypointTypes<kQuickAllocArrayResolved, void*, mirror::Class*, int32_t>();
 }
 
