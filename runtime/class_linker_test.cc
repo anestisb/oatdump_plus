@@ -743,15 +743,22 @@ struct MethodTypeOffsets : public CheckOffsets<mirror::MethodType> {
   }
 };
 
+struct MethodHandleOffsets : public CheckOffsets<mirror::MethodHandle> {
+  MethodHandleOffsets() : CheckOffsets<mirror::MethodHandle>(
+      false, "Ljava/lang/invoke/MethodHandle;") {
+    addOffset(OFFSETOF_MEMBER(mirror::MethodHandle, art_field_or_method_), "artFieldOrMethod");
+    addOffset(OFFSETOF_MEMBER(mirror::MethodHandle, cached_spread_invoker_),
+              "cachedSpreadInvoker");
+    addOffset(OFFSETOF_MEMBER(mirror::MethodHandle, handle_kind_), "handleKind");
+    addOffset(OFFSETOF_MEMBER(mirror::MethodHandle, nominal_type_), "nominalType");
+    addOffset(OFFSETOF_MEMBER(mirror::MethodHandle, method_type_), "type");
+  }
+};
+
 struct MethodHandleImplOffsets : public CheckOffsets<mirror::MethodHandleImpl> {
   MethodHandleImplOffsets() : CheckOffsets<mirror::MethodHandleImpl>(
-      false, "Ljava/lang/invoke/MethodHandle;") {
-    addOffset(OFFSETOF_MEMBER(mirror::MethodHandleImpl, art_field_or_method_), "artFieldOrMethod");
-    addOffset(OFFSETOF_MEMBER(mirror::MethodHandleImpl, cached_spread_invoker_),
-              "cachedSpreadInvoker");
-    addOffset(OFFSETOF_MEMBER(mirror::MethodHandleImpl, handle_kind_), "handleKind");
-    addOffset(OFFSETOF_MEMBER(mirror::MethodHandleImpl, nominal_type_), "nominalType");
-    addOffset(OFFSETOF_MEMBER(mirror::MethodHandleImpl, method_type_), "type");
+      false, "Ljava/lang/invoke/MethodHandleImpl;") {
+    addOffset(OFFSETOF_MEMBER(mirror::MethodHandleImpl, info_), "info");
   }
 };
 
@@ -785,6 +792,7 @@ TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
   EXPECT_TRUE(FieldOffsets().Check());
   EXPECT_TRUE(ExecutableOffsets().Check());
   EXPECT_TRUE(MethodTypeOffsets().Check());
+  EXPECT_TRUE(MethodHandleOffsets().Check());
   EXPECT_TRUE(MethodHandleImplOffsets().Check());
   EXPECT_TRUE(EmulatedStackFrameOffsets().Check());
 }

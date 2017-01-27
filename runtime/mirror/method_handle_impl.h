@@ -25,6 +25,7 @@
 
 namespace art {
 
+struct MethodHandleOffsets;
 struct MethodHandleImplOffsets;
 
 namespace mirror {
@@ -105,7 +106,7 @@ class MANAGED MethodHandle : public Object {
     return MemberOffset(OFFSETOF_MEMBER(MethodHandle, handle_kind_));
   }
 
-  friend struct art::MethodHandleImplOffsets;  // for verifying offset information
+  friend struct art::MethodHandleOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(MethodHandle);
 };
 
@@ -121,6 +122,11 @@ class MANAGED MethodHandleImpl : public MethodHandle {
   static void VisitRoots(RootVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
+  static MemberOffset InfoOffset() {
+    return MemberOffset(OFFSETOF_MEMBER(MethodHandleImpl, info_));
+  }
+
+  HeapReference<mirror::Object> info_;  // Unused by the runtime.
   static GcRoot<mirror::Class> static_class_;  // java.lang.invoke.MethodHandleImpl.class
 
   friend struct art::MethodHandleImplOffsets;  // for verifying offset information
