@@ -129,29 +129,34 @@ GENERATE_ENTRYPOINTS_FOR_ALLOCATOR(RegionTLAB, gc::kAllocatorTypeRegionTLAB)
 
 #define GENERATE_ENTRYPOINTS(suffix) \
 extern "C" void* art_quick_alloc_array_resolved##suffix(mirror::Class* klass, int32_t); \
+extern "C" void* art_quick_alloc_array_resolved8##suffix(mirror::Class* klass, int32_t); \
+extern "C" void* art_quick_alloc_array_resolved16##suffix(mirror::Class* klass, int32_t); \
+extern "C" void* art_quick_alloc_array_resolved32##suffix(mirror::Class* klass, int32_t); \
+extern "C" void* art_quick_alloc_array_resolved64##suffix(mirror::Class* klass, int32_t); \
 extern "C" void* art_quick_alloc_object_resolved##suffix(mirror::Class* klass); \
 extern "C" void* art_quick_alloc_object_initialized##suffix(mirror::Class* klass); \
 extern "C" void* art_quick_alloc_object_with_checks##suffix(mirror::Class* klass); \
-extern "C" void* art_quick_check_and_alloc_array##suffix(uint32_t, int32_t, ArtMethod* ref); \
-extern "C" void* art_quick_check_and_alloc_array_with_access_check##suffix(uint32_t, int32_t, ArtMethod* ref); \
 extern "C" void* art_quick_alloc_string_from_bytes##suffix(void*, int32_t, int32_t, int32_t); \
 extern "C" void* art_quick_alloc_string_from_chars##suffix(int32_t, int32_t, void*); \
 extern "C" void* art_quick_alloc_string_from_string##suffix(void*); \
-extern "C" void* art_quick_alloc_array##suffix##_instrumented(uint32_t, int32_t, ArtMethod* ref); \
 extern "C" void* art_quick_alloc_array_resolved##suffix##_instrumented(mirror::Class* klass, int32_t); \
-extern "C" void* art_quick_alloc_array_with_access_check##suffix##_instrumented(uint32_t, int32_t, ArtMethod* ref); \
-extern "C" void* art_quick_alloc_object##suffix##_instrumented(uint32_t type_idx, ArtMethod* ref); \
+extern "C" void* art_quick_alloc_array_resolved8##suffix##_instrumented(mirror::Class* klass, int32_t); \
+extern "C" void* art_quick_alloc_array_resolved16##suffix##_instrumented(mirror::Class* klass, int32_t); \
+extern "C" void* art_quick_alloc_array_resolved32##suffix##_instrumented(mirror::Class* klass, int32_t); \
+extern "C" void* art_quick_alloc_array_resolved64##suffix##_instrumented(mirror::Class* klass, int32_t); \
 extern "C" void* art_quick_alloc_object_resolved##suffix##_instrumented(mirror::Class* klass); \
 extern "C" void* art_quick_alloc_object_initialized##suffix##_instrumented(mirror::Class* klass); \
 extern "C" void* art_quick_alloc_object_with_checks##suffix##_instrumented(mirror::Class* klass); \
-extern "C" void* art_quick_check_and_alloc_array##suffix##_instrumented(uint32_t, int32_t, ArtMethod* ref); \
-extern "C" void* art_quick_check_and_alloc_array_with_access_check##suffix##_instrumented(uint32_t, int32_t, ArtMethod* ref); \
 extern "C" void* art_quick_alloc_string_from_bytes##suffix##_instrumented(void*, int32_t, int32_t, int32_t); \
 extern "C" void* art_quick_alloc_string_from_chars##suffix##_instrumented(int32_t, int32_t, void*); \
 extern "C" void* art_quick_alloc_string_from_string##suffix##_instrumented(void*); \
 void SetQuickAllocEntryPoints##suffix(QuickEntryPoints* qpoints, bool instrumented) { \
   if (instrumented) { \
     qpoints->pAllocArrayResolved = art_quick_alloc_array_resolved##suffix##_instrumented; \
+    qpoints->pAllocArrayResolved8 = art_quick_alloc_array_resolved8##suffix##_instrumented; \
+    qpoints->pAllocArrayResolved16 = art_quick_alloc_array_resolved16##suffix##_instrumented; \
+    qpoints->pAllocArrayResolved32 = art_quick_alloc_array_resolved32##suffix##_instrumented; \
+    qpoints->pAllocArrayResolved64 = art_quick_alloc_array_resolved64##suffix##_instrumented; \
     qpoints->pAllocObjectResolved = art_quick_alloc_object_resolved##suffix##_instrumented; \
     qpoints->pAllocObjectInitialized = art_quick_alloc_object_initialized##suffix##_instrumented; \
     qpoints->pAllocObjectWithChecks = art_quick_alloc_object_with_checks##suffix##_instrumented; \
@@ -160,6 +165,10 @@ void SetQuickAllocEntryPoints##suffix(QuickEntryPoints* qpoints, bool instrument
     qpoints->pAllocStringFromString = art_quick_alloc_string_from_string##suffix##_instrumented; \
   } else { \
     qpoints->pAllocArrayResolved = art_quick_alloc_array_resolved##suffix; \
+    qpoints->pAllocArrayResolved8 = art_quick_alloc_array_resolved8##suffix; \
+    qpoints->pAllocArrayResolved16 = art_quick_alloc_array_resolved16##suffix; \
+    qpoints->pAllocArrayResolved32 = art_quick_alloc_array_resolved32##suffix; \
+    qpoints->pAllocArrayResolved64 = art_quick_alloc_array_resolved64##suffix; \
     qpoints->pAllocObjectResolved = art_quick_alloc_object_resolved##suffix; \
     qpoints->pAllocObjectInitialized = art_quick_alloc_object_initialized##suffix; \
     qpoints->pAllocObjectWithChecks = art_quick_alloc_object_with_checks##suffix; \
