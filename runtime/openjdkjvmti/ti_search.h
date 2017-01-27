@@ -32,12 +32,17 @@
 #ifndef ART_RUNTIME_OPENJDKJVMTI_TI_SEARCH_H_
 #define ART_RUNTIME_OPENJDKJVMTI_TI_SEARCH_H_
 
+#include <vector>
+
 #include "jvmti.h"
 
 namespace openjdkjvmti {
 
 class SearchUtil {
  public:
+  static void Register();
+  static void Unregister();
+
   static jvmtiError AddToBootstrapClassLoaderSearch(jvmtiEnv* env, const char* segment);
 
   static jvmtiError AddToSystemClassLoaderSearch(jvmtiEnv* env, const char* segment);
