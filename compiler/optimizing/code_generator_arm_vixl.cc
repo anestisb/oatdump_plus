@@ -7679,15 +7679,21 @@ void InstructionCodeGeneratorARMVIXL::VisitPackedSwitch(HPackedSwitch* switch_in
     vixl32::Register jump_offset = temps.Acquire();
 
     // Load jump offset from the table.
-    __ Adr(table_base, jump_table->GetTableStartLabel());
-    __ Ldr(jump_offset, MemOperand(table_base, key_reg, vixl32::LSL, 2));
+    {
+      const size_t jump_size = switch_instr->GetNumEntries() * sizeof(int32_t);
+      ExactAssemblyScope aas(GetVIXLAssembler(),
+                             (vixl32::kMaxInstructionSizeInBytes * 4) + jump_size,
+                             CodeBufferCheckScope::kMaximumSize);
+      __ adr(table_base, jump_table->GetTableStartLabel());
+      __ ldr(jump_offset, MemOperand(table_base, key_reg, vixl32::LSL, 2));
 
-    // Jump to target block by branching to table_base(pc related) + offset.
-    vixl32::Register target_address = table_base;
-    __ Add(target_address, table_base, jump_offset);
-    __ Bx(target_address);
+      // Jump to target block by branching to table_base(pc related) + offset.
+      vixl32::Register target_address = table_base;
+      __ add(target_address, table_base, jump_offset);
+      __ bx(target_address);
 
-    jump_table->EmitTable(codegen_);
+      jump_table->EmitTable(codegen_);
+    }
   }
 }
 void LocationsBuilderARMVIXL::VisitArmDexCacheArraysBase(HArmDexCacheArraysBase* base) {
