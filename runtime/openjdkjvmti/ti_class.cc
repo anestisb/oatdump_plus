@@ -134,7 +134,7 @@ struct ClassCallback : public art::ClassLoadCallback {
       // It is a primitive or array. Just return
       return;
     }
-    std::string name(art::PrettyDescriptor(descriptor));
+    std::string name(std::string(descriptor).substr(1, strlen(descriptor) - 2));
 
     art::Thread* self = art::Thread::Current();
     art::JNIEnvExt* env = self->GetJniEnv();
