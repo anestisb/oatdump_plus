@@ -239,14 +239,6 @@ class Redefiner {
       REQUIRES_SHARED(art::Locks::mutator_lock_);
   void ReleaseAllDexFiles() REQUIRES_SHARED(art::Locks::mutator_lock_);
 
-  // Ensure that obsolete methods are deoptimized. This is needed since optimized methods may have
-  // pointers to their ArtMethods stashed in registers that they then use to attempt to hit the
-  // DexCache.
-  void EnsureObsoleteMethodsAreDeoptimized()
-      REQUIRES(art::Locks::mutator_lock_)
-      REQUIRES(!art::Locks::thread_list_lock_,
-               !art::Locks::classlinker_classes_lock_);
-
   void RecordFailure(jvmtiError result, const std::string& class_sig, const std::string& error_msg);
   void RecordFailure(jvmtiError result, const std::string& error_msg) {
     RecordFailure(result, "NO CLASS", error_msg);

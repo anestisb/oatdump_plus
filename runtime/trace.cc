@@ -905,6 +905,9 @@ void Trace::FlushBuf() {
 void Trace::LogMethodTraceEvent(Thread* thread, ArtMethod* method,
                                 instrumentation::Instrumentation::InstrumentationEvent event,
                                 uint32_t thread_clock_diff, uint32_t wall_clock_diff) {
+  // Ensure we always use the non-obsolete version of the method so that entry/exit events have the
+  // same pointer value.
+  method = method->GetNonObsoleteMethod();
   // Advance cur_offset_ atomically.
   int32_t new_offset;
   int32_t old_offset = 0;
