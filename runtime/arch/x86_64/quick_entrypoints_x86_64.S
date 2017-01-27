@@ -1174,14 +1174,14 @@ MACRO0(COMPUTE_ARRAY_SIZE_UNKNOWN)
     movl MIRROR_CLASS_COMPONENT_TYPE_OFFSET(%rdi), %ecx        // Load component type.
     UNPOISON_HEAP_REF ecx
     movl MIRROR_CLASS_OBJECT_PRIMITIVE_TYPE_OFFSET(%rcx), %ecx // Load primitive type.
-    shrq LITERAL(PRIMITIVE_TYPE_SIZE_SHIFT_SHIFT), %rcx        // Get component size shift.
+    shrq MACRO_LITERAL(PRIMITIVE_TYPE_SIZE_SHIFT_SHIFT), %rcx        // Get component size shift.
     movq %rsi, %r9
     salq %cl, %r9                                              // Calculate array count shifted.
     // Add array header + alignment rounding.
-    addq LITERAL(MIRROR_INT_ARRAY_DATA_OFFSET + OBJECT_ALIGNMENT_MASK), %r9
+    addq MACRO_LITERAL(MIRROR_INT_ARRAY_DATA_OFFSET + OBJECT_ALIGNMENT_MASK), %r9
     // Add 4 extra bytes if we are doing a long array.
-    addq LITERAL(1), %rcx
-    andq LITERAL(4), %rcx
+    addq MACRO_LITERAL(1), %rcx
+    andq MACRO_LITERAL(4), %rcx
 #if MIRROR_LONG_ARRAY_DATA_OFFSET != MIRROR_INT_ARRAY_DATA_OFFSET + 4
 #error Long array data offset must be 4 greater than int array data offset.
 #endif
@@ -1193,35 +1193,35 @@ MACRO0(COMPUTE_ARRAY_SIZE_8)
     // RDX, RCX, R8, R9: free. RAX: return val.
     movq %rsi, %r9
     // Add array header + alignment rounding.
-    addq LITERAL(MIRROR_INT_ARRAY_DATA_OFFSET + OBJECT_ALIGNMENT_MASK), %r9
+    addq MACRO_LITERAL(MIRROR_INT_ARRAY_DATA_OFFSET + OBJECT_ALIGNMENT_MASK), %r9
 END_MACRO
 
 MACRO0(COMPUTE_ARRAY_SIZE_16)
     // RDI: mirror::Class* klass, RSI: int32_t component_count
     // RDX, RCX, R8, R9: free. RAX: return val.
     movq %rsi, %r9
-    salq LITERAL(1), %r9
+    salq MACRO_LITERAL(1), %r9
     // Add array header + alignment rounding.
-    addq LITERAL(MIRROR_INT_ARRAY_DATA_OFFSET + OBJECT_ALIGNMENT_MASK), %r9
+    addq MACRO_LITERAL(MIRROR_INT_ARRAY_DATA_OFFSET + OBJECT_ALIGNMENT_MASK), %r9
 END_MACRO
 
 MACRO0(COMPUTE_ARRAY_SIZE_32)
     // RDI: mirror::Class* klass, RSI: int32_t component_count
     // RDX, RCX, R8, R9: free. RAX: return val.
     movq %rsi, %r9
-    salq LITERAL(2), %r9
+    salq MACRO_LITERAL(2), %r9
     // Add array header + alignment rounding.
-    addq LITERAL(MIRROR_INT_ARRAY_DATA_OFFSET + OBJECT_ALIGNMENT_MASK), %r9
+    addq MACRO_LITERAL(MIRROR_INT_ARRAY_DATA_OFFSET + OBJECT_ALIGNMENT_MASK), %r9
 END_MACRO
 
 MACRO0(COMPUTE_ARRAY_SIZE_64)
     // RDI: mirror::Class* klass, RSI: int32_t component_count
     // RDX, RCX, R8, R9: free. RAX: return val.
     movq %rsi, %r9
-    salq LITERAL(3), %r9
+    salq MACRO_LITERAL(3), %r9
     // Add array header + alignment rounding.
     // Add 4 extra bytes for array data alignment
-    addq LITERAL(MIRROR_INT_ARRAY_DATA_OFFSET + OBJECT_ALIGNMENT_MASK + 4), %r9
+    addq MACRO_LITERAL(MIRROR_INT_ARRAY_DATA_OFFSET + OBJECT_ALIGNMENT_MASK + 4), %r9
 END_MACRO
 
 // The slow path code for art_quick_alloc_array_*tlab.
