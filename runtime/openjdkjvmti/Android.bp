@@ -22,6 +22,7 @@ cc_defaults {
            "OpenjdkJvmTi.cc",
            "ti_class.cc",
            "ti_class_definition.cc",
+           "ti_class_loader.cc",
            "ti_dump.cc",
            "ti_field.cc",
            "ti_heap.cc",
