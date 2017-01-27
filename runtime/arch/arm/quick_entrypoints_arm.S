@@ -1026,7 +1026,6 @@ TWO_ARG_REF_DOWNCALL art_quick_set8_static, artSet8StaticFromCompiledCode, RETUR
 TWO_ARG_REF_DOWNCALL art_quick_set16_static, artSet16StaticFromCompiledCode, RETURN_IF_RESULT_IS_ZERO_OR_DELIVER
 TWO_ARG_REF_DOWNCALL art_quick_set32_static, artSet32StaticFromCompiledCode, RETURN_IF_RESULT_IS_ZERO_OR_DELIVER
 TWO_ARG_REF_DOWNCALL art_quick_set_obj_static, artSetObjStaticFromCompiledCode, RETURN_IF_RESULT_IS_ZERO_OR_DELIVER
-THREE_ARG_REF_DOWNCALL art_quick_set64_static, artSet64StaticFromCompiledCode, RETURN_IF_RESULT_IS_ZERO_OR_DELIVER
 
     /*
      * Called by managed code to resolve an instance field and store a non-wide value.
@@ -1052,6 +1051,20 @@ ENTRY art_quick_set64_instance
     RETURN_IF_RESULT_IS_ZERO
     DELIVER_PENDING_EXCEPTION
 END art_quick_set64_instance
+
+    .extern artSet64StaticFromCompiledCode
+ENTRY art_quick_set64_static
+    SETUP_SAVE_REFS_ONLY_FRAME r12        @ save callee saves in case of GC
+                                          @ r2:r3 contain the wide argument
+    str    r9, [sp, #-16]!                @ expand the frame and pass Thread::Current
+    .cfi_adjust_cfa_offset 16
+    bl     artSet64StaticFromCompiledCode @ (field_idx, new_val, Thread*)
+    add    sp, #16                        @ release out args
+    .cfi_adjust_cfa_offset -16
+    RESTORE_SAVE_REFS_ONLY_FRAME          @ TODO: we can clearly save an add here
+    RETURN_IF_RESULT_IS_ZERO
+    DELIVER_PENDING_EXCEPTION
+END art_quick_set64_static
 
     /*
      * Entry from managed code to resolve a string, this stub will
