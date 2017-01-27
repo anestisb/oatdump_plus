@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
+import java.lang.reflect.*;
 import java.util.Base64;
-public class Main {
+
+class Main {
+  public static String TEST_NAME = "934-load-transform";
 
   /**
    * base64 encoded class/dex file for
@@ -48,14 +51,36 @@ public class Main {
     "AOAAAAAGAAAAAQAAAAABAAABIAAAAgAAACABAAABEAAAAQAAAFwBAAACIAAADgAAAGIBAAADIAAA" +
     "AgAAABMCAAAAIAAAAQAAAB4CAAAAEAAAAQAAACwCAAA=");
 
-  public static void main(String[] args) {
-    doTest();
+  public static ClassLoader getClassLoaderFor(String location) throws Exception {
+    try {
+      Class<?> class_loader_class = Class.forName("dalvik.system.PathClassLoader");
+      Constructor<?> ctor = class_loader_class.getConstructor(String.class, ClassLoader.class);
+      /* on Dalvik, this is a DexFile; otherwise, it's null */
+      return (ClassLoader)ctor.newInstance(location + "/" + TEST_NAME + "-ex.jar",
+                                           Main.class.getClassLoader());
+    } catch (ClassNotFoundException e) {
+      // Running on RI. Use URLClassLoader.
+      return new java.net.URLClassLoader(
+          new java.net.URL[] { new java.net.URL("file://" + location + "/classes-ex/") });
+    }
   }
 
-  public static void doTest() {
+  public static void main(String[] args) {
     addCommonTransformationResult("Transform", CLASS_BYTES, DEX_BYTES);
     enableCommonRetransformation(true);
-    new Transform().sayHi();
+    try {
+      /* this is the "alternate" DEX/Jar file */
+      ClassLoader new_loader = getClassLoaderFor(System.getenv("DEX_LOCATION"));
+      Class<?> klass = (Class<?>)new_loader.loadClass("TestMain");
+      if (klass == null) {
+        throw new AssertionError("loadClass failed");
+      }
+      Method run_test = klass.getMethod("runTest");
+      run_test.invoke(null);
+    } catch (Exception e) {
+      System.out.println(e.toString());
+      e.printStackTrace();
+    }
   }
 
   // Transforms the class
