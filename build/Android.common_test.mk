@@ -87,8 +87,8 @@ ART_TEST_GC_STRESS ?= $(ART_TEST_FULL)
 # Do you want tests with the JNI forcecopy mode enabled run?
 ART_TEST_JNI_FORCECOPY ?= $(ART_TEST_FULL)
 
-# Do you want run-tests with relocation disabled run?
-ART_TEST_RUN_TEST_NO_RELOCATE ?= $(ART_TEST_FULL)
+# Do you want run-tests with relocation enabled run?
+ART_TEST_RUN_TEST_RELOCATE ?= $(ART_TEST_FULL)
 
 # Do you want run-tests with prebuilding?
 ART_TEST_RUN_TEST_PREBUILD ?= true
