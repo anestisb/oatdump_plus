@@ -136,4 +136,8 @@ void PhaseUtil::Unregister() {
   art::Runtime::Current()->GetRuntimeCallbacks()->RemoveRuntimePhaseCallback(&gPhaseCallback);
 }
 
+jvmtiPhase PhaseUtil::GetPhaseUnchecked() {
+  return PhaseUtil::current_phase_;
+}
+
 }  // namespace openjdkjvmti
