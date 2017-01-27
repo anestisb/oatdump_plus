@@ -438,7 +438,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
           const uint8_t* addr = reinterpret_cast<const uint8_t*>(GetCurrentQuickFrame()) + offset;
           value = *reinterpret_cast<const uint32_t*>(addr);
           uint32_t bit = (offset >> 2);
-          if (stack_map.GetNumberOfStackMaskBits(encoding.stack_map_encoding) > bit &&
+          if (code_info.GetNumberOfStackMaskBits(encoding) > bit &&
               stack_map.GetStackMaskBit(encoding.stack_map_encoding, bit)) {
             is_reference = true;
           }
