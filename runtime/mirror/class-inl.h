@@ -71,9 +71,10 @@ inline ClassLoader* Class::GetClassLoader() {
       OFFSET_OF_OBJECT_MEMBER(Class, class_loader_));
 }
 
-template<VerifyObjectFlags kVerifyFlags>
+template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline DexCache* Class::GetDexCache() {
-  return GetFieldObject<DexCache, kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Class, dex_cache_));
+  return GetFieldObject<DexCache, kVerifyFlags, kReadBarrierOption>(
+      OFFSET_OF_OBJECT_MEMBER(Class, dex_cache_));
 }
 
 inline uint32_t Class::GetCopiedMethodsStartOffset() {
