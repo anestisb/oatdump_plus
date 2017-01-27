@@ -341,14 +341,11 @@ TEST_ART_BROKEN_NO_PREBUILD_TESTS :=
 
 # Note 117-nopatchoat is not broken per-se it just doesn't work (and isn't meant to) without
 # --prebuild --relocate
-# 934 & 935 are broken due to dex2dex issues and app-images
 TEST_ART_BROKEN_NO_RELOCATE_TESTS := \
   117-nopatchoat \
   118-noimage-dex2oat \
   119-noimage-patchoat \
-  554-jit-profile-file \
-  934-load-transform \
-  935-non-retransformable \
+  554-jit-profile-file
 
 ifneq (,$(filter no-relocate,$(RELOCATE_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
@@ -360,12 +357,9 @@ TEST_ART_BROKEN_NO_RELOCATE_TESTS :=
 
 # Temporarily disable some broken tests when forcing access checks in interpreter b/22414682
 # 629 requires compilation.
-# 934 & 935 are broken due to dex2dex issues and app-images
 TEST_ART_BROKEN_INTERPRETER_ACCESS_CHECK_TESTS := \
   137-cfi \
-  629-vdex-speed \
-  934-load-transform \
-  935-non-retransformable \
+  629-vdex-speed
 
 ifneq (,$(filter interp-ac,$(COMPILER_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
@@ -431,7 +425,6 @@ ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),ndebug,$(PREB
 # 147-stripped-dex-fallback is disabled because it requires --prebuild.
 # 554-jit-profile-file is disabled because it needs a primary oat file to know what it should save.
 # 629-vdex-speed requires compiled code.
-# 934 & 935 are broken due to dex2dex issues and app-images
 TEST_ART_BROKEN_FALLBACK_RUN_TESTS := \
   116-nodex2oat \
   117-nopatchoat \
@@ -441,9 +434,7 @@ TEST_ART_BROKEN_FALLBACK_RUN_TESTS := \
   138-duplicate-classes-check2 \
   147-stripped-dex-fallback \
   554-jit-profile-file \
-  629-vdex-speed \
-  934-load-transform \
-  935-non-retransformable \
+  629-vdex-speed
 
 # This test fails without an image.
 # 018, 961, 964 often time out. b/34369284
@@ -521,13 +512,10 @@ TEST_ART_BROKEN_JIT_TRACING_RUN_TESTS :=
 # Known broken tests for the interpreter.
 # CFI unwinding expects managed frames.
 # 629 requires compilation.
-# 934 and 935 are broken due to the PreDefine hook not yet inserting them into the classpath. This should be fixed shortly
 TEST_ART_BROKEN_INTERPRETER_RUN_TESTS := \
   137-cfi \
   554-jit-profile-file \
-  629-vdex-speed \
-  934-load-transform \
-  935-non-retransformable \
+  629-vdex-speed
 
 ifneq (,$(filter interpreter,$(COMPILER_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
@@ -550,7 +538,6 @@ TEST_ART_BROKEN_INTERPRETER_RUN_TESTS :=
 # resolved but until then just disable them. Test 916 already checks this
 # feature for JIT use cases in a way that is resilient to the jit frames.
 # 912: b/34655682
-# 934 and 935 are broken due to the PreDefine hook not yet inserting them into the classpath. This should be fixed shortly
 TEST_ART_BROKEN_JIT_RUN_TESTS := \
   137-cfi \
   629-vdex-speed \
@@ -563,8 +550,6 @@ TEST_ART_BROKEN_JIT_RUN_TESTS := \
   917-fields-transformation \
   919-obsolete-fields \
   926-multi-obsolescence \
-  934-load-transform \
-  935-non-retransformable \
 
 ifneq (,$(filter jit,$(COMPILER_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
