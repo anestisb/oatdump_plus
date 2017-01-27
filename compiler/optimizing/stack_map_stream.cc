@@ -165,7 +165,7 @@ size_t StackMapStream::PrepareForFillIn() {
                                                            inline_info_size_,
                                                            register_mask_max_,
                                                            stack_mask_number_of_bits);
-  stack_maps_size_ = stack_maps_.size() * stack_map_size;
+  stack_maps_size_ = RoundUp(stack_maps_.size() * stack_map_size, kBitsPerByte) / kBitsPerByte;
   dex_register_location_catalog_size_ = ComputeDexRegisterLocationCatalogSize();
 
   size_t non_header_size =
@@ -178,7 +178,7 @@ size_t StackMapStream::PrepareForFillIn() {
   CodeInfoEncoding code_info_encoding;
   code_info_encoding.non_header_size = non_header_size;
   code_info_encoding.number_of_stack_maps = stack_maps_.size();
-  code_info_encoding.stack_map_size_in_bytes = stack_map_size;
+  code_info_encoding.stack_map_size_in_bits = stack_map_size;
   code_info_encoding.stack_map_encoding = stack_map_encoding_;
   code_info_encoding.inline_info_encoding = inline_info_encoding_;
   code_info_encoding.number_of_location_catalog_entries = location_catalog_entries_.size();
@@ -322,7 +322,7 @@ void StackMapStream::FillIn(MemoryRegion region) {
     stack_map.SetDexPc(stack_map_encoding_, entry.dex_pc);
     stack_map.SetNativePcCodeOffset(stack_map_encoding_, entry.native_pc_code_offset);
     stack_map.SetRegisterMask(stack_map_encoding_, entry.register_mask);
-    size_t number_of_stack_mask_bits = stack_map.GetNumberOfStackMaskBits(stack_map_encoding_);
+    size_t number_of_stack_mask_bits = code_info.GetNumberOfStackMaskBits(encoding);
     if (entry.sp_mask != nullptr) {
       for (size_t bit = 0; bit < number_of_stack_mask_bits; bit++) {
         stack_map.SetStackMaskBit(stack_map_encoding_, bit, entry.sp_mask->IsBitSet(bit));
@@ -551,7 +551,7 @@ void StackMapStream::CheckCodeInfo(MemoryRegion region) const {
               entry.native_pc_code_offset.Uint32Value(instruction_set_));
     DCHECK_EQ(stack_map.GetDexPc(stack_map_encoding), entry.dex_pc);
     DCHECK_EQ(stack_map.GetRegisterMask(stack_map_encoding), entry.register_mask);
-    size_t num_stack_mask_bits = stack_map.GetNumberOfStackMaskBits(stack_map_encoding);
+    size_t num_stack_mask_bits = code_info.GetNumberOfStackMaskBits(encoding);
     if (entry.sp_mask != nullptr) {
       DCHECK_GE(num_stack_mask_bits, entry.sp_mask->GetNumberOfBits());
       for (size_t b = 0; b < num_stack_mask_bits; b++) {

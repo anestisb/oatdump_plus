@@ -43,8 +43,8 @@ void MemoryRegion::StoreBits(uintptr_t bit_offset, uint32_t value, size_t length
   // Bits are stored in this order {7 6 5 4 3 2 1 0}.
   // How many remaining bits in current byte is (bit_offset % kBitsPerByte) + 1.
   uint8_t* out = ComputeInternalPointer<uint8_t>(bit_offset >> kBitsPerByteLog2);
-  auto orig_len = length;
-  auto orig_value = value;
+  size_t orig_len = length;
+  uint32_t orig_value = value;
   uintptr_t bit_remainder = bit_offset % kBitsPerByte;
   while (true) {
     const uintptr_t remaining_bits = kBitsPerByte - bit_remainder;

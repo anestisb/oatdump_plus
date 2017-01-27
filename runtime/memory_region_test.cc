@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "bit_memory_region.h"
 #include "memory_region.h"
 
 #include "gtest/gtest.h"
@@ -52,6 +53,37 @@ TEST(MemoryRegion, StoreUnaligned) {
   uint8_t expected[n] = { 7, 6, 5, 4, 3, 2, 1, 0 };
   for (size_t i = 0; i < n; ++i) {
     ASSERT_EQ(expected[i], data[i]);
+  }
+}
+
+TEST(MemoryRegion, TestBits) {
+  const size_t n = 8;
+  uint8_t data[n] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+  MemoryRegion region(&data, n);
+  uint32_t value = 0xDEADBEEF;
+  // Try various offsets and lengths.
+  for (size_t bit_offset = 0; bit_offset < 2 * kBitsPerByte; ++bit_offset) {
+    for (size_t length = 0; length < 2 * kBitsPerByte; ++length) {
+      const uint32_t length_mask = (1 << length) - 1;
+      uint32_t masked_value = value & length_mask;
+      BitMemoryRegion bmr(region, bit_offset, length);
+      region.StoreBits(bit_offset, masked_value, length);
+      EXPECT_EQ(region.LoadBits(bit_offset, length), masked_value);
+      EXPECT_EQ(bmr.LoadBits(0, length), masked_value);
+      // Check adjacent bits to make sure they were not incorrectly cleared.
+      EXPECT_EQ(region.LoadBits(0, bit_offset), (1u << bit_offset) - 1);
+      EXPECT_EQ(region.LoadBits(bit_offset + length, length), length_mask);
+      region.StoreBits(bit_offset, length_mask, length);
+      // Store with bit memory region.
+      bmr.StoreBits(0, masked_value, length);
+      EXPECT_EQ(bmr.LoadBits(0, length), masked_value);
+      // Check adjacent bits to make sure they were not incorrectly cleared.
+      EXPECT_EQ(region.LoadBits(0, bit_offset), (1u << bit_offset) - 1);
+      EXPECT_EQ(region.LoadBits(bit_offset + length, length), length_mask);
+      region.StoreBits(bit_offset, length_mask, length);
+      // Flip the value to try different edge bit combinations.
+      value = ~value;
+    }
   }
 }
 
