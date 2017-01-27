@@ -179,7 +179,9 @@ jvmtiError Transformer::FillInTransformationData(ArtJvmTiEnv* env,
   }
   def->klass = klass;
   def->loader = soa.AddLocalReference<jobject>(hs_klass->GetClassLoader());
-  def->name = art::mirror::Class::ComputeName(hs_klass)->ToModifiedUtf8();
+  std::string descriptor_store;
+  std::string descriptor(hs_klass->GetDescriptor(&descriptor_store));
+  def->name = descriptor.substr(1, descriptor.size() - 2);
   // TODO is this always null?
   def->protection_domain = nullptr;
   if (def->dex_data.get() == nullptr) {
