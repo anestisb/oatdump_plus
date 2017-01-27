@@ -17,6 +17,7 @@
 #include "stack_map_stream.h"
 
 #include "art_method.h"
+#include "optimizing/optimizing_compiler.h"
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
 
@@ -101,11 +102,6 @@ void StackMapStream::AddDexRegisterEntry(DexRegisterLocation::Kind kind, int32_t
     }
   }
   current_dex_register_++;
-}
-
-static bool EncodeArtMethodInInlineInfo(ArtMethod* method ATTRIBUTE_UNUSED) {
-  // Note: the runtime is null only for unit testing.
-  return Runtime::Current() == nullptr || !Runtime::Current()->IsAotCompiler();
 }
 
 void StackMapStream::BeginInlineInfoEntry(ArtMethod* method,

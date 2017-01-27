@@ -1129,6 +1129,26 @@ bool IsCompilingWithCoreImage() {
   return false;
 }
 
+bool EncodeArtMethodInInlineInfo(ArtMethod* method ATTRIBUTE_UNUSED) {
+  // Note: the runtime is null only for unit testing.
+  return Runtime::Current() == nullptr || !Runtime::Current()->IsAotCompiler();
+}
+
+bool CanEncodeInlinedMethodInStackMap(const DexFile& caller_dex_file, ArtMethod* callee) {
+  ScopedObjectAccess soa(Thread::Current());
+  if (!Runtime::Current()->IsAotCompiler()) {
+    // JIT can always encode methods in stack maps.
+    return true;
+  }
+  if (IsSameDexFile(caller_dex_file, *callee->GetDexFile())) {
+    return true;
+  }
+  // TODO(ngeoffray): Support more AOT cases for inlining:
+  // - methods in multidex
+  // - methods in boot image for on-device non-PIC compilation.
+  return false;
+}
+
 bool OptimizingCompiler::JitCompile(Thread* self,
                                     jit::JitCodeCache* code_cache,
                                     ArtMethod* method,

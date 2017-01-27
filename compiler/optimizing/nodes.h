@@ -4322,6 +4322,11 @@ class HInvokeInterface FINAL : public HInvoke {
     return (obj == InputAt(0)) && !GetLocations()->Intrinsified();
   }
 
+  bool NeedsDexCacheOfDeclaringClass() const OVERRIDE {
+    // The assembly stub currently needs it.
+    return true;
+  }
+
   uint32_t GetImtIndex() const { return imt_index_; }
   uint32_t GetDexMethodIndex() const { return dex_method_index_; }
 
