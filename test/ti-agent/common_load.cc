@@ -28,6 +28,7 @@
 
 #include "901-hello-ti-agent/basics.h"
 #include "909-attach-agent/attach.h"
+#include "936-search-onload/search_onload.h"
 
 namespace art {
 
@@ -112,6 +113,7 @@ static AgentLib agents[] = {
   { "932-transform-saves", common_retransform::OnLoad, nullptr },
   { "934-load-transform", common_retransform::OnLoad, nullptr },
   { "935-non-retransformable", common_transform::OnLoad, nullptr },
+  { "936-search-onload", Test936SearchOnload::OnLoad, nullptr },
   { "937-hello-retransform-package", common_retransform::OnLoad, nullptr },
 };
 
