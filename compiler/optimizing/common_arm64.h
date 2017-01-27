@@ -130,8 +130,8 @@ inline vixl::aarch64::CPURegister InputCPURegisterOrZeroRegAt(HInstruction* inst
   Primitive::Type input_type = input->GetType();
   if (input->IsConstant() && input->AsConstant()->IsZeroBitPattern()) {
     return (Primitive::ComponentSize(input_type) >= vixl::aarch64::kXRegSizeInBytes)
-        ? vixl::aarch64::xzr
-        : vixl::aarch64::wzr;
+        ? vixl::aarch64::Register(vixl::aarch64::xzr)
+        : vixl::aarch64::Register(vixl::aarch64::wzr);
   }
   return InputCPURegisterAt(instr, index);
 }

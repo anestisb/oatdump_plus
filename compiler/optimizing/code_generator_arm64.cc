@@ -1533,7 +1533,9 @@ void CodeGeneratorARM64::MoveLocation(Location destination,
       HConstant* src_cst = source.GetConstant();
       CPURegister temp;
       if (src_cst->IsZeroBitPattern()) {
-        temp = (src_cst->IsLongConstant() || src_cst->IsDoubleConstant()) ? xzr : wzr;
+        temp = (src_cst->IsLongConstant() || src_cst->IsDoubleConstant())
+            ? Register(xzr)
+            : Register(wzr);
       } else {
         if (src_cst->IsIntConstant()) {
           temp = temps.AcquireW();
