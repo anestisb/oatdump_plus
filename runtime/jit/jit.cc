@@ -145,12 +145,7 @@ Jit::Jit() : dump_info_on_shutdown_(false),
              cumulative_timings_("JIT timings"),
              memory_use_("Memory used for compilation", 16),
              lock_("JIT memory use lock"),
-             use_jit_compilation_(true),
-             hot_method_threshold_(0),
-             warm_method_threshold_(0),
-             osr_method_threshold_(0),
-             priority_thread_weight_(0),
-             invoke_transition_weight_(0) {}
+             use_jit_compilation_(true) {}
 
 Jit* Jit::Create(JitOptions* options, std::string* error_msg) {
   DCHECK(options->UseJitCompilation() || options->GetProfileSaverOptions().IsEnabled());
@@ -294,11 +289,7 @@ bool Jit::CompileMethod(ArtMethod* method, Thread* self, bool osr) {
 void Jit::CreateThreadPool() {
   // There is a DCHECK in the 'AddSamples' method to ensure the tread pool
   // is not null when we instrument.
-
-  // We need peers as we may report the JIT thread, e.g., in the debugger.
-  constexpr bool kJitPoolNeedsPeers = true;
-  thread_pool_.reset(new ThreadPool("Jit thread pool", 1, kJitPoolNeedsPeers));
-
+  thread_pool_.reset(new ThreadPool("Jit thread pool", 1));
   thread_pool_->SetPthreadPriority(kJitPoolThreadPthreadPriority);
   Start();
 }
