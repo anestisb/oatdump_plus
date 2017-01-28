@@ -156,6 +156,7 @@ while true; do
         shift
     elif [ "x$1" = "x--jvm" ]; then
         target_mode="no"
+        DEX_LOCATION="$tmp_dir"
         runtime="jvm"
         image_args=""
         prebuild_mode="no"
