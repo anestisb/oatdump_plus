@@ -75,9 +75,7 @@ class ObsoleteMethodStackVisitor : public art::StackVisitor {
                        StackVisitor::StackWalkKind::kIncludeInlinedFrames),
           allocator_(allocator),
           obsoleted_methods_(obsoleted_methods),
-          obsolete_maps_(obsolete_maps),
-          is_runtime_frame_(false) {
-  }
+          obsolete_maps_(obsolete_maps) { }
 
   ~ObsoleteMethodStackVisitor() OVERRIDE {}
 
@@ -100,21 +98,7 @@ class ObsoleteMethodStackVisitor : public art::StackVisitor {
 
   bool VisitFrame() OVERRIDE REQUIRES(art::Locks::mutator_lock_) {
     art::ArtMethod* old_method = GetMethod();
-    // TODO REMOVE once either current_method doesn't stick around through suspend points or deopt
-    // works through runtime methods.
-    bool prev_was_runtime_frame_ = is_runtime_frame_;
-    is_runtime_frame_ = old_method->IsRuntimeMethod();
     if (obsoleted_methods_.find(old_method) != obsoleted_methods_.end()) {
-      // The check below works since when we deoptimize we set shadow frames for all frames until a
-      // native/runtime transition and for those set the return PC to a function that will complete
-      // the deoptimization. This does leave us with the unfortunate side-effect that frames just
-      // below runtime frames cannot be deoptimized at the moment.
-      // TODO REMOVE once either current_method doesn't stick around through suspend points or deopt
-      // works through runtime methods.
-      // TODO b/33616143
-      if (!IsShadowFrame() && prev_was_runtime_frame_) {
-        LOG(FATAL) << "Deoptimization failed due to runtime method in stack. See b/33616143";
-      }
       // We cannot ensure that the right dex file is used in inlined frames so we don't support
       // redefining them.
       DCHECK(!IsInInlinedFrame()) << "Inlined frames are not supported when using redefinition";
@@ -163,9 +147,6 @@ class ObsoleteMethodStackVisitor : public art::StackVisitor {
   // values in this map must be added to the obsolete_methods_ (and obsolete_dex_caches_) fields of
   // the redefined classes ClassExt by the caller.
   std::unordered_map<art::ArtMethod*, art::ArtMethod*>* obsolete_maps_;
-  // TODO REMOVE once either current_method doesn't stick around through suspend points or deopt
-  // works through runtime methods.
-  bool is_runtime_frame_;
 };
 
 jvmtiError Redefiner::IsModifiableClass(jvmtiEnv* env ATTRIBUTE_UNUSED,
@@ -506,18 +487,6 @@ void Redefiner::ClassRedefinition::FillObsoleteMethodMap(
     obsolete_dex_caches->Set(index, art_klass->GetDexCache());
     index++;
   }
-}
-
-// TODO It should be possible to only deoptimize the specific obsolete methods.
-// TODO ReJitEverything can (sort of) fail. In certain cases it will skip deoptimizing some frames.
-// If one of these frames is an obsolete method we have a problem. b/33616143
-// TODO This shouldn't be necessary once we can ensure that the current method is not kept in
-// registers across suspend points.
-// TODO Pending b/33630159
-void Redefiner::EnsureObsoleteMethodsAreDeoptimized() {
-  art::ScopedAssertNoThreadSuspension nts("Deoptimizing everything!");
-  art::instrumentation::Instrumentation* i = runtime_->GetInstrumentation();
-  i->ReJitEverything("libOpenJkdJvmti - Class Redefinition");
 }
 
 bool Redefiner::ClassRedefinition::CheckClass() {
@@ -875,15 +844,6 @@ jvmtiError Redefiner::Run() {
     redef.UpdateClass(klass, holder.GetNewDexCache(cnt), holder.GetOriginalDexFileBytes(cnt));
     cnt++;
   }
-  // Ensure that obsolete methods are deoptimized. This is needed since optimized methods may have
-  // pointers to their ArtMethod's stashed in registers that they then use to attempt to hit the
-  // DexCache. (b/33630159)
-  // TODO This can fail (leave some methods optimized) near runtime methods (including
-  // quick-to-interpreter transition function).
-  // TODO We probably don't need this at all once we have a way to ensure that the
-  // current_art_method is never stashed in a (physical) register by the JIT and lost to the
-  // stack-walker.
-  EnsureObsoleteMethodsAreDeoptimized();
   // TODO Verify the new Class.
   // TODO Shrink the obsolete method maps if possible?
   // TODO find appropriate class loader.

@@ -29,13 +29,7 @@ class Transform {
     reporter.accept("Pre Start private method call");
     Start(reporter);
     reporter.accept("Post Start private method call");
-    // TODO Revisit with b/33616143
-    // TODO Uncomment this once either b/33630159 or b/33616143 are resolved.
-    // r.run();
-    // TODO This doCall function is a very temporary fix until we get either deoptimization near
-    // runtime frames working, forcing current method to be always read from the stack or both
-    // working.
-    Main.doCall(r);
+    r.run();
     reporter.accept("Pre Finish private method call");
     Finish(reporter);
     reporter.accept("Post Finish private method call");
