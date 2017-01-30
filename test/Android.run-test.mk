@@ -709,8 +709,10 @@ endif
 
 TEST_ART_BROKEN_OPTIMIZING_HEAP_POISONING_RUN_TESTS :=
 
-# Tests that check semantics for a non-debuggable app.
+# 909: Tests that check semantics for a non-debuggable app.
+# 137: relies on AOT code and debuggable makes us JIT always.
 TEST_ART_BROKEN_DEBUGGABLE_RUN_TESTS := \
+  137-cfi \
   909-attach-agent \
 
 ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
