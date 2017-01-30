@@ -434,7 +434,7 @@ class Runtime {
     kInitialize
   };
 
-  jit::Jit* GetJit() const {
+  jit::Jit* GetJit() {
     return jit_.get();
   }
 
@@ -569,14 +569,15 @@ class Runtime {
     return jit_options_.get();
   }
 
-  bool IsJavaDebuggable() const {
-    return is_java_debuggable_;
+  bool IsDebuggable() const;
+
+  bool IsFullyDeoptable() const {
+    return is_fully_deoptable_;
   }
 
-  void SetJavaDebuggable(bool value);
-
-  // Deoptimize the boot image, called for Java debuggable apps.
-  void DeoptimizeBootImage();
+  void SetFullyDeoptable(bool value) {
+    is_fully_deoptable_ = value;
+  }
 
   bool IsNativeDebuggable() const {
     return is_native_debuggable_;
@@ -638,9 +639,9 @@ class Runtime {
     return zygote_no_threads_;
   }
 
-  // Returns if the code can be deoptimized asynchronously. Code may be compiled with some
+  // Returns if the code can be deoptimized. Code may be compiled with some
   // optimization that makes it impossible to deoptimize.
-  bool IsAsyncDeoptimizeable(uintptr_t code) const REQUIRES_SHARED(Locks::mutator_lock_);
+  bool IsDeoptimizeable(uintptr_t code) const REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns a saved copy of the environment (getenv/setenv values).
   // Used by Fork to protect against overwriting LD_LIBRARY_PATH, etc.
@@ -862,8 +863,8 @@ class Runtime {
   // Whether we are running under native debugger.
   bool is_native_debuggable_;
 
-  // Whether Java code needs to be debuggable.
-  bool is_java_debuggable_;
+  // Whether we are expected to be deoptable at all points.
+  bool is_fully_deoptable_;
 
   // The maximum number of failed boots we allow before pruning the dalvik cache
   // and trying again. This option is only inspected when we're running as a

@@ -123,6 +123,7 @@ RUNTIME_OPTIONS_KEY (ExperimentalFlags,   Experimental,     ExperimentalFlags::k
 RUNTIME_OPTIONS_KEY (std::vector<ti::Agent>,         AgentLib)  // -agentlib:<libname>=<options>
 RUNTIME_OPTIONS_KEY (std::vector<ti::Agent>,         AgentPath)  // -agentpath:<libname>=<options>
 RUNTIME_OPTIONS_KEY (std::vector<Plugin>,            Plugins)  // -Xplugin:<library>
+RUNTIME_OPTIONS_KEY (Unit,                           FullyDeoptable)  // -Xfully-deoptable
 
 // Not parse-able from command line, but can be provided explicitly.
 // (Do not add anything here that is defined in ParsedOptions::MakeParser)
