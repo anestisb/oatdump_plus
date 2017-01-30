@@ -96,6 +96,9 @@ ART_TEST_RUN_TEST_PREBUILD ?= true
 # Do you want run-tests with no prebuilding enabled run?
 ART_TEST_RUN_TEST_NO_PREBUILD ?= $(ART_TEST_FULL)
 
+# Do you want run-tests with a pregenerated core.art?
+ART_TEST_RUN_TEST_IMAGE ?= true
+
 # Do you want run-tests without a pregenerated core.art?
 ART_TEST_RUN_TEST_NO_IMAGE ?= $(ART_TEST_FULL)
 
