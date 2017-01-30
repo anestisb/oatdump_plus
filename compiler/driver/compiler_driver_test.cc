@@ -101,6 +101,7 @@ class CompilerDriverTest : public CommonCompilerTest {
 };
 
 // Disabled due to 10 second runtime on host
+// TODO: Update the test for hash-based dex cache arrays. Bug: 30627598
 TEST_F(CompilerDriverTest, DISABLED_LARGE_CompileDexLibCore) {
   CompileAll(nullptr);
 

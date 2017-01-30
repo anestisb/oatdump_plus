@@ -51,7 +51,10 @@ class HGraphBuilder : public ValueObject {
         compiler_driver_(driver),
         compilation_stats_(compiler_stats),
         block_builder_(graph, dex_file, code_item),
-        ssa_builder_(graph, dex_compilation_unit->GetDexCache(), handles),
+        ssa_builder_(graph,
+                     dex_compilation_unit->GetClassLoader(),
+                     dex_compilation_unit->GetDexCache(),
+                     handles),
         instruction_builder_(graph,
                              &block_builder_,
                              &ssa_builder_,
@@ -76,10 +79,12 @@ class HGraphBuilder : public ValueObject {
         code_item_(code_item),
         dex_compilation_unit_(nullptr),
         compiler_driver_(nullptr),
-        null_dex_cache_(),
         compilation_stats_(nullptr),
         block_builder_(graph, nullptr, code_item),
-        ssa_builder_(graph, null_dex_cache_, handles),
+        ssa_builder_(graph,
+                     handles->NewHandle<mirror::ClassLoader>(nullptr),
+                     handles->NewHandle<mirror::DexCache>(nullptr),
+                     handles),
         instruction_builder_(graph,
                              &block_builder_,
                              &ssa_builder_,
@@ -91,7 +96,7 @@ class HGraphBuilder : public ValueObject {
                              /* compiler_driver */ nullptr,
                              /* interpreter_metadata */ nullptr,
                              /* compiler_stats */ nullptr,
-                             null_dex_cache_,
+                             handles->NewHandle<mirror::DexCache>(nullptr),
                              handles) {}
 
   GraphAnalysisResult BuildGraph();
@@ -111,8 +116,6 @@ class HGraphBuilder : public ValueObject {
   DexCompilationUnit* const dex_compilation_unit_;
 
   CompilerDriver* const compiler_driver_;
-
-  ScopedNullHandle<mirror::DexCache> null_dex_cache_;
 
   OptimizingCompilerStats* compilation_stats_;
 

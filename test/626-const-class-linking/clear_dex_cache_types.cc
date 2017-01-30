@@ -24,7 +24,8 @@ extern "C" JNIEXPORT void JNICALL Java_Main_nativeClearResolvedTypes(JNIEnv*, jc
   ScopedObjectAccess soa(Thread::Current());
   mirror::DexCache* dex_cache = soa.Decode<mirror::Class>(cls)->GetDexCache();
   for (size_t i = 0, num_types = dex_cache->NumResolvedTypes(); i != num_types; ++i) {
-    dex_cache->SetResolvedType(dex::TypeIndex(i), ObjPtr<mirror::Class>(nullptr));
+    mirror::TypeDexCachePair cleared(nullptr, mirror::TypeDexCachePair::InvalidIndexForSlot(i));
+    dex_cache->GetResolvedTypes()[i].store(cleared, std::memory_order_relaxed);
   }
 }
 

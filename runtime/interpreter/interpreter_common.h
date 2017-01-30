@@ -255,17 +255,11 @@ static inline ObjPtr<mirror::String> ResolveString(Thread* self,
     }
   }
   ArtMethod* method = shadow_frame.GetMethod();
-  // MethodVerifier refuses methods with string_idx out of bounds.
-  DCHECK_LT(string_idx.index_ % mirror::DexCache::kDexCacheStringCacheSize,
-            method->GetDexFile()->NumStringIds());
-  ObjPtr<mirror::String> string_ptr =
-      mirror::StringDexCachePair::Lookup(method->GetDexCache()->GetStrings(),
-                                         string_idx.index_,
-                                         mirror::DexCache::kDexCacheStringCacheSize).Read();
+  ObjPtr<mirror::String> string_ptr = method->GetDexCache()->GetResolvedString(string_idx);
   if (UNLIKELY(string_ptr == nullptr)) {
     StackHandleScope<1> hs(self);
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(method->GetDexCache()));
-    string_ptr = Runtime::Current()->GetClassLinker()->ResolveString(*method->GetDexFile(),
+    string_ptr = Runtime::Current()->GetClassLinker()->ResolveString(*dex_cache->GetDexFile(),
                                                                      string_idx,
                                                                      dex_cache);
   }

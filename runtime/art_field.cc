@@ -48,10 +48,6 @@ ObjPtr<mirror::Class> ArtField::ProxyFindSystemClass(const char* descriptor) {
   return Runtime::Current()->GetClassLinker()->FindSystemClass(Thread::Current(), descriptor);
 }
 
-ObjPtr<mirror::Class> ArtField::ResolveGetType(dex::TypeIndex type_idx) {
-  return Runtime::Current()->GetClassLinker()->ResolveType(type_idx, this);
-}
-
 ObjPtr<mirror::String> ArtField::ResolveGetStringName(Thread* self,
                                                       const DexFile& dex_file,
                                                       dex::StringIndex string_idx,
