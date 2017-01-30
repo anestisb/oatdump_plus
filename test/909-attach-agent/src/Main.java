@@ -19,7 +19,7 @@ import java.io.IOException;
 
 public class Main {
   public static void main(String[] args) {
-    System.out.println("Hello, world!");
+    System.err.println("Hello, world!");
     for(String a : args) {
       if(a.startsWith("agent:")) {
         String agent = a.substring(6);
@@ -30,6 +30,6 @@ public class Main {
         }
       }
     }
-    System.out.println("Goodbye!");
+    System.err.println("Goodbye!");
   }
 }
