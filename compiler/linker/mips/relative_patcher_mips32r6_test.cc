@@ -20,10 +20,6 @@
 namespace art {
 namespace linker {
 
-// We'll maximize the range of a single load instruction for dex cache array accesses
-// by aligning offset -32768 with the offset of the first used element.
-static constexpr uint32_t kDexCacheArrayLwOffset = 0x8000;
-
 class Mips32r6RelativePatcherTest : public RelativePatcherTest {
  public:
   Mips32r6RelativePatcherTest() : RelativePatcherTest(kMips, "mips32r6") {}
@@ -64,9 +60,6 @@ void Mips32r6RelativePatcherTest::CheckPcRelativePatch(const ArrayRef<const Link
   ASSERT_TRUE(result.first);
 
   uint32_t diff = target_offset - (result.second + kAnchorOffset);
-  if (patches[0].GetType() == LinkerPatch::Type::kDexCacheArray) {
-    diff += kDexCacheArrayLwOffset;
-  }
   diff += (diff & 0x8000) << 1;  // Account for sign extension in addiu.
 
   const uint8_t expected_code[] = {
