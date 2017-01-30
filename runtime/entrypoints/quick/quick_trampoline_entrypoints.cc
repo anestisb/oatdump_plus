@@ -781,15 +781,19 @@ extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self,
   // If caller_pc is the instrumentation exit stub, the stub will check to see if deoptimization
   // should be done and it knows the real return pc.
   if (UNLIKELY(caller_pc != reinterpret_cast<uintptr_t>(GetQuickInstrumentationExitPc()) &&
-               Dbg::IsForcedInterpreterNeededForUpcall(self, caller) &&
-               Runtime::Current()->IsDeoptimizeable(caller_pc))) {
-    // Push the context of the deoptimization stack so we can restore the return value and the
-    // exception before executing the deoptimized frames.
-    self->PushDeoptimizationContext(
-        result, shorty[0] == 'L', /* from_code */ false, self->GetException());
+               Dbg::IsForcedInterpreterNeededForUpcall(self, caller))) {
+    if (!Runtime::Current()->IsAsyncDeoptimizeable(caller_pc)) {
+      LOG(WARNING) << "Got a deoptimization request on un-deoptimizable method "
+                   << caller->PrettyMethod();
+    } else {
+      // Push the context of the deoptimization stack so we can restore the return value and the
+      // exception before executing the deoptimized frames.
+      self->PushDeoptimizationContext(
+          result, shorty[0] == 'L', /* from_code */ false, self->GetException());
 
-    // Set special exception to cause deoptimization.
-    self->SetException(Thread::GetDeoptimizationException());
+      // Set special exception to cause deoptimization.
+      self->SetException(Thread::GetDeoptimizationException());
+    }
   }
 
   // No need to restore the args since the method has already been run by the interpreter.
