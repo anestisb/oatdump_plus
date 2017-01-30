@@ -344,7 +344,7 @@ if [ "$IS_JVMTI_TEST" = "y" ]; then
   else
     FLAGS="${FLAGS} -agentpath:${agent}=${TEST_NAME},art"
     FLAGS="${FLAGS} -Xplugin:${plugin}"
-    FLAGS="${FLAGS} -Xfully-deoptable"
+    FLAGS="${FLAGS} -Xcompiler-option --debuggable"
     # Always make the compilation be debuggable.
     COMPILE_FLAGS="${COMPILE_FLAGS} --debuggable"
   fi
