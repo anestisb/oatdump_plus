@@ -161,7 +161,9 @@ JNI_TYPES := checkjni
 ifeq ($(ART_TEST_JNI_FORCECOPY),true)
   JNI_TYPES += forcecopy
 endif
+ifeq ($(ART_TEST_RUN_TEST_IMAGE),true)
 IMAGE_TYPES := picimage
+endif
 ifeq ($(ART_TEST_RUN_TEST_NO_IMAGE),true)
   IMAGE_TYPES += no-image
 endif
