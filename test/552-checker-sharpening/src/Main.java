@@ -381,10 +381,6 @@ public class Main {
   /// CHECK-START-ARM: java.lang.Class Main.$noinline$getOtherClass() sharpening (after)
   /// CHECK:                LoadClass load_kind:BssEntry class_name:Other
 
-  /// CHECK-START-ARM: java.lang.Class Main.$noinline$getOtherClass() dex_cache_array_fixups_arm (after)
-  /// CHECK-DAG:            ArmDexCacheArraysBase
-  /// CHECK-DAG:            LoadClass load_kind:BssEntry class_name:Other
-
   /// CHECK-START-ARM64: java.lang.Class Main.$noinline$getOtherClass() sharpening (after)
   /// CHECK:                LoadClass load_kind:BssEntry class_name:Other
 

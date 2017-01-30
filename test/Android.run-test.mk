@@ -136,9 +136,9 @@ ifeq ($(ART_TEST_OPTIMIZING_GRAPH_COLOR),true)
   COMPILER_TYPES += regalloc_gc
   OPTIMIZING_COMPILER_TYPES += regalloc_gc
 endif
-RELOCATE_TYPES := relocate
-ifeq ($(ART_TEST_RUN_TEST_NO_RELOCATE),true)
-  RELOCATE_TYPES += no-relocate
+RELOCATE_TYPES := no-relocate
+ifeq ($(ART_TEST_RUN_TEST_RELOCATE),true)
+  RELOCATE_TYPES += relocate
 endif
 ifeq ($(ART_TEST_RUN_TEST_RELOCATE_NO_PATCHOAT),true)
   RELOCATE_TYPES += relocate-npatchoat
