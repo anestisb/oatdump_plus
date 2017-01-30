@@ -2860,9 +2860,12 @@ bool ClassLinker::ShouldUseInterpreterEntrypoint(ArtMethod* method, const void* 
     return true;
   }
 
-  if (runtime->IsFullyDeoptable()) {
-    // We need to be able to deoptimize at any time so we should always just ignore precompiled
-    // code and go to the interpreter assuming we don't already have jitted code.
+  if (runtime->IsJavaDebuggable()) {
+    // For simplicity, we ignore precompiled code and go to the interpreter
+    // assuming we don't already have jitted code.
+    // We could look at the oat file where `quick_code` is being defined,
+    // and check whether it's been compiled debuggable, but we decided to
+    // only rely on the JIT for debuggable apps.
     jit::Jit* jit = Runtime::Current()->GetJit();
     return (jit == nullptr) || !jit->GetCodeCache()->ContainsPc(quick_code);
   }
@@ -2870,16 +2873,11 @@ bool ClassLinker::ShouldUseInterpreterEntrypoint(ArtMethod* method, const void* 
   if (runtime->IsNativeDebuggable()) {
     DCHECK(runtime->UseJitCompilation() && runtime->GetJit()->JitAtFirstUse());
     // If we are doing native debugging, ignore application's AOT code,
-    // since we want to JIT it with extra stackmaps for native debugging.
-    // On the other hand, keep all AOT code from the boot image, since the
-    // blocking JIT would results in non-negligible performance impact.
+    // since we want to JIT it (at first use) with extra stackmaps for native
+    // debugging. We keep however all AOT code from the boot image,
+    // since the JIT-at-first-use is blocking and would result in non-negligible
+    // startup performance impact.
     return !runtime->GetHeap()->IsInBootImageOatFile(quick_code);
-  }
-
-  if (Dbg::IsDebuggerActive()) {
-    // Boot image classes may be AOT-compiled as non-debuggable.
-    // This is not suitable for the Java debugger, so ignore the AOT code.
-    return runtime->GetHeap()->IsInBootImageOatFile(quick_code);
   }
 
   return false;
