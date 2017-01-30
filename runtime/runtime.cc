@@ -244,7 +244,7 @@ Runtime::Runtime()
       force_native_bridge_(false),
       is_native_bridge_loaded_(false),
       is_native_debuggable_(false),
-      is_java_debuggable_(false),
+      is_fully_deoptable_(false),
       zygote_max_failed_boots_(0),
       experimental_flags_(ExperimentalFlags::kNone),
       oat_file_manager_(nullptr),
@@ -825,6 +825,14 @@ bool Runtime::IsShuttingDown(Thread* self) {
   return IsShuttingDownLocked();
 }
 
+bool Runtime::IsDebuggable() const {
+  if (IsFullyDeoptable()) {
+    return true;
+  }
+  const OatFile* oat_file = GetOatFileManager().GetPrimaryOatFile();
+  return oat_file != nullptr && oat_file->IsDebuggable();
+}
+
 void Runtime::StartDaemonThreads() {
   ScopedTrace trace(__FUNCTION__);
   VLOG(startup) << "Runtime::StartDaemonThreads entering";
@@ -1030,12 +1038,6 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
 
   compiler_executable_ = runtime_options.ReleaseOrDefault(Opt::Compiler);
   compiler_options_ = runtime_options.ReleaseOrDefault(Opt::CompilerOptions);
-  for (StringPiece option : Runtime::Current()->GetCompilerOptions()) {
-    if (option.starts_with("--debuggable")) {
-      SetJavaDebuggable(true);
-      break;
-    }
-  }
   image_compiler_options_ = runtime_options.ReleaseOrDefault(Opt::ImageCompilerOptions);
   image_location_ = runtime_options.GetOrDefault(Opt::Image);
 
@@ -1049,6 +1051,8 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
 
   verify_ = runtime_options.GetOrDefault(Opt::Verify);
   allow_dex_file_fallback_ = !runtime_options.Exists(Opt::NoDexFileFallback);
+
+  is_fully_deoptable_ = runtime_options.Exists(Opt::FullyDeoptable);
 
   no_sig_chain_ = runtime_options.Exists(Opt::NoSigChain);
   force_native_bridge_ = runtime_options.Exists(Opt::ForceNativeBridge);
@@ -1254,11 +1258,6 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
       ScopedTrace trace2("AddImageStringsToTable");
       GetInternTable()->AddImagesStringsToTable(heap_->GetBootImageSpaces());
     }
-    if (IsJavaDebuggable()) {
-      // Now that we have loaded the boot image, deoptimize its methods if we are running
-      // debuggable, as the code may have been compiled non-debuggable.
-      DeoptimizeBootImage();
-    }
   } else {
     std::vector<std::string> dex_filenames;
     Split(boot_class_path_string_, ':', &dex_filenames);
@@ -1405,7 +1404,7 @@ static bool EnsureJvmtiPlugin(Runtime* runtime,
   }
 
   // Is the process debuggable? Otherwise, do not attempt to load the plugin.
-  if (!runtime->IsJavaDebuggable()) {
+  if (!runtime->IsDebuggable()) {
     *error_msg = "Process is not debuggable.";
     return false;
   }
@@ -2205,15 +2204,9 @@ bool Runtime::IsVerificationSoftFail() const {
   return verify_ == verifier::VerifyMode::kSoftFail;
 }
 
-bool Runtime::IsAsyncDeoptimizeable(uintptr_t code) const {
-  // We only support async deopt (ie the compiled code is not explicitly asking for
-  // deopt, but something else like the debugger) in debuggable JIT code.
-  // We could look at the oat file where `code` is being defined,
-  // and check whether it's been compiled debuggable, but we decided to
-  // only rely on the JIT for debuggable apps.
-  return IsJavaDebuggable() &&
-      GetJit() != nullptr &&
-      GetJit()->GetCodeCache()->ContainsPc(reinterpret_cast<const void*>(code));
+bool Runtime::IsDeoptimizeable(uintptr_t code) const
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  return !heap_->IsInBootImageOatFile(reinterpret_cast<void *>(code));
 }
 
 LinearAlloc* Runtime::CreateLinearAlloc() {
@@ -2295,45 +2288,6 @@ void Runtime::Aborter(const char* abort_message) {
 
 RuntimeCallbacks* Runtime::GetRuntimeCallbacks() {
   return callbacks_.get();
-}
-
-// Used to patch boot image method entry point to interpreter bridge.
-class UpdateEntryPointsClassVisitor : public ClassVisitor {
- public:
-  explicit UpdateEntryPointsClassVisitor(instrumentation::Instrumentation* instrumentation)
-      : instrumentation_(instrumentation) {}
-
-  bool operator()(ObjPtr<mirror::Class> klass) OVERRIDE REQUIRES(Locks::mutator_lock_) {
-    auto pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
-    for (auto& m : klass->GetMethods(pointer_size)) {
-      const void* code = m.GetEntryPointFromQuickCompiledCode();
-      if (Runtime::Current()->GetHeap()->IsInBootImageOatFile(code) &&
-          !m.IsNative() &&
-          !m.IsProxyMethod()) {
-        instrumentation_->UpdateMethodsCodeForJavaDebuggable(&m, GetQuickToInterpreterBridge());
-      }
-    }
-    return true;
-  }
-
- private:
-  instrumentation::Instrumentation* const instrumentation_;
-};
-
-void Runtime::SetJavaDebuggable(bool value) {
-  is_java_debuggable_ = value;
-  // Do not call DeoptimizeBootImage just yet, the runtime may still be starting up.
-}
-
-void Runtime::DeoptimizeBootImage() {
-  // If we've already started and we are setting this runtime to debuggable,
-  // we patch entry points of methods in boot image to interpreter bridge, as
-  // boot image code may be AOT compiled as not debuggable.
-  if (!GetInstrumentation()->IsForcedInterpretOnly()) {
-    ScopedObjectAccess soa(Thread::Current());
-    UpdateEntryPointsClassVisitor visitor(GetInstrumentation());
-    GetClassLinker()->VisitClasses(&visitor);
-  }
 }
 
 }  // namespace art

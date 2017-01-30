@@ -2852,16 +2852,13 @@ void Thread::QuickDeliverException() {
   if (Dbg::IsForcedInterpreterNeededForException(this)) {
     NthCallerVisitor visitor(this, 0, false);
     visitor.WalkStack();
-    if (Runtime::Current()->IsAsyncDeoptimizeable(visitor.caller_pc)) {
+    if (Runtime::Current()->IsDeoptimizeable(visitor.caller_pc)) {
       // Save the exception into the deoptimization context so it can be restored
       // before entering the interpreter.
       PushDeoptimizationContext(
           JValue(), /*is_reference */ false, /* from_code */ false, exception);
       artDeoptimize(this);
       UNREACHABLE();
-    } else {
-      LOG(WARNING) << "Got a deoptimization request on un-deoptimizable method "
-                   << visitor.caller->PrettyMethod();
     }
   }
 
