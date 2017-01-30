@@ -57,14 +57,18 @@ static bool IsIntAndGet(HInstruction* instruction, int64_t* value) {
   return false;
 }
 
-/** Returns b^e for b,e >= 1. */
-static int64_t IntPow(int64_t b, int64_t e) {
+/** Returns b^e for b,e >= 1. Sets overflow if arithmetic wrap-around occurred. */
+static int64_t IntPow(int64_t b, int64_t e, /*out*/ bool* overflow) {
   DCHECK_GE(b, 1);
   DCHECK_GE(e, 1);
   int64_t pow = 1;
   while (e) {
     if (e & 1) {
+      int64_t oldpow = pow;
       pow *= b;
+      if (pow < oldpow) {
+        *overflow = true;
+      }
     }
     e >>= 1;
     b *= b;
@@ -1020,20 +1024,27 @@ bool InductionVarRange::GenerateLastValueGeometric(HInductionVarAnalysis::Induct
     HInstruction* opb = nullptr;
     if (GenerateCode(info->op_a, nullptr, graph, block, &opa, false, false) &&
         GenerateCode(info->op_b, nullptr, graph, block, &opb, false, false)) {
-      // Compute f ^ m for known maximum index value m.
-      int64_t fpow = IntPow(f, m);
       if (graph != nullptr) {
-        DCHECK(info->operation == HInductionVarAnalysis::kMul ||
-               info->operation == HInductionVarAnalysis::kDiv);
         Primitive::Type type = info->type;
+        // Compute f ^ m for known maximum index value m.
+        bool overflow = false;
+        int64_t fpow = IntPow(f, m, &overflow);
+        if (info->operation == HInductionVarAnalysis::kDiv) {
+          // For division, any overflow truncates to zero.
+          if (overflow || (type != Primitive::kPrimLong && !CanLongValueFitIntoInt(fpow))) {
+            fpow = 0;
+          }
+        } else if (type != Primitive::kPrimLong) {
+          // For multiplication, okay to truncate to required precision.
+          DCHECK(info->operation == HInductionVarAnalysis::kMul);
+          fpow = static_cast<int32_t>(fpow);
+        }
+        // Generate code.
         if (fpow == 0) {
           // Special case: repeated mul/div always yields zero.
           *result = graph->GetConstant(type, 0);
         } else {
           // Last value: a * f ^ m + b or a * f ^ -m + b.
-          if (type != Primitive::kPrimLong) {
-            fpow = static_cast<int32_t>(fpow);  // okay to truncate
-          }
           HInstruction* e = nullptr;
           if (info->operation == HInductionVarAnalysis::kMul) {
             e = new (graph->GetArena()) HMul(type, opa, graph->GetConstant(type, fpow));
