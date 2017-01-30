@@ -34,7 +34,7 @@ class VerifiedMethod;
 
 class DexCompilationUnit : public DeletableArenaObject<kArenaAllocMisc> {
  public:
-  DexCompilationUnit(jobject class_loader,
+  DexCompilationUnit(Handle<mirror::ClassLoader> class_loader,
                      ClassLinker* class_linker,
                      const DexFile& dex_file,
                      const DexFile::CodeItem* code_item,
@@ -44,7 +44,7 @@ class DexCompilationUnit : public DeletableArenaObject<kArenaAllocMisc> {
                      const VerifiedMethod* verified_method,
                      Handle<mirror::DexCache> dex_cache);
 
-  jobject GetClassLoader() const {
+  Handle<mirror::ClassLoader> GetClassLoader() const {
     return class_loader_;
   }
 
@@ -113,7 +113,7 @@ class DexCompilationUnit : public DeletableArenaObject<kArenaAllocMisc> {
   }
 
  private:
-  const jobject class_loader_;
+  const Handle<mirror::ClassLoader> class_loader_;
 
   ClassLinker* const class_linker_;
 
@@ -125,7 +125,7 @@ class DexCompilationUnit : public DeletableArenaObject<kArenaAllocMisc> {
   const uint32_t access_flags_;
   const VerifiedMethod* verified_method_;
 
-  Handle<mirror::DexCache> dex_cache_;
+  const Handle<mirror::DexCache> dex_cache_;
 
   std::string symbol_;
 };

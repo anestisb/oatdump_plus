@@ -1060,6 +1060,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
   WriteCodeMethodVisitor(OatWriter* writer, OutputStream* out, const size_t file_offset,
                          size_t relative_offset) SHARED_LOCK_FUNCTION(Locks::mutator_lock_)
     : OatDexMethodVisitor(writer, relative_offset),
+      class_loader_(writer->HasImage() ? writer->image_writer_->GetClassLoader() : nullptr),
       out_(out),
       file_offset_(file_offset),
       soa_(Thread::Current()),
@@ -1245,12 +1246,13 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
   }
 
  private:
+  ObjPtr<mirror::ClassLoader> class_loader_;
   OutputStream* const out_;
   const size_t file_offset_;
   const ScopedObjectAccess soa_;
   const ScopedAssertNoThreadSuspension no_thread_suspension_;
   ClassLinker* const class_linker_;
-  mirror::DexCache* dex_cache_;
+  ObjPtr<mirror::DexCache> dex_cache_;
   std::vector<uint8_t> patched_code_;
 
   void ReportWriteFailure(const char* what, const ClassDataItemIterator& it) {
@@ -1261,7 +1263,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
   ArtMethod* GetTargetMethod(const LinkerPatch& patch)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     MethodReference ref = patch.TargetMethod();
-    mirror::DexCache* dex_cache =
+    ObjPtr<mirror::DexCache> dex_cache =
         (dex_file_ == ref.dex_file) ? dex_cache_ : class_linker_->FindDexCache(
             Thread::Current(), *ref.dex_file);
     ArtMethod* method = dex_cache->GetResolvedMethod(
@@ -1295,7 +1297,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
     return target_offset;
   }
 
-  mirror::DexCache* GetDexCache(const DexFile* target_dex_file)
+  ObjPtr<mirror::DexCache> GetDexCache(const DexFile* target_dex_file)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     return (target_dex_file == dex_file_)
         ? dex_cache_
@@ -1303,10 +1305,12 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
   }
 
   mirror::Class* GetTargetType(const LinkerPatch& patch) REQUIRES_SHARED(Locks::mutator_lock_) {
-    mirror::DexCache* dex_cache = GetDexCache(patch.TargetTypeDexFile());
-    mirror::Class* type = dex_cache->GetResolvedType(patch.TargetTypeIndex());
+    DCHECK(writer_->HasImage());
+    ObjPtr<mirror::DexCache> dex_cache = GetDexCache(patch.TargetTypeDexFile());
+    ObjPtr<mirror::Class> type =
+        ClassLinker::LookupResolvedType(patch.TargetTypeIndex(), dex_cache, class_loader_);
     CHECK(type != nullptr);
-    return type;
+    return type.Ptr();
   }
 
   mirror::String* GetTargetString(const LinkerPatch& patch) REQUIRES_SHARED(Locks::mutator_lock_) {

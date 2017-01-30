@@ -1225,9 +1225,9 @@ class ImageSpaceLoader {
           }
           dex_cache->FixupStrings<kWithoutReadBarrier>(new_strings, fixup_adapter);
         }
-        GcRoot<mirror::Class>* types = dex_cache->GetResolvedTypes();
+        mirror::TypeDexCacheType* types = dex_cache->GetResolvedTypes();
         if (types != nullptr) {
-          GcRoot<mirror::Class>* new_types = fixup_adapter.ForwardObject(types);
+          mirror::TypeDexCacheType* new_types = fixup_adapter.ForwardObject(types);
           if (types != new_types) {
             dex_cache->SetResolvedTypes(new_types);
           }
