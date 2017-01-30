@@ -27,6 +27,7 @@ namespace jit {
   class JitCodeCache;
 }
 namespace mirror {
+  class ClassLoader;
   class DexCache;
 }
 
@@ -63,7 +64,7 @@ class Compiler {
                                   InvokeType invoke_type,
                                   uint16_t class_def_idx,
                                   uint32_t method_idx,
-                                  jobject class_loader,
+                                  Handle<mirror::ClassLoader> class_loader,
                                   const DexFile& dex_file,
                                   Handle<mirror::DexCache> dex_cache) const = 0;
 

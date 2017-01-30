@@ -643,8 +643,8 @@ void PatchOat::PatchDexFileArrays(mirror::ObjectArray<mirror::Object>* img_roots
     if (orig_strings != nullptr) {
       orig_dex_cache->FixupStrings(RelocatedCopyOf(orig_strings), RelocatedPointerVisitor(this));
     }
-    GcRoot<mirror::Class>* orig_types = orig_dex_cache->GetResolvedTypes();
-    GcRoot<mirror::Class>* relocated_types = RelocatedAddressOfPointer(orig_types);
+    mirror::TypeDexCacheType* orig_types = orig_dex_cache->GetResolvedTypes();
+    mirror::TypeDexCacheType* relocated_types = RelocatedAddressOfPointer(orig_types);
     copy_dex_cache->SetField64<false>(
         mirror::DexCache::ResolvedTypesOffset(),
         static_cast<int64_t>(reinterpret_cast<uintptr_t>(relocated_types)));

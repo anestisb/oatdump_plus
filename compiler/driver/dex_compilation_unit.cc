@@ -21,7 +21,7 @@
 
 namespace art {
 
-DexCompilationUnit::DexCompilationUnit(jobject class_loader,
+DexCompilationUnit::DexCompilationUnit(Handle<mirror::ClassLoader> class_loader,
                                        ClassLinker* class_linker,
                                        const DexFile& dex_file,
                                        const DexFile::CodeItem* code_item,
