@@ -594,7 +594,7 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
       VLOG(jit) << "JIT discarded jitted code due to invalid single-implementation assumptions.";
       return nullptr;
     }
-    DCHECK(cha_single_implementation_list.empty() || !Runtime::Current()->IsDebuggable())
+    DCHECK(cha_single_implementation_list.empty() || !Runtime::Current()->IsJavaDebuggable())
         << "Should not be using cha on debuggable apps/runs!";
 
     for (ArtMethod* single_impl : cha_single_implementation_list) {

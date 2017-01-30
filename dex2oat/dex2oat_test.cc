@@ -125,7 +125,7 @@ class Dex2oatTest : public Dex2oatEnvironmentTest {
       class_path = OatFile::kSpecialSharedLibrary;
     }
     argv.push_back(class_path);
-    if (runtime->IsDebuggable()) {
+    if (runtime->IsJavaDebuggable()) {
       argv.push_back("--debuggable");
     }
     runtime->AddCurrentRuntimeFeaturesAsDex2OatArguments(&argv);
