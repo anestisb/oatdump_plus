@@ -591,7 +591,7 @@ class Dex2oatLayoutTest : public Dex2oatTest {
     GenerateProfile(profile_location, dex_location, dex_file->GetLocationChecksum());
 
     const std::vector<std::string>& extra_args = { "--profile-file=" + profile_location };
-    GenerateOdexForTest(dex_location, odex_location, CompilerFilter::kLayoutProfile, extra_args);
+    GenerateOdexForTest(dex_location, odex_location, CompilerFilter::kSpeedProfile, extra_args);
 
     CheckValidity();
     ASSERT_TRUE(success_);
@@ -632,7 +632,7 @@ class Dex2oatLayoutTest : public Dex2oatTest {
       EXPECT_EQ(old_class1, new_class0);
     }
 
-    EXPECT_EQ(odex_file->GetCompilerFilter(), CompilerFilter::kLayoutProfile);
+    EXPECT_EQ(odex_file->GetCompilerFilter(), CompilerFilter::kSpeedProfile);
   }
 
     // Check whether the dex2oat run was really successful.
