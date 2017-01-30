@@ -455,7 +455,6 @@ size_t ThreadList::FlipThreadRoots(Closure* thread_flip_visitor,
                                    Closure* flip_callback,
                                    gc::collector::GarbageCollector* collector) {
   TimingLogger::ScopedTiming split("ThreadListFlip", collector->GetTimings());
-  const uint64_t start_time = NanoTime();
   Thread* self = Thread::Current();
   Locks::mutator_lock_->AssertNotHeld(self);
   Locks::thread_list_lock_->AssertNotHeld(self);
@@ -464,13 +463,17 @@ size_t ThreadList::FlipThreadRoots(Closure* thread_flip_visitor,
 
   collector->GetHeap()->ThreadFlipBegin(self);  // Sync with JNI critical calls.
 
+  // ThreadFlipBegin happens before we suspend all the threads, so it does not count towards the
+  // pause.
+  const uint64_t suspend_start_time = NanoTime();
   SuspendAllInternal(self, self, nullptr);
 
   // Run the flip callback for the collector.
   Locks::mutator_lock_->ExclusiveLock(self);
+  suspend_all_historam_.AdjustAndAddValue(NanoTime() - suspend_start_time);
   flip_callback->Run(self);
   Locks::mutator_lock_->ExclusiveUnlock(self);
-  collector->RegisterPause(NanoTime() - start_time);
+  collector->RegisterPause(NanoTime() - suspend_start_time);
 
   // Resume runnable threads.
   size_t runnable_thread_count = 0;
@@ -629,8 +632,9 @@ void ThreadList::SuspendAllInternal(Thread* self,
     MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
     // Update global suspend all state for attaching threads.
     ++suspend_all_count_;
-    if (debug_suspend)
+    if (debug_suspend) {
       ++debug_suspend_all_count_;
+    }
     pending_threads.StoreRelaxed(list_.size() - num_ignored);
     // Increment everybody's suspend count (except those that should be ignored).
     for (const auto& thread : list_) {
