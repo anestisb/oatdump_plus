@@ -55,6 +55,17 @@ extern "C" void art_quick_invoke_stub(ArtMethod*, uint32_t*, uint32_t, Thread*, 
 extern "C" void art_quick_invoke_static_stub(ArtMethod*, uint32_t*, uint32_t, Thread*, JValue*,
                                              const char*);
 
+ArtMethod* ArtMethod::GetNonObsoleteMethod() {
+  DCHECK_EQ(kRuntimePointerSize, Runtime::Current()->GetClassLinker()->GetImagePointerSize());
+  if (LIKELY(!IsObsolete())) {
+    return this;
+  } else if (IsDirect()) {
+    return &GetDeclaringClass()->GetDirectMethodsSlice(kRuntimePointerSize)[GetMethodIndex()];
+  } else {
+    return GetDeclaringClass()->GetVTableEntry(GetMethodIndex(), kRuntimePointerSize);
+  }
+}
+
 ArtMethod* ArtMethod::GetSingleImplementation(PointerSize pointer_size) {
   DCHECK(!IsNative());
   if (!IsAbstract()) {
