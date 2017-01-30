@@ -47,12 +47,12 @@ class MipsRelativePatcherTest : public RelativePatcherTest {
 
 const uint8_t MipsRelativePatcherTest::kUnpatchedPcRelativeRawCode[] = {
     0x00, 0x00, 0x10, 0x04,  // nal
-    0x34, 0x12, 0x12, 0x3C,  // lui  s2, high(diff); placeholder = 0x1234
-    0x78, 0x56, 0x52, 0x36,  // ori  s2, s2, low(diff); placeholder = 0x5678
-    0x21, 0x90, 0x5F, 0x02,  // addu s2, s2, ra
+    0x34, 0x12, 0x12, 0x3C,  // lui   s2, high(diff); placeholder = 0x1234
+    0x21, 0x90, 0x5F, 0x02,  // addu  s2, s2, ra
+    0x78, 0x56, 0x52, 0x26,  // addiu s2, s2, low(diff); placeholder = 0x5678
 };
 const uint32_t MipsRelativePatcherTest::kLiteralOffset = 4;  // At lui (where patching starts).
-const uint32_t MipsRelativePatcherTest::kAnchorOffset = 8;  // At ori (where PC+0 points).
+const uint32_t MipsRelativePatcherTest::kAnchorOffset = 8;  // At addu (where PC+0 points).
 const ArrayRef<const uint8_t> MipsRelativePatcherTest::kUnpatchedPcRelativeCode(
     kUnpatchedPcRelativeRawCode);
 
@@ -68,12 +68,13 @@ void MipsRelativePatcherTest::CheckPcRelativePatch(const ArrayRef<const LinkerPa
   if (patches[0].GetType() == LinkerPatch::Type::kDexCacheArray) {
     diff += kDexCacheArrayLwOffset;
   }
+  diff += (diff & 0x8000) << 1;  // Account for sign extension in addiu.
 
   const uint8_t expected_code[] = {
       0x00, 0x00, 0x10, 0x04,
       static_cast<uint8_t>(diff >> 16), static_cast<uint8_t>(diff >> 24), 0x12, 0x3C,
-      static_cast<uint8_t>(diff), static_cast<uint8_t>(diff >> 8), 0x52, 0x36,
       0x21, 0x90, 0x5F, 0x02,
+      static_cast<uint8_t>(diff), static_cast<uint8_t>(diff >> 8), 0x52, 0x26,
   };
   EXPECT_TRUE(CheckLinkedMethod(MethodRef(1u), ArrayRef<const uint8_t>(expected_code)));
 }
