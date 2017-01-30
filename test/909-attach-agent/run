@@ -22,10 +22,12 @@ if  [[ "$@" == *"-O"* ]]; then
 fi
 
 ./default-run "$@" --android-runtime-option -Xplugin:${plugin} \
-                   --android-runtime-option -Xfully-deoptable \
+                   --android-runtime-option -Xcompiler-option \
+                   --android-runtime-option --debuggable \
                    --args agent:${agent}=909-attach-agent
 
-./default-run "$@" --android-runtime-option -Xfully-deoptable \
+./default-run "$@" --android-runtime-option -Xcompiler-option \
+                   --android-runtime-option --debuggable \
                    --args agent:${agent}=909-attach-agent
 
 ./default-run "$@" --args agent:${agent}=909-attach-agent

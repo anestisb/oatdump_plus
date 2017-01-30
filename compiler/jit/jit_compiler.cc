@@ -102,7 +102,7 @@ JitCompiler::JitCompiler() {
       /* no_inline_from */ nullptr,
       /* include_patch_information */ false,
       CompilerOptions::kDefaultTopKProfileThreshold,
-      Runtime::Current()->IsDebuggable(),
+      Runtime::Current()->IsJavaDebuggable(),
       CompilerOptions::kDefaultGenerateDebugInfo,
       /* implicit_null_checks */ true,
       /* implicit_so_checks */ true,
