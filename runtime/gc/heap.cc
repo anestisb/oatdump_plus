@@ -3352,7 +3352,7 @@ void Heap::PreGcVerificationPaused(collector::GarbageCollector* gc) {
 
 void Heap::PreGcVerification(collector::GarbageCollector* gc) {
   if (verify_pre_gc_heap_ || verify_missing_card_marks_ || verify_mod_union_table_) {
-    collector::GarbageCollector::ScopedPause pause(gc);
+    collector::GarbageCollector::ScopedPause pause(gc, false);
     PreGcVerificationPaused(gc);
   }
 }
@@ -3420,7 +3420,7 @@ void Heap::PostGcVerificationPaused(collector::GarbageCollector* gc) {
 
 void Heap::PostGcVerification(collector::GarbageCollector* gc) {
   if (verify_system_weaks_ || verify_post_gc_rosalloc_ || verify_post_gc_heap_) {
-    collector::GarbageCollector::ScopedPause pause(gc);
+    collector::GarbageCollector::ScopedPause pause(gc, false);
     PostGcVerificationPaused(gc);
   }
 }
