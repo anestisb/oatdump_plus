@@ -99,7 +99,7 @@ inline mirror::Class* ClassLinker::ResolveType(dex::TypeIndex type_idx, ArtMetho
   if (UNLIKELY(resolved_type == nullptr)) {
     StackHandleScope<2> hs(Thread::Current());
     ObjPtr<mirror::Class> declaring_class = referrer->GetDeclaringClass();
-    Handle<mirror::DexCache> dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
+    Handle<mirror::DexCache> dex_cache(hs.NewHandle(referrer->GetDexCache()));
     Handle<mirror::ClassLoader> class_loader(hs.NewHandle(declaring_class->GetClassLoader()));
     const DexFile& dex_file = *dex_cache->GetDexFile();
     resolved_type = ResolveType(dex_file, type_idx, dex_cache, class_loader);
@@ -146,7 +146,7 @@ inline ArtMethod* ClassLinker::ResolveMethod(Thread* self,
   if (UNLIKELY(resolved_method == nullptr)) {
     ObjPtr<mirror::Class> declaring_class = referrer->GetDeclaringClass();
     StackHandleScope<2> hs(self);
-    Handle<mirror::DexCache> h_dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
+    Handle<mirror::DexCache> h_dex_cache(hs.NewHandle(referrer->GetDexCache()));
     Handle<mirror::ClassLoader> h_class_loader(hs.NewHandle(declaring_class->GetClassLoader()));
     const DexFile* dex_file = h_dex_cache->GetDexFile();
     resolved_method = ResolveMethod<kResolveMode>(*dex_file,
