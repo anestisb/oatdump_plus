@@ -305,7 +305,7 @@ class OptimizingCompiler FINAL : public Compiler {
                           InvokeType invoke_type,
                           uint16_t class_def_idx,
                           uint32_t method_idx,
-                          jobject class_loader,
+                          Handle<mirror::ClassLoader> class_loader,
                           const DexFile& dex_file,
                           Handle<mirror::DexCache> dex_cache) const OVERRIDE;
 
@@ -374,7 +374,7 @@ class OptimizingCompiler FINAL : public Compiler {
                             InvokeType invoke_type,
                             uint16_t class_def_idx,
                             uint32_t method_idx,
-                            jobject class_loader,
+                            Handle<mirror::ClassLoader> class_loader,
                             const DexFile& dex_file,
                             Handle<mirror::DexCache> dex_cache,
                             ArtMethod* method,
@@ -871,7 +871,7 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
                                               InvokeType invoke_type,
                                               uint16_t class_def_idx,
                                               uint32_t method_idx,
-                                              jobject class_loader,
+                                              Handle<mirror::ClassLoader> class_loader,
                                               const DexFile& dex_file,
                                               Handle<mirror::DexCache> dex_cache,
                                               ArtMethod* method,
@@ -942,11 +942,8 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
   const uint8_t* interpreter_metadata = nullptr;
   if (method == nullptr) {
     ScopedObjectAccess soa(Thread::Current());
-    StackHandleScope<1> hs(soa.Self());
-    Handle<mirror::ClassLoader> loader(hs.NewHandle(
-        soa.Decode<mirror::ClassLoader>(class_loader)));
     method = compiler_driver->ResolveMethod(
-        soa, dex_cache, loader, &dex_compilation_unit, method_idx, invoke_type);
+        soa, dex_cache, class_loader, &dex_compilation_unit, method_idx, invoke_type);
   }
   // For AOT compilation, we may not get a method, for example if its class is erroneous.
   // JIT should always have a method.
@@ -955,16 +952,6 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
     graph->SetArtMethod(method);
     ScopedObjectAccess soa(Thread::Current());
     interpreter_metadata = method->GetQuickenedInfo(class_linker->GetImagePointerSize());
-    dex::TypeIndex type_index = method->GetDeclaringClass()->GetDexTypeIndex();
-
-    // Update the dex cache if the type is not in it yet. Note that under AOT,
-    // the verifier must have set it, but under JIT, there's no guarantee, as we
-    // don't necessarily run the verifier.
-    // The compiler and the compiler driver assume the compiling class is
-    // in the dex cache.
-    if (dex_cache->GetResolvedType(type_index) == nullptr) {
-      dex_cache->SetResolvedType(type_index, method->GetDeclaringClass());
-    }
   }
 
   std::unique_ptr<CodeGenerator> codegen(
@@ -1044,7 +1031,7 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
                                             InvokeType invoke_type,
                                             uint16_t class_def_idx,
                                             uint32_t method_idx,
-                                            jobject jclass_loader,
+                                            Handle<mirror::ClassLoader> jclass_loader,
                                             const DexFile& dex_file,
                                             Handle<mirror::DexCache> dex_cache) const {
   CompilerDriver* compiler_driver = GetCompilerDriver();
@@ -1139,7 +1126,6 @@ bool OptimizingCompiler::JitCompile(Thread* self,
   Handle<mirror::DexCache> dex_cache(hs.NewHandle(method->GetDexCache()));
   DCHECK(method->IsCompilable());
 
-  jobject jclass_loader = class_loader.ToJObject();
   const DexFile* dex_file = method->GetDexFile();
   const uint16_t class_def_idx = method->GetClassDefIndex();
   const DexFile::CodeItem* code_item = dex_file->GetCodeItem(method->GetCodeItemOffset());
@@ -1163,7 +1149,7 @@ bool OptimizingCompiler::JitCompile(Thread* self,
                    invoke_type,
                    class_def_idx,
                    method_idx,
-                   jclass_loader,
+                   class_loader,
                    *dex_file,
                    dex_cache,
                    method,

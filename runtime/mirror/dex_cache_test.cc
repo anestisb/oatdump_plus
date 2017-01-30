@@ -51,7 +51,8 @@ TEST_F(DexCacheTest, Open) {
 
   EXPECT_TRUE(dex_cache->StaticStringSize() == dex_cache->NumStrings()
       || java_lang_dex_file_->NumStringIds() == dex_cache->NumStrings());
-  EXPECT_EQ(java_lang_dex_file_->NumTypeIds(),   dex_cache->NumResolvedTypes());
+  EXPECT_TRUE(dex_cache->StaticTypeSize() == dex_cache->NumResolvedTypes()
+      || java_lang_dex_file_->NumTypeIds() == dex_cache->NumResolvedTypes());
   EXPECT_EQ(java_lang_dex_file_->NumMethodIds(), dex_cache->NumResolvedMethods());
   EXPECT_EQ(java_lang_dex_file_->NumFieldIds(),  dex_cache->NumResolvedFields());
   EXPECT_TRUE(dex_cache->StaticMethodTypeSize() == dex_cache->NumResolvedMethodTypes()
