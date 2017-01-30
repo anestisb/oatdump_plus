@@ -47,7 +47,7 @@ class DexCacheArrayFixupsVisitor : public HGraphVisitor {
     // Computing the dex cache base for PC-relative accesses will clobber RA with
     // the NAL instruction on R2. Take a note of this before generating the method
     // entry.
-    if (!dex_cache_array_bases_.empty() && !codegen_->GetInstructionSetFeatures().IsR6()) {
+    if (!dex_cache_array_bases_.empty()) {
       codegen_->ClobberRA();
     }
   }
@@ -92,6 +92,11 @@ class DexCacheArrayFixupsVisitor : public HGraphVisitor {
 };
 
 void DexCacheArrayFixups::Run() {
+  CodeGeneratorMIPS* mips_codegen = down_cast<CodeGeneratorMIPS*>(codegen_);
+  if (mips_codegen->GetInstructionSetFeatures().IsR6()) {
+    // Do nothing for R6 because it has PC-relative addressing.
+    return;
+  }
   if (graph_->HasIrreducibleLoops()) {
     // Do not run this optimization, as irreducible loops do not work with an instruction
     // that can be live-in at the irreducible loop header.

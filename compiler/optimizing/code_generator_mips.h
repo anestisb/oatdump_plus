@@ -463,7 +463,7 @@ class CodeGeneratorMIPS : public CodeGenerator {
   Literal* DeduplicateBootImageTypeLiteral(const DexFile& dex_file, dex::TypeIndex type_index);
   Literal* DeduplicateBootImageAddressLiteral(uint32_t address);
 
-  void EmitPcRelativeAddressPlaceholder(PcRelativePatchInfo* info, Register out, Register base);
+  void EmitPcRelativeAddressPlaceholderHigh(PcRelativePatchInfo* info, Register out, Register base);
 
  private:
   Register GetInvokeStaticOrDirectExtraParameter(HInvokeStaticOrDirect* invoke, Register temp);

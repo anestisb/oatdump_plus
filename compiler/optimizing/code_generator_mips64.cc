@@ -3117,14 +3117,6 @@ void InstructionCodeGeneratorMIPS64::GenerateGcRootFieldLoad(
     Location root,
     GpuRegister obj,
     uint32_t offset) {
-  // When handling PC-relative loads, the caller calls
-  // EmitPcRelativeAddressPlaceholderHigh() and then GenerateGcRootFieldLoad().
-  // The relative patcher expects the two methods to emit the following patchable
-  // sequence of instructions in this case:
-  //   auipc reg1, 0x1234  // 0x1234 is a placeholder for offset_high.
-  //   lwu   reg2, 0x5678(reg1)  // 0x5678 is a placeholder for offset_low.
-  // TODO: Adjust GenerateGcRootFieldLoad() and its caller when this method is
-  // extended (e.g. for read barriers) so as not to break the relative patcher.
   GpuRegister root_reg = root.AsRegister<GpuRegister>();
   if (kEmitCompilerReadBarrier) {
     UNIMPLEMENTED(FATAL) << "for read barrier";
