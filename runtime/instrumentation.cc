@@ -105,10 +105,9 @@ static void UpdateEntrypoints(ArtMethod* method, const void* quick_code)
   method->SetEntryPointFromQuickCompiledCode(quick_code);
 }
 
-bool Instrumentation::NeedDebugVersionForBootImageCode(ArtMethod* method, const void* code) const
-    REQUIRES_SHARED(Locks::mutator_lock_) {
+bool Instrumentation::NeedDebugVersionFor(ArtMethod* method) const REQUIRES_SHARED(Locks::mutator_lock_) {
   return Dbg::IsDebuggerActive() &&
-         Runtime::Current()->GetHeap()->IsInBootImageOatFile(code) &&
+         Runtime::Current()->IsJavaDebuggable() &&
          !method->IsNative() &&
          !method->IsProxyMethod();
 }
@@ -132,9 +131,10 @@ void Instrumentation::InstallStubsForMethod(ArtMethod* method) {
     if ((forced_interpret_only_ || IsDeoptimized(method)) && !method->IsNative()) {
       new_quick_code = GetQuickToInterpreterBridge();
     } else if (is_class_initialized || !method->IsStatic() || method->IsConstructor()) {
-      new_quick_code = class_linker->GetQuickOatCodeFor(method);
-      if (NeedDebugVersionForBootImageCode(method, new_quick_code)) {
+      if (NeedDebugVersionFor(method)) {
         new_quick_code = GetQuickToInterpreterBridge();
+      } else {
+        new_quick_code = class_linker->GetQuickOatCodeFor(method);
       }
     } else {
       new_quick_code = GetQuickResolutionStub();
@@ -148,13 +148,14 @@ void Instrumentation::InstallStubsForMethod(ArtMethod* method) {
       // class, all its static methods code will be set to the instrumentation entry point.
       // For more details, see ClassLinker::FixupStaticTrampolines.
       if (is_class_initialized || !method->IsStatic() || method->IsConstructor()) {
-        new_quick_code = class_linker->GetQuickOatCodeFor(method);
-        if (NeedDebugVersionForBootImageCode(method, new_quick_code)) {
+        if (NeedDebugVersionFor(method)) {
           // Oat code should not be used. Don't install instrumentation stub and
           // use interpreter for instrumentation.
           new_quick_code = GetQuickToInterpreterBridge();
         } else if (entry_exit_stubs_installed_) {
           new_quick_code = GetQuickInstrumentationEntryPoint();
+        } else {
+          new_quick_code = class_linker->GetQuickOatCodeFor(method);
         }
       } else {
         new_quick_code = GetQuickResolutionStub();
@@ -731,10 +732,12 @@ void Instrumentation::UpdateMethodsCode(ArtMethod* method, const void* quick_cod
   UpdateMethodsCodeImpl(method, quick_code);
 }
 
-void Instrumentation::UpdateMethodsCodeFromDebugger(ArtMethod* method, const void* quick_code) {
-  // When debugger attaches, we may update the entry points of all methods of a class
-  // to the interpreter bridge. A method's declaring class might not be in resolved
-  // state yet in that case.
+void Instrumentation::UpdateMethodsCodeForJavaDebuggable(ArtMethod* method,
+                                                         const void* quick_code) {
+  // When the runtime is set to Java debuggable, we may update the entry points of
+  // all methods of a class to the interpreter bridge. A method's declaring class
+  // might not be in resolved state yet in that case, so we bypass the DCHECK in
+  // UpdateMethodsCode.
   UpdateMethodsCodeImpl(method, quick_code);
 }
 
@@ -819,10 +822,9 @@ void Instrumentation::Undeoptimize(ArtMethod* method) {
         !method->GetDeclaringClass()->IsInitialized()) {
       UpdateEntrypoints(method, GetQuickResolutionStub());
     } else {
-      const void* quick_code = class_linker->GetQuickOatCodeFor(method);
-      if (NeedDebugVersionForBootImageCode(method, quick_code)) {
-        quick_code = GetQuickToInterpreterBridge();
-      }
+      const void* quick_code = NeedDebugVersionFor(method)
+          ? GetQuickToInterpreterBridge()
+          : class_linker->GetQuickOatCodeFor(method);
       UpdateEntrypoints(method, quick_code);
     }
 
@@ -1114,7 +1116,7 @@ TwoWordReturn Instrumentation::PopInstrumentationStackFrame(Thread* self, uintpt
   bool deoptimize = (visitor.caller != nullptr) &&
                     (interpreter_stubs_installed_ || IsDeoptimized(visitor.caller) ||
                     Dbg::IsForcedInterpreterNeededForUpcall(self, visitor.caller));
-  if (deoptimize && Runtime::Current()->IsDeoptimizeable(*return_pc)) {
+  if (deoptimize && Runtime::Current()->IsAsyncDeoptimizeable(*return_pc)) {
     if (kVerboseInstrumentation) {
       LOG(INFO) << "Deoptimizing "
                 << visitor.caller->PrettyMethod()
@@ -1132,6 +1134,10 @@ TwoWordReturn Instrumentation::PopInstrumentationStackFrame(Thread* self, uintpt
     return GetTwoWordSuccessValue(*return_pc,
                                   reinterpret_cast<uintptr_t>(GetQuickDeoptimizationEntryPoint()));
   } else {
+    if (deoptimize && !Runtime::Current()->IsAsyncDeoptimizeable(*return_pc)) {
+      LOG(WARNING) << "Got a deoptimization request on un-deoptimizable " << method->PrettyMethod()
+                   << " at PC " << reinterpret_cast<void*>(*return_pc);
+    }
     if (kVerboseInstrumentation) {
       LOG(INFO) << "Returning from " << method->PrettyMethod()
                 << " to PC " << reinterpret_cast<void*>(*return_pc);

@@ -47,7 +47,7 @@ class TestVisitor : public StackVisitor {
       uint32_t value = 0;
       if (GetCurrentQuickFrame() != nullptr &&
           GetCurrentOatQuickMethodHeader()->IsOptimized() &&
-          !Runtime::Current()->IsDebuggable()) {
+          !Runtime::Current()->IsJavaDebuggable()) {
         CHECK_EQ(GetVReg(m, dex_register_of_first_parameter, kIntVReg, &value), false);
       } else {
         CHECK(GetVReg(m, dex_register_of_first_parameter, kIntVReg, &value));

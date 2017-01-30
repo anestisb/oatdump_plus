@@ -71,7 +71,7 @@ static void EnableDebugger() {
 static void EnableDebugFeatures(uint32_t debug_flags) {
   // Must match values in com.android.internal.os.Zygote.
   enum {
-    DEBUG_ENABLE_DEBUGGER           = 1,
+    DEBUG_ENABLE_JDWP               = 1,
     DEBUG_ENABLE_CHECKJNI           = 1 << 1,
     DEBUG_ENABLE_ASSERT             = 1 << 2,
     DEBUG_ENABLE_SAFEMODE           = 1 << 3,
@@ -79,6 +79,7 @@ static void EnableDebugFeatures(uint32_t debug_flags) {
     DEBUG_GENERATE_DEBUG_INFO       = 1 << 5,
     DEBUG_ALWAYS_JIT                = 1 << 6,
     DEBUG_NATIVE_DEBUGGABLE         = 1 << 7,
+    DEBUG_JAVA_DEBUGGABLE           = 1 << 8,
   };
 
   Runtime* const runtime = Runtime::Current();
@@ -100,11 +101,11 @@ static void EnableDebugFeatures(uint32_t debug_flags) {
     debug_flags &= ~DEBUG_ENABLE_JNI_LOGGING;
   }
 
-  Dbg::SetJdwpAllowed((debug_flags & DEBUG_ENABLE_DEBUGGER) != 0);
-  if ((debug_flags & DEBUG_ENABLE_DEBUGGER) != 0) {
+  Dbg::SetJdwpAllowed((debug_flags & DEBUG_ENABLE_JDWP) != 0);
+  if ((debug_flags & DEBUG_ENABLE_JDWP) != 0) {
     EnableDebugger();
   }
-  debug_flags &= ~DEBUG_ENABLE_DEBUGGER;
+  debug_flags &= ~DEBUG_ENABLE_JDWP;
 
   const bool safe_mode = (debug_flags & DEBUG_ENABLE_SAFEMODE) != 0;
   if (safe_mode) {
@@ -128,6 +129,14 @@ static void EnableDebugFeatures(uint32_t debug_flags) {
     CHECK(jit_options != nullptr);
     jit_options->SetJitAtFirstUse();
     debug_flags &= ~DEBUG_ALWAYS_JIT;
+  }
+
+  if ((debug_flags & DEBUG_JAVA_DEBUGGABLE) != 0) {
+    runtime->AddCompilerOption("--debuggable");
+    runtime->SetJavaDebuggable(true);
+    // Deoptimize the boot image as it may be non-debuggable.
+    runtime->DeoptimizeBootImage();
+    debug_flags &= ~DEBUG_JAVA_DEBUGGABLE;
   }
 
   if ((debug_flags & DEBUG_NATIVE_DEBUGGABLE) != 0) {
