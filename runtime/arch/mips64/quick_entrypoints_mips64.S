@@ -1416,296 +1416,77 @@ ENTRY art_quick_aput_obj
     move   $a2, rSELF               # pass Thread::Current
 END art_quick_aput_obj
 
-    /*
-     * Called by managed code to resolve a static field and load a boolean primitive value.
-     */
-    .extern artGetBooleanStaticFromCode
-ENTRY art_quick_get_boolean_static
-    SETUP_SAVE_REFS_ONLY_FRAME           # save callee saves in case of GC
-    ld     $a1, FRAME_SIZE_SAVE_REFS_ONLY($sp)  # pass referrer's Method*
-    jal    artGetBooleanStaticFromCode   # (uint32_t field_idx, const Method* referrer, Thread*)
-    move   $a2, rSELF                    # pass Thread::Current
-    RETURN_IF_NO_EXCEPTION
-END art_quick_get_boolean_static
+// Macros taking opportunity of code similarities for downcalls.
+.macro ONE_ARG_REF_DOWNCALL name, entrypoint, return, extend=0
+    .extern \entrypoint
+ENTRY \name
+    SETUP_SAVE_REFS_ONLY_FRAME        # save callee saves in case of GC
+    dla     $t9, \entrypoint
+    jalr    $t9                       # (field_idx, Thread*)
+    move    $a1, rSELF                # pass Thread::Current
+    .if     \extend
+    sll     $v0, $v0, 0               # sign-extend 32-bit result
+    .endif
+    \return                           # RETURN_IF_NO_EXCEPTION or RETURN_IF_ZERO
+END \name
+.endm
+
+.macro TWO_ARG_REF_DOWNCALL name, entrypoint, return, extend=0
+    .extern \entrypoint
+ENTRY \name
+    SETUP_SAVE_REFS_ONLY_FRAME        # save callee saves in case of GC
+    dla     $t9, \entrypoint
+    jalr    $t9                       # (field_idx, Object*, Thread*) or
+                                      # (field_idx, new_val, Thread*)
+    move    $a2, rSELF                # pass Thread::Current
+    .if     \extend
+    sll     $v0, $v0, 0               # sign-extend 32-bit result
+    .endif
+    \return                           # RETURN_IF_NO_EXCEPTION or RETURN_IF_ZERO
+END \name
+.endm
+
+.macro THREE_ARG_REF_DOWNCALL name, entrypoint, return, extend=0
+    .extern \entrypoint
+ENTRY \name
+    SETUP_SAVE_REFS_ONLY_FRAME        # save callee saves in case of GC
+    dla     $t9, \entrypoint
+    jalr    $t9                       # (field_idx, Object*, new_val, Thread*)
+    move    $a3, rSELF                # pass Thread::Current
+    .if     \extend
+    sll     $v0, $v0, 0               # sign-extend 32-bit result
+    .endif
+    \return                           # RETURN_IF_NO_EXCEPTION or RETURN_IF_ZERO
+END \name
+.endm
 
     /*
-     * Called by managed code to resolve a static field and load a byte primitive value.
+     * Called by managed code to resolve a static/instance field and load/store a value.
      */
-    .extern artGetByteStaticFromCode
-ENTRY art_quick_get_byte_static
-    SETUP_SAVE_REFS_ONLY_FRAME           # save callee saves in case of GC
-    ld     $a1, FRAME_SIZE_SAVE_REFS_ONLY($sp)  # pass referrer's Method*
-    jal    artGetByteStaticFromCode      # (uint32_t field_idx, const Method* referrer, Thread*)
-    move   $a2, rSELF                    # pass Thread::Current
-    RETURN_IF_NO_EXCEPTION
-END art_quick_get_byte_static
-
-    /*
-     * Called by managed code to resolve a static field and load a char primitive value.
-     */
-    .extern artGetCharStaticFromCode
-ENTRY art_quick_get_char_static
-    SETUP_SAVE_REFS_ONLY_FRAME           # save callee saves in case of GC
-    ld     $a1, FRAME_SIZE_SAVE_REFS_ONLY($sp)  # pass referrer's Method*
-    jal    artGetCharStaticFromCode      # (uint32_t field_idx, const Method* referrer, Thread*)
-    move   $a2, rSELF                    # pass Thread::Current
-    RETURN_IF_NO_EXCEPTION
-END art_quick_get_char_static
-
-    /*
-     * Called by managed code to resolve a static field and load a short primitive value.
-     */
-    .extern artGetShortStaticFromCode
-ENTRY art_quick_get_short_static
-    SETUP_SAVE_REFS_ONLY_FRAME           # save callee saves in case of GC
-    ld     $a1, FRAME_SIZE_SAVE_REFS_ONLY($sp)  # pass referrer's Method*
-    jal    artGetShortStaticFromCode     # (uint32_t field_idx, const Method* referrer, Thread*)
-    move   $a2, rSELF                    # pass Thread::Current
-    RETURN_IF_NO_EXCEPTION
-END art_quick_get_short_static
-
-    /*
-     * Called by managed code to resolve a static field and load a 32-bit primitive value.
-     */
-    .extern artGet32StaticFromCode
-ENTRY art_quick_get32_static
-    SETUP_SAVE_REFS_ONLY_FRAME           # save callee saves in case of GC
-    ld     $a1, FRAME_SIZE_SAVE_REFS_ONLY($sp)  # pass referrer's Method*
-    jal    artGet32StaticFromCode        # (uint32_t field_idx, const Method* referrer, Thread*)
-    move   $a2, rSELF                    # pass Thread::Current
-    sll    $v0, $v0, 0                   # sign-extend result
-    RETURN_IF_NO_EXCEPTION
-END art_quick_get32_static
-
-    /*
-     * Called by managed code to resolve a static field and load a 64-bit primitive value.
-     */
-    .extern artGet64StaticFromCode
-ENTRY art_quick_get64_static
-    SETUP_SAVE_REFS_ONLY_FRAME           # save callee saves in case of GC
-    ld     $a1, FRAME_SIZE_SAVE_REFS_ONLY($sp)  # pass referrer's Method*
-    jal    artGet64StaticFromCode        # (uint32_t field_idx, const Method* referrer, Thread*)
-    move   $a2, rSELF                    # pass Thread::Current
-    RETURN_IF_NO_EXCEPTION
-END art_quick_get64_static
-
-    /*
-     * Called by managed code to resolve a static field and load an object reference.
-     */
-    .extern artGetObjStaticFromCode
-ENTRY art_quick_get_obj_static
-    SETUP_SAVE_REFS_ONLY_FRAME           # save callee saves in case of GC
-    ld     $a1, FRAME_SIZE_SAVE_REFS_ONLY($sp)  # pass referrer's Method*
-    jal    artGetObjStaticFromCode       # (uint32_t field_idx, const Method* referrer, Thread*)
-    move   $a2, rSELF                    # pass Thread::Current
-    RETURN_IF_NO_EXCEPTION
-END art_quick_get_obj_static
-
-    /*
-     * Called by managed code to resolve an instance field and load a boolean primitive value.
-     */
-    .extern artGetBooleanInstanceFromCode
-ENTRY art_quick_get_boolean_instance
-    SETUP_SAVE_REFS_ONLY_FRAME           # save callee saves in case of GC
-    ld     $a2, FRAME_SIZE_SAVE_REFS_ONLY($sp)  # pass referrer's Method*
-    jal    artGetBooleanInstanceFromCode # (field_idx, Object*, referrer, Thread*)
-    move   $a3, rSELF                    # pass Thread::Current
-    RETURN_IF_NO_EXCEPTION
-END art_quick_get_boolean_instance
-
-    /*
-     * Called by managed code to resolve an instance field and load a byte primitive value.
-     */
-    .extern artGetByteInstanceFromCode
-ENTRY art_quick_get_byte_instance
-    SETUP_SAVE_REFS_ONLY_FRAME           # save callee saves in case of GC
-    ld     $a2, FRAME_SIZE_SAVE_REFS_ONLY($sp)  # pass referrer's Method*
-    jal    artGetByteInstanceFromCode    # (field_idx, Object*, referrer, Thread*)
-    move   $a3, rSELF                    # pass Thread::Current
-    RETURN_IF_NO_EXCEPTION
-END art_quick_get_byte_instance
-
-    /*
-     * Called by managed code to resolve an instance field and load a char primitive value.
-     */
-    .extern artGetCharInstanceFromCode
-ENTRY art_quick_get_char_instance
-    SETUP_SAVE_REFS_ONLY_FRAME           # save callee saves in case of GC
-    ld     $a2, FRAME_SIZE_SAVE_REFS_ONLY($sp)  # pass referrer's Method*
-    jal    artGetCharInstanceFromCode    # (field_idx, Object*, referrer, Thread*)
-    move   $a3, rSELF                    # pass Thread::Current
-    RETURN_IF_NO_EXCEPTION
-END art_quick_get_char_instance
-
-    /*
-     * Called by managed code to resolve an instance field and load a short primitive value.
-     */
-    .extern artGetShortInstanceFromCode
-ENTRY art_quick_get_short_instance
-    SETUP_SAVE_REFS_ONLY_FRAME           # save callee saves in case of GC
-    ld     $a2, FRAME_SIZE_SAVE_REFS_ONLY($sp)  # pass referrer's Method*
-    jal    artGetShortInstanceFromCode   # (field_idx, Object*, referrer, Thread*)
-    move   $a3, rSELF                    # pass Thread::Current
-    RETURN_IF_NO_EXCEPTION
-END art_quick_get_short_instance
-
-    /*
-     * Called by managed code to resolve an instance field and load a 32-bit primitive value.
-     */
-    .extern artGet32InstanceFromCode
-ENTRY art_quick_get32_instance
-    SETUP_SAVE_REFS_ONLY_FRAME           # save callee saves in case of GC
-    ld     $a2, FRAME_SIZE_SAVE_REFS_ONLY($sp)  # pass referrer's Method*
-    jal    artGet32InstanceFromCode      # (field_idx, Object*, referrer, Thread*)
-    move   $a3, rSELF                    # pass Thread::Current
-    sll    $v0, $v0, 0                   # sign-extend result
-    RETURN_IF_NO_EXCEPTION
-END art_quick_get32_instance
-
-    /*
-     * Called by managed code to resolve an instance field and load a 64-bit primitive value.
-     */
-    .extern artGet64InstanceFromCode
-ENTRY art_quick_get64_instance
-    SETUP_SAVE_REFS_ONLY_FRAME           # save callee saves in case of GC
-    ld     $a2, FRAME_SIZE_SAVE_REFS_ONLY($sp)  # pass referrer's Method*
-    jal    artGet64InstanceFromCode      # (field_idx, Object*, referrer, Thread*)
-    move   $a3, rSELF                    # pass Thread::Current
-    RETURN_IF_NO_EXCEPTION
-END art_quick_get64_instance
-
-    /*
-     * Called by managed code to resolve an instance field and load an object reference.
-     */
-    .extern artGetObjInstanceFromCode
-ENTRY art_quick_get_obj_instance
-    SETUP_SAVE_REFS_ONLY_FRAME           # save callee saves in case of GC
-    ld     $a2, FRAME_SIZE_SAVE_REFS_ONLY($sp)  # pass referrer's Method*
-    jal    artGetObjInstanceFromCode     # (field_idx, Object*, referrer, Thread*)
-    move   $a3, rSELF                    # pass Thread::Current
-    RETURN_IF_NO_EXCEPTION
-END art_quick_get_obj_instance
-
-    /*
-     * Called by managed code to resolve a static field and store a 8-bit primitive value.
-     */
-    .extern artSet8StaticFromCode
-ENTRY art_quick_set8_static
-    SETUP_SAVE_REFS_ONLY_FRAME           # save callee saves in case of GC
-    ld     $a2, FRAME_SIZE_SAVE_REFS_ONLY($sp)  # pass referrer's Method*
-    jal    artSet8StaticFromCode         # (field_idx, new_val, referrer, Thread*)
-    move   $a3, rSELF                    # pass Thread::Current
-    RETURN_IF_ZERO
-END art_quick_set8_static
-
-    /*
-     * Called by managed code to resolve a static field and store a 16-bit primitive value.
-     */
-    .extern artSet16StaticFromCode
-ENTRY art_quick_set16_static
-    SETUP_SAVE_REFS_ONLY_FRAME           # save callee saves in case of GC
-    ld     $a2, FRAME_SIZE_SAVE_REFS_ONLY($sp)  # pass referrer's Method*
-    jal    artSet16StaticFromCode        # (field_idx, new_val, referrer, Thread*)
-    move   $a3, rSELF                    # pass Thread::Current
-    RETURN_IF_ZERO
-END art_quick_set16_static
-
-    /*
-     * Called by managed code to resolve a static field and store a 32-bit primitive value.
-     */
-    .extern artSet32StaticFromCode
-ENTRY art_quick_set32_static
-    SETUP_SAVE_REFS_ONLY_FRAME           # save callee saves in case of GC
-    ld     $a2, FRAME_SIZE_SAVE_REFS_ONLY($sp)  # pass referrer's Method*
-    jal    artSet32StaticFromCode        # (field_idx, new_val, referrer, Thread*)
-    move   $a3, rSELF                    # pass Thread::Current
-    RETURN_IF_ZERO
-END art_quick_set32_static
-
-    /*
-     * Called by managed code to resolve a static field and store a 64-bit primitive value.
-     */
-    .extern artSet64StaticFromCode
-ENTRY art_quick_set64_static
-    SETUP_SAVE_REFS_ONLY_FRAME           # save callee saves in case of GC
-                                         # a2 contains the new val
-    ld     $a1, FRAME_SIZE_SAVE_REFS_ONLY($sp)  # pass referrer's Method*
-    jal    artSet64StaticFromCode        # (field_idx, referrer, new_val, Thread*)
-    move   $a3, rSELF                    # pass Thread::Current
-    RETURN_IF_ZERO
-END art_quick_set64_static
-
-    /*
-     * Called by managed code to resolve a static field and store an object reference.
-     */
-    .extern artSetObjStaticFromCode
-ENTRY art_quick_set_obj_static
-    SETUP_SAVE_REFS_ONLY_FRAME           # save callee saves in case of GC
-    ld     $a2, FRAME_SIZE_SAVE_REFS_ONLY($sp)  # pass referrer's Method*
-    jal    artSetObjStaticFromCode       # (field_idx, new_val, referrer, Thread*)
-    move   $a3, rSELF                    # pass Thread::Current
-    RETURN_IF_ZERO
-END art_quick_set_obj_static
-
-    /*
-     * Called by managed code to resolve an instance field and store a 8-bit primitive value.
-     */
-    .extern artSet8InstanceFromCode
-ENTRY art_quick_set8_instance
-    SETUP_SAVE_REFS_ONLY_FRAME           # save callee saves in case of GC
-    ld     $a3, FRAME_SIZE_SAVE_REFS_ONLY($sp)  # pass referrer's Method*
-    jal    artSet8InstanceFromCode       # (field_idx, Object*, new_val, referrer, Thread*)
-    move   $a4, rSELF                    # pass Thread::Current
-    RETURN_IF_ZERO
-END art_quick_set8_instance
-
-    /*
-     * Called by managed code to resolve an instance field and store a 16-bit primitive value.
-     */
-    .extern artSet16InstanceFromCode
-ENTRY art_quick_set16_instance
-    SETUP_SAVE_REFS_ONLY_FRAME           # save callee saves in case of GC
-    ld     $a3, FRAME_SIZE_SAVE_REFS_ONLY($sp)  # pass referrer's Method*
-    jal    artSet16InstanceFromCode      # (field_idx, Object*, new_val, referrer, Thread*)
-    move   $a4, rSELF                    # pass Thread::Current
-    RETURN_IF_ZERO
-END art_quick_set16_instance
-
-    /*
-     * Called by managed code to resolve an instance field and store a 32-bit primitive value.
-     */
-    .extern artSet32InstanceFromCode
-ENTRY art_quick_set32_instance
-    SETUP_SAVE_REFS_ONLY_FRAME           # save callee saves in case of GC
-    ld     $a3, FRAME_SIZE_SAVE_REFS_ONLY($sp)  # pass referrer's Method*
-    jal    artSet32InstanceFromCode      # (field_idx, Object*, new_val, referrer, Thread*)
-    move   $a4, rSELF                    # pass Thread::Current
-    RETURN_IF_ZERO
-END art_quick_set32_instance
-
-    /*
-     * Called by managed code to resolve an instance field and store a 64-bit primitive value.
-     */
-    .extern artSet64InstanceFromCode
-ENTRY art_quick_set64_instance
-    SETUP_SAVE_REFS_ONLY_FRAME           # save callee saves in case of GC
-    ld     $a3, FRAME_SIZE_SAVE_REFS_ONLY($sp)  # pass referrer's Method*
-    jal    artSet64InstanceFromCode      # (field_idx, Object*, new_val, referrer, Thread*)
-    move   $a4, rSELF                    # pass Thread::Current
-    RETURN_IF_ZERO
-END art_quick_set64_instance
-
-    /*
-     * Called by managed code to resolve an instance field and store an object reference.
-     */
-    .extern artSetObjInstanceFromCode
-ENTRY art_quick_set_obj_instance
-    SETUP_SAVE_REFS_ONLY_FRAME           # save callee saves in case of GC
-    ld     $a3, FRAME_SIZE_SAVE_REFS_ONLY($sp)  # pass referrer's Method*
-    jal    artSetObjInstanceFromCode     # (field_idx, Object*, new_val, referrer, Thread*)
-    move   $a4, rSELF                    # pass Thread::Current
-    RETURN_IF_ZERO
-END art_quick_set_obj_instance
+ONE_ARG_REF_DOWNCALL art_quick_get_byte_static, artGetByteStaticFromCompiledCode, RETURN_IF_NO_EXCEPTION
+ONE_ARG_REF_DOWNCALL art_quick_get_boolean_static, artGetBooleanStaticFromCompiledCode, RETURN_IF_NO_EXCEPTION
+ONE_ARG_REF_DOWNCALL art_quick_get_short_static, artGetShortStaticFromCompiledCode, RETURN_IF_NO_EXCEPTION
+ONE_ARG_REF_DOWNCALL art_quick_get_char_static, artGetCharStaticFromCompiledCode, RETURN_IF_NO_EXCEPTION
+ONE_ARG_REF_DOWNCALL art_quick_get32_static, artGet32StaticFromCompiledCode, RETURN_IF_NO_EXCEPTION, 1
+ONE_ARG_REF_DOWNCALL art_quick_get_obj_static, artGetObjStaticFromCompiledCode, RETURN_IF_NO_EXCEPTION
+ONE_ARG_REF_DOWNCALL art_quick_get64_static, artGet64StaticFromCompiledCode, RETURN_IF_NO_EXCEPTION
+TWO_ARG_REF_DOWNCALL art_quick_get_byte_instance, artGetByteInstanceFromCompiledCode, RETURN_IF_NO_EXCEPTION
+TWO_ARG_REF_DOWNCALL art_quick_get_boolean_instance, artGetBooleanInstanceFromCompiledCode, RETURN_IF_NO_EXCEPTION
+TWO_ARG_REF_DOWNCALL art_quick_get_short_instance, artGetShortInstanceFromCompiledCode, RETURN_IF_NO_EXCEPTION
+TWO_ARG_REF_DOWNCALL art_quick_get_char_instance, artGetCharInstanceFromCompiledCode, RETURN_IF_NO_EXCEPTION
+TWO_ARG_REF_DOWNCALL art_quick_get32_instance, artGet32InstanceFromCompiledCode, RETURN_IF_NO_EXCEPTION, 1
+TWO_ARG_REF_DOWNCALL art_quick_get_obj_instance, artGetObjInstanceFromCompiledCode, RETURN_IF_NO_EXCEPTION
+TWO_ARG_REF_DOWNCALL art_quick_get64_instance, artGet64InstanceFromCompiledCode, RETURN_IF_NO_EXCEPTION
+TWO_ARG_REF_DOWNCALL art_quick_set8_static, artSet8StaticFromCompiledCode, RETURN_IF_ZERO
+TWO_ARG_REF_DOWNCALL art_quick_set16_static, artSet16StaticFromCompiledCode, RETURN_IF_ZERO
+TWO_ARG_REF_DOWNCALL art_quick_set32_static, artSet32StaticFromCompiledCode, RETURN_IF_ZERO
+TWO_ARG_REF_DOWNCALL art_quick_set_obj_static, artSetObjStaticFromCompiledCode, RETURN_IF_ZERO
+TWO_ARG_REF_DOWNCALL art_quick_set64_static, artSet64StaticFromCompiledCode, RETURN_IF_ZERO
+THREE_ARG_REF_DOWNCALL art_quick_set8_instance, artSet8InstanceFromCompiledCode, RETURN_IF_ZERO
+THREE_ARG_REF_DOWNCALL art_quick_set16_instance, artSet16InstanceFromCompiledCode, RETURN_IF_ZERO
+THREE_ARG_REF_DOWNCALL art_quick_set32_instance, artSet32InstanceFromCompiledCode, RETURN_IF_ZERO
+THREE_ARG_REF_DOWNCALL art_quick_set_obj_instance, artSetObjInstanceFromCompiledCode, RETURN_IF_ZERO
+THREE_ARG_REF_DOWNCALL art_quick_set64_instance, artSet64InstanceFromCompiledCode, RETURN_IF_ZERO
 
 // Macro to facilitate adding new allocation entrypoints.
 .macro ONE_ARG_DOWNCALL name, entrypoint, return
