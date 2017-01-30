@@ -1626,7 +1626,7 @@ ENTRY art_quick_resolve_string
 END art_quick_resolve_string
 
 // Generate the allocation entrypoints for each allocator.
-GENERATE_ALLOC_ENTRYPOINTS_FOR_NON_REGION_TLAB_ALLOCATORS
+GENERATE_ALLOC_ENTRYPOINTS_FOR_NON_TLAB_ALLOCATORS
 // Comment out allocators that have arm64 specific asm.
 // GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_region_tlab, RegionTLAB)
 // GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_INITIALIZED(_region_tlab, RegionTLAB)
@@ -1640,8 +1640,20 @@ GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_BYTES(_region_tlab, RegionTLAB)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_CHARS(_region_tlab, RegionTLAB)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_STRING(_region_tlab, RegionTLAB)
 
-// A hand-written override for GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_rosalloc, RosAlloc).
-ENTRY art_quick_alloc_object_resolved_rosalloc
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_tlab, TLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_INITIALIZED(_tlab, TLAB)
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_WITH_ACCESS_CHECK(_tlab, TLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED(_tlab, TLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED8(_tlab, TLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED16(_tlab, TLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED32(_tlab, TLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED64(_tlab, TLAB)
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_BYTES(_tlab, TLAB)
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_CHARS(_tlab, TLAB)
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_STRING(_tlab, TLAB)
+
+.macro ART_QUICK_ALLOC_OBJECT_ROSALLOC c_name, cxx_name
+ENTRY \c_name
     // Fast path rosalloc allocation.
     // x0: type, xSELF(x19): Thread::Current
     // x1-x7: free.
@@ -1650,13 +1662,13 @@ ENTRY art_quick_alloc_object_resolved_rosalloc
                                                               // ldp won't work due to large offset.
     ldr    x4, [xSELF, #THREAD_LOCAL_ALLOC_STACK_END_OFFSET]
     cmp    x3, x4
-    bhs    .Lart_quick_alloc_object_resolved_rosalloc_slow_path
+    bhs    .Lslow_path\c_name
     ldr    w3, [x0, #MIRROR_CLASS_OBJECT_SIZE_ALLOC_FAST_PATH_OFFSET]  // Load the object size (x3)
     cmp    x3, #ROSALLOC_MAX_THREAD_LOCAL_BRACKET_SIZE        // Check if the size is for a thread
                                                               // local allocation. Also does the
                                                               // finalizable and initialization
                                                               // checks.
-    bhs    .Lart_quick_alloc_object_resolved_rosalloc_slow_path
+    bhs    .Lslow_path\c_name
                                                               // Compute the rosalloc bracket index
                                                               // from the size. Since the size is
                                                               // already aligned we can combine the
@@ -1669,7 +1681,7 @@ ENTRY art_quick_alloc_object_resolved_rosalloc
                                                               // Load the free list head (x3). This
                                                               // will be the return val.
     ldr    x3, [x4, #(ROSALLOC_RUN_FREE_LIST_OFFSET + ROSALLOC_RUN_FREE_LIST_HEAD_OFFSET)]
-    cbz    x3, .Lart_quick_alloc_object_resolved_rosalloc_slow_path
+    cbz    x3, .Lslow_path\c_name
     // "Point of no slow path". Won't go to the slow path from here on. OK to clobber x0 and x1.
     ldr    x1, [x3, #ROSALLOC_SLOT_NEXT_OFFSET]               // Load the next pointer of the head
                                                               // and update the list head with the
@@ -1713,13 +1725,65 @@ ENTRY art_quick_alloc_object_resolved_rosalloc
 
     mov    x0, x3                                             // Set the return value and return.
     ret
-.Lart_quick_alloc_object_resolved_rosalloc_slow_path:
+.Lslow_path\c_name:
     SETUP_SAVE_REFS_ONLY_FRAME                      // save callee saves in case of GC
     mov    x1, xSELF                                // pass Thread::Current
-    bl     artAllocObjectFromCodeResolvedRosAlloc   // (mirror::Class* klass, Thread*)
+    bl     \cxx_name
     RESTORE_SAVE_REFS_ONLY_FRAME
     RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
-END art_quick_alloc_object_resolved_rosalloc
+END \c_name
+.endm
+
+ART_QUICK_ALLOC_OBJECT_ROSALLOC art_quick_alloc_object_resolved_rosalloc, artAllocObjectFromCodeResolvedRosAlloc
+ART_QUICK_ALLOC_OBJECT_ROSALLOC art_quick_alloc_object_initialized_rosalloc, artAllocObjectFromCodeInitializedRosAlloc
+
+.macro ALLOC_OBJECT_TLAB_FAST_PATH_RESOLVED slowPathLabel
+    ldr    x4, [xSELF, #THREAD_LOCAL_POS_OFFSET]
+    ldr    x5, [xSELF, #THREAD_LOCAL_END_OFFSET]
+    ldr    w7, [x0, #MIRROR_CLASS_OBJECT_SIZE_ALLOC_FAST_PATH_OFFSET]  // Load the object size (x7).
+    add    x6, x4, x7                                         // Add object size to tlab pos.
+    cmp    x6, x5                                             // Check if it fits, overflow works
+                                                              // since the tlab pos and end are 32
+                                                              // bit values.
+    bhi    \slowPathLabel
+    str    x6, [xSELF, #THREAD_LOCAL_POS_OFFSET]              // Store new thread_local_pos.
+    ldr    x5, [xSELF, #THREAD_LOCAL_OBJECTS_OFFSET]          // Increment thread_local_objects.
+    add    x5, x5, #1
+    str    x5, [xSELF, #THREAD_LOCAL_OBJECTS_OFFSET]
+    POISON_HEAP_REF w0
+    str    w0, [x4, #MIRROR_OBJECT_CLASS_OFFSET]              // Store the class pointer.
+                                                              // Fence. This is "ish" not "ishst" so
+                                                              // that the code after this allocation
+                                                              // site will see the right values in
+                                                              // the fields of the class.
+                                                              // Alternatively we could use "ishst"
+                                                              // if we use load-acquire for the
+                                                              // object size load.)
+    mov    x0, x4
+    dmb    ish
+    ret
+.endm
+
+// The common code for art_quick_alloc_object_*region_tlab
+.macro GENERATE_ALLOC_OBJECT_RESOLVED_TLAB name, entrypoint
+ENTRY \name
+    // Fast path region tlab allocation.
+    // x0: type, xSELF(x19): Thread::Current
+    // x1-x7: free.
+    ALLOC_OBJECT_TLAB_FAST_PATH_RESOLVED .Lslow_path\name
+.Lslow_path\name:
+    SETUP_SAVE_REFS_ONLY_FRAME                 // Save callee saves in case of GC.
+    mov    x1, xSELF                           // Pass Thread::Current.
+    bl     \entrypoint                         // (mirror::Class*, Thread*)
+    RESTORE_SAVE_REFS_ONLY_FRAME
+    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+END \name
+.endm
+
+GENERATE_ALLOC_OBJECT_RESOLVED_TLAB art_quick_alloc_object_resolved_region_tlab, artAllocObjectFromCodeResolvedRegionTLAB
+GENERATE_ALLOC_OBJECT_RESOLVED_TLAB art_quick_alloc_object_initialized_region_tlab, artAllocObjectFromCodeInitializedRegionTLAB
+GENERATE_ALLOC_OBJECT_RESOLVED_TLAB art_quick_alloc_object_resolved_tlab, artAllocObjectFromCodeResolvedTLAB
+GENERATE_ALLOC_OBJECT_RESOLVED_TLAB art_quick_alloc_object_initialized_tlab, artAllocObjectFromCodeInitializedTLAB
 
 .macro ALLOC_ARRAY_TLAB_FAST_PATH_RESOLVED_WITH_SIZE slowPathLabel, xClass, wClass, xCount, wCount, xTemp0, wTemp0, xTemp1, wTemp1, xTemp2, wTemp2
     and    \xTemp1, \xTemp1, #OBJECT_ALIGNMENT_MASK_TOGGLED64 // Apply alignemnt mask
@@ -1759,93 +1823,12 @@ END art_quick_alloc_object_resolved_rosalloc
     ret
 .endm
 
-// TODO: delete ALLOC_OBJECT_TLAB_FAST_PATH_RESOLVED since it is the same as
-// ALLOC_OBJECT_TLAB_FAST_PATH_INITIALIZED.
-.macro ALLOC_OBJECT_TLAB_FAST_PATH_RESOLVED slowPathLabel
-    ALLOC_OBJECT_TLAB_FAST_PATH_INITIALIZED \slowPathLabel
-.endm
-
-.macro ALLOC_OBJECT_TLAB_FAST_PATH_INITIALIZED slowPathLabel
-    ldr    x4, [xSELF, #THREAD_LOCAL_POS_OFFSET]
-    ldr    x5, [xSELF, #THREAD_LOCAL_END_OFFSET]
-    ldr    w7, [x0, #MIRROR_CLASS_OBJECT_SIZE_ALLOC_FAST_PATH_OFFSET]  // Load the object size (x7).
-    add    x6, x4, x7                                         // Add object size to tlab pos.
-    cmp    x6, x5                                             // Check if it fits, overflow works
-                                                              // since the tlab pos and end are 32
-                                                              // bit values.
-    bhi    \slowPathLabel
-    str    x6, [xSELF, #THREAD_LOCAL_POS_OFFSET]              // Store new thread_local_pos.
-    ldr    x5, [xSELF, #THREAD_LOCAL_OBJECTS_OFFSET]          // Increment thread_local_objects.
-    add    x5, x5, #1
-    str    x5, [xSELF, #THREAD_LOCAL_OBJECTS_OFFSET]
-    POISON_HEAP_REF w0
-    str    w0, [x4, #MIRROR_OBJECT_CLASS_OFFSET]              // Store the class pointer.
-                                                              // Fence. This is "ish" not "ishst" so
-                                                              // that the code after this allocation
-                                                              // site will see the right values in
-                                                              // the fields of the class.
-                                                              // Alternatively we could use "ishst"
-                                                              // if we use load-acquire for the
-                                                              // object size load.)
-    mov    x0, x4
-    dmb    ish
-    ret
-.endm
-
-// A hand-written override for GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_tlab, TLAB).
-ENTRY art_quick_alloc_object_resolved_tlab
-    // Fast path tlab allocation.
-    // x0: type, xSELF(x19): Thread::Current
-    // x1-x7: free.
-#if defined(USE_READ_BARRIER)
-    mvn    x0, xzr                                            // Read barrier not supported here.
-    ret                                                       // Return -1.
-#endif
-    ALLOC_OBJECT_TLAB_FAST_PATH_RESOLVED .Lart_quick_alloc_object_resolved_tlab_slow_path
-.Lart_quick_alloc_object_resolved_tlab_slow_path:
-    SETUP_SAVE_REFS_ONLY_FRAME                    // Save callee saves in case of GC.
-    mov    x1, xSELF                              // Pass Thread::Current.
-    bl     artAllocObjectFromCodeResolvedTLAB     // (mirror::Class*, Thread*)
-    RESTORE_SAVE_REFS_ONLY_FRAME
-    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
-END art_quick_alloc_object_resolved_tlab
-
-// The common code for art_quick_alloc_object_*region_tlab
-.macro GENERATE_ALLOC_OBJECT_RESOLVED_REGION_TLAB name, entrypoint, fast_path
-ENTRY \name
-    // Fast path region tlab allocation.
-    // x0: type, xSELF(x19): Thread::Current
-    // x1-x7: free.
-#if !defined(USE_READ_BARRIER)
-    mvn    x0, xzr                                            // Read barrier must be enabled here.
-    ret                                                       // Return -1.
-#endif
-.Ldo_allocation\name:
-    \fast_path .Lslow_path\name
-.Lslow_path\name:
-    SETUP_SAVE_REFS_ONLY_FRAME                 // Save callee saves in case of GC.
-    mov    x1, xSELF                           // Pass Thread::Current.
-    bl     \entrypoint                         // (mirror::Class*, Thread*)
-    RESTORE_SAVE_REFS_ONLY_FRAME
-    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
-END \name
-.endm
-
-GENERATE_ALLOC_OBJECT_RESOLVED_REGION_TLAB art_quick_alloc_object_resolved_region_tlab, artAllocObjectFromCodeResolvedRegionTLAB, ALLOC_OBJECT_TLAB_FAST_PATH_RESOLVED
-GENERATE_ALLOC_OBJECT_RESOLVED_REGION_TLAB art_quick_alloc_object_initialized_region_tlab, artAllocObjectFromCodeInitializedRegionTLAB, ALLOC_OBJECT_TLAB_FAST_PATH_INITIALIZED
-
-// TODO: We could use this macro for the normal tlab allocator too.
-
-.macro GENERATE_ALLOC_ARRAY_REGION_TLAB name, entrypoint, size_setup
+.macro GENERATE_ALLOC_ARRAY_TLAB name, entrypoint, size_setup
 ENTRY \name
     // Fast path array allocation for region tlab allocation.
     // x0: mirror::Class* type
     // x1: int32_t component_count
     // x2-x7: free.
-#if !defined(USE_READ_BARRIER)
-    mvn    x0, xzr                                            // Read barrier must be enabled here.
-    ret                                                       // Return -1.
-#endif
     mov    x3, x0
     \size_setup x3, w3, x1, w1, x4, w4, x5, w5, x6, w6
     ALLOC_ARRAY_TLAB_FAST_PATH_RESOLVED_WITH_SIZE .Lslow_path\name, x3, w3, x1, w1, x4, w4, x5, w5, x6, w6
@@ -1904,17 +1887,21 @@ END \name
 .macro COMPUTE_ARRAY_SIZE_64 xClass, wClass, xCount, wCount, xTemp0, wTemp0, xTemp1, wTemp1, xTemp2, wTemp2
     lsl    \xTemp1, \xCount, #3
     // Add array data offset and alignment.
-    // Add 4 to the size for 64 bit alignment.
-    add    \xTemp1, \xTemp1, #(MIRROR_INT_ARRAY_DATA_OFFSET + OBJECT_ALIGNMENT_MASK + 4)
+    add    \xTemp1, \xTemp1, #(MIRROR_WIDE_ARRAY_DATA_OFFSET + OBJECT_ALIGNMENT_MASK)
 .endm
 
 # TODO(ngeoffray): art_quick_alloc_array_resolved_region_tlab is not used for arm64, remove
 # the entrypoint once all backends have been updated to use the size variants.
-GENERATE_ALLOC_ARRAY_REGION_TLAB art_quick_alloc_array_resolved_region_tlab, artAllocArrayFromCodeResolvedRegionTLAB, COMPUTE_ARRAY_SIZE_UNKNOWN
-GENERATE_ALLOC_ARRAY_REGION_TLAB art_quick_alloc_array_resolved8_region_tlab, artAllocArrayFromCodeResolvedRegionTLAB, COMPUTE_ARRAY_SIZE_8
-GENERATE_ALLOC_ARRAY_REGION_TLAB art_quick_alloc_array_resolved16_region_tlab, artAllocArrayFromCodeResolvedRegionTLAB, COMPUTE_ARRAY_SIZE_16
-GENERATE_ALLOC_ARRAY_REGION_TLAB art_quick_alloc_array_resolved32_region_tlab, artAllocArrayFromCodeResolvedRegionTLAB, COMPUTE_ARRAY_SIZE_32
-GENERATE_ALLOC_ARRAY_REGION_TLAB art_quick_alloc_array_resolved64_region_tlab, artAllocArrayFromCodeResolvedRegionTLAB, COMPUTE_ARRAY_SIZE_64
+GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved_region_tlab, artAllocArrayFromCodeResolvedRegionTLAB, COMPUTE_ARRAY_SIZE_UNKNOWN
+GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved8_region_tlab, artAllocArrayFromCodeResolvedRegionTLAB, COMPUTE_ARRAY_SIZE_8
+GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved16_region_tlab, artAllocArrayFromCodeResolvedRegionTLAB, COMPUTE_ARRAY_SIZE_16
+GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved32_region_tlab, artAllocArrayFromCodeResolvedRegionTLAB, COMPUTE_ARRAY_SIZE_32
+GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved64_region_tlab, artAllocArrayFromCodeResolvedRegionTLAB, COMPUTE_ARRAY_SIZE_64
+GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved_tlab, artAllocArrayFromCodeResolvedTLAB, COMPUTE_ARRAY_SIZE_UNKNOWN
+GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved8_tlab, artAllocArrayFromCodeResolvedTLAB, COMPUTE_ARRAY_SIZE_8
+GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved16_tlab, artAllocArrayFromCodeResolvedTLAB, COMPUTE_ARRAY_SIZE_16
+GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved32_tlab, artAllocArrayFromCodeResolvedTLAB, COMPUTE_ARRAY_SIZE_32
+GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved64_tlab, artAllocArrayFromCodeResolvedTLAB, COMPUTE_ARRAY_SIZE_64
 
     /*
      * Called by managed code when the thread has been asked to suspend.

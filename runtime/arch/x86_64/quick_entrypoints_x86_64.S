@@ -1006,7 +1006,8 @@ GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_STRING(_tlab, TLAB)
 
 
 // A hand-written override for GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_rosalloc, RosAlloc).
-DEFINE_FUNCTION art_quick_alloc_object_resolved_rosalloc
+MACRO2(ART_QUICK_ALLOC_OBJECT_ROSALLOC, c_name, cxx_name)
+    DEFINE_FUNCTION VAR(c_name)
     // Fast path rosalloc allocation.
     // RDI: mirror::Class*, RAX: return value
     // RSI, RDX, RCX, R8, R9: free.
@@ -1015,14 +1016,14 @@ DEFINE_FUNCTION art_quick_alloc_object_resolved_rosalloc
     movq   %gs:THREAD_SELF_OFFSET, %r8                     // r8 = thread
     movq   THREAD_LOCAL_ALLOC_STACK_TOP_OFFSET(%r8), %rcx  // rcx = alloc stack top.
     cmpq   THREAD_LOCAL_ALLOC_STACK_END_OFFSET(%r8), %rcx
-    jae    .Lart_quick_alloc_object_resolved_rosalloc_slow_path
+    jae    .Lslow_path\c_name
                                                            // Load the object size
     movl   MIRROR_CLASS_OBJECT_SIZE_ALLOC_FAST_PATH_OFFSET(%rdi), %eax
                                                            // Check if the size is for a thread
                                                            // local allocation. Also does the
                                                            // initialized and finalizable checks.
     cmpl   LITERAL(ROSALLOC_MAX_THREAD_LOCAL_BRACKET_SIZE), %eax
-    ja     .Lart_quick_alloc_object_resolved_rosalloc_slow_path
+    ja     .Lslow_path\c_name
                                                            // Compute the rosalloc bracket index
                                                            // from the size.
     shrq   LITERAL(ROSALLOC_BRACKET_QUANTUM_SIZE_SHIFT), %rax
@@ -1036,7 +1037,7 @@ DEFINE_FUNCTION art_quick_alloc_object_resolved_rosalloc
                                                            // will be the return val.
     movq   (ROSALLOC_RUN_FREE_LIST_OFFSET + ROSALLOC_RUN_FREE_LIST_HEAD_OFFSET)(%r9), %rax
     testq  %rax, %rax
-    jz     .Lart_quick_alloc_object_resolved_rosalloc_slow_path
+    jz     .Lslow_path\c_name
     // "Point of no slow path". Won't go to the slow path from here on. OK to clobber rdi and rsi.
                                                            // Push the new object onto the thread
                                                            // local allocation stack and
@@ -1063,24 +1064,18 @@ DEFINE_FUNCTION art_quick_alloc_object_resolved_rosalloc
     decl   (ROSALLOC_RUN_FREE_LIST_OFFSET + ROSALLOC_RUN_FREE_LIST_SIZE_OFFSET)(%r9)
                                                            // No fence necessary for x86.
     ret
-.Lart_quick_alloc_object_resolved_rosalloc_slow_path:
+.Lslow_path\c_name:
     SETUP_SAVE_REFS_ONLY_FRAME                             // save ref containing registers for GC
     // Outgoing argument set up
     movq %gs:THREAD_SELF_OFFSET, %rsi                      // pass Thread::Current()
-    call SYMBOL(artAllocObjectFromCodeResolvedRosAlloc)    // cxx_name(arg0, Thread*)
+    call CALLVAR(cxx_name)                                 // cxx_name(arg0, Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME                           // restore frame up to return address
     RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER                // return or deliver exception
-END_FUNCTION art_quick_alloc_object_rosalloc
-
-// The common fast path code for art_quick_alloc_object_tlab and art_quick_alloc_object_region_tlab.
-//
-// RDI: type_idx, RSI: ArtMethod*, RDX/EDX: the class, RAX: return value.
-// RCX: scratch, r8: Thread::Current().
-MACRO1(ALLOC_OBJECT_TLAB_FAST_PATH, slowPathLabel)
-    testl %edx, %edx                                       // Check null class
-    jz   RAW_VAR(slowPathLabel)
-    ALLOC_OBJECT_RESOLVED_TLAB_FAST_PATH(RAW_VAR(slowPathLabel))
+    END_FUNCTION VAR(c_name)
 END_MACRO
+
+ART_QUICK_ALLOC_OBJECT_ROSALLOC art_quick_alloc_object_resolved_rosalloc, artAllocObjectFromCodeResolvedRosAlloc
+ART_QUICK_ALLOC_OBJECT_ROSALLOC art_quick_alloc_object_initialized_rosalloc, artAllocObjectFromCodeInitializedRosAlloc
 
 // The common fast path code for art_quick_alloc_object_resolved_region_tlab.
 // TODO: delete ALLOC_OBJECT_RESOLVED_TLAB_FAST_PATH since it is the same as
@@ -1220,12 +1215,7 @@ MACRO0(COMPUTE_ARRAY_SIZE_64)
     movq %rsi, %r9
     salq MACRO_LITERAL(3), %r9
     // Add array header + alignment rounding.
-    // Add 4 extra bytes for array data alignment
-    addq MACRO_LITERAL(MIRROR_INT_ARRAY_DATA_OFFSET + OBJECT_ALIGNMENT_MASK + 4), %r9
-END_MACRO
-
-// The slow path code for art_quick_alloc_array_*tlab.
-MACRO1(ALLOC_ARRAY_TLAB_SLOW_PATH, cxx_name)
+    addq MACRO_LITERAL(MIRROR_WIDE_ARRAY_DATA_OFFSET + OBJECT_ALIGNMENT_MASK), %r9
 END_MACRO
 
 MACRO3(GENERATE_ALLOC_ARRAY_TLAB, c_entrypoint, cxx_name, size_setup)

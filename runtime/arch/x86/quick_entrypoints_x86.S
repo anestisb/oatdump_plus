@@ -947,10 +947,37 @@ MACRO0(RETURN_OR_DELIVER_PENDING_EXCEPTION)
 END_MACRO
 
 // Generate the allocation entrypoints for each allocator.
-GENERATE_ALLOC_ENTRYPOINTS_FOR_EACH_ALLOCATOR
+GENERATE_ALLOC_ENTRYPOINTS_FOR_NON_TLAB_ALLOCATORS
+
+// Comment out allocators that have x86 specific asm.
+// Region TLAB:
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_region_tlab, RegionTLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_INITIALIZED(_region_tlab, RegionTLAB)
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_WITH_ACCESS_CHECK(_region_tlab, RegionTLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED(_region_tlab, RegionTLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED8(_region_tlab, RegionTLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED16(_region_tlab, RegionTLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED32(_region_tlab, RegionTLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED64(_region_tlab, RegionTLAB)
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_BYTES(_region_tlab, RegionTLAB)
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_CHARS(_region_tlab, RegionTLAB)
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_STRING(_region_tlab, RegionTLAB)
+// Normal TLAB:
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_tlab, TLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_INITIALIZED(_tlab, TLAB)
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_WITH_ACCESS_CHECK(_tlab, TLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED(_tlab, TLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED8(_tlab, TLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED16(_tlab, TLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED32(_tlab, TLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED64(_tlab, TLAB)
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_BYTES(_tlab, TLAB)
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_CHARS(_tlab, TLAB)
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_STRING(_tlab, TLAB)
 
 // A hand-written override for GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_rosalloc, RosAlloc).
-DEFINE_FUNCTION art_quick_alloc_object_resolved_rosalloc
+MACRO2(ART_QUICK_ALLOC_OBJECT_ROSALLOC, c_name, cxx_name)
+    DEFINE_FUNCTION VAR(c_name)
     // Fast path rosalloc allocation.
     // eax: type/return value
     // ecx, ebx, edx: free
@@ -959,14 +986,14 @@ DEFINE_FUNCTION art_quick_alloc_object_resolved_rosalloc
                                                         // stack has room
     movl THREAD_LOCAL_ALLOC_STACK_TOP_OFFSET(%ebx), %ecx
     cmpl THREAD_LOCAL_ALLOC_STACK_END_OFFSET(%ebx), %ecx
-    jae  .Lart_quick_alloc_object_resolved_rosalloc_slow_path
+    jae  .Lslow_path\c_name
 
     movl MIRROR_CLASS_OBJECT_SIZE_ALLOC_FAST_PATH_OFFSET(%eax), %ecx  // Load the object size (ecx)
                                                         // Check if the size is for a thread
                                                         // local allocation. Also does the
                                                         // finalizable and initialization check.
     cmpl LITERAL(ROSALLOC_MAX_THREAD_LOCAL_BRACKET_SIZE), %ecx
-    ja   .Lart_quick_alloc_object_resolved_rosalloc_slow_path
+    ja   .Lslow_path\c_name
     shrl LITERAL(ROSALLOC_BRACKET_QUANTUM_SIZE_SHIFT), %ecx // Calculate the rosalloc bracket index
                                                             // from object size.
                                                         // Load thread local rosalloc run (ebx)
@@ -977,7 +1004,7 @@ DEFINE_FUNCTION art_quick_alloc_object_resolved_rosalloc
                                                         // Load free_list head (edi),
                                                         // this will be the return value.
     movl (ROSALLOC_RUN_FREE_LIST_OFFSET + ROSALLOC_RUN_FREE_LIST_HEAD_OFFSET)(%ebx), %ecx
-    jecxz   .Lart_quick_alloc_object_resolved_rosalloc_slow_path
+    jecxz   .Lslow_path\c_name
                                                         // Point of no slow path. Won't go to
                                                         // the slow path from here on.
                                                         // Load the next pointer of the head
@@ -1008,7 +1035,7 @@ DEFINE_FUNCTION art_quick_alloc_object_resolved_rosalloc
                                                         // No fence needed for x86.
     movl %ecx, %eax                                     // Move object to return register
     ret
-.Lart_quick_alloc_object_resolved_rosalloc_slow_path:
+.Lslow_path\c_name:
     SETUP_SAVE_REFS_ONLY_FRAME ebx, ebx          // save ref containing registers for GC
     // Outgoing argument set up
     subl LITERAL(8), %esp                       // alignment padding
@@ -1020,10 +1047,14 @@ DEFINE_FUNCTION art_quick_alloc_object_resolved_rosalloc
     CFI_ADJUST_CFA_OFFSET(-16)
     RESTORE_SAVE_REFS_ONLY_FRAME                 // restore frame up to return address
     RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER      // return or deliver exception
-END_FUNCTION art_quick_alloc_object_resolved_rosalloc
+    END_FUNCTION VAR(c_name)
+END_MACRO
 
-// The common fast path code for art_quick_alloc_object_resolved_tlab
-// and art_quick_alloc_object_resolved_region_tlab.
+ART_QUICK_ALLOC_OBJECT_ROSALLOC art_quick_alloc_object_resolved_rosalloc, artAllocObjectFromCodeResolvedRosAlloc
+ART_QUICK_ALLOC_OBJECT_ROSALLOC art_quick_alloc_object_initialized_rosalloc, artAllocObjectFromCodeInitializedRosAlloc
+
+// The common fast path code for art_quick_alloc_object_resolved/initialized_tlab
+// and art_quick_alloc_object_resolved/initialized_region_tlab.
 //
 // EAX: type/return_value
 MACRO1(ALLOC_OBJECT_RESOLVED_TLAB_FAST_PATH, slowPathLabel)
@@ -1047,8 +1078,8 @@ MACRO1(ALLOC_OBJECT_RESOLVED_TLAB_FAST_PATH, slowPathLabel)
     ret                                                 // Fast path succeeded.
 END_MACRO
 
-// The common slow path code for art_quick_alloc_object_resolved_tlab
-// and art_quick_alloc_object_resolved_region_tlab.
+// The common slow path code for art_quick_alloc_object_resolved/initialized_tlab
+// and art_quick_alloc_object_resolved/initialized_region_tlab.
 MACRO1(ALLOC_OBJECT_RESOLVED_TLAB_SLOW_PATH, cxx_name)
     POP edi
     SETUP_SAVE_REFS_ONLY_FRAME ebx, ebx                 // save ref containing registers for GC
@@ -1065,33 +1096,154 @@ MACRO1(ALLOC_OBJECT_RESOLVED_TLAB_SLOW_PATH, cxx_name)
     RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER             // return or deliver exception
 END_MACRO
 
-// A hand-written override for GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_tlab, TLAB). May be called
-// for CC if the GC is not marking.
-DEFINE_FUNCTION art_quick_alloc_object_resolved_tlab
+MACRO2(ART_QUICK_ALLOC_OBJECT_TLAB, c_name, cxx_name)
+    DEFINE_FUNCTION VAR(c_name)
     // Fast path tlab allocation.
     // EAX: type
     // EBX, ECX, EDX: free.
     PUSH edi
-    ALLOC_OBJECT_RESOLVED_TLAB_FAST_PATH .Lart_quick_alloc_object_resolved_tlab_slow_path
-.Lart_quick_alloc_object_resolved_tlab_slow_path:
-    ALLOC_OBJECT_RESOLVED_TLAB_SLOW_PATH artAllocObjectFromCodeResolvedTLAB
-END_FUNCTION art_quick_alloc_object_resolved_tlab
+    ALLOC_OBJECT_RESOLVED_TLAB_FAST_PATH .Lslow_path\c_name
+.Lslow_path\c_name:
+    ALLOC_OBJECT_RESOLVED_TLAB_SLOW_PATH RAW_VAR(cxx_name)
+    END_FUNCTION VAR(c_name)
+END_MACRO
 
-// A hand-written override for GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_region_tlab, RegionTLAB).
-DEFINE_FUNCTION art_quick_alloc_object_resolved_region_tlab
-    // Fast path region tlab allocation.
-    // EAX: type/return value
-    // EBX, ECX, EDX: free.
-#if !defined(USE_READ_BARRIER)
+ART_QUICK_ALLOC_OBJECT_TLAB art_quick_alloc_object_resolved_tlab, artAllocObjectFromCodeResolvedTLAB
+ART_QUICK_ALLOC_OBJECT_TLAB art_quick_alloc_object_initialized_tlab, artAllocObjectFromCodeInitializedTLAB
+ART_QUICK_ALLOC_OBJECT_TLAB art_quick_alloc_object_resolved_region_tlab, artAllocObjectFromCodeResolvedRegionTLAB
+ART_QUICK_ALLOC_OBJECT_TLAB art_quick_alloc_object_initialized_region_tlab, artAllocObjectFromCodeInitializedRegionTLAB
+
+// The fast path code for art_quick_alloc_array_region_tlab.
+// Inputs: EAX: the class, ECX: int32_t component_count, EDX: total_size
+// Free temp: EBX
+// Output: EAX: return value.
+MACRO1(ALLOC_ARRAY_TLAB_FAST_PATH_RESOLVED_WITH_SIZE, slowPathLabel)
+    mov %fs:THREAD_SELF_OFFSET, %ebx                          // ebx = thread
+    // Mask out the unaligned part to make sure we are 8 byte aligned.
+    andl LITERAL(OBJECT_ALIGNMENT_MASK_TOGGLED), %edx
+    movl THREAD_LOCAL_END_OFFSET(%ebx), %edi
+    subl THREAD_LOCAL_POS_OFFSET(%ebx), %edi
+    cmpl %edi, %edx                                           // Check if it fits.
+    ja   RAW_VAR(slowPathLabel)
+    movl THREAD_LOCAL_POS_OFFSET(%ebx), %edi
+    addl %edi, %edx                                            // Add the object size.
+    movl %edx, THREAD_LOCAL_POS_OFFSET(%ebx)                   // Update thread_local_pos_
+    addl LITERAL(1), THREAD_LOCAL_OBJECTS_OFFSET(%ebx)         // Increase thread_local_objects.
+                                                               // Store the class pointer in the
+                                                               // header.
+                                                               // No fence needed for x86.
+    POISON_HEAP_REF eax
+    movl %eax, MIRROR_OBJECT_CLASS_OFFSET(%edi)
+    movl %ecx, MIRROR_ARRAY_LENGTH_OFFSET(%edi)
+    movl %edi, %eax
+    POP edi
+    ret                                                        // Fast path succeeded.
+END_MACRO
+
+MACRO1(COMPUTE_ARRAY_SIZE_UNKNOWN, slow_path)
+    // We should never enter here. Code is provided for reference.
     int3
-    int3
+    // Possibly a large object, go slow.
+    // Also does negative array size check.
+    cmpl LITERAL((MIN_LARGE_OBJECT_THRESHOLD - MIRROR_WIDE_ARRAY_DATA_OFFSET) / 8), %ecx
+    ja RAW_VAR(slow_path)
+    PUSH ecx
+    movl %ecx, %edx
+    movl MIRROR_CLASS_COMPONENT_TYPE_OFFSET(%eax), %ecx        // Load component type.
+    UNPOISON_HEAP_REF ecx
+    movl MIRROR_CLASS_OBJECT_PRIMITIVE_TYPE_OFFSET(%ecx), %ecx // Load primitive type.
+    shr MACRO_LITERAL(PRIMITIVE_TYPE_SIZE_SHIFT_SHIFT), %ecx        // Get component size shift.
+    sall %cl, %edx                                              // Calculate array count shifted.
+    // Add array header + alignment rounding.
+    add MACRO_LITERAL(MIRROR_INT_ARRAY_DATA_OFFSET + OBJECT_ALIGNMENT_MASK), %edx
+    // Add 4 extra bytes if we are doing a long array.
+    add MACRO_LITERAL(1), %ecx
+    and MACRO_LITERAL(4), %ecx
+#if MIRROR_WIDE_ARRAY_DATA_OFFSET != MIRROR_INT_ARRAY_DATA_OFFSET + 4
+#error Long array data offset must be 4 greater than int array data offset.
 #endif
-    PUSH edi
-    ALLOC_OBJECT_RESOLVED_TLAB_FAST_PATH .Lart_quick_alloc_object_resolved_region_tlab_slow_path
-.Lart_quick_alloc_object_resolved_region_tlab_slow_path:
-    ALLOC_OBJECT_RESOLVED_TLAB_SLOW_PATH artAllocObjectFromCodeResolvedRegionTLAB
-END_FUNCTION art_quick_alloc_object_resolved_region_tlab
+    addl %ecx, %edx
+    POP ecx
+END_MACRO
 
+MACRO1(COMPUTE_ARRAY_SIZE_8, slow_path)
+    // EAX: mirror::Class* klass, ECX: int32_t component_count
+    // Possibly a large object, go slow.
+    // Also does negative array size check.
+    cmpl LITERAL(MIN_LARGE_OBJECT_THRESHOLD - MIRROR_INT_ARRAY_DATA_OFFSET), %ecx
+    ja RAW_VAR(slow_path)
+    // Add array header + alignment rounding.
+    leal (MIRROR_INT_ARRAY_DATA_OFFSET + OBJECT_ALIGNMENT_MASK)(%ecx), %edx
+END_MACRO
+
+MACRO1(COMPUTE_ARRAY_SIZE_16, slow_path)
+    // EAX: mirror::Class* klass, ECX: int32_t component_count
+    // Possibly a large object, go slow.
+    // Also does negative array size check.
+    cmpl LITERAL((MIN_LARGE_OBJECT_THRESHOLD - MIRROR_INT_ARRAY_DATA_OFFSET) / 2), %ecx
+    ja RAW_VAR(slow_path)
+    // Add array header + alignment rounding.
+    leal ((MIRROR_INT_ARRAY_DATA_OFFSET + OBJECT_ALIGNMENT_MASK) / 2)(%ecx), %edx
+    sall MACRO_LITERAL(1), %edx
+END_MACRO
+
+MACRO1(COMPUTE_ARRAY_SIZE_32, slow_path)
+    // EAX: mirror::Class* klass, ECX: int32_t component_count
+    // Possibly a large object, go slow.
+    // Also does negative array size check.
+    cmpl LITERAL((MIN_LARGE_OBJECT_THRESHOLD - MIRROR_INT_ARRAY_DATA_OFFSET) / 4), %ecx
+    ja RAW_VAR(slow_path)
+    // Add array header + alignment rounding.
+    leal ((MIRROR_INT_ARRAY_DATA_OFFSET + OBJECT_ALIGNMENT_MASK) / 4)(%ecx), %edx
+    sall MACRO_LITERAL(2), %edx
+END_MACRO
+
+MACRO1(COMPUTE_ARRAY_SIZE_64, slow_path)
+    // EAX: mirror::Class* klass, ECX: int32_t component_count
+    // Possibly a large object, go slow.
+    // Also does negative array size check.
+    cmpl LITERAL((MIN_LARGE_OBJECT_THRESHOLD - MIRROR_WIDE_ARRAY_DATA_OFFSET) / 8), %ecx
+    ja RAW_VAR(slow_path)
+    // Add array header + alignment rounding.
+    leal ((MIRROR_WIDE_ARRAY_DATA_OFFSET + OBJECT_ALIGNMENT_MASK) / 8)(%ecx), %edx
+    sall MACRO_LITERAL(3), %edx
+END_MACRO
+
+MACRO3(GENERATE_ALLOC_ARRAY_TLAB, c_entrypoint, cxx_name, size_setup)
+    DEFINE_FUNCTION VAR(c_entrypoint)
+    // EAX: mirror::Class* klass, ECX: int32_t component_count
+    PUSH edi
+    CALL_MACRO(size_setup) .Lslow_path\c_entrypoint
+    ALLOC_ARRAY_TLAB_FAST_PATH_RESOLVED_WITH_SIZE .Lslow_path\c_entrypoint
+.Lslow_path\c_entrypoint:
+    POP edi
+    SETUP_SAVE_REFS_ONLY_FRAME ebx, ebx                        // save ref containing registers for GC
+    // Outgoing argument set up
+    PUSH eax                                                   // alignment padding
+    pushl %fs:THREAD_SELF_OFFSET                               // pass Thread::Current()
+    CFI_ADJUST_CFA_OFFSET(4)
+    PUSH ecx
+    PUSH eax
+    call CALLVAR(cxx_name)                                     // cxx_name(arg0, arg1, Thread*)
+    addl LITERAL(16), %esp                                     // pop arguments
+    CFI_ADJUST_CFA_OFFSET(-16)
+    RESTORE_SAVE_REFS_ONLY_FRAME                               // restore frame up to return address
+    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER                    // return or deliver exception
+    END_FUNCTION VAR(c_entrypoint)
+END_MACRO
+
+
+GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved_region_tlab, artAllocArrayFromCodeResolvedRegionTLAB, COMPUTE_ARRAY_SIZE_UNKNOWN
+GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved8_region_tlab, artAllocArrayFromCodeResolvedRegionTLAB, COMPUTE_ARRAY_SIZE_8
+GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved16_region_tlab, artAllocArrayFromCodeResolvedRegionTLAB, COMPUTE_ARRAY_SIZE_16
+GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved32_region_tlab, artAllocArrayFromCodeResolvedRegionTLAB, COMPUTE_ARRAY_SIZE_32
+GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved64_region_tlab, artAllocArrayFromCodeResolvedRegionTLAB, COMPUTE_ARRAY_SIZE_64
+
+GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved_tlab, artAllocArrayFromCodeResolvedTLAB, COMPUTE_ARRAY_SIZE_UNKNOWN
+GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved8_tlab, artAllocArrayFromCodeResolvedTLAB, COMPUTE_ARRAY_SIZE_8
+GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved16_tlab, artAllocArrayFromCodeResolvedTLAB, COMPUTE_ARRAY_SIZE_16
+GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved32_tlab, artAllocArrayFromCodeResolvedTLAB, COMPUTE_ARRAY_SIZE_32
+GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved64_tlab, artAllocArrayFromCodeResolvedTLAB, COMPUTE_ARRAY_SIZE_64
 
 DEFINE_FUNCTION art_quick_resolve_string
     SETUP_SAVE_EVERYTHING_FRAME ebx, ebx
