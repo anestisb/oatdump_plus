@@ -133,9 +133,6 @@ class Instrumentation {
   enum class InstrumentationLevel {
     kInstrumentNothing,                   // execute without instrumentation
     kInstrumentWithInstrumentationStubs,  // execute with instrumentation entry/exit stubs
-    kInstrumentWithInterpreterAndJit,     // execute with interpreter initially and later the JIT
-                                          // (if it is enabled). This level is special in that it
-                                          // always requires re-instrumentation.
     kInstrumentWithInterpreter            // execute with interpreter
   };
 
@@ -165,13 +162,6 @@ class Instrumentation {
     return interpreter_stubs_installed_;
   }
   bool ShouldNotifyMethodEnterExitEvents() const REQUIRES_SHARED(Locks::mutator_lock_);
-
-  // Executes everything with the interpreter/jit (if available).
-  void ReJitEverything(const char* key)
-      REQUIRES(Locks::mutator_lock_, Roles::uninterruptible_)
-      REQUIRES(!Locks::thread_list_lock_,
-               !Locks::classlinker_classes_lock_,
-               !deoptimized_methods_lock_);
 
   // Executes everything with interpreter.
   void DeoptimizeEverything(const char* key)
