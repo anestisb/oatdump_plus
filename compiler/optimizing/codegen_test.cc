@@ -1067,6 +1067,39 @@ TEST_F(CodegenTest, ARMVIXLParallelMoveResolver) {
 }
 #endif
 
+#ifdef ART_ENABLE_CODEGEN_arm64
+// Regression test for b/34760542.
+TEST_F(CodegenTest, ARM64ParallelMoveResolverB34760542) {
+  std::unique_ptr<const Arm64InstructionSetFeatures> features(
+      Arm64InstructionSetFeatures::FromCppDefines());
+  ArenaPool pool;
+  ArenaAllocator allocator(&pool);
+  HGraph* graph = CreateGraph(&allocator);
+  arm64::CodeGeneratorARM64 codegen(graph, *features.get(), CompilerOptions());
+
+  codegen.Initialize();
+
+  // The following ParallelMove used to fail this assertion:
+  //
+  //   Assertion failed (!available->IsEmpty())
+  //
+  // in vixl::aarch64::UseScratchRegisterScope::AcquireNextAvailable.
+  HParallelMove* move = new (graph->GetArena()) HParallelMove(graph->GetArena());
+  move->AddMove(Location::DoubleStackSlot(0),
+                Location::DoubleStackSlot(257),
+                Primitive::kPrimDouble,
+                nullptr);
+  move->AddMove(Location::DoubleStackSlot(257),
+                Location::DoubleStackSlot(0),
+                Primitive::kPrimDouble,
+                nullptr);
+  codegen.GetMoveResolver()->EmitNativeCode(move);
+
+  InternalCodeAllocator code_allocator;
+  codegen.Finalize(&code_allocator);
+}
+#endif
+
 #ifdef ART_ENABLE_CODEGEN_mips
 TEST_F(CodegenTest, MipsClobberRA) {
   std::unique_ptr<const MipsInstructionSetFeatures> features_mips(
