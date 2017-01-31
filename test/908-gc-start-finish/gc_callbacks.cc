@@ -38,43 +38,32 @@ static void JNICALL GarbageCollectionStart(jvmtiEnv* ti_env ATTRIBUTE_UNUSED) {
 }
 
 extern "C" JNIEXPORT void JNICALL Java_Main_setupGcCallback(
-    JNIEnv* env ATTRIBUTE_UNUSED, jclass klass ATTRIBUTE_UNUSED) {
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
   jvmtiEventCallbacks callbacks;
   memset(&callbacks, 0, sizeof(jvmtiEventCallbacks));
   callbacks.GarbageCollectionFinish = GarbageCollectionFinish;
   callbacks.GarbageCollectionStart = GarbageCollectionStart;
 
   jvmtiError ret = jvmti_env->SetEventCallbacks(&callbacks, sizeof(callbacks));
-  if (ret != JVMTI_ERROR_NONE) {
-    char* err;
-    jvmti_env->GetErrorName(ret, &err);
-    printf("Error setting callbacks: %s\n", err);
-    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
-  }
+  JvmtiErrorToException(env, ret);
 }
 
-extern "C" JNIEXPORT void JNICALL Java_Main_enableGcTracking(JNIEnv* env ATTRIBUTE_UNUSED,
+extern "C" JNIEXPORT void JNICALL Java_Main_enableGcTracking(JNIEnv* env,
                                                              jclass klass ATTRIBUTE_UNUSED,
                                                              jboolean enable) {
   jvmtiError ret = jvmti_env->SetEventNotificationMode(
       enable ? JVMTI_ENABLE : JVMTI_DISABLE,
       JVMTI_EVENT_GARBAGE_COLLECTION_START,
       nullptr);
-  if (ret != JVMTI_ERROR_NONE) {
-    char* err;
-    jvmti_env->GetErrorName(ret, &err);
-    printf("Error enabling/disabling gc callbacks: %s\n", err);
-    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
+  if (JvmtiErrorToException(env, ret)) {
+    return;
   }
   ret = jvmti_env->SetEventNotificationMode(
       enable ? JVMTI_ENABLE : JVMTI_DISABLE,
       JVMTI_EVENT_GARBAGE_COLLECTION_FINISH,
       nullptr);
-  if (ret != JVMTI_ERROR_NONE) {
-    char* err;
-    jvmti_env->GetErrorName(ret, &err);
-    printf("Error enabling/disabling gc callbacks: %s\n", err);
-    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
+  if (JvmtiErrorToException(env, ret)) {
+    return;
   }
 }
 
