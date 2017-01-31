@@ -61,9 +61,14 @@ namespace openjdkjvmti {
 bool ClassLoaderHelper::AddToClassLoader(art::Thread* self,
                                          art::Handle<art::mirror::ClassLoader> loader,
                                          const art::DexFile* dex_file) {
+  art::ScopedObjectAccessUnchecked soa(self);
   art::StackHandleScope<2> hs(self);
-  art::Handle<art::mirror::Object> java_dex_file_obj(hs.NewHandle(FindSourceDexFileObject(self,
-                                                                                          loader)));
+  if (art::ClassLinker::IsBootClassLoader(soa, loader.Get())) {
+    art::Runtime::Current()->GetClassLinker()->AppendToBootClassPath(self, *dex_file);
+    return true;
+  }
+  art::Handle<art::mirror::Object> java_dex_file_obj(
+      hs.NewHandle(FindSourceDexFileObject(self, loader)));
   if (java_dex_file_obj.IsNull()) {
     return false;
   }

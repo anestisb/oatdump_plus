@@ -127,6 +127,10 @@ class Redefiner {
     art::mirror::Class* GetMirrorClass() REQUIRES_SHARED(art::Locks::mutator_lock_);
     art::mirror::ClassLoader* GetClassLoader() REQUIRES_SHARED(art::Locks::mutator_lock_);
 
+    const art::DexFile& GetDexFile() {
+      return *dex_file_;
+    }
+
     art::mirror::DexCache* CreateNewDexCache(art::Handle<art::mirror::ClassLoader> loader)
         REQUIRES_SHARED(art::Locks::mutator_lock_);
 
