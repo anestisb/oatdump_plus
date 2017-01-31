@@ -154,12 +154,87 @@ public class Main {
   /// CHECK-NOT: Phi
   //
   /// CHECK-START: int Main.polynomialInt() instruction_simplifier$after_bce (after)
-  /// CHECK-DAG: <<Int:i\d+>>  IntConstant -45 loop:none
-  /// CHECK-DAG:               Return [<<Int>>]  loop:none
+  /// CHECK-DAG: <<Int:i\d+>>  IntConstant -45  loop:none
+  /// CHECK-DAG:               Return [<<Int>>] loop:none
   static int polynomialInt() {
     int x = 0;
     for (int i = 0; i < 10; i++) {
       x = x - i;
+    }
+    return x;
+  }
+
+  // Regression test for b/34779592 (found with fuzz testing): overflow for last value
+  // of division truncates to zero, for multiplication it simply truncates.
+  //
+  /// CHECK-START: int Main.geoIntDivLastValue(int) loop_optimization (before)
+  /// CHECK-DAG: Phi loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: Phi loop:<<Loop>>      outer_loop:none
+  //
+  /// CHECK-START: int Main.geoIntDivLastValue(int) loop_optimization (after)
+  /// CHECK-NOT: Phi
+  //
+  /// CHECK-START: int Main.geoIntDivLastValue(int) instruction_simplifier$after_bce (after)
+  /// CHECK-DAG: <<Int:i\d+>> IntConstant 0    loop:none
+  /// CHECK-DAG:              Return [<<Int>>] loop:none
+  static int geoIntDivLastValue(int x) {
+    for (int i = 0; i < 2; i++) {
+      x /= 1081788608;
+    }
+    return x;
+  }
+
+  /// CHECK-START: int Main.geoIntMulLastValue(int) loop_optimization (before)
+  /// CHECK-DAG: Phi loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: Phi loop:<<Loop>>      outer_loop:none
+  //
+  /// CHECK-START: int Main.geoIntMulLastValue(int) loop_optimization (after)
+  /// CHECK-NOT: Phi
+  //
+  /// CHECK-START: int Main.geoIntMulLastValue(int) instruction_simplifier$after_bce (after)
+  /// CHECK-DAG: <<Par:i\d+>> ParameterValue         loop:none
+  /// CHECK-DAG: <<Int:i\d+>> IntConstant -194211840 loop:none
+  /// CHECK-DAG: <<Mul:i\d+>> Mul [<<Par>>,<<Int>>]  loop:none
+  /// CHECK-DAG:              Return [<<Mul>>]       loop:none
+  static int geoIntMulLastValue(int x) {
+    for (int i = 0; i < 2; i++) {
+      x *= 1081788608;
+    }
+    return x;
+  }
+
+  /// CHECK-START: long Main.geoLongDivLastValue(long) loop_optimization (before)
+  /// CHECK-DAG: Phi loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: Phi loop:<<Loop>>      outer_loop:none
+  //
+  /// CHECK-START: long Main.geoLongDivLastValue(long) loop_optimization (after)
+  /// CHECK-NOT: Phi
+  //
+  /// CHECK-START: long Main.geoLongDivLastValue(long) instruction_simplifier$after_bce (after)
+  /// CHECK-DAG: <<Long:j\d+>> LongConstant 0    loop:none
+  /// CHECK-DAG:               Return [<<Long>>] loop:none
+  static long geoLongDivLastValue(long x) {
+    for (int i = 0; i < 10; i++) {
+      x /= 1081788608;
+    }
+    return x;
+  }
+
+  /// CHECK-START: long Main.geoLongMulLastValue(long) loop_optimization (before)
+  /// CHECK-DAG: Phi loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: Phi loop:<<Loop>>      outer_loop:none
+  //
+  /// CHECK-START: long Main.geoLongMulLastValue(long) loop_optimization (after)
+  /// CHECK-NOT: Phi
+  //
+  /// CHECK-START: long Main.geoLongMulLastValue(long) instruction_simplifier$after_bce (after)
+  /// CHECK-DAG: <<Par:j\d+>>  ParameterValue                    loop:none
+  /// CHECK-DAG: <<Long:j\d+>> LongConstant -8070450532247928832 loop:none
+  /// CHECK-DAG: <<Mul:j\d+>>  Mul [<<Par>>,<<Long>>]            loop:none
+  /// CHECK-DAG:               Return [<<Mul>>]                  loop:none
+  static long geoLongMulLastValue(long x) {
+    for (int i = 0; i < 10; i++) {
+      x *= 1081788608;
     }
     return x;
   }
@@ -185,10 +260,52 @@ public class Main {
     expectEquals(-45, polynomialIntFromLong());
     expectEquals(-45, polynomialInt());
 
+    expectEquals(0, geoIntDivLastValue(0));
+    expectEquals(0, geoIntDivLastValue(1));
+    expectEquals(0, geoIntDivLastValue(2));
+    expectEquals(0, geoIntDivLastValue(1081788608));
+    expectEquals(0, geoIntDivLastValue(-1081788608));
+    expectEquals(0, geoIntDivLastValue(2147483647));
+    expectEquals(0, geoIntDivLastValue(-2147483648));
+
+    expectEquals(          0, geoIntMulLastValue(0));
+    expectEquals( -194211840, geoIntMulLastValue(1));
+    expectEquals( -388423680, geoIntMulLastValue(2));
+    expectEquals(-1041498112, geoIntMulLastValue(1081788608));
+    expectEquals( 1041498112, geoIntMulLastValue(-1081788608));
+    expectEquals(  194211840, geoIntMulLastValue(2147483647));
+    expectEquals(          0, geoIntMulLastValue(-2147483648));
+
+    expectEquals(0L, geoLongDivLastValue(0L));
+    expectEquals(0L, geoLongDivLastValue(1L));
+    expectEquals(0L, geoLongDivLastValue(2L));
+    expectEquals(0L, geoLongDivLastValue(1081788608L));
+    expectEquals(0L, geoLongDivLastValue(-1081788608L));
+    expectEquals(0L, geoLongDivLastValue(2147483647L));
+    expectEquals(0L, geoLongDivLastValue(-2147483648L));
+    expectEquals(0L, geoLongDivLastValue(9223372036854775807L));
+    expectEquals(0L, geoLongDivLastValue(-9223372036854775808L));
+
+    expectEquals(                   0L, geoLongMulLastValue(0L));
+    expectEquals(-8070450532247928832L, geoLongMulLastValue(1L));
+    expectEquals( 2305843009213693952L, geoLongMulLastValue(2L));
+    expectEquals(                   0L, geoLongMulLastValue(1081788608L));
+    expectEquals(                   0L, geoLongMulLastValue(-1081788608L));
+    expectEquals( 8070450532247928832L, geoLongMulLastValue(2147483647L));
+    expectEquals(                   0L, geoLongMulLastValue(-2147483648L));
+    expectEquals( 8070450532247928832L, geoLongMulLastValue(9223372036854775807L));
+    expectEquals(                   0L, geoLongMulLastValue(-9223372036854775808L));
+
     System.out.println("passed");
   }
 
   private static void expectEquals(int expected, int result) {
+    if (expected != result) {
+      throw new Error("Expected: " + expected + ", found: " + result);
+    }
+  }
+
+  private static void expectEquals(long expected, long result) {
     if (expected != result) {
       throw new Error("Expected: " + expected + ", found: " + result);
     }
