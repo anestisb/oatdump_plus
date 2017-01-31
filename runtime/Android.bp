@@ -575,6 +575,7 @@ art_cc_test {
         "type_lookup_table_test.cc",
         "utf_test.cc",
         "utils_test.cc",
+        "vdex_file_test.cc",
         "verifier/method_verifier_test.cc",
         "verifier/reg_type_test.cc",
         "zip_archive_test.cc",

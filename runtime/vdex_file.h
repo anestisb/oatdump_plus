@@ -73,17 +73,19 @@ class VdexFile {
 
   typedef uint32_t VdexChecksum;
 
-  static VdexFile* Open(const std::string& vdex_filename,
-                        bool writable,
-                        bool low_4gb,
-                        std::string* error_msg);
+  // Returns nullptr if the vdex file cannot be opened or is not valid.
+  static std::unique_ptr<VdexFile> Open(const std::string& vdex_filename,
+                                        bool writable,
+                                        bool low_4gb,
+                                        std::string* error_msg);
 
-  static VdexFile* Open(int file_fd,
-                        size_t vdex_length,
-                        const std::string& vdex_filename,
-                        bool writable,
-                        bool low_4gb,
-                        std::string* error_msg);
+  // Returns nullptr if the vdex file cannot be opened or is not valid.
+  static std::unique_ptr<VdexFile> Open(int file_fd,
+                                        size_t vdex_length,
+                                        const std::string& vdex_filename,
+                                        bool writable,
+                                        bool low_4gb,
+                                        std::string* error_msg);
 
   const uint8_t* Begin() const { return mmap_->Begin(); }
   const uint8_t* End() const { return mmap_->End(); }
