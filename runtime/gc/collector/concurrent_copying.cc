@@ -877,7 +877,10 @@ void ConcurrentCopying::IssueEmptyCheckpoint() {
                 thread->ReadFlag(kEmptyCheckpointRequest)) {
               // Found a runnable thread that hasn't responded to the empty checkpoint request.
               // Assume it's stuck and safe to dump its stack.
-              thread->Dump(LOG_STREAM(FATAL_WITHOUT_ABORT));
+              thread->Dump(LOG_STREAM(FATAL_WITHOUT_ABORT),
+                           /*dump_native_stack*/ true,
+                           /*backtrace_map*/ nullptr,
+                           /*force_dump_stack*/ true);
             }
           }
         }
