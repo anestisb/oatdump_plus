@@ -186,6 +186,7 @@ cc_defaults {
         "reflection.cc",
         "runtime.cc",
         "runtime_callbacks.cc",
+        "runtime_common.cc",
         "runtime_options.cc",
         "signal_catcher.cc",
         "stack.cc",
