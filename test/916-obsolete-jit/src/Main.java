@@ -133,7 +133,8 @@ public class Main {
       return;
     }
     // Makes sure the stack is the way we want it for the test and does the redefinition. It will
-    // set the retry boolean to true if we need to go around again due to a bad stack.
+    // set the retry boolean to true if the stack does not have a JIT-compiled sayHi entry. This can
+    // only happen if the method gets GC'd.
     Runnable do_redefinition = () -> {
       if (has_jit && Main.isInterpretedFunction(say_hi_method, true)) {
         // Try again. We are not running the right jitted methods/cannot redefine them now.
