@@ -558,9 +558,13 @@ HInstruction* HInliner::AddTypeGuard(HInstruction* receiver,
                                                                is_referrer,
                                                                invoke_instruction->GetDexPc(),
                                                                /* needs_access_check */ false);
+  HLoadClass::LoadKind kind = HSharpening::SharpenClass(
+      load_class, codegen_, compiler_driver_, caller_compilation_unit_);
+  DCHECK(kind != HLoadClass::LoadKind::kInvalid)
+      << "We should always be able to reference a class for inline caches";
+  // Insert before setting the kind, as setting the kind affects the inputs.
   bb_cursor->InsertInstructionAfter(load_class, receiver_class);
-  // Sharpen after adding the instruction, as the sharpening may remove inputs.
-  HSharpening::SharpenClass(load_class, codegen_, compiler_driver_);
+  load_class->SetLoadKind(kind);
 
   // TODO: Extend reference type propagation to understand the guard.
   HNotEqual* compare = new (graph_->GetArena()) HNotEqual(load_class, receiver_class);
@@ -1286,6 +1290,7 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
                         resolved_method->GetDexFile(),
                         *code_item,
                         compiler_driver_,
+                        codegen_,
                         inline_stats.get(),
                         resolved_method->GetQuickenedInfo(class_linker->GetImagePointerSize()),
                         dex_cache,

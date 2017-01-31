@@ -5508,6 +5508,9 @@ class HLoadClass FINAL : public HInstruction {
  public:
   // Determines how to load the Class.
   enum class LoadKind {
+    // We cannot load this class. See HSharpening::SharpenLoadClass.
+    kInvalid = -1,
+
     // Use the Class* from the method's own ArtMethod*.
     kReferrersClass,
 
@@ -5564,18 +5567,7 @@ class HLoadClass FINAL : public HInstruction {
     SetPackedFlag<kFlagGenerateClInitCheck>(false);
   }
 
-  void SetLoadKind(LoadKind load_kind) {
-    SetLoadKindInternal(load_kind);
-  }
-
-  void SetLoadKindWithTypeReference(LoadKind load_kind,
-                                    const DexFile& dex_file,
-                                    dex::TypeIndex type_index) {
-    DCHECK(HasTypeReference(load_kind));
-    DCHECK(IsSameDexFile(dex_file_, dex_file));
-    DCHECK_EQ(type_index_, type_index);
-    SetLoadKindInternal(load_kind);
-  }
+  void SetLoadKind(LoadKind load_kind);
 
   LoadKind GetLoadKind() const {
     return GetPackedField<LoadKindField>();
@@ -5694,6 +5686,11 @@ class HLoadClass FINAL : public HInstruction {
   // for PC-relative loads, i.e. kBssEntry or kBootImageLinkTimePcRelative.
   HUserRecord<HInstruction*> special_input_;
 
+  // A type index and dex file where the class can be accessed. The dex file can be:
+  // - The compiling method's dex file if the class is defined there too.
+  // - The compiling method's dex file if the class is referenced there.
+  // - The dex file where the class is defined. When the load kind can only be
+  //   kBssEntry or kDexCacheViaMethod, we cannot emit code for this `HLoadClass`.
   const dex::TypeIndex type_index_;
   const DexFile& dex_file_;
 

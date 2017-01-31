@@ -283,9 +283,6 @@ public class Main {
     return "non-boot-image-string";
   }
 
-  /// CHECK-START: java.lang.Class Main.$noinline$getStringClass() sharpening (before)
-  /// CHECK:                LoadClass load_kind:DexCacheViaMethod class_name:java.lang.String
-
   /// CHECK-START-X86: java.lang.Class Main.$noinline$getStringClass() sharpening (after)
   // Note: load kind depends on PIC/non-PIC
   // TODO: Remove DexCacheViaMethod when read barrier config supports BootImageAddress.
@@ -322,9 +319,6 @@ public class Main {
     // String class is known to be in the boot image.
     return String.class;
   }
-
-  /// CHECK-START: java.lang.Class Main.$noinline$getOtherClass() sharpening (before)
-  /// CHECK:                LoadClass load_kind:DexCacheViaMethod class_name:Other
 
   /// CHECK-START-X86: java.lang.Class Main.$noinline$getOtherClass() sharpening (after)
   /// CHECK:                LoadClass load_kind:BssEntry class_name:Other
