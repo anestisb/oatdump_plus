@@ -158,22 +158,26 @@ void GarbageCollector::ResetMeasurements() {
   total_freed_bytes_ = 0;
 }
 
-GarbageCollector::ScopedPause::ScopedPause(GarbageCollector* collector)
-    : start_time_(NanoTime()), collector_(collector) {
+GarbageCollector::ScopedPause::ScopedPause(GarbageCollector* collector, bool with_reporting)
+    : start_time_(NanoTime()), collector_(collector), with_reporting_(with_reporting) {
   Runtime* runtime = Runtime::Current();
   runtime->GetThreadList()->SuspendAll(__FUNCTION__);
-  GcPauseListener* pause_listener = runtime->GetHeap()->GetGcPauseListener();
-  if (pause_listener != nullptr) {
-    pause_listener->StartPause();
+  if (with_reporting) {
+    GcPauseListener* pause_listener = runtime->GetHeap()->GetGcPauseListener();
+    if (pause_listener != nullptr) {
+      pause_listener->StartPause();
+    }
   }
 }
 
 GarbageCollector::ScopedPause::~ScopedPause() {
   collector_->RegisterPause(NanoTime() - start_time_);
   Runtime* runtime = Runtime::Current();
-  GcPauseListener* pause_listener = runtime->GetHeap()->GetGcPauseListener();
-  if (pause_listener != nullptr) {
-    pause_listener->EndPause();
+  if (with_reporting_) {
+    GcPauseListener* pause_listener = runtime->GetHeap()->GetGcPauseListener();
+    if (pause_listener != nullptr) {
+      pause_listener->EndPause();
+    }
   }
   runtime->GetThreadList()->ResumeAll();
 }

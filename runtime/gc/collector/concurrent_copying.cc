@@ -25,6 +25,7 @@
 #include "gc/accounting/heap_bitmap-inl.h"
 #include "gc/accounting/mod_union_table-inl.h"
 #include "gc/accounting/space_bitmap-inl.h"
+#include "gc/gc_pause_listener.h"
 #include "gc/reference_processor.h"
 #include "gc/space/image_space.h"
 #include "gc/space/space-inl.h"
@@ -139,7 +140,7 @@ void ConcurrentCopying::RunPhases() {
   // Verify no from space refs. This causes a pause.
   if (kEnableNoFromSpaceRefsVerification || kIsDebugBuild) {
     TimingLogger::ScopedTiming split("(Paused)VerifyNoFromSpaceReferences", GetTimings());
-    ScopedPause pause(this);
+    ScopedPause pause(this, false);
     CheckEmptyMarkStack();
     if (kVerboseMode) {
       LOG(INFO) << "Verifying no from-space refs";
@@ -439,8 +440,27 @@ void ConcurrentCopying::FlipThreadRoots() {
   gc_barrier_->Init(self, 0);
   ThreadFlipVisitor thread_flip_visitor(this, heap_->use_tlab_);
   FlipCallback flip_callback(this);
+
+  // This is the point where Concurrent-Copying will pause all threads. We report a pause here, if
+  // necessary. This is slightly over-reporting, as this includes the time to actually suspend
+  // threads.
+  {
+    GcPauseListener* pause_listener = GetHeap()->GetGcPauseListener();
+    if (pause_listener != nullptr) {
+      pause_listener->StartPause();
+    }
+  }
+
   size_t barrier_count = Runtime::Current()->FlipThreadRoots(
       &thread_flip_visitor, &flip_callback, this);
+
+  {
+    GcPauseListener* pause_listener = GetHeap()->GetGcPauseListener();
+    if (pause_listener != nullptr) {
+      pause_listener->EndPause();
+    }
+  }
+
   {
     ScopedThreadStateChange tsc(self, kWaitingForCheckPointsToRun);
     gc_barrier_->Increment(self, barrier_count);
