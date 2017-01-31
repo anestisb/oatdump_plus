@@ -38,6 +38,10 @@ public class Main {
     testSpreaders_primitive();
     testInvokeWithArguments();
     testAsCollector();
+    testFilterArguments();
+    testCollectArguments();
+    testInsertArguments();
+    testFoldArguments();
   }
 
   public static void testThrowException() throws Throwable {
@@ -1372,6 +1376,269 @@ public class Main {
     target = MethodHandles.lookup().findStatic(Main.class, "collectDouble",
         MethodType.methodType(int.class, String.class, double[].class));
     assertEquals(51, (int) target.asCollector(double[].class, 2).invoke("a", 6.7, 7.8));
+  }
+
+  public static String filter1(char a) {
+    return String.valueOf(a);
+  }
+
+  public static char filter2(String b) {
+    return b.charAt(0);
+  }
+
+  public static String badFilter1(char a, char b) {
+    return "bad";
+  }
+
+  public static int filterTarget(String a, char b, String c, char d) {
+    System.out.println("a: " + a + ", b: " + b + ", c:" + c + ", d:" + d);
+    return 56;
+  }
+
+  public static void testFilterArguments() throws Throwable {
+    MethodHandle filter1 = MethodHandles.lookup().findStatic(
+        Main.class, "filter1", MethodType.methodType(String.class, char.class));
+    MethodHandle filter2 = MethodHandles.lookup().findStatic(
+        Main.class, "filter2", MethodType.methodType(char.class, String.class));
+
+    MethodHandle target = MethodHandles.lookup().findStatic(
+        Main.class, "filterTarget", MethodType.methodType(int.class,
+          String.class, char.class, String.class, char.class));
+
+    // In all the cases below, the values printed will be 'a', 'b', 'c', 'd'.
+
+    // Filter arguments [0, 1] - all other arguments are passed through
+    // as is.
+    MethodHandle adapter = MethodHandles.filterArguments(
+        target, 0, filter1, filter2);
+    assertEquals(56, (int) adapter.invokeExact('a', "bXXXX", "c", 'd'));
+
+    // Filter arguments [1, 2].
+    adapter = MethodHandles.filterArguments(target, 1, filter2, filter1);
+    assertEquals(56, (int) adapter.invokeExact("a", "bXXXX", 'c', 'd'));
+
+    // Filter arguments [2, 3].
+    adapter = MethodHandles.filterArguments(target, 2, filter1, filter2);
+    assertEquals(56, (int) adapter.invokeExact("a", 'b', 'c', "dXXXXX"));
+
+    // Try out a few error cases :
+
+    // The return types of the filter doesn't align with the expected argument
+    // type of the target.
+    try {
+      adapter = MethodHandles.filterArguments(target, 2, filter2, filter1);
+      fail();
+    } catch (IllegalArgumentException expected) {
+    }
+
+    // There are more filters than arguments.
+    try {
+      adapter = MethodHandles.filterArguments(target, 3, filter2, filter1);
+      fail();
+    } catch (IllegalArgumentException expected) {
+    }
+
+    // We pass in an obviously bogus position.
+    try {
+      adapter = MethodHandles.filterArguments(target, -1, filter2, filter1);
+      fail();
+    } catch (ArrayIndexOutOfBoundsException expected) {
+    }
+
+    // We pass in a function that has more than one argument.
+    MethodHandle badFilter1 = MethodHandles.lookup().findStatic(
+        Main.class, "badFilter1",
+        MethodType.methodType(String.class, char.class, char.class));
+
+    try {
+      adapter = MethodHandles.filterArguments(target, 0, badFilter1, filter2);
+      fail();
+    } catch (IllegalArgumentException expected) {
+    }
+  }
+
+  static void voidFilter(char a, char b) {
+    System.out.println("voidFilter");
+  }
+
+  static String filter(char a, char b) {
+    return String.valueOf(a) + "+" + b;
+  }
+
+  static char badFilter(char a, char b) {
+    return 0;
+  }
+
+  static int target(String a, String b, String c) {
+    System.out.println("a: " + a + ", b: " + b + ", c: " + c);
+    return 57;
+  }
+
+  public static void testCollectArguments() throws Throwable {
+    // Test non-void filters.
+    MethodHandle filter = MethodHandles.lookup().findStatic(
+        Main.class, "filter",
+        MethodType.methodType(String.class, char.class, char.class));
+
+    MethodHandle target = MethodHandles.lookup().findStatic(
+        Main.class, "target",
+        MethodType.methodType(int.class, String.class, String.class, String.class));
+
+    // Filter at position 0.
+    MethodHandle adapter = MethodHandles.collectArguments(target, 0, filter);
+    assertEquals(57, (int) adapter.invokeExact('a', 'b', "c", "d"));
+
+    // Filter at position 1.
+    adapter = MethodHandles.collectArguments(target, 1, filter);
+    assertEquals(57, (int) adapter.invokeExact("a", 'b', 'c', "d"));
+
+    // Filter at position 2.
+    adapter = MethodHandles.collectArguments(target, 2, filter);
+    assertEquals(57, (int) adapter.invokeExact("a", "b", 'c', 'd'));
+
+    // Test void filters. Note that we're passing in one more argument
+    // than usual because the filter returns nothing - we have to invoke with
+    // the full set of filter args and the full set of target args.
+    filter = MethodHandles.lookup().findStatic(Main.class, "voidFilter",
+        MethodType.methodType(void.class, char.class, char.class));
+    adapter = MethodHandles.collectArguments(target, 0, filter);
+    assertEquals(57, (int) adapter.invokeExact('a', 'b', "a", "b", "c"));
+
+    adapter = MethodHandles.collectArguments(target, 1, filter);
+    assertEquals(57, (int) adapter.invokeExact("a", 'a', 'b', "b", "c"));
+
+    // Test out a few failure cases.
+    filter = MethodHandles.lookup().findStatic(
+        Main.class, "filter",
+        MethodType.methodType(String.class, char.class, char.class));
+
+    // Bogus filter position.
+    try {
+      adapter = MethodHandles.collectArguments(target, 3, filter);
+      fail();
+    } catch (IndexOutOfBoundsException expected) {
+    }
+
+    // Mismatch in filter return type.
+    filter = MethodHandles.lookup().findStatic(
+        Main.class, "badFilter",
+        MethodType.methodType(char.class, char.class, char.class));
+    try {
+      adapter = MethodHandles.collectArguments(target, 0, filter);
+      fail();
+    } catch (IllegalArgumentException expected) {
+    }
+  }
+
+  static int insertReceiver(String a, int b, Integer c, String d) {
+    System.out.println("a: " + a + ", b:" + b + ", c:" + c + ", d:" + d);
+    return 73;
+  }
+
+  public static void testInsertArguments() throws Throwable {
+    MethodHandle target = MethodHandles.lookup().findStatic(
+        Main.class, "insertReceiver",
+        MethodType.methodType(int.class,
+          String.class, int.class, Integer.class, String.class));
+
+    // Basic single element array inserted at position 0.
+    MethodHandle adapter = MethodHandles.insertArguments(
+        target, 0, new Object[] { "foo" });
+    assertEquals(73, (int) adapter.invokeExact(45, Integer.valueOf(56), "bar"));
+
+    // Exercise unboxing.
+    adapter = MethodHandles.insertArguments(
+        target, 1, new Object[] { Integer.valueOf(56), 57 });
+    assertEquals(73, (int) adapter.invokeExact("foo", "bar"));
+
+    // Exercise a widening conversion.
+    adapter = MethodHandles.insertArguments(
+        target, 1, new Object[] { (short) 56, Integer.valueOf(57) });
+    assertEquals(73, (int) adapter.invokeExact("foo", "bar"));
+
+    // Insert an argument at the last position.
+    adapter = MethodHandles.insertArguments(
+        target, 3, new Object[] { "bar" });
+    assertEquals(73, (int) adapter.invokeExact("foo", 45, Integer.valueOf(46)));
+
+    // Exercise a few error cases.
+
+    // A reference type that can't be cast to another reference type.
+    try {
+      MethodHandles.insertArguments(target, 3, new Object[] { new Object() });
+      fail();
+    } catch (ClassCastException expected) {
+    }
+
+    // A boxed type that can't be unboxed correctly.
+    try {
+      MethodHandles.insertArguments(target, 1, new Object[] { Long.valueOf(56) });
+      fail();
+    } catch (ClassCastException expected) {
+    }
+  }
+
+  public static String foldFilter(char a, char b) {
+    return String.valueOf(a) + "+" + b;
+  }
+
+  public static void voidFoldFilter(String e, char a, char b) {
+    System.out.println(String.valueOf(a) + "+" + b);
+  }
+
+  public static int foldTarget(String a, char b, char c, String d) {
+    System.out.println("a: " + a + " ,b:" + b + " ,c:" + c + " ,d:" + d);
+    return 89;
+  }
+
+  public static void mismatchedVoidFilter(Integer a) {
+  }
+
+  public static Integer mismatchedNonVoidFilter(char a, char b) {
+    return null;
+  }
+
+  public static void testFoldArguments() throws Throwable {
+    // Test non-void filters.
+    MethodHandle filter = MethodHandles.lookup().findStatic(
+        Main.class, "foldFilter",
+        MethodType.methodType(String.class, char.class, char.class));
+
+    MethodHandle target = MethodHandles.lookup().findStatic(
+        Main.class, "foldTarget",
+        MethodType.methodType(int.class, String.class,
+          char.class, char.class, String.class));
+
+    // Folder with a non-void type.
+    MethodHandle adapter = MethodHandles.foldArguments(target, filter);
+    assertEquals(89, (int) adapter.invokeExact('c', 'd', "e"));
+
+    // Folder with a void type.
+    filter = MethodHandles.lookup().findStatic(
+        Main.class, "voidFoldFilter",
+        MethodType.methodType(void.class, String.class, char.class, char.class));
+    adapter = MethodHandles.foldArguments(target, filter);
+    assertEquals(89, (int) adapter.invokeExact("a", 'c', 'd', "e"));
+
+    // Test a few erroneous cases.
+
+    filter = MethodHandles.lookup().findStatic(
+        Main.class, "mismatchedVoidFilter",
+        MethodType.methodType(void.class, Integer.class));
+    try {
+      adapter = MethodHandles.foldArguments(target, filter);
+      fail();
+    } catch (IllegalArgumentException expected) {
+    }
+
+    filter = MethodHandles.lookup().findStatic(
+        Main.class, "mismatchedNonVoidFilter",
+        MethodType.methodType(Integer.class, char.class, char.class));
+    try {
+      adapter = MethodHandles.foldArguments(target, filter);
+      fail();
+    } catch (IllegalArgumentException expected) {
+    }
   }
 
   public static void fail() {
