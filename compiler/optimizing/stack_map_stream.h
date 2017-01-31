@@ -68,6 +68,7 @@ class StackMapStream : public ValueObject {
         location_catalog_entries_indices_(allocator->Adapter(kArenaAllocStackMapStream)),
         dex_register_locations_(allocator->Adapter(kArenaAllocStackMapStream)),
         inline_infos_(allocator->Adapter(kArenaAllocStackMapStream)),
+        stack_masks_(allocator->Adapter(kArenaAllocStackMapStream)),
         stack_mask_max_(-1),
         dex_pc_max_(0),
         register_mask_max_(0),
@@ -107,6 +108,7 @@ class StackMapStream : public ValueObject {
     BitVector* live_dex_registers_mask;
     uint32_t dex_register_map_hash;
     size_t same_dex_register_map_as_;
+    uint32_t stack_mask_index;
   };
 
   struct InlineInfoEntry {
@@ -160,6 +162,9 @@ class StackMapStream : public ValueObject {
 
   CodeOffset ComputeMaxNativePcCodeOffset() const;
 
+  // Returns the number of unique stack masks.
+  size_t PrepareStackMasks(size_t entry_size_in_bits);
+
   // Returns the index of an entry with the same dex register map as the current_entry,
   // or kNoSameDexMapFound if no such entry exists.
   size_t FindEntryWithTheSameDexMap();
@@ -193,6 +198,7 @@ class StackMapStream : public ValueObject {
   // A set of concatenated maps of Dex register locations indices to `location_catalog_entries_`.
   ArenaVector<size_t> dex_register_locations_;
   ArenaVector<InlineInfoEntry> inline_infos_;
+  ArenaVector<uint8_t> stack_masks_;
   int stack_mask_max_;
   uint32_t dex_pc_max_;
   uint32_t register_mask_max_;

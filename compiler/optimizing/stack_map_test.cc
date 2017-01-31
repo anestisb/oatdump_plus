@@ -27,15 +27,16 @@ namespace art {
 // Check that the stack mask of given stack map is identical
 // to the given bit vector. Returns true if they are same.
 static bool CheckStackMask(
-    int number_of_bits,
+    const CodeInfo& code_info,
+    const CodeInfoEncoding& encoding,
     const StackMap& stack_map,
-    StackMapEncoding& encoding,
     const BitVector& bit_vector) {
-  if (bit_vector.GetHighestBitSet() >= number_of_bits) {
+  BitMemoryRegion stack_mask = code_info.GetStackMaskOf(encoding, stack_map);
+  if (bit_vector.GetNumberOfBits() > encoding.stack_mask_size_in_bits) {
     return false;
   }
-  for (int i = 0; i < number_of_bits; ++i) {
-    if (stack_map.GetStackMaskBit(encoding, i) != bit_vector.IsBitSet(i)) {
+  for (size_t i = 0; i < encoding.stack_mask_size_in_bits; ++i) {
+    if (stack_mask.LoadBit(i) != bit_vector.IsBitSet(i)) {
       return false;
     }
   }
@@ -81,10 +82,7 @@ TEST(StackMapTest, Test1) {
   ASSERT_EQ(64u, stack_map.GetNativePcOffset(encoding.stack_map_encoding, kRuntimeISA));
   ASSERT_EQ(0x3u, stack_map.GetRegisterMask(encoding.stack_map_encoding));
 
-  ASSERT_TRUE(CheckStackMask(code_info.GetNumberOfStackMaskBits(encoding),
-                             stack_map,
-                             encoding.stack_map_encoding,
-                             sp_mask));
+  ASSERT_TRUE(CheckStackMask(code_info, encoding, stack_map, sp_mask));
 
   ASSERT_TRUE(stack_map.HasDexRegisterMap(encoding.stack_map_encoding));
   DexRegisterMap dex_register_map =
@@ -199,10 +197,7 @@ TEST(StackMapTest, Test2) {
     ASSERT_EQ(64u, stack_map.GetNativePcOffset(encoding.stack_map_encoding, kRuntimeISA));
     ASSERT_EQ(0x3u, stack_map.GetRegisterMask(encoding.stack_map_encoding));
 
-    ASSERT_TRUE(CheckStackMask(code_info.GetNumberOfStackMaskBits(encoding),
-                               stack_map,
-                               encoding.stack_map_encoding,
-                               sp_mask1));
+    ASSERT_TRUE(CheckStackMask(code_info, encoding, stack_map, sp_mask1));
 
     ASSERT_TRUE(stack_map.HasDexRegisterMap(encoding.stack_map_encoding));
     DexRegisterMap dex_register_map =
@@ -261,10 +256,7 @@ TEST(StackMapTest, Test2) {
     ASSERT_EQ(128u, stack_map.GetNativePcOffset(encoding.stack_map_encoding, kRuntimeISA));
     ASSERT_EQ(0xFFu, stack_map.GetRegisterMask(encoding.stack_map_encoding));
 
-    ASSERT_TRUE(CheckStackMask(code_info.GetNumberOfStackMaskBits(encoding),
-                               stack_map,
-                               encoding.stack_map_encoding,
-                               sp_mask2));
+    ASSERT_TRUE(CheckStackMask(code_info, encoding, stack_map, sp_mask2));
 
     ASSERT_TRUE(stack_map.HasDexRegisterMap(encoding.stack_map_encoding));
     DexRegisterMap dex_register_map =
@@ -318,10 +310,7 @@ TEST(StackMapTest, Test2) {
     ASSERT_EQ(192u, stack_map.GetNativePcOffset(encoding.stack_map_encoding, kRuntimeISA));
     ASSERT_EQ(0xABu, stack_map.GetRegisterMask(encoding.stack_map_encoding));
 
-    ASSERT_TRUE(CheckStackMask(code_info.GetNumberOfStackMaskBits(encoding),
-                               stack_map,
-                               encoding.stack_map_encoding,
-                               sp_mask3));
+    ASSERT_TRUE(CheckStackMask(code_info, encoding, stack_map, sp_mask3));
 
     ASSERT_TRUE(stack_map.HasDexRegisterMap(encoding.stack_map_encoding));
     DexRegisterMap dex_register_map =
@@ -375,10 +364,7 @@ TEST(StackMapTest, Test2) {
     ASSERT_EQ(256u, stack_map.GetNativePcOffset(encoding.stack_map_encoding, kRuntimeISA));
     ASSERT_EQ(0xCDu, stack_map.GetRegisterMask(encoding.stack_map_encoding));
 
-    ASSERT_TRUE(CheckStackMask(code_info.GetNumberOfStackMaskBits(encoding),
-                               stack_map,
-                               encoding.stack_map_encoding,
-                               sp_mask4));
+    ASSERT_TRUE(CheckStackMask(code_info, encoding, stack_map, sp_mask4));
 
     ASSERT_TRUE(stack_map.HasDexRegisterMap(encoding.stack_map_encoding));
     DexRegisterMap dex_register_map =
@@ -852,6 +838,35 @@ TEST(StackMapTest, CodeOffsetTest) {
   EXPECT_EQ(offset_x86_64.Uint32Value(kX86_64), kX86_64InstructionAlignment);
   EXPECT_EQ(offset_mips.Uint32Value(kMips), kMipsInstructionAlignment);
   EXPECT_EQ(offset_mips64.Uint32Value(kMips64), kMips64InstructionAlignment);
+}
+
+
+TEST(StackMapTest, TestDeduplicateStackMask) {
+  ArenaPool pool;
+  ArenaAllocator arena(&pool);
+  StackMapStream stream(&arena, kRuntimeISA);
+
+  ArenaBitVector sp_mask(&arena, 0, true);
+  sp_mask.SetBit(1);
+  sp_mask.SetBit(4);
+  stream.BeginStackMapEntry(0, 4, 0x3, &sp_mask, 0, 0);
+  stream.EndStackMapEntry();
+  stream.BeginStackMapEntry(0, 8, 0x3, &sp_mask, 0, 0);
+  stream.EndStackMapEntry();
+
+  size_t size = stream.PrepareForFillIn();
+  void* memory = arena.Alloc(size, kArenaAllocMisc);
+  MemoryRegion region(memory, size);
+  stream.FillIn(region);
+
+  CodeInfo code_info(region);
+  CodeInfoEncoding encoding = code_info.ExtractEncoding();
+  ASSERT_EQ(2u, code_info.GetNumberOfStackMaps(encoding));
+
+  StackMap stack_map1 = code_info.GetStackMapForNativePcOffset(4, encoding);
+  StackMap stack_map2 = code_info.GetStackMapForNativePcOffset(8, encoding);
+  EXPECT_EQ(stack_map1.GetStackMaskIndex(encoding.stack_map_encoding),
+            stack_map2.GetStackMaskIndex(encoding.stack_map_encoding));
 }
 
 }  // namespace art

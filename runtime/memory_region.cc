@@ -29,8 +29,7 @@ void MemoryRegion::CopyFrom(size_t offset, const MemoryRegion& from) const {
   CHECK_GT(from.size(), 0U);
   CHECK_GE(this->size(), from.size());
   CHECK_LE(offset, this->size() - from.size());
-  memmove(reinterpret_cast<void*>(start() + offset),
-          from.pointer(), from.size());
+  memmove(reinterpret_cast<void*>(begin() + offset), from.pointer(), from.size());
 }
 
 void MemoryRegion::StoreBits(uintptr_t bit_offset, uint32_t value, size_t length) {
