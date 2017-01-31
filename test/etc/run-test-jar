@@ -364,6 +364,8 @@ fi
 
 
 if [ "$HAVE_IMAGE" = "n" ]; then
+    # Add 5 minutes to give some time to generate the boot image.
+    TIME_OUT_VALUE=$((${TIME_OUT_VALUE} + 300))
     DALVIKVM_BOOT_OPT="-Ximage:/system/non-existant/core.art"
 else
     DALVIKVM_BOOT_OPT="-Ximage:${BOOT_IMAGE}"
