@@ -126,12 +126,14 @@ class GarbageCollector : public RootVisitor, public IsMarkedVisitor, public Mark
  public:
   class SCOPED_LOCKABLE ScopedPause {
    public:
-    explicit ScopedPause(GarbageCollector* collector) EXCLUSIVE_LOCK_FUNCTION(Locks::mutator_lock_);
+    explicit ScopedPause(GarbageCollector* collector, bool with_reporting = true)
+        EXCLUSIVE_LOCK_FUNCTION(Locks::mutator_lock_);
     ~ScopedPause() UNLOCK_FUNCTION();
 
    private:
     const uint64_t start_time_;
     GarbageCollector* const collector_;
+    bool with_reporting_;
   };
 
   GarbageCollector(Heap* heap, const std::string& name);
