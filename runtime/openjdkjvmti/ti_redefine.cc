@@ -445,7 +445,8 @@ void Redefiner::ClassRedefinition::FindAndAllocateObsoleteMethods(art::mirror::C
   art::ScopedAssertNoThreadSuspension ns("No thread suspension during thread stack walking");
   art::mirror::ClassExt* ext = art_klass->GetExtData();
   CHECK(ext->GetObsoleteMethods() != nullptr);
-  CallbackCtx ctx(art_klass->GetClassLoader()->GetAllocator());
+  art::ClassLinker* linker = driver_->runtime_->GetClassLinker();
+  CallbackCtx ctx(linker->GetAllocatorForClassLoader(art_klass->GetClassLoader()));
   // Add all the declared methods to the map
   for (auto& m : art_klass->GetDeclaredMethods(art::kRuntimePointerSize)) {
     ctx.obsolete_methods.insert(&m);
@@ -702,33 +703,32 @@ class RedefinitionDataHolder {
 
 bool Redefiner::ClassRedefinition::FinishRemainingAllocations(
     int32_t klass_index, /*out*/RedefinitionDataHolder* holder) {
+  art::ScopedObjectAccessUnchecked soa(driver_->self_);
   art::StackHandleScope<2> hs(driver_->self_);
   holder->SetMirrorClass(klass_index, GetMirrorClass());
   // This shouldn't allocate
   art::Handle<art::mirror::ClassLoader> loader(hs.NewHandle(GetClassLoader()));
-  holder->SetSourceClassLoader(klass_index, loader.Get());
-  if (loader.Get() == nullptr) {
-    // TODO Better error msg.
-    RecordFailure(ERR(INTERNAL), "Unable to find class loader!");
-    return false;
-  }
-  art::Handle<art::mirror::Object> dex_file_obj(hs.NewHandle(
-      ClassLoaderHelper::FindSourceDexFileObject(driver_->self_, loader)));
-  holder->SetJavaDexFile(klass_index, dex_file_obj.Get());
-  if (dex_file_obj.Get() == nullptr) {
-    // TODO Better error msg.
-    RecordFailure(ERR(INTERNAL), "Unable to find class loader!");
-    return false;
-  }
-  holder->SetNewDexFileCookie(klass_index,
-                              ClassLoaderHelper::AllocateNewDexFileCookie(driver_->self_,
-                                                                          dex_file_obj,
-                                                                          dex_file_.get()).Ptr());
-  if (holder->GetNewDexFileCookie(klass_index) == nullptr) {
-    driver_->self_->AssertPendingOOMException();
-    driver_->self_->ClearException();
-    RecordFailure(ERR(OUT_OF_MEMORY), "Unable to allocate dex file array for class loader");
-    return false;
+  // The bootclasspath is handled specially so it doesn't have a j.l.DexFile.
+  if (!art::ClassLinker::IsBootClassLoader(soa, loader.Get())) {
+    holder->SetSourceClassLoader(klass_index, loader.Get());
+    art::Handle<art::mirror::Object> dex_file_obj(hs.NewHandle(
+        ClassLoaderHelper::FindSourceDexFileObject(driver_->self_, loader)));
+    holder->SetJavaDexFile(klass_index, dex_file_obj.Get());
+    if (dex_file_obj.Get() == nullptr) {
+      // TODO Better error msg.
+      RecordFailure(ERR(INTERNAL), "Unable to find dex file!");
+      return false;
+    }
+    holder->SetNewDexFileCookie(klass_index,
+                                ClassLoaderHelper::AllocateNewDexFileCookie(driver_->self_,
+                                                                            dex_file_obj,
+                                                                            dex_file_.get()).Ptr());
+    if (holder->GetNewDexFileCookie(klass_index) == nullptr) {
+      driver_->self_->AssertPendingOOMException();
+      driver_->self_->ClearException();
+      RecordFailure(ERR(OUT_OF_MEMORY), "Unable to allocate dex file array for class loader");
+      return false;
+    }
   }
   holder->SetNewDexCache(klass_index, CreateNewDexCache(loader));
   if (holder->GetNewDexCache(klass_index) == nullptr) {
@@ -815,6 +815,13 @@ jvmtiError Redefiner::Run() {
     // cleaned up by the GC eventually.
     return result_;
   }
+  int32_t counter = 0;
+  for (Redefiner::ClassRedefinition& redef : redefinitions_) {
+    if (holder.GetSourceClassLoader(counter) == nullptr) {
+      runtime_->GetClassLinker()->AppendToBootClassPath(self_, redef.GetDexFile());
+    }
+    counter++;
+  }
   // Disable GC and wait for it to be done if we are a moving GC.  This is fine since we are done
   // allocating so no deadlocks.
   art::gc::Heap* heap = runtime_->GetHeap();
@@ -833,16 +840,19 @@ jvmtiError Redefiner::Run() {
   // TODO We need to update all debugger MethodIDs so they note the method they point to is
   // obsolete or implement some other well defined semantics.
   // TODO We need to decide on & implement semantics for JNI jmethodids when we redefine methods.
-  int32_t cnt = 0;
+  counter = 0;
   for (Redefiner::ClassRedefinition& redef : redefinitions_) {
     art::ScopedAssertNoThreadSuspension nts("Updating runtime objects for redefinition");
-    art::mirror::Class* klass = holder.GetMirrorClass(cnt);
-    ClassLoaderHelper::UpdateJavaDexFile(holder.GetJavaDexFile(cnt),
-                                         holder.GetNewDexFileCookie(cnt));
+    if (holder.GetSourceClassLoader(counter) != nullptr) {
+      ClassLoaderHelper::UpdateJavaDexFile(holder.GetJavaDexFile(counter),
+                                           holder.GetNewDexFileCookie(counter));
+    }
+    art::mirror::Class* klass = holder.GetMirrorClass(counter);
     // TODO Rewrite so we don't do a stack walk for each and every class.
     redef.FindAndAllocateObsoleteMethods(klass);
-    redef.UpdateClass(klass, holder.GetNewDexCache(cnt), holder.GetOriginalDexFileBytes(cnt));
-    cnt++;
+    redef.UpdateClass(klass, holder.GetNewDexCache(counter),
+                      holder.GetOriginalDexFileBytes(counter));
+    counter++;
   }
   // TODO Verify the new Class.
   // TODO Shrink the obsolete method maps if possible?
