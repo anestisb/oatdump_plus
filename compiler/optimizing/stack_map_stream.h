@@ -69,6 +69,7 @@ class StackMapStream : public ValueObject {
         dex_register_locations_(allocator->Adapter(kArenaAllocStackMapStream)),
         inline_infos_(allocator->Adapter(kArenaAllocStackMapStream)),
         stack_masks_(allocator->Adapter(kArenaAllocStackMapStream)),
+        register_masks_(allocator->Adapter(kArenaAllocStackMapStream)),
         stack_mask_max_(-1),
         dex_pc_max_(0),
         register_mask_max_(0),
@@ -109,6 +110,7 @@ class StackMapStream : public ValueObject {
     uint32_t dex_register_map_hash;
     size_t same_dex_register_map_as_;
     uint32_t stack_mask_index;
+    uint32_t register_mask_index;
   };
 
   struct InlineInfoEntry {
@@ -165,6 +167,9 @@ class StackMapStream : public ValueObject {
   // Returns the number of unique stack masks.
   size_t PrepareStackMasks(size_t entry_size_in_bits);
 
+  // Returns the number of unique register masks.
+  size_t PrepareRegisterMasks();
+
   // Returns the index of an entry with the same dex register map as the current_entry,
   // or kNoSameDexMapFound if no such entry exists.
   size_t FindEntryWithTheSameDexMap();
@@ -199,6 +204,7 @@ class StackMapStream : public ValueObject {
   ArenaVector<size_t> dex_register_locations_;
   ArenaVector<InlineInfoEntry> inline_infos_;
   ArenaVector<uint8_t> stack_masks_;
+  ArenaVector<uint32_t> register_masks_;
   int stack_mask_max_;
   uint32_t dex_pc_max_;
   uint32_t register_mask_max_;
