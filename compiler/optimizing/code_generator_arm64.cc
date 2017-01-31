@@ -1452,6 +1452,19 @@ static bool CoherentConstantAndType(Location constant, Primitive::Type type) {
          (cst->IsDoubleConstant() && type == Primitive::kPrimDouble);
 }
 
+// Allocate a scratch register from the VIXL pool, querying first into
+// the floating-point register pool, and then the the core register
+// pool.  This is essentially a reimplementation of
+// vixl::aarch64::UseScratchRegisterScope::AcquireCPURegisterOfSize
+// using a different allocation strategy.
+static CPURegister AcquireFPOrCoreCPURegisterOfSize(vixl::aarch64::MacroAssembler* masm,
+                                                    vixl::aarch64::UseScratchRegisterScope* temps,
+                                                    int size_in_bits) {
+  return masm->GetScratchFPRegisterList()->IsEmpty()
+      ? CPURegister(temps->AcquireRegisterOfSize(size_in_bits))
+      : CPURegister(temps->AcquireVRegisterOfSize(size_in_bits));
+}
+
 void CodeGeneratorARM64::MoveLocation(Location destination,
                                       Location source,
                                       Primitive::Type dst_type) {
@@ -1563,8 +1576,16 @@ void CodeGeneratorARM64::MoveLocation(Location destination,
       // a move is blocked by a another move requiring a scratch FP
       // register, which would reserve D31). To prevent this issue, we
       // ask for a scratch register of any type (core or FP).
-      CPURegister temp =
-          temps.AcquireCPURegisterOfSize(destination.IsDoubleStackSlot() ? kXRegSize : kWRegSize);
+      //
+      // Also, we start by asking for a FP scratch register first, as the
+      // demand of scratch core registers is higher.  This is why we
+      // use AcquireFPOrCoreCPURegisterOfSize instead of
+      // UseScratchRegisterScope::AcquireCPURegisterOfSize, which
+      // allocates core scratch registers first.
+      CPURegister temp = AcquireFPOrCoreCPURegisterOfSize(
+          GetVIXLAssembler(),
+          &temps,
+          (destination.IsDoubleStackSlot() ? kXRegSize : kWRegSize));
       __ Ldr(temp, StackOperandFrom(source));
       __ Str(temp, StackOperandFrom(destination));
     }
