@@ -19,7 +19,7 @@
 
 #include "class.h"
 #include "gc_root.h"
-#include "object.h"
+#include "object-inl.h"
 #include "method_handles.h"
 #include "method_type.h"
 

@@ -15,6 +15,9 @@
  */
 
 #include "jni.h"
+#include "mirror/class-inl.h"
+#include "mirror/class_loader.h"
+#include "mirror/dex_cache-inl.h"
 #include "object_lock.h"
 #include "scoped_thread_state_change-inl.h"
 
