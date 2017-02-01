@@ -2399,8 +2399,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       const RegType& res_type = ResolveClassAndCheckAccess(type_idx);
       if (res_type.IsConflict()) {
         // If this is a primitive type, fail HARD.
-        ObjPtr<mirror::Class> klass =
-            ClassLinker::LookupResolvedType(type_idx, dex_cache_.Get(), class_loader_.Get());
+        mirror::Class* klass = dex_cache_->GetResolvedType(type_idx);
         if (klass != nullptr && klass->IsPrimitive()) {
           Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "using primitive type "
               << dex_file_->StringByTypeIdx(type_idx) << " in instanceof in "
@@ -3685,10 +3684,9 @@ inline bool MethodVerifier::IsInstantiableOrPrimitive(mirror::Class* klass) {
 }
 
 const RegType& MethodVerifier::ResolveClassAndCheckAccess(dex::TypeIndex class_idx) {
-  mirror::Class* klass =
-      ClassLinker::LookupResolvedType(class_idx, dex_cache_.Get(), class_loader_.Get()).Ptr();
+  mirror::Class* klass = dex_cache_->GetResolvedType(class_idx);
   const RegType* result = nullptr;
-  if (klass != nullptr && !klass->IsErroneous()) {
+  if (klass != nullptr) {
     bool precise = klass->CannotBeAssignedFromOtherTypes();
     if (precise && !IsInstantiableOrPrimitive(klass)) {
       const char* descriptor = dex_file_->StringByTypeIdx(class_idx);
