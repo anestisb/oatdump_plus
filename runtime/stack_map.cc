@@ -97,7 +97,7 @@ void StackMapEncoding::Dump(VariableIndentationOutputStream* vios) const {
       << ", dex_pc_bit_offset=" << static_cast<uint32_t>(dex_pc_bit_offset_)
       << ", dex_register_map_bit_offset=" << static_cast<uint32_t>(dex_register_map_bit_offset_)
       << ", inline_info_bit_offset=" << static_cast<uint32_t>(inline_info_bit_offset_)
-      << ", register_mask_bit_offset=" << static_cast<uint32_t>(register_mask_bit_offset_)
+      << ", register_mask_bit_offset=" << static_cast<uint32_t>(register_mask_index_bit_offset_)
       << ", stack_mask_index_bit_offset=" << static_cast<uint32_t>(stack_mask_index_bit_offset_)
       << ", total_bit_size=" << static_cast<uint32_t>(total_bit_size_)
       << ")\n";
@@ -204,7 +204,7 @@ void StackMap::Dump(VariableIndentationOutputStream* vios,
       << ", native_pc_offset=0x" << pc_offset
       << ", dex_register_map_offset=0x" << GetDexRegisterMapOffset(stack_map_encoding)
       << ", inline_info_offset=0x" << GetInlineDescriptorOffset(stack_map_encoding)
-      << ", register_mask=0x" << GetRegisterMask(stack_map_encoding)
+      << ", register_mask=0x" << code_info.GetRegisterMaskOf(encoding, *this)
       << std::dec
       << ", stack_mask=0b";
   BitMemoryRegion stack_mask = code_info.GetStackMaskOf(encoding, *this);

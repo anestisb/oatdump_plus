@@ -590,11 +590,12 @@ class OatDumper {
       kByteKindCodeInfoEncoding,
       kByteKindCodeInfoOther,
       kByteKindCodeInfoStackMasks,
+      kByteKindCodeInfoRegisterMasks,
       kByteKindStackMapNativePc,
       kByteKindStackMapDexPc,
       kByteKindStackMapDexRegisterMap,
       kByteKindStackMapInlineInfo,
-      kByteKindStackMapRegisterMask,
+      kByteKindStackMapRegisterMaskIndex,
       kByteKindStackMapStackMaskIndex,
       kByteKindCount,
       kByteKindStackMapFirst = kByteKindCodeInfoOther,
@@ -626,43 +627,44 @@ class OatDumper {
         const int64_t stack_map_bits = std::accumulate(bits + kByteKindStackMapFirst,
                                                        bits + kByteKindStackMapLast + 1,
                                                        0u);
-        Dump(os, "Code                           ", bits[kByteKindCode], sum);
-        Dump(os, "QuickMethodHeader              ", bits[kByteKindQuickMethodHeader], sum);
-        Dump(os, "CodeInfoEncoding               ", bits[kByteKindCodeInfoEncoding], sum);
-        Dump(os, "CodeInfoLocationCatalog        ", bits[kByteKindCodeInfoLocationCatalog], sum);
-        Dump(os, "CodeInfoDexRegisterMap         ", bits[kByteKindCodeInfoDexRegisterMap], sum);
-        Dump(os, "CodeInfoInlineInfo             ", bits[kByteKindCodeInfoInlineInfo], sum);
-        Dump(os, "CodeInfoStackMasks             ", bits[kByteKindCodeInfoStackMasks], sum);
-        Dump(os, "CodeInfoStackMap               ", stack_map_bits, sum);
+        Dump(os, "Code                            ", bits[kByteKindCode], sum);
+        Dump(os, "QuickMethodHeader               ", bits[kByteKindQuickMethodHeader], sum);
+        Dump(os, "CodeInfoEncoding                ", bits[kByteKindCodeInfoEncoding], sum);
+        Dump(os, "CodeInfoLocationCatalog         ", bits[kByteKindCodeInfoLocationCatalog], sum);
+        Dump(os, "CodeInfoDexRegisterMap          ", bits[kByteKindCodeInfoDexRegisterMap], sum);
+        Dump(os, "CodeInfoInlineInfo              ", bits[kByteKindCodeInfoInlineInfo], sum);
+        Dump(os, "CodeInfoStackMasks              ", bits[kByteKindCodeInfoStackMasks], sum);
+        Dump(os, "CodeInfoRegisterMasks           ", bits[kByteKindCodeInfoRegisterMasks], sum);
+        Dump(os, "CodeInfoStackMap                ", stack_map_bits, sum);
         {
           ScopedIndentation indent1(&os);
           Dump(os,
-               "StackMapNativePc             ",
+               "StackMapNativePc              ",
                bits[kByteKindStackMapNativePc],
                stack_map_bits,
                "stack map");
           Dump(os,
-               "StackMapDexPcEncoding        ",
+               "StackMapDexPcEncoding         ",
                bits[kByteKindStackMapDexPc],
                stack_map_bits,
                "stack map");
           Dump(os,
-               "StackMapDexRegisterMap       ",
+               "StackMapDexRegisterMap        ",
                bits[kByteKindStackMapDexRegisterMap],
                stack_map_bits,
                "stack map");
           Dump(os,
-               "StackMapInlineInfo           ",
+               "StackMapInlineInfo            ",
                bits[kByteKindStackMapInlineInfo],
                stack_map_bits,
                "stack map");
           Dump(os,
-               "StackMapRegisterMaskEncoding ",
-               bits[kByteKindStackMapRegisterMask],
+               "StackMapRegisterMaskIndex     ",
+               bits[kByteKindStackMapRegisterMaskIndex],
                stack_map_bits,
                "stack map");
           Dump(os,
-               "StackMapStackMaskIndex       ",
+               "StackMapStackMaskIndex        ",
                bits[kByteKindStackMapStackMaskIndex],
                stack_map_bits,
                "stack map");
@@ -1569,8 +1571,8 @@ class OatDumper {
               Stats::kByteKindStackMapInlineInfo,
               stack_map_encoding.GetInlineInfoEncoding().BitSize() * num_stack_maps);
           stats_.AddBits(
-              Stats::kByteKindStackMapRegisterMask,
-              stack_map_encoding.GetRegisterMaskEncoding().BitSize() * num_stack_maps);
+              Stats::kByteKindStackMapRegisterMaskIndex,
+              stack_map_encoding.GetRegisterMaskIndexEncoding().BitSize() * num_stack_maps);
           stats_.AddBits(
               Stats::kByteKindStackMapStackMaskIndex,
               stack_map_encoding.GetStackMaskIndexEncoding().BitSize() * num_stack_maps);
@@ -1578,6 +1580,9 @@ class OatDumper {
               Stats::kByteKindCodeInfoStackMasks,
               helper.GetCodeInfo().GetNumberOfStackMaskBits(encoding) *
                   encoding.number_of_stack_masks);
+          stats_.AddBits(
+              Stats::kByteKindCodeInfoRegisterMasks,
+              encoding.register_mask_size_in_bits * encoding.number_of_stack_masks);
           const size_t stack_map_bytes = helper.GetCodeInfo().GetStackMapsSize(encoding);
           const size_t location_catalog_bytes =
               helper.GetCodeInfo().GetDexRegisterLocationCatalogSize(encoding);
