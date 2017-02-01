@@ -1282,13 +1282,10 @@ class Dex2Oat FINAL {
         DCHECK_EQ(input_vdex_fd_, -1);
         if (!input_vdex_.empty()) {
           std::string error_msg;
-          input_vdex_file_.reset(VdexFile::Open(input_vdex_,
-                                                /* writable */ false,
-                                                /* low_4gb */ false,
-                                                &error_msg));
-          if (input_vdex_file_ != nullptr && !input_vdex_file_->IsValid()) {
-            input_vdex_file_.reset(nullptr);
-          }
+          input_vdex_file_ = VdexFile::Open(input_vdex_,
+                                            /* writable */ false,
+                                            /* low_4gb */ false,
+                                            &error_msg);
         }
 
         DCHECK_EQ(output_vdex_fd_, -1);
@@ -1330,19 +1327,16 @@ class Dex2Oat FINAL {
           PLOG(WARNING) << "Failed getting length of vdex file";
         } else {
           std::string error_msg;
-          input_vdex_file_.reset(VdexFile::Open(input_vdex_fd_,
-                                                s.st_size,
-                                                "vdex",
-                                                /* writable */ false,
-                                                /* low_4gb */ false,
-                                                &error_msg));
+          input_vdex_file_ = VdexFile::Open(input_vdex_fd_,
+                                            s.st_size,
+                                            "vdex",
+                                            /* writable */ false,
+                                            /* low_4gb */ false,
+                                            &error_msg);
           // If there's any problem with the passed vdex, just warn and proceed
           // without it.
           if (input_vdex_file_ == nullptr) {
-            PLOG(WARNING) << "Failed opening vdex file " << error_msg;
-          } else if (!input_vdex_file_->IsValid()) {
-            PLOG(WARNING) << "Existing vdex file is invalid";
-            input_vdex_file_.reset(nullptr);
+            PLOG(WARNING) << "Failed opening vdex file: " << error_msg;
           }
         }
       }
