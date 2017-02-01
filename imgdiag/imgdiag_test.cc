@@ -24,6 +24,7 @@
 
 #include "runtime/os.h"
 #include "runtime/arch/instruction_set.h"
+#include "runtime/exec_utils.h"
 #include "runtime/utils.h"
 #include "runtime/gc/space/image_space.h"
 #include "runtime/gc/heap.h"
