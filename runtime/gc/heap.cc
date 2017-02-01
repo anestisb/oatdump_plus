@@ -293,8 +293,13 @@ Heap::Heap(size_t initial_size,
   if (foreground_collector_type_ == kCollectorTypeCC) {
     // Need to use a low address so that we can allocate a contiguous
     // 2 * Xmx space when there's no image (dex2oat for target).
+#if defined(__LP64__)
     CHECK_GE(300 * MB, non_moving_space_capacity);
     requested_alloc_space_begin = reinterpret_cast<uint8_t*>(300 * MB) - non_moving_space_capacity;
+#else
+    // For 32-bit, use 0x20000000 because asan reserves 0x04000000 - 0x20000000.
+    requested_alloc_space_begin = reinterpret_cast<uint8_t*>(0x20000000);
+#endif
   }
 
   // Load image space(s).
@@ -369,7 +374,12 @@ Heap::Heap(size_t initial_size,
                              &error_str));
     CHECK(non_moving_space_mem_map != nullptr) << error_str;
     // Try to reserve virtual memory at a lower address if we have a separate non moving space.
+#if defined(__LP64__)
     request_begin = reinterpret_cast<uint8_t*>(300 * MB);
+#else
+    // For 32-bit, use 0x20000000 because asan reserves 0x04000000 - 0x20000000.
+    request_begin = reinterpret_cast<uint8_t*>(0x20000000) + non_moving_space_capacity;
+#endif
   }
   // Attempt to create 2 mem maps at or after the requested begin.
   if (foreground_collector_type_ != kCollectorTypeCC) {
