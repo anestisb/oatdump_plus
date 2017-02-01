@@ -472,6 +472,9 @@ class X86Assembler FINAL : public Assembler {
   void orpd(XmmRegister dst, XmmRegister src);
   void orps(XmmRegister dst, XmmRegister src);
 
+  void shufpd(XmmRegister dst, XmmRegister src, const Immediate& imm);
+  void shufps(XmmRegister dst, XmmRegister src, const Immediate& imm);
+
   void flds(const Address& src);
   void fstps(const Address& dst);
   void fsts(const Address& dst);

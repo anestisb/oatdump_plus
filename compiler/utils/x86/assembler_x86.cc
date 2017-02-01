@@ -1057,6 +1057,25 @@ void X86Assembler::andpd(XmmRegister dst, const Address& src) {
 }
 
 
+void X86Assembler::shufpd(XmmRegister dst, XmmRegister src, const Immediate& imm) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitUint8(0x0F);
+  EmitUint8(0xC6);
+  EmitXmmRegisterOperand(dst, src);
+  EmitUint8(imm.value());
+}
+
+
+void X86Assembler::shufps(XmmRegister dst, XmmRegister src, const Immediate& imm) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x0F);
+  EmitUint8(0xC6);
+  EmitXmmRegisterOperand(dst, src);
+  EmitUint8(imm.value());
+}
+
+
 void X86Assembler::fldl(const Address& src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0xDD);
