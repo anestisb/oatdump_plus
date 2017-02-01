@@ -3056,7 +3056,7 @@ class ReferenceMapVisitor : public StackVisitor {
         }
       }
       // Visit callee-save registers that hold pointers.
-      uint32_t register_mask = map.GetRegisterMask(encoding.stack_map_encoding);
+      uint32_t register_mask = code_info.GetRegisterMaskOf(encoding, map);
       for (size_t i = 0; i < BitSizeOf<uint32_t>(); ++i) {
         if (register_mask & (1 << i)) {
           mirror::Object** ref_addr = reinterpret_cast<mirror::Object**>(GetGPRAddress(i));
