@@ -144,8 +144,11 @@ void ArenaAllocatorStatsImpl<kCount>::Dump(std::ostream& os, const Arena* first,
   }
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Winstantiation-after-specialization"
 // Explicitly instantiate the used implementation.
 template class ArenaAllocatorStatsImpl<kArenaAllocatorCountAllocations>;
+#pragma GCC diagnostic pop
 
 void ArenaAllocatorMemoryTool::DoMakeDefined(void* ptr, size_t size) {
   MEMORY_TOOL_MAKE_DEFINED(ptr, size);
