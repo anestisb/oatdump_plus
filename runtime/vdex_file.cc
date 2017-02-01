@@ -49,10 +49,10 @@ VdexFile::Header::Header(uint32_t number_of_dex_files,
   DCHECK(IsVersionValid());
 }
 
-VdexFile* VdexFile::Open(const std::string& vdex_filename,
-                         bool writable,
-                         bool low_4gb,
-                         std::string* error_msg) {
+std::unique_ptr<VdexFile> VdexFile::Open(const std::string& vdex_filename,
+                                         bool writable,
+                                         bool low_4gb,
+                                         std::string* error_msg) {
   if (!OS::FileExists(vdex_filename.c_str())) {
     *error_msg = "File " + vdex_filename + " does not exist.";
     return nullptr;
@@ -79,12 +79,12 @@ VdexFile* VdexFile::Open(const std::string& vdex_filename,
   return Open(vdex_file->Fd(), vdex_length, vdex_filename, writable, low_4gb, error_msg);
 }
 
-VdexFile* VdexFile::Open(int file_fd,
-                         size_t vdex_length,
-                         const std::string& vdex_filename,
-                         bool writable,
-                         bool low_4gb,
-                         std::string* error_msg) {
+std::unique_ptr<VdexFile> VdexFile::Open(int file_fd,
+                                         size_t vdex_length,
+                                         const std::string& vdex_filename,
+                                         bool writable,
+                                         bool low_4gb,
+                                         std::string* error_msg) {
   std::unique_ptr<MemMap> mmap(MemMap::MapFile(vdex_length,
                                                writable ? PROT_READ | PROT_WRITE : PROT_READ,
                                                MAP_SHARED,
@@ -98,8 +98,14 @@ VdexFile* VdexFile::Open(int file_fd,
     return nullptr;
   }
 
+  std::unique_ptr<VdexFile> vdex(new VdexFile(mmap.release()));
+  if (!vdex->IsValid()) {
+    *error_msg = "Vdex file is not valid";
+    return nullptr;
+  }
+
   *error_msg = "Success";
-  return new VdexFile(mmap.release());
+  return vdex;
 }
 
 const uint8_t* VdexFile::GetNextDexFileData(const uint8_t* cursor) const {
