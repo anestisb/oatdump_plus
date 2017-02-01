@@ -67,7 +67,7 @@ class CheckReferenceMapVisitor : public StackVisitor {
     uint16_t number_of_dex_registers = m->GetCodeItem()->registers_size_;
     DexRegisterMap dex_register_map =
         code_info.GetDexRegisterMapOf(stack_map, encoding, number_of_dex_registers);
-    uint32_t register_mask = stack_map.GetRegisterMask(encoding.stack_map_encoding);
+    uint32_t register_mask = code_info.GetRegisterMaskOf(encoding, stack_map);
     BitMemoryRegion stack_mask = code_info.GetStackMaskOf(encoding, stack_map);
     for (int i = 0; i < number_of_references; ++i) {
       int reg = registers[i];
