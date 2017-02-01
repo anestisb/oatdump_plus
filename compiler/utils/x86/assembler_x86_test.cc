@@ -468,51 +468,43 @@ TEST_F(AssemblerX86Test, MovupdAddr) {
 }
 
 TEST_F(AssemblerX86Test, AddPS) {
-  GetAssembler()->addps(x86::XmmRegister(x86::XMM0), x86::XmmRegister(x86::XMM1));
-  const char* expected = "addps %xmm1, %xmm0\n";
-  DriverStr(expected, "addps");
+  DriverStr(RepeatFF(&x86::X86Assembler::addps, "addps %{reg2}, %{reg1}"), "addps");
 }
 
 TEST_F(AssemblerX86Test, AddPD) {
-  GetAssembler()->addpd(x86::XmmRegister(x86::XMM0), x86::XmmRegister(x86::XMM1));
-  const char* expected = "addpd %xmm1, %xmm0\n";
-  DriverStr(expected, "addpd");
+  DriverStr(RepeatFF(&x86::X86Assembler::addpd, "addpd %{reg2}, %{reg1}"), "addpd");
 }
 
 TEST_F(AssemblerX86Test, SubPS) {
-  GetAssembler()->subps(x86::XmmRegister(x86::XMM0), x86::XmmRegister(x86::XMM1));
-  const char* expected = "subps %xmm1, %xmm0\n";
-  DriverStr(expected, "subps");
+  DriverStr(RepeatFF(&x86::X86Assembler::subps, "subps %{reg2}, %{reg1}"), "subps");
 }
 
 TEST_F(AssemblerX86Test, SubPD) {
-  GetAssembler()->subpd(x86::XmmRegister(x86::XMM0), x86::XmmRegister(x86::XMM1));
-  const char* expected = "subpd %xmm1, %xmm0\n";
-  DriverStr(expected, "subpd");
+  DriverStr(RepeatFF(&x86::X86Assembler::subpd, "subpd %{reg2}, %{reg1}"), "subpd");
 }
 
 TEST_F(AssemblerX86Test, MulPS) {
-  GetAssembler()->mulps(x86::XmmRegister(x86::XMM0), x86::XmmRegister(x86::XMM1));
-  const char* expected = "mulps %xmm1, %xmm0\n";
-  DriverStr(expected, "mulps");
+  DriverStr(RepeatFF(&x86::X86Assembler::mulps, "mulps %{reg2}, %{reg1}"), "mulps");
 }
 
 TEST_F(AssemblerX86Test, MulPD) {
-  GetAssembler()->mulpd(x86::XmmRegister(x86::XMM0), x86::XmmRegister(x86::XMM1));
-  const char* expected = "mulpd %xmm1, %xmm0\n";
-  DriverStr(expected, "mulpd");
+  DriverStr(RepeatFF(&x86::X86Assembler::mulpd, "mulpd %{reg2}, %{reg1}"), "mulpd");
 }
 
 TEST_F(AssemblerX86Test, DivPS) {
-  GetAssembler()->divps(x86::XmmRegister(x86::XMM0), x86::XmmRegister(x86::XMM1));
-  const char* expected = "divps %xmm1, %xmm0\n";
-  DriverStr(expected, "divps");
+  DriverStr(RepeatFF(&x86::X86Assembler::divps, "divps %{reg2}, %{reg1}"), "divps");
 }
 
 TEST_F(AssemblerX86Test, DivPD) {
-  GetAssembler()->divpd(x86::XmmRegister(x86::XMM0), x86::XmmRegister(x86::XMM1));
-  const char* expected = "divpd %xmm1, %xmm0\n";
-  DriverStr(expected, "divpd");
+  DriverStr(RepeatFF(&x86::X86Assembler::divpd, "divpd %{reg2}, %{reg1}"), "divpd");
+}
+
+TEST_F(AssemblerX86Test, ShufPS) {
+  DriverStr(RepeatFFI(&x86::X86Assembler::shufps, 1, "shufps ${imm}, %{reg2}, %{reg1}"), "shufps");
+}
+
+TEST_F(AssemblerX86Test, ShufPD) {
+  DriverStr(RepeatFFI(&x86::X86Assembler::shufpd, 1, "shufpd ${imm}, %{reg2}, %{reg1}"), "shufpd");
 }
 
 /////////////////

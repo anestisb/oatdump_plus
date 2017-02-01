@@ -1203,6 +1203,14 @@ TEST_F(AssemblerX86_64Test, Orpd) {
   DriverStr(RepeatFF(&x86_64::X86_64Assembler::orpd, "orpd %{reg2}, %{reg1}"), "orpd");
 }
 
+TEST_F(AssemblerX86_64Test, Shufps) {
+  DriverStr(RepeatFFI(&x86_64::X86_64Assembler::shufps, 1, "shufps ${imm}, %{reg2}, %{reg1}"), "shufps");
+}
+
+TEST_F(AssemblerX86_64Test, Shufpd) {
+  DriverStr(RepeatFFI(&x86_64::X86_64Assembler::shufpd, 1, "shufpd ${imm}, %{reg2}, %{reg1}"), "shufpd");
+}
+
 TEST_F(AssemblerX86_64Test, UcomissAddress) {
   GetAssembler()->ucomiss(x86_64::XmmRegister(x86_64::XMM0), x86_64::Address(
       x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::RBX), x86_64::TIMES_4, 12));
