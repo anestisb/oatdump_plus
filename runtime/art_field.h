@@ -217,6 +217,8 @@ class ArtField FINAL {
  private:
   ObjPtr<mirror::Class> ProxyFindSystemClass(const char* descriptor)
       REQUIRES_SHARED(Locks::mutator_lock_);
+  ObjPtr<mirror::Class> ResolveGetType(dex::TypeIndex type_idx)
+      REQUIRES_SHARED(Locks::mutator_lock_);
   ObjPtr<mirror::String> ResolveGetStringName(Thread* self,
                                               const DexFile& dex_file,
                                               dex::StringIndex string_idx,
