@@ -70,6 +70,7 @@ std::ostream& operator<<(std::ostream& os, const MemMap::Maps& mem_maps) {
   return os;
 }
 
+std::mutex* MemMap::mem_maps_lock_ = nullptr;
 MemMap::Maps* MemMap::maps_ = nullptr;
 
 #if USE_ART_LOW_4G_ALLOCATOR
@@ -139,7 +140,7 @@ bool MemMap::ContainedWithinExistingMap(uint8_t* ptr, size_t size, std::string* 
   // There is a suspicion that BacktraceMap::Create is occasionally missing maps. TODO: Investigate
   // further.
   {
-    MutexLock mu(Thread::Current(), *Locks::mem_maps_lock_);
+    std::lock_guard<std::mutex> mu(*mem_maps_lock_);
     for (auto& pair : *maps_) {
       MemMap* const map = pair.second;
       if (begin >= reinterpret_cast<uintptr_t>(map->Begin()) &&
@@ -490,7 +491,7 @@ MemMap::~MemMap() {
   }
 
   // Remove it from maps_.
-  MutexLock mu(Thread::Current(), *Locks::mem_maps_lock_);
+  std::lock_guard<std::mutex> mu(*mem_maps_lock_);
   bool found = false;
   DCHECK(maps_ != nullptr);
   for (auto it = maps_->lower_bound(base_begin_), end = maps_->end();
@@ -518,7 +519,7 @@ MemMap::MemMap(const std::string& name, uint8_t* begin, size_t size, void* base_
     CHECK_NE(base_size_, 0U);
 
     // Add it to maps_.
-    MutexLock mu(Thread::Current(), *Locks::mem_maps_lock_);
+    std::lock_guard<std::mutex> mu(*mem_maps_lock_);
     DCHECK(maps_ != nullptr);
     maps_->insert(std::make_pair(base_begin_, this));
   }
@@ -637,7 +638,7 @@ bool MemMap::Protect(int prot) {
 }
 
 bool MemMap::CheckNoGaps(MemMap* begin_map, MemMap* end_map) {
-  MutexLock mu(Thread::Current(), *Locks::mem_maps_lock_);
+  std::lock_guard<std::mutex> mu(*mem_maps_lock_);
   CHECK(begin_map != nullptr);
   CHECK(end_map != nullptr);
   CHECK(HasMemMap(begin_map));
@@ -656,7 +657,7 @@ bool MemMap::CheckNoGaps(MemMap* begin_map, MemMap* end_map) {
 }
 
 void MemMap::DumpMaps(std::ostream& os, bool terse) {
-  MutexLock mu(Thread::Current(), *Locks::mem_maps_lock_);
+  std::lock_guard<std::mutex> mu(*mem_maps_lock_);
   DumpMapsLocked(os, terse);
 }
 
@@ -747,17 +748,31 @@ MemMap* MemMap::GetLargestMemMapAt(void* address) {
 }
 
 void MemMap::Init() {
-  MutexLock mu(Thread::Current(), *Locks::mem_maps_lock_);
-  if (maps_ == nullptr) {
+  if (mem_maps_lock_ != nullptr) {
     // dex2oat calls MemMap::Init twice since its needed before the runtime is created.
-    maps_ = new Maps;
+    return;
   }
+  mem_maps_lock_ = new std::mutex();
+  // Not for thread safety, but for the annotation that maps_ is GUARDED_BY(mem_maps_lock_).
+  std::lock_guard<std::mutex> mu(*mem_maps_lock_);
+  DCHECK(maps_ == nullptr);
+  maps_ = new Maps;
 }
 
 void MemMap::Shutdown() {
-  MutexLock mu(Thread::Current(), *Locks::mem_maps_lock_);
-  delete maps_;
-  maps_ = nullptr;
+  if (mem_maps_lock_ == nullptr) {
+    // If MemMap::Shutdown is called more than once, there is no effect.
+    return;
+  }
+  {
+    // Not for thread safety, but for the annotation that maps_ is GUARDED_BY(mem_maps_lock_).
+    std::lock_guard<std::mutex> mu(*mem_maps_lock_);
+    DCHECK(maps_ != nullptr);
+    delete maps_;
+    maps_ = nullptr;
+  }
+  delete mem_maps_lock_;
+  mem_maps_lock_ = nullptr;
 }
 
 void MemMap::SetSize(size_t new_size) {
@@ -813,7 +828,7 @@ void* MemMap::MapInternal(void* addr,
   if (low_4gb && addr == nullptr) {
     bool first_run = true;
 
-    MutexLock mu(Thread::Current(), *Locks::mem_maps_lock_);
+    std::lock_guard<std::mutex> mu(*mem_maps_lock_);
     for (uintptr_t ptr = next_mem_pos_; ptr < 4 * GB; ptr += kPageSize) {
       // Use maps_ as an optimization to skip over large maps.
       // Find the first map which is address > ptr.
