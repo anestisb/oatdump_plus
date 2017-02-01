@@ -154,8 +154,8 @@ TEST_F(OatFileAssistantTest, EmptyVdexOdex) {
   std::string vdex_location = GetOdexDir() + "/EmptyVdexOdex.vdex";
 
   Copy(GetDexSrc1(), dex_location);
-  OS::CreateEmptyFile(vdex_location.c_str());
-  OS::CreateEmptyFile(odex_location.c_str());
+  ScratchFile vdex_file(vdex_location.c_str());
+  ScratchFile odex_file(odex_location.c_str());
 
   OatFileAssistant oat_file_assistant(dex_location.c_str(), kRuntimeISA, false);
   EXPECT_EQ(OatFileAssistant::kDex2OatFromScratch,
