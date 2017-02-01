@@ -74,6 +74,7 @@ class Main {
   }
 
   public static void main(String[] args) {
+    setPopRetransformations(false);
     addCommonTransformationResult("Transform", CLASS_BYTES, DEX_BYTES);
     enableCommonRetransformation(true);
     try {
@@ -86,6 +87,8 @@ class Main {
       Method run_test = klass.getMethod("runTest");
       run_test.invoke(null);
 
+      // Remove the original transformation. It has been used by now.
+      popTransformationFor("Transform");
       // Make sure we don't get called for transformation again.
       addCommonTransformationResult("Transform", new byte[0], new byte[0]);
       doCommonClassRetransformation(new_loader.loadClass("Transform"));
@@ -102,4 +105,6 @@ class Main {
   private static native void addCommonTransformationResult(String target_name,
                                                            byte[] class_bytes,
                                                            byte[] dex_bytes);
+  private static native void setPopRetransformations(boolean should_pop);
+  private static native void popTransformationFor(String target_name);
 }
