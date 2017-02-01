@@ -66,6 +66,9 @@ class Main {
   }
 
   public static void main(String[] args) {
+    // Don't pop transformations. Make sure that even if 2 threads race to define the class both
+    // will get the same result.
+    setPopRetransformations(false);
     addCommonTransformationResult("Transform", CLASS_BYTES, DEX_BYTES);
     enableCommonRetransformation(true);
     try {
@@ -83,6 +86,7 @@ class Main {
     }
   }
 
+  private static native void setPopRetransformations(boolean should_pop);
   // Transforms the class
   private static native void enableCommonRetransformation(boolean enable);
   private static native void addCommonTransformationResult(String target_name,

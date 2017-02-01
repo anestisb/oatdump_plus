@@ -96,7 +96,7 @@ class Main {
   }
 
   public static void main(String[] args) {
-    // TODO WHAT TO TRANSFORM
+    setPopRetransformations(false);
     addCommonTransformationResult("java/util/OptionalLong", CLASS_BYTES, DEX_BYTES);
     enableCommonRetransformation(true);
     try {
@@ -114,6 +114,7 @@ class Main {
     }
   }
 
+  private static native void setPopRetransformations(boolean should_pop);
   // Transforms the class
   private static native void enableCommonRetransformation(boolean enable);
   private static native void addCommonTransformationResult(String target_name,
