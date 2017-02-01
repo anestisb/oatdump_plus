@@ -210,6 +210,7 @@ struct CommonTransformationResult {
 
 // Map from class name to transformation result.
 std::map<std::string, std::deque<CommonTransformationResult>> gTransformations;
+bool gPopTransformations = true;
 
 extern "C" JNIEXPORT void JNICALL Java_Main_addCommonTransformationResult(JNIEnv* env,
                                                                           jclass,
@@ -266,7 +267,32 @@ void JNICALL CommonClassFileLoadHookRetransformable(jvmtiEnv* jvmti_env,
     memcpy(new_data, desired_array.data(), desired_array.size());
     *new_class_data = new_data;
     *new_class_data_len = desired_array.size();
+    if (gPopTransformations) {
+      gTransformations[name_str].pop_front();
+    }
+  }
+}
+
+extern "C" JNIEXPORT void Java_Main_setPopRetransformations(JNIEnv*,
+                                                            jclass,
+                                                            jboolean enable) {
+  gPopTransformations = enable;
+}
+
+extern "C" JNIEXPORT void Java_Main_popTransformationFor(JNIEnv* env,
+                                                         jclass,
+                                                         jstring class_name) {
+  const char* name_chrs = env->GetStringUTFChars(class_name, nullptr);
+  std::string name_str(name_chrs);
+  env->ReleaseStringUTFChars(class_name, name_chrs);
+  if (gTransformations.find(name_str) != gTransformations.end() &&
+      gTransformations[name_str].size() > 0) {
     gTransformations[name_str].pop_front();
+  } else {
+    std::stringstream err;
+    err << "No transformations found for class " << name_str;
+    std::string message = err.str();
+    env->ThrowNew(env->FindClass("java/lang/Exception"), message.c_str());
   }
 }
 
