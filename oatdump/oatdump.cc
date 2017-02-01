@@ -2180,14 +2180,9 @@ class ImageDumper {
           ScopedIndentation indent2(&state->vios_);
           auto* resolved_types = dex_cache->GetResolvedTypes();
           for (size_t i = 0; i < num_types; ++i) {
-            auto pair = resolved_types[i].load(std::memory_order_relaxed);
+            auto* elem = resolved_types[i].Read();
             size_t run = 0;
-            for (size_t j = i + 1; j != num_types; ++j) {
-              auto other_pair = resolved_types[j].load(std::memory_order_relaxed);
-              if (pair.index != other_pair.index ||
-                  pair.object.Read() != other_pair.object.Read()) {
-                break;
-              }
+            for (size_t j = i + 1; j != num_types && elem == resolved_types[j].Read(); ++j) {
               ++run;
             }
             if (run == 0) {
@@ -2197,13 +2192,12 @@ class ImageDumper {
               i = i + run;
             }
             std::string msg;
-            auto* elem = pair.object.Read();
             if (elem == nullptr) {
               msg = "null";
             } else {
               msg = elem->PrettyClass();
             }
-            os << StringPrintf("%p   %u %s\n", elem, pair.index, msg.c_str());
+            os << StringPrintf("%p   %s\n", elem, msg.c_str());
           }
         }
       }
