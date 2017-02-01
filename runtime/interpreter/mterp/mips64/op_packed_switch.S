@@ -10,7 +10,6 @@
      */
     /* op vAA, +BBBBBBBB */
     .extern $func
-    .extern MterpProfileBranch
     lh      a0, 2(rPC)                  # a0 <- bbbb (lo)
     lh      a1, 4(rPC)                  # a1 <- BBBB (hi)
     srl     a3, rINST, 8                # a3 <- AA
