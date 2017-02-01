@@ -95,8 +95,8 @@ public class Main {
   /// CHECK:                        str s1, [sp, #28]
   /// CHECK:                        ldr s1, [sp, #32]
   /// CHECK:                        str s31, [sp, #32]
-  /// CHECK:                        ldr w16, [sp, #20]
-  /// CHECK:                        str w16, [sp, #40]
+  /// CHECK:                        ldr s31, [sp, #20]
+  /// CHECK:                        str s31, [sp, #40]
   /// CHECK:                        str s12, [sp, #20]
   /// CHECK:                        fmov d12, d11
   /// CHECK:                        fmov d11, d10
