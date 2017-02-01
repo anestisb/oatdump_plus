@@ -80,7 +80,7 @@ TEST(StackMapTest, Test1) {
   ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForNativePcOffset(64, encoding)));
   ASSERT_EQ(0u, stack_map.GetDexPc(encoding.stack_map_encoding));
   ASSERT_EQ(64u, stack_map.GetNativePcOffset(encoding.stack_map_encoding, kRuntimeISA));
-  ASSERT_EQ(0x3u, stack_map.GetRegisterMask(encoding.stack_map_encoding));
+  ASSERT_EQ(0x3u, code_info.GetRegisterMaskOf(encoding, stack_map));
 
   ASSERT_TRUE(CheckStackMask(code_info, encoding, stack_map, sp_mask));
 
@@ -195,7 +195,7 @@ TEST(StackMapTest, Test2) {
     ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForNativePcOffset(64, encoding)));
     ASSERT_EQ(0u, stack_map.GetDexPc(encoding.stack_map_encoding));
     ASSERT_EQ(64u, stack_map.GetNativePcOffset(encoding.stack_map_encoding, kRuntimeISA));
-    ASSERT_EQ(0x3u, stack_map.GetRegisterMask(encoding.stack_map_encoding));
+    ASSERT_EQ(0x3u, code_info.GetRegisterMaskOf(encoding, stack_map));
 
     ASSERT_TRUE(CheckStackMask(code_info, encoding, stack_map, sp_mask1));
 
@@ -254,7 +254,7 @@ TEST(StackMapTest, Test2) {
     ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForNativePcOffset(128u, encoding)));
     ASSERT_EQ(1u, stack_map.GetDexPc(encoding.stack_map_encoding));
     ASSERT_EQ(128u, stack_map.GetNativePcOffset(encoding.stack_map_encoding, kRuntimeISA));
-    ASSERT_EQ(0xFFu, stack_map.GetRegisterMask(encoding.stack_map_encoding));
+    ASSERT_EQ(0xFFu, code_info.GetRegisterMaskOf(encoding, stack_map));
 
     ASSERT_TRUE(CheckStackMask(code_info, encoding, stack_map, sp_mask2));
 
@@ -308,7 +308,7 @@ TEST(StackMapTest, Test2) {
     ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForNativePcOffset(192u, encoding)));
     ASSERT_EQ(2u, stack_map.GetDexPc(encoding.stack_map_encoding));
     ASSERT_EQ(192u, stack_map.GetNativePcOffset(encoding.stack_map_encoding, kRuntimeISA));
-    ASSERT_EQ(0xABu, stack_map.GetRegisterMask(encoding.stack_map_encoding));
+    ASSERT_EQ(0xABu, code_info.GetRegisterMaskOf(encoding, stack_map));
 
     ASSERT_TRUE(CheckStackMask(code_info, encoding, stack_map, sp_mask3));
 
@@ -362,7 +362,7 @@ TEST(StackMapTest, Test2) {
     ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForNativePcOffset(256u, encoding)));
     ASSERT_EQ(3u, stack_map.GetDexPc(encoding.stack_map_encoding));
     ASSERT_EQ(256u, stack_map.GetNativePcOffset(encoding.stack_map_encoding, kRuntimeISA));
-    ASSERT_EQ(0xCDu, stack_map.GetRegisterMask(encoding.stack_map_encoding));
+    ASSERT_EQ(0xCDu, code_info.GetRegisterMaskOf(encoding, stack_map));
 
     ASSERT_TRUE(CheckStackMask(code_info, encoding, stack_map, sp_mask4));
 
@@ -444,7 +444,7 @@ TEST(StackMapTest, TestNonLiveDexRegisters) {
   ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForNativePcOffset(64, encoding)));
   ASSERT_EQ(0u, stack_map.GetDexPc(encoding.stack_map_encoding));
   ASSERT_EQ(64u, stack_map.GetNativePcOffset(encoding.stack_map_encoding, kRuntimeISA));
-  ASSERT_EQ(0x3u, stack_map.GetRegisterMask(encoding.stack_map_encoding));
+  ASSERT_EQ(0x3u, code_info.GetRegisterMaskOf(encoding, stack_map));
 
   ASSERT_TRUE(stack_map.HasDexRegisterMap(encoding.stack_map_encoding));
   DexRegisterMap dex_register_map =
@@ -643,7 +643,7 @@ TEST(StackMapTest, TestNoDexRegisterMap) {
   ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForNativePcOffset(64, encoding)));
   ASSERT_EQ(0u, stack_map.GetDexPc(encoding.stack_map_encoding));
   ASSERT_EQ(64u, stack_map.GetNativePcOffset(encoding.stack_map_encoding, kRuntimeISA));
-  ASSERT_EQ(0x3u, stack_map.GetRegisterMask(encoding.stack_map_encoding));
+  ASSERT_EQ(0x3u, code_info.GetRegisterMaskOf(encoding, stack_map));
 
   ASSERT_FALSE(stack_map.HasDexRegisterMap(encoding.stack_map_encoding));
   ASSERT_FALSE(stack_map.HasInlineInfo(encoding.stack_map_encoding));
@@ -653,7 +653,7 @@ TEST(StackMapTest, TestNoDexRegisterMap) {
   ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForNativePcOffset(68, encoding)));
   ASSERT_EQ(1u, stack_map.GetDexPc(encoding.stack_map_encoding));
   ASSERT_EQ(68u, stack_map.GetNativePcOffset(encoding.stack_map_encoding, kRuntimeISA));
-  ASSERT_EQ(0x4u, stack_map.GetRegisterMask(encoding.stack_map_encoding));
+  ASSERT_EQ(0x4u, code_info.GetRegisterMaskOf(encoding, stack_map));
 
   ASSERT_FALSE(stack_map.HasDexRegisterMap(encoding.stack_map_encoding));
   ASSERT_FALSE(stack_map.HasInlineInfo(encoding.stack_map_encoding));
