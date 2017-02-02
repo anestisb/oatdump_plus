@@ -768,38 +768,32 @@ extern "C" ssize_t MterpAddHotnessBatch(ArtMethod* method,
   return MterpSetUpHotnessCountdown(method, shadow_frame);
 }
 
-// TUNING: Unused by arm/arm64/x86/x86_64.  Remove when mips/mips64 mterps support batch updates.
-extern "C" size_t MterpProfileBranch(Thread* self, ShadowFrame* shadow_frame, int32_t offset)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  ArtMethod* method = shadow_frame->GetMethod();
-  JValue* result = shadow_frame->GetResultRegister();
-  uint32_t dex_pc = shadow_frame->GetDexPC();
-  jit::Jit* jit = Runtime::Current()->GetJit();
-  if ((jit != nullptr) && (offset <= 0)) {
-    jit->AddSamples(self, method, 1, /*with_backedges*/ true);
-  }
-  int16_t countdown_value = MterpSetUpHotnessCountdown(method, shadow_frame);
-  if (countdown_value == jit::kJitCheckForOSR) {
-    return jit::Jit::MaybeDoOnStackReplacement(self, method, dex_pc, offset, result);
-  } else {
-    return false;
-  }
-}
-
 extern "C" size_t MterpMaybeDoOnStackReplacement(Thread* self,
                                                  ShadowFrame* shadow_frame,
                                                  int32_t offset)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  ArtMethod* method = shadow_frame->GetMethod();
-  JValue* result = shadow_frame->GetResultRegister();
-  uint32_t dex_pc = shadow_frame->GetDexPC();
-  jit::Jit* jit = Runtime::Current()->GetJit();
-  if (offset <= 0) {
-    // Keep updating hotness in case a compilation request was dropped.  Eventually it will retry.
-    jit->AddSamples(self, method, 1, /*with_backedges*/ true);
+  int16_t osr_countdown = shadow_frame->GetCachedHotnessCountdown() - 1;
+  bool did_osr = false;
+  /*
+   * To reduce the cost of polling the compiler to determine whether the requested OSR
+   * compilation has completed, only check every Nth time.  NOTE: the "osr_countdown <= 0"
+   * condition is satisfied either by the decrement below or the initial setting of
+   * the cached countdown field to kJitCheckForOSR, which elsewhere is asserted to be -1.
+   */
+  if (osr_countdown <= 0) {
+    ArtMethod* method = shadow_frame->GetMethod();
+    JValue* result = shadow_frame->GetResultRegister();
+    uint32_t dex_pc = shadow_frame->GetDexPC();
+    jit::Jit* jit = Runtime::Current()->GetJit();
+    osr_countdown = jit::Jit::kJitRecheckOSRThreshold;
+    if (offset <= 0) {
+      // Keep updating hotness in case a compilation request was dropped.  Eventually it will retry.
+      jit->AddSamples(self, method, osr_countdown, /*with_backedges*/ true);
+    }
+    did_osr = jit::Jit::MaybeDoOnStackReplacement(self, method, dex_pc, offset, result);
   }
-  // Assumes caller has already determined that an OSR check is appropriate.
-  return jit::Jit::MaybeDoOnStackReplacement(self, method, dex_pc, offset, result);
+  shadow_frame->SetCachedHotnessCountdown(osr_countdown);
+  return did_osr;
 }
 
 }  // namespace interpreter
