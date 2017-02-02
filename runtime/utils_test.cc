@@ -21,6 +21,7 @@
 #include "base/enums.h"
 #include "class_linker-inl.h"
 #include "common_runtime_test.h"
+#include "exec_utils.h"
 #include "mirror/array.h"
 #include "mirror/array-inl.h"
 #include "mirror/object-inl.h"

@@ -32,6 +32,7 @@
 #include "base/scoped_flock.h"
 #include "base/systrace.h"
 #include "base/time_utils.h"
+#include "exec_utils.h"
 #include "gc/accounting/space_bitmap-inl.h"
 #include "image-inl.h"
 #include "image_space_fs.h"

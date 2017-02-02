@@ -57,6 +57,7 @@ cc_defaults {
         "dex_file_verifier.cc",
         "dex_instruction.cc",
         "elf_file.cc",
+        "exec_utils.cc",
         "fault_handler.cc",
         "gc/allocation_record.cc",
         "gc/allocator/dlmalloc.cc",
