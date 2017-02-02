@@ -273,6 +273,7 @@ art_cc_defaults {
         "931-agent-thread/agent_thread.cc",
         "933-misc-events/misc_events.cc",
         "936-search-onload/search_onload.cc",
+        "944-transform-classloaders/classloader.cc",
     ],
     shared_libs: [
         "libbase",

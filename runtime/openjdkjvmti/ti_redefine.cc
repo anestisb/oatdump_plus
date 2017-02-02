@@ -701,6 +701,60 @@ class RedefinitionDataHolder {
   DISALLOW_COPY_AND_ASSIGN(RedefinitionDataHolder);
 };
 
+// Looks through the previously allocated cookies to see if we need to update them with another new
+// dexfile. This is so that even if multiple classes with the same classloader are redefined at
+// once they are all added to the classloader.
+bool Redefiner::ClassRedefinition::AllocateAndRememberNewDexFileCookie(
+    int32_t klass_index,
+    art::Handle<art::mirror::ClassLoader> source_class_loader,
+    art::Handle<art::mirror::Object> dex_file_obj,
+    /*out*/RedefinitionDataHolder* holder) {
+  art::StackHandleScope<2> hs(driver_->self_);
+  art::MutableHandle<art::mirror::LongArray> old_cookie(
+      hs.NewHandle<art::mirror::LongArray>(nullptr));
+  bool has_older_cookie = false;
+  // See if we already have a cookie that a previous redefinition got from the same classloader.
+  for (int32_t i = 0; i < klass_index; i++) {
+    if (holder->GetSourceClassLoader(i) == source_class_loader.Get()) {
+      // Since every instance of this classloader should have the same cookie associated with it we
+      // can stop looking here.
+      has_older_cookie = true;
+      old_cookie.Assign(holder->GetNewDexFileCookie(i));
+      break;
+    }
+  }
+  if (old_cookie.IsNull()) {
+    // No older cookie. Get it directly from the dex_file_obj
+    // We should not have seen this classloader elsewhere.
+    CHECK(!has_older_cookie);
+    old_cookie.Assign(ClassLoaderHelper::GetDexFileCookie(dex_file_obj));
+  }
+  // Use the old cookie to generate the new one with the new DexFile* added in.
+  art::Handle<art::mirror::LongArray>
+      new_cookie(hs.NewHandle(ClassLoaderHelper::AllocateNewDexFileCookie(driver_->self_,
+                                                                          old_cookie,
+                                                                          dex_file_.get())));
+  // Make sure the allocation worked.
+  if (new_cookie.IsNull()) {
+    return false;
+  }
+
+  // Save the cookie.
+  holder->SetNewDexFileCookie(klass_index, new_cookie.Get());
+  // If there are other copies of this same classloader we need to make sure that we all have the
+  // same cookie.
+  if (has_older_cookie) {
+    for (int32_t i = 0; i < klass_index; i++) {
+      // We will let the GC take care of the cookie we allocated for this one.
+      if (holder->GetSourceClassLoader(i) == source_class_loader.Get()) {
+        holder->SetNewDexFileCookie(i, new_cookie.Get());
+      }
+    }
+  }
+
+  return true;
+}
+
 bool Redefiner::ClassRedefinition::FinishRemainingAllocations(
     int32_t klass_index, /*out*/RedefinitionDataHolder* holder) {
   art::ScopedObjectAccessUnchecked soa(driver_->self_);
@@ -719,11 +773,8 @@ bool Redefiner::ClassRedefinition::FinishRemainingAllocations(
       RecordFailure(ERR(INTERNAL), "Unable to find dex file!");
       return false;
     }
-    holder->SetNewDexFileCookie(klass_index,
-                                ClassLoaderHelper::AllocateNewDexFileCookie(driver_->self_,
-                                                                            dex_file_obj,
-                                                                            dex_file_.get()).Ptr());
-    if (holder->GetNewDexFileCookie(klass_index) == nullptr) {
+    // Allocate the new dex file cookie.
+    if (!AllocateAndRememberNewDexFileCookie(klass_index, loader, dex_file_obj, holder)) {
       driver_->self_->AssertPendingOOMException();
       driver_->self_->ClearException();
       RecordFailure(ERR(OUT_OF_MEMORY), "Unable to allocate dex file array for class loader");
