@@ -94,10 +94,10 @@ class JitLogger {
       OpenJitDumpLog();
     }
 
-    void WriteLog(JitCodeCache* code_cache, ArtMethod* method)
+    void WriteLog(JitCodeCache* code_cache, ArtMethod* method, bool osr)
         REQUIRES_SHARED(Locks::mutator_lock_) {
-      WritePerfMapLog(code_cache, method);
-      WriteJitDumpLog(code_cache, method);
+      WritePerfMapLog(code_cache, method, osr);
+      WriteJitDumpLog(code_cache, method, osr);
     }
 
     void CloseLog() {
@@ -108,13 +108,13 @@ class JitLogger {
   private:
     // For perf-map profiling
     void OpenPerfMapLog();
-    void WritePerfMapLog(JitCodeCache* code_cache, ArtMethod* method)
+    void WritePerfMapLog(JitCodeCache* code_cache, ArtMethod* method, bool osr)
         REQUIRES_SHARED(Locks::mutator_lock_);
     void ClosePerfMapLog();
 
     // For perf-inject profiling
     void OpenJitDumpLog();
-    void WriteJitDumpLog(JitCodeCache* code_cache, ArtMethod* method)
+    void WriteJitDumpLog(JitCodeCache* code_cache, ArtMethod* method, bool osr)
         REQUIRES_SHARED(Locks::mutator_lock_);
     void CloseJitDumpLog();
 
