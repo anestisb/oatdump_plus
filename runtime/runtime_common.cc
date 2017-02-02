@@ -136,12 +136,14 @@ struct UContext {
   void DumpRegister64(std::ostream& os, const char* name, uint64_t value) const;
 
   void DumpX86Flags(std::ostream& os, uint32_t flags) const;
+  // Print some of the information from the status register (CPSR on ARMv7, PSTATE on ARMv8).
+  template <typename RegisterType>
+  void DumpArmStatusRegister(std::ostream& os, RegisterType status_register) const;
 
   mcontext_t& context;
 };
 
 void UContext::Dump(std::ostream& os) const {
-  // TODO: support non-x86 hosts.
 #if defined(__APPLE__) && defined(__i386__)
   DumpRegister32(os, "eax", context->__ss.__eax);
   DumpRegister32(os, "ebx", context->__ss.__ebx);
@@ -229,7 +231,53 @@ void UContext::Dump(std::ostream& os) const {
   DumpRegister32(os, "gs",  (context.gregs[REG_CSGSFS] >> 16) & 0x0FFFF);
   DumpRegister32(os, "fs",  (context.gregs[REG_CSGSFS] >> 32) & 0x0FFFF);
   os << '\n';
+#elif defined(__linux__) && defined(__arm__)
+  DumpRegister32(os, "r0", context.arm_r0);
+  DumpRegister32(os, "r1", context.arm_r1);
+  DumpRegister32(os, "r2", context.arm_r2);
+  DumpRegister32(os, "r3", context.arm_r3);
+  os << '\n';
+
+  DumpRegister32(os, "r4", context.arm_r4);
+  DumpRegister32(os, "r5", context.arm_r5);
+  DumpRegister32(os, "r6", context.arm_r6);
+  DumpRegister32(os, "r7", context.arm_r7);
+  os << '\n';
+
+  DumpRegister32(os, "r8", context.arm_r8);
+  DumpRegister32(os, "r9", context.arm_r9);
+  DumpRegister32(os, "r10", context.arm_r10);
+  DumpRegister32(os, "fp", context.arm_fp);
+  os << '\n';
+
+  DumpRegister32(os, "ip", context.arm_ip);
+  DumpRegister32(os, "sp", context.arm_sp);
+  DumpRegister32(os, "lr", context.arm_lr);
+  DumpRegister32(os, "pc", context.arm_pc);
+  os << '\n';
+
+  DumpRegister32(os, "cpsr", context.arm_cpsr);
+  DumpArmStatusRegister(os, context.arm_cpsr);
+  os << '\n';
+#elif defined(__linux__) && defined(__aarch64__)
+  for (size_t i = 0; i <= 30; ++i) {
+    std::string reg_name = "x" + std::to_string(i);
+    DumpRegister64(os, reg_name.c_str(), context.regs[i]);
+    if (i % 4 == 3) {
+      os << '\n';
+    }
+  }
+  os << '\n';
+
+  DumpRegister64(os, "sp", context.sp);
+  DumpRegister64(os, "pc", context.pc);
+  os << '\n';
+
+  DumpRegister64(os, "pstate", context.pstate);
+  DumpArmStatusRegister(os, context.pstate);
+  os << '\n';
 #else
+  // TODO: Add support for MIPS32 and MIPS64.
   os << "Unknown architecture/word size/OS in ucontext dump";
 #endif
 }
@@ -270,6 +318,30 @@ void UContext::DumpX86Flags(std::ostream& os, uint32_t flags) const {
   }
   if ((flags & (1 << 11)) != 0) {
     os << " OF";
+  }
+  os << " ]";
+}
+
+template <typename RegisterType>
+void UContext::DumpArmStatusRegister(std::ostream& os, RegisterType status_register) const {
+  // Condition flags.
+  constexpr RegisterType kFlagV = 1U << 28;
+  constexpr RegisterType kFlagC = 1U << 29;
+  constexpr RegisterType kFlagZ = 1U << 30;
+  constexpr RegisterType kFlagN = 1U << 31;
+
+  os << " [";
+  if ((status_register & kFlagN) != 0) {
+    os << " N";
+  }
+  if ((status_register & kFlagZ) != 0) {
+    os << " Z";
+  }
+  if ((status_register & kFlagC) != 0) {
+    os << " C";
+  }
+  if ((status_register & kFlagV) != 0) {
+    os << " V";
   }
   os << " ]";
 }
