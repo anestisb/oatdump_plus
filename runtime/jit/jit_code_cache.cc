@@ -1141,8 +1141,17 @@ OatQuickMethodHeader* JitCodeCache::LookupMethodHeader(uintptr_t pc, ArtMethod* 
     return nullptr;
   }
   if (kIsDebugBuild && method != nullptr) {
-    DCHECK_EQ(it->second, method)
-        << ArtMethod::PrettyMethod(method) << " " << ArtMethod::PrettyMethod(it->second) << " "
+    // When we are walking the stack to redefine classes and creating obsolete methods it is
+    // possible that we might have updated the method_code_map by making this method obsolete in a
+    // previous frame. Therefore we should just check that the non-obsolete version of this method
+    // is the one we expect. We change to the non-obsolete versions in the error message since the
+    // obsolete version of the method might not be fully initialized yet. This situation can only
+    // occur when we are in the process of allocating and setting up obsolete methods. Otherwise
+    // method and it->second should be identical. (See runtime/openjdkjvmti/ti_redefine.cc for more
+    // information.)
+    DCHECK_EQ(it->second->GetNonObsoleteMethod(), method->GetNonObsoleteMethod())
+        << ArtMethod::PrettyMethod(method->GetNonObsoleteMethod()) << " "
+        << ArtMethod::PrettyMethod(it->second->GetNonObsoleteMethod()) << " "
         << std::hex << pc;
   }
   return method_header;
