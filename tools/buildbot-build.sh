@@ -52,6 +52,9 @@ while true; do
     shift
   elif [[ "$1" == "" ]]; then
     break
+  else
+    echo "Unknown options $@"
+    exit 1
   fi
 done
 
