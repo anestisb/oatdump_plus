@@ -338,13 +338,16 @@ TEST_F(DexFileTest, ClassDefs) {
   ScopedObjectAccess soa(Thread::Current());
   std::unique_ptr<const DexFile> raw(OpenTestDexFile("Nested"));
   ASSERT_TRUE(raw.get() != nullptr);
-  EXPECT_EQ(2U, raw->NumClassDefs());
+  EXPECT_EQ(3U, raw->NumClassDefs());
 
   const DexFile::ClassDef& c0 = raw->GetClassDef(0);
-  EXPECT_STREQ("LNested$Inner;", raw->GetClassDescriptor(c0));
+  EXPECT_STREQ("LNested$1;", raw->GetClassDescriptor(c0));
 
   const DexFile::ClassDef& c1 = raw->GetClassDef(1);
-  EXPECT_STREQ("LNested;", raw->GetClassDescriptor(c1));
+  EXPECT_STREQ("LNested$Inner;", raw->GetClassDescriptor(c1));
+
+  const DexFile::ClassDef& c2 = raw->GetClassDef(2);
+  EXPECT_STREQ("LNested;", raw->GetClassDescriptor(c2));
 }
 
 TEST_F(DexFileTest, GetMethodSignature) {
