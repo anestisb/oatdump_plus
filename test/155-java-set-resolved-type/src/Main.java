@@ -55,11 +55,7 @@ public class Main {
             Class<?> timpl = Class.forName("TestImplementation", false, mainLoader);
             // Clear the dex cache resolved types to force a proper lookup the next time
             // we need to find TestInterface.
-            // TODO: Enable clearing the dex cache when we switch to the hash-based type array
-            // and do a proper lookup. Currently, ClassLinker fully relies on the DexCache.
-            if (false) {
-                clearResolvedTypes(timpl);
-            }
+            clearResolvedTypes(timpl);
 
             // Force intialization of TestClass2. This expects the interface type to be
             // resolved and found through simple lookup.

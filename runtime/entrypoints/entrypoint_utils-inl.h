@@ -709,10 +709,10 @@ inline ArtMethod* FindMethodFast(uint32_t method_idx,
     return resolved_method;
   } else if (type == kSuper) {
     // TODO This lookup is rather slow.
-    dex::TypeIndex method_type_idx =
-        referrer->GetDexFile()->GetMethodId(method_idx).class_idx_;
-    mirror::Class* method_reference_class =
-        referrer->GetDexCache()->GetResolvedType(method_type_idx);
+    ObjPtr<mirror::DexCache> dex_cache = referrer->GetDexCache();
+    dex::TypeIndex method_type_idx = dex_cache->GetDexFile()->GetMethodId(method_idx).class_idx_;
+    ObjPtr<mirror::Class> method_reference_class = ClassLinker::LookupResolvedType(
+        method_type_idx, dex_cache, referrer->GetClassLoader());
     if (method_reference_class == nullptr) {
       // Need to do full type resolution...
       return nullptr;

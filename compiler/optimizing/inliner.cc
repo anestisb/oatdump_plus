@@ -198,9 +198,9 @@ static uint32_t FindMethodIndexIn(ArtMethod* method,
 }
 
 static dex::TypeIndex FindClassIndexIn(mirror::Class* cls,
-                                       const DexFile& dex_file,
-                                       Handle<mirror::DexCache> dex_cache)
+                                       const DexCompilationUnit& compilation_unit)
     REQUIRES_SHARED(Locks::mutator_lock_) {
+  const DexFile& dex_file = *compilation_unit.GetDexFile();
   dex::TypeIndex index;
   if (cls->GetDexCache() == nullptr) {
     DCHECK(cls->IsArrayClass()) << cls->PrettyClass();
@@ -209,22 +209,19 @@ static dex::TypeIndex FindClassIndexIn(mirror::Class* cls,
     DCHECK(cls->IsProxyClass()) << cls->PrettyClass();
     // TODO: deal with proxy classes.
   } else if (IsSameDexFile(cls->GetDexFile(), dex_file)) {
-    DCHECK_EQ(cls->GetDexCache(), dex_cache.Get());
+    DCHECK_EQ(cls->GetDexCache(), compilation_unit.GetDexCache().Get());
     index = cls->GetDexTypeIndex();
-    // Update the dex cache to ensure the class is in. The generated code will
-    // consider it is. We make it safe by updating the dex cache, as other
-    // dex files might also load the class, and there is no guarantee the dex
-    // cache of the dex file of the class will be updated.
-    if (dex_cache->GetResolvedType(index) == nullptr) {
-      dex_cache->SetResolvedType(index, cls);
-    }
   } else {
     index = cls->FindTypeIndexInOtherDexFile(dex_file);
-    // We cannot guarantee the entry in the dex cache will resolve to the same class,
+    // We cannot guarantee the entry will resolve to the same class,
     // as there may be different class loaders. So only return the index if it's
-    // the right class in the dex cache already.
-    if (index.IsValid() && dex_cache->GetResolvedType(index) != cls) {
-      index = dex::TypeIndex::Invalid();
+    // the right class already resolved with the class loader.
+    if (index.IsValid()) {
+      ObjPtr<mirror::Class> resolved = ClassLinker::LookupResolvedType(
+          index, compilation_unit.GetDexCache().Get(), compilation_unit.GetClassLoader().Get());
+      if (resolved != cls) {
+        index = dex::TypeIndex::Invalid();
+      }
     }
   }
 
@@ -451,9 +448,8 @@ bool HInliner::TryInlineMonomorphicCall(HInvoke* invoke_instruction,
   DCHECK(invoke_instruction->IsInvokeVirtual() || invoke_instruction->IsInvokeInterface())
       << invoke_instruction->DebugName();
 
-  const DexFile& caller_dex_file = *caller_compilation_unit_.GetDexFile();
   dex::TypeIndex class_index = FindClassIndexIn(
-      GetMonomorphicType(classes), caller_dex_file, caller_compilation_unit_.GetDexCache());
+      GetMonomorphicType(classes), caller_compilation_unit_);
   if (!class_index.IsValid()) {
     VLOG(compiler) << "Call to " << ArtMethod::PrettyMethod(resolved_method)
                    << " from inline cache is not inlined because its class is not"
@@ -496,6 +492,7 @@ bool HInliner::TryInlineMonomorphicCall(HInvoke* invoke_instruction,
   // Run type propagation to get the guard typed, and eventually propagate the
   // type of the receiver.
   ReferenceTypePropagation rtp_fixup(graph_,
+                                     outer_compilation_unit_.GetClassLoader(),
                                      outer_compilation_unit_.GetDexCache(),
                                      handles_,
                                      /* is_first_run */ false);
@@ -590,7 +587,6 @@ bool HInliner::TryInlinePolymorphicCall(HInvoke* invoke_instruction,
 
   ClassLinker* class_linker = caller_compilation_unit_.GetClassLinker();
   PointerSize pointer_size = class_linker->GetImagePointerSize();
-  const DexFile& caller_dex_file = *caller_compilation_unit_.GetDexFile();
 
   bool all_targets_inlined = true;
   bool one_target_inlined = false;
@@ -612,8 +608,7 @@ bool HInliner::TryInlinePolymorphicCall(HInvoke* invoke_instruction,
     HInstruction* cursor = invoke_instruction->GetPrevious();
     HBasicBlock* bb_cursor = invoke_instruction->GetBlock();
 
-    dex::TypeIndex class_index = FindClassIndexIn(
-        handle.Get(), caller_dex_file, caller_compilation_unit_.GetDexCache());
+    dex::TypeIndex class_index = FindClassIndexIn(handle.Get(), caller_compilation_unit_);
     HInstruction* return_replacement = nullptr;
     if (!class_index.IsValid() ||
         !TryBuildAndInline(invoke_instruction,
@@ -669,6 +664,7 @@ bool HInliner::TryInlinePolymorphicCall(HInvoke* invoke_instruction,
 
   // Run type propagation to get the guards typed.
   ReferenceTypePropagation rtp_fixup(graph_,
+                                     outer_compilation_unit_.GetClassLoader(),
                                      outer_compilation_unit_.GetDexCache(),
                                      handles_,
                                      /* is_first_run */ false);
@@ -863,6 +859,7 @@ bool HInliner::TryInlinePolymorphicCallToSameTarget(
 
   // Run type propagation to get the guard typed.
   ReferenceTypePropagation rtp_fixup(graph_,
+                                     outer_compilation_unit_.GetClassLoader(),
                                      outer_compilation_unit_.GetDexCache(),
                                      handles_,
                                      /* is_first_run */ false);
@@ -931,6 +928,7 @@ bool HInliner::TryInlineAndReplace(HInvoke* invoke_instruction,
     // Actual return value has a more specific type than the method's declared
     // return type. Run RTP again on the outer graph to propagate it.
     ReferenceTypePropagation(graph_,
+                             outer_compilation_unit_.GetClassLoader(),
                              outer_compilation_unit_.GetDexCache(),
                              handles_,
                              /* is_first_run */ false).Run();
@@ -1183,7 +1181,11 @@ HInstanceFieldGet* HInliner::CreateInstanceFieldGet(Handle<mirror::DexCache> dex
       /* dex_pc */ 0);
   if (iget->GetType() == Primitive::kPrimNot) {
     // Use the same dex_cache that we used for field lookup as the hint_dex_cache.
-    ReferenceTypePropagation rtp(graph_, dex_cache, handles_, /* is_first_run */ false);
+    ReferenceTypePropagation rtp(graph_,
+                                 outer_compilation_unit_.GetClassLoader(),
+                                 dex_cache,
+                                 handles_,
+                                 /* is_first_run */ false);
     rtp.Visit(iget);
   }
   return iget;
@@ -1229,7 +1231,7 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
       resolved_method->GetDeclaringClass()->GetClassLoader()));
 
   DexCompilationUnit dex_compilation_unit(
-      class_loader.ToJObject(),
+      class_loader,
       class_linker,
       callee_dex_file,
       code_item,
@@ -1346,6 +1348,7 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
   // are more specific than the declared ones, run RTP again on the inner graph.
   if (run_rtp || ArgumentTypesMoreSpecific(invoke_instruction, resolved_method)) {
     ReferenceTypePropagation(callee_graph,
+                             outer_compilation_unit_.GetClassLoader(),
                              dex_compilation_unit.GetDexCache(),
                              handles_,
                              /* is_first_run */ false).Run();

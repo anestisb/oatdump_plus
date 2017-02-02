@@ -187,16 +187,14 @@ class CompilerDriver {
       REQUIRES(!requires_constructor_barrier_lock_);
 
   // Are runtime access checks necessary in the compiled code?
-  bool CanAccessTypeWithoutChecks(uint32_t referrer_idx,
-                                  Handle<mirror::DexCache> dex_cache,
-                                  dex::TypeIndex type_idx)
+  bool CanAccessTypeWithoutChecks(ObjPtr<mirror::Class> referrer_class,
+                                  ObjPtr<mirror::Class> resolved_class)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Are runtime access and instantiable checks necessary in the code?
   // out_is_finalizable is set to whether the type is finalizable.
-  bool CanAccessInstantiableTypeWithoutChecks(uint32_t referrer_idx,
-                                              Handle<mirror::DexCache> dex_cache,
-                                              dex::TypeIndex type_idx,
+  bool CanAccessInstantiableTypeWithoutChecks(ObjPtr<mirror::Class> referrer_class,
+                                              ObjPtr<mirror::Class> resolved_class,
                                               bool* out_is_finalizable)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -369,10 +367,6 @@ class CompilerDriver {
                                       mirror::DexCache* dex_cache,
                                       uint32_t field_idx)
       REQUIRES_SHARED(Locks::mutator_lock_);
-
-  mirror::ClassLoader* GetClassLoader(const ScopedObjectAccess& soa,
-                                      const DexCompilationUnit* mUnit)
-    REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
   void PreCompile(jobject class_loader,
