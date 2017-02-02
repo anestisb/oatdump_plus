@@ -23,6 +23,7 @@
 #include "driver/compiler_driver.h"
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
+#include "oat_file-inl.h"
 
 namespace art {
 namespace jit {
@@ -49,9 +50,10 @@ void JitLogger::OpenPerfMapLog() {
   }
 }
 
-void JitLogger::WritePerfMapLog(JitCodeCache* code_cache, ArtMethod* method) {
+void JitLogger::WritePerfMapLog(JitCodeCache* code_cache, ArtMethod* method, bool osr) {
   if (perf_file_ != nullptr) {
-    const void* ptr = method->GetEntryPointFromQuickCompiledCode();
+    const void* ptr = osr ? code_cache->LookupOsrMethodHeader(method)->GetCode()
+                          : method->GetEntryPointFromQuickCompiledCode();
     size_t code_size = code_cache->GetMemorySizeOfCodePointer(ptr);
     std::string method_name = method->PrettyMethod();
 
@@ -268,9 +270,10 @@ void JitLogger::OpenJitDumpLog() {
   WriteJitDumpHeader();
 }
 
-void JitLogger::WriteJitDumpLog(JitCodeCache* code_cache, ArtMethod* method) {
+void JitLogger::WriteJitDumpLog(JitCodeCache* code_cache, ArtMethod* method, bool osr) {
   if (jit_dump_file_ != nullptr) {
-    const void* code = method->GetEntryPointFromQuickCompiledCode();
+    const void* code = osr ? code_cache->LookupOsrMethodHeader(method)->GetCode()
+                           : method->GetEntryPointFromQuickCompiledCode();
     size_t code_size = code_cache->GetMemorySizeOfCodePointer(code);
     std::string method_name = method->PrettyMethod();
 
