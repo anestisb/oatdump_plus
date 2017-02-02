@@ -30,6 +30,7 @@
 #include "iftable-inl.h"
 #include "monitor.h"
 #include "object-inl.h"
+#include "object-refvisitor-inl.h"
 #include "object_array-inl.h"
 #include "runtime.h"
 #include "handle_scope-inl.h"

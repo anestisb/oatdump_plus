@@ -55,6 +55,7 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/object_reference.h"
 #include "mirror/object-inl.h"
+#include "mirror/object-refvisitor-inl.h"
 #include "mirror/reference.h"
 #include "primitive.h"
 #include "reflection.h"

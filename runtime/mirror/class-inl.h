@@ -21,7 +21,6 @@
 
 #include "art_field-inl.h"
 #include "art_method.h"
-#include "art_method-inl.h"
 #include "base/array_slice.h"
 #include "base/length_prefixed_array.h"
 #include "class_loader.h"
@@ -29,7 +28,6 @@
 #include "dex_file.h"
 #include "gc/heap-inl.h"
 #include "iftable.h"
-#include "class_ext-inl.h"
 #include "object_array-inl.h"
 #include "read_barrier-inl.h"
 #include "reference-inl.h"
@@ -341,6 +339,21 @@ inline bool Class::Implements(ObjPtr<Class> klass) {
     }
   }
   return false;
+}
+
+template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
+inline bool Class::IsVariableSize() {
+  // Classes, arrays, and strings vary in size, and so the object_size_ field cannot
+  // be used to Get their instance size
+  return IsClassClass<kVerifyFlags, kReadBarrierOption>() ||
+         IsArrayClass<kVerifyFlags, kReadBarrierOption>() ||
+         IsStringClass();
+}
+
+inline void Class::SetObjectSize(uint32_t new_object_size) {
+  DCHECK(!IsVariableSize());
+  // Not called within a transaction.
+  return SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, object_size_), new_object_size);
 }
 
 // Determine whether "this" is assignable from "src", where both of these
@@ -784,32 +797,6 @@ inline uint32_t Class::ComputeClassSize(bool has_embedded_vtable,
   return size;
 }
 
-template <bool kVisitNativeRoots,
-          VerifyObjectFlags kVerifyFlags,
-          ReadBarrierOption kReadBarrierOption,
-          typename Visitor>
-inline void Class::VisitReferences(ObjPtr<Class> klass, const Visitor& visitor) {
-  VisitInstanceFieldsReferences<kVerifyFlags, kReadBarrierOption>(klass.Ptr(), visitor);
-  // Right after a class is allocated, but not yet loaded
-  // (kStatusNotReady, see ClassLinker::LoadClass()), GC may find it
-  // and scan it. IsTemp() may call Class::GetAccessFlags() but may
-  // fail in the DCHECK in Class::GetAccessFlags() because the class
-  // status is kStatusNotReady. To avoid it, rely on IsResolved()
-  // only. This is fine because a temp class never goes into the
-  // kStatusResolved state.
-  if (IsResolved<kVerifyFlags>()) {
-    // Temp classes don't ever populate imt/vtable or static fields and they are not even
-    // allocated with the right size for those. Also, unresolved classes don't have fields
-    // linked yet.
-    VisitStaticFieldsReferences<kVerifyFlags, kReadBarrierOption>(this, visitor);
-  }
-  if (kVisitNativeRoots) {
-    // Since this class is reachable, we must also visit the associated roots when we scan it.
-    VisitNativeRoots<kReadBarrierOption>(
-        visitor, Runtime::Current()->GetClassLinker()->GetImagePointerSize());
-  }
-}
-
 template<ReadBarrierOption kReadBarrierOption>
 inline bool Class::IsReferenceClass() const {
   return this == Reference::GetJavaLangRefReference<kReadBarrierOption>();
@@ -942,31 +929,6 @@ inline uint32_t Class::NumDirectInterfaces() {
   }
 }
 
-template<ReadBarrierOption kReadBarrierOption, class Visitor>
-void Class::VisitNativeRoots(Visitor& visitor, PointerSize pointer_size) {
-  for (ArtField& field : GetSFieldsUnchecked()) {
-    // Visit roots first in case the declaring class gets moved.
-    field.VisitRoots(visitor);
-    if (kIsDebugBuild && IsResolved()) {
-      CHECK_EQ(field.GetDeclaringClass<kReadBarrierOption>(), this) << GetStatus();
-    }
-  }
-  for (ArtField& field : GetIFieldsUnchecked()) {
-    // Visit roots first in case the declaring class gets moved.
-    field.VisitRoots(visitor);
-    if (kIsDebugBuild && IsResolved()) {
-      CHECK_EQ(field.GetDeclaringClass<kReadBarrierOption>(), this) << GetStatus();
-    }
-  }
-  for (ArtMethod& method : GetMethods(pointer_size)) {
-    method.VisitRoots<kReadBarrierOption>(visitor, pointer_size);
-  }
-  ObjPtr<ClassExt> ext(GetExtData<kDefaultVerifyFlags, kReadBarrierOption>());
-  if (!ext.IsNull()) {
-    ext->VisitNativeRoots<kReadBarrierOption, Visitor>(visitor, pointer_size);
-  }
-}
-
 inline IterationRange<StrideIterator<ArtMethod>> Class::GetDirectMethods(PointerSize pointer_size) {
   CheckPointerSize(pointer_size);
   return GetDirectMethodsSliceUnchecked(pointer_size).AsRange();
@@ -1034,6 +996,12 @@ inline Class* Class::GetComponentType() {
 template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline bool Class::IsArrayClass() {
   return GetComponentType<kVerifyFlags, kReadBarrierOption>() != nullptr;
+}
+
+template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
+inline bool Class::IsObjectArrayClass() {
+  ObjPtr<Class> const component_type = GetComponentType<kVerifyFlags, kReadBarrierOption>();
+  return component_type != nullptr && !component_type->IsPrimitive();
 }
 
 inline bool Class::IsAssignableFrom(ObjPtr<Class> src) {

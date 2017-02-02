@@ -20,7 +20,7 @@
 #include "dex_cache.h"
 
 #include "art_field-inl.h"
-#include "art_method-inl.h"
+#include "art_method.h"
 #include "base/casts.h"
 #include "base/enums.h"
 #include "base/logging.h"

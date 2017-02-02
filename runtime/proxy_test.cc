@@ -21,6 +21,7 @@
 #include "base/enums.h"
 #include "class_linker-inl.h"
 #include "common_compiler_test.h"
+#include "mirror/class-inl.h"
 #include "mirror/field-inl.h"
 #include "mirror/method.h"
 #include "scoped_thread_state_change-inl.h"

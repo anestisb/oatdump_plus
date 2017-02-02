@@ -1341,7 +1341,8 @@ TEST_F(UnstartedRuntimeTest, ConstructorNewInstance0) {
   ASSERT_TRUE(cons != nullptr);
 
   Handle<mirror::ObjectArray<mirror::Object>> args = hs.NewHandle(
-      class_linker->AllocObjectArray<mirror::Object>(self, 1));
+      mirror::ObjectArray<mirror::Object>::Alloc(
+          self, class_linker_->GetClassRoot(ClassLinker::ClassRoot::kObjectArrayClass), 1));
   ASSERT_TRUE(args != nullptr);
   args->Set(0, input.Get());
 

@@ -34,7 +34,7 @@
 
 #include "android-base/stringprintf.h"
 
-#include "art_method-inl.h"
+#include "art_method.h"
 #include "base/bit_vector.h"
 #include "base/enums.h"
 #include "base/stl_util.h"

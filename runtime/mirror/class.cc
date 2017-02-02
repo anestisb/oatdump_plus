@@ -32,6 +32,7 @@
 #include "method.h"
 #include "object_array-inl.h"
 #include "object-inl.h"
+#include "object-refvisitor-inl.h"
 #include "object_lock.h"
 #include "runtime.h"
 #include "thread.h"

@@ -21,6 +21,7 @@
 #include "android-base/stringprintf.h"
 
 #include "arch/instruction_set.h"
+#include "art_method-inl.h"
 #include "debugger.h"
 #include "java_vm_ext.h"
 #include "jit/jit.h"

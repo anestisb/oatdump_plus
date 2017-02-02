@@ -779,9 +779,32 @@ inline mirror::Class* ResolveVerifyAndClinit(dex::TypeIndex type_idx,
   return h_class.Get();
 }
 
+static inline mirror::String* ResolveString(ClassLinker* class_linker,
+                                            dex::StringIndex string_idx,
+                                            ArtMethod* referrer)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  Thread::PoisonObjectPointersIfDebug();
+  ObjPtr<mirror::String> string = referrer->GetDexCache()->GetResolvedString(string_idx);
+  if (UNLIKELY(string == nullptr)) {
+    StackHandleScope<1> hs(Thread::Current());
+    Handle<mirror::DexCache> dex_cache(hs.NewHandle(referrer->GetDexCache()));
+    const DexFile& dex_file = *dex_cache->GetDexFile();
+    string = class_linker->ResolveString(dex_file, string_idx, dex_cache);
+  }
+  return string.Ptr();
+}
+
 inline mirror::String* ResolveStringFromCode(ArtMethod* referrer, dex::StringIndex string_idx) {
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  return class_linker->ResolveString(string_idx, referrer);
+  Thread::PoisonObjectPointersIfDebug();
+  ObjPtr<mirror::String> string = referrer->GetDexCache()->GetResolvedString(string_idx);
+  if (UNLIKELY(string == nullptr)) {
+    StackHandleScope<1> hs(Thread::Current());
+    Handle<mirror::DexCache> dex_cache(hs.NewHandle(referrer->GetDexCache()));
+    const DexFile& dex_file = *dex_cache->GetDexFile();
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+    string = class_linker->ResolveString(dex_file, string_idx, dex_cache);
+  }
+  return string.Ptr();
 }
 
 inline void UnlockJniSynchronizedMethod(jobject locked, Thread* self) {

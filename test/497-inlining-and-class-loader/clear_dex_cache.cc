@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "art_method-inl.h"
+#include "art_method.h"
 #include "base/enums.h"
 #include "jni.h"
 #include "scoped_thread_state_change-inl.h"

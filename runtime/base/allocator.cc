@@ -21,7 +21,6 @@
 
 #include "atomic.h"
 #include "base/logging.h"
-#include "thread-inl.h"
 
 namespace art {
 
