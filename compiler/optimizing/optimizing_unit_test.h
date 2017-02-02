@@ -64,6 +64,9 @@ LiveInterval* BuildInterval(const size_t ranges[][2],
 void RemoveSuspendChecks(HGraph* graph) {
   for (HBasicBlock* block : graph->GetBlocks()) {
     if (block != nullptr) {
+      if (block->GetLoopInformation() != nullptr) {
+        block->GetLoopInformation()->SetSuspendCheck(nullptr);
+      }
       for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
         HInstruction* current = it.Current();
         if (current->IsSuspendCheck()) {
