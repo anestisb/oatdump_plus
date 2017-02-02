@@ -885,5 +885,64 @@ TEST_F(UnstartedRuntimeTest, Pow) {
   ShadowFrame::DeleteDeoptimizedFrame(tmp);
 }
 
+TEST_F(UnstartedRuntimeTest, IsAnonymousClass) {
+  Thread* self = Thread::Current();
+  ScopedObjectAccess soa(self);
+
+  JValue result;
+  ShadowFrame* shadow_frame = ShadowFrame::CreateDeoptimizedFrame(10, nullptr, nullptr, 0);
+
+  mirror::Class* class_klass = mirror::Class::GetJavaLangClass();
+  shadow_frame->SetVRegReference(0, class_klass);
+  UnstartedClassIsAnonymousClass(self, shadow_frame, &result, 0);
+  EXPECT_EQ(result.GetZ(), 0);
+
+  jobject class_loader = LoadDex("Nested");
+  StackHandleScope<1> hs(soa.Self());
+  Handle<mirror::ClassLoader> loader(
+      hs.NewHandle(soa.Decode<mirror::ClassLoader>(class_loader)));
+  mirror::Class* c = class_linker_->FindClass(soa.Self(), "LNested$1;", loader);
+  ASSERT_TRUE(c != nullptr);
+  shadow_frame->SetVRegReference(0, c);
+  UnstartedClassIsAnonymousClass(self, shadow_frame, &result, 0);
+  EXPECT_EQ(result.GetZ(), 1);
+
+  ShadowFrame::DeleteDeoptimizedFrame(shadow_frame);
+}
+
+TEST_F(UnstartedRuntimeTest, GetDeclaringClass) {
+  Thread* self = Thread::Current();
+  ScopedObjectAccess soa(self);
+
+  JValue result;
+  ShadowFrame* shadow_frame = ShadowFrame::CreateDeoptimizedFrame(10, nullptr, nullptr, 0);
+
+  jobject class_loader = LoadDex("Nested");
+  StackHandleScope<4> hs(self);
+  Handle<mirror::ClassLoader> loader(
+      hs.NewHandle(soa.Decode<mirror::ClassLoader>(class_loader)));
+
+  Handle<mirror::Class> nested_klass(hs.NewHandle(
+      class_linker_->FindClass(soa.Self(), "LNested;", loader)));
+  Handle<mirror::Class> inner_klass(hs.NewHandle(
+      class_linker_->FindClass(soa.Self(), "LNested$Inner;", loader)));
+  Handle<mirror::Class> anon_klass(hs.NewHandle(
+      class_linker_->FindClass(soa.Self(), "LNested$1;", loader)));
+
+  shadow_frame->SetVRegReference(0, nested_klass.Get());
+  UnstartedClassGetDeclaringClass(self, shadow_frame, &result, 0);
+  EXPECT_EQ(result.GetL(), nullptr);
+
+  shadow_frame->SetVRegReference(0, inner_klass.Get());
+  UnstartedClassGetDeclaringClass(self, shadow_frame, &result, 0);
+  EXPECT_EQ(result.GetL(), nested_klass.Get());
+
+  shadow_frame->SetVRegReference(0, anon_klass.Get());
+  UnstartedClassGetDeclaringClass(self, shadow_frame, &result, 0);
+  EXPECT_EQ(result.GetL(), nullptr);
+
+  ShadowFrame::DeleteDeoptimizedFrame(shadow_frame);
+}
+
 }  // namespace interpreter
 }  // namespace art

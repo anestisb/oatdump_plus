@@ -401,6 +401,25 @@ void UnstartedRuntime::UnstartedClassGetDeclaredConstructor(
   result->SetL(constructor);
 }
 
+void UnstartedRuntime::UnstartedClassGetDeclaringClass(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  StackHandleScope<1> hs(self);
+  Handle<mirror::Class> klass(hs.NewHandle(
+      reinterpret_cast<mirror::Class*>(shadow_frame->GetVRegReference(arg_offset))));
+  if (klass->IsProxyClass() || klass->GetDexCache() == nullptr) {
+    result->SetL(nullptr);
+    return;
+  }
+  // Return null for anonymous classes.
+  JValue is_anon_result;
+  UnstartedClassIsAnonymousClass(self, shadow_frame, &is_anon_result, arg_offset);
+  if (is_anon_result.GetZ() != 0) {
+    result->SetL(nullptr);
+    return;
+  }
+  result->SetL(annotations::GetDeclaringClass(klass));
+}
+
 void UnstartedRuntime::UnstartedClassGetEnclosingClass(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
   StackHandleScope<1> hs(self);
@@ -418,6 +437,23 @@ void UnstartedRuntime::UnstartedClassGetInnerClassFlags(
       reinterpret_cast<mirror::Class*>(shadow_frame->GetVRegReference(arg_offset))));
   const int32_t default_value = shadow_frame->GetVReg(arg_offset + 1);
   result->SetI(mirror::Class::GetInnerClassFlags(klass, default_value));
+}
+
+void UnstartedRuntime::UnstartedClassIsAnonymousClass(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  StackHandleScope<1> hs(self);
+  Handle<mirror::Class> klass(hs.NewHandle(
+      reinterpret_cast<mirror::Class*>(shadow_frame->GetVRegReference(arg_offset))));
+  if (klass->IsProxyClass() || klass->GetDexCache() == nullptr) {
+    result->SetZ(false);
+    return;
+  }
+  mirror::String* class_name = nullptr;
+  if (!annotations::GetInnerClass(klass, &class_name)) {
+    result->SetZ(false);
+    return;
+  }
+  result->SetZ(class_name == nullptr);
 }
 
 static std::unique_ptr<MemMap> FindAndExtractEntry(const std::string& jar_file,
