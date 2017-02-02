@@ -76,6 +76,10 @@ inline ArtMethod* GetResolvedMethod(ArtMethod* outer_method,
   // Lookup the declaring class of the inlined method.
   const DexFile* dex_file = caller->GetDexFile();
   const DexFile::MethodId& method_id = dex_file->GetMethodId(method_index);
+  ArtMethod* inlined_method = caller->GetDexCacheResolvedMethod(method_index, kRuntimePointerSize);
+  if (inlined_method != nullptr && !inlined_method->IsRuntimeMethod()) {
+    return inlined_method;
+  }
   const char* descriptor = dex_file->StringByTypeIdx(method_id.class_idx_);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Thread* self = Thread::Current();
@@ -92,8 +96,7 @@ inline ArtMethod* GetResolvedMethod(ArtMethod* outer_method,
   const char* method_name = dex_file->GetMethodName(method_id);
   const Signature signature = dex_file->GetMethodSignature(method_id);
 
-  ArtMethod* inlined_method =
-      klass->FindDeclaredDirectMethod(method_name, signature, kRuntimePointerSize);
+  inlined_method = klass->FindDeclaredDirectMethod(method_name, signature, kRuntimePointerSize);
   if (inlined_method == nullptr) {
     inlined_method = klass->FindDeclaredVirtualMethod(method_name, signature, kRuntimePointerSize);
     if (inlined_method == nullptr) {
@@ -103,6 +106,7 @@ inline ArtMethod* GetResolvedMethod(ArtMethod* outer_method,
                  << "This must be due to duplicate classes or playing wrongly with class loaders";
     }
   }
+  caller->SetDexCacheResolvedMethod(method_index, inlined_method, kRuntimePointerSize);
 
   return inlined_method;
 }
