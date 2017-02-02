@@ -68,8 +68,8 @@ static constexpr size_t kArmAlignment = 8;
 // ARM64 instruction alignment. This is the recommended alignment for maximum performance.
 static constexpr size_t kArm64Alignment = 16;
 
-// MIPS instruction alignment.  MIPS processors require code to be 4-byte aligned.
-// TODO: Can this be 4?
+// MIPS instruction alignment.  MIPS processors require code to be 4-byte aligned,
+// but 64-bit literals must be 8-byte aligned.
 static constexpr size_t kMipsAlignment = 8;
 
 // X86 instruction alignment. This is the recommended alignment for maximum performance.
@@ -80,8 +80,8 @@ static constexpr size_t kThumb2InstructionAlignment = 2;
 static constexpr size_t kArm64InstructionAlignment = 4;
 static constexpr size_t kX86InstructionAlignment = 1;
 static constexpr size_t kX86_64InstructionAlignment = 1;
-static constexpr size_t kMipsInstructionAlignment = 2;
-static constexpr size_t kMips64InstructionAlignment = 2;
+static constexpr size_t kMipsInstructionAlignment = 4;
+static constexpr size_t kMips64InstructionAlignment = 4;
 
 const char* GetInstructionSetString(InstructionSet isa);
 
