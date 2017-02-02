@@ -32,7 +32,7 @@ class StubTest_ReadBarrierForRoot_Test;
 namespace mirror {
 
 // String Compression
-static constexpr bool kUseStringCompression = false;
+static constexpr bool kUseStringCompression = true;
 enum class StringCompressionFlag : uint32_t {
     kCompressed = 0u,
     kUncompressed = 1u
