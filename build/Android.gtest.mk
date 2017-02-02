@@ -113,6 +113,7 @@ ART_GTEST_runtime_callbacks_test_DEX_DEPS := XandY
 ART_GTEST_stub_test_DEX_DEPS := AllFields
 ART_GTEST_transaction_test_DEX_DEPS := Transaction
 ART_GTEST_type_lookup_table_test_DEX_DEPS := Lookup
+ART_GTEST_unstarted_runtime_test_DEX_DEPS := Nested
 ART_GTEST_verifier_deps_test_DEX_DEPS := VerifierDeps MultiDex
 ART_GTEST_dex_to_dex_decompiler_test_DEX_DEPS := VerifierDeps DexToDexDecompiler
 
