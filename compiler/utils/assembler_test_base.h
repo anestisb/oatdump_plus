@@ -26,6 +26,7 @@
 #include "android-base/strings.h"
 
 #include "common_runtime_test.h"  // For ScratchFile
+#include "exec_utils.h"
 #include "utils.h"
 
 namespace art {
