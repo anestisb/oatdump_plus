@@ -17,4 +17,6 @@
 class Nested {
     class Inner {
     }
+    Object x = new Object() {
+    };
 }
