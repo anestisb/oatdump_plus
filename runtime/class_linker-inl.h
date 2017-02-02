@@ -233,7 +233,7 @@ template<ReadBarrierOption kReadBarrierOption>
 ArtMethod* ClassLinker::FindMethodForProxy(ObjPtr<mirror::Class> proxy_class,
                                            ArtMethod* proxy_method) {
   DCHECK(proxy_class->IsProxyClass());
-  DCHECK(proxy_method->IsProxyMethod<kReadBarrierOption>());
+  DCHECK(proxy_method->IsProxyMethod());
   {
     Thread* const self = Thread::Current();
     ReaderMutexLock mu(self, *Locks::dex_lock_);

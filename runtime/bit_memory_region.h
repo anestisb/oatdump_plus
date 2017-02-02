@@ -26,7 +26,7 @@ namespace art {
 class BitMemoryRegion FINAL : public ValueObject {
  public:
   BitMemoryRegion() = default;
-  BitMemoryRegion(MemoryRegion region, size_t bit_offset, size_t bit_size) {
+  ALWAYS_INLINE BitMemoryRegion(MemoryRegion region, size_t bit_offset, size_t bit_size) {
     bit_start_ = bit_offset % kBitsPerByte;
     const size_t start = bit_offset / kBitsPerByte;
     const size_t end = (bit_offset + bit_size + kBitsPerByte - 1) / kBitsPerByte;
