@@ -625,7 +625,7 @@ void StackVisitor::SetMethod(ArtMethod* method) {
   } else {
     DCHECK(cur_quick_frame_ != nullptr);
     CHECK(!IsInInlinedFrame()) << "We do not support setting inlined method's ArtMethod!";
-      *cur_quick_frame_ = method;
+    *cur_quick_frame_ = method;
   }
 }
 

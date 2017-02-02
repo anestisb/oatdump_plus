@@ -97,7 +97,9 @@ void HSharpening::ProcessInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
   // class is initialized already or being initialized, and the call will not
   // be invoked once the method is deoptimized.
 
-  if (callee == codegen_->GetGraph()->GetArtMethod()) {
+  // We don't optimize for debuggable as it would prevent us from obsoleting the method in some
+  // situations.
+  if (callee == codegen_->GetGraph()->GetArtMethod() && !codegen_->GetGraph()->IsDebuggable()) {
     // Recursive call.
     method_load_kind = HInvokeStaticOrDirect::MethodLoadKind::kRecursive;
     code_ptr_location = HInvokeStaticOrDirect::CodePtrLocation::kCallSelf;
