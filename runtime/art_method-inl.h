@@ -374,9 +374,10 @@ inline mirror::DexCache* ArtMethod::GetDexCache() {
   }
 }
 
-template<ReadBarrierOption kReadBarrierOption>
 inline bool ArtMethod::IsProxyMethod() {
-  return GetDeclaringClass<kReadBarrierOption>()->IsProxyClass();
+  // Avoid read barrier since the from-space version of the class will have the correct proxy class
+  // flags since they are constant for the lifetime of the class.
+  return GetDeclaringClass<kWithoutReadBarrier>()->IsProxyClass();
 }
 
 inline ArtMethod* ArtMethod::GetInterfaceMethodIfProxy(PointerSize pointer_size) {
