@@ -2190,12 +2190,18 @@ void Thread::SetClassLoaderOverride(jobject class_loader_override) {
   tlsPtr_.class_loader_override = GetJniEnv()->NewGlobalRef(class_loader_override);
 }
 
-class CountStackDepthVisitor : public StackVisitor {
+using ArtMethodDexPcPair = std::pair<ArtMethod*, uint32_t>;
+
+// Counts the stack trace depth and also fetches the first max_saved_frames frames.
+class FetchStackTraceVisitor : public StackVisitor {
  public:
-  explicit CountStackDepthVisitor(Thread* thread)
+  explicit FetchStackTraceVisitor(Thread* thread,
+                                  ArtMethodDexPcPair* saved_frames = nullptr,
+                                  size_t max_saved_frames = 0)
       REQUIRES_SHARED(Locks::mutator_lock_)
       : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
-        depth_(0), skip_depth_(0), skipping_(true) {}
+        saved_frames_(saved_frames),
+        max_saved_frames_(max_saved_frames) {}
 
   bool VisitFrame() REQUIRES_SHARED(Locks::mutator_lock_) {
     // We want to skip frames up to and including the exception's constructor.
@@ -2208,6 +2214,10 @@ class CountStackDepthVisitor : public StackVisitor {
     }
     if (!skipping_) {
       if (!m->IsRuntimeMethod()) {  // Ignore runtime frames (in particular callee save).
+        if (depth_ < max_saved_frames_) {
+          saved_frames_[depth_].first = m;
+          saved_frames_[depth_].second = m->IsProxyMethod() ? DexFile::kDexNoIndex : GetDexPc();
+        }
         ++depth_;
       }
     } else {
@@ -2216,20 +2226,22 @@ class CountStackDepthVisitor : public StackVisitor {
     return true;
   }
 
-  int GetDepth() const {
+  uint32_t GetDepth() const {
     return depth_;
   }
 
-  int GetSkipDepth() const {
+  uint32_t GetSkipDepth() const {
     return skip_depth_;
   }
 
  private:
-  uint32_t depth_;
-  uint32_t skip_depth_;
-  bool skipping_;
+  uint32_t depth_ = 0;
+  uint32_t skip_depth_ = 0;
+  bool skipping_ = true;
+  ArtMethodDexPcPair* saved_frames_;
+  const size_t max_saved_frames_;
 
-  DISALLOW_COPY_AND_ASSIGN(CountStackDepthVisitor);
+  DISALLOW_COPY_AND_ASSIGN(FetchStackTraceVisitor);
 };
 
 template<bool kTransactionActive>
@@ -2239,8 +2251,6 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
       : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
         self_(self),
         skip_depth_(skip_depth),
-        count_(0),
-        trace_(nullptr),
         pointer_size_(Runtime::Current()->GetClassLinker()->GetImagePointerSize()) {}
 
   bool Init(int depth) REQUIRES_SHARED(Locks::mutator_lock_) ACQUIRE(Roles::uninterruptible_) {
@@ -2292,17 +2302,21 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
     if (m->IsRuntimeMethod()) {
       return true;  // Ignore runtime frames (in particular callee save).
     }
+    AddFrame(m, m->IsProxyMethod() ? DexFile::kDexNoIndex : GetDexPc());
+    return true;
+  }
+
+  void AddFrame(ArtMethod* method, uint32_t dex_pc) REQUIRES_SHARED(Locks::mutator_lock_) {
     ObjPtr<mirror::PointerArray> trace_methods_and_pcs = GetTraceMethodsAndPCs();
-    trace_methods_and_pcs->SetElementPtrSize<kTransactionActive>(count_, m, pointer_size_);
+    trace_methods_and_pcs->SetElementPtrSize<kTransactionActive>(count_, method, pointer_size_);
     trace_methods_and_pcs->SetElementPtrSize<kTransactionActive>(
         trace_methods_and_pcs->GetLength() / 2 + count_,
-        m->IsProxyMethod() ? DexFile::kDexNoIndex : GetDexPc(),
+        dex_pc,
         pointer_size_);
     // Save the declaring class of the method to ensure that the declaring classes of the methods
     // do not get unloaded while the stack trace is live.
-    trace_->Set(count_ + 1, m->GetDeclaringClass());
+    trace_->Set(count_ + 1, method->GetDeclaringClass());
     ++count_;
-    return true;
   }
 
   ObjPtr<mirror::PointerArray> GetTraceMethodsAndPCs() const REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -2318,12 +2332,12 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
   // How many more frames to skip.
   int32_t skip_depth_;
   // Current position down stack trace.
-  uint32_t count_;
+  uint32_t count_ = 0;
   // An object array where the first element is a pointer array that contains the ArtMethod
   // pointers on the stack and dex PCs. The rest of the elements are the declaring
   // class of the ArtMethod pointers. trace_[i+1] contains the declaring class of the ArtMethod of
   // the i'th frame.
-  mirror::ObjectArray<mirror::Object>* trace_;
+  mirror::ObjectArray<mirror::Object>* trace_ = nullptr;
   // For cross compilation.
   const PointerSize pointer_size_;
 
@@ -2332,11 +2346,15 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
 
 template<bool kTransactionActive>
 jobject Thread::CreateInternalStackTrace(const ScopedObjectAccessAlreadyRunnable& soa) const {
-  // Compute depth of stack
-  CountStackDepthVisitor count_visitor(const_cast<Thread*>(this));
+  // Compute depth of stack, save frames if possible to avoid needing to recompute many.
+  constexpr size_t kMaxSavedFrames = 256;
+  std::unique_ptr<ArtMethodDexPcPair[]> saved_frames(new ArtMethodDexPcPair[kMaxSavedFrames]);
+  FetchStackTraceVisitor count_visitor(const_cast<Thread*>(this),
+                                       &saved_frames[0],
+                                       kMaxSavedFrames);
   count_visitor.WalkStack();
-  int32_t depth = count_visitor.GetDepth();
-  int32_t skip_depth = count_visitor.GetSkipDepth();
+  const uint32_t depth = count_visitor.GetDepth();
+  const uint32_t skip_depth = count_visitor.GetSkipDepth();
 
   // Build internal stack trace.
   BuildInternalStackTraceVisitor<kTransactionActive> build_trace_visitor(soa.Self(),
@@ -2345,7 +2363,16 @@ jobject Thread::CreateInternalStackTrace(const ScopedObjectAccessAlreadyRunnable
   if (!build_trace_visitor.Init(depth)) {
     return nullptr;  // Allocation failed.
   }
-  build_trace_visitor.WalkStack();
+  // If we saved all of the frames we don't even need to do the actual stack walk. This is faster
+  // than doing the stack walk twice.
+  if (depth < kMaxSavedFrames) {
+    for (size_t i = 0; i < depth; ++i) {
+      build_trace_visitor.AddFrame(saved_frames[i].first, saved_frames[i].second);
+    }
+  } else {
+    build_trace_visitor.WalkStack();
+  }
+
   mirror::ObjectArray<mirror::Object>* trace = build_trace_visitor.GetInternalStackTrace();
   if (kIsDebugBuild) {
     ObjPtr<mirror::PointerArray> trace_methods = build_trace_visitor.GetTraceMethodsAndPCs();
@@ -2364,9 +2391,10 @@ template jobject Thread::CreateInternalStackTrace<true>(
     const ScopedObjectAccessAlreadyRunnable& soa) const;
 
 bool Thread::IsExceptionThrownByCurrentMethod(ObjPtr<mirror::Throwable> exception) const {
-  CountStackDepthVisitor count_visitor(const_cast<Thread*>(this));
+  // Only count the depth since we do not pass a stack frame array as an argument.
+  FetchStackTraceVisitor count_visitor(const_cast<Thread*>(this));
   count_visitor.WalkStack();
-  return count_visitor.GetDepth() == exception->GetStackDepth();
+  return count_visitor.GetDepth() == static_cast<uint32_t>(exception->GetStackDepth());
 }
 
 jobjectArray Thread::InternalStackTraceToStackTraceElementArray(
