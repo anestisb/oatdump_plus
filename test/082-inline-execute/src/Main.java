@@ -535,6 +535,8 @@ public class Main {
     Assert.assertEquals(Math.min(0.0f, Float.MAX_VALUE), 0.0f);
     Assert.assertEquals(Math.min(Float.MIN_VALUE, 0.0f), 0.0f);
     Assert.assertEquals(Math.min(Float.MIN_VALUE, Float.MAX_VALUE), Float.MIN_VALUE);
+    // Should not have flush-to-zero behavior.
+    Assert.assertEquals(Math.min(Float.MIN_VALUE, Float.MIN_VALUE), Float.MIN_VALUE);
   }
 
   public static void test_Math_max_F() {
@@ -548,8 +550,10 @@ public class Main {
     Assert.assertEquals(Math.max(1.0f, 0.0f), 1.0f);
     Assert.assertEquals(Math.max(0.0f, 1.0f), 1.0f);
     Assert.assertEquals(Math.max(0.0f, Float.MAX_VALUE), Float.MAX_VALUE);
-    Assert.assertEquals(Math.max(Float.MIN_VALUE, 0.0f), Float.MIN_VALUE);
     Assert.assertEquals(Math.max(Float.MIN_VALUE, Float.MAX_VALUE), Float.MAX_VALUE);
+    // Should not have flush-to-zero behavior.
+    Assert.assertEquals(Math.max(Float.MIN_VALUE, 0.0f), Float.MIN_VALUE);
+    Assert.assertEquals(Math.max(Float.MIN_VALUE, Float.MIN_VALUE), Float.MIN_VALUE);
   }
 
   public static void test_Math_min_D() {
@@ -565,6 +569,8 @@ public class Main {
     Assert.assertEquals(Math.min(0.0d, Double.MAX_VALUE), 0.0d);
     Assert.assertEquals(Math.min(Double.MIN_VALUE, 0.0d), 0.0d);
     Assert.assertEquals(Math.min(Double.MIN_VALUE, Double.MAX_VALUE), Double.MIN_VALUE);
+    // Should not have flush-to-zero behavior.
+    Assert.assertEquals(Math.min(Double.MIN_VALUE, Double.MIN_VALUE), Double.MIN_VALUE);
   }
 
   public static void test_Math_max_D() {
@@ -580,6 +586,9 @@ public class Main {
     Assert.assertEquals(Math.max(0.0d, Double.MAX_VALUE), Double.MAX_VALUE);
     Assert.assertEquals(Math.max(Double.MIN_VALUE, 0.0d), Double.MIN_VALUE);
     Assert.assertEquals(Math.max(Double.MIN_VALUE, Double.MAX_VALUE), Double.MAX_VALUE);
+    // Should not have flush-to-zero behavior.
+    Assert.assertEquals(Math.max(Double.MIN_VALUE, 0.0d), Double.MIN_VALUE);
+    Assert.assertEquals(Math.max(Double.MIN_VALUE, Double.MIN_VALUE), Double.MIN_VALUE);
   }
 
   public static void test_Math_sqrt() {
