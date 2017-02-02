@@ -62,7 +62,7 @@ bool ClassLoaderHelper::AddToClassLoader(art::Thread* self,
                                          art::Handle<art::mirror::ClassLoader> loader,
                                          const art::DexFile* dex_file) {
   art::ScopedObjectAccessUnchecked soa(self);
-  art::StackHandleScope<2> hs(self);
+  art::StackHandleScope<3> hs(self);
   if (art::ClassLinker::IsBootClassLoader(soa, loader.Get())) {
     art::Runtime::Current()->GetClassLinker()->AppendToBootClassPath(self, *dex_file);
     return true;
@@ -72,8 +72,9 @@ bool ClassLoaderHelper::AddToClassLoader(art::Thread* self,
   if (java_dex_file_obj.IsNull()) {
     return false;
   }
+  art::Handle<art::mirror::LongArray> old_cookie(hs.NewHandle(GetDexFileCookie(java_dex_file_obj)));
   art::Handle<art::mirror::LongArray> cookie(hs.NewHandle(
-      AllocateNewDexFileCookie(self, java_dex_file_obj, dex_file)));
+      AllocateNewDexFileCookie(self, old_cookie, dex_file)));
   if (cookie.IsNull()) {
     return false;
   }
@@ -99,12 +100,8 @@ void ClassLoaderHelper::UpdateJavaDexFile(art::ObjPtr<art::mirror::Object> java_
   }
 }
 
-// TODO Really wishing I had that mirror of java.lang.DexFile now.
-art::ObjPtr<art::mirror::LongArray> ClassLoaderHelper::AllocateNewDexFileCookie(
-    art::Thread* self,
-    art::Handle<art::mirror::Object> java_dex_file_obj,
-    const art::DexFile* dex_file) {
-  art::StackHandleScope<2> hs(self);
+art::ObjPtr<art::mirror::LongArray> ClassLoaderHelper::GetDexFileCookie(
+    art::Handle<art::mirror::Object> java_dex_file_obj) {
   // mCookie is nulled out if the DexFile has been closed but mInternalCookie sticks around until
   // the object is finalized. Since they always point to the same array if mCookie is not null we
   // just use the mInternalCookie field. We will update one or both of these fields later.
@@ -113,9 +110,15 @@ art::ObjPtr<art::mirror::LongArray> ClassLoaderHelper::AllocateNewDexFileCookie(
       "mInternalCookie", "Ljava/lang/Object;");
   // TODO Add check that mCookie is either null or same as mInternalCookie
   CHECK(internal_cookie_field != nullptr);
-  art::Handle<art::mirror::LongArray> cookie(
-      hs.NewHandle(internal_cookie_field->GetObject(java_dex_file_obj.Get())->AsLongArray()));
-  // TODO Maybe make these non-fatal.
+  return internal_cookie_field->GetObject(java_dex_file_obj.Get())->AsLongArray();
+}
+
+// TODO Really wishing I had that mirror of java.lang.DexFile now.
+art::ObjPtr<art::mirror::LongArray> ClassLoaderHelper::AllocateNewDexFileCookie(
+    art::Thread* self,
+    art::Handle<art::mirror::LongArray> cookie,
+    const art::DexFile* dex_file) {
+  art::StackHandleScope<1> hs(self);
   CHECK(cookie.Get() != nullptr);
   CHECK_GE(cookie->GetLength(), 1);
   art::Handle<art::mirror::LongArray> new_cookie(
@@ -128,8 +131,9 @@ art::ObjPtr<art::mirror::LongArray> ClassLoaderHelper::AllocateNewDexFileCookie(
   // TODO Should I clear this field?
   // TODO This is a really crappy thing here with the first element being different.
   new_cookie->SetWithoutChecks<false>(0, cookie->GetWithoutChecks(0));
+  // This must match the casts in runtime/native/dalvik_system_DexFile.cc:ConvertDexFilesToJavaArray
   new_cookie->SetWithoutChecks<false>(
-      1, static_cast<int64_t>(reinterpret_cast<intptr_t>(dex_file)));
+      1, static_cast<int64_t>(reinterpret_cast<uintptr_t>(dex_file)));
   new_cookie->Memcpy(2, cookie.Get(), 1, cookie->GetLength() - 1);
   return new_cookie.Get();
 }
