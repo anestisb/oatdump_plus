@@ -1174,7 +1174,6 @@ artMterpAsmInstructionStart = .L_op_nop
      */
     /* op vAA, +BBBBBBBB */
     .extern MterpDoPackedSwitch
-    .extern MterpProfileBranch
     lh      a0, 2(rPC)                  # a0 <- bbbb (lo)
     lh      a1, 4(rPC)                  # a1 <- BBBB (hi)
     srl     a3, rINST, 8                # a3 <- AA
@@ -1201,7 +1200,6 @@ artMterpAsmInstructionStart = .L_op_nop
      */
     /* op vAA, +BBBBBBBB */
     .extern MterpDoSparseSwitch
-    .extern MterpProfileBranch
     lh      a0, 2(rPC)                  # a0 <- bbbb (lo)
     lh      a1, 4(rPC)                  # a1 <- BBBB (hi)
     srl     a3, rINST, 8                # a3 <- AA
@@ -1396,7 +1394,6 @@ artMterpAsmInstructionStart = .L_op_nop
      * For: if-eq, if-ne, if-lt, if-ge, if-gt, if-le
      */
     /* if-cmp vA, vB, +CCCC */
-    .extern MterpProfileBranch
     ext     a2, rINST, 8, 4             # a2 <- A
     ext     a3, rINST, 12, 4            # a3 <- B
     lh      rINST, 2(rPC)               # rINST <- offset (sign-extended CCCC)
@@ -1423,7 +1420,6 @@ artMterpAsmInstructionStart = .L_op_nop
      * For: if-eq, if-ne, if-lt, if-ge, if-gt, if-le
      */
     /* if-cmp vA, vB, +CCCC */
-    .extern MterpProfileBranch
     ext     a2, rINST, 8, 4             # a2 <- A
     ext     a3, rINST, 12, 4            # a3 <- B
     lh      rINST, 2(rPC)               # rINST <- offset (sign-extended CCCC)
@@ -1450,7 +1446,6 @@ artMterpAsmInstructionStart = .L_op_nop
      * For: if-eq, if-ne, if-lt, if-ge, if-gt, if-le
      */
     /* if-cmp vA, vB, +CCCC */
-    .extern MterpProfileBranch
     ext     a2, rINST, 8, 4             # a2 <- A
     ext     a3, rINST, 12, 4            # a3 <- B
     lh      rINST, 2(rPC)               # rINST <- offset (sign-extended CCCC)
@@ -1477,7 +1472,6 @@ artMterpAsmInstructionStart = .L_op_nop
      * For: if-eq, if-ne, if-lt, if-ge, if-gt, if-le
      */
     /* if-cmp vA, vB, +CCCC */
-    .extern MterpProfileBranch
     ext     a2, rINST, 8, 4             # a2 <- A
     ext     a3, rINST, 12, 4            # a3 <- B
     lh      rINST, 2(rPC)               # rINST <- offset (sign-extended CCCC)
@@ -1504,7 +1498,6 @@ artMterpAsmInstructionStart = .L_op_nop
      * For: if-eq, if-ne, if-lt, if-ge, if-gt, if-le
      */
     /* if-cmp vA, vB, +CCCC */
-    .extern MterpProfileBranch
     ext     a2, rINST, 8, 4             # a2 <- A
     ext     a3, rINST, 12, 4            # a3 <- B
     lh      rINST, 2(rPC)               # rINST <- offset (sign-extended CCCC)
@@ -1531,7 +1524,6 @@ artMterpAsmInstructionStart = .L_op_nop
      * For: if-eq, if-ne, if-lt, if-ge, if-gt, if-le
      */
     /* if-cmp vA, vB, +CCCC */
-    .extern MterpProfileBranch
     ext     a2, rINST, 8, 4             # a2 <- A
     ext     a3, rINST, 12, 4            # a3 <- B
     lh      rINST, 2(rPC)               # rINST <- offset (sign-extended CCCC)

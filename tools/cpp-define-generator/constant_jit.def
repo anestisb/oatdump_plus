@@ -25,5 +25,6 @@
 
 DEFINE_JIT_CONSTANT(CHECK_OSR,       int16_t, art::jit::kJitCheckForOSR)
 DEFINE_JIT_CONSTANT(HOTNESS_DISABLE, int16_t, art::jit::kJitHotnessDisabled)
+DEFINE_JIT_CONSTANT(CHECK_OSR_THRESHOLD, int16_t, art::jit::Jit::kJitRecheckOSRThreshold)
 
 #undef DEFINE_JIT_CONSTANT
