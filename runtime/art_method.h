@@ -251,7 +251,6 @@ class ArtMethod FINAL {
     return (GetAccessFlags() & kAccVarargs) != 0;
   }
 
-  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   bool IsProxyMethod() REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool SkipAccessChecks() {
