@@ -121,6 +121,7 @@ static AgentLib agents[] = {
   { "941-recursive-obsolete-jit", common_redefine::OnLoad, nullptr },
   { "942-private-recursive", common_redefine::OnLoad, nullptr },
   { "943-private-recursive-jit", common_redefine::OnLoad, nullptr },
+  { "944-transform-classloaders", common_redefine::OnLoad, nullptr },
 };
 
 static AgentLib* FindAgent(char* name) {
