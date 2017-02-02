@@ -145,6 +145,13 @@ class Redefiner {
     bool FinishRemainingAllocations(int32_t klass_index, /*out*/RedefinitionDataHolder* holder)
         REQUIRES_SHARED(art::Locks::mutator_lock_);
 
+    bool AllocateAndRememberNewDexFileCookie(
+        int32_t klass_index,
+        art::Handle<art::mirror::ClassLoader> source_class_loader,
+        art::Handle<art::mirror::Object> dex_file_obj,
+        /*out*/RedefinitionDataHolder* holder)
+          REQUIRES_SHARED(art::Locks::mutator_lock_);
+
     void FindAndAllocateObsoleteMethods(art::mirror::Class* art_klass)
         REQUIRES(art::Locks::mutator_lock_);
 

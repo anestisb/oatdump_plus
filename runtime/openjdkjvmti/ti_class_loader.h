@@ -82,9 +82,12 @@ class ClassLoaderHelper {
       art::Thread* self, art::Handle<art::mirror::ClassLoader> loader)
       REQUIRES_SHARED(art::Locks::mutator_lock_);
 
+  static art::ObjPtr<art::mirror::LongArray> GetDexFileCookie(
+      art::Handle<art::mirror::Object> java_dex_file) REQUIRES_SHARED(art::Locks::mutator_lock_);
+
   static art::ObjPtr<art::mirror::LongArray> AllocateNewDexFileCookie(
       art::Thread* self,
-      art::Handle<art::mirror::Object> java_dex_file,
+      art::Handle<art::mirror::LongArray> old_dex_file_cookie,
       const art::DexFile* new_dex_file) REQUIRES_SHARED(art::Locks::mutator_lock_);
 
   static void UpdateJavaDexFile(art::ObjPtr<art::mirror::Object> java_dex_file,
