@@ -23,6 +23,7 @@
 
 #include "common_runtime_test.h"
 #include "runtime/arch/instruction_set.h"
+#include "runtime/exec_utils.h"
 #include "runtime/os.h"
 #include "runtime/utils.h"
 #include "utils.h"
