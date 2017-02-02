@@ -90,6 +90,7 @@
 #include "reference_type_propagation.h"
 #include "register_allocator_linear_scan.h"
 #include "select_generator.h"
+#include "scheduler.h"
 #include "sharpening.h"
 #include "side_effects_analysis.h"
 #include "ssa_builder.h"
@@ -658,10 +659,13 @@ void OptimizingCompiler::RunArchOptimizations(InstructionSet instruction_set,
           new (arena) arm64::InstructionSimplifierArm64(graph, stats);
       SideEffectsAnalysis* side_effects = new (arena) SideEffectsAnalysis(graph);
       GVNOptimization* gvn = new (arena) GVNOptimization(graph, *side_effects, "GVN$after_arch");
+      HInstructionScheduling* scheduling =
+          new (arena) HInstructionScheduling(graph, instruction_set);
       HOptimization* arm64_optimizations[] = {
         simplifier,
         side_effects,
-        gvn
+        gvn,
+        scheduling,
       };
       RunOptimizations(arm64_optimizations, arraysize(arm64_optimizations), pass_observer);
       break;
