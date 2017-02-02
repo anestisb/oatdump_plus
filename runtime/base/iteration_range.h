@@ -55,7 +55,7 @@ inline IterationRange<Iter> MakeEmptyIterationRange(const Iter& it) {
 }
 
 template <typename Container>
-inline auto ReverseRange(Container& c) {
+inline auto ReverseRange(Container&& c) {
   typedef typename std::reverse_iterator<decltype(c.begin())> riter;
   return MakeIterationRange(riter(c.end()), riter(c.begin()));
 }

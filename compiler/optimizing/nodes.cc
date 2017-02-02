@@ -1354,13 +1354,15 @@ std::ostream& operator<<(std::ostream& os, const HInstruction::InstructionKind& 
   return os;
 }
 
-void HInstruction::MoveBefore(HInstruction* cursor) {
-  DCHECK(!IsPhi());
-  DCHECK(!IsControlFlow());
-  DCHECK(CanBeMoved() ||
-         // HShouldDeoptimizeFlag can only be moved by CHAGuardOptimization.
-         IsShouldDeoptimizeFlag());
-  DCHECK(!cursor->IsPhi());
+void HInstruction::MoveBefore(HInstruction* cursor, bool do_checks) {
+  if (do_checks) {
+    DCHECK(!IsPhi());
+    DCHECK(!IsControlFlow());
+    DCHECK(CanBeMoved() ||
+           // HShouldDeoptimizeFlag can only be moved by CHAGuardOptimization.
+           IsShouldDeoptimizeFlag());
+    DCHECK(!cursor->IsPhi());
+  }
 
   next_->previous_ = previous_;
   if (previous_ != nullptr) {
