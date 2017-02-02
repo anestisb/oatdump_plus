@@ -25,6 +25,7 @@
 
 #include "common_runtime_test.h"
 #include "compiler_callbacks.h"
+#include "exec_utils.h"
 #include "gc/heap.h"
 #include "gc/space/image_space.h"
 #include "oat_file_assistant.h"
