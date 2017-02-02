@@ -54,6 +54,8 @@ class Jit {
   static constexpr size_t kDefaultCompileThreshold = kStressMode ? 2 : 10000;
   static constexpr size_t kDefaultPriorityThreadWeightRatio = 1000;
   static constexpr size_t kDefaultInvokeTransitionWeightRatio = 500;
+  // How frequently should the interpreter check to see if OSR compilation is ready.
+  static constexpr int16_t kJitRecheckOSRThreshold = 100;
 
   virtual ~Jit();
   static Jit* Create(JitOptions* options, std::string* error_msg);
