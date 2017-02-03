@@ -446,6 +446,8 @@ static const OatFile::OatMethod FindOatMethodFor(ArtMethod* method,
                                                  PointerSize pointer_size,
                                                  bool* found)
     REQUIRES_SHARED(Locks::mutator_lock_) {
+  // We shouldn't be calling this with obsolete methods.
+  DCHECK(!method->IsObsolete());
   // Although we overwrite the trampoline of non-static methods, we may get here via the resolution
   // method for direct methods (or virtual methods made direct).
   mirror::Class* declaring_class = method->GetDeclaringClass();
