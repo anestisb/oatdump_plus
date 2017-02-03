@@ -1051,7 +1051,7 @@ TEST_F(StubTest, AllocObjectArray) {
     // resolved/initialized cases)
     size_t result = Invoke3(reinterpret_cast<size_t>(c.Get()), 10U,
                             reinterpret_cast<size_t>(nullptr),
-                            StubTest::GetEntrypoint(self, kQuickAllocArrayResolved),
+                            StubTest::GetEntrypoint(self, kQuickAllocArrayResolved32),
                             self);
     EXPECT_FALSE(self->IsExceptionPending()) << mirror::Object::PrettyTypeOf(self->GetException());
     EXPECT_NE(reinterpret_cast<size_t>(nullptr), result);
@@ -1071,7 +1071,7 @@ TEST_F(StubTest, AllocObjectArray) {
     size_t result = Invoke3(reinterpret_cast<size_t>(c.Get()),
                             GB,  // that should fail...
                             reinterpret_cast<size_t>(nullptr),
-                            StubTest::GetEntrypoint(self, kQuickAllocArrayResolved),
+                            StubTest::GetEntrypoint(self, kQuickAllocArrayResolved32),
                             self);
 
     EXPECT_TRUE(self->IsExceptionPending());
