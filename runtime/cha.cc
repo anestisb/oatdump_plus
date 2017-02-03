@@ -16,6 +16,7 @@
 
 #include "cha.h"
 
+#include "art_method-inl.h"
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
 #include "runtime.h"

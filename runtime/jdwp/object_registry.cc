@@ -19,6 +19,7 @@
 #include "handle_scope-inl.h"
 #include "jni_internal.h"
 #include "mirror/class.h"
+#include "mirror/throwable.h"
 #include "obj_ptr-inl.h"
 #include "scoped_thread_state_change-inl.h"
 

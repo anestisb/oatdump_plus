@@ -77,7 +77,7 @@
 #include "thread-inl.h"
 #include "utils.h"
 #include "verifier/method_verifier.h"
-#include "verify_object-inl.h"
+#include "verify_object.h"
 #include "well_known_classes.h"
 #include "interpreter/interpreter.h"
 

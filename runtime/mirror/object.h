@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_MIRROR_OBJECT_H_
 #define ART_RUNTIME_MIRROR_OBJECT_H_
 
+#include "atomic.h"
 #include "base/casts.h"
 #include "base/enums.h"
 #include "globals.h"
@@ -432,11 +433,18 @@ class MANAGED LOCKABLE Object {
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kIsVolatile = false>
   ALWAYS_INLINE int32_t GetField32(MemberOffset field_offset)
-      REQUIRES_SHARED(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (kVerifyFlags & kVerifyThis) {
+      VerifyObject(this);
+    }
+    return GetField<int32_t, kIsVolatile>(field_offset);
+  }
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   ALWAYS_INLINE int32_t GetField32Volatile(MemberOffset field_offset)
-      REQUIRES_SHARED(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    return GetField32<kVerifyFlags, true>(field_offset);
+  }
 
   template<bool kTransactionActive, bool kCheckTransaction = true,
       VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kIsVolatile = false>
@@ -611,10 +619,28 @@ class MANAGED LOCKABLE Object {
  private:
   template<typename kSize, bool kIsVolatile>
   ALWAYS_INLINE void SetField(MemberOffset field_offset, kSize new_value)
-      REQUIRES_SHARED(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    uint8_t* raw_addr = reinterpret_cast<uint8_t*>(this) + field_offset.Int32Value();
+    kSize* addr = reinterpret_cast<kSize*>(raw_addr);
+    if (kIsVolatile) {
+      reinterpret_cast<Atomic<kSize>*>(addr)->StoreSequentiallyConsistent(new_value);
+    } else {
+      reinterpret_cast<Atomic<kSize>*>(addr)->StoreJavaData(new_value);
+    }
+  }
+
   template<typename kSize, bool kIsVolatile>
   ALWAYS_INLINE kSize GetField(MemberOffset field_offset)
-      REQUIRES_SHARED(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    const uint8_t* raw_addr = reinterpret_cast<const uint8_t*>(this) + field_offset.Int32Value();
+    const kSize* addr = reinterpret_cast<const kSize*>(raw_addr);
+    if (kIsVolatile) {
+      return reinterpret_cast<const Atomic<kSize>*>(addr)->LoadSequentiallyConsistent();
+    } else {
+      return reinterpret_cast<const Atomic<kSize>*>(addr)->LoadJavaData();
+    }
+  }
+
   // Get a field with acquire semantics.
   template<typename kSize>
   ALWAYS_INLINE kSize GetFieldAcquire(MemberOffset field_offset)
