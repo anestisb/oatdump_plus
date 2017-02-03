@@ -1416,10 +1416,13 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
         return false;
       }
 
-      if (!same_dex_file && current->NeedsEnvironment()) {
+      if (current->NeedsEnvironment() &&
+          !CanEncodeInlinedMethodInStackMap(*caller_compilation_unit_.GetDexFile(),
+                                            resolved_method)) {
         VLOG(compiler) << "Method " << callee_dex_file.PrettyMethod(method_index)
                        << " could not be inlined because " << current->DebugName()
-                       << " needs an environment and is in a different dex file";
+                       << " needs an environment, is in a different dex file"
+                       << ", and cannot be encoded in the stack maps.";
         return false;
       }
 
