@@ -123,6 +123,19 @@ mirror::Class* ClassTable::Lookup(const char* descriptor, size_t hash) {
   return nullptr;
 }
 
+ObjPtr<mirror::Class> ClassTable::TryInsert(ObjPtr<mirror::Class> klass) {
+  TableSlot slot(klass);
+  WriterMutexLock mu(Thread::Current(), lock_);
+  for (ClassSet& class_set : classes_) {
+    auto it = class_set.Find(slot);
+    if (it != class_set.end()) {
+      return it->Read();
+    }
+  }
+  classes_.back().Insert(slot);
+  return klass;
+}
+
 void ClassTable::Insert(ObjPtr<mirror::Class> klass) {
   const uint32_t hash = TableSlot::HashDescriptor(klass);
   WriterMutexLock mu(Thread::Current(), lock_);

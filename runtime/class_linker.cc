@@ -1322,16 +1322,8 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
         // Make sure to do this after we update the arrays since we store the resolved types array
         // in DexCacheData in RegisterDexFileLocked. We need the array pointer to be the one in the
         // BSS.
-        ObjPtr<mirror::DexCache> existing_dex_cache = FindDexCacheLocked(self,
-                                                                         *dex_file,
-                                                                         /*allow_failure*/true);
-        CHECK(existing_dex_cache == nullptr);
-        StackHandleScope<1> hs3(self);
-        Handle<mirror::DexCache> h_dex_cache = hs3.NewHandle(dex_cache);
-        RegisterDexFileLocked(*dex_file, h_dex_cache);
-        if (kIsDebugBuild) {
-          dex_cache.Assign(h_dex_cache.Get());  // Update dex_cache, used below in debug build.
-        }
+        CHECK(!FindDexCacheDataLocked(*dex_file).IsValid());
+        RegisterDexFileLocked(*dex_file, dex_cache, class_loader.Get());
       }
       if (kIsDebugBuild) {
         CHECK(new_class_set != nullptr);
@@ -1675,11 +1667,9 @@ bool ClassLinker::AddImageSpace(
     return false;
   }
 
-  StackHandleScope<1> hs2(self);
-  MutableHandle<mirror::DexCache> h_dex_cache(hs2.NewHandle<mirror::DexCache>(nullptr));
   for (int32_t i = 0; i < dex_caches->GetLength(); i++) {
-    h_dex_cache.Assign(dex_caches->Get(i));
-    std::string dex_file_location(h_dex_cache->GetLocation()->ToModifiedUtf8());
+    ObjPtr<mirror::DexCache> dex_cache = dex_caches->Get(i);
+    std::string dex_file_location(dex_cache->GetLocation()->ToModifiedUtf8());
     // TODO: Only store qualified paths.
     // If non qualified, qualify it.
     if (dex_file_location.find('/') == std::string::npos) {
@@ -1699,9 +1689,9 @@ bool ClassLinker::AddImageSpace(
     if (app_image) {
       // The current dex file field is bogus, overwrite it so that we can get the dex file in the
       // loop below.
-      h_dex_cache->SetDexFile(dex_file.get());
-      GcRoot<mirror::Class>* const types = h_dex_cache->GetResolvedTypes();
-      for (int32_t j = 0, num_types = h_dex_cache->NumResolvedTypes(); j < num_types; j++) {
+      dex_cache->SetDexFile(dex_file.get());
+      GcRoot<mirror::Class>* const types = dex_cache->GetResolvedTypes();
+      for (int32_t j = 0, num_types = dex_cache->NumResolvedTypes(); j < num_types; j++) {
         ObjPtr<mirror::Class> klass = types[j].Read();
         if (klass != nullptr) {
           DCHECK(!klass->IsErroneous()) << klass->GetStatus();
@@ -1711,11 +1701,11 @@ bool ClassLinker::AddImageSpace(
       if (kSanityCheckObjects) {
         ImageSanityChecks::CheckPointerArray(heap,
                                              this,
-                                             h_dex_cache->GetResolvedMethods(),
-                                             h_dex_cache->NumResolvedMethods());
+                                             dex_cache->GetResolvedMethods(),
+                                             dex_cache->NumResolvedMethods());
       }
       // Register dex files, keep track of existing ones that are conflicts.
-      AppendToBootClassPath(*dex_file.get(), h_dex_cache);
+      AppendToBootClassPath(*dex_file.get(), dex_cache);
     }
     out_dex_files->push_back(std::move(dex_file));
   }
@@ -2656,7 +2646,7 @@ mirror::Class* ClassLinker::DefineClass(Thread* self,
   }
   ObjPtr<mirror::DexCache> dex_cache = RegisterDexFile(*new_dex_file, class_loader.Get());
   if (dex_cache == nullptr) {
-    self->AssertPendingOOMException();
+    self->AssertPendingException();
     return nullptr;
   }
   klass->SetDexCache(dex_cache);
@@ -3264,28 +3254,27 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
 }
 
 void ClassLinker::AppendToBootClassPath(Thread* self, const DexFile& dex_file) {
-  StackHandleScope<1> hs(self);
-  Handle<mirror::DexCache> dex_cache(hs.NewHandle(AllocAndInitializeDexCache(
+  ObjPtr<mirror::DexCache> dex_cache = AllocAndInitializeDexCache(
       self,
       dex_file,
-      Runtime::Current()->GetLinearAlloc())));
-  CHECK(dex_cache.Get() != nullptr) << "Failed to allocate dex cache for "
-                                    << dex_file.GetLocation();
+      Runtime::Current()->GetLinearAlloc());
+  CHECK(dex_cache != nullptr) << "Failed to allocate dex cache for " << dex_file.GetLocation();
   AppendToBootClassPath(dex_file, dex_cache);
 }
 
 void ClassLinker::AppendToBootClassPath(const DexFile& dex_file,
-                                        Handle<mirror::DexCache> dex_cache) {
-  CHECK(dex_cache.Get() != nullptr) << dex_file.GetLocation();
+                                        ObjPtr<mirror::DexCache> dex_cache) {
+  CHECK(dex_cache != nullptr) << dex_file.GetLocation();
   boot_class_path_.push_back(&dex_file);
-  RegisterDexFile(dex_file, dex_cache);
+  RegisterBootClassPathDexFile(dex_file, dex_cache);
 }
 
 void ClassLinker::RegisterDexFileLocked(const DexFile& dex_file,
-                                        Handle<mirror::DexCache> dex_cache) {
+                                        ObjPtr<mirror::DexCache> dex_cache,
+                                        ObjPtr<mirror::ClassLoader> class_loader) {
   Thread* const self = Thread::Current();
   Locks::dex_lock_->AssertExclusiveHeld(self);
-  CHECK(dex_cache.Get() != nullptr) << dex_file.GetLocation();
+  CHECK(dex_cache != nullptr) << dex_file.GetLocation();
   // For app images, the dex cache location may be a suffix of the dex file location since the
   // dex file location is an absolute path.
   const std::string dex_cache_location = dex_cache->GetLocation()->ToModifiedUtf8();
@@ -3313,25 +3302,49 @@ void ClassLinker::RegisterDexFileLocked(const DexFile& dex_file,
       ++it;
     }
   }
-  jweak dex_cache_jweak = vm->AddWeakGlobalRef(self, dex_cache.Get());
+  jweak dex_cache_jweak = vm->AddWeakGlobalRef(self, dex_cache);
   dex_cache->SetDexFile(&dex_file);
   DexCacheData data;
   data.weak_root = dex_cache_jweak;
   data.dex_file = dex_cache->GetDexFile();
   data.resolved_methods = dex_cache->GetResolvedMethods();
+  data.class_table = ClassTableForClassLoader(class_loader);
+  DCHECK(data.class_table != nullptr);
   dex_caches_.push_back(data);
 }
 
-mirror::DexCache* ClassLinker::RegisterDexFile(const DexFile& dex_file,
-                                               ObjPtr<mirror::ClassLoader> class_loader) {
+ObjPtr<mirror::DexCache> ClassLinker::DecodeDexCache(Thread* self, const DexCacheData& data) {
+  return data.IsValid()
+      ? ObjPtr<mirror::DexCache>::DownCast(self->DecodeJObject(data.weak_root))
+      : nullptr;
+}
+
+ObjPtr<mirror::DexCache> ClassLinker::EnsureSameClassLoader(
+    Thread* self,
+    ObjPtr<mirror::DexCache> dex_cache,
+    const DexCacheData& data,
+    ObjPtr<mirror::ClassLoader> class_loader) {
+  DCHECK_EQ(dex_cache->GetDexFile(), data.dex_file);
+  if (data.class_table != ClassTableForClassLoader(class_loader)) {
+    self->ThrowNewExceptionF("Ljava/lang/InternalError;",
+                             "Attempt to register dex file %s with multiple class loaders",
+                             data.dex_file->GetLocation().c_str());
+    return nullptr;
+  }
+  return dex_cache;
+}
+
+ObjPtr<mirror::DexCache> ClassLinker::RegisterDexFile(const DexFile& dex_file,
+                                                      ObjPtr<mirror::ClassLoader> class_loader) {
   Thread* self = Thread::Current();
+  DexCacheData old_data;
   {
     ReaderMutexLock mu(self, *Locks::dex_lock_);
-    ObjPtr<mirror::DexCache> dex_cache = FindDexCacheLocked(self, dex_file, true);
-    if (dex_cache != nullptr) {
-      // TODO: Check if the dex file was registered with the same class loader. Bug: 34193123
-      return dex_cache.Ptr();
-    }
+    old_data = FindDexCacheDataLocked(dex_file);
+  }
+  ObjPtr<mirror::DexCache> old_dex_cache = DecodeDexCache(self, old_data);
+  if (old_dex_cache != nullptr) {
+    return EnsureSameClassLoader(self, old_dex_cache, old_data, class_loader);
   }
   LinearAlloc* const linear_alloc = GetOrCreateAllocatorForClassLoader(class_loader);
   DCHECK(linear_alloc != nullptr);
@@ -3343,7 +3356,8 @@ mirror::DexCache* ClassLinker::RegisterDexFile(const DexFile& dex_file,
   // Don't alloc while holding the lock, since allocation may need to
   // suspend all threads and another thread may need the dex_lock_ to
   // get to a suspend point.
-  StackHandleScope<2> hs(self);
+  StackHandleScope<3> hs(self);
+  Handle<mirror::ClassLoader> h_class_loader(hs.NewHandle(class_loader));
   ObjPtr<mirror::String> location;
   Handle<mirror::DexCache> h_dex_cache(hs.NewHandle(AllocDexCache(/*out*/&location,
                                                                   self,
@@ -3351,75 +3365,92 @@ mirror::DexCache* ClassLinker::RegisterDexFile(const DexFile& dex_file,
   Handle<mirror::String> h_location(hs.NewHandle(location));
   {
     WriterMutexLock mu(self, *Locks::dex_lock_);
-    ObjPtr<mirror::DexCache> dex_cache = FindDexCacheLocked(self, dex_file, true);
-    if (dex_cache != nullptr) {
-      // Another thread managed to initialize the dex cache faster, so use that DexCache.
-      // If this thread encountered OOME, ignore it.
-      DCHECK_EQ(h_dex_cache.Get() == nullptr, self->IsExceptionPending());
-      self->ClearException();
-      return dex_cache.Ptr();
+    old_data = FindDexCacheDataLocked(dex_file);
+    old_dex_cache = DecodeDexCache(self, old_data);
+    if (old_dex_cache == nullptr && h_dex_cache.Get() != nullptr) {
+      // Do InitializeDexCache while holding dex lock to make sure two threads don't call it at the
+      // same time with the same dex cache. Since the .bss is shared this can cause failing DCHECK
+      // that the arrays are null.
+      mirror::DexCache::InitializeDexCache(self,
+                                           h_dex_cache.Get(),
+                                           h_location.Get(),
+                                           &dex_file,
+                                           linear_alloc,
+                                           image_pointer_size_);
+      RegisterDexFileLocked(dex_file, h_dex_cache.Get(), h_class_loader.Get());
     }
-    if (h_dex_cache.Get() == nullptr) {
-      self->AssertPendingOOMException();
-      return nullptr;
-    }
-    // Do InitializeDexCache while holding dex lock to make sure two threads don't call it at the
-    // same time with the same dex cache. Since the .bss is shared this can cause failing DCHECK
-    // that the arrays are null.
-    mirror::DexCache::InitializeDexCache(self,
-                                         h_dex_cache.Get(),
-                                         h_location.Get(),
-                                         &dex_file,
-                                         linear_alloc,
-                                         image_pointer_size_);
-    RegisterDexFileLocked(dex_file, h_dex_cache);
+  }
+  if (old_dex_cache != nullptr) {
+    // Another thread managed to initialize the dex cache faster, so use that DexCache.
+    // If this thread encountered OOME, ignore it.
+    DCHECK_EQ(h_dex_cache.Get() == nullptr, self->IsExceptionPending());
+    self->ClearException();
+    // We cannot call EnsureSameClassLoader() while holding the dex_lock_.
+    return EnsureSameClassLoader(self, old_dex_cache, old_data, h_class_loader.Get());
+  }
+  if (h_dex_cache.Get() == nullptr) {
+    self->AssertPendingOOMException();
+    return nullptr;
   }
   table->InsertStrongRoot(h_dex_cache.Get());
   return h_dex_cache.Get();
 }
 
-void ClassLinker::RegisterDexFile(const DexFile& dex_file,
-                                  Handle<mirror::DexCache> dex_cache) {
+void ClassLinker::RegisterBootClassPathDexFile(const DexFile& dex_file,
+                                               ObjPtr<mirror::DexCache> dex_cache) {
   WriterMutexLock mu(Thread::Current(), *Locks::dex_lock_);
-  RegisterDexFileLocked(dex_file, dex_cache);
+  RegisterDexFileLocked(dex_file, dex_cache, /* class_loader */ nullptr);
 }
 
-mirror::DexCache* ClassLinker::FindDexCache(Thread* self,
-                                            const DexFile& dex_file,
-                                            bool allow_failure) {
+bool ClassLinker::IsDexFileRegistered(Thread* self, const DexFile& dex_file) {
   ReaderMutexLock mu(self, *Locks::dex_lock_);
-  return FindDexCacheLocked(self, dex_file, allow_failure);
+  return DecodeDexCache(self, FindDexCacheDataLocked(dex_file)) != nullptr;
 }
 
-mirror::DexCache* ClassLinker::FindDexCacheLocked(Thread* self,
-                                                  const DexFile& dex_file,
-                                                  bool allow_failure) {
-  // Search assuming unique-ness of dex file.
-  for (const DexCacheData& data : dex_caches_) {
-    // Avoid decoding (and read barriers) other unrelated dex caches.
-    if (data.dex_file == &dex_file) {
-      ObjPtr<mirror::DexCache> dex_cache =
-          ObjPtr<mirror::DexCache>::DownCast(self->DecodeJObject(data.weak_root));
-      if (dex_cache != nullptr) {
-        return dex_cache.Ptr();
-      }
-      break;
-    }
+ObjPtr<mirror::DexCache> ClassLinker::FindDexCache(Thread* self, const DexFile& dex_file) {
+  ReaderMutexLock mu(self, *Locks::dex_lock_);
+  ObjPtr<mirror::DexCache> dex_cache = DecodeDexCache(self, FindDexCacheDataLocked(dex_file));
+  if (dex_cache != nullptr) {
+    return dex_cache;
   }
-  if (allow_failure) {
-    return nullptr;
-  }
-  std::string location(dex_file.GetLocation());
   // Failure, dump diagnostic and abort.
+  std::string location(dex_file.GetLocation());
   for (const DexCacheData& data : dex_caches_) {
-    ObjPtr<mirror::DexCache> dex_cache =
-        ObjPtr<mirror::DexCache>::DownCast(self->DecodeJObject(data.weak_root));
-    if (dex_cache != nullptr) {
-      LOG(ERROR) << "Registered dex file " << dex_cache->GetDexFile()->GetLocation();
+    if (DecodeDexCache(self, data) != nullptr) {
+      LOG(ERROR) << "Registered dex file " << data.dex_file->GetLocation();
     }
   }
   LOG(FATAL) << "Failed to find DexCache for DexFile " << location;
   UNREACHABLE();
+}
+
+ClassTable* ClassLinker::FindClassTable(Thread* self, ObjPtr<mirror::DexCache> dex_cache) {
+  const DexFile* dex_file = dex_cache->GetDexFile();
+  DCHECK(dex_file != nullptr);
+  ReaderMutexLock mu(self, *Locks::dex_lock_);
+  // Search assuming unique-ness of dex file.
+  for (const DexCacheData& data : dex_caches_) {
+    // Avoid decoding (and read barriers) other unrelated dex caches.
+    if (data.dex_file == dex_file) {
+      ObjPtr<mirror::DexCache> registered_dex_cache = DecodeDexCache(self, data);
+      if (registered_dex_cache != nullptr) {
+        CHECK_EQ(registered_dex_cache, dex_cache) << dex_file->GetLocation();
+        return data.class_table;
+      }
+    }
+  }
+  return nullptr;
+}
+
+ClassLinker::DexCacheData ClassLinker::FindDexCacheDataLocked(const DexFile& dex_file) {
+  // Search assuming unique-ness of dex file.
+  for (const DexCacheData& data : dex_caches_) {
+    // Avoid decoding (and read barriers) other unrelated dex caches.
+    if (data.dex_file == &dex_file) {
+      return data;
+    }
+  }
+  return DexCacheData();
 }
 
 void ClassLinker::FixupDexCaches(ArtMethod* resolution_method) {

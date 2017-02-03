@@ -65,12 +65,22 @@ static jobject DexCache_getResolvedString(JNIEnv* env, jobject javaDexCache, jin
       dex_cache->GetResolvedString(dex::StringIndex(string_index)));
 }
 
-static void DexCache_setResolvedType(JNIEnv* env, jobject javaDexCache, jint type_index,
+static void DexCache_setResolvedType(JNIEnv* env,
+                                     jobject javaDexCache,
+                                     jint type_index,
                                      jobject type) {
   ScopedFastNativeObjectAccess soa(env);
   ObjPtr<mirror::DexCache> dex_cache = soa.Decode<mirror::DexCache>(javaDexCache);
-  CHECK_LT(static_cast<size_t>(type_index), dex_cache->NumResolvedTypes());
-  dex_cache->SetResolvedType(dex::TypeIndex(type_index), soa.Decode<mirror::Class>(type));
+  const DexFile& dex_file = *dex_cache->GetDexFile();
+  CHECK_LT(static_cast<size_t>(type_index), dex_file.NumTypeIds());
+  ObjPtr<mirror::Class> t = soa.Decode<mirror::Class>(type);
+  if (t != nullptr && t->DescriptorEquals(dex_file.StringByTypeIdx(dex::TypeIndex(type_index)))) {
+    ClassTable* table =
+        Runtime::Current()->GetClassLinker()->FindClassTable(soa.Self(), dex_cache);
+    if (table != nullptr && table->TryInsert(t) == t) {
+      dex_cache->SetResolvedType(dex::TypeIndex(type_index), t);
+    }
+  }
 }
 
 static void DexCache_setResolvedString(JNIEnv* env, jobject javaDexCache, jint string_index,
@@ -78,7 +88,10 @@ static void DexCache_setResolvedString(JNIEnv* env, jobject javaDexCache, jint s
   ScopedFastNativeObjectAccess soa(env);
   ObjPtr<mirror::DexCache> dex_cache = soa.Decode<mirror::DexCache>(javaDexCache);
   CHECK_LT(static_cast<size_t>(string_index), dex_cache->GetDexFile()->NumStringIds());
-  dex_cache->SetResolvedString(dex::StringIndex(string_index), soa.Decode<mirror::String>(string));
+  ObjPtr<mirror::String> s = soa.Decode<mirror::String>(string);
+  if (s != nullptr) {
+    dex_cache->SetResolvedString(dex::StringIndex(string_index), s);
+  }
 }
 
 static JNINativeMethod gMethods[] = {

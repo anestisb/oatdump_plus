@@ -1250,7 +1250,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
   const ScopedObjectAccess soa_;
   const ScopedAssertNoThreadSuspension no_thread_suspension_;
   ClassLinker* const class_linker_;
-  mirror::DexCache* dex_cache_;
+  ObjPtr<mirror::DexCache> dex_cache_;
   std::vector<uint8_t> patched_code_;
 
   void ReportWriteFailure(const char* what, const ClassDataItemIterator& it) {
@@ -1261,7 +1261,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
   ArtMethod* GetTargetMethod(const LinkerPatch& patch)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     MethodReference ref = patch.TargetMethod();
-    mirror::DexCache* dex_cache =
+    ObjPtr<mirror::DexCache> dex_cache =
         (dex_file_ == ref.dex_file) ? dex_cache_ : class_linker_->FindDexCache(
             Thread::Current(), *ref.dex_file);
     ArtMethod* method = dex_cache->GetResolvedMethod(
@@ -1295,7 +1295,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
     return target_offset;
   }
 
-  mirror::DexCache* GetDexCache(const DexFile* target_dex_file)
+  ObjPtr<mirror::DexCache> GetDexCache(const DexFile* target_dex_file)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     return (target_dex_file == dex_file_)
         ? dex_cache_
@@ -1303,7 +1303,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
   }
 
   mirror::Class* GetTargetType(const LinkerPatch& patch) REQUIRES_SHARED(Locks::mutator_lock_) {
-    mirror::DexCache* dex_cache = GetDexCache(patch.TargetTypeDexFile());
+    ObjPtr<mirror::DexCache> dex_cache = GetDexCache(patch.TargetTypeDexFile());
     mirror::Class* type = dex_cache->GetResolvedType(patch.TargetTypeIndex());
     CHECK(type != nullptr);
     return type;
