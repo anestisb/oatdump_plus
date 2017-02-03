@@ -52,7 +52,7 @@ static constexpr size_t kRuntimeParameterFpuRegistersLength =
 
 
 static constexpr GpuRegister kCoreCalleeSaves[] =
-    { S0, S1, S2, S3, S4, S5, S6, S7, GP, S8, RA };  // TODO: review
+    { S0, S1, S2, S3, S4, S5, S6, S7, GP, S8, RA };
 static constexpr FpuRegister kFpuCalleeSaves[] =
     { F24, F25, F26, F27, F28, F29, F30, F31 };
 
@@ -312,6 +312,7 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
 
   // Emit linker patches.
   void EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) OVERRIDE;
+  void EmitJitRootPatches(uint8_t* code, const uint8_t* roots_data) OVERRIDE;
 
   void MarkGCCard(GpuRegister object, GpuRegister value, bool value_can_be_null);
 
@@ -425,10 +426,27 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
 
   void EmitPcRelativeAddressPlaceholderHigh(PcRelativePatchInfo* info, GpuRegister out);
 
+  void PatchJitRootUse(uint8_t* code,
+                       const uint8_t* roots_data,
+                       const Literal* literal,
+                       uint64_t index_in_table) const;
+  Literal* DeduplicateJitStringLiteral(const DexFile& dex_file,
+                                       dex::StringIndex string_index,
+                                       Handle<mirror::String> handle);
+  Literal* DeduplicateJitClassLiteral(const DexFile& dex_file,
+                                      dex::TypeIndex type_index,
+                                      Handle<mirror::Class> handle);
+
  private:
   using Uint32ToLiteralMap = ArenaSafeMap<uint32_t, Literal*>;
   using Uint64ToLiteralMap = ArenaSafeMap<uint64_t, Literal*>;
   using MethodToLiteralMap = ArenaSafeMap<MethodReference, Literal*, MethodReferenceComparator>;
+  using StringToLiteralMap = ArenaSafeMap<StringReference,
+                                          Literal*,
+                                          StringReferenceValueComparator>;
+  using TypeToLiteralMap = ArenaSafeMap<TypeReference,
+                                        Literal*,
+                                        TypeReferenceValueComparator>;
   using BootStringToLiteralMap = ArenaSafeMap<StringReference,
                                               Literal*,
                                               StringReferenceValueComparator>;
@@ -476,6 +494,10 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
   ArenaDeque<PcRelativePatchInfo> type_bss_entry_patches_;
   // Deduplication map for patchable boot image addresses.
   Uint32ToLiteralMap boot_image_address_patches_;
+  // Patches for string root accesses in JIT compiled code.
+  StringToLiteralMap jit_string_patches_;
+  // Patches for class root accesses in JIT compiled code.
+  TypeToLiteralMap jit_class_patches_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorMIPS64);
 };

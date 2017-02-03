@@ -91,9 +91,6 @@ Location InvokeDexCallingConventionVisitorMIPS64::GetNextLocation(Primitive::Typ
   // Space on the stack is reserved for all arguments.
   stack_index_ += Primitive::Is64BitType(type) ? 2 : 1;
 
-  // TODO: shouldn't we use a whole machine word per argument on the stack?
-  // Implicit 4-byte method pointer (and such) will cause misalignment.
-
   return next_location;
 }
 
@@ -434,7 +431,11 @@ CodeGeneratorMIPS64::CodeGeneratorMIPS64(HGraph* graph,
       pc_relative_type_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       type_bss_entry_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       boot_image_address_patches_(std::less<uint32_t>(),
-                                  graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
+                                  graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      jit_string_patches_(StringReferenceValueComparator(),
+                          graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      jit_class_patches_(TypeReferenceValueComparator(),
+                         graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
   // Save RA (containing the return address) to mimic Quick.
   AddAllocatedRegister(Location::RegisterLocation(RA));
 }
@@ -1053,6 +1054,49 @@ void CodeGeneratorMIPS64::EmitPcRelativeAddressPlaceholderHigh(PcRelativePatchIn
   __ Auipc(out, /* placeholder */ 0x1234);
   // The immediately following instruction will add the sign-extended low half of the 32-bit
   // offset to `out` (e.g. ld, jialc, daddiu).
+}
+
+Literal* CodeGeneratorMIPS64::DeduplicateJitStringLiteral(const DexFile& dex_file,
+                                                          dex::StringIndex string_index,
+                                                          Handle<mirror::String> handle) {
+  jit_string_roots_.Overwrite(StringReference(&dex_file, string_index),
+                              reinterpret_cast64<uint64_t>(handle.GetReference()));
+  return jit_string_patches_.GetOrCreate(
+      StringReference(&dex_file, string_index),
+      [this]() { return __ NewLiteral<uint32_t>(/* placeholder */ 0u); });
+}
+
+Literal* CodeGeneratorMIPS64::DeduplicateJitClassLiteral(const DexFile& dex_file,
+                                                         dex::TypeIndex type_index,
+                                                         Handle<mirror::Class> handle) {
+  jit_class_roots_.Overwrite(TypeReference(&dex_file, type_index),
+                             reinterpret_cast64<uint64_t>(handle.GetReference()));
+  return jit_class_patches_.GetOrCreate(
+      TypeReference(&dex_file, type_index),
+      [this]() { return __ NewLiteral<uint32_t>(/* placeholder */ 0u); });
+}
+
+void CodeGeneratorMIPS64::PatchJitRootUse(uint8_t* code,
+                                          const uint8_t* roots_data,
+                                          const Literal* literal,
+                                          uint64_t index_in_table) const {
+  uint32_t literal_offset = GetAssembler().GetLabelLocation(literal->GetLabel());
+  uintptr_t address =
+      reinterpret_cast<uintptr_t>(roots_data) + index_in_table * sizeof(GcRoot<mirror::Object>);
+  reinterpret_cast<uint32_t*>(code + literal_offset)[0] = dchecked_integral_cast<uint32_t>(address);
+}
+
+void CodeGeneratorMIPS64::EmitJitRootPatches(uint8_t* code, const uint8_t* roots_data) {
+  for (const auto& entry : jit_string_patches_) {
+    const auto& it = jit_string_roots_.find(entry.first);
+    DCHECK(it != jit_string_roots_.end());
+    PatchJitRootUse(code, roots_data, entry.second, it->second);
+  }
+  for (const auto& entry : jit_class_patches_) {
+    const auto& it = jit_class_roots_.find(entry.first);
+    DCHECK(it != jit_class_roots_.end());
+    PatchJitRootUse(code, roots_data, entry.second, it->second);
+  }
 }
 
 void CodeGeneratorMIPS64::SetupBlockedRegisters() const {
@@ -3309,8 +3353,6 @@ HLoadString::LoadKind CodeGeneratorMIPS64::GetSupportedLoadStringKind(
       break;
     case HLoadString::LoadKind::kJitTableAddress:
       DCHECK(Runtime::Current()->UseJitCompilation());
-      // TODO: implement.
-      fallback_load = true;
       break;
   }
   if (fallback_load) {
@@ -3341,8 +3383,6 @@ HLoadClass::LoadKind CodeGeneratorMIPS64::GetSupportedLoadClassKind(
       break;
     case HLoadClass::LoadKind::kJitTableAddress:
       DCHECK(Runtime::Current()->UseJitCompilation());
-      // TODO: implement.
-      fallback_load = true;
       break;
     case HLoadClass::LoadKind::kDexCacheViaMethod:
       break;
@@ -3580,10 +3620,14 @@ void InstructionCodeGeneratorMIPS64::VisitLoadClass(HLoadClass* cls) NO_THREAD_S
       generate_null_check = true;
       break;
     }
-    case HLoadClass::LoadKind::kJitTableAddress: {
-      LOG(FATAL) << "Unimplemented";
+    case HLoadClass::LoadKind::kJitTableAddress:
+      __ LoadLiteral(out,
+                     kLoadUnsignedWord,
+                     codegen_->DeduplicateJitClassLiteral(cls->GetDexFile(),
+                                                          cls->GetTypeIndex(),
+                                                          cls->GetClass()));
+      GenerateGcRootFieldLoad(cls, out_loc, out, 0);
       break;
-    }
     case HLoadClass::LoadKind::kDexCacheViaMethod:
       LOG(FATAL) << "UNREACHABLE";
       UNREACHABLE();
@@ -3685,6 +3729,14 @@ void InstructionCodeGeneratorMIPS64::VisitLoadString(HLoadString* load) NO_THREA
       __ Bind(slow_path->GetExitLabel());
       return;
     }
+    case HLoadString::LoadKind::kJitTableAddress:
+      __ LoadLiteral(out,
+                     kLoadUnsignedWord,
+                     codegen_->DeduplicateJitStringLiteral(load->GetDexFile(),
+                                                           load->GetStringIndex(),
+                                                           load->GetString()));
+      GenerateGcRootFieldLoad(load, out_loc, out, 0);
+      return;
     default:
       break;
   }
