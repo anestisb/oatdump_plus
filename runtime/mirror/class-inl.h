@@ -635,23 +635,6 @@ inline void Class::SetClinitThreadId(pid_t new_clinit_thread_id) {
   }
 }
 
-template<VerifyObjectFlags kVerifyFlags>
-inline uint32_t Class::GetAccessFlags() {
-  // Check class is loaded/retired or this is java.lang.String that has a
-  // circularity issue during loading the names of its members
-  DCHECK(IsIdxLoaded<kVerifyFlags>() || IsRetired<kVerifyFlags>() ||
-         IsErroneous<static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis)>() ||
-         this == String::GetJavaLangString())
-      << "IsIdxLoaded=" << IsIdxLoaded<kVerifyFlags>()
-      << " IsRetired=" << IsRetired<kVerifyFlags>()
-      << " IsErroneous=" <<
-          IsErroneous<static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis)>()
-      << " IsString=" << (this == String::GetJavaLangString())
-      << " status= " << GetStatus<kVerifyFlags>()
-      << " descriptor=" << PrettyDescriptor();
-  return GetField32<kVerifyFlags>(AccessFlagsOffset());
-}
-
 inline String* Class::GetName() {
   return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(Class, name_));
 }

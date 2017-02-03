@@ -142,8 +142,10 @@ inline void Object::Wait(Thread* self, int64_t ms, int32_t ns) {
 }
 
 inline uint32_t Object::GetReadBarrierState(uintptr_t* fake_address_dependency) {
-#ifdef USE_BAKER_READ_BARRIER
-  CHECK(kUseBakerReadBarrier);
+  if (!kUseBakerReadBarrier) {
+    LOG(FATAL) << "Unreachable";
+    UNREACHABLE();
+  }
 #if defined(__arm__)
   uintptr_t obj = reinterpret_cast<uintptr_t>(this);
   uintptr_t result;
@@ -190,37 +192,29 @@ inline uint32_t Object::GetReadBarrierState(uintptr_t* fake_address_dependency) 
   UNREACHABLE();
   UNUSED(fake_address_dependency);
 #endif
-#else  // !USE_BAKER_READ_BARRIER
-  LOG(FATAL) << "Unreachable";
-  UNREACHABLE();
-  UNUSED(fake_address_dependency);
-#endif
 }
 
 inline uint32_t Object::GetReadBarrierState() {
-#ifdef USE_BAKER_READ_BARRIER
+  if (!kUseBakerReadBarrier) {
+    LOG(FATAL) << "Unreachable";
+    UNREACHABLE();
+  }
   DCHECK(kUseBakerReadBarrier);
   LockWord lw(GetField<uint32_t, /*kIsVolatile*/false>(OFFSET_OF_OBJECT_MEMBER(Object, monitor_)));
   uint32_t rb_state = lw.ReadBarrierState();
   DCHECK(ReadBarrier::IsValidReadBarrierState(rb_state)) << rb_state;
   return rb_state;
-#else
-  LOG(FATAL) << "Unreachable";
-  UNREACHABLE();
-#endif
 }
 
 inline uint32_t Object::GetReadBarrierStateAcquire() {
-#ifdef USE_BAKER_READ_BARRIER
-  DCHECK(kUseBakerReadBarrier);
+  if (!kUseBakerReadBarrier) {
+    LOG(FATAL) << "Unreachable";
+    UNREACHABLE();
+  }
   LockWord lw(GetFieldAcquire<uint32_t>(OFFSET_OF_OBJECT_MEMBER(Object, monitor_)));
   uint32_t rb_state = lw.ReadBarrierState();
   DCHECK(ReadBarrier::IsValidReadBarrierState(rb_state)) << rb_state;
   return rb_state;
-#else
-  LOG(FATAL) << "Unreachable";
-  UNREACHABLE();
-#endif
 }
 
 inline uint32_t Object::GetMarkBit() {
@@ -233,23 +227,22 @@ inline uint32_t Object::GetMarkBit() {
 }
 
 inline void Object::SetReadBarrierState(uint32_t rb_state) {
-#ifdef USE_BAKER_READ_BARRIER
-  DCHECK(kUseBakerReadBarrier);
+  if (!kUseBakerReadBarrier) {
+    LOG(FATAL) << "Unreachable";
+    UNREACHABLE();
+  }
   DCHECK(ReadBarrier::IsValidReadBarrierState(rb_state)) << rb_state;
   LockWord lw = GetLockWord(false);
   lw.SetReadBarrierState(rb_state);
   SetLockWord(lw, false);
-#else
-  LOG(FATAL) << "Unreachable";
-  UNREACHABLE();
-  UNUSED(rb_state);
-#endif
 }
 
 template<bool kCasRelease>
 inline bool Object::AtomicSetReadBarrierState(uint32_t expected_rb_state, uint32_t rb_state) {
-#ifdef USE_BAKER_READ_BARRIER
-  DCHECK(kUseBakerReadBarrier);
+  if (!kUseBakerReadBarrier) {
+    LOG(FATAL) << "Unreachable";
+    UNREACHABLE();
+  }
   DCHECK(ReadBarrier::IsValidReadBarrierState(expected_rb_state)) << expected_rb_state;
   DCHECK(ReadBarrier::IsValidReadBarrierState(rb_state)) << rb_state;
   LockWord expected_lw;
@@ -272,11 +265,6 @@ inline bool Object::AtomicSetReadBarrierState(uint32_t expected_rb_state, uint32
              CasLockWordWeakRelease(expected_lw, new_lw) :
              CasLockWordWeakRelaxed(expected_lw, new_lw)));
   return true;
-#else
-  UNUSED(expected_rb_state, rb_state);
-  LOG(FATAL) << "Unreachable";
-  UNREACHABLE();
-#endif
 }
 
 inline bool Object::AtomicSetMarkBit(uint32_t expected_mark_bit, uint32_t mark_bit) {
@@ -691,19 +679,6 @@ inline void Object::SetFieldShortVolatile(MemberOffset field_offset, int16_t new
       field_offset, new_value);
 }
 
-template<VerifyObjectFlags kVerifyFlags, bool kIsVolatile>
-inline int32_t Object::GetField32(MemberOffset field_offset) {
-  if (kVerifyFlags & kVerifyThis) {
-    VerifyObject(this);
-  }
-  return GetField<int32_t, kIsVolatile>(field_offset);
-}
-
-template<VerifyObjectFlags kVerifyFlags>
-inline int32_t Object::GetField32Volatile(MemberOffset field_offset) {
-  return GetField32<kVerifyFlags, true>(field_offset);
-}
-
 template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags,
     bool kIsVolatile>
 inline void Object::SetField32(MemberOffset field_offset, int32_t new_value) {
@@ -852,28 +827,6 @@ template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVer
 inline void Object::SetField64Volatile(MemberOffset field_offset, int64_t new_value) {
   return SetField64<kTransactionActive, kCheckTransaction, kVerifyFlags, true>(field_offset,
                                                                                new_value);
-}
-
-template<typename kSize, bool kIsVolatile>
-inline void Object::SetField(MemberOffset field_offset, kSize new_value) {
-  uint8_t* raw_addr = reinterpret_cast<uint8_t*>(this) + field_offset.Int32Value();
-  kSize* addr = reinterpret_cast<kSize*>(raw_addr);
-  if (kIsVolatile) {
-    reinterpret_cast<Atomic<kSize>*>(addr)->StoreSequentiallyConsistent(new_value);
-  } else {
-    reinterpret_cast<Atomic<kSize>*>(addr)->StoreJavaData(new_value);
-  }
-}
-
-template<typename kSize, bool kIsVolatile>
-inline kSize Object::GetField(MemberOffset field_offset) {
-  const uint8_t* raw_addr = reinterpret_cast<const uint8_t*>(this) + field_offset.Int32Value();
-  const kSize* addr = reinterpret_cast<const kSize*>(raw_addr);
-  if (kIsVolatile) {
-    return reinterpret_cast<const Atomic<kSize>*>(addr)->LoadSequentiallyConsistent();
-  } else {
-    return reinterpret_cast<const Atomic<kSize>*>(addr)->LoadJavaData();
-  }
 }
 
 template<typename kSize>

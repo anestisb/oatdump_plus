@@ -23,7 +23,7 @@
 #include "handle.h"
 #include "obj_ptr-inl.h"
 #include "thread-inl.h"
-#include "verify_object-inl.h"
+#include "verify_object.h"
 
 namespace art {
 
