@@ -484,6 +484,8 @@ CodeGeneratorMIPS::CodeGeneratorMIPS(HGraph* graph,
       type_bss_entry_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       boot_image_address_patches_(std::less<uint32_t>(),
                                   graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      jit_string_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      jit_class_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       clobbered_ra_(false) {
   // Save RA (containing the return address) to mimic Quick.
   AddAllocatedRegister(Location::RegisterLocation(RA));
@@ -704,9 +706,6 @@ bool CodeGeneratorMIPS::HasAllocatedCalleeSaveRegisters() const {
   // (this can happen in leaf methods), force CodeGenerator::InitializeCodeGeneration()
   // into the path that creates a stack frame so that RA can be explicitly saved and restored.
   // RA can't otherwise be saved/restored when it's the only spilled register.
-  // TODO: Can this be improved? It causes creation of a stack frame (while RA might be
-  // saved in an unused temporary register) and saving of RA and the current method pointer
-  // in the frame.
   return CodeGenerator::HasAllocatedCalleeSaveRegisters() || clobbered_ra_;
 }
 
@@ -1158,6 +1157,67 @@ void CodeGeneratorMIPS::EmitPcRelativeAddressPlaceholderHigh(PcRelativePatchInfo
   }
   // The immediately following instruction will add the sign-extended low half of the 32-bit
   // offset to `out` (e.g. lw, jialc, addiu).
+}
+
+CodeGeneratorMIPS::JitPatchInfo* CodeGeneratorMIPS::NewJitRootStringPatch(
+    const DexFile& dex_file,
+    dex::StringIndex dex_index,
+    Handle<mirror::String> handle) {
+  jit_string_roots_.Overwrite(StringReference(&dex_file, dex_index),
+                              reinterpret_cast64<uint64_t>(handle.GetReference()));
+  jit_string_patches_.emplace_back(dex_file, dex_index.index_);
+  return &jit_string_patches_.back();
+}
+
+CodeGeneratorMIPS::JitPatchInfo* CodeGeneratorMIPS::NewJitRootClassPatch(
+    const DexFile& dex_file,
+    dex::TypeIndex dex_index,
+    Handle<mirror::Class> handle) {
+  jit_class_roots_.Overwrite(TypeReference(&dex_file, dex_index),
+                             reinterpret_cast64<uint64_t>(handle.GetReference()));
+  jit_class_patches_.emplace_back(dex_file, dex_index.index_);
+  return &jit_class_patches_.back();
+}
+
+void CodeGeneratorMIPS::PatchJitRootUse(uint8_t* code,
+                                        const uint8_t* roots_data,
+                                        const CodeGeneratorMIPS::JitPatchInfo& info,
+                                        uint64_t index_in_table) const {
+  uint32_t literal_offset = GetAssembler().GetLabelLocation(&info.high_label);
+  uintptr_t address =
+      reinterpret_cast<uintptr_t>(roots_data) + index_in_table * sizeof(GcRoot<mirror::Object>);
+  uint32_t addr32 = dchecked_integral_cast<uint32_t>(address);
+  // lui reg, addr32_high
+  DCHECK_EQ(code[literal_offset + 0], 0x34);
+  DCHECK_EQ(code[literal_offset + 1], 0x12);
+  DCHECK_EQ((code[literal_offset + 2] & 0xE0), 0x00);
+  DCHECK_EQ(code[literal_offset + 3], 0x3C);
+  // lw reg, reg, addr32_low
+  DCHECK_EQ(code[literal_offset + 4], 0x78);
+  DCHECK_EQ(code[literal_offset + 5], 0x56);
+  DCHECK_EQ((code[literal_offset + 7] & 0xFC), 0x8C);
+  addr32 += (addr32 & 0x8000) << 1;  // Account for sign extension in "lw reg, reg, addr32_low".
+  // lui reg, addr32_high
+  code[literal_offset + 0] = static_cast<uint8_t>(addr32 >> 16);
+  code[literal_offset + 1] = static_cast<uint8_t>(addr32 >> 24);
+  // lw reg, reg, addr32_low
+  code[literal_offset + 4] = static_cast<uint8_t>(addr32 >> 0);
+  code[literal_offset + 5] = static_cast<uint8_t>(addr32 >> 8);
+}
+
+void CodeGeneratorMIPS::EmitJitRootPatches(uint8_t* code, const uint8_t* roots_data) {
+  for (const JitPatchInfo& info : jit_string_patches_) {
+    const auto& it = jit_string_roots_.find(StringReference(&info.target_dex_file,
+                                                            dex::StringIndex(info.index)));
+    DCHECK(it != jit_string_roots_.end());
+    PatchJitRootUse(code, roots_data, info, it->second);
+  }
+  for (const JitPatchInfo& info : jit_class_patches_) {
+    const auto& it = jit_class_roots_.find(TypeReference(&info.target_dex_file,
+                                                         dex::TypeIndex(info.index)));
+    DCHECK(it != jit_class_roots_.end());
+    PatchJitRootUse(code, roots_data, info, it->second);
+  }
 }
 
 void CodeGeneratorMIPS::MarkGCCard(Register object,
@@ -5225,8 +5285,7 @@ HLoadString::LoadKind CodeGeneratorMIPS::GetSupportedLoadStringKind(
       break;
     case HLoadString::LoadKind::kJitTableAddress:
       DCHECK(Runtime::Current()->UseJitCompilation());
-      // TODO: implement.
-      fallback_load = true;
+      fallback_load = false;
       break;
     case HLoadString::LoadKind::kDexCacheViaMethod:
       fallback_load = false;
@@ -5265,8 +5324,7 @@ HLoadClass::LoadKind CodeGeneratorMIPS::GetSupportedLoadClassKind(
       break;
     case HLoadClass::LoadKind::kJitTableAddress:
       DCHECK(Runtime::Current()->UseJitCompilation());
-      // TODO: implement.
-      fallback_load = true;
+      fallback_load = false;
       break;
     case HLoadClass::LoadKind::kDexCacheViaMethod:
       fallback_load = false;
@@ -5591,7 +5649,14 @@ void InstructionCodeGeneratorMIPS::VisitLoadClass(HLoadClass* cls) NO_THREAD_SAF
       break;
     }
     case HLoadClass::LoadKind::kJitTableAddress: {
-      LOG(FATAL) << "Unimplemented";
+      CodeGeneratorMIPS::JitPatchInfo* info = codegen_->NewJitRootClassPatch(cls->GetDexFile(),
+                                                                             cls->GetTypeIndex(),
+                                                                             cls->GetClass());
+      bool reordering = __ SetReorder(false);
+      __ Bind(&info->high_label);
+      __ Lui(out, /* placeholder */ 0x1234);
+      GenerateGcRootFieldLoad(cls, out_loc, out, /* placeholder */ 0x5678);
+      __ SetReorder(reordering);
       break;
     }
     case HLoadClass::LoadKind::kDexCacheViaMethod:
@@ -5728,6 +5793,18 @@ void InstructionCodeGeneratorMIPS::VisitLoadString(HLoadString* load) NO_THREAD_
       codegen_->AddSlowPath(slow_path);
       __ Beqz(out, slow_path->GetEntryLabel());
       __ Bind(slow_path->GetExitLabel());
+      return;
+    }
+    case HLoadString::LoadKind::kJitTableAddress: {
+      CodeGeneratorMIPS::JitPatchInfo* info =
+          codegen_->NewJitRootStringPatch(load->GetDexFile(),
+                                          load->GetStringIndex(),
+                                          load->GetString());
+      bool reordering = __ SetReorder(false);
+      __ Bind(&info->high_label);
+      __ Lui(out, /* placeholder */ 0x1234);
+      GenerateGcRootFieldLoad(load, out_loc, out, /* placeholder */ 0x5678);
+      __ SetReorder(reordering);
       return;
     }
     default:

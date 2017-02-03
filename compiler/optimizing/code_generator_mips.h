@@ -352,6 +352,7 @@ class CodeGeneratorMIPS : public CodeGenerator {
 
   // Emit linker patches.
   void EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) OVERRIDE;
+  void EmitJitRootPatches(uint8_t* code, const uint8_t* roots_data) OVERRIDE;
 
   void MarkGCCard(Register object, Register value, bool value_can_be_null);
 
@@ -465,6 +466,31 @@ class CodeGeneratorMIPS : public CodeGenerator {
 
   void EmitPcRelativeAddressPlaceholderHigh(PcRelativePatchInfo* info, Register out, Register base);
 
+  // The JitPatchInfo is used for JIT string and class loads.
+  struct JitPatchInfo {
+    JitPatchInfo(const DexFile& dex_file, uint64_t idx)
+        : target_dex_file(dex_file), index(idx) { }
+    JitPatchInfo(JitPatchInfo&& other) = default;
+
+    const DexFile& target_dex_file;
+    // String/type index.
+    uint64_t index;
+    // Label for the instruction loading the most significant half of the address.
+    // The least significant half is loaded with the instruction that follows immediately.
+    MipsLabel high_label;
+  };
+
+  void PatchJitRootUse(uint8_t* code,
+                       const uint8_t* roots_data,
+                       const JitPatchInfo& info,
+                       uint64_t index_in_table) const;
+  JitPatchInfo* NewJitRootStringPatch(const DexFile& dex_file,
+                                      dex::StringIndex dex_index,
+                                      Handle<mirror::String> handle);
+  JitPatchInfo* NewJitRootClassPatch(const DexFile& dex_file,
+                                     dex::TypeIndex dex_index,
+                                     Handle<mirror::Class> handle);
+
  private:
   Register GetInvokeStaticOrDirectExtraParameter(HInvokeStaticOrDirect* invoke, Register temp);
 
@@ -512,6 +538,10 @@ class CodeGeneratorMIPS : public CodeGenerator {
   ArenaDeque<PcRelativePatchInfo> type_bss_entry_patches_;
   // Deduplication map for patchable boot image addresses.
   Uint32ToLiteralMap boot_image_address_patches_;
+  // Patches for string root accesses in JIT compiled code.
+  ArenaDeque<JitPatchInfo> jit_string_patches_;
+  // Patches for class root accesses in JIT compiled code.
+  ArenaDeque<JitPatchInfo> jit_class_patches_;
 
   // PC-relative loads on R2 clobber RA, which may need to be preserved explicitly in leaf methods.
   // This is a flag set by pc_relative_fixups_mips and dex_cache_array_fixups_mips optimizations.
