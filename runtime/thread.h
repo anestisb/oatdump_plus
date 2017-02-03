@@ -201,7 +201,9 @@ class Thread {
       REQUIRES(!Locks::thread_suspend_count_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void DumpJavaStack(std::ostream& os) const
+  void DumpJavaStack(std::ostream& os,
+                     bool check_suspended = true,
+                     bool dump_locks = true) const
       REQUIRES(!Locks::thread_suspend_count_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -411,7 +413,9 @@ class Thread {
 
   // Get the current method and dex pc. If there are errors in retrieving the dex pc, this will
   // abort the runtime iff abort_on_error is true.
-  ArtMethod* GetCurrentMethod(uint32_t* dex_pc, bool abort_on_error = true) const
+  ArtMethod* GetCurrentMethod(uint32_t* dex_pc,
+                              bool check_suspended = true,
+                              bool abort_on_error = true) const
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns whether the given exception was thrown by the current Java method being executed
