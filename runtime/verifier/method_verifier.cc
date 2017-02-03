@@ -415,12 +415,12 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
       result.kind = kSoftFailure;
       if (method != nullptr &&
           !CanCompilerHandleVerificationFailure(verifier.encountered_failure_types_)) {
-        method->AddAccessFlags(kAccCompileDontBother);
+        method->SetDontCompile();
       }
     }
     if (method != nullptr) {
       if (verifier.HasInstructionThatWillThrow()) {
-        method->AddAccessFlags(kAccCompileDontBother);
+        method->SetDontCompile();
         if (Runtime::Current()->IsAotCompiler() &&
             (callbacks != nullptr) && !callbacks->IsBootImage()) {
           // When compiling apps, make HasInstructionThatWillThrow a soft error to trigger
