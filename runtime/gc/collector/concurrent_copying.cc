@@ -1875,8 +1875,10 @@ class ConcurrentCopying::RefFieldsVisitor {
 
 // Scan ref fields of an object.
 inline void ConcurrentCopying::Scan(mirror::Object* to_ref) {
-  if (kDisallowReadBarrierDuringScan) {
+  if (kDisallowReadBarrierDuringScan && !Runtime::Current()->IsActiveTransaction()) {
     // Avoid all read barriers during visit references to help performance.
+    // Don't do this in transaction mode because we may read the old value of an field which may
+    // trigger read barriers.
     Thread::Current()->ModifyDebugDisallowReadBarrier(1);
   }
   DCHECK(!region_space_->IsInFromSpace(to_ref));
@@ -1885,7 +1887,7 @@ inline void ConcurrentCopying::Scan(mirror::Object* to_ref) {
   // Disable the read barrier for a performance reason.
   to_ref->VisitReferences</*kVisitNativeRoots*/true, kDefaultVerifyFlags, kWithoutReadBarrier>(
       visitor, visitor);
-  if (kDisallowReadBarrierDuringScan) {
+  if (kDisallowReadBarrierDuringScan && !Runtime::Current()->IsActiveTransaction()) {
     Thread::Current()->ModifyDebugDisallowReadBarrier(-1);
   }
 }
