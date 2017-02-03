@@ -2266,6 +2266,10 @@ bool OatWriter::LayoutAndWriteDexFile(OutputStream* out, OatDexFile* oat_dex_fil
     File* raw_file = oat_dex_file->source_.GetRawFile();
     dex_file = DexFile::OpenDex(raw_file->Fd(), location, /* verify_checksum */ true, &error_msg);
   }
+  if (dex_file == nullptr) {
+    LOG(ERROR) << "Failed to open dex file for layout:" << error_msg;
+    return false;
+  }
   Options options;
   options.output_to_memmap_ = true;
   DexLayout dex_layout(options, profile_compilation_info_, nullptr);
