@@ -37,7 +37,7 @@
 #include "runtime.h"
 #include "thread.h"
 #include "thread_list.h"
-#include "verify_object-inl.h"
+#include "verify_object.h"
 
 namespace art {
 

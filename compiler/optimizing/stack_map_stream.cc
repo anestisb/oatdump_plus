@@ -18,8 +18,8 @@
 
 #include <unordered_map>
 
+#include "art_method-inl.h"
 #include "base/stl_util.h"
-#include "art_method.h"
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
 

@@ -1345,5 +1345,26 @@ std::string Class::PrettyClassAndClassLoader() {
   return result;
 }
 
+template<VerifyObjectFlags kVerifyFlags> void Class::GetAccessFlagsDCheck() {
+  // Check class is loaded/retired or this is java.lang.String that has a
+  // circularity issue during loading the names of its members
+  DCHECK(IsIdxLoaded<kVerifyFlags>() || IsRetired<kVerifyFlags>() ||
+         IsErroneous<static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis)>() ||
+         this == String::GetJavaLangString())
+              << "IsIdxLoaded=" << IsIdxLoaded<kVerifyFlags>()
+              << " IsRetired=" << IsRetired<kVerifyFlags>()
+              << " IsErroneous=" <<
+              IsErroneous<static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis)>()
+              << " IsString=" << (this == String::GetJavaLangString())
+              << " status= " << GetStatus<kVerifyFlags>()
+              << " descriptor=" << PrettyDescriptor();
+}
+// Instantiate the common cases.
+template void Class::GetAccessFlagsDCheck<kVerifyNone>();
+template void Class::GetAccessFlagsDCheck<kVerifyThis>();
+template void Class::GetAccessFlagsDCheck<kVerifyReads>();
+template void Class::GetAccessFlagsDCheck<kVerifyWrites>();
+template void Class::GetAccessFlagsDCheck<kVerifyAll>();
+
 }  // namespace mirror
 }  // namespace art

@@ -20,7 +20,7 @@
 #include "indirect_reference_table.h"
 #include "mirror/object-inl.h"
 #include "thread-inl.h"
-#include "verify_object-inl.h"
+#include "verify_object.h"
 
 namespace art {
 

@@ -34,7 +34,7 @@
 #include "handle_scope-inl.h"
 #include "thread-inl.h"
 #include "utils.h"
-#include "verify_object-inl.h"
+#include "verify_object.h"
 
 namespace art {
 namespace gc {

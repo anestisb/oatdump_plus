@@ -22,6 +22,7 @@
 
 #include "android-base/stringprintf.h"
 
+#include "art_field-inl.h"
 #include "base/logging.h"
 #include "base/stl_util.h"
 #include "base/systrace.h"
@@ -32,11 +33,13 @@
 #include "handle_scope-inl.h"
 #include "jni_internal.h"
 #include "mirror/class_loader.h"
+#include "mirror/object-inl.h"
 #include "oat_file_assistant.h"
 #include "obj_ptr-inl.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
 #include "thread_list.h"
+#include "well_known_classes.h"
 
 namespace art {
 
