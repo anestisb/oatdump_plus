@@ -19,8 +19,10 @@
 
 namespace art {
 
+class ArtMethod;
 class Compiler;
 class CompilerDriver;
+class DexFile;
 
 Compiler* CreateOptimizingCompiler(CompilerDriver* driver);
 
@@ -28,6 +30,9 @@ Compiler* CreateOptimizingCompiler(CompilerDriver* driver);
 // is an indicative we are running tests. The compiler will use that
 // information for checking invariants.
 bool IsCompilingWithCoreImage();
+
+bool EncodeArtMethodInInlineInfo(ArtMethod* method);
+bool CanEncodeInlinedMethodInStackMap(const DexFile& caller_dex_file, ArtMethod* callee);
 
 }  // namespace art
 
