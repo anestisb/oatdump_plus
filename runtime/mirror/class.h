@@ -683,14 +683,7 @@ class MANAGED Class FINAL : public Object {
   // `This` and `klass` must be classes.
   ObjPtr<Class> GetCommonSuperClass(Handle<Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void SetSuperClass(ObjPtr<Class> new_super_class) REQUIRES_SHARED(Locks::mutator_lock_) {
-    // Super class is assigned once, except during class linker initialization.
-    ObjPtr<Class> old_super_class =
-        GetFieldObject<Class>(OFFSET_OF_OBJECT_MEMBER(Class, super_class_));
-    DCHECK(old_super_class == nullptr || old_super_class == new_super_class);
-    DCHECK(new_super_class != nullptr);
-    SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(Class, super_class_), new_super_class);
-  }
+  void SetSuperClass(ObjPtr<Class> new_super_class) REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool HasSuperClass() REQUIRES_SHARED(Locks::mutator_lock_) {
     return GetSuperClass() != nullptr;

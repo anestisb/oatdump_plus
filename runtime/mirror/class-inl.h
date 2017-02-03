@@ -65,6 +65,17 @@ inline Class* Class::GetSuperClass() {
       OFFSET_OF_OBJECT_MEMBER(Class, super_class_));
 }
 
+inline void Class::SetSuperClass(ObjPtr<Class> new_super_class) {
+  // Super class is assigned once, except during class linker initialization.
+  if (kIsDebugBuild) {
+    ObjPtr<Class> old_super_class =
+        GetFieldObject<Class>(OFFSET_OF_OBJECT_MEMBER(Class, super_class_));
+    DCHECK(old_super_class == nullptr || old_super_class == new_super_class);
+  }
+  DCHECK(new_super_class != nullptr);
+  SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(Class, super_class_), new_super_class);
+}
+
 template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline ClassLoader* Class::GetClassLoader() {
   return GetFieldObject<ClassLoader, kVerifyFlags, kReadBarrierOption>(
