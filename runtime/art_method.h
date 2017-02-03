@@ -201,6 +201,10 @@ class ArtMethod FINAL {
     return (GetAccessFlags() & kAccCompileDontBother) == 0;
   }
 
+  void SetDontCompile() {
+    AddAccessFlags(kAccCompileDontBother);
+  }
+
   // A default conflict method is a special sentinel method that stands for a conflict between
   // multiple default methods. It cannot be invoked, throwing an IncompatibleClassChangeError if one
   // attempts to do so.
@@ -226,7 +230,7 @@ class ArtMethod FINAL {
   void SetIsObsolete() {
     // TODO We should really support redefining intrinsic if possible.
     DCHECK(!IsIntrinsic());
-    SetAccessFlags(GetAccessFlags() | kAccObsoleteMethod);
+    AddAccessFlags(kAccObsoleteMethod);
   }
 
   template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
