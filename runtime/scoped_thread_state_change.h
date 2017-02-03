@@ -159,16 +159,14 @@ class ScopedObjectAccess : public ScopedObjectAccessUnchecked {
  public:
   ALWAYS_INLINE explicit ScopedObjectAccess(JNIEnv* env)
       REQUIRES(!Locks::thread_suspend_count_lock_)
-      SHARED_LOCK_FUNCTION(Locks::mutator_lock_)
-      : ScopedObjectAccessUnchecked(env) {}
+      SHARED_LOCK_FUNCTION(Locks::mutator_lock_);
 
   ALWAYS_INLINE explicit ScopedObjectAccess(Thread* self)
       REQUIRES(!Locks::thread_suspend_count_lock_)
-      SHARED_LOCK_FUNCTION(Locks::mutator_lock_)
-      : ScopedObjectAccessUnchecked(self) {}
+      SHARED_LOCK_FUNCTION(Locks::mutator_lock_);
 
   // Base class will release share of lock. Invoked after this destructor.
-  ~ScopedObjectAccess() UNLOCK_FUNCTION(Locks::mutator_lock_) ALWAYS_INLINE {}
+  ~ScopedObjectAccess() UNLOCK_FUNCTION(Locks::mutator_lock_) ALWAYS_INLINE;
 
  private:
   // TODO: remove this constructor. It is used by check JNI's ScopedCheck to make it believe that

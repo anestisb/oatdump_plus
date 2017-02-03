@@ -19,12 +19,13 @@
 #include <string>
 #include <vector>
 
+#include "class-inl.h"
 #include "class_linker.h"
+#include "class_loader.h"
 #include "common_runtime_test.h"
 #include "handle_scope-inl.h"
-#include "runtime/mirror/class.h"
-#include "runtime/mirror/class_loader.h"
-#include "scoped_thread_state_change.h"
+#include "object_array-inl.h"
+#include "scoped_thread_state_change-inl.h"
 
 namespace art {
 namespace mirror {

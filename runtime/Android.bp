@@ -208,6 +208,7 @@ cc_defaults {
         "verifier/reg_type_cache.cc",
         "verifier/register_line.cc",
         "verifier/verifier_deps.cc",
+        "verify_object.cc",
         "well_known_classes.cc",
         "zip_archive.cc",
 

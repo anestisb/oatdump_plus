@@ -78,6 +78,7 @@
 #include "scoped_thread_state_change-inl.h"
 #include "handle_scope-inl.h"
 #include "thread_list.h"
+#include "verify_object-inl.h"
 #include "well_known_classes.h"
 
 namespace art {

@@ -110,6 +110,10 @@ inline ScopedObjectAccessUnchecked::ScopedObjectAccessUnchecked(Thread* self)
   Locks::mutator_lock_->AssertSharedHeld(Self());
 }
 
+inline ScopedObjectAccess::ScopedObjectAccess(JNIEnv* env) : ScopedObjectAccessUnchecked(env) {}
+inline ScopedObjectAccess::ScopedObjectAccess(Thread* self) : ScopedObjectAccessUnchecked(self) {}
+inline ScopedObjectAccess::~ScopedObjectAccess() {}
+
 inline ScopedThreadSuspension::ScopedThreadSuspension(Thread* self, ThreadState suspended_state)
     : self_(self), suspended_state_(suspended_state) {
   DCHECK(self_ != nullptr);
