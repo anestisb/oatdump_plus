@@ -69,7 +69,7 @@ HLoopOptimization::HLoopOptimization(HGraph* graph,
 }
 
 void HLoopOptimization::Run() {
-  // Well-behaved loops only.
+  // Skip if there is no loop or the graph has try-catch/irreducible loops.
   // TODO: make this less of a sledgehammer.
   if (!graph_->HasLoops() || graph_->HasTryCatch() || graph_->HasIrreducibleLoops()) {
     return;
@@ -85,6 +85,7 @@ void HLoopOptimization::Run() {
   LocalRun();
 
   if (top_loop_ == nullptr) {
+    // All loops have been eliminated.
     graph_->SetHasLoops(false);
   }
 

@@ -37,37 +37,45 @@ HBasicBlock* HInstructionBuilder::FindBlockStartingAt(uint32_t dex_pc) const {
   return block_builder_->GetBlockAt(dex_pc);
 }
 
-ArenaVector<HInstruction*>* HInstructionBuilder::GetLocalsFor(HBasicBlock* block) {
+inline ArenaVector<HInstruction*>* HInstructionBuilder::GetLocalsFor(HBasicBlock* block) {
   ArenaVector<HInstruction*>* locals = &locals_for_[block->GetBlockId()];
   const size_t vregs = graph_->GetNumberOfVRegs();
-  if (locals->size() != vregs) {
-    locals->resize(vregs, nullptr);
+  if (locals->size() == vregs) {
+    return locals;
+  }
+  return GetLocalsForWithAllocation(block, locals, vregs);
+}
 
-    if (block->IsCatchBlock()) {
-      // We record incoming inputs of catch phis at throwing instructions and
-      // must therefore eagerly create the phis. Phis for undefined vregs will
-      // be deleted when the first throwing instruction with the vreg undefined
-      // is encountered. Unused phis will be removed by dead phi analysis.
-      for (size_t i = 0; i < vregs; ++i) {
-        // No point in creating the catch phi if it is already undefined at
-        // the first throwing instruction.
-        HInstruction* current_local_value = (*current_locals_)[i];
-        if (current_local_value != nullptr) {
-          HPhi* phi = new (arena_) HPhi(
-              arena_,
-              i,
-              0,
-              current_local_value->GetType());
-          block->AddPhi(phi);
-          (*locals)[i] = phi;
-        }
+ArenaVector<HInstruction*>* HInstructionBuilder::GetLocalsForWithAllocation(
+    HBasicBlock* block,
+    ArenaVector<HInstruction*>* locals,
+    const size_t vregs) {
+  DCHECK_NE(locals->size(), vregs);
+  locals->resize(vregs, nullptr);
+  if (block->IsCatchBlock()) {
+    // We record incoming inputs of catch phis at throwing instructions and
+    // must therefore eagerly create the phis. Phis for undefined vregs will
+    // be deleted when the first throwing instruction with the vreg undefined
+    // is encountered. Unused phis will be removed by dead phi analysis.
+    for (size_t i = 0; i < vregs; ++i) {
+      // No point in creating the catch phi if it is already undefined at
+      // the first throwing instruction.
+      HInstruction* current_local_value = (*current_locals_)[i];
+      if (current_local_value != nullptr) {
+        HPhi* phi = new (arena_) HPhi(
+            arena_,
+            i,
+            0,
+            current_local_value->GetType());
+        block->AddPhi(phi);
+        (*locals)[i] = phi;
       }
     }
   }
   return locals;
 }
 
-HInstruction* HInstructionBuilder::ValueOfLocalAt(HBasicBlock* block, size_t local) {
+inline HInstruction* HInstructionBuilder::ValueOfLocalAt(HBasicBlock* block, size_t local) {
   ArenaVector<HInstruction*>* locals = GetLocalsFor(block);
   return (*locals)[local];
 }

@@ -516,12 +516,12 @@ class SCOPED_CAPABILITY MutexLock {
 // construction and releases it upon destruction.
 class SCOPED_CAPABILITY ReaderMutexLock {
  public:
-  ReaderMutexLock(Thread* self, ReaderWriterMutex& mu) ACQUIRE(mu) :
+  ReaderMutexLock(Thread* self, ReaderWriterMutex& mu) ACQUIRE(mu) ALWAYS_INLINE :
       self_(self), mu_(mu) {
     mu_.SharedLock(self_);
   }
 
-  ~ReaderMutexLock() RELEASE() {
+  ~ReaderMutexLock() RELEASE() ALWAYS_INLINE {
     mu_.SharedUnlock(self_);
   }
 
