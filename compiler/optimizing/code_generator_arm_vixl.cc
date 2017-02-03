@@ -7253,8 +7253,7 @@ vixl32::Register CodeGeneratorARMVIXL::GetInvokeStaticOrDirectExtraParameter(
   // save one load. However, since this is just an intrinsic slow path we prefer this
   // simple and more robust approach rather that trying to determine if that's the case.
   SlowPathCode* slow_path = GetCurrentSlowPath();
-  DCHECK(slow_path != nullptr);  // For intrinsified invokes the call is emitted on the slow path.
-  if (slow_path->IsCoreRegisterSaved(RegisterFrom(location).GetCode())) {
+  if (slow_path != nullptr && slow_path->IsCoreRegisterSaved(RegisterFrom(location).GetCode())) {
     int stack_offset = slow_path->GetStackOffsetOfCoreRegister(RegisterFrom(location).GetCode());
     GetAssembler()->LoadFromOffset(kLoadWord, temp, sp, stack_offset);
     return temp;
