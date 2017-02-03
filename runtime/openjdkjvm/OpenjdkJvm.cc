@@ -46,7 +46,7 @@
 #include "scoped_thread_state_change-inl.h"
 #include "ScopedUtfChars.h"
 #include "mirror/class_loader.h"
-#include "verify_object-inl.h"
+#include "verify_object.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "../../libcore/ojluni/src/main/native/jvm.h"  // TODO(narayan): fix it

@@ -17,8 +17,10 @@
 #include "ssa_builder.h"
 
 #include "bytecode_utils.h"
+#include "mirror/class-inl.h"
 #include "nodes.h"
 #include "reference_type_propagation.h"
+#include "scoped_thread_state_change-inl.h"
 #include "ssa_phi_elimination.h"
 
 namespace art {
