@@ -34,3 +34,14 @@ art_cc_binary {
         "libbase",
     ],
 }
+
+// Note: See $OUT_DIR/soong/build.ninja
+// For the exact filename that this generates to run make command on just
+// this rule later.
+genrule {
+  name: "cpp-define-generator-asm-support",
+  out: ["asm_support_gen.h"],
+  tools: ["cpp-define-generator-data"],
+  tool_files: ["verify-asm-support"],
+  cmd: "$(location verify-asm-support) --quiet \"$(location cpp-define-generator-data)\" \"$(out)\""
+}
