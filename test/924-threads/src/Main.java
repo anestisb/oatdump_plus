@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.concurrent.CountDownLatch;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -162,8 +163,20 @@ public class Main {
 
   private static void doAllThreadsTests() {
     Thread[] threads = getAllThreads();
-    Arrays.sort(threads, THREAD_COMP);
-    System.out.println(Arrays.toString(threads));
+    List<Thread> threadList = new ArrayList<>(Arrays.asList(threads));
+
+    // Filter out JIT thread. It may or may not be there depending on configuration.
+    Iterator<Thread> it = threadList.iterator();
+    while (it.hasNext()) {
+      Thread t = it.next();
+      if (t.getName().startsWith("Jit thread pool worker")) {
+        it.remove();
+        break;
+      }
+    }
+
+    Collections.sort(threadList, THREAD_COMP);
+    System.out.println(threadList);
   }
 
   private static void doTLSTests() throws Exception {
