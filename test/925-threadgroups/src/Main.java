@@ -14,8 +14,12 @@
  * limitations under the License.
  */
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
 
 public class Main {
   public static void main(String[] args) throws Exception {
@@ -64,10 +68,23 @@ public class Main {
     Thread[] threads = (Thread[])data[0];
     ThreadGroup[] groups = (ThreadGroup[])data[1];
 
-    Arrays.sort(threads, THREAD_COMP);
+    List<Thread> threadList = new ArrayList<>(Arrays.asList(threads));
+
+    // Filter out JIT thread. It may or may not be there depending on configuration.
+    Iterator<Thread> it = threadList.iterator();
+    while (it.hasNext()) {
+      Thread t = it.next();
+      if (t.getName().startsWith("Jit thread pool worker")) {
+        it.remove();
+        break;
+      }
+    }
+
+    Collections.sort(threadList, THREAD_COMP);
+
     Arrays.sort(groups, THREADGROUP_COMP);
     System.out.println(tg.getName() + ":");
-    System.out.println("  " + Arrays.toString(threads));
+    System.out.println("  " + threadList);
     System.out.println("  " + Arrays.toString(groups));
 
     if (tg.getParent() != null) {
