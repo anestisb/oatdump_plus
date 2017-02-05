@@ -297,7 +297,7 @@ def run_tests(tests):
     options_all += ' --bisection-search'
 
   if env.ART_TEST_ANDROID_ROOT:
-    options_all += ' --android-root ' + env.ART_TEST_ARDROID_ROOT
+    options_all += ' --android-root ' + env.ART_TEST_ANDROID_ROOT
 
   if gdb:
     options_all += ' --gdb'
