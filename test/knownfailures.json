@@ -94,7 +94,7 @@
     },
     {
         "test" : "629-vdex-speed",
-        "variant": "interp-ac | no-dex2oat | interpreter | jit",
+        "variant": "interp-ac | no-dex2oat | interpreter | jit | relocate-npatchoat",
         "description": "629 requires compilation."
     },
     {
@@ -162,7 +162,7 @@
     },
     {
         "test": "147-stripped-dex-fallback",
-        "variant": "no-dex2oat | no-image",
+        "variant": "no-dex2oat | no-image | relocate-npatchoat",
         "description": ["147-stripped-dex-fallback is disabled because it",
                         "requires --prebuild."]
     },
@@ -179,7 +179,7 @@
                   "119-noimage-patchoat",
                   "137-cfi",
                   "138-duplicate-classes-check2"],
-        "variant": "no-dex2oat | no-image",
+        "variant": "no-dex2oat | no-image | relocate-npatchoat",
         "description": ["All these tests check that we have sane behavior if we",
                         "don't have a patchoat or dex2oat. Therefore we",
                         "shouldn't run them in situations where we actually",
@@ -309,6 +309,12 @@
         "test": "909-attach-agent",
         "variant": "debuggable",
         "description": "Tests that check semantics for a non-debuggable app."
+    },
+    {
+        "test": "137-cfi",
+        "variant": "debuggable",
+        "description": ["The test relies on AOT code and debuggable makes us",
+                        "JIT always."]
     },
     {
         "tests": ["000-nop",
