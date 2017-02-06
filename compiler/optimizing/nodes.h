@@ -400,6 +400,12 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   // put deoptimization instructions, etc.
   void TransformLoopHeaderForBCE(HBasicBlock* header);
 
+  // Adds a new loop directly after the loop with the given header and exit.
+  // Returns the new preheader.
+  HBasicBlock* TransformLoopForVectorization(HBasicBlock* header,
+                                             HBasicBlock* body,
+                                             HBasicBlock* exit);
+
   // Removes `block` from the graph. Assumes `block` has been disconnected from
   // other blocks and has no instructions or phis.
   void DeleteDeadEmptyBlock(HBasicBlock* block);
@@ -1363,6 +1369,25 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(TypeConversion, Instruction)                                        \
   M(UShr, BinaryOperation)                                              \
   M(Xor, BinaryOperation)                                               \
+  M(VecReplicateScalar, VecUnaryOperation)                              \
+  M(VecSetScalars, VecUnaryOperation)                                   \
+  M(VecSumReduce, VecUnaryOperation)                                    \
+  M(VecCnv, VecUnaryOperation)                                          \
+  M(VecNeg, VecUnaryOperation)                                          \
+  M(VecNot, VecUnaryOperation)                                          \
+  M(VecAdd, VecBinaryOperation)                                         \
+  M(VecSub, VecBinaryOperation)                                         \
+  M(VecMul, VecBinaryOperation)                                         \
+  M(VecDiv, VecBinaryOperation)                                         \
+  M(VecAnd, VecBinaryOperation)                                         \
+  M(VecAndNot, VecBinaryOperation)                                      \
+  M(VecOr, VecBinaryOperation)                                          \
+  M(VecXor, VecBinaryOperation)                                         \
+  M(VecShl, VecBinaryOperation)                                         \
+  M(VecShr, VecBinaryOperation)                                         \
+  M(VecUShr, VecBinaryOperation)                                        \
+  M(VecLoad, VecMemoryOperation)                                        \
+  M(VecStore, VecMemoryOperation)                                       \
 
 /*
  * Instructions, shared across several (not all) architectures.
@@ -1424,7 +1449,11 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(Constant, Instruction)                                              \
   M(UnaryOperation, Instruction)                                        \
   M(BinaryOperation, Instruction)                                       \
-  M(Invoke, Instruction)
+  M(Invoke, Instruction)                                                \
+  M(VecOperation, Instruction)                                          \
+  M(VecUnaryOperation, VecOperation)                                    \
+  M(VecBinaryOperation, VecOperation)                                   \
+  M(VecMemoryOperation, VecOperation)
 
 #define FOR_EACH_INSTRUCTION(M)                                         \
   FOR_EACH_CONCRETE_INSTRUCTION(M)                                      \
@@ -6688,6 +6717,8 @@ class HParallelMove FINAL : public HTemplateInstruction<0> {
 };
 
 }  // namespace art
+
+#include "nodes_vector.h"
 
 #if defined(ART_ENABLE_CODEGEN_arm) || defined(ART_ENABLE_CODEGEN_arm64)
 #include "nodes_shared.h"
