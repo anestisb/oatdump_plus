@@ -676,6 +676,13 @@ public class Main {
             Integer.class, MethodType.methodType(Integer.class, Integer.class));
         fail("Unexpected success for non-void type for findConstructor");
     } catch (NoSuchMethodException e) {}
+
+    // Array class constructor.
+    try {
+        MethodHandle foo = MethodHandles.lookup().findConstructor(
+            Object[].class, MethodType.methodType(void.class));
+        fail("Unexpected success for array class type for findConstructor");
+    } catch (NoSuchMethodException e) {}
   }
 
   public static void testStringConstructors() throws Throwable {
