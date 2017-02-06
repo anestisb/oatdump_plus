@@ -31,6 +31,7 @@
 
 namespace art {
 
+class CodeGenerator;
 class Instruction;
 
 class HInstructionBuilder : public ValueObject {
@@ -44,6 +45,7 @@ class HInstructionBuilder : public ValueObject {
                       DexCompilationUnit* dex_compilation_unit,
                       const DexCompilationUnit* const outer_compilation_unit,
                       CompilerDriver* driver,
+                      CodeGenerator* code_generator,
                       const uint8_t* interpreter_metadata,
                       OptimizingCompilerStats* compiler_stats,
                       Handle<mirror::DexCache> dex_cache,
@@ -61,6 +63,7 @@ class HInstructionBuilder : public ValueObject {
         current_locals_(nullptr),
         latest_result_(nullptr),
         compiler_driver_(driver),
+        code_generator_(code_generator),
         dex_compilation_unit_(dex_compilation_unit),
         outer_compilation_unit_(outer_compilation_unit),
         interpreter_metadata_(interpreter_metadata),
@@ -228,10 +231,14 @@ class HInstructionBuilder : public ValueObject {
   // Builds a `HLoadClass` loading the given `type_index`. If `outer` is true,
   // this method will use the outer class's dex file to lookup the type at
   // `type_index`.
+  HLoadClass* BuildLoadClass(dex::TypeIndex type_index, uint32_t dex_pc);
+
   HLoadClass* BuildLoadClass(dex::TypeIndex type_index,
+                             const DexFile& dex_file,
+                             Handle<mirror::Class> klass,
                              uint32_t dex_pc,
-                             bool check_access,
-                             bool outer = false);
+                             bool needs_access_check)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns the outer-most compiling method's class.
   mirror::Class* GetOutermostCompilingClass() const;
@@ -275,7 +282,6 @@ class HInstructionBuilder : public ValueObject {
   HClinitCheck* ProcessClinitCheckForInvoke(
       uint32_t dex_pc,
       ArtMethod* method,
-      uint32_t method_idx,
       HInvokeStaticOrDirect::ClinitCheckRequirement* clinit_check_requirement)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -289,6 +295,10 @@ class HInstructionBuilder : public ValueObject {
   // Try to resolve a method using the class linker. Return null if a method could
   // not be resolved.
   ArtMethod* ResolveMethod(uint16_t method_idx, InvokeType invoke_type);
+
+  // Try to resolve a field using the class linker. Return null if it could not
+  // be found.
+  ArtField* ResolveField(uint16_t field_idx, bool is_static, bool is_put);
 
   ArenaAllocator* const arena_;
   HGraph* const graph_;
@@ -310,6 +320,8 @@ class HInstructionBuilder : public ValueObject {
   HInstruction* latest_result_;
 
   CompilerDriver* const compiler_driver_;
+
+  CodeGenerator* const code_generator_;
 
   // The compilation unit of the current method being compiled. Note that
   // it can be an inlined method.

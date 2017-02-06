@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_OPTIMIZING_SHARPENING_H_
 #define ART_COMPILER_OPTIMIZING_SHARPENING_H_
 
+#include "nodes.h"
 #include "optimization.h"
 
 namespace art {
@@ -24,7 +25,6 @@ namespace art {
 class CodeGenerator;
 class CompilerDriver;
 class DexCompilationUnit;
-class HInvokeStaticOrDirect;
 
 // Optimization that tries to improve the way we dispatch methods and access types,
 // fields, etc. Besides actual method sharpening based on receiver type (for example
@@ -47,15 +47,15 @@ class HSharpening : public HOptimization {
 
   static constexpr const char* kSharpeningPassName = "sharpening";
 
-  // Used internally but also by the inliner.
-  static void SharpenClass(HLoadClass* load_class,
-                           CodeGenerator* codegen,
-                           CompilerDriver* compiler_driver)
+  // Used by the builder and the inliner.
+  static HLoadClass::LoadKind SharpenClass(HLoadClass* load_class,
+                                           CodeGenerator* codegen,
+                                           CompilerDriver* compiler_driver,
+                                           const DexCompilationUnit& dex_compilation_unit)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
   void ProcessInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke);
-  void ProcessLoadClass(HLoadClass* load_class);
   void ProcessLoadString(HLoadString* load_string);
 
   CodeGenerator* codegen_;
