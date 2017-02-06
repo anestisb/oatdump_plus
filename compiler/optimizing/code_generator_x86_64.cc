@@ -245,9 +245,8 @@ class LoadClassSlowPathX86_64 : public SlowPathCode {
 
     SaveLiveRegisters(codegen, locations);
 
-    InvokeRuntimeCallingConvention calling_convention;
-    __ movl(CpuRegister(calling_convention.GetRegisterAt(0)),
-            Immediate(cls_->GetTypeIndex().index_));
+    // Custom calling convention: RAX serves as both input and output.
+    __ movl(CpuRegister(RAX), Immediate(cls_->GetTypeIndex().index_));
     x86_64_codegen->InvokeRuntime(do_clinit_ ? kQuickInitializeStaticStorage : kQuickInitializeType,
                                   instruction_,
                                   dex_pc_,
@@ -5456,10 +5455,10 @@ HLoadClass::LoadKind CodeGeneratorX86_64::GetSupportedLoadClassKind(
 void LocationsBuilderX86_64::VisitLoadClass(HLoadClass* cls) {
   HLoadClass::LoadKind load_kind = cls->GetLoadKind();
   if (load_kind == HLoadClass::LoadKind::kDexCacheViaMethod) {
-    InvokeRuntimeCallingConvention calling_convention;
+    // Custom calling convention: RAX serves as both input and output.
     CodeGenerator::CreateLoadClassRuntimeCallLocationSummary(
         cls,
-        Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
+        Location::RegisterLocation(RAX),
         Location::RegisterLocation(RAX));
     return;
   }
@@ -5478,6 +5477,17 @@ void LocationsBuilderX86_64::VisitLoadClass(HLoadClass* cls) {
     locations->SetInAt(0, Location::RequiresRegister());
   }
   locations->SetOut(Location::RequiresRegister());
+  if (load_kind == HLoadClass::LoadKind::kBssEntry) {
+    if (!kUseReadBarrier || kUseBakerReadBarrier) {
+      // Rely on the type resolution and/or initialization to save everything.
+      // Custom calling convention: RAX serves as both input and output.
+      RegisterSet caller_saves = RegisterSet::Empty();
+      caller_saves.Add(Location::RegisterLocation(RAX));
+      locations->SetCustomSlowPathCallerSaves(caller_saves);
+    } else {
+      // For non-Baker read barrier we have a temp-clobbering call.
+    }
+  }
 }
 
 Label* CodeGeneratorX86_64::NewJitRootClassPatch(const DexFile& dex_file,
@@ -5553,7 +5563,7 @@ void InstructionCodeGeneratorX86_64::VisitLoadClass(HLoadClass* cls) NO_THREAD_S
       Label* fixup_label =
           codegen_->NewJitRootClassPatch(cls->GetDexFile(), cls->GetTypeIndex(), cls->GetClass());
       // /* GcRoot<mirror::Class> */ out = *address
-      GenerateGcRootFieldLoad(cls, out_loc, address, fixup_label, kCompilerReadBarrierOption);
+      GenerateGcRootFieldLoad(cls, out_loc, address, fixup_label, read_barrier_option);
       break;
     }
     default:
@@ -5629,7 +5639,7 @@ void LocationsBuilderX86_64::VisitLoadString(HLoadString* load) {
     locations->SetOut(Location::RequiresRegister());
     if (load->GetLoadKind() == HLoadString::LoadKind::kBssEntry) {
       if (!kUseReadBarrier || kUseBakerReadBarrier) {
-        // Rely on the pResolveString and/or marking to save everything.
+        // Rely on the pResolveString to save everything.
         // Custom calling convention: RAX serves as both input and output.
         RegisterSet caller_saves = RegisterSet::Empty();
         caller_saves.Add(Location::RegisterLocation(RAX));
