@@ -5308,6 +5308,9 @@ HLoadClass::LoadKind CodeGeneratorMIPS::GetSupportedLoadClassKind(
   bool is_r6 = GetInstructionSetFeatures().IsR6();
   bool fallback_load = has_irreducible_loops && !is_r6;
   switch (desired_class_load_kind) {
+    case HLoadClass::LoadKind::kInvalid:
+      LOG(FATAL) << "UNREACHABLE";
+      UNREACHABLE();
     case HLoadClass::LoadKind::kReferrersClass:
       fallback_load = false;
       break;
@@ -5660,6 +5663,7 @@ void InstructionCodeGeneratorMIPS::VisitLoadClass(HLoadClass* cls) NO_THREAD_SAF
       break;
     }
     case HLoadClass::LoadKind::kDexCacheViaMethod:
+    case HLoadClass::LoadKind::kInvalid:
       LOG(FATAL) << "UNREACHABLE";
       UNREACHABLE();
   }
