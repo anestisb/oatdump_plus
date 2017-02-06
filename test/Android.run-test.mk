@@ -863,6 +863,69 @@ ART_TEST_HOST_RUN_TEST_DEPENDENCIES += \
 
 endif
 
+# Host executables.
+host_prereq_rules := $(ART_TEST_HOST_RUN_TEST_DEPENDENCIES)
+
+# Classpath for Jack compilation for host.
+host_prereq_rules += $(HOST_JACK_CLASSPATH_DEPENDENCIES)
+
+# Required for dx, jasmin, smali, dexmerger, jack.
+host_prereq_rules += $(TEST_ART_RUN_TEST_DEPENDENCIES)
+
+host_prereq_rules += $(HOST_OUT_EXECUTABLES)/hprof-conv
+
+# Classpath for Jack compilation for target.
+target_prereq_rules := $(TARGET_JACK_CLASSPATH_DEPENDENCIES)
+
+# Sync test files to the target, depends upon all things that must be pushed
+#to the target.
+target_prereq_rules += test-art-target-sync
+
+define core-image-dependencies
+  image_suffix := $(3)
+  ifeq ($(3),regalloc_gc)
+    image_suffix:=optimizing
+  else
+    ifeq ($(3),jit)
+      image_suffix:=interpreter
+    endif
+  endif
+  ifeq ($(2),no-image)
+    $(1)_prereq_rules += $$($(call name-to-var,$(1))_CORE_IMAGE_$$(image_suffix)_pic_$(4))
+  else
+    ifeq ($(2),npicimage)
+      $(1)_prereq_rules += $$($(call name-to-var,$(1))_CORE_IMAGE_$$(image_suffix)_no-pic_$(4))
+    else
+      ifeq ($(2),picimage)
+        $(1)_prereq_rules += $$($(call name-to-var,$(1))_CORE_IMAGE_$$(image_suffix)_pic_$(4))
+      else
+        ifeq ($(2),multinpicimage)
+          $(1)_prereq_rules += $$($(call name-to-var,$(1))_CORE_IMAGE_$$(image_suffix)_no-pic_multi_$(4))
+        else
+          ifeq ($(2),multipicimage)
+             $(1)_prereq_rules += $$($(call name-to-var,$(1))_CORE_IMAGE_$$(image_suffix)_pic_multi_$(4))
+          endif
+        endif
+      endif
+    endif
+  endif
+endef
+
+# Add core image dependencies required for given target - HOST or TARGET,
+# IMAGE_TYPE, COMPILER_TYPE and ADDRESS_SIZE to the prereq_rules.
+$(foreach target, $(TARGET_TYPES), \
+  $(foreach image, $(IMAGE_TYPES), \
+    $(foreach compiler, $(COMPILER_TYPES), \
+      $(foreach address_size, $(ALL_ADDRESS_SIZES), $(eval \
+        $(call core-image-dependencies,$(target),$(image),$(compiler),$(address_size)))))))
+
+test-art-host-run-test-dependencies : $(host_prereq_rules)
+test-art-target-run-test-dependencies : $(target_prereq_rules)
+test-art-run-test-dependencies : test-art-host-run-test-dependencies test-art-target-run-test-dependencies
+
+host_prereq_rules :=
+target_prereq_rules :=
+
 # Create a rule to build and run a tests following the form:
 # test-art-{1: host or target}-run-test-{2: debug ndebug}-{3: prebuild no-prebuild no-dex2oat}-
 #    {4: interpreter optimizing jit interp-ac}-
