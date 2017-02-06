@@ -281,3 +281,10 @@ $(eval $(call create-core-oat-target-rule-combination,interp-ac,valgrind,32))
 valgrind-test-art-host-dex2oat-target: $(valgrindTARGET_CORE_IMG_OUTS)
 
 valgrind-test-art-host-dex2oat: valgrind-test-art-host-dex2oat-host valgrind-test-art-host-dex2oat-target
+
+# Define a default core image that can be used for things like gtests that
+# need some image to run, but don't otherwise care which image is used.
+HOST_CORE_IMAGE_DEFAULT_32 := $(HOST_CORE_IMAGE_optimizing_pic_32)
+HOST_CORE_IMAGE_DEFAULT_64 := $(HOST_CORE_IMAGE_optimizing_pic_64)
+TARGET_CORE_IMAGE_DEFAULT_32 := $(TARGET_CORE_IMAGE_optimizing_pic_32)
+TARGET_CORE_IMAGE_DEFAULT_64 := $(TARGET_CORE_IMAGE_optimizing_pic_64)

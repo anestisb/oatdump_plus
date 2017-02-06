@@ -267,7 +267,7 @@ struct CmdlineArgs {
       std::string file_name;
       if (!LocationToFilename(boot_image_location, instruction_set_, &file_name)) {
         *error_msg = android::base::StringPrintf("No corresponding file for location '%s' exists",
-                                                 file_name.c_str());
+                                                 boot_image_location.c_str());
         return false;
       }
 
