@@ -5427,6 +5427,9 @@ void InstructionCodeGeneratorX86_64::GenerateClassInitializationCheck(
 HLoadClass::LoadKind CodeGeneratorX86_64::GetSupportedLoadClassKind(
     HLoadClass::LoadKind desired_class_load_kind) {
   switch (desired_class_load_kind) {
+    case HLoadClass::LoadKind::kInvalid:
+      LOG(FATAL) << "UNREACHABLE";
+      UNREACHABLE();
     case HLoadClass::LoadKind::kReferrersClass:
       break;
     case HLoadClass::LoadKind::kBootImageLinkTimeAddress:

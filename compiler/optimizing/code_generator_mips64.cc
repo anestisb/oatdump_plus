@@ -3368,6 +3368,9 @@ HLoadClass::LoadKind CodeGeneratorMIPS64::GetSupportedLoadClassKind(
   }
   bool fallback_load = false;
   switch (desired_class_load_kind) {
+    case HLoadClass::LoadKind::kInvalid:
+      LOG(FATAL) << "UNREACHABLE";
+      UNREACHABLE();
     case HLoadClass::LoadKind::kReferrersClass:
       break;
     case HLoadClass::LoadKind::kBootImageLinkTimeAddress:
@@ -3629,6 +3632,7 @@ void InstructionCodeGeneratorMIPS64::VisitLoadClass(HLoadClass* cls) NO_THREAD_S
       GenerateGcRootFieldLoad(cls, out_loc, out, 0);
       break;
     case HLoadClass::LoadKind::kDexCacheViaMethod:
+    case HLoadClass::LoadKind::kInvalid:
       LOG(FATAL) << "UNREACHABLE";
       UNREACHABLE();
   }
