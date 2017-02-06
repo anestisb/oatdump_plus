@@ -56,26 +56,40 @@ class Transaction FINAL {
   bool IsAborted() REQUIRES(!log_lock_);
 
   // Record object field changes.
-  void RecordWriteFieldBoolean(mirror::Object* obj, MemberOffset field_offset, uint8_t value,
+  void RecordWriteFieldBoolean(mirror::Object* obj,
+                               MemberOffset field_offset,
+                               uint8_t value,
                                bool is_volatile)
       REQUIRES(!log_lock_);
-  void RecordWriteFieldByte(mirror::Object* obj, MemberOffset field_offset, int8_t value,
-                               bool is_volatile)
-      REQUIRES(!log_lock_);
-  void RecordWriteFieldChar(mirror::Object* obj, MemberOffset field_offset, uint16_t value,
+  void RecordWriteFieldByte(mirror::Object* obj,
+                            MemberOffset field_offset,
+                            int8_t value,
                             bool is_volatile)
       REQUIRES(!log_lock_);
-  void RecordWriteFieldShort(mirror::Object* obj, MemberOffset field_offset, int16_t value,
+  void RecordWriteFieldChar(mirror::Object* obj,
+                            MemberOffset field_offset,
+                            uint16_t value,
+                            bool is_volatile)
+      REQUIRES(!log_lock_);
+  void RecordWriteFieldShort(mirror::Object* obj,
+                             MemberOffset field_offset,
+                             int16_t value,
                              bool is_volatile)
       REQUIRES(!log_lock_);
-  void RecordWriteField32(mirror::Object* obj, MemberOffset field_offset, uint32_t value,
+  void RecordWriteField32(mirror::Object* obj,
+                          MemberOffset field_offset,
+                          uint32_t value,
                           bool is_volatile)
       REQUIRES(!log_lock_);
-  void RecordWriteField64(mirror::Object* obj, MemberOffset field_offset, uint64_t value,
+  void RecordWriteField64(mirror::Object* obj,
+                          MemberOffset field_offset,
+                          uint64_t value,
                           bool is_volatile)
       REQUIRES(!log_lock_);
-  void RecordWriteFieldReference(mirror::Object* obj, MemberOffset field_offset,
-                                 mirror::Object* value, bool is_volatile)
+  void RecordWriteFieldReference(mirror::Object* obj,
+                                 MemberOffset field_offset,
+                                 mirror::Object* value,
+                                 bool is_volatile)
       REQUIRES(!log_lock_);
 
   // Record array change.
@@ -122,12 +136,15 @@ class Transaction FINAL {
     void Log64BitsValue(MemberOffset offset, uint64_t value, bool is_volatile);
     void LogReferenceValue(MemberOffset offset, mirror::Object* obj, bool is_volatile);
 
-    void Undo(mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_);
+    void Undo(mirror::Object* obj) const REQUIRES_SHARED(Locks::mutator_lock_);
     void VisitRoots(RootVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
 
     size_t Size() const {
       return field_values_.size();
     }
+
+    ObjectLog() = default;
+    ObjectLog(ObjectLog&& log) = default;
 
    private:
     enum FieldValueKind {
@@ -144,33 +161,49 @@ class Transaction FINAL {
       uint64_t value;
       FieldValueKind kind;
       bool is_volatile;
+
+      FieldValue() = default;
+      FieldValue(FieldValue&& log) = default;
+
+     private:
+      DISALLOW_COPY_AND_ASSIGN(FieldValue);
     };
 
     void LogValue(FieldValueKind kind, MemberOffset offset, uint64_t value, bool is_volatile);
-    void UndoFieldWrite(mirror::Object* obj, MemberOffset field_offset,
-                        const FieldValue& field_value) REQUIRES_SHARED(Locks::mutator_lock_);
+    void UndoFieldWrite(mirror::Object* obj,
+                        MemberOffset field_offset,
+                        const FieldValue& field_value) const REQUIRES_SHARED(Locks::mutator_lock_);
 
     // Maps field's offset to its value.
     std::map<uint32_t, FieldValue> field_values_;
+
+    DISALLOW_COPY_AND_ASSIGN(ObjectLog);
   };
 
   class ArrayLog : public ValueObject {
    public:
     void LogValue(size_t index, uint64_t value);
 
-    void Undo(mirror::Array* obj) REQUIRES_SHARED(Locks::mutator_lock_);
+    void Undo(mirror::Array* obj) const REQUIRES_SHARED(Locks::mutator_lock_);
 
     size_t Size() const {
       return array_values_.size();
     }
 
+    ArrayLog() = default;
+    ArrayLog(ArrayLog&& log) = default;
+
    private:
-    void UndoArrayWrite(mirror::Array* array, Primitive::Type array_type, size_t index,
-                        uint64_t value) REQUIRES_SHARED(Locks::mutator_lock_);
+    void UndoArrayWrite(mirror::Array* array,
+                        Primitive::Type array_type,
+                        size_t index,
+                        uint64_t value) const REQUIRES_SHARED(Locks::mutator_lock_);
 
     // Maps index to value.
     // TODO use JValue instead ?
     std::map<size_t, uint64_t> array_values_;
+
+    DISALLOW_COPY_AND_ASSIGN(ArrayLog);
   };
 
   class InternStringLog : public ValueObject {
@@ -185,31 +218,38 @@ class Transaction FINAL {
     };
     InternStringLog(ObjPtr<mirror::String> s, StringKind kind, StringOp op);
 
-    void Undo(InternTable* intern_table)
+    void Undo(InternTable* intern_table) const
         REQUIRES_SHARED(Locks::mutator_lock_)
         REQUIRES(Locks::intern_table_lock_);
     void VisitRoots(RootVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
 
+    InternStringLog() = default;
+    InternStringLog(InternStringLog&& log) = default;
+
    private:
-    GcRoot<mirror::String> str_;
+    mutable GcRoot<mirror::String> str_;
     const StringKind string_kind_;
     const StringOp string_op_;
+
+    DISALLOW_COPY_AND_ASSIGN(InternStringLog);
   };
 
   class ResolveStringLog : public ValueObject {
    public:
     ResolveStringLog(ObjPtr<mirror::DexCache> dex_cache, dex::StringIndex string_idx);
 
-    void Undo() REQUIRES_SHARED(Locks::mutator_lock_);
+    void Undo() const REQUIRES_SHARED(Locks::mutator_lock_);
 
     void VisitRoots(RootVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
 
    private:
     GcRoot<mirror::DexCache> dex_cache_;
     const dex::StringIndex string_idx_;
+
+    DISALLOW_COPY_AND_ASSIGN(ResolveStringLog);
   };
 
-  void LogInternedString(const InternStringLog& log)
+  void LogInternedString(InternStringLog&& log)
       REQUIRES(Locks::intern_table_lock_)
       REQUIRES(!log_lock_);
 
