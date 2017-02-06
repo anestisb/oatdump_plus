@@ -233,27 +233,6 @@ class CompilerDriver {
       ArtField* resolved_field, uint16_t field_idx)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Can we fast-path an SGET/SPUT access to a static field? If yes, compute the type index
-  // of the declaring class in the referrer's dex file.
-  std::pair<bool, bool> IsFastStaticField(mirror::DexCache* dex_cache,
-                                          mirror::Class* referrer_class,
-                                          ArtField* resolved_field,
-                                          uint16_t field_idx,
-                                          dex::TypeIndex* storage_index)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  // Return whether the declaring class of `resolved_method` is
-  // available to `referrer_class`. If this is true, compute the type
-  // index of the declaring class in the referrer's dex file and
-  // return it through the out argument `storage_index`; otherwise
-  // return DexFile::kDexNoIndex through `storage_index`.
-  bool IsClassOfStaticMethodAvailableToReferrer(mirror::DexCache* dex_cache,
-                                                mirror::Class* referrer_class,
-                                                ArtMethod* resolved_method,
-                                                uint16_t method_idx,
-                                                dex::TypeIndex* storage_index)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
   // Resolve a method. Returns null on failure, including incompatible class change.
   ArtMethod* ResolveMethod(
       ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
@@ -379,21 +358,6 @@ class CompilerDriver {
   }
 
  private:
-  // Return whether the declaring class of `resolved_member` is
-  // available to `referrer_class` for read or write access using two
-  // Boolean values returned as a pair. If is true at least for read
-  // access, compute the type index of the declaring class in the
-  // referrer's dex file and return it through the out argument
-  // `storage_index`; otherwise return DexFile::kDexNoIndex through
-  // `storage_index`.
-  template <typename ArtMember>
-  std::pair<bool, bool> IsClassOfStaticMemberAvailableToReferrer(mirror::DexCache* dex_cache,
-                                                                 mirror::Class* referrer_class,
-                                                                 ArtMember* resolved_member,
-                                                                 uint16_t member_idx,
-                                                                 dex::TypeIndex* storage_index)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
   // Can `referrer_class` access the resolved `member`?
   // Dispatch call to mirror::Class::CanAccessResolvedField or
   // mirror::Class::CanAccessResolvedMember depending on the value of
