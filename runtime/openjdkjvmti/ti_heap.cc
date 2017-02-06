@@ -303,11 +303,11 @@ class FollowReferencesHelper FINAL {
 
           art::Thread* thread = FindThread(info);
           if (thread != nullptr) {
-            art::mirror::Object* thread_obj = thread->GetPeer();
+            art::mirror::Object* thread_obj;
             if (thread->IsStillStarting()) {
               thread_obj = nullptr;
             } else {
-              thread_obj = thread->GetPeer();
+              thread_obj = thread->GetPeerFromOtherThread();
             }
             if (thread_obj != nullptr) {
               ref_info->jni_local.thread_tag = tag_table_->GetTagOrZero(thread_obj);
@@ -333,11 +333,11 @@ class FollowReferencesHelper FINAL {
 
           art::Thread* thread = FindThread(info);
           if (thread != nullptr) {
-            art::mirror::Object* thread_obj = thread->GetPeer();
+            art::mirror::Object* thread_obj;
             if (thread->IsStillStarting()) {
               thread_obj = nullptr;
             } else {
-              thread_obj = thread->GetPeer();
+              thread_obj = thread->GetPeerFromOtherThread();
             }
             if (thread_obj != nullptr) {
               ref_info->stack_local.thread_tag = tag_table_->GetTagOrZero(thread_obj);
