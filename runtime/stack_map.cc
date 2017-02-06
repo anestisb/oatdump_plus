@@ -126,9 +126,9 @@ void CodeInfo::Dump(VariableIndentationOutputStream* vios,
       << ", number_of_stack_maps=" << number_of_stack_maps
       << ")\n";
   ScopedIndentation indent1(vios);
-  encoding.stack_map_encoding.Dump(vios);
+  encoding.stack_map.encoding.Dump(vios);
   if (HasInlineInfo(encoding)) {
-    encoding.inline_info_encoding.Dump(vios);
+    encoding.inline_info.encoding.Dump(vios);
   }
   // Display the Dex register location catalog.
   GetDexRegisterLocationCatalog(encoding).Dump(vios, *this);
@@ -193,22 +193,22 @@ void StackMap::Dump(VariableIndentationOutputStream* vios,
                     uint16_t number_of_dex_registers,
                     InstructionSet instruction_set,
                     const std::string& header_suffix) const {
-  StackMapEncoding stack_map_encoding = encoding.stack_map_encoding;
+  StackMapEncoding stack_map_encoding = encoding.stack_map.encoding;
   const uint32_t pc_offset = GetNativePcOffset(stack_map_encoding, instruction_set);
   vios->Stream()
       << "StackMap" << header_suffix
       << std::hex
       << " [native_pc=0x" << code_offset + pc_offset << "]"
-      << " [entry_size=0x" << encoding.stack_map_encoding.BitSize() << " bits]"
+      << " [entry_size=0x" << encoding.stack_map.encoding.BitSize() << " bits]"
       << " (dex_pc=0x" << GetDexPc(stack_map_encoding)
       << ", native_pc_offset=0x" << pc_offset
       << ", dex_register_map_offset=0x" << GetDexRegisterMapOffset(stack_map_encoding)
-      << ", inline_info_offset=0x" << GetInlineDescriptorOffset(stack_map_encoding)
+      << ", inline_info_offset=0x" << GetInlineInfoIndex(stack_map_encoding)
       << ", register_mask=0x" << code_info.GetRegisterMaskOf(encoding, *this)
       << std::dec
       << ", stack_mask=0b";
   BitMemoryRegion stack_mask = code_info.GetStackMaskOf(encoding, *this);
-  for (size_t i = 0, e = encoding.stack_mask_size_in_bits; i < e; ++i) {
+  for (size_t i = 0, e = encoding.stack_mask.encoding.BitSize(); i < e; ++i) {
     vios->Stream() << stack_mask.LoadBit(e - i - 1);
   }
   vios->Stream() << ")\n";
@@ -229,7 +229,7 @@ void StackMap::Dump(VariableIndentationOutputStream* vios,
 void InlineInfo::Dump(VariableIndentationOutputStream* vios,
                       const CodeInfo& code_info,
                       uint16_t number_of_dex_registers[]) const {
-  InlineInfoEncoding inline_info_encoding = code_info.ExtractEncoding().inline_info_encoding;
+  InlineInfoEncoding inline_info_encoding = code_info.ExtractEncoding().inline_info.encoding;
   vios->Stream() << "InlineInfo with depth "
                  << static_cast<uint32_t>(GetDepth(inline_info_encoding))
                  << "\n";
