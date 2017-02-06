@@ -54,7 +54,7 @@ class JvmtiMonitor {
   JvmtiMonitor() : owner_(nullptr), count_(0) {
   }
 
-  static bool Destroy(art::Thread* self, JvmtiMonitor* monitor) {
+  static bool Destroy(art::Thread* self, JvmtiMonitor* monitor) NO_THREAD_SAFETY_ANALYSIS {
     // Check whether this thread holds the monitor, or nobody does.
     art::Thread* owner_thread = monitor->owner_.load(std::memory_order_relaxed);
     if (owner_thread != nullptr && self != owner_thread) {
@@ -71,7 +71,7 @@ class JvmtiMonitor {
     return true;
   }
 
-  void MonitorEnter(art::Thread* self) {
+  void MonitorEnter(art::Thread* self) NO_THREAD_SAFETY_ANALYSIS {
     // Check for recursive enter.
     if (IsOwner(self)) {
       count_++;
@@ -86,7 +86,7 @@ class JvmtiMonitor {
     count_ = 1;
   }
 
-  bool MonitorExit(art::Thread* self) {
+  bool MonitorExit(art::Thread* self) NO_THREAD_SAFETY_ANALYSIS {
     if (!IsOwner(self)) {
       return false;
     }
