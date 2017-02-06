@@ -356,40 +356,44 @@ void Monitor::Lock(Thread* self) {
     // Do this before releasing the lock so that we don't get deflated.
     size_t num_waiters = num_waiters_;
     ++num_waiters_;
+
+    // If systrace logging is enabled, first look at the lock owner. Acquiring the monitor's
+    // lock and then re-acquiring the mutator lock can deadlock.
+    bool started_trace = false;
+    if (ATRACE_ENABLED()) {
+      if (owner_ != nullptr) {  // Did the owner_ give the lock up?
+        std::ostringstream oss;
+        std::string name;
+        owner_->GetThreadName(name);
+        oss << PrettyContentionInfo(name,
+                                    owner_->GetTid(),
+                                    owners_method,
+                                    owners_dex_pc,
+                                    num_waiters);
+        // Add info for contending thread.
+        uint32_t pc;
+        ArtMethod* m = self->GetCurrentMethod(&pc);
+        const char* filename;
+        int32_t line_number;
+        TranslateLocation(m, pc, &filename, &line_number);
+        oss << " blocking from "
+            << ArtMethod::PrettyMethod(m) << "(" << (filename != nullptr ? filename : "null")
+            << ":" << line_number << ")";
+        ATRACE_BEGIN(oss.str().c_str());
+        started_trace = true;
+      }
+    }
+
     monitor_lock_.Unlock(self);  // Let go of locks in order.
     self->SetMonitorEnterObject(GetObject());
     {
-      uint32_t original_owner_thread_id = 0u;
       ScopedThreadSuspension tsc(self, kBlocked);  // Change to blocked and give up mutator_lock_.
+      uint32_t original_owner_thread_id = 0u;
       {
         // Reacquire monitor_lock_ without mutator_lock_ for Wait.
         MutexLock mu2(self, monitor_lock_);
         if (owner_ != nullptr) {  // Did the owner_ give the lock up?
           original_owner_thread_id = owner_->GetThreadId();
-          if (ATRACE_ENABLED()) {
-            std::ostringstream oss;
-            {
-              // Reacquire mutator_lock_ for getting the location info.
-              ScopedObjectAccess soa(self);
-              std::string name;
-              owner_->GetThreadName(name);
-              oss << PrettyContentionInfo(name,
-                                          owner_->GetTid(),
-                                          owners_method,
-                                          owners_dex_pc,
-                                          num_waiters);
-              // Add info for contending thread.
-              uint32_t pc;
-              ArtMethod* m = self->GetCurrentMethod(&pc);
-              const char* filename;
-              int32_t line_number;
-              TranslateLocation(m, pc, &filename, &line_number);
-              oss << " blocking from "
-                  << ArtMethod::PrettyMethod(m) << "(" << (filename != nullptr ? filename : "null")
-                  << ":" << line_number << ")";
-            }
-            ATRACE_BEGIN(oss.str().c_str());
-          }
           monitor_contenders_.Wait(self);  // Still contended so wait.
         }
       }
@@ -448,8 +452,10 @@ void Monitor::Lock(Thread* self) {
             }
           }
         }
-        ATRACE_END();
       }
+    }
+    if (started_trace) {
+      ATRACE_END();
     }
     self->SetMonitorEnterObject(nullptr);
     monitor_lock_.Lock(self);  // Reacquire locks in order.
