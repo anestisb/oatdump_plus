@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 The Android Open Source Project
+ * Copyright (C) 2017 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,19 +14,12 @@
  * limitations under the License.
  */
 
-class Transform {
-  private void privateSayHi(int recur, Runnable r) {
-    System.out.println("hello" + recur);
-    if (recur == 1) {
-      r.run();
-      privateSayHi(recur - 1, r);
-    } else if (recur != 0) {
-      privateSayHi(recur - 1, r);
-    }
-    System.out.println("goodbye" + recur);
+class Transform4 {
+  private String greeting;
+  public Transform4(String hi) {
+    greeting = hi;
   }
-
-  public void sayHi(int recur, Runnable r) {
-    privateSayHi(recur, r);
+  public void sayHi(String name) {
+    System.out.println("hello " + greeting + " - " + name);
   }
 }
