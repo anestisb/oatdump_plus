@@ -934,13 +934,6 @@ bool HInstructionBuilder::BuildInvokePolymorphic(const Instruction& instruction 
 
 bool HInstructionBuilder::BuildNewInstance(dex::TypeIndex type_index, uint32_t dex_pc) {
   ScopedObjectAccess soa(Thread::Current());
-  Handle<mirror::DexCache> dex_cache = dex_compilation_unit_->GetDexCache();
-  Handle<mirror::DexCache> outer_dex_cache = outer_compilation_unit_->GetDexCache();
-
-  if (outer_dex_cache.Get() != dex_cache.Get()) {
-    // We currently do not support inlining allocations across dex files.
-    return false;
-  }
 
   HLoadClass* load_class = BuildLoadClass(type_index, dex_pc);
 
