@@ -72,37 +72,6 @@ struct DexFile::AnnotationValue {
   uint8_t type_;
 };
 
-bool DexFile::GetChecksum(const char* filename, uint32_t* checksum, std::string* error_msg) {
-  CHECK(checksum != nullptr);
-
-  // Strip ":...", which is the location
-  const char* zip_entry_name = kClassesDex;
-  const char* file_part = filename;
-  std::string file_part_storage;
-
-  if (DexFile::IsMultiDexLocation(filename)) {
-    file_part_storage = GetBaseLocation(filename);
-    file_part = file_part_storage.c_str();
-    zip_entry_name = filename + file_part_storage.size() + 1;
-    DCHECK_EQ(zip_entry_name[-1], kMultiDexSeparator);
-  }
-
-  std::vector<uint32_t> checksums;
-  if (!GetMultiDexChecksums(file_part, &checksums, error_msg)) {
-    return false;
-  }
-
-  for (size_t i = 0; i < checksums.size(); i++) {
-    if (GetMultiDexClassesDexName(i) == std::string(zip_entry_name)) {
-      *checksum = checksums[i];
-      return true;
-    }
-  }
-
-  *error_msg = StringPrintf("Failed to find entry '%s' in '%s'", zip_entry_name, file_part);
-  return false;
-}
-
 bool DexFile::GetMultiDexChecksums(const char* filename,
                                    std::vector<uint32_t>* checksums,
                                    std::string* error_msg) {
