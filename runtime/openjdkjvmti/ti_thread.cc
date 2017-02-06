@@ -200,7 +200,7 @@ jvmtiError ThreadUtil::GetThreadInfo(jvmtiEnv* env, jthread thread, jvmtiThreadI
 
     info_ptr->is_daemon = self->IsDaemon();
 
-    art::ObjPtr<art::mirror::Object> peer = self->GetPeer();
+    art::ObjPtr<art::mirror::Object> peer = self->GetPeerFromOtherThread();
 
     // ThreadGroup.
     if (peer != nullptr) {
@@ -458,7 +458,7 @@ jvmtiError ThreadUtil::GetAllThreads(jvmtiEnv* env,
       continue;
     }
 
-    art::ObjPtr<art::mirror::Object> peer = thread->GetPeer();
+    art::ObjPtr<art::mirror::Object> peer = thread->GetPeerFromOtherThread();
     if (peer != nullptr) {
       peers.push_back(peer);
     }

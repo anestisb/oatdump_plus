@@ -359,6 +359,10 @@ class Thread {
     CHECK(tlsPtr_.jpeer == nullptr);
     return tlsPtr_.opeer;
   }
+  // GetPeer is not safe if called on another thread in the middle of the CC thread flip and
+  // the thread's stack may have not been flipped yet and peer may be a from-space (stale) ref.
+  // This function will explicitly mark/forward it.
+  mirror::Object* GetPeerFromOtherThread() const REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool HasPeer() const {
     return tlsPtr_.jpeer != nullptr || tlsPtr_.opeer != nullptr;

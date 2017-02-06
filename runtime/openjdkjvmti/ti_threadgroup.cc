@@ -174,7 +174,7 @@ static void GetThreads(art::Handle<art::mirror::Object> thread_group,
     if (t->IsStillStarting()) {
       continue;
     }
-    art::ObjPtr<art::mirror::Object> peer = t->GetPeer();
+    art::ObjPtr<art::mirror::Object> peer = t->GetPeerFromOtherThread();
     if (peer == nullptr) {
       continue;
     }
