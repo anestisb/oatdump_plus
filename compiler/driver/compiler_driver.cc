@@ -311,9 +311,6 @@ CompilerDriver::CompilerDriver(
 
   compiler_->Init();
 
-  if (compiler_options->VerifyOnlyProfile()) {
-    CHECK(profile_compilation_info_ != nullptr) << "Requires profile";
-  }
   if (GetCompilerOptions().IsBootImage()) {
     CHECK(image_classes_.get() != nullptr) << "Expected image classes for boot image";
   }
