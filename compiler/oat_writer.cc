@@ -2267,7 +2267,7 @@ bool OatWriter::LayoutAndWriteDexFile(OutputStream* out, OatDexFile* oat_dex_fil
     dex_file = DexFile::OpenDex(raw_file->Fd(), location, /* verify_checksum */ true, &error_msg);
   }
   if (dex_file == nullptr) {
-    LOG(ERROR) << "Failed to open dex file for layout:" << error_msg;
+    LOG(ERROR) << "Failed to open dex file for layout: " << error_msg;
     return false;
   }
   Options options;
