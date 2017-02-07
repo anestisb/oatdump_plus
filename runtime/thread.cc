@@ -65,6 +65,7 @@
 #include "object_lock.h"
 #include "quick_exception_handler.h"
 #include "quick/quick_method_frame_info.h"
+#include "read_barrier-inl.h"
 #include "reflection.h"
 #include "runtime.h"
 #include "runtime_callbacks.h"
@@ -1845,6 +1846,7 @@ Thread::Thread(bool daemon)
     : tls32_(daemon),
       wait_monitor_(nullptr),
       interrupted_(false),
+      custom_tls_(nullptr),
       can_call_into_java_(true) {
   wait_mutex_ = new Mutex("a thread wait mutex");
   wait_cond_ = new ConditionVariable("a thread wait condition variable", *wait_mutex_);
@@ -3455,6 +3457,17 @@ void Thread::SetException(ObjPtr<mirror::Throwable> new_exception) {
 
 bool Thread::IsAotCompiler() {
   return Runtime::Current()->IsAotCompiler();
+}
+
+mirror::Object* Thread::GetPeerFromOtherThread() const {
+  mirror::Object* peer = GetPeer();
+  if (kUseReadBarrier && Current()->GetIsGcMarking()) {
+    // We may call Thread::Dump() in the middle of the CC thread flip and this thread's stack
+    // may have not been flipped yet and peer may be a from-space (stale) ref. So explicitly
+    // mark/forward it here.
+    peer = art::ReadBarrier::Mark(peer);
+  }
+  return peer;
 }
 
 }  // namespace art

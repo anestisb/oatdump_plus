@@ -377,7 +377,8 @@ jvmtiError StackUtil::GetAllStackTraces(jvmtiEnv* env,
     jvmtiStackInfo& old_stack_info = stack_info_array.get()[i];
     jvmtiStackInfo& new_stack_info = stack_info[i];
 
-    jthread thread_peer = current->GetJniEnv()->AddLocalReference<jthread>(threads[i]->GetPeer());
+    jthread thread_peer = current->GetJniEnv()->AddLocalReference<jthread>(
+        threads[i]->GetPeerFromOtherThread());
     new_stack_info.thread = thread_peer;
 
     if (old_stack_info.frame_count > 0) {
@@ -453,7 +454,7 @@ jvmtiError StackUtil::GetThreadListStackTraces(jvmtiEnv* env,
         }
 
         // Get the peer, and check whether we know it.
-        art::ObjPtr<art::mirror::Object> peer = thread->GetPeer();
+        art::ObjPtr<art::mirror::Object> peer = thread->GetPeerFromOtherThread();
         for (size_t index = 0; index != handles.size(); ++index) {
           if (peer == handles[index].Get()) {
             // Found the thread.
