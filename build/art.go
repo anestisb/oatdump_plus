@@ -68,10 +68,6 @@ func globalFlags(ctx android.BaseContext) ([]string, []string) {
 		asflags = append(asflags,
 			"-DART_USE_READ_BARRIER=1",
 			"-DART_READ_BARRIER_TYPE_IS_"+barrierType+"=1")
-
-		// Temporarily override -fstack-protector-strong with -fstack-protector to avoid a major
-		// slowdown with the read barrier config. b/26744236.
-		cflags = append(cflags, "-fstack-protector")
 	}
 
 	if envTrue(ctx, "ART_USE_VIXL_ARM_BACKEND") {
