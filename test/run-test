@@ -90,6 +90,22 @@ fi
 
 export JACK="$JACK -g -cp $JACK_CLASSPATH"
 
+# Zipalign is not on the PATH in some configs, auto-detect it.
+if [ -z "$ZIPALIGN" ]; then
+  if which zipalign >/dev/null; then
+    ZIPALIGN="zipalign";
+  else
+    # TODO: Add a dependency for zipalign in Android.run-test.mk
+    # once it doesn't depend on libandroidfw (b/35246701)
+    case "$OSTYPE" in
+      darwin*)  ZIPALIGN="$ANDROID_BUILD_TOP/prebuilts/sdk/tools/darwin/bin/zipalign" ;;
+      linux*)   ZIPALIGN="$ANDROID_BUILD_TOP/prebuilts/sdk/tools/linux/bin/zipalign" ;;
+      *)        echo "Can't find zipalign: unknown: $OSTYPE" >&2;;
+    esac
+  fi
+fi
+export ZIPALIGN
+
 info="info.txt"
 build="build"
 run="run"
