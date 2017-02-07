@@ -115,13 +115,18 @@ class IntrinsicSlowPathARM64 : public SlowPathCodeARM64 {
 
     MoveArguments(invoke_, codegen);
 
-    if (invoke_->IsInvokeStaticOrDirect()) {
-      codegen->GenerateStaticOrDirectCall(invoke_->AsInvokeStaticOrDirect(),
-                                          LocationFrom(kArtMethodRegister));
-    } else {
-      codegen->GenerateVirtualCall(invoke_->AsInvokeVirtual(), LocationFrom(kArtMethodRegister));
+    {
+      // Ensure that between the BLR (emitted by Generate*Call) and RecordPcInfo there
+      // are no pools emitted.
+      vixl::EmissionCheckScope guard(codegen->GetVIXLAssembler(), kInvokeCodeMarginSizeInBytes);
+      if (invoke_->IsInvokeStaticOrDirect()) {
+        codegen->GenerateStaticOrDirectCall(invoke_->AsInvokeStaticOrDirect(),
+                                            LocationFrom(kArtMethodRegister));
+      } else {
+        codegen->GenerateVirtualCall(invoke_->AsInvokeVirtual(), LocationFrom(kArtMethodRegister));
+      }
+      codegen->RecordPcInfo(invoke_, invoke_->GetDexPc(), this);
     }
-    codegen->RecordPcInfo(invoke_, invoke_->GetDexPc(), this);
 
     // Copy the result back to the expected output.
     Location out = invoke_->GetLocations()->Out();
@@ -980,11 +985,12 @@ void IntrinsicLocationsBuilderARM64::VisitUnsafePutLongVolatile(HInvoke* invoke)
   CreateIntIntIntIntToVoid(arena_, invoke);
 }
 
-static void GenUnsafePut(LocationSummary* locations,
+static void GenUnsafePut(HInvoke* invoke,
                          Primitive::Type type,
                          bool is_volatile,
                          bool is_ordered,
                          CodeGeneratorARM64* codegen) {
+  LocationSummary* locations = invoke->GetLocations();
   MacroAssembler* masm = codegen->GetVIXLAssembler();
 
   Register base = WRegisterFrom(locations->InAt(1));    // Object pointer.
@@ -1007,7 +1013,7 @@ static void GenUnsafePut(LocationSummary* locations,
     }
 
     if (is_volatile || is_ordered) {
-      codegen->StoreRelease(type, source, mem_op);
+      codegen->StoreRelease(invoke, type, source, mem_op, /* needs_null_check */ false);
     } else {
       codegen->Store(type, source, mem_op);
     }
@@ -1020,63 +1026,63 @@ static void GenUnsafePut(LocationSummary* locations,
 }
 
 void IntrinsicCodeGeneratorARM64::VisitUnsafePut(HInvoke* invoke) {
-  GenUnsafePut(invoke->GetLocations(),
+  GenUnsafePut(invoke,
                Primitive::kPrimInt,
                /* is_volatile */ false,
                /* is_ordered */ false,
                codegen_);
 }
 void IntrinsicCodeGeneratorARM64::VisitUnsafePutOrdered(HInvoke* invoke) {
-  GenUnsafePut(invoke->GetLocations(),
+  GenUnsafePut(invoke,
                Primitive::kPrimInt,
                /* is_volatile */ false,
                /* is_ordered */ true,
                codegen_);
 }
 void IntrinsicCodeGeneratorARM64::VisitUnsafePutVolatile(HInvoke* invoke) {
-  GenUnsafePut(invoke->GetLocations(),
+  GenUnsafePut(invoke,
                Primitive::kPrimInt,
                /* is_volatile */ true,
                /* is_ordered */ false,
                codegen_);
 }
 void IntrinsicCodeGeneratorARM64::VisitUnsafePutObject(HInvoke* invoke) {
-  GenUnsafePut(invoke->GetLocations(),
+  GenUnsafePut(invoke,
                Primitive::kPrimNot,
                /* is_volatile */ false,
                /* is_ordered */ false,
                codegen_);
 }
 void IntrinsicCodeGeneratorARM64::VisitUnsafePutObjectOrdered(HInvoke* invoke) {
-  GenUnsafePut(invoke->GetLocations(),
+  GenUnsafePut(invoke,
                Primitive::kPrimNot,
                /* is_volatile */ false,
                /* is_ordered */ true,
                codegen_);
 }
 void IntrinsicCodeGeneratorARM64::VisitUnsafePutObjectVolatile(HInvoke* invoke) {
-  GenUnsafePut(invoke->GetLocations(),
+  GenUnsafePut(invoke,
                Primitive::kPrimNot,
                /* is_volatile */ true,
                /* is_ordered */ false,
                codegen_);
 }
 void IntrinsicCodeGeneratorARM64::VisitUnsafePutLong(HInvoke* invoke) {
-  GenUnsafePut(invoke->GetLocations(),
+  GenUnsafePut(invoke,
                Primitive::kPrimLong,
                /* is_volatile */ false,
                /* is_ordered */ false,
                codegen_);
 }
 void IntrinsicCodeGeneratorARM64::VisitUnsafePutLongOrdered(HInvoke* invoke) {
-  GenUnsafePut(invoke->GetLocations(),
+  GenUnsafePut(invoke,
                Primitive::kPrimLong,
                /* is_volatile */ false,
                /* is_ordered */ true,
                codegen_);
 }
 void IntrinsicCodeGeneratorARM64::VisitUnsafePutLongVolatile(HInvoke* invoke) {
-  GenUnsafePut(invoke->GetLocations(),
+  GenUnsafePut(invoke,
                Primitive::kPrimLong,
                /* is_volatile */ true,
                /* is_ordered */ false,
@@ -2825,9 +2831,13 @@ void IntrinsicCodeGeneratorARM64::VisitReferenceGetReferent(HInvoke* invoke) {
   }
   __ Cbnz(temp0, slow_path->GetEntryLabel());
 
-  // Fast path.
-  __ Ldr(out, HeapOperand(obj, mirror::Reference::ReferentOffset().Int32Value()));
-  codegen_->MaybeRecordImplicitNullCheck(invoke);
+  {
+    // Ensure that between load and MaybeRecordImplicitNullCheck there are no pools emitted.
+    vixl::EmissionCheckScope guard(codegen_->GetVIXLAssembler(), kMaxMacroInstructionSizeInBytes);
+    // Fast path.
+    __ Ldr(out, HeapOperand(obj, mirror::Reference::ReferentOffset().Int32Value()));
+    codegen_->MaybeRecordImplicitNullCheck(invoke);
+  }
   codegen_->GetAssembler()->MaybeUnpoisonHeapReference(out);
   __ Bind(slow_path->GetExitLabel());
 }
