@@ -21,6 +21,7 @@
 
 #include <string>
 #include <map>
+#include <mutex>
 
 #include <stddef.h>
 #include <sys/mman.h>  // For the PROT_* and MAP_* constants.
@@ -120,7 +121,7 @@ class MemMap {
                                   std::string* error_msg);
 
   // Releases the memory mapping.
-  ~MemMap() REQUIRES(!Locks::mem_maps_lock_);
+  ~MemMap() REQUIRES(!MemMap::mem_maps_lock_);
 
   const std::string& GetName() const {
     return name_;
@@ -175,14 +176,17 @@ class MemMap {
                      bool use_ashmem = true);
 
   static bool CheckNoGaps(MemMap* begin_map, MemMap* end_map)
-      REQUIRES(!Locks::mem_maps_lock_);
+      REQUIRES(!MemMap::mem_maps_lock_);
   static void DumpMaps(std::ostream& os, bool terse = false)
-      REQUIRES(!Locks::mem_maps_lock_);
+      REQUIRES(!MemMap::mem_maps_lock_);
 
   typedef AllocationTrackingMultiMap<void*, MemMap*, kAllocatorTagMaps> Maps;
 
-  static void Init() REQUIRES(!Locks::mem_maps_lock_);
-  static void Shutdown() REQUIRES(!Locks::mem_maps_lock_);
+  // Init and Shutdown are NOT thread safe.
+  // Both may be called multiple times and MemMap objects may be created any
+  // time after the first call to Init and before the first call to Shutodwn.
+  static void Init() REQUIRES(!MemMap::mem_maps_lock_);
+  static void Shutdown() REQUIRES(!MemMap::mem_maps_lock_);
 
   // If the map is PROT_READ, try to read each page of the map to check it is in fact readable (not
   // faulting). This is used to diagnose a bug b/19894268 where mprotect doesn't seem to be working
@@ -197,16 +201,16 @@ class MemMap {
          size_t base_size,
          int prot,
          bool reuse,
-         size_t redzone_size = 0) REQUIRES(!Locks::mem_maps_lock_);
+         size_t redzone_size = 0) REQUIRES(!MemMap::mem_maps_lock_);
 
   static void DumpMapsLocked(std::ostream& os, bool terse)
-      REQUIRES(Locks::mem_maps_lock_);
+      REQUIRES(MemMap::mem_maps_lock_);
   static bool HasMemMap(MemMap* map)
-      REQUIRES(Locks::mem_maps_lock_);
+      REQUIRES(MemMap::mem_maps_lock_);
   static MemMap* GetLargestMemMapAt(void* address)
-      REQUIRES(Locks::mem_maps_lock_);
+      REQUIRES(MemMap::mem_maps_lock_);
   static bool ContainedWithinExistingMap(uint8_t* ptr, size_t size, std::string* error_msg)
-      REQUIRES(!Locks::mem_maps_lock_);
+      REQUIRES(!MemMap::mem_maps_lock_);
 
   // Internal version of mmap that supports low 4gb emulation.
   static void* MapInternal(void* addr,
@@ -236,8 +240,10 @@ class MemMap {
   static uintptr_t next_mem_pos_;   // Next memory location to check for low_4g extent.
 #endif
 
+  static std::mutex* mem_maps_lock_;
+
   // All the non-empty MemMaps. Use a multimap as we do a reserve-and-divide (eg ElfMap::Load()).
-  static Maps* maps_ GUARDED_BY(Locks::mem_maps_lock_);
+  static Maps* maps_ GUARDED_BY(MemMap::mem_maps_lock_);
 
   friend class MemMapTest;  // To allow access to base_begin_ and base_size_.
 };
