@@ -235,6 +235,11 @@ class PACKED(sizeof(T)) Atomic : public std::atomic<T> {
     this->store(desired, std::memory_order_seq_cst);
   }
 
+  // Atomically replace the value with desired value.
+  T ExchangeRelaxed(T desired_value) {
+    return this->exchange(desired_value, std::memory_order_relaxed);
+  }
+
   // Atomically replace the value with desired value if it matches the expected value.
   // Participates in total ordering of atomic operations.
   bool CompareExchangeStrongSequentiallyConsistent(T expected_value, T desired_value) {
@@ -281,6 +286,10 @@ class PACKED(sizeof(T)) Atomic : public std::atomic<T> {
 
   T FetchAndSubSequentiallyConsistent(const T value) {
     return this->fetch_sub(value, std::memory_order_seq_cst);  // Return old value.
+  }
+
+  T FetchAndSubRelaxed(const T value) {
+    return this->fetch_sub(value, std::memory_order_relaxed);  // Return old value.
   }
 
   T FetchAndOrSequentiallyConsistent(const T value) {
