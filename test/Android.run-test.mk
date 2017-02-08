@@ -533,26 +533,14 @@ TEST_ART_BROKEN_INTERPRETER_RUN_TESTS :=
 # also uses Generic JNI instead of the JNI compiler.
 # Test 906 iterates the heap filtering with different options. No instances should be created
 # between those runs to be able to have precise checks.
-# Test 902 hits races with the JIT compiler. b/32821077
 # Test 629 requires compilation.
-# Test 914, 915, 917, & 919 are very sensitive to the exact state of the stack,
-# including the jit-inserted runtime frames. This causes them to be somewhat
-# flaky as JIT tests. This should be fixed once b/33630159 or b/33616143 are
-# resolved but until then just disable them. Test 916 already checks this
-# feature for JIT use cases in a way that is resilient to the jit frames.
 # 912: b/34655682
 TEST_ART_BROKEN_JIT_RUN_TESTS := \
   137-cfi \
   629-vdex-speed \
-  902-hello-transformation \
   904-object-allocation \
   906-iterate-heap \
   912-classes \
-  914-hello-obsolescence \
-  915-obsolete-2 \
-  917-fields-transformation \
-  919-obsolete-fields \
-  926-multi-obsolescence \
 
 ifneq (,$(filter jit,$(COMPILER_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
