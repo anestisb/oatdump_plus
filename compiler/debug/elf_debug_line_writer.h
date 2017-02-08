@@ -104,10 +104,10 @@ class ElfDebugLineWriter {
         for (uint32_t s = 0; s < code_info.GetNumberOfStackMaps(encoding); s++) {
           StackMap stack_map = code_info.GetStackMapAt(s, encoding);
           DCHECK(stack_map.IsValid());
-          const uint32_t pc = stack_map.GetNativePcOffset(encoding.stack_map_encoding, isa);
-          const int32_t dex = stack_map.GetDexPc(encoding.stack_map_encoding);
+          const uint32_t pc = stack_map.GetNativePcOffset(encoding.stack_map.encoding, isa);
+          const int32_t dex = stack_map.GetDexPc(encoding.stack_map.encoding);
           pc2dex_map.push_back({pc, dex});
-          if (stack_map.HasDexRegisterMap(encoding.stack_map_encoding)) {
+          if (stack_map.HasDexRegisterMap(encoding.stack_map.encoding)) {
             // Guess that the first map with local variables is the end of prologue.
             prologue_end = std::min(prologue_end, pc);
           }
