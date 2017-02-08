@@ -474,17 +474,18 @@ def run_test(command, test, test_variant, test_name):
   if not test_skipped:
     if test_passed:
       out += COLOR_PASS + 'PASS' + COLOR_NORMAL
+      last_print_length = len(out)
     else:
-      out += COLOR_ERROR + 'FAIL' + COLOR_NORMAL
       failed_tests.append(test_name)
-      if verbose:
-        out += '\n' + command + '\n' + script_output
+      out += COLOR_ERROR + 'FAIL' + COLOR_NORMAL
+      out += '\n' + command + '\n' + script_output
       if not env.ART_TEST_KEEP_GOING:
         stop_testrunner = True
+      last_print_length = 0
   elif not dry_run:
     out += COLOR_SKIP + 'SKIP' + COLOR_NORMAL
+    last_print_length = len(out)
     skipped_tests.append(test_name)
-  last_print_length = len(out)
   print_mutex.acquire()
   print_text(prefix + out + suffix)
   print_mutex.release()
