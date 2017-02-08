@@ -18,6 +18,7 @@ import java.util.ArrayList;
 public class Main {
 
   public static void main(String[] args) {
+    Verification.doTest(new Transform());
     NewName.doTest(new Transform());
     DifferentAccess.doTest(new Transform());
     NewInterface.doTest(new Transform2());

@@ -56,6 +56,8 @@
 #include "ScopedLocalRef.h"
 #include "ti_class_loader.h"
 #include "transform.h"
+#include "verifier/method_verifier.h"
+#include "verifier/verifier_log_mode.h"
 
 namespace openjdkjvmti {
 
@@ -703,7 +705,6 @@ bool Redefiner::ClassRedefinition::CheckClass() {
     }
   }
   LOG(WARNING) << "No verification is done on annotations of redefined classes.";
-  LOG(WARNING) << "Bytecodes of redefinitions are not verified.";
 
   return true;
 }
@@ -766,26 +767,28 @@ class RedefinitionDataHolder {
   }
 
   // TODO Maybe make an iterable view type to simplify using this.
-  art::mirror::ClassLoader* GetSourceClassLoader(jint klass_index)
+  art::mirror::ClassLoader* GetSourceClassLoader(jint klass_index) const
       REQUIRES_SHARED(art::Locks::mutator_lock_) {
     return art::down_cast<art::mirror::ClassLoader*>(GetSlot(klass_index, kSlotSourceClassLoader));
   }
-  art::mirror::Object* GetJavaDexFile(jint klass_index) REQUIRES_SHARED(art::Locks::mutator_lock_) {
+  art::mirror::Object* GetJavaDexFile(jint klass_index) const
+      REQUIRES_SHARED(art::Locks::mutator_lock_) {
     return GetSlot(klass_index, kSlotJavaDexFile);
   }
-  art::mirror::LongArray* GetNewDexFileCookie(jint klass_index)
+  art::mirror::LongArray* GetNewDexFileCookie(jint klass_index) const
       REQUIRES_SHARED(art::Locks::mutator_lock_) {
     return art::down_cast<art::mirror::LongArray*>(GetSlot(klass_index, kSlotNewDexFileCookie));
   }
-  art::mirror::DexCache* GetNewDexCache(jint klass_index)
+  art::mirror::DexCache* GetNewDexCache(jint klass_index) const
       REQUIRES_SHARED(art::Locks::mutator_lock_) {
     return art::down_cast<art::mirror::DexCache*>(GetSlot(klass_index, kSlotNewDexCache));
   }
-  art::mirror::Class* GetMirrorClass(jint klass_index) REQUIRES_SHARED(art::Locks::mutator_lock_) {
+  art::mirror::Class* GetMirrorClass(jint klass_index) const
+      REQUIRES_SHARED(art::Locks::mutator_lock_) {
     return art::down_cast<art::mirror::Class*>(GetSlot(klass_index, kSlotMirrorClass));
   }
 
-  art::mirror::ByteArray* GetOriginalDexFileBytes(jint klass_index)
+  art::mirror::ByteArray* GetOriginalDexFileBytes(jint klass_index) const
       REQUIRES_SHARED(art::Locks::mutator_lock_) {
     return art::down_cast<art::mirror::ByteArray*>(GetSlot(klass_index, kSlotOrigDexFile));
   }
@@ -815,15 +818,15 @@ class RedefinitionDataHolder {
     SetSlot(klass_index, kSlotOrigDexFile, bytes);
   }
 
-  int32_t Length() REQUIRES_SHARED(art::Locks::mutator_lock_) {
+  int32_t Length() const REQUIRES_SHARED(art::Locks::mutator_lock_) {
     return arr_->GetLength() / kNumSlots;
   }
 
  private:
-  art::Handle<art::mirror::ObjectArray<art::mirror::Object>> arr_;
+  mutable art::Handle<art::mirror::ObjectArray<art::mirror::Object>> arr_;
 
   art::mirror::Object* GetSlot(jint klass_index,
-                               DataSlot slot) REQUIRES_SHARED(art::Locks::mutator_lock_) {
+                               DataSlot slot) const REQUIRES_SHARED(art::Locks::mutator_lock_) {
     DCHECK_LT(klass_index, Length());
     return arr_->Get((kNumSlots * klass_index) + slot);
   }
@@ -838,6 +841,31 @@ class RedefinitionDataHolder {
 
   DISALLOW_COPY_AND_ASSIGN(RedefinitionDataHolder);
 };
+
+// TODO Stash and update soft failure state
+bool Redefiner::ClassRedefinition::CheckVerification(int32_t klass_index,
+                                                     const RedefinitionDataHolder& holder) {
+  DCHECK_EQ(dex_file_->NumClassDefs(), 1u);
+  art::StackHandleScope<2> hs(driver_->self_);
+  std::string error;
+  // TODO Make verification log level lower
+  art::verifier::MethodVerifier::FailureKind failure =
+      art::verifier::MethodVerifier::VerifyClass(driver_->self_,
+                                                 dex_file_.get(),
+                                                 hs.NewHandle(holder.GetNewDexCache(klass_index)),
+                                                 hs.NewHandle(GetClassLoader()),
+                                                 dex_file_->GetClassDef(0), /*class_def*/
+                                                 nullptr, /*compiler_callbacks*/
+                                                 false, /*allow_soft_failures*/
+                                                 /*log_level*/
+                                                 art::verifier::HardFailLogMode::kLogWarning,
+                                                 &error);
+  bool passes = failure == art::verifier::MethodVerifier::kNoFailure;
+  if (!passes) {
+    RecordFailure(ERR(FAILS_VERIFICATION), "Failed to verify class. Error was: " + error);
+  }
+  return passes;
+}
 
 // Looks through the previously allocated cookies to see if we need to update them with another new
 // dexfile. This is so that even if multiple classes with the same classloader are redefined at
@@ -978,6 +1006,17 @@ void Redefiner::ReleaseAllDexFiles() {
   }
 }
 
+bool Redefiner::CheckAllClassesAreVerified(const RedefinitionDataHolder& holder) {
+  int32_t cnt = 0;
+  for (Redefiner::ClassRedefinition& redef : redefinitions_) {
+    if (!redef.CheckVerification(cnt, holder)) {
+      return false;
+    }
+    cnt++;
+  }
+  return true;
+}
+
 jvmtiError Redefiner::Run() {
   art::StackHandleScope<1> hs(self_);
   // Allocate an array to hold onto all java temporary objects associated with this redefinition.
@@ -997,7 +1036,8 @@ jvmtiError Redefiner::Run() {
   // try loop.
   if (!CheckAllRedefinitionAreValid() ||
       !EnsureAllClassAllocationsFinished() ||
-      !FinishAllRemainingAllocations(holder)) {
+      !FinishAllRemainingAllocations(holder) ||
+      !CheckAllClassesAreVerified(holder)) {
     // TODO Null out the ClassExt fields we allocated (if possible, might be racing with another
     // redefineclass call which made it even bigger. Leak shouldn't be huge (2x array of size
     // declared_methods_.length) but would be good to get rid of. All other allocations should be
