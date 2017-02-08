@@ -1461,8 +1461,8 @@ class OatDumper {
         StackMap last = code_info_.GetStackMapAt(0u, encoding_);
         for (size_t i = 1; i != number_of_stack_maps_; ++i) {
           StackMap current = code_info_.GetStackMapAt(i, encoding_);
-          if (last.GetNativePcOffset(encoding_.stack_map_encoding, instruction_set) >
-              current.GetNativePcOffset(encoding_.stack_map_encoding, instruction_set)) {
+          if (last.GetNativePcOffset(encoding_.stack_map.encoding, instruction_set) >
+              current.GetNativePcOffset(encoding_.stack_map.encoding, instruction_set)) {
             ordered = false;
             break;
           }
@@ -1478,16 +1478,16 @@ class OatDumper {
                     indexes_.end(),
                     [this](size_t lhs, size_t rhs) {
                       StackMap left = code_info_.GetStackMapAt(lhs, encoding_);
-                      uint32_t left_pc = left.GetNativePcOffset(encoding_.stack_map_encoding,
+                      uint32_t left_pc = left.GetNativePcOffset(encoding_.stack_map.encoding,
                                                                 instruction_set_);
                       StackMap right = code_info_.GetStackMapAt(rhs, encoding_);
-                      uint32_t right_pc = right.GetNativePcOffset(encoding_.stack_map_encoding,
+                      uint32_t right_pc = right.GetNativePcOffset(encoding_.stack_map.encoding,
                                                                   instruction_set_);
                       // If the PCs are the same, compare indexes to preserve the original order.
                       return (left_pc < right_pc) || (left_pc == right_pc && lhs < rhs);
                     });
         }
-        offset_ = GetStackMapAt(0).GetNativePcOffset(encoding_.stack_map_encoding,
+        offset_ = GetStackMapAt(0).GetNativePcOffset(encoding_.stack_map.encoding,
                                                      instruction_set_);
       }
     }
@@ -1512,7 +1512,7 @@ class OatDumper {
       ++stack_map_index_;
       offset_ = (stack_map_index_ == number_of_stack_maps_)
           ? static_cast<uint32_t>(-1)
-          : GetStackMapAt(stack_map_index_).GetNativePcOffset(encoding_.stack_map_encoding,
+          : GetStackMapAt(stack_map_index_).GetNativePcOffset(encoding_.stack_map.encoding,
                                                               instruction_set_);
     }
 
@@ -1550,9 +1550,9 @@ class OatDumper {
       StackMapsHelper helper(oat_method.GetVmapTable(), instruction_set_);
       {
         CodeInfoEncoding encoding(helper.GetEncoding());
-        StackMapEncoding stack_map_encoding(encoding.stack_map_encoding);
+        StackMapEncoding stack_map_encoding(encoding.stack_map.encoding);
         // helper.GetCodeInfo().GetStackMapAt(0, encoding).;
-        const size_t num_stack_maps = encoding.number_of_stack_maps;
+        const size_t num_stack_maps = encoding.stack_map.num_entries;
         std::vector<uint8_t> size_vector;
         encoding.Compress(&size_vector);
         if (stats_.AddBitsIfUnique(Stats::kByteKindCodeInfoEncoding,
@@ -1578,12 +1578,10 @@ class OatDumper {
               stack_map_encoding.GetStackMaskIndexEncoding().BitSize() * num_stack_maps);
           stats_.AddBits(
               Stats::kByteKindCodeInfoStackMasks,
-              helper.GetCodeInfo().GetNumberOfStackMaskBits(encoding) *
-                  encoding.number_of_stack_masks);
+              encoding.stack_mask.encoding.BitSize() * encoding.stack_mask.num_entries);
           stats_.AddBits(
               Stats::kByteKindCodeInfoRegisterMasks,
-              encoding.register_mask_size_in_bits * encoding.number_of_stack_masks);
-          const size_t stack_map_bytes = helper.GetCodeInfo().GetStackMapsSize(encoding);
+              encoding.register_mask.encoding.BitSize() * encoding.register_mask.num_entries);
           const size_t location_catalog_bytes =
               helper.GetCodeInfo().GetDexRegisterLocationCatalogSize(encoding);
           stats_.AddBits(Stats::kByteKindCodeInfoLocationCatalog,
@@ -1593,13 +1591,9 @@ class OatDumper {
           stats_.AddBits(
               Stats::kByteKindCodeInfoDexRegisterMap,
               kBitsPerByte * dex_register_bytes);
-          const size_t inline_info_bytes =
-              encoding.non_header_size -
-              stack_map_bytes -
-              location_catalog_bytes -
-              dex_register_bytes;
           stats_.AddBits(Stats::kByteKindCodeInfoInlineInfo,
-                         inline_info_bytes * kBitsPerByte);
+                         encoding.inline_info.encoding.BitSize() *
+                            encoding.inline_info.num_entries);
         }
       }
       const uint8_t* quick_native_pc = reinterpret_cast<const uint8_t*>(quick_code);

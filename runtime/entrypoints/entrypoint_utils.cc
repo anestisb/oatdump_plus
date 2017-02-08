@@ -204,12 +204,12 @@ static inline ArtMethod* DoGetCalleeSaveMethodCaller(ArtMethod* outer_method,
       CodeInfoEncoding encoding = code_info.ExtractEncoding();
       StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset, encoding);
       DCHECK(stack_map.IsValid());
-      if (stack_map.HasInlineInfo(encoding.stack_map_encoding)) {
+      if (stack_map.HasInlineInfo(encoding.stack_map.encoding)) {
         InlineInfo inline_info = code_info.GetInlineInfoOf(stack_map, encoding);
         caller = GetResolvedMethod(outer_method,
                                    inline_info,
-                                   encoding.inline_info_encoding,
-                                   inline_info.GetDepth(encoding.inline_info_encoding) - 1);
+                                   encoding.inline_info.encoding,
+                                   inline_info.GetDepth(encoding.inline_info.encoding) - 1);
       }
     }
     if (kIsDebugBuild && do_caller_check) {

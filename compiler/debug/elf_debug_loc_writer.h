@@ -104,7 +104,7 @@ std::vector<VariableLocation> GetVariableLocations(
   for (uint32_t s = 0; s < code_info.GetNumberOfStackMaps(encoding); s++) {
     StackMap stack_map = code_info.GetStackMapAt(s, encoding);
     DCHECK(stack_map.IsValid());
-    if (!stack_map.HasDexRegisterMap(encoding.stack_map_encoding)) {
+    if (!stack_map.HasDexRegisterMap(encoding.stack_map.encoding)) {
       // The compiler creates stackmaps without register maps at the start of
       // basic blocks in order to keep instruction-accurate line number mapping.
       // However, we never stop at those (breakpoint locations always have map).
@@ -112,7 +112,7 @@ std::vector<VariableLocation> GetVariableLocations(
       // The main reason for this is to save space by avoiding undefined gaps.
       continue;
     }
-    const uint32_t pc_offset = stack_map.GetNativePcOffset(encoding.stack_map_encoding, isa);
+    const uint32_t pc_offset = stack_map.GetNativePcOffset(encoding.stack_map.encoding, isa);
     DCHECK_LE(pc_offset, method_info->code_size);
     DCHECK_LE(compilation_unit_code_address, method_info->code_address);
     const uint32_t low_pc = dchecked_integral_cast<uint32_t>(
@@ -136,7 +136,7 @@ std::vector<VariableLocation> GetVariableLocations(
     }
 
     // Check that the stack map is in the requested range.
-    uint32_t dex_pc = stack_map.GetDexPc(encoding.stack_map_encoding);
+    uint32_t dex_pc = stack_map.GetDexPc(encoding.stack_map.encoding);
     if (!(dex_pc_low <= dex_pc && dex_pc < dex_pc_high)) {
       // The variable is not in scope at this PC. Therefore omit the entry.
       // Note that this is different to None() entry which means in scope, but unknown location.
