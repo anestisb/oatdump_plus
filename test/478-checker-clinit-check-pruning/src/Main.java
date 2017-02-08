@@ -400,8 +400,10 @@ public class Main {
   /// CHECK-NOT:                           ClinitCheck
 
   static void inlinedInvokeStaticViaNonStatic(Iterable<?> it) {
-    inlinedInvokeStaticViaNonStaticHelper(null);
-    inlinedInvokeStaticViaNonStaticHelper(it);
+    if (it != null) {
+      inlinedInvokeStaticViaNonStaticHelper(null);
+      inlinedInvokeStaticViaNonStaticHelper(it);
+    }
   }
 
   static void inlinedInvokeStaticViaNonStaticHelper(Iterable<?> it) {
@@ -417,8 +419,8 @@ public class Main {
     static void inlinedForNull(Iterable<?> it) {
       if (it != null) {
         it.iterator();
-        // We're not inlining throw at the moment.
-        if (doThrow) { throw new Error(""); }
+        // We're not inlining methods that always throw.
+        throw new Error("");
       }
     }
   }
@@ -441,7 +443,9 @@ public class Main {
   /// CHECK-NOT:                           ClinitCheck
 
   static void inlinedInvokeStaticViaStatic(Iterable<?> it) {
-    ClassWithClinit11.callInlinedForNull(it);
+    if (it != null) {
+      ClassWithClinit11.callInlinedForNull(it);
+    }
   }
 
   static class ClassWithClinit11 {
@@ -457,8 +461,8 @@ public class Main {
     static void inlinedForNull(Iterable<?> it) {
       it.iterator();
       if (it != null) {
-        // We're not inlining throw at the moment.
-        if (doThrow) { throw new Error(""); }
+        // We're not inlining methods that always throw.
+        throw new Error("");
       }
     }
   }
@@ -476,8 +480,10 @@ public class Main {
   /// CHECK-NOT:                           ClinitCheck
 
   static void inlinedInvokeStaticViaStaticTwice(Iterable<?> it) {
-    ClassWithClinit12.callInlinedForNull(null);
-    ClassWithClinit12.callInlinedForNull(it);
+    if (it != null) {
+      ClassWithClinit12.callInlinedForNull(null);
+      ClassWithClinit12.callInlinedForNull(it);
+    }
   }
 
   static class ClassWithClinit12 {
@@ -492,8 +498,8 @@ public class Main {
 
     static void inlinedForNull(Iterable<?> it) {
       if (it != null) {
-        // We're not inlining throw at the moment.
-        if (doThrow) { throw new Error(""); }
+        // We're not inlining methods that always throw.
+        throw new Error("");
       }
     }
   }
@@ -537,9 +543,21 @@ public class Main {
     constClassAndInvokeStatic(it);
     sgetAndInvokeStatic(it);
     constClassSgetAndInvokeStatic(it);
-    inlinedInvokeStaticViaNonStatic(it);
-    inlinedInvokeStaticViaStatic(it);
-    inlinedInvokeStaticViaStaticTwice(it);
+    try {
+      inlinedInvokeStaticViaNonStatic(it);
+    } catch (Error e) {
+      // Expected
+    }
+    try {
+      inlinedInvokeStaticViaStatic(it);
+    } catch (Error e) {
+      // Expected
+    }
+    try{
+      inlinedInvokeStaticViaStaticTwice(it);
+    } catch (Error e) {
+      // Expected
+    }
     $noinline$testInliningAndNewInstance(it);
   }
 }
