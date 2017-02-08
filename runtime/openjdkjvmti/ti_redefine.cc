@@ -38,12 +38,17 @@
 #include "art_jvmti.h"
 #include "base/array_slice.h"
 #include "base/logging.h"
+#include "debugger.h"
 #include "dex_file.h"
 #include "dex_file_types.h"
 #include "events-inl.h"
 #include "gc/allocation_listener.h"
 #include "gc/heap.h"
 #include "instrumentation.h"
+#include "jdwp/jdwp.h"
+#include "jdwp/jdwp_constants.h"
+#include "jdwp/jdwp_event.h"
+#include "jdwp/object_registry.h"
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
 #include "jni_env_ext-inl.h"
@@ -749,6 +754,23 @@ bool Redefiner::ClassRedefinition::FinishRemainingAllocations(
   return true;
 }
 
+void Redefiner::ClassRedefinition::UnregisterBreakpoints() {
+  DCHECK(art::Dbg::IsDebuggerActive());
+  art::JDWP::JdwpState* state = art::Dbg::GetJdwpState();
+  if (state != nullptr) {
+    state->UnregisterLocationEventsOnClass(GetMirrorClass());
+  }
+}
+
+void Redefiner::UnregisterAllBreakpoints() {
+  if (LIKELY(!art::Dbg::IsDebuggerActive())) {
+    return;
+  }
+  for (Redefiner::ClassRedefinition& redef : redefinitions_) {
+    redef.UnregisterBreakpoints();
+  }
+}
+
 bool Redefiner::CheckAllRedefinitionAreValid() {
   for (Redefiner::ClassRedefinition& redef : redefinitions_) {
     if (!redef.CheckRedefinitionIsValid()) {
@@ -815,6 +837,7 @@ jvmtiError Redefiner::Run() {
     // cleaned up by the GC eventually.
     return result_;
   }
+  // At this point we can no longer fail without corrupting the runtime state.
   int32_t counter = 0;
   for (Redefiner::ClassRedefinition& redef : redefinitions_) {
     if (holder.GetSourceClassLoader(counter) == nullptr) {
@@ -822,6 +845,7 @@ jvmtiError Redefiner::Run() {
     }
     counter++;
   }
+  UnregisterAllBreakpoints();
   // Disable GC and wait for it to be done if we are a moving GC.  This is fine since we are done
   // allocating so no deadlocks.
   art::gc::Heap* heap = runtime_->GetHeap();
@@ -854,9 +878,7 @@ jvmtiError Redefiner::Run() {
                       holder.GetOriginalDexFileBytes(counter));
     counter++;
   }
-  // TODO Verify the new Class.
   // TODO Shrink the obsolete method maps if possible?
-  // TODO find appropriate class loader.
   // TODO Put this into a scoped thing.
   runtime_->GetThreadList()->ResumeAll();
   // Get back shared mutator lock as expected for return.
