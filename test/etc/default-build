@@ -234,7 +234,7 @@ else
   fi
 fi
 
-if [ "${HAS_SMALI}" = "true" ]; then
+if [ "${HAS_SMALI}" = "true" -a ${NEED_DEX} = "true" ]; then
   # Compile Smali classes
   ${SMALI} -JXmx512m ${SMALI_ARGS} --output smali_classes.dex `find smali -name '*.smali'`
 
@@ -246,7 +246,7 @@ if [ "${HAS_SMALI}" = "true" ]; then
   fi
 fi
 
-if [ "${HAS_SMALI_MULTIDEX}" = "true" ]; then
+if [ "${HAS_SMALI_MULTIDEX}" = "true" -a ${NEED_DEX} = "true" ]; then
   # Compile Smali classes
   ${SMALI} -JXmx512m ${SMALI_ARGS} --output smali_classes2.dex `find smali-multidex -name '*.smali'`
 
