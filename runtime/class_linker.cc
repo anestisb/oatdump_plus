@@ -5679,14 +5679,7 @@ class LinkVirtualHashTable {
 const uint32_t LinkVirtualHashTable::invalid_index_ = std::numeric_limits<uint32_t>::max();
 const uint32_t LinkVirtualHashTable::removed_index_ = std::numeric_limits<uint32_t>::max() - 1;
 
-// b/30419309
-#if defined(__i386__)
-#define X86_OPTNONE __attribute__((optnone))
-#else
-#define X86_OPTNONE
-#endif
-
-X86_OPTNONE bool ClassLinker::LinkVirtualMethods(
+bool ClassLinker::LinkVirtualMethods(
     Thread* self,
     Handle<mirror::Class> klass,
     /*out*/std::unordered_map<size_t, ClassLinker::MethodTranslation>* default_translations) {
