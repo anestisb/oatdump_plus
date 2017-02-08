@@ -241,12 +241,6 @@
         "variant": "interpreter | jit"
     },
     {
-        "test": "902-hello-transformation",
-        "description": "Test 902 hits races with the JIT compiler.",
-        "bug": "http://b/32821077",
-        "variant": "jit"
-    },
-    {
         "test": "906-iterate-heap",
         "description": ["Test 906 iterates the heap filtering with different",
                         "options. No instances should be created between those",
@@ -254,23 +248,7 @@
         "variant": "jit"
     },
     {
-        "tests": ["914-hello-obsolescence",
-                  "915-obsolete-2",
-                  "917-fields-transformation",
-                  "919-obsolete-fields"],
-        "description": ["Test 914, 915, 917, & 919 are very sensitive to the",
-                        "exact state of the stack, including the jit-inserted",
-                        "runtime frames. This causes them to be somewhat flaky",
-                        "as JIT tests. This should be fixed once b/33630159 or",
-                        "b/33616143 are resolved but until then just disable",
-                        "them. Test 916 already checks this feature for JIT",
-                        "use cases in a way that is resilient to the jit",
-                        "frames."],
-        "variant": "jit"
-    },
-    {
-        "tests": ["926-multi-obsolescence",
-                  "904-object-allocation"],
+        "tests": ["904-object-allocation"],
         "variant": "jit"
     },
     {
