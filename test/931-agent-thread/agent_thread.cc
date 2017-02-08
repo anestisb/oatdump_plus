@@ -15,6 +15,7 @@
  */
 
 #include <inttypes.h>
+#include <sched.h>
 
 #include "barrier.h"
 #include "base/logging.h"
@@ -124,6 +125,24 @@ extern "C" JNIEXPORT void JNICALL Java_Main_testAgentThread(
   }
 
   data.b.Wait(Thread::Current());
+
+  // Scheduling may mean that the agent thread is put to sleep. Wait until it's dead in an effort
+  // to not unload the plugin and crash.
+  for (;;) {
+    NanoSleep(1000 * 1000);
+    jint thread_state;
+    jvmtiError state_result = jvmti_env->GetThreadState(thread.get(), &thread_state);
+    if (JvmtiErrorToException(env, state_result)) {
+      return;
+    }
+    if (thread_state == 0 ||                                    // Was never alive.
+        (thread_state & JVMTI_THREAD_STATE_TERMINATED) != 0) {  // Was alive and died.
+      break;
+    }
+  }
+  // Yield and sleep a bit more, to give the plugin time to tear down the native thread structure.
+  sched_yield();
+  NanoSleep(100 * 1000 * 1000);
 
   env->DeleteGlobalRef(data.main_thread);
 }
