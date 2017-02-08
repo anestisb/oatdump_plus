@@ -452,8 +452,8 @@ def run_test(command, test, test_variant, test_name):
     test_skipped = True
   else:
     test_skipped = False
-    proc = subprocess.Popen(command.split(), stderr=subprocess.PIPE)
-    script_output = proc.stderr.read().strip()
+    proc = subprocess.Popen(command.split(), stderr=subprocess.STDOUT, stdout=subprocess.PIPE)
+    script_output = proc.stdout.read().strip()
     test_passed = not proc.wait()
 
   # If verbose is set to True, every test information is printed on a new line.
