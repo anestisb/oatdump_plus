@@ -1,3 +1,6 @@
+hello - Verification
+Transformation error : java.lang.Exception(Failed to redefine class <LTransform;> due to JVMTI_ERROR_FAILS_VERIFICATION)
+hello - Verification
 hello - NewName
 Transformation error : java.lang.Exception(Failed to redefine class <LTransform;> due to JVMTI_ERROR_NAMES_DONT_MATCH)
 hello - NewName

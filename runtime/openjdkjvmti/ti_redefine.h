@@ -165,6 +165,11 @@ class Redefiner {
     // data has not been modified in an incompatible manner.
     bool CheckClass() REQUIRES_SHARED(art::Locks::mutator_lock_);
 
+    // Checks that the contained class can be successfully verified.
+    bool CheckVerification(int32_t klass_index,
+                           const RedefinitionDataHolder& holder)
+        REQUIRES_SHARED(art::Locks::mutator_lock_);
+
     // Preallocates all needed allocations in klass so that we can pause execution safely.
     // TODO We should be able to free the arrays if they end up not being used. Investigate doing
     // this in the future. For now we will just take the memory hit.
@@ -239,6 +244,8 @@ class Redefiner {
   jvmtiError Run() REQUIRES_SHARED(art::Locks::mutator_lock_);
 
   bool CheckAllRedefinitionAreValid() REQUIRES_SHARED(art::Locks::mutator_lock_);
+  bool CheckAllClassesAreVerified(const RedefinitionDataHolder& holder)
+      REQUIRES_SHARED(art::Locks::mutator_lock_);
   bool EnsureAllClassAllocationsFinished() REQUIRES_SHARED(art::Locks::mutator_lock_);
   bool FinishAllRemainingAllocations(RedefinitionDataHolder& holder)
       REQUIRES_SHARED(art::Locks::mutator_lock_);
