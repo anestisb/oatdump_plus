@@ -55,10 +55,6 @@ mirror::Class* ClassTable::LookupByDescriptor(ObjPtr<mirror::Class> klass) {
   return nullptr;
 }
 
-// Bug: http://b/31104323 Ignore -Wunreachable-code from the for loop below
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunreachable-code"
-
 mirror::Class* ClassTable::UpdateClass(const char* descriptor, mirror::Class* klass, size_t hash) {
   WriterMutexLock mu(Thread::Current(), lock_);
   // Should only be updating latest table.
@@ -83,8 +79,6 @@ mirror::Class* ClassTable::UpdateClass(const char* descriptor, mirror::Class* kl
   *existing_it = TableSlot(klass, hash);
   return existing;
 }
-
-#pragma clang diagnostic pop  // http://b/31104323
 
 size_t ClassTable::CountDefiningLoaderClasses(ObjPtr<mirror::ClassLoader> defining_loader,
                                               const ClassSet& set) const {
