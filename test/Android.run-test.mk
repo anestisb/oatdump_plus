@@ -547,7 +547,6 @@ TEST_ART_BROKEN_JIT_RUN_TESTS := \
   902-hello-transformation \
   904-object-allocation \
   906-iterate-heap \
-  912-classes \
   914-hello-obsolescence \
   915-obsolete-2 \
   917-fields-transformation \
