@@ -441,7 +441,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
           const uint8_t* addr = reinterpret_cast<const uint8_t*>(GetCurrentQuickFrame()) + offset;
           value = *reinterpret_cast<const uint32_t*>(addr);
           uint32_t bit = (offset >> 2);
-          if (bit < encoding.stack_mask_size_in_bits && stack_mask.LoadBit(bit)) {
+          if (bit < encoding.stack_mask.encoding.BitSize() && stack_mask.LoadBit(bit)) {
             is_reference = true;
           }
           break;

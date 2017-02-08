@@ -40,6 +40,10 @@ class BitMemoryRegion FINAL : public ValueObject {
     return region_.size_in_bits();
   }
 
+  ALWAYS_INLINE BitMemoryRegion Subregion(size_t bit_offset, size_t bit_size) const {
+    return BitMemoryRegion(region_, bit_start_ + bit_offset, bit_size);
+  }
+
   // Load a single bit in the region. The bit at offset 0 is the least
   // significant bit in the first byte.
   ALWAYS_INLINE bool LoadBit(uintptr_t bit_offset) const {

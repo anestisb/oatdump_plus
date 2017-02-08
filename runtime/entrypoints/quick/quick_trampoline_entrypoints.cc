@@ -346,12 +346,12 @@ class QuickArgumentVisitor {
       CodeInfoEncoding encoding = code_info.ExtractEncoding();
       StackMap stack_map = code_info.GetStackMapForNativePcOffset(outer_pc_offset, encoding);
       DCHECK(stack_map.IsValid());
-      if (stack_map.HasInlineInfo(encoding.stack_map_encoding)) {
+      if (stack_map.HasInlineInfo(encoding.stack_map.encoding)) {
         InlineInfo inline_info = code_info.GetInlineInfoOf(stack_map, encoding);
-        return inline_info.GetDexPcAtDepth(encoding.inline_info_encoding,
-                                           inline_info.GetDepth(encoding.inline_info_encoding)-1);
+        return inline_info.GetDexPcAtDepth(encoding.inline_info.encoding,
+                                           inline_info.GetDepth(encoding.inline_info.encoding)-1);
       } else {
-        return stack_map.GetDexPc(encoding.stack_map_encoding);
+        return stack_map.GetDexPc(encoding.stack_map.encoding);
       }
     } else {
       return current_code->ToDexPc(*caller_sp, outer_pc);
