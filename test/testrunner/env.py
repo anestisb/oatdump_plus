@@ -165,7 +165,7 @@ else:
   ART_PHONY_TEST_HOST_SUFFIX = "64"
   _2ND_ART_PHONY_TEST_HOST_SUFFIX = "32"
 
-HOST_OUT_EXECUTABLES = ('%s/%s') % (ANDROID_BUILD_TOP,
+HOST_OUT_EXECUTABLES = os.path.join(ANDROID_BUILD_TOP,
                                     get_build_var("HOST_OUT_EXECUTABLES"))
 os.environ['JACK'] = HOST_OUT_EXECUTABLES + '/jack'
 os.environ['DX'] = HOST_OUT_EXECUTABLES + '/dx'
