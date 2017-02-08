@@ -79,13 +79,6 @@ class StackMapStream : public ValueObject {
         current_entry_(),
         current_inline_info_(),
         code_info_encoding_(allocator->Adapter(kArenaAllocStackMapStream)),
-        inline_info_size_(0),
-        dex_register_maps_size_(0),
-        stack_maps_size_(0),
-        dex_register_location_catalog_size_(0),
-        dex_register_location_catalog_start_(0),
-        dex_register_maps_start_(0),
-        inline_infos_start_(0),
         needed_size_(0),
         current_dex_register_(0),
         in_inline_frame_(false) {
@@ -160,7 +153,8 @@ class StackMapStream : public ValueObject {
   size_t ComputeDexRegisterMapSize(uint32_t num_dex_registers,
                                    const BitVector* live_dex_registers_mask) const;
   size_t ComputeDexRegisterMapsSize() const;
-  void ComputeInlineInfoEncoding();
+  void ComputeInlineInfoEncoding(InlineInfoEncoding* encoding,
+                                 size_t dex_register_maps_bytes);
 
   CodeOffset ComputeMaxNativePcCodeOffset() const;
 
@@ -214,16 +208,7 @@ class StackMapStream : public ValueObject {
 
   StackMapEntry current_entry_;
   InlineInfoEntry current_inline_info_;
-  StackMapEncoding stack_map_encoding_;
-  InlineInfoEncoding inline_info_encoding_;
   ArenaVector<uint8_t> code_info_encoding_;
-  size_t inline_info_size_;
-  size_t dex_register_maps_size_;
-  size_t stack_maps_size_;
-  size_t dex_register_location_catalog_size_;
-  size_t dex_register_location_catalog_start_;
-  size_t dex_register_maps_start_;
-  size_t inline_infos_start_;
   size_t needed_size_;
   uint32_t current_dex_register_;
   bool in_inline_frame_;
