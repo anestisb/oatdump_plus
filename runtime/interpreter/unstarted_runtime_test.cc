@@ -944,5 +944,100 @@ TEST_F(UnstartedRuntimeTest, GetDeclaringClass) {
   ShadowFrame::DeleteDeoptimizedFrame(shadow_frame);
 }
 
+TEST_F(UnstartedRuntimeTest, ThreadLocalGet) {
+  Thread* self = Thread::Current();
+  ScopedObjectAccess soa(self);
+
+  JValue result;
+  ShadowFrame* shadow_frame = ShadowFrame::CreateDeoptimizedFrame(10, nullptr, nullptr, 0);
+
+  StackHandleScope<1> hs(self);
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+
+  // Positive test. See that We get something for float conversion.
+  {
+    Handle<mirror::Class> floating_decimal = hs.NewHandle(
+        class_linker->FindClass(self,
+                                "Lsun/misc/FloatingDecimal;",
+                                ScopedNullHandle<mirror::ClassLoader>()));
+    ASSERT_TRUE(floating_decimal.Get() != nullptr);
+    ASSERT_TRUE(class_linker->EnsureInitialized(self, floating_decimal, true, true));
+
+    ArtMethod* caller_method = floating_decimal->FindDeclaredDirectMethod(
+        "getBinaryToASCIIBuffer",
+        "()Lsun/misc/FloatingDecimal$BinaryToASCIIBuffer;",
+        class_linker->GetImagePointerSize());
+    // floating_decimal->DumpClass(LOG_STREAM(ERROR), mirror::Class::kDumpClassFullDetail);
+    ASSERT_TRUE(caller_method != nullptr);
+    ShadowFrame* caller_frame = ShadowFrame::CreateDeoptimizedFrame(10, nullptr, caller_method, 0);
+    shadow_frame->SetLink(caller_frame);
+
+    UnstartedThreadLocalGet(self, shadow_frame, &result, 0);
+    EXPECT_TRUE(result.GetL() != nullptr);
+    EXPECT_FALSE(self->IsExceptionPending());
+
+    ShadowFrame::DeleteDeoptimizedFrame(caller_frame);
+  }
+
+  // Negative test.
+  PrepareForAborts();
+
+  {
+    // Just use a method in Class.
+    ObjPtr<mirror::Class> class_class = mirror::Class::GetJavaLangClass();
+    ArtMethod* caller_method =
+        &*class_class->GetDeclaredMethods(class_linker->GetImagePointerSize()).begin();
+    ShadowFrame* caller_frame = ShadowFrame::CreateDeoptimizedFrame(10, nullptr, caller_method, 0);
+    shadow_frame->SetLink(caller_frame);
+
+    Transaction transaction;
+    Runtime::Current()->EnterTransactionMode(&transaction);
+    UnstartedThreadLocalGet(self, shadow_frame, &result, 0);
+    Runtime::Current()->ExitTransactionMode();
+    ASSERT_TRUE(self->IsExceptionPending());
+    ASSERT_TRUE(transaction.IsAborted());
+    self->ClearException();
+
+    ShadowFrame::DeleteDeoptimizedFrame(caller_frame);
+  }
+
+  ShadowFrame::DeleteDeoptimizedFrame(shadow_frame);
+}
+
+TEST_F(UnstartedRuntimeTest, FloatConversion) {
+  Thread* self = Thread::Current();
+  ScopedObjectAccess soa(self);
+
+  StackHandleScope<1> hs(self);
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Handle<mirror::Class> double_class = hs.NewHandle(
+          class_linker->FindClass(self,
+                                  "Ljava/lang/Double;",
+                                  ScopedNullHandle<mirror::ClassLoader>()));
+  ASSERT_TRUE(double_class.Get() != nullptr);
+  ASSERT_TRUE(class_linker->EnsureInitialized(self, double_class, true, true));
+
+  ArtMethod* method = double_class->FindDeclaredDirectMethod("toString",
+                                                             "(D)Ljava/lang/String;",
+                                                             class_linker->GetImagePointerSize());
+  ASSERT_TRUE(method != nullptr);
+
+  // create instruction data for invoke-direct {v0, v1} of method with fake index
+  uint16_t inst_data[3] = { 0x2070, 0x0000, 0x0010 };
+  const Instruction* inst = Instruction::At(inst_data);
+
+  JValue result;
+  ShadowFrame* shadow_frame = ShadowFrame::CreateDeoptimizedFrame(10, nullptr, method, 0);
+  shadow_frame->SetVRegDouble(0, 1.23);
+  interpreter::DoCall<false, false>(method, self, *shadow_frame, inst, inst_data[0], &result);
+  ObjPtr<mirror::String> string_result = reinterpret_cast<mirror::String*>(result.GetL());
+  ASSERT_TRUE(string_result != nullptr);
+
+  std::string mod_utf = string_result->ToModifiedUtf8();
+  EXPECT_EQ("1.23", mod_utf);
+
+  ShadowFrame::DeleteDeoptimizedFrame(shadow_frame);
+}
+
 }  // namespace interpreter
 }  // namespace art
