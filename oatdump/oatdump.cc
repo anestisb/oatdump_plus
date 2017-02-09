@@ -587,7 +587,6 @@ class OatDumper {
       kByteKindCodeInfoLocationCatalog,
       kByteKindCodeInfoDexRegisterMap,
       kByteKindCodeInfoEncoding,
-      kByteKindCodeInfoOther,
       kByteKindCodeInfoStackMasks,
       kByteKindCodeInfoRegisterMasks,
       kByteKindStackMapNativePc,
@@ -661,7 +660,7 @@ class OatDumper {
                stack_map_bits,
                "stack map");
           Dump(os,
-               "StackMapInlineInfoInde        ",
+               "StackMapInlineInfoIndex       ",
                bits[kByteKindStackMapInlineInfoIndex],
                stack_map_bits,
                "stack map");
