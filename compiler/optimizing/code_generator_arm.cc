@@ -624,6 +624,10 @@ class ArraySetSlowPathARM : public SlowPathCodeARM {
 // probably still be a from-space reference (unless it gets updated by
 // another thread, or if another thread installed another object
 // reference (different from `ref`) in `obj.field`).
+//
+// If `entrypoint` is a valid location it is assumed to already be
+// holding the entrypoint. The case where the entrypoint is passed in
+// is for the GcRoot read barrier.
 class ReadBarrierMarkSlowPathARM : public SlowPathCodeARM {
  public:
   ReadBarrierMarkSlowPathARM(HInstruction* instruction,
