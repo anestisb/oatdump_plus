@@ -448,11 +448,8 @@ static void PreloadDexCachesStatsFilled(DexCacheStats* filled)
   Thread* const self = Thread::Current();
   for (const DexFile* dex_file : class_linker->GetBootClassPath()) {
     CHECK(dex_file != nullptr);
-    ObjPtr<mirror::DexCache> const dex_cache = class_linker->FindDexCache(self, *dex_file, true);
-    // If dex cache was deallocated, just continue.
-    if (dex_cache == nullptr) {
-      continue;
-    }
+    ObjPtr<mirror::DexCache> const dex_cache = class_linker->FindDexCache(self, *dex_file);
+    CHECK(dex_cache != nullptr);  // Boot class path dex caches are never unloaded.
     for (size_t j = 0; j < dex_cache->NumStrings(); j++) {
       ObjPtr<mirror::String> string = dex_cache->GetResolvedString(dex::StringIndex(j));
       if (string != nullptr) {
@@ -515,7 +512,7 @@ static void VMRuntime_preloadDexCaches(JNIEnv* env, jobject) {
     CHECK(dex_file != nullptr);
     StackHandleScope<1> hs(soa.Self());
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(linker->RegisterDexFile(*dex_file, nullptr)));
-
+    CHECK(dex_cache.Get() != nullptr);  // Boot class path dex caches are never unloaded.
     if (kPreloadDexCachesStrings) {
       for (size_t j = 0; j < dex_cache->NumStrings(); j++) {
         PreloadDexCachesResolveString(dex_cache, dex::StringIndex(j), strings);

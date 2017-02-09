@@ -128,7 +128,7 @@ static void InMemoryDexClassLoader_DexData_uninitialize(JNIEnv* env, jclass, jlo
   if (kIsDebugBuild) {
     ScopedObjectAccess soa(env);
     ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
-    CHECK(class_linker->FindDexCache(soa.Self(), *dex_file, true) == nullptr);
+    CHECK(!class_linker->IsDexFileRegistered(soa.Self(), *dex_file));
   }
   delete dex_file;
 }
@@ -153,7 +153,13 @@ static jclass InMemoryDexClassLoader_DexData_findClass(
     StackHandleScope<1> handle_scope(soa.Self());
     Handle<mirror::ClassLoader> class_loader(
         handle_scope.NewHandle(soa.Decode<mirror::ClassLoader>(loader)));
-    class_linker->RegisterDexFile(*dex_file, class_loader.Get());
+    ObjPtr<mirror::DexCache> dex_cache =
+        class_linker->RegisterDexFile(*dex_file, class_loader.Get());
+    if (dex_cache == nullptr) {
+      // OOME or InternalError (dexFile already registered with a different class loader).
+      soa.Self()->AssertPendingException();
+      return nullptr;
+    }
     ObjPtr<mirror::Class> result = class_linker->DefineClass(
         soa.Self(),
         class_descriptor,
