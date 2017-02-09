@@ -540,7 +540,6 @@ TEST_ART_BROKEN_JIT_RUN_TESTS := \
   629-vdex-speed \
   904-object-allocation \
   906-iterate-heap \
-  912-classes \
 
 ifneq (,$(filter jit,$(COMPILER_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
