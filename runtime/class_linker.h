@@ -382,11 +382,11 @@ class ClassLinker {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::dex_lock_, !Roles::uninterruptible_);
 
-  mirror::DexCache* RegisterDexFile(const DexFile& dex_file,
-                                    ObjPtr<mirror::ClassLoader> class_loader)
+  ObjPtr<mirror::DexCache> RegisterDexFile(const DexFile& dex_file,
+                                           ObjPtr<mirror::ClassLoader> class_loader)
       REQUIRES(!Locks::dex_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  void RegisterDexFile(const DexFile& dex_file, Handle<mirror::DexCache> dex_cache)
+  void RegisterBootClassPathDexFile(const DexFile& dex_file, ObjPtr<mirror::DexCache> dex_cache)
       REQUIRES(!Locks::dex_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -413,9 +413,13 @@ class ClassLinker {
       REQUIRES(!Locks::dex_lock_, !Locks::classlinker_classes_lock_, !Locks::trace_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  mirror::DexCache* FindDexCache(Thread* self,
-                                 const DexFile& dex_file,
-                                 bool allow_failure = false)
+  bool IsDexFileRegistered(Thread* self, const DexFile& dex_file)
+      REQUIRES(!Locks::dex_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  ObjPtr<mirror::DexCache> FindDexCache(Thread* self, const DexFile& dex_file)
+      REQUIRES(!Locks::dex_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  ClassTable* FindClassTable(Thread* self, ObjPtr<mirror::DexCache> dex_cache)
       REQUIRES(!Locks::dex_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
   void FixupDexCaches(ArtMethod* resolution_method)
@@ -655,6 +659,18 @@ class ClassLinker {
       REQUIRES(!Locks::dex_lock_);
 
   struct DexCacheData {
+    // Construct an invalid data object.
+    DexCacheData()
+        : weak_root(nullptr),
+          dex_file(nullptr),
+          resolved_methods(nullptr),
+          class_table(nullptr) { }
+
+    // Check if the data is valid.
+    bool IsValid() const {
+      return dex_file != nullptr;
+    }
+
     // Weak root to the DexCache. Note: Do not decode this unnecessarily or else class unloading may
     // not work properly.
     jweak weak_root;
@@ -663,6 +679,11 @@ class ClassLinker {
     // class unloading.)
     const DexFile* dex_file;
     ArtMethod** resolved_methods;
+    // Identify the associated class loader's class table. This is used to make sure that
+    // the Java call to native DexCache.setResolvedType() inserts the resolved type in that
+    // class table. It is also used to make sure we don't register the same dex cache with
+    // multiple class loaders.
+    ClassTable* class_table;
   };
 
  private:
@@ -749,7 +770,7 @@ class ClassLinker {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::dex_lock_, !Roles::uninterruptible_);
 
-  void AppendToBootClassPath(const DexFile& dex_file, Handle<mirror::DexCache> dex_cache)
+  void AppendToBootClassPath(const DexFile& dex_file, ObjPtr<mirror::DexCache> dex_cache)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::dex_lock_);
 
@@ -810,11 +831,23 @@ class ClassLinker {
       REQUIRES(!Locks::classlinker_classes_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void RegisterDexFileLocked(const DexFile& dex_file, Handle<mirror::DexCache> dex_cache)
+  void RegisterDexFileLocked(const DexFile& dex_file,
+                             ObjPtr<mirror::DexCache> dex_cache,
+                             ObjPtr<mirror::ClassLoader> class_loader)
       REQUIRES(Locks::dex_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  mirror::DexCache* FindDexCacheLocked(Thread* self, const DexFile& dex_file, bool allow_failure)
+  DexCacheData FindDexCacheDataLocked(const DexFile& dex_file)
       REQUIRES(Locks::dex_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  static ObjPtr<mirror::DexCache> DecodeDexCache(Thread* self, const DexCacheData& data)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  // Called to ensure that the dex cache has been registered with the same class loader.
+  // If yes, returns the dex cache, otherwise throws InternalError and returns null.
+  ObjPtr<mirror::DexCache> EnsureSameClassLoader(Thread* self,
+                                                 ObjPtr<mirror::DexCache> dex_cache,
+                                                 const DexCacheData& data,
+                                                 ObjPtr<mirror::ClassLoader> class_loader)
+      REQUIRES(!Locks::dex_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool InitializeClass(Thread* self,

@@ -192,6 +192,12 @@ class ClassTable {
       REQUIRES(!lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // Try to insert a class and return the inserted class if successful. If another class
+  // with the same descriptor is already in the table, return the existing entry.
+  ObjPtr<mirror::Class> TryInsert(ObjPtr<mirror::Class> klass)
+      REQUIRES(!lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   void Insert(ObjPtr<mirror::Class> klass)
       REQUIRES(!lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);

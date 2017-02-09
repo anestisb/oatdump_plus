@@ -381,7 +381,7 @@ art::mirror::ClassLoader* Redefiner::ClassRedefinition::GetClassLoader() {
 
 art::mirror::DexCache* Redefiner::ClassRedefinition::CreateNewDexCache(
     art::Handle<art::mirror::ClassLoader> loader) {
-  return driver_->runtime_->GetClassLinker()->RegisterDexFile(*dex_file_, loader.Get());
+  return driver_->runtime_->GetClassLinker()->RegisterDexFile(*dex_file_, loader.Get()).Ptr();
 }
 
 void Redefiner::RecordFailure(jvmtiError result,
@@ -949,7 +949,7 @@ bool Redefiner::ClassRedefinition::FinishRemainingAllocations(
   }
   holder->SetNewDexCache(klass_index, CreateNewDexCache(loader));
   if (holder->GetNewDexCache(klass_index) == nullptr) {
-    driver_->self_->AssertPendingOOMException();
+    driver_->self_->AssertPendingException();
     driver_->self_->ClearException();
     RecordFailure(ERR(OUT_OF_MEMORY), "Unable to allocate DexCache");
     return false;
