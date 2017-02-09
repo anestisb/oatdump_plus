@@ -24,9 +24,8 @@
 
 namespace art {
 
-static inline mirror::DexCache* FindDexCacheWithHint(Thread* self,
-                                                     const DexFile& dex_file,
-                                                     Handle<mirror::DexCache> hint_dex_cache)
+static inline ObjPtr<mirror::DexCache> FindDexCacheWithHint(
+    Thread* self, const DexFile& dex_file, Handle<mirror::DexCache> hint_dex_cache)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   if (LIKELY(hint_dex_cache->GetDexFile() == &dex_file)) {
     return hint_dex_cache.Get();
@@ -542,7 +541,7 @@ void ReferenceTypePropagation::RTPVisitor::UpdateReferenceTypeInfo(HInstruction*
   DCHECK_EQ(instr->GetType(), Primitive::kPrimNot);
 
   ScopedObjectAccess soa(Thread::Current());
-  mirror::DexCache* dex_cache = FindDexCacheWithHint(soa.Self(), dex_file, hint_dex_cache_);
+  ObjPtr<mirror::DexCache> dex_cache = FindDexCacheWithHint(soa.Self(), dex_file, hint_dex_cache_);
   // Get type from dex cache assuming it was populated by the verifier.
   SetClassAsTypeInfo(instr, dex_cache->GetResolvedType(type_idx), is_exact);
 }
@@ -562,7 +561,7 @@ static mirror::Class* GetClassFromDexCache(Thread* self,
                                            dex::TypeIndex type_idx,
                                            Handle<mirror::DexCache> hint_dex_cache)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  mirror::DexCache* dex_cache = FindDexCacheWithHint(self, dex_file, hint_dex_cache);
+  ObjPtr<mirror::DexCache> dex_cache = FindDexCacheWithHint(self, dex_file, hint_dex_cache);
   // Get type from dex cache assuming it was populated by the verifier.
   return dex_cache->GetResolvedType(type_idx);
 }

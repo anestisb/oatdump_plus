@@ -23,8 +23,10 @@ import java.util.ArrayList;
 public class Main {
     public static void main(String[] args) throws Exception {
         try {
+            // Check if we're running dalvik or RI.
+            Class<?> class_loader_class = Class.forName("dalvik.system.PathClassLoader");
             System.loadLibrary(args[0]);
-        } catch (UnsatisfiedLinkError ule) {
+        } catch (ClassNotFoundException e) {
             usingRI = true;
             // Add expected JNI_OnLoad log line to match expected.txt.
             System.out.println("JNI_OnLoad called");
