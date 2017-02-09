@@ -597,6 +597,24 @@ uint32_t ProfileCompilationInfo::GetNumberOfResolvedClasses() const {
   return total;
 }
 
+// Produce a non-owning vector from a vector.
+template<typename T>
+const std::vector<T*>* MakeNonOwningVector(const std::vector<std::unique_ptr<T>>* owning_vector) {
+  auto non_owning_vector = new std::vector<T*>();
+  for (auto& element : *owning_vector) {
+    non_owning_vector->push_back(element.get());
+  }
+  return non_owning_vector;
+}
+
+std::string ProfileCompilationInfo::DumpInfo(
+    const std::vector<std::unique_ptr<const DexFile>>* dex_files,
+    bool print_full_dex_location) const {
+  std::unique_ptr<const std::vector<const DexFile*>> non_owning_dex_files(
+      MakeNonOwningVector(dex_files));
+  return DumpInfo(non_owning_dex_files.get(), print_full_dex_location);
+}
+
 std::string ProfileCompilationInfo::DumpInfo(const std::vector<const DexFile*>* dex_files,
                                              bool print_full_dex_location) const {
   std::ostringstream os;
