@@ -104,6 +104,7 @@ class OatDumpTest : public CommonRuntimeTest {
         expected_prefixes.push_back("DEX CODE:");
         expected_prefixes.push_back("CODE:");
         expected_prefixes.push_back("CodeInfoEncoding");
+        expected_prefixes.push_back("CodeInfoInlineInfo");
       }
       if (mode == kModeArt) {
         exec_argv.push_back("--image=" + core_art_location_);
