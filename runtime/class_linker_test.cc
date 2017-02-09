@@ -439,7 +439,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
     TestRootVisitor visitor;
     class_linker_->VisitRoots(&visitor, kVisitRootFlagAllRoots);
     // Verify the dex cache has resolution methods in all resolved method slots
-    mirror::DexCache* dex_cache = class_linker_->FindDexCache(Thread::Current(), dex);
+    ObjPtr<mirror::DexCache> dex_cache = class_linker_->FindDexCache(Thread::Current(), dex);
     auto* resolved_methods = dex_cache->GetResolvedMethods();
     for (size_t i = 0, num_methods = dex_cache->NumResolvedMethods(); i != num_methods; ++i) {
       EXPECT_TRUE(
@@ -1454,7 +1454,7 @@ TEST_F(ClassLinkerTest, RegisterDexFileName) {
   {
     WriterMutexLock mu(soa.Self(), *Locks::dex_lock_);
     // Check that inserting with a UTF16 name works.
-    class_linker->RegisterDexFileLocked(*dex_file, dex_cache);
+    class_linker->RegisterDexFileLocked(*dex_file, dex_cache.Get(), /* class_loader */ nullptr);
   }
 }
 
