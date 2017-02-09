@@ -21,6 +21,7 @@
 #include <stdlib.h>
 
 #include <cmath>
+#include <initializer_list>
 #include <limits>
 #include <locale>
 #include <unordered_map>
@@ -883,43 +884,74 @@ void UnstartedRuntime::UnstartedSystemGetPropertyWithDefault(
   GetSystemProperty(self, shadow_frame, result, arg_offset, true);
 }
 
-void UnstartedRuntime::UnstartedThreadLocalGet(
-    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset ATTRIBUTE_UNUSED) {
-  std::string caller(ArtMethod::PrettyMethod(shadow_frame->GetLink()->GetMethod()));
-  bool ok = false;
-  if (caller == "void java.lang.FloatingDecimal.developLongDigits(int, long, long)" ||
-      caller == "java.lang.String java.lang.FloatingDecimal.toJavaFormatString()") {
-    // Allocate non-threadlocal buffer.
-    result->SetL(mirror::CharArray::Alloc(self, 26));
-    ok = true;
-  } else if (caller ==
-             "java.lang.FloatingDecimal java.lang.FloatingDecimal.getThreadLocalInstance()") {
-    // Allocate new object.
-    StackHandleScope<2> hs(self);
-    Handle<mirror::Class> h_real_to_string_class(hs.NewHandle(
-        shadow_frame->GetLink()->GetMethod()->GetDeclaringClass()));
-    Handle<mirror::Object> h_real_to_string_obj(hs.NewHandle(
-        h_real_to_string_class->AllocObject(self)));
-    if (h_real_to_string_obj.Get() != nullptr) {
-      auto* cl = Runtime::Current()->GetClassLinker();
-      ArtMethod* init_method = h_real_to_string_class->FindDirectMethod(
-          "<init>", "()V", cl->GetImagePointerSize());
-      if (init_method == nullptr) {
-        h_real_to_string_class->DumpClass(LOG_STREAM(FATAL), mirror::Class::kDumpClassFullDetail);
-      } else {
-        JValue invoke_result;
-        EnterInterpreterFromInvoke(self, init_method, h_real_to_string_obj.Get(), nullptr,
-                                   nullptr);
-        if (!self->IsExceptionPending()) {
-          result->SetL(h_real_to_string_obj.Get());
-          ok = true;
-        }
-      }
+static std::string GetImmediateCaller(ShadowFrame* shadow_frame)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  if (shadow_frame->GetLink() == nullptr) {
+    return "<no caller>";
+  }
+  return ArtMethod::PrettyMethod(shadow_frame->GetLink()->GetMethod());
+}
+
+static bool CheckCallers(ShadowFrame* shadow_frame,
+                         std::initializer_list<std::string> allowed_call_stack)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  for (const std::string& allowed_caller : allowed_call_stack) {
+    if (shadow_frame->GetLink() == nullptr) {
+      return false;
     }
+
+    std::string found_caller = ArtMethod::PrettyMethod(shadow_frame->GetLink()->GetMethod());
+    if (allowed_caller != found_caller) {
+      return false;
+    }
+
+    shadow_frame = shadow_frame->GetLink();
+  }
+  return true;
+}
+
+static ObjPtr<mirror::Object> CreateInstanceOf(Thread* self, const char* class_descriptor)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  // Find the requested class.
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  ObjPtr<mirror::Class> klass =
+      class_linker->FindClass(self, class_descriptor, ScopedNullHandle<mirror::ClassLoader>());
+  if (klass == nullptr) {
+    AbortTransactionOrFail(self, "Could not load class %s", class_descriptor);
+    return nullptr;
   }
 
-  if (!ok) {
-    AbortTransactionOrFail(self, "Could not create RealToString object");
+  StackHandleScope<2> hs(self);
+  Handle<mirror::Class> h_class(hs.NewHandle(klass));
+  Handle<mirror::Object> h_obj(hs.NewHandle(h_class->AllocObject(self)));
+  if (h_obj.Get() != nullptr) {
+    ArtMethod* init_method = h_class->FindDirectMethod(
+        "<init>", "()V", class_linker->GetImagePointerSize());
+    if (init_method == nullptr) {
+      AbortTransactionOrFail(self, "Could not find <init> for %s", class_descriptor);
+      return nullptr;
+    } else {
+      JValue invoke_result;
+      EnterInterpreterFromInvoke(self, init_method, h_obj.Get(), nullptr, nullptr);
+      if (!self->IsExceptionPending()) {
+        return h_obj.Get();
+      }
+      AbortTransactionOrFail(self, "Could not run <init> for %s", class_descriptor);
+    }
+  }
+  AbortTransactionOrFail(self, "Could not allocate instance of %s", class_descriptor);
+  return nullptr;
+}
+
+void UnstartedRuntime::UnstartedThreadLocalGet(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset ATTRIBUTE_UNUSED) {
+  if (CheckCallers(shadow_frame, { "sun.misc.FloatingDecimal$BinaryToASCIIBuffer "
+                                       "sun.misc.FloatingDecimal.getBinaryToASCIIBuffer()" })) {
+    result->SetL(CreateInstanceOf(self, "Lsun/misc/FloatingDecimal$BinaryToASCIIBuffer;"));
+  } else {
+    AbortTransactionOrFail(self,
+                           "ThreadLocal.get() does not support %s",
+                           GetImmediateCaller(shadow_frame).c_str());
   }
 }
 
@@ -1252,12 +1284,12 @@ void UnstartedRuntime::UnstartedReferenceGetReferent(
 //       initialization of other classes, so will *use* the value.
 void UnstartedRuntime::UnstartedRuntimeAvailableProcessors(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset ATTRIBUTE_UNUSED) {
-  std::string caller(ArtMethod::PrettyMethod(shadow_frame->GetLink()->GetMethod()));
-  if (caller == "void java.util.concurrent.SynchronousQueue.<clinit>()") {
+  if (CheckCallers(shadow_frame, { "void java.util.concurrent.SynchronousQueue.<clinit>()" })) {
     // SynchronousQueue really only separates between single- and multiprocessor case. Return
     // 8 as a conservative upper approximation.
     result->SetI(8);
-  } else if (caller == "void java.util.concurrent.ConcurrentHashMap.<clinit>()") {
+  } else if (CheckCallers(shadow_frame,
+                          { "void java.util.concurrent.ConcurrentHashMap.<clinit>()" })) {
     // ConcurrentHashMap uses it for striding. 8 still seems an OK general value, as it's likely
     // a good upper bound.
     // TODO: Consider resetting in the zygote?
