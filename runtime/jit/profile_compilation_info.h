@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_JIT_PROFILE_COMPILATION_INFO_H_
 #define ART_RUNTIME_JIT_PROFILE_COMPILATION_INFO_H_
 
+#include <memory>
 #include <set>
 #include <vector>
 
@@ -72,6 +73,8 @@ class ProfileCompilationInfo {
   // If dex_files is not null then the method indices will be resolved to their
   // names.
   // This is intended for testing and debugging.
+  std::string DumpInfo(const std::vector<std::unique_ptr<const DexFile>>* dex_files,
+                       bool print_full_dex_location = true) const;
   std::string DumpInfo(const std::vector<const DexFile*>* dex_files,
                        bool print_full_dex_location = true) const;
 
