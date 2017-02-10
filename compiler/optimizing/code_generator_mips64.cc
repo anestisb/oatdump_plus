@@ -1490,6 +1490,8 @@ void InstructionCodeGeneratorMIPS64::VisitArrayGet(HArrayGet* instruction) {
   uint32_t data_offset = CodeGenerator::GetArrayDataOffset(instruction);
 
   Primitive::Type type = instruction->GetType();
+  const bool maybe_compressed_char_at = mirror::kUseStringCompression &&
+                                        instruction->IsStringCharAt();
   switch (type) {
     case Primitive::kPrimBoolean: {
       GpuRegister out = locations->Out().AsRegister<GpuRegister>();
@@ -1533,14 +1535,54 @@ void InstructionCodeGeneratorMIPS64::VisitArrayGet(HArrayGet* instruction) {
 
     case Primitive::kPrimChar: {
       GpuRegister out = locations->Out().AsRegister<GpuRegister>();
+      if (maybe_compressed_char_at) {
+        uint32_t count_offset = mirror::String::CountOffset().Uint32Value();
+        __ LoadFromOffset(kLoadWord, TMP, obj, count_offset);
+        codegen_->MaybeRecordImplicitNullCheck(instruction);
+        __ Dext(TMP, TMP, 0, 1);
+        static_assert(static_cast<uint32_t>(mirror::StringCompressionFlag::kCompressed) == 0u,
+                      "Expecting 0=compressed, 1=uncompressed");
+      }
       if (index.IsConstant()) {
-        size_t offset =
-            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_2) + data_offset;
-        __ LoadFromOffset(kLoadUnsignedHalfword, out, obj, offset);
+        int32_t const_index = index.GetConstant()->AsIntConstant()->GetValue();
+        if (maybe_compressed_char_at) {
+          Mips64Label uncompressed_load, done;
+          __ Bnezc(TMP, &uncompressed_load);
+          __ LoadFromOffset(kLoadUnsignedByte,
+                            out,
+                            obj,
+                            data_offset + (const_index << TIMES_1));
+          __ Bc(&done);
+          __ Bind(&uncompressed_load);
+          __ LoadFromOffset(kLoadUnsignedHalfword,
+                            out,
+                            obj,
+                            data_offset + (const_index << TIMES_2));
+          __ Bind(&done);
+        } else {
+          __ LoadFromOffset(kLoadUnsignedHalfword,
+                            out,
+                            obj,
+                            data_offset + (const_index << TIMES_2));
+        }
       } else {
-        __ Dsll(TMP, index.AsRegister<GpuRegister>(), TIMES_2);
-        __ Daddu(TMP, obj, TMP);
-        __ LoadFromOffset(kLoadUnsignedHalfword, out, TMP, data_offset);
+        GpuRegister index_reg = index.AsRegister<GpuRegister>();
+        if (maybe_compressed_char_at) {
+          Mips64Label uncompressed_load, done;
+          __ Bnezc(TMP, &uncompressed_load);
+          __ Daddu(TMP, obj, index_reg);
+          __ LoadFromOffset(kLoadUnsignedByte, out, TMP, data_offset);
+          __ Bc(&done);
+          __ Bind(&uncompressed_load);
+          __ Dsll(TMP, index_reg, TIMES_2);
+          __ Daddu(TMP, obj, TMP);
+          __ LoadFromOffset(kLoadUnsignedHalfword, out, TMP, data_offset);
+          __ Bind(&done);
+        } else {
+          __ Dsll(TMP, index_reg, TIMES_2);
+          __ Daddu(TMP, obj, TMP);
+          __ LoadFromOffset(kLoadUnsignedHalfword, out, TMP, data_offset);
+        }
       }
       break;
     }
@@ -1608,7 +1650,9 @@ void InstructionCodeGeneratorMIPS64::VisitArrayGet(HArrayGet* instruction) {
       LOG(FATAL) << "Unreachable type " << instruction->GetType();
       UNREACHABLE();
   }
-  codegen_->MaybeRecordImplicitNullCheck(instruction);
+  if (!maybe_compressed_char_at) {
+    codegen_->MaybeRecordImplicitNullCheck(instruction);
+  }
 }
 
 void LocationsBuilderMIPS64::VisitArrayLength(HArrayLength* instruction) {
@@ -1624,6 +1668,10 @@ void InstructionCodeGeneratorMIPS64::VisitArrayLength(HArrayLength* instruction)
   GpuRegister out = locations->Out().AsRegister<GpuRegister>();
   __ LoadFromOffset(kLoadWord, out, obj, offset);
   codegen_->MaybeRecordImplicitNullCheck(instruction);
+  // Mask out compression flag from String's array length.
+  if (mirror::kUseStringCompression && instruction->IsStringLength()) {
+    __ Srl(out, out, 1u);
+  }
 }
 
 void LocationsBuilderMIPS64::VisitArraySet(HArraySet* instruction) {
