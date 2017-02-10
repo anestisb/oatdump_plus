@@ -452,13 +452,9 @@ void Redefiner::ClassRedefinition::FindAndAllocateObsoleteMethods(art::mirror::C
   CallbackCtx ctx(linker->GetAllocatorForClassLoader(art_klass->GetClassLoader()));
   // Add all the declared methods to the map
   for (auto& m : art_klass->GetDeclaredMethods(art::kRuntimePointerSize)) {
-    // Since native methods cannot have their implementation changed we shouldn't bother making
-    // obsolete versions of them.
-    if (!m.IsNative()) {
-      ctx.obsolete_methods.insert(&m);
-      // TODO Allow this or check in IsModifiableClass.
-      DCHECK(!m.IsIntrinsic());
-    }
+    ctx.obsolete_methods.insert(&m);
+    // TODO Allow this or check in IsModifiableClass.
+    DCHECK(!m.IsIntrinsic());
   }
   {
     art::MutexLock mu(driver_->self_, *art::Locks::thread_list_lock_);
