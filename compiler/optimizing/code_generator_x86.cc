@@ -6057,6 +6057,7 @@ void LocationsBuilderX86::VisitLoadClass(HLoadClass* cls) {
         cls,
         Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
         Location::RegisterLocation(EAX));
+    DCHECK_EQ(calling_convention.GetRegisterAt(0), EAX);
     return;
   }
   DCHECK(!cls->NeedsAccessCheck());
@@ -6076,6 +6077,17 @@ void LocationsBuilderX86::VisitLoadClass(HLoadClass* cls) {
     locations->SetInAt(0, Location::RequiresRegister());
   }
   locations->SetOut(Location::RequiresRegister());
+  if (load_kind == HLoadClass::LoadKind::kBssEntry) {
+    if (!kUseReadBarrier || kUseBakerReadBarrier) {
+      // Rely on the type resolution and/or initialization to save everything.
+      RegisterSet caller_saves = RegisterSet::Empty();
+      InvokeRuntimeCallingConvention calling_convention;
+      caller_saves.Add(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+      locations->SetCustomSlowPathCallerSaves(caller_saves);
+    } else {
+      // For non-Baker read barrier we have a temp-clobbering call.
+    }
+  }
 }
 
 Label* CodeGeneratorX86::NewJitRootClassPatch(const DexFile& dex_file,
@@ -6158,7 +6170,7 @@ void InstructionCodeGeneratorX86::VisitLoadClass(HLoadClass* cls) NO_THREAD_SAFE
       Label* fixup_label = codegen_->NewJitRootClassPatch(
           cls->GetDexFile(), cls->GetTypeIndex(), cls->GetClass());
       // /* GcRoot<mirror::Class> */ out = *address
-      GenerateGcRootFieldLoad(cls, out_loc, address, fixup_label, kCompilerReadBarrierOption);
+      GenerateGcRootFieldLoad(cls, out_loc, address, fixup_label, read_barrier_option);
       break;
     }
     case HLoadClass::LoadKind::kDexCacheViaMethod:
@@ -6250,7 +6262,7 @@ void LocationsBuilderX86::VisitLoadString(HLoadString* load) {
     locations->SetOut(Location::RequiresRegister());
     if (load_kind == HLoadString::LoadKind::kBssEntry) {
       if (!kUseReadBarrier || kUseBakerReadBarrier) {
-        // Rely on the pResolveString and/or marking to save everything.
+        // Rely on the pResolveString to save everything.
         RegisterSet caller_saves = RegisterSet::Empty();
         InvokeRuntimeCallingConvention calling_convention;
         caller_saves.Add(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
