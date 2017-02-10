@@ -187,10 +187,12 @@ inline uint32_t Object::GetReadBarrierState(uintptr_t* fake_address_dependency) 
   uint32_t rb_state = lw.ReadBarrierState();
   return rb_state;
 #else
-  // mips/mips64
-  LOG(FATAL) << "Unreachable";
-  UNREACHABLE();
-  UNUSED(fake_address_dependency);
+  // MIPS32/MIPS64: use a memory barrier to prevent load-load reordering.
+  LockWord lw = GetLockWord(false);
+  *fake_address_dependency = 0;
+  std::atomic_thread_fence(std::memory_order_acquire);
+  uint32_t rb_state = lw.ReadBarrierState();
+  return rb_state;
 #endif
 }
 
