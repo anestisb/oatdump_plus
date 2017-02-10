@@ -241,8 +241,9 @@ class MANAGED String FINAL : public Object {
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
-  // First bit (uppermost/leftmost) is taken out for Compressed/Uncompressed flag
-  // [0] Uncompressed: string uses 16-bit memory | [1] Compressed: 8-bit memory
+
+  // If string compression is enabled, count_ holds the StringCompressionFlag in the
+  // least significant bit and the length in the remaining bits, length = count_ >> 1.
   int32_t count_;
 
   uint32_t hash_code_;
