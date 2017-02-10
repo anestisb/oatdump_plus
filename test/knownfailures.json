@@ -252,11 +252,6 @@
         "variant": "jit"
     },
     {
-        "test": "912-classes",
-        "variant": "jit",
-        "bug": "http://b/34655682"
-    },
-    {
         "tests": ["570-checker-select",
                   "484-checker-register-hints"],
         "description": ["These tests were based on the linear scan allocator,",
