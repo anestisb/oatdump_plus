@@ -290,6 +290,8 @@ public class Main {
     if (hasJit() && !isLoadedClass("Main$ClassD")) {
       testClassEventsJit();
     }
+
+    testClassLoadPrepareEquality();
   }
 
   private static void testClassEventsJit() throws Exception {
@@ -310,6 +312,14 @@ public class Main {
     if (ClassD.x != 1) {
       throw new RuntimeException("Unexpected value");
     }
+  }
+
+  private static void testClassLoadPrepareEquality() throws Exception {
+    enableClassLoadPrepareEqualityEvents(true);
+
+    Class.forName("Main$ClassE");
+
+    enableClassLoadPrepareEqualityEvents(false);
   }
 
   private static void printClassLoaderClasses(ClassLoader cl) {
@@ -383,6 +393,8 @@ public class Main {
   private static native void enableClassLoadSeenEvents(boolean b);
   private static native boolean hadLoadEvent();
 
+  private static native void enableClassLoadPrepareEqualityEvents(boolean b);
+
   private static class TestForNonInit {
     public static double dummy = Math.random();  // So it can't be compile-time initialized.
   }
@@ -407,6 +419,13 @@ public class Main {
 
   public static class ClassD {
     static int x = 1;
+  }
+
+  public static class ClassE {
+    public void foo() {
+    }
+    public void bar() {
+    }
   }
 
   private static final String DEX1 = System.getenv("DEX_LOCATION") + "/912-classes.jar";
