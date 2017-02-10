@@ -950,6 +950,26 @@ MACRO3(THREE_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
     END_FUNCTION VAR(c_name)
 END_MACRO
 
+// Macro for string and type resolution and initialization.
+MACRO2(ONE_ARG_SAVE_EVERYTHING_DOWNCALL, c_name, cxx_name)
+    DEFINE_FUNCTION VAR(c_name)
+    SETUP_SAVE_EVERYTHING_FRAME                   // save everything for GC
+    // Outgoing argument set up
+    movl %eax, %edi                               // pass string index
+    movq %gs:THREAD_SELF_OFFSET, %rsi             // pass Thread::Current()
+    call CALLVAR(cxx_name)                        // cxx_name(arg0, Thread*)
+    testl %eax, %eax                              // If result is null, deliver the OOME.
+    jz 1f
+    CFI_REMEMBER_STATE
+    RESTORE_SAVE_EVERYTHING_FRAME_KEEP_RAX        // restore frame up to return address
+    ret
+    CFI_RESTORE_STATE
+    CFI_DEF_CFA(rsp, FRAME_SIZE_SAVE_EVERYTHING)  // workaround for clang bug: 31975598
+1:
+    DELIVER_PENDING_EXCEPTION_FRAME_READY
+    END_FUNCTION VAR(c_name)
+END_MACRO
+
 MACRO0(RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER)
     testq %rax, %rax               // rax == 0 ?
     jz  1f                         // if rax == 0 goto 1
@@ -1270,27 +1290,10 @@ DEFINE_FUNCTION art_quick_alloc_object_initialized_region_tlab
     ALLOC_OBJECT_TLAB_SLOW_PATH artAllocObjectFromCodeInitializedRegionTLAB
 END_FUNCTION art_quick_alloc_object_initialized_region_tlab
 
-DEFINE_FUNCTION art_quick_resolve_string
-    SETUP_SAVE_EVERYTHING_FRAME
-    // Outgoing argument set up
-    movl %eax, %edi                             // pass string index
-    movq %gs:THREAD_SELF_OFFSET, %rsi           // pass Thread::Current()
-    call SYMBOL(artResolveStringFromCode)       // artResolveStringFromCode(arg0, Thread*)
-
-    testl %eax, %eax                            // If result is null, deliver the OOME.
-    jz 1f
-    CFI_REMEMBER_STATE
-    RESTORE_SAVE_EVERYTHING_FRAME_KEEP_RAX      // restore frame up to return address
-    ret
-    CFI_RESTORE_STATE
-    CFI_DEF_CFA(rsp, FRAME_SIZE_SAVE_EVERYTHING)  // workaround for clang bug: 31975598
-1:
-    DELIVER_PENDING_EXCEPTION_FRAME_READY
-END_FUNCTION art_quick_resolve_string
-
-ONE_ARG_DOWNCALL art_quick_initialize_static_storage, artInitializeStaticStorageFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
-ONE_ARG_DOWNCALL art_quick_initialize_type, artInitializeTypeFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
-ONE_ARG_DOWNCALL art_quick_initialize_type_and_verify_access, artInitializeTypeAndVerifyAccessFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_initialize_static_storage, artInitializeStaticStorageFromCode
+ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_initialize_type, artInitializeTypeFromCode
+ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_initialize_type_and_verify_access, artInitializeTypeAndVerifyAccessFromCode
+ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_resolve_string, artResolveStringFromCode
 
 TWO_ARG_REF_DOWNCALL art_quick_handle_fill_data, artHandleFillArrayDataFromCode, RETURN_IF_EAX_ZERO
 

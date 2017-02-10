@@ -1553,6 +1553,24 @@ ENTRY \name
 END \name
 .endm
 
+// Macro for string and type resolution and initialization.
+.macro ONE_ARG_SAVE_EVERYTHING_DOWNCALL name, entrypoint
+    .extern \entrypoint
+ENTRY \name
+    SETUP_SAVE_EVERYTHING_FRAME       // save everything for stack crawl
+    mov   x1, xSELF                   // pass Thread::Current
+    bl    \entrypoint                 // (int32_t index, Thread* self)
+    cbz   w0, 1f                      // If result is null, deliver the OOME.
+    .cfi_remember_state
+    RESTORE_SAVE_EVERYTHING_FRAME_KEEP_X0
+    ret                        // return
+    .cfi_restore_state
+    .cfi_def_cfa_offset FRAME_SIZE_SAVE_EVERYTHING  // workaround for clang bug: 31975598
+1:
+    DELIVER_PENDING_EXCEPTION_FRAME_READY
+END \name
+.endm
+
 .macro RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
     cbz w0, 1f                 // result zero branch over
     ret                        // return
@@ -1571,10 +1589,11 @@ TWO_ARG_REF_DOWNCALL art_quick_handle_fill_data, artHandleFillArrayDataFromCode,
      * initializer and deliver the exception on error. On success the static storage base is
      * returned.
      */
-ONE_ARG_DOWNCALL art_quick_initialize_static_storage, artInitializeStaticStorageFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_initialize_static_storage, artInitializeStaticStorageFromCode
 
-ONE_ARG_DOWNCALL art_quick_initialize_type, artInitializeTypeFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
-ONE_ARG_DOWNCALL art_quick_initialize_type_and_verify_access, artInitializeTypeAndVerifyAccessFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_initialize_type, artInitializeTypeFromCode
+ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_initialize_type_and_verify_access, artInitializeTypeAndVerifyAccessFromCode
+ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_resolve_string, artResolveStringFromCode
 
 ONE_ARG_REF_DOWNCALL art_quick_get_boolean_static, artGetBooleanStaticFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_X1
 ONE_ARG_REF_DOWNCALL art_quick_get_byte_static, artGetByteStaticFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_X1
@@ -1603,27 +1622,6 @@ THREE_ARG_REF_DOWNCALL art_quick_set16_instance, artSet16InstanceFromCompiledCod
 THREE_ARG_REF_DOWNCALL art_quick_set32_instance, artSet32InstanceFromCompiledCode, RETURN_IF_W0_IS_ZERO_OR_DELIVER
 THREE_ARG_REF_DOWNCALL art_quick_set64_instance, artSet64InstanceFromCompiledCode, RETURN_IF_W0_IS_ZERO_OR_DELIVER
 THREE_ARG_REF_DOWNCALL art_quick_set_obj_instance, artSetObjInstanceFromCompiledCode, RETURN_IF_W0_IS_ZERO_OR_DELIVER
-
-    /*
-     * Entry from managed code to resolve a string, this stub will
-     * check the dex cache for a matching string (the fast path), and if not found,
-     * it will allocate a String and deliver an exception on error.
-     * On success the String is returned. R0 holds the string index.
-     */
-
-ENTRY art_quick_resolve_string
-    SETUP_SAVE_EVERYTHING_FRAME                     // save everything for stack crawl
-    mov   x1, xSELF                                 // pass Thread::Current
-    bl    artResolveStringFromCode                  // (int32_t string_idx, Thread* self)
-    cbz   w0, 1f                                    // If result is null, deliver the OOME.
-    .cfi_remember_state
-    RESTORE_SAVE_EVERYTHING_FRAME_KEEP_X0
-    ret                        // return
-    .cfi_restore_state
-    .cfi_def_cfa_offset FRAME_SIZE_SAVE_EVERYTHING  // workaround for clang bug: 31975598
-1:
-    DELIVER_PENDING_EXCEPTION_FRAME_READY
-END art_quick_resolve_string
 
 // Generate the allocation entrypoints for each allocator.
 GENERATE_ALLOC_ENTRYPOINTS_FOR_NON_TLAB_ALLOCATORS
@@ -2380,13 +2378,6 @@ END art_quick_indexof
 ENTRY \name
     // Reference is null, no work to do at all.
     cbz \wreg, .Lret_rb_\name
-    /*
-     * Allocate 46 stack slots * 8 = 368 bytes:
-     * - 20 slots for core registers X0-X19
-     * - 24 slots for floating-point registers D0-D7 and D16-D31
-     * -  1 slot for return address register XLR
-     * -  1 padding slot for 16-byte stack alignment
-     */
     // Use wIP0 as temp and check the mark bit of the reference. wIP0 is not used by the compiler.
     ldr   wIP0, [\xreg, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
     tbz   wIP0, #LOCK_WORD_MARK_BIT_SHIFT, .Lnot_marked_rb_\name
@@ -2398,10 +2389,15 @@ ENTRY \name
     cmp wzr, wIP0, lsr #30
     beq .Lret_forwarding_address\name
 .Lslow_rb_\name:
-    // We must not clobber IP0 since art_quick_resolve_string makes a tail call here and relies on
-    // IP0 being restored.
+    /*
+     * Allocate 44 stack slots * 8 = 352 bytes:
+     * - 20 slots for core registers X0-15, X17-X19, LR
+     * - 24 slots for floating-point registers D0-D7 and D16-D31
+     */
+    // We must not clobber IP1 since code emitted for HLoadClass and HLoadString
+    // relies on IP1 being preserved.
     // Save all potentially live caller-save core registers.
-    SAVE_TWO_REGS_INCREASE_FRAME x0, x1, 368
+    SAVE_TWO_REGS_INCREASE_FRAME x0, x1, 352
     SAVE_TWO_REGS  x2,  x3, 16
     SAVE_TWO_REGS  x4,  x5, 32
     SAVE_TWO_REGS  x6,  x7, 48
@@ -2409,8 +2405,8 @@ ENTRY \name
     SAVE_TWO_REGS x10, x11, 80
     SAVE_TWO_REGS x12, x13, 96
     SAVE_TWO_REGS x14, x15, 112
-    SAVE_TWO_REGS x16, x17, 128
-    SAVE_TWO_REGS x18, x19, 144
+    SAVE_TWO_REGS x17, x18, 128  // Skip x16, i.e. IP0.
+    SAVE_TWO_REGS x19, xLR, 144  // Save also return address.
     // Save all potentially live caller-save floating-point registers.
     stp   d0, d1,   [sp, #160]
     stp   d2, d3,   [sp, #176]
@@ -2424,9 +2420,6 @@ ENTRY \name
     stp   d26, d27, [sp, #304]
     stp   d28, d29, [sp, #320]
     stp   d30, d31, [sp, #336]
-    // Save return address.
-    // (sp + #352 is a padding slot)
-    SAVE_REG xLR, 360
 
     .ifnc \wreg, w0
       mov   w0, \wreg                   // Pass arg1 - obj from `wreg`
@@ -2446,8 +2439,8 @@ ENTRY \name
     POP_REGS_NE x10, x11, 80,  \xreg
     POP_REGS_NE x12, x13, 96,  \xreg
     POP_REGS_NE x14, x15, 112, \xreg
-    POP_REGS_NE x16, x17, 128, \xreg
-    POP_REGS_NE x18, x19, 144, \xreg
+    POP_REGS_NE x17, x18, 128, \xreg
+    POP_REGS_NE x19, xLR, 144, \xreg  // Restore also return address.
     // Restore floating-point registers.
     ldp   d0, d1,   [sp, #160]
     ldp   d2, d3,   [sp, #176]
@@ -2461,9 +2454,8 @@ ENTRY \name
     ldp   d26, d27, [sp, #304]
     ldp   d28, d29, [sp, #320]
     ldp   d30, d31, [sp, #336]
-    // Restore return address and remove padding.
-    RESTORE_REG xLR, 360
-    DECREASE_FRAME 368
+    // Remove frame and return.
+    DECREASE_FRAME 352
     ret
 .Lret_forwarding_address\name:
     mvn wIP0, wIP0
