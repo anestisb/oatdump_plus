@@ -430,5 +430,70 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_isLoadedClass(
   return found ? JNI_TRUE : JNI_FALSE;
 }
 
+class ClassLoadPrepareEquality {
+ public:
+  static constexpr const char* kClassName = "LMain$ClassE;";
+
+  static void JNICALL ClassLoadCallback(jvmtiEnv* jenv,
+                                        JNIEnv* jni_env,
+                                        jthread thread ATTRIBUTE_UNUSED,
+                                        jclass klass) {
+    std::string name = GetClassName(jenv, jni_env, klass);
+    if (name == kClassName) {
+      found_ = true;
+      stored_class_ = jni_env->NewGlobalRef(klass);
+      weakly_stored_class_ = jni_env->NewWeakGlobalRef(klass);
+    }
+  }
+
+  static void JNICALL ClassPrepareCallback(jvmtiEnv* jenv,
+                                           JNIEnv* jni_env,
+                                           jthread thread ATTRIBUTE_UNUSED,
+                                           jclass klass) {
+    std::string name = GetClassName(jenv, jni_env, klass);
+    if (name == kClassName) {
+      CHECK(stored_class_ != nullptr);
+      CHECK(jni_env->IsSameObject(stored_class_, klass));
+      CHECK(jni_env->IsSameObject(weakly_stored_class_, klass));
+      compared_ = true;
+    }
+  }
+
+  static void CheckFound() {
+    CHECK(found_);
+    CHECK(compared_);
+  }
+
+  static void Free(JNIEnv* env) {
+    if (stored_class_ != nullptr) {
+      env->DeleteGlobalRef(stored_class_);
+      DCHECK(weakly_stored_class_ != nullptr);
+      env->DeleteWeakGlobalRef(weakly_stored_class_);
+    }
+  }
+
+ private:
+  static jobject stored_class_;
+  static jweak weakly_stored_class_;
+  static bool found_;
+  static bool compared_;
+};
+jobject ClassLoadPrepareEquality::stored_class_ = nullptr;
+jweak ClassLoadPrepareEquality::weakly_stored_class_ = nullptr;
+bool ClassLoadPrepareEquality::found_ = false;
+bool ClassLoadPrepareEquality::compared_ = false;
+
+extern "C" JNIEXPORT void JNICALL Java_Main_enableClassLoadPrepareEqualityEvents(
+    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jboolean b) {
+  EnableEvents(env,
+               b,
+               ClassLoadPrepareEquality::ClassLoadCallback,
+               ClassLoadPrepareEquality::ClassPrepareCallback);
+  if (b == JNI_FALSE) {
+    ClassLoadPrepareEquality::Free(env);
+    ClassLoadPrepareEquality::CheckFound();
+  }
+}
+
 }  // namespace Test912Classes
 }  // namespace art
