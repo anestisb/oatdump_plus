@@ -358,6 +358,7 @@ class Thread {
   uint64_t GetCpuMicroTime() const;
 
   mirror::Object* GetPeer() const REQUIRES_SHARED(Locks::mutator_lock_) {
+    DCHECK(Thread::Current() == this) << "Use GetPeerFromOtherThread instead";
     CHECK(tlsPtr_.jpeer == nullptr);
     return tlsPtr_.opeer;
   }
