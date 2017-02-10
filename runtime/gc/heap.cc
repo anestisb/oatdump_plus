@@ -3887,13 +3887,15 @@ void Heap::RegisterNativeAllocation(JNIEnv* env, size_t bytes) {
       // blocking watermark. Ensure that only one of those threads runs the
       // blocking GC. The rest of the threads should instead wait for the
       // blocking GC to complete.
-      if (native_blocking_gc_in_progress_) {
-        do {
-          native_blocking_gc_cond_->Wait(self);
-        } while (native_blocking_gcs_finished_ == initial_gcs_finished);
-      } else {
-        native_blocking_gc_in_progress_ = true;
-        run_gc = true;
+      if (native_blocking_gcs_finished_ == initial_gcs_finished) {
+        if (native_blocking_gc_in_progress_) {
+          do {
+            native_blocking_gc_cond_->Wait(self);
+          } while (native_blocking_gcs_finished_ == initial_gcs_finished);
+        } else {
+          native_blocking_gc_in_progress_ = true;
+          run_gc = true;
+        }
       }
     }
 
