@@ -26,6 +26,7 @@ import com.android.tools.perflib.heap.RootObj;
 import com.android.tools.perflib.heap.Type;
 
 import java.awt.image.BufferedImage;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -87,22 +88,27 @@ class InstanceUtils {
     // is a char[], use that directly as the value, otherwise use the value
     // field of the string object. The field accesses for count and offset
     // later on will work okay regardless of what type the inst object is.
-    Object value = inst;
-    if (isInstanceOfClass(inst, "java.lang.String")) {
-      value = getField(inst, "value");
-    }
+    boolean isString = isInstanceOfClass(inst, "java.lang.String");
+    Object value = isString ? getField(inst, "value") : inst;
 
     if (!(value instanceof ArrayInstance)) {
       return null;
     }
 
     ArrayInstance chars = (ArrayInstance) value;
+    int numChars = chars.getLength();
+    int offset = getIntField(inst, "offset", 0);
+    int count = getIntField(inst, "count", numChars);
+
+    // With string compression enabled, the array type can be BYTE but in that case
+    // offset must be 0 and count must match numChars.
+    if (isString && (chars.getArrayType() == Type.BYTE) && (offset == 0) && (count == numChars)) {
+      int length = (0 <= maxChars && maxChars < numChars) ? maxChars : numChars;
+      return new String(chars.asRawByteArray(/* offset */ 0, length), StandardCharsets.US_ASCII);
+    }
     if (chars.getArrayType() != Type.CHAR) {
       return null;
     }
-
-    int numChars = chars.getLength();
-    int count = getIntField(inst, "count", numChars);
     if (count == 0) {
       return "";
     }
@@ -110,7 +116,6 @@ class InstanceUtils {
       count = maxChars;
     }
 
-    int offset = getIntField(inst, "offset", 0);
     int end = offset + count - 1;
     if (offset >= 0 && offset < numChars && end >= 0 && end < numChars) {
       return new String(chars.asCharArray(offset, count));
