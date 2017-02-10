@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import os
+import re
 import tempfile
 import subprocess
 
@@ -29,14 +30,52 @@ def getEnvBoolean(var, default):
       return False
   return default
 
-def get_build_var(var_name):
+_DUMP_MANY_VARS_LIST = ['HOST_2ND_ARCH_PREFIX',
+                        'TARGET_2ND_ARCH',
+                        'TARGET_ARCH',
+                        'HOST_PREFER_32_BIT',
+                        'HOST_OUT_EXECUTABLES']
+_DUMP_MANY_VARS = None  # To be set to a dictionary with above list being the keys,
+                        # and the build variable being the value.
+def dump_many_vars(var_name):
+  """
+  Reach into the Android build system to dump many build vars simultaneously.
+  Since the make system is so slow, we want to avoid calling into build frequently.
+  """
+  global _DUMP_MANY_VARS
+  global _DUMP_MANY_VARS_LIST
+
+  # Look up var from cache.
+  if _DUMP_MANY_VARS:
+    return _DUMP_MANY_VARS[var_name]
+
+  all_vars=" ".join(_DUMP_MANY_VARS_LIST)
+
   # The command is taken from build/envsetup.sh to fetch build variables.
-  command = ("CALLED_FROM_SETUP=true BUILD_SYSTEM=build/core "
+  command = ("CALLED_FROM_SETUP=true "  # Enable the 'dump-many-vars' make target.
+             "BUILD_SYSTEM=build/core " # Set up lookup path for make includes.
              "make --no-print-directory -C \"%s\" -f build/core/config.mk "
-             "dumpvar-%s") % (ANDROID_BUILD_TOP, var_name)
+             "dump-many-vars DUMP_MANY_VARS=\"%s\"") % (ANDROID_BUILD_TOP, all_vars)
+
   config = subprocess.Popen(command, stdout=subprocess.PIPE,
-                            shell=True).communicate()[0]
-  return config.strip()
+                            shell=True).communicate()[0] # read until EOF, select stdin
+  # Prints out something like:
+  # TARGET_ARCH='arm64'
+  # HOST_ARCH='x86_64'
+  _DUMP_MANY_VARS = {}
+  for line in config.split("\n"):
+    # Split out "$key='$value'" via regex.
+    match = re.search("([^=]+)='([^']*)", line)
+    if not match:
+      continue
+    key = match.group(1)
+    value = match.group(2)
+    _DUMP_MANY_VARS[key] = value
+
+  return _DUMP_MANY_VARS[var_name]
+
+def get_build_var(var_name):
+  return dump_many_vars(var_name)
 
 def get_env(key):
   return env.get(key)
