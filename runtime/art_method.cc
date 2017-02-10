@@ -442,12 +442,51 @@ static uint32_t GetOatMethodIndexFromMethodIndex(const DexFile& dex_file,
   UNREACHABLE();
 }
 
+// We use the method's DexFile and declaring class name to find the OatMethod for an obsolete
+// method.  This is extremely slow but we need it if we want to be able to have obsolete native
+// methods since we need this to find the size of it's stack frames.
+static const OatFile::OatMethod FindOatMethodFromDexFileFor(ArtMethod* method, bool* found)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  DCHECK(method->IsObsolete() && method->IsNative());
+  const DexFile* dex_file = method->GetDexFile();
+
+  // recreate the class_def_index from the descriptor.
+  std::string descriptor_storage;
+  const DexFile::TypeId* declaring_class_type_id =
+      dex_file->FindTypeId(method->GetDeclaringClass()->GetDescriptor(&descriptor_storage));
+  CHECK(declaring_class_type_id != nullptr);
+  dex::TypeIndex declaring_class_type_index = dex_file->GetIndexForTypeId(*declaring_class_type_id);
+  const DexFile::ClassDef* declaring_class_type_def =
+      dex_file->FindClassDef(declaring_class_type_index);
+  CHECK(declaring_class_type_def != nullptr);
+  uint16_t declaring_class_def_index = dex_file->GetIndexForClassDef(*declaring_class_type_def);
+
+  size_t oat_method_index = GetOatMethodIndexFromMethodIndex(*dex_file,
+                                                             declaring_class_def_index,
+                                                             method->GetDexMethodIndex());
+
+  OatFile::OatClass oat_class = OatFile::FindOatClass(*dex_file,
+                                                      declaring_class_def_index,
+                                                      found);
+  if (!(*found)) {
+    return OatFile::OatMethod::Invalid();
+  }
+  return oat_class.GetOatMethod(oat_method_index);
+}
+
 static const OatFile::OatMethod FindOatMethodFor(ArtMethod* method,
                                                  PointerSize pointer_size,
                                                  bool* found)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  // We shouldn't be calling this with obsolete methods.
-  DCHECK(!method->IsObsolete());
+  if (UNLIKELY(method->IsObsolete())) {
+    // We shouldn't be calling this with obsolete methods except for native obsolete methods for
+    // which we need to use the oat method to figure out how large the quick frame is.
+    DCHECK(method->IsNative()) << "We should only be finding the OatMethod of obsolete methods in "
+                               << "order to allow stack walking. Other obsolete methods should "
+                               << "never need to access this information.";
+    DCHECK_EQ(pointer_size, kRuntimePointerSize) << "Obsolete method in compiler!";
+    return FindOatMethodFromDexFileFor(method, found);
+  }
   // Although we overwrite the trampoline of non-static methods, we may get here via the resolution
   // method for direct methods (or virtual methods made direct).
   mirror::Class* declaring_class = method->GetDeclaringClass();
