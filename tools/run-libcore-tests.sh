@@ -123,7 +123,7 @@ done
 vogar_args="$vogar_args --timeout 480"
 
 # Use Jack with "1.8" configuration.
-vogar_args="$vogar_args --toolchain jack --language JN"
+vogar_args="$vogar_args --toolchain jack --language JO"
 
 # JIT settings.
 if $use_jit; then
