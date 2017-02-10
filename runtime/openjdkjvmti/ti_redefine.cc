@@ -452,6 +452,11 @@ void Redefiner::ClassRedefinition::FindAndAllocateObsoleteMethods(art::mirror::C
   CallbackCtx ctx(linker->GetAllocatorForClassLoader(art_klass->GetClassLoader()));
   // Add all the declared methods to the map
   for (auto& m : art_klass->GetDeclaredMethods(art::kRuntimePointerSize)) {
+    // TODO It should be possible to simply filter out some methods where they cannot really become
+    // obsolete, such as native methods and keep their original (possibly optimized)
+    // implementations. We don't do this, however, since we would need to mark these functions
+    // (still in the classes declared_methods array) as obsolete so we will find the correct dex
+    // file to get meta-data from (for example about stack-frame size).
     ctx.obsolete_methods.insert(&m);
     // TODO Allow this or check in IsModifiableClass.
     DCHECK(!m.IsIntrinsic());
