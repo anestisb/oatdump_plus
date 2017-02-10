@@ -7148,9 +7148,10 @@ void InstructionCodeGeneratorX86::GenerateGcRootFieldLoad(
       // Fast path implementation of art::ReadBarrier::BarrierForRoot when
       // Baker's read barrier are used:
       //
-      //   root = *address;
-      //   if (Thread::Current()->GetIsGcMarking()) {
-      //     root = ReadBarrier::Mark(root)
+      //   root = obj.field;
+      //   temp = Thread::Current()->pReadBarrierMarkReg ## root.reg()
+      //   if (temp != null) {
+      //     root = temp(root)
       //   }
 
       // /* GcRoot<mirror::Object> */ root = *address
@@ -7171,8 +7172,11 @@ void InstructionCodeGeneratorX86::GenerateGcRootFieldLoad(
           instruction, root, /* unpoison_ref_before_marking */ false);
       codegen_->AddSlowPath(slow_path);
 
-      __ fs()->cmpl(Address::Absolute(Thread::IsGcMarkingOffset<kX86PointerSize>().Int32Value()),
-                    Immediate(0));
+      // Test the entrypoint (`Thread::Current()->pReadBarrierMarkReg ## root.reg()`).
+      const int32_t entry_point_offset =
+          CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kX86PointerSize>(root.reg());
+      __ fs()->cmpl(Address::Absolute(entry_point_offset), Immediate(0));
+      // The entrypoint is null when the GC is not marking.
       __ j(kNotEqual, slow_path->GetEntryLabel());
       __ Bind(slow_path->GetExitLabel());
     } else {
