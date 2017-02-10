@@ -443,6 +443,9 @@ class ClassLoadPrepareEquality {
       found_ = true;
       stored_class_ = jni_env->NewGlobalRef(klass);
       weakly_stored_class_ = jni_env->NewWeakGlobalRef(klass);
+      // The following is bad and relies on implementation details. But otherwise a test would be
+      // a lot more complicated.
+      local_stored_class_ = jni_env->NewLocalRef(klass);
     }
   }
 
@@ -455,6 +458,7 @@ class ClassLoadPrepareEquality {
       CHECK(stored_class_ != nullptr);
       CHECK(jni_env->IsSameObject(stored_class_, klass));
       CHECK(jni_env->IsSameObject(weakly_stored_class_, klass));
+      CHECK(jni_env->IsSameObject(local_stored_class_, klass));
       compared_ = true;
     }
   }
@@ -469,17 +473,20 @@ class ClassLoadPrepareEquality {
       env->DeleteGlobalRef(stored_class_);
       DCHECK(weakly_stored_class_ != nullptr);
       env->DeleteWeakGlobalRef(weakly_stored_class_);
+      // Do not attempt to delete the local ref. It will be out of date by now.
     }
   }
 
  private:
   static jobject stored_class_;
   static jweak weakly_stored_class_;
+  static jobject local_stored_class_;
   static bool found_;
   static bool compared_;
 };
 jobject ClassLoadPrepareEquality::stored_class_ = nullptr;
 jweak ClassLoadPrepareEquality::weakly_stored_class_ = nullptr;
+jobject ClassLoadPrepareEquality::local_stored_class_ = nullptr;
 bool ClassLoadPrepareEquality::found_ = false;
 bool ClassLoadPrepareEquality::compared_ = false;
 
