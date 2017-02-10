@@ -274,6 +274,7 @@ art_cc_defaults {
         "933-misc-events/misc_events.cc",
         "936-search-onload/search_onload.cc",
         "944-transform-classloaders/classloader.cc",
+        "945-obsolete-native/obsolete_native.cc",
     ],
     shared_libs: [
         "libbase",
