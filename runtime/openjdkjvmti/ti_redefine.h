@@ -207,6 +207,8 @@ class Redefiner {
 
     void ReleaseDexFile() REQUIRES_SHARED(art::Locks::mutator_lock_);
 
+    void UnregisterBreakpoints() REQUIRES_SHARED(art::Locks::mutator_lock_);
+
    private:
     Redefiner* driver_;
     jclass klass_;
@@ -250,6 +252,7 @@ class Redefiner {
   bool FinishAllRemainingAllocations(RedefinitionDataHolder& holder)
       REQUIRES_SHARED(art::Locks::mutator_lock_);
   void ReleaseAllDexFiles() REQUIRES_SHARED(art::Locks::mutator_lock_);
+  void UnregisterAllBreakpoints() REQUIRES_SHARED(art::Locks::mutator_lock_);
 
   void RecordFailure(jvmtiError result, const std::string& class_sig, const std::string& error_msg);
   void RecordFailure(jvmtiError result, const std::string& error_msg) {

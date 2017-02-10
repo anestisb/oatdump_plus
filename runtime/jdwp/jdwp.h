@@ -22,6 +22,7 @@
 #include "jdwp/jdwp_bits.h"
 #include "jdwp/jdwp_constants.h"
 #include "jdwp/jdwp_expand_buf.h"
+#include "obj_ptr.h"
 
 #include <pthread.h>
 #include <stddef.h>
@@ -283,6 +284,10 @@ struct JdwpState {
    * Unregister an event, given the requestId.
    */
   void UnregisterEventById(uint32_t requestId)
+      REQUIRES(!event_list_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  void UnregisterLocationEventsOnClass(ObjPtr<mirror::Class> klass)
       REQUIRES(!event_list_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
