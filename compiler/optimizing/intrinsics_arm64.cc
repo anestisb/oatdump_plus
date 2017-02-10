@@ -23,7 +23,7 @@
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "intrinsics.h"
 #include "mirror/array-inl.h"
-#include "mirror/string.h"
+#include "mirror/string-inl.h"
 #include "thread.h"
 #include "utils/arm64/assembler_arm64.h"
 
@@ -1444,16 +1444,47 @@ void IntrinsicCodeGeneratorARM64::VisitStringCompareTo(HInvoke* invoke) {
   }
 }
 
+// The cut off for unrolling the loop in String.equals() intrinsic for const strings.
+// The normal loop plus the pre-header is 9 instructions without string compression and 12
+// instructions with string compression. We can compare up to 8 bytes in 4 instructions
+// (LDR+LDR+CMP+BNE) and up to 16 bytes in 5 instructions (LDP+LDP+CMP+CCMP+BNE). Allow up
+// to 10 instructions for the unrolled loop.
+constexpr size_t kShortConstStringEqualsCutoffInBytes = 32;
+
+static const char* GetConstString(HInstruction* candidate, uint32_t* utf16_length) {
+  if (candidate->IsLoadString()) {
+    HLoadString* load_string = candidate->AsLoadString();
+    const DexFile& dex_file = load_string->GetDexFile();
+    return dex_file.StringDataAndUtf16LengthByIdx(load_string->GetStringIndex(), utf16_length);
+  }
+  return nullptr;
+}
+
 void IntrinsicLocationsBuilderARM64::VisitStringEquals(HInvoke* invoke) {
   LocationSummary* locations = new (arena_) LocationSummary(invoke,
                                                             LocationSummary::kNoCall,
                                                             kIntrinsified);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
-  // Temporary registers to store lengths of strings and for calculations.
-  locations->AddTemp(Location::RequiresRegister());
-  locations->AddTemp(Location::RequiresRegister());
 
+  // For the generic implementation and for long const strings we need a temporary.
+  // We do not need it for short const strings, up to 8 bytes, see code generation below.
+  uint32_t const_string_length = 0u;
+  const char* const_string = GetConstString(invoke->InputAt(0), &const_string_length);
+  if (const_string == nullptr) {
+    const_string = GetConstString(invoke->InputAt(1), &const_string_length);
+  }
+  bool is_compressed =
+      mirror::kUseStringCompression &&
+      const_string != nullptr &&
+      mirror::String::DexFileStringAllASCII(const_string, const_string_length);
+  if (const_string == nullptr || const_string_length > (is_compressed ? 8u : 4u)) {
+    locations->AddTemp(Location::RequiresRegister());
+  }
+
+  // TODO: If the String.equals() is used only for an immediately following HIf, we can
+  // mark it as emitted-at-use-site and emit branches directly to the appropriate blocks.
+  // Then we shall need an extra temporary register instead of the output register.
   locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
 }
 
@@ -1467,8 +1498,7 @@ void IntrinsicCodeGeneratorARM64::VisitStringEquals(HInvoke* invoke) {
 
   UseScratchRegisterScope scratch_scope(masm);
   Register temp = scratch_scope.AcquireW();
-  Register temp1 = WRegisterFrom(locations->GetTemp(0));
-  Register temp2 = WRegisterFrom(locations->GetTemp(1));
+  Register temp1 = scratch_scope.AcquireW();
 
   vixl::aarch64::Label loop;
   vixl::aarch64::Label end;
@@ -1504,46 +1534,98 @@ void IntrinsicCodeGeneratorARM64::VisitStringEquals(HInvoke* invoke) {
     __ B(&return_false, ne);
   }
 
-  // Load `count` fields of this and argument strings.
-  __ Ldr(temp, MemOperand(str.X(), count_offset));
-  __ Ldr(temp1, MemOperand(arg.X(), count_offset));
-  // Check if `count` fields are equal, return false if they're not.
-  // Also compares the compression style, if differs return false.
-  __ Cmp(temp, temp1);
-  __ B(&return_false, ne);
-  // Return true if both strings are empty. Even with string compression `count == 0` means empty.
-  static_assert(static_cast<uint32_t>(mirror::StringCompressionFlag::kCompressed) == 0u,
-                "Expecting 0=compressed, 1=uncompressed");
-  __ Cbz(temp, &return_true);
+  // Check if one of the inputs is a const string. Do not special-case both strings
+  // being const, such cases should be handled by constant folding if needed.
+  uint32_t const_string_length = 0u;
+  const char* const_string = GetConstString(invoke->InputAt(0), &const_string_length);
+  if (const_string == nullptr) {
+    const_string = GetConstString(invoke->InputAt(1), &const_string_length);
+    if (const_string != nullptr) {
+      std::swap(str, arg);  // Make sure the const string is in `str`.
+    }
+  }
+  bool is_compressed =
+      mirror::kUseStringCompression &&
+      const_string != nullptr &&
+      mirror::String::DexFileStringAllASCII(const_string, const_string_length);
+
+  if (const_string != nullptr) {
+    // Load `count` field of the argument string and check if it matches the const string.
+    // Also compares the compression style, if differs return false.
+    __ Ldr(temp, MemOperand(arg.X(), count_offset));
+    __ Cmp(temp, Operand(mirror::String::GetFlaggedCount(const_string_length, is_compressed)));
+    __ B(&return_false, ne);
+  } else {
+    // Load `count` fields of this and argument strings.
+    __ Ldr(temp, MemOperand(str.X(), count_offset));
+    __ Ldr(temp1, MemOperand(arg.X(), count_offset));
+    // Check if `count` fields are equal, return false if they're not.
+    // Also compares the compression style, if differs return false.
+    __ Cmp(temp, temp1);
+    __ B(&return_false, ne);
+  }
 
   // Assertions that must hold in order to compare strings 8 bytes at a time.
   DCHECK_ALIGNED(value_offset, 8);
   static_assert(IsAligned<8>(kObjectAlignment), "String of odd length is not zero padded");
 
-  if (mirror::kUseStringCompression) {
-    // For string compression, calculate the number of bytes to compare (not chars).
-    // This could in theory exceed INT32_MAX, so treat temp as unsigned.
-    __ Lsr(temp, temp, 1u);             // Extract length.
-    __ And(temp1, temp1, Operand(1));   // Extract compression flag.
-    __ Lsl(temp, temp, temp1);          // Calculate number of bytes to compare.
+  if (const_string != nullptr &&
+      const_string_length < (is_compressed ? kShortConstStringEqualsCutoffInBytes
+                                           : kShortConstStringEqualsCutoffInBytes / 2u)) {
+    // Load and compare the contents. Though we know the contents of the short const string
+    // at compile time, materializing constants may be more code than loading from memory.
+    int32_t offset = value_offset;
+    size_t remaining_bytes =
+        RoundUp(is_compressed ? const_string_length : const_string_length * 2u, 8u);
+    temp = temp.X();
+    temp1 = temp1.X();
+    while (remaining_bytes > 8u) {
+      Register temp2 = XRegisterFrom(locations->GetTemp(0));
+      __ Ldp(temp, temp1, MemOperand(str.X(), offset));
+      __ Ldp(temp2, out, MemOperand(arg.X(), offset));
+      __ Cmp(temp, temp2);
+      __ Ccmp(temp1, out, NoFlag, eq);
+      __ B(&return_false, ne);
+      offset += 2u * sizeof(uint64_t);
+      remaining_bytes -= 2u * sizeof(uint64_t);
+    }
+    if (remaining_bytes != 0u) {
+      __ Ldr(temp, MemOperand(str.X(), offset));
+      __ Ldr(temp1, MemOperand(arg.X(), offset));
+      __ Cmp(temp, temp1);
+      __ B(&return_false, ne);
+    }
+  } else {
+    // Return true if both strings are empty. Even with string compression `count == 0` means empty.
+    static_assert(static_cast<uint32_t>(mirror::StringCompressionFlag::kCompressed) == 0u,
+                  "Expecting 0=compressed, 1=uncompressed");
+    __ Cbz(temp, &return_true);
+
+    if (mirror::kUseStringCompression) {
+      // For string compression, calculate the number of bytes to compare (not chars).
+      // This could in theory exceed INT32_MAX, so treat temp as unsigned.
+      __ And(temp1, temp, Operand(1));    // Extract compression flag.
+      __ Lsr(temp, temp, 1u);             // Extract length.
+      __ Lsl(temp, temp, temp1);          // Calculate number of bytes to compare.
+    }
+
+    // Store offset of string value in preparation for comparison loop
+    __ Mov(temp1, value_offset);
+
+    temp1 = temp1.X();
+    Register temp2 = XRegisterFrom(locations->GetTemp(0));
+    // Loop to compare strings 8 bytes at a time starting at the front of the string.
+    // Ok to do this because strings are zero-padded to kObjectAlignment.
+    __ Bind(&loop);
+    __ Ldr(out, MemOperand(str.X(), temp1));
+    __ Ldr(temp2, MemOperand(arg.X(), temp1));
+    __ Add(temp1, temp1, Operand(sizeof(uint64_t)));
+    __ Cmp(out, temp2);
+    __ B(&return_false, ne);
+    // With string compression, we have compared 8 bytes, otherwise 4 chars.
+    __ Sub(temp, temp, Operand(mirror::kUseStringCompression ? 8 : 4), SetFlags);
+    __ B(&loop, hi);
   }
-
-  // Store offset of string value in preparation for comparison loop
-  __ Mov(temp1, value_offset);
-
-  temp1 = temp1.X();
-  temp2 = temp2.X();
-  // Loop to compare strings 8 bytes at a time starting at the front of the string.
-  // Ok to do this because strings are zero-padded to kObjectAlignment.
-  __ Bind(&loop);
-  __ Ldr(out, MemOperand(str.X(), temp1));
-  __ Ldr(temp2, MemOperand(arg.X(), temp1));
-  __ Add(temp1, temp1, Operand(sizeof(uint64_t)));
-  __ Cmp(out, temp2);
-  __ B(&return_false, ne);
-  // With string compression, we have compared 8 bytes, otherwise 4 chars.
-  __ Sub(temp, temp, Operand(mirror::kUseStringCompression ? 8 : 4), SetFlags);
-  __ B(&loop, hi);
 
   // Return true and exit the function.
   // If loop does not result in returning false, we return true.

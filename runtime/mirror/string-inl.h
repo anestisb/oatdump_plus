@@ -308,7 +308,7 @@ inline int32_t String::GetHashCode() {
 }
 
 template<typename MemoryType>
-bool String::AllASCII(const MemoryType* const chars, const int length) {
+inline bool String::AllASCII(const MemoryType* chars, const int length) {
   static_assert(std::is_unsigned<MemoryType>::value, "Expecting unsigned MemoryType");
   for (int i = 0; i < length; ++i) {
     // Valid ASCII characters are in range 1..0x7f. Zero is not considered ASCII
@@ -318,6 +318,13 @@ bool String::AllASCII(const MemoryType* const chars, const int length) {
     }
   }
   return true;
+}
+
+inline bool String::DexFileStringAllASCII(const char* chars, const int length) {
+  // For strings from the dex file we just need to check that
+  // the terminating character is at the right position.
+  DCHECK_EQ(AllASCII(reinterpret_cast<const uint8_t*>(chars), length), chars[length] == 0);
+  return chars[length] == 0;
 }
 
 }  // namespace mirror
