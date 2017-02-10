@@ -31,9 +31,7 @@ namespace linker {
 namespace {
 
 inline bool IsAdrpPatch(const LinkerPatch& patch) {
-  LinkerPatch::Type type = patch.GetType();
-  return
-      (type == LinkerPatch::Type::kStringRelative || type == LinkerPatch::Type::kDexCacheArray) &&
+  return (patch.IsPcRelative() && patch.GetType() != LinkerPatch::Type::kCallRelative) &&
       patch.LiteralOffset() == patch.PcInsnOffset();
 }
 
@@ -214,11 +212,11 @@ void Arm64RelativePatcher::PatchPcRelativeReference(std::vector<uint8_t>* code,
         DCHECK(patch.GetType() == LinkerPatch::Type::kStringRelative ||
                patch.GetType() == LinkerPatch::Type::kTypeRelative) << patch.GetType();
       } else {
-        // With the read barrier (non-Baker) enabled, it could be kDexCacheArray in the
-        // HLoadString::LoadKind::kDexCachePcRelative case of VisitLoadString().
+        // With the read barrier (non-Baker) enabled, it could be kStringBssEntry or kTypeBssEntry.
         DCHECK(patch.GetType() == LinkerPatch::Type::kStringRelative ||
                patch.GetType() == LinkerPatch::Type::kTypeRelative ||
-               patch.GetType() == LinkerPatch::Type::kDexCacheArray) << patch.GetType();
+               patch.GetType() == LinkerPatch::Type::kStringBssEntry ||
+               patch.GetType() == LinkerPatch::Type::kTypeBssEntry) << patch.GetType();
       }
       shift = 0u;  // No shift for ADD.
     } else {

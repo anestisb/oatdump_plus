@@ -965,9 +965,27 @@ ENTRY \name
 END \name
 .endm
 
-ONE_ARG_DOWNCALL art_quick_initialize_static_storage, artInitializeStaticStorageFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
-ONE_ARG_DOWNCALL art_quick_initialize_type, artInitializeTypeFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
-ONE_ARG_DOWNCALL art_quick_initialize_type_and_verify_access, artInitializeTypeAndVerifyAccessFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+// Macro for string and type resolution and initialization.
+.macro ONE_ARG_SAVE_EVERYTHING_DOWNCALL name, entrypoint
+    .extern \entrypoint
+ENTRY \name
+    SETUP_SAVE_EVERYTHING_FRAME r1    @ save everything in case of GC
+    mov    r1, r9                     @ pass Thread::Current
+    bl     \entrypoint                @ (uint32_t index, Thread*)
+    cbz    r0, 1f                     @ If result is null, deliver the OOME.
+    .cfi_remember_state
+    RESTORE_SAVE_EVERYTHING_FRAME_KEEP_R0
+    bx     lr
+    .cfi_restore_state
+1:
+    DELIVER_PENDING_EXCEPTION_FRAME_READY
+END \name
+.endm
+
+ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_initialize_static_storage, artInitializeStaticStorageFromCode
+ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_initialize_type, artInitializeTypeFromCode
+ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_initialize_type_and_verify_access, artInitializeTypeAndVerifyAccessFromCode
+ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_resolve_string, artResolveStringFromCode
 
     /*
      * Called by managed code to resolve a static field and load a non-wide value.
@@ -1065,27 +1083,6 @@ ENTRY art_quick_set64_static
     RETURN_IF_RESULT_IS_ZERO
     DELIVER_PENDING_EXCEPTION
 END art_quick_set64_static
-
-    /*
-     * Entry from managed code to resolve a string, this stub will
-     * check the dex cache for a matching string (the fast path), and if not found,
-     * it will allocate a String and deliver an exception on error.
-     * On success the String is returned. R0 holds the string index.
-     */
-
-ENTRY art_quick_resolve_string
-    SETUP_SAVE_EVERYTHING_FRAME r1                   @ save everything in case of GC
-    mov    r1, r9                                    @ pass Thread::Current
-    bl     artResolveStringFromCode                  @ (uint32_t type_idx, Thread*)
-    cbz    r0, 1f                                    @ If result is null, deliver the OOME.
-    .cfi_remember_state
-    RESTORE_SAVE_EVERYTHING_FRAME_KEEP_R0
-    bx     lr
-    .cfi_restore_state
-1:
-    DELIVER_PENDING_EXCEPTION_FRAME_READY
-END art_quick_resolve_string
-
 
 // Generate the allocation entrypoints for each allocator.
 GENERATE_ALLOC_ENTRYPOINTS_FOR_NON_TLAB_ALLOCATORS
@@ -2057,7 +2054,9 @@ ENTRY \name
     beq .Lret_forwarding_address\name
 
 .Lslow_rb_\name:
-    // Save IP: the kSaveEverything entrypoint art_quick_resolve_string makes a tail call here.
+    // Save IP: The kSaveEverything entrypoint art_quick_resolve_string used to
+    // make a tail call here. Currently, it serves only for stack alignment but
+    // we may reintroduce kSaveEverything calls here in the future.
     push  {r0-r4, r9, ip, lr}           @ save return address, core caller-save registers and ip
     .cfi_adjust_cfa_offset 32
     .cfi_rel_offset r0, 0
