@@ -1010,15 +1010,18 @@ void Instrumentation::FieldWriteEventImpl(Thread* thread, mirror::Object* this_o
 
 void Instrumentation::ExceptionCaughtEvent(Thread* thread,
                                            mirror::Throwable* exception_object) const {
+  Thread* self = Thread::Current();
+  StackHandleScope<1> hs(self);
+  Handle<mirror::Throwable> h_exception(hs.NewHandle(exception_object));
   if (HasExceptionCaughtListeners()) {
-    DCHECK_EQ(thread->GetException(), exception_object);
+    DCHECK_EQ(thread->GetException(), h_exception.Get());
     thread->ClearException();
     for (InstrumentationListener* listener : exception_caught_listeners_) {
       if (listener != nullptr) {
-        listener->ExceptionCaught(thread, exception_object);
+        listener->ExceptionCaught(thread, h_exception.Get());
       }
     }
-    thread->SetException(exception_object);
+    thread->SetException(h_exception.Get());
   }
 }
 
