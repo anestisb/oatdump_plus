@@ -336,11 +336,44 @@ struct ClassCallback : public art::ClassLoadCallback {
       art::mirror::Class* output = klass.Get();
 
       FixupGlobalReferenceTables(input, output);
+      FixupLocalReferenceTables(self, input, output);
     }
     if (heap->IsGcConcurrentAndMoving()) {
       heap->DecrementDisableMovingGC(self);
     }
   }
+
+  class RootUpdater : public art::RootVisitor {
+   public:
+    RootUpdater(const art::mirror::Class* input, art::mirror::Class* output)
+        : input_(input), output_(output) {}
+
+    void VisitRoots(art::mirror::Object*** roots,
+                    size_t count,
+                    const art::RootInfo& info ATTRIBUTE_UNUSED)
+        OVERRIDE {
+      for (size_t i = 0; i != count; ++i) {
+        if (*roots[i] == input_) {
+          *roots[i] = output_;
+        }
+      }
+    }
+
+    void VisitRoots(art::mirror::CompressedReference<art::mirror::Object>** roots,
+                    size_t count,
+                    const art::RootInfo& info ATTRIBUTE_UNUSED)
+        OVERRIDE REQUIRES_SHARED(art::Locks::mutator_lock_) {
+      for (size_t i = 0; i != count; ++i) {
+        if (roots[i]->AsMirrorPtr() == input_) {
+          roots[i]->Assign(output_);
+        }
+      }
+    }
+
+   private:
+    const art::mirror::Class* input_;
+    art::mirror::Class* output_;
+  };
 
   void FixupGlobalReferenceTables(art::mirror::Class* input,
                                   art::mirror::Class* output)
@@ -348,38 +381,7 @@ struct ClassCallback : public art::ClassLoadCallback {
     art::JavaVMExt* java_vm = art::Runtime::Current()->GetJavaVM();
 
     // Fix up the global table with a root visitor.
-    class GlobalUpdate : public art::RootVisitor {
-     public:
-      GlobalUpdate(art::mirror::Class* root_input, art::mirror::Class* root_output)
-          : input_(root_input), output_(root_output) {}
-
-      void VisitRoots(art::mirror::Object*** roots,
-                      size_t count,
-                      const art::RootInfo& info ATTRIBUTE_UNUSED)
-          OVERRIDE {
-        for (size_t i = 0; i != count; ++i) {
-          if (*roots[i] == input_) {
-            *roots[i] = output_;
-          }
-        }
-      }
-
-      void VisitRoots(art::mirror::CompressedReference<art::mirror::Object>** roots,
-                      size_t count,
-                      const art::RootInfo& info ATTRIBUTE_UNUSED)
-          OVERRIDE REQUIRES_SHARED(art::Locks::mutator_lock_) {
-        for (size_t i = 0; i != count; ++i) {
-          if (roots[i]->AsMirrorPtr() == input_) {
-            roots[i]->Assign(output_);
-          }
-        }
-      }
-
-     private:
-      const art::mirror::Class* input_;
-      art::mirror::Class* output_;
-    };
-    GlobalUpdate global_update(input, output);
+    RootUpdater global_update(input, output);
     java_vm->VisitRoots(&global_update);
 
     class WeakGlobalUpdate : public art::IsMarkedVisitor {
@@ -400,6 +402,33 @@ struct ClassCallback : public art::ClassLoadCallback {
     };
     WeakGlobalUpdate weak_global_update(input, output);
     java_vm->SweepJniWeakGlobals(&weak_global_update);
+  }
+
+  void FixupLocalReferenceTables(art::Thread* self,
+                                 art::mirror::Class* input,
+                                 art::mirror::Class* output)
+      REQUIRES(art::Locks::mutator_lock_) {
+    class LocalUpdate {
+     public:
+      LocalUpdate(const art::mirror::Class* root_input, art::mirror::Class* root_output)
+          : input_(root_input), output_(root_output) {}
+
+      static void Callback(art::Thread* t, void* arg) REQUIRES(art::Locks::mutator_lock_) {
+        LocalUpdate* local = reinterpret_cast<LocalUpdate*>(arg);
+
+        // Fix up the local table with a root visitor.
+        RootUpdater local_update(local->input_, local->output_);
+        t->GetJniEnv()->locals.VisitRoots(
+            &local_update, art::RootInfo(art::kRootJNILocal, t->GetThreadId()));
+      }
+
+     private:
+      const art::mirror::Class* input_;
+      art::mirror::Class* output_;
+    };
+    LocalUpdate local_upd(input, output);
+    art::MutexLock mu(self, *art::Locks::thread_list_lock_);
+    art::Runtime::Current()->GetThreadList()->ForEach(LocalUpdate::Callback, &local_upd);
   }
 
   // A set of all the temp classes we have handed out. We have to fix up references to these.
