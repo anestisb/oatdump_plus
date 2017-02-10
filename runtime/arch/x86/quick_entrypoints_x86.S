@@ -922,6 +922,31 @@ MACRO3(THREE_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
     END_FUNCTION VAR(c_name)
 END_MACRO
 
+// Macro for string and type resolution and initialization.
+MACRO2(ONE_ARG_SAVE_EVERYTHING_DOWNCALL, c_name, cxx_name)
+    DEFINE_FUNCTION VAR(c_name)
+    SETUP_SAVE_EVERYTHING_FRAME ebx, ebx              // save ref containing registers for GC
+    // Outgoing argument set up
+    subl MACRO_LITERAL(8), %esp                       // push padding
+    CFI_ADJUST_CFA_OFFSET(8)
+    pushl %fs:THREAD_SELF_OFFSET                      // pass Thread::Current()
+    CFI_ADJUST_CFA_OFFSET(4)
+    PUSH eax                                          // pass arg1
+    call CALLVAR(cxx_name)                            // cxx_name(arg1, Thread*)
+    addl MACRO_LITERAL(16), %esp                      // pop arguments
+    CFI_ADJUST_CFA_OFFSET(-16)
+    testl %eax, %eax                                  // If result is null, deliver the OOME.
+    jz 1f
+    CFI_REMEMBER_STATE
+    RESTORE_SAVE_EVERYTHING_FRAME_KEEP_EAX            // restore frame up to return address
+    ret                                               // return
+    CFI_RESTORE_STATE
+    CFI_DEF_CFA(esp, FRAME_SIZE_SAVE_EVERYTHING)      // workaround for clang bug: 31975598
+1:
+    DELIVER_PENDING_EXCEPTION_FRAME_READY
+    END_FUNCTION VAR(c_name)
+END_MACRO
+
 MACRO0(RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER)
     testl %eax, %eax               // eax == 0 ?
     jz  1f                         // if eax == 0 goto 1
@@ -1245,31 +1270,10 @@ GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved16_tlab, artAllocArrayFr
 GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved32_tlab, artAllocArrayFromCodeResolvedTLAB, COMPUTE_ARRAY_SIZE_32
 GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved64_tlab, artAllocArrayFromCodeResolvedTLAB, COMPUTE_ARRAY_SIZE_64
 
-DEFINE_FUNCTION art_quick_resolve_string
-    SETUP_SAVE_EVERYTHING_FRAME ebx, ebx
-    // Outgoing argument set up
-    subl LITERAL(8), %esp                                 // push padding
-    CFI_ADJUST_CFA_OFFSET(8)
-    pushl %fs:THREAD_SELF_OFFSET                          // pass Thread::Current()
-    CFI_ADJUST_CFA_OFFSET(4)
-    PUSH eax                                              // pass arg1
-    call SYMBOL(artResolveStringFromCode)
-    addl LITERAL(16), %esp                                // pop arguments
-    CFI_ADJUST_CFA_OFFSET(-16)
-    testl %eax, %eax                                      // If result is null, deliver the OOME.
-    jz 1f
-    CFI_REMEMBER_STATE
-    RESTORE_SAVE_EVERYTHING_FRAME_KEEP_EAX
-    ret
-    CFI_RESTORE_STATE
-    CFI_DEF_CFA(esp, FRAME_SIZE_SAVE_EVERYTHING)  // workaround for clang bug: 31975598
-1:
-    DELIVER_PENDING_EXCEPTION_FRAME_READY
-END_FUNCTION art_quick_resolve_string
-
-ONE_ARG_DOWNCALL art_quick_initialize_static_storage, artInitializeStaticStorageFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
-ONE_ARG_DOWNCALL art_quick_initialize_type, artInitializeTypeFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
-ONE_ARG_DOWNCALL art_quick_initialize_type_and_verify_access, artInitializeTypeAndVerifyAccessFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_initialize_static_storage, artInitializeStaticStorageFromCode
+ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_initialize_type, artInitializeTypeFromCode
+ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_initialize_type_and_verify_access, artInitializeTypeAndVerifyAccessFromCode
+ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_resolve_string, artResolveStringFromCode
 
 TWO_ARG_REF_DOWNCALL art_quick_handle_fill_data, artHandleFillArrayDataFromCode, RETURN_IF_EAX_ZERO
 
