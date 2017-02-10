@@ -642,8 +642,10 @@ void JumpTableARM64::EmitTable(CodeGeneratorARM64* codegen) {
 // probably still be a from-space reference (unless it gets updated by
 // another thread, or if another thread installed another object
 // reference (different from `ref`) in `obj.field`).
-// If entrypoint is a valid location it is assumed to already be holding the entrypoint. The case
-// where the entrypoint is passed in is for the GcRoot read barrier.
+//
+// If `entrypoint` is a valid location it is assumed to already be
+// holding the entrypoint. The case where the entrypoint is passed in
+// is for the GcRoot read barrier.
 class ReadBarrierMarkSlowPathARM64 : public SlowPathCodeARM64 {
  public:
   ReadBarrierMarkSlowPathARM64(HInstruction* instruction,
