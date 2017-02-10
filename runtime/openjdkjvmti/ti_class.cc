@@ -292,6 +292,10 @@ struct ClassCallback : public art::ClassLoadCallback {
     }
   }
 
+  // To support parallel class-loading, we need to perform some locking dances here. Namely,
+  // the fixup stage must not be holding the temp_classes lock when it fixes up the system
+  // (as that requires suspending all mutators).
+
   void AddTempClass(art::Thread* self, jclass klass) {
     std::unique_lock<std::mutex> mu(temp_classes_lock);
     jclass global_klass = reinterpret_cast<jclass>(self->GetJniEnv()->NewGlobalRef(klass));
@@ -302,18 +306,24 @@ struct ClassCallback : public art::ClassLoadCallback {
                        art::Handle<art::mirror::Class> temp_klass,
                        art::Handle<art::mirror::Class> klass)
       REQUIRES_SHARED(art::Locks::mutator_lock_) {
-    std::unique_lock<std::mutex> mu(temp_classes_lock);
-    if (temp_classes.empty()) {
-      return;
-    }
-
-    for (auto it = temp_classes.begin(); it != temp_classes.end(); ++it) {
-      if (temp_klass.Get() == art::ObjPtr<art::mirror::Class>::DownCast(self->DecodeJObject(*it))) {
-        self->GetJniEnv()->DeleteGlobalRef(*it);
-        temp_classes.erase(it);
-        FixupTempClass(self, temp_klass, klass);
-        break;
+    bool requires_fixup = false;
+    {
+      std::unique_lock<std::mutex> mu(temp_classes_lock);
+      if (temp_classes.empty()) {
+        return;
       }
+
+      for (auto it = temp_classes.begin(); it != temp_classes.end(); ++it) {
+        if (temp_klass.Get() == art::ObjPtr<art::mirror::Class>::DownCast(self->DecodeJObject(*it))) {
+          self->GetJniEnv()->DeleteGlobalRef(*it);
+          temp_classes.erase(it);
+          requires_fixup = true;
+          break;
+        }
+      }
+    }
+    if (requires_fixup) {
+      FixupTempClass(self, temp_klass, klass);
     }
   }
 
