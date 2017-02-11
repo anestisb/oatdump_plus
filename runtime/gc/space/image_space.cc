@@ -802,7 +802,11 @@ class ImageSpaceLoader {
           reinterpret_cast<char*>(map->Begin()) + decompress_offset,
           stored_size,
           map->Size() - decompress_offset);
-      VLOG(image) << "Decompressing image took " << PrettyDuration(NanoTime() - start);
+      const uint64_t time = NanoTime() - start;
+      // Add one 1 ns to prevent possible divide by 0.
+      VLOG(image) << "Decompressing image took " << PrettyDuration(time) << " ("
+                  << PrettySize(static_cast<uint64_t>(map->Size()) * MsToNs(1000) / (time + 1))
+                  << "/s)";
       if (decompressed_size + sizeof(ImageHeader) != image_header.GetImageSize()) {
         *error_msg = StringPrintf(
             "Decompressed size does not match expected image size %zu vs %zu",
