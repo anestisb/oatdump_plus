@@ -587,15 +587,18 @@ class ImageSpaceLoader {
     }
 
     std::unique_ptr<MemMap> map;
+
     // GetImageBegin is the preferred address to map the image. If we manage to map the
     // image at the image begin, the amount of fixup work required is minimized.
+    // If it is pic we will retry with error_msg for the failure case. Pass a null error_msg to
+    // avoid reading proc maps for a mapping failure and slowing everything down.
     map.reset(LoadImageFile(image_filename,
                             image_location,
                             *image_header,
                             image_header->GetImageBegin(),
                             file->Fd(),
                             logger,
-                            error_msg));
+                            image_header->IsPic() ? nullptr : error_msg));
     // If the header specifies PIC mode, we can also map at a random low_4gb address since we can
     // relocate in-place.
     if (map == nullptr && image_header->IsPic()) {
@@ -765,8 +768,10 @@ class ImageSpaceLoader {
 
     if (storage_mode != ImageHeader::kStorageModeLZ4 &&
         storage_mode != ImageHeader::kStorageModeLZ4HC) {
-      *error_msg = StringPrintf("Invalid storage mode in image header %d",
-                                static_cast<int>(storage_mode));
+      if (error_msg != nullptr) {
+        *error_msg = StringPrintf("Invalid storage mode in image header %d",
+                                  static_cast<int>(storage_mode));
+      }
       return nullptr;
     }
 
@@ -790,7 +795,7 @@ class ImageSpaceLoader {
                                                        image_filename,
                                                        error_msg));
       if (temp_map == nullptr) {
-        DCHECK(!error_msg->empty());
+        DCHECK(error_msg == nullptr || !error_msg->empty());
         return nullptr;
       }
       memcpy(map->Begin(), &image_header, sizeof(ImageHeader));
@@ -808,10 +813,12 @@ class ImageSpaceLoader {
                   << PrettySize(static_cast<uint64_t>(map->Size()) * MsToNs(1000) / (time + 1))
                   << "/s)";
       if (decompressed_size + sizeof(ImageHeader) != image_header.GetImageSize()) {
-        *error_msg = StringPrintf(
-            "Decompressed size does not match expected image size %zu vs %zu",
-            decompressed_size + sizeof(ImageHeader),
-            image_header.GetImageSize());
+        if (error_msg != nullptr) {
+          *error_msg = StringPrintf(
+              "Decompressed size does not match expected image size %zu vs %zu",
+              decompressed_size + sizeof(ImageHeader),
+              image_header.GetImageSize());
+        }
         return nullptr;
       }
     }
