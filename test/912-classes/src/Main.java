@@ -315,6 +315,8 @@ public class Main {
   }
 
   private static void testClassLoadPrepareEquality() throws Exception {
+    setEqualityEventStorageClass(ClassF.class);
+
     enableClassLoadPrepareEqualityEvents(true);
 
     Class.forName("Main$ClassE");
@@ -393,6 +395,7 @@ public class Main {
   private static native void enableClassLoadSeenEvents(boolean b);
   private static native boolean hadLoadEvent();
 
+  private static native void setEqualityEventStorageClass(Class<?> c);
   private static native void enableClassLoadPrepareEqualityEvents(boolean b);
 
   private static class TestForNonInit {
@@ -426,6 +429,10 @@ public class Main {
     }
     public void bar() {
     }
+  }
+
+  public static class ClassF {
+    public static Object STATIC = null;
   }
 
   private static final String DEX1 = System.getenv("DEX_LOCATION") + "/912-classes.jar";
