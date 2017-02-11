@@ -400,7 +400,7 @@ MemMap* MemMap::MapFileAtAddress(uint8_t* expected_ptr,
     // reuse means it is okay that it overlaps an existing page mapping.
     // Only use this if you actually made the page reservation yourself.
     CHECK(expected_ptr != nullptr);
-
+    DCHECK(error_msg != nullptr);
     DCHECK(ContainedWithinExistingMap(expected_ptr, byte_count, error_msg))
         << ((error_msg != nullptr) ? *error_msg : std::string());
     flags |= MAP_FIXED;
