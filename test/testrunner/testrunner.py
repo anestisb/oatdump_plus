@@ -767,7 +767,10 @@ def main():
       build_targets += 'test-art-host-run-test-dependencies'
     if 'target' in TARGET_TYPES:
       build_targets += 'test-art-target-run-test-dependencies'
-    build_command = 'make -j' + str(n_thread) + ' ' + build_targets
+    build_command = 'make'
+    build_command += ' -j' + str(n_thread)
+    build_command += ' -C ' + env.ANDROID_BUILD_TOP
+    build_command += ' ' + build_targets
     if subprocess.call(build_command.split()):
       sys.exit(1)
   if user_requested_test:
@@ -786,7 +789,6 @@ def main():
   except SystemExit:
     pass
   except:
-    print "hello"
     print_analysis()
     sys.exit(1)
 
