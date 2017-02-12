@@ -78,6 +78,11 @@ class ProfileCompilationInfo {
   std::string DumpInfo(const std::vector<const DexFile*>* dex_files,
                        bool print_full_dex_location = true) const;
 
+  void GetClassNames(const std::vector<std::unique_ptr<const DexFile>>* dex_files,
+                     std::set<std::string>* class_names) const;
+  void GetClassNames(const std::vector<const DexFile*>* dex_files,
+                     std::set<std::string>* class_names) const;
+
   bool Equals(const ProfileCompilationInfo& other);
 
   static std::string GetProfileDexFileKey(const std::string& dex_location);
