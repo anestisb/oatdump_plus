@@ -1171,6 +1171,23 @@ static void CopyNonNull(const T* src, size_t count, T* dst, const NullPred& pred
   }
 }
 
+template <typename T>
+static void CopyDexCachePairs(const std::atomic<mirror::DexCachePair<T>>* src,
+                              size_t count,
+                              std::atomic<mirror::DexCachePair<T>>* dst) {
+  DCHECK_NE(count, 0u);
+  DCHECK(!src[0].load(std::memory_order_relaxed).object.IsNull() ||
+         src[0].load(std::memory_order_relaxed).index != 0u);
+  for (size_t i = 0; i < count; ++i) {
+    DCHECK_EQ(dst[i].load(std::memory_order_relaxed).index, 0u);
+    DCHECK(dst[i].load(std::memory_order_relaxed).object.IsNull());
+    mirror::DexCachePair<T> source = src[i].load(std::memory_order_relaxed);
+    if (source.index != 0u || !source.object.IsNull()) {
+      dst[i].store(source, std::memory_order_relaxed);
+    }
+  }
+}
+
 bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
     gc::space::ImageSpace* space,
     Handle<mirror::ClassLoader> class_loader,
@@ -1224,7 +1241,10 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
         if (dex_file->NumStringIds() < num_strings) {
           num_strings = dex_file->NumStringIds();
         }
-        const size_t num_types = dex_file->NumTypeIds();
+        size_t num_types = mirror::DexCache::kDexCacheTypeCacheSize;
+        if (dex_file->NumTypeIds() < num_types) {
+          num_types = dex_file->NumTypeIds();
+        }
         const size_t num_methods = dex_file->NumMethodIds();
         const size_t num_fields = dex_file->NumFieldIds();
         size_t num_method_types = mirror::DexCache::kDexCacheMethodTypeCacheSize;
@@ -1243,28 +1263,14 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
           mirror::StringDexCacheType* const image_resolved_strings = dex_cache->GetStrings();
           mirror::StringDexCacheType* const strings =
               reinterpret_cast<mirror::StringDexCacheType*>(raw_arrays + layout.StringsOffset());
-          for (size_t j = 0; j < num_strings; ++j) {
-            DCHECK_EQ(strings[j].load(std::memory_order_relaxed).index, 0u);
-            DCHECK(strings[j].load(std::memory_order_relaxed).object.IsNull());
-            strings[j].store(image_resolved_strings[j].load(std::memory_order_relaxed),
-                             std::memory_order_relaxed);
-          }
-          mirror::StringDexCachePair::Initialize(strings);
+          CopyDexCachePairs(image_resolved_strings, num_strings, strings);
           dex_cache->SetStrings(strings);
         }
         if (num_types != 0u) {
-          GcRoot<mirror::Class>* const image_resolved_types = dex_cache->GetResolvedTypes();
-          GcRoot<mirror::Class>* const types =
-              reinterpret_cast<GcRoot<mirror::Class>*>(raw_arrays + layout.TypesOffset());
-          for (size_t j = 0; kIsDebugBuild && j < num_types; ++j) {
-            DCHECK(types[j].IsNull());
-          }
-          CopyNonNull(image_resolved_types,
-                      num_types,
-                      types,
-                      [](const GcRoot<mirror::Class>& elem) {
-                          return elem.IsNull();
-                      });
+          mirror::TypeDexCacheType* const image_resolved_types = dex_cache->GetResolvedTypes();
+          mirror::TypeDexCacheType* const types =
+              reinterpret_cast<mirror::TypeDexCacheType*>(raw_arrays + layout.TypesOffset());
+          CopyDexCachePairs(image_resolved_types, num_types, types);
           dex_cache->SetResolvedTypes(types);
         }
         if (num_methods != 0u) {
@@ -1305,15 +1311,7 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
           mirror::MethodTypeDexCacheType* const method_types =
               reinterpret_cast<mirror::MethodTypeDexCacheType*>(
                   raw_arrays + layout.MethodTypesOffset());
-          for (size_t j = 0; j < num_method_types; ++j) {
-            DCHECK_EQ(method_types[j].load(std::memory_order_relaxed).index, 0u);
-            DCHECK(method_types[j].load(std::memory_order_relaxed).object.IsNull());
-            method_types[j].store(
-                image_resolved_method_types[j].load(std::memory_order_relaxed),
-                std::memory_order_relaxed);
-          }
-
-          mirror::MethodTypeDexCachePair::Initialize(method_types);
+          CopyDexCachePairs(image_resolved_method_types, num_method_types, method_types);
           dex_cache->SetResolvedMethodTypes(method_types);
         }
       }
@@ -1327,11 +1325,11 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
       }
       if (kIsDebugBuild) {
         CHECK(new_class_set != nullptr);
-        GcRoot<mirror::Class>* const types = dex_cache->GetResolvedTypes();
+        mirror::TypeDexCacheType* const types = dex_cache->GetResolvedTypes();
         const size_t num_types = dex_cache->NumResolvedTypes();
-        for (int32_t j = 0; j < static_cast<int32_t>(num_types); j++) {
+        for (size_t j = 0; j != num_types; ++j) {
           // The image space is not yet added to the heap, avoid read barriers.
-          ObjPtr<mirror::Class> klass = types[j].Read();
+          ObjPtr<mirror::Class> klass = types[j].load(std::memory_order_relaxed).object.Read();
           if (space->HasAddress(klass.Ptr())) {
             DCHECK(!klass->IsErroneous()) << klass->GetStatus();
             auto it = new_class_set->Find(ClassTable::TableSlot(klass));
@@ -1690,9 +1688,9 @@ bool ClassLinker::AddImageSpace(
       // The current dex file field is bogus, overwrite it so that we can get the dex file in the
       // loop below.
       dex_cache->SetDexFile(dex_file.get());
-      GcRoot<mirror::Class>* const types = dex_cache->GetResolvedTypes();
+      mirror::TypeDexCacheType* const types = dex_cache->GetResolvedTypes();
       for (int32_t j = 0, num_types = dex_cache->NumResolvedTypes(); j < num_types; j++) {
-        ObjPtr<mirror::Class> klass = types[j].Read();
+        ObjPtr<mirror::Class> klass = types[j].load(std::memory_order_relaxed).object.Read();
         if (klass != nullptr) {
           DCHECK(!klass->IsErroneous()) << klass->GetStatus();
         }
@@ -7722,7 +7720,9 @@ mirror::String* ClassLinker::ResolveString(const DexFile& dex_file,
   uint32_t utf16_length;
   const char* utf8_data = dex_file.StringDataAndUtf16LengthByIdx(string_idx, &utf16_length);
   ObjPtr<mirror::String> string = intern_table_->InternStrong(utf16_length, utf8_data);
-  dex_cache->SetResolvedString(string_idx, string);
+  if (string != nullptr) {
+    dex_cache->SetResolvedString(string_idx, string);
+  }
   return string.Ptr();
 }
 
@@ -7763,11 +7763,16 @@ ObjPtr<mirror::Class> ClassLinker::LookupResolvedType(const DexFile& dex_file,
       // Find the class in the loaded classes table.
       type = LookupClass(self, descriptor, hash, class_loader.Ptr());
     }
+    if (type != nullptr) {
+      if (type->IsResolved()) {
+        dex_cache->SetResolvedType(type_idx, type);
+      } else {
+        type = nullptr;
+      }
+    }
   }
-  if (type != nullptr && type->IsResolved()) {
-    return type.Ptr();
-  }
-  return nullptr;
+  DCHECK(type == nullptr || type->IsResolved());
+  return type;
 }
 
 mirror::Class* ClassLinker::ResolveType(const DexFile& dex_file,
@@ -7786,6 +7791,12 @@ mirror::Class* ClassLinker::ResolveType(const DexFile& dex_file,
   DCHECK(dex_cache.Get() != nullptr);
   Thread::PoisonObjectPointersIfDebug();
   ObjPtr<mirror::Class> resolved = dex_cache->GetResolvedType(type_idx);
+  if (resolved == nullptr) {
+    // TODO: Avoid this lookup as it duplicates work done in FindClass(). It is here
+    // as a workaround for FastNative JNI to avoid AssertNoPendingException() when
+    // trying to resolve annotations while an exception may be pending. Bug: 34659969
+    resolved = LookupResolvedType(dex_file, type_idx, dex_cache.Get(), class_loader.Get());
+  }
   if (resolved == nullptr) {
     Thread* self = Thread::Current();
     const char* descriptor = dex_file.StringByTypeIdx(type_idx);
