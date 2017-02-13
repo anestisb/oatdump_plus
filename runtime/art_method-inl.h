@@ -175,12 +175,19 @@ inline bool ArtMethod::HasSameDexCacheResolvedMethods(ArtMethod* other, PointerS
 }
 
 inline mirror::Class* ArtMethod::GetClassFromTypeIndex(dex::TypeIndex type_idx, bool resolve) {
+  // TODO: Refactor this function into two functions, Resolve...() and Lookup...()
+  // so that we can properly annotate it with no-suspension possible / suspension possible.
   ObjPtr<mirror::DexCache> dex_cache = GetDexCache();
   ObjPtr<mirror::Class> type = dex_cache->GetResolvedType(type_idx);
-  if (UNLIKELY(type == nullptr) && resolve) {
+  if (UNLIKELY(type == nullptr)) {
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    type = class_linker->ResolveType(type_idx, this);
-    CHECK(type != nullptr || Thread::Current()->IsExceptionPending());
+    if (resolve) {
+      type = class_linker->ResolveType(type_idx, this);
+      CHECK(type != nullptr || Thread::Current()->IsExceptionPending());
+    } else {
+      type = class_linker->LookupResolvedType(
+          *dex_cache->GetDexFile(), type_idx, dex_cache, GetClassLoader());
+    }
   }
   return type.Ptr();
 }
