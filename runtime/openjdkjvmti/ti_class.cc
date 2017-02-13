@@ -50,6 +50,8 @@
 #include "mirror/array-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_ext.h"
+#include "mirror/object_reference.h"
+#include "mirror/object-inl.h"
 #include "runtime.h"
 #include "runtime_callbacks.h"
 #include "ScopedLocalRef.h"
@@ -347,6 +349,7 @@ struct ClassCallback : public art::ClassLoadCallback {
 
       FixupGlobalReferenceTables(input, output);
       FixupLocalReferenceTables(self, input, output);
+      FixupHeap(input, output);
     }
     if (heap->IsGcConcurrentAndMoving()) {
       heap->DecrementDisableMovingGC(self);
@@ -385,8 +388,7 @@ struct ClassCallback : public art::ClassLoadCallback {
     art::mirror::Class* output_;
   };
 
-  void FixupGlobalReferenceTables(art::mirror::Class* input,
-                                  art::mirror::Class* output)
+  void FixupGlobalReferenceTables(art::mirror::Class* input, art::mirror::Class* output)
       REQUIRES(art::Locks::mutator_lock_) {
     art::JavaVMExt* java_vm = art::Runtime::Current()->GetJavaVM();
 
@@ -439,6 +441,53 @@ struct ClassCallback : public art::ClassLoadCallback {
     LocalUpdate local_upd(input, output);
     art::MutexLock mu(self, *art::Locks::thread_list_lock_);
     art::Runtime::Current()->GetThreadList()->ForEach(LocalUpdate::Callback, &local_upd);
+  }
+
+  void FixupHeap(art::mirror::Class* input, art::mirror::Class* output)
+        REQUIRES(art::Locks::mutator_lock_) {
+    class HeapFixupVisitor {
+     public:
+      HeapFixupVisitor(const art::mirror::Class* root_input, art::mirror::Class* root_output)
+                : input_(root_input), output_(root_output) {}
+
+      void operator()(art::mirror::Object* src,
+                      art::MemberOffset field_offset,
+                      bool is_static ATTRIBUTE_UNUSED) const
+          REQUIRES_SHARED(art::Locks::mutator_lock_) {
+        art::mirror::HeapReference<art::mirror::Object>* trg =
+          src->GetFieldObjectReferenceAddr(field_offset);
+        if (trg->AsMirrorPtr() == input_) {
+          DCHECK_NE(field_offset.Uint32Value(), 0u);  // This shouldn't be the class field of
+                                                      // an object.
+          trg->Assign(output_);
+        }
+      }
+
+      void VisitRoot(art::mirror::CompressedReference<art::mirror::Object>* root ATTRIBUTE_UNUSED)
+      const {
+        LOG(FATAL) << "Unreachable";
+      }
+
+      void VisitRootIfNonNull(
+          art::mirror::CompressedReference<art::mirror::Object>* root ATTRIBUTE_UNUSED) const {
+        LOG(FATAL) << "Unreachable";
+      }
+
+      static void AllObjectsCallback(art::mirror::Object* obj, void* arg)
+          REQUIRES_SHARED(art::Locks::mutator_lock_) {
+        HeapFixupVisitor* hfv = reinterpret_cast<HeapFixupVisitor*>(arg);
+
+        // Visit references, not native roots.
+        obj->VisitReferences<false>(*hfv, art::VoidFunctor());
+      }
+
+     private:
+      const art::mirror::Class* input_;
+      art::mirror::Class* output_;
+    };
+    HeapFixupVisitor hfv(input, output);
+    art::Runtime::Current()->GetHeap()->VisitObjectsPaused(HeapFixupVisitor::AllObjectsCallback,
+                                                           &hfv);
   }
 
   // A set of all the temp classes we have handed out. We have to fix up references to these.
