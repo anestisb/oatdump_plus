@@ -2042,67 +2042,158 @@ ENTRY_NO_GP art_quick_indexof
 /* $a0 holds address of "this" */
 /* $a1 holds "ch" */
 /* $a2 holds "fromIndex" */
-  lw    $t0, MIRROR_STRING_COUNT_OFFSET($a0)    # this.length()
-  slt   $t1, $a2, $zero # if fromIndex < 0
-#if defined(_MIPS_ARCH_MIPS32R6) || defined(_MIPS_ARCH_MIPS64R6)
-  seleqz $a2, $a2, $t1  #     fromIndex = 0;
+#if (STRING_COMPRESSION_FEATURE)
+    lw    $a3, MIRROR_STRING_COUNT_OFFSET($a0)    # 'count' field of this
 #else
-  movn   $a2, $zero, $t1 #    fromIndex = 0;
+    lw    $t0, MIRROR_STRING_COUNT_OFFSET($a0)    # this.length()
 #endif
-  subu  $t0, $t0, $a2   # this.length() - fromIndex
-  blez  $t0, 6f         # if this.length()-fromIndex <= 0
-  li    $v0, -1         #     return -1;
+    slt   $t1, $a2, $zero # if fromIndex < 0
+#if defined(_MIPS_ARCH_MIPS32R6) || defined(_MIPS_ARCH_MIPS64R6)
+    seleqz $a2, $a2, $t1  #     fromIndex = 0;
+#else
+    movn   $a2, $zero, $t1 #    fromIndex = 0;
+#endif
+#if (STRING_COMPRESSION_FEATURE)
+    srl   $t0, $a3, 1     # $a3 holds count (with flag) and $t0 holds actual length
+#endif
+    subu  $t0, $t0, $a2   # this.length() - fromIndex
+    blez  $t0, 6f         # if this.length()-fromIndex <= 0
+    li    $v0, -1         #     return -1;
 
-  sll   $v0, $a2, 1     # $a0 += $a2 * 2
-  addu  $a0, $a0, $v0   #  "  ditto  "
-  move  $v0, $a2        # Set i to fromIndex.
+#if (STRING_COMPRESSION_FEATURE)
+    sll   $a3, $a3, 31    # Extract compression flag.
+    beqz  $a3, .Lstring_indexof_compressed
+    move  $t2, $a0        # Save a copy in $t2 to later compute result (in branch delay slot).
+#endif
+    sll   $v0, $a2, 1     # $a0 += $a2 * 2
+    addu  $a0, $a0, $v0   #  "  ditto  "
+    move  $v0, $a2        # Set i to fromIndex.
 
 1:
-  lhu   $t3, MIRROR_STRING_VALUE_OFFSET($a0)    # if this.charAt(i) == ch
-  beq   $t3, $a1, 6f                            #     return i;
-  addu  $a0, $a0, 2     # i++
-  subu  $t0, $t0, 1     # this.length() - i
-  bnez  $t0, 1b         # while this.length() - i > 0
-  addu  $v0, $v0, 1     # i++
+    lhu   $t3, MIRROR_STRING_VALUE_OFFSET($a0)    # if this.charAt(i) == ch
+    beq   $t3, $a1, 6f                            #     return i;
+    addu  $a0, $a0, 2     # i++
+    subu  $t0, $t0, 1     # this.length() - i
+    bnez  $t0, 1b         # while this.length() - i > 0
+    addu  $v0, $v0, 1     # i++
 
-  li    $v0, -1         # if this.length() - i <= 0
-                        #     return -1;
+    li    $v0, -1         # if this.length() - i <= 0
+                          #     return -1;
 
 6:
-  j     $ra
-  nop
+    j     $ra
+    nop
+
+#if (STRING_COMPRESSION_FEATURE)
+.Lstring_indexof_compressed:
+    addu  $a0, $a0, $a2   # $a0 += $a2
+
+.Lstring_indexof_compressed_loop:
+    lbu   $t3, MIRROR_STRING_VALUE_OFFSET($a0)
+    beq   $t3, $a1, .Lstring_indexof_compressed_matched
+    subu  $t0, $t0, 1
+    bgtz  $t0, .Lstring_indexof_compressed_loop
+    addu  $a0, $a0, 1
+
+.Lstring_indexof_nomatch:
+    jalr  $zero, $ra
+    li    $v0, -1         # return -1;
+
+.Lstring_indexof_compressed_matched:
+    jalr  $zero, $ra
+    subu  $v0, $a0, $t2   # return (current - start);
+#endif
 END art_quick_indexof
 
 /* java.lang.String.compareTo(String anotherString) */
 ENTRY_NO_GP art_quick_string_compareto
 /* $a0 holds address of "this" */
 /* $a1 holds address of "anotherString" */
-  beq    $a0, $a1, 9f   # this and anotherString are the same object
-  move   $v0, $zero
+    beq    $a0, $a1, .Lstring_compareto_length_diff   # this and anotherString are the same object
+    move   $a3, $a2                                   # trick to return 0 (it returns a2 - a3)
 
-  lw     $a2, MIRROR_STRING_COUNT_OFFSET($a0)   # this.length()
-  lw     $a3, MIRROR_STRING_COUNT_OFFSET($a1)   # anotherString.length()
-  MINu   $t2, $a2, $a3
-# $t2 now holds min(this.length(),anotherString.length())
+#if (STRING_COMPRESSION_FEATURE)
+    lw     $t0, MIRROR_STRING_COUNT_OFFSET($a0)   # 'count' field of this
+    lw     $t1, MIRROR_STRING_COUNT_OFFSET($a1)   # 'count' field of anotherString
+    sra    $a2, $t0, 1                            # this.length()
+    sra    $a3, $t1, 1                            # anotherString.length()
+#else
+    lw     $a2, MIRROR_STRING_COUNT_OFFSET($a0)   # this.length()
+    lw     $a3, MIRROR_STRING_COUNT_OFFSET($a1)   # anotherString.length()
+#endif
 
-  beqz   $t2, 9f        # while min(this.length(),anotherString.length())-i != 0
-  subu   $v0, $a2, $a3  # if $t2==0 return
-                        #     (this.length() - anotherString.length())
-1:
-  lhu    $t0, MIRROR_STRING_VALUE_OFFSET($a0)   # while this.charAt(i) == anotherString.charAt(i)
-  lhu    $t1, MIRROR_STRING_VALUE_OFFSET($a1)
-  bne    $t0, $t1, 9f   # if this.charAt(i) != anotherString.charAt(i)
-  subu   $v0, $t0, $t1  #     return (this.charAt(i) - anotherString.charAt(i))
-  addiu  $a0, $a0, 2    # point at this.charAt(i++)
-  subu   $t2, $t2, 1    # new value of
-                        # min(this.length(),anotherString.length())-i
-  bnez   $t2, 1b
-  addiu  $a1, $a1, 2    # point at anotherString.charAt(i++)
-  subu   $v0, $a2, $a3
+    MINu   $t2, $a2, $a3
+    # $t2 now holds min(this.length(),anotherString.length())
 
-9:
-  j      $ra
-  nop
+    # while min(this.length(),anotherString.length())-i != 0
+    beqz   $t2, .Lstring_compareto_length_diff # if $t2==0
+    nop                                        #     return (this.length() - anotherString.length())
+
+#if (STRING_COMPRESSION_FEATURE)
+    # Differ cases:
+    sll    $t3, $t0, 31
+    beqz   $t3, .Lstring_compareto_this_is_compressed
+    sll    $t3, $t1, 31                           # In branch delay slot.
+    beqz   $t3, .Lstring_compareto_that_is_compressed
+    nop
+    b      .Lstring_compareto_both_not_compressed
+    nop
+
+.Lstring_compareto_this_is_compressed:
+    beqz   $t3, .Lstring_compareto_both_compressed
+    nop
+    /* If (this->IsCompressed() && that->IsCompressed() == false) */
+.Lstring_compareto_loop_comparison_this_compressed:
+    lbu    $t0, MIRROR_STRING_VALUE_OFFSET($a0)
+    lhu    $t1, MIRROR_STRING_VALUE_OFFSET($a1)
+    bne    $t0, $t1, .Lstring_compareto_char_diff
+    addiu  $a0, $a0, 1    # point at this.charAt(i++) - compressed
+    subu   $t2, $t2, 1    # new value of min(this.length(),anotherString.length())-i
+    bnez   $t2, .Lstring_compareto_loop_comparison_this_compressed
+    addiu  $a1, $a1, 2    # point at anotherString.charAt(i++) - uncompressed
+    jalr   $zero, $ra
+    subu   $v0, $a2, $a3  # return (this.length() - anotherString.length())
+
+.Lstring_compareto_that_is_compressed:
+    lhu    $t0, MIRROR_STRING_VALUE_OFFSET($a0)
+    lbu    $t1, MIRROR_STRING_VALUE_OFFSET($a1)
+    bne    $t0, $t1, .Lstring_compareto_char_diff
+    addiu  $a0, $a0, 2    # point at this.charAt(i++) - uncompressed
+    subu   $t2, $t2, 1    # new value of min(this.length(),anotherString.length())-i
+    bnez   $t2, .Lstring_compareto_that_is_compressed
+    addiu  $a1, $a1, 1    # point at anotherString.charAt(i++) - compressed
+    jalr   $zero, $ra
+    subu   $v0, $a2, $a3  # return (this.length() - anotherString.length())
+
+.Lstring_compareto_both_compressed:
+    lbu    $t0, MIRROR_STRING_VALUE_OFFSET($a0)
+    lbu    $t1, MIRROR_STRING_VALUE_OFFSET($a1)
+    bne    $t0, $t1, .Lstring_compareto_char_diff
+    addiu  $a0, $a0, 1    # point at this.charAt(i++) - compressed
+    subu   $t2, $t2, 1    # new value of min(this.length(),anotherString.length())-i
+    bnez   $t2, .Lstring_compareto_both_compressed
+    addiu  $a1, $a1, 1    # point at anotherString.charAt(i++) - compressed
+    jalr   $zero, $ra
+    subu   $v0, $a2, $a3  # return (this.length() - anotherString.length())
+#endif
+
+.Lstring_compareto_both_not_compressed:
+    lhu    $t0, MIRROR_STRING_VALUE_OFFSET($a0)   # while this.charAt(i) == anotherString.charAt(i)
+    lhu    $t1, MIRROR_STRING_VALUE_OFFSET($a1)
+    bne    $t0, $t1, .Lstring_compareto_char_diff # if this.charAt(i) != anotherString.charAt(i)
+                          #     return (this.charAt(i) - anotherString.charAt(i))
+    addiu  $a0, $a0, 2    # point at this.charAt(i++)
+    subu   $t2, $t2, 1    # new value of min(this.length(),anotherString.length())-i
+    bnez   $t2, .Lstring_compareto_both_not_compressed
+    addiu  $a1, $a1, 2    # point at anotherString.charAt(i++)
+
+.Lstring_compareto_length_diff:
+    jalr   $zero, $ra
+    subu   $v0, $a2, $a3  # return (this.length() - anotherString.length())
+
+.Lstring_compareto_char_diff:
+    jalr   $zero, $ra
+    subu   $v0, $t0, $t1  # return (this.charAt(i) - anotherString.charAt(i))
 END art_quick_string_compareto
 
 .extern artInvokePolymorphic
