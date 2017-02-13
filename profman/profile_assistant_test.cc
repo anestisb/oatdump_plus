@@ -94,6 +94,54 @@ class ProfileAssistantTest : public CommonRuntimeTest {
     std::string error;
     return ExecAndReturnCode(argv_str, &error);
   }
+
+  bool CreateProfile(std::string class_file_contents, const std::string& filename) {
+    ScratchFile class_names_file;
+    File* file = class_names_file.GetFile();
+    EXPECT_TRUE(file->WriteFully(class_file_contents.c_str(), class_file_contents.length()));
+    EXPECT_EQ(0, file->Flush());
+    EXPECT_TRUE(file->ResetOffset());
+    std::string profman_cmd = GetProfmanCmd();
+    std::vector<std::string> argv_str;
+    argv_str.push_back(profman_cmd);
+    argv_str.push_back("--create-profile-from=" + class_names_file.GetFilename());
+    argv_str.push_back("--reference-profile-file=" + filename);
+    argv_str.push_back("--apk=" + GetLibCoreDexFileNames()[0]);
+    argv_str.push_back("--dex-location=classes.dex");
+    std::string error;
+    EXPECT_EQ(ExecAndReturnCode(argv_str, &error), 0);
+    return true;
+  }
+
+  bool DumpClasses(const std::string& filename, std::string* file_contents) {
+    ScratchFile class_names_file;
+    std::string profman_cmd = GetProfmanCmd();
+    std::vector<std::string> argv_str;
+    argv_str.push_back(profman_cmd);
+    argv_str.push_back("--dump-classes");
+    argv_str.push_back("--profile-file=" + filename);
+    argv_str.push_back("--apk=" + GetLibCoreDexFileNames()[0]);
+    argv_str.push_back("--dex-location=classes.dex");
+    argv_str.push_back("--dump-output-to-fd=" + std::to_string(GetFd(class_names_file)));
+    std::string error;
+    EXPECT_EQ(ExecAndReturnCode(argv_str, &error), 0);
+    File* file = class_names_file.GetFile();
+    EXPECT_EQ(0, file->Flush());
+    EXPECT_TRUE(file->ResetOffset());
+    int64_t length = file->GetLength();
+    std::unique_ptr<char[]> buf(new char[length]);
+    EXPECT_EQ(file->Read(buf.get(), length, 0), length);
+    *file_contents = std::string(buf.get(), length);
+    return true;
+  }
+
+  bool CreateAndDump(const std::string& input_file_contents, std::string* output_file_contents) {
+    ScratchFile profile_file;
+    EXPECT_TRUE(CreateProfile(input_file_contents, profile_file.GetFilename()));
+    profile_file.GetFile()->ResetOffset();
+    EXPECT_TRUE(DumpClasses(profile_file.GetFilename(), output_file_contents));
+    return true;
+  }
 };
 
 TEST_F(ProfileAssistantTest, AdviseCompilationEmptyReferences) {
@@ -305,6 +353,57 @@ TEST_F(ProfileAssistantTest, TestProfileGeneration) {
   ASSERT_TRUE(profile.GetFile()->ResetOffset());
   ProfileCompilationInfo info;
   ASSERT_TRUE(info.Load(GetFd(profile)));
+}
+
+TEST_F(ProfileAssistantTest, TestProfileCreationAllMatch) {
+  // Class names put here need to be in sorted order.
+  std::vector<std::string> class_names = {
+    "java.lang.Comparable",
+    "java.lang.Math",
+    "java.lang.Object"
+  };
+  std::string input_file_contents;
+  for (std::string& class_name : class_names) {
+    input_file_contents += class_name + std::string("\n");
+  }
+  std::string output_file_contents;
+  ASSERT_TRUE(CreateAndDump(input_file_contents, &output_file_contents));
+  ASSERT_EQ(output_file_contents, input_file_contents);
+}
+
+TEST_F(ProfileAssistantTest, TestProfileCreationOneNotMatched) {
+  // Class names put here need to be in sorted order.
+  std::vector<std::string> class_names = {
+    "doesnt.match.this.one",
+    "java.lang.Comparable",
+    "java.lang.Object"
+  };
+  std::string input_file_contents;
+  for (std::string& class_name : class_names) {
+    input_file_contents += class_name + std::string("\n");
+  }
+  std::string output_file_contents;
+  ASSERT_TRUE(CreateAndDump(input_file_contents, &output_file_contents));
+  std::string expected_contents =
+      class_names[1] + std::string("\n") + class_names[2] + std::string("\n");
+  ASSERT_EQ(output_file_contents, expected_contents);
+}
+
+TEST_F(ProfileAssistantTest, TestProfileCreationNoneMatched) {
+  // Class names put here need to be in sorted order.
+  std::vector<std::string> class_names = {
+    "doesnt.match.this.one",
+    "doesnt.match.this.one.either",
+    "nor.this.one"
+  };
+  std::string input_file_contents;
+  for (std::string& class_name : class_names) {
+    input_file_contents += class_name + std::string("\n");
+  }
+  std::string output_file_contents;
+  ASSERT_TRUE(CreateAndDump(input_file_contents, &output_file_contents));
+  std::string expected_contents("");
+  ASSERT_EQ(output_file_contents, expected_contents);
 }
 
 }  // namespace art
