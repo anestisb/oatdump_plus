@@ -292,7 +292,7 @@ void AllocRecordObjectMap::RecordAllocation(Thread* self,
                   (kUseReadBarrier && !self->GetWeakRefAccessEnabled()))) {
     // Check and run the empty checkpoint before blocking so the empty checkpoint will work in the
     // presence of threads blocking for weak ref access.
-    self->CheckEmptyCheckpoint();
+    self->CheckEmptyCheckpointFromWeakRefAccess(Locks::alloc_tracker_lock_);
     new_record_condition_.WaitHoldingLocks(self);
   }
 

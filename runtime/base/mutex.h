@@ -152,6 +152,16 @@ class BaseMutex {
 
   static void DumpAll(std::ostream& os);
 
+  bool ShouldRespondToEmptyCheckpointRequest() const {
+    return should_respond_to_empty_checkpoint_request_;
+  }
+
+  void SetShouldRespondToEmptyCheckpointRequest(bool value) {
+    should_respond_to_empty_checkpoint_request_ = value;
+  }
+
+  virtual void WakeupToRespondToEmptyCheckpoint() = 0;
+
  protected:
   friend class ConditionVariable;
 
@@ -168,6 +178,7 @@ class BaseMutex {
 
   const LockLevel level_;  // Support for lock hierarchy.
   const char* const name_;
+  bool should_respond_to_empty_checkpoint_request_;
 
   // A log entry that records contention but makes no guarantee that either tid will be held live.
   struct ContentionLogEntry {
@@ -265,6 +276,8 @@ class LOCKABLE Mutex : public BaseMutex {
 
   // For negative capabilities in clang annotations.
   const Mutex& operator!() const { return *this; }
+
+  void WakeupToRespondToEmptyCheckpoint() OVERRIDE;
 
  private:
 #if ART_USE_FUTEXES
@@ -385,6 +398,8 @@ class SHARED_LOCKABLE ReaderWriterMutex : public BaseMutex {
 
   // For negative capabilities in clang annotations.
   const ReaderWriterMutex& operator!() const { return *this; }
+
+  void WakeupToRespondToEmptyCheckpoint() OVERRIDE;
 
  private:
 #if ART_USE_FUTEXES
@@ -713,6 +728,12 @@ class Locks {
 
   // Have an exclusive logging thread.
   static Mutex* logging_lock_ ACQUIRED_AFTER(unexpected_signal_lock_);
+
+  // List of mutexes that we expect a thread may hold when accessing weak refs. This is used to
+  // avoid a deadlock in the empty checkpoint while weak ref access is disabled (b/34964016). If we
+  // encounter an unexpected mutex on accessing weak refs,
+  // Thread::CheckEmptyCheckpointFromWeakRefAccess will detect it.
+  static std::vector<BaseMutex*> expected_mutexes_on_weak_ref_access_;
 };
 
 class Roles {

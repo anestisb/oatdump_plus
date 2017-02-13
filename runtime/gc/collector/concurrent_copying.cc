@@ -835,65 +835,9 @@ void ConcurrentCopying::ProcessFalseGrayStack() {
 void ConcurrentCopying::IssueEmptyCheckpoint() {
   Thread* self = Thread::Current();
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
-  Barrier* barrier = thread_list->EmptyCheckpointBarrier();
-  barrier->Init(self, 0);
-  std::vector<uint32_t> runnable_thread_ids;  // Used in debug build only
-  size_t barrier_count = thread_list->RunEmptyCheckpoint(runnable_thread_ids);
-  // If there are no threads to wait which implys that all the checkpoint functions are finished,
-  // then no need to release the mutator lock.
-  if (barrier_count == 0) {
-    return;
-  }
   // Release locks then wait for all mutator threads to pass the barrier.
   Locks::mutator_lock_->SharedUnlock(self);
-  {
-    ScopedThreadStateChange tsc(self, kWaitingForCheckPointsToRun);
-    if (kIsDebugBuild) {
-      static constexpr uint64_t kEmptyCheckpointTimeoutMs = 600 * 1000;  // 10 minutes.
-      bool timed_out = barrier->Increment(self, barrier_count, kEmptyCheckpointTimeoutMs);
-      if (timed_out) {
-        std::ostringstream ss;
-        ss << "Empty checkpoint timeout\n";
-        ss << "Barrier count " << barrier->GetCount(self) << "\n";
-        ss << "Runnable thread IDs";
-        for (uint32_t tid : runnable_thread_ids) {
-          ss << " " << tid;
-        }
-        ss << "\n";
-        Locks::mutator_lock_->Dump(ss);
-        ss << "\n";
-        LOG(FATAL_WITHOUT_ABORT) << ss.str();
-        // Some threads in 'runnable_thread_ids' are probably stuck. Try to dump their stacks.
-        // Avoid using ThreadList::Dump() initially because it is likely to get stuck as well.
-        {
-          ScopedObjectAccess soa(self);
-          MutexLock mu1(self, *Locks::thread_list_lock_);
-          for (Thread* thread : thread_list->GetList()) {
-            uint32_t tid = thread->GetThreadId();
-            bool is_in_runnable_thread_ids =
-                std::find(runnable_thread_ids.begin(), runnable_thread_ids.end(), tid) !=
-                runnable_thread_ids.end();
-            if (is_in_runnable_thread_ids &&
-                thread->ReadFlag(kEmptyCheckpointRequest)) {
-              // Found a runnable thread that hasn't responded to the empty checkpoint request.
-              // Assume it's stuck and safe to dump its stack.
-              thread->Dump(LOG_STREAM(FATAL_WITHOUT_ABORT),
-                           /*dump_native_stack*/ true,
-                           /*backtrace_map*/ nullptr,
-                           /*force_dump_stack*/ true);
-            }
-          }
-        }
-        LOG(FATAL_WITHOUT_ABORT)
-            << "Dumped runnable threads that haven't responded to empty checkpoint.";
-        // Now use ThreadList::Dump() to dump more threads, noting it may get stuck.
-        thread_list->Dump(LOG_STREAM(FATAL_WITHOUT_ABORT));
-        LOG(FATAL) << "Dumped all threads.";
-      }
-    } else {
-      barrier->Increment(self, barrier_count);
-    }
-  }
+  thread_list->RunEmptyCheckpoint();
   Locks::mutator_lock_->SharedLock(self);
 }
 

@@ -82,7 +82,7 @@ class SystemWeakHolder : public AbstractSystemWeakHolder {
                     (kUseReadBarrier && !self->GetWeakRefAccessEnabled()))) {
       // Check and run the empty checkpoint before blocking so the empty checkpoint will work in the
       // presence of threads blocking for weak ref access.
-      self->CheckEmptyCheckpoint();
+      self->CheckEmptyCheckpointFromWeakRefAccess(&allow_disallow_lock_);
       new_weak_condition_.WaitHoldingLocks(self);
     }
   }
