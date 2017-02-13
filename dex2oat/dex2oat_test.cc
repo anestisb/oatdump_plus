@@ -231,7 +231,7 @@ class Dex2oatSwapTest : public Dex2oatTest {
   }
 
   virtual std::string GetTestDexFileName() {
-    return GetDexSrc1();
+    return Dex2oatEnvironmentTest::GetTestDexFileName("VerifierDeps");
   }
 
   virtual void CheckResult(bool expect_use) {
