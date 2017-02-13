@@ -196,8 +196,6 @@ public class Main {
     // should return true for those cases.
     assertSingleImplementation(java.lang.String.class, "charAt", true);
     assertSingleImplementation(java.lang.Thread.class, "join", true);
-    // We don't set single-implementation modifier bit for native methods.
-    assertSingleImplementation(java.lang.Thread.class, "isInterrupted", false);
 
     if (isInterpreted()) {
       sIsOptimizing = false;
