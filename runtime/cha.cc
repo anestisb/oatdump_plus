@@ -200,7 +200,8 @@ void ClassHierarchyAnalysis::VerifyNonSingleImplementation(mirror::Class* verify
     if (verify_method != excluded_method) {
       DCHECK(!verify_method->HasSingleImplementation())
           << "class: " << verify_class->PrettyClass()
-          << " verify_method: " << verify_method->PrettyMethod(true);
+          << " verify_method: " << verify_method->PrettyMethod(true)
+          << " excluded_method: " << excluded_method->PrettyMethod(true);
       if (verify_method->IsAbstract()) {
         DCHECK(verify_method->GetSingleImplementation(image_pointer_size) == nullptr);
       }
@@ -256,9 +257,6 @@ void ClassHierarchyAnalysis::CheckSingleImplementationInfo(
     }
     return;
   }
-
-  // Native methods don't have single-implementation flag set.
-  DCHECK(!method_in_super->IsNative());
 
   uint16_t method_index = method_in_super->GetMethodIndex();
   if (method_in_super->IsAbstract()) {
@@ -374,12 +372,12 @@ void ClassHierarchyAnalysis::InitSingleImplementationFlag(Handle<mirror::Class> 
     // used for static methods or methods of final classes.
     return;
   }
-  if (method->IsNative()) {
-    // Native method's invocation overhead is already high and it
-    // cannot be inlined. It's not worthwhile to devirtualize the
-    // call which can add a deoptimization point.
-    DCHECK(!method->HasSingleImplementation());
-  } else if (method->IsAbstract()) {
+  if (method->IsAbstract()) {
+    // single-implementation of abstract method shares the same field
+    // that's used for JNI function of native method. It's fine since a method
+    // cannot be both abstract and native.
+    DCHECK(!method->IsNative()) << "Abstract method cannot be native";
+
     if (method->GetDeclaringClass()->IsInstantiable()) {
       // Rare case, but we do accept it (such as 800-smali/smali/b_26143249.smali).
       // Do not attempt to devirtualize it.

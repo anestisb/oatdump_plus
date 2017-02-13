@@ -67,7 +67,6 @@ ArtMethod* ArtMethod::GetNonObsoleteMethod() {
 }
 
 ArtMethod* ArtMethod::GetSingleImplementation(PointerSize pointer_size) {
-  DCHECK(!IsNative());
   if (!IsAbstract()) {
     // A non-abstract's single implementation is itself.
     return this;
