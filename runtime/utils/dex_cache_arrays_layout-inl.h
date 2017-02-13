@@ -48,9 +48,11 @@ inline DexCacheArraysLayout::DexCacheArraysLayout(PointerSize pointer_size, cons
     : DexCacheArraysLayout(pointer_size, dex_file->GetHeader()) {
 }
 
-inline constexpr size_t DexCacheArraysLayout::Alignment() {
-  // GcRoot<> alignment is 4, i.e. lower than or equal to the pointer alignment.
-  static_assert(alignof(GcRoot<mirror::Class>) == 4, "Expecting alignof(GcRoot<>) == 4");
+constexpr size_t DexCacheArraysLayout::Alignment() {
+  // mirror::Type/String/MethodTypeDexCacheType alignment is 8,
+  // i.e. higher than or equal to the pointer alignment.
+  static_assert(alignof(mirror::TypeDexCacheType) == 8,
+                "Expecting alignof(ClassDexCacheType) == 8");
   static_assert(alignof(mirror::StringDexCacheType) == 8,
                 "Expecting alignof(StringDexCacheType) == 8");
   static_assert(alignof(mirror::MethodTypeDexCacheType) == 8,
@@ -60,17 +62,22 @@ inline constexpr size_t DexCacheArraysLayout::Alignment() {
 }
 
 template <typename T>
-static constexpr PointerSize GcRootAsPointerSize() {
+constexpr PointerSize GcRootAsPointerSize() {
   static_assert(sizeof(GcRoot<T>) == 4U, "Unexpected GcRoot size");
   return PointerSize::k32;
 }
 
 inline size_t DexCacheArraysLayout::TypeOffset(dex::TypeIndex type_idx) const {
-  return types_offset_ + ElementOffset(GcRootAsPointerSize<mirror::Class>(), type_idx.index_);
+  return types_offset_ + ElementOffset(PointerSize::k64,
+                                       type_idx.index_ % mirror::DexCache::kDexCacheTypeCacheSize);
 }
 
 inline size_t DexCacheArraysLayout::TypesSize(size_t num_elements) const {
-  return ArraySize(GcRootAsPointerSize<mirror::Class>(), num_elements);
+  size_t cache_size = mirror::DexCache::kDexCacheTypeCacheSize;
+  if (num_elements < cache_size) {
+    cache_size = num_elements;
+  }
+  return ArraySize(PointerSize::k64, cache_size);
 }
 
 inline size_t DexCacheArraysLayout::TypesAlignment() const {
