@@ -664,6 +664,38 @@ std::string ProfileCompilationInfo::DumpInfo(const std::vector<const DexFile*>* 
   return os.str();
 }
 
+void ProfileCompilationInfo::GetClassNames(
+    const std::vector<std::unique_ptr<const DexFile>>* dex_files,
+    std::set<std::string>* class_names) const {
+  std::unique_ptr<const std::vector<const DexFile*>> non_owning_dex_files(
+      MakeNonOwningVector(dex_files));
+  GetClassNames(non_owning_dex_files.get(), class_names);
+}
+
+void ProfileCompilationInfo::GetClassNames(const std::vector<const DexFile*>* dex_files,
+                                           std::set<std::string>* class_names) const {
+  if (info_.empty()) {
+    return;
+  }
+  for (const auto& it : info_) {
+    const std::string& location = it.first;
+    const DexFileData& dex_data = it.second;
+    const DexFile* dex_file = nullptr;
+    if (dex_files != nullptr) {
+      for (size_t i = 0; i < dex_files->size(); i++) {
+        if (location == (*dex_files)[i]->GetLocation()) {
+          dex_file = (*dex_files)[i];
+        }
+      }
+    }
+    for (const auto class_it : dex_data.class_set) {
+      if (dex_file != nullptr) {
+        class_names->insert(std::string(dex_file->PrettyType(class_it)));
+      }
+    }
+  }
+}
+
 bool ProfileCompilationInfo::Equals(const ProfileCompilationInfo& other) {
   return info_.Equals(other.info_);
 }

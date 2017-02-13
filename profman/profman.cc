@@ -21,8 +21,11 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <fstream>
 #include <iostream>
+#include <set>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include "android-base/stringprintf.h"
@@ -84,8 +87,10 @@ NO_RETURN static void Usage(const char *fmt, ...) {
   UsageError("  --dump-only: dumps the content of the specified profile files");
   UsageError("      to standard output (default) in a human readable form.");
   UsageError("");
-  UsageError("  --dump-output-to-fd=<number>: redirects --dump-info-for output to a file");
-  UsageError("      descriptor.");
+  UsageError("  --dump-output-to-fd=<number>: redirects --dump-only output to a file descriptor.");
+  UsageError("");
+  UsageError("  --dump-classes: dumps a sorted list of classes that are in the specified profile");
+  UsageError("      file to standard output (default) in a human readable form.");
   UsageError("");
   UsageError("  --profile-file=<filename>: specify profiler output file to use for compilation.");
   UsageError("      Can be specified multiple time, in which case the data from the different");
@@ -103,6 +108,7 @@ NO_RETURN static void Usage(const char *fmt, ...) {
   UsageError("  --reference-profile-file-fd=<number>: same as --reference-profile-file but");
   UsageError("      accepts a file descriptor. Cannot be used together with");
   UsageError("      --reference-profile-file.");
+  UsageError("");
   UsageError("  --generate-test-profile=<filename>: generates a random profile file for testing.");
   UsageError("  --generate-test-profile-num-dex=<number>: number of dex files that should be");
   UsageError("      included in the generated profile. Defaults to 20.");
@@ -111,12 +117,15 @@ NO_RETURN static void Usage(const char *fmt, ...) {
   UsageError("  --generate-test-profile-class-ratio=<number>: the percentage from the maximum");
   UsageError("      number of classes that should be generated. Defaults to 5.");
   UsageError("");
+  UsageError("  --create-profile-from=<filename>: creates a profile from a list of classes.");
+  UsageError("");
   UsageError("");
   UsageError("  --dex-location=<string>: location string to use with corresponding");
   UsageError("      apk-fd to find dex files");
   UsageError("");
   UsageError("  --apk-fd=<number>: file descriptor containing an open APK to");
   UsageError("      search for dex files");
+  UsageError("  --apk-=<filename>: an APK to search for dex files");
   UsageError("");
 
   exit(EXIT_FAILURE);
@@ -132,6 +141,7 @@ class ProfMan FINAL {
   ProfMan() :
       reference_profile_file_fd_(kInvalidFd),
       dump_only_(false),
+      dump_classes_(false),
       dump_output_to_fd_(kInvalidFd),
       test_profile_num_dex_(kDefaultTestProfileNumDex),
       test_profile_method_ratio_(kDefaultTestProfileMethodRatio),
@@ -164,6 +174,10 @@ class ProfMan FINAL {
       }
       if (option == "--dump-only") {
         dump_only_ = true;
+      } else if (option == "--dump-classes") {
+        dump_classes_ = true;
+      } else if (option.starts_with("--create-profile-from=")) {
+        create_profile_from_file_ = option.substr(strlen("--create-profile-from=")).ToString();
       } else if (option.starts_with("--dump-output-to-fd=")) {
         ParseUintOption(option, "--dump-output-to-fd", &dump_output_to_fd_, Usage);
       } else if (option.starts_with("--profile-file=")) {
@@ -178,6 +192,8 @@ class ProfMan FINAL {
         dex_locations_.push_back(option.substr(strlen("--dex-location=")).ToString());
       } else if (option.starts_with("--apk-fd=")) {
         ParseFdForCollection(option, "--apk-fd", &apks_fd_);
+      } else if (option.starts_with("--apk=")) {
+        apk_files_.push_back(option.substr(strlen("--apk=")).ToString());
       } else if (option.starts_with("--generate-test-profile=")) {
         test_profile_ = option.substr(strlen("--generate-test-profile=")).ToString();
       } else if (option.starts_with("--generate-test-profile-num-dex=")) {
@@ -213,14 +229,34 @@ class ProfMan FINAL {
       }
       return;
     }
-    // --dump-only may be specified with only --reference-profiles present.
-    if (!dump_only_ && !has_profiles) {
+    if (!apk_files_.empty() && !apks_fd_.empty()) {
+      Usage("APK files should not be specified with both --apk-fd and --apk");
+    }
+    if (!create_profile_from_file_.empty()) {
+      if (apk_files_.empty() && apks_fd_.empty()) {
+        Usage("APK files must be specified");
+      }
+      if (dex_locations_.empty()) {
+        Usage("DEX locations must be specified");
+      }
+      if (reference_profile_file_.empty() && !FdIsValid(reference_profile_file_fd_)) {
+        Usage("Reference profile must be specified with --reference-profile-file or "
+              "--reference-profile-file-fd");
+      }
+      if (has_profiles) {
+        Usage("Profile must be specified with --reference-profile-file or "
+              "--reference-profile-file-fd");
+      }
+      return;
+    }
+    // --dump-only and --dump-classes may be specified with only --reference-profiles present.
+    if (!dump_only_ && !dump_classes_ && !has_profiles) {
       Usage("No profile files specified.");
     }
     if (!profile_files_.empty() && !profile_files_fd_.empty()) {
       Usage("Profile files should not be specified with both --profile-file-fd and --profile-file");
     }
-    if (!dump_only_ && !has_reference_profile) {
+    if (!dump_only_ && !dump_classes_ && !has_reference_profile) {
       Usage("No reference profile file specified.");
     }
     if (!reference_profile_file_.empty() && FdIsValid(reference_profile_file_fd_)) {
@@ -248,6 +284,46 @@ class ProfMan FINAL {
     return result;
   }
 
+  void OpenApkFilesFromLocations(std::vector<std::unique_ptr<const DexFile>>* dex_files) {
+    bool use_apk_fd_list = !apks_fd_.empty();
+    if (use_apk_fd_list) {
+      CHECK(apk_files_.empty());
+      CHECK_EQ(dex_locations_.size(), apks_fd_.size());
+    } else {
+      CHECK_EQ(dex_locations_.size(), apk_files_.size());
+      CHECK(!apk_files_.empty());
+    }
+    static constexpr bool kVerifyChecksum = true;
+    for (size_t i = 0; i < dex_locations_.size(); ++i) {
+      std::string error_msg;
+      std::vector<std::unique_ptr<const DexFile>> dex_files_for_location;
+      if (use_apk_fd_list) {
+        if (DexFile::OpenZip(apks_fd_[i],
+                             dex_locations_[i],
+                             kVerifyChecksum,
+                             &error_msg,
+                             &dex_files_for_location)) {
+        } else {
+          LOG(WARNING) << "OpenZip failed for '" << dex_locations_[i] << "' " << error_msg;
+          continue;
+        }
+      } else {
+        if (DexFile::Open(apk_files_[i].c_str(),
+                          dex_locations_[i],
+                          kVerifyChecksum,
+                          &error_msg,
+                          &dex_files_for_location)) {
+        } else {
+          LOG(WARNING) << "Open failed for '" << dex_locations_[i] << "' " << error_msg;
+          continue;
+        }
+      }
+      for (std::unique_ptr<const DexFile>& dex_file : dex_files_for_location) {
+        dex_files->emplace_back(std::move(dex_file));
+      }
+    }
+  }
+
   int DumpOneProfile(const std::string& banner,
                      const std::string& filename,
                      int fd,
@@ -256,13 +332,13 @@ class ProfMan FINAL {
     if (!filename.empty()) {
       fd = open(filename.c_str(), O_RDWR);
       if (fd < 0) {
-        std::cerr << "Cannot open " << filename << strerror(errno);
+        LOG(ERROR) << "Cannot open " << filename << strerror(errno);
         return -1;
       }
     }
     ProfileCompilationInfo info;
     if (!info.Load(fd)) {
-      std::cerr << "Cannot load profile info from fd=" << fd << "\n";
+      LOG(ERROR) << "Cannot load profile info from fd=" << fd << "\n";
       return -1;
     }
     std::string this_dump = banner + "\n" + info.DumpInfo(dex_files) + "\n";
@@ -281,25 +357,7 @@ class ProfMan FINAL {
     // Open apk/zip files and and read dex files.
     MemMap::Init();  // for ZipArchive::OpenFromFd
     std::vector<std::unique_ptr<const DexFile>> dex_files;
-    assert(dex_locations_.size() == apks_fd_.size());
-    static constexpr bool kVerifyChecksum = true;
-    for (size_t i = 0; i < dex_locations_.size(); ++i) {
-      std::string error_msg;
-      std::vector<std::unique_ptr<const DexFile>> dex_files_for_location;
-      if (DexFile::OpenZip(apks_fd_[i],
-                           dex_locations_[i],
-                           kVerifyChecksum,
-                           &error_msg,
-                           &dex_files_for_location)) {
-      } else {
-        LOG(WARNING) << "OpenFromZip failed for '" << dex_locations_[i] << "' " << error_msg;
-        continue;
-      }
-      for (std::unique_ptr<const DexFile>& dex_file : dex_files_for_location) {
-        dex_files.emplace_back(std::move(dex_file));
-      }
-    }
-
+    OpenApkFilesFromLocations(&dex_files);
     std::string dump;
     // Dump individual profile files.
     if (!profile_files_fd_.empty()) {
@@ -358,17 +416,207 @@ class ProfMan FINAL {
     return dump_only_;
   }
 
+  bool GetClassNames(int fd,
+                     std::vector<std::unique_ptr<const DexFile>>* dex_files,
+                     std::set<std::string>* class_names) {
+    ProfileCompilationInfo profile_info;
+    if (!profile_info.Load(fd)) {
+      LOG(ERROR) << "Cannot load profile info";
+      return false;
+    }
+    profile_info.GetClassNames(dex_files, class_names);
+    return true;
+  }
+
+  bool GetClassNames(std::string profile_file,
+                     std::vector<std::unique_ptr<const DexFile>>* dex_files,
+                     std::set<std::string>* class_names) {
+    int fd = open(profile_file.c_str(), O_RDONLY);
+    if (!FdIsValid(fd)) {
+      LOG(ERROR) << "Cannot open " << profile_file << strerror(errno);
+      return false;
+    }
+    if (!GetClassNames(fd, dex_files, class_names)) {
+      return false;
+    }
+    if (close(fd) < 0) {
+      PLOG(WARNING) << "Failed to close descriptor";
+    }
+    return true;
+  }
+
+  int DumpClasses() {
+    // Open apk/zip files and and read dex files.
+    MemMap::Init();  // for ZipArchive::OpenFromFd
+    // Open the dex files to get the names for classes.
+    std::vector<std::unique_ptr<const DexFile>> dex_files;
+    OpenApkFilesFromLocations(&dex_files);
+    // Build a vector of class names from individual profile files.
+    std::set<std::string> class_names;
+    if (!profile_files_fd_.empty()) {
+      for (int profile_file_fd : profile_files_fd_) {
+        if (!GetClassNames(profile_file_fd, &dex_files, &class_names)) {
+          return -1;
+        }
+      }
+    }
+    if (!profile_files_.empty()) {
+      for (const std::string& profile_file : profile_files_) {
+        if (!GetClassNames(profile_file, &dex_files, &class_names)) {
+          return -1;
+        }
+      }
+    }
+    // Concatenate class names from reference profile file.
+    if (FdIsValid(reference_profile_file_fd_)) {
+      if (!GetClassNames(reference_profile_file_fd_, &dex_files, &class_names)) {
+        return -1;
+      }
+    }
+    if (!reference_profile_file_.empty()) {
+      if (!GetClassNames(reference_profile_file_, &dex_files, &class_names)) {
+        return -1;
+      }
+    }
+    // Dump the class names.
+    std::string dump;
+    for (const std::string& class_name : class_names) {
+      dump += class_name + std::string("\n");
+    }
+    if (!FdIsValid(dump_output_to_fd_)) {
+      std::cout << dump;
+    } else {
+      unix_file::FdFile out_fd(dump_output_to_fd_, false /*check_usage*/);
+      if (!out_fd.WriteFully(dump.c_str(), dump.length())) {
+        return -1;
+      }
+    }
+    return 0;
+  }
+
+  bool ShouldOnlyDumpClasses() {
+    return dump_classes_;
+  }
+
+  // Read lines from the given file, dropping comments and empty lines. Post-process each line with
+  // the given function.
+  template <typename T>
+  static T* ReadCommentedInputFromFile(
+      const char* input_filename, std::function<std::string(const char*)>* process) {
+    std::unique_ptr<std::ifstream> input_file(new std::ifstream(input_filename, std::ifstream::in));
+    if (input_file.get() == nullptr) {
+      LOG(ERROR) << "Failed to open input file " << input_filename;
+      return nullptr;
+    }
+    std::unique_ptr<T> result(
+        ReadCommentedInputStream<T>(*input_file, process));
+    input_file->close();
+    return result.release();
+  }
+
+  // Read lines from the given stream, dropping comments and empty lines. Post-process each line
+  // with the given function.
+  template <typename T>
+  static T* ReadCommentedInputStream(
+      std::istream& in_stream,
+      std::function<std::string(const char*)>* process) {
+    std::unique_ptr<T> output(new T());
+    while (in_stream.good()) {
+      std::string dot;
+      std::getline(in_stream, dot);
+      if (android::base::StartsWith(dot, "#") || dot.empty()) {
+        continue;
+      }
+      if (process != nullptr) {
+        std::string descriptor((*process)(dot.c_str()));
+        output->insert(output->end(), descriptor);
+      } else {
+        output->insert(output->end(), dot);
+      }
+    }
+    return output.release();
+  }
+
+  int CreateProfile() {
+    MemMap::Init();  // for ZipArchive::OpenFromFd
+    // Open the profile output file if needed.
+    int fd = reference_profile_file_fd_;
+    if (!FdIsValid(fd)) {
+      CHECK(!reference_profile_file_.empty());
+      fd = open(reference_profile_file_.c_str(), O_CREAT | O_TRUNC | O_WRONLY, 0644);
+      if (fd < 0) {
+        LOG(ERROR) << "Cannot open " << reference_profile_file_ << strerror(errno);
+        return -1;
+      }
+    }
+    // Read the user-specified list of classes (dot notation rather than descriptors).
+    std::unique_ptr<std::unordered_set<std::string>>
+        user_class_list(ReadCommentedInputFromFile<std::unordered_set<std::string>>(
+            create_profile_from_file_.c_str(), nullptr));  // No post-processing.
+    std::unordered_set<std::string> matched_user_classes;
+    // Open the dex files to look up class names.
+    std::vector<std::unique_ptr<const DexFile>> dex_files;
+    OpenApkFilesFromLocations(&dex_files);
+    // Iterate over the dex files looking for class names in the input stream.
+    std::set<DexCacheResolvedClasses> resolved_class_set;
+    for (auto& dex_file : dex_files) {
+      // Compute the set of classes to be added for this dex file first.  This
+      // avoids creating an entry in the profile information for dex files that
+      // contribute no classes.
+      std::unordered_set<dex::TypeIndex> classes_to_be_added;
+      for (const auto& klass : *user_class_list) {
+        std::string descriptor = DotToDescriptor(klass.c_str());
+        const DexFile::TypeId* type_id = dex_file->FindTypeId(descriptor.c_str());
+        if (type_id == nullptr) {
+          continue;
+        }
+        classes_to_be_added.insert(dex_file->GetIndexForTypeId(*type_id));
+        matched_user_classes.insert(klass);
+      }
+      if (classes_to_be_added.empty()) {
+        continue;
+      }
+      // Insert the DexCacheResolved Classes into the set expected for
+      // AddMethodsAndClasses.
+      std::set<DexCacheResolvedClasses>::iterator dex_resolved_classes =
+          resolved_class_set.emplace(dex_file->GetLocation(),
+                                     dex_file->GetBaseLocation(),
+                                     dex_file->GetLocationChecksum()).first;
+      dex_resolved_classes->AddClasses(classes_to_be_added.begin(), classes_to_be_added.end());
+    }
+    // Warn the user if we didn't find matches for every class.
+    for (const auto& klass : *user_class_list) {
+      if (matched_user_classes.find(klass) == matched_user_classes.end()) {
+        LOG(WARNING) << "requested class '" << klass << "' was not matched in any dex file";
+      }
+    }
+    // Generate the profile data structure.
+    ProfileCompilationInfo info;
+    std::vector<MethodReference> methods;  // No methods for now.
+    info.AddMethodsAndClasses(methods, resolved_class_set);
+    // Write the profile file.
+    CHECK(info.Save(fd));
+    if (close(fd) < 0) {
+      PLOG(WARNING) << "Failed to close descriptor";
+    }
+    return 0;
+  }
+
+  bool ShouldCreateProfile() {
+    return !create_profile_from_file_.empty();
+  }
+
   int GenerateTestProfile() {
     int profile_test_fd = open(test_profile_.c_str(), O_CREAT | O_TRUNC | O_WRONLY, 0644);
     if (profile_test_fd < 0) {
-      std::cerr << "Cannot open " << test_profile_ << strerror(errno);
+      LOG(ERROR) << "Cannot open " << test_profile_ << strerror(errno);
       return -1;
     }
 
     bool result = ProfileCompilationInfo::GenerateTestProfile(profile_test_fd,
-                                                             test_profile_num_dex_,
-                                                             test_profile_method_ratio_,
-                                                             test_profile_class_ratio_);
+                                                              test_profile_num_dex_,
+                                                              test_profile_method_ratio_,
+                                                              test_profile_class_ratio_);
     close(profile_test_fd);  // ignore close result.
     return result ? 0 : -1;
   }
@@ -405,12 +653,15 @@ class ProfMan FINAL {
   std::vector<std::string> profile_files_;
   std::vector<int> profile_files_fd_;
   std::vector<std::string> dex_locations_;
+  std::vector<std::string> apk_files_;
   std::vector<int> apks_fd_;
   std::string reference_profile_file_;
   int reference_profile_file_fd_;
   bool dump_only_;
+  bool dump_classes_;
   int dump_output_to_fd_;
   std::string test_profile_;
+  std::string create_profile_from_file_;
   uint16_t test_profile_num_dex_;
   uint16_t test_profile_method_ratio_;
   uint16_t test_profile_class_ratio_;
@@ -429,6 +680,12 @@ static int profman(int argc, char** argv) {
   }
   if (profman.ShouldOnlyDumpProfile()) {
     return profman.DumpProfileInfo();
+  }
+  if (profman.ShouldOnlyDumpClasses()) {
+    return profman.DumpClasses();
+  }
+  if (profman.ShouldCreateProfile()) {
+    return profman.CreateProfile();
   }
   // Process profile information and assess if we need to do a profile guided compilation.
   // This operation involves I/O.
