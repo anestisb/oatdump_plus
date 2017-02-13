@@ -556,12 +556,13 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
       // Flush data cache, as compiled code references literals in it.
       FlushDataCache(reinterpret_cast<char*>(roots_data),
                      reinterpret_cast<char*>(roots_data + data_size));
-      // Flush caches before we remove write permission because on some ARMv8 hardware,
-      // flushing caches require write permissions.
+      // Flush caches before we remove write permission because some ARMv8 Qualcomm kernels may
+      // trigger a segfault if a page fault occurs when requesting a cache maintenance operation.
+      // This is a kernel bug that we need to work around until affected devices (e.g. Nexus 5X and
+      // 6P) stop being supported or their kernels are fixed.
       //
-      // For reference, here are kernel patches discussing about this issue:
-      // https://android.googlesource.com/kernel/msm/%2B/0e7f7bcc3fc87489cda5aa6aff8ce40eed912279
-      // https://patchwork.kernel.org/patch/9047921/
+      // For reference, this behavior is caused by this commit:
+      // https://android.googlesource.com/kernel/msm/+/3fbe6bc28a6b9939d0650f2f17eb5216c719950c
       FlushInstructionCache(reinterpret_cast<char*>(code_ptr),
                             reinterpret_cast<char*>(code_ptr + code_size));
       DCHECK(!Runtime::Current()->IsAotCompiler());
