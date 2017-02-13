@@ -433,6 +433,9 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_isLoadedClass(
 class ClassLoadPrepareEquality {
  public:
   static constexpr const char* kClassName = "LMain$ClassE;";
+  static constexpr const char* kStorageClassName = "Main$ClassF";
+  static constexpr const char* kStorageFieldName = "STATIC";
+  static constexpr const char* kStorageFieldSig = "Ljava/lang/Object;";
 
   static void JNICALL ClassLoadCallback(jvmtiEnv* jenv,
                                         JNIEnv* jni_env,
@@ -446,6 +449,8 @@ class ClassLoadPrepareEquality {
       // The following is bad and relies on implementation details. But otherwise a test would be
       // a lot more complicated.
       local_stored_class_ = jni_env->NewLocalRef(klass);
+      // Store the value into a field in the heap.
+      SetOrCompare(jni_env, klass, true);
     }
   }
 
@@ -459,7 +464,23 @@ class ClassLoadPrepareEquality {
       CHECK(jni_env->IsSameObject(stored_class_, klass));
       CHECK(jni_env->IsSameObject(weakly_stored_class_, klass));
       CHECK(jni_env->IsSameObject(local_stored_class_, klass));
+      // Look up the value in a field in the heap.
+      SetOrCompare(jni_env, klass, false);
       compared_ = true;
+    }
+  }
+
+  static void SetOrCompare(JNIEnv* jni_env, jobject value, bool set) {
+    CHECK(storage_class_ != nullptr);
+    jfieldID field = jni_env->GetStaticFieldID(storage_class_, kStorageFieldName, kStorageFieldSig);
+    CHECK(field != nullptr);
+
+    if (set) {
+      jni_env->SetStaticObjectField(storage_class_, field, value);
+      CHECK(!jni_env->ExceptionCheck());
+    } else {
+      ScopedLocalRef<jobject> stored(jni_env, jni_env->GetStaticObjectField(storage_class_, field));
+      CHECK(jni_env->IsSameObject(value, stored.get()));
     }
   }
 
@@ -477,6 +498,8 @@ class ClassLoadPrepareEquality {
     }
   }
 
+  static jclass storage_class_;
+
  private:
   static jobject stored_class_;
   static jweak weakly_stored_class_;
@@ -484,11 +507,18 @@ class ClassLoadPrepareEquality {
   static bool found_;
   static bool compared_;
 };
+jclass ClassLoadPrepareEquality::storage_class_ = nullptr;
 jobject ClassLoadPrepareEquality::stored_class_ = nullptr;
 jweak ClassLoadPrepareEquality::weakly_stored_class_ = nullptr;
 jobject ClassLoadPrepareEquality::local_stored_class_ = nullptr;
 bool ClassLoadPrepareEquality::found_ = false;
 bool ClassLoadPrepareEquality::compared_ = false;
+
+extern "C" JNIEXPORT void JNICALL Java_Main_setEqualityEventStorageClass(
+    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
+  ClassLoadPrepareEquality::storage_class_ =
+      reinterpret_cast<jclass>(env->NewGlobalRef(klass));
+}
 
 extern "C" JNIEXPORT void JNICALL Java_Main_enableClassLoadPrepareEqualityEvents(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jboolean b) {
@@ -499,6 +529,8 @@ extern "C" JNIEXPORT void JNICALL Java_Main_enableClassLoadPrepareEqualityEvents
   if (b == JNI_FALSE) {
     ClassLoadPrepareEquality::Free(env);
     ClassLoadPrepareEquality::CheckFound();
+    env->DeleteGlobalRef(ClassLoadPrepareEquality::storage_class_);
+    ClassLoadPrepareEquality::storage_class_ = nullptr;
   }
 }
 
