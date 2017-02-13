@@ -1607,31 +1607,42 @@ void IntrinsicCodeGeneratorMIPS64::VisitStringEquals(HInvoke* invoke) {
   __ Lw(temp2, arg, class_offset);
   __ Bnec(temp1, temp2, &return_false);
 
-  // Load lengths of this and argument strings.
+  // Load `count` fields of this and argument strings.
   __ Lw(temp1, str, count_offset);
   __ Lw(temp2, arg, count_offset);
-  // Check if lengths are equal, return false if they're not.
+  // Check if `count` fields are equal, return false if they're not.
+  // Also compares the compression style, if differs return false.
   __ Bnec(temp1, temp2, &return_false);
-  // Return true if both strings are empty.
+  // Return true if both strings are empty. Even with string compression `count == 0` means empty.
+  static_assert(static_cast<uint32_t>(mirror::StringCompressionFlag::kCompressed) == 0u,
+                "Expecting 0=compressed, 1=uncompressed");
   __ Beqzc(temp1, &return_true);
 
   // Don't overwrite input registers
   __ Move(TMP, str);
   __ Move(temp3, arg);
 
-  // Assertions that must hold in order to compare strings 4 characters at a time.
+  // Assertions that must hold in order to compare strings 8 bytes at a time.
   DCHECK_ALIGNED(value_offset, 8);
   static_assert(IsAligned<8>(kObjectAlignment), "String of odd length is not zero padded");
 
-  // Loop to compare strings 4 characters at a time starting at the beginning of the string.
-  // Ok to do this because strings are zero-padded to be 8-byte aligned.
+  if (mirror::kUseStringCompression) {
+    // For string compression, calculate the number of bytes to compare (not chars).
+    __ Dext(temp2, temp1, 0, 1);         // Extract compression flag.
+    __ Srl(temp1, temp1, 1);             // Extract length.
+    __ Sllv(temp1, temp1, temp2);        // Double the byte count if uncompressed.
+  }
+
+  // Loop to compare strings 8 bytes at a time starting at the beginning of the string.
+  // Ok to do this because strings are zero-padded to kObjectAlignment.
   __ Bind(&loop);
   __ Ld(out, TMP, value_offset);
   __ Ld(temp2, temp3, value_offset);
   __ Bnec(out, temp2, &return_false);
   __ Daddiu(TMP, TMP, 8);
   __ Daddiu(temp3, temp3, 8);
-  __ Addiu(temp1, temp1, -4);
+  // With string compression, we have compared 8 bytes, otherwise 4 chars.
+  __ Addiu(temp1, temp1, mirror::kUseStringCompression ? -8 : -4);
   __ Bgtzc(temp1, &loop);
 
   // Return true and exit the function.
@@ -1911,6 +1922,30 @@ void IntrinsicCodeGeneratorMIPS64::VisitStringGetCharsNoCheck(HInvoke* invoke) {
   // Calculate destination address.
   __ Daddiu(dstPtr, dstObj, data_offset);
   __ Dlsa(dstPtr, dstBegin, dstPtr, char_shift);
+
+  if (mirror::kUseStringCompression) {
+    Mips64Label uncompressed_copy, compressed_loop;
+    const uint32_t count_offset = mirror::String::CountOffset().Uint32Value();
+    // Load count field and extract compression flag.
+    __ LoadFromOffset(kLoadWord, TMP, srcObj, count_offset);
+    __ Dext(TMP, TMP, 0, 1);
+
+    // If string is uncompressed, use memcpy() path.
+    __ Bnezc(TMP, &uncompressed_copy);
+
+    // Copy loop for compressed src, copying 1 character (8-bit) to (16-bit) at a time.
+    __ Daddu(srcPtr, srcObj, srcBegin);
+    __ Bind(&compressed_loop);
+    __ LoadFromOffset(kLoadUnsignedByte, TMP, srcPtr, value_offset);
+    __ StoreToOffset(kStoreHalfword, TMP, dstPtr, 0);
+    __ Daddiu(numChrs, numChrs, -1);
+    __ Daddiu(srcPtr, srcPtr, 1);
+    __ Daddiu(dstPtr, dstPtr, 2);
+    __ Bnezc(numChrs, &compressed_loop);
+
+    __ Bc(&done);
+    __ Bind(&uncompressed_copy);
+  }
 
   // Calculate source address.
   __ Daddiu(srcPtr, srcObj, value_offset);
