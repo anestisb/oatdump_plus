@@ -572,7 +572,7 @@ jweak JavaVMExt::AddWeakGlobalRef(Thread* self, ObjPtr<mirror::Object> obj) {
   while (!kUseReadBarrier && UNLIKELY(!MayAccessWeakGlobals(self))) {
     // Check and run the empty checkpoint before blocking so the empty checkpoint will work in the
     // presence of threads blocking for weak ref access.
-    self->CheckEmptyCheckpoint();
+    self->CheckEmptyCheckpointFromWeakRefAccess(Locks::jni_weak_globals_lock_);
     weak_globals_add_condition_.WaitHoldingLocks(self);
   }
   IndirectRef ref = weak_globals_.Add(kIRTFirstSegment, obj);
@@ -706,7 +706,7 @@ ObjPtr<mirror::Object> JavaVMExt::DecodeWeakGlobalLocked(Thread* self, IndirectR
   while (UNLIKELY(!MayAccessWeakGlobals(self))) {
     // Check and run the empty checkpoint before blocking so the empty checkpoint will work in the
     // presence of threads blocking for weak ref access.
-    self->CheckEmptyCheckpoint();
+    self->CheckEmptyCheckpointFromWeakRefAccess(Locks::jni_weak_globals_lock_);
     weak_globals_add_condition_.WaitHoldingLocks(self);
   }
   return weak_globals_.Get(ref);
@@ -731,7 +731,7 @@ bool JavaVMExt::IsWeakGlobalCleared(Thread* self, IndirectRef ref) {
   while (UNLIKELY(!MayAccessWeakGlobals(self))) {
     // Check and run the empty checkpoint before blocking so the empty checkpoint will work in the
     // presence of threads blocking for weak ref access.
-    self->CheckEmptyCheckpoint();
+    self->CheckEmptyCheckpointFromWeakRefAccess(Locks::jni_weak_globals_lock_);
     weak_globals_add_condition_.WaitHoldingLocks(self);
   }
   // When just checking a weak ref has been cleared, avoid triggering the read barrier in decode
