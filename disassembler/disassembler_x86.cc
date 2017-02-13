@@ -859,6 +859,22 @@ DISASSEMBLER_ENTRY(cmp,
         has_modrm = true;
         store = true;
         break;
+      case 0x7F:
+        if (prefix[2] == 0x66) {
+          src_reg_file = dst_reg_file = SSE;
+          opcode1 = "movdqa";
+          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else if (prefix[0] == 0xF3) {
+          src_reg_file = dst_reg_file = SSE;
+          opcode1 = "movdqu";
+          prefix[0] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else {
+          dst_reg_file = MMX;
+          opcode1 = "movq";
+        }
+        store = true;
+        has_modrm = true;
+        break;
       case 0x80: case 0x81: case 0x82: case 0x83: case 0x84: case 0x85: case 0x86: case 0x87:
       case 0x88: case 0x89: case 0x8A: case 0x8B: case 0x8C: case 0x8D: case 0x8E: case 0x8F:
         opcode1 = "j";

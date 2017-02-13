@@ -1034,6 +1034,28 @@ TEST_F(AssemblerX86_64Test, Movsd) {
   DriverStr(RepeatFF(&x86_64::X86_64Assembler::movsd, "movsd %{reg2}, %{reg1}"), "movsd");
 }
 
+TEST_F(AssemblerX86_64Test, Movdqa) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::movdqa, "movdqa %{reg2}, %{reg1}"), "movapd");
+}
+
+TEST_F(AssemblerX86_64Test, MovdqaAddr) {
+  GetAssembler()->movdqa(x86_64::XmmRegister(x86_64::XMM0), x86_64::Address(x86_64::CpuRegister(x86_64::RSP), 4));
+  GetAssembler()->movdqa(x86_64::Address(x86_64::CpuRegister(x86_64::RSP), 2), x86_64::XmmRegister(x86_64::XMM1));
+  const char* expected =
+    "movdqa 0x4(%RSP), %xmm0\n"
+    "movdqa %xmm1, 0x2(%RSP)\n";
+  DriverStr(expected, "movdqa_address");
+}
+
+TEST_F(AssemblerX86_64Test, MovdquAddr) {
+  GetAssembler()->movdqu(x86_64::XmmRegister(x86_64::XMM0), x86_64::Address(x86_64::CpuRegister(x86_64::RSP), 4));
+  GetAssembler()->movdqu(x86_64::Address(x86_64::CpuRegister(x86_64::RSP), 2), x86_64::XmmRegister(x86_64::XMM1));
+  const char* expected =
+    "movdqu 0x4(%RSP), %xmm0\n"
+    "movdqu %xmm1, 0x2(%RSP)\n";
+  DriverStr(expected, "movdqu_address");
+}
+
 TEST_F(AssemblerX86_64Test, Movd1) {
   DriverStr(RepeatFR(&x86_64::X86_64Assembler::movd, "movd %{reg2}, %{reg1}"), "movd.1");
 }
@@ -1104,6 +1126,18 @@ TEST_F(AssemblerX86_64Test, Divps) {
 
 TEST_F(AssemblerX86_64Test, Divpd) {
   DriverStr(RepeatFF(&x86_64::X86_64Assembler::divpd, "divpd %{reg2}, %{reg1}"), "divpd");
+}
+
+TEST_F(AssemblerX86_64Test, Paddd) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::paddd, "paddd %{reg2}, %{reg1}"), "paddd");
+}
+
+TEST_F(AssemblerX86_64Test, Psubd) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::psubd, "psubd %{reg2}, %{reg1}"), "psubd");
+}
+
+TEST_F(AssemblerX86_64Test, Pmulld) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::pmulld, "pmulld %{reg2}, %{reg1}"), "pmulld");
 }
 
 TEST_F(AssemblerX86_64Test, Cvtsi2ss) {
@@ -1187,12 +1221,20 @@ TEST_F(AssemblerX86_64Test, Xorpd) {
   DriverStr(RepeatFF(&x86_64::X86_64Assembler::xorpd, "xorpd %{reg2}, %{reg1}"), "xorpd");
 }
 
+TEST_F(AssemblerX86_64Test, Pxor) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::pxor, "pxor %{reg2}, %{reg1}"), "pxor");
+}
+
 TEST_F(AssemblerX86_64Test, Andps) {
   DriverStr(RepeatFF(&x86_64::X86_64Assembler::andps, "andps %{reg2}, %{reg1}"), "andps");
 }
 
 TEST_F(AssemblerX86_64Test, Andpd) {
   DriverStr(RepeatFF(&x86_64::X86_64Assembler::andpd, "andpd %{reg2}, %{reg1}"), "andpd");
+}
+
+TEST_F(AssemblerX86_64Test, Pand) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::pand, "pand %{reg2}, %{reg1}"), "pand");
 }
 
 TEST_F(AssemblerX86_64Test, Orps) {
@@ -1203,12 +1245,20 @@ TEST_F(AssemblerX86_64Test, Orpd) {
   DriverStr(RepeatFF(&x86_64::X86_64Assembler::orpd, "orpd %{reg2}, %{reg1}"), "orpd");
 }
 
+TEST_F(AssemblerX86_64Test, Por) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::por, "por %{reg2}, %{reg1}"), "por");
+}
+
 TEST_F(AssemblerX86_64Test, Shufps) {
   DriverStr(RepeatFFI(&x86_64::X86_64Assembler::shufps, 1, "shufps ${imm}, %{reg2}, %{reg1}"), "shufps");
 }
 
 TEST_F(AssemblerX86_64Test, Shufpd) {
   DriverStr(RepeatFFI(&x86_64::X86_64Assembler::shufpd, 1, "shufpd ${imm}, %{reg2}, %{reg1}"), "shufpd");
+}
+
+TEST_F(AssemblerX86_64Test, PShufd) {
+  DriverStr(RepeatFFI(&x86_64::X86_64Assembler::pshufd, 1, "pshufd ${imm}, %{reg2}, %{reg1}"), "pshufd");
 }
 
 TEST_F(AssemblerX86_64Test, UcomissAddress) {
