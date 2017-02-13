@@ -34,6 +34,9 @@
 #include "utils/stack_checks.h"
 
 using namespace vixl::aarch64;  // NOLINT(build/namespaces)
+using vixl::ExactAssemblyScope;
+using vixl::CodeBufferCheckScope;
+using vixl::EmissionCheckScope;
 
 #ifdef __
 #error "ARM64 Codegen VIXL macro-assembler macro already defined."
@@ -613,10 +616,9 @@ void JumpTableARM64::EmitTable(CodeGeneratorARM64* codegen) {
 
   // We are about to use the assembler to place literals directly. Make sure we have enough
   // underlying code buffer and we have generated the jump table with right size.
-  vixl::CodeBufferCheckScope scope(codegen->GetVIXLAssembler(),
-                                   num_entries * sizeof(int32_t),
-                                   vixl::CodeBufferCheckScope::kReserveBufferSpace,
-                                   vixl::CodeBufferCheckScope::kExactSize);
+  EmissionCheckScope scope(codegen->GetVIXLAssembler(),
+                           num_entries * sizeof(int32_t),
+                           CodeBufferCheckScope::kExactSize);
 
   __ Bind(&table_start_);
   const ArenaVector<HBasicBlock*>& successors = switch_instr_->GetBlock()->GetSuccessors();
@@ -1279,7 +1281,6 @@ void ParallelMoveResolverARM64::EmitMove(size_t index) {
 
 void CodeGeneratorARM64::GenerateFrameEntry() {
   MacroAssembler* masm = GetVIXLAssembler();
-  BlockPoolsScope block_pools(masm);
   __ Bind(&frame_entry_label_);
 
   bool do_overflow_check = FrameNeedsStackCheck(GetFrameSize(), kArm64) || !IsLeafMethod();
@@ -1288,8 +1289,14 @@ void CodeGeneratorARM64::GenerateFrameEntry() {
     Register temp = temps.AcquireX();
     DCHECK(GetCompilerOptions().GetImplicitStackOverflowChecks());
     __ Sub(temp, sp, static_cast<int32_t>(GetStackOverflowReservedBytes(kArm64)));
-    __ Ldr(wzr, MemOperand(temp, 0));
-    RecordPcInfo(nullptr, 0);
+    {
+      // Ensure that between load and RecordPcInfo there are no pools emitted.
+      ExactAssemblyScope eas(GetVIXLAssembler(),
+                             kInstructionSize,
+                             CodeBufferCheckScope::kExactSize);
+      __ ldr(wzr, MemOperand(temp, 0));
+      RecordPcInfo(nullptr, 0);
+    }
   }
 
   if (!HasEmptyFrame()) {
@@ -1324,7 +1331,6 @@ void CodeGeneratorARM64::GenerateFrameEntry() {
 }
 
 void CodeGeneratorARM64::GenerateFrameExit() {
-  BlockPoolsScope block_pools(GetVIXLAssembler());
   GetAssembler()->cfi().RememberState();
   if (!HasEmptyFrame()) {
     int frame_size = GetFrameSize();
@@ -1651,7 +1657,6 @@ void CodeGeneratorARM64::LoadAcquire(HInstruction* instruction,
                                      const MemOperand& src,
                                      bool needs_null_check) {
   MacroAssembler* masm = GetVIXLAssembler();
-  BlockPoolsScope block_pools(masm);
   UseScratchRegisterScope temps(masm);
   Register temp_base = temps.AcquireX();
   Primitive::Type type = instruction->GetType();
@@ -1661,58 +1666,79 @@ void CodeGeneratorARM64::LoadAcquire(HInstruction* instruction,
 
   // TODO(vixl): Let the MacroAssembler handle MemOperand.
   __ Add(temp_base, src.GetBaseRegister(), OperandFromMemOperand(src));
-  MemOperand base = MemOperand(temp_base);
-  switch (type) {
-    case Primitive::kPrimBoolean:
-      __ Ldarb(Register(dst), base);
-      if (needs_null_check) {
-        MaybeRecordImplicitNullCheck(instruction);
-      }
-      break;
-    case Primitive::kPrimByte:
-      __ Ldarb(Register(dst), base);
-      if (needs_null_check) {
-        MaybeRecordImplicitNullCheck(instruction);
-      }
-      __ Sbfx(Register(dst), Register(dst), 0, Primitive::ComponentSize(type) * kBitsPerByte);
-      break;
-    case Primitive::kPrimChar:
-      __ Ldarh(Register(dst), base);
-      if (needs_null_check) {
-        MaybeRecordImplicitNullCheck(instruction);
-      }
-      break;
-    case Primitive::kPrimShort:
-      __ Ldarh(Register(dst), base);
-      if (needs_null_check) {
-        MaybeRecordImplicitNullCheck(instruction);
-      }
-      __ Sbfx(Register(dst), Register(dst), 0, Primitive::ComponentSize(type) * kBitsPerByte);
-      break;
-    case Primitive::kPrimInt:
-    case Primitive::kPrimNot:
-    case Primitive::kPrimLong:
-      DCHECK_EQ(dst.Is64Bits(), Primitive::Is64BitType(type));
-      __ Ldar(Register(dst), base);
-      if (needs_null_check) {
-        MaybeRecordImplicitNullCheck(instruction);
-      }
-      break;
-    case Primitive::kPrimFloat:
-    case Primitive::kPrimDouble: {
-      DCHECK(dst.IsFPRegister());
-      DCHECK_EQ(dst.Is64Bits(), Primitive::Is64BitType(type));
+  {
+    // Ensure that between load and MaybeRecordImplicitNullCheck there are no pools emitted.
+    MemOperand base = MemOperand(temp_base);
+    switch (type) {
+      case Primitive::kPrimBoolean:
+        {
+          ExactAssemblyScope eas(masm, kInstructionSize, CodeBufferCheckScope::kExactSize);
+          __ ldarb(Register(dst), base);
+          if (needs_null_check) {
+            MaybeRecordImplicitNullCheck(instruction);
+          }
+        }
+        break;
+      case Primitive::kPrimByte:
+        {
+          ExactAssemblyScope eas(masm, kInstructionSize, CodeBufferCheckScope::kExactSize);
+          __ ldarb(Register(dst), base);
+          if (needs_null_check) {
+            MaybeRecordImplicitNullCheck(instruction);
+          }
+        }
+        __ Sbfx(Register(dst), Register(dst), 0, Primitive::ComponentSize(type) * kBitsPerByte);
+        break;
+      case Primitive::kPrimChar:
+        {
+          ExactAssemblyScope eas(masm, kInstructionSize, CodeBufferCheckScope::kExactSize);
+          __ ldarh(Register(dst), base);
+          if (needs_null_check) {
+            MaybeRecordImplicitNullCheck(instruction);
+          }
+        }
+        break;
+      case Primitive::kPrimShort:
+        {
+          ExactAssemblyScope eas(masm, kInstructionSize, CodeBufferCheckScope::kExactSize);
+          __ ldarh(Register(dst), base);
+          if (needs_null_check) {
+            MaybeRecordImplicitNullCheck(instruction);
+          }
+        }
+        __ Sbfx(Register(dst), Register(dst), 0, Primitive::ComponentSize(type) * kBitsPerByte);
+        break;
+      case Primitive::kPrimInt:
+      case Primitive::kPrimNot:
+      case Primitive::kPrimLong:
+        DCHECK_EQ(dst.Is64Bits(), Primitive::Is64BitType(type));
+        {
+          ExactAssemblyScope eas(masm, kInstructionSize, CodeBufferCheckScope::kExactSize);
+          __ ldar(Register(dst), base);
+          if (needs_null_check) {
+            MaybeRecordImplicitNullCheck(instruction);
+          }
+        }
+        break;
+      case Primitive::kPrimFloat:
+      case Primitive::kPrimDouble: {
+        DCHECK(dst.IsFPRegister());
+        DCHECK_EQ(dst.Is64Bits(), Primitive::Is64BitType(type));
 
-      Register temp = dst.Is64Bits() ? temps.AcquireX() : temps.AcquireW();
-      __ Ldar(temp, base);
-      if (needs_null_check) {
-        MaybeRecordImplicitNullCheck(instruction);
+        Register temp = dst.Is64Bits() ? temps.AcquireX() : temps.AcquireW();
+        {
+          ExactAssemblyScope eas(masm, kInstructionSize, CodeBufferCheckScope::kExactSize);
+          __ ldar(temp, base);
+          if (needs_null_check) {
+            MaybeRecordImplicitNullCheck(instruction);
+          }
+        }
+        __ Fmov(FPRegister(dst), temp);
+        break;
       }
-      __ Fmov(FPRegister(dst), temp);
-      break;
+      case Primitive::kPrimVoid:
+        LOG(FATAL) << "Unreachable type " << type;
     }
-    case Primitive::kPrimVoid:
-      LOG(FATAL) << "Unreachable type " << type;
   }
 }
 
@@ -1741,9 +1767,12 @@ void CodeGeneratorARM64::Store(Primitive::Type type,
   }
 }
 
-void CodeGeneratorARM64::StoreRelease(Primitive::Type type,
+void CodeGeneratorARM64::StoreRelease(HInstruction* instruction,
+                                      Primitive::Type type,
                                       CPURegister src,
-                                      const MemOperand& dst) {
+                                      const MemOperand& dst,
+                                      bool needs_null_check) {
+  MacroAssembler* masm = GetVIXLAssembler();
   UseScratchRegisterScope temps(GetVIXLAssembler());
   Register temp_base = temps.AcquireX();
 
@@ -1754,20 +1783,39 @@ void CodeGeneratorARM64::StoreRelease(Primitive::Type type,
   Operand op = OperandFromMemOperand(dst);
   __ Add(temp_base, dst.GetBaseRegister(), op);
   MemOperand base = MemOperand(temp_base);
+  // Ensure that between store and MaybeRecordImplicitNullCheck there are no pools emitted.
   switch (type) {
     case Primitive::kPrimBoolean:
     case Primitive::kPrimByte:
-      __ Stlrb(Register(src), base);
+      {
+        ExactAssemblyScope eas(masm, kInstructionSize, CodeBufferCheckScope::kExactSize);
+        __ stlrb(Register(src), base);
+        if (needs_null_check) {
+          MaybeRecordImplicitNullCheck(instruction);
+        }
+      }
       break;
     case Primitive::kPrimChar:
     case Primitive::kPrimShort:
-      __ Stlrh(Register(src), base);
+      {
+        ExactAssemblyScope eas(masm, kInstructionSize, CodeBufferCheckScope::kExactSize);
+        __ stlrh(Register(src), base);
+        if (needs_null_check) {
+          MaybeRecordImplicitNullCheck(instruction);
+        }
+      }
       break;
     case Primitive::kPrimInt:
     case Primitive::kPrimNot:
     case Primitive::kPrimLong:
       DCHECK_EQ(src.Is64Bits(), Primitive::Is64BitType(type));
-      __ Stlr(Register(src), base);
+      {
+        ExactAssemblyScope eas(masm, kInstructionSize, CodeBufferCheckScope::kExactSize);
+        __ stlr(Register(src), base);
+        if (needs_null_check) {
+          MaybeRecordImplicitNullCheck(instruction);
+        }
+      }
       break;
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble: {
@@ -1781,8 +1829,13 @@ void CodeGeneratorARM64::StoreRelease(Primitive::Type type,
         temp_src = src.Is64Bits() ? temps.AcquireX() : temps.AcquireW();
         __ Fmov(temp_src, FPRegister(src));
       }
-
-      __ Stlr(temp_src, base);
+      {
+        ExactAssemblyScope eas(masm, kInstructionSize, CodeBufferCheckScope::kExactSize);
+        __ stlr(temp_src, base);
+        if (needs_null_check) {
+          MaybeRecordImplicitNullCheck(instruction);
+        }
+      }
       break;
     }
     case Primitive::kPrimVoid:
@@ -1795,9 +1848,15 @@ void CodeGeneratorARM64::InvokeRuntime(QuickEntrypointEnum entrypoint,
                                        uint32_t dex_pc,
                                        SlowPathCode* slow_path) {
   ValidateInvokeRuntime(entrypoint, instruction, slow_path);
-  GenerateInvokeRuntime(GetThreadOffset<kArm64PointerSize>(entrypoint).Int32Value());
-  if (EntrypointRequiresStackMap(entrypoint)) {
-    RecordPcInfo(instruction, dex_pc, slow_path);
+
+  __ Ldr(lr, MemOperand(tr, GetThreadOffset<kArm64PointerSize>(entrypoint).Int32Value()));
+  {
+    // Ensure the pc position is recorded immediately after the `blr` instruction.
+    ExactAssemblyScope eas(GetVIXLAssembler(), kInstructionSize, CodeBufferCheckScope::kExactSize);
+    __ blr(lr);
+    if (EntrypointRequiresStackMap(entrypoint)) {
+      RecordPcInfo(instruction, dex_pc, slow_path);
+    }
   }
 }
 
@@ -1805,11 +1864,6 @@ void CodeGeneratorARM64::InvokeRuntimeWithoutRecordingPcInfo(int32_t entry_point
                                                              HInstruction* instruction,
                                                              SlowPathCode* slow_path) {
   ValidateInvokeRuntimeWithoutRecordingPcInfo(instruction, slow_path);
-  GenerateInvokeRuntime(entry_point_offset);
-}
-
-void CodeGeneratorARM64::GenerateInvokeRuntime(int32_t entry_point_offset) {
-  BlockPoolsScope block_pools(GetVIXLAssembler());
   __ Ldr(lr, MemOperand(tr, entry_point_offset));
   __ Blr(lr);
 }
@@ -1976,7 +2030,6 @@ void InstructionCodeGeneratorARM64::HandleFieldGet(HInstruction* instruction,
   Location out = locations->Out();
   uint32_t offset = field_info.GetFieldOffset().Uint32Value();
   Primitive::Type field_type = field_info.GetFieldType();
-  BlockPoolsScope block_pools(GetVIXLAssembler());
   MemOperand field = HeapOperand(InputRegisterAt(instruction, 0), field_info.GetFieldOffset());
 
   if (field_type == Primitive::kPrimNot && kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
@@ -2003,6 +2056,8 @@ void InstructionCodeGeneratorARM64::HandleFieldGet(HInstruction* instruction,
       codegen_->LoadAcquire(
           instruction, OutputCPURegister(instruction), field, /* needs_null_check */ true);
     } else {
+      // Ensure that between load and MaybeRecordImplicitNullCheck there are no pools emitted.
+      EmissionCheckScope guard(GetVIXLAssembler(), kMaxMacroInstructionSizeInBytes);
       codegen_->Load(field_type, OutputCPURegister(instruction), field);
       codegen_->MaybeRecordImplicitNullCheck(instruction);
     }
@@ -2032,7 +2087,6 @@ void InstructionCodeGeneratorARM64::HandleFieldSet(HInstruction* instruction,
                                                    const FieldInfo& field_info,
                                                    bool value_can_be_null) {
   DCHECK(instruction->IsInstanceFieldSet() || instruction->IsStaticFieldSet());
-  BlockPoolsScope block_pools(GetVIXLAssembler());
 
   Register obj = InputRegisterAt(instruction, 0);
   CPURegister value = InputCPURegisterOrZeroRegAt(instruction, 1);
@@ -2054,9 +2108,11 @@ void InstructionCodeGeneratorARM64::HandleFieldSet(HInstruction* instruction,
     }
 
     if (field_info.IsVolatile()) {
-      codegen_->StoreRelease(field_type, source, HeapOperand(obj, offset));
-      codegen_->MaybeRecordImplicitNullCheck(instruction);
+      codegen_->StoreRelease(
+          instruction, field_type, source, HeapOperand(obj, offset), /* needs_null_check */ true);
     } else {
+      // Ensure that between store and MaybeRecordImplicitNullCheck there are no pools emitted.
+      EmissionCheckScope guard(GetVIXLAssembler(), kMaxMacroInstructionSizeInBytes);
       codegen_->Store(field_type, source, HeapOperand(obj, offset));
       codegen_->MaybeRecordImplicitNullCheck(instruction);
     }
@@ -2342,10 +2398,7 @@ void InstructionCodeGeneratorARM64::VisitMultiplyAccumulate(HMultiplyAccumulate*
         masm->GetCursorAddress<vixl::aarch64::Instruction*>() - kInstructionSize;
     if (prev->IsLoadOrStore()) {
       // Make sure we emit only exactly one nop.
-      vixl::CodeBufferCheckScope scope(masm,
-                                       kInstructionSize,
-                                       vixl::CodeBufferCheckScope::kReserveBufferSpace,
-                                       vixl::CodeBufferCheckScope::kExactSize);
+      ExactAssemblyScope scope(masm, kInstructionSize, CodeBufferCheckScope::kExactSize);
       __ nop();
     }
   }
@@ -2401,8 +2454,6 @@ void InstructionCodeGeneratorARM64::VisitArrayGet(HArrayGet* instruction) {
                                         instruction->IsStringCharAt();
   MacroAssembler* masm = GetVIXLAssembler();
   UseScratchRegisterScope temps(masm);
-  // Block pools between `Load` and `MaybeRecordImplicitNullCheck`.
-  BlockPoolsScope block_pools(masm);
 
   // The read barrier instrumentation of object ArrayGet instructions
   // does not support the HIntermediateAddress instruction.
@@ -2424,15 +2475,21 @@ void InstructionCodeGeneratorARM64::VisitArrayGet(HArrayGet* instruction) {
     if (maybe_compressed_char_at) {
       uint32_t count_offset = mirror::String::CountOffset().Uint32Value();
       length = temps.AcquireW();
-      if (instruction->GetArray()->IsIntermediateAddress()) {
-        DCHECK_LT(count_offset, offset);
-        int64_t adjusted_offset = static_cast<int64_t>(count_offset) - static_cast<int64_t>(offset);
-        // Note that `adjusted_offset` is negative, so this will be a LDUR.
-        __ Ldr(length, MemOperand(obj.X(), adjusted_offset));
-      } else {
-        __ Ldr(length, HeapOperand(obj, count_offset));
+      {
+        // Ensure that between load and MaybeRecordImplicitNullCheck there are no pools emitted.
+        EmissionCheckScope guard(GetVIXLAssembler(), kMaxMacroInstructionSizeInBytes);
+
+        if (instruction->GetArray()->IsIntermediateAddress()) {
+          DCHECK_LT(count_offset, offset);
+          int64_t adjusted_offset =
+              static_cast<int64_t>(count_offset) - static_cast<int64_t>(offset);
+          // Note that `adjusted_offset` is negative, so this will be a LDUR.
+          __ Ldr(length, MemOperand(obj.X(), adjusted_offset));
+        } else {
+          __ Ldr(length, HeapOperand(obj, count_offset));
+        }
+        codegen_->MaybeRecordImplicitNullCheck(instruction);
       }
-      codegen_->MaybeRecordImplicitNullCheck(instruction);
     }
     if (index.IsConstant()) {
       if (maybe_compressed_char_at) {
@@ -2482,6 +2539,8 @@ void InstructionCodeGeneratorARM64::VisitArrayGet(HArrayGet* instruction) {
       }
     }
     if (!maybe_compressed_char_at) {
+      // Ensure that between load and MaybeRecordImplicitNullCheck there are no pools emitted.
+      EmissionCheckScope guard(GetVIXLAssembler(), kMaxMacroInstructionSizeInBytes);
       codegen_->Load(type, OutputCPURegister(instruction), source);
       codegen_->MaybeRecordImplicitNullCheck(instruction);
     }
@@ -2509,9 +2568,12 @@ void LocationsBuilderARM64::VisitArrayLength(HArrayLength* instruction) {
 void InstructionCodeGeneratorARM64::VisitArrayLength(HArrayLength* instruction) {
   uint32_t offset = CodeGenerator::GetArrayLengthOffset(instruction);
   vixl::aarch64::Register out = OutputRegister(instruction);
-  BlockPoolsScope block_pools(GetVIXLAssembler());
-  __ Ldr(out, HeapOperand(InputRegisterAt(instruction, 0), offset));
-  codegen_->MaybeRecordImplicitNullCheck(instruction);
+  {
+    // Ensure that between load and MaybeRecordImplicitNullCheck there are no pools emitted.
+    EmissionCheckScope guard(GetVIXLAssembler(), kMaxMacroInstructionSizeInBytes);
+    __ Ldr(out, HeapOperand(InputRegisterAt(instruction, 0), offset));
+    codegen_->MaybeRecordImplicitNullCheck(instruction);
+  }
   // Mask out compression flag from String's array length.
   if (mirror::kUseStringCompression && instruction->IsStringLength()) {
     __ Lsr(out.W(), out.W(), 1u);
@@ -2552,7 +2614,6 @@ void InstructionCodeGeneratorARM64::VisitArraySet(HArraySet* instruction) {
   size_t offset = mirror::Array::DataOffset(Primitive::ComponentSize(value_type)).Uint32Value();
   MemOperand destination = HeapOperand(array);
   MacroAssembler* masm = GetVIXLAssembler();
-  BlockPoolsScope block_pools(masm);
 
   if (!needs_write_barrier) {
     DCHECK(!may_need_runtime_call_for_type_check);
@@ -2579,8 +2640,12 @@ void InstructionCodeGeneratorARM64::VisitArraySet(HArraySet* instruction) {
                                 LSL,
                                 Primitive::ComponentSizeShift(value_type));
     }
-    codegen_->Store(value_type, value, destination);
-    codegen_->MaybeRecordImplicitNullCheck(instruction);
+    {
+      // Ensure that between store and MaybeRecordImplicitNullCheck there are no pools emitted.
+      EmissionCheckScope guard(GetVIXLAssembler(), kMaxMacroInstructionSizeInBytes);
+      codegen_->Store(value_type, value, destination);
+      codegen_->MaybeRecordImplicitNullCheck(instruction);
+    }
   } else {
     DCHECK(!instruction->GetArray()->IsIntermediateAddress());
     vixl::aarch64::Label done;
@@ -2613,8 +2678,13 @@ void InstructionCodeGeneratorARM64::VisitArraySet(HArraySet* instruction) {
           if (!index.IsConstant()) {
             __ Add(temp, array, offset);
           }
-          __ Str(wzr, destination);
-          codegen_->MaybeRecordImplicitNullCheck(instruction);
+          {
+            // Ensure that between store and MaybeRecordImplicitNullCheck there are no pools
+            // emitted.
+            EmissionCheckScope guard(GetVIXLAssembler(), kMaxMacroInstructionSizeInBytes);
+            __ Str(wzr, destination);
+            codegen_->MaybeRecordImplicitNullCheck(instruction);
+          }
           __ B(&done);
           __ Bind(&non_zero);
         }
@@ -2629,8 +2699,12 @@ void InstructionCodeGeneratorARM64::VisitArraySet(HArraySet* instruction) {
 
         Register temp2 = temps.AcquireSameSizeAs(array);
         // /* HeapReference<Class> */ temp = array->klass_
-        __ Ldr(temp, HeapOperand(array, class_offset));
-        codegen_->MaybeRecordImplicitNullCheck(instruction);
+        {
+          // Ensure that between load and MaybeRecordImplicitNullCheck there are no pools emitted.
+          EmissionCheckScope guard(GetVIXLAssembler(), kMaxMacroInstructionSizeInBytes);
+          __ Ldr(temp, HeapOperand(array, class_offset));
+          codegen_->MaybeRecordImplicitNullCheck(instruction);
+        }
         GetAssembler()->MaybeUnpoisonHeapReference(temp);
 
         // /* HeapReference<Class> */ temp = temp->component_type_
@@ -2671,10 +2745,14 @@ void InstructionCodeGeneratorARM64::VisitArraySet(HArraySet* instruction) {
       if (!index.IsConstant()) {
         __ Add(temp, array, offset);
       }
-      __ Str(source, destination);
+      {
+        // Ensure that between store and MaybeRecordImplicitNullCheck there are no pools emitted.
+        EmissionCheckScope guard(GetVIXLAssembler(), kMaxMacroInstructionSizeInBytes);
+        __ Str(source, destination);
 
-      if (!may_need_runtime_call_for_type_check) {
-        codegen_->MaybeRecordImplicitNullCheck(instruction);
+        if (!may_need_runtime_call_for_type_check) {
+          codegen_->MaybeRecordImplicitNullCheck(instruction);
+        }
       }
     }
 
@@ -3969,19 +4047,25 @@ void InstructionCodeGeneratorARM64::VisitInvokeInterface(HInvokeInterface* invok
   // art_quick_imt_conflict_trampoline, so prevent VIXL from using it.
   MacroAssembler* masm = GetVIXLAssembler();
   UseScratchRegisterScope scratch_scope(masm);
-  BlockPoolsScope block_pools(masm);
   scratch_scope.Exclude(ip1);
   __ Mov(ip1, invoke->GetDexMethodIndex());
 
+  // Ensure that between load and MaybeRecordImplicitNullCheck there are no pools emitted.
   if (receiver.IsStackSlot()) {
     __ Ldr(temp.W(), StackOperandFrom(receiver));
-    // /* HeapReference<Class> */ temp = temp->klass_
-    __ Ldr(temp.W(), HeapOperand(temp.W(), class_offset));
+    {
+      EmissionCheckScope guard(GetVIXLAssembler(), kMaxMacroInstructionSizeInBytes);
+      // /* HeapReference<Class> */ temp = temp->klass_
+      __ Ldr(temp.W(), HeapOperand(temp.W(), class_offset));
+      codegen_->MaybeRecordImplicitNullCheck(invoke);
+    }
   } else {
+    EmissionCheckScope guard(GetVIXLAssembler(), kMaxMacroInstructionSizeInBytes);
     // /* HeapReference<Class> */ temp = receiver->klass_
     __ Ldr(temp.W(), HeapOperandFrom(receiver, class_offset));
+    codegen_->MaybeRecordImplicitNullCheck(invoke);
   }
-  codegen_->MaybeRecordImplicitNullCheck(invoke);
+
   // Instead of simply (possibly) unpoisoning `temp` here, we should
   // emit a read barrier for the previous class reference load.
   // However this is not required in practice, as this is an
@@ -3998,10 +4082,16 @@ void InstructionCodeGeneratorARM64::VisitInvokeInterface(HInvokeInterface* invok
   __ Ldr(temp, MemOperand(temp, method_offset));
   // lr = temp->GetEntryPoint();
   __ Ldr(lr, MemOperand(temp, entry_point.Int32Value()));
-  // lr();
-  __ Blr(lr);
-  DCHECK(!codegen_->IsLeafMethod());
-  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
+
+  {
+    // Ensure the pc position is recorded immediately after the `blr` instruction.
+    ExactAssemblyScope eas(GetVIXLAssembler(), kInstructionSize, CodeBufferCheckScope::kExactSize);
+
+    // lr();
+    __ blr(lr);
+    DCHECK(!codegen_->IsLeafMethod());
+    codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
+  }
 }
 
 void LocationsBuilderARM64::VisitInvokeVirtual(HInvokeVirtual* invoke) {
@@ -4113,8 +4203,16 @@ void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invok
       __ Ldr(lr, MemOperand(
           XRegisterFrom(callee_method),
           ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArm64PointerSize).Int32Value()));
-      // lr()
-      __ Blr(lr);
+      {
+        // To ensure that the pc position is recorded immediately after the `blr` instruction
+        // BLR must be the last instruction emitted in this function.
+        // Recording the pc will occur right after returning from this function.
+        ExactAssemblyScope eas(GetVIXLAssembler(),
+                               kInstructionSize,
+                               CodeBufferCheckScope::kExactSize);
+        // lr()
+        __ blr(lr);
+      }
       break;
   }
 
@@ -4134,12 +4232,15 @@ void CodeGeneratorARM64::GenerateVirtualCall(HInvokeVirtual* invoke, Location te
   Offset class_offset = mirror::Object::ClassOffset();
   Offset entry_point = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArm64PointerSize);
 
-  BlockPoolsScope block_pools(GetVIXLAssembler());
-
   DCHECK(receiver.IsRegister());
-  // /* HeapReference<Class> */ temp = receiver->klass_
-  __ Ldr(temp.W(), HeapOperandFrom(LocationFrom(receiver), class_offset));
-  MaybeRecordImplicitNullCheck(invoke);
+
+  {
+    // Ensure that between load and MaybeRecordImplicitNullCheck there are no pools emitted.
+    EmissionCheckScope guard(GetVIXLAssembler(), kMaxMacroInstructionSizeInBytes);
+    // /* HeapReference<Class> */ temp = receiver->klass_
+    __ Ldr(temp.W(), HeapOperandFrom(LocationFrom(receiver), class_offset));
+    MaybeRecordImplicitNullCheck(invoke);
+  }
   // Instead of simply (possibly) unpoisoning `temp` here, we should
   // emit a read barrier for the previous class reference load.
   // intermediate/temporary reference and because the current
@@ -4151,8 +4252,14 @@ void CodeGeneratorARM64::GenerateVirtualCall(HInvokeVirtual* invoke, Location te
   __ Ldr(temp, MemOperand(temp, method_offset));
   // lr = temp->GetEntryPoint();
   __ Ldr(lr, MemOperand(temp, entry_point.SizeValue()));
-  // lr();
-  __ Blr(lr);
+  {
+    // To ensure that the pc position is recorded immediately after the `blr` instruction
+    // BLR should be the last instruction emitted in this function.
+    // Recording the pc will occur right after returning from this function.
+    ExactAssemblyScope eas(GetVIXLAssembler(), kInstructionSize, CodeBufferCheckScope::kExactSize);
+    // lr();
+    __ blr(lr);
+  }
 }
 
 void LocationsBuilderARM64::VisitInvokePolymorphic(HInvokePolymorphic* invoke) {
@@ -4365,7 +4472,9 @@ void InstructionCodeGeneratorARM64::VisitInvokeStaticOrDirect(HInvokeStaticOrDir
     return;
   }
 
-  BlockPoolsScope block_pools(GetVIXLAssembler());
+  // Ensure that between the BLR (emitted by GenerateStaticOrDirectCall) and RecordPcInfo there
+  // are no pools emitted.
+  EmissionCheckScope guard(GetVIXLAssembler(), kInvokeCodeMarginSizeInBytes);
   LocationSummary* locations = invoke->GetLocations();
   codegen_->GenerateStaticOrDirectCall(
       invoke, locations->HasTemps() ? locations->GetTemp(0) : Location::NoLocation());
@@ -4377,6 +4486,9 @@ void InstructionCodeGeneratorARM64::VisitInvokeVirtual(HInvokeVirtual* invoke) {
     return;
   }
 
+  // Ensure that between the BLR (emitted by GenerateVirtualCall) and RecordPcInfo there
+  // are no pools emitted.
+  EmissionCheckScope guard(GetVIXLAssembler(), kInvokeCodeMarginSizeInBytes);
   codegen_->GenerateVirtualCall(invoke, invoke->GetLocations()->GetTemp(0));
   DCHECK(!codegen_->IsLeafMethod());
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
@@ -4872,8 +4984,15 @@ void InstructionCodeGeneratorARM64::VisitNewInstance(HNewInstance* instruction) 
     MemberOffset code_offset = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArm64PointerSize);
     __ Ldr(XRegisterFrom(temp), MemOperand(tr, QUICK_ENTRY_POINT(pNewEmptyString)));
     __ Ldr(lr, MemOperand(XRegisterFrom(temp), code_offset.Int32Value()));
-    __ Blr(lr);
-    codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
+
+    {
+      // Ensure the pc position is recorded immediately after the `blr` instruction.
+      ExactAssemblyScope eas(GetVIXLAssembler(),
+                             kInstructionSize,
+                             CodeBufferCheckScope::kExactSize);
+      __ blr(lr);
+      codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
+    }
   } else {
     codegen_->InvokeRuntime(instruction->GetEntrypoint(), instruction, instruction->GetDexPc());
     CheckEntrypointTypes<kQuickAllocObjectWithChecks, void*, mirror::Class*>();
@@ -4917,11 +5036,13 @@ void CodeGeneratorARM64::GenerateImplicitNullCheck(HNullCheck* instruction) {
   if (CanMoveNullCheckToUser(instruction)) {
     return;
   }
-
-  BlockPoolsScope block_pools(GetVIXLAssembler());
-  Location obj = instruction->GetLocations()->InAt(0);
-  __ Ldr(wzr, HeapOperandFrom(obj, Offset(0)));
-  RecordPcInfo(instruction, instruction->GetDexPc());
+  {
+    // Ensure that between load and MaybeRecordImplicitNullCheck there are no pools emitted.
+    EmissionCheckScope guard(GetVIXLAssembler(), kMaxMacroInstructionSizeInBytes);
+    Location obj = instruction->GetLocations()->InAt(0);
+    __ Ldr(wzr, HeapOperandFrom(obj, Offset(0)));
+    RecordPcInfo(instruction, instruction->GetDexPc());
+  }
 }
 
 void CodeGeneratorARM64::GenerateExplicitNullCheck(HNullCheck* instruction) {
@@ -5658,10 +5779,14 @@ void CodeGeneratorARM64::GenerateReferenceLoadWithBakerReadBarrier(HInstruction*
   DCHECK(obj.IsW());
   uint32_t monitor_offset = mirror::Object::MonitorOffset().Int32Value();
 
-  // /* int32_t */ monitor = obj->monitor_
-  __ Ldr(temp, HeapOperand(obj, monitor_offset));
-  if (needs_null_check) {
-    MaybeRecordImplicitNullCheck(instruction);
+  {
+    // Ensure that between load and MaybeRecordImplicitNullCheck there are no pools emitted.
+    EmissionCheckScope guard(GetVIXLAssembler(), kMaxMacroInstructionSizeInBytes);
+    // /* int32_t */ monitor = obj->monitor_
+    __ Ldr(temp, HeapOperand(obj, monitor_offset));
+    if (needs_null_check) {
+      MaybeRecordImplicitNullCheck(instruction);
+    }
   }
   // /* LockWord */ lock_word = LockWord(monitor)
   static_assert(sizeof(LockWord) == sizeof(int32_t),
