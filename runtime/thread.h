@@ -176,7 +176,8 @@ class Thread {
   void CheckSuspend() REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Process a pending empty checkpoint if pending.
-  void CheckEmptyCheckpoint() REQUIRES_SHARED(Locks::mutator_lock_);
+  void CheckEmptyCheckpointFromWeakRefAccess(BaseMutex* cond_var_mutex);
+  void CheckEmptyCheckpointFromMutex();
 
   static Thread* FromManagedThread(const ScopedObjectAccessAlreadyRunnable& ts,
                                    ObjPtr<mirror::Object> thread_peer)
