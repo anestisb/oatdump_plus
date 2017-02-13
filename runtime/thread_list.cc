@@ -379,13 +379,15 @@ size_t ThreadList::RunCheckpoint(Closure* checkpoint_function, Closure* callback
   return count;
 }
 
-size_t ThreadList::RunEmptyCheckpoint(std::vector<uint32_t>& runnable_thread_ids) {
+void ThreadList::RunEmptyCheckpoint() {
   Thread* self = Thread::Current();
   Locks::mutator_lock_->AssertNotExclusiveHeld(self);
   Locks::thread_list_lock_->AssertNotHeld(self);
   Locks::thread_suspend_count_lock_->AssertNotHeld(self);
-
+  std::vector<uint32_t> runnable_thread_ids;
   size_t count = 0;
+  Barrier* barrier = empty_checkpoint_barrier_.get();
+  barrier->Init(self, 0);
   {
     MutexLock mu(self, *Locks::thread_list_lock_);
     MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
@@ -415,8 +417,72 @@ size_t ThreadList::RunEmptyCheckpoint(std::vector<uint32_t>& runnable_thread_ids
   // checkpoint request. Otherwise we will hang as they are blocking in the kRunnable state.
   Runtime::Current()->GetHeap()->GetReferenceProcessor()->BroadcastForSlowPath(self);
   Runtime::Current()->BroadcastForNewSystemWeaks(/*broadcast_for_checkpoint*/true);
-
-  return count;
+  {
+    ScopedThreadStateChange tsc(self, kWaitingForCheckPointsToRun);
+    uint64_t total_wait_time = 0;
+    bool first_iter = true;
+    while (true) {
+      // Wake up the runnable threads blocked on the mutexes that another thread, which is blocked
+      // on a weak ref access, holds (indirectly blocking for weak ref access through another thread
+      // and a mutex.) This needs to be done periodically because the thread may be preempted
+      // between the CheckEmptyCheckpointFromMutex call and the subsequent futex wait in
+      // Mutex::ExclusiveLock, etc. when the wakeup via WakeupToRespondToEmptyCheckpoint
+      // arrives. This could cause a *very rare* deadlock, if not repeated. Most of the cases are
+      // handled in the first iteration.
+      for (BaseMutex* mutex : Locks::expected_mutexes_on_weak_ref_access_) {
+        mutex->WakeupToRespondToEmptyCheckpoint();
+      }
+      static constexpr uint64_t kEmptyCheckpointPeriodicTimeoutMs = 100;  // 100ms
+      static constexpr uint64_t kEmptyCheckpointTotalTimeoutMs = 600 * 1000;  // 10 minutes.
+      size_t barrier_count = first_iter ? count : 0;
+      first_iter = false;  // Don't add to the barrier count from the second iteration on.
+      bool timed_out = barrier->Increment(self, barrier_count, kEmptyCheckpointPeriodicTimeoutMs);
+      if (!timed_out) {
+        break;  // Success
+      }
+      // This is a very rare case.
+      total_wait_time += kEmptyCheckpointPeriodicTimeoutMs;
+      if (kIsDebugBuild && total_wait_time > kEmptyCheckpointTotalTimeoutMs) {
+        std::ostringstream ss;
+        ss << "Empty checkpoint timeout\n";
+        ss << "Barrier count " << barrier->GetCount(self) << "\n";
+        ss << "Runnable thread IDs";
+        for (uint32_t tid : runnable_thread_ids) {
+          ss << " " << tid;
+        }
+        ss << "\n";
+        Locks::mutator_lock_->Dump(ss);
+        ss << "\n";
+        LOG(FATAL_WITHOUT_ABORT) << ss.str();
+        // Some threads in 'runnable_thread_ids' are probably stuck. Try to dump their stacks.
+        // Avoid using ThreadList::Dump() initially because it is likely to get stuck as well.
+        {
+          ScopedObjectAccess soa(self);
+          MutexLock mu1(self, *Locks::thread_list_lock_);
+          for (Thread* thread : GetList()) {
+            uint32_t tid = thread->GetThreadId();
+            bool is_in_runnable_thread_ids =
+                std::find(runnable_thread_ids.begin(), runnable_thread_ids.end(), tid) !=
+                runnable_thread_ids.end();
+            if (is_in_runnable_thread_ids &&
+                thread->ReadFlag(kEmptyCheckpointRequest)) {
+              // Found a runnable thread that hasn't responded to the empty checkpoint request.
+              // Assume it's stuck and safe to dump its stack.
+              thread->Dump(LOG_STREAM(FATAL_WITHOUT_ABORT),
+                           /*dump_native_stack*/ true,
+                           /*backtrace_map*/ nullptr,
+                           /*force_dump_stack*/ true);
+            }
+          }
+        }
+        LOG(FATAL_WITHOUT_ABORT)
+            << "Dumped runnable threads that haven't responded to empty checkpoint.";
+        // Now use ThreadList::Dump() to dump more threads, noting it may get stuck.
+        Dump(LOG_STREAM(FATAL_WITHOUT_ABORT));
+        LOG(FATAL) << "Dumped all threads.";
+      }
+    }
+  }
 }
 
 // Request that a checkpoint function be run on all active (non-suspended)

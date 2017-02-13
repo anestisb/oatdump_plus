@@ -72,6 +72,7 @@ Uninterruptible Roles::uninterruptible_;
 ReaderWriterMutex* Locks::jni_globals_lock_ = nullptr;
 Mutex* Locks::jni_weak_globals_lock_ = nullptr;
 ReaderWriterMutex* Locks::dex_lock_ = nullptr;
+std::vector<BaseMutex*> Locks::expected_mutexes_on_weak_ref_access_;
 
 struct AllMutexData {
   // A guard for all_mutexes_ that's not a mutex (Mutexes must CAS to acquire and busy wait).
@@ -146,7 +147,10 @@ class ScopedContentionRecorder FINAL : public ValueObject {
   const uint64_t start_nano_time_;
 };
 
-BaseMutex::BaseMutex(const char* name, LockLevel level) : level_(level), name_(name) {
+BaseMutex::BaseMutex(const char* name, LockLevel level)
+    : level_(level),
+      name_(name),
+      should_respond_to_empty_checkpoint_request_(false) {
   if (kLogLockContentions) {
     ScopedAllMutexesLock mu(this);
     std::set<BaseMutex*>** all_mutexes_ptr = &gAllMutexData->all_mutexes;
@@ -377,6 +381,9 @@ void Mutex::ExclusiveLock(Thread* self) {
         // Failed to acquire, hang up.
         ScopedContentionRecorder scr(this, SafeGetTid(self), GetExclusiveOwnerTid());
         num_contenders_++;
+        if (UNLIKELY(should_respond_to_empty_checkpoint_request_)) {
+          self->CheckEmptyCheckpointFromMutex();
+        }
         if (futex(state_.Address(), FUTEX_WAIT, 1, nullptr, nullptr, 0) != 0) {
           // EAGAIN and EINTR both indicate a spurious failure, try again from the beginning.
           // We don't use TEMP_FAILURE_RETRY so we can intentionally retry to acquire the lock.
@@ -519,6 +526,18 @@ std::ostream& operator<<(std::ostream& os, const Mutex& mu) {
   return os;
 }
 
+void Mutex::WakeupToRespondToEmptyCheckpoint() {
+#if ART_USE_FUTEXES
+  // Wake up all the waiters so they will respond to the emtpy checkpoint.
+  DCHECK(should_respond_to_empty_checkpoint_request_);
+  if (UNLIKELY(num_contenders_.LoadRelaxed() > 0)) {
+    futex(state_.Address(), FUTEX_WAKE, -1, nullptr, nullptr, 0);
+  }
+#else
+  LOG(FATAL) << "Non futex case isn't supported.";
+#endif
+}
+
 ReaderWriterMutex::ReaderWriterMutex(const char* name, LockLevel level)
     : BaseMutex(name, level)
 #if ART_USE_FUTEXES
@@ -563,6 +582,9 @@ void ReaderWriterMutex::ExclusiveLock(Thread* self) {
       // Failed to acquire, hang up.
       ScopedContentionRecorder scr(this, SafeGetTid(self), GetExclusiveOwnerTid());
       ++num_pending_writers_;
+      if (UNLIKELY(should_respond_to_empty_checkpoint_request_)) {
+        self->CheckEmptyCheckpointFromMutex();
+      }
       if (futex(state_.Address(), FUTEX_WAIT, cur_state, nullptr, nullptr, 0) != 0) {
         // EAGAIN and EINTR both indicate a spurious failure, try again from the beginning.
         // We don't use TEMP_FAILURE_RETRY so we can intentionally retry to acquire the lock.
@@ -639,6 +661,9 @@ bool ReaderWriterMutex::ExclusiveLockWithTimeout(Thread* self, int64_t ms, int32
       }
       ScopedContentionRecorder scr(this, SafeGetTid(self), GetExclusiveOwnerTid());
       ++num_pending_writers_;
+      if (UNLIKELY(should_respond_to_empty_checkpoint_request_)) {
+        self->CheckEmptyCheckpointFromMutex();
+      }
       if (futex(state_.Address(), FUTEX_WAIT, cur_state, &rel_ts, nullptr, 0) != 0) {
         if (errno == ETIMEDOUT) {
           --num_pending_writers_;
@@ -677,6 +702,9 @@ void ReaderWriterMutex::HandleSharedLockContention(Thread* self, int32_t cur_sta
   // Owner holds it exclusively, hang up.
   ScopedContentionRecorder scr(this, GetExclusiveOwnerTid(), SafeGetTid(self));
   ++num_pending_readers_;
+  if (UNLIKELY(should_respond_to_empty_checkpoint_request_)) {
+    self->CheckEmptyCheckpointFromMutex();
+  }
   if (futex(state_.Address(), FUTEX_WAIT, cur_state, nullptr, nullptr, 0) != 0) {
     if (errno != EAGAIN && errno != EINTR) {
       PLOG(FATAL) << "futex wait failed for " << name_;
@@ -747,6 +775,19 @@ std::ostream& operator<<(std::ostream& os, const ReaderWriterMutex& mu) {
 std::ostream& operator<<(std::ostream& os, const MutatorMutex& mu) {
   mu.Dump(os);
   return os;
+}
+
+void ReaderWriterMutex::WakeupToRespondToEmptyCheckpoint() {
+#if ART_USE_FUTEXES
+  // Wake up all the waiters so they will respond to the emtpy checkpoint.
+  DCHECK(should_respond_to_empty_checkpoint_request_);
+  if (UNLIKELY(num_pending_readers_.LoadRelaxed() > 0 ||
+               num_pending_writers_.LoadRelaxed() > 0)) {
+    futex(state_.Address(), FUTEX_WAKE, -1, nullptr, nullptr, 0);
+  }
+#else
+  LOG(FATAL) << "Non futex case isn't supported.";
+#endif
 }
 
 ConditionVariable::ConditionVariable(const char* name, Mutex& guard)
@@ -1120,6 +1161,12 @@ void Locks::Init() {
     logging_lock_ = new Mutex("logging lock", current_lock_level, true);
 
     #undef UPDATE_CURRENT_LOCK_LEVEL
+
+    // List of mutexes that we may hold when accessing a weak ref.
+    dex_lock_->SetShouldRespondToEmptyCheckpointRequest(true);
+    expected_mutexes_on_weak_ref_access_.push_back(dex_lock_);
+    classlinker_classes_lock_->SetShouldRespondToEmptyCheckpointRequest(true);
+    expected_mutexes_on_weak_ref_access_.push_back(classlinker_classes_lock_);
 
     InitConditions();
   }

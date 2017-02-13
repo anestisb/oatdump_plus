@@ -104,7 +104,7 @@ ObjPtr<mirror::Object> ReferenceProcessor::GetReferent(Thread* self,
     }
     // Check and run the empty checkpoint before blocking so the empty checkpoint will work in the
     // presence of threads blocking for weak ref access.
-    self->CheckEmptyCheckpoint();
+    self->CheckEmptyCheckpointFromWeakRefAccess(Locks::reference_processor_lock_);
     condition_.WaitHoldingLocks(self);
   }
   return reference->GetReferent();
@@ -292,7 +292,7 @@ void ReferenceProcessor::WaitUntilDoneProcessingReferences(Thread* self) {
          (kUseReadBarrier && !self->GetWeakRefAccessEnabled())) {
     // Check and run the empty checkpoint before blocking so the empty checkpoint will work in the
     // presence of threads blocking for weak ref access.
-    self->CheckEmptyCheckpoint();
+    self->CheckEmptyCheckpointFromWeakRefAccess(Locks::reference_processor_lock_);
     condition_.WaitHoldingLocks(self);
   }
 }
