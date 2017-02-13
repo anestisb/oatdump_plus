@@ -43,6 +43,11 @@ class CodeGeneratorARM64;
 // Use a local definition to prevent copying mistakes.
 static constexpr size_t kArm64WordSize = static_cast<size_t>(kArm64PointerSize);
 
+// These constants are used as an approximate margin when emission of veneer and literal pools
+// must be blocked.
+static constexpr int kMaxMacroInstructionSizeInBytes = 15 * vixl::aarch64::kInstructionSize;
+static constexpr int kInvokeCodeMarginSizeInBytes = 6 * kMaxMacroInstructionSizeInBytes;
+
 static const vixl::aarch64::Register kParameterCoreRegisters[] = {
   vixl::aarch64::x1,
   vixl::aarch64::x2,
@@ -486,9 +491,11 @@ class CodeGeneratorARM64 : public CodeGenerator {
                    vixl::aarch64::CPURegister dst,
                    const vixl::aarch64::MemOperand& src,
                    bool needs_null_check);
-  void StoreRelease(Primitive::Type type,
+  void StoreRelease(HInstruction* instruction,
+                    Primitive::Type type,
                     vixl::aarch64::CPURegister src,
-                    const vixl::aarch64::MemOperand& dst);
+                    const vixl::aarch64::MemOperand& dst,
+                    bool needs_null_check);
 
   // Generate code to invoke a runtime entry point.
   void InvokeRuntime(QuickEntrypointEnum entrypoint,
@@ -501,8 +508,6 @@ class CodeGeneratorARM64 : public CodeGenerator {
   void InvokeRuntimeWithoutRecordingPcInfo(int32_t entry_point_offset,
                                            HInstruction* instruction,
                                            SlowPathCode* slow_path);
-
-  void GenerateInvokeRuntime(int32_t entry_point_offset);
 
   ParallelMoveResolverARM64* GetMoveResolver() OVERRIDE { return &move_resolver_; }
 
