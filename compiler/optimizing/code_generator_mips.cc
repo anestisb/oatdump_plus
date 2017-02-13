@@ -1914,6 +1914,8 @@ void InstructionCodeGeneratorMIPS::VisitArrayGet(HArrayGet* instruction) {
   auto null_checker = GetImplicitNullChecker(instruction);
 
   Primitive::Type type = instruction->GetType();
+  const bool maybe_compressed_char_at = mirror::kUseStringCompression &&
+                                        instruction->IsStringCharAt();
   switch (type) {
     case Primitive::kPrimBoolean: {
       Register out = locations->Out().AsRegister<Register>();
@@ -1957,14 +1959,54 @@ void InstructionCodeGeneratorMIPS::VisitArrayGet(HArrayGet* instruction) {
 
     case Primitive::kPrimChar: {
       Register out = locations->Out().AsRegister<Register>();
+      if (maybe_compressed_char_at) {
+        uint32_t count_offset = mirror::String::CountOffset().Uint32Value();
+        __ LoadFromOffset(kLoadWord, TMP, obj, count_offset, null_checker);
+        __ Sll(TMP, TMP, 31);    // Extract compression flag into the most significant bit of TMP.
+        static_assert(static_cast<uint32_t>(mirror::StringCompressionFlag::kCompressed) == 0u,
+                      "Expecting 0=compressed, 1=uncompressed");
+      }
       if (index.IsConstant()) {
-        size_t offset =
-            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_2) + data_offset;
-        __ LoadFromOffset(kLoadUnsignedHalfword, out, obj, offset, null_checker);
+        int32_t const_index = index.GetConstant()->AsIntConstant()->GetValue();
+        if (maybe_compressed_char_at) {
+          MipsLabel uncompressed_load, done;
+          __ Bnez(TMP, &uncompressed_load);
+          __ LoadFromOffset(kLoadUnsignedByte,
+                            out,
+                            obj,
+                            data_offset + (const_index << TIMES_1));
+          __ B(&done);
+          __ Bind(&uncompressed_load);
+          __ LoadFromOffset(kLoadUnsignedHalfword,
+                            out,
+                            obj,
+                            data_offset + (const_index << TIMES_2));
+          __ Bind(&done);
+        } else {
+          __ LoadFromOffset(kLoadUnsignedHalfword,
+                            out,
+                            obj,
+                            data_offset + (const_index << TIMES_2),
+                            null_checker);
+        }
       } else {
-        __ Sll(TMP, index.AsRegister<Register>(), TIMES_2);
-        __ Addu(TMP, obj, TMP);
-        __ LoadFromOffset(kLoadUnsignedHalfword, out, TMP, data_offset, null_checker);
+        Register index_reg = index.AsRegister<Register>();
+        if (maybe_compressed_char_at) {
+          MipsLabel uncompressed_load, done;
+          __ Bnez(TMP, &uncompressed_load);
+          __ Addu(TMP, obj, index_reg);
+          __ LoadFromOffset(kLoadUnsignedByte, out, TMP, data_offset);
+          __ B(&done);
+          __ Bind(&uncompressed_load);
+          __ Sll(TMP, index_reg, TIMES_2);
+          __ Addu(TMP, obj, TMP);
+          __ LoadFromOffset(kLoadUnsignedHalfword, out, TMP, data_offset);
+          __ Bind(&done);
+        } else {
+          __ Sll(TMP, index_reg, TIMES_2);
+          __ Addu(TMP, obj, TMP);
+          __ LoadFromOffset(kLoadUnsignedHalfword, out, TMP, data_offset, null_checker);
+        }
       }
       break;
     }
@@ -2046,6 +2088,10 @@ void InstructionCodeGeneratorMIPS::VisitArrayLength(HArrayLength* instruction) {
   Register out = locations->Out().AsRegister<Register>();
   __ LoadFromOffset(kLoadWord, out, obj, offset);
   codegen_->MaybeRecordImplicitNullCheck(instruction);
+  // Mask out compression flag from String's array length.
+  if (mirror::kUseStringCompression && instruction->IsStringLength()) {
+    __ Srl(out, out, 1u);
+  }
 }
 
 Location LocationsBuilderMIPS::RegisterOrZeroConstant(HInstruction* instruction) {
