@@ -407,6 +407,20 @@ std::string Instruction::DumpString(const DexFile* file) const {
             break;
           }
           FALLTHROUGH_INTENDED;
+        case INVOKE_CUSTOM:
+          if (file != nullptr) {
+            os << opcode << " {";
+            uint32_t call_site_idx = VRegB_35c();
+            for (size_t i = 0; i < VRegA_35c(); ++i) {
+              if (i != 0) {
+                os << ", ";
+              }
+              os << "v" << arg[i];
+            }
+            os << "},  // call_site@" << call_site_idx;
+            break;
+          }
+          FALLTHROUGH_INTENDED;
         default:
           os << opcode << " {v" << arg[0] << ", v" << arg[1] << ", v" << arg[2]
                        << ", v" << arg[3] << ", v" << arg[4] << "}, thing@" << VRegB_35c();
@@ -415,6 +429,8 @@ std::string Instruction::DumpString(const DexFile* file) const {
       break;
     }
     case k3rc: {
+      uint16_t first_reg = VRegC_3rc();
+      uint16_t last_reg =  VRegC_3rc() + VRegA_3rc() - 1;
       switch (Opcode()) {
         case INVOKE_VIRTUAL_RANGE:
         case INVOKE_SUPER_RANGE:
@@ -423,7 +439,7 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case INVOKE_INTERFACE_RANGE:
           if (file != nullptr) {
             uint32_t method_idx = VRegB_3rc();
-            os << StringPrintf("%s, {v%d .. v%d}, ", opcode, VRegC_3rc(), (VRegC_3rc() + VRegA_3rc() - 1))
+            os << StringPrintf("%s, {v%d .. v%d}, ", opcode, first_reg, last_reg)
                << file->PrettyMethod(method_idx) << " // method@" << method_idx;
             break;
           }
@@ -431,14 +447,22 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case INVOKE_VIRTUAL_RANGE_QUICK:
           if (file != nullptr) {
             uint32_t method_idx = VRegB_3rc();
-            os << StringPrintf("%s, {v%d .. v%d}, ", opcode, VRegC_3rc(), (VRegC_3rc() + VRegA_3rc() - 1))
+            os << StringPrintf("%s, {v%d .. v%d}, ", opcode, first_reg, last_reg)
                << "// vtable@" << method_idx;
             break;
           }
           FALLTHROUGH_INTENDED;
+        case INVOKE_CUSTOM_RANGE:
+          if (file != nullptr) {
+            uint32_t call_site_idx = VRegB_3rc();
+            os << StringPrintf("%s, {v%d .. v%d}, ", opcode, first_reg, last_reg)
+               << "// call_site@" << call_site_idx;
+            break;
+          }
+          FALLTHROUGH_INTENDED;
         default:
-          os << StringPrintf("%s, {v%d .. v%d}, thing@%d", opcode, VRegC_3rc(),
-                             (VRegC_3rc() + VRegA_3rc() - 1), VRegB_3rc());
+          os << StringPrintf("%s, {v%d .. v%d}, ", opcode, first_reg, last_reg)
+             << "thing@" << VRegB_3rc();
           break;
       }
       break;

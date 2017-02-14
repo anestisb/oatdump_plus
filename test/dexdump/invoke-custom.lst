@@ -1,0 +1,6 @@
+#invoke-custom.dex
+0x000003fc 8 com.android.jack.java7.invokecustom.test004.Tests <init> ()V Tests.java 35
+0x00000414 6 com.android.jack.java7.invokecustom.test004.Tests add (II)I Tests.java 55
+0x0000042c 166 com.android.jack.java7.invokecustom.test004.Tests linkerMethod (Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/MethodType;ZBCSIFDLjava/lang/String;Ljava/lang/Class;J)Ljava/lang/invoke/CallSite; Tests.java 62
+0x000004e4 24 com.android.jack.java7.invokecustom.test004.Tests main ([Ljava/lang/String;)V Tests.java 82
+0x0000050c 22 com.android.jack.java7.invokecustom.test004.Tests test ()V Tests.java 78

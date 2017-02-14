@@ -697,6 +697,11 @@ class MethodVerifier {
   REQUIRES_SHARED(Locks::mutator_lock_);
 
   /*
+   * Verify the arguments present for a call site. Returns "true" if all is well, "false" otherwise.
+   */
+  bool CheckCallSite(uint32_t call_site_idx);
+
+  /*
    * Verify that the target instruction is not "move-exception". It's important that the only way
    * to execute a move-exception is as the first instruction of an exception handler.
    * Returns "true" if all is well, "false" if the target instruction is move-exception.
