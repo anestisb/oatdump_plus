@@ -301,6 +301,30 @@ constexpr PointerSize ConvertToPointerSize(T any) {
   }
 }
 
+// Returns a type cast pointer if object pointed to is within the provided bounds.
+// Otherwise returns nullptr.
+template <typename T>
+inline static T BoundsCheckedCast(const void* pointer,
+                                  const void* lower,
+                                  const void* upper) {
+  const uint8_t* bound_begin = static_cast<const uint8_t*>(lower);
+  const uint8_t* bound_end = static_cast<const uint8_t*>(upper);
+  DCHECK(bound_begin <= bound_end);
+
+  T result = reinterpret_cast<T>(pointer);
+  const uint8_t* begin = static_cast<const uint8_t*>(pointer);
+  const uint8_t* end = begin + sizeof(*result);
+  if (begin < bound_begin || end > bound_end || begin > end) {
+    return nullptr;
+  }
+  return result;
+}
+
+template <typename T, size_t size>
+constexpr size_t ArrayCount(const T (&)[size]) {
+  return size;
+}
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_UTILS_H_

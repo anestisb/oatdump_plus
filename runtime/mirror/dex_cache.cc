@@ -90,6 +90,10 @@ void DexCache::InitializeDexCache(Thread* self,
         raw_arrays + layout.MethodTypesOffset());
   }
 
+  GcRoot<mirror::CallSite>* call_sites = (dex_file->NumCallSiteIds() == 0)
+      ? nullptr
+      : reinterpret_cast<GcRoot<mirror::CallSite>*>(raw_arrays + layout.CallSitesOffset());
+
   DCHECK_ALIGNED(raw_arrays, alignof(mirror::StringDexCacheType)) <<
                  "Expected raw_arrays to align to StringDexCacheType.";
   DCHECK_ALIGNED(layout.StringsOffset(), alignof(mirror::StringDexCacheType)) <<
@@ -117,6 +121,9 @@ void DexCache::InitializeDexCache(Thread* self,
       CHECK_EQ(method_types[i].load(std::memory_order_relaxed).index, 0u);
       CHECK(method_types[i].load(std::memory_order_relaxed).object.IsNull());
     }
+    for (size_t i = 0; i < dex_file->NumCallSiteIds(); ++i) {
+      CHECK(call_sites[i].IsNull());
+    }
   }
   if (strings != nullptr) {
     mirror::StringDexCachePair::Initialize(strings);
@@ -136,6 +143,8 @@ void DexCache::InitializeDexCache(Thread* self,
                   dex_file->NumFieldIds(),
                   method_types,
                   num_method_types,
+                  call_sites,
+                  dex_file->NumCallSiteIds(),
                   image_pointer_size);
 }
 
@@ -151,6 +160,8 @@ void DexCache::Init(const DexFile* dex_file,
                     uint32_t num_resolved_fields,
                     MethodTypeDexCacheType* resolved_method_types,
                     uint32_t num_resolved_method_types,
+                    GcRoot<CallSite>* resolved_call_sites,
+                    uint32_t num_resolved_call_sites,
                     PointerSize pointer_size) {
   CHECK(dex_file != nullptr);
   CHECK(location != nullptr);
@@ -159,6 +170,7 @@ void DexCache::Init(const DexFile* dex_file,
   CHECK_EQ(num_resolved_methods != 0u, resolved_methods != nullptr);
   CHECK_EQ(num_resolved_fields != 0u, resolved_fields != nullptr);
   CHECK_EQ(num_resolved_method_types != 0u, resolved_method_types != nullptr);
+  CHECK_EQ(num_resolved_call_sites != 0u, resolved_call_sites != nullptr);
 
   SetDexFile(dex_file);
   SetLocation(location);
@@ -167,11 +179,13 @@ void DexCache::Init(const DexFile* dex_file,
   SetResolvedMethods(resolved_methods);
   SetResolvedFields(resolved_fields);
   SetResolvedMethodTypes(resolved_method_types);
+  SetResolvedCallSites(resolved_call_sites);
   SetField32<false>(NumStringsOffset(), num_strings);
   SetField32<false>(NumResolvedTypesOffset(), num_resolved_types);
   SetField32<false>(NumResolvedMethodsOffset(), num_resolved_methods);
   SetField32<false>(NumResolvedFieldsOffset(), num_resolved_fields);
   SetField32<false>(NumResolvedMethodTypesOffset(), num_resolved_method_types);
+  SetField32<false>(NumResolvedCallSitesOffset(), num_resolved_call_sites);
 
   Runtime* const runtime = Runtime::Current();
   if (runtime->HasResolutionMethod()) {

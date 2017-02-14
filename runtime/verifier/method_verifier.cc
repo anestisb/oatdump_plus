@@ -3114,6 +3114,44 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       just_set_result = true;
       break;
     }
+    case Instruction::INVOKE_CUSTOM:
+    case Instruction::INVOKE_CUSTOM_RANGE: {
+      // Verify registers based on method_type in the call site.
+      bool is_range = (inst->Opcode() == Instruction::INVOKE_CUSTOM_RANGE);
+
+      // Step 1. Check the call site that produces the method handle for invocation
+      const uint32_t call_site_idx = is_range ? inst->VRegB_3rc() : inst->VRegB_35c();
+      if (!CheckCallSite(call_site_idx)) {
+        DCHECK(HasFailures());
+        break;
+      }
+
+      // Step 2. Check the register arguments correspond to the expected arguments for the
+      // method handle produced by step 1. The dex file verifier has checked ranges for
+      // the first three arguments and CheckCallSite has checked the method handle type.
+      CallSiteArrayValueIterator it(*dex_file_, dex_file_->GetCallSiteId(call_site_idx));
+      it.Next();  // Skip to name.
+      it.Next();  // Skip to method type of the method handle
+      const uint32_t proto_idx = static_cast<uint32_t>(it.GetJavaValue().i);
+      const DexFile::ProtoId& proto_id = dex_file_->GetProtoId(proto_idx);
+      DexFileParameterIterator param_it(*dex_file_, proto_id);
+      // Treat method as static as it has yet to be determined.
+      VerifyInvocationArgsFromIterator(&param_it, inst, METHOD_STATIC, is_range, nullptr);
+      const char* return_descriptor = dex_file_->GetReturnTypeDescriptor(proto_id);
+
+      // Step 3. Propagate return type information
+      const RegType& return_type =
+          reg_types_.FromDescriptor(GetClassLoader(), return_descriptor, false);
+      if (!return_type.IsLowHalf()) {
+        work_line_->SetResultRegisterType(this, return_type);
+      } else {
+        work_line_->SetResultRegisterTypeWide(return_type, return_type.HighHalf(&reg_types_));
+      }
+      just_set_result = true;
+      // TODO: Add compiler support for invoke-custom (b/35337872).
+      Fail(VERIFY_ERROR_FORCE_INTERPRETER);
+      break;
+    }
     case Instruction::NEG_INT:
     case Instruction::NOT_INT:
       work_line_->CheckUnaryOp(this, inst, reg_types_.Integer(), reg_types_.Integer());
@@ -3423,7 +3461,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     /* These should never appear during verification. */
     case Instruction::UNUSED_3E ... Instruction::UNUSED_43:
     case Instruction::UNUSED_F3 ... Instruction::UNUSED_F9:
-    case Instruction::UNUSED_FC ... Instruction::UNUSED_FF:
+    case Instruction::UNUSED_FE ... Instruction::UNUSED_FF:
     case Instruction::UNUSED_79:
     case Instruction::UNUSED_7A:
       Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Unexpected opcode " << inst->DumpString(dex_file_);
@@ -4092,6 +4130,116 @@ void MethodVerifier::VerifyInvocationArgsUnresolvedMethod(const Instruction* ins
   DexFileParameterIterator it(*dex_file_,
                               dex_file_->GetProtoId(dex_file_->GetMethodId(method_idx).proto_idx_));
   VerifyInvocationArgsFromIterator(&it, inst, method_type, is_range, nullptr);
+}
+
+bool MethodVerifier::CheckCallSite(uint32_t call_site_idx) {
+  CallSiteArrayValueIterator it(*dex_file_, dex_file_->GetCallSiteId(call_site_idx));
+  // Check essential arguments are provided. The dex file verifier has verified indicies of the
+  // main values (method handle, name, method_type).
+  if (it.Size() < 3) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Call site #" << call_site_idx
+                                      << " has too few arguments: "
+                                      << it.Size() << "< 3";
+    return false;
+  }
+
+  // Get and check the first argument: the method handle.
+  uint32_t method_handle_idx = static_cast<uint32_t>(it.GetJavaValue().i);
+  it.Next();
+  const DexFile::MethodHandleItem& mh = dex_file_->GetMethodHandle(method_handle_idx);
+  if (mh.method_handle_type_ != static_cast<uint16_t>(DexFile::MethodHandleType::kInvokeStatic)) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Call site #" << call_site_idx
+                                      << " argument 0 method handle type is not InvokeStatic";
+    return false;
+  }
+
+  // Skip the second argument, the name to resolve, as checked by the
+  // dex file verifier.
+  it.Next();
+
+  // Skip the third argument, the method type expected, as checked by
+  // the dex file verifier.
+  it.Next();
+
+  // Check the bootstrap method handle and remaining arguments.
+  const DexFile::MethodId& method_id = dex_file_->GetMethodId(mh.field_or_method_idx_);
+  uint32_t length;
+  const char* shorty = dex_file_->GetMethodShorty(method_id, &length);
+
+  if (it.Size() < length - 1) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Call site #" << call_site_idx
+                                      << " too few arguments for bootstrap method: "
+                                      << it.Size() << " < " << (length - 1);
+    return false;
+  }
+
+  // Check the return type and first 3 arguments are references
+  // (CallSite, Lookup, String, MethodType). If they are not of the
+  // expected types (or subtypes), it will trigger a
+  // WrongMethodTypeException during execution.
+  if (shorty[0] != 'L') {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Call site #" << call_site_idx
+                                      << " bootstrap return type is not a reference";
+    return false;
+  }
+
+  for (uint32_t i = 1; i < 4; ++i) {
+    if (shorty[i] != 'L') {
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Call site #" << call_site_idx
+                                        << " bootstrap method argument " << (i - 1)
+                                        << " is not a reference";
+      return false;
+    }
+  }
+
+  // Check the optional arguments.
+  for (uint32_t i = 4; i < length; ++i, it.Next()) {
+    bool match = false;
+    switch (it.GetValueType()) {
+      case EncodedArrayValueIterator::ValueType::kBoolean:
+      case EncodedArrayValueIterator::ValueType::kByte:
+      case EncodedArrayValueIterator::ValueType::kShort:
+      case EncodedArrayValueIterator::ValueType::kChar:
+      case EncodedArrayValueIterator::ValueType::kInt:
+        // These all fit within one register and encoders do not seem
+        // too exacting on the encoding type they use (ie using
+        // integer for all of these).
+        match = (strchr("ZBCSI", shorty[i]) != nullptr);
+        break;
+      case EncodedArrayValueIterator::ValueType::kLong:
+        match = ('J' == shorty[i]);
+        break;
+      case EncodedArrayValueIterator::ValueType::kFloat:
+        match = ('F' == shorty[i]);
+        break;
+      case EncodedArrayValueIterator::ValueType::kDouble:
+        match = ('D' == shorty[i]);
+        break;
+      case EncodedArrayValueIterator::ValueType::kMethodType:
+      case EncodedArrayValueIterator::ValueType::kMethodHandle:
+      case EncodedArrayValueIterator::ValueType::kString:
+      case EncodedArrayValueIterator::ValueType::kType:
+      case EncodedArrayValueIterator::ValueType::kNull:
+        match = ('L' == shorty[i]);
+        break;
+      case EncodedArrayValueIterator::ValueType::kField:
+      case EncodedArrayValueIterator::ValueType::kMethod:
+      case EncodedArrayValueIterator::ValueType::kEnum:
+      case EncodedArrayValueIterator::ValueType::kArray:
+      case EncodedArrayValueIterator::ValueType::kAnnotation:
+        // Unreachable based on current EncodedArrayValueIterator::Next().
+        UNREACHABLE();
+    }
+
+    if (!match) {
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Call site #" << call_site_idx
+                                        << " bootstrap method argument " << (i - 1)
+                                        << " expected " << shorty[i]
+                                        << " got value type: " << it.GetValueType();
+      return false;
+    }
+  }
+  return true;
 }
 
 class MethodParamListDescriptorIterator {

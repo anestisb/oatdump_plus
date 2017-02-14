@@ -44,6 +44,22 @@ mirror::MethodType* MethodType::Create(Thread* const self,
   return mt.Get();
 }
 
+size_t MethodType::NumberOfVRegs() REQUIRES_SHARED(Locks::mutator_lock_) {
+  mirror::ObjectArray<Class>* const p_types = GetPTypes();
+  const int32_t p_types_length = p_types->GetLength();
+
+  // Initialize |num_vregs| with number of parameters and only increment it for
+  // types requiring a second vreg.
+  size_t num_vregs = static_cast<size_t>(p_types_length);
+  for (int32_t i = 0; i < p_types_length; ++i) {
+    mirror::Class* klass = p_types->GetWithoutChecks(i);
+    if (klass->IsPrimitiveLong() || klass->IsPrimitiveDouble()) {
+      ++num_vregs;
+    }
+  }
+  return num_vregs;
+}
+
 bool MethodType::IsExactMatch(mirror::MethodType* target) REQUIRES_SHARED(Locks::mutator_lock_) {
   mirror::ObjectArray<Class>* const p_types = GetPTypes();
   const int32_t params_length = p_types->GetLength();

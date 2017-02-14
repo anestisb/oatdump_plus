@@ -26,6 +26,7 @@
 #include "base/logging.h"
 #include "gc_root.h"
 #include "mirror/class.h"
+#include "mirror/call_site.h"
 #include "mirror/method_type.h"
 #include "runtime.h"
 #include "obj_ptr.h"
@@ -104,6 +105,35 @@ inline void DexCache::SetResolvedMethodType(uint32_t proto_idx, MethodType* reso
                                  NumResolvedMethodTypes());
   // TODO: Fine-grained marking, so that we don't need to go through all arrays in full.
   Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(this);
+}
+
+inline CallSite* DexCache::GetResolvedCallSite(uint32_t call_site_idx) {
+  DCHECK(Runtime::Current()->IsMethodHandlesEnabled());
+  DCHECK_LT(call_site_idx, GetDexFile()->NumCallSiteIds());
+  GcRoot<mirror::CallSite>& target = GetResolvedCallSites()[call_site_idx];
+  Atomic<GcRoot<mirror::CallSite>>& ref =
+      reinterpret_cast<Atomic<GcRoot<mirror::CallSite>>&>(target);
+  return ref.LoadSequentiallyConsistent().Read();
+}
+
+inline CallSite* DexCache::SetResolvedCallSite(uint32_t call_site_idx, CallSite* call_site) {
+  DCHECK(Runtime::Current()->IsMethodHandlesEnabled());
+  DCHECK_LT(call_site_idx, GetDexFile()->NumCallSiteIds());
+
+  GcRoot<mirror::CallSite> null_call_site(nullptr);
+  GcRoot<mirror::CallSite> candidate(call_site);
+  GcRoot<mirror::CallSite>& target = GetResolvedCallSites()[call_site_idx];
+
+  // The first assignment for a given call site wins.
+  Atomic<GcRoot<mirror::CallSite>>& ref =
+      reinterpret_cast<Atomic<GcRoot<mirror::CallSite>>&>(target);
+  if (ref.CompareExchangeStrongSequentiallyConsistent(null_call_site, candidate)) {
+    // TODO: Fine-grained marking, so that we don't need to go through all arrays in full.
+    Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(this);
+    return call_site;
+  } else {
+    return target.Read();
+  }
 }
 
 inline ArtField* DexCache::GetResolvedField(uint32_t field_idx, PointerSize ptr_size) {
@@ -208,6 +238,11 @@ inline void DexCache::VisitReferences(ObjPtr<Class> klass, const Visitor& visito
 
     VisitDexCachePairs<mirror::MethodType, kReadBarrierOption, Visitor>(
         GetResolvedMethodTypes(), NumResolvedMethodTypes(), visitor);
+
+    GcRoot<mirror::CallSite>* resolved_call_sites = GetResolvedCallSites();
+    for (size_t i = 0, num_call_sites = NumResolvedCallSites(); i != num_call_sites; ++i) {
+      visitor.VisitRootIfNonNull(resolved_call_sites[i].AddressWithoutBarrier());
+    }
   }
 }
 
@@ -243,6 +278,17 @@ inline void DexCache::FixupResolvedMethodTypes(mirror::MethodTypeDexCacheType* d
     mirror::MethodType* new_source = visitor(ptr);
     source.object = GcRoot<MethodType>(new_source);
     dest[i].store(source, std::memory_order_relaxed);
+  }
+}
+
+template <ReadBarrierOption kReadBarrierOption, typename Visitor>
+inline void DexCache::FixupResolvedCallSites(GcRoot<mirror::CallSite>* dest,
+                                             const Visitor& visitor) {
+  GcRoot<mirror::CallSite>* src = GetResolvedCallSites();
+  for (size_t i = 0, count = NumResolvedCallSites(); i < count; ++i) {
+    mirror::CallSite* source = src[i].Read<kReadBarrierOption>();
+    mirror::CallSite* new_source = visitor(source);
+    dest[i] = GcRoot<mirror::CallSite>(new_source);
   }
 }
 

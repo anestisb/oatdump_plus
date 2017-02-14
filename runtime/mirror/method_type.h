@@ -44,6 +44,10 @@ class MANAGED MethodType : public Object {
     return GetFieldObject<ObjectArray<Class>>(OFFSET_OF_OBJECT_MEMBER(MethodType, p_types_));
   }
 
+  // Number of virtual registers required to hold the parameters for
+  // this method type.
+  size_t NumberOfVRegs() REQUIRES_SHARED(Locks::mutator_lock_);
+
   Class* GetRType() REQUIRES_SHARED(Locks::mutator_lock_) {
     return GetFieldObject<Class>(OFFSET_OF_OBJECT_MEMBER(MethodType, r_type_));
   }
