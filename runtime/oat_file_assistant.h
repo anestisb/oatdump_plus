@@ -400,13 +400,13 @@ class OatFileAssistant {
   // the oat file assistant.
   static std::string ImageLocation();
 
-  // Gets the dex checksum required for an up-to-date oat file.
-  // Returns dex_checksum if a required checksum was located. Returns
-  // null if the required checksum was not found.
-  // The caller shouldn't clean up or free the returned pointer.
-  // This sets the has_original_dex_files_ field to true if a checksum was
-  // found for the dex_location_ dex file.
-  const uint32_t* GetRequiredDexChecksum();
+  // Gets the dex checksums required for an up-to-date oat file.
+  // Returns cached_required_dex_checksums if the required checksums were
+  // located. Returns null if the required checksums were not found.  The
+  // caller shouldn't clean up or free the returned pointer.  This sets the
+  // has_original_dex_files_ field to true if the checksums were found for the
+  // dex_location_ dex file.
+  const std::vector<uint32_t>* GetRequiredDexChecksums();
 
   // Returns the loaded image info.
   // Loads the image info if needed. Returns null if the image info failed
@@ -430,11 +430,11 @@ class OatFileAssistant {
   // Whether we will attempt to load oat files executable.
   bool load_executable_ = false;
 
-  // Cached value of the required dex checksum.
-  // This should be accessed only by the GetRequiredDexChecksum() method.
-  uint32_t cached_required_dex_checksum_;
-  bool required_dex_checksum_attempted_ = false;
-  bool required_dex_checksum_found_;
+  // Cached value of the required dex checksums.
+  // This should be accessed only by the GetRequiredDexChecksums() method.
+  std::vector<uint32_t> cached_required_dex_checksums_;
+  bool required_dex_checksums_attempted_ = false;
+  bool required_dex_checksums_found_;
   bool has_original_dex_files_;
 
   OatFileInfo odex_;

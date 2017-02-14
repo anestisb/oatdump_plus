@@ -131,6 +131,17 @@ class ImageSpace : public MemMapSpace {
                                                 const std::vector<const char*>& oat_filenames,
                                                 const std::vector<const char*>& image_filenames);
 
+  // Returns true if the dex checksums in the given oat file match the
+  // checksums of the original dex files on disk. This is intended to be used
+  // to validate the boot image oat file, which may contain dex entries from
+  // multiple different (possibly multidex) dex files on disk. Prefer the
+  // OatFileAssistant for validating regular app oat files because the
+  // OatFileAssistant caches dex checksums that are reused to check both the
+  // oat and odex file.
+  //
+  // This function is exposed for testing purposes.
+  static bool ValidateOatFile(const OatFile& oat_file, std::string* error_msg);
+
   // Return the end of the image which includes non-heap objects such as ArtMethods and ArtFields.
   uint8_t* GetImageEnd() const {
     return Begin() + GetImageHeader().GetImageSize();
