@@ -38,7 +38,6 @@ class ReferenceTypePropagationTest : public CommonCompilerTest {
   void SetupPropagation(VariableSizedHandleScope* handles) {
     graph_->InitializeInexactObjectRTI(handles);
     propagation_ = new (&allocator_) ReferenceTypePropagation(graph_,
-                                                              Handle<mirror::ClassLoader>(),
                                                               Handle<mirror::DexCache>(),
                                                               handles,
                                                               true,
