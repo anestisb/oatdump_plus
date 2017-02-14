@@ -231,8 +231,8 @@ class ArgArray {
         hs.NewHandle<mirror::ObjectArray<mirror::Object>>(raw_args));
     for (size_t i = 1, args_offset = 0; i < shorty_len_; ++i, ++args_offset) {
       arg.Assign(args->Get(args_offset));
-      if (((shorty_[i] == 'L') && (arg.Get() != nullptr)) ||
-          ((arg.Get() == nullptr && shorty_[i] != 'L'))) {
+      if (((shorty_[i] == 'L') && (arg != nullptr)) ||
+          ((arg == nullptr && shorty_[i] != 'L'))) {
         // TODO: The method's parameter's type must have been previously resolved, yet
         // we've seen cases where it's not b/34440020.
         ObjPtr<mirror::Class> dst_class(
@@ -242,7 +242,7 @@ class ArgArray {
           CHECK(self->IsExceptionPending());
           return false;
         }
-        if (UNLIKELY(arg.Get() == nullptr || !arg->InstanceOf(dst_class))) {
+        if (UNLIKELY(arg == nullptr || !arg->InstanceOf(dst_class))) {
           ThrowIllegalArgumentException(
               StringPrintf("method %s argument %zd has type %s, got %s",
                   m->PrettyMethod(false).c_str(),
@@ -254,13 +254,13 @@ class ArgArray {
       }
 
 #define DO_FIRST_ARG(match_descriptor, get_fn, append) { \
-          if (LIKELY(arg.Get() != nullptr && \
+          if (LIKELY(arg != nullptr && \
               arg->GetClass()->DescriptorEquals(match_descriptor))) { \
             ArtField* primitive_field = arg->GetClass()->GetInstanceField(0); \
             append(primitive_field-> get_fn(arg.Get()));
 
 #define DO_ARG(match_descriptor, get_fn, append) \
-          } else if (LIKELY(arg.Get() != nullptr && \
+          } else if (LIKELY(arg != nullptr && \
                             arg->GetClass<>()->DescriptorEquals(match_descriptor))) { \
             ArtField* primitive_field = arg->GetClass()->GetInstanceField(0); \
             append(primitive_field-> get_fn(arg.Get()));

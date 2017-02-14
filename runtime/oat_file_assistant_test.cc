@@ -1059,7 +1059,7 @@ TEST_F(OatFileAssistantTest, DexOptStatusValues) {
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
   Handle<mirror::Class> dexfile(
       hs.NewHandle(linker->FindSystemClass(soa.Self(), "Ldalvik/system/DexFile;")));
-  ASSERT_FALSE(dexfile.Get() == nullptr);
+  ASSERT_FALSE(dexfile == nullptr);
   linker->EnsureInitialized(soa.Self(), dexfile, true, true);
 
   for (std::pair<OatFileAssistant::DexOptNeeded, const char*> field : mapping) {

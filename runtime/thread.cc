@@ -874,7 +874,7 @@ void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) 
   ScopedObjectAccess soa(self);
   StackHandleScope<1> hs(self);
   MutableHandle<mirror::String> peer_thread_name(hs.NewHandle(GetThreadName()));
-  if (peer_thread_name.Get() == nullptr) {
+  if (peer_thread_name == nullptr) {
     // The Thread constructor should have set the Thread.name to a
     // non-null value. However, because we can run without code
     // available (in the compiler, in tests), we manually assign the
@@ -887,7 +887,7 @@ void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) 
     peer_thread_name.Assign(GetThreadName());
   }
   // 'thread_name' may have been null, so don't trust 'peer_thread_name' to be non-null.
-  if (peer_thread_name.Get() != nullptr) {
+  if (peer_thread_name != nullptr) {
     SetThreadName(peer_thread_name->ToModifiedUtf8().c_str());
   }
 }
@@ -2284,7 +2284,7 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
     Handle<mirror::ObjectArray<mirror::Object>> trace(
         hs.NewHandle(
             mirror::ObjectArray<mirror::Object>::Alloc(hs.Self(), array_class, depth + 1)));
-    if (trace.Get() == nullptr) {
+    if (trace == nullptr) {
       // Acquire uninterruptible_ in all paths.
       self_->StartAssertNoThreadSuspension("Building internal stack trace");
       self_->AssertPendingOOMException();
@@ -2479,14 +2479,14 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(
       std::string class_name(PrettyDescriptor(descriptor));
       class_name_object.Assign(
           mirror::String::AllocFromModifiedUtf8(soa.Self(), class_name.c_str()));
-      if (class_name_object.Get() == nullptr) {
+      if (class_name_object == nullptr) {
         soa.Self()->AssertPendingOOMException();
         return nullptr;
       }
       const char* source_file = method->GetDeclaringClassSourceFile();
       if (source_file != nullptr) {
         source_name_object.Assign(mirror::String::AllocFromModifiedUtf8(soa.Self(), source_file));
-        if (source_name_object.Get() == nullptr) {
+        if (source_name_object == nullptr) {
           soa.Self()->AssertPendingOOMException();
           return nullptr;
         }
@@ -2496,7 +2496,7 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(
     CHECK(method_name != nullptr);
     Handle<mirror::String> method_name_object(
         hs.NewHandle(mirror::String::AllocFromModifiedUtf8(soa.Self(), method_name)));
-    if (method_name_object.Get() == nullptr) {
+    if (method_name_object == nullptr) {
       return nullptr;
     }
     ObjPtr<mirror::StackTraceElement> obj =mirror::StackTraceElement::Alloc(soa.Self(),
@@ -2554,7 +2554,7 @@ void Thread::ThrowNewWrappedException(const char* exception_class_descriptor,
   auto* cl = runtime->GetClassLinker();
   Handle<mirror::Class> exception_class(
       hs.NewHandle(cl->FindClass(this, exception_class_descriptor, class_loader)));
-  if (UNLIKELY(exception_class.Get() == nullptr)) {
+  if (UNLIKELY(exception_class == nullptr)) {
     CHECK(IsExceptionPending());
     LOG(ERROR) << "No exception class " << PrettyDescriptor(exception_class_descriptor);
     return;
@@ -2570,7 +2570,7 @@ void Thread::ThrowNewWrappedException(const char* exception_class_descriptor,
       hs.NewHandle(ObjPtr<mirror::Throwable>::DownCast(exception_class->AllocObject(this))));
 
   // If we couldn't allocate the exception, throw the pre-allocated out of memory exception.
-  if (exception.Get() == nullptr) {
+  if (exception == nullptr) {
     SetException(Runtime::Current()->GetPreAllocatedOutOfMemoryError());
     return;
   }

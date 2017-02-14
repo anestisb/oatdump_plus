@@ -33,7 +33,7 @@ inline mirror::Field* Field::CreateFromArtField(Thread* self, ArtField* field, b
   // Try to resolve type before allocating since this is a thread suspension point.
   Handle<mirror::Class> type = hs.NewHandle(field->GetType<true>());
 
-  if (type.Get() == nullptr) {
+  if (type == nullptr) {
     if (force_resolve) {
       if (kIsDebugBuild) {
         self->AssertPendingException();
@@ -49,7 +49,7 @@ inline mirror::Field* Field::CreateFromArtField(Thread* self, ArtField* field, b
     }
   }
   auto ret = hs.NewHandle(ObjPtr<Field>::DownCast(StaticClass()->AllocObject(self)));
-  if (UNLIKELY(ret.Get() == nullptr)) {
+  if (UNLIKELY(ret == nullptr)) {
     self->AssertPendingOOMException();
     return nullptr;
   }

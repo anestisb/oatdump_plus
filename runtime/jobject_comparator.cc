@@ -34,9 +34,9 @@ bool JobjectComparator::operator()(jobject jobj1, jobject jobj2) const {
   StackHandleScope<2> hs(soa.Self());
   Handle<mirror::Object> obj1(hs.NewHandle(soa.Decode<mirror::Object>(jobj1)));
   Handle<mirror::Object> obj2(hs.NewHandle(soa.Decode<mirror::Object>(jobj2)));
-  if (obj1.Get() == nullptr) {
+  if (obj1 == nullptr) {
     return true;
-  } else if (obj2.Get() == nullptr) {
+  } else if (obj2 == nullptr) {
     return false;
   }
   // Sort by class...

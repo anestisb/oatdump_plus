@@ -58,8 +58,8 @@ bool ClassExt::ExtendObsoleteArrays(Thread* self, uint32_t increase) {
   Handle<ObjectArray<DexCache>> old_dex_caches(hs.NewHandle(h_this->GetObsoleteDexCaches()));
   ClassLinker* cl = Runtime::Current()->GetClassLinker();
   size_t new_len;
-  if (old_methods.Get() == nullptr) {
-    CHECK(old_dex_caches.Get() == nullptr);
+  if (old_methods == nullptr) {
+    CHECK(old_dex_caches == nullptr);
     new_len = increase;
   } else {
     CHECK_EQ(old_methods->GetLength(), old_dex_caches->GetLength());

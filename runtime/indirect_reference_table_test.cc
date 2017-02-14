@@ -64,13 +64,13 @@ TEST_F(IndirectReferenceTableTest, BasicTest) {
   StackHandleScope<4> hs(soa.Self());
   ASSERT_TRUE(c != nullptr);
   Handle<mirror::Object> obj0 = hs.NewHandle(c->AllocObject(soa.Self()));
-  ASSERT_TRUE(obj0.Get() != nullptr);
+  ASSERT_TRUE(obj0 != nullptr);
   Handle<mirror::Object> obj1 = hs.NewHandle(c->AllocObject(soa.Self()));
-  ASSERT_TRUE(obj1.Get() != nullptr);
+  ASSERT_TRUE(obj1 != nullptr);
   Handle<mirror::Object> obj2 = hs.NewHandle(c->AllocObject(soa.Self()));
-  ASSERT_TRUE(obj2.Get() != nullptr);
+  ASSERT_TRUE(obj2 != nullptr);
   Handle<mirror::Object> obj3 = hs.NewHandle(c->AllocObject(soa.Self()));
-  ASSERT_TRUE(obj3.Get() != nullptr);
+  ASSERT_TRUE(obj3 != nullptr);
 
   const IRTSegmentState cookie = kIRTFirstSegment;
 
@@ -282,15 +282,15 @@ TEST_F(IndirectReferenceTableTest, Holes) {
   StackHandleScope<5> hs(soa.Self());
   ASSERT_TRUE(c != nullptr);
   Handle<mirror::Object> obj0 = hs.NewHandle(c->AllocObject(soa.Self()));
-  ASSERT_TRUE(obj0.Get() != nullptr);
+  ASSERT_TRUE(obj0 != nullptr);
   Handle<mirror::Object> obj1 = hs.NewHandle(c->AllocObject(soa.Self()));
-  ASSERT_TRUE(obj1.Get() != nullptr);
+  ASSERT_TRUE(obj1 != nullptr);
   Handle<mirror::Object> obj2 = hs.NewHandle(c->AllocObject(soa.Self()));
-  ASSERT_TRUE(obj2.Get() != nullptr);
+  ASSERT_TRUE(obj2 != nullptr);
   Handle<mirror::Object> obj3 = hs.NewHandle(c->AllocObject(soa.Self()));
-  ASSERT_TRUE(obj3.Get() != nullptr);
+  ASSERT_TRUE(obj3 != nullptr);
   Handle<mirror::Object> obj4 = hs.NewHandle(c->AllocObject(soa.Self()));
-  ASSERT_TRUE(obj4.Get() != nullptr);
+  ASSERT_TRUE(obj4 != nullptr);
 
   std::string error_msg;
 
@@ -491,7 +491,7 @@ TEST_F(IndirectReferenceTableTest, Resize) {
   StackHandleScope<1> hs(soa.Self());
   ASSERT_TRUE(c != nullptr);
   Handle<mirror::Object> obj0 = hs.NewHandle(c->AllocObject(soa.Self()));
-  ASSERT_TRUE(obj0.Get() != nullptr);
+  ASSERT_TRUE(obj0 != nullptr);
 
   std::string error_msg;
   IndirectReferenceTable irt(kTableMax,

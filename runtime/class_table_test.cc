@@ -80,7 +80,7 @@ TEST_F(ClassTableTest, ClassTable) {
   Handle<mirror::Class> h_Y(
       hs.NewHandle(class_linker_->FindClass(soa.Self(), descriptor_y, class_loader)));
   Handle<mirror::Object> obj_X = hs.NewHandle(h_X->AllocObject(soa.Self()));
-  ASSERT_TRUE(obj_X.Get() != nullptr);
+  ASSERT_TRUE(obj_X != nullptr);
   ClassTable table;
   EXPECT_EQ(table.NumZygoteClasses(class_loader.Get()), 0u);
   EXPECT_EQ(table.NumNonZygoteClasses(class_loader.Get()), 0u);
