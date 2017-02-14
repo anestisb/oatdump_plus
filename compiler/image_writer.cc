@@ -1078,7 +1078,7 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots(size_t oat_index) const {
   }
   Handle<ObjectArray<Object>> dex_caches(
       hs.NewHandle(ObjectArray<Object>::Alloc(self, object_array_class.Get(), dex_cache_count)));
-  CHECK(dex_caches.Get() != nullptr) << "Failed to allocate a dex cache array.";
+  CHECK(dex_caches != nullptr) << "Failed to allocate a dex cache array.";
   {
     ReaderMutexLock mu(self, *Locks::dex_lock_);
     size_t non_image_dex_caches = 0;

@@ -36,10 +36,10 @@ TEST_F(InternTableTest, Intern) {
   Handle<mirror::String> foo_3(
       hs.NewHandle(mirror::String::AllocFromModifiedUtf8(soa.Self(), "foo")));
   Handle<mirror::String> bar(hs.NewHandle(intern_table.InternStrong(3, "bar")));
-  ASSERT_TRUE(foo_1.Get() != nullptr);
-  ASSERT_TRUE(foo_2.Get() != nullptr);
-  ASSERT_TRUE(foo_3.Get() != nullptr);
-  ASSERT_TRUE(bar.Get() != nullptr);
+  ASSERT_TRUE(foo_1 != nullptr);
+  ASSERT_TRUE(foo_2 != nullptr);
+  ASSERT_TRUE(foo_3 != nullptr);
+  ASSERT_TRUE(bar != nullptr);
   EXPECT_EQ(foo_1.Get(), foo_2.Get());
   EXPECT_TRUE(foo_1->Equals("foo"));
   EXPECT_TRUE(foo_2->Equals("foo"));
@@ -204,9 +204,9 @@ TEST_F(InternTableTest, LookupStrong) {
   Handle<mirror::String> foo(hs.NewHandle(intern_table.InternStrong(3, "foo")));
   Handle<mirror::String> bar(hs.NewHandle(intern_table.InternStrong(3, "bar")));
   Handle<mirror::String> foobar(hs.NewHandle(intern_table.InternStrong(6, "foobar")));
-  ASSERT_TRUE(foo.Get() != nullptr);
-  ASSERT_TRUE(bar.Get() != nullptr);
-  ASSERT_TRUE(foobar.Get() != nullptr);
+  ASSERT_TRUE(foo != nullptr);
+  ASSERT_TRUE(bar != nullptr);
+  ASSERT_TRUE(foobar != nullptr);
   ASSERT_TRUE(foo->Equals("foo"));
   ASSERT_TRUE(bar->Equals("bar"));
   ASSERT_TRUE(foobar->Equals("foobar"));

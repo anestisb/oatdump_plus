@@ -155,7 +155,7 @@ jvmtiError ThreadGroupUtil::GetThreadGroupInfo(jvmtiEnv* env,
 static bool IsInDesiredThreadGroup(art::Handle<art::mirror::Object> desired_thread_group,
                                    art::ObjPtr<art::mirror::Object> peer)
     REQUIRES_SHARED(art::Locks::mutator_lock_) {
-  CHECK(desired_thread_group.Get() != nullptr);
+  CHECK(desired_thread_group != nullptr);
 
   art::ArtField* thread_group_field =
       art::jni::DecodeArtField(art::WellKnownClasses::java_lang_Thread_group);
@@ -167,7 +167,7 @@ static bool IsInDesiredThreadGroup(art::Handle<art::mirror::Object> desired_thre
 static void GetThreads(art::Handle<art::mirror::Object> thread_group,
                        std::vector<art::ObjPtr<art::mirror::Object>>* thread_peers)
     REQUIRES_SHARED(art::Locks::mutator_lock_) REQUIRES(!art::Locks::thread_list_lock_) {
-  CHECK(thread_group.Get() != nullptr);
+  CHECK(thread_group != nullptr);
 
   art::MutexLock mu(art::Thread::Current(), *art::Locks::thread_list_lock_);
   for (art::Thread* t : art::Runtime::Current()->GetThreadList()->GetList()) {
@@ -187,7 +187,7 @@ static void GetThreads(art::Handle<art::mirror::Object> thread_group,
 static void GetChildThreadGroups(art::Handle<art::mirror::Object> thread_group,
                                  std::vector<art::ObjPtr<art::mirror::Object>>* thread_groups)
     REQUIRES_SHARED(art::Locks::mutator_lock_) {
-  CHECK(thread_group.Get() != nullptr);
+  CHECK(thread_group != nullptr);
 
   // Get the ThreadGroup[] "groups" out of this thread group...
   art::ArtField* groups_field =

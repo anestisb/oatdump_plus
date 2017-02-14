@@ -81,7 +81,7 @@ ClassExt* Class::EnsureExtDataPresent(Thread* self) {
   self->ClearException();
   // Allocate the ClassExt
   Handle<ClassExt> new_ext(hs.NewHandle(ClassExt::Alloc(self)));
-  if (new_ext.Get() == nullptr) {
+  if (new_ext == nullptr) {
     // OOM allocating the classExt.
     // TODO Should we restore the suppressed exception?
     self->AssertPendingOOMException();
@@ -103,7 +103,7 @@ ClassExt* Class::EnsureExtDataPresent(Thread* self) {
     DCHECK(!set || h_this->GetExtData() == new_ext.Get());
     CHECK(!ret.IsNull());
     // Restore the exception if there was one.
-    if (throwable.Get() != nullptr) {
+    if (throwable != nullptr) {
       self->SetException(throwable.Get());
     }
     return ret.Ptr();
@@ -269,10 +269,10 @@ void Class::DumpClass(std::ostream& os, int flags) {
   os << "----- " << (IsInterface() ? "interface" : "class") << " "
      << "'" << GetDescriptor(&temp) << "' cl=" << GetClassLoader() << " -----\n",
   os << "  objectSize=" << SizeOf() << " "
-     << "(" << (h_super.Get() != nullptr ? h_super->SizeOf() : -1) << " from super)\n",
+     << "(" << (h_super != nullptr ? h_super->SizeOf() : -1) << " from super)\n",
   os << StringPrintf("  access=0x%04x.%04x\n",
       GetAccessFlags() >> 16, GetAccessFlags() & kAccJavaFlagsMask);
-  if (h_super.Get() != nullptr) {
+  if (h_super != nullptr) {
     os << "  super='" << h_super->PrettyClass() << "' (cl=" << h_super->GetClassLoader()
        << ")\n";
   }
@@ -297,7 +297,7 @@ void Class::DumpClass(std::ostream& os, int flags) {
   } else {
     // After this point, this may have moved due to GetDirectInterface.
     os << "  vtable (" << h_this->NumVirtualMethods() << " entries, "
-        << (h_super.Get() != nullptr ? h_super->NumVirtualMethods() : 0) << " in super):\n";
+        << (h_super != nullptr ? h_super->NumVirtualMethods() : 0) << " in super):\n";
     for (size_t i = 0; i < NumVirtualMethods(); ++i) {
       os << StringPrintf("    %2zd: %s\n", i, ArtMethod::PrettyMethod(
           h_this->GetVirtualMethodDuringLinking(i, image_pointer_size)).c_str());
@@ -971,7 +971,7 @@ ObjPtr<Class> Class::ResolveDirectInterface(Thread* self, Handle<Class> klass, u
 }
 
 ObjPtr<Class> Class::GetCommonSuperClass(Handle<Class> klass) {
-  DCHECK(klass.Get() != nullptr);
+  DCHECK(klass != nullptr);
   DCHECK(!klass->IsInterface());
   DCHECK(!IsInterface());
   ObjPtr<Class> common_super_class = this;
@@ -1165,7 +1165,7 @@ ObjPtr<Method> Class::GetDeclaredMethodInternal(
   constexpr uint32_t kSkipModifiers = kAccMiranda | kAccSynthetic;
   StackHandleScope<3> hs(self);
   auto h_method_name = hs.NewHandle(name);
-  if (UNLIKELY(h_method_name.Get() == nullptr)) {
+  if (UNLIKELY(h_method_name == nullptr)) {
     ThrowNullPointerException("name == null");
     return nullptr;
   }

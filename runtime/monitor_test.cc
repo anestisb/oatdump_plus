@@ -77,7 +77,7 @@ static void FillHeap(Thread* self, ClassLinker* class_linker,
   while (length > 10) {
     MutableHandle<mirror::Object> h((*hsp)->NewHandle<mirror::Object>(
         mirror::ObjectArray<mirror::Object>::Alloc(self, ca.Get(), length / 4)));
-    if (self->IsExceptionPending() || h.Get() == nullptr) {
+    if (self->IsExceptionPending() || h == nullptr) {
       self->ClearException();
 
       // Try a smaller length
@@ -95,7 +95,7 @@ static void FillHeap(Thread* self, ClassLinker* class_linker,
   // Allocate simple objects till it fails.
   while (!self->IsExceptionPending()) {
     MutableHandle<mirror::Object> h = (*hsp)->NewHandle<mirror::Object>(c->AllocObject(self));
-    if (!self->IsExceptionPending() && h.Get() != nullptr) {
+    if (!self->IsExceptionPending() && h != nullptr) {
       handles->push_back(h);
     }
   }

@@ -984,7 +984,7 @@ TEST_F(StubTest, AllocObject) {
     while (length > 10) {
       Handle<mirror::Object> h(hsp->NewHandle<mirror::Object>(
           mirror::ObjectArray<mirror::Object>::Alloc(soa.Self(), ca.Get(), length / 4)));
-      if (self->IsExceptionPending() || h.Get() == nullptr) {
+      if (self->IsExceptionPending() || h == nullptr) {
         self->ClearException();
 
         // Try a smaller length
@@ -1003,7 +1003,7 @@ TEST_F(StubTest, AllocObject) {
     // Allocate simple objects till it fails.
     while (!self->IsExceptionPending()) {
       Handle<mirror::Object> h = hsp->NewHandle(c->AllocObject(soa.Self()));
-      if (!self->IsExceptionPending() && h.Get() != nullptr) {
+      if (!self->IsExceptionPending() && h != nullptr) {
         handles.push_back(h);
       }
     }

@@ -380,7 +380,7 @@ bool HInliner::TryInline(HInvoke* invoke_instruction) {
               soa.Self(),
               class_linker->GetClassRoot(ClassLinker::kClassArrayClass),
               InlineCache::kIndividualCacheSize));
-      if (inline_cache.Get() == nullptr) {
+      if (inline_cache == nullptr) {
         // We got an OOME. Just clear the exception, and don't inline.
         DCHECK(soa.Self()->IsExceptionPending());
         soa.Self()->ClearException();

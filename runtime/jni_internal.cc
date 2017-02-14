@@ -196,7 +196,7 @@ static jfieldID FindFieldID(const ScopedObjectAccess& soa, jclass jni_class, con
   StackHandleScope<2> hs(soa.Self());
   Handle<mirror::Class> c(
       hs.NewHandle(EnsureInitialized(soa.Self(), soa.Decode<mirror::Class>(jni_class))));
-  if (c.Get() == nullptr) {
+  if (c == nullptr) {
     return nullptr;
   }
   ArtField* field = nullptr;

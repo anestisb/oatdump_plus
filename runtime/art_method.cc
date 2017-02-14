@@ -274,7 +274,7 @@ uint32_t ArtMethod::FindCatchBlock(Handle<mirror::Class> exception_type,
     *has_no_move_exception = (first_catch_instr->Opcode() != Instruction::MOVE_EXCEPTION);
   }
   // Put the exception back.
-  if (exception.Get() != nullptr) {
+  if (exception != nullptr) {
     self->SetException(exception.Get());
   }
   return found_dex_pc;
@@ -533,7 +533,7 @@ bool ArtMethod::EqualParameters(Handle<mirror::ObjectArray<mirror::Class>> param
   const auto& proto_id = dex_file->GetMethodPrototype(method_id);
   const DexFile::TypeList* proto_params = dex_file->GetProtoParameters(proto_id);
   auto count = proto_params != nullptr ? proto_params->Size() : 0u;
-  auto param_len = params.Get() != nullptr ? params->GetLength() : 0u;
+  auto param_len = params != nullptr ? params->GetLength() : 0u;
   if (param_len != count) {
     return false;
   }
