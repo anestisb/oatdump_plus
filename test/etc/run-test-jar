@@ -589,7 +589,8 @@ if [ "$HOST" = "n" ]; then
       LD_LIBRARY_PATH=$ANDROID_ROOT/$LIBRARY_DIRECTORY:$LD_LIBRARY_PATH
     fi
 
-    PUBLIC_LIBS=libart.so:libartd.so
+    # System libraries needed by libarttestd.so
+    PUBLIC_LIBS=libart.so:libartd.so:libc++.so:libbacktrace.so:libbase.so:libnativehelper.so
 
     # Create a script with the command. The command can get longer than the longest
     # allowed adb command and there is no way to get the exit status from a adb shell
