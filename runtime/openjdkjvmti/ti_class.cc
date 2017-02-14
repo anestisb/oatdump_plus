@@ -52,6 +52,7 @@
 #include "mirror/class_ext.h"
 #include "mirror/object_reference.h"
 #include "mirror/object-inl.h"
+#include "mirror/reference.h"
 #include "runtime.h"
 #include "runtime_callbacks.h"
 #include "ScopedLocalRef.h"
@@ -463,8 +464,17 @@ struct ClassCallback : public art::ClassLoadCallback {
         }
       }
 
+      void operator()(art::ObjPtr<art::mirror::Class> klass ATTRIBUTE_UNUSED,
+                      art::ObjPtr<art::mirror::Reference> reference) const
+          REQUIRES_SHARED(art::Locks::mutator_lock_) {
+        art::mirror::Object* val = reference->GetReferent();
+        if (val == input_) {
+          reference->SetReferent<false>(output_);
+        }
+      }
+
       void VisitRoot(art::mirror::CompressedReference<art::mirror::Object>* root ATTRIBUTE_UNUSED)
-      const {
+          const {
         LOG(FATAL) << "Unreachable";
       }
 
@@ -478,7 +488,7 @@ struct ClassCallback : public art::ClassLoadCallback {
         HeapFixupVisitor* hfv = reinterpret_cast<HeapFixupVisitor*>(arg);
 
         // Visit references, not native roots.
-        obj->VisitReferences<false>(*hfv, art::VoidFunctor());
+        obj->VisitReferences<false>(*hfv, *hfv);
       }
 
      private:
