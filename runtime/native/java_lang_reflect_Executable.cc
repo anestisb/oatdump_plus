@@ -103,7 +103,7 @@ static jobjectArray Executable_getParameters0(JNIEnv* env, jobject javaMethod) {
   }
 
   // Validate the MethodParameters system annotation data.
-  if (UNLIKELY(names.Get() == nullptr || access_flags.Get() == nullptr)) {
+  if (UNLIKELY(names == nullptr || access_flags == nullptr)) {
     ThrowIllegalArgumentException(
         StringPrintf("Missing parameter metadata for names or access flags for %s",
                      art_method->PrettyMethod().c_str()).c_str());
@@ -132,7 +132,7 @@ static jobjectArray Executable_getParameters0(JNIEnv* env, jobject javaMethod) {
           mirror::ObjectArray<mirror::Object>::Alloc(self,
                                                      parameter_array_class.Get(),
                                                      names_count));
-  if (UNLIKELY(parameter_array.Get() == nullptr)) {
+  if (UNLIKELY(parameter_array == nullptr)) {
     self->AssertPendingException();
     return nullptr;
   }
@@ -154,7 +154,7 @@ static jobjectArray Executable_getParameters0(JNIEnv* env, jobject javaMethod) {
 
     // Allocate / initialize the Parameter to add to parameter_array.
     parameter.Assign(parameter_class->AllocObject(self));
-    if (UNLIKELY(parameter.Get() == nullptr)) {
+    if (UNLIKELY(parameter == nullptr)) {
       self->AssertPendingOOMException();
       return nullptr;
     }

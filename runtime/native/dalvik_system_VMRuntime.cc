@@ -350,7 +350,7 @@ static void PreloadDexCachesResolveField(Handle<mirror::DexCache> dex_cache, uin
   Thread* const self = Thread::Current();
   StackHandleScope<1> hs(self);
   Handle<mirror::Class> klass(hs.NewHandle(dex_cache->GetResolvedType(field_id.class_idx_)));
-  if (klass.Get() == nullptr) {
+  if (klass == nullptr) {
     return;
   }
   if (is_static) {
@@ -512,7 +512,7 @@ static void VMRuntime_preloadDexCaches(JNIEnv* env, jobject) {
     CHECK(dex_file != nullptr);
     StackHandleScope<1> hs(soa.Self());
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(linker->RegisterDexFile(*dex_file, nullptr)));
-    CHECK(dex_cache.Get() != nullptr);  // Boot class path dex caches are never unloaded.
+    CHECK(dex_cache != nullptr);  // Boot class path dex caches are never unloaded.
     if (kPreloadDexCachesStrings) {
       for (size_t j = 0; j < dex_cache->NumStrings(); j++) {
         PreloadDexCachesResolveString(dex_cache, dex::StringIndex(j), strings);

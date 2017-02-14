@@ -1214,7 +1214,7 @@ bool OptimizingCompiler::JitCompile(Thread* self,
   Handle<mirror::ObjectArray<mirror::Object>> roots(
       hs.NewHandle(mirror::ObjectArray<mirror::Object>::Alloc(
           self, class_linker->GetClassRoot(ClassLinker::kObjectArrayClass), number_of_roots)));
-  if (roots.Get() == nullptr) {
+  if (roots == nullptr) {
     // Out of memory, just clear the exception to avoid any Java exception uncaught problems.
     DCHECK(self->IsExceptionPending());
     self->ClearException();

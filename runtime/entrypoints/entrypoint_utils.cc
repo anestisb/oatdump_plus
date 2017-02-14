@@ -39,7 +39,7 @@
 namespace art {
 
 void CheckReferenceResult(Handle<mirror::Object> o, Thread* self) {
-  if (o.Get() == nullptr) {
+  if (o == nullptr) {
     return;
   }
   // Make sure that the result is an instance of the type this method was expected to return.

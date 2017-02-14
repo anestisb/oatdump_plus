@@ -200,7 +200,7 @@ void SpaceTest<Super>::SizeFootPrintGrowthLimitAndTrimBody(MallocSpace* space,
       }
       footprint = space->GetFootprint();
       EXPECT_GE(space->Size(), footprint);  // invariant
-      if (object.Get() != nullptr) {  // allocation succeeded
+      if (object != nullptr) {  // allocation succeeded
         lots_of_objects[i] = object.Get();
         size_t allocation_size = space->AllocationSize(object.Get(), nullptr);
         EXPECT_EQ(bytes_allocated, allocation_size);
@@ -296,7 +296,7 @@ void SpaceTest<Super>::SizeFootPrintGrowthLimitAndTrimBody(MallocSpace* space,
     large_object.Assign(AllocWithGrowth(space, self, three_quarters_space, &bytes_allocated,
                                         nullptr, &bytes_tl_bulk_allocated));
   }
-  EXPECT_TRUE(large_object.Get() != nullptr);
+  EXPECT_TRUE(large_object != nullptr);
 
   // Sanity check footprint
   footprint = space->GetFootprint();

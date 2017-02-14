@@ -119,11 +119,11 @@ art::ObjPtr<art::mirror::LongArray> ClassLoaderHelper::AllocateNewDexFileCookie(
     art::Handle<art::mirror::LongArray> cookie,
     const art::DexFile* dex_file) {
   art::StackHandleScope<1> hs(self);
-  CHECK(cookie.Get() != nullptr);
+  CHECK(cookie != nullptr);
   CHECK_GE(cookie->GetLength(), 1);
   art::Handle<art::mirror::LongArray> new_cookie(
       hs.NewHandle(art::mirror::LongArray::Alloc(self, cookie->GetLength() + 1)));
-  if (new_cookie.Get() == nullptr) {
+  if (new_cookie == nullptr) {
     self->AssertPendingOOMException();
     return nullptr;
   }
@@ -183,13 +183,13 @@ art::ObjPtr<art::mirror::Object> ClassLoaderHelper::FindSourceDexFileObject(
   // Start navigating the fields of the loader (now known to be a BaseDexClassLoader derivative)
   art::Handle<art::mirror::Object> path_list(
       hs.NewHandle(path_list_field->GetObject(loader.Get())));
-  CHECK(path_list.Get() != nullptr);
+  CHECK(path_list != nullptr);
   CHECK(!self->IsExceptionPending());
   art::Handle<art::mirror::ObjectArray<art::mirror::Object>> dex_elements_list(hs.NewHandle(
       dex_path_list_element_field->GetObject(path_list.Get())->
       AsObjectArray<art::mirror::Object>()));
   CHECK(!self->IsExceptionPending());
-  CHECK(dex_elements_list.Get() != nullptr);
+  CHECK(dex_elements_list != nullptr);
   size_t num_elements = dex_elements_list->GetLength();
   // Iterate over the DexPathList$Element to find the right one
   for (size_t i = 0; i < num_elements; i++) {

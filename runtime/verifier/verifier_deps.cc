@@ -890,12 +890,12 @@ bool VerifierDeps::VerifyAssignability(Handle<mirror::ClassLoader> class_loader,
     source.Assign(
         FindClassAndClearException(class_linker, self, source_desc.c_str(), class_loader));
 
-    if (destination.Get() == nullptr) {
+    if (destination == nullptr) {
       LOG(INFO) << "VerifiersDeps: Could not resolve class " << destination_desc;
       return false;
     }
 
-    if (source.Get() == nullptr) {
+    if (source == nullptr) {
       LOG(INFO) << "VerifierDeps: Could not resolve class " << source_desc;
       return false;
     }
@@ -925,7 +925,7 @@ bool VerifierDeps::VerifyClasses(Handle<mirror::ClassLoader> class_loader,
     cls.Assign(FindClassAndClearException(class_linker, self, descriptor, class_loader));
 
     if (entry.IsResolved()) {
-      if (cls.Get() == nullptr) {
+      if (cls == nullptr) {
         LOG(INFO) << "VerifierDeps: Could not resolve class " << descriptor;
         return false;
       } else if (entry.GetAccessFlags() != GetAccessFlags(cls.Get())) {
@@ -939,7 +939,7 @@ bool VerifierDeps::VerifyClasses(Handle<mirror::ClassLoader> class_loader,
                   << std::dec;
         return false;
       }
-    } else if (cls.Get() != nullptr) {
+    } else if (cls != nullptr) {
       LOG(INFO) << "VerifierDeps: Unexpected successful resolution of class " << descriptor;
       return false;
     }

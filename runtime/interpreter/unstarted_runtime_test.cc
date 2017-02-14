@@ -960,7 +960,7 @@ TEST_F(UnstartedRuntimeTest, ThreadLocalGet) {
         class_linker->FindClass(self,
                                 "Lsun/misc/FloatingDecimal;",
                                 ScopedNullHandle<mirror::ClassLoader>()));
-    ASSERT_TRUE(floating_decimal.Get() != nullptr);
+    ASSERT_TRUE(floating_decimal != nullptr);
     ASSERT_TRUE(class_linker->EnsureInitialized(self, floating_decimal, true, true));
 
     ArtMethod* caller_method = floating_decimal->FindDeclaredDirectMethod(
@@ -1014,7 +1014,7 @@ TEST_F(UnstartedRuntimeTest, FloatConversion) {
           class_linker->FindClass(self,
                                   "Ljava/lang/Double;",
                                   ScopedNullHandle<mirror::ClassLoader>()));
-  ASSERT_TRUE(double_class.Get() != nullptr);
+  ASSERT_TRUE(double_class != nullptr);
   ASSERT_TRUE(class_linker->EnsureInitialized(self, double_class, true, true));
 
   ArtMethod* method = double_class->FindDeclaredDirectMethod("toString",

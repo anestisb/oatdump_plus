@@ -173,13 +173,13 @@ mirror::EmulatedStackFrame* EmulatedStackFrame::CreateFromShadowFrameAndArgs(
 
   Handle<mirror::ObjectArray<mirror::Object>> references(hs.NewHandle(
       mirror::ObjectArray<mirror::Object>::Alloc(self, array_class, refs_size)));
-  if (references.Get() == nullptr) {
+  if (references == nullptr) {
     DCHECK(self->IsExceptionPending());
     return nullptr;
   }
 
   Handle<ByteArray> stack_frame(hs.NewHandle(ByteArray::Alloc(self, frame_size)));
-  if (stack_frame.Get() == nullptr) {
+  if (stack_frame == nullptr) {
     DCHECK(self->IsExceptionPending());
     return nullptr;
   }

@@ -680,7 +680,7 @@ ArtMethod* HInstructionBuilder::ResolveMethod(uint16_t method_idx, InvokeType in
   Handle<mirror::Class> methods_class(hs.NewHandle(class_linker->ResolveReferencedClassOfMethod(
       method_idx, dex_compilation_unit_->GetDexCache(), class_loader)));
 
-  if (UNLIKELY(methods_class.Get() == nullptr)) {
+  if (UNLIKELY(methods_class == nullptr)) {
     // Clean up any exception left by type resolution.
     soa.Self()->ClearException();
     return nullptr;
@@ -702,7 +702,7 @@ ArtMethod* HInstructionBuilder::ResolveMethod(uint16_t method_idx, InvokeType in
 
   // Check access. The class linker has a fast path for looking into the dex cache
   // and does not check the access if it hits it.
-  if (compiling_class.Get() == nullptr) {
+  if (compiling_class == nullptr) {
     if (!resolved_method->IsPublic()) {
       return nullptr;
     }
@@ -718,7 +718,7 @@ ArtMethod* HInstructionBuilder::ResolveMethod(uint16_t method_idx, InvokeType in
   // make this an invoke-unresolved to handle cross-dex invokes or abstract super methods, both of
   // which require runtime handling.
   if (invoke_type == kSuper) {
-    if (compiling_class.Get() == nullptr) {
+    if (compiling_class == nullptr) {
       // We could not determine the method's class we need to wait until runtime.
       DCHECK(Runtime::Current()->IsAotCompiler());
       return nullptr;
@@ -954,7 +954,7 @@ bool HInstructionBuilder::BuildNewInstance(dex::TypeIndex type_index, uint32_t d
   }
 
   // Consider classes we haven't resolved as potentially finalizable.
-  bool finalizable = (klass.Get() == nullptr) || klass->IsFinalizable();
+  bool finalizable = (klass == nullptr) || klass->IsFinalizable();
 
   AppendInstruction(new (arena_) HNewInstance(
       cls,
@@ -972,7 +972,7 @@ static bool IsSubClass(mirror::Class* to_test, mirror::Class* super_class)
 }
 
 bool HInstructionBuilder::IsInitialized(Handle<mirror::Class> cls) const {
-  if (cls.Get() == nullptr) {
+  if (cls == nullptr) {
     return false;
   }
 
@@ -1292,7 +1292,7 @@ bool HInstructionBuilder::IsOutermostCompilingClass(dex::TypeIndex type_index) c
   // When this happens we cannot establish a direct relation between the current
   // class and the outer class, so we return false.
   // (Note that this is only used for optimizing invokes and field accesses)
-  return (cls.Get() != nullptr) && (outer_class.Get() == cls.Get());
+  return (cls != nullptr) && (outer_class.Get() == cls.Get());
 }
 
 void HInstructionBuilder::BuildUnresolvedStaticFieldAccess(const Instruction& instruction,
@@ -1340,7 +1340,7 @@ ArtField* HInstructionBuilder::ResolveField(uint16_t field_idx, bool is_static, 
   }
 
   // Check access.
-  if (compiling_class.Get() == nullptr) {
+  if (compiling_class == nullptr) {
     if (!resolved_field->IsPublic()) {
       return nullptr;
     }
@@ -1612,7 +1612,7 @@ void HInstructionBuilder::BuildFillWideArrayData(HInstruction* object,
 
 static TypeCheckKind ComputeTypeCheckKind(Handle<mirror::Class> cls)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  if (cls.Get() == nullptr) {
+  if (cls == nullptr) {
     return TypeCheckKind::kUnresolvedCheck;
   } else if (cls->IsInterface()) {
     return TypeCheckKind::kInterfaceCheck;
@@ -1643,7 +1643,7 @@ HLoadClass* HInstructionBuilder::BuildLoadClass(dex::TypeIndex type_index, uint3
       soa, dex_compilation_unit_->GetDexCache(), class_loader, type_index, dex_compilation_unit_));
 
   bool needs_access_check = true;
-  if (klass.Get() != nullptr) {
+  if (klass != nullptr) {
     if (klass->IsPublic()) {
       needs_access_check = false;
     } else {
@@ -1679,7 +1679,7 @@ HLoadClass* HInstructionBuilder::BuildLoadClass(dex::TypeIndex type_index,
       type_index,
       *actual_dex_file,
       klass,
-      klass.Get() != nullptr && (klass.Get() == GetOutermostCompilingClass()),
+      klass != nullptr && (klass.Get() == GetOutermostCompilingClass()),
       dex_pc,
       needs_access_check);
 

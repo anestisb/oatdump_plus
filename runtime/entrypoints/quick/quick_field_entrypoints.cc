@@ -48,7 +48,7 @@ ALWAYS_INLINE static inline ArtField* FindInstanceField(uint32_t field_idx,
   StackHandleScope<1> hs(self);
   HandleWrapper<mirror::Object> h(hs.NewHandleWrapper(obj));
   ArtField* field = FindFieldFromCode<type, kAccessCheck>(field_idx, referrer, self, size);
-  if (LIKELY(field != nullptr) && UNLIKELY(h.Get() == nullptr)) {
+  if (LIKELY(field != nullptr) && UNLIKELY(h == nullptr)) {
     ThrowNullPointerExceptionForFieldAccess(field, /*is_read*/FindFieldTypeIsRead(type));
     return nullptr;
   }

@@ -342,7 +342,7 @@ static void GetDexFilesFromDexElementsArray(
     ScopedObjectAccessAlreadyRunnable& soa,
     Handle<mirror::ObjectArray<mirror::Object>> dex_elements,
     std::priority_queue<DexFileAndClassPair>* queue) REQUIRES_SHARED(Locks::mutator_lock_) {
-  if (dex_elements.Get() == nullptr) {
+  if (dex_elements == nullptr) {
     // Nothing to do.
     return;
   }
@@ -463,14 +463,14 @@ bool OatFileManager::HasCollisions(const OatFile* oat_file,
         hs.NewHandle(soa.Decode<mirror::ClassLoader>(class_loader));
     Handle<mirror::ObjectArray<mirror::Object>> h_dex_elements =
         hs.NewHandle(soa.Decode<mirror::ObjectArray<mirror::Object>>(dex_elements));
-    if (h_class_loader.Get() != nullptr &&
+    if (h_class_loader != nullptr &&
         GetDexFilesFromClassLoader(soa, h_class_loader.Get(), &queue)) {
       class_loader_ok = true;
 
       // In this case, also take into account the dex_elements array, if given. We don't need to
       // read it otherwise, as we'll compare against all open oat files anyways.
       GetDexFilesFromDexElementsArray(soa, h_dex_elements, &queue);
-    } else if (h_class_loader.Get() != nullptr) {
+    } else if (h_class_loader != nullptr) {
       VLOG(class_linker) << "Something unsupported with "
                          << mirror::Class::PrettyClass(h_class_loader->GetClass());
     }
@@ -658,7 +658,7 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
         Handle<mirror::ClassLoader> h_loader(
             hs.NewHandle(soa.Decode<mirror::ClassLoader>(class_loader)));
         // Can not load app image without class loader.
-        if (h_loader.Get() != nullptr) {
+        if (h_loader != nullptr) {
           std::string temp_error_msg;
           // Add image space has a race condition since other threads could be reading from the
           // spaces array.

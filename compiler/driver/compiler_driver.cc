@@ -960,7 +960,7 @@ static void EnsureVerifiedOrVerifyAtRuntime(jobject jclass_loader,
       const DexFile::ClassDef& class_def = dex_file->GetClassDef(i);
       const char* descriptor = dex_file->GetClassDescriptor(class_def);
       cls.Assign(class_linker->FindClass(soa.Self(), descriptor, class_loader));
-      if (cls.Get() == nullptr) {
+      if (cls == nullptr) {
         soa.Self()->ClearException();
       } else if (&cls->GetDexFile() == dex_file) {
         DCHECK(cls->IsErroneous() || cls->IsVerified() || cls->IsCompileTimeVerified())
@@ -1155,7 +1155,7 @@ void CompilerDriver::LoadImageClasses(TimingLogger* timings) {
     StackHandleScope<1> hs(self);
     Handle<mirror::Class> klass(
         hs.NewHandle(class_linker->FindSystemClass(self, descriptor.c_str())));
-    if (klass.Get() == nullptr) {
+    if (klass == nullptr) {
       VLOG(compiler) << "Failed to find class " << descriptor;
       image_classes_->erase(it++);
       self->ClearException();
@@ -1182,13 +1182,13 @@ void CompilerDriver::LoadImageClasses(TimingLogger* timings) {
       Handle<mirror::DexCache> dex_cache(hs2.NewHandle(class_linker->RegisterDexFile(*dex_file,
                                                                                      nullptr)));
       Handle<mirror::Class> klass(hs2.NewHandle(
-          (dex_cache.Get() != nullptr)
+          (dex_cache != nullptr)
               ? class_linker->ResolveType(*dex_file,
                                           exception_type_idx,
                                           dex_cache,
                                           ScopedNullHandle<mirror::ClassLoader>())
               : nullptr));
-      if (klass.Get() == nullptr) {
+      if (klass == nullptr) {
         const DexFile::TypeId& type_id = dex_file->GetTypeId(exception_type_idx);
         const char* descriptor = dex_file->GetTypeDescriptor(type_id);
         LOG(FATAL) << "Failed to resolve class " << descriptor;
@@ -1877,7 +1877,7 @@ class ResolveTypeVisitor : public CompilationVisitor {
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->RegisterDexFile(
         dex_file,
         class_loader.Get())));
-    ObjPtr<mirror::Class> klass = (dex_cache.Get() != nullptr)
+    ObjPtr<mirror::Class> klass = (dex_cache != nullptr)
         ? class_linker->ResolveType(dex_file, dex::TypeIndex(type_idx), dex_cache, class_loader)
         : nullptr;
 
@@ -1978,7 +1978,7 @@ static void LoadAndUpdateStatus(const DexFile& dex_file,
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Handle<mirror::Class> cls(hs.NewHandle<mirror::Class>(
       class_linker->FindClass(self, descriptor, class_loader)));
-  if (cls.Get() != nullptr) {
+  if (cls != nullptr) {
     // Check that the class is resolved with the current dex file. We might get
     // a boot image class, or a class in a different dex file for multidex, and
     // we should not update the status in that case.
@@ -2126,7 +2126,7 @@ class VerifyClassVisitor : public CompilationVisitor {
     Handle<mirror::Class> klass(
         hs.NewHandle(class_linker->FindClass(soa.Self(), descriptor, class_loader)));
     verifier::MethodVerifier::FailureKind failure_kind;
-    if (klass.Get() == nullptr) {
+    if (klass == nullptr) {
       CHECK(soa.Self()->IsExceptionPending());
       soa.Self()->ClearException();
 
@@ -2228,7 +2228,7 @@ class SetVerifiedClassVisitor : public CompilationVisitor {
     Handle<mirror::Class> klass(
         hs.NewHandle(class_linker->FindClass(soa.Self(), descriptor, class_loader)));
     // Class might have failed resolution. Then don't set it to verified.
-    if (klass.Get() != nullptr) {
+    if (klass != nullptr) {
       // Only do this if the class is resolved. If even resolution fails, quickening will go very,
       // very wrong.
       if (klass->IsResolved() && !klass->IsErroneousResolved()) {
@@ -2290,7 +2290,7 @@ class InitializeClassVisitor : public CompilationVisitor {
     Handle<mirror::Class> klass(
         hs.NewHandle(manager_->GetClassLinker()->FindClass(soa.Self(), descriptor, class_loader)));
 
-    if (klass.Get() != nullptr && !SkipClass(jclass_loader, dex_file, klass.Get())) {
+    if (klass != nullptr && !SkipClass(jclass_loader, dex_file, klass.Get())) {
       // Only try to initialize classes that were successfully verified.
       if (klass->IsVerified()) {
         // Attempt to initialize the class but bail if we either need to initialize the super-class
@@ -2540,7 +2540,7 @@ class CompileClassVisitor : public CompilationVisitor {
     Handle<mirror::Class> klass(
         hs.NewHandle(class_linker->FindClass(soa.Self(), descriptor, class_loader)));
     Handle<mirror::DexCache> dex_cache;
-    if (klass.Get() == nullptr) {
+    if (klass == nullptr) {
       soa.Self()->AssertPendingException();
       soa.Self()->ClearException();
       dex_cache = hs.NewHandle(class_linker->FindDexCache(soa.Self(), dex_file));
