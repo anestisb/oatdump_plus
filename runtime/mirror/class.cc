@@ -951,7 +951,8 @@ ObjPtr<Class> Class::GetDirectInterface(Thread* self, ObjPtr<Class> klass, uint3
     return interfaces->Get(idx);
   } else {
     dex::TypeIndex type_idx = klass->GetDirectInterfaceTypeIdx(idx);
-    ObjPtr<Class> interface = klass->GetDexCache()->GetResolvedType(type_idx);
+    ObjPtr<Class> interface = ClassLinker::LookupResolvedType(
+        type_idx, klass->GetDexCache(), klass->GetClassLoader());
     return interface;
   }
 }

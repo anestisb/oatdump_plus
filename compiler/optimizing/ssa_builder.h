@@ -48,9 +48,11 @@ namespace art {
 class SsaBuilder : public ValueObject {
  public:
   SsaBuilder(HGraph* graph,
+             Handle<mirror::ClassLoader> class_loader,
              Handle<mirror::DexCache> dex_cache,
              VariableSizedHandleScope* handles)
       : graph_(graph),
+        class_loader_(class_loader),
         dex_cache_(dex_cache),
         handles_(handles),
         agets_fixed_(false),
@@ -115,6 +117,7 @@ class SsaBuilder : public ValueObject {
   void RemoveRedundantUninitializedStrings();
 
   HGraph* graph_;
+  Handle<mirror::ClassLoader> class_loader_;
   Handle<mirror::DexCache> dex_cache_;
   VariableSizedHandleScope* const handles_;
 
