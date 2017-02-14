@@ -432,6 +432,7 @@ class ArtMethod FINAL {
   }
 
   ProfilingInfo* GetProfilingInfo(PointerSize pointer_size) {
+    DCHECK(!IsNative());
     return reinterpret_cast<ProfilingInfo*>(GetDataPtrSize(pointer_size));
   }
 
