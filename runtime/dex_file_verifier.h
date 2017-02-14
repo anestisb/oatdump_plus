@@ -122,9 +122,9 @@ class DexFileVerifier {
   bool CheckIntraAnnotationItem();
   bool CheckIntraAnnotationsDirectoryItem();
 
-  bool CheckIntraSectionIterate(size_t offset, uint32_t count, uint16_t type);
-  bool CheckIntraIdSection(size_t offset, uint32_t count, uint16_t type);
-  bool CheckIntraDataSection(size_t offset, uint32_t count, uint16_t type);
+  bool CheckIntraSectionIterate(size_t offset, uint32_t count, DexFile::MapItemType type);
+  bool CheckIntraIdSection(size_t offset, uint32_t count, DexFile::MapItemType type);
+  bool CheckIntraDataSection(size_t offset, uint32_t count, DexFile::MapItemType type);
   bool CheckIntraSection();
 
   bool CheckOffsetToTypeMap(size_t offset, uint16_t type);
@@ -140,12 +140,14 @@ class DexFileVerifier {
   bool CheckInterFieldIdItem();
   bool CheckInterMethodIdItem();
   bool CheckInterClassDefItem();
+  bool CheckInterCallSiteIdItem();
+  bool CheckInterMethodHandleItem();
   bool CheckInterAnnotationSetRefList();
   bool CheckInterAnnotationSetItem();
   bool CheckInterClassDataItem();
   bool CheckInterAnnotationsDirectoryItem();
 
-  bool CheckInterSectionIterate(size_t offset, uint32_t count, uint16_t type);
+  bool CheckInterSectionIterate(size_t offset, uint32_t count, DexFile::MapItemType type);
   bool CheckInterSection();
 
   // Load a string by (type) index. Checks whether the index is in bounds, printing the error if
