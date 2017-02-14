@@ -37,19 +37,35 @@ class MemMap;
 class ZipEntry {
  public:
   bool ExtractToFile(File& file, std::string* error_msg);
+  // Extract this entry to anonymous memory (R/W).
+  // Returns null on failure and sets error_msg.
   MemMap* ExtractToMemMap(const char* zip_filename, const char* entry_filename,
                           std::string* error_msg);
+  // Create a file-backed private (clean, R/W) memory mapping to this entry.
+  // 'zip_filename' is used for diagnostics only,
+  //   the original file that the ZipArchive was open with is used
+  //   for the mapping.
+  //
+  // Will only succeed if the entry is stored uncompressed.
+  // Returns null on failure and sets error_msg.
+  MemMap* MapDirectlyFromFile(const char* zip_filename, /*out*/std::string* error_msg);
   virtual ~ZipEntry();
 
   uint32_t GetUncompressedLength();
   uint32_t GetCrc32();
 
+  bool IsUncompressed();
+  bool IsAlignedTo(size_t alignment);
+
  private:
   ZipEntry(ZipArchiveHandle handle,
-           ::ZipEntry* zip_entry) : handle_(handle), zip_entry_(zip_entry) {}
+           ::ZipEntry* zip_entry,
+           const std::string& entry_name)
+    : handle_(handle), zip_entry_(zip_entry), entry_name_(entry_name) {}
 
   ZipArchiveHandle handle_;
   ::ZipEntry* const zip_entry_;
+  std::string const entry_name_;
 
   friend class ZipArchive;
   DISALLOW_COPY_AND_ASSIGN(ZipEntry);

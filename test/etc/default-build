@@ -60,6 +60,12 @@ else
   HAS_SRC_DEX2OAT_UNRESOLVED=false
 fi
 
+# Allow overriding ZIP_COMPRESSION_METHOD with e.g. 'store'
+ZIP_COMPRESSION_METHOD="deflate"
+# Align every ZIP file made by calling $ZIPALIGN command?
+WITH_ZIP_ALIGN=false
+ZIP_ALIGN_BYTES="-1"
+
 DX_FLAGS=""
 SKIP_DX_MERGER="false"
 EXPERIMENTAL=""
@@ -118,6 +124,17 @@ while true; do
     DEFAULT_EXPERIMENT=""
     EXPERIMENTAL="${EXPERIMENTAL} $1"
     shift
+  elif [ "x$1" = "x--zip-compression-method" ]; then
+    # Allow using different zip compression method, e.g. 'store'
+    shift
+    ZIP_COMPRESSION_METHOD="$1"
+    shift
+  elif [ "x$1" = "x--zip-align" ]; then
+    # Align ZIP entries to some # of bytes.
+    shift
+    WITH_ZIP_ALIGN=true
+    ZIP_ALIGN_BYTES="$1"
+    shift
   elif expr "x$1" : "x--" >/dev/null 2>&1; then
     echo "unknown $0 option: $1" 1>&2
     exit 1
@@ -145,6 +162,26 @@ for experiment in ${EXPERIMENTAL}; do
   SMALI_ARGS="${SMALI_ARGS} ${SMALI_EXPERIMENTAL_ARGS[${experiment}]}"
   JAVAC_ARGS="${JAVAC_ARGS} ${JAVAC_EXPERIMENTAL_ARGS[${experiment}]}"
 done
+
+#########################################
+
+# Catch all commands to 'ZIP' and prepend extra flags.
+# Optionally, zipalign results to some alignment.
+function zip() {
+  local zip_target="$1"
+  local entry_src="$2"
+  shift 2
+
+  command zip --compression-method "$ZIP_COMPRESSION_METHOD" "$zip_target" "$entry_src" "$@"
+
+  if "$WITH_ZIP_ALIGN"; then
+    # zipalign does not operate in-place, so write results to a temp file.
+    local tmp_file="$(mktemp)"
+    "$ZIPALIGN" -f "$ZIP_ALIGN_BYTES" "$zip_target" "$tmp_file"
+    # replace original zip target with our temp file.
+    mv "$tmp_file" "$zip_target"
+  fi
+}
 
 if [ -e classes.dex ]; then
   zip $TEST_NAME.jar classes.dex
