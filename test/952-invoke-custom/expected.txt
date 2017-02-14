@@ -1,0 +1,14 @@
+Caught exception from uninitialized call site
+Caught exception from uninitialized call site
+linkerMethod failure type 1
+Returning null instead of CallSite for add (int,int)int
+linkerMethod failure type 2
+Throwing InstantiationException in linkerMethod()
+linkerMethod failure type 3
+Throwing ArithmeticException in add()
+Failure Type + 0 (1013)
+Linking add (int,int)int
+100
+-9000
+9000
+Winners 1 Votes 16

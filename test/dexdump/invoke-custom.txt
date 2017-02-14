@@ -1,0 +1,254 @@
+Processing 'invoke-custom.dex'...
+Opened 'invoke-custom.dex', DEX version '038'
+DEX file header:
+magic               : 'dex\n038\0'
+checksum            : db57516f
+signature           : 57be...ffc4
+file_size           : 3276
+header_size         : 112
+link_size           : 0
+link_off            : 0 (0x000000)
+string_ids_size     : 82
+string_ids_off      : 112 (0x000070)
+type_ids_size       : 31
+type_ids_off        : 440 (0x0001b8)
+proto_ids_size      : 16
+proto_ids_off       : 564 (0x000234)
+field_ids_size      : 3
+field_ids_off       : 756 (0x0002f4)
+method_ids_size     : 18
+method_ids_off      : 780 (0x00030c)
+class_defs_size     : 1
+class_defs_off      : 932 (0x0003a4)
+data_size           : 2304
+data_off            : 972 (0x0003cc)
+
+Class #0 header:
+class_idx           : 10
+access_flags        : 1 (0x0001)
+superclass_idx      : 15
+interfaces_off      : 0 (0x000000)
+source_file_idx     : 38
+annotations_off     : 1316 (0x000524)
+class_data_off      : 3014 (0x000bc6)
+static_fields_size  : 1
+instance_fields_size: 0
+direct_methods_size : 4
+virtual_methods_size: 1
+
+Class #0 annotations:
+Annotations on method #1 'add'
+  VISIBILITY_BUILD Lcom/android/jack/annotations/CalledByInvokeCustom; argumentTypes={ I I } invokeMethodHandle={ Lcom/android/jack/annotations/LinkerMethodHandle; argumentTypes={ Ljava/lang/invoke/MethodHandles$Lookup; Ljava/lang/String; Ljava/lang/invoke/MethodType; Z B C S I F D Ljava/lang/String; Ljava/lang/Class; J } enclosingType=Lcom/android/jack/java7/invokecustom/test004/Tests; kind=INVOKE_STATIC name="linkerMethod" } methodHandleExtraArgs={ Lcom/android/jack/annotations/Constant; booleanValue={ true } Lcom/android/jack/annotations/Constant; byteValue={ 1 } Lcom/android/jack/annotations/Constant; charValue={ 97 } Lcom/android/jack/annotations/Constant; shortValue={ 1024 } Lcom/android/jack/annotations/Constant; intValue={ 1 } Lcom/android/jack/annotations/Constant; floatValue={ 11.1 } Lcom/android/jack/annotations/Constant; doubleValue={ 2.2 } Lcom/android/jack/annotations/Constant; stringValue={ "Hello" } Lcom/android/jack/annotations/Constant; classValue={ Lcom/android/jack/java7/invokecustom/test004/Tests; } Lcom/android/jack/annotations/Constant; longValue={ 123456789 } } name="add" returnType=I
+Annotations on method #2 'linkerMethod'
+  VISIBILITY_SYSTEM Ldalvik/annotation/Signature; value={ "(" "Ljava/lang/invoke/MethodHandles$Lookup;" "Ljava/lang/String;" "Ljava/lang/invoke/MethodType;" "ZBCSIFD" "Ljava/lang/String;" "Ljava/lang/Class" "<*>;J)" "Ljava/lang/invoke/CallSite;" }
+  VISIBILITY_SYSTEM Ldalvik/annotation/Throws; value={ Ljava/lang/Throwable; }
+Annotations on method #4 'test'
+  VISIBILITY_SYSTEM Ldalvik/annotation/Throws; value={ Ljava/lang/Throwable; }
+  VISIBILITY_RUNTIME Lorg/junit/Test;
+
+Class #0            -
+  Class descriptor  : 'Lcom/android/jack/java7/invokecustom/test004/Tests;'
+  Access flags      : 0x0001 (PUBLIC)
+  Superclass        : 'Ljava/lang/Object;'
+  Interfaces        -
+  Static fields     -
+    #0              : (in Lcom/android/jack/java7/invokecustom/test004/Tests;)
+      name          : 'fieldCallSite'
+      type          : 'Ljava/lang/invoke/CallSite;'
+      access        : 0x0009 (PUBLIC STATIC)
+  Instance fields   -
+  Direct methods    -
+    #0              : (in Lcom/android/jack/java7/invokecustom/test004/Tests;)
+      name          : '<init>'
+      type          : '()V'
+      access        : 0x10001 (PUBLIC CONSTRUCTOR)
+      code          -
+      registers     : 1
+      ins           : 1
+      outs          : 1
+      insns size    : 4 16-bit code units
+0003ec:                                        |[0003ec] com.android.jack.java7.invokecustom.test004.Tests.<init>:()V
+0003fc: 7010 0600 0000                         |0000: invoke-direct {v0}, Ljava/lang/Object;.<init>:()V // method@0006
+000402: 0e00                                   |0003: return-void
+      catches       : (none)
+      positions     : 
+        0x0000 line=35
+      locals        : 
+        0x0000 - 0x0004 reg=0 this Lcom/android/jack/java7/invokecustom/test004/Tests; 
+
+    #1              : (in Lcom/android/jack/java7/invokecustom/test004/Tests;)
+      name          : 'add'
+      type          : '(II)I'
+      access        : 0x000a (PRIVATE STATIC)
+      code          -
+      registers     : 3
+      ins           : 2
+      outs          : 0
+      insns size    : 3 16-bit code units
+000404:                                        |[000404] com.android.jack.java7.invokecustom.test004.Tests.add:(II)I
+000414: 9000 0102                              |0000: add-int v0, v1, v2
+000418: 0f00                                   |0002: return v0
+      catches       : (none)
+      positions     : 
+        0x0000 line=55
+      locals        : 
+        0x0000 - 0x0003 reg=1 (null) I 
+        0x0000 - 0x0003 reg=2 (null) I 
+
+    #2              : (in Lcom/android/jack/java7/invokecustom/test004/Tests;)
+      name          : 'linkerMethod'
+      type          : '(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/MethodType;ZBCSIFDLjava/lang/String;Ljava/lang/Class;J)Ljava/lang/invoke/CallSite;'
+      access        : 0x000a (PRIVATE STATIC)
+      code          -
+      registers     : 24
+      ins           : 15
+      outs          : 6
+      insns size    : 83 16-bit code units
+00041c:                                        |[00041c] com.android.jack.java7.invokecustom.test004.Tests.linkerMethod:(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/MethodType;ZBCSIFDLjava/lang/String;Ljava/lang/Class;J)Ljava/lang/invoke/CallSite;
+00042c: 7110 1100 0c00                         |0000: invoke-static {v12}, Ljunit/framework/Assert;.assertTrue:(Z)V // method@0011
+000432: 1212                                   |0003: const/4 v2, #int 1 // #1
+000434: 7120 0d00 d200                         |0004: invoke-static {v2, v13}, Ljunit/framework/Assert;.assertEquals:(II)V // method@000d
+00043a: 1302 6100                              |0007: const/16 v2, #int 97 // #61
+00043e: 7120 0a00 e200                         |0009: invoke-static {v2, v14}, Ljunit/framework/Assert;.assertEquals:(CC)V // method@000a
+000444: 1302 0004                              |000c: const/16 v2, #int 1024 // #400
+000448: 7120 0d00 f200                         |000e: invoke-static {v2, v15}, Ljunit/framework/Assert;.assertEquals:(II)V // method@000d
+00044e: 1212                                   |0011: const/4 v2, #int 1 // #1
+000450: 0200 1000                              |0012: move/from16 v0, v16
+000454: 7120 0d00 0200                         |0014: invoke-static {v2, v0}, Ljunit/framework/Assert;.assertEquals:(II)V // method@000d
+00045a: 1202                                   |0017: const/4 v2, #int 0 // #0
+00045c: 1403 9a99 3141                         |0018: const v3, #float 11.1 // #4131999a
+000462: 0200 1100                              |001b: move/from16 v0, v17
+000466: 7130 0c00 0302                         |001d: invoke-static {v3, v0, v2}, Ljunit/framework/Assert;.assertEquals:(FFF)V // method@000c
+00046c: 1606 0000                              |0020: const-wide/16 v6, #int 0 // #0
+000470: 1802 9a99 9999 9999 0140               |0022: const-wide v2, #double 2.2 // #400199999999999a
+00047a: 0504 1200                              |0027: move-wide/from16 v4, v18
+00047e: 7706 0b00 0200                         |0029: invoke-static/range {v2, v3, v4, v5, v6, v7}, Ljunit/framework/Assert;.assertEquals:(DDD)V // method@000b
+000484: 1b02 0700 0000                         |002c: const-string/jumbo v2, "Hello" // string@00000007
+00048a: 0800 1400                              |002f: move-object/from16 v0, v20
+00048e: 7120 1000 0200                         |0031: invoke-static {v2, v0}, Ljunit/framework/Assert;.assertEquals:(Ljava/lang/String;Ljava/lang/String;)V // method@0010
+000494: 1c02 0a00                              |0034: const-class v2, Lcom/android/jack/java7/invokecustom/test004/Tests; // type@000a
+000498: 0800 1500                              |0036: move-object/from16 v0, v21
+00049c: 7120 0f00 0200                         |0038: invoke-static {v2, v0}, Ljunit/framework/Assert;.assertEquals:(Ljava/lang/Object;Ljava/lang/Object;)V // method@000f
+0004a2: 1702 15cd 5b07                         |003b: const-wide/32 v2, #float 1.6536e-34 // #075bcd15
+0004a8: 0500 1600                              |003e: move-wide/from16 v0, v22
+0004ac: 7140 0e00 3210                         |0040: invoke-static {v2, v3, v0, v1}, Ljunit/framework/Assert;.assertEquals:(JJ)V // method@000e
+0004b2: 7100 0900 0000                         |0043: invoke-static {}, Ljava/lang/invoke/MethodHandles;.lookup:()Ljava/lang/invoke/MethodHandles$Lookup; // method@0009
+0004b8: 0c02                                   |0046: move-result-object v2
+0004ba: 1c03 0a00                              |0047: const-class v3, Lcom/android/jack/java7/invokecustom/test004/Tests; // type@000a
+0004be: 6e40 0800 32ba                         |0049: invoke-virtual {v2, v3, v10, v11}, Ljava/lang/invoke/MethodHandles$Lookup;.findStatic:(Ljava/lang/Class;Ljava/lang/String;Ljava/lang/invoke/MethodType;)Ljava/lang/invoke/MethodHandle; // method@0008
+0004c4: 0c02                                   |004c: move-result-object v2
+0004c6: 2203 1400                              |004d: new-instance v3, Ljava/lang/invoke/ConstantCallSite; // type@0014
+0004ca: 7020 0700 2300                         |004f: invoke-direct {v3, v2}, Ljava/lang/invoke/ConstantCallSite;.<init>:(Ljava/lang/invoke/MethodHandle;)V // method@0007
+0004d0: 1103                                   |0052: return-object v3
+      catches       : (none)
+      positions     : 
+        0x0000 line=62
+        0x0003 line=63
+        0x0007 line=64
+        0x000c line=65
+        0x0011 line=66
+        0x0017 line=67
+        0x0020 line=68
+        0x002c line=69
+        0x0034 line=70
+        0x003b line=71
+        0x0043 line=72
+        0x004d line=73
+      locals        : 
+        0x0000 - 0x0053 reg=9 (null) Ljava/lang/invoke/MethodHandles$Lookup; 
+        0x0000 - 0x0053 reg=10 (null) Ljava/lang/String; 
+        0x0000 - 0x0053 reg=11 (null) Ljava/lang/invoke/MethodType; 
+        0x0000 - 0x0053 reg=12 (null) Z 
+        0x0000 - 0x0053 reg=13 (null) B 
+        0x0000 - 0x0053 reg=14 (null) C 
+        0x0000 - 0x0053 reg=15 (null) S 
+        0x0000 - 0x0053 reg=16 (null) I 
+        0x0000 - 0x0053 reg=17 (null) F 
+        0x0000 - 0x0053 reg=18 (null) D 
+        0x0000 - 0x0053 reg=20 (null) Ljava/lang/String; 
+        0x0000 - 0x0053 reg=21 (null) Ljava/lang/Class; 
+        0x0000 - 0x0053 reg=22 (null) J 
+
+    #3              : (in Lcom/android/jack/java7/invokecustom/test004/Tests;)
+      name          : 'main'
+      type          : '([Ljava/lang/String;)V'
+      access        : 0x0009 (PUBLIC STATIC)
+      code          -
+      registers     : 4
+      ins           : 1
+      outs          : 2
+      insns size    : 12 16-bit code units
+0004d4:                                        |[0004d4] com.android.jack.java7.invokecustom.test004.Tests.main:([Ljava/lang/String;)V
+0004e4: 6200 0200                              |0000: sget-object v0, Ljava/lang/System;.out:Ljava/io/PrintStream; // field@0002
+0004e8: 1221                                   |0002: const/4 v1, #int 2 // #2
+0004ea: 1232                                   |0003: const/4 v2, #int 3 // #3
+0004ec: fc20 0000 2100                         |0004: invoke-custom {v1, v2}, call_site@0000
+0004f2: 0a01                                   |0007: move-result v1
+0004f4: 6e20 0500 1000                         |0008: invoke-virtual {v0, v1}, Ljava/io/PrintStream;.println:(I)V // method@0005
+0004fa: 0e00                                   |000b: return-void
+      catches       : (none)
+      positions     : 
+        0x0000 line=82
+        0x000b line=83
+      locals        : 
+        0x0000 - 0x000c reg=3 (null) [Ljava/lang/String; 
+
+  Virtual methods   -
+    #0              : (in Lcom/android/jack/java7/invokecustom/test004/Tests;)
+      name          : 'test'
+      type          : '()V'
+      access        : 0x0001 (PUBLIC)
+      code          -
+      registers     : 3
+      ins           : 1
+      outs          : 2
+      insns size    : 11 16-bit code units
+0004fc:                                        |[0004fc] com.android.jack.java7.invokecustom.test004.Tests.test:()V
+00050c: 1220                                   |0000: const/4 v0, #int 2 // #2
+00050e: 1231                                   |0001: const/4 v1, #int 3 // #3
+000510: fc20 0100 1000                         |0002: invoke-custom {v0, v1}, call_site@0001
+000516: 0a00                                   |0005: move-result v0
+000518: 1251                                   |0006: const/4 v1, #int 5 // #5
+00051a: 7120 0d00 0100                         |0007: invoke-static {v1, v0}, Ljunit/framework/Assert;.assertEquals:(II)V // method@000d
+000520: 0e00                                   |000a: return-void
+      catches       : (none)
+      positions     : 
+        0x0000 line=78
+        0x000a line=79
+      locals        : 
+        0x0000 - 0x000b reg=2 this Lcom/android/jack/java7/invokecustom/test004/Tests; 
+
+  source_file_idx   : 38 (Tests.java)
+
+Method handle #0:
+  type        : invoke-static
+  target      : Lcom/android/jack/java7/invokecustom/test004/Tests; linkerMethod
+  target_type : (Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/MethodType;ZBCSIFDLjava/lang/String;Ljava/lang/Class;J)Ljava/lang/invoke/CallSite;
+Call site #0:
+  link_argument[0] : 0 (MethodHandle)
+  link_argument[1] : add (String)
+  link_argument[2] : (II)I (MethodType)
+  link_argument[3] : 1 (int)
+  link_argument[4] : 1 (int)
+  link_argument[5] : 97 (int)
+  link_argument[6] : 1024 (int)
+  link_argument[7] : 1 (int)
+  link_argument[8] : 11.1 (float)
+  link_argument[9] : 2.2 (double)
+  link_argument[10] : Hello (String)
+  link_argument[11] : Tests (Class)
+  link_argument[12] : 123456789 (long)
+Call site #1:
+  link_argument[0] : 0 (MethodHandle)
+  link_argument[1] : add (String)
+  link_argument[2] : (II)I (MethodType)
+  link_argument[3] : 1 (int)
+  link_argument[4] : 1 (int)
+  link_argument[5] : 97 (int)
+  link_argument[6] : 1024 (int)
+  link_argument[7] : 1 (int)
+  link_argument[8] : 11.1 (float)
+  link_argument[9] : 2.2 (double)
+  link_argument[10] : Hello (String)
+  link_argument[11] : Tests (Class)
+  link_argument[12] : 123456789 (long)

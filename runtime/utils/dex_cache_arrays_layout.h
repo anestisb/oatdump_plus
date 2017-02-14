@@ -37,11 +37,14 @@ class DexCacheArraysLayout {
         strings_offset_(0u),
         fields_offset_(0u),
         method_types_offset_(0u),
+        call_sites_offset_(0u),
         size_(0u) {
   }
 
   // Construct a layout for a particular dex file header.
-  DexCacheArraysLayout(PointerSize pointer_size, const DexFile::Header& header);
+  DexCacheArraysLayout(PointerSize pointer_size,
+                       const DexFile::Header& header,
+                       uint32_t num_call_sites);
 
   // Construct a layout for a particular dex file.
   DexCacheArraysLayout(PointerSize pointer_size, const DexFile* dex_file);
@@ -104,6 +107,14 @@ class DexCacheArraysLayout {
 
   size_t MethodTypesAlignment() const;
 
+  size_t CallSitesOffset() const {
+    return call_sites_offset_;
+  }
+
+  size_t CallSitesSize(size_t num_elements) const;
+
+  size_t CallSitesAlignment() const;
+
  private:
   static constexpr size_t types_offset_ = 0u;
   const PointerSize pointer_size_;  // Must be first for construction initialization order.
@@ -111,6 +122,7 @@ class DexCacheArraysLayout {
   const size_t strings_offset_;
   const size_t fields_offset_;
   const size_t method_types_offset_;
+  const size_t call_sites_offset_;
   const size_t size_;
 
   static size_t Alignment(PointerSize pointer_size);

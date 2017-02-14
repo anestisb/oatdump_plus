@@ -17,10 +17,11 @@
 #ifndef ART_RUNTIME_MIRROR_METHOD_HANDLE_IMPL_H_
 #define ART_RUNTIME_MIRROR_METHOD_HANDLE_IMPL_H_
 
+#include "art_field.h"
+#include "art_method.h"
 #include "class.h"
 #include "gc_root.h"
 #include "object-inl.h"
-#include "method_handles.h"
 #include "method_type.h"
 
 namespace art {
@@ -82,10 +83,19 @@ class MANAGED MethodHandle : public Object {
         GetField64(OFFSET_OF_OBJECT_MEMBER(MethodHandle, art_field_or_method_)));
   }
 
+  ObjPtr<mirror::Class> GetTargetClass() REQUIRES_SHARED(Locks::mutator_lock_) {
+    Kind kind = GetHandleKind();
+    return (kind <= kLastValidKind) ?
+        GetTargetMethod()->GetDeclaringClass() : GetTargetField()->GetDeclaringClass();
+  }
+
   static mirror::Class* StaticClass() REQUIRES_SHARED(Locks::mutator_lock_);
 
+ protected:
+  void Initialize(uintptr_t art_field_or_method, Kind kind, Handle<MethodType> method_type)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
  private:
-  // NOTE: cached_spread_invoker_ isn't used by the runtime.
   HeapReference<mirror::MethodHandle> cached_spread_invoker_;
   HeapReference<mirror::MethodType> nominal_type_;
   HeapReference<mirror::MethodType> method_type_;
@@ -93,6 +103,9 @@ class MANAGED MethodHandle : public Object {
   uint64_t art_field_or_method_;
 
  private:
+  static MemberOffset CachedSpreadInvokerOffset() {
+    return MemberOffset(OFFSETOF_MEMBER(MethodHandle, cached_spread_invoker_));
+  }
   static MemberOffset NominalTypeOffset() {
     return MemberOffset(OFFSETOF_MEMBER(MethodHandle, nominal_type_));
   }
@@ -113,6 +126,12 @@ class MANAGED MethodHandle : public Object {
 // C++ mirror of java.lang.invoke.MethodHandleImpl
 class MANAGED MethodHandleImpl : public MethodHandle {
  public:
+  static mirror::MethodHandleImpl* Create(Thread* const self,
+                                          uintptr_t art_field_or_method,
+                                          MethodHandle::Kind kind,
+                                          Handle<MethodType> method_type)
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
+
   static mirror::Class* StaticClass() REQUIRES_SHARED(Locks::mutator_lock_) {
     return static_class_.Read();
   }

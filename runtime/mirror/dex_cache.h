@@ -36,6 +36,7 @@ class Thread;
 
 namespace mirror {
 
+class CallSite;
 class MethodType;
 class String;
 
@@ -163,6 +164,10 @@ class MANAGED DexCache FINAL : public Object {
   void FixupResolvedMethodTypes(MethodTypeDexCacheType* dest, const Visitor& visitor)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier, typename Visitor>
+  void FixupResolvedCallSites(GcRoot<mirror::CallSite>* dest, const Visitor& visitor)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   String* GetLocation() REQUIRES_SHARED(Locks::mutator_lock_) {
     return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(DexCache, location_));
   }
@@ -191,6 +196,10 @@ class MANAGED DexCache FINAL : public Object {
     return OFFSET_OF_OBJECT_MEMBER(DexCache, resolved_method_types_);
   }
 
+  static MemberOffset ResolvedCallSitesOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(DexCache, resolved_call_sites_);
+  }
+
   static MemberOffset NumStringsOffset() {
     return OFFSET_OF_OBJECT_MEMBER(DexCache, num_strings_);
   }
@@ -209,6 +218,10 @@ class MANAGED DexCache FINAL : public Object {
 
   static MemberOffset NumResolvedMethodTypesOffset() {
     return OFFSET_OF_OBJECT_MEMBER(DexCache, num_resolved_method_types_);
+  }
+
+  static MemberOffset NumResolvedCallSitesOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(DexCache, num_resolved_call_sites_);
   }
 
   mirror::String* GetResolvedString(dex::StringIndex string_idx) ALWAYS_INLINE
@@ -244,7 +257,18 @@ class MANAGED DexCache FINAL : public Object {
 
   MethodType* GetResolvedMethodType(uint32_t proto_idx) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void SetResolvedMethodType(uint32_t proto_idx, MethodType* resolved) REQUIRES_SHARED(Locks::mutator_lock_);
+  void SetResolvedMethodType(uint32_t proto_idx, MethodType* resolved)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  CallSite* GetResolvedCallSite(uint32_t call_site_idx) REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Attempts to bind |call_site_idx| to the call site |resolved|. The
+  // caller must use the return value in place of |resolved|. This is
+  // because multiple threads can invoke the bootstrap method each
+  // producing a call site, but the method handle invocation on the
+  // call site must be on a common agreed value.
+  CallSite* SetResolvedCallSite(uint32_t call_site_idx, CallSite* resolved) WARN_UNUSED
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   StringDexCacheType* GetStrings() ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_) {
     return GetFieldPtr64<StringDexCacheType*>(StringsOffset());
@@ -295,6 +319,18 @@ class MANAGED DexCache FINAL : public Object {
     SetFieldPtr<false>(ResolvedMethodTypesOffset(), resolved_method_types);
   }
 
+  GcRoot<CallSite>* GetResolvedCallSites()
+      ALWAYS_INLINE
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    return GetFieldPtr<GcRoot<CallSite>*>(ResolvedCallSitesOffset());
+  }
+
+  void SetResolvedCallSites(GcRoot<CallSite>* resolved_call_sites)
+      ALWAYS_INLINE
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    SetFieldPtr<false>(ResolvedCallSitesOffset(), resolved_call_sites);
+  }
+
   size_t NumStrings() REQUIRES_SHARED(Locks::mutator_lock_) {
     return GetField32(NumStringsOffset());
   }
@@ -313,6 +349,10 @@ class MANAGED DexCache FINAL : public Object {
 
   size_t NumResolvedMethodTypes() REQUIRES_SHARED(Locks::mutator_lock_) {
     return GetField32(NumResolvedMethodTypesOffset());
+  }
+
+  size_t NumResolvedCallSites() REQUIRES_SHARED(Locks::mutator_lock_) {
+    return GetField32(NumResolvedCallSitesOffset());
   }
 
   const DexFile* GetDexFile() ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -346,8 +386,10 @@ class MANAGED DexCache FINAL : public Object {
             uint32_t num_resolved_methods,
             ArtField** resolved_fields,
             uint32_t num_resolved_fields,
-            MethodTypeDexCacheType* resolved_methodtypes,
-            uint32_t num_resolved_methodtypes,
+            MethodTypeDexCacheType* resolved_method_types,
+            uint32_t num_resolved_method_types,
+            GcRoot<CallSite>* resolved_call_sites,
+            uint32_t num_resolved_call_sites,
             PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -362,6 +404,8 @@ class MANAGED DexCache FINAL : public Object {
   HeapReference<Object> dex_;
   HeapReference<String> location_;
   uint64_t dex_file_;               // const DexFile*
+  uint64_t resolved_call_sites_;    // GcRoot<CallSite>* array with num_resolved_call_sites_
+                                    // elements.
   uint64_t resolved_fields_;        // ArtField*, array with num_resolved_fields_ elements.
   uint64_t resolved_method_types_;  // std::atomic<MethodTypeDexCachePair>* array with
                                     // num_resolved_method_types_ elements.
@@ -370,6 +414,7 @@ class MANAGED DexCache FINAL : public Object {
   uint64_t strings_;                // std::atomic<StringDexCachePair>*, array with num_strings_
                                     // elements.
 
+  uint32_t num_resolved_call_sites_;    // Number of elements in the call_sites_ array.
   uint32_t num_resolved_fields_;        // Number of elements in the resolved_fields_ array.
   uint32_t num_resolved_method_types_;  // Number of elements in the resolved_method_types_ array.
   uint32_t num_resolved_methods_;       // Number of elements in the resolved_methods_ array.
