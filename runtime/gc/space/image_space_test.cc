@@ -1,0 +1,111 @@
+/*
+ * Copyright (C) 2017 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include <gtest/gtest.h>
+
+#include "dexopt_test.h"
+
+namespace art {
+namespace gc {
+namespace space {
+
+TEST_F(DexoptTest, ValidateOatFile) {
+  std::string dex1 = GetScratchDir() + "/Dex1.jar";
+  std::string multidex1 = GetScratchDir() + "/MultiDex1.jar";
+  std::string dex2 = GetScratchDir() + "/Dex2.jar";
+  std::string oat_location = GetScratchDir() + "/Oat.oat";
+
+  Copy(GetDexSrc1(), dex1);
+  Copy(GetMultiDexSrc1(), multidex1);
+  Copy(GetDexSrc2(), dex2);
+
+  std::string error_msg;
+  std::vector<std::string> args;
+  args.push_back("--dex-file=" + dex1);
+  args.push_back("--dex-file=" + multidex1);
+  args.push_back("--dex-file=" + dex2);
+  args.push_back("--oat-file=" + oat_location);
+  ASSERT_TRUE(OatFileAssistant::Dex2Oat(args, &error_msg)) << error_msg;
+
+  std::unique_ptr<OatFile> oat(OatFile::Open(oat_location.c_str(),
+                                             oat_location.c_str(),
+                                             nullptr,
+                                             nullptr,
+                                             false,
+                                             /*low_4gb*/false,
+                                             nullptr,
+                                             &error_msg));
+  ASSERT_TRUE(oat != nullptr) << error_msg;
+
+  // Originally all the dex checksums should be up to date.
+  EXPECT_TRUE(ImageSpace::ValidateOatFile(*oat, &error_msg)) << error_msg;
+
+  // Invalidate the dex1 checksum.
+  Copy(GetDexSrc2(), dex1);
+  EXPECT_FALSE(ImageSpace::ValidateOatFile(*oat, &error_msg));
+
+  // Restore the dex1 checksum.
+  Copy(GetDexSrc1(), dex1);
+  EXPECT_TRUE(ImageSpace::ValidateOatFile(*oat, &error_msg)) << error_msg;
+
+  // Invalidate the non-main multidex checksum.
+  Copy(GetMultiDexSrc2(), multidex1);
+  EXPECT_FALSE(ImageSpace::ValidateOatFile(*oat, &error_msg));
+
+  // Restore the multidex checksum.
+  Copy(GetMultiDexSrc1(), multidex1);
+  EXPECT_TRUE(ImageSpace::ValidateOatFile(*oat, &error_msg)) << error_msg;
+
+  // Invalidate the dex2 checksum.
+  Copy(GetDexSrc1(), dex2);
+  EXPECT_FALSE(ImageSpace::ValidateOatFile(*oat, &error_msg));
+
+  // restore the dex2 checksum.
+  Copy(GetDexSrc2(), dex2);
+  EXPECT_TRUE(ImageSpace::ValidateOatFile(*oat, &error_msg)) << error_msg;
+
+  // Replace the multidex file with a non-multidex file.
+  Copy(GetDexSrc1(), multidex1);
+  EXPECT_FALSE(ImageSpace::ValidateOatFile(*oat, &error_msg));
+
+  // Restore the multidex file
+  Copy(GetMultiDexSrc1(), multidex1);
+  EXPECT_TRUE(ImageSpace::ValidateOatFile(*oat, &error_msg)) << error_msg;
+
+  // Replace dex1 with a multidex file.
+  Copy(GetMultiDexSrc1(), dex1);
+  EXPECT_FALSE(ImageSpace::ValidateOatFile(*oat, &error_msg));
+
+  // Restore the dex1 file.
+  Copy(GetDexSrc1(), dex1);
+  EXPECT_TRUE(ImageSpace::ValidateOatFile(*oat, &error_msg)) << error_msg;
+
+  // Remove the dex2 file.
+  EXPECT_EQ(0, unlink(dex2.c_str()));
+  EXPECT_FALSE(ImageSpace::ValidateOatFile(*oat, &error_msg));
+
+  // Restore the dex2 file.
+  Copy(GetDexSrc2(), dex2);
+  EXPECT_TRUE(ImageSpace::ValidateOatFile(*oat, &error_msg)) << error_msg;
+
+  // Remove the multidex file.
+  EXPECT_EQ(0, unlink(multidex1.c_str()));
+  EXPECT_FALSE(ImageSpace::ValidateOatFile(*oat, &error_msg));
+}
+
+}  // namespace space
+}  // namespace gc
+}  // namespace art

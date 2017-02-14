@@ -38,6 +38,8 @@
 
 namespace art {
 
+using android::base::StringPrintf;
+
 std::ostream& operator << (std::ostream& stream, const OatFileAssistant::OatStatus status) {
   switch (status) {
     case OatFileAssistant::kOatCannotOpen:
@@ -264,7 +266,7 @@ std::vector<std::unique_ptr<const DexFile>> OatFileAssistant::LoadDexFiles(
     const OatFile& oat_file, const char* dex_location) {
   std::vector<std::unique_ptr<const DexFile>> dex_files;
 
-  // Load the primary dex file.
+  // Load the main dex file.
   std::string error_msg;
   const OatFile::OatDexFile* oat_dex_file = oat_file.GetOatDexFile(
       dex_location, nullptr, &error_msg);
@@ -280,12 +282,12 @@ std::vector<std::unique_ptr<const DexFile>> OatFileAssistant::LoadDexFiles(
   }
   dex_files.push_back(std::move(dex_file));
 
-  // Load secondary multidex files
+  // Load the rest of the multidex entries
   for (size_t i = 1; ; i++) {
-    std::string secondary_dex_location = DexFile::GetMultiDexLocation(i, dex_location);
-    oat_dex_file = oat_file.GetOatDexFile(secondary_dex_location.c_str(), nullptr);
+    std::string multidex_dex_location = DexFile::GetMultiDexLocation(i, dex_location);
+    oat_dex_file = oat_file.GetOatDexFile(multidex_dex_location.c_str(), nullptr);
     if (oat_dex_file == nullptr) {
-      // There are no more secondary dex files to load.
+      // There are no more multidex entries to load.
       break;
     }
 
@@ -300,10 +302,10 @@ std::vector<std::unique_ptr<const DexFile>> OatFileAssistant::LoadDexFiles(
 }
 
 bool OatFileAssistant::HasOriginalDexFiles() {
-  // Ensure GetRequiredDexChecksum has been run so that
+  // Ensure GetRequiredDexChecksums has been run so that
   // has_original_dex_files_ is initialized. We don't care about the result of
-  // GetRequiredDexChecksum.
-  GetRequiredDexChecksum();
+  // GetRequiredDexChecksums.
+  GetRequiredDexChecksums();
   return has_original_dex_files_;
 }
 
@@ -316,88 +318,66 @@ OatFileAssistant::OatStatus OatFileAssistant::OatFileStatus() {
 }
 
 bool OatFileAssistant::DexChecksumUpToDate(const VdexFile& file, std::string* error_msg) {
-  if (file.GetHeader().GetNumberOfDexFiles() <= 0) {
-    VLOG(oat) << "Vdex does not contain any dex files";
+  const std::vector<uint32_t>* required_dex_checksums = GetRequiredDexChecksums();
+  if (required_dex_checksums == nullptr) {
+    LOG(WARNING) << "Required dex checksums not found. Assuming dex checksums are up to date.";
+    return true;
+  }
+
+  uint32_t number_of_dex_files = file.GetHeader().GetNumberOfDexFiles();
+  if (required_dex_checksums->size() != number_of_dex_files) {
+    *error_msg = StringPrintf("expected %zu dex files but found %u",
+                              required_dex_checksums->size(),
+                              number_of_dex_files);
     return false;
   }
 
-  // TODO: Use GetRequiredDexChecksum to get secondary checksums as well, not
-  // just the primary. Because otherwise we may fail to see a secondary
-  // checksum failure in the case when the original (multidex) files are
-  // stripped but we have a newer odex file.
-  const uint32_t* dex_checksum_pointer = GetRequiredDexChecksum();
-  if (dex_checksum_pointer != nullptr) {
-    uint32_t actual_checksum = file.GetLocationChecksum(0);
-    if (*dex_checksum_pointer != actual_checksum) {
-      VLOG(oat) << "Dex checksum does not match for primary dex: " << dex_location_
-        << ". Expected: " << *dex_checksum_pointer
-        << ", Actual: " << actual_checksum;
+  for (uint32_t i = 0; i < number_of_dex_files; i++) {
+    uint32_t expected_checksum = (*required_dex_checksums)[i];
+    uint32_t actual_checksum = file.GetLocationChecksum(i);
+    if (expected_checksum != actual_checksum) {
+      std::string dex = DexFile::GetMultiDexLocation(i, dex_location_.c_str());
+      *error_msg = StringPrintf("Dex checksum does not match for dex: %s."
+                                "Expected: %u, actual: %u",
+                                dex.c_str(),
+                                expected_checksum,
+                                actual_checksum);
       return false;
     }
   }
 
-  // Verify the dex checksums for any secondary multidex files
-  for (uint32_t i = 1; i < file.GetHeader().GetNumberOfDexFiles(); i++) {
-    std::string secondary_dex_location = DexFile::GetMultiDexLocation(i, dex_location_.c_str());
-    uint32_t expected_secondary_checksum = 0;
-    if (DexFile::GetChecksum(secondary_dex_location.c_str(),
-                             &expected_secondary_checksum,
-                             error_msg)) {
-      uint32_t actual_secondary_checksum = file.GetLocationChecksum(i);
-      if (expected_secondary_checksum != actual_secondary_checksum) {
-        VLOG(oat) << "Dex checksum does not match for secondary dex: "
-          << secondary_dex_location
-          << ". Expected: " << expected_secondary_checksum
-          << ", Actual: " << actual_secondary_checksum;
-        return false;
-      }
-    } else {
-      // If we can't get the checksum for the secondary location, we assume
-      // the dex checksum is up to date for this and all other secondary dex
-      // files.
-      break;
-    }
-  }
   return true;
 }
 
 bool OatFileAssistant::DexChecksumUpToDate(const OatFile& file, std::string* error_msg) {
-  // Note: GetOatDexFile will return null if the dex checksum doesn't match
-  // what we provide, which verifies the primary dex checksum for us.
-  const uint32_t* dex_checksum_pointer = GetRequiredDexChecksum();
-  const OatFile::OatDexFile* oat_dex_file = file.GetOatDexFile(
-      dex_location_.c_str(), dex_checksum_pointer, error_msg);
-  if (oat_dex_file == nullptr) {
+  const std::vector<uint32_t>* required_dex_checksums = GetRequiredDexChecksums();
+  if (required_dex_checksums == nullptr) {
+    LOG(WARNING) << "Required dex checksums not found. Assuming dex checksums are up to date.";
+    return true;
+  }
+
+  uint32_t number_of_dex_files = file.GetOatHeader().GetDexFileCount();
+  if (required_dex_checksums->size() != number_of_dex_files) {
+    *error_msg = StringPrintf("expected %zu dex files but found %u",
+                              required_dex_checksums->size(),
+                              number_of_dex_files);
     return false;
   }
 
-  // Verify the dex checksums for any secondary multidex files
-  for (size_t i = 1; ; i++) {
-    std::string secondary_dex_location = DexFile::GetMultiDexLocation(i, dex_location_.c_str());
-    const OatFile::OatDexFile* secondary_oat_dex_file
-      = file.GetOatDexFile(secondary_dex_location.c_str(), nullptr);
-    if (secondary_oat_dex_file == nullptr) {
-      // There are no more secondary dex files to check.
-      break;
+  for (uint32_t i = 0; i < number_of_dex_files; i++) {
+    std::string dex = DexFile::GetMultiDexLocation(i, dex_location_.c_str());
+    uint32_t expected_checksum = (*required_dex_checksums)[i];
+    const OatFile::OatDexFile* oat_dex_file = file.GetOatDexFile(dex.c_str(), nullptr);
+    if (oat_dex_file == nullptr) {
+      *error_msg = StringPrintf("failed to find %s in %s", dex.c_str(), file.GetLocation().c_str());
+      return false;
     }
-
-    uint32_t expected_secondary_checksum = 0;
-    if (DexFile::GetChecksum(secondary_dex_location.c_str(),
-          &expected_secondary_checksum, error_msg)) {
-      uint32_t actual_secondary_checksum
-        = secondary_oat_dex_file->GetDexFileLocationChecksum();
-      if (expected_secondary_checksum != actual_secondary_checksum) {
-        VLOG(oat) << "Dex checksum does not match for secondary dex: "
-          << secondary_dex_location
-          << ". Expected: " << expected_secondary_checksum
-          << ", Actual: " << actual_secondary_checksum;
-        return false;
-      }
-    } else {
-      // If we can't get the checksum for the secondary location, we assume
-      // the dex checksum is up to date for this and all other secondary dex
-      // files.
-      break;
+    uint32_t actual_checksum = oat_dex_file->GetDexFileLocationChecksum();
+    if (expected_checksum != actual_checksum) {
+      VLOG(oat) << "Dex checksum does not match for dex: " << dex
+        << ". Expected: " << expected_checksum
+        << ", Actual: " << actual_checksum;
+      return false;
     }
   }
   return true;
@@ -710,13 +690,16 @@ std::string OatFileAssistant::ImageLocation() {
   return image_spaces[0]->GetImageLocation();
 }
 
-const uint32_t* OatFileAssistant::GetRequiredDexChecksum() {
-  if (!required_dex_checksum_attempted_) {
-    required_dex_checksum_attempted_ = true;
-    required_dex_checksum_found_ = false;
+const std::vector<uint32_t>* OatFileAssistant::GetRequiredDexChecksums() {
+  if (!required_dex_checksums_attempted_) {
+    required_dex_checksums_attempted_ = true;
+    required_dex_checksums_found_ = false;
+    cached_required_dex_checksums_.clear();
     std::string error_msg;
-    if (DexFile::GetChecksum(dex_location_.c_str(), &cached_required_dex_checksum_, &error_msg)) {
-      required_dex_checksum_found_ = true;
+    if (DexFile::GetMultiDexChecksums(dex_location_.c_str(),
+                                      &cached_required_dex_checksums_,
+                                      &error_msg)) {
+      required_dex_checksums_found_ = true;
       has_original_dex_files_ = true;
     } else {
       // This can happen if the original dex file has been stripped from the
@@ -724,19 +707,23 @@ const uint32_t* OatFileAssistant::GetRequiredDexChecksum() {
       VLOG(oat) << "OatFileAssistant: " << error_msg;
       has_original_dex_files_ = false;
 
-      // Get the checksum from the odex if we can.
+      // Get the checksums from the odex if we can.
       const OatFile* odex_file = odex_.GetFile();
       if (odex_file != nullptr) {
-        const OatFile::OatDexFile* odex_dex_file
-            = odex_file->GetOatDexFile(dex_location_.c_str(), nullptr);
-        if (odex_dex_file != nullptr) {
-          cached_required_dex_checksum_ = odex_dex_file->GetDexFileLocationChecksum();
-          required_dex_checksum_found_ = true;
+        required_dex_checksums_found_ = true;
+        for (size_t i = 0; i < odex_file->GetOatHeader().GetDexFileCount(); i++) {
+          std::string dex = DexFile::GetMultiDexLocation(i, dex_location_.c_str());
+          const OatFile::OatDexFile* odex_dex_file = odex_file->GetOatDexFile(dex.c_str(), nullptr);
+          if (odex_dex_file == nullptr) {
+            required_dex_checksums_found_ = false;
+            break;
+          }
+          cached_required_dex_checksums_.push_back(odex_dex_file->GetDexFileLocationChecksum());
         }
       }
     }
   }
-  return required_dex_checksum_found_ ? &cached_required_dex_checksum_ : nullptr;
+  return required_dex_checksums_found_ ? &cached_required_dex_checksums_ : nullptr;
 }
 
 const OatFileAssistant::ImageInfo* OatFileAssistant::GetImageInfo() {
