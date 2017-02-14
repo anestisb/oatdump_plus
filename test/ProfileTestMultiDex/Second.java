@@ -25,3 +25,8 @@ class Second {
     return "Z";
   }
 }
+
+class SubC extends Super {
+  int getValue() { return 24; }
+}
+
