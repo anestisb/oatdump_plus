@@ -329,7 +329,7 @@ public class Main {
   /// CHECK-NOT:      cbz
   // Terminate the scope for the CHECK-NOT search at the reference or length comparison,
   // whichever comes first.
-  /// CHECK:          cmp {{w.*,}} {{w.*}}
+  /// CHECK:          cmp {{w.*,}} {{w.*|#.*}}
   public static boolean stringArgumentNotNull(Object obj) {
     obj.getClass();
     return "foo".equals(obj);
@@ -380,10 +380,10 @@ public class Main {
   // so repeat the check twice.
   /// CHECK-NOT:      ldr {{w\d+}}, [{{x\d+}}]
   /// CHECK-NOT:      ldr {{w\d+}}, [{{x\d+}}, #0]
-  /// CHECK:          cmp {{w\d+}}, {{w\d+}}
+  /// CHECK:          cmp {{w\d+}}, {{w\d+|#.*}}
   /// CHECK-NOT:      ldr {{w\d+}}, [{{x\d+}}]
   /// CHECK-NOT:      ldr {{w\d+}}, [{{x\d+}}, #0]
-  /// CHECK:          cmp {{w\d+}}, {{w\d+}}
+  /// CHECK:          cmp {{w\d+}}, {{w\d+|#.*}}
   public static boolean stringArgumentIsString() {
     return "foo".equals(myString);
   }
