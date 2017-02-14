@@ -415,7 +415,7 @@ bool DexFile::OpenAllDexFilesFromZip(const ZipArchive& zip_archive,
                                                                          &error_code));
       if (next_dex_file.get() == nullptr) {
         if (error_code != ZipOpenErrorCode::kEntryNotFound) {
-          LOG(WARNING) << error_msg;
+          LOG(WARNING) << "Zip open failed: " << *error_msg;
         }
         break;
       } else {
