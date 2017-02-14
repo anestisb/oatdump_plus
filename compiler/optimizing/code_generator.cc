@@ -1419,7 +1419,7 @@ void CodeGenerator::EmitJitRoots(uint8_t* code,
 
 QuickEntrypointEnum CodeGenerator::GetArrayAllocationEntrypoint(Handle<mirror::Class> array_klass) {
   ScopedObjectAccess soa(Thread::Current());
-  if (array_klass.Get() == nullptr) {
+  if (array_klass == nullptr) {
     // This can only happen for non-primitive arrays, as primitive arrays can always
     // be resolved.
     return kQuickAllocArrayResolved32;

@@ -163,7 +163,7 @@ HLoadClass::LoadKind HSharpening::SharpenClass(HLoadClass* load_class,
       if (!compiler_driver->GetSupportBootImageFixup()) {
         // compiler_driver_test. Do not sharpen.
         desired_load_kind = HLoadClass::LoadKind::kDexCacheViaMethod;
-      } else if ((klass.Get() != nullptr) && compiler_driver->IsImageClass(
+      } else if ((klass != nullptr) && compiler_driver->IsImageClass(
           dex_file.StringDataByIdx(dex_file.GetTypeId(type_index).descriptor_idx_))) {
         is_in_boot_image = true;
         desired_load_kind = codegen->GetCompilerOptions().GetCompilePic()
@@ -175,7 +175,7 @@ HLoadClass::LoadKind HSharpening::SharpenClass(HLoadClass* load_class,
         desired_load_kind = HLoadClass::LoadKind::kBssEntry;
       }
     } else {
-      is_in_boot_image = (klass.Get() != nullptr) &&
+      is_in_boot_image = (klass != nullptr) &&
           runtime->GetHeap()->ObjectIsInBootImageSpace(klass.Get());
       if (runtime->UseJitCompilation()) {
         // TODO: Make sure we don't set the "compile PIC" flag for JIT as that's bogus.
@@ -183,7 +183,7 @@ HLoadClass::LoadKind HSharpening::SharpenClass(HLoadClass* load_class,
         if (is_in_boot_image) {
           // TODO: Use direct pointers for all non-moving spaces, not just boot image. Bug: 29530787
           desired_load_kind = HLoadClass::LoadKind::kBootImageAddress;
-        } else if (klass.Get() != nullptr) {
+        } else if (klass != nullptr) {
           desired_load_kind = HLoadClass::LoadKind::kJitTableAddress;
         } else {
           // Class not loaded yet. This happens when the dex code requesting

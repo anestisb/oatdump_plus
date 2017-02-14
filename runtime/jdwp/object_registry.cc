@@ -57,7 +57,7 @@ JDWP::ObjectId ObjectRegistry::Add(ObjPtr<mirror::Object> o) {
 // Template instantiations must be declared below.
 template<class T>
 JDWP::ObjectId ObjectRegistry::Add(Handle<T> obj_h) {
-  if (obj_h.Get() == nullptr) {
+  if (obj_h == nullptr) {
     return 0;
   }
   return InternalAdd(obj_h);
@@ -76,7 +76,7 @@ JDWP::ObjectId ObjectRegistry::Add(Handle<mirror::Throwable> obj_h);
 
 template<class T>
 JDWP::ObjectId ObjectRegistry::InternalAdd(Handle<T> obj_h) {
-  CHECK(obj_h.Get() != nullptr);
+  CHECK(obj_h != nullptr);
 
   Thread* const self = Thread::Current();
   self->AssertNoPendingException();

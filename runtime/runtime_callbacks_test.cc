@@ -294,7 +294,7 @@ TEST_F(ClassLoadCallbackRuntimeCallbacksTest, ClassLoadCallback) {
   const char* descriptor_y = "LY;";
   Handle<mirror::Class> h_Y(
       hs.NewHandle(class_linker_->FindClass(soa.Self(), descriptor_y, class_loader)));
-  ASSERT_TRUE(h_Y.Get() != nullptr);
+  ASSERT_TRUE(h_Y != nullptr);
 
   bool expect1 = Expect({ "PreDefine:LY; <art-gtest-XandY.jar>",
                           "PreDefine:LX; <art-gtest-XandY.jar>",

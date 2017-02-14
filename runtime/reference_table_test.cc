@@ -48,12 +48,12 @@ static mirror::Object* CreateWeakReference(mirror::Object* referent)
       class_linker->FindClass(self,
                               "Ljava/lang/ref/WeakReference;",
                               ScopedNullHandle<mirror::ClassLoader>())));
-  CHECK(h_ref_class.Get() != nullptr);
+  CHECK(h_ref_class != nullptr);
   CHECK(class_linker->EnsureInitialized(self, h_ref_class, true, true));
 
   Handle<mirror::Object> h_ref_instance(scope.NewHandle<mirror::Object>(
       h_ref_class->AllocObject(self)));
-  CHECK(h_ref_instance.Get() != nullptr);
+  CHECK(h_ref_instance != nullptr);
 
   ArtMethod* constructor = h_ref_class->FindDeclaredDirectMethod(
       "<init>", "(Ljava/lang/Object;)V", class_linker->GetImagePointerSize());

@@ -252,7 +252,7 @@ mirror::Object* ProcessEncodedAnnotation(Handle<mirror::Class> klass, const uint
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Handle<mirror::Class> annotation_class(hs.NewHandle(
       class_linker->ResolveType(klass->GetDexFile(), dex::TypeIndex(type_index), klass.Get())));
-  if (annotation_class.Get() == nullptr) {
+  if (annotation_class == nullptr) {
     LOG(INFO) << "Unable to resolve " << klass->PrettyClass() << " annotation class " << type_index;
     DCHECK(Thread::Current()->IsExceptionPending());
     Thread::Current()->ClearException();
@@ -481,7 +481,7 @@ bool ProcessAnnotationValue(Handle<mirror::Class> klass,
       break;
     }
     case DexFile::kDexAnnotationArray:
-      if (result_style == DexFile::kAllRaw || array_class.Get() == nullptr) {
+      if (result_style == DexFile::kAllRaw || array_class == nullptr) {
         return false;
       } else {
         ScopedObjectAccessUnchecked soa(self);
@@ -491,7 +491,7 @@ bool ProcessAnnotationValue(Handle<mirror::Class> klass,
         Handle<mirror::Array> new_array(hs.NewHandle(mirror::Array::Alloc<true>(
             self, array_class.Get(), size, array_class->GetComponentSizeShift(),
             Runtime::Current()->GetHeap()->GetCurrentAllocator())));
-        if (new_array.Get() == nullptr) {
+        if (new_array == nullptr) {
           LOG(ERROR) << "Annotation element array allocation failed with size " << size;
           return false;
         }
@@ -631,8 +631,8 @@ mirror::Object* CreateAnnotationMember(Handle<mirror::Class> klass,
   }
   Handle<mirror::Method> method_object(hs.NewHandle(method_obj_ptr));
 
-  if (new_member.Get() == nullptr || string_name.Get() == nullptr ||
-      method_object.Get() == nullptr || method_return.Get() == nullptr) {
+  if (new_member == nullptr || string_name == nullptr ||
+      method_object == nullptr || method_return == nullptr) {
     LOG(ERROR) << StringPrintf("Failed creating annotation element (m=%p n=%p a=%p r=%p",
         new_member.Get(), string_name.Get(), method_object.Get(), method_return.Get());
     return nullptr;
@@ -740,7 +740,7 @@ mirror::ObjectArray<mirror::String>* GetSignatureValue(Handle<mirror::Class> kla
   ObjPtr<mirror::Class> string_class = mirror::String::GetJavaLangString();
   Handle<mirror::Class> string_array_class(hs.NewHandle(
       Runtime::Current()->GetClassLinker()->FindArrayClass(Thread::Current(), &string_class)));
-  if (string_array_class.Get() == nullptr) {
+  if (string_array_class == nullptr) {
     return nullptr;
   }
   mirror::Object* obj =
@@ -766,7 +766,7 @@ mirror::ObjectArray<mirror::Class>* GetThrowsValue(Handle<mirror::Class> klass,
   ObjPtr<mirror::Class> class_class = mirror::Class::GetJavaLangClass();
   Handle<mirror::Class> class_array_class(hs.NewHandle(
       Runtime::Current()->GetClassLinker()->FindArrayClass(Thread::Current(), &class_class)));
-  if (class_array_class.Get() == nullptr) {
+  if (class_array_class == nullptr) {
     return nullptr;
   }
   mirror::Object* obj =
@@ -796,7 +796,7 @@ mirror::ObjectArray<mirror::Object>* ProcessAnnotationSet(
   uint32_t size = annotation_set->size_;
   Handle<mirror::ObjectArray<mirror::Object>> result(hs.NewHandle(
       mirror::ObjectArray<mirror::Object>::Alloc(self, annotation_array_class.Get(), size)));
-  if (result.Get() == nullptr) {
+  if (result == nullptr) {
     return nullptr;
   }
 
@@ -854,7 +854,7 @@ mirror::ObjectArray<mirror::Object>* ProcessAnnotationSetRefList(
   }
   Handle<mirror::ObjectArray<mirror::Object>> annotation_array_array(hs.NewHandle(
       mirror::ObjectArray<mirror::Object>::Alloc(self, annotation_array_array_class, size)));
-  if (annotation_array_array.Get() == nullptr) {
+  if (annotation_array_array == nullptr) {
     LOG(ERROR) << "Annotation set ref array allocation failed";
     return nullptr;
   }
@@ -1056,7 +1056,7 @@ bool GetParametersMetadataForMethod(ArtMethod* method,
   ObjPtr<mirror::Class> string_class = mirror::String::GetJavaLangString();
   Handle<mirror::Class> string_array_class(hs.NewHandle(
       Runtime::Current()->GetClassLinker()->FindArrayClass(Thread::Current(), &string_class)));
-  if (UNLIKELY(string_array_class.Get() == nullptr)) {
+  if (UNLIKELY(string_array_class == nullptr)) {
     return false;
   }
 
@@ -1067,13 +1067,13 @@ bool GetParametersMetadataForMethod(ArtMethod* method,
                                       "names",
                                       string_array_class,
                                       DexFile::kDexAnnotationArray));
-  if (names_obj.Get() == nullptr) {
+  if (names_obj == nullptr) {
     return false;
   }
 
   // Extract the parameters' access flags int[].
   Handle<mirror::Class> int_array_class(hs.NewHandle(mirror::IntArray::GetArrayClass()));
-  if (UNLIKELY(int_array_class.Get() == nullptr)) {
+  if (UNLIKELY(int_array_class == nullptr)) {
     return false;
   }
   Handle<mirror::Object> access_flags_obj =
@@ -1082,7 +1082,7 @@ bool GetParametersMetadataForMethod(ArtMethod* method,
                                       "accessFlags",
                                       int_array_class,
                                       DexFile::kDexAnnotationArray));
-  if (access_flags_obj.Get() == nullptr) {
+  if (access_flags_obj == nullptr) {
     return false;
   }
 
@@ -1146,7 +1146,7 @@ mirror::ObjectArray<mirror::Class>* GetDeclaredClasses(Handle<mirror::Class> kla
   ObjPtr<mirror::Class> class_class = mirror::Class::GetJavaLangClass();
   Handle<mirror::Class> class_array_class(hs.NewHandle(
       Runtime::Current()->GetClassLinker()->FindArrayClass(hs.Self(), &class_class)));
-  if (class_array_class.Get() == nullptr) {
+  if (class_array_class == nullptr) {
     return nullptr;
   }
   mirror::Object* obj =

@@ -57,7 +57,7 @@ static jobject MethodHandleImpl_getMemberInternal(JNIEnv* env, jobject thiz) {
     }
   }
 
-  if (UNLIKELY(h_object.Get() == nullptr)) {
+  if (UNLIKELY(h_object == nullptr)) {
     soa.Self()->AssertPendingOOMException();
     return nullptr;
   }

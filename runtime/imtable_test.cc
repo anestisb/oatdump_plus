@@ -53,7 +53,7 @@ class ImTableTest : public CommonRuntimeTest {
         ObjPtr<mirror::ClassLoader>::DownCast(self->DecodeJObject(jclass_loader_a)));
     Handle<mirror::Class> h_class_a(
           hs.NewHandle(class_linker->FindClass(self, class_name.c_str(), h_class_loader)));
-    if (h_class_a.Get() == nullptr) {
+    if (h_class_a == nullptr) {
       LOG(ERROR) << self->GetException()->Dump();
       CHECK(false) << "h_class_a == nullptr";
     }
@@ -63,7 +63,7 @@ class ImTableTest : public CommonRuntimeTest {
         ObjPtr<mirror::ClassLoader>::DownCast(self->DecodeJObject(jclass_loader_b)));
     Handle<mirror::Class> h_class_b(
           hs.NewHandle(class_linker->FindClass(self, class_name.c_str(), h_class_loader)));
-    if (h_class_b.Get() == nullptr) {
+    if (h_class_b == nullptr) {
       LOG(ERROR) << self->GetException()->Dump();
       CHECK(false) << "h_class_b == nullptr";
     }

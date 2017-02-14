@@ -81,7 +81,7 @@ static jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Handle<mirror::Class> c(
       hs.NewHandle(class_linker->FindClass(soa.Self(), descriptor.c_str(), class_loader)));
-  if (c.Get() == nullptr) {
+  if (c == nullptr) {
     ScopedLocalRef<jthrowable> cause(env, env->ExceptionOccurred());
     env->ExceptionClear();
     jthrowable cnfe = reinterpret_cast<jthrowable>(
@@ -137,7 +137,7 @@ static mirror::ObjectArray<mirror::Field>* GetDeclaredFields(
   size_t array_idx = 0;
   auto object_array = hs.NewHandle(mirror::ObjectArray<mirror::Field>::Alloc(
       self, mirror::Field::ArrayClass(), array_size));
-  if (object_array.Get() == nullptr) {
+  if (object_array == nullptr) {
     return nullptr;
   }
   for (ArtField& field : ifields) {
@@ -267,7 +267,7 @@ static mirror::Field* GetPublicFieldRecursive(
   Handle<mirror::String> h_name(hs.NewHandle(name));
 
   // We search the current class, its direct interfaces then its superclass.
-  while (h_clazz.Get() != nullptr) {
+  while (h_clazz != nullptr) {
     mirror::Field* result = GetDeclaredField(self, h_clazz.Get(), h_name.Get());
     if ((result != nullptr) && (result->GetAccessFlags() & kAccPublic)) {
       return result;
@@ -319,14 +319,14 @@ static jobject Class_getDeclaredField(JNIEnv* env, jobject javaThis, jstring nam
   ScopedFastNativeObjectAccess soa(env);
   StackHandleScope<3> hs(soa.Self());
   Handle<mirror::String> h_string = hs.NewHandle(soa.Decode<mirror::String>(name));
-  if (h_string.Get() == nullptr) {
+  if (h_string == nullptr) {
     ThrowNullPointerException("name == null");
     return nullptr;
   }
   Handle<mirror::Class> h_klass = hs.NewHandle(DecodeClass(soa, javaThis));
   Handle<mirror::Field> result =
       hs.NewHandle(GetDeclaredField(soa.Self(), h_klass.Get(), h_string.Get()));
-  if (result.Get() == nullptr) {
+  if (result == nullptr) {
     std::string name_str = h_string->ToModifiedUtf8();
     if (name_str == "value" && h_klass->IsStringClass()) {
       // We log the error for this specific case, as the user might just swallow the exception.
@@ -377,7 +377,7 @@ static jobjectArray Class_getDeclaredConstructorsInternal(
   }
   auto h_constructors = hs.NewHandle(mirror::ObjectArray<mirror::Constructor>::Alloc(
       soa.Self(), mirror::Constructor::ArrayClass(), constructor_count));
-  if (UNLIKELY(h_constructors.Get() == nullptr)) {
+  if (UNLIKELY(h_constructors == nullptr)) {
     soa.Self()->AssertPendingException();
     return nullptr;
   }
@@ -428,7 +428,7 @@ static jobjectArray Class_getDeclaredMethodsUnchecked(JNIEnv* env, jobject javaT
   }
   auto ret = hs.NewHandle(mirror::ObjectArray<mirror::Method>::Alloc(
       soa.Self(), mirror::Method::ArrayClass(), num_methods));
-  if (ret.Get() == nullptr) {
+  if (ret == nullptr) {
     soa.Self()->AssertPendingOOMException();
     return nullptr;
   }
@@ -645,7 +645,7 @@ static jobject Class_newInstance(JNIEnv* env, jobject javaThis) {
   // Verify that we can access the class.
   if (!klass->IsPublic()) {
     caller.Assign(GetCallingClass(soa.Self(), 1));
-    if (caller.Get() != nullptr && !caller->CanAccess(klass.Get())) {
+    if (caller != nullptr && !caller->CanAccess(klass.Get())) {
       soa.Self()->ThrowNewExceptionF(
           "Ljava/lang/IllegalAccessException;", "%s is not accessible from %s",
           klass->PrettyClass().c_str(), caller->PrettyClass().c_str());
@@ -673,17 +673,17 @@ static jobject Class_newInstance(JNIEnv* env, jobject javaThis) {
     }
   }
   auto receiver = hs.NewHandle(klass->AllocObject(soa.Self()));
-  if (UNLIKELY(receiver.Get() == nullptr)) {
+  if (UNLIKELY(receiver == nullptr)) {
     soa.Self()->AssertPendingOOMException();
     return nullptr;
   }
   // Verify that we can access the constructor.
   auto* declaring_class = constructor->GetDeclaringClass();
   if (!constructor->IsPublic()) {
-    if (caller.Get() == nullptr) {
+    if (caller == nullptr) {
       caller.Assign(GetCallingClass(soa.Self(), 1));
     }
-    if (UNLIKELY(caller.Get() != nullptr && !VerifyAccess(receiver.Get(),
+    if (UNLIKELY(caller != nullptr && !VerifyAccess(receiver.Get(),
                                                           declaring_class,
                                                           constructor->GetAccessFlags(),
                                                           caller.Get()))) {
