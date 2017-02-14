@@ -233,7 +233,7 @@ class VerifierDepsTest : public CommonCompilerTest {
         const DexFile::ClassDef& class_def = dex_file->GetClassDef(i);
         const char* descriptor = dex_file->GetClassDescriptor(class_def);
         cls.Assign(class_linker_->FindClass(soa.Self(), descriptor, class_loader_handle));
-        if (cls.Get() == nullptr) {
+        if (cls == nullptr) {
           CHECK(soa.Self()->IsExceptionPending());
           soa.Self()->ClearException();
         } else if (set.find(class_def.class_idx_) == set.end()) {

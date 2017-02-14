@@ -1473,7 +1473,7 @@ class OatDumper {
       Runtime* const runtime = Runtime::Current();
       Handle<mirror::DexCache> dex_cache(
           hs->NewHandle(runtime->GetClassLinker()->RegisterDexFile(*dex_file, nullptr)));
-      CHECK(dex_cache.Get() != nullptr);
+      CHECK(dex_cache != nullptr);
       DCHECK(options_.class_loader_ != nullptr);
       return verifier::MethodVerifier::VerifyMethodAndDump(
           soa.Self(), vios, dex_method_idx, dex_file, dex_cache, *options_.class_loader_,
@@ -2950,7 +2950,7 @@ class IMTDumper {
         const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
         const char* descriptor = dex_file->GetClassDescriptor(class_def);
         h_klass.Assign(class_linker->FindClass(self, descriptor, h_class_loader));
-        if (h_klass.Get() == nullptr) {
+        if (h_klass == nullptr) {
           std::cerr << "Warning: could not load " << descriptor << std::endl;
           continue;
         }

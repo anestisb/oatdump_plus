@@ -81,6 +81,14 @@ class Handle : public ValueObject {
     return reference_;
   }
 
+  ALWAYS_INLINE bool operator!=(std::nullptr_t) const REQUIRES_SHARED(Locks::mutator_lock_) {
+    return !IsNull();
+  }
+
+  ALWAYS_INLINE bool operator==(std::nullptr_t) const REQUIRES_SHARED(Locks::mutator_lock_) {
+    return IsNull();
+  }
+
  protected:
   template<typename S>
   explicit Handle(StackReference<S>* reference)

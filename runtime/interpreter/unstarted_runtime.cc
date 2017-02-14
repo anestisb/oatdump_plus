@@ -124,7 +124,7 @@ static void UnstartedRuntimeFindClass(Thread* self, Handle<mirror::String> class
                                       const std::string& method_name, bool initialize_class,
                                       bool abort_if_not_found)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  CHECK(className.Get() != nullptr);
+  CHECK(className != nullptr);
   std::string descriptor(DotToDescriptor(className->ToModifiedUtf8().c_str()));
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
@@ -239,7 +239,7 @@ void UnstartedRuntime::UnstartedClassNewInstance(
   Handle<mirror::Class> h_klass(hs.NewHandle(klass));
 
   // Check that it's not null.
-  if (h_klass.Get() == nullptr) {
+  if (h_klass == nullptr) {
     AbortTransactionOrFail(self, "Class reference is null for newInstance");
     return;
   }
@@ -263,7 +263,7 @@ void UnstartedRuntime::UnstartedClassNewInstance(
     auto* cons = h_klass->FindDeclaredDirectMethod("<init>", "()V", cl->GetImagePointerSize());
     if (cons != nullptr) {
       Handle<mirror::Object> h_obj(hs.NewHandle(klass->AllocObject(self)));
-      CHECK(h_obj.Get() != nullptr);  // We don't expect OOM at compile-time.
+      CHECK(h_obj != nullptr);  // We don't expect OOM at compile-time.
       EnterInterpreterFromInvoke(self, cons, h_obj.Get(), nullptr, nullptr);
       if (!self->IsExceptionPending()) {
         result->SetL(h_obj.Get());
@@ -542,7 +542,7 @@ static void GetResourceAsStream(Thread* self,
 
   // Create byte array for content.
   Handle<mirror::ByteArray> h_array(hs.NewHandle(mirror::ByteArray::Alloc(self, map_size)));
-  if (h_array.Get() == nullptr) {
+  if (h_array == nullptr) {
     AbortTransactionOrFail(self, "Could not find/create byte array class");
     return;
   }
@@ -556,7 +556,7 @@ static void GetResourceAsStream(Thread* self,
       runtime->GetClassLinker()->FindClass(self,
                                            "Ljava/io/ByteArrayInputStream;",
                                            ScopedNullHandle<mirror::ClassLoader>())));
-  if (h_class.Get() == nullptr) {
+  if (h_class == nullptr) {
     AbortTransactionOrFail(self, "Could not find ByteArrayInputStream class");
     return;
   }
@@ -566,7 +566,7 @@ static void GetResourceAsStream(Thread* self,
   }
 
   Handle<mirror::Object> h_obj(hs.NewHandle(h_class->AllocObject(self)));
-  if (h_obj.Get() == nullptr) {
+  if (h_obj == nullptr) {
     AbortTransactionOrFail(self, "Could not allocate ByteArrayInputStream object");
     return;
   }
@@ -800,7 +800,7 @@ static void GetSystemProperty(Thread* self,
   StackHandleScope<4> hs(self);
   Handle<mirror::String> h_key(
       hs.NewHandle(reinterpret_cast<mirror::String*>(shadow_frame->GetVRegReference(arg_offset))));
-  if (h_key.Get() == nullptr) {
+  if (h_key == nullptr) {
     AbortTransactionOrFail(self, "getProperty key was null");
     return;
   }
@@ -815,7 +815,7 @@ static void GetSystemProperty(Thread* self,
       class_linker->FindClass(self,
                               "Ljava/lang/AndroidHardcodedSystemProperties;",
                               ScopedNullHandle<mirror::ClassLoader>())));
-  if (h_props_class.Get() == nullptr) {
+  if (h_props_class == nullptr) {
     AbortTransactionOrFail(self, "Could not find AndroidHardcodedSystemProperties");
     return;
   }
@@ -837,7 +837,7 @@ static void GetSystemProperty(Thread* self,
   ObjPtr<mirror::Object> props = static_properties->GetObject(h_props_class.Get());
   Handle<mirror::ObjectArray<mirror::ObjectArray<mirror::String>>> h_2string_array(hs.NewHandle(
       props->AsObjectArray<mirror::ObjectArray<mirror::String>>()));
-  if (h_2string_array.Get() == nullptr) {
+  if (h_2string_array == nullptr) {
     AbortTransactionOrFail(self, "Field %s is null", kAndroidHardcodedSystemPropertiesFieldName);
     return;
   }
@@ -849,7 +849,7 @@ static void GetSystemProperty(Thread* self,
       hs.NewHandle<mirror::ObjectArray<mirror::String>>(nullptr));
   for (int32_t i = 0; i < prop_count; ++i) {
     h_string_array.Assign(h_2string_array->Get(i));
-    if (h_string_array.Get() == nullptr ||
+    if (h_string_array == nullptr ||
         h_string_array->GetLength() != 2 ||
         h_string_array->Get(0) == nullptr) {
       AbortTransactionOrFail(self,
@@ -924,7 +924,7 @@ static ObjPtr<mirror::Object> CreateInstanceOf(Thread* self, const char* class_d
   StackHandleScope<2> hs(self);
   Handle<mirror::Class> h_class(hs.NewHandle(klass));
   Handle<mirror::Object> h_obj(hs.NewHandle(h_class->AllocObject(self)));
-  if (h_obj.Get() != nullptr) {
+  if (h_obj != nullptr) {
     ArtMethod* init_method = h_class->FindDirectMethod(
         "<init>", "()V", class_linker->GetImagePointerSize());
     if (init_method == nullptr) {

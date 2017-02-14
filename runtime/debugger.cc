@@ -1765,13 +1765,13 @@ static JDWP::JdwpError GetFieldValueImpl(JDWP::RefTypeId ref_type_id, JDWP::Obje
   StackHandleScope<2> hs(self);
   MutableHandle<mirror::Object>
       o(hs.NewHandle(Dbg::GetObjectRegistry()->Get<mirror::Object*>(object_id, &error)));
-  if ((!is_static && o.Get() == nullptr) || error != JDWP::ERR_NONE) {
+  if ((!is_static && o == nullptr) || error != JDWP::ERR_NONE) {
     return JDWP::ERR_INVALID_OBJECT;
   }
   ArtField* f = FromFieldId(field_id);
 
   mirror::Class* receiver_class = c;
-  if (receiver_class == nullptr && o.Get() != nullptr) {
+  if (receiver_class == nullptr && o != nullptr) {
     receiver_class = o->GetClass();
   }
 
@@ -1899,7 +1899,7 @@ static JDWP::JdwpError SetFieldValueImpl(JDWP::ObjectId object_id, JDWP::FieldId
   StackHandleScope<2> hs(self);
   MutableHandle<mirror::Object>
       o(hs.NewHandle(Dbg::GetObjectRegistry()->Get<mirror::Object*>(object_id, &error)));
-  if ((!is_static && o.Get() == nullptr) || error != JDWP::ERR_NONE) {
+  if ((!is_static && o == nullptr) || error != JDWP::ERR_NONE) {
     return JDWP::ERR_INVALID_OBJECT;
   }
   ArtField* f = FromFieldId(field_id);
@@ -2867,7 +2867,7 @@ void Dbg::PostLocationEvent(ArtMethod* m, int dex_pc, mirror::Object* this_objec
   StackHandleScope<1> hs(self);
   Handle<mirror::Throwable> pending_exception(hs.NewHandle(self->GetException()));
   self->ClearException();
-  if (kIsDebugBuild && pending_exception.Get() != nullptr) {
+  if (kIsDebugBuild && pending_exception != nullptr) {
     const DexFile::CodeItem* code_item = location.method->GetCodeItem();
     const Instruction* instr = Instruction::At(&code_item->insns_[location.dex_pc]);
     CHECK_EQ(Instruction::MOVE_EXCEPTION, instr->Opcode());
@@ -2875,7 +2875,7 @@ void Dbg::PostLocationEvent(ArtMethod* m, int dex_pc, mirror::Object* this_objec
 
   gJdwpState->PostLocationEvent(&location, this_object, event_flags, return_value);
 
-  if (pending_exception.Get() != nullptr) {
+  if (pending_exception != nullptr) {
     self->SetException(pending_exception.Get());
   }
 }
@@ -4027,7 +4027,7 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
   ExecuteMethodWithoutPendingException(soa, pReq);
 
   // If an exception was pending before the invoke, restore it now.
-  if (old_exception.Get() != nullptr) {
+  if (old_exception != nullptr) {
     soa.Self()->SetException(old_exception.Get());
   }
 }
@@ -4356,9 +4356,9 @@ void Dbg::DdmSendThreadNotification(Thread* t, uint32_t type) {
     ScopedObjectAccessUnchecked soa(Thread::Current());
     StackHandleScope<1> hs(soa.Self());
     Handle<mirror::String> name(hs.NewHandle(t->GetThreadName()));
-    size_t char_count = (name.Get() != nullptr) ? name->GetLength() : 0;
-    const jchar* chars = (name.Get() != nullptr) ? name->GetValue() : nullptr;
-    bool is_compressed = (name.Get() != nullptr) ? name->IsCompressed() : false;
+    size_t char_count = (name != nullptr) ? name->GetLength() : 0;
+    const jchar* chars = (name != nullptr) ? name->GetValue() : nullptr;
+    bool is_compressed = (name != nullptr) ? name->IsCompressed() : false;
 
     std::vector<uint8_t> bytes;
     JDWP::Append4BE(bytes, t->GetThreadId());

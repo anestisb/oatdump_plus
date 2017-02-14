@@ -108,7 +108,7 @@ TEST_P(SpaceCreateTest, ZygoteSpaceTestBody) {
                                                         &ptr1_bytes_allocated,
                                                         &ptr1_usable_size,
                                                         &ptr1_bytes_tl_bulk_allocated)));
-  EXPECT_TRUE(ptr1.Get() != nullptr);
+  EXPECT_TRUE(ptr1 != nullptr);
   EXPECT_LE(1U * MB, ptr1_bytes_allocated);
   EXPECT_LE(1U * MB, ptr1_usable_size);
   EXPECT_LE(ptr1_usable_size, ptr1_bytes_allocated);
@@ -126,7 +126,7 @@ TEST_P(SpaceCreateTest, ZygoteSpaceTestBody) {
                                                                   &ptr3_bytes_allocated,
                                                                   &ptr3_usable_size,
                                                                   &ptr3_bytes_tl_bulk_allocated)));
-  EXPECT_TRUE(ptr3.Get() != nullptr);
+  EXPECT_TRUE(ptr3 != nullptr);
   EXPECT_LE(8U * MB, ptr3_bytes_allocated);
   EXPECT_LE(8U * MB, ptr3_usable_size);
   EXPECT_LE(ptr3_usable_size, ptr3_bytes_allocated);
@@ -154,7 +154,7 @@ TEST_P(SpaceCreateTest, ZygoteSpaceTestBody) {
                                                            &ptr6_bytes_allocated,
                                                            &ptr6_usable_size,
                                                            &ptr6_bytes_tl_bulk_allocated)));
-  EXPECT_TRUE(ptr6.Get() != nullptr);
+  EXPECT_TRUE(ptr6 != nullptr);
   EXPECT_LE(9U * MB, ptr6_bytes_allocated);
   EXPECT_LE(9U * MB, ptr6_usable_size);
   EXPECT_LE(ptr6_usable_size, ptr6_bytes_allocated);
@@ -193,7 +193,7 @@ TEST_P(SpaceCreateTest, ZygoteSpaceTestBody) {
                     &ptr1_bytes_allocated,
                     &ptr1_usable_size,
                     &ptr1_bytes_tl_bulk_allocated));
-  EXPECT_TRUE(ptr1.Get() != nullptr);
+  EXPECT_TRUE(ptr1 != nullptr);
   EXPECT_LE(1U * MB, ptr1_bytes_allocated);
   EXPECT_LE(1U * MB, ptr1_usable_size);
   EXPECT_LE(ptr1_usable_size, ptr1_bytes_allocated);
@@ -210,7 +210,7 @@ TEST_P(SpaceCreateTest, ZygoteSpaceTestBody) {
                               &ptr3_bytes_allocated,
                               &ptr3_usable_size,
                               &ptr3_bytes_tl_bulk_allocated));
-  EXPECT_TRUE(ptr3.Get() != nullptr);
+  EXPECT_TRUE(ptr3 != nullptr);
   EXPECT_LE(2U * MB, ptr3_bytes_allocated);
   EXPECT_LE(2U * MB, ptr3_usable_size);
   EXPECT_LE(ptr3_usable_size, ptr3_bytes_allocated);
@@ -242,7 +242,7 @@ TEST_P(SpaceCreateTest, AllocAndFreeTestBody) {
                                                         &ptr1_bytes_allocated,
                                                         &ptr1_usable_size,
                                                         &ptr1_bytes_tl_bulk_allocated)));
-  EXPECT_TRUE(ptr1.Get() != nullptr);
+  EXPECT_TRUE(ptr1 != nullptr);
   EXPECT_LE(1U * MB, ptr1_bytes_allocated);
   EXPECT_LE(1U * MB, ptr1_usable_size);
   EXPECT_LE(ptr1_usable_size, ptr1_bytes_allocated);
@@ -260,7 +260,7 @@ TEST_P(SpaceCreateTest, AllocAndFreeTestBody) {
                                                                   &ptr3_bytes_allocated,
                                                                   &ptr3_usable_size,
                                                                   &ptr3_bytes_tl_bulk_allocated)));
-  EXPECT_TRUE(ptr3.Get() != nullptr);
+  EXPECT_TRUE(ptr3 != nullptr);
   EXPECT_LE(8U * MB, ptr3_bytes_allocated);
   EXPECT_LE(8U * MB, ptr3_usable_size);
   EXPECT_LE(ptr3_usable_size, ptr3_bytes_allocated);
@@ -288,7 +288,7 @@ TEST_P(SpaceCreateTest, AllocAndFreeTestBody) {
                                                            &ptr6_bytes_allocated,
                                                            &ptr6_usable_size,
                                                            &ptr6_bytes_tl_bulk_allocated)));
-  EXPECT_TRUE(ptr6.Get() != nullptr);
+  EXPECT_TRUE(ptr6 != nullptr);
   EXPECT_LE(9U * MB, ptr6_bytes_allocated);
   EXPECT_LE(9U * MB, ptr6_usable_size);
   EXPECT_LE(ptr6_usable_size, ptr6_bytes_allocated);
