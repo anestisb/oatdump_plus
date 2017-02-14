@@ -709,8 +709,6 @@ bool Redefiner::ClassRedefinition::CheckClass() {
       }
     }
   }
-  LOG(WARNING) << "No verification is done on annotations of redefined classes.";
-
   return true;
 }
 
