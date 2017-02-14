@@ -63,6 +63,66 @@ namespace openjdkjvmti {
 
 using android::base::StringPrintf;
 
+// A helper that fills in a classes obsolete_methods_ and obsolete_dex_caches_ classExt fields as
+// they are created. This ensures that we can always call any method of an obsolete ArtMethod object
+// almost as soon as they are created since the GetObsoleteDexCache method will succeed.
+class ObsoleteMap {
+ public:
+  art::ArtMethod* FindObsoleteVersion(art::ArtMethod* original)
+      REQUIRES(art::Locks::mutator_lock_, art::Roles::uninterruptible_) {
+    auto method_pair = id_map_.find(original);
+    if (method_pair != id_map_.end()) {
+      art::ArtMethod* res = obsolete_methods_->GetElementPtrSize<art::ArtMethod*>(
+          method_pair->second, art::kRuntimePointerSize);
+      DCHECK(res != nullptr);
+      DCHECK_EQ(original, res->GetNonObsoleteMethod());
+      return res;
+    } else {
+      return nullptr;
+    }
+  }
+
+  void RecordObsolete(art::ArtMethod* original, art::ArtMethod* obsolete)
+      REQUIRES(art::Locks::mutator_lock_, art::Roles::uninterruptible_) {
+    DCHECK(original != nullptr);
+    DCHECK(obsolete != nullptr);
+    int32_t slot = next_free_slot_++;
+    DCHECK_LT(slot, obsolete_methods_->GetLength());
+    DCHECK(nullptr ==
+           obsolete_methods_->GetElementPtrSize<art::ArtMethod*>(slot, art::kRuntimePointerSize));
+    DCHECK(nullptr == obsolete_dex_caches_->Get(slot));
+    obsolete_methods_->SetElementPtrSize(slot, obsolete, art::kRuntimePointerSize);
+    obsolete_dex_caches_->Set(slot, original_dex_cache_);
+    id_map_.insert({original, slot});
+  }
+
+  ObsoleteMap(art::ObjPtr<art::mirror::PointerArray> obsolete_methods,
+              art::ObjPtr<art::mirror::ObjectArray<art::mirror::DexCache>> obsolete_dex_caches,
+              art::ObjPtr<art::mirror::DexCache> original_dex_cache)
+      : next_free_slot_(0),
+        obsolete_methods_(obsolete_methods),
+        obsolete_dex_caches_(obsolete_dex_caches),
+        original_dex_cache_(original_dex_cache) {
+    // Figure out where the first unused slot in the obsolete_methods_ array is.
+    while (obsolete_methods_->GetElementPtrSize<art::ArtMethod*>(
+        next_free_slot_, art::kRuntimePointerSize) != nullptr) {
+      DCHECK(obsolete_dex_caches_->Get(next_free_slot_) != nullptr);
+      next_free_slot_++;
+    }
+    // Sanity check that the same slot in obsolete_dex_caches_ is free.
+    DCHECK(obsolete_dex_caches_->Get(next_free_slot_) == nullptr);
+  }
+
+ private:
+  int32_t next_free_slot_;
+  std::unordered_map<art::ArtMethod*, int32_t> id_map_;
+  // Pointers to the fields in mirror::ClassExt. These can be held as ObjPtr since this is only used
+  // when we have an exclusive mutator_lock_ (i.e. all threads are suspended).
+  art::ObjPtr<art::mirror::PointerArray> obsolete_methods_;
+  art::ObjPtr<art::mirror::ObjectArray<art::mirror::DexCache>> obsolete_dex_caches_;
+  art::ObjPtr<art::mirror::DexCache> original_dex_cache_;
+};
+
 // This visitor walks thread stacks and allocates and sets up the obsolete methods. It also does
 // some basic sanity checks that the obsolete method is sane.
 class ObsoleteMethodStackVisitor : public art::StackVisitor {
@@ -71,7 +131,7 @@ class ObsoleteMethodStackVisitor : public art::StackVisitor {
       art::Thread* thread,
       art::LinearAlloc* allocator,
       const std::unordered_set<art::ArtMethod*>& obsoleted_methods,
-      /*out*/std::unordered_map<art::ArtMethod*, art::ArtMethod*>* obsolete_maps)
+      ObsoleteMap* obsolete_maps)
         : StackVisitor(thread,
                        /*context*/nullptr,
                        StackVisitor::StackWalkKind::kIncludeInlinedFrames),
@@ -89,7 +149,7 @@ class ObsoleteMethodStackVisitor : public art::StackVisitor {
       art::Thread* thread,
       art::LinearAlloc* allocator,
       const std::unordered_set<art::ArtMethod*>& obsoleted_methods,
-      /*out*/std::unordered_map<art::ArtMethod*, art::ArtMethod*>* obsolete_maps)
+      ObsoleteMap* obsolete_maps)
         REQUIRES(art::Locks::mutator_lock_) {
     ObsoleteMethodStackVisitor visitor(thread,
                                        allocator,
@@ -99,6 +159,7 @@ class ObsoleteMethodStackVisitor : public art::StackVisitor {
   }
 
   bool VisitFrame() OVERRIDE REQUIRES(art::Locks::mutator_lock_) {
+    art::ScopedAssertNoThreadSuspension snts("Fixing up the stack for obsolete methods.");
     art::ArtMethod* old_method = GetMethod();
     if (obsoleted_methods_.find(old_method) != obsoleted_methods_.end()) {
       // We cannot ensure that the right dex file is used in inlined frames so we don't support
@@ -108,9 +169,8 @@ class ObsoleteMethodStackVisitor : public art::StackVisitor {
       // TODO We should really support redefining intrinsics.
       // We don't support intrinsics so check for them here.
       DCHECK(!old_method->IsIntrinsic());
-      art::ArtMethod* new_obsolete_method = nullptr;
-      auto obsolete_method_pair = obsolete_maps_->find(old_method);
-      if (obsolete_method_pair == obsolete_maps_->end()) {
+      art::ArtMethod* new_obsolete_method = obsolete_maps_->FindObsoleteVersion(old_method);
+      if (new_obsolete_method == nullptr) {
         // Create a new Obsolete Method and put it in the list.
         art::Runtime* runtime = art::Runtime::Current();
         art::ClassLinker* cl = runtime->GetClassLinker();
@@ -124,7 +184,7 @@ class ObsoleteMethodStackVisitor : public art::StackVisitor {
         DCHECK_EQ(new_obsolete_method->GetDeclaringClass(), old_method->GetDeclaringClass());
         new_obsolete_method->SetIsObsolete();
         new_obsolete_method->SetDontCompile();
-        obsolete_maps_->insert({old_method, new_obsolete_method});
+        obsolete_maps_->RecordObsolete(old_method, new_obsolete_method);
         // Update JIT Data structures to point to the new method.
         art::jit::Jit* jit = art::Runtime::Current()->GetJit();
         if (jit != nullptr) {
@@ -132,8 +192,6 @@ class ObsoleteMethodStackVisitor : public art::StackVisitor {
           // structures to keep track of the new obsolete method.
           jit->GetCodeCache()->MoveObsoleteMethod(old_method, new_obsolete_method);
         }
-      } else {
-        new_obsolete_method = obsolete_method_pair->second;
       }
       DCHECK(new_obsolete_method != nullptr);
       SetMethod(new_obsolete_method);
@@ -147,9 +205,9 @@ class ObsoleteMethodStackVisitor : public art::StackVisitor {
   // The set of all methods which could be obsoleted.
   const std::unordered_set<art::ArtMethod*>& obsoleted_methods_;
   // A map from the original to the newly allocated obsolete method for frames on this thread. The
-  // values in this map must be added to the obsolete_methods_ (and obsolete_dex_caches_) fields of
-  // the redefined classes ClassExt by the caller.
-  std::unordered_map<art::ArtMethod*, art::ArtMethod*>* obsolete_maps_;
+  // values in this map are added to the obsolete_methods_ (and obsolete_dex_caches_) fields of
+  // the redefined classes ClassExt as it is filled.
+  ObsoleteMap* obsolete_maps_;
 };
 
 jvmtiError Redefiner::IsModifiableClass(jvmtiEnv* env ATTRIBUTE_UNUSED,
@@ -426,11 +484,12 @@ art::mirror::ByteArray* Redefiner::ClassRedefinition::AllocateOrGetOriginalDexFi
 }
 
 struct CallbackCtx {
+  ObsoleteMap* obsolete_map;
   art::LinearAlloc* allocator;
-  std::unordered_map<art::ArtMethod*, art::ArtMethod*> obsolete_map;
   std::unordered_set<art::ArtMethod*> obsolete_methods;
 
-  explicit CallbackCtx(art::LinearAlloc* alloc) : allocator(alloc) {}
+  explicit CallbackCtx(ObsoleteMap* map, art::LinearAlloc* alloc)
+      : obsolete_map(map), allocator(alloc) {}
 };
 
 void DoAllocateObsoleteMethodsCallback(art::Thread* t, void* vdata) NO_THREAD_SAFETY_ANALYSIS {
@@ -438,7 +497,7 @@ void DoAllocateObsoleteMethodsCallback(art::Thread* t, void* vdata) NO_THREAD_SA
   ObsoleteMethodStackVisitor::UpdateObsoleteFrames(t,
                                                    data->allocator,
                                                    data->obsolete_methods,
-                                                   &data->obsolete_map);
+                                                   data->obsolete_map);
 }
 
 // This creates any ArtMethod* structures needed for obsolete methods and ensures that the stack is
@@ -449,9 +508,18 @@ void Redefiner::ClassRedefinition::FindAndAllocateObsoleteMethods(art::mirror::C
   art::mirror::ClassExt* ext = art_klass->GetExtData();
   CHECK(ext->GetObsoleteMethods() != nullptr);
   art::ClassLinker* linker = driver_->runtime_->GetClassLinker();
-  CallbackCtx ctx(linker->GetAllocatorForClassLoader(art_klass->GetClassLoader()));
+  // This holds pointers to the obsolete methods map fields which are updated as needed.
+  ObsoleteMap map(ext->GetObsoleteMethods(), ext->GetObsoleteDexCaches(), art_klass->GetDexCache());
+  CallbackCtx ctx(&map, linker->GetAllocatorForClassLoader(art_klass->GetClassLoader()));
   // Add all the declared methods to the map
   for (auto& m : art_klass->GetDeclaredMethods(art::kRuntimePointerSize)) {
+    // It is possible to simply filter out some methods where they cannot really become obsolete,
+    // such as native methods and keep their original (possibly optimized) implementations. We don't
+    // do this, however, since we would need to mark these functions (still in the classes
+    // declared_methods array) as obsolete so we will find the correct dex file to get meta-data
+    // from (for example about stack-frame size). Furthermore we would be unable to get some useful
+    // error checking from the interpreter which ensure we don't try to start executing obsolete
+    // methods.
     ctx.obsolete_methods.insert(&m);
     // TODO Allow this or check in IsModifiableClass.
     DCHECK(!m.IsIntrinsic());
@@ -460,36 +528,6 @@ void Redefiner::ClassRedefinition::FindAndAllocateObsoleteMethods(art::mirror::C
     art::MutexLock mu(driver_->self_, *art::Locks::thread_list_lock_);
     art::ThreadList* list = art::Runtime::Current()->GetThreadList();
     list->ForEach(DoAllocateObsoleteMethodsCallback, static_cast<void*>(&ctx));
-  }
-  FillObsoleteMethodMap(art_klass, ctx.obsolete_map);
-}
-
-// Fills the obsolete method map in the art_klass's extData. This is so obsolete methods are able to
-// figure out their DexCaches.
-void Redefiner::ClassRedefinition::FillObsoleteMethodMap(
-    art::mirror::Class* art_klass,
-    const std::unordered_map<art::ArtMethod*, art::ArtMethod*>& obsoletes) {
-  int32_t index = 0;
-  art::mirror::ClassExt* ext_data = art_klass->GetExtData();
-  art::mirror::PointerArray* obsolete_methods = ext_data->GetObsoleteMethods();
-  art::mirror::ObjectArray<art::mirror::DexCache>* obsolete_dex_caches =
-      ext_data->GetObsoleteDexCaches();
-  int32_t num_method_slots = obsolete_methods->GetLength();
-  // Find the first empty index.
-  for (; index < num_method_slots; index++) {
-    if (obsolete_methods->GetElementPtrSize<art::ArtMethod*>(
-          index, art::kRuntimePointerSize) == nullptr) {
-      break;
-    }
-  }
-  // Make sure we have enough space.
-  CHECK_GT(num_method_slots, static_cast<int32_t>(obsoletes.size() + index));
-  CHECK(obsolete_dex_caches->Get(index) == nullptr);
-  // Fill in the map.
-  for (auto& obs : obsoletes) {
-    obsolete_methods->SetElementPtrSize(index, obs.second, art::kRuntimePointerSize);
-    obsolete_dex_caches->Set(index, art_klass->GetDexCache());
-    index++;
   }
 }
 

@@ -685,6 +685,10 @@ void JitCodeCache::NotifyMethodRedefined(ArtMethod* method) {
 // shouldn't be used since it is no longer logically in the jit code cache.
 // TODO We should add DCHECKS that validate that the JIT is paused when this method is entered.
 void JitCodeCache::MoveObsoleteMethod(ArtMethod* old_method, ArtMethod* new_method) {
+  // Native methods have no profiling info and need no special handling from the JIT code cache.
+  if (old_method->IsNative()) {
+    return;
+  }
   MutexLock mu(Thread::Current(), lock_);
   // Update ProfilingInfo to the new one and remove it from the old_method.
   if (old_method->GetProfilingInfo(kRuntimePointerSize) != nullptr) {
