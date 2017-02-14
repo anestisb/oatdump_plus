@@ -237,16 +237,16 @@ TEST_F(OatFileAssistantTest, MultiDexOatUpToDate) {
   EXPECT_EQ(2u, dex_files.size());
 }
 
-// Case: We have a MultiDEX file where the secondary dex file is out of date.
+// Case: We have a MultiDEX file where the non-main multdex entry is out of date.
 // Expect: The status is kDex2OatNeeded.
-TEST_F(OatFileAssistantTest, MultiDexSecondaryOutOfDate) {
-  std::string dex_location = GetScratchDir() + "/MultiDexSecondaryOutOfDate.jar";
+TEST_F(OatFileAssistantTest, MultiDexNonMainOutOfDate) {
+  std::string dex_location = GetScratchDir() + "/MultiDexNonMainOutOfDate.jar";
 
   // Compile code for GetMultiDexSrc1.
   Copy(GetMultiDexSrc1(), dex_location);
   GenerateOatForTest(dex_location.c_str(), CompilerFilter::kSpeed);
 
-  // Now overwrite the dex file with GetMultiDexSrc2 so the secondary checksum
+  // Now overwrite the dex file with GetMultiDexSrc2 so the non-main checksum
   // is out of date.
   Copy(GetMultiDexSrc2(), dex_location);
 
@@ -254,6 +254,37 @@ TEST_F(OatFileAssistantTest, MultiDexSecondaryOutOfDate) {
   EXPECT_EQ(OatFileAssistant::kDex2OatFromScratch,
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed, false));
   EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
+}
+
+// Case: We have a stripped MultiDEX file where the non-main multidex entry is
+// out of date with respect to the odex file.
+TEST_F(OatFileAssistantTest, StrippedMultiDexNonMainOutOfDate) {
+  std::string dex_location = GetScratchDir() + "/StrippedMultiDexNonMainOutOfDate.jar";
+  std::string odex_location = GetOdexDir() + "/StrippedMultiDexNonMainOutOfDate.odex";
+
+  // Compile the oat from GetMultiDexSrc1.
+  Copy(GetMultiDexSrc1(), dex_location);
+  GenerateOatForTest(dex_location.c_str(), CompilerFilter::kSpeed);
+
+  // Compile the odex from GetMultiDexSrc2, which has a different non-main
+  // dex checksum.
+  Copy(GetMultiDexSrc2(), dex_location);
+  GenerateOdexForTest(dex_location, odex_location, CompilerFilter::kInterpretOnly);
+
+  // Strip the dex file.
+  Copy(GetStrippedDexSrc1(), dex_location);
+
+  OatFileAssistant oat_file_assistant(dex_location.c_str(), kRuntimeISA, /*load_executable*/false);
+
+  // Because the dex file is stripped, the odex file is considered the source
+  // of truth for the dex checksums. The oat file should be considered
+  // unusable.
+  std::unique_ptr<OatFile> best_file = oat_file_assistant.GetBestOatFile();
+  ASSERT_TRUE(best_file.get() != nullptr);
+  EXPECT_EQ(best_file->GetLocation(), odex_location);
+  EXPECT_FALSE(oat_file_assistant.HasOriginalDexFiles());
+  EXPECT_EQ(OatFileAssistant::kOatUpToDate, oat_file_assistant.OdexFileStatus());
+  EXPECT_EQ(OatFileAssistant::kOatDexOutOfDate, oat_file_assistant.OatFileStatus());
 }
 
 // Case: We have a MultiDEX file and up-to-date OAT file for it with relative
@@ -336,16 +367,16 @@ TEST_F(OatFileAssistantTest, VdexDexOutOfDate) {
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
 }
 
-// Case: We have a MultiDEX (ODEX) VDEX file where the secondary dex file is
-// out of date and there is no corresponding ODEX file.
-TEST_F(OatFileAssistantTest, VdexMultiDexSecondaryOutOfDate) {
+// Case: We have a MultiDEX (ODEX) VDEX file where the non-main multidex entry
+// is out of date and there is no corresponding ODEX file.
+TEST_F(OatFileAssistantTest, VdexMultiDexNonMainOutOfDate) {
   // This test case is only meaningful if vdex is enabled.
   if (!kIsVdexEnabled) {
     return;
   }
 
-  std::string dex_location = GetScratchDir() + "/VdexMultiDexSecondaryOutOfDate.jar";
-  std::string oat_location = GetOdexDir() + "/VdexMultiDexSecondaryOutOfDate.oat";
+  std::string dex_location = GetScratchDir() + "/VdexMultiDexNonMainOutOfDate.jar";
+  std::string oat_location = GetOdexDir() + "/VdexMultiDexNonMainOutOfDate.oat";
 
   Copy(GetMultiDexSrc1(), dex_location);
   GenerateOdexForTest(dex_location, oat_location, CompilerFilter::kSpeed);

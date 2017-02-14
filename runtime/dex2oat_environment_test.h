@@ -53,7 +53,7 @@ class Dex2oatEnvironmentTest : public CommonRuntimeTest {
     ASSERT_EQ(0, mkdir(odex_dir_.c_str(), 0700));
 
     // Verify the environment is as we expect
-    uint32_t checksum;
+    std::vector<uint32_t> checksums;
     std::string error_msg;
     ASSERT_TRUE(OS::FileExists(GetSystemImageFile().c_str()))
       << "Expected pre-compiled boot image to be at: " << GetSystemImageFile();
@@ -61,7 +61,7 @@ class Dex2oatEnvironmentTest : public CommonRuntimeTest {
       << "Expected dex file to be at: " << GetDexSrc1();
     ASSERT_TRUE(OS::FileExists(GetStrippedDexSrc1().c_str()))
       << "Expected stripped dex file to be at: " << GetStrippedDexSrc1();
-    ASSERT_FALSE(DexFile::GetChecksum(GetStrippedDexSrc1().c_str(), &checksum, &error_msg))
+    ASSERT_FALSE(DexFile::GetMultiDexChecksums(GetStrippedDexSrc1().c_str(), &checksums, &error_msg))
       << "Expected stripped dex file to be stripped: " << GetStrippedDexSrc1();
     ASSERT_TRUE(OS::FileExists(GetDexSrc2().c_str()))
       << "Expected dex file to be at: " << GetDexSrc2();
