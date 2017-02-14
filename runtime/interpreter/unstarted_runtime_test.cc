@@ -1039,5 +1039,50 @@ TEST_F(UnstartedRuntimeTest, FloatConversion) {
   ShadowFrame::DeleteDeoptimizedFrame(shadow_frame);
 }
 
+TEST_F(UnstartedRuntimeTest, ThreadCurrentThread) {
+  Thread* self = Thread::Current();
+  ScopedObjectAccess soa(self);
+
+  JValue result;
+  ShadowFrame* shadow_frame = ShadowFrame::CreateDeoptimizedFrame(10, nullptr, nullptr, 0);
+
+  StackHandleScope<1> hs(self);
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Handle<mirror::Class> thread_class = hs.NewHandle(
+      class_linker->FindClass(self, "Ljava/lang/Thread;", ScopedNullHandle<mirror::ClassLoader>()));
+  ASSERT_TRUE(thread_class.Get() != nullptr);
+  ASSERT_TRUE(class_linker->EnsureInitialized(self, thread_class, true, true));
+
+  // Negative test. In general, currentThread should fail (as we should not leak a peer that will
+  // be recreated at runtime).
+  PrepareForAborts();
+
+  {
+    Transaction transaction;
+    Runtime::Current()->EnterTransactionMode(&transaction);
+    UnstartedThreadCurrentThread(self, shadow_frame, &result, 0);
+    Runtime::Current()->ExitTransactionMode();
+    ASSERT_TRUE(self->IsExceptionPending());
+    ASSERT_TRUE(transaction.IsAborted());
+    self->ClearException();
+  }
+
+  ShadowFrame::DeleteDeoptimizedFrame(shadow_frame);
+}
+
+TEST_F(UnstartedRuntimeTest, LogManager) {
+  Thread* self = Thread::Current();
+  ScopedObjectAccess soa(self);
+
+  StackHandleScope<1> hs(self);
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Handle<mirror::Class> log_manager_class = hs.NewHandle(
+          class_linker->FindClass(self,
+                                  "Ljava/util/logging/LogManager;",
+                                  ScopedNullHandle<mirror::ClassLoader>()));
+  ASSERT_TRUE(log_manager_class.Get() != nullptr);
+  ASSERT_TRUE(class_linker->EnsureInitialized(self, log_manager_class, true, true));
+}
+
 }  // namespace interpreter
 }  // namespace art

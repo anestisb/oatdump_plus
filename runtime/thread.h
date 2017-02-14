@@ -1173,6 +1173,12 @@ class Thread {
     return false;
   }
 
+  static jobject CreateCompileTimePeer(JNIEnv* env,
+                                       const char* name,
+                                       bool as_daemon,
+                                       jobject thread_group)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
  private:
   explicit Thread(bool daemon);
   ~Thread() REQUIRES(!Locks::mutator_lock_, !Locks::thread_suspend_count_lock_);
@@ -1188,8 +1194,12 @@ class Thread {
   void CreatePeer(const char* name, bool as_daemon, jobject thread_group);
 
   template<bool kTransactionActive>
-  void InitPeer(ScopedObjectAccess& soa, jboolean thread_is_daemon, jobject thread_group,
-                jobject thread_name, jint thread_priority)
+  static void InitPeer(ScopedObjectAccessAlreadyRunnable& soa,
+                       ObjPtr<mirror::Object> peer,
+                       jboolean thread_is_daemon,
+                       jobject thread_group,
+                       jobject thread_name,
+                       jint thread_priority)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Avoid use, callers should use SetState. Used only by SignalCatcher::HandleSigQuit, ~Thread and

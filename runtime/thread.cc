@@ -880,9 +880,19 @@ void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) 
     // available (in the compiler, in tests), we manually assign the
     // fields the constructor should have set.
     if (runtime->IsActiveTransaction()) {
-      InitPeer<true>(soa, thread_is_daemon, thread_group, thread_name.get(), thread_priority);
+      InitPeer<true>(soa,
+                     tlsPtr_.opeer,
+                     thread_is_daemon,
+                     thread_group,
+                     thread_name.get(),
+                     thread_priority);
     } else {
-      InitPeer<false>(soa, thread_is_daemon, thread_group, thread_name.get(), thread_priority);
+      InitPeer<false>(soa,
+                      tlsPtr_.opeer,
+                      thread_is_daemon,
+                      thread_group,
+                      thread_name.get(),
+                      thread_priority);
     }
     peer_thread_name.Assign(GetThreadName());
   }
@@ -892,17 +902,72 @@ void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) 
   }
 }
 
+jobject Thread::CreateCompileTimePeer(JNIEnv* env,
+                                      const char* name,
+                                      bool as_daemon,
+                                      jobject thread_group) {
+  Runtime* runtime = Runtime::Current();
+  CHECK(!runtime->IsStarted());
+
+  if (thread_group == nullptr) {
+    thread_group = runtime->GetMainThreadGroup();
+  }
+  ScopedLocalRef<jobject> thread_name(env, env->NewStringUTF(name));
+  // Add missing null check in case of OOM b/18297817
+  if (name != nullptr && thread_name.get() == nullptr) {
+    CHECK(Thread::Current()->IsExceptionPending());
+    return nullptr;
+  }
+  jint thread_priority = GetNativePriority();
+  jboolean thread_is_daemon = as_daemon;
+
+  ScopedLocalRef<jobject> peer(env, env->AllocObject(WellKnownClasses::java_lang_Thread));
+  if (peer.get() == nullptr) {
+    CHECK(Thread::Current()->IsExceptionPending());
+    return nullptr;
+  }
+
+  // We cannot call Thread.init, as it will recursively ask for currentThread.
+
+  // The Thread constructor should have set the Thread.name to a
+  // non-null value. However, because we can run without code
+  // available (in the compiler, in tests), we manually assign the
+  // fields the constructor should have set.
+  ScopedObjectAccessUnchecked soa(Thread::Current());
+  if (runtime->IsActiveTransaction()) {
+    InitPeer<true>(soa,
+                   soa.Decode<mirror::Object>(peer.get()),
+                   thread_is_daemon,
+                   thread_group,
+                   thread_name.get(),
+                   thread_priority);
+  } else {
+    InitPeer<false>(soa,
+                    soa.Decode<mirror::Object>(peer.get()),
+                    thread_is_daemon,
+                    thread_group,
+                    thread_name.get(),
+                    thread_priority);
+  }
+
+  return peer.release();
+}
+
 template<bool kTransactionActive>
-void Thread::InitPeer(ScopedObjectAccess& soa, jboolean thread_is_daemon, jobject thread_group,
-                      jobject thread_name, jint thread_priority) {
+void Thread::InitPeer(ScopedObjectAccessAlreadyRunnable& soa,
+                      ObjPtr<mirror::Object> peer,
+                      jboolean thread_is_daemon,
+                      jobject thread_group,
+                      jobject thread_name,
+                      jint thread_priority) {
   jni::DecodeArtField(WellKnownClasses::java_lang_Thread_daemon)->
-      SetBoolean<kTransactionActive>(tlsPtr_.opeer, thread_is_daemon);
+      SetBoolean<kTransactionActive>(peer, thread_is_daemon);
   jni::DecodeArtField(WellKnownClasses::java_lang_Thread_group)->
-      SetObject<kTransactionActive>(tlsPtr_.opeer, soa.Decode<mirror::Object>(thread_group));
+      SetObject<kTransactionActive>(peer, soa.Decode<mirror::Object>(thread_group));
   jni::DecodeArtField(WellKnownClasses::java_lang_Thread_name)->
-      SetObject<kTransactionActive>(tlsPtr_.opeer, soa.Decode<mirror::Object>(thread_name));
+      SetObject<kTransactionActive>(peer, soa.Decode<mirror::Object>(thread_name));
   jni::DecodeArtField(WellKnownClasses::java_lang_Thread_priority)->
-      SetInt<kTransactionActive>(tlsPtr_.opeer, thread_priority);
+      SetInt<kTransactionActive>(peer, thread_priority);
 }
 
 void Thread::SetThreadName(const char* name) {
