@@ -1187,6 +1187,7 @@ static void GenUnsafeGet(HInvoke* invoke,
 
     case Primitive::kPrimNot:
       __ Lwu(trg, TMP, 0);
+      __ MaybeUnpoisonHeapReference(trg);
       break;
 
     case Primitive::kPrimLong:
@@ -1285,7 +1286,12 @@ static void GenUnsafePut(LocationSummary* locations,
   switch (type) {
     case Primitive::kPrimInt:
     case Primitive::kPrimNot:
-      __ Sw(value, TMP, 0);
+      if (kPoisonHeapReferences && type == Primitive::kPrimNot) {
+        __ PoisonHeapReference(AT, value);
+        __ Sw(AT, TMP, 0);
+      } else {
+        __ Sw(value, TMP, 0);
+      }
       break;
 
     case Primitive::kPrimLong:
@@ -1454,13 +1460,23 @@ static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGenerat
     codegen->MarkGCCard(base, value, value_can_be_null);
   }
 
+  Mips64Label loop_head, exit_loop;
+  __ Daddu(TMP, base, offset);
+
+  if (kPoisonHeapReferences && type == Primitive::kPrimNot) {
+    __ PoisonHeapReference(expected);
+    // Do not poison `value`, if it is the same register as
+    // `expected`, which has just been poisoned.
+    if (value != expected) {
+      __ PoisonHeapReference(value);
+    }
+  }
+
   // do {
   //   tmp_value = [tmp_ptr] - expected;
   // } while (tmp_value == 0 && failure([tmp_ptr] <- r_new_value));
   // result = tmp_value != 0;
 
-  Mips64Label loop_head, exit_loop;
-  __ Daddu(TMP, base, offset);
   __ Sync(0);
   __ Bind(&loop_head);
   if (type == Primitive::kPrimLong) {
@@ -1469,6 +1485,11 @@ static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGenerat
     // Note: We will need a read barrier here, when read barrier
     // support is added to the MIPS64 back end.
     __ Ll(out, TMP);
+    if (type == Primitive::kPrimNot) {
+      // The LL instruction sign-extends the 32-bit value, but
+      // 32-bit references must be zero-extended. Zero-extend `out`.
+      __ Dext(out, out, 0, 32);
+    }
   }
   __ Dsubu(out, out, expected);         // If we didn't get the 'expected'
   __ Sltiu(out, out, 1);                // value, set 'out' to false, and
@@ -1487,6 +1508,15 @@ static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGenerat
                                 // cycle atomically then retry.
   __ Bind(&exit_loop);
   __ Sync(0);
+
+  if (kPoisonHeapReferences && type == Primitive::kPrimNot) {
+    __ UnpoisonHeapReference(expected);
+    // Do not unpoison `value`, if it is the same register as
+    // `expected`, which has just been unpoisoned.
+    if (value != expected) {
+      __ UnpoisonHeapReference(value);
+    }
+  }
 }
 
 // boolean sun.misc.Unsafe.compareAndSwapInt(Object o, long offset, int expected, int x)

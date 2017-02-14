@@ -727,6 +727,38 @@ class MipsAssembler FINAL : public Assembler, public JNIMacroAssembler<PointerSi
   void Pop(Register rd);
   void PopAndReturn(Register rd, Register rt);
 
+  //
+  // Heap poisoning.
+  //
+
+  // Poison a heap reference contained in `src` and store it in `dst`.
+  void PoisonHeapReference(Register dst, Register src) {
+    // dst = -src.
+    Subu(dst, ZERO, src);
+  }
+  // Poison a heap reference contained in `reg`.
+  void PoisonHeapReference(Register reg) {
+    // reg = -reg.
+    PoisonHeapReference(reg, reg);
+  }
+  // Unpoison a heap reference contained in `reg`.
+  void UnpoisonHeapReference(Register reg) {
+    // reg = -reg.
+    Subu(reg, ZERO, reg);
+  }
+  // Poison a heap reference contained in `reg` if heap poisoning is enabled.
+  void MaybePoisonHeapReference(Register reg) {
+    if (kPoisonHeapReferences) {
+      PoisonHeapReference(reg);
+    }
+  }
+  // Unpoison a heap reference contained in `reg` if heap poisoning is enabled.
+  void MaybeUnpoisonHeapReference(Register reg) {
+    if (kPoisonHeapReferences) {
+      UnpoisonHeapReference(reg);
+    }
+  }
+
   void Bind(Label* label) OVERRIDE {
     Bind(down_cast<MipsLabel*>(label));
   }
