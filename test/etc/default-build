@@ -73,6 +73,7 @@ JACK_EXPERIMENTAL_ARGS["agents"]="-D jack.java.source.version=1.8 -D jack.androi
 JACK_EXPERIMENTAL_ARGS["default-methods"]="-D jack.java.source.version=1.8 -D jack.android.min-api-level=24"
 JACK_EXPERIMENTAL_ARGS["lambdas"]="-D jack.java.source.version=1.8 -D jack.android.min-api-level=24"
 JACK_EXPERIMENTAL_ARGS["method-handles"]="-D jack.java.source.version=1.7 -D jack.android.min-api-level=o-b1"
+JACK_EXPERIMENTAL_ARGS["java-8"]="-D jack.java.source.version=1.8 -D jack.android.min-api-level=24"
 
 declare -A SMALI_EXPERIMENTAL_ARGS
 SMALI_EXPERIMENTAL_ARGS["default-methods"]="--api-level 24"
