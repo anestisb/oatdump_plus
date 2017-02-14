@@ -155,12 +155,6 @@ class Redefiner {
     void FindAndAllocateObsoleteMethods(art::mirror::Class* art_klass)
         REQUIRES(art::Locks::mutator_lock_);
 
-    void FillObsoleteMethodMap(
-        art::mirror::Class* art_klass,
-        const std::unordered_map<art::ArtMethod*, art::ArtMethod*>& obsoletes)
-          REQUIRES(art::Locks::mutator_lock_);
-
-
     // Checks that the dex file contains only the single expected class and that the top-level class
     // data has not been modified in an incompatible manner.
     bool CheckClass() REQUIRES_SHARED(art::Locks::mutator_lock_);
