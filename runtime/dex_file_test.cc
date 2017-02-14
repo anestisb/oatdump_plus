@@ -326,12 +326,32 @@ TEST_F(DexFileTest, GetLocationChecksum) {
 }
 
 TEST_F(DexFileTest, GetChecksum) {
-  uint32_t checksum;
+  std::vector<uint32_t> checksums;
   ScopedObjectAccess soa(Thread::Current());
   std::string error_msg;
-  EXPECT_TRUE(DexFile::GetChecksum(GetLibCoreDexFileNames()[0].c_str(), &checksum, &error_msg))
+  EXPECT_TRUE(DexFile::GetMultiDexChecksums(GetLibCoreDexFileNames()[0].c_str(), &checksums, &error_msg))
       << error_msg;
-  EXPECT_EQ(java_lang_dex_file_->GetLocationChecksum(), checksum);
+  ASSERT_EQ(1U, checksums.size());
+  EXPECT_EQ(java_lang_dex_file_->GetLocationChecksum(), checksums[0]);
+}
+
+TEST_F(DexFileTest, GetMultiDexChecksums) {
+  std::string error_msg;
+  std::vector<uint32_t> checksums;
+  std::string multidex_file = GetTestDexFileName("MultiDex");
+  EXPECT_TRUE(DexFile::GetMultiDexChecksums(multidex_file.c_str(),
+                                            &checksums,
+                                            &error_msg)) << error_msg;
+
+  std::vector<std::unique_ptr<const DexFile>> dexes = OpenTestDexFiles("MultiDex");
+  ASSERT_EQ(2U, dexes.size());
+  ASSERT_EQ(2U, checksums.size());
+
+  EXPECT_EQ(dexes[0]->GetLocation(), DexFile::GetMultiDexLocation(0, multidex_file.c_str()));
+  EXPECT_EQ(dexes[0]->GetLocationChecksum(), checksums[0]);
+
+  EXPECT_EQ(dexes[1]->GetLocation(), DexFile::GetMultiDexLocation(1, multidex_file.c_str()));
+  EXPECT_EQ(dexes[1]->GetLocationChecksum(), checksums[1]);
 }
 
 TEST_F(DexFileTest, ClassDefs) {

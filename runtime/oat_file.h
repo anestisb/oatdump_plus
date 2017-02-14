@@ -290,15 +290,6 @@ class OatFile {
   // Create a dependency list (dex locations and checksums) for the given dex files.
   static std::string EncodeDexFileDependencies(const std::vector<const DexFile*>& dex_files);
 
-  // Check the given dependency list against their dex files - thus the name "Static," this does
-  // not check the class-loader environment, only whether there have been file updates.
-  static bool CheckStaticDexFileDependencies(const char* dex_dependencies, std::string* msg);
-
-  // Get the dex locations of a dependency list. Note: this is *not* cleaned for synthetic
-  // locations of multidex files.
-  static bool GetDexLocationsFromDependencies(const char* dex_dependencies,
-                                              std::vector<std::string>* locations);
-
   // Finds the associated oat class for a dex_file and descriptor. Returns an invalid OatClass on
   // error and sets found to false.
   static OatClass FindOatClass(const DexFile& dex_file, uint16_t class_def_idx, bool* found);
