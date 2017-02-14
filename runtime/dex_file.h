@@ -264,11 +264,11 @@ class DexFile {
 
   // MethodHandle Types
   enum class MethodHandleType : uint16_t {  // private
-    kPutStatic         = 0x0000,  // a setter for a given static field.
-    kGetStatic         = 0x0001,  // a getter for a given static field.
-    kPutInstance       = 0x0002,  // a setter for a given instance field.
-    kGetInstance       = 0x0003,  // a getter for a given instance field.
-    kInvokeStatic      = 0x0004,  // an invoker for a given static method
+    kStaticPut         = 0x0000,  // a setter for a given static field.
+    kStaticGet         = 0x0001,  // a getter for a given static field.
+    kInstancePut       = 0x0002,  // a setter for a given instance field.
+    kInstanceGet       = 0x0003,  // a getter for a given instance field.
+    kInvokeStatic      = 0x0004,  // an invoker for a given static method.
     kInvokeInstance    = 0x0005,  // invoke_instance : an invoker for a given instance method. This
                                   // can be any non-static method on any class (or interface) except
                                   // for “<init>”.
@@ -279,9 +279,9 @@ class DexFile {
   // raw method_handle_item
   struct MethodHandleItem {
     uint16_t method_handle_type_;
-    uint16_t reserved1_;  // Reserved for future use.
-    uint16_t field_or_method_idx_;
-    uint16_t reserved2_;  // Reserved for future use.
+    uint16_t reserved1_;            // Reserved for future use.
+    uint16_t field_or_method_idx_;  // Field index for accessors, method index otherwise.
+    uint16_t reserved2_;            // Reserved for future use.
    private:
     DISALLOW_COPY_AND_ASSIGN(MethodHandleItem);
   };
@@ -727,6 +727,20 @@ class DexFile {
 
   uint32_t NumMethodHandles() const {
     return num_method_handles_;
+  }
+
+  const MethodHandleItem& GetMethodHandle(uint32_t idx) const {
+    CHECK_LT(idx, NumMethodHandles());
+    return method_handles_[idx];
+  }
+
+  uint32_t NumCallSiteIds() const {
+    return num_call_site_ids_;
+  }
+
+  const CallSiteIdItem& GetCallSiteId(uint32_t idx) const {
+    CHECK_LT(idx, NumCallSiteIds());
+    return call_site_ids_[idx];
   }
 
   // Returns a pointer to the raw memory mapped class_data_item

@@ -2254,6 +2254,14 @@ void ImageWriter::FixupDexCache(mirror::DexCache* orig_dex_cache,
     orig_dex_cache->FixupResolvedMethodTypes(NativeCopyLocation(orig_method_types, orig_dex_cache),
                                              ImageAddressVisitor(this));
   }
+  GcRoot<mirror::CallSite>* orig_call_sites = orig_dex_cache->GetResolvedCallSites();
+  if (orig_call_sites != nullptr) {
+    copy_dex_cache->SetFieldPtrWithSize<false>(mirror::DexCache::ResolvedCallSitesOffset(),
+                                               NativeLocationInImage(orig_call_sites),
+                                               PointerSize::k64);
+    orig_dex_cache->FixupResolvedCallSites(NativeCopyLocation(orig_call_sites, orig_dex_cache),
+                                           ImageAddressVisitor(this));
+  }
 
   // Remove the DexFile pointers. They will be fixed up when the runtime loads the oat file. Leaving
   // compiler pointers in here will make the output non-deterministic.

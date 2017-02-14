@@ -56,6 +56,14 @@ void ThrowArrayStoreException(ObjPtr<mirror::Class> element_class,
                               ObjPtr<mirror::Class> array_class)
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
+// BootstrapMethodError
+
+void ThrowBootstrapMethodError(const char* fmt, ...)
+    REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
+
+void ThrowWrappedBootstrapMethodError(const char* fmt, ...)
+    REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
+
 // ClassCircularityError
 
 void ThrowClassCircularityError(ObjPtr<mirror::Class> c)
@@ -236,7 +244,7 @@ void ThrowVerifyError(ObjPtr<mirror::Class> referrer, const char* fmt, ...)
     __attribute__((__format__(__printf__, 2, 3)))
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
-// WrontMethodTypeException
+// WrongMethodTypeException
 void ThrowWrongMethodTypeException(mirror::MethodType* callee_type,
                                    mirror::MethodType* callsite_type)
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;

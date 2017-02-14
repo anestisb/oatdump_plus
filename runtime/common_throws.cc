@@ -126,6 +126,22 @@ void ThrowArrayStoreException(ObjPtr<mirror::Class> element_class,
                               mirror::Class::PrettyDescriptor(array_class).c_str()).c_str());
 }
 
+// BootstrapMethodError
+
+void ThrowBootstrapMethodError(const char* fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  ThrowException("Ljava/lang/BootstrapMethodError;", nullptr, fmt, &args);
+  va_end(args);
+}
+
+void ThrowWrappedBootstrapMethodError(const char* fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  ThrowWrappedException("Ljava/lang/BootstrapMethodError;", nullptr, fmt, &args);
+  va_end(args);
+}
+
 // ClassCastException
 
 void ThrowClassCastException(ObjPtr<mirror::Class> dest_type, ObjPtr<mirror::Class> src_type) {

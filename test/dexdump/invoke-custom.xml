@@ -1,0 +1,89 @@
+<api>
+<package name="com.android.jack.java7.invokecustom.test004"
+>
+<class name="Tests"
+ extends="java.lang.Object"
+ interface="false"
+ abstract="false"
+ static="false"
+ final="false"
+ visibility="public"
+>
+<field name="fieldCallSite"
+ type="java.lang.invoke.CallSite"
+ transient="false"
+ volatile="false"
+ static="true"
+ final="false"
+ visibility="public"
+>
+</field>
+<constructor name="Tests"
+ type="com.android.jack.java7.invokecustom.test004.Tests"
+ static="false"
+ final="false"
+ visibility="public"
+>
+</constructor>
+<method name="main"
+ return="void"
+ abstract="false"
+ native="false"
+ synchronized="false"
+ static="true"
+ final="false"
+ visibility="public"
+>
+<parameter name="arg0" type="java.lang.String[]">
+</parameter>
+</method>
+<method name="test"
+ return="void"
+ abstract="false"
+ native="false"
+ synchronized="false"
+ static="false"
+ final="false"
+ visibility="public"
+>
+</method>
+</class>
+<method_handle index="0"
+ type="invoke-static"
+ target_class="Lcom/android/jack/java7/invokecustom/test004/Tests;"
+ target_member="linkerMethod"
+ target_member_type="(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/MethodType;ZBCSIFDLjava/lang/String;Ljava/lang/Class;J)Ljava/lang/invoke/CallSite;"
+>
+</method_handle>
+<call_site index="0">
+<link_argument index="0" type="MethodHandle" value="0"/>
+<link_argument index="1" type="String" values="add"/>
+<link_argument index="2" type="MethodType" value="(II)I"/>
+<link_argument index="3" type="int" value="1"/>
+<link_argument index="4" type="int" value="1"/>
+<link_argument index="5" type="int" value="97"/>
+<link_argument index="6" type="int" value="1024"/>
+<link_argument index="7" type="int" value="1"/>
+<link_argument index="8" type="float" value="11.1"/>
+<link_argument index="9" type="double" value="2.2"/>
+<link_argument index="10" type="String" value="Hello"/>
+<link_argument index="11" type="Class" value="Tests"/>
+<link_argument index="12" type="long" value="123456789"/>
+</call_site>
+<call_site index="1">
+<link_argument index="0" type="MethodHandle" value="0"/>
+<link_argument index="1" type="String" values="add"/>
+<link_argument index="2" type="MethodType" value="(II)I"/>
+<link_argument index="3" type="int" value="1"/>
+<link_argument index="4" type="int" value="1"/>
+<link_argument index="5" type="int" value="97"/>
+<link_argument index="6" type="int" value="1024"/>
+<link_argument index="7" type="int" value="1"/>
+<link_argument index="8" type="float" value="11.1"/>
+<link_argument index="9" type="double" value="2.2"/>
+<link_argument index="10" type="String" value="Hello"/>
+<link_argument index="11" type="Class" value="Tests"/>
+<link_argument index="12" type="long" value="123456789"/>
+</call_site>
+</package>
+</api>

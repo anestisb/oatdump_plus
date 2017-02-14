@@ -688,6 +688,16 @@ void PatchOat::PatchDexFileArrays(mirror::ObjectArray<mirror::Object>* img_roots
       orig_dex_cache->FixupResolvedMethodTypes(RelocatedCopyOf(orig_method_types),
                                                RelocatedPointerVisitor(this));
     }
+
+    GcRoot<mirror::CallSite>* orig_call_sites = orig_dex_cache->GetResolvedCallSites();
+    GcRoot<mirror::CallSite>* relocated_call_sites = RelocatedAddressOfPointer(orig_call_sites);
+    copy_dex_cache->SetField64<false>(
+        mirror::DexCache::ResolvedCallSitesOffset(),
+        static_cast<int64_t>(reinterpret_cast<uintptr_t>(relocated_call_sites)));
+    if (orig_call_sites != nullptr) {
+      orig_dex_cache->FixupResolvedCallSites(RelocatedCopyOf(orig_call_sites),
+                                             RelocatedPointerVisitor(this));
+    }
   }
 }
 
