@@ -874,13 +874,9 @@ void StackVisitor::WalkStack(bool include_transitions) {
               CHECK_EQ(GetMethod(), callee) << "Expected: " << ArtMethod::PrettyMethod(callee)
                                             << " Found: " << ArtMethod::PrettyMethod(GetMethod());
             } else {
-              // Instrumentation generally doesn't distinguish between a method's obsolete and
-              // non-obsolete version.
-              CHECK_EQ(instrumentation_frame.method_->GetNonObsoleteMethod(),
-                       GetMethod()->GetNonObsoleteMethod())
-                  << "Expected: "
-                  << ArtMethod::PrettyMethod(instrumentation_frame.method_->GetNonObsoleteMethod())
-                  << " Found: " << ArtMethod::PrettyMethod(GetMethod()->GetNonObsoleteMethod());
+              CHECK_EQ(instrumentation_frame.method_, GetMethod())
+                  << "Expected: " << ArtMethod::PrettyMethod(instrumentation_frame.method_)
+                  << " Found: " << ArtMethod::PrettyMethod(GetMethod());
             }
             if (num_frames_ != 0) {
               // Check agreement of frame Ids only if num_frames_ is computed to avoid infinite
@@ -907,7 +903,7 @@ void StackVisitor::WalkStack(bool include_transitions) {
               << " native=" << method->IsNative()
               << std::noboolalpha
               << " entrypoints=" << method->GetEntryPointFromQuickCompiledCode()
-              << "," << (method->IsNative() ? method->GetEntryPointFromJni() : nullptr)
+              << "," << method->GetEntryPointFromJni()
               << " next=" << *cur_quick_frame_;
         }
 
