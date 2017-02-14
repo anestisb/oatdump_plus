@@ -408,4 +408,23 @@ TEST_F(UtilsTest, IsValidDescriptor) {
       IsValidDescriptor(reinterpret_cast<char*>(&unpaired_surrogate_with_multibyte_sequence[0])));
 }
 
+TEST_F(UtilsTest, ArrayCount) {
+  int i[64];
+  EXPECT_EQ(ArrayCount(i), 64u);
+  char c[7];
+  EXPECT_EQ(ArrayCount(c), 7u);
+}
+
+TEST_F(UtilsTest, BoundsCheckedCast) {
+  char buffer[64];
+  const char* buffer_end = buffer + ArrayCount(buffer);
+  EXPECT_EQ(BoundsCheckedCast<const uint64_t*>(nullptr, buffer, buffer_end), nullptr);
+  EXPECT_EQ(BoundsCheckedCast<const uint64_t*>(buffer, buffer, buffer_end),
+            reinterpret_cast<const uint64_t*>(buffer));
+  EXPECT_EQ(BoundsCheckedCast<const uint64_t*>(buffer + 56, buffer, buffer_end),
+            reinterpret_cast<const uint64_t*>(buffer + 56));
+  EXPECT_EQ(BoundsCheckedCast<const uint64_t*>(buffer - 1, buffer, buffer_end), nullptr);
+  EXPECT_EQ(BoundsCheckedCast<const uint64_t*>(buffer + 57, buffer, buffer_end), nullptr);
+}
+
 }  // namespace art

@@ -2435,8 +2435,8 @@ extern "C" uintptr_t artInvokePolymorphic(
 
   // Wrap raw_method_handle in a Handle for safety.
   StackHandleScope<5> hs(self);
-  Handle<mirror::MethodHandleImpl> method_handle(
-      hs.NewHandle(ObjPtr<mirror::MethodHandleImpl>::DownCast(MakeObjPtr(raw_method_handle))));
+  Handle<mirror::MethodHandle> method_handle(
+      hs.NewHandle(ObjPtr<mirror::MethodHandle>::DownCast(MakeObjPtr(raw_method_handle))));
   raw_method_handle = nullptr;
   self->EndAssertNoThreadSuspension(old_cause);
 
@@ -2497,15 +2497,14 @@ extern "C" uintptr_t artInvokePolymorphic(
   // consecutive order.
   uint32_t unused_args[Instruction::kMaxVarArgRegs] = {};
   uint32_t first_callee_arg = first_arg + 1;
-  const bool do_assignability_check = false;
-  if (!DoInvokePolymorphic<true /* is_range */, do_assignability_check>(self,
-                                                                        resolved_method,
-                                                                        *shadow_frame,
-                                                                        method_handle,
-                                                                        method_type,
-                                                                        unused_args,
-                                                                        first_callee_arg,
-                                                                        result)) {
+  if (!DoInvokePolymorphic<true /* is_range */>(self,
+                                                resolved_method,
+                                                *shadow_frame,
+                                                method_handle,
+                                                method_type,
+                                                unused_args,
+                                                first_callee_arg,
+                                                result)) {
     DCHECK(self->IsExceptionPending());
   }
 

@@ -28,6 +28,18 @@ mirror::Class* MethodHandle::StaticClass() {
   return klass;
 }
 
+void MethodHandle::Initialize(uintptr_t art_field_or_method,
+                              Kind kind,
+                              Handle<MethodType> method_type)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  CHECK(!Runtime::Current()->IsActiveTransaction());
+  SetFieldObject<false>(CachedSpreadInvokerOffset(), nullptr);
+  SetFieldObject<false>(NominalTypeOffset(), nullptr);
+  SetFieldObject<false>(MethodTypeOffset(), method_type.Get());
+  SetField32<false>(HandleKindOffset(), static_cast<uint32_t>(kind));
+  SetField64<false>(ArtFieldOrMethodOffset(), art_field_or_method);
+}
+
 GcRoot<mirror::Class> MethodHandleImpl::static_class_;
 
 void MethodHandleImpl::SetClass(Class* klass) {
@@ -43,6 +55,18 @@ void MethodHandleImpl::ResetClass() {
 
 void MethodHandleImpl::VisitRoots(RootVisitor* visitor) {
   static_class_.VisitRootIfNonNull(visitor, RootInfo(kRootStickyClass));
+}
+
+mirror::MethodHandleImpl* MethodHandleImpl::Create(Thread* const self,
+                                                   uintptr_t art_field_or_method,
+                                                   MethodHandle::Kind kind,
+                                                   Handle<MethodType> method_type)
+    REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_) {
+  StackHandleScope<1> hs(self);
+  Handle<mirror::MethodHandleImpl> mh(
+      hs.NewHandle(ObjPtr<MethodHandleImpl>::DownCast(StaticClass()->AllocObject(self))));
+  mh->Initialize(art_field_or_method, kind, method_type);
+  return mh.Get();
 }
 
 }  // namespace mirror

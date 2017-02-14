@@ -95,6 +95,7 @@
 #include "mirror/field.h"
 #include "mirror/method.h"
 #include "mirror/method_handle_impl.h"
+#include "mirror/method_handles_lookup.h"
 #include "mirror/method_type.h"
 #include "mirror/stack_trace_element.h"
 #include "mirror/throwable.h"
@@ -1715,6 +1716,7 @@ void Runtime::VisitConstantRoots(RootVisitor* visitor) {
   mirror::Field::VisitRoots(visitor);
   mirror::MethodType::VisitRoots(visitor);
   mirror::MethodHandleImpl::VisitRoots(visitor);
+  mirror::MethodHandlesLookup::VisitRoots(visitor);
   mirror::EmulatedStackFrame::VisitRoots(visitor);
   mirror::ClassExt::VisitRoots(visitor);
   // Visit all the primitive array types classes.

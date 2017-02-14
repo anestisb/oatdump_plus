@@ -2374,10 +2374,10 @@ bool DexFileVerifier::CheckInterMethodHandleItem() {
 
   uint32_t index = item->field_or_method_idx_;
   switch (method_handle_type) {
-    case DexFile::MethodHandleType::kPutStatic:
-    case DexFile::MethodHandleType::kGetStatic:
-    case DexFile::MethodHandleType::kPutInstance:
-    case DexFile::MethodHandleType::kGetInstance: {
+    case DexFile::MethodHandleType::kStaticPut:
+    case DexFile::MethodHandleType::kStaticGet:
+    case DexFile::MethodHandleType::kInstancePut:
+    case DexFile::MethodHandleType::kInstanceGet: {
       LOAD_FIELD(field, index, "method_handle_item field_idx", return false);
       break;
     }

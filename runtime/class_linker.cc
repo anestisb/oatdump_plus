@@ -70,6 +70,7 @@
 #include "jni_internal.h"
 #include "leb128.h"
 #include "linear_alloc.h"
+#include "mirror/call_site.h"
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_ext.h"
@@ -82,6 +83,7 @@
 #include "mirror/method.h"
 #include "mirror/method_type.h"
 #include "mirror/method_handle_impl.h"
+#include "mirror/method_handles_lookup.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/proxy.h"
@@ -695,6 +697,18 @@ bool ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   SetClassRoot(kJavaLangInvokeMethodHandleImpl, class_root);
   mirror::MethodHandleImpl::SetClass(class_root);
 
+  // Create java.lang.invoke.MethodHandles.Lookup.class root
+  class_root = FindSystemClass(self, "Ljava/lang/invoke/MethodHandles$Lookup;");
+  CHECK(class_root != nullptr);
+  SetClassRoot(kJavaLangInvokeMethodHandlesLookup, class_root);
+  mirror::MethodHandlesLookup::SetClass(class_root);
+
+  // Create java.lang.invoke.CallSite.class root
+  class_root = FindSystemClass(self, "Ljava/lang/invoke/CallSite;");
+  CHECK(class_root != nullptr);
+  SetClassRoot(kJavaLangInvokeCallSite, class_root);
+  mirror::CallSite::SetClass(class_root);
+
   class_root = FindSystemClass(self, "Ldalvik/system/EmulatedStackFrame;");
   CHECK(class_root != nullptr);
   SetClassRoot(kDalvikSystemEmulatedStackFrame, class_root);
@@ -981,6 +995,8 @@ bool ClassLinker::InitFromBootImage(std::string* error_msg) {
   mirror::Method::SetArrayClass(GetClassRoot(kJavaLangReflectMethodArrayClass));
   mirror::MethodType::SetClass(GetClassRoot(kJavaLangInvokeMethodType));
   mirror::MethodHandleImpl::SetClass(GetClassRoot(kJavaLangInvokeMethodHandleImpl));
+  mirror::MethodHandlesLookup::SetClass(GetClassRoot(kJavaLangInvokeMethodHandlesLookup));
+  mirror::CallSite::SetClass(GetClassRoot(kJavaLangInvokeCallSite));
   mirror::Reference::SetClass(GetClassRoot(kJavaLangRefReference));
   mirror::BooleanArray::SetArrayClass(GetClassRoot(kBooleanArrayClass));
   mirror::ByteArray::SetArrayClass(GetClassRoot(kByteArrayClass));
@@ -1231,12 +1247,13 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
         if (dex_file->NumProtoIds() < num_method_types) {
           num_method_types = dex_file->NumProtoIds();
         }
-
+        const size_t num_call_sites = dex_file->NumCallSiteIds();
         CHECK_EQ(num_strings, dex_cache->NumStrings());
         CHECK_EQ(num_types, dex_cache->NumResolvedTypes());
         CHECK_EQ(num_methods, dex_cache->NumResolvedMethods());
         CHECK_EQ(num_fields, dex_cache->NumResolvedFields());
         CHECK_EQ(num_method_types, dex_cache->NumResolvedMethodTypes());
+        CHECK_EQ(num_call_sites, dex_cache->NumResolvedCallSites());
         DexCacheArraysLayout layout(image_pointer_size_, dex_file);
         uint8_t* const raw_arrays = oat_dex_file->GetDexCacheArrays();
         if (num_strings != 0u) {
@@ -1315,6 +1332,22 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
 
           mirror::MethodTypeDexCachePair::Initialize(method_types);
           dex_cache->SetResolvedMethodTypes(method_types);
+        }
+        if (num_call_sites != 0u) {
+          GcRoot<mirror::CallSite>* const image_resolved_call_sites =
+              dex_cache->GetResolvedCallSites();
+          GcRoot<mirror::CallSite>* const call_sites =
+              reinterpret_cast<GcRoot<mirror::CallSite>*>(raw_arrays + layout.CallSitesOffset());
+          for (size_t j = 0; kIsDebugBuild && j < num_call_sites; ++j) {
+            DCHECK(call_sites[j].IsNull());
+          }
+          CopyNonNull(image_resolved_call_sites,
+                      num_call_sites,
+                      call_sites,
+                      [](const GcRoot<mirror::CallSite>& elem) {
+                          return elem.IsNull();
+                      });
+          dex_cache->SetResolvedCallSites(call_sites);
         }
       }
       {
@@ -2115,6 +2148,8 @@ ClassLinker::~ClassLinker() {
   mirror::ShortArray::ResetArrayClass();
   mirror::MethodType::ResetClass();
   mirror::MethodHandleImpl::ResetClass();
+  mirror::MethodHandlesLookup::ResetClass();
+  mirror::CallSite::ResetClass();
   mirror::EmulatedStackFrame::ResetClass();
   Thread* const self = Thread::Current();
   for (const ClassLoaderData& data : class_loaders_) {
@@ -3112,6 +3147,7 @@ void ClassLinker::LoadClassMembers(Thread* self,
         last_field_idx = field_idx;
       }
     }
+
     // Load instance fields.
     LengthPrefixedArray<ArtField>* ifields = AllocArtFieldArray(self,
                                                                 allocator,
@@ -3128,6 +3164,7 @@ void ClassLinker::LoadClassMembers(Thread* self,
         last_field_idx = field_idx;
       }
     }
+
     if (UNLIKELY(num_sfields != it.NumStaticFields()) ||
         UNLIKELY(num_ifields != it.NumInstanceFields())) {
       LOG(WARNING) << "Duplicate fields in class " << klass->PrettyDescriptor()
@@ -8189,6 +8226,148 @@ mirror::MethodType* ClassLinker::ResolveMethodType(const DexFile& dex_file,
   return type.Get();
 }
 
+mirror::MethodHandle* ClassLinker::ResolveMethodHandle(uint32_t method_handle_idx,
+                                                       ArtMethod* referrer)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  Thread* const self = Thread::Current();
+  const DexFile* const dex_file = referrer->GetDexFile();
+  const DexFile::MethodHandleItem& mh = dex_file->GetMethodHandle(method_handle_idx);
+
+  union {
+    ArtField* field;
+    ArtMethod* method;
+    uintptr_t field_or_method;
+  } target;
+  uint32_t num_params;
+  mirror::MethodHandle::Kind kind;
+  DexFile::MethodHandleType handle_type =
+      static_cast<DexFile::MethodHandleType>(mh.method_handle_type_);
+  switch (handle_type) {
+    case DexFile::MethodHandleType::kStaticPut: {
+      kind = mirror::MethodHandle::Kind::kStaticPut;
+      target.field = ResolveField(mh.field_or_method_idx_, referrer, true /* is_static */);
+      num_params = 1;
+      break;
+    }
+    case DexFile::MethodHandleType::kStaticGet: {
+      kind = mirror::MethodHandle::Kind::kStaticGet;
+      target.field = ResolveField(mh.field_or_method_idx_, referrer, true /* is_static */);
+      num_params = 0;
+      break;
+    }
+    case DexFile::MethodHandleType::kInstancePut: {
+      kind = mirror::MethodHandle::Kind::kInstancePut;
+      target.field = ResolveField(mh.field_or_method_idx_, referrer, false /* is_static */);
+      num_params = 2;
+      break;
+    }
+    case DexFile::MethodHandleType::kInstanceGet: {
+      kind = mirror::MethodHandle::Kind::kInstanceGet;
+      target.field = ResolveField(mh.field_or_method_idx_, referrer, false /* is_static */);
+      num_params = 1;
+      break;
+    }
+    case DexFile::MethodHandleType::kInvokeStatic: {
+      kind = mirror::MethodHandle::Kind::kInvokeStatic;
+      target.method = ResolveMethod<kNoICCECheckForCache>(self,
+                                                          mh.field_or_method_idx_,
+                                                          referrer,
+                                                          InvokeType::kStatic);
+      uint32_t shorty_length;
+      target.method->GetShorty(&shorty_length);
+      num_params = shorty_length - 1;  // Remove 1 for return value.
+      break;
+    }
+    case DexFile::MethodHandleType::kInvokeInstance: {
+      kind = mirror::MethodHandle::Kind::kInvokeVirtual;
+      target.method = ResolveMethod<kNoICCECheckForCache>(self,
+                                                          mh.field_or_method_idx_,
+                                                          referrer,
+                                                          InvokeType::kVirtual);
+      uint32_t shorty_length;
+      target.method->GetShorty(&shorty_length);
+      num_params = shorty_length - 1;  // Remove 1 for return value.
+      break;
+    }
+    case DexFile::MethodHandleType::kInvokeConstructor: {
+      UNIMPLEMENTED(FATAL) << "Invoke constructor is implemented as a transform.";
+      num_params = 0;
+    }
+  }
+
+  StackHandleScope<5> hs(self);
+  ObjPtr<mirror::Class> class_type = mirror::Class::GetJavaLangClass();
+  ObjPtr<mirror::Class> array_of_class = FindArrayClass(self, &class_type);
+  Handle<mirror::ObjectArray<mirror::Class>> method_params(hs.NewHandle(
+      mirror::ObjectArray<mirror::Class>::Alloc(self, array_of_class, num_params)));
+  if (method_params.Get() == nullptr) {
+    DCHECK(self->IsExceptionPending());
+    return nullptr;
+  }
+
+  Handle<mirror::Class> return_type;
+  switch (handle_type) {
+    case DexFile::MethodHandleType::kStaticPut: {
+      method_params->Set(0, target.field->GetType<true>());
+      return_type = hs.NewHandle(FindPrimitiveClass('V'));
+      break;
+    }
+    case DexFile::MethodHandleType::kStaticGet: {
+      return_type = hs.NewHandle(target.field->GetType<true>());
+      break;
+    }
+    case DexFile::MethodHandleType::kInstancePut: {
+      method_params->Set(0, target.field->GetDeclaringClass());
+      method_params->Set(1, target.field->GetType<true>());
+      return_type = hs.NewHandle(FindPrimitiveClass('V'));
+      break;
+    }
+    case DexFile::MethodHandleType::kInstanceGet: {
+      method_params->Set(0, target.field->GetDeclaringClass());
+      return_type = hs.NewHandle(target.field->GetType<true>());
+      break;
+    }
+    case DexFile::MethodHandleType::kInvokeStatic:
+    case DexFile::MethodHandleType::kInvokeInstance: {
+      // TODO(oth): This will not work for varargs methods as this
+      // requires instantiating a Transformer. This resolution step
+      // would be best done in managed code rather than in the run
+      // time (b/35235705)
+      Handle<mirror::DexCache> dex_cache(hs.NewHandle(referrer->GetDexCache()));
+      Handle<mirror::ClassLoader> class_loader(hs.NewHandle(referrer->GetClassLoader()));
+      DexFileParameterIterator it(*dex_file, target.method->GetPrototype());
+      for (int32_t i = 0; it.HasNext(); i++, it.Next()) {
+        const dex::TypeIndex type_idx = it.GetTypeIdx();
+        mirror::Class* klass = ResolveType(*dex_file, type_idx, dex_cache, class_loader);
+        if (nullptr == klass) {
+          DCHECK(self->IsExceptionPending());
+          return nullptr;
+        }
+        method_params->Set(i, klass);
+      }
+      return_type = hs.NewHandle(target.method->GetReturnType(true));
+      break;
+    }
+    case DexFile::MethodHandleType::kInvokeConstructor: {
+      // TODO(oth): b/35235705
+      UNIMPLEMENTED(FATAL) << "Invoke constructor is implemented as a transform.";
+    }
+  }
+
+  if (return_type.IsNull()) {
+    DCHECK(self->IsExceptionPending());
+    return nullptr;
+  }
+
+  Handle<mirror::MethodType>
+      mt(hs.NewHandle(mirror::MethodType::Create(self, return_type, method_params)));
+  if (mt.IsNull()) {
+    DCHECK(self->IsExceptionPending());
+    return nullptr;
+  }
+  return mirror::MethodHandleImpl::Create(self, target.field_or_method, kind, mt);
+}
+
 bool ClassLinker::IsQuickResolutionStub(const void* entry_point) const {
   return (entry_point == GetQuickResolutionStub()) ||
       (quick_resolution_trampoline_ == entry_point);
@@ -8304,7 +8483,9 @@ const char* ClassLinker::GetClassRootDescriptor(ClassRoot class_root) {
     "[Ljava/lang/reflect/Constructor;",
     "[Ljava/lang/reflect/Field;",
     "[Ljava/lang/reflect/Method;",
+    "Ljava/lang/invoke/CallSite;",
     "Ljava/lang/invoke/MethodHandleImpl;",
+    "Ljava/lang/invoke/MethodHandles$Lookup;",
     "Ljava/lang/invoke/MethodType;",
     "Ljava/lang/ClassLoader;",
     "Ljava/lang/Throwable;",

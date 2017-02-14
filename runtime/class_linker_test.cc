@@ -32,6 +32,7 @@
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "gc/heap.h"
 #include "mirror/accessible_object.h"
+#include "mirror/call_site.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_ext.h"
 #include "mirror/dex_cache.h"
@@ -40,6 +41,7 @@
 #include "mirror/field.h"
 #include "mirror/method_type.h"
 #include "mirror/method_handle_impl.h"
+#include "mirror/method_handles_lookup.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/proxy.h"
@@ -669,11 +671,13 @@ struct DexCacheOffsets : public CheckOffsets<mirror::DexCache> {
     addOffset(OFFSETOF_MEMBER(mirror::DexCache, dex_), "dex");
     addOffset(OFFSETOF_MEMBER(mirror::DexCache, dex_file_), "dexFile");
     addOffset(OFFSETOF_MEMBER(mirror::DexCache, location_), "location");
+    addOffset(OFFSETOF_MEMBER(mirror::DexCache, num_resolved_call_sites_), "numResolvedCallSites");
     addOffset(OFFSETOF_MEMBER(mirror::DexCache, num_resolved_fields_), "numResolvedFields");
     addOffset(OFFSETOF_MEMBER(mirror::DexCache, num_resolved_method_types_), "numResolvedMethodTypes");
     addOffset(OFFSETOF_MEMBER(mirror::DexCache, num_resolved_methods_), "numResolvedMethods");
     addOffset(OFFSETOF_MEMBER(mirror::DexCache, num_resolved_types_), "numResolvedTypes");
     addOffset(OFFSETOF_MEMBER(mirror::DexCache, num_strings_), "numStrings");
+    addOffset(OFFSETOF_MEMBER(mirror::DexCache, resolved_call_sites_), "resolvedCallSites");
     addOffset(OFFSETOF_MEMBER(mirror::DexCache, resolved_fields_), "resolvedFields");
     addOffset(OFFSETOF_MEMBER(mirror::DexCache, resolved_method_types_), "resolvedMethodTypes");
     addOffset(OFFSETOF_MEMBER(mirror::DexCache, resolved_methods_), "resolvedMethods");
@@ -762,6 +766,14 @@ struct MethodHandleImplOffsets : public CheckOffsets<mirror::MethodHandleImpl> {
   }
 };
 
+struct MethodHandlesLookupOffsets : public CheckOffsets<mirror::MethodHandlesLookup> {
+  MethodHandlesLookupOffsets() : CheckOffsets<mirror::MethodHandlesLookup>(
+      false, "Ljava/lang/invoke/MethodHandles$Lookup;") {
+    addOffset(OFFSETOF_MEMBER(mirror::MethodHandlesLookup, allowed_modes_), "allowedModes");
+    addOffset(OFFSETOF_MEMBER(mirror::MethodHandlesLookup, lookup_class_), "lookupClass");
+  }
+};
+
 struct EmulatedStackFrameOffsets : public CheckOffsets<mirror::EmulatedStackFrame> {
   EmulatedStackFrameOffsets() : CheckOffsets<mirror::EmulatedStackFrame>(
       false, "Ldalvik/system/EmulatedStackFrame;") {
@@ -769,6 +781,13 @@ struct EmulatedStackFrameOffsets : public CheckOffsets<mirror::EmulatedStackFram
     addOffset(OFFSETOF_MEMBER(mirror::EmulatedStackFrame, references_), "references");
     addOffset(OFFSETOF_MEMBER(mirror::EmulatedStackFrame, stack_frame_), "stackFrame");
     addOffset(OFFSETOF_MEMBER(mirror::EmulatedStackFrame, type_), "type");
+  }
+};
+
+struct CallSiteOffsets : public CheckOffsets<mirror::CallSite> {
+  CallSiteOffsets() : CheckOffsets<mirror::CallSite>(
+      false, "Ljava/lang/invoke/CallSite;") {
+    addOffset(OFFSETOF_MEMBER(mirror::CallSite, target_), "target");
   }
 };
 
@@ -794,7 +813,9 @@ TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
   EXPECT_TRUE(MethodTypeOffsets().Check());
   EXPECT_TRUE(MethodHandleOffsets().Check());
   EXPECT_TRUE(MethodHandleImplOffsets().Check());
+  EXPECT_TRUE(MethodHandlesLookupOffsets().Check());
   EXPECT_TRUE(EmulatedStackFrameOffsets().Check());
+  EXPECT_TRUE(CallSiteOffsets().Check());
 }
 
 TEST_F(ClassLinkerTest, FindClassNonexistent) {
