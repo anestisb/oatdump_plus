@@ -433,9 +433,13 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_isLoadedClass(
 class ClassLoadPrepareEquality {
  public:
   static constexpr const char* kClassName = "LMain$ClassE;";
-  static constexpr const char* kStorageClassName = "Main$ClassF";
   static constexpr const char* kStorageFieldName = "STATIC";
   static constexpr const char* kStorageFieldSig = "Ljava/lang/Object;";
+  static constexpr const char* kStorageWeakFieldName = "WEAK";
+  static constexpr const char* kStorageWeakFieldSig = "Ljava/lang/ref/Reference;";
+  static constexpr const char* kWeakClassName = "java/lang/ref/WeakReference";
+  static constexpr const char* kWeakInitSig = "(Ljava/lang/Object;)V";
+  static constexpr const char* kWeakGetSig = "()Ljava/lang/Object;";
 
   static void JNICALL ClassLoadCallback(jvmtiEnv* jenv,
                                         JNIEnv* jni_env,
@@ -472,6 +476,8 @@ class ClassLoadPrepareEquality {
 
   static void SetOrCompare(JNIEnv* jni_env, jobject value, bool set) {
     CHECK(storage_class_ != nullptr);
+
+    // Simple direct storage.
     jfieldID field = jni_env->GetStaticFieldID(storage_class_, kStorageFieldName, kStorageFieldSig);
     CHECK(field != nullptr);
 
@@ -481,6 +487,36 @@ class ClassLoadPrepareEquality {
     } else {
       ScopedLocalRef<jobject> stored(jni_env, jni_env->GetStaticObjectField(storage_class_, field));
       CHECK(jni_env->IsSameObject(value, stored.get()));
+    }
+
+    // Storage as a reference.
+    ScopedLocalRef<jclass> weak_ref_class(jni_env, jni_env->FindClass(kWeakClassName));
+    CHECK(weak_ref_class.get() != nullptr);
+    jfieldID weak_field = jni_env->GetStaticFieldID(storage_class_,
+                                                    kStorageWeakFieldName,
+                                                    kStorageWeakFieldSig);
+    CHECK(weak_field != nullptr);
+    if (set) {
+      // Create a WeakReference.
+      jmethodID weak_init = jni_env->GetMethodID(weak_ref_class.get(), "<init>", kWeakInitSig);
+      CHECK(weak_init != nullptr);
+      ScopedLocalRef<jobject> weak_obj(jni_env, jni_env->NewObject(weak_ref_class.get(),
+                                                                   weak_init,
+                                                                   value));
+      CHECK(weak_obj.get() != nullptr);
+      jni_env->SetStaticObjectField(storage_class_, weak_field, weak_obj.get());
+      CHECK(!jni_env->ExceptionCheck());
+    } else {
+      // Check the reference value.
+      jmethodID get_referent = jni_env->GetMethodID(weak_ref_class.get(), "get", kWeakGetSig);
+      CHECK(get_referent != nullptr);
+      ScopedLocalRef<jobject> weak_obj(jni_env, jni_env->GetStaticObjectField(storage_class_,
+                                                                              weak_field));
+      CHECK(weak_obj.get() != nullptr);
+      ScopedLocalRef<jobject> weak_referent(jni_env, jni_env->CallObjectMethod(weak_obj.get(),
+                                                                               get_referent));
+      CHECK(weak_referent.get() != nullptr);
+      CHECK(jni_env->IsSameObject(value, weak_referent.get()));
     }
   }
 

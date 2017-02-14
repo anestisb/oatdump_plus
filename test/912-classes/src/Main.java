@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import java.lang.ref.Reference;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Proxy;
 import java.util.Arrays;
@@ -433,6 +434,7 @@ public class Main {
 
   public static class ClassF {
     public static Object STATIC = null;
+    public static Reference<Object> WEAK = null;
   }
 
   private static final String DEX1 = System.getenv("DEX_LOCATION") + "/912-classes.jar";
