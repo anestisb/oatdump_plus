@@ -184,7 +184,9 @@ class MANAGED String FINAL : public Object {
   bool IsValueNull() REQUIRES_SHARED(Locks::mutator_lock_);
 
   template<typename MemoryType>
-  static bool AllASCII(const MemoryType* const chars, const int length);
+  static bool AllASCII(const MemoryType* chars, const int length);
+
+  static bool DexFileStringAllASCII(const char* chars, const int length);
 
   ALWAYS_INLINE static bool IsCompressed(int32_t count) {
     return GetCompressionFlagFromCount(count) == StringCompressionFlag::kCompressed;
