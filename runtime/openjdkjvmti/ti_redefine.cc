@@ -939,7 +939,7 @@ bool Redefiner::ClassRedefinition::FinishRemainingAllocations(
     art::Handle<art::mirror::Object> dex_file_obj(hs.NewHandle(
         ClassLoaderHelper::FindSourceDexFileObject(driver_->self_, loader)));
     holder->SetJavaDexFile(klass_index, dex_file_obj.Get());
-    if (dex_file_obj.Get() == nullptr) {
+    if (dex_file_obj == nullptr) {
       // TODO Better error msg.
       RecordFailure(ERR(INTERNAL), "Unable to find dex file!");
       return false;
@@ -1212,13 +1212,13 @@ bool Redefiner::ClassRedefinition::EnsureClassAllocationsFinished() {
   art::StackHandleScope<2> hs(driver_->self_);
   art::Handle<art::mirror::Class> klass(hs.NewHandle(
       driver_->self_->DecodeJObject(klass_)->AsClass()));
-  if (klass.Get() == nullptr) {
+  if (klass == nullptr) {
     RecordFailure(ERR(INVALID_CLASS), "Unable to decode class argument!");
     return false;
   }
   // Allocate the classExt
   art::Handle<art::mirror::ClassExt> ext(hs.NewHandle(klass->EnsureExtDataPresent(driver_->self_)));
-  if (ext.Get() == nullptr) {
+  if (ext == nullptr) {
     // No memory. Clear exception (it's not useful) and return error.
     // TODO This doesn't need to be fatal. We could just not support obsolete methods after hitting
     // this case.

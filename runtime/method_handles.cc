@@ -220,7 +220,7 @@ bool ConvertJValueCommon(
     StackHandleScope<2> hs(Thread::Current());
     Handle<mirror::Class> h_to(hs.NewHandle(to));
     Handle<mirror::Object> h_obj(hs.NewHandle(src_value.GetL()));
-    if (h_obj.Get() != nullptr && !to->IsAssignableFrom(h_obj->GetClass())) {
+    if (h_obj != nullptr && !to->IsAssignableFrom(h_obj->GetClass())) {
       ThrowClassCastException(h_to.Get(), h_obj->GetClass());
       return false;
     }
@@ -599,7 +599,7 @@ static inline bool DoCallTransform(ArtMethod* called_method,
 
     // Something went wrong while creating the emulated stack frame, we should
     // throw the pending exception.
-    if (sf.Get() == nullptr) {
+    if (sf == nullptr) {
       DCHECK(self->IsExceptionPending());
       return false;
     }

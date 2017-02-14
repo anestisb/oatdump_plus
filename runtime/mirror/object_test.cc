@@ -530,8 +530,8 @@ TEST_F(ObjectTest, InstanceOf) {
 
   Handle<Object> x(hs.NewHandle(X->AllocObject(soa.Self())));
   Handle<Object> y(hs.NewHandle(Y->AllocObject(soa.Self())));
-  ASSERT_TRUE(x.Get() != nullptr);
-  ASSERT_TRUE(y.Get() != nullptr);
+  ASSERT_TRUE(x != nullptr);
+  ASSERT_TRUE(y != nullptr);
 
   EXPECT_TRUE(x->InstanceOf(X));
   EXPECT_FALSE(x->InstanceOf(Y));
@@ -650,7 +650,7 @@ TEST_F(ObjectTest, FindInstanceField) {
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScope<1> hs(soa.Self());
   Handle<String> s(hs.NewHandle(String::AllocFromModifiedUtf8(soa.Self(), "ABC")));
-  ASSERT_TRUE(s.Get() != nullptr);
+  ASSERT_TRUE(s != nullptr);
   Class* c = s->GetClass();
   ASSERT_TRUE(c != nullptr);
 
@@ -684,9 +684,9 @@ TEST_F(ObjectTest, FindStaticField) {
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScope<4> hs(soa.Self());
   Handle<String> s(hs.NewHandle(String::AllocFromModifiedUtf8(soa.Self(), "ABC")));
-  ASSERT_TRUE(s.Get() != nullptr);
+  ASSERT_TRUE(s != nullptr);
   Handle<Class> c(hs.NewHandle(s->GetClass()));
-  ASSERT_TRUE(c.Get() != nullptr);
+  ASSERT_TRUE(c != nullptr);
 
   // Wrong type.
   EXPECT_TRUE(c->FindDeclaredStaticField("CASE_INSENSITIVE_ORDER", "I") == nullptr);

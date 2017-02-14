@@ -542,7 +542,7 @@ bool DoInvokePolymorphic(Thread* self,
   Handle<mirror::MethodHandleImpl> method_handle(hs.NewHandle(
       ObjPtr<mirror::MethodHandleImpl>::DownCast(
           MakeObjPtr(shadow_frame.GetVRegReference(vRegC)))));
-  if (UNLIKELY(method_handle.Get() == nullptr)) {
+  if (UNLIKELY(method_handle == nullptr)) {
     // Note that the invoke type is kVirtual here because a call to a signature
     // polymorphic method is shaped like a virtual call at the bytecode level.
     ThrowNullPointerExceptionForMethodAccess(invoke_method_idx, InvokeType::kVirtual);
@@ -564,7 +564,7 @@ bool DoInvokePolymorphic(Thread* self,
       hs.NewHandle<mirror::ClassLoader>(caller_class->GetClassLoader()))));
 
   // This implies we couldn't resolve one or more types in this method handle.
-  if (UNLIKELY(callsite_type.Get() == nullptr)) {
+  if (UNLIKELY(callsite_type == nullptr)) {
     CHECK(self->IsExceptionPending());
     return false;
   }

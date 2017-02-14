@@ -185,7 +185,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
 
   void AssertArrayClass(const std::string& array_descriptor, Handle<mirror::Class> array)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    ASSERT_TRUE(array.Get() != nullptr);
+    ASSERT_TRUE(array != nullptr);
     ASSERT_TRUE(array->GetClass() != nullptr);
     ASSERT_EQ(array->GetClass(), array->GetClass()->GetClass());
     EXPECT_TRUE(array->GetClass()->GetSuperClass() != nullptr);
@@ -409,7 +409,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
     StackHandleScope<1> hs(self);
     Handle<mirror::Class> klass(
         hs.NewHandle(class_linker_->FindSystemClass(self, descriptor.c_str())));
-    ASSERT_TRUE(klass.Get() != nullptr);
+    ASSERT_TRUE(klass != nullptr);
     std::string temp;
     EXPECT_STREQ(descriptor.c_str(), klass.Get()->GetDescriptor(&temp));
     EXPECT_EQ(class_loader, klass->GetClassLoader());
@@ -1411,13 +1411,13 @@ TEST_F(ClassLinkerTest, IsBootStrapClassLoaded) {
   // java.lang.Object is a bootstrap class.
   Handle<mirror::Class> jlo_class(
       hs.NewHandle(class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Object;")));
-  ASSERT_TRUE(jlo_class.Get() != nullptr);
+  ASSERT_TRUE(jlo_class != nullptr);
   EXPECT_TRUE(jlo_class.Get()->IsBootStrapClassLoaded());
 
   // Statics is not a bootstrap class.
   Handle<mirror::Class> statics(
       hs.NewHandle(class_linker_->FindClass(soa.Self(), "LStatics;", class_loader)));
-  ASSERT_TRUE(statics.Get() != nullptr);
+  ASSERT_TRUE(statics != nullptr);
   EXPECT_FALSE(statics.Get()->IsBootStrapClassLoaded());
 }
 
@@ -1431,11 +1431,11 @@ TEST_F(ClassLinkerTest, RegisterDexFileName) {
     ReaderMutexLock mu(soa.Self(), *Locks::dex_lock_);
     for (const ClassLinker::DexCacheData& data : class_linker->GetDexCachesData()) {
       dex_cache.Assign(soa.Self()->DecodeJObject(data.weak_root)->AsDexCache());
-      if (dex_cache.Get() != nullptr) {
+      if (dex_cache != nullptr) {
         break;
       }
     }
-    ASSERT_TRUE(dex_cache.Get() != nullptr);
+    ASSERT_TRUE(dex_cache != nullptr);
   }
   // Make a copy of the dex cache and change the name.
   dex_cache.Assign(dex_cache->Clone(soa.Self())->AsDexCache());
@@ -1487,7 +1487,7 @@ TEST_F(ClassLinkerMethodHandlesTest, TestResolveMethodTypes) {
       class_linker_->ResolveMethodType(dex_file, method1_id.proto_idx_, dex_cache, class_loader));
 
   // Assert that the method type was resolved successfully.
-  ASSERT_TRUE(method1_type.Get() != nullptr);
+  ASSERT_TRUE(method1_type != nullptr);
 
   // Assert that the return type and the method arguments are as we expect.
   Handle<mirror::Class> string_class(

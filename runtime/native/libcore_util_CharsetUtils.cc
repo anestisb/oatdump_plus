@@ -155,7 +155,7 @@ static jbyteArray charsToBytes(JNIEnv* env, jstring java_string, jint offset, ji
   ScopedObjectAccess soa(env);
   StackHandleScope<1> hs(soa.Self());
   Handle<mirror::String> string(hs.NewHandle(soa.Decode<mirror::String>(java_string)));
-  if (string.Get() == nullptr) {
+  if (string == nullptr) {
     return nullptr;
   }
 
@@ -192,7 +192,7 @@ static jbyteArray CharsetUtils_toUtf8Bytes(JNIEnv* env, jclass, jstring java_str
   ScopedObjectAccess soa(env);
   StackHandleScope<1> hs(soa.Self());
   Handle<mirror::String> string(hs.NewHandle(soa.Decode<mirror::String>(java_string)));
-  if (string.Get() == nullptr) {
+  if (string == nullptr) {
     return nullptr;
   }
 

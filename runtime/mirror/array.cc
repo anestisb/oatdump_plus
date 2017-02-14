@@ -52,7 +52,7 @@ static Array* RecursiveCreateMultiArray(Thread* self,
           Array::Alloc<true>(self, array_class.Get(), array_length,
                              array_class->GetComponentSizeShift(),
                              Runtime::Current()->GetHeap()->GetCurrentAllocator())));
-  if (UNLIKELY(new_array.Get() == nullptr)) {
+  if (UNLIKELY(new_array == nullptr)) {
     CHECK(self->IsExceptionPending());
     return nullptr;
   }
@@ -98,14 +98,14 @@ Array* Array::CreateMultiArray(Thread* self, Handle<Class> element_class,
   StackHandleScope<1> hs(self);
   MutableHandle<mirror::Class> array_class(
       hs.NewHandle(class_linker->FindArrayClass(self, &element_class_ptr)));
-  if (UNLIKELY(array_class.Get() == nullptr)) {
+  if (UNLIKELY(array_class == nullptr)) {
     CHECK(self->IsExceptionPending());
     return nullptr;
   }
   for (int32_t i = 1; i < dimensions->GetLength(); ++i) {
     ObjPtr<mirror::Class> array_class_ptr = array_class.Get();
     array_class.Assign(class_linker->FindArrayClass(self, &array_class_ptr));
-    if (UNLIKELY(array_class.Get() == nullptr)) {
+    if (UNLIKELY(array_class == nullptr)) {
       CHECK(self->IsExceptionPending());
       return nullptr;
     }
