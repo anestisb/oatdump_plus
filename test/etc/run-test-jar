@@ -64,6 +64,10 @@ TEST_IS_NDEBUG="n"
 APP_IMAGE="y"
 VDEX_FILTER=""
 
+# if "y", run 'sync' before dalvikvm to make sure all files from
+# build step (e.g. dex2oat) were finished writing.
+SYNC_BEFORE_RUN="n"
+
 while true; do
     if [ "x$1" = "x--quiet" ]; then
         QUIET="y"
@@ -261,6 +265,9 @@ while true; do
         shift
         option="$1"
         VDEX_FILTER="--compiler-filter=$option"
+        shift
+    elif [ "x$1" = "x--sync" ]; then
+        SYNC_BEFORE_RUN="y"
         shift
     elif expr "x$1" : "x--" >/dev/null 2>&1; then
         echo "unknown $0 option: $1" 1>&2
@@ -491,6 +498,7 @@ dex2oat_cmdline="true"
 vdex_cmdline="true"
 mkdir_locations="${DEX_LOCATION}/dalvik-cache/$ISA"
 strip_cmdline="true"
+sync_cmdline="true"
 
 
 if [ "$PREBUILD" = "y" ]; then
@@ -528,6 +536,10 @@ fi
 
 if [ "$STRIP_DEX" = "y" ]; then
   strip_cmdline="zip --quiet --delete $DEX_LOCATION/$TEST_NAME.jar classes.dex"
+fi
+
+if [ "$SYNC_BEFORE_RUN" = "y" ]; then
+  sync_cmdline="sync"
 fi
 
 DALVIKVM_ISA_FEATURES_ARGS=""
@@ -608,6 +620,7 @@ if [ "$HOST" = "n" ]; then
              $dex2oat_cmdline && \
              $vdex_cmdline && \
              $strip_cmdline && \
+             $sync_cmdline && \
              $dalvikvm_cmdline"
 
     cmdfile=$(tempfile -p "cmd-" -s "-$TEST_NAME")
@@ -680,7 +693,7 @@ else
     fi
 
     if [ "$DEV_MODE" = "y" ]; then
-      echo "mkdir -p ${mkdir_locations} && $dex2oat_cmdline && $vdex_cmdline && $strip_cmdline && $cmdline"
+      echo "mkdir -p ${mkdir_locations} && $dex2oat_cmdline && $vdex_cmdline && $strip_cmdline && $sync_cmdline && $cmdline"
     fi
 
     cd $ANDROID_BUILD_TOP
@@ -690,6 +703,7 @@ else
     $dex2oat_cmdline || { echo "Dex2oat failed." >&2 ; exit 2; }
     $vdex_cmdline || { echo "Dex2oat failed." >&2 ; exit 2; }
     $strip_cmdline || { echo "Strip failed." >&2 ; exit 3; }
+    $sync_cmdline || { echo "Sync failed." >&2 ; exit 4; }
 
     # For running, we must turn off logging when dex2oat or patchoat are missing. Otherwise we use
     # the same defaults as for prebuilt: everything when --dev, otherwise errors and above only.
