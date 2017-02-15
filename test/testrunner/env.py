@@ -100,7 +100,7 @@ ART_TEST_INTERPRETER_ACCESS_CHECKS = getEnvBoolean('ART_TEST_INTERPRETER_ACCESS_
 ART_TEST_JIT = getEnvBoolean('ART_TEST_JIT', ART_TEST_FULL)
 
 # Do you want optimizing compiler tests run?
-ART_TEST_OPTIMIZING = getEnvBoolean('ART_TEST_OPTIMIZING', True)
+ART_TEST_OPTIMIZING = getEnvBoolean('ART_TEST_OPTIMIZING', ART_TEST_FULL)
 
 # Do you want to test the optimizing compiler with graph coloring register allocation?
 ART_TEST_OPTIMIZING_GRAPH_COLOR = getEnvBoolean('ART_TEST_OPTIMIZING_GRAPH_COLOR', ART_TEST_FULL)
@@ -129,13 +129,13 @@ ART_TEST_JNI_FORCECOPY = getEnvBoolean('ART_TEST_JNI_FORCECOPY', ART_TEST_FULL)
 ART_TEST_RUN_TEST_RELOCATE = getEnvBoolean('ART_TEST_RUN_TEST_RELOCATE', ART_TEST_FULL)
 
 # Do you want run-tests with prebuilding?
-ART_TEST_RUN_TEST_PREBUILD = getEnvBoolean('ART_TEST_RUN_TEST_PREBUILD', True)
+ART_TEST_RUN_TEST_PREBUILD = getEnvBoolean('ART_TEST_RUN_TEST_PREBUILD', ART_TEST_FULL)
 
 # Do you want run-tests with no prebuilding enabled run?
 ART_TEST_RUN_TEST_NO_PREBUILD = getEnvBoolean('ART_TEST_RUN_TEST_NO_PREBUILD', ART_TEST_FULL)
 
 # Do you want run-tests with a pregenerated core.art?
-ART_TEST_RUN_TEST_IMAGE = getEnvBoolean('ART_TEST_RUN_TEST_IMAGE', True)
+ART_TEST_RUN_TEST_IMAGE = getEnvBoolean('ART_TEST_RUN_TEST_IMAGE', ART_TEST_FULL)
 
 # Do you want run-tests without a pregenerated core.art?
 ART_TEST_RUN_TEST_NO_IMAGE = getEnvBoolean('ART_TEST_RUN_TEST_NO_IMAGE', ART_TEST_FULL)
@@ -148,7 +148,7 @@ ART_TEST_RUN_TEST_RELOCATE_NO_PATCHOAT = getEnvBoolean('ART_TEST_RUN_TEST_RELOCA
 ART_TEST_RUN_TEST_NO_DEX2OAT = getEnvBoolean('ART_TEST_RUN_TEST_NO_DEX2OAT', ART_TEST_FULL)
 
 # Do you want run-tests with libartd.so?
-ART_TEST_RUN_TEST_DEBUG = getEnvBoolean('ART_TEST_RUN_TEST_DEBUG', True)
+ART_TEST_RUN_TEST_DEBUG = getEnvBoolean('ART_TEST_RUN_TEST_DEBUG', ART_TEST_FULL)
 
 # Do you want run-tests with libart.so?
 ART_TEST_RUN_TEST_NDEBUG = getEnvBoolean('ART_TEST_RUN_TEST_NDEBUG', ART_TEST_FULL)
