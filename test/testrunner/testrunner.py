@@ -610,8 +610,12 @@ def parse_test_name(test_name):
   variants required to run the test. Again, it returns the test_name
   without the variant information like 001-HelloWorld.
   """
-  if test_name in RUN_TEST_SET:
-    return {test_name}
+  test_set = set()
+  for test in RUN_TEST_SET:
+    if test.startswith(test_name):
+      test_set.add(test)
+  if test_set:
+    return test_set
 
   regex = '^test-art-'
   regex += '(' + '|'.join(VARIANT_TYPE_DICT['target']) + ')-'
@@ -643,6 +647,7 @@ def parse_test_name(test_name):
     DEBUGGABLE_TYPES.add(match.group(11))
     ADDRESS_SIZES.add(match.group(13))
     return {match.group(12)}
+  raise ValueError(test_name + " is not a valid test")
 
 
 def parse_option():
@@ -786,10 +791,10 @@ def main():
     sys.exit(0)
   except SystemExit:
     pass
-  except:
+  except Exception, e:
     print_analysis()
+    print_text(str(e))
     sys.exit(1)
-
 
 if __name__ == '__main__':
   main()
