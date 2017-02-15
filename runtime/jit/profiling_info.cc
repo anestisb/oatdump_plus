@@ -77,20 +77,18 @@ bool ProfilingInfo::Create(Thread* self, ArtMethod* method, bool retry_allocatio
 }
 
 InlineCache* ProfilingInfo::GetInlineCache(uint32_t dex_pc) {
-  InlineCache* cache = nullptr;
   // TODO: binary search if array is too long.
   for (size_t i = 0; i < number_of_inline_caches_; ++i) {
     if (cache_[i].dex_pc_ == dex_pc) {
-      cache = &cache_[i];
-      break;
+      return &cache_[i];
     }
   }
-  return cache;
+  LOG(FATAL) << "No inline cache found for "  << ArtMethod::PrettyMethod(method_) << "@" << dex_pc;
+  UNREACHABLE();
 }
 
 void ProfilingInfo::AddInvokeInfo(uint32_t dex_pc, mirror::Class* cls) {
   InlineCache* cache = GetInlineCache(dex_pc);
-  CHECK(cache != nullptr) << ArtMethod::PrettyMethod(method_) << "@" << dex_pc;
   for (size_t i = 0; i < InlineCache::kIndividualCacheSize; ++i) {
     mirror::Class* existing = cache->classes_[i].Read();
     if (existing == cls) {

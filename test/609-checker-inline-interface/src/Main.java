@@ -21,12 +21,21 @@ public final class Main implements Interface {
   }
 
   public void doCall() {
-    if (doThrow) throw new Error("");
+    // We do not inline methods that always throw.
+    throw new Error("");
   }
 
   public static void main(String[] args) {
-    testInlineInterfaceCall();
-    testInterfaceToVirtualCall();
+    try {
+      testInlineInterfaceCall();
+    } catch (Error e) {
+      // Expected
+    }
+    try {
+      testInterfaceToVirtualCall();
+    } catch (Error e) {
+      // Expected.
+    }
   }
 
   /// CHECK-START: void Main.testInlineInterfaceCall() inliner (before)
@@ -62,7 +71,6 @@ public final class Main implements Interface {
 
   static Interface itf = new Main();
   static Main m = new Main();
-  static boolean doThrow = false;
 }
 
 interface Interface {
