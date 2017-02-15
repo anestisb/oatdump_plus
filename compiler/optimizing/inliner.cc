@@ -69,17 +69,13 @@ void HInliner::Run() {
     // doing some logic in the runtime to discover if a method could have been inlined.
     return;
   }
-  const ArenaVector<HBasicBlock*>& blocks = graph_->GetReversePostOrder();
+  // Keep a copy of all blocks when starting the visit.
+  ArenaVector<HBasicBlock*> blocks = graph_->GetReversePostOrder();
   DCHECK(!blocks.empty());
-  HBasicBlock* next_block = blocks[0];
-  for (size_t i = 0; i < blocks.size(); ++i) {
-    // Because we are changing the graph when inlining, we need to remember the next block.
-    // This avoids doing the inlining work again on the inlined blocks.
-    if (blocks[i] != next_block) {
-      continue;
-    }
-    HBasicBlock* block = next_block;
-    next_block = (i == blocks.size() - 1) ? nullptr : blocks[i + 1];
+  // Because we are changing the graph when inlining,
+  // we just iterate over the blocks of the outer method.
+  // This avoids doing the inlining work again on the inlined blocks.
+  for (HBasicBlock* block : blocks) {
     for (HInstruction* instruction = block->GetFirstInstruction(); instruction != nullptr;) {
       HInstruction* next = instruction->GetNext();
       HInvoke* call = instruction->AsInvoke();
@@ -564,7 +560,6 @@ HInstruction* HInliner::AddTypeGuard(HInstruction* receiver,
   bb_cursor->InsertInstructionAfter(load_class, receiver_class);
   load_class->SetLoadKind(kind);
 
-  // TODO: Extend reference type propagation to understand the guard.
   HNotEqual* compare = new (graph_->GetArena()) HNotEqual(load_class, receiver_class);
   bb_cursor->InsertInstructionAfter(compare, load_class);
   if (with_deoptimization) {
@@ -848,7 +843,6 @@ bool HInliner::TryInlinePolymorphicCallToSameTarget(
   if (outermost_graph_->IsCompilingOsr()) {
     CreateDiamondPatternForPolymorphicInline(compare, return_replacement, invoke_instruction);
   } else {
-    // TODO: Extend reference type propagation to understand the guard.
     HDeoptimize* deoptimize = new (graph_->GetArena()) HDeoptimize(
         compare, invoke_instruction->GetDexPc());
     bb_cursor->InsertInstructionAfter(deoptimize, compare);
@@ -1354,9 +1348,6 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
       RunOptimizations(callee_graph, code_item, dex_compilation_unit);
   number_of_instructions_budget += number_of_inlined_instructions;
 
-  // TODO: We should abort only if all predecessors throw. However,
-  // HGraph::InlineInto currently does not handle an exit block with
-  // a throw predecessor.
   HBasicBlock* exit_block = callee_graph->GetExitBlock();
   if (exit_block == nullptr) {
     VLOG(compiler) << "Method " << callee_dex_file.PrettyMethod(method_index)
@@ -1364,16 +1355,30 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
     return false;
   }
 
-  bool has_throw_predecessor = false;
+  bool has_one_return = false;
   for (HBasicBlock* predecessor : exit_block->GetPredecessors()) {
     if (predecessor->GetLastInstruction()->IsThrow()) {
-      has_throw_predecessor = true;
-      break;
+      if (invoke_instruction->GetBlock()->IsTryBlock()) {
+        // TODO(ngeoffray): Support adding HTryBoundary in Hgraph::InlineInto.
+        VLOG(compiler) << "Method " << callee_dex_file.PrettyMethod(method_index)
+                       << " could not be inlined because one branch always throws and"
+                       << " caller is in a try/catch block";
+        return false;
+      } else if (graph_->GetExitBlock() == nullptr) {
+        // TODO(ngeoffray): Support adding HExit in the caller graph.
+        VLOG(compiler) << "Method " << callee_dex_file.PrettyMethod(method_index)
+                       << " could not be inlined because one branch always throws and"
+                       << " caller does not have an exit block";
+        return false;
+      }
+    } else {
+      has_one_return = true;
     }
   }
-  if (has_throw_predecessor) {
+
+  if (!has_one_return) {
     VLOG(compiler) << "Method " << callee_dex_file.PrettyMethod(method_index)
-                   << " could not be inlined because one branch always throws";
+                   << " could not be inlined because it always throws";
     return false;
   }
 
