@@ -2049,9 +2049,13 @@ ENTRY \name
 
 .Lnot_marked_rb_\name:
     // Test that both the forwarding state bits are 1.
-    mvn ip, ip
-    tst ip, #(LOCK_WORD_STATE_FORWARDING_ADDRESS << LOCK_WORD_STATE_SHIFT)
-    beq .Lret_forwarding_address\name
+#if (LOCK_WORD_STATE_SHIFT != 30) || (LOCK_WORD_STATE_FORWARDING_ADDRESS != 3)
+    // To use "CMP ip, #modified-immediate; BHS", we need the lock word state in
+    // the highest bits and the "forwarding address" state to have all bits set.
+#error "Unexpected lock word state shift or forwarding address state value."
+#endif
+    cmp ip, #(LOCK_WORD_STATE_FORWARDING_ADDRESS << LOCK_WORD_STATE_SHIFT)
+    bhs .Lret_forwarding_address\name
 
 .Lslow_rb_\name:
     // Save IP: The kSaveEverything entrypoint art_quick_resolve_string used to
@@ -2118,7 +2122,6 @@ ENTRY \name
 .Lret_forwarding_address\name:
     // Shift left by the forwarding address shift. This clears out the state bits since they are
     // in the top 2 bits of the lock word.
-    mvn ip, ip
     lsl \reg, ip, #LOCK_WORD_STATE_FORWARDING_ADDRESS_SHIFT
     bx lr
 END \name
