@@ -21,7 +21,7 @@ public class OtherThread {
     System.out.println("################################");
     final ControlData data = new ControlData();
     data.waitFor = new Object();
-    Thread t = new Thread() {
+    Thread t = new Thread("OtherThread doTestOtherThreadWait") {
       public void run() {
         Recurse.foo(4, 0, 0, data);
       }
@@ -54,7 +54,7 @@ public class OtherThread {
     System.out.println("### Other thread (live) ###");
     System.out.println("###########################");
     final ControlData data = new ControlData();
-    Thread t = new Thread() {
+    Thread t = new Thread("OtherThread doTestOtherThreadBusyLoop") {
       public void run() {
         Recurse.foo(4, 0, 0, data);
       }

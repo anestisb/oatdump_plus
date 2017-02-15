@@ -59,7 +59,7 @@ public class Frames {
     System.out.println("################################");
     final ControlData data = new ControlData();
     data.waitFor = new Object();
-    Thread t = new Thread() {
+    Thread t = new Thread("Frames doTestOtherThreadWait") {
       public void run() {
         Recurse.foo(4, 0, 0, data);
       }
@@ -97,7 +97,7 @@ public class Frames {
     System.out.println("### Other thread (live) ###");
     System.out.println("###########################");
     final ControlData data = new ControlData();
-    Thread t = new Thread() {
+    Thread t = new Thread("Frames doTestOtherThreadBusyLoop") {
       public void run() {
         Recurse.foo(4, 0, 0, data);
       }

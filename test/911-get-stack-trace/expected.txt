@@ -211,6 +211,36 @@ From bottom
 ### Other threads (suspended) ###
 ################################
 ---------
+AllTraces Thread 0
+
+---------
+AllTraces Thread 1
+
+---------
+AllTraces Thread 2
+
+---------
+AllTraces Thread 3
+
+---------
+AllTraces Thread 4
+
+---------
+AllTraces Thread 5
+
+---------
+AllTraces Thread 6
+
+---------
+AllTraces Thread 7
+
+---------
+AllTraces Thread 8
+
+---------
+AllTraces Thread 9
+
+---------
 FinalizerDaemon
 <not printed>
 ---------
@@ -224,41 +254,91 @@ ReferenceQueueDaemon
 <not printed>
 ---------
 Signal Catcher
-
----------
-Thread-10
-
----------
-Thread-11
-
----------
-Thread-12
-
----------
-Thread-13
-
----------
-Thread-4
-
----------
-Thread-5
-
----------
-Thread-6
-
----------
-Thread-7
-
----------
-Thread-8
-
----------
-Thread-9
 
 ---------
 main
 
 ---------
+AllTraces Thread 0
+ wait ()V -1 -2
+ printOrWait (IILControlData;)V 24 45
+ baz (IIILControlData;)Ljava/lang/Object; 2 30
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+
+---------
+AllTraces Thread 1
+ wait ()V -1 -2
+ printOrWait (IILControlData;)V 24 45
+ baz (IIILControlData;)Ljava/lang/Object; 2 30
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+
+---------
+AllTraces Thread 2
+ wait ()V -1 -2
+ printOrWait (IILControlData;)V 24 45
+ baz (IIILControlData;)Ljava/lang/Object; 2 30
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+
+---------
+AllTraces Thread 3
+ wait ()V -1 -2
+ printOrWait (IILControlData;)V 24 45
+ baz (IIILControlData;)Ljava/lang/Object; 2 30
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+
+---------
+AllTraces Thread 4
+ wait ()V -1 -2
+ printOrWait (IILControlData;)V 24 45
+ baz (IIILControlData;)Ljava/lang/Object; 2 30
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+
+---------
+AllTraces Thread 5
+ wait ()V -1 -2
+ printOrWait (IILControlData;)V 24 45
+ baz (IIILControlData;)Ljava/lang/Object; 2 30
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+
+---------
+AllTraces Thread 6
+ wait ()V -1 -2
+ printOrWait (IILControlData;)V 24 45
+ baz (IIILControlData;)Ljava/lang/Object; 2 30
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+
+---------
+AllTraces Thread 7
+ wait ()V -1 -2
+ printOrWait (IILControlData;)V 24 45
+ baz (IIILControlData;)Ljava/lang/Object; 2 30
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+
+---------
+AllTraces Thread 8
+ wait ()V -1 -2
+ printOrWait (IILControlData;)V 24 45
+ baz (IIILControlData;)Ljava/lang/Object; 2 30
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+
+---------
+AllTraces Thread 9
+ wait ()V -1 -2
+ printOrWait (IILControlData;)V 24 45
+ baz (IIILControlData;)Ljava/lang/Object; 2 30
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+
+---------
 FinalizerDaemon
 <not printed>
 ---------
@@ -272,95 +352,225 @@ ReferenceQueueDaemon
 <not printed>
 ---------
 Signal Catcher
-
----------
-Thread-10
- wait ()V -1 -2
- printOrWait (IILControlData;)V 24 45
- baz (IIILControlData;)Ljava/lang/Object; 2 30
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
-
----------
-Thread-11
- wait ()V -1 -2
- printOrWait (IILControlData;)V 24 45
- baz (IIILControlData;)Ljava/lang/Object; 2 30
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
-
----------
-Thread-12
- wait ()V -1 -2
- printOrWait (IILControlData;)V 24 45
- baz (IIILControlData;)Ljava/lang/Object; 2 30
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
-
----------
-Thread-13
- wait ()V -1 -2
- printOrWait (IILControlData;)V 24 45
- baz (IIILControlData;)Ljava/lang/Object; 2 30
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
-
----------
-Thread-4
- wait ()V -1 -2
- printOrWait (IILControlData;)V 24 45
- baz (IIILControlData;)Ljava/lang/Object; 2 30
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
-
----------
-Thread-5
- wait ()V -1 -2
- printOrWait (IILControlData;)V 24 45
- baz (IIILControlData;)Ljava/lang/Object; 2 30
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
-
----------
-Thread-6
- wait ()V -1 -2
- printOrWait (IILControlData;)V 24 45
- baz (IIILControlData;)Ljava/lang/Object; 2 30
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
-
----------
-Thread-7
- wait ()V -1 -2
- printOrWait (IILControlData;)V 24 45
- baz (IIILControlData;)Ljava/lang/Object; 2 30
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
-
----------
-Thread-8
- wait ()V -1 -2
- printOrWait (IILControlData;)V 24 45
- baz (IIILControlData;)Ljava/lang/Object; 2 30
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
-
----------
-Thread-9
- wait ()V -1 -2
- printOrWait (IILControlData;)V 24 45
- baz (IIILControlData;)Ljava/lang/Object; 2 30
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
 
 ---------
 main
  getAllStackTraces (I)[[Ljava/lang/Object; -1 -2
  printAll (I)V 0 73
- doTest ()V 102 57
+ doTest ()V 128 57
  main ([Ljava/lang/String;)V 27 33
 
 ---------
+AllTraces Thread 0
+ wait ()V -1 -2
+ printOrWait (IILControlData;)V 24 45
+ baz (IIILControlData;)Ljava/lang/Object; 2 30
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ run ()V 4 45
+
+---------
+AllTraces Thread 1
+ wait ()V -1 -2
+ printOrWait (IILControlData;)V 24 45
+ baz (IIILControlData;)Ljava/lang/Object; 2 30
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ run ()V 4 45
+
+---------
+AllTraces Thread 2
+ wait ()V -1 -2
+ printOrWait (IILControlData;)V 24 45
+ baz (IIILControlData;)Ljava/lang/Object; 2 30
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ run ()V 4 45
+
+---------
+AllTraces Thread 3
+ wait ()V -1 -2
+ printOrWait (IILControlData;)V 24 45
+ baz (IIILControlData;)Ljava/lang/Object; 2 30
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ run ()V 4 45
+
+---------
+AllTraces Thread 4
+ wait ()V -1 -2
+ printOrWait (IILControlData;)V 24 45
+ baz (IIILControlData;)Ljava/lang/Object; 2 30
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ run ()V 4 45
+
+---------
+AllTraces Thread 5
+ wait ()V -1 -2
+ printOrWait (IILControlData;)V 24 45
+ baz (IIILControlData;)Ljava/lang/Object; 2 30
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ run ()V 4 45
+
+---------
+AllTraces Thread 6
+ wait ()V -1 -2
+ printOrWait (IILControlData;)V 24 45
+ baz (IIILControlData;)Ljava/lang/Object; 2 30
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ run ()V 4 45
+
+---------
+AllTraces Thread 7
+ wait ()V -1 -2
+ printOrWait (IILControlData;)V 24 45
+ baz (IIILControlData;)Ljava/lang/Object; 2 30
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ run ()V 4 45
+
+---------
+AllTraces Thread 8
+ wait ()V -1 -2
+ printOrWait (IILControlData;)V 24 45
+ baz (IIILControlData;)Ljava/lang/Object; 2 30
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ run ()V 4 45
+
+---------
+AllTraces Thread 9
+ wait ()V -1 -2
+ printOrWait (IILControlData;)V 24 45
+ baz (IIILControlData;)Ljava/lang/Object; 2 30
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ baz (IIILControlData;)Ljava/lang/Object; 9 32
+ bar (IIILControlData;)J 0 24
+ foo (IIILControlData;)I 0 19
+ run ()V 4 45
+
+---------
 FinalizerDaemon
 <not printed>
 ---------
@@ -376,220 +586,10 @@ ReferenceQueueDaemon
 Signal Catcher
 
 ---------
-Thread-10
- wait ()V -1 -2
- printOrWait (IILControlData;)V 24 45
- baz (IIILControlData;)Ljava/lang/Object; 2 30
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- run ()V 4 45
-
----------
-Thread-11
- wait ()V -1 -2
- printOrWait (IILControlData;)V 24 45
- baz (IIILControlData;)Ljava/lang/Object; 2 30
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- run ()V 4 45
-
----------
-Thread-12
- wait ()V -1 -2
- printOrWait (IILControlData;)V 24 45
- baz (IIILControlData;)Ljava/lang/Object; 2 30
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- run ()V 4 45
-
----------
-Thread-13
- wait ()V -1 -2
- printOrWait (IILControlData;)V 24 45
- baz (IIILControlData;)Ljava/lang/Object; 2 30
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- run ()V 4 45
-
----------
-Thread-4
- wait ()V -1 -2
- printOrWait (IILControlData;)V 24 45
- baz (IIILControlData;)Ljava/lang/Object; 2 30
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- run ()V 4 45
-
----------
-Thread-5
- wait ()V -1 -2
- printOrWait (IILControlData;)V 24 45
- baz (IIILControlData;)Ljava/lang/Object; 2 30
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- run ()V 4 45
-
----------
-Thread-6
- wait ()V -1 -2
- printOrWait (IILControlData;)V 24 45
- baz (IIILControlData;)Ljava/lang/Object; 2 30
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- run ()V 4 45
-
----------
-Thread-7
- wait ()V -1 -2
- printOrWait (IILControlData;)V 24 45
- baz (IIILControlData;)Ljava/lang/Object; 2 30
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- run ()V 4 45
-
----------
-Thread-8
- wait ()V -1 -2
- printOrWait (IILControlData;)V 24 45
- baz (IIILControlData;)Ljava/lang/Object; 2 30
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- run ()V 4 45
-
----------
-Thread-9
- wait ()V -1 -2
- printOrWait (IILControlData;)V 24 45
- baz (IIILControlData;)Ljava/lang/Object; 2 30
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- baz (IIILControlData;)Ljava/lang/Object; 9 32
- bar (IIILControlData;)J 0 24
- foo (IIILControlData;)I 0 19
- run ()V 4 45
-
----------
 main
  getAllStackTraces (I)[[Ljava/lang/Object; -1 -2
  printAll (I)V 0 73
- doTest ()V 107 59
+ doTest ()V 133 59
  main ([Ljava/lang/String;)V 27 33
 
 
@@ -597,25 +597,25 @@ main
 ### Other select threads (suspended) ###
 ########################################
 ---------
-Thread-14
+ThreadListTraces Thread 0
 
 ---------
-Thread-16
+ThreadListTraces Thread 2
 
 ---------
-Thread-18
+ThreadListTraces Thread 4
 
 ---------
-Thread-20
+ThreadListTraces Thread 6
 
 ---------
-Thread-22
+ThreadListTraces Thread 8
 
 ---------
 main
 
 ---------
-Thread-14
+ThreadListTraces Thread 0
  wait ()V -1 -2
  printOrWait (IILControlData;)V 24 45
  baz (IIILControlData;)Ljava/lang/Object; 2 30
@@ -623,7 +623,7 @@ Thread-14
  foo (IIILControlData;)I 0 19
 
 ---------
-Thread-16
+ThreadListTraces Thread 2
  wait ()V -1 -2
  printOrWait (IILControlData;)V 24 45
  baz (IIILControlData;)Ljava/lang/Object; 2 30
@@ -631,7 +631,7 @@ Thread-16
  foo (IIILControlData;)I 0 19
 
 ---------
-Thread-18
+ThreadListTraces Thread 4
  wait ()V -1 -2
  printOrWait (IILControlData;)V 24 45
  baz (IIILControlData;)Ljava/lang/Object; 2 30
@@ -639,7 +639,7 @@ Thread-18
  foo (IIILControlData;)I 0 19
 
 ---------
-Thread-20
+ThreadListTraces Thread 6
  wait ()V -1 -2
  printOrWait (IILControlData;)V 24 45
  baz (IIILControlData;)Ljava/lang/Object; 2 30
@@ -647,7 +647,7 @@ Thread-20
  foo (IIILControlData;)I 0 19
 
 ---------
-Thread-22
+ThreadListTraces Thread 8
  wait ()V -1 -2
  printOrWait (IILControlData;)V 24 45
  baz (IIILControlData;)Ljava/lang/Object; 2 30
@@ -658,11 +658,11 @@ Thread-22
 main
  getThreadListStackTraces ([Ljava/lang/Thread;I)[[Ljava/lang/Object; -1 -2
  printList ([Ljava/lang/Thread;I)V 0 66
- doTest ()V 96 52
+ doTest ()V 116 52
  main ([Ljava/lang/String;)V 35 37
 
 ---------
-Thread-14
+ThreadListTraces Thread 0
  wait ()V -1 -2
  printOrWait (IILControlData;)V 24 45
  baz (IIILControlData;)Ljava/lang/Object; 2 30
@@ -683,7 +683,7 @@ Thread-14
  run ()V 4 35
 
 ---------
-Thread-16
+ThreadListTraces Thread 2
  wait ()V -1 -2
  printOrWait (IILControlData;)V 24 45
  baz (IIILControlData;)Ljava/lang/Object; 2 30
@@ -704,7 +704,7 @@ Thread-16
  run ()V 4 35
 
 ---------
-Thread-18
+ThreadListTraces Thread 4
  wait ()V -1 -2
  printOrWait (IILControlData;)V 24 45
  baz (IIILControlData;)Ljava/lang/Object; 2 30
@@ -725,7 +725,7 @@ Thread-18
  run ()V 4 35
 
 ---------
-Thread-20
+ThreadListTraces Thread 6
  wait ()V -1 -2
  printOrWait (IILControlData;)V 24 45
  baz (IIILControlData;)Ljava/lang/Object; 2 30
@@ -746,7 +746,7 @@ Thread-20
  run ()V 4 35
 
 ---------
-Thread-22
+ThreadListTraces Thread 8
  wait ()V -1 -2
  printOrWait (IILControlData;)V 24 45
  baz (IIILControlData;)Ljava/lang/Object; 2 30
@@ -770,7 +770,7 @@ Thread-22
 main
  getThreadListStackTraces ([Ljava/lang/Thread;I)[[Ljava/lang/Object; -1 -2
  printList ([Ljava/lang/Thread;I)V 0 66
- doTest ()V 101 54
+ doTest ()V 121 54
  main ([Ljava/lang/String;)V 35 37
 
 
