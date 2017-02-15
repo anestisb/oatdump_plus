@@ -95,12 +95,15 @@ COLOR_NORMAL = '\033[0m'
 # The mutex object is used by the threads for exclusive access of test_count
 # to make any changes in its value.
 test_count_mutex = threading.Lock()
+
 # The set contains the list of all the possible run tests that are in art/test
 # directory.
 RUN_TEST_SET = set()
+
 # The semaphore object is used by the testrunner to limit the number of
 # threads to the user requested concurrency value.
 semaphore = threading.Semaphore(1)
+
 # The mutex object is used to provide exclusive access to a thread to print
 # its output.
 print_mutex = threading.Lock()
@@ -112,7 +115,6 @@ n_thread = 1
 test_count = 0
 total_test_count = 0
 verbose = False
-last_print_length = 0
 dry_run = False
 build = False
 gdb = False
@@ -443,8 +445,6 @@ def run_test(command, test, test_variant, test_name):
     test_variant: The set of variant for the test.
     test_name: The name of the test along with the variants.
   """
-  global last_print_length
-  global test_count
   global stop_testrunner
   if is_test_disabled(test, test_variant):
     test_skipped = True
@@ -454,41 +454,87 @@ def run_test(command, test, test_variant, test_name):
     script_output = proc.stdout.read().strip()
     test_passed = not proc.wait()
 
-  # If verbose is set to True, every test information is printed on a new line.
-  # If not, the information is printed on the same line overriding the
-  # previous test output.
-  if not verbose:
-    suffix = '\r'
-    prefix = ' ' * last_print_length + '\r'
-  else:
-    suffix = '\n'
-    prefix = ''
-  test_count_mutex.acquire()
-  test_count += 1
-  percent = (test_count * 100) / total_test_count
-  out = '[ ' + str(percent) + '% ' + str(test_count) + '/' + str(total_test_count) + ' ] '
-  test_count_mutex.release()
-  out += test_name + ' '
   if not test_skipped:
     if test_passed:
-      out += COLOR_PASS + 'PASS' + COLOR_NORMAL
-      last_print_length = len(out)
+     print_test_info(test_name, 'PASS')
     else:
       failed_tests.append(test_name)
-      out += COLOR_ERROR + 'FAIL' + COLOR_NORMAL
-      out += '\n' + command + '\n' + script_output
       if not env.ART_TEST_KEEP_GOING:
         stop_testrunner = True
-      last_print_length = 0
+      print_test_info(test_name, 'FAIL', ('%s\n%s') % (
+        command, script_output))
   elif not dry_run:
-    out += COLOR_SKIP + 'SKIP' + COLOR_NORMAL
-    last_print_length = len(out)
+    print_test_info(test_name, 'SKIP')
     skipped_tests.append(test_name)
-  print_mutex.acquire()
-  print_text(prefix + out + suffix)
-  print_mutex.release()
+  else:
+    print_test_info(test_name, '')
   semaphore.release()
 
+
+def print_test_info(test_name, result, failed_test_info=""):
+  """Print the continous test information
+
+  If verbose is set to True, it continuously prints test status information
+  on a new line.
+  If verbose is set to False, it keeps on erasing test
+  information by overriding it with the latest test information. Also,
+  in this case it stictly makes sure that the information length doesn't
+  exceed the console width. It does so by shortening the test_name.
+
+  When a test fails, it prints the output of the run-test script and
+  command used to invoke the script. It doesn't override the failing
+  test information in either of the cases.
+  """
+  global test_count
+  info = ''
+  if not verbose:
+    # Without --verbose, the testrunner erases passing test info. It
+    # does that by overriding the printed text with white spaces all across
+    # the console width.
+    console_width = int(os.popen('stty size', 'r').read().split()[1])
+    info = '\r' + ' ' * console_width + '\r'
+  print_mutex.acquire()
+  test_count += 1
+  percent = (test_count * 100) / total_test_count
+  progress_info = ('[ %d%% %d/%d ]') % (
+    percent,
+    test_count,
+    total_test_count)
+
+  if result == "FAIL":
+    info += ('%s %s %s\n%s\n') % (
+      progress_info,
+      test_name,
+      COLOR_ERROR + 'FAIL' + COLOR_NORMAL,
+      failed_test_info)
+  else:
+    result_text = ''
+    if result == 'PASS':
+      result_text += COLOR_PASS + 'PASS' + COLOR_NORMAL
+    elif result == 'SKIP':
+      result_text += COLOR_SKIP + 'SKIP' + COLOR_NORMAL
+
+    if verbose:
+      info += ('%s %s %s\n') % (
+      progress_info,
+      test_name,
+      result_text)
+    else:
+      total_output_length = 2 # Two spaces
+      total_output_length += len(progress_info)
+      total_output_length += len(result)
+      allowed_test_length = console_width - total_output_length
+      test_name_len = len(test_name)
+      if allowed_test_length < test_name_len:
+        test_name = ('%s...%s') % (
+          test_name[:(allowed_test_length - 3)/2],
+          test_name[-(allowed_test_length - 3)/2:])
+      info += ('%s %s %s') % (
+        progress_info,
+        test_name,
+        result_text)
+  print_text(info)
+  print_mutex.release()
 
 def get_disabled_test_info():
   """Generate set of known failures.
@@ -586,7 +632,12 @@ def print_text(output):
 
 def print_analysis():
   if not verbose:
-    print_text(' ' * last_print_length + '\r')
+    # Without --verbose, the testrunner erases passing test info. It
+    # does that by overriding the printed text with white spaces all across
+    # the console width.
+    console_width = int(os.popen('stty size', 'r').read().split()[1])
+    eraser_text = '\r' + ' ' * console_width + '\r'
+    print_text(eraser_text)
   if skipped_tests:
     print_text(COLOR_SKIP + 'SKIPPED TESTS' + COLOR_NORMAL + '\n')
     for test in skipped_tests:
