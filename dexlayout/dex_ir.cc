@@ -588,11 +588,14 @@ CodeItem* Collections::CreateCodeItem(const DexFile& dex_file,
   const uint8_t* debug_info_stream = dex_file.GetDebugInfoStream(&disk_code_item);
   DebugInfoItem* debug_info = nullptr;
   if (debug_info_stream != nullptr) {
-    uint32_t debug_info_size = GetDebugInfoStreamSize(debug_info_stream);
-    uint8_t* debug_info_buffer = new uint8_t[debug_info_size];
-    memcpy(debug_info_buffer, debug_info_stream, debug_info_size);
-    debug_info = new DebugInfoItem(debug_info_size, debug_info_buffer);
-    debug_info_items_.AddItem(debug_info, disk_code_item.debug_info_off_);
+    debug_info = debug_info_items_.GetExistingObject(disk_code_item.debug_info_off_);
+    if (debug_info == nullptr) {
+      uint32_t debug_info_size = GetDebugInfoStreamSize(debug_info_stream);
+      uint8_t* debug_info_buffer = new uint8_t[debug_info_size];
+      memcpy(debug_info_buffer, debug_info_stream, debug_info_size);
+      debug_info = new DebugInfoItem(debug_info_size, debug_info_buffer);
+      debug_info_items_.AddItem(debug_info, disk_code_item.debug_info_off_);
+    }
   }
 
   uint32_t insns_size = disk_code_item.insns_size_in_code_units_;
@@ -683,8 +686,8 @@ ClassData* Collections::CreateClassData(
     const DexFile& dex_file, const uint8_t* encoded_data, uint32_t offset) {
   // Read the fields and methods defined by the class, resolving the circular reference from those
   // to classes by setting class at the same time.
-  ClassData* class_data = nullptr;
-  if (encoded_data != nullptr) {
+  ClassData* class_data = class_datas_.GetExistingObject(offset);
+  if (class_data == nullptr && encoded_data != nullptr) {
     ClassDataItemIterator cdii(dex_file, encoded_data);
     // Static fields.
     FieldItemVector* static_fields = new FieldItemVector();
