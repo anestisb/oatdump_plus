@@ -117,16 +117,35 @@ class ClassHierarchyAnalysis {
                                     PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // Check/update single-implementation info when one virtual method
+  // overrides another.
   // `virtual_method` in `klass` overrides `method_in_super`.
-  // This will invalidate some assumptions on single-implementation.
+  // This may invalidate some assumptions on single-implementation.
   // Append methods that should have their single-implementation flag invalidated
   // to `invalidated_single_impl_methods`.
-  void CheckSingleImplementationInfo(
+  void CheckVirtualMethodSingleImplementationInfo(
       Handle<mirror::Class> klass,
       ArtMethod* virtual_method,
       ArtMethod* method_in_super,
       std::unordered_set<ArtMethod*>& invalidated_single_impl_methods,
       PointerSize pointer_size)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Check/update single-implementation info when one method
+  // implements an interface method.
+  // `implementation_method` in `klass` implements `interface_method`.
+  // Append `interface_method` to `invalidated_single_impl_methods`
+  // if `interface_method` gets a new implementation.
+  void CheckInterfaceMethodSingleImplementationInfo(
+      Handle<mirror::Class> klass,
+      ArtMethod* interface_method,
+      ArtMethod* implementation_method,
+      std::unordered_set<ArtMethod*>& invalidated_single_impl_methods,
+      PointerSize pointer_size)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  void InvalidateSingleImplementationMethods(
+      std::unordered_set<ArtMethod*>& invalidated_single_impl_methods)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // For all methods in vtable slot at `verify_index` of `verify_class` and its
