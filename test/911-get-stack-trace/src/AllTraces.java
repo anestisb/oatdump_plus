@@ -26,8 +26,8 @@ public class AllTraces {
     System.out.println("################################");
 
     // Also create an unstarted and a dead thread.
-    RETAIN.add(new Thread());
-    Thread deadThread = new Thread();
+    RETAIN.add(new Thread("UNSTARTED"));
+    Thread deadThread = new Thread("DEAD");
     RETAIN.add(deadThread);
     deadThread.start();
     deadThread.join();
@@ -40,7 +40,7 @@ public class AllTraces {
     Thread threads[] = new Thread[N];
 
     for (int i = 0; i < N; i++) {
-      Thread t = new Thread() {
+      Thread t = new Thread("AllTraces Thread " + i) {
         public void run() {
           Recurse.foo(4, 0, 0, data);
         }
