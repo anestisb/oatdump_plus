@@ -2038,6 +2038,8 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
 
   HInstruction* return_value = nullptr;
   if (GetBlocks().size() == 3) {
+    // Inliner already made sure we don't inline methods that always throw.
+    DCHECK(!GetBlocks()[1]->GetLastInstruction()->IsThrow());
     // Simple case of an entry block, a body block, and an exit block.
     // Put the body block's instruction into `invoke`'s block.
     HBasicBlock* body = GetBlocks()[1];
@@ -2119,32 +2121,59 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
     UpdateLoopAndTryInformationOfNewBlock(to, at, /* replace_if_back_edge */ true);
 
     // Update all predecessors of the exit block (now the `to` block)
-    // to not `HReturn` but `HGoto` instead.
-    bool returns_void = to->GetPredecessors()[0]->GetLastInstruction()->IsReturnVoid();
-    if (to->GetPredecessors().size() == 1) {
-      HBasicBlock* predecessor = to->GetPredecessors()[0];
+    // to not `HReturn` but `HGoto` instead. Special case throwing blocks
+    // to now get the outer graph exit block as successor. Note that the inliner
+    // currently doesn't support inlining methods with try/catch.
+    HPhi* return_value_phi = nullptr;
+    bool rerun_dominance = false;
+    bool rerun_loop_analysis = false;
+    for (size_t pred = 0; pred < to->GetPredecessors().size(); ++pred) {
+      HBasicBlock* predecessor = to->GetPredecessors()[pred];
       HInstruction* last = predecessor->GetLastInstruction();
-      if (!returns_void) {
-        return_value = last->InputAt(0);
-      }
-      predecessor->AddInstruction(new (allocator) HGoto(last->GetDexPc()));
-      predecessor->RemoveInstruction(last);
-    } else {
-      if (!returns_void) {
-        // There will be multiple returns.
-        return_value = new (allocator) HPhi(
-            allocator, kNoRegNumber, 0, HPhi::ToPhiType(invoke->GetType()), to->GetDexPc());
-        to->AddPhi(return_value->AsPhi());
-      }
-      for (HBasicBlock* predecessor : to->GetPredecessors()) {
-        HInstruction* last = predecessor->GetLastInstruction();
-        if (!returns_void) {
+      if (last->IsThrow()) {
+        DCHECK(!at->IsTryBlock());
+        predecessor->ReplaceSuccessor(to, outer_graph->GetExitBlock());
+        --pred;
+        // We need to re-run dominance information, as the exit block now has
+        // a new dominator.
+        rerun_dominance = true;
+        if (predecessor->GetLoopInformation() != nullptr) {
+          // The exit block and blocks post dominated by the exit block do not belong
+          // to any loop. Because we do not compute the post dominators, we need to re-run
+          // loop analysis to get the loop information correct.
+          rerun_loop_analysis = true;
+        }
+      } else {
+        if (last->IsReturnVoid()) {
+          DCHECK(return_value == nullptr);
+          DCHECK(return_value_phi == nullptr);
+        } else {
           DCHECK(last->IsReturn());
-          return_value->AsPhi()->AddInput(last->InputAt(0));
+          if (return_value_phi != nullptr) {
+            return_value_phi->AddInput(last->InputAt(0));
+          } else if (return_value == nullptr) {
+            return_value = last->InputAt(0);
+          } else {
+            // There will be multiple returns.
+            return_value_phi = new (allocator) HPhi(
+                allocator, kNoRegNumber, 0, HPhi::ToPhiType(invoke->GetType()), to->GetDexPc());
+            to->AddPhi(return_value_phi);
+            return_value_phi->AddInput(return_value);
+            return_value_phi->AddInput(last->InputAt(0));
+            return_value = return_value_phi;
+          }
         }
         predecessor->AddInstruction(new (allocator) HGoto(last->GetDexPc()));
         predecessor->RemoveInstruction(last);
       }
+    }
+    if (rerun_loop_analysis) {
+      outer_graph->ClearLoopInformation();
+      outer_graph->ClearDominanceInformation();
+      outer_graph->BuildDominatorTree();
+    } else if (rerun_dominance) {
+      outer_graph->ClearDominanceInformation();
+      outer_graph->ComputeDominanceInformation();
     }
   }
 

@@ -73,7 +73,9 @@ class ProfilingInfo {
     return method_;
   }
 
-  InlineCache* GetInlineCache(uint32_t dex_pc);
+  // Mutator lock only required for debugging output.
+  InlineCache* GetInlineCache(uint32_t dex_pc)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool IsMethodBeingCompiled(bool osr) const {
     return osr
