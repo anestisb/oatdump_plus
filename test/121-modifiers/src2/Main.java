@@ -14,14 +14,6 @@
  * limitations under the License.
  */
 
-// These classes are to check the additional flags for inner classes.
-class A {
-  private static class B {
-  }
-  protected static interface C {
-  }
-}
-
 public class Main {
   public final static int INTERFACE_DEFINED_BITS =
       0x0001 |  // public, may be set.
