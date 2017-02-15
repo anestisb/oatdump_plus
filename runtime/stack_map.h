@@ -747,6 +747,7 @@ class StackMapEncoding {
     return total_bit_size_;
   }
 
+  // Encode the encoding into the vector.
   template<typename Vector>
   void Encode(Vector* dest) const {
     static_assert(alignof(StackMapEncoding) == 1, "Should not require alignment");
@@ -754,6 +755,7 @@ class StackMapEncoding {
     dest->insert(dest->end(), ptr, ptr + sizeof(*this));
   }
 
+  // Decode the encoding from a pointer, updates the pointer.
   void Decode(const uint8_t** ptr) {
     *this = *reinterpret_cast<const StackMapEncoding*>(*ptr);
     *ptr += sizeof(*this);
@@ -924,6 +926,7 @@ class InlineInfoEncoding {
 
   void Dump(VariableIndentationOutputStream* vios) const;
 
+  // Encode the encoding into the vector.
   template<typename Vector>
   void Encode(Vector* dest) const {
     static_assert(alignof(InlineInfoEncoding) == 1, "Should not require alignment");
@@ -931,6 +934,7 @@ class InlineInfoEncoding {
     dest->insert(dest->end(), ptr, ptr + sizeof(*this));
   }
 
+  // Decode the encoding from a pointer, updates the pointer.
   void Decode(const uint8_t** ptr) {
     *this = *reinterpret_cast<const InlineInfoEncoding*>(*ptr);
     *ptr += sizeof(*this);
@@ -1171,6 +1175,7 @@ struct CodeInfoEncoding {
     ComputeTableOffsets();
   }
 
+  // Compress is not const since it calculates cache_header_size. This is used by PrepareForFillIn.
   template<typename Vector>
   void Compress(Vector* dest) {
     dex_register_map.Encode(dest);
@@ -1210,9 +1215,9 @@ struct CodeInfoEncoding {
 
  private:
   // Computed fields (not serialized).
-  // Header size in bytes.
+  // Header size in bytes, cached to avoid needing to re-decoding the encoding in HeaderSize.
   uint32_t cache_header_size = kInvalidSize;
-  // Non header size in bytes.
+  // Non header size in bytes, cached to avoid needing to re-decoding the encoding in NonHeaderSize.
   uint32_t cache_non_header_size = kInvalidSize;
 };
 
@@ -1221,7 +1226,13 @@ struct CodeInfoEncoding {
  * The information is of the form:
  *
  *   [CodeInfoEncoding, DexRegisterMap+, DexLocationCatalog+, StackMap+, RegisterMask+, StackMask+,
- *    DexRegisterMap+, InlineInfo*]
+ *    InlineInfo*]
+ *
+ * where CodeInfoEncoding is of the form:
+ *
+ *   [ByteSizedTable(dex_register_map), ByteSizedTable(location_catalog),
+ *    BitEncodingTable<StackMapEncoding>, BitEncodingTable<BitRegionEncoding>,
+ *    BitEncodingTable<BitRegionEncoding>, BitEncodingTable<InlineInfoEncoding>]
  */
 class CodeInfo {
  public:
@@ -1331,7 +1342,9 @@ class CodeInfo {
   }
 
   InlineInfo GetInlineInfo(size_t index, const CodeInfoEncoding& encoding) const {
-    // Since we do not know the depth, we just return the whole remaining map.
+    // Since we do not know the depth, we just return the whole remaining map. The caller may
+    // access the inline info for arbitrary depths. To return the precise inline info we would need
+    // to count the depth before returning.
     // TODO: Clean this up.
     const size_t bit_offset = encoding.inline_info.bit_offset +
         index * encoding.inline_info.encoding.BitSize();
