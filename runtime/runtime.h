@@ -662,6 +662,8 @@ class Runtime {
 
   RuntimeCallbacks* GetRuntimeCallbacks();
 
+  void InitThreadGroups(Thread* self);
+
  private:
   static void InitPlatformSignalHandlers();
 
@@ -672,7 +674,6 @@ class Runtime {
   bool Init(RuntimeArgumentMap&& runtime_options)
       SHARED_TRYLOCK_FUNCTION(true, Locks::mutator_lock_);
   void InitNativeMethods() REQUIRES(!Locks::mutator_lock_);
-  void InitThreadGroups(Thread* self);
   void RegisterRuntimeNativeMethods(JNIEnv* env);
 
   void StartDaemonThreads();
