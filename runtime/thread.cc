@@ -2484,11 +2484,18 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(
         return nullptr;
       }
       const char* source_file = method->GetDeclaringClassSourceFile();
-      if (source_file != nullptr) {
-        source_name_object.Assign(mirror::String::AllocFromModifiedUtf8(soa.Self(), source_file));
-        if (source_name_object == nullptr) {
-          soa.Self()->AssertPendingOOMException();
-          return nullptr;
+      if (line_number == -1) {
+        // Make the line_number field of StackTraceElement hold the dex pc.
+        // source_name_object is intentionally left null if we failed to map the dex pc to
+        // a line number (most probably because there is no debug info). See b/30183883.
+        line_number = dex_pc;
+      } else {
+        if (source_file != nullptr) {
+          source_name_object.Assign(mirror::String::AllocFromModifiedUtf8(soa.Self(), source_file));
+          if (source_name_object == nullptr) {
+            soa.Self()->AssertPendingOOMException();
+            return nullptr;
+          }
         }
       }
     }
@@ -2499,11 +2506,11 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(
     if (method_name_object == nullptr) {
       return nullptr;
     }
-    ObjPtr<mirror::StackTraceElement> obj =mirror::StackTraceElement::Alloc(soa.Self(),
-                                                                            class_name_object,
-                                                                            method_name_object,
-                                                                            source_name_object,
-                                                                            line_number);
+    ObjPtr<mirror::StackTraceElement> obj = mirror::StackTraceElement::Alloc(soa.Self(),
+                                                                             class_name_object,
+                                                                             method_name_object,
+                                                                             source_name_object,
+                                                                             line_number);
     if (obj == nullptr) {
       return nullptr;
     }
