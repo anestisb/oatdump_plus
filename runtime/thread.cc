@@ -3485,7 +3485,8 @@ bool Thread::IsAotCompiler() {
 }
 
 mirror::Object* Thread::GetPeerFromOtherThread() const {
-  mirror::Object* peer = GetPeer();
+  DCHECK(tlsPtr_.jpeer == nullptr);
+  mirror::Object* peer = tlsPtr_.opeer;
   if (kUseReadBarrier && Current()->GetIsGcMarking()) {
     // We may call Thread::Dump() in the middle of the CC thread flip and this thread's stack
     // may have not been flipped yet and peer may be a from-space (stale) ref. So explicitly
