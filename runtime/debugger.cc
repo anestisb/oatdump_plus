@@ -800,14 +800,14 @@ JDWP::JdwpError Dbg::GetMonitorInfo(JDWP::ObjectId object_id, JDWP::ExpandBuf* r
     monitor_info = MonitorInfo(o);
   }
   if (monitor_info.owner_ != nullptr) {
-    expandBufAddObjectId(reply, gRegistry->Add(monitor_info.owner_->GetPeer()));
+    expandBufAddObjectId(reply, gRegistry->Add(monitor_info.owner_->GetPeerFromOtherThread()));
   } else {
     expandBufAddObjectId(reply, gRegistry->Add(nullptr));
   }
   expandBufAdd4BE(reply, monitor_info.entry_count_);
   expandBufAdd4BE(reply, monitor_info.waiters_.size());
   for (size_t i = 0; i < monitor_info.waiters_.size(); ++i) {
-    expandBufAddObjectId(reply, gRegistry->Add(monitor_info.waiters_[i]->GetPeer()));
+    expandBufAddObjectId(reply, gRegistry->Add(monitor_info.waiters_[i]->GetPeerFromOtherThread()));
   }
   return JDWP::ERR_NONE;
 }
@@ -1352,7 +1352,7 @@ bool Dbg::MatchThread(JDWP::ObjectId expected_thread_id, Thread* event_thread) {
   JDWP::JdwpError error;
   mirror::Object* expected_thread_peer = gRegistry->Get<mirror::Object*>(
       expected_thread_id, &error);
-  return expected_thread_peer == event_thread->GetPeer();
+  return expected_thread_peer == event_thread->GetPeerFromOtherThread();
 }
 
 bool Dbg::MatchLocation(const JDWP::JdwpLocation& expected_location,
@@ -2273,7 +2273,7 @@ void Dbg::GetThreads(mirror::Object* thread_group, std::vector<JDWP::ObjectId>* 
       // not completely started yet so we must ignore it.
       continue;
     }
-    mirror::Object* peer = t->GetPeer();
+    mirror::Object* peer = t->GetPeerFromOtherThread();
     if (peer == nullptr) {
       // peer might be null if the thread is still starting up. We can't tell the debugger about
       // this thread yet.
@@ -2386,7 +2386,7 @@ JDWP::ObjectId Dbg::GetThreadSelfId() {
 
 JDWP::ObjectId Dbg::GetThreadId(Thread* thread) {
   ScopedObjectAccessUnchecked soa(Thread::Current());
-  return gRegistry->Add(thread->GetPeer());
+  return gRegistry->Add(thread->GetPeerFromOtherThread());
 }
 
 void Dbg::SuspendVM() {
