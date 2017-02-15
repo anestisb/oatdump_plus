@@ -166,12 +166,12 @@ def setup_test_env():
     TARGET_TYPES.add('host')
     TARGET_TYPES.add('target')
 
-  if env.ART_TEST_RUN_TEST_PREBUILD:
-    PREBUILD_TYPES.add('prebuild')
   if env.ART_TEST_RUN_TEST_NO_PREBUILD:
     PREBUILD_TYPES.add('no-prebuild')
   if env.ART_TEST_RUN_TEST_NO_DEX2OAT:
     PREBUILD_TYPES.add('no-dex2oat')
+  if env.ART_TEST_RUN_TEST_PREBUILD or not PREBUILD_TYPES: # Default
+    PREBUILD_TYPES.add('prebuild')
 
   if env.ART_TEST_INTERPRETER_ACCESS_CHECKS:
     COMPILER_TYPES.add('interp-ac')
@@ -179,42 +179,39 @@ def setup_test_env():
     COMPILER_TYPES.add('interpreter')
   if env.ART_TEST_JIT:
     COMPILER_TYPES.add('jit')
-
-  if env.ART_TEST_OPTIMIZING:
-    COMPILER_TYPES.add('optimizing')
-    OPTIMIZING_COMPILER_TYPES.add('optimizing')
   if env.ART_TEST_OPTIMIZING_GRAPH_COLOR:
     COMPILER_TYPES.add('regalloc_gc')
     OPTIMIZING_COMPILER_TYPES.add('regalloc_gc')
+  if env.ART_TEST_OPTIMIZING or not COMPILER_TYPES: # Default
+    COMPILER_TYPES.add('optimizing')
+    OPTIMIZING_COMPILER_TYPES.add('optimizing')
 
-  if not RELOCATE_TYPES:
-    RELOCATE_TYPES.add('no-relocate')
   if env.ART_TEST_RUN_TEST_RELOCATE:
     RELOCATE_TYPES.add('relocate')
   if env.ART_TEST_RUN_TEST_RELOCATE_NO_PATCHOAT:
     RELOCATE_TYPES.add('relocate-npatchoat')
+  if not RELOCATE_TYPES: # Default
+    RELOCATE_TYPES.add('no-relocate')
 
-  if not TRACE_TYPES:
-    TRACE_TYPES.add('ntrace')
   if env.ART_TEST_TRACE:
     TRACE_TYPES.add('trace')
   if env.ART_TEST_TRACE_STREAM:
     TRACE_TYPES.add('stream')
+  if not TRACE_TYPES: # Default
+    TRACE_TYPES.add('ntrace')
 
-  if not GC_TYPES:
-    GC_TYPES.add('cms')
   if env.ART_TEST_GC_STRESS:
     GC_TYPES.add('gcstress')
   if env.ART_TEST_GC_VERIFY:
     GC_TYPES.add('gcverify')
+  if not GC_TYPES: # Default
+    GC_TYPES.add('cms')
 
-  if not JNI_TYPES:
-    JNI_TYPES.add('checkjni')
   if env.ART_TEST_JNI_FORCECOPY:
     JNI_TYPES.add('forcecopy')
+  if not JNI_TYPES: # Default
+    JNI_TYPES.add('checkjni')
 
-  if env.ART_TEST_RUN_TEST_IMAGE:
-    IMAGE_TYPES.add('picimage')
   if env.ART_TEST_RUN_TEST_NO_IMAGE:
     IMAGE_TYPES.add('no-image')
   if env.ART_TEST_RUN_TEST_MULTI_IMAGE:
@@ -223,22 +220,23 @@ def setup_test_env():
     IMAGE_TYPES.add('npicimage')
   if env.ART_TEST_RUN_TEST_MULTI_IMAGE:
     IMAGE_TYPES.add('multinpicimage')
+  if env.ART_TEST_RUN_TEST_IMAGE or not IMAGE_TYPES: # Default
+    IMAGE_TYPES.add('picimage')
 
-  if not PICTEST_TYPES:
-    PICTEST_TYPES.add('npictest')
   if env.ART_TEST_PIC_TEST:
     PICTEST_TYPES.add('pictest')
+  if not PICTEST_TYPES: # Default
+    PICTEST_TYPES.add('npictest')
 
-  if env.ART_TEST_RUN_TEST_DEBUG:
-    RUN_TYPES.add('debug')
   if env.ART_TEST_RUN_TEST_NDEBUG:
     RUN_TYPES.add('ndebug')
-
-  if not DEBUGGABLE_TYPES:
-    DEBUGGABLE_TYPES.add('ndebuggable')
+  if env.ART_TEST_RUN_TEST_DEBUG or not RUN_TYPES: # Default
+    RUN_TYPES.add('debug')
 
   if env.ART_TEST_RUN_TEST_DEBUGGABLE:
     DEBUGGABLE_TYPES.add('debuggable')
+  if not DEBUGGABLE_TYPES: # Default
+    DEBUGGABLE_TYPES.add('ndebuggable')
 
   if not ADDRESS_SIZES:
     ADDRESS_SIZES_TARGET['target'].add(env.ART_PHONY_TEST_TARGET_SUFFIX)
