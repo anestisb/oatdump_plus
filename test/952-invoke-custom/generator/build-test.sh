@@ -40,8 +40,17 @@ else
   tmp_dir="${TMPDIR}/${test_dir}"
 fi
 
-# This is a custom drop that necessitates this complexity.
-JACK_ANNOTATIONS_LIB=$HOME/Downloads/jack-test-annotations-lib.jack
+if [ "x$ANDROID_BUILD_TOP" = "x" ]; then
+  echo Build environment is not set-up.
+  exit -1
+fi
+
+# This only works internally for now (sorry folks!)
+jack_annotations_lib=/google/data/rw/teams/android-runtime/jack/jack-test-annotations-lib.jack
+if [ ! -f $jack_annotations_lib ]; then
+  echo Try 'prodaccess' to access android-runtime directory.
+  exit -1
+fi
 
 # Compile test into a base64 string that can be instantiated via
 # reflection on hosts without the jack-test-annotations-lib.jack file.
@@ -55,7 +64,7 @@ for input_file in $progdir/*.java; do
   base_64_file=$tmp_dir/TestData$i.base64
   output_file=$progdir/../src/TestData$i.java
   # Compile source file to jack file.
-  jack -g -cp $ANDROID_BUILD_TOP/out/host/linux-x86/../common/obj/JAVA_LIBRARIES/core-libart-hostdex_intermediates/classes.jack:$ANDROID_BUILD_TOP/out/host/linux-x86/../common/obj/JAVA_LIBRARIES/core-oj-hostdex_intermediates/classes.jack:$JACK_ANNOTATIONS_LIB -D sched.runner=multi-threaded -D sched.runner.thread.kind=fixed -D sched.runner.thread.fixed.count=4 -D jack.java.source.version=1.7 -D jack.android.min-api-level=o-b2 --output-jack $jack_file $src_file
+  jack -g -cp $ANDROID_BUILD_TOP/out/host/linux-x86/../common/obj/JAVA_LIBRARIES/core-libart-hostdex_intermediates/classes.jack:$ANDROID_BUILD_TOP/out/host/linux-x86/../common/obj/JAVA_LIBRARIES/core-oj-hostdex_intermediates/classes.jack:$jack_annotations_lib -D sched.runner=multi-threaded -D sched.runner.thread.kind=fixed -D sched.runner.thread.fixed.count=4 -D jack.java.source.version=1.7 -D jack.android.min-api-level=o-b2 --output-jack $jack_file $src_file
   # Compile jack file to classes.dex.
   jack -g -cp $ANDROID_BUILD_TOP/out/host/linux-x86/../common/obj/JAVA_LIBRARIES/core-libart-hostdex_intermediates/classes.jack:$ANDROID_BUILD_TOP/out/host/linux-x86/../common/obj/JAVA_LIBRARIES/core-oj-hostdex_intermediates/classes.jack -D sched.runner=multi-threaded -D sched.runner.thread.kind=fixed -D sched.runner.thread.fixed.count=4 -D jack.java.source.version=1.7 -D jack.android.min-api-level=o-b2 --import $jack_file --output-dex .
   # Pack the classes.dex file into a base64 string.
