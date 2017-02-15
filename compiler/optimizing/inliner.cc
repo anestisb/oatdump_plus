@@ -85,22 +85,20 @@ void HInliner::Run() {
       HInvoke* call = instruction->AsInvoke();
       // As long as the call is not intrinsified, it is worth trying to inline.
       if (call != nullptr && call->GetIntrinsic() == Intrinsics::kNone) {
-        // We use the original invoke type to ensure the resolution of the called method
-        // works properly.
-        if (!TryInline(call)) {
-          if (kIsDebugBuild && IsCompilingWithCoreImage()) {
-            std::string callee_name =
-                outer_compilation_unit_.GetDexFile()->PrettyMethod(call->GetDexMethodIndex());
-            bool should_inline = callee_name.find("$inline$") != std::string::npos;
-            CHECK(!should_inline) << "Could not inline " << callee_name;
+        if (kIsDebugBuild && IsCompilingWithCoreImage()) {
+          // Debugging case: directives in method names control or assert on inlining.
+          std::string callee_name = outer_compilation_unit_.GetDexFile()->PrettyMethod(
+              call->GetDexMethodIndex(), /* with_signature */ false);
+          // Tests prevent inlining by having $noinline$ in their method names.
+          if (callee_name.find("$noinline$") == std::string::npos) {
+            if (!TryInline(call)) {
+              bool should_have_inlined = (callee_name.find("$inline$") != std::string::npos);
+              CHECK(!should_have_inlined) << "Could not inline " << callee_name;
+            }
           }
         } else {
-          if (kIsDebugBuild && IsCompilingWithCoreImage()) {
-            std::string callee_name =
-                outer_compilation_unit_.GetDexFile()->PrettyMethod(call->GetDexMethodIndex());
-            bool must_not_inline = callee_name.find("$noinline$") != std::string::npos;
-            CHECK(!must_not_inline) << "Should not have inlined " << callee_name;
-          }
+          // Normal case: try to inline.
+          TryInline(call);
         }
       }
       instruction = next;
