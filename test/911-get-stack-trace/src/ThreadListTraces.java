@@ -30,7 +30,7 @@ public class ThreadListTraces {
     Thread list[] = new Thread[N/2 + 1];
 
     for (int i = 0; i < N; i++) {
-      Thread t = new Thread() {
+      Thread t = new Thread("ThreadListTraces Thread " + i) {
         public void run() {
           Recurse.foo(4, 0, 0, data);
         }
