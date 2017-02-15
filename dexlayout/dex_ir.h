@@ -134,9 +134,17 @@ template<class T> class CollectionMap : public CollectionBase<T> {
  public:
   CollectionMap() = default;
 
+  // Returns the existing item if it is already inserted, null otherwise.
+  T* GetExistingObject(uint32_t offset) {
+    auto it = collection_.find(offset);
+    return it != collection_.end() ? it->second.get() : nullptr;
+  }
+
   void AddItem(T* object, uint32_t offset) {
     object->SetOffset(offset);
-    collection_.emplace(offset, std::unique_ptr<T>(object));
+    auto it = collection_.emplace(offset, std::unique_ptr<T>(object));
+    CHECK(it.second) << "CollectionMap already has an object with offset " << offset << " "
+                     << " and address " << it.first->second.get();
   }
   uint32_t Size() const { return collection_.size(); }
   std::map<uint32_t, std::unique_ptr<T>>& Collection() { return collection_; }
