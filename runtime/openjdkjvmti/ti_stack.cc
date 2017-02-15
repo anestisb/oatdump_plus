@@ -328,7 +328,7 @@ jvmtiError StackUtil::GetAllStackTraces(jvmtiEnv* env,
 
     // For the time being, set the thread to null. We don't have good ScopedLocalRef
     // infrastructure.
-    DCHECK(self->GetPeer() != nullptr);
+    DCHECK(self->GetPeerFromOtherThread() != nullptr);
     stack_info.thread = nullptr;
     stack_info.state = JVMTI_THREAD_STATE_SUSPENDED;
 
@@ -495,7 +495,7 @@ jvmtiError StackUtil::GetThreadListStackTraces(jvmtiEnv* env,
 
     // For the time being, set the thread to null. We don't have good ScopedLocalRef
     // infrastructure.
-    DCHECK(self->GetPeer() != nullptr);
+    DCHECK(self->GetPeerFromOtherThread() != nullptr);
     stack_info.thread = nullptr;
     stack_info.state = JVMTI_THREAD_STATE_SUSPENDED;
 
