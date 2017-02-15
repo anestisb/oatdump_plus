@@ -216,61 +216,32 @@ class ProfMan FINAL {
       }
     }
 
-    bool has_profiles = !profile_files_.empty() || !profile_files_fd_.empty();
-    bool has_reference_profile = !reference_profile_file_.empty() ||
-        FdIsValid(reference_profile_file_fd_);
-
-    if (!test_profile_.empty()) {
-      if (test_profile_method_ratio_ > 100) {
-        Usage("Invalid ratio for --generate-test-profile-method-ratio");
-      }
-      if (test_profile_class_ratio_ > 100) {
-        Usage("Invalid ratio for --generate-test-profile-class-ratio");
-      }
-      return;
-    }
-    if (!apk_files_.empty() && !apks_fd_.empty()) {
-      Usage("APK files should not be specified with both --apk-fd and --apk");
-    }
-    if (!create_profile_from_file_.empty()) {
-      if (apk_files_.empty() && apks_fd_.empty()) {
-        Usage("APK files must be specified");
-      }
-      if (dex_locations_.empty()) {
-        Usage("DEX locations must be specified");
-      }
-      if (reference_profile_file_.empty() && !FdIsValid(reference_profile_file_fd_)) {
-        Usage("Reference profile must be specified with --reference-profile-file or "
-              "--reference-profile-file-fd");
-      }
-      if (has_profiles) {
-        Usage("Profile must be specified with --reference-profile-file or "
-              "--reference-profile-file-fd");
-      }
-      return;
-    }
-    // --dump-only and --dump-classes may be specified with only --reference-profiles present.
-    if (!dump_only_ && !dump_classes_ && !has_profiles) {
-      Usage("No profile files specified.");
-    }
+    // Validate global consistency between file/fd options.
     if (!profile_files_.empty() && !profile_files_fd_.empty()) {
       Usage("Profile files should not be specified with both --profile-file-fd and --profile-file");
-    }
-    if (!dump_only_ && !dump_classes_ && !has_reference_profile) {
-      Usage("No reference profile file specified.");
     }
     if (!reference_profile_file_.empty() && FdIsValid(reference_profile_file_fd_)) {
       Usage("Reference profile should not be specified with both "
             "--reference-profile-file-fd and --reference-profile-file");
     }
-    if ((!profile_files_.empty() && FdIsValid(reference_profile_file_fd_)) ||
-        (!dump_only_ && !profile_files_fd_.empty() && !FdIsValid(reference_profile_file_fd_))) {
-      Usage("Options --profile-file-fd and --reference-profile-file-fd "
-            "should only be used together");
+    if (!apk_files_.empty() && !apks_fd_.empty()) {
+      Usage("APK files should not be specified with both --apk-fd and --apk");
     }
   }
 
   ProfileAssistant::ProcessingResult ProcessProfiles() {
+    // Validate that at least one profile file was passed, as well as a reference profile.
+    if (profile_files_.empty() && profile_files_fd_.empty()) {
+      Usage("No profile files specified.");
+    }
+    if (reference_profile_file_.empty() && !FdIsValid(reference_profile_file_fd_)) {
+      Usage("No reference profile file specified.");
+    }
+    if ((!profile_files_.empty() && FdIsValid(reference_profile_file_fd_)) ||
+        (!profile_files_fd_.empty() && !FdIsValid(reference_profile_file_fd_))) {
+      Usage("Options --profile-file-fd and --reference-profile-file-fd "
+            "should only be used together");
+    }
     ProfileAssistant::ProcessingResult result;
     if (profile_files_.empty()) {
       // The file doesn't need to be flushed here (ProcessProfiles will do it)
@@ -287,11 +258,15 @@ class ProfMan FINAL {
   void OpenApkFilesFromLocations(std::vector<std::unique_ptr<const DexFile>>* dex_files) {
     bool use_apk_fd_list = !apks_fd_.empty();
     if (use_apk_fd_list) {
-      CHECK(apk_files_.empty());
+      // Get the APKs from the collection of FDs.
       CHECK_EQ(dex_locations_.size(), apks_fd_.size());
-    } else {
+    } else if (!apk_files_.empty()) {
+      // Get the APKs from the collection of filenames.
       CHECK_EQ(dex_locations_.size(), apk_files_.size());
-      CHECK(!apk_files_.empty());
+    } else {
+      // No APKs were specified.
+      CHECK(dex_locations_.empty());
+      return;
     }
     static constexpr bool kVerifyChecksum = true;
     for (size_t i = 0; i < dex_locations_.size(); ++i) {
@@ -350,6 +325,11 @@ class ProfMan FINAL {
   }
 
   int DumpProfileInfo() {
+    // Validate that at least one profile file or reference was specified.
+    if (profile_files_.empty() && profile_files_fd_.empty() &&
+        reference_profile_file_.empty() && !FdIsValid(reference_profile_file_fd_)) {
+      Usage("No profile files or reference profile specified.");
+    }
     static const char* kEmptyString = "";
     static const char* kOrdinaryProfile = "=== profile ===";
     static const char* kReferenceProfile = "=== reference profile ===";
@@ -446,6 +426,11 @@ class ProfMan FINAL {
   }
 
   int DumpClasses() {
+    // Validate that at least one profile file or reference was specified.
+    if (profile_files_.empty() && profile_files_fd_.empty() &&
+        reference_profile_file_.empty() && !FdIsValid(reference_profile_file_fd_)) {
+      Usage("No profile files or reference profile specified.");
+    }
     // Open apk/zip files and and read dex files.
     MemMap::Init();  // for ZipArchive::OpenFromFd
     // Open the dex files to get the names for classes.
@@ -538,7 +523,23 @@ class ProfMan FINAL {
   }
 
   int CreateProfile() {
-    MemMap::Init();  // for ZipArchive::OpenFromFd
+    // Validate parameters for this command.
+    if (apk_files_.empty() && apks_fd_.empty()) {
+      Usage("APK files must be specified");
+    }
+    if (dex_locations_.empty()) {
+      Usage("DEX locations must be specified");
+    }
+    if (reference_profile_file_.empty() && !FdIsValid(reference_profile_file_fd_)) {
+      Usage("Reference profile must be specified with --reference-profile-file or "
+            "--reference-profile-file-fd");
+    }
+    if (!profile_files_.empty() || !profile_files_fd_.empty()) {
+      Usage("Profile must be specified with --reference-profile-file or "
+            "--reference-profile-file-fd");
+    }
+    // for ZipArchive::OpenFromFd
+    MemMap::Init();
     // Open the profile output file if needed.
     int fd = reference_profile_file_fd_;
     if (!FdIsValid(fd)) {
@@ -607,6 +608,14 @@ class ProfMan FINAL {
   }
 
   int GenerateTestProfile() {
+    // Validate parameters for this command.
+    if (test_profile_method_ratio_ > 100) {
+      Usage("Invalid ratio for --generate-test-profile-method-ratio");
+    }
+    if (test_profile_class_ratio_ > 100) {
+      Usage("Invalid ratio for --generate-test-profile-class-ratio");
+    }
+    // ShouldGenerateTestProfile confirms !test_profile_.empty().
     int profile_test_fd = open(test_profile_.c_str(), O_CREAT | O_TRUNC | O_WRONLY, 0644);
     if (profile_test_fd < 0) {
       LOG(ERROR) << "Cannot open " << test_profile_ << strerror(errno);
