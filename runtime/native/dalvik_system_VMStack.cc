@@ -41,7 +41,7 @@ static jobject GetThreadStack(const ScopedFastNativeObjectAccess& soa, jobject p
     Thread* heap_task_thread =
         Runtime::Current()->GetHeap()->GetTaskProcessor()->GetRunningThread();
     // heap_task_thread could be null if the daemons aren't yet started.
-    if (heap_task_thread != nullptr && decoded_peer == heap_task_thread->GetPeer()) {
+    if (heap_task_thread != nullptr && decoded_peer == heap_task_thread->GetPeerFromOtherThread()) {
       return nullptr;
     }
     // Suspend thread to build stack trace.
