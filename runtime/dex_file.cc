@@ -331,7 +331,32 @@ std::unique_ptr<const DexFile> DexFile::OpenOneDexFileFromZip(const ZipArchive& 
     *error_code = ZipOpenErrorCode::kDexFileError;
     return nullptr;
   }
-  std::unique_ptr<MemMap> map(zip_entry->ExtractToMemMap(location.c_str(), entry_name, error_msg));
+
+  std::unique_ptr<MemMap> map;
+  if (zip_entry->IsUncompressed()) {
+    if (!zip_entry->IsAlignedTo(alignof(Header))) {
+      // Do not mmap unaligned ZIP entries because
+      // doing so would fail dex verification which requires 4 byte alignment.
+      LOG(WARNING) << "Can't mmap dex file " << location << "!" << entry_name << " directly; "
+                   << "please zipalign to " << alignof(Header) << " bytes. "
+                   << "Falling back to extracting file.";
+    } else {
+      // Map uncompressed files within zip as file-backed to avoid a dirty copy.
+      map.reset(zip_entry->MapDirectlyFromFile(location.c_str(), /*out*/error_msg));
+      if (map == nullptr) {
+        LOG(WARNING) << "Can't mmap dex file " << location << "!" << entry_name << " directly; "
+                     << "is your ZIP file corrupted? Falling back to extraction.";
+        // Try again with Extraction which still has a chance of recovery.
+      }
+    }
+  }
+
+  if (map == nullptr) {
+    // Default path for compressed ZIP entries,
+    // and fallback for stored ZIP entries.
+    map.reset(zip_entry->ExtractToMemMap(location.c_str(), entry_name, error_msg));
+  }
+
   if (map == nullptr) {
     *error_msg = StringPrintf("Failed to extract '%s' from '%s': %s", entry_name, location.c_str(),
                               error_msg->c_str());
@@ -502,6 +527,11 @@ DexFile::DexFile(const uint8_t* base,
       oat_dex_file_(oat_dex_file) {
   CHECK(begin_ != nullptr) << GetLocation();
   CHECK_GT(size_, 0U) << GetLocation();
+  // Check base (=header) alignment.
+  // Must be 4-byte aligned to avoid undefined behavior when accessing
+  // any of the sections via a pointer.
+  CHECK_ALIGNED(begin_, alignof(Header));
+
   InitializeSectionsFromMapList();
 }
 
