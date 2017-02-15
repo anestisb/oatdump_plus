@@ -22,7 +22,11 @@
 GEN_TOOL=cpp-define-generator-data
 
 if ! which "$GEN_TOOL"; then
-  echo "ERROR: Please build cpp-define-generator-data or source build/envsetup.sh" >&2
+  if [[ -z $ANDROID_BUILD_TOP ]]; then
+    echo "ERROR: Can't find '$GEN_TOOL' in \$PATH. Perhaps try 'source build/envsetup.sh' ?" >&2
+  else
+    echo "ERROR: Can't find '$GEN_TOOL' in \$PATH. Perhaps try 'make $GEN_TOOL' ?" >&2
+  fi
   exit 1
 fi
 
