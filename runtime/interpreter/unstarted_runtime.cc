@@ -897,11 +897,13 @@ static bool CheckCallers(ShadowFrame* shadow_frame,
     REQUIRES_SHARED(Locks::mutator_lock_) {
   for (const std::string& allowed_caller : allowed_call_stack) {
     if (shadow_frame->GetLink() == nullptr) {
+      LOG(ERROR) << "Link is unexpectedly null";
       return false;
     }
 
     std::string found_caller = ArtMethod::PrettyMethod(shadow_frame->GetLink()->GetMethod());
     if (allowed_caller != found_caller) {
+      LOG(ERROR) << "Non-match: " << allowed_caller << " vs " << found_caller;
       return false;
     }
 
@@ -951,6 +953,59 @@ void UnstartedRuntime::UnstartedThreadLocalGet(
   } else {
     AbortTransactionOrFail(self,
                            "ThreadLocal.get() does not support %s",
+                           GetImmediateCaller(shadow_frame).c_str());
+  }
+}
+
+void UnstartedRuntime::UnstartedThreadCurrentThread(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset ATTRIBUTE_UNUSED) {
+  if (CheckCallers(shadow_frame,
+                   { "void java.lang.Thread.init(java.lang.ThreadGroup, java.lang.Runnable, "
+                         "java.lang.String, long)",
+                     "void java.lang.Thread.<init>()",
+                     "void java.util.logging.LogManager$Cleaner.<init>("
+                         "java.util.logging.LogManager)" })) {
+    // Whitelist LogManager$Cleaner, which is an unstarted Thread (for a shutdown hook). The
+    // Thread constructor only asks for the current thread to set up defaults and add the
+    // thread as unstarted to the ThreadGroup. A faked-up main thread peer is good enough for
+    // these purposes.
+    Runtime::Current()->InitThreadGroups(self);
+    jobject main_peer =
+        self->CreateCompileTimePeer(self->GetJniEnv(),
+                                    "main",
+                                    false,
+                                    Runtime::Current()->GetMainThreadGroup());
+    if (main_peer == nullptr) {
+      AbortTransactionOrFail(self, "Failed allocating peer");
+      return;
+    }
+
+    result->SetL(self->DecodeJObject(main_peer));
+    self->GetJniEnv()->DeleteLocalRef(main_peer);
+  } else {
+    AbortTransactionOrFail(self,
+                           "Thread.currentThread() does not support %s",
+                           GetImmediateCaller(shadow_frame).c_str());
+  }
+}
+
+void UnstartedRuntime::UnstartedThreadGetNativeState(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset ATTRIBUTE_UNUSED) {
+  if (CheckCallers(shadow_frame,
+                   { "java.lang.Thread$State java.lang.Thread.getState()",
+                     "java.lang.ThreadGroup java.lang.Thread.getThreadGroup()",
+                     "void java.lang.Thread.init(java.lang.ThreadGroup, java.lang.Runnable, "
+                         "java.lang.String, long)",
+                     "void java.lang.Thread.<init>()",
+                     "void java.util.logging.LogManager$Cleaner.<init>("
+                         "java.util.logging.LogManager)" })) {
+    // Whitelist reading the state of the "main" thread when creating another (unstarted) thread
+    // for LogManager. Report the thread as "new" (it really only counts that it isn't terminated).
+    constexpr int32_t kJavaRunnable = 1;
+    result->SetI(kJavaRunnable);
+  } else {
+    AbortTransactionOrFail(self,
+                           "Thread.getNativeState() does not support %s",
                            GetImmediateCaller(shadow_frame).c_str());
   }
 }

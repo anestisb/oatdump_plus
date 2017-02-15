@@ -66,6 +66,8 @@
   V(StringFactoryNewStringFromString, "java.lang.String java.lang.StringFactory.newStringFromString(java.lang.String)") \
   V(StringFastSubstring, "java.lang.String java.lang.String.fastSubstring(int, int)") \
   V(StringToCharArray, "char[] java.lang.String.toCharArray()") \
+  V(ThreadCurrentThread, "java.lang.Thread java.lang.Thread.currentThread()") \
+  V(ThreadGetNativeState, "int java.lang.Thread.nativeGetStatus(boolean)") \
   V(UnsafeCompareAndSwapLong, "boolean sun.misc.Unsafe.compareAndSwapLong(java.lang.Object, long, long, long)") \
   V(UnsafeCompareAndSwapObject, "boolean sun.misc.Unsafe.compareAndSwapObject(java.lang.Object, long, java.lang.Object, java.lang.Object)") \
   V(UnsafeGetObjectVolatile, "java.lang.Object sun.misc.Unsafe.getObjectVolatile(java.lang.Object, long)") \
