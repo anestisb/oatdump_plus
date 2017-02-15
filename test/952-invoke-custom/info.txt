@@ -1,7 +1,9 @@
 A test that is only available as a DEX binary.
 
 This tests execution of invoke-custom. There is no bytecode to emit
-invoke-custom directly. This test is generated using jack-test-annotations-lib.jack
-which is not a publicly supported at this time.
+invoke-custom directly. This test is generated using an internal only jack file.
 
-The tests and a script to generate data from them are in the generator/ directory.
+Internal developers MUST regenerate the test data files after editing
+the tests under generator/ using:
+
+$ generator/build-tests.sh
