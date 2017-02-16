@@ -987,9 +987,7 @@ void Heap::AddSpace(space::Space* space) {
     // Continuous spaces don't necessarily have bitmaps.
     accounting::ContinuousSpaceBitmap* live_bitmap = continuous_space->GetLiveBitmap();
     accounting::ContinuousSpaceBitmap* mark_bitmap = continuous_space->GetMarkBitmap();
-    // The region space bitmap is not added since VisitObjects visits the region space objects with
-    // special handling.
-    if (live_bitmap != nullptr && !space->IsRegionSpace()) {
+    if (live_bitmap != nullptr) {
       CHECK(mark_bitmap != nullptr);
       live_bitmap_->AddContinuousSpaceBitmap(live_bitmap);
       mark_bitmap_->AddContinuousSpaceBitmap(mark_bitmap);
@@ -1030,7 +1028,7 @@ void Heap::RemoveSpace(space::Space* space) {
     // Continuous spaces don't necessarily have bitmaps.
     accounting::ContinuousSpaceBitmap* live_bitmap = continuous_space->GetLiveBitmap();
     accounting::ContinuousSpaceBitmap* mark_bitmap = continuous_space->GetMarkBitmap();
-    if (live_bitmap != nullptr && !space->IsRegionSpace()) {
+    if (live_bitmap != nullptr) {
       DCHECK(mark_bitmap != nullptr);
       live_bitmap_->RemoveContinuousSpaceBitmap(live_bitmap);
       mark_bitmap_->RemoveContinuousSpaceBitmap(mark_bitmap);
