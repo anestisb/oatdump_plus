@@ -41,7 +41,6 @@ class ElfWriterTest : public CommonCompilerTest {
                                                                  symbol_name, \
                                                                  build_map)); \
     EXPECT_NE(nullptr, addr); \
-    EXPECT_LT(static_cast<uintptr_t>(ART_BASE_ADDRESS), reinterpret_cast<uintptr_t>(addr)); \
     if ((expected_value) == nullptr) { \
       (expected_value) = addr; \
     }                        \
@@ -60,7 +59,7 @@ TEST_F(ElfWriterTest, dlsym) {
   void* dl_oatlastword = nullptr;
 
   std::unique_ptr<File> file(OS::OpenFileForReading(elf_filename.c_str()));
-  ASSERT_TRUE(file.get() != nullptr);
+  ASSERT_TRUE(file.get() != nullptr) << elf_filename;
   {
     std::string error_msg;
     std::unique_ptr<ElfFile> ef(ElfFile::Open(file.get(),
@@ -86,17 +85,22 @@ TEST_F(ElfWriterTest, dlsym) {
     EXPECT_ELF_FILE_ADDRESS(ef, dl_oatlastword, "oatlastword", true);
   }
   {
+    uint8_t* base = reinterpret_cast<uint8_t*>(ART_BASE_ADDRESS);
     std::string error_msg;
     std::unique_ptr<ElfFile> ef(ElfFile::Open(file.get(),
                                               false,
                                               true,
                                               /*low_4gb*/false,
-                                              &error_msg));
+                                              &error_msg,
+                                              base));
     CHECK(ef.get() != nullptr) << error_msg;
     CHECK(ef->Load(file.get(), false, /*low_4gb*/false, &error_msg)) << error_msg;
-    EXPECT_EQ(dl_oatdata, ef->FindDynamicSymbolAddress("oatdata"));
-    EXPECT_EQ(dl_oatexec, ef->FindDynamicSymbolAddress("oatexec"));
-    EXPECT_EQ(dl_oatlastword, ef->FindDynamicSymbolAddress("oatlastword"));
+    EXPECT_EQ(reinterpret_cast<uintptr_t>(dl_oatdata) + reinterpret_cast<uintptr_t>(base),
+        reinterpret_cast<uintptr_t>(ef->FindDynamicSymbolAddress("oatdata")));
+    EXPECT_EQ(reinterpret_cast<uintptr_t>(dl_oatexec) + reinterpret_cast<uintptr_t>(base),
+        reinterpret_cast<uintptr_t>(ef->FindDynamicSymbolAddress("oatexec")));
+    EXPECT_EQ(reinterpret_cast<uintptr_t>(dl_oatlastword) + reinterpret_cast<uintptr_t>(base),
+        reinterpret_cast<uintptr_t>(ef->FindDynamicSymbolAddress("oatlastword")));
   }
 }
 
