@@ -133,8 +133,7 @@ def gather_test_info():
   VARIANT_TYPE_DICT['run'] = {'ndebug', 'debug'}
   VARIANT_TYPE_DICT['target'] = {'target', 'host'}
   VARIANT_TYPE_DICT['trace'] = {'trace', 'ntrace', 'stream'}
-  VARIANT_TYPE_DICT['image'] = {'picimage', 'no-image', 'npicimage',
-                                'multinpicimage', 'multipicimage'}
+  VARIANT_TYPE_DICT['image'] = {'picimage', 'no-image', 'multipicimage'}
   VARIANT_TYPE_DICT['debuggable'] = {'ndebuggable', 'debuggable'}
   VARIANT_TYPE_DICT['gc'] = {'gcstress', 'gcverify', 'cms'}
   VARIANT_TYPE_DICT['prebuild'] = {'no-prebuild', 'no-dex2oat', 'prebuild'}
@@ -218,10 +217,6 @@ def setup_test_env():
     IMAGE_TYPES.add('no-image')
   if env.ART_TEST_RUN_TEST_MULTI_IMAGE:
     IMAGE_TYPES.add('multipicimage')
-  if env.ART_TEST_NPIC_IMAGE:
-    IMAGE_TYPES.add('npicimage')
-  if env.ART_TEST_RUN_TEST_MULTI_IMAGE:
-    IMAGE_TYPES.add('multinpicimage')
   if env.ART_TEST_RUN_TEST_IMAGE or not IMAGE_TYPES: # Default
     IMAGE_TYPES.add('picimage')
 
@@ -388,10 +383,6 @@ def run_tests(tests):
 
       if image == 'no-image':
         options_test += ' --no-image'
-      elif image == 'npicimage':
-        options_test += ' --npic-image'
-      elif image == 'multinpicimage':
-        options_test += ' --npic-image --multi-image'
       elif image == 'multipicimage':
         options_test += ' --multi-image'
 
@@ -788,10 +779,6 @@ def parse_option():
     TRACE_TYPES.add('ntrace')
   if options.cms:
     GC_TYPES.add('cms')
-  if options.npicimage:
-    IMAGE_TYPES.add('npicimage')
-  if options.multinpicimage:
-    IMAGE_TYPES.add('multinpicimage')
   if options.multipicimage:
     IMAGE_TYPES.add('multipicimage')
   if options.verbose:
