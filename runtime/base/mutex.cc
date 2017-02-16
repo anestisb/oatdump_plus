@@ -1167,6 +1167,8 @@ void Locks::Init() {
     expected_mutexes_on_weak_ref_access_.push_back(dex_lock_);
     classlinker_classes_lock_->SetShouldRespondToEmptyCheckpointRequest(true);
     expected_mutexes_on_weak_ref_access_.push_back(classlinker_classes_lock_);
+    jni_libraries_lock_->SetShouldRespondToEmptyCheckpointRequest(true);
+    expected_mutexes_on_weak_ref_access_.push_back(jni_libraries_lock_);
 
     InitConditions();
   }
