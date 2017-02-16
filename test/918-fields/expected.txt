@@ -14,3 +14,7 @@ true
 interface Main$Bar
 25
 false
+[generics, Ljava/lang/Object;, TT;]
+class Main$Generics
+0
+false
