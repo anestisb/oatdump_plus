@@ -897,13 +897,11 @@ static bool CheckCallers(ShadowFrame* shadow_frame,
     REQUIRES_SHARED(Locks::mutator_lock_) {
   for (const std::string& allowed_caller : allowed_call_stack) {
     if (shadow_frame->GetLink() == nullptr) {
-      LOG(ERROR) << "Link is unexpectedly null";
       return false;
     }
 
     std::string found_caller = ArtMethod::PrettyMethod(shadow_frame->GetLink()->GetMethod());
     if (allowed_caller != found_caller) {
-      LOG(ERROR) << "Non-match: " << allowed_caller << " vs " << found_caller;
       return false;
     }
 
