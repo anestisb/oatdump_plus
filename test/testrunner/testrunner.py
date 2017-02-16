@@ -837,15 +837,13 @@ def main():
     while threading.active_count() > 1:
       time.sleep(0.1)
     print_analysis()
-    if failed_tests:
-      sys.exit(1)
-    sys.exit(0)
-  except SystemExit:
-    pass
   except Exception, e:
     print_analysis()
     print_text(str(e))
     sys.exit(1)
+  if failed_tests:
+    sys.exit(1)
+  sys.exit(0)
 
 if __name__ == '__main__':
   main()
