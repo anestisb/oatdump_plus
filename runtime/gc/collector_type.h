@@ -55,6 +55,8 @@ enum CollectorType {
   kCollectorTypeClassLinker,
   // JIT Code cache fake collector.
   kCollectorTypeJitCodeCache,
+  // Hprof fake collector.
+  kCollectorTypeHprof,
   // Fake collector for installing/removing a system-weak holder.
   kCollectorTypeAddRemoveSystemWeakHolder,
 };
