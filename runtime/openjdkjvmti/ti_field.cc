@@ -34,7 +34,9 @@
 #include "art_jvmti.h"
 #include "art_field-inl.h"
 #include "base/enums.h"
+#include "dex_file_annotations.h"
 #include "jni_internal.h"
+#include "mirror/object_array-inl.h"
 #include "modifiers.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
@@ -91,6 +93,26 @@ jvmtiError FieldUtil::GetFieldName(jvmtiEnv* env,
   // TODO: Support generic signature.
   if (generic_ptr != nullptr) {
     *generic_ptr = nullptr;
+    if (!art_field->GetDeclaringClass()->IsProxyClass()) {
+      art::mirror::ObjectArray<art::mirror::String>* str_array =
+          art::annotations::GetSignatureAnnotationForField(art_field);
+      if (str_array != nullptr) {
+        std::ostringstream oss;
+        for (int32_t i = 0; i != str_array->GetLength(); ++i) {
+          oss << str_array->Get(i)->ToModifiedUtf8();
+        }
+        std::string output_string = oss.str();
+        unsigned char* tmp;
+        jvmtiError ret = CopyString(env, output_string.c_str(), &tmp);
+        if (ret != ERR(NONE)) {
+          return ret;
+        }
+        *generic_ptr = reinterpret_cast<char*>(tmp);
+      } else if (soa.Self()->IsExceptionPending()) {
+        // TODO: Should we report an error here?
+        soa.Self()->ClearException();
+      }
+    }
   }
 
   // Everything is fine, release the buffers.

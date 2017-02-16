@@ -27,6 +27,7 @@ public class Main {
     testField(Integer.class, "value");
     testField(Foo.class, "this$0");
     testField(Bar.class, "VAL");
+    testField(Generics.class, "generics");
   }
 
   private static void testField(Class<?> base, String fieldName)
@@ -64,5 +65,9 @@ public class Main {
 
   private static interface Bar {
     public static int VAL = 1;
+  }
+
+  private static class Generics<T> {
+    T generics;
   }
 }
