@@ -89,6 +89,13 @@ class UnstartedRuntime {
 #undef UNSTARTED_RUNTIME_JNI_LIST
 #undef UNSTARTED_JNI
 
+  static void UnstartedClassForNameCommon(Thread* self,
+                                          ShadowFrame* shadow_frame,
+                                          JValue* result,
+                                          size_t arg_offset,
+                                          bool long_form,
+                                          const char* caller) REQUIRES_SHARED(Locks::mutator_lock_);
+
   static void InitializeInvokeHandlers();
   static void InitializeJNIHandlers();
 
