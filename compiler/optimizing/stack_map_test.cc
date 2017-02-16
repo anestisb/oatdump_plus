@@ -934,7 +934,6 @@ TEST(StackMapTest, CodeOffsetTest) {
   EXPECT_EQ(offset_mips64.Uint32Value(kMips64), kMips64InstructionAlignment);
 }
 
-
 TEST(StackMapTest, TestDeduplicateStackMask) {
   ArenaPool pool;
   ArenaAllocator arena(&pool);
@@ -961,6 +960,50 @@ TEST(StackMapTest, TestDeduplicateStackMask) {
   StackMap stack_map2 = code_info.GetStackMapForNativePcOffset(8, encoding);
   EXPECT_EQ(stack_map1.GetStackMaskIndex(encoding.stack_map.encoding),
             stack_map2.GetStackMaskIndex(encoding.stack_map.encoding));
+}
+
+TEST(StackMapTest, TestInvokeInfo) {
+  ArenaPool pool;
+  ArenaAllocator arena(&pool);
+  StackMapStream stream(&arena, kRuntimeISA);
+
+  ArenaBitVector sp_mask(&arena, 0, true);
+  sp_mask.SetBit(1);
+  stream.BeginStackMapEntry(0, 4, 0x3, &sp_mask, 0, 0);
+  stream.AddInvoke(kSuper, 1);
+  stream.EndStackMapEntry();
+  stream.BeginStackMapEntry(0, 8, 0x3, &sp_mask, 0, 0);
+  stream.AddInvoke(kStatic, 3);
+  stream.EndStackMapEntry();
+  stream.BeginStackMapEntry(0, 16, 0x3, &sp_mask, 0, 0);
+  stream.AddInvoke(kDirect, 65535);
+  stream.EndStackMapEntry();
+
+  const size_t size = stream.PrepareForFillIn();
+  MemoryRegion region(arena.Alloc(size, kArenaAllocMisc), size);
+  stream.FillIn(region);
+
+  CodeInfo code_info(region);
+  CodeInfoEncoding encoding = code_info.ExtractEncoding();
+  ASSERT_EQ(3u, code_info.GetNumberOfStackMaps(encoding));
+
+  InvokeInfo invoke1(code_info.GetInvokeInfoForNativePcOffset(4, encoding));
+  InvokeInfo invoke2(code_info.GetInvokeInfoForNativePcOffset(8, encoding));
+  InvokeInfo invoke3(code_info.GetInvokeInfoForNativePcOffset(16, encoding));
+  InvokeInfo invoke_invalid(code_info.GetInvokeInfoForNativePcOffset(12, encoding));
+  EXPECT_FALSE(invoke_invalid.IsValid());  // No entry for that index.
+  EXPECT_TRUE(invoke1.IsValid());
+  EXPECT_TRUE(invoke2.IsValid());
+  EXPECT_TRUE(invoke3.IsValid());
+  EXPECT_EQ(invoke1.GetInvokeType(encoding.invoke_info.encoding), kSuper);
+  EXPECT_EQ(invoke1.GetMethodIndex(encoding.invoke_info.encoding), 1u);
+  EXPECT_EQ(invoke1.GetNativePcOffset(encoding.invoke_info.encoding, kRuntimeISA), 4u);
+  EXPECT_EQ(invoke2.GetInvokeType(encoding.invoke_info.encoding), kStatic);
+  EXPECT_EQ(invoke2.GetMethodIndex(encoding.invoke_info.encoding), 3u);
+  EXPECT_EQ(invoke2.GetNativePcOffset(encoding.invoke_info.encoding, kRuntimeISA), 8u);
+  EXPECT_EQ(invoke3.GetInvokeType(encoding.invoke_info.encoding), kDirect);
+  EXPECT_EQ(invoke3.GetMethodIndex(encoding.invoke_info.encoding), 65535u);
+  EXPECT_EQ(invoke3.GetNativePcOffset(encoding.invoke_info.encoding, kRuntimeISA), 16u);
 }
 
 }  // namespace art

@@ -358,6 +358,29 @@ class QuickArgumentVisitor {
     }
   }
 
+  static bool GetInvokeType(ArtMethod** sp, InvokeType* invoke_type, uint32_t* dex_method_index)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    DCHECK((*sp)->IsCalleeSaveMethod());
+    const size_t callee_frame_size = GetCalleeSaveFrameSize(kRuntimeISA, Runtime::kSaveRefsAndArgs);
+    ArtMethod** caller_sp = reinterpret_cast<ArtMethod**>(
+        reinterpret_cast<uintptr_t>(sp) + callee_frame_size);
+    uintptr_t outer_pc = QuickArgumentVisitor::GetCallingPc(sp);
+    const OatQuickMethodHeader* current_code = (*caller_sp)->GetOatQuickMethodHeader(outer_pc);
+    if (!current_code->IsOptimized()) {
+      return false;
+    }
+    uintptr_t outer_pc_offset = current_code->NativeQuickPcOffset(outer_pc);
+    CodeInfo code_info = current_code->GetOptimizedCodeInfo();
+    CodeInfoEncoding encoding = code_info.ExtractEncoding();
+    InvokeInfo invoke(code_info.GetInvokeInfoForNativePcOffset(outer_pc_offset, encoding));
+    if (invoke.IsValid()) {
+      *invoke_type = static_cast<InvokeType>(invoke.GetInvokeType(encoding.invoke_info.encoding));
+      *dex_method_index = invoke.GetMethodIndex(encoding.invoke_info.encoding);
+      return true;
+    }
+    return false;
+  }
+
   // For the given quick ref and args quick frame, return the caller's PC.
   static uintptr_t GetCallingPc(ArtMethod** sp) REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK((*sp)->IsCalleeSaveMethod());
@@ -977,60 +1000,87 @@ extern "C" const void* artQuickResolutionTrampoline(
   ArtMethod* caller = nullptr;
   if (!called_method_known_on_entry) {
     caller = QuickArgumentVisitor::GetCallingMethod(sp);
-    uint32_t dex_pc = QuickArgumentVisitor::GetCallingDexPc(sp);
-    const DexFile::CodeItem* code;
     called_method.dex_file = caller->GetDexFile();
-    code = caller->GetCodeItem();
-    CHECK_LT(dex_pc, code->insns_size_in_code_units_);
-    const Instruction* instr = Instruction::At(&code->insns_[dex_pc]);
-    Instruction::Code instr_code = instr->Opcode();
-    bool is_range;
-    switch (instr_code) {
-      case Instruction::INVOKE_DIRECT:
-        invoke_type = kDirect;
-        is_range = false;
-        break;
-      case Instruction::INVOKE_DIRECT_RANGE:
-        invoke_type = kDirect;
-        is_range = true;
-        break;
-      case Instruction::INVOKE_STATIC:
-        invoke_type = kStatic;
-        is_range = false;
-        break;
-      case Instruction::INVOKE_STATIC_RANGE:
-        invoke_type = kStatic;
-        is_range = true;
-        break;
-      case Instruction::INVOKE_SUPER:
-        invoke_type = kSuper;
-        is_range = false;
-        break;
-      case Instruction::INVOKE_SUPER_RANGE:
-        invoke_type = kSuper;
-        is_range = true;
-        break;
-      case Instruction::INVOKE_VIRTUAL:
-        invoke_type = kVirtual;
-        is_range = false;
-        break;
-      case Instruction::INVOKE_VIRTUAL_RANGE:
-        invoke_type = kVirtual;
-        is_range = true;
-        break;
-      case Instruction::INVOKE_INTERFACE:
-        invoke_type = kInterface;
-        is_range = false;
-        break;
-      case Instruction::INVOKE_INTERFACE_RANGE:
-        invoke_type = kInterface;
-        is_range = true;
-        break;
-      default:
-        LOG(FATAL) << "Unexpected call into trampoline: " << instr->DumpString(nullptr);
-        UNREACHABLE();
+
+    InvokeType stack_map_invoke_type;
+    uint32_t stack_map_dex_method_idx;
+    const bool found_stack_map = QuickArgumentVisitor::GetInvokeType(sp,
+                                                                     &stack_map_invoke_type,
+                                                                     &stack_map_dex_method_idx);
+    // For debug builds, we make sure both of the paths are consistent by also looking at the dex
+    // code.
+    if (!found_stack_map || kIsDebugBuild) {
+      uint32_t dex_pc = QuickArgumentVisitor::GetCallingDexPc(sp);
+      const DexFile::CodeItem* code;
+      code = caller->GetCodeItem();
+      CHECK_LT(dex_pc, code->insns_size_in_code_units_);
+      const Instruction* instr = Instruction::At(&code->insns_[dex_pc]);
+      Instruction::Code instr_code = instr->Opcode();
+      bool is_range;
+      switch (instr_code) {
+        case Instruction::INVOKE_DIRECT:
+          invoke_type = kDirect;
+          is_range = false;
+          break;
+        case Instruction::INVOKE_DIRECT_RANGE:
+          invoke_type = kDirect;
+          is_range = true;
+          break;
+        case Instruction::INVOKE_STATIC:
+          invoke_type = kStatic;
+          is_range = false;
+          break;
+        case Instruction::INVOKE_STATIC_RANGE:
+          invoke_type = kStatic;
+          is_range = true;
+          break;
+        case Instruction::INVOKE_SUPER:
+          invoke_type = kSuper;
+          is_range = false;
+          break;
+        case Instruction::INVOKE_SUPER_RANGE:
+          invoke_type = kSuper;
+          is_range = true;
+          break;
+        case Instruction::INVOKE_VIRTUAL:
+          invoke_type = kVirtual;
+          is_range = false;
+          break;
+        case Instruction::INVOKE_VIRTUAL_RANGE:
+          invoke_type = kVirtual;
+          is_range = true;
+          break;
+        case Instruction::INVOKE_INTERFACE:
+          invoke_type = kInterface;
+          is_range = false;
+          break;
+        case Instruction::INVOKE_INTERFACE_RANGE:
+          invoke_type = kInterface;
+          is_range = true;
+          break;
+        default:
+          LOG(FATAL) << "Unexpected call into trampoline: " << instr->DumpString(nullptr);
+          UNREACHABLE();
+      }
+      called_method.dex_method_index = (is_range) ? instr->VRegB_3rc() : instr->VRegB_35c();
+      // Check that the invoke matches what we expected, note that this path only happens for debug
+      // builds.
+      if (found_stack_map) {
+        DCHECK_EQ(stack_map_invoke_type, invoke_type);
+        if (invoke_type != kSuper) {
+          // Super may be sharpened.
+          DCHECK_EQ(stack_map_dex_method_idx, called_method.dex_method_index)
+              << called_method.dex_file->PrettyMethod(stack_map_dex_method_idx) << " "
+              << called_method.dex_file->PrettyMethod(called_method.dex_method_index);
+        }
+      } else {
+        VLOG(oat) << "Accessed dex file for invoke " << invoke_type << " "
+                  << called_method.dex_method_index;
+      }
+    } else {
+      invoke_type = stack_map_invoke_type;
+      called_method.dex_method_index = stack_map_dex_method_idx;
     }
-    called_method.dex_method_index = (is_range) ? instr->VRegB_3rc() : instr->VRegB_35c();
   } else {
     invoke_type = kStatic;
     called_method.dex_file = called->GetDexFile();
