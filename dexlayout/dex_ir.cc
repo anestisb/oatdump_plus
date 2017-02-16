@@ -466,8 +466,8 @@ AnnotationItem* Collections::CreateAnnotationItem(const DexFile::AnnotationItem*
 
 
 AnnotationSetItem* Collections::CreateAnnotationSetItem(const DexFile& dex_file,
-    const DexFile::AnnotationSetItem& disk_annotations_item, uint32_t offset) {
-  if (disk_annotations_item.size_ == 0 && offset == 0) {
+    const DexFile::AnnotationSetItem* disk_annotations_item, uint32_t offset) {
+  if (disk_annotations_item == nullptr || (disk_annotations_item->size_ == 0 && offset == 0)) {
     return nullptr;
   }
   auto found_anno_set_item = AnnotationSetItems().find(offset);
@@ -475,14 +475,14 @@ AnnotationSetItem* Collections::CreateAnnotationSetItem(const DexFile& dex_file,
     return found_anno_set_item->second.get();
   }
   std::vector<AnnotationItem*>* items = new std::vector<AnnotationItem*>();
-  for (uint32_t i = 0; i < disk_annotations_item.size_; ++i) {
+  for (uint32_t i = 0; i < disk_annotations_item->size_; ++i) {
     const DexFile::AnnotationItem* annotation =
-        dex_file.GetAnnotationItem(&disk_annotations_item, i);
+        dex_file.GetAnnotationItem(disk_annotations_item, i);
     if (annotation == nullptr) {
       continue;
     }
     AnnotationItem* annotation_item =
-        CreateAnnotationItem(annotation, disk_annotations_item.entries_[i]);
+        CreateAnnotationItem(annotation, disk_annotations_item->entries_[i]);
     items->push_back(annotation_item);
   }
   AnnotationSetItem* annotation_set_item = new AnnotationSetItem(items);
@@ -501,7 +501,7 @@ AnnotationsDirectoryItem* Collections::CreateAnnotationsDirectoryItem(const DexF
   AnnotationSetItem* class_annotation = nullptr;
   if (class_set_item != nullptr) {
     uint32_t offset = disk_annotations_item->class_annotations_off_;
-    class_annotation = CreateAnnotationSetItem(dex_file, *class_set_item, offset);
+    class_annotation = CreateAnnotationSetItem(dex_file, class_set_item, offset);
   }
   const DexFile::FieldAnnotationsItem* fields =
       dex_file.GetFieldAnnotations(disk_annotations_item);
@@ -514,7 +514,7 @@ AnnotationsDirectoryItem* Collections::CreateAnnotationsDirectoryItem(const DexF
           dex_file.GetFieldAnnotationSetItem(fields[i]);
       uint32_t annotation_set_offset = fields[i].annotations_off_;
       AnnotationSetItem* annotation_set_item =
-          CreateAnnotationSetItem(dex_file, *field_set_item, annotation_set_offset);
+          CreateAnnotationSetItem(dex_file, field_set_item, annotation_set_offset);
       field_annotations->push_back(std::unique_ptr<FieldAnnotation>(
           new FieldAnnotation(field_id, annotation_set_item)));
     }
@@ -530,7 +530,7 @@ AnnotationsDirectoryItem* Collections::CreateAnnotationsDirectoryItem(const DexF
           dex_file.GetMethodAnnotationSetItem(methods[i]);
       uint32_t annotation_set_offset = methods[i].annotations_off_;
       AnnotationSetItem* annotation_set_item =
-          CreateAnnotationSetItem(dex_file, *method_set_item, annotation_set_offset);
+          CreateAnnotationSetItem(dex_file, method_set_item, annotation_set_offset);
       method_annotations->push_back(std::unique_ptr<MethodAnnotation>(
           new MethodAnnotation(method_id, annotation_set_item)));
     }
@@ -569,7 +569,7 @@ ParameterAnnotation* Collections::GenerateParameterAnnotation(
       const DexFile::AnnotationSetItem* annotation_set_item =
           dex_file.GetSetRefItemItem(&annotation_set_ref_list->list_[i]);
       uint32_t set_offset = annotation_set_ref_list->list_[i].annotations_off_;
-      annotations->push_back(CreateAnnotationSetItem(dex_file, *annotation_set_item, set_offset));
+      annotations->push_back(CreateAnnotationSetItem(dex_file, annotation_set_item, set_offset));
     }
     set_ref_list = new AnnotationSetRefList(annotations);
     annotation_set_ref_lists_.AddItem(set_ref_list, offset);

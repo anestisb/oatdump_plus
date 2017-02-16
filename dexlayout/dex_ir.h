@@ -194,7 +194,7 @@ class Collections {
   EncodedArrayItem* CreateEncodedArrayItem(const uint8_t* static_data, uint32_t offset);
   AnnotationItem* CreateAnnotationItem(const DexFile::AnnotationItem* annotation, uint32_t offset);
   AnnotationSetItem* CreateAnnotationSetItem(const DexFile& dex_file,
-      const DexFile::AnnotationSetItem& disk_annotations_item, uint32_t offset);
+      const DexFile::AnnotationSetItem* disk_annotations_item, uint32_t offset);
   AnnotationsDirectoryItem* CreateAnnotationsDirectoryItem(const DexFile& dex_file,
       const DexFile::AnnotationsDirectoryItem* disk_annotations_item, uint32_t offset);
   CodeItem* CreateCodeItem(
