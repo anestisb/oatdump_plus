@@ -463,6 +463,7 @@ class Hprof : public SingleRootVisitor {
     }
 
     bool okay;
+    visited_objects_.clear();
     if (direct_to_ddms_) {
       if (kDirectStream) {
         okay = DumpToDdmsDirect(overall_size, max_length, CHUNK_TYPE("HPDS"));
@@ -911,6 +912,9 @@ class Hprof : public SingleRootVisitor {
   // bits.
   std::unordered_set<uint64_t> simple_roots_;
 
+  // To make sure we don't dump the same object multiple times. b/34967844
+  std::unordered_set<mirror::Object*> visited_objects_;
+
   friend class GcRootVisitor;
   DISALLOW_COPY_AND_ASSIGN(Hprof);
 };
@@ -1093,6 +1097,7 @@ void Hprof::DumpHeapObject(mirror::Object* obj) {
   if (obj->IsClass() && obj->AsClass()->IsRetired()) {
     return;
   }
+  DCHECK(visited_objects_.insert(obj).second) << "Already visited " << obj;
 
   ++total_objects_;
 
