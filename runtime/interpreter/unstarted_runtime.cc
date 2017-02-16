@@ -175,56 +175,61 @@ static mirror::String* GetClassName(Thread* self, ShadowFrame* shadow_frame, siz
   return param->AsString();
 }
 
-void UnstartedRuntime::UnstartedClassForName(
-    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+void UnstartedRuntime::UnstartedClassForNameCommon(Thread* self,
+                                                   ShadowFrame* shadow_frame,
+                                                   JValue* result,
+                                                   size_t arg_offset,
+                                                   bool long_form,
+                                                   const char* caller) {
   mirror::String* class_name = GetClassName(self, shadow_frame, arg_offset);
   if (class_name == nullptr) {
     return;
   }
+  bool initialize_class;
+  mirror::ClassLoader* class_loader;
+  if (long_form) {
+    initialize_class = shadow_frame->GetVReg(arg_offset + 1) != 0;
+    class_loader = down_cast<mirror::ClassLoader*>(shadow_frame->GetVRegReference(arg_offset + 2));
+  } else {
+    initialize_class = true;
+    // TODO: This is really only correct for the boot classpath, and for robustness we should
+    //       check the caller.
+    class_loader = nullptr;
+  }
+
+  ScopedObjectAccessUnchecked soa(self);
+  if (class_loader != nullptr && !ClassLinker::IsBootClassLoader(soa, class_loader)) {
+    AbortTransactionOrFail(self,
+                           "Only the boot classloader is supported: %s",
+                           mirror::Object::PrettyTypeOf(class_loader).c_str());
+    return;
+  }
+
   StackHandleScope<1> hs(self);
   Handle<mirror::String> h_class_name(hs.NewHandle(class_name));
   UnstartedRuntimeFindClass(self,
                             h_class_name,
                             ScopedNullHandle<mirror::ClassLoader>(),
                             result,
-                            "Class.forName",
-                            true,
+                            caller,
+                            initialize_class,
                             false);
   CheckExceptionGenerateClassNotFound(self);
 }
 
+void UnstartedRuntime::UnstartedClassForName(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  UnstartedClassForNameCommon(self, shadow_frame, result, arg_offset, false, "Class.forName");
+}
+
 void UnstartedRuntime::UnstartedClassForNameLong(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
-  mirror::String* class_name = GetClassName(self, shadow_frame, arg_offset);
-  if (class_name == nullptr) {
-    return;
-  }
-  bool initialize_class = shadow_frame->GetVReg(arg_offset + 1) != 0;
-  mirror::ClassLoader* class_loader =
-      down_cast<mirror::ClassLoader*>(shadow_frame->GetVRegReference(arg_offset + 2));
-  StackHandleScope<2> hs(self);
-  Handle<mirror::String> h_class_name(hs.NewHandle(class_name));
-  Handle<mirror::ClassLoader> h_class_loader(hs.NewHandle(class_loader));
-  UnstartedRuntimeFindClass(self, h_class_name, h_class_loader, result, "Class.forName",
-                            initialize_class, false);
-  CheckExceptionGenerateClassNotFound(self);
+  UnstartedClassForNameCommon(self, shadow_frame, result, arg_offset, true, "Class.forName");
 }
 
 void UnstartedRuntime::UnstartedClassClassForName(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
-  mirror::String* class_name = GetClassName(self, shadow_frame, arg_offset);
-  if (class_name == nullptr) {
-    return;
-  }
-  bool initialize_class = shadow_frame->GetVReg(arg_offset + 1) != 0;
-  mirror::ClassLoader* class_loader =
-      down_cast<mirror::ClassLoader*>(shadow_frame->GetVRegReference(arg_offset + 2));
-  StackHandleScope<2> hs(self);
-  Handle<mirror::String> h_class_name(hs.NewHandle(class_name));
-  Handle<mirror::ClassLoader> h_class_loader(hs.NewHandle(class_loader));
-  UnstartedRuntimeFindClass(self, h_class_name, h_class_loader, result, "Class.classForName",
-                            initialize_class, false);
-  CheckExceptionGenerateClassNotFound(self);
+  UnstartedClassForNameCommon(self, shadow_frame, result, arg_offset, true, "Class.classForName");
 }
 
 void UnstartedRuntime::UnstartedClassNewInstance(
