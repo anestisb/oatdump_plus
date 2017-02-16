@@ -50,6 +50,7 @@
 #include "gc_root.h"
 #include "gc/accounting/heap_bitmap.h"
 #include "gc/allocation_record.h"
+#include "gc/scoped_gc_critical_section.h"
 #include "gc/heap.h"
 #include "gc/space/space.h"
 #include "globals.h"
@@ -463,6 +464,7 @@ class Hprof : public SingleRootVisitor {
     }
 
     bool okay;
+    visited_objects_.clear();
     if (direct_to_ddms_) {
       if (kDirectStream) {
         okay = DumpToDdmsDirect(overall_size, max_length, CHUNK_TYPE("HPDS"));
@@ -911,6 +913,9 @@ class Hprof : public SingleRootVisitor {
   // bits.
   std::unordered_set<uint64_t> simple_roots_;
 
+  // To make sure we don't dump the same object multiple times. b/34967844
+  std::unordered_set<mirror::Object*> visited_objects_;
+
   friend class GcRootVisitor;
   DISALLOW_COPY_AND_ASSIGN(Hprof);
 };
@@ -1093,6 +1098,7 @@ void Hprof::DumpHeapObject(mirror::Object* obj) {
   if (obj->IsClass() && obj->AsClass()->IsRetired()) {
     return;
   }
+  DCHECK(visited_objects_.insert(obj).second) << "Already visited " << obj;
 
   ++total_objects_;
 
@@ -1444,22 +1450,15 @@ void Hprof::VisitRoot(mirror::Object* obj, const RootInfo& info) {
 // Otherwise, "filename" is used to create an output file.
 void DumpHeap(const char* filename, int fd, bool direct_to_ddms) {
   CHECK(filename != nullptr);
-
   Thread* self = Thread::Current();
-  gc::Heap* heap = Runtime::Current()->GetHeap();
-  if (heap->IsGcConcurrentAndMoving()) {
-    // Need to take a heap dump while GC isn't running. See the
-    // comment in Heap::VisitObjects().
-    heap->IncrementDisableMovingGC(self);
-  }
-  {
-    ScopedSuspendAll ssa(__FUNCTION__, true /* long suspend */);
-    Hprof hprof(filename, fd, direct_to_ddms);
-    hprof.Dump();
-  }
-  if (heap->IsGcConcurrentAndMoving()) {
-    heap->DecrementDisableMovingGC(self);
-  }
+  // Need to take a heap dump while GC isn't running. See the comment in Heap::VisitObjects().
+  // Also we need the critical section to avoid visiting the same object twice. See b/34967844
+  gc::ScopedGCCriticalSection gcs(self,
+                                  gc::kGcCauseHprof,
+                                  gc::kCollectorTypeHprof);
+  ScopedSuspendAll ssa(__FUNCTION__, true /* long suspend */);
+  Hprof hprof(filename, fd, direct_to_ddms);
+  hprof.Dump();
 }
 
 }  // namespace hprof
