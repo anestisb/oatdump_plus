@@ -232,8 +232,9 @@ public class Main {
   /// CHECK-NOT: InvokeVirtual intrinsic:StringStringIndexOfAfter
   static int bufferDeadLoop() {
     StringBuffer b = new StringBuffer();
+    String x = "x";
     for (int i = 0; i < 10; i++) {
-      int d = b.toString().indexOf("x", 1);
+      int d = b.toString().indexOf(x, 1);
     }
     return b.length();
   }
@@ -252,8 +253,9 @@ public class Main {
   /// CHECK-NOT: InvokeVirtual intrinsic:StringStringIndexOfAfter
   static int builderDeadLoop() {
     StringBuilder b = new StringBuilder();
+    String x = "x";
     for (int i = 0; i < 10; i++) {
-      int d = b.toString().indexOf("x", 1);
+      int d = b.toString().indexOf(x, 1);
     }
     return b.length();
   }
