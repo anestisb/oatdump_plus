@@ -36,12 +36,16 @@ class CommonDominator {
   // Create a finder starting with a given block.
   explicit CommonDominator(HBasicBlock* block)
       : dominator_(block), chain_length_(ChainLength(block)) {
-    DCHECK(block != nullptr);
   }
 
   // Update the common dominator with another block.
   void Update(HBasicBlock* block) {
     DCHECK(block != nullptr);
+    if (dominator_ == nullptr) {
+      dominator_ = block;
+      chain_length_ = ChainLength(block);
+      return;
+    }
     HBasicBlock* block2 = dominator_;
     DCHECK(block2 != nullptr);
     if (block == block2) {

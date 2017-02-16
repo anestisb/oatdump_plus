@@ -67,6 +67,7 @@ enum MethodCompilationStat {
   kImplicitNullCheckGenerated,
   kExplicitNullCheckGenerated,
   kSimplifyIf,
+  kInstructionSunk,
   kLastStat
 };
 
@@ -147,6 +148,7 @@ class OptimizingCompilerStats {
       case kImplicitNullCheckGenerated: name = "ImplicitNullCheckGenerated"; break;
       case kExplicitNullCheckGenerated: name = "ExplicitNullCheckGenerated"; break;
       case kSimplifyIf: name = "SimplifyIf"; break;
+      case kInstructionSunk: name = "InstructionSunk"; break;
 
       case kLastStat:
         LOG(FATAL) << "invalid stat "
