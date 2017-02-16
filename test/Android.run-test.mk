@@ -898,12 +898,24 @@ define core-image-dependencies
   endif
 endef
 
+COMPILER_TYPES_2 := optimizing
+COMPILER_TYPES_2 += interpreter
+COMPILER_TYPES_2 += jit
+COMPILER_TYPES_2 += regalloc_gc
+COMPILER_TYPES_2 += interp-ac
+ALL_ADDRESS_SIZES_2 := 32 64
+IMAGE_TYPES_2 := picimage
+IMAGE_TYPES_2 += no-image
+IMAGE_TYPES_2 += npicimage
+IMAGE_TYPES_2 += multinpicimage
+IMAGE_TYPES_2 += multipicimage
+
 # Add core image dependencies required for given target - HOST or TARGET,
 # IMAGE_TYPE, COMPILER_TYPE and ADDRESS_SIZE to the prereq_rules.
 $(foreach target, $(TARGET_TYPES), \
-  $(foreach image, $(IMAGE_TYPES), \
-    $(foreach compiler, $(COMPILER_TYPES), \
-      $(foreach address_size, $(ALL_ADDRESS_SIZES), $(eval \
+  $(foreach image, $(IMAGE_TYPES_2), \
+    $(foreach compiler, $(COMPILER_TYPES_2), \
+      $(foreach address_size, $(ALL_ADDRESS_SIZES_2), $(eval \
         $(call core-image-dependencies,$(target),$(image),$(compiler),$(address_size)))))))
 
 test-art-host-run-test-dependencies : $(host_prereq_rules)
