@@ -66,6 +66,11 @@ inline vixl::aarch32::SRegister LowSRegisterFrom(Location location) {
   return vixl::aarch32::SRegister(location.AsFpuRegisterPairLow<vixl::aarch32::SRegister>());
 }
 
+inline vixl::aarch32::SRegister HighSRegisterFrom(Location location) {
+  DCHECK(location.IsFpuRegisterPair()) << location;
+  return vixl::aarch32::SRegister(location.AsFpuRegisterPairHigh<vixl::aarch32::SRegister>());
+}
+
 inline vixl::aarch32::Register RegisterFrom(Location location) {
   DCHECK(location.IsRegister()) << location;
   return vixl::aarch32::Register(location.reg());
