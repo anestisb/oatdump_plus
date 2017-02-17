@@ -937,7 +937,14 @@ void Heap::VisitObjectsInternalRegionSpace(ObjectCallback callback, void* arg) {
       // calls VerifyHeapReferences() as part of the zygote compaction
       // which then would call here without the moving GC disabled,
       // which is fine.
-      DCHECK(IsMovingGCDisabled(self));
+      bool is_thread_running_gc = false;
+      if (kIsDebugBuild) {
+        MutexLock mu(self, *gc_complete_lock_);
+        is_thread_running_gc = self == thread_running_gc_;
+      }
+      // If we are not the thread running the GC on in a GC exclusive region, then moving GC
+      // must be disabled.
+      DCHECK(is_thread_running_gc || IsMovingGCDisabled(self));
     }
     region_space_->Walk(callback, arg);
   }

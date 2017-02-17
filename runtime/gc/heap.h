@@ -736,9 +736,7 @@ class Heap {
 
   bool IsMovingGCDisabled(Thread* self) REQUIRES(!*gc_complete_lock_) {
     MutexLock mu(self, *gc_complete_lock_);
-    // If we are in a GC critical section or the disable moving GC count is non zero then moving
-    // GC is guaranteed to not start.
-    return disable_moving_gc_count_ > 0 || thread_running_gc_ == self;
+    return disable_moving_gc_count_ > 0;
   }
 
   // Request an asynchronous trim.
