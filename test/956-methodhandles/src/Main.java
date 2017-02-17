@@ -183,13 +183,21 @@ public class Main {
     public String bar();
   }
 
-  public static class BarSuper {
+  public static abstract class BarAbstractSuper {
+    public abstract String abstractSuperPublicMethod();
+  }
+
+  public static class BarSuper extends BarAbstractSuper {
     public String superPublicMethod() {
       return "superPublicMethod";
     }
 
-    public String superProtectedMethod() {
+    protected String superProtectedMethod() {
       return "superProtectedMethod";
+    }
+
+    public String abstractSuperPublicMethod() {
+      return "abstractSuperPublicMethod";
     }
 
     String superPackageMethod() {
@@ -288,15 +296,19 @@ public class Main {
       System.out.println("Unexpected return value for BarImpl#bar: " + str);
     }
 
-    // TODO(narayan): Fix this case, we're using the wrong ArtMethod for the
-    // invoke resulting in a failing check in the interpreter.
-    //
-    // mh = MethodHandles.lookup().findVirtual(Bar.class, "bar",
-    //    MethodType.methodType(String.class));
-    // str = (String) mh.invoke(new BarImpl());
-    // if (!"bar".equals(str)) {
-    //   System.out.println("Unexpected return value for BarImpl#bar: " + str);
-    // }
+    mh = MethodHandles.lookup().findVirtual(Bar.class, "bar",
+                                            MethodType.methodType(String.class));
+    str = (String) mh.invoke(new BarImpl());
+    if (!"bar".equals(str)) {
+      System.out.println("Unexpected return value for BarImpl#bar: " + str);
+    }
+
+    mh = MethodHandles.lookup().findVirtual(BarAbstractSuper.class, "abstractSuperPublicMethod",
+        MethodType.methodType(String.class));
+    str = (String) mh.invoke(new BarImpl());
+    if (!"abstractSuperPublicMethod".equals(str)) {
+      System.out.println("Unexpected return value for BarImpl#abstractSuperPublicMethod: " + str);
+    }
 
     // We should also be able to lookup public / protected / package methods in
     // the super class, given sufficient access privileges.
