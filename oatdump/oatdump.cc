@@ -1018,7 +1018,9 @@ class OatDumper {
       dex_orig_name = dex_file_location.substr(dex_orig_pos + 1);
 
     // A more elegant approach to efficiently name user installed apps is welcome
-    if (dex_orig_name.size() == 8 && !dex_orig_name.compare("base.apk")) {
+    if (dex_orig_name.size() == 8 &&
+        dex_orig_name.compare("base.apk") == 0 &&
+        dex_orig_pos != std::string::npos) {
       dex_file_location.erase(dex_orig_pos, strlen("base.apk") + 1);
       size_t apk_orig_pos = dex_file_location.rfind('/');
       if (apk_orig_pos != std::string::npos) {
