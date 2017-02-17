@@ -16,6 +16,7 @@
 
 import junit.framework.Assert;
 import java.lang.reflect.Method;
+import java.util.Locale;
 
 /**
  * more string tests
@@ -120,6 +121,12 @@ public class Main {
 
         testEqualsConstString();
         testConstStringEquals();
+
+        // Regression tests for String.setCharAt() breaking string compression invariants.
+        Locale en_US = new Locale("en", "US");
+        Assert.assertEquals("I", /* Small latin dotless i */ "\u0131".toUpperCase());
+        Assert.assertEquals("abc", "a\u0131c".replace('\u0131', 'b'));
+        Assert.assertEquals("a\u0131c", "abc".replace('b', '\u0131'));
     }
 
     public static void testCompareToAndEquals() {
