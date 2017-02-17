@@ -105,12 +105,6 @@
   names: ["org.apache.harmony.tests.java.lang.ProcessTest#test_getErrorStream"]
 },
 {
-  description: "Short date format flag ignored for es_US locale.",
-  result: EXEC_FAILED,
-  name: "libcore.icu.DateIntervalFormatTest#test_formatDateInterval",
-  bug: 18619426
-},
-{
   description: "Error decoding digital signature bytes.",
   result: EXEC_FAILED,
   name: "org.apache.harmony.security.tests.java.security.Signature2Test#test_verify$BII",
@@ -132,12 +126,6 @@
   modes: [device],
   result: EXEC_FAILED,
   names: ["org.apache.harmony.tests.java.lang.ProcessManagerTest#testEnvironment"]
-},
-{
-  description: "Crypto failures",
-  result: EXEC_FAILED,
-  names: ["libcore.javax.crypto.CipherTest#testCipher_ShortBlock_Failure",
-          "libcore.javax.crypto.CipherTest#testCipher_Success"]
 },
 {
   description: "Flake when running with libartd.so or interpreter",
