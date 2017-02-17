@@ -67,6 +67,11 @@ ObjPtr<mirror::Reference> ReferenceQueue::DequeuePendingReference() {
     list_->SetPendingNext(next);
   }
   ref->SetPendingNext(nullptr);
+  return ref;
+}
+
+// This must be called whenever DequeuePendingReference is called.
+void ReferenceQueue::DisableReadBarrierForReference(ObjPtr<mirror::Reference> ref) {
   Heap* heap = Runtime::Current()->GetHeap();
   if (kUseBakerOrBrooksReadBarrier && heap->CurrentCollectorType() == kCollectorTypeCC &&
       heap->ConcurrentCopyingCollector()->IsActive()) {
@@ -92,7 +97,6 @@ ObjPtr<mirror::Reference> ReferenceQueue::DequeuePendingReference() {
       }
     }
   }
-  return ref;
 }
 
 void ReferenceQueue::Dump(std::ostream& os) const {
@@ -140,6 +144,9 @@ void ReferenceQueue::ClearWhiteReferences(ReferenceQueue* cleared_references,
       }
       cleared_references->EnqueueReference(ref);
     }
+    // Delay disabling the read barrier until here so that the ClearReferent call above in
+    // transaction mode will trigger the read barrier.
+    DisableReadBarrierForReference(ref);
   }
 }
 
@@ -162,6 +169,9 @@ void ReferenceQueue::EnqueueFinalizerReferences(ReferenceQueue* cleared_referenc
       }
       cleared_references->EnqueueReference(ref);
     }
+    // Delay disabling the read barrier until here so that the ClearReferent call above in
+    // transaction mode will trigger the read barrier.
+    DisableReadBarrierForReference(ref->AsReference());
   }
 }
 
@@ -174,7 +184,9 @@ void ReferenceQueue::ForwardSoftReferences(MarkObjectVisitor* visitor) {
   do {
     mirror::HeapReference<mirror::Object>* referent_addr = ref->GetReferentReferenceAddr();
     if (referent_addr->AsMirrorPtr() != nullptr) {
-      visitor->MarkHeapReference(referent_addr);
+      // do_atomic_update is false because mutators can't access the referent due to the weak ref
+      // access blocking.
+      visitor->MarkHeapReference(referent_addr, /*do_atomic_update*/ false);
     }
     ref = ref->GetPendingNext();
   } while (LIKELY(ref != head));

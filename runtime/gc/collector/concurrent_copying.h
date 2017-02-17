@@ -176,7 +176,8 @@ class ConcurrentCopying : public GarbageCollector {
   virtual mirror::Object* MarkObject(mirror::Object* from_ref) OVERRIDE
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!mark_stack_lock_, !skipped_blocks_lock_, !immune_gray_stack_lock_);
-  virtual void MarkHeapReference(mirror::HeapReference<mirror::Object>* from_ref) OVERRIDE
+  virtual void MarkHeapReference(mirror::HeapReference<mirror::Object>* from_ref,
+                                 bool do_atomic_update) OVERRIDE
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!mark_stack_lock_, !skipped_blocks_lock_, !immune_gray_stack_lock_);
   virtual mirror::Object* IsMarked(mirror::Object* from_ref) OVERRIDE

@@ -109,12 +109,29 @@ ConcurrentCopying::ConcurrentCopying(Heap* heap,
   }
 }
 
-void ConcurrentCopying::MarkHeapReference(mirror::HeapReference<mirror::Object>* from_ref) {
-  // Used for preserving soft references, should be OK to not have a CAS here since there should be
-  // no other threads which can trigger read barriers on the same referent during reference
-  // processing.
-  from_ref->Assign(Mark(from_ref->AsMirrorPtr()));
-  DCHECK(!from_ref->IsNull());
+void ConcurrentCopying::MarkHeapReference(mirror::HeapReference<mirror::Object>* field,
+                                          bool do_atomic_update) {
+  if (UNLIKELY(do_atomic_update)) {
+    // Used to mark the referent in DelayReferenceReferent in transaction mode.
+    mirror::Object* from_ref = field->AsMirrorPtr();
+    if (from_ref == nullptr) {
+      return;
+    }
+    mirror::Object* to_ref = Mark(from_ref);
+    if (from_ref != to_ref) {
+      do {
+        if (field->AsMirrorPtr() != from_ref) {
+          // Concurrently overwritten by a mutator.
+          break;
+        }
+      } while (!field->CasWeakRelaxed(from_ref, to_ref));
+    }
+  } else {
+    // Used for preserving soft references, should be OK to not have a CAS here since there should be
+    // no other threads which can trigger read barriers on the same referent during reference
+    // processing.
+    field->Assign(Mark(field->AsMirrorPtr()));
+  }
 }
 
 ConcurrentCopying::~ConcurrentCopying() {

@@ -110,7 +110,8 @@ class SemiSpace : public GarbageCollector {
   virtual mirror::Object* MarkObject(mirror::Object* root) OVERRIDE
       REQUIRES(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
-  virtual void MarkHeapReference(mirror::HeapReference<mirror::Object>* obj_ptr) OVERRIDE
+  virtual void MarkHeapReference(mirror::HeapReference<mirror::Object>* obj_ptr,
+                                 bool do_atomic_update) OVERRIDE
       REQUIRES(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   void ScanObject(mirror::Object* obj)

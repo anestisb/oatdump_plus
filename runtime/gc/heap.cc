@@ -3325,7 +3325,7 @@ struct IdentityMarkHeapReferenceVisitor : public MarkObjectVisitor {
   virtual mirror::Object* MarkObject(mirror::Object* obj) OVERRIDE {
     return obj;
   }
-  virtual void MarkHeapReference(mirror::HeapReference<mirror::Object>*) OVERRIDE {
+  virtual void MarkHeapReference(mirror::HeapReference<mirror::Object>*, bool) OVERRIDE {
   }
 };
 

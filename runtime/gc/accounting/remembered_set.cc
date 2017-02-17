@@ -74,7 +74,7 @@ class RememberedSetReferenceVisitor {
     mirror::HeapReference<mirror::Object>* ref_ptr = obj->GetFieldObjectReferenceAddr(offset);
     if (target_space_->HasAddress(ref_ptr->AsMirrorPtr())) {
       *contains_reference_to_target_space_ = true;
-      collector_->MarkHeapReference(ref_ptr);
+      collector_->MarkHeapReference(ref_ptr, /*do_atomic_update*/ false);
       DCHECK(!target_space_->HasAddress(ref_ptr->AsMirrorPtr()));
     }
   }

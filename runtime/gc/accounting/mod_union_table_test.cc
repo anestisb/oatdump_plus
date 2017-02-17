@@ -97,7 +97,8 @@ class ModUnionTableTest : public CommonRuntimeTest {
 class CollectVisitedVisitor : public MarkObjectVisitor {
  public:
   explicit CollectVisitedVisitor(std::set<mirror::Object*>* out) : out_(out) {}
-  virtual void MarkHeapReference(mirror::HeapReference<mirror::Object>* ref) OVERRIDE
+  virtual void MarkHeapReference(mirror::HeapReference<mirror::Object>* ref,
+                                 bool do_atomic_update ATTRIBUTE_UNUSED) OVERRIDE
       REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(ref != nullptr);
     MarkObject(ref->AsMirrorPtr());
