@@ -445,6 +445,20 @@ void UnstartedRuntime::UnstartedClassGetInnerClassFlags(
   result->SetI(mirror::Class::GetInnerClassFlags(klass, default_value));
 }
 
+void UnstartedRuntime::UnstartedClassGetSignatureAnnotation(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  StackHandleScope<1> hs(self);
+  Handle<mirror::Class> klass(hs.NewHandle(
+      reinterpret_cast<mirror::Class*>(shadow_frame->GetVRegReference(arg_offset))));
+
+  if (klass->IsProxyClass() || klass->GetDexCache() == nullptr) {
+    result->SetL(nullptr);
+    return;
+  }
+
+  result->SetL(annotations::GetSignatureAnnotationForClass(klass));
+}
+
 void UnstartedRuntime::UnstartedClassIsAnonymousClass(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
   StackHandleScope<1> hs(self);
