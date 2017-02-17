@@ -34,6 +34,7 @@
   V(ClassGetSignatureAnnotation, "java.lang.String[] java.lang.Class.getSignatureAnnotation()") \
   V(ClassIsAnonymousClass, "boolean java.lang.Class.isAnonymousClass()") \
   V(ClassLoaderGetResourceAsStream, "java.io.InputStream java.lang.ClassLoader.getResourceAsStream(java.lang.String)") \
+  V(ConstructorNewInstance0, "java.lang.Object java.lang.reflect.Constructor.newInstance0(java.lang.Object[])") \
   V(VmClassLoaderFindLoadedClass, "java.lang.Class java.lang.VMClassLoader.findLoadedClass(java.lang.ClassLoader, java.lang.String)") \
   V(VoidLookupType, "java.lang.Class java.lang.Void.lookupType()") \
   V(SystemArraycopy, "void java.lang.System.arraycopy(java.lang.Object, int, java.lang.Object, int, int)") \
