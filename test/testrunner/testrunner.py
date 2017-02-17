@@ -605,6 +605,8 @@ def is_test_disabled(test, variant_set):
   """
   if dry_run:
     return True
+  if test in env.EXTRA_DISABLED_TESTS:
+    return True
   variants_list = DISABLED_TEST_CONTAINER.get(test, {})
   for variants in variants_list:
     variants_present = True
@@ -731,12 +733,15 @@ def parse_option():
     parser.add_option(flag, action='store_true', dest=flag_dest)
   parser.add_option('--verbose', '-v', action='store_true', dest='verbose')
   parser.add_option('--dry-run', action='store_true', dest='dry_run')
+  parser.add_option("--skip", action="append", dest="skips", default=[],
+                    help="Skip the given test in all circumstances.")
   parser.add_option('-b', '--build-dependencies', action='store_true', dest='build')
   parser.add_option('--gdb', action='store_true', dest='gdb')
   parser.add_option('--gdb-arg', dest='gdb_arg')
 
   options = parser.parse_args()[0]
   test = ''
+  env.EXTRA_DISABLED_TESTS.update(set(options.skips))
   if options.test:
     test = parse_test_name(options.test)
   if options.pictest:
