@@ -28,7 +28,7 @@ Location end: JVMTI_ERROR_NATIVE_METHOD
 Is native: true
 Is obsolete: false
 Is synthetic: false
-[add, (Ljava/lang/Object;)Z, null]
+[add, (Ljava/lang/Object;)Z, (TE;)Z]
 interface java.util.List
 1025
 Max locals: 0
