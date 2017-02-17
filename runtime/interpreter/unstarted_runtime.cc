@@ -632,6 +632,72 @@ void UnstartedRuntime::UnstartedClassLoaderGetResourceAsStream(
   GetResourceAsStream(self, shadow_frame, result, arg_offset);
 }
 
+void UnstartedRuntime::UnstartedConstructorNewInstance0(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  // This is a cutdown version of java_lang_reflect_Constructor.cc's implementation.
+  StackHandleScope<4> hs(self);
+  Handle<mirror::Constructor> m = hs.NewHandle(
+      reinterpret_cast<mirror::Constructor*>(shadow_frame->GetVRegReference(arg_offset)));
+  Handle<mirror::ObjectArray<mirror::Object>> args = hs.NewHandle(
+      reinterpret_cast<mirror::ObjectArray<mirror::Object>*>(
+          shadow_frame->GetVRegReference(arg_offset + 1)));
+  Handle<mirror::Class> c(hs.NewHandle(m->GetDeclaringClass()));
+  if (UNLIKELY(c->IsAbstract())) {
+    AbortTransactionOrFail(self, "Cannot handle abstract classes");
+    return;
+  }
+  // Verify that we can access the class.
+  if (!m->IsAccessible() && !c->IsPublic()) {
+    // Go 2 frames back, this method is always called from newInstance0, which is called from
+    // Constructor.newInstance(Object... args).
+    ObjPtr<mirror::Class> caller = GetCallingClass(self, 2);
+    // If caller is null, then we called from JNI, just avoid the check since JNI avoids most
+    // access checks anyways. TODO: Investigate if this the correct behavior.
+    if (caller != nullptr && !caller->CanAccess(c.Get())) {
+      AbortTransactionOrFail(self, "Cannot access class");
+      return;
+    }
+  }
+  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(self, c, true, true)) {
+    DCHECK(self->IsExceptionPending());
+    return;
+  }
+  if (c->IsClassClass()) {
+    AbortTransactionOrFail(self, "new Class() is not supported");
+    return;
+  }
+
+  // String constructor is replaced by a StringFactory method in InvokeMethod.
+  if (c->IsStringClass()) {
+    // We don't support strings.
+    AbortTransactionOrFail(self, "String construction is not supported");
+    return;
+  }
+
+  Handle<mirror::Object> receiver = hs.NewHandle(c->AllocObject(self));
+  if (receiver == nullptr) {
+    AbortTransactionOrFail(self, "Could not allocate");
+    return;
+  }
+
+  // It's easier to use reflection to make the call, than create the uint32_t array.
+  {
+    ScopedObjectAccessUnchecked soa(self);
+    ScopedLocalRef<jobject> method_ref(self->GetJniEnv(),
+                                       soa.AddLocalReference<jobject>(m.Get()));
+    ScopedLocalRef<jobject> object_ref(self->GetJniEnv(),
+                                       soa.AddLocalReference<jobject>(receiver.Get()));
+    ScopedLocalRef<jobject> args_ref(self->GetJniEnv(),
+                                     soa.AddLocalReference<jobject>(args.Get()));
+    InvokeMethod(soa, method_ref.get(), object_ref.get(), args_ref.get(), 2);
+  }
+  if (self->IsExceptionPending()) {
+    AbortTransactionOrFail(self, "Failed running constructor");
+  } else {
+    result->SetL(receiver.Get());
+  }
+}
+
 void UnstartedRuntime::UnstartedVmClassLoaderFindLoadedClass(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
   mirror::String* class_name = shadow_frame->GetVRegReference(arg_offset + 1)->AsString();
