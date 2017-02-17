@@ -72,8 +72,8 @@ static jobject Array_createObjectArray(JNIEnv* env, jclass, jclass javaElementCl
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(Array, createMultiArray, "!(Ljava/lang/Class;[I)Ljava/lang/Object;"),
-  NATIVE_METHOD(Array, createObjectArray, "!(Ljava/lang/Class;I)Ljava/lang/Object;"),
+  FAST_NATIVE_METHOD(Array, createMultiArray, "(Ljava/lang/Class;[I)Ljava/lang/Object;"),
+  FAST_NATIVE_METHOD(Array, createObjectArray, "(Ljava/lang/Class;I)Ljava/lang/Object;"),
 };
 
 void register_java_lang_reflect_Array(JNIEnv* env) {

@@ -95,11 +95,11 @@ static void DexCache_setResolvedString(JNIEnv* env, jobject javaDexCache, jint s
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(DexCache, getDexNative, "!()Lcom/android/dex/Dex;"),
-  NATIVE_METHOD(DexCache, getResolvedType, "!(I)Ljava/lang/Class;"),
-  NATIVE_METHOD(DexCache, getResolvedString, "!(I)Ljava/lang/String;"),
-  NATIVE_METHOD(DexCache, setResolvedType, "!(ILjava/lang/Class;)V"),
-  NATIVE_METHOD(DexCache, setResolvedString, "!(ILjava/lang/String;)V"),
+  FAST_NATIVE_METHOD(DexCache, getDexNative, "()Lcom/android/dex/Dex;"),
+  FAST_NATIVE_METHOD(DexCache, getResolvedType, "(I)Ljava/lang/Class;"),
+  FAST_NATIVE_METHOD(DexCache, getResolvedString, "(I)Ljava/lang/String;"),
+  FAST_NATIVE_METHOD(DexCache, setResolvedType, "(ILjava/lang/Class;)V"),
+  FAST_NATIVE_METHOD(DexCache, setResolvedString, "(ILjava/lang/String;)V"),
 };
 
 void register_java_lang_DexCache(JNIEnv* env) {
