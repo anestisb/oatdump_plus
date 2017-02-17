@@ -5262,7 +5262,7 @@ void InstructionCodeGeneratorX86::VisitArrayGet(HArrayGet* instruction) {
         // Branch cases into compressed and uncompressed for each index's type.
         uint32_t count_offset = mirror::String::CountOffset().Uint32Value();
         NearLabel done, not_compressed;
-        __ testl(Address(obj, count_offset), Immediate(1));
+        __ testb(Address(obj, count_offset), Immediate(1));
         codegen_->MaybeRecordImplicitNullCheck(instruction);
         static_assert(static_cast<uint32_t>(mirror::StringCompressionFlag::kCompressed) == 0u,
                       "Expecting 0=compressed, 1=uncompressed");

@@ -1306,7 +1306,7 @@ DISASSEMBLER_ENTRY(cmp,
     has_modrm = true;
     reg_is_opcode = true;
     store = true;
-    immediate_bytes = ((instr[1] & 0x38) == 0) ? 1 : 0;
+    immediate_bytes = ((instr[1] & 0x38) == 0) ? (instr[0] == 0xF7 ? 4 : 1) : 0;
     break;
   case 0xFF:
     {
