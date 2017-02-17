@@ -62,6 +62,10 @@ class MANAGED EmulatedStackFrame : public Object {
     return GetFieldObject<MethodType>(OFFSET_OF_OBJECT_MEMBER(EmulatedStackFrame, type_));
   }
 
+  mirror::Object* GetReceiver() REQUIRES_SHARED(Locks::mutator_lock_) {
+    return GetReferences()->Get(0);
+  }
+
   static void SetClass(Class* klass) REQUIRES_SHARED(Locks::mutator_lock_);
   static void ResetClass() REQUIRES_SHARED(Locks::mutator_lock_);
   static void VisitRoots(RootVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
