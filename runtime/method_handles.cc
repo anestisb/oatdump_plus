@@ -419,6 +419,32 @@ static inline bool DoCallPolymorphic(ArtMethod* called_method,
                                      JValue* result,
                                      const mirror::MethodHandle::Kind handle_kind)
     REQUIRES_SHARED(Locks::mutator_lock_) {
+  // For virtual and interface methods ensure called_method points to
+  // the actual method to invoke.
+  if (handle_kind == mirror::MethodHandle::Kind::kInvokeVirtual ||
+      handle_kind == mirror::MethodHandle::Kind::kInvokeInterface) {
+    uint32_t receiver_reg = is_range ? first_arg : args[0];
+    ObjPtr<mirror::Object> receiver(shadow_frame.GetVRegReference(receiver_reg));
+    if (IsCallerTransformer(callsite_type)) {
+      // The current receiver is an emulated stack frame, the method's
+      // receiver needs to be fetched from there as the emulated frame
+      // will be unpacked into a new frame.
+      receiver = ObjPtr<mirror::EmulatedStackFrame>::DownCast(receiver)->GetReceiver();
+    }
+
+    ObjPtr<mirror::Class> declaring_class(called_method->GetDeclaringClass());
+    if (receiver == nullptr || receiver->GetClass() != declaring_class) {
+      // Verify that _vRegC is an object reference and of the type expected by
+      // the receiver.
+      if (!VerifyObjectIsClass(receiver, declaring_class)) {
+        DCHECK(self->IsExceptionPending());
+        return false;
+      }
+      called_method = receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(
+          called_method, kRuntimePointerSize);
+    }
+  }
+
   // Compute method information.
   const DexFile::CodeItem* code_item = called_method->GetCodeItem();
 
@@ -500,24 +526,6 @@ static inline bool DoCallPolymorphic(ArtMethod* called_method,
         return false;
       }
     }
-  }
-
-  // See TODO in DoInvokePolymorphic : We need to perform this dynamic, receiver
-  // based dispatch right before we perform the actual call, because the
-  // receiver isn't known very early.
-  if (handle_kind == mirror::MethodHandle::Kind::kInvokeVirtual ||
-      handle_kind == mirror::MethodHandle::Kind::kInvokeInterface) {
-    ObjPtr<mirror::Object> receiver(new_shadow_frame->GetVRegReference(first_dest_reg));
-    ObjPtr<mirror::Class> declaring_class(called_method->GetDeclaringClass());
-    // Verify that _vRegC is an object reference and of the type expected by
-    // the receiver.
-    if (!VerifyObjectIsClass(receiver, declaring_class)) {
-      DCHECK(self->IsExceptionPending());
-      return false;
-    }
-
-    called_method = receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(
-        called_method, kRuntimePointerSize);
   }
 
   PerformCall(self, code_item, shadow_frame.GetMethod(), first_dest_reg, new_shadow_frame, result);
