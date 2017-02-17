@@ -29,6 +29,8 @@
 #include "handle_scope-inl.h"
 #include "interpreter/interpreter_common.h"
 #include "mirror/class_loader.h"
+#include "mirror/object_array-inl.h"
+#include "mirror/object-inl.h"
 #include "mirror/string-inl.h"
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
@@ -1077,9 +1079,9 @@ TEST_F(UnstartedRuntimeTest, LogManager) {
   StackHandleScope<1> hs(self);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Handle<mirror::Class> log_manager_class = hs.NewHandle(
-          class_linker->FindClass(self,
-                                  "Ljava/util/logging/LogManager;",
-                                  ScopedNullHandle<mirror::ClassLoader>()));
+      class_linker->FindClass(self,
+                              "Ljava/util/logging/LogManager;",
+                              ScopedNullHandle<mirror::ClassLoader>()));
   ASSERT_TRUE(log_manager_class.Get() != nullptr);
   ASSERT_TRUE(class_linker->EnsureInitialized(self, log_manager_class, true, true));
 }
@@ -1276,6 +1278,43 @@ TEST_F(UnstartedClassForNameTest, ClassForNameLongWithClassLoaderFail) {
     UnstartedClassForNameLong(th, shadow_frame, result, 0);
   };
   RunTest(runner, true, false);
+}
+
+TEST_F(UnstartedRuntimeTest, ClassGetSignatureAnnotation) {
+  Thread* self = Thread::Current();
+  ScopedObjectAccess soa(self);
+
+  StackHandleScope<1> hs(self);
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Handle<mirror::Class> list_class = hs.NewHandle(
+      class_linker->FindClass(self,
+                              "Ljava/util/List;",
+                              ScopedNullHandle<mirror::ClassLoader>()));
+  ASSERT_TRUE(list_class.Get() != nullptr);
+  ASSERT_TRUE(class_linker->EnsureInitialized(self, list_class, true, true));
+
+  JValue result;
+  ShadowFrame* shadow_frame = ShadowFrame::CreateDeoptimizedFrame(10, nullptr, nullptr, 0);
+
+  shadow_frame->SetVRegReference(0, list_class.Get());
+  UnstartedClassGetSignatureAnnotation(self, shadow_frame, &result, 0);
+  ASSERT_TRUE(result.GetL() != nullptr);
+  ASSERT_FALSE(self->IsExceptionPending());
+
+  ShadowFrame::DeleteDeoptimizedFrame(shadow_frame);
+
+  ASSERT_TRUE(result.GetL()->IsObjectArray());
+  ObjPtr<mirror::ObjectArray<mirror::Object>> array =
+      result.GetL()->AsObjectArray<mirror::Object>();
+  std::ostringstream oss;
+  for (int32_t i = 0; i != array->GetLength(); ++i) {
+    ObjPtr<mirror::Object> elem = array->Get(i);
+    ASSERT_TRUE(elem != nullptr);
+    ASSERT_TRUE(elem->IsString());
+    oss << elem->AsString()->ToModifiedUtf8();
+  }
+  std::string output_string = oss.str();
+  ASSERT_EQ(output_string, "<E:Ljava/lang/Object;>Ljava/lang/Object;Ljava/util/Collection<TE;>;");
 }
 
 }  // namespace interpreter

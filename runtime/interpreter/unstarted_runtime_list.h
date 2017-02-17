@@ -31,6 +31,7 @@
   V(ClassGetDeclaringClass, "java.lang.Class java.lang.Class.getDeclaringClass()") \
   V(ClassGetEnclosingClass, "java.lang.Class java.lang.Class.getEnclosingClass()") \
   V(ClassGetInnerClassFlags, "int java.lang.Class.getInnerClassFlags(int)") \
+  V(ClassGetSignatureAnnotation, "java.lang.String[] java.lang.Class.getSignatureAnnotation()") \
   V(ClassIsAnonymousClass, "boolean java.lang.Class.isAnonymousClass()") \
   V(ClassLoaderGetResourceAsStream, "java.io.InputStream java.lang.ClassLoader.getResourceAsStream(java.lang.String)") \
   V(VmClassLoaderFindLoadedClass, "java.lang.Class java.lang.VMClassLoader.findLoadedClass(java.lang.ClassLoader, java.lang.String)") \
