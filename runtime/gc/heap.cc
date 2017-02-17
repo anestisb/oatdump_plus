@@ -188,6 +188,7 @@ Heap::Heap(size_t initial_size,
       disable_thread_flip_count_(0),
       thread_flip_running_(false),
       collector_type_running_(kCollectorTypeNone),
+      thread_running_gc_(nullptr),
       last_gc_type_(collector::kGcTypeNone),
       next_gc_type_(collector::kGcTypePartial),
       capacity_(capacity),
@@ -1386,6 +1387,7 @@ void Heap::StartGC(Thread* self, GcCause cause, CollectorType collector_type) {
   // Ensure there is only one GC at a time.
   WaitForGcToCompleteLocked(cause, self);
   collector_type_running_ = collector_type;
+  thread_running_gc_ = self;
 }
 
 void Heap::TrimSpaces(Thread* self) {
@@ -2785,6 +2787,7 @@ void Heap::FinishGC(Thread* self, collector::GcType gc_type) {
   }
   // Reset.
   running_collection_is_blocking_ = false;
+  thread_running_gc_ = nullptr;
   // Wake anyone who may have been waiting for the GC to complete.
   gc_complete_cond_->Broadcast(self);
 }
