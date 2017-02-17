@@ -155,6 +155,105 @@ class NullableScopedUtfChars {
   void operator=(const NullableScopedUtfChars&);
 };
 
+static std::unique_ptr<MemMap> AllocateDexMemoryMap(JNIEnv* env, jint start, jint end) {
+  if (end <= start) {
+    ScopedObjectAccess soa(env);
+    ThrowWrappedIOException("Bad range");
+    return nullptr;
+  }
+
+  std::string error_message;
+  size_t length = static_cast<size_t>(end - start);
+  std::unique_ptr<MemMap> dex_mem_map(MemMap::MapAnonymous("DEX data",
+                                                           nullptr,
+                                                           length,
+                                                           PROT_READ | PROT_WRITE,
+                                                           /* low_4gb */ false,
+                                                           /* reuse */ false,
+                                                           &error_message));
+  if (dex_mem_map == nullptr) {
+    ScopedObjectAccess soa(env);
+    ThrowWrappedIOException("%s", error_message.c_str());
+  }
+  return dex_mem_map;
+}
+
+static const DexFile* CreateDexFile(JNIEnv* env, std::unique_ptr<MemMap> dex_mem_map) {
+  std::string location = StringPrintf("Anonymous-DexFile@%p-%p",
+                                      dex_mem_map->Begin(),
+                                      dex_mem_map->End());
+  std::string error_message;
+  std::unique_ptr<const DexFile> dex_file(DexFile::Open(location,
+                                                        0,
+                                                        std::move(dex_mem_map),
+                                                        /* verify */ true,
+                                                        /* verify_location */ true,
+                                                        &error_message));
+  if (dex_file == nullptr) {
+    ScopedObjectAccess soa(env);
+    ThrowWrappedIOException("%s", error_message.c_str());
+    return nullptr;
+  }
+
+  if (!dex_file->DisableWrite()) {
+    ScopedObjectAccess soa(env);
+    ThrowWrappedIOException("Failed to make dex file read-only");
+    return nullptr;
+  }
+
+  return dex_file.release();
+}
+
+static jobject CreateSingleDexFileCookie(JNIEnv* env, std::unique_ptr<MemMap> data) {
+  std::unique_ptr<const DexFile> dex_file(CreateDexFile(env, std::move(data)));
+  if (dex_file.get() == nullptr) {
+    DCHECK(env->ExceptionCheck());
+    return nullptr;
+  }
+  std::vector<std::unique_ptr<const DexFile>> dex_files;
+  dex_files.push_back(std::move(dex_file));
+  return ConvertDexFilesToJavaArray(env, nullptr, dex_files);
+}
+
+static jobject DexFile_createCookieWithDirectBuffer(JNIEnv* env,
+                                                    jclass,
+                                                    jobject buffer,
+                                                    jint start,
+                                                    jint end) {
+  uint8_t* base_address = reinterpret_cast<uint8_t*>(env->GetDirectBufferAddress(buffer));
+  if (base_address == nullptr) {
+    ScopedObjectAccess soa(env);
+    ThrowWrappedIOException("dexFileBuffer not direct");
+    return 0;
+  }
+
+  std::unique_ptr<MemMap> dex_mem_map(AllocateDexMemoryMap(env, start, end));
+  if (dex_mem_map == nullptr) {
+    DCHECK(Thread::Current()->IsExceptionPending());
+    return 0;
+  }
+
+  size_t length = static_cast<size_t>(end - start);
+  memcpy(dex_mem_map->Begin(), base_address, length);
+  return CreateSingleDexFileCookie(env, std::move(dex_mem_map));
+}
+
+static jobject DexFile_createCookieWithArray(JNIEnv* env,
+                                             jclass,
+                                             jbyteArray buffer,
+                                             jint start,
+                                             jint end) {
+  std::unique_ptr<MemMap> dex_mem_map(AllocateDexMemoryMap(env, start, end));
+  if (dex_mem_map == nullptr) {
+    DCHECK(Thread::Current()->IsExceptionPending());
+    return 0;
+  }
+
+  auto destination = reinterpret_cast<jbyte*>(dex_mem_map.get()->Begin());
+  env->GetByteArrayRegion(buffer, start, end - start, destination);
+  return CreateSingleDexFileCookie(env, std::move(dex_mem_map));
+}
+
 static jobject DexFile_openDexFileNative(JNIEnv* env,
                                          jclass,
                                          jstring javaSourceName,
@@ -591,6 +690,9 @@ static JNINativeMethod gMethods[] = {
                 "Ljava/lang/ClassLoader;"
                 "[Ldalvik/system/DexPathList$Element;"
                 ")Ljava/lang/Object;"),
+  NATIVE_METHOD(DexFile, createCookieWithDirectBuffer,
+                "(Ljava/nio/ByteBuffer;II)Ljava/lang/Object;"),
+  NATIVE_METHOD(DexFile, createCookieWithArray, "([BII)Ljava/lang/Object;"),
   NATIVE_METHOD(DexFile, isValidCompilerFilter, "(Ljava/lang/String;)Z"),
   NATIVE_METHOD(DexFile, isProfileGuidedCompilerFilter, "(Ljava/lang/String;)Z"),
   NATIVE_METHOD(DexFile,
