@@ -446,29 +446,34 @@ def run_test(command, test, test_variant, test_name):
     test_name: The name of the test along with the variants.
   """
   global stop_testrunner
-  if is_test_disabled(test, test_variant):
-    test_skipped = True
-  else:
-    test_skipped = False
-    proc = subprocess.Popen(command.split(), stderr=subprocess.STDOUT, stdout=subprocess.PIPE)
-    script_output = proc.stdout.read().strip()
-    test_passed = not proc.wait()
-
-  if not test_skipped:
-    if test_passed:
-     print_test_info(test_name, 'PASS')
+  try:
+    if is_test_disabled(test, test_variant):
+      test_skipped = True
     else:
-      failed_tests.append(test_name)
-      if not env.ART_TEST_KEEP_GOING:
-        stop_testrunner = True
-      print_test_info(test_name, 'FAIL', ('%s\n%s') % (
-        command, script_output))
-  elif not dry_run:
-    print_test_info(test_name, 'SKIP')
-    skipped_tests.append(test_name)
-  else:
-    print_test_info(test_name, '')
-  semaphore.release()
+      test_skipped = False
+      proc = subprocess.Popen(command.split(), stderr=subprocess.STDOUT, stdout=subprocess.PIPE)
+      script_output = proc.stdout.read().strip()
+      test_passed = not proc.wait()
+
+    if not test_skipped:
+      if test_passed:
+        print_test_info(test_name, 'PASS')
+      else:
+        failed_tests.append(test_name)
+        if not env.ART_TEST_KEEP_GOING:
+          stop_testrunner = True
+        print_test_info(test_name, 'FAIL', ('%s\n%s') % (
+          command, script_output))
+    elif not dry_run:
+      print_test_info(test_name, 'SKIP')
+      skipped_tests.append(test_name)
+    else:
+      print_test_info(test_name, '')
+  except Exception, e:
+    failed_tests.append(test_name)
+    print_text(('%s\n%s\n') % (command, str(e)))
+  finally:
+    semaphore.release()
 
 
 def print_test_info(test_name, result, failed_test_info=""):
@@ -485,6 +490,7 @@ def print_test_info(test_name, result, failed_test_info=""):
   command used to invoke the script. It doesn't override the failing
   test information in either of the cases.
   """
+
   global test_count
   info = ''
   if not verbose:
@@ -493,48 +499,53 @@ def print_test_info(test_name, result, failed_test_info=""):
     # the console width.
     console_width = int(os.popen('stty size', 'r').read().split()[1])
     info = '\r' + ' ' * console_width + '\r'
-  print_mutex.acquire()
-  test_count += 1
-  percent = (test_count * 100) / total_test_count
-  progress_info = ('[ %d%% %d/%d ]') % (
-    percent,
-    test_count,
-    total_test_count)
+  try:
+    print_mutex.acquire()
+    test_count += 1
+    percent = (test_count * 100) / total_test_count
+    progress_info = ('[ %d%% %d/%d ]') % (
+      percent,
+      test_count,
+      total_test_count)
 
-  if result == "FAIL":
-    info += ('%s %s %s\n%s\n') % (
-      progress_info,
-      test_name,
-      COLOR_ERROR + 'FAIL' + COLOR_NORMAL,
-      failed_test_info)
-  else:
-    result_text = ''
-    if result == 'PASS':
-      result_text += COLOR_PASS + 'PASS' + COLOR_NORMAL
-    elif result == 'SKIP':
-      result_text += COLOR_SKIP + 'SKIP' + COLOR_NORMAL
-
-    if verbose:
-      info += ('%s %s %s\n') % (
-      progress_info,
-      test_name,
-      result_text)
-    else:
-      total_output_length = 2 # Two spaces
-      total_output_length += len(progress_info)
-      total_output_length += len(result)
-      allowed_test_length = console_width - total_output_length
-      test_name_len = len(test_name)
-      if allowed_test_length < test_name_len:
-        test_name = ('%s...%s') % (
-          test_name[:(allowed_test_length - 3)/2],
-          test_name[-(allowed_test_length - 3)/2:])
-      info += ('%s %s %s') % (
+    if result == "FAIL":
+      info += ('%s %s %s\n%s\n') % (
         progress_info,
         test_name,
-        result_text)
-  print_text(info)
-  print_mutex.release()
+        COLOR_ERROR + 'FAIL' + COLOR_NORMAL,
+        failed_test_info)
+    else:
+      result_text = ''
+      if result == 'PASS':
+        result_text += COLOR_PASS + 'PASS' + COLOR_NORMAL
+      elif result == 'SKIP':
+        result_text += COLOR_SKIP + 'SKIP' + COLOR_NORMAL
+
+      if verbose:
+        info += ('%s %s %s\n') % (
+          progress_info,
+          test_name,
+          result_text)
+      else:
+        total_output_length = 2 # Two spaces
+        total_output_length += len(progress_info)
+        total_output_length += len(result)
+        allowed_test_length = console_width - total_output_length
+        test_name_len = len(test_name)
+        if allowed_test_length < test_name_len:
+          test_name = ('%s...%s') % (
+            test_name[:(allowed_test_length - 3)/2],
+            test_name[-(allowed_test_length - 3)/2:])
+          info += ('%s %s %s') % (
+            progress_info,
+            test_name,
+            result_text)
+    print_text(info)
+  except Exception, e:
+    print_text(('%s\n%s\n') % (test_name, str(e)))
+    failed_tests.append(test_name)
+  finally:
+    print_mutex.release()
 
 def get_disabled_test_info():
   """Generate set of known failures.
