@@ -323,6 +323,7 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
         temporaries_vreg_slots_(0),
         has_bounds_checks_(false),
         has_try_catch_(false),
+        has_loops_(false),
         has_irreducible_loops_(false),
         debuggable_(debuggable),
         current_instruction_id_(start_instruction_id),
@@ -559,6 +560,9 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   bool HasTryCatch() const { return has_try_catch_; }
   void SetHasTryCatch(bool value) { has_try_catch_ = value; }
 
+  bool HasLoops() const { return has_loops_; }
+  void SetHasLoops(bool value) { has_loops_ = value; }
+
   bool HasIrreducibleLoops() const { return has_irreducible_loops_; }
   void SetHasIrreducibleLoops(bool value) { has_irreducible_loops_ = value; }
 
@@ -637,14 +641,26 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   // Number of vreg size slots that the temporaries use (used in baseline compiler).
   size_t temporaries_vreg_slots_;
 
-  // Has bounds checks. We can totally skip BCE if it's false.
+  // Flag whether there are bounds checks in the graph. We can skip
+  // BCE if it's false. It's only best effort to keep it up to date in
+  // the presence of code elimination so there might be false positives.
   bool has_bounds_checks_;
 
-  // Flag whether there are any try/catch blocks in the graph. We will skip
-  // try/catch-related passes if false.
+  // Flag whether there are try/catch blocks in the graph. We will skip
+  // try/catch-related passes if it's false. It's only best effort to keep
+  // it up to date in the presence of code elimination so there might be
+  // false positives.
   bool has_try_catch_;
 
-  // Flag whether there are any irreducible loops in the graph.
+  // Flag whether there are any loops in the graph. We can skip loop
+  // optimization if it's false. It's only best effort to keep it up
+  // to date in the presence of code elimination so there might be false
+  // positives.
+  bool has_loops_;
+
+  // Flag whether there are any irreducible loops in the graph. It's only
+  // best effort to keep it up to date in the presence of code elimination
+  // so there might be false positives.
   bool has_irreducible_loops_;
 
   // Indicates whether the graph should be compiled in a way that

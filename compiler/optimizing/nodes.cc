@@ -688,6 +688,7 @@ void HLoopInformation::Populate() {
     contains_irreducible_loop_ = true;
     graph->SetHasIrreducibleLoops(true);
   }
+  graph->SetHasLoops(true);
 }
 
 HBasicBlock* HLoopInformation::GetPreHeader() const {
@@ -2032,8 +2033,18 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
     }
   }
   outer_graph->UpdateMaximumNumberOfOutVRegs(GetMaximumNumberOfOutVRegs());
+
   if (HasBoundsChecks()) {
     outer_graph->SetHasBoundsChecks(true);
+  }
+  if (HasLoops()) {
+    outer_graph->SetHasLoops(true);
+  }
+  if (HasIrreducibleLoops()) {
+    outer_graph->SetHasIrreducibleLoops(true);
+  }
+  if (HasTryCatch()) {
+    outer_graph->SetHasTryCatch(true);
   }
 
   HInstruction* return_value = nullptr;
