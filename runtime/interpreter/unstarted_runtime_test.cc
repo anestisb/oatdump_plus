@@ -1317,5 +1317,55 @@ TEST_F(UnstartedRuntimeTest, ClassGetSignatureAnnotation) {
   ASSERT_EQ(output_string, "<E:Ljava/lang/Object;>Ljava/lang/Object;Ljava/util/Collection<TE;>;");
 }
 
+TEST_F(UnstartedRuntimeTest, ConstructorNewInstance0) {
+  Thread* self = Thread::Current();
+  ScopedObjectAccess soa(self);
+
+  StackHandleScope<4> hs(self);
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+
+  // Get Throwable.
+  Handle<mirror::Class> throw_class = hs.NewHandle(mirror::Throwable::GetJavaLangThrowable());
+  ASSERT_TRUE(class_linker->EnsureInitialized(self, throw_class, true, true));
+
+  // Get an input object.
+  Handle<mirror::String> input = hs.NewHandle(mirror::String::AllocFromModifiedUtf8(self, "abd"));
+
+  // Find the constructor.
+  ArtMethod* throw_cons = throw_class->FindDeclaredDirectMethod(
+      "<init>", "(Ljava/lang/String;)V", class_linker->GetImagePointerSize());
+  ASSERT_TRUE(throw_cons != nullptr);
+
+  Handle<mirror::Constructor> cons = hs.NewHandle(
+      mirror::Constructor::CreateFromArtMethod<kRuntimePointerSize, false>(self, throw_cons));
+  ASSERT_TRUE(cons != nullptr);
+
+  Handle<mirror::ObjectArray<mirror::Object>> args = hs.NewHandle(
+      class_linker->AllocObjectArray<mirror::Object>(self, 1));
+  ASSERT_TRUE(args != nullptr);
+  args->Set(0, input.Get());
+
+  // OK, we're ready now.
+  JValue result;
+  ShadowFrame* shadow_frame = ShadowFrame::CreateDeoptimizedFrame(10, nullptr, nullptr, 0);
+  shadow_frame->SetVRegReference(0, cons.Get());
+  shadow_frame->SetVRegReference(1, args.Get());
+  UnstartedConstructorNewInstance0(self, shadow_frame, &result, 0);
+
+  ASSERT_TRUE(result.GetL() != nullptr);
+  ASSERT_FALSE(self->IsExceptionPending());
+
+  // Should be a new object.
+  ASSERT_NE(result.GetL(), input.Get());
+  // Should be a String.
+  ASSERT_EQ(mirror::Throwable::GetJavaLangThrowable(), result.GetL()->GetClass());
+  // Should have the right string.
+  ObjPtr<mirror::String> result_msg =
+      reinterpret_cast<mirror::Throwable*>(result.GetL())->GetDetailMessage();
+  EXPECT_EQ(input.Get(), result_msg.Ptr());
+
+  ShadowFrame::DeleteDeoptimizedFrame(shadow_frame);
+}
+
 }  // namespace interpreter
 }  // namespace art
