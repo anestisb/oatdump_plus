@@ -70,6 +70,11 @@ void DexoptTest::GenerateOatForTest(const std::string& dex_location,
   // rather than use this flag.
   args.push_back("-Xnorelocate");
 
+  ScratchFile profile_file;
+  if (CompilerFilter::DependsOnProfile(filter)) {
+    args.push_back("--profile-file=" + profile_file.GetFilename());
+  }
+
   if (pic) {
     args.push_back("--compile-pic");
   }

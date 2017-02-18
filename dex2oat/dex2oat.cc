@@ -2095,7 +2095,7 @@ class Dex2Oat FINAL {
   }
 
   bool UseProfileGuidedCompilation() const {
-    return CompilerFilter::DependsOnProfile(compiler_options_->GetCompilerFilter());
+    return profile_file_fd_ != -1 || !profile_file_.empty();
   }
 
   bool LoadProfile() {
