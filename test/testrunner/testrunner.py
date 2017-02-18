@@ -812,10 +812,8 @@ def parse_option():
   return test
 
 def main():
-  global verbose
   gather_test_info()
   user_requested_test = parse_option()
-  verbose = True
   setup_test_env()
   if build:
     build_targets = ''
