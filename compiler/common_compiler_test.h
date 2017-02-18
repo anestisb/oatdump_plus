@@ -77,6 +77,10 @@ class CommonCompilerTest : public CommonRuntimeTest {
 
   virtual ProfileCompilationInfo* GetProfileCompilationInfo();
 
+  virtual CompilerFilter::Filter GetCompilerFilter() const {
+    return CompilerFilter::kDefaultCompilerFilter;
+  }
+
   virtual void TearDown();
 
   void CompileClass(mirror::ClassLoader* class_loader, const char* class_name)

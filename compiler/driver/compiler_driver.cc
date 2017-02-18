@@ -1050,9 +1050,9 @@ bool CompilerDriver::IsMethodToCompile(const MethodReference& method_ref) const 
 }
 
 bool CompilerDriver::ShouldCompileBasedOnProfile(const MethodReference& method_ref) const {
-  if (profile_compilation_info_ == nullptr) {
-    // If we miss profile information it means that we don't do a profile guided compilation.
-    // Return true, and let the other filters decide if the method should be compiled.
+  if (!CompilerFilter::DependsOnProfile(compiler_options_->GetCompilerFilter())) {
+    // Use the compiler filter instead of the presence of profile_compilation_info_ since
+    // we may want to have full speed compilation along with profile based layout optimizations.
     return true;
   }
   bool result = profile_compilation_info_->ContainsMethod(method_ref);
