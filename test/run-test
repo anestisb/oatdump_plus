@@ -80,7 +80,7 @@ fi
 
 # ANDROID_HOST_OUT is not set in a build environment.
 if [ -z "$ANDROID_HOST_OUT" ]; then
-    export ANDROID_HOST_OUT=$ANDROID_BUILD_TOP/out/host/linux-x86
+    export ANDROID_HOST_OUT=${OUT_DIR:-$ANDROID_BUILD_TOP/out/}host/linux-x86
 fi
 
 # If JACK_CLASSPATH is not set, assume it only contains core-libart.
