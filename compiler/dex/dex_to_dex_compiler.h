@@ -18,12 +18,17 @@
 #define ART_COMPILER_DEX_DEX_TO_DEX_COMPILER_H_
 
 #include "dex_file.h"
+#include "handle.h"
 #include "invoke_type.h"
 
 namespace art {
 
 class CompiledMethod;
 class CompilerDriver;
+
+namespace mirror {
+class ClassLoader;
+}  // namespace mirror
 
 namespace optimizer {
 
@@ -40,7 +45,7 @@ CompiledMethod* ArtCompileDEX(CompilerDriver* driver,
                               InvokeType invoke_type,
                               uint16_t class_def_idx,
                               uint32_t method_idx,
-                              jobject class_loader,
+                              Handle<mirror::ClassLoader> class_loader,
                               const DexFile& dex_file,
                               DexToDexCompilationLevel dex_to_dex_compilation_level);
 

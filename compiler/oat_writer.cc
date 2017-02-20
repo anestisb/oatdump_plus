@@ -1060,6 +1060,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
   WriteCodeMethodVisitor(OatWriter* writer, OutputStream* out, const size_t file_offset,
                          size_t relative_offset) SHARED_LOCK_FUNCTION(Locks::mutator_lock_)
     : OatDexMethodVisitor(writer, relative_offset),
+      class_loader_(writer->HasImage() ? writer->image_writer_->GetClassLoader() : nullptr),
       out_(out),
       file_offset_(file_offset),
       soa_(Thread::Current()),
@@ -1245,6 +1246,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
   }
 
  private:
+  ObjPtr<mirror::ClassLoader> class_loader_;
   OutputStream* const out_;
   const size_t file_offset_;
   const ScopedObjectAccess soa_;
@@ -1303,10 +1305,12 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
   }
 
   mirror::Class* GetTargetType(const LinkerPatch& patch) REQUIRES_SHARED(Locks::mutator_lock_) {
+    DCHECK(writer_->HasImage());
     ObjPtr<mirror::DexCache> dex_cache = GetDexCache(patch.TargetTypeDexFile());
-    mirror::Class* type = dex_cache->GetResolvedType(patch.TargetTypeIndex());
+    ObjPtr<mirror::Class> type =
+        ClassLinker::LookupResolvedType(patch.TargetTypeIndex(), dex_cache, class_loader_);
     CHECK(type != nullptr);
-    return type;
+    return type.Ptr();
   }
 
   mirror::String* GetTargetString(const LinkerPatch& patch) REQUIRES_SHARED(Locks::mutator_lock_) {
