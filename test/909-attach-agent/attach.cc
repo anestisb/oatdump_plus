@@ -28,7 +28,7 @@ namespace Test909AttachAgent {
 jint OnAttach(JavaVM* vm,
             char* options ATTRIBUTE_UNUSED,
             void* reserved ATTRIBUTE_UNUSED) {
-  printf("Attached Agent for test 909-attach-agent\n");
+  fprintf(stderr, "Attached Agent for test 909-attach-agent\n");
   fsync(1);
   jvmtiEnv* env = nullptr;
   jvmtiEnv* env2 = nullptr;
@@ -36,7 +36,7 @@ jint OnAttach(JavaVM* vm,
 #define CHECK_CALL_SUCCESS(c) \
   do { \
     if ((c) != JNI_OK) { \
-      printf("call " #c " did not succeed\n"); \
+      fprintf(stderr, "call " #c " did not succeed\n"); \
       return -1; \
     } \
   } while (false)
@@ -44,7 +44,7 @@ jint OnAttach(JavaVM* vm,
   CHECK_CALL_SUCCESS(vm->GetEnv(reinterpret_cast<void**>(&env), JVMTI_VERSION_1_0));
   CHECK_CALL_SUCCESS(vm->GetEnv(reinterpret_cast<void**>(&env2), JVMTI_VERSION_1_0));
   if (env == env2) {
-    printf("GetEnv returned same environment twice!\n");
+    fprintf(stderr, "GetEnv returned same environment twice!\n");
     return -1;
   }
   unsigned char* local_data = nullptr;
@@ -54,19 +54,19 @@ jint OnAttach(JavaVM* vm,
   unsigned char* get_data = nullptr;
   CHECK_CALL_SUCCESS(env->GetEnvironmentLocalStorage(reinterpret_cast<void**>(&get_data)));
   if (get_data != local_data) {
-    printf("Got different data from local storage then what was set!\n");
+    fprintf(stderr, "Got different data from local storage then what was set!\n");
     return -1;
   }
   CHECK_CALL_SUCCESS(env2->GetEnvironmentLocalStorage(reinterpret_cast<void**>(&get_data)));
   if (get_data != nullptr) {
-    printf("env2 did not have nullptr local storage.\n");
+    fprintf(stderr, "env2 did not have nullptr local storage.\n");
     return -1;
   }
   CHECK_CALL_SUCCESS(env->Deallocate(local_data));
   jint version = 0;
   CHECK_CALL_SUCCESS(env->GetVersionNumber(&version));
   if ((version & JVMTI_VERSION_1) != JVMTI_VERSION_1) {
-    printf("Unexpected version number!\n");
+    fprintf(stderr, "Unexpected version number!\n");
     return -1;
   }
   CHECK_CALL_SUCCESS(env->DisposeEnvironment());
