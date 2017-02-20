@@ -284,16 +284,13 @@ void DexCompiler::CompileInvokeVirtual(Instruction* inst, uint32_t dex_pc,
   }
   uint32_t method_idx = is_range ? inst->VRegB_3rc() : inst->VRegB_35c();
   ScopedObjectAccess soa(Thread::Current());
-  StackHandleScope<1> hs(soa.Self());
-  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
-      soa.Decode<mirror::ClassLoader>(unit_.GetClassLoader())));
 
   ClassLinker* class_linker = unit_.GetClassLinker();
   ArtMethod* resolved_method = class_linker->ResolveMethod<ClassLinker::kForceICCECheck>(
       GetDexFile(),
       method_idx,
       unit_.GetDexCache(),
-      class_loader,
+      unit_.GetClassLoader(),
       /* referrer */ nullptr,
       kVirtual);
 
@@ -330,7 +327,7 @@ CompiledMethod* ArtCompileDEX(
     InvokeType invoke_type ATTRIBUTE_UNUSED,
     uint16_t class_def_idx,
     uint32_t method_idx,
-    jobject class_loader,
+    Handle<mirror::ClassLoader> class_loader,
     const DexFile& dex_file,
     DexToDexCompilationLevel dex_to_dex_compilation_level) {
   DCHECK(driver != nullptr);
