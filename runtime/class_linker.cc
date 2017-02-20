@@ -1908,6 +1908,13 @@ void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
   const bool tracing_enabled = Trace::IsTracingEnabled();
   Thread* const self = Thread::Current();
   WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
+  if (kUseReadBarrier) {
+    // We do not track new roots for CC.
+    DCHECK_EQ(0, flags & (kVisitRootFlagNewRoots |
+                          kVisitRootFlagClearRootLog |
+                          kVisitRootFlagStartLoggingNewRoots |
+                          kVisitRootFlagStopLoggingNewRoots));
+  }
   if ((flags & kVisitRootFlagAllRoots) != 0) {
     // Argument for how root visiting deals with ArtField and ArtMethod roots.
     // There is 3 GC cases to handle:
@@ -1937,7 +1944,7 @@ void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
         root.VisitRoot(visitor, RootInfo(kRootVMInternal));
       }
     }
-  } else if ((flags & kVisitRootFlagNewRoots) != 0) {
+  } else if (!kUseReadBarrier && (flags & kVisitRootFlagNewRoots) != 0) {
     for (auto& root : new_class_roots_) {
       ObjPtr<mirror::Class> old_ref = root.Read<kWithoutReadBarrier>();
       root.VisitRoot(visitor, RootInfo(kRootStickyClass));
@@ -1958,13 +1965,13 @@ void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
       }
     }
   }
-  if ((flags & kVisitRootFlagClearRootLog) != 0) {
+  if (!kUseReadBarrier && (flags & kVisitRootFlagClearRootLog) != 0) {
     new_class_roots_.clear();
     new_bss_roots_boot_oat_files_.clear();
   }
-  if ((flags & kVisitRootFlagStartLoggingNewRoots) != 0) {
+  if (!kUseReadBarrier && (flags & kVisitRootFlagStartLoggingNewRoots) != 0) {
     log_new_roots_ = true;
-  } else if ((flags & kVisitRootFlagStopLoggingNewRoots) != 0) {
+  } else if (!kUseReadBarrier && (flags & kVisitRootFlagStopLoggingNewRoots) != 0) {
     log_new_roots_ = false;
   }
   // We deliberately ignore the class roots in the image since we
@@ -3757,10 +3764,14 @@ mirror::Class* ClassLinker::InsertClass(const char* descriptor, ObjPtr<mirror::C
 }
 
 void ClassLinker::WriteBarrierForBootOatFileBssRoots(const OatFile* oat_file) {
-  WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
-  DCHECK(!oat_file->GetBssGcRoots().empty()) << oat_file->GetLocation();
-  if (log_new_roots_ && !ContainsElement(new_bss_roots_boot_oat_files_, oat_file)) {
-    new_bss_roots_boot_oat_files_.push_back(oat_file);
+  if (!kUseReadBarrier) {
+    WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
+    DCHECK(!oat_file->GetBssGcRoots().empty()) << oat_file->GetLocation();
+    if (log_new_roots_ && !ContainsElement(new_bss_roots_boot_oat_files_, oat_file)) {
+      new_bss_roots_boot_oat_files_.push_back(oat_file);
+    }
+  } else {
+    LOG(FATAL) << "UNREACHABLE";
   }
 }
 
