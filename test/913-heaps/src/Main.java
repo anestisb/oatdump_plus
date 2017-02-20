@@ -15,6 +15,7 @@
  */
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -22,7 +23,7 @@ import java.util.HashSet;
 public class Main {
   public static void main(String[] args) throws Exception {
     doTest();
-    doFollowReferencesTest();
+    new TestConfig().doFollowReferencesTest();
   }
 
   public static void doTest() throws Exception {
@@ -51,126 +52,136 @@ public class Main {
     System.out.println((s > 0) + " " + (f > 0));
   }
 
-  public static void doFollowReferencesTest() throws Exception {
-    // Force GCs to clean up dirt.
-    Runtime.getRuntime().gc();
-    Runtime.getRuntime().gc();
+  private static class TestConfig {
+    private Class<?> klass = null;
+    private int heapFilter = 0;
 
-    setTag(Thread.currentThread(), 3000);
-
-    {
-      ArrayList<Object> tmpStorage = new ArrayList<>();
-      doFollowReferencesTestNonRoot(tmpStorage);
-      tmpStorage = null;
+    public TestConfig() {
+    }
+    public TestConfig(Class<?> klass, int heapFilter) {
+      this.klass = klass;
+      this.heapFilter = heapFilter;
     }
 
-    // Force GCs to clean up dirt.
-    Runtime.getRuntime().gc();
-    Runtime.getRuntime().gc();
+    public void doFollowReferencesTest() throws Exception {
+      // Force GCs to clean up dirt.
+      Runtime.getRuntime().gc();
+      Runtime.getRuntime().gc();
 
-    doFollowReferencesTestRoot();
+      setTag(Thread.currentThread(), 3000);
 
-    // Force GCs to clean up dirt.
-    Runtime.getRuntime().gc();
-    Runtime.getRuntime().gc();
-  }
+      {
+        ArrayList<Object> tmpStorage = new ArrayList<>();
+        doFollowReferencesTestNonRoot(tmpStorage);
+        tmpStorage = null;
+      }
 
-  private static void doFollowReferencesTestNonRoot(ArrayList<Object> tmpStorage) {
-    Verifier v = new Verifier();
-    tagClasses(v);
-    A a = createTree(v);
-    tmpStorage.add(a);
-    v.add("0@0", "1@1000");  // tmpStorage[0] --(array-element)--> a.
+      // Force GCs to clean up dirt.
+      Runtime.getRuntime().gc();
+      Runtime.getRuntime().gc();
 
-    doFollowReferencesTestImpl(null, Integer.MAX_VALUE, -1, null, v, null);
-    doFollowReferencesTestImpl(a.foo2, Integer.MAX_VALUE, -1, null, v, "3@1001");
+      doFollowReferencesTestRoot();
 
-    tmpStorage.clear();
-  }
+      // Force GCs to clean up dirt.
+      Runtime.getRuntime().gc();
+      Runtime.getRuntime().gc();
+    }
 
-  private static void doFollowReferencesTestRoot() {
-    Verifier v = new Verifier();
-    tagClasses(v);
-    A a = createTree(v);
+    private void doFollowReferencesTestNonRoot(ArrayList<Object> tmpStorage) {
+      Verifier v = new Verifier();
+      tagClasses(v);
+      A a = createTree(v);
+      tmpStorage.add(a);
+      v.add("0@0", "1@1000");  // tmpStorage[0] --(array-element)--> a.
 
-    doFollowReferencesTestImpl(null, Integer.MAX_VALUE, -1, a, v, null);
-    doFollowReferencesTestImpl(a.foo2, Integer.MAX_VALUE, -1, a, v, "3@1001");
-  }
+      doFollowReferencesTestImpl(null, Integer.MAX_VALUE, -1, null, v, null);
+      doFollowReferencesTestImpl(a.foo2, Integer.MAX_VALUE, -1, null, v, "3@1001");
 
-  private static void doFollowReferencesTestImpl(A root, int stopAfter, int followSet,
-      Object asRoot, Verifier v, String additionalEnabled) {
-    String[] lines =
-        followReferences(0, null, root, stopAfter, followSet, asRoot);
+      tmpStorage.clear();
+    }
 
-    v.process(lines, additionalEnabled);
+    private void doFollowReferencesTestRoot() {
+      Verifier v = new Verifier();
+      tagClasses(v);
+      A a = createTree(v);
 
-    // TODO: Test filters.
-  }
+      doFollowReferencesTestImpl(null, Integer.MAX_VALUE, -1, a, v, null);
+      doFollowReferencesTestImpl(a.foo2, Integer.MAX_VALUE, -1, a, v, "3@1001");
+    }
 
-  private static void tagClasses(Verifier v) {
-    setTag(A.class, 1000);
+    private void doFollowReferencesTestImpl(A root, int stopAfter, int followSet,
+        Object asRoot, Verifier v, String additionalEnabled) {
+      String[] lines =
+          followReferences(heapFilter, klass, root, stopAfter, followSet, asRoot);
 
-    setTag(B.class, 1001);
-    v.add("1001@0", "1000@0");  // B.class --(superclass)--> A.class.
+      v.process(lines, additionalEnabled, heapFilter != 0 || klass != null);
+    }
 
-    setTag(C.class, 1002);
-    v.add("1002@0", "1001@0");  // C.class --(superclass)--> B.class.
-    v.add("1002@0", "2001@0");  // C.class --(interface)--> I2.class.
+    private static void tagClasses(Verifier v) {
+      setTag(A.class, 1000);
 
-    setTag(I1.class, 2000);
+      setTag(B.class, 1001);
+      v.add("1001@0", "1000@0");  // B.class --(superclass)--> A.class.
 
-    setTag(I2.class, 2001);
-    v.add("2001@0", "2000@0");  // I2.class --(interface)--> I1.class.
-  }
+      setTag(C.class, 1002);
+      v.add("1002@0", "1001@0");  // C.class --(superclass)--> B.class.
+      v.add("1002@0", "2001@0");  // C.class --(interface)--> I2.class.
 
-  private static A createTree(Verifier v) {
-    A aInst = new A();
-    setTag(aInst, 1);
-    String aInstStr = "1@1000";
-    String aClassStr = "1000@0";
-    v.add(aInstStr, aClassStr);  // A -->(class) --> A.class.
+      setTag(I1.class, 2000);
 
-    A a2Inst = new A();
-    setTag(a2Inst, 2);
-    aInst.foo = a2Inst;
-    String a2InstStr = "2@1000";
-    v.add(a2InstStr, aClassStr);  // A2 -->(class) --> A.class.
-    v.add(aInstStr, a2InstStr);   // A -->(field) --> A2.
+      setTag(I2.class, 2001);
+      v.add("2001@0", "2000@0");  // I2.class --(interface)--> I1.class.
+    }
 
-    B bInst = new B();
-    setTag(bInst, 3);
-    aInst.foo2 = bInst;
-    String bInstStr = "3@1001";
-    String bClassStr = "1001@0";
-    v.add(bInstStr, bClassStr);  // B -->(class) --> B.class.
-    v.add(aInstStr, bInstStr);   // A -->(field) --> B.
+    private static A createTree(Verifier v) {
+      A aInst = new A();
+      setTag(aInst, 1);
+      String aInstStr = "1@1000";
+      String aClassStr = "1000@0";
+      v.add(aInstStr, aClassStr);  // A -->(class) --> A.class.
 
-    A a3Inst = new A();
-    setTag(a3Inst, 4);
-    bInst.bar = a3Inst;
-    String a3InstStr = "4@1000";
-    v.add(a3InstStr, aClassStr);  // A3 -->(class) --> A.class.
-    v.add(bInstStr, a3InstStr);   // B -->(field) --> A3.
+      A a2Inst = new A();
+      setTag(a2Inst, 2);
+      aInst.foo = a2Inst;
+      String a2InstStr = "2@1000";
+      v.add(a2InstStr, aClassStr);  // A2 -->(class) --> A.class.
+      v.add(aInstStr, a2InstStr);   // A -->(field) --> A2.
 
-    C cInst = new C();
-    setTag(cInst, 5);
-    bInst.bar2 = cInst;
-    String cInstStr = "5@1000";
-    String cClassStr = "1002@0";
-    v.add(cInstStr, cClassStr);  // C -->(class) --> C.class.
-    v.add(bInstStr, cInstStr);   // B -->(field) --> C.
+      B bInst = new B();
+      setTag(bInst, 3);
+      aInst.foo2 = bInst;
+      String bInstStr = "3@1001";
+      String bClassStr = "1001@0";
+      v.add(bInstStr, bClassStr);  // B -->(class) --> B.class.
+      v.add(aInstStr, bInstStr);   // A -->(field) --> B.
 
-    A a4Inst = new A();
-    setTag(a4Inst, 6);
-    cInst.baz = a4Inst;
-    String a4InstStr = "6@1000";
-    v.add(a4InstStr, aClassStr);  // A4 -->(class) --> A.class.
-    v.add(cInstStr, a4InstStr);   // C -->(field) --> A4.
+      A a3Inst = new A();
+      setTag(a3Inst, 4);
+      bInst.bar = a3Inst;
+      String a3InstStr = "4@1000";
+      v.add(a3InstStr, aClassStr);  // A3 -->(class) --> A.class.
+      v.add(bInstStr, a3InstStr);   // B -->(field) --> A3.
 
-    cInst.baz2 = aInst;
-    v.add(cInstStr, aInstStr);  // C -->(field) --> A.
+      C cInst = new C();
+      setTag(cInst, 5);
+      bInst.bar2 = cInst;
+      String cInstStr = "5@1000";
+      String cClassStr = "1002@0";
+      v.add(cInstStr, cClassStr);  // C -->(class) --> C.class.
+      v.add(bInstStr, cInstStr);   // B -->(field) --> C.
 
-    return aInst;
+      A a4Inst = new A();
+      setTag(a4Inst, 6);
+      cInst.baz = a4Inst;
+      String a4InstStr = "6@1000";
+      v.add(a4InstStr, aClassStr);  // A4 -->(class) --> A.class.
+      v.add(cInstStr, a4InstStr);   // C -->(field) --> A4.
+
+      cInst.baz2 = aInst;
+      v.add(cInstStr, aInstStr);  // C -->(field) --> A.
+
+      return aInst;
+    }
   }
 
   public static class A {
@@ -243,7 +254,7 @@ public class Main {
       }
     }
 
-    public void process(String[] lines, String additionalEnabledReferrer) {
+    public void process(String[] lines, String additionalEnabledReferrer, boolean filtered) {
       // This method isn't optimal. The loops could be merged. However, it's more readable if
       // the different parts are separated.
 
@@ -301,6 +312,21 @@ public class Main {
           lastRoot = l;
           System.out.println(l);
         }
+      }
+
+      if (filtered) {
+        // If we aren't tracking dependencies, just sort the lines and print.
+        // TODO: As the verifier is currently using the output lines to track dependencies, we
+        //       cannot verify that output is correct when parts of it are suppressed by filters.
+        //       To correctly track this we need to take node information into account, and
+        //       actually analyze the graph.
+        Collections.sort(nonRootLines);
+        for (String l : nonRootLines) {
+          System.out.println(l);
+        }
+
+        System.out.println("---");
+        return;
       }
 
       // Iterate through the lines, keeping track of which referrers are visited, to ensure the
@@ -379,9 +405,9 @@ public class Main {
   private static native int getGcFinishes();
   private static native void forceGarbageCollection();
 
-  private static native void setTag(Object o, long tag);
-  private static native long getTag(Object o);
+  public static native void setTag(Object o, long tag);
+  public static native long getTag(Object o);
 
-  private static native String[] followReferences(int heapFilter, Class<?> klassFilter,
+  public static native String[] followReferences(int heapFilter, Class<?> klassFilter,
       Object initialObject, int stopAfter, int followSet, Object jniRef);
 }
