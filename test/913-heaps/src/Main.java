@@ -27,6 +27,10 @@ public class Main {
 
     doStringTest();
     doPrimitiveArrayTest();
+
+    // Test klass filter.
+    System.out.println("--- klass ---");
+    new TestConfig(A.class, 0).doFollowReferencesTest();
   }
 
   public static void doTest() throws Exception {
