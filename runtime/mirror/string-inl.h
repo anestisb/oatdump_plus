@@ -36,7 +36,7 @@ namespace art {
 namespace mirror {
 
 inline uint32_t String::ClassSize(PointerSize pointer_size) {
-  uint32_t vtable_entries = Object::kVTableLength + 57;
+  uint32_t vtable_entries = Object::kVTableLength + 56;
   return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0, 1, 2, pointer_size);
 }
 
@@ -311,9 +311,7 @@ template<typename MemoryType>
 inline bool String::AllASCII(const MemoryType* chars, const int length) {
   static_assert(std::is_unsigned<MemoryType>::value, "Expecting unsigned MemoryType");
   for (int i = 0; i < length; ++i) {
-    // Valid ASCII characters are in range 1..0x7f. Zero is not considered ASCII
-    // because it would complicate the detection of ASCII strings in Modified-UTF8.
-    if ((chars[i] - 1u) >= 0x7fu) {
+    if (!IsASCII(chars[i])) {
       return false;
     }
   }
