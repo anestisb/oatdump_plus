@@ -2399,7 +2399,8 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       const RegType& res_type = ResolveClassAndCheckAccess(type_idx);
       if (res_type.IsConflict()) {
         // If this is a primitive type, fail HARD.
-        mirror::Class* klass = dex_cache_->GetResolvedType(type_idx);
+        ObjPtr<mirror::Class> klass =
+            ClassLinker::LookupResolvedType(type_idx, dex_cache_.Get(), class_loader_.Get());
         if (klass != nullptr && klass->IsPrimitive()) {
           Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "using primitive type "
               << dex_file_->StringByTypeIdx(type_idx) << " in instanceof in "
@@ -3722,9 +3723,16 @@ inline bool MethodVerifier::IsInstantiableOrPrimitive(mirror::Class* klass) {
 }
 
 const RegType& MethodVerifier::ResolveClassAndCheckAccess(dex::TypeIndex class_idx) {
-  mirror::Class* klass = dex_cache_->GetResolvedType(class_idx);
+  mirror::Class* klass = can_load_classes_
+      ? Runtime::Current()->GetClassLinker()->ResolveType(
+          *dex_file_, class_idx, dex_cache_, class_loader_)
+      : ClassLinker::LookupResolvedType(class_idx, dex_cache_.Get(), class_loader_.Get()).Ptr();
+  if (can_load_classes_ && klass == nullptr) {
+    DCHECK(self_->IsExceptionPending());
+    self_->ClearException();
+  }
   const RegType* result = nullptr;
-  if (klass != nullptr) {
+  if (klass != nullptr && !klass->IsErroneous()) {
     bool precise = klass->CannotBeAssignedFromOtherTypes();
     if (precise && !IsInstantiableOrPrimitive(klass)) {
       const char* descriptor = dex_file_->StringByTypeIdx(class_idx);
@@ -3746,10 +3754,6 @@ const RegType& MethodVerifier::ResolveClassAndCheckAccess(dex::TypeIndex class_i
     Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "accessing broken descriptor '" << descriptor
         << "' in " << GetDeclaringClass();
     return *result;
-  }
-  if (klass == nullptr && !result->IsUnresolvedTypes()) {
-    klass = result->GetClass();
-    dex_cache_->SetResolvedType(class_idx, klass);
   }
 
   // Record result of class resolution attempt.
