@@ -122,18 +122,6 @@ TEST_F(AssemblerX86Test, Movntl) {
   DriverStr(expected, "movntl");
 }
 
-TEST_F(AssemblerX86Test, psrlq) {
-  GetAssembler()->psrlq(x86::XMM0, CreateImmediate(32));
-  const char* expected = "psrlq $0x20, %xmm0\n";
-  DriverStr(expected, "psrlq");
-}
-
-TEST_F(AssemblerX86Test, punpckldq) {
-  GetAssembler()->punpckldq(x86::XMM0, x86::XMM1);
-  const char* expected = "punpckldq %xmm1, %xmm0\n";
-  DriverStr(expected, "punpckldq");
-}
-
 TEST_F(AssemblerX86Test, LoadLongConstant) {
   GetAssembler()->LoadLongConstant(x86::XMM0, 51);
   const char* expected =
@@ -521,6 +509,26 @@ TEST_F(AssemblerX86Test, DivPD) {
   DriverStr(RepeatFF(&x86::X86Assembler::divpd, "divpd %{reg2}, %{reg1}"), "divpd");
 }
 
+TEST_F(AssemblerX86Test, PAddB) {
+  DriverStr(RepeatFF(&x86::X86Assembler::paddb, "paddb %{reg2}, %{reg1}"), "paddb");
+}
+
+TEST_F(AssemblerX86Test, PSubB) {
+  DriverStr(RepeatFF(&x86::X86Assembler::psubb, "psubb %{reg2}, %{reg1}"), "psubb");
+}
+
+TEST_F(AssemblerX86Test, PAddW) {
+  DriverStr(RepeatFF(&x86::X86Assembler::paddw, "paddw %{reg2}, %{reg1}"), "paddw");
+}
+
+TEST_F(AssemblerX86Test, PSubW) {
+  DriverStr(RepeatFF(&x86::X86Assembler::psubw, "psubw %{reg2}, %{reg1}"), "psubw");
+}
+
+TEST_F(AssemblerX86Test, PMullW) {
+  DriverStr(RepeatFF(&x86::X86Assembler::pmullw, "pmullw %{reg2}, %{reg1}"), "pmullw");
+}
+
 TEST_F(AssemblerX86Test, PAddD) {
   DriverStr(RepeatFF(&x86::X86Assembler::paddd, "paddd %{reg2}, %{reg1}"), "paddd");
 }
@@ -531,6 +539,14 @@ TEST_F(AssemblerX86Test, PSubD) {
 
 TEST_F(AssemblerX86Test, PMullD) {
   DriverStr(RepeatFF(&x86::X86Assembler::pmulld, "pmulld %{reg2}, %{reg1}"), "pmulld");
+}
+
+TEST_F(AssemblerX86Test, PAddQ) {
+  DriverStr(RepeatFF(&x86::X86Assembler::paddq, "paddq %{reg2}, %{reg1}"), "paddq");
+}
+
+TEST_F(AssemblerX86Test, PSubQ) {
+  DriverStr(RepeatFF(&x86::X86Assembler::psubq, "psubq %{reg2}, %{reg1}"), "psubq");
 }
 
 TEST_F(AssemblerX86Test, XorPD) {
@@ -579,6 +595,67 @@ TEST_F(AssemblerX86Test, ShufPD) {
 
 TEST_F(AssemblerX86Test, PShufD) {
   DriverStr(RepeatFFI(&x86::X86Assembler::pshufd, 1, "pshufd ${imm}, %{reg2}, %{reg1}"), "pshufd");
+}
+
+TEST_F(AssemblerX86Test, Punpcklbw) {
+  DriverStr(RepeatFF(&x86::X86Assembler::punpcklbw, "punpcklbw %{reg2}, %{reg1}"), "punpcklbw");
+}
+
+TEST_F(AssemblerX86Test, Punpcklwd) {
+  DriverStr(RepeatFF(&x86::X86Assembler::punpcklwd, "punpcklwd %{reg2}, %{reg1}"), "punpcklwd");
+}
+
+TEST_F(AssemblerX86Test, Punpckldq) {
+  DriverStr(RepeatFF(&x86::X86Assembler::punpckldq, "punpckldq %{reg2}, %{reg1}"), "punpckldq");
+}
+
+TEST_F(AssemblerX86Test, Punpcklqdq) {
+  DriverStr(RepeatFF(&x86::X86Assembler::punpcklqdq, "punpcklqdq %{reg2}, %{reg1}"), "punpcklqdq");
+}
+
+TEST_F(AssemblerX86Test, psllw) {
+  GetAssembler()->psllw(x86::XMM0, CreateImmediate(16));
+  DriverStr("psllw $0x10, %xmm0\n", "psllwi");
+}
+
+TEST_F(AssemblerX86Test, pslld) {
+  GetAssembler()->pslld(x86::XMM0, CreateImmediate(16));
+  DriverStr("pslld $0x10, %xmm0\n", "pslldi");
+}
+
+TEST_F(AssemblerX86Test, psllq) {
+  GetAssembler()->psllq(x86::XMM0, CreateImmediate(16));
+  DriverStr("psllq $0x10, %xmm0\n", "psllqi");
+}
+
+TEST_F(AssemblerX86Test, psraw) {
+  GetAssembler()->psraw(x86::XMM0, CreateImmediate(16));
+  DriverStr("psraw $0x10, %xmm0\n", "psrawi");
+}
+
+TEST_F(AssemblerX86Test, psrad) {
+  GetAssembler()->psrad(x86::XMM0, CreateImmediate(16));
+  DriverStr("psrad $0x10, %xmm0\n", "psradi");
+}
+
+TEST_F(AssemblerX86Test, psrlw) {
+  GetAssembler()->psrlw(x86::XMM0, CreateImmediate(16));
+  DriverStr("psrlw $0x10, %xmm0\n", "psrlwi");
+}
+
+TEST_F(AssemblerX86Test, psrld) {
+  GetAssembler()->psrld(x86::XMM0, CreateImmediate(16));
+  DriverStr("psrld $0x10, %xmm0\n", "psrldi");
+}
+
+TEST_F(AssemblerX86Test, psrlq) {
+  GetAssembler()->psrlq(x86::XMM0, CreateImmediate(16));
+  DriverStr("psrlq $0x10, %xmm0\n", "psrlqi");
+}
+
+TEST_F(AssemblerX86Test, psrldq) {
+  GetAssembler()->psrldq(x86::XMM0, CreateImmediate(16));
+  DriverStr("psrldq $0x10, %xmm0\n", "psrldqi");
 }
 
 /////////////////
