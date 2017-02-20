@@ -593,7 +593,7 @@ class ProfMan FINAL {
     }
     // Generate the profile data structure.
     ProfileCompilationInfo info;
-    std::vector<MethodReference> methods;  // No methods for now.
+    std::vector<ProfileMethodInfo> methods;  // No methods for now.
     info.AddMethodsAndClasses(methods, resolved_class_set);
     // Write the profile file.
     CHECK(info.Save(fd));
