@@ -124,9 +124,9 @@ static jobject Constructor_newInstanceFromSerialization(JNIEnv* env, jclass unus
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(Constructor, getExceptionTypes, "!()[Ljava/lang/Class;"),
-  NATIVE_METHOD(Constructor, newInstance0, "!([Ljava/lang/Object;)Ljava/lang/Object;"),
-  NATIVE_METHOD(Constructor, newInstanceFromSerialization, "!(Ljava/lang/Class;Ljava/lang/Class;)Ljava/lang/Object;"),
+  FAST_NATIVE_METHOD(Constructor, getExceptionTypes, "()[Ljava/lang/Class;"),
+  FAST_NATIVE_METHOD(Constructor, newInstance0, "([Ljava/lang/Object;)Ljava/lang/Object;"),
+  FAST_NATIVE_METHOD(Constructor, newInstanceFromSerialization, "(Ljava/lang/Class;Ljava/lang/Class;)Ljava/lang/Object;"),
 };
 
 void register_java_lang_reflect_Constructor(JNIEnv* env) {
