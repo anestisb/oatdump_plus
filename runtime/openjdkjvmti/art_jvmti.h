@@ -33,6 +33,7 @@
 #define ART_RUNTIME_OPENJDKJVMTI_ART_JVMTI_H_
 
 #include <memory>
+#include <type_traits>
 
 #include <jni.h>
 
@@ -86,6 +87,7 @@ static inline JNIEnv* GetJniEnv(jvmtiEnv* env) {
   return ret_value;
 }
 
+template <typename T>
 class JvmtiDeleter {
  public:
   JvmtiDeleter() : env_(nullptr) {}
@@ -95,9 +97,9 @@ class JvmtiDeleter {
   JvmtiDeleter(JvmtiDeleter&&) = default;
   JvmtiDeleter& operator=(const JvmtiDeleter&) = default;
 
-  void operator()(unsigned char* ptr) const {
+  void operator()(T* ptr) const {
     CHECK(env_ != nullptr);
-    jvmtiError ret = env_->Deallocate(ptr);
+    jvmtiError ret = env_->Deallocate(reinterpret_cast<unsigned char*>(ptr));
     CHECK(ret == ERR(NONE));
   }
 
@@ -105,12 +107,65 @@ class JvmtiDeleter {
   mutable jvmtiEnv* env_;
 };
 
-using JvmtiUniquePtr = std::unique_ptr<unsigned char, JvmtiDeleter>;
+template <typename T>
+class JvmtiDeleter<T[]> {
+  public:
+  JvmtiDeleter() : env_(nullptr) {}
+  explicit JvmtiDeleter(jvmtiEnv* env) : env_(env) {}
+
+  JvmtiDeleter(JvmtiDeleter&) = default;
+  JvmtiDeleter(JvmtiDeleter&&) = default;
+  JvmtiDeleter& operator=(const JvmtiDeleter&) = default;
+
+  template <typename U>
+  void operator()(U* ptr) const {
+    CHECK(env_ != nullptr);
+    jvmtiError ret = env_->Deallocate(reinterpret_cast<unsigned char*>(ptr));
+    CHECK(ret == ERR(NONE));
+  }
+
+ private:
+  mutable jvmtiEnv* env_;
+};
+
+template <typename T>
+using JvmtiUniquePtr = std::unique_ptr<T, JvmtiDeleter<T>>;
 
 template <typename T>
 ALWAYS_INLINE
-static inline JvmtiUniquePtr MakeJvmtiUniquePtr(jvmtiEnv* env, T* mem) {
-  return JvmtiUniquePtr(reinterpret_cast<unsigned char*>(mem), JvmtiDeleter(env));
+static inline JvmtiUniquePtr<T> MakeJvmtiUniquePtr(jvmtiEnv* env, T* mem) {
+  return JvmtiUniquePtr<T>(mem, JvmtiDeleter<T>(env));
+}
+
+template <typename T>
+ALWAYS_INLINE
+static inline JvmtiUniquePtr<T> MakeJvmtiUniquePtr(jvmtiEnv* env, unsigned char* mem) {
+  return JvmtiUniquePtr<T>(reinterpret_cast<T*>(mem), JvmtiDeleter<T>(env));
+}
+
+template <typename T>
+ALWAYS_INLINE
+static inline JvmtiUniquePtr<T> AllocJvmtiUniquePtr(jvmtiEnv* env, jvmtiError* error) {
+  unsigned char* tmp;
+  *error = env->Allocate(sizeof(T), &tmp);
+  if (*error != ERR(NONE)) {
+    return JvmtiUniquePtr<T>();
+  }
+  return JvmtiUniquePtr<T>(tmp, JvmtiDeleter<T>(env));
+}
+
+template <typename T>
+ALWAYS_INLINE
+static inline JvmtiUniquePtr<T> AllocJvmtiUniquePtr(jvmtiEnv* env,
+                                                    size_t count,
+                                                    jvmtiError* error) {
+  unsigned char* tmp;
+  *error = env->Allocate(sizeof(typename std::remove_extent<T>::type) * count, &tmp);
+  if (*error != ERR(NONE)) {
+    return JvmtiUniquePtr<T>();
+  }
+  return JvmtiUniquePtr<T>(reinterpret_cast<typename std::remove_extent<T>::type*>(tmp),
+                           JvmtiDeleter<T>(env));
 }
 
 ALWAYS_INLINE
@@ -129,15 +184,12 @@ static inline jvmtiError CopyDataIntoJvmtiBuffer(ArtJvmTiEnv* env,
 }
 
 ALWAYS_INLINE
-static inline jvmtiError CopyString(jvmtiEnv* env, const char* src, unsigned char** copy) {
+static inline JvmtiUniquePtr<char[]> CopyString(jvmtiEnv* env, const char* src, jvmtiError* error) {
   size_t len = strlen(src) + 1;
-  unsigned char* buf;
-  jvmtiError ret = env->Allocate(len, &buf);
-  if (ret != ERR(NONE)) {
-    return ret;
+  JvmtiUniquePtr<char[]> ret = AllocJvmtiUniquePtr<char[]>(env, len, error);
+  if (ret != nullptr) {
+    strcpy(ret.get(), src);
   }
-  strcpy(reinterpret_cast<char*>(buf), src);
-  *copy = buf;
   return ret;
 }
 

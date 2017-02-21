@@ -392,8 +392,8 @@ jvmtiError Redefiner::AddRedefinition(ArtJvmTiEnv* env, const ArtClassDefinition
     *error_msg_ = "Unable to get class signature!";
     return ret;
   }
-  JvmtiUniquePtr generic_unique_ptr(MakeJvmtiUniquePtr(env, generic_ptr_unused));
-  JvmtiUniquePtr signature_unique_ptr(MakeJvmtiUniquePtr(env, signature_ptr));
+  JvmtiUniquePtr<char> generic_unique_ptr(MakeJvmtiUniquePtr(env, generic_ptr_unused));
+  JvmtiUniquePtr<char> signature_unique_ptr(MakeJvmtiUniquePtr(env, signature_ptr));
   std::unique_ptr<art::MemMap> map(MoveDataToMemMap(original_dex_location,
                                                     def.dex_len,
                                                     def.dex_data.get(),

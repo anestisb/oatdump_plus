@@ -116,11 +116,12 @@ jvmtiError ThreadGroupUtil::GetThreadGroupInfo(jvmtiEnv* env,
       tmp_str = name_obj->ToModifiedUtf8();
       tmp_cstr = tmp_str.c_str();
     }
-    jvmtiError result =
-        CopyString(env, tmp_cstr, reinterpret_cast<unsigned char**>(&info_ptr->name));
-    if (result != ERR(NONE)) {
+    jvmtiError result;
+    JvmtiUniquePtr<char[]> copy = CopyString(env, tmp_cstr, &result);
+    if (copy == nullptr) {
       return result;
     }
+    info_ptr->name = copy.release();
   }
 
   // Parent.
@@ -239,45 +240,38 @@ jvmtiError ThreadGroupUtil::GetThreadGroupChildren(jvmtiEnv* env,
   std::vector<art::ObjPtr<art::mirror::Object>> thread_groups;
   GetChildThreadGroups(thread_group, &thread_groups);
 
-  jthread* thread_data = nullptr;
-  JvmtiUniquePtr peers_uptr;
+  JvmtiUniquePtr<jthread[]> peers_uptr;
   if (!thread_peers.empty()) {
-    unsigned char* data;
-    jvmtiError res = env->Allocate(sizeof(jthread) * thread_peers.size(), &data);
-    if (res != ERR(NONE)) {
+    jvmtiError res;
+    peers_uptr = AllocJvmtiUniquePtr<jthread[]>(env, thread_peers.size(), &res);
+    if (peers_uptr == nullptr) {
       return res;
     }
-    thread_data = reinterpret_cast<jthread*>(data);
-    peers_uptr = MakeJvmtiUniquePtr(env, data);
   }
 
-  jthreadGroup* group_data = nullptr;
+  JvmtiUniquePtr<jthreadGroup[]> group_uptr;
   if (!thread_groups.empty()) {
-    unsigned char* data;
-    jvmtiError res = env->Allocate(sizeof(jthreadGroup) * thread_groups.size(), &data);
-    if (res != ERR(NONE)) {
+    jvmtiError res;
+    group_uptr = AllocJvmtiUniquePtr<jthreadGroup[]>(env, thread_groups.size(), &res);
+    if (group_uptr == nullptr) {
       return res;
     }
-    group_data = reinterpret_cast<jthreadGroup*>(data);
   }
 
   // Can't fail anymore from here on.
 
   // Copy data into out buffers.
   for (size_t i = 0; i != thread_peers.size(); ++i) {
-    thread_data[i] = soa.AddLocalReference<jthread>(thread_peers[i]);
+    peers_uptr[i] = soa.AddLocalReference<jthread>(thread_peers[i]);
   }
   for (size_t i = 0; i != thread_groups.size(); ++i) {
-    group_data[i] = soa.AddLocalReference<jthreadGroup>(thread_groups[i]);
+    group_uptr[i] = soa.AddLocalReference<jthreadGroup>(thread_groups[i]);
   }
 
   *thread_count_ptr = static_cast<jint>(thread_peers.size());
-  *threads_ptr = thread_data;
+  *threads_ptr = peers_uptr.release();
   *group_count_ptr = static_cast<jint>(thread_groups.size());
-  *groups_ptr = group_data;
-
-  // Everything's fine.
-  peers_uptr.release();
+  *groups_ptr = group_uptr.release();
 
   return ERR(NONE);
 }
