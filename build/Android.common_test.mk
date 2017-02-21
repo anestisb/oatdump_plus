@@ -66,9 +66,6 @@ ART_TEST_OPTIMIZING ?= true
 # Do you want to test the optimizing compiler with graph coloring register allocation?
 ART_TEST_OPTIMIZING_GRAPH_COLOR ?= $(ART_TEST_FULL)
 
-# Do we want to test a non-PIC-compiled core image?
-ART_TEST_NPIC_IMAGE ?= $(ART_TEST_FULL)
-
 # Do we want to test PIC-compiled tests ("apps")?
 ART_TEST_PIC_TEST ?= $(ART_TEST_FULL)
 

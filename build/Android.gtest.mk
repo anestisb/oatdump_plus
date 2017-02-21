@@ -123,16 +123,16 @@ ART_GTEST_elf_writer_test_HOST_DEPS := $(HOST_CORE_IMAGE_DEFAULT_64) $(HOST_CORE
 ART_GTEST_elf_writer_test_TARGET_DEPS := $(TARGET_CORE_IMAGE_DEFAULT_64) $(TARGET_CORE_IMAGE_DEFAULT_32)
 
 ART_GTEST_dex2oat_environment_tests_HOST_DEPS := \
-  $(HOST_CORE_IMAGE_optimizing_pic_64) \
-  $(HOST_CORE_IMAGE_optimizing_pic_32) \
-  $(HOST_CORE_IMAGE_interpreter_pic_64) \
-  $(HOST_CORE_IMAGE_interpreter_pic_32) \
+  $(HOST_CORE_IMAGE_optimizing_64) \
+  $(HOST_CORE_IMAGE_optimizing_32) \
+  $(HOST_CORE_IMAGE_interpreter_64) \
+  $(HOST_CORE_IMAGE_interpreter_32) \
   $(HOST_OUT_EXECUTABLES)/patchoatd
 ART_GTEST_dex2oat_environment_tests_TARGET_DEPS := \
-  $(TARGET_CORE_IMAGE_optimizing_pic_64) \
-  $(TARGET_CORE_IMAGE_optimizing_pic_32) \
-  $(TARGET_CORE_IMAGE_interpreter_pic_64) \
-  $(TARGET_CORE_IMAGE_interpreter_pic_32) \
+  $(TARGET_CORE_IMAGE_optimizing_64) \
+  $(TARGET_CORE_IMAGE_optimizing_32) \
+  $(TARGET_CORE_IMAGE_interpreter_64) \
+  $(TARGET_CORE_IMAGE_interpreter_32) \
   $(TARGET_OUT_EXECUTABLES)/patchoatd
 
 ART_GTEST_oat_file_assistant_test_HOST_DEPS := \
