@@ -1330,17 +1330,18 @@ void UnstartedRuntime::UnstartedStringCharAt(
   result->SetC(string->CharAt(index));
 }
 
-// This allows setting chars from the new style of String objects during compilation.
-void UnstartedRuntime::UnstartedStringSetCharAt(
-    Thread* self, ShadowFrame* shadow_frame, JValue* result ATTRIBUTE_UNUSED, size_t arg_offset) {
-  jint index = shadow_frame->GetVReg(arg_offset + 1);
-  jchar c = shadow_frame->GetVReg(arg_offset + 2);
-  mirror::String* string = shadow_frame->GetVRegReference(arg_offset)->AsString();
+// This allows creating String objects with replaced characters during compilation.
+// String.doReplace(char, char) is called from String.replace(char, char) when there is a match.
+void UnstartedRuntime::UnstartedStringDoReplace(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  jchar old_c = shadow_frame->GetVReg(arg_offset + 1);
+  jchar new_c = shadow_frame->GetVReg(arg_offset + 2);
+  ObjPtr<mirror::String> string = shadow_frame->GetVRegReference(arg_offset)->AsString();
   if (string == nullptr) {
-    AbortTransactionOrFail(self, "String.setCharAt with null object");
+    AbortTransactionOrFail(self, "String.replaceWithMatch with null object");
     return;
   }
-  string->SetCharAt(index, c);
+  result->SetL(string->DoReplace(self, old_c, new_c));
 }
 
 // This allows creating the new style of String objects during compilation.

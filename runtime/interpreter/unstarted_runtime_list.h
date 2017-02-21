@@ -63,7 +63,7 @@
   V(RuntimeAvailableProcessors, "int java.lang.Runtime.availableProcessors()") \
   V(StringGetCharsNoCheck, "void java.lang.String.getCharsNoCheck(int, int, char[], int)") \
   V(StringCharAt, "char java.lang.String.charAt(int)") \
-  V(StringSetCharAt, "void java.lang.String.setCharAt(int, char)") \
+  V(StringDoReplace, "java.lang.String java.lang.String.doReplace(char, char)") \
   V(StringFactoryNewStringFromChars, "java.lang.String java.lang.StringFactory.newStringFromChars(int, int, char[])") \
   V(StringFactoryNewStringFromString, "java.lang.String java.lang.StringFactory.newStringFromString(java.lang.String)") \
   V(StringFastSubstring, "java.lang.String java.lang.String.fastSubstring(int, int)") \

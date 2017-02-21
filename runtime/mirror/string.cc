@@ -79,14 +79,55 @@ int32_t String::GetUtfLength() {
   }
 }
 
-void String::SetCharAt(int32_t index, uint16_t c) {
-  DCHECK((index >= 0) && (index < GetLength()));
-  if (IsCompressed()) {
-    // TODO: Handle the case where String is compressed and c is non-ASCII
-    GetValueCompressed()[index] = static_cast<uint8_t>(c);
-  } else {
-    GetValue()[index] = c;
+inline bool String::AllASCIIExcept(const uint16_t* chars, int32_t length, uint16_t non_ascii) {
+  DCHECK(!IsASCII(non_ascii));
+  for (int32_t i = 0; i < length; ++i) {
+    if (!IsASCII(chars[i]) && chars[i] != non_ascii) {
+      return false;
+    }
   }
+  return true;
+}
+
+ObjPtr<String> String::DoReplace(Thread* self, uint16_t old_c, uint16_t new_c) {
+  DCHECK(IsCompressed() ? ContainsElement(ArrayRef<uint8_t>(value_compressed_, GetLength()), old_c)
+                        : ContainsElement(ArrayRef<uint16_t>(value_, GetLength()), old_c));
+  int32_t length = GetLength();
+  bool compressible =
+      kUseStringCompression &&
+      IsASCII(new_c) &&
+      (IsCompressed() || (!IsASCII(old_c) && AllASCIIExcept(value_, length, old_c)));
+  gc::AllocatorType allocator_type = Runtime::Current()->GetHeap()->GetCurrentAllocator();
+  const int32_t length_with_flag = String::GetFlaggedCount(GetLength(), compressible);
+  SetStringCountVisitor visitor(length_with_flag);
+  ObjPtr<String> string = Alloc<true>(self, length_with_flag, allocator_type, visitor);
+  if (UNLIKELY(string == nullptr)) {
+    return nullptr;
+  }
+  if (compressible) {
+    auto replace = [old_c, new_c](uint16_t c) {
+      return dchecked_integral_cast<uint8_t>((old_c != c) ? c : new_c);
+    };
+    uint8_t* out = string->value_compressed_;
+    if (LIKELY(IsCompressed())) {  // LIKELY(compressible == IsCompressed())
+      std::transform(value_compressed_, value_compressed_ + length, out, replace);
+    } else {
+      std::transform(value_, value_ + length, out, replace);
+    }
+    DCHECK(kUseStringCompression && AllASCII(out, length));
+  } else {
+    auto replace = [old_c, new_c](uint16_t c) {
+      return (old_c != c) ? c : new_c;
+    };
+    uint16_t* out = string->value_;
+    if (UNLIKELY(IsCompressed())) {  // LIKELY(compressible == IsCompressed())
+      std::transform(value_compressed_, value_compressed_ + length, out, replace);
+    } else {
+      std::transform(value_, value_ + length, out, replace);
+    }
+    DCHECK(!kUseStringCompression || !AllASCII(out, length));
+  }
+  return string;
 }
 
 String* String::AllocFromStrings(Thread* self, Handle<String> string, Handle<String> string2) {
