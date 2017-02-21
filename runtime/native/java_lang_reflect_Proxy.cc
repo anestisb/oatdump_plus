@@ -35,7 +35,7 @@ static jclass Proxy_generateProxy(JNIEnv* env, jclass, jstring name, jobjectArra
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(Proxy, generateProxy, "!(Ljava/lang/String;[Ljava/lang/Class;Ljava/lang/ClassLoader;[Ljava/lang/reflect/Method;[[Ljava/lang/Class;)Ljava/lang/Class;"),
+  FAST_NATIVE_METHOD(Proxy, generateProxy, "(Ljava/lang/String;[Ljava/lang/Class;Ljava/lang/ClassLoader;[Ljava/lang/reflect/Method;[[Ljava/lang/Class;)Ljava/lang/Class;"),
 };
 
 void register_java_lang_reflect_Proxy(JNIEnv* env) {
