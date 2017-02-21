@@ -94,7 +94,10 @@ class MANAGED String FINAL : public Object {
 
   uint16_t CharAt(int32_t index) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void SetCharAt(int32_t index, uint16_t c) REQUIRES_SHARED(Locks::mutator_lock_);
+  // Create a new string where all occurences of `old_c` are replaced with `new_c`.
+  // String.doReplace(char, char) is called from String.replace(char, char) when there is a match.
+  ObjPtr<String> DoReplace(Thread* self, uint16_t old_c, uint16_t new_c)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   ObjPtr<String> Intern() REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -229,6 +232,14 @@ class MANAGED String FINAL : public Object {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
+  static constexpr bool IsASCII(uint16_t c) {
+    // Valid ASCII characters are in range 1..0x7f. Zero is not considered ASCII
+    // because it would complicate the detection of ASCII strings in Modified-UTF8.
+    return (c - 1u) < 0x7fu;
+  }
+
+  static bool AllASCIIExcept(const uint16_t* chars, int32_t length, uint16_t non_ascii);
+
   void SetHashCode(int32_t new_hash_code) REQUIRES_SHARED(Locks::mutator_lock_) {
     // Hash code is invariant so use non-transactional mode. Also disable check as we may run inside
     // a transaction.
