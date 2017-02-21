@@ -22,14 +22,24 @@ package com.android.ahat;
 class Column {
   public DocString heading;
   public Align align;
+  public boolean visible;
 
   public static enum Align {
     LEFT, RIGHT
   };
 
-  public Column(DocString heading, Align align) {
+  public Column(DocString heading, Align align, boolean visible) {
     this.heading = heading;
     this.align = align;
+    this.visible = visible;
+  }
+
+  public Column(String heading, Align align, boolean visible) {
+    this(DocString.text(heading), align, visible);
+  }
+
+  public Column(DocString heading, Align align) {
+    this(heading, align, true);
   }
 
   /**

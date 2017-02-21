@@ -18,8 +18,9 @@ package com.android.ahat;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import static org.junit.Assert.assertEquals;
 import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
 
 public class QueryTest {
   @Test

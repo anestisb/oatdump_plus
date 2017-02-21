@@ -86,19 +86,27 @@ public class HtmlDoc implements Doc {
     mCurrentTableColumns = columns;
     ps.println("<table>");
     for (int i = 0; i < columns.length - 1; i++) {
-      ps.format("<th>%s</th>", columns[i].heading.html());
+      if (columns[i].visible) {
+        ps.format("<th>%s</th>", columns[i].heading.html());
+      }
     }
 
     // Align the last header to the left so it's easier to see if the last
     // column is very wide.
-    ps.format("<th align=\"left\">%s</th>", columns[columns.length - 1].heading.html());
+    if (columns[columns.length - 1].visible) {
+      ps.format("<th align=\"left\">%s</th>", columns[columns.length - 1].heading.html());
+    }
   }
 
   @Override
   public void table(DocString description, List<Column> subcols, List<Column> cols) {
     mCurrentTableColumns = new Column[subcols.size() + cols.size()];
     int j = 0;
+    int visibleSubCols = 0;
     for (Column col : subcols) {
+      if (col.visible) {
+        visibleSubCols++;
+      }
       mCurrentTableColumns[j] = col;
       j++;
     }
@@ -108,21 +116,27 @@ public class HtmlDoc implements Doc {
     }
 
     ps.println("<table>");
-    ps.format("<tr><th colspan=\"%d\">%s</th>", subcols.size(), description.html());
+    ps.format("<tr><th colspan=\"%d\">%s</th>", visibleSubCols, description.html());
     for (int i = 0; i < cols.size() - 1; i++) {
-      ps.format("<th rowspan=\"2\">%s</th>", cols.get(i).heading.html());
+      if (cols.get(i).visible) {
+        ps.format("<th rowspan=\"2\">%s</th>", cols.get(i).heading.html());
+      }
     }
     if (!cols.isEmpty()) {
       // Align the last column header to the left so it can still be seen if
       // the last column is very wide.
-      ps.format("<th align=\"left\" rowspan=\"2\">%s</th>",
-          cols.get(cols.size() - 1).heading.html());
+      Column col = cols.get(cols.size() - 1);
+      if (col.visible) {
+        ps.format("<th align=\"left\" rowspan=\"2\">%s</th>", col.heading.html());
+      }
     }
     ps.println("</tr>");
 
     ps.print("<tr>");
     for (Column subcol : subcols) {
-      ps.format("<th>%s</th>", subcol.heading.html());
+      if (subcol.visible) {
+        ps.format("<th>%s</th>", subcol.heading.html());
+      }
     }
     ps.println("</tr>");
   }
@@ -141,11 +155,13 @@ public class HtmlDoc implements Doc {
 
     ps.print("<tr>");
     for (int i = 0; i < values.length; i++) {
+      if (mCurrentTableColumns[i].visible) {
       ps.print("<td");
-      if (mCurrentTableColumns[i].align == Column.Align.RIGHT) {
-        ps.print(" align=\"right\"");
+        if (mCurrentTableColumns[i].align == Column.Align.RIGHT) {
+          ps.print(" align=\"right\"");
+        }
+        ps.format(">%s</td>", values[i].html());
       }
-      ps.format(">%s</td>", values[i].html());
     }
     ps.println("</tr>");
   }

@@ -18,6 +18,14 @@ div.menu {
   background-color: #eeffff;
 }
 
+span.added {
+  color: #770000;
+}
+
+span.removed {
+  color: #007700;
+}
+
 /*
  * Most of the columns show numbers of bytes. Numbers should be right aligned.
  */
