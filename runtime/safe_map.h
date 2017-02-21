@@ -137,6 +137,16 @@ class SafeMap {
     return it->second;
   }
 
+  iterator FindOrAdd(const K& k, const V& v) {
+    iterator it = find(k);
+    return it == end() ? Put(k, v) : it;
+  }
+
+  iterator FindOrAdd(const K& k) {
+    iterator it = find(k);
+    return it == end() ? Put(k, V()) : it;
+  }
+
   bool Equals(const Self& rhs) const {
     return map_ == rhs.map_;
   }

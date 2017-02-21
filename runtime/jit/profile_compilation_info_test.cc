@@ -57,6 +57,14 @@ class ProfileCompilationInfoTest : public CommonRuntimeTest {
     return info->AddMethodIndex(dex_location, checksum, method_index);
   }
 
+  bool AddMethod(const std::string& dex_location,
+                 uint32_t checksum,
+                 uint16_t method_index,
+                 const ProfileCompilationInfo::OfflineProfileMethodInfo& pmi,
+                 ProfileCompilationInfo* info) {
+    return info->AddMethod(dex_location, checksum, method_index, pmi);
+  }
+
   bool AddClass(const std::string& dex_location,
                 uint32_t checksum,
                 uint16_t class_index,
@@ -73,15 +81,130 @@ class ProfileCompilationInfoTest : public CommonRuntimeTest {
       const std::vector<ArtMethod*>& methods,
       const std::set<DexCacheResolvedClasses>& resolved_classes) {
     ProfileCompilationInfo info;
-    std::vector<MethodReference> method_refs;
+    std::vector<ProfileMethodInfo> profile_methods;
     ScopedObjectAccess soa(Thread::Current());
     for (ArtMethod* method : methods) {
-      method_refs.emplace_back(method->GetDexFile(), method->GetDexMethodIndex());
+      profile_methods.emplace_back(method->GetDexFile(), method->GetDexMethodIndex());
     }
-    if (!info.AddMethodsAndClasses(method_refs, resolved_classes)) {
+    if (!info.AddMethodsAndClasses(profile_methods, resolved_classes)) {
+      return false;
+    }
+    if (info.GetNumberOfMethods() != profile_methods.size()) {
       return false;
     }
     return info.MergeAndSave(filename, nullptr, false);
+  }
+
+  // Saves the given art methods to a profile backed by 'filename' and adds
+  // some fake inline caches to it. The added inline caches are returned in
+  // the out map `profile_methods_map`.
+  bool SaveProfilingInfoWithFakeInlineCaches(
+      const std::string& filename,
+      const std::vector<ArtMethod*>& methods,
+      /*out*/ SafeMap<ArtMethod*, ProfileMethodInfo>* profile_methods_map) {
+    ProfileCompilationInfo info;
+    std::vector<ProfileMethodInfo> profile_methods;
+    ScopedObjectAccess soa(Thread::Current());
+    for (ArtMethod* method : methods) {
+      std::vector<ProfileMethodInfo::ProfileInlineCache> caches;
+      // Monomorphic
+      for (uint16_t dex_pc = 0; dex_pc < 1; dex_pc++) {
+        std::vector<ProfileMethodInfo::ProfileClassReference> classes;
+        classes.emplace_back(method->GetDexFile(), dex::TypeIndex(0));
+        caches.emplace_back(dex_pc, classes);
+      }
+      // Polymorphic
+      for (uint16_t dex_pc = 1; dex_pc < 2; dex_pc++) {
+        std::vector<ProfileMethodInfo::ProfileClassReference> classes;
+        for (uint16_t k = 0; k < InlineCache::kIndividualCacheSize / 2; k++) {
+          classes.emplace_back(method->GetDexFile(), dex::TypeIndex(k));
+        }
+        caches.emplace_back(dex_pc, classes);
+      }
+      // Megamorphic
+      for (uint16_t dex_pc = 2; dex_pc < 3; dex_pc++) {
+        std::vector<ProfileMethodInfo::ProfileClassReference> classes;
+        for (uint16_t k = 0; k < 2 * InlineCache::kIndividualCacheSize; k++) {
+          classes.emplace_back(method->GetDexFile(), dex::TypeIndex(k));
+        }
+        caches.emplace_back(dex_pc, classes);
+      }
+      ProfileMethodInfo pmi(method->GetDexFile(), method->GetDexMethodIndex(), caches);
+      profile_methods.push_back(pmi);
+      profile_methods_map->Put(method, pmi);
+    }
+
+    if (!info.AddMethodsAndClasses(profile_methods, std::set<DexCacheResolvedClasses>())) {
+      return false;
+    }
+    if (info.GetNumberOfMethods() != profile_methods.size()) {
+      return false;
+    }
+    return info.MergeAndSave(filename, nullptr, false);
+  }
+
+  ProfileCompilationInfo::OfflineProfileMethodInfo ConvertProfileMethodInfo(
+        const ProfileMethodInfo& pmi) {
+    ProfileCompilationInfo::OfflineProfileMethodInfo offline_pmi;
+    SafeMap<DexFile*, uint8_t> dex_map;  // dex files to profile index
+    for (const auto& inline_cache : pmi.inline_caches) {
+      for (const auto& class_ref : inline_cache.classes) {
+        uint8_t dex_profile_index = dex_map.FindOrAdd(const_cast<DexFile*>(class_ref.dex_file),
+                                                      static_cast<uint8_t>(dex_map.size()))->second;
+        offline_pmi.inline_caches
+            .FindOrAdd(inline_cache.dex_pc)->second
+            .AddClass(dex_profile_index, class_ref.type_index);
+        if (dex_profile_index >= offline_pmi.dex_references.size()) {
+          // This is a new dex.
+          const std::string& dex_key = ProfileCompilationInfo::GetProfileDexFileKey(
+              class_ref.dex_file->GetLocation());
+          offline_pmi.dex_references.emplace_back(dex_key,
+                                                  class_ref.dex_file->GetLocationChecksum());
+        }
+      }
+    }
+    return offline_pmi;
+  }
+
+  // Creates an offline profile used for testing inline caches.
+  ProfileCompilationInfo::OfflineProfileMethodInfo GetOfflineProfileMethodInfo() {
+    ProfileCompilationInfo::OfflineProfileMethodInfo pmi;
+
+    pmi.dex_references.emplace_back("dex_location1", /* checksum */ 1);
+    pmi.dex_references.emplace_back("dex_location2", /* checksum */ 2);
+    pmi.dex_references.emplace_back("dex_location3", /* checksum */ 3);
+
+    // Monomorphic
+    for (uint16_t dex_pc = 0; dex_pc < 1; dex_pc++) {
+      ProfileCompilationInfo::DexPcData dex_pc_data;
+      dex_pc_data.AddClass(0, dex::TypeIndex(0));
+      pmi.inline_caches.Put(dex_pc, dex_pc_data);
+    }
+    // Polymorphic
+    for (uint16_t dex_pc = 1; dex_pc < 2; dex_pc++) {
+      ProfileCompilationInfo::DexPcData dex_pc_data;
+      dex_pc_data.AddClass(0, dex::TypeIndex(0));
+      dex_pc_data.AddClass(1, dex::TypeIndex(1));
+      dex_pc_data.AddClass(2, dex::TypeIndex(2));
+
+       pmi.inline_caches.Put(dex_pc, dex_pc_data);
+    }
+    // Megamorphic
+    for (uint16_t dex_pc = 2; dex_pc < 3; dex_pc++) {
+      ProfileCompilationInfo::DexPcData dex_pc_data;
+      dex_pc_data.is_megamorphic = true;
+      pmi.inline_caches.Put(dex_pc, dex_pc_data);
+    }
+
+    return pmi;
+  }
+
+  void MakeMegamorphic(/*out*/ProfileCompilationInfo::OfflineProfileMethodInfo* pmi) {
+    for (auto it : pmi->inline_caches) {
+      for (uint16_t k = 0; k <= 2 * InlineCache::kIndividualCacheSize; k++) {
+        it.second.AddClass(0, dex::TypeIndex(k));
+      }
+    }
   }
 
   // Cannot sizeof the actual arrays so hardcode the values here.
@@ -235,12 +358,12 @@ TEST_F(ProfileCompilationInfoTest, SaveEmpty) {
 TEST_F(ProfileCompilationInfoTest, LoadEmpty) {
   ScratchFile profile;
 
-  ProfileCompilationInfo empyt_info;
+  ProfileCompilationInfo empty_info;
 
   ProfileCompilationInfo loaded_info;
   ASSERT_TRUE(profile.GetFile()->ResetOffset());
   ASSERT_TRUE(loaded_info.Load(GetFd(profile)));
-  ASSERT_TRUE(loaded_info.Equals(empyt_info));
+  ASSERT_TRUE(loaded_info.Equals(empty_info));
 }
 
 TEST_F(ProfileCompilationInfoTest, BadMagic) {
@@ -322,6 +445,216 @@ TEST_F(ProfileCompilationInfoTest, UnexpectedContent) {
   ProfileCompilationInfo loaded_info;
   ASSERT_TRUE(profile.GetFile()->ResetOffset());
   ASSERT_FALSE(loaded_info.Load(GetFd(profile)));
+}
+
+TEST_F(ProfileCompilationInfoTest, SaveInlineCaches) {
+  ScratchFile profile;
+
+  ProfileCompilationInfo saved_info;
+  ProfileCompilationInfo::OfflineProfileMethodInfo pmi = GetOfflineProfileMethodInfo();
+
+  // Add methods with inline caches.
+  for (uint16_t method_idx = 0; method_idx < 10; method_idx++) {
+    // Add a method which is part of the same dex file as one of the
+    // class from the inline caches.
+    ASSERT_TRUE(AddMethod("dex_location1", /* checksum */ 1, method_idx, pmi, &saved_info));
+    // Add a method which is outside the set of dex files.
+    ASSERT_TRUE(AddMethod("dex_location4", /* checksum */ 4, method_idx, pmi, &saved_info));
+  }
+
+  ASSERT_TRUE(saved_info.Save(GetFd(profile)));
+  ASSERT_EQ(0, profile.GetFile()->Flush());
+
+  // Check that we get back what we saved.
+  ProfileCompilationInfo loaded_info;
+  ASSERT_TRUE(profile.GetFile()->ResetOffset());
+  ASSERT_TRUE(loaded_info.Load(GetFd(profile)));
+
+  ASSERT_TRUE(loaded_info.Equals(saved_info));
+
+  ProfileCompilationInfo::OfflineProfileMethodInfo loaded_pmi1;
+  ASSERT_TRUE(loaded_info.GetMethod("dex_location1",
+                                    /* checksum */ 1,
+                                    /* method_idx */ 3,
+                                    &loaded_pmi1));
+  ASSERT_TRUE(loaded_pmi1 == pmi);
+  ProfileCompilationInfo::OfflineProfileMethodInfo loaded_pmi2;
+  ASSERT_TRUE(loaded_info.GetMethod("dex_location4",
+                                    /* checksum */ 4,
+                                    /* method_idx */ 3,
+                                    &loaded_pmi2));
+  ASSERT_TRUE(loaded_pmi2 == pmi);
+}
+
+TEST_F(ProfileCompilationInfoTest, MegamorphicInlineCaches) {
+  ScratchFile profile;
+
+  ProfileCompilationInfo saved_info;
+  ProfileCompilationInfo::OfflineProfileMethodInfo pmi = GetOfflineProfileMethodInfo();
+
+  // Add methods with inline caches.
+  for (uint16_t method_idx = 0; method_idx < 10; method_idx++) {
+    ASSERT_TRUE(AddMethod("dex_location1", /* checksum */ 1, method_idx, pmi, &saved_info));
+  }
+
+  ASSERT_TRUE(saved_info.Save(GetFd(profile)));
+  ASSERT_EQ(0, profile.GetFile()->Flush());
+
+  // Make the inline caches megamorphic and add them to the profile again.
+  ProfileCompilationInfo saved_info_extra;
+  ProfileCompilationInfo::OfflineProfileMethodInfo pmi_extra = GetOfflineProfileMethodInfo();
+  MakeMegamorphic(&pmi_extra);
+  for (uint16_t method_idx = 0; method_idx < 10; method_idx++) {
+    ASSERT_TRUE(AddMethod("dex_location1", /* checksum */ 1, method_idx, pmi, &saved_info_extra));
+  }
+
+  ASSERT_TRUE(profile.GetFile()->ResetOffset());
+  ASSERT_TRUE(saved_info_extra.Save(GetFd(profile)));
+  ASSERT_EQ(0, profile.GetFile()->Flush());
+
+  // Merge the profiles so that we have the same view as the file.
+  ASSERT_TRUE(saved_info.MergeWith(saved_info_extra));
+
+  // Check that we get back what we saved.
+  ProfileCompilationInfo loaded_info;
+  ASSERT_TRUE(profile.GetFile()->ResetOffset());
+  ASSERT_TRUE(loaded_info.Load(GetFd(profile)));
+
+  ASSERT_TRUE(loaded_info.Equals(saved_info));
+
+  ProfileCompilationInfo::OfflineProfileMethodInfo loaded_pmi1;
+  ASSERT_TRUE(loaded_info.GetMethod("dex_location1",
+                                    /* checksum */ 1,
+                                    /* method_idx */ 3,
+                                    &loaded_pmi1));
+  ASSERT_TRUE(loaded_pmi1 == pmi_extra);
+}
+
+TEST_F(ProfileCompilationInfoTest, SaveArtMethodsWithInlineCaches) {
+  ScratchFile profile;
+
+  Thread* self = Thread::Current();
+  jobject class_loader;
+  {
+    ScopedObjectAccess soa(self);
+    class_loader = LoadDex("ProfileTestMultiDex");
+  }
+  ASSERT_NE(class_loader, nullptr);
+
+  // Save virtual methods from Main.
+  std::set<DexCacheResolvedClasses> resolved_classes;
+  std::vector<ArtMethod*> main_methods = GetVirtualMethods(class_loader, "LMain;");
+
+  SafeMap<ArtMethod*, ProfileMethodInfo> profile_methods_map;
+  ASSERT_TRUE(SaveProfilingInfoWithFakeInlineCaches(
+      profile.GetFilename(), main_methods,  &profile_methods_map));
+
+  // Check that what we saved is in the profile.
+  ProfileCompilationInfo info;
+  ASSERT_TRUE(info.Load(GetFd(profile)));
+  ASSERT_EQ(info.GetNumberOfMethods(), main_methods.size());
+  {
+    ScopedObjectAccess soa(self);
+    for (ArtMethod* m : main_methods) {
+      ASSERT_TRUE(info.ContainsMethod(MethodReference(m->GetDexFile(), m->GetDexMethodIndex())));
+      const ProfileMethodInfo& pmi = profile_methods_map.find(m)->second;
+      ProfileCompilationInfo::OfflineProfileMethodInfo offline_pmi;
+      ASSERT_TRUE(info.GetMethod(m->GetDexFile()->GetLocation(),
+                                 m->GetDexFile()->GetLocationChecksum(),
+                                 m->GetDexMethodIndex(),
+                                 &offline_pmi));
+      ProfileCompilationInfo::OfflineProfileMethodInfo converted_pmi =
+          ConvertProfileMethodInfo(pmi);
+      ASSERT_EQ(converted_pmi, offline_pmi);
+    }
+  }
+}
+
+TEST_F(ProfileCompilationInfoTest, InvalidChecksumInInlineCahce) {
+  ScratchFile profile;
+
+  ProfileCompilationInfo info;
+  ProfileCompilationInfo::OfflineProfileMethodInfo pmi1 = GetOfflineProfileMethodInfo();
+  ProfileCompilationInfo::OfflineProfileMethodInfo pmi2 = GetOfflineProfileMethodInfo();
+  // Modify the checksum to trigger a mismatch.
+  pmi2.dex_references[0].dex_checksum++;
+
+  ASSERT_TRUE(AddMethod("dex_location1", /* checksum */ 1, /*method_idx*/ 0, pmi1, &info));
+  ASSERT_FALSE(AddMethod("dex_location2", /* checksum */ 2, /*method_idx*/ 0, pmi2, &info));
+}
+
+// Verify that profiles behave correctly even if the methods are added in a different
+// order and with a different dex profile indices for the dex files.
+TEST_F(ProfileCompilationInfoTest, MergeInlineCacheTriggerReindex) {
+  ScratchFile profile;
+
+  ProfileCompilationInfo info;
+  ProfileCompilationInfo info_reindexed;
+
+  ProfileCompilationInfo::OfflineProfileMethodInfo pmi;
+  pmi.dex_references.emplace_back("dex_location1", /* checksum */ 1);
+  pmi.dex_references.emplace_back("dex_location2", /* checksum */ 2);
+  for (uint16_t dex_pc = 1; dex_pc < 5; dex_pc++) {
+    ProfileCompilationInfo::DexPcData dex_pc_data;
+    dex_pc_data.AddClass(0, dex::TypeIndex(0));
+    dex_pc_data.AddClass(1, dex::TypeIndex(1));
+    pmi.inline_caches.Put(dex_pc, dex_pc_data);
+  }
+
+  ProfileCompilationInfo::OfflineProfileMethodInfo pmi_reindexed;
+  pmi_reindexed.dex_references.emplace_back("dex_location2", /* checksum */ 2);
+  pmi_reindexed.dex_references.emplace_back("dex_location1", /* checksum */ 1);
+  for (uint16_t dex_pc = 1; dex_pc < 5; dex_pc++) {
+    ProfileCompilationInfo::DexPcData dex_pc_data;
+    dex_pc_data.AddClass(1, dex::TypeIndex(0));
+    dex_pc_data.AddClass(0, dex::TypeIndex(1));
+    pmi_reindexed.inline_caches.Put(dex_pc, dex_pc_data);
+  }
+
+  // Profile 1 and Profile 2 get the same methods but in different order.
+  // This will trigger a different dex numbers.
+  for (uint16_t method_idx = 0; method_idx < 10; method_idx++) {
+    ASSERT_TRUE(AddMethod("dex_location1", /* checksum */ 1, method_idx, pmi, &info));
+    ASSERT_TRUE(AddMethod("dex_location2", /* checksum */ 2, method_idx, pmi, &info));
+  }
+
+  for (uint16_t method_idx = 0; method_idx < 10; method_idx++) {
+    ASSERT_TRUE(AddMethod(
+      "dex_location2", /* checksum */ 2, method_idx, pmi_reindexed, &info_reindexed));
+    ASSERT_TRUE(AddMethod(
+      "dex_location1", /* checksum */ 1, method_idx, pmi_reindexed, &info_reindexed));
+  }
+
+  ProfileCompilationInfo info_backup = info;
+  ASSERT_TRUE(info.MergeWith(info_reindexed));
+  // Merging should have no effect as we're adding the exact same stuff.
+  ASSERT_TRUE(info.Equals(info_backup));
+  for (uint16_t method_idx = 0; method_idx < 10; method_idx++) {
+    ProfileCompilationInfo::OfflineProfileMethodInfo loaded_pmi1;
+    ASSERT_TRUE(info.GetMethod("dex_location1",
+                                      /* checksum */ 1,
+                                      /* method_idx */ method_idx,
+                                      &loaded_pmi1));
+    ASSERT_TRUE(loaded_pmi1 == pmi);
+    ProfileCompilationInfo::OfflineProfileMethodInfo loaded_pmi2;
+    ASSERT_TRUE(info.GetMethod("dex_location2",
+                                      /* checksum */ 2,
+                                      /* method_idx */ method_idx,
+                                      &loaded_pmi2));
+    ASSERT_TRUE(loaded_pmi2 == pmi);
+  }
+}
+
+TEST_F(ProfileCompilationInfoTest, AddMoreDexFileThanLimit) {
+  ProfileCompilationInfo info;
+  // Save a few methods.
+  for (uint16_t i = 0; i < std::numeric_limits<uint8_t>::max(); i++) {
+    std::string dex_location = std::to_string(i);
+    ASSERT_TRUE(AddMethod(dex_location, /* checksum */ 1, /* method_idx */ i, &info));
+  }
+  // We only support at most 255 dex files.
+  ASSERT_FALSE(AddMethod(
+      /*dex_location*/ "256", /* checksum */ 1, /* method_idx */ 0, &info));
 }
 
 }  // namespace art

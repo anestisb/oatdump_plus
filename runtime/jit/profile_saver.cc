@@ -236,10 +236,10 @@ void ProfileSaver::FetchAndCacheResolvedClassesAndMethods() {
     std::set<DexCacheResolvedClasses> resolved_classes_for_location;
     const std::string& filename = it.first;
     const std::set<std::string>& locations = it.second;
-    std::vector<MethodReference> methods_for_location;
+    std::vector<ProfileMethodInfo> profile_methods_for_location;
     for (const MethodReference& ref : methods) {
       if (locations.find(ref.dex_file->GetBaseLocation()) != locations.end()) {
-        methods_for_location.push_back(ref);
+        profile_methods_for_location.emplace_back(ref.dex_file, ref.dex_method_index);
       }
     }
     for (const DexCacheResolvedClasses& classes : resolved_classes) {
@@ -253,7 +253,7 @@ void ProfileSaver::FetchAndCacheResolvedClassesAndMethods() {
       }
     }
     ProfileCompilationInfo* info = GetCachedProfiledInfo(filename);
-    info->AddMethodsAndClasses(methods_for_location, resolved_classes_for_location);
+    info->AddMethodsAndClasses(profile_methods_for_location, resolved_classes_for_location);
     total_number_of_profile_entries_cached += resolved_classes_for_location.size();
   }
   max_number_of_profile_entries_cached_ = std::max(
@@ -280,15 +280,15 @@ bool ProfileSaver::ProcessProfilingInfo(uint16_t* new_methods) {
     }
     const std::string& filename = it.first;
     const std::set<std::string>& locations = it.second;
-    std::vector<MethodReference> methods;
+    std::vector<ProfileMethodInfo> profile_methods;
     {
       ScopedObjectAccess soa(Thread::Current());
-      jit_code_cache_->GetProfiledMethods(locations, methods);
+      jit_code_cache_->GetProfiledMethods(locations, profile_methods);
       total_number_of_code_cache_queries_++;
     }
 
     ProfileCompilationInfo* cached_info = GetCachedProfiledInfo(filename);
-    cached_info->AddMethodsAndClasses(methods, std::set<DexCacheResolvedClasses>());
+    cached_info->AddMethodsAndClasses(profile_methods, std::set<DexCacheResolvedClasses>());
     int64_t delta_number_of_methods =
         cached_info->GetNumberOfMethods() -
         static_cast<int64_t>(last_save_number_of_methods_);
