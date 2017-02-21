@@ -19,6 +19,7 @@
 #include "arch/arm/instruction_set_features_arm.h"
 #include "art_method.h"
 #include "code_generator_utils.h"
+#include "common_arm.h"
 #include "compiled_method.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "gc/accounting/card_table.h"
@@ -1132,10 +1133,6 @@ class ReadBarrierForRootSlowPathARM : public SlowPathCodeARM {
   DISALLOW_COPY_AND_ASSIGN(ReadBarrierForRootSlowPathARM);
 };
 
-#undef __
-// NOLINT on __ macro to suppress wrong warning/fix (misc-macro-parentheses) from clang-tidy.
-#define __ down_cast<ArmAssembler*>(GetAssembler())->  // NOLINT
-
 inline Condition ARMCondition(IfCondition cond) {
   switch (cond) {
     case kCondEQ: return EQ;
@@ -1190,6 +1187,197 @@ inline Condition ARMFPCondition(IfCondition cond, bool gt_bias) {
       UNREACHABLE();
   }
 }
+
+inline Shift ShiftFromOpKind(HDataProcWithShifterOp::OpKind op_kind) {
+  switch (op_kind) {
+    case HDataProcWithShifterOp::kASR: return ASR;
+    case HDataProcWithShifterOp::kLSL: return LSL;
+    case HDataProcWithShifterOp::kLSR: return LSR;
+    default:
+      LOG(FATAL) << "Unexpected op kind " << op_kind;
+      UNREACHABLE();
+  }
+}
+
+static void GenerateDataProcInstruction(HInstruction::InstructionKind kind,
+                                        Register out,
+                                        Register first,
+                                        const ShifterOperand& second,
+                                        CodeGeneratorARM* codegen) {
+  if (second.IsImmediate() && second.GetImmediate() == 0) {
+    const ShifterOperand in = kind == HInstruction::kAnd
+        ? ShifterOperand(0)
+        : ShifterOperand(first);
+
+    __ mov(out, in);
+  } else {
+    switch (kind) {
+      case HInstruction::kAdd:
+        __ add(out, first, second);
+        break;
+      case HInstruction::kAnd:
+        __ and_(out, first, second);
+        break;
+      case HInstruction::kOr:
+        __ orr(out, first, second);
+        break;
+      case HInstruction::kSub:
+        __ sub(out, first, second);
+        break;
+      case HInstruction::kXor:
+        __ eor(out, first, second);
+        break;
+      default:
+        LOG(FATAL) << "Unexpected instruction kind: " << kind;
+        UNREACHABLE();
+    }
+  }
+}
+
+static void GenerateDataProc(HInstruction::InstructionKind kind,
+                             const Location& out,
+                             const Location& first,
+                             const ShifterOperand& second_lo,
+                             const ShifterOperand& second_hi,
+                             CodeGeneratorARM* codegen) {
+  const Register first_hi = first.AsRegisterPairHigh<Register>();
+  const Register first_lo = first.AsRegisterPairLow<Register>();
+  const Register out_hi = out.AsRegisterPairHigh<Register>();
+  const Register out_lo = out.AsRegisterPairLow<Register>();
+
+  if (kind == HInstruction::kAdd) {
+    __ adds(out_lo, first_lo, second_lo);
+    __ adc(out_hi, first_hi, second_hi);
+  } else if (kind == HInstruction::kSub) {
+    __ subs(out_lo, first_lo, second_lo);
+    __ sbc(out_hi, first_hi, second_hi);
+  } else {
+    GenerateDataProcInstruction(kind, out_lo, first_lo, second_lo, codegen);
+    GenerateDataProcInstruction(kind, out_hi, first_hi, second_hi, codegen);
+  }
+}
+
+static ShifterOperand GetShifterOperand(Register rm, Shift shift, uint32_t shift_imm) {
+  return shift_imm == 0 ? ShifterOperand(rm) : ShifterOperand(rm, shift, shift_imm);
+}
+
+static void GenerateLongDataProc(HDataProcWithShifterOp* instruction, CodeGeneratorARM* codegen) {
+  DCHECK_EQ(instruction->GetType(), Primitive::kPrimLong);
+  DCHECK(HDataProcWithShifterOp::IsShiftOp(instruction->GetOpKind()));
+
+  const LocationSummary* const locations = instruction->GetLocations();
+  const uint32_t shift_value = instruction->GetShiftAmount();
+  const HInstruction::InstructionKind kind = instruction->GetInstrKind();
+  const Location first = locations->InAt(0);
+  const Location second = locations->InAt(1);
+  const Location out = locations->Out();
+  const Register first_hi = first.AsRegisterPairHigh<Register>();
+  const Register first_lo = first.AsRegisterPairLow<Register>();
+  const Register out_hi = out.AsRegisterPairHigh<Register>();
+  const Register out_lo = out.AsRegisterPairLow<Register>();
+  const Register second_hi = second.AsRegisterPairHigh<Register>();
+  const Register second_lo = second.AsRegisterPairLow<Register>();
+  const Shift shift = ShiftFromOpKind(instruction->GetOpKind());
+
+  if (shift_value >= 32) {
+    if (shift == LSL) {
+      GenerateDataProcInstruction(kind,
+                                  out_hi,
+                                  first_hi,
+                                  ShifterOperand(second_lo, LSL, shift_value - 32),
+                                  codegen);
+      GenerateDataProcInstruction(kind,
+                                  out_lo,
+                                  first_lo,
+                                  ShifterOperand(0),
+                                  codegen);
+    } else if (shift == ASR) {
+      GenerateDataProc(kind,
+                       out,
+                       first,
+                       GetShifterOperand(second_hi, ASR, shift_value - 32),
+                       ShifterOperand(second_hi, ASR, 31),
+                       codegen);
+    } else {
+      DCHECK_EQ(shift, LSR);
+      GenerateDataProc(kind,
+                       out,
+                       first,
+                       GetShifterOperand(second_hi, LSR, shift_value - 32),
+                       ShifterOperand(0),
+                       codegen);
+    }
+  } else {
+    DCHECK_GT(shift_value, 1U);
+    DCHECK_LT(shift_value, 32U);
+
+    if (shift == LSL) {
+      // We are not doing this for HInstruction::kAdd because the output will require
+      // Location::kOutputOverlap; not applicable to other cases.
+      if (kind == HInstruction::kOr || kind == HInstruction::kXor) {
+        GenerateDataProcInstruction(kind,
+                                    out_hi,
+                                    first_hi,
+                                    ShifterOperand(second_hi, LSL, shift_value),
+                                    codegen);
+        GenerateDataProcInstruction(kind,
+                                    out_hi,
+                                    out_hi,
+                                    ShifterOperand(second_lo, LSR, 32 - shift_value),
+                                    codegen);
+        GenerateDataProcInstruction(kind,
+                                    out_lo,
+                                    first_lo,
+                                    ShifterOperand(second_lo, LSL, shift_value),
+                                    codegen);
+      } else {
+        __ Lsl(IP, second_hi, shift_value);
+        __ orr(IP, IP, ShifterOperand(second_lo, LSR, 32 - shift_value));
+        GenerateDataProc(kind,
+                         out,
+                         first,
+                         ShifterOperand(second_lo, LSL, shift_value),
+                         ShifterOperand(IP),
+                         codegen);
+      }
+    } else {
+      DCHECK(shift == ASR || shift == LSR);
+
+      // We are not doing this for HInstruction::kAdd because the output will require
+      // Location::kOutputOverlap; not applicable to other cases.
+      if (kind == HInstruction::kOr || kind == HInstruction::kXor) {
+        GenerateDataProcInstruction(kind,
+                                    out_lo,
+                                    first_lo,
+                                    ShifterOperand(second_lo, LSR, shift_value),
+                                    codegen);
+        GenerateDataProcInstruction(kind,
+                                    out_lo,
+                                    out_lo,
+                                    ShifterOperand(second_hi, LSL, 32 - shift_value),
+                                    codegen);
+        GenerateDataProcInstruction(kind,
+                                    out_hi,
+                                    first_hi,
+                                    ShifterOperand(second_hi, shift, shift_value),
+                                    codegen);
+      } else {
+        __ Lsr(IP, second_lo, shift_value);
+        __ orr(IP, IP, ShifterOperand(second_hi, LSL, 32 - shift_value));
+        GenerateDataProc(kind,
+                         out,
+                         first,
+                         ShifterOperand(IP),
+                         ShifterOperand(second_hi, shift, shift_value),
+                         codegen);
+      }
+    }
+  }
+}
+
+#undef __
+// NOLINT on __ macro to suppress wrong warning/fix (misc-macro-parentheses) from clang-tidy.
+#define __ down_cast<ArmAssembler*>(GetAssembler())->  // NOLINT
 
 void CodeGeneratorARM::DumpCoreRegister(std::ostream& stream, int reg) const {
   stream << Register(reg);
@@ -6705,6 +6893,63 @@ void InstructionCodeGeneratorARM::VisitBitwiseNegatedRight(HBitwiseNegatedRight*
       default:
         LOG(FATAL) << "Unexpected instruction " << instruction->DebugName();
         UNREACHABLE();
+    }
+  }
+}
+
+void LocationsBuilderARM::VisitDataProcWithShifterOp(
+    HDataProcWithShifterOp* instruction) {
+  DCHECK(instruction->GetType() == Primitive::kPrimInt ||
+         instruction->GetType() == Primitive::kPrimLong);
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
+  const bool overlap = instruction->GetType() == Primitive::kPrimLong &&
+                       HDataProcWithShifterOp::IsExtensionOp(instruction->GetOpKind());
+
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister(),
+                    overlap ? Location::kOutputOverlap : Location::kNoOutputOverlap);
+}
+
+void InstructionCodeGeneratorARM::VisitDataProcWithShifterOp(
+    HDataProcWithShifterOp* instruction) {
+  const LocationSummary* const locations = instruction->GetLocations();
+  const HInstruction::InstructionKind kind = instruction->GetInstrKind();
+  const HDataProcWithShifterOp::OpKind op_kind = instruction->GetOpKind();
+  const Location left = locations->InAt(0);
+  const Location right = locations->InAt(1);
+  const Location out = locations->Out();
+
+  if (instruction->GetType() == Primitive::kPrimInt) {
+    DCHECK(!HDataProcWithShifterOp::IsExtensionOp(op_kind));
+
+    const Register second = instruction->InputAt(1)->GetType() == Primitive::kPrimLong
+        ? right.AsRegisterPairLow<Register>()
+        : right.AsRegister<Register>();
+
+    GenerateDataProcInstruction(kind,
+                                out.AsRegister<Register>(),
+                                left.AsRegister<Register>(),
+                                ShifterOperand(second,
+                                               ShiftFromOpKind(op_kind),
+                                               instruction->GetShiftAmount()),
+                                codegen_);
+  } else {
+    DCHECK_EQ(instruction->GetType(), Primitive::kPrimLong);
+
+    if (HDataProcWithShifterOp::IsExtensionOp(op_kind)) {
+      const Register second = right.AsRegister<Register>();
+
+      DCHECK_NE(out.AsRegisterPairLow<Register>(), second);
+      GenerateDataProc(kind,
+                       out,
+                       left,
+                       ShifterOperand(second),
+                       ShifterOperand(second, ASR, 31),
+                       codegen_);
+    } else {
+      GenerateLongDataProc(instruction, codegen_);
     }
   }
 }

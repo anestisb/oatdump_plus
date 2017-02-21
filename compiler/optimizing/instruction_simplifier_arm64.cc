@@ -22,16 +22,18 @@
 #include "mirror/string.h"
 
 namespace art {
-namespace arm64 {
 
 using helpers::CanFitInShifterOperand;
 using helpers::HasShifterOperand;
+
+namespace arm64 {
+
 using helpers::ShifterOperandSupportsExtension;
 
 bool InstructionSimplifierArm64Visitor::TryMergeIntoShifterOperand(HInstruction* use,
                                                                    HInstruction* bitfield_op,
                                                                    bool do_merge) {
-  DCHECK(HasShifterOperand(use));
+  DCHECK(HasShifterOperand(use, kArm64));
   DCHECK(use->IsBinaryOperation() || use->IsNeg());
   DCHECK(CanFitInShifterOperand(bitfield_op));
   DCHECK(!bitfield_op->HasEnvironmentUses());
@@ -72,23 +74,22 @@ bool InstructionSimplifierArm64Visitor::TryMergeIntoShifterOperand(HInstruction*
     }
   }
 
-  HArm64DataProcWithShifterOp::OpKind op_kind;
+  HDataProcWithShifterOp::OpKind op_kind;
   int shift_amount = 0;
-  HArm64DataProcWithShifterOp::GetOpInfoFromInstruction(bitfield_op, &op_kind, &shift_amount);
+  HDataProcWithShifterOp::GetOpInfoFromInstruction(bitfield_op, &op_kind, &shift_amount);
 
-  if (HArm64DataProcWithShifterOp::IsExtensionOp(op_kind) &&
-      !ShifterOperandSupportsExtension(use)) {
+  if (HDataProcWithShifterOp::IsExtensionOp(op_kind) && !ShifterOperandSupportsExtension(use)) {
     return false;
   }
 
   if (do_merge) {
-    HArm64DataProcWithShifterOp* alu_with_op =
-        new (GetGraph()->GetArena()) HArm64DataProcWithShifterOp(use,
-                                                                 other_input,
-                                                                 bitfield_op->InputAt(0),
-                                                                 op_kind,
-                                                                 shift_amount,
-                                                                 use->GetDexPc());
+    HDataProcWithShifterOp* alu_with_op =
+        new (GetGraph()->GetArena()) HDataProcWithShifterOp(use,
+                                                            other_input,
+                                                            bitfield_op->InputAt(0),
+                                                            op_kind,
+                                                            shift_amount,
+                                                            use->GetDexPc());
     use->GetBlock()->ReplaceAndRemoveInstructionWith(use, alu_with_op);
     if (bitfield_op->GetUses().empty()) {
       bitfield_op->GetBlock()->RemoveInstruction(bitfield_op);
@@ -112,7 +113,7 @@ bool InstructionSimplifierArm64Visitor::TryMergeIntoUsersShifterOperand(HInstruc
   // Check whether we can merge the instruction in all its users' shifter operand.
   for (const HUseListNode<HInstruction*>& use : uses) {
     HInstruction* user = use.GetUser();
-    if (!HasShifterOperand(user)) {
+    if (!HasShifterOperand(user, kArm64)) {
       return false;
     }
     if (!CanMergeIntoShifterOperand(user, bitfield_op)) {
