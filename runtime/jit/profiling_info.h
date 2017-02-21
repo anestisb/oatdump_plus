@@ -39,7 +39,7 @@ class Class;
 // Once the classes_ array is full, we consider the INVOKE to be megamorphic.
 class InlineCache {
  public:
-  static constexpr uint16_t kIndividualCacheSize = 5;
+  static constexpr uint8_t kIndividualCacheSize = 5;
 
  private:
   uint32_t dex_pc_;
