@@ -170,10 +170,6 @@ class ObsoleteMethodStackVisitor : public art::StackVisitor {
       // We cannot ensure that the right dex file is used in inlined frames so we don't support
       // redefining them.
       DCHECK(!IsInInlinedFrame()) << "Inlined frames are not supported when using redefinition";
-      // TODO We should really support intrinsic obsolete methods.
-      // TODO We should really support redefining intrinsics.
-      // We don't support intrinsics so check for them here.
-      DCHECK(!old_method->IsIntrinsic());
       art::ArtMethod* new_obsolete_method = obsolete_maps_->FindObsoleteVersion(old_method);
       if (new_obsolete_method == nullptr) {
         // Create a new Obsolete Method and put it in the list.
@@ -518,6 +514,11 @@ void Redefiner::ClassRedefinition::FindAndAllocateObsoleteMethods(art::mirror::C
   CallbackCtx ctx(&map, linker->GetAllocatorForClassLoader(art_klass->GetClassLoader()));
   // Add all the declared methods to the map
   for (auto& m : art_klass->GetDeclaredMethods(art::kRuntimePointerSize)) {
+    if (m.IsIntrinsic()) {
+      LOG(WARNING) << "Redefining intrinsic method " << m.PrettyMethod() << ". This may cause the "
+                   << "unexpected use of the original definition of " << m.PrettyMethod() << "in "
+                   << "methods that have already been compiled.";
+    }
     // It is possible to simply filter out some methods where they cannot really become obsolete,
     // such as native methods and keep their original (possibly optimized) implementations. We don't
     // do this, however, since we would need to mark these functions (still in the classes
@@ -526,8 +527,6 @@ void Redefiner::ClassRedefinition::FindAndAllocateObsoleteMethods(art::mirror::C
     // error checking from the interpreter which ensure we don't try to start executing obsolete
     // methods.
     ctx.obsolete_methods.insert(&m);
-    // TODO Allow this or check in IsModifiableClass.
-    DCHECK(!m.IsIntrinsic());
   }
   {
     art::MutexLock mu(driver_->self_, *art::Locks::thread_list_lock_);
@@ -1143,6 +1142,10 @@ jvmtiError Redefiner::Run() {
                       holder.GetOriginalDexFileBytes(counter));
     counter++;
   }
+  // TODO We should check for if any of the redefined methods are intrinsic methods here and, if any
+  // are, force a full-world deoptimization before finishing redefinition. If we don't do this then
+  // methods that have been jitted prior to the current redefinition being applied might continue
+  // to use the old versions of the intrinsics!
   // TODO Shrink the obsolete method maps if possible?
   // TODO Put this into a scoped thing.
   runtime_->GetThreadList()->ResumeAll();
@@ -1193,6 +1196,8 @@ void Redefiner::ClassRedefinition::UpdateMethods(art::ObjPtr<art::mirror::Class>
     linker->SetEntryPointsToInterpreter(&method);
     method.SetCodeItemOffset(dex_file_->FindCodeItemOffset(class_def, dex_method_idx));
     method.SetDexCacheResolvedMethods(new_dex_cache->GetResolvedMethods(), image_pointer_size);
+    // Clear all the intrinsics related flags.
+    method.ClearAccessFlags(art::kAccIntrinsic | (~art::kAccFlagsNotUsedByIntrinsic));
     // Notify the jit that this method is redefined.
     art::jit::Jit* jit = driver_->runtime_->GetJit();
     if (jit != nullptr) {
