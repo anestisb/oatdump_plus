@@ -493,5 +493,67 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_followReferences(JNIEnv* env
   return ret;
 }
 
+extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_followReferencesString(
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject initial_object) {
+  struct FindStringCallbacks {
+    static jint JNICALL FollowReferencesCallback(
+        jvmtiHeapReferenceKind reference_kind ATTRIBUTE_UNUSED,
+        const jvmtiHeapReferenceInfo* reference_info ATTRIBUTE_UNUSED,
+        jlong class_tag ATTRIBUTE_UNUSED,
+        jlong referrer_class_tag ATTRIBUTE_UNUSED,
+        jlong size ATTRIBUTE_UNUSED,
+        jlong* tag_ptr ATTRIBUTE_UNUSED,
+        jlong* referrer_tag_ptr ATTRIBUTE_UNUSED,
+        jint length ATTRIBUTE_UNUSED,
+        void* user_data ATTRIBUTE_UNUSED) {
+      return JVMTI_VISIT_OBJECTS;  // Continue visiting.
+    }
+
+    static jint JNICALL StringValueCallback(jlong class_tag,
+                                            jlong size,
+                                            jlong* tag_ptr,
+                                            const jchar* value,
+                                            jint value_length,
+                                            void* user_data) {
+      FindStringCallbacks* p = reinterpret_cast<FindStringCallbacks*>(user_data);
+      if (*tag_ptr != 0) {
+        size_t utf_byte_count = CountUtf8Bytes(value, value_length);
+        std::unique_ptr<char[]> mod_utf(new char[utf_byte_count + 1]);
+        memset(mod_utf.get(), 0, utf_byte_count + 1);
+        ConvertUtf16ToModifiedUtf8(mod_utf.get(), utf_byte_count, value, value_length);
+        p->data.push_back(android::base::StringPrintf("%" PRId64 "@%" PRId64 " (% " PRId64 ", '%s')",
+                                                      *tag_ptr,
+                                                      class_tag,
+                                                      size,
+                                                      mod_utf.get()));
+        // Update the tag to test whether that works.
+        *tag_ptr = *tag_ptr + 1;
+      }
+      return 0;
+    }
+
+    std::vector<std::string> data;
+  };
+
+  jvmtiHeapCallbacks callbacks;
+  memset(&callbacks, 0, sizeof(jvmtiHeapCallbacks));
+  callbacks.heap_reference_callback = FindStringCallbacks::FollowReferencesCallback;
+  callbacks.string_primitive_value_callback = FindStringCallbacks::StringValueCallback;
+
+  FindStringCallbacks fsc;
+  jvmtiError ret = jvmti_env->FollowReferences(0, nullptr, initial_object, &callbacks, &fsc);
+  if (JvmtiErrorToException(env, ret)) {
+    return nullptr;
+  }
+
+  jobjectArray retArray = CreateObjectArray(env,
+                                            static_cast<jint>(fsc.data.size()),
+                                            "java/lang/String",
+                                            [&](jint i) {
+                                              return env->NewStringUTF(fsc.data[i].c_str());
+                                            });
+  return retArray;
+}
+
 }  // namespace Test913Heaps
 }  // namespace art

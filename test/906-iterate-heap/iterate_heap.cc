@@ -14,17 +14,21 @@
  * limitations under the License.
  */
 
+#include "inttypes.h"
+
 #include <iostream>
 #include <pthread.h>
 #include <stdio.h>
 #include <vector>
 
+#include "android-base/stringprintf.h"
 #include "base/logging.h"
 #include "jni.h"
 #include "openjdkjvmti/jvmti.h"
 #include "ScopedPrimitiveArray.h"
 #include "ti-agent/common_helper.h"
 #include "ti-agent/common_load.h"
+#include "utf.h"
 
 namespace art {
 namespace Test906IterateHeap {
@@ -170,6 +174,62 @@ extern "C" JNIEXPORT void JNICALL Java_Main_iterateThroughHeapAdd(JNIEnv* env AT
 
   AddIterationConfig config;
   Run(heap_filter, klass_filter, &config);
+}
+
+extern "C" JNIEXPORT jstring JNICALL Java_Main_iterateThroughHeapString(
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jlong tag) {
+  struct FindStringCallbacks {
+    explicit FindStringCallbacks(jlong t) : tag_to_find(t) {}
+
+    static jint JNICALL  HeapIterationCallback(jlong class_tag ATTRIBUTE_UNUSED,
+                                               jlong size ATTRIBUTE_UNUSED,
+                                               jlong* tag_ptr ATTRIBUTE_UNUSED,
+                                               jint length ATTRIBUTE_UNUSED,
+                                               void* user_data ATTRIBUTE_UNUSED) {
+      return 0;
+    }
+
+    static jint JNICALL StringValueCallback(jlong class_tag,
+                                            jlong size,
+                                            jlong* tag_ptr,
+                                            const jchar* value,
+                                            jint value_length,
+                                            void* user_data) {
+      FindStringCallbacks* p = reinterpret_cast<FindStringCallbacks*>(user_data);
+      if (*tag_ptr == p->tag_to_find) {
+        size_t utf_byte_count = CountUtf8Bytes(value, value_length);
+        std::unique_ptr<char[]> mod_utf(new char[utf_byte_count + 1]);
+        memset(mod_utf.get(), 0, utf_byte_count + 1);
+        ConvertUtf16ToModifiedUtf8(mod_utf.get(), utf_byte_count, value, value_length);
+        if (!p->data.empty()) {
+          p->data += "\n";
+        }
+        p->data += android::base::StringPrintf("%" PRId64 "@%" PRId64 " (% " PRId64 ", '%s')",
+                                               *tag_ptr,
+                                               class_tag,
+                                               size,
+                                               mod_utf.get());
+        // Update the tag to test whether that works.
+        *tag_ptr = *tag_ptr + 1;
+      }
+      return 0;
+    }
+
+    std::string data;
+    const jlong tag_to_find;
+  };
+
+  jvmtiHeapCallbacks callbacks;
+  memset(&callbacks, 0, sizeof(jvmtiHeapCallbacks));
+  callbacks.heap_iteration_callback = FindStringCallbacks::HeapIterationCallback;
+  callbacks.string_primitive_value_callback = FindStringCallbacks::StringValueCallback;
+
+  FindStringCallbacks fsc(tag);
+  jvmtiError ret = jvmti_env->IterateThroughHeap(0, nullptr, &callbacks, &fsc);
+  if (JvmtiErrorToException(env, ret)) {
+    return nullptr;
+  }
+  return env->NewStringUTF(fsc.data.c_str());
 }
 
 }  // namespace Test906IterateHeap
