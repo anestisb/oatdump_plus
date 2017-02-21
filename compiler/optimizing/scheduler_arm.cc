@@ -269,7 +269,6 @@ void SchedulingLatencyVisitorARM::VisitDataProcWithShifterOp(HDataProcWithShifte
   const HDataProcWithShifterOp::OpKind op_kind = instruction->GetOpKind();
 
   if (instruction->GetType() == Primitive::kPrimInt) {
-    DCHECK(!HDataProcWithShifterOp::IsExtensionOp(op_kind));
     HandleGenerateDataProcInstruction();
   } else {
     DCHECK_EQ(instruction->GetType(), Primitive::kPrimLong);

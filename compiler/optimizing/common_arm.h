@@ -227,14 +227,6 @@ inline Location LocationFrom(const vixl::aarch32::SRegister& low,
   return Location::FpuRegisterPairLocation(low.GetCode(), high.GetCode());
 }
 
-inline bool ShifterOperandSupportsExtension(HInstruction* instruction) {
-  DCHECK(HasShifterOperand(instruction, kArm));
-  // TODO: HAdd applied to the other integral types could make use of
-  // the SXTAB, SXTAH, UXTAB and UXTAH instructions.
-  return instruction->GetType() == Primitive::kPrimLong &&
-         (instruction->IsAdd() || instruction->IsSub());
-}
-
 }  // namespace helpers
 }  // namespace arm
 }  // namespace art

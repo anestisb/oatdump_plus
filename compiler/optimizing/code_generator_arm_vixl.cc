@@ -8269,19 +8269,41 @@ void InstructionCodeGeneratorARMVIXL::VisitDataProcWithShifterOp(
   const HDataProcWithShifterOp::OpKind op_kind = instruction->GetOpKind();
 
   if (instruction->GetType() == Primitive::kPrimInt) {
-    DCHECK(!HDataProcWithShifterOp::IsExtensionOp(op_kind));
-
+    const vixl32::Register first = InputRegisterAt(instruction, 0);
+    const vixl32::Register output = OutputRegister(instruction);
     const vixl32::Register second = instruction->InputAt(1)->GetType() == Primitive::kPrimLong
         ? LowRegisterFrom(locations->InAt(1))
         : InputRegisterAt(instruction, 1);
 
-    GenerateDataProcInstruction(kind,
-                                OutputRegister(instruction),
-                                InputRegisterAt(instruction, 0),
-                                Operand(second,
-                                        ShiftFromOpKind(op_kind),
-                                        instruction->GetShiftAmount()),
-                                codegen_);
+    if (HDataProcWithShifterOp::IsExtensionOp(op_kind)) {
+      DCHECK_EQ(kind, HInstruction::kAdd);
+
+      switch (op_kind) {
+        case HDataProcWithShifterOp::kUXTB:
+          __ Uxtab(output, first, second);
+          break;
+        case HDataProcWithShifterOp::kUXTH:
+          __ Uxtah(output, first, second);
+          break;
+        case HDataProcWithShifterOp::kSXTB:
+          __ Sxtab(output, first, second);
+          break;
+        case HDataProcWithShifterOp::kSXTH:
+          __ Sxtah(output, first, second);
+          break;
+        default:
+          LOG(FATAL) << "Unexpected operation kind: " << op_kind;
+          UNREACHABLE();
+      }
+    } else {
+      GenerateDataProcInstruction(kind,
+                                  output,
+                                  first,
+                                  Operand(second,
+                                          ShiftFromOpKind(op_kind),
+                                          instruction->GetShiftAmount()),
+                                  codegen_);
+    }
   } else {
     DCHECK_EQ(instruction->GetType(), Primitive::kPrimLong);
 
