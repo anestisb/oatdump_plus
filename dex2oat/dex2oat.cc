@@ -1541,10 +1541,10 @@ class Dex2Oat FINAL {
         std::unique_ptr<MemMap> opened_dex_files_map;
         std::vector<std::unique_ptr<const DexFile>> opened_dex_files;
         // No need to verify the dex file for:
-        // 1) kSpeedProfile, since it includes dexlayout, which does the verification.
+        // 1) Dexlayout since it does the verification. It also may not pass the verification since
+        // we don't update the dex checksum.
         // 2) when we have a vdex file, which means it was already verified.
-        bool verify = compiler_options_->GetCompilerFilter() != CompilerFilter::kSpeedProfile &&
-            (input_vdex_file_ == nullptr);
+        const bool verify = !DoDexLayoutOptimizations() && (input_vdex_file_ == nullptr);
         if (!oat_writers_[i]->WriteAndOpenDexFiles(
             kIsVdexEnabled ? vdex_files_[i].get() : oat_files_[i].get(),
             rodata_.back(),
@@ -2094,12 +2094,20 @@ class Dex2Oat FINAL {
     return is_host_;
   }
 
-  bool UseProfileGuidedCompilation() const {
+  bool UseProfile() const {
     return profile_file_fd_ != -1 || !profile_file_.empty();
   }
 
+  bool DoProfileGuidedOptimizations() const {
+    return UseProfile() && compiler_options_->GetCompilerFilter() != CompilerFilter::kVerifyProfile;
+  }
+
+  bool DoDexLayoutOptimizations() const {
+    return DoProfileGuidedOptimizations();
+  }
+
   bool LoadProfile() {
-    DCHECK(UseProfileGuidedCompilation());
+    DCHECK(UseProfile());
 
     profile_compilation_info_.reset(new ProfileCompilationInfo());
     ScopedFlock flock;
@@ -2356,7 +2364,7 @@ class Dex2Oat FINAL {
                                                      compiler_options_.get(),
                                                      oat_file.get()));
       elf_writers_.back()->Start();
-      bool do_dexlayout = compiler_options_->GetCompilerFilter() == CompilerFilter::kSpeedProfile;
+      const bool do_dexlayout = DoDexLayoutOptimizations();
       oat_writers_.emplace_back(new OatWriter(
           IsBootImage(), timings_, do_dexlayout ? profile_compilation_info_.get() : nullptr));
     }
@@ -2873,7 +2881,7 @@ static int dex2oat(int argc, char** argv) {
 
   // If needed, process profile information for profile guided compilation.
   // This operation involves I/O.
-  if (dex2oat->UseProfileGuidedCompilation()) {
+  if (dex2oat->UseProfile()) {
     if (!dex2oat->LoadProfile()) {
       LOG(ERROR) << "Failed to process profile file";
       return EXIT_FAILURE;
