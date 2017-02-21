@@ -1,0 +1,6 @@
+LMain;->inlineMonomorphicSubA(LSuper;)I+LSubA;
+LMain;->inlinePolymophicSubASubB(LSuper;)I+LSubA;,LSubB;
+LMain;->inlinePolymophicCrossDexSubASubC(LSuper;)I+LSubA;,LSubC;
+LMain;->inlineMegamorphic(LSuper;)I+LSubA;,LSubB;,LSubC;,LSubD;,LSubE;
+LMain;->inlineMissingTypes(LSuper;)I+missing_types
+LMain;->noInlineCache(LSuper;)I
