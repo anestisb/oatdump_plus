@@ -53,6 +53,8 @@ static constexpr bool kDisallowReadBarrierDuringScan = kIsDebugBuild;
 // Slow path mark stack size, increase this if the stack is getting full and it is causing
 // performance problems.
 static constexpr size_t kReadBarrierMarkStackSize = 512 * KB;
+// Verify that there are no missing card marks.
+static constexpr bool kVerifyNoMissingCardMarks = kIsDebugBuild;
 
 ConcurrentCopying::ConcurrentCopying(Heap* heap,
                                      const std::string& name_prefix,
@@ -318,6 +320,9 @@ class ConcurrentCopying::FlipCallback : public Closure {
     TimingLogger::ScopedTiming split("(Paused)FlipCallback", cc->GetTimings());
     // Note: self is not necessarily equal to thread since thread may be suspended.
     Thread* self = Thread::Current();
+    if (kVerifyNoMissingCardMarks) {
+      cc->VerifyNoMissingCardMarks();
+    }
     CHECK(thread == self);
     Locks::mutator_lock_->AssertExclusiveHeld(self);
     cc->region_space_->SetFromSpace(cc->rb_table_, cc->force_evacuate_all_);
@@ -425,6 +430,72 @@ void ConcurrentCopying::VerifyGrayImmuneObjects() {
                              kWithoutReadBarrier>(visitor, visitor);
       }
     });
+  }
+}
+
+class ConcurrentCopying::VerifyNoMissingCardMarkVisitor {
+ public:
+  VerifyNoMissingCardMarkVisitor(ConcurrentCopying* cc, ObjPtr<mirror::Object> holder)
+    : cc_(cc),
+      holder_(holder) {}
+
+  void operator()(ObjPtr<mirror::Object> obj,
+                  MemberOffset offset,
+                  bool is_static ATTRIBUTE_UNUSED) const
+      REQUIRES_SHARED(Locks::mutator_lock_) ALWAYS_INLINE {
+    if (offset.Uint32Value() != mirror::Object::ClassOffset().Uint32Value()) {
+     CheckReference(obj->GetFieldObject<mirror::Object, kDefaultVerifyFlags, kWithoutReadBarrier>(
+         offset), offset.Uint32Value());
+    }
+  }
+  void operator()(ObjPtr<mirror::Class> klass,
+                  ObjPtr<mirror::Reference> ref) const
+      REQUIRES_SHARED(Locks::mutator_lock_) ALWAYS_INLINE {
+    CHECK(klass->IsTypeOfReferenceClass());
+    this->operator()(ref, mirror::Reference::ReferentOffset(), false);
+  }
+
+  void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (!root->IsNull()) {
+      VisitRoot(root);
+    }
+  }
+
+  void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    CheckReference(root->AsMirrorPtr());
+  }
+
+  void CheckReference(mirror::Object* ref, uint32_t offset = 0) const
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    CHECK(ref == nullptr || !cc_->region_space_->IsInNewlyAllocatedRegion(ref))
+        << holder_->PrettyTypeOf() << "(" << holder_.Ptr() << ") references object "
+        << ref->PrettyTypeOf() << "(" << ref << ") in newly allocated region at offset=" << offset;
+  }
+
+ private:
+  ConcurrentCopying* const cc_;
+  ObjPtr<mirror::Object> const holder_;
+};
+
+void ConcurrentCopying::VerifyNoMissingCardMarkCallback(mirror::Object* obj, void* arg) {
+  auto* collector = reinterpret_cast<ConcurrentCopying*>(arg);
+  // Objects not on dirty cards should never have references to newly allocated regions.
+  if (!collector->heap_->GetCardTable()->IsDirty(obj)) {
+    VerifyNoMissingCardMarkVisitor visitor(collector, /*holder*/ obj);
+    obj->VisitReferences</*kVisitNativeRoots*/true, kVerifyNone, kWithoutReadBarrier>(
+        visitor,
+        visitor);
+  }
+}
+
+void ConcurrentCopying::VerifyNoMissingCardMarks() {
+  TimingLogger::ScopedTiming split(__FUNCTION__, GetTimings());
+  region_space_->Walk(&VerifyNoMissingCardMarkCallback, this);
+  {
+    ReaderMutexLock rmu(Thread::Current(), *Locks::heap_bitmap_lock_);
+    heap_->GetLiveBitmap()->Walk(&VerifyNoMissingCardMarkCallback, this);
   }
 }
 
@@ -2330,7 +2401,9 @@ void ConcurrentCopying::FinishPhase() {
     MutexLock mu(self, mark_stack_lock_);
     CHECK_EQ(pooled_mark_stacks_.size(), kMarkStackPoolSize);
   }
-  {
+  // kVerifyNoMissingCardMarks relies on the region space cards not being cleared to avoid false
+  // positives.
+  if (!kVerifyNoMissingCardMarks) {
     TimingLogger::ScopedTiming split("ClearRegionSpaceCards", GetTimings());
     // We do not currently use the region space cards at all, madvise them away to save ram.
     heap_->GetCardTable()->ClearCardRange(region_space_->Begin(), region_space_->Limit());
