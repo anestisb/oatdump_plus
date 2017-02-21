@@ -3798,14 +3798,10 @@ mirror::Class* ClassLinker::InsertClass(const char* descriptor, ObjPtr<mirror::C
 }
 
 void ClassLinker::WriteBarrierForBootOatFileBssRoots(const OatFile* oat_file) {
-  if (!kUseReadBarrier) {
-    WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
-    DCHECK(!oat_file->GetBssGcRoots().empty()) << oat_file->GetLocation();
-    if (log_new_roots_ && !ContainsElement(new_bss_roots_boot_oat_files_, oat_file)) {
-      new_bss_roots_boot_oat_files_.push_back(oat_file);
-    }
-  } else {
-    LOG(FATAL) << "UNREACHABLE";
+  WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
+  DCHECK(!oat_file->GetBssGcRoots().empty()) << oat_file->GetLocation();
+  if (log_new_roots_ && !ContainsElement(new_bss_roots_boot_oat_files_, oat_file)) {
+    new_bss_roots_boot_oat_files_.push_back(oat_file);
   }
 }
 
