@@ -63,31 +63,29 @@ jvmtiError FieldUtil::GetFieldName(jvmtiEnv* env,
   art::ScopedObjectAccess soa(art::Thread::Current());
   art::ArtField* art_field = art::jni::DecodeArtField(field);
 
-  JvmtiUniquePtr name_copy;
+  JvmtiUniquePtr<char[]> name_copy;
   if (name_ptr != nullptr) {
     const char* field_name = art_field->GetName();
     if (field_name == nullptr) {
       field_name = "<error>";
     }
-    unsigned char* tmp;
-    jvmtiError ret = CopyString(env, field_name, &tmp);
-    if (ret != ERR(NONE)) {
+    jvmtiError ret;
+    name_copy = CopyString(env, field_name, &ret);
+    if (name_copy == nullptr) {
       return ret;
     }
-    name_copy = MakeJvmtiUniquePtr(env, tmp);
-    *name_ptr = reinterpret_cast<char*>(tmp);
+    *name_ptr = name_copy.get();
   }
 
-  JvmtiUniquePtr signature_copy;
+  JvmtiUniquePtr<char[]> signature_copy;
   if (signature_ptr != nullptr) {
     const char* sig = art_field->GetTypeDescriptor();
-    unsigned char* tmp;
-    jvmtiError ret = CopyString(env, sig, &tmp);
-    if (ret != ERR(NONE)) {
+    jvmtiError ret;
+    signature_copy = CopyString(env, sig, &ret);
+    if (signature_copy == nullptr) {
       return ret;
     }
-    signature_copy = MakeJvmtiUniquePtr(env, tmp);
-    *signature_ptr = reinterpret_cast<char*>(tmp);
+    *signature_ptr = signature_copy.get();
   }
 
   // TODO: Support generic signature.
@@ -102,12 +100,12 @@ jvmtiError FieldUtil::GetFieldName(jvmtiEnv* env,
           oss << str_array->Get(i)->ToModifiedUtf8();
         }
         std::string output_string = oss.str();
-        unsigned char* tmp;
-        jvmtiError ret = CopyString(env, output_string.c_str(), &tmp);
-        if (ret != ERR(NONE)) {
+        jvmtiError ret;
+        JvmtiUniquePtr<char[]> copy = CopyString(env, output_string.c_str(), &ret);
+        if (copy == nullptr) {
           return ret;
         }
-        *generic_ptr = reinterpret_cast<char*>(tmp);
+        *generic_ptr = copy.release();
       } else if (soa.Self()->IsExceptionPending()) {
         // TODO: Should we report an error here?
         soa.Self()->ClearException();
