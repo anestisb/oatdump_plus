@@ -46,7 +46,7 @@ struct ArtClassDefinition {
   std::string name;
   jobject protection_domain;
   jint dex_len;
-  JvmtiUniquePtr dex_data;
+  JvmtiUniquePtr<unsigned char> dex_data;
   art::ArraySlice<const unsigned char> original_dex_file;
 
   ArtClassDefinition() = default;
