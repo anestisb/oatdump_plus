@@ -82,69 +82,67 @@ static constexpr size_t kPropertiesSize = arraysize(kProperties);
 static constexpr const char* kPropertyLibraryPath = "java.library.path";
 static constexpr const char* kPropertyClassPath = "java.class.path";
 
-static jvmtiError Copy(jvmtiEnv* env, const char* in, char** out) {
-  unsigned char* data = nullptr;
-  jvmtiError result = CopyString(env, in, &data);
-  *out = reinterpret_cast<char*>(data);
-  return result;
-}
-
 jvmtiError PropertiesUtil::GetSystemProperties(jvmtiEnv* env,
                                                jint* count_ptr,
                                                char*** property_ptr) {
   if (count_ptr == nullptr || property_ptr == nullptr) {
     return ERR(NULL_POINTER);
   }
-  unsigned char* array_data;
-  jvmtiError array_alloc_result = env->Allocate((kPropertiesSize + 2) * sizeof(char*), &array_data);
-  if (array_alloc_result != ERR(NONE)) {
+  jvmtiError array_alloc_result;
+  JvmtiUniquePtr<char*[]> array_data_ptr = AllocJvmtiUniquePtr<char*[]>(env,
+                                                                        kPropertiesSize + 2,
+                                                                        &array_alloc_result);
+  if (array_data_ptr == nullptr) {
     return array_alloc_result;
   }
-  JvmtiUniquePtr array_data_ptr = MakeJvmtiUniquePtr(env, array_data);
-  char** array = reinterpret_cast<char**>(array_data);
 
-  std::vector<JvmtiUniquePtr> property_copies;
+  std::vector<JvmtiUniquePtr<char[]>> property_copies;
 
   {
-    char* libpath_data;
-    jvmtiError libpath_result = Copy(env, kPropertyLibraryPath, &libpath_data);
-    if (libpath_result != ERR(NONE)) {
+    jvmtiError libpath_result;
+    JvmtiUniquePtr<char[]> libpath_data = CopyString(env, kPropertyLibraryPath, &libpath_result);
+    if (libpath_data == nullptr) {
       return libpath_result;
     }
-    array[0] = libpath_data;
-    property_copies.push_back(MakeJvmtiUniquePtr(env, libpath_data));
+    array_data_ptr.get()[0] = libpath_data.get();
+    property_copies.push_back(std::move(libpath_data));
   }
 
   {
-    char* classpath_data;
-    jvmtiError classpath_result = Copy(env, kPropertyClassPath, &classpath_data);
-    if (classpath_result != ERR(NONE)) {
+    jvmtiError classpath_result;
+    JvmtiUniquePtr<char[]> classpath_data = CopyString(env, kPropertyClassPath, &classpath_result);
+    if (classpath_data == nullptr) {
       return classpath_result;
     }
-    array[1] = classpath_data;
-    property_copies.push_back(MakeJvmtiUniquePtr(env, classpath_data));
+    array_data_ptr.get()[1] = classpath_data.get();
+    property_copies.push_back(std::move(classpath_data));
   }
 
   for (size_t i = 0; i != kPropertiesSize; ++i) {
-    char* data;
-    jvmtiError data_result = Copy(env, kProperties[i][0], &data);
-    if (data_result != ERR(NONE)) {
+    jvmtiError data_result;
+    JvmtiUniquePtr<char[]> data = CopyString(env, kProperties[i][0], &data_result);
+    if (data == nullptr) {
       return data_result;
     }
-    array[i + 2] = data;
-    property_copies.push_back(MakeJvmtiUniquePtr(env, data));
+    array_data_ptr.get()[i + 2] = data.get();
+    property_copies.push_back(std::move(data));
   }
 
   // Everything is OK, release the data.
-  array_data_ptr.release();
+  *count_ptr = kPropertiesSize + 2;
+  *property_ptr = array_data_ptr.release();
   for (auto& uptr : property_copies) {
     uptr.release();
   }
 
-  *count_ptr = kPropertiesSize + 2;
-  *property_ptr = array;
-
   return ERR(NONE);
+}
+
+static jvmtiError Copy(jvmtiEnv* env, const char* in, char** out) {
+  jvmtiError result;
+  JvmtiUniquePtr<char[]> data = CopyString(env, in, &result);
+  *out = data.release();
+  return result;
 }
 
 jvmtiError PropertiesUtil::GetSystemProperty(jvmtiEnv* env,

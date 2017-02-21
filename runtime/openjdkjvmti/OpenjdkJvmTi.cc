@@ -1188,13 +1188,13 @@ class JvmtiFunctions {
     ENSURE_NON_NULL(name_ptr);
     switch (error) {
 #define ERROR_CASE(e) case (JVMTI_ERROR_ ## e) : do { \
-          jvmtiError res = CopyString(env, \
-                                      "JVMTI_ERROR_"#e, \
-                                      reinterpret_cast<unsigned char**>(name_ptr)); \
-          if (res != OK) { \
+          jvmtiError res; \
+          JvmtiUniquePtr<char[]> copy = CopyString(env, "JVMTI_ERROR_"#e, &res); \
+          if (copy == nullptr) { \
             *name_ptr = nullptr; \
             return res; \
           } else { \
+            *name_ptr = copy.release(); \
             return OK; \
           } \
         } while (false)
@@ -1248,13 +1248,13 @@ class JvmtiFunctions {
       ERROR_CASE(INVALID_ENVIRONMENT);
 #undef ERROR_CASE
       default: {
-        jvmtiError res = CopyString(env,
-                                    "JVMTI_ERROR_UNKNOWN",
-                                    reinterpret_cast<unsigned char**>(name_ptr));
-        if (res != OK) {
+        jvmtiError res;
+        JvmtiUniquePtr<char[]> copy = CopyString(env, "JVMTI_ERROR_UNKNOWN", &res);
+        if (copy == nullptr) {
           *name_ptr = nullptr;
           return res;
         } else {
+          *name_ptr = copy.release();
           return ERR(ILLEGAL_ARGUMENT);
         }
       }
