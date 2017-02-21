@@ -30,6 +30,7 @@
 #include "method_reference.h"
 #include "oat_file.h"
 #include "object_callbacks.h"
+#include "profile_compilation_info.h"
 #include "safe_map.h"
 #include "thread_pool.h"
 
@@ -192,7 +193,7 @@ class JitCodeCache {
 
   // Adds to `methods` all profiled methods which are part of any of the given dex locations.
   void GetProfiledMethods(const std::set<std::string>& dex_base_locations,
-                          std::vector<MethodReference>& methods)
+                          std::vector<ProfileMethodInfo>& methods)
       REQUIRES(!lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
