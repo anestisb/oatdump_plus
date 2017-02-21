@@ -71,7 +71,7 @@ public class Main {
       t.sayHi(new DoRedefinitionClass());
     } catch (Throwable e) {
       System.out.println("Received error : " + e);
-      e.printStackTrace();
+      e.printStackTrace(System.out);
     }
     t.sayHi(() -> { System.out.println("Not doing anything here"); });
   }
