@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_OPTIMIZING_COMMON_ARM_H_
 #define ART_COMPILER_OPTIMIZING_COMMON_ARM_H_
 
+#include "instruction_simplifier_shared.h"
 #include "debug/dwarf/register.h"
 #include "locations.h"
 #include "nodes.h"
@@ -29,6 +30,9 @@
 #pragma GCC diagnostic pop
 
 namespace art {
+
+using helpers::HasShifterOperand;
+
 namespace arm {
 namespace helpers {
 
@@ -216,6 +220,14 @@ inline Location LocationFrom(const vixl::aarch32::Register& low,
 inline Location LocationFrom(const vixl::aarch32::SRegister& low,
                              const vixl::aarch32::SRegister& high) {
   return Location::FpuRegisterPairLocation(low.GetCode(), high.GetCode());
+}
+
+inline bool ShifterOperandSupportsExtension(HInstruction* instruction) {
+  DCHECK(HasShifterOperand(instruction, kArm));
+  // TODO: HAdd applied to the other integral types could make use of
+  // the SXTAB, SXTAH, UXTAB and UXTAH instructions.
+  return instruction->GetType() == Primitive::kPrimLong &&
+         (instruction->IsAdd() || instruction->IsSub());
 }
 
 }  // namespace helpers

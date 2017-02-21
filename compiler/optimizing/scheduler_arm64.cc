@@ -31,8 +31,8 @@ void SchedulingLatencyVisitorARM64::VisitBitwiseNegatedRight(
   last_visited_latency_ = kArm64IntegerOpLatency;
 }
 
-void SchedulingLatencyVisitorARM64::VisitArm64DataProcWithShifterOp(
-    HArm64DataProcWithShifterOp* ATTRIBUTE_UNUSED) {
+void SchedulingLatencyVisitorARM64::VisitDataProcWithShifterOp(
+    HDataProcWithShifterOp* ATTRIBUTE_UNUSED) {
   last_visited_latency_ = kArm64DataProcWithShifterOpLatency;
 }
 

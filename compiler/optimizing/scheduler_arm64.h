@@ -74,7 +74,8 @@ class SchedulingLatencyVisitorARM64 : public SchedulingLatencyVisitor {
 #define FOR_EACH_SCHEDULED_SHARED_INSTRUCTION(M) \
   M(BitwiseNegatedRight, unused)                 \
   M(MultiplyAccumulate, unused)                  \
-  M(IntermediateAddress, unused)
+  M(IntermediateAddress, unused)                 \
+  M(DataProcWithShifterOp, unused)
 
 #define DECLARE_VISIT_INSTRUCTION(type, unused)  \
   void Visit##type(H##type* instruction) OVERRIDE;
