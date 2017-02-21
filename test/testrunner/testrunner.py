@@ -44,10 +44,10 @@ For eg, for compiler type as optimizing, use --optimizing.
 In the end, the script will print the failed and skipped tests if any.
 
 """
+import argparse
 import fnmatch
 import itertools
 import json
-from optparse import OptionParser
 import os
 import re
 import subprocess
@@ -722,24 +722,24 @@ def parse_option():
   global gdb
   global gdb_arg
 
-  parser = OptionParser()
-  parser.add_option('-t', '--test', dest='test', help='name of the test')
-  parser.add_option('-j', type='int', dest='n_thread')
+  parser = argparse.ArgumentParser(description="Runs all or a subset of the ART test suite.")
+  parser.add_argument('-t', '--test', dest='test', help='name of the test')
+  parser.add_argument('-j', type=int, dest='n_thread')
   for variant in TOTAL_VARIANTS_SET:
     flag = '--' + variant
     flag_dest = variant.replace('-', '_')
     if variant == '32' or variant == '64':
       flag_dest = 'n' + flag_dest
-    parser.add_option(flag, action='store_true', dest=flag_dest)
-  parser.add_option('--verbose', '-v', action='store_true', dest='verbose')
-  parser.add_option('--dry-run', action='store_true', dest='dry_run')
-  parser.add_option("--skip", action="append", dest="skips", default=[],
-                    help="Skip the given test in all circumstances.")
-  parser.add_option('-b', '--build-dependencies', action='store_true', dest='build')
-  parser.add_option('--gdb', action='store_true', dest='gdb')
-  parser.add_option('--gdb-arg', dest='gdb_arg')
+    parser.add_argument(flag, action='store_true', dest=flag_dest)
+  parser.add_argument('--verbose', '-v', action='store_true', dest='verbose')
+  parser.add_argument('--dry-run', action='store_true', dest='dry_run')
+  parser.add_argument("--skip", action="append", dest="skips", default=[],
+                      help="Skip the given test in all circumstances.")
+  parser.add_argument('-b', '--build-dependencies', action='store_true', dest='build')
+  parser.add_argument('--gdb', action='store_true', dest='gdb')
+  parser.add_argument('--gdb-arg', dest='gdb_arg')
 
-  options = parser.parse_args()[0]
+  options = parser.parse_args()
   test = ''
   env.EXTRA_DISABLED_TESTS.update(set(options.skips))
   if options.test:
