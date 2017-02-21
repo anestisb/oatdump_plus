@@ -21,6 +21,17 @@ public class Main {
   // A very particular set of operations that caused a double removal by the
   // ARM64 simplifier doing "forward" removals (b/27851582).
 
+  /// CHECK-START-ARM: int Main.operations() instruction_simplifier_arm (before)
+  /// CHECK-DAG: <<Get:i\d+>> ArrayGet
+  /// CHECK-DAG: <<Not:i\d+>> Not [<<Get>>]
+  /// CHECK-DAG: <<Shl:i\d+>> Shl [<<Get>>,i{{\d+}}]
+  /// CHECK-DAG:              And [<<Not>>,<<Shl>>]
+  //
+  /// CHECK-START-ARM: int Main.operations() instruction_simplifier_arm (after)
+  /// CHECK-DAG: <<Get:i\d+>> ArrayGet
+  /// CHECK-DAG: <<Not:i\d+>> Not [<<Get>>]
+  /// CHECK-DAG:              DataProcWithShifterOp [<<Not>>,<<Get>>] kind:And+LSL shift:2
+
   /// CHECK-START-ARM64: int Main.operations() instruction_simplifier_arm64 (before)
   /// CHECK-DAG: <<Get:i\d+>> ArrayGet
   /// CHECK-DAG: <<Not:i\d+>> Not [<<Get>>]
@@ -30,7 +41,7 @@ public class Main {
   /// CHECK-START-ARM64: int Main.operations() instruction_simplifier_arm64 (after)
   /// CHECK-DAG: <<Get:i\d+>> ArrayGet
   /// CHECK-DAG: <<Not:i\d+>> Not [<<Get>>]
-  /// CHECK-DAG:              Arm64DataProcWithShifterOp [<<Not>>,<<Get>>] kind:And+LSL shift:2
+  /// CHECK-DAG:              DataProcWithShifterOp [<<Not>>,<<Get>>] kind:And+LSL shift:2
   private static int operations() {
      int r = a[0];
      int n = ~r;

@@ -1362,6 +1362,7 @@ class HLoopInformationOutwardIterator : public ValueObject {
 #else
 #define FOR_EACH_CONCRETE_INSTRUCTION_SHARED(M)                         \
   M(BitwiseNegatedRight, Instruction)                                   \
+  M(DataProcWithShifterOp, Instruction)                                 \
   M(MultiplyAccumulate, Instruction)                                    \
   M(IntermediateAddress, Instruction)
 #endif
@@ -1373,12 +1374,7 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(ArmDexCacheArraysBase, Instruction)
 #endif
 
-#ifndef ART_ENABLE_CODEGEN_arm64
 #define FOR_EACH_CONCRETE_INSTRUCTION_ARM64(M)
-#else
-#define FOR_EACH_CONCRETE_INSTRUCTION_ARM64(M)                          \
-  M(Arm64DataProcWithShifterOp, Instruction)
-#endif
 
 #ifndef ART_ENABLE_CODEGEN_mips
 #define FOR_EACH_CONCRETE_INSTRUCTION_MIPS(M)
@@ -6618,9 +6614,6 @@ class HParallelMove FINAL : public HTemplateInstruction<0> {
 #endif
 #ifdef ART_ENABLE_CODEGEN_arm
 #include "nodes_arm.h"
-#endif
-#ifdef ART_ENABLE_CODEGEN_arm64
-#include "nodes_arm64.h"
 #endif
 #ifdef ART_ENABLE_CODEGEN_mips
 #include "nodes_mips.h"
