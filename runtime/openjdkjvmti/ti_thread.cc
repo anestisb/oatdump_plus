@@ -186,17 +186,17 @@ jvmtiError ThreadUtil::GetThreadInfo(jvmtiEnv* env, jthread thread, jvmtiThreadI
     return ERR(INVALID_THREAD);
   }
 
-  JvmtiUniquePtr name_uptr;
+  JvmtiUniquePtr<char[]> name_uptr;
   if (self != nullptr) {
     // Have a native thread object, this thread is alive.
     std::string name;
     self->GetThreadName(name);
-    jvmtiError name_result = CopyString(
-        env, name.c_str(), reinterpret_cast<unsigned char**>(&info_ptr->name));
-    if (name_result != ERR(NONE)) {
+    jvmtiError name_result;
+    name_uptr = CopyString(env, name.c_str(), &name_result);
+    if (name_uptr == nullptr) {
       return name_result;
     }
-    name_uptr = MakeJvmtiUniquePtr(env, info_ptr->name);
+    info_ptr->name = name_uptr.get();
 
     info_ptr->priority = self->GetNativePriority();
 
@@ -239,12 +239,12 @@ jvmtiError ThreadUtil::GetThreadInfo(jvmtiEnv* env, jthread thread, jvmtiThreadI
       } else {
         name_cstr = "";
       }
-      jvmtiError name_result = CopyString(
-          env, name_cstr, reinterpret_cast<unsigned char**>(&info_ptr->name));
-      if (name_result != ERR(NONE)) {
+      jvmtiError name_result;
+      name_uptr = CopyString(env, name_cstr, &name_result);
+      if (name_uptr == nullptr) {
         return name_result;
       }
-      name_uptr = MakeJvmtiUniquePtr(env, info_ptr->name);
+      info_ptr->name = name_uptr.get();
     }
 
     // Priority.

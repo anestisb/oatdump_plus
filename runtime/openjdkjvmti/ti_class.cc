@@ -673,18 +673,17 @@ jvmtiError ClassUtil::GetClassSignature(jvmtiEnv* env,
     return ERR(INVALID_CLASS);
   }
 
-  JvmtiUniquePtr sig_copy;
+  JvmtiUniquePtr<char[]> sig_copy;
   if (signature_ptr != nullptr) {
     std::string storage;
     const char* descriptor = klass->GetDescriptor(&storage);
 
-    unsigned char* tmp;
-    jvmtiError ret = CopyString(env, descriptor, &tmp);
-    if (ret != ERR(NONE)) {
+    jvmtiError ret;
+    sig_copy = CopyString(env, descriptor, &ret);
+    if (sig_copy == nullptr) {
       return ret;
     }
-    sig_copy = MakeJvmtiUniquePtr(env, tmp);
-    *signature_ptr = reinterpret_cast<char*>(tmp);
+    *signature_ptr = sig_copy.get();
   }
 
   if (generic_ptr != nullptr) {
@@ -700,12 +699,12 @@ jvmtiError ClassUtil::GetClassSignature(jvmtiEnv* env,
           oss << str_array->Get(i)->ToModifiedUtf8();
         }
         std::string output_string = oss.str();
-        unsigned char* tmp;
-        jvmtiError ret = CopyString(env, output_string.c_str(), &tmp);
-        if (ret != ERR(NONE)) {
+        jvmtiError ret;
+        JvmtiUniquePtr<char[]> copy = CopyString(env, output_string.c_str(), &ret);
+        if (copy == nullptr) {
           return ret;
         }
-        *generic_ptr = reinterpret_cast<char*>(tmp);
+        *generic_ptr = copy.release();
       } else if (soa.Self()->IsExceptionPending()) {
         // TODO: Should we report an error here?
         soa.Self()->ClearException();

@@ -110,35 +110,32 @@ jvmtiError MethodUtil::GetMethodName(jvmtiEnv* env,
   art::ArtMethod* art_method = art::jni::DecodeArtMethod(method);
   art_method = art_method->GetInterfaceMethodIfProxy(art::kRuntimePointerSize);
 
-  JvmtiUniquePtr name_copy;
+  JvmtiUniquePtr<char[]> name_copy;
   if (name_ptr != nullptr) {
     const char* method_name = art_method->GetName();
     if (method_name == nullptr) {
       method_name = "<error>";
     }
-    unsigned char* tmp;
-    jvmtiError ret = CopyString(env, method_name, &tmp);
-    if (ret != ERR(NONE)) {
+    jvmtiError ret;
+    name_copy = CopyString(env, method_name, &ret);
+    if (name_copy == nullptr) {
       return ret;
     }
-    name_copy = MakeJvmtiUniquePtr(env, tmp);
-    *name_ptr = reinterpret_cast<char*>(tmp);
+    *name_ptr = name_copy.get();
   }
 
-  JvmtiUniquePtr signature_copy;
+  JvmtiUniquePtr<char[]> signature_copy;
   if (signature_ptr != nullptr) {
     const art::Signature sig = art_method->GetSignature();
     std::string str = sig.ToString();
-    unsigned char* tmp;
-    jvmtiError ret = CopyString(env, str.c_str(), &tmp);
-    if (ret != ERR(NONE)) {
+    jvmtiError ret;
+    signature_copy = CopyString(env, str.c_str(), &ret);
+    if (signature_copy == nullptr) {
       return ret;
     }
-    signature_copy = MakeJvmtiUniquePtr(env, tmp);
-    *signature_ptr = reinterpret_cast<char*>(tmp);
+    *signature_ptr = signature_copy.get();
   }
 
-  // TODO: Support generic signature.
   if (generic_ptr != nullptr) {
     *generic_ptr = nullptr;
     if (!art_method->GetDeclaringClass()->IsProxyClass()) {
@@ -150,12 +147,12 @@ jvmtiError MethodUtil::GetMethodName(jvmtiEnv* env,
           oss << str_array->Get(i)->ToModifiedUtf8();
         }
         std::string output_string = oss.str();
-        unsigned char* tmp;
-        jvmtiError ret = CopyString(env, output_string.c_str(), &tmp);
-        if (ret != ERR(NONE)) {
+        jvmtiError ret;
+        JvmtiUniquePtr<char[]> generic_copy = CopyString(env, output_string.c_str(), &ret);
+        if (generic_copy == nullptr) {
           return ret;
         }
-        *generic_ptr = reinterpret_cast<char*>(tmp);
+        *generic_ptr = generic_copy.release();
       } else if (soa.Self()->IsExceptionPending()) {
         // TODO: Should we report an error here?
         soa.Self()->ClearException();
