@@ -18,6 +18,7 @@
 #define ART_COMPILER_OPTIMIZING_COMMON_ARM64_H_
 
 #include "code_generator.h"
+#include "instruction_simplifier_shared.h"
 #include "locations.h"
 #include "nodes.h"
 #include "utils/arm64/assembler_arm64.h"
@@ -31,6 +32,10 @@
 #pragma GCC diagnostic pop
 
 namespace art {
+
+using helpers::CanFitInShifterOperand;
+using helpers::HasShifterOperand;
+
 namespace arm64 {
 namespace helpers {
 
@@ -290,11 +295,11 @@ inline bool ArtVixlRegCodeCoherentForRegSet(uint32_t art_core_registers,
   return true;
 }
 
-inline vixl::aarch64::Shift ShiftFromOpKind(HArm64DataProcWithShifterOp::OpKind op_kind) {
+inline vixl::aarch64::Shift ShiftFromOpKind(HDataProcWithShifterOp::OpKind op_kind) {
   switch (op_kind) {
-    case HArm64DataProcWithShifterOp::kASR: return vixl::aarch64::ASR;
-    case HArm64DataProcWithShifterOp::kLSL: return vixl::aarch64::LSL;
-    case HArm64DataProcWithShifterOp::kLSR: return vixl::aarch64::LSR;
+    case HDataProcWithShifterOp::kASR: return vixl::aarch64::ASR;
+    case HDataProcWithShifterOp::kLSL: return vixl::aarch64::LSL;
+    case HDataProcWithShifterOp::kLSR: return vixl::aarch64::LSR;
     default:
       LOG(FATAL) << "Unexpected op kind " << op_kind;
       UNREACHABLE();
@@ -302,14 +307,14 @@ inline vixl::aarch64::Shift ShiftFromOpKind(HArm64DataProcWithShifterOp::OpKind 
   }
 }
 
-inline vixl::aarch64::Extend ExtendFromOpKind(HArm64DataProcWithShifterOp::OpKind op_kind) {
+inline vixl::aarch64::Extend ExtendFromOpKind(HDataProcWithShifterOp::OpKind op_kind) {
   switch (op_kind) {
-    case HArm64DataProcWithShifterOp::kUXTB: return vixl::aarch64::UXTB;
-    case HArm64DataProcWithShifterOp::kUXTH: return vixl::aarch64::UXTH;
-    case HArm64DataProcWithShifterOp::kUXTW: return vixl::aarch64::UXTW;
-    case HArm64DataProcWithShifterOp::kSXTB: return vixl::aarch64::SXTB;
-    case HArm64DataProcWithShifterOp::kSXTH: return vixl::aarch64::SXTH;
-    case HArm64DataProcWithShifterOp::kSXTW: return vixl::aarch64::SXTW;
+    case HDataProcWithShifterOp::kUXTB: return vixl::aarch64::UXTB;
+    case HDataProcWithShifterOp::kUXTH: return vixl::aarch64::UXTH;
+    case HDataProcWithShifterOp::kUXTW: return vixl::aarch64::UXTW;
+    case HDataProcWithShifterOp::kSXTB: return vixl::aarch64::SXTB;
+    case HDataProcWithShifterOp::kSXTH: return vixl::aarch64::SXTH;
+    case HDataProcWithShifterOp::kSXTW: return vixl::aarch64::SXTW;
     default:
       LOG(FATAL) << "Unexpected op kind " << op_kind;
       UNREACHABLE();
@@ -317,31 +322,8 @@ inline vixl::aarch64::Extend ExtendFromOpKind(HArm64DataProcWithShifterOp::OpKin
   }
 }
 
-inline bool CanFitInShifterOperand(HInstruction* instruction) {
-  if (instruction->IsTypeConversion()) {
-    HTypeConversion* conversion = instruction->AsTypeConversion();
-    Primitive::Type result_type = conversion->GetResultType();
-    Primitive::Type input_type = conversion->GetInputType();
-    // We don't expect to see the same type as input and result.
-    return Primitive::IsIntegralType(result_type) && Primitive::IsIntegralType(input_type) &&
-        (result_type != input_type);
-  } else {
-    return (instruction->IsShl() && instruction->AsShl()->InputAt(1)->IsIntConstant()) ||
-        (instruction->IsShr() && instruction->AsShr()->InputAt(1)->IsIntConstant()) ||
-        (instruction->IsUShr() && instruction->AsUShr()->InputAt(1)->IsIntConstant());
-  }
-}
-
-inline bool HasShifterOperand(HInstruction* instr) {
-  // `neg` instructions are an alias of `sub` using the zero register as the
-  // first register input.
-  bool res = instr->IsAdd() || instr->IsAnd() || instr->IsNeg() ||
-      instr->IsOr() || instr->IsSub() || instr->IsXor();
-  return res;
-}
-
 inline bool ShifterOperandSupportsExtension(HInstruction* instruction) {
-  DCHECK(HasShifterOperand(instruction));
+  DCHECK(HasShifterOperand(instruction, kArm64));
   // Although the `neg` instruction is an alias of the `sub` instruction, `HNeg`
   // does *not* support extension. This is because the `extended register` form
   // of the `sub` instruction interprets the left register with code 31 as the

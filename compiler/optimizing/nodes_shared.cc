@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 The Android Open Source Project
+ * Copyright (C) 2017 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,15 +15,15 @@
  */
 
 #include "common_arm64.h"
-#include "nodes.h"
+#include "nodes_shared.h"
 
 namespace art {
 
-using arm64::helpers::CanFitInShifterOperand;
+using helpers::CanFitInShifterOperand;
 
-void HArm64DataProcWithShifterOp::GetOpInfoFromInstruction(HInstruction* instruction,
-                                                           /*out*/OpKind* op_kind,
-                                                           /*out*/int* shift_amount) {
+void HDataProcWithShifterOp::GetOpInfoFromInstruction(HInstruction* instruction,
+                                                      /*out*/OpKind* op_kind,
+                                                      /*out*/int* shift_amount) {
   DCHECK(CanFitInShifterOperand(instruction));
   if (instruction->IsShl()) {
     *op_kind = kLSL;
@@ -41,12 +41,11 @@ void HArm64DataProcWithShifterOp::GetOpInfoFromInstruction(HInstruction* instruc
     int result_size = Primitive::ComponentSize(result_type);
     int input_size = Primitive::ComponentSize(input_type);
     int min_size = std::min(result_size, input_size);
-    // This follows the logic in
-    // `InstructionCodeGeneratorARM64::VisitTypeConversion()`.
     if (result_type == Primitive::kPrimInt && input_type == Primitive::kPrimLong) {
-      // There is actually nothing to do. The register will be used as a W
-      // register, discarding the top bits. This is represented by the default
-      // encoding 'LSL 0'.
+      // There is actually nothing to do. On ARM the high register from the
+      // pair will be ignored. On ARM64 the register will be used as a W
+      // register, discarding the top bits. This is represented by the
+      // default encoding 'LSL 0'.
       *op_kind = kLSL;
       *shift_amount = 0;
     } else if (result_type == Primitive::kPrimChar ||
@@ -64,17 +63,17 @@ void HArm64DataProcWithShifterOp::GetOpInfoFromInstruction(HInstruction* instruc
   }
 }
 
-std::ostream& operator<<(std::ostream& os, const HArm64DataProcWithShifterOp::OpKind op) {
+std::ostream& operator<<(std::ostream& os, const HDataProcWithShifterOp::OpKind op) {
   switch (op) {
-    case HArm64DataProcWithShifterOp::kLSL:  return os << "LSL";
-    case HArm64DataProcWithShifterOp::kLSR:  return os << "LSR";
-    case HArm64DataProcWithShifterOp::kASR:  return os << "ASR";
-    case HArm64DataProcWithShifterOp::kUXTB: return os << "UXTB";
-    case HArm64DataProcWithShifterOp::kUXTH: return os << "UXTH";
-    case HArm64DataProcWithShifterOp::kUXTW: return os << "UXTW";
-    case HArm64DataProcWithShifterOp::kSXTB: return os << "SXTB";
-    case HArm64DataProcWithShifterOp::kSXTH: return os << "SXTH";
-    case HArm64DataProcWithShifterOp::kSXTW: return os << "SXTW";
+    case HDataProcWithShifterOp::kLSL:  return os << "LSL";
+    case HDataProcWithShifterOp::kLSR:  return os << "LSR";
+    case HDataProcWithShifterOp::kASR:  return os << "ASR";
+    case HDataProcWithShifterOp::kUXTB: return os << "UXTB";
+    case HDataProcWithShifterOp::kUXTH: return os << "UXTH";
+    case HDataProcWithShifterOp::kUXTW: return os << "UXTW";
+    case HDataProcWithShifterOp::kSXTB: return os << "SXTB";
+    case HDataProcWithShifterOp::kSXTH: return os << "SXTH";
+    case HDataProcWithShifterOp::kSXTW: return os << "SXTW";
     default:
       LOG(FATAL) << "Invalid OpKind " << static_cast<int>(op);
       UNREACHABLE();

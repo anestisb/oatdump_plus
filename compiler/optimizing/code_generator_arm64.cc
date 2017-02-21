@@ -2277,8 +2277,8 @@ void InstructionCodeGeneratorARM64::VisitBitwiseNegatedRight(HBitwiseNegatedRigh
   }
 }
 
-void LocationsBuilderARM64::VisitArm64DataProcWithShifterOp(
-    HArm64DataProcWithShifterOp* instruction) {
+void LocationsBuilderARM64::VisitDataProcWithShifterOp(
+    HDataProcWithShifterOp* instruction) {
   DCHECK(instruction->GetType() == Primitive::kPrimInt ||
          instruction->GetType() == Primitive::kPrimLong);
   LocationSummary* locations =
@@ -2292,8 +2292,8 @@ void LocationsBuilderARM64::VisitArm64DataProcWithShifterOp(
   locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
 }
 
-void InstructionCodeGeneratorARM64::VisitArm64DataProcWithShifterOp(
-    HArm64DataProcWithShifterOp* instruction) {
+void InstructionCodeGeneratorARM64::VisitDataProcWithShifterOp(
+    HDataProcWithShifterOp* instruction) {
   Primitive::Type type = instruction->GetType();
   HInstruction::InstructionKind kind = instruction->GetInstrKind();
   DCHECK(type == Primitive::kPrimInt || type == Primitive::kPrimLong);
@@ -2302,21 +2302,20 @@ void InstructionCodeGeneratorARM64::VisitArm64DataProcWithShifterOp(
   if (kind != HInstruction::kNeg) {
     left = InputRegisterAt(instruction, 0);
   }
-  // If this `HArm64DataProcWithShifterOp` was created by merging a type conversion as the
+  // If this `HDataProcWithShifterOp` was created by merging a type conversion as the
   // shifter operand operation, the IR generating `right_reg` (input to the type
   // conversion) can have a different type from the current instruction's type,
   // so we manually indicate the type.
   Register right_reg = RegisterFrom(instruction->GetLocations()->InAt(1), type);
-  int64_t shift_amount = instruction->GetShiftAmount() &
-      (type == Primitive::kPrimInt ? kMaxIntShiftDistance : kMaxLongShiftDistance);
-
   Operand right_operand(0);
 
-  HArm64DataProcWithShifterOp::OpKind op_kind = instruction->GetOpKind();
-  if (HArm64DataProcWithShifterOp::IsExtensionOp(op_kind)) {
+  HDataProcWithShifterOp::OpKind op_kind = instruction->GetOpKind();
+  if (HDataProcWithShifterOp::IsExtensionOp(op_kind)) {
     right_operand = Operand(right_reg, helpers::ExtendFromOpKind(op_kind));
   } else {
-    right_operand = Operand(right_reg, helpers::ShiftFromOpKind(op_kind), shift_amount);
+    right_operand = Operand(right_reg,
+                            helpers::ShiftFromOpKind(op_kind),
+                            instruction->GetShiftAmount());
   }
 
   // Logical binary operations do not support extension operations in the

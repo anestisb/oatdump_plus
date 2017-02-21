@@ -511,12 +511,10 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
   void VisitBitwiseNegatedRight(HBitwiseNegatedRight* instruction) OVERRIDE {
     StartAttributeStream("kind") << instruction->GetOpKind();
   }
-#endif
 
-#ifdef ART_ENABLE_CODEGEN_arm64
-  void VisitArm64DataProcWithShifterOp(HArm64DataProcWithShifterOp* instruction) OVERRIDE {
+  void VisitDataProcWithShifterOp(HDataProcWithShifterOp* instruction) OVERRIDE {
     StartAttributeStream("kind") << instruction->GetInstrKind() << "+" << instruction->GetOpKind();
-    if (HArm64DataProcWithShifterOp::IsShiftOp(instruction->GetOpKind())) {
+    if (HDataProcWithShifterOp::IsShiftOp(instruction->GetOpKind())) {
       StartAttributeStream("shift") << instruction->GetShiftAmount();
     }
   }
