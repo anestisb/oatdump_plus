@@ -45,6 +45,9 @@ static constexpr uint32_t kAccJavaFlagsMask = 0xffff;  // bits set from Java sou
 static constexpr uint32_t kAccConstructor =           0x00010000;  // method (dex only) <(cl)init>
 static constexpr uint32_t kAccDeclaredSynchronized =  0x00020000;  // method (dex only)
 static constexpr uint32_t kAccClassIsProxy =          0x00040000;  // class  (dex only)
+// Set to indicate that the ArtMethod is obsolete and has a different DexCache + DexFile from its
+// declaring class. This flag may only be applied to methods.
+static constexpr uint32_t kAccObsoleteMethod =        0x00040000;  // method (runtime)
 // Used by a method to denote that its execution does not need to go through slow path interpreter.
 static constexpr uint32_t kAccSkipAccessChecks =      0x00080000;  // method (dex only)
 // Used by a class to denote that the verifier has attempted to check it at least once.
@@ -67,10 +70,6 @@ static constexpr uint32_t kAccCompileDontBother =     0x01000000;  // method (ru
 
 // Set by the verifier for a method that could not be verified to follow structured locking.
 static constexpr uint32_t kAccMustCountLocks =        0x02000000;  // method (runtime)
-// Set to indicate that the ArtMethod is obsolete and has a different DexCache from its declaring
-// class.
-// TODO Might want to re-arrange some of these so that we can have obsolete + intrinsic methods.
-static constexpr uint32_t kAccObsoleteMethod =        0x04000000;  // method (runtime)
 
 // Set by the class linker for a method that has only one implementation for a
 // virtual call.
