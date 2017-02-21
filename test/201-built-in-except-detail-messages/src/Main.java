@@ -411,7 +411,7 @@ public class Main {
       m.invoke("hello", "world"); // Wrong type.
       fail();
     } catch (IllegalArgumentException iae) {
-      assertEquals("method java.lang.String.charAt! argument 1 has type int, got java.lang.String",
+      assertEquals("method java.lang.String.charAt argument 1 has type int, got java.lang.String",
           iae.getMessage());
     }
     try {
@@ -419,7 +419,7 @@ public class Main {
       m.invoke("hello", (Object) null); // Null for a primitive argument.
       fail();
     } catch (IllegalArgumentException iae) {
-      assertEquals("method java.lang.String.charAt! argument 1 has type int, got null",
+      assertEquals("method java.lang.String.charAt argument 1 has type int, got null",
           iae.getMessage());
     }
     try {

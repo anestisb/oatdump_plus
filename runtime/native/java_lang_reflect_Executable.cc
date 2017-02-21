@@ -195,14 +195,14 @@ static jboolean Executable_isAnnotationPresentNative(JNIEnv* env,
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(Executable, getAnnotationNative,
-                "!(Ljava/lang/Class;)Ljava/lang/annotation/Annotation;"),
-  NATIVE_METHOD(Executable, getDeclaredAnnotationsNative, "!()[Ljava/lang/annotation/Annotation;"),
-  NATIVE_METHOD(Executable, getParameterAnnotationsNative,
-                "!()[[Ljava/lang/annotation/Annotation;"),
-  NATIVE_METHOD(Executable, getParameters0, "!()[Ljava/lang/reflect/Parameter;"),
-  NATIVE_METHOD(Executable, getSignatureAnnotation, "!()[Ljava/lang/String;"),
-  NATIVE_METHOD(Executable, isAnnotationPresentNative, "!(Ljava/lang/Class;)Z"),
+  FAST_NATIVE_METHOD(Executable, getAnnotationNative,
+                "(Ljava/lang/Class;)Ljava/lang/annotation/Annotation;"),
+  FAST_NATIVE_METHOD(Executable, getDeclaredAnnotationsNative, "()[Ljava/lang/annotation/Annotation;"),
+  FAST_NATIVE_METHOD(Executable, getParameterAnnotationsNative,
+                "()[[Ljava/lang/annotation/Annotation;"),
+  FAST_NATIVE_METHOD(Executable, getParameters0, "()[Ljava/lang/reflect/Parameter;"),
+  FAST_NATIVE_METHOD(Executable, getSignatureAnnotation, "()[Ljava/lang/String;"),
+  FAST_NATIVE_METHOD(Executable, isAnnotationPresentNative, "(Ljava/lang/Class;)Z"),
 };
 
 void register_java_lang_reflect_Executable(JNIEnv* env) {
