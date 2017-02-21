@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 The Android Open Source Project
+ * Copyright (C) 2016 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,24 +14,29 @@
  * limitations under the License.
  */
 
-package com.android.ahat;
+package com.android.ahat.heapdump;
 
-import com.android.ahat.heapdump.AhatSnapshot;
-import java.io.IOException;
+public class AhatField {
+  private final String mName;
+  private final String mType;
 
-class RootedHandler implements AhatHandler {
-
-  private static final String ROOTED_ID = "rooted";
-
-  private AhatSnapshot mSnapshot;
-
-  public RootedHandler(AhatSnapshot snapshot) {
-    mSnapshot = snapshot;
+  public AhatField(String name, String type) {
+    mName = name;
+    mType = type;
   }
 
-  @Override
-  public void handle(Doc doc, Query query) throws IOException {
-    doc.title("Rooted");
-    DominatedList.render(mSnapshot, doc, query, ROOTED_ID, mSnapshot.getRooted());
+  /**
+   * Returns the name of the field.
+   */
+  public String getName() {
+    return mName;
+  }
+
+  /**
+   * Returns a description of the type of the field.
+   */
+  public String getType() {
+    return mType;
   }
 }
+

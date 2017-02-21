@@ -1,0 +1,83 @@
+/*
+ * Copyright (C) 2016 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.android.ahat.heapdump;
+
+public class FieldValue implements Diffable<FieldValue> {
+  private final String mName;
+  private final String mType;
+  private final Value mValue;
+  private FieldValue mBaseline;
+  private final boolean mIsPlaceHolder;
+
+  public FieldValue(String name, String type, Value value) {
+    mName = name;
+    mType = type;
+    mValue = value;
+    mBaseline = this;
+    mIsPlaceHolder = false;
+  }
+
+  /**
+   * Construct a place holder FieldValue
+   */
+  private FieldValue(FieldValue baseline) {
+    mName = baseline.mName;
+    mType = baseline.mType;
+    mValue = Value.getBaseline(baseline.mValue);
+    mBaseline = baseline;
+    mIsPlaceHolder = true;
+  }
+
+  static FieldValue newPlaceHolderFieldValue(FieldValue baseline) {
+    FieldValue field = new FieldValue(baseline);
+    baseline.setBaseline(field);
+    return field;
+  }
+
+  /**
+   * Returns the name of the field.
+   */
+  public String getName() {
+    return mName;
+  }
+
+  /**
+   * Returns a description of the type of the field.
+   */
+  public String getType() {
+    return mType;
+  }
+
+  /**
+   * Returns the value of this field.
+   */
+  public Value getValue() {
+    return mValue;
+  }
+
+  public void setBaseline(FieldValue baseline) {
+    mBaseline = baseline;
+  }
+
+  @Override public FieldValue getBaseline() {
+    return mBaseline;
+  }
+
+  @Override public boolean isPlaceHolder() {
+    return mIsPlaceHolder;
+  }
+}

@@ -1,22 +1,21 @@
 AHAT - Android Heap Analysis Tool
 
 Usage:
-  java -jar ahat.jar [-p port] [--proguard-map FILE] FILE
-    Launch an http server for viewing the given Android heap-dump FILE.
+  java -jar ahat.jar [OPTIONS] FILE
+    Launch an http server for viewing the given Android heap dump FILE.
 
-  Options:
+  OPTIONS:
     -p <port>
        Serve pages on the given port. Defaults to 7100.
     --proguard-map FILE
        Use the proguard map FILE to deobfuscate the heap dump.
+    --baseline FILE
+       Diff the heap dump against the given baseline heap dump FILE.
+    --baseline-proguard-map FILE
+       Use the proguard map FILE to deobfuscate the baseline heap dump.
 
 TODO:
- * Have a way to diff two heap dumps.
-
- * Add more tips to the help page.
-   - Recommend how to start looking at a heap dump.
-   - Say how to enable allocation sites.
-   - Where to submit feedback, questions, and bug reports.
+ * Add a user guide.
  * Dim 'image' and 'zygote' heap sizes slightly? Why do we even show these?
  * Let user re-sort sites objects info by clicking column headers.
  * Let user re-sort "Objects" list.
@@ -49,9 +48,9 @@ Things to Test:
    time.
  * That we don't show the 'extra' column in the DominatedList if we are
    showing all the instances.
- * That InstanceUtils.asString properly takes into account "offset" and
+ * That Instance.asString properly takes into account "offset" and
    "count" fields, if they are present.
- * InstanceUtils.getDexCacheLocation
+ * Instance.getDexCacheLocation
 
 Reported Issues:
  * Request to be able to sort tables by size.
@@ -76,7 +75,11 @@ Things to move to perflib:
  * Instance.isRoot and Instance.getRootTypes.
 
 Release History:
- 0.9 Pending
+ 1.0 Dec 20, 2016
+   Add support for diffing two heap dumps.
+   Remove native allocations view.
+   Remove outdated help page.
+   Significant refactoring of ahat internals.
 
  0.8 Oct 18, 2016
    Show sample path from GC root with field names in place of dominator path.
