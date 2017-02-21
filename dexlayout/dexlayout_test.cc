@@ -55,19 +55,45 @@ static const char kDexFileLayoutExpectedOutputDex[] =
     "qAAAAAYAAAACAAAAwAAAAAEgAAACAAAAAAEAAAIgAAAHAAAAMAEAAAMgAAACAAAAaQEAAAAgAAAC"
     "AAAAdQEAAAAQAAABAAAAjAEAAA==";
 
-static void WriteFileBase64(const char* base64, const char* location) {
+// Dex file with multiple code items that have the same debug_info_off_. Constructed by a modified
+// dexlayout on XandY.
+static const char kDexFileDuplicateOffset[] =
+    "ZGV4CjAzNwAQfXfPCB8qCxo7MqdFhmHZQwCv8+udHD8MBAAAcAAAAHhWNBIAAAAAAAAAAFQDAAAT"
+    "AAAAcAAAAAgAAAC8AAAAAQAAANwAAAABAAAA6AAAAAUAAADwAAAAAwAAABgBAACUAgAAeAEAABQC"
+    "AAAeAgAAJgIAACsCAAAyAgAANwIAAFsCAAB7AgAAngIAALICAAC1AgAAvQIAAMUCAADIAgAA1QIA"
+    "AOkCAADvAgAA9QIAAPwCAAACAAAAAwAAAAQAAAAFAAAABgAAAAcAAAAIAAAACQAAAAkAAAAHAAAA"
+    "AAAAAAIAAQASAAAAAAAAAAEAAAABAAAAAQAAAAIAAAAAAAAAAgAAAAEAAAAGAAAAAQAAAAAAAAAA"
+    "AAAABgAAAAAAAAAKAAAAAAAAACsDAAAAAAAAAQAAAAAAAAAGAAAAAAAAAAsAAAD0AQAANQMAAAAA"
+    "AAACAAAAAAAAAAAAAAAAAAAACwAAAAQCAAA/AwAAAAAAAAIAAAAUAwAAGgMAAAEAAAAjAwAAAQAB"
+    "AAEAAAAFAAAABAAAAHAQBAAAAA4AAQABAAEAAAAFAAAABAAAAHAQBAAAAA4AAQAAAAEAAAAFAAAA"
+    "CAAAACIAAQBwEAEAAABpAAAADgABAAEAAQAAAAUAAAAEAAAAcBAAAAAADgB4AQAAAAAAAAAAAAAA"
+    "AAAAhAEAAAAAAAAAAAAAAAAAAAg8Y2xpbml0PgAGPGluaXQ+AANMWDsABUxZJFo7AANMWTsAIkxk"
+    "YWx2aWsvYW5ub3RhdGlvbi9FbmNsb3NpbmdDbGFzczsAHkxkYWx2aWsvYW5ub3RhdGlvbi9Jbm5l"
+    "ckNsYXNzOwAhTGRhbHZpay9hbm5vdGF0aW9uL01lbWJlckNsYXNzZXM7ABJMamF2YS9sYW5nL09i"
+    "amVjdDsAAVYABlguamF2YQAGWS5qYXZhAAFaAAthY2Nlc3NGbGFncwASZW1pdHRlcjogamFjay00"
+    "LjI1AARuYW1lAAR0aGlzAAV2YWx1ZQABegARAAcOABMABw4AEgAHDnYAEQAHDgACAwERGAICBAIN"
+    "BAgPFwwCBQERHAEYAQAAAQAAgIAEjAMAAAEAAYCABKQDAQACAAAIAoiABLwDAYCABNwDAAAADwAA"
+    "AAAAAAABAAAAAAAAAAEAAAATAAAAcAAAAAIAAAAIAAAAvAAAAAMAAAABAAAA3AAAAAQAAAABAAAA"
+    "6AAAAAUAAAAFAAAA8AAAAAYAAAADAAAAGAEAAAMQAAACAAAAeAEAAAEgAAAEAAAAjAEAAAYgAAAC"
+    "AAAA9AEAAAIgAAATAAAAFAIAAAMgAAAEAAAA/wIAAAQgAAADAAAAFAMAAAAgAAADAAAAKwMAAAAQ"
+    "AAABAAAAVAMAAA==";
+
+static void WriteBase64ToFile(const char* base64, File* file) {
   // Decode base64.
   CHECK(base64 != nullptr);
   size_t length;
   std::unique_ptr<uint8_t[]> bytes(DecodeBase64(base64, &length));
-  CHECK(bytes.get() != nullptr);
-
-  // Write to provided file.
-  std::unique_ptr<File> file(OS::CreateEmptyFile(location));
-  CHECK(file.get() != nullptr);
+  CHECK(bytes != nullptr);
   if (!file->WriteFully(bytes.get(), length)) {
     PLOG(FATAL) << "Failed to write base64 as file";
   }
+}
+
+static void WriteFileBase64(const char* base64, const char* location) {
+  // Write to provided file.
+  std::unique_ptr<File> file(OS::CreateEmptyFile(location));
+  CHECK(file != nullptr);
+  WriteBase64ToFile(base64, file.get());
   if (file->FlushCloseOrErase() != 0) {
     PLOG(FATAL) << "Could not flush and close test file.";
   }
@@ -210,6 +236,27 @@ TEST_F(DexLayoutTest, DexFileLayout) {
   TEST_DISABLED_FOR_TARGET();
   std::string error_msg;
   ASSERT_TRUE(DexFileLayoutExec(&error_msg)) << error_msg;
+}
+
+TEST_F(DexLayoutTest, DuplicateOffset) {
+  ScratchFile temp;
+  WriteBase64ToFile(kDexFileDuplicateOffset, temp.GetFile());
+  EXPECT_EQ(temp.GetFile()->Flush(), 0);
+  std::string dexlayout = GetTestAndroidRoot() + "/bin/dexlayout";
+  EXPECT_TRUE(OS::FileExists(dexlayout.c_str())) << dexlayout << " should be a valid file path";
+  std::vector<std::string> dexlayout_exec_argv = {
+      dexlayout,
+      "-a",
+      "-i",
+      "-o",
+      "/dev/null",
+      temp.GetFilename()};
+  std::string error_msg;
+  const bool result = ::art::Exec(dexlayout_exec_argv, &error_msg);
+  EXPECT_TRUE(result);
+  if (!result) {
+    LOG(ERROR) << "Error " << error_msg;
+  }
 }
 
 }  // namespace art
