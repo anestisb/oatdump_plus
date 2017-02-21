@@ -216,7 +216,8 @@ class MarkSweep : public GarbageCollector {
       REQUIRES(!mark_stack_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  virtual void MarkHeapReference(mirror::HeapReference<mirror::Object>* ref) OVERRIDE
+  virtual void MarkHeapReference(mirror::HeapReference<mirror::Object>* ref,
+                                 bool do_atomic_update) OVERRIDE
       REQUIRES(Locks::heap_bitmap_lock_)
       REQUIRES(!mark_stack_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);

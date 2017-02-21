@@ -63,7 +63,14 @@ class ReferenceQueue {
   void EnqueueReference(ObjPtr<mirror::Reference> ref) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Dequeue a reference from the queue and return that dequeued reference.
+  // Call DisableReadBarrierForReference for the reference that's returned from this function.
   ObjPtr<mirror::Reference> DequeuePendingReference() REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // If applicable, disable the read barrier for the reference after its referent is handled (see
+  // ConcurrentCopying::ProcessMarkStackRef.) This must be called for a reference that's dequeued
+  // from pending queue (DequeuePendingReference).
+  void DisableReadBarrierForReference(ObjPtr<mirror::Reference> ref)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Enqueues finalizer references with white referents.  White referents are blackened, moved to
   // the zombie field, and the referent field is cleared.

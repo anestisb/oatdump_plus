@@ -65,7 +65,8 @@ GarbageCollector::GarbageCollector(Heap* heap, const std::string& name)
       name_(name),
       pause_histogram_((name_ + " paused").c_str(), kPauseBucketSize, kPauseBucketCount),
       cumulative_timings_(name),
-      pause_histogram_lock_("pause histogram lock", kDefaultMutexLevel, true) {
+      pause_histogram_lock_("pause histogram lock", kDefaultMutexLevel, true),
+      is_transaction_active_(false) {
   ResetCumulativeStatistics();
 }
 
@@ -88,6 +89,9 @@ void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
   uint64_t start_time = NanoTime();
   Iteration* current_iteration = GetCurrentIteration();
   current_iteration->Reset(gc_cause, clear_soft_references);
+  // Note transaction mode is single-threaded and there's no asynchronous GC and this flag doesn't
+  // change in the middle of a GC.
+  is_transaction_active_ = Runtime::Current()->IsActiveTransaction();
   RunPhases();  // Run all the GC phases.
   // Add the current timings to the cumulative timings.
   cumulative_timings_.AddLogger(*GetTimings());
@@ -109,6 +113,7 @@ void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
     MutexLock mu(self, pause_histogram_lock_);
     pause_histogram_.AdjustAndAddValue(pause_time);
   }
+  is_transaction_active_ = false;
 }
 
 void GarbageCollector::SwapBitmaps() {
