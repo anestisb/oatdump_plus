@@ -726,57 +726,60 @@ TEST_F(ObjectTest, ObjectPointer) {
   ScopedObjectAccess soa(Thread::Current());
   jobject jclass_loader = LoadDex("XandY");
   StackHandleScope<2> hs(soa.Self());
-  ObjPtr<mirror::Object, /*kPoison*/ true> null_ptr;
-  EXPECT_TRUE(null_ptr.IsNull());
-  EXPECT_TRUE(null_ptr.IsValid());
-  EXPECT_TRUE(null_ptr.Ptr() == nullptr);
-  EXPECT_TRUE(null_ptr == nullptr);
-  EXPECT_TRUE(null_ptr == null_ptr);
-  EXPECT_FALSE(null_ptr != null_ptr);
-  EXPECT_FALSE(null_ptr != nullptr);
-  null_ptr.AssertValid();
   Handle<ClassLoader> class_loader(hs.NewHandle(soa.Decode<ClassLoader>(jclass_loader)));
   Handle<mirror::Class> h_X(
       hs.NewHandle(class_linker_->FindClass(soa.Self(), "LX;", class_loader)));
-  ObjPtr<Class, /*kPoison*/ true> X(h_X.Get());
-  EXPECT_TRUE(!X.IsNull());
-  EXPECT_TRUE(X.IsValid());
-  EXPECT_TRUE(X.Ptr() != nullptr);
-  EXPECT_OBJ_PTR_EQ(h_X.Get(), X);
-  // FindClass may cause thread suspension, it should invalidate X.
-  ObjPtr<Class, /*kPoison*/ true> Y(class_linker_->FindClass(soa.Self(), "LY;", class_loader));
-  EXPECT_TRUE(!Y.IsNull());
-  EXPECT_TRUE(Y.IsValid());
-  EXPECT_TRUE(Y.Ptr() != nullptr);
 
-  // Should IsNull be safe to call on null ObjPtr? I'll allow it for now.
-  EXPECT_TRUE(!X.IsNull());
-  EXPECT_TRUE(!X.IsValid());
-  // Make X valid again by copying out of handle.
-  X.Assign(h_X.Get());
-  EXPECT_TRUE(!X.IsNull());
-  EXPECT_TRUE(X.IsValid());
-  EXPECT_OBJ_PTR_EQ(h_X.Get(), X);
+  if (kObjPtrPoisoning) {
+    ObjPtr<mirror::Object> null_ptr;
+    EXPECT_TRUE(null_ptr.IsNull());
+    EXPECT_TRUE(null_ptr.IsValid());
+    EXPECT_TRUE(null_ptr.Ptr() == nullptr);
+    EXPECT_TRUE(null_ptr == nullptr);
+    EXPECT_TRUE(null_ptr == null_ptr);
+    EXPECT_FALSE(null_ptr != null_ptr);
+    EXPECT_FALSE(null_ptr != nullptr);
+    null_ptr.AssertValid();
+    ObjPtr<Class> X(h_X.Get());
+    EXPECT_TRUE(!X.IsNull());
+    EXPECT_TRUE(X.IsValid());
+    EXPECT_TRUE(X.Ptr() != nullptr);
+    EXPECT_OBJ_PTR_EQ(h_X.Get(), X);
+    // FindClass may cause thread suspension, it should invalidate X.
+    ObjPtr<Class> Y(class_linker_->FindClass(soa.Self(), "LY;", class_loader));
+    EXPECT_TRUE(!Y.IsNull());
+    EXPECT_TRUE(Y.IsValid());
+    EXPECT_TRUE(Y.Ptr() != nullptr);
 
-  // Allow thread suspension to invalidate Y.
-  soa.Self()->AllowThreadSuspension();
-  EXPECT_TRUE(!Y.IsNull());
-  EXPECT_TRUE(!Y.IsValid());
+    // Should IsNull be safe to call on null ObjPtr? I'll allow it for now.
+    EXPECT_TRUE(!X.IsNull());
+    EXPECT_TRUE(!X.IsValid());
+    // Make X valid again by copying out of handle.
+    X.Assign(h_X.Get());
+    EXPECT_TRUE(!X.IsNull());
+    EXPECT_TRUE(X.IsValid());
+    EXPECT_OBJ_PTR_EQ(h_X.Get(), X);
 
-  // Test unpoisoned.
-  ObjPtr<mirror::Object, /*kPoison*/ false> unpoisoned;
-  EXPECT_TRUE(unpoisoned.IsNull());
-  EXPECT_TRUE(unpoisoned.IsValid());
-  EXPECT_TRUE(unpoisoned.Ptr() == nullptr);
-  EXPECT_TRUE(unpoisoned == nullptr);
-  EXPECT_TRUE(unpoisoned == unpoisoned);
-  EXPECT_FALSE(unpoisoned != unpoisoned);
-  EXPECT_FALSE(unpoisoned != nullptr);
+    // Allow thread suspension to invalidate Y.
+    soa.Self()->AllowThreadSuspension();
+    EXPECT_TRUE(!Y.IsNull());
+    EXPECT_TRUE(!Y.IsValid());
+  } else {
+    // Test unpoisoned.
+    ObjPtr<mirror::Object> unpoisoned;
+    EXPECT_TRUE(unpoisoned.IsNull());
+    EXPECT_TRUE(unpoisoned.IsValid());
+    EXPECT_TRUE(unpoisoned.Ptr() == nullptr);
+    EXPECT_TRUE(unpoisoned == nullptr);
+    EXPECT_TRUE(unpoisoned == unpoisoned);
+    EXPECT_FALSE(unpoisoned != unpoisoned);
+    EXPECT_FALSE(unpoisoned != nullptr);
 
-  unpoisoned = h_X.Get();
-  EXPECT_FALSE(unpoisoned.IsNull());
-  EXPECT_TRUE(unpoisoned == h_X.Get());
-  EXPECT_OBJ_PTR_EQ(unpoisoned, h_X.Get());
+    unpoisoned = h_X.Get();
+    EXPECT_FALSE(unpoisoned.IsNull());
+    EXPECT_TRUE(unpoisoned == h_X.Get());
+    EXPECT_OBJ_PTR_EQ(unpoisoned, h_X.Get());
+  }
 }
 
 }  // namespace mirror
