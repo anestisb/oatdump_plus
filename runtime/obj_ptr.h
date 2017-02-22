@@ -26,10 +26,12 @@
 
 namespace art {
 
+constexpr bool kObjPtrPoisoning = kIsDebugBuild;
+
 // Value type representing a pointer to a mirror::Object of type MirrorType
 // Pass kPoison as a template boolean for testing in non-debug builds.
 // Since the cookie is thread based, it is not safe to share an ObjPtr between threads.
-template<class MirrorType, bool kPoison = kIsDebugBuild>
+template<class MirrorType>
 class ObjPtr {
   static constexpr size_t kCookieShift =
       sizeof(kHeapReferenceSize) * kBitsPerByte - kObjectAlignmentShift;
@@ -60,14 +62,14 @@ class ObjPtr {
 
   template <typename Type,
             typename = typename std::enable_if<std::is_base_of<MirrorType, Type>::value>::type>
-  ALWAYS_INLINE ObjPtr(const ObjPtr<Type, kPoison>& other)  // NOLINT
+  ALWAYS_INLINE ObjPtr(const ObjPtr<Type>& other)  // NOLINT
       REQUIRES_SHARED(Locks::mutator_lock_)
       : reference_(Encode(static_cast<MirrorType*>(other.Ptr()))) {
   }
 
   template <typename Type,
             typename = typename std::enable_if<std::is_base_of<MirrorType, Type>::value>::type>
-  ALWAYS_INLINE ObjPtr& operator=(const ObjPtr<Type, kPoison>& other)
+  ALWAYS_INLINE ObjPtr& operator=(const ObjPtr<Type>& other)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     reference_ = Encode(static_cast<MirrorType*>(other.Ptr()));
     return *this;
@@ -130,7 +132,7 @@ class ObjPtr {
 
   // Ptr unchecked does not check that object pointer is valid. Do not use if you can avoid it.
   ALWAYS_INLINE MirrorType* PtrUnchecked() const {
-    if (kPoison) {
+    if (kObjPtrPoisoning) {
       return reinterpret_cast<MirrorType*>(
           static_cast<uintptr_t>(static_cast<uint32_t>(reference_ << kObjectAlignmentShift)));
     } else {
@@ -167,46 +169,46 @@ static_assert(std::is_trivially_copyable<ObjPtr<void>>::value,
 // Hash function for stl data structures.
 class HashObjPtr {
  public:
-  template<class MirrorType, bool kPoison>
-  size_t operator()(const ObjPtr<MirrorType, kPoison>& ptr) const NO_THREAD_SAFETY_ANALYSIS {
+  template<class MirrorType>
+  size_t operator()(const ObjPtr<MirrorType>& ptr) const NO_THREAD_SAFETY_ANALYSIS {
     return std::hash<MirrorType*>()(ptr.Ptr());
   }
 };
 
-template<class MirrorType, bool kPoison, typename PointerType>
-ALWAYS_INLINE bool operator==(const PointerType* a, const ObjPtr<MirrorType, kPoison>& b)
+template<class MirrorType, typename PointerType>
+ALWAYS_INLINE bool operator==(const PointerType* a, const ObjPtr<MirrorType>& b)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   return b == a;
 }
 
-template<class MirrorType, bool kPoison>
-ALWAYS_INLINE bool operator==(std::nullptr_t, const ObjPtr<MirrorType, kPoison>& b) {
+template<class MirrorType>
+ALWAYS_INLINE bool operator==(std::nullptr_t, const ObjPtr<MirrorType>& b) {
   return b == nullptr;
 }
 
-template<typename MirrorType, bool kPoison, typename PointerType>
-ALWAYS_INLINE bool operator!=(const PointerType* a, const ObjPtr<MirrorType, kPoison>& b)
+template<typename MirrorType, typename PointerType>
+ALWAYS_INLINE bool operator!=(const PointerType* a, const ObjPtr<MirrorType>& b)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   return b != a;
 }
 
-template<class MirrorType, bool kPoison>
-ALWAYS_INLINE bool operator!=(std::nullptr_t, const ObjPtr<MirrorType, kPoison>& b) {
+template<class MirrorType>
+ALWAYS_INLINE bool operator!=(std::nullptr_t, const ObjPtr<MirrorType>& b) {
   return b != nullptr;
 }
 
-template<class MirrorType, bool kPoison = kIsDebugBuild>
-static inline ObjPtr<MirrorType, kPoison> MakeObjPtr(MirrorType* ptr) {
-  return ObjPtr<MirrorType, kPoison>(ptr);
+template<class MirrorType>
+static inline ObjPtr<MirrorType> MakeObjPtr(MirrorType* ptr) {
+  return ObjPtr<MirrorType>(ptr);
 }
 
-template<class MirrorType, bool kPoison = kIsDebugBuild>
-static inline ObjPtr<MirrorType, kPoison> MakeObjPtr(ObjPtr<MirrorType, kPoison> ptr) {
-  return ObjPtr<MirrorType, kPoison>(ptr);
+template<class MirrorType>
+static inline ObjPtr<MirrorType> MakeObjPtr(ObjPtr<MirrorType> ptr) {
+  return ObjPtr<MirrorType>(ptr);
 }
 
-template<class MirrorType, bool kPoison>
-ALWAYS_INLINE std::ostream& operator<<(std::ostream& os, ObjPtr<MirrorType, kPoison> ptr);
+template<class MirrorType>
+ALWAYS_INLINE std::ostream& operator<<(std::ostream& os, ObjPtr<MirrorType> ptr);
 
 }  // namespace art
 
