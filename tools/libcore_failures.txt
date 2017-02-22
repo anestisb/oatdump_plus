@@ -105,12 +105,6 @@
   names: ["org.apache.harmony.tests.java.lang.ProcessTest#test_getErrorStream"]
 },
 {
-  description: "Error decoding digital signature bytes.",
-  result: EXEC_FAILED,
-  name: "org.apache.harmony.security.tests.java.security.Signature2Test#test_verify$BII",
-  bug: 18869265
-},
-{
   description: "Test sometimes timeouts on volantis, and on most modes in debug mode",
   result: EXEC_TIMEOUT,
   names: ["libcore.java.lang.SystemTest#testArrayCopyConcurrentModification"],
