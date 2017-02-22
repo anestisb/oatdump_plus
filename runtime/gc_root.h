@@ -24,7 +24,7 @@
 namespace art {
 class ArtField;
 class ArtMethod;
-template<class MirrorType, bool kPoison> class ObjPtr;
+template<class MirrorType> class ObjPtr;
 
 namespace mirror {
 class Object;
@@ -215,7 +215,7 @@ class GcRoot {
   ALWAYS_INLINE GcRoot() {}
   explicit ALWAYS_INLINE GcRoot(MirrorType* ref)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  explicit ALWAYS_INLINE GcRoot(ObjPtr<MirrorType, kIsDebugBuild> ref)
+  explicit ALWAYS_INLINE GcRoot(ObjPtr<MirrorType> ref)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
