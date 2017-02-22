@@ -1,4 +1,4 @@
-%default { "is_object":"0", "helper":"artGet32StaticFromCode" }
+%default { "is_object":"0", "helper":"MterpGet32Static" }
     /*
      * General SGET handler.
      *

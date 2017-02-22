@@ -1,1 +1,1 @@
-%include "arm/op_sget.S" {"helper":"artGetByteStaticFromCode"}
+%include "arm/op_sget.S" {"helper":"MterpGetByteStatic"}

@@ -1,1 +1,1 @@
-%include "arm64/op_sget.S" {"helper":"artGetBooleanStaticFromCode", "extend":"uxtb w0, w0"}
+%include "arm64/op_sget.S" {"helper":"MterpGetBooleanStatic", "extend":"uxtb w0, w0"}
