@@ -21,6 +21,7 @@
 #include <queue>
 #include <set>
 #include <stack>
+#include <unordered_map>
 #include <utility>
 
 #include "arena_allocator.h"
@@ -84,6 +85,16 @@ using ArenaHashMap = HashMap<Key,
                              HashFn,
                              Pred,
                              ArenaAllocatorAdapter<std::pair<Key, Value>>>;
+
+template <typename Key,
+          typename Value,
+          typename Hash = std::hash<Key>,
+          typename Pred = std::equal_to<Value>>
+using ArenaUnorderedMap = std::unordered_map<Key,
+                                             Value,
+                                             Hash,
+                                             Pred,
+                                             ArenaAllocatorAdapter<std::pair<const Key, Value>>>;
 
 // Implementation details below.
 
