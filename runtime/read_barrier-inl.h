@@ -198,7 +198,7 @@ inline bool ReadBarrier::IsDuringStartup() {
 
 inline void ReadBarrier::AssertToSpaceInvariant(mirror::Object* obj, MemberOffset offset,
                                                 mirror::Object* ref) {
-  if (kEnableToSpaceInvariantChecks || kIsDebugBuild) {
+  if (kEnableToSpaceInvariantChecks) {
     if (ref == nullptr || IsDuringStartup()) {
       return;
     }
@@ -209,7 +209,7 @@ inline void ReadBarrier::AssertToSpaceInvariant(mirror::Object* obj, MemberOffse
 
 inline void ReadBarrier::AssertToSpaceInvariant(GcRootSource* gc_root_source,
                                                 mirror::Object* ref) {
-  if (kEnableToSpaceInvariantChecks || kIsDebugBuild) {
+  if (kEnableToSpaceInvariantChecks) {
     if (ref == nullptr || IsDuringStartup()) {
       return;
     }
