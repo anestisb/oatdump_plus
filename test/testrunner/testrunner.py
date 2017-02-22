@@ -704,7 +704,6 @@ def parse_test_name(test_name):
     return {match.group(12)}
   raise ValueError(test_name + " is not a valid test")
 
-
 def parse_option():
   global verbose
   global dry_run
@@ -726,7 +725,15 @@ def parse_option():
   parser.add_argument('--dry-run', action='store_true', dest='dry_run')
   parser.add_argument("--skip", action="append", dest="skips", default=[],
                       help="Skip the given test in all circumstances.")
-  parser.add_argument('-b', '--build-dependencies', action='store_true', dest='build')
+  parser.add_argument('--no-build-dependencies',
+                      action='store_false', dest='build',
+                      help="Don't build dependencies under any circumstances. This is the " +
+                           "behavior if ART_TEST_RUN_TEST_ALWAYS_BUILD is not set to 'true'.")
+  parser.add_argument('-b', '--build-dependencies',
+                      action='store_true', dest='build',
+                      help="Build dependencies under all circumstances. By default we will " +
+                           "not build dependencies unless ART_TEST_RUN_TEST_BUILD=true.")
+  parser.set_defaults(build = env.ART_TEST_RUN_TEST_BUILD)
   parser.add_argument('--gdb', action='store_true', dest='gdb')
   parser.add_argument('--gdb-arg', dest='gdb_arg')
 
@@ -804,8 +811,7 @@ def parse_option():
   if options.dry_run:
     dry_run = True
     verbose = True
-  if options.build:
-    build = True
+  build = options.build
   if options.gdb:
     n_thread = 1
     gdb = True
