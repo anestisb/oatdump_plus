@@ -199,11 +199,16 @@ class GarbageCollector : public RootVisitor, public IsMarkedVisitor, public Mark
   // Force mark an object.
   virtual mirror::Object* MarkObject(mirror::Object* obj)
       REQUIRES_SHARED(Locks::mutator_lock_) = 0;
-  virtual void MarkHeapReference(mirror::HeapReference<mirror::Object>* obj)
+  virtual void MarkHeapReference(mirror::HeapReference<mirror::Object>* obj,
+                                 bool do_atomic_update)
       REQUIRES_SHARED(Locks::mutator_lock_) = 0;
   virtual void DelayReferenceReferent(ObjPtr<mirror::Class> klass,
                                       ObjPtr<mirror::Reference> reference)
       REQUIRES_SHARED(Locks::mutator_lock_) = 0;
+
+  bool IsTransactionActive() const {
+    return is_transaction_active_;
+  }
 
  protected:
   // Run all of the GC phases.
@@ -223,6 +228,7 @@ class GarbageCollector : public RootVisitor, public IsMarkedVisitor, public Mark
   int64_t total_freed_bytes_;
   CumulativeLogger cumulative_timings_;
   mutable Mutex pause_histogram_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  bool is_transaction_active_;
 
  private:
   DISALLOW_IMPLICIT_CONSTRUCTORS(GarbageCollector);
