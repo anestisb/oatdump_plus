@@ -16,8 +16,6 @@
 
 #include "stack_map_stream.h"
 
-#include <unordered_map>
-
 #include "art_method-inl.h"
 #include "base/stl_util.h"
 #include "optimizing/optimizing_compiler.h"
@@ -526,7 +524,7 @@ void StackMapStream::CheckDexRegisterMap(const CodeInfo& code_info,
 
 size_t StackMapStream::PrepareRegisterMasks() {
   register_masks_.resize(stack_maps_.size(), 0u);
-  std::unordered_map<uint32_t, size_t> dedupe;
+  ArenaUnorderedMap<uint32_t, size_t> dedupe(allocator_->Adapter(kArenaAllocStackMapStream));
   for (StackMapEntry& stack_map : stack_maps_) {
     const size_t index = dedupe.size();
     stack_map.register_mask_index = dedupe.emplace(stack_map.register_mask, index).first->second;
@@ -541,10 +539,11 @@ size_t StackMapStream::PrepareStackMasks(size_t entry_size_in_bits) {
   stack_masks_.resize(byte_entry_size * stack_maps_.size(), 0u);
   // For deduplicating we store the stack masks as byte packed for simplicity. We can bit pack later
   // when copying out from stack_masks_.
-  std::unordered_map<MemoryRegion,
-                     size_t,
-                     FNVHash<MemoryRegion>,
-                     MemoryRegion::ContentEquals> dedup(stack_maps_.size());
+  ArenaUnorderedMap<MemoryRegion,
+                    size_t,
+                    FNVHash<MemoryRegion>,
+                    MemoryRegion::ContentEquals> dedup(
+                        stack_maps_.size(), allocator_->Adapter(kArenaAllocStackMapStream));
   for (StackMapEntry& stack_map : stack_maps_) {
     size_t index = dedup.size();
     MemoryRegion stack_mask(stack_masks_.data() + index * byte_entry_size, byte_entry_size);
