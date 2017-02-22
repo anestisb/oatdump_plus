@@ -35,10 +35,11 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
     return kSpaceTypeRegionSpace;
   }
 
-  // Create a region space with the requested sizes. The requested base address is not
+  // Create a region space mem map with the requested sizes. The requested base address is not
   // guaranteed to be granted, if it is required, the caller should call Begin on the returned
   // space to confirm the request was granted.
-  static RegionSpace* Create(const std::string& name, size_t capacity, uint8_t* requested_begin);
+  static MemMap* CreateMemMap(const std::string& name, size_t capacity, uint8_t* requested_begin);
+  static RegionSpace* Create(const std::string& name, MemMap* mem_map);
 
   // Allocate num_bytes, returns null if the space is full.
   mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated,

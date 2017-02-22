@@ -133,6 +133,17 @@ static constexpr bool kDumpRosAllocStatsOnSigQuit = false;
 // config.
 static constexpr double kExtraHeapGrowthMultiplier = kUseReadBarrier ? 1.0 : 0.0;
 
+static const char* kRegionSpaceName = "main space (region space)";
+
+#if defined(__LP64__) || !defined(ADDRESS_SANITIZER)
+// 300 MB (0x12c00000) - (default non-moving space capacity).
+static uint8_t* const kPreferredAllocSpaceBegin =
+    reinterpret_cast<uint8_t*>(300 * MB - Heap::kDefaultNonMovingSpaceCapacity);
+#else
+// For 32-bit, use 0x20000000 because asan reserves 0x04000000 - 0x20000000.
+static uint8_t* const kPreferredAllocSpaceBegin = reinterpret_cast<uint8_t*>(0x20000000);
+#endif
+
 static inline bool CareAboutPauseTimes() {
   return Runtime::Current()->InJankPerceptibleProcessState();
 }
@@ -286,15 +297,9 @@ Heap::Heap(size_t initial_size,
   // Requested begin for the alloc space, to follow the mapped image and oat files
   uint8_t* requested_alloc_space_begin = nullptr;
   if (foreground_collector_type_ == kCollectorTypeCC) {
-    // Need to use a low address so that we can allocate a contiguous
-    // 2 * Xmx space when there's no image (dex2oat for target).
-#if defined(__LP64__) || !defined(ADDRESS_SANITIZER)
-    CHECK_GE(300 * MB, non_moving_space_capacity);
-    requested_alloc_space_begin = reinterpret_cast<uint8_t*>(300 * MB) - non_moving_space_capacity;
-#else
-    // For 32-bit, use 0x20000000 because asan reserves 0x04000000 - 0x20000000.
-    requested_alloc_space_begin = reinterpret_cast<uint8_t*>(0x20000000);
-#endif
+    // Need to use a low address so that we can allocate a contiguous 2 * Xmx space when there's no
+    // image (dex2oat for target).
+    requested_alloc_space_begin = kPreferredAllocSpaceBegin;
   }
 
   // Load image space(s).
@@ -369,12 +374,7 @@ Heap::Heap(size_t initial_size,
                              &error_str));
     CHECK(non_moving_space_mem_map != nullptr) << error_str;
     // Try to reserve virtual memory at a lower address if we have a separate non moving space.
-#if defined(__LP64__) || !defined(ADDRESS_SANITIZER)
-    request_begin = reinterpret_cast<uint8_t*>(300 * MB);
-#else
-    // For 32-bit, use 0x20000000 because asan reserves 0x04000000 - 0x20000000.
-    request_begin = reinterpret_cast<uint8_t*>(0x20000000) + non_moving_space_capacity;
-#endif
+    request_begin = kPreferredAllocSpaceBegin + non_moving_space_capacity;
   }
   // Attempt to create 2 mem maps at or after the requested begin.
   if (foreground_collector_type_ != kCollectorTypeCC) {
@@ -419,7 +419,12 @@ Heap::Heap(size_t initial_size,
   }
   // Create other spaces based on whether or not we have a moving GC.
   if (foreground_collector_type_ == kCollectorTypeCC) {
-    region_space_ = space::RegionSpace::Create("main space (region space)", capacity_ * 2, request_begin);
+    CHECK(separate_non_moving_space);
+    MemMap* region_space_mem_map = space::RegionSpace::CreateMemMap(kRegionSpaceName,
+                                                                    capacity_ * 2,
+                                                                    request_begin);
+    CHECK(region_space_mem_map != nullptr) << "No region space mem map";
+    region_space_ = space::RegionSpace::Create(kRegionSpaceName, region_space_mem_map);
     AddSpace(region_space_);
   } else if (IsMovingGc(foreground_collector_type_) &&
       foreground_collector_type_ != kCollectorTypeGSS) {
@@ -2327,7 +2332,9 @@ class ZygoteCompactingCollector FINAL : public collector::SemiSpace {
     size_t bin_size = object_addr - context->prev_;
     // Add the bin consisting of the end of the previous object to the start of the current object.
     collector->AddBin(bin_size, context->prev_);
-    context->prev_ = object_addr + RoundUp(obj->SizeOf(), kObjectAlignment);
+    // Turn off read barrier. ZygoteCompactingCollector doesn't use it (even in the CC build.)
+    context->prev_ = object_addr + RoundUp(obj->SizeOf<kDefaultVerifyFlags, kWithoutReadBarrier>(),
+                                           kObjectAlignment);
   }
 
   void AddBin(size_t size, uintptr_t position) {
@@ -2347,7 +2354,8 @@ class ZygoteCompactingCollector FINAL : public collector::SemiSpace {
 
   virtual mirror::Object* MarkNonForwardedObject(mirror::Object* obj)
       REQUIRES(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
-    size_t obj_size = obj->SizeOf();
+    // Turn off read barrier. ZygoteCompactingCollector doesn't use it (even in the CC build.)
+    size_t obj_size = obj->SizeOf<kDefaultVerifyFlags, kWithoutReadBarrier>();
     size_t alloc_size = RoundUp(obj_size, kObjectAlignment);
     mirror::Object* forward_address;
     // Find the smallest bin which we can move obj in.

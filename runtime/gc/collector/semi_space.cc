@@ -723,7 +723,9 @@ class SemiSpace::MarkObjectVisitor {
 void SemiSpace::ScanObject(Object* obj) {
   DCHECK(!from_space_->HasAddress(obj)) << "Scanning object " << obj << " in from space";
   MarkObjectVisitor visitor(this);
-  obj->VisitReferences(visitor, visitor);
+  // Turn off read barrier. ZygoteCompactingCollector doesn't use it (even in the CC build.)
+  obj->VisitReferences</*kVisitNativeRoots*/true, kDefaultVerifyFlags, kWithoutReadBarrier>(
+      visitor, visitor);
 }
 
 // Scan anything that's on the mark stack.
