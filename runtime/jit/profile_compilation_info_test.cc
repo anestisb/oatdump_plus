@@ -175,13 +175,13 @@ class ProfileCompilationInfoTest : public CommonRuntimeTest {
     pmi.dex_references.emplace_back("dex_location3", /* checksum */ 3);
 
     // Monomorphic
-    for (uint16_t dex_pc = 0; dex_pc < 1; dex_pc++) {
+    for (uint16_t dex_pc = 0; dex_pc < 10; dex_pc++) {
       ProfileCompilationInfo::DexPcData dex_pc_data;
       dex_pc_data.AddClass(0, dex::TypeIndex(0));
       pmi.inline_caches.Put(dex_pc, dex_pc_data);
     }
     // Polymorphic
-    for (uint16_t dex_pc = 1; dex_pc < 2; dex_pc++) {
+    for (uint16_t dex_pc = 10; dex_pc < 20; dex_pc++) {
       ProfileCompilationInfo::DexPcData dex_pc_data;
       dex_pc_data.AddClass(0, dex::TypeIndex(0));
       dex_pc_data.AddClass(1, dex::TypeIndex(1));
@@ -190,7 +190,7 @@ class ProfileCompilationInfoTest : public CommonRuntimeTest {
        pmi.inline_caches.Put(dex_pc, dex_pc_data);
     }
     // Megamorphic
-    for (uint16_t dex_pc = 2; dex_pc < 3; dex_pc++) {
+    for (uint16_t dex_pc = 20; dex_pc < 30; dex_pc++) {
       ProfileCompilationInfo::DexPcData dex_pc_data;
       dex_pc_data.is_megamorphic = true;
       pmi.inline_caches.Put(dex_pc, dex_pc_data);
@@ -655,6 +655,35 @@ TEST_F(ProfileCompilationInfoTest, AddMoreDexFileThanLimit) {
   // We only support at most 255 dex files.
   ASSERT_FALSE(AddMethod(
       /*dex_location*/ "256", /* checksum */ 1, /* method_idx */ 0, &info));
+}
+
+TEST_F(ProfileCompilationInfoTest, MegamorphicInlineCachesMerge) {
+  // Create a megamorphic inline cache.
+  ProfileCompilationInfo::OfflineProfileMethodInfo pmi;
+  pmi.dex_references.emplace_back("dex_location1", /* checksum */ 1);
+  ProfileCompilationInfo::DexPcData dex_pc_data;
+  dex_pc_data.is_megamorphic = true;
+  pmi.inline_caches.Put(/*dex_pc*/ 0, dex_pc_data);
+
+  ProfileCompilationInfo info_megamorphic;
+  ASSERT_TRUE(AddMethod("dex_location1",
+                        /*checksum*/ 1,
+                        /*method_idx*/ 0,
+                        pmi,
+                        &info_megamorphic));
+
+  // Create a profile with no inline caches (for the same method).
+  ProfileCompilationInfo info_no_inline_cache;
+  ASSERT_TRUE(AddMethod("dex_location1",
+                        /*checksum*/ 1,
+                        /*method_idx*/ 0,
+                        &info_no_inline_cache));
+
+  // Merge the megamorphic cache into the empty one.
+  ASSERT_TRUE(info_no_inline_cache.MergeWith(info_megamorphic));
+  ScratchFile profile;
+  // Saving profile should work without crashing (b/35644850).
+  ASSERT_TRUE(info_no_inline_cache.Save(GetFd(profile)));
 }
 
 }  // namespace art
