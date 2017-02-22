@@ -319,7 +319,6 @@ jvmtiError Redefiner::RedefineClasses(ArtJvmTiEnv* env,
     // This makes cleanup easier (since we unambiguously own the bytes) and also is useful since we
     // will need to keep the original bytes around unaltered for subsequent RetransformClasses calls
     // to get the passed in bytes.
-    // TODO Implement saving the original bytes.
     unsigned char* class_bytes_copy = nullptr;
     jvmtiError res = env->Allocate(definitions[i].class_byte_count, &class_bytes_copy);
     if (res != OK) {
@@ -673,7 +672,6 @@ bool Redefiner::ClassRedefinition::CheckSameFields() {
 }
 
 bool Redefiner::ClassRedefinition::CheckClass() {
-  // TODO Might just want to put it in a ObjPtr and NoSuspend assert.
   art::StackHandleScope<1> hs(driver_->self_);
   // Easy check that only 1 class def is present.
   if (dex_file_->NumClassDefs() != 1) {
@@ -749,7 +747,6 @@ bool Redefiner::ClassRedefinition::CheckClass() {
   return true;
 }
 
-// TODO Move this to use IsRedefinable when that function is made.
 bool Redefiner::ClassRedefinition::CheckRedefinable() {
   std::string err;
   art::StackHandleScope<1> hs(driver_->self_);
@@ -882,7 +879,6 @@ class RedefinitionDataHolder {
   DISALLOW_COPY_AND_ASSIGN(RedefinitionDataHolder);
 };
 
-// TODO Stash and update soft failure state
 bool Redefiner::ClassRedefinition::CheckVerification(int32_t klass_index,
                                                      const RedefinitionDataHolder& holder) {
   DCHECK_EQ(dex_file_->NumClassDefs(), 1u);
@@ -975,7 +971,6 @@ bool Redefiner::ClassRedefinition::FinishRemainingAllocations(
         ClassLoaderHelper::FindSourceDexFileObject(driver_->self_, loader)));
     holder->SetJavaDexFile(klass_index, dex_file_obj.Get());
     if (dex_file_obj == nullptr) {
-      // TODO Better error msg.
       RecordFailure(ERR(INTERNAL), "Unable to find dex file!");
       return false;
     }
@@ -1123,11 +1118,6 @@ jvmtiError Redefiner::Run() {
   self_->TransitionFromRunnableToSuspended(art::ThreadState::kNative);
   runtime_->GetThreadList()->SuspendAll(
       "Final installation of redefined Classes!", /*long_suspend*/true);
-  // TODO We need to invalidate all breakpoints in the redefined class with the debugger.
-  // TODO We need to deal with any instrumentation/debugger deoptimized_methods_.
-  // TODO We need to update all debugger MethodIDs so they note the method they point to is
-  // obsolete or implement some other well defined semantics.
-  // TODO We need to decide on & implement semantics for JNI jmethodids when we redefine methods.
   counter = 0;
   for (Redefiner::ClassRedefinition& redef : redefinitions_) {
     art::ScopedAssertNoThreadSuspension nts("Updating runtime objects for redefinition");
@@ -1184,12 +1174,10 @@ void Redefiner::ClassRedefinition::UpdateMethods(art::ObjPtr<art::mirror::Class>
     }
     const art::DexFile::ProtoId* proto_id = dex_file_->FindProtoId(method_return_idx,
                                                                    new_type_list);
-    // TODO Return false, cleanup.
     CHECK(proto_id != nullptr || old_type_list == nullptr);
     const art::DexFile::MethodId* method_id = dex_file_->FindMethodId(declaring_class_id,
                                                                       *new_name_id,
                                                                       *proto_id);
-    // TODO Return false, cleanup.
     CHECK(method_id != nullptr);
     uint32_t dex_method_idx = dex_file_->GetIndexForMethodId(*method_id);
     method.SetDexMethodIndex(dex_method_idx);
@@ -1215,7 +1203,6 @@ void Redefiner::ClassRedefinition::UpdateFields(art::ObjPtr<art::mirror::Class> 
           dex_file_->FindTypeId(field.GetDeclaringClass()->GetDescriptor(&declaring_class_name));
       const art::DexFile::StringId* new_name_id = dex_file_->FindStringId(field.GetName());
       const art::DexFile::TypeId* new_type_id = dex_file_->FindTypeId(field.GetTypeDescriptor());
-      // TODO Handle error, cleanup.
       CHECK(new_name_id != nullptr && new_type_id != nullptr && new_declaring_id != nullptr);
       const art::DexFile::FieldId* new_field_id =
           dex_file_->FindFieldId(*new_declaring_id, *new_name_id, *new_type_id);
