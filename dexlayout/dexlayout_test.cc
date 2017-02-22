@@ -78,6 +78,28 @@ static const char kDexFileDuplicateOffset[] =
     "AAAA9AEAAAIgAAATAAAAFAIAAAMgAAAEAAAA/wIAAAQgAAADAAAAFAMAAAAgAAADAAAAKwMAAAAQ"
     "AAABAAAAVAMAAA==";
 
+// Dex file with null value for annotations_off in the annotation_set_ref_list.
+// Constructed by building a dex file with annotations and hex editing.
+static const char kNullSetRefListElementInputDex[] =
+    "ZGV4CjAzNQB1iA+7ZwgkF+7E6ZesYFc2lRAR3qnRAanwAwAAcAAAAHhWNBIAAAAAAAAAACADAAAS"
+    "AAAAcAAAAAgAAAC4AAAAAwAAANgAAAABAAAA/AAAAAQAAAAEAQAAAgAAACQBAACMAgAAZAEAAOgB"
+    "AADwAQAAAAIAAAMCAAAQAgAAIAIAADQCAABIAgAAawIAAI0CAAC1AgAAyAIAANECAADUAgAA2QIA"
+    "ANwCAADjAgAA6QIAAAMAAAAEAAAABQAAAAYAAAAHAAAACAAAAAkAAAAMAAAAAgAAAAMAAAAAAAAA"
+    "DAAAAAcAAAAAAAAADQAAAAcAAADgAQAABgAGAAsAAAAAAAEAAAAAAAAAAgAOAAAAAQAAABAAAAAC"
+    "AAEAAAAAAAAAAAAAAAAAAgAAAAAAAAABAAAAsAEAAAgDAAAAAAAAAQAAAAEmAAACAAAA2AEAAAoA"
+    "AADIAQAAFgMAAAAAAAACAAAAAAAAAHwBAAABAAAA/AIAAAAAAAABAAAAAgMAAAEAAQABAAAA8AIA"
+    "AAQAAABwEAMAAAAOAAIAAgAAAAAA9QIAAAEAAAAOAAAAAAAAAAAAAAAAAAAAAQAAAAEAAABkAQAA"
+    "cAEAAAAAAAAAAAAAAAAAAAEAAAAEAAAAAgAAAAMAAwAGPGluaXQ+AA5Bbm5vQ2xhc3MuamF2YQAB"
+    "TAALTEFubm9DbGFzczsADkxNeUFubm90YXRpb247ABJMamF2YS9sYW5nL09iamVjdDsAEkxqYXZh"
+    "L2xhbmcvU3RyaW5nOwAhTGphdmEvbGFuZy9hbm5vdGF0aW9uL0Fubm90YXRpb247ACBMamF2YS9s"
+    "YW5nL2Fubm90YXRpb24vUmV0ZW50aW9uOwAmTGphdmEvbGFuZy9hbm5vdGF0aW9uL1JldGVudGlv"
+    "blBvbGljeTsAEU15QW5ub3RhdGlvbi5qYXZhAAdSVU5USU1FAAFWAANWTEwAAWEABWFOYW1lAARu"
+    "YW1lAAV2YWx1ZQABAAcOAAICAAAHDgABBQERGwABAQEQFw8AAAIAAICABIQDAQmcAwAAAAECgQgA"
+    "AAARAAAAAAAAAAEAAAAAAAAAAQAAABIAAABwAAAAAgAAAAgAAAC4AAAAAwAAAAMAAADYAAAABAAA"
+    "AAEAAAD8AAAABQAAAAQAAAAEAQAABgAAAAIAAAAkAQAAAhAAAAEAAABkAQAAAxAAAAMAAABwAQAA"
+    "ASAAAAIAAACEAQAABiAAAAIAAACwAQAAARAAAAIAAADYAQAAAiAAABIAAADoAQAAAyAAAAIAAADw"
+    "AgAABCAAAAIAAAD8AgAAACAAAAIAAAAIAwAAABAAAAEAAAAgAwAA";
+
 static void WriteBase64ToFile(const char* base64, File* file) {
   // Decode base64.
   CHECK(base64 != nullptr);
@@ -251,6 +273,22 @@ TEST_F(DexLayoutTest, DuplicateOffset) {
       "-o",
       "/dev/null",
       temp.GetFilename()};
+  std::string error_msg;
+  const bool result = ::art::Exec(dexlayout_exec_argv, &error_msg);
+  EXPECT_TRUE(result);
+  if (!result) {
+    LOG(ERROR) << "Error " << error_msg;
+  }
+}
+
+TEST_F(DexLayoutTest, NullSetRefListElement) {
+  ScratchFile temp;
+  WriteBase64ToFile(kNullSetRefListElementInputDex, temp.GetFile());
+  EXPECT_EQ(temp.GetFile()->Flush(), 0);
+  std::string dexlayout = GetTestAndroidRoot() + "/bin/dexlayout";
+  EXPECT_TRUE(OS::FileExists(dexlayout.c_str())) << dexlayout << " should be a valid file path";
+  std::vector<std::string> dexlayout_exec_argv =
+      { dexlayout, "-o", "/dev/null", temp.GetFilename() };
   std::string error_msg;
   const bool result = ::art::Exec(dexlayout_exec_argv, &error_msg);
   EXPECT_TRUE(result);
