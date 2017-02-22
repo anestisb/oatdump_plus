@@ -56,6 +56,7 @@
 #include "mirror/class-inl.h"
 #include "mirror/class_ext.h"
 #include "mirror/object.h"
+#include "non_debuggable_classes.h"
 #include "object_lock.h"
 #include "runtime.h"
 #include "ScopedLocalRef.h"
@@ -245,8 +246,13 @@ jvmtiError Redefiner::GetClassRedefinitionError(art::Handle<art::mirror::Class> 
     return ERR(UNMODIFIABLE_CLASS);
   }
 
-  // TODO We should check if the class has non-obsoletable methods on the stack
-  LOG(WARNING) << "presence of non-obsoletable methods on stacks is not currently checked";
+  for (jclass c : art::NonDebuggableClasses::GetNonDebuggableClasses()) {
+    if (klass.Get() == art::Thread::Current()->DecodeJObject(c)->AsClass()) {
+      *error_msg = "Class might have stack frames that cannot be made obsolete";
+      return ERR(UNMODIFIABLE_CLASS);
+    }
+  }
+
   return OK;
 }
 
