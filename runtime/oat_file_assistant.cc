@@ -430,8 +430,7 @@ OatFileAssistant::OatStatus OatFileAssistant::GivenOatFileStatus(const OatFile& 
       // starts up.
       LOG(WARNING) << "Dex location " << dex_location_ << " does not seem to include dex file. "
         << "Allow oat file use. This is potentially dangerous.";
-    } else if (file.GetOatHeader().GetImageFileLocationOatChecksum()
-        != GetCombinedImageChecksum()) {
+    } else if (file.GetOatHeader().GetImageFileLocationOatChecksum() != image_info->oat_checksum) {
       VLOG(oat) << "Oat image checksum does not match image checksum.";
       return kOatBootImageOutOfDate;
     }
@@ -726,68 +725,81 @@ const std::vector<uint32_t>* OatFileAssistant::GetRequiredDexChecksums() {
   return required_dex_checksums_found_ ? &cached_required_dex_checksums_ : nullptr;
 }
 
+// TODO: Use something better than xor for the combined image checksum.
+std::unique_ptr<OatFileAssistant::ImageInfo>
+OatFileAssistant::ImageInfo::GetRuntimeImageInfo(InstructionSet isa, std::string* error_msg) {
+  CHECK(error_msg != nullptr);
+
+  // Use the currently loaded image to determine the image locations for all
+  // the image spaces, regardless of the isa requested. Otherwise we would
+  // need to read from the boot image's oat file to determine the rest of the
+  // image locations in the case of multi-image.
+  Runtime* runtime = Runtime::Current();
+  std::vector<gc::space::ImageSpace*> image_spaces = runtime->GetHeap()->GetBootImageSpaces();
+  if (image_spaces.empty()) {
+    *error_msg = "There are no boot image spaces";
+    return nullptr;
+  }
+
+  std::unique_ptr<ImageInfo> info(new ImageInfo());
+  info->location = image_spaces[0]->GetImageLocation();
+
+  // TODO: Special casing on isa == kRuntimeISA is presumably motivated by
+  // performance: 'it's faster to use an already loaded image header than read
+  // the image header from disk'. But the loaded image is not necessarily the
+  // same as kRuntimeISA, so this behavior is suspect (b/35659889).
+  if (isa == kRuntimeISA) {
+    const ImageHeader& image_header = image_spaces[0]->GetImageHeader();
+    info->oat_data_begin = reinterpret_cast<uintptr_t>(image_header.GetOatDataBegin());
+    info->patch_delta = image_header.GetPatchDelta();
+
+    info->oat_checksum = 0;
+    for (gc::space::ImageSpace* image_space : image_spaces) {
+      info->oat_checksum ^= image_space->GetImageHeader().GetOatChecksum();
+    }
+  } else {
+    std::unique_ptr<ImageHeader> image_header(
+        gc::space::ImageSpace::ReadImageHeader(info->location.c_str(), isa, error_msg));
+    if (image_header == nullptr) {
+      return nullptr;
+    }
+    info->oat_data_begin = reinterpret_cast<uintptr_t>(image_header->GetOatDataBegin());
+    info->patch_delta = image_header->GetPatchDelta();
+
+    info->oat_checksum = 0;
+    for (gc::space::ImageSpace* image_space : image_spaces) {
+      std::string location = image_space->GetImageLocation();
+      image_header.reset(
+          gc::space::ImageSpace::ReadImageHeader(location.c_str(), isa, error_msg));
+      if (image_header == nullptr) {
+        return nullptr;
+      }
+      info->oat_checksum ^= image_header->GetOatChecksum();
+    }
+  }
+  return info;
+}
+
 const OatFileAssistant::ImageInfo* OatFileAssistant::GetImageInfo() {
   if (!image_info_load_attempted_) {
     image_info_load_attempted_ = true;
-
-    Runtime* runtime = Runtime::Current();
-    std::vector<gc::space::ImageSpace*> image_spaces = runtime->GetHeap()->GetBootImageSpaces();
-    if (!image_spaces.empty()) {
-      cached_image_info_.location = image_spaces[0]->GetImageLocation();
-
-      if (isa_ == kRuntimeISA) {
-        const ImageHeader& image_header = image_spaces[0]->GetImageHeader();
-        cached_image_info_.oat_checksum = image_header.GetOatChecksum();
-        cached_image_info_.oat_data_begin = reinterpret_cast<uintptr_t>(
-            image_header.GetOatDataBegin());
-        cached_image_info_.patch_delta = image_header.GetPatchDelta();
-      } else {
-        std::string error_msg;
-        std::unique_ptr<ImageHeader> image_header(
-            gc::space::ImageSpace::ReadImageHeader(cached_image_info_.location.c_str(),
-                                                   isa_,
-                                                   &error_msg));
-        CHECK(image_header != nullptr) << error_msg;
-        cached_image_info_.oat_checksum = image_header->GetOatChecksum();
-        cached_image_info_.oat_data_begin = reinterpret_cast<uintptr_t>(
-            image_header->GetOatDataBegin());
-        cached_image_info_.patch_delta = image_header->GetPatchDelta();
-      }
+    std::string error_msg;
+    cached_image_info_ = ImageInfo::GetRuntimeImageInfo(isa_, &error_msg);
+    if (cached_image_info_ == nullptr) {
+      LOG(WARNING) << "Unable to get runtime image info: " << error_msg;
     }
-    image_info_load_succeeded_ = (!image_spaces.empty());
-
-    combined_image_checksum_ = CalculateCombinedImageChecksum(isa_);
   }
-  return image_info_load_succeeded_ ? &cached_image_info_ : nullptr;
+  return cached_image_info_.get();
 }
 
-// TODO: Use something better than xor.
 uint32_t OatFileAssistant::CalculateCombinedImageChecksum(InstructionSet isa) {
-  uint32_t checksum = 0;
-  std::vector<gc::space::ImageSpace*> image_spaces =
-      Runtime::Current()->GetHeap()->GetBootImageSpaces();
-  if (isa == kRuntimeISA) {
-    for (gc::space::ImageSpace* image_space : image_spaces) {
-      checksum ^= image_space->GetImageHeader().GetOatChecksum();
-    }
-  } else {
-    for (gc::space::ImageSpace* image_space : image_spaces) {
-      std::string location = image_space->GetImageLocation();
-      std::string error_msg;
-      std::unique_ptr<ImageHeader> image_header(
-          gc::space::ImageSpace::ReadImageHeader(location.c_str(), isa, &error_msg));
-      CHECK(image_header != nullptr) << error_msg;
-      checksum ^= image_header->GetOatChecksum();
-    }
+  std::string error_msg;
+  std::unique_ptr<ImageInfo> info = ImageInfo::GetRuntimeImageInfo(isa, &error_msg);
+  if (info == nullptr) {
+    LOG(WARNING) << "Unable to get runtime image info for checksum: " << error_msg;
+    return 0;
   }
-  return checksum;
-}
-
-uint32_t OatFileAssistant::GetCombinedImageChecksum() {
-  if (!image_info_load_attempted_) {
-    GetImageInfo();
-  }
-  return combined_image_checksum_;
+  return info->oat_checksum;
 }
 
 OatFileAssistant::OatFileInfo& OatFileAssistant::GetBestInfo() {
