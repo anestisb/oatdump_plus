@@ -176,6 +176,14 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
     return false;
   }
 
+  bool IsInNewlyAllocatedRegion(mirror::Object* ref) {
+    if (HasAddress(ref)) {
+      Region* r = RefToRegionUnlocked(ref);
+      return r->IsNewlyAllocated();
+    }
+    return false;
+  }
+
   bool IsInUnevacFromSpace(mirror::Object* ref) {
     if (HasAddress(ref)) {
       Region* r = RefToRegionUnlocked(ref);
@@ -349,6 +357,10 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
 
     size_t Idx() const {
       return idx_;
+    }
+
+    bool IsNewlyAllocated() const {
+      return is_newly_allocated_;
     }
 
     bool IsInFromSpace() const {
