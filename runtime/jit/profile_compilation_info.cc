@@ -823,9 +823,13 @@ bool ProfileCompilationInfo::MergeWith(const ProfileCompilationInfo& other) {
         uint16_t other_dex_pc = other_ic_it.first;
         const ClassSet& other_class_set = other_ic_it.second.classes;
         auto class_set = method_it->second.FindOrAdd(other_dex_pc);
-        for (const auto& class_it : other_class_set) {
-          class_set->second.AddClass(dex_profile_index_remap.Get(
-              class_it.dex_profile_index), class_it.type_index);
+        if (other_ic_it.second.is_megamorphic) {
+          class_set->second.SetMegamorphic();
+        } else {
+          for (const auto& class_it : other_class_set) {
+            class_set->second.AddClass(dex_profile_index_remap.Get(
+                class_it.dex_profile_index), class_it.type_index);
+          }
         }
       }
     }
