@@ -260,7 +260,8 @@ inline void MarkCompact::MarkStackPush(mirror::Object* obj) {
   mark_stack_->PushBack(obj);
 }
 
-void MarkCompact::MarkHeapReference(mirror::HeapReference<mirror::Object>* obj_ptr) {
+void MarkCompact::MarkHeapReference(mirror::HeapReference<mirror::Object>* obj_ptr,
+                                    bool do_atomic_update ATTRIBUTE_UNUSED) {
   if (updating_references_) {
     UpdateHeapReference(obj_ptr);
   } else {

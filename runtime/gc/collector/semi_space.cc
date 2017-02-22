@@ -606,7 +606,8 @@ mirror::Object* SemiSpace::MarkObject(mirror::Object* root) {
   return ref.AsMirrorPtr();
 }
 
-void SemiSpace::MarkHeapReference(mirror::HeapReference<mirror::Object>* obj_ptr) {
+void SemiSpace::MarkHeapReference(mirror::HeapReference<mirror::Object>* obj_ptr,
+                                  bool do_atomic_update ATTRIBUTE_UNUSED) {
   MarkObject(obj_ptr);
 }
 
