@@ -75,6 +75,9 @@ Things to move to perflib:
  * Instance.isRoot and Instance.getRootTypes.
 
 Release History:
+ 1.1 Feb 21, 2017
+   Show java.lang.ref.Reference referents as "unreachable" instead of null.
+
  1.0 Dec 20, 2016
    Add support for diffing two heap dumps.
    Remove native allocations view.
