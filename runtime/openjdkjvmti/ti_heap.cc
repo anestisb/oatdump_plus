@@ -38,14 +38,69 @@
 
 namespace openjdkjvmti {
 
+namespace {
+
+// Report the contents of a string, if a callback is set.
+jint ReportString(art::ObjPtr<art::mirror::Object> obj,
+                  jvmtiEnv* env,
+                  ObjectTagTable* tag_table,
+                  const jvmtiHeapCallbacks* cb,
+                  const void* user_data) REQUIRES_SHARED(art::Locks::mutator_lock_) {
+  if (UNLIKELY(cb->string_primitive_value_callback != nullptr) && obj->IsString()) {
+    art::ObjPtr<art::mirror::String> str = obj->AsString();
+    int32_t string_length = str->GetLength();
+    jvmtiError alloc_error;
+    JvmtiUniquePtr<uint16_t[]> data = AllocJvmtiUniquePtr<uint16_t[]>(env,
+                                                                      string_length,
+                                                                      &alloc_error);
+    if (data == nullptr) {
+      // TODO: Not really sure what to do here. Should we abort the iteration and go all the way
+      //       back? For now just warn.
+      LOG(WARNING) << "Unable to allocate buffer for string reporting! Silently dropping value.";
+      return 0;
+    }
+
+    if (str->IsCompressed()) {
+      uint8_t* compressed_data = str->GetValueCompressed();
+      for (int32_t i = 0; i != string_length; ++i) {
+        data[i] = compressed_data[i];
+      }
+    } else {
+      // Can copy directly.
+      memcpy(data.get(), str->GetValue(), string_length * sizeof(uint16_t));
+    }
+
+    const jlong class_tag = tag_table->GetTagOrZero(obj->GetClass());
+    jlong string_tag = tag_table->GetTagOrZero(obj.Ptr());
+    const jlong saved_string_tag = string_tag;
+
+    jint result = cb->string_primitive_value_callback(class_tag,
+                                                      obj->SizeOf(),
+                                                      &string_tag,
+                                                      data.get(),
+                                                      string_length,
+                                                      const_cast<void*>(user_data));
+    if (string_tag != saved_string_tag) {
+      tag_table->Set(obj.Ptr(), string_tag);
+    }
+
+    return result;
+  }
+  return 0;
+}
+
+}  // namespace
+
 struct IterateThroughHeapData {
   IterateThroughHeapData(HeapUtil* _heap_util,
+                         jvmtiEnv* _env,
                          jint heap_filter,
                          art::ObjPtr<art::mirror::Class> klass,
                          const jvmtiHeapCallbacks* _callbacks,
                          const void* _user_data)
       : heap_util(_heap_util),
         filter_klass(klass),
+        env(_env),
         callbacks(_callbacks),
         user_data(_user_data),
         filter_out_tagged((heap_filter & JVMTI_HEAP_FILTER_TAGGED) != 0),
@@ -78,6 +133,7 @@ struct IterateThroughHeapData {
 
   HeapUtil* heap_util;
   art::ObjPtr<art::mirror::Class> filter_klass;
+  jvmtiEnv* env;
   const jvmtiHeapCallbacks* callbacks;
   const void* user_data;
   const bool filter_out_tagged;
@@ -111,8 +167,6 @@ static void IterateThroughHeapObjectCallback(art::mirror::Object* obj, void* arg
     return;
   }
 
-  // TODO: Handle array_primitive_value_callback.
-
   if (ithd->filter_klass != nullptr) {
     if (ithd->filter_klass != klass) {
       return;
@@ -139,11 +193,20 @@ static void IterateThroughHeapObjectCallback(art::mirror::Object* obj, void* arg
 
   ithd->stop_reports = (ret & JVMTI_VISIT_ABORT) != 0;
 
-  // TODO Implement array primitive and string primitive callback.
+  if (!ithd->stop_reports) {
+    jint string_ret = ReportString(obj,
+                                   ithd->env,
+                                   ithd->heap_util->GetTags(),
+                                   ithd->callbacks,
+                                   ithd->user_data);
+    ithd->stop_reports = (string_ret & JVMTI_VISIT_ABORT) != 0;
+  }
+
+  // TODO Implement array primitive callback.
   // TODO Implement primitive field callback.
 }
 
-jvmtiError HeapUtil::IterateThroughHeap(jvmtiEnv* env ATTRIBUTE_UNUSED,
+jvmtiError HeapUtil::IterateThroughHeap(jvmtiEnv* env,
                                         jint heap_filter,
                                         jclass klass,
                                         const jvmtiHeapCallbacks* callbacks,
@@ -161,6 +224,7 @@ jvmtiError HeapUtil::IterateThroughHeap(jvmtiEnv* env ATTRIBUTE_UNUSED,
   art::ScopedObjectAccess soa(self);      // Now we know we have the shared lock.
 
   IterateThroughHeapData ithd(this,
+                              env,
                               heap_filter,
                               soa.Decode<art::mirror::Class>(klass),
                               callbacks,
@@ -174,10 +238,12 @@ jvmtiError HeapUtil::IterateThroughHeap(jvmtiEnv* env ATTRIBUTE_UNUSED,
 class FollowReferencesHelper FINAL {
  public:
   FollowReferencesHelper(HeapUtil* h,
+                         jvmtiEnv* jvmti_env,
                          art::ObjPtr<art::mirror::Object> initial_object,
                          const jvmtiHeapCallbacks* callbacks,
                          const void* user_data)
-      : tag_table_(h->GetTags()),
+      : env(jvmti_env),
+        tag_table_(h->GetTags()),
         initial_object_(initial_object),
         callbacks_(callbacks),
         user_data_(user_data),
@@ -467,6 +533,11 @@ class FollowReferencesHelper FINAL {
     obj->VisitReferences<false>(visitor, art::VoidFunctor());
 
     stop_reports_ = visitor.stop_reports;
+
+    if (!stop_reports_) {
+      jint string_ret = ReportString(obj, env, tag_table_, callbacks_, user_data_);
+      stop_reports_ = (string_ret & JVMTI_VISIT_ABORT) != 0;
+    }
   }
 
   void VisitArray(art::mirror::Object* array)
@@ -655,6 +726,7 @@ class FollowReferencesHelper FINAL {
     return result;
   }
 
+  jvmtiEnv* env;
   ObjectTagTable* tag_table_;
   art::ObjPtr<art::mirror::Object> initial_object_;
   const jvmtiHeapCallbacks* callbacks_;
@@ -671,7 +743,7 @@ class FollowReferencesHelper FINAL {
   friend class CollectAndReportRootsVisitor;
 };
 
-jvmtiError HeapUtil::FollowReferences(jvmtiEnv* env ATTRIBUTE_UNUSED,
+jvmtiError HeapUtil::FollowReferences(jvmtiEnv* env,
                                       jint heap_filter ATTRIBUTE_UNUSED,
                                       jclass klass ATTRIBUTE_UNUSED,
                                       jobject initial_object,
@@ -700,6 +772,7 @@ jvmtiError HeapUtil::FollowReferences(jvmtiEnv* env ATTRIBUTE_UNUSED,
     art::ScopedSuspendAll ssa("FollowReferences");
 
     FollowReferencesHelper frh(this,
+                               env,
                                self->DecodeJObject(initial_object),
                                callbacks,
                                user_data);
