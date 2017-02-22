@@ -79,3 +79,5 @@ root@root --(thread)--> 3000@0 [size=132, length=-1]
 5@1002 --(field@28)--> 1@1000 [size=16, length=-1]
 6@1000 --(class)--> 1000@0 [size=123, length=-1]
 ---
+[1@0 ( 40, 'HelloWorld')]
+2

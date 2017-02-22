@@ -28,11 +28,13 @@ public class Main {
     B b2 = new B();
     C c = new C();
     A[] aArray = new A[5];
+    String s = "Hello World";
 
     setTag(a, 1);
     setTag(b, 2);
     setTag(b2, 3);
     setTag(aArray, 4);
+    setTag(s, 5);
     setTag(B.class, 100);
 
     int all = iterateThroughHeapCount(0, null, Integer.MAX_VALUE);
@@ -50,7 +52,7 @@ public class Main {
       throw new IllegalStateException("By class: " + all + " != " + taggedClass + " + " +
           untaggedClass);
     }
-    if (tagged != 5) {
+    if (tagged != 6) {
       throw new IllegalStateException(tagged + " tagged objects");
     }
     if (taggedClass != 2) {
@@ -74,6 +76,9 @@ public class Main {
     iterateThroughHeapAdd(HEAP_FILTER_OUT_UNTAGGED, null);
     n = iterateThroughHeapData(HEAP_FILTER_OUT_UNTAGGED, null, classTags, sizes, tags, lengths);
     System.out.println(sort(n, classTags, sizes, tags, lengths));
+
+    System.out.println(iterateThroughHeapString(getTag(s)));
+    System.out.println(getTag(s));
   }
 
   static class A {
@@ -141,4 +146,5 @@ public class Main {
       Class<?> klassFilter, long classTags[], long sizes[], long tags[], int lengths[]);
   private static native int iterateThroughHeapAdd(int heapFilter,
       Class<?> klassFilter);
+  private static native String iterateThroughHeapString(long tag);
 }

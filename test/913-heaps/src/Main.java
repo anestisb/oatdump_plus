@@ -24,6 +24,8 @@ public class Main {
   public static void main(String[] args) throws Exception {
     doTest();
     new TestConfig().doFollowReferencesTest();
+
+    doStringTest();
   }
 
   public static void doTest() throws Exception {
@@ -32,6 +34,17 @@ public class Main {
     enableGcTracking(true);
     run();
     enableGcTracking(false);
+  }
+
+  public static void doStringTest() throws Exception {
+    final String str = "HelloWorld";
+    Object o = new Object() {
+      String s = str;
+    };
+
+    setTag(str, 1);
+    System.out.println(Arrays.toString(followReferencesString(o)));
+    System.out.println(getTag(str));
   }
 
   private static void run() {
@@ -410,4 +423,5 @@ public class Main {
 
   public static native String[] followReferences(int heapFilter, Class<?> klassFilter,
       Object initialObject, int stopAfter, int followSet, Object jniRef);
+  public static native String[] followReferencesString(Object initialObject);
 }
