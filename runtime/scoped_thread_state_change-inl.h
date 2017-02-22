@@ -79,11 +79,11 @@ inline T ScopedObjectAccessAlreadyRunnable::AddLocalReference(ObjPtr<mirror::Obj
   return obj == nullptr ? nullptr : Env()->AddLocalReference<T>(obj);
 }
 
-template<typename T, bool kPoison>
-inline ObjPtr<T, kPoison> ScopedObjectAccessAlreadyRunnable::Decode(jobject obj) const {
+template<typename T>
+inline ObjPtr<T> ScopedObjectAccessAlreadyRunnable::Decode(jobject obj) const {
   Locks::mutator_lock_->AssertSharedHeld(Self());
   DCHECK(IsRunnable());  // Don't work with raw objects in non-runnable states.
-  return ObjPtr<T, kPoison>::DownCast(Self()->DecodeJObject(obj));
+  return ObjPtr<T>::DownCast(Self()->DecodeJObject(obj));
 }
 
 inline bool ScopedObjectAccessAlreadyRunnable::IsRunnable() const {
