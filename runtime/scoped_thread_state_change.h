@@ -27,7 +27,7 @@
 namespace art {
 
 struct JNIEnvExt;
-template<class MirrorType, bool kPoison> class ObjPtr;
+template<class MirrorType> class ObjPtr;
 
 // Scoped change into and out of a particular state. Handles Runnable transitions that require
 // more complicated suspension checking. The subclasses ScopedObjectAccessUnchecked and
@@ -91,8 +91,8 @@ class ScopedObjectAccessAlreadyRunnable : public ValueObject {
   T AddLocalReference(ObjPtr<mirror::Object> obj) const
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  template<typename T, bool kPoison = kIsDebugBuild>
-  ObjPtr<T, kPoison> Decode(jobject obj) const REQUIRES_SHARED(Locks::mutator_lock_);
+  template<typename T>
+  ObjPtr<T> Decode(jobject obj) const REQUIRES_SHARED(Locks::mutator_lock_);
 
   ALWAYS_INLINE bool IsRunnable() const;
 

@@ -30,7 +30,7 @@
 namespace art {
 
 class HandleScope;
-template<class MirrorType, bool kPoison> class ObjPtr;
+template<class MirrorType> class ObjPtr;
 class Thread;
 class VariableSizedHandleScope;
 
@@ -224,8 +224,8 @@ class PACKED(4) FixedSizeHandleScope : public HandleScope {
   ALWAYS_INLINE HandleWrapperObjPtr<T> NewHandleWrapper(ObjPtr<T>* object)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  template<class MirrorType, bool kPoison>
-  ALWAYS_INLINE MutableHandle<MirrorType> NewHandle(ObjPtr<MirrorType, kPoison> object)
+  template<class MirrorType>
+  ALWAYS_INLINE MutableHandle<MirrorType> NewHandle(ObjPtr<MirrorType> object)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
   ALWAYS_INLINE void SetReference(size_t i, mirror::Object* object)
@@ -286,8 +286,8 @@ class VariableSizedHandleScope : public BaseHandleScope {
   template<class T>
   MutableHandle<T> NewHandle(T* object) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  template<class MirrorType, bool kPoison>
-  MutableHandle<MirrorType> NewHandle(ObjPtr<MirrorType, kPoison> ptr)
+  template<class MirrorType>
+  MutableHandle<MirrorType> NewHandle(ObjPtr<MirrorType> ptr)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Number of references contained within this handle scope.

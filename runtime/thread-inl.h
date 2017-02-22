@@ -29,6 +29,7 @@
 #include "base/mutex-inl.h"
 #include "gc/heap.h"
 #include "jni_env_ext.h"
+#include "obj_ptr.h"
 #include "runtime.h"
 #include "thread_pool.h"
 
@@ -355,7 +356,7 @@ inline void Thread::RevokeThreadLocalAllocationStack() {
 }
 
 inline void Thread::PoisonObjectPointersIfDebug() {
-  if (kIsDebugBuild) {
+  if (kObjPtrPoisoning) {
     Thread::Current()->PoisonObjectPointers();
   }
 }
