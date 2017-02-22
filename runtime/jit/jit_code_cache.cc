@@ -1264,12 +1264,27 @@ void JitCodeCache::GetProfiledMethods(const std::set<std::string>& dex_base_loca
         if (cls == nullptr) {
           break;
         }
-        const DexFile& class_dex_file = cls->GetDexFile();
-        dex::TypeIndex type_index = cls->GetDexTypeIndex();
-        if (ContainsElement(dex_base_locations, class_dex_file.GetBaseLocation())) {
+
+        const DexFile* class_dex_file = nullptr;
+        dex::TypeIndex type_index;
+
+        if (cls->GetDexCache() == nullptr) {
+          DCHECK(cls->IsArrayClass()) << cls->PrettyClass();
+          class_dex_file = dex_file;
+          type_index = cls->FindTypeIndexInOtherDexFile(*dex_file);
+        } else {
+          class_dex_file = &(cls->GetDexFile());
+          type_index = cls->GetDexTypeIndex();
+        }
+        if (!type_index.IsValid()) {
+          // Could be a proxy class or an array for which we couldn't find the type index.
+          // TODO(calin): can we really miss the type index for arrays here?
+          continue;
+        }
+        if (ContainsElement(dex_base_locations, class_dex_file->GetBaseLocation())) {
           // Only consider classes from the same apk (including multidex).
           profile_classes.emplace_back(/*ProfileMethodInfo::ProfileClassReference*/
-              &class_dex_file, type_index);
+              class_dex_file, type_index);
         }
       }
       if (!profile_classes.empty()) {
