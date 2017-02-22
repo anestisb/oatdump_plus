@@ -36,17 +36,17 @@ template <typename FreeBySizeSet>
 static void DumpFreeMap(const FreeBySizeSet& free_by_size) {
   size_t last_size = static_cast<size_t>(-1);
   for (const auto& entry : free_by_size) {
-    if (last_size != entry.first) {
-      last_size = entry.first;
+    if (last_size != entry.size) {
+      last_size = entry.size;
       LOG(INFO) << "Size " << last_size;
     }
-    LOG(INFO) << "  0x" << std::hex << entry.second->Start()
-        << " size=" << std::dec << entry.second->size;
+    LOG(INFO) << "  0x" << std::hex << entry.free_by_start_entry->Start()
+        << " size=" << std::dec << entry.free_by_start_entry->size;
   }
 }
 
 void SwapSpace::RemoveChunk(FreeBySizeSet::const_iterator free_by_size_pos) {
-  auto free_by_start_pos = free_by_size_pos->second;
+  auto free_by_start_pos = free_by_size_pos->free_by_start_entry;
   free_by_size_.erase(free_by_size_pos);
   free_by_start_.erase(free_by_start_pos);
 }
@@ -89,7 +89,7 @@ static size_t CollectFree(const FreeByStartSet& free_by_start, const FreeBySizeS
   // Calculate over free_by_size.
   size_t sum1 = 0;
   for (const auto& entry : free_by_size) {
-    sum1 += entry.second->size;
+    sum1 += entry.free_by_start_entry->size;
   }
 
   // Calculate over free_by_start.
@@ -110,27 +110,52 @@ void* SwapSpace::Alloc(size_t size) {
 
   // Check the free list for something that fits.
   // TODO: Smarter implementation. Global biggest chunk, ...
-  SpaceChunk old_chunk;
   auto it = free_by_start_.empty()
       ? free_by_size_.end()
       : free_by_size_.lower_bound(FreeBySizeEntry { size, free_by_start_.begin() });
   if (it != free_by_size_.end()) {
-    old_chunk = *it->second;
-    RemoveChunk(it);
+    auto entry = it->free_by_start_entry;
+    SpaceChunk old_chunk = *entry;
+    if (old_chunk.size == size) {
+      RemoveChunk(it);
+    } else {
+      // Try to avoid deallocating and allocating the std::set<> nodes.
+      // This would be much simpler if we could use replace() from Boost.Bimap.
+
+      // The free_by_start_ map contains disjoint intervals ordered by the `ptr`.
+      // Shrinking the interval does not affect the ordering.
+      it->free_by_start_entry->ptr += size;
+      it->free_by_start_entry->size -= size;
+
+      // The free_by_size_ map is ordered by the `size` and then `free_by_start_entry->ptr`.
+      // Adjusting the `ptr` above does not change that ordering but decreasing `size` can
+      // push the node before the previous node(s).
+      if (it == free_by_size_.begin()) {
+        it->size -= size;
+      } else {
+        auto prev = it;
+        --prev;
+        FreeBySizeEntry new_value(old_chunk.size - size, entry);
+        if (free_by_size_.key_comp()(*prev, new_value)) {
+          it->size -= size;
+        } else {
+          // Changing in place would break the std::set<> ordering, we need to remove and insert.
+          free_by_size_.erase(it);
+          free_by_size_.insert(new_value);
+        }
+      }
+    }
+    return old_chunk.ptr;
   } else {
     // Not a big enough free chunk, need to increase file size.
-    old_chunk = NewFileChunk(size);
+    SpaceChunk new_chunk = NewFileChunk(size);
+    if (new_chunk.size != size) {
+      // Insert the remainder.
+      SpaceChunk remainder = { new_chunk.ptr + size, new_chunk.size - size };
+      InsertChunk(remainder);
+    }
+    return new_chunk.ptr;
   }
-
-  void* ret = old_chunk.ptr;
-
-  if (old_chunk.size != size) {
-    // Insert the remainder.
-    SpaceChunk new_chunk = { old_chunk.ptr + size, old_chunk.size - size };
-    InsertChunk(new_chunk);
-  }
-
-  return ret;
 }
 
 SwapSpace::SpaceChunk SwapSpace::NewFileChunk(size_t min_size) {

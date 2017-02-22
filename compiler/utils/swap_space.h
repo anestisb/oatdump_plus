@@ -45,8 +45,10 @@ class SwapSpace {
  private:
   // Chunk of space.
   struct SpaceChunk {
-    uint8_t* ptr;
-    size_t size;
+    // We need mutable members as we keep these objects in a std::set<> (providing only const
+    // access) but we modify these members while carefully preserving the std::set<> ordering.
+    mutable uint8_t* ptr;
+    mutable size_t size;
 
     uintptr_t Start() const {
       return reinterpret_cast<uintptr_t>(ptr);
@@ -66,13 +68,21 @@ class SwapSpace {
   typedef std::set<SpaceChunk, SortChunkByPtr> FreeByStartSet;
 
   // Map size to an iterator to free_by_start_'s entry.
-  typedef std::pair<size_t, FreeByStartSet::const_iterator> FreeBySizeEntry;
+  struct FreeBySizeEntry {
+    FreeBySizeEntry(size_t sz, FreeByStartSet::const_iterator entry)
+        : size(sz), free_by_start_entry(entry) { }
+
+    // We need mutable members as we keep these objects in a std::set<> (providing only const
+    // access) but we modify these members while carefully preserving the std::set<> ordering.
+    mutable size_t size;
+    mutable FreeByStartSet::const_iterator free_by_start_entry;
+  };
   struct FreeBySizeComparator {
     bool operator()(const FreeBySizeEntry& lhs, const FreeBySizeEntry& rhs) {
-      if (lhs.first != rhs.first) {
-        return lhs.first < rhs.first;
+      if (lhs.size != rhs.size) {
+        return lhs.size < rhs.size;
       } else {
-        return lhs.second->Start() < rhs.second->Start();
+        return lhs.free_by_start_entry->Start() < rhs.free_by_start_entry->Start();
       }
     }
   };
