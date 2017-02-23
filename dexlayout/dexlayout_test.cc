@@ -100,6 +100,26 @@ static const char kNullSetRefListElementInputDex[] =
     "ASAAAAIAAACEAQAABiAAAAIAAACwAQAAARAAAAIAAADYAQAAAiAAABIAAADoAQAAAyAAAAIAAADw"
     "AgAABCAAAAIAAAD8AgAAACAAAAIAAAAIAwAAABAAAAEAAAAgAwAA";
 
+// Dex file with catch handler unreferenced by try blocks.
+// Constructed by building a dex file with try/catch blocks and hex editing.
+static const char kUnreferencedCatchHandlerInputDex[] =
+    "ZGV4CjAzNQD+exd52Y0f9nY5x5GmInXq5nXrO6Kl2RV4AwAAcAAAAHhWNBIAAAAAAAAAANgCAAAS"
+    "AAAAcAAAAAgAAAC4AAAAAwAAANgAAAABAAAA/AAAAAQAAAAEAQAAAQAAACQBAAA0AgAARAEAANYB"
+    "AADeAQAA5gEAAO4BAAAAAgAADwIAACYCAAA9AgAAUQIAAGUCAAB5AgAAfwIAAIUCAACIAgAAjAIA"
+    "AKECAACnAgAArAIAAAQAAAAFAAAABgAAAAcAAAAIAAAACQAAAAwAAAAOAAAADAAAAAYAAAAAAAAA"
+    "DQAAAAYAAADIAQAADQAAAAYAAADQAQAABQABABAAAAAAAAAAAAAAAAAAAgAPAAAAAQABABEAAAAD"
+    "AAAAAAAAAAAAAAABAAAAAwAAAAAAAAADAAAAAAAAAMgCAAAAAAAAAQABAAEAAAC1AgAABAAAAHAQ"
+    "AwAAAA4AAwABAAIAAgC6AgAAIQAAAGIAAAAaAQoAbiACABAAYgAAABoBCwBuIAIAEAAOAA0AYgAA"
+    "ABoBAQBuIAIAEAAo8A0AYgAAABoBAgBuIAIAEAAo7gAAAAAAAAcAAQAHAAAABwABAAIBAg8BAhgA"
+    "AQAAAAQAAAABAAAABwAGPGluaXQ+AAZDYXRjaDEABkNhdGNoMgAQSGFuZGxlclRlc3QuamF2YQAN"
+    "TEhhbmRsZXJUZXN0OwAVTGphdmEvaW8vUHJpbnRTdHJlYW07ABVMamF2YS9sYW5nL0V4Y2VwdGlv"
+    "bjsAEkxqYXZhL2xhbmcvT2JqZWN0OwASTGphdmEvbGFuZy9TdHJpbmc7ABJMamF2YS9sYW5nL1N5"
+    "c3RlbTsABFRyeTEABFRyeTIAAVYAAlZMABNbTGphdmEvbGFuZy9TdHJpbmc7AARtYWluAANvdXQA"
+    "B3ByaW50bG4AAQAHDgAEAQAHDn17AncdHoseAAAAAgAAgYAExAIBCdwCAAANAAAAAAAAAAEAAAAA"
+    "AAAAAQAAABIAAABwAAAAAgAAAAgAAAC4AAAAAwAAAAMAAADYAAAABAAAAAEAAAD8AAAABQAAAAQA"
+    "AAAEAQAABgAAAAEAAAAkAQAAASAAAAIAAABEAQAAARAAAAIAAADIAQAAAiAAABIAAADWAQAAAyAA"
+    "AAIAAAC1AgAAACAAAAEAAADIAgAAABAAAAEAAADYAgAA";
+
 static void WriteBase64ToFile(const char* base64, File* file) {
   // Decode base64.
   CHECK(base64 != nullptr);
@@ -219,7 +239,7 @@ class DexLayoutTest : public CommonRuntimeTest {
     EXPECT_TRUE(OS::FileExists(dexlayout.c_str())) << dexlayout << " should be a valid file path";
 
     std::vector<std::string> dexlayout_exec_argv =
-    { dexlayout, "-w", tmp_dir, "-o", tmp_name, "-p", profile_file, dex_file };
+        { dexlayout, "-w", tmp_dir, "-o", tmp_name, "-p", profile_file, dex_file };
     if (!::art::Exec(dexlayout_exec_argv, error_msg)) {
       return false;
     }
@@ -231,6 +251,40 @@ class DexLayoutTest : public CommonRuntimeTest {
 
     std::vector<std::string> rm_exec_argv =
         { "/bin/rm", dex_file, profile_file, expected_output, output_dex };
+    if (!::art::Exec(rm_exec_argv, error_msg)) {
+      return false;
+    }
+    return true;
+  }
+
+  // Runs UnreferencedCatchHandlerTest.
+  bool UnreferencedCatchHandlerExec(std::string* error_msg) {
+    ScratchFile tmp_file;
+    std::string tmp_name = tmp_file.GetFilename();
+    size_t tmp_last_slash = tmp_name.rfind("/");
+    std::string tmp_dir = tmp_name.substr(0, tmp_last_slash + 1);
+
+    // Write inputs and expected outputs.
+    std::string input_dex = tmp_dir + "classes.dex";
+    WriteFileBase64(kUnreferencedCatchHandlerInputDex, input_dex.c_str());
+    std::string output_dex = tmp_dir + "classes.dex.new";
+
+    std::string dexlayout = GetTestAndroidRoot() + "/bin/dexlayout";
+    EXPECT_TRUE(OS::FileExists(dexlayout.c_str())) << dexlayout << " should be a valid file path";
+
+    std::vector<std::string> dexlayout_exec_argv =
+        { dexlayout, "-w", tmp_dir, "-o", "/dev/null", input_dex };
+    if (!::art::Exec(dexlayout_exec_argv, error_msg)) {
+      return false;
+    }
+
+    // Diff input and output. They should be the same.
+    std::vector<std::string> diff_exec_argv = { "/usr/bin/diff", input_dex, output_dex };
+    if (!::art::Exec(diff_exec_argv, error_msg)) {
+      return false;
+    }
+
+    std::vector<std::string> rm_exec_argv = { "/bin/rm", input_dex, output_dex };
     if (!::art::Exec(rm_exec_argv, error_msg)) {
       return false;
     }
@@ -295,6 +349,13 @@ TEST_F(DexLayoutTest, NullSetRefListElement) {
   if (!result) {
     LOG(ERROR) << "Error " << error_msg;
   }
+}
+
+TEST_F(DexLayoutTest, UnreferencedCatchHandler) {
+  // Disable test on target.
+  TEST_DISABLED_FOR_TARGET();
+  std::string error_msg;
+  ASSERT_TRUE(UnreferencedCatchHandlerExec(&error_msg)) << error_msg;
 }
 
 }  // namespace art
