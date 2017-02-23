@@ -16,8 +16,10 @@
 
 #include "inttypes.h"
 
+#include <iomanip>
 #include <iostream>
 #include <pthread.h>
+#include <sstream>
 #include <stdio.h>
 #include <vector>
 
@@ -181,11 +183,11 @@ extern "C" JNIEXPORT jstring JNICALL Java_Main_iterateThroughHeapString(
   struct FindStringCallbacks {
     explicit FindStringCallbacks(jlong t) : tag_to_find(t) {}
 
-    static jint JNICALL  HeapIterationCallback(jlong class_tag ATTRIBUTE_UNUSED,
-                                               jlong size ATTRIBUTE_UNUSED,
-                                               jlong* tag_ptr ATTRIBUTE_UNUSED,
-                                               jint length ATTRIBUTE_UNUSED,
-                                               void* user_data ATTRIBUTE_UNUSED) {
+    static jint JNICALL HeapIterationCallback(jlong class_tag ATTRIBUTE_UNUSED,
+                                              jlong size ATTRIBUTE_UNUSED,
+                                              jlong* tag_ptr ATTRIBUTE_UNUSED,
+                                              jint length ATTRIBUTE_UNUSED,
+                                              void* user_data ATTRIBUTE_UNUSED) {
       return 0;
     }
 
@@ -204,7 +206,7 @@ extern "C" JNIEXPORT jstring JNICALL Java_Main_iterateThroughHeapString(
         if (!p->data.empty()) {
           p->data += "\n";
         }
-        p->data += android::base::StringPrintf("%" PRId64 "@%" PRId64 " (% " PRId64 ", '%s')",
+        p->data += android::base::StringPrintf("%" PRId64 "@%" PRId64 " (%" PRId64 ", '%s')",
                                                *tag_ptr,
                                                class_tag,
                                                size,
@@ -230,6 +232,94 @@ extern "C" JNIEXPORT jstring JNICALL Java_Main_iterateThroughHeapString(
     return nullptr;
   }
   return env->NewStringUTF(fsc.data.c_str());
+}
+
+extern "C" JNIEXPORT jstring JNICALL Java_Main_iterateThroughHeapPrimitiveArray(
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jlong tag) {
+  struct FindArrayCallbacks {
+    explicit FindArrayCallbacks(jlong t) : tag_to_find(t) {}
+
+    static jint JNICALL HeapIterationCallback(jlong class_tag ATTRIBUTE_UNUSED,
+                                              jlong size ATTRIBUTE_UNUSED,
+                                              jlong* tag_ptr ATTRIBUTE_UNUSED,
+                                              jint length ATTRIBUTE_UNUSED,
+                                              void* user_data ATTRIBUTE_UNUSED) {
+      return 0;
+    }
+
+    static jint JNICALL ArrayValueCallback(jlong class_tag,
+                                           jlong size,
+                                           jlong* tag_ptr,
+                                           jint element_count,
+                                           jvmtiPrimitiveType element_type,
+                                           const void* elements,
+                                           void* user_data) {
+      FindArrayCallbacks* p = reinterpret_cast<FindArrayCallbacks*>(user_data);
+      if (*tag_ptr == p->tag_to_find) {
+        std::ostringstream oss;
+        oss << *tag_ptr
+            << '@'
+            << class_tag
+            << " ("
+            << size
+            << ", "
+            << element_count
+            << "x"
+            << static_cast<char>(element_type)
+            << " '";
+        size_t element_size;
+        switch (element_type) {
+          case JVMTI_PRIMITIVE_TYPE_BOOLEAN:
+          case JVMTI_PRIMITIVE_TYPE_BYTE:
+            element_size = 1;
+            break;
+          case JVMTI_PRIMITIVE_TYPE_CHAR:
+          case JVMTI_PRIMITIVE_TYPE_SHORT:
+            element_size = 2;
+            break;
+          case JVMTI_PRIMITIVE_TYPE_INT:
+          case JVMTI_PRIMITIVE_TYPE_FLOAT:
+            element_size = 4;
+            break;
+          case JVMTI_PRIMITIVE_TYPE_LONG:
+          case JVMTI_PRIMITIVE_TYPE_DOUBLE:
+            element_size = 8;
+            break;
+          default:
+            LOG(FATAL) << "Unknown type " << static_cast<size_t>(element_type);
+            UNREACHABLE();
+        }
+        const uint8_t* data = reinterpret_cast<const uint8_t*>(elements);
+        for (size_t i = 0; i != element_size * element_count; ++i) {
+          oss << android::base::StringPrintf("%02x", data[i]);
+        }
+        oss << "')";
+
+        if (!p->data.empty()) {
+          p->data += "\n";
+        }
+        p->data += oss.str();
+        // Update the tag to test whether that works.
+        *tag_ptr = *tag_ptr + 1;
+      }
+      return 0;
+    }
+
+    std::string data;
+    const jlong tag_to_find;
+  };
+
+  jvmtiHeapCallbacks callbacks;
+  memset(&callbacks, 0, sizeof(jvmtiHeapCallbacks));
+  callbacks.heap_iteration_callback = FindArrayCallbacks::HeapIterationCallback;
+  callbacks.array_primitive_value_callback = FindArrayCallbacks::ArrayValueCallback;
+
+  FindArrayCallbacks fac(tag);
+  jvmtiError ret = jvmti_env->IterateThroughHeap(0, nullptr, &callbacks, &fac);
+  if (JvmtiErrorToException(env, ret)) {
+    return nullptr;
+  }
+  return env->NewStringUTF(fac.data.c_str());
 }
 
 }  // namespace Test906IterateHeap

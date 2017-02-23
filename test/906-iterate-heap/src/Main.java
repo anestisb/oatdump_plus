@@ -79,6 +79,46 @@ public class Main {
 
     System.out.println(iterateThroughHeapString(getTag(s)));
     System.out.println(getTag(s));
+
+    boolean[] zArray = new boolean[] { false, true };
+    setTag(zArray, 1);
+    System.out.println(iterateThroughHeapPrimitiveArray(getTag(zArray)));
+    System.out.println(getTag(zArray));
+
+    byte[] bArray = new byte[] { 1, 2, 3 };
+    setTag(bArray, 1);
+    System.out.println(iterateThroughHeapPrimitiveArray(getTag(bArray)));
+    System.out.println(getTag(bArray));
+
+    char[] cArray = new char[] { 'A', 'Z' };
+    setTag(cArray, 1);
+    System.out.println(iterateThroughHeapPrimitiveArray(getTag(cArray)));
+    System.out.println(getTag(cArray));
+
+    short[] sArray = new short[] { 1, 2, 3 };
+    setTag(sArray, 1);
+    System.out.println(iterateThroughHeapPrimitiveArray(getTag(sArray)));
+    System.out.println(getTag(sArray));
+
+    int[] iArray = new int[] { 1, 2, 3 };
+    setTag(iArray, 1);
+    System.out.println(iterateThroughHeapPrimitiveArray(getTag(iArray)));
+    System.out.println(getTag(iArray));
+
+    float[] fArray = new float[] { 0.0f, 1.0f };
+    setTag(fArray, 1);
+    System.out.println(iterateThroughHeapPrimitiveArray(getTag(fArray)));
+    System.out.println(getTag(fArray));
+
+    long[] lArray = new long[] { 1, 2, 3 };
+    setTag(lArray, 1);
+    System.out.println(iterateThroughHeapPrimitiveArray(getTag(lArray)));
+    System.out.println(getTag(lArray));
+
+    double[] dArray = new double[] { 0.0, 1.0 };
+    setTag(dArray, 1);
+    System.out.println(iterateThroughHeapPrimitiveArray(getTag(dArray)));
+    System.out.println(getTag(dArray));
   }
 
   static class A {
@@ -147,4 +187,5 @@ public class Main {
   private static native int iterateThroughHeapAdd(int heapFilter,
       Class<?> klassFilter);
   private static native String iterateThroughHeapString(long tag);
+  private static native String iterateThroughHeapPrimitiveArray(long tag);
 }

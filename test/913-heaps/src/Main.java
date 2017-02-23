@@ -26,6 +26,7 @@ public class Main {
     new TestConfig().doFollowReferencesTest();
 
     doStringTest();
+    doPrimitiveArrayTest();
   }
 
   public static void doTest() throws Exception {
@@ -45,6 +46,53 @@ public class Main {
     setTag(str, 1);
     System.out.println(Arrays.toString(followReferencesString(o)));
     System.out.println(getTag(str));
+  }
+
+  public static void doPrimitiveArrayTest() throws Exception {
+    final boolean[] zArray = new boolean[] { false, true };
+    setTag(zArray, 1);
+
+    final byte[] bArray = new byte[] { 1, 2, 3 };
+    setTag(bArray, 2);
+
+    final char[] cArray = new char[] { 'A', 'Z' };
+    setTag(cArray, 3);
+
+    final short[] sArray = new short[] { 1, 2, 3 };
+    setTag(sArray, 4);
+
+    final int[] iArray = new int[] { 1, 2, 3 };
+    setTag(iArray, 5);
+
+    final float[] fArray = new float[] { 0.0f, 1.0f };
+    setTag(fArray, 6);
+
+    final long[] lArray = new long[] { 1, 2, 3 };
+    setTag(lArray, 7);
+
+    final double[] dArray = new double[] { 0.0, 1.0 };
+    setTag(dArray, 8);
+
+    Object o = new Object() {
+      Object z = zArray;
+      Object b = bArray;
+      Object c = cArray;
+      Object s = sArray;
+      Object i = iArray;
+      Object f = fArray;
+      Object l = lArray;
+      Object d = dArray;
+    };
+
+    System.out.println(followReferencesPrimitiveArray(o));
+    System.out.print(getTag(zArray));
+    System.out.print(getTag(bArray));
+    System.out.print(getTag(cArray));
+    System.out.print(getTag(sArray));
+    System.out.print(getTag(iArray));
+    System.out.print(getTag(fArray));
+    System.out.print(getTag(lArray));
+    System.out.println(getTag(dArray));
   }
 
   private static void run() {
@@ -424,4 +472,5 @@ public class Main {
   public static native String[] followReferences(int heapFilter, Class<?> klassFilter,
       Object initialObject, int stopAfter, int followSet, Object jniRef);
   public static native String[] followReferencesString(Object initialObject);
+  public static native String followReferencesPrimitiveArray(Object initialObject);
 }
