@@ -237,6 +237,9 @@ jvmtiError Redefiner::GetClassRedefinitionError(art::Handle<art::mirror::Class> 
   } else if (klass->IsInterface()) {
     *error_msg = "Modification of Interface classes is currently not supported";
     return ERR(UNMODIFIABLE_CLASS);
+  } else if (klass->IsStringClass()) {
+    *error_msg = "Modification of String class is not supported";
+    return ERR(UNMODIFIABLE_CLASS);
   } else if (klass->IsArrayClass()) {
     *error_msg = "Modification of Array classes is not supported";
     return ERR(UNMODIFIABLE_CLASS);
