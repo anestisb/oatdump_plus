@@ -171,6 +171,7 @@ cc_defaults {
         "native/org_apache_harmony_dalvik_ddmc_DdmServer.cc",
         "native/org_apache_harmony_dalvik_ddmc_DdmVmInternal.cc",
         "native/sun_misc_Unsafe.cc",
+        "non_debuggable_classes.cc",
         "oat.cc",
         "oat_file.cc",
         "oat_file_assistant.cc",
