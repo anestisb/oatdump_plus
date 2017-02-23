@@ -1270,6 +1270,9 @@ void JitCodeCache::GetProfiledMethods(const std::set<std::string>& dex_base_loca
 
         if (cls->GetDexCache() == nullptr) {
           DCHECK(cls->IsArrayClass()) << cls->PrettyClass();
+          // Make a best effort to find the type index in the method's dex file.
+          // We could search all open dex files but that might turn expensive
+          // and probably not worth it.
           class_dex_file = dex_file;
           type_index = cls->FindTypeIndexInOtherDexFile(*dex_file);
         } else {
@@ -1278,7 +1281,6 @@ void JitCodeCache::GetProfiledMethods(const std::set<std::string>& dex_base_loca
         }
         if (!type_index.IsValid()) {
           // Could be a proxy class or an array for which we couldn't find the type index.
-          // TODO(calin): can we really miss the type index for arrays here?
           continue;
         }
         if (ContainsElement(dex_base_locations, class_dex_file->GetBaseLocation())) {
