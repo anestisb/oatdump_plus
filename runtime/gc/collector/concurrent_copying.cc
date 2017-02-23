@@ -157,7 +157,7 @@ void ConcurrentCopying::RunPhases() {
     MarkingPhase();
   }
   // Verify no from space refs. This causes a pause.
-  if (kEnableNoFromSpaceRefsVerification || kIsDebugBuild) {
+  if (kEnableNoFromSpaceRefsVerification) {
     TimingLogger::ScopedTiming split("(Paused)VerifyNoFromSpaceReferences", GetTimings());
     ScopedPause pause(this, false);
     CheckEmptyMarkStack();
@@ -1468,7 +1468,7 @@ inline void ConcurrentCopying::ProcessMarkStackRef(mirror::Object* to_ref) {
     size_t alloc_size = RoundUp(obj_size, space::RegionSpace::kAlignment);
     region_space_->AddLiveBytes(to_ref, alloc_size);
   }
-  if (ReadBarrier::kEnableToSpaceInvariantChecks || kIsDebugBuild) {
+  if (ReadBarrier::kEnableToSpaceInvariantChecks) {
     AssertToSpaceInvariantObjectVisitor visitor(this);
     visitor(to_ref);
   }
