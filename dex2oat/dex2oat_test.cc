@@ -554,6 +554,12 @@ TEST_F(Dex2oatVeryLargeTest, UseVeryLarge) {
   RunTest(CompilerFilter::kSpeed, true, { "--very-large-app-threshold=100" });
 }
 
+// Regressin test for b/35665292.
+TEST_F(Dex2oatVeryLargeTest, SpeedProfileNoProfile) {
+  // Test that dex2oat doesn't crash with speed-profile but no input profile.
+  RunTest(CompilerFilter::kSpeedProfile, false);
+}
+
 class Dex2oatLayoutTest : public Dex2oatTest {
  protected:
   void CheckFilter(CompilerFilter::Filter input ATTRIBUTE_UNUSED,
