@@ -17,6 +17,7 @@
 import java.lang.ref.Reference;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Proxy;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 
@@ -40,6 +41,7 @@ public class Main {
     testClassType(getProxyClass());
     testClassType(Runnable.class);
     testClassType(String.class);
+    testClassType(ArrayList.class);
 
     testClassType(int[].class);
     testClassType(Runnable[].class);
