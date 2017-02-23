@@ -54,6 +54,7 @@ RegionSpace::RegionSpace(const std::string& name, MemMap* mem_map)
   num_regions_ = mem_map_size / kRegionSize;
   num_non_free_regions_ = 0U;
   DCHECK_GT(num_regions_, 0U);
+  non_free_region_index_limit_ = 0U;
   regions_.reset(new Region[num_regions_]);
   uint8_t* region_addr = mem_map->Begin();
   for (size_t i = 0; i < num_regions_; ++i, region_addr += kRegionSize) {
@@ -160,7 +161,11 @@ void RegionSpace::SetFromSpace(accounting::ReadBarrierTable* rb_table, bool forc
   MutexLock mu(Thread::Current(), region_lock_);
   size_t num_expected_large_tails = 0;
   bool prev_large_evacuated = false;
-  for (size_t i = 0; i < num_regions_; ++i) {
+  VerifyNonFreeRegionLimit();
+  const size_t iter_limit = kUseTableLookupReadBarrier
+      ? num_regions_
+      : std::min(num_regions_, non_free_region_index_limit_);
+  for (size_t i = 0; i < iter_limit; ++i) {
     Region* r = &regions_[i];
     RegionState state = r->State();
     RegionType type = r->Type();
@@ -204,13 +209,16 @@ void RegionSpace::SetFromSpace(accounting::ReadBarrierTable* rb_table, bool forc
       }
     }
   }
+  DCHECK_EQ(num_expected_large_tails, 0U);
   current_region_ = &full_region_;
   evac_region_ = &full_region_;
 }
 
 void RegionSpace::ClearFromSpace() {
   MutexLock mu(Thread::Current(), region_lock_);
-  for (size_t i = 0; i < num_regions_; ++i) {
+  VerifyNonFreeRegionLimit();
+  size_t new_non_free_region_index_limit = 0;
+  for (size_t i = 0; i < std::min(num_regions_, non_free_region_index_limit_); ++i) {
     Region* r = &regions_[i];
     if (r->IsInFromSpace()) {
       r->Clear();
@@ -223,6 +231,7 @@ void RegionSpace::ClearFromSpace() {
             cur->LiveBytes() != static_cast<size_t>(cur->Top() - cur->Begin())) {
           break;
         }
+        DCHECK(cur->IsInUnevacFromSpace());
         if (full_count != 0) {
           cur->SetUnevacFromSpaceAsToSpace();
         }
@@ -239,7 +248,15 @@ void RegionSpace::ClearFromSpace() {
         i += full_count - 1;
       }
     }
+    // Note r != last_checked_region if r->IsInUnevacFromSpace() was true above.
+    Region* last_checked_region = &regions_[i];
+    if (!last_checked_region->IsFree()) {
+      new_non_free_region_index_limit = std::max(new_non_free_region_index_limit,
+                                                 last_checked_region->Idx() + 1);
+    }
   }
+  // Update non_free_region_index_limit_.
+  SetNonFreeRegionLimit(new_non_free_region_index_limit);
   evac_region_ = nullptr;
 }
 
@@ -292,6 +309,7 @@ void RegionSpace::Clear() {
     }
     r->Clear();
   }
+  SetNonFreeRegionLimit(0);
   current_region_ = &full_region_;
   evac_region_ = &full_region_;
 }
@@ -358,7 +376,7 @@ bool RegionSpace::AllocNewTlab(Thread* self) {
   for (size_t i = 0; i < num_regions_; ++i) {
     Region* r = &regions_[i];
     if (r->IsFree()) {
-      r->Unfree(time_);
+      r->Unfree(this, time_);
       ++num_non_free_regions_;
       r->SetNewlyAllocated();
       r->SetTop(r->End());

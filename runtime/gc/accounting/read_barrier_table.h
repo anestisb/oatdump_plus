@@ -80,7 +80,7 @@ class ReadBarrierTable {
   }
 
   // This should match RegionSpace::kRegionSize. static_assert'ed in concurrent_copying.h.
-  static constexpr size_t kRegionSize = 1 * MB;
+  static constexpr size_t kRegionSize = 256 * KB;
 
  private:
   static constexpr uint64_t kHeapCapacity = 4ULL * GB;  // low 4gb.

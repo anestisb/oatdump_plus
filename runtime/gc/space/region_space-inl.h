@@ -78,7 +78,7 @@ inline mirror::Object* RegionSpace::AllocNonvirtual(size_t num_bytes, size_t* by
       for (size_t i = 0; i < num_regions_; ++i) {
         Region* r = &regions_[i];
         if (r->IsFree()) {
-          r->Unfree(time_);
+          r->Unfree(this, time_);
           r->SetNewlyAllocated();
           ++num_non_free_regions_;
           obj = r->Alloc(num_bytes, bytes_allocated, usable_size, bytes_tl_bulk_allocated);
@@ -91,7 +91,7 @@ inline mirror::Object* RegionSpace::AllocNonvirtual(size_t num_bytes, size_t* by
       for (size_t i = 0; i < num_regions_; ++i) {
         Region* r = &regions_[i];
         if (r->IsFree()) {
-          r->Unfree(time_);
+          r->Unfree(this, time_);
           ++num_non_free_regions_;
           obj = r->Alloc(num_bytes, bytes_allocated, usable_size, bytes_tl_bulk_allocated);
           CHECK(obj != nullptr);
@@ -310,13 +310,13 @@ mirror::Object* RegionSpace::AllocLarge(size_t num_bytes, size_t* bytes_allocate
       DCHECK_EQ(left + num_regs, right);
       Region* first_reg = &regions_[left];
       DCHECK(first_reg->IsFree());
-      first_reg->UnfreeLarge(time_);
+      first_reg->UnfreeLarge(this, time_);
       ++num_non_free_regions_;
       first_reg->SetTop(first_reg->Begin() + num_bytes);
       for (size_t p = left + 1; p < right; ++p) {
         DCHECK_LT(p, num_regions_);
         DCHECK(regions_[p].IsFree());
-        regions_[p].UnfreeLargeTail(time_);
+        regions_[p].UnfreeLargeTail(this, time_);
         ++num_non_free_regions_;
       }
       *bytes_allocated = num_bytes;
