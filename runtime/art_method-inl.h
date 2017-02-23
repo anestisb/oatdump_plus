@@ -55,8 +55,10 @@ inline mirror::Class* ArtMethod::GetDeclaringClass() {
   if (kIsDebugBuild) {
     if (!IsRuntimeMethod()) {
       CHECK(result != nullptr) << this;
-      CHECK(result->IsIdxLoaded() || result->IsErroneous())
-          << result->GetStatus() << " " << result->PrettyClass();
+      if (kCheckDeclaringClassState) {
+        CHECK(result->IsIdxLoaded() || result->IsErroneous())
+            << result->GetStatus() << " " << result->PrettyClass();
+      }
     } else {
       CHECK(result == nullptr) << this;
     }
@@ -89,7 +91,7 @@ ALWAYS_INLINE static inline void DoGetAccessFlagsHelper(ArtMethod* method)
 
 template <ReadBarrierOption kReadBarrierOption>
 inline uint32_t ArtMethod::GetAccessFlags() {
-  if (kIsDebugBuild) {
+  if (kCheckDeclaringClassState) {
     Thread* self = Thread::Current();
     if (!Locks::mutator_lock_->IsSharedHeld(self)) {
       if (self->IsThreadSuspensionAllowable()) {
@@ -118,8 +120,10 @@ inline uint16_t ArtMethod::GetMethodIndexDuringLinking() {
 }
 
 inline uint32_t ArtMethod::GetDexMethodIndex() {
-  DCHECK(IsRuntimeMethod() || GetDeclaringClass()->IsIdxLoaded() ||
-         GetDeclaringClass()->IsErroneous());
+  if (kCheckDeclaringClassState) {
+    CHECK(IsRuntimeMethod() || GetDeclaringClass()->IsIdxLoaded() ||
+          GetDeclaringClass()->IsErroneous());
+  }
   return GetDexMethodIndexUnchecked();
 }
 
