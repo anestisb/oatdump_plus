@@ -31,6 +31,7 @@
 #include "object_callbacks.h"
 #include "object_tagging.h"
 #include "obj_ptr-inl.h"
+#include "primitive.h"
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
@@ -82,6 +83,75 @@ jint ReportString(art::ObjPtr<art::mirror::Object> obj,
                                                       const_cast<void*>(user_data));
     if (string_tag != saved_string_tag) {
       tag_table->Set(obj.Ptr(), string_tag);
+    }
+
+    return result;
+  }
+  return 0;
+}
+
+// Report the contents of a primitive array, if a callback is set.
+jint ReportPrimitiveArray(art::ObjPtr<art::mirror::Object> obj,
+                          jvmtiEnv* env,
+                          ObjectTagTable* tag_table,
+                          const jvmtiHeapCallbacks* cb,
+                          const void* user_data) REQUIRES_SHARED(art::Locks::mutator_lock_) {
+  if (UNLIKELY(cb->array_primitive_value_callback != nullptr) &&
+      obj->IsArrayInstance() &&
+      !obj->IsObjectArray()) {
+    art::ObjPtr<art::mirror::Array> array = obj->AsArray();
+    int32_t array_length = array->GetLength();
+    size_t component_size = array->GetClass()->GetComponentSize();
+    art::Primitive::Type art_prim_type = array->GetClass()->GetComponentType()->GetPrimitiveType();
+    jvmtiPrimitiveType prim_type =
+        static_cast<jvmtiPrimitiveType>(art::Primitive::Descriptor(art_prim_type)[0]);
+    DCHECK(prim_type == JVMTI_PRIMITIVE_TYPE_BOOLEAN ||
+           prim_type == JVMTI_PRIMITIVE_TYPE_BYTE ||
+           prim_type == JVMTI_PRIMITIVE_TYPE_CHAR ||
+           prim_type == JVMTI_PRIMITIVE_TYPE_SHORT ||
+           prim_type == JVMTI_PRIMITIVE_TYPE_INT ||
+           prim_type == JVMTI_PRIMITIVE_TYPE_LONG ||
+           prim_type == JVMTI_PRIMITIVE_TYPE_FLOAT ||
+           prim_type == JVMTI_PRIMITIVE_TYPE_DOUBLE);
+
+    const jlong class_tag = tag_table->GetTagOrZero(obj->GetClass());
+    jlong array_tag = tag_table->GetTagOrZero(obj.Ptr());
+    const jlong saved_array_tag = array_tag;
+
+    jint result;
+    if (array_length == 0) {
+      result = cb->array_primitive_value_callback(class_tag,
+                                                  obj->SizeOf(),
+                                                  &array_tag,
+                                                  0,
+                                                  prim_type,
+                                                  nullptr,
+                                                  const_cast<void*>(user_data));
+    } else {
+      jvmtiError alloc_error;
+      JvmtiUniquePtr<char[]> data = AllocJvmtiUniquePtr<char[]>(env,
+                                                                array_length * component_size,
+                                                                &alloc_error);
+      if (data == nullptr) {
+        // TODO: Not really sure what to do here. Should we abort the iteration and go all the way
+        //       back? For now just warn.
+        LOG(WARNING) << "Unable to allocate buffer for array reporting! Silently dropping value.";
+        return 0;
+      }
+
+      memcpy(data.get(), array->GetRawData(component_size, 0), array_length * component_size);
+
+      result = cb->array_primitive_value_callback(class_tag,
+                                                  obj->SizeOf(),
+                                                  &array_tag,
+                                                  array_length,
+                                                  prim_type,
+                                                  data.get(),
+                                                  const_cast<void*>(user_data));
+    }
+
+    if (array_tag != saved_array_tag) {
+      tag_table->Set(obj.Ptr(), array_tag);
     }
 
     return result;
@@ -202,7 +272,15 @@ static void IterateThroughHeapObjectCallback(art::mirror::Object* obj, void* arg
     ithd->stop_reports = (string_ret & JVMTI_VISIT_ABORT) != 0;
   }
 
-  // TODO Implement array primitive callback.
+  if (!ithd->stop_reports) {
+    jint array_ret = ReportPrimitiveArray(obj,
+                                          ithd->env,
+                                          ithd->heap_util->GetTags(),
+                                          ithd->callbacks,
+                                          ithd->user_data);
+    ithd->stop_reports = (array_ret & JVMTI_VISIT_ABORT) != 0;
+  }
+
   // TODO Implement primitive field callback.
 }
 
@@ -213,11 +291,6 @@ jvmtiError HeapUtil::IterateThroughHeap(jvmtiEnv* env,
                                         const void* user_data) {
   if (callbacks == nullptr) {
     return ERR(NULL_POINTER);
-  }
-
-  if (callbacks->array_primitive_value_callback != nullptr) {
-    // TODO: Implement.
-    return ERR(NOT_IMPLEMENTED);
   }
 
   art::Thread* self = art::Thread::Current();
@@ -569,6 +642,11 @@ class FollowReferencesHelper FINAL {
           }
         }
       }
+    } else {
+      if (!stop_reports_) {
+        jint array_ret = ReportPrimitiveArray(array, env, tag_table_, callbacks_, user_data_);
+        stop_reports_ = (array_ret & JVMTI_VISIT_ABORT) != 0;
+      }
     }
   }
 
@@ -751,11 +829,6 @@ jvmtiError HeapUtil::FollowReferences(jvmtiEnv* env,
                                       const void* user_data) {
   if (callbacks == nullptr) {
     return ERR(NULL_POINTER);
-  }
-
-  if (callbacks->array_primitive_value_callback != nullptr) {
-    // TODO: Implement.
-    return ERR(NOT_IMPLEMENTED);
   }
 
   art::Thread* self = art::Thread::Current();
