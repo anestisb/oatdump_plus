@@ -53,6 +53,8 @@ class PointerArray;
 
 class ArtMethod FINAL {
  public:
+  static constexpr bool kCheckDeclaringClassState = kIsDebugBuild;
+
   ArtMethod() : access_flags_(0), dex_code_item_offset_(0), dex_method_index_(0),
       method_index_(0), hotness_count_(0) { }
 
