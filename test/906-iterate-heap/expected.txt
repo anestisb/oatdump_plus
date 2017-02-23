@@ -1,4 +1,20 @@
 [{tag=1, class-tag=0, size=8, length=-1}, {tag=2, class-tag=100, size=8, length=-1}, {tag=3, class-tag=100, size=8, length=-1}, {tag=4, class-tag=0, size=32, length=5}, {tag=5, class-tag=0, size=40, length=-1}, {tag=100, class-tag=0, size=<class>, length=-1}]
 [{tag=11, class-tag=0, size=8, length=-1}, {tag=12, class-tag=110, size=8, length=-1}, {tag=13, class-tag=110, size=8, length=-1}, {tag=14, class-tag=0, size=32, length=5}, {tag=15, class-tag=0, size=40, length=-1}, {tag=110, class-tag=0, size=<class>, length=-1}]
-15@0 ( 40, 'Hello World')
+15@0 (40, 'Hello World')
 16
+1@0 (14, 2xZ '0001')
+2
+1@0 (15, 3xB '010203')
+2
+1@0 (16, 2xC '41005a00')
+2
+1@0 (18, 3xS '010002000300')
+2
+1@0 (24, 3xI '010000000200000003000000')
+2
+1@0 (20, 2xF '000000000000803f')
+2
+1@0 (40, 3xJ '010000000000000002000000000000000300000000000000')
+2
+1@0 (32, 2xD '0000000000000000000000000000f03f')
+2
