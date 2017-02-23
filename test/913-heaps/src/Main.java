@@ -287,6 +287,9 @@ public class Main {
   }
 
   public static class Verifier {
+    // Should roots with vreg=-1 be printed?
+    public final static boolean PRINT_ROOTS_WITH_UNKNOWN_VREG = false;
+
     public static class Node {
       public String referrer;
 
@@ -371,6 +374,9 @@ public class Main {
             continue;
           }
           lastRoot = l;
+          if (!PRINT_ROOTS_WITH_UNKNOWN_VREG && l.indexOf("vreg=-1") > 0) {
+            continue;
+          }
           System.out.println(l);
         }
       }
