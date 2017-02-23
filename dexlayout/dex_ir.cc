@@ -616,6 +616,7 @@ CodeItem* Collections::CreateCodeItem(const DexFile& dex_file,
       for (std::unique_ptr<const CatchHandler>& existing_handlers : *handler_list) {
         if (handler_off == existing_handlers->GetListOffset()) {
           handlers = existing_handlers.get();
+          break;
         }
       }
       if (handlers == nullptr) {
@@ -634,7 +635,51 @@ CodeItem* Collections::CreateCodeItem(const DexFile& dex_file,
       TryItem* try_item = new TryItem(start_addr, insn_count, handlers);
       tries->push_back(std::unique_ptr<const TryItem>(try_item));
     }
+    // Manually walk catch handlers list and add any missing handlers unreferenced by try items.
+    const uint8_t* handlers_base = DexFile::GetCatchHandlerData(disk_code_item, 0);
+    const uint8_t* handlers_data = handlers_base;
+    uint32_t handlers_size = DecodeUnsignedLeb128(&handlers_data);
+    while (handlers_size > handler_list->size()) {
+      bool already_added = false;
+      uint16_t handler_off = handlers_data - handlers_base;
+      for (std::unique_ptr<const CatchHandler>& existing_handlers : *handler_list) {
+        if (handler_off == existing_handlers->GetListOffset()) {
+          already_added = true;
+          break;
+        }
+      }
+      int32_t size = DecodeSignedLeb128(&handlers_data);
+      bool has_catch_all = size < 0;
+      if (has_catch_all) {
+        size = -size;
+      }
+      if (already_added == true)  {
+        for (int32_t i = 0; i < size; i++) {
+          DecodeUnsignedLeb128(&handlers_data);
+          DecodeUnsignedLeb128(&handlers_data);
+        }
+        if (has_catch_all) {
+          DecodeUnsignedLeb128(&handlers_data);
+        }
+        continue;
+      }
+      TypeAddrPairVector* addr_pairs = new TypeAddrPairVector();
+      for (int32_t i = 0; i < size; i++) {
+        const TypeId* type_id = GetTypeIdOrNullPtr(DecodeUnsignedLeb128(&handlers_data));
+        uint32_t addr = DecodeUnsignedLeb128(&handlers_data);
+        addr_pairs->push_back(
+            std::unique_ptr<const TypeAddrPair>(new TypeAddrPair(type_id, addr)));
+      }
+      if (has_catch_all) {
+        uint32_t addr = DecodeUnsignedLeb128(&handlers_data);
+        addr_pairs->push_back(
+            std::unique_ptr<const TypeAddrPair>(new TypeAddrPair(nullptr, addr)));
+      }
+      const CatchHandler* handler = new CatchHandler(has_catch_all, handler_off, addr_pairs);
+      handler_list->push_back(std::unique_ptr<const CatchHandler>(handler));
+    }
   }
+
   uint32_t size = GetCodeItemSize(dex_file, disk_code_item);
   CodeItem* code_item = new CodeItem(
       registers_size, ins_size, outs_size, debug_info, insns_size, insns, tries, handler_list);
