@@ -203,7 +203,8 @@ struct JdwpState {
    */
   void PostLocationEvent(const EventLocation* pLoc, mirror::Object* thisPtr, int eventFlags,
                          const JValue* returnValue)
-     REQUIRES(!event_list_lock_, !jdwp_token_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
+      REQUIRES(!Locks::jdwp_event_list_lock_, !jdwp_token_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   /*
    * A field of interest has been accessed or modified. This is used for field access and field
@@ -214,7 +215,8 @@ struct JdwpState {
    */
   void PostFieldEvent(const EventLocation* pLoc, ArtField* field, mirror::Object* thisPtr,
                       const JValue* fieldValue, bool is_modification)
-      REQUIRES(!event_list_lock_, !jdwp_token_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
+      REQUIRES(!Locks::jdwp_event_list_lock_, !jdwp_token_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   /*
    * An exception has been thrown.
@@ -223,19 +225,22 @@ struct JdwpState {
    */
   void PostException(const EventLocation* pThrowLoc, mirror::Throwable* exception_object,
                      const EventLocation* pCatchLoc, mirror::Object* thisPtr)
-      REQUIRES(!event_list_lock_, !jdwp_token_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
+      REQUIRES(!Locks::jdwp_event_list_lock_, !jdwp_token_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   /*
    * A thread has started or stopped.
    */
   void PostThreadChange(Thread* thread, bool start)
-      REQUIRES(!event_list_lock_, !jdwp_token_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
+      REQUIRES(!Locks::jdwp_event_list_lock_, !jdwp_token_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   /*
    * Class has been prepared.
    */
   void PostClassPrepare(mirror::Class* klass)
-      REQUIRES(!event_list_lock_, !jdwp_token_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
+      REQUIRES(!Locks::jdwp_event_list_lock_, !jdwp_token_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   /*
    * The VM is about to stop.
@@ -259,7 +264,7 @@ struct JdwpState {
   void SendRequest(ExpandBuf* pReq);
 
   void ResetState()
-      REQUIRES(!event_list_lock_)
+      REQUIRES(!Locks::jdwp_event_list_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   /* atomic ops to get next serial number */
@@ -268,7 +273,7 @@ struct JdwpState {
 
   void Run()
       REQUIRES(!Locks::mutator_lock_, !Locks::thread_suspend_count_lock_, !thread_start_lock_,
-               !attach_lock_, !event_list_lock_);
+               !attach_lock_, !Locks::jdwp_event_list_lock_);
 
   /*
    * Register an event by adding it to the event list.
@@ -277,25 +282,25 @@ struct JdwpState {
    * may discard its pointer after calling this.
    */
   JdwpError RegisterEvent(JdwpEvent* pEvent)
-      REQUIRES(!event_list_lock_)
+      REQUIRES(!Locks::jdwp_event_list_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   /*
    * Unregister an event, given the requestId.
    */
   void UnregisterEventById(uint32_t requestId)
-      REQUIRES(!event_list_lock_)
+      REQUIRES(!Locks::jdwp_event_list_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   void UnregisterLocationEventsOnClass(ObjPtr<mirror::Class> klass)
-      REQUIRES(!event_list_lock_)
+      REQUIRES(!Locks::jdwp_event_list_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   /*
    * Unregister all events.
    */
   void UnregisterAll()
-      REQUIRES(!event_list_lock_)
+      REQUIRES(!Locks::jdwp_event_list_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
@@ -310,16 +315,16 @@ struct JdwpState {
                                      ObjectId threadId)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!jdwp_token_lock_);
   void CleanupMatchList(const std::vector<JdwpEvent*>& match_list)
-      REQUIRES(event_list_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
+      REQUIRES(Locks::jdwp_event_list_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
   void EventFinish(ExpandBuf* pReq);
   bool FindMatchingEvents(JdwpEventKind eventKind, const ModBasket& basket,
                           std::vector<JdwpEvent*>* match_list)
-      REQUIRES(!event_list_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
+      REQUIRES(!Locks::jdwp_event_list_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
   void FindMatchingEventsLocked(JdwpEventKind eventKind, const ModBasket& basket,
                                 std::vector<JdwpEvent*>* match_list)
-      REQUIRES(event_list_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
+      REQUIRES(Locks::jdwp_event_list_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
   void UnregisterEvent(JdwpEvent* pEvent)
-      REQUIRES(event_list_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
+      REQUIRES(Locks::jdwp_event_list_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
   void SendBufferedRequest(uint32_t type, const std::vector<iovec>& iov);
 
   /*
@@ -387,9 +392,8 @@ struct JdwpState {
   AtomicInteger event_serial_;
 
   // Linked list of events requested by the debugger (breakpoints, class prep, etc).
-  Mutex event_list_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER ACQUIRED_BEFORE(Locks::breakpoint_lock_);
-  JdwpEvent* event_list_ GUARDED_BY(event_list_lock_);
-  size_t event_list_size_ GUARDED_BY(event_list_lock_);  // Number of elements in event_list_.
+  JdwpEvent* event_list_ GUARDED_BY(Locks::jdwp_event_list_lock_);
+  size_t event_list_size_ GUARDED_BY(Locks::jdwp_event_list_lock_);  // Number of elements in event_list_.
 
   // Used to synchronize JDWP command handler thread and event threads so only one
   // thread does JDWP stuff at a time. This prevent from interleaving command handling
@@ -410,7 +414,7 @@ struct JdwpState {
   // When the runtime shuts down, it needs to stop JDWP command handler thread by closing the
   // JDWP connection. However, if the JDWP thread is processing a command, it needs to wait
   // for the command to finish so we can send its reply before closing the connection.
-  Mutex shutdown_lock_ ACQUIRED_AFTER(event_list_lock_);
+  Mutex shutdown_lock_ ACQUIRED_AFTER(Locks::jdwp_event_list_lock_);
   ConditionVariable shutdown_cond_ GUARDED_BY(shutdown_lock_);
   bool processing_request_ GUARDED_BY(shutdown_lock_);
 };
