@@ -3335,6 +3335,64 @@ void IntrinsicCodeGeneratorX86::VisitSystemArrayCopy(HInvoke* invoke) {
   __ Bind(intrinsic_slow_path->GetExitLabel());
 }
 
+void IntrinsicLocationsBuilderX86::VisitIntegerValueOf(HInvoke* invoke) {
+  InvokeRuntimeCallingConvention calling_convention;
+  IntrinsicVisitor::ComputeIntegerValueOfLocations(
+      invoke,
+      codegen_,
+      Location::RegisterLocation(EAX),
+      Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+}
+
+void IntrinsicCodeGeneratorX86::VisitIntegerValueOf(HInvoke* invoke) {
+  IntrinsicVisitor::IntegerValueOfInfo info = IntrinsicVisitor::ComputeIntegerValueOfInfo();
+  LocationSummary* locations = invoke->GetLocations();
+  X86Assembler* assembler = GetAssembler();
+
+  Register out = locations->Out().AsRegister<Register>();
+  InvokeRuntimeCallingConvention calling_convention;
+  if (invoke->InputAt(0)->IsConstant()) {
+    int32_t value = invoke->InputAt(0)->AsIntConstant()->GetValue();
+    if (value >= info.low && value <= info.high) {
+      // Just embed the j.l.Integer in the code.
+      ScopedObjectAccess soa(Thread::Current());
+      mirror::Object* boxed = info.cache->Get(value + (-info.low));
+      DCHECK(boxed != nullptr && Runtime::Current()->GetHeap()->ObjectIsInBootImageSpace(boxed));
+      uint32_t address = dchecked_integral_cast<uint32_t>(reinterpret_cast<uintptr_t>(boxed));
+      __ movl(out, Immediate(address));
+    } else {
+      // Allocate and initialize a new j.l.Integer.
+      // TODO: If we JIT, we could allocate the j.l.Integer now, and store it in the
+      // JIT object table.
+      uint32_t address = dchecked_integral_cast<uint32_t>(reinterpret_cast<uintptr_t>(info.integer));
+      __ movl(calling_convention.GetRegisterAt(0), Immediate(address));
+      codegen_->InvokeRuntime(kQuickAllocObjectInitialized, invoke, invoke->GetDexPc());
+      CheckEntrypointTypes<kQuickAllocObjectWithChecks, void*, mirror::Class*>();
+      __ movl(Address(out, info.value_offset), Immediate(value));
+    }
+  } else {
+    Register in = locations->InAt(0).AsRegister<Register>();
+    // Check bounds of our cache.
+    __ leal(out, Address(in, -info.low));
+    __ cmpl(out, Immediate(info.high - info.low + 1));
+    NearLabel allocate, done;
+    __ j(kAboveEqual, &allocate);
+    // If the value is within the bounds, load the j.l.Integer directly from the array.
+    uint32_t data_offset = mirror::Array::DataOffset(kHeapReferenceSize).Uint32Value();
+    uint32_t address = dchecked_integral_cast<uint32_t>(reinterpret_cast<uintptr_t>(info.cache));
+    __ movl(out, Address(out, TIMES_4, data_offset + address));
+    __ jmp(&done);
+    __ Bind(&allocate);
+    // Otherwise allocate and initialize a new j.l.Integer.
+    address = dchecked_integral_cast<uint32_t>(reinterpret_cast<uintptr_t>(info.integer));
+    __ movl(calling_convention.GetRegisterAt(0), Immediate(address));
+    codegen_->InvokeRuntime(kQuickAllocObjectInitialized, invoke, invoke->GetDexPc());
+    CheckEntrypointTypes<kQuickAllocObjectWithChecks, void*, mirror::Class*>();
+    __ movl(Address(out, info.value_offset), in);
+    __ Bind(&done);
+  }
+}
+
 UNIMPLEMENTED_INTRINSIC(X86, MathRoundDouble)
 UNIMPLEMENTED_INTRINSIC(X86, FloatIsInfinite)
 UNIMPLEMENTED_INTRINSIC(X86, DoubleIsInfinite)
