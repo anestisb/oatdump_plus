@@ -105,8 +105,9 @@ class DexLayout {
   void DumpSField(uint32_t idx, uint32_t flags, int i, dex_ir::EncodedValue* init);
   void DumpDexFile();
 
-  std::vector<dex_ir::ClassDef*> LayoutClassDefsAndClassData(const DexFile* dex_file);
-  int32_t LayoutCodeItems(std::vector<dex_ir::ClassDef*> new_class_def_order);
+  std::vector<dex_ir::ClassData*> LayoutClassDefsAndClassData(const DexFile* dex_file);
+  int32_t LayoutCodeItems(std::vector<dex_ir::ClassData*> new_class_data_order);
+  bool IsNextSectionCodeItemAligned(uint32_t offset);
   template<class T> void FixupSection(std::map<uint32_t, std::unique_ptr<T>>& map, uint32_t diff);
   void FixupSections(uint32_t offset, uint32_t diff);
 
