@@ -51,7 +51,8 @@ class HInliner : public HOptimization {
         total_number_of_dex_registers_(total_number_of_dex_registers),
         depth_(depth),
         number_of_inlined_instructions_(0),
-        handles_(handles) {}
+        handles_(handles),
+        inline_stats_(nullptr) {}
 
   void Run() OVERRIDE;
 
@@ -217,6 +218,10 @@ class HInliner : public HOptimization {
   const size_t depth_;
   size_t number_of_inlined_instructions_;
   VariableSizedHandleScope* const handles_;
+
+  // Used to record stats about optimizations on the inlined graph.
+  // If the inlining is successful, these stats are merged to the caller graph's stats.
+  OptimizingCompilerStats* inline_stats_;
 
   DISALLOW_COPY_AND_ASSIGN(HInliner);
 };
