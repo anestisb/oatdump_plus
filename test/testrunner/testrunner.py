@@ -527,10 +527,10 @@ def print_test_info(test_name, result, failed_test_info=""):
           test_name = ('%s...%s') % (
             test_name[:(allowed_test_length - 3)/2],
             test_name[-(allowed_test_length - 3)/2:])
-          info += ('%s %s %s') % (
-            progress_info,
-            test_name,
-            result_text)
+        info += ('%s %s %s') % (
+          progress_info,
+          test_name,
+          result_text)
     print_text(info)
   except Exception, e:
     print_text(('%s\n%s\n') % (test_name, str(e)))
