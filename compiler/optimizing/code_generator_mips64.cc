@@ -336,7 +336,8 @@ class SuspendCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
 
 class TypeCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
  public:
-  explicit TypeCheckSlowPathMIPS64(HInstruction* instruction) : SlowPathCodeMIPS64(instruction) {}
+  explicit TypeCheckSlowPathMIPS64(HInstruction* instruction, bool is_fatal)
+      : SlowPathCodeMIPS64(instruction), is_fatal_(is_fatal) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
@@ -347,7 +348,9 @@ class TypeCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
     CodeGeneratorMIPS64* mips64_codegen = down_cast<CodeGeneratorMIPS64*>(codegen);
 
     __ Bind(GetEntryLabel());
-    SaveLiveRegisters(codegen, locations);
+    if (!is_fatal_) {
+      SaveLiveRegisters(codegen, locations);
+    }
 
     // We're moving two locations to locations that could overlap, so we need a parallel
     // move resolver.
@@ -370,13 +373,19 @@ class TypeCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
       CheckEntrypointTypes<kQuickCheckInstanceOf, void, mirror::Object*, mirror::Class*>();
     }
 
-    RestoreLiveRegisters(codegen, locations);
-    __ Bc(GetExitLabel());
+    if (!is_fatal_) {
+      RestoreLiveRegisters(codegen, locations);
+      __ Bc(GetExitLabel());
+    }
   }
 
   const char* GetDescription() const OVERRIDE { return "TypeCheckSlowPathMIPS64"; }
 
+  bool IsFatal() const OVERRIDE { return is_fatal_; }
+
  private:
+  const bool is_fatal_;
+
   DISALLOW_COPY_AND_ASSIGN(TypeCheckSlowPathMIPS64);
 };
 
@@ -1888,31 +1897,178 @@ void InstructionCodeGeneratorMIPS64::VisitBoundsCheck(HBoundsCheck* instruction)
 }
 
 void LocationsBuilderMIPS64::VisitCheckCast(HCheckCast* instruction) {
-  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(
-      instruction,
-      LocationSummary::kCallOnSlowPath);
+  LocationSummary::CallKind call_kind = LocationSummary::kNoCall;
+  bool throws_into_catch = instruction->CanThrowIntoCatchBlock();
+
+  TypeCheckKind type_check_kind = instruction->GetTypeCheckKind();
+  switch (type_check_kind) {
+    case TypeCheckKind::kExactCheck:
+    case TypeCheckKind::kAbstractClassCheck:
+    case TypeCheckKind::kClassHierarchyCheck:
+    case TypeCheckKind::kArrayObjectCheck:
+      call_kind = throws_into_catch
+          ? LocationSummary::kCallOnSlowPath
+          : LocationSummary::kNoCall;  // In fact, call on a fatal (non-returning) slow path.
+      break;
+    case TypeCheckKind::kArrayCheck:
+    case TypeCheckKind::kUnresolvedCheck:
+    case TypeCheckKind::kInterfaceCheck:
+      call_kind = LocationSummary::kCallOnSlowPath;
+      break;
+  }
+
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction, call_kind);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
-  // Note that TypeCheckSlowPathMIPS64 uses this register too.
   locations->AddTemp(Location::RequiresRegister());
 }
 
 void InstructionCodeGeneratorMIPS64::VisitCheckCast(HCheckCast* instruction) {
+  TypeCheckKind type_check_kind = instruction->GetTypeCheckKind();
   LocationSummary* locations = instruction->GetLocations();
   GpuRegister obj = locations->InAt(0).AsRegister<GpuRegister>();
   GpuRegister cls = locations->InAt(1).AsRegister<GpuRegister>();
-  GpuRegister obj_cls = locations->GetTemp(0).AsRegister<GpuRegister>();
+  GpuRegister temp = locations->GetTemp(0).AsRegister<GpuRegister>();
+  const uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
+  const uint32_t super_offset = mirror::Class::SuperClassOffset().Int32Value();
+  const uint32_t component_offset = mirror::Class::ComponentTypeOffset().Int32Value();
+  const uint32_t primitive_offset = mirror::Class::PrimitiveTypeOffset().Int32Value();
+  const uint32_t iftable_offset = mirror::Class::IfTableOffset().Uint32Value();
+  const uint32_t array_length_offset = mirror::Array::LengthOffset().Uint32Value();
+  const uint32_t object_array_data_offset =
+      mirror::Array::DataOffset(kHeapReferenceSize).Uint32Value();
+  Mips64Label done;
 
+  // Always false for read barriers since we may need to go to the entrypoint for non-fatal cases
+  // from false negatives. The false negatives may come from avoiding read barriers below. Avoiding
+  // read barriers is done for performance and code size reasons.
+  bool is_type_check_slow_path_fatal = false;
+  if (!kEmitCompilerReadBarrier) {
+    is_type_check_slow_path_fatal =
+        (type_check_kind == TypeCheckKind::kExactCheck ||
+         type_check_kind == TypeCheckKind::kAbstractClassCheck ||
+         type_check_kind == TypeCheckKind::kClassHierarchyCheck ||
+         type_check_kind == TypeCheckKind::kArrayObjectCheck) &&
+        !instruction->CanThrowIntoCatchBlock();
+  }
   SlowPathCodeMIPS64* slow_path =
-      new (GetGraph()->GetArena()) TypeCheckSlowPathMIPS64(instruction);
+      new (GetGraph()->GetArena()) TypeCheckSlowPathMIPS64(instruction,
+                                                           is_type_check_slow_path_fatal);
   codegen_->AddSlowPath(slow_path);
 
-  // TODO: avoid this check if we know obj is not null.
-  __ Beqzc(obj, slow_path->GetExitLabel());
-  // Compare the class of `obj` with `cls`.
-  __ LoadFromOffset(kLoadUnsignedWord, obj_cls, obj, mirror::Object::ClassOffset().Int32Value());
-  __ MaybeUnpoisonHeapReference(obj_cls);
-  __ Bnec(obj_cls, cls, slow_path->GetEntryLabel());
+  // Avoid this check if we know `obj` is not null.
+  if (instruction->MustDoNullCheck()) {
+    __ Beqzc(obj, &done);
+  }
+
+  switch (type_check_kind) {
+    case TypeCheckKind::kExactCheck:
+    case TypeCheckKind::kArrayCheck: {
+      // /* HeapReference<Class> */ temp = obj->klass_
+      __ LoadFromOffset(kLoadUnsignedWord, temp, obj, class_offset);
+      __ MaybeUnpoisonHeapReference(temp);
+      // Jump to slow path for throwing the exception or doing a
+      // more involved array check.
+      __ Bnec(temp, cls, slow_path->GetEntryLabel());
+      break;
+    }
+
+    case TypeCheckKind::kAbstractClassCheck: {
+      // /* HeapReference<Class> */ temp = obj->klass_
+      __ LoadFromOffset(kLoadUnsignedWord, temp, obj, class_offset);
+      __ MaybeUnpoisonHeapReference(temp);
+      // If the class is abstract, we eagerly fetch the super class of the
+      // object to avoid doing a comparison we know will fail.
+      Mips64Label loop;
+      __ Bind(&loop);
+      // /* HeapReference<Class> */ temp = temp->super_class_
+      __ LoadFromOffset(kLoadUnsignedWord, temp, temp, super_offset);
+      __ MaybeUnpoisonHeapReference(temp);
+      // If the class reference currently in `temp` is null, jump to the slow path to throw the
+      // exception.
+      __ Beqzc(temp, slow_path->GetEntryLabel());
+      // Otherwise, compare the classes.
+      __ Bnec(temp, cls, &loop);
+      break;
+    }
+
+    case TypeCheckKind::kClassHierarchyCheck: {
+      // /* HeapReference<Class> */ temp = obj->klass_
+      __ LoadFromOffset(kLoadUnsignedWord, temp, obj, class_offset);
+      __ MaybeUnpoisonHeapReference(temp);
+      // Walk over the class hierarchy to find a match.
+      Mips64Label loop;
+      __ Bind(&loop);
+      __ Beqc(temp, cls, &done);
+      // /* HeapReference<Class> */ temp = temp->super_class_
+      __ LoadFromOffset(kLoadUnsignedWord, temp, temp, super_offset);
+      __ MaybeUnpoisonHeapReference(temp);
+      // If the class reference currently in `temp` is null, jump to the slow path to throw the
+      // exception. Otherwise, jump to the beginning of the loop.
+      __ Bnezc(temp, &loop);
+      __ Bc(slow_path->GetEntryLabel());
+      break;
+    }
+
+    case TypeCheckKind::kArrayObjectCheck: {
+      // /* HeapReference<Class> */ temp = obj->klass_
+      __ LoadFromOffset(kLoadUnsignedWord, temp, obj, class_offset);
+      __ MaybeUnpoisonHeapReference(temp);
+      // Do an exact check.
+      __ Beqc(temp, cls, &done);
+      // Otherwise, we need to check that the object's class is a non-primitive array.
+      // /* HeapReference<Class> */ temp = temp->component_type_
+      __ LoadFromOffset(kLoadUnsignedWord, temp, temp, component_offset);
+      __ MaybeUnpoisonHeapReference(temp);
+      // If the component type is null, jump to the slow path to throw the exception.
+      __ Beqzc(temp, slow_path->GetEntryLabel());
+      // Otherwise, the object is indeed an array, further check that this component
+      // type is not a primitive type.
+      __ LoadFromOffset(kLoadUnsignedHalfword, temp, temp, primitive_offset);
+      static_assert(Primitive::kPrimNot == 0, "Expected 0 for kPrimNot");
+      __ Bnezc(temp, slow_path->GetEntryLabel());
+      break;
+    }
+
+    case TypeCheckKind::kUnresolvedCheck:
+      // We always go into the type check slow path for the unresolved check case.
+      // We cannot directly call the CheckCast runtime entry point
+      // without resorting to a type checking slow path here (i.e. by
+      // calling InvokeRuntime directly), as it would require to
+      // assign fixed registers for the inputs of this HInstanceOf
+      // instruction (following the runtime calling convention), which
+      // might be cluttered by the potential first read barrier
+      // emission at the beginning of this method.
+      __ Bc(slow_path->GetEntryLabel());
+      break;
+
+    case TypeCheckKind::kInterfaceCheck: {
+      // Avoid read barriers to improve performance of the fast path. We can not get false
+      // positives by doing this.
+      // /* HeapReference<Class> */ temp = obj->klass_
+      __ LoadFromOffset(kLoadUnsignedWord, temp, obj, class_offset);
+      __ MaybeUnpoisonHeapReference(temp);
+      // /* HeapReference<Class> */ temp = temp->iftable_
+      __ LoadFromOffset(kLoadUnsignedWord, temp, temp, iftable_offset);
+      __ MaybeUnpoisonHeapReference(temp);
+      // Iftable is never null.
+      __ Lw(TMP, temp, array_length_offset);
+      // Loop through the iftable and check if any class matches.
+      Mips64Label loop;
+      __ Bind(&loop);
+      __ Beqzc(TMP, slow_path->GetEntryLabel());
+      __ Lwu(AT, temp, object_array_data_offset);
+      __ MaybeUnpoisonHeapReference(AT);
+      // Go to next interface.
+      __ Daddiu(temp, temp, 2 * kHeapReferenceSize);
+      __ Addiu(TMP, TMP, -2);
+      // Compare the classes and continue the loop if they do not match.
+      __ Bnec(AT, cls, &loop);
+      break;
+    }
+  }
+
+  __ Bind(&done);
   __ Bind(slow_path->GetExitLabel());
 }
 
@@ -3280,8 +3436,22 @@ void InstructionCodeGeneratorMIPS64::GenerateGcRootFieldLoad(
 }
 
 void LocationsBuilderMIPS64::VisitInstanceOf(HInstanceOf* instruction) {
-  LocationSummary::CallKind call_kind =
-      instruction->IsExactCheck() ? LocationSummary::kNoCall : LocationSummary::kCallOnSlowPath;
+  LocationSummary::CallKind call_kind = LocationSummary::kNoCall;
+  TypeCheckKind type_check_kind = instruction->GetTypeCheckKind();
+  switch (type_check_kind) {
+    case TypeCheckKind::kExactCheck:
+    case TypeCheckKind::kAbstractClassCheck:
+    case TypeCheckKind::kClassHierarchyCheck:
+    case TypeCheckKind::kArrayObjectCheck:
+      call_kind = LocationSummary::kNoCall;
+      break;
+    case TypeCheckKind::kArrayCheck:
+    case TypeCheckKind::kUnresolvedCheck:
+    case TypeCheckKind::kInterfaceCheck:
+      call_kind = LocationSummary::kCallOnSlowPath;
+      break;
+  }
+
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction, call_kind);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
@@ -3291,37 +3461,143 @@ void LocationsBuilderMIPS64::VisitInstanceOf(HInstanceOf* instruction) {
 }
 
 void InstructionCodeGeneratorMIPS64::VisitInstanceOf(HInstanceOf* instruction) {
+  TypeCheckKind type_check_kind = instruction->GetTypeCheckKind();
   LocationSummary* locations = instruction->GetLocations();
   GpuRegister obj = locations->InAt(0).AsRegister<GpuRegister>();
   GpuRegister cls = locations->InAt(1).AsRegister<GpuRegister>();
   GpuRegister out = locations->Out().AsRegister<GpuRegister>();
-
+  uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
+  uint32_t super_offset = mirror::Class::SuperClassOffset().Int32Value();
+  uint32_t component_offset = mirror::Class::ComponentTypeOffset().Int32Value();
+  uint32_t primitive_offset = mirror::Class::PrimitiveTypeOffset().Int32Value();
   Mips64Label done;
+  SlowPathCodeMIPS64* slow_path = nullptr;
 
   // Return 0 if `obj` is null.
-  // TODO: Avoid this check if we know `obj` is not null.
-  __ Move(out, ZERO);
-  __ Beqzc(obj, &done);
+  // Avoid this check if we know `obj` is not null.
+  if (instruction->MustDoNullCheck()) {
+    __ Move(out, ZERO);
+    __ Beqzc(obj, &done);
+  }
 
-  // Compare the class of `obj` with `cls`.
-  __ LoadFromOffset(kLoadUnsignedWord, out, obj, mirror::Object::ClassOffset().Int32Value());
-  __ MaybeUnpoisonHeapReference(out);
-  if (instruction->IsExactCheck()) {
-    // Classes must be equal for the instanceof to succeed.
-    __ Xor(out, out, cls);
-    __ Sltiu(out, out, 1);
-  } else {
-    // If the classes are not equal, we go into a slow path.
-    DCHECK(locations->OnlyCallsOnSlowPath());
-    SlowPathCodeMIPS64* slow_path =
-        new (GetGraph()->GetArena()) TypeCheckSlowPathMIPS64(instruction);
-    codegen_->AddSlowPath(slow_path);
-    __ Bnec(out, cls, slow_path->GetEntryLabel());
-    __ LoadConst32(out, 1);
-    __ Bind(slow_path->GetExitLabel());
+  switch (type_check_kind) {
+    case TypeCheckKind::kExactCheck: {
+      // /* HeapReference<Class> */ out = obj->klass_
+      __ LoadFromOffset(kLoadUnsignedWord, out, obj, class_offset);
+      __ MaybeUnpoisonHeapReference(out);
+      // Classes must be equal for the instanceof to succeed.
+      __ Xor(out, out, cls);
+      __ Sltiu(out, out, 1);
+      break;
+    }
+
+    case TypeCheckKind::kAbstractClassCheck: {
+      // /* HeapReference<Class> */ out = obj->klass_
+      __ LoadFromOffset(kLoadUnsignedWord, out, obj, class_offset);
+      __ MaybeUnpoisonHeapReference(out);
+      // If the class is abstract, we eagerly fetch the super class of the
+      // object to avoid doing a comparison we know will fail.
+      Mips64Label loop;
+      __ Bind(&loop);
+      // /* HeapReference<Class> */ out = out->super_class_
+      __ LoadFromOffset(kLoadUnsignedWord, out, out, super_offset);
+      __ MaybeUnpoisonHeapReference(out);
+      // If `out` is null, we use it for the result, and jump to `done`.
+      __ Beqzc(out, &done);
+      __ Bnec(out, cls, &loop);
+      __ LoadConst32(out, 1);
+      break;
+    }
+
+    case TypeCheckKind::kClassHierarchyCheck: {
+      // /* HeapReference<Class> */ out = obj->klass_
+      __ LoadFromOffset(kLoadUnsignedWord, out, obj, class_offset);
+      __ MaybeUnpoisonHeapReference(out);
+      // Walk over the class hierarchy to find a match.
+      Mips64Label loop, success;
+      __ Bind(&loop);
+      __ Beqc(out, cls, &success);
+      // /* HeapReference<Class> */ out = out->super_class_
+      __ LoadFromOffset(kLoadUnsignedWord, out, out, super_offset);
+      __ MaybeUnpoisonHeapReference(out);
+      __ Bnezc(out, &loop);
+      // If `out` is null, we use it for the result, and jump to `done`.
+      __ Bc(&done);
+      __ Bind(&success);
+      __ LoadConst32(out, 1);
+      break;
+    }
+
+    case TypeCheckKind::kArrayObjectCheck: {
+      // /* HeapReference<Class> */ out = obj->klass_
+      __ LoadFromOffset(kLoadUnsignedWord, out, obj, class_offset);
+      __ MaybeUnpoisonHeapReference(out);
+      // Do an exact check.
+      Mips64Label success;
+      __ Beqc(out, cls, &success);
+      // Otherwise, we need to check that the object's class is a non-primitive array.
+      // /* HeapReference<Class> */ out = out->component_type_
+      __ LoadFromOffset(kLoadUnsignedWord, out, out, component_offset);
+      __ MaybeUnpoisonHeapReference(out);
+      // If `out` is null, we use it for the result, and jump to `done`.
+      __ Beqzc(out, &done);
+      __ LoadFromOffset(kLoadUnsignedHalfword, out, out, primitive_offset);
+      static_assert(Primitive::kPrimNot == 0, "Expected 0 for kPrimNot");
+      __ Sltiu(out, out, 1);
+      __ Bc(&done);
+      __ Bind(&success);
+      __ LoadConst32(out, 1);
+      break;
+    }
+
+    case TypeCheckKind::kArrayCheck: {
+      // No read barrier since the slow path will retry upon failure.
+      // /* HeapReference<Class> */ out = obj->klass_
+      __ LoadFromOffset(kLoadUnsignedWord, out, obj, class_offset);
+      __ MaybeUnpoisonHeapReference(out);
+      DCHECK(locations->OnlyCallsOnSlowPath());
+      slow_path = new (GetGraph()->GetArena()) TypeCheckSlowPathMIPS64(instruction,
+                                                                       /* is_fatal */ false);
+      codegen_->AddSlowPath(slow_path);
+      __ Bnec(out, cls, slow_path->GetEntryLabel());
+      __ LoadConst32(out, 1);
+      break;
+    }
+
+    case TypeCheckKind::kUnresolvedCheck:
+    case TypeCheckKind::kInterfaceCheck: {
+      // Note that we indeed only call on slow path, but we always go
+      // into the slow path for the unresolved and interface check
+      // cases.
+      //
+      // We cannot directly call the InstanceofNonTrivial runtime
+      // entry point without resorting to a type checking slow path
+      // here (i.e. by calling InvokeRuntime directly), as it would
+      // require to assign fixed registers for the inputs of this
+      // HInstanceOf instruction (following the runtime calling
+      // convention), which might be cluttered by the potential first
+      // read barrier emission at the beginning of this method.
+      //
+      // TODO: Introduce a new runtime entry point taking the object
+      // to test (instead of its class) as argument, and let it deal
+      // with the read barrier issues. This will let us refactor this
+      // case of the `switch` code as it was previously (with a direct
+      // call to the runtime not using a type checking slow path).
+      // This should also be beneficial for the other cases above.
+      DCHECK(locations->OnlyCallsOnSlowPath());
+      slow_path = new (GetGraph()->GetArena()) TypeCheckSlowPathMIPS64(instruction,
+                                                                       /* is_fatal */ false);
+      codegen_->AddSlowPath(slow_path);
+      __ Bc(slow_path->GetEntryLabel());
+      break;
+    }
   }
 
   __ Bind(&done);
+
+  if (slow_path != nullptr) {
+    __ Bind(slow_path->GetExitLabel());
+  }
 }
 
 void LocationsBuilderMIPS64::VisitIntConstant(HIntConstant* constant) {
