@@ -25,7 +25,7 @@
 namespace art {
 
 const uint8_t ImageHeader::kImageMagic[] = { 'a', 'r', 't', '\n' };
-const uint8_t ImageHeader::kImageVersion[] = { '0', '3', '8', '\0' };  // hash-based DexCache types
+const uint8_t ImageHeader::kImageVersion[] = { '0', '3', '9', '\0' };  // Enable string compression.
 
 ImageHeader::ImageHeader(uint32_t image_begin,
                          uint32_t image_size,

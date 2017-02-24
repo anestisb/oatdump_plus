@@ -246,7 +246,7 @@ ADD_TEST_EQ(MIRROR_STRING_COUNT_OFFSET, art::mirror::String::CountOffset().Int32
 ADD_TEST_EQ(MIRROR_STRING_VALUE_OFFSET, art::mirror::String::ValueOffset().Int32Value())
 
 // String compression feature.
-#define STRING_COMPRESSION_FEATURE 0
+#define STRING_COMPRESSION_FEATURE 1
 ADD_TEST_EQ(STRING_COMPRESSION_FEATURE, art::mirror::kUseStringCompression);
 
 #if defined(__cplusplus)
