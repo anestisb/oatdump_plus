@@ -159,32 +159,19 @@ jint ReportPrimitiveArray(art::ObjPtr<art::mirror::Object> obj,
   return 0;
 }
 
-}  // namespace
-
-struct IterateThroughHeapData {
-  IterateThroughHeapData(HeapUtil* _heap_util,
-                         jvmtiEnv* _env,
-                         jint heap_filter,
-                         art::ObjPtr<art::mirror::Class> klass,
-                         const jvmtiHeapCallbacks* _callbacks,
-                         const void* _user_data)
-      : heap_util(_heap_util),
-        filter_klass(klass),
-        env(_env),
-        callbacks(_callbacks),
-        user_data(_user_data),
-        filter_out_tagged((heap_filter & JVMTI_HEAP_FILTER_TAGGED) != 0),
+struct HeapFilter {
+  explicit HeapFilter(jint heap_filter)
+      : filter_out_tagged((heap_filter & JVMTI_HEAP_FILTER_TAGGED) != 0),
         filter_out_untagged((heap_filter & JVMTI_HEAP_FILTER_UNTAGGED) != 0),
         filter_out_class_tagged((heap_filter & JVMTI_HEAP_FILTER_CLASS_TAGGED) != 0),
         filter_out_class_untagged((heap_filter & JVMTI_HEAP_FILTER_CLASS_UNTAGGED) != 0),
         any_filter(filter_out_tagged ||
                    filter_out_untagged ||
                    filter_out_class_tagged ||
-                   filter_out_class_untagged),
-        stop_reports(false) {
+                   filter_out_class_untagged) {
   }
 
-  bool ShouldReportByHeapFilter(jlong tag, jlong class_tag) {
+  bool ShouldReportByHeapFilter(jlong tag, jlong class_tag) const {
     if (!any_filter) {
       return true;
     }
@@ -201,16 +188,37 @@ struct IterateThroughHeapData {
     return true;
   }
 
-  HeapUtil* heap_util;
-  art::ObjPtr<art::mirror::Class> filter_klass;
-  jvmtiEnv* env;
-  const jvmtiHeapCallbacks* callbacks;
-  const void* user_data;
   const bool filter_out_tagged;
   const bool filter_out_untagged;
   const bool filter_out_class_tagged;
   const bool filter_out_class_untagged;
   const bool any_filter;
+};
+
+}  // namespace
+
+struct IterateThroughHeapData {
+  IterateThroughHeapData(HeapUtil* _heap_util,
+                         jvmtiEnv* _env,
+                         art::ObjPtr<art::mirror::Class> klass,
+                         jint _heap_filter,
+                         const jvmtiHeapCallbacks* _callbacks,
+                         const void* _user_data)
+      : heap_util(_heap_util),
+        heap_filter(_heap_filter),
+        filter_klass(klass),
+        env(_env),
+        callbacks(_callbacks),
+        user_data(_user_data),
+        stop_reports(false) {
+  }
+
+  HeapUtil* heap_util;
+  const HeapFilter heap_filter;
+  art::ObjPtr<art::mirror::Class> filter_klass;
+  jvmtiEnv* env;
+  const jvmtiHeapCallbacks* callbacks;
+  const void* user_data;
 
   bool stop_reports;
 };
@@ -233,7 +241,7 @@ static void IterateThroughHeapObjectCallback(art::mirror::Object* obj, void* arg
   ithd->heap_util->GetTags()->GetTag(klass.Ptr(), &class_tag);
   // For simplicity, even if we find a tag = 0, assume 0 = not tagged.
 
-  if (!ithd->ShouldReportByHeapFilter(tag, class_tag)) {
+  if (!ithd->heap_filter.ShouldReportByHeapFilter(tag, class_tag)) {
     return;
   }
 
@@ -298,8 +306,8 @@ jvmtiError HeapUtil::IterateThroughHeap(jvmtiEnv* env,
 
   IterateThroughHeapData ithd(this,
                               env,
-                              heap_filter,
                               soa.Decode<art::mirror::Class>(klass),
+                              heap_filter,
                               callbacks,
                               user_data);
 
@@ -315,12 +323,14 @@ class FollowReferencesHelper FINAL {
                          art::ObjPtr<art::mirror::Object> initial_object,
                          const jvmtiHeapCallbacks* callbacks,
                          art::ObjPtr<art::mirror::Class> class_filter,
+                         jint heap_filter,
                          const void* user_data)
       : env(jvmti_env),
         tag_table_(h->GetTags()),
         initial_object_(initial_object),
         callbacks_(callbacks),
         class_filter_(class_filter),
+        heap_filter_(heap_filter),
         user_data_(user_data),
         start_(0),
         stop_reports_(false) {
@@ -767,10 +777,15 @@ class FollowReferencesHelper FINAL {
     }
 
     const jlong class_tag = tag_table_->GetTagOrZero(referree->GetClass());
+    jlong tag = tag_table_->GetTagOrZero(referree);
+
+    if (!heap_filter_.ShouldReportByHeapFilter(tag, class_tag)) {
+      return JVMTI_VISIT_OBJECTS;
+    }
+
     const jlong referrer_class_tag =
         referrer == nullptr ? 0 : tag_table_->GetTagOrZero(referrer->GetClass());
     const jlong size = static_cast<jlong>(referree->SizeOf());
-    jlong tag = tag_table_->GetTagOrZero(referree);
     jlong saved_tag = tag;
     jlong referrer_tag = 0;
     jlong saved_referrer_tag = 0;
@@ -816,6 +831,7 @@ class FollowReferencesHelper FINAL {
   art::ObjPtr<art::mirror::Object> initial_object_;
   const jvmtiHeapCallbacks* callbacks_;
   art::ObjPtr<art::mirror::Class> class_filter_;
+  const HeapFilter heap_filter_;
   const void* user_data_;
 
   std::vector<art::mirror::Object*> worklist_;
@@ -830,7 +846,7 @@ class FollowReferencesHelper FINAL {
 };
 
 jvmtiError HeapUtil::FollowReferences(jvmtiEnv* env,
-                                      jint heap_filter ATTRIBUTE_UNUSED,
+                                      jint heap_filter,
                                       jclass klass,
                                       jobject initial_object,
                                       const jvmtiHeapCallbacks* callbacks,
@@ -860,6 +876,7 @@ jvmtiError HeapUtil::FollowReferences(jvmtiEnv* env,
                                self->DecodeJObject(initial_object),
                                callbacks,
                                class_filter,
+                               heap_filter,
                                user_data);
     frh.Init();
     frh.Work();

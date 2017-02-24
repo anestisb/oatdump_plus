@@ -31,6 +31,17 @@ public class Main {
     // Test klass filter.
     System.out.println("--- klass ---");
     new TestConfig(A.class, 0).doFollowReferencesTest();
+
+    // Test heap filter.
+    System.out.println("--- heap_filter ---");
+    System.out.println("---- tagged objects");
+    new TestConfig(null, 0x4).doFollowReferencesTest();
+    System.out.println("---- untagged objects");
+    new TestConfig(null, 0x8).doFollowReferencesTest();
+    System.out.println("---- tagged classes");
+    new TestConfig(null, 0x10).doFollowReferencesTest();
+    System.out.println("---- untagged classes");
+    new TestConfig(null, 0x20).doFollowReferencesTest();
   }
 
   public static void doTest() throws Exception {
