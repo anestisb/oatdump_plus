@@ -114,6 +114,7 @@
 #include "native/java_lang_Thread.h"
 #include "native/java_lang_Throwable.h"
 #include "native/java_lang_VMClassLoader.h"
+#include "native/java_lang_Void.h"
 #include "native/java_lang_invoke_MethodHandleImpl.h"
 #include "native/java_lang_ref_FinalizerReference.h"
 #include "native/java_lang_ref_Reference.h"
@@ -1556,6 +1557,7 @@ void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {
   register_java_lang_Thread(env);
   register_java_lang_Throwable(env);
   register_java_lang_VMClassLoader(env);
+  register_java_lang_Void(env);
   register_java_util_concurrent_atomic_AtomicLong(env);
   register_libcore_util_CharsetUtils(env);
   register_org_apache_harmony_dalvik_ddmc_DdmServer(env);

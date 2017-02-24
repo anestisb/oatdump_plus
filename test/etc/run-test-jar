@@ -371,6 +371,22 @@ fi
 
 
 if [ "$HAVE_IMAGE" = "n" ]; then
+    if [ "${HOST}" = "y" ]; then
+        framework="${ANDROID_HOST_OUT}/framework"
+        bpath_suffix="-hostdex"
+    else
+        framework="${ANDROID_ROOT}/framework"
+        bpath_suffix=""
+    fi
+    # TODO If the target was compiled WITH_DEXPREOPT=true then these tests will
+    # fail since these jar files will be stripped.
+    bpath="${framework}/core-libart${bpath_suffix}.jar"
+    bpath="${bpath}:${framework}/core-oj${bpath_suffix}.jar"
+    bpath="${bpath}:${framework}/conscrypt${bpath_suffix}.jar"
+    bpath="${bpath}:${framework}/okhttp${bpath_suffix}.jar"
+    bpath="${bpath}:${framework}/bouncycastle${bpath_suffix}.jar"
+    # Pass down the bootclasspath
+    FLAGS="${FLAGS} -Xbootclasspath:${bpath}"
     # Add 5 minutes to give some time to generate the boot image.
     TIME_OUT_VALUE=$((${TIME_OUT_VALUE} + 300))
     DALVIKVM_BOOT_OPT="-Ximage:/system/non-existant/core.art"
