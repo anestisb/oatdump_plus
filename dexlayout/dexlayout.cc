@@ -46,6 +46,8 @@ namespace art {
 
 using android::base::StringPrintf;
 
+static constexpr uint32_t kDexCodeItemAlignment = 4;
+
 /*
  * Flags for use with createAccessFlagStr().
  */
@@ -1489,7 +1491,7 @@ void DexLayout::DumpDexFile() {
   }
 }
 
-std::vector<dex_ir::ClassDef*> DexLayout::LayoutClassDefsAndClassData(const DexFile* dex_file) {
+std::vector<dex_ir::ClassData*> DexLayout::LayoutClassDefsAndClassData(const DexFile* dex_file) {
   std::vector<dex_ir::ClassDef*> new_class_def_order;
   for (std::unique_ptr<dex_ir::ClassDef>& class_def : header_->GetCollections().ClassDefs()) {
     dex::TypeIndex type_idx(class_def->ClassType()->GetIndex());
@@ -1505,46 +1507,93 @@ std::vector<dex_ir::ClassDef*> DexLayout::LayoutClassDefsAndClassData(const DexF
   }
   uint32_t class_defs_offset = header_->GetCollections().ClassDefsOffset();
   uint32_t class_data_offset = header_->GetCollections().ClassDatasOffset();
+  std::unordered_set<dex_ir::ClassData*> visited_class_data;
+  std::vector<dex_ir::ClassData*> new_class_data_order;
   for (uint32_t i = 0; i < new_class_def_order.size(); ++i) {
     dex_ir::ClassDef* class_def = new_class_def_order[i];
     class_def->SetIndex(i);
     class_def->SetOffset(class_defs_offset);
     class_defs_offset += dex_ir::ClassDef::ItemSize();
-    if (class_def->GetClassData() != nullptr) {
-      class_def->GetClassData()->SetOffset(class_data_offset);
-      class_data_offset += class_def->GetClassData()->GetSize();
+    dex_ir::ClassData* class_data = class_def->GetClassData();
+    if (class_data != nullptr && visited_class_data.find(class_data) == visited_class_data.end()) {
+      class_data->SetOffset(class_data_offset);
+      class_data_offset += class_data->GetSize();
+      visited_class_data.insert(class_data);
+      new_class_data_order.push_back(class_data);
     }
   }
-  return new_class_def_order;
+  return new_class_data_order;
 }
 
-int32_t DexLayout::LayoutCodeItems(std::vector<dex_ir::ClassDef*> new_class_def_order) {
-  int32_t diff = 0;
+// Orders code items according to specified class data ordering.
+// NOTE: If the section following the code items is byte aligned, the last code item is left in
+// place to preserve alignment. Layout needs an overhaul to handle movement of other sections.
+int32_t DexLayout::LayoutCodeItems(std::vector<dex_ir::ClassData*> new_class_data_order) {
+  // Find the last code item so we can leave it in place if the next section is not 4 byte aligned.
+  std::unordered_set<dex_ir::CodeItem*> visited_code_items;
   uint32_t offset = header_->GetCollections().CodeItemsOffset();
-  for (dex_ir::ClassDef* class_def : new_class_def_order) {
-    dex_ir::ClassData* class_data = class_def->GetClassData();
-    if (class_data != nullptr) {
-      class_data->SetOffset(class_data->GetOffset() + diff);
-      for (auto& method : *class_data->DirectMethods()) {
-        dex_ir::CodeItem* code_item = method->GetCodeItem();
-        if (code_item != nullptr) {
-          diff += UnsignedLeb128Size(offset) - UnsignedLeb128Size(code_item->GetOffset());
-          code_item->SetOffset(offset);
-          offset += RoundUp(code_item->GetSize(), 4);
-        }
+  bool is_code_item_aligned = IsNextSectionCodeItemAligned(offset);
+  if (!is_code_item_aligned) {
+    dex_ir::CodeItem* last_code_item = nullptr;
+    for (auto& code_item_pair : header_->GetCollections().CodeItems()) {
+      std::unique_ptr<dex_ir::CodeItem>& code_item = code_item_pair.second;
+      if (last_code_item == nullptr || last_code_item->GetOffset() < code_item->GetOffset()) {
+        last_code_item = code_item.get();
       }
-      for (auto& method : *class_data->VirtualMethods()) {
-        dex_ir::CodeItem* code_item = method->GetCodeItem();
-        if (code_item != nullptr) {
-          diff += UnsignedLeb128Size(offset) - UnsignedLeb128Size(code_item->GetOffset());
-          code_item->SetOffset(offset);
-          offset += RoundUp(code_item->GetSize(), 4);
-        }
+    }
+    // Preserve the last code item by marking it already visited.
+    visited_code_items.insert(last_code_item);
+  }
+
+  int32_t diff = 0;
+  for (dex_ir::ClassData* class_data : new_class_data_order) {
+    class_data->SetOffset(class_data->GetOffset() + diff);
+    for (auto& method : *class_data->DirectMethods()) {
+      dex_ir::CodeItem* code_item = method->GetCodeItem();
+      if (code_item != nullptr && visited_code_items.find(code_item) == visited_code_items.end()) {
+        visited_code_items.insert(code_item);
+        diff += UnsignedLeb128Size(offset) - UnsignedLeb128Size(code_item->GetOffset());
+        code_item->SetOffset(offset);
+        offset += RoundUp(code_item->GetSize(), kDexCodeItemAlignment);
+      }
+    }
+    for (auto& method : *class_data->VirtualMethods()) {
+      dex_ir::CodeItem* code_item = method->GetCodeItem();
+      if (code_item != nullptr && visited_code_items.find(code_item) == visited_code_items.end()) {
+        visited_code_items.insert(code_item);
+        diff += UnsignedLeb128Size(offset) - UnsignedLeb128Size(code_item->GetOffset());
+        code_item->SetOffset(offset);
+        offset += RoundUp(code_item->GetSize(), kDexCodeItemAlignment);
       }
     }
   }
+  // Adjust diff to be 4-byte aligned.
+  return RoundUp(diff, kDexCodeItemAlignment);
+}
 
-  return diff;
+bool DexLayout::IsNextSectionCodeItemAligned(uint32_t offset) {
+  dex_ir::Collections& collections = header_->GetCollections();
+  std::set<uint32_t> section_offsets;
+  section_offsets.insert(collections.MapListOffset());
+  section_offsets.insert(collections.TypeListsOffset());
+  section_offsets.insert(collections.AnnotationSetRefListsOffset());
+  section_offsets.insert(collections.AnnotationSetItemsOffset());
+  section_offsets.insert(collections.ClassDatasOffset());
+  section_offsets.insert(collections.CodeItemsOffset());
+  section_offsets.insert(collections.StringDatasOffset());
+  section_offsets.insert(collections.DebugInfoItemsOffset());
+  section_offsets.insert(collections.AnnotationItemsOffset());
+  section_offsets.insert(collections.EncodedArrayItemsOffset());
+  section_offsets.insert(collections.AnnotationsDirectoryItemsOffset());
+
+  auto found = section_offsets.find(offset);
+  if (found != section_offsets.end()) {
+    found++;
+    if (found != section_offsets.end()) {
+      return *found % kDexCodeItemAlignment == 0;
+    }
+  }
+  return false;
 }
 
 // Adjust offsets of every item in the specified section by diff bytes.
@@ -1626,10 +1675,8 @@ void DexLayout::FixupSections(uint32_t offset, uint32_t diff) {
 }
 
 void DexLayout::LayoutOutputFile(const DexFile* dex_file) {
-  std::vector<dex_ir::ClassDef*> new_class_def_order = LayoutClassDefsAndClassData(dex_file);
-  int32_t diff = LayoutCodeItems(new_class_def_order);
-  // Adjust diff to be 4-byte aligned.
-  diff = RoundUp(diff, 4);
+  std::vector<dex_ir::ClassData*> new_class_data_order = LayoutClassDefsAndClassData(dex_file);
+  int32_t diff = LayoutCodeItems(new_class_data_order);
   // Move sections after ClassData by diff bytes.
   FixupSections(header_->GetCollections().ClassDatasOffset(), diff);
   // Update file size.

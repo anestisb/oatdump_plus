@@ -653,7 +653,7 @@ CodeItem* Collections::CreateCodeItem(const DexFile& dex_file,
       if (has_catch_all) {
         size = -size;
       }
-      if (already_added == true)  {
+      if (already_added) {
         for (int32_t i = 0; i < size; i++) {
           DecodeUnsignedLeb128(&handlers_data);
           DecodeUnsignedLeb128(&handlers_data);
