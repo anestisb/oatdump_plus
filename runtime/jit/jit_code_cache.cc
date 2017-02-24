@@ -987,8 +987,11 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
           const void* entry_point = info->GetMethod()->GetEntryPointFromQuickCompiledCode();
           if (ContainsPc(entry_point)) {
             info->SetSavedEntryPoint(entry_point);
-            Runtime::Current()->GetInstrumentation()->UpdateMethodsCode(
-                info->GetMethod(), GetQuickToInterpreterBridge());
+            // Don't call Instrumentation::UpdateMethods, as it can check the declaring
+            // class of the method. We may be concurrently running a GC which makes accessing
+            // the class unsafe. We know it is OK to bypass the instrumentation as we've just
+            // checked that the current entry point is JIT compiled code.
+            info->GetMethod()->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
           }
         }
 
