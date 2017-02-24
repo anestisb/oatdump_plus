@@ -73,7 +73,10 @@ enum MethodCompilationStat {
 
 class OptimizingCompilerStats {
  public:
-  OptimizingCompilerStats() {}
+  OptimizingCompilerStats() {
+    // The std::atomic<> default constructor leaves values uninitialized, so initialize them now.
+    Reset();
+  }
 
   void RecordStat(MethodCompilationStat stat, uint32_t count = 1) {
     compile_stats_[stat] += count;
