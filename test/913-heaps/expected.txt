@@ -90,3 +90,32 @@ root@root --(thread)--> 3000@0 [size=132, length=-1]
 4@0 (18, 3xS '010002000300')
 1@0 (14, 2xZ '0001')
 23456789
+--- klass ---
+root@root --(stack-local[id=1,tag=3000,depth=2,method=doFollowReferencesTestNonRoot,vreg=13,location= 32])--> 1@1000 [size=16, length=-1]
+0@0 --(array-element@0)--> 1@1000 [size=16, length=-1]
+1@1000 --(field@8)--> 2@1000 [size=16, length=-1]
+3@1001 --(field@16)--> 4@1000 [size=16, length=-1]
+5@1002 --(field@24)--> 6@1000 [size=16, length=-1]
+5@1002 --(field@28)--> 1@1000 [size=16, length=-1]
+---
+1@1000 --(field@8)--> 2@1000 [size=16, length=-1]
+3@1001 --(field@16)--> 4@1000 [size=16, length=-1]
+5@1002 --(field@24)--> 6@1000 [size=16, length=-1]
+5@1002 --(field@28)--> 1@1000 [size=16, length=-1]
+---
+root@root --(jni-global)--> 1@1000 [size=16, length=-1]
+root@root --(jni-local[id=1,tag=3000,depth=0,method=followReferences])--> 1@1000 [size=16, length=-1]
+root@root --(stack-local[id=1,tag=3000,depth=1,method=doFollowReferencesTestImpl,vreg=13,location= 10])--> 1@1000 [size=16, length=-1]
+root@root --(stack-local[id=1,tag=3000,depth=1,method=doFollowReferencesTestImpl,vreg=5,location= 10])--> 1@1000 [size=16, length=-1]
+root@root --(stack-local[id=1,tag=3000,depth=2,method=doFollowReferencesTestRoot,vreg=4,location= 19])--> 1@1000 [size=16, length=-1]
+root@root --(thread)--> 1@1000 [size=16, length=-1]
+1@1000 --(field@8)--> 2@1000 [size=16, length=-1]
+3@1001 --(field@16)--> 4@1000 [size=16, length=-1]
+5@1002 --(field@24)--> 6@1000 [size=16, length=-1]
+5@1002 --(field@28)--> 1@1000 [size=16, length=-1]
+---
+1@1000 --(field@8)--> 2@1000 [size=16, length=-1]
+3@1001 --(field@16)--> 4@1000 [size=16, length=-1]
+5@1002 --(field@24)--> 6@1000 [size=16, length=-1]
+5@1002 --(field@28)--> 1@1000 [size=16, length=-1]
+---
