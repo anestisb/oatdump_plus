@@ -322,6 +322,14 @@ TEST_F(AssemblerX86Test, RollImm) {
   DriverStr(RepeatRI(&x86::X86Assembler::roll, 1U, "roll ${imm}, %{reg}"), "rolli");
 }
 
+TEST_F(AssemblerX86Test, Cvtdq2ps) {
+  DriverStr(RepeatFF(&x86::X86Assembler::cvtdq2ps, "cvtdq2ps %{reg2}, %{reg1}"), "cvtdq2ps");
+}
+
+TEST_F(AssemblerX86Test, Cvtdq2pd) {
+  DriverStr(RepeatFF(&x86::X86Assembler::cvtdq2pd, "cvtdq2pd %{reg2}, %{reg1}"), "cvtdq2pd");
+}
+
 TEST_F(AssemblerX86Test, ComissAddr) {
   GetAssembler()->comiss(x86::XmmRegister(x86::XMM0), x86::Address(x86::EAX, 0));
   const char* expected = "comiss 0(%EAX), %xmm0\n";

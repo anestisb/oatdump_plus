@@ -486,6 +486,7 @@ class X86_64Assembler FINAL : public Assembler {
   void cvttsd2si(CpuRegister dst, XmmRegister src);  // Note: this is the r32 version.
   void cvttsd2si(CpuRegister dst, XmmRegister src, bool is64bit);
 
+  void cvtdq2ps(XmmRegister dst, XmmRegister src);
   void cvtdq2pd(XmmRegister dst, XmmRegister src);
 
   void comiss(XmmRegister a, XmmRegister b);
