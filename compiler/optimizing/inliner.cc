@@ -1272,12 +1272,19 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
       caller_instruction_counter);
   callee_graph->SetArtMethod(resolved_method);
 
-  // When they are needed, allocate `inline_stats` on the heap instead
+  // When they are needed, allocate `inline_stats_` on the Arena instead
   // of on the stack, as Clang might produce a stack frame too large
   // for this function, that would not fit the requirements of the
   // `-Wframe-larger-than` option.
-  std::unique_ptr<OptimizingCompilerStats> inline_stats =
-      (stats_ == nullptr) ? nullptr : MakeUnique<OptimizingCompilerStats>();
+  if (stats_ != nullptr) {
+    // Reuse one object for all inline attempts from this caller to keep Arena memory usage low.
+    if (inline_stats_ == nullptr) {
+      void* storage = graph_->GetArena()->Alloc<OptimizingCompilerStats>(kArenaAllocMisc);
+      inline_stats_ = new (storage) OptimizingCompilerStats;
+    } else {
+      inline_stats_->Reset();
+    }
+  }
   HGraphBuilder builder(callee_graph,
                         &dex_compilation_unit,
                         &outer_compilation_unit_,
@@ -1285,7 +1292,7 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
                         *code_item,
                         compiler_driver_,
                         codegen_,
-                        inline_stats.get(),
+                        inline_stats_,
                         resolved_method->GetQuickenedInfo(class_linker->GetImagePointerSize()),
                         dex_cache,
                         handles_);
@@ -1468,6 +1475,11 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
   DCHECK_EQ(callee_instruction_counter, callee_graph->GetCurrentInstructionId())
       << "No instructions can be added to the inner graph during inlining into the outer graph";
 
+  if (stats_ != nullptr) {
+    DCHECK(inline_stats_ != nullptr);
+    inline_stats_->AddTo(stats_);
+  }
+
   return true;
 }
 
@@ -1476,11 +1488,11 @@ size_t HInliner::RunOptimizations(HGraph* callee_graph,
                                   const DexCompilationUnit& dex_compilation_unit) {
   // Note: if the outermost_graph_ is being compiled OSR, we should not run any
   // optimization that could lead to a HDeoptimize. The following optimizations do not.
-  HDeadCodeElimination dce(callee_graph, stats_, "dead_code_elimination$inliner");
+  HDeadCodeElimination dce(callee_graph, inline_stats_, "dead_code_elimination$inliner");
   HConstantFolding fold(callee_graph, "constant_folding$inliner");
   HSharpening sharpening(callee_graph, codegen_, dex_compilation_unit, compiler_driver_, handles_);
-  InstructionSimplifier simplify(callee_graph, stats_);
-  IntrinsicsRecognizer intrinsics(callee_graph, stats_);
+  InstructionSimplifier simplify(callee_graph, inline_stats_);
+  IntrinsicsRecognizer intrinsics(callee_graph, inline_stats_);
 
   HOptimization* optimizations[] = {
     &intrinsics,
@@ -1504,7 +1516,7 @@ size_t HInliner::RunOptimizations(HGraph* callee_graph,
                      dex_compilation_unit,
                      compiler_driver_,
                      handles_,
-                     stats_,
+                     inline_stats_,
                      total_number_of_dex_registers_ + code_item->registers_size_,
                      depth_ + 1);
     inliner.Run();
