@@ -212,7 +212,6 @@ jvmtiError SearchUtil::AddToBootstrapClassLoaderSearch(jvmtiEnv* env ATTRIBUTE_U
     return ERR(WRONG_PHASE);
   }
   if (current->GetClassLinker() == nullptr) {
-    // TODO: Support boot classpath change in OnLoad.
     return ERR(WRONG_PHASE);
   }
   if (segment == nullptr) {
