@@ -56,7 +56,6 @@ struct PhaseUtil::PhaseCallback : public art::RuntimePhaseCallback {
   }
 
   void NextRuntimePhase(RuntimePhase phase) REQUIRES_SHARED(art::Locks::mutator_lock_) OVERRIDE {
-    // TODO: Events.
     switch (phase) {
       case RuntimePhase::kInitialAgents:
         PhaseUtil::current_phase_ = JVMTI_PHASE_PRIMORDIAL;

@@ -88,7 +88,6 @@ jvmtiError FieldUtil::GetFieldName(jvmtiEnv* env,
     *signature_ptr = signature_copy.get();
   }
 
-  // TODO: Support generic signature.
   if (generic_ptr != nullptr) {
     *generic_ptr = nullptr;
     if (!art_field->GetDeclaringClass()->IsProxyClass()) {
