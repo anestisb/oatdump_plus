@@ -1111,7 +1111,9 @@ void Hprof::DumpHeapObject(mirror::Object* obj) {
   if (space != nullptr) {
     if (space->IsZygoteSpace()) {
       heap_type = HPROF_HEAP_ZYGOTE;
-    } else if (space->IsImageSpace()) {
+    } else if (space->IsImageSpace() && heap->ObjectIsInBootImageSpace(obj)) {
+      // Only count objects in the boot image as HPROF_HEAP_IMAGE, this leaves app image objects as
+      // HPROF_HEAP_APP. b/35762934
       heap_type = HPROF_HEAP_IMAGE;
     }
   } else {
