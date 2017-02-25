@@ -88,6 +88,7 @@ class Redefiner {
   // The caller is responsible for freeing it. The runtime makes its own copy of the data.
   // TODO This function should call the transformation events.
   static jvmtiError RedefineClasses(ArtJvmTiEnv* env,
+                                    EventHandler* event_handler,
                                     art::Runtime* runtime,
                                     art::Thread* self,
                                     jint class_count,

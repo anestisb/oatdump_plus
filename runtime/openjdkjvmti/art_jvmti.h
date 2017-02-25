@@ -48,8 +48,7 @@
 
 namespace openjdkjvmti {
 
-extern const jvmtiInterface_1 gJvmtiInterface;
-extern EventHandler gEventHandler;
+class ObjectTagTable;
 
 // A structure that is a jvmtiEnv with additional information for the runtime.
 struct ArtJvmTiEnv : public jvmtiEnv {
@@ -60,10 +59,10 @@ struct ArtJvmTiEnv : public jvmtiEnv {
   EventMasks event_masks;
   std::unique_ptr<jvmtiEventCallbacks> event_callbacks;
 
-  explicit ArtJvmTiEnv(art::JavaVMExt* runtime)
-      : art_vm(runtime), local_data(nullptr), capabilities() {
-    functions = &gJvmtiInterface;
-  }
+  // Tagging is specific to the jvmtiEnv.
+  std::unique_ptr<ObjectTagTable> object_tag_table;
+
+  ArtJvmTiEnv(art::JavaVMExt* runtime, EventHandler* event_handler);
 
   static ArtJvmTiEnv* AsArtJvmTiEnv(jvmtiEnv* env) {
     return art::down_cast<ArtJvmTiEnv*>(env);
