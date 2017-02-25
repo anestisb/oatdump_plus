@@ -63,12 +63,13 @@ namespace openjdkjvmti {
 
 jvmtiError Transformer::RetransformClassesDirect(
       ArtJvmTiEnv* env,
+      EventHandler* event_handler,
       art::Thread* self,
       /*in-out*/std::vector<ArtClassDefinition>* definitions) {
   for (ArtClassDefinition& def : *definitions) {
     jint new_len = -1;
     unsigned char* new_data = nullptr;
-    gEventHandler.DispatchEvent<ArtJvmtiEvent::kClassFileLoadHookRetransformable>(
+    event_handler->DispatchEvent<ArtJvmtiEvent::kClassFileLoadHookRetransformable>(
         self,
         GetJniEnv(env),
         def.klass,
@@ -85,6 +86,7 @@ jvmtiError Transformer::RetransformClassesDirect(
 }
 
 jvmtiError Transformer::RetransformClasses(ArtJvmTiEnv* env,
+                                           EventHandler* event_handler,
                                            art::Runtime* runtime,
                                            art::Thread* self,
                                            jint class_count,
@@ -114,7 +116,7 @@ jvmtiError Transformer::RetransformClasses(ArtJvmTiEnv* env,
     }
     definitions.push_back(std::move(def));
   }
-  res = RetransformClassesDirect(env, self, &definitions);
+  res = RetransformClassesDirect(env, event_handler, self, &definitions);
   if (res != OK) {
     return res;
   }
