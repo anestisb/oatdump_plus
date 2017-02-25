@@ -91,6 +91,30 @@ root@root --(thread)--> 3000@0 [size=132, length=-1]
 4@0 (18, 3xS '010002000300')
 1@0 (14, 2xZ '0001')
 23456789
+10000@0 (static, int, index=3) 0000000000000000
+10001
+10000@0 (static, int, index=11) 0000000000000000
+10001
+10000@0 (static, int, index=0) 0000000000000000
+10001
+10000@0 (static, int, index=1) 0000000000000000
+10001
+10000@0 (instance, int, index=2) 0000000000000000
+10001@0 (instance, byte, index=4) 0000000000000001
+10002@0 (instance, char, index=5) 0000000000000061
+10003@0 (instance, int, index=6) 0000000000000003
+10004@0 (instance, long, index=7) 0000000000000004
+10005@0 (instance, short, index=9) 0000000000000002
+10006
+10000@0 (instance, int, index=3) 0000000000000000
+10001@0 (instance, byte, index=5) 0000000000000001
+10002@0 (instance, char, index=6) 0000000000000061
+10003@0 (instance, int, index=7) 0000000000000003
+10004@0 (instance, long, index=8) 0000000000000004
+10005@0 (instance, short, index=10) 0000000000000002
+10006@0 (instance, double, index=12) 3ff3ae147ae147ae
+10007@0 (instance, float, index=13) 000000003f9d70a4
+10008
 --- klass ---
 root@root --(stack-local[id=1,tag=3000,depth=2,method=doFollowReferencesTestNonRoot,vreg=13,location= 32])--> 1@1000 [size=16, length=-1]
 0@0 --(array-element@0)--> 1@1000 [size=16, length=-1]
