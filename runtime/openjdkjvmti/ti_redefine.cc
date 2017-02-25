@@ -303,6 +303,7 @@ Redefiner::ClassRedefinition::~ClassRedefinition() {
 }
 
 jvmtiError Redefiner::RedefineClasses(ArtJvmTiEnv* env,
+                                      EventHandler* event_handler,
                                       art::Runtime* runtime,
                                       art::Thread* self,
                                       jint class_count,
@@ -350,6 +351,7 @@ jvmtiError Redefiner::RedefineClasses(ArtJvmTiEnv* env,
   }
   // Call all the transformation events.
   jvmtiError res = Transformer::RetransformClassesDirect(env,
+                                                         event_handler,
                                                          self,
                                                          &def_vector);
   if (res != OK) {

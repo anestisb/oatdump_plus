@@ -73,7 +73,6 @@
 namespace openjdkjvmti {
 
 EventHandler gEventHandler;
-ObjectTagTable gObjectTagTable(&gEventHandler);
 
 #define ENSURE_NON_NULL(n)      \
   do {                          \
@@ -334,7 +333,7 @@ class JvmtiFunctions {
                                      const jvmtiHeapCallbacks* callbacks,
                                      const void* user_data) {
     ENSURE_HAS_CAP(env, can_tag_objects);
-    HeapUtil heap_util(&gObjectTagTable);
+    HeapUtil heap_util(ArtJvmTiEnv::AsArtJvmTiEnv(env)->object_tag_table.get());
     return heap_util.FollowReferences(env,
                                       heap_filter,
                                       klass,
@@ -349,7 +348,7 @@ class JvmtiFunctions {
                                        const jvmtiHeapCallbacks* callbacks,
                                        const void* user_data) {
     ENSURE_HAS_CAP(env, can_tag_objects);
-    HeapUtil heap_util(&gObjectTagTable);
+    HeapUtil heap_util(ArtJvmTiEnv::AsArtJvmTiEnv(env)->object_tag_table.get());
     return heap_util.IterateThroughHeap(env, heap_filter, klass, callbacks, user_data);
   }
 
@@ -363,7 +362,7 @@ class JvmtiFunctions {
 
     art::ScopedObjectAccess soa(jni_env);
     art::ObjPtr<art::mirror::Object> obj = soa.Decode<art::mirror::Object>(object);
-    if (!gObjectTagTable.GetTag(obj.Ptr(), tag_ptr)) {
+    if (!ArtJvmTiEnv::AsArtJvmTiEnv(env)->object_tag_table->GetTag(obj.Ptr(), tag_ptr)) {
       *tag_ptr = 0;
     }
 
@@ -384,7 +383,7 @@ class JvmtiFunctions {
 
     art::ScopedObjectAccess soa(jni_env);
     art::ObjPtr<art::mirror::Object> obj = soa.Decode<art::mirror::Object>(object);
-    gObjectTagTable.Set(obj.Ptr(), tag);
+    ArtJvmTiEnv::AsArtJvmTiEnv(env)->object_tag_table->Set(obj.Ptr(), tag);
 
     return ERR(NONE);
   }
@@ -403,12 +402,12 @@ class JvmtiFunctions {
     }
 
     art::ScopedObjectAccess soa(jni_env);
-    return gObjectTagTable.GetTaggedObjects(env,
-                                            tag_count,
-                                            tags,
-                                            count_ptr,
-                                            object_result_ptr,
-                                            tag_result_ptr);
+    return ArtJvmTiEnv::AsArtJvmTiEnv(env)->object_tag_table->GetTaggedObjects(env,
+                                                                               tag_count,
+                                                                               tags,
+                                                                               count_ptr,
+                                                                               object_result_ptr,
+                                                                               tag_result_ptr);
   }
 
   static jvmtiError ForceGarbageCollection(jvmtiEnv* env) {
@@ -579,7 +578,7 @@ class JvmtiFunctions {
   }
 
   static jvmtiError GetLoadedClasses(jvmtiEnv* env, jint* class_count_ptr, jclass** classes_ptr) {
-    HeapUtil heap_util(&gObjectTagTable);
+    HeapUtil heap_util(ArtJvmTiEnv::AsArtJvmTiEnv(env)->object_tag_table.get());
     return heap_util.GetLoadedClasses(env, class_count_ptr, classes_ptr);
   }
 
@@ -678,6 +677,7 @@ class JvmtiFunctions {
     ENSURE_HAS_CAP(env, can_retransform_classes);
     std::string error_msg;
     jvmtiError res = Transformer::RetransformClasses(ArtJvmTiEnv::AsArtJvmTiEnv(env),
+                                                     &gEventHandler,
                                                      art::Runtime::Current(),
                                                      art::Thread::Current(),
                                                      class_count,
@@ -695,6 +695,7 @@ class JvmtiFunctions {
     ENSURE_HAS_CAP(env, can_redefine_classes);
     std::string error_msg;
     jvmtiError res = Redefiner::RedefineClasses(ArtJvmTiEnv::AsArtJvmTiEnv(env),
+                                                &gEventHandler,
                                                 art::Runtime::Current(),
                                                 art::Thread::Current(),
                                                 class_count,
@@ -1162,6 +1163,8 @@ class JvmtiFunctions {
   static jvmtiError DisposeEnvironment(jvmtiEnv* env) {
     ENSURE_VALID_ENV(env);
     gEventHandler.RemoveArtJvmTiEnv(ArtJvmTiEnv::AsArtJvmTiEnv(env));
+    art::Runtime::Current()->RemoveSystemWeakHolder(
+        ArtJvmTiEnv::AsArtJvmTiEnv(env)->object_tag_table.get());
     delete env;
     return OK;
   }
@@ -1333,13 +1336,25 @@ static bool IsJvmtiVersion(jint version) {
          version == JVMTI_VERSION;
 }
 
+extern const jvmtiInterface_1 gJvmtiInterface;
+ArtJvmTiEnv::ArtJvmTiEnv(art::JavaVMExt* runtime, EventHandler* event_handler)
+    : art_vm(runtime),
+      local_data(nullptr),
+      capabilities(),
+      object_tag_table(new ObjectTagTable(event_handler)) {
+  functions = &gJvmtiInterface;
+}
+
 // Creates a jvmtiEnv and returns it with the art::ti::Env that is associated with it. new_art_ti
 // is a pointer to the uninitialized memory for an art::ti::Env.
 static void CreateArtJvmTiEnv(art::JavaVMExt* vm, /*out*/void** new_jvmtiEnv) {
-  struct ArtJvmTiEnv* env = new ArtJvmTiEnv(vm);
+  struct ArtJvmTiEnv* env = new ArtJvmTiEnv(vm, &gEventHandler);
   *new_jvmtiEnv = env;
 
   gEventHandler.RegisterArtJvmTiEnv(env);
+
+  art::Runtime::Current()->AddSystemWeakHolder(
+      ArtJvmTiEnv::AsArtJvmTiEnv(env)->object_tag_table.get());
 }
 
 // A hook that the runtime uses to allow plugins to handle GetEnv calls. It returns true and
@@ -1371,7 +1386,6 @@ extern "C" bool ArtPlugin_Initialize() {
   SearchUtil::Register();
 
   runtime->GetJavaVM()->AddEnvironmentHook(GetEnvHandler);
-  runtime->AddSystemWeakHolder(&gObjectTagTable);
 
   return true;
 }

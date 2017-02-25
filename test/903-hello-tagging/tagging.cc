@@ -139,6 +139,62 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getTaggedObjects(JNIEnv* env
   return resultArray;
 }
 
+static jvmtiEnv* CreateJvmtiEnv(JNIEnv* env) {
+  JavaVM* jvm;
+  CHECK_EQ(0, env->GetJavaVM(&jvm));
+
+  jvmtiEnv* new_jvmti_env;
+  CHECK_EQ(0, jvm->GetEnv(reinterpret_cast<void**>(&new_jvmti_env), JVMTI_VERSION_1_0));
+
+  jvmtiCapabilities capa;
+  memset(&capa, 0, sizeof(jvmtiCapabilities));
+  capa.can_tag_objects = 1;
+  jvmtiError error = new_jvmti_env->AddCapabilities(&capa);
+  CHECK_EQ(JVMTI_ERROR_NONE, error);
+
+  return new_jvmti_env;
+}
+
+static void SetTag(jvmtiEnv* env, jobject obj, jlong tag) {
+  jvmtiError ret = env->SetTag(obj, tag);
+  CHECK_EQ(JVMTI_ERROR_NONE, ret);
+}
+
+static jlong GetTag(jvmtiEnv* env, jobject obj) {
+  jlong tag;
+  jvmtiError ret = env->GetTag(obj, &tag);
+  CHECK_EQ(JVMTI_ERROR_NONE, ret);
+  return tag;
+}
+
+extern "C" JNIEXPORT jlongArray JNICALL Java_Main_testTagsInDifferentEnvs(
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject obj, jlong base_tag, jint count) {
+  std::unique_ptr<jvmtiEnv*[]> envs = std::unique_ptr<jvmtiEnv*[]>(new jvmtiEnv*[count]);
+  envs[0] = jvmti_env;
+  for (int32_t i = 1; i != count; ++i) {
+    envs[i] = CreateJvmtiEnv(env);
+  }
+
+  for (int32_t i = 0; i != count; ++i) {
+    SetTag(envs[i], obj, base_tag + i);
+  }
+  std::unique_ptr<jlong[]> vals = std::unique_ptr<jlong[]>(new jlong[count]);
+  for (int32_t i = 0; i != count; ++i) {
+    vals[i] = GetTag(envs[i], obj);
+  }
+
+  for (int32_t i = 1; i != count; ++i) {
+    CHECK_EQ(JVMTI_ERROR_NONE, envs[i]->DisposeEnvironment());
+  }
+
+  jlongArray res = env->NewLongArray(count);
+  if (res == nullptr) {
+    return nullptr;
+  }
+  env->SetLongArrayRegion(res, 0, count, vals.get());
+  return res;
+}
+
 }  // namespace Test903HelloTagging
 }  // namespace art
 

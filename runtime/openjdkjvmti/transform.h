@@ -42,14 +42,20 @@
 
 namespace openjdkjvmti {
 
+class EventHandler;
+
 jvmtiError GetClassLocation(ArtJvmTiEnv* env, jclass klass, /*out*/std::string* location);
 
 class Transformer {
  public:
   static jvmtiError RetransformClassesDirect(
-      ArtJvmTiEnv* env, art::Thread* self, /*in-out*/std::vector<ArtClassDefinition>* definitions);
+      ArtJvmTiEnv* env,
+      EventHandler* event_handler,
+      art::Thread* self,
+      /*in-out*/std::vector<ArtClassDefinition>* definitions);
 
   static jvmtiError RetransformClasses(ArtJvmTiEnv* env,
+                                       EventHandler* event_handler,
                                        art::Runtime* runtime,
                                        art::Thread* self,
                                        jint class_count,
