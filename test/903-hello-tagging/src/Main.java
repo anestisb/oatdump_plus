@@ -22,6 +22,7 @@ public class Main {
   public static void main(String[] args) {
     doTest();
     testGetTaggedObjects();
+    testTags();
   }
 
   public static void doTest() {
@@ -33,6 +34,12 @@ public class Main {
     if (weak.get() != null) {
       throw new RuntimeException("WeakReference not cleared");
     }
+  }
+
+  public static void testTags() {
+    Object o = new Object();
+    long[] res = testTagsInDifferentEnvs(o, 100, 10);
+    System.out.println(Arrays.toString(res));
   }
 
   private static WeakReference<Object> test() {
@@ -166,4 +173,5 @@ public class Main {
   private static native long getTag(Object o);
   private static native Object[] getTaggedObjects(long[] searchTags, boolean returnObjects,
       boolean returnTags);
+  private static native long[] testTagsInDifferentEnvs(Object o, long baseTag, int n);
 }
