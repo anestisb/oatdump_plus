@@ -2264,6 +2264,8 @@ void IntrinsicCodeGeneratorARMVIXL::VisitSystemArrayCopy(HInvoke* invoke) {
   }
 
   if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
+    // TODO: Also convert this intrinsic to the IsGcMarking strategy?
+
     // The base destination address is computed later, as `temp2` is
     // used for intermediate computations.
 
