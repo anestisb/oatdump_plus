@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <iostream>
 #include <vector>
 
 #include "android-base/stringprintf.h"
@@ -29,6 +30,7 @@
 #include "native_stack_dump.h"
 #include "openjdkjvmti/jvmti.h"
 #include "runtime.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
 #include "thread_list.h"
 
@@ -279,8 +281,14 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_followReferences(JNIEnv* env
                         jlong size,
                         jint length,
                         const jvmtiHeapReferenceInfo* reference_info)
+          REQUIRES_SHARED(Locks::mutator_lock_)
           : Elem(referrer, referree, size, length) {
         memcpy(&info_, reference_info, sizeof(jvmtiHeapReferenceInfo));
+        // Debug stack trace for failure condition. Remove when done.
+        if (info_.stack_local.depth == 3 && info_.stack_local.slot == 13) {
+          DumpNativeStack(std::cerr, GetTid());
+          Thread::Current()->DumpJavaStack(std::cerr, false, false);
+        }
       }
 
      protected:
