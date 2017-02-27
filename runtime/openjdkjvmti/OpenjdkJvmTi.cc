@@ -970,10 +970,15 @@ class JvmtiFunctions {
     ArtJvmTiEnv* art_env = static_cast<ArtJvmTiEnv*>(env);
     jvmtiError ret = OK;
     jvmtiCapabilities changed;
+    jvmtiCapabilities potential_capabilities;
+    ret = env->GetPotentialCapabilities(&potential_capabilities);
+    if (ret != OK) {
+      return ret;
+    }
 #define ADD_CAPABILITY(e) \
     do { \
       if (capabilities_ptr->e == 1) { \
-        if (kPotentialCapabilities.e == 1) { \
+        if (potential_capabilities.e == 1) { \
           if (art_env->capabilities.e != 1) { \
             art_env->capabilities.e = 1; \
             changed.e = 1; \
