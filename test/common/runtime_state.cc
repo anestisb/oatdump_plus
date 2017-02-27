@@ -180,6 +180,9 @@ extern "C" JNIEXPORT void JNICALL Java_Main_ensureJitCompiled(JNIEnv* env,
   }
 
   jit::JitCodeCache* code_cache = jit->GetCodeCache();
+  // Update the code cache to make sure the JIT code does not get deleted.
+  // Note: this will apply to all JIT compilations.
+  code_cache->SetGarbageCollectCode(false);
   while (true) {
     const void* pc = method->GetEntryPointFromQuickCompiledCode();
     if (code_cache->ContainsPc(pc)) {

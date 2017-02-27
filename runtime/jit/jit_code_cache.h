@@ -229,6 +229,12 @@ class JitCodeCache {
   void MoveObsoleteMethod(ArtMethod* old_method, ArtMethod* new_method)
       REQUIRES(!lock_) REQUIRES(Locks::mutator_lock_);
 
+  // Dynamically change whether we want to garbage collect code. Should only be used
+  // by tests.
+  void SetGarbageCollectCode(bool value) {
+    garbage_collect_code_ = value;
+  }
+
  private:
   // Take ownership of maps.
   JitCodeCache(MemMap* code_map,
@@ -359,8 +365,8 @@ class JitCodeCache {
   // It is atomic to avoid locking when reading it.
   Atomic<uint64_t> last_update_time_ns_;
 
-  // Whether we can do garbage collection.
-  const bool garbage_collect_code_;
+  // Whether we can do garbage collection. Not 'const' as tests may override this.
+  bool garbage_collect_code_;
 
   // The size in bytes of used memory for the data portion of the code cache.
   size_t used_memory_for_data_ GUARDED_BY(lock_);
