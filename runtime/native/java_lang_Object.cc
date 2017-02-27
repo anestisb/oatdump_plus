@@ -48,12 +48,19 @@ static void Object_waitJI(JNIEnv* env, jobject java_this, jlong ms, jint ns) {
   soa.Decode<mirror::Object>(java_this)->Wait(soa.Self(), ms, ns);
 }
 
+static jint Object_identityHashCodeNative(JNIEnv* env, jclass, jobject javaObject) {
+  ScopedFastNativeObjectAccess soa(env);
+  ObjPtr<mirror::Object> o = soa.Decode<mirror::Object>(javaObject);
+  return static_cast<jint>(o->IdentityHashCode());
+}
+
 static JNINativeMethod gMethods[] = {
   FAST_NATIVE_METHOD(Object, internalClone, "()Ljava/lang/Object;"),
   FAST_NATIVE_METHOD(Object, notify, "()V"),
   FAST_NATIVE_METHOD(Object, notifyAll, "()V"),
   OVERLOADED_FAST_NATIVE_METHOD(Object, wait, "()V", wait),
   OVERLOADED_FAST_NATIVE_METHOD(Object, wait, "(JI)V", waitJI),
+  FAST_NATIVE_METHOD(Object, identityHashCodeNative, "(Ljava/lang/Object;)I"),
 };
 
 void register_java_lang_Object(JNIEnv* env) {
