@@ -962,4 +962,52 @@ void ZeroAndReleasePages(void* address, size_t length) {
   }
 }
 
+void MemMap::AlignBy(size_t size) {
+  CHECK_EQ(begin_, base_begin_) << "Unsupported";
+  CHECK_EQ(size_, base_size_) << "Unsupported";
+  CHECK_GT(size, static_cast<size_t>(kPageSize));
+  CHECK_ALIGNED(size, kPageSize);
+  if (IsAlignedParam(reinterpret_cast<uintptr_t>(base_begin_), size) &&
+      IsAlignedParam(base_size_, size)) {
+    // Already aligned.
+    return;
+  }
+  uint8_t* base_begin = reinterpret_cast<uint8_t*>(base_begin_);
+  uint8_t* base_end = base_begin + base_size_;
+  uint8_t* aligned_base_begin = AlignUp(base_begin, size);
+  uint8_t* aligned_base_end = AlignDown(base_end, size);
+  CHECK_LE(base_begin, aligned_base_begin);
+  CHECK_LE(aligned_base_end, base_end);
+  size_t aligned_base_size = aligned_base_end - aligned_base_begin;
+  CHECK_LT(aligned_base_begin, aligned_base_end)
+      << "base_begin = " << reinterpret_cast<void*>(base_begin)
+      << " base_end = " << reinterpret_cast<void*>(base_end);
+  CHECK_GE(aligned_base_size, size);
+  // Unmap the unaligned parts.
+  if (base_begin < aligned_base_begin) {
+    MEMORY_TOOL_MAKE_UNDEFINED(base_begin, aligned_base_begin - base_begin);
+    CHECK_EQ(munmap(base_begin, aligned_base_begin - base_begin), 0)
+        << "base_begin=" << reinterpret_cast<void*>(base_begin)
+        << " aligned_base_begin=" << reinterpret_cast<void*>(aligned_base_begin);
+  }
+  if (aligned_base_end < base_end) {
+    MEMORY_TOOL_MAKE_UNDEFINED(aligned_base_end, base_end - aligned_base_end);
+    CHECK_EQ(munmap(aligned_base_end, base_end - aligned_base_end), 0)
+        << "base_end=" << reinterpret_cast<void*>(base_end)
+        << " aligned_base_end=" << reinterpret_cast<void*>(aligned_base_end);
+  }
+  std::lock_guard<std::mutex> mu(*mem_maps_lock_);
+  base_begin_ = aligned_base_begin;
+  base_size_ = aligned_base_size;
+  begin_ = aligned_base_begin;
+  size_ = aligned_base_size;
+  DCHECK(maps_ != nullptr);
+  if (base_begin < aligned_base_begin) {
+    auto it = maps_->find(base_begin);
+    CHECK(it != maps_->end()) << "MemMap not found";
+    maps_->erase(it);
+    maps_->insert(std::make_pair(base_begin_, this));
+  }
+}
+
 }  // namespace art

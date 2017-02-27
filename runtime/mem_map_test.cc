@@ -431,4 +431,108 @@ TEST_F(MemMapTest, CheckNoGaps) {
   ASSERT_FALSE(MemMap::CheckNoGaps(map0.get(), map2.get()));
 }
 
+TEST_F(MemMapTest, AlignBy) {
+  CommonInit();
+  std::string error_msg;
+  // Cast the page size to size_t.
+  const size_t page_size = static_cast<size_t>(kPageSize);
+  // Map a region.
+  std::unique_ptr<MemMap> m0(MemMap::MapAnonymous("MemMapTest_AlignByTest_map0",
+                                                  nullptr,
+                                                  14 * page_size,
+                                                  PROT_READ | PROT_WRITE,
+                                                  false,
+                                                  false,
+                                                  &error_msg));
+  uint8_t* base0 = m0->Begin();
+  ASSERT_TRUE(base0 != nullptr) << error_msg;
+  ASSERT_EQ(m0->Size(), 14 * page_size);
+  ASSERT_EQ(BaseBegin(m0.get()), base0);
+  ASSERT_EQ(BaseSize(m0.get()), m0->Size());
+
+  // Break it into several regions by using RemapAtEnd.
+  std::unique_ptr<MemMap> m1(m0->RemapAtEnd(base0 + 3 * page_size,
+                                            "MemMapTest_AlignByTest_map1",
+                                            PROT_READ | PROT_WRITE,
+                                            &error_msg));
+  uint8_t* base1 = m1->Begin();
+  ASSERT_TRUE(base1 != nullptr) << error_msg;
+  ASSERT_EQ(base1, base0 + 3 * page_size);
+  ASSERT_EQ(m0->Size(), 3 * page_size);
+
+  std::unique_ptr<MemMap> m2(m1->RemapAtEnd(base1 + 4 * page_size,
+                                            "MemMapTest_AlignByTest_map2",
+                                            PROT_READ | PROT_WRITE,
+                                            &error_msg));
+  uint8_t* base2 = m2->Begin();
+  ASSERT_TRUE(base2 != nullptr) << error_msg;
+  ASSERT_EQ(base2, base1 + 4 * page_size);
+  ASSERT_EQ(m1->Size(), 4 * page_size);
+
+  std::unique_ptr<MemMap> m3(m2->RemapAtEnd(base2 + 3 * page_size,
+                                            "MemMapTest_AlignByTest_map1",
+                                            PROT_READ | PROT_WRITE,
+                                            &error_msg));
+  uint8_t* base3 = m3->Begin();
+  ASSERT_TRUE(base3 != nullptr) << error_msg;
+  ASSERT_EQ(base3, base2 + 3 * page_size);
+  ASSERT_EQ(m2->Size(), 3 * page_size);
+  ASSERT_EQ(m3->Size(), 4 * page_size);
+
+  uint8_t* end0 = base0 + m0->Size();
+  uint8_t* end1 = base1 + m1->Size();
+  uint8_t* end2 = base2 + m2->Size();
+  uint8_t* end3 = base3 + m3->Size();
+
+  ASSERT_EQ(static_cast<size_t>(end3 - base0), 14 * page_size);
+
+  if (IsAlignedParam(base0, 2 * page_size)) {
+    ASSERT_FALSE(IsAlignedParam(base1, 2 * page_size));
+    ASSERT_FALSE(IsAlignedParam(base2, 2 * page_size));
+    ASSERT_TRUE(IsAlignedParam(base3, 2 * page_size));
+    ASSERT_TRUE(IsAlignedParam(end3, 2 * page_size));
+  } else {
+    ASSERT_TRUE(IsAlignedParam(base1, 2 * page_size));
+    ASSERT_TRUE(IsAlignedParam(base2, 2 * page_size));
+    ASSERT_FALSE(IsAlignedParam(base3, 2 * page_size));
+    ASSERT_FALSE(IsAlignedParam(end3, 2 * page_size));
+  }
+
+  // Align by 2 * page_size;
+  m0->AlignBy(2 * page_size);
+  m1->AlignBy(2 * page_size);
+  m2->AlignBy(2 * page_size);
+  m3->AlignBy(2 * page_size);
+
+  EXPECT_TRUE(IsAlignedParam(m0->Begin(), 2 * page_size));
+  EXPECT_TRUE(IsAlignedParam(m1->Begin(), 2 * page_size));
+  EXPECT_TRUE(IsAlignedParam(m2->Begin(), 2 * page_size));
+  EXPECT_TRUE(IsAlignedParam(m3->Begin(), 2 * page_size));
+
+  EXPECT_TRUE(IsAlignedParam(m0->Begin() + m0->Size(), 2 * page_size));
+  EXPECT_TRUE(IsAlignedParam(m1->Begin() + m1->Size(), 2 * page_size));
+  EXPECT_TRUE(IsAlignedParam(m2->Begin() + m2->Size(), 2 * page_size));
+  EXPECT_TRUE(IsAlignedParam(m3->Begin() + m3->Size(), 2 * page_size));
+
+  if (IsAlignedParam(base0, 2 * page_size)) {
+    EXPECT_EQ(m0->Begin(), base0);
+    EXPECT_EQ(m0->Begin() + m0->Size(), end0 - page_size);
+    EXPECT_EQ(m1->Begin(), base1 + page_size);
+    EXPECT_EQ(m1->Begin() + m1->Size(), end1 - page_size);
+    EXPECT_EQ(m2->Begin(), base2 + page_size);
+    EXPECT_EQ(m2->Begin() + m2->Size(), end2);
+    EXPECT_EQ(m3->Begin(), base3);
+    EXPECT_EQ(m3->Begin() + m3->Size(), end3);
+  } else {
+    EXPECT_EQ(m0->Begin(), base0 + page_size);
+    EXPECT_EQ(m0->Begin() + m0->Size(), end0);
+    EXPECT_EQ(m1->Begin(), base1);
+    EXPECT_EQ(m1->Begin() + m1->Size(), end1);
+    EXPECT_EQ(m2->Begin(), base2);
+    EXPECT_EQ(m2->Begin() + m2->Size(), end2 - page_size);
+    EXPECT_EQ(m3->Begin(), base3 + page_size);
+    EXPECT_EQ(m3->Begin() + m3->Size(), end3 - page_size);
+  }
+}
+
 }  // namespace art
