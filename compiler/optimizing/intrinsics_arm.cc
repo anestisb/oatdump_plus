@@ -228,9 +228,11 @@ static void CreateFPToFPLocations(ArenaAllocator* arena, HInvoke* invoke) {
   locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
 }
 
-static void GenNumberOfLeadingZeros(LocationSummary* locations,
+static void GenNumberOfLeadingZeros(HInvoke* invoke,
                                     Primitive::Type type,
-                                    ArmAssembler* assembler) {
+                                    CodeGeneratorARM* codegen) {
+  ArmAssembler* assembler = codegen->GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
   Location in = locations->InAt(0);
   Register out = locations->Out().AsRegister<Register>();
 
@@ -240,11 +242,14 @@ static void GenNumberOfLeadingZeros(LocationSummary* locations,
     Register in_reg_lo = in.AsRegisterPairLow<Register>();
     Register in_reg_hi = in.AsRegisterPairHigh<Register>();
     Label end;
+    Label* final_label = codegen->GetFinalLabel(invoke, &end);
     __ clz(out, in_reg_hi);
-    __ CompareAndBranchIfNonZero(in_reg_hi, &end);
+    __ CompareAndBranchIfNonZero(in_reg_hi, final_label);
     __ clz(out, in_reg_lo);
     __ AddConstant(out, 32);
-    __ Bind(&end);
+    if (end.IsLinked()) {
+      __ Bind(&end);
+    }
   } else {
     __ clz(out, in.AsRegister<Register>());
   }
@@ -255,7 +260,7 @@ void IntrinsicLocationsBuilderARM::VisitIntegerNumberOfLeadingZeros(HInvoke* inv
 }
 
 void IntrinsicCodeGeneratorARM::VisitIntegerNumberOfLeadingZeros(HInvoke* invoke) {
-  GenNumberOfLeadingZeros(invoke->GetLocations(), Primitive::kPrimInt, GetAssembler());
+  GenNumberOfLeadingZeros(invoke, Primitive::kPrimInt, codegen_);
 }
 
 void IntrinsicLocationsBuilderARM::VisitLongNumberOfLeadingZeros(HInvoke* invoke) {
@@ -267,27 +272,32 @@ void IntrinsicLocationsBuilderARM::VisitLongNumberOfLeadingZeros(HInvoke* invoke
 }
 
 void IntrinsicCodeGeneratorARM::VisitLongNumberOfLeadingZeros(HInvoke* invoke) {
-  GenNumberOfLeadingZeros(invoke->GetLocations(), Primitive::kPrimLong, GetAssembler());
+  GenNumberOfLeadingZeros(invoke, Primitive::kPrimLong, codegen_);
 }
 
-static void GenNumberOfTrailingZeros(LocationSummary* locations,
+static void GenNumberOfTrailingZeros(HInvoke* invoke,
                                      Primitive::Type type,
-                                     ArmAssembler* assembler) {
+                                     CodeGeneratorARM* codegen) {
   DCHECK((type == Primitive::kPrimInt) || (type == Primitive::kPrimLong));
 
+  ArmAssembler* assembler = codegen->GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
   Register out = locations->Out().AsRegister<Register>();
 
   if (type == Primitive::kPrimLong) {
     Register in_reg_lo = locations->InAt(0).AsRegisterPairLow<Register>();
     Register in_reg_hi = locations->InAt(0).AsRegisterPairHigh<Register>();
     Label end;
+    Label* final_label = codegen->GetFinalLabel(invoke, &end);
     __ rbit(out, in_reg_lo);
     __ clz(out, out);
-    __ CompareAndBranchIfNonZero(in_reg_lo, &end);
+    __ CompareAndBranchIfNonZero(in_reg_lo, final_label);
     __ rbit(out, in_reg_hi);
     __ clz(out, out);
     __ AddConstant(out, 32);
-    __ Bind(&end);
+    if (end.IsLinked()) {
+      __ Bind(&end);
+    }
   } else {
     Register in = locations->InAt(0).AsRegister<Register>();
     __ rbit(out, in);
@@ -304,7 +314,7 @@ void IntrinsicLocationsBuilderARM::VisitIntegerNumberOfTrailingZeros(HInvoke* in
 }
 
 void IntrinsicCodeGeneratorARM::VisitIntegerNumberOfTrailingZeros(HInvoke* invoke) {
-  GenNumberOfTrailingZeros(invoke->GetLocations(), Primitive::kPrimInt, GetAssembler());
+  GenNumberOfTrailingZeros(invoke, Primitive::kPrimInt, codegen_);
 }
 
 void IntrinsicLocationsBuilderARM::VisitLongNumberOfTrailingZeros(HInvoke* invoke) {
@@ -316,7 +326,7 @@ void IntrinsicLocationsBuilderARM::VisitLongNumberOfTrailingZeros(HInvoke* invok
 }
 
 void IntrinsicCodeGeneratorARM::VisitLongNumberOfTrailingZeros(HInvoke* invoke) {
-  GenNumberOfTrailingZeros(invoke->GetLocations(), Primitive::kPrimLong, GetAssembler());
+  GenNumberOfTrailingZeros(invoke, Primitive::kPrimLong, codegen_);
 }
 
 static void MathAbsFP(LocationSummary* locations, bool is64bit, ArmAssembler* assembler) {
@@ -1313,6 +1323,7 @@ void IntrinsicCodeGeneratorARM::VisitStringEquals(HInvoke* invoke) {
   Label end;
   Label return_true;
   Label return_false;
+  Label* final_label = codegen_->GetFinalLabel(invoke, &end);
 
   // Get offsets of count, value, and class fields within a string object.
   const uint32_t count_offset = mirror::String::CountOffset().Uint32Value();
@@ -1386,12 +1397,15 @@ void IntrinsicCodeGeneratorARM::VisitStringEquals(HInvoke* invoke) {
   // If loop does not result in returning false, we return true.
   __ Bind(&return_true);
   __ LoadImmediate(out, 1);
-  __ b(&end);
+  __ b(final_label);
 
   // Return false and exit the function.
   __ Bind(&return_false);
   __ LoadImmediate(out, 0);
-  __ Bind(&end);
+
+  if (end.IsLinked()) {
+    __ Bind(&end);
+  }
 }
 
 static void GenerateVisitStringIndexOf(HInvoke* invoke,
@@ -2474,13 +2488,14 @@ void IntrinsicCodeGeneratorARM::VisitStringGetCharsNoCheck(HInvoke* invoke) {
   Register dst_ptr = locations->GetTemp(2).AsRegister<Register>();
 
   Label done, compressed_string_loop;
+  Label* final_label = codegen_->GetFinalLabel(invoke, &done);
   // dst to be copied.
   __ add(dst_ptr, dstObj, ShifterOperand(data_offset));
   __ add(dst_ptr, dst_ptr, ShifterOperand(dstBegin, LSL, 1));
 
   __ subs(num_chr, srcEnd, ShifterOperand(srcBegin));
   // Early out for valid zero-length retrievals.
-  __ b(&done, EQ);
+  __ b(final_label, EQ);
 
   // src range to copy.
   __ add(src_ptr, srcObj, ShifterOperand(value_offset));
@@ -2517,7 +2532,7 @@ void IntrinsicCodeGeneratorARM::VisitStringGetCharsNoCheck(HInvoke* invoke) {
   __ b(&loop, GE);
 
   __ adds(num_chr, num_chr, ShifterOperand(4));
-  __ b(&done, EQ);
+  __ b(final_label, EQ);
 
   // Main loop for < 4 character case and remainder handling. Loads and stores one
   // 16-bit Java character at a time.
@@ -2528,7 +2543,7 @@ void IntrinsicCodeGeneratorARM::VisitStringGetCharsNoCheck(HInvoke* invoke) {
   __ b(&remainder, GT);
 
   if (mirror::kUseStringCompression) {
-    __ b(&done);
+    __ b(final_label);
 
     const size_t c_char_size = Primitive::ComponentSize(Primitive::kPrimByte);
     DCHECK_EQ(c_char_size, 1u);
@@ -2542,7 +2557,9 @@ void IntrinsicCodeGeneratorARM::VisitStringGetCharsNoCheck(HInvoke* invoke) {
     __ b(&compressed_string_loop, GT);
   }
 
-  __ Bind(&done);
+  if (done.IsLinked()) {
+    __ Bind(&done);
+  }
 }
 
 void IntrinsicLocationsBuilderARM::VisitFloatIsInfinite(HInvoke* invoke) {

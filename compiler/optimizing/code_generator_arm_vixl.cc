@@ -1950,6 +1950,7 @@ static bool CanGenerateConditionalMove(const Location& out, const Location& src)
 vixl32::Label* CodeGeneratorARMVIXL::GetFinalLabel(HInstruction* instruction,
                                                    vixl32::Label* final_label) {
   DCHECK(!instruction->IsControlFlow() && !instruction->IsSuspendCheck());
+  DCHECK(!instruction->IsInvoke() || !instruction->GetLocations()->CanCall());
 
   const HBasicBlock* const block = instruction->GetBlock();
   const HLoopInformation* const info = block->GetLoopInformation();
@@ -2925,16 +2926,20 @@ void InstructionCodeGeneratorARMVIXL::HandleCondition(HCondition* cond) {
 
   // Convert the jumps into the result.
   vixl32::Label done_label;
+  vixl32::Label* final_label = codegen_->GetFinalLabel(cond, &done_label);
 
   // False case: result = 0.
   __ Bind(&false_label);
   __ Mov(out, 0);
-  __ B(&done_label);
+  __ B(final_label);
 
   // True case: result = 1.
   __ Bind(&true_label);
   __ Mov(out, 1);
-  __ Bind(&done_label);
+
+  if (done_label.IsReferenced()) {
+    __ Bind(&done_label);
+  }
 }
 
 void LocationsBuilderARMVIXL::VisitEqual(HEqual* comp) {
@@ -4447,6 +4452,7 @@ void InstructionCodeGeneratorARMVIXL::HandleLongRotate(HRor* ror) {
     vixl32::Register shift_left = RegisterFrom(locations->GetTemp(1));
     vixl32::Label end;
     vixl32::Label shift_by_32_plus_shift_right;
+    vixl32::Label* final_label = codegen_->GetFinalLabel(ror, &end);
 
     __ And(shift_right, RegisterFrom(rhs), 0x1F);
     __ Lsrs(shift_left, RegisterFrom(rhs), 6);
@@ -4461,7 +4467,7 @@ void InstructionCodeGeneratorARMVIXL::HandleLongRotate(HRor* ror) {
     __ Lsl(out_reg_lo, in_reg_lo, shift_left);
     __ Lsr(shift_left, in_reg_hi, shift_right);
     __ Add(out_reg_lo, out_reg_lo, shift_left);
-    __ B(&end);
+    __ B(final_label);
 
     __ Bind(&shift_by_32_plus_shift_right);  // Shift by 32+shift_right.
     // out_reg_hi = (reg_hi >> shift_right) | (reg_lo << shift_left).
@@ -4473,7 +4479,9 @@ void InstructionCodeGeneratorARMVIXL::HandleLongRotate(HRor* ror) {
     __ Lsl(shift_right, in_reg_hi, shift_left);
     __ Add(out_reg_lo, out_reg_lo, shift_right);
 
-    __ Bind(&end);
+    if (end.IsReferenced()) {
+      __ Bind(&end);
+    }
   }
 }
 
@@ -4906,6 +4914,7 @@ void InstructionCodeGeneratorARMVIXL::VisitCompare(HCompare* compare) {
   Location right = locations->InAt(1);
 
   vixl32::Label less, greater, done;
+  vixl32::Label* final_label = codegen_->GetFinalLabel(compare, &done);
   Primitive::Type type = compare->InputAt(0)->GetType();
   vixl32::Condition less_cond = vixl32::Condition(kNone);
   switch (type) {
@@ -4944,17 +4953,19 @@ void InstructionCodeGeneratorARMVIXL::VisitCompare(HCompare* compare) {
       UNREACHABLE();
   }
 
-  __ B(eq, &done, /* far_target */ false);
+  __ B(eq, final_label, /* far_target */ false);
   __ B(less_cond, &less, /* far_target */ false);
 
   __ Bind(&greater);
   __ Mov(out, 1);
-  __ B(&done);
+  __ B(final_label);
 
   __ Bind(&less);
   __ Mov(out, -1);
 
-  __ Bind(&done);
+  if (done.IsReferenced()) {
+    __ Bind(&done);
+  }
 }
 
 void LocationsBuilderARMVIXL::VisitPhi(HPhi* instruction) {
@@ -5746,6 +5757,7 @@ void InstructionCodeGeneratorARMVIXL::VisitArrayGet(HArrayGet* instruction) {
         int32_t const_index = Int32ConstantFrom(index);
         if (maybe_compressed_char_at) {
           vixl32::Label uncompressed_load, done;
+          vixl32::Label* final_label = codegen_->GetFinalLabel(instruction, &done);
           __ Lsrs(length, length, 1u);  // LSRS has a 16-bit encoding, TST (immediate) does not.
           static_assert(static_cast<uint32_t>(mirror::StringCompressionFlag::kCompressed) == 0u,
                         "Expecting 0=compressed, 1=uncompressed");
@@ -5754,13 +5766,15 @@ void InstructionCodeGeneratorARMVIXL::VisitArrayGet(HArrayGet* instruction) {
                                          RegisterFrom(out_loc),
                                          obj,
                                          data_offset + const_index);
-          __ B(&done);
+          __ B(final_label);
           __ Bind(&uncompressed_load);
           GetAssembler()->LoadFromOffset(GetLoadOperandType(Primitive::kPrimChar),
                                          RegisterFrom(out_loc),
                                          obj,
                                          data_offset + (const_index << 1));
-          __ Bind(&done);
+          if (done.IsReferenced()) {
+            __ Bind(&done);
+          }
         } else {
           uint32_t full_offset = data_offset + (const_index << Primitive::ComponentSizeShift(type));
 
@@ -5785,15 +5799,18 @@ void InstructionCodeGeneratorARMVIXL::VisitArrayGet(HArrayGet* instruction) {
         }
         if (maybe_compressed_char_at) {
           vixl32::Label uncompressed_load, done;
+          vixl32::Label* final_label = codegen_->GetFinalLabel(instruction, &done);
           __ Lsrs(length, length, 1u);  // LSRS has a 16-bit encoding, TST (immediate) does not.
           static_assert(static_cast<uint32_t>(mirror::StringCompressionFlag::kCompressed) == 0u,
                         "Expecting 0=compressed, 1=uncompressed");
           __ B(cs, &uncompressed_load, /* far_target */ false);
           __ Ldrb(RegisterFrom(out_loc), MemOperand(temp, RegisterFrom(index), vixl32::LSL, 0));
-          __ B(&done);
+          __ B(final_label);
           __ Bind(&uncompressed_load);
           __ Ldrh(RegisterFrom(out_loc), MemOperand(temp, RegisterFrom(index), vixl32::LSL, 1));
-          __ Bind(&done);
+          if (done.IsReferenced()) {
+            __ Bind(&done);
+          }
         } else {
           codegen_->LoadFromShiftedRegOffset(type, out_loc, temp, RegisterFrom(index));
         }
@@ -6032,6 +6049,7 @@ void InstructionCodeGeneratorARMVIXL::VisitArraySet(HArraySet* instruction) {
       uint32_t super_offset = mirror::Class::SuperClassOffset().Int32Value();
       uint32_t component_offset = mirror::Class::ComponentTypeOffset().Int32Value();
       vixl32::Label done;
+      vixl32::Label* final_label = codegen_->GetFinalLabel(instruction, &done);
       SlowPathCodeARMVIXL* slow_path = nullptr;
 
       if (may_need_runtime_call_for_type_check) {
@@ -6054,7 +6072,7 @@ void InstructionCodeGeneratorARMVIXL::VisitArraySet(HArraySet* instruction) {
           // TODO(VIXL): Use a scope to ensure we record the pc info immediately after the preceding
           // store instruction.
           codegen_->MaybeRecordImplicitNullCheck(instruction);
-          __ B(&done);
+          __ B(final_label);
           __ Bind(&non_zero);
         }
 
@@ -7062,6 +7080,7 @@ void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) 
   uint32_t component_offset = mirror::Class::ComponentTypeOffset().Int32Value();
   uint32_t primitive_offset = mirror::Class::PrimitiveTypeOffset().Int32Value();
   vixl32::Label done, zero;
+  vixl32::Label* final_label = codegen_->GetFinalLabel(instruction, &done);
   SlowPathCodeARMVIXL* slow_path = nullptr;
 
   // Return 0 if `obj` is null.
@@ -7083,7 +7102,7 @@ void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) 
       // Classes must be equal for the instanceof to succeed.
       __ B(ne, &zero, /* far_target */ false);
       __ Mov(out, 1);
-      __ B(&done);
+      __ B(final_label);
       break;
     }
 
@@ -7106,12 +7125,12 @@ void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) 
                                        maybe_temp_loc,
                                        kCompilerReadBarrierOption);
       // If `out` is null, we use it for the result, and jump to `done`.
-      __ CompareAndBranchIfZero(out, &done, /* far_target */ false);
+      __ CompareAndBranchIfZero(out, final_label, /* far_target */ false);
       __ Cmp(out, cls);
       __ B(ne, &loop, /* far_target */ false);
       __ Mov(out, 1);
       if (zero.IsReferenced()) {
-        __ B(&done);
+        __ B(final_label);
       }
       break;
     }
@@ -7137,11 +7156,11 @@ void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) 
                                        kCompilerReadBarrierOption);
       __ CompareAndBranchIfNonZero(out, &loop);
       // If `out` is null, we use it for the result, and jump to `done`.
-      __ B(&done);
+      __ B(final_label);
       __ Bind(&success);
       __ Mov(out, 1);
       if (zero.IsReferenced()) {
-        __ B(&done);
+        __ B(final_label);
       }
       break;
     }
@@ -7166,13 +7185,13 @@ void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) 
                                        maybe_temp_loc,
                                        kCompilerReadBarrierOption);
       // If `out` is null, we use it for the result, and jump to `done`.
-      __ CompareAndBranchIfZero(out, &done, /* far_target */ false);
+      __ CompareAndBranchIfZero(out, final_label, /* far_target */ false);
       GetAssembler()->LoadFromOffset(kLoadUnsignedHalfword, out, out, primitive_offset);
       static_assert(Primitive::kPrimNot == 0, "Expected 0 for kPrimNot");
       __ CompareAndBranchIfNonZero(out, &zero, /* far_target */ false);
       __ Bind(&exact_check);
       __ Mov(out, 1);
-      __ B(&done);
+      __ B(final_label);
       break;
     }
 
@@ -7193,7 +7212,7 @@ void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) 
       __ B(ne, slow_path->GetEntryLabel());
       __ Mov(out, 1);
       if (zero.IsReferenced()) {
-        __ B(&done);
+        __ B(final_label);
       }
       break;
     }
@@ -7224,7 +7243,7 @@ void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) 
       codegen_->AddSlowPath(slow_path);
       __ B(slow_path->GetEntryLabel());
       if (zero.IsReferenced()) {
-        __ B(&done);
+        __ B(final_label);
       }
       break;
     }
@@ -7310,9 +7329,10 @@ void InstructionCodeGeneratorARMVIXL::VisitCheckCast(HCheckCast* instruction) {
   codegen_->AddSlowPath(type_check_slow_path);
 
   vixl32::Label done;
+  vixl32::Label* final_label = codegen_->GetFinalLabel(instruction, &done);
   // Avoid null check if we know obj is not null.
   if (instruction->MustDoNullCheck()) {
-    __ CompareAndBranchIfZero(obj, &done, /* far_target */ false);
+    __ CompareAndBranchIfZero(obj, final_label, /* far_target */ false);
   }
 
   switch (type_check_kind) {
@@ -7376,7 +7396,7 @@ void InstructionCodeGeneratorARMVIXL::VisitCheckCast(HCheckCast* instruction) {
       vixl32::Label loop;
       __ Bind(&loop);
       __ Cmp(temp, cls);
-      __ B(eq, &done, /* far_target */ false);
+      __ B(eq, final_label, /* far_target */ false);
 
       // /* HeapReference<Class> */ temp = temp->super_class_
       GenerateReferenceLoadOneRegister(instruction,
@@ -7404,7 +7424,7 @@ void InstructionCodeGeneratorARMVIXL::VisitCheckCast(HCheckCast* instruction) {
 
       // Do an exact check.
       __ Cmp(temp, cls);
-      __ B(eq, &done, /* far_target */ false);
+      __ B(eq, final_label, /* far_target */ false);
 
       // Otherwise, we need to check that the object's class is a non-primitive array.
       // /* HeapReference<Class> */ temp = temp->component_type_
@@ -7472,7 +7492,9 @@ void InstructionCodeGeneratorARMVIXL::VisitCheckCast(HCheckCast* instruction) {
       break;
     }
   }
-  __ Bind(&done);
+  if (done.IsReferenced()) {
+    __ Bind(&done);
+  }
 
   __ Bind(type_check_slow_path->GetExitLabel());
 }

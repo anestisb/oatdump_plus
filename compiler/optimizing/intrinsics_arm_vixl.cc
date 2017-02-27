@@ -296,9 +296,11 @@ static void CreateFPToFPLocations(ArenaAllocator* arena, HInvoke* invoke) {
   locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
 }
 
-static void GenNumberOfLeadingZeros(LocationSummary* locations,
+static void GenNumberOfLeadingZeros(HInvoke* invoke,
                                     Primitive::Type type,
-                                    ArmVIXLAssembler* assembler) {
+                                    CodeGeneratorARMVIXL* codegen) {
+  ArmVIXLAssembler* assembler = codegen->GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
   Location in = locations->InAt(0);
   vixl32::Register out = RegisterFrom(locations->Out());
 
@@ -308,11 +310,14 @@ static void GenNumberOfLeadingZeros(LocationSummary* locations,
     vixl32::Register in_reg_lo = LowRegisterFrom(in);
     vixl32::Register in_reg_hi = HighRegisterFrom(in);
     vixl32::Label end;
+    vixl32::Label* final_label = codegen->GetFinalLabel(invoke, &end);
     __ Clz(out, in_reg_hi);
-    __ CompareAndBranchIfNonZero(in_reg_hi, &end, /* far_target */ false);
+    __ CompareAndBranchIfNonZero(in_reg_hi, final_label, /* far_target */ false);
     __ Clz(out, in_reg_lo);
     __ Add(out, out, 32);
-    __ Bind(&end);
+    if (end.IsReferenced()) {
+      __ Bind(&end);
+    }
   } else {
     __ Clz(out, RegisterFrom(in));
   }
@@ -323,7 +328,7 @@ void IntrinsicLocationsBuilderARMVIXL::VisitIntegerNumberOfLeadingZeros(HInvoke*
 }
 
 void IntrinsicCodeGeneratorARMVIXL::VisitIntegerNumberOfLeadingZeros(HInvoke* invoke) {
-  GenNumberOfLeadingZeros(invoke->GetLocations(), Primitive::kPrimInt, GetAssembler());
+  GenNumberOfLeadingZeros(invoke, Primitive::kPrimInt, codegen_);
 }
 
 void IntrinsicLocationsBuilderARMVIXL::VisitLongNumberOfLeadingZeros(HInvoke* invoke) {
@@ -335,27 +340,32 @@ void IntrinsicLocationsBuilderARMVIXL::VisitLongNumberOfLeadingZeros(HInvoke* in
 }
 
 void IntrinsicCodeGeneratorARMVIXL::VisitLongNumberOfLeadingZeros(HInvoke* invoke) {
-  GenNumberOfLeadingZeros(invoke->GetLocations(), Primitive::kPrimLong, GetAssembler());
+  GenNumberOfLeadingZeros(invoke, Primitive::kPrimLong, codegen_);
 }
 
-static void GenNumberOfTrailingZeros(LocationSummary* locations,
+static void GenNumberOfTrailingZeros(HInvoke* invoke,
                                      Primitive::Type type,
-                                     ArmVIXLAssembler* assembler) {
+                                     CodeGeneratorARMVIXL* codegen) {
   DCHECK((type == Primitive::kPrimInt) || (type == Primitive::kPrimLong));
 
+  ArmVIXLAssembler* assembler = codegen->GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
   vixl32::Register out = RegisterFrom(locations->Out());
 
   if (type == Primitive::kPrimLong) {
     vixl32::Register in_reg_lo = LowRegisterFrom(locations->InAt(0));
     vixl32::Register in_reg_hi = HighRegisterFrom(locations->InAt(0));
     vixl32::Label end;
+    vixl32::Label* final_label = codegen->GetFinalLabel(invoke, &end);
     __ Rbit(out, in_reg_lo);
     __ Clz(out, out);
-    __ CompareAndBranchIfNonZero(in_reg_lo, &end, /* far_target */ false);
+    __ CompareAndBranchIfNonZero(in_reg_lo, final_label, /* far_target */ false);
     __ Rbit(out, in_reg_hi);
     __ Clz(out, out);
     __ Add(out, out, 32);
-    __ Bind(&end);
+    if (end.IsReferenced()) {
+      __ Bind(&end);
+    }
   } else {
     vixl32::Register in = RegisterFrom(locations->InAt(0));
     __ Rbit(out, in);
@@ -372,7 +382,7 @@ void IntrinsicLocationsBuilderARMVIXL::VisitIntegerNumberOfTrailingZeros(HInvoke
 }
 
 void IntrinsicCodeGeneratorARMVIXL::VisitIntegerNumberOfTrailingZeros(HInvoke* invoke) {
-  GenNumberOfTrailingZeros(invoke->GetLocations(), Primitive::kPrimInt, GetAssembler());
+  GenNumberOfTrailingZeros(invoke, Primitive::kPrimInt, codegen_);
 }
 
 void IntrinsicLocationsBuilderARMVIXL::VisitLongNumberOfTrailingZeros(HInvoke* invoke) {
@@ -384,7 +394,7 @@ void IntrinsicLocationsBuilderARMVIXL::VisitLongNumberOfTrailingZeros(HInvoke* i
 }
 
 void IntrinsicCodeGeneratorARMVIXL::VisitLongNumberOfTrailingZeros(HInvoke* invoke) {
-  GenNumberOfTrailingZeros(invoke->GetLocations(), Primitive::kPrimLong, GetAssembler());
+  GenNumberOfTrailingZeros(invoke, Primitive::kPrimLong, codegen_);
 }
 
 static void MathAbsFP(HInvoke* invoke, ArmVIXLAssembler* assembler) {
@@ -465,7 +475,8 @@ void IntrinsicCodeGeneratorARMVIXL::VisitMathAbsLong(HInvoke* invoke) {
   GenAbsInteger(invoke->GetLocations(), /* is64bit */ true, GetAssembler());
 }
 
-static void GenMinMaxFloat(HInvoke* invoke, bool is_min, ArmVIXLAssembler* assembler) {
+static void GenMinMaxFloat(HInvoke* invoke, bool is_min, CodeGeneratorARMVIXL* codegen) {
+  ArmVIXLAssembler* assembler = codegen->GetAssembler();
   Location op1_loc = invoke->GetLocations()->InAt(0);
   Location op2_loc = invoke->GetLocations()->InAt(1);
   Location out_loc = invoke->GetLocations()->Out();
@@ -483,6 +494,7 @@ static void GenMinMaxFloat(HInvoke* invoke, bool is_min, ArmVIXLAssembler* assem
   const vixl32::Register temp1 = temps.Acquire();
   vixl32::Register temp2 = RegisterFrom(invoke->GetLocations()->GetTemp(0));
   vixl32::Label nan, done;
+  vixl32::Label* final_label = codegen->GetFinalLabel(invoke, &done);
 
   DCHECK(op1.Is(out));
 
@@ -499,7 +511,8 @@ static void GenMinMaxFloat(HInvoke* invoke, bool is_min, ArmVIXLAssembler* assem
     __ it(cond);
     __ vmov(cond, F32, out, op2);
   }
-  __ B(ne, &done, /* far_target */ false);  // for <>(not equal), we've done min/max calculation.
+  // for <>(not equal), we've done min/max calculation.
+  __ B(ne, final_label, /* far_target */ false);
 
   // handle op1 == op2, max(+0.0,-0.0), min(+0.0,-0.0).
   __ Vmov(temp1, op1);
@@ -510,14 +523,16 @@ static void GenMinMaxFloat(HInvoke* invoke, bool is_min, ArmVIXLAssembler* assem
     __ And(temp1, temp1, temp2);
   }
   __ Vmov(out, temp1);
-  __ B(&done);
+  __ B(final_label);
 
   // handle NaN input.
   __ Bind(&nan);
   __ Movt(temp1, High16Bits(kNanFloat));  // 0x7FC0xxxx is a NaN.
   __ Vmov(out, temp1);
 
-  __ Bind(&done);
+  if (done.IsReferenced()) {
+    __ Bind(&done);
+  }
 }
 
 static void CreateFPFPToFPLocations(ArenaAllocator* arena, HInvoke* invoke) {
@@ -535,7 +550,7 @@ void IntrinsicLocationsBuilderARMVIXL::VisitMathMinFloatFloat(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorARMVIXL::VisitMathMinFloatFloat(HInvoke* invoke) {
-  GenMinMaxFloat(invoke, /* is_min */ true, GetAssembler());
+  GenMinMaxFloat(invoke, /* is_min */ true, codegen_);
 }
 
 void IntrinsicLocationsBuilderARMVIXL::VisitMathMaxFloatFloat(HInvoke* invoke) {
@@ -544,10 +559,11 @@ void IntrinsicLocationsBuilderARMVIXL::VisitMathMaxFloatFloat(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorARMVIXL::VisitMathMaxFloatFloat(HInvoke* invoke) {
-  GenMinMaxFloat(invoke, /* is_min */ false, GetAssembler());
+  GenMinMaxFloat(invoke, /* is_min */ false, codegen_);
 }
 
-static void GenMinMaxDouble(HInvoke* invoke, bool is_min, ArmVIXLAssembler* assembler) {
+static void GenMinMaxDouble(HInvoke* invoke, bool is_min, CodeGeneratorARMVIXL* codegen) {
+  ArmVIXLAssembler* assembler = codegen->GetAssembler();
   Location op1_loc = invoke->GetLocations()->InAt(0);
   Location op2_loc = invoke->GetLocations()->InAt(1);
   Location out_loc = invoke->GetLocations()->Out();
@@ -562,6 +578,7 @@ static void GenMinMaxDouble(HInvoke* invoke, bool is_min, ArmVIXLAssembler* asse
   vixl32::DRegister op2 = DRegisterFrom(op2_loc);
   vixl32::DRegister out = OutputDRegister(invoke);
   vixl32::Label handle_nan_eq, done;
+  vixl32::Label* final_label = codegen->GetFinalLabel(invoke, &done);
 
   DCHECK(op1.Is(out));
 
@@ -578,19 +595,22 @@ static void GenMinMaxDouble(HInvoke* invoke, bool is_min, ArmVIXLAssembler* asse
     __ it(cond);
     __ vmov(cond, F64, out, op2);
   }
-  __ B(ne, &done, /* far_target */ false);  // for <>(not equal), we've done min/max calculation.
+  // for <>(not equal), we've done min/max calculation.
+  __ B(ne, final_label, /* far_target */ false);
 
   // handle op1 == op2, max(+0.0,-0.0).
   if (!is_min) {
     __ Vand(F64, out, op1, op2);
-    __ B(&done);
+    __ B(final_label);
   }
 
   // handle op1 == op2, min(+0.0,-0.0), NaN input.
   __ Bind(&handle_nan_eq);
   __ Vorr(F64, out, op1, op2);  // assemble op1/-0.0/NaN.
 
-  __ Bind(&done);
+  if (done.IsReferenced()) {
+    __ Bind(&done);
+  }
 }
 
 void IntrinsicLocationsBuilderARMVIXL::VisitMathMinDoubleDouble(HInvoke* invoke) {
@@ -598,7 +618,7 @@ void IntrinsicLocationsBuilderARMVIXL::VisitMathMinDoubleDouble(HInvoke* invoke)
 }
 
 void IntrinsicCodeGeneratorARMVIXL::VisitMathMinDoubleDouble(HInvoke* invoke) {
-  GenMinMaxDouble(invoke, /* is_min */ true , GetAssembler());
+  GenMinMaxDouble(invoke, /* is_min */ true , codegen_);
 }
 
 void IntrinsicLocationsBuilderARMVIXL::VisitMathMaxDoubleDouble(HInvoke* invoke) {
@@ -606,7 +626,7 @@ void IntrinsicLocationsBuilderARMVIXL::VisitMathMaxDoubleDouble(HInvoke* invoke)
 }
 
 void IntrinsicCodeGeneratorARMVIXL::VisitMathMaxDoubleDouble(HInvoke* invoke) {
-  GenMinMaxDouble(invoke, /* is_min */ false, GetAssembler());
+  GenMinMaxDouble(invoke, /* is_min */ false, codegen_);
 }
 
 static void GenMinMaxLong(HInvoke* invoke, bool is_min, ArmVIXLAssembler* assembler) {
@@ -1633,6 +1653,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringEquals(HInvoke* invoke) {
   vixl32::Label end;
   vixl32::Label return_true;
   vixl32::Label return_false;
+  vixl32::Label* final_label = codegen_->GetFinalLabel(invoke, &end);
 
   // Get offsets of count, value, and class fields within a string object.
   const uint32_t count_offset = mirror::String::CountOffset().Uint32Value();
@@ -1709,12 +1730,15 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringEquals(HInvoke* invoke) {
   // If loop does not result in returning false, we return true.
   __ Bind(&return_true);
   __ Mov(out, 1);
-  __ B(&end);
+  __ B(final_label);
 
   // Return false and exit the function.
   __ Bind(&return_false);
   __ Mov(out, 0);
-  __ Bind(&end);
+
+  if (end.IsReferenced()) {
+    __ Bind(&end);
+  }
 }
 
 static void GenerateVisitStringIndexOf(HInvoke* invoke,
@@ -2779,13 +2803,14 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringGetCharsNoCheck(HInvoke* invoke) 
   vixl32::Register dst_ptr = RegisterFrom(locations->GetTemp(2));
 
   vixl32::Label done, compressed_string_loop;
+  vixl32::Label* final_label = codegen_->GetFinalLabel(invoke, &done);
   // dst to be copied.
   __ Add(dst_ptr, dstObj, data_offset);
   __ Add(dst_ptr, dst_ptr, Operand(dstBegin, vixl32::LSL, 1));
 
   __ Subs(num_chr, srcEnd, srcBegin);
   // Early out for valid zero-length retrievals.
-  __ B(eq, &done, /* far_target */ false);
+  __ B(eq, final_label, /* far_target */ false);
 
   // src range to copy.
   __ Add(src_ptr, srcObj, value_offset);
@@ -2829,7 +2854,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringGetCharsNoCheck(HInvoke* invoke) 
   __ B(ge, &loop, /* far_target */ false);
 
   __ Adds(num_chr, num_chr, 4);
-  __ B(eq, &done, /* far_target */ false);
+  __ B(eq, final_label, /* far_target */ false);
 
   // Main loop for < 4 character case and remainder handling. Loads and stores one
   // 16-bit Java character at a time.
@@ -2842,7 +2867,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringGetCharsNoCheck(HInvoke* invoke) 
   __ B(gt, &remainder, /* far_target */ false);
 
   if (mirror::kUseStringCompression) {
-    __ B(&done);
+    __ B(final_label);
 
     const size_t c_char_size = Primitive::ComponentSize(Primitive::kPrimByte);
     DCHECK_EQ(c_char_size, 1u);
@@ -2858,7 +2883,9 @@ void IntrinsicCodeGeneratorARMVIXL::VisitStringGetCharsNoCheck(HInvoke* invoke) 
     __ B(gt, &compressed_string_loop, /* far_target */ false);
   }
 
-  __ Bind(&done);
+  if (done.IsReferenced()) {
+    __ Bind(&done);
+  }
 }
 
 void IntrinsicLocationsBuilderARMVIXL::VisitFloatIsInfinite(HInvoke* invoke) {
