@@ -56,6 +56,7 @@
 #include "builder.h"
 #include "cha_guard_optimization.h"
 #include "code_generator.h"
+#include "code_sinking.h"
 #include "compiled_method.h"
 #include "compiler.h"
 #include "constant_folding.h"
@@ -521,6 +522,8 @@ static HOptimization* BuildOptimization(
     return new (arena) HLoopOptimization(graph, most_recent_induction);
   } else if (opt_name == CHAGuardOptimization::kCHAGuardOptimizationPassName) {
     return new (arena) CHAGuardOptimization(graph);
+  } else if (opt_name == CodeSinking::kCodeSinkingPassName) {
+    return new (arena) CodeSinking(graph, stats);
 #ifdef ART_ENABLE_CODEGEN_arm
   } else if (opt_name == arm::DexCacheArrayFixups::kDexCacheArrayFixupsArmPassName) {
     return new (arena) arm::DexCacheArrayFixups(graph, codegen, stats);
@@ -787,6 +790,7 @@ void OptimizingCompiler::RunOptimizations(HGraph* graph,
       graph, stats, "instruction_simplifier$before_codegen");
   IntrinsicsRecognizer* intrinsics = new (arena) IntrinsicsRecognizer(graph, stats);
   CHAGuardOptimization* cha_guard = new (arena) CHAGuardOptimization(graph);
+  CodeSinking* code_sinking = new (arena) CodeSinking(graph, stats);
 
   HOptimization* optimizations1[] = {
     intrinsics,
@@ -817,6 +821,7 @@ void OptimizingCompiler::RunOptimizations(HGraph* graph,
     lse,
     cha_guard,
     dce3,
+    code_sinking,
     // The codegen has a few assumptions that only the instruction simplifier
     // can satisfy. For example, the code generator does not expect to see a
     // HTypeConversion from a type to the same type.

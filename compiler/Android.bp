@@ -52,6 +52,7 @@ art_cc_defaults {
         "optimizing/cha_guard_optimization.cc",
         "optimizing/code_generator.cc",
         "optimizing/code_generator_utils.cc",
+        "optimizing/code_sinking.cc",
         "optimizing/constant_folding.cc",
         "optimizing/dead_code_elimination.cc",
         "optimizing/escape.cc",
