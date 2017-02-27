@@ -139,7 +139,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
     EXPECT_FALSE(JavaLangObject->IsFinal());
     EXPECT_FALSE(JavaLangObject->IsPrimitive());
     EXPECT_FALSE(JavaLangObject->IsSynthetic());
-    EXPECT_EQ(2U, JavaLangObject->NumDirectMethods());
+    EXPECT_EQ(4U, JavaLangObject->NumDirectMethods());
     EXPECT_EQ(11U, JavaLangObject->NumVirtualMethods());
     if (!kUseBrooksReadBarrier) {
       EXPECT_EQ(2U, JavaLangObject->NumInstanceFields());

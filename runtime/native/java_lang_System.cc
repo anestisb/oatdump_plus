@@ -227,15 +227,6 @@ static void System_arraycopyBooleanUnchecked(JNIEnv* env, jclass, jobject javaSr
       javaDst, dstPos, count);
 }
 
-static jint System_identityHashCode(JNIEnv* env, jclass, jobject javaObject) {
-  if (UNLIKELY(javaObject == nullptr)) {
-    return 0;
-  }
-  ScopedFastNativeObjectAccess soa(env);
-  ObjPtr<mirror::Object> o = soa.Decode<mirror::Object>(javaObject);
-  return static_cast<jint>(o->IdentityHashCode());
-}
-
 static JNINativeMethod gMethods[] = {
   FAST_NATIVE_METHOD(System, arraycopy, "(Ljava/lang/Object;ILjava/lang/Object;II)V"),
   FAST_NATIVE_METHOD(System, arraycopyCharUnchecked, "([CI[CII)V"),
@@ -246,7 +237,6 @@ static JNINativeMethod gMethods[] = {
   FAST_NATIVE_METHOD(System, arraycopyFloatUnchecked, "([FI[FII)V"),
   FAST_NATIVE_METHOD(System, arraycopyDoubleUnchecked, "([DI[DII)V"),
   FAST_NATIVE_METHOD(System, arraycopyBooleanUnchecked, "([ZI[ZII)V"),
-  FAST_NATIVE_METHOD(System, identityHashCode, "(Ljava/lang/Object;)I"),
 };
 
 void register_java_lang_System(JNIEnv* env) {
