@@ -14,24 +14,24 @@
  * limitations under the License.
  */
 
-abstract class Base {
-  abstract void foo(int i);
+interface Base {
+  void foo(int i);
+}
+
+class Main1 implements Base {
+  public void foo(int i) {
+    if (i != 1) {
+      printError("error1");
+    }
+  }
 
   void printError(String msg) {
     System.out.println(msg);
   }
 }
 
-class Main1 extends Base {
-  void foo(int i) {
-    if (i != 1) {
-      printError("error1");
-    }
-  }
-}
-
 class Main2 extends Main1 {
-  void foo(int i) {
+  public void foo(int i) {
     if (i != 2) {
       printError("error2");
     }
@@ -55,9 +55,9 @@ public class Main {
 
   // sMain1.foo() will be always be Main1.foo() before Main2 is loaded/linked.
   // So sMain1.foo() can be devirtualized to Main1.foo() and be inlined.
-  // After Dummy.createMain2() which links in Main2, live testOverride() on stack
+  // After Dummy.createMain2() which links in Main2, live testImplement() on stack
   // should be deoptimized.
-  static void testOverride(boolean createMain2, boolean wait, boolean setHasJIT) {
+  static void testImplement(boolean createMain2, boolean wait, boolean setHasJIT) {
     if (setHasJIT) {
       if (isInterpreted()) {
         sHasJIT = false;
@@ -120,8 +120,8 @@ public class Main {
     // sMain1 is an instance of Main1. Main2 hasn't bee loaded yet.
     sMain1 = new Main1();
 
-    ensureJitCompiled(Main.class, "testOverride");
-    testOverride(false, false, true);
+    ensureJitCompiled(Main.class, "testImplement");
+    testImplement(false, false, true);
 
     if (sHasJIT && !sIsOptimizing) {
       assertSingleImplementation(Base.class, "foo", true);
@@ -134,12 +134,12 @@ public class Main {
     // Try to test suspend and deopt another thread.
     new Thread() {
       public void run() {
-        testOverride(false, true, false);
+        testImplement(false, true, false);
       }
     }.start();
 
-    // This will create Main2 instance in the middle of testOverride().
-    testOverride(true, false, false);
+    // This will create Main2 instance in the middle of testImplement().
+    testImplement(true, false, false);
     assertSingleImplementation(Base.class, "foo", false);
     assertSingleImplementation(Main1.class, "foo", false);
   }
