@@ -210,7 +210,7 @@ void ClassHierarchyAnalysis::VerifyNonSingleImplementation(mirror::Class* verify
   }
 }
 
-void ClassHierarchyAnalysis::CheckSingleImplementationInfo(
+void ClassHierarchyAnalysis::CheckVirtualMethodSingleImplementationInfo(
     Handle<mirror::Class> klass,
     ArtMethod* virtual_method,
     ArtMethod* method_in_super,
@@ -290,8 +290,9 @@ void ClassHierarchyAnalysis::CheckSingleImplementationInfo(
       // A non-abstract method overrides an abstract method.
       if (method_in_super->GetSingleImplementation(pointer_size) == nullptr) {
         // Abstract method_in_super has no implementation yet.
-        // We need to grab cha_lock_ for further checking/updating due to possible
-        // races.
+        // We need to grab cha_lock_ since there may be multiple class linking
+        // going on that can check/modify the single-implementation flag/method
+        // of method_in_super.
         MutexLock cha_mu(Thread::Current(), *Locks::cha_lock_);
         if (!method_in_super->HasSingleImplementation()) {
           return;
@@ -362,6 +363,55 @@ void ClassHierarchyAnalysis::CheckSingleImplementationInfo(
   }
 }
 
+void ClassHierarchyAnalysis::CheckInterfaceMethodSingleImplementationInfo(
+    Handle<mirror::Class> klass,
+    ArtMethod* interface_method,
+    ArtMethod* implementation_method,
+    std::unordered_set<ArtMethod*>& invalidated_single_impl_methods,
+    PointerSize pointer_size) {
+  DCHECK(klass->IsInstantiable());
+  DCHECK(interface_method->IsAbstract() || interface_method->IsDefault());
+
+  if (!interface_method->HasSingleImplementation()) {
+    return;
+  }
+
+  if (implementation_method->IsAbstract()) {
+    // An instantiable class doesn't supply an implementation for
+    // interface_method. Invoking the interface method on the class will throw
+    // AbstractMethodError. This is an uncommon case, so we simply treat
+    // interface_method as not having single-implementation.
+    invalidated_single_impl_methods.insert(interface_method);
+    return;
+  }
+
+  // We need to grab cha_lock_ since there may be multiple class linking going
+  // on that can check/modify the single-implementation flag/method of
+  // interface_method.
+  MutexLock cha_mu(Thread::Current(), *Locks::cha_lock_);
+  // Do this check again after we grab cha_lock_.
+  if (!interface_method->HasSingleImplementation()) {
+    return;
+  }
+
+  ArtMethod* single_impl = interface_method->GetSingleImplementation(pointer_size);
+  if (single_impl == nullptr) {
+    // implementation_method becomes the first implementation for
+    // interface_method.
+    interface_method->SetSingleImplementation(implementation_method, pointer_size);
+    // Keep interface_method's single-implementation status.
+    return;
+  }
+  DCHECK(!single_impl->IsAbstract());
+  if (single_impl->GetDeclaringClass() == implementation_method->GetDeclaringClass()) {
+    // Same implementation. Since implementation_method may be a copy of a default
+    // method, we need to check the declaring class for equality.
+    return;
+  }
+  // Another implementation for interface_method.
+  invalidated_single_impl_methods.insert(interface_method);
+}
+
 void ClassHierarchyAnalysis::InitSingleImplementationFlag(Handle<mirror::Class> klass,
                                                           ArtMethod* method,
                                                           PointerSize pointer_size) {
@@ -382,6 +432,7 @@ void ClassHierarchyAnalysis::InitSingleImplementationFlag(Handle<mirror::Class> 
       // Rare case, but we do accept it (such as 800-smali/smali/b_26143249.smali).
       // Do not attempt to devirtualize it.
       method->SetHasSingleImplementation(false);
+      DCHECK(method->GetSingleImplementation(pointer_size) == nullptr);
     } else {
       // Abstract method starts with single-implementation flag set and null
       // implementation method.
@@ -396,9 +447,15 @@ void ClassHierarchyAnalysis::InitSingleImplementationFlag(Handle<mirror::Class> 
 }
 
 void ClassHierarchyAnalysis::UpdateAfterLoadingOf(Handle<mirror::Class> klass) {
+  PointerSize image_pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
   if (klass->IsInterface()) {
+    for (ArtMethod& method : klass->GetDeclaredVirtualMethods(image_pointer_size)) {
+      DCHECK(method.IsAbstract() || method.IsDefault());
+      InitSingleImplementationFlag(klass, &method, image_pointer_size);
+    }
     return;
   }
+
   mirror::Class* super_class = klass->GetSuperClass();
   if (super_class == nullptr) {
     return;
@@ -408,7 +465,6 @@ void ClassHierarchyAnalysis::UpdateAfterLoadingOf(Handle<mirror::Class> klass) {
   // is invalidated by linking `klass`.
   std::unordered_set<ArtMethod*> invalidated_single_impl_methods;
 
-  PointerSize image_pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
   // Do an entry-by-entry comparison of vtable contents with super's vtable.
   for (int32_t i = 0; i < super_class->GetVTableLength(); ++i) {
     ArtMethod* method = klass->GetVTableEntry(i, image_pointer_size);
@@ -418,33 +474,59 @@ void ClassHierarchyAnalysis::UpdateAfterLoadingOf(Handle<mirror::Class> klass) {
       if (method->IsAbstract() && klass->IsInstantiable()) {
         // An instantiable class that inherits an abstract method is treated as
         // supplying an implementation that throws AbstractMethodError.
-        CheckSingleImplementationInfo(klass,
-                                      method,
-                                      method_in_super,
-                                      invalidated_single_impl_methods,
-                                      image_pointer_size);
+        CheckVirtualMethodSingleImplementationInfo(klass,
+                                                   method,
+                                                   method_in_super,
+                                                   invalidated_single_impl_methods,
+                                                   image_pointer_size);
       }
       continue;
     }
     InitSingleImplementationFlag(klass, method, image_pointer_size);
-    CheckSingleImplementationInfo(klass,
-                                  method,
-                                  method_in_super,
-                                  invalidated_single_impl_methods,
-                                  image_pointer_size);
+    CheckVirtualMethodSingleImplementationInfo(klass,
+                                               method,
+                                               method_in_super,
+                                               invalidated_single_impl_methods,
+                                               image_pointer_size);
   }
-
   // For new virtual methods that don't override.
   for (int32_t i = super_class->GetVTableLength(); i < klass->GetVTableLength(); ++i) {
     ArtMethod* method = klass->GetVTableEntry(i, image_pointer_size);
     InitSingleImplementationFlag(klass, method, image_pointer_size);
   }
 
-  Runtime* const runtime = Runtime::Current();
+  if (klass->IsInstantiable()) {
+    auto* iftable = klass->GetIfTable();
+    const size_t ifcount = klass->GetIfTableCount();
+    for (size_t i = 0; i < ifcount; ++i) {
+      mirror::Class* interface = iftable->GetInterface(i);
+      for (size_t j = 0, count = iftable->GetMethodArrayCount(i); j < count; ++j) {
+        ArtMethod* interface_method = interface->GetVirtualMethod(j, image_pointer_size);
+        mirror::PointerArray* method_array = iftable->GetMethodArray(i);
+        ArtMethod* implementation_method =
+            method_array->GetElementPtrSize<ArtMethod*>(j, image_pointer_size);
+        DCHECK(implementation_method != nullptr) << klass->PrettyClass();
+        CheckInterfaceMethodSingleImplementationInfo(klass,
+                                                     interface_method,
+                                                     implementation_method,
+                                                     invalidated_single_impl_methods,
+                                                     image_pointer_size);
+      }
+    }
+  }
+
+  InvalidateSingleImplementationMethods(invalidated_single_impl_methods);
+}
+
+void ClassHierarchyAnalysis::InvalidateSingleImplementationMethods(
+    std::unordered_set<ArtMethod*>& invalidated_single_impl_methods) {
   if (!invalidated_single_impl_methods.empty()) {
+    Runtime* const runtime = Runtime::Current();
     Thread *self = Thread::Current();
     // Method headers for compiled code to be invalidated.
     std::unordered_set<OatQuickMethodHeader*> dependent_method_headers;
+    PointerSize image_pointer_size =
+        Runtime::Current()->GetClassLinker()->GetImagePointerSize();
 
     {
       // We do this under cha_lock_. Committing code also grabs this lock to
