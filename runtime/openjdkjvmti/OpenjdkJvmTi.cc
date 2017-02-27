@@ -66,10 +66,6 @@
 #include "ti_timers.h"
 #include "transform.h"
 
-// TODO Remove this at some point by annotating all the methods. It was put in to make the skeleton
-// easier to create.
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-
 namespace openjdkjvmti {
 
 EventHandler gEventHandler;
@@ -136,38 +132,40 @@ class JvmtiFunctions {
     return ThreadUtil::GetAllThreads(env, threads_count_ptr, threads_ptr);
   }
 
-  static jvmtiError SuspendThread(jvmtiEnv* env, jthread thread) {
+  static jvmtiError SuspendThread(jvmtiEnv* env, jthread thread ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_suspend);
     return ERR(NOT_IMPLEMENTED);
   }
 
   static jvmtiError SuspendThreadList(jvmtiEnv* env,
-                                      jint request_count,
-                                      const jthread* request_list,
-                                      jvmtiError* results) {
+                                      jint request_count ATTRIBUTE_UNUSED,
+                                      const jthread* request_list ATTRIBUTE_UNUSED,
+                                      jvmtiError* results ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_suspend);
     return ERR(NOT_IMPLEMENTED);
   }
 
-  static jvmtiError ResumeThread(jvmtiEnv* env, jthread thread) {
+  static jvmtiError ResumeThread(jvmtiEnv* env, jthread thread ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_suspend);
     return ERR(NOT_IMPLEMENTED);
   }
 
   static jvmtiError ResumeThreadList(jvmtiEnv* env,
-                                     jint request_count,
-                                     const jthread* request_list,
-                                     jvmtiError* results) {
+                                     jint request_count ATTRIBUTE_UNUSED,
+                                     const jthread* request_list ATTRIBUTE_UNUSED,
+                                     jvmtiError* results ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_suspend);
     return ERR(NOT_IMPLEMENTED);
   }
 
-  static jvmtiError StopThread(jvmtiEnv* env, jthread thread, jobject exception) {
+  static jvmtiError StopThread(jvmtiEnv* env,
+                               jthread thread ATTRIBUTE_UNUSED,
+                               jobject exception ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_signal_thread);
     return ERR(NOT_IMPLEMENTED);
   }
 
-  static jvmtiError InterruptThread(jvmtiEnv* env, jthread thread) {
+  static jvmtiError InterruptThread(jvmtiEnv* env, jthread thread ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_signal_thread);
     return ERR(NOT_IMPLEMENTED);
   }
@@ -177,24 +175,25 @@ class JvmtiFunctions {
   }
 
   static jvmtiError GetOwnedMonitorInfo(jvmtiEnv* env,
-                                        jthread thread,
-                                        jint* owned_monitor_count_ptr,
-                                        jobject** owned_monitors_ptr) {
+                                        jthread thread ATTRIBUTE_UNUSED,
+                                        jint* owned_monitor_count_ptr ATTRIBUTE_UNUSED,
+                                        jobject** owned_monitors_ptr ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_get_owned_monitor_info);
     return ERR(NOT_IMPLEMENTED);
   }
 
-  static jvmtiError GetOwnedMonitorStackDepthInfo(jvmtiEnv* env,
-                                                  jthread thread,
-                                                  jint* monitor_info_count_ptr,
-                                                  jvmtiMonitorStackDepthInfo** monitor_info_ptr) {
+  static jvmtiError GetOwnedMonitorStackDepthInfo(
+      jvmtiEnv* env,
+      jthread thread ATTRIBUTE_UNUSED,
+      jint* monitor_info_count_ptr ATTRIBUTE_UNUSED,
+      jvmtiMonitorStackDepthInfo** monitor_info_ptr ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_get_owned_monitor_stack_depth_info);
     return ERR(NOT_IMPLEMENTED);
   }
 
   static jvmtiError GetCurrentContendedMonitor(jvmtiEnv* env,
-                                               jthread thread,
-                                               jobject* monitor_ptr) {
+                                               jthread thread ATTRIBUTE_UNUSED,
+                                               jobject* monitor_ptr ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_get_current_contended_monitor);
     return ERR(NOT_IMPLEMENTED);
   }
@@ -278,7 +277,7 @@ class JvmtiFunctions {
     return StackUtil::GetFrameCount(env, thread, count_ptr);
   }
 
-  static jvmtiError PopFrame(jvmtiEnv* env, jthread thread) {
+  static jvmtiError PopFrame(jvmtiEnv* env, jthread thread ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_pop_frame);
     return ERR(NOT_IMPLEMENTED);
   }
@@ -291,37 +290,49 @@ class JvmtiFunctions {
     return StackUtil::GetFrameLocation(env, thread, depth, method_ptr, location_ptr);
   }
 
-  static jvmtiError NotifyFramePop(jvmtiEnv* env, jthread thread, jint depth) {
+  static jvmtiError NotifyFramePop(jvmtiEnv* env,
+                                   jthread thread ATTRIBUTE_UNUSED,
+                                   jint depth ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_generate_frame_pop_events);
     return ERR(NOT_IMPLEMENTED);
   }
 
-  static jvmtiError ForceEarlyReturnObject(jvmtiEnv* env, jthread thread, jobject value) {
+  static jvmtiError ForceEarlyReturnObject(jvmtiEnv* env,
+                                           jthread thread ATTRIBUTE_UNUSED,
+                                           jobject value ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_force_early_return);
     return ERR(NOT_IMPLEMENTED);
   }
 
-  static jvmtiError ForceEarlyReturnInt(jvmtiEnv* env, jthread thread, jint value) {
+  static jvmtiError ForceEarlyReturnInt(jvmtiEnv* env,
+                                        jthread thread ATTRIBUTE_UNUSED,
+                                        jint value ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_force_early_return);
     return ERR(NOT_IMPLEMENTED);
   }
 
-  static jvmtiError ForceEarlyReturnLong(jvmtiEnv* env, jthread thread, jlong value) {
+  static jvmtiError ForceEarlyReturnLong(jvmtiEnv* env,
+                                         jthread thread ATTRIBUTE_UNUSED,
+                                         jlong value ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_force_early_return);
     return ERR(NOT_IMPLEMENTED);
   }
 
-  static jvmtiError ForceEarlyReturnFloat(jvmtiEnv* env, jthread thread, jfloat value) {
+  static jvmtiError ForceEarlyReturnFloat(jvmtiEnv* env,
+                                          jthread thread ATTRIBUTE_UNUSED,
+                                          jfloat value ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_force_early_return);
     return ERR(NOT_IMPLEMENTED);
   }
 
-  static jvmtiError ForceEarlyReturnDouble(jvmtiEnv* env, jthread thread, jdouble value) {
+  static jvmtiError ForceEarlyReturnDouble(jvmtiEnv* env,
+                                           jthread thread ATTRIBUTE_UNUSED,
+                                           jdouble value ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_force_early_return);
     return ERR(NOT_IMPLEMENTED);
   }
 
-  static jvmtiError ForceEarlyReturnVoid(jvmtiEnv* env, jthread thread) {
+  static jvmtiError ForceEarlyReturnVoid(jvmtiEnv* env, jthread thread ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_force_early_return);
     return ERR(NOT_IMPLEMENTED);
   }
@@ -416,163 +427,177 @@ class JvmtiFunctions {
 
   static jvmtiError IterateOverObjectsReachableFromObject(
       jvmtiEnv* env,
-      jobject object,
-      jvmtiObjectReferenceCallback object_reference_callback,
-      const void* user_data) {
+      jobject object ATTRIBUTE_UNUSED,
+      jvmtiObjectReferenceCallback object_reference_callback ATTRIBUTE_UNUSED,
+      const void* user_data ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_tag_objects);
     return ERR(NOT_IMPLEMENTED);
   }
 
-  static jvmtiError IterateOverReachableObjects(jvmtiEnv* env,
-                                                jvmtiHeapRootCallback heap_root_callback,
-                                                jvmtiStackReferenceCallback stack_ref_callback,
-                                                jvmtiObjectReferenceCallback object_ref_callback,
-                                                const void* user_data) {
+  static jvmtiError IterateOverReachableObjects(
+      jvmtiEnv* env,
+      jvmtiHeapRootCallback heap_root_callback ATTRIBUTE_UNUSED,
+      jvmtiStackReferenceCallback stack_ref_callback ATTRIBUTE_UNUSED,
+      jvmtiObjectReferenceCallback object_ref_callback ATTRIBUTE_UNUSED,
+      const void* user_data ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_tag_objects);
     return ERR(NOT_IMPLEMENTED);
   }
 
   static jvmtiError IterateOverHeap(jvmtiEnv* env,
-                                    jvmtiHeapObjectFilter object_filter,
-                                    jvmtiHeapObjectCallback heap_object_callback,
-                                    const void* user_data) {
+                                    jvmtiHeapObjectFilter object_filter ATTRIBUTE_UNUSED,
+                                    jvmtiHeapObjectCallback heap_object_callback ATTRIBUTE_UNUSED,
+                                    const void* user_data ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_tag_objects);
     return ERR(NOT_IMPLEMENTED);
   }
 
-  static jvmtiError IterateOverInstancesOfClass(jvmtiEnv* env,
-                                                jclass klass,
-                                                jvmtiHeapObjectFilter object_filter,
-                                                jvmtiHeapObjectCallback heap_object_callback,
-                                                const void* user_data) {
+  static jvmtiError IterateOverInstancesOfClass(
+      jvmtiEnv* env,
+      jclass klass ATTRIBUTE_UNUSED,
+      jvmtiHeapObjectFilter object_filter ATTRIBUTE_UNUSED,
+      jvmtiHeapObjectCallback heap_object_callback ATTRIBUTE_UNUSED,
+      const void* user_data ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_tag_objects);
     return ERR(NOT_IMPLEMENTED);
   }
 
   static jvmtiError GetLocalObject(jvmtiEnv* env,
-                                   jthread thread,
-                                   jint depth,
-                                   jint slot,
-                                   jobject* value_ptr) {
+                                   jthread thread ATTRIBUTE_UNUSED,
+                                   jint depth ATTRIBUTE_UNUSED,
+                                   jint slot ATTRIBUTE_UNUSED,
+                                   jobject* value_ptr ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_access_local_variables);
     return ERR(NOT_IMPLEMENTED);
   }
 
   static jvmtiError GetLocalInstance(jvmtiEnv* env,
-                                     jthread thread,
-                                     jint depth,
-                                     jobject* value_ptr) {
+                                     jthread thread ATTRIBUTE_UNUSED,
+                                     jint depth ATTRIBUTE_UNUSED,
+                                     jobject* value_ptr ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_access_local_variables);
     return ERR(NOT_IMPLEMENTED);
   }
 
   static jvmtiError GetLocalInt(jvmtiEnv* env,
-                                jthread thread,
-                                jint depth,
-                                jint slot,
-                                jint* value_ptr) {
+                                jthread thread ATTRIBUTE_UNUSED,
+                                jint depth ATTRIBUTE_UNUSED,
+                                jint slot ATTRIBUTE_UNUSED,
+                                jint* value_ptr ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_access_local_variables);
     return ERR(NOT_IMPLEMENTED);
   }
 
   static jvmtiError GetLocalLong(jvmtiEnv* env,
-                                 jthread thread,
-                                 jint depth,
-                                 jint slot,
-                                 jlong* value_ptr) {
+                                 jthread thread ATTRIBUTE_UNUSED,
+                                 jint depth ATTRIBUTE_UNUSED,
+                                 jint slot ATTRIBUTE_UNUSED,
+                                 jlong* value_ptr ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_access_local_variables);
     return ERR(NOT_IMPLEMENTED);
   }
 
   static jvmtiError GetLocalFloat(jvmtiEnv* env,
-                                  jthread thread,
-                                  jint depth,
-                                  jint slot,
-                                  jfloat* value_ptr) {
+                                  jthread thread ATTRIBUTE_UNUSED,
+                                  jint depth ATTRIBUTE_UNUSED,
+                                  jint slot ATTRIBUTE_UNUSED,
+                                  jfloat* value_ptr ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_access_local_variables);
     return ERR(NOT_IMPLEMENTED);
   }
 
   static jvmtiError GetLocalDouble(jvmtiEnv* env,
-                                   jthread thread,
-                                   jint depth,
-                                   jint slot,
-                                   jdouble* value_ptr) {
+                                   jthread thread ATTRIBUTE_UNUSED,
+                                   jint depth ATTRIBUTE_UNUSED,
+                                   jint slot ATTRIBUTE_UNUSED,
+                                   jdouble* value_ptr ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_access_local_variables);
     return ERR(NOT_IMPLEMENTED);
   }
 
   static jvmtiError SetLocalObject(jvmtiEnv* env,
-                                   jthread thread,
-                                   jint depth,
-                                   jint slot,
-                                   jobject value) {
+                                   jthread thread ATTRIBUTE_UNUSED,
+                                   jint depth ATTRIBUTE_UNUSED,
+                                   jint slot ATTRIBUTE_UNUSED,
+                                   jobject value ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_access_local_variables);
     return ERR(NOT_IMPLEMENTED);
   }
 
   static jvmtiError SetLocalInt(jvmtiEnv* env,
-                                jthread thread,
-                                jint depth,
-                                jint slot,
-                                jint value) {
+                                jthread thread ATTRIBUTE_UNUSED,
+                                jint depth ATTRIBUTE_UNUSED,
+                                jint slot ATTRIBUTE_UNUSED,
+                                jint value ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_access_local_variables);
     return ERR(NOT_IMPLEMENTED);
   }
 
   static jvmtiError SetLocalLong(jvmtiEnv* env,
-                                 jthread thread,
-                                 jint depth,
-                                 jint slot,
-                                 jlong value) {
+                                 jthread thread ATTRIBUTE_UNUSED,
+                                 jint depth ATTRIBUTE_UNUSED,
+                                 jint slot ATTRIBUTE_UNUSED,
+                                 jlong value ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_access_local_variables);
     return ERR(NOT_IMPLEMENTED);
   }
 
   static jvmtiError SetLocalFloat(jvmtiEnv* env,
-                                  jthread thread,
-                                  jint depth,
-                                  jint slot,
-                                  jfloat value) {
+                                  jthread thread ATTRIBUTE_UNUSED,
+                                  jint depth ATTRIBUTE_UNUSED,
+                                  jint slot ATTRIBUTE_UNUSED,
+                                  jfloat value ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_access_local_variables);
     return ERR(NOT_IMPLEMENTED);
   }
 
   static jvmtiError SetLocalDouble(jvmtiEnv* env,
-                                   jthread thread,
-                                   jint depth,
-                                   jint slot,
-                                   jdouble value) {
+                                   jthread thread ATTRIBUTE_UNUSED,
+                                   jint depth ATTRIBUTE_UNUSED,
+                                   jint slot ATTRIBUTE_UNUSED,
+                                   jdouble value ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_access_local_variables);
     return ERR(NOT_IMPLEMENTED);
   }
 
-  static jvmtiError SetBreakpoint(jvmtiEnv* env, jmethodID method, jlocation location) {
+  static jvmtiError SetBreakpoint(jvmtiEnv* env,
+                                  jmethodID method ATTRIBUTE_UNUSED,
+                                  jlocation location ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_generate_breakpoint_events);
     return ERR(NOT_IMPLEMENTED);
   }
 
-  static jvmtiError ClearBreakpoint(jvmtiEnv* env, jmethodID method, jlocation location) {
+  static jvmtiError ClearBreakpoint(jvmtiEnv* env,
+                                    jmethodID method ATTRIBUTE_UNUSED,
+                                    jlocation location ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_generate_breakpoint_events);
     return ERR(NOT_IMPLEMENTED);
   }
 
-  static jvmtiError SetFieldAccessWatch(jvmtiEnv* env, jclass klass, jfieldID field) {
+  static jvmtiError SetFieldAccessWatch(jvmtiEnv* env,
+                                        jclass klass ATTRIBUTE_UNUSED,
+                                        jfieldID field ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_generate_field_access_events);
     return ERR(NOT_IMPLEMENTED);
   }
 
-  static jvmtiError ClearFieldAccessWatch(jvmtiEnv* env, jclass klass, jfieldID field) {
+  static jvmtiError ClearFieldAccessWatch(jvmtiEnv* env,
+                                          jclass klass ATTRIBUTE_UNUSED,
+                                          jfieldID field ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_generate_field_access_events);
     return ERR(NOT_IMPLEMENTED);
   }
 
-  static jvmtiError SetFieldModificationWatch(jvmtiEnv* env, jclass klass, jfieldID field) {
+  static jvmtiError SetFieldModificationWatch(jvmtiEnv* env,
+                                              jclass klass ATTRIBUTE_UNUSED,
+                                              jfieldID field ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_generate_field_modification_events);
     return ERR(NOT_IMPLEMENTED);
   }
 
-  static jvmtiError ClearFieldModificationWatch(jvmtiEnv* env, jclass klass, jfieldID field) {
+  static jvmtiError ClearFieldModificationWatch(jvmtiEnv* env,
+                                                jclass klass ATTRIBUTE_UNUSED,
+                                                jfieldID field ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_generate_field_modification_events);
     return ERR(NOT_IMPLEMENTED);
   }
@@ -600,7 +625,9 @@ class JvmtiFunctions {
     return ClassUtil::GetClassStatus(env, klass, status_ptr);
   }
 
-  static jvmtiError GetSourceFileName(jvmtiEnv* env, jclass klass, char** source_name_ptr) {
+  static jvmtiError GetSourceFileName(jvmtiEnv* env,
+                                      jclass klass ATTRIBUTE_UNUSED,
+                                      char** source_name_ptr ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_get_source_file_name);
     return ERR(NOT_IMPLEMENTED);
   }
@@ -638,10 +665,10 @@ class JvmtiFunctions {
   }
 
   static jvmtiError GetConstantPool(jvmtiEnv* env,
-                                    jclass klass,
-                                    jint* constant_pool_count_ptr,
-                                    jint* constant_pool_byte_count_ptr,
-                                    unsigned char** constant_pool_bytes_ptr) {
+                                    jclass klass ATTRIBUTE_UNUSED,
+                                    jint* constant_pool_count_ptr ATTRIBUTE_UNUSED,
+                                    jint* constant_pool_byte_count_ptr ATTRIBUTE_UNUSED,
+                                    unsigned char** constant_pool_bytes_ptr ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_get_constant_pool);
     return ERR(NOT_IMPLEMENTED);
   }
@@ -667,8 +694,8 @@ class JvmtiFunctions {
   }
 
   static jvmtiError GetSourceDebugExtension(jvmtiEnv* env,
-                                            jclass klass,
-                                            char** source_debug_extension_ptr) {
+                                            jclass klass ATTRIBUTE_UNUSED,
+                                            char** source_debug_extension_ptr ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_get_source_debug_extension);
     return ERR(NOT_IMPLEMENTED);
   }
@@ -716,8 +743,8 @@ class JvmtiFunctions {
   }
 
   static jvmtiError GetObjectMonitorUsage(jvmtiEnv* env,
-                                          jobject object,
-                                          jvmtiMonitorUsage* info_ptr) {
+                                          jobject object ATTRIBUTE_UNUSED,
+                                          jvmtiMonitorUsage* info_ptr ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_get_monitor_info);
     return ERR(NOT_IMPLEMENTED);
   }
@@ -801,17 +828,17 @@ class JvmtiFunctions {
   }
 
   static jvmtiError GetLocalVariableTable(jvmtiEnv* env,
-                                          jmethodID method,
-                                          jint* entry_count_ptr,
-                                          jvmtiLocalVariableEntry** table_ptr) {
+                                          jmethodID method ATTRIBUTE_UNUSED,
+                                          jint* entry_count_ptr ATTRIBUTE_UNUSED,
+                                          jvmtiLocalVariableEntry** table_ptr ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_access_local_variables);
     return ERR(NOT_IMPLEMENTED);
   }
 
   static jvmtiError GetBytecodes(jvmtiEnv* env,
-                                 jmethodID method,
-                                 jint* bytecode_count_ptr,
-                                 unsigned char** bytecodes_ptr) {
+                                 jmethodID method ATTRIBUTE_UNUSED,
+                                 jint* bytecode_count_ptr ATTRIBUTE_UNUSED,
+                                 unsigned char** bytecodes_ptr ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_get_bytecodes);
     return ERR(NOT_IMPLEMENTED);
   }
@@ -829,12 +856,14 @@ class JvmtiFunctions {
     return MethodUtil::IsMethodObsolete(env, method, is_obsolete_ptr);
   }
 
-  static jvmtiError SetNativeMethodPrefix(jvmtiEnv* env, const char* prefix) {
+  static jvmtiError SetNativeMethodPrefix(jvmtiEnv* env, const char* prefix ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_set_native_method_prefix);
     return ERR(NOT_IMPLEMENTED);
   }
 
-  static jvmtiError SetNativeMethodPrefixes(jvmtiEnv* env, jint prefix_count, char** prefixes) {
+  static jvmtiError SetNativeMethodPrefixes(jvmtiEnv* env,
+                                            jint prefix_count ATTRIBUTE_UNUSED,
+                                            char** prefixes ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_set_native_method_prefix);
     return ERR(NOT_IMPLEMENTED);
   }
@@ -926,11 +955,12 @@ class JvmtiFunctions {
     return gEventHandler.SetEvent(art_env, art_thread, GetArtJvmtiEvent(art_env, event_type), mode);
   }
 
-  static jvmtiError GenerateEvents(jvmtiEnv* env, jvmtiEvent event_type) {
-    return ERR(NOT_IMPLEMENTED);
+  static jvmtiError GenerateEvents(jvmtiEnv* env ATTRIBUTE_UNUSED,
+                                   jvmtiEvent event_type ATTRIBUTE_UNUSED) {
+    return OK;
   }
 
-  static jvmtiError GetExtensionFunctions(jvmtiEnv* env,
+  static jvmtiError GetExtensionFunctions(jvmtiEnv* env ATTRIBUTE_UNUSED,
                                           jint* extension_count_ptr,
                                           jvmtiExtensionFunctionInfo** extensions) {
     // We do not have any extension functions.
@@ -940,7 +970,7 @@ class JvmtiFunctions {
     return ERR(NONE);
   }
 
-  static jvmtiError GetExtensionEvents(jvmtiEnv* env,
+  static jvmtiError GetExtensionEvents(jvmtiEnv* env ATTRIBUTE_UNUSED,
                                        jint* extension_count_ptr,
                                        jvmtiExtensionEventInfo** extensions) {
     // We do not have any extension events.
@@ -950,9 +980,9 @@ class JvmtiFunctions {
     return ERR(NONE);
   }
 
-  static jvmtiError SetExtensionEventCallback(jvmtiEnv* env,
-                                              jint extension_event_index,
-                                              jvmtiExtensionEvent callback) {
+  static jvmtiError SetExtensionEventCallback(jvmtiEnv* env ATTRIBUTE_UNUSED,
+                                              jint extension_event_index ATTRIBUTE_UNUSED,
+                                              jvmtiExtensionEvent callback ATTRIBUTE_UNUSED) {
     // We do not have any extension events, so any call is illegal.
     return ERR(ILLEGAL_ARGUMENT);
   }
@@ -1109,22 +1139,26 @@ class JvmtiFunctions {
     return OK;
   }
 
-  static jvmtiError GetCurrentThreadCpuTimerInfo(jvmtiEnv* env, jvmtiTimerInfo* info_ptr) {
+  static jvmtiError GetCurrentThreadCpuTimerInfo(jvmtiEnv* env,
+                                                 jvmtiTimerInfo* info_ptr ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_get_current_thread_cpu_time);
     return ERR(NOT_IMPLEMENTED);
   }
 
-  static jvmtiError GetCurrentThreadCpuTime(jvmtiEnv* env, jlong* nanos_ptr) {
+  static jvmtiError GetCurrentThreadCpuTime(jvmtiEnv* env, jlong* nanos_ptr ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_get_current_thread_cpu_time);
     return ERR(NOT_IMPLEMENTED);
   }
 
-  static jvmtiError GetThreadCpuTimerInfo(jvmtiEnv* env, jvmtiTimerInfo* info_ptr) {
+  static jvmtiError GetThreadCpuTimerInfo(jvmtiEnv* env,
+                                          jvmtiTimerInfo* info_ptr ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_get_thread_cpu_time);
     return ERR(NOT_IMPLEMENTED);
   }
 
-  static jvmtiError GetThreadCpuTime(jvmtiEnv* env, jthread thread, jlong* nanos_ptr) {
+  static jvmtiError GetThreadCpuTime(jvmtiEnv* env,
+                                     jthread thread ATTRIBUTE_UNUSED,
+                                     jlong* nanos_ptr ATTRIBUTE_UNUSED) {
     ENSURE_HAS_CAP(env, can_get_thread_cpu_time);
     return ERR(NOT_IMPLEMENTED);
   }
@@ -1269,7 +1303,9 @@ class JvmtiFunctions {
     }
   }
 
-  static jvmtiError SetVerboseFlag(jvmtiEnv* env, jvmtiVerboseFlag flag, jboolean value) {
+  static jvmtiError SetVerboseFlag(jvmtiEnv* env ATTRIBUTE_UNUSED,
+                                   jvmtiVerboseFlag flag,
+                                   jboolean value) {
     if (flag == jvmtiVerboseFlag::JVMTI_VERBOSE_OTHER) {
       // OTHER is special, as it's 0, so can't do a bit check.
       bool val = (value == JNI_TRUE) ? true : false;
@@ -1323,7 +1359,8 @@ class JvmtiFunctions {
     return ERR(NONE);
   }
 
-  static jvmtiError GetJLocationFormat(jvmtiEnv* env, jvmtiJlocationFormat* format_ptr) {
+  static jvmtiError GetJLocationFormat(jvmtiEnv* env ATTRIBUTE_UNUSED,
+                                       jvmtiJlocationFormat* format_ptr) {
     // Report BCI as jlocation format. We report dex bytecode indices.
     if (format_ptr == nullptr) {
       return ERR(NULL_POINTER);
