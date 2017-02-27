@@ -1205,6 +1205,10 @@ TEST_F(AssemblerX86_64Test, Cvtsd2ss) {
   DriverStr(RepeatFF(&x86_64::X86_64Assembler::cvtsd2ss, "cvtsd2ss %{reg2}, %{reg1}"), "cvtsd2ss");
 }
 
+TEST_F(AssemblerX86_64Test, Cvtdq2ps) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::cvtdq2ps, "cvtdq2ps %{reg2}, %{reg1}"), "cvtdq2ps");
+}
+
 TEST_F(AssemblerX86_64Test, Cvtdq2pd) {
   DriverStr(RepeatFF(&x86_64::X86_64Assembler::cvtdq2pd, "cvtdq2pd %{reg2}, %{reg1}"), "cvtdq2pd");
 }
