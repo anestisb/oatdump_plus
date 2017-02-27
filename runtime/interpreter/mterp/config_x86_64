@@ -292,8 +292,8 @@ op-start x86_64
     # op op_unused_f9 FALLBACK
     op op_invoke_polymorphic FALLBACK
     op op_invoke_polymorphic_range FALLBACK
-    # op op_unused_fc FALLBACK
-    # op op_unused_fd FALLBACK
+    op op_invoke_custom FALLBACK
+    op op_invoke_custom_range FALLBACK
     # op op_unused_fe FALLBACK
     # op op_unused_ff FALLBACK
 op-end
