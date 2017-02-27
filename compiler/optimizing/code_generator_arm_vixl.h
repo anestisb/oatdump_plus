@@ -45,11 +45,6 @@ static constexpr bool kArmUseVIXL32 = true;
 namespace art {
 namespace arm {
 
-// This constant is used as an approximate margin when emission of veneer and literal pools
-// must be blocked.
-static constexpr int kMaxMacroInstructionSizeInBytes =
-    15 * vixl::aarch32::kMaxInstructionSizeInBytes;
-
 static const vixl::aarch32::Register kParameterCoreRegistersVIXL[] = {
     vixl::aarch32::r1,
     vixl::aarch32::r2,
@@ -629,15 +624,6 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
                                                  bool needs_null_check,
                                                  bool always_update_field = false,
                                                  vixl::aarch32::Register* temp2 = nullptr);
-
-  // Generate a heap reference load (with no read barrier).
-  void GenerateRawReferenceLoad(HInstruction* instruction,
-                                Location ref,
-                                vixl::aarch32::Register obj,
-                                uint32_t offset,
-                                Location index,
-                                ScaleFactor scale_factor,
-                                bool needs_null_check);
 
   // Generate a read barrier for a heap reference within `instruction`
   // using a slow path.
