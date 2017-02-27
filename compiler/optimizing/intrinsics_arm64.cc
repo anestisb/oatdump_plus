@@ -2732,8 +2732,6 @@ void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopy(HInvoke* invoke) {
     const int32_t element_size = Primitive::ComponentSize(Primitive::kPrimNot);
 
     if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
-      // TODO: Also convert this intrinsic to the IsGcMarking strategy?
-
       // SystemArrayCopy implementation for Baker read barriers (see
       // also CodeGeneratorARM::GenerateReferenceLoadWithBakerReadBarrier):
       //
