@@ -193,6 +193,9 @@ class MemMap {
   // intermittently.
   void TryReadable();
 
+  // Align the map by unmapping the unaligned parts at the lower and the higher ends.
+  void AlignBy(size_t size);
+
  private:
   MemMap(const std::string& name,
          uint8_t* begin,
@@ -222,10 +225,10 @@ class MemMap {
                            bool low_4gb);
 
   const std::string name_;
-  uint8_t* const begin_;  // Start of data.
+  uint8_t* begin_;  // Start of data. May be changed by AlignBy.
   size_t size_;  // Length of data.
 
-  void* const base_begin_;  // Page-aligned base address.
+  void* base_begin_;  // Page-aligned base address. May be changed by AlignBy.
   size_t base_size_;  // Length of mapping. May be changed by RemapAtEnd (ie Zygote).
   int prot_;  // Protection of the map.
 

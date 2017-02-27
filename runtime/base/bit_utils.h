@@ -152,6 +152,11 @@ inline bool IsAlignedParam(T x, int n) {
   return (x & (n - 1)) == 0;
 }
 
+template<typename T>
+inline bool IsAlignedParam(T* x, int n) {
+  return IsAlignedParam(reinterpret_cast<const uintptr_t>(x), n);
+}
+
 #define CHECK_ALIGNED(value, alignment) \
   CHECK(::art::IsAligned<alignment>(value)) << reinterpret_cast<const void*>(value)
 
