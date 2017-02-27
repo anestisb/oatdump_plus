@@ -4428,9 +4428,15 @@ void ClassLinker::CreateProxyConstructor(Handle<mirror::Class> klass, ArtMethod*
   // Create constructor for Proxy that must initialize the method.
   CHECK_EQ(GetClassRoot(kJavaLangReflectProxy)->NumDirectMethods(), 23u);
 
-  ArtMethod* proxy_constructor = GetClassRoot(kJavaLangReflectProxy)->GetDirectMethodUnchecked(
-      8, image_pointer_size_);
-  DCHECK_EQ(std::string(proxy_constructor->GetName()), "<init>");
+  // Find the <init>(InvocationHandler)V method. The exact method offset varies depending
+  // on which front-end compiler was used to build the libcore DEX files.
+  ArtMethod* proxy_constructor = GetClassRoot(kJavaLangReflectProxy)->
+      FindDeclaredDirectMethod("<init>",
+                               "(Ljava/lang/reflect/InvocationHandler;)V",
+                               image_pointer_size_);
+  DCHECK(proxy_constructor != nullptr)
+      << "Could not find <init> method in java.lang.reflect.Proxy";
+
   // Ensure constructor is in dex cache so that we can use the dex cache to look up the overridden
   // constructor method.
   GetClassRoot(kJavaLangReflectProxy)->GetDexCache()->SetResolvedMethod(
