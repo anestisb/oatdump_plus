@@ -6292,23 +6292,15 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
 
 /* ------------------------------ */
     .balign 128
-.L_op_unused_fc: /* 0xfc */
-/* File: x86/op_unused_fc.S */
-/* File: x86/unused.S */
-/*
- * Bail to reference interpreter to throw.
- */
+.L_op_invoke_custom: /* 0xfc */
+/* Transfer stub to alternate interpreter */
     jmp     MterpFallback
 
 
 /* ------------------------------ */
     .balign 128
-.L_op_unused_fd: /* 0xfd */
-/* File: x86/op_unused_fd.S */
-/* File: x86/unused.S */
-/*
- * Bail to reference interpreter to throw.
- */
+.L_op_invoke_custom_range: /* 0xfd */
+/* Transfer stub to alternate interpreter */
     jmp     MterpFallback
 
 
@@ -12410,7 +12402,7 @@ SYMBOL(artMterpAsmAltInstructionStart) = .L_ALT_op_nop
 
 /* ------------------------------ */
     .balign 128
-.L_ALT_op_unused_fc: /* 0xfc */
+.L_ALT_op_invoke_custom: /* 0xfc */
 /* File: x86/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to MterpCheckBefore to handle
@@ -12434,7 +12426,7 @@ SYMBOL(artMterpAsmAltInstructionStart) = .L_ALT_op_nop
 
 /* ------------------------------ */
     .balign 128
-.L_ALT_op_unused_fd: /* 0xfd */
+.L_ALT_op_invoke_custom_range: /* 0xfd */
 /* File: x86/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to MterpCheckBefore to handle

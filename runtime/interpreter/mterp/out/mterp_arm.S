@@ -7347,24 +7347,16 @@ constvalop_long_to_double:
 
 /* ------------------------------ */
     .balign 128
-.L_op_unused_fc: /* 0xfc */
-/* File: arm/op_unused_fc.S */
-/* File: arm/unused.S */
-/*
- * Bail to reference interpreter to throw.
- */
-  b MterpFallback
+.L_op_invoke_custom: /* 0xfc */
+/* Transfer stub to alternate interpreter */
+    b    MterpFallback
 
 
 /* ------------------------------ */
     .balign 128
-.L_op_unused_fd: /* 0xfd */
-/* File: arm/op_unused_fd.S */
-/* File: arm/unused.S */
-/*
- * Bail to reference interpreter to throw.
- */
-  b MterpFallback
+.L_op_invoke_custom_range: /* 0xfd */
+/* Transfer stub to alternate interpreter */
+    b    MterpFallback
 
 
 /* ------------------------------ */
@@ -11763,7 +11755,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
 
 /* ------------------------------ */
     .balign 128
-.L_ALT_op_unused_fc: /* 0xfc */
+.L_ALT_op_invoke_custom: /* 0xfc */
 /* File: arm/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to MterpCheckBefore to handle
@@ -11780,7 +11772,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
 
 /* ------------------------------ */
     .balign 128
-.L_ALT_op_unused_fd: /* 0xfd */
+.L_ALT_op_invoke_custom_range: /* 0xfd */
 /* File: arm/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to MterpCheckBefore to handle
