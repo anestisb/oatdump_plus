@@ -520,6 +520,9 @@ class CodeGeneratorARM : public CodeGenerator {
                                              Location index,
                                              Location temp,
                                              bool needs_null_check);
+  // Factored implementation used by GenerateFieldLoadWithBakerReadBarrier
+  // and GenerateArrayLoadWithBakerReadBarrier.
+
   // Factored implementation, used by GenerateFieldLoadWithBakerReadBarrier,
   // GenerateArrayLoadWithBakerReadBarrier and some intrinsics.
   //
@@ -541,15 +544,6 @@ class CodeGeneratorARM : public CodeGenerator {
                                                  bool needs_null_check,
                                                  bool always_update_field = false,
                                                  Register* temp2 = nullptr);
-
-  // Generate a heap reference load (with no read barrier).
-  void GenerateRawReferenceLoad(HInstruction* instruction,
-                                Location ref,
-                                Register obj,
-                                uint32_t offset,
-                                Location index,
-                                ScaleFactor scale_factor,
-                                bool needs_null_check);
 
   // Generate a read barrier for a heap reference within `instruction`
   // using a slow path.

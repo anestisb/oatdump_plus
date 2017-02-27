@@ -148,7 +148,7 @@ class TypeLookupTable {
     return mask_;
   }
 
-  // Attempt to set an entry on its hash's slot. If there is already something there, return false.
+  // Attempt to set an entry on it's hash' slot. If there is alrady something there, return false.
   // Otherwise return true.
   bool SetOnInitialPos(const Entry& entry, uint32_t hash);
 
