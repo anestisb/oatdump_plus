@@ -1153,6 +1153,15 @@ void X86_64Assembler::cvtsd2ss(XmmRegister dst, const Address& src) {
 }
 
 
+void X86_64Assembler::cvtdq2ps(XmmRegister dst, XmmRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitOptionalRex32(dst, src);
+  EmitUint8(0x0F);
+  EmitUint8(0x5B);
+  EmitXmmRegisterOperand(dst.LowBits(), src);
+}
+
+
 void X86_64Assembler::cvtdq2pd(XmmRegister dst, XmmRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0xF3);

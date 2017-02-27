@@ -457,6 +457,7 @@ class X86Assembler FINAL : public Assembler {
   void cvttss2si(Register dst, XmmRegister src);
   void cvttsd2si(Register dst, XmmRegister src);
 
+  void cvtdq2ps(XmmRegister dst, XmmRegister src);
   void cvtdq2pd(XmmRegister dst, XmmRegister src);
 
   void comiss(XmmRegister a, XmmRegister b);

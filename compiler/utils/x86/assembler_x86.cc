@@ -958,6 +958,14 @@ void X86Assembler::cvtsd2ss(XmmRegister dst, XmmRegister src) {
 }
 
 
+void X86Assembler::cvtdq2ps(XmmRegister dst, XmmRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x0F);
+  EmitUint8(0x5B);
+  EmitXmmRegisterOperand(dst, src);
+}
+
+
 void X86Assembler::cvtdq2pd(XmmRegister dst, XmmRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0xF3);
