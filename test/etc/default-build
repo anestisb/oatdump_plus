@@ -97,7 +97,7 @@ JAVAC_EXPERIMENTAL_ARGS["agents"]="-source 1.8 -target 1.8"
 while true; do
   if [ "x$1" = "x--dx-option" ]; then
     shift
-    on="$1"
+    option="$1"
     DX_FLAGS="${DX_FLAGS} $option"
     shift
   elif [ "x$1" = "x--jvm" ]; then
@@ -209,9 +209,9 @@ if [ ${HAS_SRC_DEX2OAT_UNRESOLVED} = "true" ]; then
     ${JACK} --import classes.jill.jar --output-dex .
   else
     if [ ${NEED_DEX} = "true" ]; then
-      ${DX} -JXmx256m --debug --dex --dump-to=classes-ex.lst --output=classes.dex --dump-width=1000 classes-ex
+      ${DX} -JXmx256m --debug --dex --dump-to=classes-ex.lst --output=classes.dex --dump-width=1000 ${DX_FLAGS} classes-ex
       zip ${TEST_NAME}-ex.jar classes.dex
-      ${DX} -JXmx256m --debug --dex --dump-to=classes.lst --output=classes.dex --dump-width=1000 classes
+      ${DX} -JXmx256m --debug --dex --dump-to=classes.lst --output=classes.dex --dump-width=1000 ${DX_FLAGS} classes
     fi
   fi
 else
