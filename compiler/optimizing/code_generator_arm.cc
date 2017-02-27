@@ -650,7 +650,7 @@ class ArraySetSlowPathARM : public SlowPathCodeARM {
 //
 // If `entrypoint` is a valid location it is assumed to already be
 // holding the entrypoint. The case where the entrypoint is passed in
-// is when the decision to mark is based on whether the GC is marking.
+// is for the GcRoot read barrier.
 class ReadBarrierMarkSlowPathARM : public SlowPathCodeARM {
  public:
   ReadBarrierMarkSlowPathARM(HInstruction* instruction,
@@ -715,7 +715,6 @@ class ReadBarrierMarkSlowPathARM : public SlowPathCodeARM {
       arm_codegen->ValidateInvokeRuntimeWithoutRecordingPcInfo(instruction_, this);
       __ blx(entrypoint_.AsRegister<Register>());
     } else {
-      // Entrypoint is not already loaded, load from the thread.
       int32_t entry_point_offset =
           CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kArmPointerSize>(ref_reg);
       // This runtime call does not require a stack map.
@@ -744,10 +743,6 @@ class ReadBarrierMarkSlowPathARM : public SlowPathCodeARM {
 // and `obj.field` will be up-to-date; i.e., after the flip, both will
 // hold the same to-space reference (unless another thread installed
 // another object reference (different from `ref`) in `obj.field`).
-//
-// If `entrypoint` is a valid location it is assumed to already be
-// holding the entrypoint. The case where the entrypoint is passed in
-// is when the decision to mark is based on whether the GC is marking.
 class ReadBarrierMarkAndUpdateFieldSlowPathARM : public SlowPathCodeARM {
  public:
   ReadBarrierMarkAndUpdateFieldSlowPathARM(HInstruction* instruction,
@@ -755,15 +750,13 @@ class ReadBarrierMarkAndUpdateFieldSlowPathARM : public SlowPathCodeARM {
                                            Register obj,
                                            Location field_offset,
                                            Register temp1,
-                                           Register temp2,
-                                           Location entrypoint = Location::NoLocation())
+                                           Register temp2)
       : SlowPathCodeARM(instruction),
         ref_(ref),
         obj_(obj),
         field_offset_(field_offset),
         temp1_(temp1),
-        temp2_(temp2),
-        entrypoint_(entrypoint) {
+        temp2_(temp2) {
     DCHECK(kEmitCompilerReadBarrier);
   }
 
@@ -816,16 +809,10 @@ class ReadBarrierMarkAndUpdateFieldSlowPathARM : public SlowPathCodeARM {
     //
     //   rX <- ReadBarrierMarkRegX(rX)
     //
-    if (entrypoint_.IsValid()) {
-      arm_codegen->ValidateInvokeRuntimeWithoutRecordingPcInfo(instruction_, this);
-      __ blx(entrypoint_.AsRegister<Register>());
-    } else {
-      // Entrypoint is not already loaded, load from the thread.
-      int32_t entry_point_offset =
-          CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kArmPointerSize>(ref_reg);
-      // This runtime call does not require a stack map.
-      arm_codegen->InvokeRuntimeWithoutRecordingPcInfo(entry_point_offset, instruction_, this);
-    }
+    int32_t entry_point_offset =
+        CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kArmPointerSize>(ref_reg);
+    // This runtime call does not require a stack map.
+    arm_codegen->InvokeRuntimeWithoutRecordingPcInfo(entry_point_offset, instruction_, this);
 
     // If the new reference is different from the old reference,
     // update the field in the holder (`*(obj_ + field_offset_)`).
@@ -914,9 +901,6 @@ class ReadBarrierMarkAndUpdateFieldSlowPathARM : public SlowPathCodeARM {
 
   const Register temp1_;
   const Register temp2_;
-
-  // The location of the entrypoint if already loaded.
-  const Location entrypoint_;
 
   DISALLOW_COPY_AND_ASSIGN(ReadBarrierMarkAndUpdateFieldSlowPathARM);
 };
@@ -7201,34 +7185,13 @@ void InstructionCodeGeneratorARM::GenerateGcRootFieldLoad(HInstruction* instruct
     DCHECK(kEmitCompilerReadBarrier);
     if (kUseBakerReadBarrier) {
       // Fast path implementation of art::ReadBarrier::BarrierForRoot when
-      // Baker's read barrier are used.
+      // Baker's read barrier are used:
       //
-      // Note that we do not actually check the value of
-      // `GetIsGcMarking()` to decide whether to mark the loaded GC
-      // root or not.  Instead, we load into `temp` the read barrier
-      // mark entry point corresponding to register `root`. If `temp`
-      // is null, it means that `GetIsGcMarking()` is false, and vice
-      // versa.
-      //
+      //   root = obj.field;
       //   temp = Thread::Current()->pReadBarrierMarkReg ## root.reg()
-      //   GcRoot<mirror::Object> root = *(obj+offset);  // Original reference load.
-      //   if (temp != nullptr) {  // <=> Thread::Current()->GetIsGcMarking()
-      //     // Slow path.
-      //     root = temp(root);  // root = ReadBarrier::Mark(root);  // Runtime entry point call.
+      //   if (temp != null) {
+      //     root = temp(root)
       //   }
-
-      // Slow path marking the GC root `root`. The entrypoint will already be loaded in `temp`.
-      Location temp = Location::RegisterLocation(LR);
-      SlowPathCodeARM* slow_path = new (GetGraph()->GetArena()) ReadBarrierMarkSlowPathARM(
-          instruction, root, /* entrypoint */ temp);
-      codegen_->AddSlowPath(slow_path);
-
-      // temp = Thread::Current()->pReadBarrierMarkReg ## root.reg()
-      const int32_t entry_point_offset =
-          CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kArmPointerSize>(root.reg());
-      // Loading the entrypoint does not require a load acquire since it is only changed when
-      // threads are suspended or running a checkpoint.
-      __ LoadFromOffset(kLoadWord, temp.AsRegister<Register>(), TR, entry_point_offset);
 
       // /* GcRoot<mirror::Object> */ root = *(obj + offset)
       __ LoadFromOffset(kLoadWord, root_reg, obj, offset);
@@ -7240,6 +7203,21 @@ void InstructionCodeGeneratorARM::GenerateGcRootFieldLoad(HInstruction* instruct
                     "art::mirror::CompressedReference<mirror::Object> and int32_t "
                     "have different sizes.");
 
+      // Slow path marking the GC root `root`.
+      Location temp = Location::RegisterLocation(LR);
+      SlowPathCodeARM* slow_path =
+          new (GetGraph()->GetArena()) ReadBarrierMarkSlowPathARM(
+              instruction,
+              root,
+              /*entrypoint*/ temp);
+      codegen_->AddSlowPath(slow_path);
+
+      // temp = Thread::Current()->pReadBarrierMarkReg ## root.reg()
+      const int32_t entry_point_offset =
+          CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kArmPointerSize>(root.reg());
+      // Loading the entrypoint does not require a load acquire since it is only changed when
+      // threads are suspended or running a checkpoint.
+      __ LoadFromOffset(kLoadWord, temp.AsRegister<Register>(), TR, entry_point_offset);
       // The entrypoint is null when the GC is not marking, this prevents one load compared to
       // checking GetIsGcMarking.
       __ CompareAndBranchIfNonZero(temp.AsRegister<Register>(), slow_path->GetEntryLabel());
@@ -7310,79 +7288,51 @@ void CodeGeneratorARM::GenerateReferenceLoadWithBakerReadBarrier(HInstruction* i
   DCHECK(kEmitCompilerReadBarrier);
   DCHECK(kUseBakerReadBarrier);
 
-  // After loading the reference from `obj.field` into `ref`, query
-  // `art::Thread::Current()->GetIsGcMarking()` to decide whether we
-  // need to enter the slow path to mark the reference. This
-  // optimistic strategy (we expect the GC to not be marking most of
-  // the time) does not check `obj`'s lock word (to see if it is a
-  // gray object or not), so may sometimes mark an already marked
-  // object.
+  // In slow path based read barriers, the read barrier call is
+  // inserted after the original load. However, in fast path based
+  // Baker's read barriers, we need to perform the load of
+  // mirror::Object::monitor_ *before* the original reference load.
+  // This load-load ordering is required by the read barrier.
+  // The fast path/slow path (for Baker's algorithm) should look like:
   //
-  // Note that we do not actually check the value of `GetIsGcMarking()`;
-  // instead, we load into `temp3` the read barrier mark entry point
-  // corresponding to register `ref`. If `temp3` is null, it means
-  // that `GetIsGcMarking()` is false, and vice versa.
-  //
-  //   temp3 = Thread::Current()->pReadBarrierMarkReg ## root.reg()
-  //   HeapReference<mirror::Object> ref = *src;  // Original reference load.
-  //   if (temp3 != nullptr) {  // <=> Thread::Current()->GetIsGcMarking()
-  //     // Slow path.
-  //     ref = temp3(ref);  // ref = ReadBarrier::Mark(ref);  // Runtime entry point call.
+  //   uint32_t rb_state = Lockword(obj->monitor_).ReadBarrierState();
+  //   lfence;  // Load fence or artificial data dependency to prevent load-load reordering
+  //   HeapReference<Object> ref = *src;  // Original reference load.
+  //   bool is_gray = (rb_state == ReadBarrier::GrayState());
+  //   if (is_gray) {
+  //     ref = ReadBarrier::Mark(ref);  // Performed by runtime entrypoint slow path.
   //   }
+  //
+  // Note: the original implementation in ReadBarrier::Barrier is
+  // slightly more complex as it performs additional checks that we do
+  // not do here for performance reasons.
 
-  // TODO: This temp register is only necessary when
-  // `always_update_field` is true; make it optional (like `temp2`).
-  Register temp_reg = temp.AsRegister<Register>();
-
-  // Slow path marking the object `ref` when the GC is marking. The
-  // entrypoint will already be loaded in `temp3`.
-  Location temp3 = Location::RegisterLocation(LR);
-  SlowPathCodeARM* slow_path;
-  if (always_update_field) {
-    DCHECK(temp2 != nullptr);
-    // ReadBarrierMarkAndUpdateFieldSlowPathARM only supports address
-    // of the form `obj + field_offset`, where `obj` is a register and
-    // `field_offset` is a register pair (of which only the lower half
-    // is used). Thus `offset` and `scale_factor` above are expected
-    // to be null in this code path.
-    DCHECK_EQ(offset, 0u);
-    DCHECK_EQ(scale_factor, ScaleFactor::TIMES_1);
-    slow_path = new (GetGraph()->GetArena()) ReadBarrierMarkAndUpdateFieldSlowPathARM(
-        instruction, ref, obj, /* field_offset */ index, temp_reg, *temp2, /* entrypoint */ temp3);
-  } else {
-    slow_path = new (GetGraph()->GetArena()) ReadBarrierMarkSlowPathARM(
-        instruction, ref, /* entrypoint */ temp3);
-  }
-  AddSlowPath(slow_path);
-
-  // temp3 = Thread::Current()->pReadBarrierMarkReg ## ref.reg()
-  const int32_t entry_point_offset =
-      CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kArmPointerSize>(ref.reg());
-  // Loading the entrypoint does not require a load acquire since it is only changed when
-  // threads are suspended or running a checkpoint.
-  __ LoadFromOffset(kLoadWord, temp3.AsRegister<Register>(), TR, entry_point_offset);
-  // The reference load.
-  GenerateRawReferenceLoad(instruction, ref, obj, offset, index, scale_factor, needs_null_check);
-  // The entrypoint is null when the GC is not marking, this prevents one load compared to
-  // checking GetIsGcMarking.
-  __ CompareAndBranchIfNonZero(temp3.AsRegister<Register>(), slow_path->GetEntryLabel());
-  __ Bind(slow_path->GetExitLabel());
-}
-
-void CodeGeneratorARM::GenerateRawReferenceLoad(HInstruction* instruction,
-                                                Location ref,
-                                                Register obj,
-                                                uint32_t offset,
-                                                Location index,
-                                                ScaleFactor scale_factor,
-                                                bool needs_null_check) {
   Register ref_reg = ref.AsRegister<Register>();
+  Register temp_reg = temp.AsRegister<Register>();
+  uint32_t monitor_offset = mirror::Object::MonitorOffset().Int32Value();
 
+  // /* int32_t */ monitor = obj->monitor_
+  __ LoadFromOffset(kLoadWord, temp_reg, obj, monitor_offset);
+  if (needs_null_check) {
+    MaybeRecordImplicitNullCheck(instruction);
+  }
+  // /* LockWord */ lock_word = LockWord(monitor)
+  static_assert(sizeof(LockWord) == sizeof(int32_t),
+                "art::LockWord and int32_t have different sizes.");
+
+  // Introduce a dependency on the lock_word including the rb_state,
+  // which shall prevent load-load reordering without using
+  // a memory barrier (which would be more expensive).
+  // `obj` is unchanged by this operation, but its value now depends
+  // on `temp_reg`.
+  __ add(obj, obj, ShifterOperand(temp_reg, LSR, 32));
+
+  // The actual reference load.
   if (index.IsValid()) {
     // Load types involving an "index": ArrayGet,
     // UnsafeGetObject/UnsafeGetObjectVolatile and UnsafeCASObject
     // intrinsics.
-    // /* HeapReference<mirror::Object> */ ref = *(obj + offset + (index << scale_factor))
+    // /* HeapReference<Object> */ ref = *(obj + offset + (index << scale_factor))
     if (index.IsConstant()) {
       size_t computed_offset =
           (index.GetConstant()->AsIntConstant()->GetValue() << scale_factor) + offset;
@@ -7399,16 +7349,41 @@ void CodeGeneratorARM::GenerateRawReferenceLoad(HInstruction* instruction,
       __ LoadFromOffset(kLoadWord, ref_reg, IP, offset);
     }
   } else {
-    // /* HeapReference<mirror::Object> */ ref = *(obj + offset)
+    // /* HeapReference<Object> */ ref = *(obj + offset)
     __ LoadFromOffset(kLoadWord, ref_reg, obj, offset);
-  }
-
-  if (needs_null_check) {
-    MaybeRecordImplicitNullCheck(instruction);
   }
 
   // Object* ref = ref_addr->AsMirrorPtr()
   __ MaybeUnpoisonHeapReference(ref_reg);
+
+  // Slow path marking the object `ref` when it is gray.
+  SlowPathCodeARM* slow_path;
+  if (always_update_field) {
+    DCHECK(temp2 != nullptr);
+    // ReadBarrierMarkAndUpdateFieldSlowPathARM only supports address
+    // of the form `obj + field_offset`, where `obj` is a register and
+    // `field_offset` is a register pair (of which only the lower half
+    // is used). Thus `offset` and `scale_factor` above are expected
+    // to be null in this code path.
+    DCHECK_EQ(offset, 0u);
+    DCHECK_EQ(scale_factor, ScaleFactor::TIMES_1);
+    slow_path = new (GetGraph()->GetArena()) ReadBarrierMarkAndUpdateFieldSlowPathARM(
+        instruction, ref, obj, /* field_offset */ index, temp_reg, *temp2);
+  } else {
+    slow_path = new (GetGraph()->GetArena()) ReadBarrierMarkSlowPathARM(instruction, ref);
+  }
+  AddSlowPath(slow_path);
+
+  // if (rb_state == ReadBarrier::GrayState())
+  //   ref = ReadBarrier::Mark(ref);
+  // Given the numeric representation, it's enough to check the low bit of the
+  // rb_state. We do that by shifting the bit out of the lock word with LSRS
+  // which can be a 16-bit instruction unlike the TST immediate.
+  static_assert(ReadBarrier::WhiteState() == 0, "Expecting white to have value 0");
+  static_assert(ReadBarrier::GrayState() == 1, "Expecting gray to have value 1");
+  __ Lsrs(temp_reg, temp_reg, LockWord::kReadBarrierStateShift + 1);
+  __ b(slow_path->GetEntryLabel(), CS);  // Carry flag is the last bit shifted out by LSRS.
+  __ Bind(slow_path->GetExitLabel());
 }
 
 void CodeGeneratorARM::GenerateReadBarrierSlow(HInstruction* instruction,
