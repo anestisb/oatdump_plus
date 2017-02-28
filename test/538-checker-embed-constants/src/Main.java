@@ -37,11 +37,18 @@ public class Main {
   }
 
   /// CHECK-START-ARM: int Main.and511(int) disassembly (after)
-  /// CHECK:                mov {{r\d+}}, #511
-  /// CHECK:                and{{(\.w)?}} {{r\d+}}, {{r\d+}}, {{r\d+}}
+  /// CHECK:                ubfx {{r\d+}}, {{r\d+}}, #0, #9
 
   public static int and511(int arg) {
     return arg & 511;
+  }
+
+  /// CHECK-START-ARM: int Main.andF00D(int) disassembly (after)
+  /// CHECK:                mov {{r\d+}}, #61453
+  /// CHECK:                and{{(\.w)?}} {{r\d+}}, {{r\d+}}, {{r\d+}}
+
+  public static int andF00D(int arg) {
+    return arg & 0xF00D;
   }
 
   /// CHECK-START-ARM: int Main.andNot15(int) disassembly (after)
@@ -114,17 +121,29 @@ public class Main {
   }
 
   /// CHECK-START-ARM: long Main.and511(long) disassembly (after)
-  /// CHECK:                mov {{r\d+}}, #511
+  /// CHECK:                ubfx {{r\d+}}, {{r\d+}}, #0, #9
   /// CHECK-NEXT:           mov{{s?}} {{r\d+}}, #0
-  /// CHECK-NOT:            and{{(\.w)?}}
-  /// CHECK-NOT:            bic{{(\.w)?}}
-  /// CHECK:                and{{(\.w)?}} {{r\d+}}, {{r\d+}}, {{r\d+}}
-  /// CHECK-NEXT:           and{{(\.w)?}} {{r\d+}}, {{r\d+}}, {{r\d+}}
   /// CHECK-NOT:            and{{(\.w)?}}
   /// CHECK-NOT:            bic{{(\.w)?}}
 
   public static long and511(long arg) {
     return arg & 511L;
+  }
+
+  /// CHECK-START-ARM: long Main.andF00D(long) disassembly (after)
+  /// CHECK:                mov {{r\d+}}, #61453
+  /// CHECK-NEXT:           mov{{s?}} {{r\d+}}, #0
+  /// CHECK-NOT:            and{{(\.w)?}}
+  /// CHECK-NOT:            bic{{(\.w)?}}
+  /// CHECK-NOT:            ubfx
+  /// CHECK:                and{{(\.w)?}} {{r\d+}}, {{r\d+}}, {{r\d+}}
+  /// CHECK-NEXT:           and{{(\.w)?}} {{r\d+}}, {{r\d+}}, {{r\d+}}
+  /// CHECK-NOT:            and{{(\.w)?}}
+  /// CHECK-NOT:            bic{{(\.w)?}}
+  /// CHECK-NOT:            ubfx
+
+  public static long andF00D(long arg) {
+    return arg & 0xF00DL;
   }
 
   /// CHECK-START-ARM: long Main.andNot15(long) disassembly (after)
@@ -631,6 +650,7 @@ public class Main {
     int arg = 0x87654321;
     assertIntEquals(and255(arg), 0x21);
     assertIntEquals(and511(arg), 0x121);
+    assertIntEquals(andF00D(arg), 0x4001);
     assertIntEquals(andNot15(arg), 0x87654320);
     assertIntEquals(or255(arg), 0x876543ff);
     assertIntEquals(or511(arg), 0x876543ff);
@@ -642,6 +662,7 @@ public class Main {
     long longArg = 0x1234567887654321L;
     assertLongEquals(and255(longArg), 0x21L);
     assertLongEquals(and511(longArg), 0x121L);
+    assertLongEquals(andF00D(longArg), 0x4001L);
     assertLongEquals(andNot15(longArg), 0x1234567887654320L);
     assertLongEquals(and0xfffffff00000000f(longArg), 0x1234567000000001L);
     assertLongEquals(or255(longArg), 0x12345678876543ffL);
