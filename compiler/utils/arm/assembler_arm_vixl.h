@@ -135,6 +135,16 @@ class ArmVIXLMacroAssembler FINAL : public vixl32::MacroAssembler {
   // jumping within 2KB range. For B(cond, label), because the supported branch range is 256
   // bytes; we use the far_target hint to try to use 16-bit T1 encoding for short range jumps.
   void B(vixl32::Condition cond, vixl32::Label* label, bool is_far_target = true);
+
+  // Use literal for generating double constant if it doesn't fit VMOV encoding.
+  void Vmov(vixl32::DRegister rd, double imm) {
+    if (vixl::VFP::IsImmFP64(imm)) {
+      MacroAssembler::Vmov(rd, imm);
+    } else {
+      MacroAssembler::Vldr(rd, imm);
+    }
+  }
+  using MacroAssembler::Vmov;
 };
 
 class ArmVIXLAssembler FINAL : public Assembler {
