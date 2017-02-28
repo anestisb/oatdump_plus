@@ -47,7 +47,6 @@ INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
 
  private:
   ArenaAllocator* arena_;
-  CodeGenerator* codegen_;
   ArmVIXLAssembler* assembler_;
   const ArmInstructionSetFeatures& features_;
 
