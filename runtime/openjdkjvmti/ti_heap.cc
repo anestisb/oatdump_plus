@@ -171,15 +171,14 @@ bool VisitorFalse(art::ObjPtr<art::mirror::Object> obj ATTRIBUTE_UNUSED,
   return false;
 }
 
-template <typename StaticPrimitiveVisitor,
-          typename StaticReferenceVisitor,
-          typename InstancePrimitiveVisitor,
-          typename InstanceReferenceVisitor,
-          typename UserData,
-          bool kCallVisitorOnRecursion>
+template <typename UserData, bool kCallVisitorOnRecursion>
 class FieldVisitor {
  public:
   // Report the contents of a primitive fields of the given object, if a callback is set.
+  template <typename StaticPrimitiveVisitor,
+            typename StaticReferenceVisitor,
+            typename InstancePrimitiveVisitor,
+            typename InstanceReferenceVisitor>
   static bool ReportFields(art::ObjPtr<art::mirror::Object> obj,
                            UserData* user_data,
                            StaticPrimitiveVisitor& static_prim_visitor,
@@ -223,6 +222,10 @@ class FieldVisitor {
 
   // Report the contents of fields of the given object. If obj is null, report the static fields,
   // otherwise the instance fields.
+  template <typename StaticPrimitiveVisitor,
+            typename StaticReferenceVisitor,
+            typename InstancePrimitiveVisitor,
+            typename InstanceReferenceVisitor>
   bool ReportFieldsImpl(art::ObjPtr<art::mirror::Object> obj,
                         art::ObjPtr<art::mirror::Class> klass,
                         bool skip_java_lang_object,
@@ -248,6 +251,10 @@ class FieldVisitor {
   }
 
   // Visit primitive fields in an object (instance). Return true if the visit was aborted.
+  template <typename StaticPrimitiveVisitor,
+            typename StaticReferenceVisitor,
+            typename InstancePrimitiveVisitor,
+            typename InstanceReferenceVisitor>
   bool ReportFieldsRecursive(art::ObjPtr<art::mirror::Object> obj,
                              art::ObjPtr<art::mirror::Class> klass,
                              size_t interface_fields,
@@ -432,31 +439,19 @@ ATTRIBUTE_UNUSED
 void DumpObjectFields(art::ObjPtr<art::mirror::Object> obj)
     REQUIRES_SHARED(art::Locks::mutator_lock_) {
   if (obj->IsClass()) {
-    FieldVisitor<decltype(DumpVisitor<true, false>::Callback),
-                 decltype(DumpVisitor<true, true>::Callback),
-                 decltype(DumpVisitor<false, false>::Callback),
-                 decltype(DumpVisitor<false, true>::Callback),
-                 void,
-                 false>::
-        ReportFields(obj,
-                     nullptr,
-                     DumpVisitor<true, false>::Callback,
-                     DumpVisitor<true, true>::Callback,
-                     DumpVisitor<false, false>::Callback,
-                     DumpVisitor<false, true>::Callback);
+    FieldVisitor<void, false>:: ReportFields(obj,
+                                             nullptr,
+                                             DumpVisitor<true, false>::Callback,
+                                             DumpVisitor<true, true>::Callback,
+                                             DumpVisitor<false, false>::Callback,
+                                             DumpVisitor<false, true>::Callback);
   } else {
-    FieldVisitor<decltype(DumpVisitor<true, false>::Callback),
-                 decltype(DumpVisitor<true, true>::Callback),
-                 decltype(DumpVisitor<false, false>::Callback),
-                 decltype(DumpVisitor<false, true>::Callback),
-                 void,
-                 true>::
-        ReportFields(obj,
-                     nullptr,
-                     DumpVisitor<true, false>::Callback,
-                     DumpVisitor<true, true>::Callback,
-                     DumpVisitor<false, false>::Callback,
-                     DumpVisitor<false, true>::Callback);
+    FieldVisitor<void, true>::ReportFields(obj,
+                                           nullptr,
+                                           DumpVisitor<true, false>::Callback,
+                                           DumpVisitor<true, true>::Callback,
+                                           DumpVisitor<false, false>::Callback,
+                                           DumpVisitor<false, true>::Callback);
   }
 }
 
@@ -471,31 +466,21 @@ class ReportPrimitiveField {
       jlong class_tag = tag_table->GetTagOrZero(obj->GetClass());
       ReportPrimitiveField rpf(tag_table, class_tag, cb, user_data);
       if (obj->IsClass()) {
-        return FieldVisitor<decltype(ReportPrimitiveFieldCallback<true>),
-                            decltype(VisitorFalse<ReportPrimitiveField>),
-                            decltype(VisitorFalse<ReportPrimitiveField>),
-                            decltype(VisitorFalse<ReportPrimitiveField>),
-                            ReportPrimitiveField,
-                            false>::
-            ReportFields(obj,
-                         &rpf,
-                         ReportPrimitiveFieldCallback<true>,
-                         VisitorFalse<ReportPrimitiveField>,
-                         VisitorFalse<ReportPrimitiveField>,
-                         VisitorFalse<ReportPrimitiveField>);
+        return FieldVisitor<ReportPrimitiveField, false>::ReportFields(
+            obj,
+            &rpf,
+            ReportPrimitiveFieldCallback<true>,
+            VisitorFalse<ReportPrimitiveField>,
+            VisitorFalse<ReportPrimitiveField>,
+            VisitorFalse<ReportPrimitiveField>);
       } else {
-        return FieldVisitor<decltype(VisitorFalse<ReportPrimitiveField>),
-                            decltype(VisitorFalse<ReportPrimitiveField>),
-                            decltype(ReportPrimitiveFieldCallback<false>),
-                            decltype(VisitorFalse<ReportPrimitiveField>),
-                            ReportPrimitiveField,
-                            true>::
-            ReportFields(obj,
-                         &rpf,
-                         VisitorFalse<ReportPrimitiveField>,
-                         VisitorFalse<ReportPrimitiveField>,
-                         ReportPrimitiveFieldCallback<false>,
-                         VisitorFalse<ReportPrimitiveField>);
+        return FieldVisitor<ReportPrimitiveField, true>::ReportFields(
+            obj,
+            &rpf,
+            VisitorFalse<ReportPrimitiveField>,
+            VisitorFalse<ReportPrimitiveField>,
+            ReportPrimitiveFieldCallback<false>,
+            VisitorFalse<ReportPrimitiveField>);
       }
     }
     return false;
@@ -1006,68 +991,50 @@ class FollowReferencesHelper FINAL {
       return;
     }
 
-    // TODO: We'll probably have to rewrite this completely with our own visiting logic, if we
-    //       want to have a chance of getting the field indices computed halfway efficiently. For
-    //       now, ignore them altogether.
-
-    struct InstanceReferenceVisitor {
-      explicit InstanceReferenceVisitor(FollowReferencesHelper* helper_)
-          : helper(helper_), stop_reports(false) {}
-
-      void operator()(art::mirror::Object* src,
-                      art::MemberOffset field_offset,
-                      bool is_static ATTRIBUTE_UNUSED) const
-          REQUIRES_SHARED(art::Locks::mutator_lock_)
-          REQUIRES(!*helper->tag_table_->GetAllowDisallowLock()) {
-        if (stop_reports) {
-          return;
-        }
-
-        art::mirror::Object* trg = src->GetFieldObjectReferenceAddr(field_offset)->AsMirrorPtr();
+    // All instance fields.
+    auto report_instance_field = [&](art::ObjPtr<art::mirror::Object> src,
+                                     art::ObjPtr<art::mirror::Class> obj_klass ATTRIBUTE_UNUSED,
+                                     art::ArtField& field,
+                                     size_t field_index,
+                                     void* user_data ATTRIBUTE_UNUSED)
+        REQUIRES_SHARED(art::Locks::mutator_lock_)
+        REQUIRES(!*tag_table_->GetAllowDisallowLock()) {
+      art::ObjPtr<art::mirror::Object> field_value = field.GetObject(src);
+      if (field_value != nullptr) {
         jvmtiHeapReferenceInfo reference_info;
         memset(&reference_info, 0, sizeof(reference_info));
 
         // TODO: Implement spec-compliant numbering.
-        reference_info.field.index = field_offset.Int32Value();
+        reference_info.field.index = field_index;
 
         jvmtiHeapReferenceKind kind =
-            field_offset.Int32Value() == art::mirror::Object::ClassOffset().Int32Value()
+            field.GetOffset().Int32Value() == art::mirror::Object::ClassOffset().Int32Value()
                 ? JVMTI_HEAP_REFERENCE_CLASS
                 : JVMTI_HEAP_REFERENCE_FIELD;
         const jvmtiHeapReferenceInfo* reference_info_ptr =
             kind == JVMTI_HEAP_REFERENCE_CLASS ? nullptr : &reference_info;
 
-        stop_reports = !helper->ReportReferenceMaybeEnqueue(kind, reference_info_ptr, src, trg);
+        return !ReportReferenceMaybeEnqueue(kind, reference_info_ptr, src.Ptr(), field_value.Ptr());
       }
-
-      void VisitRoot(art::mirror::CompressedReference<art::mirror::Object>* root ATTRIBUTE_UNUSED)
-          const {
-        LOG(FATAL) << "Unreachable";
-      }
-      void VisitRootIfNonNull(
-          art::mirror::CompressedReference<art::mirror::Object>* root ATTRIBUTE_UNUSED) const {
-        LOG(FATAL) << "Unreachable";
-      }
-
-      // "mutable" required by the visitor API.
-      mutable FollowReferencesHelper* helper;
-      mutable bool stop_reports;
+      return false;
     };
-
-    InstanceReferenceVisitor visitor(this);
-    // Visit references, not native roots.
-    obj->VisitReferences<false>(visitor, art::VoidFunctor());
-
-    stop_reports_ = visitor.stop_reports;
-
-    if (!stop_reports_) {
-      jint string_ret = ReportString(obj, env, tag_table_, callbacks_, user_data_);
-      stop_reports_ = (string_ret & JVMTI_VISIT_ABORT) != 0;
+    stop_reports_ = FieldVisitor<void, true>::ReportFields(obj,
+                                                           nullptr,
+                                                           VisitorFalse<void>,
+                                                           VisitorFalse<void>,
+                                                           VisitorFalse<void>,
+                                                           report_instance_field);
+    if (stop_reports_) {
+      return;
     }
 
-    if (!stop_reports_) {
-      stop_reports_ = ReportPrimitiveField::Report(obj, tag_table_, callbacks_, user_data_);
+    jint string_ret = ReportString(obj, env, tag_table_, callbacks_, user_data_);
+    stop_reports_ = (string_ret & JVMTI_VISIT_ABORT) != 0;
+    if (stop_reports_) {
+      return;
     }
+
+    stop_reports_ = ReportPrimitiveField::Report(obj, tag_table_, callbacks_, user_data_);
   }
 
   void VisitArray(art::mirror::Object* array)
@@ -1161,30 +1128,38 @@ class FollowReferencesHelper FINAL {
     DCHECK_EQ(h_klass.Get(), klass);
 
     // Declared static fields.
-    for (auto& field : klass->GetSFields()) {
-      if (!field.IsPrimitiveType()) {
-        art::ObjPtr<art::mirror::Object> field_value = field.GetObject(klass);
-        if (field_value != nullptr) {
-          jvmtiHeapReferenceInfo reference_info;
-          memset(&reference_info, 0, sizeof(reference_info));
+    auto report_static_field = [&](art::ObjPtr<art::mirror::Object> obj ATTRIBUTE_UNUSED,
+                                   art::ObjPtr<art::mirror::Class> obj_klass,
+                                   art::ArtField& field,
+                                   size_t field_index,
+                                   void* user_data ATTRIBUTE_UNUSED)
+        REQUIRES_SHARED(art::Locks::mutator_lock_)
+        REQUIRES(!*tag_table_->GetAllowDisallowLock()) {
+      art::ObjPtr<art::mirror::Object> field_value = field.GetObject(obj_klass);
+      if (field_value != nullptr) {
+        jvmtiHeapReferenceInfo reference_info;
+        memset(&reference_info, 0, sizeof(reference_info));
 
-          // TODO: Implement spec-compliant numbering.
-          reference_info.field.index = field.GetOffset().Int32Value();
+        reference_info.field.index = static_cast<jint>(field_index);
 
-          stop_reports_ = !ReportReferenceMaybeEnqueue(JVMTI_HEAP_REFERENCE_STATIC_FIELD,
-                                                       &reference_info,
-                                                       klass,
-                                                       field_value.Ptr());
-          if (stop_reports_) {
-            return;
-          }
-        }
+        return !ReportReferenceMaybeEnqueue(JVMTI_HEAP_REFERENCE_STATIC_FIELD,
+                                            &reference_info,
+                                            obj_klass.Ptr(),
+                                            field_value.Ptr());
       }
+      return false;
+    };
+    stop_reports_ = FieldVisitor<void, false>::ReportFields(klass,
+                                                            nullptr,
+                                                            VisitorFalse<void>,
+                                                            report_static_field,
+                                                            VisitorFalse<void>,
+                                                            VisitorFalse<void>);
+    if (stop_reports_) {
+      return;
     }
 
-    if (!stop_reports_) {
-      stop_reports_ = ReportPrimitiveField::Report(klass, tag_table_, callbacks_, user_data_);
-    }
+    stop_reports_ = ReportPrimitiveField::Report(klass, tag_table_, callbacks_, user_data_);
   }
 
   void MaybeEnqueue(art::mirror::Object* obj) REQUIRES_SHARED(art::Locks::mutator_lock_) {
