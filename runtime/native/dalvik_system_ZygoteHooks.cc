@@ -74,12 +74,35 @@ static void EnableDebugger() {
   }
 }
 
-static void DoCollectNonDebuggableCallback(Thread* thread, void* data ATTRIBUTE_UNUSED)
+class ClassSet {
+ public:
+  explicit ClassSet(Thread* const self) : hs_(self) {}
+
+  void AddClass(ObjPtr<mirror::Class> klass) REQUIRES(Locks::mutator_lock_) {
+    for (Handle<mirror::Class> k : class_set_) {
+      if (k.Get() == klass.Ptr()) {
+        return;
+      }
+    }
+    class_set_.push_back(hs_.NewHandle<mirror::Class>(klass));
+  }
+
+  const std::vector<Handle<mirror::Class>>& GetClasses() const {
+    return class_set_;
+  }
+
+ private:
+  VariableSizedHandleScope hs_;
+  std::vector<Handle<mirror::Class>> class_set_;
+};
+
+static void DoCollectNonDebuggableCallback(Thread* thread, void* data)
     REQUIRES(Locks::mutator_lock_) {
   class NonDebuggableStacksVisitor : public StackVisitor {
    public:
-    explicit NonDebuggableStacksVisitor(Thread* t)
-        : StackVisitor(t, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames) {}
+    NonDebuggableStacksVisitor(Thread* t, ClassSet* class_set)
+        : StackVisitor(t, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
+          class_set_(class_set) {}
 
     ~NonDebuggableStacksVisitor() OVERRIDE {}
 
@@ -87,7 +110,7 @@ static void DoCollectNonDebuggableCallback(Thread* thread, void* data ATTRIBUTE_
       if (GetMethod()->IsRuntimeMethod()) {
         return true;
       }
-      NonDebuggableClasses::AddNonDebuggableClass(GetMethod()->GetDeclaringClass());
+      class_set_->AddClass(GetMethod()->GetDeclaringClass());
       if (kIsDebugBuild) {
         LOG(INFO) << GetMethod()->GetDeclaringClass()->PrettyClass()
                   << " might not be fully debuggable/deoptimizable due to "
@@ -95,16 +118,36 @@ static void DoCollectNonDebuggableCallback(Thread* thread, void* data ATTRIBUTE_
       }
       return true;
     }
+
+   private:
+    ClassSet* class_set_;
   };
-  NonDebuggableStacksVisitor visitor(thread);
+  NonDebuggableStacksVisitor visitor(thread, reinterpret_cast<ClassSet*>(data));
   visitor.WalkStack();
 }
 
-static void CollectNonDebuggableClasses() {
+static void CollectNonDebuggableClasses() REQUIRES(!Locks::mutator_lock_) {
   Runtime* const runtime = Runtime::Current();
-  ScopedSuspendAll suspend("Checking stacks for non-obsoletable methods!", /*long_suspend*/false);
-  MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
-  runtime->GetThreadList()->ForEach(DoCollectNonDebuggableCallback, nullptr);
+  Thread* const self = Thread::Current();
+  // Get the mutator lock.
+  ScopedObjectAccess soa(self);
+  ClassSet classes(self);
+  {
+    // Drop the mutator lock.
+    self->TransitionFromRunnableToSuspended(art::ThreadState::kNative);
+    {
+      // Get it back with a suspend all.
+      ScopedSuspendAll suspend("Checking stacks for non-obsoletable methods!",
+                               /*long_suspend*/false);
+      MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
+      runtime->GetThreadList()->ForEach(DoCollectNonDebuggableCallback, &classes);
+    }
+    // Recover the shared lock before we leave this scope.
+    self->TransitionFromSuspendedToRunnable();
+  }
+  for (Handle<mirror::Class> klass : classes.GetClasses()) {
+    NonDebuggableClasses::AddNonDebuggableClass(klass.Get());
+  }
 }
 
 static void EnableDebugFeatures(uint32_t debug_flags) {
