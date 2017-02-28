@@ -752,22 +752,6 @@ bool ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
                FindSystemClass(self, "[Ljava/lang/StackTraceElement;"));
   mirror::StackTraceElement::SetClass(GetClassRoot(kJavaLangStackTraceElement));
 
-  // Ensure void type is resolved in the core's dex cache so java.lang.Void is correctly
-  // initialized.
-  {
-    const DexFile& dex_file = java_lang_Object->GetDexFile();
-    const DexFile::TypeId* void_type_id = dex_file.FindTypeId("V");
-    CHECK(void_type_id != nullptr);
-    dex::TypeIndex void_type_idx = dex_file.GetIndexForTypeId(*void_type_id);
-    // Now we resolve void type so the dex cache contains it. We use java.lang.Object class
-    // as referrer so the used dex cache is core's one.
-    ObjPtr<mirror::Class> resolved_type = ResolveType(dex_file,
-                                                      void_type_idx,
-                                                      java_lang_Object.Get());
-    CHECK_EQ(resolved_type, GetClassRoot(kPrimitiveVoid));
-    self->AssertNoPendingException();
-  }
-
   // Create conflict tables that depend on the class linker.
   runtime->FixupConflictTables();
 
@@ -4159,19 +4143,6 @@ bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file,
   const OatFile::OatDexFile* oat_dex_file = dex_file.GetOatDexFile();
   // In case we run without an image there won't be a backing oat file.
   if (oat_dex_file == nullptr || oat_dex_file->GetOatFile() == nullptr) {
-    return false;
-  }
-
-  // We may be running with a preopted oat file but without image. In this case,
-  // we don't skip verification of skip_access_checks classes to ensure we initialize
-  // dex caches with all types resolved during verification.
-  // We need to trust image classes, as these might be coming out of a pre-opted, quickened boot
-  // image (that we just failed loading), and the verifier can't be run on quickened opcodes when
-  // the runtime isn't started. On the other hand, app classes can be re-verified even if they are
-  // already pre-opted, as then the runtime is started.
-  if (!Runtime::Current()->IsAotCompiler() &&
-      !Runtime::Current()->GetHeap()->HasBootImageSpace() &&
-      klass->GetClassLoader() != nullptr) {
     return false;
   }
 
