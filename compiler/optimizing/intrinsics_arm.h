@@ -51,6 +51,7 @@ INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
 
  private:
   ArenaAllocator* arena_;
+  CodeGenerator* codegen_;
   ArmAssembler* assembler_;
 
   const ArmInstructionSetFeatures& features_;
