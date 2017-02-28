@@ -654,5 +654,95 @@ extern "C" JNIEXPORT jstring JNICALL Java_Main_followReferencesPrimitiveArray(
   return env->NewStringUTF(fac.data.c_str());
 }
 
+static constexpr const char* GetPrimitiveTypeName(jvmtiPrimitiveType type) {
+  switch (type) {
+    case JVMTI_PRIMITIVE_TYPE_BOOLEAN:
+      return "boolean";
+    case JVMTI_PRIMITIVE_TYPE_BYTE:
+      return "byte";
+    case JVMTI_PRIMITIVE_TYPE_CHAR:
+      return "char";
+    case JVMTI_PRIMITIVE_TYPE_SHORT:
+      return "short";
+    case JVMTI_PRIMITIVE_TYPE_INT:
+      return "int";
+    case JVMTI_PRIMITIVE_TYPE_FLOAT:
+      return "float";
+    case JVMTI_PRIMITIVE_TYPE_LONG:
+      return "long";
+    case JVMTI_PRIMITIVE_TYPE_DOUBLE:
+      return "double";
+  }
+  LOG(FATAL) << "Unknown type " << static_cast<size_t>(type);
+  UNREACHABLE();
+}
+
+extern "C" JNIEXPORT jstring JNICALL Java_Main_followReferencesPrimitiveFields(
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject initial_object) {
+  struct FindFieldCallbacks {
+    static jint JNICALL FollowReferencesCallback(
+        jvmtiHeapReferenceKind reference_kind ATTRIBUTE_UNUSED,
+        const jvmtiHeapReferenceInfo* reference_info ATTRIBUTE_UNUSED,
+        jlong class_tag ATTRIBUTE_UNUSED,
+        jlong referrer_class_tag ATTRIBUTE_UNUSED,
+        jlong size ATTRIBUTE_UNUSED,
+        jlong* tag_ptr ATTRIBUTE_UNUSED,
+        jlong* referrer_tag_ptr ATTRIBUTE_UNUSED,
+        jint length ATTRIBUTE_UNUSED,
+        void* user_data ATTRIBUTE_UNUSED) {
+      return JVMTI_VISIT_OBJECTS;  // Continue visiting.
+    }
+
+    static jint JNICALL PrimitiveFieldValueCallback(jvmtiHeapReferenceKind kind,
+                                                    const jvmtiHeapReferenceInfo* info,
+                                                    jlong class_tag,
+                                                    jlong* tag_ptr,
+                                                    jvalue value,
+                                                    jvmtiPrimitiveType value_type,
+                                                    void* user_data) {
+      FindFieldCallbacks* p = reinterpret_cast<FindFieldCallbacks*>(user_data);
+      if (*tag_ptr != 0) {
+        std::ostringstream oss;
+        oss << *tag_ptr
+            << '@'
+            << class_tag
+            << " ("
+            << (kind == JVMTI_HEAP_REFERENCE_FIELD ? "instance, " : "static, ")
+            << GetPrimitiveTypeName(value_type)
+            << ", index="
+            << info->field.index
+            << ") ";
+        // Be lazy, always print eight bytes.
+        static_assert(sizeof(jvalue) == sizeof(uint64_t), "Unexpected jvalue size");
+        uint64_t val;
+        memcpy(&val, &value, sizeof(uint64_t));  // To avoid undefined behavior.
+        oss << android::base::StringPrintf("%016" PRIx64, val);
+
+        if (!p->data.empty()) {
+          p->data += "\n";
+        }
+        p->data += oss.str();
+        // Update the tag to test whether that works.
+        *tag_ptr = *tag_ptr + 1;
+      }
+      return 0;
+    }
+
+    std::string data;
+  };
+
+  jvmtiHeapCallbacks callbacks;
+  memset(&callbacks, 0, sizeof(jvmtiHeapCallbacks));
+  callbacks.heap_reference_callback = FindFieldCallbacks::FollowReferencesCallback;
+  callbacks.primitive_field_callback = FindFieldCallbacks::PrimitiveFieldValueCallback;
+
+  FindFieldCallbacks ffc;
+  jvmtiError ret = jvmti_env->FollowReferences(0, nullptr, initial_object, &callbacks, &ffc);
+  if (JvmtiErrorToException(env, ret)) {
+    return nullptr;
+  }
+  return env->NewStringUTF(ffc.data.c_str());
+}
+
 }  // namespace Test913Heaps
 }  // namespace art
