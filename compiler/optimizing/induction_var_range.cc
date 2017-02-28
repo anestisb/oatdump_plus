@@ -377,6 +377,53 @@ bool InductionVarRange::IsFinite(HLoopInformation* loop, /*out*/ int64_t* tc) co
   return false;
 }
 
+bool InductionVarRange::IsUnitStride(HInstruction* instruction,
+                                     /*out*/ HInstruction** offset) const {
+  HLoopInformation* loop = nullptr;
+  HInductionVarAnalysis::InductionInfo* info = nullptr;
+  HInductionVarAnalysis::InductionInfo* trip = nullptr;
+  if (HasInductionInfo(instruction, instruction, &loop, &info, &trip)) {
+    if (info->induction_class == HInductionVarAnalysis::kLinear &&
+        info->op_b->operation == HInductionVarAnalysis::kFetch) {
+      int64_t stride_value = 0;
+      if (IsConstant(info->op_a, kExact, &stride_value) && stride_value == 1) {
+        int64_t off_value = 0;
+        if (IsConstant(info->op_b, kExact, &off_value) && off_value == 0) {
+          *offset = nullptr;
+        } else {
+          *offset = info->op_b->fetch;
+        }
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+HInstruction* InductionVarRange::GenerateTripCount(HLoopInformation* loop,
+                                                   HGraph* graph,
+                                                   HBasicBlock* block) {
+  HInductionVarAnalysis::InductionInfo *trip =
+      induction_analysis_->LookupInfo(loop, GetLoopControl(loop));
+  if (trip != nullptr && !IsUnsafeTripCount(trip)) {
+    HInstruction* taken_test = nullptr;
+    HInstruction* trip_expr = nullptr;
+    if (IsBodyTripCount(trip)) {
+      if (!GenerateCode(trip->op_b, nullptr, graph, block, &taken_test, false, false)) {
+        return nullptr;
+      }
+    }
+    if (GenerateCode(trip->op_a, nullptr, graph, block, &trip_expr, false, false)) {
+      if (taken_test != nullptr) {
+        HInstruction* zero = graph->GetConstant(trip->type, 0);
+        trip_expr = Insert(block, new (graph->GetArena()) HSelect(taken_test, trip_expr, zero, kNoDexPc));
+      }
+      return trip_expr;
+    }
+  }
+  return nullptr;
+}
+
 //
 // Private class methods.
 //
@@ -1157,12 +1204,15 @@ bool InductionVarRange::GenerateCode(HInductionVarAnalysis::InductionInfo* info,
     HInstruction* opb = nullptr;
     switch (info->induction_class) {
       case HInductionVarAnalysis::kInvariant:
-        // Invariants (note that even though is_min does not impact code generation for
-        // invariants, some effort is made to keep this parameter consistent).
+        // Invariants (note that since invariants only have other invariants as
+        // sub expressions, viz. no induction, there is no need to adjust is_min).
         switch (info->operation) {
           case HInductionVarAnalysis::kAdd:
-          case HInductionVarAnalysis::kRem:  // no proper is_min for second arg
-          case HInductionVarAnalysis::kXor:  // no proper is_min for second arg
+          case HInductionVarAnalysis::kSub:
+          case HInductionVarAnalysis::kMul:
+          case HInductionVarAnalysis::kDiv:
+          case HInductionVarAnalysis::kRem:
+          case HInductionVarAnalysis::kXor:
           case HInductionVarAnalysis::kLT:
           case HInductionVarAnalysis::kLE:
           case HInductionVarAnalysis::kGT:
@@ -1174,6 +1224,12 @@ bool InductionVarRange::GenerateCode(HInductionVarAnalysis::InductionInfo* info,
                 switch (info->operation) {
                   case HInductionVarAnalysis::kAdd:
                     operation = new (graph->GetArena()) HAdd(type, opa, opb); break;
+                  case HInductionVarAnalysis::kSub:
+                    operation = new (graph->GetArena()) HSub(type, opa, opb); break;
+                  case HInductionVarAnalysis::kMul:
+                    operation = new (graph->GetArena()) HMul(type, opa, opb, kNoDexPc); break;
+                  case HInductionVarAnalysis::kDiv:
+                    operation = new (graph->GetArena()) HDiv(type, opa, opb, kNoDexPc); break;
                   case HInductionVarAnalysis::kRem:
                     operation = new (graph->GetArena()) HRem(type, opa, opb, kNoDexPc); break;
                   case HInductionVarAnalysis::kXor:
@@ -1194,16 +1250,7 @@ bool InductionVarRange::GenerateCode(HInductionVarAnalysis::InductionInfo* info,
               return true;
             }
             break;
-          case HInductionVarAnalysis::kSub:  // second reversed!
-            if (GenerateCode(info->op_a, trip, graph, block, &opa, in_body, is_min) &&
-                GenerateCode(info->op_b, trip, graph, block, &opb, in_body, !is_min)) {
-              if (graph != nullptr) {
-                *result = Insert(block, new (graph->GetArena()) HSub(type, opa, opb));
-              }
-              return true;
-            }
-            break;
-          case HInductionVarAnalysis::kNeg:  // reversed!
+          case HInductionVarAnalysis::kNeg:
             if (GenerateCode(info->op_b, trip, graph, block, &opb, in_body, !is_min)) {
               if (graph != nullptr) {
                 *result = Insert(block, new (graph->GetArena()) HNeg(type, opb));
@@ -1240,9 +1287,9 @@ bool InductionVarRange::GenerateCode(HInductionVarAnalysis::InductionInfo* info,
               }
             }
             break;
-          default:
-            break;
-        }
+          case HInductionVarAnalysis::kNop:
+            LOG(FATAL) << "unexpected invariant nop";
+        }  // switch invariant operation
         break;
       case HInductionVarAnalysis::kLinear: {
         // Linear induction a * i + b, for normalized 0 <= i < TC. For ranges, this should
@@ -1293,7 +1340,7 @@ bool InductionVarRange::GenerateCode(HInductionVarAnalysis::InductionInfo* info,
         }
         break;
       }
-    }
+    }  // switch induction class
   }
   return false;
 }

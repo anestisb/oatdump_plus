@@ -48,6 +48,11 @@ class InductionVarRangeTest : public CommonCompilerTest {
     EXPECT_EQ(v1.is_known, v2.is_known);
   }
 
+  void ExpectInt(int32_t value, HInstruction* i) {
+    ASSERT_TRUE(i->IsIntConstant());
+    EXPECT_EQ(value, i->AsIntConstant()->GetValue());
+  }
+
   //
   // Construction methods.
   //
@@ -757,10 +762,20 @@ TEST_F(InductionVarRangeTest, ConstantTripCountUp) {
   // Last value (unsimplified).
   HInstruction* last = range_.GenerateLastValue(phi, graph_, loop_preheader_);
   ASSERT_TRUE(last->IsAdd());
-  ASSERT_TRUE(last->InputAt(0)->IsIntConstant());
-  EXPECT_EQ(1000, last->InputAt(0)->AsIntConstant()->GetValue());
-  ASSERT_TRUE(last->InputAt(1)->IsIntConstant());
-  EXPECT_EQ(0, last->InputAt(1)->AsIntConstant()->GetValue());
+  ExpectInt(1000, last->InputAt(0));
+  ExpectInt(0, last->InputAt(1));
+
+  // Loop logic.
+  int64_t tc = 0;
+  EXPECT_TRUE(range_.IsFinite(loop_header_->GetLoopInformation(), &tc));
+  EXPECT_EQ(1000, tc);
+  HInstruction* offset = nullptr;
+  EXPECT_TRUE(range_.IsUnitStride(phi, &offset));
+  EXPECT_TRUE(offset == nullptr);
+  HInstruction* tce = range_.GenerateTripCount(
+      loop_header_->GetLoopInformation(), graph_, loop_preheader_);
+  ASSERT_TRUE(tce != nullptr);
+  ExpectInt(1000, tce);
 }
 
 TEST_F(InductionVarRangeTest, ConstantTripCountDown) {
@@ -799,15 +814,27 @@ TEST_F(InductionVarRangeTest, ConstantTripCountDown) {
   // Last value (unsimplified).
   HInstruction* last = range_.GenerateLastValue(phi, graph_, loop_preheader_);
   ASSERT_TRUE(last->IsSub());
-  ASSERT_TRUE(last->InputAt(0)->IsIntConstant());
-  EXPECT_EQ(1000, last->InputAt(0)->AsIntConstant()->GetValue());
+  ExpectInt(1000, last->InputAt(0));
   ASSERT_TRUE(last->InputAt(1)->IsNeg());
   last = last->InputAt(1)->InputAt(0);
   ASSERT_TRUE(last->IsSub());
-  ASSERT_TRUE(last->InputAt(0)->IsIntConstant());
-  EXPECT_EQ(0, last->InputAt(0)->AsIntConstant()->GetValue());
-  ASSERT_TRUE(last->InputAt(1)->IsIntConstant());
-  EXPECT_EQ(1000, last->InputAt(1)->AsIntConstant()->GetValue());
+  ExpectInt(0, last->InputAt(0));
+  ExpectInt(1000, last->InputAt(1));
+
+  // Loop logic.
+  int64_t tc = 0;
+  EXPECT_TRUE(range_.IsFinite(loop_header_->GetLoopInformation(), &tc));
+  EXPECT_EQ(1000, tc);
+  HInstruction* offset = nullptr;
+  EXPECT_FALSE(range_.IsUnitStride(phi, &offset));
+  HInstruction* tce = range_.GenerateTripCount(
+      loop_header_->GetLoopInformation(), graph_, loop_preheader_);
+  ASSERT_TRUE(tce != nullptr);
+  ASSERT_TRUE(tce->IsNeg());
+  last = tce->InputAt(0);
+  EXPECT_TRUE(last->IsSub());
+  ExpectInt(0, last->InputAt(0));
+  ExpectInt(1000, last->InputAt(1));
 }
 
 TEST_F(InductionVarRangeTest, SymbolicTripCountUp) {
@@ -851,27 +878,22 @@ TEST_F(InductionVarRangeTest, SymbolicTripCountUp) {
   // Verify lower is 0+0.
   ASSERT_TRUE(lower != nullptr);
   ASSERT_TRUE(lower->IsAdd());
-  ASSERT_TRUE(lower->InputAt(0)->IsIntConstant());
-  EXPECT_EQ(0, lower->InputAt(0)->AsIntConstant()->GetValue());
-  ASSERT_TRUE(lower->InputAt(1)->IsIntConstant());
-  EXPECT_EQ(0, lower->InputAt(1)->AsIntConstant()->GetValue());
+  ExpectInt(0, lower->InputAt(0));
+  ExpectInt(0, lower->InputAt(1));
 
   // Verify upper is (V-1)+0.
   ASSERT_TRUE(upper != nullptr);
   ASSERT_TRUE(upper->IsAdd());
   ASSERT_TRUE(upper->InputAt(0)->IsSub());
   EXPECT_TRUE(upper->InputAt(0)->InputAt(0)->IsParameterValue());
-  ASSERT_TRUE(upper->InputAt(0)->InputAt(1)->IsIntConstant());
-  EXPECT_EQ(1, upper->InputAt(0)->InputAt(1)->AsIntConstant()->GetValue());
-  ASSERT_TRUE(upper->InputAt(1)->IsIntConstant());
-  EXPECT_EQ(0, upper->InputAt(1)->AsIntConstant()->GetValue());
+  ExpectInt(1, upper->InputAt(0)->InputAt(1));
+  ExpectInt(0, upper->InputAt(1));
 
   // Verify taken-test is 0<V.
   HInstruction* taken = range_.GenerateTakenTest(increment_, graph_, loop_preheader_);
   ASSERT_TRUE(taken != nullptr);
   ASSERT_TRUE(taken->IsLessThan());
-  ASSERT_TRUE(taken->InputAt(0)->IsIntConstant());
-  EXPECT_EQ(0, taken->InputAt(0)->AsIntConstant()->GetValue());
+  ExpectInt(0, taken->InputAt(0));
   EXPECT_TRUE(taken->InputAt(1)->IsParameterValue());
 
   // Replacement.
@@ -880,6 +902,21 @@ TEST_F(InductionVarRangeTest, SymbolicTripCountUp) {
   EXPECT_FALSE(needs_finite_test);
   ExpectEqual(Value(1), v1);
   ExpectEqual(Value(y_, 1, 0), v2);
+
+  // Loop logic.
+  int64_t tc = 0;
+  EXPECT_TRUE(range_.IsFinite(loop_header_->GetLoopInformation(), &tc));
+  EXPECT_EQ(0, tc);  // unknown
+  HInstruction* offset = nullptr;
+  EXPECT_TRUE(range_.IsUnitStride(phi, &offset));
+  EXPECT_TRUE(offset == nullptr);
+  HInstruction* tce = range_.GenerateTripCount(
+      loop_header_->GetLoopInformation(), graph_, loop_preheader_);
+  ASSERT_TRUE(tce != nullptr);
+  EXPECT_TRUE(tce->IsSelect());  // guarded by taken-test
+  ExpectInt(0, tce->InputAt(0));
+  EXPECT_TRUE(tce->InputAt(1)->IsParameterValue());
+  EXPECT_TRUE(tce->InputAt(2)->IsLessThan());
 }
 
 TEST_F(InductionVarRangeTest, SymbolicTripCountDown) {
@@ -923,32 +960,26 @@ TEST_F(InductionVarRangeTest, SymbolicTripCountDown) {
   // Verify lower is 1000-((1000-V)-1).
   ASSERT_TRUE(lower != nullptr);
   ASSERT_TRUE(lower->IsSub());
-  ASSERT_TRUE(lower->InputAt(0)->IsIntConstant());
-  EXPECT_EQ(1000, lower->InputAt(0)->AsIntConstant()->GetValue());
+  ExpectInt(1000, lower->InputAt(0));
   lower = lower->InputAt(1);
   ASSERT_TRUE(lower->IsSub());
-  ASSERT_TRUE(lower->InputAt(1)->IsIntConstant());
-  EXPECT_EQ(1, lower->InputAt(1)->AsIntConstant()->GetValue());
+  ExpectInt(1, lower->InputAt(1));
   lower = lower->InputAt(0);
   ASSERT_TRUE(lower->IsSub());
-  ASSERT_TRUE(lower->InputAt(0)->IsIntConstant());
-  EXPECT_EQ(1000, lower->InputAt(0)->AsIntConstant()->GetValue());
+  ExpectInt(1000, lower->InputAt(0));
   EXPECT_TRUE(lower->InputAt(1)->IsParameterValue());
 
   // Verify upper is 1000-0.
   ASSERT_TRUE(upper != nullptr);
   ASSERT_TRUE(upper->IsSub());
-  ASSERT_TRUE(upper->InputAt(0)->IsIntConstant());
-  EXPECT_EQ(1000, upper->InputAt(0)->AsIntConstant()->GetValue());
-  ASSERT_TRUE(upper->InputAt(1)->IsIntConstant());
-  EXPECT_EQ(0, upper->InputAt(1)->AsIntConstant()->GetValue());
+  ExpectInt(1000, upper->InputAt(0));
+  ExpectInt(0, upper->InputAt(1));
 
   // Verify taken-test is 1000>V.
   HInstruction* taken = range_.GenerateTakenTest(increment_, graph_, loop_preheader_);
   ASSERT_TRUE(taken != nullptr);
   ASSERT_TRUE(taken->IsGreaterThan());
-  ASSERT_TRUE(taken->InputAt(0)->IsIntConstant());
-  EXPECT_EQ(1000, taken->InputAt(0)->AsIntConstant()->GetValue());
+  ExpectInt(1000, taken->InputAt(0));
   EXPECT_TRUE(taken->InputAt(1)->IsParameterValue());
 
   // Replacement.
@@ -957,6 +988,23 @@ TEST_F(InductionVarRangeTest, SymbolicTripCountDown) {
   EXPECT_FALSE(needs_finite_test);
   ExpectEqual(Value(y_, 1, 0), v1);
   ExpectEqual(Value(999), v2);
+
+  // Loop logic.
+  int64_t tc = 0;
+  EXPECT_TRUE(range_.IsFinite(loop_header_->GetLoopInformation(), &tc));
+  EXPECT_EQ(0, tc);  // unknown
+  HInstruction* offset = nullptr;
+  EXPECT_FALSE(range_.IsUnitStride(phi, &offset));
+  HInstruction* tce = range_.GenerateTripCount(
+      loop_header_->GetLoopInformation(), graph_, loop_preheader_);
+  ASSERT_TRUE(tce != nullptr);
+  EXPECT_TRUE(tce->IsSelect());  // guarded by taken-test
+  ExpectInt(0, tce->InputAt(0));
+  EXPECT_TRUE(tce->InputAt(1)->IsSub());
+  EXPECT_TRUE(tce->InputAt(2)->IsGreaterThan());
+  tce = tce->InputAt(1);
+  ExpectInt(1000, taken->InputAt(0));
+  EXPECT_TRUE(taken->InputAt(1)->IsParameterValue());
 }
 
 }  // namespace art
