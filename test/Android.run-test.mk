@@ -368,6 +368,7 @@ TEST_ART_BROKEN_INTERPRETER_ACCESS_CHECK_TESTS :=
 # Tests that are broken with GC stress.
 # * 137-cfi needs to unwind a second forked process. We're using a primitive sleep to wait till we
 #   hope the second process got into the expected state. The slowness of gcstress makes this bad.
+# * 152-dead-large-object requires a heap larger than what gcstress uses.
 # * 908-gc-start-finish expects GCs only to be run at clear points. The reduced heap size makes
 #   this non-deterministic. Same for 913.
 # * 961-default-iface-resolution-gen and 964-default-iface-init-genare very long tests that often
@@ -375,6 +376,7 @@ TEST_ART_BROKEN_INTERPRETER_ACCESS_CHECK_TESTS :=
 #   slows down allocations significantly which these tests do a lot.
 TEST_ART_BROKEN_GCSTRESS_RUN_TESTS := \
   137-cfi \
+  152-dead-large-object \
   154-gc-loop \
   908-gc-start-finish \
   913-heaps \
