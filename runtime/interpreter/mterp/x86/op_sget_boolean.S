@@ -1,1 +1,1 @@
-%include "x86/op_sget.S" {"helper":"artGetBooleanStaticFromCode"}
+%include "x86/op_sget.S" {"helper":"MterpGetBooleanStatic"}

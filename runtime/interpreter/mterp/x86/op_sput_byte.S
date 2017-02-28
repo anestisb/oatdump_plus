@@ -1,1 +1,1 @@
-%include "x86/op_sput.S" {"helper":"artSet8StaticFromCode"}
+%include "x86/op_sput.S" {"helper":"MterpSetByteStatic"}

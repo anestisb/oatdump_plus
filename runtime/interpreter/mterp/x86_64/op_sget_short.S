@@ -1,1 +1,1 @@
-%include "x86_64/op_sget.S" {"helper":"artGetShortStaticFromCode"}
+%include "x86_64/op_sget.S" {"helper":"MterpGetShortStatic"}
