@@ -1,1 +1,1 @@
-%include "arm/op_sget.S" {"helper":"artGetShortStaticFromCode"}
+%include "arm/op_sget.S" {"helper":"MterpGetShortStatic"}
