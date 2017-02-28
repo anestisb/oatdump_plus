@@ -1,1 +1,1 @@
-%include "arm/op_sput.S" {"helper":"artSet16StaticFromCode"}
+%include "arm/op_sput.S" {"helper":"MterpSetShortStatic"}

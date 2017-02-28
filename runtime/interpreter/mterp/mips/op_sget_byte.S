@@ -1,1 +1,1 @@
-%include "mips/op_sget.S" {"helper":"artGetByteStaticFromCode"}
+%include "mips/op_sget.S" {"helper":"MterpGetByteStatic"}

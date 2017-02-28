@@ -1,1 +1,1 @@
-%include "arm/op_sget.S" {"helper":"artGetBooleanStaticFromCode"}
+%include "arm/op_sget.S" {"helper":"MterpGetBooleanStatic"}

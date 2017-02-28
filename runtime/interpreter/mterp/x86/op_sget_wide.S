@@ -3,7 +3,7 @@
  *
  */
     /* sget-wide vAA, field@BBBB */
-    .extern artGet64StaticFromCode
+    .extern MterpGet64Static
     EXPORT_PC
     movzwl  2(rPC), %eax
     movl    %eax, OUT_ARG0(%esp)            # field ref CCCC
@@ -11,7 +11,7 @@
     movl    %eax, OUT_ARG1(%esp)            # referrer
     movl    rSELF, %ecx
     movl    %ecx, OUT_ARG2(%esp)            # self
-    call    SYMBOL(artGet64StaticFromCode)
+    call    SYMBOL(MterpGet64Static)
     movl    rSELF, %ecx
     cmpl    $$0, THREAD_EXCEPTION_OFFSET(%ecx)
     jnz     MterpException
