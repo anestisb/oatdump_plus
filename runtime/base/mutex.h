@@ -630,12 +630,8 @@ class Locks {
   // Guards shutdown of the runtime.
   static Mutex* runtime_shutdown_lock_ ACQUIRED_AFTER(heap_bitmap_lock_);
 
-  static Mutex* jdwp_event_list_lock_
-      ACQUIRED_AFTER(runtime_shutdown_lock_)
-      ACQUIRED_BEFORE(breakpoint_lock_);
-
   // Guards background profiler global state.
-  static Mutex* profiler_lock_ ACQUIRED_AFTER(jdwp_event_list_lock_);
+  static Mutex* profiler_lock_ ACQUIRED_AFTER(runtime_shutdown_lock_);
 
   // Guards trace (ie traceview) requests.
   static Mutex* trace_lock_ ACQUIRED_AFTER(profiler_lock_);
