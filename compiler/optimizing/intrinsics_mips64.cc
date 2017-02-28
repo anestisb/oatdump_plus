@@ -1593,19 +1593,24 @@ void IntrinsicCodeGeneratorMIPS64::VisitStringEquals(HInvoke* invoke) {
     return;
   }
 
-  // Check if input is null, return false if it is.
-  __ Beqzc(arg, &return_false);
+  StringEqualsOptimizations optimizations(invoke);
+  if (!optimizations.GetArgumentNotNull()) {
+    // Check if input is null, return false if it is.
+    __ Beqzc(arg, &return_false);
+  }
 
   // Reference equality check, return true if same reference.
   __ Beqc(str, arg, &return_true);
 
-  // Instanceof check for the argument by comparing class fields.
-  // All string objects must have the same type since String cannot be subclassed.
-  // Receiver must be a string object, so its class field is equal to all strings' class fields.
-  // If the argument is a string object, its class field must be equal to receiver's class field.
-  __ Lw(temp1, str, class_offset);
-  __ Lw(temp2, arg, class_offset);
-  __ Bnec(temp1, temp2, &return_false);
+  if (!optimizations.GetArgumentIsString()) {
+    // Instanceof check for the argument by comparing class fields.
+    // All string objects must have the same type since String cannot be subclassed.
+    // Receiver must be a string object, so its class field is equal to all strings' class fields.
+    // If the argument is a string object, its class field must be equal to receiver's class field.
+    __ Lw(temp1, str, class_offset);
+    __ Lw(temp2, arg, class_offset);
+    __ Bnec(temp1, temp2, &return_false);
+  }
 
   // Load `count` fields of this and argument strings.
   __ Lw(temp1, str, count_offset);
