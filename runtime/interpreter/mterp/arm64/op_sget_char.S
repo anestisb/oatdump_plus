@@ -1,1 +1,1 @@
-%include "arm64/op_sget.S" {"helper":"artGetCharStaticFromCode", "extend":"uxth w0, w0"}
+%include "arm64/op_sget.S" {"helper":"MterpGetCharStatic", "extend":"uxth w0, w0"}

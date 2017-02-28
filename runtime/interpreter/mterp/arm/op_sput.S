@@ -1,4 +1,4 @@
-%default { "helper":"artSet32StaticFromCode"}
+%default { "helper":"MterpSet32Static"}
     /*
      * General SPUT handler wrapper.
      *
