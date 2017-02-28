@@ -50,25 +50,28 @@ jint ReportString(art::ObjPtr<art::mirror::Object> obj,
   if (UNLIKELY(cb->string_primitive_value_callback != nullptr) && obj->IsString()) {
     art::ObjPtr<art::mirror::String> str = obj->AsString();
     int32_t string_length = str->GetLength();
-    jvmtiError alloc_error;
-    JvmtiUniquePtr<uint16_t[]> data = AllocJvmtiUniquePtr<uint16_t[]>(env,
-                                                                      string_length,
-                                                                      &alloc_error);
-    if (data == nullptr) {
-      // TODO: Not really sure what to do here. Should we abort the iteration and go all the way
-      //       back? For now just warn.
-      LOG(WARNING) << "Unable to allocate buffer for string reporting! Silently dropping value.";
-      return 0;
-    }
+    JvmtiUniquePtr<uint16_t[]> data;
 
-    if (str->IsCompressed()) {
-      uint8_t* compressed_data = str->GetValueCompressed();
-      for (int32_t i = 0; i != string_length; ++i) {
-        data[i] = compressed_data[i];
+    if (string_length > 0) {
+      jvmtiError alloc_error;
+      data = AllocJvmtiUniquePtr<uint16_t[]>(env, string_length, &alloc_error);
+      if (data == nullptr) {
+        // TODO: Not really sure what to do here. Should we abort the iteration and go all the way
+        //       back? For now just warn.
+        LOG(WARNING) << "Unable to allocate buffer for string reporting! Silently dropping value."
+                     << " >" << str->ToModifiedUtf8() << "<";
+        return 0;
       }
-    } else {
-      // Can copy directly.
-      memcpy(data.get(), str->GetValue(), string_length * sizeof(uint16_t));
+
+      if (str->IsCompressed()) {
+        uint8_t* compressed_data = str->GetValueCompressed();
+        for (int32_t i = 0; i != string_length; ++i) {
+          data[i] = compressed_data[i];
+        }
+      } else {
+        // Can copy directly.
+        memcpy(data.get(), str->GetValue(), string_length * sizeof(uint16_t));
+      }
     }
 
     const jlong class_tag = tag_table->GetTagOrZero(obj->GetClass());
