@@ -25,8 +25,18 @@ public class Main {
     doTest();
     new TestConfig().doFollowReferencesTest();
 
+    Runtime.getRuntime().gc();
+    Runtime.getRuntime().gc();
+
     doStringTest();
+
+    Runtime.getRuntime().gc();
+    Runtime.getRuntime().gc();
+
     doPrimitiveArrayTest();
+
+    Runtime.getRuntime().gc();
+    Runtime.getRuntime().gc();
 
     // Test klass filter.
     System.out.println("--- klass ---");
@@ -53,14 +63,18 @@ public class Main {
   }
 
   public static void doStringTest() throws Exception {
-    final String str = "HelloWorld";
+    final String str = new String("HelloWorld");
+    final String str2 = new String("");
     Object o = new Object() {
       String s = str;
+      String s2 = str2;
     };
 
     setTag(str, 1);
+    setTag(str2, 2);
     System.out.println(Arrays.toString(followReferencesString(o)));
     System.out.println(getTag(str));
+    System.out.println(getTag(str2));
   }
 
   public static void doPrimitiveArrayTest() throws Exception {
