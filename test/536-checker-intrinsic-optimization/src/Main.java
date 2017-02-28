@@ -330,6 +330,21 @@ public class Main {
   // Terminate the scope for the CHECK-NOT search at the reference or length comparison,
   // whichever comes first.
   /// CHECK:          cmp {{w.*,}} {{w.*|#.*}}
+
+  /// CHECK-START-MIPS: boolean Main.stringArgumentNotNull(java.lang.Object) disassembly (after)
+  /// CHECK:          InvokeVirtual {{.*\.equals.*}} intrinsic:StringEquals
+  /// CHECK-NOT:      beq r0,
+  /// CHECK-NOT:      beqz
+  /// CHECK-NOT:      beqzc
+  // Terminate the scope for the CHECK-NOT search at the class field or length comparison,
+  // whichever comes first.
+  /// CHECK:          lw
+
+  /// CHECK-START-MIPS64: boolean Main.stringArgumentNotNull(java.lang.Object) disassembly (after)
+  /// CHECK:          InvokeVirtual {{.*\.equals.*}} intrinsic:StringEquals
+  /// CHECK-NOT:      beqzc
+  // Terminate the scope for the CHECK-NOT search at the reference comparison.
+  /// CHECK:          beqc
   public static boolean stringArgumentNotNull(Object obj) {
     obj.getClass();
     return "foo".equals(obj);
@@ -384,6 +399,22 @@ public class Main {
   /// CHECK-NOT:      ldr {{w\d+}}, [{{x\d+}}]
   /// CHECK-NOT:      ldr {{w\d+}}, [{{x\d+}}, #0]
   /// CHECK:          cmp {{w\d+}}, {{w\d+|#.*}}
+
+  // Test is brittle as it depends on the class offset being 0.
+  /// CHECK-START-MIPS: boolean Main.stringArgumentIsString() disassembly (after)
+  /// CHECK:          InvokeVirtual intrinsic:StringEquals
+  /// CHECK:          beq{{(zc)?}}
+  // Check that we don't try to compare the classes.
+  /// CHECK-NOT:      lw {{r\d+}}, +0({{r\d+}})
+  /// CHECK:          bne{{c?}}
+
+  // Test is brittle as it depends on the class offset being 0.
+  /// CHECK-START-MIPS64: boolean Main.stringArgumentIsString() disassembly (after)
+  /// CHECK:          InvokeVirtual intrinsic:StringEquals
+  /// CHECK:          beqzc
+  // Check that we don't try to compare the classes.
+  /// CHECK-NOT:      lw {{r\d+}}, +0({{r\d+}})
+  /// CHECK:          bnec
   public static boolean stringArgumentIsString() {
     return "foo".equals(myString);
   }
