@@ -1644,10 +1644,10 @@ void ConcurrentCopying::ReclaimPhase() {
     // Record freed objects.
     TimingLogger::ScopedTiming split2("RecordFree", GetTimings());
     // Don't include thread-locals that are in the to-space.
-    uint64_t from_bytes = region_space_->GetBytesAllocatedInFromSpace();
-    uint64_t from_objects = region_space_->GetObjectsAllocatedInFromSpace();
-    uint64_t unevac_from_bytes = region_space_->GetBytesAllocatedInUnevacFromSpace();
-    uint64_t unevac_from_objects = region_space_->GetObjectsAllocatedInUnevacFromSpace();
+    const uint64_t from_bytes = region_space_->GetBytesAllocatedInFromSpace();
+    const uint64_t from_objects = region_space_->GetObjectsAllocatedInFromSpace();
+    const uint64_t unevac_from_bytes = region_space_->GetBytesAllocatedInUnevacFromSpace();
+    const uint64_t unevac_from_objects = region_space_->GetObjectsAllocatedInUnevacFromSpace();
     uint64_t to_bytes = bytes_moved_.LoadSequentiallyConsistent();
     cumulative_bytes_moved_.FetchAndAddRelaxed(to_bytes);
     uint64_t to_objects = objects_moved_.LoadSequentiallyConsistent();
@@ -1658,8 +1658,18 @@ void ConcurrentCopying::ReclaimPhase() {
     }
     CHECK_LE(to_objects, from_objects);
     CHECK_LE(to_bytes, from_bytes);
-    int64_t freed_bytes = from_bytes - to_bytes;
-    int64_t freed_objects = from_objects - to_objects;
+    // cleared_bytes and cleared_objects may be greater than the from space equivalents since
+    // ClearFromSpace may clear empty unevac regions.
+    uint64_t cleared_bytes;
+    uint64_t cleared_objects;
+    {
+      TimingLogger::ScopedTiming split4("ClearFromSpace", GetTimings());
+      region_space_->ClearFromSpace(&cleared_bytes, &cleared_objects);
+      CHECK_GE(cleared_bytes, from_bytes);
+      CHECK_GE(cleared_objects, from_objects);
+    }
+    int64_t freed_bytes = cleared_bytes - to_bytes;
+    int64_t freed_objects = cleared_objects - to_objects;
     if (kVerboseMode) {
       LOG(INFO) << "RecordFree:"
                 << " from_bytes=" << from_bytes << " from_objects=" << from_objects
@@ -1675,11 +1685,6 @@ void ConcurrentCopying::ReclaimPhase() {
     if (kVerboseMode) {
       LOG(INFO) << "(after) num_bytes_allocated=" << heap_->num_bytes_allocated_.LoadSequentiallyConsistent();
     }
-  }
-
-  {
-    TimingLogger::ScopedTiming split4("ClearFromSpace", GetTimings());
-    region_space_->ClearFromSpace();
   }
 
   {

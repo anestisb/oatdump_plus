@@ -246,16 +246,45 @@ void RegionSpace::SetFromSpace(accounting::ReadBarrierTable* rb_table, bool forc
   evac_region_ = &full_region_;
 }
 
-void RegionSpace::ClearFromSpace() {
+void RegionSpace::ClearFromSpace(uint64_t* cleared_bytes, uint64_t* cleared_objects) {
+  DCHECK(cleared_bytes != nullptr);
+  DCHECK(cleared_objects != nullptr);
+  *cleared_bytes = 0;
+  *cleared_objects = 0;
   MutexLock mu(Thread::Current(), region_lock_);
   VerifyNonFreeRegionLimit();
   size_t new_non_free_region_index_limit = 0;
   for (size_t i = 0; i < std::min(num_regions_, non_free_region_index_limit_); ++i) {
     Region* r = &regions_[i];
     if (r->IsInFromSpace()) {
-      r->Clear();
+      *cleared_bytes += r->BytesAllocated();
+      *cleared_objects += r->ObjectsAllocated();
       --num_non_free_regions_;
+      r->Clear();
     } else if (r->IsInUnevacFromSpace()) {
+      if (r->LiveBytes() == 0) {
+        // Special case for 0 live bytes, this means all of the objects in the region are dead and
+        // we can clear it. This is important for large objects since we must not visit dead ones in
+        // RegionSpace::Walk because they may contain dangling references to invalid objects.
+        // It is also better to clear these regions now instead of at the end of the next GC to
+        // save RAM. If we don't clear the regions here, they will be cleared next GC by the normal
+        // live percent evacuation logic.
+        size_t free_regions = 1;
+        // Also release RAM for large tails.
+        while (i + free_regions < num_regions_ && regions_[i + free_regions].IsLargeTail()) {
+          DCHECK(r->IsLarge());
+          regions_[i + free_regions].Clear();
+          ++free_regions;
+        }
+        *cleared_bytes += r->BytesAllocated();
+        *cleared_objects += r->ObjectsAllocated();
+        num_non_free_regions_ -= free_regions;
+        r->Clear();
+        GetLiveBitmap()->ClearRange(
+            reinterpret_cast<mirror::Object*>(r->Begin()),
+            reinterpret_cast<mirror::Object*>(r->Begin() + free_regions * kRegionSize));
+        continue;
+      }
       size_t full_count = 0;
       while (r->IsInUnevacFromSpace()) {
         Region* const cur = &regions_[i + full_count];
