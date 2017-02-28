@@ -2924,6 +2924,78 @@ void IntrinsicCodeGeneratorARM64::VisitReferenceGetReferent(HInvoke* invoke) {
   __ Bind(slow_path->GetExitLabel());
 }
 
+void IntrinsicLocationsBuilderARM64::VisitIntegerValueOf(HInvoke* invoke) {
+  InvokeRuntimeCallingConvention calling_convention;
+  IntrinsicVisitor::ComputeIntegerValueOfLocations(
+      invoke,
+      codegen_,
+      calling_convention.GetReturnLocation(Primitive::kPrimNot),
+      Location::RegisterLocation(calling_convention.GetRegisterAt(0).GetCode()));
+}
+
+void IntrinsicCodeGeneratorARM64::VisitIntegerValueOf(HInvoke* invoke) {
+  IntrinsicVisitor::IntegerValueOfInfo info = IntrinsicVisitor::ComputeIntegerValueOfInfo();
+  LocationSummary* locations = invoke->GetLocations();
+  MacroAssembler* masm = GetVIXLAssembler();
+
+  Register out = RegisterFrom(locations->Out(), Primitive::kPrimNot);
+  UseScratchRegisterScope temps(masm);
+  Register temp = temps.AcquireW();
+  InvokeRuntimeCallingConvention calling_convention;
+  Register argument = calling_convention.GetRegisterAt(0);
+  if (invoke->InputAt(0)->IsConstant()) {
+    int32_t value = invoke->InputAt(0)->AsIntConstant()->GetValue();
+    if (value >= info.low && value <= info.high) {
+      // Just embed the j.l.Integer in the code.
+      ScopedObjectAccess soa(Thread::Current());
+      mirror::Object* boxed = info.cache->Get(value + (-info.low));
+      DCHECK(boxed != nullptr && Runtime::Current()->GetHeap()->ObjectIsInBootImageSpace(boxed));
+      uint32_t address = dchecked_integral_cast<uint32_t>(reinterpret_cast<uintptr_t>(boxed));
+      __ Ldr(out.W(), codegen_->DeduplicateBootImageAddressLiteral(address));
+    } else {
+      // Allocate and initialize a new j.l.Integer.
+      // TODO: If we JIT, we could allocate the j.l.Integer now, and store it in the
+      // JIT object table.
+      uint32_t address =
+          dchecked_integral_cast<uint32_t>(reinterpret_cast<uintptr_t>(info.integer));
+      __ Ldr(argument.W(), codegen_->DeduplicateBootImageAddressLiteral(address));
+      codegen_->InvokeRuntime(kQuickAllocObjectInitialized, invoke, invoke->GetDexPc());
+      CheckEntrypointTypes<kQuickAllocObjectWithChecks, void*, mirror::Class*>();
+      __ Mov(temp.W(), value);
+      __ Str(temp.W(), HeapOperand(out.W(), info.value_offset));
+      // `value` is a final field :-( Ideally, we'd merge this memory barrier with the allocation
+      // one.
+      codegen_->GenerateMemoryBarrier(MemBarrierKind::kStoreStore);
+    }
+  } else {
+    Register in = RegisterFrom(locations->InAt(0), Primitive::kPrimInt);
+    // Check bounds of our cache.
+    __ Add(out.W(), in.W(), -info.low);
+    __ Cmp(out.W(), info.high - info.low + 1);
+    vixl::aarch64::Label allocate, done;
+    __ B(&allocate, hs);
+    // If the value is within the bounds, load the j.l.Integer directly from the array.
+    uint32_t data_offset = mirror::Array::DataOffset(kHeapReferenceSize).Uint32Value();
+    uint32_t address = dchecked_integral_cast<uint32_t>(reinterpret_cast<uintptr_t>(info.cache));
+    __ Ldr(temp.W(), codegen_->DeduplicateBootImageAddressLiteral(data_offset + address));
+    MemOperand source = HeapOperand(
+        temp, out.X(), LSL, Primitive::ComponentSizeShift(Primitive::kPrimNot));
+    codegen_->Load(Primitive::kPrimNot, out, source);
+    __ B(&done);
+    __ Bind(&allocate);
+    // Otherwise allocate and initialize a new j.l.Integer.
+    address = dchecked_integral_cast<uint32_t>(reinterpret_cast<uintptr_t>(info.integer));
+    __ Ldr(argument.W(), codegen_->DeduplicateBootImageAddressLiteral(address));
+    codegen_->InvokeRuntime(kQuickAllocObjectInitialized, invoke, invoke->GetDexPc());
+    CheckEntrypointTypes<kQuickAllocObjectWithChecks, void*, mirror::Class*>();
+    __ Str(in.W(), HeapOperand(out.W(), info.value_offset));
+    // `value` is a final field :-( Ideally, we'd merge this memory barrier with the allocation
+    // one.
+    codegen_->GenerateMemoryBarrier(MemBarrierKind::kStoreStore);
+    __ Bind(&done);
+  }
+}
+
 UNIMPLEMENTED_INTRINSIC(ARM64, IntegerHighestOneBit)
 UNIMPLEMENTED_INTRINSIC(ARM64, LongHighestOneBit)
 UNIMPLEMENTED_INTRINSIC(ARM64, IntegerLowestOneBit)
