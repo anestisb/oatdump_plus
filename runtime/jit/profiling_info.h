@@ -108,9 +108,15 @@ class ProfilingInfo {
     }
   }
 
-  void IncrementInlineUse() {
-    DCHECK_NE(current_inline_uses_, std::numeric_limits<uint16_t>::max());
+  // Increments the number of times this method is currently being inlined.
+  // Returns whether it was successful, that is it could increment without
+  // overflowing.
+  bool IncrementInlineUse() {
+    if (current_inline_uses_ == std::numeric_limits<uint16_t>::max()) {
+      return false;
+    }
     current_inline_uses_++;
+    return true;
   }
 
   void DecrementInlineUse() {

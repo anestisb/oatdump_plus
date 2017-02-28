@@ -42,7 +42,9 @@ class HInliner : public HOptimization {
            VariableSizedHandleScope* handles,
            OptimizingCompilerStats* stats,
            size_t total_number_of_dex_registers,
-           size_t depth)
+           size_t total_number_of_instructions,
+           HInliner* parent,
+           size_t depth = 0)
       : HOptimization(outer_graph, kInlinerPassName, stats),
         outermost_graph_(outermost_graph),
         outer_compilation_unit_(outer_compilation_unit),
@@ -50,8 +52,10 @@ class HInliner : public HOptimization {
         codegen_(codegen),
         compiler_driver_(compiler_driver),
         total_number_of_dex_registers_(total_number_of_dex_registers),
+        total_number_of_instructions_(total_number_of_instructions),
+        parent_(parent),
         depth_(depth),
-        number_of_inlined_instructions_(0),
+        inlining_budget_(0),
         handles_(handles),
         inline_stats_(nullptr) {}
 
@@ -95,10 +99,10 @@ class HInliner : public HOptimization {
                                HInstruction** return_replacement);
 
   // Run simple optimizations on `callee_graph`.
-  // Returns the number of inlined instructions.
-  size_t RunOptimizations(HGraph* callee_graph,
-                          const DexFile::CodeItem* code_item,
-                          const DexCompilationUnit& dex_compilation_unit);
+  void RunOptimizations(HGraph* callee_graph,
+                        const DexFile::CodeItem* code_item,
+                        const DexCompilationUnit& dex_compilation_unit)
+    REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Try to recognize known simple patterns and replace invoke call with appropriate instructions.
   bool TryPatternSubstitution(HInvoke* invoke_instruction,
@@ -259,14 +263,30 @@ class HInliner : public HOptimization {
                                                 HInstruction* return_replacement,
                                                 HInstruction* invoke_instruction);
 
+  // Update the inlining budget based on `total_number_of_instructions_`.
+  void UpdateInliningBudget();
+
+  // Count the number of calls of `method` being inlined recursively.
+  size_t CountRecursiveCallsOf(ArtMethod* method) const;
+
+  // Pretty-print for spaces during logging.
+  std::string DepthString(int line) const;
+
   HGraph* const outermost_graph_;
   const DexCompilationUnit& outer_compilation_unit_;
   const DexCompilationUnit& caller_compilation_unit_;
   CodeGenerator* const codegen_;
   CompilerDriver* const compiler_driver_;
   const size_t total_number_of_dex_registers_;
+  size_t total_number_of_instructions_;
+
+  // The 'parent' inliner, that means the inlinigng optimization that requested
+  // `graph_` to be inlined.
+  const HInliner* const parent_;
   const size_t depth_;
-  size_t number_of_inlined_instructions_;
+
+  // The budget left for inlining, in number of instructions.
+  size_t inlining_budget_;
   VariableSizedHandleScope* const handles_;
 
   // Used to record stats about optimizations on the inlined graph.

@@ -27,7 +27,6 @@ CompilerOptions::CompilerOptions()
       small_method_threshold_(kDefaultSmallMethodThreshold),
       tiny_method_threshold_(kDefaultTinyMethodThreshold),
       num_dex_methods_threshold_(kDefaultNumDexMethodsThreshold),
-      inline_depth_limit_(kUnsetInlineDepthLimit),
       inline_max_code_units_(kUnsetInlineMaxCodeUnits),
       no_inline_from_(nullptr),
       boot_image_(false),
@@ -62,7 +61,6 @@ CompilerOptions::CompilerOptions(CompilerFilter::Filter compiler_filter,
                                  size_t small_method_threshold,
                                  size_t tiny_method_threshold,
                                  size_t num_dex_methods_threshold,
-                                 size_t inline_depth_limit,
                                  size_t inline_max_code_units,
                                  const std::vector<const DexFile*>* no_inline_from,
                                  double top_k_profile_threshold,
@@ -86,7 +84,6 @@ CompilerOptions::CompilerOptions(CompilerFilter::Filter compiler_filter,
       small_method_threshold_(small_method_threshold),
       tiny_method_threshold_(tiny_method_threshold),
       num_dex_methods_threshold_(num_dex_methods_threshold),
-      inline_depth_limit_(inline_depth_limit),
       inline_max_code_units_(inline_max_code_units),
       no_inline_from_(no_inline_from),
       boot_image_(false),
@@ -128,10 +125,6 @@ void CompilerOptions::ParseTinyMethodMax(const StringPiece& option, UsageFn Usag
 
 void CompilerOptions::ParseNumDexMethods(const StringPiece& option, UsageFn Usage) {
   ParseUintOption(option, "--num-dex-methods", &num_dex_methods_threshold_, Usage);
-}
-
-void CompilerOptions::ParseInlineDepthLimit(const StringPiece& option, UsageFn Usage) {
-  ParseUintOption(option, "--inline-depth-limit", &inline_depth_limit_, Usage);
 }
 
 void CompilerOptions::ParseInlineMaxCodeUnits(const StringPiece& option, UsageFn Usage) {
@@ -183,8 +176,6 @@ bool CompilerOptions::ParseCompilerOption(const StringPiece& option, UsageFn Usa
     ParseTinyMethodMax(option, Usage);
   } else if (option.starts_with("--num-dex-methods=")) {
     ParseNumDexMethods(option, Usage);
-  } else if (option.starts_with("--inline-depth-limit=")) {
-    ParseInlineDepthLimit(option, Usage);
   } else if (option.starts_with("--inline-max-code-units=")) {
     ParseInlineMaxCodeUnits(option, Usage);
   } else if (option == "--generate-debug-info" || option == "-g") {
