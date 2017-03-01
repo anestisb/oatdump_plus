@@ -23,6 +23,7 @@
 #include "driver/compiler_driver.h"
 #include "nodes.h"
 #include "optimization.h"
+#include "code_generator.h"
 
 namespace art {
 
@@ -469,8 +470,9 @@ inline bool SchedulingGraph::IsSchedulingBarrier(const HInstruction* instruction
 
 class HInstructionScheduling : public HOptimization {
  public:
-  HInstructionScheduling(HGraph* graph, InstructionSet instruction_set)
+  HInstructionScheduling(HGraph* graph, InstructionSet instruction_set, CodeGenerator* cg = nullptr)
       : HOptimization(graph, kInstructionScheduling),
+        codegen_(cg),
         instruction_set_(instruction_set) {}
 
   void Run() {
@@ -480,6 +482,7 @@ class HInstructionScheduling : public HOptimization {
 
   static constexpr const char* kInstructionScheduling = "scheduler";
 
+  CodeGenerator* const codegen_;
   const InstructionSet instruction_set_;
 
  private:

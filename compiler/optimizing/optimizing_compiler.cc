@@ -638,11 +638,14 @@ void OptimizingCompiler::RunArchOptimizations(InstructionSet instruction_set,
           new (arena) arm::InstructionSimplifierArm(graph, stats);
       SideEffectsAnalysis* side_effects = new (arena) SideEffectsAnalysis(graph);
       GVNOptimization* gvn = new (arena) GVNOptimization(graph, *side_effects, "GVN$after_arch");
+      HInstructionScheduling* scheduling =
+          new (arena) HInstructionScheduling(graph, instruction_set, codegen);
       HOptimization* arm_optimizations[] = {
         simplifier,
         side_effects,
         gvn,
-        fixups
+        fixups,
+        scheduling,
       };
       RunOptimizations(arm_optimizations, arraysize(arm_optimizations), pass_observer);
       break;
