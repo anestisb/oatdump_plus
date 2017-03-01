@@ -30,10 +30,14 @@ public class Main {
   /// CHECK:          ReturnVoid
   public static void test() {
     Object[] array = new Object[2];
+    // Storing to static to avoid some lse optimization.
+    sArray = array;
     Object nonNull = array[0];
     nonNull.getClass(); // Ensure nonNull has an implicit null check.
     array[1] = nonNull;
   }
 
   public static void main(String[] args) {}
+
+  static Object[] sArray;
 }
