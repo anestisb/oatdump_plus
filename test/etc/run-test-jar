@@ -376,10 +376,8 @@ if [ "$HAVE_IMAGE" = "n" ]; then
         bpath_suffix="-hostdex"
     else
         framework="${ANDROID_ROOT}/framework"
-        bpath_suffix=""
+        bpath_suffix="-testdex"
     fi
-    # TODO If the target was compiled WITH_DEXPREOPT=true then these tests will
-    # fail since these jar files will be stripped.
     bpath="${framework}/core-libart${bpath_suffix}.jar"
     bpath="${bpath}:${framework}/core-oj${bpath_suffix}.jar"
     bpath="${bpath}:${framework}/conscrypt${bpath_suffix}.jar"
