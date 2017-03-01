@@ -2073,6 +2073,11 @@ void InstructionCodeGeneratorMIPS::VisitArrayGet(HArrayGet* instruction) {
       LOG(FATAL) << "Unreachable type " << instruction->GetType();
       UNREACHABLE();
   }
+
+  if (type == Primitive::kPrimNot) {
+    Register out = locations->Out().AsRegister<Register>();
+    __ MaybeUnpoisonHeapReference(out);
+  }
 }
 
 void LocationsBuilderMIPS::VisitArrayLength(HArrayLength* instruction) {
@@ -2200,7 +2205,31 @@ void InstructionCodeGeneratorMIPS::VisitArraySet(HArraySet* instruction) {
           DCHECK(!needs_write_barrier);
         } else {
           Register value = value_location.AsRegister<Register>();
-          __ StoreToOffset(kStoreWord, value, base_reg, data_offset, null_checker);
+          if (kPoisonHeapReferences && needs_write_barrier) {
+            // Note that in the case where `value` is a null reference,
+            // we do not enter this block, as a null reference does not
+            // need poisoning.
+            DCHECK_EQ(value_type, Primitive::kPrimNot);
+            // Use Sw() instead of StoreToOffset() in order to be able to
+            // hold the poisoned reference in AT and thus avoid allocating
+            // yet another temporary register.
+            if (index.IsConstant()) {
+              if (!IsInt<16>(static_cast<int32_t>(data_offset))) {
+                int16_t low = Low16Bits(data_offset);
+                uint32_t high = data_offset - low;
+                __ Addiu32(TMP, obj, high);
+                base_reg = TMP;
+                data_offset = low;
+              }
+            } else {
+              DCHECK(IsInt<16>(static_cast<int32_t>(data_offset)));
+            }
+            __ PoisonHeapReference(AT, value);
+            __ Sw(AT, base_reg, data_offset);
+            null_checker();
+          } else {
+            __ StoreToOffset(kStoreWord, value, base_reg, data_offset, null_checker);
+          }
           if (needs_write_barrier) {
             DCHECK_EQ(value_type, Primitive::kPrimNot);
             codegen_->MarkGCCard(obj, value, instruction->GetValueCanBeNull());
@@ -2208,6 +2237,8 @@ void InstructionCodeGeneratorMIPS::VisitArraySet(HArraySet* instruction) {
         }
       } else {
         DCHECK_EQ(value_type, Primitive::kPrimNot);
+        // Note: if heap poisoning is enabled, pAputObject takes care
+        // of poisoning the reference.
         codegen_->InvokeRuntime(kQuickAputObject, instruction, instruction->GetDexPc());
         CheckEntrypointTypes<kQuickAputObject, void, mirror::Array*, int32_t, mirror::Object*>();
       }
@@ -2322,6 +2353,7 @@ void InstructionCodeGeneratorMIPS::VisitCheckCast(HCheckCast* instruction) {
   __ Beqz(obj, slow_path->GetExitLabel());
   // Compare the class of `obj` with `cls`.
   __ LoadFromOffset(kLoadWord, obj_cls, obj, mirror::Object::ClassOffset().Int32Value());
+  __ MaybeUnpoisonHeapReference(obj_cls);
   __ Bne(obj_cls, cls, slow_path->GetEntryLabel());
   __ Bind(slow_path->GetExitLabel());
 }
@@ -4958,6 +4990,9 @@ void InstructionCodeGeneratorMIPS::HandleFieldGet(HInstruction* instruction,
         dst = locations->Out().AsRegister<Register>();
       }
       __ LoadFromOffset(load_type, dst, obj, offset, null_checker);
+      if (type == Primitive::kPrimNot) {
+        __ MaybeUnpoisonHeapReference(dst);
+      }
     } else {
       DCHECK(locations->Out().IsFpuRegister());
       FRegister dst = locations->Out().AsFpuRegister<FRegister>();
@@ -5016,6 +5051,7 @@ void InstructionCodeGeneratorMIPS::HandleFieldSet(HInstruction* instruction,
   StoreOperandType store_type = kStoreByte;
   bool is_volatile = field_info.IsVolatile();
   uint32_t offset = field_info.GetFieldOffset().Uint32Value();
+  bool needs_write_barrier = CodeGenerator::StoreNeedsWriteBarrier(type, instruction->InputAt(1));
   auto null_checker = GetImplicitNullChecker(instruction);
 
   switch (type) {
@@ -5089,7 +5125,16 @@ void InstructionCodeGeneratorMIPS::HandleFieldSet(HInstruction* instruction,
       } else {
         src = value_location.AsRegister<Register>();
       }
-      __ StoreToOffset(store_type, src, obj, offset, null_checker);
+      if (kPoisonHeapReferences && needs_write_barrier) {
+        // Note that in the case where `value` is a null reference,
+        // we do not enter this block, as a null reference does not
+        // need poisoning.
+        DCHECK_EQ(type, Primitive::kPrimNot);
+        __ PoisonHeapReference(TMP, src);
+        __ StoreToOffset(store_type, TMP, obj, offset, null_checker);
+      } else {
+        __ StoreToOffset(store_type, src, obj, offset, null_checker);
+      }
     } else {
       FRegister src = value_location.AsFpuRegister<FRegister>();
       if (type == Primitive::kPrimFloat) {
@@ -5101,7 +5146,7 @@ void InstructionCodeGeneratorMIPS::HandleFieldSet(HInstruction* instruction,
   }
 
   // TODO: memory barriers?
-  if (CodeGenerator::StoreNeedsWriteBarrier(type, instruction->InputAt(1))) {
+  if (needs_write_barrier) {
     Register src = value_location.AsRegister<Register>();
     codegen_->MarkGCCard(obj, src, value_can_be_null);
   }
@@ -5173,6 +5218,7 @@ void InstructionCodeGeneratorMIPS::VisitInstanceOf(HInstanceOf* instruction) {
 
   // Compare the class of `obj` with `cls`.
   __ LoadFromOffset(kLoadWord, out, obj, mirror::Object::ClassOffset().Int32Value());
+  __ MaybeUnpoisonHeapReference(out);
   if (instruction->IsExactCheck()) {
     // Classes must be equal for the instanceof to succeed.
     __ Xor(out, out, cls);
@@ -5239,6 +5285,14 @@ void InstructionCodeGeneratorMIPS::VisitInvokeInterface(HInvokeInterface* invoke
     __ LoadFromOffset(kLoadWord, temp, receiver.AsRegister<Register>(), class_offset);
   }
   codegen_->MaybeRecordImplicitNullCheck(invoke);
+  // Instead of simply (possibly) unpoisoning `temp` here, we should
+  // emit a read barrier for the previous class reference load.
+  // However this is not required in practice, as this is an
+  // intermediate/temporary reference and because the current
+  // concurrent copying collector keeps the from-space memory
+  // intact/accessible until the end of the marking phase (the
+  // concurrent copying collector may not in the future).
+  __ MaybeUnpoisonHeapReference(temp);
   __ LoadFromOffset(kLoadWord, temp, temp,
       mirror::Class::ImtPtrOffset(kMipsPointerSize).Uint32Value());
   uint32_t method_offset = static_cast<uint32_t>(ImTable::OffsetOfElement(
@@ -5562,6 +5616,14 @@ void CodeGeneratorMIPS::GenerateVirtualCall(HInvokeVirtual* invoke, Location tem
   // temp = object->GetClass();
   __ LoadFromOffset(kLoadWord, temp, receiver, class_offset);
   MaybeRecordImplicitNullCheck(invoke);
+  // Instead of simply (possibly) unpoisoning `temp` here, we should
+  // emit a read barrier for the previous class reference load.
+  // However this is not required in practice, as this is an
+  // intermediate/temporary reference and because the current
+  // concurrent copying collector keeps the from-space memory
+  // intact/accessible until the end of the marking phase (the
+  // concurrent copying collector may not in the future).
+  __ MaybeUnpoisonHeapReference(temp);
   // temp = temp->GetMethodAt(method_offset);
   __ LoadFromOffset(kLoadWord, temp, temp, method_offset);
   // T9 = temp->GetEntryPoint();
@@ -5692,7 +5754,7 @@ void InstructionCodeGeneratorMIPS::VisitLoadClass(HLoadClass* cls) NO_THREAD_SAF
           codegen_->NewTypeBssEntryPatch(cls->GetDexFile(), cls->GetTypeIndex());
       bool reordering = __ SetReorder(false);
       codegen_->EmitPcRelativeAddressPlaceholderHigh(info, out, base_or_current_method_reg);
-      __ LoadFromOffset(kLoadWord, out, out, /* placeholder */ 0x5678);
+      GenerateGcRootFieldLoad(cls, out_loc, out, /* placeholder */ 0x5678);
       __ SetReorder(reordering);
       generate_null_check = true;
       break;
@@ -5837,7 +5899,7 @@ void InstructionCodeGeneratorMIPS::VisitLoadString(HLoadString* load) NO_THREAD_
           codegen_->NewPcRelativeStringPatch(load->GetDexFile(), load->GetStringIndex());
       bool reordering = __ SetReorder(false);
       codegen_->EmitPcRelativeAddressPlaceholderHigh(info, out, base_or_current_method_reg);
-      __ LoadFromOffset(kLoadWord, out, out, /* placeholder */ 0x5678);
+      GenerateGcRootFieldLoad(load, out_loc, out, /* placeholder */ 0x5678);
       __ SetReorder(reordering);
       SlowPathCodeMIPS* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathMIPS(load);
       codegen_->AddSlowPath(slow_path);
@@ -6059,6 +6121,8 @@ void LocationsBuilderMIPS::VisitNewArray(HNewArray* instruction) {
 }
 
 void InstructionCodeGeneratorMIPS::VisitNewArray(HNewArray* instruction) {
+  // Note: if heap poisoning is enabled, the entry point takes care
+  // of poisoning the reference.
   codegen_->InvokeRuntime(kQuickAllocArrayResolved, instruction, instruction->GetDexPc());
   CheckEntrypointTypes<kQuickAllocArrayResolved, void*, mirror::Class*, int32_t>();
 }
@@ -6076,6 +6140,8 @@ void LocationsBuilderMIPS::VisitNewInstance(HNewInstance* instruction) {
 }
 
 void InstructionCodeGeneratorMIPS::VisitNewInstance(HNewInstance* instruction) {
+  // Note: if heap poisoning is enabled, the entry point takes care
+  // of poisoning the reference.
   if (instruction->IsStringAlloc()) {
     // String is allocated through StringFactory. Call NewEmptyString entry point.
     Register temp = instruction->GetLocations()->GetTemp(0).AsRegister<Register>();
