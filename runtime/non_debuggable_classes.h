@@ -35,7 +35,8 @@ struct NonDebuggableClasses {
     return non_debuggable_classes;
   }
 
-  static void AddNonDebuggableClass(ObjPtr<mirror::Class> klass) REQUIRES(Locks::mutator_lock_);
+  static void AddNonDebuggableClass(ObjPtr<mirror::Class> klass)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
   static std::vector<jclass> non_debuggable_classes;
