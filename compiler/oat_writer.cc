@@ -104,6 +104,13 @@ inline uint32_t CodeAlignmentSize(uint32_t header_offset, const CompiledMethod& 
 // Defines the location of the raw dex file to write.
 class OatWriter::DexFileSource {
  public:
+  enum Type {
+    kNone,
+    kZipEntry,
+    kRawFile,
+    kRawData,
+  };
+
   explicit DexFileSource(ZipEntry* zip_entry)
       : type_(kZipEntry), source_(zip_entry) {
     DCHECK(source_ != nullptr);
@@ -119,6 +126,7 @@ class OatWriter::DexFileSource {
     DCHECK(source_ != nullptr);
   }
 
+  Type GetType() const { return type_; }
   bool IsZipEntry() const { return type_ == kZipEntry; }
   bool IsRawFile() const { return type_ == kRawFile; }
   bool IsRawData() const { return type_ == kRawData; }
@@ -147,13 +155,6 @@ class OatWriter::DexFileSource {
   }
 
  private:
-  enum Type {
-    kNone,
-    kZipEntry,
-    kRawFile,
-    kRawData,
-  };
-
   Type type_;
   const void* source_;
 };
@@ -2265,10 +2266,28 @@ bool OatWriter::LayoutAndWriteDexFile(OutputStream* out, OatDexFile* oat_dex_fil
                              /* verify */ true,
                              /* verify_checksum */ true,
                              &error_msg);
-  } else {
-    DCHECK(oat_dex_file->source_.IsRawFile());
+  } else if (oat_dex_file->source_.IsRawFile()) {
     File* raw_file = oat_dex_file->source_.GetRawFile();
     dex_file = DexFile::OpenDex(raw_file->Fd(), location, /* verify_checksum */ true, &error_msg);
+  } else {
+    // The source data is a vdex file.
+    CHECK(oat_dex_file->source_.IsRawData())
+        << static_cast<size_t>(oat_dex_file->source_.GetType());
+    const uint8_t* raw_dex_file = oat_dex_file->source_.GetRawData();
+    // Note: The raw data has already been checked to contain the header
+    // and all the data that the header specifies as the file size.
+    DCHECK(raw_dex_file != nullptr);
+    DCHECK(ValidateDexFileHeader(raw_dex_file, oat_dex_file->GetLocation()));
+    const UnalignedDexFileHeader* header = AsUnalignedDexFileHeader(raw_dex_file);
+    // Since the source may have had its layout changed, don't verify the checksum.
+    dex_file = DexFile::Open(raw_dex_file,
+                             header->file_size_,
+                             location,
+                             header->checksum_,
+                             nullptr,
+                             /* verify */ true,
+                             /* verify_checksum */ false,
+                             &error_msg);
   }
   if (dex_file == nullptr) {
     LOG(ERROR) << "Failed to open dex file for layout: " << error_msg;
