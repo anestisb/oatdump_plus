@@ -2048,11 +2048,12 @@ ENTRY_NO_GP art_quick_indexof
     lw    $t0, MIRROR_STRING_COUNT_OFFSET($a0)    # this.length()
 #endif
     slt   $t1, $a2, $zero # if fromIndex < 0
-#if defined(_MIPS_ARCH_MIPS32R6) || defined(_MIPS_ARCH_MIPS64R6)
+#if defined(_MIPS_ARCH_MIPS32R6)
     seleqz $a2, $a2, $t1  #     fromIndex = 0;
 #else
     movn   $a2, $zero, $t1 #    fromIndex = 0;
 #endif
+
 #if (STRING_COMPRESSION_FEATURE)
     srl   $t0, $a3, 1     # $a3 holds count (with flag) and $t0 holds actual length
 #endif
