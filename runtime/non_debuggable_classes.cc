@@ -27,16 +27,16 @@ namespace art {
 
 std::vector<jclass>  NonDebuggableClasses::non_debuggable_classes;
 
-void NonDebuggableClasses::AddNonDebuggableClass(ObjPtr<mirror::Class> klass) {
+void NonDebuggableClasses::AddNonDebuggableClass(jclass klass) {
   Thread* self = Thread::Current();
   JNIEnvExt* env = self->GetJniEnv();
+  ObjPtr<mirror::Class> mirror_klass(self->DecodeJObject(klass)->AsClass());
   for (jclass c : non_debuggable_classes) {
-    if (self->DecodeJObject(c)->AsClass() == klass.Ptr()) {
+    if (self->DecodeJObject(c)->AsClass() == mirror_klass.Ptr()) {
       return;
     }
   }
-  ScopedLocalRef<jclass> lr(env, env->AddLocalReference<jclass>(klass));
-  non_debuggable_classes.push_back(reinterpret_cast<jclass>(env->NewGlobalRef(lr.get())));
+  non_debuggable_classes.push_back(reinterpret_cast<jclass>(env->NewGlobalRef(klass)));
 }
 
 }  // namespace art
