@@ -73,7 +73,7 @@ void FdFile::Destroy() {
   }
   if (auto_close_ && fd_ != -1) {
     if (Close() != 0) {
-      PLOG(WARNING) << "Failed to close file " << file_path_;
+      PLOG(WARNING) << "Failed to close file with fd=" << fd_ << " path=" << file_path_;
     }
   }
 }
