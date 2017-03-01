@@ -35,10 +35,6 @@ extern "C" void art_quick_throw_null_pointer_exception_from_signal();
 
 namespace art {
 
-void FaultManager::HandleNestedSignal(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBUTE_UNUSED,
-                                      void* context ATTRIBUTE_UNUSED) {
-}
-
 void FaultManager::GetMethodAndReturnPcAndSp(siginfo_t* siginfo, void* context,
                                              ArtMethod** out_method,
                                              uintptr_t* out_return_pc, uintptr_t* out_sp) {

@@ -2099,18 +2099,6 @@ DEFINE_FUNCTION art_quick_instance_of
     ret
 END_FUNCTION art_quick_instance_of
 
-
-// Return from a nested signal:
-// Entry:
-//  rdi: address of jmp_buf in TLS
-
-DEFINE_FUNCTION art_nested_signal_return
-                                    // first arg to longjmp is already in correct register
-    movq LITERAL(1), %rsi           // second arg to longjmp (1)
-    call PLT_SYMBOL(longjmp)
-    UNREACHABLE
-END_FUNCTION art_nested_signal_return
-
 // Create a function `name` calling the ReadBarrier::Mark routine,
 // getting its argument and returning its result through register
 // `reg`, saving and restoring all caller-save registers.
