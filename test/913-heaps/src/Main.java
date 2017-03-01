@@ -34,6 +34,7 @@ public class Main {
     Runtime.getRuntime().gc();
 
     doPrimitiveArrayTest();
+    doPrimitiveFieldTest();
 
     Runtime.getRuntime().gc();
     Runtime.getRuntime().gc();
@@ -122,6 +123,62 @@ public class Main {
     System.out.print(getTag(fArray));
     System.out.print(getTag(lArray));
     System.out.println(getTag(dArray));
+  }
+
+  public static void doPrimitiveFieldTest() throws Exception {
+    // Force GCs to clean up dirt.
+    Runtime.getRuntime().gc();
+    Runtime.getRuntime().gc();
+
+    doTestPrimitiveFieldsClasses();
+
+    doTestPrimitiveFieldsIntegral();
+
+    // Force GCs to clean up dirt.
+    Runtime.getRuntime().gc();
+    Runtime.getRuntime().gc();
+
+    doTestPrimitiveFieldsFloat();
+
+    // Force GCs to clean up dirt.
+    Runtime.getRuntime().gc();
+    Runtime.getRuntime().gc();
+  }
+
+  private static void doTestPrimitiveFieldsClasses() {
+    setTag(IntObject.class, 10000);
+    System.out.println(followReferencesPrimitiveFields(IntObject.class));
+    System.out.println(getTag(IntObject.class));
+    setTag(IntObject.class, 0);
+
+    setTag(FloatObject.class, 10000);
+    System.out.println(followReferencesPrimitiveFields(FloatObject.class));
+    System.out.println(getTag(FloatObject.class));
+    setTag(FloatObject.class, 0);
+
+    setTag(Inf1.class, 10000);
+    System.out.println(followReferencesPrimitiveFields(Inf1.class));
+    System.out.println(getTag(Inf1.class));
+    setTag(Inf1.class, 0);
+
+    setTag(Inf2.class, 10000);
+    System.out.println(followReferencesPrimitiveFields(Inf2.class));
+    System.out.println(getTag(Inf2.class));
+    setTag(Inf2.class, 0);
+  }
+
+  private static void doTestPrimitiveFieldsIntegral() {
+    IntObject intObject = new IntObject();
+    setTag(intObject, 10000);
+    System.out.println(followReferencesPrimitiveFields(intObject));
+    System.out.println(getTag(intObject));
+  }
+
+  private static void doTestPrimitiveFieldsFloat() {
+    FloatObject floatObject = new FloatObject();
+    setTag(floatObject, 10000);
+    System.out.println(followReferencesPrimitiveFields(floatObject));
+    System.out.println(getTag(floatObject));
   }
 
   private static void run() {
@@ -313,6 +370,31 @@ public class Main {
       baz = a;
       baz2 = b;
     }
+  }
+
+  private static interface Inf1 {
+    public final static int A = 1;
+  }
+
+  private static interface Inf2 extends Inf1 {
+    public final static int B = 1;
+  }
+
+  private static class IntObject implements Inf1 {
+    byte b = (byte)1;
+    char c= 'a';
+    short s = (short)2;
+    int i = 3;
+    long l = 4;
+    Object o = new Object();
+    static int sI = 5;
+  }
+
+  private static class FloatObject extends IntObject implements Inf2 {
+    float f = 1.23f;
+    double d = 1.23;
+    Object p = new Object();
+    static int sI = 6;
   }
 
   public static class Verifier {
@@ -508,4 +590,5 @@ public class Main {
       Object initialObject, int stopAfter, int followSet, Object jniRef);
   public static native String[] followReferencesString(Object initialObject);
   public static native String followReferencesPrimitiveArray(Object initialObject);
+  public static native String followReferencesPrimitiveFields(Object initialObject);
 }
