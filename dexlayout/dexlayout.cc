@@ -1529,10 +1529,18 @@ std::vector<dex_ir::ClassData*> DexLayout::LayoutClassDefsAndClassData(const Dex
 // NOTE: If the section following the code items is byte aligned, the last code item is left in
 // place to preserve alignment. Layout needs an overhaul to handle movement of other sections.
 int32_t DexLayout::LayoutCodeItems(std::vector<dex_ir::ClassData*> new_class_data_order) {
+  // Do not move code items if class data section precedes code item section.
+  // ULEB encoding is variable length, causing problems determining the offset of the code items.
+  // TODO: We should swap the order of these sections in the future to avoid this issue.
+  uint32_t class_data_offset = header_->GetCollections().ClassDatasOffset();
+  uint32_t code_item_offset = header_->GetCollections().CodeItemsOffset();
+  if (class_data_offset < code_item_offset) {
+    return 0;
+  }
+
   // Find the last code item so we can leave it in place if the next section is not 4 byte aligned.
   std::unordered_set<dex_ir::CodeItem*> visited_code_items;
-  uint32_t offset = header_->GetCollections().CodeItemsOffset();
-  bool is_code_item_aligned = IsNextSectionCodeItemAligned(offset);
+  bool is_code_item_aligned = IsNextSectionCodeItemAligned(code_item_offset);
   if (!is_code_item_aligned) {
     dex_ir::CodeItem* last_code_item = nullptr;
     for (auto& code_item_pair : header_->GetCollections().CodeItems()) {
@@ -1552,18 +1560,18 @@ int32_t DexLayout::LayoutCodeItems(std::vector<dex_ir::ClassData*> new_class_dat
       dex_ir::CodeItem* code_item = method->GetCodeItem();
       if (code_item != nullptr && visited_code_items.find(code_item) == visited_code_items.end()) {
         visited_code_items.insert(code_item);
-        diff += UnsignedLeb128Size(offset) - UnsignedLeb128Size(code_item->GetOffset());
-        code_item->SetOffset(offset);
-        offset += RoundUp(code_item->GetSize(), kDexCodeItemAlignment);
+        diff += UnsignedLeb128Size(code_item_offset) - UnsignedLeb128Size(code_item->GetOffset());
+        code_item->SetOffset(code_item_offset);
+        code_item_offset += RoundUp(code_item->GetSize(), kDexCodeItemAlignment);
       }
     }
     for (auto& method : *class_data->VirtualMethods()) {
       dex_ir::CodeItem* code_item = method->GetCodeItem();
       if (code_item != nullptr && visited_code_items.find(code_item) == visited_code_items.end()) {
         visited_code_items.insert(code_item);
-        diff += UnsignedLeb128Size(offset) - UnsignedLeb128Size(code_item->GetOffset());
-        code_item->SetOffset(offset);
-        offset += RoundUp(code_item->GetSize(), kDexCodeItemAlignment);
+        diff += UnsignedLeb128Size(code_item_offset) - UnsignedLeb128Size(code_item->GetOffset());
+        code_item->SetOffset(code_item_offset);
+        code_item_offset += RoundUp(code_item->GetSize(), kDexCodeItemAlignment);
       }
     }
   }
