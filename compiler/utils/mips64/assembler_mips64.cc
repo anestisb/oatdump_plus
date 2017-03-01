@@ -488,6 +488,11 @@ void Mips64Assembler::Aui(GpuRegister rt, GpuRegister rs, uint16_t imm16) {
   EmitI(0xf, rs, rt, imm16);
 }
 
+void Mips64Assembler::Daui(GpuRegister rt, GpuRegister rs, uint16_t imm16) {
+  CHECK_NE(rs, ZERO);
+  EmitI(0x1d, rs, rt, imm16);
+}
+
 void Mips64Assembler::Dahi(GpuRegister rs, uint16_t imm16) {
   EmitI(1, rs, static_cast<GpuRegister>(6), imm16);
 }
@@ -2367,12 +2372,8 @@ void Mips64Assembler::LoadRef(ManagedRegister mdest, ManagedRegister base, Membe
   CHECK(dest.IsGpuRegister() && base.AsMips64().IsGpuRegister());
   LoadFromOffset(kLoadUnsignedWord, dest.AsGpuRegister(),
                  base.AsMips64().AsGpuRegister(), offs.Int32Value());
-  if (kPoisonHeapReferences && unpoison_reference) {
-    // TODO: review
-    // Negate the 32-bit ref
-    Dsubu(dest.AsGpuRegister(), ZERO, dest.AsGpuRegister());
-    // And constrain it to 32 bits (zero-extend into bits 32 through 63) as on Arm64 and x86/64
-    Dext(dest.AsGpuRegister(), dest.AsGpuRegister(), 0, 32);
+  if (unpoison_reference) {
+    MaybeUnpoisonHeapReference(dest.AsGpuRegister());
   }
 }
 

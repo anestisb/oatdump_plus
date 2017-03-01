@@ -1572,6 +1572,10 @@ static void GenUnsafeGet(HInvoke* invoke,
       __ Lwr(trg, TMP, 0);
       __ Lwl(trg, TMP, 3);
     }
+
+    if (type == Primitive::kPrimNot) {
+      __ MaybeUnpoisonHeapReference(trg);
+    }
   }
 }
 
@@ -1662,6 +1666,11 @@ static void GenUnsafePut(LocationSummary* locations,
   }
   if ((type == Primitive::kPrimInt) || (type == Primitive::kPrimNot)) {
     Register value = locations->InAt(3).AsRegister<Register>();
+
+    if (kPoisonHeapReferences && type == Primitive::kPrimNot) {
+      __ PoisonHeapReference(AT, value);
+      value = AT;
+    }
 
     if (is_R6) {
       __ Sw(value, TMP, 0);
@@ -1852,13 +1861,23 @@ static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGenerat
     codegen->MarkGCCard(base, value, value_can_be_null);
   }
 
+  MipsLabel loop_head, exit_loop;
+  __ Addu(TMP, base, offset_lo);
+
+  if (kPoisonHeapReferences && type == Primitive::kPrimNot) {
+    __ PoisonHeapReference(expected);
+    // Do not poison `value`, if it is the same register as
+    // `expected`, which has just been poisoned.
+    if (value != expected) {
+      __ PoisonHeapReference(value);
+    }
+  }
+
   // do {
   //   tmp_value = [tmp_ptr] - expected;
   // } while (tmp_value == 0 && failure([tmp_ptr] <- r_new_value));
   // result = tmp_value != 0;
 
-  MipsLabel loop_head, exit_loop;
-  __ Addu(TMP, base, offset_lo);
   __ Sync(0);
   __ Bind(&loop_head);
   if ((type == Primitive::kPrimInt) || (type == Primitive::kPrimNot)) {
@@ -1868,8 +1887,8 @@ static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGenerat
       __ LlR2(out, TMP);
     }
   } else {
-      LOG(FATAL) << "Unsupported op size " << type;
-      UNREACHABLE();
+    LOG(FATAL) << "Unsupported op size " << type;
+    UNREACHABLE();
   }
   __ Subu(out, out, expected);          // If we didn't get the 'expected'
   __ Sltiu(out, out, 1);                // value, set 'out' to false, and
@@ -1894,6 +1913,15 @@ static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGenerat
                                 // cycle atomically then retry.
   __ Bind(&exit_loop);
   __ Sync(0);
+
+  if (kPoisonHeapReferences && type == Primitive::kPrimNot) {
+    __ UnpoisonHeapReference(expected);
+    // Do not unpoison `value`, if it is the same register as
+    // `expected`, which has just been unpoisoned.
+    if (value != expected) {
+      __ UnpoisonHeapReference(value);
+    }
+  }
 }
 
 // boolean sun.misc.Unsafe.compareAndSwapInt(Object o, long offset, int expected, int x)

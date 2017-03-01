@@ -3475,8 +3475,8 @@ void MipsAssembler::LoadRef(ManagedRegister mdest, ManagedRegister base, MemberO
   CHECK(dest.IsCoreRegister() && base.AsMips().IsCoreRegister());
   LoadFromOffset(kLoadWord, dest.AsCoreRegister(),
                  base.AsMips().AsCoreRegister(), offs.Int32Value());
-  if (kPoisonHeapReferences && unpoison_reference) {
-    Subu(dest.AsCoreRegister(), ZERO, dest.AsCoreRegister());
+  if (unpoison_reference) {
+    MaybeUnpoisonHeapReference(dest.AsCoreRegister());
   }
 }
 
