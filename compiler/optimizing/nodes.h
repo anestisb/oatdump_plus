@@ -1914,6 +1914,9 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
 
   virtual bool IsControlFlow() const { return false; }
 
+  // Can the instruction throw?
+  // TODO: We should rename to CanVisiblyThrow, as some instructions (like HNewInstance),
+  // could throw OOME, but it is still OK to remove them if they are unused.
   virtual bool CanThrow() const { return false; }
   bool CanThrowIntoCatchBlock() const { return CanThrow() && block_->IsTryBlock(); }
 
