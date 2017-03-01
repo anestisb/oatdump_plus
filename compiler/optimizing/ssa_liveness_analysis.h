@@ -17,8 +17,9 @@
 #ifndef ART_COMPILER_OPTIMIZING_SSA_LIVENESS_ANALYSIS_H_
 #define ART_COMPILER_OPTIMIZING_SSA_LIVENESS_ANALYSIS_H_
 
-#include "nodes.h"
 #include <iostream>
+
+#include "nodes.h"
 
 namespace art {
 
@@ -103,21 +104,20 @@ class LiveRange FINAL : public ArenaObject<kArenaAllocSsaLiveness> {
  */
 class UsePosition : public ArenaObject<kArenaAllocSsaLiveness> {
  public:
-  UsePosition(HInstruction* user,
-              HEnvironment* environment,
-              size_t input_index,
-              size_t position,
-              UsePosition* next)
+  UsePosition(HInstruction* user, size_t input_index, size_t position, UsePosition* next)
       : user_(user),
-        environment_(environment),
         input_index_(input_index),
         position_(position),
         next_(next) {
-    DCHECK(environment == nullptr || user == nullptr);
     DCHECK(next_ == nullptr || next->GetPosition() >= GetPosition());
   }
 
-  static constexpr size_t kNoInput = -1;
+  explicit UsePosition(size_t position)
+      : user_(nullptr),
+        input_index_(kNoInput),
+        position_(dchecked_integral_cast<uint32_t>(position)),
+        next_(nullptr) {
+  }
 
   size_t GetPosition() const { return position_; }
 
@@ -125,9 +125,7 @@ class UsePosition : public ArenaObject<kArenaAllocSsaLiveness> {
   void SetNext(UsePosition* next) { next_ = next; }
 
   HInstruction* GetUser() const { return user_; }
-  HEnvironment* GetEnvironment() const { return environment_; }
 
-  bool GetIsEnvironment() const { return environment_ != nullptr; }
   bool IsSynthesized() const { return user_ == nullptr; }
 
   size_t GetInputIndex() const { return input_index_; }
@@ -142,25 +140,69 @@ class UsePosition : public ArenaObject<kArenaAllocSsaLiveness> {
 
   UsePosition* Dup(ArenaAllocator* allocator) const {
     return new (allocator) UsePosition(
-        user_, environment_, input_index_, position_,
+        user_, input_index_, position_,
         next_ == nullptr ? nullptr : next_->Dup(allocator));
   }
 
   bool RequiresRegister() const {
-    if (GetIsEnvironment()) return false;
     if (IsSynthesized()) return false;
     Location location = GetUser()->GetLocations()->InAt(GetInputIndex());
     return location.IsUnallocated() && location.RequiresRegisterKind();
   }
 
  private:
+  static constexpr uint32_t kNoInput = static_cast<uint32_t>(-1);
+
   HInstruction* const user_;
-  HEnvironment* const environment_;
   const size_t input_index_;
   const size_t position_;
   UsePosition* next_;
 
   DISALLOW_COPY_AND_ASSIGN(UsePosition);
+};
+
+/**
+ * An environment use position represents a live interval for environment use at a given position.
+ */
+class EnvUsePosition : public ArenaObject<kArenaAllocSsaLiveness> {
+ public:
+  EnvUsePosition(HEnvironment* environment,
+                 size_t input_index,
+                 size_t position,
+                 EnvUsePosition* next)
+      : environment_(environment),
+        input_index_(input_index),
+        position_(position),
+        next_(next) {
+    DCHECK(environment != nullptr);
+    DCHECK(next_ == nullptr || next->GetPosition() >= GetPosition());
+  }
+
+  size_t GetPosition() const { return position_; }
+
+  EnvUsePosition* GetNext() const { return next_; }
+  void SetNext(EnvUsePosition* next) { next_ = next; }
+
+  HEnvironment* GetEnvironment() const { return environment_; }
+  size_t GetInputIndex() const { return input_index_; }
+
+  void Dump(std::ostream& stream) const {
+    stream << position_;
+  }
+
+  EnvUsePosition* Dup(ArenaAllocator* allocator) const {
+    return new (allocator) EnvUsePosition(
+        environment_, input_index_, position_,
+        next_ == nullptr ? nullptr : next_->Dup(allocator));
+  }
+
+ private:
+  HEnvironment* const environment_;
+  const size_t input_index_;
+  const size_t position_;
+  EnvUsePosition* next_;
+
+  DISALLOW_COPY_AND_ASSIGN(EnvUsePosition);
 };
 
 class SafepointPosition : public ArenaObject<kArenaAllocSsaLiveness> {
@@ -227,7 +269,7 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
     DCHECK(first_env_use_ == nullptr) << "A temporary cannot have environment user";
     size_t position = instruction->GetLifetimePosition();
     first_use_ = new (allocator_) UsePosition(
-        instruction, /* environment */ nullptr, temp_index, position, first_use_);
+        instruction, temp_index, position, first_use_);
     AddRange(position, position + 1);
   }
 
@@ -276,7 +318,7 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
       }
       DCHECK(first_use_->GetPosition() + 1 == position);
       UsePosition* new_use = new (allocator_) UsePosition(
-          instruction, nullptr /* environment */, input_index, position, cursor->GetNext());
+          instruction, input_index, position, cursor->GetNext());
       cursor->SetNext(new_use);
       if (first_range_->GetEnd() == first_use_->GetPosition()) {
         first_range_->end_ = position;
@@ -285,11 +327,11 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
     }
 
     if (is_environment) {
-      first_env_use_ = new (allocator_) UsePosition(
-          nullptr /* instruction */, environment, input_index, position, first_env_use_);
+      first_env_use_ = new (allocator_) EnvUsePosition(
+          environment, input_index, position, first_env_use_);
     } else {
       first_use_ = new (allocator_) UsePosition(
-          instruction, nullptr /* environment */, input_index, position, first_use_);
+          instruction, input_index, position, first_use_);
     }
 
     if (is_environment && !keep_alive) {
@@ -328,7 +370,7 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
       AddBackEdgeUses(*block);
     }
     first_use_ = new (allocator_) UsePosition(
-        instruction, /* environment */ nullptr, input_index, block->GetLifetimeEnd(), first_use_);
+        instruction, input_index, block->GetLifetimeEnd(), first_use_);
   }
 
   ALWAYS_INLINE void AddRange(size_t start, size_t end) {
@@ -538,7 +580,7 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
     return first_use_;
   }
 
-  UsePosition* GetFirstEnvironmentUse() const {
+  EnvUsePosition* GetFirstEnvironmentUse() const {
     return first_env_use_;
   }
 
@@ -676,7 +718,7 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
       current = current->GetNext();
     }
     stream << "}, uses: { ";
-    UsePosition* use = first_use_;
+    const UsePosition* use = first_use_;
     if (use != nullptr) {
       do {
         use->Dump(stream);
@@ -684,12 +726,12 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
       } while ((use = use->GetNext()) != nullptr);
     }
     stream << "}, { ";
-    use = first_env_use_;
-    if (use != nullptr) {
+    const EnvUsePosition* env_use = first_env_use_;
+    if (env_use != nullptr) {
       do {
-        use->Dump(stream);
+        env_use->Dump(stream);
         stream << " ";
-      } while ((use = use->GetNext()) != nullptr);
+      } while ((env_use = env_use->GetNext()) != nullptr);
     }
     stream << "}";
     stream << " is_fixed: " << is_fixed_ << ", is_split: " << IsSplit();
@@ -1015,12 +1057,7 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
       DCHECK(last_in_new_list == nullptr ||
              back_edge_use_position > last_in_new_list->GetPosition());
 
-      UsePosition* new_use = new (allocator_) UsePosition(
-          /* user */ nullptr,
-          /* environment */ nullptr,
-          UsePosition::kNoInput,
-          back_edge_use_position,
-          /* next */ nullptr);
+      UsePosition* new_use = new (allocator_) UsePosition(back_edge_use_position);
 
       if (last_in_new_list != nullptr) {
         // Going outward. The latest created use needs to point to the new use.
@@ -1056,7 +1093,7 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
 
   // Uses of this interval. Note that this linked list is shared amongst siblings.
   UsePosition* first_use_;
-  UsePosition* first_env_use_;
+  EnvUsePosition* first_env_use_;
 
   // The instruction type this interval corresponds to.
   const Primitive::Type type_;
@@ -1210,8 +1247,7 @@ class SsaLivenessAnalysis : public ValueObject {
 
   // Returns whether `instruction` in an HEnvironment held by `env_holder`
   // should be kept live by the HEnvironment.
-  static bool ShouldBeLiveForEnvironment(HInstruction* env_holder,
-                                         HInstruction* instruction) {
+  static bool ShouldBeLiveForEnvironment(HInstruction* env_holder, HInstruction* instruction) {
     if (instruction == nullptr) return false;
     // A value that's not live in compiled code may still be needed in interpreter,
     // due to code motion, etc.
