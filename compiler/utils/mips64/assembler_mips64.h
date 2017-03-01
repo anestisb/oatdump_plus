@@ -512,6 +512,7 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
   void Ldpc(GpuRegister rs, uint32_t imm18);  // MIPS64
   void Lui(GpuRegister rt, uint16_t imm16);
   void Aui(GpuRegister rt, GpuRegister rs, uint16_t imm16);
+  void Daui(GpuRegister rt, GpuRegister rs, uint16_t imm16);  // MIPS64
   void Dahi(GpuRegister rs, uint16_t imm16);  // MIPS64
   void Dati(GpuRegister rs, uint16_t imm16);  // MIPS64
   void Sync(uint32_t stype);
@@ -653,6 +654,44 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
 
   void Addiu32(GpuRegister rt, GpuRegister rs, int32_t value);
   void Daddiu64(GpuRegister rt, GpuRegister rs, int64_t value, GpuRegister rtmp = AT);  // MIPS64
+
+  //
+  // Heap poisoning.
+  //
+
+  // Poison a heap reference contained in `src` and store it in `dst`.
+  void PoisonHeapReference(GpuRegister dst, GpuRegister src) {
+    // dst = -src.
+    // Negate the 32-bit ref.
+    Dsubu(dst, ZERO, src);
+    // And constrain it to 32 bits (zero-extend into bits 32 through 63) as on Arm64 and x86/64.
+    Dext(dst, dst, 0, 32);
+  }
+  // Poison a heap reference contained in `reg`.
+  void PoisonHeapReference(GpuRegister reg) {
+    // reg = -reg.
+    PoisonHeapReference(reg, reg);
+  }
+  // Unpoison a heap reference contained in `reg`.
+  void UnpoisonHeapReference(GpuRegister reg) {
+    // reg = -reg.
+    // Negate the 32-bit ref.
+    Dsubu(reg, ZERO, reg);
+    // And constrain it to 32 bits (zero-extend into bits 32 through 63) as on Arm64 and x86/64.
+    Dext(reg, reg, 0, 32);
+  }
+  // Poison a heap reference contained in `reg` if heap poisoning is enabled.
+  void MaybePoisonHeapReference(GpuRegister reg) {
+    if (kPoisonHeapReferences) {
+      PoisonHeapReference(reg);
+    }
+  }
+  // Unpoison a heap reference contained in `reg` if heap poisoning is enabled.
+  void MaybeUnpoisonHeapReference(GpuRegister reg) {
+    if (kPoisonHeapReferences) {
+      UnpoisonHeapReference(reg);
+    }
+  }
 
   void Bind(Label* label) OVERRIDE {
     Bind(down_cast<Mips64Label*>(label));

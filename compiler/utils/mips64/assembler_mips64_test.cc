@@ -1269,6 +1269,24 @@ TEST_F(AssemblerMIPS64Test, Lui) {
   DriverStr(RepeatRIb(&mips64::Mips64Assembler::Lui, 16, "lui ${reg}, {imm}"), "lui");
 }
 
+TEST_F(AssemblerMIPS64Test, Daui) {
+  std::vector<mips64::GpuRegister*> reg1_registers = GetRegisters();
+  std::vector<mips64::GpuRegister*> reg2_registers = GetRegisters();
+  reg2_registers.erase(reg2_registers.begin());  // reg2 can't be ZERO, remove it.
+  std::vector<int64_t> imms = CreateImmediateValuesBits(/* imm_bits */ 16, /* as_uint */ true);
+  WarnOnCombinations(reg1_registers.size() * reg2_registers.size() * imms.size());
+  std::ostringstream expected;
+  for (mips64::GpuRegister* reg1 : reg1_registers) {
+    for (mips64::GpuRegister* reg2 : reg2_registers) {
+      for (int64_t imm : imms) {
+        __ Daui(*reg1, *reg2, imm);
+        expected << "daui $" << *reg1 << ", $" << *reg2 << ", " << imm << "\n";
+      }
+    }
+  }
+  DriverStr(expected.str(), "daui");
+}
+
 TEST_F(AssemblerMIPS64Test, Dahi) {
   DriverStr(RepeatRIb(&mips64::Mips64Assembler::Dahi, 16, "dahi ${reg}, ${reg}, {imm}"), "dahi");
 }
