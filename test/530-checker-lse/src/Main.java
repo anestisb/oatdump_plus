@@ -747,6 +747,69 @@ public class Main {
     return 1.0f;
   }
 
+  /// CHECK-START: TestClass2 Main.testStoreStore() load_store_elimination (before)
+  /// CHECK: NewInstance
+  /// CHECK: InstanceFieldSet
+  /// CHECK: InstanceFieldSet
+  /// CHECK: InstanceFieldSet
+  /// CHECK: InstanceFieldSet
+
+  /// CHECK-START: TestClass2 Main.testStoreStore() load_store_elimination (after)
+  /// CHECK: NewInstance
+  /// CHECK: InstanceFieldSet
+  /// CHECK: InstanceFieldSet
+  /// CHECK-NOT: InstanceFieldSet
+
+  private static TestClass2 testStoreStore() {
+    TestClass2 obj = new TestClass2();
+    obj.i = 41;
+    obj.j = 42;
+    obj.i = 41;
+    obj.j = 43;
+    return obj;
+  }
+
+  /// CHECK-START: int Main.testStoreStoreWithDeoptimize(int[]) load_store_elimination (before)
+  /// CHECK: NewInstance
+  /// CHECK: InstanceFieldSet
+  /// CHECK: InstanceFieldSet
+  /// CHECK: InstanceFieldSet
+  /// CHECK: InstanceFieldSet
+  /// CHECK: Deoptimize
+  /// CHECK: ArraySet
+  /// CHECK: ArraySet
+  /// CHECK: ArraySet
+  /// CHECK: ArraySet
+  /// CHECK: ArrayGet
+  /// CHECK: ArrayGet
+  /// CHECK: ArrayGet
+  /// CHECK: ArrayGet
+
+  /// CHECK-START: int Main.testStoreStoreWithDeoptimize(int[]) load_store_elimination (after)
+  /// CHECK: NewInstance
+  /// CHECK: InstanceFieldSet
+  /// CHECK: InstanceFieldSet
+  /// CHECK-NOT: InstanceFieldSet
+  /// CHECK: Deoptimize
+  /// CHECK: ArraySet
+  /// CHECK: ArraySet
+  /// CHECK: ArraySet
+  /// CHECK: ArraySet
+  /// CHECK-NOT: ArrayGet
+
+  private static int testStoreStoreWithDeoptimize(int[] arr) {
+    TestClass2 obj = new TestClass2();
+    obj.i = 41;
+    obj.j = 42;
+    obj.i = 41;
+    obj.j = 43;
+    arr[0] = 1;  // One HDeoptimize here.
+    arr[1] = 1;
+    arr[2] = 1;
+    arr[3] = 1;
+    return arr[0] + arr[1] + arr[2] + arr[3];
+  }
+
   /// CHECK-START: double Main.getCircleArea(double, boolean) load_store_elimination (before)
   /// CHECK: NewInstance
 
@@ -950,6 +1013,10 @@ public class Main {
     assertIntEquals(testAllocationEliminationOfArray2(), 11);
     assertIntEquals(testAllocationEliminationOfArray3(2), 4);
     assertIntEquals(testAllocationEliminationOfArray4(2), 6);
+
+    assertIntEquals(testStoreStore().i, 41);
+    assertIntEquals(testStoreStore().j, 43);
+    assertIntEquals(testStoreStoreWithDeoptimize(new int[4]), 4);
   }
 
   static boolean sFlag;
