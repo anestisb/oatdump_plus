@@ -75,6 +75,26 @@ static const char kUnreferencedCatchHandlerInputDex[] =
     "AAAEAQAABgAAAAEAAAAkAQAAASAAAAIAAABEAQAAARAAAAIAAADIAQAAAiAAABIAAADWAQAAAyAA"
     "AAIAAAC1AgAAACAAAAEAAADIAgAAABAAAAEAAADYAgAA";
 
+// Dex file with 0-size (catch all only) catch handler unreferenced by try blocks.
+// Constructed by building a dex file with try/catch blocks and hex editing.
+static const char kUnreferenced0SizeCatchHandlerInputDex[] =
+    "ZGV4CjAzNQCEbEEvMstSNpQpjPdfMEfUBS48cis2QRJoAwAAcAAAAHhWNBIAAAAAAAAAAMgCAAAR"
+    "AAAAcAAAAAcAAAC0AAAAAwAAANAAAAABAAAA9AAAAAQAAAD8AAAAAQAAABwBAAAsAgAAPAEAAOoB"
+    "AADyAQAABAIAABMCAAAqAgAAPgIAAFICAABmAgAAaQIAAG0CAACCAgAAhgIAAIoCAACQAgAAlQIA"
+    "AJ4CAACiAgAAAgAAAAMAAAAEAAAABQAAAAYAAAAHAAAACQAAAAcAAAAFAAAAAAAAAAgAAAAFAAAA"
+    "3AEAAAgAAAAFAAAA5AEAAAQAAQANAAAAAAAAAAAAAAAAAAIADAAAAAEAAQAOAAAAAgAAAAAAAAAA"
+    "AAAAAQAAAAIAAAAAAAAAAQAAAAAAAAC5AgAAAAAAAAEAAQABAAAApgIAAAQAAABwEAMAAAAOAAQA"
+    "AQACAAIAqwIAAC8AAABiAAAAGgEPAG4gAgAQAGIAAAAaAQoAbiACABAAYgAAABoBEABuIAIAEABi"
+    "AAAAGgELAG4gAgAQAA4ADQBiAQAAGgIKAG4gAgAhACcADQBiAQAAGgILAG4gAgAhACcAAAAAAAAA"
+    "BwABAA4AAAAHAAEAAgAdACYAAAABAAAAAwAAAAEAAAAGAAY8aW5pdD4AEEhhbmRsZXJUZXN0Lmph"
+    "dmEADUxIYW5kbGVyVGVzdDsAFUxqYXZhL2lvL1ByaW50U3RyZWFtOwASTGphdmEvbGFuZy9PYmpl"
+    "Y3Q7ABJMamF2YS9sYW5nL1N0cmluZzsAEkxqYXZhL2xhbmcvU3lzdGVtOwABVgACVkwAE1tMamF2"
+    "YS9sYW5nL1N0cmluZzsAAmYxAAJmMgAEbWFpbgADb3V0AAdwcmludGxuAAJ0MQACdDIAAQAHDgAE"
+    "AQAHDnl7eXkCeB2bAAAAAgAAgYAEvAIBCdQCAA0AAAAAAAAAAQAAAAAAAAABAAAAEQAAAHAAAAAC"
+    "AAAABwAAALQAAAADAAAAAwAAANAAAAAEAAAAAQAAAPQAAAAFAAAABAAAAPwAAAAGAAAAAQAAABwB"
+    "AAABIAAAAgAAADwBAAABEAAAAgAAANwBAAACIAAAEQAAAOoBAAADIAAAAgAAAKYCAAAAIAAAAQAA"
+    "ALkCAAAAEAAAAQAAAMgCAAA=";
+
 // Dex file with multiple code items that have the same debug_info_off_. Constructed by a modified
 // dexlayout on XandY.
 static const char kDexFileDuplicateOffset[] =
@@ -282,8 +302,8 @@ class DexLayoutTest : public CommonRuntimeTest {
     return true;
   }
 
-  // Runs UnreferencedCatchHandlerTest.
-  bool UnreferencedCatchHandlerExec(std::string* error_msg) {
+  // Runs UnreferencedCatchHandlerTest & Unreferenced0SizeCatchHandlerTest.
+  bool UnreferencedCatchHandlerExec(std::string* error_msg, const char* filename) {
     ScratchFile tmp_file;
     std::string tmp_name = tmp_file.GetFilename();
     size_t tmp_last_slash = tmp_name.rfind("/");
@@ -291,7 +311,7 @@ class DexLayoutTest : public CommonRuntimeTest {
 
     // Write inputs and expected outputs.
     std::string input_dex = tmp_dir + "classes.dex";
-    WriteFileBase64(kUnreferencedCatchHandlerInputDex, input_dex.c_str());
+    WriteFileBase64(filename, input_dex.c_str());
     std::string output_dex = tmp_dir + "classes.dex.new";
 
     std::string dexlayout = GetTestAndroidRoot() + "/bin/dexlayout";
@@ -343,8 +363,18 @@ TEST_F(DexLayoutTest, UnreferencedCatchHandler) {
   // Disable test on target.
   TEST_DISABLED_FOR_TARGET();
   std::string error_msg;
-  ASSERT_TRUE(UnreferencedCatchHandlerExec(&error_msg)) << error_msg;
+  ASSERT_TRUE(UnreferencedCatchHandlerExec(&error_msg,
+                                           kUnreferencedCatchHandlerInputDex)) << error_msg;
 }
+
+TEST_F(DexLayoutTest, Unreferenced0SizeCatchHandler) {
+  // Disable test on target.
+  TEST_DISABLED_FOR_TARGET();
+  std::string error_msg;
+  ASSERT_TRUE(UnreferencedCatchHandlerExec(&error_msg,
+                                           kUnreferenced0SizeCatchHandlerInputDex)) << error_msg;
+}
+
 TEST_F(DexLayoutTest, DuplicateOffset) {
   ScratchFile temp;
   WriteBase64ToFile(kDexFileDuplicateOffset, temp.GetFile());
