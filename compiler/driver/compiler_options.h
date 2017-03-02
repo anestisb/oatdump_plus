@@ -46,7 +46,6 @@ class CompilerOptions FINAL {
   static constexpr double kDefaultTopKProfileThreshold = 90.0;
   static const bool kDefaultGenerateDebugInfo = false;
   static const bool kDefaultGenerateMiniDebugInfo = false;
-  static const bool kDefaultIncludePatchInformation = false;
   static const size_t kDefaultInlineDepthLimit = 3;
   static const size_t kDefaultInlineMaxCodeUnits = 32;
   static constexpr size_t kUnsetInlineDepthLimit = -1;
@@ -68,7 +67,6 @@ class CompilerOptions FINAL {
                   size_t inline_depth_limit,
                   size_t inline_max_code_units,
                   const std::vector<const DexFile*>* no_inline_from,
-                  bool include_patch_information,
                   double top_k_profile_threshold,
                   bool debuggable,
                   bool generate_debug_info,
@@ -213,10 +211,6 @@ class CompilerOptions FINAL {
     return implicit_suspend_checks_;
   }
 
-  bool GetIncludePatchInformation() const {
-    return include_patch_information_;
-  }
-
   bool IsBootImage() const {
     return boot_image_;
   }
@@ -305,7 +299,6 @@ class CompilerOptions FINAL {
 
   bool boot_image_;
   bool app_image_;
-  bool include_patch_information_;
   // When using a profile file only the top K% of the profiled samples will be compiled.
   double top_k_profile_threshold_;
   bool debuggable_;

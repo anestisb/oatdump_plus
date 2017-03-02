@@ -225,10 +225,6 @@ class OatWriter {
     return oat_data_offset_;
   }
 
-  ArrayRef<const uintptr_t> GetAbsolutePatchLocations() const {
-    return ArrayRef<const uintptr_t>(absolute_patch_locations_);
-  }
-
   ~OatWriter();
 
   void AddMethodDebugInfos(const std::vector<debug::MethodDebugInfo>& infos) {

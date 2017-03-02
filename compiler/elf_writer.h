@@ -63,7 +63,6 @@ class ElfWriter {
   virtual void EndText(OutputStream* text) = 0;
   virtual void WriteDynamicSection() = 0;
   virtual void WriteDebugInfo(const ArrayRef<const debug::MethodDebugInfo>& method_infos) = 0;
-  virtual void WritePatchLocations(const ArrayRef<const uintptr_t>& patch_locations) = 0;
   virtual bool End() = 0;
 
   // Get the ELF writer's stream. This stream can be used for writing data directly

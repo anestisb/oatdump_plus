@@ -5544,8 +5544,6 @@ class HLoadClass FINAL : public HInstruction {
 
     // Use a known boot image Class* address, embedded in the code by the codegen.
     // Used for boot image classes referenced by apps in AOT- and JIT-compiled code.
-    // Note: codegen needs to emit a linker patch if indicated by compiler options'
-    // GetIncludePatchInformation().
     kBootImageAddress,
 
     // Load from an entry in the .bss section using a PC-relative load.
@@ -5749,8 +5747,6 @@ class HLoadString FINAL : public HInstruction {
 
     // Use a known boot image String* address, embedded in the code by the codegen.
     // Used for boot image strings referenced by apps in AOT- and JIT-compiled code.
-    // Note: codegen needs to emit a linker patch if indicated by compiler options'
-    // GetIncludePatchInformation().
     kBootImageAddress,
 
     // Load from an entry in the .bss section using a PC-relative load.

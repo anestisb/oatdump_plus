@@ -65,9 +65,7 @@ static bool IsInBootImage(ArtMethod* method) {
 }
 
 static bool AOTCanEmbedMethod(ArtMethod* method, const CompilerOptions& options) {
-  // Including patch information means the AOT code will be patched, which we don't
-  // support in the compiler, and is anyways moving away b/33192586.
-  return IsInBootImage(method) && !options.GetCompilePic() && !options.GetIncludePatchInformation();
+  return IsInBootImage(method) && !options.GetCompilePic();
 }
 
 void HSharpening::ProcessInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {

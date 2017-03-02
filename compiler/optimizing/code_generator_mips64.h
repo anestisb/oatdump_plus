@@ -492,8 +492,6 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
   ArenaDeque<PcRelativePatchInfo> pc_relative_type_patches_;
   // PC-relative type patch info for kBssEntry.
   ArenaDeque<PcRelativePatchInfo> type_bss_entry_patches_;
-  // Deduplication map for patchable boot image addresses.
-  Uint32ToLiteralMap boot_image_address_patches_;
   // Patches for string root accesses in JIT compiled code.
   StringToLiteralMap jit_string_patches_;
   // Patches for class root accesses in JIT compiled code.

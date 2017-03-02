@@ -441,8 +441,8 @@ fi
 JNI_OPTS="-Xjnigreflimit:512 -Xcheck:jni"
 
 if [ "$RELOCATE" = "y" ]; then
-    COMPILE_FLAGS="${COMPILE_FLAGS} --include-patch-information --runtime-arg -Xnorelocate"
-    FLAGS="${FLAGS} -Xrelocate -Xcompiler-option --include-patch-information"
+    COMPILE_FLAGS="${COMPILE_FLAGS} --runtime-arg -Xnorelocate"
+    FLAGS="${FLAGS} -Xrelocate"
     if [ "$HOST" = "y" ]; then
         # Run test sets a fairly draconian ulimit that we will likely blow right over
         # since we are relocating. Get the total size of the /system/framework directory

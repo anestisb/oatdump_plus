@@ -1225,7 +1225,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
                 break;
               }
               default: {
-                DCHECK_EQ(patch.GetType(), LinkerPatch::Type::kRecordPosition);
+                DCHECK(false) << "Unexpected linker patch type: " << patch.GetType();
                 break;
               }
             }
