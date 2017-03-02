@@ -2283,7 +2283,7 @@ bool OatWriter::LayoutAndWriteDexFile(OutputStream* out, OatDexFile* oat_dex_fil
     dex_file = DexFile::Open(raw_dex_file,
                              header->file_size_,
                              location,
-                             header->checksum_,
+                             oat_dex_file->dex_file_location_checksum_,
                              nullptr,
                              /* verify */ true,
                              /* verify_checksum */ false,
