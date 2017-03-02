@@ -145,6 +145,21 @@ static const char kUnalignedCodeInfoInputDex[] =
     "AAEAAAC4AAAAASAAAAIAAADYAAAAAiAAAAYAAAACAQAAAyAAAAIAAAAxAQAAACAAAAEAAAA7AQAA"
     "ABAAAAEAAABMAQAA";
 
+// Dex file with class data section preceding code items.
+// Constructed by passing dex file through dexmerger tool and hex editing.
+static const char kClassDataBeforeCodeInputDex[] =
+    "ZGV4CjAzNQCZKmCu3XXn4zvxCh5VH0gZNNobEAcsc49EAgAAcAAAAHhWNBIAAAAAAAAAAAQBAAAJ"
+    "AAAAcAAAAAQAAACUAAAAAgAAAKQAAAAAAAAAAAAAAAUAAAC8AAAAAQAAAOQAAABAAQAABAEAAPgB"
+    "AAAAAgAACAIAAAsCAAAQAgAAJAIAACcCAAAqAgAALQIAAAIAAAADAAAABAAAAAUAAAACAAAAAAAA"
+    "AAAAAAAFAAAAAwAAAAAAAAABAAEAAAAAAAEAAAAGAAAAAQAAAAcAAAABAAAACAAAAAIAAQAAAAAA"
+    "AQAAAAEAAAACAAAAAAAAAAEAAAAAAAAAjAEAAAAAAAALAAAAAAAAAAEAAAAAAAAAAQAAAAkAAABw"
+    "AAAAAgAAAAQAAACUAAAAAwAAAAIAAACkAAAABQAAAAUAAAC8AAAABgAAAAEAAADkAAAAABAAAAEA"
+    "AAAEAQAAACAAAAEAAACMAQAAASAAAAQAAACkAQAAAiAAAAkAAAD4AQAAAyAAAAQAAAAwAgAAAAAB"
+    "AwCBgASkAwEBvAMBAdADAQHkAwAAAQABAAEAAAAwAgAABAAAAHAQBAAAAA4AAgABAAAAAAA1AgAA"
+    "AgAAABIQDwACAAEAAAAAADoCAAACAAAAEiAPAAIAAQAAAAAAPwIAAAIAAAASMA8ABjxpbml0PgAG"
+    "QS5qYXZhAAFJAANMQTsAEkxqYXZhL2xhbmcvT2JqZWN0OwABVgABYQABYgABYwABAAcOAAMABw4A"
+    "BgAHDgAJAAcOAA==";
+
 static void WriteBase64ToFile(const char* base64, File* file) {
   // Decode base64.
   CHECK(base64 != nullptr);
@@ -403,6 +418,24 @@ TEST_F(DexLayoutTest, MultiClassData) {
 TEST_F(DexLayoutTest, UnalignedCodeInfo) {
   ScratchFile temp;
   WriteBase64ToFile(kUnalignedCodeInfoInputDex, temp.GetFile());
+  ScratchFile temp2;
+  WriteBase64ToFile(kDexFileLayoutInputProfile, temp2.GetFile());
+  EXPECT_EQ(temp.GetFile()->Flush(), 0);
+  std::string dexlayout = GetTestAndroidRoot() + "/bin/dexlayout";
+  EXPECT_TRUE(OS::FileExists(dexlayout.c_str())) << dexlayout << " should be a valid file path";
+  std::vector<std::string> dexlayout_exec_argv =
+      { dexlayout, "-p", temp2.GetFilename(), "-o", "/dev/null", temp.GetFilename() };
+  std::string error_msg;
+  const bool result = ::art::Exec(dexlayout_exec_argv, &error_msg);
+  EXPECT_TRUE(result);
+  if (!result) {
+    LOG(ERROR) << "Error " << error_msg;
+  }
+}
+
+TEST_F(DexLayoutTest, ClassDataBeforeCode) {
+  ScratchFile temp;
+  WriteBase64ToFile(kClassDataBeforeCodeInputDex, temp.GetFile());
   ScratchFile temp2;
   WriteBase64ToFile(kDexFileLayoutInputProfile, temp2.GetFile());
   EXPECT_EQ(temp.GetFile()->Flush(), 0);
