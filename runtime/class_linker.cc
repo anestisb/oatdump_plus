@@ -1025,7 +1025,8 @@ bool ClassLinker::IsBootClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
            class_loader->GetClass();
 }
 
-static mirror::String* GetDexPathListElementName(ObjPtr<mirror::Object> element)
+static bool GetDexPathListElementName(ObjPtr<mirror::Object> element,
+                                      ObjPtr<mirror::String>* out_name)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   ArtField* const dex_file_field =
       jni::DecodeArtField(WellKnownClasses::dalvik_system_DexPathList__Element_dexFile);
@@ -1037,17 +1038,20 @@ static mirror::String* GetDexPathListElementName(ObjPtr<mirror::Object> element)
   CHECK_EQ(dex_file_field->GetDeclaringClass(), element->GetClass()) << element->PrettyTypeOf();
   ObjPtr<mirror::Object> dex_file = dex_file_field->GetObject(element);
   if (dex_file == nullptr) {
-    return nullptr;
+    // Null dex file means it was probably a jar with no dex files, return a null string.
+    *out_name = nullptr;
+    return true;
   }
   ObjPtr<mirror::Object> name_object = dex_file_name_field->GetObject(dex_file);
   if (name_object != nullptr) {
-    return name_object->AsString();
+    *out_name = name_object->AsString();
+    return true;
   }
-  return nullptr;
+  return false;
 }
 
 static bool FlattenPathClassLoader(ObjPtr<mirror::ClassLoader> class_loader,
-                                   std::list<mirror::String*>* out_dex_file_names,
+                                   std::list<ObjPtr<mirror::String>>* out_dex_file_names,
                                    std::string* error_msg)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK(out_dex_file_names != nullptr);
@@ -1083,12 +1087,14 @@ static bool FlattenPathClassLoader(ObjPtr<mirror::ClassLoader> class_loader,
             *error_msg = StringPrintf("Null dex element at index %d", i);
             return false;
           }
-          ObjPtr<mirror::String> const name = GetDexPathListElementName(element);
-          if (name == nullptr) {
-            *error_msg = StringPrintf("Null name for dex element at index %d", i);
+          ObjPtr<mirror::String> name;
+          if (!GetDexPathListElementName(element, &name)) {
+            *error_msg = StringPrintf("Invalid dex path list element at index %d", i);
             return false;
           }
-          out_dex_file_names->push_front(name.Ptr());
+          if (name != nullptr) {
+            out_dex_file_names->push_front(name.Ptr());
+          }
         }
       }
     }
@@ -1769,14 +1775,14 @@ bool ClassLinker::AddImageSpace(
       *error_msg = "Unexpected BootClassLoader in app image";
       return false;
     }
-    std::list<mirror::String*> image_dex_file_names;
+    std::list<ObjPtr<mirror::String>> image_dex_file_names;
     std::string temp_error_msg;
     if (!FlattenPathClassLoader(image_class_loader.Get(), &image_dex_file_names, &temp_error_msg)) {
       *error_msg = StringPrintf("Failed to flatten image class loader hierarchy '%s'",
                                 temp_error_msg.c_str());
       return false;
     }
-    std::list<mirror::String*> loader_dex_file_names;
+    std::list<ObjPtr<mirror::String>> loader_dex_file_names;
     if (!FlattenPathClassLoader(class_loader.Get(), &loader_dex_file_names, &temp_error_msg)) {
       *error_msg = StringPrintf("Failed to flatten class loader hierarchy '%s'",
                                 temp_error_msg.c_str());
@@ -1788,7 +1794,10 @@ bool ClassLinker::AddImageSpace(
       ObjPtr<mirror::Object> element = elements->GetWithoutChecks(i);
       if (element != nullptr) {
         // If we are somewhere in the middle of the array, there may be nulls at the end.
-        loader_dex_file_names.push_back(GetDexPathListElementName(element));
+        ObjPtr<mirror::String> name;
+        if (GetDexPathListElementName(element, &name) && name != nullptr) {
+          loader_dex_file_names.push_back(name);
+        }
       }
     }
     // Ignore the number of image dex files since we are adding those to the class loader anyways.
