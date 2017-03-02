@@ -2821,6 +2821,9 @@ static int CompileImage(Dex2Oat& dex2oat) {
 
   // When given --host, finish early without stripping.
   if (dex2oat.IsHost()) {
+    if (!dex2oat.FlushCloseOutputFiles()) {
+      return EXIT_FAILURE;
+    }
     dex2oat.DumpTiming();
     return EXIT_SUCCESS;
   }
