@@ -38,7 +38,7 @@ public class Main {
         }
     } catch (Exception e) {}
     System.out.println("Finalize count too large: " +
-            ((finalizeCounter >= 12) ? Integer.toString(finalizeCounter) : "false"));
+            ((finalizeCounter >= 15) ? Integer.toString(finalizeCounter) : "false"));
   }
 
   private static native void backgroundProcessState();
