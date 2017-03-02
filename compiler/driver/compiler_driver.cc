@@ -2283,7 +2283,7 @@ class InitializeClassVisitor : public CompilationVisitor {
  public:
   explicit InitializeClassVisitor(const ParallelCompilationManager* manager) : manager_(manager) {}
 
-  virtual void Visit(size_t class_def_index) REQUIRES(!Locks::mutator_lock_) OVERRIDE {
+  void Visit(size_t class_def_index) REQUIRES(!Locks::mutator_lock_) OVERRIDE {
     ATRACE_CALL();
     jobject jclass_loader = manager_->GetClassLoader();
     const DexFile& dex_file = *manager_->GetDexFile();
@@ -2343,23 +2343,32 @@ class InitializeClassVisitor : public CompilationVisitor {
               // mode which prevents the GC from visiting objects modified during the transaction.
               // Ensure GC is not run so don't access freed objects when aborting transaction.
 
-              ScopedAssertNoThreadSuspension ants("Transaction end");
-              runtime->ExitTransactionMode();
+              {
+                ScopedAssertNoThreadSuspension ants("Transaction end");
+                runtime->ExitTransactionMode();
+
+                if (!success) {
+                  CHECK(soa.Self()->IsExceptionPending());
+                  mirror::Throwable* exception = soa.Self()->GetException();
+                  VLOG(compiler) << "Initialization of " << descriptor << " aborted because of "
+                      << exception->Dump();
+                  std::ostream* file_log = manager_->GetCompiler()->
+                      GetCompilerOptions().GetInitFailureOutput();
+                  if (file_log != nullptr) {
+                    *file_log << descriptor << "\n";
+                    *file_log << exception->Dump() << "\n";
+                  }
+                  soa.Self()->ClearException();
+                  transaction.Rollback();
+                  CHECK_EQ(old_status, klass->GetStatus()) << "Previous class status not restored";
+                }
+              }
 
               if (!success) {
-                CHECK(soa.Self()->IsExceptionPending());
-                mirror::Throwable* exception = soa.Self()->GetException();
-                VLOG(compiler) << "Initialization of " << descriptor << " aborted because of "
-                    << exception->Dump();
-                std::ostream* file_log = manager_->GetCompiler()->
-                    GetCompilerOptions().GetInitFailureOutput();
-                if (file_log != nullptr) {
-                  *file_log << descriptor << "\n";
-                  *file_log << exception->Dump() << "\n";
-                }
-                soa.Self()->ClearException();
-                transaction.Rollback();
-                CHECK_EQ(old_status, klass->GetStatus()) << "Previous class status not restored";
+                // On failure, still intern strings references for static fields, as these will be
+                // created in the zygote. This is separated from the transaction code just above
+                // as we will allocate strings, so must be allowed to suspend.
+                InternStrings(klass, class_loader);
               }
             }
           }
@@ -2375,6 +2384,33 @@ class InitializeClassVisitor : public CompilationVisitor {
   }
 
  private:
+  void InternStrings(Handle<mirror::Class> klass, Handle<mirror::ClassLoader> class_loader)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    DCHECK(manager_->GetCompiler()->GetCompilerOptions().IsBootImage());
+    DCHECK(klass->IsVerified());
+    DCHECK(!klass->IsInitialized());
+
+    StackHandleScope<1> hs(Thread::Current());
+    Handle<mirror::DexCache> h_dex_cache = hs.NewHandle(klass->GetDexCache());
+    const DexFile* dex_file = manager_->GetDexFile();
+    const DexFile::ClassDef* class_def = klass->GetClassDef();
+    ClassLinker* class_linker = manager_->GetClassLinker();
+
+    annotations::RuntimeEncodedStaticFieldValueIterator value_it(*dex_file,
+                                                                 &h_dex_cache,
+                                                                 &class_loader,
+                                                                 manager_->GetClassLinker(),
+                                                                 *class_def);
+    for ( ; value_it.HasNext(); value_it.Next()) {
+      if (value_it.GetValueType() == annotations::RuntimeEncodedStaticFieldValueIterator::kString) {
+        // Resolve the string. This will intern the string.
+        art::ObjPtr<mirror::String> resolved = class_linker->ResolveString(
+            *dex_file, dex::StringIndex(value_it.GetJavaValue().i), h_dex_cache);
+        CHECK(resolved != nullptr);
+      }
+    }
+  }
+
   const ParallelCompilationManager* const manager_;
 };
 
