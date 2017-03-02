@@ -617,7 +617,8 @@ class ClassLinker {
   std::set<DexCacheResolvedClasses> GetResolvedClasses(bool ignore_boot_classes)
       REQUIRES(!Locks::dex_lock_);
 
-  std::unordered_set<std::string> GetClassDescriptorsForProfileKeys(
+  // Returns the class descriptors for loaded dex files.
+  std::unordered_set<std::string> GetClassDescriptorsForResolvedClasses(
       const std::set<DexCacheResolvedClasses>& classes)
       REQUIRES(!Locks::dex_lock_);
 
