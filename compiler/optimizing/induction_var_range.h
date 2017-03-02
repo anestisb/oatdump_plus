@@ -24,7 +24,8 @@ namespace art {
 /**
  * This class implements range analysis on expressions within loops. It takes the results
  * of induction variable analysis in the constructor and provides a public API to obtain
- * a conservative lower and upper bound value on each instruction in the HIR.
+ * a conservative lower and upper bound value or last value on each instruction in the HIR.
+ * The public API also provides a few general-purpose utility methods related to induction.
  *
  * The range analysis is done with a combination of symbolic and partial integral evaluation
  * of expressions. The analysis avoids complications with wrap-around arithmetic on the integral
@@ -153,6 +154,19 @@ class InductionVarRange {
    * Checks if header logic of a loop terminates. Sets trip-count tc if known.
    */
   bool IsFinite(HLoopInformation* loop, /*out*/ int64_t* tc) const;
+
+  /**
+   * Checks if instruction is a unit stride induction inside the closest enveloping loop.
+   * Returns invariant offset on success.
+   */
+  bool IsUnitStride(HInstruction* instruction, /*out*/ HInstruction** offset) const;
+
+  /**
+   * Generates the trip count expression for the given loop. Code is generated in given block
+   * and graph. The expression is guarded by a taken test if needed. Returns the trip count
+   * expression on success or null otherwise.
+   */
+  HInstruction* GenerateTripCount(HLoopInformation* loop, HGraph* graph, HBasicBlock* block);
 
  private:
   /*
