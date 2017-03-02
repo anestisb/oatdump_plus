@@ -37,6 +37,8 @@
 
 namespace art {
 
+using android::base::StringPrintf;
+
 class Dex2oatTest : public Dex2oatEnvironmentTest {
  public:
   virtual void TearDown() OVERRIDE {
@@ -52,10 +54,18 @@ class Dex2oatTest : public Dex2oatEnvironmentTest {
                            const std::string& odex_location,
                            CompilerFilter::Filter filter,
                            const std::vector<std::string>& extra_args = {},
-                           bool expect_success = true) {
+                           bool expect_success = true,
+                           bool use_fd = false) {
+    std::unique_ptr<File> oat_file;
     std::vector<std::string> args;
     args.push_back("--dex-file=" + dex_location);
-    args.push_back("--oat-file=" + odex_location);
+    if (use_fd) {
+      oat_file.reset(OS::CreateEmptyFile(odex_location.c_str()));
+      CHECK(oat_file != nullptr) << odex_location;
+      args.push_back("--oat-fd=" + std::to_string(oat_file->Fd()));
+    } else {
+      args.push_back("--oat-file=" + odex_location);
+    }
     args.push_back("--compiler-filter=" + CompilerFilter::NameOfFilter(filter));
     args.push_back("--runtime-arg");
     args.push_back("-Xnorelocate");
@@ -64,6 +74,9 @@ class Dex2oatTest : public Dex2oatEnvironmentTest {
 
     std::string error_msg;
     bool success = Dex2Oat(args, &error_msg);
+    if (oat_file != nullptr) {
+      ASSERT_EQ(oat_file->FlushClose(), 0) << "Could not flush and close oat file";
+    }
 
     if (expect_success) {
       ASSERT_TRUE(success) << error_msg << std::endl << output_;
@@ -582,12 +595,11 @@ class Dex2oatLayoutTest : public Dex2oatTest {
     ASSERT_TRUE(result);
   }
 
-  void RunTest() {
-    std::string dex_location = GetScratchDir() + "/DexNoOat.jar";
-    std::string profile_location = GetScratchDir() + "/primary.prof";
-    std::string odex_location = GetOdexDir() + "/DexOdexNoOat.odex";
-
-    Copy(GetDexSrc2(), dex_location);
+  void CompileProfileOdex(const std::string& dex_location,
+                          const std::string& odex_location,
+                          bool use_fd,
+                          const std::vector<std::string>& extra_args = {}) {
+    const std::string profile_location = GetScratchDir() + "/primary.prof";
     const char* location = dex_location.c_str();
     std::string error_msg;
     std::vector<std::unique_ptr<const DexFile>> dex_files;
@@ -595,14 +607,61 @@ class Dex2oatLayoutTest : public Dex2oatTest {
     EXPECT_EQ(dex_files.size(), 1U);
     std::unique_ptr<const DexFile>& dex_file = dex_files[0];
     GenerateProfile(profile_location, dex_location, dex_file->GetLocationChecksum());
+    std::vector<std::string> copy(extra_args);
+    copy.push_back("--profile-file=" + profile_location);
+    GenerateOdexForTest(dex_location,
+                        odex_location,
+                        CompilerFilter::kSpeedProfile,
+                        copy,
+                        /* expect_success */ true,
+                        use_fd);
+  }
 
-    const std::vector<std::string>& extra_args = { "--profile-file=" + profile_location };
-    GenerateOdexForTest(dex_location, odex_location, CompilerFilter::kSpeedProfile, extra_args);
+  void RunTest() {
+    std::string dex_location = GetScratchDir() + "/DexNoOat.jar";
+    std::string odex_location = GetOdexDir() + "/DexOdexNoOat.odex";
+    Copy(GetDexSrc2(), dex_location);
+
+    CompileProfileOdex(dex_location, odex_location, /* use_fd */ false);
 
     CheckValidity();
     ASSERT_TRUE(success_);
     CheckResult(dex_location, odex_location);
   }
+
+  void RunTestVDex() {
+    std::string dex_location = GetScratchDir() + "/DexNoOat.jar";
+    std::string odex_location = GetOdexDir() + "/DexOdexNoOat.odex";
+    std::string vdex_location = GetOdexDir() + "/DexOdexNoOat.vdex";
+    Copy(GetDexSrc2(), dex_location);
+
+    std::unique_ptr<File> vdex_file1(OS::CreateEmptyFile(vdex_location.c_str()));
+    CHECK(vdex_file1 != nullptr) << vdex_location;
+    ScratchFile vdex_file2;
+    {
+      std::string input_vdex = "--input-vdex-fd=-1";
+      std::string output_vdex = StringPrintf("--output-vdex-fd=%d", vdex_file1->Fd());
+      CompileProfileOdex(dex_location,
+                         odex_location,
+                         /* use_fd */ true,
+                         { input_vdex, output_vdex });
+      EXPECT_GT(vdex_file1->GetLength(), 0u);
+    }
+    {
+      std::string input_vdex = StringPrintf("--input-vdex-fd=%d", vdex_file1->Fd());
+      std::string output_vdex = StringPrintf("--output-vdex-fd=%d", vdex_file2.GetFd());
+      CompileProfileOdex(dex_location,
+                         odex_location,
+                         /* use_fd */ true,
+                         { input_vdex, output_vdex });
+      EXPECT_GT(vdex_file2.GetFile()->GetLength(), 0u);
+    }
+    ASSERT_EQ(vdex_file1->FlushCloseOrErase(), 0) << "Could not flush and close vdex file";
+    CheckValidity();
+    ASSERT_TRUE(success_);
+    CheckResult(dex_location, odex_location);
+  }
+
   void CheckResult(const std::string& dex_location, const std::string& odex_location) {
     // Host/target independent checks.
     std::string error_msg;
@@ -641,27 +700,31 @@ class Dex2oatLayoutTest : public Dex2oatTest {
     EXPECT_EQ(odex_file->GetCompilerFilter(), CompilerFilter::kSpeedProfile);
   }
 
-    // Check whether the dex2oat run was really successful.
-    void CheckValidity() {
-      if (kIsTargetBuild) {
-        CheckTargetValidity();
-      } else {
-        CheckHostValidity();
-      }
+  // Check whether the dex2oat run was really successful.
+  void CheckValidity() {
+    if (kIsTargetBuild) {
+      CheckTargetValidity();
+    } else {
+      CheckHostValidity();
     }
+  }
 
-    void CheckTargetValidity() {
-      // TODO: Ignore for now.
-    }
+  void CheckTargetValidity() {
+    // TODO: Ignore for now.
+  }
 
-    // On the host, we can get the dex2oat output. Here, look for "dex2oat took."
-    void CheckHostValidity() {
-      EXPECT_NE(output_.find("dex2oat took"), std::string::npos) << output_;
-    }
-  };
+  // On the host, we can get the dex2oat output. Here, look for "dex2oat took."
+  void CheckHostValidity() {
+    EXPECT_NE(output_.find("dex2oat took"), std::string::npos) << output_;
+  }
+};
 
 TEST_F(Dex2oatLayoutTest, TestLayout) {
   RunTest();
+}
+
+TEST_F(Dex2oatLayoutTest, TestVdexLayout) {
+  RunTestVDex();
 }
 
 class Dex2oatWatchdogTest : public Dex2oatTest {
