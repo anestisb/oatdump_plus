@@ -284,6 +284,9 @@ class OatFileAssistant {
     uintptr_t oat_data_begin = 0;
     int32_t patch_delta = 0;
     std::string location;
+
+    static std::unique_ptr<ImageInfo> GetRuntimeImageInfo(InstructionSet isa,
+                                                          std::string* error_msg);
   };
 
   class OatFileInfo {
@@ -414,8 +417,6 @@ class OatFileAssistant {
   // The caller shouldn't clean up or free the returned pointer.
   const ImageInfo* GetImageInfo();
 
-  uint32_t GetCombinedImageChecksum();
-
   // To implement Lock(), we lock a dummy file where the oat file would go
   // (adding ".flock" to the target file name) and retain the lock for the
   // remaining lifetime of the OatFileAssistant object.
@@ -445,9 +446,7 @@ class OatFileAssistant {
   // TODO: The image info should probably be moved out of the oat file
   // assistant to an image file manager.
   bool image_info_load_attempted_ = false;
-  bool image_info_load_succeeded_ = false;
-  ImageInfo cached_image_info_;
-  uint32_t combined_image_checksum_ = 0;
+  std::unique_ptr<ImageInfo> cached_image_info_;
 
   DISALLOW_COPY_AND_ASSIGN(OatFileAssistant);
 };
