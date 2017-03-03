@@ -265,6 +265,7 @@ class OatTest : public CommonCompilerTest {
 
   void TestDexFileInput(bool verify, bool low_4gb, bool use_profile);
   void TestZipFileInput(bool verify);
+  void TestZipFileInputWithEmptyDex();
 
   std::unique_ptr<const InstructionSetFeatures> insn_features_;
   std::unique_ptr<QuickCompilerCallbacks> callbacks_;
@@ -819,6 +820,28 @@ TEST_F(OatTest, ZipFileInputCheckOutput) {
 
 TEST_F(OatTest, ZipFileInputCheckVerifier) {
   TestZipFileInput(true);
+}
+
+void OatTest::TestZipFileInputWithEmptyDex() {
+  ScratchFile zip_file;
+  ZipBuilder zip_builder(zip_file.GetFile());
+  bool success = zip_builder.AddFile("classes.dex", nullptr, 0);
+  ASSERT_TRUE(success);
+  success = zip_builder.Finish();
+  ASSERT_TRUE(success) << strerror(errno);
+
+  SafeMap<std::string, std::string> key_value_store;
+  key_value_store.Put(OatHeader::kImageLocationKey, "test.art");
+  std::vector<const char*> input_filenames { zip_file.GetFilename().c_str() };  // NOLINT [readability/braces] [4]
+  ScratchFile oat_file, vdex_file(oat_file, ".vdex");
+  std::unique_ptr<ProfileCompilationInfo> profile_compilation_info(new ProfileCompilationInfo());
+  success = WriteElf(vdex_file.GetFile(), oat_file.GetFile(), input_filenames,
+                     key_value_store, /*verify*/false, profile_compilation_info.get());
+  ASSERT_FALSE(success);
+}
+
+TEST_F(OatTest, ZipFileInputWithEmptyDex) {
+  TestZipFileInputWithEmptyDex();
 }
 
 TEST_F(OatTest, UpdateChecksum) {

@@ -179,6 +179,14 @@ std::unique_ptr<const DexFile> DexFile::Open(const std::string& location,
                                              std::string* error_msg) {
   ScopedTrace trace(std::string("Open dex file from mapped-memory ") + location);
   CHECK(map.get() != nullptr);
+
+  if (map->Size() < sizeof(DexFile::Header)) {
+    *error_msg = StringPrintf(
+        "DexFile: failed to open dex file '%s' that is too short to have a header",
+        location.c_str());
+    return nullptr;
+  }
+
   std::unique_ptr<DexFile> dex_file = OpenCommon(map->Begin(),
                                                  map->Size(),
                                                  location,
