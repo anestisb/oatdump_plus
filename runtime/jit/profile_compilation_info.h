@@ -36,11 +36,12 @@ namespace art {
  */
 struct ProfileMethodInfo {
   struct ProfileClassReference {
+    ProfileClassReference() : dex_file(nullptr) {}
     ProfileClassReference(const DexFile* dex, const dex::TypeIndex& index)
         : dex_file(dex), type_index(index) {}
 
     const DexFile* dex_file;
-    const dex::TypeIndex type_index;
+    dex::TypeIndex type_index;
   };
 
   struct ProfileInlineCache {
@@ -89,6 +90,11 @@ class ProfileCompilationInfo {
 
     bool operator==(const DexReference& other) const {
       return dex_checksum == other.dex_checksum && dex_location == other.dex_location;
+    }
+
+    bool MatchesDex(const DexFile* dex_file) const {
+      return dex_checksum == dex_file->GetLocationChecksum() &&
+           dex_location == GetProfileDexFileKey(dex_file->GetLocation());
     }
 
     std::string dex_location;
