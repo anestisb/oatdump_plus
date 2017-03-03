@@ -1039,15 +1039,22 @@ bool ProfileCompilationInfo::Equals(const ProfileCompilationInfo& other) {
   return info_.Equals(other.info_);
 }
 
-std::set<DexCacheResolvedClasses> ProfileCompilationInfo::GetResolvedClasses() const {
+std::set<DexCacheResolvedClasses> ProfileCompilationInfo::GetResolvedClasses(
+    const std::unordered_set<std::string>& dex_files_locations) const {
+  std::unordered_map<std::string, std::string> key_to_location_map;
+  for (const std::string& location : dex_files_locations) {
+    key_to_location_map.emplace(GetProfileDexFileKey(location), location);
+  }
   std::set<DexCacheResolvedClasses> ret;
   for (auto&& pair : info_) {
     const std::string& profile_key = pair.first;
-    const DexFileData& data = pair.second;
-    // TODO: Is it OK to use the same location for both base and dex location here?
-    DexCacheResolvedClasses classes(profile_key, profile_key, data.checksum);
-    classes.AddClasses(data.class_set.begin(), data.class_set.end());
-    ret.insert(classes);
+    auto it = key_to_location_map.find(profile_key);
+    if (it != key_to_location_map.end()) {
+      const DexFileData& data = pair.second;
+      DexCacheResolvedClasses classes(it->second, it->second, data.checksum);
+      classes.AddClasses(data.class_set.begin(), data.class_set.end());
+      ret.insert(classes);
+    }
   }
   return ret;
 }

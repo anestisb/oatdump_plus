@@ -8933,7 +8933,7 @@ std::set<DexCacheResolvedClasses> ClassLinker::GetResolvedClasses(bool ignore_bo
   return ret;
 }
 
-std::unordered_set<std::string> ClassLinker::GetClassDescriptorsForProfileKeys(
+std::unordered_set<std::string> ClassLinker::GetClassDescriptorsForResolvedClasses(
     const std::set<DexCacheResolvedClasses>& classes) {
   ScopedTrace trace(__PRETTY_FUNCTION__);
   std::unordered_set<std::string> ret;
@@ -8948,14 +8948,13 @@ std::unordered_set<std::string> ClassLinker::GetClassDescriptorsForProfileKeys(
       if (dex_cache != nullptr) {
         const DexFile* dex_file = dex_cache->GetDexFile();
         // There could be duplicates if two dex files with the same location are mapped.
-        location_to_dex_file.emplace(
-            ProfileCompilationInfo::GetProfileDexFileKey(dex_file->GetLocation()), dex_file);
+        location_to_dex_file.emplace(dex_file->GetLocation(), dex_file);
       }
     }
   }
   for (const DexCacheResolvedClasses& info : classes) {
-    const std::string& profile_key = info.GetDexLocation();
-    auto found = location_to_dex_file.find(profile_key);
+    const std::string& location = info.GetDexLocation();
+    auto found = location_to_dex_file.find(location);
     if (found != location_to_dex_file.end()) {
       const DexFile* dex_file = found->second;
       VLOG(profiler) << "Found opened dex file for " << dex_file->GetLocation() << " with "
@@ -8967,7 +8966,7 @@ std::unordered_set<std::string> ClassLinker::GetClassDescriptorsForProfileKeys(
         ret.insert(descriptor);
       }
     } else {
-      VLOG(class_linker) << "Failed to find opened dex file for profile key " << profile_key;
+      VLOG(class_linker) << "Failed to find opened dex file for location " << location;
     }
   }
   return ret;
