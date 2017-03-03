@@ -2283,7 +2283,7 @@ class InitializeClassVisitor : public CompilationVisitor {
  public:
   explicit InitializeClassVisitor(const ParallelCompilationManager* manager) : manager_(manager) {}
 
-  virtual void Visit(size_t class_def_index) REQUIRES(!Locks::mutator_lock_) OVERRIDE {
+  void Visit(size_t class_def_index) REQUIRES(!Locks::mutator_lock_) OVERRIDE {
     ATRACE_CALL();
     jobject jclass_loader = manager_->GetClassLoader();
     const DexFile& dex_file = *manager_->GetDexFile();
@@ -2343,23 +2343,32 @@ class InitializeClassVisitor : public CompilationVisitor {
               // mode which prevents the GC from visiting objects modified during the transaction.
               // Ensure GC is not run so don't access freed objects when aborting transaction.
 
-              ScopedAssertNoThreadSuspension ants("Transaction end");
-              runtime->ExitTransactionMode();
+              {
+                ScopedAssertNoThreadSuspension ants("Transaction end");
+                runtime->ExitTransactionMode();
+
+                if (!success) {
+                  CHECK(soa.Self()->IsExceptionPending());
+                  mirror::Throwable* exception = soa.Self()->GetException();
+                  VLOG(compiler) << "Initialization of " << descriptor << " aborted because of "
+                      << exception->Dump();
+                  std::ostream* file_log = manager_->GetCompiler()->
+                      GetCompilerOptions().GetInitFailureOutput();
+                  if (file_log != nullptr) {
+                    *file_log << descriptor << "\n";
+                    *file_log << exception->Dump() << "\n";
+                  }
+                  soa.Self()->ClearException();
+                  transaction.Rollback();
+                  CHECK_EQ(old_status, klass->GetStatus()) << "Previous class status not restored";
+                }
+              }
 
               if (!success) {
-                CHECK(soa.Self()->IsExceptionPending());
-                mirror::Throwable* exception = soa.Self()->GetException();
-                VLOG(compiler) << "Initialization of " << descriptor << " aborted because of "
-                    << exception->Dump();
-                std::ostream* file_log = manager_->GetCompiler()->
-                    GetCompilerOptions().GetInitFailureOutput();
-                if (file_log != nullptr) {
-                  *file_log << descriptor << "\n";
-                  *file_log << exception->Dump() << "\n";
-                }
-                soa.Self()->ClearException();
-                transaction.Rollback();
-                CHECK_EQ(old_status, klass->GetStatus()) << "Previous class status not restored";
+                // On failure, still intern strings of static fields and seen in <clinit>, as these
+                // will be created in the zygote. This is separated from the transaction code just
+                // above as we will allocate strings, so must be allowed to suspend.
+                InternStrings(klass, class_loader);
               }
             }
           }
@@ -2375,6 +2384,57 @@ class InitializeClassVisitor : public CompilationVisitor {
   }
 
  private:
+  void InternStrings(Handle<mirror::Class> klass, Handle<mirror::ClassLoader> class_loader)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    DCHECK(manager_->GetCompiler()->GetCompilerOptions().IsBootImage());
+    DCHECK(klass->IsVerified());
+    DCHECK(!klass->IsInitialized());
+
+    StackHandleScope<1> hs(Thread::Current());
+    Handle<mirror::DexCache> h_dex_cache = hs.NewHandle(klass->GetDexCache());
+    const DexFile* dex_file = manager_->GetDexFile();
+    const DexFile::ClassDef* class_def = klass->GetClassDef();
+    ClassLinker* class_linker = manager_->GetClassLinker();
+
+    // Check encoded final field values for strings and intern.
+    annotations::RuntimeEncodedStaticFieldValueIterator value_it(*dex_file,
+                                                                 &h_dex_cache,
+                                                                 &class_loader,
+                                                                 manager_->GetClassLinker(),
+                                                                 *class_def);
+    for ( ; value_it.HasNext(); value_it.Next()) {
+      if (value_it.GetValueType() == annotations::RuntimeEncodedStaticFieldValueIterator::kString) {
+        // Resolve the string. This will intern the string.
+        art::ObjPtr<mirror::String> resolved = class_linker->ResolveString(
+            *dex_file, dex::StringIndex(value_it.GetJavaValue().i), h_dex_cache);
+        CHECK(resolved != nullptr);
+      }
+    }
+
+    // Intern strings seen in <clinit>.
+    ArtMethod* clinit = klass->FindClassInitializer(class_linker->GetImagePointerSize());
+    if (clinit != nullptr) {
+      const DexFile::CodeItem* code_item = clinit->GetCodeItem();
+      DCHECK(code_item != nullptr);
+      const Instruction* inst = Instruction::At(code_item->insns_);
+
+      const uint32_t insns_size = code_item->insns_size_in_code_units_;
+      for (uint32_t dex_pc = 0; dex_pc < insns_size;) {
+        if (inst->Opcode() == Instruction::CONST_STRING) {
+          ObjPtr<mirror::String> s = class_linker->ResolveString(
+              *dex_file, dex::StringIndex(inst->VRegB_21c()), h_dex_cache);
+          CHECK(s != nullptr);
+        } else if (inst->Opcode() == Instruction::CONST_STRING_JUMBO) {
+          ObjPtr<mirror::String> s = class_linker->ResolveString(
+              *dex_file, dex::StringIndex(inst->VRegB_31c()), h_dex_cache);
+          CHECK(s != nullptr);
+        }
+        dex_pc += inst->SizeInCodeUnits();
+        inst = inst->Next();
+      }
+    }
+  }
+
   const ParallelCompilationManager* const manager_;
 };
 
