@@ -2260,6 +2260,10 @@ bool OatWriter::LayoutAndWriteDexFile(OutputStream* out, OatDexFile* oat_dex_fil
     ZipEntry* zip_entry = oat_dex_file->source_.GetZipEntry();
     std::unique_ptr<MemMap> mem_map(
         zip_entry->ExtractToMemMap(location.c_str(), "classes.dex", &error_msg));
+    if (mem_map == nullptr) {
+      LOG(ERROR) << "Failed to extract dex file to mem map for layout: " << error_msg;
+      return false;
+    }
     dex_file = DexFile::Open(location,
                              zip_entry->GetCrc32(),
                              std::move(mem_map),
