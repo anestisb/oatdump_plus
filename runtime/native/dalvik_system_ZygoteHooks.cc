@@ -76,24 +76,29 @@ static void EnableDebugger() {
 
 class ClassSet {
  public:
-  explicit ClassSet(Thread* const self) : hs_(self) {}
+  // The number of classes we reasonably expect to have to look at. Realistically the number is more
+  // ~10 but there is little harm in having some extra.
+  static constexpr int kClassSetCapacity = 100;
 
-  void AddClass(ObjPtr<mirror::Class> klass) REQUIRES(Locks::mutator_lock_) {
-    for (Handle<mirror::Class> k : class_set_) {
-      if (k.Get() == klass.Ptr()) {
-        return;
-      }
-    }
-    class_set_.push_back(hs_.NewHandle<mirror::Class>(klass));
+  explicit ClassSet(Thread* const self) : self_(self) {
+    self_->GetJniEnv()->PushFrame(kClassSetCapacity);
   }
 
-  const std::vector<Handle<mirror::Class>>& GetClasses() const {
+  ~ClassSet() {
+    self_->GetJniEnv()->PopFrame();
+  }
+
+  void AddClass(ObjPtr<mirror::Class> klass) REQUIRES(Locks::mutator_lock_) {
+    class_set_.insert(self_->GetJniEnv()->AddLocalReference<jclass>(klass.Ptr()));
+  }
+
+  const std::unordered_set<jclass>& GetClasses() const {
     return class_set_;
   }
 
  private:
-  VariableSizedHandleScope hs_;
-  std::vector<Handle<mirror::Class>> class_set_;
+  Thread* const self_;
+  std::unordered_set<jclass> class_set_;
 };
 
 static void DoCollectNonDebuggableCallback(Thread* thread, void* data)
@@ -133,20 +138,15 @@ static void CollectNonDebuggableClasses() REQUIRES(!Locks::mutator_lock_) {
   ScopedObjectAccess soa(self);
   ClassSet classes(self);
   {
-    // Drop the mutator lock.
-    self->TransitionFromRunnableToSuspended(art::ThreadState::kNative);
-    {
-      // Get it back with a suspend all.
-      ScopedSuspendAll suspend("Checking stacks for non-obsoletable methods!",
-                               /*long_suspend*/false);
-      MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
-      runtime->GetThreadList()->ForEach(DoCollectNonDebuggableCallback, &classes);
-    }
-    // Recover the shared lock before we leave this scope.
-    self->TransitionFromSuspendedToRunnable();
+    // Drop the shared mutator lock.
+    ScopedThreadSuspension sts(self, art::ThreadState::kNative);
+    // Get exclusive mutator lock with suspend all.
+    ScopedSuspendAll suspend("Checking stacks for non-obsoletable methods!", /*long_suspend*/false);
+    MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
+    runtime->GetThreadList()->ForEach(DoCollectNonDebuggableCallback, &classes);
   }
-  for (Handle<mirror::Class> klass : classes.GetClasses()) {
-    NonDebuggableClasses::AddNonDebuggableClass(klass.Get());
+  for (jclass klass : classes.GetClasses()) {
+    NonDebuggableClasses::AddNonDebuggableClass(klass);
   }
 }
 

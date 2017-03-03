@@ -21,13 +21,8 @@
 
 #include "base/mutex.h"
 #include "jni.h"
-#include "obj_ptr.h"
 
 namespace art {
-
-namespace mirror {
-class Class;
-}  // namespace mirror
 
 struct NonDebuggableClasses {
  public:
@@ -35,7 +30,7 @@ struct NonDebuggableClasses {
     return non_debuggable_classes;
   }
 
-  static void AddNonDebuggableClass(ObjPtr<mirror::Class> klass)
+  static void AddNonDebuggableClass(jclass klass)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
