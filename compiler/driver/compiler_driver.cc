@@ -2365,9 +2365,9 @@ class InitializeClassVisitor : public CompilationVisitor {
               }
 
               if (!success) {
-                // On failure, still intern strings references for static fields, as these will be
-                // created in the zygote. This is separated from the transaction code just above
-                // as we will allocate strings, so must be allowed to suspend.
+                // On failure, still intern strings of static fields and seen in <clinit>, as these
+                // will be created in the zygote. This is separated from the transaction code just
+                // above as we will allocate strings, so must be allowed to suspend.
                 InternStrings(klass, class_loader);
               }
             }
@@ -2396,6 +2396,7 @@ class InitializeClassVisitor : public CompilationVisitor {
     const DexFile::ClassDef* class_def = klass->GetClassDef();
     ClassLinker* class_linker = manager_->GetClassLinker();
 
+    // Check encoded final field values for strings and intern.
     annotations::RuntimeEncodedStaticFieldValueIterator value_it(*dex_file,
                                                                  &h_dex_cache,
                                                                  &class_loader,
@@ -2407,6 +2408,29 @@ class InitializeClassVisitor : public CompilationVisitor {
         art::ObjPtr<mirror::String> resolved = class_linker->ResolveString(
             *dex_file, dex::StringIndex(value_it.GetJavaValue().i), h_dex_cache);
         CHECK(resolved != nullptr);
+      }
+    }
+
+    // Intern strings seen in <clinit>.
+    ArtMethod* clinit = klass->FindClassInitializer(class_linker->GetImagePointerSize());
+    if (clinit != nullptr) {
+      const DexFile::CodeItem* code_item = clinit->GetCodeItem();
+      DCHECK(code_item != nullptr);
+      const Instruction* inst = Instruction::At(code_item->insns_);
+
+      const uint32_t insns_size = code_item->insns_size_in_code_units_;
+      for (uint32_t dex_pc = 0; dex_pc < insns_size;) {
+        if (inst->Opcode() == Instruction::CONST_STRING) {
+          ObjPtr<mirror::String> s = class_linker->ResolveString(
+              *dex_file, dex::StringIndex(inst->VRegB_21c()), h_dex_cache);
+          CHECK(s != nullptr);
+        } else if (inst->Opcode() == Instruction::CONST_STRING_JUMBO) {
+          ObjPtr<mirror::String> s = class_linker->ResolveString(
+              *dex_file, dex::StringIndex(inst->VRegB_31c()), h_dex_cache);
+          CHECK(s != nullptr);
+        }
+        dex_pc += inst->SizeInCodeUnits();
+        inst = inst->Next();
       }
     }
   }
