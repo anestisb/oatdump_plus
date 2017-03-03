@@ -66,6 +66,7 @@
 namespace openjdkjvmti {
 
 class RedefinitionDataHolder;
+class RedefinitionDataIter;
 
 // Class that can redefine a single class's methods.
 // TODO We should really make this be driven by an outside class so we can do multiple classes at
@@ -143,14 +144,13 @@ class Redefiner {
       driver_->RecordFailure(e, class_sig_, err);
     }
 
-    bool FinishRemainingAllocations(int32_t klass_index, /*out*/RedefinitionDataHolder* holder)
+    bool FinishRemainingAllocations(/*out*/RedefinitionDataIter* cur_data)
         REQUIRES_SHARED(art::Locks::mutator_lock_);
 
     bool AllocateAndRememberNewDexFileCookie(
-        int32_t klass_index,
         art::Handle<art::mirror::ClassLoader> source_class_loader,
         art::Handle<art::mirror::Object> dex_file_obj,
-        /*out*/RedefinitionDataHolder* holder)
+        /*out*/RedefinitionDataIter* cur_data)
           REQUIRES_SHARED(art::Locks::mutator_lock_);
 
     void FindAndAllocateObsoleteMethods(art::mirror::Class* art_klass)
@@ -161,8 +161,7 @@ class Redefiner {
     bool CheckClass() REQUIRES_SHARED(art::Locks::mutator_lock_);
 
     // Checks that the contained class can be successfully verified.
-    bool CheckVerification(int32_t klass_index,
-                           const RedefinitionDataHolder& holder)
+    bool CheckVerification(const RedefinitionDataIter& holder)
         REQUIRES_SHARED(art::Locks::mutator_lock_);
 
     // Preallocates all needed allocations in klass so that we can pause execution safely.
@@ -241,7 +240,7 @@ class Redefiner {
   jvmtiError Run() REQUIRES_SHARED(art::Locks::mutator_lock_);
 
   bool CheckAllRedefinitionAreValid() REQUIRES_SHARED(art::Locks::mutator_lock_);
-  bool CheckAllClassesAreVerified(const RedefinitionDataHolder& holder)
+  bool CheckAllClassesAreVerified(RedefinitionDataHolder& holder)
       REQUIRES_SHARED(art::Locks::mutator_lock_);
   bool EnsureAllClassAllocationsFinished() REQUIRES_SHARED(art::Locks::mutator_lock_);
   bool FinishAllRemainingAllocations(RedefinitionDataHolder& holder)
@@ -255,6 +254,8 @@ class Redefiner {
   }
 
   friend struct CallbackCtx;
+  friend class RedefinitionDataHolder;
+  friend class RedefinitionDataIter;
 };
 
 }  // namespace openjdkjvmti

@@ -779,6 +779,8 @@ bool Redefiner::ClassRedefinition::CheckRedefinitionIsValid() {
       CheckSameMethods();
 }
 
+class RedefinitionDataIter;
+
 // A wrapper that lets us hold onto the arbitrary sized data needed for redefinitions in a
 // reasonably sane way. This adds no fields to the normal ObjectArray. By doing this we can avoid
 // having to deal with the fact that we need to hold an arbitrary number of references live.
@@ -802,13 +804,15 @@ class RedefinitionDataHolder {
   RedefinitionDataHolder(art::StackHandleScope<1>* hs,
                          art::Runtime* runtime,
                          art::Thread* self,
-                         int32_t num_redefinitions) REQUIRES_SHARED(art::Locks::mutator_lock_) :
+                         std::vector<Redefiner::ClassRedefinition>* redefinitions)
+      REQUIRES_SHARED(art::Locks::mutator_lock_) :
     arr_(
       hs->NewHandle(
         art::mirror::ObjectArray<art::mirror::Object>::Alloc(
             self,
             runtime->GetClassLinker()->GetClassRoot(art::ClassLinker::kObjectArrayClass),
-            num_redefinitions * kNumSlots))) {}
+            redefinitions->size() * kNumSlots))),
+    redefinitions_(redefinitions) {}
 
   bool IsNull() const REQUIRES_SHARED(art::Locks::mutator_lock_) {
     return arr_.IsNull();
@@ -870,8 +874,27 @@ class RedefinitionDataHolder {
     return arr_->GetLength() / kNumSlots;
   }
 
+  std::vector<Redefiner::ClassRedefinition>* GetRedefinitions()
+      REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    return redefinitions_;
+  }
+
+  bool operator==(const RedefinitionDataHolder& other) const
+      REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    return arr_.Get() == other.arr_.Get();
+  }
+
+  bool operator!=(const RedefinitionDataHolder& other) const
+      REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    return !(*this == other);
+  }
+
+  RedefinitionDataIter begin() REQUIRES_SHARED(art::Locks::mutator_lock_);
+  RedefinitionDataIter end() REQUIRES_SHARED(art::Locks::mutator_lock_);
+
  private:
   mutable art::Handle<art::mirror::ObjectArray<art::mirror::Object>> arr_;
+  std::vector<Redefiner::ClassRedefinition>* redefinitions_;
 
   art::mirror::Object* GetSlot(jint klass_index,
                                DataSlot slot) const REQUIRES_SHARED(art::Locks::mutator_lock_) {
@@ -890,8 +913,115 @@ class RedefinitionDataHolder {
   DISALLOW_COPY_AND_ASSIGN(RedefinitionDataHolder);
 };
 
-bool Redefiner::ClassRedefinition::CheckVerification(int32_t klass_index,
-                                                     const RedefinitionDataHolder& holder) {
+class RedefinitionDataIter {
+ public:
+  RedefinitionDataIter(int32_t idx, RedefinitionDataHolder& holder) : idx_(idx), holder_(holder) {}
+
+  RedefinitionDataIter(const RedefinitionDataIter&) = default;
+  RedefinitionDataIter(RedefinitionDataIter&&) = default;
+  RedefinitionDataIter& operator=(const RedefinitionDataIter&) = default;
+  RedefinitionDataIter& operator=(RedefinitionDataIter&&) = default;
+
+  bool operator==(const RedefinitionDataIter& other) const
+      REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    return idx_ == other.idx_ && holder_ == other.holder_;
+  }
+
+  bool operator!=(const RedefinitionDataIter& other) const
+      REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    return !(*this == other);
+  }
+
+  RedefinitionDataIter operator++() {  // Value after modification.
+    idx_++;
+    return *this;
+  }
+
+  RedefinitionDataIter operator++(int) {
+    RedefinitionDataIter temp = *this;
+    idx_++;
+    return temp;
+  }
+
+  RedefinitionDataIter operator+(ssize_t delta) const {
+    RedefinitionDataIter temp = *this;
+    temp += delta;
+    return temp;
+  }
+
+  RedefinitionDataIter& operator+=(ssize_t delta) {
+    idx_ += delta;
+    return *this;
+  }
+
+  Redefiner::ClassRedefinition& GetRedefinition() REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    return (*holder_.GetRedefinitions())[idx_];
+  }
+
+  RedefinitionDataHolder& GetHolder() {
+    return holder_;
+  }
+
+  art::mirror::ClassLoader* GetSourceClassLoader() const
+      REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    return holder_.GetSourceClassLoader(idx_);
+  }
+  art::mirror::Object* GetJavaDexFile() const REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    return holder_.GetJavaDexFile(idx_);
+  }
+  art::mirror::LongArray* GetNewDexFileCookie() const REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    return holder_.GetNewDexFileCookie(idx_);
+  }
+  art::mirror::DexCache* GetNewDexCache() const REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    return holder_.GetNewDexCache(idx_);
+  }
+  art::mirror::Class* GetMirrorClass() const REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    return holder_.GetMirrorClass(idx_);
+  }
+  art::mirror::ByteArray* GetOriginalDexFileBytes() const
+      REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    return holder_.GetOriginalDexFileBytes(idx_);
+  }
+  int32_t GetIndex() const {
+    return idx_;
+  }
+
+  void SetSourceClassLoader(art::mirror::ClassLoader* loader)
+      REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    holder_.SetSourceClassLoader(idx_, loader);
+  }
+  void SetJavaDexFile(art::mirror::Object* dexfile) REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    holder_.SetJavaDexFile(idx_, dexfile);
+  }
+  void SetNewDexFileCookie(art::mirror::LongArray* cookie)
+      REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    holder_.SetNewDexFileCookie(idx_, cookie);
+  }
+  void SetNewDexCache(art::mirror::DexCache* cache) REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    holder_.SetNewDexCache(idx_, cache);
+  }
+  void SetMirrorClass(art::mirror::Class* klass) REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    holder_.SetMirrorClass(idx_, klass);
+  }
+  void SetOriginalDexFileBytes(art::mirror::ByteArray* bytes)
+      REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    holder_.SetOriginalDexFileBytes(idx_, bytes);
+  }
+
+ private:
+  int32_t idx_;
+  RedefinitionDataHolder& holder_;
+};
+
+RedefinitionDataIter RedefinitionDataHolder::begin() {
+  return RedefinitionDataIter(0, *this);
+}
+
+RedefinitionDataIter RedefinitionDataHolder::end() {
+  return RedefinitionDataIter(Length(), *this);
+}
+
+bool Redefiner::ClassRedefinition::CheckVerification(const RedefinitionDataIter& iter) {
   DCHECK_EQ(dex_file_->NumClassDefs(), 1u);
   art::StackHandleScope<2> hs(driver_->self_);
   std::string error;
@@ -899,7 +1029,7 @@ bool Redefiner::ClassRedefinition::CheckVerification(int32_t klass_index,
   art::verifier::MethodVerifier::FailureKind failure =
       art::verifier::MethodVerifier::VerifyClass(driver_->self_,
                                                  dex_file_.get(),
-                                                 hs.NewHandle(holder.GetNewDexCache(klass_index)),
+                                                 hs.NewHandle(iter.GetNewDexCache()),
                                                  hs.NewHandle(GetClassLoader()),
                                                  dex_file_->GetClassDef(0), /*class_def*/
                                                  nullptr, /*compiler_callbacks*/
@@ -918,21 +1048,20 @@ bool Redefiner::ClassRedefinition::CheckVerification(int32_t klass_index,
 // dexfile. This is so that even if multiple classes with the same classloader are redefined at
 // once they are all added to the classloader.
 bool Redefiner::ClassRedefinition::AllocateAndRememberNewDexFileCookie(
-    int32_t klass_index,
     art::Handle<art::mirror::ClassLoader> source_class_loader,
     art::Handle<art::mirror::Object> dex_file_obj,
-    /*out*/RedefinitionDataHolder* holder) {
+    /*out*/RedefinitionDataIter* cur_data) {
   art::StackHandleScope<2> hs(driver_->self_);
   art::MutableHandle<art::mirror::LongArray> old_cookie(
       hs.NewHandle<art::mirror::LongArray>(nullptr));
   bool has_older_cookie = false;
   // See if we already have a cookie that a previous redefinition got from the same classloader.
-  for (int32_t i = 0; i < klass_index; i++) {
-    if (holder->GetSourceClassLoader(i) == source_class_loader.Get()) {
+  for (auto old_data = cur_data->GetHolder().begin(); old_data != *cur_data; ++old_data) {
+    if (old_data.GetSourceClassLoader() == source_class_loader.Get()) {
       // Since every instance of this classloader should have the same cookie associated with it we
       // can stop looking here.
       has_older_cookie = true;
-      old_cookie.Assign(holder->GetNewDexFileCookie(i));
+      old_cookie.Assign(old_data.GetNewDexFileCookie());
       break;
     }
   }
@@ -953,14 +1082,14 @@ bool Redefiner::ClassRedefinition::AllocateAndRememberNewDexFileCookie(
   }
 
   // Save the cookie.
-  holder->SetNewDexFileCookie(klass_index, new_cookie.Get());
+  cur_data->SetNewDexFileCookie(new_cookie.Get());
   // If there are other copies of this same classloader we need to make sure that we all have the
   // same cookie.
   if (has_older_cookie) {
-    for (int32_t i = 0; i < klass_index; i++) {
+    for (auto old_data = cur_data->GetHolder().begin(); old_data != *cur_data; ++old_data) {
       // We will let the GC take care of the cookie we allocated for this one.
-      if (holder->GetSourceClassLoader(i) == source_class_loader.Get()) {
-        holder->SetNewDexFileCookie(i, new_cookie.Get());
+      if (old_data.GetSourceClassLoader() == source_class_loader.Get()) {
+        old_data.SetNewDexFileCookie(new_cookie.Get());
       }
     }
   }
@@ -969,32 +1098,32 @@ bool Redefiner::ClassRedefinition::AllocateAndRememberNewDexFileCookie(
 }
 
 bool Redefiner::ClassRedefinition::FinishRemainingAllocations(
-    int32_t klass_index, /*out*/RedefinitionDataHolder* holder) {
+    /*out*/RedefinitionDataIter* cur_data) {
   art::ScopedObjectAccessUnchecked soa(driver_->self_);
   art::StackHandleScope<2> hs(driver_->self_);
-  holder->SetMirrorClass(klass_index, GetMirrorClass());
+  cur_data->SetMirrorClass(GetMirrorClass());
   // This shouldn't allocate
   art::Handle<art::mirror::ClassLoader> loader(hs.NewHandle(GetClassLoader()));
   // The bootclasspath is handled specially so it doesn't have a j.l.DexFile.
   if (!art::ClassLinker::IsBootClassLoader(soa, loader.Get())) {
-    holder->SetSourceClassLoader(klass_index, loader.Get());
+    cur_data->SetSourceClassLoader(loader.Get());
     art::Handle<art::mirror::Object> dex_file_obj(hs.NewHandle(
         ClassLoaderHelper::FindSourceDexFileObject(driver_->self_, loader)));
-    holder->SetJavaDexFile(klass_index, dex_file_obj.Get());
+    cur_data->SetJavaDexFile(dex_file_obj.Get());
     if (dex_file_obj == nullptr) {
       RecordFailure(ERR(INTERNAL), "Unable to find dex file!");
       return false;
     }
     // Allocate the new dex file cookie.
-    if (!AllocateAndRememberNewDexFileCookie(klass_index, loader, dex_file_obj, holder)) {
+    if (!AllocateAndRememberNewDexFileCookie(loader, dex_file_obj, cur_data)) {
       driver_->self_->AssertPendingOOMException();
       driver_->self_->ClearException();
       RecordFailure(ERR(OUT_OF_MEMORY), "Unable to allocate dex file array for class loader");
       return false;
     }
   }
-  holder->SetNewDexCache(klass_index, CreateNewDexCache(loader));
-  if (holder->GetNewDexCache(klass_index) == nullptr) {
+  cur_data->SetNewDexCache(CreateNewDexCache(loader));
+  if (cur_data->GetNewDexCache() == nullptr) {
     driver_->self_->AssertPendingException();
     driver_->self_->ClearException();
     RecordFailure(ERR(OUT_OF_MEMORY), "Unable to allocate DexCache");
@@ -1002,8 +1131,8 @@ bool Redefiner::ClassRedefinition::FinishRemainingAllocations(
   }
 
   // We won't always need to set this field.
-  holder->SetOriginalDexFileBytes(klass_index, AllocateOrGetOriginalDexFileBytes());
-  if (holder->GetOriginalDexFileBytes(klass_index) == nullptr) {
+  cur_data->SetOriginalDexFileBytes(AllocateOrGetOriginalDexFileBytes());
+  if (cur_data->GetOriginalDexFileBytes() == nullptr) {
     driver_->self_->AssertPendingOOMException();
     driver_->self_->ClearException();
     RecordFailure(ERR(OUT_OF_MEMORY), "Unable to allocate array for original dex file");
@@ -1048,13 +1177,11 @@ bool Redefiner::EnsureAllClassAllocationsFinished() {
 }
 
 bool Redefiner::FinishAllRemainingAllocations(RedefinitionDataHolder& holder) {
-  int32_t cnt = 0;
-  for (Redefiner::ClassRedefinition& redef : redefinitions_) {
+  for (RedefinitionDataIter data = holder.begin(); data != holder.end(); ++data) {
     // Allocate the data this redefinition requires.
-    if (!redef.FinishRemainingAllocations(cnt, &holder)) {
+    if (!data.GetRedefinition().FinishRemainingAllocations(&data)) {
       return false;
     }
-    cnt++;
   }
   return true;
 }
@@ -1069,22 +1196,39 @@ void Redefiner::ReleaseAllDexFiles() {
   }
 }
 
-bool Redefiner::CheckAllClassesAreVerified(const RedefinitionDataHolder& holder) {
-  int32_t cnt = 0;
-  for (Redefiner::ClassRedefinition& redef : redefinitions_) {
-    if (!redef.CheckVerification(cnt, holder)) {
+bool Redefiner::CheckAllClassesAreVerified(RedefinitionDataHolder& holder) {
+  for (RedefinitionDataIter data = holder.begin(); data != holder.end(); ++data) {
+    if (!data.GetRedefinition().CheckVerification(data)) {
       return false;
     }
-    cnt++;
   }
   return true;
 }
+
+class ScopedDisableConcurrentAndMovingGc {
+ public:
+  ScopedDisableConcurrentAndMovingGc(art::gc::Heap* heap, art::Thread* self)
+      : heap_(heap), self_(self) {
+    if (heap_->IsGcConcurrentAndMoving()) {
+      heap_->IncrementDisableMovingGC(self_);
+    }
+  }
+
+  ~ScopedDisableConcurrentAndMovingGc() {
+    if (heap_->IsGcConcurrentAndMoving()) {
+      heap_->DecrementDisableMovingGC(self_);
+    }
+  }
+ private:
+  art::gc::Heap* heap_;
+  art::Thread* self_;
+};
 
 jvmtiError Redefiner::Run() {
   art::StackHandleScope<1> hs(self_);
   // Allocate an array to hold onto all java temporary objects associated with this redefinition.
   // We will let this be collected after the end of this function.
-  RedefinitionDataHolder holder(&hs, runtime_, self_, redefinitions_.size());
+  RedefinitionDataHolder holder(&hs, runtime_, self_, &redefinitions_);
   if (holder.IsNull()) {
     self_->AssertPendingOOMException();
     self_->ClearException();
@@ -1107,57 +1251,43 @@ jvmtiError Redefiner::Run() {
     // cleaned up by the GC eventually.
     return result_;
   }
+
   // At this point we can no longer fail without corrupting the runtime state.
-  int32_t counter = 0;
-  for (Redefiner::ClassRedefinition& redef : redefinitions_) {
-    if (holder.GetSourceClassLoader(counter) == nullptr) {
-      runtime_->GetClassLinker()->AppendToBootClassPath(self_, redef.GetDexFile());
+  for (RedefinitionDataIter data = holder.begin(); data != holder.end(); ++data) {
+    if (data.GetSourceClassLoader() == nullptr) {
+      runtime_->GetClassLinker()->AppendToBootClassPath(self_, data.GetRedefinition().GetDexFile());
     }
-    counter++;
   }
   UnregisterAllBreakpoints();
+
   // Disable GC and wait for it to be done if we are a moving GC.  This is fine since we are done
   // allocating so no deadlocks.
-  art::gc::Heap* heap = runtime_->GetHeap();
-  if (heap->IsGcConcurrentAndMoving()) {
-    // GC moving objects can cause deadlocks as we are deoptimizing the stack.
-    heap->IncrementDisableMovingGC(self_);
-  }
+  ScopedDisableConcurrentAndMovingGc sdcamgc(runtime_->GetHeap(), self_);
+
   // Do transition to final suspension
   // TODO We might want to give this its own suspended state!
   // TODO This isn't right. We need to change state without any chance of suspend ideally!
-  self_->TransitionFromRunnableToSuspended(art::ThreadState::kNative);
-  runtime_->GetThreadList()->SuspendAll(
-      "Final installation of redefined Classes!", /*long_suspend*/true);
-  counter = 0;
-  for (Redefiner::ClassRedefinition& redef : redefinitions_) {
+  art::ScopedThreadSuspension sts(self_, art::ThreadState::kNative);
+  art::ScopedSuspendAll ssa("Final installation of redefined Classes!", /*long_suspend*/true);
+  for (RedefinitionDataIter data = holder.begin(); data != holder.end(); ++data) {
     art::ScopedAssertNoThreadSuspension nts("Updating runtime objects for redefinition");
-    if (holder.GetSourceClassLoader(counter) != nullptr) {
-      ClassLoaderHelper::UpdateJavaDexFile(holder.GetJavaDexFile(counter),
-                                           holder.GetNewDexFileCookie(counter));
+    ClassRedefinition& redef = data.GetRedefinition();
+    if (data.GetSourceClassLoader() != nullptr) {
+      ClassLoaderHelper::UpdateJavaDexFile(data.GetJavaDexFile(), data.GetNewDexFileCookie());
     }
-    art::mirror::Class* klass = holder.GetMirrorClass(counter);
+    art::mirror::Class* klass = data.GetMirrorClass();
     // TODO Rewrite so we don't do a stack walk for each and every class.
     redef.FindAndAllocateObsoleteMethods(klass);
-    redef.UpdateClass(klass, holder.GetNewDexCache(counter),
-                      holder.GetOriginalDexFileBytes(counter));
-    counter++;
+    redef.UpdateClass(klass, data.GetNewDexCache(), data.GetOriginalDexFileBytes());
   }
   // TODO We should check for if any of the redefined methods are intrinsic methods here and, if any
   // are, force a full-world deoptimization before finishing redefinition. If we don't do this then
   // methods that have been jitted prior to the current redefinition being applied might continue
   // to use the old versions of the intrinsics!
   // TODO Shrink the obsolete method maps if possible?
-  // TODO Put this into a scoped thing.
-  runtime_->GetThreadList()->ResumeAll();
-  // Get back shared mutator lock as expected for return.
-  self_->TransitionFromSuspendedToRunnable();
   // TODO Do the dex_file release at a more reasonable place. This works but it muddles who really
   // owns the DexFile and when ownership is transferred.
   ReleaseAllDexFiles();
-  if (heap->IsGcConcurrentAndMoving()) {
-    heap->DecrementDisableMovingGC(self_);
-  }
   return OK;
 }
 
@@ -1259,8 +1389,6 @@ bool Redefiner::ClassRedefinition::EnsureClassAllocationsFinished() {
   art::Handle<art::mirror::ClassExt> ext(hs.NewHandle(klass->EnsureExtDataPresent(driver_->self_)));
   if (ext == nullptr) {
     // No memory. Clear exception (it's not useful) and return error.
-    // TODO This doesn't need to be fatal. We could just not support obsolete methods after hitting
-    // this case.
     driver_->self_->AssertPendingOOMException();
     driver_->self_->ClearException();
     RecordFailure(ERR(OUT_OF_MEMORY), "Could not allocate ClassExt");
