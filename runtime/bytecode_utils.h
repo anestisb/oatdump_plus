@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_OPTIMIZING_BYTECODE_UTILS_H_
-#define ART_COMPILER_OPTIMIZING_BYTECODE_UTILS_H_
+#ifndef ART_RUNTIME_BYTECODE_UTILS_H_
+#define ART_RUNTIME_BYTECODE_UTILS_H_
 
 #include "base/arena_object.h"
 #include "dex_file.h"
@@ -177,4 +177,4 @@ inline bool IsThrowingDexInstruction(const Instruction& instruction) {
 
 }  // namespace art
 
-#endif  // ART_COMPILER_OPTIMIZING_BYTECODE_UTILS_H_
+#endif  // ART_RUNTIME_BYTECODE_UTILS_H_

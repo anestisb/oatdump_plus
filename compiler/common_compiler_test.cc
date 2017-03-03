@@ -52,10 +52,10 @@ void CommonCompilerTest::MakeExecutable(ArtMethod* method) {
         compiler_driver_->GetCompiledMethod(MethodReference(&dex_file,
                                                             method->GetDexMethodIndex()));
   }
-  if (compiled_method != nullptr) {
+  // If the code size is 0 it means the method was skipped due to profile guided compilation.
+  if (compiled_method != nullptr && compiled_method->GetQuickCode().size() != 0u) {
     ArrayRef<const uint8_t> code = compiled_method->GetQuickCode();
     uint32_t code_size = code.size();
-    CHECK_NE(0u, code_size);
     ArrayRef<const uint8_t> vmap_table = compiled_method->GetVmapTable();
     uint32_t vmap_table_offset = vmap_table.empty() ? 0u
         : sizeof(OatQuickMethodHeader) + vmap_table.size();
