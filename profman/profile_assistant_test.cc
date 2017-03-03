@@ -16,11 +16,14 @@
 
 #include <gtest/gtest.h>
 
+#include "art_method-inl.h"
 #include "base/unix_file/fd_file.h"
 #include "common_runtime_test.h"
 #include "exec_utils.h"
-#include "profile_assistant.h"
 #include "jit/profile_compilation_info.h"
+#include "mirror/class-inl.h"
+#include "profile_assistant.h"
+#include "scoped_thread_state_change-inl.h"
 #include "utils.h"
 
 namespace art {
@@ -95,10 +98,12 @@ class ProfileAssistantTest : public CommonRuntimeTest {
     return ExecAndReturnCode(argv_str, &error);
   }
 
-  bool CreateProfile(std::string class_file_contents, const std::string& filename) {
+  bool CreateProfile(std::string profile_file_contents,
+                     const std::string& filename,
+                     const std::string& dex_location) {
     ScratchFile class_names_file;
     File* file = class_names_file.GetFile();
-    EXPECT_TRUE(file->WriteFully(class_file_contents.c_str(), class_file_contents.length()));
+    EXPECT_TRUE(file->WriteFully(profile_file_contents.c_str(), profile_file_contents.length()));
     EXPECT_EQ(0, file->Flush());
     EXPECT_TRUE(file->ResetOffset());
     std::string profman_cmd = GetProfmanCmd();
@@ -106,8 +111,8 @@ class ProfileAssistantTest : public CommonRuntimeTest {
     argv_str.push_back(profman_cmd);
     argv_str.push_back("--create-profile-from=" + class_names_file.GetFilename());
     argv_str.push_back("--reference-profile-file=" + filename);
-    argv_str.push_back("--apk=" + GetLibCoreDexFileNames()[0]);
-    argv_str.push_back("--dex-location=classes.dex");
+    argv_str.push_back("--apk=" + dex_location);
+    argv_str.push_back("--dex-location=" + dex_location);
     std::string error;
     EXPECT_EQ(ExecAndReturnCode(argv_str, &error), 0);
     return true;
@@ -121,7 +126,7 @@ class ProfileAssistantTest : public CommonRuntimeTest {
     argv_str.push_back("--dump-classes");
     argv_str.push_back("--profile-file=" + filename);
     argv_str.push_back("--apk=" + GetLibCoreDexFileNames()[0]);
-    argv_str.push_back("--dex-location=classes.dex");
+    argv_str.push_back("--dex-location=" + GetLibCoreDexFileNames()[0]);
     argv_str.push_back("--dump-output-to-fd=" + std::to_string(GetFd(class_names_file)));
     std::string error;
     EXPECT_EQ(ExecAndReturnCode(argv_str, &error), 0);
@@ -137,10 +142,71 @@ class ProfileAssistantTest : public CommonRuntimeTest {
 
   bool CreateAndDump(const std::string& input_file_contents, std::string* output_file_contents) {
     ScratchFile profile_file;
-    EXPECT_TRUE(CreateProfile(input_file_contents, profile_file.GetFilename()));
+    EXPECT_TRUE(CreateProfile(input_file_contents,
+                              profile_file.GetFilename(),
+                              GetLibCoreDexFileNames()[0]));
     profile_file.GetFile()->ResetOffset();
     EXPECT_TRUE(DumpClasses(profile_file.GetFilename(), output_file_contents));
     return true;
+  }
+
+  mirror::Class* GetClass(jobject class_loader, const std::string& clazz) {
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+    Thread* self = Thread::Current();
+    ScopedObjectAccess soa(self);
+    StackHandleScope<1> hs(self);
+    Handle<mirror::ClassLoader> h_loader(
+        hs.NewHandle(self->DecodeJObject(class_loader)->AsClassLoader()));
+    return class_linker->FindClass(self, clazz.c_str(), h_loader);
+  }
+
+  ArtMethod* GetVirtualMethod(jobject class_loader,
+                              const std::string& clazz,
+                              const std::string& name) {
+    mirror::Class* klass = GetClass(class_loader, clazz);
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+    const auto pointer_size = class_linker->GetImagePointerSize();
+    ArtMethod* method = nullptr;
+    Thread* self = Thread::Current();
+    ScopedObjectAccess soa(self);
+    for (auto& m : klass->GetVirtualMethods(pointer_size)) {
+      if (name == m.GetName()) {
+        EXPECT_TRUE(method == nullptr);
+        method = &m;
+      }
+    }
+    return method;
+  }
+
+  // Verify that given method has the expected inline caches and nothing else.
+  void AssertInlineCaches(ArtMethod* method,
+                          const std::set<mirror::Class*>& expected_clases,
+                          const ProfileCompilationInfo& info,
+                          bool megamorphic)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    ProfileCompilationInfo::OfflineProfileMethodInfo pmi;
+    ASSERT_TRUE(info.GetMethod(method->GetDexFile()->GetLocation(),
+                               method->GetDexFile()->GetLocationChecksum(),
+                               method->GetDexMethodIndex(),
+                               &pmi));
+    ASSERT_EQ(pmi.inline_caches.size(), 1u);
+    ProfileCompilationInfo::DexPcData dex_pc_data = pmi.inline_caches.begin()->second;
+
+    ASSERT_EQ(dex_pc_data.is_megamorphic, megamorphic);
+    ASSERT_EQ(expected_clases.size(), dex_pc_data.classes.size());
+    size_t found = 0;
+    for (mirror::Class* it : expected_clases) {
+      for (const auto& class_ref : dex_pc_data.classes) {
+        ProfileCompilationInfo::DexReference dex_ref =
+            pmi.dex_references[class_ref.dex_profile_index];
+        if (dex_ref.MatchesDex(&(it->GetDexFile())) &&
+            class_ref.type_index == it->GetDexTypeIndex()) {
+          found++;
+        }
+      }
+    }
+
+    ASSERT_EQ(expected_clases.size(), found);
   }
 };
 
@@ -358,25 +424,28 @@ TEST_F(ProfileAssistantTest, TestProfileGeneration) {
 TEST_F(ProfileAssistantTest, TestProfileCreationAllMatch) {
   // Class names put here need to be in sorted order.
   std::vector<std::string> class_names = {
-    "java.lang.Comparable",
-    "java.lang.Math",
-    "java.lang.Object"
+    "Ljava/lang/Comparable;",
+    "Ljava/lang/Math;",
+    "Ljava/lang/Object;"
   };
   std::string input_file_contents;
+  std::string expected_contents;
   for (std::string& class_name : class_names) {
     input_file_contents += class_name + std::string("\n");
+    expected_contents += DescriptorToDot(class_name.c_str()) +
+        std::string("\n");
   }
   std::string output_file_contents;
   ASSERT_TRUE(CreateAndDump(input_file_contents, &output_file_contents));
-  ASSERT_EQ(output_file_contents, input_file_contents);
+  ASSERT_EQ(output_file_contents, expected_contents);
 }
 
 TEST_F(ProfileAssistantTest, TestProfileCreationOneNotMatched) {
   // Class names put here need to be in sorted order.
   std::vector<std::string> class_names = {
-    "doesnt.match.this.one",
-    "java.lang.Comparable",
-    "java.lang.Object"
+    "Ldoesnt/match/this/one;",
+    "Ljava/lang/Comparable;",
+    "Ljava/lang/Object;"
   };
   std::string input_file_contents;
   for (std::string& class_name : class_names) {
@@ -385,16 +454,17 @@ TEST_F(ProfileAssistantTest, TestProfileCreationOneNotMatched) {
   std::string output_file_contents;
   ASSERT_TRUE(CreateAndDump(input_file_contents, &output_file_contents));
   std::string expected_contents =
-      class_names[1] + std::string("\n") + class_names[2] + std::string("\n");
+      DescriptorToDot(class_names[1].c_str()) + std::string("\n") +
+      DescriptorToDot(class_names[2].c_str()) + std::string("\n");
   ASSERT_EQ(output_file_contents, expected_contents);
 }
 
 TEST_F(ProfileAssistantTest, TestProfileCreationNoneMatched) {
   // Class names put here need to be in sorted order.
   std::vector<std::string> class_names = {
-    "doesnt.match.this.one",
-    "doesnt.match.this.one.either",
-    "nor.this.one"
+    "Ldoesnt/match/this/one;",
+    "Ldoesnt/match/this/one/either;",
+    "Lnor/this/one;"
   };
   std::string input_file_contents;
   for (std::string& class_name : class_names) {
@@ -404,6 +474,90 @@ TEST_F(ProfileAssistantTest, TestProfileCreationNoneMatched) {
   ASSERT_TRUE(CreateAndDump(input_file_contents, &output_file_contents));
   std::string expected_contents("");
   ASSERT_EQ(output_file_contents, expected_contents);
+}
+
+TEST_F(ProfileAssistantTest, TestProfileCreateInlineCache) {
+  // Create the profile content.
+  std::vector<std::string> methods = {
+    "LTestInline;->inlineMonomorphic(LSuper;)I+LSubA;",
+    "LTestInline;->inlinePolymorphic(LSuper;)I+LSubA;,LSubB;,LSubC;",
+    "LTestInline;->inlineMegamorphic(LSuper;)I+LSubA;,LSubB;,LSubC;,LSubD;,LSubE;",
+    "LTestInline;->noInlineCache(LSuper;)I"
+  };
+  std::string input_file_contents;
+  for (std::string& m : methods) {
+    input_file_contents += m + std::string("\n");
+  }
+
+  // Create the profile and save it to disk.
+  ScratchFile profile_file;
+  ASSERT_TRUE(CreateProfile(input_file_contents,
+                            profile_file.GetFilename(),
+                            GetTestDexFileName("ProfileTestMultiDex")));
+
+  // Load the profile from disk.
+  ProfileCompilationInfo info;
+  profile_file.GetFile()->ResetOffset();
+  ASSERT_TRUE(info.Load(GetFd(profile_file)));
+
+  // Load the dex files and verify that the profile contains the expected methods info.
+  ScopedObjectAccess soa(Thread::Current());
+  jobject class_loader = LoadDex("ProfileTestMultiDex");
+  ASSERT_NE(class_loader, nullptr);
+
+  mirror::Class* sub_a = GetClass(class_loader, "LSubA;");
+  mirror::Class* sub_b = GetClass(class_loader, "LSubB;");
+  mirror::Class* sub_c = GetClass(class_loader, "LSubC;");
+
+  ASSERT_TRUE(sub_a != nullptr);
+  ASSERT_TRUE(sub_b != nullptr);
+  ASSERT_TRUE(sub_c != nullptr);
+
+  {
+    // Verify that method inlineMonomorphic has the expected inline caches and nothing else.
+    ArtMethod* inline_monomorphic = GetVirtualMethod(class_loader,
+                                                     "LTestInline;",
+                                                     "inlineMonomorphic");
+    ASSERT_TRUE(inline_monomorphic != nullptr);
+    std::set<mirror::Class*> expected_monomorphic;
+    expected_monomorphic.insert(sub_a);
+    AssertInlineCaches(inline_monomorphic, expected_monomorphic, info, /*megamorphic*/ false);
+  }
+
+  {
+    // Verify that method inlinePolymorphic has the expected inline caches and nothing else.
+    ArtMethod* inline_polymorhic = GetVirtualMethod(class_loader,
+                                                    "LTestInline;",
+                                                    "inlinePolymorphic");
+    ASSERT_TRUE(inline_polymorhic != nullptr);
+    std::set<mirror::Class*> expected_polymorphic;
+    expected_polymorphic.insert(sub_a);
+    expected_polymorphic.insert(sub_b);
+    expected_polymorphic.insert(sub_c);
+    AssertInlineCaches(inline_polymorhic, expected_polymorphic, info, /*megamorphic*/ false);
+  }
+
+  {
+    // Verify that method inlineMegamorphic has the expected inline caches and nothing else.
+    ArtMethod* inline_megamorphic = GetVirtualMethod(class_loader,
+                                                     "LTestInline;",
+                                                     "inlineMegamorphic");
+    ASSERT_TRUE(inline_megamorphic != nullptr);
+    std::set<mirror::Class*> expected_megamorphic;
+    AssertInlineCaches(inline_megamorphic, expected_megamorphic, info, /*megamorphic*/ true);
+  }
+
+  {
+    // Verify that method noInlineCache has no inline caches in the profile.
+    ArtMethod* no_inline_cache = GetVirtualMethod(class_loader, "LTestInline;", "noInlineCache");
+    ASSERT_TRUE(no_inline_cache != nullptr);
+    ProfileCompilationInfo::OfflineProfileMethodInfo pmi_no_inline_cache;
+    ASSERT_TRUE(info.GetMethod(no_inline_cache->GetDexFile()->GetLocation(),
+                               no_inline_cache->GetDexFile()->GetLocationChecksum(),
+                               no_inline_cache->GetDexMethodIndex(),
+                               &pmi_no_inline_cache));
+    ASSERT_TRUE(pmi_no_inline_cache.inline_caches.empty());
+  }
 }
 
 }  // namespace art
