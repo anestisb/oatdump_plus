@@ -17,8 +17,32 @@
 green='\033[0;32m'
 nc='\033[0m'
 
+# Setup as root, as the next buildbot step (device cleanup) requires it.
+# This is also required to set the date, if needed.
+adb root
+adb wait-for-device
+
+echo -e "${green}Date on host${nc}"
+date
+
 echo -e "${green}Date on device${nc}"
 adb shell date
+
+host_seconds_since_epoch=$(date -u +%s)
+device_seconds_since_epoch=$(adb shell date -u +%s)
+
+abs_time_difference_in_seconds=$(expr $host_seconds_since_epoch - $device_seconds_since_epoch)
+if [ $abs_time_difference_in_seconds -lt 0 ]; then
+  abs_time_difference_in_seconds=$(expr 0 - $abs_time_difference_in_seconds)
+fi
+
+seconds_per_hour=3600
+
+# Update date on device if the difference with host is more than one hour.
+if [ $abs_time_difference_in_seconds -gt $seconds_per_hour ]; then
+  echo -e "${green}Update date on device${nc}"
+  adb shell date -u @$host_seconds_since_epoch
+fi
 
 echo -e "${green}Turn off selinux${nc}"
 adb shell setenforce 0
