@@ -649,7 +649,7 @@ CodeItem* Collections::CreateCodeItem(const DexFile& dex_file,
         }
       }
       int32_t size = DecodeSignedLeb128(&handlers_data);
-      bool has_catch_all = size < 0;
+      bool has_catch_all = size <= 0;
       if (has_catch_all) {
         size = -size;
       }
