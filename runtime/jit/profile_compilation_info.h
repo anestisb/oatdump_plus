@@ -218,9 +218,8 @@ class ProfileCompilationInfo {
   bool Equals(const ProfileCompilationInfo& other);
 
   // Return the class descriptors for all of the classes in the profiles' class sets.
-  // Note the dex location is actually the profile key, the caller needs to call back in to the
-  // profile info stuff to generate a map back to the dex location.
-  std::set<DexCacheResolvedClasses> GetResolvedClasses() const;
+  std::set<DexCacheResolvedClasses> GetResolvedClasses(
+      const std::unordered_set<std::string>& dex_files_locations) const;
 
   // Clear the resolved classes from the current object.
   void ClearResolvedClasses();
