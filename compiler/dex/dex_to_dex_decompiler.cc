@@ -20,7 +20,7 @@
 #include "base/mutex.h"
 #include "dex_file-inl.h"
 #include "dex_instruction-inl.h"
-#include "optimizing/bytecode_utils.h"
+#include "bytecode_utils.h"
 
 namespace art {
 namespace optimizer {

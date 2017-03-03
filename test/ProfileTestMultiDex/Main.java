@@ -25,3 +25,41 @@ class Main {
     return "C";
   }
 }
+
+class TestInline {
+  public int inlineMonomorphic(Super s) {
+    return s.getValue();
+  }
+
+  public int inlinePolymorphic(Super s) {
+    return s.getValue();
+  }
+
+  public int inlineMegamorphic(Super s) {
+    return s.getValue();
+  }
+
+  public int noInlineCache(Super s) {
+    return s.getValue();
+  }
+}
+
+abstract class Super {
+  abstract int getValue();
+}
+
+class SubA extends Super {
+  int getValue() { return 42; }
+}
+
+class SubB extends Super {
+  int getValue() { return 38; };
+}
+
+class SubD extends Super {
+  int getValue() { return 20; };
+}
+
+class SubE extends Super {
+  int getValue() { return 16; };
+}

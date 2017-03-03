@@ -36,6 +36,7 @@
 #include "base/stringpiece.h"
 #include "base/time_utils.h"
 #include "base/unix_file/fd_file.h"
+#include "bytecode_utils.h"
 #include "dex_file.h"
 #include "jit/profile_compilation_info.h"
 #include "runtime.h"
@@ -136,6 +137,14 @@ static constexpr uint16_t kDefaultTestProfileNumDex = 20;
 static constexpr uint16_t kDefaultTestProfileMethodRatio = 5;
 static constexpr uint16_t kDefaultTestProfileClassRatio = 5;
 
+// Separators used when parsing human friendly representation of profiles.
+static const std::string kMethodSep = "->";
+static constexpr char kProfileParsingInlineChacheSep = '+';
+static constexpr char kProfileParsingTypeSep = ',';
+static constexpr char kProfileParsingFirstCharInSignature = '(';
+
+// TODO(calin): This class has grown too much from its initial design. Split the functionality
+// into smaller, more contained pieces.
 class ProfMan FINAL {
  public:
   ProfMan() :
@@ -522,6 +531,180 @@ class ProfMan FINAL {
     return output.release();
   }
 
+  // Find class klass_descriptor in the given dex_files and store its reference
+  // in the out parameter class_ref.
+  // Return true if the definition of the class was found in any of the dex_files.
+  bool FindClass(const std::vector<std::unique_ptr<const DexFile>>& dex_files,
+                 const std::string& klass_descriptor,
+                 /*out*/ProfileMethodInfo::ProfileClassReference* class_ref) {
+    for (const std::unique_ptr<const DexFile>& dex_file_ptr : dex_files) {
+      const DexFile* dex_file = dex_file_ptr.get();
+      const DexFile::TypeId* type_id = dex_file->FindTypeId(klass_descriptor.c_str());
+      if (type_id == nullptr) {
+        continue;
+      }
+      dex::TypeIndex type_index = dex_file->GetIndexForTypeId(*type_id);
+      if (dex_file->FindClassDef(type_index) == nullptr) {
+        // Class is only referenced in the current dex file but not defined in it.
+        continue;
+      }
+      class_ref->dex_file = dex_file;
+      class_ref->type_index = type_index;
+      return true;
+    }
+    return false;
+  }
+
+  // Find the method specified by method_spec in the class class_ref. The method
+  // must have a single INVOKE_VIRTUAL in its byte code.
+  // Upon success it returns true and stores the method index and the invoke dex pc
+  // in the output parameters.
+  // The format of the method spec is "inlinePolymorphic(LSuper;)I+LSubA;,LSubB;,LSubC;".
+  //
+  // TODO(calin): support INVOKE_INTERFACE and the range variants.
+  bool FindMethodWithSingleInvoke(const ProfileMethodInfo::ProfileClassReference& class_ref,
+                                  const std::string& method_spec,
+                                  /*out*/uint16_t* method_index,
+                                  /*out*/uint32_t* dex_pc) {
+    std::vector<std::string> name_and_signature;
+    Split(method_spec, kProfileParsingFirstCharInSignature, &name_and_signature);
+    if (name_and_signature.size() != 2) {
+      LOG(ERROR) << "Invalid method name and signature " << method_spec;
+    }
+    const std::string& name = name_and_signature[0];
+    const std::string& signature = kProfileParsingFirstCharInSignature + name_and_signature[1];
+    const DexFile* dex_file = class_ref.dex_file;
+
+    const DexFile::StringId* name_id = dex_file->FindStringId(name.c_str());
+    if (name_id == nullptr) {
+      LOG(ERROR) << "Could not find name: "  << name;
+      return false;
+    }
+    dex::TypeIndex return_type_idx;
+    std::vector<dex::TypeIndex> param_type_idxs;
+    if (!dex_file->CreateTypeList(signature, &return_type_idx, &param_type_idxs)) {
+      LOG(ERROR) << "Could not create type list" << signature;
+      return false;
+    }
+    const DexFile::ProtoId* proto_id = dex_file->FindProtoId(return_type_idx, param_type_idxs);
+    if (proto_id == nullptr) {
+      LOG(ERROR) << "Could not find proto_id: " << name;
+      return false;
+    }
+    const DexFile::MethodId* method_id = dex_file->FindMethodId(
+        dex_file->GetTypeId(class_ref.type_index), *name_id, *proto_id);
+    if (method_id == nullptr) {
+      LOG(ERROR) << "Could not find method_id: " << name;
+      return false;
+    }
+
+    *method_index = dex_file->GetIndexForMethodId(*method_id);
+
+    uint32_t offset = dex_file->FindCodeItemOffset(
+        *dex_file->FindClassDef(class_ref.type_index),
+        *method_index);
+    const DexFile::CodeItem* code_item = dex_file->GetCodeItem(offset);
+
+    bool found_invoke = false;
+    for (CodeItemIterator it(*code_item); !it.Done(); it.Advance()) {
+      if (it.CurrentInstruction().Opcode() == Instruction::INVOKE_VIRTUAL) {
+        if (found_invoke) {
+          LOG(ERROR) << "Multiple invoke INVOKE_VIRTUAL found: " << name;
+          return false;
+        }
+        found_invoke = true;
+        *dex_pc = it.CurrentDexPc();
+      }
+    }
+    if (!found_invoke) {
+      LOG(ERROR) << "Could not find any INVOKE_VIRTUAL: " << name;
+    }
+    return found_invoke;
+  }
+
+  // Process a line defining a class or a method and its inline caches.
+  // Upon success return true and add the class or the method info to profile.
+  // The format of the method line is:
+  // "LTestInline;->inlinePolymorphic(LSuper;)I+LSubA;,LSubB;,LSubC;".
+  // The method and classes are searched only in the given dex files.
+  bool ProcessLine(const std::vector<std::unique_ptr<const DexFile>>& dex_files,
+                   const std::string& line,
+                   /*out*/ProfileCompilationInfo* profile) {
+    std::string klass;
+    std::string method_str;
+    size_t method_sep_index = line.find(kMethodSep);
+    if (method_sep_index == std::string::npos) {
+      klass = line;
+    } else {
+      klass = line.substr(0, method_sep_index);
+      method_str = line.substr(method_sep_index + kMethodSep.size());
+    }
+
+    ProfileMethodInfo::ProfileClassReference class_ref;
+    if (!FindClass(dex_files, klass, &class_ref)) {
+      LOG(ERROR) << "Could not find class: " << klass;
+      return false;
+    }
+
+    if (method_str.empty()) {
+      // No method to add. Just add the class.
+      std::set<DexCacheResolvedClasses> resolved_class_set;
+      const DexFile* dex_file = class_ref.dex_file;
+      const auto& dex_resolved_classes = resolved_class_set.emplace(
+            dex_file->GetLocation(),
+            dex_file->GetBaseLocation(),
+            dex_file->GetLocationChecksum());
+      dex_resolved_classes.first->AddClass(class_ref.type_index);
+      profile->AddMethodsAndClasses(std::vector<ProfileMethodInfo>(), resolved_class_set);
+      return true;
+    }
+
+    // Process the method.
+    std::string method_spec;
+    std::vector<std::string> inline_cache_elems;
+
+    std::vector<std::string> method_elems;
+    Split(method_str, kProfileParsingInlineChacheSep, &method_elems);
+    if (method_elems.size() == 2) {
+      method_spec = method_elems[0];
+      Split(method_elems[1], kProfileParsingTypeSep, &inline_cache_elems);
+    } else if (method_elems.size() == 1) {
+      method_spec = method_elems[0];
+    } else {
+      LOG(ERROR) << "Invalid method line: " << line;
+      return false;
+    }
+
+    uint16_t method_index;
+    uint32_t dex_pc;
+    if (!FindMethodWithSingleInvoke(class_ref, method_spec, &method_index, &dex_pc)) {
+      return false;
+    }
+    std::vector<ProfileMethodInfo::ProfileClassReference> classes(inline_cache_elems.size());
+    size_t class_it = 0;
+    for (const std::string ic_class : inline_cache_elems) {
+      if (!FindClass(dex_files, ic_class, &(classes[class_it++]))) {
+        LOG(ERROR) << "Could not find class: " << ic_class;
+        return false;
+      }
+    }
+    std::vector<ProfileMethodInfo::ProfileInlineCache> inline_caches;
+    inline_caches.emplace_back(dex_pc, classes);
+    std::vector<ProfileMethodInfo> pmi;
+    pmi.emplace_back(class_ref.dex_file, method_index, inline_caches);
+
+    profile->AddMethodsAndClasses(pmi, std::set<DexCacheResolvedClasses>());
+    return true;
+  }
+
+  // Creates a profile from a human friendly textual representation.
+  // The expected input format is:
+  //   # Classes
+  //   Ljava/lang/Comparable;
+  //   Ljava/lang/Math;
+  //   # Methods with inline caches
+  //   LTestInline;->inlinePolymorphic(LSuper;)I+LSubA;,LSubB;,LSubC;
+  //   LTestInline;->noInlineCache(LSuper;)I
   int CreateProfile() {
     // Validate parameters for this command.
     if (apk_files_.empty() && apks_fd_.empty()) {
@@ -550,51 +733,22 @@ class ProfMan FINAL {
         return -1;
       }
     }
-    // Read the user-specified list of classes (dot notation rather than descriptors).
+    // Read the user-specified list of classes and methods.
     std::unique_ptr<std::unordered_set<std::string>>
-        user_class_list(ReadCommentedInputFromFile<std::unordered_set<std::string>>(
+        user_lines(ReadCommentedInputFromFile<std::unordered_set<std::string>>(
             create_profile_from_file_.c_str(), nullptr));  // No post-processing.
-    std::unordered_set<std::string> matched_user_classes;
-    // Open the dex files to look up class names.
+
+    // Open the dex files to look up classes and methods.
     std::vector<std::unique_ptr<const DexFile>> dex_files;
     OpenApkFilesFromLocations(&dex_files);
-    // Iterate over the dex files looking for class names in the input stream.
-    std::set<DexCacheResolvedClasses> resolved_class_set;
-    for (auto& dex_file : dex_files) {
-      // Compute the set of classes to be added for this dex file first.  This
-      // avoids creating an entry in the profile information for dex files that
-      // contribute no classes.
-      std::unordered_set<dex::TypeIndex> classes_to_be_added;
-      for (const auto& klass : *user_class_list) {
-        std::string descriptor = DotToDescriptor(klass.c_str());
-        const DexFile::TypeId* type_id = dex_file->FindTypeId(descriptor.c_str());
-        if (type_id == nullptr) {
-          continue;
-        }
-        classes_to_be_added.insert(dex_file->GetIndexForTypeId(*type_id));
-        matched_user_classes.insert(klass);
-      }
-      if (classes_to_be_added.empty()) {
-        continue;
-      }
-      // Insert the DexCacheResolved Classes into the set expected for
-      // AddMethodsAndClasses.
-      std::set<DexCacheResolvedClasses>::iterator dex_resolved_classes =
-          resolved_class_set.emplace(dex_file->GetLocation(),
-                                     dex_file->GetBaseLocation(),
-                                     dex_file->GetLocationChecksum()).first;
-      dex_resolved_classes->AddClasses(classes_to_be_added.begin(), classes_to_be_added.end());
-    }
-    // Warn the user if we didn't find matches for every class.
-    for (const auto& klass : *user_class_list) {
-      if (matched_user_classes.find(klass) == matched_user_classes.end()) {
-        LOG(WARNING) << "requested class '" << klass << "' was not matched in any dex file";
-      }
-    }
-    // Generate the profile data structure.
+
+    // Process the lines one by one and add the successful ones to the profile.
     ProfileCompilationInfo info;
-    std::vector<ProfileMethodInfo> methods;  // No methods for now.
-    info.AddMethodsAndClasses(methods, resolved_class_set);
+
+    for (const auto& line : *user_lines) {
+      ProcessLine(dex_files, line, &info);
+    }
+
     // Write the profile file.
     CHECK(info.Save(fd));
     if (close(fd) < 0) {
