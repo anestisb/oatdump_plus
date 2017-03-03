@@ -215,7 +215,7 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
   size_t FromSpaceSize() REQUIRES(!region_lock_);
   size_t UnevacFromSpaceSize() REQUIRES(!region_lock_);
   size_t ToSpaceSize() REQUIRES(!region_lock_);
-  void ClearFromSpace() REQUIRES(!region_lock_);
+  void ClearFromSpace(uint64_t* cleared_bytes, uint64_t* cleared_objects) REQUIRES(!region_lock_);
 
   void AddLiveBytes(mirror::Object* ref, size_t alloc_size) {
     Region* reg = RefToRegionUnlocked(ref);
