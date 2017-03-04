@@ -26,11 +26,6 @@
         "bug": "http://b/28988206"
     },
     {
-        "test": "577-profile-foreign-dex",
-        "description": "Disable 577-profile-foreign-dex",
-        "bug": "http://b/27454772"
-    },
-    {
         "tests": ["002-sleep",
                   "053-wait-some",
                   "055-enum-performance",
