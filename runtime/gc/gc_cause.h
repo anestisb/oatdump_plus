@@ -53,8 +53,10 @@ enum GcCause {
   kGcCauseJitCodeCache,
   // Not a real GC cause, used to add or remove system-weak holders.
   kGcCauseAddRemoveSystemWeakHolder,
-  // Not a real GC cause, used to hprof running in the middle of GC.
+  // Not a real GC cause, used to prevent hprof running in the middle of GC.
   kGcCauseHprof,
+  // Not a real GC cause, used to prevent GetObjectsAllocated running in the middle of GC.
+  kGcCauseGetObjectsAllocated,
 };
 
 const char* PrettyCause(GcCause cause);
