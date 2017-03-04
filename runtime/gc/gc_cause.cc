@@ -40,6 +40,7 @@ const char* PrettyCause(GcCause cause) {
     case kGcCauseJitCodeCache: return "JitCodeCache";
     case kGcCauseAddRemoveSystemWeakHolder: return "SystemWeakHolder";
     case kGcCauseHprof: return "Hprof";
+    case kGcCauseGetObjectsAllocated: return "ObjectsAllocated";
   }
   LOG(FATAL) << "Unreachable";
   UNREACHABLE();
