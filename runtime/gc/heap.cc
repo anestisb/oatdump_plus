@@ -1835,6 +1835,11 @@ void Heap::SetTargetHeapUtilization(float target) {
 size_t Heap::GetObjectsAllocated() const {
   Thread* const self = Thread::Current();
   ScopedThreadStateChange tsc(self, kWaitingForGetObjectsAllocated);
+  // Prevent GC running during GetObjectsALlocated since we may get a checkpoint request that tells
+  // us to suspend while we are doing SuspendAll. b/35232978
+  gc::ScopedGCCriticalSection gcs(Thread::Current(),
+                                  gc::kGcCauseGetObjectsAllocated,
+                                  gc::kCollectorTypeGetObjectsAllocated);
   // Need SuspendAll here to prevent lock violation if RosAlloc does it during InspectAll.
   ScopedSuspendAll ssa(__FUNCTION__);
   ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
