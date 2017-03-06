@@ -785,6 +785,86 @@ public class Main {
     return new Circle(Math.PI).getArea();
   }
 
+  /// CHECK-START: int Main.testAllocationEliminationOfArray1() load_store_elimination (before)
+  /// CHECK: NewArray
+  /// CHECK: ArraySet
+  /// CHECK: ArraySet
+  /// CHECK: ArrayGet
+  /// CHECK: ArrayGet
+  /// CHECK: ArrayGet
+  /// CHECK: ArrayGet
+
+  /// CHECK-START: int Main.testAllocationEliminationOfArray1() load_store_elimination (after)
+  /// CHECK-NOT: NewArray
+  /// CHECK-NOT: ArraySet
+  /// CHECK-NOT: ArrayGet
+  private static int testAllocationEliminationOfArray1() {
+    int[] array = new int[4];
+    array[2] = 4;
+    array[3] = 7;
+    return array[0] + array[1] + array[2] + array[3];
+  }
+
+  /// CHECK-START: int Main.testAllocationEliminationOfArray2() load_store_elimination (before)
+  /// CHECK: NewArray
+  /// CHECK: ArraySet
+  /// CHECK: ArraySet
+  /// CHECK: ArrayGet
+
+  /// CHECK-START: int Main.testAllocationEliminationOfArray2() load_store_elimination (after)
+  /// CHECK: NewArray
+  /// CHECK: ArraySet
+  /// CHECK: ArraySet
+  /// CHECK: ArrayGet
+  private static int testAllocationEliminationOfArray2() {
+    // Cannot eliminate array allocation since array is accessed with non-constant
+    // index.
+    int[] array = new int[4];
+    array[2] = 4;
+    array[3] = 7;
+    int sum = 0;
+    for (int e : array) {
+      sum += e;
+    }
+    return sum;
+  }
+
+  /// CHECK-START: int Main.testAllocationEliminationOfArray3(int) load_store_elimination (before)
+  /// CHECK: NewArray
+  /// CHECK: ArraySet
+  /// CHECK: ArrayGet
+
+  /// CHECK-START: int Main.testAllocationEliminationOfArray3(int) load_store_elimination (after)
+  /// CHECK-NOT: NewArray
+  /// CHECK-NOT: ArraySet
+  /// CHECK-NOT: ArrayGet
+  private static int testAllocationEliminationOfArray3(int i) {
+    int[] array = new int[4];
+    array[i] = 4;
+    return array[i];
+  }
+
+  /// CHECK-START: int Main.testAllocationEliminationOfArray4(int) load_store_elimination (before)
+  /// CHECK: NewArray
+  /// CHECK: ArraySet
+  /// CHECK: ArraySet
+  /// CHECK: ArrayGet
+  /// CHECK: ArrayGet
+
+  /// CHECK-START: int Main.testAllocationEliminationOfArray4(int) load_store_elimination (after)
+  /// CHECK: NewArray
+  /// CHECK: ArraySet
+  /// CHECK: ArraySet
+  /// CHECK: ArrayGet
+  /// CHECK-NOT: ArrayGet
+  private static int testAllocationEliminationOfArray4(int i) {
+    // Cannot eliminate array allocation due to index aliasing between 1 and i.
+    int[] array = new int[4];
+    array[1] = 2;
+    array[i] = 4;
+    return array[1] + array[i];
+  }
+
   static void assertIntEquals(int result, int expected) {
     if (expected != result) {
       throw new Error("Expected: " + expected + ", found: " + result);
@@ -865,6 +945,11 @@ public class Main {
     assertDoubleEquals(darray[0], Math.PI);
     assertDoubleEquals(darray[1], Math.PI);
     assertDoubleEquals(darray[2], Math.PI);
+
+    assertIntEquals(testAllocationEliminationOfArray1(), 11);
+    assertIntEquals(testAllocationEliminationOfArray2(), 11);
+    assertIntEquals(testAllocationEliminationOfArray3(2), 4);
+    assertIntEquals(testAllocationEliminationOfArray4(2), 6);
   }
 
   static boolean sFlag;
