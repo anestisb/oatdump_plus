@@ -2020,80 +2020,18 @@ void Mips64Assembler::Bc1nez(FpuRegister ft, Mips64Label* label) {
   Bcond(label, kCondT, static_cast<GpuRegister>(ft), ZERO);
 }
 
-void Mips64Assembler::LoadFromOffset(LoadOperandType type, GpuRegister reg, GpuRegister base,
+void Mips64Assembler::LoadFromOffset(LoadOperandType type,
+                                     GpuRegister reg,
+                                     GpuRegister base,
                                      int32_t offset) {
-  if (!IsInt<16>(offset) ||
-      (type == kLoadDoubleword && !IsAligned<kMips64DoublewordSize>(offset) &&
-       !IsInt<16>(static_cast<int32_t>(offset + kMips64WordSize)))) {
-    LoadConst32(AT, offset & ~(kMips64DoublewordSize - 1));
-    Daddu(AT, AT, base);
-    base = AT;
-    offset &= (kMips64DoublewordSize - 1);
-  }
-
-  switch (type) {
-    case kLoadSignedByte:
-      Lb(reg, base, offset);
-      break;
-    case kLoadUnsignedByte:
-      Lbu(reg, base, offset);
-      break;
-    case kLoadSignedHalfword:
-      Lh(reg, base, offset);
-      break;
-    case kLoadUnsignedHalfword:
-      Lhu(reg, base, offset);
-      break;
-    case kLoadWord:
-      CHECK_ALIGNED(offset, kMips64WordSize);
-      Lw(reg, base, offset);
-      break;
-    case kLoadUnsignedWord:
-      CHECK_ALIGNED(offset, kMips64WordSize);
-      Lwu(reg, base, offset);
-      break;
-    case kLoadDoubleword:
-      if (!IsAligned<kMips64DoublewordSize>(offset)) {
-        CHECK_ALIGNED(offset, kMips64WordSize);
-        Lwu(reg, base, offset);
-        Lwu(TMP2, base, offset + kMips64WordSize);
-        Dinsu(reg, TMP2, 32, 32);
-      } else {
-        Ld(reg, base, offset);
-      }
-      break;
-  }
+  LoadFromOffset<>(type, reg, base, offset);
 }
 
-void Mips64Assembler::LoadFpuFromOffset(LoadOperandType type, FpuRegister reg, GpuRegister base,
+void Mips64Assembler::LoadFpuFromOffset(LoadOperandType type,
+                                        FpuRegister reg,
+                                        GpuRegister base,
                                         int32_t offset) {
-  if (!IsInt<16>(offset) ||
-      (type == kLoadDoubleword && !IsAligned<kMips64DoublewordSize>(offset) &&
-       !IsInt<16>(static_cast<int32_t>(offset + kMips64WordSize)))) {
-    LoadConst32(AT, offset & ~(kMips64DoublewordSize - 1));
-    Daddu(AT, AT, base);
-    base = AT;
-    offset &= (kMips64DoublewordSize - 1);
-  }
-
-  switch (type) {
-    case kLoadWord:
-      CHECK_ALIGNED(offset, kMips64WordSize);
-      Lwc1(reg, base, offset);
-      break;
-    case kLoadDoubleword:
-      if (!IsAligned<kMips64DoublewordSize>(offset)) {
-        CHECK_ALIGNED(offset, kMips64WordSize);
-        Lwc1(reg, base, offset);
-        Lw(TMP2, base, offset + kMips64WordSize);
-        Mthc1(TMP2, reg);
-      } else {
-        Ldc1(reg, base, offset);
-      }
-      break;
-    default:
-      LOG(FATAL) << "UNREACHABLE";
-  }
+  LoadFpuFromOffset<>(type, reg, base, offset);
 }
 
 void Mips64Assembler::EmitLoad(ManagedRegister m_dst, GpuRegister src_register, int32_t src_offset,
@@ -2123,72 +2061,18 @@ void Mips64Assembler::EmitLoad(ManagedRegister m_dst, GpuRegister src_register, 
   }
 }
 
-void Mips64Assembler::StoreToOffset(StoreOperandType type, GpuRegister reg, GpuRegister base,
+void Mips64Assembler::StoreToOffset(StoreOperandType type,
+                                    GpuRegister reg,
+                                    GpuRegister base,
                                     int32_t offset) {
-  if (!IsInt<16>(offset) ||
-      (type == kStoreDoubleword && !IsAligned<kMips64DoublewordSize>(offset) &&
-       !IsInt<16>(static_cast<int32_t>(offset + kMips64WordSize)))) {
-    LoadConst32(AT, offset & ~(kMips64DoublewordSize - 1));
-    Daddu(AT, AT, base);
-    base = AT;
-    offset &= (kMips64DoublewordSize - 1);
-  }
-
-  switch (type) {
-    case kStoreByte:
-      Sb(reg, base, offset);
-      break;
-    case kStoreHalfword:
-      Sh(reg, base, offset);
-      break;
-    case kStoreWord:
-      CHECK_ALIGNED(offset, kMips64WordSize);
-      Sw(reg, base, offset);
-      break;
-    case kStoreDoubleword:
-      if (!IsAligned<kMips64DoublewordSize>(offset)) {
-        CHECK_ALIGNED(offset, kMips64WordSize);
-        Sw(reg, base, offset);
-        Dsrl32(TMP2, reg, 0);
-        Sw(TMP2, base, offset + kMips64WordSize);
-      } else {
-        Sd(reg, base, offset);
-      }
-      break;
-    default:
-      LOG(FATAL) << "UNREACHABLE";
-  }
+  StoreToOffset<>(type, reg, base, offset);
 }
 
-void Mips64Assembler::StoreFpuToOffset(StoreOperandType type, FpuRegister reg, GpuRegister base,
+void Mips64Assembler::StoreFpuToOffset(StoreOperandType type,
+                                       FpuRegister reg,
+                                       GpuRegister base,
                                        int32_t offset) {
-  if (!IsInt<16>(offset) ||
-      (type == kStoreDoubleword && !IsAligned<kMips64DoublewordSize>(offset) &&
-       !IsInt<16>(static_cast<int32_t>(offset + kMips64WordSize)))) {
-    LoadConst32(AT, offset & ~(kMips64DoublewordSize - 1));
-    Daddu(AT, AT, base);
-    base = AT;
-    offset &= (kMips64DoublewordSize - 1);
-  }
-
-  switch (type) {
-    case kStoreWord:
-      CHECK_ALIGNED(offset, kMips64WordSize);
-      Swc1(reg, base, offset);
-      break;
-    case kStoreDoubleword:
-      if (!IsAligned<kMips64DoublewordSize>(offset)) {
-        CHECK_ALIGNED(offset, kMips64WordSize);
-        Mfhc1(TMP2, reg);
-        Swc1(reg, base, offset);
-        Sw(TMP2, base, offset + kMips64WordSize);
-      } else {
-        Sdc1(reg, base, offset);
-      }
-      break;
-    default:
-      LOG(FATAL) << "UNREACHABLE";
-  }
+  StoreFpuToOffset<>(type, reg, base, offset);
 }
 
 static dwarf::Reg DWARFReg(GpuRegister reg) {
