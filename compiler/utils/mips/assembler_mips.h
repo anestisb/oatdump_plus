@@ -501,8 +501,10 @@ class MipsAssembler FINAL : public Assembler, public JNIMacroAssembler<PointerSi
                            bool is_float = false);
 
  private:
+  // This will be used as an argument for loads/stores
+  // when there is no need for implicit null checks.
   struct NoImplicitNullChecker {
-    void operator()() {}
+    void operator()() const {}
   };
 
  public:
