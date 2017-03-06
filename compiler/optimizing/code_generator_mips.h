@@ -297,7 +297,6 @@ class InstructionCodeGeneratorMIPS : public InstructionCodeGenerator {
   void GenerateDivRemWithAnyConstant(HBinaryOperation* instruction);
   void GenerateDivRemIntegral(HBinaryOperation* instruction);
   void HandleGoto(HInstruction* got, HBasicBlock* successor);
-  auto GetImplicitNullChecker(HInstruction* instruction);
   void GenPackedSwitchWithCompares(Register value_reg,
                                    int32_t lower_bound,
                                    uint32_t num_entries,
