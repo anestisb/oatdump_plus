@@ -529,12 +529,14 @@ TEST_ART_BROKEN_INTERPRETER_RUN_TESTS :=
 # Known broken tests for the JIT.
 # CFI unwinding expects managed frames, and the test does not iterate enough to even compile. JIT
 # also uses Generic JNI instead of the JNI compiler.
+# 154-gc-loop requires more deterministic GC behavior than what JIT does.
 # Test 906 iterates the heap filtering with different options. No instances should be created
 # between those runs to be able to have precise checks.
 # Test 629 requires compilation.
 # 912: b/34655682
 TEST_ART_BROKEN_JIT_RUN_TESTS := \
   137-cfi \
+  154-gc-loop \
   629-vdex-speed \
   904-object-allocation \
   906-iterate-heap \

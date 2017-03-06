@@ -129,9 +129,13 @@
                         "lot."]
     },
     {
-        "tests": ["964-default-iface-init-gen",
-                 "154-gc-loop"],
+        "test": "964-default-iface-init-gen",
         "variant": "gcstress"
+    },
+    {
+        "tests": "154-gc-loop",
+        "variant": "gcstress | jit",
+        "description": ["154-gc-loop depends GC not happening too often"]
     },
     {
         "test": "115-native-bridge",
