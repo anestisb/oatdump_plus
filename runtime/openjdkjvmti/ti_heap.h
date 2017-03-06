@@ -49,6 +49,9 @@ class HeapUtil {
     return tags_;
   }
 
+  static void Register();
+  static void Unregister();
+
  private:
   ObjectTagTable* tags_;
 };
