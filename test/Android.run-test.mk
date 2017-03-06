@@ -222,6 +222,7 @@ define name-to-var
 $(shell echo $(1) | tr '[:lower:]' '[:upper:]' | tr '-' '_')
 endef  # name-to-var
 
+# Disable 115-native-bridge, it fails when run through make b/35984597.
 # Disable 153-reference-stress temporarily until a fix arrives. b/33389022.
 # Disable 080-oom-fragmentation due to flakes. b/33795328
 # Disable 497-inlining-and-class-loader and 542-unresolved-access-check until
@@ -229,6 +230,7 @@ endef  # name-to-var
 #     register a dex file that's already registered with a different loader.
 #     b/34193123
 ART_TEST_RUN_TEST_SKIP += \
+  115-native-bridge \
   153-reference-stress \
   080-oom-fragmentation \
   497-inlining-and-class-loader \
