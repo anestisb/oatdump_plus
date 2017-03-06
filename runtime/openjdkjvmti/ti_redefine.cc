@@ -325,12 +325,19 @@ jvmtiError Redefiner::RedefineClasses(ArtJvmTiEnv* env,
   std::vector<ArtClassDefinition> def_vector;
   def_vector.reserve(class_count);
   for (jint i = 0; i < class_count; i++) {
+    jboolean is_modifiable = JNI_FALSE;
+    jvmtiError res = env->IsModifiableClass(definitions[i].klass, &is_modifiable);
+    if (res != OK) {
+      return res;
+    } else if (!is_modifiable) {
+      return ERR(UNMODIFIABLE_CLASS);
+    }
     // We make a copy of the class_bytes to pass into the retransformation.
     // This makes cleanup easier (since we unambiguously own the bytes) and also is useful since we
     // will need to keep the original bytes around unaltered for subsequent RetransformClasses calls
     // to get the passed in bytes.
     unsigned char* class_bytes_copy = nullptr;
-    jvmtiError res = env->Allocate(definitions[i].class_byte_count, &class_bytes_copy);
+    res = env->Allocate(definitions[i].class_byte_count, &class_bytes_copy);
     if (res != OK) {
       return res;
     }

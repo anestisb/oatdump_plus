@@ -32,6 +32,7 @@ public class Main {
     NewField.doTest(new Transform());
     MissingField.doTest(new Transform4("there"));
     FieldChange.doTest(new Transform4("there again"));
+    Unmodifiable.doTest(new Transform[] { new Transform(), });
   }
 
   // Transforms the class. This throws an exception if something goes wrong.

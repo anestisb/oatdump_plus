@@ -50,3 +50,6 @@ hello there - MissingField
 hello there again - FieldChange
 Transformation error : java.lang.Exception(Failed to redefine class <LTransform4;> due to JVMTI_ERROR_UNSUPPORTED_REDEFINITION_SCHEMA_CHANGED)
 hello there again - FieldChange
+hello - Unmodifiable
+Transformation error : java.lang.Exception(Failed to redefine class <[LTransform;> due to JVMTI_ERROR_UNMODIFIABLE_CLASS)
+hello - Unmodifiable
