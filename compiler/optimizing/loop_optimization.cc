@@ -16,6 +16,7 @@
 
 #include "loop_optimization.h"
 
+#include "driver/compiler_driver.h"
 #include "linear_order.h"
 
 namespace art {
@@ -57,8 +58,10 @@ static bool IsEarlyExit(HLoopInformation* loop_info) {
 //
 
 HLoopOptimization::HLoopOptimization(HGraph* graph,
+                                     CompilerDriver* compiler_driver,
                                      HInductionVarAnalysis* induction_analysis)
     : HOptimization(graph, kLoopOptimizationPassName),
+      compiler_driver_(compiler_driver),
       induction_range_(induction_analysis),
       loop_allocator_(nullptr),
       top_loop_(nullptr),

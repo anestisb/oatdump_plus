@@ -25,8 +25,8 @@ namespace art {
 
 class SideEffectsAnalysis : public HOptimization {
  public:
-  explicit SideEffectsAnalysis(HGraph* graph)
-      : HOptimization(graph, kSideEffectsAnalysisPassName),
+  SideEffectsAnalysis(HGraph* graph, const char* pass_name = kSideEffectsAnalysisPassName)
+      : HOptimization(graph, pass_name),
         graph_(graph),
         block_effects_(graph->GetBlocks().size(),
                        graph->GetArena()->Adapter(kArenaAllocSideEffectsAnalysis)),
@@ -41,7 +41,7 @@ class SideEffectsAnalysis : public HOptimization {
 
   bool HasRun() const { return has_run_; }
 
-  static constexpr const char* kSideEffectsAnalysisPassName = "SideEffects";
+  static constexpr const char* kSideEffectsAnalysisPassName = "side_effects";
 
  private:
   void UpdateLoopEffects(HLoopInformation* info, SideEffects effects);
