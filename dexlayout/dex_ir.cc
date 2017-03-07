@@ -64,23 +64,18 @@ static uint32_t GetCodeItemSize(const DexFile& dex_file, const DexFile::CodeItem
     uintptr_t insns_end = reinterpret_cast<uintptr_t>(&disk_code_item.insns_[insns_size]);
     return insns_end - code_item_start;
   } else {
-    uint32_t last_handler_off = 0;
-    for (uint32_t i = 0; i < tries_size; ++i) {
-      // Iterate over the try items to find the last catch handler.
-      const DexFile::TryItem* disk_try_item = dex_file.GetTryItems(disk_code_item, i);
-      uint16_t handler_off = disk_try_item->handler_off_;
-      if (handler_off > last_handler_off) {
-        last_handler_off = handler_off;
+    // Get the start of the handler data.
+    const uint8_t* handler_data = DexFile::GetCatchHandlerData(disk_code_item, 0);
+    uint32_t handlers_size = DecodeUnsignedLeb128(&handler_data);
+    // Manually read each handler.
+    for (uint32_t i = 0; i < handlers_size; ++i) {
+      int32_t uleb128_count = DecodeSignedLeb128(&handler_data) * 2;
+      if (uleb128_count <= 0) {
+        uleb128_count = -uleb128_count + 1;
       }
-    }
-    // Decode the final handler to see where it ends.
-    const uint8_t* handler_data = DexFile::GetCatchHandlerData(disk_code_item, last_handler_off);
-    int32_t uleb128_count = DecodeSignedLeb128(&handler_data) * 2;
-    if (uleb128_count <= 0) {
-      uleb128_count = -uleb128_count + 1;
-    }
-    for (int32_t i = 0; i < uleb128_count; ++i) {
-      DecodeUnsignedLeb128(&handler_data);
+      for (int32_t j = 0; j < uleb128_count; ++j) {
+        DecodeUnsignedLeb128(&handler_data);
+      }
     }
     return reinterpret_cast<uintptr_t>(handler_data) - code_item_start;
   }
