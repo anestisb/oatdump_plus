@@ -73,6 +73,7 @@ ReaderWriterMutex* Locks::jni_globals_lock_ = nullptr;
 Mutex* Locks::jni_weak_globals_lock_ = nullptr;
 ReaderWriterMutex* Locks::dex_lock_ = nullptr;
 std::vector<BaseMutex*> Locks::expected_mutexes_on_weak_ref_access_;
+Atomic<const BaseMutex*> Locks::expected_mutexes_on_weak_ref_access_guard_;
 
 struct AllMutexData {
   // A guard for all_mutexes_ that's not a mutex (Mutexes must CAS to acquire and busy wait).
@@ -109,6 +110,26 @@ class ScopedAllMutexesLock FINAL {
 
   ~ScopedAllMutexesLock() {
     while (!gAllMutexData->all_mutexes_guard.CompareExchangeWeakRelease(mutex_, 0)) {
+      NanoSleep(100);
+    }
+  }
+
+ private:
+  const BaseMutex* const mutex_;
+};
+
+class Locks::ScopedExpectedMutexesOnWeakRefAccessLock FINAL {
+ public:
+  explicit ScopedExpectedMutexesOnWeakRefAccessLock(const BaseMutex* mutex) : mutex_(mutex) {
+    while (!Locks::expected_mutexes_on_weak_ref_access_guard_.CompareExchangeWeakAcquire(0,
+                                                                                         mutex)) {
+      NanoSleep(100);
+    }
+  }
+
+  ~ScopedExpectedMutexesOnWeakRefAccessLock() {
+    while (!Locks::expected_mutexes_on_weak_ref_access_guard_.CompareExchangeWeakRelease(mutex_,
+                                                                                         0)) {
       NanoSleep(100);
     }
   }
@@ -1163,12 +1184,9 @@ void Locks::Init() {
     #undef UPDATE_CURRENT_LOCK_LEVEL
 
     // List of mutexes that we may hold when accessing a weak ref.
-    dex_lock_->SetShouldRespondToEmptyCheckpointRequest(true);
-    expected_mutexes_on_weak_ref_access_.push_back(dex_lock_);
-    classlinker_classes_lock_->SetShouldRespondToEmptyCheckpointRequest(true);
-    expected_mutexes_on_weak_ref_access_.push_back(classlinker_classes_lock_);
-    jni_libraries_lock_->SetShouldRespondToEmptyCheckpointRequest(true);
-    expected_mutexes_on_weak_ref_access_.push_back(jni_libraries_lock_);
+    AddToExpectedMutexesOnWeakRefAccess(dex_lock_, /*need_lock*/ false);
+    AddToExpectedMutexesOnWeakRefAccess(classlinker_classes_lock_, /*need_lock*/ false);
+    AddToExpectedMutexesOnWeakRefAccess(jni_libraries_lock_, /*need_lock*/ false);
 
     InitConditions();
   }
@@ -1186,6 +1204,40 @@ void Locks::SetClientCallback(ClientCallback* safe_to_call_abort_cb) {
 bool Locks::IsSafeToCallAbortRacy() {
   Locks::ClientCallback* safe_to_call_abort_cb = safe_to_call_abort_callback.LoadAcquire();
   return safe_to_call_abort_cb != nullptr && safe_to_call_abort_cb();
+}
+
+void Locks::AddToExpectedMutexesOnWeakRefAccess(BaseMutex* mutex, bool need_lock) {
+  if (need_lock) {
+    ScopedExpectedMutexesOnWeakRefAccessLock mu(mutex);
+    mutex->SetShouldRespondToEmptyCheckpointRequest(true);
+    expected_mutexes_on_weak_ref_access_.push_back(mutex);
+  } else {
+    mutex->SetShouldRespondToEmptyCheckpointRequest(true);
+    expected_mutexes_on_weak_ref_access_.push_back(mutex);
+  }
+}
+
+void Locks::RemoveFromExpectedMutexesOnWeakRefAccess(BaseMutex* mutex, bool need_lock) {
+  if (need_lock) {
+    ScopedExpectedMutexesOnWeakRefAccessLock mu(mutex);
+    mutex->SetShouldRespondToEmptyCheckpointRequest(false);
+    std::vector<BaseMutex*>& list = expected_mutexes_on_weak_ref_access_;
+    auto it = std::find(list.begin(), list.end(), mutex);
+    DCHECK(it != list.end());
+    list.erase(it);
+  } else {
+    mutex->SetShouldRespondToEmptyCheckpointRequest(false);
+    std::vector<BaseMutex*>& list = expected_mutexes_on_weak_ref_access_;
+    auto it = std::find(list.begin(), list.end(), mutex);
+    DCHECK(it != list.end());
+    list.erase(it);
+  }
+}
+
+bool Locks::IsExpectedOnWeakRefAccess(BaseMutex* mutex) {
+  ScopedExpectedMutexesOnWeakRefAccessLock mu(mutex);
+  std::vector<BaseMutex*>& list = expected_mutexes_on_weak_ref_access_;
+  return std::find(list.begin(), list.end(), mutex) != list.end();
 }
 
 }  // namespace art

@@ -239,6 +239,7 @@ JdwpState::JdwpState(const JdwpOptions* options)
       shutdown_lock_("JDWP shutdown lock", kJdwpShutdownLock),
       shutdown_cond_("JDWP shutdown condition variable", shutdown_lock_),
       processing_request_(false) {
+  Locks::AddToExpectedMutexesOnWeakRefAccess(&event_list_lock_);
 }
 
 /*
@@ -381,6 +382,8 @@ JdwpState::~JdwpState() {
   CHECK(netState == nullptr);
 
   ResetState();
+
+  Locks::RemoveFromExpectedMutexesOnWeakRefAccess(&event_list_lock_);
 }
 
 /*
