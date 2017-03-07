@@ -535,9 +535,8 @@ static optimizer::DexToDexCompilationLevel GetDexToDexCompilationLevel(
   if (klass->IsVerified()) {
     // Class is verified so we can enable DEX-to-DEX compilation for performance.
     return max_level;
-  } else if (klass->IsCompileTimeVerified()) {
+  } else if (klass->ShouldVerifyAtRuntime()) {
     // Class verification has soft-failed. Anyway, ensure at least correctness.
-    DCHECK_EQ(klass->GetStatus(), mirror::Class::kStatusRetryVerificationAtRuntime);
     return optimizer::DexToDexCompilationLevel::kRequired;
   } else {
     // Class verification has failed: do not run DEX-to-DEX compilation.
@@ -964,7 +963,7 @@ static void EnsureVerifiedOrVerifyAtRuntime(jobject jclass_loader,
       if (cls == nullptr) {
         soa.Self()->ClearException();
       } else if (&cls->GetDexFile() == dex_file) {
-        DCHECK(cls->IsErroneous() || cls->IsVerified() || cls->IsCompileTimeVerified())
+        DCHECK(cls->IsErroneous() || cls->IsVerified() || cls->ShouldVerifyAtRuntime())
             << cls->PrettyClass()
             << " " << cls->GetStatus();
       }
@@ -2160,6 +2159,14 @@ class VerifyClassVisitor : public CompilationVisitor {
         LOG(ERROR) << "Verification failed on class " << PrettyDescriptor(descriptor)
                    << " because: " << error_msg;
         manager_->GetCompiler()->SetHadHardVerifierFailure();
+      } else {
+        // Force a soft failure for the VerifierDeps. This is a sanity measure, as
+        // the vdex file already records that the class hasn't been resolved. It avoids
+        // trying to do future verification optimizations when processing the vdex file.
+        DCHECK(failure_kind == verifier::MethodVerifier::kSoftFailure ||
+               failure_kind == verifier::MethodVerifier::kNoFailure)
+            << failure_kind;
+        failure_kind = verifier::MethodVerifier::kSoftFailure;
       }
     } else if (!SkipClass(jclass_loader, dex_file, klass.Get())) {
       CHECK(klass->IsResolved()) << klass->PrettyClass();
@@ -2172,7 +2179,7 @@ class VerifyClassVisitor : public CompilationVisitor {
         manager_->GetCompiler()->SetHadHardVerifierFailure();
       }
 
-      CHECK(klass->IsCompileTimeVerified() || klass->IsErroneous())
+      CHECK(klass->ShouldVerifyAtRuntime() || klass->IsVerified() || klass->IsErroneous())
           << klass->PrettyDescriptor() << ": state=" << klass->GetStatus();
 
       // It is *very* problematic if there are verification errors in the boot classpath. For example,
@@ -2185,6 +2192,13 @@ class VerifyClassVisitor : public CompilationVisitor {
             !android::base::StartsWith(descriptor, "Ljava/lang/invoke/")) {
           DCHECK(klass->IsVerified()) << "Boot classpath class " << klass->PrettyClass()
               << " failed to fully verify: state= " << klass->GetStatus();
+        }
+        if (klass->IsVerified()) {
+          DCHECK_EQ(failure_kind, verifier::MethodVerifier::kNoFailure);
+        } else if (klass->ShouldVerifyAtRuntime()) {
+          DCHECK_EQ(failure_kind, verifier::MethodVerifier::kSoftFailure);
+        } else {
+          DCHECK_EQ(failure_kind, verifier::MethodVerifier::kHardFailure);
         }
       }
     } else {
