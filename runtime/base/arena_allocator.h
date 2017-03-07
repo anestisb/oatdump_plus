@@ -89,6 +89,7 @@ enum ArenaAllocKind {
   kArenaAllocRegisterAllocator,
   kArenaAllocRegisterAllocatorValidate,
   kArenaAllocStackMapStream,
+  kArenaAllocVectorNode,
   kArenaAllocCodeGenerator,
   kArenaAllocAssembler,
   kArenaAllocParallelMoveResolver,

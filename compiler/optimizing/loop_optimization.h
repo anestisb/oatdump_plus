@@ -23,13 +23,17 @@
 
 namespace art {
 
+class CompilerDriver;
+
 /**
  * Loop optimizations. Builds a loop hierarchy and applies optimizations to
  * the detected nested loops, such as removal of dead induction and empty loops.
  */
 class HLoopOptimization : public HOptimization {
  public:
-  HLoopOptimization(HGraph* graph, HInductionVarAnalysis* induction_analysis);
+  HLoopOptimization(HGraph* graph,
+                    CompilerDriver* compiler_driver,
+                    HInductionVarAnalysis* induction_analysis);
 
   void Run() OVERRIDE;
 
@@ -75,6 +79,9 @@ class HLoopOptimization : public HOptimization {
                            /*out*/ int32_t* use_count);
   bool TryReplaceWithLastValue(HInstruction* instruction, HBasicBlock* block);
   void RemoveDeadInstructions(const HInstructionList& list);
+
+  // Compiler driver (to query ISA features).
+  const CompilerDriver* compiler_driver_;
 
   // Range information based on prior induction variable analysis.
   InductionVarRange induction_range_;
