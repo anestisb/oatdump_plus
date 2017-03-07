@@ -642,7 +642,7 @@ class ProfMan FINAL {
 
     ProfileMethodInfo::ProfileClassReference class_ref;
     if (!FindClass(dex_files, klass, &class_ref)) {
-      LOG(ERROR) << "Could not find class: " << klass;
+      LOG(WARNING) << "Could not find class: " << klass;
       return false;
     }
 
