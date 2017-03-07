@@ -57,21 +57,27 @@ static bool IsIntAndGet(HInstruction* instruction, int64_t* value) {
   return false;
 }
 
-/** Returns b^e for b,e >= 1. Sets overflow if arithmetic wrap-around occurred. */
+/** Computes a * b for a,b > 0 (at least until first overflow happens). */
+static int64_t SafeMul(int64_t a, int64_t b, /*out*/ bool* overflow) {
+  if (a > 0 && b > 0 && a > (std::numeric_limits<int64_t>::max() / b)) {
+    *overflow = true;
+  }
+  return a * b;
+}
+
+/** Returns b^e for b,e > 0. Sets overflow if arithmetic wrap-around occurred. */
 static int64_t IntPow(int64_t b, int64_t e, /*out*/ bool* overflow) {
-  DCHECK_GE(b, 1);
-  DCHECK_GE(e, 1);
+  DCHECK_LT(0, b);
+  DCHECK_LT(0, e);
   int64_t pow = 1;
   while (e) {
     if (e & 1) {
-      int64_t oldpow = pow;
-      pow *= b;
-      if (pow < oldpow) {
-        *overflow = true;
-      }
+      pow = SafeMul(pow, b, overflow);
     }
     e >>= 1;
-    b *= b;
+    if (e) {
+      b = SafeMul(b, b, overflow);
+    }
   }
   return pow;
 }
