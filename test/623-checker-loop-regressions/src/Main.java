@@ -213,9 +213,31 @@ public class Main {
   /// CHECK-START: long Main.geoLongDivLastValue(long) instruction_simplifier$after_bce (after)
   /// CHECK-DAG: <<Long:j\d+>> LongConstant 0    loop:none
   /// CHECK-DAG:               Return [<<Long>>] loop:none
+  //
+  // Tests overflow in the divisor (while updating intermediate result).
   static long geoLongDivLastValue(long x) {
     for (int i = 0; i < 10; i++) {
       x /= 1081788608;
+    }
+    return x;
+  }
+
+  /// CHECK-START: long Main.geoLongDivLastValue() loop_optimization (before)
+  /// CHECK-DAG: Phi loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: Phi loop:<<Loop>>      outer_loop:none
+  //
+  /// CHECK-START: long Main.geoLongDivLastValue() loop_optimization (after)
+  /// CHECK-NOT: Phi
+  //
+  /// CHECK-START: long Main.geoLongDivLastValue() instruction_simplifier$after_bce (after)
+  /// CHECK-DAG: <<Long:j\d+>> LongConstant 0    loop:none
+  /// CHECK-DAG:               Return [<<Long>>] loop:none
+  //
+  // Tests overflow in the divisor (while updating base).
+  static long geoLongDivLastValue() {
+    long x = -1;
+    for (int i2 = 0; i2 < 2; i2++) {
+      x /= (Long.MAX_VALUE);
     }
     return x;
   }
@@ -285,6 +307,8 @@ public class Main {
     expectEquals(0L, geoLongDivLastValue(-2147483648L));
     expectEquals(0L, geoLongDivLastValue(9223372036854775807L));
     expectEquals(0L, geoLongDivLastValue(-9223372036854775808L));
+
+    expectEquals(0L, geoLongDivLastValue());
 
     expectEquals(                   0L, geoLongMulLastValue(0L));
     expectEquals(-8070450532247928832L, geoLongMulLastValue(1L));
