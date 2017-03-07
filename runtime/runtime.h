@@ -454,10 +454,7 @@ class Runtime {
   }
 
   void RegisterAppInfo(const std::vector<std::string>& code_paths,
-                       const std::string& profile_output_filename,
-                       const std::string& foreign_dex_profile_path,
-                       const std::string& app_dir);
-  void NotifyDexLoaded(const std::string& dex_location);
+                       const std::string& profile_output_filename);
 
   // Transaction support.
   bool IsActiveTransaction() const {
