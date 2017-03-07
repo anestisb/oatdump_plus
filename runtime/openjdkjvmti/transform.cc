@@ -109,6 +109,13 @@ jvmtiError Transformer::RetransformClasses(ArtJvmTiEnv* env,
   std::vector<ArtClassDefinition> definitions;
   jvmtiError res = OK;
   for (jint i = 0; i < class_count; i++) {
+    jboolean is_modifiable = JNI_FALSE;
+    res = env->IsModifiableClass(classes[i], &is_modifiable);
+    if (res != OK) {
+      return res;
+    } else if (!is_modifiable) {
+      return ERR(UNMODIFIABLE_CLASS);
+    }
     ArtClassDefinition def;
     res = FillInTransformationData(env, classes[i], &def);
     if (res != OK) {
