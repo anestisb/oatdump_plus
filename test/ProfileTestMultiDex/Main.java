@@ -39,6 +39,10 @@ class TestInline {
     return s.getValue();
   }
 
+  public int inlineMissingTypes(Super s) {
+    return s.getValue();
+  }
+
   public int noInlineCache(Super s) {
     return s.getValue();
   }
