@@ -1659,10 +1659,6 @@ void InstructionCodeGeneratorMIPS64::VisitArrayGet(HArrayGet* instruction) {
       UNREACHABLE();
   }
 
-  if (!maybe_compressed_char_at) {
-    codegen_->MaybeRecordImplicitNullCheck(instruction);
-  }
-
   if (type == Primitive::kPrimNot) {
     GpuRegister out = locations->Out().AsRegister<GpuRegister>();
     __ MaybeUnpoisonHeapReference(out);
