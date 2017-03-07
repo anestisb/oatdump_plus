@@ -182,7 +182,8 @@ class ProfileAssistantTest : public CommonRuntimeTest {
   void AssertInlineCaches(ArtMethod* method,
                           const std::set<mirror::Class*>& expected_clases,
                           const ProfileCompilationInfo& info,
-                          bool megamorphic)
+                          bool is_megamorphic,
+                          bool is_missing_types)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     ProfileCompilationInfo::OfflineProfileMethodInfo pmi;
     ASSERT_TRUE(info.GetMethod(method->GetDexFile()->GetLocation(),
@@ -192,7 +193,8 @@ class ProfileAssistantTest : public CommonRuntimeTest {
     ASSERT_EQ(pmi.inline_caches.size(), 1u);
     ProfileCompilationInfo::DexPcData dex_pc_data = pmi.inline_caches.begin()->second;
 
-    ASSERT_EQ(dex_pc_data.is_megamorphic, megamorphic);
+    ASSERT_EQ(dex_pc_data.is_megamorphic, is_megamorphic);
+    ASSERT_EQ(dex_pc_data.is_missing_types, is_missing_types);
     ASSERT_EQ(expected_clases.size(), dex_pc_data.classes.size());
     size_t found = 0;
     for (mirror::Class* it : expected_clases) {
@@ -482,6 +484,7 @@ TEST_F(ProfileAssistantTest, TestProfileCreateInlineCache) {
     "LTestInline;->inlineMonomorphic(LSuper;)I+LSubA;",
     "LTestInline;->inlinePolymorphic(LSuper;)I+LSubA;,LSubB;,LSubC;",
     "LTestInline;->inlineMegamorphic(LSuper;)I+LSubA;,LSubB;,LSubC;,LSubD;,LSubE;",
+    "LTestInline;->inlineMissingTypes(LSuper;)I+missing_types",
     "LTestInline;->noInlineCache(LSuper;)I"
   };
   std::string input_file_contents;
@@ -521,7 +524,11 @@ TEST_F(ProfileAssistantTest, TestProfileCreateInlineCache) {
     ASSERT_TRUE(inline_monomorphic != nullptr);
     std::set<mirror::Class*> expected_monomorphic;
     expected_monomorphic.insert(sub_a);
-    AssertInlineCaches(inline_monomorphic, expected_monomorphic, info, /*megamorphic*/ false);
+    AssertInlineCaches(inline_monomorphic,
+                       expected_monomorphic,
+                       info,
+                       /*megamorphic*/false,
+                       /*missing_types*/false);
   }
 
   {
@@ -534,7 +541,11 @@ TEST_F(ProfileAssistantTest, TestProfileCreateInlineCache) {
     expected_polymorphic.insert(sub_a);
     expected_polymorphic.insert(sub_b);
     expected_polymorphic.insert(sub_c);
-    AssertInlineCaches(inline_polymorhic, expected_polymorphic, info, /*megamorphic*/ false);
+    AssertInlineCaches(inline_polymorhic,
+                       expected_polymorphic,
+                       info,
+                       /*megamorphic*/false,
+                       /*missing_types*/false);
   }
 
   {
@@ -544,7 +555,25 @@ TEST_F(ProfileAssistantTest, TestProfileCreateInlineCache) {
                                                      "inlineMegamorphic");
     ASSERT_TRUE(inline_megamorphic != nullptr);
     std::set<mirror::Class*> expected_megamorphic;
-    AssertInlineCaches(inline_megamorphic, expected_megamorphic, info, /*megamorphic*/ true);
+    AssertInlineCaches(inline_megamorphic,
+                       expected_megamorphic,
+                       info,
+                       /*megamorphic*/true,
+                       /*missing_types*/false);
+  }
+
+  {
+    // Verify that method inlineMegamorphic has the expected inline caches and nothing else.
+    ArtMethod* inline_missing_types = GetVirtualMethod(class_loader,
+                                                       "LTestInline;",
+                                                       "inlineMissingTypes");
+    ASSERT_TRUE(inline_missing_types != nullptr);
+    std::set<mirror::Class*> expected_missing_Types;
+    AssertInlineCaches(inline_missing_types,
+                       expected_missing_Types,
+                       info,
+                       /*megamorphic*/false,
+                       /*missing_types*/true);
   }
 
   {

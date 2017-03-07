@@ -1262,6 +1262,7 @@ void JitCodeCache::GetProfiledMethods(const std::set<std::string>& dex_base_loca
     for (size_t i = 0; i < info->number_of_inline_caches_; ++i) {
       std::vector<ProfileMethodInfo::ProfileClassReference> profile_classes;
       const InlineCache& cache = info->cache_[i];
+      bool is_missing_types = false;
       for (size_t k = 0; k < InlineCache::kIndividualCacheSize; k++) {
         mirror::Class* cls = cache.classes_[k].Read();
         if (cls == nullptr) {
@@ -1284,17 +1285,20 @@ void JitCodeCache::GetProfiledMethods(const std::set<std::string>& dex_base_loca
         }
         if (!type_index.IsValid()) {
           // Could be a proxy class or an array for which we couldn't find the type index.
+          is_missing_types = true;
           continue;
         }
         if (ContainsElement(dex_base_locations, class_dex_file->GetBaseLocation())) {
           // Only consider classes from the same apk (including multidex).
           profile_classes.emplace_back(/*ProfileMethodInfo::ProfileClassReference*/
               class_dex_file, type_index);
+        } else {
+          is_missing_types = true;
         }
       }
       if (!profile_classes.empty()) {
         inline_caches.emplace_back(/*ProfileMethodInfo::ProfileInlineCache*/
-            cache.dex_pc_, profile_classes);
+            cache.dex_pc_, is_missing_types, profile_classes);
       }
     }
     methods.emplace_back(/*ProfileMethodInfo*/

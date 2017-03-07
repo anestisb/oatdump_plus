@@ -108,26 +108,31 @@ class ProfileCompilationInfoTest : public CommonRuntimeTest {
     for (ArtMethod* method : methods) {
       std::vector<ProfileMethodInfo::ProfileInlineCache> caches;
       // Monomorphic
-      for (uint16_t dex_pc = 0; dex_pc < 1; dex_pc++) {
+      for (uint16_t dex_pc = 0; dex_pc < 11; dex_pc++) {
         std::vector<ProfileMethodInfo::ProfileClassReference> classes;
         classes.emplace_back(method->GetDexFile(), dex::TypeIndex(0));
-        caches.emplace_back(dex_pc, classes);
+        caches.emplace_back(dex_pc, /*is_missing_types*/false, classes);
       }
       // Polymorphic
-      for (uint16_t dex_pc = 1; dex_pc < 2; dex_pc++) {
+      for (uint16_t dex_pc = 11; dex_pc < 22; dex_pc++) {
         std::vector<ProfileMethodInfo::ProfileClassReference> classes;
         for (uint16_t k = 0; k < InlineCache::kIndividualCacheSize / 2; k++) {
           classes.emplace_back(method->GetDexFile(), dex::TypeIndex(k));
         }
-        caches.emplace_back(dex_pc, classes);
+        caches.emplace_back(dex_pc, /*is_missing_types*/false, classes);
       }
       // Megamorphic
-      for (uint16_t dex_pc = 2; dex_pc < 3; dex_pc++) {
+      for (uint16_t dex_pc = 22; dex_pc < 33; dex_pc++) {
         std::vector<ProfileMethodInfo::ProfileClassReference> classes;
         for (uint16_t k = 0; k < 2 * InlineCache::kIndividualCacheSize; k++) {
           classes.emplace_back(method->GetDexFile(), dex::TypeIndex(k));
         }
-        caches.emplace_back(dex_pc, classes);
+        caches.emplace_back(dex_pc, /*is_missing_types*/false, classes);
+      }
+      // Missing types
+      for (uint16_t dex_pc = 33; dex_pc < 44; dex_pc++) {
+        std::vector<ProfileMethodInfo::ProfileClassReference> classes;
+        caches.emplace_back(dex_pc, /*is_missing_types*/true, classes);
       }
       ProfileMethodInfo pmi(method->GetDexFile(), method->GetDexMethodIndex(), caches);
       profile_methods.push_back(pmi);
@@ -148,12 +153,15 @@ class ProfileCompilationInfoTest : public CommonRuntimeTest {
     ProfileCompilationInfo::OfflineProfileMethodInfo offline_pmi;
     SafeMap<DexFile*, uint8_t> dex_map;  // dex files to profile index
     for (const auto& inline_cache : pmi.inline_caches) {
+      ProfileCompilationInfo::DexPcData& dex_pc_data =
+          offline_pmi.inline_caches.FindOrAdd(inline_cache.dex_pc)->second;
+      if (inline_cache.is_missing_types) {
+        dex_pc_data.SetIsMissingTypes();
+      }
       for (const auto& class_ref : inline_cache.classes) {
         uint8_t dex_profile_index = dex_map.FindOrAdd(const_cast<DexFile*>(class_ref.dex_file),
                                                       static_cast<uint8_t>(dex_map.size()))->second;
-        offline_pmi.inline_caches
-            .FindOrAdd(inline_cache.dex_pc)->second
-            .AddClass(dex_profile_index, class_ref.type_index);
+        dex_pc_data.AddClass(dex_profile_index, class_ref.type_index);
         if (dex_profile_index >= offline_pmi.dex_references.size()) {
           // This is a new dex.
           const std::string& dex_key = ProfileCompilationInfo::GetProfileDexFileKey(
@@ -170,18 +178,18 @@ class ProfileCompilationInfoTest : public CommonRuntimeTest {
   ProfileCompilationInfo::OfflineProfileMethodInfo GetOfflineProfileMethodInfo() {
     ProfileCompilationInfo::OfflineProfileMethodInfo pmi;
 
-    pmi.dex_references.emplace_back("dex_location1", /* checksum */ 1);
-    pmi.dex_references.emplace_back("dex_location2", /* checksum */ 2);
-    pmi.dex_references.emplace_back("dex_location3", /* checksum */ 3);
+    pmi.dex_references.emplace_back("dex_location1", /* checksum */1);
+    pmi.dex_references.emplace_back("dex_location2", /* checksum */2);
+    pmi.dex_references.emplace_back("dex_location3", /* checksum */3);
 
     // Monomorphic
-    for (uint16_t dex_pc = 0; dex_pc < 10; dex_pc++) {
+    for (uint16_t dex_pc = 0; dex_pc < 11; dex_pc++) {
       ProfileCompilationInfo::DexPcData dex_pc_data;
       dex_pc_data.AddClass(0, dex::TypeIndex(0));
       pmi.inline_caches.Put(dex_pc, dex_pc_data);
     }
     // Polymorphic
-    for (uint16_t dex_pc = 10; dex_pc < 20; dex_pc++) {
+    for (uint16_t dex_pc = 11; dex_pc < 22; dex_pc++) {
       ProfileCompilationInfo::DexPcData dex_pc_data;
       dex_pc_data.AddClass(0, dex::TypeIndex(0));
       dex_pc_data.AddClass(1, dex::TypeIndex(1));
@@ -190,9 +198,15 @@ class ProfileCompilationInfoTest : public CommonRuntimeTest {
        pmi.inline_caches.Put(dex_pc, dex_pc_data);
     }
     // Megamorphic
-    for (uint16_t dex_pc = 20; dex_pc < 30; dex_pc++) {
+    for (uint16_t dex_pc = 22; dex_pc < 33; dex_pc++) {
       ProfileCompilationInfo::DexPcData dex_pc_data;
-      dex_pc_data.is_megamorphic = true;
+      dex_pc_data.SetIsMegamorphic();
+      pmi.inline_caches.Put(dex_pc, dex_pc_data);
+    }
+    // Missing types
+    for (uint16_t dex_pc = 33; dex_pc < 44; dex_pc++) {
+      ProfileCompilationInfo::DexPcData dex_pc_data;
+      dex_pc_data.SetIsMissingTypes();
       pmi.inline_caches.Put(dex_pc, dex_pc_data);
     }
 
@@ -207,7 +221,13 @@ class ProfileCompilationInfoTest : public CommonRuntimeTest {
     }
   }
 
-  // Cannot sizeof the actual arrays so hardcode the values here.
+  void SetIsMissingTypes(/*out*/ProfileCompilationInfo::OfflineProfileMethodInfo* pmi) {
+    for (auto it : pmi->inline_caches) {
+      it.second.SetIsMissingTypes();
+    }
+  }
+
+  // Cannot sizeof the actual arrays so hard code the values here.
   // They should not change anyway.
   static constexpr int kProfileMagicSize = 4;
   static constexpr int kProfileVersionSize = 4;
@@ -530,6 +550,58 @@ TEST_F(ProfileCompilationInfoTest, MegamorphicInlineCaches) {
   ASSERT_TRUE(loaded_pmi1 == pmi_extra);
 }
 
+TEST_F(ProfileCompilationInfoTest, MissingTypesInlineCaches) {
+  ScratchFile profile;
+
+  ProfileCompilationInfo saved_info;
+  ProfileCompilationInfo::OfflineProfileMethodInfo pmi = GetOfflineProfileMethodInfo();
+
+  // Add methods with inline caches.
+  for (uint16_t method_idx = 0; method_idx < 10; method_idx++) {
+    ASSERT_TRUE(AddMethod("dex_location1", /* checksum */ 1, method_idx, pmi, &saved_info));
+  }
+
+  ASSERT_TRUE(saved_info.Save(GetFd(profile)));
+  ASSERT_EQ(0, profile.GetFile()->Flush());
+
+  // Make some inline caches megamorphic and add them to the profile again.
+  ProfileCompilationInfo saved_info_extra;
+  ProfileCompilationInfo::OfflineProfileMethodInfo pmi_extra = GetOfflineProfileMethodInfo();
+  MakeMegamorphic(&pmi_extra);
+  for (uint16_t method_idx = 5; method_idx < 10; method_idx++) {
+    ASSERT_TRUE(AddMethod("dex_location1", /* checksum */ 1, method_idx, pmi, &saved_info_extra));
+  }
+
+  // Mark all inline caches with missing types and add them to the profile again.
+  // This will verify that all inline caches (megamorphic or not) should be marked as missing types.
+  ProfileCompilationInfo::OfflineProfileMethodInfo missing_types = GetOfflineProfileMethodInfo();
+  SetIsMissingTypes(&missing_types);
+  for (uint16_t method_idx = 0; method_idx < 10; method_idx++) {
+    ASSERT_TRUE(AddMethod("dex_location1", /* checksum */ 1, method_idx, pmi, &saved_info_extra));
+  }
+
+  ASSERT_TRUE(profile.GetFile()->ResetOffset());
+  ASSERT_TRUE(saved_info_extra.Save(GetFd(profile)));
+  ASSERT_EQ(0, profile.GetFile()->Flush());
+
+  // Merge the profiles so that we have the same view as the file.
+  ASSERT_TRUE(saved_info.MergeWith(saved_info_extra));
+
+  // Check that we get back what we saved.
+  ProfileCompilationInfo loaded_info;
+  ASSERT_TRUE(profile.GetFile()->ResetOffset());
+  ASSERT_TRUE(loaded_info.Load(GetFd(profile)));
+
+  ASSERT_TRUE(loaded_info.Equals(saved_info));
+
+  ProfileCompilationInfo::OfflineProfileMethodInfo loaded_pmi1;
+  ASSERT_TRUE(loaded_info.GetMethod("dex_location1",
+                                    /* checksum */ 1,
+                                    /* method_idx */ 3,
+                                    &loaded_pmi1));
+  ASSERT_TRUE(loaded_pmi1 == pmi_extra);
+}
+
 TEST_F(ProfileCompilationInfoTest, SaveArtMethodsWithInlineCaches) {
   ScratchFile profile;
 
@@ -570,7 +642,7 @@ TEST_F(ProfileCompilationInfoTest, SaveArtMethodsWithInlineCaches) {
   }
 }
 
-TEST_F(ProfileCompilationInfoTest, InvalidChecksumInInlineCahce) {
+TEST_F(ProfileCompilationInfoTest, InvalidChecksumInInlineCache) {
   ScratchFile profile;
 
   ProfileCompilationInfo info;
@@ -662,7 +734,7 @@ TEST_F(ProfileCompilationInfoTest, MegamorphicInlineCachesMerge) {
   ProfileCompilationInfo::OfflineProfileMethodInfo pmi;
   pmi.dex_references.emplace_back("dex_location1", /* checksum */ 1);
   ProfileCompilationInfo::DexPcData dex_pc_data;
-  dex_pc_data.is_megamorphic = true;
+  dex_pc_data.SetIsMegamorphic();
   pmi.inline_caches.Put(/*dex_pc*/ 0, dex_pc_data);
 
   ProfileCompilationInfo info_megamorphic;
@@ -683,6 +755,35 @@ TEST_F(ProfileCompilationInfoTest, MegamorphicInlineCachesMerge) {
   ASSERT_TRUE(info_no_inline_cache.MergeWith(info_megamorphic));
   ScratchFile profile;
   // Saving profile should work without crashing (b/35644850).
+  ASSERT_TRUE(info_no_inline_cache.Save(GetFd(profile)));
+}
+
+TEST_F(ProfileCompilationInfoTest, MissingTypesInlineCachesMerge) {
+  // Create an inline cache with missing types
+  ProfileCompilationInfo::OfflineProfileMethodInfo pmi;
+  pmi.dex_references.emplace_back("dex_location1", /* checksum */ 1);
+  ProfileCompilationInfo::DexPcData dex_pc_data;
+  dex_pc_data.SetIsMissingTypes();
+  pmi.inline_caches.Put(/*dex_pc*/ 0, dex_pc_data);
+
+  ProfileCompilationInfo info_megamorphic;
+  ASSERT_TRUE(AddMethod("dex_location1",
+                        /*checksum*/ 1,
+                        /*method_idx*/ 0,
+                        pmi,
+                        &info_megamorphic));
+
+  // Create a profile with no inline caches (for the same method).
+  ProfileCompilationInfo info_no_inline_cache;
+  ASSERT_TRUE(AddMethod("dex_location1",
+                        /*checksum*/ 1,
+                        /*method_idx*/ 0,
+                        &info_no_inline_cache));
+
+  // Merge the missing type cache into the empty one.
+  // Everything should be saved without errors.
+  ASSERT_TRUE(info_no_inline_cache.MergeWith(info_megamorphic));
+  ScratchFile profile;
   ASSERT_TRUE(info_no_inline_cache.Save(GetFd(profile)));
 }
 

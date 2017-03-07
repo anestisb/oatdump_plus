@@ -139,6 +139,7 @@ static constexpr uint16_t kDefaultTestProfileClassRatio = 5;
 
 // Separators used when parsing human friendly representation of profiles.
 static const std::string kMethodSep = "->";
+static const std::string kMissingTypesMarker = "missing_types";
 static constexpr char kProfileParsingInlineChacheSep = '+';
 static constexpr char kProfileParsingTypeSep = ',';
 static constexpr char kProfileParsingFirstCharInSignature = '(';
@@ -624,8 +625,11 @@ class ProfMan FINAL {
 
   // Process a line defining a class or a method and its inline caches.
   // Upon success return true and add the class or the method info to profile.
-  // The format of the method line is:
+  // The possible line formats are:
+  // "LJustTheCass;".
   // "LTestInline;->inlinePolymorphic(LSuper;)I+LSubA;,LSubB;,LSubC;".
+  // "LTestInline;->inlineMissingTypes(LSuper;)I+missing_types".
+  // "LTestInline;->inlineNoInlineCaches(LSuper;)I".
   // The method and classes are searched only in the given dex files.
   bool ProcessLine(const std::vector<std::unique_ptr<const DexFile>>& dex_files,
                    const std::string& line,
@@ -664,10 +668,14 @@ class ProfMan FINAL {
     std::vector<std::string> inline_cache_elems;
 
     std::vector<std::string> method_elems;
+    bool is_missing_types = false;
     Split(method_str, kProfileParsingInlineChacheSep, &method_elems);
     if (method_elems.size() == 2) {
       method_spec = method_elems[0];
-      Split(method_elems[1], kProfileParsingTypeSep, &inline_cache_elems);
+      is_missing_types = method_elems[1] == kMissingTypesMarker;
+      if (!is_missing_types) {
+        Split(method_elems[1], kProfileParsingTypeSep, &inline_cache_elems);
+      }
     } else if (method_elems.size() == 1) {
       method_spec = method_elems[0];
     } else {
@@ -689,7 +697,7 @@ class ProfMan FINAL {
       }
     }
     std::vector<ProfileMethodInfo::ProfileInlineCache> inline_caches;
-    inline_caches.emplace_back(dex_pc, classes);
+    inline_caches.emplace_back(dex_pc, is_missing_types, classes);
     std::vector<ProfileMethodInfo> pmi;
     pmi.emplace_back(class_ref.dex_file, method_index, inline_caches);
 
