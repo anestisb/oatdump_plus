@@ -729,9 +729,6 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
     }
   }
 
-  // TODO(calin): Consider optimizing this knowing that is useless to record the
-  // use of fully compiled apks.
-  Runtime::Current()->NotifyDexLoaded(dex_location);
   return dex_files;
 }
 
