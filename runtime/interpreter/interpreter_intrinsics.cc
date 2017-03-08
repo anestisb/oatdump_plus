@@ -469,6 +469,7 @@ bool MterpHandleIntrinsic(ShadowFrame* shadow_frame,
     UNIMPLEMENTED_CASE(UnsafeFullFence /* ()V */)
     UNIMPLEMENTED_CASE(ReferenceGetReferent /* ()Ljava/lang/Object; */)
     UNIMPLEMENTED_CASE(IntegerValueOf /* (I)Ljava/lang/Integer; */)
+    UNIMPLEMENTED_CASE(ThreadInterrupted /* ()Z */)
     case Intrinsics::kNone:
       res = false;
       break;
