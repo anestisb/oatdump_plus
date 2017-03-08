@@ -62,6 +62,7 @@ std::ostream& operator<<(std::ostream& os, const ObjectRegistryEntry& rhs);
 class ObjectRegistry {
  public:
   ObjectRegistry();
+  ~ObjectRegistry();
 
   JDWP::ObjectId Add(ObjPtr<mirror::Object> o)
       REQUIRES_SHARED(Locks::mutator_lock_)

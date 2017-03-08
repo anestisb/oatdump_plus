@@ -227,6 +227,7 @@ JdwpState::JdwpState(const JdwpOptions* options)
       last_activity_time_ms_(0),
       request_serial_(0x10000000),
       event_serial_(0x20000000),
+      event_list_lock_("JDWP event list lock", kJdwpEventListLock),
       event_list_(nullptr),
       event_list_size_(0),
       jdwp_token_lock_("JDWP token lock"),
@@ -238,6 +239,7 @@ JdwpState::JdwpState(const JdwpOptions* options)
       shutdown_lock_("JDWP shutdown lock", kJdwpShutdownLock),
       shutdown_cond_("JDWP shutdown condition variable", shutdown_lock_),
       processing_request_(false) {
+  Locks::AddToExpectedMutexesOnWeakRefAccess(&event_list_lock_);
 }
 
 /*
@@ -330,7 +332,7 @@ void JdwpState::ResetState() {
 
   UnregisterAll();
   {
-    MutexLock mu(Thread::Current(), *Locks::jdwp_event_list_lock_);
+    MutexLock mu(Thread::Current(), event_list_lock_);
     CHECK(event_list_ == nullptr);
   }
 
@@ -380,6 +382,8 @@ JdwpState::~JdwpState() {
   CHECK(netState == nullptr);
 
   ResetState();
+
+  Locks::RemoveFromExpectedMutexesOnWeakRefAccess(&event_list_lock_);
 }
 
 /*
