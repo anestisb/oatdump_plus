@@ -583,6 +583,12 @@ class Locks {
   // Checks for whether it is safe to call Abort() without using locks.
   static bool IsSafeToCallAbortRacy() NO_THREAD_SAFETY_ANALYSIS;
 
+  // Add a mutex to expected_mutexes_on_weak_ref_access_.
+  static void AddToExpectedMutexesOnWeakRefAccess(BaseMutex* mutex, bool need_lock = true);
+  // Remove a mutex from expected_mutexes_on_weak_ref_access_.
+  static void RemoveFromExpectedMutexesOnWeakRefAccess(BaseMutex* mutex, bool need_lock = true);
+  // Check if the given mutex is in expected_mutexes_on_weak_ref_access_.
+  static bool IsExpectedOnWeakRefAccess(BaseMutex* mutex);
 
   // Guards allocation entrypoint instrumenting.
   static Mutex* instrument_entrypoints_lock_;
@@ -630,12 +636,8 @@ class Locks {
   // Guards shutdown of the runtime.
   static Mutex* runtime_shutdown_lock_ ACQUIRED_AFTER(heap_bitmap_lock_);
 
-  static Mutex* jdwp_event_list_lock_
-      ACQUIRED_AFTER(runtime_shutdown_lock_)
-      ACQUIRED_BEFORE(breakpoint_lock_);
-
   // Guards background profiler global state.
-  static Mutex* profiler_lock_ ACQUIRED_AFTER(jdwp_event_list_lock_);
+  static Mutex* profiler_lock_ ACQUIRED_AFTER(runtime_shutdown_lock_);
 
   // Guards trace (ie traceview) requests.
   static Mutex* trace_lock_ ACQUIRED_AFTER(profiler_lock_);
@@ -738,6 +740,8 @@ class Locks {
   // encounter an unexpected mutex on accessing weak refs,
   // Thread::CheckEmptyCheckpointFromWeakRefAccess will detect it.
   static std::vector<BaseMutex*> expected_mutexes_on_weak_ref_access_;
+  static Atomic<const BaseMutex*> expected_mutexes_on_weak_ref_access_guard_;
+  class ScopedExpectedMutexesOnWeakRefAccessLock;
 };
 
 class Roles {
