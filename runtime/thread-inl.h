@@ -94,9 +94,7 @@ inline void Thread::CheckEmptyCheckpointFromWeakRefAccess(BaseMutex* cond_var_mu
           if (held_mutex != nullptr &&
               held_mutex != Locks::mutator_lock_ &&
               held_mutex != cond_var_mutex) {
-            std::vector<BaseMutex*>& expected_mutexes = Locks::expected_mutexes_on_weak_ref_access_;
-            CHECK(std::find(expected_mutexes.begin(), expected_mutexes.end(), held_mutex) !=
-                  expected_mutexes.end())
+            CHECK(Locks::IsExpectedOnWeakRefAccess(held_mutex))
                 << "Holding unexpected mutex " << held_mutex->GetName()
                 << " when accessing weak ref";
           }

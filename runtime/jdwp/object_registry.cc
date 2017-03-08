@@ -35,6 +35,11 @@ std::ostream& operator<<(std::ostream& os, const ObjectRegistryEntry& rhs) {
 
 ObjectRegistry::ObjectRegistry()
     : lock_("ObjectRegistry lock", kJdwpObjectRegistryLock), next_id_(1) {
+  Locks::AddToExpectedMutexesOnWeakRefAccess(&lock_);
+}
+
+ObjectRegistry::~ObjectRegistry() {
+  Locks::RemoveFromExpectedMutexesOnWeakRefAccess(&lock_);
 }
 
 JDWP::RefTypeId ObjectRegistry::AddRefType(ObjPtr<mirror::Class> c) {
