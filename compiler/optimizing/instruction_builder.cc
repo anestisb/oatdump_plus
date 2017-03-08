@@ -1676,10 +1676,10 @@ HLoadClass* HInstructionBuilder::BuildLoadClass(dex::TypeIndex type_index,
       dex_pc,
       needs_access_check);
 
-  HLoadClass::LoadKind load_kind = HSharpening::SharpenClass(load_class,
-                                                             code_generator_,
-                                                             compiler_driver_,
-                                                             *dex_compilation_unit_);
+  HLoadClass::LoadKind load_kind = HSharpening::ComputeLoadClassKind(load_class,
+                                                                     code_generator_,
+                                                                     compiler_driver_,
+                                                                     *dex_compilation_unit_);
 
   if (load_kind == HLoadClass::LoadKind::kInvalid) {
     // We actually cannot reference this class, we're forced to bail.

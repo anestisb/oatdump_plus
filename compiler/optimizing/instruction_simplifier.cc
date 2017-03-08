@@ -19,14 +19,18 @@
 #include "escape.h"
 #include "intrinsics.h"
 #include "mirror/class-inl.h"
+#include "sharpening.h"
 #include "scoped_thread_state_change-inl.h"
 
 namespace art {
 
 class InstructionSimplifierVisitor : public HGraphDelegateVisitor {
  public:
-  InstructionSimplifierVisitor(HGraph* graph, OptimizingCompilerStats* stats)
+  InstructionSimplifierVisitor(HGraph* graph,
+                               CodeGenerator* codegen,
+                               OptimizingCompilerStats* stats)
       : HGraphDelegateVisitor(graph),
+        codegen_(codegen),
         stats_(stats) {}
 
   void Run();
@@ -112,6 +116,7 @@ class InstructionSimplifierVisitor : public HGraphDelegateVisitor {
   void SimplifyAllocationIntrinsic(HInvoke* invoke);
   void SimplifyMemBarrier(HInvoke* invoke, MemBarrierKind barrier_kind);
 
+  CodeGenerator* codegen_;
   OptimizingCompilerStats* stats_;
   bool simplification_occurred_ = false;
   int simplifications_at_current_position_ = 0;
@@ -123,7 +128,7 @@ class InstructionSimplifierVisitor : public HGraphDelegateVisitor {
 };
 
 void InstructionSimplifier::Run() {
-  InstructionSimplifierVisitor visitor(graph_, stats_);
+  InstructionSimplifierVisitor visitor(graph_, codegen_, stats_);
   visitor.Run();
 }
 
@@ -1805,6 +1810,8 @@ void InstructionSimplifierVisitor::SimplifySystemArrayCopy(HInvoke* instruction)
 
   {
     ScopedObjectAccess soa(Thread::Current());
+    Primitive::Type source_component_type = Primitive::kPrimVoid;
+    Primitive::Type destination_component_type = Primitive::kPrimVoid;
     ReferenceTypeInfo destination_rti = destination->GetReferenceTypeInfo();
     if (destination_rti.IsValid()) {
       if (destination_rti.IsObjectArray()) {
@@ -1814,6 +1821,8 @@ void InstructionSimplifierVisitor::SimplifySystemArrayCopy(HInvoke* instruction)
         optimizations.SetDestinationIsTypedObjectArray();
       }
       if (destination_rti.IsPrimitiveArrayClass()) {
+        destination_component_type =
+            destination_rti.GetTypeHandle()->GetComponentType()->GetPrimitiveType();
         optimizations.SetDestinationIsPrimitiveArray();
       } else if (destination_rti.IsNonPrimitiveArrayClass()) {
         optimizations.SetDestinationIsNonPrimitiveArray();
@@ -1826,9 +1835,54 @@ void InstructionSimplifierVisitor::SimplifySystemArrayCopy(HInvoke* instruction)
       }
       if (source_rti.IsPrimitiveArrayClass()) {
         optimizations.SetSourceIsPrimitiveArray();
+        source_component_type = source_rti.GetTypeHandle()->GetComponentType()->GetPrimitiveType();
       } else if (source_rti.IsNonPrimitiveArrayClass()) {
         optimizations.SetSourceIsNonPrimitiveArray();
       }
+    }
+    // For primitive arrays, use their optimized ArtMethod implementations.
+    if ((source_component_type != Primitive::kPrimVoid) &&
+        (source_component_type == destination_component_type)) {
+      ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+      PointerSize image_size = class_linker->GetImagePointerSize();
+      HInvokeStaticOrDirect* invoke = instruction->AsInvokeStaticOrDirect();
+      mirror::Class* system = invoke->GetResolvedMethod()->GetDeclaringClass();
+      ArtMethod* method = nullptr;
+      switch (source_component_type) {
+        case Primitive::kPrimBoolean:
+          method = system->FindDeclaredDirectMethod("arraycopy", "([ZI[ZII)V", image_size);
+          break;
+        case Primitive::kPrimByte:
+          method = system->FindDeclaredDirectMethod("arraycopy", "([BI[BII)V", image_size);
+          break;
+        case Primitive::kPrimChar:
+          method = system->FindDeclaredDirectMethod("arraycopy", "([CI[CII)V", image_size);
+          break;
+        case Primitive::kPrimShort:
+          method = system->FindDeclaredDirectMethod("arraycopy", "([SI[SII)V", image_size);
+          break;
+        case Primitive::kPrimInt:
+          method = system->FindDeclaredDirectMethod("arraycopy", "([II[III)V", image_size);
+          break;
+        case Primitive::kPrimFloat:
+          method = system->FindDeclaredDirectMethod("arraycopy", "([FI[FII)V", image_size);
+          break;
+        case Primitive::kPrimLong:
+          method = system->FindDeclaredDirectMethod("arraycopy", "([JI[JII)V", image_size);
+          break;
+        case Primitive::kPrimDouble:
+          method = system->FindDeclaredDirectMethod("arraycopy", "([DI[DII)V", image_size);
+          break;
+        default:
+          LOG(FATAL) << "Unreachable";
+      }
+      DCHECK(method != nullptr);
+      invoke->SetResolvedMethod(method);
+      // Sharpen the new invoke. Note that we do not update the dex method index of
+      // the invoke, as we would need to look it up in the current dex file, and it
+      // is unlikely that it exists. The most usual situation for such typed
+      // arraycopy methods is a direct pointer to the boot image.
+      HSharpening::SharpenInvokeStaticOrDirect(invoke, codegen_);
     }
   }
 }
