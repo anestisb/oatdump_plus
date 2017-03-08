@@ -571,7 +571,7 @@ class DexRegisterMap {
     }
   }
 
-  bool IsDexRegisterLive(uint16_t dex_register_number) const {
+  ALWAYS_INLINE bool IsDexRegisterLive(uint16_t dex_register_number) const {
     size_t live_bit_mask_offset_in_bits = GetLiveBitMaskOffset() * kBitsPerByte;
     return region_.LoadBit(live_bit_mask_offset_in_bits + dex_register_number);
   }
