@@ -41,7 +41,7 @@ void HSharpening::Run() {
     for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
       HInstruction* instruction = it.Current();
       if (instruction->IsInvokeStaticOrDirect()) {
-        ProcessInvokeStaticOrDirect(instruction->AsInvokeStaticOrDirect());
+        SharpenInvokeStaticOrDirect(instruction->AsInvokeStaticOrDirect(), codegen_);
       } else if (instruction->IsLoadString()) {
         ProcessLoadString(instruction->AsLoadString());
       }
@@ -70,7 +70,9 @@ static bool AOTCanEmbedMethod(ArtMethod* method, const CompilerOptions& options)
   return IsInBootImage(method) && !options.GetCompilePic() && !options.GetIncludePatchInformation();
 }
 
-void HSharpening::ProcessInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
+
+void HSharpening::SharpenInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke,
+                                              CodeGenerator* codegen) {
   if (invoke->IsStringInit()) {
     // Not using the dex cache arrays. But we could still try to use a better dispatch...
     // TODO: Use direct_method and direct_code for the appropriate StringFactory method.
@@ -97,12 +99,12 @@ void HSharpening::ProcessInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
 
   // We don't optimize for debuggable as it would prevent us from obsoleting the method in some
   // situations.
-  if (callee == codegen_->GetGraph()->GetArtMethod() && !codegen_->GetGraph()->IsDebuggable()) {
+  if (callee == codegen->GetGraph()->GetArtMethod() && !codegen->GetGraph()->IsDebuggable()) {
     // Recursive call.
     method_load_kind = HInvokeStaticOrDirect::MethodLoadKind::kRecursive;
     code_ptr_location = HInvokeStaticOrDirect::CodePtrLocation::kCallSelf;
   } else if (Runtime::Current()->UseJitCompilation() ||
-      AOTCanEmbedMethod(callee, codegen_->GetCompilerOptions())) {
+      AOTCanEmbedMethod(callee, codegen->GetCompilerOptions())) {
     // JIT or on-device AOT compilation referencing a boot image method.
     // Use the method address directly.
     method_load_kind = HInvokeStaticOrDirect::MethodLoadKind::kDirectAddress;
@@ -111,13 +113,17 @@ void HSharpening::ProcessInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
   } else {
     // Use PC-relative access to the dex cache arrays.
     method_load_kind = HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative;
-    DexCacheArraysLayout layout(GetInstructionSetPointerSize(codegen_->GetInstructionSet()),
-                                &graph_->GetDexFile());
+    // Note: we use the invoke's graph instead of the codegen graph, which are
+    // different when inlining (the codegen graph is the most outer graph). The
+    // invoke's dex method index is relative to the dex file where the invoke's graph
+    // was built from.
+    DexCacheArraysLayout layout(GetInstructionSetPointerSize(codegen->GetInstructionSet()),
+                                &invoke->GetBlock()->GetGraph()->GetDexFile());
     method_load_data = layout.MethodOffset(invoke->GetDexMethodIndex());
     code_ptr_location = HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod;
   }
 
-  if (graph_->IsDebuggable()) {
+  if (codegen->GetGraph()->IsDebuggable()) {
     // For debuggable apps always use the code pointer from ArtMethod
     // so that we don't circumvent instrumentation stubs if installed.
     code_ptr_location = HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod;
@@ -127,14 +133,14 @@ void HSharpening::ProcessInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
       method_load_kind, code_ptr_location, method_load_data
   };
   HInvokeStaticOrDirect::DispatchInfo dispatch_info =
-      codegen_->GetSupportedInvokeStaticOrDirectDispatch(desired_dispatch_info, invoke);
+      codegen->GetSupportedInvokeStaticOrDirectDispatch(desired_dispatch_info, invoke);
   invoke->SetDispatchInfo(dispatch_info);
 }
 
-HLoadClass::LoadKind HSharpening::SharpenClass(HLoadClass* load_class,
-                                               CodeGenerator* codegen,
-                                               CompilerDriver* compiler_driver,
-                                               const DexCompilationUnit& dex_compilation_unit) {
+HLoadClass::LoadKind HSharpening::ComputeLoadClassKind(HLoadClass* load_class,
+                                                       CodeGenerator* codegen,
+                                                       CompilerDriver* compiler_driver,
+                                                       const DexCompilationUnit& dex_compilation_unit) {
   Handle<mirror::Class> klass = load_class->GetClass();
   DCHECK(load_class->GetLoadKind() == HLoadClass::LoadKind::kDexCacheViaMethod ||
          load_class->GetLoadKind() == HLoadClass::LoadKind::kReferrersClass)

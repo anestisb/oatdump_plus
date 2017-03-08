@@ -3915,6 +3915,7 @@ class HInvoke : public HVariableInputSizeInstruction {
   bool IsIntrinsic() const { return intrinsic_ != Intrinsics::kNone; }
 
   ArtMethod* GetResolvedMethod() const { return resolved_method_; }
+  void SetResolvedMethod(ArtMethod* method) { resolved_method_ = method; }
 
   DECLARE_ABSTRACT_INSTRUCTION(Invoke);
 
@@ -3957,7 +3958,7 @@ class HInvoke : public HVariableInputSizeInstruction {
   }
 
   uint32_t number_of_arguments_;
-  ArtMethod* const resolved_method_;
+  ArtMethod* resolved_method_;
   const uint32_t dex_method_index_;
   Intrinsics intrinsic_;
 

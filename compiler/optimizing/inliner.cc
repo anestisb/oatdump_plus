@@ -549,7 +549,7 @@ HInstruction* HInliner::AddTypeGuard(HInstruction* receiver,
                                                                is_referrer,
                                                                invoke_instruction->GetDexPc(),
                                                                /* needs_access_check */ false);
-  HLoadClass::LoadKind kind = HSharpening::SharpenClass(
+  HLoadClass::LoadKind kind = HSharpening::ComputeLoadClassKind(
       load_class, codegen_, compiler_driver_, caller_compilation_unit_);
   DCHECK(kind != HLoadClass::LoadKind::kInvalid)
       << "We should always be able to reference a class for inline caches";
@@ -1491,7 +1491,7 @@ size_t HInliner::RunOptimizations(HGraph* callee_graph,
   HDeadCodeElimination dce(callee_graph, inline_stats_, "dead_code_elimination$inliner");
   HConstantFolding fold(callee_graph, "constant_folding$inliner");
   HSharpening sharpening(callee_graph, codegen_, dex_compilation_unit, compiler_driver_, handles_);
-  InstructionSimplifier simplify(callee_graph, inline_stats_);
+  InstructionSimplifier simplify(callee_graph, codegen_, inline_stats_);
   IntrinsicsRecognizer intrinsics(callee_graph, inline_stats_);
 
   HOptimization* optimizations[] = {
