@@ -93,6 +93,10 @@ class HInstructionBuilder : public ValueObject {
   HBasicBlock* FindBlockStartingAt(uint32_t dex_pc) const;
 
   ArenaVector<HInstruction*>* GetLocalsFor(HBasicBlock* block);
+  // Out of line version of GetLocalsFor(), which has a fast path that is
+  // beneficial to get inlined by callers.
+  ArenaVector<HInstruction*>* GetLocalsForWithAllocation(
+      HBasicBlock* block, ArenaVector<HInstruction*>* locals, const size_t vregs);
   HInstruction* ValueOfLocalAt(HBasicBlock* block, size_t local);
   HInstruction* LoadLocal(uint32_t register_index, Primitive::Type type) const;
   HInstruction* LoadNullCheckedLocal(uint32_t register_index, uint32_t dex_pc);

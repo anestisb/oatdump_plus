@@ -331,7 +331,7 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
         instruction, /* environment */ nullptr, input_index, block->GetLifetimeEnd(), first_use_);
   }
 
-  void AddRange(size_t start, size_t end) {
+  ALWAYS_INLINE void AddRange(size_t start, size_t end) {
     if (first_range_ == nullptr) {
       first_range_ = last_range_ = range_search_start_ =
           new (allocator_) LiveRange(start, end, first_range_);

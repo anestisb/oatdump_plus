@@ -141,6 +141,8 @@ class ScopedObjectAccessUnchecked : public ScopedObjectAccessAlreadyRunnable {
   ALWAYS_INLINE explicit ScopedObjectAccessUnchecked(Thread* self)
       REQUIRES(!Locks::thread_suspend_count_lock_);
 
+  ALWAYS_INLINE ~ScopedObjectAccessUnchecked() REQUIRES(!Locks::thread_suspend_count_lock_) {}
+
   // Used when we want a scoped JNI thread state but have no thread/JNIEnv. Consequently doesn't
   // change into Runnable or acquire a share on the mutator_lock_.
   explicit ScopedObjectAccessUnchecked(JavaVM* vm) ALWAYS_INLINE
