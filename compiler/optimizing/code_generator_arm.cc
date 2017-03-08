@@ -6217,21 +6217,59 @@ void LocationsBuilderARM::VisitBoundsCheck(HBoundsCheck* instruction) {
   caller_saves.Add(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
   caller_saves.Add(Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
   LocationSummary* locations = codegen_->CreateThrowingSlowPathLocations(instruction, caller_saves);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RequiresRegister());
+
+  HInstruction* index = instruction->InputAt(0);
+  HInstruction* length = instruction->InputAt(1);
+  // If both index and length are constants we can statically check the bounds. But if at least one
+  // of them is not encodable ArmEncodableConstantOrRegister will create
+  // Location::RequiresRegister() which is not desired to happen. Instead we create constant
+  // locations.
+  bool both_const = index->IsConstant() && length->IsConstant();
+  locations->SetInAt(0, both_const
+      ? Location::ConstantLocation(index->AsConstant())
+      : ArmEncodableConstantOrRegister(index, CMP));
+  locations->SetInAt(1, both_const
+      ? Location::ConstantLocation(length->AsConstant())
+      : ArmEncodableConstantOrRegister(length, CMP));
 }
 
 void InstructionCodeGeneratorARM::VisitBoundsCheck(HBoundsCheck* instruction) {
   LocationSummary* locations = instruction->GetLocations();
-  SlowPathCodeARM* slow_path =
-      new (GetGraph()->GetArena()) BoundsCheckSlowPathARM(instruction);
-  codegen_->AddSlowPath(slow_path);
+  Location index_loc = locations->InAt(0);
+  Location length_loc = locations->InAt(1);
 
-  Register index = locations->InAt(0).AsRegister<Register>();
-  Register length = locations->InAt(1).AsRegister<Register>();
+  if (length_loc.IsConstant()) {
+    int32_t length = helpers::Int32ConstantFrom(length_loc);
+    if (index_loc.IsConstant()) {
+      // BCE will remove the bounds check if we are guaranteed to pass.
+      int32_t index = helpers::Int32ConstantFrom(index_loc);
+      if (index < 0 || index >= length) {
+        SlowPathCodeARM* slow_path =
+            new (GetGraph()->GetArena()) BoundsCheckSlowPathARM(instruction);
+        codegen_->AddSlowPath(slow_path);
+        __ b(slow_path->GetEntryLabel());
+      } else {
+        // Some optimization after BCE may have generated this, and we should not
+        // generate a bounds check if it is a valid range.
+      }
+      return;
+    }
 
-  __ cmp(index, ShifterOperand(length));
-  __ b(slow_path->GetEntryLabel(), HS);
+    SlowPathCodeARM* slow_path = new (GetGraph()->GetArena()) BoundsCheckSlowPathARM(instruction);
+    __ cmp(index_loc.AsRegister<Register>(), ShifterOperand(length));
+    codegen_->AddSlowPath(slow_path);
+    __ b(slow_path->GetEntryLabel(), HS);
+  } else {
+    SlowPathCodeARM* slow_path = new (GetGraph()->GetArena()) BoundsCheckSlowPathARM(instruction);
+    if (index_loc.IsConstant()) {
+      int32_t index = helpers::Int32ConstantFrom(index_loc);
+      __ cmp(length_loc.AsRegister<Register>(), ShifterOperand(index));
+    } else {
+      __ cmp(length_loc.AsRegister<Register>(), ShifterOperand(index_loc.AsRegister<Register>()));
+    }
+    codegen_->AddSlowPath(slow_path);
+    __ b(slow_path->GetEntryLabel(), LS);
+  }
 }
 
 void CodeGeneratorARM::MarkGCCard(Register temp,
