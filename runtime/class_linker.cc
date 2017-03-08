@@ -4926,7 +4926,15 @@ bool ClassLinker::InitializeDefaultInterfaceRecursive(Thread* self,
     // First we initialize all of iface's super-interfaces recursively.
     for (size_t i = 0; i < num_direct_ifaces; i++) {
       ObjPtr<mirror::Class> super_iface = mirror::Class::GetDirectInterface(self, iface.Get(), i);
-      DCHECK(super_iface != nullptr);
+      if (UNLIKELY(super_iface == nullptr)) {
+        const char* iface_descriptor =
+            iface->GetDexFile().StringByTypeIdx(iface->GetDirectInterfaceTypeIdx(i));
+        LOG(FATAL) << "Check failed: super_iface != nullptr "
+            << "Debug data for bug 34839984: "
+            << iface->PrettyDescriptor() << " iface #" << i << " " << iface_descriptor
+            << " space: " << DescribeSpace(iface.Get())
+            << " loaders: " << DescribeLoaders(iface.Get(), iface_descriptor);
+      }
       if (!super_iface->HasBeenRecursivelyInitialized()) {
         // Recursive step
         handle_super_iface.Assign(super_iface);
