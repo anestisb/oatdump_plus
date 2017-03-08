@@ -56,6 +56,7 @@ import threading
 import time
 
 import env
+from target_config import target_config
 
 TARGET_TYPES = set()
 RUN_TYPES = set()
@@ -704,6 +705,25 @@ def parse_test_name(test_name):
     return {match.group(12)}
   raise ValueError(test_name + " is not a valid test")
 
+
+def setup_env_for_build_target(build_target, parser, options):
+  """Setup environment for the build target
+
+  The method setup environment for the master-art-host targets.
+  """
+  os.environ.update(build_target['env'])
+  os.environ['SOONG_ALLOW_MISSING_DEPENDENCIES'] = 'true'
+  print_text('%s\n' % (str(os.environ)))
+
+  target_options = vars(parser.parse_args(build_target['flags']))
+  target_options['host'] = True
+  target_options['verbose'] = True
+  target_options['build'] = True
+  target_options['n_thread'] = options['n_thread']
+  target_options['dry_run'] = options['dry_run']
+
+  return target_options
+
 def parse_option():
   global verbose
   global dry_run
@@ -733,90 +753,95 @@ def parse_option():
                       action='store_true', dest='build',
                       help="Build dependencies under all circumstances. By default we will " +
                            "not build dependencies unless ART_TEST_RUN_TEST_BUILD=true.")
+  parser.add_argument('--build-target', dest='build_target', help='master-art-host targets')
   parser.set_defaults(build = env.ART_TEST_RUN_TEST_BUILD)
   parser.add_argument('--gdb', action='store_true', dest='gdb')
   parser.add_argument('--gdb-arg', dest='gdb_arg')
 
-  options = parser.parse_args()
+  options = vars(parser.parse_args())
+  if options['build_target']:
+    options = setup_env_for_build_target(target_config[options['build_target']],
+                                         parser, options)
+
   test = ''
-  env.EXTRA_DISABLED_TESTS.update(set(options.skips))
-  if options.test:
-    test = parse_test_name(options.test)
-  if options.pictest:
+  env.EXTRA_DISABLED_TESTS.update(set(options['skips']))
+  if options['test']:
+    test = parse_test_name(options['test'])
+  if options['pictest']:
     PICTEST_TYPES.add('pictest')
-  if options.ndebug:
+  if options['ndebug']:
     RUN_TYPES.add('ndebug')
-  if options.interp_ac:
+  if options['interp_ac']:
     COMPILER_TYPES.add('interp-ac')
-  if options.picimage:
+  if options['picimage']:
     IMAGE_TYPES.add('picimage')
-  if options.n64:
+  if options['n64']:
     ADDRESS_SIZES.add('64')
-  if options.interpreter:
+  if options['interpreter']:
     COMPILER_TYPES.add('interpreter')
-  if options.jni:
+  if options['jni']:
     JNI_TYPES.add('jni')
-  if options.relocate_npatchoat:
+  if options['relocate_npatchoat']:
     RELOCATE_TYPES.add('relocate-npatchoat')
-  if options.no_prebuild:
+  if options['no_prebuild']:
     PREBUILD_TYPES.add('no-prebuild')
-  if options.npictest:
+  if options['npictest']:
     PICTEST_TYPES.add('npictest')
-  if options.no_dex2oat:
+  if options['no_dex2oat']:
     PREBUILD_TYPES.add('no-dex2oat')
-  if options.jit:
+  if options['jit']:
     COMPILER_TYPES.add('jit')
-  if options.relocate:
+  if options['relocate']:
     RELOCATE_TYPES.add('relocate')
-  if options.ndebuggable:
+  if options['ndebuggable']:
     DEBUGGABLE_TYPES.add('ndebuggable')
-  if options.no_image:
+  if options['no_image']:
     IMAGE_TYPES.add('no-image')
-  if options.optimizing:
+  if options['optimizing']:
     COMPILER_TYPES.add('optimizing')
-  if options.trace:
+  if options['trace']:
     TRACE_TYPES.add('trace')
-  if options.gcstress:
+  if options['gcstress']:
     GC_TYPES.add('gcstress')
-  if options.no_relocate:
+  if options['no_relocate']:
     RELOCATE_TYPES.add('no-relocate')
-  if options.target:
+  if options['target']:
     TARGET_TYPES.add('target')
-  if options.forcecopy:
+  if options['forcecopy']:
     JNI_TYPES.add('forcecopy')
-  if options.n32:
+  if options['n32']:
     ADDRESS_SIZES.add('32')
-  if options.host:
+  if options['host']:
     TARGET_TYPES.add('host')
-  if options.gcverify:
+  if options['gcverify']:
     GC_TYPES.add('gcverify')
-  if options.debuggable:
+  if options['debuggable']:
     DEBUGGABLE_TYPES.add('debuggable')
-  if options.prebuild:
+  if options['prebuild']:
     PREBUILD_TYPES.add('prebuild')
-  if options.debug:
+  if options['debug']:
     RUN_TYPES.add('debug')
-  if options.checkjni:
+  if options['checkjni']:
     JNI_TYPES.add('checkjni')
-  if options.ntrace:
+  if options['ntrace']:
     TRACE_TYPES.add('ntrace')
-  if options.cms:
+  if options['cms']:
     GC_TYPES.add('cms')
-  if options.multipicimage:
+  if options['multipicimage']:
     IMAGE_TYPES.add('multipicimage')
-  if options.verbose:
+  if options['verbose']:
     verbose = True
-  if options.n_thread:
-    n_thread = max(1, options.n_thread)
-  if options.dry_run:
+  if options['n_thread']:
+    n_thread = max(1, options['n_thread'])
+  if options['dry_run']:
     dry_run = True
     verbose = True
-  build = options.build
-  if options.gdb:
+  build = options['build']
+  if options['gdb']:
     n_thread = 1
     gdb = True
-    if options.gdb_arg:
-      gdb_arg = options.gdb_arg
+    if options['gdb_arg']:
+      gdb_arg = options['gdb_arg']
 
   return test
 
