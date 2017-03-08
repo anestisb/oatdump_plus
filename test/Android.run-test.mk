@@ -630,10 +630,11 @@ TEST_ART_BROKEN_OPTIMIZING_NON_BAKER_READ_BARRIER_RUN_TESTS := \
   537-checker-arraycopy
 
 # Tests failing in non-Baker read barrier configurations with JIT (Optimizing compiler).
-# 537: Expects an array copy to be intrinsified, but calling-on-slowpath intrinsics are not yet
+# 537 and 641: Expect an array copy to be intrinsified, but calling-on-slowpath intrinsics are not yet
 #      handled in non-Baker read barrier configurations.
 TEST_ART_BROKEN_JIT_NON_BAKER_READ_BARRIER_RUN_TESTS := \
-  537-checker-arraycopy
+  537-checker-arraycopy \
+  641-checker-arraycopy
 
 ifeq ($(ART_USE_READ_BARRIER),true)
   ifneq (,$(filter interpreter,$(COMPILER_TYPES)))
