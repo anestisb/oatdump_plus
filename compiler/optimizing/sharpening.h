@@ -48,14 +48,16 @@ class HSharpening : public HOptimization {
   static constexpr const char* kSharpeningPassName = "sharpening";
 
   // Used by the builder and the inliner.
-  static HLoadClass::LoadKind SharpenClass(HLoadClass* load_class,
-                                           CodeGenerator* codegen,
-                                           CompilerDriver* compiler_driver,
-                                           const DexCompilationUnit& dex_compilation_unit)
+  static HLoadClass::LoadKind ComputeLoadClassKind(HLoadClass* load_class,
+                                                   CodeGenerator* codegen,
+                                                   CompilerDriver* compiler_driver,
+                                                   const DexCompilationUnit& dex_compilation_unit)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // Used by Sharpening and InstructionSimplifier.
+  static void SharpenInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke, CodeGenerator* codegen);
+
  private:
-  void ProcessInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke);
   void ProcessLoadString(HLoadString* load_string);
 
   CodeGenerator* codegen_;
