@@ -18,6 +18,7 @@
 #define ART_RUNTIME_INTERPRETER_INTERPRETER_COMMON_H_
 
 #include "interpreter.h"
+#include "interpreter_intrinsics.h"
 
 #include <math.h>
 
@@ -104,12 +105,57 @@ void AbortTransactionV(Thread* self, const char* fmt, va_list args)
 void RecordArrayElementsInTransaction(ObjPtr<mirror::Array> array, int32_t count)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
-// Invokes the given method. This is part of the invocation support and is used by DoInvoke and
-// DoInvokeVirtualQuick functions.
+// Invokes the given method. This is part of the invocation support and is used by DoInvoke,
+// DoFastInvoke and DoInvokeVirtualQuick functions.
 // Returns true on success, otherwise throws an exception and returns false.
 template<bool is_range, bool do_assignability_check>
 bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
             const Instruction* inst, uint16_t inst_data, JValue* result);
+
+// Handles streamlined non-range invoke static, direct and virtual instructions originating in
+// mterp. Access checks and instrumentation other than jit profiling are not supported, but does
+// support interpreter intrinsics if applicable.
+// Returns true on success, otherwise throws an exception and returns false.
+template<InvokeType type>
+static inline bool DoFastInvoke(Thread* self,
+                                ShadowFrame& shadow_frame,
+                                const Instruction* inst,
+                                uint16_t inst_data,
+                                JValue* result) {
+  const uint32_t method_idx = inst->VRegB_35c();
+  const uint32_t vregC = inst->VRegC_35c();
+  ObjPtr<mirror::Object> receiver = (type == kStatic)
+      ? nullptr
+      : shadow_frame.GetVRegReference(vregC);
+  ArtMethod* sf_method = shadow_frame.GetMethod();
+  ArtMethod* const called_method = FindMethodFromCode<type, false>(
+      method_idx, &receiver, sf_method, self);
+  // The shadow frame should already be pushed, so we don't need to update it.
+  if (UNLIKELY(called_method == nullptr)) {
+    CHECK(self->IsExceptionPending());
+    result->SetJ(0);
+    return false;
+  } else if (UNLIKELY(!called_method->IsInvokable())) {
+    called_method->ThrowInvocationTimeError();
+    result->SetJ(0);
+    return false;
+  } else {
+    if (called_method->IsIntrinsic()) {
+      if (MterpHandleIntrinsic(&shadow_frame, called_method, inst, inst_data,
+                               shadow_frame.GetResultRegister())) {
+        return !self->IsExceptionPending();
+      }
+    }
+    jit::Jit* jit = Runtime::Current()->GetJit();
+    if (jit != nullptr) {
+      if (type == kVirtual) {
+        jit->InvokeVirtualOrInterface(receiver, sf_method, shadow_frame.GetDexPC(), called_method);
+      }
+      jit->AddSamples(self, sf_method, 1, /*with_backedges*/false);
+    }
+    return DoCall<false, false>(called_method, self, shadow_frame, inst, inst_data, result);
+  }
+}
 
 // Handles all invoke-XXX/range instructions except for invoke-polymorphic[/range].
 // Returns true on success, otherwise throws an exception and returns false.
@@ -495,8 +541,9 @@ void SetStringInitValueToAllAliases(ShadowFrame* shadow_frame,
 
 // Explicitly instantiate all DoInvoke functions.
 #define EXPLICIT_DO_INVOKE_TEMPLATE_DECL(_type, _is_range, _do_check)                      \
-  template REQUIRES_SHARED(Locks::mutator_lock_)                                     \
-  bool DoInvoke<_type, _is_range, _do_check>(Thread* self, ShadowFrame& shadow_frame,      \
+  template REQUIRES_SHARED(Locks::mutator_lock_)                                           \
+  bool DoInvoke<_type, _is_range, _do_check>(Thread* self,                                 \
+                                             ShadowFrame& shadow_frame,                    \
                                              const Instruction* inst, uint16_t inst_data,  \
                                              JValue* result)
 
@@ -513,6 +560,19 @@ EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL(kSuper)       // invoke-super/range.
 EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL(kInterface)   // invoke-interface/range.
 #undef EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL
 #undef EXPLICIT_DO_INVOKE_TEMPLATE_DECL
+
+// Explicitly instantiate all DoFastInvoke functions.
+#define EXPLICIT_DO_FAST_INVOKE_TEMPLATE_DECL(_type)                     \
+  template REQUIRES_SHARED(Locks::mutator_lock_)                         \
+  bool DoFastInvoke<_type>(Thread* self,                                 \
+                           ShadowFrame& shadow_frame,                    \
+                           const Instruction* inst, uint16_t inst_data,  \
+                           JValue* result)
+
+EXPLICIT_DO_FAST_INVOKE_TEMPLATE_DECL(kStatic);     // invoke-static
+EXPLICIT_DO_FAST_INVOKE_TEMPLATE_DECL(kDirect);     // invoke-direct
+EXPLICIT_DO_FAST_INVOKE_TEMPLATE_DECL(kVirtual);    // invoke-virtual
+#undef EXPLICIT_DO_FAST_INVOKE_TEMPLATE_DECL
 
 // Explicitly instantiate all DoInvokeVirtualQuick functions.
 #define EXPLICIT_DO_INVOKE_VIRTUAL_QUICK_TEMPLATE_DECL(_is_range)                    \
