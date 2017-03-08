@@ -3900,8 +3900,10 @@ bool ClassLinker::AttemptSupertypeVerification(Thread* self,
   if (!supertype->IsVerified() && !supertype->IsErroneous()) {
     VerifyClass(self, supertype);
   }
-  if (supertype->IsCompileTimeVerified()) {
-    // Either we are verified or we soft failed and need to retry at runtime.
+
+  if (supertype->IsVerified() || supertype->ShouldVerifyAtRuntime()) {
+    // The supertype is either verified, or we soft failed at AOT time.
+    DCHECK(supertype->IsVerified() || Runtime::Current()->IsAotCompiler());
     return true;
   }
   // If we got this far then we have a hard failure.
@@ -3967,13 +3969,16 @@ verifier::MethodVerifier::FailureKind ClassLinker::VerifyClass(
       return verifier::MethodVerifier::kHardFailure;
     }
 
-    // Don't attempt to re-verify if already sufficiently verified.
+    // Don't attempt to re-verify if already verified.
     if (klass->IsVerified()) {
       EnsureSkipAccessChecksMethods(klass, image_pointer_size_);
       return verifier::MethodVerifier::kNoFailure;
     }
-    if (klass->IsCompileTimeVerified() && Runtime::Current()->IsAotCompiler()) {
-      return verifier::MethodVerifier::kNoFailure;
+
+    // For AOT, don't attempt to re-verify if we have already found we should
+    // verify at runtime.
+    if (Runtime::Current()->IsAotCompiler() && klass->ShouldVerifyAtRuntime()) {
+      return verifier::MethodVerifier::kSoftFailure;
     }
 
     if (klass->GetStatus() == mirror::Class::kStatusResolved) {
