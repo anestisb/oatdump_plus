@@ -390,7 +390,8 @@ bool InductionVarRange::IsUnitStride(HInstruction* instruction,
   HInductionVarAnalysis::InductionInfo* trip = nullptr;
   if (HasInductionInfo(instruction, instruction, &loop, &info, &trip)) {
     if (info->induction_class == HInductionVarAnalysis::kLinear &&
-        info->op_b->operation == HInductionVarAnalysis::kFetch) {
+        info->op_b->operation == HInductionVarAnalysis::kFetch &&
+        !HInductionVarAnalysis::IsNarrowingLinear(info)) {
       int64_t stride_value = 0;
       if (IsConstant(info->op_a, kExact, &stride_value) && stride_value == 1) {
         int64_t off_value = 0;
