@@ -206,10 +206,10 @@ class MANAGED Class FINAL : public Object {
     return status >= kStatusResolved || status == kStatusErrorResolved;
   }
 
-  // Returns true if the class was compile-time verified.
+  // Returns true if the class should be verified at runtime.
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  bool IsCompileTimeVerified() REQUIRES_SHARED(Locks::mutator_lock_) {
-    return GetStatus<kVerifyFlags>() >= kStatusRetryVerificationAtRuntime;
+  bool ShouldVerifyAtRuntime() REQUIRES_SHARED(Locks::mutator_lock_) {
+    return GetStatus<kVerifyFlags>() == kStatusRetryVerificationAtRuntime;
   }
 
   // Returns true if the class has been verified.

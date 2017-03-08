@@ -246,9 +246,13 @@ class VerifierDepsTest : public CommonCompilerTest {
   }
 
   bool HasUnverifiedClass(const std::string& cls) {
-    const DexFile::TypeId* type_id = primary_dex_file_->FindTypeId(cls.c_str());
+    return HasUnverifiedClass(cls, *primary_dex_file_);
+  }
+
+  bool HasUnverifiedClass(const std::string& cls, const DexFile& dex_file) {
+    const DexFile::TypeId* type_id = dex_file.FindTypeId(cls.c_str());
     DCHECK(type_id != nullptr);
-    dex::TypeIndex index = primary_dex_file_->GetIndexForTypeId(*type_id);
+    dex::TypeIndex index = dex_file.GetIndexForTypeId(*type_id);
     for (const auto& dex_dep : verifier_deps_->dex_deps_) {
       for (dex::TypeIndex entry : dex_dep.second->unverified_classes_) {
         if (index == entry) {
@@ -1141,7 +1145,7 @@ TEST_F(VerifierDepsTest, UnverifiedClasses) {
   // Test that a class with hard failure is recorded.
   ASSERT_TRUE(HasUnverifiedClass("LMyVerificationFailure;"));
   // Test that a class with unresolved super is recorded.
-  ASSERT_FALSE(HasUnverifiedClass("LMyClassWithNoSuper;"));
+  ASSERT_TRUE(HasUnverifiedClass("LMyClassWithNoSuper;"));
   // Test that a class with unresolved super and hard failure is recorded.
   ASSERT_TRUE(HasUnverifiedClass("LMyClassWithNoSuperButFailures;"));
 }
@@ -1509,6 +1513,19 @@ TEST_F(VerifierDepsTest, CompilerDriver) {
       }
     }
   }
+}
+
+TEST_F(VerifierDepsTest, MultiDexVerification) {
+  VerifyDexFile("VerifierDepsMulti");
+  ASSERT_EQ(NumberOfCompiledDexFiles(), 2u);
+
+  ASSERT_TRUE(HasUnverifiedClass("LMySoftVerificationFailure;", *dex_files_[1]));
+  ASSERT_TRUE(HasUnverifiedClass("LMySub1SoftVerificationFailure;", *dex_files_[0]));
+  ASSERT_TRUE(HasUnverifiedClass("LMySub2SoftVerificationFailure;", *dex_files_[0]));
+
+  std::vector<uint8_t> buffer;
+  verifier_deps_->Encode(dex_files_, &buffer);
+  ASSERT_FALSE(buffer.empty());
 }
 
 }  // namespace verifier
