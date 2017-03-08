@@ -297,7 +297,7 @@
         "tests": ["000-nop",
                   "134-nodex2oat-nofallback",
                   "147-stripped-dex-fallback",
-                 "595-profile-saving"],
+                  "595-profile-saving"],
         "description": "The doesn't compile anything",
         "env_vars": {"ART_TEST_BISECTION": "true"},
         "variant": "optimizing | regalloc_gc"
@@ -322,7 +322,7 @@
     },
     {
         "tests": ["115-native-bridge",
-                 "088-monitor-verification"],
+                  "088-monitor-verification"],
         "description": "The test assume they are always compiled.",
         "env_vars": {"ART_TEST_BISECTION": "true"},
         "variant": "optimizing | regalloc_gc"
@@ -335,7 +335,8 @@
         "variant": "optimizing | regalloc_gc"
     },
     {
-        "test": "537-checker-arraycopy",
+        "tests": ["537-checker-arraycopy",
+                  "641-checker-arraycopy"],
         "env_vars": {"ART_USE_READ_BARRIER": "true"},
         "variant": "interpreter | optimizing | regalloc_gc | jit"
     }
