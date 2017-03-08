@@ -261,6 +261,15 @@ public class Main {
     return x;
   }
 
+  // If vectorized, the narrowing subscript should not cause
+  // type inconsistencies in the synthesized code.
+  static void narrowingSubscript(float[] a) {
+    float val = 2.0f;
+    for (long i = 0; i < a.length; i++) {
+      a[(int) i] += val;
+    }
+  }
+
   public static void main(String[] args) {
     expectEquals(10, earlyExitFirst(-1));
     for (int i = 0; i <= 10; i++) {
@@ -320,6 +329,12 @@ public class Main {
     expectEquals( 8070450532247928832L, geoLongMulLastValue(9223372036854775807L));
     expectEquals(                   0L, geoLongMulLastValue(-9223372036854775808L));
 
+    float[] a = new float[16];
+    narrowingSubscript(a);
+    for (int i = 0; i < 16; i++) {
+      expectEquals(2.0f, a[i]);
+    }
+
     System.out.println("passed");
   }
 
@@ -330,6 +345,12 @@ public class Main {
   }
 
   private static void expectEquals(long expected, long result) {
+    if (expected != result) {
+      throw new Error("Expected: " + expected + ", found: " + result);
+    }
+  }
+
+  private static void expectEquals(float expected, float result) {
     if (expected != result) {
       throw new Error("Expected: " + expected + ", found: " + result);
     }
