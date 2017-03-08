@@ -237,7 +237,7 @@ JdwpError JdwpState::RegisterEvent(JdwpEvent* pEvent) {
     /*
      * Add to list.
      */
-    MutexLock mu(Thread::Current(), *Locks::jdwp_event_list_lock_);
+    MutexLock mu(Thread::Current(), event_list_lock_);
     if (event_list_ != nullptr) {
       pEvent->next = event_list_;
       event_list_->prev = pEvent;
@@ -256,7 +256,7 @@ void JdwpState::UnregisterLocationEventsOnClass(ObjPtr<mirror::Class> klass) {
   StackHandleScope<1> hs(Thread::Current());
   Handle<mirror::Class> h_klass(hs.NewHandle(klass));
   std::vector<JdwpEvent*> to_remove;
-  MutexLock mu(Thread::Current(), *Locks::jdwp_event_list_lock_);
+  MutexLock mu(Thread::Current(), event_list_lock_);
   for (JdwpEvent* cur_event = event_list_; cur_event != nullptr; cur_event = cur_event->next) {
     // Fill in the to_remove list
     bool found_event = false;
@@ -356,7 +356,7 @@ void JdwpState::UnregisterEvent(JdwpEvent* pEvent) {
 void JdwpState::UnregisterEventById(uint32_t requestId) {
   bool found = false;
   {
-    MutexLock mu(Thread::Current(), *Locks::jdwp_event_list_lock_);
+    MutexLock mu(Thread::Current(), event_list_lock_);
 
     for (JdwpEvent* pEvent = event_list_; pEvent != nullptr; pEvent = pEvent->next) {
       if (pEvent->requestId == requestId) {
@@ -383,7 +383,7 @@ void JdwpState::UnregisterEventById(uint32_t requestId) {
  * Remove all entries from the event list.
  */
 void JdwpState::UnregisterAll() {
-  MutexLock mu(Thread::Current(), *Locks::jdwp_event_list_lock_);
+  MutexLock mu(Thread::Current(), event_list_lock_);
 
   JdwpEvent* pEvent = event_list_;
   while (pEvent != nullptr) {
@@ -593,7 +593,7 @@ void JdwpState::FindMatchingEventsLocked(JdwpEventKind event_kind, const ModBask
  */
 bool JdwpState::FindMatchingEvents(JdwpEventKind event_kind, const ModBasket& basket,
                                    std::vector<JdwpEvent*>* match_list) {
-  MutexLock mu(Thread::Current(), *Locks::jdwp_event_list_lock_);
+  MutexLock mu(Thread::Current(), event_list_lock_);
   match_list->reserve(event_list_size_);
   FindMatchingEventsLocked(event_kind, basket, match_list);
   return !match_list->empty();
@@ -908,7 +908,7 @@ void JdwpState::PostLocationEvent(const EventLocation* pLoc, mirror::Object* thi
   std::vector<JdwpEvent*> match_list;
   {
     // We use the locked version because we have multiple possible match events.
-    MutexLock mu(Thread::Current(), *Locks::jdwp_event_list_lock_);
+    MutexLock mu(Thread::Current(), event_list_lock_);
     match_list.reserve(event_list_size_);
     if ((eventFlags & Dbg::kBreakpoint) != 0) {
       FindMatchingEventsLocked(EK_BREAKPOINT, basket, &match_list);
@@ -955,7 +955,7 @@ void JdwpState::PostLocationEvent(const EventLocation* pLoc, mirror::Object* thi
   }
 
   {
-    MutexLock mu(Thread::Current(), *Locks::jdwp_event_list_lock_);
+    MutexLock mu(Thread::Current(), event_list_lock_);
     CleanupMatchList(match_list);
   }
 
@@ -1041,7 +1041,7 @@ void JdwpState::PostFieldEvent(const EventLocation* pLoc, ArtField* field,
   }
 
   {
-    MutexLock mu(Thread::Current(), *Locks::jdwp_event_list_lock_);
+    MutexLock mu(Thread::Current(), event_list_lock_);
     CleanupMatchList(match_list);
   }
 
@@ -1103,7 +1103,7 @@ void JdwpState::PostThreadChange(Thread* thread, bool start) {
   }
 
   {
-    MutexLock mu(Thread::Current(), *Locks::jdwp_event_list_lock_);
+    MutexLock mu(Thread::Current(), event_list_lock_);
     CleanupMatchList(match_list);
   }
 
@@ -1213,7 +1213,7 @@ void JdwpState::PostException(const EventLocation* pThrowLoc, mirror::Throwable*
   }
 
   {
-    MutexLock mu(Thread::Current(), *Locks::jdwp_event_list_lock_);
+    MutexLock mu(Thread::Current(), event_list_lock_);
     CleanupMatchList(match_list);
   }
 
@@ -1295,7 +1295,7 @@ void JdwpState::PostClassPrepare(mirror::Class* klass) {
   }
 
   {
-    MutexLock mu(Thread::Current(), *Locks::jdwp_event_list_lock_);
+    MutexLock mu(Thread::Current(), event_list_lock_);
     CleanupMatchList(match_list);
   }
 
