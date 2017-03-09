@@ -604,7 +604,8 @@ class Dex2oatLayoutTest : public Dex2oatTest {
                           const std::string& app_image_file_name,
                           bool use_fd,
                           size_t num_profile_classes,
-                          const std::vector<std::string>& extra_args = {}) {
+                          const std::vector<std::string>& extra_args = {},
+                          bool expect_success = true) {
     const std::string profile_location = GetScratchDir() + "/primary.prof";
     const char* location = dex_location.c_str();
     std::string error_msg;
@@ -631,7 +632,7 @@ class Dex2oatLayoutTest : public Dex2oatTest {
                         odex_location,
                         CompilerFilter::kSpeedProfile,
                         copy,
-                        /* expect_success */ true,
+                        expect_success,
                         use_fd);
     if (app_image_file != nullptr) {
       ASSERT_EQ(app_image_file->FlushCloseOrErase(), 0) << "Could not flush and close art file";
@@ -709,6 +710,7 @@ class Dex2oatLayoutTest : public Dex2oatTest {
       EXPECT_GT(vdex_file1->GetLength(), 0u);
     }
     {
+      // Test that vdex and dexlayout fail gracefully.
       std::string input_vdex = StringPrintf("--input-vdex-fd=%d", vdex_file1->Fd());
       std::string output_vdex = StringPrintf("--output-vdex-fd=%d", vdex_file2.GetFd());
       CompileProfileOdex(dex_location,
@@ -716,13 +718,13 @@ class Dex2oatLayoutTest : public Dex2oatTest {
                          app_image_file_name,
                          /* use_fd */ true,
                          /* num_profile_classes */ 1,
-                         { input_vdex, output_vdex });
-      EXPECT_GT(vdex_file2.GetFile()->GetLength(), 0u);
+                         { input_vdex, output_vdex },
+                         /* expect_success */ false);
+      EXPECT_EQ(vdex_file2.GetFile()->GetLength(), 0u);
     }
     ASSERT_EQ(vdex_file1->FlushCloseOrErase(), 0) << "Could not flush and close vdex file";
     CheckValidity();
-    ASSERT_TRUE(success_);
-    CheckResult(dex_location, odex_location, app_image_file_name);
+    ASSERT_FALSE(success_);
   }
 
   void CheckResult(const std::string& dex_location,
