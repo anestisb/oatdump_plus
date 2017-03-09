@@ -70,7 +70,7 @@ public class Main {
   /// CHECK:  end_block
   /// CHECK: begin_block
   /// CHECK:   name "<<ElseBlock>>"
-  /// CHECK:                      ParallelMove moves:[#100->d17,32(sp)->d1,36(sp)->d2,d17->d3,d3->d4,d4->d5,d5->d6,d6->d7,d7->d18,d18->d19,d19->d20,d20->d21,d21->d22,d22->d23,d23->d10,d10->d11,d11->d12,24(sp)->d13,28(sp)->d14,d14->16(sp),d12->20(sp),d13->24(sp),d1->28(sp),d2->32(sp),16(sp)->36(sp),20(sp)->40(sp)]
+  /// CHECK:                      ParallelMove moves:[40(sp)->d0,24(sp)->32(sp),28(sp)->36(sp),d0->d3,d3->d4,d2->d5,d4->d6,d5->d7,d6->d18,d7->d19,d18->d20,d19->d21,d20->d22,d21->d23,d22->d10,d23->d11,16(sp)->24(sp),20(sp)->28(sp),d10->d14,d11->d12,d12->d13,d13->d1,d14->d2,32(sp)->16(sp),36(sp)->20(sp)]
   /// CHECK: end_block
 
   /// CHECK-START-ARM64: void Main.test() disassembly (after)
@@ -85,7 +85,7 @@ public class Main {
   /// CHECK:  end_block
   /// CHECK: begin_block
   /// CHECK:   name "<<ElseBlock>>"
-  /// CHECK:                      ParallelMove moves:[invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid]
+  /// CHECK:                      ParallelMove moves:[invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid,invalid->invalid]
   /// CHECK:                        fmov d31, d2
   /// CHECK:                        ldr s2, [sp, #36]
   /// CHECK:                        ldr w16, [sp, #16]
@@ -111,11 +111,10 @@ public class Main {
   /// CHECK:                        fmov d6, d5
   /// CHECK:                        fmov d5, d4
   /// CHECK:                        fmov d4, d3
-  /// CHECK:                        fmov d3, d17
-  /// CHECK:                        fmov d17, d13
+  /// CHECK:                        fmov d3, d13
   /// CHECK:                        ldr s13, [sp, #24]
-  /// CHECK:                        str s17, [sp, #24]
-  /// CHECK:                        ldr s17, pc+{{\d+}} (addr {{0x[0-9a-f]+}}) (100)
+  /// CHECK:                        str s3, [sp, #24]
+  /// CHECK:                        ldr s3, pc+{{\d+}} (addr {{0x[0-9a-f]+}}) (100)
   /// CHECK: end_block
 
   public void test() {
