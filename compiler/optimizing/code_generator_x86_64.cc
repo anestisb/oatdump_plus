@@ -1070,13 +1070,6 @@ void CodeGeneratorX86_64::GenerateVirtualCall(HInvokeVirtual* invoke, Location t
       kX86_64PointerSize).SizeValue()));
 }
 
-void CodeGeneratorX86_64::RecordSimplePatch() {
-  if (GetCompilerOptions().GetIncludePatchInformation()) {
-    simple_patches_.emplace_back();
-    __ Bind(&simple_patches_.back());
-  }
-}
-
 void CodeGeneratorX86_64::RecordBootStringPatch(HLoadString* load_string) {
   DCHECK(GetCompilerOptions().IsBootImage());
   string_patches_.emplace_back(load_string->GetDexFile(), load_string->GetStringIndex().index_);
@@ -1126,17 +1119,12 @@ void CodeGeneratorX86_64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_pat
   DCHECK(linker_patches->empty());
   size_t size =
       pc_relative_dex_cache_patches_.size() +
-      simple_patches_.size() +
       string_patches_.size() +
       boot_image_type_patches_.size() +
       type_bss_entry_patches_.size();
   linker_patches->reserve(size);
   EmitPcRelativeLinkerPatches<LinkerPatch::DexCacheArrayPatch>(pc_relative_dex_cache_patches_,
                                                                linker_patches);
-  for (const Label& label : simple_patches_) {
-    uint32_t literal_offset = label.Position() - kLabelPositionToLiteralOffsetAdjustment;
-    linker_patches->push_back(LinkerPatch::RecordPosition(literal_offset));
-  }
   if (!GetCompilerOptions().IsBootImage()) {
     DCHECK(boot_image_type_patches_.empty());
     EmitPcRelativeLinkerPatches<LinkerPatch::StringBssEntryPatch>(string_patches_, linker_patches);
@@ -1227,7 +1215,6 @@ CodeGeneratorX86_64::CodeGeneratorX86_64(HGraph* graph,
         isa_features_(isa_features),
         constant_area_start_(0),
         pc_relative_dex_cache_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
-        simple_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
         string_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
         boot_image_type_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
         type_bss_entry_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
@@ -5545,7 +5532,6 @@ void InstructionCodeGeneratorX86_64::VisitLoadClass(HLoadClass* cls) NO_THREAD_S
           reinterpret_cast<uintptr_t>(cls->GetClass().Get()));
       DCHECK_NE(address, 0u);
       __ movl(out, Immediate(address));  // Zero-extended.
-      codegen_->RecordSimplePatch();
       break;
     }
     case HLoadClass::LoadKind::kBssEntry: {
@@ -5681,7 +5667,6 @@ void InstructionCodeGeneratorX86_64::VisitLoadString(HLoadString* load) NO_THREA
           reinterpret_cast<uintptr_t>(load->GetString().Get()));
       DCHECK_NE(address, 0u);
       __ movl(out, Immediate(address));  // Zero-extended.
-      codegen_->RecordSimplePatch();
       return;  // No dex cache slow path.
     }
     case HLoadString::LoadKind::kBssEntry: {

@@ -250,7 +250,6 @@ class OatTest : public CommonCompilerTest {
 
     elf_writer->WriteDynamicSection();
     elf_writer->WriteDebugInfo(oat_writer.GetMethodDebugInfo());
-    elf_writer->WritePatchLocations(oat_writer.GetAbsolutePatchLocations());
 
     if (!elf_writer->End()) {
       return false;

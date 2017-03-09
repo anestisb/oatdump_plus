@@ -328,11 +328,6 @@ NO_RETURN static void Usage(const char* fmt, ...) {
   UsageError("");
   UsageError("  --dump-timing: display a breakdown of where time was spent");
   UsageError("");
-  UsageError("  --include-patch-information: Include patching information so the generated code");
-  UsageError("      can have its base address moved without full recompilation.");
-  UsageError("");
-  UsageError("  --no-include-patch-information: Do not include patching information.");
-  UsageError("");
   UsageError("  -g");
   UsageError("  --generate-debug-info: Generate debug information for native debugging,");
   UsageError("      such as stack unwinding information, ELF symbols and DWARF sections.");
@@ -1958,7 +1953,6 @@ class Dex2Oat FINAL {
 
         elf_writer->WriteDynamicSection();
         elf_writer->WriteDebugInfo(oat_writer->GetMethodDebugInfo());
-        elf_writer->WritePatchLocations(oat_writer->GetAbsolutePatchLocations());
 
         if (!elf_writer->End()) {
           LOG(ERROR) << "Failed to write ELF file " << oat_file->GetPath();
