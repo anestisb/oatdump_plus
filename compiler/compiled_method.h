@@ -170,7 +170,6 @@ class LinkerPatch {
   // choose to squeeze the Type into fewer than 8 bits, we'll have to declare
   // patch_type_ as an uintN_t and do explicit static_cast<>s.
   enum class Type : uint8_t {
-    kRecordPosition,   // Just record patch position for patchoat.
     kMethod,
     kCall,
     kCallRelative,     // NOTE: Actual patching is instruction_set-dependent.
@@ -182,10 +181,6 @@ class LinkerPatch {
     kStringBssEntry,   // NOTE: Actual patching is instruction_set-dependent.
     kDexCacheArray,    // NOTE: Actual patching is instruction_set-dependent.
   };
-
-  static LinkerPatch RecordPosition(size_t literal_offset) {
-    return LinkerPatch(literal_offset, Type::kRecordPosition, /* target_dex_file */ nullptr);
-  }
 
   static LinkerPatch MethodPatch(size_t literal_offset,
                                  const DexFile* target_dex_file,

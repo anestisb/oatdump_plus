@@ -406,7 +406,6 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) OVERRIDE;
   void GenerateVirtualCall(HInvokeVirtual* invoke, Location temp) OVERRIDE;
 
-  void RecordSimplePatch();
   void RecordBootStringPatch(HLoadString* load_string);
   void RecordBootTypePatch(HLoadClass* load_class);
   Label* NewTypeBssEntryPatch(HLoadClass* load_class);
@@ -602,8 +601,6 @@ class CodeGeneratorX86_64 : public CodeGenerator {
 
   // PC-relative DexCache access info.
   ArenaDeque<PatchInfo<Label>> pc_relative_dex_cache_patches_;
-  // Patch locations for patchoat where the linker doesn't do any other work.
-  ArenaDeque<Label> simple_patches_;
   // String patch locations; type depends on configuration (app .bss or boot image PIC).
   ArenaDeque<PatchInfo<Label>> string_patches_;
   // Type patch locations for boot image (always PIC).
