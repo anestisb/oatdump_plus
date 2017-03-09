@@ -318,7 +318,6 @@ void CompilationHelper::Compile(CompilerDriver* driver,
 
         elf_writer->WriteDynamicSection();
         elf_writer->WriteDebugInfo(oat_writer->GetMethodDebugInfo());
-        elf_writer->WritePatchLocations(oat_writer->GetAbsolutePatchLocations());
 
         bool success = elf_writer->End();
         ASSERT_TRUE(success);

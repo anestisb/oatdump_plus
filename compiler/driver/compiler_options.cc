@@ -32,7 +32,6 @@ CompilerOptions::CompilerOptions()
       no_inline_from_(nullptr),
       boot_image_(false),
       app_image_(false),
-      include_patch_information_(kDefaultIncludePatchInformation),
       top_k_profile_threshold_(kDefaultTopKProfileThreshold),
       debuggable_(false),
       generate_debug_info_(kDefaultGenerateDebugInfo),
@@ -66,7 +65,6 @@ CompilerOptions::CompilerOptions(CompilerFilter::Filter compiler_filter,
                                  size_t inline_depth_limit,
                                  size_t inline_max_code_units,
                                  const std::vector<const DexFile*>* no_inline_from,
-                                 bool include_patch_information,
                                  double top_k_profile_threshold,
                                  bool debuggable,
                                  bool generate_debug_info,
@@ -93,7 +91,6 @@ CompilerOptions::CompilerOptions(CompilerFilter::Filter compiler_filter,
       no_inline_from_(no_inline_from),
       boot_image_(false),
       app_image_(false),
-      include_patch_information_(include_patch_information),
       top_k_profile_threshold_(top_k_profile_threshold),
       debuggable_(debuggable),
       generate_debug_info_(generate_debug_info),
@@ -206,10 +203,6 @@ bool CompilerOptions::ParseCompilerOption(const StringPiece& option, UsageFn Usa
     debuggable_ = true;
   } else if (option.starts_with("--top-k-profile-threshold=")) {
     ParseDouble(option.data(), '=', 0.0, 100.0, &top_k_profile_threshold_, Usage);
-  } else if (option == "--include-patch-information") {
-    include_patch_information_ = true;
-  } else if (option == "--no-include-patch-information") {
-    include_patch_information_ = false;
   } else if (option == "--abort-on-hard-verifier-error") {
     abort_on_hard_verifier_failure_ = true;
   } else if (option.starts_with("--dump-init-failures=")) {
