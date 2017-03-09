@@ -2179,6 +2179,9 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
       }
     }
     if (rerun_loop_analysis) {
+      DCHECK(!outer_graph->HasIrreducibleLoops())
+          << "Recomputing loop information in graphs with irreducible loops "
+          << "is unsupported, as it could lead to loop header changes";
       outer_graph->ClearLoopInformation();
       outer_graph->ClearDominanceInformation();
       outer_graph->BuildDominatorTree();
