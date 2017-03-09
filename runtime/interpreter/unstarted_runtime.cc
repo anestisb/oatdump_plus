@@ -1672,6 +1672,12 @@ void UnstartedRuntime::UnstartedMethodInvoke(
   }
 }
 
+void UnstartedRuntime::UnstartedSystemIdentityHashCode(
+    Thread* self ATTRIBUTE_UNUSED, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  mirror::Object* obj = shadow_frame->GetVRegReference(arg_offset);
+  result->SetI((obj != nullptr) ? obj->IdentityHashCode() : 0);
+}
 
 void UnstartedRuntime::UnstartedJNIVMRuntimeNewUnpaddedArray(
     Thread* self, ArtMethod* method ATTRIBUTE_UNUSED, mirror::Object* receiver ATTRIBUTE_UNUSED,
@@ -1834,13 +1840,6 @@ void UnstartedRuntime::UnstartedJNIThrowableNativeFillInStackTrace(
   } else {
     result->SetL(soa.Decode<mirror::Object>(self->CreateInternalStackTrace<false>(soa)));
   }
-}
-
-void UnstartedRuntime::UnstartedJNISystemIdentityHashCode(
-    Thread* self ATTRIBUTE_UNUSED, ArtMethod* method ATTRIBUTE_UNUSED,
-    mirror::Object* receiver ATTRIBUTE_UNUSED, uint32_t* args, JValue* result) {
-  mirror::Object* obj = reinterpret_cast<mirror::Object*>(args[0]);
-  result->SetI((obj != nullptr) ? obj->IdentityHashCode() : 0);
 }
 
 void UnstartedRuntime::UnstartedJNIByteOrderIsLittleEndian(
