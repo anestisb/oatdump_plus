@@ -480,7 +480,9 @@ static void Unquicken(const std::vector<const DexFile*>& dex_files,
       DCHECK(!it.HasNext());
     }
   }
-  DCHECK_EQ(quickening_info_ptr, quickening_info_end) << "Failed to use all quickening info";
+  if (quickening_info_ptr != quickening_info_end) {
+    LOG(FATAL) << "Failed to use all quickening info";
+  }
 }
 
 void CompilerDriver::CompileAll(jobject class_loader,

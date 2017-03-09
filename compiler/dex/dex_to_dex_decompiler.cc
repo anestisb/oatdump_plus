@@ -185,7 +185,7 @@ bool DexDecompiler::Decompile() {
   }
 
   if (quickened_info_ptr_ != quickened_info_end_) {
-    LOG(ERROR) << "Failed to use all values in quickening info."
+    LOG(FATAL) << "Failed to use all values in quickening info."
                << " Actual: " << std::hex << quickened_info_ptr_
                << " Expected: " << quickened_info_end_;
     return false;
