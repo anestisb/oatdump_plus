@@ -51,7 +51,8 @@ target_config = {
         'flags': ['--jit',
                   '--gcstress'],
         'env' : {
-            'ART_USE_READ_BARRIER' : 'false'
+            'ART_USE_READ_BARRIER' : 'false',
+            'ART_DEFAULT_GC_TYPE' : 'SS'
         }
     },
     'art-read-barrier' : {
@@ -185,20 +186,20 @@ target_config = {
         }
     },
     'art-gtest' : {
-        'target' :  'test-art-gtest',
+        'target' :  'test-art-host-gtest',
         'env' : {
             'ART_USE_READ_BARRIER' : 'true'
         }
     },
     'art-gtest-read-barrier': {
-        'target' :  'test-art-gtest',
+        'target' :  'test-art-host-gtest',
         'env' : {
             'ART_USE_READ_BARRIER' : 'true',
             'ART_HEAP_POISONING' : 'true'
         }
     },
     'art-gtest-read-barrier-table-lookup': {
-        'target' :  'test-art-gtest',
+        'target' :  'test-art-host-gtest',
         'env': {
             'ART_USE_READ_BARRIER' : 'true',
             'ART_READ_BARRIER_TYPE' : 'TABLELOOKUP',
@@ -206,21 +207,21 @@ target_config = {
         }
     },
     'art-gtest-ss-gc': {
-        'target' :  'test-art-gtest',
+        'target' :  'test-art-host-gtest',
         'env': {
             'ART_DEFAULT_GC_TYPE' : 'SS',
             'ART_USE_READ_BARRIER' : 'false'
         }
     },
     'art-gtest-gss-gc': {
-        'target' :  'test-art-gtest',
+        'target' :  'test-art-host-gtest',
         'env' : {
             'ART_DEFAULT_GC_TYPE' : 'GSS',
             'ART_USE_READ_BARRIER' : 'false'
         }
     },
     'art-gtest-ss-gc-tlab': {
-        'target' :  'test-art-gtest',
+        'target' :  'test-art-host-gtest',
         'env': {
             'ART_DEFAULT_GC_TYPE' : 'SS',
             'ART_USE_TLAB' : 'true',
@@ -228,10 +229,17 @@ target_config = {
         }
     },
     'art-gtest-gss-gc-tlab': {
-        'target' :  'test-art-gtest',
+        'target' :  'test-art-host-gtest',
         'env': {
             'ART_DEFAULT_GC_TYPE' : 'GSS',
             'ART_USE_TLAB' : 'true',
+            'ART_USE_READ_BARRIER' : 'false'
+        }
+    },
+    'art-gtest-debug-gc' : {
+        'target' :  'test-art-host-gtest',
+        'env' : {
+            'ART_TEST_DEBUG_GC' : 'true',
             'ART_USE_READ_BARRIER' : 'false'
         }
     },
