@@ -23,6 +23,7 @@
 #include "android-base/stringprintf.h"
 
 #include "art_field-inl.h"
+#include "base/bit_vector-inl.h"
 #include "base/logging.h"
 #include "base/stl_util.h"
 #include "base/systrace.h"
@@ -145,13 +146,52 @@ std::vector<const OatFile*> OatFileManager::RegisterImageOatFiles(
   return oat_files;
 }
 
+class TypeIndexInfo {
+ public:
+  explicit TypeIndexInfo(const DexFile* dex_file)
+      : type_indexes_(GenerateTypeIndexes(dex_file)),
+        iter_(type_indexes_.Indexes().begin()),
+        end_(type_indexes_.Indexes().end()) { }
+
+  BitVector& GetTypeIndexes() {
+    return type_indexes_;
+  }
+  BitVector::IndexIterator& GetIterator() {
+    return iter_;
+  }
+  BitVector::IndexIterator& GetIteratorEnd() {
+    return end_;
+  }
+  void AdvanceIterator() {
+    iter_++;
+  }
+
+ private:
+  static BitVector GenerateTypeIndexes(const DexFile* dex_file) {
+    BitVector type_indexes(/*start_bits*/0, /*expandable*/true, Allocator::GetMallocAllocator());
+    for (uint16_t i = 0; i < dex_file->NumClassDefs(); ++i) {
+      const DexFile::ClassDef& class_def = dex_file->GetClassDef(i);
+      uint16_t type_idx = class_def.class_idx_.index_;
+      type_indexes.SetBit(type_idx);
+    }
+    return type_indexes;
+  }
+
+  // BitVector with bits set for the type indexes of all classes in the input dex file.
+  BitVector type_indexes_;
+  BitVector::IndexIterator iter_;
+  BitVector::IndexIterator end_;
+};
+
 class DexFileAndClassPair : ValueObject {
  public:
-  DexFileAndClassPair(const DexFile* dex_file, size_t current_class_index, bool from_loaded_oat)
-     : cached_descriptor_(GetClassDescriptor(dex_file, current_class_index)),
+  DexFileAndClassPair(const DexFile* dex_file, TypeIndexInfo* type_info, bool from_loaded_oat)
+     : type_info_(type_info),
        dex_file_(dex_file),
-       current_class_index_(current_class_index),
-       from_loaded_oat_(from_loaded_oat) {}
+       cached_descriptor_(dex_file_->StringByTypeIdx(dex::TypeIndex(*type_info->GetIterator()))),
+       from_loaded_oat_(from_loaded_oat) {
+    type_info_->AdvanceIterator();
+  }
 
   DexFileAndClassPair(const DexFileAndClassPair& rhs) = default;
 
@@ -172,16 +212,12 @@ class DexFileAndClassPair : ValueObject {
   }
 
   bool DexFileHasMoreClasses() const {
-    return current_class_index_ + 1 < dex_file_->NumClassDefs();
+    return type_info_->GetIterator() != type_info_->GetIteratorEnd();
   }
 
   void Next() {
-    ++current_class_index_;
-    cached_descriptor_ = GetClassDescriptor(dex_file_, current_class_index_);
-  }
-
-  size_t GetCurrentClassIndex() const {
-    return current_class_index_;
+    cached_descriptor_ = dex_file_->StringByTypeIdx(dex::TypeIndex(*type_info_->GetIterator()));
+    type_info_->AdvanceIterator();
   }
 
   bool FromLoadedOat() const {
@@ -193,42 +229,36 @@ class DexFileAndClassPair : ValueObject {
   }
 
  private:
-  static const char* GetClassDescriptor(const DexFile* dex_file, size_t index) {
-    DCHECK(IsUint<16>(index));
-    const DexFile::ClassDef& class_def = dex_file->GetClassDef(static_cast<uint16_t>(index));
-    return dex_file->StringByTypeIdx(class_def.class_idx_);
-  }
-
-  const char* cached_descriptor_;
+  TypeIndexInfo* type_info_;
   const DexFile* dex_file_;
-  size_t current_class_index_;
+  const char* cached_descriptor_;
   bool from_loaded_oat_;  // We only need to compare mismatches between what we load now
                           // and what was loaded before. Any old duplicates must have been
                           // OK, and any new "internal" duplicates are as well (they must
                           // be from multidex, which resolves correctly).
 };
 
-static void AddDexFilesFromOat(const OatFile* oat_file,
-                               bool already_loaded,
-                               /*out*/std::priority_queue<DexFileAndClassPair>* heap,
-                               std::vector<std::unique_ptr<const DexFile>>* opened_dex_files) {
+static void AddDexFilesFromOat(
+    const OatFile* oat_file,
+    /*out*/std::vector<const DexFile*>* dex_files,
+    std::vector<std::unique_ptr<const DexFile>>* opened_dex_files) {
   for (const OatDexFile* oat_dex_file : oat_file->GetOatDexFiles()) {
     std::string error;
     std::unique_ptr<const DexFile> dex_file = oat_dex_file->OpenDexFile(&error);
     if (dex_file == nullptr) {
       LOG(WARNING) << "Could not create dex file from oat file: " << error;
     } else if (dex_file->NumClassDefs() > 0U) {
-      heap->emplace(dex_file.get(), /*current_class_index*/0U, already_loaded);
+      dex_files->push_back(dex_file.get());
       opened_dex_files->push_back(std::move(dex_file));
     }
   }
 }
 
-static void AddNext(/*inout*/DexFileAndClassPair* original,
-                    /*inout*/std::priority_queue<DexFileAndClassPair>* heap) {
-  if (original->DexFileHasMoreClasses()) {
-    original->Next();
-    heap->push(std::move(*original));
+static void AddNext(/*inout*/DexFileAndClassPair& original,
+                    /*inout*/std::priority_queue<DexFileAndClassPair>& heap) {
+  if (original.DexFileHasMoreClasses()) {
+    original.Next();
+    heap.push(std::move(original));
   }
 }
 
@@ -297,7 +327,8 @@ static void IterateOverPathClassLoader(
 static bool GetDexFilesFromClassLoader(
     ScopedObjectAccessAlreadyRunnable& soa,
     mirror::ClassLoader* class_loader,
-    std::priority_queue<DexFileAndClassPair>* queue) REQUIRES_SHARED(Locks::mutator_lock_) {
+    std::vector<const DexFile*>* dex_files)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   if (ClassLinker::IsBootClassLoader(soa, class_loader)) {
     // The boot class loader. We don't load any of these files, as we know we compiled against
     // them correctly.
@@ -312,7 +343,7 @@ static bool GetDexFilesFromClassLoader(
     return false;
   }
 
-  bool recursive_result = GetDexFilesFromClassLoader(soa, class_loader->GetParent(), queue);
+  bool recursive_result = GetDexFilesFromClassLoader(soa, class_loader->GetParent(), dex_files);
   if (!recursive_result) {
     // Something wrong up the chain.
     return false;
@@ -322,7 +353,7 @@ static bool GetDexFilesFromClassLoader(
   auto GetDexFilesFn = [&] (const DexFile* cp_dex_file)
             REQUIRES_SHARED(Locks::mutator_lock_) {
     if (cp_dex_file->NumClassDefs() > 0) {
-      queue->emplace(cp_dex_file, 0U, true);
+      dex_files->push_back(cp_dex_file);
     }
     return true;  // Continue looking.
   };
@@ -341,7 +372,8 @@ static bool GetDexFilesFromClassLoader(
 static void GetDexFilesFromDexElementsArray(
     ScopedObjectAccessAlreadyRunnable& soa,
     Handle<mirror::ObjectArray<mirror::Object>> dex_elements,
-    std::priority_queue<DexFileAndClassPair>* queue) REQUIRES_SHARED(Locks::mutator_lock_) {
+    std::vector<const DexFile*>* dex_files)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   if (dex_elements == nullptr) {
     // Nothing to do.
     return;
@@ -360,7 +392,7 @@ static void GetDexFilesFromDexElementsArray(
   auto GetDexFilesFn = [&] (const DexFile* cp_dex_file)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     if (cp_dex_file != nullptr && cp_dex_file->NumClassDefs() > 0) {
-      queue->emplace(cp_dex_file, 0U, true);
+      dex_files->push_back(cp_dex_file);
     }
     return true;  // Continue looking.
   };
@@ -389,43 +421,95 @@ static void GetDexFilesFromDexElementsArray(
 }
 
 static bool AreSharedLibrariesOk(const std::string& shared_libraries,
-                                 std::priority_queue<DexFileAndClassPair>& queue) {
+                                 std::vector<const DexFile*>& dex_files) {
+  // If no shared libraries, we expect no dex files.
   if (shared_libraries.empty()) {
-    if (queue.empty()) {
-      // No shared libraries or oat files, as expected.
-      return true;
-    }
-  } else {
-    if (shared_libraries.compare(OatFile::kSpecialSharedLibrary) == 0) {
-      // If we find the special shared library, skip the shared libraries check.
-      return true;
-    }
-    // Shared libraries is a series of dex file paths and their checksums, each separated by '*'.
-    std::vector<std::string> shared_libraries_split;
-    Split(shared_libraries, '*', &shared_libraries_split);
-
-    size_t index = 0;
-    std::priority_queue<DexFileAndClassPair> temp = queue;
-    while (!temp.empty() && index < shared_libraries_split.size() - 1) {
-      DexFileAndClassPair pair(temp.top());
-      const DexFile* dex_file = pair.GetDexFile();
-      const std::string& dex_filename = dex_file->GetLocation();
-      if (dex_filename != shared_libraries_split[index]) {
-        break;
-      }
-      char* end;
-      size_t shared_lib_checksum = strtoul(shared_libraries_split[index + 1].c_str(), &end, 10);
-      uint32_t dex_checksum = dex_file->GetLocationChecksum();
-      if (*end != '\0' || dex_checksum != shared_lib_checksum) {
-        break;
-      }
-      temp.pop();
-      index += 2;
-    }
-
-    // Check is successful if it made it through the queue and all the shared libraries.
-    return temp.empty() && index == shared_libraries_split.size();
+    return dex_files.empty();
   }
+  // If we find the special shared library, skip the shared libraries check.
+  if (shared_libraries.compare(OatFile::kSpecialSharedLibrary) == 0) {
+    return true;
+  }
+  // Shared libraries is a series of dex file paths and their checksums, each separated by '*'.
+  std::vector<std::string> shared_libraries_split;
+  Split(shared_libraries, '*', &shared_libraries_split);
+
+  // Sanity check size of dex files and split shared libraries. Should be 2x as many entries in
+  // the split shared libraries since it contains pairs of filename/checksum.
+  if (dex_files.size() * 2 != shared_libraries_split.size()) {
+    return false;
+  }
+
+  for (size_t i = 0; i < dex_files.size(); ++i) {
+    if (dex_files[i]->GetLocation() != shared_libraries_split[i * 2]) {
+      return false;
+    }
+    char* end;
+    size_t shared_lib_checksum = strtoul(shared_libraries_split[i * 2 + 1].c_str(), &end, 10);
+    uint32_t dex_checksum = dex_files[i]->GetLocationChecksum();
+    if (*end != '\0' || dex_checksum != shared_lib_checksum) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static bool CollisionCheck(std::vector<const DexFile*>& dex_files_loaded,
+                           std::vector<const DexFile*>& dex_files_unloaded,
+                           std::string* error_msg /*out*/) {
+  // Generate type index information for each dex file.
+  std::vector<TypeIndexInfo> loaded_types;
+  for (const DexFile* dex_file : dex_files_loaded) {
+    loaded_types.push_back(TypeIndexInfo(dex_file));
+  }
+  std::vector<TypeIndexInfo> unloaded_types;
+  for (const DexFile* dex_file : dex_files_unloaded) {
+    unloaded_types.push_back(TypeIndexInfo(dex_file));
+  }
+
+  // Populate the queue of dex file and class pairs with the loaded and unloaded dex files.
+  std::priority_queue<DexFileAndClassPair> queue;
+  for (size_t i = 0; i < dex_files_loaded.size(); ++i) {
+    if (loaded_types[i].GetIterator() != loaded_types[i].GetIteratorEnd()) {
+      queue.emplace(dex_files_loaded[i], &loaded_types[i], /*from_loaded_oat*/true);
+    }
+  }
+  for (size_t i = 0; i < dex_files_unloaded.size(); ++i) {
+    if (unloaded_types[i].GetIterator() != unloaded_types[i].GetIteratorEnd()) {
+      queue.emplace(dex_files_unloaded[i], &unloaded_types[i], /*from_loaded_oat*/false);
+    }
+  }
+
+  // Now drain the queue.
+  while (!queue.empty()) {
+    // Modifying the top element is only safe if we pop right after.
+    DexFileAndClassPair compare_pop(queue.top());
+    queue.pop();
+
+    // Compare against the following elements.
+    while (!queue.empty()) {
+      DexFileAndClassPair top(queue.top());
+      if (strcmp(compare_pop.GetCachedDescriptor(), top.GetCachedDescriptor()) == 0) {
+        // Same descriptor. Check whether it's crossing old-oat-files to new-oat-files.
+        if (compare_pop.FromLoadedOat() != top.FromLoadedOat()) {
+          *error_msg =
+              StringPrintf("Found duplicated class when checking oat files: '%s' in %s and %s",
+                           compare_pop.GetCachedDescriptor(),
+                           compare_pop.GetDexFile()->GetLocation().c_str(),
+                           top.GetDexFile()->GetLocation().c_str());
+          return true;
+        }
+        queue.pop();
+        AddNext(top, queue);
+      } else {
+        // Something else. Done here.
+        break;
+      }
+    }
+    AddNext(compare_pop, queue);
+  }
+
   return false;
 }
 
@@ -450,7 +534,7 @@ bool OatFileManager::HasCollisions(const OatFile* oat_file,
   DCHECK(oat_file != nullptr);
   DCHECK(error_msg != nullptr);
 
-  std::priority_queue<DexFileAndClassPair> queue;
+  std::vector<const DexFile*> dex_files_loaded;
 
   // Try to get dex files from the given class loader. If the class loader is null, or we do
   // not support one of the class loaders in the chain, conservatively compare against all
@@ -464,12 +548,12 @@ bool OatFileManager::HasCollisions(const OatFile* oat_file,
     Handle<mirror::ObjectArray<mirror::Object>> h_dex_elements =
         hs.NewHandle(soa.Decode<mirror::ObjectArray<mirror::Object>>(dex_elements));
     if (h_class_loader != nullptr &&
-        GetDexFilesFromClassLoader(soa, h_class_loader.Get(), &queue)) {
+        GetDexFilesFromClassLoader(soa, h_class_loader.Get(), &dex_files_loaded)) {
       class_loader_ok = true;
 
       // In this case, also take into account the dex_elements array, if given. We don't need to
       // read it otherwise, as we'll compare against all open oat files anyways.
-      GetDexFilesFromDexElementsArray(soa, h_dex_elements, &queue);
+      GetDexFilesFromDexElementsArray(soa, h_dex_elements, &dex_files_loaded);
     } else if (h_class_loader != nullptr) {
       VLOG(class_linker) << "Something unsupported with "
                          << mirror::Class::PrettyClass(h_class_loader->GetClass());
@@ -486,10 +570,8 @@ bool OatFileManager::HasCollisions(const OatFile* oat_file,
   if (!class_loader_ok) {
     // Add dex files from already loaded oat files, but skip boot.
 
-    // Clean up the queue.
-    while (!queue.empty()) {
-      queue.pop();
-    }
+    // Clean up the dex files.
+    dex_files_loaded.clear();
 
     std::vector<const OatFile*> boot_oat_files = GetBootOatFiles();
     // The same OatFile can be loaded multiple times at different addresses. In this case, we don't
@@ -503,10 +585,7 @@ bool OatFileManager::HasCollisions(const OatFile* oat_file,
           boot_oat_files.end() && location != oat_file->GetLocation() &&
           unique_locations.find(location) == unique_locations.end()) {
         unique_locations.insert(location);
-        AddDexFilesFromOat(loaded_oat_file.get(),
-                           /*already_loaded*/true,
-                           &queue,
-                           /*out*/&opened_dex_files);
+        AddDexFilesFromOat(loaded_oat_file.get(), &dex_files_loaded, &opened_dex_files);
       }
     }
   }
@@ -514,46 +593,15 @@ bool OatFileManager::HasCollisions(const OatFile* oat_file,
   // Exit if shared libraries are ok. Do a full duplicate classes check otherwise.
   const std::string
       shared_libraries(oat_file->GetOatHeader().GetStoreValueByKey(OatHeader::kClassPathKey));
-  if (AreSharedLibrariesOk(shared_libraries, queue)) {
+  if (AreSharedLibrariesOk(shared_libraries, dex_files_loaded)) {
     return false;
   }
 
   ScopedTrace st("Collision check");
-
   // Add dex files from the oat file to check.
-  AddDexFilesFromOat(oat_file, /*already_loaded*/false, &queue, &opened_dex_files);
-
-  // Now drain the queue.
-  while (!queue.empty()) {
-    // Modifying the top element is only safe if we pop right after.
-    DexFileAndClassPair compare_pop(queue.top());
-    queue.pop();
-
-    // Compare against the following elements.
-    while (!queue.empty()) {
-      DexFileAndClassPair top(queue.top());
-
-      if (strcmp(compare_pop.GetCachedDescriptor(), top.GetCachedDescriptor()) == 0) {
-        // Same descriptor. Check whether it's crossing old-oat-files to new-oat-files.
-        if (compare_pop.FromLoadedOat() != top.FromLoadedOat()) {
-          *error_msg =
-              StringPrintf("Found duplicated class when checking oat files: '%s' in %s and %s",
-                           compare_pop.GetCachedDescriptor(),
-                           compare_pop.GetDexFile()->GetLocation().c_str(),
-                           top.GetDexFile()->GetLocation().c_str());
-          return true;
-        }
-        queue.pop();
-        AddNext(&top, &queue);
-      } else {
-        // Something else. Done here.
-        break;
-      }
-    }
-    AddNext(&compare_pop, &queue);
-  }
-
-  return false;
+  std::vector<const DexFile*> dex_files_unloaded;
+  AddDexFilesFromOat(oat_file, &dex_files_unloaded, &opened_dex_files);
+  return CollisionCheck(dex_files_loaded, dex_files_unloaded, error_msg);
 }
 
 std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
