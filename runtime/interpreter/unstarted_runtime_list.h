@@ -76,7 +76,8 @@
   V(UnsafePutObjectVolatile, "void sun.misc.Unsafe.putObjectVolatile(java.lang.Object, long, java.lang.Object)") \
   V(UnsafePutOrderedObject, "void sun.misc.Unsafe.putOrderedObject(java.lang.Object, long, java.lang.Object)") \
   V(IntegerParseInt, "int java.lang.Integer.parseInt(java.lang.String)") \
-  V(LongParseLong, "long java.lang.Long.parseLong(java.lang.String)")
+  V(LongParseLong, "long java.lang.Long.parseLong(java.lang.String)") \
+  V(SystemIdentityHashCode, "int java.lang.System.identityHashCode(java.lang.Object)")
 
 // Methods that are native.
 #define UNSTARTED_RUNTIME_JNI_LIST(V)           \
@@ -98,7 +99,6 @@
   V(ArrayCreateMultiArray, "java.lang.Object java.lang.reflect.Array.createMultiArray(java.lang.Class, int[])") \
   V(ArrayCreateObjectArray, "java.lang.Object java.lang.reflect.Array.createObjectArray(java.lang.Class, int)") \
   V(ThrowableNativeFillInStackTrace, "java.lang.Object java.lang.Throwable.nativeFillInStackTrace()") \
-  V(SystemIdentityHashCode, "int java.lang.System.identityHashCode(java.lang.Object)") \
   V(ByteOrderIsLittleEndian, "boolean java.nio.ByteOrder.isLittleEndian()") \
   V(UnsafeCompareAndSwapInt, "boolean sun.misc.Unsafe.compareAndSwapInt(java.lang.Object, long, int, int)") \
   V(UnsafeGetIntVolatile, "int sun.misc.Unsafe.getIntVolatile(java.lang.Object, long)") \
