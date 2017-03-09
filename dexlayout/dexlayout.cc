@@ -1745,6 +1745,11 @@ void DexLayout::ProcessDexFile(const char* file_name,
     return;
   }
 
+  if (options_.show_section_statistics_) {
+    ShowDexSectionStatistics(header_, dex_file_index);
+    return;
+  }
+
   // Dump dex file.
   if (options_.dump_) {
     DumpDexFile();
