@@ -417,6 +417,7 @@ art_cc_test {
 
     shared_libs: [
         "libartd-compiler",
+        "libartd-simulator",
         "libvixld-arm",
         "libvixld-arm64",
 
