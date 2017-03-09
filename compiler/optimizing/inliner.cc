@@ -1380,6 +1380,13 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
                        << " could not be inlined because one branch always throws and"
                        << " caller does not have an exit block";
         return false;
+      } else if (graph_->HasIrreducibleLoops()) {
+        // TODO(ngeoffray): Support re-computing loop information to graphs with
+        // irreducible loops?
+        VLOG(compiler) << "Method " << callee_dex_file.PrettyMethod(method_index)
+                       << " could not be inlined because one branch always throws and"
+                       << " caller has irreducible loops";
+        return false;
       }
     } else {
       has_one_return = true;
