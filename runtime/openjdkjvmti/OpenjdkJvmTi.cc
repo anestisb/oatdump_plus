@@ -1426,6 +1426,7 @@ extern "C" bool ArtPlugin_Initialize() {
   ClassUtil::Register(&gEventHandler);
   DumpUtil::Register(&gEventHandler);
   SearchUtil::Register();
+  HeapUtil::Register();
 
   runtime->GetJavaVM()->AddEnvironmentHook(GetEnvHandler);
 
@@ -1438,6 +1439,7 @@ extern "C" bool ArtPlugin_Deinitialize() {
   ClassUtil::Unregister();
   DumpUtil::Unregister();
   SearchUtil::Unregister();
+  HeapUtil::Unregister();
 
   return true;
 }
