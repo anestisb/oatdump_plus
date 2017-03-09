@@ -2100,6 +2100,10 @@ class Dex2Oat FINAL {
     return DoProfileGuidedOptimizations();
   }
 
+  bool HasInputVdexFile() const {
+    return input_vdex_file_ != nullptr || input_vdex_fd_ != -1 || !input_vdex_.empty();
+  }
+
   bool LoadProfile() {
     DCHECK(UseProfile());
 
@@ -2881,6 +2885,13 @@ static int dex2oat(int argc, char** argv) {
   if (dex2oat->UseProfile()) {
     if (!dex2oat->LoadProfile()) {
       LOG(ERROR) << "Failed to process profile file";
+      return EXIT_FAILURE;
+    }
+  }
+
+  if (dex2oat->DoDexLayoutOptimizations()) {
+    if (dex2oat->HasInputVdexFile()) {
+      LOG(ERROR) << "Dexlayout is incompatible with an input VDEX";
       return EXIT_FAILURE;
     }
   }
