@@ -25,6 +25,7 @@
 #include "gc_root-inl.h"
 #include "jni_env_ext.h"
 #include "jni_internal.h"
+#include "jvmti_weak_table-inl.h"
 #include "mirror/class.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
@@ -40,6 +41,21 @@
 namespace openjdkjvmti {
 
 namespace {
+
+struct IndexCache {
+  // The number of interface fields implemented by the class. This is a prefix to all assigned
+  // field indices.
+  size_t interface_fields;
+
+  // It would be nice to also cache the following, but it is complicated to wire up into the
+  // generic visit:
+  // The number of fields in interfaces and superclasses. This is the first index assigned to
+  // fields of the class.
+  // size_t superclass_fields;
+};
+using IndexCachingTable = JvmtiWeakTable<IndexCache>;
+
+static IndexCachingTable gIndexCachingTable;
 
 // Report the contents of a string, if a callback is set.
 jint ReportString(art::ObjPtr<art::mirror::Object> obj,
@@ -402,6 +418,12 @@ class FieldVisitor {
   // "non-marker" interfaces (= interfaces with methods).
   static size_t CountInterfaceFields(art::ObjPtr<art::mirror::Class> klass)
       REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    // Do we have a cached value?
+    IndexCache tmp;
+    if (gIndexCachingTable.GetTag(klass.Ptr(), &tmp)) {
+      return tmp.interface_fields;
+    }
+
     size_t count = 0;
     auto visitor = [&count](art::ObjPtr<art::mirror::Class> inf_klass)
         REQUIRES_SHARED(art::Locks::mutator_lock_) {
@@ -410,9 +432,12 @@ class FieldVisitor {
       count += inf_klass->NumStaticFields();
     };
     RecursiveInterfaceVisit<decltype(visitor)>::VisitStatic(art::Thread::Current(), klass, visitor);
-    return count;
 
-    // TODO: Implement caching.
+    // Store this into the cache.
+    tmp.interface_fields = count;
+    gIndexCachingTable.Set(klass.Ptr(), tmp);
+
+    return count;
   }
 
   UserData* user_data_;
@@ -617,6 +642,14 @@ struct HeapFilter {
 };
 
 }  // namespace
+
+void HeapUtil::Register() {
+  art::Runtime::Current()->AddSystemWeakHolder(&gIndexCachingTable);
+}
+
+void HeapUtil::Unregister() {
+  art::Runtime::Current()->RemoveSystemWeakHolder(&gIndexCachingTable);
+}
 
 struct IterateThroughHeapData {
   IterateThroughHeapData(HeapUtil* _heap_util,
@@ -1004,7 +1037,6 @@ class FollowReferencesHelper FINAL {
         jvmtiHeapReferenceInfo reference_info;
         memset(&reference_info, 0, sizeof(reference_info));
 
-        // TODO: Implement spec-compliant numbering.
         reference_info.field.index = field_index;
 
         jvmtiHeapReferenceKind kind =

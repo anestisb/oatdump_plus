@@ -29,10 +29,14 @@ ScopedGCCriticalSection::ScopedGCCriticalSection(Thread* self,
                                                  CollectorType collector_type)
     : self_(self) {
   Runtime::Current()->GetHeap()->StartGC(self, cause, collector_type);
-  old_cause_ = self->StartAssertNoThreadSuspension("ScopedGCCriticalSection");
+  if (self != nullptr) {
+    old_cause_ = self->StartAssertNoThreadSuspension("ScopedGCCriticalSection");
+  }
 }
 ScopedGCCriticalSection::~ScopedGCCriticalSection() {
-  self_->EndAssertNoThreadSuspension(old_cause_);
+  if (self_ != nullptr) {
+    self_->EndAssertNoThreadSuspension(old_cause_);
+  }
   Runtime::Current()->GetHeap()->FinishGC(self_, collector::kGcTypeNone);
 }
 
