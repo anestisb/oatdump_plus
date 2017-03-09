@@ -1367,5 +1367,26 @@ TEST_F(UnstartedRuntimeTest, ConstructorNewInstance0) {
   ShadowFrame::DeleteDeoptimizedFrame(shadow_frame);
 }
 
+TEST_F(UnstartedRuntimeTest, IdentityHashCode) {
+  Thread* self = Thread::Current();
+  ScopedObjectAccess soa(self);
+  ShadowFrame* tmp = ShadowFrame::CreateDeoptimizedFrame(10, nullptr, nullptr, 0);
+
+  JValue result;
+  UnstartedSystemIdentityHashCode(self, tmp, &result, 0);
+
+  EXPECT_EQ(0, result.GetI());
+  ASSERT_FALSE(self->IsExceptionPending());
+
+  ObjPtr<mirror::String> str = mirror::String::AllocFromModifiedUtf8(self, "abd");
+  tmp->SetVRegReference(0, str.Ptr());
+  UnstartedSystemIdentityHashCode(self, tmp, &result, 0);
+  EXPECT_NE(0, result.GetI());
+  EXPECT_EQ(str->IdentityHashCode(), result.GetI());
+  ASSERT_FALSE(self->IsExceptionPending());
+
+  ShadowFrame::DeleteDeoptimizedFrame(tmp);
+}
+
 }  // namespace interpreter
 }  // namespace art
