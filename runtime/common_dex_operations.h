@@ -36,8 +36,8 @@ namespace interpreter {
 
   void ArtInterpreterToCompiledCodeBridge(Thread* self,
                                           ArtMethod* caller,
-                                          const DexFile::CodeItem* code_item,
                                           ShadowFrame* shadow_frame,
+                                          uint16_t arg_offset,
                                           JValue* result);
 }  // namespace interpreter
 
@@ -56,7 +56,7 @@ inline void PerformCall(Thread* self,
       interpreter::ArtInterpreterToInterpreterBridge(self, code_item, callee_frame, result);
     } else {
       interpreter::ArtInterpreterToCompiledCodeBridge(
-          self, caller_method, code_item, callee_frame, result);
+          self, caller_method, callee_frame, first_dest_reg, result);
     }
   } else {
     interpreter::UnstartedRuntime::Invoke(self, code_item, callee_frame, result, first_dest_reg);
