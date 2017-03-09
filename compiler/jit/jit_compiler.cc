@@ -100,7 +100,6 @@ JitCompiler::JitCompiler() {
       CompilerOptions::kDefaultInlineDepthLimit,
       CompilerOptions::kDefaultInlineMaxCodeUnits,
       /* no_inline_from */ nullptr,
-      /* include_patch_information */ false,
       CompilerOptions::kDefaultTopKProfileThreshold,
       Runtime::Current()->IsJavaDebuggable(),
       CompilerOptions::kDefaultGenerateDebugInfo,

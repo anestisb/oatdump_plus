@@ -1015,7 +1015,6 @@ CodeGeneratorX86::CodeGeneratorX86(HGraph* graph,
       assembler_(graph->GetArena()),
       isa_features_(isa_features),
       pc_relative_dex_cache_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
-      simple_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       string_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       boot_image_type_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       type_bss_entry_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
@@ -4603,13 +4602,6 @@ void CodeGeneratorX86::GenerateVirtualCall(HInvokeVirtual* invoke, Location temp
       temp, ArtMethod::EntryPointFromQuickCompiledCodeOffset(kX86PointerSize).Int32Value()));
 }
 
-void CodeGeneratorX86::RecordSimplePatch() {
-  if (GetCompilerOptions().GetIncludePatchInformation()) {
-    simple_patches_.emplace_back();
-    __ Bind(&simple_patches_.back());
-  }
-}
-
 void CodeGeneratorX86::RecordBootStringPatch(HLoadString* load_string) {
   DCHECK(GetCompilerOptions().IsBootImage());
   HX86ComputeBaseMethodAddress* address = nullptr;
@@ -4682,17 +4674,12 @@ void CodeGeneratorX86::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patche
   DCHECK(linker_patches->empty());
   size_t size =
       pc_relative_dex_cache_patches_.size() +
-      simple_patches_.size() +
       string_patches_.size() +
       boot_image_type_patches_.size() +
       type_bss_entry_patches_.size();
   linker_patches->reserve(size);
   EmitPcRelativeLinkerPatches<LinkerPatch::DexCacheArrayPatch>(pc_relative_dex_cache_patches_,
                                                                linker_patches);
-  for (const Label& label : simple_patches_) {
-    uint32_t literal_offset = label.Position() - kLabelPositionToLiteralOffsetAdjustment;
-    linker_patches->push_back(LinkerPatch::RecordPosition(literal_offset));
-  }
   if (!GetCompilerOptions().IsBootImage()) {
     DCHECK(boot_image_type_patches_.empty());
     EmitPcRelativeLinkerPatches<LinkerPatch::StringBssEntryPatch>(string_patches_, linker_patches);
@@ -6154,7 +6141,6 @@ void InstructionCodeGeneratorX86::VisitLoadClass(HLoadClass* cls) NO_THREAD_SAFE
           reinterpret_cast<uintptr_t>(cls->GetClass().Get()));
       DCHECK_NE(address, 0u);
       __ movl(out, Immediate(address));
-      codegen_->RecordSimplePatch();
       break;
     }
     case HLoadClass::LoadKind::kBssEntry: {
@@ -6311,7 +6297,6 @@ void InstructionCodeGeneratorX86::VisitLoadString(HLoadString* load) NO_THREAD_S
           reinterpret_cast<uintptr_t>(load->GetString().Get()));
       DCHECK_NE(address, 0u);
       __ movl(out, Immediate(address));
-      codegen_->RecordSimplePatch();
       return;  // No dex cache slow path.
     }
     case HLoadString::LoadKind::kBssEntry: {

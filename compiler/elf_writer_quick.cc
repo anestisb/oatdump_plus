@@ -105,7 +105,6 @@ class ElfWriterQuick FINAL : public ElfWriter {
   void EndText(OutputStream* text) OVERRIDE;
   void WriteDynamicSection() OVERRIDE;
   void WriteDebugInfo(const ArrayRef<const debug::MethodDebugInfo>& method_infos) OVERRIDE;
-  void WritePatchLocations(const ArrayRef<const uintptr_t>& patch_locations) OVERRIDE;
   bool End() OVERRIDE;
 
   virtual OutputStream* GetStream() OVERRIDE;
@@ -264,17 +263,6 @@ void ElfWriterQuick<ElfTypes>::WriteDebugInfo(
       debug_info_thread_pool_->Wait(self, true, false);
       builder_->WriteSection(".gnu_debugdata", debug_info_task_->GetResult());
     }
-  }
-}
-
-template <typename ElfTypes>
-void ElfWriterQuick<ElfTypes>::WritePatchLocations(
-    const ArrayRef<const uintptr_t>& patch_locations) {
-  // Add relocation section for .text.
-  if (compiler_options_->GetIncludePatchInformation()) {
-    // Note that ElfWriter::Fixup will be called regardless and therefore
-    // we need to include oat_patches for debug sections unconditionally.
-    builder_->WritePatches(".text.oat_patches", patch_locations);
   }
 }
 
