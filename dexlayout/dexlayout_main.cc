@@ -57,6 +57,7 @@ static void Usage(void) {
   fprintf(stderr, " -o : output file name (defaults to stdout)\n");
   fprintf(stderr, " -p : profile file name (defaults to no profile)\n");
   fprintf(stderr, " -s : visualize reference pattern\n");
+  fprintf(stderr, " -t : display file section sizes\n");
   fprintf(stderr, " -w : output dex directory \n");
 }
 
@@ -75,7 +76,7 @@ int DexlayoutDriver(int argc, char** argv) {
 
   // Parse all arguments.
   while (1) {
-    const int ic = getopt(argc, argv, "abcdefghil:mo:p:sw:");
+    const int ic = getopt(argc, argv, "abcdefghil:mo:p:stw:");
     if (ic < 0) {
       break;  // done
     }
@@ -125,6 +126,10 @@ int DexlayoutDriver(int argc, char** argv) {
         break;
       case 's':  // visualize access pattern
         options.visualize_pattern_ = true;
+        options.verbose_ = false;
+        break;
+      case 't':  // display section statistics
+        options.show_section_statistics_ = true;
         options.verbose_ = false;
         break;
       case 'w':  // output dex files directory
