@@ -56,6 +56,7 @@ class Options {
   bool show_annotations_ = false;
   bool show_file_headers_ = false;
   bool show_section_headers_ = false;
+  bool show_section_statistics_ = false;
   bool verbose_ = false;
   bool visualize_pattern_ = false;
   OutputFormat output_format_ = kOutputPlain;

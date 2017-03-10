@@ -35,6 +35,12 @@
 
 namespace art {
 
+std::string MultidexName(const std::string& prefix,
+                         size_t dex_file_index,
+                         const std::string& suffix) {
+  return prefix + ((dex_file_index > 0) ? std::to_string(dex_file_index + 1) : "") + suffix;
+}
+
 struct FileSection {
  public:
   std::string name_;
@@ -43,8 +49,22 @@ struct FileSection {
   std::function<uint32_t(const dex_ir::Collections&)> offset_fn_;
 };
 
+static uint32_t HeaderOffset(const dex_ir::Collections& collections ATTRIBUTE_UNUSED) {
+  return 0;
+}
+
+static uint32_t HeaderSize(const dex_ir::Collections& collections ATTRIBUTE_UNUSED) {
+  // Size is in elements, so there is only one header.
+  return 1;
+}
+
 static const std::vector<FileSection> kFileSections = {
   {
+    "Header",
+    DexFile::kDexTypeHeaderItem,
+    &HeaderSize,
+    &HeaderOffset,
+  }, {
     "StringId",
     DexFile::kDexTypeStringIdItem,
     &dex_ir::Collections::StringIdsSize,
@@ -127,58 +147,71 @@ static const std::vector<FileSection> kFileSections = {
   }
 };
 
+static constexpr bool kSortAscending = false;
+static constexpr bool kSortDescending = true;
+
+static std::vector<const FileSection*> GetSortedSections(
+    const dex_ir::Collections& collections,
+    bool sort_descending) {
+  std::vector<const FileSection*> sorted_sections;
+  // Build the table that will map from offset to color
+  for (const FileSection& s : kFileSections) {
+    sorted_sections.push_back(&s);
+  }
+  // Sort by offset.
+  std::sort(sorted_sections.begin(),
+            sorted_sections.end(),
+            [&](const FileSection* a, const FileSection* b) {
+              if (sort_descending) {
+                return a->offset_fn_(collections) > b->offset_fn_(collections);
+              } else {
+                return a->offset_fn_(collections) < b->offset_fn_(collections);
+              }
+            });
+  return sorted_sections;
+}
+
 class Dumper {
  public:
   // Colors are based on the type of the section in MapList.
-  Dumper(const dex_ir::Collections& collections, size_t dex_file_index) {
-    // Build the table that will map from offset to color
-    table_.emplace_back(DexFile::kDexTypeHeaderItem, 0u);
-    for (const FileSection& s : kFileSections) {
-      table_.emplace_back(s.type_, s.offset_fn_(collections));
-    }
-    // Sort into descending order by offset.
-    std::sort(table_.begin(),
-              table_.end(),
-              [](const SectionColor& a, const SectionColor& b) { return a.offset_ > b.offset_; });
+  explicit Dumper(const dex_ir::Collections& collections)
+      : collections_(collections), out_file_(nullptr),
+        sorted_sections_(GetSortedSections(collections, kSortDescending)) { }
+
+  bool OpenAndPrintHeader(size_t dex_index) {
     // Open the file and emit the gnuplot prologue.
-    std::string dex_file_name("classes");
-    std::string out_file_base_name("layout");
-    if (dex_file_index > 0) {
-      out_file_base_name += std::to_string(dex_file_index + 1);
-      dex_file_name += std::to_string(dex_file_index + 1);
+    out_file_ = fopen(MultidexName("layout", dex_index, ".gnuplot").c_str(), "w");
+    if (out_file_ == nullptr) {
+      return false;
     }
-    dex_file_name += ".dex";
-    std::string out_file_name(out_file_base_name + ".gnuplot");
-    std::string png_file_name(out_file_base_name + ".png");
-    out_file_ = fopen(out_file_name.c_str(), "w");
     fprintf(out_file_, "set terminal png size 1920,1080\n");
-    fprintf(out_file_, "set output \"%s\"\n", png_file_name.c_str());
-    fprintf(out_file_, "set title \"%s\"\n", dex_file_name.c_str());
+    fprintf(out_file_, "set output \"%s\"\n", MultidexName("layout", dex_index, ".png").c_str());
+    fprintf(out_file_, "set title \"%s\"\n", MultidexName("classes", dex_index, ".dex").c_str());
     fprintf(out_file_, "set xlabel \"Page offset into dex\"\n");
     fprintf(out_file_, "set ylabel \"ClassDef index\"\n");
     fprintf(out_file_, "set xtics rotate out (");
-    fprintf(out_file_, "\"Header\" %d, ", 0);
     bool printed_one = false;
     for (const FileSection& s : kFileSections) {
-      if (s.size_fn_(collections) > 0) {
+      if (s.size_fn_(collections_) > 0) {
         if (printed_one) {
           fprintf(out_file_, ", ");
         }
-        fprintf(out_file_, "\"%s\" %d", s.name_.c_str(), s.offset_fn_(collections) / kPageSize);
+        fprintf(out_file_, "\"%s\" %d", s.name_.c_str(), s.offset_fn_(collections_) / kPageSize);
         printed_one = true;
       }
     }
     fprintf(out_file_, ")\n");
     fprintf(out_file_,
             "plot \"-\" using 1:2:3:4:5 with vector nohead linewidth 1 lc variable notitle\n");
+    return true;
   }
 
   int GetColor(uint32_t offset) const {
     // The dread linear search to find the right section for the reference.
     uint16_t section = 0;
-    for (uint16_t i = 0; i < table_.size(); ++i) {
-      if (table_[i].offset_ < offset) {
-        section = table_[i].type_;
+    for (const FileSection* file_section : sorted_sections_) {
+      if (file_section->offset_fn_(collections_) < offset) {
+        section = file_section->type_;
         break;
       }
     }
@@ -308,13 +341,6 @@ class Dumper {
   }
 
  private:
-  struct SectionColor {
-   public:
-    SectionColor(uint16_t type, uint32_t offset) : type_(type), offset_(offset) { }
-    uint16_t type_;
-    uint32_t offset_;
-  };
-
   using ColorMapType = std::map<uint16_t, int>;
   const ColorMapType kColorMap = {
     { DexFile::kDexTypeHeaderItem, 1 },
@@ -336,8 +362,9 @@ class Dumper {
     { DexFile::kDexTypeAnnotationsDirectoryItem, 16 }
   };
 
-  std::vector<SectionColor> table_;
+  const dex_ir::Collections& collections_;
   FILE* out_file_;
+  std::vector<const FileSection*> sorted_sections_;
 
   DISALLOW_COPY_AND_ASSIGN(Dumper);
 };
@@ -350,7 +377,11 @@ void VisualizeDexLayout(dex_ir::Header* header,
                         const DexFile* dex_file,
                         size_t dex_file_index,
                         ProfileCompilationInfo* profile_info) {
-  std::unique_ptr<Dumper> dumper(new Dumper(header->GetCollections(), dex_file_index));
+  std::unique_ptr<Dumper> dumper(new Dumper(header->GetCollections()));
+  if (!dumper->OpenAndPrintHeader(dex_file_index)) {
+    fprintf(stderr, "Could not open output file.\n");
+    return;
+  }
 
   const uint32_t class_defs_size = header->GetCollections().ClassDefsSize();
   for (uint32_t class_index = 0; class_index < class_defs_size; class_index++) {
@@ -399,6 +430,24 @@ void VisualizeDexLayout(dex_ir::Header* header,
       }
     }
   }  // for
+}
+
+/*
+ * Dumps the offset and size of sections within the file.
+ */
+void ShowDexSectionStatistics(dex_ir::Header* header, size_t dex_file_index) {
+  // Compute the (multidex) class file name).
+  fprintf(stdout, "%s\n", MultidexName("classes", dex_file_index, ".dex").c_str());
+  fprintf(stdout, "section    offset     items\n");
+  const dex_ir::Collections& collections = header->GetCollections();
+  std::vector<const FileSection*> sorted_sections(GetSortedSections(collections, kSortAscending));
+  for (const FileSection* file_section : sorted_sections) {
+    fprintf(stdout, "%-10s 0x%08x 0x%08x\n",
+      file_section->name_.c_str(),
+      file_section->offset_fn_(collections),
+      file_section->size_fn_(collections));
+  }
+  fprintf(stdout, "\n");
 }
 
 }  // namespace art
