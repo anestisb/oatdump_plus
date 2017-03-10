@@ -63,6 +63,7 @@ TEST_VDEX="n"
 TEST_IS_NDEBUG="n"
 APP_IMAGE="y"
 VDEX_FILTER=""
+PROFILE="n"
 
 # if "y", run 'sync' before dalvikvm to make sure all files from
 # build step (e.g. dex2oat) were finished writing.
@@ -268,6 +269,9 @@ while true; do
         shift
     elif [ "x$1" = "x--sync" ]; then
         SYNC_BEFORE_RUN="y"
+        shift
+    elif [ "x$1" = "x--profile" ]; then
+        PROFILE="y"
         shift
     elif expr "x$1" : "x--" >/dev/null 2>&1; then
         echo "unknown $0 option: $1" 1>&2
@@ -511,6 +515,7 @@ if [ ${#VDEX_NAME} -gt $max_filename_size ]; then
     exit 1
 fi
 
+profman_cmdline="true"
 dex2oat_cmdline="true"
 vdex_cmdline="true"
 mkdir_locations="${DEX_LOCATION}/dalvik-cache/$ISA"
@@ -534,6 +539,15 @@ if [ "$PREBUILD" = "y" ]; then
                       --instruction-set=$ISA"
   if [ "x$INSTRUCTION_SET_FEATURES" != "x" ] ; then
     dex2oat_cmdline="${dex2oat_cmdline} --instruction-set-features=${INSTRUCTION_SET_FEATURES}"
+  fi
+
+  if [ "$PROFILE" = "y" ]; then
+    profman_cmdline="${ANDROID_ROOT}/bin/profman  \
+      --apk=$DEX_LOCATION/$TEST_NAME.jar \
+      --dex-location=$DEX_LOCATION/$TEST_NAME.jar \
+      --create-profile-from=$DEX_LOCATION/profile \
+      --reference-profile-file=$TEST_NAME.prof"
+    dex2oat_cmdline="${dex2oat_cmdline} --profile-file=$TEST_NAME.prof"
   fi
 
   # Add in a timeout. This is important for testing the compilation/verification time of
@@ -594,6 +608,7 @@ dalvikvm_cmdline="$INVOKE_WITH $GDB $ANDROID_ROOT/bin/$DALVIKVM \
 dex2oat_cmdline=$(echo $dex2oat_cmdline)
 dalvikvm_cmdline=$(echo $dalvikvm_cmdline)
 vdex_cmdline=$(echo $vdex_cmdline)
+profman_cmdline=$(echo $profman_cmdline)
 
 if [ "$HOST" = "n" ]; then
     adb root > /dev/null
@@ -603,11 +618,18 @@ if [ "$HOST" = "n" ]; then
       adb shell mkdir -p $DEX_LOCATION
       adb push $TEST_NAME.jar $DEX_LOCATION
       adb push $TEST_NAME-ex.jar $DEX_LOCATION
+      if [ "$PROFILE" = "y" ]; then
+        adb push profile $DEX_LOCATION
+      fi
     else
       adb shell rm -r $DEX_LOCATION >/dev/null 2>&1
       adb shell mkdir -p $DEX_LOCATION >/dev/null 2>&1
       adb push $TEST_NAME.jar $DEX_LOCATION >/dev/null 2>&1
       adb push $TEST_NAME-ex.jar $DEX_LOCATION >/dev/null 2>&1
+      if [ "$PROFILE" = "y" ]; then
+        adb push profile $DEX_LOCATION >/dev/null 2>&1
+      fi
+
     fi
 
     LD_LIBRARY_PATH=/data/$TEST_DIRECTORY/art/$ISA
@@ -634,6 +656,7 @@ if [ "$HOST" = "n" ]; then
              mkdir -p ${mkdir_locations} && \
              export LD_LIBRARY_PATH=$LD_LIBRARY_PATH && \
              export PATH=$ANDROID_ROOT/bin:$PATH && \
+             $profman_cmdline && \
              $dex2oat_cmdline && \
              $vdex_cmdline && \
              $strip_cmdline && \
@@ -710,13 +733,14 @@ else
     fi
 
     if [ "$DEV_MODE" = "y" ]; then
-      echo "mkdir -p ${mkdir_locations} && $dex2oat_cmdline && $vdex_cmdline && $strip_cmdline && $sync_cmdline && $cmdline"
+      echo "mkdir -p ${mkdir_locations} && $profman_cmdline && $dex2oat_cmdline && $vdex_cmdline && $strip_cmdline && $sync_cmdline && $cmdline"
     fi
 
     cd $ANDROID_BUILD_TOP
 
     rm -rf ${DEX_LOCATION}/dalvik-cache/
     mkdir -p ${mkdir_locations} || exit 1
+    $profman_cmdline || { echo "Profman failed." >&2 ; exit 2; }
     $dex2oat_cmdline || { echo "Dex2oat failed." >&2 ; exit 2; }
     $vdex_cmdline || { echo "Dex2oat failed." >&2 ; exit 2; }
     $strip_cmdline || { echo "Strip failed." >&2 ; exit 3; }
