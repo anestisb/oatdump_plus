@@ -520,11 +520,14 @@ void BindFunctions(jvmtiEnv* jenv, JNIEnv* env, const char* class_name) {
       LOG(FATAL) << "Could not load " << class_name;
     }
   }
+  BindFunctionsOnClass(jenv, env, klass.get());
+}
 
+void BindFunctionsOnClass(jvmtiEnv* jenv, JNIEnv* env, jclass klass) {
   // Use JVMTI to get the methods.
   jint method_count;
   jmethodID* methods;
-  jvmtiError methods_result = jenv->GetClassMethods(klass.get(), &method_count, &methods);
+  jvmtiError methods_result = jenv->GetClassMethods(klass, &method_count, &methods);
   if (methods_result != JVMTI_ERROR_NONE) {
     LOG(FATAL) << "Could not get methods";
   }
@@ -538,7 +541,7 @@ void BindFunctions(jvmtiEnv* jenv, JNIEnv* env, const char* class_name) {
     }
     constexpr jint kNative = static_cast<jint>(kAccNative);
     if ((modifiers & kNative) != 0) {
-      BindMethod(jenv, env, klass.get(), methods[i]);
+      BindMethod(jenv, env, klass, methods[i]);
     }
   }
 
