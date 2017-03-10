@@ -62,9 +62,7 @@ extern "C" NO_RETURN void artThrowNullPointerExceptionFromCode(Thread* self)
 extern "C" NO_RETURN void artThrowNullPointerExceptionFromSignal(uintptr_t addr, Thread* self)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   ScopedQuickEntrypointChecks sqec(self);
-  self->NoteSignalBeingHandled();
   ThrowNullPointerExceptionFromDexPC(/* check_address */ true, addr);
-  self->NoteSignalHandlerDone();
   self->QuickDeliverException();
 }
 
@@ -95,9 +93,7 @@ extern "C" NO_RETURN void artThrowStringBoundsFromCode(int index, int length, Th
 extern "C" NO_RETURN void artThrowStackOverflowFromCode(Thread* self)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   ScopedQuickEntrypointChecks sqec(self);
-  self->NoteSignalBeingHandled();
   ThrowStackOverflowError(self);
-  self->NoteSignalHandlerDone();
   self->QuickDeliverException();
 }
 
