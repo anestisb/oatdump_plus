@@ -5315,18 +5315,24 @@ bool LocationsBuilderARMVIXL::CanEncodeConstantAsImmediate(uint32_t value,
     return true;
   }
   Opcode neg_opcode = kNoOperand;
+  uint32_t neg_value = 0;
   switch (opcode) {
-    case AND: neg_opcode = BIC; value = ~value; break;
-    case ORR: neg_opcode = ORN; value = ~value; break;
-    case ADD: neg_opcode = SUB; value = -value; break;
-    case ADC: neg_opcode = SBC; value = ~value; break;
-    case SUB: neg_opcode = ADD; value = -value; break;
-    case SBC: neg_opcode = ADC; value = ~value; break;
-    case MOV: neg_opcode = MVN; value = ~value; break;
+    case AND: neg_opcode = BIC; neg_value = ~value; break;
+    case ORR: neg_opcode = ORN; neg_value = ~value; break;
+    case ADD: neg_opcode = SUB; neg_value = -value; break;
+    case ADC: neg_opcode = SBC; neg_value = ~value; break;
+    case SUB: neg_opcode = ADD; neg_value = -value; break;
+    case SBC: neg_opcode = ADC; neg_value = ~value; break;
+    case MOV: neg_opcode = MVN; neg_value = ~value; break;
     default:
       return false;
   }
-  return assembler->ShifterOperandCanHold(neg_opcode, value, set_cc);
+
+  if (assembler->ShifterOperandCanHold(neg_opcode, neg_value, set_cc)) {
+    return true;
+  }
+
+  return opcode == AND && IsPowerOfTwo(value + 1);
 }
 
 void InstructionCodeGeneratorARMVIXL::HandleFieldGet(HInstruction* instruction,
@@ -7631,10 +7637,12 @@ void InstructionCodeGeneratorARMVIXL::GenerateAndConst(vixl32::Register out,
     return;
   }
   if (GetAssembler()->ShifterOperandCanHold(AND, value)) {
-  __ And(out, first, value);
+    __ And(out, first, value);
+  } else if (GetAssembler()->ShifterOperandCanHold(BIC, ~value)) {
+    __ Bic(out, first, ~value);
   } else {
-    DCHECK(GetAssembler()->ShifterOperandCanHold(BIC, ~value));
-  __ Bic(out, first, ~value);
+    DCHECK(IsPowerOfTwo(value + 1));
+    __ Ubfx(out, first, 0, WhichPowerOf2(value + 1));
   }
 }
 
