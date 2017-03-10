@@ -750,32 +750,18 @@ OatFileAssistant::ImageInfo::GetRuntimeImageInfo(InstructionSet isa, std::string
   // same as kRuntimeISA, so this behavior is suspect (b/35659889).
   if (isa == kRuntimeISA) {
     const ImageHeader& image_header = image_spaces[0]->GetImageHeader();
+    info->oat_checksum = image_header.GetOatChecksum();
     info->oat_data_begin = reinterpret_cast<uintptr_t>(image_header.GetOatDataBegin());
     info->patch_delta = image_header.GetPatchDelta();
-
-    info->oat_checksum = 0;
-    for (gc::space::ImageSpace* image_space : image_spaces) {
-      info->oat_checksum ^= image_space->GetImageHeader().GetOatChecksum();
-    }
   } else {
     std::unique_ptr<ImageHeader> image_header(
         gc::space::ImageSpace::ReadImageHeader(info->location.c_str(), isa, error_msg));
     if (image_header == nullptr) {
       return nullptr;
     }
+    info->oat_checksum = image_header->GetOatChecksum();
     info->oat_data_begin = reinterpret_cast<uintptr_t>(image_header->GetOatDataBegin());
     info->patch_delta = image_header->GetPatchDelta();
-
-    info->oat_checksum = 0;
-    for (gc::space::ImageSpace* image_space : image_spaces) {
-      std::string location = image_space->GetImageLocation();
-      image_header.reset(
-          gc::space::ImageSpace::ReadImageHeader(location.c_str(), isa, error_msg));
-      if (image_header == nullptr) {
-        return nullptr;
-      }
-      info->oat_checksum ^= image_header->GetOatChecksum();
-    }
   }
   return info;
 }
@@ -790,16 +776,6 @@ const OatFileAssistant::ImageInfo* OatFileAssistant::GetImageInfo() {
     }
   }
   return cached_image_info_.get();
-}
-
-uint32_t OatFileAssistant::CalculateCombinedImageChecksum(InstructionSet isa) {
-  std::string error_msg;
-  std::unique_ptr<ImageInfo> info = ImageInfo::GetRuntimeImageInfo(isa, &error_msg);
-  if (info == nullptr) {
-    LOG(WARNING) << "Unable to get runtime image info for checksum: " << error_msg;
-    return 0;
-  }
-  return info->oat_checksum;
 }
 
 OatFileAssistant::OatFileInfo& OatFileAssistant::GetBestInfo() {
