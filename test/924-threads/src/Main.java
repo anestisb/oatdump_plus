@@ -135,8 +135,12 @@ public class Main {
     synchronized(cdl3_2) {
       cdl3_1.countDown();
       cdl3_2.await();
-      Thread.yield();
-      Thread.sleep(100);
+      // While the latch improves the chances to make good progress, scheduling might still be
+      // messy. Wait till we get the right Java-side Thread state.
+      do {
+        Thread.yield();
+      } while (t.getState() != Thread.State.BLOCKED);
+      Thread.sleep(10);
       printThreadState(t);
     }
 
