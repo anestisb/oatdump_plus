@@ -178,7 +178,7 @@ class ObsoleteMethodStackVisitor : public art::StackVisitor {
         art::ClassLinker* cl = runtime->GetClassLinker();
         auto ptr_size = cl->GetImagePointerSize();
         const size_t method_size = art::ArtMethod::Size(ptr_size);
-        auto* method_storage = allocator_->Alloc(GetThread(), method_size);
+        auto* method_storage = allocator_->Alloc(art::Thread::Current(), method_size);
         CHECK(method_storage != nullptr) << "Unable to allocate storage for obsolete version of '"
                                          << old_method->PrettyMethod() << "'";
         new_obsolete_method = new (method_storage) art::ArtMethod();
