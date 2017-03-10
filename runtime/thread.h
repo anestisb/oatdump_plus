@@ -1115,21 +1115,12 @@ class Thread {
     return tlsPtr_.mterp_alt_ibase;
   }
 
-  // Notify that a signal is being handled. This is to protect us from doing recursive
-  // NPE handling after a SIGSEGV.
-  void NoteSignalBeingHandled() {
-    if (tls32_.handling_signal_) {
-      LOG(FATAL) << "Detected signal while processing a signal";
-    }
-    tls32_.handling_signal_ = true;
+  bool HandlingSignal() const {
+    return tls32_.handling_signal_;
   }
 
-  void NoteSignalHandlerDone() {
-    tls32_.handling_signal_ = false;
-  }
-
-  jmp_buf* GetNestedSignalState() {
-    return tlsPtr_.nested_signal_state;
+  void SetHandlingSignal(bool handling_signal) {
+    tls32_.handling_signal_ = handling_signal;
   }
 
   bool IsTransitioningToRunnable() const {
@@ -1460,7 +1451,7 @@ class Thread {
       thread_local_start(nullptr), thread_local_pos(nullptr), thread_local_end(nullptr),
       thread_local_objects(0), mterp_current_ibase(nullptr), mterp_default_ibase(nullptr),
       mterp_alt_ibase(nullptr), thread_local_alloc_stack_top(nullptr),
-      thread_local_alloc_stack_end(nullptr), nested_signal_state(nullptr),
+      thread_local_alloc_stack_end(nullptr),
       flip_function(nullptr), method_verifier(nullptr), thread_local_mark_stack(nullptr) {
       std::fill(held_mutexes, held_mutexes + kLockLevelCount, nullptr);
     }
@@ -1605,9 +1596,6 @@ class Thread {
 
     // Support for Mutex lock hierarchy bug detection.
     BaseMutex* held_mutexes[kLockLevelCount];
-
-    // Recorded thread state for nested signals.
-    jmp_buf* nested_signal_state;
 
     // The function used for thread flip.
     Closure* flip_function;

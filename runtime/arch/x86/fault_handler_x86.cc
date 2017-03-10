@@ -75,12 +75,6 @@ extern "C" void art_quick_throw_null_pointer_exception_from_signal();
 extern "C" void art_quick_throw_stack_overflow();
 extern "C" void art_quick_test_suspend();
 
-// Note this is different from the others (no underscore on 64 bit mac) due to
-// the way the symbol is defined in the .S file.
-// TODO: fix the symbols for 64 bit mac - there is a double underscore prefix for some
-// of them.
-extern "C" void art_nested_signal_return();
-
 // Get the size of an instruction in bytes.
 // Return 0 if the instruction is not handled.
 static uint32_t GetInstructionSize(const uint8_t* pc) {
@@ -245,21 +239,6 @@ static uint32_t GetInstructionSize(const uint8_t* pc) {
 
   VLOG(signals) << "x86 instruction length calculated as " << (pc - startpc);
   return pc - startpc;
-}
-
-void FaultManager::HandleNestedSignal(int, siginfo_t*, void* context) {
-  // For the Intel architectures we need to go to an assembly language
-  // stub.  This is because the 32 bit call to longjmp is much different
-  // from the 64 bit ABI call and pushing things onto the stack inside this
-  // handler was unwieldy and ugly.  The use of the stub means we can keep
-  // this code the same for both 32 and 64 bit.
-
-  Thread* self = Thread::Current();
-  CHECK(self != nullptr);  // This will cause a SIGABRT if self is null.
-
-  struct ucontext* uc = reinterpret_cast<struct ucontext*>(context);
-  uc->CTX_JMP_BUF = reinterpret_cast<uintptr_t>(*self->GetNestedSignalState());
-  uc->CTX_EIP = reinterpret_cast<uintptr_t>(art_nested_signal_return);
 }
 
 void FaultManager::GetMethodAndReturnPcAndSp(siginfo_t* siginfo, void* context,
