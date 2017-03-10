@@ -34,6 +34,7 @@
 
 #include "dex_ir_builder.h"
 #include "dex_file-inl.h"
+#include "dex_file_verifier.h"
 #include "dex_instruction-inl.h"
 #include "dex_visualize.h"
 #include "dex_writer.h"
@@ -1756,6 +1757,16 @@ void DexLayout::ProcessDexFile(const char* file_name,
       LayoutOutputFile(dex_file);
     }
     OutputDexFile(dex_file->GetLocation());
+    // Verify the output dex file is ok on debug builds.
+    if (kIsDebugBuild) {
+      std::string error_msg;
+      DCHECK(DexFileVerifier::Verify(dex_file,
+                                     dex_file->Begin(),
+                                     dex_file->Size(),
+                                     dex_file->GetLocation().c_str(),
+                                     false,
+                                     &error_msg));
+    }
   }
 }
 
