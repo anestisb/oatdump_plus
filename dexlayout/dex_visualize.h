@@ -38,6 +38,8 @@ void VisualizeDexLayout(dex_ir::Header* header,
                         size_t dex_file_index,
                         ProfileCompilationInfo* profile_info);
 
+void ShowDexSectionStatistics(dex_ir::Header* header, size_t dex_file_index);
+
 }  // namespace art
 
 #endif  // ART_DEXLAYOUT_DEX_VISUALIZE_H_
