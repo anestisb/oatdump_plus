@@ -45,7 +45,6 @@ class FaultManager {
   void EnsureArtActionInFrontOfSignalChain();
 
   void HandleFault(int sig, siginfo_t* info, void* context);
-  void HandleNestedSignal(int sig, siginfo_t* info, void* context);
 
   // Added handlers are owned by the fault handler and will be freed on Shutdown().
   void AddHandler(FaultHandler* handler, bool generated_code);
