@@ -6270,20 +6270,56 @@ void LocationsBuilderARMVIXL::VisitBoundsCheck(HBoundsCheck* instruction) {
   caller_saves.Add(LocationFrom(calling_convention.GetRegisterAt(0)));
   caller_saves.Add(LocationFrom(calling_convention.GetRegisterAt(1)));
   LocationSummary* locations = codegen_->CreateThrowingSlowPathLocations(instruction, caller_saves);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RequiresRegister());
+
+  HInstruction* index = instruction->InputAt(0);
+  HInstruction* length = instruction->InputAt(1);
+  // If both index and length are constants we can statically check the bounds. But if at least one
+  // of them is not encodable ArmEncodableConstantOrRegister will create
+  // Location::RequiresRegister() which is not desired to happen. Instead we create constant
+  // locations.
+  bool both_const = index->IsConstant() && length->IsConstant();
+  locations->SetInAt(0, both_const
+      ? Location::ConstantLocation(index->AsConstant())
+      : ArmEncodableConstantOrRegister(index, CMP));
+  locations->SetInAt(1, both_const
+      ? Location::ConstantLocation(length->AsConstant())
+      : ArmEncodableConstantOrRegister(length, CMP));
 }
 
 void InstructionCodeGeneratorARMVIXL::VisitBoundsCheck(HBoundsCheck* instruction) {
-  SlowPathCodeARMVIXL* slow_path =
-      new (GetGraph()->GetArena()) BoundsCheckSlowPathARMVIXL(instruction);
-  codegen_->AddSlowPath(slow_path);
+  LocationSummary* locations = instruction->GetLocations();
+  Location index_loc = locations->InAt(0);
+  Location length_loc = locations->InAt(1);
 
-  vixl32::Register index = InputRegisterAt(instruction, 0);
-  vixl32::Register length = InputRegisterAt(instruction, 1);
+  if (length_loc.IsConstant()) {
+    int32_t length = Int32ConstantFrom(length_loc);
+    if (index_loc.IsConstant()) {
+      // BCE will remove the bounds check if we are guaranteed to pass.
+      int32_t index = Int32ConstantFrom(index_loc);
+      if (index < 0 || index >= length) {
+        SlowPathCodeARMVIXL* slow_path =
+            new (GetGraph()->GetArena()) BoundsCheckSlowPathARMVIXL(instruction);
+        codegen_->AddSlowPath(slow_path);
+        __ B(slow_path->GetEntryLabel());
+      } else {
+        // Some optimization after BCE may have generated this, and we should not
+        // generate a bounds check if it is a valid range.
+      }
+      return;
+    }
 
-  __ Cmp(index, length);
-  __ B(hs, slow_path->GetEntryLabel());
+    SlowPathCodeARMVIXL* slow_path =
+        new (GetGraph()->GetArena()) BoundsCheckSlowPathARMVIXL(instruction);
+    __ Cmp(RegisterFrom(index_loc), length);
+    codegen_->AddSlowPath(slow_path);
+    __ B(hs, slow_path->GetEntryLabel());
+  } else {
+    SlowPathCodeARMVIXL* slow_path =
+        new (GetGraph()->GetArena()) BoundsCheckSlowPathARMVIXL(instruction);
+    __ Cmp(RegisterFrom(length_loc), InputOperandAt(instruction, 0));
+    codegen_->AddSlowPath(slow_path);
+    __ B(ls, slow_path->GetEntryLabel());
+  }
 }
 
 void CodeGeneratorARMVIXL::MarkGCCard(vixl32::Register temp,
