@@ -1725,6 +1725,19 @@ void DexLayout::OutputDexFile(const std::string& dex_file_location) {
   if (new_file != nullptr) {
     UNUSED(new_file->FlushCloseOrErase());
   }
+  // Verify the output dex file is ok on debug builds.
+  if (kIsDebugBuild) {
+    std::string location = "memory mapped file for " + dex_file_location;
+    std::unique_ptr<const DexFile> dex_file(DexFile::Open(mem_map_->Begin(),
+                                                          mem_map_->Size(),
+                                                          location,
+                                                          header_->Checksum(),
+                                                          /*oat_dex_file*/ nullptr,
+                                                          /*verify*/ true,
+                                                          /*verify_checksum*/ false,
+                                                          &error_msg));
+    DCHECK(dex_file != nullptr) << "Failed to re-open output file:" << error_msg;
+  }
 }
 
 /*
@@ -1757,16 +1770,6 @@ void DexLayout::ProcessDexFile(const char* file_name,
       LayoutOutputFile(dex_file);
     }
     OutputDexFile(dex_file->GetLocation());
-    // Verify the output dex file is ok on debug builds.
-    if (kIsDebugBuild) {
-      std::string error_msg;
-      DCHECK(DexFileVerifier::Verify(dex_file,
-                                     dex_file->Begin(),
-                                     dex_file->Size(),
-                                     dex_file->GetLocation().c_str(),
-                                     false,
-                                     &error_msg));
-    }
   }
 }
 
