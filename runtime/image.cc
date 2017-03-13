@@ -25,7 +25,7 @@
 namespace art {
 
 const uint8_t ImageHeader::kImageMagic[] = { 'a', 'r', 't', '\n' };
-const uint8_t ImageHeader::kImageVersion[] = { '0', '4', '0', '\0' };  // Integer.valueOf intrinsic
+const uint8_t ImageHeader::kImageVersion[] = { '0', '4', '1', '\0' };  // Revert DexCache types.
 
 ImageHeader::ImageHeader(uint32_t image_begin,
                          uint32_t image_size,
