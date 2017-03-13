@@ -34,6 +34,7 @@ class ArenaPool;
 class ArenaAllocator;
 class ArenaStack;
 class ScopedArenaAllocator;
+class MemMap;
 class MemStats;
 
 template <typename T>
@@ -243,6 +244,22 @@ class Arena {
   DISALLOW_COPY_AND_ASSIGN(Arena);
 };
 
+class MallocArena FINAL : public Arena {
+ public:
+  explicit MallocArena(size_t size = Arena::kDefaultSize);
+  virtual ~MallocArena();
+};
+
+class MemMapArena FINAL : public Arena {
+ public:
+  MemMapArena(size_t size, bool low_4gb, const char* name);
+  virtual ~MemMapArena();
+  void Release() OVERRIDE;
+
+ private:
+  std::unique_ptr<MemMap> map_;
+};
+
 class ArenaPool {
  public:
   explicit ArenaPool(bool use_malloc = true,
@@ -302,31 +319,8 @@ class ArenaAllocator
     return ret;
   }
 
-  // Returns zeroed memory.
-  void* AllocAlign16(size_t bytes, ArenaAllocKind kind = kArenaAllocMisc) ALWAYS_INLINE {
-    // It is an error to request 16-byte aligned allocation of unaligned size.
-    DCHECK_ALIGNED(bytes, 16);
-    if (UNLIKELY(IsRunningOnMemoryTool())) {
-      return AllocWithMemoryToolAlign16(bytes, kind);
-    }
-    uintptr_t padding =
-        ((reinterpret_cast<uintptr_t>(ptr_) + 15u) & 15u) - reinterpret_cast<uintptr_t>(ptr_);
-    ArenaAllocatorStats::RecordAlloc(bytes, kind);
-    if (UNLIKELY(padding + bytes > static_cast<size_t>(end_ - ptr_))) {
-      static_assert(kArenaAlignment >= 16, "Expecting sufficient alignment for new Arena.");
-      return AllocFromNewArena(bytes);
-    }
-    ptr_ += padding;
-    uint8_t* ret = ptr_;
-    DCHECK_ALIGNED(ret, 16);
-    ptr_ += bytes;
-    return ret;
-  }
-
   // Realloc never frees the input pointer, it is the caller's job to do this if necessary.
-  void* Realloc(void* ptr,
-                size_t ptr_size,
-                size_t new_size,
+  void* Realloc(void* ptr, size_t ptr_size, size_t new_size,
                 ArenaAllocKind kind = kArenaAllocMisc) ALWAYS_INLINE {
     DCHECK_GE(new_size, ptr_size);
     DCHECK_EQ(ptr == nullptr, ptr_size == 0u);
@@ -377,17 +371,12 @@ class ArenaAllocator
 
   bool Contains(const void* ptr) const;
 
-  // The alignment guaranteed for individual allocations.
-  static constexpr size_t kAlignment = 8u;
-
-  // The alignment required for the whole Arena rather than individual allocations.
-  static constexpr size_t kArenaAlignment = 16u;
+  static constexpr size_t kAlignment = 8;
 
  private:
   void* AllocWithMemoryTool(size_t bytes, ArenaAllocKind kind);
-  void* AllocWithMemoryToolAlign16(size_t bytes, ArenaAllocKind kind);
   uint8_t* AllocFromNewArena(size_t bytes);
-  uint8_t* AllocFromNewArenaWithMemoryTool(size_t bytes);
+
 
   void UpdateBytesAllocated();
 
@@ -407,9 +396,7 @@ class ArenaAllocator
 
 class MemStats {
  public:
-  MemStats(const char* name,
-           const ArenaAllocatorStats* stats,
-           const Arena* first_arena,
+  MemStats(const char* name, const ArenaAllocatorStats* stats, const Arena* first_arena,
            ssize_t lost_bytes_adjustment = 0);
   void Dump(std::ostream& os) const;
 

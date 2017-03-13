@@ -68,16 +68,8 @@ ArtField* Field::GetArtField() {
     }
   }
   mirror::DexCache* const dex_cache = declaring_class->GetDexCache();
-  ArtField* art_field = dex_cache->GetResolvedField(GetDexFieldIndex(), kRuntimePointerSize);
-  if (UNLIKELY(art_field == nullptr)) {
-    if (IsStatic()) {
-      art_field = declaring_class->FindDeclaredStaticField(dex_cache, GetDexFieldIndex());
-    } else {
-      art_field = declaring_class->FindInstanceField(dex_cache, GetDexFieldIndex());
-    }
-    CHECK(art_field != nullptr);
-    dex_cache->SetResolvedField(GetDexFieldIndex(), art_field, kRuntimePointerSize);
-  }
+  ArtField* const art_field = dex_cache->GetResolvedField(GetDexFieldIndex(), kRuntimePointerSize);
+  CHECK(art_field != nullptr);
   CHECK_EQ(declaring_class, art_field->GetDeclaringClass());
   return art_field;
 }

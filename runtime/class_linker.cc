@@ -1282,10 +1282,7 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
           num_types = dex_file->NumTypeIds();
         }
         const size_t num_methods = dex_file->NumMethodIds();
-        size_t num_fields = mirror::DexCache::kDexCacheFieldCacheSize;
-        if (dex_file->NumFieldIds() < num_fields) {
-          num_fields = dex_file->NumFieldIds();
-        }
+        const size_t num_fields = dex_file->NumFieldIds();
         size_t num_method_types = mirror::DexCache::kDexCacheMethodTypeCacheSize;
         if (dex_file->NumProtoIds() < num_method_types) {
           num_method_types = dex_file->NumProtoIds();
@@ -1329,22 +1326,17 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
           dex_cache->SetResolvedMethods(methods);
         }
         if (num_fields != 0u) {
-          mirror::FieldDexCacheType* const image_resolved_fields = dex_cache->GetResolvedFields();
-          mirror::FieldDexCacheType* const fields =
-              reinterpret_cast<mirror::FieldDexCacheType*>(raw_arrays + layout.FieldsOffset());
-          for (size_t j = 0; j < num_fields; ++j) {
-            DCHECK_EQ(mirror::DexCache::GetNativePairPtrSize(fields, j, image_pointer_size_).index,
-                      0u);
-            DCHECK(mirror::DexCache::GetNativePairPtrSize(fields, j, image_pointer_size_).object ==
-                   nullptr);
-            mirror::DexCache::SetNativePairPtrSize(
-                fields,
-                j,
-                mirror::DexCache::GetNativePairPtrSize(image_resolved_fields,
-                                                       j,
-                                                       image_pointer_size_),
-                image_pointer_size_);
+          ArtField** const fields =
+              reinterpret_cast<ArtField**>(raw_arrays + layout.FieldsOffset());
+          for (size_t j = 0; kIsDebugBuild && j < num_fields; ++j) {
+            DCHECK(fields[j] == nullptr);
           }
+          CopyNonNull(dex_cache->GetResolvedFields(),
+                      num_fields,
+                      fields,
+                      [] (const ArtField* field) {
+                          return field == nullptr;
+                      });
           dex_cache->SetResolvedFields(fields);
         }
         if (num_method_types != 0u) {
@@ -8268,43 +8260,6 @@ ArtMethod* ClassLinker::ResolveMethodWithoutInvokeType(const DexFile& dex_file,
   return resolved;
 }
 
-ArtField* ClassLinker::LookupResolvedField(uint32_t field_idx,
-                                           ObjPtr<mirror::DexCache> dex_cache,
-                                           ObjPtr<mirror::ClassLoader> class_loader,
-                                           bool is_static) {
-  const DexFile& dex_file = *dex_cache->GetDexFile();
-  const DexFile::FieldId& field_id = dex_file.GetFieldId(field_idx);
-  ObjPtr<mirror::Class> klass = dex_cache->GetResolvedType(field_id.class_idx_);
-  if (klass == nullptr) {
-    klass = LookupResolvedType(dex_file, field_id.class_idx_, dex_cache, class_loader);
-  }
-  if (klass == nullptr) {
-    // The class has not been resolved yet, so the field is also unresolved.
-    return nullptr;
-  }
-  DCHECK(klass->IsResolved());
-  Thread* self = is_static ? Thread::Current() : nullptr;
-
-  // First try to find a field declared directly by `klass` by the field index.
-  ArtField* resolved_field = is_static
-      ? mirror::Class::FindStaticField(self, klass, dex_cache, field_idx)
-      : klass->FindInstanceField(dex_cache, field_idx);
-
-  if (resolved_field == nullptr) {
-    // If not found in `klass` by field index, search the class hierarchy using the name and type.
-    const char* name = dex_file.GetFieldName(field_id);
-    const char* type = dex_file.GetFieldTypeDescriptor(field_id);
-    resolved_field = is_static
-        ? mirror::Class::FindStaticField(self, klass, name, type)
-        : klass->FindInstanceField(name, type);
-  }
-
-  if (resolved_field != nullptr) {
-    dex_cache->SetResolvedField(field_idx, resolved_field, image_pointer_size_);
-  }
-  return resolved_field;
-}
-
 ArtField* ClassLinker::ResolveField(const DexFile& dex_file,
                                     uint32_t field_idx,
                                     Handle<mirror::DexCache> dex_cache,
@@ -8365,8 +8320,9 @@ ArtField* ClassLinker::ResolveFieldJLS(const DexFile& dex_file,
     return nullptr;
   }
 
-  StringPiece name(dex_file.GetFieldName(field_id));
-  StringPiece type(dex_file.GetFieldTypeDescriptor(field_id));
+  StringPiece name(dex_file.StringDataByIdx(field_id.name_idx_));
+  StringPiece type(dex_file.StringDataByIdx(
+      dex_file.GetTypeId(field_id.type_idx_).descriptor_idx_));
   resolved = mirror::Class::FindField(self, klass, name, type);
   if (resolved != nullptr) {
     dex_cache->SetResolvedField(field_idx, resolved, image_pointer_size_);
