@@ -1259,18 +1259,17 @@ class ImageSpaceLoader {
             }
           }
         }
-        mirror::FieldDexCacheType* fields = dex_cache->GetResolvedFields();
+        ArtField** fields = dex_cache->GetResolvedFields();
         if (fields != nullptr) {
-          mirror::FieldDexCacheType* new_fields = fixup_adapter.ForwardObject(fields);
+          ArtField** new_fields = fixup_adapter.ForwardObject(fields);
           if (fields != new_fields) {
             dex_cache->SetResolvedFields(new_fields);
           }
           for (size_t j = 0, num = dex_cache->NumResolvedFields(); j != num; ++j) {
-            mirror::FieldDexCachePair orig =
-                mirror::DexCache::GetNativePairPtrSize(new_fields, j, pointer_size);
-            mirror::FieldDexCachePair copy(fixup_adapter.ForwardObject(orig.object), orig.index);
-            if (orig.object != copy.object) {
-              mirror::DexCache::SetNativePairPtrSize(new_fields, j, copy, pointer_size);
+            ArtField* orig = mirror::DexCache::GetElementPtrSize(new_fields, j, pointer_size);
+            ArtField* copy = fixup_adapter.ForwardObject(orig);
+            if (orig != copy) {
+              mirror::DexCache::SetElementPtrSize(new_fields, j, copy, pointer_size);
             }
           }
         }

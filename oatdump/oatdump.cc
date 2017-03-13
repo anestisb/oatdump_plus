@@ -2210,13 +2210,13 @@ class ImageDumper {
           ScopedIndentation indent2(&state->vios_);
           auto* resolved_fields = dex_cache->GetResolvedFields();
           for (size_t i = 0, length = dex_cache->NumResolvedFields(); i < length; ++i) {
-            auto* elem = mirror::DexCache::GetNativePairPtrSize(
-                resolved_fields, i, image_pointer_size).object;
+            auto* elem = mirror::DexCache::GetElementPtrSize(
+                resolved_fields, i, image_pointer_size);
             size_t run = 0;
             for (size_t j = i + 1;
-                 j != length &&
-                 elem == mirror::DexCache::GetNativePairPtrSize(
-                     resolved_fields, j, image_pointer_size).object;
+                 j != length && elem == mirror::DexCache::GetElementPtrSize(resolved_fields,
+                                                                            j,
+                                                                            image_pointer_size);
                  ++j) {
               ++run;
             }
