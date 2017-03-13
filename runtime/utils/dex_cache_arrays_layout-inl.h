@@ -51,11 +51,7 @@ inline DexCacheArraysLayout::DexCacheArraysLayout(PointerSize pointer_size, cons
     : DexCacheArraysLayout(pointer_size, dex_file->GetHeader(), dex_file->NumCallSiteIds()) {
 }
 
-inline size_t DexCacheArraysLayout::Alignment() const {
-  return Alignment(pointer_size_);
-}
-
-inline constexpr size_t DexCacheArraysLayout::Alignment(PointerSize pointer_size) {
+constexpr size_t DexCacheArraysLayout::Alignment() {
   // mirror::Type/String/MethodTypeDexCacheType alignment is 8,
   // i.e. higher than or equal to the pointer alignment.
   static_assert(alignof(mirror::TypeDexCacheType) == 8,
@@ -64,8 +60,8 @@ inline constexpr size_t DexCacheArraysLayout::Alignment(PointerSize pointer_size
                 "Expecting alignof(StringDexCacheType) == 8");
   static_assert(alignof(mirror::MethodTypeDexCacheType) == 8,
                 "Expecting alignof(MethodTypeDexCacheType) == 8");
-  // This is the same as alignof(FieldDexCacheType) for the given pointer size.
-  return 2u * static_cast<size_t>(pointer_size);
+  // This is the same as alignof(MethodTypeDexCacheType).
+  return alignof(mirror::StringDexCacheType);
 }
 
 template <typename T>
@@ -104,8 +100,8 @@ inline size_t DexCacheArraysLayout::MethodsAlignment() const {
 }
 
 inline size_t DexCacheArraysLayout::StringOffset(uint32_t string_idx) const {
-  uint32_t string_hash = string_idx % mirror::DexCache::kDexCacheStringCacheSize;
-  return strings_offset_ + ElementOffset(PointerSize::k64, string_hash);
+  return strings_offset_ + ElementOffset(PointerSize::k64,
+                                         string_idx % mirror::DexCache::kDexCacheStringCacheSize);
 }
 
 inline size_t DexCacheArraysLayout::StringsSize(size_t num_elements) const {
@@ -123,20 +119,15 @@ inline size_t DexCacheArraysLayout::StringsAlignment() const {
 }
 
 inline size_t DexCacheArraysLayout::FieldOffset(uint32_t field_idx) const {
-  uint32_t field_hash = field_idx % mirror::DexCache::kDexCacheFieldCacheSize;
-  return fields_offset_ + 2u * static_cast<size_t>(pointer_size_) * field_hash;
+  return fields_offset_ + ElementOffset(pointer_size_, field_idx);
 }
 
 inline size_t DexCacheArraysLayout::FieldsSize(size_t num_elements) const {
-  size_t cache_size = mirror::DexCache::kDexCacheFieldCacheSize;
-  if (num_elements < cache_size) {
-    cache_size = num_elements;
-  }
-  return 2u * static_cast<size_t>(pointer_size_) * num_elements;
+  return ArraySize(pointer_size_, num_elements);
 }
 
 inline size_t DexCacheArraysLayout::FieldsAlignment() const {
-  return 2u * static_cast<size_t>(pointer_size_);
+  return static_cast<size_t>(pointer_size_);
 }
 
 inline size_t DexCacheArraysLayout::MethodTypesSize(size_t num_elements) const {
