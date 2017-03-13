@@ -1169,6 +1169,32 @@ void X86Assembler::pand(XmmRegister dst, XmmRegister src) {
 }
 
 
+void X86Assembler::andnpd(XmmRegister dst, XmmRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitUint8(0x0F);
+  EmitUint8(0x55);
+  EmitXmmRegisterOperand(dst, src);
+}
+
+
+void X86Assembler::andnps(XmmRegister dst, XmmRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x0F);
+  EmitUint8(0x55);
+  EmitXmmRegisterOperand(dst, src);
+}
+
+
+void X86Assembler::pandn(XmmRegister dst, XmmRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitUint8(0x0F);
+  EmitUint8(0xDF);
+  EmitXmmRegisterOperand(dst, src);
+}
+
+
 void X86Assembler::orpd(XmmRegister dst, XmmRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0x66);
