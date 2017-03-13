@@ -39,7 +39,9 @@ union PACKED(alignof(mirror::Object*)) JValue {
   }
 
   uint16_t GetC() const { return c; }
-  void SetC(uint16_t new_c) { c = new_c; }
+  void SetC(uint16_t new_c) {
+    j = static_cast<int64_t>(new_c);  // Zero-extend to 64 bits.
+  }
 
   double GetD() const { return d; }
   void SetD(double new_d) { d = new_d; }
@@ -66,7 +68,9 @@ union PACKED(alignof(mirror::Object*)) JValue {
   }
 
   uint8_t GetZ() const { return z; }
-  void SetZ(uint8_t new_z) { z = new_z; }
+  void SetZ(uint8_t new_z) {
+    j = static_cast<int64_t>(new_z);  // Zero-extend to 64 bits.
+  }
 
   mirror::Object** GetGCRoot() { return &l; }
 
