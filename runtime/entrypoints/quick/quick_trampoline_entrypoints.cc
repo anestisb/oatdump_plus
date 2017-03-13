@@ -372,10 +372,11 @@ class QuickArgumentVisitor {
     uintptr_t outer_pc_offset = current_code->NativeQuickPcOffset(outer_pc);
     CodeInfo code_info = current_code->GetOptimizedCodeInfo();
     CodeInfoEncoding encoding = code_info.ExtractEncoding();
+    MethodInfo method_info = current_code->GetOptimizedMethodInfo();
     InvokeInfo invoke(code_info.GetInvokeInfoForNativePcOffset(outer_pc_offset, encoding));
     if (invoke.IsValid()) {
       *invoke_type = static_cast<InvokeType>(invoke.GetInvokeType(encoding.invoke_info.encoding));
-      *dex_method_index = invoke.GetMethodIndex(encoding.invoke_info.encoding);
+      *dex_method_index = invoke.GetMethodIndex(encoding.invoke_info.encoding, method_info);
       return true;
     }
     return false;
