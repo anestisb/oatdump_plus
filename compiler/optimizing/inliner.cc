@@ -1209,8 +1209,9 @@ bool HInliner::TryPatternSubstitution(HInvoke* invoke_instruction,
         // TODO: Needs null check.
         return false;
       }
+      Handle<mirror::DexCache> dex_cache(handles_->NewHandle(resolved_method->GetDexCache()));
       HInstruction* obj = GetInvokeInputForArgVRegIndex(invoke_instruction, data.object_arg);
-      HInstanceFieldGet* iget = CreateInstanceFieldGet(data.field_idx, resolved_method, obj);
+      HInstanceFieldGet* iget = CreateInstanceFieldGet(dex_cache, data.field_idx, obj);
       DCHECK_EQ(iget->GetFieldOffset().Uint32Value(), data.field_offset);
       DCHECK_EQ(iget->IsVolatile() ? 1u : 0u, data.is_volatile);
       invoke_instruction->GetBlock()->InsertInstructionBefore(iget, invoke_instruction);
@@ -1223,9 +1224,10 @@ bool HInliner::TryPatternSubstitution(HInvoke* invoke_instruction,
         // TODO: Needs null check.
         return false;
       }
+      Handle<mirror::DexCache> dex_cache(handles_->NewHandle(resolved_method->GetDexCache()));
       HInstruction* obj = GetInvokeInputForArgVRegIndex(invoke_instruction, data.object_arg);
       HInstruction* value = GetInvokeInputForArgVRegIndex(invoke_instruction, data.src_arg);
-      HInstanceFieldSet* iput = CreateInstanceFieldSet(data.field_idx, resolved_method, obj, value);
+      HInstanceFieldSet* iput = CreateInstanceFieldSet(dex_cache, data.field_idx, obj, value);
       DCHECK_EQ(iput->GetFieldOffset().Uint32Value(), data.field_offset);
       DCHECK_EQ(iput->IsVolatile() ? 1u : 0u, data.is_volatile);
       invoke_instruction->GetBlock()->InsertInstructionBefore(iput, invoke_instruction);
@@ -1259,19 +1261,24 @@ bool HInliner::TryPatternSubstitution(HInvoke* invoke_instruction,
                                  [](uint16_t index) { return index != DexFile::kDexNoIndex16; }));
 
       // Create HInstanceFieldSet for each IPUT that stores non-zero data.
+      Handle<mirror::DexCache> dex_cache;
       HInstruction* obj = GetInvokeInputForArgVRegIndex(invoke_instruction, /* this */ 0u);
       bool needs_constructor_barrier = false;
       for (size_t i = 0; i != number_of_iputs; ++i) {
         HInstruction* value = GetInvokeInputForArgVRegIndex(invoke_instruction, iput_args[i]);
         if (!value->IsConstant() || !value->AsConstant()->IsZeroBitPattern()) {
+          if (dex_cache.GetReference() == nullptr) {
+            dex_cache = handles_->NewHandle(resolved_method->GetDexCache());
+          }
           uint16_t field_index = iput_field_indexes[i];
-          bool is_final;
-          HInstanceFieldSet* iput =
-              CreateInstanceFieldSet(field_index, resolved_method, obj, value, &is_final);
+          HInstanceFieldSet* iput = CreateInstanceFieldSet(dex_cache, field_index, obj, value);
           invoke_instruction->GetBlock()->InsertInstructionBefore(iput, invoke_instruction);
 
           // Check whether the field is final. If it is, we need to add a barrier.
-          if (is_final) {
+          PointerSize pointer_size = InstructionSetPointerSize(codegen_->GetInstructionSet());
+          ArtField* resolved_field = dex_cache->GetResolvedField(field_index, pointer_size);
+          DCHECK(resolved_field != nullptr);
+          if (resolved_field->IsFinal()) {
             needs_constructor_barrier = true;
           }
         }
@@ -1290,13 +1297,12 @@ bool HInliner::TryPatternSubstitution(HInvoke* invoke_instruction,
   return true;
 }
 
-HInstanceFieldGet* HInliner::CreateInstanceFieldGet(uint32_t field_index,
-                                                    ArtMethod* referrer,
+HInstanceFieldGet* HInliner::CreateInstanceFieldGet(Handle<mirror::DexCache> dex_cache,
+                                                    uint32_t field_index,
                                                     HInstruction* obj)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  ArtField* resolved_field =
-      class_linker->LookupResolvedField(field_index, referrer, /* is_static */ false);
+  PointerSize pointer_size = InstructionSetPointerSize(codegen_->GetInstructionSet());
+  ArtField* resolved_field = dex_cache->GetResolvedField(field_index, pointer_size);
   DCHECK(resolved_field != nullptr);
   HInstanceFieldGet* iget = new (graph_->GetArena()) HInstanceFieldGet(
       obj,
@@ -1306,13 +1312,12 @@ HInstanceFieldGet* HInliner::CreateInstanceFieldGet(uint32_t field_index,
       resolved_field->IsVolatile(),
       field_index,
       resolved_field->GetDeclaringClass()->GetDexClassDefIndex(),
-      *referrer->GetDexFile(),
+      *dex_cache->GetDexFile(),
       // Read barrier generates a runtime call in slow path and we need a valid
       // dex pc for the associated stack map. 0 is bogus but valid. Bug: 26854537.
       /* dex_pc */ 0);
   if (iget->GetType() == Primitive::kPrimNot) {
     // Use the same dex_cache that we used for field lookup as the hint_dex_cache.
-    Handle<mirror::DexCache> dex_cache = handles_->NewHandle(referrer->GetDexCache());
     ReferenceTypePropagation rtp(graph_,
                                  outer_compilation_unit_.GetClassLoader(),
                                  dex_cache,
@@ -1323,21 +1328,14 @@ HInstanceFieldGet* HInliner::CreateInstanceFieldGet(uint32_t field_index,
   return iget;
 }
 
-HInstanceFieldSet* HInliner::CreateInstanceFieldSet(uint32_t field_index,
-                                                    ArtMethod* referrer,
+HInstanceFieldSet* HInliner::CreateInstanceFieldSet(Handle<mirror::DexCache> dex_cache,
+                                                    uint32_t field_index,
                                                     HInstruction* obj,
-                                                    HInstruction* value,
-                                                    bool* is_final)
+                                                    HInstruction* value)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  ArtField* resolved_field =
-      class_linker->LookupResolvedField(field_index, referrer, /* is_static */ false);
+  PointerSize pointer_size = InstructionSetPointerSize(codegen_->GetInstructionSet());
+  ArtField* resolved_field = dex_cache->GetResolvedField(field_index, pointer_size);
   DCHECK(resolved_field != nullptr);
-  if (is_final != nullptr) {
-    // This information is needed only for constructors.
-    DCHECK(referrer->IsConstructor());
-    *is_final = resolved_field->IsFinal();
-  }
   HInstanceFieldSet* iput = new (graph_->GetArena()) HInstanceFieldSet(
       obj,
       value,
@@ -1347,7 +1345,7 @@ HInstanceFieldSet* HInliner::CreateInstanceFieldSet(uint32_t field_index,
       resolved_field->IsVolatile(),
       field_index,
       resolved_field->GetDeclaringClass()->GetDexClassDefIndex(),
-      *referrer->GetDexFile(),
+      *dex_cache->GetDexFile(),
       // Read barrier generates a runtime call in slow path and we need a valid
       // dex pc for the associated stack map. 0 is bogus but valid. Bug: 26854537.
       /* dex_pc */ 0);

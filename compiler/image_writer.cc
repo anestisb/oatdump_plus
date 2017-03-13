@@ -968,12 +968,11 @@ void ImageWriter::PruneNonImageClasses() {
             << Class::PrettyClass(declaring_class) << " not in class linker table";
       }
     }
-    mirror::FieldDexCacheType* resolved_fields = dex_cache->GetResolvedFields();
+    ArtField** resolved_fields = dex_cache->GetResolvedFields();
     for (size_t i = 0; i < dex_cache->NumResolvedFields(); i++) {
-      auto pair = mirror::DexCache::GetNativePairPtrSize(resolved_fields, i, target_ptr_size_);
-      ArtField* field = pair.object;
+      ArtField* field = mirror::DexCache::GetElementPtrSize(resolved_fields, i, target_ptr_size_);
       if (field != nullptr && !KeepClass(field->GetDeclaringClass().Ptr())) {
-        dex_cache->ClearResolvedField(pair.index, target_ptr_size_);
+        dex_cache->SetResolvedField(i, nullptr, target_ptr_size_);
       }
     }
     // Clean the dex field. It might have been populated during the initialization phase, but
@@ -1597,7 +1596,7 @@ void ImageWriter::CalculateNewObjectOffsets() {
           break;
         }
         case kBinDexCacheArray:
-          bin_offset = RoundUp(bin_offset, DexCacheArraysLayout::Alignment(target_ptr_size_));
+          bin_offset = RoundUp(bin_offset, DexCacheArraysLayout::Alignment());
           break;
         case kBinImTable:
         case kBinIMTConflictTable: {
@@ -2237,17 +2236,16 @@ void ImageWriter::FixupDexCache(mirror::DexCache* orig_dex_cache,
       mirror::DexCache::SetElementPtrSize(copy_methods, i, copy, target_ptr_size_);
     }
   }
-  mirror::FieldDexCacheType* orig_fields = orig_dex_cache->GetResolvedFields();
+  ArtField** orig_fields = orig_dex_cache->GetResolvedFields();
   if (orig_fields != nullptr) {
     copy_dex_cache->SetFieldPtrWithSize<false>(mirror::DexCache::ResolvedFieldsOffset(),
                                                NativeLocationInImage(orig_fields),
                                                PointerSize::k64);
-    mirror::FieldDexCacheType* copy_fields = NativeCopyLocation(orig_fields, orig_dex_cache);
+    ArtField** copy_fields = NativeCopyLocation(orig_fields, orig_dex_cache);
     for (size_t i = 0, num = orig_dex_cache->NumResolvedFields(); i != num; ++i) {
-      mirror::FieldDexCachePair orig =
-          mirror::DexCache::GetNativePairPtrSize(orig_fields, i, target_ptr_size_);
-      mirror::FieldDexCachePair copy(NativeLocationInImage(orig.object), orig.index);
-      mirror::DexCache::SetNativePairPtrSize(copy_fields, i, copy, target_ptr_size_);
+      ArtField* orig = mirror::DexCache::GetElementPtrSize(orig_fields, i, target_ptr_size_);
+      ArtField* copy = NativeLocationInImage(orig);
+      mirror::DexCache::SetElementPtrSize(copy_fields, i, copy, target_ptr_size_);
     }
   }
   mirror::MethodTypeDexCacheType* orig_method_types = orig_dex_cache->GetResolvedMethodTypes();
