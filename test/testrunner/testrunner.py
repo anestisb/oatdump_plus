@@ -643,12 +643,25 @@ def print_analysis():
     console_width = int(os.popen('stty size', 'r').read().split()[1])
     eraser_text = '\r' + ' ' * console_width + '\r'
     print_text(eraser_text)
+
+  # Prints information about the total tests run.
+  # E.g., "2/38 (5%) tests passed".
+  passed_test_count = total_test_count - len(skipped_tests) - len(failed_tests)
+  passed_test_information = ('%d/%d (%d%%) %s passed.\n') % (
+      passed_test_count,
+      total_test_count,
+      (passed_test_count*100)/total_test_count,
+      'tests' if passed_test_count > 1 else 'test')
+  print_text(passed_test_information)
+
+  # Prints the list of skipped tests, if any.
   if skipped_tests:
     print_text(COLOR_SKIP + 'SKIPPED TESTS' + COLOR_NORMAL + '\n')
     for test in skipped_tests:
       print_text(test + '\n')
     print_text('\n')
 
+  # Prints the list of failed tests, if any.
   if failed_tests:
     print_text(COLOR_ERROR + 'FAILED TESTS' + COLOR_NORMAL + '\n')
     for test in failed_tests:
