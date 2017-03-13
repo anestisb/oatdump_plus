@@ -107,15 +107,14 @@ class HInliner : public HOptimization {
     REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Create a new HInstanceFieldGet.
-  HInstanceFieldGet* CreateInstanceFieldGet(uint32_t field_index,
-                                            ArtMethod* referrer,
+  HInstanceFieldGet* CreateInstanceFieldGet(Handle<mirror::DexCache> dex_cache,
+                                            uint32_t field_index,
                                             HInstruction* obj);
   // Create a new HInstanceFieldSet.
-  HInstanceFieldSet* CreateInstanceFieldSet(uint32_t field_index,
-                                            ArtMethod* referrer,
+  HInstanceFieldSet* CreateInstanceFieldSet(Handle<mirror::DexCache> dex_cache,
+                                            uint32_t field_index,
                                             HInstruction* obj,
-                                            HInstruction* value,
-                                            bool* is_final = nullptr);
+                                            HInstruction* value);
 
   // Try inlining the invoke instruction using inline caches.
   bool TryInlineFromInlineCache(
