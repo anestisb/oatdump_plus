@@ -28,7 +28,7 @@
 #include "jit/jit.h"
 #include "jni.h"
 #include "native_stack_dump.h"
-#include "openjdkjvmti/jvmti.h"
+#include "jvmti.h"
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"

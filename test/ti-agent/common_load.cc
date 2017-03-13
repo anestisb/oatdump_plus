@@ -18,8 +18,6 @@
 
 #include <jni.h>
 #include <stdio.h>
-// TODO I don't know?
-#include "openjdkjvmti/jvmti.h"
 
 #include "art_method-inl.h"
 #include "base/logging.h"

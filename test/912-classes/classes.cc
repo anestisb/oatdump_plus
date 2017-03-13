@@ -20,7 +20,7 @@
 #include "class_linker.h"
 #include "jni.h"
 #include "mirror/class_loader.h"
-#include "openjdkjvmti/jvmti.h"
+#include "jvmti.h"
 #include "runtime.h"
 #include "ScopedLocalRef.h"
 #include "ScopedUtfChars.h"
