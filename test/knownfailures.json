@@ -1,12 +1,12 @@
 [
     {
-        "test": "153-reference-stress",
+        "tests": "153-reference-stress",
         "description": ["Disable 153-reference-stress temporarily until a fix",
                         "arrives."],
         "bug": "http://b/33389022"
     },
     {
-        "test": "080-oom-fragmentation",
+        "tests": "080-oom-fragmentation",
         "description": "Disable 080-oom-fragmentation due to flakes.",
         "bug": "http://b/33795328"
     },
@@ -21,7 +21,7 @@
         "bug": "http://b/34193123"
     },
     {
-        "test": "149-suspend-all-stress",
+        "tests": "149-suspend-all-stress",
         "description": "Disable 149-suspend-all-stress, its output is flaky",
         "bug": "http://b/28988206"
     },
@@ -34,13 +34,13 @@
                         "loaded systems."]
     },
     {
-        "test": "147-stripped-dex-fallback",
+        "tests": "147-stripped-dex-fallback",
         "variant": "target",
         "description": ["147-stripped-dex-fallback isn't supported on device",
                         "because --strip-dex  requires the zip command."]
     },
     {
-        "test": "569-checker-pattern-replacement",
+        "tests": "569-checker-pattern-replacement",
         "variant": "target",
         "description": ["569-checker-pattern-replacement tests behaviour",
                         "present only on host."]
@@ -54,13 +54,7 @@
                         "doesn't (and isn't meant to) work with --prebuild."]
     },
     {
-        "test": "554-jit-profile-file",
-        "variant": "no-prebuild | interpreter",
-        "description": ["554-jit-profile-file is disabled because it needs a",
-                        "primary oat file to know what it should save."]
-    },
-    {
-        "tests": ["529-checker-unresolved", "555-checker-regression-x86const"],
+        "tests": ["529-checker-unresolved"],
         "variant": "no-prebuild",
         "bug": "http://b/27784033"
     },
@@ -73,27 +67,26 @@
     {
         "tests": ["117-nopatchoat",
                   "118-noimage-dex2oat",
-                  "119-noimage-patchoat",
-                  "554-jit-profile-file"],
+                  "119-noimage-patchoat"],
         "variant": "no-relocate",
         "description": ["117-nopatchoat is not broken per-se it just doesn't",
                         "work (and isn't meant to) without --prebuild",
                         "--relocate"]
     },
     {
-        "test": "137-cfi",
+        "tests": "137-cfi",
         "variant": "interp-ac",
         "description": ["Temporarily disable some broken tests when forcing",
                         "access checks in interpreter"],
         "bug": "http://b/22414682"
     },
     {
-        "test" : "629-vdex-speed",
+        "tests" : "629-vdex-speed",
         "variant": "interp-ac | no-dex2oat | interpreter | jit | relocate-npatchoat",
         "description": "629 requires compilation."
     },
     {
-        "test": "137-cfi",
+        "tests": "137-cfi",
         "variant": "gcstress",
         "description": ["137-cfi needs to unwind a second forked process. We're",
                         "using a primitive sleep to wait till we hope the",
@@ -101,7 +94,7 @@
                         "slowness of gcstress makes this bad."]
     },
     {
-        "test": "152-dead-large-object",
+        "tests": "152-dead-large-object",
         "variant": "gcstress",
         "description": ["152-dead-large-object requires a heap larger than what gcstress uses."]
     },
@@ -114,7 +107,7 @@
                         "non-deterministic. Same for 913."]
     },
     {
-        "test": "961-default-iface-resolution-gen",
+        "tests": "961-default-iface-resolution-gen",
         "variant": "gcstress",
         "description": ["961-default-iface-resolution-gen and",
                         "964-default-iface-init-genare very long tests that",
@@ -124,7 +117,7 @@
                         "lot."]
     },
     {
-        "test": "964-default-iface-init-gen",
+        "tests": "964-default-iface-init-gen",
         "variant": "gcstress"
     },
     {
@@ -133,15 +126,15 @@
         "description": ["154-gc-loop depends GC not happening too often"]
     },
     {
-        "test": "115-native-bridge",
+        "tests": "115-native-bridge",
         "variant": "target",
         "description": ["115-native-bridge setup is complicated. Need to",
                         "implement it correctly for the target."]
     },
     {
-        "test": "130-hprof",
+        "tests": "130-hprof",
         "variant": "target",
-        "desription": ["130-hprof dumps the heap and runs hprof-conv to check",
+        "description": ["130-hprof dumps the heap and runs hprof-conv to check",
                        "whether the file is somewhat readable. Thi is only",
                        "possible on the host. TODO: Turn off all the other",
                        "combinations, this is more about testing actual ART",
@@ -149,7 +142,7 @@
                        "complete test) JDWP must be set up."]
     },
     {
-        "test": "131-structural-change",
+        "tests": "131-structural-change",
         "variant": "debug",
         "description": ["131 is an old test. The functionality has been",
                         "implemented at an earlier stage and is checked",
@@ -158,23 +151,17 @@
                         "punt to interpreter"]
     },
     {
-        "test": "138-duplicate-classes-check",
+        "tests": "138-duplicate-classes-check",
         "variant": "ndebug",
         "description": ["Turned on for debug builds since debug builds have",
                         "duplicate classes checks enabled"],
         "bug": "http://b/2133391"
     },
     {
-        "test": "147-stripped-dex-fallback",
+        "tests": "147-stripped-dex-fallback",
         "variant": "no-dex2oat | no-image | relocate-npatchoat",
         "description": ["147-stripped-dex-fallback is disabled because it",
                         "requires --prebuild."]
-    },
-    {
-        "test": "554-jit-profile-file",
-        "variant": "no-dex2oat | no-image | relocate-npatchoat",
-        "description": ["554-jit-profile-file is disabled because it needs a",
-                        "primary oat file to know what it should save."]
     },
     {
         "tests": ["116-nodex2oat",
@@ -195,14 +182,14 @@
                   "138-duplicate-classes-check",
                   "018-stack-overflow",
                   "961-default-iface-resolution-gen",
-                  "964-default-iface-init"],
+                  "964-default-iface-init-gen"],
         "variant": "no-image",
         "description": ["This test fails without an image. 018, 961, 964 often",
                         "time out."],
         "bug": "http://b/34369284"
     },
     {
-        "test": "137-cfi",
+        "tests": "137-cfi",
         "description": ["This test unrolls and expects managed frames, but",
                         "tracing means we run the interpreter."],
         "variant": "trace | stream"
@@ -217,7 +204,7 @@
         "variant": "trace | stream"
     },
     {
-        "test": "130-hprof",
+        "tests": "130-hprof",
         "description": "130 occasional timeout",
         "bug": "http://b/32383962",
         "variant": "trace | stream"
@@ -238,14 +225,14 @@
                         "suppressed when tracing."]
     },
     {
-        "test": "137-cfi",
+        "tests": "137-cfi",
         "description": ["CFI unwinding expects managed frames, and the test",
                         "does not iterate enough to even compile. JIT also",
                         "uses Generic JNI instead of the JNI compiler."],
         "variant": "interpreter | jit"
     },
     {
-        "test": "906-iterate-heap",
+        "tests": "906-iterate-heap",
         "description": ["Test 906 iterates the heap filtering with different",
                         "options. No instances should be created between those",
                         "runs to be able to have precise checks."],
@@ -273,22 +260,22 @@
         "variant": "optimizing &  ndebuggable | regalloc_gc & ndebuggable"
     },
     {
-        "test": "596-app-images",
+        "tests": "596-app-images",
         "variant": "npictest"
     },
     {
-        "test": "055-enum-performance",
+        "tests": "055-enum-performance",
         "variant": "optimizing | regalloc_gc",
         "description": ["055: Exceeds run time limits due to heap poisoning ",
                         "instrumentation (on ARM and ARM64 devices)."]
     },
     {
-        "test": "909-attach-agent",
+        "tests": "909-attach-agent",
         "variant": "debuggable",
         "description": "Tests that check semantics for a non-debuggable app."
     },
     {
-        "test": "137-cfi",
+        "tests": "137-cfi",
         "variant": "debuggable",
         "description": ["The test relies on AOT code and debuggable makes us",
                         "JIT always."]
@@ -328,7 +315,7 @@
         "variant": "optimizing | regalloc_gc"
     },
     {
-        "test": "055-enum-performance",
+        "tests": "055-enum-performance",
         "description": ["The test tests performance which degrades during",
                         "bisecting."],
         "env_vars": {"ART_TEST_BISECTION": "true"},
