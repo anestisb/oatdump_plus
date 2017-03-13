@@ -444,7 +444,6 @@ static void PreloadDexCachesStatsFilled(DexCacheStats* filled)
   if (!kPreloadDexCachesCollectStats) {
     return;
   }
-  // TODO: Update for hash-based DexCache arrays.
   ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
   Thread* const self = Thread::Current();
   for (const DexFile* dex_file : class_linker->GetBootClassPath()) {
@@ -464,7 +463,7 @@ static void PreloadDexCachesStatsFilled(DexCacheStats* filled)
       }
     }
     for (size_t j = 0; j < dex_cache->NumResolvedFields(); j++) {
-      ArtField* field = dex_cache->GetResolvedField(j, class_linker->GetImagePointerSize());
+      ArtField* field = class_linker->GetResolvedField(j, dex_cache);
       if (field != nullptr) {
         filled->num_fields++;
       }

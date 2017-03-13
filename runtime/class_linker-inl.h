@@ -161,15 +161,9 @@ inline ArtMethod* ClassLinker::ResolveMethod(Thread* self,
   return resolved_method;
 }
 
-inline ArtField* ClassLinker::LookupResolvedField(uint32_t field_idx,
-                                                  ArtMethod* referrer,
-                                                  bool is_static) {
-  ObjPtr<mirror::DexCache> dex_cache = referrer->GetDexCache();
-  ArtField* field = dex_cache->GetResolvedField(field_idx, image_pointer_size_);
-  if (field == nullptr) {
-    field = LookupResolvedField(field_idx, dex_cache, referrer->GetClassLoader(), is_static);
-  }
-  return field;
+inline ArtField* ClassLinker::GetResolvedField(uint32_t field_idx,
+                                               ObjPtr<mirror::DexCache> dex_cache) {
+  return dex_cache->GetResolvedField(field_idx, image_pointer_size_);
 }
 
 inline ArtField* ClassLinker::ResolveField(uint32_t field_idx,
@@ -177,8 +171,7 @@ inline ArtField* ClassLinker::ResolveField(uint32_t field_idx,
                                            bool is_static) {
   Thread::PoisonObjectPointersIfDebug();
   ObjPtr<mirror::Class> declaring_class = referrer->GetDeclaringClass();
-  ArtField* resolved_field =
-      referrer->GetDexCache()->GetResolvedField(field_idx, image_pointer_size_);
+  ArtField* resolved_field = GetResolvedField(field_idx, referrer->GetDexCache());
   if (UNLIKELY(resolved_field == nullptr)) {
     StackHandleScope<2> hs(Thread::Current());
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(referrer->GetDexCache()));
