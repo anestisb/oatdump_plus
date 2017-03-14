@@ -51,8 +51,13 @@ class ImageSpace;
 }  // namespace space
 }  // namespace gc
 
+namespace mirror {
+class ClassLoader;
+}  // namespace mirror
+
 class ClassLoaderVisitor;
 class ClassTable;
+class ImtConflictTable;
 
 static constexpr int kInvalidFd = -1;
 
@@ -77,6 +82,11 @@ class ImageWriter FINAL {
       }
     }
     return true;
+  }
+
+  ObjPtr<mirror::ClassLoader> GetClassLoader() {
+    CHECK_EQ(class_loaders_.size(), compile_app_image_ ? 1u : 0u);
+    return compile_app_image_ ? *class_loaders_.begin() : nullptr;
   }
 
   template <typename T>

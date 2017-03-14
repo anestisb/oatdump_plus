@@ -14,12 +14,11 @@
  * limitations under the License.
  */
 
-import libcore.util.EmptyArray;
-
 public class Main {
+    public static String TEST_NAME = "158-app-image-class-table";
+
     public static void main(String[] args) {
         try {
-            // Check if we're running dalvik or RI.
             Class<?> class_loader_class = Class.forName("dalvik.system.PathClassLoader");
             System.loadLibrary(args[0]);
         } catch (ClassNotFoundException e) {
@@ -28,21 +27,20 @@ public class Main {
             System.out.println("JNI_OnLoad called");
         }
         try {
-            // Initialize all classes needed for old java.lang.Void.TYPE initialization.
-            Runnable.class.getMethod("run", EmptyArray.CLASS).getReturnType();
-        } catch (Exception e) {
-            throw new Error(e);
+            // Resolve but do not initialize TestImplementation. During the resolution,
+            // we see the Cloneable in the dex cache, so we do not try to look it up
+            // or resolve it.
+            Class<?> timpl =
+                Class.forName("TestImplementation", false, Main.class.getClassLoader());
+            // Clear the dex cache resolved types to force a proper lookup the next time
+            // we need to find TestInterface.
+            clearResolvedTypes(timpl);
+            // Force intialization of TestImplementation. This expects the interface type
+            // to be resolved and found through simple lookup.
+            timpl.newInstance();
+        } catch (Throwable t) {
+            t.printStackTrace();
         }
-        // Clear the resolved types of the ojluni dex file to make sure there is no entry
-        // for "V", i.e. void.
-        clearResolvedTypes(Integer.class);
-        // With java.lang.Void being compile-time verified but uninitialized, initialize
-        // it now. Previously, this would indirectly initialize TYPE with the current,
-        // i.e. zero-initialized, value of TYPE. The only thing that could prevent the
-        // series of calls leading to this was a cache hit in Class.getDexCacheType()
-        // which we have prevented by clearing the cache above.
-        Class<?> voidClass = void.class;
-        System.out.println("void.class = " + voidClass);
     }
 
     public static void clearResolvedTypes(Class<?> c) {
@@ -51,7 +49,7 @@ public class Main {
         }
     }
 
-    public static native void nativeClearResolvedTypes(Class<?> c);
+    private static boolean usingRI = false;
 
-    static boolean usingRI = false;
+    public static native void nativeClearResolvedTypes(Class<?> c);
 }
