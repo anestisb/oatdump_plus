@@ -144,13 +144,23 @@ class ClassTable {
       REQUIRES(!lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Returns the number of classes in previous snapshots.
+  // Returns the number of classes in previous snapshots defined by `defining_loader`.
   size_t NumZygoteClasses(ObjPtr<mirror::ClassLoader> defining_loader) const
       REQUIRES(!lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Returns all off the classes in the lastest snapshot.
+  // Returns all off the classes in the lastest snapshot defined by `defining_loader`.
   size_t NumNonZygoteClasses(ObjPtr<mirror::ClassLoader> defining_loader) const
+      REQUIRES(!lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Returns the number of classes in previous snapshots no matter the defining loader.
+  size_t NumReferencedZygoteClasses() const
+      REQUIRES(!lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Returns all off the classes in the lastest snapshot no matter the defining loader.
+  size_t NumReferencedNonZygoteClasses() const
       REQUIRES(!lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 

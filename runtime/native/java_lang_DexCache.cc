@@ -53,7 +53,7 @@ static jobject DexCache_getDexNative(JNIEnv* env, jobject javaDexCache) {
 static jobject DexCache_getResolvedType(JNIEnv* env, jobject javaDexCache, jint type_index) {
   ScopedFastNativeObjectAccess soa(env);
   ObjPtr<mirror::DexCache> dex_cache = soa.Decode<mirror::DexCache>(javaDexCache);
-  CHECK_LT(static_cast<size_t>(type_index), dex_cache->NumResolvedTypes());
+  CHECK_LT(static_cast<size_t>(type_index), dex_cache->GetDexFile()->NumTypeIds());
   return soa.AddLocalReference<jobject>(dex_cache->GetResolvedType(dex::TypeIndex(type_index)));
 }
 
