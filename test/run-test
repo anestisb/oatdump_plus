@@ -766,27 +766,14 @@ fi
 
   run_args="${run_args} --testlib ${testlib}"
 
-# To cause tests to fail fast, limit the file sizes created by dx, dex2oat and ART output to 2MB.
-build_file_size_limit=2048
-run_file_size_limit=2048
-
-# Add tests requiring a higher ulimit to this list. Ulimits might need to be raised to deal with
-# large amounts of expected output or large generated files.
-if echo "$test_dir" | grep -Eq "(083|089|961|964|971)" > /dev/null; then
-  build_file_size_limit=5120
-  run_file_size_limit=5120
-fi
-if [ "$run_checker" = "yes" -a "$target_mode" = "yes" ]; then
-  # We will need to `adb pull` the .cfg output from the target onto the host to
-  # run checker on it. This file can be big.
-  build_file_size_limit=32768
-  run_file_size_limit=32768
-fi
-if [ ${USE_JACK} = "false" ]; then
-  # Set ulimit if we build with dx only, Jack can generate big temp files.
-  if ! ulimit -S "$build_file_size_limit"; then
-    err_echo "ulimit file size setting failed"
-  fi
+# To cause tests to fail fast, limit the file sizes created by dx, dex2oat and
+# ART output to approximately 128MB. This should be more than sufficient
+# for any test while still catching cases of runaway output.
+# Set a hard limit to encourage ART developers to increase the ulimit here if
+# needed to support a test case rather than resetting the limit in the run
+# script for the particular test in question.
+if ! ulimit -f -H 128000; then
+  err_echo "ulimit file size setting failed"
 fi
 
 good="no"
@@ -797,9 +784,6 @@ if [ "$dev_mode" = "yes" ]; then
     build_exit="$?"
     echo "build exit status: $build_exit" 1>&2
     if [ "$build_exit" = '0' ]; then
-        if ! ulimit -S "$run_file_size_limit"; then
-          err_echo "ulimit file size setting failed"
-        fi
         echo "${test_dir}: running..." 1>&2
         "./${run}" $run_args "$@" 2>&1
         run_exit="$?"
@@ -825,9 +809,6 @@ elif [ "$update_mode" = "yes" ]; then
     "./${build}" $build_args >"$build_output" 2>&1
     build_exit="$?"
     if [ "$build_exit" = '0' ]; then
-        if ! ulimit -S "$run_file_size_limit"; then
-          err_echo "ulimit file size setting failed"
-        fi
         echo "${test_dir}: running..." 1>&2
         "./${run}" $run_args "$@" >"$output" 2>&1
         if [ "$run_checker" = "yes" ]; then
@@ -862,9 +843,6 @@ else
     "./${build}" $build_args >"$build_output" 2>&1
     build_exit="$?"
     if [ "$build_exit" = '0' ]; then
-        if ! ulimit -S "$run_file_size_limit"; then
-          err_echo "ulimit file size setting failed"
-        fi
         echo "${test_dir}: running..." 1>&2
         "./${run}" $run_args "$@" >"$output" 2>&1
         run_exit="$?"
@@ -934,9 +912,6 @@ if [ "$bisection_search" = "yes" -a "$good" != "yes" ]; then
       echo "${test_dir}: not bisecting, checker test." 1>&2
     else
       # Increase file size limit, bisection search can generate large logfiles.
-      if ! ulimit -S unlimited; then
-        err_echo "ulimit file size setting failed"
-      fi
       echo "${test_dir}: bisecting..." 1>&2
       cwd=`pwd`
       maybe_device_mode=""
