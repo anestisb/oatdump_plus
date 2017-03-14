@@ -691,7 +691,7 @@ class ArtMethod FINAL {
 
     // Pointer to JNI function registered to this method, or a function to resolve the JNI function,
     // or the profiling data for non-native methods, or an ImtConflictTable, or the
-    // single-implementation of an abstract method.
+    // single-implementation of an abstract/interface method.
     void* data_;
 
     // Method dispatch from quick compiled code invokes this pointer which may cause bridging into
