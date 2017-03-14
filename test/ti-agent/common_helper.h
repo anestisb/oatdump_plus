@@ -81,6 +81,7 @@ bool JvmtiErrorToException(JNIEnv* env, jvmtiError error);
 //
 // This will abort on failure.
 void BindFunctions(jvmtiEnv* jvmti_env, JNIEnv* env, const char* class_name);
+void BindFunctionsOnClass(jvmtiEnv* jvmti_env, JNIEnv* env, jclass klass);
 
 }  // namespace art
 
