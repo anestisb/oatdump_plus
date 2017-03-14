@@ -4409,9 +4409,9 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
                                                decoded_name->ToModifiedUtf8().c_str()));
     CHECK_EQ(ArtField::PrettyField(klass->GetStaticField(1)), throws_field_name);
 
-    CHECK_EQ(klass.Get()->GetInterfaces(),
+    CHECK_EQ(klass.Get()->GetProxyInterfaces(),
              soa.Decode<mirror::ObjectArray<mirror::Class>>(interfaces));
-    CHECK_EQ(klass.Get()->GetThrows(),
+    CHECK_EQ(klass.Get()->GetProxyThrows(),
              soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class>>>(throws));
   }
   return klass.Get();

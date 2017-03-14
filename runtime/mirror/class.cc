@@ -946,7 +946,7 @@ ObjPtr<Class> Class::GetDirectInterface(Thread* self, ObjPtr<Class> klass, uint3
     DCHECK(interface != nullptr);
     return interface;
   } else if (klass->IsProxyClass()) {
-    ObjPtr<ObjectArray<Class>> interfaces = klass->GetInterfaces();
+    ObjPtr<ObjectArray<Class>> interfaces = klass->GetProxyInterfaces();
     DCHECK(interfaces != nullptr);
     return interfaces->Get(idx);
   } else {

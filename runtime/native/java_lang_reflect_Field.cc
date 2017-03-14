@@ -456,6 +456,13 @@ static jlong Field_getArtField(JNIEnv* env, jobject javaField) {
   return reinterpret_cast<jlong>(field);
 }
 
+static jobject Field_getNameInternal(JNIEnv* env, jobject javaField) {
+  ScopedFastNativeObjectAccess soa(env);
+  ArtField* field = soa.Decode<mirror::Field>(javaField)->GetArtField();
+  return soa.AddLocalReference<jobject>(
+      field->GetStringName(soa.Self(), true /* resolve */));
+}
+
 static jobjectArray Field_getDeclaredAnnotations(JNIEnv* env, jobject javaField) {
   ScopedFastNativeObjectAccess soa(env);
   ArtField* field = soa.Decode<mirror::Field>(javaField)->GetArtField();
@@ -506,6 +513,7 @@ static JNINativeMethod gMethods[] = {
   FAST_NATIVE_METHOD(Field, getFloat,   "(Ljava/lang/Object;)F"),
   FAST_NATIVE_METHOD(Field, getInt,     "(Ljava/lang/Object;)I"),
   FAST_NATIVE_METHOD(Field, getLong,    "(Ljava/lang/Object;)J"),
+  FAST_NATIVE_METHOD(Field, getNameInternal, "()Ljava/lang/String;"),
   FAST_NATIVE_METHOD(Field, getShort,   "(Ljava/lang/Object;)S"),
   FAST_NATIVE_METHOD(Field, isAnnotationPresentNative, "(Ljava/lang/Class;)Z"),
   FAST_NATIVE_METHOD(Field, set,        "(Ljava/lang/Object;Ljava/lang/Object;)V"),

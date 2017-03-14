@@ -108,10 +108,50 @@ static jstring Class_getNameNative(JNIEnv* env, jobject javaThis) {
   return soa.AddLocalReference<jstring>(mirror::Class::ComputeName(hs.NewHandle(c)));
 }
 
-static jobjectArray Class_getProxyInterfaces(JNIEnv* env, jobject javaThis) {
+// TODO: Move this to mirror::Class ? Other mirror types that commonly appear
+// as arrays have a GetArrayClass() method.
+static ObjPtr<mirror::Class> GetClassArrayClass(Thread* self)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  ObjPtr<mirror::Class> class_class = mirror::Class::GetJavaLangClass();
+  return Runtime::Current()->GetClassLinker()->FindArrayClass(self, &class_class);
+}
+
+static jobjectArray Class_getInterfacesInternal(JNIEnv* env, jobject javaThis) {
   ScopedFastNativeObjectAccess soa(env);
-  ObjPtr<mirror::Class> c = DecodeClass(soa, javaThis);
-  return soa.AddLocalReference<jobjectArray>(c->GetInterfaces()->Clone(soa.Self()));
+  StackHandleScope<4> hs(soa.Self());
+  Handle<mirror::Class> klass = hs.NewHandle(DecodeClass(soa, javaThis));
+
+  if (klass->IsProxyClass()) {
+    return soa.AddLocalReference<jobjectArray>(klass->GetProxyInterfaces()->Clone(soa.Self()));
+  }
+
+  const DexFile::TypeList* iface_list = klass->GetInterfaceTypeList();
+  if (iface_list == nullptr) {
+    return nullptr;
+  }
+
+  const uint32_t num_ifaces = iface_list->Size();
+  Handle<mirror::Class> class_array_class = hs.NewHandle(GetClassArrayClass(soa.Self()));
+  Handle<mirror::ObjectArray<mirror::Class>> ifaces = hs.NewHandle(
+      mirror::ObjectArray<mirror::Class>::Alloc(soa.Self(), class_array_class.Get(), num_ifaces));
+  if (ifaces.IsNull()) {
+    DCHECK(soa.Self()->IsExceptionPending());
+    return nullptr;
+  }
+
+  // Check that we aren't in an active transaction, we call SetWithoutChecks
+  // with kActiveTransaction == false.
+  DCHECK(!Runtime::Current()->IsActiveTransaction());
+
+  MutableHandle<mirror::Class> interface(hs.NewHandle<mirror::Class>(nullptr));
+  for (uint32_t i = 0; i < num_ifaces; ++i) {
+    const dex::TypeIndex type_idx = iface_list->GetTypeItem(i).type_idx_;
+    interface.Assign(ClassLinker::LookupResolvedType(
+        type_idx, klass->GetDexCache(), klass->GetClassLoader()));
+    ifaces->SetWithoutChecks<false>(i, interface.Get());
+  }
+
+  return soa.AddLocalReference<jobjectArray>(ifaces.Get());
 }
 
 static mirror::ObjectArray<mirror::Field>* GetDeclaredFields(
@@ -501,9 +541,7 @@ static jobjectArray Class_getDeclaredClasses(JNIEnv* env, jobject javaThis) {
       // Pending exception from GetDeclaredClasses.
       return nullptr;
     }
-    ObjPtr<mirror::Class> class_class = mirror::Class::GetJavaLangClass();
-    ObjPtr<mirror::Class> class_array_class =
-        Runtime::Current()->GetClassLinker()->FindArrayClass(soa.Self(), &class_class);
+    ObjPtr<mirror::Class> class_array_class = GetClassArrayClass(soa.Self());
     if (class_array_class == nullptr) {
       return nullptr;
     }
@@ -736,8 +774,8 @@ static JNINativeMethod gMethods[] = {
   FAST_NATIVE_METHOD(Class, getEnclosingMethodNative, "()Ljava/lang/reflect/Method;"),
   FAST_NATIVE_METHOD(Class, getInnerClassFlags, "(I)I"),
   FAST_NATIVE_METHOD(Class, getInnerClassName, "()Ljava/lang/String;"),
+  FAST_NATIVE_METHOD(Class, getInterfacesInternal, "()[Ljava/lang/Class;"),
   FAST_NATIVE_METHOD(Class, getNameNative, "()Ljava/lang/String;"),
-  FAST_NATIVE_METHOD(Class, getProxyInterfaces, "()[Ljava/lang/Class;"),
   FAST_NATIVE_METHOD(Class, getPublicDeclaredFields, "()[Ljava/lang/reflect/Field;"),
   FAST_NATIVE_METHOD(Class, getSignatureAnnotation, "()[Ljava/lang/String;"),
   FAST_NATIVE_METHOD(Class, isAnonymousClass, "()Z"),

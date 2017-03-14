@@ -595,7 +595,7 @@ class MANAGED Class FINAL : public Object {
   // The size of java.lang.Class.class.
   static uint32_t ClassClassSize(PointerSize pointer_size) {
     // The number of vtable entries in java.lang.Class.
-    uint32_t vtable_entries = Object::kVTableLength + 70;
+    uint32_t vtable_entries = Object::kVTableLength + 67;
     return ComputeClassSize(true, vtable_entries, 0, 0, 4, 1, 0, pointer_size);
   }
 
@@ -1262,10 +1262,10 @@ class MANAGED Class FINAL : public Object {
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   // For proxy class only.
-  ObjectArray<Class>* GetInterfaces() REQUIRES_SHARED(Locks::mutator_lock_);
+  ObjectArray<Class>* GetProxyInterfaces() REQUIRES_SHARED(Locks::mutator_lock_);
 
   // For proxy class only.
-  ObjectArray<ObjectArray<Class>>* GetThrows() REQUIRES_SHARED(Locks::mutator_lock_);
+  ObjectArray<ObjectArray<Class>>* GetProxyThrows() REQUIRES_SHARED(Locks::mutator_lock_);
 
   // For reference class only.
   MemberOffset GetDisableIntrinsicFlagOffset() REQUIRES_SHARED(Locks::mutator_lock_);

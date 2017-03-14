@@ -149,7 +149,6 @@ cc_defaults {
         "native/dalvik_system_VMStack.cc",
         "native/dalvik_system_ZygoteHooks.cc",
         "native/java_lang_Class.cc",
-        "native/java_lang_DexCache.cc",
         "native/java_lang_Object.cc",
         "native/java_lang_String.cc",
         "native/java_lang_StringFactory.cc",
