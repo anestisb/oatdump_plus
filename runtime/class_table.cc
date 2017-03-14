@@ -113,6 +113,20 @@ size_t ClassTable::NumNonZygoteClasses(ObjPtr<mirror::ClassLoader> defining_load
   return CountDefiningLoaderClasses(defining_loader, classes_.back());
 }
 
+size_t ClassTable::NumReferencedZygoteClasses() const {
+  ReaderMutexLock mu(Thread::Current(), lock_);
+  size_t sum = 0;
+  for (size_t i = 0; i < classes_.size() - 1; ++i) {
+    sum += classes_[i].Size();
+  }
+  return sum;
+}
+
+size_t ClassTable::NumReferencedNonZygoteClasses() const {
+  ReaderMutexLock mu(Thread::Current(), lock_);
+  return classes_.back().Size();
+}
+
 mirror::Class* ClassTable::Lookup(const char* descriptor, size_t hash) {
   DescriptorHashPair pair(descriptor, hash);
   ReaderMutexLock mu(Thread::Current(), lock_);
