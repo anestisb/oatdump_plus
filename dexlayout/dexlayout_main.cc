@@ -1,4 +1,4 @@
-/*
+  /*
  * Copyright (C) 2016 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -44,7 +44,7 @@ static const char* kProgramName = "dexlayout";
 static void Usage(void) {
   fprintf(stderr, "Copyright (C) 2016 The Android Open Source Project\n\n");
   fprintf(stderr, "%s: [-a] [-c] [-d] [-e] [-f] [-h] [-i] [-l layout] [-o outfile] [-p profile]"
-                  " [-s] [-w directory] dexfile...\n\n", kProgramName);
+                  " [-s] [-t] [-v] [-w directory] dexfile...\n\n", kProgramName);
   fprintf(stderr, " -a : display annotations\n");
   fprintf(stderr, " -b : build dex_ir\n");
   fprintf(stderr, " -c : verify checksum and exit\n");
@@ -58,6 +58,7 @@ static void Usage(void) {
   fprintf(stderr, " -p : profile file name (defaults to no profile)\n");
   fprintf(stderr, " -s : visualize reference pattern\n");
   fprintf(stderr, " -t : display file section sizes\n");
+  fprintf(stderr, " -v : verify output file is canonical to input (IR level comparison)\n");
   fprintf(stderr, " -w : output dex directory \n");
 }
 
@@ -76,7 +77,7 @@ int DexlayoutDriver(int argc, char** argv) {
 
   // Parse all arguments.
   while (1) {
-    const int ic = getopt(argc, argv, "abcdefghil:mo:p:stw:");
+    const int ic = getopt(argc, argv, "abcdefghil:mo:p:stvw:");
     if (ic < 0) {
       break;  // done
     }
@@ -131,6 +132,9 @@ int DexlayoutDriver(int argc, char** argv) {
       case 't':  // display section statistics
         options.show_section_statistics_ = true;
         options.verbose_ = false;
+        break;
+      case 'v':  // verify output
+        options.verify_output_ = true;
         break;
       case 'w':  // output dex files directory
         options.output_dex_directory_ = optarg;
