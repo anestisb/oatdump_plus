@@ -32,6 +32,7 @@ class SsaLivenessAnalysisTest : public testing::Test {
       : pool_(),
         allocator_(&pool_),
         graph_(CreateGraph(&allocator_)),
+        compiler_options_(),
         instruction_set_(kRuntimeISA) {
     std::string error_msg;
     instruction_set_features_ =
@@ -39,7 +40,7 @@ class SsaLivenessAnalysisTest : public testing::Test {
     codegen_ = CodeGenerator::Create(graph_,
                                      instruction_set_,
                                      *instruction_set_features_,
-                                     CompilerOptions());
+                                     compiler_options_);
     CHECK(codegen_ != nullptr) << instruction_set_ << " is not a supported target architecture.";
     // Create entry block.
     entry_ = new (&allocator_) HBasicBlock(graph_);
@@ -59,6 +60,7 @@ class SsaLivenessAnalysisTest : public testing::Test {
   ArenaPool pool_;
   ArenaAllocator allocator_;
   HGraph* graph_;
+  CompilerOptions compiler_options_;
   InstructionSet instruction_set_;
   std::unique_ptr<const InstructionSetFeatures> instruction_set_features_;
   std::unique_ptr<CodeGenerator> codegen_;
