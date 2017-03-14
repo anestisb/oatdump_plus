@@ -36,6 +36,7 @@
 #include "dex_file-inl.h"
 #include "dex_file_verifier.h"
 #include "dex_instruction-inl.h"
+#include "dex_verify.h"
 #include "dex_visualize.h"
 #include "dex_writer.h"
 #include "jit/profile_compilation_info.h"
@@ -1692,7 +1693,8 @@ void DexLayout::LayoutOutputFile(const DexFile* dex_file) {
   header_->SetFileSize(header_->FileSize() + diff);
 }
 
-void DexLayout::OutputDexFile(const std::string& dex_file_location) {
+void DexLayout::OutputDexFile(const DexFile* dex_file) {
+  const std::string& dex_file_location = dex_file->GetLocation();
   std::string error_msg;
   std::unique_ptr<File> new_file;
   if (!options_.output_to_memmap_) {
@@ -1725,18 +1727,24 @@ void DexLayout::OutputDexFile(const std::string& dex_file_location) {
   if (new_file != nullptr) {
     UNUSED(new_file->FlushCloseOrErase());
   }
-  // Verify the output dex file is ok on debug builds.
+  // Verify the output dex file's structure for debug builds.
   if (kIsDebugBuild) {
     std::string location = "memory mapped file for " + dex_file_location;
-    std::unique_ptr<const DexFile> dex_file(DexFile::Open(mem_map_->Begin(),
-                                                          mem_map_->Size(),
-                                                          location,
-                                                          header_->Checksum(),
-                                                          /*oat_dex_file*/ nullptr,
-                                                          /*verify*/ true,
-                                                          /*verify_checksum*/ false,
-                                                          &error_msg));
-    DCHECK(dex_file != nullptr) << "Failed to re-open output file:" << error_msg;
+    std::unique_ptr<const DexFile> output_dex_file(DexFile::Open(mem_map_->Begin(),
+                                                                 mem_map_->Size(),
+                                                                 location,
+                                                                 header_->Checksum(),
+                                                                 /*oat_dex_file*/ nullptr,
+                                                                 /*verify*/ true,
+                                                                 /*verify_checksum*/ false,
+                                                                 &error_msg));
+    DCHECK(output_dex_file != nullptr) << "Failed to re-open output file:" << error_msg;
+  }
+  // Do IR-level comparison between input and output. This check ignores potential differences
+  // due to layout, so offsets are not checked. Instead, it checks the data contents of each item.
+  if (options_.verify_output_) {
+    std::unique_ptr<dex_ir::Header> orig_header(dex_ir::DexIrBuilder(*dex_file));
+    CHECK(VerifyOutputDexFile(orig_header.get(), header_, &error_msg)) << error_msg;
   }
 }
 
@@ -1774,7 +1782,7 @@ void DexLayout::ProcessDexFile(const char* file_name,
     if (info_ != nullptr) {
       LayoutOutputFile(dex_file);
     }
-    OutputDexFile(dex_file->GetLocation());
+    OutputDexFile(dex_file);
   }
 }
 

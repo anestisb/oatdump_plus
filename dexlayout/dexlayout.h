@@ -58,6 +58,7 @@ class Options {
   bool show_section_headers_ = false;
   bool show_section_statistics_ = false;
   bool verbose_ = false;
+  bool verify_output_ = false;
   bool visualize_pattern_ = false;
   OutputFormat output_format_ = kOutputPlain;
   const char* output_dex_directory_ = nullptr;
@@ -115,7 +116,7 @@ class DexLayout {
   // Creates a new layout for the dex file based on profile info.
   // Currently reorders ClassDefs, ClassDataItems, and CodeItems.
   void LayoutOutputFile(const DexFile* dex_file);
-  void OutputDexFile(const std::string& dex_file_location);
+  void OutputDexFile(const DexFile* dex_file);
 
   void DumpCFG(const DexFile* dex_file, int idx);
   void DumpCFG(const DexFile* dex_file, uint32_t dex_method_idx, const DexFile::CodeItem* code);
