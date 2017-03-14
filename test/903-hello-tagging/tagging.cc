@@ -25,7 +25,7 @@
 
 #include "art_method-inl.h"
 #include "base/logging.h"
-#include "openjdkjvmti/jvmti.h"
+#include "jvmti.h"
 #include "ti-agent/common_helper.h"
 #include "ti-agent/common_load.h"
 #include "utils.h"

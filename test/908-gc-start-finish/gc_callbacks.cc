@@ -19,7 +19,7 @@
 
 #include "base/macros.h"
 #include "jni.h"
-#include "openjdkjvmti/jvmti.h"
+#include "jvmti.h"
 #include "ti-agent/common_helper.h"
 #include "ti-agent/common_load.h"
 
