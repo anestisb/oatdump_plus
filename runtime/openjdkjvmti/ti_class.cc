@@ -62,6 +62,7 @@
 #include "thread-inl.h"
 #include "thread_list.h"
 #include "ti_class_loader.h"
+#include "ti_phase.h"
 #include "ti_redefine.h"
 #include "utils.h"
 
@@ -142,6 +143,18 @@ struct ClassCallback : public art::ClassLoadCallback {
       // It is a primitive or array. Just return
       return;
     }
+    jvmtiPhase phase = PhaseUtil::GetPhaseUnchecked();
+    if (UNLIKELY(phase != JVMTI_PHASE_START && phase != JVMTI_PHASE_LIVE)) {
+      // We want to wait until we are at least in the START phase so that all WellKnownClasses and
+      // mirror classes have been initialized and loaded. The runtime relies on these classes having
+      // specific fields and methods present. Since PreDefine hooks don't need to abide by this
+      // restriction we will simply not send the event for these classes.
+      LOG(WARNING) << "Ignoring load of class <" << descriptor << "> as it is being loaded during "
+                   << "runtime initialization.";
+      return;
+    }
+
+    // Strip the 'L' and ';' from the descriptor
     std::string name(std::string(descriptor).substr(1, strlen(descriptor) - 2));
 
     art::Thread* self = art::Thread::Current();
