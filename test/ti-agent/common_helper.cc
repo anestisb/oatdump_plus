@@ -25,7 +25,7 @@
 #include "art_method.h"
 #include "jni.h"
 #include "jni_internal.h"
-#include "openjdkjvmti/jvmti.h"
+#include "jvmti.h"
 #include "scoped_thread_state_change-inl.h"
 #include "ScopedLocalRef.h"
 #include "stack.h"

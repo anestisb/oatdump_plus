@@ -21,7 +21,7 @@
 
 #include "base/macros.h"
 #include "jni.h"
-#include "openjdkjvmti/jvmti.h"
+#include "jvmti.h"
 #include "ScopedLocalRef.h"
 #include "ScopedUtfChars.h"
 

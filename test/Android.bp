@@ -279,6 +279,7 @@ art_cc_defaults {
     shared_libs: [
         "libbase",
     ],
+    header_libs: ["libopenjdkjvmti_headers"],
 }
 
 art_cc_test_library {
