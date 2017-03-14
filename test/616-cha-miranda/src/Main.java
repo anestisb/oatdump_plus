@@ -14,8 +14,12 @@
  * limitations under the License.
  */
 
-abstract class Base {
-  abstract void foo(int i);
+interface Iface {
+  public void foo(int i);
+}
+
+abstract class Base implements Iface {
+  // Iface.foo(int) will be added as a miranda method.
 
   void printError(String msg) {
     System.out.println(msg);
@@ -23,7 +27,7 @@ abstract class Base {
 }
 
 class Main1 extends Base {
-  void foo(int i) {
+  public void foo(int i) {
     if (i != 1) {
       printError("error1");
     }
@@ -31,7 +35,7 @@ class Main1 extends Base {
 }
 
 class Main2 extends Main1 {
-  void foo(int i) {
+  public void foo(int i) {
     if (i != 2) {
       printError("error2");
     }
