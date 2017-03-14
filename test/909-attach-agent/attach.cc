@@ -20,7 +20,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "base/macros.h"
-#include "openjdkjvmti/jvmti.h"
+#include "jvmti.h"
 
 namespace art {
 namespace Test909AttachAgent {

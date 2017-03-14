@@ -18,7 +18,7 @@
 #define ART_TEST_TI_AGENT_COMMON_HELPER_H_
 
 #include "jni.h"
-#include "openjdkjvmti/jvmti.h"
+#include "jvmti.h"
 #include "ScopedLocalRef.h"
 
 namespace art {

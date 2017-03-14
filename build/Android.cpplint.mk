@@ -21,7 +21,7 @@ ART_CPPLINT_FILTER := --filter=-whitespace/line_length,-build/include,-readabili
 ART_CPPLINT_FLAGS := --quiet --root=$(ANDROID_BUILD_TOP)
 ART_CPPLINT_INGORED := \
     runtime/elf.h \
-    runtime/openjdkjvmti/jvmti.h
+    runtime/openjdkjvmti/include/jvmti.h
 
 # This:
 #  1) Gets a list of all .h & .cc files in the art directory.

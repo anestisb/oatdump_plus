@@ -16,8 +16,8 @@
 
 #include "base/macros.h"
 #include "jni.h"
+#include "jvmti.h"
 #include "mirror/class-inl.h"
-#include "openjdkjvmti/jvmti.h"
 #include "ScopedLocalRef.h"
 
 #include "ti-agent/common_helper.h"

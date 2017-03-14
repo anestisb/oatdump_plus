@@ -35,7 +35,7 @@
 
 #include <jni.h>
 
-#include "openjdkjvmti/jvmti.h"
+#include "jvmti.h"
 
 #include "art_jvmti.h"
 #include "base/logging.h"

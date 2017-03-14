@@ -20,7 +20,7 @@
 #include "base/macros.h"
 #include "base/logging.h"
 #include "jni.h"
-#include "openjdkjvmti/jvmti.h"
+#include "jvmti.h"
 #include "ScopedLocalRef.h"
 
 #include "ti-agent/common_helper.h"

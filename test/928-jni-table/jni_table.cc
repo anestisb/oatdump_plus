@@ -17,7 +17,7 @@
 #include <stdio.h>
 
 #include "jni.h"
-#include "openjdkjvmti/jvmti.h"
+#include "jvmti.h"
 
 #include "base/logging.h"
 #include "base/macros.h"
