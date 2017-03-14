@@ -306,7 +306,7 @@ void RegisterAllocationResolver::ConnectSiblings(LiveInterval* interval) {
                         : Location::StackSlot(interval->GetParent()->GetSpillSlot()));
   }
   UsePosition* use = current->GetFirstUse();
-  UsePosition* env_use = current->GetFirstEnvironmentUse();
+  EnvUsePosition* env_use = current->GetFirstEnvironmentUse();
 
   // Walk over all siblings, updating locations of use positions, and
   // connecting them when they are adjacent.
@@ -323,7 +323,6 @@ void RegisterAllocationResolver::ConnectSiblings(LiveInterval* interval) {
         use = use->GetNext();
       }
       while (use != nullptr && use->GetPosition() <= range->GetEnd()) {
-        DCHECK(!use->GetIsEnvironment());
         DCHECK(current->CoversSlow(use->GetPosition()) || (use->GetPosition() == range->GetEnd()));
         if (!use->IsSynthesized()) {
           LocationSummary* locations = use->GetUser()->GetLocations();
