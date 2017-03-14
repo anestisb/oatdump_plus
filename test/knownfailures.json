@@ -103,7 +103,8 @@
     {
         "test": "152-dead-large-object",
         "variant": "gcstress",
-        "description": ["152-dead-large-object requires a heap larger than what gcstress uses."]
+        "description": ["152-dead-large-object requires a heap larger than what gcstress uses."],
+        "bug": "http://b/35800768"
     },
     {
         "tests": ["908-gc-start-finish",
@@ -128,9 +129,10 @@
         "variant": "gcstress"
     },
     {
-        "tests": "154-gc-loop",
-        "variant": "gcstress | jit",
-        "description": ["154-gc-loop depends GC not happening too often"]
+        "test": "154-gc-loop",
+        "variant": "gcstress | jit & debug",
+        "description": ["154-gc-loop depends GC not happening too often"],
+        "bug": "http://b/35917229"
     },
     {
         "test": "115-native-bridge",
