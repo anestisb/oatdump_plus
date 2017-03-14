@@ -32,7 +32,7 @@ class InstructionSetFeatures;
 class PACKED(4) OatHeader {
  public:
   static constexpr uint8_t kOatMagic[] = { 'o', 'a', 't', '\n' };
-  static constexpr uint8_t kOatVersion[] = { '1', '1', '3', '\0' };  // Invoke info change.
+  static constexpr uint8_t kOatVersion[] = { '1', '1', '4', '\0' };  // hash-based DexCache types.
 
   static constexpr const char* kImageLocationKey = "image-location";
   static constexpr const char* kDex2OatCmdLineKey = "dex2oat-cmdline";
