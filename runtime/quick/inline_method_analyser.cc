@@ -215,9 +215,8 @@ bool RecordConstructorIPut(ArtMethod* method,
     REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK(IsInstructionIPut(new_iput->Opcode()));
   uint32_t field_index = new_iput->VRegC_22c();
-  PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
-  mirror::DexCache* dex_cache = method->GetDexCache();
-  ArtField* field = dex_cache->GetResolvedField(field_index, pointer_size);
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  ArtField* field = class_linker->LookupResolvedField(field_index, method, /* is_static */ false);
   if (UNLIKELY(field == nullptr)) {
     return false;
   }
@@ -227,7 +226,9 @@ bool RecordConstructorIPut(ArtMethod* method,
     if (iputs[old_pos].field_index == DexFile::kDexNoIndex16) {
       break;
     }
-    ArtField* f = dex_cache->GetResolvedField(iputs[old_pos].field_index, pointer_size);
+    ArtField* f = class_linker->LookupResolvedField(iputs[old_pos].field_index,
+                                                    method,
+                                                    /* is_static */ false);
     DCHECK(f != nullptr);
     if (f == field) {
       auto back_it = std::copy(iputs + old_pos + 1, iputs + arraysize(iputs), iputs + old_pos);
@@ -732,9 +733,9 @@ bool InlineMethodAnalyser::ComputeSpecialAccessorInfo(ArtMethod* method,
   if (method == nullptr) {
     return false;
   }
-  mirror::DexCache* dex_cache = method->GetDexCache();
-  PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
-  ArtField* field = dex_cache->GetResolvedField(field_idx, pointer_size);
+  ObjPtr<mirror::DexCache> dex_cache = method->GetDexCache();
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  ArtField* field = class_linker->LookupResolvedField(field_idx, method, /* is_static */ false);
   if (field == nullptr || field->IsStatic()) {
     return false;
   }

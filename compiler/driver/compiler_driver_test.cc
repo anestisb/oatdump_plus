@@ -133,9 +133,10 @@ TEST_F(CompilerDriverTest, DISABLED_LARGE_CompileDexLibCore) {
         << " " << dex.GetMethodDeclaringClassDescriptor(dex.GetMethodId(i)) << " "
         << dex.GetMethodName(dex.GetMethodId(i));
   }
-  EXPECT_EQ(dex.NumFieldIds(), dex_cache->NumResolvedFields());
+  EXPECT_TRUE(dex_cache->StaticArtFieldSize() == dex_cache->NumResolvedFields()
+      || dex.NumFieldIds() ==  dex_cache->NumResolvedFields());
   for (size_t i = 0; i < dex_cache->NumResolvedFields(); i++) {
-    ArtField* field = cl->GetResolvedField(i, dex_cache);
+    ArtField* field = dex_cache->GetResolvedField(i, cl->GetImagePointerSize());
     EXPECT_TRUE(field != nullptr) << "field_idx=" << i
                                << " " << dex.GetFieldDeclaringClassDescriptor(dex.GetFieldId(i))
                                << " " << dex.GetFieldName(dex.GetFieldId(i));
