@@ -14,15 +14,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Build and run go/ab/git_master-art-host target
+
+Provided with a target name, the script setup the environment for
+building the test target by taking config information from
+from target_config.py.
+
+If the target field is defined in the configuration for the target, it
+invokes `make` to build the target, otherwise, it assumes
+that the its is a run-test target, and invokes testrunner.py
+script for building and running the run-tests.
+"""
+
 import argparse
 import os
 import subprocess
+import sys
 
 from target_config import target_config
 import env
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--build-target', required=True, dest='build_target')
+parser.add_argument('build_target')
 parser.add_argument('-j', default='1', dest='n_threads')
 options = parser.parse_args()
 
@@ -49,6 +62,7 @@ else:
   run_test_command += target.get('flags', [])
   run_test_command += ['-j', str(n_threads)]
   run_test_command += ['-b']
+  run_test_command += ['--host']
   run_test_command += ['--verbose']
 
   print run_test_command
