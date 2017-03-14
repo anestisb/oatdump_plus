@@ -893,10 +893,6 @@ bool HInliner::TryInlinePolymorphicCallToSameTarget(
     return false;
   }
 
-  if (graph_->GetInstructionSet() == kMips64) {
-    // TODO: Support HClassTableGet for mips64.
-    return false;
-  }
   ClassLinker* class_linker = caller_compilation_unit_.GetClassLinker();
   PointerSize pointer_size = class_linker->GetImagePointerSize();
 
