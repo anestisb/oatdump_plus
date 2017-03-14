@@ -13,6 +13,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+cc_library_headers {
+    name: "libopenjdkjvmti_headers",
+    host_supported: true,
+    export_include_dirs: ["include"],
+}
+
 cc_defaults {
     name: "libopenjdkjvmti_defaults",
     defaults: ["art_defaults"],
@@ -40,6 +46,7 @@ cc_defaults {
            "ti_timers.cc",
            "transform.cc"],
     include_dirs: ["art/runtime"],
+    header_libs: ["libopenjdkjvmti_headers"],
     shared_libs: [
         "libbase",
         "libnativehelper",
