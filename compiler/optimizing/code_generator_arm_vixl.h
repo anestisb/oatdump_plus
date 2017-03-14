@@ -35,11 +35,11 @@
 #include "aarch32/macro-assembler-aarch32.h"
 #pragma GCC diagnostic pop
 
-// Default to use the VIXL-based backend on ARM.
-#ifdef ART_USE_OLD_ARM_BACKEND
-static constexpr bool kArmUseVIXL32 = false;
-#else
+// True if VIXL32 should be used for codegen on ARM.
+#ifdef ART_USE_VIXL_ARM_BACKEND
 static constexpr bool kArmUseVIXL32 = true;
+#else
+static constexpr bool kArmUseVIXL32 = false;
 #endif
 
 namespace art {
