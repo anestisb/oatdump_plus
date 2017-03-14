@@ -56,7 +56,7 @@ static void GetLocalsCb(void* context, const DexFile::LocalInfo& entry) {
                     entry.end_address_, entry.reg_)));
 }
 
-static uint32_t GetCodeItemSize(const DexFile& dex_file, const DexFile::CodeItem& disk_code_item) {
+static uint32_t GetCodeItemSize(const DexFile::CodeItem& disk_code_item) {
   uintptr_t code_item_start = reinterpret_cast<uintptr_t>(&disk_code_item);
   uint32_t insns_size = disk_code_item.insns_size_in_code_units_;
   uint32_t tries_size = disk_code_item.tries_size_;
@@ -675,7 +675,7 @@ CodeItem* Collections::CreateCodeItem(const DexFile& dex_file,
     }
   }
 
-  uint32_t size = GetCodeItemSize(dex_file, disk_code_item);
+  uint32_t size = GetCodeItemSize(disk_code_item);
   CodeItem* code_item = new CodeItem(
       registers_size, ins_size, outs_size, debug_info, insns_size, insns, tries, handler_list);
   code_item->SetSize(size);
