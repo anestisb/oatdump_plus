@@ -1560,7 +1560,10 @@ void IntrinsicCodeGeneratorARM64::VisitStringEquals(HInvoke* invoke) {
     // Load `count` field of the argument string and check if it matches the const string.
     // Also compares the compression style, if differs return false.
     __ Ldr(temp, MemOperand(arg.X(), count_offset));
+    // Temporarily release temp1 as we may not be able to embed the flagged count in CMP immediate.
+    scratch_scope.Release(temp1);
     __ Cmp(temp, Operand(mirror::String::GetFlaggedCount(const_string_length, is_compressed)));
+    temp1 = scratch_scope.AcquireW();
     __ B(&return_false, ne);
   } else {
     // Load `count` fields of this and argument strings.
