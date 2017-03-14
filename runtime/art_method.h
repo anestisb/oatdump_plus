@@ -700,6 +700,8 @@ class ArtMethod FINAL {
   } ptr_sized_fields_;
 
  private:
+  uint16_t FindObsoleteDexClassDefIndex() REQUIRES_SHARED(Locks::mutator_lock_);
+
   bool IsAnnotatedWith(jclass klass, uint32_t visibility);
 
   static constexpr size_t PtrSizedFieldsOffset(PointerSize pointer_size) {
