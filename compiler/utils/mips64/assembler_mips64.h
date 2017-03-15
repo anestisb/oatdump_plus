@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include "arch/mips64/instruction_set_features_mips64.h"
 #include "base/arena_containers.h"
 #include "base/enums.h"
 #include "base/macros.h"
@@ -413,7 +414,8 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
  public:
   using JNIBase = JNIMacroAssembler<PointerSize::k64>;
 
-  explicit Mips64Assembler(ArenaAllocator* arena)
+  explicit Mips64Assembler(ArenaAllocator* arena,
+                           const Mips64InstructionSetFeatures* instruction_set_features = nullptr)
       : Assembler(arena),
         overwriting_(false),
         overwrite_location_(0),
@@ -422,7 +424,8 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
         jump_tables_(arena->Adapter(kArenaAllocAssembler)),
         last_position_adjustment_(0),
         last_old_position_(0),
-        last_branch_id_(0) {
+        last_branch_id_(0),
+        has_msa_(instruction_set_features != nullptr ? instruction_set_features->HasMsa() : false) {
     cfi().DelayEmittingAdvancePCs();
   }
 
@@ -1479,6 +1482,10 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
   // Emits exception block.
   void EmitExceptionPoll(Mips64ExceptionSlowPath* exception);
 
+  bool HasMsa() const {
+    return has_msa_;
+  }
+
   // List of exception blocks to generate at the end of the code cache.
   std::vector<Mips64ExceptionSlowPath> exception_blocks_;
 
@@ -1501,6 +1508,8 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
   uint32_t last_position_adjustment_;
   uint32_t last_old_position_;
   uint32_t last_branch_id_;
+
+  const bool has_msa_;
 
   DISALLOW_COPY_AND_ASSIGN(Mips64Assembler);
 };
