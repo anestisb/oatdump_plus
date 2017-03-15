@@ -189,6 +189,8 @@ class LocationsBuilderMIPS64 : public HGraphVisitor {
   void HandleShift(HBinaryOperation* operation);
   void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info);
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
+  Location RegisterOrZeroConstant(HInstruction* instruction);
+  Location FpuRegisterOrConstantForStore(HInstruction* instruction);
 
   InvokeDexCallingConventionVisitorMIPS64 parameter_visitor_;
 
