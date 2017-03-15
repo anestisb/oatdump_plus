@@ -57,7 +57,9 @@ class DexCacheArraysLayout {
     return size_;
   }
 
-  static constexpr size_t Alignment();
+  size_t Alignment() const;
+
+  static constexpr size_t Alignment(PointerSize pointer_size);
 
   size_t TypesOffset() const {
     return types_offset_;
@@ -124,8 +126,6 @@ class DexCacheArraysLayout {
   const size_t method_types_offset_;
   const size_t call_sites_offset_;
   const size_t size_;
-
-  static size_t Alignment(PointerSize pointer_size);
 
   static size_t ElementOffset(PointerSize element_size, uint32_t idx);
 
