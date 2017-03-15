@@ -2178,6 +2178,82 @@ TEST_F(AssemblerMIPS64Test, StoreFpuToOffset) {
   DriverStr(expected, "StoreFpuToOffset");
 }
 
+TEST_F(AssemblerMIPS64Test, StoreConstToOffset) {
+  __ StoreConstToOffset(mips64::kStoreByte, 0xFF, mips64::A1, +0, mips64::T8);
+  __ StoreConstToOffset(mips64::kStoreHalfword, 0xFFFF, mips64::A1, +0, mips64::T8);
+  __ StoreConstToOffset(mips64::kStoreWord, 0x12345678, mips64::A1, +0, mips64::T8);
+  __ StoreConstToOffset(mips64::kStoreDoubleword, 0x123456789ABCDEF0, mips64::A1, +0, mips64::T8);
+
+  __ StoreConstToOffset(mips64::kStoreByte, 0, mips64::A1, +0, mips64::T8);
+  __ StoreConstToOffset(mips64::kStoreHalfword, 0, mips64::A1, +0, mips64::T8);
+  __ StoreConstToOffset(mips64::kStoreWord, 0, mips64::A1, +0, mips64::T8);
+  __ StoreConstToOffset(mips64::kStoreDoubleword, 0, mips64::A1, +0, mips64::T8);
+
+  __ StoreConstToOffset(mips64::kStoreDoubleword, 0x1234567812345678, mips64::A1, +0, mips64::T8);
+  __ StoreConstToOffset(mips64::kStoreDoubleword, 0x1234567800000000, mips64::A1, +0, mips64::T8);
+  __ StoreConstToOffset(mips64::kStoreDoubleword, 0x0000000012345678, mips64::A1, +0, mips64::T8);
+
+  __ StoreConstToOffset(mips64::kStoreWord, 0, mips64::T8, +0, mips64::T8);
+  __ StoreConstToOffset(mips64::kStoreWord, 0x12345678, mips64::T8, +0, mips64::T8);
+
+  __ StoreConstToOffset(mips64::kStoreWord, 0, mips64::A1, -0xFFF0, mips64::T8);
+  __ StoreConstToOffset(mips64::kStoreWord, 0x12345678, mips64::A1, +0xFFF0, mips64::T8);
+
+  __ StoreConstToOffset(mips64::kStoreWord, 0, mips64::T8, -0xFFF0, mips64::T8);
+  __ StoreConstToOffset(mips64::kStoreWord, 0x12345678, mips64::T8, +0xFFF0, mips64::T8);
+
+  const char* expected =
+      "ori $t8, $zero, 0xFF\n"
+      "sb $t8, 0($a1)\n"
+      "ori $t8, $zero, 0xFFFF\n"
+      "sh $t8, 0($a1)\n"
+      "lui $t8, 0x1234\n"
+      "ori $t8, $t8,0x5678\n"
+      "sw $t8, 0($a1)\n"
+      "lui $t8, 0x9abc\n"
+      "ori $t8, $t8,0xdef0\n"
+      "dahi $t8, $t8, 0x5679\n"
+      "dati $t8, $t8, 0x1234\n"
+      "sd $t8, 0($a1)\n"
+      "sb $zero, 0($a1)\n"
+      "sh $zero, 0($a1)\n"
+      "sw $zero, 0($a1)\n"
+      "sd $zero, 0($a1)\n"
+      "lui $t8, 0x1234\n"
+      "ori $t8, $t8,0x5678\n"
+      "dins $t8, $t8, 0x20, 0x20\n"
+      "sd $t8, 0($a1)\n"
+      "lui $t8, 0x246\n"
+      "ori $t8, $t8, 0x8acf\n"
+      "dsll32 $t8, $t8, 0x3\n"
+      "sd $t8, 0($a1)\n"
+      "lui $t8, 0x1234\n"
+      "ori $t8, $t8, 0x5678\n"
+      "sd $t8, 0($a1)\n"
+      "sw $zero, 0($t8)\n"
+      "lui $at,0x1234\n"
+      "ori $at, $at, 0x5678\n"
+      "sw  $at, 0($t8)\n"
+      "lui $at, 0xffff\n"
+      "ori $at, $at, 0x10\n"
+      "daddu $at, $at, $a1\n"
+      "sw $zero, 0($at)\n"
+      "li $at, 0xfff0\n"
+      "daddu $at, $at, $a1\n"
+      "lui $t8, 0x1234\n"
+      "ori $t8, $t8, 0x5678\n"
+      "sw  $t8, 0($at)\n"
+      "lui $at, 0xffff\n"
+      "ori $at, $at, 0x10\n"
+      "daddu $at, $at, $t8\n"
+      "sw $zero, 0($at)\n"
+      "li $at, 0xfff0\n"
+      "daddu $at, $at, $t8\n"
+      "lui $t8, 0x1234\n"
+      "ori $t8, $t8, 0x5678\n"
+      "sw  $t8, 0($at)\n";
+  DriverStr(expected, "StoreConstToOffset");
+}
 //////////////////////////////
 // Loading/adding Constants //
 //////////////////////////////
