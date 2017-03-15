@@ -347,11 +347,7 @@ inline const char* ArtMethod::GetDeclaringClassSourceFile() {
 
 inline uint16_t ArtMethod::GetClassDefIndex() {
   DCHECK(!IsProxyMethod());
-  if (LIKELY(!IsObsolete())) {
-    return GetDeclaringClass()->GetDexClassDefIndex();
-  } else {
-    return FindObsoleteDexClassDefIndex();
-  }
+  return GetDeclaringClass()->GetDexClassDefIndex();
 }
 
 inline const DexFile::ClassDef& ArtMethod::GetClassDef() {
