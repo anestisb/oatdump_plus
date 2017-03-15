@@ -906,7 +906,6 @@ bool ClassLinker::InitFromBootImage(std::string* error_msg) {
       runtime->GetOatFileManager().RegisterImageOatFiles(spaces);
   DCHECK(!oat_files.empty());
   const OatHeader& default_oat_header = oat_files[0]->GetOatHeader();
-  CHECK_EQ(default_oat_header.GetImageFileLocationOatChecksum(), 0U);
   CHECK_EQ(default_oat_header.GetImageFileLocationOatDataBegin(), 0U);
   const char* image_file_location = oat_files[0]->GetOatHeader().
       GetStoreValueByKey(OatHeader::kImageLocationKey);
