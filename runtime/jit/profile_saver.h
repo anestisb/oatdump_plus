@@ -59,6 +59,14 @@ class ProfileSaver {
                             uint16_t method_idx);
 
  private:
+  // A cache structure which keeps track of the data saved to disk.
+  // It is used to reduce the number of disk read/writes.
+  struct ProfileInfoCache {
+    ProfileCompilationInfo profile;
+    uint32_t last_save_number_of_methods = 0;
+    uint32_t last_save_number_of_classes = 0;
+  };
+
   ProfileSaver(const ProfileSaverOptions& options,
                const std::string& output_filename,
                jit::JitCodeCache* jit_code_cache,
@@ -90,7 +98,7 @@ class ProfileSaver {
   // Retrieves the cached profile compilation info for the given profile file.
   // If no entry exists, a new empty one will be created, added to the cache and
   // then returned.
-  ProfileCompilationInfo* GetCachedProfiledInfo(const std::string& filename);
+  ProfileInfoCache* GetCachedProfiledInfo(const std::string& filename);
   // Fetches the current resolved classes and methods from the ClassLinker and stores them in the
   // profile_cache_ for later save.
   void FetchAndCacheResolvedClassesAndMethods();
@@ -110,8 +118,6 @@ class ProfileSaver {
       GUARDED_BY(Locks::profiler_lock_);
 
   bool shutting_down_ GUARDED_BY(Locks::profiler_lock_);
-  uint32_t last_save_number_of_methods_;
-  uint32_t last_save_number_of_classes_;
   uint64_t last_time_ns_saver_woke_up_ GUARDED_BY(wait_lock_);
   uint32_t jit_activity_notifications_;
 
@@ -119,7 +125,7 @@ class ProfileSaver {
   // profile information. The size of this cache is usually very small and tops
   // to just a few hundreds entries in the ProfileCompilationInfo objects.
   // It helps avoiding unnecessary writes to disk.
-  SafeMap<std::string, ProfileCompilationInfo> profile_cache_;
+  SafeMap<std::string, ProfileInfoCache> profile_cache_;
 
   // Save period condition support.
   Mutex wait_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
