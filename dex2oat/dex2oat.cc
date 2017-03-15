@@ -1486,7 +1486,7 @@ class Dex2Oat FINAL {
         TimingLogger::ScopedTiming t3("Loading image checksum", timings_);
         std::vector<gc::space::ImageSpace*> image_spaces =
             Runtime::Current()->GetHeap()->GetBootImageSpaces();
-        image_file_location_oat_checksum_ = OatFileAssistant::CalculateCombinedImageChecksum();
+        image_file_location_oat_checksum_ = image_spaces[0]->GetImageHeader().GetOatChecksum();
         image_file_location_oat_data_begin_ =
             reinterpret_cast<uintptr_t>(image_spaces[0]->GetImageHeader().GetOatDataBegin());
         image_patch_delta_ = image_spaces[0]->GetImageHeader().GetPatchDelta();
@@ -1906,6 +1906,14 @@ class Dex2Oat FINAL {
                                              elf_writer->GetLoadedSize(),
                                              oat_writer->GetOatDataOffset(),
                                              oat_writer->GetOatSize());
+        }
+
+        if (IsBootImage()) {
+          // Have the image_file_location_oat_checksum_ for boot oat files
+          // depend on the contents of all the boot oat files. This way only
+          // the primary image checksum needs to be checked to determine
+          // whether any of the images are out of date.
+          image_file_location_oat_checksum_ ^= oat_writer->GetOatHeader().GetChecksum();
         }
       }
 
