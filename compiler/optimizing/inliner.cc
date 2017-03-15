@@ -1023,17 +1023,6 @@ bool HInliner::TryInlineAndReplace(HInvoke* invoke_instruction,
       // 1) In the best case, the interface call has one more indirection (to fetch the IMT).
       // 2) We will not go to the conflict trampoline with an invoke-virtual.
       // TODO: Consider sharpening once it is not dependent on the compiler driver.
-
-      if (method->IsDefault() && !method->IsCopied()) {
-        // Changing to invoke-virtual cannot be done on an original default method
-        // since it's not in any vtable. Devirtualization by exact type/inline-cache
-        // always uses a method in the iftable which is never an original default
-        // method.
-        // On the other hand, inlining an original default method by CHA is fine.
-        DCHECK(cha_devirtualize);
-        return false;
-      }
-
       const DexFile& caller_dex_file = *caller_compilation_unit_.GetDexFile();
       uint32_t dex_method_index = FindMethodIndexIn(
           method, caller_dex_file, invoke_instruction->GetDexMethodIndex());
