@@ -184,8 +184,16 @@ def setup_test_env():
   if env.ART_TEST_OPTIMIZING_GRAPH_COLOR:
     COMPILER_TYPES.add('regalloc_gc')
     OPTIMIZING_COMPILER_TYPES.add('regalloc_gc')
-  if env.ART_TEST_OPTIMIZING or not COMPILER_TYPES: # Default
+  if env.ART_TEST_OPTIMIZING:
     COMPILER_TYPES.add('optimizing')
+    OPTIMIZING_COMPILER_TYPES.add('optimizing')
+
+  # By default we run all 'compiler' variants.
+  if not COMPILER_TYPES:
+    COMPILER_TYPES.add('optimizing')
+    COMPILER_TYPES.add('jit')
+    COMPILER_TYPES.add('interpreter')
+    COMPILER_TYPES.add('interp-ac')
     OPTIMIZING_COMPILER_TYPES.add('optimizing')
 
   if env.ART_TEST_RUN_TEST_RELOCATE:
