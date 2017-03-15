@@ -33,6 +33,11 @@ void* LinearAlloc::Alloc(Thread* self, size_t size) {
   return allocator_.Alloc(size);
 }
 
+void* LinearAlloc::AllocAlign16(Thread* self, size_t size) {
+  MutexLock mu(self, lock_);
+  return allocator_.AllocAlign16(size);
+}
+
 size_t LinearAlloc::GetUsedMemory() const {
   MutexLock mu(Thread::Current(), lock_);
   return allocator_.BytesUsed();

@@ -39,8 +39,6 @@ enum class ArenaFreeTag : uint8_t {
   kFree,
 };
 
-static constexpr size_t kArenaAlignment = 8;
-
 // Holds a list of Arenas for use by ScopedArenaAllocator stack.
 // The memory is returned to the ArenaPool when the ArenaStack is destroyed.
 class ArenaStack : private DebugStackRefCounter, private ArenaAllocatorMemoryTool {
@@ -67,6 +65,9 @@ class ArenaStack : private DebugStackRefCounter, private ArenaAllocatorMemoryToo
     return *(reinterpret_cast<ArenaFreeTag*>(ptr) - 1);
   }
 
+  // The alignment guaranteed for individual allocations.
+  static constexpr size_t kAlignment = 8u;
+
  private:
   struct Peak;
   struct Current;
@@ -89,8 +90,8 @@ class ArenaStack : private DebugStackRefCounter, private ArenaAllocatorMemoryToo
     if (UNLIKELY(IsRunningOnMemoryTool())) {
       return AllocWithMemoryTool(bytes, kind);
     }
-    // Add kArenaAlignment for the free or used tag. Required to preserve alignment.
-    size_t rounded_bytes = RoundUp(bytes + (kIsDebugBuild ? kArenaAlignment : 0u), kArenaAlignment);
+    // Add kAlignment for the free or used tag. Required to preserve alignment.
+    size_t rounded_bytes = RoundUp(bytes + (kIsDebugBuild ? kAlignment : 0u), kAlignment);
     uint8_t* ptr = top_ptr_;
     if (UNLIKELY(static_cast<size_t>(top_end_ - ptr) < rounded_bytes)) {
       ptr = AllocateFromNextArena(rounded_bytes);
@@ -98,7 +99,7 @@ class ArenaStack : private DebugStackRefCounter, private ArenaAllocatorMemoryToo
     CurrentStats()->RecordAlloc(bytes, kind);
     top_ptr_ = ptr + rounded_bytes;
     if (kIsDebugBuild) {
-      ptr += kArenaAlignment;
+      ptr += kAlignment;
       ArenaTagForAllocation(ptr) = ArenaFreeTag::kUsed;
     }
     return ptr;

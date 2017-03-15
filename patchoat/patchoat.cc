@@ -534,17 +534,18 @@ void PatchOat::PatchDexFileArrays(mirror::ObjectArray<mirror::Object>* img_roots
         mirror::DexCache::SetElementPtrSize(copy_methods, j, copy, pointer_size);
       }
     }
-    ArtField** orig_fields = orig_dex_cache->GetResolvedFields();
-    ArtField** relocated_fields = RelocatedAddressOfPointer(orig_fields);
+    mirror::FieldDexCacheType* orig_fields = orig_dex_cache->GetResolvedFields();
+    mirror::FieldDexCacheType* relocated_fields = RelocatedAddressOfPointer(orig_fields);
     copy_dex_cache->SetField64<false>(
         mirror::DexCache::ResolvedFieldsOffset(),
         static_cast<int64_t>(reinterpret_cast<uintptr_t>(relocated_fields)));
     if (orig_fields != nullptr) {
-      ArtField** copy_fields = RelocatedCopyOf(orig_fields);
+      mirror::FieldDexCacheType* copy_fields = RelocatedCopyOf(orig_fields);
       for (size_t j = 0, num = orig_dex_cache->NumResolvedFields(); j != num; ++j) {
-        ArtField* orig = mirror::DexCache::GetElementPtrSize(orig_fields, j, pointer_size);
-        ArtField* copy = RelocatedAddressOfPointer(orig);
-        mirror::DexCache::SetElementPtrSize(copy_fields, j, copy, pointer_size);
+        mirror::FieldDexCachePair orig =
+            mirror::DexCache::GetNativePairPtrSize(orig_fields, j, pointer_size);
+        mirror::FieldDexCachePair copy(RelocatedAddressOfPointer(orig.object), orig.index);
+        mirror::DexCache::SetNativePairPtrSize(copy_fields, j, copy, pointer_size);
       }
     }
     mirror::MethodTypeDexCacheType* orig_method_types = orig_dex_cache->GetResolvedMethodTypes();

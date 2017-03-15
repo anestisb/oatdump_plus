@@ -52,8 +52,12 @@ void DexCache::InitializeDexCache(Thread* self,
              dex_file->NumTypeIds() != 0u ||
              dex_file->NumMethodIds() != 0u ||
              dex_file->NumFieldIds() != 0u) {
+    static_assert(ArenaAllocator::kAlignment == 8, "Expecting arena alignment of 8.");
+    DCHECK(layout.Alignment() == 8u || layout.Alignment() == 16u);
     // Zero-initialized.
-    raw_arrays = reinterpret_cast<uint8_t*>(linear_alloc->Alloc(self, layout.Size()));
+    raw_arrays = (layout.Alignment() == 16u)
+        ? reinterpret_cast<uint8_t*>(linear_alloc->AllocAlign16(self, layout.Size()))
+        : reinterpret_cast<uint8_t*>(linear_alloc->Alloc(self, layout.Size()));
   }
 
   mirror::StringDexCacheType* strings = (dex_file->NumStringIds() == 0u) ? nullptr :
@@ -62,16 +66,20 @@ void DexCache::InitializeDexCache(Thread* self,
       reinterpret_cast<mirror::TypeDexCacheType*>(raw_arrays + layout.TypesOffset());
   ArtMethod** methods = (dex_file->NumMethodIds() == 0u) ? nullptr :
       reinterpret_cast<ArtMethod**>(raw_arrays + layout.MethodsOffset());
-  ArtField** fields = (dex_file->NumFieldIds() == 0u) ? nullptr :
-      reinterpret_cast<ArtField**>(raw_arrays + layout.FieldsOffset());
+  mirror::FieldDexCacheType* fields = (dex_file->NumFieldIds() == 0u) ? nullptr :
+      reinterpret_cast<mirror::FieldDexCacheType*>(raw_arrays + layout.FieldsOffset());
 
-  size_t num_strings = mirror::DexCache::kDexCacheStringCacheSize;
+  size_t num_strings = kDexCacheStringCacheSize;
   if (dex_file->NumStringIds() < num_strings) {
     num_strings = dex_file->NumStringIds();
   }
-  size_t num_types = mirror::DexCache::kDexCacheTypeCacheSize;
+  size_t num_types = kDexCacheTypeCacheSize;
   if (dex_file->NumTypeIds() < num_types) {
     num_types = dex_file->NumTypeIds();
+  }
+  size_t num_fields = kDexCacheFieldCacheSize;
+  if (dex_file->NumFieldIds() < num_fields) {
+    num_fields = dex_file->NumFieldIds();
   }
 
   // Note that we allocate the method type dex caches regardless of this flag,
@@ -80,17 +88,17 @@ void DexCache::InitializeDexCache(Thread* self,
   //
   // If this needs to be mitigated in a production system running this code,
   // DexCache::kDexCacheMethodTypeCacheSize can be set to zero.
-  mirror::MethodTypeDexCacheType* method_types = nullptr;
+  MethodTypeDexCacheType* method_types = nullptr;
   size_t num_method_types = 0;
 
-  if (dex_file->NumProtoIds() < mirror::DexCache::kDexCacheMethodTypeCacheSize) {
+  if (dex_file->NumProtoIds() < kDexCacheMethodTypeCacheSize) {
     num_method_types = dex_file->NumProtoIds();
   } else {
-    num_method_types = mirror::DexCache::kDexCacheMethodTypeCacheSize;
+    num_method_types = kDexCacheMethodTypeCacheSize;
   }
 
   if (num_method_types > 0) {
-    method_types = reinterpret_cast<mirror::MethodTypeDexCacheType*>(
+    method_types = reinterpret_cast<MethodTypeDexCacheType*>(
         raw_arrays + layout.MethodTypesOffset());
   }
 
@@ -98,13 +106,13 @@ void DexCache::InitializeDexCache(Thread* self,
       ? nullptr
       : reinterpret_cast<GcRoot<mirror::CallSite>*>(raw_arrays + layout.CallSitesOffset());
 
-  DCHECK_ALIGNED(raw_arrays, alignof(mirror::StringDexCacheType)) <<
+  DCHECK_ALIGNED(raw_arrays, alignof(StringDexCacheType)) <<
                  "Expected raw_arrays to align to StringDexCacheType.";
-  DCHECK_ALIGNED(layout.StringsOffset(), alignof(mirror::StringDexCacheType)) <<
+  DCHECK_ALIGNED(layout.StringsOffset(), alignof(StringDexCacheType)) <<
                  "Expected StringsOffset() to align to StringDexCacheType.";
-  DCHECK_ALIGNED(strings, alignof(mirror::StringDexCacheType)) <<
+  DCHECK_ALIGNED(strings, alignof(StringDexCacheType)) <<
                  "Expected strings to align to StringDexCacheType.";
-  static_assert(alignof(mirror::StringDexCacheType) == 8u,
+  static_assert(alignof(StringDexCacheType) == 8u,
                 "Expected StringDexCacheType to have align of 8.");
   if (kIsDebugBuild) {
     // Sanity check to make sure all the dex cache arrays are empty. b/28992179
@@ -117,10 +125,11 @@ void DexCache::InitializeDexCache(Thread* self,
       CHECK(types[i].load(std::memory_order_relaxed).object.IsNull());
     }
     for (size_t i = 0; i < dex_file->NumMethodIds(); ++i) {
-      CHECK(mirror::DexCache::GetElementPtrSize(methods, i, image_pointer_size) == nullptr);
+      CHECK(GetElementPtrSize(methods, i, image_pointer_size) == nullptr);
     }
-    for (size_t i = 0; i < dex_file->NumFieldIds(); ++i) {
-      CHECK(mirror::DexCache::GetElementPtrSize(fields, i, image_pointer_size) == nullptr);
+    for (size_t i = 0; i < num_fields; ++i) {
+      CHECK_EQ(GetNativePairPtrSize(fields, i, image_pointer_size).index, 0u);
+      CHECK(GetNativePairPtrSize(fields, i, image_pointer_size).object == nullptr);
     }
     for (size_t i = 0; i < num_method_types; ++i) {
       CHECK_EQ(method_types[i].load(std::memory_order_relaxed).index, 0u);
@@ -136,6 +145,9 @@ void DexCache::InitializeDexCache(Thread* self,
   if (types != nullptr) {
     mirror::TypeDexCachePair::Initialize(types);
   }
+  if (fields != nullptr) {
+    mirror::FieldDexCachePair::Initialize(fields, image_pointer_size);
+  }
   if (method_types != nullptr) {
     mirror::MethodTypeDexCachePair::Initialize(method_types);
   }
@@ -148,7 +160,7 @@ void DexCache::InitializeDexCache(Thread* self,
                   methods,
                   dex_file->NumMethodIds(),
                   fields,
-                  dex_file->NumFieldIds(),
+                  num_fields,
                   method_types,
                   num_method_types,
                   call_sites,
@@ -164,7 +176,7 @@ void DexCache::Init(const DexFile* dex_file,
                     uint32_t num_resolved_types,
                     ArtMethod** resolved_methods,
                     uint32_t num_resolved_methods,
-                    ArtField** resolved_fields,
+                    FieldDexCacheType* resolved_fields,
                     uint32_t num_resolved_fields,
                     MethodTypeDexCacheType* resolved_method_types,
                     uint32_t num_resolved_method_types,
@@ -217,6 +229,24 @@ void DexCache::Fixup(ArtMethod* trampoline, PointerSize pointer_size) {
 void DexCache::SetLocation(ObjPtr<mirror::String> location) {
   SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(DexCache, location_), location);
 }
+
+#if !defined(__aarch64__) && !defined(__x86_64__)
+static pthread_mutex_t dex_cache_slow_atomic_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+DexCache::ConversionPair64 DexCache::AtomicLoadRelaxed16B(std::atomic<ConversionPair64>* target) {
+  pthread_mutex_lock(&dex_cache_slow_atomic_mutex);
+  DexCache::ConversionPair64 value = *reinterpret_cast<ConversionPair64*>(target);
+  pthread_mutex_unlock(&dex_cache_slow_atomic_mutex);
+  return value;
+}
+
+void DexCache::AtomicStoreRelease16B(std::atomic<ConversionPair64>* target,
+                                     ConversionPair64 value) {
+  pthread_mutex_lock(&dex_cache_slow_atomic_mutex);
+  *reinterpret_cast<ConversionPair64*>(target) = value;
+  pthread_mutex_unlock(&dex_cache_slow_atomic_mutex);
+}
+#endif
 
 }  // namespace mirror
 }  // namespace art
