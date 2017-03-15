@@ -42,10 +42,7 @@ enum class RegisterView {  // private
   kUseQuaternaryName,
 };
 
-// For use in the template as the default type to get a nonvector registers version.
-struct NoVectorRegs {};
-
-template<typename Ass, typename Reg, typename FPReg, typename Imm, typename VecReg = NoVectorRegs>
+template<typename Ass, typename Reg, typename FPReg, typename Imm>
 class AssemblerTest : public testing::Test {
  public:
   Ass* GetAssembler() {
@@ -149,8 +146,7 @@ class AssemblerTest : public testing::Test {
                                               std::string (AssemblerTest::*GetName1)(const Reg1&),
                                               std::string (AssemblerTest::*GetName2)(const Reg2&),
                                               const std::string& fmt,
-                                              int bias = 0,
-                                              int multiplier = 1) {
+                                              int bias = 0) {
     std::string str;
     std::vector<int64_t> imms = CreateImmediateValuesBits(abs(imm_bits), (imm_bits > 0));
 
@@ -158,7 +154,7 @@ class AssemblerTest : public testing::Test {
       for (auto reg2 : reg2_registers) {
         for (int64_t imm : imms) {
           ImmType new_imm = CreateImmediate(imm);
-          (assembler_.get()->*f)(*reg1, *reg2, new_imm * multiplier + bias);
+          (assembler_.get()->*f)(*reg1, *reg2, new_imm + bias);
           std::string base = fmt;
 
           std::string reg1_string = (this->*GetName1)(*reg1);
@@ -176,7 +172,7 @@ class AssemblerTest : public testing::Test {
           size_t imm_index = base.find(IMM_TOKEN);
           if (imm_index != std::string::npos) {
             std::ostringstream sreg;
-            sreg << imm * multiplier + bias;
+            sreg << imm + bias;
             std::string imm_string = sreg.str();
             base.replace(imm_index, ConstexprStrLen(IMM_TOKEN), imm_string);
           }
@@ -542,69 +538,6 @@ class AssemblerTest : public testing::Test {
     return str;
   }
 
-  std::string RepeatVV(void (Ass::*f)(VecReg, VecReg), const std::string& fmt) {
-    return RepeatTemplatedRegisters<VecReg, VecReg>(f,
-                                                    GetVectorRegisters(),
-                                                    GetVectorRegisters(),
-                                                    &AssemblerTest::GetVecRegName,
-                                                    &AssemblerTest::GetVecRegName,
-                                                    fmt);
-  }
-
-  std::string RepeatVVV(void (Ass::*f)(VecReg, VecReg, VecReg), const std::string& fmt) {
-    return RepeatTemplatedRegisters<VecReg, VecReg, VecReg>(f,
-                                                            GetVectorRegisters(),
-                                                            GetVectorRegisters(),
-                                                            GetVectorRegisters(),
-                                                            &AssemblerTest::GetVecRegName,
-                                                            &AssemblerTest::GetVecRegName,
-                                                            &AssemblerTest::GetVecRegName,
-                                                            fmt);
-  }
-
-  std::string RepeatVR(void (Ass::*f)(VecReg, Reg), const std::string& fmt) {
-    return RepeatTemplatedRegisters<VecReg, Reg>(
-        f,
-        GetVectorRegisters(),
-        GetRegisters(),
-        &AssemblerTest::GetVecRegName,
-        &AssemblerTest::GetRegName<RegisterView::kUsePrimaryName>,
-        fmt);
-  }
-
-  template <typename ImmType>
-  std::string RepeatVRIb(void (Ass::*f)(VecReg, Reg, ImmType),
-                         int imm_bits,
-                         const std::string& fmt,
-                         int bias = 0,
-                         int multiplier = 1) {
-    return RepeatTemplatedRegistersImmBits<VecReg, Reg, ImmType>(
-        f,
-        imm_bits,
-        GetVectorRegisters(),
-        GetRegisters(),
-        &AssemblerTest::GetVecRegName,
-        &AssemblerTest::GetRegName<RegisterView::kUsePrimaryName>,
-        fmt,
-        bias,
-        multiplier);
-  }
-
-  template <typename ImmType>
-  std::string RepeatVVIb(void (Ass::*f)(VecReg, VecReg, ImmType),
-                         int imm_bits,
-                         const std::string& fmt,
-                         int bias = 0) {
-    return RepeatTemplatedRegistersImmBits<VecReg, VecReg, ImmType>(f,
-                                                                    imm_bits,
-                                                                    GetVectorRegisters(),
-                                                                    GetVectorRegisters(),
-                                                                    &AssemblerTest::GetVecRegName,
-                                                                    &AssemblerTest::GetVecRegName,
-                                                                    fmt,
-                                                                    bias);
-  }
-
   // This is intended to be run as a test.
   bool CheckTools() {
     return test_helper_->CheckTools();
@@ -616,11 +549,6 @@ class AssemblerTest : public testing::Test {
 
   virtual std::vector<FPReg*> GetFPRegisters() {
     UNIMPLEMENTED(FATAL) << "Architecture does not support floating-point registers";
-    UNREACHABLE();
-  }
-
-  virtual std::vector<VecReg*> GetVectorRegisters() {
-    UNIMPLEMENTED(FATAL) << "Architecture does not support vector registers";
     UNREACHABLE();
   }
 
@@ -1038,12 +966,6 @@ class AssemblerTest : public testing::Test {
   }
 
   std::string GetFPRegName(const FPReg& reg) {
-    std::ostringstream sreg;
-    sreg << reg;
-    return sreg.str();
-  }
-
-  std::string GetVecRegName(const VecReg& reg) {
     std::ostringstream sreg;
     sreg << reg;
     return sreg.str();
