@@ -1221,6 +1221,43 @@ void X86Assembler::por(XmmRegister dst, XmmRegister src) {
 }
 
 
+void X86Assembler::pcmpeqb(XmmRegister dst, XmmRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitUint8(0x0F);
+  EmitUint8(0x74);
+  EmitXmmRegisterOperand(dst, src);
+}
+
+
+void X86Assembler::pcmpeqw(XmmRegister dst, XmmRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitUint8(0x0F);
+  EmitUint8(0x75);
+  EmitXmmRegisterOperand(dst, src);
+}
+
+
+void X86Assembler::pcmpeqd(XmmRegister dst, XmmRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitUint8(0x0F);
+  EmitUint8(0x76);
+  EmitXmmRegisterOperand(dst, src);
+}
+
+
+void X86Assembler::pcmpeqq(XmmRegister dst, XmmRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitUint8(0x0F);
+  EmitUint8(0x38);
+  EmitUint8(0x29);
+  EmitXmmRegisterOperand(dst, src);
+}
+
+
 void X86Assembler::shufpd(XmmRegister dst, XmmRegister src, const Immediate& imm) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0x66);
