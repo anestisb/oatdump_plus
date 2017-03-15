@@ -515,6 +515,10 @@ class X86_64Assembler FINAL : public Assembler {
   void andps(XmmRegister dst, XmmRegister src);  // no addr variant (for now)
   void pand(XmmRegister dst, XmmRegister src);
 
+  void andnpd(XmmRegister dst, XmmRegister src);  // no addr variant (for now)
+  void andnps(XmmRegister dst, XmmRegister src);
+  void pandn(XmmRegister dst, XmmRegister src);
+
   void orpd(XmmRegister dst, XmmRegister src);  // no addr variant (for now)
   void orps(XmmRegister dst, XmmRegister src);
   void por(XmmRegister dst, XmmRegister src);

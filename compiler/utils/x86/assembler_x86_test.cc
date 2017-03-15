@@ -581,6 +581,18 @@ TEST_F(AssemblerX86Test, PAnd) {
   DriverStr(RepeatFF(&x86::X86Assembler::pand, "pand %{reg2}, %{reg1}"), "pand");
 }
 
+TEST_F(AssemblerX86Test, AndnPD) {
+  DriverStr(RepeatFF(&x86::X86Assembler::andnpd, "andnpd %{reg2}, %{reg1}"), "andnpd");
+}
+
+TEST_F(AssemblerX86Test, AndnPS) {
+  DriverStr(RepeatFF(&x86::X86Assembler::andnps, "andnps %{reg2}, %{reg1}"), "andnps");
+}
+
+TEST_F(AssemblerX86Test, PAndn) {
+  DriverStr(RepeatFF(&x86::X86Assembler::pandn, "pandn %{reg2}, %{reg1}"), "pandn");
+}
+
 TEST_F(AssemblerX86Test, OrPD) {
   DriverStr(RepeatFF(&x86::X86Assembler::orpd, "orpd %{reg2}, %{reg1}"), "orpd");
 }
