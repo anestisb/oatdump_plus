@@ -111,7 +111,7 @@ void DexoptTest::GenerateOatForTest(const std::string& dex_location,
                                                  &error_msg));
   ASSERT_TRUE(image_header != nullptr) << error_msg;
   const OatHeader& oat_header = odex_file->GetOatHeader();
-  uint32_t combined_checksum = OatFileAssistant::CalculateCombinedImageChecksum();
+  uint32_t combined_checksum = image_header->GetOatChecksum();
 
   if (CompilerFilter::DependsOnImageChecksum(filter)) {
     if (with_alternate_image) {
