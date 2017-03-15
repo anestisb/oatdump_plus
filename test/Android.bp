@@ -336,6 +336,7 @@ cc_defaults {
         "596-monitor-inflation/monitor_inflation.cc",
         "597-deopt-new-string/deopt.cc",
         "626-const-class-linking/clear_dex_cache_types.cc",
+        "642-fp-callees/fp_callees.cc",
     ],
     shared_libs: [
         "libbacktrace",
