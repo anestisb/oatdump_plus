@@ -714,12 +714,12 @@ TEST_F(VerifierDepsTest, MoveException_Unresolved) {
 
 TEST_F(VerifierDepsTest, StaticField_Resolved_DeclaredInReferenced) {
   ASSERT_TRUE(VerifyMethod("StaticField_Resolved_DeclaredInReferenced"));
-  ASSERT_TRUE(HasClass("Ljava/lang/System;", true, "public final"));
+  ASSERT_TRUE(HasClass("Ljava/lang/System;", true, "public"));
   ASSERT_TRUE(HasField("Ljava/lang/System;",
                        "out",
                        "Ljava/io/PrintStream;",
                        true,
-                       "public final static",
+                       "public static",
                        "Ljava/lang/System;"));
 }
 
@@ -727,13 +727,13 @@ TEST_F(VerifierDepsTest, StaticField_Resolved_DeclaredInSuperclass1) {
   ASSERT_TRUE(VerifyMethod("StaticField_Resolved_DeclaredInSuperclass1"));
   ASSERT_TRUE(HasClass("Ljava/util/SimpleTimeZone;", true, "public"));
   ASSERT_TRUE(HasField(
-      "Ljava/util/SimpleTimeZone;", "LONG", "I", true, "public final static", "Ljava/util/TimeZone;"));
+      "Ljava/util/SimpleTimeZone;", "LONG", "I", true, "public static", "Ljava/util/TimeZone;"));
 }
 
 TEST_F(VerifierDepsTest, StaticField_Resolved_DeclaredInSuperclass2) {
   ASSERT_TRUE(VerifyMethod("StaticField_Resolved_DeclaredInSuperclass2"));
   ASSERT_TRUE(HasField(
-      "LMySimpleTimeZone;", "SHORT", "I", true, "public final static", "Ljava/util/TimeZone;"));
+      "LMySimpleTimeZone;", "SHORT", "I", true, "public static", "Ljava/util/TimeZone;"));
 }
 
 TEST_F(VerifierDepsTest, StaticField_Resolved_DeclaredInInterface1) {
@@ -743,7 +743,7 @@ TEST_F(VerifierDepsTest, StaticField_Resolved_DeclaredInInterface1) {
                        "PI_ENABLE_OUTPUT_ESCAPING",
                        "Ljava/lang/String;",
                        true,
-                       "public final static",
+                       "public static",
                        "Ljavax/xml/transform/Result;"));
 }
 
@@ -753,7 +753,7 @@ TEST_F(VerifierDepsTest, StaticField_Resolved_DeclaredInInterface2) {
                        "PI_ENABLE_OUTPUT_ESCAPING",
                        "Ljava/lang/String;",
                        true,
-                       "public final static",
+                       "public static",
                        "Ljavax/xml/transform/Result;"));
 }
 
@@ -763,7 +763,7 @@ TEST_F(VerifierDepsTest, StaticField_Resolved_DeclaredInInterface3) {
                        "PI_ENABLE_OUTPUT_ESCAPING",
                        "Ljava/lang/String;",
                        true,
-                       "public final static",
+                       "public static",
                        "Ljavax/xml/transform/Result;"));
 }
 
@@ -773,13 +773,13 @@ TEST_F(VerifierDepsTest, StaticField_Resolved_DeclaredInInterface4) {
                        "ELEMENT_NODE",
                        "S",
                        true,
-                       "public final static",
+                       "public static",
                        "Lorg/w3c/dom/Node;"));
 }
 
 TEST_F(VerifierDepsTest, StaticField_Unresolved_ReferrerInBoot) {
   ASSERT_TRUE(VerifyMethod("StaticField_Unresolved_ReferrerInBoot"));
-  ASSERT_TRUE(HasClass("Ljava/util/TimeZone;", true, "public abstract"));
+  ASSERT_TRUE(HasClass("Ljava/util/TimeZone;", true, "public"));
   ASSERT_TRUE(HasField("Ljava/util/TimeZone;", "x", "I", false));
 }
 
@@ -851,7 +851,7 @@ TEST_F(VerifierDepsTest, InvokeStatic_Resolved_DeclaredInReferenced) {
 
 TEST_F(VerifierDepsTest, InvokeStatic_Resolved_DeclaredInSuperclass1) {
   ASSERT_TRUE(VerifyMethod("InvokeStatic_Resolved_DeclaredInSuperclass1"));
-  ASSERT_TRUE(HasClass("Ljavax/net/ssl/SSLSocket;", true, "public abstract"));
+  ASSERT_TRUE(HasClass("Ljavax/net/ssl/SSLSocket;", true, "public"));
   ASSERT_TRUE(HasMethod("direct",
                         "Ljavax/net/ssl/SSLSocket;",
                         "setSocketImplFactory",
@@ -874,7 +874,7 @@ TEST_F(VerifierDepsTest, InvokeStatic_Resolved_DeclaredInSuperclass2) {
 
 TEST_F(VerifierDepsTest, InvokeStatic_DeclaredInInterface1) {
   ASSERT_TRUE(VerifyMethod("InvokeStatic_DeclaredInInterface1"));
-  ASSERT_TRUE(HasClass("Ljava/util/Map$Entry;", true, "public abstract interface"));
+  ASSERT_TRUE(HasClass("Ljava/util/Map$Entry;", true, "public interface"));
   ASSERT_TRUE(HasMethod("direct",
                         "Ljava/util/Map$Entry;",
                         "comparingByKey",
@@ -896,7 +896,7 @@ TEST_F(VerifierDepsTest, InvokeStatic_DeclaredInInterface2) {
 
 TEST_F(VerifierDepsTest, InvokeStatic_Unresolved1) {
   ASSERT_FALSE(VerifyMethod("InvokeStatic_Unresolved1"));
-  ASSERT_TRUE(HasClass("Ljavax/net/ssl/SSLSocket;", true, "public abstract"));
+  ASSERT_TRUE(HasClass("Ljavax/net/ssl/SSLSocket;", true, "public"));
   ASSERT_TRUE(HasMethod("direct", "Ljavax/net/ssl/SSLSocket;", "x", "()V", false));
 }
 
@@ -914,7 +914,7 @@ TEST_F(VerifierDepsTest, InvokeDirect_Resolved_DeclaredInReferenced) {
 
 TEST_F(VerifierDepsTest, InvokeDirect_Resolved_DeclaredInSuperclass1) {
   ASSERT_FALSE(VerifyMethod("InvokeDirect_Resolved_DeclaredInSuperclass1"));
-  ASSERT_TRUE(HasClass("Ljavax/net/ssl/SSLSocket;", true, "public abstract"));
+  ASSERT_TRUE(HasClass("Ljavax/net/ssl/SSLSocket;", true, "public"));
   ASSERT_TRUE(HasMethod("direct",
                         "Ljavax/net/ssl/SSLSocket;",
                         "checkOldImpl",
@@ -932,7 +932,7 @@ TEST_F(VerifierDepsTest, InvokeDirect_Resolved_DeclaredInSuperclass2) {
 
 TEST_F(VerifierDepsTest, InvokeDirect_Unresolved1) {
   ASSERT_FALSE(VerifyMethod("InvokeDirect_Unresolved1"));
-  ASSERT_TRUE(HasClass("Ljavax/net/ssl/SSLSocket;", true, "public abstract"));
+  ASSERT_TRUE(HasClass("Ljavax/net/ssl/SSLSocket;", true, "public"));
   ASSERT_TRUE(HasMethod("direct", "Ljavax/net/ssl/SSLSocket;", "x", "()V", false));
 }
 
@@ -987,7 +987,7 @@ TEST_F(VerifierDepsTest, InvokeVirtual_Resolved_DeclaredInSuperinterface) {
                         "size",
                         "()I",
                         true,
-                        "public abstract",
+                        "public",
                         "Ljava/util/Set;"));
 }
 
@@ -1016,13 +1016,13 @@ TEST_F(VerifierDepsTest, InvokeVirtual_ActuallyDirect) {
 
 TEST_F(VerifierDepsTest, InvokeInterface_Resolved_DeclaredInReferenced) {
   ASSERT_TRUE(VerifyMethod("InvokeInterface_Resolved_DeclaredInReferenced"));
-  ASSERT_TRUE(HasClass("Ljava/lang/Runnable;", true, "public abstract interface"));
+  ASSERT_TRUE(HasClass("Ljava/lang/Runnable;", true, "public interface"));
   ASSERT_TRUE(HasMethod("interface",
                         "Ljava/lang/Runnable;",
                         "run",
                         "()V",
                         true,
-                        "public abstract",
+                        "public",
                         "Ljava/lang/Runnable;"));
 }
 
@@ -1038,7 +1038,7 @@ TEST_F(VerifierDepsTest, InvokeInterface_Resolved_DeclaredInSuperinterface1) {
                         "run",
                         "()V",
                         true,
-                        "public abstract",
+                        "public",
                         "Ljava/lang/Runnable;"));
 }
 
@@ -1049,13 +1049,13 @@ TEST_F(VerifierDepsTest, InvokeInterface_Resolved_DeclaredInSuperinterface2) {
                         "isEmpty",
                         "()Z",
                         true,
-                        "public abstract",
+                        "public",
                         "Ljava/util/Set;"));
 }
 
 TEST_F(VerifierDepsTest, InvokeInterface_Unresolved1) {
   ASSERT_FALSE(VerifyMethod("InvokeInterface_Unresolved1"));
-  ASSERT_TRUE(HasClass("Ljava/lang/Runnable;", true, "public abstract interface"));
+  ASSERT_TRUE(HasClass("Ljava/lang/Runnable;", true, "public interface"));
   ASSERT_TRUE(HasMethod("interface", "Ljava/lang/Runnable;", "x", "()V", false));
 }
 
@@ -1066,20 +1066,20 @@ TEST_F(VerifierDepsTest, InvokeInterface_Unresolved2) {
 
 TEST_F(VerifierDepsTest, InvokeSuper_ThisAssignable) {
   ASSERT_TRUE(VerifyMethod("InvokeSuper_ThisAssignable"));
-  ASSERT_TRUE(HasClass("Ljava/lang/Runnable;", true, "public abstract interface"));
+  ASSERT_TRUE(HasClass("Ljava/lang/Runnable;", true, "public interface"));
   ASSERT_TRUE(HasAssignable("Ljava/lang/Runnable;", "Ljava/lang/Thread;", true));
   ASSERT_TRUE(HasMethod("interface",
                         "Ljava/lang/Runnable;",
                         "run",
                         "()V",
                         true,
-                        "public abstract",
+                        "public",
                         "Ljava/lang/Runnable;"));
 }
 
 TEST_F(VerifierDepsTest, InvokeSuper_ThisNotAssignable) {
   ASSERT_FALSE(VerifyMethod("InvokeSuper_ThisNotAssignable"));
-  ASSERT_TRUE(HasClass("Ljava/lang/Integer;", true, "public final"));
+  ASSERT_TRUE(HasClass("Ljava/lang/Integer;", true, "public"));
   ASSERT_TRUE(HasAssignable("Ljava/lang/Integer;", "Ljava/lang/Thread;", false));
   ASSERT_TRUE(HasMethod(
       "virtual", "Ljava/lang/Integer;", "intValue", "()I", true, "public", "Ljava/lang/Integer;"));
@@ -1087,12 +1087,12 @@ TEST_F(VerifierDepsTest, InvokeSuper_ThisNotAssignable) {
 
 TEST_F(VerifierDepsTest, ArgumentType_ResolvedReferenceArray) {
   ASSERT_TRUE(VerifyMethod("ArgumentType_ResolvedReferenceArray"));
-  ASSERT_TRUE(HasClass("[Ljava/lang/Thread;", true, "public final abstract"));
+  ASSERT_TRUE(HasClass("[Ljava/lang/Thread;", true, "public"));
 }
 
 TEST_F(VerifierDepsTest, NewArray_Resolved) {
   ASSERT_TRUE(VerifyMethod("NewArray_Resolved"));
-  ASSERT_TRUE(HasClass("[Ljava/lang/IllegalStateException;", true, "public final abstract"));
+  ASSERT_TRUE(HasClass("[Ljava/lang/IllegalStateException;", true, "public"));
 }
 
 TEST_F(VerifierDepsTest, EncodeDecode) {

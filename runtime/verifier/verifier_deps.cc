@@ -68,13 +68,17 @@ const VerifierDeps::DexFileDeps* VerifierDeps::GetDexFileDeps(const DexFile& dex
   return (it == dex_deps_.end()) ? nullptr : it->second.get();
 }
 
+// Access flags that impact vdex verification.
+static constexpr uint32_t kAccVdexAccessFlags =
+    kAccPublic | kAccPrivate | kAccProtected | kAccStatic | kAccInterface;
+
 template <typename T>
 uint16_t VerifierDeps::GetAccessFlags(T* element) {
   static_assert(kAccJavaFlagsMask == 0xFFFF, "Unexpected value of a constant");
   if (element == nullptr) {
     return VerifierDeps::kUnresolvedMarker;
   } else {
-    uint16_t access_flags = Low16Bits(element->GetAccessFlags());
+    uint16_t access_flags = Low16Bits(element->GetAccessFlags()) & kAccVdexAccessFlags;
     CHECK_NE(access_flags, VerifierDeps::kUnresolvedMarker);
     return access_flags;
   }
