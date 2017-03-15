@@ -104,16 +104,6 @@ mirror::DexCache* ArtMethod::GetObsoleteDexCache() {
   UNREACHABLE();
 }
 
-uint16_t ArtMethod::FindObsoleteDexClassDefIndex() {
-  DCHECK(!Runtime::Current()->IsAotCompiler()) << PrettyMethod();
-  DCHECK(IsObsolete());
-  const DexFile* dex_file = GetDexFile();
-  const dex::TypeIndex declaring_class_type = dex_file->GetMethodId(GetDexMethodIndex()).class_idx_;
-  const DexFile::ClassDef* class_def = dex_file->FindClassDef(declaring_class_type);
-  CHECK(class_def != nullptr);
-  return dex_file->GetIndexForClassDef(*class_def);
-}
-
 mirror::String* ArtMethod::GetNameAsString(Thread* self) {
   CHECK(!IsProxyMethod());
   StackHandleScope<1> hs(self);
