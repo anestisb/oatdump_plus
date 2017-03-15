@@ -539,6 +539,22 @@ def print_test_info(test_name, result, failed_test_info=""):
   finally:
     print_mutex.release()
 
+def verify_knownfailure_entry(entry):
+  supported_field = {
+      'tests' : (list, unicode),
+      'description' : (list, unicode),
+      'bug' : (unicode,),
+      'variant' : (unicode,),
+      'env_vars' : (dict,),
+  }
+  for field in entry:
+    field_type = type(entry[field])
+    if field_type not in supported_field[field]:
+      raise ValueError('%s is not supported type for %s\n%s' % (
+          str(field_type),
+          field,
+          str(entry)))
+
 def get_disabled_test_info():
   """Generate set of known failures.
 
@@ -555,15 +571,18 @@ def get_disabled_test_info():
 
   disabled_test_info = {}
   for failure in known_failures_info:
-    tests = failure.get('test')
-    if tests:
+    verify_knownfailure_entry(failure)
+    tests = failure.get('tests', [])
+    if isinstance(tests, unicode):
       tests = [tests]
-    else:
-      tests = failure.get('tests', [])
     variants = parse_variants(failure.get('variant'))
     env_vars = failure.get('env_vars')
+
     if check_env_vars(env_vars):
       for test in tests:
+        if test not in RUN_TEST_SET:
+          raise ValueError('%s is not a valid run-test' % (
+              test))
         if test in disabled_test_info:
           disabled_test_info[test] = disabled_test_info[test].union(variants)
         else:
@@ -627,6 +646,9 @@ def parse_variants(variants):
     variant = set()
     for and_variant in and_variants:
       and_variant = and_variant.strip()
+      if and_variant not in TOTAL_VARIANTS_SET:
+        raise ValueError('%s is not a valid variant' % (
+            and_variant))
       variant.add(and_variant)
     variant_list.add(frozenset(variant))
   return variant_list
