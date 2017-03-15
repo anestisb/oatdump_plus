@@ -309,6 +309,7 @@ PreciseReferenceType::PreciseReferenceType(mirror::Class* klass, const StringPie
   // Note: no check for IsInstantiable() here. We may produce this in case an InstantiationError
   //       would be thrown at runtime, but we need to continue verification and *not* create a
   //       hard failure or abort.
+  CheckConstructorInvariants(this);
 }
 
 std::string UnresolvedMergedType::Dump() const {
@@ -789,7 +790,7 @@ void RegType::CheckInvariants() const {
   if (!klass_.IsNull()) {
     CHECK(!descriptor_.empty()) << *this;
     std::string temp;
-    CHECK_EQ(descriptor_.ToString(), klass_.Read()->GetDescriptor(&temp)) << *this;
+    CHECK_EQ(descriptor_, klass_.Read()->GetDescriptor(&temp)) << *this;
   }
 }
 
@@ -820,9 +821,7 @@ UnresolvedMergedType::UnresolvedMergedType(const RegType& resolved,
       reg_type_cache_(reg_type_cache),
       resolved_part_(resolved),
       unresolved_types_(unresolved, false, unresolved.GetAllocator()) {
-  if (kIsDebugBuild) {
-    CheckInvariants();
-  }
+  CheckConstructorInvariants(this);
 }
 void UnresolvedMergedType::CheckInvariants() const {
   CHECK(reg_type_cache_ != nullptr);
