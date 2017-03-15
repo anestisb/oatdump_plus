@@ -29,6 +29,7 @@ class LinearAlloc {
   explicit LinearAlloc(ArenaPool* pool);
 
   void* Alloc(Thread* self, size_t size) REQUIRES(!lock_);
+  void* AllocAlign16(Thread* self, size_t size) REQUIRES(!lock_);
 
   // Realloc never frees the input pointer, it is the caller's job to do this if necessary.
   void* Realloc(Thread* self, void* ptr, size_t old_size, size_t new_size) REQUIRES(!lock_);
