@@ -1681,6 +1681,25 @@ void InstructionCodeGeneratorMIPS64::VisitArrayLength(HArrayLength* instruction)
   }
 }
 
+Location LocationsBuilderMIPS64::RegisterOrZeroConstant(HInstruction* instruction) {
+  return (instruction->IsConstant() && instruction->AsConstant()->IsZeroBitPattern())
+      ? Location::ConstantLocation(instruction->AsConstant())
+      : Location::RequiresRegister();
+}
+
+Location LocationsBuilderMIPS64::FpuRegisterOrConstantForStore(HInstruction* instruction) {
+  // We can store 0.0 directly (from the ZERO register) without loading it into an FPU register.
+  // We can store a non-zero float or double constant without first loading it into the FPU,
+  // but we should only prefer this if the constant has a single use.
+  if (instruction->IsConstant() &&
+      (instruction->AsConstant()->IsZeroBitPattern() ||
+       instruction->GetUses().HasExactlyOneElement())) {
+    return Location::ConstantLocation(instruction->AsConstant());
+    // Otherwise fall through and require an FPU register for the constant.
+  }
+  return Location::RequiresFpuRegister();
+}
+
 void LocationsBuilderMIPS64::VisitArraySet(HArraySet* instruction) {
   bool needs_runtime_call = instruction->NeedsTypeCheck();
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(
@@ -1695,9 +1714,9 @@ void LocationsBuilderMIPS64::VisitArraySet(HArraySet* instruction) {
     locations->SetInAt(0, Location::RequiresRegister());
     locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
     if (Primitive::IsFloatingPointType(instruction->InputAt(2)->GetType())) {
-      locations->SetInAt(2, Location::RequiresFpuRegister());
+      locations->SetInAt(2, FpuRegisterOrConstantForStore(instruction->InputAt(2)));
     } else {
-      locations->SetInAt(2, Location::RequiresRegister());
+      locations->SetInAt(2, RegisterOrZeroConstant(instruction->InputAt(2)));
     }
   }
 }
@@ -1706,24 +1725,29 @@ void InstructionCodeGeneratorMIPS64::VisitArraySet(HArraySet* instruction) {
   LocationSummary* locations = instruction->GetLocations();
   GpuRegister obj = locations->InAt(0).AsRegister<GpuRegister>();
   Location index = locations->InAt(1);
+  Location value_location = locations->InAt(2);
   Primitive::Type value_type = instruction->GetComponentType();
   bool needs_runtime_call = locations->WillCall();
   bool needs_write_barrier =
       CodeGenerator::StoreNeedsWriteBarrier(value_type, instruction->GetValue());
   auto null_checker = GetImplicitNullChecker(instruction, codegen_);
+  GpuRegister base_reg = index.IsConstant() ? obj : TMP;
 
   switch (value_type) {
     case Primitive::kPrimBoolean:
     case Primitive::kPrimByte: {
       uint32_t data_offset = mirror::Array::DataOffset(sizeof(uint8_t)).Uint32Value();
-      GpuRegister value = locations->InAt(2).AsRegister<GpuRegister>();
       if (index.IsConstant()) {
-        size_t offset =
-            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_1) + data_offset;
-        __ StoreToOffset(kStoreByte, value, obj, offset, null_checker);
+        data_offset += index.GetConstant()->AsIntConstant()->GetValue() << TIMES_1;
       } else {
-        __ Daddu(TMP, obj, index.AsRegister<GpuRegister>());
-        __ StoreToOffset(kStoreByte, value, TMP, data_offset, null_checker);
+        __ Daddu(base_reg, obj, index.AsRegister<GpuRegister>());
+      }
+      if (value_location.IsConstant()) {
+        int32_t value = CodeGenerator::GetInt32ValueOf(value_location.GetConstant());
+        __ StoreConstToOffset(kStoreByte, value, base_reg, data_offset, TMP, null_checker);
+      } else {
+        GpuRegister value = value_location.AsRegister<GpuRegister>();
+        __ StoreToOffset(kStoreByte, value, base_reg, data_offset, null_checker);
       }
       break;
     }
@@ -1731,15 +1755,18 @@ void InstructionCodeGeneratorMIPS64::VisitArraySet(HArraySet* instruction) {
     case Primitive::kPrimShort:
     case Primitive::kPrimChar: {
       uint32_t data_offset = mirror::Array::DataOffset(sizeof(uint16_t)).Uint32Value();
-      GpuRegister value = locations->InAt(2).AsRegister<GpuRegister>();
       if (index.IsConstant()) {
-        size_t offset =
-            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_2) + data_offset;
-        __ StoreToOffset(kStoreHalfword, value, obj, offset, null_checker);
+        data_offset += index.GetConstant()->AsIntConstant()->GetValue() << TIMES_2;
       } else {
-        __ Dsll(TMP, index.AsRegister<GpuRegister>(), TIMES_2);
-        __ Daddu(TMP, obj, TMP);
-        __ StoreToOffset(kStoreHalfword, value, TMP, data_offset, null_checker);
+        __ Dsll(base_reg, index.AsRegister<GpuRegister>(), TIMES_2);
+        __ Daddu(base_reg, obj, base_reg);
+      }
+      if (value_location.IsConstant()) {
+        int32_t value = CodeGenerator::GetInt32ValueOf(value_location.GetConstant());
+        __ StoreConstToOffset(kStoreHalfword, value, base_reg, data_offset, TMP, null_checker);
+      } else {
+        GpuRegister value = value_location.AsRegister<GpuRegister>();
+        __ StoreToOffset(kStoreHalfword, value, base_reg, data_offset, null_checker);
       }
       break;
     }
@@ -1748,54 +1775,57 @@ void InstructionCodeGeneratorMIPS64::VisitArraySet(HArraySet* instruction) {
     case Primitive::kPrimNot: {
       if (!needs_runtime_call) {
         uint32_t data_offset = mirror::Array::DataOffset(sizeof(int32_t)).Uint32Value();
-        GpuRegister base_reg;
-        GpuRegister value = locations->InAt(2).AsRegister<GpuRegister>();
         if (index.IsConstant()) {
           data_offset += index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4;
-          base_reg = obj;
         } else {
           DCHECK(index.IsRegister()) << index;
-          __ Dsll(TMP, index.AsRegister<GpuRegister>(), TIMES_4);
-          __ Daddu(TMP, obj, TMP);
-          base_reg = TMP;
+          __ Dsll(base_reg, index.AsRegister<GpuRegister>(), TIMES_4);
+          __ Daddu(base_reg, obj, base_reg);
         }
-        if (kPoisonHeapReferences && needs_write_barrier) {
-          // Note that in the case where `value` is a null reference,
-          // we do not enter this block, as a null reference does not
-          // need poisoning.
-          DCHECK_EQ(value_type, Primitive::kPrimNot);
-          // Use Sw() instead of StoreToOffset() in order to be able to
-          // hold the poisoned reference in AT and thus avoid allocating
-          // yet another temporary register.
-          if (index.IsConstant()) {
-            if (!IsInt<16>(static_cast<int32_t>(data_offset))) {
-              int16_t low16 = Low16Bits(data_offset);
-              // For consistency with StoreToOffset() and such treat data_offset as int32_t.
-              uint64_t high48 = static_cast<uint64_t>(static_cast<int32_t>(data_offset)) - low16;
-              int16_t upper16 = High16Bits(high48);
-              // Allow the full [-2GB,+2GB) range in case `low16` is negative and needs a
-              // compensatory 64KB added, which may push `high48` above 2GB and require
-              // the dahi instruction.
-              int16_t higher16 = High32Bits(high48) + ((upper16 < 0) ? 1 : 0);
-              __ Daui(TMP, obj, upper16);
-              if (higher16 != 0) {
-                __ Dahi(TMP, higher16);
-              }
-              base_reg = TMP;
-              data_offset = low16;
-            }
-          } else {
-            DCHECK(IsInt<16>(static_cast<int32_t>(data_offset)));
-          }
-          __ PoisonHeapReference(AT, value);
-          __ Sw(AT, base_reg, data_offset);
-          null_checker();
+        if (value_location.IsConstant()) {
+          int32_t value = CodeGenerator::GetInt32ValueOf(value_location.GetConstant());
+          __ StoreConstToOffset(kStoreWord, value, base_reg, data_offset, TMP, null_checker);
+          DCHECK(!needs_write_barrier);
         } else {
-          __ StoreToOffset(kStoreWord, value, base_reg, data_offset, null_checker);
-        }
-        if (needs_write_barrier) {
-          DCHECK_EQ(value_type, Primitive::kPrimNot);
-          codegen_->MarkGCCard(obj, value, instruction->GetValueCanBeNull());
+          GpuRegister value = value_location.AsRegister<GpuRegister>();
+          if (kPoisonHeapReferences && needs_write_barrier) {
+            // Note that in the case where `value` is a null reference,
+            // we do not enter this block, as a null reference does not
+            // need poisoning.
+            DCHECK_EQ(value_type, Primitive::kPrimNot);
+            // Use Sw() instead of StoreToOffset() in order to be able to
+            // hold the poisoned reference in AT and thus avoid allocating
+            // yet another temporary register.
+            if (index.IsConstant()) {
+              if (!IsInt<16>(static_cast<int32_t>(data_offset))) {
+                int16_t low16 = Low16Bits(data_offset);
+                // For consistency with StoreToOffset() and such treat data_offset as int32_t.
+                uint64_t high48 = static_cast<uint64_t>(static_cast<int32_t>(data_offset)) - low16;
+                int16_t upper16 = High16Bits(high48);
+                // Allow the full [-2GB,+2GB) range in case `low16` is negative and needs a
+                // compensatory 64KB added, which may push `high48` above 2GB and require
+                // the dahi instruction.
+                int16_t higher16 = High32Bits(high48) + ((upper16 < 0) ? 1 : 0);
+                __ Daui(TMP, obj, upper16);
+                if (higher16 != 0) {
+                  __ Dahi(TMP, higher16);
+                }
+                base_reg = TMP;
+                data_offset = low16;
+              }
+            } else {
+              DCHECK(IsInt<16>(static_cast<int32_t>(data_offset)));
+            }
+            __ PoisonHeapReference(AT, value);
+            __ Sw(AT, base_reg, data_offset);
+            null_checker();
+          } else {
+            __ StoreToOffset(kStoreWord, value, base_reg, data_offset, null_checker);
+          }
+          if (needs_write_barrier) {
+            DCHECK_EQ(value_type, Primitive::kPrimNot);
+            codegen_->MarkGCCard(obj, value, instruction->GetValueCanBeNull());
+          }
         }
       } else {
         DCHECK_EQ(value_type, Primitive::kPrimNot);
@@ -1809,47 +1839,54 @@ void InstructionCodeGeneratorMIPS64::VisitArraySet(HArraySet* instruction) {
 
     case Primitive::kPrimLong: {
       uint32_t data_offset = mirror::Array::DataOffset(sizeof(int64_t)).Uint32Value();
-      GpuRegister value = locations->InAt(2).AsRegister<GpuRegister>();
       if (index.IsConstant()) {
-        size_t offset =
-            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8) + data_offset;
-        __ StoreToOffset(kStoreDoubleword, value, obj, offset, null_checker);
+        data_offset += index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8;
       } else {
-        __ Dsll(TMP, index.AsRegister<GpuRegister>(), TIMES_8);
-        __ Daddu(TMP, obj, TMP);
-        __ StoreToOffset(kStoreDoubleword, value, TMP, data_offset, null_checker);
+        __ Dsll(base_reg, index.AsRegister<GpuRegister>(), TIMES_8);
+        __ Daddu(base_reg, obj, base_reg);
+      }
+      if (value_location.IsConstant()) {
+        int64_t value = CodeGenerator::GetInt64ValueOf(value_location.GetConstant());
+        __ StoreConstToOffset(kStoreDoubleword, value, base_reg, data_offset, TMP, null_checker);
+      } else {
+        GpuRegister value = value_location.AsRegister<GpuRegister>();
+        __ StoreToOffset(kStoreDoubleword, value, base_reg, data_offset, null_checker);
       }
       break;
     }
 
     case Primitive::kPrimFloat: {
       uint32_t data_offset = mirror::Array::DataOffset(sizeof(float)).Uint32Value();
-      FpuRegister value = locations->InAt(2).AsFpuRegister<FpuRegister>();
-      DCHECK(locations->InAt(2).IsFpuRegister());
       if (index.IsConstant()) {
-        size_t offset =
-            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
-        __ StoreFpuToOffset(kStoreWord, value, obj, offset, null_checker);
+        data_offset += index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4;
       } else {
-        __ Dsll(TMP, index.AsRegister<GpuRegister>(), TIMES_4);
-        __ Daddu(TMP, obj, TMP);
-        __ StoreFpuToOffset(kStoreWord, value, TMP, data_offset, null_checker);
+        __ Dsll(base_reg, index.AsRegister<GpuRegister>(), TIMES_4);
+        __ Daddu(base_reg, obj, base_reg);
+      }
+      if (value_location.IsConstant()) {
+        int32_t value = CodeGenerator::GetInt32ValueOf(value_location.GetConstant());
+        __ StoreConstToOffset(kStoreWord, value, base_reg, data_offset, TMP, null_checker);
+      } else {
+        FpuRegister value = value_location.AsFpuRegister<FpuRegister>();
+        __ StoreFpuToOffset(kStoreWord, value, base_reg, data_offset, null_checker);
       }
       break;
     }
 
     case Primitive::kPrimDouble: {
       uint32_t data_offset = mirror::Array::DataOffset(sizeof(double)).Uint32Value();
-      FpuRegister value = locations->InAt(2).AsFpuRegister<FpuRegister>();
-      DCHECK(locations->InAt(2).IsFpuRegister());
       if (index.IsConstant()) {
-        size_t offset =
-            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8) + data_offset;
-        __ StoreFpuToOffset(kStoreDoubleword, value, obj, offset, null_checker);
+        data_offset += index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8;
       } else {
-        __ Dsll(TMP, index.AsRegister<GpuRegister>(), TIMES_8);
-        __ Daddu(TMP, obj, TMP);
-        __ StoreFpuToOffset(kStoreDoubleword, value, TMP, data_offset, null_checker);
+        __ Dsll(base_reg, index.AsRegister<GpuRegister>(), TIMES_8);
+        __ Daddu(base_reg, obj, base_reg);
+      }
+      if (value_location.IsConstant()) {
+        int64_t value = CodeGenerator::GetInt64ValueOf(value_location.GetConstant());
+        __ StoreConstToOffset(kStoreDoubleword, value, base_reg, data_offset, TMP, null_checker);
+      } else {
+        FpuRegister value = value_location.AsFpuRegister<FpuRegister>();
+        __ StoreFpuToOffset(kStoreDoubleword, value, base_reg, data_offset, null_checker);
       }
       break;
     }
@@ -3326,9 +3363,9 @@ void LocationsBuilderMIPS64::HandleFieldSet(HInstruction* instruction,
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
   locations->SetInAt(0, Location::RequiresRegister());
   if (Primitive::IsFloatingPointType(instruction->InputAt(1)->GetType())) {
-    locations->SetInAt(1, Location::RequiresFpuRegister());
+    locations->SetInAt(1, FpuRegisterOrConstantForStore(instruction->InputAt(1)));
   } else {
-    locations->SetInAt(1, Location::RequiresRegister());
+    locations->SetInAt(1, RegisterOrZeroConstant(instruction->InputAt(1)));
   }
 }
 
@@ -3338,6 +3375,7 @@ void InstructionCodeGeneratorMIPS64::HandleFieldSet(HInstruction* instruction,
   Primitive::Type type = field_info.GetFieldType();
   LocationSummary* locations = instruction->GetLocations();
   GpuRegister obj = locations->InAt(0).AsRegister<GpuRegister>();
+  Location value_location = locations->InAt(1);
   StoreOperandType store_type = kStoreByte;
   uint32_t offset = field_info.GetFieldOffset().Uint32Value();
   bool needs_write_barrier = CodeGenerator::StoreNeedsWriteBarrier(type, instruction->InputAt(1));
@@ -3365,29 +3403,34 @@ void InstructionCodeGeneratorMIPS64::HandleFieldSet(HInstruction* instruction,
       LOG(FATAL) << "Unreachable type " << type;
       UNREACHABLE();
   }
-  if (!Primitive::IsFloatingPointType(type)) {
-    DCHECK(locations->InAt(1).IsRegister());
-    GpuRegister src = locations->InAt(1).AsRegister<GpuRegister>();
-    if (kPoisonHeapReferences && needs_write_barrier) {
-      // Note that in the case where `value` is a null reference,
-      // we do not enter this block, as a null reference does not
-      // need poisoning.
-      DCHECK_EQ(type, Primitive::kPrimNot);
-      __ PoisonHeapReference(TMP, src);
-      __ StoreToOffset(store_type, TMP, obj, offset, null_checker);
-    } else {
-      __ StoreToOffset(store_type, src, obj, offset, null_checker);
-    }
-  } else {
-    DCHECK(locations->InAt(1).IsFpuRegister());
-    FpuRegister src = locations->InAt(1).AsFpuRegister<FpuRegister>();
-    __ StoreFpuToOffset(store_type, src, obj, offset, null_checker);
-  }
 
+  if (value_location.IsConstant()) {
+    int64_t value = CodeGenerator::GetInt64ValueOf(value_location.GetConstant());
+    __ StoreConstToOffset(store_type, value, obj, offset, TMP, null_checker);
+  } else {
+    if (!Primitive::IsFloatingPointType(type)) {
+      DCHECK(value_location.IsRegister());
+      GpuRegister src = value_location.AsRegister<GpuRegister>();
+      if (kPoisonHeapReferences && needs_write_barrier) {
+        // Note that in the case where `value` is a null reference,
+        // we do not enter this block, as a null reference does not
+        // need poisoning.
+        DCHECK_EQ(type, Primitive::kPrimNot);
+        __ PoisonHeapReference(TMP, src);
+        __ StoreToOffset(store_type, TMP, obj, offset, null_checker);
+      } else {
+        __ StoreToOffset(store_type, src, obj, offset, null_checker);
+      }
+    } else {
+      DCHECK(value_location.IsFpuRegister());
+      FpuRegister src = value_location.AsFpuRegister<FpuRegister>();
+      __ StoreFpuToOffset(store_type, src, obj, offset, null_checker);
+    }
+  }
   // TODO: memory barriers?
   if (needs_write_barrier) {
-    DCHECK(locations->InAt(1).IsRegister());
-    GpuRegister src = locations->InAt(1).AsRegister<GpuRegister>();
+    DCHECK(value_location.IsRegister());
+    GpuRegister src = value_location.AsRegister<GpuRegister>();
     codegen_->MarkGCCard(obj, src, value_can_be_null);
   }
 }
