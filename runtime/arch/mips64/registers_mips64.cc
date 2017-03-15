@@ -46,5 +46,14 @@ std::ostream& operator<<(std::ostream& os, const FpuRegister& rhs) {
   return os;
 }
 
+std::ostream& operator<<(std::ostream& os, const VectorRegister& rhs) {
+  if (rhs >= W0 && rhs < kNumberOfVectorRegisters) {
+    os << "w" << static_cast<int>(rhs);
+  } else {
+    os << "VectorRegister[" << static_cast<int>(rhs) << "]";
+  }
+  return os;
+}
+
 }  // namespace mips64
 }  // namespace art
