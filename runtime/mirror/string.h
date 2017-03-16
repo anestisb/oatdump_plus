@@ -96,7 +96,7 @@ class MANAGED String FINAL : public Object {
 
   // Create a new string where all occurences of `old_c` are replaced with `new_c`.
   // String.doReplace(char, char) is called from String.replace(char, char) when there is a match.
-  ObjPtr<String> DoReplace(Thread* self, uint16_t old_c, uint16_t new_c)
+  static ObjPtr<String> DoReplace(Thread* self, Handle<String> src, uint16_t old_c, uint16_t new_c)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   ObjPtr<String> Intern() REQUIRES_SHARED(Locks::mutator_lock_);

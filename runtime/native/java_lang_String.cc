@@ -101,8 +101,9 @@ static jstring String_intern(JNIEnv* env, jobject java_this) {
 
 static jstring String_doReplace(JNIEnv* env, jobject java_this, jchar old_c, jchar new_c) {
   ScopedFastNativeObjectAccess soa(env);
-  ObjPtr<mirror::String> result =
-      soa.Decode<mirror::String>(java_this)->DoReplace(soa.Self(), old_c, new_c);
+  StackHandleScope<1> hs(soa.Self());
+  Handle<mirror::String> string = hs.NewHandle(soa.Decode<mirror::String>(java_this));
+  ObjPtr<mirror::String> result = mirror::String::DoReplace(soa.Self(), string, old_c, new_c);
   return soa.AddLocalReference<jstring>(result);
 }
 
