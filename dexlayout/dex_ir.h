@@ -748,8 +748,7 @@ class ClassDef : public IndexedItem {
   const TypeId* ClassType() const { return class_type_; }
   uint32_t GetAccessFlags() const { return access_flags_; }
   const TypeId* Superclass() const { return superclass_; }
-  const TypeIdVector* Interfaces()
-      { return interfaces_ == nullptr ? nullptr : interfaces_->GetTypeList(); }
+  const TypeList* Interfaces() { return interfaces_; }
   uint32_t InterfacesOffset() { return interfaces_ == nullptr ? 0 : interfaces_->GetOffset(); }
   const StringId* SourceFile() const { return source_file_; }
   AnnotationsDirectoryItem* Annotations() const { return annotations_; }
@@ -781,7 +780,7 @@ class TypeAddrPair {
   uint32_t GetAddress() const { return address_; }
 
  private:
-  const TypeId* type_id_;
+  const TypeId* type_id_;  // This can be nullptr.
   uint32_t address_;
 
   DISALLOW_COPY_AND_ASSIGN(TypeAddrPair);
