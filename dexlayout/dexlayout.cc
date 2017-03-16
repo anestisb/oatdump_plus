@@ -1369,10 +1369,11 @@ void DexLayout::DumpClass(int idx, char** last_package) {
   }
 
   // Interfaces.
-  const dex_ir::TypeIdVector* interfaces = class_def->Interfaces();
+  const dex_ir::TypeList* interfaces = class_def->Interfaces();
   if (interfaces != nullptr) {
-    for (uint32_t i = 0; i < interfaces->size(); i++) {
-      DumpInterface((*interfaces)[i], i);
+    const dex_ir::TypeIdVector* interfaces_vector = interfaces->GetTypeList();
+    for (uint32_t i = 0; i < interfaces_vector->size(); i++) {
+      DumpInterface((*interfaces_vector)[i], i);
     }  // for
   }
 
