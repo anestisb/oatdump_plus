@@ -1336,12 +1336,14 @@ void UnstartedRuntime::UnstartedStringDoReplace(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
   jchar old_c = shadow_frame->GetVReg(arg_offset + 1);
   jchar new_c = shadow_frame->GetVReg(arg_offset + 2);
-  ObjPtr<mirror::String> string = shadow_frame->GetVRegReference(arg_offset)->AsString();
+  StackHandleScope<1> hs(self);
+  Handle<mirror::String> string =
+      hs.NewHandle(shadow_frame->GetVRegReference(arg_offset)->AsString());
   if (string == nullptr) {
     AbortTransactionOrFail(self, "String.replaceWithMatch with null object");
     return;
   }
-  result->SetL(string->DoReplace(self, old_c, new_c));
+  result->SetL(mirror::String::DoReplace(self, string, old_c, new_c));
 }
 
 // This allows creating the new style of String objects during compilation.
