@@ -5110,12 +5110,34 @@ void InstructionCodeGeneratorMIPS64::VisitPackedSwitch(HPackedSwitch* switch_ins
   }
 }
 
-void LocationsBuilderMIPS64::VisitClassTableGet(HClassTableGet*) {
-  UNIMPLEMENTED(FATAL) << "ClassTableGet is unimplemented on mips64";
+void LocationsBuilderMIPS64::VisitClassTableGet(HClassTableGet* instruction) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister());
 }
 
-void InstructionCodeGeneratorMIPS64::VisitClassTableGet(HClassTableGet*) {
-  UNIMPLEMENTED(FATAL) << "ClassTableGet is unimplemented on mips64";
+void InstructionCodeGeneratorMIPS64::VisitClassTableGet(HClassTableGet* instruction) {
+  LocationSummary* locations = instruction->GetLocations();
+  if (instruction->GetTableKind() == HClassTableGet::TableKind::kVTable) {
+    uint32_t method_offset = mirror::Class::EmbeddedVTableEntryOffset(
+        instruction->GetIndex(), kMips64PointerSize).SizeValue();
+    __ LoadFromOffset(kLoadDoubleword,
+                      locations->Out().AsRegister<GpuRegister>(),
+                      locations->InAt(0).AsRegister<GpuRegister>(),
+                      method_offset);
+  } else {
+    uint32_t method_offset = static_cast<uint32_t>(ImTable::OffsetOfElement(
+        instruction->GetIndex(), kMips64PointerSize));
+    __ LoadFromOffset(kLoadDoubleword,
+                      locations->Out().AsRegister<GpuRegister>(),
+                      locations->InAt(0).AsRegister<GpuRegister>(),
+                      mirror::Class::ImtPtrOffset(kMips64PointerSize).Uint32Value());
+    __ LoadFromOffset(kLoadDoubleword,
+                      locations->Out().AsRegister<GpuRegister>(),
+                      locations->Out().AsRegister<GpuRegister>(),
+                      method_offset);
+  }
 }
 
 }  // namespace mips64
