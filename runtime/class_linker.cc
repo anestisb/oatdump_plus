@@ -7819,7 +7819,7 @@ mirror::String* ClassLinker::ResolveString(const DexFile& dex_file,
 
 mirror::String* ClassLinker::LookupString(const DexFile& dex_file,
                                           dex::StringIndex string_idx,
-                                          Handle<mirror::DexCache> dex_cache) {
+                                          ObjPtr<mirror::DexCache> dex_cache) {
   DCHECK(dex_cache != nullptr);
   ObjPtr<mirror::String> resolved = dex_cache->GetResolvedString(string_idx);
   if (resolved != nullptr) {

@@ -1365,12 +1365,10 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
 
   mirror::String* GetTargetString(const LinkerPatch& patch) REQUIRES_SHARED(Locks::mutator_lock_) {
     ScopedObjectAccessUnchecked soa(Thread::Current());
-    StackHandleScope<1> hs(soa.Self());
     ClassLinker* linker = Runtime::Current()->GetClassLinker();
-    Handle<mirror::DexCache> dex_cache(hs.NewHandle(GetDexCache(patch.TargetStringDexFile())));
     mirror::String* string = linker->LookupString(*patch.TargetStringDexFile(),
                                                   patch.TargetStringIndex(),
-                                                  dex_cache);
+                                                  GetDexCache(patch.TargetStringDexFile()));
     DCHECK(string != nullptr);
     DCHECK(writer_->HasBootImage() ||
            Runtime::Current()->GetHeap()->ObjectIsInBootImageSpace(string));
