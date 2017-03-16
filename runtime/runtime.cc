@@ -286,6 +286,13 @@ Runtime::~Runtime() {
     LOG(WARNING) << "Current thread not detached in Runtime shutdown";
   }
 
+  if (jit_ != nullptr) {
+    // Stop the profile saver thread before marking the runtime as shutting down.
+    // The saver will try to dump the profiles before being sopped and that
+    // requires holding the mutator lock.
+    jit_->StopProfileSaver();
+  }
+
   {
     ScopedTrace trace2("Wait for shutdown cond");
     MutexLock mu(self, *Locks::runtime_shutdown_lock_);
@@ -327,8 +334,6 @@ Runtime::~Runtime() {
     // Delete thread pool before the thread list since we don't want to wait forever on the
     // JIT compiler threads.
     jit_->DeleteThreadPool();
-    // Similarly, stop the profile saver thread before deleting the thread list.
-    jit_->StopProfileSaver();
   }
 
   // TODO Maybe do some locking.
