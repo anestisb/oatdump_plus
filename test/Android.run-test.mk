@@ -374,6 +374,7 @@ TEST_ART_BROKEN_INTERPRETER_ACCESS_CHECK_TESTS :=
 # * 961-default-iface-resolution-gen and 964-default-iface-init-genare very long tests that often
 #   will take more than the timeout to run when gcstress is enabled. This is because gcstress
 #   slows down allocations significantly which these tests do a lot.
+# * 946-obsolete-throw: b/36335999.
 TEST_ART_BROKEN_GCSTRESS_RUN_TESTS := \
   137-cfi \
   152-dead-large-object \
@@ -381,7 +382,8 @@ TEST_ART_BROKEN_GCSTRESS_RUN_TESTS := \
   908-gc-start-finish \
   913-heaps \
   961-default-iface-resolution-gen \
-  964-default-iface-init-gen
+  964-default-iface-init-gen \
+  946-obsolete-throw
 
 ifneq (,$(filter gcstress,$(GC_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
@@ -440,6 +442,9 @@ TEST_ART_BROKEN_NO_IMAGE_RUN_TESTS := \
   137-cfi \
   138-duplicate-classes-check \
   018-stack-overflow \
+  616-cha \
+  616-cha-abstract \
+  912-classes \
   961-default-iface-resolution-gen \
   964-default-iface-init \
   968-default-partial-compile-gen \
