@@ -74,8 +74,8 @@ class ExceptionTest : public CommonRuntimeTest {
 
     fake_header_code_and_maps_.resize(stack_maps_offset + fake_code_.size());
     MemoryRegion stack_maps_region(&fake_header_code_and_maps_[0], stack_maps_size);
-    stack_maps.FillIn(stack_maps_region);
-    OatQuickMethodHeader method_header(stack_maps_offset, 4 * sizeof(void*), 0u, 0u, code_size);
+    stack_maps.FillInCodeInfo(stack_maps_region);
+    OatQuickMethodHeader method_header(stack_maps_offset, 0u, 4 * sizeof(void*), 0u, 0u, code_size);
     memcpy(&fake_header_code_and_maps_[stack_maps_size], &method_header, sizeof(method_header));
     std::copy(fake_code_.begin(),
               fake_code_.end(),
