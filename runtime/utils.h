@@ -325,6 +325,18 @@ constexpr size_t ArrayCount(const T (&)[size]) {
   return size;
 }
 
+// Return -1 if <, 0 if ==, 1 if >.
+template <typename T>
+inline static int32_t Compare(T lhs, T rhs) {
+  return (lhs < rhs) ? -1 : ((lhs == rhs) ? 0 : 1);
+}
+
+// Return -1 if < 0, 0 if == 0, 1 if > 0.
+template <typename T>
+inline static int32_t Signum(T opnd) {
+  return (opnd < 0) ? -1 : ((opnd == 0) ? 0 : 1);
+}
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_UTILS_H_
