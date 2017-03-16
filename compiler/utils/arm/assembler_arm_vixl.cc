@@ -230,6 +230,7 @@ void ArmVIXLAssembler::StoreToOffset(StoreOperandType type,
   if (!CanHoldStoreOffsetThumb(type, offset)) {
     CHECK_NE(base.GetCode(), kIpCode);
     if ((reg.GetCode() != kIpCode) &&
+        (!vixl_masm_.GetScratchRegisterList()->IsEmpty()) &&
         ((type != kStoreWordPair) || (reg.GetCode() + 1 != kIpCode))) {
       tmp_reg = temps.Acquire();
     } else {
