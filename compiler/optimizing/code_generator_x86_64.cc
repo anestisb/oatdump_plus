@@ -983,7 +983,7 @@ Location CodeGeneratorX86_64::GenerateCalleeMethodStaticOrDirectCall(HInvokeStat
       callee_method = invoke->GetLocations()->InAt(invoke->GetSpecialInputIndex());
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddress:
-      __ movq(temp.AsRegister<CpuRegister>(), Immediate(invoke->GetMethodAddress()));
+      Load64BitValue(temp.AsRegister<CpuRegister>(), invoke->GetMethodAddress());
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative: {
       __ movq(temp.AsRegister<CpuRegister>(),
