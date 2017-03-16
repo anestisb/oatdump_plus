@@ -340,5 +340,12 @@
                   "616-cha-abstract"],
         "bug": "http://b/36344364 http://b36344221",
         "variant": "no-dex2oat | relocate-npatchoat"
+    },
+    {
+        "tests": ["476-clinit-inline-static-invoke",
+                  "496-checker-inlining-class-loader",
+                  "637-checker-throw-inline"],
+        "bug": "http://b/36365552",
+        "variant": "no-image & jit"
     }
 ]
