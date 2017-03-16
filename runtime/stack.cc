@@ -142,8 +142,10 @@ ArtMethod* StackVisitor::GetMethod() const {
       InlineInfo inline_info = GetCurrentInlineInfo();
       const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
       CodeInfoEncoding encoding = method_header->GetOptimizedCodeInfo().ExtractEncoding();
+      MethodInfo method_info = method_header->GetOptimizedMethodInfo();
       DCHECK(walk_kind_ != StackWalkKind::kSkipInlinedFrames);
       return GetResolvedMethod(*GetCurrentQuickFrame(),
+                               method_info,
                                inline_info,
                                encoding.inline_info.encoding,
                                depth_in_stack_map);

@@ -43,6 +43,7 @@
 namespace art {
 
 inline ArtMethod* GetResolvedMethod(ArtMethod* outer_method,
+                                    const MethodInfo& method_info,
                                     const InlineInfo& inline_info,
                                     const InlineInfoEncoding& encoding,
                                     uint8_t inlining_depth)
@@ -56,7 +57,7 @@ inline ArtMethod* GetResolvedMethod(ArtMethod* outer_method,
     return inline_info.GetArtMethodAtDepth(encoding, inlining_depth);
   }
 
-  uint32_t method_index = inline_info.GetMethodIndexAtDepth(encoding, inlining_depth);
+  uint32_t method_index = inline_info.GetMethodIndexAtDepth(encoding, method_info, inlining_depth);
   if (inline_info.GetDexPcAtDepth(encoding, inlining_depth) == static_cast<uint32_t>(-1)) {
     // "charAt" special case. It is the only non-leaf method we inline across dex files.
     ArtMethod* inlined_method = jni::DecodeArtMethod(WellKnownClasses::java_lang_String_charAt);
@@ -68,6 +69,7 @@ inline ArtMethod* GetResolvedMethod(ArtMethod* outer_method,
   ArtMethod* caller = outer_method;
   if (inlining_depth != 0) {
     caller = GetResolvedMethod(outer_method,
+                               method_info,
                                inline_info,
                                encoding,
                                inlining_depth - 1);

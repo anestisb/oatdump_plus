@@ -51,11 +51,11 @@ TEST(CompiledMethodStorage, Deduplicate) {
       ArrayRef<const uint8_t>(raw_code1),
       ArrayRef<const uint8_t>(raw_code2),
   };
-  const SrcMapElem raw_src_map1[] = { { 1u, 2u }, { 3u, 4u }, { 5u, 6u } };
-  const SrcMapElem raw_src_map2[] = { { 8u, 7u }, { 6u, 5u }, { 4u, 3u }, { 2u, 1u } };
-  ArrayRef<const SrcMapElem> src_map[] = {
-      ArrayRef<const SrcMapElem>(raw_src_map1),
-      ArrayRef<const SrcMapElem>(raw_src_map2),
+  const uint8_t raw_method_info_map1[] = { 1u, 2u, 3u, 4u, 5u, 6u };
+  const uint8_t raw_method_info_map2[] = { 8u, 7u, 6u, 5u, 4u, 3u, 2u, 1u };
+  ArrayRef<const uint8_t> method_info[] = {
+      ArrayRef<const uint8_t>(raw_method_info_map1),
+      ArrayRef<const uint8_t>(raw_method_info_map2),
   };
   const uint8_t raw_vmap_table1[] = { 2, 4, 6 };
   const uint8_t raw_vmap_table2[] = { 7, 5, 3, 1 };
@@ -85,7 +85,7 @@ TEST(CompiledMethodStorage, Deduplicate) {
   std::vector<CompiledMethod*> compiled_methods;
   compiled_methods.reserve(1u << 7);
   for (auto&& c : code) {
-    for (auto&& s : src_map) {
+    for (auto&& s : method_info) {
       for (auto&& v : vmap_table) {
         for (auto&& f : cfi_info) {
           for (auto&& p : patches) {
@@ -113,7 +113,7 @@ TEST(CompiledMethodStorage, Deduplicate) {
       bool same_patches = ((i ^ j) & patches_bit) == 0u;
       ASSERT_EQ(same_code, lhs->GetQuickCode().data() == rhs->GetQuickCode().data())
           << i << " " << j;
-      ASSERT_EQ(same_src_map, lhs->GetSrcMappingTable().data() == rhs->GetSrcMappingTable().data())
+      ASSERT_EQ(same_src_map, lhs->GetMethodInfo().data() == rhs->GetMethodInfo().data())
           << i << " " << j;
       ASSERT_EQ(same_vmap_table, lhs->GetVmapTable().data() == rhs->GetVmapTable().data())
           << i << " " << j;
