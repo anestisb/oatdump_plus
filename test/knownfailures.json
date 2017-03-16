@@ -343,11 +343,6 @@
         "variant": "interpreter | optimizing | regalloc_gc | jit"
     },
     {
-        "tests": "946-obsolete-throw",
-        "bug": "http://b/36335999",
-        "variant": "interp-ac & gcstress"
-    },
-    {
         "tests": ["912-classes",
                   "616-cha",
                   "616-cha-abstract"],
