@@ -462,8 +462,7 @@ void VerifierDeps::AddAssignability(const DexFile& dex_file,
   }
 
   if (!IsInClassPath(source)) {
-    if (!destination->IsInterface()) {
-      DCHECK(!source->IsInterface());
+    if (!destination->IsInterface() && !source->IsInterface()) {
       // Find the super class at the classpath boundary. Only that class
       // can change the assignability.
       do {
