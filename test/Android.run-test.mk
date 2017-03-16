@@ -434,6 +434,9 @@ TEST_ART_BROKEN_FALLBACK_RUN_TESTS := \
   138-duplicate-classes-check2 \
   147-stripped-dex-fallback \
   554-jit-profile-file \
+  616-cha \
+  616-cha-abstract \
+  912-classes \
   629-vdex-speed
 
 # This test fails without an image.
@@ -442,6 +445,9 @@ TEST_ART_BROKEN_NO_IMAGE_RUN_TESTS := \
   137-cfi \
   138-duplicate-classes-check \
   018-stack-overflow \
+  476-clinit-inline-static-invoke \
+  496-checker-inlining-class-loader \
+  637-checker-throw-inline \
   616-cha \
   616-cha-abstract \
   912-classes \
