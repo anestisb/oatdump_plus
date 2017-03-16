@@ -17,15 +17,6 @@
 # make us exit on a failure
 set -e
 
-# We will be making more files than the ulimit is set to allow. Remove it temporarily.
-OLD_ULIMIT=`ulimit -S`
-ulimit -S unlimited
-
-restore_ulimit() {
-  ulimit -S "$OLD_ULIMIT"
-}
-trap 'restore_ulimit' ERR
-
 # Should we compile with Java source code. By default we will use Smali.
 USES_JAVA_SOURCE="false"
 if [[ $@ == *"--jvm"* ]]; then
@@ -50,6 +41,3 @@ else
 fi
 
 ./default-build "$@" --experimental default-methods
-
-# Reset the ulimit back to its initial value
-restore_ulimit
