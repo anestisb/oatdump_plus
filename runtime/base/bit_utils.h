@@ -27,6 +27,22 @@
 
 namespace art {
 
+// Like sizeof, but count how many bits a type takes. Pass type explicitly.
+template <typename T>
+constexpr size_t BitSizeOf() {
+  static_assert(std::is_integral<T>::value, "T must be integral");
+  using unsigned_type = typename std::make_unsigned<T>::type;
+  static_assert(sizeof(T) == sizeof(unsigned_type), "Unexpected type size mismatch!");
+  static_assert(std::numeric_limits<unsigned_type>::radix == 2, "Unexpected radix!");
+  return std::numeric_limits<unsigned_type>::digits;
+}
+
+// Like sizeof, but count how many bits a type takes. Infers type from parameter.
+template <typename T>
+constexpr size_t BitSizeOf(T /*x*/) {
+  return BitSizeOf<T>();
+}
+
 template<typename T>
 constexpr int CLZ(T x) {
   static_assert(std::is_integral<T>::value, "T must be integral");
@@ -35,6 +51,14 @@ constexpr int CLZ(T x) {
                 "T too large, must be smaller than long long");
   DCHECK_NE(x, 0u);
   return (sizeof(T) == sizeof(uint32_t)) ? __builtin_clz(x) : __builtin_clzll(x);
+}
+
+// Similar to CLZ except that on zero input it returns bitwidth and supports signed integers.
+template<typename T>
+constexpr int JAVASTYLE_CLZ(T x) {
+  static_assert(std::is_integral<T>::value, "T must be integral");
+  using unsigned_type = typename std::make_unsigned<T>::type;
+  return (x == 0) ? BitSizeOf<T>() : CLZ(static_cast<unsigned_type>(x));
 }
 
 template<typename T>
@@ -48,10 +72,30 @@ constexpr int CTZ(T x) {
   return (sizeof(T) == sizeof(uint32_t)) ? __builtin_ctz(x) : __builtin_ctzll(x);
 }
 
+// Similar to CTZ except that on zero input it returns bitwidth and supports signed integers.
+template<typename T>
+constexpr int JAVASTYLE_CTZ(T x) {
+  static_assert(std::is_integral<T>::value, "T must be integral");
+  using unsigned_type = typename std::make_unsigned<T>::type;
+  return (x == 0) ? BitSizeOf<T>() : CTZ(static_cast<unsigned_type>(x));
+}
+
 // Return the number of 1-bits in `x`.
 template<typename T>
 constexpr int POPCOUNT(T x) {
   return (sizeof(T) == sizeof(uint32_t)) ? __builtin_popcount(x) : __builtin_popcountll(x);
+}
+
+// Swap bytes.
+template<typename T>
+constexpr T BSWAP(T x) {
+  if (sizeof(T) == sizeof(uint16_t)) {
+    return __builtin_bswap16(x);
+  } else if (sizeof(T) == sizeof(uint32_t)) {
+    return __builtin_bswap32(x);
+  } else {
+    return __builtin_bswap64(x);
+  }
 }
 
 // Find the bit position of the most significant bit (0-based), or -1 if there were no bits set.
@@ -168,22 +212,6 @@ inline bool IsAlignedParam(T* x, int n) {
 
 #define DCHECK_ALIGNED_PARAM(value, alignment) \
   DCHECK(::art::IsAlignedParam(value, alignment)) << reinterpret_cast<const void*>(value)
-
-// Like sizeof, but count how many bits a type takes. Pass type explicitly.
-template <typename T>
-constexpr size_t BitSizeOf() {
-  static_assert(std::is_integral<T>::value, "T must be integral");
-  using unsigned_type = typename std::make_unsigned<T>::type;
-  static_assert(sizeof(T) == sizeof(unsigned_type), "Unexpected type size mismatch!");
-  static_assert(std::numeric_limits<unsigned_type>::radix == 2, "Unexpected radix!");
-  return std::numeric_limits<unsigned_type>::digits;
-}
-
-// Like sizeof, but count how many bits a type takes. Infers type from parameter.
-template <typename T>
-constexpr size_t BitSizeOf(T /*x*/) {
-  return BitSizeOf<T>();
-}
 
 inline uint16_t Low16Bits(uint32_t value) {
   return static_cast<uint16_t>(value);
@@ -361,6 +389,59 @@ template <typename T>
 IterationRange<HighToLowBitIterator<T>> HighToLowBits(T bits) {
   return IterationRange<HighToLowBitIterator<T>>(
       HighToLowBitIterator<T>(bits), HighToLowBitIterator<T>());
+}
+
+// Returns value with bit set in lowest one-bit position or 0 if 0.  (java.lang.X.lowestOneBit).
+template <typename kind>
+inline static kind LowestOneBitValue(kind opnd) {
+  // Hacker's Delight, Section 2-1
+  return opnd & -opnd;
+}
+
+// Returns value with bit set in hightest one-bit position or 0 if 0.  (java.lang.X.highestOneBit).
+template <typename T>
+inline static T HighestOneBitValue(T opnd) {
+  using unsigned_type = typename std::make_unsigned<T>::type;
+  T res;
+  if (opnd == 0) {
+    res = 0;
+  } else {
+    int bit_position = BitSizeOf<T>() - (CLZ(static_cast<unsigned_type>(opnd)) + 1);
+    res = static_cast<T>(UINT64_C(1) << bit_position);
+  }
+  return res;
+}
+
+// Rotate bits.
+template <typename T, bool left>
+inline static T Rot(T opnd, int distance) {
+  int mask = BitSizeOf<T>() - 1;
+  int unsigned_right_shift = left ? (-distance & mask) : (distance & mask);
+  int signed_left_shift = left ? (distance & mask) : (-distance & mask);
+  using unsigned_type = typename std::make_unsigned<T>::type;
+  return (static_cast<unsigned_type>(opnd) >> unsigned_right_shift) | (opnd << signed_left_shift);
+}
+
+// TUNING: use rbit for arm/arm64
+inline static uint32_t ReverseBits32(uint32_t opnd) {
+  // Hacker's Delight 7-1
+  opnd = ((opnd >>  1) & 0x55555555) | ((opnd & 0x55555555) <<  1);
+  opnd = ((opnd >>  2) & 0x33333333) | ((opnd & 0x33333333) <<  2);
+  opnd = ((opnd >>  4) & 0x0F0F0F0F) | ((opnd & 0x0F0F0F0F) <<  4);
+  opnd = ((opnd >>  8) & 0x00FF00FF) | ((opnd & 0x00FF00FF) <<  8);
+  opnd = ((opnd >> 16)) | ((opnd) << 16);
+  return opnd;
+}
+
+// TUNING: use rbit for arm/arm64
+inline static uint64_t ReverseBits64(uint64_t opnd) {
+  // Hacker's Delight 7-1
+  opnd = (opnd & 0x5555555555555555L) << 1 | ((opnd >> 1) & 0x5555555555555555L);
+  opnd = (opnd & 0x3333333333333333L) << 2 | ((opnd >> 2) & 0x3333333333333333L);
+  opnd = (opnd & 0x0f0f0f0f0f0f0f0fL) << 4 | ((opnd >> 4) & 0x0f0f0f0f0f0f0f0fL);
+  opnd = (opnd & 0x00ff00ff00ff00ffL) << 8 | ((opnd >> 8) & 0x00ff00ff00ff00ffL);
+  opnd = (opnd << 48) | ((opnd & 0xffff0000L) << 16) | ((opnd >> 16) & 0xffff0000L) | (opnd >> 48);
+  return opnd;
 }
 
 }  // namespace art
