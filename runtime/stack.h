@@ -197,6 +197,11 @@ class ShadowFrame {
     return *reinterpret_cast<const int32_t*>(vreg);
   }
 
+  // Shorts are extended to Ints in VRegs.  Interpreter intrinsics needs them as shorts.
+  int16_t GetVRegShort(size_t i) const {
+    return static_cast<int16_t>(GetVReg(i));
+  }
+
   uint32_t* GetVRegAddr(size_t i) {
     return &vregs_[i];
   }
