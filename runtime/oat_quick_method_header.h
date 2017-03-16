@@ -193,7 +193,6 @@ class PACKED(4) OatQuickMethodHeader {
   // The method info offset is not in the CodeInfo since CodeInfo has good dedupe properties that
   // would be lost from doing so. The method info memory region contains method indices since they
   // are hard to dedupe.
-
   uint32_t method_info_offset_ = 0u;
   // The stack frame information.
   QuickMethodFrameInfo frame_info_;

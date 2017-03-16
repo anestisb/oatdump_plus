@@ -29,7 +29,6 @@
 namespace art {
 
 class LinkerPatch;
-class SrcMapElem;
 
 class CompiledMethodStorage {
  public:
