@@ -23,6 +23,7 @@
 #include "bit_memory_region.h"
 #include "dex_file.h"
 #include "memory_region.h"
+#include "method_info.h"
 #include "leb128.h"
 
 namespace art {
@@ -367,7 +368,8 @@ class DexRegisterLocationCatalog {
     return region_.size();
   }
 
-  void Dump(VariableIndentationOutputStream* vios, const CodeInfo& code_info);
+  void Dump(VariableIndentationOutputStream* vios,
+            const CodeInfo& code_info);
 
   // Special (invalid) Dex register location catalog entry index meaning
   // that there is no location for a given Dex register (i.e., it is
@@ -862,6 +864,7 @@ class StackMap {
   void Dump(VariableIndentationOutputStream* vios,
             const CodeInfo& code_info,
             const CodeInfoEncoding& encoding,
+            const MethodInfo& method_info,
             uint32_t code_offset,
             uint16_t number_of_dex_registers,
             InstructionSet instruction_set,
@@ -885,12 +888,12 @@ class StackMap {
 
 class InlineInfoEncoding {
  public:
-  void SetFromSizes(size_t method_index_max,
+  void SetFromSizes(size_t method_index_idx_max,
                     size_t dex_pc_max,
                     size_t extra_data_max,
                     size_t dex_register_map_size) {
     total_bit_size_ = kMethodIndexBitOffset;
-    total_bit_size_ += MinimumBitsToStore(method_index_max);
+    total_bit_size_ += MinimumBitsToStore(method_index_idx_max);
 
     dex_pc_bit_offset_ = dchecked_integral_cast<uint8_t>(total_bit_size_);
     // Note: We're not encoding the dex pc if there is none. That's the case
@@ -908,7 +911,7 @@ class InlineInfoEncoding {
     total_bit_size_ += MinimumBitsToStore(dex_register_map_size);
   }
 
-  ALWAYS_INLINE FieldEncoding GetMethodIndexEncoding() const {
+  ALWAYS_INLINE FieldEncoding GetMethodIndexIdxEncoding() const {
     return FieldEncoding(kMethodIndexBitOffset, dex_pc_bit_offset_);
   }
   ALWAYS_INLINE FieldEncoding GetDexPcEncoding() const {
@@ -975,16 +978,23 @@ class InlineInfo {
     }
   }
 
-  ALWAYS_INLINE uint32_t GetMethodIndexAtDepth(const InlineInfoEncoding& encoding,
-                                               uint32_t depth) const {
+  ALWAYS_INLINE uint32_t GetMethodIndexIdxAtDepth(const InlineInfoEncoding& encoding,
+                                                  uint32_t depth) const {
     DCHECK(!EncodesArtMethodAtDepth(encoding, depth));
-    return encoding.GetMethodIndexEncoding().Load(GetRegionAtDepth(encoding, depth));
+    return encoding.GetMethodIndexIdxEncoding().Load(GetRegionAtDepth(encoding, depth));
   }
 
-  ALWAYS_INLINE void SetMethodIndexAtDepth(const InlineInfoEncoding& encoding,
-                                           uint32_t depth,
-                                           uint32_t index) {
-    encoding.GetMethodIndexEncoding().Store(GetRegionAtDepth(encoding, depth), index);
+  ALWAYS_INLINE void SetMethodIndexIdxAtDepth(const InlineInfoEncoding& encoding,
+                                              uint32_t depth,
+                                              uint32_t index) {
+    encoding.GetMethodIndexIdxEncoding().Store(GetRegionAtDepth(encoding, depth), index);
+  }
+
+
+  ALWAYS_INLINE uint32_t GetMethodIndexAtDepth(const InlineInfoEncoding& encoding,
+                                               const MethodInfo& method_info,
+                                               uint32_t depth) const {
+    return method_info.GetMethodIndex(GetMethodIndexIdxAtDepth(encoding, depth));
   }
 
   ALWAYS_INLINE uint32_t GetDexPcAtDepth(const InlineInfoEncoding& encoding,
@@ -1012,7 +1022,8 @@ class InlineInfo {
   ALWAYS_INLINE ArtMethod* GetArtMethodAtDepth(const InlineInfoEncoding& encoding,
                                                uint32_t depth) const {
     uint32_t low_bits = encoding.GetExtraDataEncoding().Load(GetRegionAtDepth(encoding, depth));
-    uint32_t high_bits = encoding.GetMethodIndexEncoding().Load(GetRegionAtDepth(encoding, depth));
+    uint32_t high_bits = encoding.GetMethodIndexIdxEncoding().Load(
+        GetRegionAtDepth(encoding, depth));
     if (high_bits == 0) {
       return reinterpret_cast<ArtMethod*>(low_bits);
     } else {
@@ -1040,6 +1051,7 @@ class InlineInfo {
 
   void Dump(VariableIndentationOutputStream* vios,
             const CodeInfo& info,
+            const MethodInfo& method_info,
             uint16_t* number_of_dex_registers) const;
 
  private:
@@ -1219,12 +1231,18 @@ class InvokeInfo {
     encoding.GetInvokeTypeEncoding().Store(region_, invoke_type);
   }
 
-  ALWAYS_INLINE uint32_t GetMethodIndex(const InvokeInfoEncoding& encoding) const {
+  ALWAYS_INLINE uint32_t GetMethodIndexIdx(const InvokeInfoEncoding& encoding) const {
     return encoding.GetMethodIndexEncoding().Load(region_);
   }
 
-  ALWAYS_INLINE void SetMethodIndex(const InvokeInfoEncoding& encoding, uint32_t method_index) {
-    encoding.GetMethodIndexEncoding().Store(region_, method_index);
+  ALWAYS_INLINE void SetMethodIndexIdx(const InvokeInfoEncoding& encoding,
+                                       uint32_t method_index_idx) {
+    encoding.GetMethodIndexEncoding().Store(region_, method_index_idx);
+  }
+
+  ALWAYS_INLINE uint32_t GetMethodIndex(const InvokeInfoEncoding& encoding,
+                                        MethodInfo method_info) const {
+    return method_info.GetMethodIndex(GetMethodIndexIdx(encoding));
   }
 
   bool IsValid() const { return region_.pointer() != nullptr; }
@@ -1542,7 +1560,8 @@ class CodeInfo {
             uint32_t code_offset,
             uint16_t number_of_dex_registers,
             bool dump_stack_maps,
-            InstructionSet instruction_set) const;
+            InstructionSet instruction_set,
+            const MethodInfo& method_info) const;
 
   // Check that the code info has valid stack map and abort if it does not.
   void AssertValidStackMap(const CodeInfoEncoding& encoding) const {

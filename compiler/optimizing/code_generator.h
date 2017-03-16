@@ -341,8 +341,10 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
     slow_paths_.push_back(std::unique_ptr<SlowPathCode>(slow_path));
   }
 
-  void BuildStackMaps(MemoryRegion region, const DexFile::CodeItem& code_item);
-  size_t ComputeStackMapsSize();
+  void BuildStackMaps(MemoryRegion stack_map_region,
+                      MemoryRegion method_info_region,
+                      const DexFile::CodeItem& code_item);
+  void ComputeStackMapAndMethodInfoSize(size_t* stack_map_size, size_t* method_info_size);
   size_t GetNumberOfJitRoots() const {
     return jit_string_roots_.size() + jit_class_roots_.size();
   }
