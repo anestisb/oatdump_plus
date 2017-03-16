@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "class_ext.h"
+#include "class_ext-inl.h"
 
 #include "art_method-inl.h"
 #include "base/casts.h"
@@ -24,7 +24,6 @@
 #include "gc/accounting/card_table-inl.h"
 #include "object-inl.h"
 #include "object_array.h"
-#include "object_array-inl.h"
 #include "stack_trace_element.h"
 #include "utils.h"
 #include "well_known_classes.h"
@@ -33,6 +32,11 @@ namespace art {
 namespace mirror {
 
 GcRoot<Class> ClassExt::dalvik_system_ClassExt_;
+
+uint32_t ClassExt::ClassSize(PointerSize pointer_size) {
+  uint32_t vtable_entries = Object::kVTableLength;
+  return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0, 0, 0, pointer_size);
+}
 
 void ClassExt::SetObsoleteArrays(ObjPtr<PointerArray> methods,
                                  ObjPtr<ObjectArray<DexCache>> dex_caches) {
