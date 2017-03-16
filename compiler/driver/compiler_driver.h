@@ -65,8 +65,6 @@ class InstructionSetFeatures;
 class ParallelCompilationManager;
 class ScopedObjectAccess;
 template <class Allocator> class SrcMap;
-class SrcMapElem;
-using SwapSrcMap = SrcMap<SwapAllocator<SrcMapElem>>;
 template<class T> class Handle;
 class TimingLogger;
 class VdexFile;
