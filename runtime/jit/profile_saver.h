@@ -79,9 +79,14 @@ class ProfileSaver {
 
   // The run loop for the saver.
   void Run() REQUIRES(!Locks::profiler_lock_, !wait_lock_);
+
   // Processes the existing profiling info from the jit code cache and returns
   // true if it needed to be saved to disk.
-  bool ProcessProfilingInfo(uint16_t* new_methods)
+  // If number_of_new_methods is not null, after the call it will contain the number of new methods
+  // written to disk.
+  // If force_save is true, the saver will ignore any constraints which limit IO (e.g. will write
+  // the profile to disk even if it's just one new method).
+  bool ProcessProfilingInfo(bool force_save, /*out*/uint16_t* number_of_new_methods)
     REQUIRES(!Locks::profiler_lock_)
     REQUIRES(!Locks::mutator_lock_);
 

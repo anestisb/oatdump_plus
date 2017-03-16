@@ -121,15 +121,16 @@ void ProfileSaver::Run() {
       break;
     }
 
-    uint16_t new_methods = 0;
+    uint16_t number_of_new_methods = 0;
     uint64_t start_work = NanoTime();
-    bool profile_saved_to_disk = ProcessProfilingInfo(&new_methods);
+    bool profile_saved_to_disk = ProcessProfilingInfo(/*force_save*/false, &number_of_new_methods);
     // Update the notification counter based on result. Note that there might be contention on this
     // but we don't care about to be 100% precise.
     if (!profile_saved_to_disk) {
       // If we didn't save to disk it may be because we didn't have enough new methods.
-      // Set the jit activity notifications to new_methods so we can wake up earlier if needed.
-      jit_activity_notifications_ = new_methods;
+      // Set the jit activity notifications to number_of_new_methods so we can wake up earlier
+      // if needed.
+      jit_activity_notifications_ = number_of_new_methods;
     }
     total_ns_of_work_ += NanoTime() - start_work;
   }
@@ -256,7 +257,7 @@ void ProfileSaver::FetchAndCacheResolvedClassesAndMethods() {
       total_number_of_profile_entries_cached);
 }
 
-bool ProfileSaver::ProcessProfilingInfo(uint16_t* new_methods) {
+bool ProfileSaver::ProcessProfilingInfo(bool force_save, /*out*/uint16_t* number_of_new_methods) {
   ScopedTrace trace(__PRETTY_FUNCTION__);
   SafeMap<std::string, std::set<std::string>> tracked_locations;
   {
@@ -267,10 +268,16 @@ bool ProfileSaver::ProcessProfilingInfo(uint16_t* new_methods) {
 
   bool profile_file_saved = false;
   uint64_t total_number_of_profile_entries_cached = 0;
-  *new_methods = 0;
+  if (number_of_new_methods != nullptr) {
+    *number_of_new_methods = 0;
+  }
 
   for (const auto& it : tracked_locations) {
-    if (ShuttingDown(Thread::Current())) {
+    if (!force_save && ShuttingDown(Thread::Current())) {
+      // The ProfileSaver is in shutdown mode, meaning a stop request was made and
+      // we need to exit cleanly (by waiting for the saver thread to finish). Unless
+      // we have a request for a forced save, do not do any processing so that we
+      // speed up the exit.
       return true;
     }
     const std::string& filename = it.first;
@@ -292,7 +299,8 @@ bool ProfileSaver::ProcessProfilingInfo(uint16_t* new_methods) {
         cached_profile->GetNumberOfResolvedClasses() -
         static_cast<int64_t>(cached_info->last_save_number_of_classes);
 
-    if (delta_number_of_methods < options_.GetMinMethodsToSave() &&
+    if (!force_save &&
+        delta_number_of_methods < options_.GetMinMethodsToSave() &&
         delta_number_of_classes < options_.GetMinClassesToSave()) {
       VLOG(profiler) << "Not enough information to save to: " << filename
           << " Number of methods: " << delta_number_of_methods
@@ -300,7 +308,10 @@ bool ProfileSaver::ProcessProfilingInfo(uint16_t* new_methods) {
       total_number_of_skipped_writes_++;
       continue;
     }
-    *new_methods = std::max(static_cast<uint16_t>(delta_number_of_methods), *new_methods);
+    if (number_of_new_methods != nullptr) {
+      *number_of_new_methods = std::max(static_cast<uint16_t>(delta_number_of_methods),
+                                        *number_of_new_methods);
+    }
     uint64_t bytes_written;
     // Force the save. In case the profile data is corrupted or the the profile
     // has the wrong version this will "fix" the file to the correct format.
@@ -454,6 +465,9 @@ void ProfileSaver::Stop(bool dump_info) {
   // Wait for the saver thread to stop.
   CHECK_PTHREAD_CALL(pthread_join, (profiler_pthread, nullptr), "profile saver thread shutdown");
 
+  // Force save everything before destroying the instance.
+  instance_->ProcessProfilingInfo(/*force_save*/true, /*number_of_new_methods*/nullptr);
+
   {
     MutexLock profiler_mutex(Thread::Current(), *Locks::profiler_lock_);
     instance_ = nullptr;
@@ -516,8 +530,7 @@ void ProfileSaver::ForceProcessProfiles() {
   // but we only use this in testing when we now this won't happen.
   // Refactor the way we handle the instance so that we don't end up in this situation.
   if (saver != nullptr) {
-    uint16_t new_methods;
-    saver->ProcessProfilingInfo(&new_methods);
+    saver->ProcessProfilingInfo(/*force_save*/true, /*number_of_new_methods*/nullptr);
   }
 }
 
