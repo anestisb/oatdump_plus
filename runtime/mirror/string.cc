@@ -89,16 +89,17 @@ inline bool String::AllASCIIExcept(const uint16_t* chars, int32_t length, uint16
   return true;
 }
 
-ObjPtr<String> String::DoReplace(Thread* self, uint16_t old_c, uint16_t new_c) {
-  DCHECK(IsCompressed() ? ContainsElement(ArrayRef<uint8_t>(value_compressed_, GetLength()), old_c)
-                        : ContainsElement(ArrayRef<uint16_t>(value_, GetLength()), old_c));
-  int32_t length = GetLength();
+ObjPtr<String> String::DoReplace(Thread* self, Handle<String> src, uint16_t old_c, uint16_t new_c) {
+  int32_t length = src->GetLength();
+  DCHECK(src->IsCompressed()
+             ? ContainsElement(ArrayRef<uint8_t>(src->value_compressed_, length), old_c)
+             : ContainsElement(ArrayRef<uint16_t>(src->value_, length), old_c));
   bool compressible =
       kUseStringCompression &&
       IsASCII(new_c) &&
-      (IsCompressed() || (!IsASCII(old_c) && AllASCIIExcept(value_, length, old_c)));
+      (src->IsCompressed() || (!IsASCII(old_c) && AllASCIIExcept(src->value_, length, old_c)));
   gc::AllocatorType allocator_type = Runtime::Current()->GetHeap()->GetCurrentAllocator();
-  const int32_t length_with_flag = String::GetFlaggedCount(GetLength(), compressible);
+  const int32_t length_with_flag = String::GetFlaggedCount(length, compressible);
   SetStringCountVisitor visitor(length_with_flag);
   ObjPtr<String> string = Alloc<true>(self, length_with_flag, allocator_type, visitor);
   if (UNLIKELY(string == nullptr)) {
@@ -109,10 +110,10 @@ ObjPtr<String> String::DoReplace(Thread* self, uint16_t old_c, uint16_t new_c) {
       return dchecked_integral_cast<uint8_t>((old_c != c) ? c : new_c);
     };
     uint8_t* out = string->value_compressed_;
-    if (LIKELY(IsCompressed())) {  // LIKELY(compressible == IsCompressed())
-      std::transform(value_compressed_, value_compressed_ + length, out, replace);
+    if (LIKELY(src->IsCompressed())) {  // LIKELY(compressible == src->IsCompressed())
+      std::transform(src->value_compressed_, src->value_compressed_ + length, out, replace);
     } else {
-      std::transform(value_, value_ + length, out, replace);
+      std::transform(src->value_, src->value_ + length, out, replace);
     }
     DCHECK(kUseStringCompression && AllASCII(out, length));
   } else {
@@ -120,10 +121,10 @@ ObjPtr<String> String::DoReplace(Thread* self, uint16_t old_c, uint16_t new_c) {
       return (old_c != c) ? c : new_c;
     };
     uint16_t* out = string->value_;
-    if (UNLIKELY(IsCompressed())) {  // LIKELY(compressible == IsCompressed())
-      std::transform(value_compressed_, value_compressed_ + length, out, replace);
+    if (UNLIKELY(src->IsCompressed())) {  // LIKELY(compressible == src->IsCompressed())
+      std::transform(src->value_compressed_, src->value_compressed_ + length, out, replace);
     } else {
-      std::transform(value_, value_ + length, out, replace);
+      std::transform(src->value_, src->value_ + length, out, replace);
     }
     DCHECK(!kUseStringCompression || !AllASCII(out, length));
   }
