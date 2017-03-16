@@ -54,11 +54,11 @@ ART_TEST_FULL ?= false
 ART_TEST_QUIET ?= true
 
 # Do you want interpreter tests run?
-ART_TEST_INTERPRETER ?= $(ART_TEST_FULL)
-ART_TEST_INTERPRETER_ACCESS_CHECKS ?= $(ART_TEST_FULL)
+ART_TEST_INTERPRETER ?= true
+ART_TEST_INTERPRETER_ACCESS_CHECKS ?= true
 
 # Do you want JIT tests run?
-ART_TEST_JIT ?= $(ART_TEST_FULL)
+ART_TEST_JIT ?= true
 
 # Do you want optimizing compiler tests run?
 ART_TEST_OPTIMIZING ?= true
