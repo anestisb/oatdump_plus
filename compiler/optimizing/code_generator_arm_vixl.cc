@@ -2000,15 +2000,10 @@ CodeGeneratorARMVIXL::CodeGeneratorARMVIXL(HGraph* graph,
                          graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
   // Always save the LR register to mimic Quick.
   AddAllocatedRegister(Location::RegisterLocation(LR));
-  // Give d14 and d15 as scratch registers to VIXL.
-  // They are removed from the register allocator in `SetupBlockedRegisters()`.
-  // TODO(VIXL): We need two scratch D registers for `EmitSwap` when swapping two double stack
-  // slots. If that is sufficiently rare, and we have pressure on FP registers, we could instead
-  // spill in `EmitSwap`. But if we actually are guaranteed to have 32 D registers, we could give
-  // d30 and d31 to VIXL to avoid removing registers from the allocator. If that is the case, we may
-  // also want to investigate giving those 14 other D registers to the allocator.
-  GetVIXLAssembler()->GetScratchVRegisterList()->Combine(d14);
-  GetVIXLAssembler()->GetScratchVRegisterList()->Combine(d15);
+  // Give D30 and D31 as scratch register to VIXL. The register allocator only works on
+  // S0-S31, which alias to D0-D15.
+  GetVIXLAssembler()->GetScratchVRegisterList()->Combine(d31);
+  GetVIXLAssembler()->GetScratchVRegisterList()->Combine(d30);
 }
 
 void JumpTableARMVIXL::EmitTable(CodeGeneratorARMVIXL* codegen) {
@@ -2073,13 +2068,6 @@ void CodeGeneratorARMVIXL::SetupBlockedRegisters() const {
 
   // Reserve temp register.
   blocked_core_registers_[IP] = true;
-
-  // Registers s28-s31 (d14-d15) are left to VIXL for scratch registers.
-  // (They are given to the `MacroAssembler` in `CodeGeneratorARMVIXL::CodeGeneratorARMVIXL`.)
-  blocked_fpu_registers_[28] = true;
-  blocked_fpu_registers_[29] = true;
-  blocked_fpu_registers_[30] = true;
-  blocked_fpu_registers_[31] = true;
 
   if (GetGraph()->IsDebuggable()) {
     // Stubs do not save callee-save floating point registers. If the graph
@@ -6549,13 +6537,16 @@ void ParallelMoveResolverARMVIXL::Exchange(vixl32::Register reg, int mem) {
 void ParallelMoveResolverARMVIXL::Exchange(int mem1, int mem2) {
   // TODO(VIXL32): Double check the performance of this implementation.
   UseScratchRegisterScope temps(GetAssembler()->GetVIXLAssembler());
-  vixl32::SRegister temp_1 = temps.AcquireS();
-  vixl32::SRegister temp_2 = temps.AcquireS();
+  vixl32::Register temp1 = temps.Acquire();
+  ScratchRegisterScope ensure_scratch(
+      this, temp1.GetCode(), r0.GetCode(), codegen_->GetNumberOfCoreRegisters());
+  vixl32::Register temp2(ensure_scratch.GetRegister());
 
-  __ Vldr(temp_1, MemOperand(sp, mem1));
-  __ Vldr(temp_2, MemOperand(sp, mem2));
-  __ Vstr(temp_1, MemOperand(sp, mem2));
-  __ Vstr(temp_2, MemOperand(sp, mem1));
+  int stack_offset = ensure_scratch.IsSpilled() ? kArmWordSize : 0;
+  GetAssembler()->LoadFromOffset(kLoadWord, temp1, sp, mem1 + stack_offset);
+  GetAssembler()->LoadFromOffset(kLoadWord, temp2, sp, mem2 + stack_offset);
+  GetAssembler()->StoreToOffset(kStoreWord, temp1, sp, mem2 + stack_offset);
+  GetAssembler()->StoreToOffset(kStoreWord, temp2, sp, mem1 + stack_offset);
 }
 
 void ParallelMoveResolverARMVIXL::EmitSwap(size_t index) {
@@ -6578,7 +6569,7 @@ void ParallelMoveResolverARMVIXL::EmitSwap(size_t index) {
   } else if (source.IsStackSlot() && destination.IsStackSlot()) {
     Exchange(source.GetStackIndex(), destination.GetStackIndex());
   } else if (source.IsFpuRegister() && destination.IsFpuRegister()) {
-    vixl32::SRegister temp = temps.AcquireS();
+    vixl32::Register temp = temps.Acquire();
     __ Vmov(temp, SRegisterFrom(source));
     __ Vmov(SRegisterFrom(source), SRegisterFrom(destination));
     __ Vmov(SRegisterFrom(destination), temp);
@@ -6637,12 +6628,12 @@ void ParallelMoveResolverARMVIXL::EmitSwap(size_t index) {
   }
 }
 
-void ParallelMoveResolverARMVIXL::SpillScratch(int reg ATTRIBUTE_UNUSED) {
-  TODO_VIXL32(FATAL);
+void ParallelMoveResolverARMVIXL::SpillScratch(int reg) {
+  __ Push(vixl32::Register(reg));
 }
 
-void ParallelMoveResolverARMVIXL::RestoreScratch(int reg ATTRIBUTE_UNUSED) {
-  TODO_VIXL32(FATAL);
+void ParallelMoveResolverARMVIXL::RestoreScratch(int reg) {
+  __ Pop(vixl32::Register(reg));
 }
 
 HLoadClass::LoadKind CodeGeneratorARMVIXL::GetSupportedLoadClassKind(
