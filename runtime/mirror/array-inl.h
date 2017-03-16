@@ -402,8 +402,8 @@ inline T PointerArray::GetElementPtrSize(uint32_t idx, PointerSize ptr_size) {
     return (T)static_cast<uintptr_t>(
         AsLongArray<kVerifyFlags, kReadBarrierOption>()->GetWithoutChecks(idx));
   }
-  return (T)static_cast<uintptr_t>(
-      AsIntArray<kVerifyFlags, kReadBarrierOption>()->GetWithoutChecks(idx));
+  return (T)static_cast<uintptr_t>(static_cast<uint32_t>(
+      AsIntArray<kVerifyFlags, kReadBarrierOption>()->GetWithoutChecks(idx)));
 }
 
 template<bool kTransactionActive, bool kUnchecked>
