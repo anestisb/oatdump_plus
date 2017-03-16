@@ -1118,6 +1118,47 @@ void IntrinsicLocationsBuilderX86_64::VisitSystemArrayCopy(HInvoke* invoke) {
   CodeGenerator::CreateSystemArrayCopyLocationSummary(invoke);
 }
 
+// Compute base source address, base destination address, and end
+// source address for the System.arraycopy intrinsic in `src_base`,
+// `dst_base` and `src_end` respectively.
+static void GenSystemArrayCopyAddresses(X86_64Assembler* assembler,
+                                        Primitive::Type type,
+                                        const CpuRegister& src,
+                                        const Location& src_pos,
+                                        const CpuRegister& dst,
+                                        const Location& dst_pos,
+                                        const Location& copy_length,
+                                        const CpuRegister& src_base,
+                                        const CpuRegister& dst_base,
+                                        const CpuRegister& src_end) {
+  // This routine is only used by the SystemArrayCopy intrinsic.
+  DCHECK_EQ(type, Primitive::kPrimNot);
+  const int32_t element_size = Primitive::ComponentSize(type);
+  const ScaleFactor scale_factor = static_cast<ScaleFactor>(Primitive::ComponentSizeShift(type));
+  const uint32_t data_offset = mirror::Array::DataOffset(element_size).Uint32Value();
+
+  if (src_pos.IsConstant()) {
+    int32_t constant = src_pos.GetConstant()->AsIntConstant()->GetValue();
+    __ leal(src_base, Address(src, element_size * constant + data_offset));
+  } else {
+    __ leal(src_base, Address(src, src_pos.AsRegister<CpuRegister>(), scale_factor, data_offset));
+  }
+
+  if (dst_pos.IsConstant()) {
+    int32_t constant = dst_pos.GetConstant()->AsIntConstant()->GetValue();
+    __ leal(dst_base, Address(dst, element_size * constant + data_offset));
+  } else {
+    __ leal(dst_base, Address(dst, dst_pos.AsRegister<CpuRegister>(), scale_factor, data_offset));
+  }
+
+  if (copy_length.IsConstant()) {
+    int32_t constant = copy_length.GetConstant()->AsIntConstant()->GetValue();
+    __ leal(src_end, Address(src_base, element_size * constant));
+  } else {
+    __ leal(src_end, Address(src_base, copy_length.AsRegister<CpuRegister>(), scale_factor, 0));
+  }
+}
+
 void IntrinsicCodeGeneratorX86_64::VisitSystemArrayCopy(HInvoke* invoke) {
   // The only read barrier implementation supporting the
   // SystemArrayCopy intrinsic is the Baker-style read barriers.
@@ -1366,30 +1407,13 @@ void IntrinsicCodeGeneratorX86_64::VisitSystemArrayCopy(HInvoke* invoke) {
     __ j(kNotEqual, intrinsic_slow_path->GetEntryLabel());
   }
 
-  // Compute base source address, base destination address, and end source address.
+  const Primitive::Type type = Primitive::kPrimNot;
+  const int32_t element_size = Primitive::ComponentSize(type);
 
-  int32_t element_size = Primitive::ComponentSize(Primitive::kPrimNot);
-  uint32_t offset = mirror::Array::DataOffset(element_size).Uint32Value();
-  if (src_pos.IsConstant()) {
-    int32_t constant = src_pos.GetConstant()->AsIntConstant()->GetValue();
-    __ leal(temp1, Address(src, element_size * constant + offset));
-  } else {
-    __ leal(temp1, Address(src, src_pos.AsRegister<CpuRegister>(), ScaleFactor::TIMES_4, offset));
-  }
-
-  if (dest_pos.IsConstant()) {
-    int32_t constant = dest_pos.GetConstant()->AsIntConstant()->GetValue();
-    __ leal(temp2, Address(dest, element_size * constant + offset));
-  } else {
-    __ leal(temp2, Address(dest, dest_pos.AsRegister<CpuRegister>(), ScaleFactor::TIMES_4, offset));
-  }
-
-  if (length.IsConstant()) {
-    int32_t constant = length.GetConstant()->AsIntConstant()->GetValue();
-    __ leal(temp3, Address(temp1, element_size * constant));
-  } else {
-    __ leal(temp3, Address(temp1, length.AsRegister<CpuRegister>(), ScaleFactor::TIMES_4, 0));
-  }
+  // Compute base source address, base destination address, and end
+  // source address in `temp1`, `temp2` and `temp3` respectively.
+  GenSystemArrayCopyAddresses(
+      GetAssembler(), type, src, src_pos, dest, dest_pos, length, temp1, temp2, temp3);
 
   if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
     // SystemArrayCopy implementation for Baker read barriers (see
@@ -1474,11 +1498,7 @@ void IntrinsicCodeGeneratorX86_64::VisitSystemArrayCopy(HInvoke* invoke) {
   }
 
   // We only need one card marking on the destination array.
-  codegen_->MarkGCCard(temp1,
-                       temp2,
-                       dest,
-                       CpuRegister(kNoRegister),
-                       /* value_can_be_null */ false);
+  codegen_->MarkGCCard(temp1, temp2, dest, CpuRegister(kNoRegister), /* value_can_be_null */ false);
 
   __ Bind(intrinsic_slow_path->GetExitLabel());
 }
