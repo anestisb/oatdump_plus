@@ -21,12 +21,4 @@ set -e
 mkdir src
 python ./genMain.py
 
-# Increase the file size limitation for classes.lst as the machine generated
-# source file contains a lot of methods and is quite large.
-
-# Jack generates big temp files so only apply ulimit for dx.
-if [ ${USE_JACK} = "false" ]; then
-  ulimit -S 4096
-fi
-
 ./default-build

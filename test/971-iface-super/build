@@ -17,15 +17,6 @@
 # make us exit on a failure
 set -e
 
-# We will be making more files than the ulimit is set to allow. Remove it temporarily.
-OLD_ULIMIT=`ulimit -S`
-ulimit -S unlimited
-
-restore_ulimit() {
-  ulimit -S "$OLD_ULIMIT"
-}
-trap 'restore_ulimit' ERR
-
 # TODO: Support running with jack.
 
 if [[ $@ == *"--jvm"* ]]; then
@@ -45,6 +36,3 @@ else
   # Use the default build script
   ./default-build "$@" "$EXTRA_ARGS" --experimental default-methods
 fi
-
-# Reset the ulimit back to its initial value
-restore_ulimit
