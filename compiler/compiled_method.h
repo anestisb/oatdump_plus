@@ -420,7 +420,7 @@ class CompiledMethod FINAL : public CompiledCode {
                  const size_t frame_size_in_bytes,
                  const uint32_t core_spill_mask,
                  const uint32_t fp_spill_mask,
-                 const ArrayRef<const SrcMapElem>& src_mapping_table,
+                 const ArrayRef<const uint8_t>& method_info,
                  const ArrayRef<const uint8_t>& vmap_table,
                  const ArrayRef<const uint8_t>& cfi_info,
                  const ArrayRef<const LinkerPatch>& patches);
@@ -434,7 +434,7 @@ class CompiledMethod FINAL : public CompiledCode {
       const size_t frame_size_in_bytes,
       const uint32_t core_spill_mask,
       const uint32_t fp_spill_mask,
-      const ArrayRef<const SrcMapElem>& src_mapping_table,
+      const ArrayRef<const uint8_t>& method_info,
       const ArrayRef<const uint8_t>& vmap_table,
       const ArrayRef<const uint8_t>& cfi_info,
       const ArrayRef<const LinkerPatch>& patches);
@@ -453,8 +453,8 @@ class CompiledMethod FINAL : public CompiledCode {
     return fp_spill_mask_;
   }
 
-  ArrayRef<const SrcMapElem> GetSrcMappingTable() const {
-    return GetArray(src_mapping_table_);
+  ArrayRef<const uint8_t> GetMethodInfo() const {
+    return GetArray(method_info_);
   }
 
   ArrayRef<const uint8_t> GetVmapTable() const {
@@ -476,9 +476,9 @@ class CompiledMethod FINAL : public CompiledCode {
   const uint32_t core_spill_mask_;
   // For quick code, a bit mask describing spilled FPR callee-save registers.
   const uint32_t fp_spill_mask_;
-  // For quick code, a set of pairs (PC, DEX) mapping from native PC offset to DEX offset.
-  const LengthPrefixedArray<SrcMapElem>* const src_mapping_table_;
-  // For quick code, a uleb128 encoded map from GPR/FPR register to dex register. Size prefixed.
+  // For quick code, method specific information that is not very dedupe friendly (method indices).
+  const LengthPrefixedArray<uint8_t>* const method_info_;
+  // For quick code, holds code infos which contain stack maps, inline information, and etc.
   const LengthPrefixedArray<uint8_t>* const vmap_table_;
   // For quick code, a FDE entry for the debug_frame section.
   const LengthPrefixedArray<uint8_t>* const cfi_info_;

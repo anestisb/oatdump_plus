@@ -254,9 +254,11 @@ class OatWriter {
   class InitOatClassesMethodVisitor;
   class InitCodeMethodVisitor;
   class InitMapMethodVisitor;
+  class InitMethodInfoVisitor;
   class InitImageMethodVisitor;
   class WriteCodeMethodVisitor;
   class WriteMapMethodVisitor;
+  class WriteMethodInfoVisitor;
   class WriteQuickeningInfoMethodVisitor;
 
   // Visit all the methods in all the compiled dex files in their definition order
@@ -425,6 +427,7 @@ class OatWriter {
   uint32_t size_relative_call_thunks_;
   uint32_t size_misc_thunks_;
   uint32_t size_vmap_table_;
+  uint32_t size_method_info_;
   uint32_t size_oat_dex_file_location_size_;
   uint32_t size_oat_dex_file_location_data_;
   uint32_t size_oat_dex_file_location_checksum_;

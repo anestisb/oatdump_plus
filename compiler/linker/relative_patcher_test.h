@@ -87,7 +87,7 @@ class RelativePatcherTest : public testing::Test {
         /* frame_size_in_bytes */ 0u,
         /* core_spill_mask */ 0u,
         /* fp_spill_mask */ 0u,
-        /* src_mapping_table */ ArrayRef<const SrcMapElem>(),
+        /* method_info */ ArrayRef<const uint8_t>(),
         /* vmap_table */ ArrayRef<const uint8_t>(),
         /* cfi_info */ ArrayRef<const uint8_t>(),
         patches));

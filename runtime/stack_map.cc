@@ -118,7 +118,8 @@ void CodeInfo::Dump(VariableIndentationOutputStream* vios,
                     uint32_t code_offset,
                     uint16_t number_of_dex_registers,
                     bool dump_stack_maps,
-                    InstructionSet instruction_set) const {
+                    InstructionSet instruction_set,
+                    const MethodInfo& method_info) const {
   CodeInfoEncoding encoding = ExtractEncoding();
   size_t number_of_stack_maps = GetNumberOfStackMaps(encoding);
   vios->Stream()
@@ -139,6 +140,7 @@ void CodeInfo::Dump(VariableIndentationOutputStream* vios,
       stack_map.Dump(vios,
                      *this,
                      encoding,
+                     method_info,
                      code_offset,
                      number_of_dex_registers,
                      instruction_set,
@@ -189,6 +191,7 @@ void DexRegisterMap::Dump(VariableIndentationOutputStream* vios,
 void StackMap::Dump(VariableIndentationOutputStream* vios,
                     const CodeInfo& code_info,
                     const CodeInfoEncoding& encoding,
+                    const MethodInfo& method_info,
                     uint32_t code_offset,
                     uint16_t number_of_dex_registers,
                     InstructionSet instruction_set,
@@ -222,12 +225,13 @@ void StackMap::Dump(VariableIndentationOutputStream* vios,
     // We do not know the length of the dex register maps of inlined frames
     // at this level, so we just pass null to `InlineInfo::Dump` to tell
     // it not to look at these maps.
-    inline_info.Dump(vios, code_info, nullptr);
+    inline_info.Dump(vios, code_info, method_info, nullptr);
   }
 }
 
 void InlineInfo::Dump(VariableIndentationOutputStream* vios,
                       const CodeInfo& code_info,
+                      const MethodInfo& method_info,
                       uint16_t number_of_dex_registers[]) const {
   InlineInfoEncoding inline_info_encoding = code_info.ExtractEncoding().inline_info.encoding;
   vios->Stream() << "InlineInfo with depth "
@@ -245,7 +249,7 @@ void InlineInfo::Dump(VariableIndentationOutputStream* vios,
     } else {
       vios->Stream()
           << std::dec
-          << ", method_index=" << GetMethodIndexAtDepth(inline_info_encoding, i);
+          << ", method_index=" << GetMethodIndexAtDepth(inline_info_encoding, method_info, i);
     }
     vios->Stream() << ")\n";
     if (HasDexRegisterMapAtDepth(inline_info_encoding, i) && (number_of_dex_registers != nullptr)) {

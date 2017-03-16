@@ -60,7 +60,7 @@ TEST(StackMapTest, Test1) {
   size_t size = stream.PrepareForFillIn();
   void* memory = arena.Alloc(size, kArenaAllocMisc);
   MemoryRegion region(memory, size);
-  stream.FillIn(region);
+  stream.FillInCodeInfo(region);
 
   CodeInfo code_info(region);
   CodeInfoEncoding encoding = code_info.ExtractEncoding();
@@ -173,7 +173,7 @@ TEST(StackMapTest, Test2) {
   size_t size = stream.PrepareForFillIn();
   void* memory = arena.Alloc(size, kArenaAllocMisc);
   MemoryRegion region(memory, size);
-  stream.FillIn(region);
+  stream.FillInCodeInfo(region);
 
   CodeInfo code_info(region);
   CodeInfoEncoding encoding = code_info.ExtractEncoding();
@@ -433,7 +433,7 @@ TEST(StackMapTest, TestDeduplicateInlineInfoDexRegisterMap) {
   size_t size = stream.PrepareForFillIn();
   void* memory = arena.Alloc(size, kArenaAllocMisc);
   MemoryRegion region(memory, size);
-  stream.FillIn(region);
+  stream.FillInCodeInfo(region);
 
   CodeInfo code_info(region);
   CodeInfoEncoding encoding = code_info.ExtractEncoding();
@@ -519,7 +519,7 @@ TEST(StackMapTest, TestNonLiveDexRegisters) {
   size_t size = stream.PrepareForFillIn();
   void* memory = arena.Alloc(size, kArenaAllocMisc);
   MemoryRegion region(memory, size);
-  stream.FillIn(region);
+  stream.FillInCodeInfo(region);
 
   CodeInfo code_info(region);
   CodeInfoEncoding encoding = code_info.ExtractEncoding();
@@ -611,7 +611,7 @@ TEST(StackMapTest, DexRegisterMapOffsetOverflow) {
   size_t size = stream.PrepareForFillIn();
   void* memory = arena.Alloc(size, kArenaAllocMisc);
   MemoryRegion region(memory, size);
-  stream.FillIn(region);
+  stream.FillInCodeInfo(region);
 
   CodeInfo code_info(region);
   CodeInfoEncoding encoding = code_info.ExtractEncoding();
@@ -672,7 +672,7 @@ TEST(StackMapTest, TestShareDexRegisterMap) {
   size_t size = stream.PrepareForFillIn();
   void* memory = arena.Alloc(size, kArenaAllocMisc);
   MemoryRegion region(memory, size);
-  stream.FillIn(region);
+  stream.FillInCodeInfo(region);
 
   CodeInfo ci(region);
   CodeInfoEncoding encoding = ci.ExtractEncoding();
@@ -721,7 +721,7 @@ TEST(StackMapTest, TestNoDexRegisterMap) {
   size_t size = stream.PrepareForFillIn();
   void* memory = arena.Alloc(size, kArenaAllocMisc);
   MemoryRegion region(memory, size);
-  stream.FillIn(region);
+  stream.FillInCodeInfo(region);
 
   CodeInfo code_info(region);
   CodeInfoEncoding encoding = code_info.ExtractEncoding();
@@ -823,7 +823,7 @@ TEST(StackMapTest, InlineTest) {
   size_t size = stream.PrepareForFillIn();
   void* memory = arena.Alloc(size, kArenaAllocMisc);
   MemoryRegion region(memory, size);
-  stream.FillIn(region);
+  stream.FillInCodeInfo(region);
 
   CodeInfo ci(region);
   CodeInfoEncoding encoding = ci.ExtractEncoding();
@@ -950,7 +950,7 @@ TEST(StackMapTest, TestDeduplicateStackMask) {
   size_t size = stream.PrepareForFillIn();
   void* memory = arena.Alloc(size, kArenaAllocMisc);
   MemoryRegion region(memory, size);
-  stream.FillIn(region);
+  stream.FillInCodeInfo(region);
 
   CodeInfo code_info(region);
   CodeInfoEncoding encoding = code_info.ExtractEncoding();
@@ -979,11 +979,16 @@ TEST(StackMapTest, TestInvokeInfo) {
   stream.AddInvoke(kDirect, 65535);
   stream.EndStackMapEntry();
 
-  const size_t size = stream.PrepareForFillIn();
-  MemoryRegion region(arena.Alloc(size, kArenaAllocMisc), size);
-  stream.FillIn(region);
+  const size_t code_info_size = stream.PrepareForFillIn();
+  MemoryRegion code_info_region(arena.Alloc(code_info_size, kArenaAllocMisc), code_info_size);
+  stream.FillInCodeInfo(code_info_region);
 
-  CodeInfo code_info(region);
+  const size_t method_info_size = stream.ComputeMethodInfoSize();
+  MemoryRegion method_info_region(arena.Alloc(method_info_size, kArenaAllocMisc), method_info_size);
+  stream.FillInMethodInfo(method_info_region);
+
+  CodeInfo code_info(code_info_region);
+  MethodInfo method_info(method_info_region.begin());
   CodeInfoEncoding encoding = code_info.ExtractEncoding();
   ASSERT_EQ(3u, code_info.GetNumberOfStackMaps(encoding));
 
@@ -996,13 +1001,13 @@ TEST(StackMapTest, TestInvokeInfo) {
   EXPECT_TRUE(invoke2.IsValid());
   EXPECT_TRUE(invoke3.IsValid());
   EXPECT_EQ(invoke1.GetInvokeType(encoding.invoke_info.encoding), kSuper);
-  EXPECT_EQ(invoke1.GetMethodIndex(encoding.invoke_info.encoding), 1u);
+  EXPECT_EQ(invoke1.GetMethodIndex(encoding.invoke_info.encoding, method_info), 1u);
   EXPECT_EQ(invoke1.GetNativePcOffset(encoding.invoke_info.encoding, kRuntimeISA), 4u);
   EXPECT_EQ(invoke2.GetInvokeType(encoding.invoke_info.encoding), kStatic);
-  EXPECT_EQ(invoke2.GetMethodIndex(encoding.invoke_info.encoding), 3u);
+  EXPECT_EQ(invoke2.GetMethodIndex(encoding.invoke_info.encoding, method_info), 3u);
   EXPECT_EQ(invoke2.GetNativePcOffset(encoding.invoke_info.encoding, kRuntimeISA), 8u);
   EXPECT_EQ(invoke3.GetInvokeType(encoding.invoke_info.encoding), kDirect);
-  EXPECT_EQ(invoke3.GetMethodIndex(encoding.invoke_info.encoding), 65535u);
+  EXPECT_EQ(invoke3.GetMethodIndex(encoding.invoke_info.encoding, method_info), 65535u);
   EXPECT_EQ(invoke3.GetNativePcOffset(encoding.invoke_info.encoding, kRuntimeISA), 16u);
 }
 
