@@ -848,7 +848,7 @@ inline void Class::AssertInitializedOrInitializingInThread(Thread* self) {
   }
 }
 
-inline ObjectArray<Class>* Class::GetInterfaces() {
+inline ObjectArray<Class>* Class::GetProxyInterfaces() {
   CHECK(IsProxyClass());
   // First static field.
   auto* field = GetStaticField(0);
@@ -857,7 +857,7 @@ inline ObjectArray<Class>* Class::GetInterfaces() {
   return GetFieldObject<ObjectArray<Class>>(field_offset);
 }
 
-inline ObjectArray<ObjectArray<Class>>* Class::GetThrows() {
+inline ObjectArray<ObjectArray<Class>>* Class::GetProxyThrows() {
   CHECK(IsProxyClass());
   // Second static field.
   auto* field = GetStaticField(1);
@@ -927,7 +927,7 @@ inline uint32_t Class::NumDirectInterfaces() {
   } else if (IsArrayClass()) {
     return 2;
   } else if (IsProxyClass()) {
-    ObjectArray<Class>* interfaces = GetInterfaces();
+    ObjectArray<Class>* interfaces = GetProxyInterfaces();
     return interfaces != nullptr ? interfaces->GetLength() : 0;
   } else {
     const DexFile::TypeList* interfaces = GetInterfaceTypeList();

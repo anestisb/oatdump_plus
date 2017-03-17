@@ -212,10 +212,6 @@ class MANAGED DexCache FINAL : public Object {
     return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(DexCache, location_));
   }
 
-  static MemberOffset DexOffset() {
-    return OFFSET_OF_OBJECT_MEMBER(DexCache, dex_);
-  }
-
   static MemberOffset StringsOffset() {
     return OFFSET_OF_OBJECT_MEMBER(DexCache, strings_);
   }
@@ -516,8 +512,11 @@ class MANAGED DexCache FINAL : public Object {
   static void AtomicStoreRelease16B(std::atomic<ConversionPair64>* target, ConversionPair64 value);
 #endif
 
-  HeapReference<Object> dex_;
   HeapReference<String> location_;
+  // Number of elements in the call_sites_ array. Note that this appears here
+  // because of our packing logic for 32 bit fields.
+  uint32_t num_resolved_call_sites_;
+
   uint64_t dex_file_;               // const DexFile*
   uint64_t resolved_call_sites_;    // GcRoot<CallSite>* array with num_resolved_call_sites_
                                     // elements.
@@ -530,7 +529,6 @@ class MANAGED DexCache FINAL : public Object {
   uint64_t strings_;                // std::atomic<StringDexCachePair>*, array with num_strings_
                                     // elements.
 
-  uint32_t num_resolved_call_sites_;    // Number of elements in the call_sites_ array.
   uint32_t num_resolved_fields_;        // Number of elements in the resolved_fields_ array.
   uint32_t num_resolved_method_types_;  // Number of elements in the resolved_method_types_ array.
   uint32_t num_resolved_methods_;       // Number of elements in the resolved_methods_ array.

@@ -52,7 +52,6 @@
   V(MathPow, "double java.lang.Math.pow(double, double)") \
   V(ObjectHashCode, "int java.lang.Object.hashCode()") \
   V(DoubleDoubleToRawLongBits, "long java.lang.Double.doubleToRawLongBits(double)") \
-  V(DexCacheGetDexNative, "com.android.dex.Dex java.lang.DexCache.getDexNative()") \
   V(MemoryPeekByte, "byte libcore.io.Memory.peekByte(long)") \
   V(MemoryPeekShort, "short libcore.io.Memory.peekShortNative(long)") \
   V(MemoryPeekInt, "int libcore.io.Memory.peekIntNative(long)") \
