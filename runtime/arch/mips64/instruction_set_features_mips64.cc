@@ -30,22 +30,52 @@ using android::base::StringPrintf;
 
 Mips64FeaturesUniquePtr Mips64InstructionSetFeatures::FromVariant(
     const std::string& variant, std::string* error_msg ATTRIBUTE_UNUSED) {
+  bool msa = true;
   if (variant != "default" && variant != "mips64r6") {
     LOG(WARNING) << "Unexpected CPU variant for Mips64 using defaults: " << variant;
   }
-  return Mips64FeaturesUniquePtr(new Mips64InstructionSetFeatures());
+  return Mips64FeaturesUniquePtr(new Mips64InstructionSetFeatures(msa));
 }
 
-Mips64FeaturesUniquePtr Mips64InstructionSetFeatures::FromBitmap(uint32_t bitmap ATTRIBUTE_UNUSED) {
-  return Mips64FeaturesUniquePtr(new Mips64InstructionSetFeatures());
+Mips64FeaturesUniquePtr Mips64InstructionSetFeatures::FromBitmap(uint32_t bitmap) {
+  bool msa = (bitmap & kMsaBitfield) != 0;
+  return Mips64FeaturesUniquePtr(new Mips64InstructionSetFeatures(msa));
 }
 
 Mips64FeaturesUniquePtr Mips64InstructionSetFeatures::FromCppDefines() {
-  return Mips64FeaturesUniquePtr(new Mips64InstructionSetFeatures());
+#if defined(_MIPS_ARCH_MIPS64R6)
+  const bool msa = true;
+#else
+  const bool msa = false;
+#endif
+  return Mips64FeaturesUniquePtr(new Mips64InstructionSetFeatures(msa));
 }
 
 Mips64FeaturesUniquePtr Mips64InstructionSetFeatures::FromCpuInfo() {
-  return Mips64FeaturesUniquePtr(new Mips64InstructionSetFeatures());
+  // Look in /proc/cpuinfo for features we need.  Only use this when we can guarantee that
+  // the kernel puts the appropriate feature flags in here.  Sometimes it doesn't.
+  bool msa = false;
+
+  std::ifstream in("/proc/cpuinfo");
+  if (!in.fail()) {
+    while (!in.eof()) {
+      std::string line;
+      std::getline(in, line);
+      if (!in.eof()) {
+        LOG(INFO) << "cpuinfo line: " << line;
+        if (line.find("ASEs") != std::string::npos) {
+          LOG(INFO) << "found Application Specific Extensions";
+          if (line.find("msa") != std::string::npos) {
+            msa = true;
+          }
+        }
+      }
+    }
+    in.close();
+  } else {
+    LOG(ERROR) << "Failed to open /proc/cpuinfo";
+  }
+  return Mips64FeaturesUniquePtr(new Mips64InstructionSetFeatures(msa));
 }
 
 Mips64FeaturesUniquePtr Mips64InstructionSetFeatures::FromHwcap() {
@@ -62,28 +92,40 @@ bool Mips64InstructionSetFeatures::Equals(const InstructionSetFeatures* other) c
   if (kMips64 != other->GetInstructionSet()) {
     return false;
   }
-  return true;
+  const Mips64InstructionSetFeatures* other_as_mips64 = other->AsMips64InstructionSetFeatures();
+  return msa_ == other_as_mips64->msa_;
 }
 
 uint32_t Mips64InstructionSetFeatures::AsBitmap() const {
-  return 0;
+  return (msa_ ? kMsaBitfield : 0);
 }
 
 std::string Mips64InstructionSetFeatures::GetFeatureString() const {
-  return "default";
+  std::string result;
+  if (msa_) {
+    result += "msa";
+  } else {
+    result += "-msa";
+  }
+  return result;
 }
 
 std::unique_ptr<const InstructionSetFeatures>
 Mips64InstructionSetFeatures::AddFeaturesFromSplitString(
     const std::vector<std::string>& features, std::string* error_msg) const {
-  auto i = features.begin();
-  if (i != features.end()) {
-    // We don't have any features.
+  bool msa = msa_;
+  for (auto i = features.begin(); i != features.end(); i++) {
     std::string feature = android::base::Trim(*i);
-    *error_msg = StringPrintf("Unknown instruction set feature: '%s'", feature.c_str());
-    return nullptr;
+    if (feature == "msa") {
+      msa = true;
+    } else if (feature == "-msa") {
+      msa = false;
+    } else {
+      *error_msg = StringPrintf("Unknown instruction set feature: '%s'", feature.c_str());
+      return nullptr;
+    }
   }
-  return std::unique_ptr<const InstructionSetFeatures>(new Mips64InstructionSetFeatures());
+  return std::unique_ptr<const InstructionSetFeatures>(new Mips64InstructionSetFeatures(msa));
 }
 
 }  // namespace art
