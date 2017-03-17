@@ -1131,53 +1131,6 @@ void UnstartedRuntime::UnstartedDoubleDoubleToRawLongBits(
   result->SetJ(bit_cast<int64_t, double>(in));
 }
 
-static ObjPtr<mirror::Object> GetDexFromDexCache(Thread* self, mirror::DexCache* dex_cache)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  const DexFile* dex_file = dex_cache->GetDexFile();
-  if (dex_file == nullptr) {
-    return nullptr;
-  }
-
-  // Create the direct byte buffer.
-  JNIEnv* env = self->GetJniEnv();
-  DCHECK(env != nullptr);
-  void* address = const_cast<void*>(reinterpret_cast<const void*>(dex_file->Begin()));
-  ScopedLocalRef<jobject> byte_buffer(env, env->NewDirectByteBuffer(address, dex_file->Size()));
-  if (byte_buffer.get() == nullptr) {
-    DCHECK(self->IsExceptionPending());
-    return nullptr;
-  }
-
-  jvalue args[1];
-  args[0].l = byte_buffer.get();
-
-  ScopedLocalRef<jobject> dex(env, env->CallStaticObjectMethodA(
-      WellKnownClasses::com_android_dex_Dex,
-      WellKnownClasses::com_android_dex_Dex_create,
-      args));
-
-  return self->DecodeJObject(dex.get());
-}
-
-void UnstartedRuntime::UnstartedDexCacheGetDexNative(
-    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
-  // We will create the Dex object, but the image writer will release it before creating the
-  // art file.
-  mirror::Object* src = shadow_frame->GetVRegReference(arg_offset);
-  bool have_dex = false;
-  if (src != nullptr) {
-    ObjPtr<mirror::Object> dex = GetDexFromDexCache(self, src->AsDexCache());
-    if (dex != nullptr) {
-      have_dex = true;
-      result->SetL(dex);
-    }
-  }
-  if (!have_dex) {
-    self->ClearException();
-    Runtime::Current()->AbortTransactionAndThrowAbortError(self, "Could not create Dex object");
-  }
-}
-
 static void UnstartedMemoryPeek(
     Primitive::Type type, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
   int64_t address = shadow_frame->GetVRegLong(arg_offset);
