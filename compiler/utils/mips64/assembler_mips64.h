@@ -772,6 +772,7 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
   void Bc1nez(FpuRegister ft, Mips64Label* label);
 
   void EmitLoad(ManagedRegister m_dst, GpuRegister src_register, int32_t src_offset, size_t size);
+  void AdjustBaseAndOffset(GpuRegister& base, int32_t& offset, bool is_doubleword);
 
  private:
   // This will be used as an argument for loads/stores
@@ -791,14 +792,7 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
     // We permit `base` and `temp` to coincide (however, we check that neither is AT),
     // in which case the `base` register may be overwritten in the process.
     CHECK_NE(temp, AT);  // Must not use AT as temp, so as not to overwrite the adjusted base.
-    if (!IsInt<16>(offset) ||
-        (type == kStoreDoubleword && !IsAligned<kMips64DoublewordSize>(offset) &&
-         !IsInt<16>(static_cast<int32_t>(offset + kMips64WordSize)))) {
-      LoadConst32(AT, offset & ~(kMips64DoublewordSize - 1));
-      Daddu(AT, AT, base);
-      base = AT;
-      offset &= (kMips64DoublewordSize - 1);
-    }
+    AdjustBaseAndOffset(base, offset, /* is_doubleword */ (type == kStoreDoubleword));
     GpuRegister reg;
     // If the adjustment left `base` unchanged and equal to `temp`, we can't use `temp`
     // to load and hold the value but we can use AT instead as AT hasn't been used yet.
@@ -867,14 +861,7 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
                       GpuRegister base,
                       int32_t offset,
                       ImplicitNullChecker null_checker = NoImplicitNullChecker()) {
-    if (!IsInt<16>(offset) ||
-        (type == kLoadDoubleword && !IsAligned<kMips64DoublewordSize>(offset) &&
-         !IsInt<16>(static_cast<int32_t>(offset + kMips64WordSize)))) {
-      LoadConst32(AT, offset & ~(kMips64DoublewordSize - 1));
-      Daddu(AT, AT, base);
-      base = AT;
-      offset &= (kMips64DoublewordSize - 1);
-    }
+    AdjustBaseAndOffset(base, offset, /* is_doubleword */ (type == kLoadDoubleword));
 
     switch (type) {
       case kLoadSignedByte:
@@ -921,14 +908,7 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
                          GpuRegister base,
                          int32_t offset,
                          ImplicitNullChecker null_checker = NoImplicitNullChecker()) {
-    if (!IsInt<16>(offset) ||
-        (type == kLoadDoubleword && !IsAligned<kMips64DoublewordSize>(offset) &&
-         !IsInt<16>(static_cast<int32_t>(offset + kMips64WordSize)))) {
-      LoadConst32(AT, offset & ~(kMips64DoublewordSize - 1));
-      Daddu(AT, AT, base);
-      base = AT;
-      offset &= (kMips64DoublewordSize - 1);
-    }
+    AdjustBaseAndOffset(base, offset, /* is_doubleword */ (type == kLoadDoubleword));
 
     switch (type) {
       case kLoadWord:
@@ -959,14 +939,10 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
                      GpuRegister base,
                      int32_t offset,
                      ImplicitNullChecker null_checker = NoImplicitNullChecker()) {
-    if (!IsInt<16>(offset) ||
-        (type == kStoreDoubleword && !IsAligned<kMips64DoublewordSize>(offset) &&
-         !IsInt<16>(static_cast<int32_t>(offset + kMips64WordSize)))) {
-      LoadConst32(AT, offset & ~(kMips64DoublewordSize - 1));
-      Daddu(AT, AT, base);
-      base = AT;
-      offset &= (kMips64DoublewordSize - 1);
-    }
+    // Must not use AT as `reg`, so as not to overwrite the value being stored
+    // with the adjusted `base`.
+    CHECK_NE(reg, AT);
+    AdjustBaseAndOffset(base, offset, /* is_doubleword */ (type == kStoreDoubleword));
 
     switch (type) {
       case kStoreByte:
@@ -1005,14 +981,7 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
                         GpuRegister base,
                         int32_t offset,
                         ImplicitNullChecker null_checker = NoImplicitNullChecker()) {
-    if (!IsInt<16>(offset) ||
-        (type == kStoreDoubleword && !IsAligned<kMips64DoublewordSize>(offset) &&
-         !IsInt<16>(static_cast<int32_t>(offset + kMips64WordSize)))) {
-      LoadConst32(AT, offset & ~(kMips64DoublewordSize - 1));
-      Daddu(AT, AT, base);
-      base = AT;
-      offset &= (kMips64DoublewordSize - 1);
-    }
+    AdjustBaseAndOffset(base, offset, /* is_doubleword */ (type == kStoreDoubleword));
 
     switch (type) {
       case kStoreWord:
