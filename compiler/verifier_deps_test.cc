@@ -1528,5 +1528,13 @@ TEST_F(VerifierDepsTest, MultiDexVerification) {
   ASSERT_FALSE(buffer.empty());
 }
 
+TEST_F(VerifierDepsTest, NotAssignable_InterfaceWithClassInBoot) {
+  ASSERT_TRUE(TestAssignabilityRecording(/* dst */ "Ljava/lang/Exception;",
+                                         /* src */ "LIface;",
+                                         /* is_strict */ true,
+                                         /* is_assignable */ false));
+  ASSERT_TRUE(HasAssignable("Ljava/lang/Exception;", "LIface;", false));
+}
+
 }  // namespace verifier
 }  // namespace art
