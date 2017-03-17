@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-#
 # Copyright 2017, The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -57,7 +55,9 @@ def dump_many_vars(var_name):
              "make --no-print-directory -C \"%s\" -f build/core/config.mk "
              "dump-many-vars DUMP_MANY_VARS=\"%s\"") % (ANDROID_BUILD_TOP, all_vars)
 
-  config = subprocess.Popen(command, stdout=subprocess.PIPE,
+  config = subprocess.Popen(command,
+                            stdout=subprocess.PIPE,
+                            universal_newlines=True,
                             shell=True).communicate()[0] # read until EOF, select stdin
   # Prints out something like:
   # TARGET_ARCH='arm64'
