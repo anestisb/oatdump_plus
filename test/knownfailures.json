@@ -342,5 +342,11 @@
                   "637-checker-throw-inline"],
         "bug": "http://b/36365552",
         "variant": "no-image & jit"
+    },
+    {
+        "tests": ["530-checker-lse",
+                  "080-oom-throw"],
+        "bug": "http://b/36377828",
+        "variant": "interp-ac"
     }
 ]
