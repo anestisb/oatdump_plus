@@ -2020,6 +2020,91 @@ void Mips64Assembler::Bc1nez(FpuRegister ft, Mips64Label* label) {
   Bcond(label, kCondT, static_cast<GpuRegister>(ft), ZERO);
 }
 
+void Mips64Assembler::AdjustBaseAndOffset(GpuRegister& base,
+                                          int32_t& offset,
+                                          bool is_doubleword) {
+  // This method is used to adjust the base register and offset pair
+  // for a load/store when the offset doesn't fit into int16_t.
+  // It is assumed that `base + offset` is sufficiently aligned for memory
+  // operands that are machine word in size or smaller. For doubleword-sized
+  // operands it's assumed that `base` is a multiple of 8, while `offset`
+  // may be a multiple of 4 (e.g. 4-byte-aligned long and double arguments
+  // and spilled variables on the stack accessed relative to the stack
+  // pointer register).
+  // We preserve the "alignment" of `offset` by adjusting it by a multiple of 8.
+  CHECK_NE(base, AT);  // Must not overwrite the register `base` while loading `offset`.
+
+  bool doubleword_aligned = IsAligned<kMips64DoublewordSize>(offset);
+  bool two_accesses = is_doubleword && !doubleword_aligned;
+
+  // IsInt<16> must be passed a signed value, hence the static cast below.
+  if (IsInt<16>(offset) &&
+      (!two_accesses || IsInt<16>(static_cast<int32_t>(offset + kMips64WordSize)))) {
+    // Nothing to do: `offset` (and, if needed, `offset + 4`) fits into int16_t.
+    return;
+  }
+
+  // Remember the "(mis)alignment" of `offset`, it will be checked at the end.
+  uint32_t misalignment = offset & (kMips64DoublewordSize - 1);
+
+  // First, see if `offset` can be represented as a sum of two 16-bit signed
+  // offsets. This can save an instruction.
+  // To simplify matters, only do this for a symmetric range of offsets from
+  // about -64KB to about +64KB, allowing further addition of 4 when accessing
+  // 64-bit variables with two 32-bit accesses.
+  constexpr int32_t kMinOffsetForSimpleAdjustment = 0x7ff8;  // Max int16_t that's a multiple of 8.
+  constexpr int32_t kMaxOffsetForSimpleAdjustment = 2 * kMinOffsetForSimpleAdjustment;
+
+  if (0 <= offset && offset <= kMaxOffsetForSimpleAdjustment) {
+    Daddiu(AT, base, kMinOffsetForSimpleAdjustment);
+    offset -= kMinOffsetForSimpleAdjustment;
+  } else if (-kMaxOffsetForSimpleAdjustment <= offset && offset < 0) {
+    Daddiu(AT, base, -kMinOffsetForSimpleAdjustment);
+    offset += kMinOffsetForSimpleAdjustment;
+  } else {
+    // In more complex cases take advantage of the daui instruction, e.g.:
+    //    daui   AT, base, offset_high
+    //   [dahi   AT, 1]                       // When `offset` is close to +2GB.
+    //    lw     reg_lo, offset_low(AT)
+    //   [lw     reg_hi, (offset_low+4)(AT)]  // If misaligned 64-bit load.
+    // or when offset_low+4 overflows int16_t:
+    //    daui   AT, base, offset_high
+    //    daddiu AT, AT, 8
+    //    lw     reg_lo, (offset_low-8)(AT)
+    //    lw     reg_hi, (offset_low-4)(AT)
+    int16_t offset_low = Low16Bits(offset);
+    int32_t offset_low32 = offset_low;
+    int16_t offset_high = High16Bits(offset);
+    bool increment_hi16 = offset_low < 0;
+    bool overflow_hi16 = false;
+
+    if (increment_hi16) {
+      offset_high++;
+      overflow_hi16 = (offset_high == -32768);
+    }
+    Daui(AT, base, offset_high);
+
+    if (overflow_hi16) {
+      Dahi(AT, 1);
+    }
+
+    if (two_accesses && !IsInt<16>(static_cast<int32_t>(offset_low32 + kMips64WordSize))) {
+      // Avoid overflow in the 16-bit offset of the load/store instruction when adding 4.
+      Daddiu(AT, AT, kMips64DoublewordSize);
+      offset_low32 -= kMips64DoublewordSize;
+    }
+
+    offset = offset_low32;
+  }
+  base = AT;
+
+  CHECK(IsInt<16>(offset));
+  if (two_accesses) {
+    CHECK(IsInt<16>(static_cast<int32_t>(offset + kMips64WordSize)));
+  }
+  CHECK_EQ(misalignment, offset & (kMips64DoublewordSize - 1));
+}
+
 void Mips64Assembler::LoadFromOffset(LoadOperandType type,
                                      GpuRegister reg,
                                      GpuRegister base,
