@@ -708,6 +708,7 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -Xps-min-classes-to-save:integervalue\n");
   UsageMessage(stream, "  -Xps-min-notification-before-wake:integervalue\n");
   UsageMessage(stream, "  -Xps-max-notification-before-wake:integervalue\n");
+  UsageMessage(stream, "  -Xps-profile-path:file-path\n");
   UsageMessage(stream, "  -Xcompiler:filename\n");
   UsageMessage(stream, "  -Xcompiler-option dex2oat-option\n");
   UsageMessage(stream, "  -Ximage-compiler-option dex2oat-option\n");
