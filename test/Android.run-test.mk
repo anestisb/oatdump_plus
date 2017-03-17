@@ -353,8 +353,11 @@ TEST_ART_BROKEN_NO_RELOCATE_TESTS :=
 
 # Temporarily disable some broken tests when forcing access checks in interpreter b/22414682
 # 629 requires compilation.
+# 080 and 530: b/36377828
 TEST_ART_BROKEN_INTERPRETER_ACCESS_CHECK_TESTS := \
   137-cfi \
+  530-checker-lse \
+  080-oom-throw \
   629-vdex-speed
 
 ifneq (,$(filter interp-ac,$(COMPILER_TYPES)))
