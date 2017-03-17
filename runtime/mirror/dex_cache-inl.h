@@ -47,7 +47,7 @@ inline void NativeDexCachePair<T>::Initialize(std::atomic<NativeDexCachePair<T>>
 }
 
 inline uint32_t DexCache::ClassSize(PointerSize pointer_size) {
-  uint32_t vtable_entries = Object::kVTableLength + 5;
+  const uint32_t vtable_entries = Object::kVTableLength;
   return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0, 0, 0, pointer_size);
 }
 

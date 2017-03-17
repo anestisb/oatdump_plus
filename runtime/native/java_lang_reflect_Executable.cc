@@ -194,12 +194,146 @@ static jboolean Executable_isAnnotationPresentNative(JNIEnv* env,
   return annotations::IsMethodAnnotationPresent(method, klass);
 }
 
+static jint Executable_compareMethodParametersInternal(JNIEnv* env,
+                                                       jobject thisMethod,
+                                                       jobject otherMethod) {
+  ScopedFastNativeObjectAccess soa(env);
+  ArtMethod* this_method = ArtMethod::FromReflectedMethod(soa, thisMethod);
+  ArtMethod* other_method = ArtMethod::FromReflectedMethod(soa, otherMethod);
+
+  this_method = this_method->GetInterfaceMethodIfProxy(kRuntimePointerSize);
+  other_method = other_method->GetInterfaceMethodIfProxy(kRuntimePointerSize);
+
+  const DexFile::TypeList* this_list = this_method->GetParameterTypeList();
+  const DexFile::TypeList* other_list = other_method->GetParameterTypeList();
+
+  if (this_list == other_list) {
+    return 0;
+  }
+
+  if (this_list == nullptr && other_list != nullptr) {
+    return -1;
+  }
+
+  if (other_list == nullptr && this_list != nullptr) {
+    return 1;
+  }
+
+  const int32_t this_size = this_list->Size();
+  const int32_t other_size = other_list->Size();
+
+  if (this_size != other_size) {
+    return (this_size - other_size);
+  }
+
+  for (int32_t i = 0; i < this_size; ++i) {
+    const DexFile::TypeId& lhs = this_method->GetDexFile()->GetTypeId(
+        this_list->GetTypeItem(i).type_idx_);
+    const DexFile::TypeId& rhs = other_method->GetDexFile()->GetTypeId(
+        other_list->GetTypeItem(i).type_idx_);
+
+    uint32_t lhs_len, rhs_len;
+    const char* lhs_data = this_method->GetDexFile()->StringDataAndUtf16LengthByIdx(
+        lhs.descriptor_idx_, &lhs_len);
+    const char* rhs_data = other_method->GetDexFile()->StringDataAndUtf16LengthByIdx(
+        rhs.descriptor_idx_, &rhs_len);
+
+    int cmp = strcmp(lhs_data, rhs_data);
+    if (cmp != 0) {
+      return (cmp < 0) ? -1 : 1;
+    }
+  }
+
+  return 0;
+}
+
+static jobject Executable_getMethodNameInternal(JNIEnv* env, jobject javaMethod) {
+  ScopedFastNativeObjectAccess soa(env);
+  ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
+  method = method->GetInterfaceMethodIfProxy(kRuntimePointerSize);
+  return soa.AddLocalReference<jobject>(method->GetNameAsString(soa.Self()));
+}
+
+static jobject Executable_getMethodReturnTypeInternal(JNIEnv* env, jobject javaMethod) {
+  ScopedFastNativeObjectAccess soa(env);
+  ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
+  method = method->GetInterfaceMethodIfProxy(kRuntimePointerSize);
+  ObjPtr<mirror::Class> return_type(method->GetReturnType(true /* resolve */));
+  if (return_type.IsNull()) {
+    CHECK(soa.Self()->IsExceptionPending());
+    return nullptr;
+  }
+
+  return soa.AddLocalReference<jobject>(return_type);
+}
+
+// TODO: Move this to mirror::Class ? Other mirror types that commonly appear
+// as arrays have a GetArrayClass() method. This is duplicated in
+// java_lang_Class.cc as well.
+static ObjPtr<mirror::Class> GetClassArrayClass(Thread* self)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  ObjPtr<mirror::Class> class_class = mirror::Class::GetJavaLangClass();
+  return Runtime::Current()->GetClassLinker()->FindArrayClass(self, &class_class);
+}
+
+static jobjectArray Executable_getParameterTypesInternal(JNIEnv* env, jobject javaMethod) {
+  ScopedFastNativeObjectAccess soa(env);
+  ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
+  method = method->GetInterfaceMethodIfProxy(kRuntimePointerSize);
+
+  const DexFile::TypeList* params = method->GetParameterTypeList();
+  if (params == nullptr) {
+    return nullptr;
+  }
+
+  const uint32_t num_params = params->Size();
+
+  StackHandleScope<3> hs(soa.Self());
+  Handle<mirror::Class> class_array_class = hs.NewHandle(GetClassArrayClass(soa.Self()));
+  Handle<mirror::ObjectArray<mirror::Class>> ptypes = hs.NewHandle(
+      mirror::ObjectArray<mirror::Class>::Alloc(soa.Self(), class_array_class.Get(), num_params));
+  if (ptypes.IsNull()) {
+    DCHECK(soa.Self()->IsExceptionPending());
+    return nullptr;
+  }
+
+  MutableHandle<mirror::Class> param(hs.NewHandle<mirror::Class>(nullptr));
+  for (uint32_t i = 0; i < num_params; ++i) {
+    const dex::TypeIndex type_idx = params->GetTypeItem(i).type_idx_;
+    param.Assign(Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method));
+    if (param.Get() == nullptr) {
+      DCHECK(soa.Self()->IsExceptionPending());
+      return nullptr;
+    }
+    ptypes->SetWithoutChecks<false>(i, param.Get());
+  }
+
+  return soa.AddLocalReference<jobjectArray>(ptypes.Get());
+}
+
+static jint Executable_getParameterCountInternal(JNIEnv* env, jobject javaMethod) {
+  ScopedFastNativeObjectAccess soa(env);
+  ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
+  method = method->GetInterfaceMethodIfProxy(kRuntimePointerSize);
+
+  const DexFile::TypeList* params = method->GetParameterTypeList();
+  return (params == nullptr) ? 0 : params->Size();
+}
+
+
 static JNINativeMethod gMethods[] = {
+  FAST_NATIVE_METHOD(Executable, compareMethodParametersInternal,
+                     "(Ljava/lang/reflect/Method;)I"),
   FAST_NATIVE_METHOD(Executable, getAnnotationNative,
-                "(Ljava/lang/Class;)Ljava/lang/annotation/Annotation;"),
-  FAST_NATIVE_METHOD(Executable, getDeclaredAnnotationsNative, "()[Ljava/lang/annotation/Annotation;"),
+                     "(Ljava/lang/Class;)Ljava/lang/annotation/Annotation;"),
+  FAST_NATIVE_METHOD(Executable, getDeclaredAnnotationsNative,
+                     "()[Ljava/lang/annotation/Annotation;"),
   FAST_NATIVE_METHOD(Executable, getParameterAnnotationsNative,
-                "()[[Ljava/lang/annotation/Annotation;"),
+                     "()[[Ljava/lang/annotation/Annotation;"),
+  FAST_NATIVE_METHOD(Executable, getMethodNameInternal, "()Ljava/lang/String;"),
+  FAST_NATIVE_METHOD(Executable, getMethodReturnTypeInternal, "()Ljava/lang/Class;"),
+  FAST_NATIVE_METHOD(Executable, getParameterTypesInternal, "()[Ljava/lang/Class;"),
+  FAST_NATIVE_METHOD(Executable, getParameterCountInternal, "()I"),
   FAST_NATIVE_METHOD(Executable, getParameters0, "()[Ljava/lang/reflect/Parameter;"),
   FAST_NATIVE_METHOD(Executable, getSignatureAnnotation, "()[Ljava/lang/String;"),
   FAST_NATIVE_METHOD(Executable, isAnnotationPresentNative, "(Ljava/lang/Class;)Z"),
