@@ -976,9 +976,6 @@ void ImageWriter::PruneNonImageClasses() {
         dex_cache->ClearResolvedField(pair.index, target_ptr_size_);
       }
     }
-    // Clean the dex field. It might have been populated during the initialization phase, but
-    // contains data only valid during a real run.
-    dex_cache->SetFieldObject<false>(mirror::DexCache::DexOffset(), nullptr);
   }
 
   // Drop the array class cache in the ClassLinker, as these are roots holding those classes live.

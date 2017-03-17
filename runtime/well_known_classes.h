@@ -90,7 +90,6 @@ struct WellKnownClasses {
   static jclass org_apache_harmony_dalvik_ddmc_Chunk;
   static jclass org_apache_harmony_dalvik_ddmc_DdmServer;
 
-  static jmethodID com_android_dex_Dex_create;
   static jmethodID dalvik_system_VMRuntime_runFinalization;
   static jmethodID java_lang_Boolean_valueOf;
   static jmethodID java_lang_Byte_valueOf;
