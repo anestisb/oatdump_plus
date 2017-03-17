@@ -752,9 +752,13 @@ struct CmdlineType<ProfileSaverOptions> : CmdlineTypeParser<ProfileSaverOptions>
       return ParseInto(existing,
              &ProfileSaverOptions::max_notification_before_wake_,
              type_parser.Parse(suffix));
-    } else {
-      return Result::Failure(std::string("Invalid suboption '") + option + "'");
     }
+    if (android::base::StartsWith(option, "profile-path:")) {
+      existing.profile_path_ = suffix;
+      return Result::SuccessNoValue();
+    }
+
+    return Result::Failure(std::string("Invalid suboption '") + option + "'");
   }
 
   static const char* Name() { return "ProfileSaverOptions"; }
@@ -774,6 +778,5 @@ struct CmdlineType<ExperimentalFlags> : CmdlineTypeParser<ExperimentalFlags> {
 
   static const char* Name() { return "ExperimentalFlags"; }
 };
-
 }  // namespace art
 #endif  // ART_CMDLINE_CMDLINE_TYPES_H_
