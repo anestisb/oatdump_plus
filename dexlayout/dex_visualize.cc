@@ -35,9 +35,9 @@
 
 namespace art {
 
-std::string MultidexName(const std::string& prefix,
-                         size_t dex_file_index,
-                         const std::string& suffix) {
+static std::string MultidexName(const std::string& prefix,
+                                size_t dex_file_index,
+                                const std::string& suffix) {
   return prefix + ((dex_file_index > 0) ? std::to_string(dex_file_index + 1) : "") + suffix;
 }
 
@@ -432,20 +432,41 @@ void VisualizeDexLayout(dex_ir::Header* header,
   }  // for
 }
 
+static uint32_t FindNextByteAfterSection(dex_ir::Header* header,
+                                         const dex_ir::Collections& collections,
+                                         std::vector<const FileSection*>& sorted_sections,
+                                         size_t section_index) {
+  for (size_t i = section_index + 1; i < sorted_sections.size(); ++i) {
+    const FileSection* section = sorted_sections[i];
+    if (section->size_fn_(collections) != 0) {
+      return section->offset_fn_(collections);
+    }
+  }
+  return header->FileSize();
+}
+
 /*
  * Dumps the offset and size of sections within the file.
  */
 void ShowDexSectionStatistics(dex_ir::Header* header, size_t dex_file_index) {
   // Compute the (multidex) class file name).
-  fprintf(stdout, "%s\n", MultidexName("classes", dex_file_index, ".dex").c_str());
-  fprintf(stdout, "section    offset     items\n");
+  fprintf(stdout, "%s (%d bytes)\n",
+          MultidexName("classes", dex_file_index, ".dex").c_str(),
+          header->FileSize());
+  fprintf(stdout, "section      offset    items    bytes    pages pct\n");
   const dex_ir::Collections& collections = header->GetCollections();
   std::vector<const FileSection*> sorted_sections(GetSortedSections(collections, kSortAscending));
-  for (const FileSection* file_section : sorted_sections) {
-    fprintf(stdout, "%-10s 0x%08x 0x%08x\n",
-      file_section->name_.c_str(),
-      file_section->offset_fn_(collections),
-      file_section->size_fn_(collections));
+  for (size_t i = 0; i < sorted_sections.size(); ++i) {
+    const FileSection* file_section = sorted_sections[i];
+    const char* name = file_section->name_.c_str();
+    uint32_t offset = file_section->offset_fn_(collections);
+    uint32_t items = file_section->size_fn_(collections);
+    uint32_t bytes = 0;
+    if (items > 0) {
+      bytes = FindNextByteAfterSection(header, collections, sorted_sections, i) - offset;
+    }
+    fprintf(stdout, "%-10s %8d %8d %8d %8d %%%02d\n", name, offset, items, bytes,
+            (bytes + kPageSize - 1) / kPageSize, 100 * bytes / header->FileSize());
   }
   fprintf(stdout, "\n");
 }
