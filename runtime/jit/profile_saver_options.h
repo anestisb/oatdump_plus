@@ -37,7 +37,8 @@ struct ProfileSaverOptions {
     min_methods_to_save_(kMinMethodsToSave),
     min_classes_to_save_(kMinClassesToSave),
     min_notification_before_wake_(kMinNotificationBeforeWake),
-    max_notification_before_wake_(kMaxNotificationBeforeWake) {}
+    max_notification_before_wake_(kMaxNotificationBeforeWake),
+    profile_path_("") {}
 
   ProfileSaverOptions(
       bool enabled,
@@ -47,7 +48,8 @@ struct ProfileSaverOptions {
       uint32_t min_methods_to_save,
       uint32_t min_classes_to_save,
       uint32_t min_notification_before_wake,
-      uint32_t max_notification_before_wake):
+      uint32_t max_notification_before_wake,
+      const std::string& profile_path):
     enabled_(enabled),
     min_save_period_ms_(min_save_period_ms),
     save_resolved_classes_delay_ms_(save_resolved_classes_delay_ms),
@@ -55,7 +57,8 @@ struct ProfileSaverOptions {
     min_methods_to_save_(min_methods_to_save),
     min_classes_to_save_(min_classes_to_save),
     min_notification_before_wake_(min_notification_before_wake),
-    max_notification_before_wake_(max_notification_before_wake) {}
+    max_notification_before_wake_(max_notification_before_wake),
+    profile_path_(profile_path) {}
 
   bool IsEnabled() const {
     return enabled_;
@@ -85,6 +88,9 @@ struct ProfileSaverOptions {
   uint32_t GetMaxNotificationBeforeWake() const {
     return max_notification_before_wake_;
   }
+  std::string GetProfilePath() const {
+    return profile_path_;
+  }
 
   friend std::ostream & operator<<(std::ostream &os, const ProfileSaverOptions& pso) {
     os << "enabled_" << pso.enabled_
@@ -106,6 +112,7 @@ struct ProfileSaverOptions {
   uint32_t min_classes_to_save_;
   uint32_t min_notification_before_wake_;
   uint32_t max_notification_before_wake_;
+  std::string profile_path_;
 };
 
 }  // namespace art
