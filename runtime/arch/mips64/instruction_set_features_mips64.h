@@ -58,6 +58,11 @@ class Mips64InstructionSetFeatures FINAL : public InstructionSetFeatures {
 
   std::string GetFeatureString() const OVERRIDE;
 
+  // Does it have MSA (MIPS SIMD Architecture) support.
+  bool HasMsa() const {
+    return msa_;
+  }
+
   virtual ~Mips64InstructionSetFeatures() {}
 
  protected:
@@ -67,8 +72,15 @@ class Mips64InstructionSetFeatures FINAL : public InstructionSetFeatures {
                                  std::string* error_msg) const OVERRIDE;
 
  private:
-  Mips64InstructionSetFeatures() : InstructionSetFeatures() {
+  explicit Mips64InstructionSetFeatures(bool msa) : InstructionSetFeatures(), msa_(msa) {
   }
+
+  // Bitmap positions for encoding features as a bitmap.
+  enum {
+    kMsaBitfield = 1,
+  };
+
+  const bool msa_;
 
   DISALLOW_COPY_AND_ASSIGN(Mips64InstructionSetFeatures);
 };
