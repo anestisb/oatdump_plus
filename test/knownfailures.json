@@ -345,6 +345,8 @@
     },
     {
         "tests": ["530-checker-lse",
+                  "530-checker-lse2",
+                  "030-bad-finalizer",
                   "080-oom-throw"],
         "bug": "http://b/36377828",
         "variant": "interp-ac"
