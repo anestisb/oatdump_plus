@@ -1,9 +1,11 @@
 {
 global:
+  ClaimSignalChain;
+  UnclaimSignalChain;
+  InvokeUserSignalHandler;
   InitializeSignalChain;
   EnsureFrontOfChain;
-  AddSpecialSignalHandlerFn;
-  RemoveSpecialSignalHandlerFn;
+  SetSpecialSignalHandlerFn;
   bsd_signal;
   sigaction;
   signal;
