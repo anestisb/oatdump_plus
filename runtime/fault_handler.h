@@ -42,9 +42,9 @@ class FaultManager {
 
   // Unclaim signals and delete registered handlers.
   void Shutdown();
-  void EnsureArtActionInFrontOfSignalChain();
 
-  void HandleFault(int sig, siginfo_t* info, void* context);
+  // Try to handle a fault, returns true if successful.
+  bool HandleFault(int sig, siginfo_t* info, void* context);
 
   // Added handlers are owned by the fault handler and will be freed on Shutdown().
   void AddHandler(FaultHandler* handler, bool generated_code);

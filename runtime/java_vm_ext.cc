@@ -39,6 +39,7 @@
 #include "runtime_options.h"
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change-inl.h"
+#include "sigchain.h"
 #include "thread-inl.h"
 #include "thread_list.h"
 
@@ -900,7 +901,8 @@ bool JavaVMExt::LoadNativeLibrary(JNIEnv* env,
     int version = (*jni_on_load)(this, nullptr);
 
     if (runtime_->GetTargetSdkVersion() != 0 && runtime_->GetTargetSdkVersion() <= 21) {
-      fault_manager.EnsureArtActionInFrontOfSignalChain();
+      // Make sure that sigchain owns SIGSEGV.
+      EnsureFrontOfChain(SIGSEGV);
     }
 
     self->SetClassLoaderOverride(old_class_loader.get());
