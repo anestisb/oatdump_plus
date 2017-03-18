@@ -38,8 +38,8 @@ extern "C" __attribute__((visibility("default"))) void art_sigsegv_fault() {
 }
 
 // Signal handler called on SIGSEGV.
-static void art_fault_handler(int sig, siginfo_t* info, void* context) {
-  fault_manager.HandleFault(sig, info, context);
+static bool art_fault_handler(int sig, siginfo_t* info, void* context) {
+  return fault_manager.HandleFault(sig, info, context);
 }
 
 FaultManager::FaultManager() : initialized_(false) {
@@ -49,43 +49,15 @@ FaultManager::FaultManager() : initialized_(false) {
 FaultManager::~FaultManager() {
 }
 
-static void SetUpArtAction(struct sigaction* action) {
-  action->sa_sigaction = art_fault_handler;
-  sigemptyset(&action->sa_mask);
-  action->sa_flags = SA_SIGINFO | SA_ONSTACK;
-#if !defined(__APPLE__) && !defined(__mips__)
-  action->sa_restorer = nullptr;
-#endif
-}
-
-void FaultManager::EnsureArtActionInFrontOfSignalChain() {
-  if (initialized_) {
-    struct sigaction action;
-    SetUpArtAction(&action);
-    EnsureFrontOfChain(SIGSEGV, &action);
-  } else {
-    LOG(WARNING) << "Can't call " << __FUNCTION__ << " due to unitialized fault manager";
-  }
-}
-
 void FaultManager::Init() {
   CHECK(!initialized_);
-  struct sigaction action;
-  SetUpArtAction(&action);
-
-  // Set our signal handler now.
-  int e = sigaction(SIGSEGV, &action, &oldaction_);
-  if (e != 0) {
-    VLOG(signals) << "Failed to claim SEGV: " << strerror(errno);
-  }
-  // Make sure our signal handler is called before any user handlers.
-  ClaimSignalChain(SIGSEGV, &oldaction_);
+  AddSpecialSignalHandlerFn(SIGSEGV, art_fault_handler);
   initialized_ = true;
 }
 
 void FaultManager::Release() {
   if (initialized_) {
-    UnclaimSignalChain(SIGSEGV);
+    RemoveSpecialSignalHandlerFn(SIGSEGV, art_fault_handler);
     initialized_ = false;
   }
 }
@@ -118,93 +90,36 @@ bool FaultManager::HandleFaultByOtherHandlers(int sig, siginfo_t* info, void* co
   return false;
 }
 
-class ScopedSignalUnblocker {
- public:
-  explicit ScopedSignalUnblocker(const std::initializer_list<int>& signals) {
-    sigset_t new_mask;
-    sigemptyset(&new_mask);
-    for (int signal : signals) {
-      sigaddset(&new_mask, signal);
-    }
-    if (sigprocmask(SIG_UNBLOCK, &new_mask, &previous_mask_) != 0) {
-      PLOG(FATAL) << "failed to unblock signals";
-    }
-  }
-
-  ~ScopedSignalUnblocker() {
-    if (sigprocmask(SIG_SETMASK, &previous_mask_, nullptr) != 0) {
-      PLOG(FATAL) << "failed to unblock signals";
-    }
-  }
-
- private:
-  sigset_t previous_mask_;
-};
-
-class ScopedHandlingSignalSetter {
- public:
-  explicit ScopedHandlingSignalSetter(Thread* thread) : thread_(thread) {
-    CHECK(!thread->HandlingSignal());
-    thread_->SetHandlingSignal(true);
-  }
-
-  ~ScopedHandlingSignalSetter() {
-    CHECK(thread_->HandlingSignal());
-    thread_->SetHandlingSignal(false);
-  }
-
- private:
-  Thread* thread_;
-};
-
-void FaultManager::HandleFault(int sig, siginfo_t* info, void* context) {
-  // BE CAREFUL ALLOCATING HERE INCLUDING USING LOG(...)
-  //
-  // If malloc calls abort, it will be holding its lock.
-  // If the handler tries to call malloc, it will deadlock.
-
-  // Use a thread local field to track whether we're recursing, and fall back.
-  // (e.g.. if one of our handlers crashed)
-  Thread* thread = Thread::Current();
-
-  if (thread != nullptr && !thread->HandlingSignal()) {
-    // Unblock some signals and set thread->handling_signal_ to true,
-    // so that we can catch crashes in our signal handler.
-    ScopedHandlingSignalSetter setter(thread);
-    ScopedSignalUnblocker unblocker { SIGABRT, SIGBUS, SIGSEGV }; // NOLINT
-
-    VLOG(signals) << "Handling fault";
+bool FaultManager::HandleFault(int sig, siginfo_t* info, void* context) {
+  VLOG(signals) << "Handling fault";
 
 #ifdef TEST_NESTED_SIGNAL
-    // Simulate a crash in a handler.
-    raise(SIGSEGV);
+  // Simulate a crash in a handler.
+  raise(SIGSEGV);
 #endif
 
-    if (IsInGeneratedCode(info, context, true)) {
-      VLOG(signals) << "in generated code, looking for handler";
-      for (const auto& handler : generated_code_handlers_) {
-        VLOG(signals) << "invoking Action on handler " << handler;
-        if (handler->Action(sig, info, context)) {
-          // We have handled a signal so it's time to return from the
-          // signal handler to the appropriate place.
-          return;
-        }
+  if (IsInGeneratedCode(info, context, true)) {
+    VLOG(signals) << "in generated code, looking for handler";
+    for (const auto& handler : generated_code_handlers_) {
+      VLOG(signals) << "invoking Action on handler " << handler;
+      if (handler->Action(sig, info, context)) {
+        // We have handled a signal so it's time to return from the
+        // signal handler to the appropriate place.
+        return true;
       }
+    }
 
-      // We hit a signal we didn't handle.  This might be something for which
-      // we can give more information about so call all registered handlers to
-      // see if it is.
-      if (HandleFaultByOtherHandlers(sig, info, context)) {
-        return;
-      }
+    // We hit a signal we didn't handle.  This might be something for which
+    // we can give more information about so call all registered handlers to
+    // see if it is.
+    if (HandleFaultByOtherHandlers(sig, info, context)) {
+      return true;
     }
   }
 
   // Set a breakpoint in this function to catch unhandled signals.
   art_sigsegv_fault();
-
-  // Pass this on to the next handler in the chain, or the default if none.
-  InvokeUserSignalHandler(sig, info, context);
+  return false;
 }
 
 void FaultManager::AddHandler(FaultHandler* handler, bool generated_code) {
