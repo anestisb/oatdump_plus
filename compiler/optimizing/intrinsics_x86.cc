@@ -2878,6 +2878,49 @@ static bool IsSameInput(HInstruction* instruction, size_t input0, size_t input1)
   return instruction->InputAt(input0) == instruction->InputAt(input1);
 }
 
+// Compute base address for the System.arraycopy intrinsic in `base`.
+static void GenSystemArrayCopyBaseAddress(X86Assembler* assembler,
+                                          Primitive::Type type,
+                                          const Register& array,
+                                          const Location& pos,
+                                          const Register& base) {
+  // This routine is only used by the SystemArrayCopy intrinsic at the
+  // moment. We can allow Primitive::kPrimNot as `type` to implement
+  // the SystemArrayCopyChar intrinsic.
+  DCHECK_EQ(type, Primitive::kPrimNot);
+  const int32_t element_size = Primitive::ComponentSize(type);
+  const ScaleFactor scale_factor = static_cast<ScaleFactor>(Primitive::ComponentSizeShift(type));
+  const uint32_t data_offset = mirror::Array::DataOffset(element_size).Uint32Value();
+
+  if (pos.IsConstant()) {
+    int32_t constant = pos.GetConstant()->AsIntConstant()->GetValue();
+    __ leal(base, Address(array, element_size * constant + data_offset));
+  } else {
+    __ leal(base, Address(array, pos.AsRegister<Register>(), scale_factor, data_offset));
+  }
+}
+
+// Compute end source address for the System.arraycopy intrinsic in `end`.
+static void GenSystemArrayCopyEndAddress(X86Assembler* assembler,
+                                         Primitive::Type type,
+                                         const Location& copy_length,
+                                         const Register& base,
+                                         const Register& end) {
+  // This routine is only used by the SystemArrayCopy intrinsic at the
+  // moment. We can allow Primitive::kPrimNot as `type` to implement
+  // the SystemArrayCopyChar intrinsic.
+  DCHECK_EQ(type, Primitive::kPrimNot);
+  const int32_t element_size = Primitive::ComponentSize(type);
+  const ScaleFactor scale_factor = static_cast<ScaleFactor>(Primitive::ComponentSizeShift(type));
+
+  if (copy_length.IsConstant()) {
+    int32_t constant = copy_length.GetConstant()->AsIntConstant()->GetValue();
+    __ leal(end, Address(base, element_size * constant));
+  } else {
+    __ leal(end, Address(base, copy_length.AsRegister<Register>(), scale_factor, 0));
+  }
+}
+
 void IntrinsicLocationsBuilderX86::VisitSystemArrayCopy(HInvoke* invoke) {
   // The only read barrier implementation supporting the
   // SystemArrayCopy intrinsic is the Baker-style read barriers.
@@ -3182,16 +3225,11 @@ void IntrinsicCodeGeneratorX86::VisitSystemArrayCopy(HInvoke* invoke) {
     __ j(kNotEqual, intrinsic_slow_path->GetEntryLabel());
   }
 
+  const Primitive::Type type = Primitive::kPrimNot;
+  const int32_t element_size = Primitive::ComponentSize(type);
+
   // Compute the base source address in `temp1`.
-  int32_t element_size = Primitive::ComponentSize(Primitive::kPrimNot);
-  DCHECK_EQ(element_size, 4);
-  uint32_t offset = mirror::Array::DataOffset(element_size).Uint32Value();
-  if (src_pos.IsConstant()) {
-    int32_t constant = src_pos.GetConstant()->AsIntConstant()->GetValue();
-    __ leal(temp1, Address(src, element_size * constant + offset));
-  } else {
-    __ leal(temp1, Address(src, src_pos.AsRegister<Register>(), ScaleFactor::TIMES_4, offset));
-  }
+  GenSystemArrayCopyBaseAddress(GetAssembler(), type, src, src_pos, temp1);
 
   if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
     // If it is needed (in the case of the fast-path loop), the base
@@ -3199,20 +3237,15 @@ void IntrinsicCodeGeneratorX86::VisitSystemArrayCopy(HInvoke* invoke) {
     // intermediate computations.
 
     // Compute the end source address in `temp3`.
-    if (length.IsConstant()) {
-      int32_t constant = length.GetConstant()->AsIntConstant()->GetValue();
-      __ leal(temp3, Address(temp1, element_size * constant));
-    } else {
-      if (length.IsStackSlot()) {
-        // Location `length` is again pointing at a stack slot, as
-        // register `temp3` (which was containing the length parameter
-        // earlier) has been overwritten; restore it now
-        DCHECK(length.Equals(length_arg));
-        __ movl(temp3, Address(ESP, length.GetStackIndex()));
-        length = Location::RegisterLocation(temp3);
-      }
-      __ leal(temp3, Address(temp1, length.AsRegister<Register>(), ScaleFactor::TIMES_4, 0));
+    if (length.IsStackSlot()) {
+      // Location `length` is again pointing at a stack slot, as
+      // register `temp3` (which was containing the length parameter
+      // earlier) has been overwritten; restore it now
+      DCHECK(length.Equals(length_arg));
+      __ movl(temp3, Address(ESP, length.GetStackIndex()));
+      length = Location::RegisterLocation(temp3);
     }
+    GenSystemArrayCopyEndAddress(GetAssembler(), type, length, temp1, temp3);
 
     // SystemArrayCopy implementation for Baker read barriers (see
     // also CodeGeneratorX86::GenerateReferenceLoadWithBakerReadBarrier):
@@ -3266,15 +3299,8 @@ void IntrinsicCodeGeneratorX86::VisitSystemArrayCopy(HInvoke* invoke) {
     __ j(kNotZero, read_barrier_slow_path->GetEntryLabel());
 
     // Fast-path copy.
-
-    // Set the base destination address in `temp2`.
-    if (dest_pos.IsConstant()) {
-      int32_t constant = dest_pos.GetConstant()->AsIntConstant()->GetValue();
-      __ leal(temp2, Address(dest, element_size * constant + offset));
-    } else {
-      __ leal(temp2, Address(dest, dest_pos.AsRegister<Register>(), ScaleFactor::TIMES_4, offset));
-    }
-
+    // Compute the base destination address in `temp2`.
+    GenSystemArrayCopyBaseAddress(GetAssembler(), type, dest, dest_pos, temp2);
     // Iterate over the arrays and do a raw copy of the objects. We don't need to
     // poison/unpoison.
     __ Bind(&loop);
@@ -3291,23 +3317,10 @@ void IntrinsicCodeGeneratorX86::VisitSystemArrayCopy(HInvoke* invoke) {
     __ Bind(&done);
   } else {
     // Non read barrier code.
-
     // Compute the base destination address in `temp2`.
-    if (dest_pos.IsConstant()) {
-      int32_t constant = dest_pos.GetConstant()->AsIntConstant()->GetValue();
-      __ leal(temp2, Address(dest, element_size * constant + offset));
-    } else {
-      __ leal(temp2, Address(dest, dest_pos.AsRegister<Register>(), ScaleFactor::TIMES_4, offset));
-    }
-
+    GenSystemArrayCopyBaseAddress(GetAssembler(), type, dest, dest_pos, temp2);
     // Compute the end source address in `temp3`.
-    if (length.IsConstant()) {
-      int32_t constant = length.GetConstant()->AsIntConstant()->GetValue();
-      __ leal(temp3, Address(temp1, element_size * constant));
-    } else {
-      __ leal(temp3, Address(temp1, length.AsRegister<Register>(), ScaleFactor::TIMES_4, 0));
-    }
-
+    GenSystemArrayCopyEndAddress(GetAssembler(), type, length, temp1, temp3);
     // Iterate over the arrays and do a raw copy of the objects. We don't need to
     // poison/unpoison.
     NearLabel loop, done;
@@ -3326,11 +3339,7 @@ void IntrinsicCodeGeneratorX86::VisitSystemArrayCopy(HInvoke* invoke) {
   }
 
   // We only need one card marking on the destination array.
-  codegen_->MarkGCCard(temp1,
-                       temp2,
-                       dest,
-                       Register(kNoRegister),
-                       /* value_can_be_null */ false);
+  codegen_->MarkGCCard(temp1, temp2, dest, Register(kNoRegister), /* value_can_be_null */ false);
 
   __ Bind(intrinsic_slow_path->GetExitLabel());
 }

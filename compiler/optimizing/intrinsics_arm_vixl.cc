@@ -117,6 +117,50 @@ class IntrinsicSlowPathARMVIXL : public SlowPathCodeARMVIXL {
   DISALLOW_COPY_AND_ASSIGN(IntrinsicSlowPathARMVIXL);
 };
 
+// Compute base address for the System.arraycopy intrinsic in `base`.
+static void GenSystemArrayCopyBaseAddress(ArmVIXLAssembler* assembler,
+                                          Primitive::Type type,
+                                          const vixl32::Register& array,
+                                          const Location& pos,
+                                          const vixl32::Register& base) {
+  // This routine is only used by the SystemArrayCopy intrinsic at the
+  // moment. We can allow Primitive::kPrimNot as `type` to implement
+  // the SystemArrayCopyChar intrinsic.
+  DCHECK_EQ(type, Primitive::kPrimNot);
+  const int32_t element_size = Primitive::ComponentSize(type);
+  const uint32_t element_size_shift = Primitive::ComponentSizeShift(type);
+  const uint32_t data_offset = mirror::Array::DataOffset(element_size).Uint32Value();
+
+  if (pos.IsConstant()) {
+    int32_t constant = Int32ConstantFrom(pos);
+    __ Add(base, array, element_size * constant + data_offset);
+  } else {
+    __ Add(base, array, Operand(RegisterFrom(pos), vixl32::LSL, element_size_shift));
+    __ Add(base, base, data_offset);
+  }
+}
+
+// Compute end address for the System.arraycopy intrinsic in `end`.
+static void GenSystemArrayCopyEndAddress(ArmVIXLAssembler* assembler,
+                                         Primitive::Type type,
+                                         const Location& copy_length,
+                                         const vixl32::Register& base,
+                                         const vixl32::Register& end) {
+  // This routine is only used by the SystemArrayCopy intrinsic at the
+  // moment. We can allow Primitive::kPrimNot as `type` to implement
+  // the SystemArrayCopyChar intrinsic.
+  DCHECK_EQ(type, Primitive::kPrimNot);
+  const int32_t element_size = Primitive::ComponentSize(type);
+  const uint32_t element_size_shift = Primitive::ComponentSizeShift(type);
+
+  if (copy_length.IsConstant()) {
+    int32_t constant = Int32ConstantFrom(copy_length);
+    __ Add(end, base, element_size * constant);
+  } else {
+    __ Add(end, base, Operand(RegisterFrom(copy_length), vixl32::LSL, element_size_shift));
+  }
+}
+
 // Slow path implementing the SystemArrayCopy intrinsic copy loop with read barriers.
 class ReadBarrierSystemArrayCopySlowPathARMVIXL : public SlowPathCodeARMVIXL {
  public:
@@ -137,9 +181,8 @@ class ReadBarrierSystemArrayCopySlowPathARMVIXL : public SlowPathCodeARMVIXL {
     DCHECK(instruction_->GetLocations()->Intrinsified());
     DCHECK_EQ(instruction_->AsInvoke()->GetIntrinsic(), Intrinsics::kSystemArrayCopy);
 
-    int32_t element_size = Primitive::ComponentSize(Primitive::kPrimNot);
-    uint32_t element_size_shift = Primitive::ComponentSizeShift(Primitive::kPrimNot);
-    uint32_t offset = mirror::Array::DataOffset(element_size).Uint32Value();
+    Primitive::Type type = Primitive::kPrimNot;
+    const int32_t element_size = Primitive::ComponentSize(type);
 
     vixl32::Register dest = InputRegisterAt(instruction_, 2);
     Location dest_pos = locations->InAt(3);
@@ -150,15 +193,7 @@ class ReadBarrierSystemArrayCopySlowPathARMVIXL : public SlowPathCodeARMVIXL {
 
     __ Bind(GetEntryLabel());
     // Compute the base destination address in `dst_curr_addr`.
-    if (dest_pos.IsConstant()) {
-      int32_t constant = Int32ConstantFrom(dest_pos);
-      __ Add(dst_curr_addr, dest, element_size * constant + offset);
-    } else {
-      __ Add(dst_curr_addr,
-             dest,
-             Operand(RegisterFrom(dest_pos), vixl32::LSL, element_size_shift));
-      __ Add(dst_curr_addr, dst_curr_addr, offset);
-    }
+    GenSystemArrayCopyBaseAddress(assembler, type, dest, dest_pos, dst_curr_addr);
 
     vixl32::Label loop;
     __ Bind(&loop);
@@ -182,6 +217,8 @@ class ReadBarrierSystemArrayCopySlowPathARMVIXL : public SlowPathCodeARMVIXL {
     DCHECK(!src_stop_addr.Is(ip));
     DCHECK(!tmp.Is(ip));
     DCHECK(tmp.IsRegister()) << tmp;
+    // TODO: Load the entrypoint once before the loop, instead of
+    // loading it at every iteration.
     int32_t entry_point_offset =
         CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kArmPointerSize>(tmp.GetCode());
     // This runtime call does not require a stack map.
@@ -2243,32 +2280,18 @@ void IntrinsicCodeGeneratorARMVIXL::VisitSystemArrayCopy(HInvoke* invoke) {
     __ CompareAndBranchIfNonZero(temp3, intrinsic_slow_path->GetEntryLabel());
   }
 
-  int32_t element_size = Primitive::ComponentSize(Primitive::kPrimNot);
-  uint32_t element_size_shift = Primitive::ComponentSizeShift(Primitive::kPrimNot);
-  uint32_t offset = mirror::Array::DataOffset(element_size).Uint32Value();
+  const Primitive::Type type = Primitive::kPrimNot;
+  const int32_t element_size = Primitive::ComponentSize(type);
 
   // Compute the base source address in `temp1`.
-  if (src_pos.IsConstant()) {
-    int32_t constant = Int32ConstantFrom(src_pos);
-    __ Add(temp1, src, element_size * constant + offset);
-  } else {
-    __ Add(temp1, src, Operand(RegisterFrom(src_pos), vixl32::LSL, element_size_shift));
-    __ Add(temp1, temp1, offset);
-  }
-
+  GenSystemArrayCopyBaseAddress(GetAssembler(), type, src, src_pos, temp1);
   // Compute the end source address in `temp3`.
-  if (length.IsConstant()) {
-    int32_t constant = Int32ConstantFrom(length);
-    __ Add(temp3, temp1, element_size * constant);
-  } else {
-    __ Add(temp3, temp1, Operand(RegisterFrom(length), vixl32::LSL, element_size_shift));
-  }
+  GenSystemArrayCopyEndAddress(GetAssembler(), type, length, temp1, temp3);
+  // The base destination address is computed later, as `temp2` is
+  // used for intermediate computations.
 
   if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
     // TODO: Also convert this intrinsic to the IsGcMarking strategy?
-
-    // The base destination address is computed later, as `temp2` is
-    // used for intermediate computations.
 
     // SystemArrayCopy implementation for Baker read barriers (see
     // also CodeGeneratorARM::GenerateReferenceLoadWithBakerReadBarrier):
@@ -2310,6 +2333,8 @@ void IntrinsicCodeGeneratorARMVIXL::VisitSystemArrayCopy(HInvoke* invoke) {
     __ Add(src, src, Operand(temp2, vixl32::LSR, 32));
 
     // Slow path used to copy array when `src` is gray.
+    // Note that the base destination address is computed in `temp2`
+    // by the slow path code.
     SlowPathCodeARMVIXL* read_barrier_slow_path =
         new (GetAllocator()) ReadBarrierSystemArrayCopySlowPathARMVIXL(invoke);
     codegen_->AddSlowPath(read_barrier_slow_path);
@@ -2324,28 +2349,17 @@ void IntrinsicCodeGeneratorARMVIXL::VisitSystemArrayCopy(HInvoke* invoke) {
     __ B(cs, read_barrier_slow_path->GetEntryLabel());
 
     // Fast-path copy.
-
     // Compute the base destination address in `temp2`.
-    if (dest_pos.IsConstant()) {
-      int32_t constant = Int32ConstantFrom(dest_pos);
-      __ Add(temp2, dest, element_size * constant + offset);
-    } else {
-      __ Add(temp2, dest, Operand(RegisterFrom(dest_pos), vixl32::LSL, element_size_shift));
-      __ Add(temp2, temp2, offset);
-    }
-
+    GenSystemArrayCopyBaseAddress(GetAssembler(), type, dest, dest_pos, temp2);
     // Iterate over the arrays and do a raw copy of the objects. We don't need to
     // poison/unpoison.
     __ Bind(&loop);
-
     {
       UseScratchRegisterScope temps(assembler->GetVIXLAssembler());
       const vixl32::Register temp_reg = temps.Acquire();
-
       __ Ldr(temp_reg, MemOperand(temp1, element_size, PostIndex));
       __ Str(temp_reg, MemOperand(temp2, element_size, PostIndex));
     }
-
     __ Cmp(temp1, temp3);
     __ B(ne, &loop, /* far_target */ false);
 
@@ -2353,31 +2367,20 @@ void IntrinsicCodeGeneratorARMVIXL::VisitSystemArrayCopy(HInvoke* invoke) {
     __ Bind(&done);
   } else {
     // Non read barrier code.
-
     // Compute the base destination address in `temp2`.
-    if (dest_pos.IsConstant()) {
-      int32_t constant = Int32ConstantFrom(dest_pos);
-      __ Add(temp2, dest, element_size * constant + offset);
-    } else {
-      __ Add(temp2, dest, Operand(RegisterFrom(dest_pos), vixl32::LSL, element_size_shift));
-      __ Add(temp2, temp2, offset);
-    }
-
+    GenSystemArrayCopyBaseAddress(GetAssembler(), type, dest, dest_pos, temp2);
     // Iterate over the arrays and do a raw copy of the objects. We don't need to
     // poison/unpoison.
     vixl32::Label loop, done;
     __ Cmp(temp1, temp3);
     __ B(eq, &done, /* far_target */ false);
     __ Bind(&loop);
-
     {
       UseScratchRegisterScope temps(assembler->GetVIXLAssembler());
       const vixl32::Register temp_reg = temps.Acquire();
-
       __ Ldr(temp_reg, MemOperand(temp1, element_size, PostIndex));
       __ Str(temp_reg, MemOperand(temp2, element_size, PostIndex));
     }
-
     __ Cmp(temp1, temp3);
     __ B(ne, &loop, /* far_target */ false);
     __ Bind(&done);
