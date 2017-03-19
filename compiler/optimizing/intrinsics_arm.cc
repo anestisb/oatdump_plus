@@ -1967,101 +1967,108 @@ void IntrinsicCodeGeneratorARM::VisitSystemArrayCopy(HInvoke* invoke) {
     __ CompareAndBranchIfNonZero(temp3, intrinsic_slow_path->GetEntryLabel());
   }
 
-  const Primitive::Type type = Primitive::kPrimNot;
-  const int32_t element_size = Primitive::ComponentSize(type);
-
-  // Compute the base source address in `temp1`.
-  GenSystemArrayCopyBaseAddress(GetAssembler(), type, src, src_pos, temp1);
-  // Compute the end source address in `temp3`.
-  GenSystemArrayCopyEndAddress(GetAssembler(), type, length, temp1, temp3);
-  // The base destination address is computed later, as `temp2` is
-  // used for intermediate computations.
-
-  if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
-    // TODO: Also convert this intrinsic to the IsGcMarking strategy?
-
-    // SystemArrayCopy implementation for Baker read barriers (see
-    // also CodeGeneratorARM::GenerateReferenceLoadWithBakerReadBarrier):
-    //
-    //   if (src_ptr != end_ptr) {
-    //     uint32_t rb_state = Lockword(src->monitor_).ReadBarrierState();
-    //     lfence;  // Load fence or artificial data dependency to prevent load-load reordering
-    //     bool is_gray = (rb_state == ReadBarrier::GrayState());
-    //     if (is_gray) {
-    //       // Slow-path copy.
-    //       do {
-    //         *dest_ptr++ = MaybePoison(ReadBarrier::Mark(MaybeUnpoison(*src_ptr++)));
-    //       } while (src_ptr != end_ptr)
-    //     } else {
-    //       // Fast-path copy.
-    //       do {
-    //         *dest_ptr++ = *src_ptr++;
-    //       } while (src_ptr != end_ptr)
-    //     }
-    //   }
-
-    Label loop, done;
-
-    // Don't enter copy loop if `length == 0`.
-    __ cmp(temp1, ShifterOperand(temp3));
-    __ b(&done, EQ);
-
-    // /* int32_t */ monitor = src->monitor_
-    __ LoadFromOffset(kLoadWord, temp2, src, monitor_offset);
-    // /* LockWord */ lock_word = LockWord(monitor)
-    static_assert(sizeof(LockWord) == sizeof(int32_t),
-                  "art::LockWord and int32_t have different sizes.");
-
-    // Introduce a dependency on the lock_word including the rb_state,
-    // which shall prevent load-load reordering without using
-    // a memory barrier (which would be more expensive).
-    // `src` is unchanged by this operation, but its value now depends
-    // on `temp2`.
-    __ add(src, src, ShifterOperand(temp2, LSR, 32));
-
-    // Slow path used to copy array when `src` is gray.
-    // Note that the base destination address is computed in `temp2`
-    // by the slow path code.
-    SlowPathCode* read_barrier_slow_path =
-        new (GetAllocator()) ReadBarrierSystemArrayCopySlowPathARM(invoke);
-    codegen_->AddSlowPath(read_barrier_slow_path);
-
-    // Given the numeric representation, it's enough to check the low bit of the
-    // rb_state. We do that by shifting the bit out of the lock word with LSRS
-    // which can be a 16-bit instruction unlike the TST immediate.
-    static_assert(ReadBarrier::WhiteState() == 0, "Expecting white to have value 0");
-    static_assert(ReadBarrier::GrayState() == 1, "Expecting gray to have value 1");
-    __ Lsrs(temp2, temp2, LockWord::kReadBarrierStateShift + 1);
-    // Carry flag is the last bit shifted out by LSRS.
-    __ b(read_barrier_slow_path->GetEntryLabel(), CS);
-
-    // Fast-path copy.
-    // Compute the base destination address in `temp2`.
-    GenSystemArrayCopyBaseAddress(GetAssembler(), type, dest, dest_pos, temp2);
-    // Iterate over the arrays and do a raw copy of the objects. We don't need to
-    // poison/unpoison.
-    __ Bind(&loop);
-    __ ldr(IP, Address(temp1, element_size, Address::PostIndex));
-    __ str(IP, Address(temp2, element_size, Address::PostIndex));
-    __ cmp(temp1, ShifterOperand(temp3));
-    __ b(&loop, NE);
-
-    __ Bind(read_barrier_slow_path->GetExitLabel());
-    __ Bind(&done);
+  if (length.IsConstant() && length.GetConstant()->AsIntConstant()->GetValue() == 0) {
+    // Null constant length: not need to emit the loop code at all.
   } else {
-    // Non read barrier code.
-    // Compute the base destination address in `temp2`.
-    GenSystemArrayCopyBaseAddress(GetAssembler(), type, dest, dest_pos, temp2);
-    // Iterate over the arrays and do a raw copy of the objects. We don't need to
-    // poison/unpoison.
-    Label loop, done;
-    __ cmp(temp1, ShifterOperand(temp3));
-    __ b(&done, EQ);
-    __ Bind(&loop);
-    __ ldr(IP, Address(temp1, element_size, Address::PostIndex));
-    __ str(IP, Address(temp2, element_size, Address::PostIndex));
-    __ cmp(temp1, ShifterOperand(temp3));
-    __ b(&loop, NE);
+    Label done;
+    const Primitive::Type type = Primitive::kPrimNot;
+    const int32_t element_size = Primitive::ComponentSize(type);
+
+    if (length.IsRegister()) {
+      // Don't enter the copy loop if the length is null.
+      __ CompareAndBranchIfZero(length.AsRegister<Register>(), &done);
+    }
+
+    if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
+      // TODO: Also convert this intrinsic to the IsGcMarking strategy?
+
+      // SystemArrayCopy implementation for Baker read barriers (see
+      // also CodeGeneratorARM::GenerateReferenceLoadWithBakerReadBarrier):
+      //
+      //   uint32_t rb_state = Lockword(src->monitor_).ReadBarrierState();
+      //   lfence;  // Load fence or artificial data dependency to prevent load-load reordering
+      //   bool is_gray = (rb_state == ReadBarrier::GrayState());
+      //   if (is_gray) {
+      //     // Slow-path copy.
+      //     do {
+      //       *dest_ptr++ = MaybePoison(ReadBarrier::Mark(MaybeUnpoison(*src_ptr++)));
+      //     } while (src_ptr != end_ptr)
+      //   } else {
+      //     // Fast-path copy.
+      //     do {
+      //       *dest_ptr++ = *src_ptr++;
+      //     } while (src_ptr != end_ptr)
+      //   }
+
+      // /* int32_t */ monitor = src->monitor_
+      __ LoadFromOffset(kLoadWord, temp2, src, monitor_offset);
+      // /* LockWord */ lock_word = LockWord(monitor)
+      static_assert(sizeof(LockWord) == sizeof(int32_t),
+                    "art::LockWord and int32_t have different sizes.");
+
+      // Introduce a dependency on the lock_word including the rb_state,
+      // which shall prevent load-load reordering without using
+      // a memory barrier (which would be more expensive).
+      // `src` is unchanged by this operation, but its value now depends
+      // on `temp2`.
+      __ add(src, src, ShifterOperand(temp2, LSR, 32));
+
+      // Compute the base source address in `temp1`.
+      // Note that `temp1` (the base source address) is computed from
+      // `src` (and `src_pos`) here, and thus honors the artificial
+      // dependency of `src` on `temp2`.
+      GenSystemArrayCopyBaseAddress(GetAssembler(), type, src, src_pos, temp1);
+      // Compute the end source address in `temp3`.
+      GenSystemArrayCopyEndAddress(GetAssembler(), type, length, temp1, temp3);
+      // The base destination address is computed later, as `temp2` is
+      // used for intermediate computations.
+
+      // Slow path used to copy array when `src` is gray.
+      // Note that the base destination address is computed in `temp2`
+      // by the slow path code.
+      SlowPathCode* read_barrier_slow_path =
+          new (GetAllocator()) ReadBarrierSystemArrayCopySlowPathARM(invoke);
+      codegen_->AddSlowPath(read_barrier_slow_path);
+
+      // Given the numeric representation, it's enough to check the low bit of the
+      // rb_state. We do that by shifting the bit out of the lock word with LSRS
+      // which can be a 16-bit instruction unlike the TST immediate.
+      static_assert(ReadBarrier::WhiteState() == 0, "Expecting white to have value 0");
+      static_assert(ReadBarrier::GrayState() == 1, "Expecting gray to have value 1");
+      __ Lsrs(temp2, temp2, LockWord::kReadBarrierStateShift + 1);
+      // Carry flag is the last bit shifted out by LSRS.
+      __ b(read_barrier_slow_path->GetEntryLabel(), CS);
+
+      // Fast-path copy.
+      // Compute the base destination address in `temp2`.
+      GenSystemArrayCopyBaseAddress(GetAssembler(), type, dest, dest_pos, temp2);
+      // Iterate over the arrays and do a raw copy of the objects. We don't need to
+      // poison/unpoison.
+      Label loop;
+      __ Bind(&loop);
+      __ ldr(IP, Address(temp1, element_size, Address::PostIndex));
+      __ str(IP, Address(temp2, element_size, Address::PostIndex));
+      __ cmp(temp1, ShifterOperand(temp3));
+      __ b(&loop, NE);
+
+      __ Bind(read_barrier_slow_path->GetExitLabel());
+    } else {
+      // Non read barrier code.
+      // Compute the base source address in `temp1`.
+      GenSystemArrayCopyBaseAddress(GetAssembler(), type, src, src_pos, temp1);
+      // Compute the base destination address in `temp2`.
+      GenSystemArrayCopyBaseAddress(GetAssembler(), type, dest, dest_pos, temp2);
+      // Compute the end source address in `temp3`.
+      GenSystemArrayCopyEndAddress(GetAssembler(), type, length, temp1, temp3);
+      // Iterate over the arrays and do a raw copy of the objects. We don't need to
+      // poison/unpoison.
+      Label loop;
+      __ Bind(&loop);
+      __ ldr(IP, Address(temp1, element_size, Address::PostIndex));
+      __ str(IP, Address(temp2, element_size, Address::PostIndex));
+      __ cmp(temp1, ShifterOperand(temp3));
+      __ b(&loop, NE);
+    }
     __ Bind(&done);
   }
 
