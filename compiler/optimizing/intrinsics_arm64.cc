@@ -2716,111 +2716,127 @@ void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopy(HInvoke* invoke) {
       __ Cbnz(temp2, intrinsic_slow_path->GetEntryLabel());
     }
 
-    const Primitive::Type type = Primitive::kPrimNot;
-    const int32_t element_size = Primitive::ComponentSize(Primitive::kPrimNot);
-
-    Register src_curr_addr = temp1.X();
-    Register dst_curr_addr = temp2.X();
-    Register src_stop_addr = temp3.X();
-
-    // Compute base source address, base destination address, and end
-    // source address in `src_curr_addr`, `dst_curr_addr` and
-    // `src_stop_addr` respectively.
-    GenSystemArrayCopyAddresses(masm,
-                                type,
-                                src,
-                                src_pos,
-                                dest,
-                                dest_pos,
-                                length,
-                                src_curr_addr,
-                                dst_curr_addr,
-                                src_stop_addr);
-
-    if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
-      // TODO: Also convert this intrinsic to the IsGcMarking strategy?
-
-      // SystemArrayCopy implementation for Baker read barriers (see
-      // also CodeGeneratorARM::GenerateReferenceLoadWithBakerReadBarrier):
-      //
-      //   if (src_ptr != end_ptr) {
-      //     uint32_t rb_state = Lockword(src->monitor_).ReadBarrierState();
-      //     lfence;  // Load fence or artificial data dependency to prevent load-load reordering
-      //     bool is_gray = (rb_state == ReadBarrier::GrayState());
-      //     if (is_gray) {
-      //       // Slow-path copy.
-      //       do {
-      //         *dest_ptr++ = MaybePoison(ReadBarrier::Mark(MaybeUnpoison(*src_ptr++)));
-      //       } while (src_ptr != end_ptr)
-      //     } else {
-      //       // Fast-path copy.
-      //       do {
-      //         *dest_ptr++ = *src_ptr++;
-      //       } while (src_ptr != end_ptr)
-      //     }
-      //   }
-
-      vixl::aarch64::Label loop, done;
-
-      // Don't enter copy loop if `length == 0`.
-      __ Cmp(src_curr_addr, src_stop_addr);
-      __ B(&done, eq);
-
-      // Make sure `tmp` is not IP0, as it is clobbered by
-      // ReadBarrierMarkRegX entry points in
-      // ReadBarrierSystemArrayCopySlowPathARM64.
-      temps.Exclude(ip0);
-      Register tmp = temps.AcquireW();
-      DCHECK_NE(LocationFrom(tmp).reg(), IP0);
-
-      // /* int32_t */ monitor = src->monitor_
-      __ Ldr(tmp, HeapOperand(src.W(), monitor_offset));
-      // /* LockWord */ lock_word = LockWord(monitor)
-      static_assert(sizeof(LockWord) == sizeof(int32_t),
-                    "art::LockWord and int32_t have different sizes.");
-
-      // Introduce a dependency on the lock_word including rb_state,
-      // to prevent load-load reordering, and without using
-      // a memory barrier (which would be more expensive).
-      // `src` is unchanged by this operation, but its value now depends
-      // on `tmp`.
-      __ Add(src.X(), src.X(), Operand(tmp.X(), LSR, 32));
-
-      // Slow path used to copy array when `src` is gray.
-      SlowPathCodeARM64* read_barrier_slow_path =
-          new (GetAllocator()) ReadBarrierSystemArrayCopySlowPathARM64(invoke, LocationFrom(tmp));
-      codegen_->AddSlowPath(read_barrier_slow_path);
-
-      // Given the numeric representation, it's enough to check the low bit of the rb_state.
-      static_assert(ReadBarrier::WhiteState() == 0, "Expecting white to have value 0");
-      static_assert(ReadBarrier::GrayState() == 1, "Expecting gray to have value 1");
-      __ Tbnz(tmp, LockWord::kReadBarrierStateShift, read_barrier_slow_path->GetEntryLabel());
-
-      // Fast-path copy.
-      // Iterate over the arrays and do a raw copy of the objects. We don't need to
-      // poison/unpoison.
-      __ Bind(&loop);
-      __ Ldr(tmp, MemOperand(src_curr_addr, element_size, PostIndex));
-      __ Str(tmp, MemOperand(dst_curr_addr, element_size, PostIndex));
-      __ Cmp(src_curr_addr, src_stop_addr);
-      __ B(&loop, ne);
-
-      __ Bind(read_barrier_slow_path->GetExitLabel());
-      __ Bind(&done);
+    if (length.IsConstant() && length.GetConstant()->AsIntConstant()->GetValue() == 0) {
+      // Null constant length: not need to emit the loop code at all.
     } else {
-      // Non read barrier code.
-      // Iterate over the arrays and do a raw copy of the objects. We don't need to
-      // poison/unpoison.
-      vixl::aarch64::Label loop, done;
-      __ Bind(&loop);
-      __ Cmp(src_curr_addr, src_stop_addr);
-      __ B(&done, eq);
-      {
+      Register src_curr_addr = temp1.X();
+      Register dst_curr_addr = temp2.X();
+      Register src_stop_addr = temp3.X();
+      vixl::aarch64::Label done;
+      const Primitive::Type type = Primitive::kPrimNot;
+      const int32_t element_size = Primitive::ComponentSize(type);
+
+      if (length.IsRegister()) {
+        // Don't enter the copy loop if the length is null.
+        __ Cbz(WRegisterFrom(length), &done);
+      }
+
+      if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
+        // TODO: Also convert this intrinsic to the IsGcMarking strategy?
+
+        // SystemArrayCopy implementation for Baker read barriers (see
+        // also CodeGeneratorARM::GenerateReferenceLoadWithBakerReadBarrier):
+        //
+        //   uint32_t rb_state = Lockword(src->monitor_).ReadBarrierState();
+        //   lfence;  // Load fence or artificial data dependency to prevent load-load reordering
+        //   bool is_gray = (rb_state == ReadBarrier::GrayState());
+        //   if (is_gray) {
+        //     // Slow-path copy.
+        //     do {
+        //       *dest_ptr++ = MaybePoison(ReadBarrier::Mark(MaybeUnpoison(*src_ptr++)));
+        //     } while (src_ptr != end_ptr)
+        //   } else {
+        //     // Fast-path copy.
+        //     do {
+        //       *dest_ptr++ = *src_ptr++;
+        //     } while (src_ptr != end_ptr)
+        //   }
+
+        // Make sure `tmp` is not IP0, as it is clobbered by
+        // ReadBarrierMarkRegX entry points in
+        // ReadBarrierSystemArrayCopySlowPathARM64.
+        temps.Exclude(ip0);
         Register tmp = temps.AcquireW();
+        DCHECK_NE(LocationFrom(tmp).reg(), IP0);
+
+        // /* int32_t */ monitor = src->monitor_
+        __ Ldr(tmp, HeapOperand(src.W(), monitor_offset));
+        // /* LockWord */ lock_word = LockWord(monitor)
+        static_assert(sizeof(LockWord) == sizeof(int32_t),
+                      "art::LockWord and int32_t have different sizes.");
+
+        // Introduce a dependency on the lock_word including rb_state,
+        // to prevent load-load reordering, and without using
+        // a memory barrier (which would be more expensive).
+        // `src` is unchanged by this operation, but its value now depends
+        // on `tmp`.
+        __ Add(src.X(), src.X(), Operand(tmp.X(), LSR, 32));
+
+        // Compute base source address, base destination address, and end
+        // source address for System.arraycopy* intrinsics in `src_base`,
+        // `dst_base` and `src_end` respectively.
+        // Note that `src_curr_addr` is computed from from `src` (and
+        // `src_pos`) here, and thus honors the artificial dependency
+        // of `src` on `tmp`.
+        GenSystemArrayCopyAddresses(masm,
+                                    type,
+                                    src,
+                                    src_pos,
+                                    dest,
+                                    dest_pos,
+                                    length,
+                                    src_curr_addr,
+                                    dst_curr_addr,
+                                    src_stop_addr);
+
+        // Slow path used to copy array when `src` is gray.
+        SlowPathCodeARM64* read_barrier_slow_path =
+            new (GetAllocator()) ReadBarrierSystemArrayCopySlowPathARM64(invoke, LocationFrom(tmp));
+        codegen_->AddSlowPath(read_barrier_slow_path);
+
+        // Given the numeric representation, it's enough to check the low bit of the rb_state.
+        static_assert(ReadBarrier::WhiteState() == 0, "Expecting white to have value 0");
+        static_assert(ReadBarrier::GrayState() == 1, "Expecting gray to have value 1");
+        __ Tbnz(tmp, LockWord::kReadBarrierStateShift, read_barrier_slow_path->GetEntryLabel());
+
+        // Fast-path copy.
+        // Iterate over the arrays and do a raw copy of the objects. We don't need to
+        // poison/unpoison.
+        vixl::aarch64::Label loop;
+        __ Bind(&loop);
         __ Ldr(tmp, MemOperand(src_curr_addr, element_size, PostIndex));
         __ Str(tmp, MemOperand(dst_curr_addr, element_size, PostIndex));
+        __ Cmp(src_curr_addr, src_stop_addr);
+        __ B(&loop, ne);
+
+        __ Bind(read_barrier_slow_path->GetExitLabel());
+      } else {
+        // Non read barrier code.
+        // Compute base source address, base destination address, and end
+        // source address for System.arraycopy* intrinsics in `src_base`,
+        // `dst_base` and `src_end` respectively.
+        GenSystemArrayCopyAddresses(masm,
+                                    type,
+                                    src,
+                                    src_pos,
+                                    dest,
+                                    dest_pos,
+                                    length,
+                                    src_curr_addr,
+                                    dst_curr_addr,
+                                    src_stop_addr);
+        // Iterate over the arrays and do a raw copy of the objects. We don't need to
+        // poison/unpoison.
+        vixl::aarch64::Label loop;
+        __ Bind(&loop);
+        {
+          Register tmp = temps.AcquireW();
+          __ Ldr(tmp, MemOperand(src_curr_addr, element_size, PostIndex));
+          __ Str(tmp, MemOperand(dst_curr_addr, element_size, PostIndex));
+        }
+        __ Cmp(src_curr_addr, src_stop_addr);
+        __ B(&loop, ne);
       }
-      __ B(&loop);
       __ Bind(&done);
     }
   }
