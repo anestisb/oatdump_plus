@@ -34,7 +34,6 @@
 
 namespace art {
 
-jclass WellKnownClasses::com_android_dex_Dex;
 jclass WellKnownClasses::dalvik_annotation_optimization_CriticalNative;
 jclass WellKnownClasses::dalvik_annotation_optimization_FastNative;
 jclass WellKnownClasses::dalvik_system_BaseDexClassLoader;
@@ -267,7 +266,6 @@ uint32_t WellKnownClasses::StringInitToEntryPoint(ArtMethod* string_init) {
 #undef STRING_INIT_LIST
 
 void WellKnownClasses::Init(JNIEnv* env) {
-  com_android_dex_Dex = CacheClass(env, "com/android/dex/Dex");
   dalvik_annotation_optimization_CriticalNative =
       CacheClass(env, "dalvik/annotation/optimization/CriticalNative");
   dalvik_annotation_optimization_FastNative = CacheClass(env, "dalvik/annotation/optimization/FastNative");
