@@ -23,6 +23,7 @@ namespace dex2oat {
 enum class ReturnCode : int {
   kNoFailure = 0,
   kOther = 1,
+  kCreateRuntime = 2,
 };
 
 }  // namespace dex2oat

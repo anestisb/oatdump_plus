@@ -1443,11 +1443,11 @@ class Dex2Oat FINAL {
 
   // Set up the environment for compilation. Includes starting the runtime and loading/opening the
   // boot class path.
-  bool Setup() {
+  dex2oat::ReturnCode Setup() {
     TimingLogger::ScopedTiming t("dex2oat Setup", timings_);
 
     if (!PrepareImageClasses() || !PrepareCompiledClasses() || !PrepareCompiledMethods()) {
-      return false;
+      return dex2oat::ReturnCode::kOther;
     }
 
     verification_results_.reset(new VerificationResults(compiler_options_.get()));
@@ -1459,12 +1459,12 @@ class Dex2Oat FINAL {
 
     RuntimeArgumentMap runtime_options;
     if (!PrepareRuntimeOptions(&runtime_options)) {
-      return false;
+      return dex2oat::ReturnCode::kOther;
     }
 
     CreateOatWriters();
     if (!AddDexFileSources()) {
-      return false;
+      return dex2oat::ReturnCode::kOther;
     }
 
     if (IsBootImage() && image_filenames_.size() > 1) {
@@ -1480,7 +1480,7 @@ class Dex2Oat FINAL {
       // When compiling an app, create the runtime early to retrieve
       // the image location key needed for the oat header.
       if (!CreateRuntime(std::move(runtime_options))) {
-        return false;
+        return dex2oat::ReturnCode::kCreateRuntime;
       }
 
       if (CompilerFilter::DependsOnImageChecksum(compiler_options_->GetCompilerFilter())) {
@@ -1551,7 +1551,7 @@ class Dex2Oat FINAL {
             update_input_vdex_,
             &opened_dex_files_map,
             &opened_dex_files)) {
-          return false;
+          return dex2oat::ReturnCode::kOther;
         }
         dex_files_per_oat_file_.push_back(MakeNonOwningPointerVector(opened_dex_files));
         if (opened_dex_files_map != nullptr) {
@@ -1603,7 +1603,7 @@ class Dex2Oat FINAL {
       // Note: Runtime acquires ownership of these dex files.
       runtime_options.Set(RuntimeArgumentMap::BootClassPathDexList, &opened_dex_files_);
       if (!CreateRuntime(std::move(runtime_options))) {
-        return false;
+        return dex2oat::ReturnCode::kOther;
       }
     }
 
@@ -1637,7 +1637,7 @@ class Dex2Oat FINAL {
     for (const std::unique_ptr<MemMap>& map : opened_dex_files_maps_) {
       if (!map->Protect(PROT_READ | PROT_WRITE)) {
         PLOG(ERROR) << "Failed to make .dex files writeable.";
-        return false;
+        return dex2oat::ReturnCode::kOther;
       }
     }
 
@@ -1652,14 +1652,14 @@ class Dex2Oat FINAL {
         soa.Self()->AssertPendingException();
         soa.Self()->ClearException();
         PLOG(ERROR) << "Failed to register dex file.";
-        return false;
+        return dex2oat::ReturnCode::kOther;
       }
       // Pre-register dex files so that we can access verification results without locks during
       // compilation and verification.
       verification_results_->AddDexFile(dex_file);
     }
 
-    return true;
+    return dex2oat::ReturnCode::kNoFailure;
   }
 
   // If we need to keep the oat file open for the image writer.
@@ -2924,9 +2924,10 @@ static dex2oat::ReturnCode Dex2oat(int argc, char** argv) {
     LOG(INFO) << StrippedCommandLine();
   }
 
-  if (!dex2oat->Setup()) {
+  dex2oat::ReturnCode setup_code = dex2oat->Setup();
+  if (setup_code != dex2oat::ReturnCode::kNoFailure) {
     dex2oat->EraseOutputFiles();
-    return dex2oat::ReturnCode::kOther;
+    return setup_code;
   }
 
   // Helps debugging on device. Can be used to determine which dalvikvm instance invoked a dex2oat
