@@ -350,7 +350,7 @@
                   "080-oom-throw"],
         "bug": "http://b/36377828",
         "variant": "interp-ac"
-    }
+    },
     {
         "tests": "638-checker-inline-caches",
         "description": ["Disable 638-checker-inline-caches temporarily until a fix",
