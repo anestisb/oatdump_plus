@@ -161,18 +161,18 @@ class SignalChain {
 
 static SignalChain chains[_NSIG];
 
-class ScopedFlagSetter {
+class ScopedFlagRestorer {
  public:
-  explicit ScopedFlagSetter(bool* flag) : flag_(flag) {
-    *flag_ = true;
+  explicit ScopedFlagRestorer(bool* flag) : flag_(flag), original_value_(*flag) {
   }
 
-  ~ScopedFlagSetter() {
-    *flag_ = false;
+  ~ScopedFlagRestorer() {
+    *flag_ = original_value_;
   }
 
  private:
   bool* flag_;
+  bool original_value_;
 };
 
 class ScopedSignalUnblocker {
@@ -198,13 +198,14 @@ class ScopedSignalUnblocker {
   sigset_t previous_mask_;
 };
 
-
 void SignalChain::Handler(int signo, siginfo_t* siginfo, void* ucontext_raw) {
+  ScopedFlagRestorer flag(&handling_signal);
+
   // Try the special handlers first.
   // If one of them crashes, we'll reenter this handler and pass that crash onto the user handler.
   if (!handling_signal) {
-    ScopedFlagSetter flag(&handling_signal);
-    ScopedSignalUnblocker unblocked { SIGABRT, SIGSEGV, SIGBUS }; // NOLINT
+    ScopedSignalUnblocker unblocked { SIGABRT, SIGBUS, SIGFPE, SIGILL, SIGSEGV }; // NOLINT
+    handling_signal = true;
 
     for (const auto& handler : chains[signo].special_handlers_) {
       if (handler != nullptr && handler(signo, siginfo, ucontext_raw)) {
@@ -301,6 +302,11 @@ extern "C" sighandler_t bsd_signal(int signo, sighandler_t handler) {
 #endif
 
 extern "C" int sigprocmask(int how, const sigset_t* bionic_new_set, sigset_t* bionic_old_set) {
+  // When inside a signal handler, forward directly to the actual sigprocmask.
+  if (handling_signal) {
+    return linked_sigprocmask(how, bionic_new_set, bionic_old_set);
+  }
+
   const sigset_t* new_set_ptr = bionic_new_set;
   sigset_t tmpset;
   if (bionic_new_set != nullptr) {
