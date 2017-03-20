@@ -25,7 +25,6 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <ucontext.h>
 
 #include <utility>
 
@@ -34,7 +33,12 @@
 #if defined(__APPLE__)
 #define _NSIG NSIG
 #define sighandler_t sig_t
+
+// Darwin has an #error when ucontext.h is included without _XOPEN_SOURCE defined.
+#define _XOPEN_SOURCE
 #endif
+
+#include <ucontext.h>
 
 // libsigchain provides an interception layer for signal handlers, to allow ART and others to give
 // their signal handlers the first stab at handling signals before passing them on to user code.
