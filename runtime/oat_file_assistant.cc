@@ -725,44 +725,23 @@ const std::vector<uint32_t>* OatFileAssistant::GetRequiredDexChecksums() {
   return required_dex_checksums_found_ ? &cached_required_dex_checksums_ : nullptr;
 }
 
-// TODO: Use something better than xor for the combined image checksum.
 std::unique_ptr<OatFileAssistant::ImageInfo>
 OatFileAssistant::ImageInfo::GetRuntimeImageInfo(InstructionSet isa, std::string* error_msg) {
   CHECK(error_msg != nullptr);
 
-  // Use the currently loaded image to determine the image locations for all
-  // the image spaces, regardless of the isa requested. Otherwise we would
-  // need to read from the boot image's oat file to determine the rest of the
-  // image locations in the case of multi-image.
   Runtime* runtime = Runtime::Current();
-  std::vector<gc::space::ImageSpace*> image_spaces = runtime->GetHeap()->GetBootImageSpaces();
-  if (image_spaces.empty()) {
-    *error_msg = "There are no boot image spaces";
+  std::unique_ptr<ImageInfo> info(new ImageInfo());
+  info->location = runtime->GetImageLocation();
+
+  std::unique_ptr<ImageHeader> image_header(
+      gc::space::ImageSpace::ReadImageHeader(info->location.c_str(), isa, error_msg));
+  if (image_header == nullptr) {
     return nullptr;
   }
 
-  std::unique_ptr<ImageInfo> info(new ImageInfo());
-  info->location = image_spaces[0]->GetImageLocation();
-
-  // TODO: Special casing on isa == kRuntimeISA is presumably motivated by
-  // performance: 'it's faster to use an already loaded image header than read
-  // the image header from disk'. But the loaded image is not necessarily the
-  // same as kRuntimeISA, so this behavior is suspect (b/35659889).
-  if (isa == kRuntimeISA) {
-    const ImageHeader& image_header = image_spaces[0]->GetImageHeader();
-    info->oat_checksum = image_header.GetOatChecksum();
-    info->oat_data_begin = reinterpret_cast<uintptr_t>(image_header.GetOatDataBegin());
-    info->patch_delta = image_header.GetPatchDelta();
-  } else {
-    std::unique_ptr<ImageHeader> image_header(
-        gc::space::ImageSpace::ReadImageHeader(info->location.c_str(), isa, error_msg));
-    if (image_header == nullptr) {
-      return nullptr;
-    }
-    info->oat_checksum = image_header->GetOatChecksum();
-    info->oat_data_begin = reinterpret_cast<uintptr_t>(image_header->GetOatDataBegin());
-    info->patch_delta = image_header->GetPatchDelta();
-  }
+  info->oat_checksum = image_header->GetOatChecksum();
+  info->oat_data_begin = reinterpret_cast<uintptr_t>(image_header->GetOatDataBegin());
+  info->patch_delta = image_header->GetPatchDelta();
   return info;
 }
 
