@@ -227,7 +227,7 @@ bool JdwpAdbState::Accept() {
     const int  sleep_max_ms = 2*1000;
     char       buff[5];
 
-    int sock = socket(PF_UNIX, SOCK_STREAM, 0);
+    int sock = socket(AF_UNIX, SOCK_SEQPACKET, 0);
     if (sock < 0) {
       PLOG(ERROR) << "Could not create ADB control socket";
       return false;
@@ -264,7 +264,7 @@ bool JdwpAdbState::Accept() {
        * up after a few minutes in case somebody ships an app with
        * the debuggable flag set.
        */
-      int  ret = connect(ControlSock(), &control_addr_.controlAddrPlain, control_addr_len_);
+      int ret = connect(ControlSock(), &control_addr_.controlAddrPlain, control_addr_len_);
       if (!ret) {
         int control_sock = ControlSock();
 #ifdef ART_TARGET_ANDROID
@@ -278,7 +278,7 @@ bool JdwpAdbState::Accept() {
 
         /* now try to send our pid to the ADB daemon */
         ret = TEMP_FAILURE_RETRY(send(control_sock, buff, 4, 0));
-        if (ret >= 0) {
+        if (ret == 4) {
           VLOG(jdwp) << StringPrintf("PID sent as '%.*s' to ADB", 4, buff);
           break;
         }
