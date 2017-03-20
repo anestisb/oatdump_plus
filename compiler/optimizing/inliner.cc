@@ -55,6 +55,9 @@ static constexpr size_t kMaximumNumberOfCumulatedDexRegisters = 64;
 // Avoid inlining within a huge method due to memory pressure.
 static constexpr size_t kMaximumCodeUnitSize = 4096;
 
+// Controls the use of inline caches in AOT mode.
+static constexpr bool kUseAOTInlineCaches = false;
+
 void HInliner::Run() {
   const CompilerOptions& compiler_options = compiler_driver_->GetCompilerOptions();
   if ((compiler_options.GetInlineDepthLimit() == 0)
@@ -376,6 +379,10 @@ bool HInliner::TryInlineFromInlineCache(const DexFile& caller_dex_file,
                                         HInvoke* invoke_instruction,
                                         ArtMethod* resolved_method)
     REQUIRES_SHARED(Locks::mutator_lock_) {
+  if (Runtime::Current()->IsAotCompiler() && !kUseAOTInlineCaches) {
+    return false;
+  }
+
   StackHandleScope<1> hs(Thread::Current());
   Handle<mirror::ObjectArray<mirror::Class>> inline_cache;
   InlineCacheType inline_cache_type = Runtime::Current()->IsAotCompiler()
