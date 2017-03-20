@@ -18,6 +18,7 @@
 #define ART_COMPILER_LINKER_ARM64_RELATIVE_PATCHER_ARM64_H_
 
 #include "base/array_ref.h"
+#include "base/bit_field.h"
 #include "linker/arm/relative_patcher_arm_base.h"
 
 namespace art {
@@ -25,6 +26,27 @@ namespace linker {
 
 class Arm64RelativePatcher FINAL : public ArmBaseRelativePatcher {
  public:
+  enum class BakerReadBarrierKind : uint8_t {
+    kField,   // Field get or array get with constant offset (i.e. constant index).
+    kGcRoot,  // GC root load.
+    kLast
+  };
+
+  static uint32_t EncodeBakerReadBarrierFieldData(uint32_t base_reg, uint32_t holder_reg) {
+    CheckValidReg(base_reg);
+    CheckValidReg(holder_reg);
+    return BakerReadBarrierKindField::Encode(BakerReadBarrierKind::kField) |
+           BakerReadBarrierFirstRegField::Encode(base_reg) |
+           BakerReadBarrierSecondRegField::Encode(holder_reg);
+  }
+
+  static uint32_t EncodeBakerReadBarrierGcRootData(uint32_t root_reg) {
+    CheckValidReg(root_reg);
+    return BakerReadBarrierKindField::Encode(BakerReadBarrierKind::kGcRoot) |
+           BakerReadBarrierFirstRegField::Encode(root_reg) |
+           BakerReadBarrierSecondRegField::Encode(kInvalidEncodedReg);
+  }
+
   Arm64RelativePatcher(RelativePatcherTargetProvider* provider,
                        const Arm64InstructionSetFeatures* features);
 
@@ -41,9 +63,33 @@ class Arm64RelativePatcher FINAL : public ArmBaseRelativePatcher {
                                 const LinkerPatch& patch,
                                 uint32_t patch_offset,
                                 uint32_t target_offset) OVERRIDE;
+  void PatchBakerReadBarrierBranch(std::vector<uint8_t>* code,
+                                   const LinkerPatch& patch,
+                                   uint32_t patch_offset) OVERRIDE;
+
+ protected:
+  static constexpr uint32_t kInvalidEncodedReg = /* sp/zr is invalid */ 31u;
+
+  ThunkKey GetBakerReadBarrierKey(const LinkerPatch& patch) OVERRIDE;
+  std::vector<uint8_t> CompileThunk(const ThunkKey& key) OVERRIDE;
+  uint32_t MaxPositiveDisplacement(ThunkType type) OVERRIDE;
+  uint32_t MaxNegativeDisplacement(ThunkType type) OVERRIDE;
 
  private:
-  static std::vector<uint8_t> CompileThunkCode();
+  static constexpr size_t kBitsForBakerReadBarrierKind =
+      MinimumBitsToStore(static_cast<size_t>(BakerReadBarrierKind::kLast));
+  static constexpr size_t kBitsForRegister = 5u;
+  using BakerReadBarrierKindField =
+      BitField<BakerReadBarrierKind, 0, kBitsForBakerReadBarrierKind>;
+  using BakerReadBarrierFirstRegField =
+      BitField<uint32_t, kBitsForBakerReadBarrierKind, kBitsForRegister>;
+  using BakerReadBarrierSecondRegField =
+      BitField<uint32_t, kBitsForBakerReadBarrierKind + kBitsForRegister, kBitsForRegister>;
+
+  static void CheckValidReg(uint32_t reg) {
+    DCHECK(reg < 30u && reg != 16u && reg != 17u);
+  }
+
   static uint32_t PatchAdrp(uint32_t adrp, uint32_t disp);
 
   static bool NeedsErratum843419Thunk(ArrayRef<const uint8_t> code, uint32_t literal_offset,
@@ -54,21 +100,14 @@ class Arm64RelativePatcher FINAL : public ArmBaseRelativePatcher {
   template <typename Alloc>
   static uint32_t GetInsn(std::vector<uint8_t, Alloc>* code, uint32_t offset);
 
-  // Maximum positive and negative displacement measured from the patch location.
-  // (Signed 28 bit displacement with the last bit 0 has range [-2^27, 2^27-4] measured from
-  // the ARM64 PC pointing to the BL.)
-  static constexpr uint32_t kMaxPositiveDisplacement = (1u << 27) - 4u;
-  static constexpr uint32_t kMaxNegativeDisplacement = (1u << 27);
-
-  // The ADRP thunk for erratum 843419 is 2 instructions, i.e. 8 bytes.
-  static constexpr uint32_t kAdrpThunkSize = 8u;
-
   const bool fix_cortex_a53_843419_;
   // Map original patch_offset to thunk offset.
   std::vector<std::pair<uint32_t, uint32_t>> adrp_thunk_locations_;
   size_t reserved_adrp_thunks_;
   size_t processed_adrp_thunks_;
   std::vector<uint8_t> current_method_thunks_;
+
+  friend class Arm64RelativePatcherTest;
 
   DISALLOW_COPY_AND_ASSIGN(Arm64RelativePatcher);
 };

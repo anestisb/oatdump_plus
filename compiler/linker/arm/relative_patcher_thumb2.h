@@ -34,24 +34,24 @@ class Thumb2RelativePatcher FINAL : public ArmBaseRelativePatcher {
                                 const LinkerPatch& patch,
                                 uint32_t patch_offset,
                                 uint32_t target_offset) OVERRIDE;
+  void PatchBakerReadBarrierBranch(std::vector<uint8_t>* code,
+                                   const LinkerPatch& patch,
+                                   uint32_t patch_offset) OVERRIDE;
+
+ protected:
+  ThunkKey GetBakerReadBarrierKey(const LinkerPatch& patch) OVERRIDE;
+  std::vector<uint8_t> CompileThunk(const ThunkKey& key) OVERRIDE;
+  uint32_t MaxPositiveDisplacement(ThunkType type) OVERRIDE;
+  uint32_t MaxNegativeDisplacement(ThunkType type) OVERRIDE;
 
  private:
-  static std::vector<uint8_t> CompileThunkCode();
-
   void SetInsn32(std::vector<uint8_t>* code, uint32_t offset, uint32_t value);
   static uint32_t GetInsn32(ArrayRef<const uint8_t> code, uint32_t offset);
 
   template <typename Vector>
   static uint32_t GetInsn32(Vector* code, uint32_t offset);
 
-  // PC displacement from patch location; Thumb2 PC is always at instruction address + 4.
-  static constexpr int32_t kPcDisplacement = 4;
-
-  // Maximum positive and negative displacement measured from the patch location.
-  // (Signed 25 bit displacement with the last bit 0 has range [-2^24, 2^24-2] measured from
-  // the Thumb2 PC pointing right after the BL, i.e. 4 bytes later than the patch location.)
-  static constexpr uint32_t kMaxPositiveDisplacement = (1u << 24) - 2 + kPcDisplacement;
-  static constexpr uint32_t kMaxNegativeDisplacement = (1u << 24) - kPcDisplacement;
+  friend class Thumb2RelativePatcherTest;
 
   DISALLOW_COPY_AND_ASSIGN(Thumb2RelativePatcher);
 };

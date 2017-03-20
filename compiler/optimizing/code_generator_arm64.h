@@ -351,7 +351,7 @@ class LocationsBuilderARM64 : public HGraphVisitor {
  private:
   void HandleBinaryOp(HBinaryOperation* instr);
   void HandleFieldSet(HInstruction* instruction);
-  void HandleFieldGet(HInstruction* instruction);
+  void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
   void HandleInvoke(HInvoke* instr);
   void HandleCondition(HCondition* instruction);
   void HandleShift(HBinaryOperation* instr);
@@ -578,6 +578,10 @@ class CodeGeneratorARM64 : public CodeGenerator {
       uint32_t element_offset,
       vixl::aarch64::Label* adrp_label = nullptr);
 
+  // Add a new baker read barrier patch and return the label to be bound
+  // before the CBNZ instruction.
+  vixl::aarch64::Label* NewBakerReadBarrierPatch(uint32_t custom_data);
+
   vixl::aarch64::Literal<uint32_t>* DeduplicateBootImageStringLiteral(
       const DexFile& dex_file,
       dex::StringIndex string_index);
@@ -609,7 +613,7 @@ class CodeGeneratorARM64 : public CodeGenerator {
                                              Location ref,
                                              vixl::aarch64::Register obj,
                                              uint32_t offset,
-                                             vixl::aarch64::Register temp,
+                                             Location maybe_temp,
                                              bool needs_null_check,
                                              bool use_load_acquire);
   // Fast path implementation of ReadBarrier::Barrier for a heap
@@ -737,6 +741,13 @@ class CodeGeneratorARM64 : public CodeGenerator {
     vixl::aarch64::Label* pc_insn_label;
   };
 
+  struct BakerReadBarrierPatchInfo {
+    explicit BakerReadBarrierPatchInfo(uint32_t data) : label(), custom_data(data) { }
+
+    vixl::aarch64::Label label;
+    uint32_t custom_data;
+  };
+
   vixl::aarch64::Label* NewPcRelativePatch(const DexFile& dex_file,
                                            uint32_t offset_or_index,
                                            vixl::aarch64::Label* adrp_label,
@@ -776,6 +787,8 @@ class CodeGeneratorARM64 : public CodeGenerator {
   ArenaDeque<PcRelativePatchInfo> pc_relative_type_patches_;
   // PC-relative type patch info for kBssEntry.
   ArenaDeque<PcRelativePatchInfo> type_bss_entry_patches_;
+  // Baker read barrier patch info.
+  ArenaDeque<BakerReadBarrierPatchInfo> baker_read_barrier_patches_;
 
   // Patches for string literals in JIT compiled code.
   StringToLiteralMap jit_string_patches_;
