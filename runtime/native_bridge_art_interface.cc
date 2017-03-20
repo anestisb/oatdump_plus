@@ -118,7 +118,7 @@ void InitializeNativeBridge(JNIEnv* env, const char* instruction_set) {
       for (int signal = 0; signal < _NSIG; ++signal) {
         android::NativeBridgeSignalHandlerFn fn = android::NativeBridgeGetSignalHandler(signal);
         if (fn != nullptr) {
-          SetSpecialSignalHandlerFn(signal, fn);
+          AddSpecialSignalHandlerFn(signal, fn);
         }
       }
 #endif
