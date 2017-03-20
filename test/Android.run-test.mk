@@ -229,12 +229,14 @@ endef  # name-to-var
 #     they are rewritten. These tests use a broken class loader that tries to
 #     register a dex file that's already registered with a different loader.
 #     b/34193123
+# Disable 638-checker-inline-caches until b/36371709 is fixed.
 ART_TEST_RUN_TEST_SKIP += \
   115-native-bridge \
   153-reference-stress \
   080-oom-fragmentation \
   497-inlining-and-class-loader \
-  542-unresolved-access-check
+  542-unresolved-access-check \
+  638-checker-inline-caches
 
 ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
         $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
