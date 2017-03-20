@@ -54,6 +54,7 @@
 #include "debug/method_debug_info.h"
 #include "dex/quick_compiler_callbacks.h"
 #include "dex/verification_results.h"
+#include "dex2oat_return_codes.h"
 #include "dex_file-inl.h"
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
@@ -2789,13 +2790,13 @@ static void b13564922() {
 #endif
 }
 
-static int CompileImage(Dex2Oat& dex2oat) {
+static dex2oat::ReturnCode CompileImage(Dex2Oat& dex2oat) {
   dex2oat.LoadClassProfileDescriptors();
   dex2oat.Compile();
 
   if (!dex2oat.WriteOutputFiles()) {
     dex2oat.EraseOutputFiles();
-    return EXIT_FAILURE;
+    return dex2oat::ReturnCode::kOther;
   }
 
   // Flush boot.oat. We always expect the output file by name, and it will be re-opened from the
@@ -2804,46 +2805,46 @@ static int CompileImage(Dex2Oat& dex2oat) {
   if (dex2oat.ShouldKeepOatFileOpen()) {
     if (!dex2oat.FlushOutputFiles()) {
       dex2oat.EraseOutputFiles();
-      return EXIT_FAILURE;
+      return dex2oat::ReturnCode::kOther;
     }
   } else if (!dex2oat.FlushCloseOutputFiles()) {
-    return EXIT_FAILURE;
+    return dex2oat::ReturnCode::kOther;
   }
 
   // Creates the boot.art and patches the oat files.
   if (!dex2oat.HandleImage()) {
-    return EXIT_FAILURE;
+    return dex2oat::ReturnCode::kOther;
   }
 
   // When given --host, finish early without stripping.
   if (dex2oat.IsHost()) {
     if (!dex2oat.FlushCloseOutputFiles()) {
-      return EXIT_FAILURE;
+      return dex2oat::ReturnCode::kOther;
     }
     dex2oat.DumpTiming();
-    return EXIT_SUCCESS;
+    return dex2oat::ReturnCode::kNoFailure;
   }
 
   // Copy stripped to unstripped location, if necessary.
   if (!dex2oat.CopyStrippedToUnstripped()) {
-    return EXIT_FAILURE;
+    return dex2oat::ReturnCode::kOther;
   }
 
   // FlushClose again, as stripping might have re-opened the oat files.
   if (!dex2oat.FlushCloseOutputFiles()) {
-    return EXIT_FAILURE;
+    return dex2oat::ReturnCode::kOther;
   }
 
   dex2oat.DumpTiming();
-  return EXIT_SUCCESS;
+  return dex2oat::ReturnCode::kNoFailure;
 }
 
-static int CompileApp(Dex2Oat& dex2oat) {
+static dex2oat::ReturnCode CompileApp(Dex2Oat& dex2oat) {
   dex2oat.Compile();
 
   if (!dex2oat.WriteOutputFiles()) {
     dex2oat.EraseOutputFiles();
-    return EXIT_FAILURE;
+    return dex2oat::ReturnCode::kOther;
   }
 
   // Do not close the oat files here. We might have gotten the output file by file descriptor,
@@ -2852,29 +2853,29 @@ static int CompileApp(Dex2Oat& dex2oat) {
   // When given --host, finish early without stripping.
   if (dex2oat.IsHost()) {
     if (!dex2oat.FlushCloseOutputFiles()) {
-      return EXIT_FAILURE;
+      return dex2oat::ReturnCode::kOther;
     }
 
     dex2oat.DumpTiming();
-    return EXIT_SUCCESS;
+    return dex2oat::ReturnCode::kNoFailure;
   }
 
   // Copy stripped to unstripped location, if necessary. This will implicitly flush & close the
   // stripped versions. If this is given, we expect to be able to open writable files by name.
   if (!dex2oat.CopyStrippedToUnstripped()) {
-    return EXIT_FAILURE;
+    return dex2oat::ReturnCode::kOther;
   }
 
   // Flush and close the files.
   if (!dex2oat.FlushCloseOutputFiles()) {
-    return EXIT_FAILURE;
+    return dex2oat::ReturnCode::kOther;
   }
 
   dex2oat.DumpTiming();
-  return EXIT_SUCCESS;
+  return dex2oat::ReturnCode::kNoFailure;
 }
 
-static int dex2oat(int argc, char** argv) {
+static dex2oat::ReturnCode Dex2oat(int argc, char** argv) {
   b13564922();
 
   TimingLogger timings("compiler", false, false);
@@ -2893,14 +2894,14 @@ static int dex2oat(int argc, char** argv) {
   if (dex2oat->UseProfile()) {
     if (!dex2oat->LoadProfile()) {
       LOG(ERROR) << "Failed to process profile file";
-      return EXIT_FAILURE;
+      return dex2oat::ReturnCode::kOther;
     }
   }
 
   if (dex2oat->DoDexLayoutOptimizations()) {
     if (dex2oat->HasInputVdexFile()) {
       LOG(ERROR) << "Dexlayout is incompatible with an input VDEX";
-      return EXIT_FAILURE;
+      return dex2oat::ReturnCode::kOther;
     }
   }
 
@@ -2908,7 +2909,7 @@ static int dex2oat(int argc, char** argv) {
 
   // Check early that the result of compilation can be written
   if (!dex2oat->OpenFile()) {
-    return EXIT_FAILURE;
+    return dex2oat::ReturnCode::kOther;
   }
 
   // Print the complete line when any of the following is true:
@@ -2925,14 +2926,14 @@ static int dex2oat(int argc, char** argv) {
 
   if (!dex2oat->Setup()) {
     dex2oat->EraseOutputFiles();
-    return EXIT_FAILURE;
+    return dex2oat::ReturnCode::kOther;
   }
 
   // Helps debugging on device. Can be used to determine which dalvikvm instance invoked a dex2oat
   // instance. Used by tools/bisection_search/bisection_search.py.
   VLOG(compiler) << "Running dex2oat (parent PID = " << getppid() << ")";
 
-  bool result;
+  dex2oat::ReturnCode result;
   if (dex2oat->IsImage()) {
     result = CompileImage(*dex2oat);
   } else {
@@ -2945,7 +2946,7 @@ static int dex2oat(int argc, char** argv) {
 }  // namespace art
 
 int main(int argc, char** argv) {
-  int result = art::dex2oat(argc, argv);
+  int result = static_cast<int>(art::Dex2oat(argc, argv));
   // Everything was done, do an explicit exit here to avoid running Runtime destructors that take
   // time (bug 10645725) unless we're a debug build or running on valgrind. Note: The Dex2Oat class
   // should not destruct the runtime in this case.
