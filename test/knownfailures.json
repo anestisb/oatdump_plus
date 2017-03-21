@@ -339,8 +339,14 @@
     {
         "tests": ["476-clinit-inline-static-invoke",
                   "496-checker-inlining-class-loader",
+                  "508-referrer-method",
                   "637-checker-throw-inline"],
         "bug": "http://b/36365552",
+        "variant": "no-image & jit"
+    },
+    {
+        "tests": ["597-deopt-new-string"],
+        "bug": "http://b/36467228",
         "variant": "no-image & jit"
     },
     {
