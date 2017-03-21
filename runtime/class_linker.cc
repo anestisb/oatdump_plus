@@ -6732,10 +6732,11 @@ static void CheckClassOwnsVTableEntries(Thread* self,
     auto is_same_method = [m] (const ArtMethod& meth) {
       return &meth == m;
     };
-    CHECK((super_vtable_length > i && superclass->GetVTableEntry(i, pointer_size) == m) ||
-          std::find_if(virtuals.begin(), virtuals.end(), is_same_method) != virtuals.end())
-        << m->PrettyMethod() << " does not seem to be owned by current class "
-        << klass->PrettyClass() << " or any of its superclasses!";
+    if (!((super_vtable_length > i && superclass->GetVTableEntry(i, pointer_size) == m) ||
+          std::find_if(virtuals.begin(), virtuals.end(), is_same_method) != virtuals.end())) {
+      LOG(WARNING) << m->PrettyMethod() << " does not seem to be owned by current class "
+                   << klass->PrettyClass() << " or any of its superclasses!";
+    }
   }
 }
 
@@ -6763,14 +6764,15 @@ static void CheckVTableHasNoDuplicates(Thread* self,
                                   other_entry->GetAccessFlags())) {
         continue;
       }
-      CHECK(vtable_entry != other_entry &&
-            !name_comparator.HasSameNameAndSignature(
-                other_entry->GetInterfaceMethodIfProxy(pointer_size)))
-          << "vtable entries " << i << " and " << j << " are identical for "
-          << klass->PrettyClass() << " in method " << vtable_entry->PrettyMethod() << " (0x"
-          << std::hex << reinterpret_cast<uintptr_t>(vtable_entry) << ") and "
-          << other_entry->PrettyMethod() << "  (0x" << std::hex
-          << reinterpret_cast<uintptr_t>(other_entry) << ")";
+      if (vtable_entry == other_entry ||
+          name_comparator.HasSameNameAndSignature(
+               other_entry->GetInterfaceMethodIfProxy(pointer_size))) {
+        LOG(WARNING) << "vtable entries " << i << " and " << j << " are identical for "
+                     << klass->PrettyClass() << " in method " << vtable_entry->PrettyMethod()
+                     << " (0x" << std::hex << reinterpret_cast<uintptr_t>(vtable_entry) << ") and "
+                     << other_entry->PrettyMethod() << "  (0x" << std::hex
+                     << reinterpret_cast<uintptr_t>(other_entry) << ")";
+      }
     }
   }
 }
