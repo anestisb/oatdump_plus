@@ -14,6 +14,12 @@
 // limitations under the License.
 //
 
+cc_library_headers {
+    name: "dex2oat_headers",
+    host_supported: true,
+    export_include_dirs: ["include"],
+}
+
 cc_defaults {
     name: "dex2oat-defaults",
     host_supported: true,
@@ -40,6 +46,7 @@ cc_defaults {
     include_dirs: [
         "art/cmdline",
     ],
+    header_libs: ["dex2oat_headers"],
 }
 
 art_cc_binary {
@@ -132,4 +139,5 @@ art_cc_test {
         "art_gtest_defaults",
     ],
     srcs: ["dex2oat_test.cc"],
+    header_libs: ["dex2oat_headers"],
 }
