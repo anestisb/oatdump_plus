@@ -120,7 +120,6 @@ NO_RETURN static void Usage(const char *fmt, ...) {
   UsageError("");
   UsageError("  --create-profile-from=<filename>: creates a profile from a list of classes.");
   UsageError("");
-  UsageError("");
   UsageError("  --dex-location=<string>: location string to use with corresponding");
   UsageError("      apk-fd to find dex files");
   UsageError("");
@@ -140,6 +139,7 @@ static constexpr uint16_t kDefaultTestProfileClassRatio = 5;
 // Separators used when parsing human friendly representation of profiles.
 static const std::string kMethodSep = "->";
 static const std::string kMissingTypesMarker = "missing_types";
+static const std::string kClassAllMethods = "*";
 static constexpr char kProfileParsingInlineChacheSep = '+';
 static constexpr char kProfileParsingTypeSep = ',';
 static constexpr char kProfileParsingFirstCharInSignature = '(';
@@ -630,6 +630,7 @@ class ProfMan FINAL {
   // "LTestInline;->inlinePolymorphic(LSuper;)I+LSubA;,LSubB;,LSubC;".
   // "LTestInline;->inlineMissingTypes(LSuper;)I+missing_types".
   // "LTestInline;->inlineNoInlineCaches(LSuper;)I".
+  // "LTestInline;->*".
   // The method and classes are searched only in the given dex files.
   bool ProcessLine(const std::vector<std::unique_ptr<const DexFile>>& dex_files,
                    const std::string& line,
@@ -650,8 +651,8 @@ class ProfMan FINAL {
       return false;
     }
 
-    if (method_str.empty()) {
-      // No method to add. Just add the class.
+    if (method_str.empty() || method_str == kClassAllMethods) {
+      // Start by adding the class.
       std::set<DexCacheResolvedClasses> resolved_class_set;
       const DexFile* dex_file = class_ref.dex_file;
       const auto& dex_resolved_classes = resolved_class_set.emplace(
@@ -659,7 +660,27 @@ class ProfMan FINAL {
             dex_file->GetBaseLocation(),
             dex_file->GetLocationChecksum());
       dex_resolved_classes.first->AddClass(class_ref.type_index);
-      profile->AddMethodsAndClasses(std::vector<ProfileMethodInfo>(), resolved_class_set);
+      std::vector<ProfileMethodInfo> methods;
+      if (method_str == kClassAllMethods) {
+        // Add all of the methods.
+        const DexFile::ClassDef* class_def = dex_file->FindClassDef(class_ref.type_index);
+        const uint8_t* class_data = dex_file->GetClassData(*class_def);
+        if (class_data != nullptr) {
+          ClassDataItemIterator it(*dex_file, class_data);
+          while (it.HasNextStaticField() || it.HasNextInstanceField()) {
+            it.Next();
+          }
+          while (it.HasNextDirectMethod() || it.HasNextVirtualMethod()) {
+            if (it.GetMethodCodeItemOffset() != 0) {
+              // Add all of the methods that have code to the profile.
+              const uint32_t method_idx = it.GetMemberIndex();
+              methods.push_back(ProfileMethodInfo(dex_file, method_idx));
+            }
+            it.Next();
+          }
+        }
+      }
+      profile->AddMethodsAndClasses(methods, resolved_class_set);
       return true;
     }
 

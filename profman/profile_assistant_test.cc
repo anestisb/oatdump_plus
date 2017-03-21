@@ -22,6 +22,7 @@
 #include "exec_utils.h"
 #include "jit/profile_compilation_info.h"
 #include "mirror/class-inl.h"
+#include "obj_ptr-inl.h"
 #include "profile_assistant.h"
 #include "scoped_thread_state_change-inl.h"
 #include "utils.h"
@@ -140,7 +141,8 @@ class ProfileAssistantTest : public CommonRuntimeTest {
     return true;
   }
 
-  bool CreateAndDump(const std::string& input_file_contents, std::string* output_file_contents) {
+  bool CreateAndDump(const std::string& input_file_contents,
+                     std::string* output_file_contents) {
     ScratchFile profile_file;
     EXPECT_TRUE(CreateProfile(input_file_contents,
                               profile_file.GetFilename(),
@@ -156,7 +158,7 @@ class ProfileAssistantTest : public CommonRuntimeTest {
     ScopedObjectAccess soa(self);
     StackHandleScope<1> hs(self);
     Handle<mirror::ClassLoader> h_loader(
-        hs.NewHandle(self->DecodeJObject(class_loader)->AsClassLoader()));
+        hs.NewHandle(ObjPtr<mirror::ClassLoader>::DownCast(self->DecodeJObject(class_loader))));
     return class_linker->FindClass(self, clazz.c_str(), h_loader);
   }
 
@@ -440,6 +442,44 @@ TEST_F(ProfileAssistantTest, TestProfileCreationAllMatch) {
   std::string output_file_contents;
   ASSERT_TRUE(CreateAndDump(input_file_contents, &output_file_contents));
   ASSERT_EQ(output_file_contents, expected_contents);
+}
+
+TEST_F(ProfileAssistantTest, TestProfileCreationGenerateMethods) {
+  // Class names put here need to be in sorted order.
+  std::vector<std::string> class_names = {
+    "Ljava/lang/Math;->*",
+  };
+  std::string input_file_contents;
+  std::string expected_contents;
+  for (std::string& class_name : class_names) {
+    input_file_contents += class_name + std::string("\n");
+    expected_contents += DescriptorToDot(class_name.c_str()) +
+        std::string("\n");
+  }
+  std::string output_file_contents;
+  ScratchFile profile_file;
+  EXPECT_TRUE(CreateProfile(input_file_contents,
+                            profile_file.GetFilename(),
+                            GetLibCoreDexFileNames()[0]));
+  ProfileCompilationInfo info;
+  profile_file.GetFile()->ResetOffset();
+  ASSERT_TRUE(info.Load(GetFd(profile_file)));
+  // Verify that the profile has matching methods.
+  ScopedObjectAccess soa(Thread::Current());
+  ObjPtr<mirror::Class> klass = GetClass(nullptr, "Ljava/lang/Math;");
+  ASSERT_TRUE(klass != nullptr);
+  size_t method_count = 0;
+  for (ArtMethod& method : klass->GetMethods(kRuntimePointerSize)) {
+    if (!method.IsCopied() && method.GetCodeItem() != nullptr) {
+      ++method_count;
+      ProfileCompilationInfo::OfflineProfileMethodInfo pmi;
+      ASSERT_TRUE(info.GetMethod(method.GetDexFile()->GetLocation(),
+                                 method.GetDexFile()->GetLocationChecksum(),
+                                 method.GetDexMethodIndex(),
+                                 &pmi));
+    }
+  }
+  EXPECT_GT(method_count, 0u);
 }
 
 TEST_F(ProfileAssistantTest, TestProfileCreationOneNotMatched) {
