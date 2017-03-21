@@ -1125,36 +1125,31 @@ void RegisterAllocatorLinearScan::AllocateSpillSlotFor(LiveInterval* interval) {
       LOG(FATAL) << "Unexpected type for interval " << interval->GetType();
   }
 
-  // Find an available spill slot.
+  // Find first available spill slots.
+  size_t number_of_spill_slots_needed = parent->NumberOfSpillSlotsNeeded();
   size_t slot = 0;
   for (size_t e = spill_slots->size(); slot < e; ++slot) {
-    if ((*spill_slots)[slot] <= parent->GetStart()) {
-      if (!parent->NeedsTwoSpillSlots()) {
-        // One spill slot is sufficient.
+    bool found = true;
+    for (size_t s = slot, u = std::min(slot + number_of_spill_slots_needed, e); s < u; s++) {
+      if ((*spill_slots)[s] > parent->GetStart()) {
+        found = false;  // failure
         break;
       }
-      if (slot == e - 1 || (*spill_slots)[slot + 1] <= parent->GetStart()) {
-        // Two spill slots are available.
-        break;
-      }
+    }
+    if (found) {
+      break;  // success
     }
   }
 
+  // Need new spill slots?
+  size_t upper = slot + number_of_spill_slots_needed;
+  if (upper > spill_slots->size()) {
+    spill_slots->resize(upper);
+  }
+  // Set slots to end.
   size_t end = interval->GetLastSibling()->GetEnd();
-  if (parent->NeedsTwoSpillSlots()) {
-    if (slot + 2u > spill_slots->size()) {
-      // We need a new spill slot.
-      spill_slots->resize(slot + 2u, end);
-    }
-    (*spill_slots)[slot] = end;
-    (*spill_slots)[slot + 1] = end;
-  } else {
-    if (slot == spill_slots->size()) {
-      // We need a new spill slot.
-      spill_slots->push_back(end);
-    } else {
-      (*spill_slots)[slot] = end;
-    }
+  for (size_t s = slot; s < upper; s++) {
+    (*spill_slots)[s] = end;
   }
 
   // Note that the exact spill slot location will be computed when we resolve,
@@ -1180,7 +1175,7 @@ void RegisterAllocatorLinearScan::AllocateSpillSlotForCatchPhi(HPhi* phi) {
     // TODO: Reuse spill slots when intervals of phis from different catch
     //       blocks do not overlap.
     interval->SetSpillSlot(catch_phi_spill_slots_);
-    catch_phi_spill_slots_ += interval->NeedsTwoSpillSlots() ? 2 : 1;
+    catch_phi_spill_slots_ += interval->NumberOfSpillSlotsNeeded();
   }
 }
 
