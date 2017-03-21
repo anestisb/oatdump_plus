@@ -30,6 +30,7 @@
 #include "base/macros.h"
 #include "dex_file-inl.h"
 #include "dex2oat_environment_test.h"
+#include "dex2oat_return_codes.h"
 #include "jit/profile_compilation_info.h"
 #include "oat.h"
 #include "oat_file.h"
@@ -50,12 +51,12 @@ class Dex2oatTest : public Dex2oatEnvironmentTest {
   }
 
  protected:
-  void GenerateOdexForTest(const std::string& dex_location,
-                           const std::string& odex_location,
-                           CompilerFilter::Filter filter,
-                           const std::vector<std::string>& extra_args = {},
-                           bool expect_success = true,
-                           bool use_fd = false) {
+  int GenerateOdexForTestWithStatus(const std::string& dex_location,
+                                    const std::string& odex_location,
+                                    CompilerFilter::Filter filter,
+                                    std::string* error_msg,
+                                    const std::vector<std::string>& extra_args = {},
+                                    bool use_fd = false) {
     std::unique_ptr<File> oat_file;
     std::vector<std::string> args;
     args.push_back("--dex-file=" + dex_location);
@@ -73,12 +74,27 @@ class Dex2oatTest : public Dex2oatEnvironmentTest {
 
     args.insert(args.end(), extra_args.begin(), extra_args.end());
 
-    std::string error_msg;
-    bool success = Dex2Oat(args, &error_msg);
+    int status = Dex2Oat(args, error_msg);
     if (oat_file != nullptr) {
-      ASSERT_EQ(oat_file->FlushClose(), 0) << "Could not flush and close oat file";
+      CHECK_EQ(oat_file->FlushClose(), 0) << "Could not flush and close oat file";
     }
+    return status;
+  }
 
+  void GenerateOdexForTest(const std::string& dex_location,
+                           const std::string& odex_location,
+                           CompilerFilter::Filter filter,
+                           const std::vector<std::string>& extra_args = {},
+                           bool expect_success = true,
+                           bool use_fd = false) {
+    std::string error_msg;
+    int status = GenerateOdexForTestWithStatus(dex_location,
+                                               odex_location,
+                                               filter,
+                                               &error_msg,
+                                               extra_args,
+                                               use_fd);
+    bool success = (status == 0);
     if (expect_success) {
       ASSERT_TRUE(success) << error_msg << std::endl << output_;
 
@@ -118,7 +134,7 @@ class Dex2oatTest : public Dex2oatEnvironmentTest {
     EXPECT_EQ(expected, actual);
   }
 
-  bool Dex2Oat(const std::vector<std::string>& dex2oat_args, std::string* error_msg) {
+  int Dex2Oat(const std::vector<std::string>& dex2oat_args, std::string* error_msg) {
     Runtime* runtime = Runtime::Current();
 
     const std::vector<gc::space::ImageSpace*>& image_spaces =
@@ -196,6 +212,7 @@ class Dex2oatTest : public Dex2oatEnvironmentTest {
       c_args.push_back(nullptr);
       execv(c_args[0], const_cast<char* const*>(c_args.data()));
       exit(1);
+      UNREACHABLE();
     } else {
       close(link[1]);
       char buffer[128];
@@ -206,12 +223,12 @@ class Dex2oatTest : public Dex2oatEnvironmentTest {
         output_ += std::string(buffer, bytes_read);
       }
       close(link[0]);
-      int status = 0;
+      int status = -1;
       if (waitpid(pid, &status, 0) != -1) {
         success_ = (status == 0);
       }
+      return status;
     }
-    return success_;
   }
 
   std::string output_ = "";
@@ -843,6 +860,32 @@ TEST_F(Dex2oatWatchdogTest, TestWatchdogOK) {
 TEST_F(Dex2oatWatchdogTest, TestWatchdogTrigger) {
   // Check with ten milliseconds.
   RunTest(false, { "--watchdog-timeout=10" });
+}
+
+class Dex2oatReturnCodeTest : public Dex2oatTest {
+ protected:
+  int RunTest(const std::vector<std::string>& extra_args = {}) {
+    std::string dex_location = GetScratchDir() + "/Dex2OatSwapTest.jar";
+    std::string odex_location = GetOdexDir() + "/Dex2OatSwapTest.odex";
+
+    Copy(GetTestDexFileName(), dex_location);
+
+    std::string error_msg;
+    return GenerateOdexForTestWithStatus(dex_location,
+                                         odex_location,
+                                         CompilerFilter::kSpeed,
+                                         &error_msg,
+                                         extra_args);
+  }
+
+  std::string GetTestDexFileName() {
+    return GetDexSrc1();
+  }
+};
+
+TEST_F(Dex2oatReturnCodeTest, TestCreateRuntime) {
+  int status = RunTest({ "--boot-image=/this/does/not/exist/yolo.oat" });
+  EXPECT_EQ(static_cast<int>(dex2oat::ReturnCode::kCreateRuntime), WEXITSTATUS(status)) << output_;
 }
 
 }  // namespace art
