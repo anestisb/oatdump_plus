@@ -1,29 +1,35 @@
 target_config = {
     'art-test' : {
+        'target' : 'test-art-host-gtest',
+        'run-tests' : True,
         'flags' : [],
         'env' : {
             'ART_USE_READ_BARRIER' : 'false'
         }
     },
     'art-interpreter' : {
+        'run-tests' : True,
         'flags' : ['--interpreter'],
         'env' : {
             'ART_USE_READ_BARRIER' : 'false'
         }
     },
     'art-interpreter-access-checks' : {
+        'run-tests' : True,
         'flags' : ['--interp-ac'],
         'env' : {
             'ART_USE_READ_BARRIER' : 'false'
         }
     },
     'art-jit' : {
+        'run-tests' : True,
         'flags' : ['--jit'],
         'env' : {
             'ART_USE_READ_BARRIER' : 'false'
         }
     },
     'art-gcstress-gcverify': {
+        'run-tests' : True,
         'flags' : ['--gcstress',
                    '--gcverify'],
         'env' : {
@@ -32,6 +38,7 @@ target_config = {
         }
     },
     'art-interpreter-gcstress' : {
+        'run-tests' : True,
         'flags': ['--interpreter',
                   '--gcstress'],
         'env' : {
@@ -40,6 +47,7 @@ target_config = {
         }
     },
     'art-optimizing-gcstress' : {
+        'run-tests' : True,
         'flags': ['--gcstress',
                   '--optimizing'],
         'env' : {
@@ -48,6 +56,7 @@ target_config = {
         }
     },
     'art-jit-gcstress' : {
+        'run-tests' : True,
         'flags': ['--jit',
                   '--gcstress'],
         'env' : {
@@ -56,6 +65,7 @@ target_config = {
         }
     },
     'art-read-barrier' : {
+        'run-tests' : True,
         'flags': ['--interpreter',
                   '--optimizing'],
         'env' : {
@@ -64,6 +74,7 @@ target_config = {
         }
     },
     'art-read-barrier-gcstress' : {
+        'run-tests' : True,
         'flags' : ['--interpreter',
                    '--optimizing',
                    '--gcstress'],
@@ -73,6 +84,7 @@ target_config = {
         }
     },
     'art-read-barrier-table-lookup' : {
+        'run-tests' : True,
         'flags' : ['--interpreter',
                    '--optimizing'],
         'env' : {
@@ -82,6 +94,7 @@ target_config = {
         }
     },
     'art-debug-gc' : {
+        'run-tests' : True,
         'flags' : ['--interpreter',
                    '--optimizing'],
         'env' : {
@@ -90,6 +103,7 @@ target_config = {
         }
     },
     'art-ss-gc' : {
+        'run-tests' : True,
         'flags' : ['--interpreter',
                    '--optimizing',
                    '--jit'],
@@ -99,6 +113,7 @@ target_config = {
         }
     },
     'art-gss-gc' : {
+        'run-tests' : True,
         'flags' : ['--interpreter',
                    '--optimizing',
                    '--jit'],
@@ -108,6 +123,7 @@ target_config = {
         }
     },
     'art-ss-gc-tlab' : {
+        'run-tests' : True,
         'flags' : ['--interpreter',
                    '--optimizing',
                    '--jit'],
@@ -118,6 +134,7 @@ target_config = {
         }
     },
     'art-gss-gc-tlab' : {
+        'run-tests' : True,
         'flags' : ['--interpreter',
                    '--optimizing',
                    '--jit'],
@@ -128,12 +145,14 @@ target_config = {
         }
     },
     'art-tracing' : {
+        'run-tests' : True,
         'flags' : ['--trace'],
         'env' : {
             'ART_USE_READ_BARRIER' : 'false'
         }
     },
     'art-interpreter-tracing' : {
+        'run-tests' : True,
         'flags' : ['--interpreter',
                    '--trace'],
         'env' : {
@@ -141,24 +160,28 @@ target_config = {
         }
     },
     'art-forcecopy' : {
+        'run-tests' : True,
         'flags' : ['--forcecopy'],
         'env' : {
             'ART_USE_READ_BARRIER' : 'false',
         }
     },
     'art-no-prebuild' : {
+        'run-tests' : True,
         'flags' : ['--no-prebuild'],
         'env' : {
             'ART_USE_READ_BARRIER' : 'false',
         }
     },
     'art-no-image' : {
+        'run-tests' : True,
         'flags' : ['--no-image'],
         'env' : {
             'ART_USE_READ_BARRIER' : 'false',
         }
     },
     'art-interpreter-no-image' : {
+        'run-tests' : True,
         'flags' : ['--interpreter',
                    '--no-image'],
         'env' : {
@@ -166,18 +189,21 @@ target_config = {
         }
     },
     'art-relocate-no-patchoat' : {
+        'run-tests' : True,
         'flags' : ['--relocate-npatchoat'],
         'env' : {
             'ART_USE_READ_BARRIER' : 'false',
         }
     },
     'art-no-dex2oat' : {
+        'run-tests' : True,
         'flags' : ['--no-dex2oat'],
         'env' : {
             'ART_USE_READ_BARRIER' : 'false',
         }
     },
     'art-heap-poisoning' : {
+        'run-tests' : True,
         'flags' : ['--interpreter',
                    '--optimizing'],
         'env' : {
