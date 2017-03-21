@@ -446,12 +446,16 @@ TEST_ART_BROKEN_FALLBACK_RUN_TESTS := \
 
 # This test fails without an image.
 # 018, 961, 964, 968 often time out. b/34369284
+# 508: b/36365552
+# 597: b/36467228
 TEST_ART_BROKEN_NO_IMAGE_RUN_TESTS := \
   137-cfi \
   138-duplicate-classes-check \
   018-stack-overflow \
   476-clinit-inline-static-invoke \
   496-checker-inlining-class-loader \
+  508-referrer-method \
+  597-deopt-new-string \
   637-checker-throw-inline \
   616-cha \
   616-cha-abstract \
