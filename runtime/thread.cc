@@ -16,8 +16,11 @@
 
 #include "thread.h"
 
-#include <pthread.h>
+#if !defined(__APPLE__)
 #include <sched.h>
+#endif
+
+#include <pthread.h>
 #include <signal.h>
 #include <sys/resource.h>
 #include <sys/time.h>
@@ -1590,17 +1593,23 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
      << " nice=" << getpriority(PRIO_PROCESS, tid)
      << " cgrp=" << scheduler_group_name;
   if (thread != nullptr) {
+    int policy;
+    sched_param sp;
+#if !defined(__APPLE__)
     // b/36445592 Don't use pthread_getschedparam since pthread may have exited.
-    int policy = sched_getscheduler(tid);
+    policy = sched_getscheduler(tid);
     if (policy == -1) {
       PLOG(WARNING) << "sched_getscheduler(" << tid << ")";
     }
-    sched_param sp;
     int sched_getparam_result = sched_getparam(tid, &sp);
     if (sched_getparam_result == -1) {
       PLOG(WARNING) << "sched_getparam(" << tid << ", &sp)";
       sp.sched_priority = -1;
     }
+#else
+    CHECK_PTHREAD_CALL(pthread_getschedparam, (thread->tlsPtr_.pthread_self, &policy, &sp),
+                       __FUNCTION__);
+#endif
     os << " sched=" << policy << "/" << sp.sched_priority
        << " handle=" << reinterpret_cast<void*>(thread->tlsPtr_.pthread_self);
   }
