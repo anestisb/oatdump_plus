@@ -76,7 +76,7 @@ class ImageTest : public CommonCompilerTest {
   void Compile(ImageHeader::StorageMode storage_mode,
                CompilationHelper& out_helper,
                const std::string& extra_dex = "",
-               const std::string& image_class = "");
+               const std::initializer_list<std::string>& image_classes = {});
 
   void SetUpRuntimeOptions(RuntimeOptions* options) OVERRIDE {
     CommonCompilerTest::SetUpRuntimeOptions(options);
@@ -88,6 +88,18 @@ class ImageTest : public CommonCompilerTest {
 
   std::unordered_set<std::string>* GetImageClasses() OVERRIDE {
     return new std::unordered_set<std::string>(image_classes_);
+  }
+
+  ArtMethod* FindCopiedMethod(ArtMethod* origin, mirror::Class* klass)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    PointerSize pointer_size = class_linker_->GetImagePointerSize();
+    for (ArtMethod& m : klass->GetCopiedMethods(pointer_size)) {
+      if (strcmp(origin->GetName(), m.GetName()) == 0 &&
+          origin->GetSignature() == m.GetSignature()) {
+        return &m;
+      }
+    }
+    return nullptr;
   }
 
  private:
@@ -345,8 +357,8 @@ void CompilationHelper::Compile(CompilerDriver* driver,
 void ImageTest::Compile(ImageHeader::StorageMode storage_mode,
                         CompilationHelper& helper,
                         const std::string& extra_dex,
-                        const std::string& image_class) {
-  if (!image_class.empty()) {
+                        const std::initializer_list<std::string>& image_classes) {
+  for (const std::string& image_class : image_classes) {
     image_classes_.insert(image_class);
   }
   CreateCompilerDriver(Compiler::kOptimizing, kRuntimeISA, kIsTargetBuild ? 2U : 16U);
@@ -358,13 +370,15 @@ void ImageTest::Compile(ImageHeader::StorageMode storage_mode,
     helper.extra_dex_files = OpenTestDexFiles(extra_dex.c_str());
   }
   helper.Compile(compiler_driver_.get(), storage_mode);
-  if (!image_class.empty()) {
+  if (image_classes.begin() != image_classes.end()) {
     // Make sure the class got initialized.
     ScopedObjectAccess soa(Thread::Current());
     ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
-    mirror::Class* klass = class_linker->FindSystemClass(Thread::Current(), image_class.c_str());
-    EXPECT_TRUE(klass != nullptr);
-    EXPECT_TRUE(klass->IsInitialized());
+    for (const std::string& image_class : image_classes) {
+      mirror::Class* klass = class_linker->FindSystemClass(Thread::Current(), image_class.c_str());
+      EXPECT_TRUE(klass != nullptr);
+      EXPECT_TRUE(klass->IsInitialized());
+    }
   }
 }
 
@@ -492,7 +506,7 @@ TEST_F(ImageTest, TestImageLayout) {
   // Compile multi-image with ImageLayoutA being the last image.
   {
     CompilationHelper helper;
-    Compile(ImageHeader::kStorageModeUncompressed, helper, "ImageLayoutA", "LMyClass;");
+    Compile(ImageHeader::kStorageModeUncompressed, helper, "ImageLayoutA", {"LMyClass;"});
     image_sizes = helper.GetImageObjectSectionSizes();
   }
   TearDown();
@@ -501,7 +515,7 @@ TEST_F(ImageTest, TestImageLayout) {
   // Compile multi-image with ImageLayoutB being the last image.
   {
     CompilationHelper helper;
-    Compile(ImageHeader::kStorageModeUncompressed, helper, "ImageLayoutB", "LMyClass;");
+    Compile(ImageHeader::kStorageModeUncompressed, helper, "ImageLayoutB", {"LMyClass;"});
     image_sizes_extra = helper.GetImageObjectSectionSizes();
   }
   // Make sure that the new stuff in the clinit in ImageLayoutB is in the last image and not in the
@@ -551,6 +565,65 @@ TEST_F(ImageTest, ImageHeaderIsValid) {
     ASSERT_FALSE(image_header.IsValid());
     strcpy(magic, "art\n000");  // bad version
     ASSERT_FALSE(image_header.IsValid());
+}
+
+// Test that pointer to quick code is the same in
+// a default method of an interface and in a copied method
+// of a class which implements the interface. This should be true
+// only if the copied method and the origin method are located in the
+// same oat file.
+TEST_F(ImageTest, TestDefaultMethods) {
+  CompilationHelper helper;
+  Compile(ImageHeader::kStorageModeUncompressed,
+      helper,
+      "DefaultMethods",
+      {"LIface;", "LImpl;", "LIterableBase;"});
+
+  PointerSize pointer_size = class_linker_->GetImagePointerSize();
+  Thread* self = Thread::Current();
+  ScopedObjectAccess soa(self);
+
+  // Test the pointer to quick code is the same in origin method
+  // and in the copied method form the same oat file.
+  mirror::Class* iface_klass = class_linker_->LookupClass(
+      self, "LIface;", ObjPtr<mirror::ClassLoader>());
+  ASSERT_NE(nullptr, iface_klass);
+  ArtMethod* origin = iface_klass->FindDeclaredVirtualMethod(
+      "defaultMethod", "()V", pointer_size);
+  ASSERT_NE(nullptr, origin);
+  const void* code = origin->GetEntryPointFromQuickCompiledCodePtrSize(pointer_size);
+  // The origin method should have a pointer to quick code
+  ASSERT_NE(nullptr, code);
+  ASSERT_FALSE(class_linker_->IsQuickToInterpreterBridge(code));
+  mirror::Class* impl_klass = class_linker_->LookupClass(
+      self, "LImpl;", ObjPtr<mirror::ClassLoader>());
+  ASSERT_NE(nullptr, impl_klass);
+  ArtMethod* copied = FindCopiedMethod(origin, impl_klass);
+  ASSERT_NE(nullptr, copied);
+  // the copied method should have pointer to the same quick code as the origin method
+  ASSERT_EQ(code, copied->GetEntryPointFromQuickCompiledCodePtrSize(pointer_size));
+
+  // Test the origin method has pointer to quick code
+  // but the copied method has pointer to interpreter
+  // because these methods are in different oat files.
+  mirror::Class* iterable_klass = class_linker_->LookupClass(
+      self, "Ljava/lang/Iterable;", ObjPtr<mirror::ClassLoader>());
+  ASSERT_NE(nullptr, iterable_klass);
+  origin = iterable_klass->FindDeclaredVirtualMethod(
+      "forEach", "(Ljava/util/function/Consumer;)V", pointer_size);
+  ASSERT_NE(nullptr, origin);
+  code = origin->GetEntryPointFromQuickCompiledCodePtrSize(pointer_size);
+  // the origin method should have a pointer to quick code
+  ASSERT_NE(nullptr, code);
+  ASSERT_FALSE(class_linker_->IsQuickToInterpreterBridge(code));
+  mirror::Class* iterablebase_klass = class_linker_->LookupClass(
+      self, "LIterableBase;", ObjPtr<mirror::ClassLoader>());
+  ASSERT_NE(nullptr, iterablebase_klass);
+  copied = FindCopiedMethod(origin, iterablebase_klass);
+  ASSERT_NE(nullptr, copied);
+  code = copied->GetEntryPointFromQuickCompiledCodePtrSize(pointer_size);
+  // the copied method should have a pointer to interpreter
+  ASSERT_TRUE(class_linker_->IsQuickToInterpreterBridge(code));
 }
 
 }  // namespace art
