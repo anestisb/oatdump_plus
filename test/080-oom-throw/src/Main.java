@@ -114,13 +114,13 @@ public class Main {
     static Object[] holder;
 
     public static void blowup() throws Exception {
-        int size = 32 * 1024 * 1024;
+        int size = 2 * 1024 * 1024;
         for (int i = 0; i < holder.length; ) {
             try {
                 holder[i] = new char[size];
                 i++;
             } catch (OutOfMemoryError oome) {
-                size = size / 2;
+                size = size / 16;
                 if (size == 0) {
                      break;
                 }
