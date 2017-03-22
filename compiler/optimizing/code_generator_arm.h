@@ -237,7 +237,7 @@ class InstructionCodeGeneratorARM : public InstructionCodeGenerator {
   void HandleBitwiseOperation(HBinaryOperation* operation);
   void HandleCondition(HCondition* condition);
   void HandleIntegerRotate(LocationSummary* locations);
-  void HandleLongRotate(LocationSummary* locations);
+  void HandleLongRotate(HRor* ror);
   void HandleShift(HBinaryOperation* operation);
 
   void GenerateWideAtomicStore(Register addr, uint32_t offset,
