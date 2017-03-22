@@ -1875,6 +1875,7 @@ static bool CanGenerateConditionalMove(const Location& out, const Location& src)
 
 Label* CodeGeneratorARM::GetFinalLabel(HInstruction* instruction, Label* final_label) {
   DCHECK(!instruction->IsControlFlow() && !instruction->IsSuspendCheck());
+  DCHECK(!instruction->IsInvoke() || !instruction->GetLocations()->CanCall());
 
   const HBasicBlock* const block = instruction->GetBlock();
   const HLoopInformation* const info = block->GetLoopInformation();
@@ -2901,16 +2902,20 @@ void InstructionCodeGeneratorARM::HandleCondition(HCondition* cond) {
 
   // Convert the jumps into the result.
   Label done_label;
+  Label* final_label = codegen_->GetFinalLabel(cond, &done_label);
 
   // False case: result = 0.
   __ Bind(&false_label);
   __ LoadImmediate(out, 0);
-  __ b(&done_label);
+  __ b(final_label);
 
   // True case: result = 1.
   __ Bind(&true_label);
   __ LoadImmediate(out, 1);
-  __ Bind(&done_label);
+
+  if (done_label.IsLinked()) {
+    __ Bind(&done_label);
+  }
 }
 
 void LocationsBuilderARM::VisitEqual(HEqual* comp) {
@@ -4441,7 +4446,8 @@ void InstructionCodeGeneratorARM::HandleIntegerRotate(LocationSummary* locations
 // rotates by swapping input regs (effectively rotating by the first 32-bits of
 // a larger rotation) or flipping direction (thus treating larger right/left
 // rotations as sub-word sized rotations in the other direction) as appropriate.
-void InstructionCodeGeneratorARM::HandleLongRotate(LocationSummary* locations) {
+void InstructionCodeGeneratorARM::HandleLongRotate(HRor* ror) {
+  LocationSummary* locations = ror->GetLocations();
   Register in_reg_lo = locations->InAt(0).AsRegisterPairLow<Register>();
   Register in_reg_hi = locations->InAt(0).AsRegisterPairHigh<Register>();
   Location rhs = locations->InAt(1);
@@ -4474,6 +4480,7 @@ void InstructionCodeGeneratorARM::HandleLongRotate(LocationSummary* locations) {
     Register shift_left = locations->GetTemp(1).AsRegister<Register>();
     Label end;
     Label shift_by_32_plus_shift_right;
+    Label* final_label = codegen_->GetFinalLabel(ror, &end);
 
     __ and_(shift_right, rhs.AsRegister<Register>(), ShifterOperand(0x1F));
     __ Lsrs(shift_left, rhs.AsRegister<Register>(), 6);
@@ -4488,7 +4495,7 @@ void InstructionCodeGeneratorARM::HandleLongRotate(LocationSummary* locations) {
     __ Lsl(out_reg_lo, in_reg_lo, shift_left);
     __ Lsr(shift_left, in_reg_hi, shift_right);
     __ add(out_reg_lo, out_reg_lo, ShifterOperand(shift_left));
-    __ b(&end);
+    __ b(final_label);
 
     __ Bind(&shift_by_32_plus_shift_right);  // Shift by 32+shift_right.
     // out_reg_hi = (reg_hi >> shift_right) | (reg_lo << shift_left).
@@ -4500,7 +4507,9 @@ void InstructionCodeGeneratorARM::HandleLongRotate(LocationSummary* locations) {
     __ Lsl(shift_right, in_reg_hi, shift_left);
     __ add(out_reg_lo, out_reg_lo, ShifterOperand(shift_right));
 
-    __ Bind(&end);
+    if (end.IsLinked()) {
+      __ Bind(&end);
+    }
   }
 }
 
@@ -4540,7 +4549,7 @@ void InstructionCodeGeneratorARM::VisitRor(HRor* ror) {
       break;
     }
     case Primitive::kPrimLong: {
-      HandleLongRotate(locations);
+      HandleLongRotate(ror);
       break;
     }
     default:
@@ -4919,6 +4928,7 @@ void InstructionCodeGeneratorARM::VisitCompare(HCompare* compare) {
   Location right = locations->InAt(1);
 
   Label less, greater, done;
+  Label* final_label = codegen_->GetFinalLabel(compare, &done);
   Primitive::Type type = compare->InputAt(0)->GetType();
   Condition less_cond;
   switch (type) {
@@ -4958,17 +4968,19 @@ void InstructionCodeGeneratorARM::VisitCompare(HCompare* compare) {
       UNREACHABLE();
   }
 
-  __ b(&done, EQ);
+  __ b(final_label, EQ);
   __ b(&less, less_cond);
 
   __ Bind(&greater);
   __ LoadImmediate(out, 1);
-  __ b(&done);
+  __ b(final_label);
 
   __ Bind(&less);
   __ LoadImmediate(out, -1);
 
-  __ Bind(&done);
+  if (done.IsLinked()) {
+    __ Bind(&done);
+  }
 }
 
 void LocationsBuilderARM::VisitPhi(HPhi* instruction) {
@@ -5746,6 +5758,7 @@ void InstructionCodeGeneratorARM::VisitArrayGet(HArrayGet* instruction) {
         int32_t const_index = index.GetConstant()->AsIntConstant()->GetValue();
         if (maybe_compressed_char_at) {
           Label uncompressed_load, done;
+          Label* final_label = codegen_->GetFinalLabel(instruction, &done);
           __ Lsrs(length, length, 1u);  // LSRS has a 16-bit encoding, TST (immediate) does not.
           static_assert(static_cast<uint32_t>(mirror::StringCompressionFlag::kCompressed) == 0u,
                         "Expecting 0=compressed, 1=uncompressed");
@@ -5754,13 +5767,15 @@ void InstructionCodeGeneratorARM::VisitArrayGet(HArrayGet* instruction) {
                             out_loc.AsRegister<Register>(),
                             obj,
                             data_offset + const_index);
-          __ b(&done);
+          __ b(final_label);
           __ Bind(&uncompressed_load);
           __ LoadFromOffset(GetLoadOperandType(Primitive::kPrimChar),
                             out_loc.AsRegister<Register>(),
                             obj,
                             data_offset + (const_index << 1));
-          __ Bind(&done);
+          if (done.IsLinked()) {
+            __ Bind(&done);
+          }
         } else {
           uint32_t full_offset = data_offset + (const_index << Primitive::ComponentSizeShift(type));
 
@@ -5784,17 +5799,20 @@ void InstructionCodeGeneratorARM::VisitArrayGet(HArrayGet* instruction) {
         }
         if (maybe_compressed_char_at) {
           Label uncompressed_load, done;
+          Label* final_label = codegen_->GetFinalLabel(instruction, &done);
           __ Lsrs(length, length, 1u);  // LSRS has a 16-bit encoding, TST (immediate) does not.
           static_assert(static_cast<uint32_t>(mirror::StringCompressionFlag::kCompressed) == 0u,
                         "Expecting 0=compressed, 1=uncompressed");
           __ b(&uncompressed_load, CS);
           __ ldrb(out_loc.AsRegister<Register>(),
                   Address(temp, index.AsRegister<Register>(), Shift::LSL, 0));
-          __ b(&done);
+          __ b(final_label);
           __ Bind(&uncompressed_load);
           __ ldrh(out_loc.AsRegister<Register>(),
                   Address(temp, index.AsRegister<Register>(), Shift::LSL, 1));
-          __ Bind(&done);
+          if (done.IsLinked()) {
+            __ Bind(&done);
+          }
         } else {
           codegen_->LoadFromShiftedRegOffset(type, out_loc, temp, index.AsRegister<Register>());
         }
@@ -6019,6 +6037,7 @@ void InstructionCodeGeneratorARM::VisitArraySet(HArraySet* instruction) {
       uint32_t super_offset = mirror::Class::SuperClassOffset().Int32Value();
       uint32_t component_offset = mirror::Class::ComponentTypeOffset().Int32Value();
       Label done;
+      Label* final_label = codegen_->GetFinalLabel(instruction, &done);
       SlowPathCodeARM* slow_path = nullptr;
 
       if (may_need_runtime_call_for_type_check) {
@@ -6040,7 +6059,7 @@ void InstructionCodeGeneratorARM::VisitArraySet(HArraySet* instruction) {
                                               index.AsRegister<Register>());
           }
           codegen_->MaybeRecordImplicitNullCheck(instruction);
-          __ b(&done);
+          __ b(final_label);
           __ Bind(&non_zero);
         }
 
@@ -7021,6 +7040,7 @@ void InstructionCodeGeneratorARM::VisitInstanceOf(HInstanceOf* instruction) {
   uint32_t component_offset = mirror::Class::ComponentTypeOffset().Int32Value();
   uint32_t primitive_offset = mirror::Class::PrimitiveTypeOffset().Int32Value();
   Label done, zero;
+  Label* final_label = codegen_->GetFinalLabel(instruction, &done);
   SlowPathCodeARM* slow_path = nullptr;
 
   // Return 0 if `obj` is null.
@@ -7042,7 +7062,7 @@ void InstructionCodeGeneratorARM::VisitInstanceOf(HInstanceOf* instruction) {
       // Classes must be equal for the instanceof to succeed.
       __ b(&zero, NE);
       __ LoadImmediate(out, 1);
-      __ b(&done);
+      __ b(final_label);
       break;
     }
 
@@ -7065,12 +7085,12 @@ void InstructionCodeGeneratorARM::VisitInstanceOf(HInstanceOf* instruction) {
                                        maybe_temp_loc,
                                        kCompilerReadBarrierOption);
       // If `out` is null, we use it for the result, and jump to `done`.
-      __ CompareAndBranchIfZero(out, &done);
+      __ CompareAndBranchIfZero(out, final_label);
       __ cmp(out, ShifterOperand(cls));
       __ b(&loop, NE);
       __ LoadImmediate(out, 1);
       if (zero.IsLinked()) {
-        __ b(&done);
+        __ b(final_label);
       }
       break;
     }
@@ -7096,11 +7116,11 @@ void InstructionCodeGeneratorARM::VisitInstanceOf(HInstanceOf* instruction) {
                                        kCompilerReadBarrierOption);
       __ CompareAndBranchIfNonZero(out, &loop);
       // If `out` is null, we use it for the result, and jump to `done`.
-      __ b(&done);
+      __ b(final_label);
       __ Bind(&success);
       __ LoadImmediate(out, 1);
       if (zero.IsLinked()) {
-        __ b(&done);
+        __ b(final_label);
       }
       break;
     }
@@ -7125,13 +7145,13 @@ void InstructionCodeGeneratorARM::VisitInstanceOf(HInstanceOf* instruction) {
                                        maybe_temp_loc,
                                        kCompilerReadBarrierOption);
       // If `out` is null, we use it for the result, and jump to `done`.
-      __ CompareAndBranchIfZero(out, &done);
+      __ CompareAndBranchIfZero(out, final_label);
       __ LoadFromOffset(kLoadUnsignedHalfword, out, out, primitive_offset);
       static_assert(Primitive::kPrimNot == 0, "Expected 0 for kPrimNot");
       __ CompareAndBranchIfNonZero(out, &zero);
       __ Bind(&exact_check);
       __ LoadImmediate(out, 1);
-      __ b(&done);
+      __ b(final_label);
       break;
     }
 
@@ -7152,7 +7172,7 @@ void InstructionCodeGeneratorARM::VisitInstanceOf(HInstanceOf* instruction) {
       __ b(slow_path->GetEntryLabel(), NE);
       __ LoadImmediate(out, 1);
       if (zero.IsLinked()) {
-        __ b(&done);
+        __ b(final_label);
       }
       break;
     }
@@ -7183,7 +7203,7 @@ void InstructionCodeGeneratorARM::VisitInstanceOf(HInstanceOf* instruction) {
       codegen_->AddSlowPath(slow_path);
       __ b(slow_path->GetEntryLabel());
       if (zero.IsLinked()) {
-        __ b(&done);
+        __ b(final_label);
       }
       break;
     }
@@ -7269,9 +7289,10 @@ void InstructionCodeGeneratorARM::VisitCheckCast(HCheckCast* instruction) {
   codegen_->AddSlowPath(type_check_slow_path);
 
   Label done;
+  Label* final_label = codegen_->GetFinalLabel(instruction, &done);
   // Avoid null check if we know obj is not null.
   if (instruction->MustDoNullCheck()) {
-    __ CompareAndBranchIfZero(obj, &done);
+    __ CompareAndBranchIfZero(obj, final_label);
   }
 
   switch (type_check_kind) {
@@ -7335,7 +7356,7 @@ void InstructionCodeGeneratorARM::VisitCheckCast(HCheckCast* instruction) {
       Label loop;
       __ Bind(&loop);
       __ cmp(temp, ShifterOperand(cls));
-      __ b(&done, EQ);
+      __ b(final_label, EQ);
 
       // /* HeapReference<Class> */ temp = temp->super_class_
       GenerateReferenceLoadOneRegister(instruction,
@@ -7363,7 +7384,7 @@ void InstructionCodeGeneratorARM::VisitCheckCast(HCheckCast* instruction) {
 
       // Do an exact check.
       __ cmp(temp, ShifterOperand(cls));
-      __ b(&done, EQ);
+      __ b(final_label, EQ);
 
       // Otherwise, we need to check that the object's class is a non-primitive array.
       // /* HeapReference<Class> */ temp = temp->component_type_
@@ -7433,7 +7454,10 @@ void InstructionCodeGeneratorARM::VisitCheckCast(HCheckCast* instruction) {
       break;
     }
   }
-  __ Bind(&done);
+
+  if (done.IsLinked()) {
+    __ Bind(&done);
+  }
 
   __ Bind(type_check_slow_path->GetExitLabel());
 }
