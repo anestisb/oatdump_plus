@@ -1034,18 +1034,63 @@ class OatWriter::InitMethodInfoVisitor : public OatDexMethodVisitor {
 
 class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
  public:
-  InitImageMethodVisitor(OatWriter* writer, size_t offset)
+  InitImageMethodVisitor(OatWriter* writer,
+                         size_t offset,
+                         const std::vector<const DexFile*>* dex_files)
     : OatDexMethodVisitor(writer, offset),
-      pointer_size_(GetInstructionSetPointerSize(writer_->compiler_driver_->GetInstructionSet())) {
+      pointer_size_(GetInstructionSetPointerSize(writer_->compiler_driver_->GetInstructionSet())),
+      dex_files_(dex_files),
+      class_linker_(Runtime::Current()->GetClassLinker()) {
+    }
+
+  // Handle copied methods here. Copy pointer to quick code from
+  // an origin method to a copied method only if they are
+  // in the same oat file. If the origin and the copied methods are
+  // in different oat files don't touch the copied method.
+  // References to other oat files are not supported yet.
+  bool StartClass(const DexFile* dex_file, size_t class_def_index)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    OatDexMethodVisitor::StartClass(dex_file, class_def_index);
+    // Skip classes that are not in the image.
+    if (!IsImageClass()) {
+      return true;
+    }
+    ScopedObjectAccessUnchecked soa(Thread::Current());
+    StackHandleScope<1> hs(soa.Self());
+    Handle<mirror::DexCache> dex_cache = hs.NewHandle(
+        class_linker_->FindDexCache(Thread::Current(), *dex_file));
+    const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
+    mirror::Class* klass = dex_cache->GetResolvedType(class_def.class_idx_);
+    if (klass != nullptr) {
+      for (ArtMethod& method : klass->GetCopiedMethods(pointer_size_)) {
+        // Find origin method. Declaring class and dex_method_idx
+        // in the copied method should be the same as in the origin
+        // method.
+        mirror::Class* declaring_class = method.GetDeclaringClass();
+        ArtMethod* origin = declaring_class->FindDeclaredVirtualMethod(
+            declaring_class->GetDexCache(),
+            method.GetDexMethodIndex(),
+            pointer_size_);
+        CHECK(origin != nullptr);
+        if (IsInOatFile(&declaring_class->GetDexFile())) {
+          const void* code_ptr =
+              origin->GetEntryPointFromQuickCompiledCodePtrSize(pointer_size_);
+          if (code_ptr == nullptr) {
+            methods_to_process_.push_back(std::make_pair(&method, origin));
+          } else {
+            method.SetEntryPointFromQuickCompiledCodePtrSize(
+                code_ptr, pointer_size_);
+          }
+        }
+      }
+    }
+    return true;
   }
 
   bool VisitMethod(size_t class_def_method_index, const ClassDataItemIterator& it)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    const DexFile::TypeId& type_id =
-        dex_file_->GetTypeId(dex_file_->GetClassDef(class_def_index_).class_idx_);
-    const char* class_descriptor = dex_file_->GetTypeDescriptor(type_id);
     // Skip methods that are not in the image.
-    if (!writer_->GetCompilerDriver()->IsImageClass(class_descriptor)) {
+    if (!IsImageClass()) {
       return true;
     }
 
@@ -1059,17 +1104,16 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
       ++method_offsets_index_;
     }
 
-    ClassLinker* linker = Runtime::Current()->GetClassLinker();
     // Unchecked as we hold mutator_lock_ on entry.
     ScopedObjectAccessUnchecked soa(Thread::Current());
     StackHandleScope<1> hs(soa.Self());
-    Handle<mirror::DexCache> dex_cache(hs.NewHandle(linker->FindDexCache(
+    Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker_->FindDexCache(
         Thread::Current(), *dex_file_)));
     ArtMethod* method;
     if (writer_->HasBootImage()) {
       const InvokeType invoke_type = it.GetMethodInvokeType(
           dex_file_->GetClassDef(class_def_index_));
-      method = linker->ResolveMethod<ClassLinker::kNoICCECheckForCache>(
+      method = class_linker_->ResolveMethod<ClassLinker::kNoICCECheckForCache>(
           *dex_file_,
           it.GetMemberIndex(),
           dex_cache,
@@ -1089,7 +1133,8 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
       // Should already have been resolved by the compiler, just peek into the dex cache.
       // It may not be resolved if the class failed to verify, in this case, don't set the
       // entrypoint. This is not fatal since the dex cache will contain a resolution method.
-      method = dex_cache->GetResolvedMethod(it.GetMemberIndex(), linker->GetImagePointerSize());
+      method = dex_cache->GetResolvedMethod(it.GetMemberIndex(),
+          class_linker_->GetImagePointerSize());
     }
     if (method != nullptr &&
         compiled_method != nullptr &&
@@ -1101,8 +1146,38 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
     return true;
   }
 
+  // Check whether current class is image class
+  bool IsImageClass() {
+    const DexFile::TypeId& type_id =
+        dex_file_->GetTypeId(dex_file_->GetClassDef(class_def_index_).class_idx_);
+    const char* class_descriptor = dex_file_->GetTypeDescriptor(type_id);
+    return writer_->GetCompilerDriver()->IsImageClass(class_descriptor);
+  }
+
+  // Check whether specified dex file is in the compiled oat file.
+  bool IsInOatFile(const DexFile* dex_file) {
+    return ContainsElement(*dex_files_, dex_file);
+  }
+
+  // Assign a pointer to quick code for copied methods
+  // not handled in the method StartClass
+  void Postprocess() {
+    for (std::pair<ArtMethod*, ArtMethod*>& p : methods_to_process_) {
+      ArtMethod* method = p.first;
+      ArtMethod* origin = p.second;
+      const void* code_ptr =
+          origin->GetEntryPointFromQuickCompiledCodePtrSize(pointer_size_);
+      if (code_ptr != nullptr) {
+        method->SetEntryPointFromQuickCompiledCodePtrSize(code_ptr, pointer_size_);
+      }
+    }
+  }
+
  protected:
   const PointerSize pointer_size_;
+  const std::vector<const DexFile*>* dex_files_;
+  ClassLinker* const class_linker_;
+  std::vector<std::pair<ArtMethod*, ArtMethod*>> methods_to_process_;
 };
 
 class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
@@ -1744,8 +1819,9 @@ size_t OatWriter::InitOatCodeDexFiles(size_t offset) {
   offset = code_visitor.GetOffset();
 
   if (HasImage()) {
-    InitImageMethodVisitor image_visitor(this, offset);
+    InitImageMethodVisitor image_visitor(this, offset, dex_files_);
     success = VisitDexMethods(&image_visitor);
+    image_visitor.Postprocess();
     DCHECK(success);
     offset = image_visitor.GetOffset();
   }
