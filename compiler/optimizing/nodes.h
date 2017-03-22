@@ -323,6 +323,7 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
         temporaries_vreg_slots_(0),
         has_bounds_checks_(false),
         has_try_catch_(false),
+        has_simd_(false),
         has_loops_(false),
         has_irreducible_loops_(false),
         debuggable_(debuggable),
@@ -560,6 +561,9 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   bool HasTryCatch() const { return has_try_catch_; }
   void SetHasTryCatch(bool value) { has_try_catch_ = value; }
 
+  bool HasSIMD() const { return has_simd_; }
+  void SetHasSIMD(bool value) { has_simd_ = value; }
+
   bool HasLoops() const { return has_loops_; }
   void SetHasLoops(bool value) { has_loops_ = value; }
 
@@ -651,6 +655,11 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   // it up to date in the presence of code elimination so there might be
   // false positives.
   bool has_try_catch_;
+
+  // Flag whether SIMD instructions appear in the graph. If true, the
+  // code generators may have to be more careful spilling the wider
+  // contents of SIMD registers.
+  bool has_simd_;
 
   // Flag whether there are any loops in the graph. We can skip loop
   // optimization if it's false. It's only best effort to keep it up
