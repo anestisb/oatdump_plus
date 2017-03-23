@@ -1029,7 +1029,7 @@ void RegisterAllocatorGraphColor::AllocateSpillSlotForCatchPhi(HInstruction* ins
       interval->SetSpillSlot(previous_phi->GetLiveInterval()->GetSpillSlot());
     } else {
       interval->SetSpillSlot(catch_phi_spill_slot_counter_);
-      catch_phi_spill_slot_counter_ += interval->NeedsTwoSpillSlots() ? 2 : 1;
+      catch_phi_spill_slot_counter_ += interval->NumberOfSpillSlotsNeeded();
     }
   }
 }
@@ -1996,43 +1996,48 @@ void RegisterAllocatorGraphColor::ColorSpillSlots(ArenaVector<LiveInterval*>* in
     bool is_interval_beginning;
     size_t position;
     std::tie(position, is_interval_beginning, parent_interval) = *it;
-
-    bool needs_two_slots = parent_interval->NeedsTwoSpillSlots();
+    size_t number_of_spill_slots_needed = parent_interval->NumberOfSpillSlotsNeeded();
 
     if (is_interval_beginning) {
       DCHECK(!parent_interval->HasSpillSlot());
       DCHECK_EQ(position, parent_interval->GetStart());
 
-      // Find a free stack slot.
+      // Find first available free stack slot(s).
       size_t slot = 0;
-      for (; taken.IsBitSet(slot) || (needs_two_slots && taken.IsBitSet(slot + 1)); ++slot) {
-        // Skip taken slots.
+      for (; ; ++slot) {
+        bool found = true;
+        for (size_t s = slot, u = slot + number_of_spill_slots_needed; s < u; s++) {
+          if (taken.IsBitSet(s)) {
+            found = false;
+            break;  // failure
+          }
+        }
+        if (found) {
+          break;  // success
+        }
       }
+
       parent_interval->SetSpillSlot(slot);
 
-      *num_stack_slots_used = std::max(*num_stack_slots_used,
-                                       needs_two_slots ? slot + 1 : slot + 2);
-      if (needs_two_slots && *num_stack_slots_used % 2 != 0) {
+      *num_stack_slots_used = std::max(*num_stack_slots_used, slot + number_of_spill_slots_needed);
+      if (number_of_spill_slots_needed > 1 && *num_stack_slots_used % 2 != 0) {
         // The parallel move resolver requires that there be an even number of spill slots
         // allocated for pair value types.
         ++(*num_stack_slots_used);
       }
 
-      taken.SetBit(slot);
-      if (needs_two_slots) {
-        taken.SetBit(slot + 1);
+      for (size_t s = slot, u = slot + number_of_spill_slots_needed; s < u; s++) {
+        taken.SetBit(s);
       }
     } else {
       DCHECK_EQ(position, parent_interval->GetLastSibling()->GetEnd());
       DCHECK(parent_interval->HasSpillSlot());
 
-      // Free up the stack slot used by this interval.
+      // Free up the stack slot(s) used by this interval.
       size_t slot = parent_interval->GetSpillSlot();
-      DCHECK(taken.IsBitSet(slot));
-      DCHECK(!needs_two_slots || taken.IsBitSet(slot + 1));
-      taken.ClearBit(slot);
-      if (needs_two_slots) {
-        taken.ClearBit(slot + 1);
+      for (size_t s = slot, u = slot + number_of_spill_slots_needed; s < u; s++) {
+        DCHECK(taken.IsBitSet(s));
+        taken.ClearBit(s);
       }
     }
   }
