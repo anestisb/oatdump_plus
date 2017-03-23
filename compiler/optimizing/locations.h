@@ -417,6 +417,7 @@ std::ostream& operator<<(std::ostream& os, const Location::Policy& rhs);
 class RegisterSet : public ValueObject {
  public:
   static RegisterSet Empty() { return RegisterSet(); }
+  static RegisterSet AllFpu() { return RegisterSet(0, -1); }
 
   void Add(Location loc) {
     if (loc.IsRegister()) {
@@ -462,6 +463,7 @@ class RegisterSet : public ValueObject {
 
  private:
   RegisterSet() : core_registers_(0), floating_point_registers_(0) {}
+  RegisterSet(uint32_t core, uint32_t fp) : core_registers_(core), floating_point_registers_(fp) {}
 
   uint32_t core_registers_;
   uint32_t floating_point_registers_;

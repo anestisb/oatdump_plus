@@ -2046,6 +2046,9 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
   if (HasTryCatch()) {
     outer_graph->SetHasTryCatch(true);
   }
+  if (HasSIMD()) {
+    outer_graph->SetHasSIMD(true);
+  }
 
   HInstruction* return_value = nullptr;
   if (GetBlocks().size() == 3) {
