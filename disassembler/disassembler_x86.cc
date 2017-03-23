@@ -832,6 +832,24 @@ DISASSEMBLER_ENTRY(cmp,
         store = true;
         immediate_bytes = 1;
         break;
+      case 0x74:
+      case 0x75:
+      case 0x76:
+        if (prefix[2] == 0x66) {
+          src_reg_file = dst_reg_file = SSE;
+          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else {
+          src_reg_file = dst_reg_file = MMX;
+        }
+        switch (*instr) {
+          case 0x74: opcode1 = "pcmpeqb"; break;
+          case 0x75: opcode1 = "pcmpeqw"; break;
+          case 0x76: opcode1 = "pcmpeqd"; break;
+        }
+        prefix[2] = 0;
+        has_modrm = true;
+        load = true;
+        break;
       case 0x7C:
         if (prefix[0] == 0xF2) {
           opcode1 = "haddps";
