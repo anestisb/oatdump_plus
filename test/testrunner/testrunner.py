@@ -48,6 +48,7 @@ import argparse
 import fnmatch
 import itertools
 import json
+import multiprocessing
 import os
 import re
 import subprocess
@@ -115,7 +116,7 @@ failed_tests = []
 skipped_tests = []
 
 # Flags
-n_thread = 1
+n_thread = -1
 test_count = 0
 total_test_count = 0
 verbose = False
@@ -256,6 +257,13 @@ def setup_test_env():
   else:
     ADDRESS_SIZES_TARGET['host'] = ADDRESS_SIZES_TARGET['host'].union(ADDRESS_SIZES)
     ADDRESS_SIZES_TARGET['target'] = ADDRESS_SIZES_TARGET['target'].union(ADDRESS_SIZES)
+
+  global n_thread
+  if n_thread is -1:
+    if 'target' in TARGET_TYPES:
+      n_thread = get_default_threads('target')
+    else:
+      n_thread = get_default_threads('host')
 
   global semaphore
   semaphore = threading.Semaphore(n_thread)
@@ -774,6 +782,15 @@ def setup_env_for_build_target(build_target, parser, options):
 
   return target_options
 
+def get_default_threads(target):
+  if target is 'target':
+    adb_command = 'adb shell cat /sys/devices/system/cpu/present'
+    cpu_info_proc = subprocess.Popen(adb_command.split(), stdout=subprocess.PIPE)
+    cpu_info = cpu_info_proc.stdout.read()
+    return int(cpu_info.split('-')[1])
+  else:
+    return multiprocessing.cpu_count()
+
 def parse_option():
   global verbose
   global dry_run
@@ -908,7 +925,7 @@ def main():
     if 'target' in TARGET_TYPES:
       build_targets += 'test-art-target-run-test-dependencies'
     build_command = 'make'
-    build_command += ' -j' + str(n_thread)
+    build_command += ' -j'
     build_command += ' -C ' + env.ANDROID_BUILD_TOP
     build_command += ' ' + build_targets
     # Add 'dist' to avoid Jack issues b/36169180.
