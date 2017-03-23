@@ -35,8 +35,8 @@ public class Main {
      * Simple thread capacity test.
      */
     private static void testThreadCapacity() throws Exception {
-        TestCapacityThread[] threads = new TestCapacityThread[512];
-        for (int i = 0; i < 512; i++) {
+        TestCapacityThread[] threads = new TestCapacityThread[128];
+        for (int i = 0; i < threads.length; i++) {
             threads[i] = new TestCapacityThread();
         }
 
