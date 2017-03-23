@@ -260,6 +260,16 @@ def setup_test_env():
   global semaphore
   semaphore = threading.Semaphore(n_thread)
 
+  if not sys.stdout.isatty():
+    global COLOR_ERROR
+    global COLOR_PASS
+    global COLOR_SKIP
+    global COLOR_NORMAL
+    COLOR_ERROR = ''
+    COLOR_PASS = ''
+    COLOR_SKIP = ''
+    COLOR_NORMAL = ''
+
 
 def run_tests(tests):
   """Creates thread workers to run the tests.
@@ -895,6 +905,7 @@ def parse_option():
     if options['gdb_arg']:
       gdb_arg = options['gdb_arg']
   timeout = options['timeout']
+
   return test
 
 def main():
