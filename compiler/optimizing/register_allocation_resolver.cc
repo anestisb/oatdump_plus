@@ -299,11 +299,13 @@ void RegisterAllocationResolver::ConnectSiblings(LiveInterval* interval) {
       // Currently, we spill unconditionnally the current method in the code generators.
       && !interval->GetDefinedBy()->IsCurrentMethod()) {
     // We spill eagerly, so move must be at definition.
-    InsertMoveAfter(interval->GetDefinedBy(),
-                    interval->ToLocation(),
-                    interval->NeedsTwoSpillSlots()
-                        ? Location::DoubleStackSlot(interval->GetParent()->GetSpillSlot())
-                        : Location::StackSlot(interval->GetParent()->GetSpillSlot()));
+    Location loc;
+    switch (interval->NumberOfSpillSlotsNeeded()) {
+      case 1: loc = Location::StackSlot(interval->GetParent()->GetSpillSlot()); break;
+      case 2: loc = Location::DoubleStackSlot(interval->GetParent()->GetSpillSlot()); break;
+      default: LOG(FATAL) << "Unexpected number of spill slots"; UNREACHABLE();
+    }
+    InsertMoveAfter(interval->GetDefinedBy(), interval->ToLocation(), loc);
   }
   UsePosition* use = current->GetFirstUse();
   EnvUsePosition* env_use = current->GetFirstEnvironmentUse();
@@ -459,9 +461,11 @@ void RegisterAllocationResolver::ConnectSplitSiblings(LiveInterval* interval,
       location_source = defined_by->GetLocations()->Out();
     } else {
       DCHECK(defined_by->IsCurrentMethod());
-      location_source = parent->NeedsTwoSpillSlots()
-          ? Location::DoubleStackSlot(parent->GetSpillSlot())
-          : Location::StackSlot(parent->GetSpillSlot());
+      switch (parent->NumberOfSpillSlotsNeeded()) {
+        case 1: location_source = Location::StackSlot(parent->GetSpillSlot()); break;
+        case 2: location_source = Location::DoubleStackSlot(parent->GetSpillSlot()); break;
+        default: LOG(FATAL) << "Unexpected number of spill slots"; UNREACHABLE();
+      }
     }
   } else {
     DCHECK(source != nullptr);

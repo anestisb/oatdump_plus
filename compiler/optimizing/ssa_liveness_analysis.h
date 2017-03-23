@@ -762,9 +762,9 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
   // Returns kNoRegister otherwise.
   int FindHintAtDefinition() const;
 
-  // Returns whether the interval needs two (Dex virtual register size `kVRegSize`)
-  // slots for spilling.
-  bool NeedsTwoSpillSlots() const;
+  // Returns the number of required spilling slots (measured as a multiple of the
+  // Dex virtual register size `kVRegSize`).
+  size_t NumberOfSpillSlotsNeeded() const;
 
   bool IsFloatingPoint() const {
     return type_ == Primitive::kPrimFloat || type_ == Primitive::kPrimDouble;
