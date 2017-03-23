@@ -646,7 +646,8 @@ void HInliner::AddCHAGuard(HInstruction* invoke_instruction,
       HShouldDeoptimizeFlag(graph_->GetArena(), dex_pc);
   HInstruction* compare = new (graph_->GetArena()) HNotEqual(
       deopt_flag, graph_->GetIntConstant(0, dex_pc));
-  HInstruction* deopt = new (graph_->GetArena()) HDeoptimize(compare, dex_pc);
+  HInstruction* deopt = new (graph_->GetArena()) HDeoptimize(
+      graph_->GetArena(), compare, HDeoptimize::Kind::kInline, dex_pc);
 
   if (cursor != nullptr) {
     bb_cursor->InsertInstructionAfter(deopt_flag, cursor);
@@ -710,9 +711,16 @@ HInstruction* HInliner::AddTypeGuard(HInstruction* receiver,
   bb_cursor->InsertInstructionAfter(compare, load_class);
   if (with_deoptimization) {
     HDeoptimize* deoptimize = new (graph_->GetArena()) HDeoptimize(
-        compare, invoke_instruction->GetDexPc());
+        graph_->GetArena(),
+        compare,
+        receiver,
+        HDeoptimize::Kind::kInline,
+        invoke_instruction->GetDexPc());
     bb_cursor->InsertInstructionAfter(deoptimize, compare);
     deoptimize->CopyEnvironmentFrom(invoke_instruction->GetEnvironment());
+    DCHECK_EQ(invoke_instruction->InputAt(0), receiver);
+    receiver->ReplaceUsesDominatedBy(deoptimize, deoptimize);
+    deoptimize->SetReferenceTypeInfo(receiver->GetReferenceTypeInfo());
   }
   return compare;
 }
@@ -988,13 +996,19 @@ bool HInliner::TryInlinePolymorphicCallToSameTarget(
     CreateDiamondPatternForPolymorphicInline(compare, return_replacement, invoke_instruction);
   } else {
     HDeoptimize* deoptimize = new (graph_->GetArena()) HDeoptimize(
-        compare, invoke_instruction->GetDexPc());
+        graph_->GetArena(),
+        compare,
+        receiver,
+        HDeoptimize::Kind::kInline,
+        invoke_instruction->GetDexPc());
     bb_cursor->InsertInstructionAfter(deoptimize, compare);
     deoptimize->CopyEnvironmentFrom(invoke_instruction->GetEnvironment());
     if (return_replacement != nullptr) {
       invoke_instruction->ReplaceWith(return_replacement);
     }
+    receiver->ReplaceUsesDominatedBy(deoptimize, deoptimize);
     invoke_instruction->GetBlock()->RemoveInstruction(invoke_instruction);
+    deoptimize->SetReferenceTypeInfo(receiver->GetReferenceTypeInfo());
   }
 
   // Run type propagation to get the guard typed.

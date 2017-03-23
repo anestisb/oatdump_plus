@@ -358,9 +358,9 @@
         "variant": "interp-ac"
     },
     {
-        "tests": "638-checker-inline-caches",
-        "description": ["Disable 638-checker-inline-caches temporarily until a fix",
-                        "arrives."],
+        "tests": ["638-checker-inline-caches",
+                  "644-checker-deopt"],
+        "description": ["Disabled temporarily until a fix arrives."],
         "bug": "http://b/36371709"
     }
 ]

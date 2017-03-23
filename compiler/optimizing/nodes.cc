@@ -1088,6 +1088,19 @@ void HInstruction::ReplaceWith(HInstruction* other) {
   DCHECK(env_uses_.empty());
 }
 
+void HInstruction::ReplaceUsesDominatedBy(HInstruction* dominator, HInstruction* replacement) {
+  const HUseList<HInstruction*>& uses = GetUses();
+  for (auto it = uses.begin(), end = uses.end(); it != end; /* ++it below */) {
+    HInstruction* user = it->GetUser();
+    size_t index = it->GetIndex();
+    // Increment `it` now because `*it` may disappear thanks to user->ReplaceInput().
+    ++it;
+    if (dominator->StrictlyDominates(user)) {
+      user->ReplaceInput(replacement, index);
+    }
+  }
+}
+
 void HInstruction::ReplaceInput(HInstruction* replacement, size_t index) {
   HUserRecord<HInstruction*> input_use = InputRecordAt(index);
   if (input_use.GetInstruction() == replacement) {
@@ -1319,6 +1332,18 @@ std::ostream& operator<<(std::ostream& os, const ComparisonBias& rhs) {
       return os << "lt_bias";
     default:
       LOG(FATAL) << "Unknown ComparisonBias: " << static_cast<int>(rhs);
+      UNREACHABLE();
+  }
+}
+
+std::ostream& operator<<(std::ostream& os, const HDeoptimize::Kind& rhs) {
+  switch (rhs) {
+    case HDeoptimize::Kind::kBCE:
+      return os << "bce";
+    case HDeoptimize::Kind::kInline:
+      return os << "inline";
+    default:
+      LOG(FATAL) << "Unknown Deoptimization kind: " << static_cast<int>(rhs);
       UNREACHABLE();
   }
 }
