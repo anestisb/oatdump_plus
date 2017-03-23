@@ -259,7 +259,7 @@ struct ClassCallback : public art::ClassLoadCallback {
       }
 
       // Actually set the ClassExt's original bytes once we have actually succeeded.
-      ext->SetOriginalDexFileBytes(arr.Get());
+      ext->SetOriginalDexFile(arr.Get());
       // Set the return values
       *final_class_def = &dex_file->GetClassDef(0);
       *final_dex_file = dex_file.release();
