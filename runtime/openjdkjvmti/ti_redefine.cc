@@ -469,7 +469,7 @@ void Redefiner::RecordFailure(jvmtiError result,
   result_ = result;
 }
 
-art::mirror::ByteArray* Redefiner::ClassRedefinition::AllocateOrGetOriginalDexFileBytes() {
+art::mirror::Object* Redefiner::ClassRedefinition::AllocateOrGetOriginalDexFile() {
   // If we have been specifically given a new set of bytes use that
   if (original_dex_file_.size() != 0) {
     return art::mirror::ByteArray::AllocateAndFill(
@@ -481,24 +481,21 @@ art::mirror::ByteArray* Redefiner::ClassRedefinition::AllocateOrGetOriginalDexFi
   // See if we already have one set.
   art::ObjPtr<art::mirror::ClassExt> ext(GetMirrorClass()->GetExtData());
   if (!ext.IsNull()) {
-    art::ObjPtr<art::mirror::ByteArray> old_original_bytes(ext->GetOriginalDexFileBytes());
-    if (!old_original_bytes.IsNull()) {
+    art::ObjPtr<art::mirror::Object> old_original_dex_file(ext->GetOriginalDexFile());
+    if (!old_original_dex_file.IsNull()) {
       // We do. Use it.
-      return old_original_bytes.Ptr();
+      return old_original_dex_file.Ptr();
     }
   }
 
-  // Copy the current dex_file
-  const art::DexFile& current_dex_file = GetMirrorClass()->GetDexFile();
+  // return the current dex_cache which has the dex file in it.
+  art::ObjPtr<art::mirror::DexCache> current_dex_cache(GetMirrorClass()->GetDexCache());
   // TODO Handle this or make it so it cannot happen.
-  if (current_dex_file.NumClassDefs() != 1) {
+  if (current_dex_cache->GetDexFile()->NumClassDefs() != 1) {
     LOG(WARNING) << "Current dex file has more than one class in it. Calling RetransformClasses "
                  << "on this class might fail if no transformations are applied to it!";
   }
-  return art::mirror::ByteArray::AllocateAndFill(
-      driver_->self_,
-      reinterpret_cast<const signed char*>(current_dex_file.Begin()),
-      current_dex_file.Size());
+  return current_dex_cache.Ptr();
 }
 
 struct CallbackCtx {
@@ -847,9 +844,9 @@ class RedefinitionDataHolder {
     return art::down_cast<art::mirror::Class*>(GetSlot(klass_index, kSlotMirrorClass));
   }
 
-  art::mirror::ByteArray* GetOriginalDexFileBytes(jint klass_index) const
+  art::mirror::Object* GetOriginalDexFile(jint klass_index) const
       REQUIRES_SHARED(art::Locks::mutator_lock_) {
-    return art::down_cast<art::mirror::ByteArray*>(GetSlot(klass_index, kSlotOrigDexFile));
+    return art::down_cast<art::mirror::Object*>(GetSlot(klass_index, kSlotOrigDexFile));
   }
 
   void SetSourceClassLoader(jint klass_index, art::mirror::ClassLoader* loader)
@@ -872,7 +869,7 @@ class RedefinitionDataHolder {
       REQUIRES_SHARED(art::Locks::mutator_lock_) {
     SetSlot(klass_index, kSlotMirrorClass, klass);
   }
-  void SetOriginalDexFileBytes(jint klass_index, art::mirror::ByteArray* bytes)
+  void SetOriginalDexFile(jint klass_index, art::mirror::Object* bytes)
       REQUIRES_SHARED(art::Locks::mutator_lock_) {
     SetSlot(klass_index, kSlotOrigDexFile, bytes);
   }
@@ -985,9 +982,9 @@ class RedefinitionDataIter {
   art::mirror::Class* GetMirrorClass() const REQUIRES_SHARED(art::Locks::mutator_lock_) {
     return holder_.GetMirrorClass(idx_);
   }
-  art::mirror::ByteArray* GetOriginalDexFileBytes() const
+  art::mirror::Object* GetOriginalDexFile() const
       REQUIRES_SHARED(art::Locks::mutator_lock_) {
-    return holder_.GetOriginalDexFileBytes(idx_);
+    return holder_.GetOriginalDexFile(idx_);
   }
   int32_t GetIndex() const {
     return idx_;
@@ -1010,9 +1007,9 @@ class RedefinitionDataIter {
   void SetMirrorClass(art::mirror::Class* klass) REQUIRES_SHARED(art::Locks::mutator_lock_) {
     holder_.SetMirrorClass(idx_, klass);
   }
-  void SetOriginalDexFileBytes(art::mirror::ByteArray* bytes)
+  void SetOriginalDexFile(art::mirror::Object* bytes)
       REQUIRES_SHARED(art::Locks::mutator_lock_) {
-    holder_.SetOriginalDexFileBytes(idx_, bytes);
+    holder_.SetOriginalDexFile(idx_, bytes);
   }
 
  private:
@@ -1138,8 +1135,8 @@ bool Redefiner::ClassRedefinition::FinishRemainingAllocations(
   }
 
   // We won't always need to set this field.
-  cur_data->SetOriginalDexFileBytes(AllocateOrGetOriginalDexFileBytes());
-  if (cur_data->GetOriginalDexFileBytes() == nullptr) {
+  cur_data->SetOriginalDexFile(AllocateOrGetOriginalDexFile());
+  if (cur_data->GetOriginalDexFile() == nullptr) {
     driver_->self_->AssertPendingOOMException();
     driver_->self_->ClearException();
     RecordFailure(ERR(OUT_OF_MEMORY), "Unable to allocate array for original dex file");
@@ -1285,7 +1282,7 @@ jvmtiError Redefiner::Run() {
     art::mirror::Class* klass = data.GetMirrorClass();
     // TODO Rewrite so we don't do a stack walk for each and every class.
     redef.FindAndAllocateObsoleteMethods(klass);
-    redef.UpdateClass(klass, data.GetNewDexCache(), data.GetOriginalDexFileBytes());
+    redef.UpdateClass(klass, data.GetNewDexCache(), data.GetOriginalDexFile());
   }
   // TODO We should check for if any of the redefined methods are intrinsic methods here and, if any
   // are, force a full-world deoptimization before finishing redefinition. If we don't do this then
@@ -1365,7 +1362,7 @@ void Redefiner::ClassRedefinition::UpdateFields(art::ObjPtr<art::mirror::Class> 
 void Redefiner::ClassRedefinition::UpdateClass(
     art::ObjPtr<art::mirror::Class> mclass,
     art::ObjPtr<art::mirror::DexCache> new_dex_cache,
-    art::ObjPtr<art::mirror::ByteArray> original_dex_file) {
+    art::ObjPtr<art::mirror::Object> original_dex_file) {
   DCHECK_EQ(dex_file_->NumClassDefs(), 1u);
   const art::DexFile::ClassDef& class_def = dex_file_->GetClassDef(0);
   UpdateMethods(mclass, new_dex_cache, class_def);
@@ -1379,7 +1376,7 @@ void Redefiner::ClassRedefinition::UpdateClass(
   mclass->SetDexTypeIndex(dex_file_->GetIndexForTypeId(*dex_file_->FindTypeId(class_sig_.c_str())));
   art::ObjPtr<art::mirror::ClassExt> ext(mclass->GetExtData());
   CHECK(!ext.IsNull());
-  ext->SetOriginalDexFileBytes(original_dex_file);
+  ext->SetOriginalDexFile(original_dex_file);
 }
 
 // This function does all (java) allocations we need to do for the Class being redefined.

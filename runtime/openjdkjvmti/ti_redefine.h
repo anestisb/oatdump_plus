@@ -137,7 +137,7 @@ class Redefiner {
         REQUIRES_SHARED(art::Locks::mutator_lock_);
 
     // This may return nullptr with a OOME pending if allocation fails.
-    art::mirror::ByteArray* AllocateOrGetOriginalDexFileBytes()
+    art::mirror::Object* AllocateOrGetOriginalDexFile()
         REQUIRES_SHARED(art::Locks::mutator_lock_);
 
     void RecordFailure(jvmtiError e, const std::string& err) {
@@ -196,7 +196,7 @@ class Redefiner {
 
     void UpdateClass(art::ObjPtr<art::mirror::Class> mclass,
                      art::ObjPtr<art::mirror::DexCache> new_dex_cache,
-                     art::ObjPtr<art::mirror::ByteArray> original_dex_file)
+                     art::ObjPtr<art::mirror::Object> original_dex_file)
         REQUIRES(art::Locks::mutator_lock_);
 
     void ReleaseDexFile() REQUIRES_SHARED(art::Locks::mutator_lock_);

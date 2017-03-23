@@ -150,16 +150,27 @@ jvmtiError Transformer::GetDexDataForRetransformation(ArtJvmTiEnv* env,
                                                       art::Handle<art::mirror::Class> klass,
                                                       /*out*/jint* dex_data_len,
                                                       /*out*/unsigned char** dex_data) {
-  art::StackHandleScope<2> hs(art::Thread::Current());
+  art::StackHandleScope<3> hs(art::Thread::Current());
   art::Handle<art::mirror::ClassExt> ext(hs.NewHandle(klass->GetExtData()));
   if (!ext.IsNull()) {
-    art::Handle<art::mirror::ByteArray> orig_dex(hs.NewHandle(ext->GetOriginalDexFileBytes()));
+    art::Handle<art::mirror::Object> orig_dex(hs.NewHandle(ext->GetOriginalDexFile()));
     if (!orig_dex.IsNull()) {
-      *dex_data_len = static_cast<jint>(orig_dex->GetLength());
-      return CopyDataIntoJvmtiBuffer(env,
-                                     reinterpret_cast<const unsigned char*>(orig_dex->GetData()),
-                                     *dex_data_len,
-                                     /*out*/dex_data);
+      if (orig_dex->IsArrayInstance()) {
+        DCHECK(orig_dex->GetClass()->GetComponentType()->IsPrimitiveByte());
+        art::Handle<art::mirror::ByteArray> orig_dex_bytes(
+            hs.NewHandle(art::down_cast<art::mirror::ByteArray*>(orig_dex->AsArray())));
+        *dex_data_len = static_cast<jint>(orig_dex_bytes->GetLength());
+        return CopyDataIntoJvmtiBuffer(
+            env,
+            reinterpret_cast<const unsigned char*>(orig_dex_bytes->GetData()),
+            *dex_data_len,
+            /*out*/dex_data);
+      } else {
+        DCHECK(orig_dex->IsDexCache());
+        const art::DexFile* dex_file = orig_dex->AsDexCache()->GetDexFile();
+        *dex_data_len = static_cast<jint>(dex_file->Size());
+        return CopyDataIntoJvmtiBuffer(env, dex_file->Begin(), dex_file->Size(), /*out*/dex_data);
+      }
     }
   }
   // TODO De-quicken the dex file before passing it to the agents.
