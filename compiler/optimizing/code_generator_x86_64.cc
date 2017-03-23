@@ -140,10 +140,13 @@ class SuspendCheckSlowPathX86_64 : public SlowPathCode {
       : SlowPathCode(instruction), successor_(successor) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    LocationSummary* locations = instruction_->GetLocations();
     CodeGeneratorX86_64* x86_64_codegen = down_cast<CodeGeneratorX86_64*>(codegen);
     __ Bind(GetEntryLabel());
+    SaveLiveRegisters(codegen, locations);  // only saves full width XMM for SIMD
     x86_64_codegen->InvokeRuntime(kQuickTestSuspend, instruction_, instruction_->GetDexPc(), this);
     CheckEntrypointTypes<kQuickTestSuspend, void, void>();
+    RestoreLiveRegisters(codegen, locations);  // only saves full width XMM for SIMD
     if (successor_ == nullptr) {
       __ jmp(GetReturnLabel());
     } else {
@@ -1158,13 +1161,21 @@ size_t CodeGeneratorX86_64::RestoreCoreRegister(size_t stack_index, uint32_t reg
 }
 
 size_t CodeGeneratorX86_64::SaveFloatingPointRegister(size_t stack_index, uint32_t reg_id) {
-  __ movsd(Address(CpuRegister(RSP), stack_index), XmmRegister(reg_id));
-  return kX86_64WordSize;
+  if (GetGraph()->HasSIMD()) {
+    __ movupd(Address(CpuRegister(RSP), stack_index), XmmRegister(reg_id));
+  } else {
+    __ movsd(Address(CpuRegister(RSP), stack_index), XmmRegister(reg_id));
+  }
+  return GetFloatingPointSpillSlotSize();
 }
 
 size_t CodeGeneratorX86_64::RestoreFloatingPointRegister(size_t stack_index, uint32_t reg_id) {
-  __ movsd(XmmRegister(reg_id), Address(CpuRegister(RSP), stack_index));
-  return kX86_64WordSize;
+  if (GetGraph()->HasSIMD()) {
+    __ movupd(XmmRegister(reg_id), Address(CpuRegister(RSP), stack_index));
+  } else {
+    __ movsd(XmmRegister(reg_id), Address(CpuRegister(RSP), stack_index));
+  }
+  return GetFloatingPointSpillSlotSize();
 }
 
 void CodeGeneratorX86_64::InvokeRuntime(QuickEntrypointEnum entrypoint,
@@ -5152,7 +5163,12 @@ void InstructionCodeGeneratorX86_64::VisitParallelMove(HParallelMove* instructio
 void LocationsBuilderX86_64::VisitSuspendCheck(HSuspendCheck* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCallOnSlowPath);
-  locations->SetCustomSlowPathCallerSaves(RegisterSet::Empty());  // No caller-save registers.
+  // In suspend check slow path, usually there are no caller-save registers at all.
+  // If SIMD instructions are present, however, we force spilling all live SIMD
+  // registers in full width (since the runtime only saves/restores lower part).
+  locations->SetCustomSlowPathCallerSaves(GetGraph()->HasSIMD()
+                                          ? RegisterSet::AllFpu()
+                                          : RegisterSet::Empty());
 }
 
 void InstructionCodeGeneratorX86_64::VisitSuspendCheck(HSuspendCheck* instruction) {
