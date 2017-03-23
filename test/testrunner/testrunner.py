@@ -911,6 +911,8 @@ def main():
     build_command += ' -j' + str(n_thread)
     build_command += ' -C ' + env.ANDROID_BUILD_TOP
     build_command += ' ' + build_targets
+    # Add 'dist' to avoid Jack issues b/36169180.
+    build_command += ' dist'
     if subprocess.call(build_command.split()):
       sys.exit(1)
   if user_requested_test:
