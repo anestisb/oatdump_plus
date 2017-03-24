@@ -39,8 +39,8 @@ class Main2 extends Main1 {
 }
 
 public class Main {
-  static Base sMain1;
-  static Base sMain2;
+  static Main1 sMain1;
+  static Main1 sMain2;
 
   static boolean sIsOptimizing = true;
   static boolean sHasJIT = true;
