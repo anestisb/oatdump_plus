@@ -259,7 +259,7 @@ void HSharpening::ProcessLoadString(HLoadString* load_string) {
     } else if (runtime->UseJitCompilation()) {
       // TODO: Make sure we don't set the "compile PIC" flag for JIT as that's bogus.
       // DCHECK(!codegen_->GetCompilerOptions().GetCompilePic());
-      string = class_linker->LookupString(dex_file, string_index, dex_cache);
+      string = class_linker->LookupString(dex_file, string_index, dex_cache.Get());
       if (string != nullptr) {
         if (runtime->GetHeap()->ObjectIsInBootImageSpace(string)) {
           desired_load_kind = HLoadString::LoadKind::kBootImageAddress;
@@ -271,7 +271,7 @@ void HSharpening::ProcessLoadString(HLoadString* load_string) {
       }
     } else {
       // AOT app compilation. Try to lookup the string without allocating if not found.
-      string = class_linker->LookupString(dex_file, string_index, dex_cache);
+      string = class_linker->LookupString(dex_file, string_index, dex_cache.Get());
       if (string != nullptr &&
           runtime->GetHeap()->ObjectIsInBootImageSpace(string) &&
           !codegen_->GetCompilerOptions().GetCompilePic()) {
