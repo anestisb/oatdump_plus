@@ -141,13 +141,6 @@
   names: ["org.apache.harmony.tests.java.lang.ClassTest#test_forNameLjava_lang_String"]
 },
 {
-  description: "TimeZoneTest.testAllDisplayNames times out, needs investigation",
-  result: EXEC_TIMEOUT,
-  modes: [device],
-  names: ["libcore.java.util.TimeZoneTest#testAllDisplayNames"],
-  bug: 22786792
-},
-{
   description: "Lack of IPv6 on some buildbot slaves",
   result: EXEC_FAILED,
   names: ["libcore.io.OsTest#test_byteBufferPositions_sendto_recvfrom_af_inet6",
