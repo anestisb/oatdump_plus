@@ -967,7 +967,7 @@ size_t CodeGeneratorX86::RestoreCoreRegister(size_t stack_index, uint32_t reg_id
 
 size_t CodeGeneratorX86::SaveFloatingPointRegister(size_t stack_index, uint32_t reg_id) {
   if (GetGraph()->HasSIMD()) {
-    __ movupd(Address(ESP, stack_index), XmmRegister(reg_id));
+    __ movups(Address(ESP, stack_index), XmmRegister(reg_id));
   } else {
     __ movsd(Address(ESP, stack_index), XmmRegister(reg_id));
   }
@@ -976,7 +976,7 @@ size_t CodeGeneratorX86::SaveFloatingPointRegister(size_t stack_index, uint32_t 
 
 size_t CodeGeneratorX86::RestoreFloatingPointRegister(size_t stack_index, uint32_t reg_id) {
   if (GetGraph()->HasSIMD()) {
-    __ movupd(XmmRegister(reg_id), Address(ESP, stack_index));
+    __ movups(XmmRegister(reg_id), Address(ESP, stack_index));
   } else {
     __ movsd(XmmRegister(reg_id), Address(ESP, stack_index));
   }
@@ -5713,9 +5713,8 @@ void LocationsBuilderX86::VisitSuspendCheck(HSuspendCheck* instruction) {
   // In suspend check slow path, usually there are no caller-save registers at all.
   // If SIMD instructions are present, however, we force spilling all live SIMD
   // registers in full width (since the runtime only saves/restores lower part).
-  locations->SetCustomSlowPathCallerSaves(GetGraph()->HasSIMD()
-                                          ? RegisterSet::AllFpu()
-                                          : RegisterSet::Empty());
+  locations->SetCustomSlowPathCallerSaves(
+      GetGraph()->HasSIMD() ? RegisterSet::AllFpu() : RegisterSet::Empty());
 }
 
 void InstructionCodeGeneratorX86::VisitSuspendCheck(HSuspendCheck* instruction) {
@@ -5818,9 +5817,11 @@ void ParallelMoveResolverX86::EmitMove(size_t index) {
       __ movd(destination.AsRegisterPairHigh<Register>(), src_reg);
     } else if (destination.IsStackSlot()) {
       __ movss(Address(ESP, destination.GetStackIndex()), source.AsFpuRegister<XmmRegister>());
-    } else {
-      DCHECK(destination.IsDoubleStackSlot());
+    } else if (destination.IsDoubleStackSlot()) {
       __ movsd(Address(ESP, destination.GetStackIndex()), source.AsFpuRegister<XmmRegister>());
+    } else {
+      DCHECK(destination.IsSIMDStackSlot());
+      __ movups(Address(ESP, destination.GetStackIndex()), source.AsFpuRegister<XmmRegister>());
     }
   } else if (source.IsStackSlot()) {
     if (destination.IsRegister()) {
@@ -5842,6 +5843,9 @@ void ParallelMoveResolverX86::EmitMove(size_t index) {
       DCHECK(destination.IsDoubleStackSlot()) << destination;
       MoveMemoryToMemory64(destination.GetStackIndex(), source.GetStackIndex());
     }
+  } else if (source.IsSIMDStackSlot()) {
+    DCHECK(destination.IsFpuRegister());
+    __ movups(destination.AsFpuRegister<XmmRegister>(), Address(ESP, source.GetStackIndex()));
   } else if (source.IsConstant()) {
     HConstant* constant = source.GetConstant();
     if (constant->IsIntConstant() || constant->IsNullConstant()) {

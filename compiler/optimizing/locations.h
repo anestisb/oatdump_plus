@@ -69,11 +69,13 @@ class Location : public ValueObject {
     // We do not use the value 9 because it conflicts with kLocationConstantMask.
     kDoNotUse9 = 9,
 
+    kSIMDStackSlot = 10,  // 128bit stack slot. TODO: generalize with encoded #bytes?
+
     // Unallocated location represents a location that is not fixed and can be
     // allocated by a register allocator.  Each unallocated location has
     // a policy that specifies what kind of location is suitable. Payload
     // contains register allocation policy.
-    kUnallocated = 10,
+    kUnallocated = 11,
   };
 
   Location() : ValueObject(), value_(kInvalid) {
@@ -82,6 +84,7 @@ class Location : public ValueObject {
     static_assert((kUnallocated & kLocationConstantMask) != kConstant, "TagError");
     static_assert((kStackSlot & kLocationConstantMask) != kConstant, "TagError");
     static_assert((kDoubleStackSlot & kLocationConstantMask) != kConstant, "TagError");
+    static_assert((kSIMDStackSlot & kLocationConstantMask) != kConstant, "TagError");
     static_assert((kRegister & kLocationConstantMask) != kConstant, "TagError");
     static_assert((kFpuRegister & kLocationConstantMask) != kConstant, "TagError");
     static_assert((kRegisterPair & kLocationConstantMask) != kConstant, "TagError");
@@ -266,8 +269,20 @@ class Location : public ValueObject {
     return GetKind() == kDoubleStackSlot;
   }
 
+  static Location SIMDStackSlot(intptr_t stack_index) {
+    uintptr_t payload = EncodeStackIndex(stack_index);
+    Location loc(kSIMDStackSlot, payload);
+    // Ensure that sign is preserved.
+    DCHECK_EQ(loc.GetStackIndex(), stack_index);
+    return loc;
+  }
+
+  bool IsSIMDStackSlot() const {
+    return GetKind() == kSIMDStackSlot;
+  }
+
   intptr_t GetStackIndex() const {
-    DCHECK(IsStackSlot() || IsDoubleStackSlot());
+    DCHECK(IsStackSlot() || IsDoubleStackSlot() || IsSIMDStackSlot());
     // Decode stack index manually to preserve sign.
     return GetPayload() - kStackIndexBias;
   }
@@ -315,6 +330,7 @@ class Location : public ValueObject {
       case kRegister: return "R";
       case kStackSlot: return "S";
       case kDoubleStackSlot: return "DS";
+      case kSIMDStackSlot: return "SIMD";
       case kUnallocated: return "U";
       case kConstant: return "C";
       case kFpuRegister: return "F";
