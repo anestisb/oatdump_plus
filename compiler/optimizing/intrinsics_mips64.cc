@@ -1895,7 +1895,7 @@ void IntrinsicCodeGeneratorMIPS64::VisitDoubleIsInfinite(HInvoke* invoke) {
 // void java.lang.String.getChars(int srcBegin, int srcEnd, char[] dst, int dstBegin)
 void IntrinsicLocationsBuilderMIPS64::VisitStringGetCharsNoCheck(HInvoke* invoke) {
   LocationSummary* locations = new (arena_) LocationSummary(invoke,
-                                                            LocationSummary::kCallOnMainOnly,
+                                                            LocationSummary::kNoCall,
                                                             kIntrinsified);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
@@ -1903,17 +1903,9 @@ void IntrinsicLocationsBuilderMIPS64::VisitStringGetCharsNoCheck(HInvoke* invoke
   locations->SetInAt(3, Location::RequiresRegister());
   locations->SetInAt(4, Location::RequiresRegister());
 
-  // We will call memcpy() to do the actual work. Allocate the temporary
-  // registers to use the correct input registers, and output register.
-  // memcpy() uses the normal MIPS calling conventions.
-  InvokeRuntimeCallingConvention calling_convention;
-
-  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
-  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
-  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
-
-  Location outLocation = calling_convention.GetReturnLocation(Primitive::kPrimLong);
-  locations->AddTemp(Location::RegisterLocation(outLocation.AsRegister<GpuRegister>()));
+  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitStringGetCharsNoCheck(HInvoke* invoke) {
@@ -1932,16 +1924,11 @@ void IntrinsicCodeGeneratorMIPS64::VisitStringGetCharsNoCheck(HInvoke* invoke) {
   GpuRegister dstBegin = locations->InAt(4).AsRegister<GpuRegister>();
 
   GpuRegister dstPtr = locations->GetTemp(0).AsRegister<GpuRegister>();
-  DCHECK_EQ(dstPtr, A0);
   GpuRegister srcPtr = locations->GetTemp(1).AsRegister<GpuRegister>();
-  DCHECK_EQ(srcPtr, A1);
   GpuRegister numChrs = locations->GetTemp(2).AsRegister<GpuRegister>();
-  DCHECK_EQ(numChrs, A2);
-
-  GpuRegister dstReturn = locations->GetTemp(3).AsRegister<GpuRegister>();
-  DCHECK_EQ(dstReturn, V0);
 
   Mips64Label done;
+  Mips64Label loop;
 
   // Location of data in char array buffer.
   const uint32_t data_offset = mirror::Array::DataOffset(char_size).Uint32Value();
@@ -1965,7 +1952,7 @@ void IntrinsicCodeGeneratorMIPS64::VisitStringGetCharsNoCheck(HInvoke* invoke) {
     __ LoadFromOffset(kLoadWord, TMP, srcObj, count_offset);
     __ Dext(TMP, TMP, 0, 1);
 
-    // If string is uncompressed, use memcpy() path.
+    // If string is uncompressed, use uncompressed path.
     __ Bnezc(TMP, &uncompressed_copy);
 
     // Copy loop for compressed src, copying 1 character (8-bit) to (16-bit) at a time.
@@ -1986,10 +1973,13 @@ void IntrinsicCodeGeneratorMIPS64::VisitStringGetCharsNoCheck(HInvoke* invoke) {
   __ Daddiu(srcPtr, srcObj, value_offset);
   __ Dlsa(srcPtr, srcBegin, srcPtr, char_shift);
 
-  // Calculate number of bytes to copy from number of characters.
-  __ Dsll(numChrs, numChrs, char_shift);
-
-  codegen_->InvokeRuntime(kQuickMemcpy, invoke, invoke->GetDexPc(), nullptr);
+  __ Bind(&loop);
+  __ Lh(AT, srcPtr, 0);
+  __ Daddiu(numChrs, numChrs, -1);
+  __ Daddiu(srcPtr, srcPtr, char_size);
+  __ Sh(AT, dstPtr, 0);
+  __ Daddiu(dstPtr, dstPtr, char_size);
+  __ Bnezc(numChrs, &loop);
 
   __ Bind(&done);
 }
