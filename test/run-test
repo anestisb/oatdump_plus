@@ -772,7 +772,7 @@ fi
 # Set a hard limit to encourage ART developers to increase the ulimit here if
 # needed to support a test case rather than resetting the limit in the run
 # script for the particular test in question.
-if ! ulimit -f -H 128000; then
+if ! ulimit -f 128000; then
   err_echo "ulimit file size setting failed"
 fi
 
