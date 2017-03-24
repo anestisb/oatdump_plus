@@ -1,3 +1,0 @@
-Main:
-  @@com.android.jack.annotations.ForceInMainDex
-  class Main
