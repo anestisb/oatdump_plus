@@ -303,6 +303,7 @@ void RegisterAllocationResolver::ConnectSiblings(LiveInterval* interval) {
     switch (interval->NumberOfSpillSlotsNeeded()) {
       case 1: loc = Location::StackSlot(interval->GetParent()->GetSpillSlot()); break;
       case 2: loc = Location::DoubleStackSlot(interval->GetParent()->GetSpillSlot()); break;
+      case 4: loc = Location::SIMDStackSlot(interval->GetParent()->GetSpillSlot()); break;
       default: LOG(FATAL) << "Unexpected number of spill slots"; UNREACHABLE();
     }
     InsertMoveAfter(interval->GetDefinedBy(), interval->ToLocation(), loc);
@@ -464,6 +465,7 @@ void RegisterAllocationResolver::ConnectSplitSiblings(LiveInterval* interval,
       switch (parent->NumberOfSpillSlotsNeeded()) {
         case 1: location_source = Location::StackSlot(parent->GetSpillSlot()); break;
         case 2: location_source = Location::DoubleStackSlot(parent->GetSpillSlot()); break;
+        case 4: location_source = Location::SIMDStackSlot(parent->GetSpillSlot()); break;
         default: LOG(FATAL) << "Unexpected number of spill slots"; UNREACHABLE();
       }
     }
@@ -496,7 +498,8 @@ static bool IsValidDestination(Location destination) {
       || destination.IsFpuRegister()
       || destination.IsFpuRegisterPair()
       || destination.IsStackSlot()
-      || destination.IsDoubleStackSlot();
+      || destination.IsDoubleStackSlot()
+      || destination.IsSIMDStackSlot();
 }
 
 void RegisterAllocationResolver::AddMove(HParallelMove* move,
