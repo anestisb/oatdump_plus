@@ -376,7 +376,7 @@ class ImageWriter FINAL {
   }
 
   // Returns true if the class was in the original requested image classes list.
-  bool KeepClass(mirror::Class* klass) REQUIRES_SHARED(Locks::mutator_lock_);
+  bool KeepClass(ObjPtr<mirror::Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Debug aid that list of requested image classes.
   void DumpImageClasses();
@@ -390,6 +390,12 @@ class ImageWriter FINAL {
 
   // Remove unwanted classes from various roots.
   void PruneNonImageClasses() REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Remove unwanted classes from the DexCache roots and preload deterministic DexCache contents.
+  void PruneAndPreloadDexCache(ObjPtr<mirror::DexCache> dex_cache,
+                               ObjPtr<mirror::ClassLoader> class_loader)
+      REQUIRES_SHARED(Locks::mutator_lock_)
+      REQUIRES(!Locks::classlinker_classes_lock_);
 
   // Verify unwanted classes removed.
   void CheckNonImageClassesRemoved() REQUIRES_SHARED(Locks::mutator_lock_);
@@ -473,11 +479,11 @@ class ImageWriter FINAL {
   // we also cannot have any classes which refer to these boot class loader non image classes.
   // PruneAppImageClass also prunes if klass depends on a non-image class according to the compiler
   // driver.
-  bool PruneAppImageClass(mirror::Class* klass)
+  bool PruneAppImageClass(ObjPtr<mirror::Class> klass)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // early_exit is true if we had a cyclic dependency anywhere down the chain.
-  bool PruneAppImageClassInternal(mirror::Class* klass,
+  bool PruneAppImageClassInternal(ObjPtr<mirror::Class> klass,
                                   bool* early_exit,
                                   std::unordered_set<mirror::Class*>* visited)
       REQUIRES_SHARED(Locks::mutator_lock_);
