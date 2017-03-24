@@ -84,7 +84,11 @@ template <>
 MacroAsm64UniquePtr JNIMacroAssembler<PointerSize::k64>::Create(
     ArenaAllocator* arena,
     InstructionSet instruction_set,
-    const InstructionSetFeatures* instruction_set_features ATTRIBUTE_UNUSED) {
+    const InstructionSetFeatures* instruction_set_features) {
+#ifndef ART_ENABLE_CODEGEN_mips64
+  UNUSED(instruction_set_features);
+#endif
+
   switch (instruction_set) {
 #ifdef ART_ENABLE_CODEGEN_arm64
     case kArm64:
@@ -92,7 +96,11 @@ MacroAsm64UniquePtr JNIMacroAssembler<PointerSize::k64>::Create(
 #endif
 #ifdef ART_ENABLE_CODEGEN_mips64
     case kMips64:
-      return MacroAsm64UniquePtr(new (arena) mips64::Mips64Assembler(arena));
+      return MacroAsm64UniquePtr(new (arena) mips64::Mips64Assembler(
+          arena,
+          instruction_set_features != nullptr
+              ? instruction_set_features->AsMips64InstructionSetFeatures()
+              : nullptr));
 #endif
 #ifdef ART_ENABLE_CODEGEN_x86_64
     case kX86_64:
