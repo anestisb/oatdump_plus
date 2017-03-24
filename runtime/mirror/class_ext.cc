@@ -117,9 +117,9 @@ void ClassExt::SetVerifyError(ObjPtr<Object> err) {
   }
 }
 
-void ClassExt::SetOriginalDexFileBytes(ObjPtr<ByteArray> bytes) {
+void ClassExt::SetOriginalDexFile(ObjPtr<Object> bytes) {
   DCHECK(!Runtime::Current()->IsActiveTransaction());
-  SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(ClassExt, original_dex_file_bytes_), bytes);
+  SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(ClassExt, original_dex_file_), bytes);
 }
 
 void ClassExt::SetClass(ObjPtr<Class> dalvik_system_ClassExt) {
