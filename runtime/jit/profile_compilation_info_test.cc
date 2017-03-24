@@ -195,7 +195,7 @@ class ProfileCompilationInfoTest : public CommonRuntimeTest {
       dex_pc_data.AddClass(1, dex::TypeIndex(1));
       dex_pc_data.AddClass(2, dex::TypeIndex(2));
 
-       pmi.inline_caches.Put(dex_pc, dex_pc_data);
+      pmi.inline_caches.Put(dex_pc, dex_pc_data);
     }
     // Megamorphic
     for (uint16_t dex_pc = 22; dex_pc < 33; dex_pc++) {
@@ -787,4 +787,26 @@ TEST_F(ProfileCompilationInfoTest, MissingTypesInlineCachesMerge) {
   ASSERT_TRUE(info_no_inline_cache.Save(GetFd(profile)));
 }
 
+TEST_F(ProfileCompilationInfoTest, LoadShouldClearExistingDataFromProfiles) {
+  ScratchFile profile;
+
+  ProfileCompilationInfo saved_info;
+  // Save a few methods.
+  for (uint16_t i = 0; i < 10; i++) {
+    ASSERT_TRUE(AddMethod("dex_location1", /* checksum */ 1, /* method_idx */ i, &saved_info));
+  }
+  ASSERT_TRUE(saved_info.Save(GetFd(profile)));
+  ASSERT_EQ(0, profile.GetFile()->Flush());
+  ASSERT_TRUE(profile.GetFile()->ResetOffset());
+
+  // Add a bunch of methods to test_info.
+  ProfileCompilationInfo test_info;
+  for (uint16_t i = 0; i < 10; i++) {
+    ASSERT_TRUE(AddMethod("dex_location2", /* checksum */ 2, /* method_idx */ i, &test_info));
+  }
+
+  // Attempt to load the saved profile into test_info.
+  // This should fail since the test_info already contains data and the load would overwrite it.
+  ASSERT_FALSE(test_info.Load(GetFd(profile)));
+}
 }  // namespace art
