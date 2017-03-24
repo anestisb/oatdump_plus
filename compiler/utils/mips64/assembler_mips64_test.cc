@@ -46,6 +46,9 @@ class AssemblerMIPS64Test : public AssemblerTest<mips64::Mips64Assembler,
                         uint32_t,
                         mips64::VectorRegister> Base;
 
+  AssemblerMIPS64Test()
+      : instruction_set_features_(Mips64InstructionSetFeatures::FromVariant("default", nullptr)) {}
+
  protected:
   // Get the typically used name for this architecture, e.g., aarch64, x86-64, ...
   std::string GetArchitectureString() OVERRIDE {
@@ -76,6 +79,10 @@ class AssemblerMIPS64Test : public AssemblerTest<mips64::Mips64Assembler,
 
   std::string GetDisassembleParameters() OVERRIDE {
     return " -D -bbinary -mmips:isa64r6";
+  }
+
+  mips64::Mips64Assembler* CreateAssembler(ArenaAllocator* arena) OVERRIDE {
+    return new (arena) mips64::Mips64Assembler(arena, instruction_set_features_.get());
   }
 
   void SetUpHelpers() OVERRIDE {
@@ -313,8 +320,9 @@ class AssemblerMIPS64Test : public AssemblerTest<mips64::Mips64Assembler,
 
   std::vector<mips64::FpuRegister*> fp_registers_;
   std::vector<mips64::VectorRegister*> vec_registers_;
-};
 
+  std::unique_ptr<const Mips64InstructionSetFeatures> instruction_set_features_;
+};
 
 TEST_F(AssemblerMIPS64Test, Toolchain) {
   EXPECT_TRUE(CheckTools());
