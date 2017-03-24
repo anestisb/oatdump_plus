@@ -2559,7 +2559,7 @@ void IntrinsicCodeGeneratorMIPS::VisitMathRoundFloat(HInvoke* invoke) {
 // void java.lang.String.getChars(int srcBegin, int srcEnd, char[] dst, int dstBegin)
 void IntrinsicLocationsBuilderMIPS::VisitStringGetCharsNoCheck(HInvoke* invoke) {
   LocationSummary* locations = new (arena_) LocationSummary(invoke,
-                                                            LocationSummary::kCallOnMainOnly,
+                                                            LocationSummary::kNoCall,
                                                             kIntrinsified);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
@@ -2567,17 +2567,9 @@ void IntrinsicLocationsBuilderMIPS::VisitStringGetCharsNoCheck(HInvoke* invoke) 
   locations->SetInAt(3, Location::RequiresRegister());
   locations->SetInAt(4, Location::RequiresRegister());
 
-  // We will call memcpy() to do the actual work. Allocate the temporary
-  // registers to use the correct input registers, and output register.
-  // memcpy() uses the normal MIPS calling convention.
-  InvokeRuntimeCallingConvention calling_convention;
-
-  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
-  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
-  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
-
-  Location outLocation = calling_convention.GetReturnLocation(Primitive::kPrimInt);
-  locations->AddTemp(Location::RegisterLocation(outLocation.AsRegister<Register>()));
+  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
 }
 
 void IntrinsicCodeGeneratorMIPS::VisitStringGetCharsNoCheck(HInvoke* invoke) {
@@ -2596,16 +2588,11 @@ void IntrinsicCodeGeneratorMIPS::VisitStringGetCharsNoCheck(HInvoke* invoke) {
   Register dstBegin = locations->InAt(4).AsRegister<Register>();
 
   Register dstPtr = locations->GetTemp(0).AsRegister<Register>();
-  DCHECK_EQ(dstPtr, A0);
   Register srcPtr = locations->GetTemp(1).AsRegister<Register>();
-  DCHECK_EQ(srcPtr, A1);
   Register numChrs = locations->GetTemp(2).AsRegister<Register>();
-  DCHECK_EQ(numChrs, A2);
-
-  Register dstReturn = locations->GetTemp(3).AsRegister<Register>();
-  DCHECK_EQ(dstReturn, V0);
 
   MipsLabel done;
+  MipsLabel loop;
 
   // Location of data in char array buffer.
   const uint32_t data_offset = mirror::Array::DataOffset(char_size).Uint32Value();
@@ -2634,7 +2621,7 @@ void IntrinsicCodeGeneratorMIPS::VisitStringGetCharsNoCheck(HInvoke* invoke) {
     __ LoadFromOffset(kLoadWord, TMP, srcObj, count_offset);
     __ Sll(TMP, TMP, 31);
 
-    // If string is uncompressed, use memcpy() path.
+    // If string is uncompressed, use uncompressed path.
     __ Bnez(TMP, &uncompressed_copy);
 
     // Copy loop for compressed src, copying 1 character (8-bit) to (16-bit) at a time.
@@ -2660,10 +2647,13 @@ void IntrinsicCodeGeneratorMIPS::VisitStringGetCharsNoCheck(HInvoke* invoke) {
     __ Addu(srcPtr, srcPtr, AT);
   }
 
-  // Calculate number of bytes to copy from number of characters.
-  __ Sll(numChrs, numChrs, char_shift);
-
-  codegen_->InvokeRuntime(kQuickMemcpy, invoke, invoke->GetDexPc(), nullptr);
+  __ Bind(&loop);
+  __ Lh(AT, srcPtr, 0);
+  __ Addiu(numChrs, numChrs, -1);
+  __ Addiu(srcPtr, srcPtr, char_size);
+  __ Sh(AT, dstPtr, 0);
+  __ Addiu(dstPtr, dstPtr, char_size);
+  __ Bnez(numChrs, &loop);
 
   __ Bind(&done);
 }
