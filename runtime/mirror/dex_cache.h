@@ -426,6 +426,11 @@ class MANAGED DexCache FINAL : public Object {
                                    NativeDexCachePair<T> pair,
                                    PointerSize ptr_size);
 
+  uint32_t StringSlotIndex(dex::StringIndex string_idx) REQUIRES_SHARED(Locks::mutator_lock_);
+  uint32_t TypeSlotIndex(dex::TypeIndex type_idx) REQUIRES_SHARED(Locks::mutator_lock_);
+  uint32_t FieldSlotIndex(uint32_t field_idx) REQUIRES_SHARED(Locks::mutator_lock_);
+  uint32_t MethodTypeSlotIndex(uint32_t proto_idx) REQUIRES_SHARED(Locks::mutator_lock_);
+
  private:
   void Init(const DexFile* dex_file,
             ObjPtr<String> location,
@@ -456,11 +461,6 @@ class MANAGED DexCache FINAL : public Object {
   };
   using ConversionPair32 = ConversionPair<uint32_t>;
   using ConversionPair64 = ConversionPair<uint64_t>;
-
-  uint32_t StringSlotIndex(dex::StringIndex string_idx) REQUIRES_SHARED(Locks::mutator_lock_);
-  uint32_t TypeSlotIndex(dex::TypeIndex type_idx) REQUIRES_SHARED(Locks::mutator_lock_);
-  uint32_t FieldSlotIndex(uint32_t field_idx) REQUIRES_SHARED(Locks::mutator_lock_);
-  uint32_t MethodTypeSlotIndex(uint32_t proto_idx) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Visit instance fields of the dex cache as well as its associated arrays.
   template <bool kVisitNativeRoots,

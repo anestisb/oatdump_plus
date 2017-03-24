@@ -247,7 +247,7 @@ class ClassLinker {
   // result in the DexCache if found. Return null if not found.
   mirror::String* LookupString(const DexFile& dex_file,
                                dex::StringIndex string_idx,
-                               Handle<mirror::DexCache> dex_cache)
+                               ObjPtr<mirror::DexCache> dex_cache)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Resolve a Type with the given index from the DexFile, storing the
