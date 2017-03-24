@@ -18,13 +18,13 @@
 
 #include <limits>
 #include <memory>
-#include <unwind.h>  // For GC verification.
 #include <vector>
 
 #include "android-base/stringprintf.h"
 
 #include "allocation_listener.h"
 #include "art_field-inl.h"
+#include "backtrace_helper.h"
 #include "base/allocator.h"
 #include "base/arena_allocator.h"
 #include "base/dumpable.h"
@@ -4065,42 +4065,6 @@ void Heap::BroadcastForNewAllocationRecords() const {
   }
 }
 
-// Based on debug malloc logic from libc/bionic/debug_stacktrace.cpp.
-class StackCrawlState {
- public:
-  StackCrawlState(uintptr_t* frames, size_t max_depth, size_t skip_count)
-      : frames_(frames), frame_count_(0), max_depth_(max_depth), skip_count_(skip_count) {
-  }
-  size_t GetFrameCount() const {
-    return frame_count_;
-  }
-  static _Unwind_Reason_Code Callback(_Unwind_Context* context, void* arg) {
-    auto* const state = reinterpret_cast<StackCrawlState*>(arg);
-    const uintptr_t ip = _Unwind_GetIP(context);
-    // The first stack frame is get_backtrace itself. Skip it.
-    if (ip != 0 && state->skip_count_ > 0) {
-      --state->skip_count_;
-      return _URC_NO_REASON;
-    }
-    // ip may be off for ARM but it shouldn't matter since we only use it for hashing.
-    state->frames_[state->frame_count_] = ip;
-    state->frame_count_++;
-    return state->frame_count_ >= state->max_depth_ ? _URC_END_OF_STACK : _URC_NO_REASON;
-  }
-
- private:
-  uintptr_t* const frames_;
-  size_t frame_count_;
-  const size_t max_depth_;
-  size_t skip_count_;
-};
-
-static size_t get_backtrace(uintptr_t* frames, size_t max_depth) {
-  StackCrawlState state(frames, max_depth, 0u);
-  _Unwind_Backtrace(&StackCrawlState::Callback, &state);
-  return state.GetFrameCount();
-}
-
 void Heap::CheckGcStressMode(Thread* self, ObjPtr<mirror::Object>* obj) {
   auto* const runtime = Runtime::Current();
   if (gc_stress_mode_ && runtime->GetClassLinker()->IsInitialized() &&
@@ -4109,13 +4073,9 @@ void Heap::CheckGcStressMode(Thread* self, ObjPtr<mirror::Object>* obj) {
     bool new_backtrace = false;
     {
       static constexpr size_t kMaxFrames = 16u;
-      uintptr_t backtrace[kMaxFrames];
-      const size_t frames = get_backtrace(backtrace, kMaxFrames);
-      uint64_t hash = 0;
-      for (size_t i = 0; i < frames; ++i) {
-        hash = hash * 2654435761 + backtrace[i];
-        hash += (hash >> 13) ^ (hash << 6);
-      }
+      FixedSizeBacktrace<kMaxFrames> backtrace;
+      backtrace.Collect(/* skip_frames */ 2);
+      uint64_t hash = backtrace.Hash();
       MutexLock mu(self, *backtrace_lock_);
       new_backtrace = seen_backtraces_.find(hash) == seen_backtraces_.end();
       if (new_backtrace) {
