@@ -322,9 +322,11 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
       codegen_.DumpCoreRegister(stream, location.high());
     } else if (location.IsUnallocated()) {
       stream << "unallocated";
-    } else {
-      DCHECK(location.IsDoubleStackSlot());
+    } else if (location.IsDoubleStackSlot()) {
       stream << "2x" << location.GetStackIndex() << "(sp)";
+    } else {
+      DCHECK(location.IsSIMDStackSlot());
+      stream << "4x" << location.GetStackIndex() << "(sp)";
     }
   }
 
