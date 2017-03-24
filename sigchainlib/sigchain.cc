@@ -248,7 +248,7 @@ extern "C" int sigaction(int signal, const struct sigaction* new_action, struct 
     return -1;
   }
 
-  if (chains[signal].IsClaimed() && new_action != nullptr) {
+  if (chains[signal].IsClaimed()) {
     struct sigaction saved_action = chains[signal].GetAction();
     if (new_action != nullptr) {
       chains[signal].SetAction(new_action);

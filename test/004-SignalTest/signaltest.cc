@@ -110,6 +110,11 @@ extern "C" JNIEXPORT void JNICALL Java_Main_initSignalTest(JNIEnv*, jclass) {
 #endif
 
   sigaction(SIGSEGV, &action, &oldaction);
+  struct sigaction check;
+  sigaction(SIGSEGV, nullptr, &check);
+  if (memcmp(&action, &check, sizeof(action)) != 0) {
+    printf("sigaction returned different value\n");
+  }
   signal(BLOCKED_SIGNAL, blocked_signal);
   signal(UNBLOCKED_SIGNAL, unblocked_signal);
 }
