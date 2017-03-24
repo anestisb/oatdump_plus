@@ -37,14 +37,25 @@ class ProfileAssistantTest : public CommonRuntimeTest {
                     uint16_t number_of_classes,
                     const ScratchFile& profile,
                     ProfileCompilationInfo* info,
-                    uint16_t start_method_index = 0) {
+                    uint16_t start_method_index = 0,
+                    bool reverse_dex_write_order = false) {
     std::string dex_location1 = "location1" + id;
     uint32_t dex_location_checksum1 = checksum;
     std::string dex_location2 = "location2" + id;
     uint32_t dex_location_checksum2 = 10 * checksum;
     for (uint16_t i = start_method_index; i < start_method_index + number_of_methods; i++) {
-      ASSERT_TRUE(info->AddMethodIndex(dex_location1, dex_location_checksum1, i));
-      ASSERT_TRUE(info->AddMethodIndex(dex_location2, dex_location_checksum2, i));
+      // reverse_dex_write_order controls the order in which the dex files will be added to
+      // the profile and thus written to disk.
+      ProfileCompilationInfo::OfflineProfileMethodInfo pmi =
+          GetOfflineProfileMethodInfo(dex_location1, dex_location_checksum1,
+                                      dex_location2, dex_location_checksum2);
+      if (reverse_dex_write_order) {
+        ASSERT_TRUE(info->AddMethod(dex_location2, dex_location_checksum2, i, pmi));
+        ASSERT_TRUE(info->AddMethod(dex_location1, dex_location_checksum1, i, pmi));
+      } else {
+        ASSERT_TRUE(info->AddMethod(dex_location1, dex_location_checksum1, i, pmi));
+        ASSERT_TRUE(info->AddMethod(dex_location2, dex_location_checksum2, i, pmi));
+      }
     }
     for (uint16_t i = 0; i < number_of_classes; i++) {
       ASSERT_TRUE(info->AddClassIndex(dex_location1, dex_location_checksum1, dex::TypeIndex(i)));
@@ -53,6 +64,43 @@ class ProfileAssistantTest : public CommonRuntimeTest {
     ASSERT_TRUE(info->Save(GetFd(profile)));
     ASSERT_EQ(0, profile.GetFile()->Flush());
     ASSERT_TRUE(profile.GetFile()->ResetOffset());
+  }
+
+  ProfileCompilationInfo::OfflineProfileMethodInfo GetOfflineProfileMethodInfo(
+        const std::string& dex_location1, uint32_t dex_checksum1,
+        const std::string& dex_location2, uint32_t dex_checksum2) {
+    ProfileCompilationInfo::OfflineProfileMethodInfo pmi;
+    pmi.dex_references.emplace_back(dex_location1, dex_checksum1);
+    pmi.dex_references.emplace_back(dex_location2, dex_checksum2);
+
+    // Monomorphic
+    for (uint16_t dex_pc = 0; dex_pc < 11; dex_pc++) {
+      ProfileCompilationInfo::DexPcData dex_pc_data;
+      dex_pc_data.AddClass(0, dex::TypeIndex(0));
+      pmi.inline_caches.Put(dex_pc, dex_pc_data);
+    }
+    // Polymorphic
+    for (uint16_t dex_pc = 11; dex_pc < 22; dex_pc++) {
+      ProfileCompilationInfo::DexPcData dex_pc_data;
+      dex_pc_data.AddClass(0, dex::TypeIndex(0));
+      dex_pc_data.AddClass(1, dex::TypeIndex(1));
+
+      pmi.inline_caches.Put(dex_pc, dex_pc_data);
+    }
+    // Megamorphic
+    for (uint16_t dex_pc = 22; dex_pc < 33; dex_pc++) {
+      ProfileCompilationInfo::DexPcData dex_pc_data;
+      dex_pc_data.SetIsMegamorphic();
+      pmi.inline_caches.Put(dex_pc, dex_pc_data);
+    }
+    // Missing types
+    for (uint16_t dex_pc = 33; dex_pc < 44; dex_pc++) {
+      ProfileCompilationInfo::DexPcData dex_pc_data;
+      dex_pc_data.SetIsMissingTypes();
+      pmi.inline_caches.Put(dex_pc, dex_pc_data);
+    }
+
+    return pmi;
   }
 
   int GetFd(const ScratchFile& file) const {
@@ -627,6 +675,46 @@ TEST_F(ProfileAssistantTest, TestProfileCreateInlineCache) {
                                &pmi_no_inline_cache));
     ASSERT_TRUE(pmi_no_inline_cache.inline_caches.empty());
   }
+}
+
+TEST_F(ProfileAssistantTest, MergeProfilesWithDifferentDexOrder) {
+  ScratchFile profile1;
+  ScratchFile reference_profile;
+
+  std::vector<int> profile_fds({GetFd(profile1)});
+  int reference_profile_fd = GetFd(reference_profile);
+
+  // The new profile info will contain the methods with indices 0-100.
+  const uint16_t kNumberOfMethodsToEnableCompilation = 100;
+  ProfileCompilationInfo info1;
+  SetupProfile("p1", 1, kNumberOfMethodsToEnableCompilation, 0, profile1, &info1,
+      /*start_method_index*/0, /*reverse_dex_write_order*/false);
+
+  // The reference profile info will contain the methods with indices 50-150.
+  // When setting up the profile reverse the order in which the dex files
+  // are added to the profile. This will verify that profman merges profiles
+  // with a different dex order correctly.
+  const uint16_t kNumberOfMethodsAlreadyCompiled = 100;
+  ProfileCompilationInfo reference_info;
+  SetupProfile("p1", 1, kNumberOfMethodsAlreadyCompiled, 0, reference_profile,
+      &reference_info, kNumberOfMethodsToEnableCompilation / 2, /*reverse_dex_write_order*/true);
+
+  // We should advise compilation.
+  ASSERT_EQ(ProfileAssistant::kCompile,
+            ProcessProfiles(profile_fds, reference_profile_fd));
+
+  // The resulting compilation info must be equal to the merge of the inputs.
+  ProfileCompilationInfo result;
+  ASSERT_TRUE(reference_profile.GetFile()->ResetOffset());
+  ASSERT_TRUE(result.Load(reference_profile_fd));
+
+  ProfileCompilationInfo expected;
+  ASSERT_TRUE(expected.MergeWith(reference_info));
+  ASSERT_TRUE(expected.MergeWith(info1));
+  ASSERT_TRUE(expected.Equals(result));
+
+  // The information from profile must remain the same.
+  CheckProfileInfo(profile1, info1);
 }
 
 }  // namespace art
