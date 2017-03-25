@@ -126,6 +126,7 @@ inline void EventHandler::DispatchClassFileLoadHookEvent(art::Thread* thread,
                                                          unsigned char** new_class_data) const {
   static_assert(kEvent == ArtJvmtiEvent::kClassFileLoadHookRetransformable ||
                 kEvent == ArtJvmtiEvent::kClassFileLoadHookNonRetransformable, "Unsupported event");
+  DCHECK(*new_class_data == nullptr);
   jint current_len = class_data_len;
   unsigned char* current_class_data = const_cast<unsigned char*>(class_data);
   ArtJvmTiEnv* last_env = nullptr;
