@@ -138,6 +138,7 @@ TEST_ART_TARGET_SYNC_DEPS += $(TARGET_OUT_JAVA_LIBRARIES)/conscrypt-testdex.jar
 # specific version depending on the compiler.
 ART_TEST_HOST_RUN_TEST_DEPENDENCIES := \
   $(ART_HOST_EXECUTABLES) \
+  $(HOST_OUT_EXECUTABLES)/hprof-conv \
   $(OUT_DIR)/$(ART_TEST_LIST_host_$(ART_HOST_ARCH)_libtiagent) \
   $(OUT_DIR)/$(ART_TEST_LIST_host_$(ART_HOST_ARCH)_libtiagentd) \
   $(OUT_DIR)/$(ART_TEST_LIST_host_$(ART_HOST_ARCH)_libartagent) \
@@ -177,8 +178,6 @@ host_prereq_rules += $(HOST_JACK_CLASSPATH_DEPENDENCIES)
 # Required for dx, jasmin, smali, dexmerger, jack.
 host_prereq_rules += $(TEST_ART_RUN_TEST_DEPENDENCIES)
 
-host_prereq_rules += $(HOST_OUT_EXECUTABLES)/hprof-conv
-
 # Classpath for Jack compilation for target.
 target_prereq_rules := $(TARGET_JACK_CLASSPATH_DEPENDENCIES)
 
@@ -215,18 +214,6 @@ ALL_ADDRESS_SIZES := 64 32
 
 # Add core image dependencies required for given target - HOST or TARGET,
 # IMAGE_TYPE, COMPILER_TYPE and ADDRESS_SIZE to the prereq_rules.
-$(foreach target, $(TARGET_TYPES), \
-  $(foreach image, $(IMAGE_TYPES), \
-    $(foreach compiler, $(COMPILER_TYPES), \
-      $(foreach address_size, $(ALL_ADDRESS_SIZES), $(eval \
-        $(call core-image-dependencies,$(target),$(image),$(compiler),$(address_size)))))))
-
-test-art-host-run-test-dependencies : $(host_prereq_rules)
-test-art-target-run-test-dependencies : $(target_prereq_rules)
-test-art-run-test-dependencies : test-art-host-run-test-dependencies test-art-target-run-test-dependencies
-
-# Generate list of dependencies required for given target - HOST or TARGET, IMAGE_TYPE,
-# COMPILER_TYPE and ADDRESS_SIZE.
 $(foreach target, $(TARGET_TYPES), \
   $(foreach image, $(IMAGE_TYPES), \
     $(foreach compiler, $(COMPILER_TYPES), \
