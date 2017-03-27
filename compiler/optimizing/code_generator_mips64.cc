@@ -558,26 +558,21 @@ void CodeGeneratorMIPS64::GenerateFrameEntry() {
     return;
   }
 
-  // Make sure the frame size isn't unreasonably large. Per the various APIs
-  // it looks like it should always be less than 2GB in size, which allows
-  // us using 32-bit signed offsets from the stack pointer.
-  if (GetFrameSize() > 0x7FFFFFFF)
-    LOG(FATAL) << "Stack frame larger than 2GB";
+  // Make sure the frame size isn't unreasonably large.
+  if (GetFrameSize() > GetStackOverflowReservedBytes(kMips64)) {
+    LOG(FATAL) << "Stack frame larger than " << GetStackOverflowReservedBytes(kMips64) << " bytes";
+  }
 
   // Spill callee-saved registers.
-  // Note that their cumulative size is small and they can be indexed using
-  // 16-bit offsets.
 
-  // TODO: increment/decrement SP in one step instead of two or remove this comment.
-
-  uint32_t ofs = FrameEntrySpillSize();
+  uint32_t ofs = GetFrameSize();
   __ IncreaseFrameSize(ofs);
 
   for (int i = arraysize(kCoreCalleeSaves) - 1; i >= 0; --i) {
     GpuRegister reg = kCoreCalleeSaves[i];
     if (allocated_registers_.ContainsCoreRegister(reg)) {
       ofs -= kMips64DoublewordSize;
-      __ Sd(reg, SP, ofs);
+      __ StoreToOffset(kStoreDoubleword, reg, SP, ofs);
       __ cfi().RelOffset(DWARFReg(reg), ofs);
     }
   }
@@ -586,23 +581,16 @@ void CodeGeneratorMIPS64::GenerateFrameEntry() {
     FpuRegister reg = kFpuCalleeSaves[i];
     if (allocated_registers_.ContainsFloatingPointRegister(reg)) {
       ofs -= kMips64DoublewordSize;
-      __ Sdc1(reg, SP, ofs);
+      __ StoreFpuToOffset(kStoreDoubleword, reg, SP, ofs);
       __ cfi().RelOffset(DWARFReg(reg), ofs);
     }
   }
-
-  // Allocate the rest of the frame and store the current method pointer
-  // at its end.
-
-  __ IncreaseFrameSize(GetFrameSize() - FrameEntrySpillSize());
 
   // Save the current method if we need it. Note that we do not
   // do this in HCurrentMethod, as the instruction might have been removed
   // in the SSA graph.
   if (RequiresCurrentMethod()) {
-    static_assert(IsInt<16>(kCurrentMethodStackOffset),
-                  "kCurrentMethodStackOffset must fit into int16_t");
-    __ Sd(kMethodRegisterArgument, SP, kCurrentMethodStackOffset);
+    __ StoreToOffset(kStoreDoubleword, kMethodRegisterArgument, SP, kCurrentMethodStackOffset);
   }
 
   if (GetGraph()->HasShouldDeoptimizeFlag()) {
@@ -615,42 +603,32 @@ void CodeGeneratorMIPS64::GenerateFrameExit() {
   __ cfi().RememberState();
 
   if (!HasEmptyFrame()) {
-    // Deallocate the rest of the frame.
-
-    __ DecreaseFrameSize(GetFrameSize() - FrameEntrySpillSize());
-
     // Restore callee-saved registers.
-    // Note that their cumulative size is small and they can be indexed using
-    // 16-bit offsets.
 
-    // TODO: increment/decrement SP in one step instead of two or remove this comment.
-
-    uint32_t ofs = 0;
-
-    for (size_t i = 0; i < arraysize(kFpuCalleeSaves); ++i) {
-      FpuRegister reg = kFpuCalleeSaves[i];
-      if (allocated_registers_.ContainsFloatingPointRegister(reg)) {
-        __ Ldc1(reg, SP, ofs);
-        ofs += kMips64DoublewordSize;
-        __ cfi().Restore(DWARFReg(reg));
-      }
-    }
-
-    for (size_t i = 0; i < arraysize(kCoreCalleeSaves); ++i) {
+    // For better instruction scheduling restore RA before other registers.
+    uint32_t ofs = GetFrameSize();
+    for (int i = arraysize(kCoreCalleeSaves) - 1; i >= 0; --i) {
       GpuRegister reg = kCoreCalleeSaves[i];
       if (allocated_registers_.ContainsCoreRegister(reg)) {
-        __ Ld(reg, SP, ofs);
-        ofs += kMips64DoublewordSize;
+        ofs -= kMips64DoublewordSize;
+        __ LoadFromOffset(kLoadDoubleword, reg, SP, ofs);
         __ cfi().Restore(DWARFReg(reg));
       }
     }
 
-    DCHECK_EQ(ofs, FrameEntrySpillSize());
-    __ DecreaseFrameSize(ofs);
+    for (int i = arraysize(kFpuCalleeSaves) - 1; i >= 0; --i) {
+      FpuRegister reg = kFpuCalleeSaves[i];
+      if (allocated_registers_.ContainsFloatingPointRegister(reg)) {
+        ofs -= kMips64DoublewordSize;
+        __ LoadFpuFromOffset(kLoadDoubleword, reg, SP, ofs);
+        __ cfi().Restore(DWARFReg(reg));
+      }
+    }
+
+    __ DecreaseFrameSize(GetFrameSize());
   }
 
-  __ Jr(RA);
-  __ Nop();
+  __ Jic(RA, 0);
 
   __ cfi().RestoreState();
   __ cfi().DefCFAOffset(GetFrameSize());
