@@ -16,6 +16,8 @@
 
 #include "901-hello-ti-agent/basics.h"
 
+#include <thread>
+
 #include <jni.h>
 #include <stdio.h>
 #include <string.h>
@@ -157,6 +159,20 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_checkLivePhase(
     return JNI_FALSE;
   }
   return (current_phase == JVMTI_PHASE_LIVE) ? JNI_TRUE : JNI_FALSE;
+}
+
+static void CallJvmtiFunction(jvmtiEnv* env, jclass klass, jvmtiError* err) {
+  jint n;
+  jmethodID* methods = nullptr;
+  *err = env->GetClassMethods(klass, &n, &methods);
+}
+
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_checkUnattached(
+    JNIEnv* env ATTRIBUTE_UNUSED, jclass Main_klass) {
+  jvmtiError res = JVMTI_ERROR_NONE;
+  std::thread t1(CallJvmtiFunction, jvmti_env, Main_klass, &res);
+  t1.join();
+  return res == JVMTI_ERROR_UNATTACHED_THREAD;
 }
 
 }  // namespace Test901HelloTi
