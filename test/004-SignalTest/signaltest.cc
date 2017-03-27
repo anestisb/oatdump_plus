@@ -18,13 +18,14 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/ucontext.h>
 #include <unistd.h>
 
 #include "base/macros.h"
 
 static int signal_count;
-static const int kMaxSignal = 2;
+static const int kMaxSignal = 1;
 
 #if defined(__i386__) || defined(__x86_64__)
 #if defined(__APPLE__)
@@ -47,6 +48,17 @@ static const int kMaxSignal = 2;
 #endif
 #endif
 
+#define BLOCKED_SIGNAL SIGUSR1
+#define UNBLOCKED_SIGNAL SIGUSR2
+
+static void blocked_signal(int sig ATTRIBUTE_UNUSED) {
+  printf("blocked signal received\n");
+}
+
+static void unblocked_signal(int sig ATTRIBUTE_UNUSED) {
+  printf("unblocked signal received\n");
+}
+
 static void signalhandler(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBUTE_UNUSED,
                           void* context) {
   printf("signal caught\n");
@@ -54,6 +66,16 @@ static void signalhandler(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBUTE_UN
   if (signal_count > kMaxSignal) {
      abort();
   }
+
+  raise(UNBLOCKED_SIGNAL);
+  raise(BLOCKED_SIGNAL);
+  printf("unblocking blocked signal\n");
+
+  sigset_t mask;
+  sigemptyset(&mask);
+  sigaddset(&mask, BLOCKED_SIGNAL);
+  sigprocmask(SIG_UNBLOCK, &mask, nullptr);
+
 #if defined(__arm__)
   struct ucontext *uc = reinterpret_cast<struct ucontext*>(context);
   struct sigcontext *sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
@@ -71,6 +93,8 @@ static void signalhandler(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBUTE_UN
 #else
   UNUSED(context);
 #endif
+
+  printf("signal handler done\n");
 }
 
 static struct sigaction oldaction;
@@ -78,13 +102,21 @@ static struct sigaction oldaction;
 extern "C" JNIEXPORT void JNICALL Java_Main_initSignalTest(JNIEnv*, jclass) {
   struct sigaction action;
   action.sa_sigaction = signalhandler;
-  sigemptyset(&action.sa_mask);
+  sigfillset(&action.sa_mask);
+  sigdelset(&action.sa_mask, UNBLOCKED_SIGNAL);
   action.sa_flags = SA_SIGINFO | SA_ONSTACK;
 #if !defined(__APPLE__) && !defined(__mips__)
   action.sa_restorer = nullptr;
 #endif
 
   sigaction(SIGSEGV, &action, &oldaction);
+  struct sigaction check;
+  sigaction(SIGSEGV, nullptr, &check);
+  if (memcmp(&action, &check, sizeof(action)) != 0) {
+    printf("sigaction returned different value\n");
+  }
+  signal(BLOCKED_SIGNAL, blocked_signal);
+  signal(UNBLOCKED_SIGNAL, unblocked_signal);
 }
 
 extern "C" JNIEXPORT void JNICALL Java_Main_terminateSignalTest(JNIEnv*, jclass) {
@@ -96,6 +128,12 @@ extern "C" JNIEXPORT void JNICALL Java_Main_terminateSignalTest(JNIEnv*, jclass)
 char *go_away_compiler = nullptr;
 
 extern "C" JNIEXPORT jint JNICALL Java_Main_testSignal(JNIEnv*, jclass) {
+  // Unblock UNBLOCKED_SIGNAL.
+  sigset_t mask;
+  memset(&mask, 0, sizeof(mask));
+  sigaddset(&mask, UNBLOCKED_SIGNAL);
+  sigprocmask(SIG_UNBLOCK, &mask, nullptr);
+
 #if defined(__arm__) || defined(__i386__) || defined(__aarch64__)
   // On supported architectures we cause a real SEGV.
   *go_away_compiler = 'a';

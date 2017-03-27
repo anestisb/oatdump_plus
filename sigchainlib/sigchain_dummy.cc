@@ -48,37 +48,23 @@ static void log(const char* format, ...) {
 
 namespace art {
 
-
-extern "C" void ClaimSignalChain(int signal ATTRIBUTE_UNUSED,
-                                 struct sigaction* oldaction ATTRIBUTE_UNUSED) {
-  log("ClaimSignalChain is not exported by the main executable.");
-  abort();
-}
-
-extern "C" void UnclaimSignalChain(int signal ATTRIBUTE_UNUSED) {
-  log("UnclaimSignalChain is not exported by the main executable.");
-  abort();
-}
-
-extern "C" void InvokeUserSignalHandler(int sig ATTRIBUTE_UNUSED,
-                                        siginfo_t* info ATTRIBUTE_UNUSED,
-                                        void* context ATTRIBUTE_UNUSED) {
-  log("InvokeUserSignalHandler is not exported by the main executable.");
-  abort();
-}
-
 extern "C" void InitializeSignalChain() {
   log("InitializeSignalChain is not exported by the main executable.");
   abort();
 }
 
-extern "C" void EnsureFrontOfChain(int signal ATTRIBUTE_UNUSED,
-                                   struct sigaction* expected_action ATTRIBUTE_UNUSED) {
+extern "C" void EnsureFrontOfChain(int signal ATTRIBUTE_UNUSED) {
   log("EnsureFrontOfChain is not exported by the main executable.");
   abort();
 }
 
-extern "C" void SetSpecialSignalHandlerFn(int signal ATTRIBUTE_UNUSED,
+extern "C" void AddSpecialSignalHandlerFn(int signal ATTRIBUTE_UNUSED,
+                                          SpecialSignalHandlerFn fn ATTRIBUTE_UNUSED) {
+  log("SetSpecialSignalHandlerFn is not exported by the main executable.");
+  abort();
+}
+
+extern "C" void RemoveSpecialSignalHandlerFn(int signal ATTRIBUTE_UNUSED,
                                           SpecialSignalHandlerFn fn ATTRIBUTE_UNUSED) {
   log("SetSpecialSignalHandlerFn is not exported by the main executable.");
   abort();
