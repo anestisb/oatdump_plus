@@ -483,7 +483,7 @@ def run_test(command, test, test_variant, test_name):
       if test_passed:
         print_test_info(test_name, 'PASS')
       else:
-        failed_tests.append(test_name)
+        failed_tests.append((test_name, script_output))
         if not env.ART_TEST_KEEP_GOING:
           stop_testrunner = True
         print_test_info(test_name, 'FAIL', ('%s\n%s') % (
@@ -494,13 +494,13 @@ def run_test(command, test, test_variant, test_name):
     else:
       print_test_info(test_name, '')
   except subprocess.TimeoutExpired as e:
-    failed_tests.append(test_name)
-    print_test_info(test_name, 'TIMEOUT', 'timed out in %d\n%s' % (
+    failed_tests.append((test_name, 'Timed out in %d seconds'))
+    print_test_info(test_name, 'TIMEOUT', 'Timed out in %d seconds\n%s' % (
         timeout, command))
   except Exception as e:
-    failed_tests.append(test_name)
-    print_test_info(test_name, 'FAIL')
-    print_text(('%s\n%s\n\n') % (command, str(e)))
+    failed_tests.append((test_name, str(e)))
+    print_test_info(test_name, 'FAIL',
+    ('%s\n%s\n\n') % (command, str(e)))
   finally:
     semaphore.release()
 
@@ -714,16 +714,16 @@ def print_analysis():
 
   # Prints the list of skipped tests, if any.
   if skipped_tests:
-    print_text(COLOR_SKIP + 'SKIPPED TESTS' + COLOR_NORMAL + '\n')
+    print_text(COLOR_SKIP + 'SKIPPED TESTS: ' + COLOR_NORMAL + '\n')
     for test in skipped_tests:
       print_text(test + '\n')
     print_text('\n')
 
   # Prints the list of failed tests, if any.
   if failed_tests:
-    print_text(COLOR_ERROR + 'FAILED TESTS' + COLOR_NORMAL + '\n')
-    for test in failed_tests:
-      print_text(test + '\n')
+    print_text(COLOR_ERROR + 'FAILED: ' + COLOR_NORMAL + '\n')
+    for test_info in failed_tests:
+      print_text(('%s\n%s\n' % (test_info[0], test_info[1])))
 
 
 def parse_test_name(test_name):
