@@ -30,121 +30,53 @@ function follow_links() {
 }
 
 function find_libdir() {
-  # Get the actual file, $1 is the ART_BINARY_PATH and may be a symbolic link.
+  # Get the actual file, $DALVIKVM may be a symbolic link.
   # Use realpath instead of readlink because Android does not have a readlink.
-  if [[ "$(realpath "$1")" == *dalvikvm64 ]]; then
+  if [[ "$(realpath "$ANDROID_ROOT/bin/$DALVIKVM")" == *dalvikvm64 ]]; then
     echo "lib64"
   else
     echo "lib"
   fi
 }
 
-function usage() {
-  cat 1>&2 <<EOF
-Usage: art [OPTIONS] [ART_OPTIONS] CLASS
-
-Supported OPTIONS include:
-  --32                     Use the 32-bit Android Runtime.
-  --64                     Use the 64-bit Android Runtime.
-  --callgrind              Launch the Android Runtime in callgrind.
-  -d                       Use the debug ART library (libartd.so).
-  --debug                  Equivalent to -d.
-  --gdb                    Launch the Android Runtime in gdb.
-  --help                   Display usage message.
-  --invoke-with <program>  Launch the Android Runtime in <program>.
-  --perf                   Launch the Android Runtime with perf recording.
-  --perf-report            Launch the Android Runtime with perf recording with
-                           report upon completion.
-  --verbose                Run script verbosely.
-
-The ART_OPTIONS are passed directly to the Android Runtime.
-
-Example:
-  art --32 -cp my_classes.dex MainClass
-
-Common errors:
-  1) Not having core.art available (see $ANDROID_BUILD_TOP/art/Android.mk).
-     eg m -j32 build-art-host
-  2) Not having boot.art available (see $ANDROID_BUILD_TOP/build/make/core/dex_preopt_libart_boot.mk)
-     eg m -j32 out/target/product/generic_x86_64/dex_bootjars/system/framework/x86_64/boot.art
-EOF
-}
-
-LAUNCH_WRAPPER=
-ART_BINARY=dalvikvm
+invoke_with=
+DALVIKVM=dalvikvm
 LIBART=libart.so
-VERBOSE="no"
 
-while [[ "$1" = "-"* ]]; do
-  case $1 in
-  --32)
-    ART_BINARY=dalvikvm32
-    ;;
-  --64)
-    ART_BINARY=dalvikvm64
-    ;;
-  --callgrind)
-    LAUNCH_WRAPPER="valgrind --tool=callgrind"
-    ;;
-  -d)
-    ;& # Fallthrough
-  --debug)
-    LIBART="libartd.so"
-    ;;
-  --gdb)
-    LIBART="libartd.so"
-    LAUNCH_WRAPPER="gdb --args"
-    ;;
-  --help)
-    usage
-    exit 0
-    ;;
-  --invoke-with)
-    LAUNCH_WRAPPER=$2
+while true; do
+  if [ "$1" = "--invoke-with" ]; then
     shift
-    ;;
-  --perf)
+    invoke_with="$invoke_with $1"
+    shift
+  elif [ "$1" = "-d" ]; then
+    LIBART="libartd.so"
+    shift
+  elif [ "$1" = "--32" ]; then
+    DALVIKVM=dalvikvm32
+    shift
+  elif [ "$1" = "--64" ]; then
+    DALVIKVM=dalvikvm64
+    shift
+  elif [ "$1" = "--perf" ]; then
     PERF="record"
-    ;;
-  --perf-report)
+    shift
+  elif [ "$1" = "--perf-report" ]; then
     PERF="report"
-    ;;
-  --verbose)
-    VERBOSE="yes"
-    ;;
-  --*)
+    shift
+  elif expr "$1" : "--" >/dev/null 2>&1; then
     echo "unknown option: $1" 1>&2
-    usage
     exit 1
-    ;;
-  *)
+  else
     break
-    ;;
-  esac
-  shift
+  fi
 done
-
-if [ $# -eq 0 ]; then
-  usage
-  exit 1
-fi
 
 PROG_NAME="$(follow_links)"
 PROG_DIR="$(cd "${PROG_NAME%/*}" ; pwd -P)"
 ANDROID_ROOT=$PROG_DIR/..
-ART_BINARY_PATH=$ANDROID_ROOT/bin/$ART_BINARY
-
-if [ ! -x "$ART_BINARY_PATH" ]; then
-  cat 1>&2 <<EOF
-Android Runtime not found: $ART_BINARY_PATH
-This script should be in the same directory as the Android Runtime ($ART_BINARY).
-EOF
-  exit 1
-fi
-
-LIBDIR="$(find_libdir $ART_BINARY_PATH)"
+LIBDIR=$(find_libdir)
 LD_LIBRARY_PATH=$ANDROID_ROOT/$LIBDIR
-EXTRA_OPTIONS=""
+DEBUG_OPTION=""
 
 DELETE_ANDROID_DATA=false
 # If ANDROID_DATA is the system ANDROID_DATA or is not set, use our own,
@@ -156,24 +88,23 @@ if [ "$ANDROID_DATA" = "/data" ] || [ "$ANDROID_DATA" = "" ]; then
 fi
 
 if [ z"$PERF" != z ]; then
-  LAUNCH_WRAPPER="perf record -g -o $ANDROID_DATA/perf.data -e cycles:u $LAUNCH_WRAPPER"
-  EXTRA_OPTIONS="-Xcompiler-option --generate-debug-info"
+  invoke_with="perf record -g -o $ANDROID_DATA/perf.data -e cycles:u $invoke_with"
+  DEBUG_OPTION="-Xcompiler-option --generate-debug-info"
 fi
 
 # We use the PIC core image to work with perf.
-CMD="ANDROID_DATA=$ANDROID_DATA                \
-    ANDROID_ROOT=$ANDROID_ROOT                 \
-    LD_LIBRARY_PATH=$LD_LIBRARY_PATH           \
-    PATH=$ANDROID_ROOT/bin:$PATH               \
-    LD_USE_LOAD_BIAS=1                         \
-    $LAUNCH_WRAPPER $ART_BINARY_PATH $lib      \
-      -XXlib:$LIBART                           \
-      -Xnorelocate                             \
-      -Ximage:$ANDROID_ROOT/framework/core.art \
-      $EXTRA_OPTIONS                           \
-      $@"
-[ "$VERBOSE" = yes ] && echo $CMD
-eval $CMD
+ANDROID_DATA=$ANDROID_DATA \
+  ANDROID_ROOT=$ANDROID_ROOT \
+  LD_LIBRARY_PATH=$LD_LIBRARY_PATH \
+  PATH=$ANDROID_ROOT/bin:$PATH \
+  LD_USE_LOAD_BIAS=1 \
+  $invoke_with $ANDROID_ROOT/bin/$DALVIKVM $lib \
+    -XXlib:$LIBART \
+    -Xnorelocate \
+    -Ximage:$ANDROID_ROOT/framework/core.art \
+    $DEBUG_OPTION \
+    "$@"
+
 EXIT_STATUS=$?
 
 if [ z"$PERF" != z ]; then
