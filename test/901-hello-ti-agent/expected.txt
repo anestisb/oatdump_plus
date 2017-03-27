@@ -3,6 +3,7 @@ VMStart
 VMInit
 Hello, world!
 Agent in live phase.
+Received expected error for unattached JVMTI calls
 0
 1
 2
