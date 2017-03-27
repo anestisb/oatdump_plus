@@ -46,14 +46,8 @@ class CompilerOptions FINAL {
   static constexpr double kDefaultTopKProfileThreshold = 90.0;
   static const bool kDefaultGenerateDebugInfo = false;
   static const bool kDefaultGenerateMiniDebugInfo = false;
-  static const size_t kDefaultInlineDepthLimit = 3;
   static const size_t kDefaultInlineMaxCodeUnits = 32;
-  static constexpr size_t kUnsetInlineDepthLimit = -1;
   static constexpr size_t kUnsetInlineMaxCodeUnits = -1;
-
-  // Default inlining settings when the space filter is used.
-  static constexpr size_t kSpaceFilterInlineDepthLimit = 3;
-  static constexpr size_t kSpaceFilterInlineMaxCodeUnits = 10;
 
   CompilerOptions();
   ~CompilerOptions();
@@ -64,7 +58,6 @@ class CompilerOptions FINAL {
                   size_t small_method_threshold,
                   size_t tiny_method_threshold,
                   size_t num_dex_methods_threshold,
-                  size_t inline_depth_limit,
                   size_t inline_max_code_units,
                   const std::vector<const DexFile*>* no_inline_from,
                   double top_k_profile_threshold,
@@ -153,13 +146,6 @@ class CompilerOptions FINAL {
 
   size_t GetNumDexMethodsThreshold() const {
     return num_dex_methods_threshold_;
-  }
-
-  size_t GetInlineDepthLimit() const {
-    return inline_depth_limit_;
-  }
-  void SetInlineDepthLimit(size_t limit) {
-    inline_depth_limit_ = limit;
   }
 
   size_t GetInlineMaxCodeUnits() const {
@@ -275,7 +261,6 @@ class CompilerOptions FINAL {
   void ParseDumpInitFailures(const StringPiece& option, UsageFn Usage);
   void ParseDumpCfgPasses(const StringPiece& option, UsageFn Usage);
   void ParseInlineMaxCodeUnits(const StringPiece& option, UsageFn Usage);
-  void ParseInlineDepthLimit(const StringPiece& option, UsageFn Usage);
   void ParseNumDexMethods(const StringPiece& option, UsageFn Usage);
   void ParseTinyMethodMax(const StringPiece& option, UsageFn Usage);
   void ParseSmallMethodMax(const StringPiece& option, UsageFn Usage);
@@ -289,7 +274,6 @@ class CompilerOptions FINAL {
   size_t small_method_threshold_;
   size_t tiny_method_threshold_;
   size_t num_dex_methods_threshold_;
-  size_t inline_depth_limit_;
   size_t inline_max_code_units_;
 
   // Dex files from which we should not inline code.

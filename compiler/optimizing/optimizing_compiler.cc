@@ -499,7 +499,8 @@ static HOptimization* BuildOptimization(
                                 handles,
                                 stats,
                                 number_of_dex_registers,
-                                /* depth */ 0);
+                                /* total_number_of_instructions */ 0,
+                                /* parent */ nullptr);
   } else if (opt_name == HSharpening::kSharpeningPassName) {
     return new (arena) HSharpening(graph, codegen, dex_compilation_unit, driver, handles);
   } else if (opt_name == HSelectGenerator::kSelectGeneratorPassName) {
@@ -607,8 +608,7 @@ void OptimizingCompiler::MaybeRunInliner(HGraph* graph,
                                          VariableSizedHandleScope* handles) const {
   OptimizingCompilerStats* stats = compilation_stats_.get();
   const CompilerOptions& compiler_options = driver->GetCompilerOptions();
-  bool should_inline = (compiler_options.GetInlineDepthLimit() > 0)
-      && (compiler_options.GetInlineMaxCodeUnits() > 0);
+  bool should_inline = (compiler_options.GetInlineMaxCodeUnits() > 0);
   if (!should_inline) {
     return;
   }
@@ -623,7 +623,8 @@ void OptimizingCompiler::MaybeRunInliner(HGraph* graph,
       handles,
       stats,
       number_of_dex_registers,
-      /* depth */ 0);
+      /* total_number_of_instructions */ 0,
+      /* parent */ nullptr);
   HOptimization* optimizations[] = { inliner };
 
   RunOptimizations(optimizations, arraysize(optimizations), pass_observer);

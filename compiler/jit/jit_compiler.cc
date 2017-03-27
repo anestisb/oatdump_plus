@@ -97,7 +97,6 @@ JitCompiler::JitCompiler() {
       CompilerOptions::kDefaultSmallMethodThreshold,
       CompilerOptions::kDefaultTinyMethodThreshold,
       CompilerOptions::kDefaultNumDexMethodsThreshold,
-      CompilerOptions::kDefaultInlineDepthLimit,
       CompilerOptions::kDefaultInlineMaxCodeUnits,
       /* no_inline_from */ nullptr,
       CompilerOptions::kDefaultTopKProfileThreshold,
@@ -177,10 +176,6 @@ JitCompiler::JitCompiler() {
     jit_logger_.reset(new JitLogger());
     jit_logger_->OpenLog();
   }
-
-  size_t inline_depth_limit = compiler_driver_->GetCompilerOptions().GetInlineDepthLimit();
-  DCHECK_LT(thread_count * inline_depth_limit, std::numeric_limits<uint16_t>::max())
-      << "ProfilingInfo's inline counter can potentially overflow";
 }
 
 JitCompiler::~JitCompiler() {

@@ -312,13 +312,6 @@ NO_RETURN static void Usage(const char* fmt, ...) {
   UsageError("      Example: --num-dex-method=%d", CompilerOptions::kDefaultNumDexMethodsThreshold);
   UsageError("      Default: %d", CompilerOptions::kDefaultNumDexMethodsThreshold);
   UsageError("");
-  UsageError("  --inline-depth-limit=<depth-limit>: the depth limit of inlining for fine tuning");
-  UsageError("      the compiler. A zero value will disable inlining. Honored only by Optimizing.");
-  UsageError("      Has priority over the --compiler-filter option. Intended for ");
-  UsageError("      development/experimental use.");
-  UsageError("      Example: --inline-depth-limit=%d", CompilerOptions::kDefaultInlineDepthLimit);
-  UsageError("      Default: %d", CompilerOptions::kDefaultInlineDepthLimit);
-  UsageError("");
   UsageError("  --inline-max-code-units=<code-units-count>: the maximum code units that a method");
   UsageError("      can have to be considered for inlining. A zero value will disable inlining.");
   UsageError("      Honored only by Optimizing. Has priority over the --compiler-filter option.");
@@ -870,22 +863,8 @@ class Dex2Oat FINAL {
       }
     }
 
-    // It they are not set, use default values for inlining settings.
-    // TODO: We should rethink the compiler filter. We mostly save
-    // time here, which is orthogonal to space.
-    if (compiler_options_->inline_depth_limit_ == CompilerOptions::kUnsetInlineDepthLimit) {
-      compiler_options_->inline_depth_limit_ =
-          (compiler_options_->compiler_filter_ == CompilerFilter::kSpace)
-          // Implementation of the space filter: limit inlining depth.
-          ? CompilerOptions::kSpaceFilterInlineDepthLimit
-          : CompilerOptions::kDefaultInlineDepthLimit;
-    }
     if (compiler_options_->inline_max_code_units_ == CompilerOptions::kUnsetInlineMaxCodeUnits) {
-      compiler_options_->inline_max_code_units_ =
-          (compiler_options_->compiler_filter_ == CompilerFilter::kSpace)
-          // Implementation of the space filter: limit inlining max code units.
-          ? CompilerOptions::kSpaceFilterInlineMaxCodeUnits
-          : CompilerOptions::kDefaultInlineMaxCodeUnits;
+      compiler_options_->inline_max_code_units_ = CompilerOptions::kDefaultInlineMaxCodeUnits;
     }
 
     // Checks are all explicit until we know the architecture.
