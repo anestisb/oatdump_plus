@@ -21,6 +21,9 @@ public class Main {
     if (checkLivePhase()) {
       System.out.println("Agent in live phase.");
     }
+    if (checkUnattached()) {
+      System.out.println("Received expected error for unattached JVMTI calls");
+    }
 
     set(0);  // OTHER
     set(1);  // GC
@@ -41,4 +44,5 @@ public class Main {
 
   private static native boolean checkLivePhase();
   private static native void setVerboseFlag(int flag, boolean value);
+  private static native boolean checkUnattached();
 }
