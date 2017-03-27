@@ -341,6 +341,7 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
         cached_long_constants_(std::less<int64_t>(), arena->Adapter(kArenaAllocConstantsMap)),
         cached_double_constants_(std::less<int64_t>(), arena->Adapter(kArenaAllocConstantsMap)),
         cached_current_method_(nullptr),
+        art_method_(nullptr),
         inexact_object_rti_(ReferenceTypeInfo::CreateInvalid()),
         osr_(osr),
         cha_single_implementation_list_(arena->Adapter(kArenaAllocCHA)) {
