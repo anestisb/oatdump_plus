@@ -363,7 +363,6 @@ void ImageTest::Compile(ImageHeader::StorageMode storage_mode,
   }
   CreateCompilerDriver(Compiler::kOptimizing, kRuntimeISA, kIsTargetBuild ? 2U : 16U);
   // Set inline filter values.
-  compiler_options_->SetInlineDepthLimit(CompilerOptions::kDefaultInlineDepthLimit);
   compiler_options_->SetInlineMaxCodeUnits(CompilerOptions::kDefaultInlineMaxCodeUnits);
   image_classes_.clear();
   if (!extra_dex.empty()) {
