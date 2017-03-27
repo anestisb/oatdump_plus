@@ -332,8 +332,11 @@
     {
         "tests": ["912-classes",
                   "616-cha",
-                  "616-cha-abstract"],
-        "bug": "http://b/36344364 http://b36344221",
+                  "616-cha-abstract",
+                  "616-cha-interface",
+                  "616-cha-miranda",
+                  "616-cha-proxy-method-inline"],
+        "bug": "http://b/36344364 http://b/36344221",
         "variant": "no-dex2oat | relocate-npatchoat"
     },
     {
