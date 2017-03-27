@@ -166,7 +166,7 @@ void ArenaAllocatorMemoryTool::DoMakeInaccessible(void* ptr, size_t size) {
   MEMORY_TOOL_MAKE_NOACCESS(ptr, size);
 }
 
-Arena::Arena() : bytes_allocated_(0), next_(nullptr) {
+Arena::Arena() : bytes_allocated_(0), memory_(nullptr), size_(0), next_(nullptr) {
 }
 
 class MallocArena FINAL : public Arena {

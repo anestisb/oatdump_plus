@@ -65,7 +65,7 @@ template <typename T> struct PACKED(8) DexCachePair {
   DexCachePair(ObjPtr<T> object, uint32_t index)
       : object(object),
         index(index) {}
-  DexCachePair() = default;
+  DexCachePair() : index(0) {}
   DexCachePair(const DexCachePair<T>&) = default;
   DexCachePair& operator=(const DexCachePair<T>&) = default;
 

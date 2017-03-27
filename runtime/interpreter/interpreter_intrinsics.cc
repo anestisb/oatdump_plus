@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
-#include "interpreter/interpreter_common.h"
 #include "interpreter/interpreter_intrinsics.h"
+
+#include "compiler/intrinsics_enum.h"
+#include "dex_instruction.h"
+#include "interpreter/interpreter_common.h"
 
 namespace art {
 namespace interpreter {

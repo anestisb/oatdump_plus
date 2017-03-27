@@ -48,7 +48,8 @@ template <class Value> inline Histogram<Value>::Histogram(const char* name)
     : kAdjust(0),
       kInitialBucketCount(0),
       name_(name),
-      max_buckets_(0) {
+      max_buckets_(0),
+      sample_size_(0) {
 }
 
 template <class Value>

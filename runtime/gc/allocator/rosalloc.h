@@ -141,7 +141,7 @@ class RosAlloc {
   template<bool kUseTail = true>
   class SlotFreeList {
    public:
-    SlotFreeList() : head_(0U), tail_(0), size_(0) {}
+    SlotFreeList() : head_(0U), tail_(0), size_(0), padding_(0) {}
     Slot* Head() const {
       return reinterpret_cast<Slot*>(head_);
     }
