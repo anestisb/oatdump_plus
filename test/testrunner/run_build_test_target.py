@@ -51,6 +51,8 @@ if target.get('target'):
   build_command += ' -j' + str(n_threads)
   build_command += ' -C ' + env.ANDROID_BUILD_TOP
   build_command += ' ' + target.get('target')
+  # Add 'dist' to avoid Jack issues b/36169180.
+  build_command += ' dist'
   print build_command.split()
   if subprocess.call(build_command.split()):
     sys.exit(1)
