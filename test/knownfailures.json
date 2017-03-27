@@ -334,6 +334,7 @@
                   "616-cha",
                   "616-cha-abstract",
                   "616-cha-interface",
+                  "616-cha-interface-default",
                   "616-cha-miranda",
                   "616-cha-proxy-method-inline"],
         "bug": "http://b/36344364 http://b/36344221",
