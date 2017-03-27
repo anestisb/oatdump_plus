@@ -7079,14 +7079,16 @@ void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) 
   uint32_t super_offset = mirror::Class::SuperClassOffset().Int32Value();
   uint32_t component_offset = mirror::Class::ComponentTypeOffset().Int32Value();
   uint32_t primitive_offset = mirror::Class::PrimitiveTypeOffset().Int32Value();
-  vixl32::Label done, zero;
-  vixl32::Label* final_label = codegen_->GetFinalLabel(instruction, &done);
+  vixl32::Label done;
+  vixl32::Label* const final_label = codegen_->GetFinalLabel(instruction, &done);
   SlowPathCodeARMVIXL* slow_path = nullptr;
 
   // Return 0 if `obj` is null.
   // avoid null check if we know obj is not null.
   if (instruction->MustDoNullCheck()) {
-    __ CompareAndBranchIfZero(obj, &zero, /* far_target */ false);
+    DCHECK(!out.Is(obj));
+    __ Mov(out, 0);
+    __ CompareAndBranchIfZero(obj, final_label, /* far_target */ false);
   }
 
   switch (type_check_kind) {
@@ -7098,11 +7100,28 @@ void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) 
                                         class_offset,
                                         maybe_temp_loc,
                                         kCompilerReadBarrierOption);
-      __ Cmp(out, cls);
       // Classes must be equal for the instanceof to succeed.
-      __ B(ne, &zero, /* far_target */ false);
-      __ Mov(out, 1);
-      __ B(final_label);
+      __ Cmp(out, cls);
+      // We speculatively set the result to false without changing the condition
+      // flags, which allows us to avoid some branching later.
+      __ Mov(LeaveFlags, out, 0);
+
+      // Since IT blocks longer than a 16-bit instruction are deprecated by ARMv8,
+      // we check that the output is in a low register, so that a 16-bit MOV
+      // encoding can be used.
+      if (out.IsLow()) {
+        // We use the scope because of the IT block that follows.
+        ExactAssemblyScope guard(GetVIXLAssembler(),
+                                 2 * vixl32::k16BitT32InstructionSizeInBytes,
+                                 CodeBufferCheckScope::kExactSize);
+
+        __ it(eq);
+        __ mov(eq, out, 1);
+      } else {
+        __ B(ne, final_label, /* far_target */ false);
+        __ Mov(out, 1);
+      }
+
       break;
     }
 
@@ -7124,14 +7143,11 @@ void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) 
                                        super_offset,
                                        maybe_temp_loc,
                                        kCompilerReadBarrierOption);
-      // If `out` is null, we use it for the result, and jump to `done`.
+      // If `out` is null, we use it for the result, and jump to the final label.
       __ CompareAndBranchIfZero(out, final_label, /* far_target */ false);
       __ Cmp(out, cls);
       __ B(ne, &loop, /* far_target */ false);
       __ Mov(out, 1);
-      if (zero.IsReferenced()) {
-        __ B(final_label);
-      }
       break;
     }
 
@@ -7154,14 +7170,38 @@ void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) 
                                        super_offset,
                                        maybe_temp_loc,
                                        kCompilerReadBarrierOption);
-      __ CompareAndBranchIfNonZero(out, &loop);
-      // If `out` is null, we use it for the result, and jump to `done`.
-      __ B(final_label);
-      __ Bind(&success);
-      __ Mov(out, 1);
-      if (zero.IsReferenced()) {
+      // This is essentially a null check, but it sets the condition flags to the
+      // proper value for the code that follows the loop, i.e. not `eq`.
+      __ Cmp(out, 1);
+      __ B(hs, &loop, /* far_target */ false);
+
+      // Since IT blocks longer than a 16-bit instruction are deprecated by ARMv8,
+      // we check that the output is in a low register, so that a 16-bit MOV
+      // encoding can be used.
+      if (out.IsLow()) {
+        // If `out` is null, we use it for the result, and the condition flags
+        // have already been set to `ne`, so the IT block that comes afterwards
+        // (and which handles the successful case) turns into a NOP (instead of
+        // overwriting `out`).
+        __ Bind(&success);
+
+        // We use the scope because of the IT block that follows.
+        ExactAssemblyScope guard(GetVIXLAssembler(),
+                                 2 * vixl32::k16BitT32InstructionSizeInBytes,
+                                 CodeBufferCheckScope::kExactSize);
+
+        // There is only one branch to the `success` label (which is bound to this
+        // IT block), and it has the same condition, `eq`, so in that case the MOV
+        // is executed.
+        __ it(eq);
+        __ mov(eq, out, 1);
+      } else {
+        // If `out` is null, we use it for the result, and jump to the final label.
         __ B(final_label);
+        __ Bind(&success);
+        __ Mov(out, 1);
       }
+
       break;
     }
 
@@ -7184,14 +7224,34 @@ void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) 
                                        component_offset,
                                        maybe_temp_loc,
                                        kCompilerReadBarrierOption);
-      // If `out` is null, we use it for the result, and jump to `done`.
+      // If `out` is null, we use it for the result, and jump to the final label.
       __ CompareAndBranchIfZero(out, final_label, /* far_target */ false);
       GetAssembler()->LoadFromOffset(kLoadUnsignedHalfword, out, out, primitive_offset);
       static_assert(Primitive::kPrimNot == 0, "Expected 0 for kPrimNot");
-      __ CompareAndBranchIfNonZero(out, &zero, /* far_target */ false);
-      __ Bind(&exact_check);
-      __ Mov(out, 1);
-      __ B(final_label);
+      __ Cmp(out, 0);
+      // We speculatively set the result to false without changing the condition
+      // flags, which allows us to avoid some branching later.
+      __ Mov(LeaveFlags, out, 0);
+
+      // Since IT blocks longer than a 16-bit instruction are deprecated by ARMv8,
+      // we check that the output is in a low register, so that a 16-bit MOV
+      // encoding can be used.
+      if (out.IsLow()) {
+        __ Bind(&exact_check);
+
+        // We use the scope because of the IT block that follows.
+        ExactAssemblyScope guard(GetVIXLAssembler(),
+                                 2 * vixl32::k16BitT32InstructionSizeInBytes,
+                                 CodeBufferCheckScope::kExactSize);
+
+        __ it(eq);
+        __ mov(eq, out, 1);
+      } else {
+        __ B(ne, final_label, /* far_target */ false);
+        __ Bind(&exact_check);
+        __ Mov(out, 1);
+      }
+
       break;
     }
 
@@ -7211,9 +7271,6 @@ void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) 
       codegen_->AddSlowPath(slow_path);
       __ B(ne, slow_path->GetEntryLabel());
       __ Mov(out, 1);
-      if (zero.IsReferenced()) {
-        __ B(final_label);
-      }
       break;
     }
 
@@ -7242,16 +7299,8 @@ void InstructionCodeGeneratorARMVIXL::VisitInstanceOf(HInstanceOf* instruction) 
                                                                         /* is_fatal */ false);
       codegen_->AddSlowPath(slow_path);
       __ B(slow_path->GetEntryLabel());
-      if (zero.IsReferenced()) {
-        __ B(final_label);
-      }
       break;
     }
-  }
-
-  if (zero.IsReferenced()) {
-    __ Bind(&zero);
-    __ Mov(out, 0);
   }
 
   if (done.IsReferenced()) {
