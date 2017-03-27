@@ -999,8 +999,8 @@ class JvmtiFunctions {
     ENSURE_NON_NULL(capabilities_ptr);
     ArtJvmTiEnv* art_env = static_cast<ArtJvmTiEnv*>(env);
     jvmtiError ret = OK;
-    jvmtiCapabilities changed;
-    jvmtiCapabilities potential_capabilities;
+    jvmtiCapabilities changed = {};
+    jvmtiCapabilities potential_capabilities = {};
     ret = env->GetPotentialCapabilities(&potential_capabilities);
     if (ret != OK) {
       return ret;
@@ -1072,7 +1072,7 @@ class JvmtiFunctions {
     ENSURE_VALID_ENV(env);
     ENSURE_NON_NULL(capabilities_ptr);
     ArtJvmTiEnv* art_env = reinterpret_cast<ArtJvmTiEnv*>(env);
-    jvmtiCapabilities changed;
+    jvmtiCapabilities changed = {};
 #define DEL_CAPABILITY(e) \
     do { \
       if (capabilities_ptr->e == 1) { \
