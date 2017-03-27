@@ -69,6 +69,23 @@ enum MethodCompilationStat {
   kExplicitNullCheckGenerated,
   kSimplifyIf,
   kInstructionSunk,
+  kNotInlinedUnresolvedEntrypoint,
+  kNotInlinedDexCache,
+  kNotInlinedStackMaps,
+  kNotInlinedEnvironmentBudget,
+  kNotInlinedInstructionBudget,
+  kNotInlinedLoopWithoutExit,
+  kNotInlinedIrreducibleLoop,
+  kNotInlinedAlwaysThrows,
+  kNotInlinedInfiniteLoop,
+  kNotInlinedTryCatch,
+  kNotInlinedRegisterAllocator,
+  kNotInlinedCannotBuild,
+  kNotInlinedNotVerified,
+  kNotInlinedCodeItem,
+  kNotInlinedWont,
+  kNotInlinedRecursiveBudget,
+  kNotInlinedProxy,
   kLastStat
 };
 
@@ -168,6 +185,23 @@ class OptimizingCompilerStats {
       case kExplicitNullCheckGenerated: name = "ExplicitNullCheckGenerated"; break;
       case kSimplifyIf: name = "SimplifyIf"; break;
       case kInstructionSunk: name = "InstructionSunk"; break;
+      case kNotInlinedUnresolvedEntrypoint: name = "NotInlinedUnresolvedEntrypoint"; break;
+      case kNotInlinedDexCache: name = "NotInlinedDexCache"; break;
+      case kNotInlinedStackMaps: name = "NotInlinedStackMaps"; break;
+      case kNotInlinedEnvironmentBudget: name = "NotInlinedEnvironmentBudget"; break;
+      case kNotInlinedInstructionBudget: name = "NotInlinedInstructionBudget"; break;
+      case kNotInlinedLoopWithoutExit: name = "NotInlinedLoopWithoutExit"; break;
+      case kNotInlinedIrreducibleLoop: name = "NotInlinedIrreducibleLoop"; break;
+      case kNotInlinedAlwaysThrows: name = "NotInlinedAlwaysThrows"; break;
+      case kNotInlinedInfiniteLoop: name = "NotInlinedInfiniteLoop"; break;
+      case kNotInlinedTryCatch: name = "NotInlinedTryCatch"; break;
+      case kNotInlinedRegisterAllocator: name = "NotInlinedRegisterAllocator"; break;
+      case kNotInlinedCannotBuild: name = "NotInlinedCannotBuild"; break;
+      case kNotInlinedNotVerified: name = "NotInlinedNotVerified"; break;
+      case kNotInlinedCodeItem: name = "NotInlinedCodeItem"; break;
+      case kNotInlinedWont: name = "NotInlinedWont"; break;
+      case kNotInlinedRecursiveBudget: name = "NotInlinedRecursiveBudget"; break;
+      case kNotInlinedProxy: name = "NotInlinedProxy"; break;
 
       case kLastStat:
         LOG(FATAL) << "invalid stat "

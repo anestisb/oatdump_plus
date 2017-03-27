@@ -1366,7 +1366,10 @@ ProfilingInfo* JitCodeCache::NotifyCompilerUse(ArtMethod* method, Thread* self) 
   MutexLock mu(self, lock_);
   ProfilingInfo* info = method->GetProfilingInfo(kRuntimePointerSize);
   if (info != nullptr) {
-    info->IncrementInlineUse();
+    if (!info->IncrementInlineUse()) {
+      // Overflow of inlining uses, just bail.
+      return nullptr;
+    }
   }
   return info;
 }
