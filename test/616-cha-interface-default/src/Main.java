@@ -14,33 +14,26 @@
  * limitations under the License.
  */
 
-abstract class Base {
-  abstract void foo(int i);
-
-  void printError(String msg) {
-    System.out.println(msg);
-  }
-}
-
-class Main1 extends Base {
-  void foo(int i) {
-    if (i != 1) {
-      printError("error1");
-    }
-  }
+class Main1 implements Base {
 }
 
 class Main2 extends Main1 {
-  void foo(int i) {
-    if (i != 2) {
-      printError("error2");
+  public void foobar() {}
+}
+
+class Main3 implements Base {
+  public int foo(int i) {
+    if (i != 3) {
+      printError("error3");
     }
+    return -(i + 10);
   }
 }
 
 public class Main {
   static Base sMain1;
   static Base sMain2;
+  static Base sMain3;
 
   static boolean sIsOptimizing = true;
   static boolean sHasJIT = true;
@@ -53,11 +46,18 @@ public class Main {
     }
   }
 
-  // sMain1.foo() will be always be Main1.foo() before Main2 is loaded/linked.
-  // So sMain1.foo() can be devirtualized to Main1.foo() and be inlined.
-  // After Dummy.createMain2() which links in Main2, live testOverride() on stack
+  static int getValue(Class<?> cls) {
+    if (cls == Main1.class || cls == Main2.class) {
+      return 1;
+    }
+    return 3;
+  }
+
+  // sMain1.foo()/sMain2.foo() will be always be Base.foo() before Main3 is loaded/linked.
+  // So sMain1.foo() can be devirtualized to Base.foo() and be inlined.
+  // After Dummy.createMain3() which links in Main3, live testImplement() on stack
   // should be deoptimized.
-  static void testOverride(boolean createMain2, boolean wait, boolean setHasJIT) {
+  static void testImplement(boolean createMain3, boolean wait, boolean setHasJIT) {
     if (setHasJIT) {
       if (isInterpreted()) {
         sHasJIT = false;
@@ -65,18 +65,26 @@ public class Main {
       return;
     }
 
-    if (createMain2 && (sIsOptimizing || sHasJIT)) {
+    if (createMain3 && (sIsOptimizing || sHasJIT)) {
       assertIsManaged();
     }
 
-    sMain1.foo(sMain1.getClass() == Main1.class ? 1 : 2);
+    if (sMain1.foo(getValue(sMain1.getClass())) != 11) {
+      System.out.println("11 expected.");
+    }
+    if (sMain1.$noinline$bar() != -1) {
+      System.out.println("-1 expected.");
+    }
+    if (sMain2.foo(getValue(sMain2.getClass())) != 11) {
+      System.out.println("11 expected.");
+    }
 
-    if (createMain2) {
+    if (createMain3) {
       // Wait for the other thread to start.
       while (!sOtherThreadStarted);
       // Create an Main2 instance and assign it to sMain2.
       // sMain1 is kept the same.
-      sMain2 = Dummy.createMain2();
+      sMain3 = Dummy.createMain3();
       // Wake up the other thread.
       synchronized(Main.class) {
         Main.class.notify();
@@ -93,23 +101,27 @@ public class Main {
       }
     }
 
-    // There should be a deoptimization here right after Main2 is linked by
-    // calling Dummy.createMain2(), even though sMain1 didn't change.
+    // There should be a deoptimization here right after Main3 is linked by
+    // calling Dummy.createMain3(), even though sMain1 didn't change.
     // The behavior here would be different if inline-cache is used, which
     // doesn't deoptimize since sMain1 still hits the type cache.
-    sMain1.foo(sMain1.getClass() == Main1.class ? 1 : 2);
-    if ((createMain2 || wait) && sHasJIT && !sIsOptimizing) {
-      // This method should be deoptimized right after Main2 is created.
+    if (sMain1.foo(getValue(sMain1.getClass())) != 11) {
+      System.out.println("11 expected.");
+    }
+    if ((createMain3 || wait) && sHasJIT && !sIsOptimizing) {
+      // This method should be deoptimized right after Main3 is created.
       assertIsInterpreted();
     }
 
-    if (sMain2 != null) {
-      sMain2.foo(sMain2.getClass() == Main1.class ? 1 : 2);
+    if (sMain3 != null) {
+      if (sMain3.foo(getValue(sMain3.getClass())) != -13) {
+        System.out.println("-13 expected.");
+      }
     }
   }
 
   // Test scenarios under which CHA-based devirtualization happens,
-  // and class loading that overrides a method can invalidate compiled code.
+  // and class loading that implements a method can invalidate compiled code.
   public static void main(String[] args) {
     System.loadLibrary(args[0]);
 
@@ -117,31 +129,36 @@ public class Main {
       sIsOptimizing = false;
     }
 
-    // sMain1 is an instance of Main1. Main2 hasn't bee loaded yet.
+    // sMain1 is an instance of Main1.
+    // sMain2 is an instance of Main2.
+    // Neither Main1 nor Main2 override default method Base.foo().
+    // Main3 hasn't bee loaded yet.
     sMain1 = new Main1();
+    sMain2 = new Main2();
 
-    ensureJitCompiled(Main.class, "testOverride");
-    testOverride(false, false, true);
+    ensureJitCompiled(Main.class, "testImplement");
+    testImplement(false, false, true);
 
     if (sHasJIT && !sIsOptimizing) {
       assertSingleImplementation(Base.class, "foo", true);
       assertSingleImplementation(Main1.class, "foo", true);
     } else {
-      // Main2 is verified ahead-of-time so it's linked in already.
+      // Main3 is verified ahead-of-time so it's linked in already.
     }
 
     // Create another thread that also calls sMain1.foo().
     // Try to test suspend and deopt another thread.
     new Thread() {
       public void run() {
-        testOverride(false, true, false);
+        testImplement(false, true, false);
       }
     }.start();
 
-    // This will create Main2 instance in the middle of testOverride().
-    testOverride(true, false, false);
+    // This will create Main3 instance in the middle of testImplement().
+    testImplement(true, false, false);
     assertSingleImplementation(Base.class, "foo", false);
-    assertSingleImplementation(Main1.class, "foo", false);
+    assertSingleImplementation(Main1.class, "foo", true);
+    assertSingleImplementation(sMain3.getClass(), "foo", true);
   }
 
   private static native void ensureJitCompiled(Class<?> itf, String method_name);
@@ -151,9 +168,9 @@ public class Main {
   private static native boolean hasSingleImplementation(Class<?> clazz, String method_name);
 }
 
-// Put createMain2() in another class to avoid class loading due to verifier.
+// Put createMain3() in another class to avoid class loading due to verifier.
 class Dummy {
-  static Main1 createMain2() {
-    return new Main2();
+  static Base createMain3() {
+    return new Main3();
   }
 }
