@@ -53,6 +53,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 
@@ -433,8 +434,10 @@ def run_tests(tests):
           options_test += ' --instruction-set-features ' + \
                           env.HOST_2ND_ARCH_PREFIX_DEX2OAT_HOST_INSTRUCTION_SET_FEATURES
 
-      options_test = (' --output-path %s/run-test-output/%s') % (
-        env.ART_HOST_TEST_DIR, test_name) + options_test
+      # TODO(http://36039166): This is a temporary solution to
+      # fix build breakages.
+      options_test = (' --output-path %s') % (
+          tempfile.mkdtemp(dir=env.ART_HOST_TEST_DIR)) + options_test
 
       run_test_sh = env.ANDROID_BUILD_TOP + '/art/test/run-test'
       command = run_test_sh + ' ' + options_test + ' ' + test
