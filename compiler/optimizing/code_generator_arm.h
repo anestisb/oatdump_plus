@@ -299,7 +299,6 @@ class InstructionCodeGeneratorARM : public InstructionCodeGenerator {
   void GenerateCompareTestAndBranch(HCondition* condition,
                                     Label* true_target,
                                     Label* false_target);
-  void GenerateFPJumps(HCondition* cond, Label* true_label, Label* false_label);
   void GenerateLongComparesAndJumps(HCondition* cond, Label* true_label, Label* false_label);
   void DivRemOneOrMinusOne(HBinaryOperation* instruction);
   void DivRemByPowerOfTwo(HBinaryOperation* instruction);

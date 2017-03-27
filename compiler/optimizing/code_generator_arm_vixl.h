@@ -401,9 +401,6 @@ class InstructionCodeGeneratorARMVIXL : public InstructionCodeGenerator {
   void GenerateCompareTestAndBranch(HCondition* condition,
                                     vixl::aarch32::Label* true_target,
                                     vixl::aarch32::Label* false_target);
-  void GenerateFPJumps(HCondition* cond,
-                       vixl::aarch32::Label* true_label,
-                       vixl::aarch32::Label* false_label);
   void GenerateLongComparesAndJumps(HCondition* cond,
                                     vixl::aarch32::Label* true_label,
                                     vixl::aarch32::Label* false_label);
