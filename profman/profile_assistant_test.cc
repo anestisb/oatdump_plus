@@ -99,6 +99,18 @@ class ProfileAssistantTest : public CommonRuntimeTest {
     return ExecAndReturnCode(argv_str, &error);
   }
 
+  bool GenerateTestProfileWithInputDex(const std::string& filename) {
+    std::string profman_cmd = GetProfmanCmd();
+    std::vector<std::string> argv_str;
+    argv_str.push_back(profman_cmd);
+    argv_str.push_back("--generate-test-profile=" + filename);
+    argv_str.push_back("--generate-test-profile-seed=0");
+    argv_str.push_back("--apk=" + GetLibCoreDexFileNames()[0]);
+    argv_str.push_back("--dex-location=" + GetLibCoreDexFileNames()[0]);
+    std::string error;
+    return ExecAndReturnCode(argv_str, &error);
+  }
+
   bool CreateProfile(std::string profile_file_contents,
                      const std::string& filename,
                      const std::string& dex_location) {
@@ -418,6 +430,17 @@ TEST_F(ProfileAssistantTest, TestProfileGeneration) {
   ScratchFile profile;
   // Generate a test profile.
   GenerateTestProfile(profile.GetFilename());
+
+  // Verify that the generated profile is valid and can be loaded.
+  ASSERT_TRUE(profile.GetFile()->ResetOffset());
+  ProfileCompilationInfo info;
+  ASSERT_TRUE(info.Load(GetFd(profile)));
+}
+
+TEST_F(ProfileAssistantTest, TestProfileGenerationWithIndexDex) {
+  ScratchFile profile;
+  // Generate a test profile passing in a dex file as reference.
+  GenerateTestProfileWithInputDex(profile.GetFilename());
 
   // Verify that the generated profile is valid and can be loaded.
   ASSERT_TRUE(profile.GetFile()->ResetOffset());
