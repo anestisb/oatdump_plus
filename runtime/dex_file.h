@@ -1088,6 +1088,9 @@ class DexFile {
   static int64_t ReadSignedLong(const uint8_t* ptr, int zwidth);
   static uint64_t ReadUnsignedLong(const uint8_t* ptr, int zwidth, bool fill_on_right);
 
+  // Recalculates the checksum of the dex file. Does not use the current value in the header.
+  uint32_t CalculateChecksum() const;
+
   // Returns a human-readable form of the method at an index.
   std::string PrettyMethod(uint32_t method_idx, bool with_signature = true) const;
   // Returns a human-readable form of the field at an index.
@@ -1319,6 +1322,9 @@ class ClassDataItemIterator {
   }
   uint32_t NumVirtualMethods() const {
     return header_.virtual_methods_size_;
+  }
+  bool IsAtMethod() const {
+    return pos_ >= EndOfInstanceFieldsPos();
   }
   bool HasNextStaticField() const {
     return pos_ < EndOfStaticFieldsPos();
