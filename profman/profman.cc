@@ -418,7 +418,7 @@ class ProfMan FINAL {
     return true;
   }
 
-  bool GetClassNames(std::string profile_file,
+  bool GetClassNames(const std::string& profile_file,
                      std::vector<std::unique_ptr<const DexFile>>* dex_files,
                      std::set<std::string>* class_names) {
     int fd = open(profile_file.c_str(), O_RDONLY);
@@ -711,7 +711,7 @@ class ProfMan FINAL {
     }
     std::vector<ProfileMethodInfo::ProfileClassReference> classes(inline_cache_elems.size());
     size_t class_it = 0;
-    for (const std::string ic_class : inline_cache_elems) {
+    for (const std::string& ic_class : inline_cache_elems) {
       if (!FindClass(dex_files, ic_class, &(classes[class_it++]))) {
         LOG(ERROR) << "Could not find class: " << ic_class;
         return false;

@@ -3505,13 +3505,12 @@ ObjPtr<mirror::DexCache> ClassLinker::FindDexCache(Thread* self, const DexFile& 
     return dex_cache;
   }
   // Failure, dump diagnostic and abort.
-  std::string location(dex_file.GetLocation());
   for (const DexCacheData& data : dex_caches_) {
     if (DecodeDexCache(self, data) != nullptr) {
-      LOG(ERROR) << "Registered dex file " << data.dex_file->GetLocation();
+      LOG(FATAL_WITHOUT_ABORT) << "Registered dex file " << data.dex_file->GetLocation();
     }
   }
-  LOG(FATAL) << "Failed to find DexCache for DexFile " << location;
+  LOG(FATAL) << "Failed to find DexCache for DexFile " << dex_file.GetLocation();
   UNREACHABLE();
 }
 
