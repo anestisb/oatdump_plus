@@ -40,6 +40,14 @@ void PrepareForRegisterAllocation::VisitDivZeroCheck(HDivZeroCheck* check) {
   check->ReplaceWith(check->InputAt(0));
 }
 
+void PrepareForRegisterAllocation::VisitDeoptimize(HDeoptimize* deoptimize) {
+  if (deoptimize->GuardsAnInput()) {
+    // Replace the uses with the actual guarded instruction.
+    deoptimize->ReplaceWith(deoptimize->GuardedInput());
+    deoptimize->RemoveGuard();
+  }
+}
+
 void PrepareForRegisterAllocation::VisitBoundsCheck(HBoundsCheck* check) {
   check->ReplaceWith(check->InputAt(0));
   if (check->IsStringCharAt()) {

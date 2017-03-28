@@ -310,8 +310,8 @@ static void BoundTypeForClassCheck(HInstruction* check) {
     BoundTypeIn(receiver, trueBlock, /* start_instruction */ nullptr, class_rti);
   } else {
     DCHECK(check->IsDeoptimize());
-    if (compare->IsEqual()) {
-      BoundTypeIn(receiver, check->GetBlock(), check, class_rti);
+    if (compare->IsEqual() && check->AsDeoptimize()->GuardsAnInput()) {
+      check->SetReferenceTypeInfo(class_rti);
     }
   }
 }
