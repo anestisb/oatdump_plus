@@ -28,7 +28,18 @@ namespace art {
  */
 class LICMTest : public CommonCompilerTest {
  public:
-  LICMTest() : pool_(), allocator_(&pool_) {
+  LICMTest()
+      : pool_(),
+        allocator_(&pool_),
+        entry_(nullptr),
+        loop_preheader_(nullptr),
+        loop_header_(nullptr),
+        loop_body_(nullptr),
+        return_(nullptr),
+        exit_(nullptr),
+        parameter_(nullptr),
+        int_constant_(nullptr),
+        float_constant_(nullptr) {
     graph_ = CreateGraph(&allocator_);
   }
 

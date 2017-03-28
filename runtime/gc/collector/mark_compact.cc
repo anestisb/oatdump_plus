@@ -52,8 +52,12 @@ void MarkCompact::BindBitmaps() {
 
 MarkCompact::MarkCompact(Heap* heap, const std::string& name_prefix)
     : GarbageCollector(heap, name_prefix + (name_prefix.empty() ? "" : " ") + "mark compact"),
+      mark_stack_(nullptr),
       space_(nullptr),
+      mark_bitmap_(nullptr),
       collector_name_(name_),
+      bump_pointer_(nullptr),
+      live_objects_in_space_(0),
       updating_references_(false) {}
 
 void MarkCompact::RunPhases() {

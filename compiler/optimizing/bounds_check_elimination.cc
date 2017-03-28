@@ -528,7 +528,8 @@ class BCEVisitor : public HGraphVisitor {
         has_dom_based_dynamic_bce_(false),
         initial_block_size_(graph->GetBlocks().size()),
         side_effects_(side_effects),
-        induction_range_(induction_analysis) {}
+        induction_range_(induction_analysis),
+        next_(nullptr) {}
 
   void VisitBasicBlock(HBasicBlock* block) OVERRIDE {
     DCHECK(!IsAddedBlock(block));

@@ -18,21 +18,21 @@
 #include "verifier/verifier_deps.h"
 
 #include "class_linker.h"
-#include "compiler/common_compiler_test.h"
-#include "compiler/dex/verification_results.h"
-#include "compiler/dex/verified_method.h"
-#include "compiler/driver/compiler_options.h"
-#include "compiler/driver/compiler_driver.h"
-#include "compiler/utils/atomic_method_ref_map-inl.h"
+#include "common_compiler_test.h"
 #include "compiler_callbacks.h"
+#include "dex/verification_results.h"
+#include "dex/verified_method.h"
 #include "dex_file.h"
 #include "dex_file_types.h"
+#include "driver/compiler_options.h"
+#include "driver/compiler_driver.h"
 #include "handle_scope-inl.h"
 #include "verifier/method_verifier-inl.h"
 #include "mirror/class_loader.h"
 #include "runtime.h"
 #include "thread.h"
 #include "scoped_thread_state_change-inl.h"
+#include "utils/atomic_method_ref_map-inl.h"
 
 namespace art {
 namespace verifier {

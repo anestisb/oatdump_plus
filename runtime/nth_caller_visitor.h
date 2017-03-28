@@ -31,7 +31,8 @@ struct NthCallerVisitor : public StackVisitor {
         n(n_in),
         include_runtime_and_upcalls_(include_runtime_and_upcalls),
         count(0),
-        caller(nullptr) {}
+        caller(nullptr),
+        caller_pc(0) {}
 
   bool VisitFrame() REQUIRES_SHARED(Locks::mutator_lock_) {
     ArtMethod* m = GetMethod();

@@ -354,7 +354,7 @@ class MonitorList {
 // For use only by the JDWP implementation.
 class MonitorInfo {
  public:
-  MonitorInfo() = default;
+  MonitorInfo() : owner_(nullptr), entry_count_(0) {}
   MonitorInfo(const MonitorInfo&) = default;
   MonitorInfo& operator=(const MonitorInfo&) = default;
   explicit MonitorInfo(mirror::Object* o) REQUIRES(Locks::mutator_lock_);

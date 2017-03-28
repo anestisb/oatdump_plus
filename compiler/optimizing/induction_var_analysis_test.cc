@@ -29,7 +29,21 @@ namespace art {
  */
 class InductionVarAnalysisTest : public CommonCompilerTest {
  public:
-  InductionVarAnalysisTest() : pool_(), allocator_(&pool_) {
+  InductionVarAnalysisTest()
+      : pool_(),
+        allocator_(&pool_),
+        iva_(nullptr),
+        entry_(nullptr),
+        return_(nullptr),
+        exit_(nullptr),
+        parameter_(nullptr),
+        constant0_(nullptr),
+        constant1_(nullptr),
+        constant2_(nullptr),
+        constant7_(nullptr),
+        constant100_(nullptr),
+        constantm1_(nullptr),
+        float_constant0_(nullptr) {
     graph_ = CreateGraph(&allocator_);
   }
 
