@@ -105,7 +105,7 @@ static std::unique_ptr<Addr2linePipe> Connect(const std::string& name, const cha
   if (pid == -1) {
     close(caller_to_addr2line[0]);
     close(caller_to_addr2line[1]);
-    close(addr2line_to_caller[1]);
+    close(addr2line_to_caller[0]);
     close(addr2line_to_caller[1]);
     return nullptr;
   }
