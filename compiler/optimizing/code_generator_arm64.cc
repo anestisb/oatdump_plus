@@ -3281,7 +3281,7 @@ void InstructionCodeGeneratorARM64::GenerateDivRemWithAnyConstant(HBinaryOperati
 void InstructionCodeGeneratorARM64::GenerateDivRemIntegral(HBinaryOperation* instruction) {
   DCHECK(instruction->IsDiv() || instruction->IsRem());
   Primitive::Type type = instruction->GetResultType();
-  DCHECK(type == Primitive::kPrimInt || Primitive::kPrimLong);
+  DCHECK(type == Primitive::kPrimInt || type == Primitive::kPrimLong);
 
   LocationSummary* locations = instruction->GetLocations();
   Register out = OutputRegister(instruction);
