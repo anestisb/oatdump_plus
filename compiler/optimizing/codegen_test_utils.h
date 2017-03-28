@@ -74,7 +74,6 @@ class CodegenTargetConfig {
   }
 
  private:
-  CodegenTargetConfig() {}
   InstructionSet isa_;
   CreateCodegenFn create_codegen_;
 };

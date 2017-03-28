@@ -430,8 +430,15 @@ class ShadowFrame {
  private:
   ShadowFrame(uint32_t num_vregs, ShadowFrame* link, ArtMethod* method,
               uint32_t dex_pc, bool has_reference_array)
-      : link_(link), method_(method), result_register_(nullptr), dex_pc_ptr_(nullptr),
-        code_item_(nullptr), number_of_vregs_(num_vregs), dex_pc_(dex_pc) {
+      : link_(link),
+        method_(method),
+        result_register_(nullptr),
+        dex_pc_ptr_(nullptr),
+        code_item_(nullptr),
+        number_of_vregs_(num_vregs),
+        dex_pc_(dex_pc),
+        cached_hotness_countdown_(0),
+        hotness_countdown_(0) {
     // TODO(iam): Remove this parameter, it's an an artifact of portable removal
     DCHECK(has_reference_array);
     if (has_reference_array) {

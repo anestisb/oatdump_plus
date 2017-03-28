@@ -36,7 +36,8 @@ namespace Test930AgentThread {
 struct AgentData {
   AgentData() : main_thread(nullptr),
                 jvmti_env(nullptr),
-                b(2) {
+                b(2),
+                priority(0) {
   }
 
   jthread main_thread;

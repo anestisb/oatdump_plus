@@ -279,6 +279,10 @@ class JitOptions {
         code_cache_initial_capacity_(0),
         code_cache_max_capacity_(0),
         compile_threshold_(0),
+        warmup_threshold_(0),
+        osr_threshold_(0),
+        priority_thread_weight_(0),
+        invoke_transition_weight_(0),
         dump_info_on_shutdown_(false) {}
 
   DISALLOW_COPY_AND_ASSIGN(JitOptions);
