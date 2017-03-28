@@ -532,16 +532,13 @@ static optimizer::DexToDexCompilationLevel GetDexToDexCompilationLevel(
   if (driver.GetCompilerOptions().GetDebuggable()) {
     // We are debuggable so definitions of classes might be changed. We don't want to do any
     // optimizations that could break that.
-    max_level = optimizer::DexToDexCompilationLevel::kRequired;
+    max_level = optimizer::DexToDexCompilationLevel::kDontDexToDexCompile;
   }
   if (klass->IsVerified()) {
     // Class is verified so we can enable DEX-to-DEX compilation for performance.
     return max_level;
-  } else if (klass->ShouldVerifyAtRuntime()) {
-    // Class verification has soft-failed. Anyway, ensure at least correctness.
-    return optimizer::DexToDexCompilationLevel::kRequired;
   } else {
-    // Class verification has failed: do not run DEX-to-DEX compilation.
+    // Class verification has failed: do not run DEX-to-DEX optimizations.
     return optimizer::DexToDexCompilationLevel::kDontDexToDexCompile;
   }
 }
@@ -611,7 +608,7 @@ static void CompileMethod(Thread* self,
           dex_file,
           (verified_method != nullptr)
               ? dex_to_dex_compilation_level
-              : optimizer::DexToDexCompilationLevel::kRequired);
+              : optimizer::DexToDexCompilationLevel::kDontDexToDexCompile);
     }
   } else if ((access_flags & kAccNative) != 0) {
     // Are we extracting only and have support for generic JNI down calls?
