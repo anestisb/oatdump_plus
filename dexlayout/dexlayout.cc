@@ -1700,7 +1700,7 @@ void DexLayout::OutputDexFile(const DexFile* dex_file) {
   std::unique_ptr<File> new_file;
   if (!options_.output_to_memmap_) {
     std::string output_location(options_.output_dex_directory_);
-    size_t last_slash = dex_file_location.rfind("/");
+    size_t last_slash = dex_file_location.rfind('/');
     std::string dex_file_directory = dex_file_location.substr(0, last_slash + 1);
     if (output_location == dex_file_directory) {
       output_location = dex_file_location + ".new";
