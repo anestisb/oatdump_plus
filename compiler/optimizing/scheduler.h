@@ -315,7 +315,10 @@ class SchedulingLatencyVisitor : public HGraphDelegateVisitor {
   // This class and its sub-classes will never be used to drive a visit of an
   // `HGraph` but only to visit `HInstructions` one at a time, so we do not need
   // to pass a valid graph to `HGraphDelegateVisitor()`.
-  SchedulingLatencyVisitor() : HGraphDelegateVisitor(nullptr) {}
+  SchedulingLatencyVisitor()
+      : HGraphDelegateVisitor(nullptr),
+        last_visited_latency_(0),
+        last_visited_internal_latency_(0) {}
 
   void VisitInstruction(HInstruction* instruction) OVERRIDE {
     LOG(FATAL) << "Error visiting " << instruction->DebugName() << ". "
@@ -413,6 +416,7 @@ class HScheduler {
         selector_(selector),
         only_optimize_loop_blocks_(true),
         scheduling_graph_(this, arena),
+        cursor_(nullptr),
         candidates_(arena_->Adapter(kArenaAllocScheduler)) {}
   virtual ~HScheduler() {}
 

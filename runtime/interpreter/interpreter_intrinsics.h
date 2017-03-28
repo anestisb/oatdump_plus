@@ -17,10 +17,14 @@
 #ifndef ART_RUNTIME_INTERPRETER_INTERPRETER_INTRINSICS_H_
 #define ART_RUNTIME_INTERPRETER_INTERPRETER_INTRINSICS_H_
 
-#include "compiler/intrinsics_enum.h"
-#include "dex_instruction.h"
+#include "jvalue.h"
 
 namespace art {
+
+class ArtMethod;
+class Instruction;
+class ShadowFrame;
+
 namespace interpreter {
 
 // Invokes to methods identified as intrinics are routed here.  If there is

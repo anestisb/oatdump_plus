@@ -29,7 +29,7 @@ namespace art {
  */
 class ReferenceTypePropagationTest : public CommonCompilerTest {
  public:
-  ReferenceTypePropagationTest() : pool_(), allocator_(&pool_) {
+  ReferenceTypePropagationTest() : pool_(), allocator_(&pool_), propagation_(nullptr) {
     graph_ = CreateGraph(&allocator_);
   }
 

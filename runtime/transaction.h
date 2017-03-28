@@ -162,7 +162,7 @@ class Transaction FINAL {
       FieldValueKind kind;
       bool is_volatile;
 
-      FieldValue() = default;
+      FieldValue() : value(0), kind(FieldValueKind::kBoolean), is_volatile(false) {}
       FieldValue(FieldValue&& log) = default;
 
      private:

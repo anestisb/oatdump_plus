@@ -688,7 +688,13 @@ struct FieldEncoding {
 
 class StackMapEncoding {
  public:
-  StackMapEncoding() {}
+  StackMapEncoding()
+      : dex_pc_bit_offset_(0),
+        dex_register_map_bit_offset_(0),
+        inline_info_bit_offset_(0),
+        register_mask_index_bit_offset_(0),
+        stack_mask_index_bit_offset_(0),
+        total_bit_size_(0) {}
 
   // Set stack map bit layout based on given sizes.
   // Returns the size of stack map in bits.
