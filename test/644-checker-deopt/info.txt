@@ -1,0 +1,2 @@
+Regression test for making sure HDeoptimize is executed before
+the code it should have prevented executing.
