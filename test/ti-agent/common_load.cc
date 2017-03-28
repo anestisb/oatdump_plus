@@ -27,6 +27,7 @@
 #include "901-hello-ti-agent/basics.h"
 #include "909-attach-agent/attach.h"
 #include "936-search-onload/search_onload.h"
+#include "983-source-transform-verify/source_transform.h"
 
 namespace art {
 
@@ -123,6 +124,7 @@ static AgentLib agents[] = {
   { "945-obsolete-native", common_redefine::OnLoad, nullptr },
   { "981-dedup-original-dex", common_retransform::OnLoad, nullptr },
   { "982-ok-no-retransform", common_retransform::OnLoad, nullptr },
+  { "983-source-transform-verify", Test983SourceTransformVerify::OnLoad, nullptr },
 };
 
 static AgentLib* FindAgent(char* name) {

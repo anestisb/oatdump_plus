@@ -276,6 +276,7 @@ art_cc_defaults {
         "944-transform-classloaders/classloader.cc",
         "945-obsolete-native/obsolete_native.cc",
         "980-redefine-object/redefine_object.cc",
+        "983-source-transform-verify/source_transform.cc",
     ],
     shared_libs: [
         "libbase",
