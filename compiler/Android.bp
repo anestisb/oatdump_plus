@@ -391,6 +391,7 @@ art_cc_test {
         mips64: {
             srcs: [
                 "linker/mips64/relative_patcher_mips64_test.cc",
+                "utils/mips64/managed_register_mips64_test.cc",
             ],
         },
         x86: {
