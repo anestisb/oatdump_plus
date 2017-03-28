@@ -347,7 +347,7 @@ jvmtiError Redefiner::RedefineClasses(ArtJvmTiEnv* env,
     def.dex_len = definitions[i].class_byte_count;
     def.dex_data = MakeJvmtiUniquePtr(env, class_bytes_copy);
     // We are definitely modified.
-    def.SetModified();
+    def.SetRedefined();
     def.original_dex_file = art::ArraySlice<const unsigned char>(definitions[i].class_bytes,
                                                                  definitions[i].class_byte_count);
     res = Transformer::FillInTransformationData(env, definitions[i].klass, &def);
@@ -386,7 +386,7 @@ jvmtiError Redefiner::RedefineClassesDirect(ArtJvmTiEnv* env,
   Redefiner r(runtime, self, error_msg);
   for (const ArtClassDefinition& def : definitions) {
     // Only try to transform classes that have been modified.
-    if (def.IsModified(self)) {
+    if (def.IsModified()) {
       jvmtiError res = r.AddRedefinition(env, def);
       if (res != OK) {
         return res;
@@ -443,7 +443,7 @@ jvmtiError Redefiner::AddRedefinition(ArtJvmTiEnv* env, const ArtClassDefinition
                                    def.klass,
                                    dex_file.release(),
                                    signature_ptr,
-                                   def.original_dex_file));
+                                   def.GetNewOriginalDexFile()));
   return OK;
 }
 
