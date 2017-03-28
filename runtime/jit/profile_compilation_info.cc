@@ -498,13 +498,13 @@ bool ProfileCompilationInfo::AddClassIndex(const std::string& dex_location,
   return true;
 }
 
-#define READ_UINT(type, buffer, dest, error)          \
-  do {                                                \
-    if (!buffer.ReadUintAndAdvance<type>(&dest)) {    \
-      *error = "Could not read "#dest;                \
-      return false;                                   \
-    }                                                 \
-  }                                                   \
+#define READ_UINT(type, buffer, dest, error)            \
+  do {                                                  \
+    if (!(buffer).ReadUintAndAdvance<type>(&(dest))) {  \
+      *(error) = "Could not read "#dest;                \
+      return false;                                     \
+    }                                                   \
+  }                                                     \
   while (false)
 
 bool ProfileCompilationInfo::ReadInlineCache(SafeBuffer& buffer,
@@ -1027,7 +1027,7 @@ std::string ProfileCompilationInfo::DumpInfo(const std::vector<const DexFile*>* 
       }
     }
     os << "\n\tmethods: ";
-    for (const auto method_it : dex_data.method_map) {
+    for (const auto& method_it : dex_data.method_map) {
       if (dex_file != nullptr) {
         os << "\n\t\t" << dex_file->PrettyMethod(method_it.first, true);
       } else {

@@ -44,7 +44,7 @@ static const char* kBoxedDescriptors[] = {
   "Ljava/lang/Void;",
 };
 
-#define COUNT_OF(x) (sizeof(x) / sizeof(x[0]))
+#define COUNT_OF(x) (sizeof(x) / sizeof((x)[0]))
 
 const char* Primitive::PrettyDescriptor(Primitive::Type type) {
   static_assert(COUNT_OF(kTypeNames) == static_cast<size_t>(Primitive::kPrimLast) + 1,
