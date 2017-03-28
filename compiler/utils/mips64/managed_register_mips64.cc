@@ -26,6 +26,11 @@ bool Mips64ManagedRegister::Overlaps(const Mips64ManagedRegister& other) const {
   CHECK(IsValidManagedRegister());
   CHECK(other.IsValidManagedRegister());
   if (Equals(other)) return true;
+  if (IsFpuRegister() && other.IsVectorRegister()) {
+    return (AsFpuRegister() == other.AsOverlappingFpuRegister());
+  } else if (IsVectorRegister() && other.IsFpuRegister()) {
+    return (AsVectorRegister() == other.AsOverlappingVectorRegister());
+  }
   return false;
 }
 
@@ -36,6 +41,8 @@ void Mips64ManagedRegister::Print(std::ostream& os) const {
     os << "GPU: " << static_cast<int>(AsGpuRegister());
   } else if (IsFpuRegister()) {
      os << "FpuRegister: " << static_cast<int>(AsFpuRegister());
+  } else if (IsVectorRegister()) {
+     os << "VectorRegister: " << static_cast<int>(AsVectorRegister());
   } else {
     os << "??: " << RegId();
   }
