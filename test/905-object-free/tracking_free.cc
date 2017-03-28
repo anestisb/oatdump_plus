@@ -31,25 +31,42 @@
 namespace art {
 namespace Test905ObjectFree {
 
-static std::vector<jlong> collected_tags;
+static std::vector<jlong> collected_tags1;
+static std::vector<jlong> collected_tags2;
 
-static void JNICALL ObjectFree(jvmtiEnv* ti_env ATTRIBUTE_UNUSED, jlong tag) {
-  collected_tags.push_back(tag);
+jvmtiEnv* jvmti_env2;
+
+static void JNICALL ObjectFree1(jvmtiEnv* ti_env, jlong tag) {
+  CHECK_EQ(ti_env, jvmti_env);
+  collected_tags1.push_back(tag);
+}
+
+static void JNICALL ObjectFree2(jvmtiEnv* ti_env, jlong tag) {
+  CHECK_EQ(ti_env, jvmti_env2);
+  collected_tags2.push_back(tag);
+}
+
+static void setupObjectFreeCallback(jvmtiEnv* env, jvmtiEventObjectFree callback) {
+  jvmtiEventCallbacks callbacks;
+  memset(&callbacks, 0, sizeof(jvmtiEventCallbacks));
+  callbacks.ObjectFree = callback;
+  jvmtiError ret = env->SetEventCallbacks(&callbacks, sizeof(callbacks));
+  if (ret != JVMTI_ERROR_NONE) {
+    char* err;
+    env->GetErrorName(ret, &err);
+    printf("Error setting callbacks: %s\n", err);
+    env->Deallocate(reinterpret_cast<unsigned char*>(err));
+  }
 }
 
 extern "C" JNIEXPORT void JNICALL Java_Main_setupObjectFreeCallback(
-    JNIEnv* env ATTRIBUTE_UNUSED, jclass klass ATTRIBUTE_UNUSED) {
-  jvmtiEventCallbacks callbacks;
-  memset(&callbacks, 0, sizeof(jvmtiEventCallbacks));
-  callbacks.ObjectFree = ObjectFree;
-
-  jvmtiError ret = jvmti_env->SetEventCallbacks(&callbacks, sizeof(callbacks));
-  if (ret != JVMTI_ERROR_NONE) {
-    char* err;
-    jvmti_env->GetErrorName(ret, &err);
-    printf("Error setting callbacks: %s\n", err);
-    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
-  }
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
+  setupObjectFreeCallback(jvmti_env, ObjectFree1);
+  JavaVM* jvm = nullptr;
+  env->GetJavaVM(&jvm);
+  CHECK_EQ(jvm->GetEnv(reinterpret_cast<void**>(&jvmti_env2), JVMTI_VERSION_1_2), 0);
+  SetAllCapabilities(jvmti_env2);
+  setupObjectFreeCallback(jvmti_env2, ObjectFree2);
 }
 
 extern "C" JNIEXPORT void JNICALL Java_Main_enableFreeTracking(JNIEnv* env ATTRIBUTE_UNUSED,
@@ -65,17 +82,29 @@ extern "C" JNIEXPORT void JNICALL Java_Main_enableFreeTracking(JNIEnv* env ATTRI
     printf("Error enabling/disabling object-free callbacks: %s\n", err);
     jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
   }
+  ret = jvmti_env2->SetEventNotificationMode(
+      enable ? JVMTI_ENABLE : JVMTI_DISABLE,
+      JVMTI_EVENT_OBJECT_FREE,
+      nullptr);
+  if (ret != JVMTI_ERROR_NONE) {
+    char* err;
+    jvmti_env2->GetErrorName(ret, &err);
+    printf("Error enabling/disabling object-free callbacks: %s\n", err);
+    jvmti_env2->Deallocate(reinterpret_cast<unsigned char*>(err));
+  }
 }
 
 extern "C" JNIEXPORT jlongArray JNICALL Java_Main_getCollectedTags(JNIEnv* env,
-                                                                   jclass klass ATTRIBUTE_UNUSED) {
-  jlongArray ret = env->NewLongArray(collected_tags.size());
+                                                                   jclass klass ATTRIBUTE_UNUSED,
+                                                                   jint index) {
+  std::vector<jlong>& tags = (index == 0) ? collected_tags1 : collected_tags2;
+  jlongArray ret = env->NewLongArray(tags.size());
   if (ret == nullptr) {
     return ret;
   }
 
-  env->SetLongArrayRegion(ret, 0, collected_tags.size(), collected_tags.data());
-  collected_tags.clear();
+  env->SetLongArrayRegion(ret, 0, tags.size(), tags.data());
+  tags.clear();
 
   return ret;
 }
