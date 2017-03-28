@@ -2132,6 +2132,9 @@ void InstructionSimplifierVisitor::VisitDeoptimize(HDeoptimize* deoptimize) {
   if (cond->IsConstant()) {
     if (cond->AsIntConstant()->IsFalse()) {
       // Never deopt: instruction can be removed.
+      if (deoptimize->GuardsAnInput()) {
+        deoptimize->ReplaceWith(deoptimize->GuardedInput());
+      }
       deoptimize->GetBlock()->RemoveInstruction(deoptimize);
     } else {
       // Always deopt.
