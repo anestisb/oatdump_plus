@@ -505,6 +505,10 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
     StartAttributeStream("kind") << (try_boundary->IsEntry() ? "entry" : "exit");
   }
 
+  void VisitDeoptimize(HDeoptimize* deoptimize) OVERRIDE {
+    StartAttributeStream("kind") << deoptimize->GetKind();
+  }
+
 #if defined(ART_ENABLE_CODEGEN_arm) || defined(ART_ENABLE_CODEGEN_arm64)
   void VisitMultiplyAccumulate(HMultiplyAccumulate* instruction) OVERRIDE {
     StartAttributeStream("kind") << instruction->GetOpKind();
