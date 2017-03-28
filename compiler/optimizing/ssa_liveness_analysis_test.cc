@@ -189,13 +189,14 @@ TEST_F(SsaLivenessAnalysisTest, TestDeoptimize) {
   // Use HAboveOrEqual+HDeoptimize as the bounds check.
   HInstruction* ae = new (&allocator_) HAboveOrEqual(index, length);
   block->AddInstruction(ae);
-  HInstruction* deoptimize = new(&allocator_) HDeoptimize(ae, /* dex_pc */ 0u);
+  HInstruction* deoptimize =
+      new(&allocator_) HDeoptimize(&allocator_, ae, HDeoptimize::Kind::kBCE, /* dex_pc */ 0u);
   block->AddInstruction(deoptimize);
   HEnvironment* deoptimize_env = new (&allocator_) HEnvironment(&allocator_,
-                                                                  /* number_of_vregs */ 5,
-                                                                  /* method */ nullptr,
-                                                                  /* dex_pc */ 0u,
-                                                                  deoptimize);
+                                                                /* number_of_vregs */ 5,
+                                                                /* method */ nullptr,
+                                                                /* dex_pc */ 0u,
+                                                                deoptimize);
   deoptimize_env->CopyFrom(args);
   deoptimize->SetRawEnvironment(deoptimize_env);
   HInstruction* array_set =
