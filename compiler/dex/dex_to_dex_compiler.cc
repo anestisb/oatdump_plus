@@ -70,10 +70,6 @@ class DexCompiler {
     return *unit_.GetDexFile();
   }
 
-  bool PerformOptimizations() const {
-    return dex_to_dex_compilation_level_ >= DexToDexCompilationLevel::kOptimize;
-  }
-
   // Compiles a RETURN-VOID into a RETURN-VOID-BARRIER within a constructor where
   // a barrier is required.
   void CompileReturnVoid(Instruction* inst, uint32_t dex_pc);
@@ -114,7 +110,7 @@ class DexCompiler {
 };
 
 void DexCompiler::Compile() {
-  DCHECK_GE(dex_to_dex_compilation_level_, DexToDexCompilationLevel::kRequired);
+  DCHECK_EQ(dex_to_dex_compilation_level_, DexToDexCompilationLevel::kOptimize);
   const DexFile::CodeItem* code_item = unit_.GetCodeItem();
   const uint16_t* insns = code_item->insns_;
   const uint32_t insns_size = code_item->insns_size_in_code_units_;
@@ -221,7 +217,7 @@ void DexCompiler::CompileReturnVoid(Instruction* inst, uint32_t dex_pc) {
 }
 
 Instruction* DexCompiler::CompileCheckCast(Instruction* inst, uint32_t dex_pc) {
-  if (!kEnableCheckCastEllision || !PerformOptimizations()) {
+  if (!kEnableCheckCastEllision) {
     return inst;
   }
   if (!driver_.IsSafeCast(&unit_, dex_pc)) {
@@ -254,7 +250,7 @@ void DexCompiler::CompileInstanceFieldAccess(Instruction* inst,
                                              uint32_t dex_pc,
                                              Instruction::Code new_opcode,
                                              bool is_put) {
-  if (!kEnableQuickening || !PerformOptimizations()) {
+  if (!kEnableQuickening) {
     return;
   }
   uint32_t field_idx = inst->VRegC_22c();
@@ -279,7 +275,7 @@ void DexCompiler::CompileInstanceFieldAccess(Instruction* inst,
 
 void DexCompiler::CompileInvokeVirtual(Instruction* inst, uint32_t dex_pc,
                                        Instruction::Code new_opcode, bool is_range) {
-  if (!kEnableQuickening || !PerformOptimizations()) {
+  if (!kEnableQuickening) {
     return;
   }
   uint32_t method_idx = is_range ? inst->VRegB_3rc() : inst->VRegB_35c();
