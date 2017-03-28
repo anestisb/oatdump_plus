@@ -42,7 +42,7 @@ template <typename T>
 inline bool AtomicMethodRefMap<T>::Get(MethodReference ref, T* out) const {
   const ElementArray* const array = GetArray(ref.dex_file);
   if (array == nullptr) {
-    return kInsertResultInvalidDexFile;
+    return false;
   }
   *out = (*array)[ref.dex_method_index].LoadRelaxed();
   return true;
