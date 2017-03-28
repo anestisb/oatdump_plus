@@ -53,7 +53,7 @@ template <typename T>
 class JvmtiWeakTable : public art::gc::SystemWeakHolder {
  public:
   JvmtiWeakTable()
-      : art::gc::SystemWeakHolder(kTaggingLockLevel),
+      : art::gc::SystemWeakHolder(art::kTaggingLockLevel),
         update_since_last_sweep_(false) {
   }
 
@@ -199,10 +199,6 @@ class JvmtiWeakTable : public art::gc::SystemWeakHolder {
       return r1.Read<art::kWithoutReadBarrier>() == r2.Read<art::kWithoutReadBarrier>();
     }
   };
-
-  // The tag table is used when visiting roots. So it needs to have a low lock level.
-  static constexpr art::LockLevel kTaggingLockLevel =
-      static_cast<art::LockLevel>(art::LockLevel::kAbortLock + 1);
 
   std::unordered_map<art::GcRoot<art::mirror::Object>,
                      T,
