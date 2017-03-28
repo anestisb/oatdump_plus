@@ -86,7 +86,7 @@ class ProfileCompilationInfo {
 
   // A dex location together with its checksum.
   struct DexReference {
-    DexReference() {}
+    DexReference() : dex_checksum(0) {}
 
     DexReference(const std::string& location, uint32_t checksum)
         : dex_location(location), dex_checksum(checksum) {}

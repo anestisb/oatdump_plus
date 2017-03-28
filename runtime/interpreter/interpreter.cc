@@ -232,12 +232,6 @@ enum InterpreterImplKind {
   kSwitchImplKind,        // Switch-based interpreter implementation.
   kMterpImplKind          // Assembly interpreter
 };
-static std::ostream& operator<<(std::ostream& os, const InterpreterImplKind& rhs) {
-  os << ((rhs == kSwitchImplKind)
-              ? "Switch-based interpreter"
-              : "Asm interpreter");
-  return os;
-}
 
 static constexpr InterpreterImplKind kInterpreterImplKind = kMterpImplKind;
 

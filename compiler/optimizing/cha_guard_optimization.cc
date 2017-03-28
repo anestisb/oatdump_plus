@@ -36,7 +36,8 @@ class CHAGuardVisitor : HGraphVisitor {
       : HGraphVisitor(graph),
         block_has_cha_guard_(GetGraph()->GetBlocks().size(),
                              0,
-                             graph->GetArena()->Adapter(kArenaAllocCHA)) {
+                             graph->GetArena()->Adapter(kArenaAllocCHA)),
+        instruction_iterator_(nullptr) {
     number_of_guards_to_visit_ = GetGraph()->GetNumberOfCHAGuards();
     DCHECK_NE(number_of_guards_to_visit_, 0u);
     // Will recount number of guards during guard optimization.

@@ -369,7 +369,7 @@ class OatFileAssistant {
     std::unique_ptr<OatFile> file_;
 
     bool status_attempted_ = false;
-    OatStatus status_;
+    OatStatus status_ = OatStatus::kOatCannotOpen;
 
     // For debugging only.
     // If this flag is set, the file has been released to the user and the
