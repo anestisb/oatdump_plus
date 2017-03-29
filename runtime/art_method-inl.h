@@ -32,6 +32,7 @@
 #include "mirror/dex_cache-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array.h"
+#include "mirror/string.h"
 #include "oat.h"
 #include "obj_ptr-inl.h"
 #include "quick/quick_method_frame_info.h"
@@ -56,8 +57,10 @@ inline mirror::Class* ArtMethod::GetDeclaringClass() {
     if (!IsRuntimeMethod()) {
       CHECK(result != nullptr) << this;
       if (kCheckDeclaringClassState) {
-        CHECK(result->IsIdxLoaded() || result->IsErroneous())
-            << result->GetStatus() << " " << result->PrettyClass();
+        if (!(result->IsIdxLoaded() || result->IsErroneous())) {
+          LOG(FATAL_WITHOUT_ABORT) << "Class status: " << result->GetStatus();
+          LOG(FATAL) << result->PrettyClass();
+        }
       }
     } else {
       CHECK(result == nullptr) << this;
