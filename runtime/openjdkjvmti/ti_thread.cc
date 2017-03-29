@@ -44,6 +44,7 @@
 #include "mirror/object-inl.h"
 #include "mirror/string.h"
 #include "obj_ptr.h"
+#include "ti_phase.h"
 #include "runtime.h"
 #include "runtime_callbacks.h"
 #include "ScopedLocalRef.h"
@@ -53,6 +54,8 @@
 #include "well_known_classes.h"
 
 namespace openjdkjvmti {
+
+art::ArtField* ThreadUtil::context_class_loader_ = nullptr;
 
 struct ThreadCallback : public art::ThreadLifecycleCallback, public art::RuntimePhaseCallback {
   jthread GetThreadObject(art::Thread* self) REQUIRES_SHARED(art::Locks::mutator_lock_) {
@@ -121,6 +124,16 @@ void ThreadUtil::Register(EventHandler* handler) {
   runtime->GetRuntimeCallbacks()->AddRuntimePhaseCallback(&gThreadCallback);
 }
 
+void ThreadUtil::CacheData() {
+  art::ScopedObjectAccess soa(art::Thread::Current());
+  art::ObjPtr<art::mirror::Class> thread_class =
+      soa.Decode<art::mirror::Class>(art::WellKnownClasses::java_lang_Thread);
+  CHECK(thread_class != nullptr);
+  context_class_loader_ = thread_class->FindDeclaredInstanceField("contextClassLoader",
+                                                                  "Ljava/lang/ClassLoader;");
+  CHECK(context_class_loader_ != nullptr);
+}
+
 void ThreadUtil::Unregister() {
   art::ScopedThreadStateChange stsc(art::Thread::Current(),
                                     art::ThreadState::kWaitingForDebuggerToAttach);
@@ -146,22 +159,6 @@ jvmtiError ThreadUtil::GetCurrentThread(jvmtiEnv* env ATTRIBUTE_UNUSED, jthread*
   return ERR(NONE);
 }
 
-// Read the context classloader from a Java thread object. This is a lazy implementation
-// that assumes GetThreadInfo isn't called too often. If we instead cache the ArtField,
-// we will have to add synchronization as this can't be cached on startup (which is
-// potentially runtime startup).
-static art::ObjPtr<art::mirror::Object> GetContextClassLoader(art::ObjPtr<art::mirror::Object> peer)
-    REQUIRES_SHARED(art::Locks::mutator_lock_) {
-  if (peer == nullptr) {
-    return nullptr;
-  }
-  art::ObjPtr<art::mirror::Class> klass = peer->GetClass();
-  art::ArtField* cc_field = klass->FindDeclaredInstanceField("contextClassLoader",
-                                                             "Ljava/lang/ClassLoader;");
-  CHECK(cc_field != nullptr);
-  return cc_field->GetObject(peer);
-}
-
 // Get the native thread. The spec says a null object denotes the current thread.
 static art::Thread* GetNativeThread(jthread thread,
                                     const art::ScopedObjectAccessAlreadyRunnable& soa)
@@ -177,6 +174,9 @@ static art::Thread* GetNativeThread(jthread thread,
 jvmtiError ThreadUtil::GetThreadInfo(jvmtiEnv* env, jthread thread, jvmtiThreadInfo* info_ptr) {
   if (info_ptr == nullptr) {
     return ERR(NULL_POINTER);
+  }
+  if (!PhaseUtil::IsLivePhase()) {
+    return JVMTI_ERROR_WRONG_PHASE;
   }
 
   art::ScopedObjectAccess soa(art::Thread::Current());
@@ -217,7 +217,10 @@ jvmtiError ThreadUtil::GetThreadInfo(jvmtiEnv* env, jthread thread, jvmtiThreadI
     }
 
     // Context classloader.
-    art::ObjPtr<art::mirror::Object> ccl = GetContextClassLoader(peer);
+    DCHECK(context_class_loader_ != nullptr);
+    art::ObjPtr<art::mirror::Object> ccl = peer != nullptr
+        ? context_class_loader_->GetObject(peer)
+        : nullptr;
     info_ptr->context_class_loader = ccl == nullptr
                                          ? nullptr
                                          : soa.AddLocalReference<jobject>(ccl);
@@ -272,7 +275,10 @@ jvmtiError ThreadUtil::GetThreadInfo(jvmtiEnv* env, jthread thread, jvmtiThreadI
     }
 
     // Context classloader.
-    art::ObjPtr<art::mirror::Object> ccl = GetContextClassLoader(peer);
+    DCHECK(context_class_loader_ != nullptr);
+    art::ObjPtr<art::mirror::Object> ccl = peer != nullptr
+        ? context_class_loader_->GetObject(peer)
+        : nullptr;
     info_ptr->context_class_loader = ccl == nullptr
                                          ? nullptr
                                          : soa.AddLocalReference<jobject>(ccl);

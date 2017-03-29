@@ -40,6 +40,7 @@
 #include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
 #include "thread_list.h"
+#include "ti_thread.h"
 
 namespace openjdkjvmti {
 
@@ -69,6 +70,7 @@ struct PhaseUtil::PhaseCallback : public art::RuntimePhaseCallback {
         break;
       case RuntimePhase::kInit:
         {
+          ThreadUtil::CacheData();
           ScopedLocalRef<jthread> thread(GetJniEnv(), GetCurrentJThread());
           art::ScopedThreadSuspension sts(art::Thread::Current(), art::ThreadState::kNative);
           event_handler->DispatchEvent<ArtJvmtiEvent::kVmInit>(nullptr, GetJniEnv(), thread.get());
@@ -105,6 +107,16 @@ jvmtiError PhaseUtil::GetPhase(jvmtiEnv* env ATTRIBUTE_UNUSED, jvmtiPhase* phase
   return ERR(NONE);
 }
 
+bool PhaseUtil::IsLivePhase() {
+  jvmtiPhase now = PhaseUtil::current_phase_;
+  DCHECK(now == JVMTI_PHASE_ONLOAD ||
+         now == JVMTI_PHASE_PRIMORDIAL ||
+         now == JVMTI_PHASE_START ||
+         now == JVMTI_PHASE_LIVE ||
+         now == JVMTI_PHASE_DEAD);
+  return now == JVMTI_PHASE_LIVE;
+}
+
 void PhaseUtil::SetToOnLoad() {
   DCHECK_EQ(0u, static_cast<size_t>(PhaseUtil::current_phase_));
   PhaseUtil::current_phase_ = JVMTI_PHASE_ONLOAD;
@@ -117,6 +129,7 @@ void PhaseUtil::SetToPrimordial() {
 
 void PhaseUtil::SetToLive() {
   DCHECK_EQ(static_cast<size_t>(0), static_cast<size_t>(PhaseUtil::current_phase_));
+  ThreadUtil::CacheData();
   PhaseUtil::current_phase_ = JVMTI_PHASE_LIVE;
 }
 
