@@ -109,5 +109,13 @@ extern "C" JNIEXPORT jlongArray JNICALL Java_Main_getCollectedTags(JNIEnv* env,
   return ret;
 }
 
+extern "C" JNIEXPORT void JNICALL Java_Main_setTag2(JNIEnv* env,
+                                                    jclass klass ATTRIBUTE_UNUSED,
+                                                    jobject obj,
+                                                    jlong tag) {
+  jvmtiError ret = jvmti_env2->SetTag(obj, tag);
+  JvmtiErrorToException(env, ret);
+}
+
 }  // namespace Test905ObjectFree
 }  // namespace art

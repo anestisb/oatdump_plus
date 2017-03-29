@@ -1513,8 +1513,8 @@ extern const jvmtiInterface_1 gJvmtiInterface;
 ArtJvmTiEnv::ArtJvmTiEnv(art::JavaVMExt* runtime, EventHandler* event_handler)
     : art_vm(runtime),
       local_data(nullptr),
-      capabilities(),
-      object_tag_table(new ObjectTagTable(event_handler)) {
+      capabilities() {
+  object_tag_table = std::unique_ptr<ObjectTagTable>(new ObjectTagTable(event_handler, this));
   functions = &gJvmtiInterface;
 }
 
