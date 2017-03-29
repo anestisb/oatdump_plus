@@ -96,7 +96,7 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
       //     .WithType<std::vector<ti::Agent>>().AppendValues()
       //     .IntoKey(M::AgentLib)
       .Define("-agentpath:_")
-          .WithType<std::vector<ti::Agent>>().AppendValues()
+          .WithType<std::list<ti::Agent>>().AppendValues()
           .IntoKey(M::AgentPath)
       .Define("-Xms_")
           .WithType<MemoryKiB>()
