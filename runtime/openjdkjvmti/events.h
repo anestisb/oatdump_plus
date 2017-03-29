@@ -156,9 +156,14 @@ class EventHandler {
                       ArtJvmtiEvent event,
                       jvmtiEventMode mode);
 
+  // Dispatch event to all registered environments.
   template <ArtJvmtiEvent kEvent, typename ...Args>
   ALWAYS_INLINE
   inline void DispatchEvent(art::Thread* thread, Args... args) const;
+  // Dispatch event to the given environment, only.
+  template <ArtJvmtiEvent kEvent, typename ...Args>
+  ALWAYS_INLINE
+  inline void DispatchEvent(ArtJvmTiEnv* env, art::Thread* thread, Args... args) const;
 
   // Tell the event handler capabilities were added/lost so it can adjust the sent events.If
   // caps_added is true then caps is all the newly set capabilities of the jvmtiEnv. If it is false
