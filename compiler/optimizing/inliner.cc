@@ -672,6 +672,32 @@ HInstanceFieldGet* HInliner::BuildGetReceiverClass(ClassLinker* class_linker,
   return result;
 }
 
+static ArtMethod* ResolveMethodFromInlineCache(Handle<mirror::Class> klass,
+                                               ArtMethod* resolved_method,
+                                               HInstruction* invoke_instruction,
+                                               PointerSize pointer_size)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  if (Runtime::Current()->IsAotCompiler()) {
+    // We can get unrelated types when working with profiles (corruption,
+    // systme updates, or anyone can write to it). So first check if the class
+    // actually implements the declaring class of the method that is being
+    // called in bytecode.
+    // Note: the lookup methods used below require to have assignable types.
+    if (!resolved_method->GetDeclaringClass()->IsAssignableFrom(klass.Get())) {
+      return nullptr;
+    }
+  }
+
+  if (invoke_instruction->IsInvokeInterface()) {
+    resolved_method = klass->FindVirtualMethodForInterface(resolved_method, pointer_size);
+  } else {
+    DCHECK(invoke_instruction->IsInvokeVirtual());
+    resolved_method = klass->FindVirtualMethodForVirtual(resolved_method, pointer_size);
+  }
+  DCHECK(resolved_method != nullptr);
+  return resolved_method;
+}
+
 bool HInliner::TryInlineMonomorphicCall(HInvoke* invoke_instruction,
                                         ArtMethod* resolved_method,
                                         Handle<mirror::ObjectArray<mirror::Class>> classes) {
@@ -690,20 +716,20 @@ bool HInliner::TryInlineMonomorphicCall(HInvoke* invoke_instruction,
 
   ClassLinker* class_linker = caller_compilation_unit_.GetClassLinker();
   PointerSize pointer_size = class_linker->GetImagePointerSize();
-  if (invoke_instruction->IsInvokeInterface()) {
-    resolved_method = GetMonomorphicType(classes)->FindVirtualMethodForInterface(
-        resolved_method, pointer_size);
-  } else {
-    DCHECK(invoke_instruction->IsInvokeVirtual());
-    resolved_method = GetMonomorphicType(classes)->FindVirtualMethodForVirtual(
-        resolved_method, pointer_size);
-  }
+  Handle<mirror::Class> monomorphic_type = handles_->NewHandle(GetMonomorphicType(classes));
+  resolved_method = ResolveMethodFromInlineCache(
+      monomorphic_type, resolved_method, invoke_instruction, pointer_size);
+
   LOG_NOTE() << "Try inline monomorphic call to " << resolved_method->PrettyMethod();
-  DCHECK(resolved_method != nullptr);
+  if (resolved_method == nullptr) {
+    // Bogus AOT profile, bail.
+    DCHECK(Runtime::Current()->IsAotCompiler());
+    return false;
+  }
+
   HInstruction* receiver = invoke_instruction->InputAt(0);
   HInstruction* cursor = invoke_instruction->GetPrevious();
   HBasicBlock* bb_cursor = invoke_instruction->GetBlock();
-  Handle<mirror::Class> monomorphic_type = handles_->NewHandle(GetMonomorphicType(classes));
   if (!TryInlineAndReplace(invoke_instruction,
                            resolved_method,
                            ReferenceTypeInfo::Create(monomorphic_type, /* is_exact */ true),
@@ -843,11 +869,14 @@ bool HInliner::TryInlinePolymorphicCall(HInvoke* invoke_instruction,
     ArtMethod* method = nullptr;
 
     Handle<mirror::Class> handle = handles_->NewHandle(classes->Get(i));
-    if (invoke_instruction->IsInvokeInterface()) {
-      method = handle->FindVirtualMethodForInterface(resolved_method, pointer_size);
-    } else {
-      DCHECK(invoke_instruction->IsInvokeVirtual());
-      method = handle->FindVirtualMethodForVirtual(resolved_method, pointer_size);
+    method = ResolveMethodFromInlineCache(
+        handle, resolved_method, invoke_instruction, pointer_size);
+    if (method == nullptr) {
+      DCHECK(Runtime::Current()->IsAotCompiler());
+      // AOT profile is bogus. This loop expects to iterate over all entries,
+      // so just just continue.
+      all_targets_inlined = false;
+      continue;
     }
 
     HInstruction* receiver = invoke_instruction->InputAt(0);
@@ -892,7 +921,7 @@ bool HInliner::TryInlinePolymorphicCall(HInvoke* invoke_instruction,
         }
         invoke_instruction->GetBlock()->RemoveInstruction(invoke_instruction);
         // Because the inline cache data can be populated concurrently, we force the end of the
-        // iteration. Otherhwise, we could see a new receiver type.
+        // iteration. Otherwise, we could see a new receiver type.
         break;
       } else {
         CreateDiamondPatternForPolymorphicInline(compare, return_replacement, invoke_instruction);
