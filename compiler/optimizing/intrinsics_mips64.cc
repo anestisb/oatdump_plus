@@ -1151,16 +1151,31 @@ void IntrinsicCodeGeneratorMIPS64::VisitThreadCurrentThread(HInvoke* invoke) {
                     Thread::PeerOffset<kMips64PointerSize>().Int32Value());
 }
 
-static void CreateIntIntIntToIntLocations(ArenaAllocator* arena, HInvoke* invoke) {
+static void CreateIntIntIntToIntLocations(ArenaAllocator* arena,
+                                          HInvoke* invoke,
+                                          Primitive::Type type) {
+  bool can_call = kEmitCompilerReadBarrier &&
+      (invoke->GetIntrinsic() == Intrinsics::kUnsafeGetObject ||
+       invoke->GetIntrinsic() == Intrinsics::kUnsafeGetObjectVolatile);
   LocationSummary* locations = new (arena) LocationSummary(invoke,
-                                                           LocationSummary::kNoCall,
+                                                           (can_call
+                                                                ? LocationSummary::kCallOnSlowPath
+                                                                : LocationSummary::kNoCall),
                                                            kIntrinsified);
   locations->SetInAt(0, Location::NoLocation());        // Unused receiver.
   locations->SetInAt(1, Location::RequiresRegister());
   locations->SetInAt(2, Location::RequiresRegister());
-  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+  locations->SetOut(Location::RequiresRegister(),
+                    (can_call ? Location::kOutputOverlap : Location::kNoOutputOverlap));
+  if (type == Primitive::kPrimNot && kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
+    // We need a temporary register for the read barrier marking slow
+    // path in InstructionCodeGeneratorMIPS64::GenerateReferenceLoadWithBakerReadBarrier.
+    locations->AddTemp(Location::RequiresRegister());
+  }
 }
 
+// Note that the caller must supply a properly aligned memory address.
+// If they do not, the behavior is undefined (atomicity not guaranteed, exception may occur).
 static void GenUnsafeGet(HInvoke* invoke,
                          Primitive::Type type,
                          bool is_volatile,
@@ -1168,30 +1183,71 @@ static void GenUnsafeGet(HInvoke* invoke,
   LocationSummary* locations = invoke->GetLocations();
   DCHECK((type == Primitive::kPrimInt) ||
          (type == Primitive::kPrimLong) ||
-         (type == Primitive::kPrimNot));
+         (type == Primitive::kPrimNot)) << type;
   Mips64Assembler* assembler = codegen->GetAssembler();
+  // Target register.
+  Location trg_loc = locations->Out();
+  GpuRegister trg = trg_loc.AsRegister<GpuRegister>();
   // Object pointer.
-  GpuRegister base = locations->InAt(1).AsRegister<GpuRegister>();
+  Location base_loc = locations->InAt(1);
+  GpuRegister base = base_loc.AsRegister<GpuRegister>();
   // Long offset.
-  GpuRegister offset = locations->InAt(2).AsRegister<GpuRegister>();
-  GpuRegister trg = locations->Out().AsRegister<GpuRegister>();
+  Location offset_loc = locations->InAt(2);
+  GpuRegister offset = offset_loc.AsRegister<GpuRegister>();
 
-  __ Daddu(TMP, base, offset);
-  if (is_volatile) {
-    __ Sync(0);
+  if (!(kEmitCompilerReadBarrier && kUseBakerReadBarrier && (type == Primitive::kPrimNot))) {
+    __ Daddu(TMP, base, offset);
   }
+
   switch (type) {
+    case Primitive::kPrimLong:
+      __ Ld(trg, TMP, 0);
+      if (is_volatile) {
+        __ Sync(0);
+      }
+      break;
+
     case Primitive::kPrimInt:
       __ Lw(trg, TMP, 0);
+      if (is_volatile) {
+        __ Sync(0);
+      }
       break;
 
     case Primitive::kPrimNot:
-      __ Lwu(trg, TMP, 0);
-      __ MaybeUnpoisonHeapReference(trg);
-      break;
-
-    case Primitive::kPrimLong:
-      __ Ld(trg, TMP, 0);
+      if (kEmitCompilerReadBarrier) {
+        if (kUseBakerReadBarrier) {
+          Location temp = locations->GetTemp(0);
+          codegen->GenerateReferenceLoadWithBakerReadBarrier(invoke,
+                                                             trg_loc,
+                                                             base,
+                                                             /* offset */ 0U,
+                                                             /* index */ offset_loc,
+                                                             TIMES_1,
+                                                             temp,
+                                                             /* needs_null_check */ false);
+          if (is_volatile) {
+            __ Sync(0);
+          }
+        } else {
+          __ Lwu(trg, TMP, 0);
+          if (is_volatile) {
+            __ Sync(0);
+          }
+          codegen->GenerateReadBarrierSlow(invoke,
+                                           trg_loc,
+                                           trg_loc,
+                                           base_loc,
+                                           /* offset */ 0U,
+                                           /* index */ offset_loc);
+        }
+      } else {
+        __ Lwu(trg, TMP, 0);
+        if (is_volatile) {
+          __ Sync(0);
+        }
+        __ MaybeUnpoisonHeapReference(trg);
+      }
       break;
 
     default:
@@ -1202,7 +1258,7 @@ static void GenUnsafeGet(HInvoke* invoke,
 
 // int sun.misc.Unsafe.getInt(Object o, long offset)
 void IntrinsicLocationsBuilderMIPS64::VisitUnsafeGet(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(arena_, invoke);
+  CreateIntIntIntToIntLocations(arena_, invoke, Primitive::kPrimInt);
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitUnsafeGet(HInvoke* invoke) {
@@ -1211,7 +1267,7 @@ void IntrinsicCodeGeneratorMIPS64::VisitUnsafeGet(HInvoke* invoke) {
 
 // int sun.misc.Unsafe.getIntVolatile(Object o, long offset)
 void IntrinsicLocationsBuilderMIPS64::VisitUnsafeGetVolatile(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(arena_, invoke);
+  CreateIntIntIntToIntLocations(arena_, invoke, Primitive::kPrimInt);
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitUnsafeGetVolatile(HInvoke* invoke) {
@@ -1220,7 +1276,7 @@ void IntrinsicCodeGeneratorMIPS64::VisitUnsafeGetVolatile(HInvoke* invoke) {
 
 // long sun.misc.Unsafe.getLong(Object o, long offset)
 void IntrinsicLocationsBuilderMIPS64::VisitUnsafeGetLong(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(arena_, invoke);
+  CreateIntIntIntToIntLocations(arena_, invoke, Primitive::kPrimLong);
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitUnsafeGetLong(HInvoke* invoke) {
@@ -1229,7 +1285,7 @@ void IntrinsicCodeGeneratorMIPS64::VisitUnsafeGetLong(HInvoke* invoke) {
 
 // long sun.misc.Unsafe.getLongVolatile(Object o, long offset)
 void IntrinsicLocationsBuilderMIPS64::VisitUnsafeGetLongVolatile(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(arena_, invoke);
+  CreateIntIntIntToIntLocations(arena_, invoke, Primitive::kPrimLong);
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitUnsafeGetLongVolatile(HInvoke* invoke) {
@@ -1238,7 +1294,7 @@ void IntrinsicCodeGeneratorMIPS64::VisitUnsafeGetLongVolatile(HInvoke* invoke) {
 
 // Object sun.misc.Unsafe.getObject(Object o, long offset)
 void IntrinsicLocationsBuilderMIPS64::VisitUnsafeGetObject(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(arena_, invoke);
+  CreateIntIntIntToIntLocations(arena_, invoke, Primitive::kPrimNot);
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitUnsafeGetObject(HInvoke* invoke) {
@@ -1247,7 +1303,7 @@ void IntrinsicCodeGeneratorMIPS64::VisitUnsafeGetObject(HInvoke* invoke) {
 
 // Object sun.misc.Unsafe.getObjectVolatile(Object o, long offset)
 void IntrinsicLocationsBuilderMIPS64::VisitUnsafeGetObjectVolatile(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(arena_, invoke);
+  CreateIntIntIntToIntLocations(arena_, invoke, Primitive::kPrimNot);
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitUnsafeGetObjectVolatile(HInvoke* invoke) {
@@ -1264,6 +1320,8 @@ static void CreateIntIntIntIntToVoid(ArenaAllocator* arena, HInvoke* invoke) {
   locations->SetInAt(3, Location::RequiresRegister());
 }
 
+// Note that the caller must supply a properly aligned memory address.
+// If they do not, the behavior is undefined (atomicity not guaranteed, exception may occur).
 static void GenUnsafePut(LocationSummary* locations,
                          Primitive::Type type,
                          bool is_volatile,
@@ -1429,35 +1487,70 @@ void IntrinsicCodeGeneratorMIPS64::VisitUnsafePutLongVolatile(HInvoke* invoke) {
                codegen_);
 }
 
-static void CreateIntIntIntIntIntToInt(ArenaAllocator* arena, HInvoke* invoke) {
+static void CreateIntIntIntIntIntToIntPlusTemps(ArenaAllocator* arena, HInvoke* invoke) {
+  bool can_call = kEmitCompilerReadBarrier &&
+      kUseBakerReadBarrier &&
+      (invoke->GetIntrinsic() == Intrinsics::kUnsafeCASObject);
   LocationSummary* locations = new (arena) LocationSummary(invoke,
-                                                           LocationSummary::kNoCall,
+                                                           (can_call
+                                                                ? LocationSummary::kCallOnSlowPath
+                                                                : LocationSummary::kNoCall),
                                                            kIntrinsified);
   locations->SetInAt(0, Location::NoLocation());        // Unused receiver.
   locations->SetInAt(1, Location::RequiresRegister());
   locations->SetInAt(2, Location::RequiresRegister());
   locations->SetInAt(3, Location::RequiresRegister());
   locations->SetInAt(4, Location::RequiresRegister());
-
   locations->SetOut(Location::RequiresRegister());
+
+  // Temporary register used in CAS by (Baker) read barrier.
+  if (can_call) {
+    locations->AddTemp(Location::RequiresRegister());
+  }
 }
 
-static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGeneratorMIPS64* codegen) {
+// Note that the caller must supply a properly aligned memory address.
+// If they do not, the behavior is undefined (atomicity not guaranteed, exception may occur).
+static void GenCas(HInvoke* invoke, Primitive::Type type, CodeGeneratorMIPS64* codegen) {
   Mips64Assembler* assembler = codegen->GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
   GpuRegister base = locations->InAt(1).AsRegister<GpuRegister>();
-  GpuRegister offset = locations->InAt(2).AsRegister<GpuRegister>();
+  Location offset_loc = locations->InAt(2);
+  GpuRegister offset = offset_loc.AsRegister<GpuRegister>();
   GpuRegister expected = locations->InAt(3).AsRegister<GpuRegister>();
   GpuRegister value = locations->InAt(4).AsRegister<GpuRegister>();
-  GpuRegister out = locations->Out().AsRegister<GpuRegister>();
+  Location out_loc = locations->Out();
+  GpuRegister out = out_loc.AsRegister<GpuRegister>();
 
   DCHECK_NE(base, out);
   DCHECK_NE(offset, out);
   DCHECK_NE(expected, out);
 
   if (type == Primitive::kPrimNot) {
-    // Mark card for object assuming new value is stored.
+    // The only read barrier implementation supporting the
+    // UnsafeCASObject intrinsic is the Baker-style read barriers.
+    DCHECK(!kEmitCompilerReadBarrier || kUseBakerReadBarrier);
+
+    // Mark card for object assuming new value is stored. Worst case we will mark an unchanged
+    // object and scan the receiver at the next GC for nothing.
     bool value_can_be_null = true;  // TODO: Worth finding out this information?
     codegen->MarkGCCard(base, value, value_can_be_null);
+
+    if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
+      Location temp = locations->GetTemp(0);
+      // Need to make sure the reference stored in the field is a to-space
+      // one before attempting the CAS or the CAS could fail incorrectly.
+      codegen->GenerateReferenceLoadWithBakerReadBarrier(
+          invoke,
+          out_loc,  // Unused, used only as a "temporary" within the read barrier.
+          base,
+          /* offset */ 0u,
+          /* index */ offset_loc,
+          ScaleFactor::TIMES_1,
+          temp,
+          /* needs_null_check */ false,
+          /* always_update_field */ true);
+    }
   }
 
   Mips64Label loop_head, exit_loop;
@@ -1521,29 +1614,39 @@ static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGenerat
 
 // boolean sun.misc.Unsafe.compareAndSwapInt(Object o, long offset, int expected, int x)
 void IntrinsicLocationsBuilderMIPS64::VisitUnsafeCASInt(HInvoke* invoke) {
-  CreateIntIntIntIntIntToInt(arena_, invoke);
+  CreateIntIntIntIntIntToIntPlusTemps(arena_, invoke);
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitUnsafeCASInt(HInvoke* invoke) {
-  GenCas(invoke->GetLocations(), Primitive::kPrimInt, codegen_);
+  GenCas(invoke, Primitive::kPrimInt, codegen_);
 }
 
 // boolean sun.misc.Unsafe.compareAndSwapLong(Object o, long offset, long expected, long x)
 void IntrinsicLocationsBuilderMIPS64::VisitUnsafeCASLong(HInvoke* invoke) {
-  CreateIntIntIntIntIntToInt(arena_, invoke);
+  CreateIntIntIntIntIntToIntPlusTemps(arena_, invoke);
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitUnsafeCASLong(HInvoke* invoke) {
-  GenCas(invoke->GetLocations(), Primitive::kPrimLong, codegen_);
+  GenCas(invoke, Primitive::kPrimLong, codegen_);
 }
 
 // boolean sun.misc.Unsafe.compareAndSwapObject(Object o, long offset, Object expected, Object x)
 void IntrinsicLocationsBuilderMIPS64::VisitUnsafeCASObject(HInvoke* invoke) {
-  CreateIntIntIntIntIntToInt(arena_, invoke);
+  // The only read barrier implementation supporting the
+  // UnsafeCASObject intrinsic is the Baker-style read barriers.
+  if (kEmitCompilerReadBarrier && !kUseBakerReadBarrier) {
+    return;
+  }
+
+  CreateIntIntIntIntIntToIntPlusTemps(arena_, invoke);
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitUnsafeCASObject(HInvoke* invoke) {
-  GenCas(invoke->GetLocations(), Primitive::kPrimNot, codegen_);
+  // The only read barrier implementation supporting the
+  // UnsafeCASObject intrinsic is the Baker-style read barriers.
+  DCHECK(!kEmitCompilerReadBarrier || kUseBakerReadBarrier);
+
+  GenCas(invoke, Primitive::kPrimNot, codegen_);
 }
 
 // int java.lang.String.compareTo(String anotherString)
