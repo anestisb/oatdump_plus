@@ -382,6 +382,9 @@ while true; do
         filter=$1
         run_args="${run_args} --vdex-filter $filter"
         shift
+    elif [ "x$1" = "x--random-profile" ]; then
+        run_args="${run_args} --random-profile"
+        shift
     elif expr "x$1" : "x--" >/dev/null 2>&1; then
         echo "unknown $0 option: $1" 1>&2
         usage="yes"

@@ -66,6 +66,9 @@ ART_TEST_OPTIMIZING ?= true
 # Do you want to test the optimizing compiler with graph coloring register allocation?
 ART_TEST_OPTIMIZING_GRAPH_COLOR ?= $(ART_TEST_FULL)
 
+# Do you want to do run-tests with profiles?
+ART_TEST_SPEED_PROFILE ?= $(ART_TEST_FULL)
+
 # Do we want to test PIC-compiled tests ("apps")?
 ART_TEST_PIC_TEST ?= $(ART_TEST_FULL)
 

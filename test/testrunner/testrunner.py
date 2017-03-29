@@ -147,7 +147,7 @@ def gather_test_info():
   VARIANT_TYPE_DICT['jni'] = {'jni', 'forcecopy', 'checkjni'}
   VARIANT_TYPE_DICT['address_sizes'] = {'64', '32'}
   VARIANT_TYPE_DICT['compiler'] = {'interp-ac', 'interpreter', 'jit', 'optimizing',
-                              'regalloc_gc'}
+                              'regalloc_gc', 'speed-profile'}
 
   for v_type in VARIANT_TYPE_DICT:
     TOTAL_VARIANTS_SET = TOTAL_VARIANTS_SET.union(VARIANT_TYPE_DICT.get(v_type))
@@ -192,6 +192,8 @@ def setup_test_env():
   if env.ART_TEST_OPTIMIZING:
     COMPILER_TYPES.add('optimizing')
     OPTIMIZING_COMPILER_TYPES.add('optimizing')
+  if env.ART_TEST_SPEED_PROFILE:
+    COMPILER_TYPES.add('speed-profile')
 
   # By default we run all 'compiler' variants.
   if not COMPILER_TYPES:
@@ -199,6 +201,7 @@ def setup_test_env():
     COMPILER_TYPES.add('jit')
     COMPILER_TYPES.add('interpreter')
     COMPILER_TYPES.add('interp-ac')
+    COMPILER_TYPES.add('speed-profile')
     OPTIMIZING_COMPILER_TYPES.add('optimizing')
 
   if env.ART_TEST_RUN_TEST_RELOCATE:
@@ -389,6 +392,8 @@ def run_tests(tests):
         options_test += ' --interpreter --verify-soft-fail'
       elif compiler == 'jit':
         options_test += ' --jit'
+      elif compiler == 'speed-profile':
+        options_test += ' --random-profile'
 
       if relocate == 'relocate':
         options_test += ' --relocate'
@@ -881,6 +886,8 @@ def parse_option():
     IMAGE_TYPES.add('no-image')
   if options['optimizing']:
     COMPILER_TYPES.add('optimizing')
+  if options['speed_profile']:
+    COMPILER_TYPES.add('speed-profile')
   if options['trace']:
     TRACE_TYPES.add('trace')
   if options['gcstress']:
