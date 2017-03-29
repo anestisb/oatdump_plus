@@ -17,7 +17,6 @@
 #include "dex_file_verifier.h"
 
 #include <inttypes.h>
-#include <zlib.h>
 
 #include <limits>
 #include <memory>
@@ -368,11 +367,8 @@ bool DexFileVerifier::CheckHeader() {
     return false;
   }
 
+  uint32_t adler_checksum = dex_file_->CalculateChecksum();
   // Compute and verify the checksum in the header.
-  uint32_t adler_checksum = adler32(0L, Z_NULL, 0);
-  const uint32_t non_sum = sizeof(header_->magic_) + sizeof(header_->checksum_);
-  const uint8_t* non_sum_ptr = reinterpret_cast<const uint8_t*>(header_) + non_sum;
-  adler_checksum = adler32(adler_checksum, non_sum_ptr, expected_size - non_sum);
   if (adler_checksum != header_->checksum_) {
     if (verify_checksum_) {
       ErrorStringPrintf("Bad checksum (%08x, expected %08x)", adler_checksum, header_->checksum_);
