@@ -41,7 +41,7 @@ static const char kDexFileLayoutInputDex[] =
     "AAAAdQEAAAAQAAABAAAAjAEAAA==";
 
 static const char kDexFileLayoutInputProfile[] =
-    "cHJvADAwNAABCwABAAAAAAD1KW3+Y2xhc3Nlcy5kZXgBAA==";
+    "cHJvADAwNQABCwABAAAAAAD1KW3+Y2xhc3Nlcy5kZXgBAA==";
 
 static const char kDexFileLayoutExpectedOutputDex[] =
     "ZGV4CjAzNQD1KW3+B8NAB0f2A/ZVIBJ0aHrGIqcpVTAUAgAAcAAAAHhWNBIAAAAAAAAAAIwBAAAH"
