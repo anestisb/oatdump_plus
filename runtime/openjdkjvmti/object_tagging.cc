@@ -33,6 +33,7 @@
 
 #include <limits>
 
+#include "art_jvmti.h"
 #include "events-inl.h"
 #include "jvmti_weak_table-inl.h"
 
@@ -60,7 +61,7 @@ bool ObjectTagTable::DoesHandleNullOnSweep() {
   return event_handler_->IsEventEnabledAnywhere(ArtJvmtiEvent::kObjectFree);
 }
 void ObjectTagTable::HandleNullSweep(jlong tag) {
-  event_handler_->DispatchEvent<ArtJvmtiEvent::kObjectFree>(nullptr, tag);
+  event_handler_->DispatchEvent<ArtJvmtiEvent::kObjectFree>(jvmti_env_, nullptr, tag);
 }
 
 }  // namespace openjdkjvmti
