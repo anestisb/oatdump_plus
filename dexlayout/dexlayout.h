@@ -109,6 +109,7 @@ class DexLayout {
 
   std::vector<dex_ir::ClassData*> LayoutClassDefsAndClassData(const DexFile* dex_file);
   int32_t LayoutCodeItems(std::vector<dex_ir::ClassData*> new_class_data_order);
+  void LayoutStringData(const DexFile* dex_file);
   bool IsNextSectionCodeItemAligned(uint32_t offset);
   template<class T> void FixupSection(std::map<uint32_t, std::unique_ptr<T>>& map, uint32_t diff);
   void FixupSections(uint32_t offset, uint32_t diff);

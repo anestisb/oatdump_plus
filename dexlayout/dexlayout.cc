@@ -1528,6 +1528,111 @@ std::vector<dex_ir::ClassData*> DexLayout::LayoutClassDefsAndClassData(const Dex
   return new_class_data_order;
 }
 
+void DexLayout::LayoutStringData(const DexFile* dex_file) {
+  const size_t num_strings = header_->GetCollections().StringIds().size();
+  std::vector<bool> is_shorty(num_strings, false);
+  std::vector<bool> from_hot_method(num_strings, false);
+  for (std::unique_ptr<dex_ir::ClassDef>& class_def : header_->GetCollections().ClassDefs()) {
+    // A name of a profile class is probably going to get looked up by ClassTable::Lookup, mark it
+    // as hot.
+    const bool is_profile_class =
+        info_->ContainsClass(*dex_file, dex::TypeIndex(class_def->ClassType()->GetIndex()));
+    if (is_profile_class) {
+      from_hot_method[class_def->ClassType()->GetStringId()->GetIndex()] = true;
+    }
+    dex_ir::ClassData* data = class_def->GetClassData();
+    if (data == nullptr) {
+      continue;
+    }
+    for (size_t i = 0; i < 2; ++i) {
+      for (auto& method : *(i == 0 ? data->DirectMethods() : data->VirtualMethods())) {
+        const dex_ir::MethodId* method_id = method->GetMethodId();
+        dex_ir::CodeItem* code_item = method->GetCodeItem();
+        if (code_item == nullptr) {
+          continue;
+        }
+        const bool is_clinit = is_profile_class &&
+            (method->GetAccessFlags() & kAccConstructor) != 0 &&
+            (method->GetAccessFlags() & kAccStatic) != 0;
+        const bool method_executed = is_clinit ||
+            info_->ContainsMethod(MethodReference(dex_file, method_id->GetIndex()));
+        if (!method_executed) {
+          continue;
+        }
+        is_shorty[method_id->Proto()->Shorty()->GetIndex()] = true;
+        dex_ir::CodeFixups* fixups = code_item->GetCodeFixups();
+        if (fixups == nullptr) {
+          continue;
+        }
+        if (fixups->StringIds() != nullptr) {
+          // Add const-strings.
+          for (dex_ir::StringId* id : *fixups->StringIds()) {
+            from_hot_method[id->GetIndex()] = true;
+          }
+        }
+        // TODO: Only visit field ids from static getters and setters.
+        for (dex_ir::FieldId* id : *fixups->FieldIds()) {
+          // Add the field names and types from getters and setters.
+          from_hot_method[id->Name()->GetIndex()] = true;
+          from_hot_method[id->Type()->GetStringId()->GetIndex()] = true;
+        }
+      }
+    }
+  }
+  // Sort string data by specified order.
+  std::vector<dex_ir::StringId*> string_ids;
+  size_t min_offset = std::numeric_limits<size_t>::max();
+  size_t max_offset = 0;
+  size_t hot_bytes = 0;
+  for (auto& string_id : header_->GetCollections().StringIds()) {
+    string_ids.push_back(string_id.get());
+    const size_t cur_offset = string_id->DataItem()->GetOffset();
+    CHECK_NE(cur_offset, 0u);
+    min_offset = std::min(min_offset, cur_offset);
+    dex_ir::StringData* data = string_id->DataItem();
+    const size_t element_size = data->GetSize() + 1;  // Add one extra for null.
+    size_t end_offset = cur_offset + element_size;
+    if (is_shorty[string_id->GetIndex()] || from_hot_method[string_id->GetIndex()]) {
+      hot_bytes += element_size;
+    }
+    max_offset = std::max(max_offset, end_offset);
+  }
+  VLOG(compiler) << "Hot string data bytes " << hot_bytes << "/" << max_offset - min_offset;
+  std::sort(string_ids.begin(),
+            string_ids.end(),
+            [&is_shorty, &from_hot_method](const dex_ir::StringId* a,
+                                           const dex_ir::StringId* b) {
+    const bool a_is_hot = from_hot_method[a->GetIndex()];
+    const bool b_is_hot = from_hot_method[b->GetIndex()];
+    if (a_is_hot != b_is_hot) {
+      return a_is_hot < b_is_hot;
+    }
+    // After hot methods are partitioned, subpartition shorties.
+    const bool a_is_shorty = is_shorty[a->GetIndex()];
+    const bool b_is_shorty = is_shorty[b->GetIndex()];
+    if (a_is_shorty != b_is_shorty) {
+      return a_is_shorty < b_is_shorty;
+    }
+    // Preserve order.
+    return a->DataItem()->GetOffset() < b->DataItem()->GetOffset();
+  });
+  // Now we know what order we want the string data, reorder the offsets.
+  size_t offset = min_offset;
+  for (dex_ir::StringId* string_id : string_ids) {
+    dex_ir::StringData* data = string_id->DataItem();
+    data->SetOffset(offset);
+    offset += data->GetSize() + 1;  // Add one extra for null.
+  }
+  if (offset > max_offset) {
+    const uint32_t diff = offset - max_offset;
+    // If we expanded the string data section, we need to update the offsets or else we will
+    // corrupt the next section when writing out.
+    FixupSections(header_->GetCollections().StringDatasOffset(), diff);
+    // Update file size.
+    header_->SetFileSize(header_->FileSize() + diff);
+  }
+}
+
 // Orders code items according to specified class data ordering.
 // NOTE: If the section following the code items is byte aligned, the last code item is left in
 // place to preserve alignment. Layout needs an overhaul to handle movement of other sections.
@@ -1686,6 +1791,7 @@ void DexLayout::FixupSections(uint32_t offset, uint32_t diff) {
 }
 
 void DexLayout::LayoutOutputFile(const DexFile* dex_file) {
+  LayoutStringData(dex_file);
   std::vector<dex_ir::ClassData*> new_class_data_order = LayoutClassDefsAndClassData(dex_file);
   int32_t diff = LayoutCodeItems(new_class_data_order);
   // Move sections after ClassData by diff bytes.

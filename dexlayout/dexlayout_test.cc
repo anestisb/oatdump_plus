@@ -43,18 +43,6 @@ static const char kDexFileLayoutInputDex[] =
 static const char kDexFileLayoutInputProfile[] =
     "cHJvADAwNAABCwABAAAAAAD1KW3+Y2xhc3Nlcy5kZXgBAA==";
 
-static const char kDexFileLayoutExpectedOutputDex[] =
-    "ZGV4CjAzNQD1KW3+B8NAB0f2A/ZVIBJ0aHrGIqcpVTAUAgAAcAAAAHhWNBIAAAAAAAAAAIwBAAAH"
-    "AAAAcAAAAAQAAACMAAAAAQAAAJwAAAAAAAAAAAAAAAMAAACoAAAAAgAAAMAAAAAUAQAAAAEAADAB"
-    "AAA4AQAAQAEAAEgBAABNAQAAUgEAAGYBAAADAAAABAAAAAUAAAAGAAAABgAAAAMAAAAAAAAAAAAA"
-    "AAAAAAABAAAAAAAAAAIAAAAAAAAAAQAAAAAAAAACAAAAAAAAAAIAAAAAAAAAdQEAAAAAAAAAAAAA"
-    "AAAAAAIAAAAAAAAAAQAAAAAAAAB/AQAAAAAAAAEAAQABAAAAbwEAAAQAAABwEAIAAAAOAAEAAQAB"
-    "AAAAaQEAAAQAAABwEAIAAAAOAAY8aW5pdD4ABkEuamF2YQAGQi5qYXZhAANMQTsAA0xCOwASTGph"
-    "dmEvbGFuZy9PYmplY3Q7AAFWAAQABw48AAQABw48AAAAAQABgIAEgAIAAAEAAICABJgCAAAACwAA"
-    "AAAAAAABAAAAAAAAAAEAAAAHAAAAcAAAAAIAAAAEAAAAjAAAAAMAAAABAAAAnAAAAAUAAAADAAAA"
-    "qAAAAAYAAAACAAAAwAAAAAEgAAACAAAAAAEAAAIgAAAHAAAAMAEAAAMgAAACAAAAaQEAAAAgAAAC"
-    "AAAAdQEAAAAQAAABAAAAjAEAAA==";
-
 // Dex file with catch handler unreferenced by try blocks.
 // Constructed by building a dex file with try/catch blocks and hex editing.
 static const char kUnreferencedCatchHandlerInputDex[] =
@@ -314,26 +302,21 @@ class DexLayoutTest : public CommonRuntimeTest {
     WriteFileBase64(kDexFileLayoutInputDex, dex_file.c_str());
     std::string profile_file = tmp_dir + "primary.prof";
     WriteFileBase64(kDexFileLayoutInputProfile, profile_file.c_str());
-    std::string expected_output = tmp_dir + "expected.dex";
-    WriteFileBase64(kDexFileLayoutExpectedOutputDex, expected_output.c_str());
     std::string output_dex = tmp_dir + "classes.dex.new";
 
     std::string dexlayout = GetTestAndroidRoot() + "/bin/dexlayout";
     EXPECT_TRUE(OS::FileExists(dexlayout.c_str())) << dexlayout << " should be a valid file path";
 
     std::vector<std::string> dexlayout_exec_argv =
-        { dexlayout, "-w", tmp_dir, "-o", tmp_name, "-p", profile_file, dex_file };
+        { dexlayout, "-v", "-w", tmp_dir, "-o", tmp_name, "-p", profile_file, dex_file };
     if (!::art::Exec(dexlayout_exec_argv, error_msg)) {
       return false;
     }
-    std::vector<std::string> diff_exec_argv =
-        { "/usr/bin/diff", expected_output, output_dex };
-    if (!::art::Exec(diff_exec_argv, error_msg)) {
-      return false;
-    }
+
+    // -v makes sure that the layout did not corrupt the dex file.
 
     std::vector<std::string> rm_exec_argv =
-        { "/bin/rm", dex_file, profile_file, expected_output, output_dex };
+        { "/bin/rm", dex_file, profile_file, output_dex };
     if (!::art::Exec(rm_exec_argv, error_msg)) {
       return false;
     }
