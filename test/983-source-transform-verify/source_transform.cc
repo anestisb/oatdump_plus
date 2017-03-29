@@ -25,7 +25,9 @@
 
 #include "base/logging.h"
 #include "base/macros.h"
+#include "bytecode_utils.h"
 #include "dex_file.h"
+#include "dex_instruction.h"
 #include "jit/jit.h"
 #include "jni.h"
 #include "native_stack_dump.h"
@@ -41,6 +43,8 @@
 namespace art {
 namespace Test983SourceTransformVerify {
 
+constexpr bool kSkipInitialLoad = true;
+
 // The hook we are using.
 void JNICALL CheckDexFileHook(jvmtiEnv* jvmti_env ATTRIBUTE_UNUSED,
                               JNIEnv* jni_env ATTRIBUTE_UNUSED,
@@ -52,7 +56,7 @@ void JNICALL CheckDexFileHook(jvmtiEnv* jvmti_env ATTRIBUTE_UNUSED,
                               const unsigned char* class_data,
                               jint* new_class_data_len ATTRIBUTE_UNUSED,
                               unsigned char** new_class_data ATTRIBUTE_UNUSED) {
-  if (class_being_redefined == nullptr) {
+  if (kSkipInitialLoad && class_being_redefined == nullptr) {
     // Something got loaded concurrently. Just ignore it for now.
     return;
   }
@@ -64,13 +68,37 @@ void JNICALL CheckDexFileHook(jvmtiEnv* jvmti_env ATTRIBUTE_UNUSED,
   std::unique_ptr<const DexFile> dex(DexFile::Open(class_data,
                                                    class_data_len,
                                                    "fake_location.dex",
-                                                   0,
-                                                   nullptr,
-                                                   true,
-                                                   true,
+                                                   /*location_checksum*/ 0,
+                                                   /*oat_dex_file*/ nullptr,
+                                                   /*verify*/ true,
+                                                   /*verify_checksum*/ true,
                                                    &error));
   if (dex.get() == nullptr) {
     std::cout << "Failed to verify dex file for " << name << " because " << error << std::endl;
+    return;
+  }
+  for (uint32_t i = 0; i < dex->NumClassDefs(); i++) {
+    const DexFile::ClassDef& def = dex->GetClassDef(i);
+    const uint8_t* data_item = dex->GetClassData(def);
+    if (data_item == nullptr) {
+      continue;
+    }
+    for (ClassDataItemIterator it(*dex, data_item); it.HasNext(); it.Next()) {
+      if (!it.IsAtMethod() || it.GetMethodCodeItem() == nullptr) {
+        continue;
+      }
+      for (CodeItemIterator code_it(*it.GetMethodCodeItem()); !code_it.Done(); code_it.Advance()) {
+        const Instruction& inst = code_it.CurrentInstruction();
+        int forbiden_flags = (Instruction::kVerifyError | Instruction::kVerifyRuntimeOnly);
+        if (inst.Opcode() == Instruction::RETURN_VOID_NO_BARRIER ||
+            (inst.GetVerifyExtraFlags() & forbiden_flags) != 0) {
+          std::cout << "Unexpected instruction found in " << dex->PrettyMethod(it.GetMemberIndex())
+                    << " [Dex PC: 0x" << std::hex << code_it.CurrentDexPc() << std::dec << "] : "
+                    << inst.DumpString(dex.get()) << std::endl;
+          continue;
+        }
+      }
+    }
   }
 }
 
@@ -92,7 +120,6 @@ jint OnLoad(JavaVM* vm,
   }
   return 0;
 }
-
 
 }  // namespace Test983SourceTransformVerify
 }  // namespace art

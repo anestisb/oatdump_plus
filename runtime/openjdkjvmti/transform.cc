@@ -39,6 +39,7 @@
 #include "dex_file.h"
 #include "dex_file_types.h"
 #include "events-inl.h"
+#include "fixed_up_dex_file.h"
 #include "gc_root-inl.h"
 #include "globals.h"
 #include "jni_env_ext-inl.h"
@@ -152,6 +153,7 @@ jvmtiError Transformer::GetDexDataForRetransformation(ArtJvmTiEnv* env,
                                                       /*out*/unsigned char** dex_data) {
   art::StackHandleScope<3> hs(art::Thread::Current());
   art::Handle<art::mirror::ClassExt> ext(hs.NewHandle(klass->GetExtData()));
+  const art::DexFile* dex_file = nullptr;
   if (!ext.IsNull()) {
     art::Handle<art::mirror::Object> orig_dex(hs.NewHandle(ext->GetOriginalDexFile()));
     if (!orig_dex.IsNull()) {
@@ -167,17 +169,20 @@ jvmtiError Transformer::GetDexDataForRetransformation(ArtJvmTiEnv* env,
             /*out*/dex_data);
       } else {
         DCHECK(orig_dex->IsDexCache());
-        const art::DexFile* dex_file = orig_dex->AsDexCache()->GetDexFile();
+        dex_file = orig_dex->AsDexCache()->GetDexFile();
         *dex_data_len = static_cast<jint>(dex_file->Size());
-        return CopyDataIntoJvmtiBuffer(env, dex_file->Begin(), dex_file->Size(), /*out*/dex_data);
       }
     }
   }
-  // TODO De-quicken the dex file before passing it to the agents.
-  LOG(WARNING) << "Dex file is not de-quickened yet! Quickened dex instructions might be present";
-  const art::DexFile& dex = klass->GetDexFile();
-  *dex_data_len = static_cast<jint>(dex.Size());
-  return CopyDataIntoJvmtiBuffer(env, dex.Begin(), *dex_data_len, /*out*/dex_data);
+  if (dex_file == nullptr) {
+    dex_file = &klass->GetDexFile();
+    *dex_data_len = static_cast<jint>(dex_file->Size());
+  }
+  std::unique_ptr<FixedUpDexFile> fixed_dex_file(FixedUpDexFile::Create(*dex_file));
+  return CopyDataIntoJvmtiBuffer(env,
+                                 fixed_dex_file->Begin(),
+                                 fixed_dex_file->Size(),
+                                 /*out*/dex_data);
 }
 
 // TODO Move this function somewhere more appropriate.
@@ -209,6 +214,31 @@ jvmtiError Transformer::FillInTransformationData(ArtJvmTiEnv* env,
     jvmtiError res = GetDexDataForRetransformation(env, hs_klass, &def->dex_len, &new_data);
     if (res == OK) {
       def->dex_data = MakeJvmtiUniquePtr(env, new_data);
+      // TODO This whole thing is a bit of a mess.
+      // We need to keep track of what the runtime should think an unmodified dex file is since
+      // we need to be able to tell if anything changes. This might be different then the currently
+      // loaded dex file since we need to un-quicken stuff.
+      if (hs_klass->GetExtData() == nullptr ||
+          hs_klass->GetExtData()->GetOriginalDexFile() == nullptr) {
+        // We have never redefined this yet. Keep track of what the (de-quickened) dex file looks
+        // like so we can tell if anything has changed.
+        // Really we would like to just always do the 'else' block but the fact that we de-quickened
+        // stuff screws us over.
+        unsigned char* original_data_memory = nullptr;
+        res = env->Allocate(def->dex_len, &original_data_memory);
+        if (res != OK) {
+          return res;
+        }
+        memcpy(original_data_memory, new_data, def->dex_len);
+        def->original_dex_file_memory = MakeJvmtiUniquePtr(env, original_data_memory);
+        def->original_dex_file = art::ArraySlice<const unsigned char>(original_data_memory,
+                                                                      def->dex_len);
+      } else {
+        // We know that we have been redefined at least once (there is an original_dex_file set in
+        // the class) so we can just use the current dex file directly.
+        def->original_dex_file = art::ArraySlice<const unsigned char>(
+            hs_klass->GetDexFile().Begin(), hs_klass->GetDexFile().Size());
+      }
     } else {
       return res;
     }

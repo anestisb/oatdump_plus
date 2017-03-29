@@ -25,6 +25,7 @@ public class Main {
     Transform abc = new Transform();
     enableCommonRetransformation(true);
     doCommonClassRetransformation(Transform.class);
+    doCommonClassRetransformation(Object.class);
     enableCommonRetransformation(false);
   }
 
