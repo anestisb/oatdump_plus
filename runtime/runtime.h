@@ -733,7 +733,7 @@ class Runtime {
   std::string class_path_string_;
   std::vector<std::string> properties_;
 
-  std::vector<ti::Agent> agents_;
+  std::list<ti::Agent> agents_;
   std::vector<Plugin> plugins_;
 
   // The default stack size for managed threads created by the runtime.
