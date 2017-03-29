@@ -52,6 +52,11 @@ public class Main {
     // Thread has died, check that we can still get info.
     printThreadInfo(t3);
 
+    // Try a subclass of thread.
+    Thread t4 = new Thread("Subclass") {
+    };
+    printThreadInfo(t4);
+
     doStateTests();
 
     doAllThreadsTests();
