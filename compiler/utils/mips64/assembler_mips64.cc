@@ -1661,6 +1661,7 @@ void Mips64Assembler::Addiu32(GpuRegister rt, GpuRegister rs, int32_t value) {
   }
 }
 
+// TODO: don't use rtmp, use daui, dahi, dati.
 void Mips64Assembler::Daddiu64(GpuRegister rt, GpuRegister rs, int64_t value, GpuRegister rtmp) {
   if (IsInt<16>(value)) {
     Daddiu(rt, rs, value);

@@ -454,6 +454,8 @@ static bool IsInstructionSetSupported(InstructionSet instruction_set) {
 static bool InstructionSetSupportsReadBarrier(InstructionSet instruction_set) {
   return instruction_set == kArm64
       || instruction_set == kThumb2
+      || instruction_set == kMips
+      || instruction_set == kMips64
       || instruction_set == kX86
       || instruction_set == kX86_64;
 }
