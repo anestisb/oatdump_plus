@@ -35,6 +35,10 @@
 #include "jni.h"
 #include "jvmti.h"
 
+namespace art {
+class ArtField;
+}
+
 namespace openjdkjvmti {
 
 class EventHandler;
@@ -43,6 +47,9 @@ class ThreadUtil {
  public:
   static void Register(EventHandler* event_handler);
   static void Unregister();
+
+  // To be called when it is safe to cache data.
+  static void CacheData();
 
   static jvmtiError GetAllThreads(jvmtiEnv* env, jint* threads_count_ptr, jthread** threads_ptr);
 
@@ -60,6 +67,9 @@ class ThreadUtil {
                                    jvmtiStartFunction proc,
                                    const void* arg,
                                    jint priority);
+
+ private:
+  static art::ArtField* context_class_loader_;
 };
 
 }  // namespace openjdkjvmti
