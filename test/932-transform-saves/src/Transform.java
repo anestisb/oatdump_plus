@@ -23,6 +23,6 @@ class Transform {
     // of the two different strings were the same).
     // We know the string ids will be different because lexicographically:
     // "Goodbye" < "LTransform;" < "hello".
-    System.out.println("hello");
+    System.out.println("foobar");
   }
 }

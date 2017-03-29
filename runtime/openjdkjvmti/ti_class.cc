@@ -43,6 +43,7 @@
 #include "common_throws.h"
 #include "dex_file_annotations.h"
 #include "events-inl.h"
+#include "fixed_up_dex_file.h"
 #include "gc/heap.h"
 #include "gc_root.h"
 #include "handle.h"
@@ -161,6 +162,8 @@ struct ClassCallback : public art::ClassLoadCallback {
     art::JNIEnvExt* env = self->GetJniEnv();
     ScopedLocalRef<jobject> loader(
         env, class_loader.IsNull() ? nullptr : env->AddLocalReference<jobject>(class_loader.Get()));
+    std::unique_ptr<FixedUpDexFile> dex_file_copy(FixedUpDexFile::Create(initial_dex_file));
+
     // Go back to native.
     art::ScopedThreadSuspension sts(self, art::ThreadState::kNative);
     // Call all Non-retransformable agents.
@@ -174,14 +177,14 @@ struct ClassCallback : public art::ClassLoadCallback {
         loader.get(),
         name.c_str(),
         static_cast<jobject>(nullptr),  // Android doesn't seem to have protection domains
-        static_cast<jint>(initial_dex_file.Size()),
-        static_cast<const unsigned char*>(initial_dex_file.Begin()),
+        static_cast<jint>(dex_file_copy->Size()),
+        static_cast<const unsigned char*>(dex_file_copy->Begin()),
         static_cast<jint*>(&post_no_redefine_len),
         static_cast<unsigned char**>(&post_no_redefine_dex_data));
     if (post_no_redefine_dex_data == nullptr) {
       DCHECK_EQ(post_no_redefine_len, 0);
-      post_no_redefine_dex_data = const_cast<unsigned char*>(initial_dex_file.Begin());
-      post_no_redefine_len = initial_dex_file.Size();
+      post_no_redefine_dex_data = const_cast<unsigned char*>(dex_file_copy->Begin());
+      post_no_redefine_len = dex_file_copy->Size();
     } else {
       post_no_redefine_unique_ptr = std::unique_ptr<const unsigned char>(post_no_redefine_dex_data);
       DCHECK_GT(post_no_redefine_len, 0);
@@ -210,7 +213,7 @@ struct ClassCallback : public art::ClassLoadCallback {
       DCHECK_GT(final_len, 0);
     }
 
-    if (final_dex_data != initial_dex_file.Begin()) {
+    if (final_dex_data != dex_file_copy->Begin()) {
       LOG(WARNING) << "Changing class " << descriptor;
       art::ScopedObjectAccess soa(self);
       art::StackHandleScope<2> hs(self);

@@ -1,4 +1,4 @@
-/* Copyright (C) 2016 The Android Open Source Project
+/* Copyright (C) 2017 The Android Open Source Project
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This file implements interfaces from the file jvmti.h. This implementation
@@ -29,29 +29,54 @@
  * questions.
  */
 
-#include "ti_class_definition.h"
+#ifndef ART_RUNTIME_OPENJDKJVMTI_FIXED_UP_DEX_FILE_H_
+#define ART_RUNTIME_OPENJDKJVMTI_FIXED_UP_DEX_FILE_H_
 
+#include <memory>
+#include <vector>
+
+#include "jni.h"
+#include "jvmti.h"
+#include "base/mutex.h"
 #include "dex_file.h"
-#include "handle_scope-inl.h"
-#include "handle.h"
-#include "mirror/class-inl.h"
-#include "mirror/object-inl.h"
-#include "thread.h"
 
 namespace openjdkjvmti {
 
-bool ArtClassDefinition::IsModified() const {
-  // RedefineClasses calls always are 'modified' since they need to change the original_dex_file of
-  // the class.
-  if (redefined) {
-    return true;
+// A holder for a DexFile that has been 'fixed up' to ensure it is fully compliant with the
+// published standard (no internal/quick opcodes, all fields are the defined values, etc). This is
+// used to ensure that agents get a consistent dex file regardless of what version of android they
+// are running on.
+class FixedUpDexFile {
+ public:
+  static std::unique_ptr<FixedUpDexFile> Create(const art::DexFile& original)
+      REQUIRES_SHARED(art::Locks::mutator_lock_);
+
+  const art::DexFile& GetDexFile() {
+    return *dex_file_;
   }
-  // Check if the dex file we want to set is the same as the current one.
-  // Unfortunately we need to do this check even if no modifications have been done since it could
-  // be that agents were removed in the mean-time so we still have a different dex file. The dex
-  // checksum means this is likely to be fairly fast.
-  return static_cast<jint>(original_dex_file.size()) != dex_len ||
-      memcmp(&original_dex_file.At(0), dex_data.get(), dex_len) != 0;
-}
+
+  const unsigned char* Begin() {
+    return data_.data();
+  }
+
+  size_t Size() {
+    return data_.size();
+  }
+
+ private:
+  explicit FixedUpDexFile(std::unique_ptr<const art::DexFile> fixed_up_dex_file,
+                          std::vector<unsigned char> data)
+      : dex_file_(std::move(fixed_up_dex_file)),
+        data_(std::move(data)) {}
+
+  // the fixed up DexFile
+  std::unique_ptr<const art::DexFile> dex_file_;
+  // The backing data for dex_file_.
+  const std::vector<unsigned char> data_;
+
+  DISALLOW_COPY_AND_ASSIGN(FixedUpDexFile);
+};
 
 }  // namespace openjdkjvmti
+
+#endif  // ART_RUNTIME_OPENJDKJVMTI_FIXED_UP_DEX_FILE_H_
