@@ -42,6 +42,7 @@ class EventHandler;
 class PhaseUtil {
  public:
   static jvmtiError GetPhase(jvmtiEnv* env, jvmtiPhase* phase_ptr);
+  static bool IsLivePhase();
 
   static void Register(EventHandler* event_handler);
   static void Unregister();

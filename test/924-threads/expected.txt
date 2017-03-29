@@ -19,6 +19,11 @@ Daemon Thread
 true
 java.lang.ThreadGroup[name=main,maxpri=10]
 class dalvik.system.PathClassLoader
+Subclass
+5
+false
+java.lang.ThreadGroup[name=main,maxpri=10]
+class dalvik.system.PathClassLoader
 5
 5
 0 = NEW
