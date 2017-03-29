@@ -44,8 +44,13 @@ ProfileAssistant::ProcessingResult ProfileAssistant::ProcessProfilesInternal(
 
   // Merge all current profiles.
   for (size_t i = 0; i < profile_files.size(); i++) {
-    if (!info.Load(profile_files[i].GetFile()->Fd())) {
+    ProfileCompilationInfo cur_info;
+    if (!cur_info.Load(profile_files[i].GetFile()->Fd())) {
       LOG(WARNING) << "Could not load profile file at index " << i;
+      return kErrorBadProfiles;
+    }
+    if (!info.MergeWith(cur_info)) {
+      LOG(WARNING) << "Could not merge profile file at index " << i;
       return kErrorBadProfiles;
     }
   }
