@@ -19,4 +19,5 @@ if  [[ "$@" == *"-O"* ]]; then
   plugin=libartagent.so
 fi
 ./default-run "$@" --runtime-option -agentpath:${plugin}=test_900 \
+                   --runtime-option -agentpath:${plugin}=test_900_round_2 \
                    --android-runtime-option -Xplugin:${plugin}
