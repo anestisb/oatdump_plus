@@ -47,6 +47,7 @@ struct ArtClassDefinition {
   jobject protection_domain;
   jint dex_len;
   JvmtiUniquePtr<unsigned char> dex_data;
+  JvmtiUniquePtr<unsigned char> original_dex_file_memory;
   art::ArraySlice<const unsigned char> original_dex_file;
 
   ArtClassDefinition()
@@ -56,8 +57,9 @@ struct ArtClassDefinition {
         protection_domain(nullptr),
         dex_len(0),
         dex_data(nullptr),
+        original_dex_file_memory(nullptr),
         original_dex_file(),
-        modified(false) {}
+        redefined(false) {}
 
   ArtClassDefinition(ArtClassDefinition&& o) = default;
 
@@ -65,20 +67,27 @@ struct ArtClassDefinition {
     if (new_dex_data == nullptr) {
       return;
     } else if (new_dex_data != dex_data.get() || new_dex_len != dex_len) {
-      SetModified();
       dex_len = new_dex_len;
       dex_data = MakeJvmtiUniquePtr(env, new_dex_data);
     }
   }
 
-  void SetModified() {
-    modified = true;
+  void SetRedefined() {
+    redefined = true;
   }
 
-  bool IsModified(art::Thread* self) const REQUIRES_SHARED(art::Locks::mutator_lock_);
+  art::ArraySlice<const unsigned char> GetNewOriginalDexFile() const {
+    if (redefined) {
+      return original_dex_file;
+    } else {
+      return art::ArraySlice<const unsigned char>();
+    }
+  }
+
+  bool IsModified() const;
 
  private:
-  bool modified;
+  bool redefined;
 };
 
 }  // namespace openjdkjvmti

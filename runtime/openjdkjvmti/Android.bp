@@ -24,6 +24,7 @@ cc_defaults {
     defaults: ["art_defaults"],
     host_supported: true,
     srcs: ["events.cc",
+           "fixed_up_dex_file.cc",
            "object_tagging.cc",
            "OpenjdkJvmTi.cc",
            "ti_class.cc",
@@ -56,7 +57,10 @@ cc_defaults {
 art_cc_library {
     name: "libopenjdkjvmti",
     defaults: ["libopenjdkjvmti_defaults"],
-    shared_libs: ["libart"],
+    shared_libs: [
+        "libart",
+        "libart-compiler",
+    ],
 }
 
 art_cc_library {
@@ -65,5 +69,8 @@ art_cc_library {
         "art_debug_defaults",
         "libopenjdkjvmti_defaults",
     ],
-    shared_libs: ["libartd"],
+    shared_libs: [
+        "libartd",
+        "libartd-compiler",
+    ],
 }
