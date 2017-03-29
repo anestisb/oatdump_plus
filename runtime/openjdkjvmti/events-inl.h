@@ -169,15 +169,19 @@ inline void EventHandler::DispatchClassFileLoadHookEvent(art::Thread* thread,
 // exactly the argument types of the corresponding Jvmti kEvent function pointer.
 
 template <ArtJvmtiEvent kEvent, typename ...Args>
-inline void EventHandler::DispatchEvent(art::Thread* thread,
-                                        Args... args) const {
-  using FnType = void(jvmtiEnv*, Args...);
+inline void EventHandler::DispatchEvent(art::Thread* thread, Args... args) const {
   for (ArtJvmTiEnv* env : envs) {
-    if (ShouldDispatch<kEvent>(env, thread)) {
-      FnType* callback = impl::GetCallback<kEvent>(env);
-      if (callback != nullptr) {
-        (*callback)(env, args...);
-      }
+    DispatchEvent<kEvent, Args...>(env, thread, args...);
+  }
+}
+
+template <ArtJvmtiEvent kEvent, typename ...Args>
+inline void EventHandler::DispatchEvent(ArtJvmTiEnv* env, art::Thread* thread, Args... args) const {
+  using FnType = void(jvmtiEnv*, Args...);
+  if (ShouldDispatch<kEvent>(env, thread)) {
+    FnType* callback = impl::GetCallback<kEvent>(env);
+    if (callback != nullptr) {
+      (*callback)(env, args...);
     }
   }
 }

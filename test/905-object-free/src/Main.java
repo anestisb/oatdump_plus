@@ -65,20 +65,25 @@ public class Main {
     System.out.println("---");
   }
 
+  private static void stressAllocate(int i) {
+    Object obj = new Object();
+    setTag(obj, i);
+    setTag2(obj, i + 1);
+  }
+
   private static void stress() {
     getCollectedTags(0);
     getCollectedTags(1);
-    for (int i = 0; i <= 1000000; ++i) {
-      Object obj = new Object();
-      setTag(obj, i);
-      obj = null; // Clear vreg.
+    // Allocate objects.
+    for (int i = 1; i <= 100000; ++i) {
+      stressAllocate(i);
     }
     Runtime.getRuntime().gc();
     long[] freedTags1 = getCollectedTags(0);
     long[] freedTags2 = getCollectedTags(1);
     System.out.println("Free counts " + freedTags1.length + " " + freedTags2.length);
     for (int i = 0; i < freedTags1.length; ++i) {
-      if (freedTags1[i] != freedTags2[i]) {
+      if (freedTags1[i] + 1 != freedTags2[i]) {
         System.out.println("Mismatched tags " + freedTags1[i] + " " + freedTags2[i]);
       }
     }
@@ -100,4 +105,5 @@ public class Main {
   private static native void enableFreeTracking(boolean enable);
   private static native void setTag(Object o, long tag);
   private static native long[] getCollectedTags(int index);
+  private static native void setTag2(Object o, long tag);
 }
