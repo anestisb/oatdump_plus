@@ -26,8 +26,12 @@
 #include "jni.h"
 #include "jvmti.h"
 #include "ScopedLocalRef.h"
-#include "ti-agent/common_helper.h"
-#include "ti-agent/common_load.h"
+
+// Test infrastructure
+#include "jni_binder.h"
+#include "jni_helper.h"
+#include "jvmti_helper.h"
+#include "test_env.h"
 
 namespace art {
 namespace Test911GetStackTrace {
@@ -68,7 +72,7 @@ static jobjectArray TranslateJvmtiFrameInfoArray(JNIEnv* env,
     char* gen;
     {
       jvmtiError result2 = jvmti_env->GetMethodName(frames[method_index].method, &name, &sig, &gen);
-      if (JvmtiErrorToException(env, result2)) {
+      if (JvmtiErrorToException(env, jvmti_env, result2)) {
         return nullptr;
       }
     }
@@ -83,10 +87,7 @@ static jobjectArray TranslateJvmtiFrameInfoArray(JNIEnv* env,
         // Accept absent info and native method errors.
         if (line_result != JVMTI_ERROR_ABSENT_INFORMATION &&
             line_result != JVMTI_ERROR_NATIVE_METHOD) {
-          char* err;
-          jvmti_env->GetErrorName(line_result, &err);
-          printf("Failure running GetLineNumberTable: %s\n", err);
-          jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
+          JvmtiErrorToException(env, jvmti_env, line_result);
           return nullptr;
         }
         line_number_table = nullptr;
@@ -139,7 +140,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_PrintThread_getStackTrace(
   jint count;
   {
     jvmtiError result = jvmti_env->GetStackTrace(thread, start, max, frames.get(), &count);
-    if (JvmtiErrorToException(env, result)) {
+    if (JvmtiErrorToException(env, jvmti_env, result)) {
       return nullptr;
     }
   }
@@ -153,7 +154,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_AllTraces_getAllStackTraces(
   jvmtiStackInfo* stack_infos;
   {
     jvmtiError result = jvmti_env->GetAllStackTraces(max, &stack_infos, &thread_count);
-    if (JvmtiErrorToException(env, result)) {
+    if (JvmtiErrorToException(env, jvmti_env, result)) {
       return nullptr;
     }
   }
@@ -189,7 +190,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_ThreadListTraces_getThreadListSta
                                                             threads.get(),
                                                             max,
                                                             &stack_infos);
-    if (JvmtiErrorToException(env, result)) {
+    if (JvmtiErrorToException(env, jvmti_env, result)) {
       return nullptr;
     }
   }
@@ -215,7 +216,7 @@ extern "C" JNIEXPORT jint JNICALL Java_Frames_getFrameCount(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jthread thread) {
   jint count;
   jvmtiError result = jvmti_env->GetFrameCount(thread, &count);
-  if (JvmtiErrorToException(env, result)) {
+  if (JvmtiErrorToException(env, jvmti_env, result)) {
     return -1;
   }
   return count;
@@ -227,7 +228,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Frames_getFrameLocation(
   jlocation location;
 
   jvmtiError result = jvmti_env->GetFrameLocation(thread, depth, &method, &location);
-  if (JvmtiErrorToException(env, result)) {
+  if (JvmtiErrorToException(env, jvmti_env, result)) {
     return nullptr;
   }
 
@@ -237,12 +238,12 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Frames_getFrameLocation(
       {
         jclass decl_class;
         jvmtiError class_result = jvmti_env->GetMethodDeclaringClass(method, &decl_class);
-        if (JvmtiErrorToException(env, class_result)) {
+        if (JvmtiErrorToException(env, jvmti_env, class_result)) {
           return nullptr;
         }
         jint modifiers;
         jvmtiError mod_result = jvmti_env->GetMethodModifiers(method, &modifiers);
-        if (JvmtiErrorToException(env, mod_result)) {
+        if (JvmtiErrorToException(env, jvmti_env, mod_result)) {
           return nullptr;
         }
         constexpr jint kStatic = 0x8;

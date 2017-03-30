@@ -23,8 +23,10 @@
 #include "jvmti.h"
 #include "ScopedLocalRef.h"
 
-#include "ti-agent/common_helper.h"
-#include "ti-agent/common_load.h"
+// Test infrastructure
+#include "jni_helper.h"
+#include "jvmti_helper.h"
+#include "test_env.h"
 
 namespace art {
 namespace Test924Threads {
@@ -36,7 +38,7 @@ extern "C" JNIEXPORT jthread JNICALL Java_Main_getCurrentThread(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED) {
   jthread thread = nullptr;
   jvmtiError result = jvmti_env->GetCurrentThread(&thread);
-  if (JvmtiErrorToException(env, result)) {
+  if (JvmtiErrorToException(env, jvmti_env, result)) {
     return nullptr;
   }
   return thread;
@@ -48,7 +50,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getThreadInfo(
   memset(&info, 0, sizeof(jvmtiThreadInfo));
 
   jvmtiError result = jvmti_env->GetThreadInfo(thread, &info);
-  if (JvmtiErrorToException(env, result)) {
+  if (JvmtiErrorToException(env, jvmti_env, result)) {
     return nullptr;
   }
 
@@ -94,7 +96,7 @@ extern "C" JNIEXPORT jint JNICALL Java_Main_getThreadState(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jthread thread) {
   jint state;
   jvmtiError result = jvmti_env->GetThreadState(thread, &state);
-  if (JvmtiErrorToException(env, result)) {
+  if (JvmtiErrorToException(env, jvmti_env, result)) {
     return 0;
   }
   return state;
@@ -106,7 +108,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getAllThreads(
   jthread* threads;
 
   jvmtiError result = jvmti_env->GetAllThreads(&thread_count, &threads);
-  if (JvmtiErrorToException(env, result)) {
+  if (JvmtiErrorToException(env, jvmti_env, result)) {
     return nullptr;
   }
 
@@ -124,7 +126,7 @@ extern "C" JNIEXPORT jlong JNICALL Java_Main_getTLS(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jthread thread) {
   void* tls;
   jvmtiError result = jvmti_env->GetThreadLocalStorage(thread, &tls);
-  if (JvmtiErrorToException(env, result)) {
+  if (JvmtiErrorToException(env, jvmti_env, result)) {
     return 0;
   }
   return static_cast<jlong>(reinterpret_cast<uintptr_t>(tls));
@@ -134,7 +136,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_setTLS(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jthread thread, jlong val) {
   const void* tls = reinterpret_cast<void*>(static_cast<uintptr_t>(val));
   jvmtiError result = jvmti_env->SetThreadLocalStorage(thread, tls);
-  JvmtiErrorToException(env, result);
+  JvmtiErrorToException(env, jvmti_env, result);
 }
 
 static void JNICALL ThreadEvent(jvmtiEnv* jvmti_env,
@@ -172,13 +174,13 @@ extern "C" JNIEXPORT void JNICALL Java_Main_enableThreadEvents(
     jvmtiError ret = jvmti_env->SetEventNotificationMode(JVMTI_DISABLE,
                                                          JVMTI_EVENT_THREAD_START,
                                                          nullptr);
-    if (JvmtiErrorToException(env, ret)) {
+    if (JvmtiErrorToException(env, jvmti_env, ret)) {
       return;
     }
     ret = jvmti_env->SetEventNotificationMode(JVMTI_DISABLE,
                                               JVMTI_EVENT_THREAD_END,
                                               nullptr);
-    JvmtiErrorToException(env, ret);
+    JvmtiErrorToException(env, jvmti_env, ret);
     return;
   }
 
@@ -187,20 +189,20 @@ extern "C" JNIEXPORT void JNICALL Java_Main_enableThreadEvents(
   callbacks.ThreadStart = ThreadStart;
   callbacks.ThreadEnd = ThreadEnd;
   jvmtiError ret = jvmti_env->SetEventCallbacks(&callbacks, sizeof(callbacks));
-  if (JvmtiErrorToException(env, ret)) {
+  if (JvmtiErrorToException(env, jvmti_env, ret)) {
     return;
   }
 
   ret = jvmti_env->SetEventNotificationMode(JVMTI_ENABLE,
                                             JVMTI_EVENT_THREAD_START,
                                             nullptr);
-  if (JvmtiErrorToException(env, ret)) {
+  if (JvmtiErrorToException(env, jvmti_env, ret)) {
     return;
   }
   ret = jvmti_env->SetEventNotificationMode(JVMTI_ENABLE,
                                             JVMTI_EVENT_THREAD_END,
                                             nullptr);
-  JvmtiErrorToException(env, ret);
+  JvmtiErrorToException(env, jvmti_env, ret);
 }
 
 }  // namespace Test924Threads

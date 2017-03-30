@@ -21,8 +21,10 @@
 #include "jvmti.h"
 #include "ScopedUtfChars.h"
 
-#include "ti-agent/common_helper.h"
-#include "ti-agent/common_load.h"
+// Test infrastructure
+#include "jni_helper.h"
+#include "jvmti_helper.h"
+#include "test_env.h"
 
 namespace art {
 namespace Test922Properties {
@@ -32,7 +34,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getSystemProperties(
   jint count;
   char** properties;
   jvmtiError result = jvmti_env->GetSystemProperties(&count, &properties);
-  if (JvmtiErrorToException(env, result)) {
+  if (JvmtiErrorToException(env, jvmti_env, result)) {
     return nullptr;
   }
 
@@ -61,7 +63,7 @@ extern "C" JNIEXPORT jstring JNICALL Java_Main_getSystemProperty(
 
   char* value = nullptr;
   jvmtiError result = jvmti_env->GetSystemProperty(string.c_str(), &value);
-  if (JvmtiErrorToException(env, result)) {
+  if (JvmtiErrorToException(env, jvmti_env, result)) {
     return nullptr;
   }
 
@@ -84,7 +86,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_setSystemProperty(
   }
 
   jvmtiError result = jvmti_env->SetSystemProperty(key_string.c_str(), value_string.c_str());
-  if (JvmtiErrorToException(env, result)) {
+  if (JvmtiErrorToException(env, jvmti_env, result)) {
     return;
   }
 }

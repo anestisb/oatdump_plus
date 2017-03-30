@@ -14,26 +14,20 @@
  * limitations under the License.
  */
 
-#ifndef ART_TEST_TI_AGENT_COMMON_HELPER_H_
-#define ART_TEST_TI_AGENT_COMMON_HELPER_H_
-
-#include "jni.h"
-#include "jvmti.h"
+#include "test_env.h"
 
 namespace art {
 
-namespace common_redefine {
-jint OnLoad(JavaVM* vm, char* options, void* reserved);
-}  // namespace common_redefine
+jvmtiEnv* jvmti_env = nullptr;
 
-namespace common_retransform {
-jint OnLoad(JavaVM* vm, char* options, void* reserved);
-}  // namespace common_retransform
+static bool gRuntimeIsJVM = false;
 
-namespace common_transform {
-jint OnLoad(JavaVM* vm, char* options, void* reserved);
-}  // namespace common_transform
+bool IsJVM() {
+  return gRuntimeIsJVM;
+}
+
+void SetJVM(bool b) {
+  gRuntimeIsJVM = b;
+}
 
 }  // namespace art
-
-#endif  // ART_TEST_TI_AGENT_COMMON_HELPER_H_

@@ -24,9 +24,11 @@
 #include "jvmti.h"
 #include "ScopedLocalRef.h"
 #include "ScopedUtfChars.h"
-#include "ti-agent/common_helper.h"
-#include "ti-agent/common_load.h"
 #include "utils.h"
+
+// Test infrastructure
+#include "jvmti_helper.h"
+#include "test_env.h"
 
 namespace art {
 namespace Test904ObjectAllocation {
@@ -57,21 +59,16 @@ static void JNICALL ObjectAllocated(jvmtiEnv* ti_env ATTRIBUTE_UNUSED,
 }
 
 extern "C" JNIEXPORT void JNICALL Java_Main_setupObjectAllocCallback(
-    JNIEnv* env ATTRIBUTE_UNUSED, jclass klass ATTRIBUTE_UNUSED, jboolean enable) {
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jboolean enable) {
   jvmtiEventCallbacks callbacks;
   memset(&callbacks, 0, sizeof(jvmtiEventCallbacks));
   callbacks.VMObjectAlloc = enable ? ObjectAllocated : nullptr;
 
   jvmtiError ret = jvmti_env->SetEventCallbacks(&callbacks, sizeof(callbacks));
-  if (ret != JVMTI_ERROR_NONE) {
-    char* err;
-    jvmti_env->GetErrorName(ret, &err);
-    printf("Error setting callbacks: %s\n", err);
-    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
-  }
+  JvmtiErrorToException(env, jvmti_env, ret);
 }
 
-extern "C" JNIEXPORT void JNICALL Java_Main_enableAllocationTracking(JNIEnv* env ATTRIBUTE_UNUSED,
+extern "C" JNIEXPORT void JNICALL Java_Main_enableAllocationTracking(JNIEnv* env,
                                                                      jclass,
                                                                      jthread thread,
                                                                      jboolean enable) {
@@ -79,14 +76,8 @@ extern "C" JNIEXPORT void JNICALL Java_Main_enableAllocationTracking(JNIEnv* env
       enable ? JVMTI_ENABLE : JVMTI_DISABLE,
       JVMTI_EVENT_VM_OBJECT_ALLOC,
       thread);
-  if (ret != JVMTI_ERROR_NONE) {
-    char* err;
-    jvmti_env->GetErrorName(ret, &err);
-    printf("Error enabling/disabling allocation tracking: %s\n", err);
-    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
-  }
+  JvmtiErrorToException(env, jvmti_env, ret);
 }
 
 }  // namespace Test904ObjectAllocation
 }  // namespace art
-

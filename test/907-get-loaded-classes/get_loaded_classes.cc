@@ -25,8 +25,9 @@
 #include "ScopedLocalRef.h"
 #include "ScopedUtfChars.h"
 
-#include "ti-agent/common_helper.h"
-#include "ti-agent/common_load.h"
+// Test infrastructure
+#include "jni_helper.h"
+#include "test_env.h"
 
 namespace art {
 namespace Test907GetLoadedClasses {

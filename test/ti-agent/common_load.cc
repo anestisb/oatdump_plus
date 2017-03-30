@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-#include "common_load.h"
-
 #include <jni.h>
 #include <stdio.h>
 
-#include "art_method-inl.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "common_helper.h"
+#include "jni_binder.h"
+#include "jvmti_helper.h"
+#include "test_env.h"
 
 #include "901-hello-ti-agent/basics.h"
 #include "909-attach-agent/attach.h"
@@ -30,8 +30,6 @@
 #include "983-source-transform-verify/source_transform.h"
 
 namespace art {
-
-jvmtiEnv* jvmti_env;
 
 namespace {
 
@@ -154,8 +152,8 @@ static bool FindAgentNameAndOptions(char* options,
   return true;
 }
 
-static void SetIsJVM(char* options) {
-  RuntimeIsJVM = strncmp(options, "jvm", 3) == 0;
+static void SetIsJVM(const char* options) {
+  SetJVM(strncmp(options, "jvm", 3) == 0);
 }
 
 static bool BindFunctionsAttached(JavaVM* vm, const char* class_name) {

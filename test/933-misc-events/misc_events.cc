@@ -23,8 +23,9 @@
 #include "jni.h"
 #include "jvmti.h"
 
-#include "ti-agent/common_helper.h"
-#include "ti-agent/common_load.h"
+// Test infrastructure
+#include "jvmti_helper.h"
+#include "test_env.h"
 
 namespace art {
 namespace Test933MiscEvents {
@@ -42,14 +43,14 @@ extern "C" JNIEXPORT void JNICALL Java_Main_testSigQuit(
   memset(&callbacks, 0, sizeof(jvmtiEventCallbacks));
   callbacks.DataDumpRequest = DumpRequestCallback;
   jvmtiError ret = jvmti_env->SetEventCallbacks(&callbacks, sizeof(callbacks));
-  if (JvmtiErrorToException(env, ret)) {
+  if (JvmtiErrorToException(env, jvmti_env, ret)) {
     return;
   }
 
   ret = jvmti_env->SetEventNotificationMode(JVMTI_ENABLE,
                                             JVMTI_EVENT_DATA_DUMP_REQUEST,
                                             nullptr);
-  if (JvmtiErrorToException(env, ret)) {
+  if (JvmtiErrorToException(env, jvmti_env, ret)) {
     return;
   }
 
@@ -65,7 +66,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_testSigQuit(
   }
 
   ret = jvmti_env->SetEventNotificationMode(JVMTI_DISABLE, JVMTI_EVENT_DATA_DUMP_REQUEST, nullptr);
-  JvmtiErrorToException(env, ret);
+  JvmtiErrorToException(env, jvmti_env, ret);
 }
 
 }  // namespace Test933MiscEvents
