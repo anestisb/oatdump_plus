@@ -81,9 +81,9 @@ static std::unique_ptr<const art::DexFile> MakeSingleDexFile(art::Thread* self,
       REQUIRES_SHARED(art::Locks::mutator_lock_) {
   // Make the mmap
   std::string error_msg;
+  art::ArraySlice<const unsigned char> final_data(final_dex_data, final_len);
   std::unique_ptr<art::MemMap> map(Redefiner::MoveDataToMemMap(orig_location,
-                                                               final_len,
-                                                               final_dex_data,
+                                                               final_data,
                                                                &error_msg));
   if (map.get() == nullptr) {
     LOG(WARNING) << "Unable to allocate mmap for redefined dex file! Error was: " << error_msg;

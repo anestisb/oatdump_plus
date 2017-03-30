@@ -61,18 +61,6 @@ class Transformer {
                                        jint class_count,
                                        const jclass* classes,
                                        /*out*/std::string* error_msg);
-
-  // Gets the data surrounding the given class.
-  static jvmtiError FillInTransformationData(ArtJvmTiEnv* env,
-                                             jclass klass,
-                                             ArtClassDefinition* def);
-
- private:
-  static jvmtiError GetDexDataForRetransformation(ArtJvmTiEnv* env,
-                                                  art::Handle<art::mirror::Class> klass,
-                                                  /*out*/jint* dex_data_length,
-                                                  /*out*/unsigned char** dex_data)
-      REQUIRES_SHARED(art::Locks::mutator_lock_);
 };
 
 }  // namespace openjdkjvmti
