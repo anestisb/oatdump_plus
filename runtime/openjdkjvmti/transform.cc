@@ -43,6 +43,7 @@
 #include "gc_root-inl.h"
 #include "globals.h"
 #include "jni_env_ext-inl.h"
+#include "jvalue.h"
 #include "jvmti.h"
 #include "linear_alloc.h"
 #include "mem_map.h"
@@ -52,6 +53,7 @@
 #include "mirror/class_loader-inl.h"
 #include "mirror/string-inl.h"
 #include "oat_file.h"
+#include "reflection.h"
 #include "scoped_thread_state_change-inl.h"
 #include "stack.h"
 #include "thread_list.h"
@@ -167,18 +169,27 @@ jvmtiError Transformer::GetDexDataForRetransformation(ArtJvmTiEnv* env,
             reinterpret_cast<const unsigned char*>(orig_dex_bytes->GetData()),
             *dex_data_len,
             /*out*/dex_data);
-      } else {
-        DCHECK(orig_dex->IsDexCache());
+      } else if (orig_dex->IsDexCache()) {
         dex_file = orig_dex->AsDexCache()->GetDexFile();
-        *dex_data_len = static_cast<jint>(dex_file->Size());
+      } else {
+        DCHECK_EQ(orig_dex->GetClass()->GetPrimitiveType(), art::Primitive::kPrimLong);
+        art::ObjPtr<art::mirror::Class> prim_long_class(
+            art::Runtime::Current()->GetClassLinker()->GetClassRoot(
+                art::ClassLinker::kPrimitiveLong));
+        art::JValue val;
+        if (!art::UnboxPrimitiveForResult(orig_dex.Get(), prim_long_class, &val)) {
+          // This should never happen.
+          return ERR(INTERNAL);
+        }
+        dex_file = reinterpret_cast<const art::DexFile*>(static_cast<uintptr_t>(val.GetJ()));
       }
     }
   }
   if (dex_file == nullptr) {
     dex_file = &klass->GetDexFile();
-    *dex_data_len = static_cast<jint>(dex_file->Size());
   }
   std::unique_ptr<FixedUpDexFile> fixed_dex_file(FixedUpDexFile::Create(*dex_file));
+  *dex_data_len = static_cast<jint>(fixed_dex_file->Size());
   return CopyDataIntoJvmtiBuffer(env,
                                  fixed_dex_file->Begin(),
                                  fixed_dex_file->Size(),
