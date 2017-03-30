@@ -256,6 +256,7 @@ class ClassTable {
   }
 
  private:
+  // Only copies classes.
   void CopyWithoutLocks(const ClassTable& source_table) NO_THREAD_SAFETY_ANALYSIS;
   void InsertWithoutLocks(ObjPtr<mirror::Class> klass) NO_THREAD_SAFETY_ANALYSIS;
 

@@ -47,6 +47,10 @@ class ArtField FINAL {
   void SetDeclaringClass(ObjPtr<mirror::Class> new_declaring_class)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  mirror::CompressedReference<mirror::Object>* GetDeclaringClassAddressWithoutBarrier() {
+    return declaring_class_.AddressWithoutBarrier();
+  }
+
   uint32_t GetAccessFlags() REQUIRES_SHARED(Locks::mutator_lock_);
 
   void SetAccessFlags(uint32_t new_access_flags) REQUIRES_SHARED(Locks::mutator_lock_) {
