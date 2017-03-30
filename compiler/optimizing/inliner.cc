@@ -63,7 +63,7 @@ static constexpr size_t kMaximumNumberOfCumulatedDexRegisters = 64;
 static constexpr size_t kMaximumNumberOfRecursiveCalls = 4;
 
 // Controls the use of inline caches in AOT mode.
-static constexpr bool kUseAOTInlineCaches = false;
+static constexpr bool kUseAOTInlineCaches = true;
 
 // We check for line numbers to make sure the DepthString implementation
 // aligns the output nicely.
