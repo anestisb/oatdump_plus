@@ -59,7 +59,7 @@ public class Main {
         // Stop the JIT to ensure its threads and work queue are not keeping classes
         // artifically alive.
         stopJit();
-        Runtime.getRuntime().gc();
+        doUnloading();
         System.runFinalization();
         BufferedReader reader = new BufferedReader(new FileReader ("/proc/" + pid + "/maps"));
         String line;
@@ -83,12 +83,20 @@ public class Main {
         }
     }
 
+    private static void doUnloading() {
+      // Do multiple GCs to prevent rare flakiness if some other thread is keeping the
+      // classloader live.
+      for (int i = 0; i < 5; ++i) {
+         Runtime.getRuntime().gc();
+      }
+    }
+
     private static void testUnloadClass(Constructor<?> constructor) throws Exception {
         WeakReference<Class> klass = setUpUnloadClassWeak(constructor);
         // No strong references to class loader, should get unloaded.
-        Runtime.getRuntime().gc();
+        doUnloading();
         WeakReference<Class> klass2 = setUpUnloadClassWeak(constructor);
-        Runtime.getRuntime().gc();
+        doUnloading();
         // If the weak reference is cleared, then it was unloaded.
         System.out.println(klass.get());
         System.out.println(klass2.get());
@@ -98,7 +106,7 @@ public class Main {
         throws Exception {
       WeakReference<ClassLoader> loader = setUpUnloadLoader(constructor, true);
       // No strong references to class loader, should get unloaded.
-      Runtime.getRuntime().gc();
+      doUnloading();
       // If the weak reference is cleared, then it was unloaded.
       System.out.println(loader.get());
     }
@@ -110,7 +118,7 @@ public class Main {
         Throwable throwable = (Throwable) stackTraceMethod.invoke(klass);
         stackTraceMethod = null;
         klass = null;
-        Runtime.getRuntime().gc();
+        doUnloading();
         boolean isNull = weak_klass.get() == null;
         System.out.println("class null " + isNull + " " + throwable.getMessage());
     }
@@ -118,7 +126,7 @@ public class Main {
     private static void testLoadAndUnloadLibrary(Constructor<?> constructor) throws Exception {
         WeakReference<ClassLoader> loader = setUpLoadLibrary(constructor);
         // No strong references to class loader, should get unloaded.
-        Runtime.getRuntime().gc();
+        doUnloading();
         // If the weak reference is cleared, then it was unloaded.
         System.out.println(loader.get());
     }
@@ -147,7 +155,7 @@ public class Main {
 
     private static void testNoUnloadInstance(Constructor<?> constructor) throws Exception {
         Pair p = testNoUnloadInstanceHelper(constructor);
-        Runtime.getRuntime().gc();
+        doUnloading();
         // If the class loader was unloded too early due to races, just pass the test.
         boolean isNull = p.classLoader.get() == null;
         System.out.println("loader null " + isNull);
