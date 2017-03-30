@@ -28,6 +28,16 @@ public class Main {
     Runtime.getRuntime().gc();
     Runtime.getRuntime().gc();
 
+    new TestConfig(null, 0, 1, -1).doFollowReferencesTest();
+
+    Runtime.getRuntime().gc();
+    Runtime.getRuntime().gc();
+
+    new TestConfig(null, 0, Integer.MAX_VALUE, 1).doFollowReferencesTest();
+
+    Runtime.getRuntime().gc();
+    Runtime.getRuntime().gc();
+
     doStringTest();
 
     Runtime.getRuntime().gc();
@@ -202,12 +212,20 @@ public class Main {
   private static class TestConfig {
     private Class<?> klass = null;
     private int heapFilter = 0;
+    private int stopAfter = Integer.MAX_VALUE;
+    private int followSet = -1;
 
     public TestConfig() {
     }
     public TestConfig(Class<?> klass, int heapFilter) {
       this.klass = klass;
       this.heapFilter = heapFilter;
+    }
+    public TestConfig(Class<?> klass, int heapFilter, int stopAfter, int followSet) {
+      this.klass = klass;
+      this.heapFilter = heapFilter;
+      this.stopAfter = stopAfter;
+      this.followSet = followSet;
     }
 
     public void doFollowReferencesTest() throws Exception {
@@ -241,8 +259,8 @@ public class Main {
       tmpStorage.add(a);
       v.add("0@0", "1@1000");  // tmpStorage[0] --(array-element)--> a.
 
-      doFollowReferencesTestImpl(null, Integer.MAX_VALUE, -1, null, v, null);
-      doFollowReferencesTestImpl(a.foo2, Integer.MAX_VALUE, -1, null, v, "3@1001");
+      doFollowReferencesTestImpl(null, stopAfter, followSet, null, v, null);
+      doFollowReferencesTestImpl(a.foo2, stopAfter, followSet, null, v, "3@1001");
 
       tmpStorage.clear();
     }
@@ -252,8 +270,8 @@ public class Main {
       tagClasses(v);
       A a = createTree(v);
 
-      doFollowReferencesTestImpl(null, Integer.MAX_VALUE, -1, a, v, null);
-      doFollowReferencesTestImpl(a.foo2, Integer.MAX_VALUE, -1, a, v, "3@1001");
+      doFollowReferencesTestImpl(null, stopAfter, followSet, a, v, null);
+      doFollowReferencesTestImpl(a.foo2, stopAfter, followSet, a, v, "3@1001");
     }
 
     private void doFollowReferencesTestImpl(A root, int stopAfter, int followSet,
