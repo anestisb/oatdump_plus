@@ -6723,10 +6723,11 @@ static void CheckClassOwnsVTableEntries(Thread* self,
     ArtMethod* m = check_vtable->GetElementPtrSize<ArtMethod*>(i, pointer_size);
     CHECK(m != nullptr);
 
-    CHECK_EQ(m->GetMethodIndexDuringLinking(), i)
-        << m->PrettyMethod()
-        << " has an unexpected method index for its spot in the vtable for class"
-        << klass->PrettyClass();
+    if (m->GetMethodIndexDuringLinking() != i) {
+      LOG(WARNING) << m->PrettyMethod()
+                   << " has an unexpected method index for its spot in the vtable for class"
+                   << klass->PrettyClass();
+    }
     ArraySlice<ArtMethod> virtuals = klass->GetVirtualMethodsSliceUnchecked(pointer_size);
     auto is_same_method = [m] (const ArtMethod& meth) {
       return &meth == m;
