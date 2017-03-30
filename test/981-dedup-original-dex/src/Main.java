@@ -16,8 +16,10 @@
 
 import java.lang.reflect.Field;
 import java.util.Base64;
+import java.nio.ByteBuffer;
 
 import dalvik.system.ClassExt;
+import dalvik.system.InMemoryDexClassLoader;
 
 public class Main {
 
@@ -63,6 +65,53 @@ public class Main {
     "bnRTdHJlYW07ABJMamF2YS9sYW5nL09iamVjdDsAEkxqYXZhL2xhbmcvU3RyaW5nOwASTGphdmEv" +
     "bGFuZy9TeXN0ZW07AA9UcmFuc2Zvcm0yLmphdmEAAVYAAlZMABJlbWl0dGVyOiBqYWNrLTQuMzAA" +
     "A291dAAHcHJpbnRsbgAFc2F5SGkAAQAHDgADAAcOhwAAAAEBAICABKACAQG4AgANAAAAAAAAAAEA" +
+    "AAAAAAAAAQAAAA4AAABwAAAAAgAAAAYAAACoAAAAAwAAAAIAAADAAAAABAAAAAEAAADYAAAABQAA" +
+    "AAQAAADgAAAABgAAAAEAAAAAAQAAASAAAAIAAAAgAQAAARAAAAEAAABcAQAAAiAAAA4AAABiAQAA" +
+    "AyAAAAIAAAAWAgAAACAAAAEAAAAhAgAAABAAAAEAAAAwAgAA");
+
+
+  /**
+   * base64 encoded class/dex file for
+   * class Transform3 {
+   *   public void sayHi() {
+   *    System.out.println("hello3");
+   *   }
+   * }
+   */
+  private static final byte[] DEX_BYTES_3_INITIAL = Base64.getDecoder().decode(
+    "ZGV4CjAzNQC2W2fBsAeLNAwWYlG8FVigzfsV7nBWITzQAgAAcAAAAHhWNBIAAAAAAAAAADACAAAO" +
+    "AAAAcAAAAAYAAACoAAAAAgAAAMAAAAABAAAA2AAAAAQAAADgAAAAAQAAAAABAACwAQAAIAEAAGIB" +
+    "AABqAQAAeAEAAI8BAACjAQAAtwEAAMsBAADcAQAA3wEAAOMBAAD3AQAA/wEAAAQCAAANAgAAAQAA" +
+    "AAIAAAADAAAABAAAAAUAAAAHAAAABwAAAAUAAAAAAAAACAAAAAUAAABcAQAABAABAAsAAAAAAAAA" +
+    "AAAAAAAAAAANAAAAAQABAAwAAAACAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAGAAAAAAAAAB8CAAAA" +
+    "AAAAAQABAAEAAAAUAgAABAAAAHAQAwAAAA4AAwABAAIAAAAZAgAACQAAAGIAAAAbAQoAAABuIAIA" +
+    "EAAOAAAAAQAAAAMABjxpbml0PgAMTFRyYW5zZm9ybTM7ABVMamF2YS9pby9QcmludFN0cmVhbTsA" +
+    "EkxqYXZhL2xhbmcvT2JqZWN0OwASTGphdmEvbGFuZy9TdHJpbmc7ABJMamF2YS9sYW5nL1N5c3Rl" +
+    "bTsAD1RyYW5zZm9ybTMuamF2YQABVgACVkwAEmVtaXR0ZXI6IGphY2stNC4zMAAGaGVsbG8zAANv" +
+    "dXQAB3ByaW50bG4ABXNheUhpAAIABw4ABAAHDocAAAABAQCAgASgAgEBuAIAAAANAAAAAAAAAAEA" +
+    "AAAAAAAAAQAAAA4AAABwAAAAAgAAAAYAAACoAAAAAwAAAAIAAADAAAAABAAAAAEAAADYAAAABQAA" +
+    "AAQAAADgAAAABgAAAAEAAAAAAQAAASAAAAIAAAAgAQAAARAAAAEAAABcAQAAAiAAAA4AAABiAQAA" +
+    "AyAAAAIAAAAUAgAAACAAAAEAAAAfAgAAABAAAAEAAAAwAgAA");
+
+  /**
+   * base64 encoded class/dex file for
+   * class Transform3 {
+   *   public void sayHi() {
+   *    System.out.println("Goodbye3");
+   *   }
+   * }
+   */
+  private static final byte[] DEX_BYTES_3_FINAL = Base64.getDecoder().decode(
+    "ZGV4CjAzNQBAXE5GthgMydaFBuinf+ZBfXcBYIw2UlXQAgAAcAAAAHhWNBIAAAAAAAAAADACAAAO" +
+    "AAAAcAAAAAYAAACoAAAAAgAAAMAAAAABAAAA2AAAAAQAAADgAAAAAQAAAAABAACwAQAAIAEAAGIB" +
+    "AABqAQAAdAEAAIIBAACZAQAArQEAAMEBAADVAQAA5gEAAOkBAADtAQAAAQIAAAYCAAAPAgAAAgAA" +
+    "AAMAAAAEAAAABQAAAAYAAAAIAAAACAAAAAUAAAAAAAAACQAAAAUAAABcAQAABAABAAsAAAAAAAAA" +
+    "AAAAAAAAAAANAAAAAQABAAwAAAACAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAHAAAAAAAAACECAAAA" +
+    "AAAAAQABAAEAAAAWAgAABAAAAHAQAwAAAA4AAwABAAIAAAAbAgAACQAAAGIAAAAbAQEAAABuIAIA" +
+    "EAAOAAAAAQAAAAMABjxpbml0PgAIR29vZGJ5ZTMADExUcmFuc2Zvcm0zOwAVTGphdmEvaW8vUHJp" +
+    "bnRTdHJlYW07ABJMamF2YS9sYW5nL09iamVjdDsAEkxqYXZhL2xhbmcvU3RyaW5nOwASTGphdmEv" +
+    "bGFuZy9TeXN0ZW07AA9UcmFuc2Zvcm0zLmphdmEAAVYAAlZMABJlbWl0dGVyOiBqYWNrLTQuMzAA" +
+    "A291dAAHcHJpbnRsbgAFc2F5SGkAAgAHDgAEAAcOhwAAAAEBAICABKACAQG4AgANAAAAAAAAAAEA" +
     "AAAAAAAAAQAAAA4AAABwAAAAAgAAAAYAAACoAAAAAwAAAAIAAADAAAAABAAAAAEAAADYAAAABQAA" +
     "AAQAAADgAAAABgAAAAEAAAAAAQAAASAAAAIAAAAgAQAAARAAAAEAAABcAQAAAiAAAA4AAABiAQAA" +
     "AyAAAAIAAAAWAgAAACAAAAEAAAAhAgAAABAAAAEAAAAwAgAA");
@@ -125,6 +174,20 @@ public class Main {
     enableCommonRetransformation(false);
     doCommonClassRedefinition(Transform.class, new byte[0], DEX_BYTES_1);
     assertSame((new byte[0]).getClass(), getOriginalDexFile(t1.getClass()).getClass());
+
+    // Check we don't have anything if we don't have any originalDexFile if the onload
+    // transformation doesn't do anything.
+    enableCommonRetransformation(true);
+    Class<?> transform3Class = new InMemoryDexClassLoader(
+        ByteBuffer.wrap(DEX_BYTES_3_INITIAL), Main.class.getClassLoader()).loadClass("Transform3");
+    assertSame(null, getOriginalDexFile(transform3Class));
+
+    // Check that we end up with a java.lang.Long pointer if we do an 'on-load' redefinition.
+    addCommonTransformationResult("Transform3", new byte[0], DEX_BYTES_3_FINAL);
+    enableCommonRetransformation(true);
+    Class<?> transform3ClassTransformed = new InMemoryDexClassLoader(
+        ByteBuffer.wrap(DEX_BYTES_3_INITIAL), Main.class.getClassLoader()).loadClass("Transform3");
+    assertSame(Long.class, getOriginalDexFile(transform3ClassTransformed).getClass());
   }
 
   // Transforms the class

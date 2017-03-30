@@ -56,6 +56,8 @@
 #include "mirror/object_reference.h"
 #include "mirror/object-inl.h"
 #include "mirror/reference.h"
+#include "primitive.h"
+#include "reflection.h"
 #include "runtime.h"
 #include "runtime_callbacks.h"
 #include "ScopedLocalRef.h"
@@ -231,14 +233,22 @@ struct ClassCallback : public art::ClassLoadCallback {
       }
 
       // Allocate the byte array to store the dex file bytes in.
-      art::Handle<art::mirror::ByteArray> arr(hs.NewHandle(
-          art::mirror::ByteArray::AllocateAndFill(
-              self,
-              reinterpret_cast<const signed char*>(post_no_redefine_dex_data),
-              post_no_redefine_len)));
+      art::MutableHandle<art::mirror::Object> arr(hs.NewHandle<art::mirror::Object>(nullptr));
+      if (post_no_redefine_dex_data == dex_file_copy->Begin() && name != "java/lang/Long") {
+        // we didn't have any non-retransformable agents. We can just cache a pointer to the
+        // initial_dex_file. It will be kept live by the class_loader.
+        jlong dex_ptr = reinterpret_cast<uintptr_t>(&initial_dex_file);
+        art::JValue val;
+        val.SetJ(dex_ptr);
+        arr.Assign(art::BoxPrimitive(art::Primitive::kPrimLong, val));
+      } else {
+        arr.Assign(art::mirror::ByteArray::AllocateAndFill(
+            self,
+            reinterpret_cast<const signed char*>(post_no_redefine_dex_data),
+            post_no_redefine_len));
+      }
       if (arr.IsNull()) {
-        LOG(WARNING) << "Unable to allocate byte array for initial dex-file bytes. Aborting "
-                     << "transformation";
+        LOG(WARNING) << "Unable to allocate memory for initial dex-file. Aborting transformation";
         self->AssertPendingOOMException();
         return;
       }
