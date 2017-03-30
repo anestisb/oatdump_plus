@@ -485,7 +485,7 @@ class PatchOat::RelocatedPointerVisitor {
   explicit RelocatedPointerVisitor(PatchOat* patch_oat) : patch_oat_(patch_oat) {}
 
   template <typename T>
-  T* operator()(T* ptr) const {
+  T* operator()(T* ptr, void** dest_addr ATTRIBUTE_UNUSED = 0) const {
     return patch_oat_->RelocatedAddressOfPointer(ptr);
   }
 
