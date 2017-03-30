@@ -882,12 +882,17 @@ class FollowReferencesHelper FINAL {
     void AddRoot(art::mirror::Object* root_obj, const art::RootInfo& info)
         REQUIRES_SHARED(art::Locks::mutator_lock_)
         REQUIRES(!*tag_table_->GetAllowDisallowLock()) {
+      if (stop_reports_) {
+        return;
+      }
+      bool add_to_worklist = ReportRoot(root_obj, info);
       // We use visited_ to mark roots already so we do not need another set.
       if (visited_->find(root_obj) == visited_->end()) {
         visited_->insert(root_obj);
-        worklist_->push_back(root_obj);
+        if (add_to_worklist) {
+          worklist_->push_back(root_obj);
+        }
       }
-      ReportRoot(root_obj, info);
     }
 
     // Remove NO_THREAD_SAFETY_ANALYSIS once ASSERT_CAPABILITY works correctly.
@@ -993,7 +998,7 @@ class FollowReferencesHelper FINAL {
       UNREACHABLE();
     }
 
-    void ReportRoot(art::mirror::Object* root_obj, const art::RootInfo& info)
+    bool ReportRoot(art::mirror::Object* root_obj, const art::RootInfo& info)
         REQUIRES_SHARED(art::Locks::mutator_lock_)
         REQUIRES(!*tag_table_->GetAllowDisallowLock()) {
       jvmtiHeapReferenceInfo ref_info;
@@ -1002,6 +1007,7 @@ class FollowReferencesHelper FINAL {
       if ((result & JVMTI_VISIT_ABORT) != 0) {
         stop_reports_ = true;
       }
+      return (result & JVMTI_VISIT_OBJECTS) != 0;
     }
 
    private:
