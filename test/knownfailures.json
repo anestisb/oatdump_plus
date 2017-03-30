@@ -369,8 +369,7 @@
     },
     {
         "tests": ["629-vdex-speed",
-                  "634-vdex-duplicate",
-                  "983-source-transform-verify"],
+                  "634-vdex-duplicate"],
         "description": ["Profile driven dexlayout does not work with vdex or dex verifier."],
         "variant": "speed-profile"
     }
