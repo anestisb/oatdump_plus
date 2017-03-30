@@ -22,8 +22,9 @@
 #include "base/logging.h"
 #include "base/macros.h"
 
-#include "ti-agent/common_helper.h"
-#include "ti-agent/common_load.h"
+// Test infrastructure
+#include "jvmti_helper.h"
+#include "test_env.h"
 
 namespace art {
 namespace Test927JNITable {
@@ -42,14 +43,14 @@ extern "C" JNIEXPORT void JNICALL Java_Main_doJNITableTest(
     JNIEnv* env, jclass klass) {
   // Get the current table, as the delegate.
   jvmtiError getorig_result = jvmti_env->GetJNIFunctionTable(&gOriginalEnv);
-  if (JvmtiErrorToException(env, getorig_result)) {
+  if (JvmtiErrorToException(env, jvmti_env, getorig_result)) {
     return;
   }
 
   // Get the current table, as the override we'll install.
   JNINativeInterface* env_override;
   jvmtiError getoverride_result = jvmti_env->GetJNIFunctionTable(&env_override);
-  if (JvmtiErrorToException(env, getoverride_result)) {
+  if (JvmtiErrorToException(env, jvmti_env, getoverride_result)) {
     return;
   }
 
@@ -58,7 +59,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_doJNITableTest(
 
   // Install the override.
   jvmtiError setoverride_result = jvmti_env->SetJNIFunctionTable(env_override);
-  if (JvmtiErrorToException(env, setoverride_result)) {
+  if (JvmtiErrorToException(env, jvmti_env, setoverride_result)) {
     return;
   }
 
@@ -68,7 +69,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_doJNITableTest(
 
   // Install the "original." There is no real reset.
   jvmtiError setoverride2_result = jvmti_env->SetJNIFunctionTable(gOriginalEnv);
-  if (JvmtiErrorToException(env, setoverride2_result)) {
+  if (JvmtiErrorToException(env, jvmti_env, setoverride2_result)) {
     return;
   }
 
