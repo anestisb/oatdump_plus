@@ -1097,7 +1097,9 @@ inline void Class::FixupNativePointers(Class* dest,
   if (!IsTemp() && ShouldHaveEmbeddedVTable<kVerifyNone, kReadBarrierOption>()) {
     for (int32_t i = 0, count = GetEmbeddedVTableLength(); i < count; ++i) {
       ArtMethod* method = GetEmbeddedVTableEntry(i, pointer_size);
-      ArtMethod* new_method = visitor(method);
+      void** dest_addr = reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(dest) +
+          EmbeddedVTableEntryOffset(i, pointer_size).Uint32Value());
+      ArtMethod* new_method = visitor(method, dest_addr);
       if (method != new_method) {
         dest->SetEmbeddedVTableEntryUnchecked(i, new_method, pointer_size);
       }
