@@ -1092,6 +1092,23 @@ JDWP::JdwpError Dbg::GetSignature(JDWP::RefTypeId class_id, std::string* signatu
   return JDWP::ERR_NONE;
 }
 
+JDWP::JdwpError Dbg::GetSourceDebugExtension(JDWP::RefTypeId class_id,
+                                             std::string* extension_data) {
+  JDWP::JdwpError error;
+  mirror::Class* c = DecodeClass(class_id, &error);
+  if (c == nullptr) {
+    return error;
+  }
+  StackHandleScope<1> hs(Thread::Current());
+  Handle<mirror::Class> klass(hs.NewHandle(c));
+  const char* data = annotations::GetSourceDebugExtension(klass);
+  if (data == nullptr) {
+    return JDWP::ERR_ABSENT_INFORMATION;
+  }
+  *extension_data = data;
+  return JDWP::ERR_NONE;
+}
+
 JDWP::JdwpError Dbg::GetSourceFile(JDWP::RefTypeId class_id, std::string* result) {
   JDWP::JdwpError error;
   mirror::Class* c = DecodeClass(class_id, &error);
