@@ -73,6 +73,10 @@ class ArtMethod FINAL {
   ALWAYS_INLINE mirror::Class* GetDeclaringClassUnchecked()
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  mirror::CompressedReference<mirror::Object>* GetDeclaringClassAddressWithoutBarrier() {
+    return declaring_class_.AddressWithoutBarrier();
+  }
+
   void SetDeclaringClass(ObjPtr<mirror::Class> new_declaring_class)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
