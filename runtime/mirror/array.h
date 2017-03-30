@@ -198,6 +198,13 @@ class PointerArray : public Array {
   T GetElementPtrSize(uint32_t idx, PointerSize ptr_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  void** ElementAddress(size_t index, PointerSize ptr_size) REQUIRES_SHARED(Locks::mutator_lock_) {
+    DCHECK_LT(index, static_cast<size_t>(GetLength()));
+    return reinterpret_cast<void**>(reinterpret_cast<uint8_t*>(this) +
+                                    Array::DataOffset(static_cast<size_t>(ptr_size)).Uint32Value() +
+                                    static_cast<size_t>(ptr_size) * index);
+  }
+
   template<bool kTransactionActive = false, bool kUnchecked = false>
   void SetElementPtrSize(uint32_t idx, uint64_t element, PointerSize ptr_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
