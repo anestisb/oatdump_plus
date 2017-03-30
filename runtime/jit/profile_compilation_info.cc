@@ -57,6 +57,14 @@ static_assert(InlineCache::kIndividualCacheSize < kIsMegamorphicEncoding,
 static_assert(InlineCache::kIndividualCacheSize < kIsMissingTypesEncoding,
               "InlineCache::kIndividualCacheSize is larger than expected");
 
+ProfileCompilationInfo::ProfileCompilationInfo(const ProfileCompilationInfo& pci) {
+  MergeWith(pci);
+}
+
+ProfileCompilationInfo::~ProfileCompilationInfo() {
+  ClearProfile();
+}
+
 void ProfileCompilationInfo::DexPcData::AddClass(uint16_t dex_profile_idx,
                                                  const dex::TypeIndex& type_idx) {
   if (is_megamorphic || is_missing_types) {
@@ -227,28 +235,21 @@ bool ProfileCompilationInfo::Save(int fd) {
   DCHECK_LE(info_.size(), std::numeric_limits<uint8_t>::max());
   AddUintToBuffer(&buffer, static_cast<uint8_t>(info_.size()));
 
-  // Make sure we write the dex files in order of their profile index. This
+  // Dex files must be written in the order of their profile index. This
   // avoids writing the index in the output file and simplifies the parsing logic.
-  std::vector<const std::string*> ordered_info_location(info_.size());
-  std::vector<const DexFileData*> ordered_info_data(info_.size());
-  for (const auto& it : info_) {
-    ordered_info_location[it.second.profile_index] = &(it.first);
-    ordered_info_data[it.second.profile_index] = &(it.second);
-  }
-  for (size_t i = 0; i < info_.size(); i++) {
+  for (const DexFileData* dex_data_ptr : info_) {
+    const DexFileData& dex_data = *dex_data_ptr;
     if (buffer.size() > kMaxSizeToKeepBeforeWriting) {
       if (!WriteBuffer(fd, buffer.data(), buffer.size())) {
         return false;
       }
       buffer.clear();
     }
-    const std::string& dex_location = *ordered_info_location[i];
-    const DexFileData& dex_data = *ordered_info_data[i];
 
     // Note that we allow dex files without any methods or classes, so that
     // inline caches can refer valid dex files.
 
-    if (dex_location.size() >= kMaxDexFileKeyLength) {
+    if (dex_data.profile_key.size() >= kMaxDexFileKeyLength) {
       LOG(WARNING) << "DexFileKey exceeds allocated limit";
       return false;
     }
@@ -258,19 +259,19 @@ bool ProfileCompilationInfo::Save(int fd) {
     uint32_t methods_region_size = GetMethodsRegionSize(dex_data);
     size_t required_capacity = buffer.size() +
         kLineHeaderSize +
-        dex_location.size() +
+        dex_data.profile_key.size() +
         sizeof(uint16_t) * dex_data.class_set.size() +
         methods_region_size;
 
     buffer.reserve(required_capacity);
-    DCHECK_LE(dex_location.size(), std::numeric_limits<uint16_t>::max());
+    DCHECK_LE(dex_data.profile_key.size(), std::numeric_limits<uint16_t>::max());
     DCHECK_LE(dex_data.class_set.size(), std::numeric_limits<uint16_t>::max());
-    AddUintToBuffer(&buffer, static_cast<uint16_t>(dex_location.size()));
+    AddUintToBuffer(&buffer, static_cast<uint16_t>(dex_data.profile_key.size()));
     AddUintToBuffer(&buffer, static_cast<uint16_t>(dex_data.class_set.size()));
     AddUintToBuffer(&buffer, methods_region_size);  // uint32_t
     AddUintToBuffer(&buffer, dex_data.checksum);  // uint32_t
 
-    AddStringToBuffer(&buffer, dex_location);
+    AddStringToBuffer(&buffer, dex_data.profile_key);
 
     for (const auto& method_it : dex_data.method_map) {
       AddUintToBuffer(&buffer, method_it.first);
@@ -375,23 +376,52 @@ void ProfileCompilationInfo::GroupClassesByDex(
 }
 
 ProfileCompilationInfo::DexFileData* ProfileCompilationInfo::GetOrAddDexFileData(
-    const std::string& dex_location,
+    const std::string& profile_key,
     uint32_t checksum) {
-  auto info_it = info_.FindOrAdd(dex_location, DexFileData(checksum, info_.size()));
-  if (info_.size() > std::numeric_limits<uint8_t>::max()) {
+  const auto& profile_index_it = profile_key_map_.FindOrAdd(profile_key, profile_key_map_.size());
+  if (profile_key_map_.size() > std::numeric_limits<uint8_t>::max()) {
     // Allow only 255 dex files to be profiled. This allows us to save bytes
     // when encoding. The number is well above what we expect for normal applications.
     if (kIsDebugBuild) {
-      LOG(WARNING) << "Exceeded the maximum number of dex files (255). Something went wrong";
+      LOG(ERROR) << "Exceeded the maximum number of dex files (255). Something went wrong";
     }
-    info_.erase(dex_location);
+    profile_key_map_.erase(profile_key);
     return nullptr;
   }
-  if (info_it->second.checksum != checksum) {
-    LOG(WARNING) << "Checksum mismatch for dex " << dex_location;
+
+  uint8_t profile_index = profile_index_it->second;
+  if (info_.size() <= profile_index) {
+    // This is a new addition. Add it to the info_ array.
+    info_.emplace_back(new DexFileData(profile_key, checksum, profile_index));
+  }
+  DexFileData* result = info_[profile_index];
+  // DCHECK that profile info map key is consistent with the one stored in the dex file data.
+  // This should always be the case since since the cache map is managed by ProfileCompilationInfo.
+  DCHECK_EQ(profile_key, result->profile_key);
+  DCHECK_EQ(profile_index, result->profile_index);
+
+  // Check that the checksum matches.
+  // This may different if for example the dex file was updated and
+  // we had a record of the old one.
+  if (result->checksum != checksum) {
+    LOG(WARNING) << "Checksum mismatch for dex " << profile_key;
     return nullptr;
   }
-  return &info_it->second;
+  return result;
+}
+
+const ProfileCompilationInfo::DexFileData* ProfileCompilationInfo::FindDexData(
+      const std::string& profile_key) const {
+  const auto& profile_index_it = profile_key_map_.find(profile_key);
+  if (profile_index_it == profile_key_map_.end()) {
+    return nullptr;
+  }
+
+  uint8_t profile_index = profile_index_it->second;
+  const DexFileData* result = info_[profile_index];
+  DCHECK_EQ(profile_key, result->profile_key);
+  DCHECK_EQ(profile_index, result->profile_index);
+  return result;
 }
 
 bool ProfileCompilationInfo::AddResolvedClasses(const DexCacheResolvedClasses& classes) {
@@ -415,9 +445,7 @@ bool ProfileCompilationInfo::AddMethod(const std::string& dex_location,
                                        uint32_t dex_checksum,
                                        uint16_t method_index,
                                        const OfflineProfileMethodInfo& pmi) {
-  DexFileData* const data = GetOrAddDexFileData(
-      GetProfileDexFileKey(dex_location),
-      dex_checksum);
+  DexFileData* const data = GetOrAddDexFileData(GetProfileDexFileKey(dex_location), dex_checksum);
   if (data == nullptr) {  // checksum mismatch
     return false;
   }
@@ -753,6 +781,8 @@ ProfileCompilationInfo::ProfileLoadSatus ProfileCompilationInfo::ReadProfileLine
   return kProfileLoadSuccess;
 }
 
+// TODO(calin): Fix this API. ProfileCompilationInfo::Load should be static and
+// return a unique pointer to a ProfileCompilationInfo upon success.
 bool ProfileCompilationInfo::Load(int fd) {
   std::string error;
   ProfileLoadSatus status = LoadInternal(fd, &error);
@@ -769,6 +799,10 @@ ProfileCompilationInfo::ProfileLoadSatus ProfileCompilationInfo::LoadInternal(
       int fd, std::string* error) {
   ScopedTrace trace(__PRETTY_FUNCTION__);
   DCHECK_GE(fd, 0);
+
+  if (!IsEmpty()) {
+    return kProfileLoadWouldOverwiteData;
+  }
 
   struct stat stat_buffer;
   if (fstat(fd, &stat_buffer) != 0) {
@@ -820,10 +854,10 @@ bool ProfileCompilationInfo::MergeWith(const ProfileCompilationInfo& other) {
   // the current profile info.
   // Note that the number of elements should be very small, so this should not
   // be a performance issue.
-  for (const auto& other_it : other.info_) {
-    auto info_it = info_.find(other_it.first);
-    if ((info_it != info_.end()) && (info_it->second.checksum != other_it.second.checksum)) {
-      LOG(WARNING) << "Checksum mismatch for dex " << other_it.first;
+  for (const DexFileData* other_dex_data : other.info_) {
+    const DexFileData* dex_data = FindDexData(other_dex_data->profile_key);
+    if ((dex_data != nullptr) && (dex_data->checksum != other_dex_data->checksum)) {
+      LOG(WARNING) << "Checksum mismatch for dex " << other_dex_data->profile_key;
       return false;
     }
   }
@@ -840,32 +874,28 @@ bool ProfileCompilationInfo::MergeWith(const ProfileCompilationInfo& other) {
   // First, build a mapping from other_dex_profile_index to this_dex_profile_index.
   // This will make sure that the ClassReferences  will point to the correct dex file.
   SafeMap<uint8_t, uint8_t> dex_profile_index_remap;
-  for (const auto& other_it : other.info_) {
-    const std::string& other_dex_location = other_it.first;
-    uint32_t other_checksum = other_it.second.checksum;
-    const DexFileData& other_dex_data = other_it.second;
-    const DexFileData* dex_data = GetOrAddDexFileData(other_dex_location, other_checksum);
+  for (const DexFileData* other_dex_data : other.info_) {
+    const DexFileData* dex_data = GetOrAddDexFileData(other_dex_data->profile_key,
+                                                      other_dex_data->checksum);
     if (dex_data == nullptr) {
       return false;  // Could happen if we exceed the number of allowed dex files.
     }
-    dex_profile_index_remap.Put(other_dex_data.profile_index, dex_data->profile_index);
+    dex_profile_index_remap.Put(other_dex_data->profile_index, dex_data->profile_index);
   }
 
   // Merge the actual profile data.
-  for (const auto& other_it : other.info_) {
-    const std::string& other_dex_location = other_it.first;
-    const DexFileData& other_dex_data = other_it.second;
-    auto info_it = info_.find(other_dex_location);
-    DCHECK(info_it != info_.end());
+  for (const DexFileData* other_dex_data : other.info_) {
+    DexFileData* dex_data = const_cast<DexFileData*>(FindDexData(other_dex_data->profile_key));
+    DCHECK(dex_data != nullptr);
 
     // Merge the classes.
-    info_it->second.class_set.insert(other_dex_data.class_set.begin(),
-                                     other_dex_data.class_set.end());
+    dex_data->class_set.insert(other_dex_data->class_set.begin(),
+                               other_dex_data->class_set.end());
 
     // Merge the methods and the inline caches.
-    for (const auto& other_method_it : other_dex_data.method_map) {
+    for (const auto& other_method_it : other_dex_data->method_map) {
       uint16_t other_method_index = other_method_it.first;
-      auto method_it = info_it->second.method_map.FindOrAdd(other_method_index);
+      auto method_it = dex_data->method_map.FindOrAdd(other_method_index);
       const auto& other_inline_cache = other_method_it.second;
       for (const auto& other_ic_it : other_inline_cache) {
         uint16_t other_dex_pc = other_ic_it.first;
@@ -905,26 +935,16 @@ const ProfileCompilationInfo::InlineCacheMap*
 ProfileCompilationInfo::FindMethod(const std::string& dex_location,
                                    uint32_t dex_checksum,
                                    uint16_t dex_method_index) const {
-  auto info_it = info_.find(GetProfileDexFileKey(dex_location));
-  if (info_it != info_.end()) {
-    if (!ChecksumMatch(dex_checksum, info_it->second.checksum)) {
+  const DexFileData* dex_data = FindDexData(GetProfileDexFileKey(dex_location));
+  if (dex_data != nullptr) {
+    if (!ChecksumMatch(dex_checksum, dex_data->checksum)) {
       return nullptr;
     }
-    const MethodMap& methods = info_it->second.method_map;
+    const MethodMap& methods = dex_data->method_map;
     const auto method_it = methods.find(dex_method_index);
     return method_it == methods.end() ? nullptr : &(method_it->second);
   }
   return nullptr;
-}
-
-void ProfileCompilationInfo::DexFileToProfileIndex(
-    /*out*/std::vector<DexReference>* dex_references) const {
-  dex_references->resize(info_.size());
-  for (const auto& info_it : info_) {
-    DexReference& dex_ref = (*dex_references)[info_it.second.profile_index];
-    dex_ref.dex_location = info_it.first;
-    dex_ref.dex_checksum = info_it.second.checksum;
-  }
 }
 
 bool ProfileCompilationInfo::GetMethod(const std::string& dex_location,
@@ -936,7 +956,12 @@ bool ProfileCompilationInfo::GetMethod(const std::string& dex_location,
     return false;
   }
 
-  DexFileToProfileIndex(&pmi->dex_references);
+  pmi->dex_references.resize(info_.size());
+  for (const DexFileData* dex_data : info_) {
+    pmi->dex_references[dex_data->profile_index].dex_location = dex_data->profile_key;
+    pmi->dex_references[dex_data->profile_index].dex_checksum = dex_data->checksum;
+  }
+
   // TODO(calin): maybe expose a direct pointer to avoid copying
   pmi->inline_caches = *inline_caches;
   return true;
@@ -944,12 +969,12 @@ bool ProfileCompilationInfo::GetMethod(const std::string& dex_location,
 
 
 bool ProfileCompilationInfo::ContainsClass(const DexFile& dex_file, dex::TypeIndex type_idx) const {
-  auto info_it = info_.find(GetProfileDexFileKey(dex_file.GetLocation()));
-  if (info_it != info_.end()) {
-    if (!ChecksumMatch(dex_file, info_it->second.checksum)) {
+  const DexFileData* dex_data = FindDexData(GetProfileDexFileKey(dex_file.GetLocation()));
+  if (dex_data != nullptr) {
+    if (!ChecksumMatch(dex_file, dex_data->checksum)) {
       return false;
     }
-    const std::set<dex::TypeIndex>& classes = info_it->second.class_set;
+    const std::set<dex::TypeIndex>& classes = dex_data->class_set;
     return classes.find(type_idx) != classes.end();
   }
   return false;
@@ -957,16 +982,16 @@ bool ProfileCompilationInfo::ContainsClass(const DexFile& dex_file, dex::TypeInd
 
 uint32_t ProfileCompilationInfo::GetNumberOfMethods() const {
   uint32_t total = 0;
-  for (const auto& it : info_) {
-    total += it.second.method_map.size();
+  for (const DexFileData* dex_data : info_) {
+    total += dex_data->method_map.size();
   }
   return total;
 }
 
 uint32_t ProfileCompilationInfo::GetNumberOfResolvedClasses() const {
   uint32_t total = 0;
-  for (const auto& it : info_) {
-    total += it.second.class_set.size();
+  for (const DexFileData* dex_data : info_) {
+    total += dex_data->class_set.size();
   }
   return total;
 }
@@ -999,35 +1024,27 @@ std::string ProfileCompilationInfo::DumpInfo(const std::vector<const DexFile*>* 
   os << "ProfileInfo:";
 
   const std::string kFirstDexFileKeySubstitute = ":classes.dex";
-  // Write the entries in profile index order.
-  std::vector<const std::string*> ordered_info_location(info_.size());
-  std::vector<const DexFileData*> ordered_info_data(info_.size());
-  for (const auto& it : info_) {
-    ordered_info_location[it.second.profile_index] = &(it.first);
-    ordered_info_data[it.second.profile_index] = &(it.second);
-  }
-  for (size_t profile_index = 0; profile_index < info_.size(); profile_index++) {
+
+  for (const DexFileData* dex_data : info_) {
     os << "\n";
-    const std::string& location = *ordered_info_location[profile_index];
-    const DexFileData& dex_data = *ordered_info_data[profile_index];
     if (print_full_dex_location) {
-      os << location;
+      os << dex_data->profile_key;
     } else {
       // Replace the (empty) multidex suffix of the first key with a substitute for easier reading.
-      std::string multidex_suffix = DexFile::GetMultiDexSuffix(location);
+      std::string multidex_suffix = DexFile::GetMultiDexSuffix(dex_data->profile_key);
       os << (multidex_suffix.empty() ? kFirstDexFileKeySubstitute : multidex_suffix);
     }
-    os << " [index=" << static_cast<uint32_t>(dex_data.profile_index) << "]";
+    os << " [index=" << static_cast<uint32_t>(dex_data->profile_index) << "]";
     const DexFile* dex_file = nullptr;
     if (dex_files != nullptr) {
       for (size_t i = 0; i < dex_files->size(); i++) {
-        if (location == (*dex_files)[i]->GetLocation()) {
+        if (dex_data->profile_key == (*dex_files)[i]->GetLocation()) {
           dex_file = (*dex_files)[i];
         }
       }
     }
     os << "\n\tmethods: ";
-    for (const auto& method_it : dex_data.method_map) {
+    for (const auto& method_it : dex_data->method_map) {
       if (dex_file != nullptr) {
         os << "\n\t\t" << dex_file->PrettyMethod(method_it.first, true);
       } else {
@@ -1052,7 +1069,7 @@ std::string ProfileCompilationInfo::DumpInfo(const std::vector<const DexFile*>* 
       os << "], ";
     }
     os << "\n\tclasses: ";
-    for (const auto class_it : dex_data.class_set) {
+    for (const auto class_it : dex_data->class_set) {
       if (dex_file != nullptr) {
         os << "\n\t\t" << dex_file->PrettyType(class_it);
       } else {
@@ -1076,19 +1093,17 @@ void ProfileCompilationInfo::GetClassNames(const std::vector<const DexFile*>* de
   if (info_.empty()) {
     return;
   }
-  for (const auto& it : info_) {
-    const std::string& location = it.first;
-    const DexFileData& dex_data = it.second;
+  for (const DexFileData* dex_data : info_) {
     const DexFile* dex_file = nullptr;
     if (dex_files != nullptr) {
       for (size_t i = 0; i < dex_files->size(); i++) {
-        if (location == GetProfileDexFileKey((*dex_files)[i]->GetLocation()) &&
-            dex_data.checksum == (*dex_files)[i]->GetLocationChecksum()) {
+        if (dex_data->profile_key == GetProfileDexFileKey((*dex_files)[i]->GetLocation()) &&
+            dex_data->checksum == (*dex_files)[i]->GetLocationChecksum()) {
           dex_file = (*dex_files)[i];
         }
       }
     }
-    for (const auto class_it : dex_data.class_set) {
+    for (const auto class_it : dex_data->class_set) {
       if (dex_file != nullptr) {
         class_names->insert(std::string(dex_file->PrettyType(class_it)));
       }
@@ -1097,7 +1112,19 @@ void ProfileCompilationInfo::GetClassNames(const std::vector<const DexFile*>* de
 }
 
 bool ProfileCompilationInfo::Equals(const ProfileCompilationInfo& other) {
-  return info_.Equals(other.info_);
+  // No need to compare profile_key_map_. That's only a cache for fast search.
+  // All the information is already in the info_ vector.
+  if (info_.size() != other.info_.size()) {
+    return false;
+  }
+  for (size_t i = 0; i < info_.size(); i++) {
+    const DexFileData& dex_data = *info_[i];
+    const DexFileData& other_dex_data = *other.info_[i];
+    if (!(dex_data == other_dex_data)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 std::set<DexCacheResolvedClasses> ProfileCompilationInfo::GetResolvedClasses(
@@ -1107,13 +1134,11 @@ std::set<DexCacheResolvedClasses> ProfileCompilationInfo::GetResolvedClasses(
     key_to_location_map.emplace(GetProfileDexFileKey(location), location);
   }
   std::set<DexCacheResolvedClasses> ret;
-  for (auto&& pair : info_) {
-    const std::string& profile_key = pair.first;
-    auto it = key_to_location_map.find(profile_key);
+  for (const DexFileData* dex_data : info_) {
+    const auto& it = key_to_location_map.find(dex_data->profile_key);
     if (it != key_to_location_map.end()) {
-      const DexFileData& data = pair.second;
-      DexCacheResolvedClasses classes(it->second, it->second, data.checksum);
-      classes.AddClasses(data.class_set.begin(), data.class_set.end());
+      DexCacheResolvedClasses classes(it->second, it->second, dex_data->checksum);
+      classes.AddClasses(dex_data->class_set.begin(), dex_data->class_set.end());
       ret.insert(classes);
     }
   }
@@ -1121,8 +1146,8 @@ std::set<DexCacheResolvedClasses> ProfileCompilationInfo::GetResolvedClasses(
 }
 
 void ProfileCompilationInfo::ClearResolvedClasses() {
-  for (auto& pair : info_) {
-    pair.second.class_set.clear();
+  for (DexFileData* dex_data : info_) {
+    dex_data->class_set.clear();
   }
 }
 
@@ -1208,6 +1233,19 @@ bool ProfileCompilationInfo::OfflineProfileMethodInfo::operator==(
     }
   }
   return true;
+}
+
+void ProfileCompilationInfo::ClearProfile() {
+  for (DexFileData* dex_data : info_) {
+    delete dex_data;
+  }
+  info_.clear();
+  profile_key_map_.clear();
+}
+
+bool ProfileCompilationInfo::IsEmpty() const {
+  DCHECK_EQ(info_.empty(), profile_key_map_.empty());
+  return info_.empty();
 }
 
 }  // namespace art

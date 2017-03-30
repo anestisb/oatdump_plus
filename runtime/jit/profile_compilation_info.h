@@ -181,11 +181,16 @@ class ProfileCompilationInfo {
 
   // Public methods to create, extend or query the profile.
 
+  ProfileCompilationInfo() {}
+  ProfileCompilationInfo(const ProfileCompilationInfo& pci);
+  ~ProfileCompilationInfo();
+
   // Add the given methods and classes to the current profile object.
   bool AddMethodsAndClasses(const std::vector<ProfileMethodInfo>& methods,
                             const std::set<DexCacheResolvedClasses>& resolved_classes);
 
   // Load profile information from the given file descriptor.
+  // If the current profile is non-empty the load will fail.
   bool Load(int fd);
 
   // Merge the data from another ProfileCompilationInfo into the current object.
@@ -261,6 +266,7 @@ class ProfileCompilationInfo {
 
  private:
   enum ProfileLoadSatus {
+    kProfileLoadWouldOverwiteData,
     kProfileLoadIOError,
     kProfileLoadVersionMismatch,
     kProfileLoadBadData,
@@ -271,14 +277,21 @@ class ProfileCompilationInfo {
   using MethodMap = SafeMap<uint16_t, InlineCacheMap>;
 
   // Internal representation of the profile information belonging to a dex file.
+  // Note that we could do without profile_key (the key used to encode the dex
+  // file in the profile) and profile_index (the index of the dex file in the
+  // profile) fields in this struct because we can infer them from
+  // profile_key_map_ and info_. However, it makes the profiles logic much
+  // simpler if we have references here as well.
   struct DexFileData {
-    DexFileData(uint32_t location_checksum, uint16_t index)
-         : profile_index(index), checksum(location_checksum) {}
-    // The profile index of this dex file (matches ClassReference#dex_profile_index)
+    DexFileData(const std::string& key, uint32_t location_checksum, uint16_t index)
+         : profile_key(key), profile_index(index), checksum(location_checksum) {}
+    // The profile key this data belongs to.
+    std::string profile_key;
+    // The profile index of this dex file (matches ClassReference#dex_profile_index).
     uint8_t profile_index;
-    // The dex checksum
+    // The dex checksum.
     uint32_t checksum;
-    // The methonds' profile information
+    // The methonds' profile information.
     MethodMap method_map;
     // The classes which have been profiled. Note that these don't necessarily include
     // all the classes that can be found in the inline caches reference.
@@ -289,12 +302,9 @@ class ProfileCompilationInfo {
     }
   };
 
-  // Maps dex file to their profile information.
-  using DexFileToProfileInfoMap = SafeMap<const std::string, DexFileData>;
-
-  // Return the profile data for the given dex location or null if the dex location
+  // Return the profile data for the given profile key or null if the dex location
   // already exists but has a different checksum
-  DexFileData* GetOrAddDexFileData(const std::string& dex_location, uint32_t checksum);
+  DexFileData* GetOrAddDexFileData(const std::string& profile_key, uint32_t checksum);
 
   // Add a method index to the profile (without inline caches).
   bool AddMethodIndex(const std::string& dex_location, uint32_t checksum, uint16_t method_idx);
@@ -324,6 +334,16 @@ class ProfileCompilationInfo {
   // Encode the known dex_files into a vector. The index of a dex_reference will
   // be the same as the profile index of the dex file (used to encode the ClassReferences).
   void DexFileToProfileIndex(/*out*/std::vector<DexReference>* dex_references) const;
+
+  // Return the dex data associated with the given profile key or null if the profile
+  // doesn't contain the key.
+  const DexFileData* FindDexData(const std::string& profile_key) const;
+
+  // Clear all the profile data.
+  void ClearProfile();
+
+  // Checks if the profile is empty.
+  bool IsEmpty() const;
 
   // Parsing functionality.
 
@@ -431,7 +451,15 @@ class ProfileCompilationInfo {
   friend class ProfileAssistantTest;
   friend class Dex2oatLayoutTest;
 
-  DexFileToProfileInfoMap info_;
+  // Vector containing the actual profile info.
+  // The vector index is the profile index of the dex data and
+  // matched DexFileData::profile_index.
+  std::vector<DexFileData*> info_;
+
+  // Cache mapping profile keys to profile index.
+  // This is used to speed up searches since it avoids iterating
+  // over the info_ vector when searching by profile key.
+  SafeMap<const std::string, uint8_t> profile_key_map_;
 };
 
 }  // namespace art
