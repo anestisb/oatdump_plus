@@ -41,7 +41,7 @@ static const char kDexFileLayoutInputDex[] =
     "AAAAdQEAAAAQAAABAAAAjAEAAA==";
 
 static const char kDexFileLayoutInputProfile[] =
-    "cHJvADAwNAABCwABAAAAAAD1KW3+Y2xhc3Nlcy5kZXgBAA==";
+    "cHJvADAwNQABCwABAAAAAAD1KW3+Y2xhc3Nlcy5kZXgBAA==";
 
 // Dex file with catch handler unreferenced by try blocks.
 // Constructed by building a dex file with try/catch blocks and hex editing.
