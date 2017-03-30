@@ -40,10 +40,11 @@ public class Main {
 
   /// CHECK-START: int Main.inlineMonomorphicSubA(Super) inliner (after)
   /// CHECK:  <<SubARet:i\d+>>      IntConstant 42
-  /// CHECK:  <<ObjClass:l\d+>>     InstanceFieldGet field_name:java.lang.Object.shadow$_klass_
+  /// CHECK:  <<Obj:l\d+>>          NullCheck
+  /// CHECK:  <<ObjClass:l\d+>>     InstanceFieldGet [<<Obj>>] field_name:java.lang.Object.shadow$_klass_
   /// CHECK:  <<InlineClass:l\d+>>  LoadClass class_name:SubA
   /// CHECK:  <<Test:z\d+>>         NotEqual [<<InlineClass>>,<<ObjClass>>]
-  /// CHECK:                        Deoptimize [<<Test>>]
+  /// CHECK:                        Deoptimize [<<Test>>,<<Obj>>]
   /// CHECK:                        Return [<<SubARet>>]
   public static int inlineMonomorphicSubA(Super a) {
     return a.getValue();
@@ -60,7 +61,8 @@ public class Main {
   /// CHECK-START: int Main.inlinePolymophicSubASubB(Super) inliner (after)
   /// CHECK-DAG:  <<SubARet:i\d+>>          IntConstant 42
   /// CHECK-DAG:  <<SubBRet:i\d+>>          IntConstant 38
-  /// CHECK:      <<ObjClassSubA:l\d+>>     InstanceFieldGet field_name:java.lang.Object.shadow$_klass_
+  /// CHECK:      <<Obj:l\d+>>              NullCheck
+  /// CHECK:      <<ObjClassSubA:l\d+>>     InstanceFieldGet [<<Obj>>] field_name:java.lang.Object.shadow$_klass_
   /// CHECK:      <<InlineClassSubA:l\d+>>  LoadClass class_name:SubA
   /// CHECK:      <<TestSubA:z\d+>>         NotEqual [<<InlineClassSubA>>,<<ObjClassSubA>>]
   /// CHECK:                                If [<<TestSubA>>]
@@ -68,7 +70,7 @@ public class Main {
   /// CHECK:      <<ObjClassSubB:l\d+>>     InstanceFieldGet field_name:java.lang.Object.shadow$_klass_
   /// CHECK:      <<InlineClassSubB:l\d+>>  LoadClass class_name:SubB
   /// CHECK:      <<TestSubB:z\d+>>         NotEqual [<<InlineClassSubB>>,<<ObjClassSubB>>]
-  /// CHECK:                                Deoptimize [<<TestSubB>>]
+  /// CHECK:                                Deoptimize [<<TestSubB>>,<<Obj>>]
 
   /// CHECK:      <<Ret:i\d+>>              Phi [<<SubARet>>,<<SubBRet>>]
   /// CHECK:                                Return [<<Ret>>]
@@ -87,7 +89,8 @@ public class Main {
   /// CHECK-START: int Main.inlinePolymophicCrossDexSubASubC(Super) inliner (after)
   /// CHECK-DAG:  <<SubARet:i\d+>>          IntConstant 42
   /// CHECK-DAG:  <<SubCRet:i\d+>>          IntConstant 24
-  /// CHECK:      <<ObjClassSubA:l\d+>>     InstanceFieldGet field_name:java.lang.Object.shadow$_klass_
+  /// CHECK:      <<Obj:l\d+>>              NullCheck
+  /// CHECK:      <<ObjClassSubA:l\d+>>     InstanceFieldGet [<<Obj>>] field_name:java.lang.Object.shadow$_klass_
   /// CHECK:      <<InlineClassSubA:l\d+>>  LoadClass class_name:SubA
   /// CHECK:      <<TestSubA:z\d+>>         NotEqual [<<InlineClassSubA>>,<<ObjClassSubA>>]
   /// CHECK:                                If [<<TestSubA>>]
@@ -95,7 +98,7 @@ public class Main {
   /// CHECK:      <<ObjClassSubC:l\d+>>     InstanceFieldGet field_name:java.lang.Object.shadow$_klass_
   /// CHECK:      <<InlineClassSubC:l\d+>>  LoadClass class_name:SubC
   /// CHECK:      <<TestSubC:z\d+>>         NotEqual [<<InlineClassSubC>>,<<ObjClassSubC>>]
-  /// CHECK:                                Deoptimize [<<TestSubC>>]
+  /// CHECK:                                Deoptimize [<<TestSubC>>,<<Obj>>]
 
   /// CHECK:      <<Ret:i\d+>>              Phi [<<SubARet>>,<<SubCRet>>]
   /// CHECK:                                Return [<<Ret>>]
