@@ -249,6 +249,9 @@ art_cc_defaults {
         "common/runtime_state.cc",
         "ti-agent/common_load.cc",
         "ti-agent/common_helper.cc",
+        "ti-agent/jni_binder.cc",
+        "ti-agent/jvmti_helper.cc",
+        "ti-agent/test_env.cc",
         "901-hello-ti-agent/basics.cc",
         "903-hello-tagging/tagging.cc",
         "904-object-allocation/tracking.cc",
@@ -282,6 +285,7 @@ art_cc_defaults {
         "libbase",
     ],
     header_libs: ["libopenjdkjvmti_headers"],
+    include_dirs: ["art/test/ti-agent"],
 }
 
 art_cc_test_library {

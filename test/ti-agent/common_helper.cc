@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "ti-agent/common_helper.h"
+#include "common_helper.h"
 
 #include <dlfcn.h>
 #include <stdio.h>
@@ -27,44 +27,15 @@
 #include "jni_internal.h"
 #include "jvmti.h"
 #include "scoped_thread_state_change-inl.h"
-#include "ScopedLocalRef.h"
 #include "stack.h"
-#include "ti-agent/common_load.h"
 #include "utils.h"
 
+#include "jni_binder.h"
+#include "jvmti_helper.h"
+#include "scoped_local_ref.h"
+#include "test_env.h"
+
 namespace art {
-bool RuntimeIsJVM;
-
-bool IsJVM() {
-  return RuntimeIsJVM;
-}
-
-void SetAllCapabilities(jvmtiEnv* env) {
-  jvmtiCapabilities caps;
-  env->GetPotentialCapabilities(&caps);
-  env->AddCapabilities(&caps);
-}
-
-bool JvmtiErrorToException(JNIEnv* env, jvmtiError error) {
-  if (error == JVMTI_ERROR_NONE) {
-    return false;
-  }
-
-  ScopedLocalRef<jclass> rt_exception(env, env->FindClass("java/lang/RuntimeException"));
-  if (rt_exception.get() == nullptr) {
-    // CNFE should be pending.
-    return true;
-  }
-
-  char* err;
-  jvmti_env->GetErrorName(error, &err);
-
-  env->ThrowNew(rt_exception.get(), err);
-
-  jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
-  return true;
-}
-
 
 template <bool is_redefine>
 static void throwCommonRedefinitionError(jvmtiEnv* jvmti,
@@ -303,7 +274,7 @@ extern "C" JNIEXPORT void Java_Main_enableCommonRetransformation(JNIEnv* env,
                                                        JVMTI_EVENT_CLASS_FILE_LOAD_HOOK,
                                                        nullptr);
   if (res != JVMTI_ERROR_NONE) {
-    JvmtiErrorToException(env, res);
+    JvmtiErrorToException(env, jvmti_env, res);
   }
 }
 
@@ -411,141 +382,5 @@ jint OnLoad(JavaVM* vm,
 }
 
 }  // namespace common_transform
-
-static void BindMethod(jvmtiEnv* jenv,
-                       JNIEnv* env,
-                       jclass klass,
-                       jmethodID method) {
-  char* name;
-  char* signature;
-  jvmtiError name_result = jenv->GetMethodName(method, &name, &signature, nullptr);
-  if (name_result != JVMTI_ERROR_NONE) {
-    LOG(FATAL) << "Could not get methods";
-  }
-
-  std::string names[2];
-  if (IsJVM()) {
-    // TODO Get the JNI long name
-    char* klass_name;
-    jvmtiError klass_result = jenv->GetClassSignature(klass, &klass_name, nullptr);
-    if (klass_result == JVMTI_ERROR_NONE) {
-      std::string name_str(name);
-      std::string klass_str(klass_name);
-      names[0] = GetJniShortName(klass_str, name_str);
-      jenv->Deallocate(reinterpret_cast<unsigned char*>(klass_name));
-    } else {
-      LOG(FATAL) << "Could not get class name!";
-    }
-  } else {
-    ScopedObjectAccess soa(Thread::Current());
-    ArtMethod* m = jni::DecodeArtMethod(method);
-    names[0] = m->JniShortName();
-    names[1] = m->JniLongName();
-  }
-  for (const std::string& mangled_name : names) {
-    if (mangled_name == "") {
-      continue;
-    }
-    void* sym = dlsym(RTLD_DEFAULT, mangled_name.c_str());
-    if (sym == nullptr) {
-      continue;
-    }
-
-    JNINativeMethod native_method;
-    native_method.fnPtr = sym;
-    native_method.name = name;
-    native_method.signature = signature;
-
-    env->RegisterNatives(klass, &native_method, 1);
-
-    jenv->Deallocate(reinterpret_cast<unsigned char*>(name));
-    jenv->Deallocate(reinterpret_cast<unsigned char*>(signature));
-    return;
-  }
-
-  LOG(FATAL) << "Could not find " << names[0];
-}
-
-static jclass FindClassWithSystemClassLoader(JNIEnv* env, const char* class_name) {
-  // Find the system classloader.
-  ScopedLocalRef<jclass> cl_klass(env, env->FindClass("java/lang/ClassLoader"));
-  if (cl_klass.get() == nullptr) {
-    return nullptr;
-  }
-  jmethodID getsystemclassloader_method = env->GetStaticMethodID(cl_klass.get(),
-                                                                 "getSystemClassLoader",
-                                                                 "()Ljava/lang/ClassLoader;");
-  if (getsystemclassloader_method == nullptr) {
-    return nullptr;
-  }
-  ScopedLocalRef<jobject> cl(env, env->CallStaticObjectMethod(cl_klass.get(),
-                                                              getsystemclassloader_method));
-  if (cl.get() == nullptr) {
-    return nullptr;
-  }
-
-  // Create a String of the name.
-  std::string descriptor = android::base::StringPrintf("L%s;", class_name);
-  std::string dot_name = DescriptorToDot(descriptor.c_str());
-  ScopedLocalRef<jstring> name_str(env, env->NewStringUTF(dot_name.c_str()));
-
-  // Call Class.forName with it.
-  ScopedLocalRef<jclass> c_klass(env, env->FindClass("java/lang/Class"));
-  if (c_klass.get() == nullptr) {
-    return nullptr;
-  }
-  jmethodID forname_method = env->GetStaticMethodID(
-      c_klass.get(),
-      "forName",
-      "(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;");
-  if (forname_method == nullptr) {
-    return nullptr;
-  }
-
-  return reinterpret_cast<jclass>(env->CallStaticObjectMethod(c_klass.get(),
-                                                              forname_method,
-                                                              name_str.get(),
-                                                              JNI_FALSE,
-                                                              cl.get()));
-}
-
-void BindFunctions(jvmtiEnv* jenv, JNIEnv* env, const char* class_name) {
-  // Use JNI to load the class.
-  ScopedLocalRef<jclass> klass(env, env->FindClass(class_name));
-  if (klass.get() == nullptr) {
-    // We may be called with the wrong classloader. Try explicitly using the system classloader.
-    env->ExceptionClear();
-    klass.reset(FindClassWithSystemClassLoader(env, class_name));
-    if (klass.get() == nullptr) {
-      LOG(FATAL) << "Could not load " << class_name;
-    }
-  }
-  BindFunctionsOnClass(jenv, env, klass.get());
-}
-
-void BindFunctionsOnClass(jvmtiEnv* jenv, JNIEnv* env, jclass klass) {
-  // Use JVMTI to get the methods.
-  jint method_count;
-  jmethodID* methods;
-  jvmtiError methods_result = jenv->GetClassMethods(klass, &method_count, &methods);
-  if (methods_result != JVMTI_ERROR_NONE) {
-    LOG(FATAL) << "Could not get methods";
-  }
-
-  // Check each method.
-  for (jint i = 0; i < method_count; ++i) {
-    jint modifiers;
-    jvmtiError mod_result = jenv->GetMethodModifiers(methods[i], &modifiers);
-    if (mod_result != JVMTI_ERROR_NONE) {
-      LOG(FATAL) << "Could not get methods";
-    }
-    constexpr jint kNative = static_cast<jint>(kAccNative);
-    if ((modifiers & kNative) != 0) {
-      BindMethod(jenv, env, klass, methods[i]);
-    }
-  }
-
-  jenv->Deallocate(reinterpret_cast<unsigned char*>(methods));
-}
 
 }  // namespace art
