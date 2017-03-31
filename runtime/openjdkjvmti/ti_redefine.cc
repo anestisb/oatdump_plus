@@ -261,13 +261,12 @@ jvmtiError Redefiner::GetClassRedefinitionError(art::Handle<art::mirror::Class> 
 
 // Moves dex data to an anonymous, read-only mmap'd region.
 std::unique_ptr<art::MemMap> Redefiner::MoveDataToMemMap(const std::string& original_location,
-                                                         jint data_len,
-                                                         const unsigned char* dex_data,
+                                                         art::ArraySlice<const unsigned char> data,
                                                          std::string* error_msg) {
   std::unique_ptr<art::MemMap> map(art::MemMap::MapAnonymous(
       StringPrintf("%s-transformed", original_location.c_str()).c_str(),
       nullptr,
-      data_len,
+      data.size(),
       PROT_READ|PROT_WRITE,
       /*low_4gb*/false,
       /*reuse*/false,
@@ -275,7 +274,7 @@ std::unique_ptr<art::MemMap> Redefiner::MoveDataToMemMap(const std::string& orig
   if (map == nullptr) {
     return map;
   }
-  memcpy(map->Begin(), dex_data, data_len);
+  memcpy(map->Begin(), &data.At(0), data.size());
   // Make the dex files mmap read only. This matches how other DexFiles are mmaped and prevents
   // programs from corrupting it.
   map->Protect(PROT_READ);
@@ -344,13 +343,7 @@ jvmtiError Redefiner::RedefineClasses(ArtJvmTiEnv* env,
     memcpy(class_bytes_copy, definitions[i].class_bytes, definitions[i].class_byte_count);
 
     ArtClassDefinition def;
-    def.dex_len = definitions[i].class_byte_count;
-    def.dex_data = MakeJvmtiUniquePtr(env, class_bytes_copy);
-    // We are definitely modified.
-    def.SetRedefined();
-    def.original_dex_file = art::ArraySlice<const unsigned char>(definitions[i].class_bytes,
-                                                                 definitions[i].class_byte_count);
-    res = Transformer::FillInTransformationData(env, definitions[i].klass, &def);
+    res = def.Init(env, definitions[i]);
     if (res != OK) {
       return res;
     }
@@ -399,25 +392,24 @@ jvmtiError Redefiner::RedefineClassesDirect(ArtJvmTiEnv* env,
 jvmtiError Redefiner::AddRedefinition(ArtJvmTiEnv* env, const ArtClassDefinition& def) {
   std::string original_dex_location;
   jvmtiError ret = OK;
-  if ((ret = GetClassLocation(env, def.klass, &original_dex_location))) {
+  if ((ret = GetClassLocation(env, def.GetClass(), &original_dex_location))) {
     *error_msg_ = "Unable to get original dex file location!";
     return ret;
   }
   char* generic_ptr_unused = nullptr;
   char* signature_ptr = nullptr;
-  if ((ret = env->GetClassSignature(def.klass, &signature_ptr, &generic_ptr_unused)) != OK) {
+  if ((ret = env->GetClassSignature(def.GetClass(), &signature_ptr, &generic_ptr_unused)) != OK) {
     *error_msg_ = "Unable to get class signature!";
     return ret;
   }
   JvmtiUniquePtr<char> generic_unique_ptr(MakeJvmtiUniquePtr(env, generic_ptr_unused));
   JvmtiUniquePtr<char> signature_unique_ptr(MakeJvmtiUniquePtr(env, signature_ptr));
   std::unique_ptr<art::MemMap> map(MoveDataToMemMap(original_dex_location,
-                                                    def.dex_len,
-                                                    def.dex_data.get(),
+                                                    def.GetDexData(),
                                                     error_msg_));
   std::ostringstream os;
   if (map.get() == nullptr) {
-    os << "Failed to create anonymous mmap for modified dex file of class " << def.name
+    os << "Failed to create anonymous mmap for modified dex file of class " << def.GetName()
        << "in dex file " << original_dex_location << " because: " << *error_msg_;
     *error_msg_ = os.str();
     return ERR(OUT_OF_MEMORY);
@@ -434,13 +426,13 @@ jvmtiError Redefiner::AddRedefinition(ArtJvmTiEnv* env, const ArtClassDefinition
                                                                   /*verify_checksum*/true,
                                                                   error_msg_));
   if (dex_file.get() == nullptr) {
-    os << "Unable to load modified dex file for " << def.name << ": " << *error_msg_;
+    os << "Unable to load modified dex file for " << def.GetName() << ": " << *error_msg_;
     *error_msg_ = os.str();
     return ERR(INVALID_CLASS_FORMAT);
   }
   redefinitions_.push_back(
       Redefiner::ClassRedefinition(this,
-                                   def.klass,
+                                   def.GetClass(),
                                    dex_file.release(),
                                    signature_ptr,
                                    def.GetNewOriginalDexFile()));
