@@ -24,8 +24,9 @@
 #include "base/macros.h"
 #include "jvmti.h"
 
-#include "ti-agent/common_helper.h"
-#include "ti-agent/common_load.h"
+// Test infrastructure
+#include "jvmti_helper.h"
+#include "test_env.h"
 
 namespace art {
 namespace Test901HelloTi {
@@ -148,14 +149,14 @@ extern "C" JNIEXPORT void JNICALL Java_Main_setVerboseFlag(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jint iflag, jboolean val) {
   jvmtiVerboseFlag flag = static_cast<jvmtiVerboseFlag>(iflag);
   jvmtiError result = jvmti_env->SetVerboseFlag(flag, val);
-  JvmtiErrorToException(env, result);
+  JvmtiErrorToException(env, jvmti_env, result);
 }
 
 extern "C" JNIEXPORT jboolean JNICALL Java_Main_checkLivePhase(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED) {
   jvmtiPhase current_phase;
   jvmtiError phase_result = jvmti_env->GetPhase(&current_phase);
-  if (JvmtiErrorToException(env, phase_result)) {
+  if (JvmtiErrorToException(env, jvmti_env, phase_result)) {
     return JNI_FALSE;
   }
   return (current_phase == JVMTI_PHASE_LIVE) ? JNI_TRUE : JNI_FALSE;

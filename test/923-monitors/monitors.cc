@@ -21,8 +21,9 @@
 #include "jvmti.h"
 #include "ScopedUtfChars.h"
 
-#include "ti-agent/common_helper.h"
-#include "ti-agent/common_load.h"
+// Test infrastructure
+#include "jvmti_helper.h"
+#include "test_env.h"
 
 namespace art {
 namespace Test923Monitors {
@@ -40,7 +41,7 @@ extern "C" JNIEXPORT jlong JNICALL Java_Main_createRawMonitor(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED) {
   jrawMonitorID id;
   jvmtiError result = jvmti_env->CreateRawMonitor("dummy", &id);
-  if (JvmtiErrorToException(env, result)) {
+  if (JvmtiErrorToException(env, jvmti_env, result)) {
     return 0;
   }
   return MonitorToLong(id);
@@ -49,37 +50,37 @@ extern "C" JNIEXPORT jlong JNICALL Java_Main_createRawMonitor(
 extern "C" JNIEXPORT void JNICALL Java_Main_destroyRawMonitor(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jlong l) {
   jvmtiError result = jvmti_env->DestroyRawMonitor(LongToMonitor(l));
-  JvmtiErrorToException(env, result);
+  JvmtiErrorToException(env, jvmti_env, result);
 }
 
 extern "C" JNIEXPORT void JNICALL Java_Main_rawMonitorEnter(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jlong l) {
   jvmtiError result = jvmti_env->RawMonitorEnter(LongToMonitor(l));
-  JvmtiErrorToException(env, result);
+  JvmtiErrorToException(env, jvmti_env, result);
 }
 
 extern "C" JNIEXPORT void JNICALL Java_Main_rawMonitorExit(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jlong l) {
   jvmtiError result = jvmti_env->RawMonitorExit(LongToMonitor(l));
-  JvmtiErrorToException(env, result);
+  JvmtiErrorToException(env, jvmti_env, result);
 }
 
 extern "C" JNIEXPORT void JNICALL Java_Main_rawMonitorWait(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jlong l, jlong millis) {
   jvmtiError result = jvmti_env->RawMonitorWait(LongToMonitor(l), millis);
-  JvmtiErrorToException(env, result);
+  JvmtiErrorToException(env, jvmti_env, result);
 }
 
 extern "C" JNIEXPORT void JNICALL Java_Main_rawMonitorNotify(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jlong l) {
   jvmtiError result = jvmti_env->RawMonitorNotify(LongToMonitor(l));
-  JvmtiErrorToException(env, result);
+  JvmtiErrorToException(env, jvmti_env, result);
 }
 
 extern "C" JNIEXPORT void JNICALL Java_Main_rawMonitorNotifyAll(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jlong l) {
   jvmtiError result = jvmti_env->RawMonitorNotifyAll(LongToMonitor(l));
-  JvmtiErrorToException(env, result);
+  JvmtiErrorToException(env, jvmti_env, result);
 }
 
 }  // namespace Test923Monitors
