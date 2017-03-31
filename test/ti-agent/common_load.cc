@@ -19,6 +19,8 @@
 
 #include "base/logging.h"
 #include "base/macros.h"
+
+#include "agent_startup.h"
 #include "common_helper.h"
 #include "jni_binder.h"
 #include "jvmti_helper.h"
@@ -41,45 +43,6 @@ struct AgentLib {
   OnLoad load;
   OnAttach attach;
 };
-
-static void JNICALL VMInitCallback(jvmtiEnv *jvmti_env,
-                                   JNIEnv* jni_env,
-                                   jthread thread ATTRIBUTE_UNUSED) {
-  // Bind Main native methods.
-  BindFunctions(jvmti_env, jni_env, "Main");
-}
-
-// Install a phase callback that will bind JNI functions on VMInit.
-bool InstallBindCallback(JavaVM* vm) {
-  // Use a new jvmtiEnv. Otherwise we might collide with table changes.
-  jvmtiEnv* install_env;
-  if (vm->GetEnv(reinterpret_cast<void**>(&install_env), JVMTI_VERSION_1_0) != 0) {
-    return false;
-  }
-  SetAllCapabilities(install_env);
-
-  {
-    jvmtiEventCallbacks callbacks;
-    memset(&callbacks, 0, sizeof(jvmtiEventCallbacks));
-    callbacks.VMInit = VMInitCallback;
-
-    jvmtiError install_error = install_env->SetEventCallbacks(&callbacks, sizeof(callbacks));
-    if (install_error != JVMTI_ERROR_NONE) {
-      return false;
-    }
-  }
-
-  {
-    jvmtiError enable_error = install_env->SetEventNotificationMode(JVMTI_ENABLE,
-                                                                    JVMTI_EVENT_VM_INIT,
-                                                                    nullptr);
-    if (enable_error != JVMTI_ERROR_NONE) {
-      return false;
-    }
-  }
-
-  return true;
-}
 
 // A trivial OnLoad implementation that only initializes the global jvmti_env.
 static jint MinimalOnLoad(JavaVM* vm,
@@ -156,26 +119,6 @@ static void SetIsJVM(const char* options) {
   SetJVM(strncmp(options, "jvm", 3) == 0);
 }
 
-static bool BindFunctionsAttached(JavaVM* vm, const char* class_name) {
-  // Get a JNIEnv. As the thread is attached, we must not destroy it.
-  JNIEnv* env;
-  if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != 0) {
-    printf("Unable to get JNI env!\n");
-    return false;
-  }
-
-  jvmtiEnv* jenv;
-  if (vm->GetEnv(reinterpret_cast<void**>(&jenv), JVMTI_VERSION_1_0) != 0) {
-    printf("Unable to get jvmti env!\n");
-    return false;
-  }
-  SetAllCapabilities(jenv);
-
-  BindFunctions(jenv, env, class_name);
-
-  return true;
-}
-
 }  // namespace
 
 extern "C" JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM* vm, char* options, void* reserved) {
@@ -188,9 +131,7 @@ extern "C" JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM* vm, char* options, void* 
 
   SetIsJVM(remaining_options);
 
-  if (!InstallBindCallback(vm)) {
-    return 1;
-  }
+  BindOnLoad(vm, nullptr);
 
   AgentLib* lib = FindAgent(name_option);
   OnLoad fn = nullptr;
@@ -214,7 +155,7 @@ extern "C" JNIEXPORT jint JNICALL Agent_OnAttach(JavaVM* vm, char* options, void
     return -1;
   }
 
-  BindFunctionsAttached(vm, "Main");
+  BindOnAttach(vm, nullptr);
 
   AgentLib* lib = FindAgent(name_option);
   if (lib == nullptr) {

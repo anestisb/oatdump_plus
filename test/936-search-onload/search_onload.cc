@@ -23,7 +23,7 @@
 #include "base/macros.h"
 #include "jni.h"
 #include "jvmti.h"
-#include "ScopedUtfChars.h"
+#include "scoped_utf_chars.h"
 
 // Test infrastructure
 #include "jvmti_helper.h"

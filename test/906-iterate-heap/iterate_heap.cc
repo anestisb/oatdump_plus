@@ -23,16 +23,18 @@
 #include <stdio.h>
 #include <vector>
 
+#include "android-base/logging.h"
 #include "android-base/stringprintf.h"
-#include "base/logging.h"
+
 #include "jni.h"
 #include "jvmti.h"
-#include "ScopedPrimitiveArray.h"
-#include "utf.h"
+#include "scoped_primitive_array.h"
 
 // Test infrastructure
 #include "jvmti_helper.h"
 #include "test_env.h"
+#include "ti_macros.h"
+#include "ti_utf.h"
 
 namespace art {
 namespace Test906IterateHeap {
@@ -197,10 +199,10 @@ extern "C" JNIEXPORT jstring JNICALL Java_Main_iterateThroughHeapString(
                                             void* user_data) {
       FindStringCallbacks* p = reinterpret_cast<FindStringCallbacks*>(user_data);
       if (*tag_ptr == p->tag_to_find) {
-        size_t utf_byte_count = CountUtf8Bytes(value, value_length);
+        size_t utf_byte_count = ti::CountUtf8Bytes(value, value_length);
         std::unique_ptr<char[]> mod_utf(new char[utf_byte_count + 1]);
         memset(mod_utf.get(), 0, utf_byte_count + 1);
-        ConvertUtf16ToModifiedUtf8(mod_utf.get(), utf_byte_count, value, value_length);
+        ti::ConvertUtf16ToModifiedUtf8(mod_utf.get(), utf_byte_count, value, value_length);
         if (!p->data.empty()) {
           p->data += "\n";
         }
