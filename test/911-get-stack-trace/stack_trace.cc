@@ -18,20 +18,19 @@
 #include <memory>
 #include <stdio.h>
 
+#include "android-base/logging.h"
 #include "android-base/stringprintf.h"
 
-#include "android-base/stringprintf.h"
-#include "base/logging.h"
-#include "base/macros.h"
 #include "jni.h"
 #include "jvmti.h"
-#include "ScopedLocalRef.h"
+#include "scoped_local_ref.h"
 
 // Test infrastructure
 #include "jni_binder.h"
 #include "jni_helper.h"
 #include "jvmti_helper.h"
 #include "test_env.h"
+#include "ti_macros.h"
 
 namespace art {
 namespace Test911GetStackTrace {
