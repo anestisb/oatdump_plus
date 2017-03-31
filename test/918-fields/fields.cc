@@ -21,8 +21,9 @@
 #include "jvmti.h"
 #include "ScopedLocalRef.h"
 
-#include "ti-agent/common_helper.h"
-#include "ti-agent/common_load.h"
+// Test infrastructure
+#include "jni_helper.h"
+#include "test_env.h"
 
 namespace art {
 namespace Test918Fields {

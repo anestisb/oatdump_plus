@@ -27,8 +27,10 @@
 #include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
 
-#include "ti-agent/common_helper.h"
-#include "ti-agent/common_load.h"
+// Test infrastructure
+#include "jni_helper.h"
+#include "jvmti_helper.h"
+#include "test_env.h"
 
 namespace art {
 namespace Test912Classes {
@@ -233,7 +235,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getClassLoaderClasses(
   jint count = 0;
   jclass* classes = nullptr;
   jvmtiError result = jvmti_env->GetClassLoaderClasses(jclassloader, &count, &classes);
-  if (JvmtiErrorToException(env, result)) {
+  if (JvmtiErrorToException(env, jvmti_env, result)) {
     return nullptr;
   }
 
@@ -251,7 +253,7 @@ extern "C" JNIEXPORT jintArray JNICALL Java_Main_getClassVersion(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
   jint major, minor;
   jvmtiError result = jvmti_env->GetClassVersionNumbers(klass, &minor, &major);
-  if (JvmtiErrorToException(env, result)) {
+  if (JvmtiErrorToException(env, jvmti_env, result)) {
     return nullptr;
   }
 
@@ -270,7 +272,7 @@ static std::string GetClassName(jvmtiEnv* jenv, JNIEnv* jni_env, jclass klass) {
   jvmtiError result = jenv->GetClassSignature(klass, &name, nullptr);
   if (result != JVMTI_ERROR_NONE) {
     if (jni_env != nullptr) {
-      JvmtiErrorToException(jni_env, result);
+      JvmtiErrorToException(jni_env, jenv, result);
     } else {
       printf("Failed to get class signature.\n");
     }
@@ -291,13 +293,13 @@ static void EnableEvents(JNIEnv* env,
     jvmtiError ret = jvmti_env->SetEventNotificationMode(JVMTI_DISABLE,
                                                          JVMTI_EVENT_CLASS_LOAD,
                                                          nullptr);
-    if (JvmtiErrorToException(env, ret)) {
+    if (JvmtiErrorToException(env, jvmti_env, ret)) {
       return;
     }
     ret = jvmti_env->SetEventNotificationMode(JVMTI_DISABLE,
                                               JVMTI_EVENT_CLASS_PREPARE,
                                               nullptr);
-    JvmtiErrorToException(env, ret);
+    JvmtiErrorToException(env, jvmti_env, ret);
     return;
   }
 
@@ -306,20 +308,20 @@ static void EnableEvents(JNIEnv* env,
   callbacks.ClassLoad = class_load;
   callbacks.ClassPrepare = class_prepare;
   jvmtiError ret = jvmti_env->SetEventCallbacks(&callbacks, sizeof(callbacks));
-  if (JvmtiErrorToException(env, ret)) {
+  if (JvmtiErrorToException(env, jvmti_env, ret)) {
     return;
   }
 
   ret = jvmti_env->SetEventNotificationMode(JVMTI_ENABLE,
                                             JVMTI_EVENT_CLASS_LOAD,
                                             nullptr);
-  if (JvmtiErrorToException(env, ret)) {
+  if (JvmtiErrorToException(env, jvmti_env, ret)) {
     return;
   }
   ret = jvmti_env->SetEventNotificationMode(JVMTI_ENABLE,
                                             JVMTI_EVENT_CLASS_PREPARE,
                                             nullptr);
-  JvmtiErrorToException(env, ret);
+  JvmtiErrorToException(env, jvmti_env, ret);
 }
 
 class ClassLoadPreparePrinter {
@@ -364,7 +366,7 @@ class ClassLoadPreparePrinter {
     jvmtiError result = jenv->GetThreadInfo(thread, &info);
     if (result != JVMTI_ERROR_NONE) {
       if (jni_env != nullptr) {
-        JvmtiErrorToException(jni_env, result);
+        JvmtiErrorToException(jni_env, jenv, result);
       } else {
         printf("Failed to get thread name.\n");
       }

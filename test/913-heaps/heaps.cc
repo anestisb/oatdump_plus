@@ -34,8 +34,10 @@
 #include "thread-inl.h"
 #include "thread_list.h"
 
-#include "ti-agent/common_helper.h"
-#include "ti-agent/common_load.h"
+// Test infrastructure
+#include "jni_helper.h"
+#include "jvmti_helper.h"
+#include "test_env.h"
 
 namespace art {
 namespace Test913Heaps {
@@ -550,7 +552,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_followReferencesString(
 
   FindStringCallbacks fsc;
   jvmtiError ret = jvmti_env->FollowReferences(0, nullptr, initial_object, &callbacks, &fsc);
-  if (JvmtiErrorToException(env, ret)) {
+  if (JvmtiErrorToException(env, jvmti_env, ret)) {
     return nullptr;
   }
 
@@ -648,7 +650,7 @@ extern "C" JNIEXPORT jstring JNICALL Java_Main_followReferencesPrimitiveArray(
 
   FindArrayCallbacks fac;
   jvmtiError ret = jvmti_env->FollowReferences(0, nullptr, initial_object, &callbacks, &fac);
-  if (JvmtiErrorToException(env, ret)) {
+  if (JvmtiErrorToException(env, jvmti_env, ret)) {
     return nullptr;
   }
   return env->NewStringUTF(fac.data.c_str());
@@ -738,7 +740,7 @@ extern "C" JNIEXPORT jstring JNICALL Java_Main_followReferencesPrimitiveFields(
 
   FindFieldCallbacks ffc;
   jvmtiError ret = jvmti_env->FollowReferences(0, nullptr, initial_object, &callbacks, &ffc);
-  if (JvmtiErrorToException(env, ret)) {
+  if (JvmtiErrorToException(env, jvmti_env, ret)) {
     return nullptr;
   }
   return env->NewStringUTF(ffc.data.c_str());

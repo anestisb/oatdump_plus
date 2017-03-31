@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_TEST_TI_AGENT_COMMON_LOAD_H_
-#define ART_TEST_TI_AGENT_COMMON_LOAD_H_
+#ifndef ART_TEST_TI_AGENT_TEST_ENV_H_
+#define ART_TEST_TI_AGENT_TEST_ENV_H_
 
 #include "jvmti.h"
 
@@ -23,6 +23,9 @@ namespace art {
 
 extern jvmtiEnv* jvmti_env;
 
+bool IsJVM();
+void SetJVM(bool b);
+
 }  // namespace art
 
-#endif  // ART_TEST_TI_AGENT_COMMON_LOAD_H_
+#endif  // ART_TEST_TI_AGENT_TEST_ENV_H_
