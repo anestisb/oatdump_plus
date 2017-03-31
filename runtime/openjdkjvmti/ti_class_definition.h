@@ -39,46 +39,39 @@ namespace openjdkjvmti {
 // A struct that stores data needed for redefining/transforming classes. This structure should only
 // even be accessed from a single thread and must not survive past the completion of the
 // redefinition/retransformation function that created it.
-struct ArtClassDefinition {
+class ArtClassDefinition {
  public:
-  jclass klass;
-  jobject loader;
-  std::string name;
-  jobject protection_domain;
-  jint dex_len;
-  JvmtiUniquePtr<unsigned char> dex_data;
-  JvmtiUniquePtr<unsigned char> original_dex_file_memory;
-  art::ArraySlice<const unsigned char> original_dex_file;
-
   ArtClassDefinition()
-      : klass(nullptr),
-        loader(nullptr),
-        name(),
-        protection_domain(nullptr),
-        dex_len(0),
-        dex_data(nullptr),
-        original_dex_file_memory(nullptr),
-        original_dex_file(),
-        redefined(false) {}
+      : klass_(nullptr),
+        loader_(nullptr),
+        name_(),
+        protection_domain_(nullptr),
+        dex_len_(0),
+        dex_data_(nullptr),
+        original_dex_file_memory_(nullptr),
+        original_dex_file_(),
+        redefined_(false) {}
+
+  jvmtiError Init(ArtJvmTiEnv* env, jclass klass);
+  jvmtiError Init(ArtJvmTiEnv* env, const jvmtiClassDefinition& def);
 
   ArtClassDefinition(ArtClassDefinition&& o) = default;
+  ArtClassDefinition& operator=(ArtClassDefinition&& o) = default;
 
   void SetNewDexData(ArtJvmTiEnv* env, jint new_dex_len, unsigned char* new_dex_data) {
+    DCHECK(IsInitialized());
     if (new_dex_data == nullptr) {
       return;
-    } else if (new_dex_data != dex_data.get() || new_dex_len != dex_len) {
-      dex_len = new_dex_len;
-      dex_data = MakeJvmtiUniquePtr(env, new_dex_data);
+    } else if (new_dex_data != dex_data_.get() || new_dex_len != dex_len_) {
+      dex_len_ = new_dex_len;
+      dex_data_ = MakeJvmtiUniquePtr(env, new_dex_data);
     }
   }
 
-  void SetRedefined() {
-    redefined = true;
-  }
-
   art::ArraySlice<const unsigned char> GetNewOriginalDexFile() const {
-    if (redefined) {
-      return original_dex_file;
+    DCHECK(IsInitialized());
+    if (redefined_) {
+      return original_dex_file_;
     } else {
       return art::ArraySlice<const unsigned char>();
     }
@@ -86,8 +79,49 @@ struct ArtClassDefinition {
 
   bool IsModified() const;
 
+  bool IsInitialized() const {
+    return klass_ != nullptr;
+  }
+
+  jclass GetClass() const {
+    DCHECK(IsInitialized());
+    return klass_;
+  }
+
+  jobject GetLoader() const {
+    DCHECK(IsInitialized());
+    return loader_;
+  }
+
+  const std::string& GetName() const {
+    DCHECK(IsInitialized());
+    return name_;
+  }
+
+  jobject GetProtectionDomain() const {
+    DCHECK(IsInitialized());
+    return protection_domain_;
+  }
+
+  art::ArraySlice<const unsigned char> GetDexData() const {
+    DCHECK(IsInitialized());
+    return art::ArraySlice<const unsigned char>(dex_data_.get(), dex_len_);
+  }
+
  private:
-  bool redefined;
+  jvmtiError InitCommon(ArtJvmTiEnv* env, jclass klass);
+
+  jclass klass_;
+  jobject loader_;
+  std::string name_;
+  jobject protection_domain_;
+  jint dex_len_;
+  JvmtiUniquePtr<unsigned char> dex_data_;
+  JvmtiUniquePtr<unsigned char> original_dex_file_memory_;
+  art::ArraySlice<const unsigned char> original_dex_file_;
+  bool redefined_;
+
+  DISALLOW_COPY_AND_ASSIGN(ArtClassDefinition);
 };
 
 }  // namespace openjdkjvmti
