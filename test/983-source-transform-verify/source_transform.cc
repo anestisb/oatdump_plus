@@ -37,8 +37,9 @@
 #include "thread-inl.h"
 #include "thread_list.h"
 
-#include "ti-agent/common_helper.h"
-#include "ti-agent/common_load.h"
+// Test infrastructure
+#include "jvmti_helper.h"
+#include "test_env.h"
 
 namespace art {
 namespace Test983SourceTransformVerify {

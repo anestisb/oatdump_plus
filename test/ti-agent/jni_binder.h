@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 The Android Open Source Project
+ * Copyright (C) 2017 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,26 +14,25 @@
  * limitations under the License.
  */
 
-#ifndef ART_TEST_TI_AGENT_COMMON_HELPER_H_
-#define ART_TEST_TI_AGENT_COMMON_HELPER_H_
+#ifndef ART_TEST_TI_AGENT_JNI_BINDER_H_
+#define ART_TEST_TI_AGENT_JNI_BINDER_H_
 
 #include "jni.h"
 #include "jvmti.h"
 
 namespace art {
 
-namespace common_redefine {
-jint OnLoad(JavaVM* vm, char* options, void* reserved);
-}  // namespace common_redefine
+// Load the class through JNI. Inspect it, find all native methods. Construct the corresponding
+// mangled name, run dlsym and bind the method.
+//
+// This will abort on failure.
+void BindFunctions(jvmtiEnv* jvmti_env,
+                   JNIEnv* env,
+                   const char* class_name,
+                   jobject class_loader = nullptr);
 
-namespace common_retransform {
-jint OnLoad(JavaVM* vm, char* options, void* reserved);
-}  // namespace common_retransform
-
-namespace common_transform {
-jint OnLoad(JavaVM* vm, char* options, void* reserved);
-}  // namespace common_transform
+void BindFunctionsOnClass(jvmtiEnv* jvmti_env, JNIEnv* env, jclass klass);
 
 }  // namespace art
 
-#endif  // ART_TEST_TI_AGENT_COMMON_HELPER_H_
+#endif  // ART_TEST_TI_AGENT_JNI_BINDER_H_

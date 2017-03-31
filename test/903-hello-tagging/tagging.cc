@@ -26,36 +26,25 @@
 #include "art_method-inl.h"
 #include "base/logging.h"
 #include "jvmti.h"
-#include "ti-agent/common_helper.h"
-#include "ti-agent/common_load.h"
 #include "utils.h"
+
+// Test infrastructure
+#include "jvmti_helper.h"
+#include "test_env.h"
 
 namespace art {
 namespace Test903HelloTagging {
 
-extern "C" JNIEXPORT void JNICALL Java_Main_setTag(JNIEnv* env ATTRIBUTE_UNUSED,
-                                                   jclass,
-                                                   jobject obj,
-                                                   jlong tag) {
+extern "C" JNIEXPORT void JNICALL Java_Main_setTag(JNIEnv* env, jclass, jobject obj, jlong tag) {
   jvmtiError ret = jvmti_env->SetTag(obj, tag);
-  if (ret != JVMTI_ERROR_NONE) {
-    char* err;
-    jvmti_env->GetErrorName(ret, &err);
-    printf("Error setting tag: %s\n", err);
-    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
-  }
+  JvmtiErrorToException(env, jvmti_env, ret);
 }
 
-extern "C" JNIEXPORT jlong JNICALL Java_Main_getTag(JNIEnv* env ATTRIBUTE_UNUSED,
-                                                    jclass,
-                                                    jobject obj) {
+extern "C" JNIEXPORT jlong JNICALL Java_Main_getTag(JNIEnv* env, jclass, jobject obj) {
   jlong tag = 0;
   jvmtiError ret = jvmti_env->GetTag(obj, &tag);
-  if (ret != JVMTI_ERROR_NONE) {
-    char* err;
-    jvmti_env->GetErrorName(ret, &err);
-    printf("Error getting tag: %s\n", err);
-    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
+  if (JvmtiErrorToException(env, jvmti_env, ret)) {
+    return 0;
   }
   return tag;
 }
@@ -86,11 +75,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getTaggedObjects(JNIEnv* env
                                                  &result_count,
                                                  result_object_array_ptr,
                                                  result_tag_array_ptr);
-  if (ret != JVMTI_ERROR_NONE) {
-    char* err;
-    jvmti_env->GetErrorName(ret, &err);
-    printf("Failure running GetLoadedClasses: %s\n", err);
-    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
+  if (JvmtiErrorToException(env, jvmti_env, ret)) {
     return nullptr;
   }
 
@@ -197,4 +182,3 @@ extern "C" JNIEXPORT jlongArray JNICALL Java_Main_testTagsInDifferentEnvs(
 
 }  // namespace Test903HelloTagging
 }  // namespace art
-

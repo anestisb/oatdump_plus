@@ -21,8 +21,10 @@
 #include "jvmti.h"
 #include "ScopedLocalRef.h"
 
-#include "ti-agent/common_helper.h"
-#include "ti-agent/common_load.h"
+// Test infrastructure
+#include "jni_helper.h"
+#include "jvmti_helper.h"
+#include "test_env.h"
 
 namespace art {
 namespace Test910Methods {
@@ -35,11 +37,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getMethodName(
   char* sig;
   char* gen;
   jvmtiError result = jvmti_env->GetMethodName(id, &name, &sig, &gen);
-  if (result != JVMTI_ERROR_NONE) {
-    char* err;
-    jvmti_env->GetErrorName(result, &err);
-    printf("Failure running GetMethodName: %s\n", err);
-    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
+  if (JvmtiErrorToException(env, jvmti_env, result)) {
     return nullptr;
   }
 
@@ -67,11 +65,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getMethodName(
 
   // Also run GetMethodName with all parameter pointers null to check for segfaults.
   jvmtiError result2 = jvmti_env->GetMethodName(id, nullptr, nullptr, nullptr);
-  if (result2 != JVMTI_ERROR_NONE) {
-    char* err;
-    jvmti_env->GetErrorName(result2, &err);
-    printf("Failure running GetMethodName(null, null, null): %s\n", err);
-    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
+  if (JvmtiErrorToException(env, jvmti_env, result2)) {
     return nullptr;
   }
 
@@ -84,11 +78,7 @@ extern "C" JNIEXPORT jclass JNICALL Java_Main_getMethodDeclaringClass(
 
   jclass declaring_class;
   jvmtiError result = jvmti_env->GetMethodDeclaringClass(id, &declaring_class);
-  if (result != JVMTI_ERROR_NONE) {
-    char* err;
-    jvmti_env->GetErrorName(result, &err);
-    printf("Failure running GetMethodDeclaringClass: %s\n", err);
-    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
+  if (JvmtiErrorToException(env, jvmti_env, result)) {
     return nullptr;
   }
 
@@ -101,11 +91,7 @@ extern "C" JNIEXPORT jint JNICALL Java_Main_getMethodModifiers(
 
   jint modifiers;
   jvmtiError result = jvmti_env->GetMethodModifiers(id, &modifiers);
-  if (result != JVMTI_ERROR_NONE) {
-    char* err;
-    jvmti_env->GetErrorName(result, &err);
-    printf("Failure running GetMethodModifiers: %s\n", err);
-    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
+  if (JvmtiErrorToException(env, jvmti_env, result)) {
     return 0;
   }
 
@@ -118,7 +104,7 @@ extern "C" JNIEXPORT jint JNICALL Java_Main_getMaxLocals(
 
   jint max_locals;
   jvmtiError result = jvmti_env->GetMaxLocals(id, &max_locals);
-  if (JvmtiErrorToException(env, result)) {
+  if (JvmtiErrorToException(env, jvmti_env, result)) {
     return -1;
   }
 
@@ -131,7 +117,7 @@ extern "C" JNIEXPORT jint JNICALL Java_Main_getArgumentsSize(
 
   jint arguments;
   jvmtiError result = jvmti_env->GetArgumentsSize(id, &arguments);
-  if (JvmtiErrorToException(env, result)) {
+  if (JvmtiErrorToException(env, jvmti_env, result)) {
     return -1;
   }
 
@@ -145,7 +131,7 @@ extern "C" JNIEXPORT jlong JNICALL Java_Main_getMethodLocationStart(
   jlong start;
   jlong end;
   jvmtiError result = jvmti_env->GetMethodLocation(id, &start, &end);
-  if (JvmtiErrorToException(env, result)) {
+  if (JvmtiErrorToException(env, jvmti_env, result)) {
     return -1;
   }
 
@@ -159,7 +145,7 @@ extern "C" JNIEXPORT jlong JNICALL Java_Main_getMethodLocationEnd(
   jlong start;
   jlong end;
   jvmtiError result = jvmti_env->GetMethodLocation(id, &start, &end);
-  if (JvmtiErrorToException(env, result)) {
+  if (JvmtiErrorToException(env, jvmti_env, result)) {
     return -1;
   }
 
@@ -172,7 +158,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_isMethodNative(
 
   jboolean is_native;
   jvmtiError result = jvmti_env->IsMethodNative(id, &is_native);
-  if (JvmtiErrorToException(env, result)) {
+  if (JvmtiErrorToException(env, jvmti_env, result)) {
     return JNI_FALSE;
   }
 
@@ -185,7 +171,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_isMethodObsolete(
 
   jboolean is_obsolete;
   jvmtiError result = jvmti_env->IsMethodObsolete(id, &is_obsolete);
-  if (JvmtiErrorToException(env, result)) {
+  if (JvmtiErrorToException(env, jvmti_env, result)) {
     return JNI_FALSE;
   }
 
@@ -198,7 +184,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_isMethodSynthetic(
 
   jboolean is_synthetic;
   jvmtiError result = jvmti_env->IsMethodSynthetic(id, &is_synthetic);
-  if (JvmtiErrorToException(env, result)) {
+  if (JvmtiErrorToException(env, jvmti_env, result)) {
     return JNI_FALSE;
   }
 

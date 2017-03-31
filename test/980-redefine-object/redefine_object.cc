@@ -24,8 +24,10 @@
 #include "jvmti.h"
 #include "ScopedUtfChars.h"
 
-#include "ti-agent/common_helper.h"
-#include "ti-agent/common_load.h"
+// Test infrastructure
+#include "jni_binder.h"
+#include "jvmti_helper.h"
+#include "test_env.h"
 
 namespace art {
 namespace Test980RedefineObjects {
@@ -39,9 +41,11 @@ extern "C" JNIEXPORT void JNICALL Java_art_test_TestWatcher_NotifyConstructed(
     JNIEnv* env, jclass TestWatcherClass ATTRIBUTE_UNUSED, jobject constructed) {
   char* sig = nullptr;
   char* generic_sig = nullptr;
-  if (JvmtiErrorToException(env, jvmti_env->GetClassSignature(env->GetObjectClass(constructed),
-                                                              &sig,
-                                                              &generic_sig))) {
+  if (JvmtiErrorToException(env,
+                            jvmti_env,
+                            jvmti_env->GetClassSignature(env->GetObjectClass(constructed),
+                                                         &sig,
+                                                         &generic_sig))) {
     // Exception.
     return;
   }
