@@ -27,8 +27,9 @@
 #include "thread-inl.h"
 #include "well_known_classes.h"
 
-#include "ti-agent/common_helper.h"
-#include "ti-agent/common_load.h"
+// Test infrastructure
+#include "jvmti_helper.h"
+#include "test_env.h"
 
 namespace art {
 namespace Test930AgentThread {
@@ -53,13 +54,13 @@ static void AgentMain(jvmtiEnv* jenv, JNIEnv* env, void* arg) {
   // This thread is not the main thread.
   jthread this_thread;
   jvmtiError this_thread_result = jenv->GetCurrentThread(&this_thread);
-  CHECK(!JvmtiErrorToException(env, this_thread_result));
+  CHECK(!JvmtiErrorToException(env, jenv, this_thread_result));
   CHECK(!env->IsSameObject(this_thread, data->main_thread));
 
   // The thread is a daemon.
   jvmtiThreadInfo info;
   jvmtiError info_result = jenv->GetThreadInfo(this_thread, &info);
-  CHECK(!JvmtiErrorToException(env, info_result));
+  CHECK(!JvmtiErrorToException(env, jenv, info_result));
   CHECK(info.is_daemon);
 
   // The thread has the requested priority.
@@ -70,7 +71,7 @@ static void AgentMain(jvmtiEnv* jenv, JNIEnv* env, void* arg) {
   jint thread_count;
   jthread* threads;
   jvmtiError threads_result = jenv->GetAllThreads(&thread_count, &threads);
-  CHECK(!JvmtiErrorToException(env, threads_result));
+  CHECK(!JvmtiErrorToException(env, jenv, threads_result));
   bool found = false;
   for (jint i = 0; i != thread_count; ++i) {
     if (env->IsSameObject(threads[i], this_thread)) {
@@ -111,7 +112,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_testAgentThread(
 
   jthread main_thread;
   jvmtiError main_thread_result = jvmti_env->GetCurrentThread(&main_thread);
-  if (JvmtiErrorToException(env, main_thread_result)) {
+  if (JvmtiErrorToException(env, jvmti_env, main_thread_result)) {
     return;
   }
 
@@ -121,7 +122,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_testAgentThread(
   data.priority = JVMTI_THREAD_MIN_PRIORITY;
 
   jvmtiError result = jvmti_env->RunAgentThread(thread.get(), AgentMain, &data, data.priority);
-  if (JvmtiErrorToException(env, result)) {
+  if (JvmtiErrorToException(env, jvmti_env, result)) {
     return;
   }
 
@@ -133,7 +134,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_testAgentThread(
     NanoSleep(1000 * 1000);
     jint thread_state;
     jvmtiError state_result = jvmti_env->GetThreadState(thread.get(), &thread_state);
-    if (JvmtiErrorToException(env, state_result)) {
+    if (JvmtiErrorToException(env, jvmti_env, state_result)) {
       return;
     }
     if (thread_state == 0 ||                                    // Was never alive.

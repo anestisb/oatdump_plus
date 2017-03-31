@@ -28,9 +28,11 @@
 #include "jni.h"
 #include "jvmti.h"
 #include "ScopedPrimitiveArray.h"
-#include "ti-agent/common_helper.h"
-#include "ti-agent/common_load.h"
 #include "utf.h"
+
+// Test infrastructure
+#include "jvmti_helper.h"
+#include "test_env.h"
 
 namespace art {
 namespace Test906IterateHeap {
@@ -52,7 +54,7 @@ static jint JNICALL HeapIterationCallback(jlong class_tag,
   return config->Handle(class_tag, size, tag_ptr, length);
 }
 
-static bool Run(jint heap_filter, jclass klass_filter, IterationConfig* config) {
+static bool Run(JNIEnv* env, jint heap_filter, jclass klass_filter, IterationConfig* config) {
   jvmtiHeapCallbacks callbacks;
   memset(&callbacks, 0, sizeof(jvmtiHeapCallbacks));
   callbacks.heap_iteration_callback = HeapIterationCallback;
@@ -61,17 +63,13 @@ static bool Run(jint heap_filter, jclass klass_filter, IterationConfig* config) 
                                                  klass_filter,
                                                  &callbacks,
                                                  config);
-  if (ret != JVMTI_ERROR_NONE) {
-    char* err;
-    jvmti_env->GetErrorName(ret, &err);
-    printf("Failure running IterateThroughHeap: %s\n", err);
-    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
+  if (JvmtiErrorToException(env, jvmti_env, ret)) {
     return false;
   }
   return true;
 }
 
-extern "C" JNIEXPORT jint JNICALL Java_Main_iterateThroughHeapCount(JNIEnv* env ATTRIBUTE_UNUSED,
+extern "C" JNIEXPORT jint JNICALL Java_Main_iterateThroughHeapCount(JNIEnv* env,
                                                                     jclass klass ATTRIBUTE_UNUSED,
                                                                     jint heap_filter,
                                                                     jclass klass_filter,
@@ -99,7 +97,7 @@ extern "C" JNIEXPORT jint JNICALL Java_Main_iterateThroughHeapCount(JNIEnv* env 
   };
 
   CountIterationConfig config(0, stop_after);
-  Run(heap_filter, klass_filter, &config);
+  Run(env, heap_filter, klass_filter, &config);
 
   if (config.counter > config.stop_after) {
     printf("Error: more objects visited than signaled.");
@@ -135,7 +133,7 @@ extern "C" JNIEXPORT jint JNICALL Java_Main_iterateThroughHeapData(JNIEnv* env,
   };
 
   DataIterationConfig config;
-  if (!Run(heap_filter, klass_filter, &config)) {
+  if (!Run(env, heap_filter, klass_filter, &config)) {
     return -1;
   }
 
@@ -154,7 +152,7 @@ extern "C" JNIEXPORT jint JNICALL Java_Main_iterateThroughHeapData(JNIEnv* env,
   return static_cast<jint>(config.class_tags_.size());
 }
 
-extern "C" JNIEXPORT void JNICALL Java_Main_iterateThroughHeapAdd(JNIEnv* env ATTRIBUTE_UNUSED,
+extern "C" JNIEXPORT void JNICALL Java_Main_iterateThroughHeapAdd(JNIEnv* env,
                                                                   jclass klass ATTRIBUTE_UNUSED,
                                                                   jint heap_filter,
                                                                   jclass klass_filter) {
@@ -175,7 +173,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_iterateThroughHeapAdd(JNIEnv* env AT
   };
 
   AddIterationConfig config;
-  Run(heap_filter, klass_filter, &config);
+  Run(env, heap_filter, klass_filter, &config);
 }
 
 extern "C" JNIEXPORT jstring JNICALL Java_Main_iterateThroughHeapString(
@@ -228,7 +226,7 @@ extern "C" JNIEXPORT jstring JNICALL Java_Main_iterateThroughHeapString(
 
   FindStringCallbacks fsc(tag);
   jvmtiError ret = jvmti_env->IterateThroughHeap(0, nullptr, &callbacks, &fsc);
-  if (JvmtiErrorToException(env, ret)) {
+  if (JvmtiErrorToException(env, jvmti_env, ret)) {
     return nullptr;
   }
   return env->NewStringUTF(fsc.data.c_str());
@@ -316,7 +314,7 @@ extern "C" JNIEXPORT jstring JNICALL Java_Main_iterateThroughHeapPrimitiveArray(
 
   FindArrayCallbacks fac(tag);
   jvmtiError ret = jvmti_env->IterateThroughHeap(0, nullptr, &callbacks, &fac);
-  if (JvmtiErrorToException(env, ret)) {
+  if (JvmtiErrorToException(env, jvmti_env, ret)) {
     return nullptr;
   }
   return env->NewStringUTF(fac.data.c_str());
@@ -403,7 +401,7 @@ extern "C" JNIEXPORT jstring JNICALL Java_Main_iterateThroughHeapPrimitiveFields
 
   FindFieldCallbacks ffc(tag);
   jvmtiError ret = jvmti_env->IterateThroughHeap(0, nullptr, &callbacks, &ffc);
-  if (JvmtiErrorToException(env, ret)) {
+  if (JvmtiErrorToException(env, jvmti_env, ret)) {
     return nullptr;
   }
   return env->NewStringUTF(ffc.data.c_str());
