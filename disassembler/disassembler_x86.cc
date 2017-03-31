@@ -1101,6 +1101,22 @@ DISASSEMBLER_ENTRY(cmp,
           opcode1 = opcode_tmp.c_str();
         }
         break;
+      case 0xE0:
+      case 0xE3:
+        if (prefix[2] == 0x66) {
+          src_reg_file = dst_reg_file = SSE;
+          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else {
+          src_reg_file = dst_reg_file = MMX;
+        }
+        switch (*instr) {
+          case 0xE0: opcode1 = "pavgb"; break;
+          case 0xE3: opcode1 = "pavgw"; break;
+        }
+        prefix[2] = 0;
+        has_modrm = true;
+        load = true;
+        break;
       case 0xEB:
         if (prefix[2] == 0x66) {
           src_reg_file = dst_reg_file = SSE;
