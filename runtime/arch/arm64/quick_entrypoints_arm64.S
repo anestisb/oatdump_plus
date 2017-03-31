@@ -2379,9 +2379,8 @@ ENTRY \name
     ret
 .Lnot_marked_rb_\name:
     // Check if the top two bits are one, if this is the case it is a forwarding address.
-    mvn wIP0, wIP0
-    cmp wzr, wIP0, lsr #30
-    beq .Lret_forwarding_address\name
+    tst   wIP0, wIP0, lsl #1
+    bmi   .Lret_forwarding_address\name
 .Lslow_rb_\name:
     /*
      * Allocate 44 stack slots * 8 = 352 bytes:
@@ -2452,10 +2451,9 @@ ENTRY \name
     DECREASE_FRAME 352
     ret
 .Lret_forwarding_address\name:
-    mvn wIP0, wIP0
     // Shift left by the forwarding address shift. This clears out the state bits since they are
     // in the top 2 bits of the lock word.
-    lsl \wreg, wIP0, #LOCK_WORD_STATE_FORWARDING_ADDRESS_SHIFT
+    lsl   \wreg, wIP0, #LOCK_WORD_STATE_FORWARDING_ADDRESS_SHIFT
     ret
 END \name
 .endm
