@@ -37,8 +37,9 @@
 namespace art {
 
 const uint8_t ProfileCompilationInfo::kProfileMagic[] = { 'p', 'r', 'o', '\0' };
-// Last profile version: fix the order of dex files in the profile.
-const uint8_t ProfileCompilationInfo::kProfileVersion[] = { '0', '0', '4', '\0' };
+// Last profile version: fix profman merges. Update profile version to force
+// regeneration of possibly faulty profiles.
+const uint8_t ProfileCompilationInfo::kProfileVersion[] = { '0', '0', '5', '\0' };
 
 static constexpr uint16_t kMaxDexFileKeyLength = PATH_MAX;
 

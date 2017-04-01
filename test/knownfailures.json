@@ -362,9 +362,9 @@
         "variant": "interp-ac"
     },
     {
-        "tests": ["638-checker-inline-caches",
-                  "644-checker-deopt"],
-        "description": ["Disabled temporarily until a fix arrives."],
-        "bug": "http://b/36371709"
+        "tests": ["629-vdex-speed",
+                  "634-vdex-duplicate"],
+        "description": ["Profile driven dexlayout does not work with vdex."],
+        "variant": "speed-profile"
     }
 ]
