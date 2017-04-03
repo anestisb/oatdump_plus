@@ -14,18 +14,17 @@
  * limitations under the License.
  */
 
-#include "base/macros.h"
+#include "android-base/macros.h"
 #include "jni.h"
 #include "jvmti.h"
 #include "mirror/class-inl.h"
-#include "ScopedLocalRef.h"
+#include "scoped_local_ref.h"
 
 // Test infrastructure
 #include "test_env.h"
 
 namespace art {
 namespace Test944TransformClassloaders {
-
 
 extern "C" JNIEXPORT jlong JNICALL Java_Main_getDexFilePointer(JNIEnv* env, jclass, jclass klass) {
   if (Runtime::Current() == nullptr) {

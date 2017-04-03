@@ -19,14 +19,12 @@
 #include <stdio.h>
 #include <vector>
 
+#include "android-base/logging.h"
 #include "jni.h"
-#include "ScopedLocalRef.h"
-#include "ScopedPrimitiveArray.h"
+#include "scoped_local_ref.h"
+#include "scoped_primitive_array.h"
 
-#include "art_method-inl.h"
-#include "base/logging.h"
 #include "jvmti.h"
-#include "utils.h"
 
 // Test infrastructure
 #include "jvmti_helper.h"
