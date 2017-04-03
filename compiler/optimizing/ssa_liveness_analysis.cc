@@ -470,7 +470,12 @@ bool LiveInterval::SameRegisterKind(Location other) const {
 }
 
 size_t LiveInterval::NumberOfSpillSlotsNeeded() const {
-  // TODO: detect vector operation.
+  // For a SIMD operation, compute the number of needed spill slots.
+  // TODO: do through vector type?
+  HInstruction* definition = GetParent()->GetDefinedBy();
+  if (definition != nullptr && definition->IsVecOperation()) {
+    return definition->AsVecOperation()->GetVectorNumberOfBytes() / kVRegSize;
+  }
   // Return number of needed spill slots based on type.
   return (type_ == Primitive::kPrimLong || type_ == Primitive::kPrimDouble) ? 2 : 1;
 }
