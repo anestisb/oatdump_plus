@@ -70,8 +70,6 @@ static inline uint32_t PointerToLowMemUInt32(const void* p) {
   return intp & 0xFFFFFFFFU;
 }
 
-uint8_t* DecodeBase64(const char* src, size_t* dst_size);
-
 std::string PrintableChar(uint16_t ch);
 
 // Returns an ASCII string corresponding to the given UTF-8 string.
