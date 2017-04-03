@@ -19,8 +19,8 @@
 #include "jni.h"
 #include "jvmti.h"
 
-#include "base/logging.h"
-#include "base/macros.h"
+#include "android-base/logging.h"
+#include "android-base/macros.h"
 
 // Test infrastructure
 #include "jvmti_helper.h"
