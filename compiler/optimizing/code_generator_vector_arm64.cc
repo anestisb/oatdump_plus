@@ -57,21 +57,21 @@ void InstructionCodeGeneratorARM64::VisitVecReplicateScalar(HVecReplicateScalar*
   switch (instruction->GetPackedType()) {
     case Primitive::kPrimBoolean:
     case Primitive::kPrimByte:
-      DCHECK_EQ(8u, instruction->GetVectorLength());
-      __ Dup(dst.V8B(), InputRegisterAt(instruction, 0));
+      DCHECK_EQ(16u, instruction->GetVectorLength());
+      __ Dup(dst.V16B(), InputRegisterAt(instruction, 0));
       break;
     case Primitive::kPrimChar:
     case Primitive::kPrimShort:
-      DCHECK_EQ(4u, instruction->GetVectorLength());
-      __ Dup(dst.V4H(), InputRegisterAt(instruction, 0));
+      DCHECK_EQ(8u, instruction->GetVectorLength());
+      __ Dup(dst.V8H(), InputRegisterAt(instruction, 0));
       break;
     case Primitive::kPrimInt:
-      DCHECK_EQ(2u, instruction->GetVectorLength());
-      __ Dup(dst.V2S(), InputRegisterAt(instruction, 0));
+      DCHECK_EQ(4u, instruction->GetVectorLength());
+      __ Dup(dst.V4S(), InputRegisterAt(instruction, 0));
       break;
     case Primitive::kPrimFloat:
-      DCHECK_EQ(2u, instruction->GetVectorLength());
-      __ Dup(dst.V2S(), DRegisterFrom(locations->InAt(0)).V2S(), 0);
+      DCHECK_EQ(4u, instruction->GetVectorLength());
+      __ Dup(dst.V4S(), DRegisterFrom(locations->InAt(0)).V4S(), 0);
       break;
     default:
       LOG(FATAL) << "Unsupported SIMD type";
@@ -130,8 +130,8 @@ void InstructionCodeGeneratorARM64::VisitVecCnv(HVecCnv* instruction) {
   Primitive::Type from = instruction->GetInputType();
   Primitive::Type to = instruction->GetResultType();
   if (from == Primitive::kPrimInt && to == Primitive::kPrimFloat) {
-    DCHECK_EQ(2u, instruction->GetVectorLength());
-    __ Scvtf(dst.V2S(), src.V2S());
+    DCHECK_EQ(4u, instruction->GetVectorLength());
+    __ Scvtf(dst.V4S(), src.V4S());
   } else {
     LOG(FATAL) << "Unsupported SIMD type";
   }
@@ -147,21 +147,21 @@ void InstructionCodeGeneratorARM64::VisitVecNeg(HVecNeg* instruction) {
   FPRegister dst = DRegisterFrom(locations->Out());
   switch (instruction->GetPackedType()) {
     case Primitive::kPrimByte:
-      DCHECK_EQ(8u, instruction->GetVectorLength());
-      __ Neg(dst.V8B(), src.V8B());
+      DCHECK_EQ(16u, instruction->GetVectorLength());
+      __ Neg(dst.V16B(), src.V16B());
       break;
     case Primitive::kPrimChar:
     case Primitive::kPrimShort:
-      DCHECK_EQ(4u, instruction->GetVectorLength());
-      __ Neg(dst.V4H(), src.V4H());
+      DCHECK_EQ(8u, instruction->GetVectorLength());
+      __ Neg(dst.V8H(), src.V8H());
       break;
     case Primitive::kPrimInt:
-      DCHECK_EQ(2u, instruction->GetVectorLength());
-      __ Neg(dst.V2S(), src.V2S());
+      DCHECK_EQ(4u, instruction->GetVectorLength());
+      __ Neg(dst.V4S(), src.V4S());
       break;
     case Primitive::kPrimFloat:
-      DCHECK_EQ(2u, instruction->GetVectorLength());
-      __ Fneg(dst.V2S(), src.V2S());
+      DCHECK_EQ(4u, instruction->GetVectorLength());
+      __ Fneg(dst.V4S(), src.V4S());
       break;
     default:
       LOG(FATAL) << "Unsupported SIMD type";
@@ -179,21 +179,21 @@ void InstructionCodeGeneratorARM64::VisitVecAbs(HVecAbs* instruction) {
   FPRegister dst = DRegisterFrom(locations->Out());
   switch (instruction->GetPackedType()) {
     case Primitive::kPrimByte:
-      DCHECK_EQ(8u, instruction->GetVectorLength());
-      __ Abs(dst.V8B(), src.V8B());
+      DCHECK_EQ(16u, instruction->GetVectorLength());
+      __ Abs(dst.V16B(), src.V16B());
       break;
     case Primitive::kPrimChar:
     case Primitive::kPrimShort:
-      DCHECK_EQ(4u, instruction->GetVectorLength());
-      __ Abs(dst.V4H(), src.V4H());
+      DCHECK_EQ(8u, instruction->GetVectorLength());
+      __ Abs(dst.V8H(), src.V8H());
       break;
     case Primitive::kPrimInt:
-      DCHECK_EQ(2u, instruction->GetVectorLength());
-      __ Abs(dst.V2S(), src.V2S());
+      DCHECK_EQ(4u, instruction->GetVectorLength());
+      __ Abs(dst.V4S(), src.V4S());
       break;
     case Primitive::kPrimFloat:
-      DCHECK_EQ(2u, instruction->GetVectorLength());
-      __ Fabs(dst.V2S(), src.V2S());
+      DCHECK_EQ(4u, instruction->GetVectorLength());
+      __ Fabs(dst.V4S(), src.V4S());
       break;
     default:
       LOG(FATAL) << "Unsupported SIMD type";
@@ -210,15 +210,15 @@ void InstructionCodeGeneratorARM64::VisitVecNot(HVecNot* instruction) {
   FPRegister dst = DRegisterFrom(locations->Out());
   switch (instruction->GetPackedType()) {
     case Primitive::kPrimBoolean:  // special case boolean-not
-      DCHECK_EQ(8u, instruction->GetVectorLength());
-      __ Movi(dst.V8B(), 1);
-      __ Eor(dst.V8B(), dst.V8B(), src.V8B());
+      DCHECK_EQ(16u, instruction->GetVectorLength());
+      __ Movi(dst.V16B(), 1);
+      __ Eor(dst.V16B(), dst.V16B(), src.V16B());
       break;
     case Primitive::kPrimByte:
     case Primitive::kPrimChar:
     case Primitive::kPrimShort:
     case Primitive::kPrimInt:
-      __ Not(dst.V8B(), src.V8B());  // lanes do not matter
+      __ Not(dst.V16B(), src.V16B());  // lanes do not matter
       break;
     default:
       LOG(FATAL) << "Unsupported SIMD type";
@@ -257,21 +257,21 @@ void InstructionCodeGeneratorARM64::VisitVecAdd(HVecAdd* instruction) {
   FPRegister dst = DRegisterFrom(locations->Out());
   switch (instruction->GetPackedType()) {
     case Primitive::kPrimByte:
-      DCHECK_EQ(8u, instruction->GetVectorLength());
-      __ Add(dst.V8B(), lhs.V8B(), rhs.V8B());
+      DCHECK_EQ(16u, instruction->GetVectorLength());
+      __ Add(dst.V16B(), lhs.V16B(), rhs.V16B());
       break;
     case Primitive::kPrimChar:
     case Primitive::kPrimShort:
-      DCHECK_EQ(4u, instruction->GetVectorLength());
-      __ Add(dst.V4H(), lhs.V4H(), rhs.V4H());
+      DCHECK_EQ(8u, instruction->GetVectorLength());
+      __ Add(dst.V8H(), lhs.V8H(), rhs.V8H());
       break;
     case Primitive::kPrimInt:
-      DCHECK_EQ(2u, instruction->GetVectorLength());
-      __ Add(dst.V2S(), lhs.V2S(), rhs.V2S());
+      DCHECK_EQ(4u, instruction->GetVectorLength());
+      __ Add(dst.V4S(), lhs.V4S(), rhs.V4S());
       break;
     case Primitive::kPrimFloat:
-      DCHECK_EQ(2u, instruction->GetVectorLength());
-      __ Fadd(dst.V2S(), lhs.V2S(), rhs.V2S());
+      DCHECK_EQ(4u, instruction->GetVectorLength());
+      __ Fadd(dst.V4S(), lhs.V4S(), rhs.V4S());
       break;
     default:
       LOG(FATAL) << "Unsupported SIMD type";
@@ -290,21 +290,21 @@ void InstructionCodeGeneratorARM64::VisitVecSub(HVecSub* instruction) {
   FPRegister dst = DRegisterFrom(locations->Out());
   switch (instruction->GetPackedType()) {
     case Primitive::kPrimByte:
-      DCHECK_EQ(8u, instruction->GetVectorLength());
-      __ Sub(dst.V8B(), lhs.V8B(), rhs.V8B());
+      DCHECK_EQ(16u, instruction->GetVectorLength());
+      __ Sub(dst.V16B(), lhs.V16B(), rhs.V16B());
       break;
     case Primitive::kPrimChar:
     case Primitive::kPrimShort:
-      DCHECK_EQ(4u, instruction->GetVectorLength());
-      __ Sub(dst.V4H(), lhs.V4H(), rhs.V4H());
+      DCHECK_EQ(8u, instruction->GetVectorLength());
+      __ Sub(dst.V8H(), lhs.V8H(), rhs.V8H());
       break;
     case Primitive::kPrimInt:
-      DCHECK_EQ(2u, instruction->GetVectorLength());
-      __ Sub(dst.V2S(), lhs.V2S(), rhs.V2S());
+      DCHECK_EQ(4u, instruction->GetVectorLength());
+      __ Sub(dst.V4S(), lhs.V4S(), rhs.V4S());
       break;
     case Primitive::kPrimFloat:
-      DCHECK_EQ(2u, instruction->GetVectorLength());
-      __ Fsub(dst.V2S(), lhs.V2S(), rhs.V2S());
+      DCHECK_EQ(4u, instruction->GetVectorLength());
+      __ Fsub(dst.V4S(), lhs.V4S(), rhs.V4S());
       break;
     default:
       LOG(FATAL) << "Unsupported SIMD type";
@@ -323,21 +323,21 @@ void InstructionCodeGeneratorARM64::VisitVecMul(HVecMul* instruction) {
   FPRegister dst = DRegisterFrom(locations->Out());
   switch (instruction->GetPackedType()) {
     case Primitive::kPrimByte:
-      DCHECK_EQ(8u, instruction->GetVectorLength());
-      __ Mul(dst.V8B(), lhs.V8B(), rhs.V8B());
+      DCHECK_EQ(16u, instruction->GetVectorLength());
+      __ Mul(dst.V16B(), lhs.V16B(), rhs.V16B());
       break;
     case Primitive::kPrimChar:
     case Primitive::kPrimShort:
-      DCHECK_EQ(4u, instruction->GetVectorLength());
-      __ Mul(dst.V4H(), lhs.V4H(), rhs.V4H());
+      DCHECK_EQ(8u, instruction->GetVectorLength());
+      __ Mul(dst.V8H(), lhs.V8H(), rhs.V8H());
       break;
     case Primitive::kPrimInt:
-      DCHECK_EQ(2u, instruction->GetVectorLength());
-      __ Mul(dst.V2S(), lhs.V2S(), rhs.V2S());
+      DCHECK_EQ(4u, instruction->GetVectorLength());
+      __ Mul(dst.V4S(), lhs.V4S(), rhs.V4S());
       break;
     case Primitive::kPrimFloat:
-      DCHECK_EQ(2u, instruction->GetVectorLength());
-      __ Fmul(dst.V2S(), lhs.V2S(), rhs.V2S());
+      DCHECK_EQ(4u, instruction->GetVectorLength());
+      __ Fmul(dst.V4S(), lhs.V4S(), rhs.V4S());
       break;
     default:
       LOG(FATAL) << "Unsupported SIMD type";
@@ -356,8 +356,8 @@ void InstructionCodeGeneratorARM64::VisitVecDiv(HVecDiv* instruction) {
   FPRegister dst = DRegisterFrom(locations->Out());
   switch (instruction->GetPackedType()) {
     case Primitive::kPrimFloat:
-      DCHECK_EQ(2u, instruction->GetVectorLength());
-      __ Fdiv(dst.V2S(), lhs.V2S(), rhs.V2S());
+      DCHECK_EQ(4u, instruction->GetVectorLength());
+      __ Fdiv(dst.V4S(), lhs.V4S(), rhs.V4S());
       break;
     default:
       LOG(FATAL) << "Unsupported SIMD type";
@@ -381,7 +381,7 @@ void InstructionCodeGeneratorARM64::VisitVecAnd(HVecAnd* instruction) {
     case Primitive::kPrimShort:
     case Primitive::kPrimInt:
     case Primitive::kPrimFloat:
-      __ And(dst.V8B(), lhs.V8B(), rhs.V8B());  // lanes do not matter
+      __ And(dst.V16B(), lhs.V16B(), rhs.V16B());  // lanes do not matter
       break;
     default:
       LOG(FATAL) << "Unsupported SIMD type";
@@ -413,7 +413,7 @@ void InstructionCodeGeneratorARM64::VisitVecOr(HVecOr* instruction) {
     case Primitive::kPrimShort:
     case Primitive::kPrimInt:
     case Primitive::kPrimFloat:
-      __ Orr(dst.V8B(), lhs.V8B(), rhs.V8B());  // lanes do not matter
+      __ Orr(dst.V16B(), lhs.V16B(), rhs.V16B());  // lanes do not matter
       break;
     default:
       LOG(FATAL) << "Unsupported SIMD type";
@@ -437,7 +437,7 @@ void InstructionCodeGeneratorARM64::VisitVecXor(HVecXor* instruction) {
     case Primitive::kPrimShort:
     case Primitive::kPrimInt:
     case Primitive::kPrimFloat:
-      __ Eor(dst.V8B(), lhs.V8B(), rhs.V8B());  // lanes do not matter
+      __ Eor(dst.V16B(), lhs.V16B(), rhs.V16B());  // lanes do not matter
       break;
     default:
       LOG(FATAL) << "Unsupported SIMD type";
@@ -474,17 +474,17 @@ void InstructionCodeGeneratorARM64::VisitVecShl(HVecShl* instruction) {
   int32_t value = locations->InAt(1).GetConstant()->AsIntConstant()->GetValue();
   switch (instruction->GetPackedType()) {
     case Primitive::kPrimByte:
-      DCHECK_EQ(8u, instruction->GetVectorLength());
-      __ Shl(dst.V8B(), lhs.V8B(), value);
+      DCHECK_EQ(16u, instruction->GetVectorLength());
+      __ Shl(dst.V16B(), lhs.V16B(), value);
       break;
     case Primitive::kPrimChar:
     case Primitive::kPrimShort:
-      DCHECK_EQ(4u, instruction->GetVectorLength());
-      __ Shl(dst.V4H(), lhs.V4H(), value);
+      DCHECK_EQ(8u, instruction->GetVectorLength());
+      __ Shl(dst.V8H(), lhs.V8H(), value);
       break;
     case Primitive::kPrimInt:
-      DCHECK_EQ(2u, instruction->GetVectorLength());
-      __ Shl(dst.V2S(), lhs.V2S(), value);
+      DCHECK_EQ(4u, instruction->GetVectorLength());
+      __ Shl(dst.V4S(), lhs.V4S(), value);
       break;
     default:
       LOG(FATAL) << "Unsupported SIMD type";
@@ -503,17 +503,17 @@ void InstructionCodeGeneratorARM64::VisitVecShr(HVecShr* instruction) {
   int32_t value = locations->InAt(1).GetConstant()->AsIntConstant()->GetValue();
   switch (instruction->GetPackedType()) {
     case Primitive::kPrimByte:
-      DCHECK_EQ(8u, instruction->GetVectorLength());
-      __ Sshr(dst.V8B(), lhs.V8B(), value);
+      DCHECK_EQ(16u, instruction->GetVectorLength());
+      __ Sshr(dst.V16B(), lhs.V16B(), value);
       break;
     case Primitive::kPrimChar:
     case Primitive::kPrimShort:
-      DCHECK_EQ(4u, instruction->GetVectorLength());
-      __ Sshr(dst.V4H(), lhs.V4H(), value);
+      DCHECK_EQ(8u, instruction->GetVectorLength());
+      __ Sshr(dst.V8H(), lhs.V8H(), value);
       break;
     case Primitive::kPrimInt:
-      DCHECK_EQ(2u, instruction->GetVectorLength());
-      __ Sshr(dst.V2S(), lhs.V2S(), value);
+      DCHECK_EQ(4u, instruction->GetVectorLength());
+      __ Sshr(dst.V4S(), lhs.V4S(), value);
       break;
     default:
       LOG(FATAL) << "Unsupported SIMD type";
@@ -532,17 +532,17 @@ void InstructionCodeGeneratorARM64::VisitVecUShr(HVecUShr* instruction) {
   int32_t value = locations->InAt(1).GetConstant()->AsIntConstant()->GetValue();
   switch (instruction->GetPackedType()) {
     case Primitive::kPrimByte:
-      DCHECK_EQ(8u, instruction->GetVectorLength());
-      __ Ushr(dst.V8B(), lhs.V8B(), value);
+      DCHECK_EQ(16u, instruction->GetVectorLength());
+      __ Ushr(dst.V16B(), lhs.V16B(), value);
       break;
     case Primitive::kPrimChar:
     case Primitive::kPrimShort:
-      DCHECK_EQ(4u, instruction->GetVectorLength());
-      __ Ushr(dst.V4H(), lhs.V4H(), value);
+      DCHECK_EQ(8u, instruction->GetVectorLength());
+      __ Ushr(dst.V8H(), lhs.V8H(), value);
       break;
     case Primitive::kPrimInt:
-      DCHECK_EQ(2u, instruction->GetVectorLength());
-      __ Ushr(dst.V2S(), lhs.V2S(), value);
+      DCHECK_EQ(4u, instruction->GetVectorLength());
+      __ Ushr(dst.V4S(), lhs.V4S(), value);
       break;
     default:
       LOG(FATAL) << "Unsupported SIMD type";
@@ -617,18 +617,18 @@ void InstructionCodeGeneratorARM64::VisitVecLoad(HVecLoad* instruction) {
   switch (instruction->GetPackedType()) {
     case Primitive::kPrimBoolean:
     case Primitive::kPrimByte:
-      DCHECK_EQ(8u, instruction->GetVectorLength());
-      __ Ld1(reg.V8B(), mem);
+      DCHECK_EQ(16u, instruction->GetVectorLength());
+      __ Ld1(reg.V16B(), mem);
       break;
     case Primitive::kPrimChar:
     case Primitive::kPrimShort:
-      DCHECK_EQ(4u, instruction->GetVectorLength());
-      __ Ld1(reg.V4H(), mem);
+      DCHECK_EQ(8u, instruction->GetVectorLength());
+      __ Ld1(reg.V8H(), mem);
       break;
     case Primitive::kPrimInt:
     case Primitive::kPrimFloat:
-      DCHECK_EQ(2u, instruction->GetVectorLength());
-      __ Ld1(reg.V2S(), mem);
+      DCHECK_EQ(4u, instruction->GetVectorLength());
+      __ Ld1(reg.V4S(), mem);
       break;
     default:
       LOG(FATAL) << "Unsupported SIMD type";
@@ -647,18 +647,18 @@ void InstructionCodeGeneratorARM64::VisitVecStore(HVecStore* instruction) {
   switch (instruction->GetPackedType()) {
     case Primitive::kPrimBoolean:
     case Primitive::kPrimByte:
-      DCHECK_EQ(8u, instruction->GetVectorLength());
-      __ St1(reg.V8B(), mem);
+      DCHECK_EQ(16u, instruction->GetVectorLength());
+      __ St1(reg.V16B(), mem);
       break;
     case Primitive::kPrimChar:
     case Primitive::kPrimShort:
-      DCHECK_EQ(4u, instruction->GetVectorLength());
-      __ St1(reg.V4H(), mem);
+      DCHECK_EQ(8u, instruction->GetVectorLength());
+      __ St1(reg.V8H(), mem);
       break;
     case Primitive::kPrimInt:
     case Primitive::kPrimFloat:
-      DCHECK_EQ(2u, instruction->GetVectorLength());
-      __ St1(reg.V2S(), mem);
+      DCHECK_EQ(4u, instruction->GetVectorLength());
+      __ St1(reg.V4S(), mem);
       break;
     default:
       LOG(FATAL) << "Unsupported SIMD type";

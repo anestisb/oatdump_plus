@@ -770,22 +770,21 @@ bool HLoopOptimization::TrySetVectorType(Primitive::Type type, uint64_t* restric
       return false;
     case kArm64:
       // Allow vectorization for all ARM devices, because Android assumes that
-      // ARMv8 AArch64 always supports advanced SIMD. For now, only D registers
-      // (64-bit vectors) not Q registers (128-bit vectors).
+      // ARMv8 AArch64 always supports advanced SIMD.
       switch (type) {
         case Primitive::kPrimBoolean:
         case Primitive::kPrimByte:
           *restrictions |= kNoDiv | kNoAbs;
-          return TrySetVectorLength(8);
+          return TrySetVectorLength(16);
         case Primitive::kPrimChar:
         case Primitive::kPrimShort:
           *restrictions |= kNoDiv | kNoAbs;
-          return TrySetVectorLength(4);
+          return TrySetVectorLength(8);
         case Primitive::kPrimInt:
           *restrictions |= kNoDiv;
-          return TrySetVectorLength(2);
+          return TrySetVectorLength(4);
         case Primitive::kPrimFloat:
-          return TrySetVectorLength(2);
+          return TrySetVectorLength(4);
         default:
           return false;
       }
