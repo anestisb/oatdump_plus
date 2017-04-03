@@ -1293,6 +1293,14 @@ TEST_F(AssemblerX86_64Test, Por) {
   DriverStr(RepeatFF(&x86_64::X86_64Assembler::por, "por %{reg2}, %{reg1}"), "por");
 }
 
+TEST_F(AssemblerX86_64Test, Pavgb) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::pavgb, "pavgb %{reg2}, %{reg1}"), "pavgb");
+}
+
+TEST_F(AssemblerX86_64Test, Pavgw) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::pavgw, "pavgw %{reg2}, %{reg1}"), "pavgw");
+}
+
 TEST_F(AssemblerX86_64Test, PCmpeqb) {
   DriverStr(RepeatFF(&x86_64::X86_64Assembler::pcmpeqb, "pcmpeqb %{reg2}, %{reg1}"), "pcmpeqb");
 }
