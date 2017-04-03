@@ -337,7 +337,8 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
       // Ensure that we won't be accidentally calling quick compiled code when -Xint.
       if (kIsDebugBuild && runtime->GetInstrumentation()->IsForcedInterpretOnly()) {
         CHECK(!runtime->UseJitCompilation());
-        const void* oat_quick_code = (IsNative() || !IsInvokable() || IsProxyMethod())
+        const void* oat_quick_code =
+            (IsNative() || !IsInvokable() || IsProxyMethod() || IsObsolete())
             ? nullptr
             : GetOatMethodQuickCode(runtime->GetClassLinker()->GetImagePointerSize());
         CHECK(oat_quick_code == nullptr || oat_quick_code != GetEntryPointFromQuickCompiledCode())

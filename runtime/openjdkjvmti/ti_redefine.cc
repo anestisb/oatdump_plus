@@ -186,6 +186,7 @@ class ObsoleteMethodStackVisitor : public art::StackVisitor {
         DCHECK_EQ(new_obsolete_method->GetDeclaringClass(), old_method->GetDeclaringClass());
         new_obsolete_method->SetIsObsolete();
         new_obsolete_method->SetDontCompile();
+        cl->SetEntryPointsForObsoleteMethod(new_obsolete_method);
         obsolete_maps_->RecordObsolete(old_method, new_obsolete_method);
         // Update JIT Data structures to point to the new method.
         art::jit::Jit* jit = art::Runtime::Current()->GetJit();
