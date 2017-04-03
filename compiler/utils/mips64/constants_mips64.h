@@ -66,6 +66,7 @@ enum InstructionFields {
   kWdShift = 6,
   kWdBits = 5,
   kS10Shift = 16,
+  kI10Shift = 11,
   kS10MinorShift = 2,
 
   kBranchOffsetMask = 0x0000ffff,
