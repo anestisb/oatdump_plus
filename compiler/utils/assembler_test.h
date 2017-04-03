@@ -309,7 +309,7 @@ class AssemblerTest : public testing::Test {
   template <typename RegType, typename ImmType>
   std::string RepeatTemplatedRegisterImmBits(void (Ass::*f)(RegType, ImmType),
                                              int imm_bits,
-                                             const std::vector<Reg*> registers,
+                                             const std::vector<RegType*> registers,
                                              std::string (AssemblerTest::*GetName)(const RegType&),
                                              const std::string& fmt,
                                              int bias) {
@@ -570,6 +570,19 @@ class AssemblerTest : public testing::Test {
         &AssemblerTest::GetVecRegName,
         &AssemblerTest::GetRegName<RegisterView::kUsePrimaryName>,
         fmt);
+  }
+
+  template <typename ImmType>
+  std::string RepeatVIb(void (Ass::*f)(VecReg, ImmType),
+                        int imm_bits,
+                        std::string fmt,
+                        int bias = 0) {
+    return RepeatTemplatedRegisterImmBits<VecReg, ImmType>(f,
+                                                           imm_bits,
+                                                           GetVectorRegisters(),
+                                                           &AssemblerTest::GetVecRegName,
+                                                           fmt,
+                                                           bias);
   }
 
   template <typename ImmType>

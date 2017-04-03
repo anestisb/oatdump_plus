@@ -448,6 +448,7 @@ static const MipsInstruction gMipsInstructions[] = {
   { kMsaMask | (0x3ff << 16), kMsa | (0xbe << 16) | 0x19, "move.v", "km" },
   { kMsaMask | (0xf << 22), kMsa | (0x1 << 22) | 0x19, "splati", "kX" },
   { kMsaMask | (0xff << 18), kMsa | (0xc0 << 18) | 0x1e, "fill", "vkD" },
+  { kMsaMask | (0x7 << 23), kMsa | (0x6 << 23) | 0x7, "ldi", "kx" },
   { kMsaSpecialMask | (0xf << 2), kMsa | (0x8 << 2), "ld", "kw" },
   { kMsaSpecialMask | (0xf << 2), kMsa | (0x9 << 2), "st", "kw" },
 };
@@ -695,6 +696,20 @@ size_t DisassemblerMips::Dump(std::ostream& os, const uint8_t* instr_ptr) {
                 opcode += ".d";
                 args << 'w' << rd << '[' << (df_n & 0x1) << ']';
               }
+              break;
+            }
+          case 'x':  // MSA i10.
+            {
+              int32_t df = (instruction >> 21) & 0x3;
+              int32_t i10 = (instruction >> 11) & 0x3ff;
+              i10 -= (i10 & 0x200) << 1;  // Sign-extend i10.
+              switch (df) {
+                case 0: opcode += ".b"; break;
+                case 1: opcode += ".h"; break;
+                case 2: opcode += ".w"; break;
+                case 3: opcode += ".d"; break;
+              }
+              args << i10;
               break;
             }
         }
