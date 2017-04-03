@@ -54,6 +54,19 @@ static inline jobjectArray CreateObjectArray(JNIEnv* env,
   return ret.release();
 }
 
+inline bool JniThrowNullPointerException(JNIEnv* env, const char* msg) {
+  if (env->ExceptionCheck()) {
+    env->ExceptionClear();
+  }
+
+  ScopedLocalRef<jclass> exc_class(env, env->FindClass("java/lang/NullPointerException"));
+  if (exc_class.get() == nullptr) {
+    return -1;
+  }
+
+  return env->ThrowNew(exc_class.get(), msg) == JNI_OK;
+}
+
 }  // namespace art
 
 #endif  // ART_TEST_TI_AGENT_JNI_HELPER_H_

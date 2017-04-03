@@ -18,8 +18,8 @@
 #include <signal.h>
 #include <sys/types.h>
 
-#include "base/logging.h"
-#include "base/macros.h"
+#include "android-base/logging.h"
+#include "android-base/macros.h"
 #include "jni.h"
 #include "jvmti.h"
 
