@@ -1374,6 +1374,7 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(VecSumReduce, VecUnaryOperation)                                    \
   M(VecCnv, VecUnaryOperation)                                          \
   M(VecNeg, VecUnaryOperation)                                          \
+  M(VecAbs, VecUnaryOperation)                                          \
   M(VecNot, VecUnaryOperation)                                          \
   M(VecAdd, VecBinaryOperation)                                         \
   M(VecSub, VecBinaryOperation)                                         \
@@ -4222,6 +4223,10 @@ class HInvokeStaticOrDirect FINAL : public HInvoke {
       RemoveInputAt(GetSpecialInputIndex());
     }
     dispatch_info_ = dispatch_info;
+  }
+
+  DispatchInfo GetDispatchInfo() const {
+    return dispatch_info_;
   }
 
   void AddSpecialInput(HInstruction* input) {
