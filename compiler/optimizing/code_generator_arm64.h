@@ -318,6 +318,11 @@ class InstructionCodeGeneratorARM64 : public InstructionCodeGenerator {
   void GenerateDivRemIntegral(HBinaryOperation* instruction);
   void HandleGoto(HInstruction* got, HBasicBlock* successor);
 
+  vixl::aarch64::MemOperand CreateVecMemRegisters(
+      HVecMemoryOperation* instruction,
+      Location* reg_loc,
+      bool is_load);
+
   Arm64Assembler* const assembler_;
   CodeGeneratorARM64* const codegen_;
 
