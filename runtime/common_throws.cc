@@ -313,6 +313,14 @@ void ThrowIncompatibleClassChangeErrorForMethodConflict(ArtMethod* method) {
                               ArtMethod::PrettyMethod(method).c_str()).c_str());
 }
 
+// InternalError
+
+void ThrowInternalError(const char* fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  ThrowException("Ljava/lang/InternalError;", nullptr, fmt, &args);
+  va_end(args);
+}
 
 // IOException
 
