@@ -25,7 +25,7 @@
 #include "base/macros.h"
 #include "jni.h"
 #include "jvmti.h"
-#include "ScopedLocalRef.h"
+#include "scoped_local_ref.h"
 
 // Test infrastructure
 #include "jni_binder.h"

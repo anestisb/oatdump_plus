@@ -21,10 +21,10 @@
 #include <iostream>
 #include <vector>
 
+#include "android-base/macros.h"
+#include "android-base/logging.h"
 #include "android-base/stringprintf.h"
 
-#include "base/logging.h"
-#include "base/macros.h"
 #include "jit/jit.h"
 #include "jni.h"
 #include "native_stack_dump.h"

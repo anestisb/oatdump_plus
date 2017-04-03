@@ -16,14 +16,15 @@
 
 #include <stdio.h>
 
-#include "base/macros.h"
+#include "android-base/macros.h"
+
 #include "class_linker.h"
 #include "jni.h"
 #include "mirror/class_loader.h"
 #include "jvmti.h"
 #include "runtime.h"
-#include "ScopedLocalRef.h"
-#include "ScopedUtfChars.h"
+#include "scoped_local_ref.h"
+#include "scoped_utf_chars.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
 

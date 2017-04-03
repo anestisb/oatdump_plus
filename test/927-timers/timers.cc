@@ -16,9 +16,9 @@
 
 #include <inttypes.h>
 
+#include "android-base/logging.h"
 #include "android-base/stringprintf.h"
-#include "base/logging.h"
-#include "base/macros.h"
+
 #include "jni.h"
 #include "jvmti.h"
 
@@ -26,6 +26,7 @@
 #include "jni_helper.h"
 #include "jvmti_helper.h"
 #include "test_env.h"
+#include "ti_macros.h"
 
 namespace art {
 namespace Test926Timers {

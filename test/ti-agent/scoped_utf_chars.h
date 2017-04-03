@@ -23,6 +23,8 @@
 
 #include "android-base/macros.h"
 
+#include "jni_helper.h"
+
 namespace art {
 
 class ScopedUtfChars {
@@ -30,7 +32,7 @@ class ScopedUtfChars {
   ScopedUtfChars(JNIEnv* env, jstring s) : env_(env), string_(s) {
     if (s == nullptr) {
       utf_chars_ = nullptr;
-      // TODO: JniThrowNullPointerException(env, nullptr);
+      JniThrowNullPointerException(env, nullptr);
     } else {
       utf_chars_ = env->GetStringUTFChars(s, nullptr);
     }

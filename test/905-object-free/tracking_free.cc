@@ -19,12 +19,11 @@
 #include <stdio.h>
 #include <vector>
 
-#include "base/logging.h"
+#include "android-base/logging.h"
 #include "jni.h"
 #include "jvmti.h"
-#include "ScopedLocalRef.h"
-#include "ScopedUtfChars.h"
-#include "utils.h"
+#include "scoped_local_ref.h"
+#include "scoped_utf_chars.h"
 
 // Test infrastructure
 #include "jvmti_helper.h"
