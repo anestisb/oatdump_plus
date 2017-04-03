@@ -19,7 +19,9 @@
 #include <jni.h>
 #include <stdio.h>
 #include <string.h>
-#include "base/macros.h"
+
+#include "android-base/macros.h"
+
 #include "jvmti.h"
 
 namespace art {

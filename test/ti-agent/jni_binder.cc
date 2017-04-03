@@ -26,94 +26,16 @@
 #include "jvmti_helper.h"
 #include "scoped_local_ref.h"
 #include "scoped_utf_chars.h"
+#include "ti_utf.h"
 
 namespace art {
 
-size_t CountModifiedUtf8Chars(const char* utf8, size_t byte_count) {
-  DCHECK_LE(byte_count, strlen(utf8));
-  size_t len = 0;
-  const char* end = utf8 + byte_count;
-  for (; utf8 < end; ++utf8) {
-    int ic = *utf8;
-    len++;
-    if (LIKELY((ic & 0x80) == 0)) {
-      // One-byte encoding.
-      continue;
-    }
-    // Two- or three-byte encoding.
-    utf8++;
-    if ((ic & 0x20) == 0) {
-      // Two-byte encoding.
-      continue;
-    }
-    utf8++;
-    if ((ic & 0x10) == 0) {
-      // Three-byte encoding.
-      continue;
-    }
-
-    // Four-byte encoding: needs to be converted into a surrogate
-    // pair.
-    utf8++;
-    len++;
-  }
-  return len;
-}
-
-static uint16_t GetTrailingUtf16Char(uint32_t maybe_pair) {
-  return static_cast<uint16_t>(maybe_pair >> 16);
-}
-
-static uint16_t GetLeadingUtf16Char(uint32_t maybe_pair) {
-  return static_cast<uint16_t>(maybe_pair & 0x0000FFFF);
-}
-
-static uint32_t GetUtf16FromUtf8(const char** utf8_data_in) {
-  const uint8_t one = *(*utf8_data_in)++;
-  if ((one & 0x80) == 0) {
-    // one-byte encoding
-    return one;
-  }
-
-  const uint8_t two = *(*utf8_data_in)++;
-  if ((one & 0x20) == 0) {
-    // two-byte encoding
-    return ((one & 0x1f) << 6) | (two & 0x3f);
-  }
-
-  const uint8_t three = *(*utf8_data_in)++;
-  if ((one & 0x10) == 0) {
-    return ((one & 0x0f) << 12) | ((two & 0x3f) << 6) | (three & 0x3f);
-  }
-
-  // Four byte encodings need special handling. We'll have
-  // to convert them into a surrogate pair.
-  const uint8_t four = *(*utf8_data_in)++;
-
-  // Since this is a 4 byte UTF-8 sequence, it will lie between
-  // U+10000 and U+1FFFFF.
-  //
-  // TODO: What do we do about values in (U+10FFFF, U+1FFFFF) ? The
-  // spec says they're invalid but nobody appears to check for them.
-  const uint32_t code_point = ((one & 0x0f) << 18) | ((two & 0x3f) << 12)
-      | ((three & 0x3f) << 6) | (four & 0x3f);
-
-  uint32_t surrogate_pair = 0;
-  // Step two: Write out the high (leading) surrogate to the bottom 16 bits
-  // of the of the 32 bit type.
-  surrogate_pair |= ((code_point >> 10) + 0xd7c0) & 0xffff;
-  // Step three : Write out the low (trailing) surrogate to the top 16 bits.
-  surrogate_pair |= ((code_point & 0x03ff) + 0xdc00) << 16;
-
-  return surrogate_pair;
-}
-
 static std::string MangleForJni(const std::string& s) {
   std::string result;
-  size_t char_count = CountModifiedUtf8Chars(s.c_str(), s.length());
+  size_t char_count = ti::CountModifiedUtf8Chars(s.c_str(), s.length());
   const char* cp = &s[0];
   for (size_t i = 0; i < char_count; ++i) {
-    uint32_t ch = GetUtf16FromUtf8(&cp);
+    uint32_t ch = ti::GetUtf16FromUtf8(&cp);
     if ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9')) {
       result.push_back(ch);
     } else if (ch == '.' || ch == '/') {
@@ -125,8 +47,8 @@ static std::string MangleForJni(const std::string& s) {
     } else if (ch == '[') {
       result += "_3";
     } else {
-      const uint16_t leading = GetLeadingUtf16Char(ch);
-      const uint32_t trailing = GetTrailingUtf16Char(ch);
+      const uint16_t leading = ti::GetLeadingUtf16Char(ch);
+      const uint32_t trailing = ti::GetTrailingUtf16Char(ch);
 
       android::base::StringAppendF(&result, "_0%04x", leading);
       if (trailing != 0) {

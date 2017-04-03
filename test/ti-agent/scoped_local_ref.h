@@ -35,9 +35,9 @@ class ScopedLocalRef {
     reset();
   }
 
-  void reset(T ptr = NULL) {
+  void reset(T ptr = nullptr) {
     if (ptr != mLocalRef) {
-      if (mLocalRef != NULL) {
+      if (mLocalRef != nullptr) {
         mEnv->DeleteLocalRef(mLocalRef);
       }
       mLocalRef = ptr;
@@ -46,7 +46,7 @@ class ScopedLocalRef {
 
   T release() __attribute__((warn_unused_result)) {
     T localRef = mLocalRef;
-    mLocalRef = NULL;
+    mLocalRef = nullptr;
     return localRef;
   }
 

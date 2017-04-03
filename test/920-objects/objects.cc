@@ -16,10 +16,10 @@
 
 #include <stdio.h>
 
-#include "base/macros.h"
+#include "android-base/macros.h"
 #include "jni.h"
 #include "jvmti.h"
-#include "ScopedLocalRef.h"
+#include "scoped_local_ref.h"
 
 // Test infrastructure
 #include "test_env.h"
