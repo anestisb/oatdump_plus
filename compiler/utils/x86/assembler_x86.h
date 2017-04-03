@@ -495,6 +495,9 @@ class X86Assembler FINAL : public Assembler {
   void orps(XmmRegister dst, XmmRegister src);
   void por(XmmRegister dst, XmmRegister src);
 
+  void pavgb(XmmRegister dst, XmmRegister src);  // no addr variant (for now)
+  void pavgw(XmmRegister dst, XmmRegister src);
+
   void pcmpeqb(XmmRegister dst, XmmRegister src);
   void pcmpeqw(XmmRegister dst, XmmRegister src);
   void pcmpeqd(XmmRegister dst, XmmRegister src);
