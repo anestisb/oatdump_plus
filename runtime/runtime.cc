@@ -806,11 +806,11 @@ void Runtime::InitNonZygoteOrPostFork(
   // before fork aren't attributed to an app.
   heap_->ResetGcPerformanceInfo();
 
-
-  if (!is_system_server &&
+  // We may want to collect profiling samples for system server, but we never want to JIT there.
+  if ((!is_system_server || !jit_options_->UseJitCompilation()) &&
       !safe_mode_ &&
       (jit_options_->UseJitCompilation() || jit_options_->GetSaveProfilingInfo()) &&
-      jit_.get() == nullptr) {
+      jit_ == nullptr) {
     // Note that when running ART standalone (not zygote, nor zygote fork),
     // the jit may have already been created.
     CreateJit();
