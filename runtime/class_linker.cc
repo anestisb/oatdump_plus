@@ -8507,6 +8507,15 @@ void ClassLinker::SetEntryPointsToInterpreter(ArtMethod* method) const {
   }
 }
 
+void ClassLinker::SetEntryPointsForObsoleteMethod(ArtMethod* method) const {
+  DCHECK(method->IsObsolete());
+  // We cannot mess with the entrypoints of native methods because they are used to determine how
+  // large the method's quick stack frame is. Without this information we cannot walk the stacks.
+  if (!method->IsNative()) {
+    method->SetEntryPointFromQuickCompiledCode(GetInvokeObsoleteMethodStub());
+  }
+}
+
 void ClassLinker::DumpForSigQuit(std::ostream& os) {
   ScopedObjectAccess soa(Thread::Current());
   ReaderMutexLock mu(soa.Self(), *Locks::classlinker_classes_lock_);

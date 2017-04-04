@@ -151,6 +151,12 @@ void ThrowIncompatibleClassChangeError(ObjPtr<mirror::Class> referrer, const cha
 void ThrowIncompatibleClassChangeErrorForMethodConflict(ArtMethod* method)
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
+// InternalError
+
+void ThrowInternalError(const char* fmt, ...)
+    __attribute__((__format__(__printf__, 1, 2)))
+    REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
+
 // IOException
 
 void ThrowIOException(const char* fmt, ...) __attribute__((__format__(__printf__, 1, 2)))
