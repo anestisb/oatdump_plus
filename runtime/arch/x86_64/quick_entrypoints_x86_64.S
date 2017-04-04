@@ -1902,6 +1902,12 @@ DEFINE_FUNCTION art_quick_to_interpreter_bridge
 END_FUNCTION art_quick_to_interpreter_bridge
 
     /*
+     * Called to catch an attempt to invoke an obsolete method.
+     * RDI = method being called.
+     */
+ONE_ARG_RUNTIME_EXCEPTION art_invoke_obsolete_method_stub, artInvokeObsoleteMethod
+
+    /*
      * Routine that intercepts method calls and returns.
      */
 DEFINE_FUNCTION art_quick_instrumentation_entry

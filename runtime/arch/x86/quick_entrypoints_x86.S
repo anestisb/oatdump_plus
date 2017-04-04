@@ -1938,6 +1938,11 @@ DEFINE_FUNCTION art_quick_to_interpreter_bridge
 END_FUNCTION art_quick_to_interpreter_bridge
 
     /*
+     * Called by managed code, saves callee saves and then calls artInvokeObsoleteMethod
+     */
+ONE_ARG_RUNTIME_EXCEPTION art_invoke_obsolete_method_stub, artInvokeObsoleteMethod
+
+    /*
      * Routine that intercepts method calls and returns.
      */
 DEFINE_FUNCTION art_quick_instrumentation_entry

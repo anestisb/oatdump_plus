@@ -649,7 +649,7 @@ static void AssertPcIsWithinQuickCode(ArtMethod* method, uintptr_t pc)
   }
 
   const void* code = method->GetEntryPointFromQuickCompiledCode();
-  if (code == GetQuickInstrumentationEntryPoint()) {
+  if (code == GetQuickInstrumentationEntryPoint() || code == GetInvokeObsoleteMethodStub()) {
     return;
   }
 
