@@ -451,9 +451,6 @@ void ProfileSaver::Stop(bool dump_info) {
       return;
     }
     instance_->shutting_down_ = true;
-    if (dump_info) {
-      instance_->DumpInfo(LOG_STREAM(INFO));
-    }
   }
 
   {
@@ -470,6 +467,9 @@ void ProfileSaver::Stop(bool dump_info) {
 
   {
     MutexLock profiler_mutex(Thread::Current(), *Locks::profiler_lock_);
+    if (dump_info) {
+      instance_->DumpInfo(LOG_STREAM(INFO));
+    }
     instance_ = nullptr;
     profiler_pthread_ = 0U;
   }
