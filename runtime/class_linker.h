@@ -544,6 +544,10 @@ class ClassLinker {
   void SetEntryPointsToInterpreter(ArtMethod* method) const
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // Set the entrypoints up for an obsolete method.
+  void SetEntryPointsForObsoleteMethod(ArtMethod* method) const
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   // Attempts to insert a class into a class table.  Returns null if
   // the class was inserted, otherwise returns an existing class with
   // the same descriptor and ClassLoader.
