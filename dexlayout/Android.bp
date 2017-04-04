@@ -56,3 +56,16 @@ art_cc_test {
     defaults: ["art_gtest_defaults"],
     srcs: ["dexlayout_test.cc"],
 }
+
+art_cc_binary {
+    name: "dexdiag",
+    host_supported: false,
+    srcs: ["dexdiag.cc"],
+    cflags: ["-Wall"],
+    shared_libs: [
+        "libart",
+        "libart-dexlayout",
+        "libpagemap",
+    ],
+}
+
