@@ -1317,6 +1317,22 @@ TEST_F(AssemblerX86_64Test, PCmpeqq) {
   DriverStr(RepeatFF(&x86_64::X86_64Assembler::pcmpeqq, "pcmpeqq %{reg2}, %{reg1}"), "pcmpeqq");
 }
 
+TEST_F(AssemblerX86_64Test, PCmpgtb) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::pcmpgtb, "pcmpgtb %{reg2}, %{reg1}"), "pcmpgtb");
+}
+
+TEST_F(AssemblerX86_64Test, PCmpgtw) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::pcmpgtw, "pcmpgtw %{reg2}, %{reg1}"), "pcmpgtw");
+}
+
+TEST_F(AssemblerX86_64Test, PCmpgtd) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::pcmpgtd, "pcmpgtd %{reg2}, %{reg1}"), "pcmpgtd");
+}
+
+TEST_F(AssemblerX86_64Test, PCmpgtq) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::pcmpgtq, "pcmpgtq %{reg2}, %{reg1}"), "pcmpgtq");
+}
+
 TEST_F(AssemblerX86_64Test, Shufps) {
   DriverStr(RepeatFFI(&x86_64::X86_64Assembler::shufps, 1, "shufps ${imm}, %{reg2}, %{reg1}"), "shufps");
 }
