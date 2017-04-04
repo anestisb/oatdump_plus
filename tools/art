@@ -230,8 +230,8 @@ if [ "$JIT_PROFILE" = "yes" ]; then
   replace_compiler_filter_with_interepret_only "$@"
 
   run_art -Xjitsaveprofilinginfo               \
-          -Xps-min-methods-to-save:0           \
-          -Xps-min-classes-to-save:0           \
+          -Xps-min-methods-to-save:1           \
+          -Xps-min-classes-to-save:1           \
           -Xps-min-notification-before-wake:10 \
           -Xps-profile-path:$PROFILE_PATH      \
           -Xusejit:true                        \
