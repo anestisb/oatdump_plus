@@ -360,6 +360,14 @@ void EnterInterpreterFromInvoke(Thread* self,
     return;
   }
 
+  // This can happen if we are in forced interpreter mode and an obsolete method is called using
+  // reflection.
+  if (UNLIKELY(method->IsObsolete())) {
+    ThrowInternalError("Attempting to invoke obsolete version of '%s'.",
+                       method->PrettyMethod().c_str());
+    return;
+  }
+
   const char* old_cause = self->StartAssertNoThreadSuspension("EnterInterpreterFromInvoke");
   const DexFile::CodeItem* code_item = method->GetCodeItem();
   uint16_t num_regs;
