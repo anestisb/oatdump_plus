@@ -451,8 +451,12 @@ static void PreloadDexCachesStatsFilled(DexCacheStats* filled)
   Thread* const self = Thread::Current();
   for (const DexFile* dex_file : class_linker->GetBootClassPath()) {
     CHECK(dex_file != nullptr);
+    // In fallback mode, not all boot classpath components might be registered, yet.
+    if (!class_linker->IsDexFileRegistered(self, *dex_file)) {
+      continue;
+    }
     ObjPtr<mirror::DexCache> const dex_cache = class_linker->FindDexCache(self, *dex_file);
-    CHECK(dex_cache != nullptr);  // Boot class path dex caches are never unloaded.
+    DCHECK(dex_cache != nullptr);  // Boot class path dex caches are never unloaded.
     for (size_t j = 0; j < dex_cache->NumStrings(); j++) {
       ObjPtr<mirror::String> string = dex_cache->GetResolvedString(dex::StringIndex(j));
       if (string != nullptr) {
