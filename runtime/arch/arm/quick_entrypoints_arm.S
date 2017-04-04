@@ -1614,6 +1614,11 @@ ENTRY art_quick_to_interpreter_bridge
     DELIVER_PENDING_EXCEPTION
 END art_quick_to_interpreter_bridge
 
+/*
+ * Called to attempt to execute an obsolete method.
+ */
+ONE_ARG_RUNTIME_EXCEPTION art_invoke_obsolete_method_stub, artInvokeObsoleteMethod
+
     /*
      * Routine that intercepts method calls and returns.
      */
