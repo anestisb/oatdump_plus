@@ -120,4 +120,30 @@ const uint8_t* VdexFile::GetNextDexFileData(const uint8_t* cursor) const {
   }
 }
 
+bool VdexFile::OpenAllDexFiles(std::vector<std::unique_ptr<const DexFile>>* dex_files,
+                               std::string* error_msg) {
+  size_t i = 0;
+  for (const uint8_t* dex_file_start = GetNextDexFileData(nullptr);
+       dex_file_start != nullptr;
+       dex_file_start = GetNextDexFileData(dex_file_start), ++i) {
+    size_t size = reinterpret_cast<const DexFile::Header*>(dex_file_start)->file_size_;
+    // TODO: Supply the location information for a vdex file.
+    static constexpr char kVdexLocation[] = "";
+    std::string location = DexFile::GetMultiDexLocation(i, kVdexLocation);
+    std::unique_ptr<const DexFile> dex(DexFile::Open(dex_file_start,
+                                                     size,
+                                                     location,
+                                                     GetLocationChecksum(i),
+                                                     nullptr /*oat_dex_file*/,
+                                                     false /*verify*/,
+                                                     false /*verify_checksum*/,
+                                                     error_msg));
+    if (dex == nullptr) {
+      return false;
+    }
+    dex_files->push_back(std::move(dex));
+  }
+  return true;
+}
+
 }  // namespace art
