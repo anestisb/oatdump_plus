@@ -533,29 +533,25 @@ void HLoopOptimization::GenerateNewLoop(LoopNode* node,
                                              kNoRegNumber,
                                              0,
                                              HPhi::ToPhiType(induc_type));
-  // Generate header.
+  // Generate header and prepare body.
   // for (i = lo; i < hi; i += step)
   //    <loop-body>
   HInstruction* cond = new (global_allocator_) HAboveOrEqual(vector_phi_, hi);
   vector_header_->AddPhi(vector_phi_);
   vector_header_->AddInstruction(cond);
   vector_header_->AddInstruction(new (global_allocator_) HIf(cond));
-  // Suspend check and environment.
-  HInstruction* suspend = vector_header_->GetFirstInstruction();
-  suspend->CopyEnvironmentFromWithLoopPhiAdjustment(
-      node->loop_info->GetSuspendCheck()->GetEnvironment(), vector_header_);
-  // Generate body.
   for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
     bool vectorized_def = VectorizeDef(node, it.Current(), /*generate_code*/ true);
     DCHECK(vectorized_def);
   }
+  // Generate body.
+  HEnvironment* env = vector_header_->GetFirstInstruction()->GetEnvironment();
   for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
     auto i = vector_map_->find(it.Current());
     if (i != vector_map_->end() && !i->second->IsInBlock()) {
       Insert(vector_body_, i->second);  // lays out in original order
       if (i->second->NeedsEnvironment()) {
-        i->second->CopyEnvironmentFromWithLoopPhiAdjustment(
-            suspend->GetEnvironment(), vector_header_);
+        i->second->CopyEnvironmentFromWithLoopPhiAdjustment(env, vector_header_);
       }
     }
   }
