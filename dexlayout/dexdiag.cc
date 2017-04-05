@@ -27,15 +27,15 @@
 #include "dex_file.h"
 #include "dex_ir.h"
 #include "dex_ir_builder.h"
+#ifdef ART_TARGET_ANDROID
 #include "pagemap/pagemap.h"
+#endif
 #include "runtime.h"
 #include "vdex_file.h"
 
 namespace art {
 
 using android::base::StringPrintf;
-
-static constexpr size_t kLineLength = 32;
 
 static bool g_show_key = false;
 static bool g_verbose = false;
@@ -96,6 +96,7 @@ static void PrintLetterKey() {
   }
 }
 
+#ifdef ART_TARGET_ANDROID
 static char PageTypeChar(uint16_t type) {
   if (kDexSectionInfoMap.find(type) == kDexSectionInfoMap.end()) {
     return '-';
@@ -126,6 +127,7 @@ static void ProcessPageMap(uint64_t* pagemap,
                            size_t end,
                            const std::vector<dex_ir::DexFileSection>& sections,
                            PageCount* page_counts) {
+  static constexpr size_t kLineLength = 32;
   for (size_t page = start; page < end; ++page) {
     char type_char = '.';
     if (PM_PAGEMAP_PRESENT(pagemap[page])) {
@@ -319,6 +321,7 @@ static bool DisplayMappingIfFromVdexFile(pm_map_t* map) {
   free(pagemap);
   return true;
 }
+#endif
 
 
 static void Usage(const char* cmd) {
@@ -352,6 +355,7 @@ static int DexDiagMain(int argc, char* argv[]) {
   InitLogging(argv, Runtime::Aborter);
   MemMap::Init();
 
+#ifdef ART_TARGET_ANDROID
   pid_t pid;
   char* endptr;
   pid = (pid_t)strtol(argv[argc - 1], &endptr, 10);
@@ -391,6 +395,7 @@ static int DexDiagMain(int argc, char* argv[]) {
       return EXIT_FAILURE;
     }
   }
+#endif
 
   if (g_show_key) {
     PrintLetterKey();
