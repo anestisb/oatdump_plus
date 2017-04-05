@@ -29,6 +29,15 @@ extern "C" NO_RETURN void artDeliverPendingExceptionFromCode(Thread* self)
   self->QuickDeliverException();
 }
 
+extern "C" NO_RETURN uint64_t artInvokeObsoleteMethod(ArtMethod* method, Thread* self)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  DCHECK(method->IsObsolete());
+  ScopedQuickEntrypointChecks sqec(self);
+  ThrowInternalError("Attempting to invoke obsolete version of '%s'.",
+                     method->PrettyMethod().c_str());
+  self->QuickDeliverException();
+}
+
 // Called by generated code to throw an exception.
 extern "C" NO_RETURN void artDeliverExceptionFromCode(mirror::Throwable* exception, Thread* self)
     REQUIRES_SHARED(Locks::mutator_lock_) {

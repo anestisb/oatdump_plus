@@ -298,6 +298,7 @@ art_cc_defaults {
         "945-obsolete-native/obsolete_native.cc",
         "980-redefine-object/redefine_object.cc",
         "983-source-transform-verify/source_transform.cc",
+        "984-obsolete-invoke/obsolete_invoke.cc",
     ],
 }
 
