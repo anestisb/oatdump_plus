@@ -169,6 +169,37 @@ void InstructionCodeGeneratorARM64::VisitVecNeg(HVecNeg* instruction) {
   }
 }
 
+void LocationsBuilderARM64::VisitVecAbs(HVecAbs* instruction) {
+  CreateVecUnOpLocations(GetGraph()->GetArena(), instruction);
+}
+
+void InstructionCodeGeneratorARM64::VisitVecAbs(HVecAbs* instruction) {
+  LocationSummary* locations = instruction->GetLocations();
+  FPRegister src = DRegisterFrom(locations->InAt(0));
+  FPRegister dst = DRegisterFrom(locations->Out());
+  switch (instruction->GetPackedType()) {
+    case Primitive::kPrimByte:
+      DCHECK_EQ(8u, instruction->GetVectorLength());
+      __ Abs(dst.V8B(), src.V8B());
+      break;
+    case Primitive::kPrimChar:
+    case Primitive::kPrimShort:
+      DCHECK_EQ(4u, instruction->GetVectorLength());
+      __ Abs(dst.V4H(), src.V4H());
+      break;
+    case Primitive::kPrimInt:
+      DCHECK_EQ(2u, instruction->GetVectorLength());
+      __ Abs(dst.V2S(), src.V2S());
+      break;
+    case Primitive::kPrimFloat:
+      DCHECK_EQ(2u, instruction->GetVectorLength());
+      __ Fabs(dst.V2S(), src.V2S());
+      break;
+    default:
+      LOG(FATAL) << "Unsupported SIMD type";
+  }
+}
+
 void LocationsBuilderARM64::VisitVecNot(HVecNot* instruction) {
   CreateVecUnOpLocations(GetGraph()->GetArena(), instruction);
 }
