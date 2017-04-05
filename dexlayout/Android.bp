@@ -19,7 +19,7 @@ art_cc_defaults {
         "dexlayout.cc",
         "dex_ir.cc",
         "dex_ir_builder.cc",
-	"dex_verify.cc",
+    "dex_verify.cc",
         "dex_visualize.cc",
         "dex_writer.cc",
     ],
@@ -59,13 +59,27 @@ art_cc_test {
 
 art_cc_binary {
     name: "dexdiag",
-    host_supported: false,
+    host_supported: true,
     srcs: ["dexdiag.cc"],
     cflags: ["-Wall"],
     shared_libs: [
         "libart",
         "libart-dexlayout",
-        "libpagemap",
     ],
+    target: {
+        android: {
+            shared_libs: [
+                "libpagemap",
+            ]
+        },
+    }
 }
 
+art_cc_test {
+    name: "art_dexdiag_tests",
+    host_supported: true,
+    defaults: [
+        "art_gtest_defaults",
+    ],
+    srcs: ["dexdiag_test.cc"],
+}
