@@ -50,10 +50,11 @@ static void GetLocalsCb(void* context, const DexFile::LocalInfo& entry) {
   DebugInfoItem* debug_info = reinterpret_cast<DebugInfoItem*>(context);
   LocalInfoVector& locals = debug_info->GetLocalInfo();
   const char* name = entry.name_ != nullptr ? entry.name_ : "(null)";
+  const char* descriptor = entry.descriptor_ != nullptr ? entry.descriptor_ : "";
   const char* signature = entry.signature_ != nullptr ? entry.signature_ : "";
   locals.push_back(std::unique_ptr<LocalInfo>(
-      new LocalInfo(name, entry.descriptor_, signature, entry.start_address_,
-                    entry.end_address_, entry.reg_)));
+      new LocalInfo(name, descriptor, signature, entry.start_address_, entry.end_address_,
+                    entry.reg_)));
 }
 
 static uint32_t GetCodeItemSize(const DexFile::CodeItem& disk_code_item) {
