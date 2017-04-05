@@ -191,6 +191,20 @@ static const char kClassDataBeforeCodeInputDex[] =
     "QS5qYXZhAAFJAANMQTsAEkxqYXZhL2xhbmcvT2JqZWN0OwABVgABYQABYgABYwABAAcOAAMABw4A"
     "BgAHDgAJAAcOAA==";
 
+// Dex file with local info containing a null type descriptor.
+// Constructed a dex file with debug info sequence containing DBG_RESTART_LOCAL without any
+// DBG_START_LOCAL to give it a declared type.
+static const char kUnknownTypeDebugInfoInputDex[] =
+    "ZGV4CjAzNQBtKqZfzjHLNSNwW2A6Bz9FuCEX0sL+FF38AQAAcAAAAHhWNBIAAAAAAAAAAHQBAAAI"
+    "AAAAcAAAAAQAAACQAAAAAgAAAKAAAAAAAAAAAAAAAAMAAAC4AAAAAQAAANAAAAAMAQAA8AAAABwB"
+    "AAAkAQAALAEAAC8BAAA0AQAASAEAAEsBAABOAQAAAgAAAAMAAAAEAAAABQAAAAIAAAAAAAAAAAAA"
+    "AAUAAAADAAAAAAAAAAEAAQAAAAAAAQAAAAYAAAACAAEAAAAAAAEAAAABAAAAAgAAAAAAAAABAAAA"
+    "AAAAAGMBAAAAAAAAAQABAAEAAABUAQAABAAAAHAQAgAAAA4AAgABAAAAAABZAQAAAgAAABIQDwAG"
+    "PGluaXQ+AAZBLmphdmEAAUkAA0xBOwASTGphdmEvbGFuZy9PYmplY3Q7AAFWAAFhAAR0aGlzAAEA"
+    "Bw4AAwAHDh4GAAYAAAAAAQEAgYAE8AEBAYgCAAAACwAAAAAAAAABAAAAAAAAAAEAAAAIAAAAcAAA"
+    "AAIAAAAEAAAAkAAAAAMAAAACAAAAoAAAAAUAAAADAAAAuAAAAAYAAAABAAAA0AAAAAEgAAACAAAA"
+    "8AAAAAIgAAAIAAAAHAEAAAMgAAACAAAAVAEAAAAgAAABAAAAYwEAAAAQAAABAAAAdAEAAA==";
+
 static void WriteBase64ToFile(const char* base64, File* file) {
   // Decode base64.
   CHECK(base64 != nullptr);
@@ -290,7 +304,7 @@ class DexLayoutTest : public CommonRuntimeTest {
     return true;
   }
 
-  // Runs DexFileOutput test.
+  // Runs DexFileLayout test.
   bool DexFileLayoutExec(std::string* error_msg) {
     ScratchFile tmp_file;
     std::string tmp_name = tmp_file.GetFilename();
@@ -356,6 +370,26 @@ class DexLayoutTest : public CommonRuntimeTest {
     }
     return true;
   }
+
+  bool DexLayoutExec(ScratchFile* dex_file,
+                     const char* dex_filename,
+                     ScratchFile* profile_file,
+                     const char* profile_filename,
+                     std::vector<std::string>& dexlayout_exec_argv) {
+    WriteBase64ToFile(dex_filename, dex_file->GetFile());
+    EXPECT_EQ(dex_file->GetFile()->Flush(), 0);
+    if (profile_file != nullptr) {
+      WriteBase64ToFile(profile_filename, profile_file->GetFile());
+      EXPECT_EQ(profile_file->GetFile()->Flush(), 0);
+    }
+    std::string error_msg;
+    const bool result = ::art::Exec(dexlayout_exec_argv, &error_msg);
+    if (!result) {
+      LOG(ERROR) << "Error: " << error_msg;
+      return false;
+    }
+    return true;
+  }
 };
 
 
@@ -405,94 +439,84 @@ TEST_F(DexLayoutTest, UnreferencedEndingCatchHandler) {
 }
 
 TEST_F(DexLayoutTest, DuplicateOffset) {
-  ScratchFile temp;
-  WriteBase64ToFile(kDexFileDuplicateOffset, temp.GetFile());
-  EXPECT_EQ(temp.GetFile()->Flush(), 0);
+  ScratchFile temp_dex;
   std::string dexlayout = GetTestAndroidRoot() + "/bin/dexlayout";
   EXPECT_TRUE(OS::FileExists(dexlayout.c_str())) << dexlayout << " should be a valid file path";
-  std::vector<std::string> dexlayout_exec_argv = {
-      dexlayout,
-      "-a",
-      "-i",
-      "-o",
-      "/dev/null",
-      temp.GetFilename()};
-  std::string error_msg;
-  const bool result = ::art::Exec(dexlayout_exec_argv, &error_msg);
-  EXPECT_TRUE(result);
-  if (!result) {
-    LOG(ERROR) << "Error " << error_msg;
-  }
+  std::vector<std::string> dexlayout_exec_argv =
+      { dexlayout, "-a", "-i", "-o", "/dev/null", temp_dex.GetFilename() };
+  ASSERT_TRUE(DexLayoutExec(&temp_dex,
+                            kDexFileDuplicateOffset,
+                            nullptr /* profile_file */,
+                            nullptr /* profile_filename */,
+                            dexlayout_exec_argv));
 }
 
 TEST_F(DexLayoutTest, NullSetRefListElement) {
-  ScratchFile temp;
-  WriteBase64ToFile(kNullSetRefListElementInputDex, temp.GetFile());
-  EXPECT_EQ(temp.GetFile()->Flush(), 0);
+  ScratchFile temp_dex;
   std::string dexlayout = GetTestAndroidRoot() + "/bin/dexlayout";
   EXPECT_TRUE(OS::FileExists(dexlayout.c_str())) << dexlayout << " should be a valid file path";
   std::vector<std::string> dexlayout_exec_argv =
-      { dexlayout, "-o", "/dev/null", temp.GetFilename() };
-  std::string error_msg;
-  const bool result = ::art::Exec(dexlayout_exec_argv, &error_msg);
-  EXPECT_TRUE(result);
-  if (!result) {
-    LOG(ERROR) << "Error " << error_msg;
-  }
+      { dexlayout, "-o", "/dev/null", temp_dex.GetFilename() };
+  ASSERT_TRUE(DexLayoutExec(&temp_dex,
+                            kNullSetRefListElementInputDex,
+                            nullptr /* profile_file */,
+                            nullptr /* profile_filename */,
+                            dexlayout_exec_argv));
 }
 
 TEST_F(DexLayoutTest, MultiClassData) {
-  ScratchFile temp;
-  WriteBase64ToFile(kMultiClassDataInputDex, temp.GetFile());
-  ScratchFile temp2;
-  WriteBase64ToFile(kDexFileLayoutInputProfile, temp2.GetFile());
-  EXPECT_EQ(temp.GetFile()->Flush(), 0);
+  ScratchFile temp_dex;
+  ScratchFile temp_profile;
   std::string dexlayout = GetTestAndroidRoot() + "/bin/dexlayout";
   EXPECT_TRUE(OS::FileExists(dexlayout.c_str())) << dexlayout << " should be a valid file path";
   std::vector<std::string> dexlayout_exec_argv =
-      { dexlayout, "-p", temp2.GetFilename(), "-o", "/dev/null", temp.GetFilename() };
-  std::string error_msg;
-  const bool result = ::art::Exec(dexlayout_exec_argv, &error_msg);
-  EXPECT_TRUE(result);
-  if (!result) {
-    LOG(ERROR) << "Error " << error_msg;
-  }
+      { dexlayout, "-p", temp_profile.GetFilename(), "-o", "/dev/null", temp_dex.GetFilename() };
+  ASSERT_TRUE(DexLayoutExec(&temp_dex,
+                            kMultiClassDataInputDex,
+                            &temp_profile,
+                            kDexFileLayoutInputProfile,
+                            dexlayout_exec_argv));
 }
 
 TEST_F(DexLayoutTest, UnalignedCodeInfo) {
-  ScratchFile temp;
-  WriteBase64ToFile(kUnalignedCodeInfoInputDex, temp.GetFile());
-  ScratchFile temp2;
-  WriteBase64ToFile(kDexFileLayoutInputProfile, temp2.GetFile());
-  EXPECT_EQ(temp.GetFile()->Flush(), 0);
+  ScratchFile temp_dex;
+  ScratchFile temp_profile;
   std::string dexlayout = GetTestAndroidRoot() + "/bin/dexlayout";
   EXPECT_TRUE(OS::FileExists(dexlayout.c_str())) << dexlayout << " should be a valid file path";
   std::vector<std::string> dexlayout_exec_argv =
-      { dexlayout, "-p", temp2.GetFilename(), "-o", "/dev/null", temp.GetFilename() };
-  std::string error_msg;
-  const bool result = ::art::Exec(dexlayout_exec_argv, &error_msg);
-  EXPECT_TRUE(result);
-  if (!result) {
-    LOG(ERROR) << "Error " << error_msg;
-  }
+      { dexlayout, "-p", temp_profile.GetFilename(), "-o", "/dev/null", temp_dex.GetFilename() };
+  ASSERT_TRUE(DexLayoutExec(&temp_dex,
+                            kUnalignedCodeInfoInputDex,
+                            &temp_profile,
+                            kDexFileLayoutInputProfile,
+                            dexlayout_exec_argv));
 }
 
 TEST_F(DexLayoutTest, ClassDataBeforeCode) {
-  ScratchFile temp;
-  WriteBase64ToFile(kClassDataBeforeCodeInputDex, temp.GetFile());
-  ScratchFile temp2;
-  WriteBase64ToFile(kDexFileLayoutInputProfile, temp2.GetFile());
-  EXPECT_EQ(temp.GetFile()->Flush(), 0);
+  ScratchFile temp_dex;
+  ScratchFile temp_profile;
   std::string dexlayout = GetTestAndroidRoot() + "/bin/dexlayout";
   EXPECT_TRUE(OS::FileExists(dexlayout.c_str())) << dexlayout << " should be a valid file path";
   std::vector<std::string> dexlayout_exec_argv =
-      { dexlayout, "-p", temp2.GetFilename(), "-o", "/dev/null", temp.GetFilename() };
-  std::string error_msg;
-  const bool result = ::art::Exec(dexlayout_exec_argv, &error_msg);
-  EXPECT_TRUE(result);
-  if (!result) {
-    LOG(ERROR) << "Error " << error_msg;
-  }
+      { dexlayout, "-p", temp_profile.GetFilename(), "-o", "/dev/null", temp_dex.GetFilename() };
+  ASSERT_TRUE(DexLayoutExec(&temp_dex,
+                            kClassDataBeforeCodeInputDex,
+                            &temp_profile,
+                            kDexFileLayoutInputProfile,
+                            dexlayout_exec_argv));
+}
+
+TEST_F(DexLayoutTest, UnknownTypeDebugInfo) {
+  ScratchFile temp_dex;
+  std::string dexlayout = GetTestAndroidRoot() + "/bin/dexlayout";
+  EXPECT_TRUE(OS::FileExists(dexlayout.c_str())) << dexlayout << " should be a valid file path";
+  std::vector<std::string> dexlayout_exec_argv =
+      { dexlayout, "-o", "/dev/null", temp_dex.GetFilename() };
+  ASSERT_TRUE(DexLayoutExec(&temp_dex,
+                            kUnknownTypeDebugInfoInputDex,
+                            nullptr /* profile_file */,
+                            nullptr /* profile_filename */,
+                            dexlayout_exec_argv));
 }
 
 }  // namespace art
