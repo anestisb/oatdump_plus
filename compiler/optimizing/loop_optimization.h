@@ -68,6 +68,7 @@ class HLoopOptimization : public HOptimization {
     kNoShift  = 4,   // no shift
     kNoShr    = 8,   // no arithmetic shift right
     kNoHiBits = 16,  // "wider" operations cannot bring in higher order bits
+    kNoAbs    = 32,  // no absolute value
   };
 
   /*

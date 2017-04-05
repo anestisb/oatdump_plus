@@ -278,6 +278,25 @@ class HVecNeg FINAL : public HVecUnaryOperation {
   DISALLOW_COPY_AND_ASSIGN(HVecNeg);
 };
 
+// Takes absolute value of every component in the vector,
+// viz. abs[ x1, .. , xn ]  = [ |x1|, .. , |xn| ].
+class HVecAbs FINAL : public HVecUnaryOperation {
+ public:
+  HVecAbs(ArenaAllocator* arena,
+          HInstruction* input,
+          Primitive::Type packed_type,
+          size_t vector_length,
+          uint32_t dex_pc = kNoDexPc)
+      : HVecUnaryOperation(arena, packed_type, vector_length, dex_pc) {
+    DCHECK(input->IsVecOperation());
+    DCHECK_EQ(input->AsVecOperation()->GetPackedType(), packed_type);
+    SetRawInputAt(0, input);
+  }
+  DECLARE_INSTRUCTION(VecAbs);
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HVecAbs);
+};
+
 // Bitwise- or boolean-nots every component in the vector,
 // viz. not[ x1, .. , xn ]  = [ ~x1, .. , ~xn ], or
 //      not[ x1, .. , xn ]  = [ !x1, .. , !xn ] for boolean.
