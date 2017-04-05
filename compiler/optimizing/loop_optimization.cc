@@ -783,8 +783,13 @@ bool HLoopOptimization::TrySetVectorType(Primitive::Type type, uint64_t* restric
         case Primitive::kPrimInt:
           *restrictions |= kNoDiv;
           return TrySetVectorLength(4);
+        case Primitive::kPrimLong:
+          *restrictions |= kNoDiv | kNoMul;
+          return TrySetVectorLength(2);
         case Primitive::kPrimFloat:
           return TrySetVectorLength(4);
+        case Primitive::kPrimDouble:
+          return TrySetVectorLength(2);
         default:
           return false;
       }
