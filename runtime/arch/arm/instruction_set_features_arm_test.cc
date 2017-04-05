@@ -34,6 +34,18 @@ TEST(ArmInstructionSetFeaturesTest, ArmFeaturesFromVariant) {
   EXPECT_STREQ("div,atomic_ldrd_strd,-armv8a", krait_features->GetFeatureString().c_str());
   EXPECT_EQ(krait_features->AsBitmap(), 3U);
 
+  // Build features for a 32-bit ARM kryo processor.
+  std::unique_ptr<const InstructionSetFeatures> kryo_features(
+      InstructionSetFeatures::FromVariant(kArm, "kryo", &error_msg));
+  ASSERT_TRUE(kryo_features.get() != nullptr) << error_msg;
+
+  ASSERT_EQ(kryo_features->GetInstructionSet(), kArm);
+  EXPECT_TRUE(kryo_features->Equals(kryo_features.get()));
+  EXPECT_TRUE(kryo_features->AsArmInstructionSetFeatures()->HasDivideInstruction());
+  EXPECT_TRUE(kryo_features->AsArmInstructionSetFeatures()->HasAtomicLdrdAndStrd());
+  EXPECT_STREQ("div,atomic_ldrd_strd,armv8a", kryo_features->GetFeatureString().c_str());
+  EXPECT_EQ(kryo_features->AsBitmap(), 7U);
+
   // Build features for a 32-bit ARM denver processor.
   std::unique_ptr<const InstructionSetFeatures> denver_features(
       InstructionSetFeatures::FromVariant(kArm, "denver", &error_msg));
@@ -85,6 +97,18 @@ TEST(ArmInstructionSetFeaturesTest, ArmAddFeaturesFromString) {
   EXPECT_TRUE(krait_features->AsArmInstructionSetFeatures()->HasAtomicLdrdAndStrd());
   EXPECT_STREQ("div,atomic_ldrd_strd,-armv8a", krait_features->GetFeatureString().c_str());
   EXPECT_EQ(krait_features->AsBitmap(), 3U);
+
+  // Build features for a 32-bit ARM with LPAE and div processor.
+  std::unique_ptr<const InstructionSetFeatures> kryo_features(
+      base_features->AddFeaturesFromString("atomic_ldrd_strd,div", &error_msg));
+  ASSERT_TRUE(kryo_features.get() != nullptr) << error_msg;
+
+  ASSERT_EQ(kryo_features->GetInstructionSet(), kArm);
+  EXPECT_TRUE(kryo_features->Equals(krait_features.get()));
+  EXPECT_TRUE(kryo_features->AsArmInstructionSetFeatures()->HasDivideInstruction());
+  EXPECT_TRUE(kryo_features->AsArmInstructionSetFeatures()->HasAtomicLdrdAndStrd());
+  EXPECT_STREQ("div,atomic_ldrd_strd,-armv8a", kryo_features->GetFeatureString().c_str());
+  EXPECT_EQ(kryo_features->AsBitmap(), 3U);
 
   // Build features for a 32-bit ARM processor with LPAE and div flipped.
   std::unique_ptr<const InstructionSetFeatures> denver_features(
