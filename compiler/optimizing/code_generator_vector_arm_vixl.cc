@@ -81,6 +81,14 @@ void InstructionCodeGeneratorARMVIXL::VisitVecNeg(HVecNeg* instruction) {
   LOG(FATAL) << "No SIMD for " << instruction->GetId();
 }
 
+void LocationsBuilderARMVIXL::VisitVecAbs(HVecAbs* instruction) {
+  CreateVecUnOpLocations(GetGraph()->GetArena(), instruction);
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitVecAbs(HVecAbs* instruction) {
+  LOG(FATAL) << "No SIMD for " << instruction->GetId();
+}
+
 void LocationsBuilderARMVIXL::VisitVecNot(HVecNot* instruction) {
   CreateVecUnOpLocations(GetGraph()->GetArena(), instruction);
 }

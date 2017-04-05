@@ -192,6 +192,46 @@ void InstructionCodeGeneratorX86_64::VisitVecNeg(HVecNeg* instruction) {
   }
 }
 
+void LocationsBuilderX86_64::VisitVecAbs(HVecAbs* instruction) {
+  CreateVecUnOpLocations(GetGraph()->GetArena(), instruction);
+  if (instruction->GetPackedType() == Primitive::kPrimInt) {
+    instruction->GetLocations()->AddTemp(Location::RequiresFpuRegister());
+  }
+}
+
+void InstructionCodeGeneratorX86_64::VisitVecAbs(HVecAbs* instruction) {
+  LocationSummary* locations = instruction->GetLocations();
+  XmmRegister src = locations->InAt(0).AsFpuRegister<XmmRegister>();
+  XmmRegister dst = locations->Out().AsFpuRegister<XmmRegister>();
+  switch (instruction->GetPackedType()) {
+    case Primitive::kPrimInt: {
+      DCHECK_EQ(4u, instruction->GetVectorLength());
+      XmmRegister tmp = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
+      __ movaps(dst, src);
+      __ pxor(tmp, tmp);
+      __ pcmpgtd(tmp, dst);
+      __ pxor(dst, tmp);
+      __ psubd(dst, tmp);
+      break;
+    }
+    case Primitive::kPrimFloat:
+      DCHECK_EQ(4u, instruction->GetVectorLength());
+      __ pcmpeqb(dst, dst);  // all ones
+      __ psrld(dst, Immediate(1));
+      __ andps(dst, src);
+      break;
+    case Primitive::kPrimDouble:
+      DCHECK_EQ(2u, instruction->GetVectorLength());
+      __ pcmpeqb(dst, dst);  // all ones
+      __ psrlq(dst, Immediate(1));
+      __ andpd(dst, src);
+      break;
+    default:
+      LOG(FATAL) << "Unsupported SIMD type";
+      UNREACHABLE();
+  }
+}
+
 void LocationsBuilderX86_64::VisitVecNot(HVecNot* instruction) {
   CreateVecUnOpLocations(GetGraph()->GetArena(), instruction);
   // Boolean-not requires a temporary to construct the 16 x one.
