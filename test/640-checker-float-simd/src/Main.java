@@ -107,8 +107,10 @@ public class Main {
   /// CHECK-DAG: ArraySet loop:<<Loop>>      outer_loop:none
   //
   /// CHECK-START-ARM64: void Main.abs() loop_optimization (after)
-  //
-  // TODO: fill in when supported
+  /// CHECK-DAG: Phi      loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: VecLoad  loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: VecAbs   loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: VecStore loop:<<Loop>>      outer_loop:none
   static void abs() {
     for (int i = 0; i < 128; i++)
       a[i] = Math.abs(a[i]);

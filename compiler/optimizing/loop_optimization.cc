@@ -735,8 +735,32 @@ bool HLoopOptimization::VectorizeUse(LoopNode* node,
       return true;
     }
   } else if (instruction->IsInvokeStaticOrDirect()) {
-    // TODO: coming soon.
-    return false;
+    // Accept particular intrinsics.
+    HInvokeStaticOrDirect* invoke = instruction->AsInvokeStaticOrDirect();
+    switch (invoke->GetIntrinsic()) {
+      case Intrinsics::kMathAbsInt:
+      case Intrinsics::kMathAbsLong:
+      case Intrinsics::kMathAbsFloat:
+      case Intrinsics::kMathAbsDouble: {
+        // Deal with vector restrictions.
+        if (HasVectorRestrictions(restrictions, kNoAbs) ||
+            HasVectorRestrictions(restrictions, kNoHiBits)) {
+          // TODO: we can do better for some hibits cases.
+          return false;
+        }
+        // Accept ABS(x) for vectorizable operand.
+        HInstruction* opa = instruction->InputAt(0);
+        if (VectorizeUse(node, opa, generate_code, type, restrictions)) {
+          if (generate_code) {
+            GenerateVecOp(instruction, vector_map_->Get(opa), nullptr, type);
+          }
+          return true;
+        }
+        return false;
+      }
+      default:
+        return false;
+    }  // switch
   }
   return false;
 }
@@ -754,11 +778,11 @@ bool HLoopOptimization::TrySetVectorType(Primitive::Type type, uint64_t* restric
       switch (type) {
         case Primitive::kPrimBoolean:
         case Primitive::kPrimByte:
-          *restrictions |= kNoDiv;
+          *restrictions |= kNoDiv | kNoAbs;
           return TrySetVectorLength(8);
         case Primitive::kPrimChar:
         case Primitive::kPrimShort:
-          *restrictions |= kNoDiv;
+          *restrictions |= kNoDiv | kNoAbs;
           return TrySetVectorLength(4);
         case Primitive::kPrimInt:
           *restrictions |= kNoDiv;
@@ -775,17 +799,17 @@ bool HLoopOptimization::TrySetVectorType(Primitive::Type type, uint64_t* restric
         switch (type) {
           case Primitive::kPrimBoolean:
           case Primitive::kPrimByte:
-            *restrictions |= kNoMul | kNoDiv | kNoShift;
+            *restrictions |= kNoMul | kNoDiv | kNoShift | kNoAbs;
             return TrySetVectorLength(16);
           case Primitive::kPrimChar:
           case Primitive::kPrimShort:
-            *restrictions |= kNoDiv;
+            *restrictions |= kNoDiv | kNoAbs;
             return TrySetVectorLength(8);
           case Primitive::kPrimInt:
             *restrictions |= kNoDiv;
             return TrySetVectorLength(4);
           case Primitive::kPrimLong:
-            *restrictions |= kNoMul | kNoDiv | kNoShr;
+            *restrictions |= kNoMul | kNoDiv | kNoShr | kNoAbs;
             return TrySetVectorLength(2);
           case Primitive::kPrimFloat:
             return TrySetVectorLength(4);
@@ -956,7 +980,41 @@ void HLoopOptimization::GenerateVecOp(HInstruction* org,
           new (global_allocator_) HVecUShr(global_allocator_, opa, opb, type, vector_length_),
           new (global_allocator_) HUShr(type, opa, opb));
     case HInstruction::kInvokeStaticOrDirect: {
-      // TODO: coming soon.
+      HInvokeStaticOrDirect* invoke = org->AsInvokeStaticOrDirect();
+      if (vector_mode_ == kVector) {
+        switch (invoke->GetIntrinsic()) {
+          case Intrinsics::kMathAbsInt:
+          case Intrinsics::kMathAbsLong:
+          case Intrinsics::kMathAbsFloat:
+          case Intrinsics::kMathAbsDouble:
+            DCHECK(opb == nullptr);
+            vector = new (global_allocator_) HVecAbs(global_allocator_, opa, type, vector_length_);
+            break;
+          default:
+            LOG(FATAL) << "Unsupported SIMD intrinsic";
+            UNREACHABLE();
+        }  // switch invoke
+      } else {
+        // In scalar code, simply clone the method invoke, and replace its operands
+        // with the corresponding new scalar instructions in the loop.
+        DCHECK(vector_mode_ == kSequential);
+        HInvokeStaticOrDirect* new_invoke = new (global_allocator_) HInvokeStaticOrDirect(
+            global_allocator_,
+            invoke->GetNumberOfArguments(),
+            invoke->GetType(),
+            invoke->GetDexPc(),
+            invoke->GetDexMethodIndex(),
+            invoke->GetResolvedMethod(),
+            invoke->GetDispatchInfo(),
+            invoke->GetInvokeType(),
+            invoke->GetTargetMethod(),
+            invoke->GetClinitCheckRequirement());
+        HInputsRef inputs = invoke->GetInputs();
+        for (size_t index = 0; index < inputs.size(); ++index) {
+          new_invoke->SetArgumentAt(index, vector_map_->Get(inputs[index]));
+        }
+        vector = new_invoke;
+      }
       break;
     }
     default:
