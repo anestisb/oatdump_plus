@@ -17,8 +17,8 @@
 // TODO: Add more tests after we can inline functions with calls.
 
 class ClassWithoutFinals {
-  /// CHECK-START: void ClassWithoutFinals.<init>() register (after)
-  /// CHECK-NOT: MemoryBarrier kind:StoreStore
+  /// CHECK-START: void ClassWithoutFinals.<init>() inliner (after)
+  /// CHECK-NOT: ConstructorFence
   public ClassWithoutFinals() {}
 }
 
@@ -33,17 +33,40 @@ class ClassWithFinals {
     // should not inline this constructor
   }
 
-  /// CHECK-START: void ClassWithFinals.<init>() register (after)
-  /// CHECK:      MemoryBarrier kind:StoreStore
+  /// CHECK-START: void ClassWithFinals.<init>() inliner (after)
+  /// CHECK:      ConstructorFence
   /// CHECK-NEXT: ReturnVoid
+
+  /*
+   * Check that the correct assembly instructions are selected for a Store/Store fence.
+   *
+   * - ARM variants:   DMB ISHST (store-store fence for inner shareable domain)
+   * - Intel variants: no-op (store-store does not need a fence).
+   */
+
+  /// CHECK-START-ARM64: void ClassWithFinals.<init>() disassembly (after)
+  /// CHECK:      ConstructorFence
+  /// CHECK-NEXT: dmb ishst
+
+  /// CHECK-START-ARM: void ClassWithFinals.<init>() disassembly (after)
+  /// CHECK:      ConstructorFence
+  /// CHECK-NEXT: dmb ishst
+
+  /// CHECK-START-X86_64: void ClassWithFinals.<init>() disassembly (after)
+  /// CHECK:      ConstructorFence
+  /// CHECK-NOT:  {{[slm]}}fence
+
+  /// CHECK-START-X86: void ClassWithFinals.<init>() disassembly (after)
+  /// CHECK:      ConstructorFence
+  /// CHECK-NOT:  {{[slm]}}fence
   public ClassWithFinals() {
     // Exactly one constructor barrier.
     x = 0;
   }
 
-  /// CHECK-START: void ClassWithFinals.<init>(int) register (after)
-  /// CHECK:      MemoryBarrier kind:StoreStore
-  /// CHECK:      MemoryBarrier kind:StoreStore
+  /// CHECK-START: void ClassWithFinals.<init>(int) inliner (after)
+  /// CHECK:      ConstructorFence
+  /// CHECK:      ConstructorFence
   /// CHECK-NEXT: ReturnVoid
   public ClassWithFinals(int x) {
     // This should have exactly two barriers:
@@ -55,11 +78,11 @@ class ClassWithFinals {
 }
 
 class InheritFromClassWithFinals extends ClassWithFinals {
-  /// CHECK-START: void InheritFromClassWithFinals.<init>() register (after)
-  /// CHECK:      MemoryBarrier kind:StoreStore
+  /// CHECK-START: void InheritFromClassWithFinals.<init>() inliner (after)
+  /// CHECK:      ConstructorFence
   /// CHECK-NEXT: ReturnVoid
 
-  /// CHECK-START: void InheritFromClassWithFinals.<init>() register (after)
+  /// CHECK-START: void InheritFromClassWithFinals.<init>() inliner (after)
   /// CHECK-NOT:  InvokeStaticOrDirect
   public InheritFromClassWithFinals() {
     // Should inline the super constructor.
@@ -67,23 +90,23 @@ class InheritFromClassWithFinals extends ClassWithFinals {
     // Exactly one constructor barrier here.
   }
 
-  /// CHECK-START: void InheritFromClassWithFinals.<init>(boolean) register (after)
+  /// CHECK-START: void InheritFromClassWithFinals.<init>(boolean) inliner (after)
   /// CHECK:      InvokeStaticOrDirect
 
-  /// CHECK-START: void InheritFromClassWithFinals.<init>(boolean) register (after)
-  /// CHECK-NOT:  MemoryBarrier kind:StoreStore
+  /// CHECK-START: void InheritFromClassWithFinals.<init>(boolean) inliner (after)
+  /// CHECK-NOT:  ConstructorFence
   public InheritFromClassWithFinals(boolean cond) {
     super(cond);
     // should not inline the super constructor
   }
 
-  /// CHECK-START: void InheritFromClassWithFinals.<init>(int) register (after)
-  /// CHECK:      MemoryBarrier kind:StoreStore
-  /// CHECK:      MemoryBarrier kind:StoreStore
-  /// CHECK-NOT:  MemoryBarrier kind:StoreStore
+  /// CHECK-START: void InheritFromClassWithFinals.<init>(int) inliner (after)
+  /// CHECK:      ConstructorFence
+  /// CHECK:      ConstructorFence
+  /// CHECK-NOT:  ConstructorFence
   /// CHECK:      ReturnVoid
 
-  /// CHECK-START: void InheritFromClassWithFinals.<init>(int) register (after)
+  /// CHECK-START: void InheritFromClassWithFinals.<init>(int) inliner (after)
   /// CHECK-NOT:  InvokeStaticOrDirect
   public InheritFromClassWithFinals(int unused) {
     // Should inline the super constructor and insert a memory barrier.
@@ -96,21 +119,21 @@ class InheritFromClassWithFinals extends ClassWithFinals {
 class HaveFinalsAndInheritFromClassWithFinals extends ClassWithFinals {
   final int y;
 
-  /// CHECK-START: void HaveFinalsAndInheritFromClassWithFinals.<init>() register (after)
-  /// CHECK:      MemoryBarrier kind:StoreStore
-  /// CHECK:      MemoryBarrier kind:StoreStore
+  /// CHECK-START: void HaveFinalsAndInheritFromClassWithFinals.<init>() inliner (after)
+  /// CHECK:      ConstructorFence
+  /// CHECK:      ConstructorFence
   /// CHECK-NEXT: ReturnVoid
 
-  /// CHECK-START: void HaveFinalsAndInheritFromClassWithFinals.<init>() register (after)
+  /// CHECK-START: void HaveFinalsAndInheritFromClassWithFinals.<init>() inliner (after)
   /// CHECK-NOT: InvokeStaticOrDirect
   public HaveFinalsAndInheritFromClassWithFinals() {
     // Should inline the super constructor and keep the memory barrier.
     y = 0;
   }
 
-  /// CHECK-START: void HaveFinalsAndInheritFromClassWithFinals.<init>(boolean) register (after)
+  /// CHECK-START: void HaveFinalsAndInheritFromClassWithFinals.<init>(boolean) inliner (after)
   /// CHECK:      InvokeStaticOrDirect
-  /// CHECK:      MemoryBarrier kind:StoreStore
+  /// CHECK:      ConstructorFence
   /// CHECK-NEXT: ReturnVoid
   public HaveFinalsAndInheritFromClassWithFinals(boolean cond) {
     super(cond);
@@ -118,15 +141,15 @@ class HaveFinalsAndInheritFromClassWithFinals extends ClassWithFinals {
     y = 0;
   }
 
-  /// CHECK-START: void HaveFinalsAndInheritFromClassWithFinals.<init>(int) register (after)
-  /// CHECK:      MemoryBarrier kind:StoreStore
-  /// CHECK:      MemoryBarrier kind:StoreStore
-  /// CHECK:      MemoryBarrier kind:StoreStore
-  /// CHECK:      MemoryBarrier kind:StoreStore
-  /// CHECK:      MemoryBarrier kind:StoreStore
+  /// CHECK-START: void HaveFinalsAndInheritFromClassWithFinals.<init>(int) inliner (after)
+  /// CHECK:      ConstructorFence
+  /// CHECK:      ConstructorFence
+  /// CHECK:      ConstructorFence
+  /// CHECK:      ConstructorFence
+  /// CHECK:      ConstructorFence
   /// CHECK-NEXT: ReturnVoid
 
-  /// CHECK-START: void HaveFinalsAndInheritFromClassWithFinals.<init>(int) register (after)
+  /// CHECK-START: void HaveFinalsAndInheritFromClassWithFinals.<init>(int) inliner (after)
   /// CHECK-NOT:  InvokeStaticOrDirect
   public HaveFinalsAndInheritFromClassWithFinals(int unused) {
     // Should inline the super constructor and keep keep both memory barriers.
@@ -141,55 +164,55 @@ class HaveFinalsAndInheritFromClassWithFinals extends ClassWithFinals {
 
 public class Main {
 
-  /// CHECK-START: ClassWithFinals Main.noInlineNoConstructorBarrier() register (after)
+  /// CHECK-START: ClassWithFinals Main.noInlineNoConstructorBarrier() inliner (after)
   /// CHECK:      InvokeStaticOrDirect
 
-  /// CHECK-START: ClassWithFinals Main.noInlineNoConstructorBarrier() register (after)
-  /// CHECK-NOT:  MemoryBarrier kind:StoreStore
+  /// CHECK-START: ClassWithFinals Main.noInlineNoConstructorBarrier() inliner (after)
+  /// CHECK-NOT:  ConstructorFence
   public static ClassWithFinals noInlineNoConstructorBarrier() {
     return new ClassWithFinals(false);
     // should not inline the constructor
   }
 
-  /// CHECK-START: void Main.inlineNew() register (after)
-  /// CHECK:      MemoryBarrier kind:StoreStore
+  /// CHECK-START: void Main.inlineNew() inliner (after)
+  /// CHECK:      ConstructorFence
   /// CHECK-NEXT: ReturnVoid
 
-  /// CHECK-START: void Main.inlineNew() register (after)
+  /// CHECK-START: void Main.inlineNew() inliner (after)
   /// CHECK-NOT:  InvokeStaticOrDirect
   public static void inlineNew() {
     new ClassWithFinals();
   }
 
-  /// CHECK-START: void Main.inlineNew1() register (after)
-  /// CHECK:      MemoryBarrier kind:StoreStore
+  /// CHECK-START: void Main.inlineNew1() inliner (after)
+  /// CHECK:      ConstructorFence
   /// CHECK-NEXT: ReturnVoid
 
-  /// CHECK-START: void Main.inlineNew1() register (after)
+  /// CHECK-START: void Main.inlineNew1() inliner (after)
   /// CHECK-NOT:  InvokeStaticOrDirect
   public static void inlineNew1() {
     new InheritFromClassWithFinals();
   }
 
-  /// CHECK-START: void Main.inlineNew2() register (after)
-  /// CHECK:      MemoryBarrier kind:StoreStore
-  /// CHECK:      MemoryBarrier kind:StoreStore
+  /// CHECK-START: void Main.inlineNew2() inliner (after)
+  /// CHECK:      ConstructorFence
+  /// CHECK:      ConstructorFence
   /// CHECK-NEXT: ReturnVoid
 
-  /// CHECK-START: void Main.inlineNew2() register (after)
+  /// CHECK-START: void Main.inlineNew2() inliner (after)
   /// CHECK-NOT:  InvokeStaticOrDirect
   public static void inlineNew2() {
     new HaveFinalsAndInheritFromClassWithFinals();
   }
 
-  /// CHECK-START: void Main.inlineNew3() register (after)
-  /// CHECK:      MemoryBarrier kind:StoreStore
-  /// CHECK:      MemoryBarrier kind:StoreStore
-  /// CHECK:      MemoryBarrier kind:StoreStore
-  /// CHECK:      MemoryBarrier kind:StoreStore
+  /// CHECK-START: void Main.inlineNew3() inliner (after)
+  /// CHECK:      ConstructorFence
+  /// CHECK:      ConstructorFence
+  /// CHECK:      ConstructorFence
+  /// CHECK:      ConstructorFence
   /// CHECK-NEXT: ReturnVoid
 
-  /// CHECK-START: void Main.inlineNew3() register (after)
+  /// CHECK-START: void Main.inlineNew3() inliner (after)
   /// CHECK-NOT:  InvokeStaticOrDirect
   public static void inlineNew3() {
     new HaveFinalsAndInheritFromClassWithFinals();

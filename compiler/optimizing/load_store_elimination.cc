@@ -566,14 +566,22 @@ class LSEVisitor : public HGraphVisitor {
       store->GetBlock()->RemoveInstruction(store);
     }
 
-    // Eliminate allocations that are not used.
+    // Eliminate singleton-classified instructions:
+    //   * - Constructor fences (they never escape this thread).
+    //   * - Allocations (if they are unused).
     for (HInstruction* new_instance : singleton_new_instances_) {
+      HConstructorFence::RemoveConstructorFences(new_instance);
+
       if (!new_instance->HasNonEnvironmentUses()) {
         new_instance->RemoveEnvironmentUsers();
         new_instance->GetBlock()->RemoveInstruction(new_instance);
       }
     }
     for (HInstruction* new_array : singleton_new_arrays_) {
+      // TODO: Delete constructor fences for new-array
+      // In the future HNewArray instructions will have HConstructorFence's for them.
+      // HConstructorFence::RemoveConstructorFences(new_array);
+
       if (!new_array->HasNonEnvironmentUses()) {
         new_array->RemoveEnvironmentUsers();
         new_array->GetBlock()->RemoveInstruction(new_array);

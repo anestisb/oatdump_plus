@@ -59,6 +59,7 @@ enum ArenaAllocKind {
   kArenaAllocSuccessors,
   kArenaAllocDominated,
   kArenaAllocInstruction,
+  kArenaAllocConstructorFenceInputs,
   kArenaAllocInvokeInputs,
   kArenaAllocPhiInputs,
   kArenaAllocLoopInfo,

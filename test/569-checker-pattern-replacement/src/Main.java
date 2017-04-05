@@ -331,7 +331,7 @@ public class Main {
 
   /// CHECK-START: double Main.constructBase() inliner (after)
   /// CHECK-NOT:                      InvokeStaticOrDirect
-  /// CHECK-NOT:                      MemoryBarrier
+  /// CHECK-NOT:                      ConstructorFence
   /// CHECK-NOT:                      InstanceFieldSet
 
   public static double constructBase() {
@@ -347,7 +347,7 @@ public class Main {
 
   /// CHECK-START: double Main.constructBase(int) inliner (after)
   /// CHECK-NOT:                      InvokeStaticOrDirect
-  /// CHECK-NOT:                      MemoryBarrier
+  /// CHECK-NOT:                      ConstructorFence
 
   /// CHECK-START: double Main.constructBase(int) inliner (after)
   /// CHECK-DAG:  <<Value:i\d+>>      ParameterValue
@@ -371,7 +371,7 @@ public class Main {
 
   /// CHECK-START: double Main.constructBaseWith0() inliner (after)
   /// CHECK-NOT:                      InvokeStaticOrDirect
-  /// CHECK-NOT:                      MemoryBarrier
+  /// CHECK-NOT:                      ConstructorFence
   /// CHECK-NOT:                      InstanceFieldSet
 
   public static double constructBaseWith0() {
@@ -387,7 +387,7 @@ public class Main {
 
   /// CHECK-START: java.lang.String Main.constructBase(java.lang.String) inliner (after)
   /// CHECK-NOT:                      InvokeStaticOrDirect
-  /// CHECK-NOT:                      MemoryBarrier
+  /// CHECK-NOT:                      ConstructorFence
 
   /// CHECK-START: java.lang.String Main.constructBase(java.lang.String) inliner (after)
   /// CHECK-DAG:  <<Value:l\d+>>      ParameterValue
@@ -411,7 +411,7 @@ public class Main {
 
   /// CHECK-START: java.lang.String Main.constructBaseWithNullString() inliner (after)
   /// CHECK-NOT:                      InvokeStaticOrDirect
-  /// CHECK-NOT:                      MemoryBarrier
+  /// CHECK-NOT:                      ConstructorFence
 
   /// CHECK-START: java.lang.String Main.constructBaseWithNullString() inliner (after)
   /// CHECK-NOT:                      InstanceFieldSet
@@ -431,7 +431,7 @@ public class Main {
 
   /// CHECK-START: double Main.constructBase(double, java.lang.Object) inliner (after)
   /// CHECK-NOT:                      InvokeStaticOrDirect
-  /// CHECK-NOT:                      MemoryBarrier
+  /// CHECK-NOT:                      ConstructorFence
 
   /// CHECK-START: double Main.constructBase(double, java.lang.Object) inliner (after)
   /// CHECK-DAG:  <<DValue:d\d+>>     ParameterValue
@@ -460,7 +460,7 @@ public class Main {
 
   /// CHECK-START: double Main.constructBase(int, double, java.lang.Object) inliner (after)
   /// CHECK-NOT:                      InvokeStaticOrDirect
-  /// CHECK-NOT:                      MemoryBarrier
+  /// CHECK-NOT:                      ConstructorFence
 
   /// CHECK-START: double Main.constructBase(int, double, java.lang.Object) inliner (after)
   /// CHECK-DAG:  <<IValue:i\d+>>     ParameterValue
@@ -493,7 +493,7 @@ public class Main {
 
   /// CHECK-START: double Main.constructBaseWith0DoubleNull(double) inliner (after)
   /// CHECK-NOT:                      InvokeStaticOrDirect
-  /// CHECK-NOT:                      MemoryBarrier
+  /// CHECK-NOT:                      ConstructorFence
 
   /// CHECK-START: double Main.constructBaseWith0DoubleNull(double) inliner (after)
   /// CHECK-DAG:  <<DValue:d\d+>>     ParameterValue
@@ -543,7 +543,7 @@ public class Main {
 
   /// CHECK-START: double Main.constructBase(double) inliner (after)
   /// CHECK-NOT:                      InvokeStaticOrDirect
-  /// CHECK-NOT:                      MemoryBarrier
+  /// CHECK-NOT:                      ConstructorFence
 
   /// CHECK-START: double Main.constructBase(double) inliner (after)
   /// CHECK-DAG:  <<Value:d\d+>>      ParameterValue
@@ -567,7 +567,7 @@ public class Main {
 
   /// CHECK-START: double Main.constructBaseWith0d() inliner (after)
   /// CHECK-NOT:                      InvokeStaticOrDirect
-  /// CHECK-NOT:                      MemoryBarrier
+  /// CHECK-NOT:                      ConstructorFence
   /// CHECK-NOT:                      InstanceFieldSet
 
   public static double constructBaseWith0d() {
@@ -605,7 +605,7 @@ public class Main {
 
   /// CHECK-START: double Main.constructBase(int, long) inliner (after)
   /// CHECK-NOT:                      InvokeStaticOrDirect
-  /// CHECK-NOT:                      MemoryBarrier
+  /// CHECK-NOT:                      ConstructorFence
 
   /// CHECK-START: double Main.constructBase(int, long) inliner (after)
   /// CHECK-DAG:  <<IValue:i\d+>>     ParameterValue
@@ -628,7 +628,7 @@ public class Main {
 
   /// CHECK-START: double Main.constructDerived() inliner (after)
   /// CHECK-NOT:                      InvokeStaticOrDirect
-  /// CHECK-NOT:                      MemoryBarrier
+  /// CHECK-NOT:                      ConstructorFence
   /// CHECK-NOT:                      InstanceFieldSet
 
   public static double constructDerived() {
@@ -644,7 +644,7 @@ public class Main {
 
   /// CHECK-START: double Main.constructDerived(int) inliner (after)
   /// CHECK-NOT:                      InvokeStaticOrDirect
-  /// CHECK-NOT:                      MemoryBarrier
+  /// CHECK-NOT:                      ConstructorFence
 
   /// CHECK-START: double Main.constructDerived(int) inliner (after)
   /// CHECK-DAG:  <<Value:i\d+>>      ParameterValue
@@ -668,7 +668,7 @@ public class Main {
 
   /// CHECK-START: double Main.constructDerivedWith0() inliner (after)
   /// CHECK-NOT:                      InvokeStaticOrDirect
-  /// CHECK-NOT:                      MemoryBarrier
+  /// CHECK-NOT:                      ConstructorFence
   /// CHECK-NOT:                      InstanceFieldSet
 
   public static double constructDerivedWith0() {
@@ -684,7 +684,7 @@ public class Main {
 
   /// CHECK-START: java.lang.String Main.constructDerived(java.lang.String) inliner (after)
   /// CHECK-NOT:                      InvokeStaticOrDirect
-  /// CHECK-NOT:                      MemoryBarrier
+  /// CHECK-NOT:                      ConstructorFence
 
   /// CHECK-START: java.lang.String Main.constructDerived(java.lang.String) inliner (after)
   /// CHECK-NOT:                      InstanceFieldSet
@@ -702,7 +702,7 @@ public class Main {
 
   /// CHECK-START: double Main.constructDerived(double) inliner (after)
   /// CHECK-NOT:                      InvokeStaticOrDirect
-  /// CHECK-NOT:                      MemoryBarrier
+  /// CHECK-NOT:                      ConstructorFence
 
   /// CHECK-START: double Main.constructDerived(double) inliner (after)
   /// CHECK-DAG:  <<Value:d\d+>>      ParameterValue
@@ -726,7 +726,7 @@ public class Main {
 
   /// CHECK-START: double Main.constructDerivedWith0d() inliner (after)
   /// CHECK-NOT:                      InvokeStaticOrDirect
-  /// CHECK-NOT:                      MemoryBarrier
+  /// CHECK-NOT:                      ConstructorFence
   /// CHECK-NOT:                      InstanceFieldSet
 
   public static double constructDerivedWith0d() {
@@ -744,7 +744,7 @@ public class Main {
 
   /// CHECK-START: double Main.constructDerived(int, double, java.lang.Object) inliner (after)
   /// CHECK-NOT:                      InvokeStaticOrDirect
-  /// CHECK-NOT:                      MemoryBarrier
+  /// CHECK-NOT:                      ConstructorFence
 
   /// CHECK-START: double Main.constructDerived(int, double, java.lang.Object) inliner (after)
   /// CHECK-DAG:  <<DValue:d\d+>>     ParameterValue
@@ -794,7 +794,7 @@ public class Main {
 
   /// CHECK-START: double Main.constructDerived(float) inliner (after)
   /// CHECK-NOT:                      InvokeStaticOrDirect
-  /// CHECK-NOT:                      MemoryBarrier
+  /// CHECK-NOT:                      ConstructorFence
 
   /// CHECK-START: double Main.constructDerived(float) inliner (after)
   /// CHECK-DAG:  <<Value:f\d+>>      ParameterValue
@@ -821,7 +821,7 @@ public class Main {
 
   /// CHECK-START: double Main.constructDerived(int, double, java.lang.Object, float) inliner (after)
   /// CHECK-NOT:                      InvokeStaticOrDirect
-  /// CHECK-NOT:                      MemoryBarrier
+  /// CHECK-NOT:                      ConstructorFence
 
   /// CHECK-START: double Main.constructDerived(int, double, java.lang.Object, float) inliner (after)
   /// CHECK-DAG:  <<IValue:i\d+>>     ParameterValue
@@ -852,7 +852,7 @@ public class Main {
 
   /// CHECK-START: int Main.constructBaseWithFinalField() inliner (after)
   /// CHECK-NOT:                      InvokeStaticOrDirect
-  /// CHECK-NOT:                      MemoryBarrier
+  /// CHECK-NOT:                      ConstructorFence
   /// CHECK-NOT:                      InstanceFieldSet
 
   public static int constructBaseWithFinalField() {
@@ -873,7 +873,7 @@ public class Main {
   /// CHECK-DAG:  <<Value:i\d+>>      ParameterValue
   /// CHECK-DAG:  <<Obj:l\d+>>        NewInstance
   /// CHECK-DAG:                      InstanceFieldSet [<<Obj>>,<<Value>>]
-  /// CHECK-DAG:                      MemoryBarrier
+  /// CHECK-DAG:                      ConstructorFence
 
   /// CHECK-START: int Main.constructBaseWithFinalField(int) inliner (after)
   /// CHECK-DAG:                      InstanceFieldSet
@@ -892,7 +892,7 @@ public class Main {
 
   /// CHECK-START: int Main.constructBaseWithFinalFieldWith0() inliner (after)
   /// CHECK-NOT:                      InvokeStaticOrDirect
-  /// CHECK-NOT:                      MemoryBarrier
+  /// CHECK-NOT:                      ConstructorFence
   /// CHECK-NOT:                      InstanceFieldSet
 
   public static int constructBaseWithFinalFieldWith0() {
@@ -907,7 +907,7 @@ public class Main {
 
   /// CHECK-START: double Main.constructDerivedWithFinalField() inliner (after)
   /// CHECK-NOT:                      InvokeStaticOrDirect
-  /// CHECK-NOT:                      MemoryBarrier
+  /// CHECK-NOT:                      ConstructorFence
   /// CHECK-NOT:                      InstanceFieldSet
 
   public static double constructDerivedWithFinalField() {
@@ -928,7 +928,7 @@ public class Main {
   /// CHECK-DAG:  <<Value:i\d+>>      ParameterValue
   /// CHECK-DAG:  <<Obj:l\d+>>        NewInstance
   /// CHECK-DAG:                      InstanceFieldSet [<<Obj>>,<<Value>>]
-  /// CHECK-DAG:                      MemoryBarrier
+  /// CHECK-DAG:                      ConstructorFence
 
   /// CHECK-START: double Main.constructDerivedWithFinalField(int) inliner (after)
   /// CHECK-DAG:                      InstanceFieldSet
@@ -947,7 +947,7 @@ public class Main {
 
   /// CHECK-START: double Main.constructDerivedWithFinalFieldWith0() inliner (after)
   /// CHECK-NOT:                      InvokeStaticOrDirect
-  /// CHECK-NOT:                      MemoryBarrier
+  /// CHECK-NOT:                      ConstructorFence
   /// CHECK-NOT:                      InstanceFieldSet
 
   public static double constructDerivedWithFinalFieldWith0() {
@@ -968,7 +968,7 @@ public class Main {
   /// CHECK-DAG:  <<Value:d\d+>>      ParameterValue
   /// CHECK-DAG:  <<Obj:l\d+>>        NewInstance
   /// CHECK-DAG:                      InstanceFieldSet [<<Obj>>,<<Value>>]
-  /// CHECK-DAG:                      MemoryBarrier
+  /// CHECK-DAG:                      ConstructorFence
 
   /// CHECK-START: double Main.constructDerivedWithFinalField(double) inliner (after)
   /// CHECK-DAG:                      InstanceFieldSet
@@ -987,7 +987,7 @@ public class Main {
 
   /// CHECK-START: double Main.constructDerivedWithFinalFieldWith0d() inliner (after)
   /// CHECK-NOT:                      InvokeStaticOrDirect
-  /// CHECK-NOT:                      MemoryBarrier
+  /// CHECK-NOT:                      ConstructorFence
   /// CHECK-NOT:                      InstanceFieldSet
 
   public static double constructDerivedWithFinalFieldWith0d() {
@@ -1009,7 +1009,7 @@ public class Main {
   /// CHECK-DAG:  <<Value:d\d+>>      ParameterValue
   /// CHECK-DAG:  <<Obj:l\d+>>        NewInstance
   /// CHECK-DAG:                      InstanceFieldSet [<<Obj>>,<<Value>>]
-  /// CHECK-DAG:                      MemoryBarrier
+  /// CHECK-DAG:                      ConstructorFence
 
   /// CHECK-START: double Main.constructDerivedWithFinalField(int, double) inliner (after)
   /// CHECK-DAG:                      InstanceFieldSet
@@ -1017,8 +1017,8 @@ public class Main {
   /// CHECK-NOT:                      InstanceFieldSet
 
   /// CHECK-START: double Main.constructDerivedWithFinalField(int, double) inliner (after)
-  /// CHECK-DAG:                      MemoryBarrier
-  /// CHECK-NOT:                      MemoryBarrier
+  /// CHECK-DAG:                      ConstructorFence
+  /// CHECK-NOT:                      ConstructorFence
 
   public static double constructDerivedWithFinalField(int intValue, double doubleValue) {
     DerivedWithFinalField d = new DerivedWithFinalField(intValue, doubleValue);
@@ -1034,7 +1034,7 @@ public class Main {
 
   /// CHECK-START: double Main.constructDerivedWithFinalFieldWith0And0d() inliner (after)
   /// CHECK-NOT:                      InvokeStaticOrDirect
-  /// CHECK-NOT:                      MemoryBarrier
+  /// CHECK-NOT:                      ConstructorFence
   /// CHECK-NOT:                      InstanceFieldSet
 
   public static double constructDerivedWithFinalFieldWith0And0d() {
@@ -1049,7 +1049,7 @@ public class Main {
 
   /// CHECK-START: int Main.constructDerivedInSecondDex() inliner (after)
   /// CHECK-NOT:                      InvokeStaticOrDirect
-  /// CHECK-NOT:                      MemoryBarrier
+  /// CHECK-NOT:                      ConstructorFence
   /// CHECK-NOT:                      InstanceFieldSet
 
   public static int constructDerivedInSecondDex() {
@@ -1070,7 +1070,7 @@ public class Main {
   /// CHECK-DAG:                      InvokeStaticOrDirect [<<Obj>>,<<Value>>{{(,[ij]\d+)?}}] method_name:DerivedInSecondDex.<init>
 
   /// CHECK-START: int Main.constructDerivedInSecondDex(int) inliner (after)
-  /// CHECK-NOT:                      MemoryBarrier
+  /// CHECK-NOT:                      ConstructorFence
   /// CHECK-NOT:                      InstanceFieldSet
 
   public static int constructDerivedInSecondDex(int intValue) {
@@ -1091,7 +1091,7 @@ public class Main {
   /// CHECK-DAG:                      InvokeStaticOrDirect [<<Obj>>,<<Value>>{{(,[ij]\d+)?}}] method_name:DerivedInSecondDex.<init>
 
   /// CHECK-START: int Main.constructDerivedInSecondDexWith0() inliner (after)
-  /// CHECK-NOT:                      MemoryBarrier
+  /// CHECK-NOT:                      ConstructorFence
   /// CHECK-NOT:                      InstanceFieldSet
 
   public static int constructDerivedInSecondDexWith0() {
@@ -1107,7 +1107,7 @@ public class Main {
 
   /// CHECK-START: int Main.constructDerivedInSecondDex(long) inliner (after)
   /// CHECK-NOT:                      InvokeStaticOrDirect
-  /// CHECK-NOT:                      MemoryBarrier
+  /// CHECK-NOT:                      ConstructorFence
   /// CHECK-NOT:                      InstanceFieldSet
 
   public static int constructDerivedInSecondDex(long dummy) {

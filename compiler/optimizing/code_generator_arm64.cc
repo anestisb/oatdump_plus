@@ -5479,6 +5479,15 @@ void InstructionCodeGeneratorARM64::VisitRem(HRem* rem) {
   }
 }
 
+void LocationsBuilderARM64::VisitConstructorFence(HConstructorFence* constructor_fence) {
+  constructor_fence->SetLocations(nullptr);
+}
+
+void InstructionCodeGeneratorARM64::VisitConstructorFence(
+    HConstructorFence* constructor_fence ATTRIBUTE_UNUSED) {
+  codegen_->GenerateMemoryBarrier(MemBarrierKind::kStoreStore);
+}
+
 void LocationsBuilderARM64::VisitMemoryBarrier(HMemoryBarrier* memory_barrier) {
   memory_barrier->SetLocations(nullptr);
 }

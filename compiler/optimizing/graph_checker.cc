@@ -341,7 +341,12 @@ void GraphChecker::VisitInstruction(HInstruction* instruction) {
     const HInstructionList& list = input->IsPhi()
         ? input->GetBlock()->GetPhis()
         : input->GetBlock()->GetInstructions();
-    if (!list.Contains(input)) {
+    if (input->GetBlock() == nullptr) {
+      AddError(StringPrintf("Input %d of instruction %d is not in any "
+                            "basic block of the control-flow graph.",
+                            input->GetId(),
+                            instruction->GetId()));
+    } else if (!list.Contains(input)) {
       AddError(StringPrintf("Input %d of instruction %d is not defined "
                             "in a basic block of the control-flow graph.",
                             input->GetId(),

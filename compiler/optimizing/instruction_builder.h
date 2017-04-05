@@ -62,6 +62,7 @@ class HInstructionBuilder : public ValueObject {
         current_block_(nullptr),
         current_locals_(nullptr),
         latest_result_(nullptr),
+        current_this_parameter_(nullptr),
         compiler_driver_(driver),
         code_generator_(code_generator),
         dex_compilation_unit_(dex_compilation_unit),
@@ -325,6 +326,11 @@ class HInstructionBuilder : public ValueObject {
   HBasicBlock* current_block_;
   ArenaVector<HInstruction*>* current_locals_;
   HInstruction* latest_result_;
+  // Current "this" parameter.
+  // Valid only after InitializeParameters() finishes.
+  // * Null for static methods.
+  // * Non-null for instance methods.
+  HParameterValue* current_this_parameter_;
 
   CompilerDriver* const compiler_driver_;
 

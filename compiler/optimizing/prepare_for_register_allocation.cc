@@ -167,6 +167,13 @@ void PrepareForRegisterAllocation::VisitCondition(HCondition* condition) {
   }
 }
 
+void PrepareForRegisterAllocation::VisitConstructorFence(HConstructorFence* constructor_fence) {
+  // Delete all the inputs to the constructor fence;
+  // they aren't used by the InstructionCodeGenerator and this lets us avoid creating a
+  // LocationSummary in the LocationsBuilder.
+  constructor_fence->RemoveAllInputs();
+}
+
 void PrepareForRegisterAllocation::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
   if (invoke->IsStaticWithExplicitClinitCheck()) {
     HLoadClass* last_input = invoke->GetInputs().back()->AsLoadClass();

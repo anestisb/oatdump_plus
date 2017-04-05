@@ -33,6 +33,7 @@ constexpr size_t Arena::kDefaultSize;
 
 template <bool kCount>
 const char* const ArenaAllocatorStatsImpl<kCount>::kAllocNames[] = {
+  // Every name should have the same width and end with a space. Abbreviate if necessary:
   "Misc         ",
   "SwitchTbl    ",
   "SlowPaths    ",
@@ -49,6 +50,7 @@ const char* const ArenaAllocatorStatsImpl<kCount>::kAllocNames[] = {
   "Successors   ",
   "Dominated    ",
   "Instruction  ",
+  "CtorFenceIns ",
   "InvokeInputs ",
   "PhiInputs    ",
   "LoopInfo     ",
