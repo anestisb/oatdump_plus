@@ -32,6 +32,7 @@
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "gc/heap.h"
+#include "jit/profile_saver.h"
 #include "os.h"
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
@@ -154,8 +155,9 @@ void SignalCatcher::HandleSigQuit() {
 }
 
 void SignalCatcher::HandleSigUsr1() {
-  LOG(INFO) << "SIGUSR1 forcing GC (no HPROF)";
+  LOG(INFO) << "SIGUSR1 forcing GC (no HPROF) and profile save";
   Runtime::Current()->GetHeap()->CollectGarbage(false);
+  ProfileSaver::ForceProcessProfiles();
 }
 
 int SignalCatcher::WaitForSignal(Thread* self, SignalSet& signals) {
