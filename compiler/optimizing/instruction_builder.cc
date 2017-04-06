@@ -589,6 +589,11 @@ void HInstructionBuilder::Binop_22b(const Instruction& instruction, bool reverse
 }
 
 static bool RequiresConstructorBarrier(const DexCompilationUnit* cu, CompilerDriver* driver) {
+  // Can be null in unit tests only.
+  if (UNLIKELY(cu == nullptr)) {
+    return false;
+  }
+
   Thread* self = Thread::Current();
   return cu->IsConstructor()
       && driver->RequiresConstructorBarrier(self, cu->GetDexFile(), cu->GetClassDefIndex());
@@ -634,12 +639,9 @@ void HInstructionBuilder::BuildReturn(const Instruction& instruction,
                                       Primitive::Type type,
                                       uint32_t dex_pc) {
   if (type == Primitive::kPrimVoid) {
-    if (graph_->ShouldGenerateConstructorBarrier()) {
-      // The compilation unit is null during testing.
-      if (dex_compilation_unit_ != nullptr) {
-        DCHECK(RequiresConstructorBarrier(dex_compilation_unit_, compiler_driver_))
-          << "Inconsistent use of ShouldGenerateConstructorBarrier. Should not generate a barrier.";
-      }
+    // This may insert additional redundant constructor fences from the super constructors.
+    // TODO: remove redundant constructor fences (b/36656456).
+    if (RequiresConstructorBarrier(dex_compilation_unit_, compiler_driver_)) {
       AppendInstruction(new (arena_) HMemoryBarrier(kStoreStore, dex_pc));
     }
     AppendInstruction(new (arena_) HReturnVoid(dex_pc));
