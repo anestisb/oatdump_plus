@@ -2782,7 +2782,7 @@ mirror::Class* ClassLinker::DefineClass(Thread* self,
   }
   CHECK(klass->IsLoaded());
 
-  // At this point the class is loaded. Publish a ClassLoad even.
+  // At this point the class is loaded. Publish a ClassLoad event.
   // Note: this may be a temporary class. It is a listener's responsibility to handle this.
   Runtime::Current()->GetRuntimeCallbacks()->ClassLoad(klass);
 
@@ -3732,6 +3732,12 @@ mirror::Class* ClassLinker::CreateArrayClass(Thread* self, const char* descripto
 
   ObjPtr<mirror::Class> existing = InsertClass(descriptor, new_class.Get(), hash);
   if (existing == nullptr) {
+    // We postpone ClassLoad and ClassPrepare events to this point in time to avoid
+    // duplicate events in case of races. Array classes don't really follow dedicated
+    // load and prepare, anyways.
+    Runtime::Current()->GetRuntimeCallbacks()->ClassLoad(new_class);
+    Runtime::Current()->GetRuntimeCallbacks()->ClassPrepare(new_class, new_class);
+
     jit::Jit::NewTypeLoadedIfUsingJit(new_class.Get());
     return new_class.Get();
   }
@@ -4267,53 +4273,53 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
                                              jobjectArray throws) {
   Thread* self = soa.Self();
   StackHandleScope<10> hs(self);
-  MutableHandle<mirror::Class> klass(hs.NewHandle(
+  MutableHandle<mirror::Class> temp_klass(hs.NewHandle(
       AllocClass(self, GetClassRoot(kJavaLangClass), sizeof(mirror::Class))));
-  if (klass == nullptr) {
+  if (temp_klass == nullptr) {
     CHECK(self->IsExceptionPending());  // OOME.
     return nullptr;
   }
-  DCHECK(klass->GetClass() != nullptr);
-  klass->SetObjectSize(sizeof(mirror::Proxy));
+  DCHECK(temp_klass->GetClass() != nullptr);
+  temp_klass->SetObjectSize(sizeof(mirror::Proxy));
   // Set the class access flags incl. VerificationAttempted, so we do not try to set the flag on
   // the methods.
-  klass->SetAccessFlags(kAccClassIsProxy | kAccPublic | kAccFinal | kAccVerificationAttempted);
-  klass->SetClassLoader(soa.Decode<mirror::ClassLoader>(loader));
-  DCHECK_EQ(klass->GetPrimitiveType(), Primitive::kPrimNot);
-  klass->SetName(soa.Decode<mirror::String>(name));
-  klass->SetDexCache(GetClassRoot(kJavaLangReflectProxy)->GetDexCache());
+  temp_klass->SetAccessFlags(kAccClassIsProxy | kAccPublic | kAccFinal | kAccVerificationAttempted);
+  temp_klass->SetClassLoader(soa.Decode<mirror::ClassLoader>(loader));
+  DCHECK_EQ(temp_klass->GetPrimitiveType(), Primitive::kPrimNot);
+  temp_klass->SetName(soa.Decode<mirror::String>(name));
+  temp_klass->SetDexCache(GetClassRoot(kJavaLangReflectProxy)->GetDexCache());
   // Object has an empty iftable, copy it for that reason.
-  klass->SetIfTable(GetClassRoot(kJavaLangObject)->GetIfTable());
-  mirror::Class::SetStatus(klass, mirror::Class::kStatusIdx, self);
-  std::string descriptor(GetDescriptorForProxy(klass.Get()));
+  temp_klass->SetIfTable(GetClassRoot(kJavaLangObject)->GetIfTable());
+  mirror::Class::SetStatus(temp_klass, mirror::Class::kStatusIdx, self);
+  std::string descriptor(GetDescriptorForProxy(temp_klass.Get()));
   const size_t hash = ComputeModifiedUtf8Hash(descriptor.c_str());
 
   // Needs to be before we insert the class so that the allocator field is set.
-  LinearAlloc* const allocator = GetOrCreateAllocatorForClassLoader(klass->GetClassLoader());
+  LinearAlloc* const allocator = GetOrCreateAllocatorForClassLoader(temp_klass->GetClassLoader());
 
   // Insert the class before loading the fields as the field roots
   // (ArtField::declaring_class_) are only visited from the class
   // table. There can't be any suspend points between inserting the
   // class and setting the field arrays below.
-  ObjPtr<mirror::Class> existing = InsertClass(descriptor.c_str(), klass.Get(), hash);
+  ObjPtr<mirror::Class> existing = InsertClass(descriptor.c_str(), temp_klass.Get(), hash);
   CHECK(existing == nullptr);
 
   // Instance fields are inherited, but we add a couple of static fields...
   const size_t num_fields = 2;
   LengthPrefixedArray<ArtField>* sfields = AllocArtFieldArray(self, allocator, num_fields);
-  klass->SetSFieldsPtr(sfields);
+  temp_klass->SetSFieldsPtr(sfields);
 
   // 1. Create a static field 'interfaces' that holds the _declared_ interfaces implemented by
   // our proxy, so Class.getInterfaces doesn't return the flattened set.
   ArtField& interfaces_sfield = sfields->At(0);
   interfaces_sfield.SetDexFieldIndex(0);
-  interfaces_sfield.SetDeclaringClass(klass.Get());
+  interfaces_sfield.SetDeclaringClass(temp_klass.Get());
   interfaces_sfield.SetAccessFlags(kAccStatic | kAccPublic | kAccFinal);
 
   // 2. Create a static field 'throws' that holds exceptions thrown by our methods.
   ArtField& throws_sfield = sfields->At(1);
   throws_sfield.SetDexFieldIndex(1);
-  throws_sfield.SetDeclaringClass(klass.Get());
+  throws_sfield.SetDeclaringClass(temp_klass.Get());
   throws_sfield.SetAccessFlags(kAccStatic | kAccPublic | kAccFinal);
 
   // Proxies have 1 direct method, the constructor
@@ -4334,43 +4340,46 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
     self->AssertPendingOOMException();
     return nullptr;
   }
-  klass->SetMethodsPtr(proxy_class_methods, num_direct_methods, num_virtual_methods);
+  temp_klass->SetMethodsPtr(proxy_class_methods, num_direct_methods, num_virtual_methods);
 
   // Create the single direct method.
-  CreateProxyConstructor(klass, klass->GetDirectMethodUnchecked(0, image_pointer_size_));
+  CreateProxyConstructor(temp_klass, temp_klass->GetDirectMethodUnchecked(0, image_pointer_size_));
 
   // Create virtual method using specified prototypes.
   // TODO These should really use the iterators.
   for (size_t i = 0; i < num_virtual_methods; ++i) {
-    auto* virtual_method = klass->GetVirtualMethodUnchecked(i, image_pointer_size_);
+    auto* virtual_method = temp_klass->GetVirtualMethodUnchecked(i, image_pointer_size_);
     auto* prototype = h_methods->Get(i)->GetArtMethod();
-    CreateProxyMethod(klass, prototype, virtual_method);
+    CreateProxyMethod(temp_klass, prototype, virtual_method);
     DCHECK(virtual_method->GetDeclaringClass() != nullptr);
     DCHECK(prototype->GetDeclaringClass() != nullptr);
   }
 
   // The super class is java.lang.reflect.Proxy
-  klass->SetSuperClass(GetClassRoot(kJavaLangReflectProxy));
+  temp_klass->SetSuperClass(GetClassRoot(kJavaLangReflectProxy));
   // Now effectively in the loaded state.
-  mirror::Class::SetStatus(klass, mirror::Class::kStatusLoaded, self);
+  mirror::Class::SetStatus(temp_klass, mirror::Class::kStatusLoaded, self);
   self->AssertNoPendingException();
 
-  MutableHandle<mirror::Class> new_class = hs.NewHandle<mirror::Class>(nullptr);
+  // At this point the class is loaded. Publish a ClassLoad event.
+  // Note: this may be a temporary class. It is a listener's responsibility to handle this.
+  Runtime::Current()->GetRuntimeCallbacks()->ClassLoad(temp_klass);
+
+  MutableHandle<mirror::Class> klass = hs.NewHandle<mirror::Class>(nullptr);
   {
     // Must hold lock on object when resolved.
-    ObjectLock<mirror::Class> resolution_lock(self, klass);
+    ObjectLock<mirror::Class> resolution_lock(self, temp_klass);
     // Link the fields and virtual methods, creating vtable and iftables.
     // The new class will replace the old one in the class table.
     Handle<mirror::ObjectArray<mirror::Class>> h_interfaces(
         hs.NewHandle(soa.Decode<mirror::ObjectArray<mirror::Class>>(interfaces)));
-    if (!LinkClass(self, descriptor.c_str(), klass, h_interfaces, &new_class)) {
-      mirror::Class::SetStatus(klass, mirror::Class::kStatusErrorUnresolved, self);
+    if (!LinkClass(self, descriptor.c_str(), temp_klass, h_interfaces, &klass)) {
+      mirror::Class::SetStatus(temp_klass, mirror::Class::kStatusErrorUnresolved, self);
       return nullptr;
     }
   }
-  CHECK(klass->IsRetired());
-  CHECK_NE(klass.Get(), new_class.Get());
-  klass.Assign(new_class.Get());
+  CHECK(temp_klass->IsRetired());
+  CHECK_NE(temp_klass.Get(), klass.Get());
 
   CHECK_EQ(interfaces_sfield.GetDeclaringClass(), klass.Get());
   interfaces_sfield.SetObject<false>(
@@ -4380,6 +4389,8 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
   throws_sfield.SetObject<false>(
       klass.Get(),
       soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class>>>(throws));
+
+  Runtime::Current()->GetRuntimeCallbacks()->ClassPrepare(temp_klass, klass);
 
   {
     // Lock on klass is released. Lock new class object.
