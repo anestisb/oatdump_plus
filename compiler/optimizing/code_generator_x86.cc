@@ -186,10 +186,10 @@ class SuspendCheckSlowPathX86 : public SlowPathCode {
     LocationSummary* locations = instruction_->GetLocations();
     CodeGeneratorX86* x86_codegen = down_cast<CodeGeneratorX86*>(codegen);
     __ Bind(GetEntryLabel());
-    SaveLiveRegisters(codegen, locations);  // only saves full width XMM for SIMD
+    SaveLiveRegisters(codegen, locations);  // Only saves full width XMM for SIMD.
     x86_codegen->InvokeRuntime(kQuickTestSuspend, instruction_, instruction_->GetDexPc(), this);
     CheckEntrypointTypes<kQuickTestSuspend, void, void>();
-    RestoreLiveRegisters(codegen, locations);  // only saves full width XMM for SIMD
+    RestoreLiveRegisters(codegen, locations);  // Only restores full width XMM for SIMD.
     if (successor_ == nullptr) {
       __ jmp(GetReturnLabel());
     } else {
