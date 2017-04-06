@@ -499,7 +499,7 @@ def run_test(command, test, test_variant, test_name):
     else:
       print_test_info(test_name, '')
   except subprocess.TimeoutExpired as e:
-    failed_tests.append((test_name, 'Timed out in %d seconds'))
+    failed_tests.append((test_name, 'Timed out in %d seconds' % timeout))
     print_test_info(test_name, 'TIMEOUT', 'Timed out in %d seconds\n%s' % (
         timeout, command))
   except Exception as e:
