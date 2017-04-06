@@ -761,12 +761,11 @@ static JdwpError M_Bytecodes(JdwpState*, Request* request, ExpandBuf* reply)
   return ERR_NONE;
 }
 
-// Default implementation for IDEs relying on this command.
 static JdwpError M_IsObsolete(JdwpState*, Request* request, ExpandBuf* reply)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   request->ReadRefTypeId();  // unused reference type ID
-  request->ReadMethodId();   // unused method ID
-  expandBufAdd1(reply, false);  // a method is never obsolete.
+  MethodId id = request->ReadMethodId();
+  expandBufAdd1(reply, Dbg::IsMethodObsolete(id));
   return ERR_NONE;
 }
 
