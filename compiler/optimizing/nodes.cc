@@ -2380,11 +2380,13 @@ HBasicBlock* HGraph::TransformLoopForVectorization(HBasicBlock* header,
   MakeRoomFor(&reverse_post_order_, 1, index_of_body - 1);
   reverse_post_order_[index_of_body] = new_body;
 
-  // Add gotos and suspend check (client must add conditional in header and copy environment).
+  // Add gotos and suspend check (client must add conditional in header).
   new_pre_header->AddInstruction(new (arena_) HGoto());
   HSuspendCheck* suspend_check = new (arena_) HSuspendCheck(header->GetDexPc());
   new_header->AddInstruction(suspend_check);
   new_body->AddInstruction(new (arena_) HGoto());
+  suspend_check->CopyEnvironmentFromWithLoopPhiAdjustment(
+      loop->GetSuspendCheck()->GetEnvironment(), header);
 
   // Update loop information.
   new_header->AddBackEdge(new_body);
