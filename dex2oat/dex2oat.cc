@@ -385,6 +385,8 @@ NO_RETURN static void Usage(const char* fmt, ...) {
   UsageError("      This option is incompatible with read barriers (e.g., if dex2oat has been");
   UsageError("      built with the environment variable `ART_USE_READ_BARRIER` set to `true`).");
   UsageError("");
+  UsageError("  --classpath-dir=<directory-path>: directory used to resolve relative class paths.");
+  UsageError("");
   std::cerr << "See log for usage error information\n";
   exit(EXIT_FAILURE);
 }
@@ -1234,6 +1236,8 @@ class Dex2Oat FINAL {
           Usage("Cannot use --force-determinism with read barriers or non-CMS garbage collector");
         }
         force_determinism_ = true;
+      } else if (option.starts_with("--classpath-dir=")) {
+        classpath_dir_ = option.substr(strlen("--classpath-dir=")).data();
       } else if (!compiler_options_->ParseCompilerOption(option, Usage)) {
         Usage("Unknown argument %s", option.data());
       }
@@ -1486,12 +1490,13 @@ class Dex2Oat FINAL {
       }
 
       // Open dex files for class path.
-      const std::vector<std::string> class_path_locations =
+      std::vector<std::string> class_path_locations =
           GetClassPathLocations(runtime_->GetClassPathString());
       OpenClassPathFiles(class_path_locations,
                          &class_path_files_,
                          &opened_oat_files_,
-                         runtime_->GetInstructionSet());
+                         runtime_->GetInstructionSet(),
+                         classpath_dir_);
 
       // Store the classpath we have right now.
       std::vector<const DexFile*> class_path_files = MakeNonOwningPointerVector(class_path_files_);
@@ -1501,7 +1506,7 @@ class Dex2Oat FINAL {
         // When passing the special shared library as the classpath, it is the only path.
         encoded_class_path = OatFile::kSpecialSharedLibrary;
       } else {
-        encoded_class_path = OatFile::EncodeDexFileDependencies(class_path_files);
+        encoded_class_path = OatFile::EncodeDexFileDependencies(class_path_files, classpath_dir_);
       }
       key_value_store_->Put(OatHeader::kClassPathKey, encoded_class_path);
     }
@@ -2180,17 +2185,22 @@ class Dex2Oat FINAL {
 
   // Opens requested class path files and appends them to opened_dex_files. If the dex files have
   // been stripped, this opens them from their oat files and appends them to opened_oat_files.
-  static void OpenClassPathFiles(const std::vector<std::string>& class_path_locations,
+  static void OpenClassPathFiles(std::vector<std::string>& class_path_locations,
                                  std::vector<std::unique_ptr<const DexFile>>* opened_dex_files,
                                  std::vector<std::unique_ptr<OatFile>>* opened_oat_files,
-                                 InstructionSet isa) {
+                                 InstructionSet isa,
+                                 std::string& classpath_dir) {
     DCHECK(opened_dex_files != nullptr) << "OpenClassPathFiles dex out-param is nullptr";
     DCHECK(opened_oat_files != nullptr) << "OpenClassPathFiles oat out-param is nullptr";
-    for (const std::string& location : class_path_locations) {
+    for (std::string& location : class_path_locations) {
       // Stop early if we detect the special shared library, which may be passed as the classpath
       // for dex2oat when we want to skip the shared libraries check.
       if (location == OatFile::kSpecialSharedLibrary) {
         break;
+      }
+      // If path is relative, append it to the provided base directory.
+      if (!classpath_dir.empty() && location[0] != '/') {
+        location = classpath_dir + '/' + location;
       }
       static constexpr bool kVerifyChecksum = true;
       std::string error_msg;
@@ -2742,6 +2752,9 @@ class Dex2Oat FINAL {
 
   // See CompilerOptions.force_determinism_.
   bool force_determinism_;
+
+  // Directory of relative classpaths.
+  std::string classpath_dir_;
 
   // Whether the given input vdex is also the output.
   bool update_input_vdex_ = false;
