@@ -52,8 +52,10 @@ class ProfileSaver {
       REQUIRES(!Locks::profiler_lock_, !wait_lock_)
       NO_THREAD_SAFETY_ANALYSIS;
 
-  // Just for testing purpose.
+  // For testing or manual purposes (SIGUSR1).
   static void ForceProcessProfiles();
+
+  // Just for testing purpose.
   static bool HasSeenMethod(const std::string& profile,
                             const DexFile* dex_file,
                             uint16_t method_idx);
