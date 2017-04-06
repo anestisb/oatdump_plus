@@ -371,6 +371,12 @@ ArtMethod* HInliner::TryCHADevirtualization(ArtMethod* resolved_method) {
     // invoke-virtual because a proxy method doesn't have a real dex file.
     return nullptr;
   }
+  if (!single_impl->GetDeclaringClass()->IsResolved()) {
+    // There's a race with the class loading, which updates the CHA info
+    // before setting the class to resolved. So we just bail for this
+    // rare occurence.
+    return nullptr;
+  }
   return single_impl;
 }
 
