@@ -1396,7 +1396,8 @@ void Dbg::SetJdwpLocation(JDWP::JdwpLocation* location, ArtMethod* m, uint32_t d
     mirror::Class* c = m->GetDeclaringClass();
     location->type_tag = GetTypeTag(c);
     location->class_id = gRegistry->AddRefType(c);
-    location->method_id = ToMethodId(m);
+    // The RI Seems to return 0 for all obsolete methods. For compatibility we shall do the same.
+    location->method_id = m->IsObsolete() ? 0 : ToMethodId(m);
     location->dex_pc = (m->IsNative() || m->IsProxyMethod()) ? static_cast<uint64_t>(-1) : dex_pc;
   }
 }
@@ -1407,6 +1408,15 @@ std::string Dbg::GetMethodName(JDWP::MethodId method_id) {
     return "null";
   }
   return m->GetInterfaceMethodIfProxy(kRuntimePointerSize)->GetName();
+}
+
+bool Dbg::IsMethodObsolete(JDWP::MethodId method_id) {
+  ArtMethod* m = FromMethodId(method_id);
+  if (m == nullptr) {
+    // NB Since we return 0 as MID for obsolete methods we want to default to true here.
+    return true;
+  }
+  return m->IsObsolete();
 }
 
 std::string Dbg::GetFieldName(JDWP::FieldId field_id) {
@@ -3717,10 +3727,9 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId thread_id, JDWP::JdwpStepSize 
       if (!m->IsRuntimeMethod()) {
         ++stack_depth;
         if (method == nullptr) {
-          mirror::DexCache* dex_cache = m->GetDeclaringClass()->GetDexCache();
+          const DexFile* dex_file = m->GetDexFile();
           method = m;
-          if (dex_cache != nullptr) {
-            const DexFile* dex_file = dex_cache->GetDexFile();
+          if (dex_file != nullptr) {
             line_number = annotations::GetLineNumFromPC(dex_file, m, GetDexPc());
           }
         }
