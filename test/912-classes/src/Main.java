@@ -282,6 +282,10 @@ public class Main {
     t.start();
     t.join();
 
+    // Check creation of arrays and proxies.
+    Proxy.getProxyClass(Main.class.getClassLoader(), new Class[] { Comparable.class });
+    Class.forName("[LMain;");
+
     enableClassLoadPreparePrintEvents(false);
 
     // Note: the JIT part of this test is about the JIT pulling in a class not yet touched by
