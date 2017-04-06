@@ -449,17 +449,6 @@ static bool IsInstructionSetSupported(InstructionSet instruction_set) {
       || instruction_set == kX86_64;
 }
 
-// Read barrier are supported on ARM, ARM64, x86 and x86-64 at the moment.
-// TODO: Add support for other architectures and remove this function
-static bool InstructionSetSupportsReadBarrier(InstructionSet instruction_set) {
-  return instruction_set == kArm64
-      || instruction_set == kThumb2
-      || instruction_set == kMips
-      || instruction_set == kMips64
-      || instruction_set == kX86
-      || instruction_set == kX86_64;
-}
-
 // Strip pass name suffix to get optimization name.
 static std::string ConvertPassNameToOptimizationName(const std::string& pass_name) {
   size_t pos = pass_name.find(kPassNameSeparator);
@@ -914,12 +903,6 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
     return nullptr;
   }
 
-  // When read barriers are enabled, do not attempt to compile for
-  // instruction sets that have no read barrier support.
-  if (kEmitCompilerReadBarrier && !InstructionSetSupportsReadBarrier(instruction_set)) {
-    return nullptr;
-  }
-
   if (Compiler::IsPathologicalCase(*code_item, method_idx, dex_file)) {
     MaybeRecordStat(MethodCompilationStat::kNotCompiledPathological);
     return nullptr;
@@ -1110,13 +1093,10 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
 
   if (kIsDebugBuild &&
       IsCompilingWithCoreImage() &&
-      IsInstructionSetSupported(compiler_driver->GetInstructionSet()) &&
-      (!kEmitCompilerReadBarrier ||
-       InstructionSetSupportsReadBarrier(compiler_driver->GetInstructionSet()))) {
+      IsInstructionSetSupported(compiler_driver->GetInstructionSet())) {
     // For testing purposes, we put a special marker on method names
-    // that should be compiled with this compiler (when the the
-    // instruction set is supported -- and has support for read
-    // barriers, if they are enabled). This makes sure we're not
+    // that should be compiled with this compiler (when the
+    // instruction set is supported). This makes sure we're not
     // regressing.
     std::string method_name = dex_file.PrettyMethod(method_idx);
     bool shouldCompile = method_name.find("$opt$") != std::string::npos;

@@ -117,25 +117,6 @@ class CommonCompilerTest : public CommonRuntimeTest {
   std::list<std::vector<uint8_t>> header_code_and_maps_chunks_;
 };
 
-// TODO: When read barrier works with all Optimizing back ends, get rid of this.
-#define TEST_DISABLED_FOR_READ_BARRIER_WITH_OPTIMIZING_FOR_UNSUPPORTED_INSTRUCTION_SETS() \
-  if (kUseReadBarrier && GetCompilerKind() == Compiler::kOptimizing) {                    \
-    switch (GetInstructionSet()) {                                                        \
-      case kArm64:                                                                        \
-      case kThumb2:                                                                       \
-      case kX86:                                                                          \
-      case kX86_64:                                                                       \
-        /* Instruction set has read barrier support. */                                   \
-        break;                                                                            \
-                                                                                          \
-      default:                                                                            \
-        /* Instruction set does not have barrier support. */                              \
-        printf("WARNING: TEST DISABLED FOR READ BARRIER WITH OPTIMIZING "                 \
-               "FOR THIS INSTRUCTION SET\n");                                             \
-        return;                                                                           \
-    }                                                                                     \
-  }
-
 }  // namespace art
 
 #endif  // ART_COMPILER_COMMON_COMPILER_TEST_H_
