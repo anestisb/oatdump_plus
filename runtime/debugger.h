@@ -370,6 +370,8 @@ class Dbg {
   //
   static std::string GetMethodName(JDWP::MethodId method_id)
       REQUIRES_SHARED(Locks::mutator_lock_);
+  static bool IsMethodObsolete(JDWP::MethodId method_id)
+      REQUIRES_SHARED(Locks::mutator_lock_);
   static JDWP::JdwpError OutputDeclaredFields(JDWP::RefTypeId ref_type_id, bool with_generic,
                                               JDWP::ExpandBuf* pReply)
       REQUIRES_SHARED(Locks::mutator_lock_);
