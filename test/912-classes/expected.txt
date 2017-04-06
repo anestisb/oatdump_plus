@@ -92,3 +92,7 @@ Load: LA; on TestRunner
 Prepare: LA; on TestRunner (cur=TestRunner)
 Load: LC; on TestRunner
 Prepare: LC; on TestRunner (cur=TestRunner)
+Load: L$Proxy1; on main
+Prepare: L$Proxy1; on main (cur=main)
+Load: [LMain; on main
+Prepare: [LMain; on main (cur=main)
