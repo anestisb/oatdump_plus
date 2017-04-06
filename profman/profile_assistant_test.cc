@@ -167,12 +167,12 @@ class ProfileAssistantTest : public CommonRuntimeTest {
     return true;
   }
 
-  bool DumpClasses(const std::string& filename, std::string* file_contents) {
+  bool DumpClassesAndMethods(const std::string& filename, std::string* file_contents) {
     ScratchFile class_names_file;
     std::string profman_cmd = GetProfmanCmd();
     std::vector<std::string> argv_str;
     argv_str.push_back(profman_cmd);
-    argv_str.push_back("--dump-classes");
+    argv_str.push_back("--dump-classes-and-methods");
     argv_str.push_back("--profile-file=" + filename);
     argv_str.push_back("--apk=" + GetLibCoreDexFileNames()[0]);
     argv_str.push_back("--dex-location=" + GetLibCoreDexFileNames()[0]);
@@ -196,7 +196,7 @@ class ProfileAssistantTest : public CommonRuntimeTest {
                               profile_file.GetFilename(),
                               GetLibCoreDexFileNames()[0]));
     profile_file.GetFile()->ResetOffset();
-    EXPECT_TRUE(DumpClasses(profile_file.GetFilename(), output_file_contents));
+    EXPECT_TRUE(DumpClassesAndMethods(profile_file.GetFilename(), output_file_contents));
     return true;
   }
 
@@ -478,18 +478,16 @@ TEST_F(ProfileAssistantTest, TestProfileCreationAllMatch) {
   std::vector<std::string> class_names = {
     "Ljava/lang/Comparable;",
     "Ljava/lang/Math;",
-    "Ljava/lang/Object;"
+    "Ljava/lang/Object;",
+    "Ljava/lang/Object;-><init>()V"
   };
-  std::string input_file_contents;
-  std::string expected_contents;
+  std::string file_contents;
   for (std::string& class_name : class_names) {
-    input_file_contents += class_name + std::string("\n");
-    expected_contents += DescriptorToDot(class_name.c_str()) +
-        std::string("\n");
+    file_contents += class_name + std::string("\n");
   }
   std::string output_file_contents;
-  ASSERT_TRUE(CreateAndDump(input_file_contents, &output_file_contents));
-  ASSERT_EQ(output_file_contents, expected_contents);
+  ASSERT_TRUE(CreateAndDump(file_contents, &output_file_contents));
+  ASSERT_EQ(output_file_contents, file_contents);
 }
 
 TEST_F(ProfileAssistantTest, TestProfileCreationGenerateMethods) {
@@ -544,8 +542,8 @@ TEST_F(ProfileAssistantTest, TestProfileCreationOneNotMatched) {
   std::string output_file_contents;
   ASSERT_TRUE(CreateAndDump(input_file_contents, &output_file_contents));
   std::string expected_contents =
-      DescriptorToDot(class_names[1].c_str()) + std::string("\n") +
-      DescriptorToDot(class_names[2].c_str()) + std::string("\n");
+      class_names[1] + std::string("\n") +
+      class_names[2] + std::string("\n");
   ASSERT_EQ(output_file_contents, expected_contents);
 }
 

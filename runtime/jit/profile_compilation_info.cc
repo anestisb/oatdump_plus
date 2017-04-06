@@ -1081,35 +1081,18 @@ std::string ProfileCompilationInfo::DumpInfo(const std::vector<const DexFile*>* 
   return os.str();
 }
 
-void ProfileCompilationInfo::GetClassNames(
-    const std::vector<std::unique_ptr<const DexFile>>* dex_files,
-    std::set<std::string>* class_names) const {
-  std::unique_ptr<const std::vector<const DexFile*>> non_owning_dex_files(
-      MakeNonOwningVector(dex_files));
-  GetClassNames(non_owning_dex_files.get(), class_names);
-}
-
-void ProfileCompilationInfo::GetClassNames(const std::vector<const DexFile*>* dex_files,
-                                           std::set<std::string>* class_names) const {
-  if (info_.empty()) {
-    return;
+bool ProfileCompilationInfo::GetClassesAndMethods(const DexFile* dex_file,
+                                                  std::set<dex::TypeIndex>* class_set,
+                                                  MethodMap* method_map) const {
+  std::set<std::string> ret;
+  std::string profile_key = GetProfileDexFileKey(dex_file->GetLocation());
+  const DexFileData* dex_data = FindDexData(profile_key);
+  if (dex_data == nullptr || dex_data->checksum != dex_file->GetLocationChecksum()) {
+    return false;
   }
-  for (const DexFileData* dex_data : info_) {
-    const DexFile* dex_file = nullptr;
-    if (dex_files != nullptr) {
-      for (size_t i = 0; i < dex_files->size(); i++) {
-        if (dex_data->profile_key == GetProfileDexFileKey((*dex_files)[i]->GetLocation()) &&
-            dex_data->checksum == (*dex_files)[i]->GetLocationChecksum()) {
-          dex_file = (*dex_files)[i];
-        }
-      }
-    }
-    for (const auto class_it : dex_data->class_set) {
-      if (dex_file != nullptr) {
-        class_names->insert(std::string(dex_file->PrettyType(class_it)));
-      }
-    }
-  }
+  *method_map = dex_data->method_map;
+  *class_set = dex_data->class_set;
+  return true;
 }
 
 bool ProfileCompilationInfo::Equals(const ProfileCompilationInfo& other) {
