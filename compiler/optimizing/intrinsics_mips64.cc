@@ -834,15 +834,15 @@ static void GenRoundingMode(LocationSummary* locations,
   __ Bnezc(AT, &done);
 
   //     Long outLong = floor/ceil(in);
-  //     if outLong == Long.MAX_VALUE {
+  //     if (outLong == Long.MAX_VALUE) || (outLong == Long.MIN_VALUE) {
   //         // floor()/ceil() has almost certainly returned a value
   //         // which can't be successfully represented as a signed
   //         // 64-bit number.  Java expects that the input value will
   //         // be returned in these cases.
   //         // There is also a small probability that floor(in)/ceil(in)
   //         // correctly truncates/rounds up the input value to
-  //         // Long.MAX_VALUE.  In that case, this exception handling
-  //         // code still does the correct thing.
+  //         // Long.MAX_VALUE or Long.MIN_VALUE. In these cases, this
+  //         // exception handling code still does the correct thing.
   //         return in;
   //     }
   if (mode == kFloor) {
@@ -852,8 +852,14 @@ static void GenRoundingMode(LocationSummary* locations,
   }
   __ Dmfc1(AT, out);
   __ MovD(out, in);
-  __ LoadConst64(TMP, kPrimLongMax);
-  __ Beqc(AT, TMP, &done);
+  __ Daddiu(TMP, AT, 1);
+  __ Dati(TMP, 0x8000);  // TMP = AT + 0x8000 0000 0000 0001
+                         // or    AT - 0x7FFF FFFF FFFF FFFF.
+                         // IOW, TMP = 1 if AT = Long.MIN_VALUE
+                         // or   TMP = 0 if AT = Long.MAX_VALUE.
+  __ Dsrl(TMP, TMP, 1);  // TMP = 0 if AT = Long.MIN_VALUE
+                         //         or AT = Long.MAX_VALUE.
+  __ Beqzc(TMP, &done);
 
   //     double out = outLong;
   //     return out;
