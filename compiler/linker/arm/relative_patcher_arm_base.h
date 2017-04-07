@@ -43,10 +43,11 @@ class ArmBaseRelativePatcher : public RelativePatcher {
   enum class ThunkType {
     kMethodCall,              // Method call thunk.
     kBakerReadBarrierField,   // Baker read barrier, load field or array element at known offset.
+    kBakerReadBarrierArray,   // Baker read barrier, array load with index in register.
     kBakerReadBarrierRoot,    // Baker read barrier, GC root load.
   };
 
-  struct BakerReadBarrierOffsetParams {
+  struct BakerReadBarrierFieldParams {
     uint32_t holder_reg;      // Holder object for reading lock word.
     uint32_t base_reg;        // Base register, different from holder for large offset.
                               // If base differs from holder, it should be a pre-defined
@@ -54,9 +55,16 @@ class ArmBaseRelativePatcher : public RelativePatcher {
                               // The offset is retrieved using introspection.
   };
 
+  struct BakerReadBarrierArrayParams {
+    uint32_t base_reg;        // Reference to the start of the data.
+    uint32_t dummy;           // Dummy field.
+                              // The index register is retrieved using introspection
+                              // to limit the number of thunks we need to emit.
+  };
+
   struct BakerReadBarrierRootParams {
     uint32_t root_reg;        // The register holding the GC root.
-    uint32_t dummy;
+    uint32_t dummy;           // Dummy field.
   };
 
   struct RawThunkParams {
@@ -66,8 +74,12 @@ class ArmBaseRelativePatcher : public RelativePatcher {
 
   union ThunkParams {
     RawThunkParams raw_params;
-    BakerReadBarrierOffsetParams offset_params;
+    BakerReadBarrierFieldParams field_params;
+    BakerReadBarrierArrayParams array_params;
     BakerReadBarrierRootParams root_params;
+    static_assert(sizeof(raw_params) == sizeof(field_params), "field_params size check");
+    static_assert(sizeof(raw_params) == sizeof(array_params), "array_params size check");
+    static_assert(sizeof(raw_params) == sizeof(root_params), "root_params size check");
   };
 
   class ThunkKey {
@@ -78,9 +90,14 @@ class ArmBaseRelativePatcher : public RelativePatcher {
       return type_;
     }
 
-    BakerReadBarrierOffsetParams GetOffsetParams() const {
+    BakerReadBarrierFieldParams GetFieldParams() const {
       DCHECK(type_ == ThunkType::kBakerReadBarrierField);
-      return params_.offset_params;
+      return params_.field_params;
+    }
+
+    BakerReadBarrierArrayParams GetArrayParams() const {
+      DCHECK(type_ == ThunkType::kBakerReadBarrierArray);
+      return params_.array_params;
     }
 
     BakerReadBarrierRootParams GetRootParams() const {

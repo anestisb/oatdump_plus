@@ -5376,10 +5376,16 @@ class HArrayGet FINAL : public HExpression<2> {
   }
   bool CanDoImplicitNullCheckOn(HInstruction* obj ATTRIBUTE_UNUSED) const OVERRIDE {
     // TODO: We can be smarter here.
-    // Currently, the array access is always preceded by an ArrayLength or a NullCheck
-    // which generates the implicit null check. There are cases when these can be removed
-    // to produce better code. If we ever add optimizations to do so we should allow an
-    // implicit check here (as long as the address falls in the first page).
+    // Currently, unless the array is the result of NewArray, the array access is always
+    // preceded by some form of null NullCheck necessary for the bounds check, usually
+    // implicit null check on the ArrayLength input to BoundsCheck or Deoptimize for
+    // dynamic BCE. There are cases when these could be removed to produce better code.
+    // If we ever add optimizations to do so we should allow an implicit check here
+    // (as long as the address falls in the first page).
+    //
+    // As an example of such fancy optimization, we could eliminate BoundsCheck for
+    //     a = cond ? new int[1] : null;
+    //     a[0];  // The Phi does not need bounds check for either input.
     return false;
   }
 
