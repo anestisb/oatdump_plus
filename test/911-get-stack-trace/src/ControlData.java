@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+package art;
+
 import java.util.concurrent.CountDownLatch;
 
 public class ControlData {

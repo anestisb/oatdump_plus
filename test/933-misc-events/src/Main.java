@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
-public class Main {
-  public static void main(String[] args) throws Exception {
+package art;
+
+public class Test933 {
+  public static void run() throws Exception {
+    Main.bindAgentJNIForClass(Test933.class);
     testSigQuit();
 
     System.out.println("Done");

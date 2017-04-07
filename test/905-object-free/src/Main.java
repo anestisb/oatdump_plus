@@ -14,11 +14,14 @@
  * limitations under the License.
  */
 
+package art;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 
-public class Main {
-  public static void main(String[] args) throws Exception {
+public class Test905 {
+  public static void run() throws Exception {
+    Main.bindAgentJNIForClass(Test905.class);
     doTest();
   }
 
@@ -67,7 +70,7 @@ public class Main {
 
   private static void stressAllocate(int i) {
     Object obj = new Object();
-    setTag(obj, i);
+    Main.setTag(obj, i);
     setTag2(obj, i + 1);
   }
 
@@ -92,7 +95,7 @@ public class Main {
   private static void allocate(ArrayList<Object> l, long tag) {
     Object obj = new Object();
     l.add(obj);
-    setTag(obj, tag);
+    Main.setTag(obj, tag);
   }
 
   private static void getAndPrintTags() {
@@ -103,7 +106,6 @@ public class Main {
 
   private static native void setupObjectFreeCallback();
   private static native void enableFreeTracking(boolean enable);
-  private static native void setTag(Object o, long tag);
   private static native long[] getCollectedTags(int index);
   private static native void setTag2(Object o, long tag);
 }

@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+package art;
+
 public class Recurse {
   public static int foo(int x, int start, int max, ControlData data) {
     bar(x, start, max, data);

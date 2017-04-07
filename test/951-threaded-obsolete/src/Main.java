@@ -54,6 +54,7 @@ public class Main {
     "AAACIAAAEQAAAKIBAAADIAAAAgAAAJECAAAAIAAAAQAAAJ8CAAAAEAAAAQAAALACAAA=");
 
   public static void main(String[] args) {
+    art.Main.bindAgentJNIForClass(Main.class);
     // Semaphores to let each thread know where the other is. We could use barriers but semaphores
     // mean we don't need to have the worker thread be waiting around.
     final Semaphore sem_redefine_start = new Semaphore(0);

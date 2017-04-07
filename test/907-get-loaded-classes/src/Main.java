@@ -14,12 +14,15 @@
  * limitations under the License.
  */
 
+package art;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 
-public class Main {
-  public static void main(String[] args) throws Exception {
+public class Test907 {
+  public static void run() throws Exception {
+    Main.bindAgentJNIForClass(Test907.class);
     doTest();
   }
 
@@ -33,7 +36,8 @@ public class Main {
     HashSet<String> classesSet = new HashSet<>(Arrays.asList(classes));
 
     String[] shouldBeLoaded = new String[] {
-        "java.lang.Object", "java.lang.Class", "java.lang.String", "Main$A", "Main$B", "[LMain$A;"
+        "java.lang.Object", "java.lang.Class", "java.lang.String", "art.Test907$A",
+        "art.Test907$B", "[Lart.Test907$A;"
     };
 
     boolean error = false;

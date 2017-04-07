@@ -14,11 +14,14 @@
  * limitations under the License.
  */
 
+package art;
+
 import java.lang.reflect.Field;
 import java.util.Arrays;
 
-public class Main {
-  public static void main(String[] args) throws Exception {
+public class Test918 {
+  public static void run() throws Exception {
+    Main.bindAgentJNIForClass(Test918.class);
     doTest();
   }
 

@@ -14,11 +14,14 @@
  * limitations under the License.
  */
 
+package art;
+
 import java.util.Set;
 import java.util.TreeSet;
 
-public class Main {
-  public static void main(String[] args) throws Exception {
+public class Test922 {
+  public static void run() throws Exception {
+    Main.bindAgentJNIForClass(Test922.class);
     doTest();
   }
 

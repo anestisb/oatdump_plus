@@ -14,13 +14,16 @@
  * limitations under the License.
  */
 
+package art;
+
 import java.util.concurrent.CountDownLatch;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-public class Main {
-  public static void main(String[] args) throws Exception {
+public class Test923 {
+  public static void run() throws Exception {
+    Main.bindAgentJNIForClass(Test923.class);
     doTest();
   }
 

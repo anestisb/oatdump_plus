@@ -14,10 +14,13 @@
  * limitations under the License.
  */
 
+package art;
+
 import java.util.Arrays;
 
-public class Main {
-  public static void main(String[] args) throws Exception {
+public class Test927 {
+  public static void run() throws Exception {
+    Main.bindAgentJNIForClass(Test927.class);
     doTest();
   }
 

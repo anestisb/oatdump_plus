@@ -14,10 +14,13 @@
  * limitations under the License.
  */
 
+package art;
+
 import java.util.Arrays;
 
-public class Main {
-  public static void main(String[] args) throws Exception {
+public class Test931 {
+  public static void run() throws Exception {
+    Main.bindAgentJNIForClass(Test931.class);
     testAgentThread();
 
     System.out.println("Done");

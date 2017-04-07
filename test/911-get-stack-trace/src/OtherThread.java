@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+package art;
+
 public class OtherThread {
   public static void doTestOtherThreadWait() throws Exception {
     System.out.println("################################");

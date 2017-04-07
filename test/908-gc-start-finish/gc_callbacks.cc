@@ -40,7 +40,7 @@ static void JNICALL GarbageCollectionStart(jvmtiEnv* ti_env ATTRIBUTE_UNUSED) {
   starts++;
 }
 
-extern "C" JNIEXPORT void JNICALL Java_Main_setupGcCallback(
+extern "C" JNIEXPORT void JNICALL Java_art_Test908_setupGcCallback(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
   jvmtiEventCallbacks callbacks;
   memset(&callbacks, 0, sizeof(jvmtiEventCallbacks));
@@ -51,9 +51,9 @@ extern "C" JNIEXPORT void JNICALL Java_Main_setupGcCallback(
   JvmtiErrorToException(env, jvmti_env, ret);
 }
 
-extern "C" JNIEXPORT void JNICALL Java_Main_enableGcTracking(JNIEnv* env,
-                                                             jclass klass ATTRIBUTE_UNUSED,
-                                                             jboolean enable) {
+extern "C" JNIEXPORT void JNICALL Java_art_Test908_enableGcTracking(JNIEnv* env,
+                                                                    jclass klass ATTRIBUTE_UNUSED,
+                                                                    jboolean enable) {
   jvmtiError ret = jvmti_env->SetEventNotificationMode(
       enable ? JVMTI_ENABLE : JVMTI_DISABLE,
       JVMTI_EVENT_GARBAGE_COLLECTION_START,
@@ -70,15 +70,15 @@ extern "C" JNIEXPORT void JNICALL Java_Main_enableGcTracking(JNIEnv* env,
   }
 }
 
-extern "C" JNIEXPORT jint JNICALL Java_Main_getGcStarts(JNIEnv* env ATTRIBUTE_UNUSED,
-                                                        jclass klass ATTRIBUTE_UNUSED) {
+extern "C" JNIEXPORT jint JNICALL Java_art_Test908_getGcStarts(JNIEnv* env ATTRIBUTE_UNUSED,
+                                                               jclass klass ATTRIBUTE_UNUSED) {
   jint result = static_cast<jint>(starts);
   starts = 0;
   return result;
 }
 
-extern "C" JNIEXPORT jint JNICALL Java_Main_getGcFinishes(JNIEnv* env ATTRIBUTE_UNUSED,
-                                                          jclass klass ATTRIBUTE_UNUSED) {
+extern "C" JNIEXPORT jint JNICALL Java_art_Test908_getGcFinishes(JNIEnv* env ATTRIBUTE_UNUSED,
+                                                                 jclass klass ATTRIBUTE_UNUSED) {
   jint result = static_cast<jint>(finishes);
   finishes = 0;
   return result;

@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+package art;
+
 public class ThreadListTraces {
   public static void doTest() throws Exception {
     System.out.println("########################################");

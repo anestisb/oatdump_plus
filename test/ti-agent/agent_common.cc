@@ -14,15 +14,29 @@
  * limitations under the License.
  */
 
-package art;
+#include "android-base/logging.h"
+#include "android-base/macros.h"
 
-public class Test928 {
-  public static void run() throws Exception {
-    Main.bindAgentJNIForClass(Test928.class);
-    doJNITableTest();
+#include "jvmti_helper.h"
+#include "test_env.h"
 
-    System.out.println("Done");
-  }
+namespace art {
 
-  public static native void doJNITableTest();
+// Common JNI functions.
+
+extern "C" JNIEXPORT void JNICALL Java_art_Main_setTag(
+    JNIEnv* env, jclass, jobject obj, jlong tag) {
+  jvmtiError ret = jvmti_env->SetTag(obj, tag);
+  JvmtiErrorToException(env, jvmti_env, ret);
 }
+
+extern "C" JNIEXPORT jlong JNICALL Java_art_Main_getTag(JNIEnv* env, jclass, jobject obj) {
+  jlong tag = 0;
+  jvmtiError ret = jvmti_env->GetTag(obj, &tag);
+  if (JvmtiErrorToException(env, jvmti_env, ret)) {
+    return 0;
+  }
+  return tag;
+}
+
+}  // namespace art

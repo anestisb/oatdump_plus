@@ -288,6 +288,7 @@ public class Main {
       System.getenv("DEX_LOCATION") + "/980-redefine-object-ex.jar";
 
   public static void main(String[] args) {
+    art.Main.bindAgentJNIForClass(Main.class);
     doTest();
   }
 

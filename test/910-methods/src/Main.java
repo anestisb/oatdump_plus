@@ -14,12 +14,15 @@
  * limitations under the License.
  */
 
+package art;
+
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.Arrays;
 
-public class Main {
-  public static void main(String[] args) throws Exception {
+public class Test910 {
+  public static void run() throws Exception {
+    Main.bindAgentJNIForClass(Test910.class);
     doTest();
   }
 

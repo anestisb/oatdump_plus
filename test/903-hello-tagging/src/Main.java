@@ -14,12 +14,16 @@
  * limitations under the License.
  */
 
+package art;
+
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Arrays;
 
-public class Main {
-  public static void main(String[] args) {
+public class Test903 {
+  public static void run() {
+    Main.bindAgentJNIForClass(Test903.class);
+
     doTest();
     testGetTaggedObjects();
     testTags();
@@ -44,10 +48,10 @@ public class Main {
 
   private static WeakReference<Object> test() {
     Object o1 = new Object();
-    setTag(o1, 1);
+    Main.setTag(o1, 1);
 
     Object o2 = new Object();
-    setTag(o2, 2);
+    Main.setTag(o2, 2);
 
     checkTag(o1, 1);
     checkTag(o2, 2);
@@ -61,8 +65,8 @@ public class Main {
     Runtime.getRuntime().gc();
     Runtime.getRuntime().gc();
 
-    setTag(o1, 10);
-    setTag(o2, 20);
+    Main.setTag(o1, 10);
+    Main.setTag(o2, 20);
 
     checkTag(o1, 10);
     checkTag(o2, 20);
@@ -71,7 +75,7 @@ public class Main {
   }
 
   private static void checkTag(Object o, long expectedTag) {
-    long tag = getTag(o);
+    long tag = Main.getTag(o);
     if (expectedTag != tag) {
       throw new RuntimeException("Unexpected tag " + tag + ", expected " + expectedTag);
     }
@@ -86,7 +90,7 @@ public class Main {
       Integer o = new Integer(i);
       l.add(o);
       if (i % 10 != 0) {
-        setTag(o, i % 10);
+        Main.setTag(o, i % 10);
       }
     }
 
@@ -169,8 +173,6 @@ public class Main {
     }
   }
 
-  private static native void setTag(Object o, long tag);
-  private static native long getTag(Object o);
   private static native Object[] getTaggedObjects(long[] searchTags, boolean returnObjects,
       boolean returnTags);
   private static native long[] testTagsInDifferentEnvs(Object o, long baseTag, int n);

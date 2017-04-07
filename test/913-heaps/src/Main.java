@@ -14,14 +14,18 @@
  * limitations under the License.
  */
 
+package art;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 
-public class Main {
-  public static void main(String[] args) throws Exception {
+public class Test913 {
+  public static void run() throws Exception {
+    Main.bindAgentJNIForClass(Test913.class);
+
     doTest();
     new TestConfig().doFollowReferencesTest();
 
@@ -69,7 +73,7 @@ public class Main {
     setupGcCallback();
 
     enableGcTracking(true);
-    run();
+    runGc();
     enableGcTracking(false);
   }
 
@@ -191,7 +195,7 @@ public class Main {
     System.out.println(getTag(floatObject));
   }
 
-  private static void run() {
+  private static void runGc() {
     clearStats();
     forceGarbageCollection();
     printStats();
@@ -595,14 +599,18 @@ public class Main {
     }
   }
 
+  private static void setTag(Object o, long tag) {
+    Main.setTag(o, tag);
+  }
+  private static long getTag(Object o) {
+    return Main.getTag(o);
+  }
+
   private static native void setupGcCallback();
   private static native void enableGcTracking(boolean enable);
   private static native int getGcStarts();
   private static native int getGcFinishes();
   private static native void forceGarbageCollection();
-
-  public static native void setTag(Object o, long tag);
-  public static native long getTag(Object o);
 
   public static native String[] followReferences(int heapFilter, Class<?> klassFilter,
       Object initialObject, int stopAfter, int followSet, Object jniRef);

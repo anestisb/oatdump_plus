@@ -89,7 +89,7 @@ static void AgentMain(jvmtiEnv* jenv, JNIEnv* env, void* arg) {
   CHECK(wait_result == PTHREAD_BARRIER_SERIAL_THREAD || wait_result == 0);
 }
 
-extern "C" JNIEXPORT void JNICALL Java_Main_testAgentThread(
+extern "C" JNIEXPORT void JNICALL Java_art_Test931_testAgentThread(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED) {
   // Create a Thread object.
   ScopedLocalRef<jobject> thread_name(env, env->NewStringUTF("Agent Thread"));

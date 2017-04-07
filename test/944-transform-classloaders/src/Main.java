@@ -203,6 +203,8 @@ public class Main {
   }
 
   private static void doTest() throws Exception {
+    art.Main.bindAgentJNIForClass(Main.class);
+
     Transform t = new Transform();
     Transform2 t2 = new Transform2();
 

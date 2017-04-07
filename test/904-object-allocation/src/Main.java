@@ -14,10 +14,14 @@
  * limitations under the License.
  */
 
+package art;
+
 import java.util.ArrayList;
 
-public class Main {
-  public static void main(String[] args) throws Exception {
+public class Test904 {
+  public static void run() throws Exception {
+    Main.bindAgentJNIForClass(Test904.class);
+
     // Use a list to ensure objects must be allocated.
     ArrayList<Object> l = new ArrayList<>(100);
 

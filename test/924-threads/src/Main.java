@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+package art;
+
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -24,8 +26,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-public class Main {
-  public static void main(String[] args) throws Exception {
+public class Test924 {
+  public static void run() throws Exception {
+    Main.bindAgentJNIForClass(Test924.class);
     doTest();
   }
 

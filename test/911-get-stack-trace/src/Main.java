@@ -14,9 +14,14 @@
  * limitations under the License.
  */
 
-public class Main {
-  public static void main(String[] args) throws Exception {
-    bindTest911Classes();
+package art;
+
+public class Test911 {
+  public static void run() throws Exception {
+    Main.bindAgentJNIForClass(AllTraces.class);
+    Main.bindAgentJNIForClass(Frames.class);
+    Main.bindAgentJNIForClass(PrintThread.class);
+    Main.bindAgentJNIForClass(ThreadListTraces.class);
 
     SameThread.doTest();
 
@@ -42,6 +47,4 @@ public class Main {
 
     System.out.println("Done");
   }
-
-  private static native void bindTest911Classes();
 }

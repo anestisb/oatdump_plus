@@ -14,8 +14,12 @@
  * limitations under the License.
  */
 
-public class Main {
-  public static void main(String[] args) {
+package art;
+
+public class Test901 {
+  public static void run() {
+    Main.bindAgentJNIForClass(Test901.class);
+
     System.out.println("Hello, world!");
 
     if (checkLivePhase()) {

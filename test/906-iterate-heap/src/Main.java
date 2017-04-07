@@ -14,11 +14,14 @@
  * limitations under the License.
  */
 
+package art;
+
 import java.util.ArrayList;
 import java.util.Collections;
 
-public class Main {
-  public static void main(String[] args) throws Exception {
+public class Test906 {
+  public static void run() throws Exception {
+    Main.bindAgentJNIForClass(Test906.class);
     doTest();
   }
 
@@ -251,13 +254,17 @@ public class Main {
     static int sI = 6;
   }
 
-  private static native void setTag(Object o, long tag);
-  private static native long getTag(Object o);
-
   private final static int HEAP_FILTER_OUT_TAGGED = 0x4;
   private final static int HEAP_FILTER_OUT_UNTAGGED = 0x8;
   private final static int HEAP_FILTER_OUT_CLASS_TAGGED = 0x10;
   private final static int HEAP_FILTER_OUT_CLASS_UNTAGGED = 0x20;
+
+  private static void setTag(Object o, long tag) {
+    Main.setTag(o, tag);
+  }
+  private static long getTag(Object o) {
+    return Main.getTag(o);
+  }
 
   private static native int iterateThroughHeapCount(int heapFilter,
       Class<?> klassFilter, int stopAfter);
