@@ -825,7 +825,7 @@ void Runtime::InitNonZygoteOrPostFork(
 
 void Runtime::StartSignalCatcher() {
   if (!is_zygote_) {
-    signal_catcher_ = new SignalCatcher(stack_trace_file_);
+    signal_catcher_ = new SignalCatcher(stack_trace_dir_, stack_trace_file_);
   }
 }
 
@@ -1035,6 +1035,7 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   abort_ = runtime_options.GetOrDefault(Opt::HookAbort);
 
   default_stack_size_ = runtime_options.GetOrDefault(Opt::StackSize);
+  stack_trace_dir_ = runtime_options.ReleaseOrDefault(Opt::StackTraceDir);
   stack_trace_file_ = runtime_options.ReleaseOrDefault(Opt::StackTraceFile);
 
   compiler_executable_ = runtime_options.ReleaseOrDefault(Opt::Compiler);

@@ -767,6 +767,7 @@ class Runtime {
   ClassLinker* class_linker_;
 
   SignalCatcher* signal_catcher_;
+  std::string stack_trace_dir_;
   std::string stack_trace_file_;
 
   std::unique_ptr<JavaVMExt> java_vm_;
