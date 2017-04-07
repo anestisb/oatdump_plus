@@ -90,8 +90,9 @@ NO_RETURN static void Usage(const char *fmt, ...) {
   UsageError("");
   UsageError("  --dump-output-to-fd=<number>: redirects --dump-only output to a file descriptor.");
   UsageError("");
-  UsageError("  --dump-classes: dumps a sorted list of classes that are in the specified profile");
-  UsageError("      file to standard output (default) in a human readable form.");
+  UsageError("  --dump-classes-and-methods: dumps a sorted list of classes and methods that are");
+  UsageError("      in the specified profile file to standard output (default) in a human");
+  UsageError("      readable form. The output is valid input for --create-profile-from");
   UsageError("");
   UsageError("  --profile-file=<filename>: specify profiler output file to use for compilation.");
   UsageError("      Can be specified multiple time, in which case the data from the different");
@@ -120,7 +121,8 @@ NO_RETURN static void Usage(const char *fmt, ...) {
   UsageError("  --generate-test-profile-seed=<number>: seed for random number generator used when");
   UsageError("      generating random test profiles. Defaults to using NanoTime.");
   UsageError("");
-  UsageError("  --create-profile-from=<filename>: creates a profile from a list of classes.");
+  UsageError("  --create-profile-from=<filename>: creates a profile from a list of classes and");
+  UsageError("      methods.");
   UsageError("");
   UsageError("  --dex-location=<string>: location string to use with corresponding");
   UsageError("      apk-fd to find dex files");
@@ -153,7 +155,7 @@ class ProfMan FINAL {
   ProfMan() :
       reference_profile_file_fd_(kInvalidFd),
       dump_only_(false),
-      dump_classes_(false),
+      dump_classes_and_methods_(false),
       dump_output_to_fd_(kInvalidFd),
       test_profile_num_dex_(kDefaultTestProfileNumDex),
       test_profile_method_ratio_(kDefaultTestProfileMethodRatio),
@@ -187,8 +189,8 @@ class ProfMan FINAL {
       }
       if (option == "--dump-only") {
         dump_only_ = true;
-      } else if (option == "--dump-classes") {
-        dump_classes_ = true;
+      } else if (option == "--dump-classes-and-methods") {
+        dump_classes_and_methods_ = true;
       } else if (option.starts_with("--create-profile-from=")) {
         create_profile_from_file_ = option.substr(strlen("--create-profile-from=")).ToString();
       } else if (option.starts_with("--dump-output-to-fd=")) {
@@ -411,27 +413,45 @@ class ProfMan FINAL {
     return dump_only_;
   }
 
-  bool GetClassNames(int fd,
-                     std::vector<std::unique_ptr<const DexFile>>* dex_files,
-                     std::set<std::string>* class_names) {
+  bool GetClassNamesAndMethods(int fd,
+                               std::vector<std::unique_ptr<const DexFile>>* dex_files,
+                               std::set<std::string>* out_lines) {
     ProfileCompilationInfo profile_info;
     if (!profile_info.Load(fd)) {
       LOG(ERROR) << "Cannot load profile info";
       return false;
     }
-    profile_info.GetClassNames(dex_files, class_names);
+    for (const std::unique_ptr<const DexFile>& dex_file : *dex_files) {
+      std::set<dex::TypeIndex> class_types;
+      ProfileCompilationInfo::MethodMap methods;
+      if (profile_info.GetClassesAndMethods(dex_file.get(), &class_types, &methods)) {
+        for (const dex::TypeIndex& type_index : class_types) {
+          const DexFile::TypeId& type_id = dex_file->GetTypeId(type_index);
+          out_lines->insert(std::string(dex_file->GetTypeDescriptor(type_id)));
+        }
+        for (const auto& pair : methods) {
+          // TODO: Process inline caches.
+          const uint16_t dex_method_idx = pair.first;
+          const DexFile::MethodId& id = dex_file->GetMethodId(dex_method_idx);
+          std::string signature_string(dex_file->GetMethodSignature(id).ToString());
+          std::string type_string(dex_file->GetTypeDescriptor(dex_file->GetTypeId(id.class_idx_)));
+          std::string method_name(dex_file->GetMethodName(id));
+          out_lines->insert(type_string + kMethodSep + method_name + signature_string);
+        }
+      }
+    }
     return true;
   }
 
-  bool GetClassNames(const std::string& profile_file,
-                     std::vector<std::unique_ptr<const DexFile>>* dex_files,
-                     std::set<std::string>* class_names) {
+  bool GetClassNamesAndMethods(const std::string& profile_file,
+                               std::vector<std::unique_ptr<const DexFile>>* dex_files,
+                               std::set<std::string>* out_lines) {
     int fd = open(profile_file.c_str(), O_RDONLY);
     if (!FdIsValid(fd)) {
       LOG(ERROR) << "Cannot open " << profile_file << strerror(errno);
       return false;
     }
-    if (!GetClassNames(fd, dex_files, class_names)) {
+    if (!GetClassNamesAndMethods(fd, dex_files, out_lines)) {
       return false;
     }
     if (close(fd) < 0) {
@@ -455,26 +475,26 @@ class ProfMan FINAL {
     std::set<std::string> class_names;
     if (!profile_files_fd_.empty()) {
       for (int profile_file_fd : profile_files_fd_) {
-        if (!GetClassNames(profile_file_fd, &dex_files, &class_names)) {
+        if (!GetClassNamesAndMethods(profile_file_fd, &dex_files, &class_names)) {
           return -1;
         }
       }
     }
     if (!profile_files_.empty()) {
       for (const std::string& profile_file : profile_files_) {
-        if (!GetClassNames(profile_file, &dex_files, &class_names)) {
+        if (!GetClassNamesAndMethods(profile_file, &dex_files, &class_names)) {
           return -1;
         }
       }
     }
     // Concatenate class names from reference profile file.
     if (FdIsValid(reference_profile_file_fd_)) {
-      if (!GetClassNames(reference_profile_file_fd_, &dex_files, &class_names)) {
+      if (!GetClassNamesAndMethods(reference_profile_file_fd_, &dex_files, &class_names)) {
         return -1;
       }
     }
     if (!reference_profile_file_.empty()) {
-      if (!GetClassNames(reference_profile_file_, &dex_files, &class_names)) {
+      if (!GetClassNamesAndMethods(reference_profile_file_, &dex_files, &class_names)) {
         return -1;
       }
     }
@@ -494,8 +514,8 @@ class ProfMan FINAL {
     return 0;
   }
 
-  bool ShouldOnlyDumpClasses() {
-    return dump_classes_;
+  bool ShouldOnlyDumpClassesAndMethods() {
+    return dump_classes_and_methods_;
   }
 
   // Read lines from the given file, dropping comments and empty lines. Post-process each line with
@@ -561,17 +581,9 @@ class ProfMan FINAL {
     return false;
   }
 
-  // Find the method specified by method_spec in the class class_ref. The method
-  // must have a single INVOKE_VIRTUAL in its byte code.
-  // Upon success it returns true and stores the method index and the invoke dex pc
-  // in the output parameters.
-  // The format of the method spec is "inlinePolymorphic(LSuper;)I+LSubA;,LSubB;,LSubC;".
-  //
-  // TODO(calin): support INVOKE_INTERFACE and the range variants.
-  bool FindMethodWithSingleInvoke(const ProfileMethodInfo::ProfileClassReference& class_ref,
-                                  const std::string& method_spec,
-                                  /*out*/uint16_t* method_index,
-                                  /*out*/uint32_t* dex_pc) {
+  // Find the method specified by method_spec in the class class_ref.
+  uint32_t FindMethodIndex(const ProfileMethodInfo::ProfileClassReference& class_ref,
+                           const std::string& method_spec) {
     std::vector<std::string> name_and_signature;
     Split(method_spec, kProfileParsingFirstCharInSignature, &name_and_signature);
     if (name_and_signature.size() != 2) {
@@ -584,38 +596,50 @@ class ProfMan FINAL {
     const DexFile::StringId* name_id = dex_file->FindStringId(name.c_str());
     if (name_id == nullptr) {
       LOG(ERROR) << "Could not find name: "  << name;
-      return false;
+      return DexFile::kDexNoIndex;
     }
     dex::TypeIndex return_type_idx;
     std::vector<dex::TypeIndex> param_type_idxs;
     if (!dex_file->CreateTypeList(signature, &return_type_idx, &param_type_idxs)) {
       LOG(ERROR) << "Could not create type list" << signature;
-      return false;
+      return DexFile::kDexNoIndex;
     }
     const DexFile::ProtoId* proto_id = dex_file->FindProtoId(return_type_idx, param_type_idxs);
     if (proto_id == nullptr) {
       LOG(ERROR) << "Could not find proto_id: " << name;
-      return false;
+      return DexFile::kDexNoIndex;
     }
     const DexFile::MethodId* method_id = dex_file->FindMethodId(
         dex_file->GetTypeId(class_ref.type_index), *name_id, *proto_id);
     if (method_id == nullptr) {
       LOG(ERROR) << "Could not find method_id: " << name;
-      return false;
+      return DexFile::kDexNoIndex;
     }
 
-    *method_index = dex_file->GetIndexForMethodId(*method_id);
+    return dex_file->GetIndexForMethodId(*method_id);
+  }
 
+  // Given a method, return true if the method has a single INVOKE_VIRTUAL in its byte code.
+  // Upon success it returns true and stores the method index and the invoke dex pc
+  // in the output parameters.
+  // The format of the method spec is "inlinePolymorphic(LSuper;)I+LSubA;,LSubB;,LSubC;".
+  //
+  // TODO(calin): support INVOKE_INTERFACE and the range variants.
+  bool HasSingleInvoke(const ProfileMethodInfo::ProfileClassReference& class_ref,
+                       uint16_t method_index,
+                       /*out*/uint32_t* dex_pc) {
+    const DexFile* dex_file = class_ref.dex_file;
     uint32_t offset = dex_file->FindCodeItemOffset(
         *dex_file->FindClassDef(class_ref.type_index),
-        *method_index);
+        method_index);
     const DexFile::CodeItem* code_item = dex_file->GetCodeItem(offset);
 
     bool found_invoke = false;
     for (CodeItemIterator it(*code_item); !it.Done(); it.Advance()) {
       if (it.CurrentInstruction().Opcode() == Instruction::INVOKE_VIRTUAL) {
         if (found_invoke) {
-          LOG(ERROR) << "Multiple invoke INVOKE_VIRTUAL found: " << name;
+          LOG(ERROR) << "Multiple invoke INVOKE_VIRTUAL found: "
+                     << dex_file->PrettyMethod(method_index);
           return false;
         }
         found_invoke = true;
@@ -623,7 +647,7 @@ class ProfMan FINAL {
       }
     }
     if (!found_invoke) {
-      LOG(ERROR) << "Could not find any INVOKE_VIRTUAL: " << name;
+      LOG(ERROR) << "Could not find any INVOKE_VIRTUAL: " << dex_file->PrettyMethod(method_index);
     }
     return found_invoke;
   }
@@ -709,24 +733,29 @@ class ProfMan FINAL {
       return false;
     }
 
-    uint16_t method_index;
-    uint32_t dex_pc;
-    if (!FindMethodWithSingleInvoke(class_ref, method_spec, &method_index, &dex_pc)) {
+    const uint32_t method_index = FindMethodIndex(class_ref, method_spec);
+    if (method_index == DexFile::kDexNoIndex) {
       return false;
     }
-    std::vector<ProfileMethodInfo::ProfileClassReference> classes(inline_cache_elems.size());
-    size_t class_it = 0;
-    for (const std::string& ic_class : inline_cache_elems) {
-      if (!FindClass(dex_files, ic_class, &(classes[class_it++]))) {
-        LOG(ERROR) << "Could not find class: " << ic_class;
+
+    std::vector<ProfileMethodInfo> pmi;
+    std::vector<ProfileMethodInfo::ProfileInlineCache> inline_caches;
+    if (is_missing_types || !inline_cache_elems.empty()) {
+      uint32_t dex_pc;
+      if (!HasSingleInvoke(class_ref, method_index, &dex_pc)) {
         return false;
       }
+      std::vector<ProfileMethodInfo::ProfileClassReference> classes(inline_cache_elems.size());
+      size_t class_it = 0;
+      for (const std::string& ic_class : inline_cache_elems) {
+        if (!FindClass(dex_files, ic_class, &(classes[class_it++]))) {
+          LOG(ERROR) << "Could not find class: " << ic_class;
+          return false;
+        }
+      }
+      inline_caches.emplace_back(dex_pc, is_missing_types, classes);
     }
-    std::vector<ProfileMethodInfo::ProfileInlineCache> inline_caches;
-    inline_caches.emplace_back(dex_pc, is_missing_types, classes);
-    std::vector<ProfileMethodInfo> pmi;
     pmi.emplace_back(class_ref.dex_file, method_index, inline_caches);
-
     profile->AddMethodsAndClasses(pmi, std::set<DexCacheResolvedClasses>());
     return true;
   }
@@ -877,7 +906,7 @@ class ProfMan FINAL {
   std::string reference_profile_file_;
   int reference_profile_file_fd_;
   bool dump_only_;
-  bool dump_classes_;
+  bool dump_classes_and_methods_;
   int dump_output_to_fd_;
   std::string test_profile_;
   std::string create_profile_from_file_;
@@ -901,7 +930,7 @@ static int profman(int argc, char** argv) {
   if (profman.ShouldOnlyDumpProfile()) {
     return profman.DumpProfileInfo();
   }
-  if (profman.ShouldOnlyDumpClasses()) {
+  if (profman.ShouldOnlyDumpClassesAndMethods()) {
     return profman.DumpClasses();
   }
   if (profman.ShouldCreateProfile()) {
