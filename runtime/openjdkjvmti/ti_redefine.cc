@@ -216,7 +216,6 @@ class ObsoleteMethodStackVisitor : public art::StackVisitor {
 jvmtiError Redefiner::IsModifiableClass(jvmtiEnv* env ATTRIBUTE_UNUSED,
                                         jclass klass,
                                         jboolean* is_redefinable) {
-  // TODO Check for the appropriate feature flags once we have enabled them.
   art::Thread* self = art::Thread::Current();
   art::ScopedObjectAccess soa(self);
   art::StackHandleScope<1> hs(self);
@@ -790,9 +789,11 @@ class RedefinitionDataHolder {
     kSlotNewDexCache = 3,
     kSlotMirrorClass = 4,
     kSlotOrigDexFile = 5,
+    kSlotOldObsoleteMethods = 6,
+    kSlotOldDexCaches = 7,
 
     // Must be last one.
-    kNumSlots = 6,
+    kNumSlots = 8,
   };
 
   // This needs to have a HandleScope passed in that is capable of creating a new Handle without
@@ -815,7 +816,6 @@ class RedefinitionDataHolder {
     return arr_.IsNull();
   }
 
-  // TODO Maybe make an iterable view type to simplify using this.
   art::mirror::ClassLoader* GetSourceClassLoader(jint klass_index) const
       REQUIRES_SHARED(art::Locks::mutator_lock_) {
     return art::down_cast<art::mirror::ClassLoader*>(GetSlot(klass_index, kSlotSourceClassLoader));
@@ -842,6 +842,18 @@ class RedefinitionDataHolder {
     return art::down_cast<art::mirror::Object*>(GetSlot(klass_index, kSlotOrigDexFile));
   }
 
+  art::mirror::PointerArray* GetOldObsoleteMethods(jint klass_index) const
+      REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    return art::down_cast<art::mirror::PointerArray*>(
+        GetSlot(klass_index, kSlotOldObsoleteMethods));
+  }
+
+  art::mirror::ObjectArray<art::mirror::DexCache>* GetOldDexCaches(jint klass_index) const
+      REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    return art::down_cast<art::mirror::ObjectArray<art::mirror::DexCache>*>(
+        GetSlot(klass_index, kSlotOldDexCaches));
+  }
+
   void SetSourceClassLoader(jint klass_index, art::mirror::ClassLoader* loader)
       REQUIRES_SHARED(art::Locks::mutator_lock_) {
     SetSlot(klass_index, kSlotSourceClassLoader, loader);
@@ -865,6 +877,14 @@ class RedefinitionDataHolder {
   void SetOriginalDexFile(jint klass_index, art::mirror::Object* bytes)
       REQUIRES_SHARED(art::Locks::mutator_lock_) {
     SetSlot(klass_index, kSlotOrigDexFile, bytes);
+  }
+  void SetOldObsoleteMethods(jint klass_index, art::mirror::PointerArray* methods)
+      REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    SetSlot(klass_index, kSlotOldObsoleteMethods, methods);
+  }
+  void SetOldDexCaches(jint klass_index, art::mirror::ObjectArray<art::mirror::DexCache>* caches)
+      REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    SetSlot(klass_index, kSlotOldDexCaches, caches);
   }
 
   int32_t Length() const REQUIRES_SHARED(art::Locks::mutator_lock_) {
@@ -979,6 +999,15 @@ class RedefinitionDataIter {
       REQUIRES_SHARED(art::Locks::mutator_lock_) {
     return holder_.GetOriginalDexFile(idx_);
   }
+  art::mirror::PointerArray* GetOldObsoleteMethods() const
+      REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    return holder_.GetOldObsoleteMethods(idx_);
+  }
+  art::mirror::ObjectArray<art::mirror::DexCache>* GetOldDexCaches() const
+      REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    return holder_.GetOldDexCaches(idx_);
+  }
+
   int32_t GetIndex() const {
     return idx_;
   }
@@ -1003,6 +1032,14 @@ class RedefinitionDataIter {
   void SetOriginalDexFile(art::mirror::Object* bytes)
       REQUIRES_SHARED(art::Locks::mutator_lock_) {
     holder_.SetOriginalDexFile(idx_, bytes);
+  }
+  void SetOldObsoleteMethods(art::mirror::PointerArray* methods)
+      REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    holder_.SetOldObsoleteMethods(idx_, methods);
+  }
+  void SetOldDexCaches(art::mirror::ObjectArray<art::mirror::DexCache>* caches)
+      REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    holder_.SetOldDexCaches(idx_, caches);
   }
 
  private:
@@ -1164,9 +1201,15 @@ bool Redefiner::CheckAllRedefinitionAreValid() {
   return true;
 }
 
-bool Redefiner::EnsureAllClassAllocationsFinished() {
-  for (Redefiner::ClassRedefinition& redef : redefinitions_) {
-    if (!redef.EnsureClassAllocationsFinished()) {
+void Redefiner::RestoreObsoleteMethodMapsIfUnneeded(RedefinitionDataHolder& holder) {
+  for (RedefinitionDataIter data = holder.begin(); data != holder.end(); ++data) {
+    data.GetRedefinition().RestoreObsoleteMethodMapsIfUnneeded(&data);
+  }
+}
+
+bool Redefiner::EnsureAllClassAllocationsFinished(RedefinitionDataHolder& holder) {
+  for (RedefinitionDataIter data = holder.begin(); data != holder.end(); ++data) {
+    if (!data.GetRedefinition().EnsureClassAllocationsFinished(&data)) {
       return false;
     }
   }
@@ -1239,13 +1282,9 @@ jvmtiError Redefiner::Run() {
   // between allocating them and pausing all threads before we can update them so we need to do a
   // try loop.
   if (!CheckAllRedefinitionAreValid() ||
-      !EnsureAllClassAllocationsFinished() ||
+      !EnsureAllClassAllocationsFinished(holder) ||
       !FinishAllRemainingAllocations(holder) ||
       !CheckAllClassesAreVerified(holder)) {
-    // TODO Null out the ClassExt fields we allocated (if possible, might be racing with another
-    // redefineclass call which made it even bigger. Leak shouldn't be huge (2x array of size
-    // declared_methods_.length) but would be good to get rid of. All other allocations should be
-    // cleaned up by the GC eventually.
     return result_;
   }
 
@@ -1277,11 +1316,11 @@ jvmtiError Redefiner::Run() {
     redef.FindAndAllocateObsoleteMethods(klass);
     redef.UpdateClass(klass, data.GetNewDexCache(), data.GetOriginalDexFile());
   }
+  RestoreObsoleteMethodMapsIfUnneeded(holder);
   // TODO We should check for if any of the redefined methods are intrinsic methods here and, if any
   // are, force a full-world deoptimization before finishing redefinition. If we don't do this then
   // methods that have been jitted prior to the current redefinition being applied might continue
   // to use the old versions of the intrinsics!
-  // TODO Shrink the obsolete method maps if possible?
   // TODO Do the dex_file release at a more reasonable place. This works but it muddles who really
   // owns the DexFile and when ownership is transferred.
   ReleaseAllDexFiles();
@@ -1372,9 +1411,35 @@ void Redefiner::ClassRedefinition::UpdateClass(
   ext->SetOriginalDexFile(original_dex_file);
 }
 
+// Restores the old obsolete methods maps if it turns out they weren't needed (ie there were no new
+// obsolete methods).
+void Redefiner::ClassRedefinition::RestoreObsoleteMethodMapsIfUnneeded(
+    const RedefinitionDataIter* cur_data) {
+  art::mirror::Class* klass = GetMirrorClass();
+  art::mirror::ClassExt* ext = klass->GetExtData();
+  art::mirror::PointerArray* methods = ext->GetObsoleteMethods();
+  int32_t old_length =
+      cur_data->GetOldDexCaches() == nullptr ? 0 : cur_data->GetOldDexCaches()->GetLength();
+  int32_t expected_length =
+      old_length + klass->NumDirectMethods() + klass->NumDeclaredVirtualMethods();
+  // Check to make sure we are only undoing this one.
+  if (expected_length == methods->GetLength()) {
+    for (int32_t i = old_length; i < expected_length; i++) {
+      if (methods->GetElementPtrSize<art::ArtMethod*>(i, art::kRuntimePointerSize) != nullptr) {
+        // We actually have some new obsolete methods. Just abort since we cannot safely shrink the
+        // obsolete methods array.
+        return;
+      }
+    }
+    // No new obsolete methods! We can get rid of the maps.
+    ext->SetObsoleteArrays(cur_data->GetOldObsoleteMethods(), cur_data->GetOldDexCaches());
+  }
+}
+
 // This function does all (java) allocations we need to do for the Class being redefined.
 // TODO Change this name maybe?
-bool Redefiner::ClassRedefinition::EnsureClassAllocationsFinished() {
+bool Redefiner::ClassRedefinition::EnsureClassAllocationsFinished(
+    /*out*/RedefinitionDataIter* cur_data) {
   art::StackHandleScope<2> hs(driver_->self_);
   art::Handle<art::mirror::Class> klass(hs.NewHandle(
       driver_->self_->DecodeJObject(klass_)->AsClass()));
@@ -1391,22 +1456,20 @@ bool Redefiner::ClassRedefinition::EnsureClassAllocationsFinished() {
     RecordFailure(ERR(OUT_OF_MEMORY), "Could not allocate ClassExt");
     return false;
   }
-  // Allocate the 2 arrays that make up the obsolete methods map.  Since the contents of the arrays
+  // First save the old values of the 2 arrays that make up the obsolete methods maps.  Then
+  // allocate the 2 arrays that make up the obsolete methods map.  Since the contents of the arrays
   // are only modified when all threads (other than the modifying one) are suspended we don't need
   // to worry about missing the unsyncronized writes to the array. We do synchronize when setting it
   // however, since that can happen at any time.
-  // TODO Clear these after we walk the stacks in order to free them in the (likely?) event there
-  // are no obsolete methods.
-  {
-    art::ObjectLock<art::mirror::ClassExt> lock(driver_->self_, ext);
-    if (!ext->ExtendObsoleteArrays(
-          driver_->self_, klass->GetDeclaredMethodsSlice(art::kRuntimePointerSize).size())) {
-      // OOM. Clear exception and return error.
-      driver_->self_->AssertPendingOOMException();
-      driver_->self_->ClearException();
-      RecordFailure(ERR(OUT_OF_MEMORY), "Unable to allocate/extend obsolete methods map");
-      return false;
-    }
+  cur_data->SetOldObsoleteMethods(ext->GetObsoleteMethods());
+  cur_data->SetOldDexCaches(ext->GetObsoleteDexCaches());
+  if (!ext->ExtendObsoleteArrays(
+        driver_->self_, klass->GetDeclaredMethodsSlice(art::kRuntimePointerSize).size())) {
+    // OOM. Clear exception and return error.
+    driver_->self_->AssertPendingOOMException();
+    driver_->self_->ClearException();
+    RecordFailure(ERR(OUT_OF_MEMORY), "Unable to allocate/extend obsolete methods map");
+    return false;
   }
   return true;
 }
