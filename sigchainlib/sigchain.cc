@@ -22,10 +22,13 @@
 #endif
 
 #include <dlfcn.h>
+#include <errno.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
+#include <initializer_list>
 #include <utility>
 
 #include "sigchain.h"
