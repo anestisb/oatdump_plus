@@ -168,6 +168,9 @@ class ProfileCompilationInfo {
   // The inline cache map: DexPc -> DexPcData.
   using InlineCacheMap = SafeMap<uint16_t, DexPcData>;
 
+  // Maps a method dex index to its inline cache.
+  using MethodMap = SafeMap<uint16_t, InlineCacheMap>;
+
   // Encodes the full set of inline caches for a given method.
   // The dex_references vector is indexed according to the ClassReference::dex_profile_index.
   // i.e. the dex file of any ClassReference present in the inline caches can be found at
@@ -234,11 +237,12 @@ class ProfileCompilationInfo {
   std::string DumpInfo(const std::vector<const DexFile*>* dex_files,
                        bool print_full_dex_location = true) const;
 
-  void GetClassNames(const std::vector<std::unique_ptr<const DexFile>>* dex_files,
-                     std::set<std::string>* class_names) const;
-
-  void GetClassNames(const std::vector<const DexFile*>* dex_files,
-                     std::set<std::string>* class_names) const;
+  // Return the classes and methods for a given dex file through out args. The otu args are the set
+  // of class as well as the methods and their associated inline caches. Returns true if the dex
+  // file is register and has a matching checksum, false otherwise.
+  bool GetClassesAndMethods(const DexFile* dex_file,
+                            std::set<dex::TypeIndex>* class_set,
+                            MethodMap* method_map) const;
 
   // Perform an equality test with the `other` profile information.
   bool Equals(const ProfileCompilationInfo& other);
@@ -272,9 +276,6 @@ class ProfileCompilationInfo {
     kProfileLoadBadData,
     kProfileLoadSuccess
   };
-
-  // Maps a method dex index to its inline cache.
-  using MethodMap = SafeMap<uint16_t, InlineCacheMap>;
 
   // Internal representation of the profile information belonging to a dex file.
   // Note that we could do without profile_key (the key used to encode the dex
