@@ -40,8 +40,6 @@ uint32_t ClassExt::ClassSize(PointerSize pointer_size) {
 
 void ClassExt::SetObsoleteArrays(ObjPtr<PointerArray> methods,
                                  ObjPtr<ObjectArray<DexCache>> dex_caches) {
-  DCHECK_EQ(GetLockOwnerThreadId(), Thread::Current()->GetThreadId())
-      << "Obsolete arrays are set without synchronization!";
   CHECK_EQ(methods.IsNull(), dex_caches.IsNull());
   auto obsolete_dex_cache_off = OFFSET_OF_OBJECT_MEMBER(ClassExt, obsolete_dex_caches_);
   auto obsolete_methods_off = OFFSET_OF_OBJECT_MEMBER(ClassExt, obsolete_methods_);
@@ -54,8 +52,7 @@ void ClassExt::SetObsoleteArrays(ObjPtr<PointerArray> methods,
 // these arrays are written into without all threads being suspended we have a race condition! This
 // race could cause obsolete methods to be missed.
 bool ClassExt::ExtendObsoleteArrays(Thread* self, uint32_t increase) {
-  DCHECK_EQ(GetLockOwnerThreadId(), Thread::Current()->GetThreadId())
-      << "Obsolete arrays are set without synchronization!";
+  // TODO It would be good to check that we have locked the class associated with this ClassExt.
   StackHandleScope<5> hs(self);
   Handle<ClassExt> h_this(hs.NewHandle(this));
   Handle<PointerArray> old_methods(hs.NewHandle(h_this->GetObsoleteMethods()));
