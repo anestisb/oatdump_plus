@@ -166,7 +166,8 @@ class Redefiner {
     // Preallocates all needed allocations in klass so that we can pause execution safely.
     // TODO We should be able to free the arrays if they end up not being used. Investigate doing
     // this in the future. For now we will just take the memory hit.
-    bool EnsureClassAllocationsFinished() REQUIRES_SHARED(art::Locks::mutator_lock_);
+    bool EnsureClassAllocationsFinished(/*out*/RedefinitionDataIter* data)
+        REQUIRES_SHARED(art::Locks::mutator_lock_);
 
     // This will check that no constraints are violated (more than 1 class in dex file, any changes
     // in number/declaration of methods & fields, changes in access flags, etc.)
@@ -196,6 +197,9 @@ class Redefiner {
     void UpdateClass(art::ObjPtr<art::mirror::Class> mclass,
                      art::ObjPtr<art::mirror::DexCache> new_dex_cache,
                      art::ObjPtr<art::mirror::Object> original_dex_file)
+        REQUIRES(art::Locks::mutator_lock_);
+
+    void RestoreObsoleteMethodMapsIfUnneeded(const RedefinitionDataIter* cur_data)
         REQUIRES(art::Locks::mutator_lock_);
 
     void ReleaseDexFile() REQUIRES_SHARED(art::Locks::mutator_lock_);
@@ -241,11 +245,16 @@ class Redefiner {
   bool CheckAllRedefinitionAreValid() REQUIRES_SHARED(art::Locks::mutator_lock_);
   bool CheckAllClassesAreVerified(RedefinitionDataHolder& holder)
       REQUIRES_SHARED(art::Locks::mutator_lock_);
-  bool EnsureAllClassAllocationsFinished() REQUIRES_SHARED(art::Locks::mutator_lock_);
+  bool EnsureAllClassAllocationsFinished(RedefinitionDataHolder& holder)
+      REQUIRES_SHARED(art::Locks::mutator_lock_);
   bool FinishAllRemainingAllocations(RedefinitionDataHolder& holder)
       REQUIRES_SHARED(art::Locks::mutator_lock_);
   void ReleaseAllDexFiles() REQUIRES_SHARED(art::Locks::mutator_lock_);
   void UnregisterAllBreakpoints() REQUIRES_SHARED(art::Locks::mutator_lock_);
+  // Restores the old obsolete methods maps if it turns out they weren't needed (ie there were no
+  // new obsolete methods).
+  void RestoreObsoleteMethodMapsIfUnneeded(RedefinitionDataHolder& holder)
+      REQUIRES(art::Locks::mutator_lock_);
 
   void RecordFailure(jvmtiError result, const std::string& class_sig, const std::string& error_msg);
   void RecordFailure(jvmtiError result, const std::string& error_msg) {
