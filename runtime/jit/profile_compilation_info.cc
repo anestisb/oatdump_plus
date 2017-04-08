@@ -1139,7 +1139,8 @@ void ProfileCompilationInfo::ClearResolvedClasses() {
 bool ProfileCompilationInfo::GenerateTestProfile(int fd,
                                                  uint16_t number_of_dex_files,
                                                  uint16_t method_ratio,
-                                                 uint16_t class_ratio) {
+                                                 uint16_t class_ratio,
+                                                 uint32_t random_seed) {
   const std::string base_dex_location = "base.apk";
   ProfileCompilationInfo info;
   // The limits are defined by the dex specification.
@@ -1148,7 +1149,7 @@ bool ProfileCompilationInfo::GenerateTestProfile(int fd,
   uint16_t number_of_methods = max_method * method_ratio / 100;
   uint16_t number_of_classes = max_classes * class_ratio / 100;
 
-  srand(MicroTime());
+  std::srand(random_seed);
 
   // Make sure we generate more samples with a low index value.
   // This makes it more likely to hit valid method/class indices in small apps.
@@ -1173,6 +1174,32 @@ bool ProfileCompilationInfo::GenerateTestProfile(int fd,
         type_idx %= kFavorFirstN;
       }
       info.AddClassIndex(profile_key, 0, dex::TypeIndex(type_idx));
+    }
+  }
+  return info.Save(fd);
+}
+
+// Naive implementation to generate a random profile file suitable for testing.
+bool ProfileCompilationInfo::GenerateTestProfile(
+    int fd,
+    std::vector<std::unique_ptr<const DexFile>>& dex_files,
+    uint32_t random_seed) {
+  std::srand(random_seed);
+  ProfileCompilationInfo info;
+  for (std::unique_ptr<const DexFile>& dex_file : dex_files) {
+    const std::string& location = dex_file->GetLocation();
+    uint32_t checksum = dex_file->GetLocationChecksum();
+    for (uint32_t i = 0; i < dex_file->NumClassDefs(); ++i) {
+      // Randomly add a class from the dex file (with 50% chance).
+      if (std::rand() % 2 != 0) {
+        info.AddClassIndex(location, checksum, dex::TypeIndex(dex_file->GetClassDef(i).class_idx_));
+      }
+    }
+    for (uint32_t i = 0; i < dex_file->NumMethodIds(); ++i) {
+      // Randomly add a method from the dex file (with 50% chance).
+      if (std::rand() % 2 != 0) {
+        info.AddMethodIndex(location, checksum, i);
+      }
     }
   }
   return info.Save(fd);

@@ -118,6 +118,8 @@ NO_RETURN static void Usage(const char *fmt, ...) {
   UsageError("      number of methods that should be generated. Defaults to 5.");
   UsageError("  --generate-test-profile-class-ratio=<number>: the percentage from the maximum");
   UsageError("      number of classes that should be generated. Defaults to 5.");
+  UsageError("  --generate-test-profile-seed=<number>: seed for random number generator used when");
+  UsageError("      generating random test profiles. Defaults to using NanoTime.");
   UsageError("");
   UsageError("  --create-profile-from=<filename>: creates a profile from a list of classes and");
   UsageError("      methods.");
@@ -158,6 +160,7 @@ class ProfMan FINAL {
       test_profile_num_dex_(kDefaultTestProfileNumDex),
       test_profile_method_ratio_(kDefaultTestProfileMethodRatio),
       test_profile_class_ratio_(kDefaultTestProfileClassRatio),
+      test_profile_seed_(NanoTime()),
       start_ns_(NanoTime()) {}
 
   ~ProfMan() {
@@ -223,6 +226,8 @@ class ProfMan FINAL {
                         "--generate-test-profile-class-ratio",
                         &test_profile_class_ratio_,
                         Usage);
+      } else if (option.starts_with("--generate-test-profile-seed=")) {
+        ParseUintOption(option, "--generate-test-profile-seed", &test_profile_seed_, Usage);
       } else {
         Usage("Unknown argument '%s'", option.data());
       }
@@ -827,17 +832,39 @@ class ProfMan FINAL {
     if (test_profile_class_ratio_ > 100) {
       Usage("Invalid ratio for --generate-test-profile-class-ratio");
     }
+    // If given APK files or DEX locations, check that they're ok.
+    if (!apk_files_.empty() || !apks_fd_.empty() || !dex_locations_.empty()) {
+      if (apk_files_.empty() && apks_fd_.empty()) {
+        Usage("APK files must be specified when passing DEX locations to --generate-test-profile");
+      }
+      if (dex_locations_.empty()) {
+        Usage("DEX locations must be specified when passing APK files to --generate-test-profile");
+      }
+    }
     // ShouldGenerateTestProfile confirms !test_profile_.empty().
     int profile_test_fd = open(test_profile_.c_str(), O_CREAT | O_TRUNC | O_WRONLY, 0644);
     if (profile_test_fd < 0) {
       LOG(ERROR) << "Cannot open " << test_profile_ << strerror(errno);
       return -1;
     }
-
-    bool result = ProfileCompilationInfo::GenerateTestProfile(profile_test_fd,
-                                                              test_profile_num_dex_,
-                                                              test_profile_method_ratio_,
-                                                              test_profile_class_ratio_);
+    bool result;
+    if (apk_files_.empty() && apks_fd_.empty() && dex_locations_.empty()) {
+      result = ProfileCompilationInfo::GenerateTestProfile(profile_test_fd,
+                                                           test_profile_num_dex_,
+                                                           test_profile_method_ratio_,
+                                                           test_profile_class_ratio_,
+                                                           test_profile_seed_);
+    } else {
+      // Initialize MemMap for ZipArchive::OpenFromFd.
+      MemMap::Init();
+      // Open the dex files to look up classes and methods.
+      std::vector<std::unique_ptr<const DexFile>> dex_files;
+      OpenApkFilesFromLocations(&dex_files);
+      // Create a random profile file based on the set of dex files.
+      result = ProfileCompilationInfo::GenerateTestProfile(profile_test_fd,
+                                                           dex_files,
+                                                           test_profile_seed_);
+    }
     close(profile_test_fd);  // ignore close result.
     return result ? 0 : -1;
   }
@@ -886,6 +913,7 @@ class ProfMan FINAL {
   uint16_t test_profile_num_dex_;
   uint16_t test_profile_method_ratio_;
   uint16_t test_profile_class_ratio_;
+  uint32_t test_profile_seed_;
   uint64_t start_ns_;
 };
 
