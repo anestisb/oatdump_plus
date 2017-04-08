@@ -259,7 +259,7 @@
                   "602-deoptimizeable"],
         "description": ["Tests that should fail when the optimizing compiler ",
                         "compiles them non-debuggable."],
-        "variant": "optimizing &  ndebuggable | regalloc_gc & ndebuggable"
+        "variant": "optimizing & ndebuggable | regalloc_gc & ndebuggable | speed-profile & ndebuggable"
     },
     {
         "tests": "596-app-images",
