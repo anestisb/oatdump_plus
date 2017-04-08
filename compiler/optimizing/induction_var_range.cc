@@ -383,12 +383,13 @@ bool InductionVarRange::IsFinite(HLoopInformation* loop, /*out*/ int64_t* tc) co
   return false;
 }
 
-bool InductionVarRange::IsUnitStride(HInstruction* instruction,
+bool InductionVarRange::IsUnitStride(HInstruction* context,
+                                     HInstruction* instruction,
                                      /*out*/ HInstruction** offset) const {
   HLoopInformation* loop = nullptr;
   HInductionVarAnalysis::InductionInfo* info = nullptr;
   HInductionVarAnalysis::InductionInfo* trip = nullptr;
-  if (HasInductionInfo(instruction, instruction, &loop, &info, &trip)) {
+  if (HasInductionInfo(context, instruction, &loop, &info, &trip)) {
     if (info->induction_class == HInductionVarAnalysis::kLinear &&
         info->op_b->operation == HInductionVarAnalysis::kFetch &&
         !HInductionVarAnalysis::IsNarrowingLinear(info)) {

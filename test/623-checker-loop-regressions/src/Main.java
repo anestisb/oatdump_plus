@@ -270,6 +270,16 @@ public class Main {
     }
   }
 
+  // If vectorized, invariant stride should be recognized
+  // as a reduction, not a unit stride in outer loop.
+  static void reduc(int[] xx, int[] yy) {
+    for (int i0 = 0; i0 < 2; i0++) {
+      for (int i1 = 0; i1 < 469; i1++) {
+        xx[i0] -= (++yy[i1]);
+      }
+    }
+  }
+
   public static void main(String[] args) {
     expectEquals(10, earlyExitFirst(-1));
     for (int i = 0; i <= 10; i++) {
@@ -333,6 +343,15 @@ public class Main {
     narrowingSubscript(a);
     for (int i = 0; i < 16; i++) {
       expectEquals(2.0f, a[i]);
+    }
+
+    int[] xx = new int[2];
+    int[] yy = new int[469];
+    reduc(xx, yy);
+    expectEquals(-469, xx[0]);
+    expectEquals(-938, xx[1]);
+    for (int i = 0; i < 469; i++) {
+      expectEquals(2, yy[i]);
     }
 
     System.out.println("passed");
