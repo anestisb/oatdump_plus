@@ -34,7 +34,7 @@ namespace Test924Threads {
 // private static native Thread getCurrentThread();
 // private static native Object[] getThreadInfo(Thread t);
 
-extern "C" JNIEXPORT jthread JNICALL Java_Main_getCurrentThread(
+extern "C" JNIEXPORT jthread JNICALL Java_art_Test924_getCurrentThread(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED) {
   jthread thread = nullptr;
   jvmtiError result = jvmti_env->GetCurrentThread(&thread);
@@ -44,7 +44,7 @@ extern "C" JNIEXPORT jthread JNICALL Java_Main_getCurrentThread(
   return thread;
 }
 
-extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getThreadInfo(
+extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test924_getThreadInfo(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jthread thread) {
   jvmtiThreadInfo info;
   memset(&info, 0, sizeof(jvmtiThreadInfo));
@@ -92,7 +92,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getThreadInfo(
   return ret;
 }
 
-extern "C" JNIEXPORT jint JNICALL Java_Main_getThreadState(
+extern "C" JNIEXPORT jint JNICALL Java_art_Test924_getThreadState(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jthread thread) {
   jint state;
   jvmtiError result = jvmti_env->GetThreadState(thread, &state);
@@ -102,7 +102,7 @@ extern "C" JNIEXPORT jint JNICALL Java_Main_getThreadState(
   return state;
 }
 
-extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getAllThreads(
+extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test924_getAllThreads(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED) {
   jint thread_count;
   jthread* threads;
@@ -122,7 +122,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getAllThreads(
   return ret;
 }
 
-extern "C" JNIEXPORT jlong JNICALL Java_Main_getTLS(
+extern "C" JNIEXPORT jlong JNICALL Java_art_Test924_getTLS(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jthread thread) {
   void* tls;
   jvmtiError result = jvmti_env->GetThreadLocalStorage(thread, &tls);
@@ -132,7 +132,7 @@ extern "C" JNIEXPORT jlong JNICALL Java_Main_getTLS(
   return static_cast<jlong>(reinterpret_cast<uintptr_t>(tls));
 }
 
-extern "C" JNIEXPORT void JNICALL Java_Main_setTLS(
+extern "C" JNIEXPORT void JNICALL Java_art_Test924_setTLS(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jthread thread, jlong val) {
   const void* tls = reinterpret_cast<void*>(static_cast<uintptr_t>(val));
   jvmtiError result = jvmti_env->SetThreadLocalStorage(thread, tls);
@@ -168,7 +168,7 @@ static void JNICALL ThreadEnd(jvmtiEnv* jvmti_env,
   ThreadEvent(jvmti_env, jni_env, thread, false);
 }
 
-extern "C" JNIEXPORT void JNICALL Java_Main_enableThreadEvents(
+extern "C" JNIEXPORT void JNICALL Java_art_Test924_enableThreadEvents(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jboolean b) {
   if (b == JNI_FALSE) {
     jvmtiError ret = jvmti_env->SetEventNotificationMode(JVMTI_DISABLE,

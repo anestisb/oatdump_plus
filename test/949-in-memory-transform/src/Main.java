@@ -83,6 +83,7 @@ public class Main {
     "AgAAABMCAAAAIAAAAQAAAB4CAAAAEAAAAQAAACwCAAA=");
 
   public static void main(String[] args) throws Exception {
+    art.Main.bindAgentJNIForClass(Main.class);
     ClassLoader loader;
     try {
       // Art uses this classloader to do in-memory dex files. There is no support for defineClass

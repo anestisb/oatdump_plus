@@ -96,6 +96,7 @@ class Main {
   }
 
   public static void main(String[] args) {
+    art.Main.bindAgentJNIForClass(Main.class);
     setPopRetransformations(false);
     addCommonTransformationResult("java/util/OptionalLong", CLASS_BYTES, DEX_BYTES);
     enableCommonRetransformation(true);

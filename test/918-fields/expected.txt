@@ -6,15 +6,15 @@ false
 class java.lang.Integer
 18
 false
-[this$0, LMain;, null]
-class Main$Foo
+[this$0, Lart/Test918;, null]
+class art.Test918$Foo
 4112
 true
 [VAL, I, null]
-interface Main$Bar
+interface art.Test918$Bar
 25
 false
 [generics, Ljava/lang/Object;, TT;]
-class Main$Generics
+class art.Test918$Generics
 0
 false
