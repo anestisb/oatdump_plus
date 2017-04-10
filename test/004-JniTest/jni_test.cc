@@ -41,18 +41,6 @@ extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void*) {
   jvm = vm;
   std::cout << "JNI_OnLoad called" << std::endl;
 
-  // Test 985 sets this environment variable in its run script to test
-  // for JNI_OnLoad failure. (We don't want to fail in the normal
-  // case, and a separate test library is overkill.)
-  if (getenv("ART_TEST_985_JNI_ONLOAD_THROW_THROW_IN_JNI_ONLOAD") != nullptr) {
-    JNIEnv* env;
-    jint res = vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6);
-    CHECK_EQ(res , JNI_OK);
-    res = env->ThrowNew(env->FindClass("java/lang/IllegalStateException"),
-                        "message");
-    CHECK_EQ(res, JNI_OK);
-  }
-
   return JNI_VERSION_1_6;
 }
 
