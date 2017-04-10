@@ -16,33 +16,6 @@
 
 public class Main {
   public static void main(String[] args) {
-    System.out.println("Hello, world!");
-
-    if (checkLivePhase()) {
-      System.out.println("Agent in live phase.");
-    }
-    if (checkUnattached()) {
-      System.out.println("Received expected error for unattached JVMTI calls");
-    }
-
-    set(0);  // OTHER
-    set(1);  // GC
-    set(2);  // CLASS
-    set(4);  // JNI
-    set(8);  // Error.
+    art.Test901.run();
   }
-
-  private static void set(int i) {
-    System.out.println(i);
-    try {
-      setVerboseFlag(i, true);
-      setVerboseFlag(i, false);
-    } catch (RuntimeException e) {
-      System.out.println(e.getMessage());
-    }
-  }
-
-  private static native boolean checkLivePhase();
-  private static native void setVerboseFlag(int flag, boolean value);
-  private static native boolean checkUnattached();
 }

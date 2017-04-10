@@ -16,32 +16,6 @@
 
 public class Main {
   public static void main(String[] args) throws Exception {
-    bindTest911Classes();
-
-    SameThread.doTest();
-
-    System.out.println();
-
-    OtherThread.doTestOtherThreadWait();
-
-    System.out.println();
-
-    OtherThread.doTestOtherThreadBusyLoop();
-
-    System.out.println();
-
-    AllTraces.doTest();
-
-    System.out.println();
-
-    ThreadListTraces.doTest();
-
-    System.out.println();
-
-    Frames.doTest();
-
-    System.out.println("Done");
+    art.Test911.run();
   }
-
-  private static native void bindTest911Classes();
 }

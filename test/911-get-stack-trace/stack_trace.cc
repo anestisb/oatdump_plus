@@ -37,14 +37,6 @@ namespace Test911GetStackTrace {
 
 using android::base::StringPrintf;
 
-extern "C" JNIEXPORT void JNICALL Java_Main_bindTest911Classes(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
-  BindFunctions(jvmti_env, env, "AllTraces");
-  BindFunctions(jvmti_env, env, "Frames");
-  BindFunctions(jvmti_env, env, "PrintThread");
-  BindFunctions(jvmti_env, env, "ThreadListTraces");
-}
-
 static jint FindLineNumber(jint line_number_count,
                            jvmtiLineNumberEntry* line_number_table,
                            jlocation location) {
@@ -132,7 +124,7 @@ static jobjectArray TranslateJvmtiFrameInfoArray(JNIEnv* env,
   return CreateObjectArray(env, count, "[Ljava/lang/String;", callback);
 }
 
-extern "C" JNIEXPORT jobjectArray JNICALL Java_PrintThread_getStackTrace(
+extern "C" JNIEXPORT jobjectArray JNICALL Java_art_PrintThread_getStackTrace(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jthread thread, jint start, jint max) {
   std::unique_ptr<jvmtiFrameInfo[]> frames(new jvmtiFrameInfo[max]);
 
@@ -147,7 +139,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_PrintThread_getStackTrace(
   return TranslateJvmtiFrameInfoArray(env, frames.get(), count);
 }
 
-extern "C" JNIEXPORT jobjectArray JNICALL Java_AllTraces_getAllStackTraces(
+extern "C" JNIEXPORT jobjectArray JNICALL Java_art_AllTraces_getAllStackTraces(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jint max) {
   jint thread_count;
   jvmtiStackInfo* stack_infos;
@@ -175,7 +167,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_AllTraces_getAllStackTraces(
   return ret;
 }
 
-extern "C" JNIEXPORT jobjectArray JNICALL Java_ThreadListTraces_getThreadListStackTraces(
+extern "C" JNIEXPORT jobjectArray JNICALL Java_art_ThreadListTraces_getThreadListStackTraces(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobjectArray jthreads, jint max) {
   jint thread_count = env->GetArrayLength(jthreads);
   std::unique_ptr<jthread[]> threads(new jthread[thread_count]);
@@ -211,7 +203,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_ThreadListTraces_getThreadListSta
   return ret;
 }
 
-extern "C" JNIEXPORT jint JNICALL Java_Frames_getFrameCount(
+extern "C" JNIEXPORT jint JNICALL Java_art_Frames_getFrameCount(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jthread thread) {
   jint count;
   jvmtiError result = jvmti_env->GetFrameCount(thread, &count);
@@ -221,7 +213,7 @@ extern "C" JNIEXPORT jint JNICALL Java_Frames_getFrameCount(
   return count;
 }
 
-extern "C" JNIEXPORT jobjectArray JNICALL Java_Frames_getFrameLocation(
+extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Frames_getFrameLocation(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jthread thread, jint depth) {
   jmethodID method;
   jlocation location;

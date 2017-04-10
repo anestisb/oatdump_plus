@@ -110,6 +110,7 @@ public class Main {
     "AABHBgAABCAAAAIAAACVBgAAACAAAAEAAACtBgAAABAAAAEAAAD4BgAA");
 
   public static void main(String[] args) {
+    art.Main.bindAgentJNIForClass(Main.class);
     // OptionalLong is a class that is unlikely to be used by the time this test starts and is not
     // likely to be changed in any meaningful way in the future.
     OptionalLong ol = OptionalLong.of(0xDEADBEEF);

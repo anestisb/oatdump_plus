@@ -117,6 +117,7 @@ public class Main {
     "AyAAAAIAAAAWAgAAACAAAAEAAAAhAgAAABAAAAEAAAAwAgAA");
 
   public static void main(String[] args) {
+    art.Main.bindAgentJNIForClass(Main.class);
     try {
       doTest();
     } catch (Exception e) {

@@ -57,7 +57,7 @@ static void JNICALL ObjectAllocated(jvmtiEnv* ti_env ATTRIBUTE_UNUSED,
          static_cast<size_t>(size));
 }
 
-extern "C" JNIEXPORT void JNICALL Java_Main_setupObjectAllocCallback(
+extern "C" JNIEXPORT void JNICALL Java_art_Test904_setupObjectAllocCallback(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jboolean enable) {
   jvmtiEventCallbacks callbacks;
   memset(&callbacks, 0, sizeof(jvmtiEventCallbacks));
@@ -67,10 +67,8 @@ extern "C" JNIEXPORT void JNICALL Java_Main_setupObjectAllocCallback(
   JvmtiErrorToException(env, jvmti_env, ret);
 }
 
-extern "C" JNIEXPORT void JNICALL Java_Main_enableAllocationTracking(JNIEnv* env,
-                                                                     jclass,
-                                                                     jthread thread,
-                                                                     jboolean enable) {
+extern "C" JNIEXPORT void JNICALL Java_art_Test904_enableAllocationTracking(
+    JNIEnv* env, jclass, jthread thread, jboolean enable) {
   jvmtiError ret = jvmti_env->SetEventNotificationMode(
       enable ? JVMTI_ENABLE : JVMTI_DISABLE,
       JVMTI_EVENT_VM_OBJECT_ALLOC,

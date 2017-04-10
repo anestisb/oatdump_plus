@@ -53,6 +53,7 @@ public class Main {
     "AAACIAAAEQAAAKIBAAADIAAAAgAAAJECAAAAIAAAAQAAAJ8CAAAAEAAAAQAAALACAAA=");
 
   public static void main(String[] args) {
+    art.Main.bindAgentJNIForClass(Main.class);
     doTest(new Transform());
   }
 
