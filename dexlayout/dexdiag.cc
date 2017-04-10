@@ -238,13 +238,14 @@ static void ProcessOneDexMapping(uint64_t* pagemap,
               << std::endl;
     return;
   }
-  uint64_t start = (dex_file_start - vdex_start) / kPageSize;
-  uint64_t end = RoundUp(start + dex_file_size, kPageSize) / kPageSize;
+  uint64_t start_page = (dex_file_start - vdex_start) / kPageSize;
+  uint64_t start_address = start_page * kPageSize;
+  uint64_t end_page = RoundUp(start_address + dex_file_size, kPageSize) / kPageSize;
   std::cout << "DEX "
             << dex_file->GetLocation().c_str()
             << StringPrintf(": %zx-%zx",
-                            map_start + start * kPageSize,
-                            map_start + end * kPageSize)
+                            map_start + start_page * kPageSize,
+                            map_start + end_page * kPageSize)
             << std::endl;
   // Build a list of the dex file section types, sorted from highest offset to lowest.
   std::vector<dex_ir::DexFileSection> sections;
@@ -254,9 +255,9 @@ static void ProcessOneDexMapping(uint64_t* pagemap,
                                                 dex_ir::SortDirection::kSortDescending);
   }
   PageCount section_resident_pages;
-  ProcessPageMap(pagemap, start, end, sections, &section_resident_pages);
+  ProcessPageMap(pagemap, start_page, end_page, sections, &section_resident_pages);
   if (g_show_statistics) {
-    DisplayDexStatistics(start, end, section_resident_pages, sections);
+    DisplayDexStatistics(start_page, end_page, section_resident_pages, sections);
   }
 }
 
