@@ -219,15 +219,33 @@ class LoadClassSlowPathMIPS : public SlowPathCodeMIPS {
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
+    Location out = locations->Out();
     CodeGeneratorMIPS* mips_codegen = down_cast<CodeGeneratorMIPS*>(codegen);
-
+    const bool isR6 = mips_codegen->GetInstructionSetFeatures().IsR6();
+    const bool r2_baker_or_no_read_barriers = !isR6 && (!kUseReadBarrier || kUseBakerReadBarrier);
+    InvokeRuntimeCallingConvention calling_convention;
+    DCHECK_EQ(instruction_->IsLoadClass(), cls_ == instruction_);
+    const bool is_load_class_bss_entry =
+        (cls_ == instruction_) && (cls_->GetLoadKind() == HLoadClass::LoadKind::kBssEntry);
     __ Bind(GetEntryLabel());
     SaveLiveRegisters(codegen, locations);
 
-    InvokeRuntimeCallingConvention calling_convention;
+    // For HLoadClass/kBssEntry/kSaveEverything, make sure we preserve the address of the entry.
+    Register entry_address = kNoRegister;
+    if (is_load_class_bss_entry && r2_baker_or_no_read_barriers) {
+      Register temp = locations->GetTemp(0).AsRegister<Register>();
+      bool temp_is_a0 = (temp == calling_convention.GetRegisterAt(0));
+      // In the unlucky case that `temp` is A0, we preserve the address in `out` across the
+      // kSaveEverything call.
+      entry_address = temp_is_a0 ? out.AsRegister<Register>() : temp;
+      DCHECK_NE(entry_address, calling_convention.GetRegisterAt(0));
+      if (temp_is_a0) {
+        __ Move(entry_address, temp);
+      }
+    }
+
     dex::TypeIndex type_index = cls_->GetTypeIndex();
     __ LoadConst32(calling_convention.GetRegisterAt(0), type_index.index_);
-
     QuickEntrypointEnum entrypoint = do_clinit_ ? kQuickInitializeStaticStorage
                                                 : kQuickInitializeType;
     mips_codegen->InvokeRuntime(entrypoint, instruction_, dex_pc_, this);
@@ -237,25 +255,27 @@ class LoadClassSlowPathMIPS : public SlowPathCodeMIPS {
       CheckEntrypointTypes<kQuickInitializeType, void*, uint32_t>();
     }
 
+    // For HLoadClass/kBssEntry, store the resolved class to the BSS entry.
+    if (is_load_class_bss_entry && r2_baker_or_no_read_barriers) {
+      // The class entry address was preserved in `entry_address` thanks to kSaveEverything.
+      __ StoreToOffset(kStoreWord, calling_convention.GetRegisterAt(0), entry_address, 0);
+    }
+
     // Move the class to the desired location.
-    Location out = locations->Out();
     if (out.IsValid()) {
       DCHECK(out.IsRegister() && !locations->GetLiveRegisters()->ContainsCoreRegister(out.reg()));
       Primitive::Type type = instruction_->GetType();
-      mips_codegen->MoveLocation(out, calling_convention.GetReturnLocation(type), type);
+      mips_codegen->MoveLocation(out,
+                                 Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
+                                 type);
     }
-
     RestoreLiveRegisters(codegen, locations);
-    // For HLoadClass/kBssEntry, store the resolved Class to the BSS entry.
-    DCHECK_EQ(instruction_->IsLoadClass(), cls_ == instruction_);
-    if (cls_ == instruction_ && cls_->GetLoadKind() == HLoadClass::LoadKind::kBssEntry) {
-      DCHECK(out.IsValid());
-      // TODO: Change art_quick_initialize_type/art_quick_initialize_static_storage to
-      // kSaveEverything and use a temporary for the .bss entry address in the fast path,
-      // so that we can avoid another calculation here.
-      bool isR6 = mips_codegen->GetInstructionSetFeatures().IsR6();
+
+    // For HLoadClass/kBssEntry, store the resolved class to the BSS entry.
+    if (is_load_class_bss_entry && !r2_baker_or_no_read_barriers) {
+      // For non-Baker read barriers (or on R6), we need to re-calculate the address of
+      // the class entry.
       Register base = isR6 ? ZERO : locations->InAt(0).AsRegister<Register>();
-      DCHECK_NE(out.AsRegister<Register>(), AT);
       CodeGeneratorMIPS::PcRelativePatchInfo* info =
           mips_codegen->NewTypeBssEntryPatch(cls_->GetDexFile(), type_index);
       bool reordering = __ SetReorder(false);
@@ -286,40 +306,62 @@ class LoadStringSlowPathMIPS : public SlowPathCodeMIPS {
   explicit LoadStringSlowPathMIPS(HLoadString* instruction) : SlowPathCodeMIPS(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    DCHECK(instruction_->IsLoadString());
+    DCHECK_EQ(instruction_->AsLoadString()->GetLoadKind(), HLoadString::LoadKind::kBssEntry);
     LocationSummary* locations = instruction_->GetLocations();
     DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
+    HLoadString* load = instruction_->AsLoadString();
+    const dex::StringIndex string_index = load->GetStringIndex();
+    Register out = locations->Out().AsRegister<Register>();
     CodeGeneratorMIPS* mips_codegen = down_cast<CodeGeneratorMIPS*>(codegen);
-
+    const bool isR6 = mips_codegen->GetInstructionSetFeatures().IsR6();
+    const bool r2_baker_or_no_read_barriers = !isR6 && (!kUseReadBarrier || kUseBakerReadBarrier);
+    InvokeRuntimeCallingConvention calling_convention;
     __ Bind(GetEntryLabel());
     SaveLiveRegisters(codegen, locations);
 
-    InvokeRuntimeCallingConvention calling_convention;
-    HLoadString* load = instruction_->AsLoadString();
-    const dex::StringIndex string_index = load->GetStringIndex();
+    // For HLoadString/kBssEntry/kSaveEverything, make sure we preserve the address of the entry.
+    Register entry_address = kNoRegister;
+    if (r2_baker_or_no_read_barriers) {
+      Register temp = locations->GetTemp(0).AsRegister<Register>();
+      bool temp_is_a0 = (temp == calling_convention.GetRegisterAt(0));
+      // In the unlucky case that `temp` is A0, we preserve the address in `out` across the
+      // kSaveEverything call.
+      entry_address = temp_is_a0 ? out : temp;
+      DCHECK_NE(entry_address, calling_convention.GetRegisterAt(0));
+      if (temp_is_a0) {
+        __ Move(entry_address, temp);
+      }
+    }
+
     __ LoadConst32(calling_convention.GetRegisterAt(0), string_index.index_);
     mips_codegen->InvokeRuntime(kQuickResolveString, instruction_, instruction_->GetDexPc(), this);
     CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
+
+    // Store the resolved string to the BSS entry.
+    if (r2_baker_or_no_read_barriers) {
+      // The string entry address was preserved in `entry_address` thanks to kSaveEverything.
+      __ StoreToOffset(kStoreWord, calling_convention.GetRegisterAt(0), entry_address, 0);
+    }
+
     Primitive::Type type = instruction_->GetType();
     mips_codegen->MoveLocation(locations->Out(),
-                               calling_convention.GetReturnLocation(type),
+                               Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
                                type);
-
     RestoreLiveRegisters(codegen, locations);
 
-    // Store the resolved String to the BSS entry.
-    // TODO: Change art_quick_resolve_string to kSaveEverything and use a temporary for the
-    // .bss entry address in the fast path, so that we can avoid another calculation here.
-    bool isR6 = mips_codegen->GetInstructionSetFeatures().IsR6();
-    Register base = isR6 ? ZERO : locations->InAt(0).AsRegister<Register>();
-    Register out = locations->Out().AsRegister<Register>();
-    DCHECK_NE(out, AT);
-    CodeGeneratorMIPS::PcRelativePatchInfo* info =
-        mips_codegen->NewPcRelativeStringPatch(load->GetDexFile(), string_index);
-    bool reordering = __ SetReorder(false);
-    mips_codegen->EmitPcRelativeAddressPlaceholderHigh(info, TMP, base);
-    __ StoreToOffset(kStoreWord, out, TMP, /* placeholder */ 0x5678);
-    __ SetReorder(reordering);
-
+    // Store the resolved string to the BSS entry.
+    if (!r2_baker_or_no_read_barriers) {
+      // For non-Baker read barriers (or on R6), we need to re-calculate the address of
+      // the string entry.
+      Register base = isR6 ? ZERO : locations->InAt(0).AsRegister<Register>();
+      CodeGeneratorMIPS::PcRelativePatchInfo* info =
+          mips_codegen->NewPcRelativeStringPatch(load->GetDexFile(), string_index);
+      bool reordering = __ SetReorder(false);
+      mips_codegen->EmitPcRelativeAddressPlaceholderHigh(info, TMP, base);
+      __ StoreToOffset(kStoreWord, out, TMP, /* placeholder */ 0x5678);
+      __ SetReorder(reordering);
+    }
     __ B(GetExitLabel());
   }
 
@@ -1719,15 +1761,14 @@ void CodeGeneratorMIPS::PatchJitRootUse(uint8_t* code,
   DCHECK_EQ(code[literal_offset + 1], 0x12);
   DCHECK_EQ((code[literal_offset + 2] & 0xE0), 0x00);
   DCHECK_EQ(code[literal_offset + 3], 0x3C);
-  // lw reg, reg, addr32_low
+  // instr reg, reg, addr32_low
   DCHECK_EQ(code[literal_offset + 4], 0x78);
   DCHECK_EQ(code[literal_offset + 5], 0x56);
-  DCHECK_EQ((code[literal_offset + 7] & 0xFC), 0x8C);
-  addr32 += (addr32 & 0x8000) << 1;  // Account for sign extension in "lw reg, reg, addr32_low".
+  addr32 += (addr32 & 0x8000) << 1;  // Account for sign extension in "instr reg, reg, addr32_low".
   // lui reg, addr32_high
   code[literal_offset + 0] = static_cast<uint8_t>(addr32 >> 16);
   code[literal_offset + 1] = static_cast<uint8_t>(addr32 >> 24);
-  // lw reg, reg, addr32_low
+  // instr reg, reg, addr32_low
   code[literal_offset + 4] = static_cast<uint8_t>(addr32 >> 0);
   code[literal_offset + 5] = static_cast<uint8_t>(addr32 >> 8);
 }
@@ -2436,6 +2477,9 @@ void LocationsBuilderMIPS::VisitArrayGet(HArrayGet* instruction) {
                                                    object_array_get_with_read_barrier
                                                        ? LocationSummary::kCallOnSlowPath
                                                        : LocationSummary::kNoCall);
+  if (object_array_get_with_read_barrier && kUseBakerReadBarrier) {
+    locations->SetCustomSlowPathCallerSaves(RegisterSet::Empty());  // No caller-save registers.
+  }
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
   if (Primitive::IsFloatingPointType(type)) {
@@ -5767,6 +5811,9 @@ void LocationsBuilderMIPS::HandleFieldGet(HInstruction* instruction, const Field
               ? LocationSummary::kCallOnSlowPath
               : LocationSummary::kNoCall));
 
+  if (object_field_get_with_read_barrier && kUseBakerReadBarrier) {
+    locations->SetCustomSlowPathCallerSaves(RegisterSet::Empty());  // No caller-save registers.
+  }
   locations->SetInAt(0, Location::RequiresRegister());
   if (generate_volatile) {
     InvokeRuntimeCallingConvention calling_convention;
@@ -6445,6 +6492,7 @@ void CodeGeneratorMIPS::GenerateReadBarrierForRootSlow(HInstruction* instruction
 void LocationsBuilderMIPS::VisitInstanceOf(HInstanceOf* instruction) {
   LocationSummary::CallKind call_kind = LocationSummary::kNoCall;
   TypeCheckKind type_check_kind = instruction->GetTypeCheckKind();
+  bool baker_read_barrier_slow_path = false;
   switch (type_check_kind) {
     case TypeCheckKind::kExactCheck:
     case TypeCheckKind::kAbstractClassCheck:
@@ -6452,6 +6500,7 @@ void LocationsBuilderMIPS::VisitInstanceOf(HInstanceOf* instruction) {
     case TypeCheckKind::kArrayObjectCheck:
       call_kind =
           kEmitCompilerReadBarrier ? LocationSummary::kCallOnSlowPath : LocationSummary::kNoCall;
+      baker_read_barrier_slow_path = kUseBakerReadBarrier;
       break;
     case TypeCheckKind::kArrayCheck:
     case TypeCheckKind::kUnresolvedCheck:
@@ -6461,6 +6510,9 @@ void LocationsBuilderMIPS::VisitInstanceOf(HInstanceOf* instruction) {
   }
 
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction, call_kind);
+  if (baker_read_barrier_slow_path) {
+    locations->SetCustomSlowPathCallerSaves(RegisterSet::Empty());  // No caller-save registers.
+  }
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
   // The output does overlap inputs.
@@ -7048,26 +7100,27 @@ void LocationsBuilderMIPS::VisitLoadClass(HLoadClass* cls) {
   HLoadClass::LoadKind load_kind = cls->GetLoadKind();
   if (load_kind == HLoadClass::LoadKind::kDexCacheViaMethod) {
     InvokeRuntimeCallingConvention calling_convention;
-    CodeGenerator::CreateLoadClassRuntimeCallLocationSummary(
-        cls,
-        Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
-        calling_convention.GetReturnLocation(Primitive::kPrimNot));
+    Location loc = Location::RegisterLocation(calling_convention.GetRegisterAt(0));
+    CodeGenerator::CreateLoadClassRuntimeCallLocationSummary(cls, loc, loc);
     return;
   }
   DCHECK(!cls->NeedsAccessCheck());
-
+  const bool isR6 = codegen_->GetInstructionSetFeatures().IsR6();
   const bool requires_read_barrier = kEmitCompilerReadBarrier && !cls->IsInBootImage();
   LocationSummary::CallKind call_kind = (cls->NeedsEnvironment() || requires_read_barrier)
       ? LocationSummary::kCallOnSlowPath
       : LocationSummary::kNoCall;
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(cls, call_kind);
+  if (kUseBakerReadBarrier && requires_read_barrier && !cls->NeedsEnvironment()) {
+    locations->SetCustomSlowPathCallerSaves(RegisterSet::Empty());  // No caller-save registers.
+  }
   switch (load_kind) {
     // We need an extra register for PC-relative literals on R2.
     case HLoadClass::LoadKind::kBootImageLinkTimeAddress:
     case HLoadClass::LoadKind::kBootImageLinkTimePcRelative:
     case HLoadClass::LoadKind::kBootImageAddress:
     case HLoadClass::LoadKind::kBssEntry:
-      if (codegen_->GetInstructionSetFeatures().IsR6()) {
+      if (isR6) {
         break;
       }
       FALLTHROUGH_INTENDED;
@@ -7078,6 +7131,22 @@ void LocationsBuilderMIPS::VisitLoadClass(HLoadClass* cls) {
       break;
   }
   locations->SetOut(Location::RequiresRegister());
+  if (load_kind == HLoadClass::LoadKind::kBssEntry) {
+    if (!kUseReadBarrier || kUseBakerReadBarrier) {
+      // Rely on the type resolution or initialization and marking to save everything we need.
+      // Request a temp to hold the BSS entry location for the slow path on R2
+      // (no benefit for R6).
+      if (!isR6) {
+        locations->AddTemp(Location::RequiresRegister());
+      }
+      RegisterSet caller_saves = RegisterSet::Empty();
+      InvokeRuntimeCallingConvention calling_convention;
+      caller_saves.Add(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+      locations->SetCustomSlowPathCallerSaves(caller_saves);
+    } else {
+      // For non-Baker read barriers we have a temp-clobbering call.
+    }
+  }
 }
 
 // NO_THREAD_SAFETY_ANALYSIS as we manipulate handles whose internal object we know does not
@@ -7160,10 +7229,22 @@ void InstructionCodeGeneratorMIPS::VisitLoadClass(HLoadClass* cls) NO_THREAD_SAF
     case HLoadClass::LoadKind::kBssEntry: {
       CodeGeneratorMIPS::PcRelativePatchInfo* info =
           codegen_->NewTypeBssEntryPatch(cls->GetDexFile(), cls->GetTypeIndex());
-      bool reordering = __ SetReorder(false);
-      codegen_->EmitPcRelativeAddressPlaceholderHigh(info, out, base_or_current_method_reg);
-      GenerateGcRootFieldLoad(cls, out_loc, out, /* placeholder */ 0x5678, read_barrier_option);
-      __ SetReorder(reordering);
+      constexpr bool non_baker_read_barrier = kUseReadBarrier && !kUseBakerReadBarrier;
+      if (isR6 || non_baker_read_barrier) {
+        bool reordering = __ SetReorder(false);
+        codegen_->EmitPcRelativeAddressPlaceholderHigh(info, out, base_or_current_method_reg);
+        GenerateGcRootFieldLoad(cls, out_loc, out, /* placeholder */ 0x5678, read_barrier_option);
+        __ SetReorder(reordering);
+      } else {
+        // On R2 save the BSS entry address in a temporary register instead of
+        // recalculating it in the slow path.
+        Register temp = locations->GetTemp(0).AsRegister<Register>();
+        bool reordering = __ SetReorder(false);
+        codegen_->EmitPcRelativeAddressPlaceholderHigh(info, temp, base_or_current_method_reg);
+        __ Addiu(temp, temp, /* placeholder */ 0x5678);
+        __ SetReorder(reordering);
+        GenerateGcRootFieldLoad(cls, out_loc, temp, /* offset */ 0, read_barrier_option);
+      }
       generate_null_check = true;
       break;
     }
@@ -7227,13 +7308,14 @@ void LocationsBuilderMIPS::VisitLoadString(HLoadString* load) {
   LocationSummary::CallKind call_kind = CodeGenerator::GetLoadStringCallKind(load);
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(load, call_kind);
   HLoadString::LoadKind load_kind = load->GetLoadKind();
+  const bool isR6 = codegen_->GetInstructionSetFeatures().IsR6();
   switch (load_kind) {
     // We need an extra register for PC-relative literals on R2.
     case HLoadString::LoadKind::kBootImageLinkTimeAddress:
     case HLoadString::LoadKind::kBootImageAddress:
     case HLoadString::LoadKind::kBootImageLinkTimePcRelative:
     case HLoadString::LoadKind::kBssEntry:
-      if (codegen_->GetInstructionSetFeatures().IsR6()) {
+      if (isR6) {
         break;
       }
       FALLTHROUGH_INTENDED;
@@ -7246,9 +7328,25 @@ void LocationsBuilderMIPS::VisitLoadString(HLoadString* load) {
   }
   if (load_kind == HLoadString::LoadKind::kDexCacheViaMethod) {
     InvokeRuntimeCallingConvention calling_convention;
-    locations->SetOut(calling_convention.GetReturnLocation(load->GetType()));
+    locations->SetOut(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
   } else {
     locations->SetOut(Location::RequiresRegister());
+    if (load_kind == HLoadString::LoadKind::kBssEntry) {
+      if (!kUseReadBarrier || kUseBakerReadBarrier) {
+        // Rely on the pResolveString and marking to save everything we need.
+        // Request a temp to hold the BSS entry location for the slow path on R2
+        // (no benefit for R6).
+        if (!isR6) {
+          locations->AddTemp(Location::RequiresRegister());
+        }
+        RegisterSet caller_saves = RegisterSet::Empty();
+        InvokeRuntimeCallingConvention calling_convention;
+        caller_saves.Add(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+        locations->SetCustomSlowPathCallerSaves(caller_saves);
+      } else {
+        // For non-Baker read barriers we have a temp-clobbering call.
+      }
+    }
   }
 }
 
@@ -7305,14 +7403,26 @@ void InstructionCodeGeneratorMIPS::VisitLoadString(HLoadString* load) NO_THREAD_
       DCHECK(!codegen_->GetCompilerOptions().IsBootImage());
       CodeGeneratorMIPS::PcRelativePatchInfo* info =
           codegen_->NewPcRelativeStringPatch(load->GetDexFile(), load->GetStringIndex());
-      bool reordering = __ SetReorder(false);
-      codegen_->EmitPcRelativeAddressPlaceholderHigh(info, out, base_or_current_method_reg);
-      GenerateGcRootFieldLoad(load,
-                              out_loc,
-                              out,
-                              /* placeholder */ 0x5678,
-                              kCompilerReadBarrierOption);
-      __ SetReorder(reordering);
+      constexpr bool non_baker_read_barrier = kUseReadBarrier && !kUseBakerReadBarrier;
+      if (isR6 || non_baker_read_barrier) {
+        bool reordering = __ SetReorder(false);
+        codegen_->EmitPcRelativeAddressPlaceholderHigh(info, out, base_or_current_method_reg);
+        GenerateGcRootFieldLoad(load,
+                                out_loc,
+                                out,
+                                /* placeholder */ 0x5678,
+                                kCompilerReadBarrierOption);
+        __ SetReorder(reordering);
+      } else {
+        // On R2 save the BSS entry address in a temporary register instead of
+        // recalculating it in the slow path.
+        Register temp = locations->GetTemp(0).AsRegister<Register>();
+        bool reordering = __ SetReorder(false);
+        codegen_->EmitPcRelativeAddressPlaceholderHigh(info, temp, base_or_current_method_reg);
+        __ Addiu(temp, temp, /* placeholder */ 0x5678);
+        __ SetReorder(reordering);
+        GenerateGcRootFieldLoad(load, out_loc, temp, /* offset */ 0, kCompilerReadBarrierOption);
+      }
       SlowPathCodeMIPS* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathMIPS(load);
       codegen_->AddSlowPath(slow_path);
       __ Beqz(out, slow_path->GetEntryLabel());
@@ -7342,6 +7452,7 @@ void InstructionCodeGeneratorMIPS::VisitLoadString(HLoadString* load) NO_THREAD_
   // TODO: Re-add the compiler code to do string dex cache lookup again.
   DCHECK(load_kind == HLoadString::LoadKind::kDexCacheViaMethod);
   InvokeRuntimeCallingConvention calling_convention;
+  DCHECK_EQ(calling_convention.GetRegisterAt(0), out);
   __ LoadConst32(calling_convention.GetRegisterAt(0), load->GetStringIndex().index_);
   codegen_->InvokeRuntime(kQuickResolveString, load, load->GetDexPc());
   CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
