@@ -55,6 +55,7 @@ public class Main {
     "AA==");
 
   public static void main(String[] args) {
+    art.Main.bindAgentJNIForClass(Main.class);
     bindTest945ObsoleteNative();
     doTest(new Transform());
   }

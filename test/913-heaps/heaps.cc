@@ -44,8 +44,8 @@ namespace Test913Heaps {
 
 using android::base::StringPrintf;
 
-extern "C" JNIEXPORT void JNICALL Java_Main_forceGarbageCollection(JNIEnv* env ATTRIBUTE_UNUSED,
-                                                                   jclass klass ATTRIBUTE_UNUSED) {
+extern "C" JNIEXPORT void JNICALL Java_art_Test913_forceGarbageCollection(
+    JNIEnv* env ATTRIBUTE_UNUSED, jclass klass ATTRIBUTE_UNUSED) {
   jvmtiError ret = jvmti_env->ForceGarbageCollection();
   if (ret != JVMTI_ERROR_NONE) {
     char* err;
@@ -115,14 +115,15 @@ static bool Run(jint heap_filter,
   return true;
 }
 
-extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_followReferences(JNIEnv* env,
-                                                                     jclass klass ATTRIBUTE_UNUSED,
-                                                                     jint heap_filter,
-                                                                     jclass klass_filter,
-                                                                     jobject initial_object,
-                                                                     jint stop_after,
-                                                                     jint follow_set,
-                                                                     jobject jniRef) {
+extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test913_followReferences(
+    JNIEnv* env,
+    jclass klass ATTRIBUTE_UNUSED,
+    jint heap_filter,
+    jclass klass_filter,
+    jobject initial_object,
+    jint stop_after,
+    jint follow_set,
+    jobject jniRef) {
   class PrintIterationConfig FINAL : public IterationConfig {
    public:
     PrintIterationConfig(jint _stop_after, jint _follow_set)
@@ -503,7 +504,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_followReferences(JNIEnv* env
   return ret;
 }
 
-extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_followReferencesString(
+extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test913_followReferencesString(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject initial_object) {
   struct FindStringCallbacks {
     static jint JNICALL FollowReferencesCallback(
@@ -566,7 +567,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_followReferencesString(
 }
 
 
-extern "C" JNIEXPORT jstring JNICALL Java_Main_followReferencesPrimitiveArray(
+extern "C" JNIEXPORT jstring JNICALL Java_art_Test913_followReferencesPrimitiveArray(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject initial_object) {
   struct FindArrayCallbacks {
     static jint JNICALL FollowReferencesCallback(
@@ -679,7 +680,7 @@ static constexpr const char* GetPrimitiveTypeName(jvmtiPrimitiveType type) {
   UNREACHABLE();
 }
 
-extern "C" JNIEXPORT jstring JNICALL Java_Main_followReferencesPrimitiveFields(
+extern "C" JNIEXPORT jstring JNICALL Java_art_Test913_followReferencesPrimitiveFields(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject initial_object) {
   struct FindFieldCallbacks {
     static jint JNICALL FollowReferencesCallback(
@@ -744,6 +745,63 @@ extern "C" JNIEXPORT jstring JNICALL Java_Main_followReferencesPrimitiveFields(
     return nullptr;
   }
   return env->NewStringUTF(ffc.data.c_str());
+}
+
+// This is copied from test 908. Consider moving this to the main shim.
+
+static size_t starts = 0;
+static size_t finishes = 0;
+
+static void JNICALL GarbageCollectionFinish(jvmtiEnv* ti_env ATTRIBUTE_UNUSED) {
+  finishes++;
+}
+
+static void JNICALL GarbageCollectionStart(jvmtiEnv* ti_env ATTRIBUTE_UNUSED) {
+  starts++;
+}
+
+extern "C" JNIEXPORT void JNICALL Java_art_Test913_setupGcCallback(
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
+  jvmtiEventCallbacks callbacks;
+  memset(&callbacks, 0, sizeof(jvmtiEventCallbacks));
+  callbacks.GarbageCollectionFinish = GarbageCollectionFinish;
+  callbacks.GarbageCollectionStart = GarbageCollectionStart;
+
+  jvmtiError ret = jvmti_env->SetEventCallbacks(&callbacks, sizeof(callbacks));
+  JvmtiErrorToException(env, jvmti_env, ret);
+}
+
+extern "C" JNIEXPORT void JNICALL Java_art_Test913_enableGcTracking(JNIEnv* env,
+                                                                    jclass klass ATTRIBUTE_UNUSED,
+                                                                    jboolean enable) {
+  jvmtiError ret = jvmti_env->SetEventNotificationMode(
+      enable ? JVMTI_ENABLE : JVMTI_DISABLE,
+      JVMTI_EVENT_GARBAGE_COLLECTION_START,
+      nullptr);
+  if (JvmtiErrorToException(env, jvmti_env, ret)) {
+    return;
+  }
+  ret = jvmti_env->SetEventNotificationMode(
+      enable ? JVMTI_ENABLE : JVMTI_DISABLE,
+      JVMTI_EVENT_GARBAGE_COLLECTION_FINISH,
+      nullptr);
+  if (JvmtiErrorToException(env, jvmti_env, ret)) {
+    return;
+  }
+}
+
+extern "C" JNIEXPORT jint JNICALL Java_art_Test913_getGcStarts(JNIEnv* env ATTRIBUTE_UNUSED,
+                                                               jclass klass ATTRIBUTE_UNUSED) {
+  jint result = static_cast<jint>(starts);
+  starts = 0;
+  return result;
+}
+
+extern "C" JNIEXPORT jint JNICALL Java_art_Test913_getGcFinishes(JNIEnv* env ATTRIBUTE_UNUSED,
+                                                                 jclass klass ATTRIBUTE_UNUSED) {
+  jint result = static_cast<jint>(finishes);
+  finishes = 0;
+  return result;
 }
 
 }  // namespace Test913Heaps

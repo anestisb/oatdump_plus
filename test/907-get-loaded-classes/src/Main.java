@@ -14,46 +14,8 @@
  * limitations under the License.
  */
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-
 public class Main {
   public static void main(String[] args) throws Exception {
-    doTest();
+    art.Test907.run();
   }
-
-  public static void doTest() throws Exception {
-    // Ensure some classes are loaded.
-    A a = new A();
-    B b = new B();
-    A[] aArray = new A[5];
-
-    String[] classes = getLoadedClasses();
-    HashSet<String> classesSet = new HashSet<>(Arrays.asList(classes));
-
-    String[] shouldBeLoaded = new String[] {
-        "java.lang.Object", "java.lang.Class", "java.lang.String", "Main$A", "Main$B", "[LMain$A;"
-    };
-
-    boolean error = false;
-    for (String s : shouldBeLoaded) {
-      if (!classesSet.contains(s)) {
-        System.out.println("Did not find " + s);
-        error = true;
-      }
-    }
-
-    if (error) {
-      System.out.println(Arrays.toString(classes));
-    }
-  }
-
-  static class A {
-  }
-
-  static class B {
-  }
-
-  private static native String[] getLoadedClasses();
 }

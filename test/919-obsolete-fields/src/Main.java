@@ -116,6 +116,7 @@ public class Main {
   }
 
   public static void main(String[] args) {
+    art.Main.bindAgentJNIForClass(Main.class);
     TestWatcher w = new TestWatcher();
     doTest(new Transform(w), w);
   }

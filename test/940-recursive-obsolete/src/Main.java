@@ -70,6 +70,7 @@ public class Main {
     "1gMAAAAQAAABAAAA5AMAAA==");
 
   public static void main(String[] args) {
+    art.Main.bindAgentJNIForClass(Main.class);
     doTest(new Transform());
   }
 
