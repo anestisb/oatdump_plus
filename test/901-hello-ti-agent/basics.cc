@@ -145,14 +145,14 @@ jint OnLoad(JavaVM* vm,
   return JNI_OK;
 }
 
-extern "C" JNIEXPORT void JNICALL Java_Main_setVerboseFlag(
+extern "C" JNIEXPORT void JNICALL Java_art_Test901_setVerboseFlag(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jint iflag, jboolean val) {
   jvmtiVerboseFlag flag = static_cast<jvmtiVerboseFlag>(iflag);
   jvmtiError result = jvmti_env->SetVerboseFlag(flag, val);
   JvmtiErrorToException(env, jvmti_env, result);
 }
 
-extern "C" JNIEXPORT jboolean JNICALL Java_Main_checkLivePhase(
+extern "C" JNIEXPORT jboolean JNICALL Java_art_Test901_checkLivePhase(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED) {
   jvmtiPhase current_phase;
   jvmtiError phase_result = jvmti_env->GetPhase(&current_phase);
@@ -168,7 +168,7 @@ static void CallJvmtiFunction(jvmtiEnv* env, jclass klass, jvmtiError* err) {
   *err = env->GetClassMethods(klass, &n, &methods);
 }
 
-extern "C" JNIEXPORT jboolean JNICALL Java_Main_checkUnattached(
+extern "C" JNIEXPORT jboolean JNICALL Java_art_Test901_checkUnattached(
     JNIEnv* env ATTRIBUTE_UNUSED, jclass Main_klass) {
   jvmtiError res = JVMTI_ERROR_NONE;
   std::thread t1(CallJvmtiFunction, jvmti_env, Main_klass, &res);

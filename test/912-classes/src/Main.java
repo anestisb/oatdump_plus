@@ -23,6 +23,7 @@ import java.util.Comparator;
 
 public class Main {
   public static void main(String[] args) throws Exception {
+    art.Main.bindAgentJNIForClass(Main.class);
     doTest();
   }
 
