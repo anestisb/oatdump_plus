@@ -1,3 +1,0 @@
-# The environment variable set below makes JNI_OnLoad
-# throw so that the test can try to catch the exception.
-ART_TEST_985_JNI_ONLOAD_THROW_THROW_IN_JNI_ONLOAD=1 exec ${RUN} "${@}"
