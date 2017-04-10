@@ -245,6 +245,7 @@ art_cc_defaults {
     defaults: ["libartagent-defaults"],
     srcs: [
         // These are the ART-independent parts.
+        "ti-agent/agent_common.cc",
         "ti-agent/agent_startup.cc",
         "ti-agent/jni_binder.cc",
         "ti-agent/jvmti_helper.cc",

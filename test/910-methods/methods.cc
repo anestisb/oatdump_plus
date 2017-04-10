@@ -30,7 +30,7 @@
 namespace art {
 namespace Test910Methods {
 
-extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getMethodName(
+extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test910_getMethodName(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject method) {
   jmethodID id = env->FromReflectedMethod(method);
 
@@ -73,7 +73,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getMethodName(
   return ret;
 }
 
-extern "C" JNIEXPORT jclass JNICALL Java_Main_getMethodDeclaringClass(
+extern "C" JNIEXPORT jclass JNICALL Java_art_Test910_getMethodDeclaringClass(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject method) {
   jmethodID id = env->FromReflectedMethod(method);
 
@@ -86,7 +86,7 @@ extern "C" JNIEXPORT jclass JNICALL Java_Main_getMethodDeclaringClass(
   return declaring_class;
 }
 
-extern "C" JNIEXPORT jint JNICALL Java_Main_getMethodModifiers(
+extern "C" JNIEXPORT jint JNICALL Java_art_Test910_getMethodModifiers(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject method) {
   jmethodID id = env->FromReflectedMethod(method);
 
@@ -99,7 +99,7 @@ extern "C" JNIEXPORT jint JNICALL Java_Main_getMethodModifiers(
   return modifiers;
 }
 
-extern "C" JNIEXPORT jint JNICALL Java_Main_getMaxLocals(
+extern "C" JNIEXPORT jint JNICALL Java_art_Test910_getMaxLocals(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject method) {
   jmethodID id = env->FromReflectedMethod(method);
 
@@ -112,7 +112,7 @@ extern "C" JNIEXPORT jint JNICALL Java_Main_getMaxLocals(
   return max_locals;
 }
 
-extern "C" JNIEXPORT jint JNICALL Java_Main_getArgumentsSize(
+extern "C" JNIEXPORT jint JNICALL Java_art_Test910_getArgumentsSize(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject method) {
   jmethodID id = env->FromReflectedMethod(method);
 
@@ -125,7 +125,7 @@ extern "C" JNIEXPORT jint JNICALL Java_Main_getArgumentsSize(
   return arguments;
 }
 
-extern "C" JNIEXPORT jlong JNICALL Java_Main_getMethodLocationStart(
+extern "C" JNIEXPORT jlong JNICALL Java_art_Test910_getMethodLocationStart(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject method) {
   jmethodID id = env->FromReflectedMethod(method);
 
@@ -139,7 +139,7 @@ extern "C" JNIEXPORT jlong JNICALL Java_Main_getMethodLocationStart(
   return start;
 }
 
-extern "C" JNIEXPORT jlong JNICALL Java_Main_getMethodLocationEnd(
+extern "C" JNIEXPORT jlong JNICALL Java_art_Test910_getMethodLocationEnd(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject method) {
   jmethodID id = env->FromReflectedMethod(method);
 
@@ -153,7 +153,7 @@ extern "C" JNIEXPORT jlong JNICALL Java_Main_getMethodLocationEnd(
   return end;
 }
 
-extern "C" JNIEXPORT jboolean JNICALL Java_Main_isMethodNative(
+extern "C" JNIEXPORT jboolean JNICALL Java_art_Test910_isMethodNative(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject method) {
   jmethodID id = env->FromReflectedMethod(method);
 
@@ -166,7 +166,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_isMethodNative(
   return is_native;
 }
 
-extern "C" JNIEXPORT jboolean JNICALL Java_Main_isMethodObsolete(
+extern "C" JNIEXPORT jboolean JNICALL Java_art_Test910_isMethodObsolete(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject method) {
   jmethodID id = env->FromReflectedMethod(method);
 
@@ -179,7 +179,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_isMethodObsolete(
   return is_obsolete;
 }
 
-extern "C" JNIEXPORT jboolean JNICALL Java_Main_isMethodSynthetic(
+extern "C" JNIEXPORT jboolean JNICALL Java_art_Test910_isMethodSynthetic(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject method) {
   jmethodID id = env->FromReflectedMethod(method);
 

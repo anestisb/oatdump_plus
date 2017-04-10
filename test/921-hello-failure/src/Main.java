@@ -18,6 +18,8 @@ import java.util.ArrayList;
 public class Main {
 
   public static void main(String[] args) {
+    art.Main.bindAgentJNIForClass(Main.class);
+
     Verification.doTest(new Transform());
     NewName.doTest(new Transform());
     DifferentAccess.doTest(new Transform());

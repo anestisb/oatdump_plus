@@ -5,10 +5,10 @@ hello
 transforming calling function
 Received error : java.lang.Error: Throwing exception into an obsolete method!
 java.lang.Error: Throwing exception into an obsolete method!
-	at Main$DoRedefinitionClass.run(Main.java:64)
+	at Main$DoRedefinitionClass.run(Main.java:65)
 	at Transform.sayHi(Transform.java:27)
-	at Main.doTest(Main.java:71)
-	at Main.main(Main.java:56)
+	at Main.doTest(Main.java:72)
+	at Main.main(Main.java:57)
 Hello - Transformed
 Not doing anything here
 Goodbye - Transformed

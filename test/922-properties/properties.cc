@@ -29,7 +29,7 @@
 namespace art {
 namespace Test922Properties {
 
-extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getSystemProperties(
+extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test922_getSystemProperties(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED) {
   jint count;
   char** properties;
@@ -54,7 +54,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getSystemProperties(
   return ret;
 }
 
-extern "C" JNIEXPORT jstring JNICALL Java_Main_getSystemProperty(
+extern "C" JNIEXPORT jstring JNICALL Java_art_Test922_getSystemProperty(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jstring key) {
   ScopedUtfChars string(env, key);
   if (string.c_str() == nullptr) {
@@ -74,7 +74,7 @@ extern "C" JNIEXPORT jstring JNICALL Java_Main_getSystemProperty(
   return ret;
 }
 
-extern "C" JNIEXPORT void JNICALL Java_Main_setSystemProperty(
+extern "C" JNIEXPORT void JNICALL Java_art_Test922_setSystemProperty(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jstring key, jstring value) {
   ScopedUtfChars key_string(env, key);
   if (key_string.c_str() == nullptr) {

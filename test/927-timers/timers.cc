@@ -31,7 +31,7 @@
 namespace art {
 namespace Test926Timers {
 
-extern "C" JNIEXPORT jint JNICALL Java_Main_getAvailableProcessors(
+extern "C" JNIEXPORT jint JNICALL Java_art_Test927_getAvailableProcessors(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED) {
   jint count;
   jvmtiError result = jvmti_env->GetAvailableProcessors(&count);
@@ -41,7 +41,7 @@ extern "C" JNIEXPORT jint JNICALL Java_Main_getAvailableProcessors(
   return count;
 }
 
-extern "C" JNIEXPORT jlong JNICALL Java_Main_getTime(
+extern "C" JNIEXPORT jlong JNICALL Java_art_Test927_getTime(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED) {
   jlong time;
   jvmtiError result = jvmti_env->GetTime(&time);
@@ -51,7 +51,7 @@ extern "C" JNIEXPORT jlong JNICALL Java_Main_getTime(
   return time;
 }
 
-extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getTimerInfo(
+extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test927_getTimerInfo(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED) {
   jvmtiTimerInfo info;
   jvmtiError result = jvmti_env->GetTimerInfo(&info);

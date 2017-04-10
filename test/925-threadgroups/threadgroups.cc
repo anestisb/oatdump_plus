@@ -35,7 +35,7 @@ namespace Test925ThreadGroups {
 //   // Returns an array where element 0 is an array of threads and element 1 is an array of groups.
 //   private static native Object[] getThreadGroupChildren();
 
-extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getTopThreadGroups(
+extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test925_getTopThreadGroups(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED) {
   jthreadGroup* groups;
   jint group_count;
@@ -54,7 +54,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getTopThreadGroups(
   return ret;
 }
 
-extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getThreadGroupInfo(
+extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test925_getThreadGroupInfo(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jthreadGroup group) {
   jvmtiThreadGroupInfo info;
   jvmtiError result = jvmti_env->GetThreadGroupInfo(group, &info);
@@ -86,7 +86,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getThreadGroupInfo(
   return CreateObjectArray(env, 4, "java/lang/Object", callback);
 }
 
-extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getThreadGroupChildren(
+extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test925_getThreadGroupChildren(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jthreadGroup group) {
   jint thread_count;
   jthread* threads;
