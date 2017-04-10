@@ -2483,7 +2483,9 @@ bool DexFileVerifier::CheckInterMethodHandleItem() {
     }
     case DexFile::MethodHandleType::kInvokeStatic:
     case DexFile::MethodHandleType::kInvokeInstance:
-    case DexFile::MethodHandleType::kInvokeConstructor: {
+    case DexFile::MethodHandleType::kInvokeConstructor:
+    case DexFile::MethodHandleType::kInvokeDirect:
+    case DexFile::MethodHandleType::kInvokeInterface: {
       LOAD_METHOD(method, index, "method_handle_item method_idx", return false);
       break;
     }

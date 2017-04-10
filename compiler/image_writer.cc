@@ -473,6 +473,11 @@ void ImageWriter::PrepareDexCacheArraySlots() {
                                  start + layout.MethodTypesOffset(),
                                  dex_cache);
     }
+    if (dex_cache->GetResolvedCallSites() != nullptr) {
+      AddDexCacheArrayRelocation(dex_cache->GetResolvedCallSites(),
+                                 start + layout.CallSitesOffset(),
+                                 dex_cache);
+    }
   }
 }
 

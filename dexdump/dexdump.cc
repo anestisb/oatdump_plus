@@ -1582,31 +1582,53 @@ static void dumpClass(const DexFile* pDexFile, int idx, char** pLastPackage) {
 
 static void dumpMethodHandle(const DexFile* pDexFile, u4 idx) {
   const DexFile::MethodHandleItem& mh = pDexFile->GetMethodHandle(idx);
+  const char* type = nullptr;
+  bool is_instance = false;
   bool is_invoke = false;
-  const char* type;
   switch (static_cast<DexFile::MethodHandleType>(mh.method_handle_type_)) {
     case DexFile::MethodHandleType::kStaticPut:
       type = "put-static";
+      is_instance = false;
+      is_invoke = false;
       break;
     case DexFile::MethodHandleType::kStaticGet:
       type = "get-static";
+      is_instance = false;
+      is_invoke = false;
       break;
     case DexFile::MethodHandleType::kInstancePut:
       type = "put-instance";
+      is_instance = true;
+      is_invoke = false;
       break;
     case DexFile::MethodHandleType::kInstanceGet:
       type = "get-instance";
+      is_instance = true;
+      is_invoke = false;
       break;
     case DexFile::MethodHandleType::kInvokeStatic:
       type = "invoke-static";
+      is_instance = false;
       is_invoke = true;
       break;
     case DexFile::MethodHandleType::kInvokeInstance:
       type = "invoke-instance";
+      is_instance = true;
       is_invoke = true;
       break;
     case DexFile::MethodHandleType::kInvokeConstructor:
       type = "invoke-constructor";
+      is_instance = true;
+      is_invoke = true;
+      break;
+    case DexFile::MethodHandleType::kInvokeDirect:
+      type = "invoke-direct";
+      is_instance = true;
+      is_invoke = true;
+      break;
+    case DexFile::MethodHandleType::kInvokeInterface:
+      type = "invoke-interface";
+      is_instance = true;
       is_invoke = true;
       break;
   }
@@ -1614,16 +1636,26 @@ static void dumpMethodHandle(const DexFile* pDexFile, u4 idx) {
   const char* declaring_class;
   const char* member;
   std::string member_type;
-  if (is_invoke) {
-    const DexFile::MethodId& method_id = pDexFile->GetMethodId(mh.field_or_method_idx_);
-    declaring_class = pDexFile->GetMethodDeclaringClassDescriptor(method_id);
-    member = pDexFile->GetMethodName(method_id);
-    member_type = pDexFile->GetMethodSignature(method_id).ToString();
+  if (type != nullptr) {
+    if (is_invoke) {
+      const DexFile::MethodId& method_id = pDexFile->GetMethodId(mh.field_or_method_idx_);
+      declaring_class = pDexFile->GetMethodDeclaringClassDescriptor(method_id);
+      member = pDexFile->GetMethodName(method_id);
+      member_type = pDexFile->GetMethodSignature(method_id).ToString();
+    } else {
+      const DexFile::FieldId& field_id = pDexFile->GetFieldId(mh.field_or_method_idx_);
+      declaring_class = pDexFile->GetFieldDeclaringClassDescriptor(field_id);
+      member = pDexFile->GetFieldName(field_id);
+      member_type = pDexFile->GetFieldTypeDescriptor(field_id);
+    }
+    if (is_instance) {
+      member_type = android::base::StringPrintf("(%s%s", declaring_class, member_type.c_str() + 1);
+    }
   } else {
-    const DexFile::FieldId& field_id = pDexFile->GetFieldId(mh.field_or_method_idx_);
-    declaring_class = pDexFile->GetFieldDeclaringClassDescriptor(field_id);
-    member = pDexFile->GetFieldName(field_id);
-    member_type = pDexFile->GetFieldTypeDescriptor(field_id);
+    type = "?";
+    declaring_class = "?";
+    member = "?";
+    member_type = "?";
   }
 
   if (gOptions.outputFormat == OUTPUT_PLAIN) {

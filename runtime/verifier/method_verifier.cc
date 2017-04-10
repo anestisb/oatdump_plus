@@ -4159,7 +4159,8 @@ bool MethodVerifier::CheckCallSite(uint32_t call_site_idx) {
   const DexFile::MethodHandleItem& mh = dex_file_->GetMethodHandle(method_handle_idx);
   if (mh.method_handle_type_ != static_cast<uint16_t>(DexFile::MethodHandleType::kInvokeStatic)) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Call site #" << call_site_idx
-                                      << " argument 0 method handle type is not InvokeStatic";
+                                      << " argument 0 method handle type is not InvokeStatic: "
+                                      << mh.method_handle_type_;
     return false;
   }
 

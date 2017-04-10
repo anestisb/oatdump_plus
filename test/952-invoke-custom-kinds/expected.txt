@@ -1,0 +1,38 @@
+bsmLookupStatic []
+Hello World!
+bsmLookupStatic []
+true
+127
+c
+1024
+123456
+1.2
+123456789
+3.5123456789
+String
+bsmLookupStaticWithExtraArgs [1, 123456789, 123.456, 123456.789123]
+targetMethodTest3 from InvokeCustom
+bsmCreateCallSite [MethodHandle(Super)void]
+targetMethodTest4 from Super
+bsmLookupStatic []
+targetMethodTest5 1000 + -923 = 77
+targetMethodTest5 returned: 77
+bsmLookupStatic []
+targetMethodTest6 8209686820727 + -1172812402961 = 7036874417766
+targetMethodTest6 returned: 7036874417766
+bsmLookupStatic []
+targetMethodTest7 0.50097656 * -0.50097656 = -0.2509775161743164
+targetMethodTest6 returned: -0.2509775161743164
+bsmLookupStatic []
+targetMethodTest8 First invokedynamic invocation
+bsmLookupStatic []
+targetMethodTest8 Second invokedynamic invocation
+bsmLookupStatic []
+targetMethodTest8 Dupe first invokedynamic invocation
+bsmLookupTest9 [MethodHandle()int, MethodHandle(int)void, MethodHandle(InvokeCustom)float, MethodHandle(InvokeCustom,float)void]
+targetMethodTest9 ()void
+checkStaticFieldTest9: old 0 new 1985229328 expected 1985229328 OK
+checkFieldTest9: old 0.0 new 1.99E-19 expected 1.99E-19 OK
+helperMethodTest9 in class invokecustom.InvokeCustom
+run() for Test9
+targetMethodTest9()

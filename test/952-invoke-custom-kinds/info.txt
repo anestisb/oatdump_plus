@@ -1,0 +1,7 @@
+This test checks call sites and constant method handles in DEX files used
+by invoke-custom.
+
+It is derived from a dx test (dalvik/dx/tests/135-invoke-custom) which
+generates the invoke-custom using ASM to generate class files. The
+test here differs as it not include an instance a constant method
+handle with a constructor kind (see b/62774190).
