@@ -19,8 +19,8 @@ LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 
 # Main shim classes. We use one that exposes the tagging common functionality.
-LOCAL_SRC_FILES := \
-  903-hello-tagging/src/art/Main.java \
+LOCAL_MAIN_SHIM := 903-hello-tagging/src/art/Main.java
+LOCAL_SRC_FILES := $(LOCAL_MAIN_SHIM)
 
 # Actual test classes.
 LOCAL_SRC_FILES += \
@@ -53,7 +53,58 @@ LOCAL_SRC_FILES += \
   931-agent-thread/src/art/Test931.java \
   933-misc-events/src/art/Test933.java \
 
+JVMTI_RUN_TEST_GENERATED_NUMBERS := \
+  901 \
+  903 \
+  904 \
+  905 \
+  906 \
+  907 \
+  908 \
+  910 \
+  911 \
+  913 \
+  918 \
+  920 \
+  922 \
+  923 \
+  924 \
+  925 \
+  927 \
+  928 \
+  931 \
+  933 \
+
+# Try to enforce that the directories correspond to the Java files we pull in.
+JVMTI_RUN_TEST_DIR_CHECK := $(sort $(foreach DIR,$(JVMTI_RUN_TEST_GENERATED_NUMBERS), \
+  $(filter $(DIR)%,$(LOCAL_SRC_FILES))))
+ifneq ($(sort $(LOCAL_SRC_FILES)),$(JVMTI_RUN_TEST_DIR_CHECK))
+  $(error Missing file, compare $(sort $(LOCAL_SRC_FILES)) with $(JVMTI_RUN_TEST_DIR_CHECK))
+endif
+
+LOCAL_MODULE_CLASS := JAVA_LIBRARIES
 LOCAL_MODULE_TAGS := optional
 LOCAL_JAVA_LANGUAGE_VERSION := 1.8
 LOCAL_MODULE := run-test-jvmti-java
-include $(BUILD_HOST_JAVA_LIBRARY)
+
+GENERATED_SRC_DIR := $(call local-generated-sources-dir)
+JVMTI_RUN_TEST_GENERATED_FILES := \
+  $(foreach NR,$(JVMTI_RUN_TEST_GENERATED_NUMBERS),$(GENERATED_SRC_DIR)/results.$(NR).expected.txt)
+
+define GEN_JVMTI_RUN_TEST_GENERATED_FILE
+
+GEN_INPUT := $(wildcard $(LOCAL_PATH)/$(1)*/expected.txt)
+GEN_OUTPUT := $(GENERATED_SRC_DIR)/results.$(1).expected.txt
+$$(GEN_OUTPUT): $$(GEN_INPUT)
+	cp $$< $$@
+
+GEN_INPUT :=
+GEN_OUTPUT :=
+
+endef
+
+$(foreach NR,$(JVMTI_RUN_TEST_GENERATED_NUMBERS),\
+  $(eval $(call GEN_JVMTI_RUN_TEST_GENERATED_FILE,$(NR))))
+LOCAL_JAVA_RESOURCE_FILES := $(JVMTI_RUN_TEST_GENERATED_FILES)
+
+include $(BUILD_JAVA_LIBRARY)
