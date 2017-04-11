@@ -53,7 +53,11 @@ define define-build-art-run-test
     run_test_options += --quiet
   endif
 $$(dmart_target): PRIVATE_RUN_TEST_OPTIONS := $$(run_test_options)
-$$(dmart_target): $(TEST_ART_RUN_TEST_DEPENDENCIES) $(TARGET_JACK_CLASSPATH_DEPENDENCIES) | $(TEST_ART_RUN_TEST_ORDERONLY_DEPENDENCIES)
+$$(dmart_target): $(TEST_ART_RUN_TEST_DEPENDENCIES) | $(TEST_ART_RUN_TEST_ORDERONLY_DEPENDENCIES)
+ifeq ($(ANDROID_COMPILE_WITH_JACK),true)
+$$(dmart_target):  $(TARGET_JACK_CLASSPATH_DEPENDENCIES)
+endif
+$$(dmart_target):
 	$(hide) rm -rf $$(dir $$@) && mkdir -p $$(dir $$@)
 	$(hide) DX=$(abspath $(DX)) JASMIN=$(abspath $(HOST_OUT_EXECUTABLES)/jasmin) \
 	  SMALI=$(abspath $(HOST_OUT_EXECUTABLES)/smali) \
@@ -172,14 +176,18 @@ endif
 # Host executables.
 host_prereq_rules := $(ART_TEST_HOST_RUN_TEST_DEPENDENCIES)
 
+ifeq ($(ANDROID_COMPILE_WITH_JACK),true)
 # Classpath for Jack compilation for host.
 host_prereq_rules += $(HOST_JACK_CLASSPATH_DEPENDENCIES)
+endif
 
 # Required for dx, jasmin, smali, dexmerger, jack.
 host_prereq_rules += $(TEST_ART_RUN_TEST_DEPENDENCIES)
 
+ifeq ($(ANDROID_COMPILE_WITH_JACK),true)
 # Classpath for Jack compilation for target.
 target_prereq_rules := $(TARGET_JACK_CLASSPATH_DEPENDENCIES)
+endif
 
 # Sync test files to the target, depends upon all things that must be pushed
 #to the target.
