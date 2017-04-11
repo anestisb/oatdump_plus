@@ -145,6 +145,11 @@ static jvmtiError Copy(jvmtiEnv* env, const char* in, char** out) {
   return result;
 }
 
+// See dalvik_system_VMRuntime.cpp.
+static const char* DefaultToDot(const std::string& class_path) {
+  return class_path.empty() ? "." : class_path.c_str();
+}
+
 jvmtiError PropertiesUtil::GetSystemProperty(jvmtiEnv* env,
                                              const char* property,
                                              char** value_ptr) {
@@ -168,7 +173,7 @@ jvmtiError PropertiesUtil::GetSystemProperty(jvmtiEnv* env,
   }
 
   if (strcmp(property, kPropertyClassPath) == 0) {
-    return Copy(env, art::Runtime::Current()->GetClassPathString().c_str(), value_ptr);
+    return Copy(env, DefaultToDot(art::Runtime::Current()->GetClassPathString()), value_ptr);
   }
 
   for (size_t i = 0; i != kPropertiesSize; ++i) {
