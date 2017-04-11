@@ -930,16 +930,10 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
       /* verified_method */ nullptr,
       dex_cache);
 
-  bool requires_barrier = dex_compilation_unit.IsConstructor()
-      && compiler_driver->RequiresConstructorBarrier(Thread::Current(),
-                                                     dex_compilation_unit.GetDexFile(),
-                                                     dex_compilation_unit.GetClassDefIndex());
-
   HGraph* graph = new (arena) HGraph(
       arena,
       dex_file,
       method_idx,
-      requires_barrier,
       compiler_driver->GetInstructionSet(),
       kInvalidInvokeType,
       compiler_driver->GetCompilerOptions().GetDebuggable(),
