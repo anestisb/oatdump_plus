@@ -1011,6 +1011,10 @@ void HLoopOptimization::GenerateVecOp(HInstruction* org,
         for (size_t index = 0; index < inputs.size(); ++index) {
           new_invoke->SetArgumentAt(index, vector_map_->Get(inputs[index]));
         }
+        new_invoke->SetIntrinsic(invoke->GetIntrinsic(),
+                                 kNeedsEnvironmentOrCache,
+                                 kNoSideEffects,
+                                 kNoThrow);
         vector = new_invoke;
       }
       break;
