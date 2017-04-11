@@ -656,6 +656,8 @@ struct CmdlineType<LogVerbosity> : CmdlineTypeParser<LogVerbosity> {
         log_verbosity.systrace_lock_logging = true;
       } else if (verbose_options[j] == "agents") {
         log_verbosity.agents = true;
+      } else if (verbose_options[j] == "dex") {
+        log_verbosity.dex = true;
       } else {
         return Result::Usage(std::string("Unknown -verbose option ") + verbose_options[j]);
       }
