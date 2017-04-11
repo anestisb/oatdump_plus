@@ -280,6 +280,14 @@ public class Main {
     }
   }
 
+  // If vectorized, string encoding should be dealt with.
+  private static void string2Bytes(char[] a, String b) {
+    int min = Math.min(a.length, b.length());
+    for (int i = 0; i < min; i++) {
+      a[i] = b.charAt(i);
+    }
+  }
+
   public static void main(String[] args) {
     expectEquals(10, earlyExitFirst(-1));
     for (int i = 0; i <= 10; i++) {
@@ -352,6 +360,13 @@ public class Main {
     expectEquals(-938, xx[1]);
     for (int i = 0; i < 469; i++) {
       expectEquals(2, yy[i]);
+    }
+
+    char[] aa = new char[23];
+    String bb = "hello world how are you";
+    string2Bytes(aa, bb);
+    for (int i = 0; i < aa.length; i++) {
+      expectEquals(aa[i], bb.charAt(i));
     }
 
     System.out.println("passed");
