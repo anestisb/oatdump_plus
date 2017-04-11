@@ -209,6 +209,18 @@ target_config = {
             'ART_HEAP_POISONING' : 'true'
         }
     },
+    'art-preopt' : {
+        # This test configuration is intended to be representative of the case
+        # of preopted apps, which are precompiled compiled pic against an
+        # unrelocated image, then used with a relocated image.
+        'run-test' : ['--pictest',
+                      '--prebuild',
+                      '--relocate',
+                      '--jit'],
+        'env' : {
+            'ART_USE_READ_BARRIER' : 'false'
+        }
+    },
 
     # ART gtest configurations
     # (calls make 'target' which builds and then runs the gtests).
