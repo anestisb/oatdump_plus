@@ -305,7 +305,6 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   HGraph(ArenaAllocator* arena,
          const DexFile& dex_file,
          uint32_t method_idx,
-         bool should_generate_constructor_barrier,
          InstructionSet instruction_set,
          InvokeType invoke_type = kInvalidInvokeType,
          bool debuggable = false,
@@ -332,7 +331,6 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
         method_idx_(method_idx),
         invoke_type_(invoke_type),
         in_ssa_form_(false),
-        should_generate_constructor_barrier_(should_generate_constructor_barrier),
         number_of_cha_guards_(0),
         instruction_set_(instruction_set),
         cached_null_constant_(nullptr),
@@ -502,10 +500,6 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
 
   void SetHasBoundsChecks(bool value) {
     has_bounds_checks_ = value;
-  }
-
-  bool ShouldGenerateConstructorBarrier() const {
-    return should_generate_constructor_barrier_;
   }
 
   bool IsDebuggable() const { return debuggable_; }
@@ -700,8 +694,6 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   // in debug mode to ensure we are not using properties only valid
   // for non-SSA form (like the number of temporaries).
   bool in_ssa_form_;
-
-  const bool should_generate_constructor_barrier_;
 
   // Number of CHA guards in the graph. Used to short-circuit the
   // CHA guard optimization pass when there is no CHA guard left.
@@ -5073,7 +5065,7 @@ class HParameterValue FINAL : public HExpression<0> {
   const DexFile& GetDexFile() const { return dex_file_; }
   dex::TypeIndex GetTypeIndex() const { return type_index_; }
   uint8_t GetIndex() const { return index_; }
-  bool IsThis() const { return GetPackedFlag<kFlagIsThis>(); }
+  bool IsThis() const ATTRIBUTE_UNUSED { return GetPackedFlag<kFlagIsThis>(); }
 
   bool CanBeNull() const OVERRIDE { return GetPackedFlag<kFlagCanBeNull>(); }
   void SetCanBeNull(bool can_be_null) { SetPackedFlag<kFlagCanBeNull>(can_be_null); }
