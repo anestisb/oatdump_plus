@@ -2542,6 +2542,13 @@ void Heap::PreZygoteFork() {
     // to large objects.
     mod_union_table->SetCards();
   } else {
+    // Make sure to clear the zygote space cards so that we don't dirty pages in the next GC. There
+    // may be dirty cards from the zygote compaction or reference processing. These cards are not
+    // necessary to have marked since the zygote space may not refer to any objects not in the
+    // zygote or image spaces at this point.
+    mod_union_table->ProcessCards();
+    mod_union_table->ClearTable();
+
     // For CC we never collect zygote large objects. This means we do not need to set the cards for
     // the zygote mod-union table and we can also clear all of the existing image mod-union tables.
     // The existing mod-union tables are only for image spaces and may only reference zygote and
