@@ -19,8 +19,8 @@ target_config = {
 
 ##########################################
 
-    # ART run-test configurations
-    # (calls testrunner which builds and then runs the test targets)
+    # General ART configurations.
+    # Calls make and testrunner both.
 
     'art-test' : {
         'make' : 'test-art-host-gtest',
@@ -29,6 +29,19 @@ target_config = {
             'ART_USE_READ_BARRIER' : 'false'
         }
     },
+
+    'art-test-javac' : {
+        'make' : 'test-art-host-gtest',
+        'run-test' : [],
+        'env' : {
+            'ANDROID_COMPILE_WITH_JACK' : 'false',
+            'ART_USE_READ_BARRIER' : 'true'
+        }
+    },
+
+    # ART run-test configurations
+    # (calls testrunner which builds and then runs the test targets)
+
     'art-interpreter' : {
         'run-test' : ['--interpreter'],
         'env' : {
