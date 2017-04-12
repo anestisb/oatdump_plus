@@ -68,6 +68,7 @@ using helpers::OperandFromMemOperand;
 using helpers::OutputCPURegister;
 using helpers::OutputFPRegister;
 using helpers::OutputRegister;
+using helpers::QRegisterFrom;
 using helpers::RegisterFrom;
 using helpers::StackOperandFrom;
 using helpers::VIXLRegCodeFromART;
@@ -1459,9 +1460,12 @@ void ParallelMoveResolverARM64::FinishEmitNativeCode() {
 }
 
 Location ParallelMoveResolverARM64::AllocateScratchLocationFor(Location::Kind kind) {
-  DCHECK(kind == Location::kRegister || kind == Location::kFpuRegister ||
-         kind == Location::kStackSlot || kind == Location::kDoubleStackSlot);
-  kind = (kind == Location::kFpuRegister) ? Location::kFpuRegister : Location::kRegister;
+  DCHECK(kind == Location::kRegister || kind == Location::kFpuRegister
+         || kind == Location::kStackSlot || kind == Location::kDoubleStackSlot
+         || kind == Location::kSIMDStackSlot);
+  kind = (kind == Location::kFpuRegister || kind == Location::kSIMDStackSlot)
+      ? Location::kFpuRegister
+      : Location::kRegister;
   Location scratch = GetScratchLocation(kind);
   if (!scratch.Equals(Location::NoLocation())) {
     return scratch;
@@ -1471,7 +1475,9 @@ Location ParallelMoveResolverARM64::AllocateScratchLocationFor(Location::Kind ki
     scratch = LocationFrom(vixl_temps_.AcquireX());
   } else {
     DCHECK(kind == Location::kFpuRegister);
-    scratch = LocationFrom(vixl_temps_.AcquireD());
+    scratch = LocationFrom(codegen_->GetGraph()->HasSIMD()
+        ? vixl_temps_.AcquireVRegisterOfSize(kQRegSize)
+        : vixl_temps_.AcquireD());
   }
   AddScratchLocation(scratch);
   return scratch;
@@ -1482,7 +1488,7 @@ void ParallelMoveResolverARM64::FreeScratchLocation(Location loc) {
     vixl_temps_.Release(XRegisterFrom(loc));
   } else {
     DCHECK(loc.IsFpuRegister());
-    vixl_temps_.Release(DRegisterFrom(loc));
+    vixl_temps_.Release(codegen_->GetGraph()->HasSIMD() ? QRegisterFrom(loc) : DRegisterFrom(loc));
   }
   RemoveScratchLocation(loc);
 }
@@ -1745,6 +1751,8 @@ void CodeGeneratorARM64::MoveLocation(Location destination,
     if (source.IsStackSlot() || source.IsDoubleStackSlot()) {
       DCHECK(dst.Is64Bits() == source.IsDoubleStackSlot());
       __ Ldr(dst, StackOperandFrom(source));
+    } else if (source.IsSIMDStackSlot()) {
+      __ Ldr(QRegisterFrom(destination), StackOperandFrom(source));
     } else if (source.IsConstant()) {
       DCHECK(CoherentConstantAndType(source, dst_type));
       MoveConstant(dst, source.GetConstant());
@@ -1767,7 +1775,29 @@ void CodeGeneratorARM64::MoveLocation(Location destination,
         __ Fmov(RegisterFrom(destination, dst_type), FPRegisterFrom(source, source_type));
       } else {
         DCHECK(destination.IsFpuRegister());
-        __ Fmov(FPRegister(dst), FPRegisterFrom(source, dst_type));
+        if (GetGraph()->HasSIMD()) {
+          __ Mov(QRegisterFrom(destination), QRegisterFrom(source));
+        } else {
+          __ Fmov(FPRegister(dst), FPRegisterFrom(source, dst_type));
+        }
+      }
+    }
+  } else if (destination.IsSIMDStackSlot()) {
+    if (source.IsFpuRegister()) {
+      __ Str(QRegisterFrom(source), StackOperandFrom(destination));
+    } else {
+      DCHECK(source.IsSIMDStackSlot());
+      UseScratchRegisterScope temps(GetVIXLAssembler());
+      if (GetVIXLAssembler()->GetScratchFPRegisterList()->IsEmpty()) {
+        Register temp = temps.AcquireX();
+        __ Ldr(temp, MemOperand(sp, source.GetStackIndex()));
+        __ Str(temp, MemOperand(sp, destination.GetStackIndex()));
+        __ Ldr(temp, MemOperand(sp, source.GetStackIndex() + kArm64WordSize));
+        __ Str(temp, MemOperand(sp, destination.GetStackIndex() + kArm64WordSize));
+      } else {
+        FPRegister temp = temps.AcquireVRegisterOfSize(kQRegSize);
+        __ Ldr(temp, StackOperandFrom(source));
+        __ Str(temp, StackOperandFrom(destination));
       }
     }
   } else {  // The destination is not a register. It must be a stack slot.
