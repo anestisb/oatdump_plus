@@ -661,6 +661,10 @@ class Runtime {
 
   void InitThreadGroups(Thread* self);
 
+  void SetDumpGCPerformanceOnShutdown(bool value) {
+    dump_gc_performance_on_shutdown_ = value;
+  }
+
  private:
   static void InitPlatformSignalHandlers();
 
