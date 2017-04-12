@@ -34,8 +34,15 @@
 #include <string.h>
 #include <vector>
 
+#include "jni.h"
+#include "ScopedLocalRef.h"
+#include "ScopedUtfChars.h"
+
 #include "art_jvmti.h"
 #include "runtime.h"
+#include "thread-inl.h"
+#include "ti_phase.h"
+#include "well_known_classes.h"
 
 namespace openjdkjvmti {
 
@@ -145,6 +152,56 @@ static jvmtiError Copy(jvmtiEnv* env, const char* in, char** out) {
   return result;
 }
 
+// See dalvik_system_VMRuntime.cpp.
+static const char* DefaultToDot(const std::string& class_path) {
+  return class_path.empty() ? "." : class_path.c_str();
+}
+
+// Handle kPropertyLibraryPath.
+static jvmtiError GetLibraryPath(jvmtiEnv* env, char** value_ptr) {
+  const std::vector<std::string>& runtime_props = art::Runtime::Current()->GetProperties();
+  for (const std::string& prop_assignment : runtime_props) {
+    size_t assign_pos = prop_assignment.find('=');
+    if (assign_pos != std::string::npos && assign_pos > 0) {
+      if (prop_assignment.substr(0, assign_pos) == kPropertyLibraryPath) {
+        return Copy(env, prop_assignment.substr(assign_pos + 1).c_str(), value_ptr);
+      }
+    }
+  }
+  if (!PhaseUtil::IsLivePhase()) {
+    return ERR(NOT_AVAILABLE);
+  }
+  // We expect this call to be rare. So don't optimize.
+  DCHECK(art::Thread::Current() != nullptr);
+  JNIEnv* jni_env = art::Thread::Current()->GetJniEnv();
+  jmethodID get_prop = jni_env->GetStaticMethodID(art::WellKnownClasses::java_lang_System,
+                                                  "getProperty",
+                                                  "(Ljava/lang/String;)Ljava/lang/String;");
+  CHECK(get_prop != nullptr);
+
+  ScopedLocalRef<jobject> input_str(jni_env, jni_env->NewStringUTF(kPropertyLibraryPath));
+  if (input_str.get() == nullptr) {
+    jni_env->ExceptionClear();
+    return ERR(OUT_OF_MEMORY);
+  }
+
+  ScopedLocalRef<jobject> prop_res(
+      jni_env, jni_env->CallStaticObjectMethod(art::WellKnownClasses::java_lang_System,
+                                               get_prop,
+                                               input_str.get()));
+  if (jni_env->ExceptionCheck() == JNI_TRUE) {
+    jni_env->ExceptionClear();
+    return ERR(INTERNAL);
+  }
+  if (prop_res.get() == nullptr) {
+    *value_ptr = nullptr;
+    return ERR(NONE);
+  }
+
+  ScopedUtfChars chars(jni_env, reinterpret_cast<jstring>(prop_res.get()));
+  return Copy(env, chars.c_str(), value_ptr);
+}
+
 jvmtiError PropertiesUtil::GetSystemProperty(jvmtiEnv* env,
                                              const char* property,
                                              char** value_ptr) {
@@ -153,22 +210,11 @@ jvmtiError PropertiesUtil::GetSystemProperty(jvmtiEnv* env,
   }
 
   if (strcmp(property, kPropertyLibraryPath) == 0) {
-    // TODO: In the live phase, we should probably compare to System.getProperty. java.library.path
-    //       may not be set initially, and is then freely modifiable.
-    const std::vector<std::string>& runtime_props = art::Runtime::Current()->GetProperties();
-    for (const std::string& prop_assignment : runtime_props) {
-      size_t assign_pos = prop_assignment.find('=');
-      if (assign_pos != std::string::npos && assign_pos > 0) {
-        if (prop_assignment.substr(0, assign_pos) == kPropertyLibraryPath) {
-          return Copy(env, prop_assignment.substr(assign_pos + 1).c_str(), value_ptr);
-        }
-      }
-    }
-    return ERR(NOT_AVAILABLE);
+    return GetLibraryPath(env, value_ptr);
   }
 
   if (strcmp(property, kPropertyClassPath) == 0) {
-    return Copy(env, art::Runtime::Current()->GetClassPathString().c_str(), value_ptr);
+    return Copy(env, DefaultToDot(art::Runtime::Current()->GetClassPathString()), value_ptr);
   }
 
   for (size_t i = 0; i != kPropertiesSize; ++i) {
