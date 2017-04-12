@@ -616,11 +616,5 @@
         ],
         "bug": "b/37240685 & b/37239009",
         "variant": "jvmti-stress"
-    },
-    {
-        "tests": ["901-hello-ti-agent"],
-        "description": ["Test fails to call VMInit event for unknown reasons."],
-        "bug": "b/37283252",
-        "variant": "jvmti-stress"
     }
 ]
