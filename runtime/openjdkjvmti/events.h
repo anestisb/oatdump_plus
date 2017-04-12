@@ -202,6 +202,8 @@ class EventHandler {
   void HandleEventType(ArtJvmtiEvent event, bool enable);
 
   // List of all JvmTiEnv objects that have been created, in their creation order.
+  // NB Some elements might be null representing envs that have been deleted. They should be skipped
+  // anytime this list is used.
   std::vector<ArtJvmTiEnv*> envs;
 
   // A union of all enabled events, anywhere.
