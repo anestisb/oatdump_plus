@@ -102,7 +102,9 @@ static jvmtiError GetDexDataForRetransformation(ArtJvmTiEnv* env,
       } else if (orig_dex->IsDexCache()) {
         dex_file = orig_dex->AsDexCache()->GetDexFile();
       } else {
-        DCHECK_EQ(orig_dex->GetClass()->GetPrimitiveType(), art::Primitive::kPrimLong);
+        DCHECK(orig_dex->GetClass()->DescriptorEquals("Ljava/lang/Long;"))
+            << "Expected java/lang/Long but found object of type "
+            << orig_dex->GetClass()->PrettyClass();
         art::ObjPtr<art::mirror::Class> prim_long_class(
             art::Runtime::Current()->GetClassLinker()->GetClassRoot(
                 art::ClassLinker::kPrimitiveLong));
