@@ -17,8 +17,8 @@
 # Android (e.g. mksh).
 
 # Globals
-ARCHS={arm,arm64,mips,mips64,x86,x86_64}
 ART_BINARY=dalvikvm
+DEX2OAT_BINARY=dex2oat
 DELETE_ANDROID_DATA="no"
 LAUNCH_WRAPPER=
 LIBART=libart.so
@@ -46,29 +46,6 @@ function find_libdir() {
   fi
 }
 
-function replace_compiler_filter_with_interepret_only() {
-  ARGS_WITH_INTERPRET_ONLY=("$@")
-
-  found="false"
-  ((index=0))
-  while ((index <= $#)); do
-    what="${ARGS_WITH_INTERPRET_ONLY[$index]}"
-
-    case "$what" in
-      --compiler-filter=*)
-        ARGS_WITH_INTERPRET_ONLY[$index]="--compiler-filter=interpret-only"
-        found="true"
-        ;;
-    esac
-
-    ((index++))
-    shift
-  done
-  if [ "$found" != "true" ]; then
-    ARGS_WITH_INTERPRET_ONLY=(-Xcompiler-option --compiler-filter=interpret-only "${ARGS_WITH_INTERPRET_ONLY[@]}")
-  fi
-}
-
 function usage() {
   cat 1>&2 <<EOF
 Usage: art [OPTIONS] [--] [ART_OPTIONS] CLASS
@@ -89,6 +66,8 @@ Supported OPTIONS include:
   --verbose                Run script verbosely.
 
 The ART_OPTIONS are passed directly to the Android Runtime.
+Before calling ART, the script will invoke dex2oat on each element of the
+classpath. '-Xcompiler-option' and '-Ximage' will be forwarded to dex2oat.
 
 Example:
   art --32 -cp my_classes.dex MainClass
@@ -123,8 +102,69 @@ function run_art() {
               $LAUNCH_WRAPPER $ART_BINARY_PATH $lib    \
               -XXlib:$LIBART                           \
               -Xnorelocate                             \
-              -Ximage:$ANDROID_ROOT/framework/core.art \
+              -Ximage:$DEFAULT_IMAGE                   \
               "$@"
+}
+
+function run_dex2oat() {
+  for dex_file in "${DEX2OAT_CLASSPATH[@]}"
+  do
+    while [ -h "$dex_file" ]; do
+      # On Mac OS, readlink -f doesn't work.
+      dex_file="$(readlink "$dex_file")"
+    done
+    local dalvik_cache=$ANDROID_DATA/dalvik-cache/$ISA
+    # The oat file name if the absolute path of the dex file where '/' is
+    # replaced by '@'. The first '/' in the path is ignored and must be removed.
+    local oat_file=${dex_file//\//@}
+    local oat_file=${oat_file:1}
+    # When running dex2oat use the exact same context as when running dalvikvm.
+    # (see run_art function)
+    verbose_run ANDROID_DATA=$ANDROID_DATA        \
+          ANDROID_ROOT=$ANDROID_ROOT              \
+          LD_LIBRARY_PATH=$LD_LIBRARY_PATH        \
+          PATH=$ANDROID_ROOT/bin:$PATH            \
+          LD_USE_LOAD_BIAS=1                      \
+          $DEX2OAT_BINARY_PATH                    \
+          --runtime-arg -Xnorelocate              \
+          --boot-image=$DEX2OAT_BOOTIMAGE         \
+          --instruction-set=$ISA                  \
+          "${DEX2OAT_FLAGS[@]}"                   \
+          --dex-file="$dex_file"                  \
+          --oat-file="$dalvik_cache/$oat_file"
+  done
+}
+
+# Extract the dex2oat flags from the list of arguments.
+# -Xcompiler-options arguments are stored in DEX2OAT_FLAGS array
+# -cp argument is split by ':' and stored in DEX2OAT_CLASSPATH
+# -Ximage argument is stored in DEX2OAT_BOOTIMAGE
+function extract_dex2oat_flags() {
+  while [ $# -gt 0 ]; do
+    case $1 in
+      -Xcompiler-option)
+        DEX2OAT_FLAGS+=("$2")
+        shift
+        ;;
+      -Ximage:*)
+        DEX2OAT_BOOTIMAGE=$1
+        # Remove '-Ximage:' from the argument.
+        DEX2OAT_BOOTIMAGE=${DEX2OAT_BOOTIMAGE##-Ximage:}
+        ;;
+      -cp)
+        # TODO: support -classpath and CLASSPATH
+        local oifs=$IFS
+        IFS=':'
+        for classpath_elem in $2
+        do
+          DEX2OAT_CLASSPATH+=("$classpath_elem")
+        done
+        shift
+        IFS=$oifs
+        ;;
+    esac
+    shift
+  done
 }
 
 while [[ "$1" = "-"* ]]; do
@@ -147,9 +187,11 @@ while [[ "$1" = "-"* ]]; do
     ;& # Fallthrough
   --debug)
     LIBART="libartd.so"
+    DEX2OAT_BINARY="dex2oatd"
     ;;
   --gdb)
     LIBART="libartd.so"
+    DEX2OAT_BINARY="dex2oatd"
     LAUNCH_WRAPPER="gdb --args"
     ;;
   --help)
@@ -192,6 +234,15 @@ fi
 PROG_DIR="$(cd "${PROG_NAME%/*}" ; pwd -P)"
 ANDROID_ROOT=$PROG_DIR/..
 ART_BINARY_PATH=$ANDROID_ROOT/bin/$ART_BINARY
+DEX2OAT_BINARY_PATH=$ANDROID_ROOT/bin/$DEX2OAT_BINARY
+
+if [ ! -x "$DEX2OAT_BINARY_PATH" ]; then
+  cat 1>&2 <<EOF
+Android Runtime not found: $DEX2OAT_BINARY_PATH
+This script should be in the same directory as the Android Runtime ($DEX2OAT_BINARY).
+EOF
+  exit 1
+fi
 
 if [ ! -x "$ART_BINARY_PATH" ]; then
   cat 1>&2 <<EOF
@@ -205,51 +256,29 @@ LIBDIR="$(find_libdir $ART_BINARY_PATH)"
 LD_LIBRARY_PATH=$ANDROID_ROOT/$LIBDIR
 EXTRA_OPTIONS=""
 
+DEFAULT_IMAGE=$ANDROID_ROOT/framework/core.art
+DEX2OAT_FLAGS=()
+DEX2OAT_CLASSPATH=()
+DEX2OAT_BOOTIMAGE=$DEFAULT_IMAGE
+ISA=$($ART_BINARY_PATH -showversion | (read art version number isa && echo $isa))
+
+# Extract the dex2oat flags from the list of arguments.
+# -Xcompiler-options arguments are stored in DEX2OAT_FLAGS array
+# -cp argument is split by ':' and stored in DEX2OAT_CLASSPATH
+# -Ximage argument is stored in DEX2OAT_BOOTIMAGE
+extract_dex2oat_flags "$@"
+
 # If ANDROID_DATA is the system ANDROID_DATA or is not set, use our own,
 # and ensure we delete it at the end.
 if [ "$ANDROID_DATA" = "/data" ] || [ "$ANDROID_DATA" = "" ]; then
   ANDROID_DATA=$PWD/android-data$$
-  mkdir -p $ANDROID_DATA/dalvik-cache/$ARCHS
+  mkdir -p "$ANDROID_DATA/dalvik-cache/$ISA"
   DELETE_ANDROID_DATA="yes"
 fi
 
 if [ "$PERF" != "" ]; then
   LAUNCH_WRAPPER="perf record -g -o $ANDROID_DATA/perf.data -e cycles:u $LAUNCH_WRAPPER"
   EXTRA_OPTIONS="-Xcompiler-option --generate-debug-info"
-fi
-
-if [ "$JIT_PROFILE" = "yes" ]; then
-  # Create the profile. The runtime expects profiles to be created before
-  # execution.
-  PROFILE_PATH="$ANDROID_DATA/primary.prof"
-  touch $PROFILE_PATH
-
-  # Replace the compiler filter with interpret-only so that we
-  # can capture the profile.
-  ARGS_WITH_INTERPRET_ONLY=
-  replace_compiler_filter_with_interepret_only "$@"
-
-  run_art -Xjitsaveprofilinginfo               \
-          -Xps-min-methods-to-save:1           \
-          -Xps-min-classes-to-save:1           \
-          -Xps-min-notification-before-wake:10 \
-          -Xps-profile-path:$PROFILE_PATH      \
-          -Xusejit:true                        \
-          "${ARGS_WITH_INTERPRET_ONLY[@]}"     \
-          "&>" "$ANDROID_DATA/profile_gen.log"
-  EXIT_STATUS=$?
-
-  if [ $EXIT_STATUS != 0 ]; then
-    cat "$ANDROID_DATA/profile_gen.log"
-    clean_android_data
-    exit $EXIT_STATUS
-  fi
-
-  # Wipe dalvik-cache to prepare it for the next invocation.
-  rm -rf $ANDROID_DATA/dalvik-cache/$ARCHS/*
-
-  # Append arguments so next invocation of run_art uses the profile.
-  EXTRA_OPTIONS="$EXTRA_OPTIONS -Xcompiler-option --profile-file=$PROFILE_PATH"
 fi
 
 # Protect additional arguments in quotes to preserve whitespaces when evaluated.
@@ -260,6 +289,43 @@ while [ $# -gt 0 ]; do
   shift
 done
 
+if [ "$JIT_PROFILE" = "yes" ]; then
+  # Create the profile. The runtime expects profiles to be created before
+  # execution.
+  PROFILE_PATH="$ANDROID_DATA/primary.prof"
+  touch $PROFILE_PATH
+
+  run_art -Xjitsaveprofilinginfo               \
+          -Xps-min-methods-to-save:1           \
+          -Xps-min-classes-to-save:1           \
+          -Xps-min-notification-before-wake:10 \
+          -Xps-profile-path:$PROFILE_PATH      \
+          -Xusejit:true                        \
+          $EXTRA_OPTIONS                       \
+          "&>" "$ANDROID_DATA/profile_gen.log"
+
+  DEX2OAT_FLAGS+=("--profile-file=$PROFILE_PATH")
+
+  EXIT_STATUS=$?
+
+  if [ $EXIT_STATUS != 0 ]; then
+    cat "$ANDROID_DATA/profile_gen.log"
+    clean_android_data
+    exit $EXIT_STATUS
+  fi
+fi
+
+# Run dex2oat before launching ART to generate the oat files for the classpath.
+run_dex2oat
+
+# Do not continue if the dex2oat failed.
+EXIT_STATUS=$?
+if [ $EXIT_STATUS != 0 ]; then
+  echo "Failed dex2oat invocation" >&2
+  exit $EXIT_STATUS
+fi
+
+# Launch ART using the additional arguments stored in EXTRA_OPTIONS.
 run_art $EXTRA_OPTIONS
 EXIT_STATUS=$?
 
