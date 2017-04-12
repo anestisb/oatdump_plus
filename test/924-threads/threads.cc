@@ -16,6 +16,10 @@
 
 #include <stdio.h>
 
+#include <mutex>
+#include <string>
+#include <vector>
+
 #include "android-base/logging.h"
 #include "android-base/stringprintf.h"
 #include "jni.h"
@@ -139,17 +143,27 @@ extern "C" JNIEXPORT void JNICALL Java_art_Test924_setTLS(
   JvmtiErrorToException(env, jvmti_env, result);
 }
 
+static std::mutex gEventsMutex;
+static std::vector<std::string> gEvents;
+
 static void JNICALL ThreadEvent(jvmtiEnv* jvmti_env,
                                 JNIEnv* jni_env,
                                 jthread thread,
                                 bool is_start) {
   jvmtiThreadInfo info;
-  jvmtiError result = jvmti_env->GetThreadInfo(thread, &info);
-  if (result != JVMTI_ERROR_NONE) {
-    printf("Error getting thread info");
-    return;
+  {
+    std::lock_guard<std::mutex> guard(gEventsMutex);
+
+    jvmtiError result = jvmti_env->GetThreadInfo(thread, &info);
+    if (result != JVMTI_ERROR_NONE) {
+      gEvents.push_back("Error getting thread info");
+      return;
+    }
+
+    gEvents.push_back(android::base::StringPrintf("Thread(%s): %s",
+                                                  info.name,
+                                                  is_start ? "start" : "end"));
   }
-  printf("Thread(%s): %s\n", info.name, is_start ? "start" : "end");
 
   jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(info.name));
   jni_env->DeleteLocalRef(info.thread_group);
@@ -203,6 +217,19 @@ extern "C" JNIEXPORT void JNICALL Java_art_Test924_enableThreadEvents(
                                             JVMTI_EVENT_THREAD_END,
                                             nullptr);
   JvmtiErrorToException(env, jvmti_env, ret);
+}
+
+extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test924_getThreadEventMessages(
+    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED) {
+  std::lock_guard<std::mutex> guard(gEventsMutex);
+  jobjectArray ret = CreateObjectArray(env,
+                                       static_cast<jint>(gEvents.size()),
+                                       "java/lang/String",
+                                       [&](jint i) {
+    return env->NewStringUTF(gEvents[i].c_str());
+  });
+  gEvents.clear();
+  return ret;
 }
 
 }  // namespace Test924Threads
