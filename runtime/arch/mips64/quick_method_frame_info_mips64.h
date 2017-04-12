@@ -72,6 +72,7 @@ static constexpr uint32_t kMips64CalleeSaveFpEverythingSpills =
     (1 << art::mips64::F30) | (1 << art::mips64::F31);
 
 constexpr uint32_t Mips64CalleeSaveCoreSpills(CalleeSaveType type) {
+  type = GetCanonicalCalleeSaveType(type);
   return kMips64CalleeSaveAlwaysSpills | kMips64CalleeSaveRefSpills |
       (type == CalleeSaveType::kSaveRefsAndArgs ? kMips64CalleeSaveArgSpills : 0) |
       (type == CalleeSaveType::kSaveAllCalleeSaves ? kMips64CalleeSaveAllSpills : 0) |
@@ -79,6 +80,7 @@ constexpr uint32_t Mips64CalleeSaveCoreSpills(CalleeSaveType type) {
 }
 
 constexpr uint32_t Mips64CalleeSaveFpSpills(CalleeSaveType type) {
+  type = GetCanonicalCalleeSaveType(type);
   return kMips64CalleeSaveFpRefSpills |
       (type == CalleeSaveType::kSaveRefsAndArgs ? kMips64CalleeSaveFpArgSpills : 0) |
       (type == CalleeSaveType::kSaveAllCalleeSaves ? kMips64CalleeSaveFpAllSpills : 0) |
@@ -86,12 +88,14 @@ constexpr uint32_t Mips64CalleeSaveFpSpills(CalleeSaveType type) {
 }
 
 constexpr uint32_t Mips64CalleeSaveFrameSize(CalleeSaveType type) {
+  type = GetCanonicalCalleeSaveType(type);
   return RoundUp((POPCOUNT(Mips64CalleeSaveCoreSpills(type)) /* gprs */ +
                   POPCOUNT(Mips64CalleeSaveFpSpills(type))   /* fprs */ +
                   + 1 /* Method* */) * static_cast<size_t>(kMips64PointerSize), kStackAlignment);
 }
 
 constexpr QuickMethodFrameInfo Mips64CalleeSaveMethodFrameInfo(CalleeSaveType type) {
+  type = GetCanonicalCalleeSaveType(type);
   return QuickMethodFrameInfo(Mips64CalleeSaveFrameSize(type),
                               Mips64CalleeSaveCoreSpills(type),
                               Mips64CalleeSaveFpSpills(type));

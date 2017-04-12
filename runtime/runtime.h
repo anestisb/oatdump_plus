@@ -714,7 +714,7 @@ class Runtime {
   static constexpr int kProfileForground = 0;
   static constexpr int kProfileBackground = 1;
 
-  static constexpr uint32_t kCalleeSaveSize = 4u;
+  static constexpr uint32_t kCalleeSaveSize = 6u;
 
   // 64 bit so that we can share the same asm offsets for both 32 and 64 bits.
   uint64_t callee_save_methods_[kCalleeSaveSize];

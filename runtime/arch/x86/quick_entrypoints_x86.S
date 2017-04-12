@@ -226,7 +226,7 @@ END_MACRO
      * Runtime::CreateCalleeSaveMethod(kSaveEverything)
      * when EDI and ESI are already saved.
      */
-MACRO2(SETUP_SAVE_EVERYTHING_FRAME_EDI_ESI_SAVED, got_reg, temp_reg)
+MACRO3(SETUP_SAVE_EVERYTHING_FRAME_EDI_ESI_SAVED, got_reg, temp_reg, runtime_method_offset = RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET)
     // Save core registers from highest to lowest to agree with core spills bitmap.
     // EDI and ESI, or at least placeholders for them, are already on the stack.
     PUSH ebp
@@ -252,7 +252,7 @@ MACRO2(SETUP_SAVE_EVERYTHING_FRAME_EDI_ESI_SAVED, got_reg, temp_reg)
     movl SYMBOL(_ZN3art7Runtime9instance_E)@GOT(REG_VAR(got_reg)), REG_VAR(temp_reg)
     movl (REG_VAR(temp_reg)), REG_VAR(temp_reg)
     // Push save everything callee-save method.
-    pushl RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET(REG_VAR(temp_reg))
+    pushl \runtime_method_offset(REG_VAR(temp_reg))
     CFI_ADJUST_CFA_OFFSET(4)
     // Store esp as the stop quick frame.
     movl %esp, %fs:THREAD_TOP_QUICK_FRAME_OFFSET
@@ -269,20 +269,20 @@ END_MACRO
      * Runtime::CreateCalleeSaveMethod(kSaveEverything)
      * when EDI is already saved.
      */
-MACRO2(SETUP_SAVE_EVERYTHING_FRAME_EDI_SAVED, got_reg, temp_reg)
+MACRO3(SETUP_SAVE_EVERYTHING_FRAME_EDI_SAVED, got_reg, temp_reg, runtime_method_offset = RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET)
     // Save core registers from highest to lowest to agree with core spills bitmap.
     // EDI, or at least a placeholder for it, is already on the stack.
     PUSH esi
-    SETUP_SAVE_EVERYTHING_FRAME_EDI_ESI_SAVED RAW_VAR(got_reg), RAW_VAR(temp_reg)
+    SETUP_SAVE_EVERYTHING_FRAME_EDI_ESI_SAVED RAW_VAR(got_reg), RAW_VAR(temp_reg), \runtime_method_offset
 END_MACRO
 
     /*
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kSaveEverything)
      */
-MACRO2(SETUP_SAVE_EVERYTHING_FRAME, got_reg, temp_reg)
+MACRO3(SETUP_SAVE_EVERYTHING_FRAME, got_reg, temp_reg, runtime_method_offset = RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET)
     PUSH edi
-    SETUP_SAVE_EVERYTHING_FRAME_EDI_SAVED RAW_VAR(got_reg), RAW_VAR(temp_reg)
+    SETUP_SAVE_EVERYTHING_FRAME_EDI_SAVED RAW_VAR(got_reg), RAW_VAR(temp_reg), \runtime_method_offset
 END_MACRO
 
 MACRO0(RESTORE_SAVE_EVERYTHING_FRAME_FRPS)
@@ -923,9 +923,9 @@ MACRO3(THREE_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
 END_MACRO
 
 // Macro for string and type resolution and initialization.
-MACRO2(ONE_ARG_SAVE_EVERYTHING_DOWNCALL, c_name, cxx_name)
+MACRO3(ONE_ARG_SAVE_EVERYTHING_DOWNCALL, c_name, cxx_name, runtime_method_offset = RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET)
     DEFINE_FUNCTION VAR(c_name)
-    SETUP_SAVE_EVERYTHING_FRAME ebx, ebx              // save ref containing registers for GC
+    SETUP_SAVE_EVERYTHING_FRAME ebx, ebx, \runtime_method_offset  // save ref containing registers for GC
     // Outgoing argument set up
     subl MACRO_LITERAL(8), %esp                       // push padding
     CFI_ADJUST_CFA_OFFSET(8)
@@ -945,6 +945,10 @@ MACRO2(ONE_ARG_SAVE_EVERYTHING_DOWNCALL, c_name, cxx_name)
 1:
     DELIVER_PENDING_EXCEPTION_FRAME_READY
     END_FUNCTION VAR(c_name)
+END_MACRO
+
+MACRO2(ONE_ARG_SAVE_EVERYTHING_DOWNCALL_FOR_CLINIT, c_name, cxx_name)
+    ONE_ARG_SAVE_EVERYTHING_DOWNCALL \c_name, \cxx_name, RUNTIME_SAVE_EVERYTHING_FOR_CLINIT_METHOD_OFFSET
 END_MACRO
 
 MACRO0(RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER)
@@ -1270,8 +1274,8 @@ GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved16_tlab, artAllocArrayFr
 GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved32_tlab, artAllocArrayFromCodeResolvedTLAB, COMPUTE_ARRAY_SIZE_32
 GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved64_tlab, artAllocArrayFromCodeResolvedTLAB, COMPUTE_ARRAY_SIZE_64
 
-ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_initialize_static_storage, artInitializeStaticStorageFromCode
-ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_initialize_type, artInitializeTypeFromCode
+ONE_ARG_SAVE_EVERYTHING_DOWNCALL_FOR_CLINIT art_quick_initialize_static_storage, artInitializeStaticStorageFromCode
+ONE_ARG_SAVE_EVERYTHING_DOWNCALL_FOR_CLINIT art_quick_initialize_type, artInitializeTypeFromCode
 ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_initialize_type_and_verify_access, artInitializeTypeAndVerifyAccessFromCode
 ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_resolve_string, artResolveStringFromCode
 
@@ -1598,7 +1602,7 @@ DEFINE_FUNCTION art_quick_memcpy
 END_FUNCTION art_quick_memcpy
 
 DEFINE_FUNCTION art_quick_test_suspend
-    SETUP_SAVE_EVERYTHING_FRAME ebx, ebx              // save everything for GC
+    SETUP_SAVE_EVERYTHING_FRAME ebx, ebx, RUNTIME_SAVE_EVERYTHING_FOR_SUSPEND_CHECK_METHOD_OFFSET  // save everything for GC
     // Outgoing argument set up
     subl MACRO_LITERAL(12), %esp                      // push padding
     CFI_ADJUST_CFA_OFFSET(12)

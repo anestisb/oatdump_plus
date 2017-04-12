@@ -272,7 +272,7 @@ END_MACRO
      * Runtime::CreateCalleeSaveMethod(kSaveEverything)
      * when R14 and R15 are already saved.
      */
-MACRO0(SETUP_SAVE_EVERYTHING_FRAME_R14_R15_SAVED)
+MACRO1(SETUP_SAVE_EVERYTHING_FRAME_R14_R15_SAVED, runtime_method_offset = RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET)
 #if defined(__APPLE__)
     int3
     int3
@@ -316,7 +316,7 @@ MACRO0(SETUP_SAVE_EVERYTHING_FRAME_R14_R15_SAVED)
     movq %xmm14, 120(%rsp)
     movq %xmm15, 128(%rsp)
     // Push ArtMethod* for save everything frame method.
-    pushq RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET(%r10)
+    pushq \runtime_method_offset(%r10)
     CFI_ADJUST_CFA_OFFSET(8)
     // Store rsp as the top quick frame.
     movq %rsp, %gs:THREAD_TOP_QUICK_FRAME_OFFSET
@@ -334,18 +334,18 @@ END_MACRO
      * Runtime::CreateCalleeSaveMethod(kSaveEverything)
      * when R15 is already saved.
      */
-MACRO0(SETUP_SAVE_EVERYTHING_FRAME_R15_SAVED)
+MACRO1(SETUP_SAVE_EVERYTHING_FRAME_R15_SAVED, runtime_method_offset = RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET)
     PUSH r14
-    SETUP_SAVE_EVERYTHING_FRAME_R14_R15_SAVED
+    SETUP_SAVE_EVERYTHING_FRAME_R14_R15_SAVED \runtime_method_offset
 END_MACRO
 
     /*
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kSaveEverything)
      */
-MACRO0(SETUP_SAVE_EVERYTHING_FRAME)
+MACRO1(SETUP_SAVE_EVERYTHING_FRAME, runtime_method_offset = RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET)
     PUSH r15
-    SETUP_SAVE_EVERYTHING_FRAME_R15_SAVED
+    SETUP_SAVE_EVERYTHING_FRAME_R15_SAVED \runtime_method_offset
 END_MACRO
 
 MACRO0(RESTORE_SAVE_EVERYTHING_FRAME_FRPS)
@@ -951,9 +951,9 @@ MACRO3(THREE_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
 END_MACRO
 
 // Macro for string and type resolution and initialization.
-MACRO2(ONE_ARG_SAVE_EVERYTHING_DOWNCALL, c_name, cxx_name)
+MACRO3(ONE_ARG_SAVE_EVERYTHING_DOWNCALL, c_name, cxx_name, runtime_method_offset = RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET)
     DEFINE_FUNCTION VAR(c_name)
-    SETUP_SAVE_EVERYTHING_FRAME                   // save everything for GC
+    SETUP_SAVE_EVERYTHING_FRAME \runtime_method_offset  // save everything for GC
     // Outgoing argument set up
     movl %eax, %edi                               // pass string index
     movq %gs:THREAD_SELF_OFFSET, %rsi             // pass Thread::Current()
@@ -968,6 +968,10 @@ MACRO2(ONE_ARG_SAVE_EVERYTHING_DOWNCALL, c_name, cxx_name)
 1:
     DELIVER_PENDING_EXCEPTION_FRAME_READY
     END_FUNCTION VAR(c_name)
+END_MACRO
+
+MACRO2(ONE_ARG_SAVE_EVERYTHING_DOWNCALL_FOR_CLINIT, c_name, cxx_name)
+    ONE_ARG_SAVE_EVERYTHING_DOWNCALL \c_name, \cxx_name, RUNTIME_SAVE_EVERYTHING_FOR_CLINIT_METHOD_OFFSET
 END_MACRO
 
 MACRO0(RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER)
@@ -1290,8 +1294,8 @@ DEFINE_FUNCTION art_quick_alloc_object_initialized_region_tlab
     ALLOC_OBJECT_TLAB_SLOW_PATH artAllocObjectFromCodeInitializedRegionTLAB
 END_FUNCTION art_quick_alloc_object_initialized_region_tlab
 
-ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_initialize_static_storage, artInitializeStaticStorageFromCode
-ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_initialize_type, artInitializeTypeFromCode
+ONE_ARG_SAVE_EVERYTHING_DOWNCALL_FOR_CLINIT art_quick_initialize_static_storage, artInitializeStaticStorageFromCode
+ONE_ARG_SAVE_EVERYTHING_DOWNCALL_FOR_CLINIT art_quick_initialize_type, artInitializeTypeFromCode
 ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_initialize_type_and_verify_access, artInitializeTypeAndVerifyAccessFromCode
 ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_resolve_string, artResolveStringFromCode
 
@@ -1575,7 +1579,7 @@ DEFINE_FUNCTION art_quick_memcpy
 END_FUNCTION art_quick_memcpy
 
 DEFINE_FUNCTION art_quick_test_suspend
-    SETUP_SAVE_EVERYTHING_FRAME                 // save everything for GC
+    SETUP_SAVE_EVERYTHING_FRAME RUNTIME_SAVE_EVERYTHING_FOR_SUSPEND_CHECK_METHOD_OFFSET  // save everything for GC
     // Outgoing argument set up
     movq %gs:THREAD_SELF_OFFSET, %rdi           // pass Thread::Current()
     call SYMBOL(artTestSuspendFromCode)         // (Thread*)

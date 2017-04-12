@@ -285,6 +285,10 @@ inline const char* ArtMethod::GetName() {
     return "<runtime internal callee-save reference and argument registers method>";
   } else if (this == runtime->GetCalleeSaveMethod(CalleeSaveType::kSaveEverything)) {
     return "<runtime internal save-every-register method>";
+  } else if (this == runtime->GetCalleeSaveMethod(CalleeSaveType::kSaveEverythingForClinit)) {
+    return "<runtime internal save-every-register method for clinit>";
+  } else if (this == runtime->GetCalleeSaveMethod(CalleeSaveType::kSaveEverythingForSuspendCheck)) {
+    return "<runtime internal save-every-register method for suspend check>";
   } else {
     return "<unknown runtime internal method>";
   }

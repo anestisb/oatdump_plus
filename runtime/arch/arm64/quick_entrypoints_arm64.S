@@ -287,7 +287,7 @@
      * when the SP has already been decremented by FRAME_SIZE_SAVE_EVERYTHING
      * and saving registers x29 and LR is handled elsewhere.
      */
-.macro SETUP_SAVE_EVERYTHING_FRAME_DECREMENTED_SP_SKIP_X29_LR
+.macro SETUP_SAVE_EVERYTHING_FRAME_DECREMENTED_SP_SKIP_X29_LR runtime_method_offset = RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET
     // Ugly compile-time check, but we only have the preprocessor.
 #if (FRAME_SIZE_SAVE_EVERYTHING != 512)
 #error "FRAME_SIZE_SAVE_EVERYTHING(ARM64) size not as expected."
@@ -337,7 +337,7 @@
     ldr xIP0, [xIP0]  // art::Runtime* xIP0 = art::Runtime::instance_;
 
     // ArtMethod* xIP0 = Runtime::instance_->callee_save_methods_[kSaveEverything];
-    ldr xIP0, [xIP0, RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET]
+    ldr xIP0, [xIP0, \runtime_method_offset]
 
     // Store ArtMethod* Runtime::callee_save_methods_[kSaveEverything].
     str xIP0, [sp]
@@ -350,10 +350,10 @@
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kSaveEverything)
      */
-.macro SETUP_SAVE_EVERYTHING_FRAME
+.macro SETUP_SAVE_EVERYTHING_FRAME runtime_method_offset = RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET
     INCREASE_FRAME 512
     SAVE_TWO_REGS x29, xLR, 496
-    SETUP_SAVE_EVERYTHING_FRAME_DECREMENTED_SP_SKIP_X29_LR
+    SETUP_SAVE_EVERYTHING_FRAME_DECREMENTED_SP_SKIP_X29_LR \runtime_method_offset
 .endm
 
 .macro RESTORE_SAVE_EVERYTHING_FRAME_KEEP_X0
@@ -398,7 +398,7 @@
 .endm
 
 .macro RESTORE_SAVE_EVERYTHING_FRAME
-    RESTORE_REG       x0,      264
+    RESTORE_REG  x0, 264
     RESTORE_SAVE_EVERYTHING_FRAME_KEEP_X0
 .endm
 
@@ -1593,10 +1593,10 @@ END \name
 .endm
 
 // Macro for string and type resolution and initialization.
-.macro ONE_ARG_SAVE_EVERYTHING_DOWNCALL name, entrypoint
+.macro ONE_ARG_SAVE_EVERYTHING_DOWNCALL name, entrypoint, runtime_method_offset = RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET
     .extern \entrypoint
 ENTRY \name
-    SETUP_SAVE_EVERYTHING_FRAME       // save everything for stack crawl
+    SETUP_SAVE_EVERYTHING_FRAME \runtime_method_offset       // save everything for stack crawl
     mov   x1, xSELF                   // pass Thread::Current
     bl    \entrypoint                 // (int32_t index, Thread* self)
     cbz   w0, 1f                      // If result is null, deliver the OOME.
@@ -1609,6 +1609,10 @@ ENTRY \name
 1:
     DELIVER_PENDING_EXCEPTION_FRAME_READY
 END \name
+.endm
+
+.macro ONE_ARG_SAVE_EVERYTHING_DOWNCALL_FOR_CLINIT name, entrypoint
+    ONE_ARG_SAVE_EVERYTHING_DOWNCALL \name, \entrypoint, RUNTIME_SAVE_EVERYTHING_FOR_CLINIT_METHOD_OFFSET
 .endm
 
 .macro RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
@@ -1629,9 +1633,8 @@ TWO_ARG_REF_DOWNCALL art_quick_handle_fill_data, artHandleFillArrayDataFromCode,
      * initializer and deliver the exception on error. On success the static storage base is
      * returned.
      */
-ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_initialize_static_storage, artInitializeStaticStorageFromCode
-
-ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_initialize_type, artInitializeTypeFromCode
+ONE_ARG_SAVE_EVERYTHING_DOWNCALL_FOR_CLINIT art_quick_initialize_static_storage, artInitializeStaticStorageFromCode
+ONE_ARG_SAVE_EVERYTHING_DOWNCALL_FOR_CLINIT art_quick_initialize_type, artInitializeTypeFromCode
 ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_initialize_type_and_verify_access, artInitializeTypeAndVerifyAccessFromCode
 ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_resolve_string, artResolveStringFromCode
 
@@ -2008,7 +2011,7 @@ GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved64_tlab, artAllocArrayFr
      */
     .extern artTestSuspendFromCode
 ENTRY art_quick_test_suspend
-    SETUP_SAVE_EVERYTHING_FRAME               // save callee saves for stack crawl
+    SETUP_SAVE_EVERYTHING_FRAME RUNTIME_SAVE_EVERYTHING_FOR_SUSPEND_CHECK_METHOD_OFFSET  // save callee saves for stack crawl
     mov    x0, xSELF
     bl     artTestSuspendFromCode             // (Thread*)
     RESTORE_SAVE_EVERYTHING_FRAME

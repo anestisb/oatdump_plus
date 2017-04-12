@@ -89,6 +89,8 @@ const char* image_methods_descriptions_[] = {
   "kSaveRefsOnlyMethod",
   "kSaveRefsAndArgsMethod",
   "kSaveEverythingMethod",
+  "kSaveEverythingMethodForClinit",
+  "kSaveEverythingMethodForSuspendCheck",
 };
 
 const char* image_roots_descriptions_[] = {

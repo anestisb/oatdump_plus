@@ -182,7 +182,7 @@
      * Runtime::CreateCalleeSaveMethod(kSaveEverything)
      * when core registers are already saved.
      */
-.macro SETUP_SAVE_EVERYTHING_FRAME_CORE_REGS_SAVED rTemp
+.macro SETUP_SAVE_EVERYTHING_FRAME_CORE_REGS_SAVED rTemp, runtime_method_offset = RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET
                                         @ 14 words of callee saves and args already saved.
     vpush {d0-d15}                      @ 32 words, 2 for each of the 16 saved doubles.
     .cfi_adjust_cfa_offset 128
@@ -190,7 +190,7 @@
     .cfi_adjust_cfa_offset 8
     RUNTIME_CURRENT1 \rTemp             @ Load Runtime::Current into rTemp.
     @ Load kSaveEverything Method* into rTemp.
-    ldr \rTemp, [\rTemp, #RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET]
+    ldr \rTemp, [\rTemp, #\runtime_method_offset]
     str \rTemp, [sp, #0]                @ Place Method* at bottom of stack.
     str sp, [r9, #THREAD_TOP_QUICK_FRAME_OFFSET]  @ Place sp in Thread::Current()->top_quick_frame.
 
@@ -204,7 +204,7 @@
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kSaveEverything)
      */
-.macro SETUP_SAVE_EVERYTHING_FRAME rTemp
+.macro SETUP_SAVE_EVERYTHING_FRAME rTemp, runtime_method_offset = RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET
     push {r0-r12, lr}                   @ 14 words of callee saves and args.
     .cfi_adjust_cfa_offset 56
     .cfi_rel_offset r0, 0
@@ -221,7 +221,7 @@
     .cfi_rel_offset r11, 44
     .cfi_rel_offset ip, 48
     .cfi_rel_offset lr, 52
-    SETUP_SAVE_EVERYTHING_FRAME_CORE_REGS_SAVED \rTemp
+    SETUP_SAVE_EVERYTHING_FRAME_CORE_REGS_SAVED \rTemp, \runtime_method_offset
 .endm
 
 .macro RESTORE_SAVE_EVERYTHING_FRAME
@@ -1004,10 +1004,10 @@ END \name
 .endm
 
 // Macro for string and type resolution and initialization.
-.macro ONE_ARG_SAVE_EVERYTHING_DOWNCALL name, entrypoint
+.macro ONE_ARG_SAVE_EVERYTHING_DOWNCALL name, entrypoint, runtime_method_offset = RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET
     .extern \entrypoint
 ENTRY \name
-    SETUP_SAVE_EVERYTHING_FRAME r1    @ save everything in case of GC
+    SETUP_SAVE_EVERYTHING_FRAME r1, \runtime_method_offset    @ save everything in case of GC
     mov    r1, r9                     @ pass Thread::Current
     bl     \entrypoint                @ (uint32_t index, Thread*)
     cbz    r0, 1f                     @ If result is null, deliver the OOME.
@@ -1021,8 +1021,12 @@ ENTRY \name
 END \name
 .endm
 
-ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_initialize_static_storage, artInitializeStaticStorageFromCode
-ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_initialize_type, artInitializeTypeFromCode
+.macro ONE_ARG_SAVE_EVERYTHING_DOWNCALL_FOR_CLINIT name, entrypoint
+    ONE_ARG_SAVE_EVERYTHING_DOWNCALL \name, \entrypoint, RUNTIME_SAVE_EVERYTHING_FOR_CLINIT_METHOD_OFFSET
+.endm
+
+ONE_ARG_SAVE_EVERYTHING_DOWNCALL_FOR_CLINIT art_quick_initialize_static_storage, artInitializeStaticStorageFromCode
+ONE_ARG_SAVE_EVERYTHING_DOWNCALL_FOR_CLINIT art_quick_initialize_type, artInitializeTypeFromCode
 ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_initialize_type_and_verify_access, artInitializeTypeAndVerifyAccessFromCode
 ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_resolve_string, artResolveStringFromCode
 
@@ -1537,7 +1541,7 @@ ENTRY art_quick_test_suspend
 1:
     mov    rSUSPEND, #SUSPEND_CHECK_INTERVAL    @ reset rSUSPEND to SUSPEND_CHECK_INTERVAL
 #endif
-    SETUP_SAVE_EVERYTHING_FRAME r0              @ save everything for GC stack crawl
+    SETUP_SAVE_EVERYTHING_FRAME r0, RUNTIME_SAVE_EVERYTHING_FOR_SUSPEND_CHECK_METHOD_OFFSET @ save everything for GC stack crawl
     mov    r0, rSELF
     bl     artTestSuspendFromCode               @ (Thread*)
     RESTORE_SAVE_EVERYTHING_FRAME
