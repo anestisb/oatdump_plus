@@ -412,8 +412,9 @@ class CodeGeneratorARM64 : public CodeGenerator {
   }
 
   size_t GetFloatingPointSpillSlotSize() const OVERRIDE {
-    // Allocated in D registers, which are word sized.
-    return kArm64WordSize;
+    return GetGraph()->HasSIMD()
+        ? 2 * kArm64WordSize   // 16 bytes == 2 arm64 words for each spill
+        : 1 * kArm64WordSize;  //  8 bytes == 1 arm64 words for each spill
   }
 
   uintptr_t GetAddressOf(HBasicBlock* block) OVERRIDE {
