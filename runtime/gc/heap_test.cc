@@ -72,6 +72,11 @@ TEST_F(HeapTest, HeapBitmapCapacityTest) {
   bitmap->Set(fake_end_of_heap_object);
 }
 
+TEST_F(HeapTest, DumpGCPerformanceOnShutdown) {
+  Runtime::Current()->GetHeap()->CollectGarbage(/* clear_soft_references */ false);
+  Runtime::Current()->SetDumpGCPerformanceOnShutdown(true);
+}
+
 class ZygoteHeapTest : public CommonRuntimeTest {
   void SetUpRuntimeOptions(RuntimeOptions* options) {
     CommonRuntimeTest::SetUpRuntimeOptions(options);
