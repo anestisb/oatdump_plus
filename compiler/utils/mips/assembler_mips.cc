@@ -635,11 +635,30 @@ void MipsAssembler::Ins(Register rd, Register rt, int pos, int size) {
   DsFsmInstrRrr(EmitR(0x1f, rt, rd, static_cast<Register>(pos + size - 1), pos, 0x04), rd, rd, rt);
 }
 
+// TODO: This instruction is available in both R6 and MSA and it should be used when available.
 void MipsAssembler::Lsa(Register rd, Register rs, Register rt, int saPlusOne) {
   CHECK(IsR6());
   CHECK(1 <= saPlusOne && saPlusOne <= 4) << saPlusOne;
   int sa = saPlusOne - 1;
   DsFsmInstrRrr(EmitR(0x0, rs, rt, rd, sa, 0x05), rd, rs, rt);
+}
+
+void MipsAssembler::ShiftAndAdd(Register dst,
+                                Register src_idx,
+                                Register src_base,
+                                int shamt,
+                                Register tmp) {
+  CHECK(0 <= shamt && shamt <= 4) << shamt;
+  CHECK_NE(src_base, tmp);
+  if (shamt == TIMES_1) {
+    // Catch the special case where the shift amount is zero (0).
+    Addu(dst, src_base, src_idx);
+  } else if (IsR6()) {
+    Lsa(dst, src_idx, src_base, shamt);
+  } else {
+    Sll(tmp, src_idx, shamt);
+    Addu(dst, src_base, tmp);
+  }
 }
 
 void MipsAssembler::Lb(Register rt, Register rs, uint16_t imm16) {
