@@ -2509,8 +2509,7 @@ void InstructionCodeGeneratorMIPS::VisitArrayGet(HArrayGet* instruction) {
             (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_2) + data_offset;
         __ LoadFromOffset(kLoadSignedHalfword, out, obj, offset, null_checker);
       } else {
-        __ Sll(TMP, index.AsRegister<Register>(), TIMES_2);
-        __ Addu(TMP, obj, TMP);
+        __ ShiftAndAdd(TMP, index.AsRegister<Register>(), obj, TIMES_2, TMP);
         __ LoadFromOffset(kLoadSignedHalfword, out, TMP, data_offset, null_checker);
       }
       break;
@@ -2557,13 +2556,11 @@ void InstructionCodeGeneratorMIPS::VisitArrayGet(HArrayGet* instruction) {
           __ LoadFromOffset(kLoadUnsignedByte, out, TMP, data_offset);
           __ B(&done);
           __ Bind(&uncompressed_load);
-          __ Sll(TMP, index_reg, TIMES_2);
-          __ Addu(TMP, obj, TMP);
+          __ ShiftAndAdd(TMP, index_reg, obj, TIMES_2, TMP);
           __ LoadFromOffset(kLoadUnsignedHalfword, out, TMP, data_offset);
           __ Bind(&done);
         } else {
-          __ Sll(TMP, index_reg, TIMES_2);
-          __ Addu(TMP, obj, TMP);
+          __ ShiftAndAdd(TMP, index_reg, obj, TIMES_2, TMP);
           __ LoadFromOffset(kLoadUnsignedHalfword, out, TMP, data_offset, null_checker);
         }
       }
@@ -2578,8 +2575,7 @@ void InstructionCodeGeneratorMIPS::VisitArrayGet(HArrayGet* instruction) {
             (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
         __ LoadFromOffset(kLoadWord, out, obj, offset, null_checker);
       } else {
-        __ Sll(TMP, index.AsRegister<Register>(), TIMES_4);
-        __ Addu(TMP, obj, TMP);
+        __ ShiftAndAdd(TMP, index.AsRegister<Register>(), obj, TIMES_4, TMP);
         __ LoadFromOffset(kLoadWord, out, TMP, data_offset, null_checker);
       }
       break;
@@ -2613,8 +2609,7 @@ void InstructionCodeGeneratorMIPS::VisitArrayGet(HArrayGet* instruction) {
           // reference, if heap poisoning is enabled).
           codegen_->MaybeGenerateReadBarrierSlow(instruction, out_loc, out_loc, obj_loc, offset);
         } else {
-          __ Sll(TMP, index.AsRegister<Register>(), TIMES_4);
-          __ Addu(TMP, obj, TMP);
+          __ ShiftAndAdd(TMP, index.AsRegister<Register>(), obj, TIMES_4, TMP);
           __ LoadFromOffset(kLoadWord, out, TMP, data_offset, null_checker);
           // If read barriers are enabled, emit read barriers other than
           // Baker's using a slow path (and also unpoison the loaded
@@ -2637,8 +2632,7 @@ void InstructionCodeGeneratorMIPS::VisitArrayGet(HArrayGet* instruction) {
             (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8) + data_offset;
         __ LoadFromOffset(kLoadDoubleword, out, obj, offset, null_checker);
       } else {
-        __ Sll(TMP, index.AsRegister<Register>(), TIMES_8);
-        __ Addu(TMP, obj, TMP);
+        __ ShiftAndAdd(TMP, index.AsRegister<Register>(), obj, TIMES_8, TMP);
         __ LoadFromOffset(kLoadDoubleword, out, TMP, data_offset, null_checker);
       }
       break;
@@ -2651,8 +2645,7 @@ void InstructionCodeGeneratorMIPS::VisitArrayGet(HArrayGet* instruction) {
             (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
         __ LoadSFromOffset(out, obj, offset, null_checker);
       } else {
-        __ Sll(TMP, index.AsRegister<Register>(), TIMES_4);
-        __ Addu(TMP, obj, TMP);
+        __ ShiftAndAdd(TMP, index.AsRegister<Register>(), obj, TIMES_4, TMP);
         __ LoadSFromOffset(out, TMP, data_offset, null_checker);
       }
       break;
@@ -2665,8 +2658,7 @@ void InstructionCodeGeneratorMIPS::VisitArrayGet(HArrayGet* instruction) {
             (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8) + data_offset;
         __ LoadDFromOffset(out, obj, offset, null_checker);
       } else {
-        __ Sll(TMP, index.AsRegister<Register>(), TIMES_8);
-        __ Addu(TMP, obj, TMP);
+        __ ShiftAndAdd(TMP, index.AsRegister<Register>(), obj, TIMES_8, TMP);
         __ LoadDFromOffset(out, TMP, data_offset, null_checker);
       }
       break;
@@ -2779,8 +2771,7 @@ void InstructionCodeGeneratorMIPS::VisitArraySet(HArraySet* instruction) {
       if (index.IsConstant()) {
         data_offset += index.GetConstant()->AsIntConstant()->GetValue() << TIMES_2;
       } else {
-        __ Sll(base_reg, index.AsRegister<Register>(), TIMES_2);
-        __ Addu(base_reg, obj, base_reg);
+        __ ShiftAndAdd(base_reg, index.AsRegister<Register>(), obj, TIMES_2, base_reg);
       }
       if (value_location.IsConstant()) {
         int32_t value = CodeGenerator::GetInt32ValueOf(value_location.GetConstant());
@@ -2797,8 +2788,7 @@ void InstructionCodeGeneratorMIPS::VisitArraySet(HArraySet* instruction) {
       if (index.IsConstant()) {
         data_offset += index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4;
       } else {
-        __ Sll(base_reg, index.AsRegister<Register>(), TIMES_4);
-        __ Addu(base_reg, obj, base_reg);
+        __ ShiftAndAdd(base_reg, index.AsRegister<Register>(), obj, TIMES_4, base_reg);
       }
       if (value_location.IsConstant()) {
         int32_t value = CodeGenerator::GetInt32ValueOf(value_location.GetConstant());
@@ -2817,8 +2807,7 @@ void InstructionCodeGeneratorMIPS::VisitArraySet(HArraySet* instruction) {
         if (index.IsConstant()) {
           data_offset += index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4;
         } else {
-          __ Sll(base_reg, index.AsRegister<Register>(), TIMES_4);
-          __ Addu(base_reg, obj, base_reg);
+          __ ShiftAndAdd(base_reg, index.AsRegister<Register>(), obj, TIMES_4, base_reg);
         }
         int32_t value = CodeGenerator::GetInt32ValueOf(value_location.GetConstant());
         DCHECK_EQ(value, 0);
@@ -2848,8 +2837,7 @@ void InstructionCodeGeneratorMIPS::VisitArraySet(HArraySet* instruction) {
           if (index.IsConstant()) {
             data_offset += index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4;
           } else {
-            __ Sll(base_reg, index.AsRegister<Register>(), TIMES_4);
-            __ Addu(base_reg, obj, base_reg);
+            __ ShiftAndAdd(base_reg, index.AsRegister<Register>(), obj, TIMES_4, base_reg);
           }
           __ StoreToOffset(kStoreWord, value, base_reg, data_offset, null_checker);
           __ B(&done);
@@ -2907,8 +2895,7 @@ void InstructionCodeGeneratorMIPS::VisitArraySet(HArraySet* instruction) {
       if (index.IsConstant()) {
         data_offset += index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4;
       } else {
-        __ Sll(base_reg, index.AsRegister<Register>(), TIMES_4);
-        __ Addu(base_reg, obj, base_reg);
+        __ ShiftAndAdd(base_reg, index.AsRegister<Register>(), obj, TIMES_4, base_reg);
       }
       __ StoreToOffset(kStoreWord, source, base_reg, data_offset);
 
@@ -2933,8 +2920,7 @@ void InstructionCodeGeneratorMIPS::VisitArraySet(HArraySet* instruction) {
       if (index.IsConstant()) {
         data_offset += index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8;
       } else {
-        __ Sll(base_reg, index.AsRegister<Register>(), TIMES_8);
-        __ Addu(base_reg, obj, base_reg);
+        __ ShiftAndAdd(base_reg, index.AsRegister<Register>(), obj, TIMES_8, base_reg);
       }
       if (value_location.IsConstant()) {
         int64_t value = CodeGenerator::GetInt64ValueOf(value_location.GetConstant());
@@ -2951,8 +2937,7 @@ void InstructionCodeGeneratorMIPS::VisitArraySet(HArraySet* instruction) {
       if (index.IsConstant()) {
         data_offset += index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4;
       } else {
-        __ Sll(base_reg, index.AsRegister<Register>(), TIMES_4);
-        __ Addu(base_reg, obj, base_reg);
+        __ ShiftAndAdd(base_reg, index.AsRegister<Register>(), obj, TIMES_4, base_reg);
       }
       if (value_location.IsConstant()) {
         int32_t value = CodeGenerator::GetInt32ValueOf(value_location.GetConstant());
@@ -2969,8 +2954,7 @@ void InstructionCodeGeneratorMIPS::VisitArraySet(HArraySet* instruction) {
       if (index.IsConstant()) {
         data_offset += index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8;
       } else {
-        __ Sll(base_reg, index.AsRegister<Register>(), TIMES_8);
-        __ Addu(base_reg, obj, base_reg);
+        __ ShiftAndAdd(base_reg, index.AsRegister<Register>(), obj, TIMES_8, base_reg);
       }
       if (value_location.IsConstant()) {
         int64_t value = CodeGenerator::GetInt64ValueOf(value_location.GetConstant());
@@ -6351,8 +6335,7 @@ void CodeGeneratorMIPS::GenerateReferenceLoadWithBakerReadBarrier(HInstruction* 
       Register index_reg = index.IsRegisterPair()
           ? index.AsRegisterPairLow<Register>()
           : index.AsRegister<Register>();
-      __ Sll(TMP, index_reg, scale_factor);
-      __ Addu(TMP, obj, TMP);
+      __ ShiftAndAdd(TMP, index_reg, obj, scale_factor, TMP);
       __ LoadFromOffset(kLoadWord, ref_reg, TMP, offset);
     }
   } else {
@@ -8446,8 +8429,7 @@ void InstructionCodeGeneratorMIPS::GenTableBasedPackedSwitch(Register value_reg,
   // We are in the range of the table.
   // Load the target address from the jump table, indexing by the value.
   __ LoadLabelAddress(AT, constant_area, table->GetLabel());
-  __ Sll(TMP, TMP, 2);
-  __ Addu(TMP, TMP, AT);
+  __ ShiftAndAdd(TMP, TMP, AT, 2, TMP);
   __ Lw(TMP, TMP, 0);
   // Compute the absolute target address by adding the table start address
   // (the table contains offsets to targets relative to its start).
