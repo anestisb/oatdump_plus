@@ -1075,7 +1075,7 @@ extern "C" const void* artQuickResolutionTrampoline(
               << called_method.dex_file->PrettyMethod(called_method.dex_method_index);
         }
       } else {
-        VLOG(oat) << "Accessed dex file for invoke " << invoke_type << " "
+        VLOG(dex) << "Accessed dex file for invoke " << invoke_type << " "
                   << called_method.dex_method_index;
       }
     } else {
