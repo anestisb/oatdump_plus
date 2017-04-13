@@ -114,6 +114,14 @@ TEST_ART_TARGET_SYNC_DEPS += $(OUT_DIR)/$(ART_TEST_LIST_device_$(TARGET_2ND_ARCH
 TEST_ART_TARGET_SYNC_DEPS += $(OUT_DIR)/$(ART_TEST_LIST_device_$(TARGET_2ND_ARCH)_libtiagentd)
 endif
 
+# Also need libtistress.
+TEST_ART_TARGET_SYNC_DEPS += $(OUT_DIR)/$(ART_TEST_LIST_device_$(TARGET_ARCH)_libtistress)
+TEST_ART_TARGET_SYNC_DEPS += $(OUT_DIR)/$(ART_TEST_LIST_device_$(TARGET_ARCH)_libtistressd)
+ifdef TARGET_2ND_ARCH
+TEST_ART_TARGET_SYNC_DEPS += $(OUT_DIR)/$(ART_TEST_LIST_device_$(TARGET_2ND_ARCH)_libtistress)
+TEST_ART_TARGET_SYNC_DEPS += $(OUT_DIR)/$(ART_TEST_LIST_device_$(TARGET_2ND_ARCH)_libtistressd)
+endif
+
 # Also need libarttest.
 TEST_ART_TARGET_SYNC_DEPS += $(OUT_DIR)/$(ART_TEST_LIST_device_$(TARGET_ARCH)_libarttest)
 TEST_ART_TARGET_SYNC_DEPS += $(OUT_DIR)/$(ART_TEST_LIST_device_$(TARGET_ARCH)_libarttestd)
@@ -145,6 +153,8 @@ ART_TEST_HOST_RUN_TEST_DEPENDENCIES := \
   $(HOST_OUT_EXECUTABLES)/hprof-conv \
   $(OUT_DIR)/$(ART_TEST_LIST_host_$(ART_HOST_ARCH)_libtiagent) \
   $(OUT_DIR)/$(ART_TEST_LIST_host_$(ART_HOST_ARCH)_libtiagentd) \
+  $(OUT_DIR)/$(ART_TEST_LIST_host_$(ART_HOST_ARCH)_libtistress) \
+  $(OUT_DIR)/$(ART_TEST_LIST_host_$(ART_HOST_ARCH)_libtistressd) \
   $(OUT_DIR)/$(ART_TEST_LIST_host_$(ART_HOST_ARCH)_libartagent) \
   $(OUT_DIR)/$(ART_TEST_LIST_host_$(ART_HOST_ARCH)_libartagentd) \
   $(OUT_DIR)/$(ART_TEST_LIST_host_$(ART_HOST_ARCH)_libarttest) \
@@ -158,8 +168,8 @@ ART_TEST_HOST_RUN_TEST_DEPENDENCIES := \
 
 ifneq ($(HOST_PREFER_32_BIT),true)
 ART_TEST_HOST_RUN_TEST_DEPENDENCIES += \
-  $(OUT_DIR)/$(ART_TEST_LIST_host_$(2ND_ART_HOST_ARCH)_libtiagent) \
-  $(OUT_DIR)/$(ART_TEST_LIST_host_$(2ND_ART_HOST_ARCH)_libtiagentd) \
+  $(OUT_DIR)/$(ART_TEST_LIST_host_$(2ND_ART_HOST_ARCH)_libtistress) \
+  $(OUT_DIR)/$(ART_TEST_LIST_host_$(2ND_ART_HOST_ARCH)_libtistressd) \
   $(OUT_DIR)/$(ART_TEST_LIST_host_$(2ND_ART_HOST_ARCH)_libartagent) \
   $(OUT_DIR)/$(ART_TEST_LIST_host_$(2ND_ART_HOST_ARCH)_libartagentd) \
   $(OUT_DIR)/$(ART_TEST_LIST_host_$(2ND_ART_HOST_ARCH)_libarttest) \

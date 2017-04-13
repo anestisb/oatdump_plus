@@ -202,6 +202,9 @@ TARGET_ARCH = _get_build_var('TARGET_ARCH')
 # Note: ART_2ND_PHONY_TEST_TARGET_SUFFIX is 2ND_ART_PHONY_TEST_TARGET_SUFFIX in .mk files
 # Note: ART_2ND_PHONY_TEST_HOST_SUFFIX is 2ND_ART_PHONY_HOST_TARGET_SUFFIX in .mk files
 # Python does not let us have variable names starting with a digit, so it has differ.
+
+ART_TEST_RUN_TEST_JVMTI_STRESS = _getEnvBoolean('ART_TEST_RUN_TEST_JVMTI_STRESS', ART_TEST_FULL)
+
 if TARGET_2ND_ARCH:
   if "64" in TARGET_ARCH:
     ART_PHONY_TEST_TARGET_SUFFIX = "64"
