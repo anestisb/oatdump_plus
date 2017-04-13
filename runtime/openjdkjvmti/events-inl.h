@@ -131,6 +131,9 @@ inline void EventHandler::DispatchClassFileLoadHookEvent(art::Thread* thread,
   unsigned char* current_class_data = const_cast<unsigned char*>(class_data);
   ArtJvmTiEnv* last_env = nullptr;
   for (ArtJvmTiEnv* env : envs) {
+    if (env == nullptr) {
+      continue;
+    }
     if (ShouldDispatch<kEvent>(env, thread)) {
       jint new_len = 0;
       unsigned char* new_data = nullptr;
@@ -171,7 +174,9 @@ inline void EventHandler::DispatchClassFileLoadHookEvent(art::Thread* thread,
 template <ArtJvmtiEvent kEvent, typename ...Args>
 inline void EventHandler::DispatchEvent(art::Thread* thread, Args... args) const {
   for (ArtJvmTiEnv* env : envs) {
-    DispatchEvent<kEvent, Args...>(env, thread, args...);
+    if (env != nullptr) {
+      DispatchEvent<kEvent, Args...>(env, thread, args...);
+    }
   }
 }
 
@@ -253,6 +258,9 @@ inline bool EventHandler::ShouldDispatch(ArtJvmTiEnv* env,
 inline void EventHandler::RecalculateGlobalEventMask(ArtJvmtiEvent event) {
   bool union_value = false;
   for (const ArtJvmTiEnv* stored_env : envs) {
+    if (stored_env == nullptr) {
+      continue;
+    }
     union_value |= stored_env->event_masks.global_event_mask.Test(event);
     union_value |= stored_env->event_masks.unioned_thread_event_mask.Test(event);
     if (union_value) {
