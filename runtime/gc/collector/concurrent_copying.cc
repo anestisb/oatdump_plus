@@ -1108,7 +1108,9 @@ class ConcurrentCopying::VerifyNoFromSpaceRefsObjectVisitor {
     space::RegionSpace* region_space = collector->RegionSpace();
     CHECK(!region_space->IsInFromSpace(obj)) << "Scanning object " << obj << " in from space";
     VerifyNoFromSpaceRefsFieldVisitor visitor(collector);
-    obj->VisitReferences(visitor, visitor);
+    obj->VisitReferences</*kVisitNativeRoots*/true, kDefaultVerifyFlags, kWithoutReadBarrier>(
+        visitor,
+        visitor);
     if (kUseBakerReadBarrier) {
       CHECK_EQ(obj->GetReadBarrierState(), ReadBarrier::WhiteState())
           << "obj=" << obj << " non-white rb_state " << obj->GetReadBarrierState();
@@ -1232,7 +1234,9 @@ class ConcurrentCopying::AssertToSpaceInvariantObjectVisitor {
     CHECK(!region_space->IsInFromSpace(obj)) << "Scanning object " << obj << " in from space";
     collector->AssertToSpaceInvariant(nullptr, MemberOffset(0), obj);
     AssertToSpaceInvariantFieldVisitor visitor(collector);
-    obj->VisitReferences(visitor, visitor);
+    obj->VisitReferences</*kVisitNativeRoots*/true, kDefaultVerifyFlags, kWithoutReadBarrier>(
+        visitor,
+        visitor);
   }
 
  private:
@@ -1471,8 +1475,7 @@ inline void ConcurrentCopying::ProcessMarkStackRef(mirror::Object* to_ref) {
     // Add to the live bytes per unevacuated from space. Note this code is always run by the
     // GC-running thread (no synchronization required).
     DCHECK(region_space_bitmap_->Test(to_ref));
-    // Disable the read barrier in SizeOf for performance, which is safe.
-    size_t obj_size = to_ref->SizeOf<kDefaultVerifyFlags, kWithoutReadBarrier>();
+    size_t obj_size = to_ref->SizeOf<kDefaultVerifyFlags>();
     size_t alloc_size = RoundUp(obj_size, space::RegionSpace::kAlignment);
     region_space_->AddLiveBytes(to_ref, alloc_size);
   }
@@ -1714,16 +1717,19 @@ void ConcurrentCopying::ReclaimPhase() {
 }
 
 // Assert the to-space invariant.
-void ConcurrentCopying::AssertToSpaceInvariant(mirror::Object* obj, MemberOffset offset,
+void ConcurrentCopying::AssertToSpaceInvariant(mirror::Object* obj,
+                                               MemberOffset offset,
                                                mirror::Object* ref) {
-  CHECK(heap_->collector_type_ == kCollectorTypeCC) << static_cast<size_t>(heap_->collector_type_);
+  CHECK_EQ(heap_->collector_type_, kCollectorTypeCC);
   if (is_asserting_to_space_invariant_) {
-    if (region_space_->IsInToSpace(ref)) {
+    using RegionType = space::RegionSpace::RegionType;
+    space::RegionSpace::RegionType type = region_space_->GetRegionType(ref);
+    if (type == RegionType::kRegionTypeToSpace) {
       // OK.
       return;
-    } else if (region_space_->IsInUnevacFromSpace(ref)) {
+    } else if (type == RegionType::kRegionTypeUnevacFromSpace) {
       CHECK(IsMarkedInUnevacFromSpace(ref)) << ref;
-    } else if (region_space_->IsInFromSpace(ref)) {
+    } else if (UNLIKELY(type == RegionType::kRegionTypeFromSpace)) {
       // Not OK. Do extra logging.
       if (obj != nullptr) {
         LogFromSpaceRefHolder(obj, offset);
@@ -1888,10 +1894,10 @@ class ConcurrentCopying::RefFieldsVisitor {
   explicit RefFieldsVisitor(ConcurrentCopying* collector)
       : collector_(collector) {}
 
-  void operator()(ObjPtr<mirror::Object> obj, MemberOffset offset, bool /* is_static */)
+  void operator()(mirror::Object* obj, MemberOffset offset, bool /* is_static */)
       const ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES_SHARED(Locks::heap_bitmap_lock_) {
-    collector_->Process(obj.Ptr(), offset);
+    collector_->Process(obj, offset);
   }
 
   void operator()(ObjPtr<mirror::Class> klass, ObjPtr<mirror::Reference> ref) const
@@ -2064,7 +2070,7 @@ void ConcurrentCopying::FillWithDummyObject(mirror::Object* dummy_obj, size_t by
     AssertToSpaceInvariant(nullptr, MemberOffset(0), java_lang_Object.Ptr());
     CHECK_EQ(byte_size, (java_lang_Object->GetObjectSize<kVerifyNone, kWithoutReadBarrier>()));
     dummy_obj->SetClass(java_lang_Object.Ptr());
-    CHECK_EQ(byte_size, (dummy_obj->SizeOf<kVerifyNone, kWithoutReadBarrier>()));
+    CHECK_EQ(byte_size, (dummy_obj->SizeOf<kVerifyNone>()));
   } else {
     // Use an int array.
     dummy_obj->SetClass(int_array_class);
@@ -2075,7 +2081,7 @@ void ConcurrentCopying::FillWithDummyObject(mirror::Object* dummy_obj, size_t by
     CHECK_EQ(dummy_arr->GetLength(), length)
         << "byte_size=" << byte_size << " length=" << length
         << " component_size=" << component_size << " data_offset=" << data_offset;
-    CHECK_EQ(byte_size, (dummy_obj->SizeOf<kVerifyNone, kWithoutReadBarrier>()))
+    CHECK_EQ(byte_size, (dummy_obj->SizeOf<kVerifyNone>()))
         << "byte_size=" << byte_size << " length=" << length
         << " component_size=" << component_size << " data_offset=" << data_offset;
   }
@@ -2142,10 +2148,10 @@ mirror::Object* ConcurrentCopying::AllocateInSkippedBlock(size_t alloc_size) {
 
 mirror::Object* ConcurrentCopying::Copy(mirror::Object* from_ref) {
   DCHECK(region_space_->IsInFromSpace(from_ref));
-  // No read barrier to avoid nested RB that might violate the to-space
-  // invariant. Note that from_ref is a from space ref so the SizeOf()
-  // call will access the from-space meta objects, but it's ok and necessary.
-  size_t obj_size = from_ref->SizeOf<kDefaultVerifyFlags, kWithoutReadBarrier>();
+  // There must not be a read barrier to avoid nested RB that might violate the to-space invariant.
+  // Note that from_ref is a from space ref so the SizeOf() call will access the from-space meta
+  // objects, but it's ok and necessary.
+  size_t obj_size = from_ref->SizeOf<kDefaultVerifyFlags>();
   size_t region_space_alloc_size = RoundUp(obj_size, space::RegionSpace::kAlignment);
   size_t region_space_bytes_allocated = 0U;
   size_t non_moving_space_bytes_allocated = 0U;
