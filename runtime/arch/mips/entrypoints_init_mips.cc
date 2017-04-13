@@ -312,6 +312,42 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
   qpoints->pUshrLong = art_quick_ushr_long;
   static_assert(!IsDirectEntrypoint(kQuickUshrLong), "Non-direct C stub marked direct.");
 
+  // More math.
+  qpoints->pCos = cos;
+  static_assert(IsDirectEntrypoint(kQuickCos), "Direct C stub marked non-direct.");
+  qpoints->pSin = sin;
+  static_assert(IsDirectEntrypoint(kQuickSin), "Direct C stub marked non-direct.");
+  qpoints->pAcos = acos;
+  static_assert(IsDirectEntrypoint(kQuickAcos), "Direct C stub marked non-direct.");
+  qpoints->pAsin = asin;
+  static_assert(IsDirectEntrypoint(kQuickAsin), "Direct C stub marked non-direct.");
+  qpoints->pAtan = atan;
+  static_assert(IsDirectEntrypoint(kQuickAtan), "Direct C stub marked non-direct.");
+  qpoints->pAtan2 = atan2;
+  static_assert(IsDirectEntrypoint(kQuickAtan2), "Direct C stub marked non-direct.");
+  qpoints->pCbrt = cbrt;
+  static_assert(IsDirectEntrypoint(kQuickCbrt), "Direct C stub marked non-direct.");
+  qpoints->pCosh = cosh;
+  static_assert(IsDirectEntrypoint(kQuickCosh), "Direct C stub marked non-direct.");
+  qpoints->pExp = exp;
+  static_assert(IsDirectEntrypoint(kQuickExp), "Direct C stub marked non-direct.");
+  qpoints->pExpm1 = expm1;
+  static_assert(IsDirectEntrypoint(kQuickExpm1), "Direct C stub marked non-direct.");
+  qpoints->pHypot = hypot;
+  static_assert(IsDirectEntrypoint(kQuickHypot), "Direct C stub marked non-direct.");
+  qpoints->pLog = log;
+  static_assert(IsDirectEntrypoint(kQuickLog), "Direct C stub marked non-direct.");
+  qpoints->pLog10 = log10;
+  static_assert(IsDirectEntrypoint(kQuickLog10), "Direct C stub marked non-direct.");
+  qpoints->pNextAfter = nextafter;
+  static_assert(IsDirectEntrypoint(kQuickNextAfter), "Direct C stub marked non-direct.");
+  qpoints->pSinh = sinh;
+  static_assert(IsDirectEntrypoint(kQuickSinh), "Direct C stub marked non-direct.");
+  qpoints->pTan = tan;
+  static_assert(IsDirectEntrypoint(kQuickTan), "Direct C stub marked non-direct.");
+  qpoints->pTanh = tanh;
+  static_assert(IsDirectEntrypoint(kQuickTanh), "Direct C stub marked non-direct.");
+
   // Intrinsics
   qpoints->pIndexOf = art_quick_indexof;
   static_assert(!IsDirectEntrypoint(kQuickIndexOf), "Non-direct C stub marked direct.");
