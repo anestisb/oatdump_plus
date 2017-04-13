@@ -17,6 +17,7 @@
 #include <math.h>
 #include <string.h>
 
+#include "arch/arm64/asm_support_arm64.h"
 #include "entrypoints/jni/jni_entrypoints.h"
 #include "entrypoints/quick/quick_alloc_entrypoints.h"
 #include "entrypoints/quick/quick_default_externs.h"
@@ -70,6 +71,10 @@ extern "C" mirror::Object* art_quick_read_barrier_mark_reg27(mirror::Object*);
 extern "C" mirror::Object* art_quick_read_barrier_mark_reg28(mirror::Object*);
 extern "C" mirror::Object* art_quick_read_barrier_mark_reg29(mirror::Object*);
 
+extern "C" mirror::Object* art_quick_read_barrier_mark_introspection(mirror::Object*);
+extern "C" mirror::Object* art_quick_read_barrier_mark_introspection_arrays(mirror::Object*);
+extern "C" mirror::Object* art_quick_read_barrier_mark_introspection_gc_roots(mirror::Object*);
+
 void UpdateReadBarrierEntrypoints(QuickEntryPoints* qpoints, bool is_marking) {
   // ARM64 is the architecture with the largest number of core
   // registers (32) that supports the read barrier configuration.
@@ -109,6 +114,21 @@ void UpdateReadBarrierEntrypoints(QuickEntryPoints* qpoints, bool is_marking) {
   qpoints->pReadBarrierMarkReg27 = is_marking ? art_quick_read_barrier_mark_reg27 : nullptr;
   qpoints->pReadBarrierMarkReg28 = is_marking ? art_quick_read_barrier_mark_reg28 : nullptr;
   qpoints->pReadBarrierMarkReg29 = is_marking ? art_quick_read_barrier_mark_reg29 : nullptr;
+
+  // Check that array switch cases are at appropriate offsets from the introspection entrypoint.
+  DCHECK_ALIGNED(art_quick_read_barrier_mark_introspection, 512u);
+  intptr_t array_diff =
+      reinterpret_cast<intptr_t>(art_quick_read_barrier_mark_introspection_arrays) -
+      reinterpret_cast<intptr_t>(art_quick_read_barrier_mark_introspection);
+  DCHECK_EQ(BAKER_MARK_INTROSPECTION_ARRAY_SWITCH_OFFSET, array_diff);
+  // Check that the GC root entrypoint is at appropriate offset from the introspection entrypoint.
+  intptr_t gc_roots_diff =
+      reinterpret_cast<intptr_t>(art_quick_read_barrier_mark_introspection_gc_roots) -
+      reinterpret_cast<intptr_t>(art_quick_read_barrier_mark_introspection);
+  DCHECK_EQ(BAKER_MARK_INTROSPECTION_GC_ROOT_ENTRYPOINT_OFFSET, gc_roots_diff);
+  // The register 16, i.e. IP0, is reserved, so there is no art_quick_read_barrier_mark_reg16.
+  // We're using the entry to hold a pointer to the introspection entrypoint instead.
+  qpoints->pReadBarrierMarkReg16 = is_marking ? art_quick_read_barrier_mark_introspection : nullptr;
 }
 
 void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {

@@ -1348,6 +1348,12 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
                 PatchObjectAddress(&patched_code_, literal_offset, type);
                 break;
               }
+              case LinkerPatch::Type::kBakerReadBarrierBranch: {
+                writer_->relative_patcher_->PatchBakerReadBarrierBranch(&patched_code_,
+                                                                        patch,
+                                                                        offset_ + literal_offset);
+                break;
+              }
               default: {
                 DCHECK(false) << "Unexpected linker patch type: " << patch.GetType();
                 break;

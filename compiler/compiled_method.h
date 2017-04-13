@@ -121,14 +121,15 @@ class LinkerPatch {
   enum class Type : uint8_t {
     kMethod,
     kCall,
-    kCallRelative,     // NOTE: Actual patching is instruction_set-dependent.
+    kCallRelative,            // NOTE: Actual patching is instruction_set-dependent.
     kType,
-    kTypeRelative,     // NOTE: Actual patching is instruction_set-dependent.
-    kTypeBssEntry,     // NOTE: Actual patching is instruction_set-dependent.
+    kTypeRelative,            // NOTE: Actual patching is instruction_set-dependent.
+    kTypeBssEntry,            // NOTE: Actual patching is instruction_set-dependent.
     kString,
-    kStringRelative,   // NOTE: Actual patching is instruction_set-dependent.
-    kStringBssEntry,   // NOTE: Actual patching is instruction_set-dependent.
-    kDexCacheArray,    // NOTE: Actual patching is instruction_set-dependent.
+    kStringRelative,          // NOTE: Actual patching is instruction_set-dependent.
+    kStringBssEntry,          // NOTE: Actual patching is instruction_set-dependent.
+    kDexCacheArray,           // NOTE: Actual patching is instruction_set-dependent.
+    kBakerReadBarrierBranch,  // NOTE: Actual patching is instruction_set-dependent.
   };
 
   static LinkerPatch MethodPatch(size_t literal_offset,
@@ -215,10 +216,18 @@ class LinkerPatch {
                                         const DexFile* target_dex_file,
                                         uint32_t pc_insn_offset,
                                         uint32_t element_offset) {
-    DCHECK(IsUint<32>(element_offset));
     LinkerPatch patch(literal_offset, Type::kDexCacheArray, target_dex_file);
     patch.pc_insn_offset_ = pc_insn_offset;
     patch.element_offset_ = element_offset;
+    return patch;
+  }
+
+  static LinkerPatch BakerReadBarrierBranchPatch(size_t literal_offset,
+                                                 uint32_t custom_value1 = 0u,
+                                                 uint32_t custom_value2 = 0u) {
+    LinkerPatch patch(literal_offset, Type::kBakerReadBarrierBranch, nullptr);
+    patch.baker_custom_value1_ = custom_value1;
+    patch.baker_custom_value2_ = custom_value2;
     return patch;
   }
 
@@ -241,6 +250,7 @@ class LinkerPatch {
       case Type::kStringRelative:
       case Type::kStringBssEntry:
       case Type::kDexCacheArray:
+      case Type::kBakerReadBarrierBranch:
         return true;
       default:
         return false;
@@ -301,6 +311,16 @@ class LinkerPatch {
     return pc_insn_offset_;
   }
 
+  uint32_t GetBakerCustomValue1() const {
+    DCHECK(patch_type_ == Type::kBakerReadBarrierBranch);
+    return baker_custom_value1_;
+  }
+
+  uint32_t GetBakerCustomValue2() const {
+    DCHECK(patch_type_ == Type::kBakerReadBarrierBranch);
+    return baker_custom_value2_;
+  }
+
  private:
   LinkerPatch(size_t literal_offset, Type patch_type, const DexFile* target_dex_file)
       : target_dex_file_(target_dex_file),
@@ -314,6 +334,7 @@ class LinkerPatch {
   }
 
   const DexFile* target_dex_file_;
+  // TODO: Clean up naming. Some patched locations are literals but others are not.
   uint32_t literal_offset_ : 24;  // Method code size up to 16MiB.
   Type patch_type_ : 8;
   union {
@@ -322,10 +343,12 @@ class LinkerPatch {
     uint32_t type_idx_;         // Type index for Type patches.
     uint32_t string_idx_;       // String index for String patches.
     uint32_t element_offset_;   // Element offset in the dex cache arrays.
+    uint32_t baker_custom_value1_;
     static_assert(sizeof(method_idx_) == sizeof(cmp1_), "needed by relational operators");
     static_assert(sizeof(type_idx_) == sizeof(cmp1_), "needed by relational operators");
     static_assert(sizeof(string_idx_) == sizeof(cmp1_), "needed by relational operators");
     static_assert(sizeof(element_offset_) == sizeof(cmp1_), "needed by relational operators");
+    static_assert(sizeof(baker_custom_value1_) == sizeof(cmp1_), "needed by relational operators");
   };
   union {
     // Note: To avoid uninitialized padding on 64-bit systems, we use `size_t` for `cmp2_`.
@@ -334,7 +357,9 @@ class LinkerPatch {
     // Literal offset of the insn loading PC (same as literal_offset if it's the same insn,
     // may be different if the PC-relative addressing needs multiple insns).
     uint32_t pc_insn_offset_;
+    uint32_t baker_custom_value2_;
     static_assert(sizeof(pc_insn_offset_) <= sizeof(cmp2_), "needed by relational operators");
+    static_assert(sizeof(baker_custom_value2_) <= sizeof(cmp2_), "needed by relational operators");
   };
 
   friend bool operator==(const LinkerPatch& lhs, const LinkerPatch& rhs);

@@ -63,7 +63,7 @@ class Thumb2RelativePatcherTest : public RelativePatcherTest {
     const uint32_t method2_size = (method3_offset - sizeof(OatQuickMethodHeader) - method2_offset);
     std::vector<uint8_t> method2_raw_code(method2_size);
     ArrayRef<const uint8_t> method2_code(method2_raw_code);
-    AddCompiledMethod(MethodRef(2u), method2_code, ArrayRef<const LinkerPatch>());
+    AddCompiledMethod(MethodRef(2u), method2_code);
 
     AddCompiledMethod(MethodRef(3u), method3_code, method3_patches);
 
@@ -80,7 +80,7 @@ class Thumb2RelativePatcherTest : public RelativePatcherTest {
     } else {
       uint32_t thunk_end =
           CompiledCode::AlignCode(method3_offset - sizeof(OatQuickMethodHeader), kThumb2) +
-          ThunkSize();
+          MethodCallThunkSize();
       uint32_t header_offset = thunk_end + CodeAlignmentSize(thunk_end);
       CHECK_EQ(result3.second, header_offset + sizeof(OatQuickMethodHeader) + 1 /* thumb mode */);
       return true;   // Thunk present.
@@ -94,24 +94,30 @@ class Thumb2RelativePatcherTest : public RelativePatcherTest {
     return result.second - 1 /* thumb mode */;
   }
 
-  uint32_t ThunkSize() {
-    return static_cast<Thumb2RelativePatcher*>(patcher_.get())->thunk_code_.size();
+  std::vector<uint8_t> CompileMethodCallThunk() {
+    ArmBaseRelativePatcher::ThunkKey key(
+        ArmBaseRelativePatcher::ThunkType::kMethodCall,
+        ArmBaseRelativePatcher::ThunkParams{{ 0, 0 }});  // NOLINT(whitespace/braces)
+    return static_cast<Thumb2RelativePatcher*>(patcher_.get())->CompileThunk(key);
+  }
+
+  uint32_t MethodCallThunkSize() {
+    return CompileMethodCallThunk().size();
   }
 
   bool CheckThunk(uint32_t thunk_offset) {
-    Thumb2RelativePatcher* patcher = static_cast<Thumb2RelativePatcher*>(patcher_.get());
-    ArrayRef<const uint8_t> expected_code(patcher->thunk_code_);
+    const std::vector<uint8_t> expected_code = CompileMethodCallThunk();
     if (output_.size() < thunk_offset + expected_code.size()) {
       LOG(ERROR) << "output_.size() == " << output_.size() << " < "
           << "thunk_offset + expected_code.size() == " << (thunk_offset + expected_code.size());
       return false;
     }
     ArrayRef<const uint8_t> linked_code(&output_[thunk_offset], expected_code.size());
-    if (linked_code == expected_code) {
+    if (linked_code == ArrayRef<const uint8_t>(expected_code)) {
       return true;
     }
     // Log failure info.
-    DumpDiff(expected_code, linked_code);
+    DumpDiff(ArrayRef<const uint8_t>(expected_code), linked_code);
     return false;
   }
 
@@ -357,9 +363,10 @@ TEST_F(Thumb2RelativePatcherTest, CallOtherJustTooFarAfter) {
   uint32_t method3_offset = GetMethodOffset(3u);
   ASSERT_TRUE(IsAligned<kArmAlignment>(method3_offset));
   uint32_t method3_header_offset = method3_offset - sizeof(OatQuickMethodHeader);
+  uint32_t thunk_size = MethodCallThunkSize();
   uint32_t thunk_offset =
-      RoundDown(method3_header_offset - ThunkSize(), GetInstructionSetAlignment(kThumb2));
-  DCHECK_EQ(thunk_offset + ThunkSize() + CodeAlignmentSize(thunk_offset + ThunkSize()),
+      RoundDown(method3_header_offset - thunk_size, GetInstructionSetAlignment(kThumb2));
+  DCHECK_EQ(thunk_offset + thunk_size + CodeAlignmentSize(thunk_offset + thunk_size),
             method3_header_offset);
   ASSERT_TRUE(IsAligned<kArmAlignment>(thunk_offset));
   uint32_t diff = thunk_offset - (method1_offset + bl_offset_in_method1 + 4u /* PC adjustment */);
