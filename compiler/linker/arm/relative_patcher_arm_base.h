@@ -18,9 +18,11 @@
 #define ART_COMPILER_LINKER_ARM_RELATIVE_PATCHER_ARM_BASE_H_
 
 #include <deque>
+#include <vector>
 
 #include "linker/relative_patcher.h"
 #include "method_reference.h"
+#include "safe_map.h"
 
 namespace art {
 namespace linker {
@@ -35,32 +37,138 @@ class ArmBaseRelativePatcher : public RelativePatcher {
 
  protected:
   ArmBaseRelativePatcher(RelativePatcherTargetProvider* provider,
-                         InstructionSet instruction_set,
-                         std::vector<uint8_t> thunk_code,
-                         uint32_t max_positive_displacement,
-                         uint32_t max_negative_displacement);
+                         InstructionSet instruction_set);
+  ~ArmBaseRelativePatcher();
+
+  enum class ThunkType {
+    kMethodCall,              // Method call thunk.
+    kBakerReadBarrierField,   // Baker read barrier, load field or array element at known offset.
+    kBakerReadBarrierRoot,    // Baker read barrier, GC root load.
+  };
+
+  struct BakerReadBarrierOffsetParams {
+    uint32_t holder_reg;      // Holder object for reading lock word.
+    uint32_t base_reg;        // Base register, different from holder for large offset.
+                              // If base differs from holder, it should be a pre-defined
+                              // register to limit the number of thunks we need to emit.
+                              // The offset is retrieved using introspection.
+  };
+
+  struct BakerReadBarrierRootParams {
+    uint32_t root_reg;        // The register holding the GC root.
+    uint32_t dummy;
+  };
+
+  struct RawThunkParams {
+    uint32_t first;
+    uint32_t second;
+  };
+
+  union ThunkParams {
+    RawThunkParams raw_params;
+    BakerReadBarrierOffsetParams offset_params;
+    BakerReadBarrierRootParams root_params;
+  };
+
+  class ThunkKey {
+   public:
+    ThunkKey(ThunkType type, ThunkParams params) : type_(type), params_(params) { }
+
+    ThunkType GetType() const {
+      return type_;
+    }
+
+    BakerReadBarrierOffsetParams GetOffsetParams() const {
+      DCHECK(type_ == ThunkType::kBakerReadBarrierField);
+      return params_.offset_params;
+    }
+
+    BakerReadBarrierRootParams GetRootParams() const {
+      DCHECK(type_ == ThunkType::kBakerReadBarrierRoot);
+      return params_.root_params;
+    }
+
+    RawThunkParams GetRawParams() const {
+      return params_.raw_params;
+    }
+
+   private:
+    ThunkType type_;
+    ThunkParams params_;
+  };
+
+  class ThunkKeyCompare {
+   public:
+    bool operator()(const ThunkKey& lhs, const ThunkKey& rhs) const {
+      if (lhs.GetType() != rhs.GetType()) {
+        return lhs.GetType() < rhs.GetType();
+      }
+      if (lhs.GetRawParams().first != rhs.GetRawParams().first) {
+        return lhs.GetRawParams().first < rhs.GetRawParams().first;
+      }
+      return lhs.GetRawParams().second < rhs.GetRawParams().second;
+    }
+  };
 
   uint32_t ReserveSpaceInternal(uint32_t offset,
                                 const CompiledMethod* compiled_method,
                                 MethodReference method_ref,
                                 uint32_t max_extra_space);
-  uint32_t CalculateDisplacement(uint32_t patch_offset, uint32_t target_offset);
+  uint32_t GetThunkTargetOffset(const ThunkKey& key, uint32_t patch_offset);
+
+  uint32_t CalculateMethodCallDisplacement(uint32_t patch_offset,
+                                           uint32_t target_offset);
+
+  virtual ThunkKey GetBakerReadBarrierKey(const LinkerPatch& patch) = 0;
+  virtual std::vector<uint8_t> CompileThunk(const ThunkKey& key) = 0;
+  virtual uint32_t MaxPositiveDisplacement(ThunkType type) = 0;
+  virtual uint32_t MaxNegativeDisplacement(ThunkType type) = 0;
 
  private:
-  bool ReserveSpaceProcessPatches(uint32_t quick_code_offset, MethodReference method_ref,
-                                  uint32_t next_aligned_offset);
+  class ThunkData;
+
+  void ProcessPatches(const CompiledMethod* compiled_method, uint32_t code_offset);
+  void AddUnreservedThunk(ThunkData* data);
+
+  void ResolveMethodCalls(uint32_t quick_code_offset, MethodReference method_ref);
+
+  uint32_t CalculateMaxNextOffset(uint32_t patch_offset, ThunkType type);
 
   RelativePatcherTargetProvider* const provider_;
   const InstructionSet instruction_set_;
-  const std::vector<uint8_t> thunk_code_;
-  const uint32_t max_positive_displacement_;
-  const uint32_t max_negative_displacement_;
-  std::vector<uint32_t> thunk_locations_;
-  size_t current_thunk_to_write_;
 
-  // ReserveSpace() tracks unprocessed patches.
-  typedef std::pair<MethodReference, uint32_t> UnprocessedPatch;
-  std::deque<UnprocessedPatch> unprocessed_patches_;
+  // The data for all thunks.
+  // SafeMap<> nodes don't move after being inserted, so we can use direct pointers to the data.
+  using ThunkMap = SafeMap<ThunkKey, ThunkData, ThunkKeyCompare>;
+  ThunkMap thunks_;
+
+  // ReserveSpace() tracks unprocessed method call patches. These may be resolved later.
+  class UnprocessedMethodCallPatch {
+   public:
+    UnprocessedMethodCallPatch(uint32_t patch_offset, MethodReference target_method)
+        : patch_offset_(patch_offset), target_method_(target_method) { }
+
+    uint32_t GetPatchOffset() const {
+      return patch_offset_;
+    }
+
+    MethodReference GetTargetMethod() const {
+      return target_method_;
+    }
+
+   private:
+    uint32_t patch_offset_;
+    MethodReference target_method_;
+  };
+  std::deque<UnprocessedMethodCallPatch> unprocessed_method_call_patches_;
+  // Once we have compiled a method call thunk, cache pointer to the data.
+  ThunkData* method_call_thunk_;
+
+  // Thunks
+  std::deque<ThunkData*> unreserved_thunks_;
+
+  class PendingThunkComparator;
+  std::vector<ThunkData*> pending_thunks_;  // Heap with the PendingThunkComparator.
 
   friend class Arm64RelativePatcherTest;
   friend class Thumb2RelativePatcherTest;
