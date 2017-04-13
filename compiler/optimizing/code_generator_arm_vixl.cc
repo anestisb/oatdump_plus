@@ -3634,8 +3634,8 @@ void InstructionCodeGeneratorARMVIXL::VisitTypeConversion(HTypeConversion* conve
           } else {
             DCHECK(in.IsConstant());
             DCHECK(in.GetConstant()->IsLongConstant());
-            int32_t value = Int32ConstantFrom(in);
-            __ Mov(OutputRegister(conversion), value);
+            int64_t value = in.GetConstant()->AsLongConstant()->GetValue();
+            __ Mov(OutputRegister(conversion), static_cast<int32_t>(value));
           }
           break;
 
