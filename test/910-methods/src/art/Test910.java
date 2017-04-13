@@ -39,17 +39,6 @@ public class Test910 {
     testMethod(findSyntheticMethod(), NestedSynthetic.class, false);
   }
 
-  private static Class<?> proxyClass = null;
-
-  private static Class<?> getProxyClass() throws Exception {
-    if (proxyClass != null) {
-      return proxyClass;
-    }
-
-    proxyClass = Proxy.getProxyClass(Main.class.getClassLoader(), new Class[] { Runnable.class });
-    return proxyClass;
-  }
-
   private static void testMethod(String className, String methodName, Class<?>... types)
       throws Exception {
     Class<?> base = Class.forName(className);
@@ -145,4 +134,62 @@ public class Test910 {
   private static native boolean isMethodNative(Method m);
   private static native boolean isMethodObsolete(Method m);
   private static native boolean isMethodSynthetic(Method m);
+
+  // We need this machinery for a consistent proxy name. Names of proxy classes include a
+  // unique number (derived by counting). This means that a simple call to getProxyClass
+  // depends on the test environment.
+  //
+  // To work around this, we assume that at most twenty proxies have been created before
+  // the test is run, and canonicalize on "$Proxy20". We add infrastructure to create
+  // as many proxy classes but cycling through subsets of the test-provided interfaces
+  // I0...I4.
+  //
+  //
+  // (This is made under the judgment that we do not want to have proxy-specific behavior
+  //  for testMethod.)
+
+  private static Class<?> proxyClass = null;
+
+  private static Class<?> getProxyClass() throws Exception {
+    if (proxyClass != null) {
+      return proxyClass;
+    }
+
+    for (int i = 1; i <= 21; i++) {
+      proxyClass = createProxyClass(i);
+      String name = proxyClass.getName();
+      if (name.equals("$Proxy20")) {
+        return proxyClass;
+      }
+    }
+    return proxyClass;
+  }
+
+  private static Class<?> createProxyClass(int i) throws Exception {
+    int count = Integer.bitCount(i);
+    Class<?>[] input = new Class<?>[count + 1];
+    input[0] = Runnable.class;
+    int inputIndex = 1;
+    int bitIndex = 0;
+    while (i != 0) {
+        if ((i & 1) != 0) {
+            input[inputIndex++] = Class.forName("art.Test910$I" + bitIndex);
+        }
+        i >>>= 1;
+        bitIndex++;
+    }
+    return Proxy.getProxyClass(Test910.class.getClassLoader(), input);
+  }
+
+  // Need this for the proxy naming.
+  public static interface I0 {
+  }
+  public static interface I1 {
+  }
+  public static interface I2 {
+  }
+  public static interface I3 {
+  }
+  public static interface I4 {
+  }
 }
