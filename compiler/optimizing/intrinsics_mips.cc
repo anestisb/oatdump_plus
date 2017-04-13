@@ -2742,6 +2742,204 @@ void IntrinsicCodeGeneratorMIPS::VisitStringGetCharsNoCheck(HInvoke* invoke) {
   __ Bind(&done);
 }
 
+static void CreateFPToFPCallLocations(ArenaAllocator* arena, HInvoke* invoke) {
+  LocationSummary* locations = new (arena) LocationSummary(invoke,
+                                                           LocationSummary::kCallOnMainOnly,
+                                                           kIntrinsified);
+  InvokeRuntimeCallingConvention calling_convention;
+
+  locations->SetInAt(0, Location::FpuRegisterLocation(calling_convention.GetFpuRegisterAt(0)));
+  locations->SetOut(calling_convention.GetReturnLocation(Primitive::kPrimDouble));
+}
+
+static void CreateFPFPToFPCallLocations(ArenaAllocator* arena, HInvoke* invoke) {
+  LocationSummary* locations = new (arena) LocationSummary(invoke,
+                                                           LocationSummary::kCallOnMainOnly,
+                                                           kIntrinsified);
+  InvokeRuntimeCallingConvention calling_convention;
+
+  locations->SetInAt(0, Location::FpuRegisterLocation(calling_convention.GetFpuRegisterAt(0)));
+  locations->SetInAt(1, Location::FpuRegisterLocation(calling_convention.GetFpuRegisterAt(1)));
+  locations->SetOut(calling_convention.GetReturnLocation(Primitive::kPrimDouble));
+}
+
+static void GenFPToFPCall(HInvoke* invoke, CodeGeneratorMIPS* codegen, QuickEntrypointEnum entry) {
+  LocationSummary* locations = invoke->GetLocations();
+  FRegister in = locations->InAt(0).AsFpuRegister<FRegister>();
+  DCHECK_EQ(in, F12);
+  FRegister out = locations->Out().AsFpuRegister<FRegister>();
+  DCHECK_EQ(out, F0);
+
+  codegen->InvokeRuntime(entry, invoke, invoke->GetDexPc());
+}
+
+static void GenFPFPToFPCall(HInvoke* invoke,
+                            CodeGeneratorMIPS* codegen,
+                            QuickEntrypointEnum entry) {
+  LocationSummary* locations = invoke->GetLocations();
+  FRegister in0 = locations->InAt(0).AsFpuRegister<FRegister>();
+  DCHECK_EQ(in0, F12);
+  FRegister in1 = locations->InAt(1).AsFpuRegister<FRegister>();
+  DCHECK_EQ(in1, F14);
+  FRegister out = locations->Out().AsFpuRegister<FRegister>();
+  DCHECK_EQ(out, F0);
+
+  codegen->InvokeRuntime(entry, invoke, invoke->GetDexPc());
+}
+
+// static double java.lang.Math.cos(double a)
+void IntrinsicLocationsBuilderMIPS::VisitMathCos(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathCos(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickCos);
+}
+
+// static double java.lang.Math.sin(double a)
+void IntrinsicLocationsBuilderMIPS::VisitMathSin(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathSin(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickSin);
+}
+
+// static double java.lang.Math.acos(double a)
+void IntrinsicLocationsBuilderMIPS::VisitMathAcos(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathAcos(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickAcos);
+}
+
+// static double java.lang.Math.asin(double a)
+void IntrinsicLocationsBuilderMIPS::VisitMathAsin(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathAsin(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickAsin);
+}
+
+// static double java.lang.Math.atan(double a)
+void IntrinsicLocationsBuilderMIPS::VisitMathAtan(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathAtan(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickAtan);
+}
+
+// static double java.lang.Math.atan2(double y, double x)
+void IntrinsicLocationsBuilderMIPS::VisitMathAtan2(HInvoke* invoke) {
+  CreateFPFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathAtan2(HInvoke* invoke) {
+  GenFPFPToFPCall(invoke, codegen_, kQuickAtan2);
+}
+
+// static double java.lang.Math.cbrt(double a)
+void IntrinsicLocationsBuilderMIPS::VisitMathCbrt(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathCbrt(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickCbrt);
+}
+
+// static double java.lang.Math.cosh(double x)
+void IntrinsicLocationsBuilderMIPS::VisitMathCosh(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathCosh(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickCosh);
+}
+
+// static double java.lang.Math.exp(double a)
+void IntrinsicLocationsBuilderMIPS::VisitMathExp(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathExp(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickExp);
+}
+
+// static double java.lang.Math.expm1(double x)
+void IntrinsicLocationsBuilderMIPS::VisitMathExpm1(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathExpm1(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickExpm1);
+}
+
+// static double java.lang.Math.hypot(double x, double y)
+void IntrinsicLocationsBuilderMIPS::VisitMathHypot(HInvoke* invoke) {
+  CreateFPFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathHypot(HInvoke* invoke) {
+  GenFPFPToFPCall(invoke, codegen_, kQuickHypot);
+}
+
+// static double java.lang.Math.log(double a)
+void IntrinsicLocationsBuilderMIPS::VisitMathLog(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathLog(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickLog);
+}
+
+// static double java.lang.Math.log10(double x)
+void IntrinsicLocationsBuilderMIPS::VisitMathLog10(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathLog10(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickLog10);
+}
+
+// static double java.lang.Math.nextAfter(double start, double direction)
+void IntrinsicLocationsBuilderMIPS::VisitMathNextAfter(HInvoke* invoke) {
+  CreateFPFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathNextAfter(HInvoke* invoke) {
+  GenFPFPToFPCall(invoke, codegen_, kQuickNextAfter);
+}
+
+// static double java.lang.Math.sinh(double x)
+void IntrinsicLocationsBuilderMIPS::VisitMathSinh(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathSinh(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickSinh);
+}
+
+// static double java.lang.Math.tan(double a)
+void IntrinsicLocationsBuilderMIPS::VisitMathTan(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathTan(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickTan);
+}
+
+// static double java.lang.Math.tanh(double x)
+void IntrinsicLocationsBuilderMIPS::VisitMathTanh(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathTanh(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickTanh);
+}
+
 // Unimplemented intrinsics.
 
 UNIMPLEMENTED_INTRINSIC(MIPS, MathCeil)
@@ -2755,24 +2953,6 @@ UNIMPLEMENTED_INTRINSIC(MIPS, UnsafeCASLong)
 UNIMPLEMENTED_INTRINSIC(MIPS, ReferenceGetReferent)
 UNIMPLEMENTED_INTRINSIC(MIPS, SystemArrayCopyChar)
 UNIMPLEMENTED_INTRINSIC(MIPS, SystemArrayCopy)
-
-UNIMPLEMENTED_INTRINSIC(MIPS, MathCos)
-UNIMPLEMENTED_INTRINSIC(MIPS, MathSin)
-UNIMPLEMENTED_INTRINSIC(MIPS, MathAcos)
-UNIMPLEMENTED_INTRINSIC(MIPS, MathAsin)
-UNIMPLEMENTED_INTRINSIC(MIPS, MathAtan)
-UNIMPLEMENTED_INTRINSIC(MIPS, MathAtan2)
-UNIMPLEMENTED_INTRINSIC(MIPS, MathCbrt)
-UNIMPLEMENTED_INTRINSIC(MIPS, MathCosh)
-UNIMPLEMENTED_INTRINSIC(MIPS, MathExp)
-UNIMPLEMENTED_INTRINSIC(MIPS, MathExpm1)
-UNIMPLEMENTED_INTRINSIC(MIPS, MathHypot)
-UNIMPLEMENTED_INTRINSIC(MIPS, MathLog)
-UNIMPLEMENTED_INTRINSIC(MIPS, MathLog10)
-UNIMPLEMENTED_INTRINSIC(MIPS, MathNextAfter)
-UNIMPLEMENTED_INTRINSIC(MIPS, MathSinh)
-UNIMPLEMENTED_INTRINSIC(MIPS, MathTan)
-UNIMPLEMENTED_INTRINSIC(MIPS, MathTanh)
 
 UNIMPLEMENTED_INTRINSIC(MIPS, StringStringIndexOf);
 UNIMPLEMENTED_INTRINSIC(MIPS, StringStringIndexOfAfter);

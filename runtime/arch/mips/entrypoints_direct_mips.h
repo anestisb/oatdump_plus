@@ -47,7 +47,24 @@ static constexpr bool IsDirectEntrypoint(QuickEntrypointEnum entrypoint) {
       entrypoint == kQuickCmplFloat ||
       entrypoint == kQuickReadBarrierJni ||
       entrypoint == kQuickReadBarrierSlow ||
-      entrypoint == kQuickReadBarrierForRootSlow;
+      entrypoint == kQuickReadBarrierForRootSlow ||
+      entrypoint == kQuickCos ||
+      entrypoint == kQuickSin ||
+      entrypoint == kQuickAcos ||
+      entrypoint == kQuickAsin ||
+      entrypoint == kQuickAtan ||
+      entrypoint == kQuickAtan2 ||
+      entrypoint == kQuickCbrt ||
+      entrypoint == kQuickCosh ||
+      entrypoint == kQuickExp ||
+      entrypoint == kQuickExpm1 ||
+      entrypoint == kQuickHypot ||
+      entrypoint == kQuickLog ||
+      entrypoint == kQuickLog10 ||
+      entrypoint == kQuickNextAfter ||
+      entrypoint == kQuickSinh ||
+      entrypoint == kQuickTan ||
+      entrypoint == kQuickTanh;
 }
 
 }  // namespace art
