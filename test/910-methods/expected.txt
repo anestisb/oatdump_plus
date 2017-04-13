@@ -39,7 +39,7 @@ Is native: false
 Is obsolete: false
 Is synthetic: false
 [run, ()V, null]
-class $Proxy0
+class $Proxy20
 17
 Max locals: 0
 Argument size: 1
