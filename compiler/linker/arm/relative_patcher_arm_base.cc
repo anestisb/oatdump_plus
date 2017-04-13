@@ -24,6 +24,118 @@
 namespace art {
 namespace linker {
 
+class ArmBaseRelativePatcher::ThunkData {
+ public:
+  ThunkData(std::vector<uint8_t> code, uint32_t max_next_offset)
+      : code_(code),
+        offsets_(),
+        max_next_offset_(max_next_offset),
+        pending_offset_(0u) {
+    DCHECK(NeedsNextThunk());  // The data is constructed only when we expect to need the thunk.
+  }
+
+  ThunkData(ThunkData&& src) = default;
+
+  size_t CodeSize() const {
+    return code_.size();
+  }
+
+  ArrayRef<const uint8_t> GetCode() const {
+    return ArrayRef<const uint8_t>(code_);
+  }
+
+  bool NeedsNextThunk() const {
+    return max_next_offset_ != 0u;
+  }
+
+  uint32_t MaxNextOffset() const {
+    DCHECK(NeedsNextThunk());
+    return max_next_offset_;
+  }
+
+  void ClearMaxNextOffset() {
+    DCHECK(NeedsNextThunk());
+    max_next_offset_ = 0u;
+  }
+
+  void SetMaxNextOffset(uint32_t max_next_offset) {
+    DCHECK(!NeedsNextThunk());
+    max_next_offset_ = max_next_offset;
+  }
+
+  // Adjust the MaxNextOffset() down if needed to fit the code before the next thunk.
+  // Returns true if it was adjusted, false if the old value was kept.
+  bool MakeSpaceBefore(const ThunkData& next_thunk, size_t alignment) {
+    DCHECK(NeedsNextThunk());
+    DCHECK(next_thunk.NeedsNextThunk());
+    DCHECK_ALIGNED_PARAM(MaxNextOffset(), alignment);
+    DCHECK_ALIGNED_PARAM(next_thunk.MaxNextOffset(), alignment);
+    if (next_thunk.MaxNextOffset() - CodeSize() < MaxNextOffset()) {
+      max_next_offset_ = RoundDown(next_thunk.MaxNextOffset() - CodeSize(), alignment);
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  uint32_t ReserveOffset(size_t offset) {
+    DCHECK(NeedsNextThunk());
+    DCHECK_LE(offset, max_next_offset_);
+    max_next_offset_ = 0u;  // The reserved offset should satisfy all pending references.
+    offsets_.push_back(offset);
+    return offset + CodeSize();
+  }
+
+  bool HasReservedOffset() const {
+    return !offsets_.empty();
+  }
+
+  uint32_t LastReservedOffset() const {
+    DCHECK(HasReservedOffset());
+    return offsets_.back();
+  }
+
+  bool HasPendingOffset() const {
+    return pending_offset_ != offsets_.size();
+  }
+
+  uint32_t GetPendingOffset() const {
+    DCHECK(HasPendingOffset());
+    return offsets_[pending_offset_];
+  }
+
+  void MarkPendingOffsetAsWritten() {
+    DCHECK(HasPendingOffset());
+    ++pending_offset_;
+  }
+
+  bool HasWrittenOffset() const {
+    return pending_offset_ != 0u;
+  }
+
+  uint32_t LastWrittenOffset() const {
+    DCHECK(HasWrittenOffset());
+    return offsets_[pending_offset_ - 1u];
+  }
+
+ private:
+  std::vector<uint8_t> code_;       // The code of the thunk.
+  std::vector<uint32_t> offsets_;   // Offsets at which the thunk needs to be written.
+  uint32_t max_next_offset_;        // The maximum offset at which the next thunk can be placed.
+  uint32_t pending_offset_;         // The index of the next offset to write.
+};
+
+class ArmBaseRelativePatcher::PendingThunkComparator {
+ public:
+  bool operator()(const ThunkData* lhs, const ThunkData* rhs) const {
+    DCHECK(lhs->HasPendingOffset());
+    DCHECK(rhs->HasPendingOffset());
+    // The top of the heap is defined to contain the highest element and we want to pick
+    // the thunk with the smallest pending offset, so use the reverse ordering, i.e. ">".
+    return lhs->GetPendingOffset() > rhs->GetPendingOffset();
+  }
+};
+
 uint32_t ArmBaseRelativePatcher::ReserveSpace(uint32_t offset,
                                               const CompiledMethod* compiled_method,
                                               MethodReference method_ref) {
@@ -31,151 +143,305 @@ uint32_t ArmBaseRelativePatcher::ReserveSpace(uint32_t offset,
 }
 
 uint32_t ArmBaseRelativePatcher::ReserveSpaceEnd(uint32_t offset) {
-  uint32_t aligned_offset = CompiledMethod::AlignCode(offset, instruction_set_);
-  bool needs_thunk = ReserveSpaceProcessPatches(aligned_offset,
-                                                MethodReference(nullptr, 0u),
-                                                aligned_offset);
-  if (needs_thunk) {
-    // All remaining patches will be handled by this thunk.
-    DCHECK(!unprocessed_patches_.empty());
-    DCHECK_LE(aligned_offset - unprocessed_patches_.front().second, max_positive_displacement_);
-    unprocessed_patches_.clear();
-
-    thunk_locations_.push_back(aligned_offset);
-    offset = aligned_offset + thunk_code_.size();
+  // For multi-oat compilations (boot image), ReserveSpaceEnd() is called for each oat file.
+  // Since we do not know here whether this is the last file or whether the next opportunity
+  // to place thunk will be soon enough, we need to reserve all needed thunks now. Code for
+  // subsequent oat files can still call back to them.
+  if (!unprocessed_method_call_patches_.empty()) {
+    ResolveMethodCalls(offset, MethodReference(nullptr, DexFile::kDexNoIndex));
   }
+  for (ThunkData* data : unreserved_thunks_) {
+    uint32_t thunk_offset = CompiledCode::AlignCode(offset, instruction_set_);
+    offset = data->ReserveOffset(thunk_offset);
+  }
+  unreserved_thunks_.clear();
+  // We also need to delay initiating the pending_thunks_ until the call to WriteThunks().
+  // Check that the `pending_thunks_.capacity()` indicates that no WriteThunks() has taken place.
+  DCHECK_EQ(pending_thunks_.capacity(), 0u);
   return offset;
 }
 
 uint32_t ArmBaseRelativePatcher::WriteThunks(OutputStream* out, uint32_t offset) {
-  if (current_thunk_to_write_ == thunk_locations_.size()) {
-    return offset;
+  if (pending_thunks_.capacity() == 0u) {
+    if (thunks_.empty()) {
+      return offset;
+    }
+    // First call to WriteThunks(), prepare the thunks for writing.
+    pending_thunks_.reserve(thunks_.size());
+    for (auto& entry : thunks_) {
+      ThunkData* data = &entry.second;
+      if (data->HasPendingOffset()) {
+        pending_thunks_.push_back(data);
+      }
+    }
+    std::make_heap(pending_thunks_.begin(), pending_thunks_.end(), PendingThunkComparator());
   }
   uint32_t aligned_offset = CompiledMethod::AlignCode(offset, instruction_set_);
-  if (UNLIKELY(aligned_offset == thunk_locations_[current_thunk_to_write_])) {
-    ++current_thunk_to_write_;
+  while (!pending_thunks_.empty() &&
+         pending_thunks_.front()->GetPendingOffset() == aligned_offset) {
+    // Write alignment bytes and code.
     uint32_t aligned_code_delta = aligned_offset - offset;
-    if (aligned_code_delta != 0u && !WriteCodeAlignment(out, aligned_code_delta)) {
+    if (aligned_code_delta != 0u && UNLIKELY(!WriteCodeAlignment(out, aligned_code_delta))) {
       return 0u;
     }
-    if (UNLIKELY(!WriteRelCallThunk(out, ArrayRef<const uint8_t>(thunk_code_)))) {
+    if (UNLIKELY(!WriteThunk(out, pending_thunks_.front()->GetCode()))) {
       return 0u;
     }
-    offset = aligned_offset + thunk_code_.size();
+    offset = aligned_offset + pending_thunks_.front()->CodeSize();
+    // Mark the thunk as written at the pending offset and update the `pending_thunks_` heap.
+    std::pop_heap(pending_thunks_.begin(), pending_thunks_.end(), PendingThunkComparator());
+    pending_thunks_.back()->MarkPendingOffsetAsWritten();
+    if (pending_thunks_.back()->HasPendingOffset()) {
+      std::push_heap(pending_thunks_.begin(), pending_thunks_.end(), PendingThunkComparator());
+    } else {
+      pending_thunks_.pop_back();
+    }
+    aligned_offset = CompiledMethod::AlignCode(offset, instruction_set_);
   }
+  DCHECK(pending_thunks_.empty() || pending_thunks_.front()->GetPendingOffset() > aligned_offset);
   return offset;
 }
 
 ArmBaseRelativePatcher::ArmBaseRelativePatcher(RelativePatcherTargetProvider* provider,
-                                               InstructionSet instruction_set,
-                                               std::vector<uint8_t> thunk_code,
-                                               uint32_t max_positive_displacement,
-                                               uint32_t max_negative_displacement)
-    : provider_(provider), instruction_set_(instruction_set), thunk_code_(thunk_code),
-      max_positive_displacement_(max_positive_displacement),
-      max_negative_displacement_(max_negative_displacement),
-      thunk_locations_(), current_thunk_to_write_(0u), unprocessed_patches_() {
+                                               InstructionSet instruction_set)
+    : provider_(provider),
+      instruction_set_(instruction_set),
+      thunks_(),
+      unprocessed_method_call_patches_(),
+      method_call_thunk_(nullptr),
+      pending_thunks_() {
+}
+
+ArmBaseRelativePatcher::~ArmBaseRelativePatcher() {
+  // All work done by member destructors.
 }
 
 uint32_t ArmBaseRelativePatcher::ReserveSpaceInternal(uint32_t offset,
                                                       const CompiledMethod* compiled_method,
                                                       MethodReference method_ref,
                                                       uint32_t max_extra_space) {
-  uint32_t quick_code_size = compiled_method->GetQuickCode().size();
-  uint32_t quick_code_offset = compiled_method->AlignCode(offset + sizeof(OatQuickMethodHeader));
-  uint32_t next_aligned_offset = compiled_method->AlignCode(quick_code_offset + quick_code_size);
-  // Adjust for extra space required by the subclass.
-  next_aligned_offset = compiled_method->AlignCode(next_aligned_offset + max_extra_space);
-  // TODO: ignore unprocessed patches targeting this method if they can reach quick_code_offset.
-  // We need the MethodReference for that.
-  if (!unprocessed_patches_.empty() &&
-      next_aligned_offset - unprocessed_patches_.front().second > max_positive_displacement_) {
-    bool needs_thunk = ReserveSpaceProcessPatches(quick_code_offset,
-                                                  method_ref,
-                                                  next_aligned_offset);
-    if (needs_thunk) {
-      // A single thunk will cover all pending patches.
-      unprocessed_patches_.clear();
-      uint32_t thunk_location = CompiledMethod::AlignCode(offset, instruction_set_);
-      thunk_locations_.push_back(thunk_location);
-      offset = thunk_location + thunk_code_.size();
+  // Adjust code size for extra space required by the subclass.
+  uint32_t max_code_size = compiled_method->GetQuickCode().size() + max_extra_space;
+  uint32_t code_offset;
+  uint32_t next_aligned_offset;
+  while (true) {
+    code_offset = compiled_method->AlignCode(offset + sizeof(OatQuickMethodHeader));
+    next_aligned_offset = compiled_method->AlignCode(code_offset + max_code_size);
+    if (unreserved_thunks_.empty() ||
+        unreserved_thunks_.front()->MaxNextOffset() >= next_aligned_offset) {
+      break;
+    }
+    ThunkData* thunk = unreserved_thunks_.front();
+    if (thunk == method_call_thunk_) {
+      ResolveMethodCalls(code_offset, method_ref);
+      // This may have changed `method_call_thunk_` data, so re-check if we need to reserve.
+      if (unreserved_thunks_.empty() ||
+          unreserved_thunks_.front()->MaxNextOffset() >= next_aligned_offset) {
+        break;
+      }
+      // We need to process the new `front()` whether it's still the `method_call_thunk_` or not.
+      thunk = unreserved_thunks_.front();
+    }
+    unreserved_thunks_.pop_front();
+    uint32_t thunk_offset = CompiledCode::AlignCode(offset, instruction_set_);
+    offset = thunk->ReserveOffset(thunk_offset);
+    if (thunk == method_call_thunk_) {
+      // All remaining method call patches will be handled by this thunk.
+      DCHECK(!unprocessed_method_call_patches_.empty());
+      DCHECK_LE(thunk_offset - unprocessed_method_call_patches_.front().GetPatchOffset(),
+                MaxPositiveDisplacement(ThunkType::kMethodCall));
+      unprocessed_method_call_patches_.clear();
     }
   }
-  for (const LinkerPatch& patch : compiled_method->GetPatches()) {
-    if (patch.GetType() == LinkerPatch::Type::kCallRelative) {
-      unprocessed_patches_.emplace_back(patch.TargetMethod(),
-                                        quick_code_offset + patch.LiteralOffset());
-    }
-  }
+
+  // Process patches and check that adding thunks for the current method did not push any
+  // thunks (previously existing or newly added) before `next_aligned_offset`. This is
+  // essentially a check that we never compile a method that's too big. The calls or branches
+  // from the method should be able to reach beyond the end of the method and over any pending
+  // thunks. (The number of different thunks should be relatively low and their code short.)
+  ProcessPatches(compiled_method, code_offset);
+  CHECK(unreserved_thunks_.empty() ||
+        unreserved_thunks_.front()->MaxNextOffset() >= next_aligned_offset);
+
   return offset;
 }
 
-uint32_t ArmBaseRelativePatcher::CalculateDisplacement(uint32_t patch_offset,
-                                                       uint32_t target_offset) {
+uint32_t ArmBaseRelativePatcher::CalculateMethodCallDisplacement(uint32_t patch_offset,
+                                                                 uint32_t target_offset) {
+  DCHECK(method_call_thunk_ != nullptr);
   // Unsigned arithmetic with its well-defined overflow behavior is just fine here.
   uint32_t displacement = target_offset - patch_offset;
+  uint32_t max_positive_displacement = MaxPositiveDisplacement(ThunkType::kMethodCall);
+  uint32_t max_negative_displacement = MaxNegativeDisplacement(ThunkType::kMethodCall);
   // NOTE: With unsigned arithmetic we do mean to use && rather than || below.
-  if (displacement > max_positive_displacement_ && displacement < -max_negative_displacement_) {
+  if (displacement > max_positive_displacement && displacement < -max_negative_displacement) {
     // Unwritten thunks have higher offsets, check if it's within range.
-    DCHECK(current_thunk_to_write_ == thunk_locations_.size() ||
-           thunk_locations_[current_thunk_to_write_] > patch_offset);
-    if (current_thunk_to_write_ != thunk_locations_.size() &&
-        thunk_locations_[current_thunk_to_write_] - patch_offset < max_positive_displacement_) {
-      displacement = thunk_locations_[current_thunk_to_write_] - patch_offset;
+    DCHECK(!method_call_thunk_->HasPendingOffset() ||
+           method_call_thunk_->GetPendingOffset() > patch_offset);
+    if (method_call_thunk_->HasPendingOffset() &&
+        method_call_thunk_->GetPendingOffset() - patch_offset <= max_positive_displacement) {
+      displacement = method_call_thunk_->GetPendingOffset() - patch_offset;
     } else {
       // We must have a previous thunk then.
-      DCHECK_NE(current_thunk_to_write_, 0u);
-      DCHECK_LT(thunk_locations_[current_thunk_to_write_ - 1], patch_offset);
-      displacement = thunk_locations_[current_thunk_to_write_ - 1] - patch_offset;
-      DCHECK(displacement >= -max_negative_displacement_);
+      DCHECK(method_call_thunk_->HasWrittenOffset());
+      DCHECK_LT(method_call_thunk_->LastWrittenOffset(), patch_offset);
+      displacement = method_call_thunk_->LastWrittenOffset() - patch_offset;
+      DCHECK_GE(displacement, -max_negative_displacement);
     }
   }
   return displacement;
 }
 
-bool ArmBaseRelativePatcher::ReserveSpaceProcessPatches(uint32_t quick_code_offset,
-                                                        MethodReference method_ref,
-                                                        uint32_t next_aligned_offset) {
-  // Process as many patches as possible, stop only on unresolved targets or calls too far back.
-  while (!unprocessed_patches_.empty()) {
-    MethodReference patch_ref = unprocessed_patches_.front().first;
-    uint32_t patch_offset = unprocessed_patches_.front().second;
-    DCHECK(thunk_locations_.empty() || thunk_locations_.back() <= patch_offset);
-    if (patch_ref.dex_file == method_ref.dex_file &&
-        patch_ref.dex_method_index == method_ref.dex_method_index) {
-      DCHECK_GT(quick_code_offset, patch_offset);
-      if (quick_code_offset - patch_offset > max_positive_displacement_) {
-        return true;
-      }
-    } else {
-      auto result = provider_->FindMethodOffset(patch_ref);
-      if (!result.first) {
-        // If still unresolved, check if we have a thunk within range.
-        if (thunk_locations_.empty() ||
-            patch_offset - thunk_locations_.back() > max_negative_displacement_) {
-          // No thunk in range, we need a thunk if the next aligned offset
-          // is out of range, or if we're at the end of all code.
-          return (next_aligned_offset - patch_offset > max_positive_displacement_) ||
-              (quick_code_offset == next_aligned_offset);  // End of code.
-        }
+uint32_t ArmBaseRelativePatcher::GetThunkTargetOffset(const ThunkKey& key, uint32_t patch_offset) {
+  auto it = thunks_.find(key);
+  CHECK(it != thunks_.end());
+  const ThunkData& data = it->second;
+  if (data.HasWrittenOffset()) {
+    uint32_t offset = data.LastWrittenOffset();
+    DCHECK_LT(offset, patch_offset);
+    if (patch_offset - offset <= MaxNegativeDisplacement(key.GetType())) {
+      return offset;
+    }
+  }
+  DCHECK(data.HasPendingOffset());
+  uint32_t offset = data.GetPendingOffset();
+  DCHECK_GT(offset, patch_offset);
+  DCHECK_LE(offset - patch_offset, MaxPositiveDisplacement(key.GetType()));
+  return offset;
+}
+
+void ArmBaseRelativePatcher::ProcessPatches(const CompiledMethod* compiled_method,
+                                            uint32_t code_offset) {
+  for (const LinkerPatch& patch : compiled_method->GetPatches()) {
+    uint32_t patch_offset = code_offset + patch.LiteralOffset();
+    ThunkType key_type = static_cast<ThunkType>(-1);
+    ThunkData* old_data = nullptr;
+    if (patch.GetType() == LinkerPatch::Type::kCallRelative) {
+      key_type = ThunkType::kMethodCall;
+      unprocessed_method_call_patches_.emplace_back(patch_offset, patch.TargetMethod());
+      if (method_call_thunk_ == nullptr) {
+        ThunkKey key(key_type, ThunkParams{{ 0u, 0u }});  // NOLINT(whitespace/braces)
+        uint32_t max_next_offset = CalculateMaxNextOffset(patch_offset, key_type);
+        auto it = thunks_.Put(key, ThunkData(CompileThunk(key), max_next_offset));
+        method_call_thunk_ = &it->second;
+        AddUnreservedThunk(method_call_thunk_);
       } else {
-        uint32_t target_offset = result.second - CompiledCode::CodeDelta(instruction_set_);
-        if (target_offset >= patch_offset) {
-          DCHECK_LE(target_offset - patch_offset, max_positive_displacement_);
-        } else {
-          // When calling back, check if we have a thunk that's closer than the actual target.
-          if (!thunk_locations_.empty()) {
-            target_offset = std::max(target_offset, thunk_locations_.back());
-          }
-          if (patch_offset - target_offset > max_negative_displacement_) {
-            return true;
-          }
+        old_data = method_call_thunk_;
+      }
+    } else if (patch.GetType() == LinkerPatch::Type::kBakerReadBarrierBranch) {
+      ThunkKey key = GetBakerReadBarrierKey(patch);
+      key_type = key.GetType();
+      auto lb = thunks_.lower_bound(key);
+      if (lb == thunks_.end() || thunks_.key_comp()(key, lb->first)) {
+        uint32_t max_next_offset = CalculateMaxNextOffset(patch_offset, key_type);
+        auto it = thunks_.PutBefore(lb, key, ThunkData(CompileThunk(key), max_next_offset));
+        AddUnreservedThunk(&it->second);
+      } else {
+        old_data = &lb->second;
+      }
+    }
+    if (old_data != nullptr) {
+      // Shared path where an old thunk may need an update.
+      DCHECK(key_type != static_cast<ThunkType>(-1));
+      DCHECK(!old_data->HasReservedOffset() || old_data->LastReservedOffset() < patch_offset);
+      if (old_data->NeedsNextThunk()) {
+        // Patches for a method are ordered by literal offset, so if we still need to place
+        // this thunk for a previous patch, that thunk shall be in range for this patch.
+        DCHECK_LE(old_data->MaxNextOffset(), CalculateMaxNextOffset(patch_offset, key_type));
+      } else {
+        if (!old_data->HasReservedOffset() ||
+            patch_offset - old_data->LastReservedOffset() > MaxNegativeDisplacement(key_type)) {
+          old_data->SetMaxNextOffset(CalculateMaxNextOffset(patch_offset, key_type));
+          AddUnreservedThunk(old_data);
         }
       }
     }
-    unprocessed_patches_.pop_front();
   }
-  return false;
+}
+
+void ArmBaseRelativePatcher::AddUnreservedThunk(ThunkData* data) {
+  DCHECK(data->NeedsNextThunk());
+  size_t index = unreserved_thunks_.size();
+  while (index != 0u && data->MaxNextOffset() < unreserved_thunks_[index - 1u]->MaxNextOffset()) {
+    --index;
+  }
+  unreserved_thunks_.insert(unreserved_thunks_.begin() + index, data);
+  // We may need to update the max next offset(s) if the thunk code would not fit.
+  size_t alignment = GetInstructionSetAlignment(instruction_set_);
+  if (index + 1u != unreserved_thunks_.size()) {
+    // Note: Ignore the return value as we need to process previous thunks regardless.
+    data->MakeSpaceBefore(*unreserved_thunks_[index + 1u], alignment);
+  }
+  // Make space for previous thunks. Once we find a pending thunk that does
+  // not need an adjustment, we can stop.
+  while (index != 0u && unreserved_thunks_[index - 1u]->MakeSpaceBefore(*data, alignment)) {
+    --index;
+    data = unreserved_thunks_[index];
+  }
+}
+
+void ArmBaseRelativePatcher::ResolveMethodCalls(uint32_t quick_code_offset,
+                                                MethodReference method_ref) {
+  DCHECK(!unreserved_thunks_.empty());
+  DCHECK(!unprocessed_method_call_patches_.empty());
+  DCHECK(method_call_thunk_ != nullptr);
+  uint32_t max_positive_displacement = MaxPositiveDisplacement(ThunkType::kMethodCall);
+  uint32_t max_negative_displacement = MaxNegativeDisplacement(ThunkType::kMethodCall);
+  // Process as many patches as possible, stop only on unresolved targets or calls too far back.
+  while (!unprocessed_method_call_patches_.empty()) {
+    MethodReference target_method = unprocessed_method_call_patches_.front().GetTargetMethod();
+    uint32_t patch_offset = unprocessed_method_call_patches_.front().GetPatchOffset();
+    DCHECK(!method_call_thunk_->HasReservedOffset() ||
+           method_call_thunk_->LastReservedOffset() <= patch_offset);
+    if (!method_call_thunk_->HasReservedOffset() ||
+        patch_offset - method_call_thunk_->LastReservedOffset() > max_negative_displacement) {
+      // No previous thunk in range, check if we can reach the target directly.
+      if (target_method.dex_file == method_ref.dex_file &&
+          target_method.dex_method_index == method_ref.dex_method_index) {
+        DCHECK_GT(quick_code_offset, patch_offset);
+        if (quick_code_offset - patch_offset > max_positive_displacement) {
+          break;
+        }
+      } else {
+        auto result = provider_->FindMethodOffset(target_method);
+        if (!result.first) {
+          break;
+        }
+        uint32_t target_offset = result.second - CompiledCode::CodeDelta(instruction_set_);
+        if (target_offset >= patch_offset) {
+          DCHECK_LE(target_offset - patch_offset, max_positive_displacement);
+        } else if (patch_offset - target_offset > max_negative_displacement) {
+          break;
+        }
+      }
+    }
+    unprocessed_method_call_patches_.pop_front();
+  }
+  if (!unprocessed_method_call_patches_.empty()) {
+    // Try to adjust the max next offset in `method_call_thunk_`. Do this conservatively only if
+    // the thunk shall be at the end of the `unreserved_thunks_` to avoid dealing with overlaps.
+    uint32_t new_max_next_offset =
+        unprocessed_method_call_patches_.front().GetPatchOffset() + max_positive_displacement;
+    if (new_max_next_offset >
+        unreserved_thunks_.back()->MaxNextOffset() + unreserved_thunks_.back()->CodeSize()) {
+      method_call_thunk_->ClearMaxNextOffset();
+      method_call_thunk_->SetMaxNextOffset(new_max_next_offset);
+      if (method_call_thunk_ != unreserved_thunks_.back()) {
+        RemoveElement(unreserved_thunks_, method_call_thunk_);
+        unreserved_thunks_.push_back(method_call_thunk_);
+      }
+    }
+  } else {
+    // We have resolved all method calls, we do not need a new thunk anymore.
+    method_call_thunk_->ClearMaxNextOffset();
+    RemoveElement(unreserved_thunks_, method_call_thunk_);
+  }
+}
+
+inline uint32_t ArmBaseRelativePatcher::CalculateMaxNextOffset(uint32_t patch_offset,
+                                                               ThunkType type) {
+  return RoundDown(patch_offset + MaxPositiveDisplacement(type),
+                   GetInstructionSetAlignment(instruction_set_));
 }
 
 }  // namespace linker

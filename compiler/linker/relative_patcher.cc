@@ -75,6 +75,12 @@ std::unique_ptr<RelativePatcher> RelativePatcher::Create(
       LOG(FATAL) << "Unexpected relative dex cache array patch.";
     }
 
+    void PatchBakerReadBarrierBranch(std::vector<uint8_t>* code ATTRIBUTE_UNUSED,
+                                     const LinkerPatch& patch ATTRIBUTE_UNUSED,
+                                     uint32_t patch_offset ATTRIBUTE_UNUSED) {
+      LOG(FATAL) << "Unexpected baker read barrier branch patch.";
+    }
+
    private:
     DISALLOW_COPY_AND_ASSIGN(RelativePatcherNone);
   };
@@ -127,7 +133,7 @@ bool RelativePatcher::WriteCodeAlignment(OutputStream* out, uint32_t aligned_cod
   return true;
 }
 
-bool RelativePatcher::WriteRelCallThunk(OutputStream* out, const ArrayRef<const uint8_t>& thunk) {
+bool RelativePatcher::WriteThunk(OutputStream* out, const ArrayRef<const uint8_t>& thunk) {
   if (UNLIKELY(!out->WriteFully(thunk.data(), thunk.size()))) {
     return false;
   }

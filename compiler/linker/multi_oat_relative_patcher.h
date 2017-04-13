@@ -112,6 +112,13 @@ class MultiOatRelativePatcher FINAL {
     relative_patcher_->PatchPcRelativeReference(code, patch, patch_offset, target_offset);
   }
 
+  void PatchBakerReadBarrierBranch(std::vector<uint8_t>* code,
+                                   const LinkerPatch& patch,
+                                   uint32_t patch_offset) {
+    patch_offset += adjustment_;
+    relative_patcher_->PatchBakerReadBarrierBranch(code, patch, patch_offset);
+  }
+
   // Wrappers around RelativePatcher for statistics retrieval.
   uint32_t CodeAlignmentSize() const;
   uint32_t RelativeCallThunksSize() const;
