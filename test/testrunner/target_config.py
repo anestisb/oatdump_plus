@@ -26,7 +26,7 @@ target_config = {
         'make' : 'test-art-host-gtest',
         'run-test' : [],
         'env' : {
-            'ART_USE_READ_BARRIER' : 'false'
+            'ART_USE_READ_BARRIER' : 'true'
         }
     },
 
@@ -45,19 +45,19 @@ target_config = {
     'art-interpreter' : {
         'run-test' : ['--interpreter'],
         'env' : {
-            'ART_USE_READ_BARRIER' : 'false'
+            'ART_USE_READ_BARRIER' : 'true'
         }
     },
     'art-interpreter-access-checks' : {
         'run-test' : ['--interp-ac'],
         'env' : {
-            'ART_USE_READ_BARRIER' : 'false'
+            'ART_USE_READ_BARRIER' : 'true'
         }
     },
     'art-jit' : {
         'run-test' : ['--jit'],
         'env' : {
-            'ART_USE_READ_BARRIER' : 'false'
+            'ART_USE_READ_BARRIER' : 'true'
         }
     },
     'art-gcstress-gcverify': {
@@ -167,51 +167,51 @@ target_config = {
     'art-tracing' : {
         'run-test' : ['--trace'],
         'env' : {
-            'ART_USE_READ_BARRIER' : 'false'
+            'ART_USE_READ_BARRIER' : 'true'
         }
     },
     'art-interpreter-tracing' : {
         'run-test' : ['--interpreter',
                       '--trace'],
         'env' : {
-            'ART_USE_READ_BARRIER' : 'false',
+            'ART_USE_READ_BARRIER' : 'true',
         }
     },
     'art-forcecopy' : {
         'run-test' : ['--forcecopy'],
         'env' : {
-            'ART_USE_READ_BARRIER' : 'false',
+            'ART_USE_READ_BARRIER' : 'true',
         }
     },
     'art-no-prebuild' : {
         'run-test' : ['--no-prebuild'],
         'env' : {
-            'ART_USE_READ_BARRIER' : 'false',
+            'ART_USE_READ_BARRIER' : 'true',
         }
     },
     'art-no-image' : {
         'run-test' : ['--no-image'],
         'env' : {
-            'ART_USE_READ_BARRIER' : 'false',
+            'ART_USE_READ_BARRIER' : 'true',
         }
     },
     'art-interpreter-no-image' : {
         'run-test' : ['--interpreter',
                       '--no-image'],
         'env' : {
-            'ART_USE_READ_BARRIER' : 'false',
+            'ART_USE_READ_BARRIER' : 'true',
         }
     },
     'art-relocate-no-patchoat' : {
         'run-test' : ['--relocate-npatchoat'],
         'env' : {
-            'ART_USE_READ_BARRIER' : 'false',
+            'ART_USE_READ_BARRIER' : 'true',
         }
     },
     'art-no-dex2oat' : {
         'run-test' : ['--no-dex2oat'],
         'env' : {
-            'ART_USE_READ_BARRIER' : 'false',
+            'ART_USE_READ_BARRIER' : 'true',
         }
     },
     'art-heap-poisoning' : {
@@ -231,7 +231,7 @@ target_config = {
                       '--relocate',
                       '--jit'],
         'env' : {
-            'ART_USE_READ_BARRIER' : 'false'
+            'ART_USE_READ_BARRIER' : 'true'
         }
     },
 
