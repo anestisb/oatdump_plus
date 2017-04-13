@@ -61,8 +61,13 @@ jvmtiError MethodUtil::GetArgumentsSize(jvmtiEnv* env ATTRIBUTE_UNUSED,
 
   art::ScopedObjectAccess soa(art::Thread::Current());
   if (art_method->IsProxyMethod() || art_method->IsAbstract()) {
-    // This isn't specified as an error case, so return 0.
-    *size_ptr = 0;
+    // Use the shorty.
+    art::ArtMethod* base_method = art_method->GetInterfaceMethodIfProxy(art::kRuntimePointerSize);
+    size_t arg_count = art::ArtMethod::NumArgRegisters(base_method->GetShorty());
+    if (!base_method->IsStatic()) {
+      arg_count++;
+    }
+    *size_ptr = static_cast<jint>(arg_count);
     return ERR(NONE);
   }
 
@@ -203,9 +208,9 @@ jvmtiError MethodUtil::GetMethodLocation(jvmtiEnv* env ATTRIBUTE_UNUSED,
 
   art::ScopedObjectAccess soa(art::Thread::Current());
   if (art_method->IsProxyMethod() || art_method->IsAbstract()) {
-    // This isn't specified as an error case, so return 0/0.
-    *start_location_ptr = 0;
-    *end_location_ptr = 0;
+    // This isn't specified as an error case, so return -1/-1 as the RI does.
+    *start_location_ptr = -1;
+    *end_location_ptr = -1;
     return ERR(NONE);
   }
 
