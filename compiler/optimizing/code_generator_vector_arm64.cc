@@ -318,6 +318,47 @@ void InstructionCodeGeneratorARM64::VisitVecAdd(HVecAdd* instruction) {
   }
 }
 
+void LocationsBuilderARM64::VisitVecHalvingAdd(HVecHalvingAdd* instruction) {
+  CreateVecBinOpLocations(GetGraph()->GetArena(), instruction);
+}
+
+void InstructionCodeGeneratorARM64::VisitVecHalvingAdd(HVecHalvingAdd* instruction) {
+  LocationSummary* locations = instruction->GetLocations();
+  VRegister lhs = VRegisterFrom(locations->InAt(0));
+  VRegister rhs = VRegisterFrom(locations->InAt(1));
+  VRegister dst = VRegisterFrom(locations->Out());
+  switch (instruction->GetPackedType()) {
+    case Primitive::kPrimByte:
+      DCHECK_EQ(16u, instruction->GetVectorLength());
+      if (instruction->IsUnsigned()) {
+        instruction->IsRounded()
+            ? __ Urhadd(dst.V16B(), lhs.V16B(), rhs.V16B())
+            : __ Uhadd(dst.V16B(), lhs.V16B(), rhs.V16B());
+      } else {
+        instruction->IsRounded()
+            ? __ Srhadd(dst.V16B(), lhs.V16B(), rhs.V16B())
+            : __ Shadd(dst.V16B(), lhs.V16B(), rhs.V16B());
+      }
+      break;
+    case Primitive::kPrimChar:
+    case Primitive::kPrimShort:
+      DCHECK_EQ(8u, instruction->GetVectorLength());
+      if (instruction->IsUnsigned()) {
+        instruction->IsRounded()
+            ? __ Urhadd(dst.V8H(), lhs.V8H(), rhs.V8H())
+            : __ Uhadd(dst.V8H(), lhs.V8H(), rhs.V8H());
+      } else {
+        instruction->IsRounded()
+            ? __ Srhadd(dst.V8H(), lhs.V8H(), rhs.V8H())
+            : __ Shadd(dst.V8H(), lhs.V8H(), rhs.V8H());
+      }
+      break;
+    default:
+      LOG(FATAL) << "Unsupported SIMD type";
+      UNREACHABLE();
+  }
+}
+
 void LocationsBuilderARM64::VisitVecSub(HVecSub* instruction) {
   CreateVecBinOpLocations(GetGraph()->GetArena(), instruction);
 }
@@ -418,6 +459,22 @@ void InstructionCodeGeneratorARM64::VisitVecDiv(HVecDiv* instruction) {
       LOG(FATAL) << "Unsupported SIMD type";
       UNREACHABLE();
   }
+}
+
+void LocationsBuilderARM64::VisitVecMin(HVecMin* instruction) {
+  CreateVecBinOpLocations(GetGraph()->GetArena(), instruction);
+}
+
+void InstructionCodeGeneratorARM64::VisitVecMin(HVecMin* instruction) {
+  LOG(FATAL) << "Unsupported SIMD instruction " << instruction->GetId();
+}
+
+void LocationsBuilderARM64::VisitVecMax(HVecMax* instruction) {
+  CreateVecBinOpLocations(GetGraph()->GetArena(), instruction);
+}
+
+void InstructionCodeGeneratorARM64::VisitVecMax(HVecMax* instruction) {
+  LOG(FATAL) << "Unsupported SIMD instruction " << instruction->GetId();
 }
 
 void LocationsBuilderARM64::VisitVecAnd(HVecAnd* instruction) {

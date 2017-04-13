@@ -1369,9 +1369,12 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(VecAbs, VecUnaryOperation)                                          \
   M(VecNot, VecUnaryOperation)                                          \
   M(VecAdd, VecBinaryOperation)                                         \
+  M(VecHalvingAdd, VecBinaryOperation)                                  \
   M(VecSub, VecBinaryOperation)                                         \
   M(VecMul, VecBinaryOperation)                                         \
   M(VecDiv, VecBinaryOperation)                                         \
+  M(VecMin, VecBinaryOperation)                                         \
+  M(VecMax, VecBinaryOperation)                                         \
   M(VecAnd, VecBinaryOperation)                                         \
   M(VecAndNot, VecBinaryOperation)                                      \
   M(VecOr, VecBinaryOperation)                                          \
@@ -6845,6 +6848,7 @@ class HBlocksInLoopReversePostOrderIterator : public ValueObject {
   DISALLOW_COPY_AND_ASSIGN(HBlocksInLoopReversePostOrderIterator);
 };
 
+// Returns int64_t value of a properly typed constant.
 inline int64_t Int64FromConstant(HConstant* constant) {
   if (constant->IsIntConstant()) {
     return constant->AsIntConstant()->GetValue();
@@ -6854,6 +6858,21 @@ inline int64_t Int64FromConstant(HConstant* constant) {
     DCHECK(constant->IsNullConstant()) << constant->DebugName();
     return 0;
   }
+}
+
+// Returns true iff instruction is an integral constant (and sets value on success).
+inline bool IsInt64AndGet(HInstruction* instruction, /*out*/ int64_t* value) {
+  if (instruction->IsIntConstant()) {
+    *value = instruction->AsIntConstant()->GetValue();
+    return true;
+  } else if (instruction->IsLongConstant()) {
+    *value = instruction->AsLongConstant()->GetValue();
+    return true;
+  } else if (instruction->IsNullConstant()) {
+    *value = 0;
+    return true;
+  }
+  return false;
 }
 
 #define INSTRUCTION_TYPE_CHECK(type, super)                                    \
