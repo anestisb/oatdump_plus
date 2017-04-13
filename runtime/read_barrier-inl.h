@@ -28,12 +28,15 @@
 
 namespace art {
 
+// Disabled for performance reasons.
+static constexpr bool kCheckDebugDisallowReadBarrierCount = false;
+
 template <typename MirrorType, ReadBarrierOption kReadBarrierOption, bool kAlwaysUpdateField>
 inline MirrorType* ReadBarrier::Barrier(
     mirror::Object* obj, MemberOffset offset, mirror::HeapReference<MirrorType>* ref_addr) {
   constexpr bool with_read_barrier = kReadBarrierOption == kWithReadBarrier;
   if (kUseReadBarrier && with_read_barrier) {
-    if (kIsDebugBuild) {
+    if (kCheckDebugDisallowReadBarrierCount) {
       Thread* const self = Thread::Current();
       if (self != nullptr) {
         CHECK_EQ(self->GetDebugDisallowReadBarrierCount(), 0u);

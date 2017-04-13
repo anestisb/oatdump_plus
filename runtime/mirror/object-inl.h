@@ -513,8 +513,11 @@ inline bool Object::IsPhantomReferenceInstance() {
   return GetClass<kVerifyFlags>()->IsPhantomReferenceClass();
 }
 
-template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
+template<VerifyObjectFlags kVerifyFlags>
 inline size_t Object::SizeOf() {
+  // Read barrier is never required for SizeOf since objects sizes are constant. Reading from-space
+  // values is OK because of that.
+  static constexpr ReadBarrierOption kReadBarrierOption = kWithoutReadBarrier;
   size_t result;
   constexpr auto kNewFlags = static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis);
   if (IsArrayInstance<kVerifyFlags, kReadBarrierOption>()) {
