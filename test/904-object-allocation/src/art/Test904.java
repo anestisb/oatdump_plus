@@ -17,6 +17,7 @@
 package art;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 
 public class Test904 {
   public static void run() throws Exception {
@@ -48,6 +49,8 @@ public class Test904 {
     // Enable actual logging callback.
     setupObjectAllocCallback(true);
 
+    System.out.println(Arrays.toString(getTrackingEventMessages()));
+
     enableAllocationTracking(null, true);
 
     l.add(new Object());
@@ -65,16 +68,19 @@ public class Test904 {
 
     l.add(new Byte((byte)0));
 
+    System.out.println(Arrays.toString(getTrackingEventMessages()));
     System.out.println("Tracking on same thread");
 
     testThread(l, true, true);
 
     l.add(new Byte((byte)0));
 
+    System.out.println(Arrays.toString(getTrackingEventMessages()));
     System.out.println("Tracking on same thread, not disabling tracking");
 
     testThread(l, true, false);
 
+    System.out.println(Arrays.toString(getTrackingEventMessages()));
     System.out.println("Tracking on different thread");
 
     testThread(l, false, true);
@@ -84,6 +90,9 @@ public class Test904 {
     // Disable actual logging callback and re-enable tracking, so we can keep the event enabled and
     // check that shutdown works correctly.
     setupObjectAllocCallback(false);
+
+    System.out.println(Arrays.toString(getTrackingEventMessages()));
+
     enableAllocationTracking(null, true);
   }
 
@@ -142,4 +151,5 @@ public class Test904 {
 
   private static native void setupObjectAllocCallback(boolean enable);
   private static native void enableAllocationTracking(Thread thread, boolean enable);
+  private static native String[] getTrackingEventMessages();
 }
