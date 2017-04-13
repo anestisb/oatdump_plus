@@ -2337,9 +2337,7 @@ class ZygoteCompactingCollector FINAL : public collector::SemiSpace {
     size_t bin_size = object_addr - context->prev_;
     // Add the bin consisting of the end of the previous object to the start of the current object.
     collector->AddBin(bin_size, context->prev_);
-    // Turn off read barrier. ZygoteCompactingCollector doesn't use it (even in the CC build.)
-    context->prev_ = object_addr + RoundUp(obj->SizeOf<kDefaultVerifyFlags, kWithoutReadBarrier>(),
-                                           kObjectAlignment);
+    context->prev_ = object_addr + RoundUp(obj->SizeOf<kDefaultVerifyFlags>(), kObjectAlignment);
   }
 
   void AddBin(size_t size, uintptr_t position) {
@@ -2359,8 +2357,7 @@ class ZygoteCompactingCollector FINAL : public collector::SemiSpace {
 
   virtual mirror::Object* MarkNonForwardedObject(mirror::Object* obj)
       REQUIRES(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
-    // Turn off read barrier. ZygoteCompactingCollector doesn't use it (even in the CC build.)
-    size_t obj_size = obj->SizeOf<kDefaultVerifyFlags, kWithoutReadBarrier>();
+    size_t obj_size = obj->SizeOf<kDefaultVerifyFlags>();
     size_t alloc_size = RoundUp(obj_size, kObjectAlignment);
     mirror::Object* forward_address;
     // Find the smallest bin which we can move obj in.
