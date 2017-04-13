@@ -601,20 +601,13 @@
     },
     {
         "tests": [
-            "008-exceptions",
             "031-class-attributes",
-            "034-call-null",
-            "038-inner-null",
-            "054-uncaught",
-            "122-npe",
-            "439-npe",
-            "911-get-stack-trace",
-            "946-obsolete-throw"
+            "911-get-stack-trace"
         ],
         "description": [
             "Tests that use annotations and debug data that is not kept around by dexter."
         ],
-        "bug": "b/37240685 & b/37239009",
+        "bug": "b/37239009",
         "variant": "jvmti-stress"
     }
 ]
