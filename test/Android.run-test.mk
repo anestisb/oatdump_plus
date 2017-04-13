@@ -168,6 +168,8 @@ ART_TEST_HOST_RUN_TEST_DEPENDENCIES := \
 
 ifneq ($(HOST_PREFER_32_BIT),true)
 ART_TEST_HOST_RUN_TEST_DEPENDENCIES += \
+  $(OUT_DIR)/$(ART_TEST_LIST_host_$(2ND_ART_HOST_ARCH)_libtiagent) \
+  $(OUT_DIR)/$(ART_TEST_LIST_host_$(2ND_ART_HOST_ARCH)_libtiagentd) \
   $(OUT_DIR)/$(ART_TEST_LIST_host_$(2ND_ART_HOST_ARCH)_libtistress) \
   $(OUT_DIR)/$(ART_TEST_LIST_host_$(2ND_ART_HOST_ARCH)_libtistressd) \
   $(OUT_DIR)/$(ART_TEST_LIST_host_$(2ND_ART_HOST_ARCH)_libartagent) \
