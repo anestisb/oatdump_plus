@@ -32,9 +32,9 @@ Is synthetic: false
 interface java.util.List
 1025
 Max locals: 0
-Argument size: 0
-Location start: 0
-Location end: 0
+Argument size: 2
+Location start: -1
+Location end: -1
 Is native: false
 Is obsolete: false
 Is synthetic: false
@@ -42,9 +42,9 @@ Is synthetic: false
 class $Proxy0
 17
 Max locals: 0
-Argument size: 0
-Location start: 0
-Location end: 0
+Argument size: 1
+Location start: -1
+Location end: -1
 Is native: false
 Is obsolete: false
 Is synthetic: false
