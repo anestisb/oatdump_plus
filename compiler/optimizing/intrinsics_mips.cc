@@ -2940,6 +2940,199 @@ void IntrinsicCodeGeneratorMIPS::VisitMathTanh(HInvoke* invoke) {
   GenFPToFPCall(invoke, codegen_, kQuickTanh);
 }
 
+// static void java.lang.System.arraycopy(Object src, int srcPos,
+//                                        Object dest, int destPos,
+//                                        int length)
+void IntrinsicLocationsBuilderMIPS::VisitSystemArrayCopyChar(HInvoke* invoke) {
+  HIntConstant* src_pos = invoke->InputAt(1)->AsIntConstant();
+  HIntConstant* dest_pos = invoke->InputAt(3)->AsIntConstant();
+  HIntConstant* length = invoke->InputAt(4)->AsIntConstant();
+
+  // As long as we are checking, we might as well check to see if the src and dest
+  // positions are >= 0.
+  if ((src_pos != nullptr && src_pos->GetValue() < 0) ||
+      (dest_pos != nullptr && dest_pos->GetValue() < 0)) {
+    // We will have to fail anyways.
+    return;
+  }
+
+  // And since we are already checking, check the length too.
+  if (length != nullptr) {
+    int32_t len = length->GetValue();
+    if (len < 0) {
+      // Just call as normal.
+      return;
+    }
+  }
+
+  // Okay, it is safe to generate inline code.
+  LocationSummary* locations =
+      new (arena_) LocationSummary(invoke, LocationSummary::kCallOnSlowPath, kIntrinsified);
+  // arraycopy(Object src, int srcPos, Object dest, int destPos, int length).
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RegisterOrConstant(invoke->InputAt(1)));
+  locations->SetInAt(2, Location::RequiresRegister());
+  locations->SetInAt(3, Location::RegisterOrConstant(invoke->InputAt(3)));
+  locations->SetInAt(4, Location::RegisterOrConstant(invoke->InputAt(4)));
+
+  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
+}
+
+// Utility routine to verify that "length(input) - pos >= length"
+static void EnoughItems(MipsAssembler* assembler,
+                        Register length_input_minus_pos,
+                        Location length,
+                        SlowPathCodeMIPS* slow_path) {
+  if (length.IsConstant()) {
+    int32_t length_constant = length.GetConstant()->AsIntConstant()->GetValue();
+
+    if (IsInt<16>(length_constant)) {
+      __ Slti(TMP, length_input_minus_pos, length_constant);
+      __ Bnez(TMP, slow_path->GetEntryLabel());
+    } else {
+      __ LoadConst32(TMP, length_constant);
+      __ Blt(length_input_minus_pos, TMP, slow_path->GetEntryLabel());
+    }
+  } else {
+    __ Blt(length_input_minus_pos, length.AsRegister<Register>(), slow_path->GetEntryLabel());
+  }
+}
+
+static void CheckPosition(MipsAssembler* assembler,
+                          Location pos,
+                          Register input,
+                          Location length,
+                          SlowPathCodeMIPS* slow_path,
+                          bool length_is_input_length = false) {
+  // Where is the length in the Array?
+  const uint32_t length_offset = mirror::Array::LengthOffset().Uint32Value();
+
+  // Calculate length(input) - pos.
+  if (pos.IsConstant()) {
+    int32_t pos_const = pos.GetConstant()->AsIntConstant()->GetValue();
+    if (pos_const == 0) {
+      if (!length_is_input_length) {
+        // Check that length(input) >= length.
+        __ LoadFromOffset(kLoadWord, AT, input, length_offset);
+        EnoughItems(assembler, AT, length, slow_path);
+      }
+    } else {
+      // Check that (length(input) - pos) >= zero.
+      __ LoadFromOffset(kLoadWord, AT, input, length_offset);
+      DCHECK_GT(pos_const, 0);
+      __ Addiu32(AT, AT, -pos_const, TMP);
+      __ Bltz(AT, slow_path->GetEntryLabel());
+
+      // Verify that (length(input) - pos) >= length.
+      EnoughItems(assembler, AT, length, slow_path);
+    }
+  } else if (length_is_input_length) {
+    // The only way the copy can succeed is if pos is zero.
+    Register pos_reg = pos.AsRegister<Register>();
+    __ Bnez(pos_reg, slow_path->GetEntryLabel());
+  } else {
+    // Verify that pos >= 0.
+    Register pos_reg = pos.AsRegister<Register>();
+    __ Bltz(pos_reg, slow_path->GetEntryLabel());
+
+    // Check that (length(input) - pos) >= zero.
+    __ LoadFromOffset(kLoadWord, AT, input, length_offset);
+    __ Subu(AT, AT, pos_reg);
+    __ Bltz(AT, slow_path->GetEntryLabel());
+
+    // Verify that (length(input) - pos) >= length.
+    EnoughItems(assembler, AT, length, slow_path);
+  }
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitSystemArrayCopyChar(HInvoke* invoke) {
+  MipsAssembler* assembler = GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  Register src = locations->InAt(0).AsRegister<Register>();
+  Location src_pos = locations->InAt(1);
+  Register dest = locations->InAt(2).AsRegister<Register>();
+  Location dest_pos = locations->InAt(3);
+  Location length = locations->InAt(4);
+
+  MipsLabel loop;
+
+  Register dest_base = locations->GetTemp(0).AsRegister<Register>();
+  Register src_base = locations->GetTemp(1).AsRegister<Register>();
+  Register count = locations->GetTemp(2).AsRegister<Register>();
+
+  SlowPathCodeMIPS* slow_path = new (GetAllocator()) IntrinsicSlowPathMIPS(invoke);
+  codegen_->AddSlowPath(slow_path);
+
+  // Bail out if the source and destination are the same (to handle overlap).
+  __ Beq(src, dest, slow_path->GetEntryLabel());
+
+  // Bail out if the source is null.
+  __ Beqz(src, slow_path->GetEntryLabel());
+
+  // Bail out if the destination is null.
+  __ Beqz(dest, slow_path->GetEntryLabel());
+
+  // Load length into register for count.
+  if (length.IsConstant()) {
+    __ LoadConst32(count, length.GetConstant()->AsIntConstant()->GetValue());
+  } else {
+    // If the length is negative, bail out.
+    // We have already checked in the LocationsBuilder for the constant case.
+    __ Bltz(length.AsRegister<Register>(), slow_path->GetEntryLabel());
+
+    __ Move(count, length.AsRegister<Register>());
+  }
+
+  // Validity checks: source.
+  CheckPosition(assembler, src_pos, src, Location::RegisterLocation(count), slow_path);
+
+  // Validity checks: dest.
+  CheckPosition(assembler, dest_pos, dest, Location::RegisterLocation(count), slow_path);
+
+  // If count is zero, we're done.
+  __ Beqz(count, slow_path->GetExitLabel());
+
+  // Okay, everything checks out.  Finally time to do the copy.
+  // Check assumption that sizeof(Char) is 2 (used in scaling below).
+  const size_t char_size = Primitive::ComponentSize(Primitive::kPrimChar);
+  DCHECK_EQ(char_size, 2u);
+
+  const size_t char_shift = Primitive::ComponentSizeShift(Primitive::kPrimChar);
+
+  const uint32_t data_offset = mirror::Array::DataOffset(char_size).Uint32Value();
+
+  // Calculate source and destination addresses.
+  if (src_pos.IsConstant()) {
+    int32_t src_pos_const = src_pos.GetConstant()->AsIntConstant()->GetValue();
+
+    __ Addiu32(src_base, src, data_offset + char_size * src_pos_const, TMP);
+  } else {
+    __ Addiu32(src_base, src, data_offset, TMP);
+    __ ShiftAndAdd(src_base, src_pos.AsRegister<Register>(), src_base, char_shift);
+  }
+  if (dest_pos.IsConstant()) {
+    int32_t dest_pos_const = dest_pos.GetConstant()->AsIntConstant()->GetValue();
+
+    __ Addiu32(dest_base, dest, data_offset + char_size * dest_pos_const, TMP);
+  } else {
+    __ Addiu32(dest_base, dest, data_offset, TMP);
+    __ ShiftAndAdd(dest_base, dest_pos.AsRegister<Register>(), dest_base, char_shift);
+  }
+
+  __ Bind(&loop);
+  __ Lh(TMP, src_base, 0);
+  __ Addiu(src_base, src_base, char_size);
+  __ Addiu(count, count, -1);
+  __ Sh(TMP, dest_base, 0);
+  __ Addiu(dest_base, dest_base, char_size);
+  __ Bnez(count, &loop);
+
+  __ Bind(slow_path->GetExitLabel());
+}
+
 // Unimplemented intrinsics.
 
 UNIMPLEMENTED_INTRINSIC(MIPS, MathCeil)
@@ -2951,7 +3144,6 @@ UNIMPLEMENTED_INTRINSIC(MIPS, UnsafePutLongVolatile);
 UNIMPLEMENTED_INTRINSIC(MIPS, UnsafeCASLong)
 
 UNIMPLEMENTED_INTRINSIC(MIPS, ReferenceGetReferent)
-UNIMPLEMENTED_INTRINSIC(MIPS, SystemArrayCopyChar)
 UNIMPLEMENTED_INTRINSIC(MIPS, SystemArrayCopy)
 
 UNIMPLEMENTED_INTRINSIC(MIPS, StringStringIndexOf);
