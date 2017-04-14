@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+package art;
+
 import java.lang.reflect.Field;
 import java.util.Base64;
 import java.nio.ByteBuffer;
@@ -21,54 +23,73 @@ import java.nio.ByteBuffer;
 import dalvik.system.ClassExt;
 import dalvik.system.InMemoryDexClassLoader;
 
-public class Main {
+public class Test981 {
+
+  static class Transform {
+    public void sayHi() {
+      System.out.println("hello");
+    }
+  }
+
+  static class Transform2 {
+    public void sayHi() {
+      System.out.println("hello2");
+    }
+  }
 
   /**
    * base64 encoded class/dex file for
-   * class Transform {
+   * static class Transform {
    *   public void sayHi() {
    *    System.out.println("Goodbye");
    *   }
    * }
    */
   private static final byte[] DEX_BYTES_1 = Base64.getDecoder().decode(
-    "ZGV4CjAzNQCLXSBQ5FiS3f16krSYZFF8xYZtFVp0GRXMAgAAcAAAAHhWNBIAAAAAAAAAACwCAAAO" +
-    "AAAAcAAAAAYAAACoAAAAAgAAAMAAAAABAAAA2AAAAAQAAADgAAAAAQAAAAABAACsAQAAIAEAAGIB" +
-    "AABqAQAAcwEAAIABAACXAQAAqwEAAL8BAADTAQAA4wEAAOYBAADqAQAA/gEAAAMCAAAMAgAAAgAA" +
-    "AAMAAAAEAAAABQAAAAYAAAAIAAAACAAAAAUAAAAAAAAACQAAAAUAAABcAQAABAABAAsAAAAAAAAA" +
-    "AAAAAAAAAAANAAAAAQABAAwAAAACAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAHAAAAAAAAAB4CAAAA" +
-    "AAAAAQABAAEAAAATAgAABAAAAHAQAwAAAA4AAwABAAIAAAAYAgAACQAAAGIAAAAbAQEAAABuIAIA" +
-    "EAAOAAAAAQAAAAMABjxpbml0PgAHR29vZGJ5ZQALTFRyYW5zZm9ybTsAFUxqYXZhL2lvL1ByaW50" +
-    "U3RyZWFtOwASTGphdmEvbGFuZy9PYmplY3Q7ABJMamF2YS9sYW5nL1N0cmluZzsAEkxqYXZhL2xh" +
-    "bmcvU3lzdGVtOwAOVHJhbnNmb3JtLmphdmEAAVYAAlZMABJlbWl0dGVyOiBqYWNrLTMuMzYAA291" +
-    "dAAHcHJpbnRsbgAFc2F5SGkAEQAHDgATAAcOhQAAAAEBAICABKACAQG4Ag0AAAAAAAAAAQAAAAAA" +
-    "AAABAAAADgAAAHAAAAACAAAABgAAAKgAAAADAAAAAgAAAMAAAAAEAAAAAQAAANgAAAAFAAAABAAA" +
-    "AOAAAAAGAAAAAQAAAAABAAABIAAAAgAAACABAAABEAAAAQAAAFwBAAACIAAADgAAAGIBAAADIAAA" +
-    "AgAAABMCAAAAIAAAAQAAAB4CAAAAEAAAAQAAACwCAAA=");
+    "ZGV4CjAzNQB+giqQAAAAAAAAAAAAAAAAAAAAAAAAAAC4AwAAcAAAAHhWNBIAAAAAAAAAAPQCAAAU" +
+    "AAAAcAAAAAkAAADAAAAAAgAAAOQAAAABAAAA/AAAAAQAAAAEAQAAAQAAACQBAAB0AgAARAEAAEQB" +
+    "AABMAQAAVQEAAG4BAAB9AQAAoQEAAMEBAADYAQAA7AEAAAACAAAUAgAAIgIAAC0CAAAwAgAANAIA" +
+    "AEECAABHAgAATAIAAFUCAABcAgAAAgAAAAMAAAAEAAAABQAAAAYAAAAHAAAACAAAAAkAAAAMAAAA" +
+    "DAAAAAgAAAAAAAAADQAAAAgAAABkAgAABwAEABAAAAAAAAAAAAAAAAAAAAASAAAABAABABEAAAAF" +
+    "AAAAAAAAAAAAAAAAAAAABQAAAAAAAAAKAAAA5AIAALgCAAAAAAAABjxpbml0PgAHR29vZGJ5ZQAX" +
+    "TGFydC9UZXN0OTgxJFRyYW5zZm9ybTsADUxhcnQvVGVzdDk4MTsAIkxkYWx2aWsvYW5ub3RhdGlv" +
+    "bi9FbmNsb3NpbmdDbGFzczsAHkxkYWx2aWsvYW5ub3RhdGlvbi9Jbm5lckNsYXNzOwAVTGphdmEv" +
+    "aW8vUHJpbnRTdHJlYW07ABJMamF2YS9sYW5nL09iamVjdDsAEkxqYXZhL2xhbmcvU3RyaW5nOwAS" +
+    "TGphdmEvbGFuZy9TeXN0ZW07AAxUZXN0OTgxLmphdmEACVRyYW5zZm9ybQABVgACVkwAC2FjY2Vz" +
+    "c0ZsYWdzAARuYW1lAANvdXQAB3ByaW50bG4ABXNheUhpAAV2YWx1ZQAAAQAAAAYAAAAFAAcOAAcA" +
+    "Bw4BCA8AAAAAAQABAAEAAABsAgAABAAAAHAQAwAAAA4AAwABAAIAAABxAgAACQAAAGIAAAAbAQEA" +
+    "AABuIAIAEAAOAAAAAAABAQCAgAT8BAEBlAUAAAICARMYAQIDAg4ECA8XCwACAAAAyAIAAM4CAADY" +
+    "AgAAAAAAAAAAAAAAAAAAEAAAAAAAAAABAAAAAAAAAAEAAAAUAAAAcAAAAAIAAAAJAAAAwAAAAAMA" +
+    "AAACAAAA5AAAAAQAAAABAAAA/AAAAAUAAAAEAAAABAEAAAYAAAABAAAAJAEAAAIgAAAUAAAARAEA" +
+    "AAEQAAABAAAAZAIAAAMgAAACAAAAbAIAAAEgAAACAAAAfAIAAAAgAAABAAAAuAIAAAQgAAACAAAA" +
+    "yAIAAAMQAAABAAAA2AIAAAYgAAABAAAA5AIAAAAQAAABAAAA9AIAAA==");
 
   /**
    * base64 encoded class/dex file for
-   * class Transform2 {
+   * static class Transform2 {
    *   public void sayHi() {
    *    System.out.println("Goodbye2");
    *   }
    * }
    */
   private static final byte[] DEX_BYTES_2 = Base64.getDecoder().decode(
-    "ZGV4CjAzNQAjXDED2iflQ3NXbPtBRVjQVMqoDU9nDz/QAgAAcAAAAHhWNBIAAAAAAAAAADACAAAO" +
-    "AAAAcAAAAAYAAACoAAAAAgAAAMAAAAABAAAA2AAAAAQAAADgAAAAAQAAAAABAACwAQAAIAEAAGIB" +
-    "AABqAQAAdAEAAIIBAACZAQAArQEAAMEBAADVAQAA5gEAAOkBAADtAQAAAQIAAAYCAAAPAgAAAgAA" +
-    "AAMAAAAEAAAABQAAAAYAAAAIAAAACAAAAAUAAAAAAAAACQAAAAUAAABcAQAABAABAAsAAAAAAAAA" +
-    "AAAAAAAAAAANAAAAAQABAAwAAAACAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAHAAAAAAAAACECAAAA" +
-    "AAAAAQABAAEAAAAWAgAABAAAAHAQAwAAAA4AAwABAAIAAAAbAgAACQAAAGIAAAAbAQEAAABuIAIA" +
-    "EAAOAAAAAQAAAAMABjxpbml0PgAIR29vZGJ5ZTIADExUcmFuc2Zvcm0yOwAVTGphdmEvaW8vUHJp" +
-    "bnRTdHJlYW07ABJMamF2YS9sYW5nL09iamVjdDsAEkxqYXZhL2xhbmcvU3RyaW5nOwASTGphdmEv" +
-    "bGFuZy9TeXN0ZW07AA9UcmFuc2Zvcm0yLmphdmEAAVYAAlZMABJlbWl0dGVyOiBqYWNrLTQuMzAA" +
-    "A291dAAHcHJpbnRsbgAFc2F5SGkAAQAHDgADAAcOhwAAAAEBAICABKACAQG4AgANAAAAAAAAAAEA" +
-    "AAAAAAAAAQAAAA4AAABwAAAAAgAAAAYAAACoAAAAAwAAAAIAAADAAAAABAAAAAEAAADYAAAABQAA" +
-    "AAQAAADgAAAABgAAAAEAAAAAAQAAASAAAAIAAAAgAQAAARAAAAEAAABcAQAAAiAAAA4AAABiAQAA" +
-    "AyAAAAIAAAAWAgAAACAAAAEAAAAhAgAAABAAAAEAAAAwAgAA");
-
+    "ZGV4CjAzNQAhg+RVAAAAAAAAAAAAAAAAAAAAAAAAAAC8AwAAcAAAAHhWNBIAAAAAAAAAAPgCAAAU" +
+    "AAAAcAAAAAkAAADAAAAAAgAAAOQAAAABAAAA/AAAAAQAAAAEAQAAAQAAACQBAAB4AgAARAEAAEQB" +
+    "AABMAQAAVgEAAHABAAB/AQAAowEAAMMBAADaAQAA7gEAAAICAAAWAgAAJAIAADACAAAzAgAANwIA" +
+    "AEQCAABKAgAATwIAAFgCAABfAgAAAgAAAAMAAAAEAAAABQAAAAYAAAAHAAAACAAAAAkAAAAMAAAA" +
+    "DAAAAAgAAAAAAAAADQAAAAgAAABoAgAABwAEABAAAAAAAAAAAAAAAAAAAAASAAAABAABABEAAAAF" +
+    "AAAAAAAAAAAAAAAAAAAABQAAAAAAAAAKAAAA6AIAALwCAAAAAAAABjxpbml0PgAIR29vZGJ5ZTIA" +
+    "GExhcnQvVGVzdDk4MSRUcmFuc2Zvcm0yOwANTGFydC9UZXN0OTgxOwAiTGRhbHZpay9hbm5vdGF0" +
+    "aW9uL0VuY2xvc2luZ0NsYXNzOwAeTGRhbHZpay9hbm5vdGF0aW9uL0lubmVyQ2xhc3M7ABVMamF2" +
+    "YS9pby9QcmludFN0cmVhbTsAEkxqYXZhL2xhbmcvT2JqZWN0OwASTGphdmEvbGFuZy9TdHJpbmc7" +
+    "ABJMamF2YS9sYW5nL1N5c3RlbTsADFRlc3Q5ODEuamF2YQAKVHJhbnNmb3JtMgABVgACVkwAC2Fj" +
+    "Y2Vzc0ZsYWdzAARuYW1lAANvdXQAB3ByaW50bG4ABXNheUhpAAV2YWx1ZQAAAAEAAAAGAAAACgAH" +
+    "DgAMAAcOAQgPAAAAAAEAAQABAAAAcAIAAAQAAABwEAMAAAAOAAMAAQACAAAAdQIAAAkAAABiAAAA" +
+    "GwEBAAAAbiACABAADgAAAAAAAQEAgIAEgAUBAZgFAAACAgETGAECAwIOBAgPFwsAAgAAAMwCAADS" +
+    "AgAA3AIAAAAAAAAAAAAAAAAAABAAAAAAAAAAAQAAAAAAAAABAAAAFAAAAHAAAAACAAAACQAAAMAA" +
+    "AAADAAAAAgAAAOQAAAAEAAAAAQAAAPwAAAAFAAAABAAAAAQBAAAGAAAAAQAAACQBAAACIAAAFAAA" +
+    "AEQBAAABEAAAAQAAAGgCAAADIAAAAgAAAHACAAABIAAAAgAAAIACAAAAIAAAAQAAALwCAAAEIAAA" +
+    "AgAAAMwCAAADEAAAAQAAANwCAAAGIAAAAQAAAOgCAAAAEAAAAQAAAPgCAAA=");
 
   /**
    * base64 encoded class/dex file for
@@ -116,13 +137,8 @@ public class Main {
     "AAQAAADgAAAABgAAAAEAAAAAAQAAASAAAAIAAAAgAQAAARAAAAEAAABcAQAAAiAAAA4AAABiAQAA" +
     "AyAAAAIAAAAWAgAAACAAAAEAAAAhAgAAABAAAAEAAAAwAgAA");
 
-  public static void main(String[] args) {
-    art.Main.bindAgentJNIForClass(Main.class);
-    try {
-      doTest();
-    } catch (Exception e) {
-      e.printStackTrace();
-    }
+  public static void run() throws Exception {
+    doTest();
   }
 
   private static void assertSame(Object a, Object b) throws Exception {
@@ -159,45 +175,35 @@ public class Main {
 
     assertSame(null, getOriginalDexFile(t1.getClass()));
     assertSame(null, getOriginalDexFile(t2.getClass()));
-    assertSame(null, getOriginalDexFile(Main.class));
+    assertSame(null, getOriginalDexFile(Test981.class));
 
-    addCommonTransformationResult("Transform", new byte[0], DEX_BYTES_1);
-    addCommonTransformationResult("Transform2", new byte[0], DEX_BYTES_2);
-    enableCommonRetransformation(true);
-    doCommonClassRetransformation(Transform.class, Transform2.class);
+    Redefinition.addCommonTransformationResult("art/Test981$Transform", new byte[0], DEX_BYTES_1);
+    Redefinition.addCommonTransformationResult("art/Test981$Transform2", new byte[0], DEX_BYTES_2);
+    Redefinition.enableCommonRetransformation(true);
+    Redefinition.doCommonClassRetransformation(Transform.class, Transform2.class);
 
     assertSame(getOriginalDexFile(t1.getClass()), getOriginalDexFile(t2.getClass()));
-    assertSame(null, getOriginalDexFile(Main.class));
+    assertSame(null, getOriginalDexFile(Test981.class));
     // Make sure that the original dex file is a DexCache object.
     assertSame(getOriginalDexFile(t1.getClass()).getClass(), Class.forName("java.lang.DexCache"));
 
     // Check that we end up with a byte[] if we do a direct RedefineClasses
-    enableCommonRetransformation(false);
-    doCommonClassRedefinition(Transform.class, new byte[0], DEX_BYTES_1);
+    Redefinition.enableCommonRetransformation(false);
+    Redefinition.doCommonClassRedefinition(Transform.class, new byte[0], DEX_BYTES_1);
     assertSame((new byte[0]).getClass(), getOriginalDexFile(t1.getClass()).getClass());
 
     // Check we don't have anything if we don't have any originalDexFile if the onload
     // transformation doesn't do anything.
-    enableCommonRetransformation(true);
+    Redefinition.enableCommonRetransformation(true);
     Class<?> transform3Class = new InMemoryDexClassLoader(
-        ByteBuffer.wrap(DEX_BYTES_3_INITIAL), Main.class.getClassLoader()).loadClass("Transform3");
+        ByteBuffer.wrap(DEX_BYTES_3_INITIAL), Test981.class.getClassLoader()).loadClass("Transform3");
     assertSame(null, getOriginalDexFile(transform3Class));
 
     // Check that we end up with a java.lang.Long pointer if we do an 'on-load' redefinition.
-    addCommonTransformationResult("Transform3", new byte[0], DEX_BYTES_3_FINAL);
-    enableCommonRetransformation(true);
+    Redefinition.addCommonTransformationResult("Transform3", new byte[0], DEX_BYTES_3_FINAL);
+    Redefinition.enableCommonRetransformation(true);
     Class<?> transform3ClassTransformed = new InMemoryDexClassLoader(
-        ByteBuffer.wrap(DEX_BYTES_3_INITIAL), Main.class.getClassLoader()).loadClass("Transform3");
+        ByteBuffer.wrap(DEX_BYTES_3_INITIAL), Test981.class.getClassLoader()).loadClass("Transform3");
     assertSame(Long.class, getOriginalDexFile(transform3ClassTransformed).getClass());
   }
-
-  // Transforms the class
-  private static native void doCommonClassRetransformation(Class<?>... target);
-  private static native void doCommonClassRedefinition(Class<?> target,
-                                                       byte[] class_file,
-                                                       byte[] dex_file);
-  private static native void enableCommonRetransformation(boolean enable);
-  private static native void addCommonTransformationResult(String target_name,
-                                                           byte[] class_bytes,
-                                                           byte[] dex_bytes);
 }

@@ -14,23 +14,25 @@
  * limitations under the License.
  */
 
-import java.util.Base64;
-public class Main {
+package art;
 
-  public static void main(String[] args) {
-    art.Main.bindAgentJNIForClass(Main.class);
+import java.util.Base64;
+public class Test983 {
+  static class Transform {
+    public void sayHi() {
+      System.out.println("hello");
+    }
+  }
+
+  public static void run() {
     doTest();
   }
 
   public static void doTest() {
     Transform abc = new Transform();
-    enableCommonRetransformation(true);
-    doCommonClassRetransformation(Transform.class);
-    doCommonClassRetransformation(Object.class);
-    enableCommonRetransformation(false);
+    Redefinition.enableCommonRetransformation(true);
+    Redefinition.doCommonClassRetransformation(Transform.class);
+    Redefinition.doCommonClassRetransformation(Object.class);
+    Redefinition.enableCommonRetransformation(false);
   }
-
-  // Transforms the class
-  private static native void doCommonClassRetransformation(Class<?>... target);
-  private static native void enableCommonRetransformation(boolean enable);
 }

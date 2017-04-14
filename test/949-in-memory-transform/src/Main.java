@@ -14,11 +14,15 @@
  * limitations under the License.
  */
 
+package art;
+
+import static art.Redefinition.doCommonClassRedefinition;
+
 import java.util.Base64;
 import java.lang.reflect.*;
 import java.nio.ByteBuffer;
 
-public class Main {
+public class Test949 {
   /**
    * base64 encoded class/dex file for
    * public class Transform {
@@ -82,8 +86,7 @@ public class Main {
     "AOAAAAAGAAAAAQAAAAABAAABIAAAAgAAACABAAABEAAAAQAAAFwBAAACIAAADgAAAGIBAAADIAAA" +
     "AgAAABMCAAAAIAAAAQAAAB4CAAAAEAAAAQAAACwCAAA=");
 
-  public static void main(String[] args) throws Exception {
-    art.Main.bindAgentJNIForClass(Main.class);
+  public static void run() throws Exception {
     ClassLoader loader;
     try {
       // Art uses this classloader to do in-memory dex files. There is no support for defineClass
@@ -117,9 +120,4 @@ public class Main {
     doCommonClassRedefinition(transform_class, TRANSFORMED_CLASS_BYTES, TRANSFORMED_DEX_BYTES);
     say_hi_method.invoke(t);
   }
-
-  // Transforms the class
-  private static native void doCommonClassRedefinition(Class<?> target,
-                                                       byte[] class_file,
-                                                       byte[] dex_file);
 }
