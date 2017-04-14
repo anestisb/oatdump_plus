@@ -888,8 +888,8 @@ class FollowReferencesHelper FINAL {
       bool add_to_worklist = ReportRoot(root_obj, info);
       // We use visited_ to mark roots already so we do not need another set.
       if (visited_->find(root_obj) == visited_->end()) {
-        visited_->insert(root_obj);
         if (add_to_worklist) {
+          visited_->insert(root_obj);
           worklist_->push_back(root_obj);
         }
       }
