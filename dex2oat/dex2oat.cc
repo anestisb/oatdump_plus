@@ -2931,7 +2931,7 @@ int main(int argc, char** argv) {
   // time (bug 10645725) unless we're a debug build or running on valgrind. Note: The Dex2Oat class
   // should not destruct the runtime in this case.
   if (!art::kIsDebugBuild && (RUNNING_ON_MEMORY_TOOL == 0)) {
-    exit(result);
+    _exit(result);
   }
   return result;
 }
