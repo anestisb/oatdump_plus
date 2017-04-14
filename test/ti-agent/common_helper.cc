@@ -369,6 +369,7 @@ static void SetupCommonRetransform() {
   cb.ClassFileLoadHook = common_retransform::CommonClassFileLoadHookRetransformable;
   jvmtiError res = jvmti_env->SetEventCallbacks(&cb, sizeof(cb));
   CHECK_EQ(res, JVMTI_ERROR_NONE);
+  common_retransform::gTransformations.clear();
 }
 
 static void SetupCommonTransform() {
@@ -385,6 +386,7 @@ static void SetupCommonTransform() {
   cb.ClassFileLoadHook = common_retransform::CommonClassFileLoadHookRetransformable;
   jvmtiError res = jvmti_env->SetEventCallbacks(&cb, sizeof(cb));
   CHECK_EQ(res, JVMTI_ERROR_NONE);
+  common_retransform::gTransformations.clear();
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Redefinition_nativeSetTestConfiguration(JNIEnv*,
