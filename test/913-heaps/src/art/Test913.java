@@ -21,12 +21,34 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.concurrent.CountDownLatch;
 
 public class Test913 {
   public static void run() throws Exception {
     Main.bindAgentJNIForClass(Test913.class);
 
     doTest();
+
+    // Use a countdown latch for synchronization, as join() will introduce more roots.
+    final CountDownLatch cdl1 = new CountDownLatch(1);
+
+    // Run the follow-references tests on a dedicated thread so we know the specific Thread type.
+    Thread t = new Thread() {
+      @Override
+      public void run() {
+        try {
+          Test913.runFollowReferences();
+        } catch (Exception e) {
+          throw new RuntimeException(e);
+        }
+        cdl1.countDown();
+      }
+    };
+    t.start();
+    cdl1.await();
+  }
+
+  public static void runFollowReferences() throws Exception {
     new TestConfig().doFollowReferencesTest();
 
     Runtime.getRuntime().gc();
@@ -481,7 +503,8 @@ public class Test913 {
           if (currentHead == null) {
             currentHead = referrer;
           } else {
-            if (!currentHead.equals(referrer)) {
+            // Ignore 0@0, as it can happen at any time (as it stands for all other objects).
+            if (!currentHead.equals(referrer) && !referrer.equals("0@0")) {
               completedReferrers.add(currentHead);
               currentHead = referrer;
               if (completedReferrers.contains(referrer)) {
