@@ -294,6 +294,11 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test913_followReferences(
                         const jvmtiHeapReferenceInfo* reference_info)
           : Elem(referrer, referree, size, length) {
         memcpy(&info_, reference_info, sizeof(jvmtiHeapReferenceInfo));
+
+        // Debug code. Try to figure out where bad depth is coming from.
+        if (reference_info->stack_local.depth == 6) {
+          LOG(FATAL) << "Unexpected depth of 6";
+        }
       }
 
      protected:
