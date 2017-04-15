@@ -591,4 +591,11 @@ TEST_F(DexFileTest, OpenDexBadMapOffset) {
   EXPECT_EQ(raw, nullptr);
 }
 
+TEST_F(DexFileTest, GetStringWithNoIndex) {
+  ScratchFile tmp;
+  std::unique_ptr<const DexFile> raw(OpenDexFileBase64(kRawDex, tmp.GetFilename().c_str()));
+  dex::TypeIndex idx;
+  EXPECT_EQ(raw->StringByTypeIdx(idx), nullptr);
+}
+
 }  // namespace art
