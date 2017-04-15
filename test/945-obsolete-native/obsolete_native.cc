@@ -34,14 +34,8 @@
 namespace art {
 namespace Test945ObsoleteNative {
 
-extern "C" JNIEXPORT void JNICALL Java_Main_bindTest945ObsoleteNative(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
-  BindFunctions(jvmti_env, env, "Transform");
-}
-
-extern "C" JNIEXPORT void JNICALL Java_Transform_doExecute(JNIEnv* env,
-                                                           jclass klass ATTRIBUTE_UNUSED,
-                                                           jobject runnable) {
+extern "C" JNIEXPORT void JNICALL Java_art_Test945_00024Transform_doExecute(
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject runnable) {
   jclass runnable_klass = env->FindClass("java/lang/Runnable");
   DCHECK(runnable_klass != nullptr);
   jmethodID run_method = env->GetMethodID(runnable_klass, "run", "()V");

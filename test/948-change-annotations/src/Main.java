@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import art.Redefinition;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Comparator;
@@ -85,7 +86,9 @@ public class Main {
   }
 
   // Transforms the class
-  public static native void doCommonClassRedefinition(Class<?> target,
-                                                      byte[] class_file,
-                                                      byte[] dex_file);
+  public static void doCommonClassRedefinition(Class<?> target,
+                                               byte[] class_file,
+                                               byte[] dex_file) {
+    Redefinition.doCommonClassRedefinition(target, class_file, dex_file);
+  }
 }
