@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import static art.Redefinition.doCommonClassRedefinition;
 import java.util.Base64;
 import java.util.OptionalLong;
 public class Main {
@@ -110,7 +111,6 @@ public class Main {
     "AABHBgAABCAAAAIAAACVBgAAACAAAAEAAACtBgAAABAAAAEAAAD4BgAA");
 
   public static void main(String[] args) {
-    art.Main.bindAgentJNIForClass(Main.class);
     // OptionalLong is a class that is unlikely to be used by the time this test starts and is not
     // likely to be changed in any meaningful way in the future.
     OptionalLong ol = OptionalLong.of(0xDEADBEEF);
@@ -119,9 +119,4 @@ public class Main {
     doCommonClassRedefinition(OptionalLong.class, CLASS_BYTES, DEX_BYTES);
     System.out.println("ol.toString() -> '" + ol.toString() + "'");
   }
-
-  // Transforms the class
-  private static native void doCommonClassRedefinition(Class<?> target,
-                                                       byte[] class_file,
-                                                       byte[] dex_file);
 }
