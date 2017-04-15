@@ -108,18 +108,15 @@ static void DoClassRedefine(jvmtiEnv* jvmti_env,
 
 // Magic JNI export that classes can use for redefining classes.
 // To use classes should declare this as a native function with signature (Ljava/lang/Class;[B[B)V
-extern "C" JNIEXPORT void JNICALL Java_Main_doCommonClassRedefinition(JNIEnv* env,
-                                                                      jclass,
-                                                                      jclass target,
-                                                                      jbyteArray class_file_bytes,
-                                                                      jbyteArray dex_file_bytes) {
+extern "C" JNIEXPORT void JNICALL Java_art_Redefinition_doCommonClassRedefinition(
+    JNIEnv* env, jclass, jclass target, jbyteArray class_file_bytes, jbyteArray dex_file_bytes) {
   DoClassRedefine(jvmti_env, env, target, class_file_bytes, dex_file_bytes);
 }
 
 // Magic JNI export that classes can use for redefining classes.
 // To use classes should declare this as a native function with signature
 // ([Ljava/lang/Class;[[B[[B)V
-extern "C" JNIEXPORT void JNICALL Java_Main_doCommonMultiClassRedefinition(
+extern "C" JNIEXPORT void JNICALL Java_art_Redefinition_doCommonMultiClassRedefinition(
     JNIEnv* env,
     jclass,
     jobjectArray targets,
@@ -183,11 +180,8 @@ struct CommonTransformationResult {
 std::map<std::string, std::deque<CommonTransformationResult>> gTransformations;
 bool gPopTransformations = true;
 
-extern "C" JNIEXPORT void JNICALL Java_Main_addCommonTransformationResult(JNIEnv* env,
-                                                                          jclass,
-                                                                          jstring class_name,
-                                                                          jbyteArray class_array,
-                                                                          jbyteArray dex_array) {
+extern "C" JNIEXPORT void JNICALL Java_art_Redefinition_addCommonTransformationResult(
+    JNIEnv* env, jclass, jstring class_name, jbyteArray class_array, jbyteArray dex_array) {
   const char* name_chrs = env->GetStringUTFChars(class_name, nullptr);
   std::string name_str(name_chrs);
   env->ReleaseStringUTFChars(class_name, name_chrs);
@@ -244,15 +238,15 @@ void JNICALL CommonClassFileLoadHookRetransformable(jvmtiEnv* jvmti_env,
   }
 }
 
-extern "C" JNIEXPORT void Java_Main_setPopRetransformations(JNIEnv*,
-                                                            jclass,
-                                                            jboolean enable) {
+extern "C" JNIEXPORT void Java_art_Redefinition_setPopRetransformations(JNIEnv*,
+                                                                        jclass,
+                                                                        jboolean enable) {
   gPopTransformations = enable;
 }
 
-extern "C" JNIEXPORT void Java_Main_popTransformationFor(JNIEnv* env,
-                                                         jclass,
-                                                         jstring class_name) {
+extern "C" JNIEXPORT void Java_art_Redefinition_popTransformationFor(JNIEnv* env,
+                                                                         jclass,
+                                                                         jstring class_name) {
   const char* name_chrs = env->GetStringUTFChars(class_name, nullptr);
   std::string name_str(name_chrs);
   env->ReleaseStringUTFChars(class_name, name_chrs);
@@ -267,9 +261,9 @@ extern "C" JNIEXPORT void Java_Main_popTransformationFor(JNIEnv* env,
   }
 }
 
-extern "C" JNIEXPORT void Java_Main_enableCommonRetransformation(JNIEnv* env,
-                                                                 jclass,
-                                                                 jboolean enable) {
+extern "C" JNIEXPORT void Java_art_Redefinition_enableCommonRetransformation(JNIEnv* env,
+                                                                                 jclass,
+                                                                                 jboolean enable) {
   jvmtiError res = jvmti_env->SetEventNotificationMode(enable ? JVMTI_ENABLE : JVMTI_DISABLE,
                                                        JVMTI_EVENT_CLASS_FILE_LOAD_HOOK,
                                                        nullptr);
@@ -298,9 +292,8 @@ static void DoClassRetransformation(jvmtiEnv* jvmti_env, JNIEnv* env, jobjectArr
   }
 }
 
-extern "C" JNIEXPORT void JNICALL Java_Main_doCommonClassRetransformation(JNIEnv* env,
-                                                                          jclass,
-                                                                          jobjectArray targets) {
+extern "C" JNIEXPORT void JNICALL Java_art_Redefinition_doCommonClassRetransformation(
+    JNIEnv* env, jclass, jobjectArray targets) {
   jvmtiCapabilities caps;
   jvmtiError caps_err = jvmti_env->GetCapabilities(&caps);
   if (caps_err != JVMTI_ERROR_NONE) {

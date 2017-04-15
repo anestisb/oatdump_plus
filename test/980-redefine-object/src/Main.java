@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import static art.Redefinition.doCommonClassRedefinition;
+
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -407,9 +409,4 @@ public class Main {
   }
 
   private static native void addToBootClassLoader(String s);
-
-  // Transforms the class
-  private static native void doCommonClassRedefinition(Class<?> target,
-                                                       byte[] class_file,
-                                                       byte[] dex_file);
 }
