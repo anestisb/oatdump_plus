@@ -913,7 +913,9 @@ void StackVisitor::WalkStack(bool include_transitions) {
               << " next=" << *cur_quick_frame_;
         }
 
-        cur_depth_++;
+        if (kCount == CountTransitions::kYes || !method->IsRuntimeMethod()) {
+          cur_depth_++;
+        }
         method = *cur_quick_frame_;
       }
     } else if (cur_shadow_frame_ != nullptr) {
