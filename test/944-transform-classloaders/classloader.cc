@@ -26,7 +26,7 @@
 namespace art {
 namespace Test944TransformClassloaders {
 
-extern "C" JNIEXPORT jlong JNICALL Java_Main_getDexFilePointer(JNIEnv* env, jclass, jclass klass) {
+extern "C" JNIEXPORT jlong JNICALL Java_art_Test944_getDexFilePointer(JNIEnv* env, jclass, jclass klass) {
   if (Runtime::Current() == nullptr) {
     env->ThrowNew(env->FindClass("java/lang/Exception"),
                   "We do not seem to be running in ART! Unable to get dex file.");
