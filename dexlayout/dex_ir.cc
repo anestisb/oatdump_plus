@@ -496,8 +496,8 @@ AnnotationsDirectoryItem* Collections::CreateAnnotationsDirectoryItem(const DexF
       dex_file.GetClassAnnotationSet(disk_annotations_item);
   AnnotationSetItem* class_annotation = nullptr;
   if (class_set_item != nullptr) {
-    uint32_t offset = disk_annotations_item->class_annotations_off_;
-    class_annotation = CreateAnnotationSetItem(dex_file, class_set_item, offset);
+    uint32_t item_offset = disk_annotations_item->class_annotations_off_;
+    class_annotation = CreateAnnotationSetItem(dex_file, class_set_item, item_offset);
   }
   const DexFile::FieldAnnotationsItem* fields =
       dex_file.GetFieldAnnotations(disk_annotations_item);
@@ -784,7 +784,7 @@ struct FileSectionDescriptor {
   std::function<uint32_t(const dex_ir::Collections&)> offset_fn;
 };
 
-static const std::vector<FileSectionDescriptor> kFileSectionDescriptors = {
+static const FileSectionDescriptor kFileSectionDescriptors[] = {
   {
     "Header",
     DexFile::kDexTypeHeaderItem,

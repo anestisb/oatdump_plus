@@ -393,6 +393,7 @@ static std::unique_ptr<char[]> IndexString(dex_ir::Header* header,
       index = dec_insn->VRegB();
       secondary_index = dec_insn->VRegH();
       width = 4;
+      break;
     default:
       break;
   }  // switch
@@ -1820,7 +1821,11 @@ void DexLayout::OutputDexFile(const DexFile* dex_file) {
       LOG(ERROR) << "Could not create dex writer output file: " << output_location;
       return;
     }
-    ftruncate(new_file->Fd(), header_->FileSize());
+    if (ftruncate(new_file->Fd(), header_->FileSize()) != 0) {
+      LOG(ERROR) << "Could not grow dex writer output file: " << output_location;;
+      new_file->Erase();
+      return;
+    }
     mem_map_.reset(MemMap::MapFile(header_->FileSize(), PROT_READ | PROT_WRITE, MAP_SHARED,
         new_file->Fd(), 0, /*low_4gb*/ false, output_location.c_str(), &error_msg));
   } else {
