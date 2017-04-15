@@ -59,11 +59,17 @@ inline const char* DexFile::StringDataByIdx(dex::StringIndex idx) const {
 }
 
 inline const char* DexFile::StringByTypeIdx(dex::TypeIndex idx, uint32_t* unicode_length) const {
+  if (!idx.IsValid()) {
+    return nullptr;
+  }
   const TypeId& type_id = GetTypeId(idx);
   return StringDataAndUtf16LengthByIdx(type_id.descriptor_idx_, unicode_length);
 }
 
 inline const char* DexFile::StringByTypeIdx(dex::TypeIndex idx) const {
+  if (!idx.IsValid()) {
+    return nullptr;
+  }
   const TypeId& type_id = GetTypeId(idx);
   return StringDataByIdx(type_id.descriptor_idx_);
 }
