@@ -91,7 +91,7 @@ JAVAC_EXPERIMENTAL_ARGS["default-methods"]="-source 1.8 -target 1.8"
 JAVAC_EXPERIMENTAL_ARGS["lambdas"]="-source 1.8 -target 1.8"
 JAVAC_EXPERIMENTAL_ARGS["method-handles"]="-source 1.8 -target 1.8"
 # We need to leave javac at default 1.7 so that dx will continue to work
-JAVAC_EXPERIMENTAL_ARGS[${DEFAULT_EXPERIMENT}]="-source 1.7 -target 1.7"
+JAVAC_EXPERIMENTAL_ARGS[${DEFAULT_EXPERIMENT}]="-source 1.8 -target 1.8"
 JAVAC_EXPERIMENTAL_ARGS["agents"]="-source 1.8 -target 1.8"
 
 while true; do

@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+
+import art.Redefinition;
+
 import java.util.function.Consumer;
 import java.lang.reflect.Method;
 import java.util.Base64;
@@ -144,7 +147,7 @@ public class Main {
         // Actually do the redefinition. The stack looks good.
         retry = false;
         w.accept("transforming calling function");
-        doCommonClassRedefinition(Transform.class, CLASS_BYTES, DEX_BYTES);
+        Redefinition.doCommonClassRedefinition(Transform.class, CLASS_BYTES, DEX_BYTES);
       }
     };
     // This just prints something out to show we are running the Runnable.
@@ -168,9 +171,4 @@ public class Main {
   private static native boolean isInterpretedFunction(Method m, boolean require_deoptimizable);
 
   private static native void ensureJitCompiled(Class c, String name);
-
-  // Transforms the class
-  private static native void doCommonClassRedefinition(Class<?> target,
-                                                       byte[] classfile,
-                                                       byte[] dexfile);
 }
