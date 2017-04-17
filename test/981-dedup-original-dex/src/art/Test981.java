@@ -138,6 +138,7 @@ public class Test981 {
     "AyAAAAIAAAAWAgAAACAAAAEAAAAhAgAAABAAAAEAAAAwAgAA");
 
   public static void run() throws Exception {
+    Redefinition.setTestConfiguration(Redefinition.Config.COMMON_RETRANSFORM);
     doTest();
   }
 
