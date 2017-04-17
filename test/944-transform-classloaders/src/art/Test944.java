@@ -231,8 +231,6 @@ public class Test944 {
   }
 
   private static void doTest() throws Exception {
-    art.Main.bindAgentJNIForClass(Test944.class);
-
     Transform t = new Transform();
     Transform2 t2 = new Transform2();
 
@@ -270,7 +268,29 @@ public class Test944 {
   }
 
   // Gets the 'long' (really a native pointer) that is stored in the ClassLoader representing the
-  // DexFile a class is loaded from. This is converted from the DexFile* in the same way it is done
-  // in runtime/native/dalvik_system_DexFile.cc
-  private static native long getDexFilePointer(Class<?> target);
+  // DexFile a class is loaded from. This is plucked out of the internal DexCache object associated
+  // with the class.
+  private static long getDexFilePointer(Class<?> target) throws Exception {
+    // If all the android BCP classes were available when compiling this test and access checks
+    // weren't a thing this function would be written as follows:
+    //
+    // java.lang.DexCache dexCacheObject = target.dexCache;
+    // if (dexCacheObject == null) {
+    //   return 0;
+    // }
+    // return dexCacheObject.dexFile;
+    Field dexCacheField = Class.class.getDeclaredField("dexCache");
+
+    Class<?> dexCacheClass = Class.forName("java.lang.DexCache");
+    Field dexFileField = dexCacheClass.getDeclaredField("dexFile");
+
+    AccessibleObject.setAccessible(new AccessibleObject[] { dexCacheField, dexFileField }, true);
+
+    Object dexCacheObject = dexCacheField.get(target);
+    if (dexCacheObject == null) {
+      return 0;
+    }
+    checkIsInstance(dexCacheClass, dexCacheObject);
+    return dexFileField.getLong(dexCacheObject);
+  }
 }
