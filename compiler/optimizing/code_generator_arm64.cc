@@ -90,8 +90,9 @@ static constexpr uint32_t kPackedSwitchCompareJumpThreshold = 7;
 constexpr uint32_t kReferenceLoadMinFarOffset = 16 * KB;
 
 // Flags controlling the use of link-time generated thunks for Baker read barriers.
-constexpr bool kBakerReadBarrierLinkTimeThunksEnableForFields = true;
-constexpr bool kBakerReadBarrierLinkTimeThunksEnableForGcRoots = true;
+// Not yet implemented for heap poisoning.
+constexpr bool kBakerReadBarrierLinkTimeThunksEnableForFields = !kPoisonHeapReferences;
+constexpr bool kBakerReadBarrierLinkTimeThunksEnableForGcRoots = !kPoisonHeapReferences;
 
 // Some instructions have special requirements for a temporary, for example
 // LoadClass/kBssEntry and LoadString/kBssEntry for Baker read barrier require
