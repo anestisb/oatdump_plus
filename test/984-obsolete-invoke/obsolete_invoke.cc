@@ -17,13 +17,12 @@
 #include "android-base/macros.h"
 #include "jni.h"
 #include "jvmti.h"
-#include "mirror/class-inl.h"
-#include "scoped_local_ref.h"
 
 // Test infrastructure
 #include "test_env.h"
 
 #include "jvmti_helper.h"
+#include "scoped_local_ref.h"
 
 namespace art {
 namespace Test984ObsoleteInvoke {
