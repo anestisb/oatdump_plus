@@ -23,12 +23,14 @@
 
 #include <dlfcn.h>
 #include <errno.h>
+#include <pthread.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include <initializer_list>
+#include <mutex>
 #include <utility>
 
 #include "sigchain.h"
@@ -61,7 +63,6 @@
 //               doesn't have SA_RESTART, and raise the signal to avoid restarting syscalls that are
 //               expected to be interrupted?
 
-
 static void log(const char* format, ...) {
   char buf[256];
   va_list ap;
@@ -91,7 +92,41 @@ namespace art {
 
 static decltype(&sigaction) linked_sigaction;
 static decltype(&sigprocmask) linked_sigprocmask;
-__thread bool handling_signal;
+
+static pthread_key_t GetHandlingSignalKey() {
+  static pthread_key_t key;
+  static std::once_flag once;
+  std::call_once(once, []() {
+    int rc = pthread_key_create(&key, nullptr);
+    if (rc != 0) {
+      fatal("failed to create sigchain pthread key: %s", strerror(rc));
+    }
+  });
+  return key;
+}
+
+static bool GetHandlingSignal() {
+  void* result = pthread_getspecific(GetHandlingSignalKey());
+  return reinterpret_cast<uintptr_t>(result);
+}
+
+static void SetHandlingSignal(bool value) {
+  pthread_setspecific(GetHandlingSignalKey(),
+                      reinterpret_cast<void*>(static_cast<uintptr_t>(value)));
+}
+
+class ScopedHandlingSignal {
+ public:
+  ScopedHandlingSignal() : original_value_(GetHandlingSignal()) {
+  }
+
+  ~ScopedHandlingSignal() {
+    SetHandlingSignal(original_value_);
+  }
+
+ private:
+  bool original_value_;
+};
 
 class SignalChain {
  public:
@@ -164,20 +199,6 @@ class SignalChain {
 
 static SignalChain chains[_NSIG];
 
-class ScopedFlagRestorer {
- public:
-  explicit ScopedFlagRestorer(bool* flag) : flag_(flag), original_value_(*flag) {
-  }
-
-  ~ScopedFlagRestorer() {
-    *flag_ = original_value_;
-  }
-
- private:
-  bool* flag_;
-  bool original_value_;
-};
-
 class ScopedSignalUnblocker {
  public:
   explicit ScopedSignalUnblocker(const std::initializer_list<int>& signals) {
@@ -202,13 +223,13 @@ class ScopedSignalUnblocker {
 };
 
 void SignalChain::Handler(int signo, siginfo_t* siginfo, void* ucontext_raw) {
-  ScopedFlagRestorer flag(&handling_signal);
+  ScopedHandlingSignal handling_signal;
 
   // Try the special handlers first.
   // If one of them crashes, we'll reenter this handler and pass that crash onto the user handler.
-  if (!handling_signal) {
+  if (!GetHandlingSignal()) {
     ScopedSignalUnblocker unblocked { SIGABRT, SIGBUS, SIGFPE, SIGILL, SIGSEGV }; // NOLINT
-    handling_signal = true;
+    SetHandlingSignal(true);
 
     for (const auto& handler : chains[signo].special_handlers_) {
       if (handler != nullptr && handler(signo, siginfo, ucontext_raw)) {
@@ -306,7 +327,7 @@ extern "C" sighandler_t bsd_signal(int signo, sighandler_t handler) {
 
 extern "C" int sigprocmask(int how, const sigset_t* bionic_new_set, sigset_t* bionic_old_set) {
   // When inside a signal handler, forward directly to the actual sigprocmask.
-  if (handling_signal) {
+  if (GetHandlingSignal()) {
     return linked_sigprocmask(how, bionic_new_set, bionic_old_set);
   }
 
