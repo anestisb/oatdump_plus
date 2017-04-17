@@ -18,13 +18,17 @@ LOCAL_PATH := $(call my-dir)
 
 include $(CLEAR_VARS)
 
-# Main shim classes. We use one that exposes the tagging common functionality.
-LOCAL_MAIN_SHIM := 903-hello-tagging/src/art/Main.java
-LOCAL_SRC_FILES := $(LOCAL_MAIN_SHIM)
+# shim classes. We use one that exposes the common functionality.
+LOCAL_SHIM_CLASSES := \
+  902-hello-transformation/src/art/Redefinition.java \
+  903-hello-tagging/src/art/Main.java \
+
+LOCAL_SRC_FILES := $(LOCAL_SHIM_CLASSES)
 
 # Actual test classes.
 LOCAL_SRC_FILES += \
   901-hello-ti-agent/src/art/Test901.java \
+  902-hello-transformation/src/art/Test902.java \
   903-hello-tagging/src/art/Test903.java \
   904-object-allocation/src/art/Test904.java \
   905-object-free/src/art/Test905.java \
@@ -42,19 +46,36 @@ LOCAL_SRC_FILES += \
     911-get-stack-trace/src/art/SameThread.java \
     911-get-stack-trace/src/art/ThreadListTraces.java \
   913-heaps/src/art/Test913.java \
+  914-hello-obsolescence/src/art/Test914.java \
+  915-obsolete-2/src/art/Test915.java \
+  917-fields-transformation/src/art/Test917.java \
   918-fields/src/art/Test918.java \
+  919-obsolete-fields/src/art/Test919.java \
   920-objects/src/art/Test920.java \
   922-properties/src/art/Test922.java \
   923-monitors/src/art/Test923.java \
   924-threads/src/art/Test924.java \
   925-threadgroups/src/art/Test925.java \
+  926-multi-obsolescence/src/art/Test926.java \
   927-timers/src/art/Test927.java \
   928-jni-table/src/art/Test928.java \
+  930-hello-retransform/src/art/Test930.java \
   931-agent-thread/src/art/Test931.java \
+  932-transform-saves/src/art/Test932.java \
   933-misc-events/src/art/Test933.java \
+  940-recursive-obsolete/src/art/Test940.java \
+  942-private-recursive/src/art/Test942.java \
+  944-transform-classloaders/src/art/Test944.java \
+  945-obsolete-native/src/art/Test945.java \
+  947-reflect-method/src/art/Test947.java \
+  951-threaded-obsolete/src/art/Test951.java \
+  981-dedup-original-dex/src/art/Test981.java \
+  982-ok-no-retransform/src/art/Test982.java \
+  984-obsolete-invoke/src/art/Test984.java \
 
 JVMTI_RUN_TEST_GENERATED_NUMBERS := \
   901 \
+  902 \
   903 \
   904 \
   905 \
@@ -64,16 +85,32 @@ JVMTI_RUN_TEST_GENERATED_NUMBERS := \
   910 \
   911 \
   913 \
+  914 \
+  915 \
+  917 \
   918 \
+  919 \
   920 \
   922 \
   923 \
   924 \
   925 \
+  926 \
   927 \
   928 \
+  930 \
   931 \
+  932 \
   933 \
+  940 \
+  942 \
+  944 \
+  945 \
+  947 \
+  951 \
+  981 \
+  982 \
+  984 \
 
 # Try to enforce that the directories correspond to the Java files we pull in.
 JVMTI_RUN_TEST_DIR_CHECK := $(sort $(foreach DIR,$(JVMTI_RUN_TEST_GENERATED_NUMBERS), \
