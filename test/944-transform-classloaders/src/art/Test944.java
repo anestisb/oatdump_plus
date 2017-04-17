@@ -115,6 +115,7 @@ public class Test944 {
         "AgAAAMwCAAADEAAAAQAAANwCAAAGIAAAAQAAAOgCAAAAEAAAAQAAAPgCAAA="));
 
   public static void run() throws Exception {
+    Redefinition.setTestConfiguration(Redefinition.Config.COMMON_REDEFINE);
     doTest();
     System.out.println("Passed");
   }
