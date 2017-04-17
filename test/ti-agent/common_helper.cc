@@ -17,18 +17,15 @@
 #include "common_helper.h"
 
 #include <dlfcn.h>
+#include <map>
 #include <stdio.h>
 #include <sstream>
 #include <deque>
+#include <vector>
 
 #include "android-base/stringprintf.h"
-#include "art_method.h"
 #include "jni.h"
-#include "jni_internal.h"
 #include "jvmti.h"
-#include "scoped_thread_state_change-inl.h"
-#include "stack.h"
-#include "utils.h"
 
 #include "jni_binder.h"
 #include "jvmti_helper.h"
@@ -36,6 +33,10 @@
 #include "test_env.h"
 
 namespace art {
+
+static void SetupCommonRetransform();
+static void SetupCommonRedefine();
+static void SetupCommonTransform();
 
 template <bool is_redefine>
 static void throwCommonRedefinitionError(jvmtiEnv* jvmti,
@@ -152,11 +153,7 @@ jint OnLoad(JavaVM* vm,
     printf("Unable to get jvmti env!\n");
     return 1;
   }
-  jvmtiCapabilities caps;
-  jvmti_env->GetPotentialCapabilities(&caps);
-  caps.can_retransform_classes = 0;
-  caps.can_retransform_any_class = 0;
-  jvmti_env->AddCapabilities(&caps);
+  SetupCommonRedefine();
   return 0;
 }
 
@@ -331,22 +328,13 @@ jint OnLoad(JavaVM* vm,
     printf("Unable to get jvmti env!\n");
     return 1;
   }
-  SetAllCapabilities(jvmti_env);
-  jvmtiEventCallbacks cb;
-  memset(&cb, 0, sizeof(cb));
-  cb.ClassFileLoadHook = CommonClassFileLoadHookRetransformable;
-  if (jvmti_env->SetEventCallbacks(&cb, sizeof(cb)) != JVMTI_ERROR_NONE) {
-    printf("Unable to set class file load hook cb!\n");
-    return 1;
-  }
+  SetupCommonRetransform();
   return 0;
 }
 
 }  // namespace common_retransform
 
 namespace common_transform {
-
-using art::common_retransform::CommonClassFileLoadHookRetransformable;
 
 // Get all capabilities except those related to retransformation.
 jint OnLoad(JavaVM* vm,
@@ -356,6 +344,34 @@ jint OnLoad(JavaVM* vm,
     printf("Unable to get jvmti env!\n");
     return 1;
   }
+  SetupCommonTransform();
+  return 0;
+}
+
+}  // namespace common_transform
+
+#define CONFIGURATION_COMMON_REDEFINE 0
+#define CONFIGURATION_COMMON_RETRANSFORM 1
+#define CONFIGURATION_COMMON_TRANSFORM 2
+
+static void SetupCommonRedefine() {
+  jvmtiCapabilities caps;
+  jvmti_env->GetPotentialCapabilities(&caps);
+  caps.can_retransform_classes = 0;
+  caps.can_retransform_any_class = 0;
+  jvmti_env->AddCapabilities(&caps);
+}
+
+static void SetupCommonRetransform() {
+  SetAllCapabilities(jvmti_env);
+  jvmtiEventCallbacks cb;
+  memset(&cb, 0, sizeof(cb));
+  cb.ClassFileLoadHook = common_retransform::CommonClassFileLoadHookRetransformable;
+  jvmtiError res = jvmti_env->SetEventCallbacks(&cb, sizeof(cb));
+  CHECK_EQ(res, JVMTI_ERROR_NONE);
+}
+
+static void SetupCommonTransform() {
   // Don't set the retransform caps
   jvmtiCapabilities caps;
   jvmti_env->GetPotentialCapabilities(&caps);
@@ -366,14 +382,30 @@ jint OnLoad(JavaVM* vm,
   // Use the same callback as the retransform test.
   jvmtiEventCallbacks cb;
   memset(&cb, 0, sizeof(cb));
-  cb.ClassFileLoadHook = CommonClassFileLoadHookRetransformable;
-  if (jvmti_env->SetEventCallbacks(&cb, sizeof(cb)) != JVMTI_ERROR_NONE) {
-    printf("Unable to set class file load hook cb!\n");
-    return 1;
-  }
-  return 0;
+  cb.ClassFileLoadHook = common_retransform::CommonClassFileLoadHookRetransformable;
+  jvmtiError res = jvmti_env->SetEventCallbacks(&cb, sizeof(cb));
+  CHECK_EQ(res, JVMTI_ERROR_NONE);
 }
 
-}  // namespace common_transform
-
+extern "C" JNIEXPORT void JNICALL Java_art_Redefinition_nativeSetTestConfiguration(JNIEnv*,
+                                                                                   jclass,
+                                                                                   jint type) {
+  switch (type) {
+    case CONFIGURATION_COMMON_REDEFINE: {
+      SetupCommonRedefine();
+      return;
+    }
+    case CONFIGURATION_COMMON_RETRANSFORM: {
+      SetupCommonRetransform();
+      return;
+    }
+    case CONFIGURATION_COMMON_TRANSFORM: {
+      SetupCommonTransform();
+      return;
+    }
+    default: {
+      LOG(FATAL) << "Unknown test configuration: " << type;
+    }
+  }
+}
 }  // namespace art

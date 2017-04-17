@@ -100,6 +100,7 @@ public class Test942 {
     "BAAAAxAAAAEAAADYBAAABiAAAAEAAADkBAAAABAAAAEAAAD0BAAA");
 
   public static void run() {
+    Redefinition.setTestConfiguration(Redefinition.Config.COMMON_REDEFINE);
     doTest(new Transform());
   }
 

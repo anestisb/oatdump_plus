@@ -77,6 +77,7 @@ public class Test917 {
     "AAEAAACMAgAABCAAAAIAAACgAgAAAxAAAAEAAACwAgAABiAAAAEAAAC8AgAAABAAAAEAAADMAgAA");
 
   public static void run() {
+    Redefinition.setTestConfiguration(Redefinition.Config.COMMON_REDEFINE);
     doTest(new Transform("Hello", "Goodbye"),
            new Transform("start", "end"));
   }
