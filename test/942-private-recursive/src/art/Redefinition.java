@@ -36,6 +36,25 @@ public class Redefinition {
     }
   }
 
+  // A set of possible test configurations. Test should set this if they need to.
+  // This must be kept in sync with the defines in ti-agent/common_helper.cc
+  public static enum Config {
+    COMMON_REDEFINE(0),
+    COMMON_RETRANSFORM(1),
+    COMMON_TRANSFORM(2);
+
+    private final int val;
+    private Config(int val) {
+      this.val = val;
+    }
+  }
+
+  public static void setTestConfiguration(Config type) {
+    nativeSetTestConfiguration(type.val);
+  }
+
+  private static native void nativeSetTestConfiguration(int type);
+
   // Transforms the class
   public static native void doCommonClassRedefinition(Class<?> target,
                                                       byte[] classfile,

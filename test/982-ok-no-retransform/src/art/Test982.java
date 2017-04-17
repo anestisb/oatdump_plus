@@ -26,6 +26,7 @@ public class Test982 {
   }
 
   public static void run() {
+    Redefinition.setTestConfiguration(Redefinition.Config.COMMON_RETRANSFORM);
     doTest(new Transform());
   }
 
