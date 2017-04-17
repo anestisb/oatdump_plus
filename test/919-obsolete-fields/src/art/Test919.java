@@ -149,6 +149,7 @@ public class Test919 {
   }
 
   public static void run() {
+    Redefinition.setTestConfiguration(Redefinition.Config.COMMON_REDEFINE);
     TestWatcher w = new TestWatcher();
     doTest(new Transform(w), w);
   }

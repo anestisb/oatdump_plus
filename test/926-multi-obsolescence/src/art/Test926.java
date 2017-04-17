@@ -123,6 +123,7 @@ public class Test926 {
         "AHwDAAA="));
 
   public static void run() throws Exception {
+    Redefinition.setTestConfiguration(Redefinition.Config.COMMON_REDEFINE);
     doTest(new Transform(), new Transform2());
   }
 

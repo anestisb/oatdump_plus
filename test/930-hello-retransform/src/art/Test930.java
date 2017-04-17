@@ -64,6 +64,7 @@ public class Test930 {
     "yAIAAAMQAAABAAAA2AIAAAYgAAABAAAA5AIAAAAQAAABAAAA9AIAAA==");
 
   public static void run() {
+    Redefinition.setTestConfiguration(Redefinition.Config.COMMON_RETRANSFORM);
     doTest(new Transform());
   }
 

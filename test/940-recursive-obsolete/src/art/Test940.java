@@ -91,6 +91,7 @@ public class Test940 {
     "AxAAAAEAAACcBAAABiAAAAEAAACoBAAAABAAAAEAAAC4BAAA");
 
   public static void run() {
+    Redefinition.setTestConfiguration(Redefinition.Config.COMMON_REDEFINE);
     doTest(new Transform());
   }
 
