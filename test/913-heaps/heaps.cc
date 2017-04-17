@@ -147,6 +147,10 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test913_followReferences(
           reference_info->stack_local.thread_tag != 3000) {
         return 0;
       }
+      // Ignore array elements with an untagged source. These are from the environment.
+      if (reference_kind == JVMTI_HEAP_REFERENCE_ARRAY_ELEMENT && *referrer_tag_ptr == 0) {
+        return 0;
+      }
 
       // Only check tagged objects.
       if (tag == 0) {
