@@ -371,6 +371,14 @@ public class Test913 {
       cInst.baz2 = aInst;
       v.add(cInstStr, aInstStr);  // C -->(field) --> A.
 
+      A[] aArray = new A[2];
+      setTag(aArray, 500);
+      aArray[1] = a2Inst;
+      cInst.array = aArray;
+      String aArrayStr = "500@0";
+      v.add(cInstStr, aArrayStr);
+      v.add(aArrayStr, a2InstStr);
+
       return aInst;
     }
   }
@@ -408,6 +416,7 @@ public class Test913 {
   public static class C extends B implements I2 {
     public A baz;
     public A baz2;
+    public A[] array;
 
     public C() {}
     public C(A a, A b) {
