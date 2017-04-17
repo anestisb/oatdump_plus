@@ -1082,7 +1082,10 @@ bool HLoopOptimization::TrySetSimpleLoopHeader(HBasicBlock* block) {
     HInstruction* s = block->GetFirstInstruction();
     if (s != nullptr && s->IsSuspendCheck()) {
       HInstruction* c = s->GetNext();
-      if (c != nullptr && c->IsCondition() && c->GetUses().HasExactlyOneElement()) {
+      if (c != nullptr &&
+          c->IsCondition() &&
+          c->GetUses().HasExactlyOneElement() &&  // only used for termination
+          !c->HasEnvironmentUses()) {  // unlikely, but not impossible
         HInstruction* i = c->GetNext();
         if (i != nullptr && i->IsIf() && i->InputAt(0) == c) {
           iset_->insert(c);
