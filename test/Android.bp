@@ -250,6 +250,7 @@ art_cc_defaults {
         "ti-agent/jni_binder.cc",
         "ti-agent/jvmti_helper.cc",
         "ti-agent/test_env.cc",
+        "ti-agent/common_helper.cc",
         // This is the list of non-special OnLoad things and excludes BCI and anything that depends
         // on ART internals.
         "903-hello-tagging/tagging.cc",
@@ -272,6 +273,8 @@ art_cc_defaults {
         "929-search/search.cc",
         "931-agent-thread/agent_thread.cc",
         "933-misc-events/misc_events.cc",
+        "945-obsolete-native/obsolete_native.cc",
+        "984-obsolete-invoke/obsolete_invoke.cc",
     ],
     shared_libs: [
         "libbase",
@@ -287,17 +290,14 @@ art_cc_defaults {
         // This is to get the IsInterpreted native method.
         "common/stack_inspect.cc",
         "common/runtime_state.cc",
+        "ti-agent/common_load.cc",
         // This includes the remaining test functions. We should try to refactor things to
         // make this list smaller.
-        "ti-agent/common_helper.cc",
-        "ti-agent/common_load.cc",
         "901-hello-ti-agent/basics.cc",
         "909-attach-agent/attach.cc",
         "912-classes/classes.cc",
         "936-search-onload/search_onload.cc",
-        "945-obsolete-native/obsolete_native.cc",
         "983-source-transform-verify/source_transform.cc",
-        "984-obsolete-invoke/obsolete_invoke.cc",
     ],
 }
 
