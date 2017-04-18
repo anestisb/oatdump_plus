@@ -578,9 +578,7 @@ class LSEVisitor : public HGraphVisitor {
       }
     }
     for (HInstruction* new_array : singleton_new_arrays_) {
-      // TODO: Delete constructor fences for new-array
-      // In the future HNewArray instructions will have HConstructorFence's for them.
-      // HConstructorFence::RemoveConstructorFences(new_array);
+      HConstructorFence::RemoveConstructorFences(new_array);
 
       if (!new_array->HasNonEnvironmentUses()) {
         new_array->RemoveEnvironmentUsers();

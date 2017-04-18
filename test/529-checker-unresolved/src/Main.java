@@ -190,16 +190,18 @@ public class Main extends UnresolvedSuperClass {
   }
 
   /// CHECK-START: void Main.testLicm(int) licm (before)
-  /// CHECK:      <<Class:l\d+>>        LoadClass                                     loop:B2
-  /// CHECK-NEXT: <<Clinit:l\d+>>       ClinitCheck [<<Class>>]                       loop:B2
-  /// CHECK-NEXT: <<New:l\d+>>          NewInstance [<<Clinit>>]                      loop:B2
-  /// CHECK-NEXT:                       InvokeUnresolved [<<New>>]                    loop:B2
+  /// CHECK:      <<Class:l\d+>>        LoadClass                                     loop:<<LoopLabel:B\d+>>
+  /// CHECK-NEXT: <<Clinit:l\d+>>       ClinitCheck [<<Class>>]                       loop:<<LoopLabel>>
+  /// CHECK-NEXT: <<New:l\d+>>          NewInstance [<<Clinit>>]                      loop:<<LoopLabel>>
+  /// CHECK-NEXT:                       ConstructorFence [<<New>>]                    loop:<<LoopLabel>>
+  /// CHECK-NEXT:                       InvokeUnresolved [<<New>>]                    loop:<<LoopLabel>>
 
   /// CHECK-START: void Main.testLicm(int) licm (after)
   /// CHECK:      <<Class:l\d+>>        LoadClass                                     loop:none
   /// CHECK-NEXT: <<Clinit:l\d+>>       ClinitCheck [<<Class>>]                       loop:none
-  /// CHECK:      <<New:l\d+>>          NewInstance [<<Clinit>>]                      loop:B2
-  /// CHECK-NEXT:                       InvokeUnresolved [<<New>>]                    loop:B2
+  /// CHECK:      <<New:l\d+>>          NewInstance [<<Clinit>>]                      loop:<<LoopLabel:B\d+>>
+  /// CHECK-NEXT:                       ConstructorFence [<<New>>]                    loop:<<LoopLabel>>
+  /// CHECK-NEXT:                       InvokeUnresolved [<<New>>]                    loop:<<LoopLabel>>
   static public void testLicm(int count) {
     // Test to make sure we keep the initialization check after loading an unresolved class.
     UnresolvedClass c;

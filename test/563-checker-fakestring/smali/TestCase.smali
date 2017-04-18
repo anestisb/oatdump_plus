@@ -86,11 +86,11 @@
    const v2, 0x0
    const v1, 0x1
 
-   new-instance v0, Ljava/lang/String;
+   new-instance v0, Ljava/lang/String; # HNewInstance(String)
 
    # Deoptimize here if the array is too short.
-   aget v1, p0, v1
-   add-int/2addr v2, v1
+   aget v1, p0, v1              # v1 = int_array[0x1]
+   add-int/2addr v2, v1         # v2 = 0x0 + v1
 
    # Check that we're being executed by the interpreter.
    invoke-static {}, LMain;->assertIsInterpreted()V
@@ -98,6 +98,8 @@
    # String allocation should succeed.
    const-string v3, "UTF8"
    invoke-direct {v0, p1, v3}, Ljava/lang/String;-><init>([BLjava/lang/String;)V
+   # Transformed into invoke StringFactory(p1,v3).
+   # The use of v0 is dropped (so HNewInstance(String) ends up having 0 uses and is removed).
 
    # This ArrayGet will throw ArrayIndexOutOfBoundsException.
    const v1, 0x4
@@ -125,6 +127,9 @@
    const-string v1, "UTF8"
    invoke-direct {v0, p0, v1}, Ljava/lang/String;-><init>([BLjava/lang/String;)V
    return-object v0
+   # Although it looks like we "use" the new-instance v0 here, the optimizing compiler
+   # transforms all uses of the new-instance into uses of the StringFactory invoke.
+   # therefore the HNewInstance for v0 becomes dead and is removed.
 
 .end method
 

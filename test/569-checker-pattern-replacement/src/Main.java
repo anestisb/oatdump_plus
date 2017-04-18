@@ -330,6 +330,7 @@ public class Main {
   /// CHECK-DAG:                      InvokeStaticOrDirect [<<Obj>>{{(,[ij]\d+)?}}] method_name:Base.<init>
 
   /// CHECK-START: double Main.constructBase() inliner (after)
+  /// CHECK:                          ConstructorFence
   /// CHECK-NOT:                      InvokeStaticOrDirect
   /// CHECK-NOT:                      ConstructorFence
   /// CHECK-NOT:                      InstanceFieldSet
@@ -346,6 +347,7 @@ public class Main {
   /// CHECK-DAG:                      InvokeStaticOrDirect [<<Obj>>,<<Value>>{{(,[ij]\d+)?}}] method_name:Base.<init>
 
   /// CHECK-START: double Main.constructBase(int) inliner (after)
+  /// CHECK:                          ConstructorFence
   /// CHECK-NOT:                      InvokeStaticOrDirect
   /// CHECK-NOT:                      ConstructorFence
 
@@ -370,6 +372,7 @@ public class Main {
   /// CHECK-DAG:                      InvokeStaticOrDirect [<<Obj>>,<<Value>>{{(,[ij]\d+)?}}] method_name:Base.<init>
 
   /// CHECK-START: double Main.constructBaseWith0() inliner (after)
+  /// CHECK:                          ConstructorFence
   /// CHECK-NOT:                      InvokeStaticOrDirect
   /// CHECK-NOT:                      ConstructorFence
   /// CHECK-NOT:                      InstanceFieldSet
@@ -386,6 +389,7 @@ public class Main {
   /// CHECK-DAG:                      InvokeStaticOrDirect [<<Obj>>,<<Value>>{{(,[ij]\d+)?}}] method_name:Base.<init>
 
   /// CHECK-START: java.lang.String Main.constructBase(java.lang.String) inliner (after)
+  /// CHECK:                          ConstructorFence
   /// CHECK-NOT:                      InvokeStaticOrDirect
   /// CHECK-NOT:                      ConstructorFence
 
@@ -410,6 +414,7 @@ public class Main {
   /// CHECK-DAG:                      InvokeStaticOrDirect [<<Obj>>,<<Null>>{{(,[ij]\d+)?}}] method_name:Base.<init>
 
   /// CHECK-START: java.lang.String Main.constructBaseWithNullString() inliner (after)
+  /// CHECK:                          ConstructorFence
   /// CHECK-NOT:                      InvokeStaticOrDirect
   /// CHECK-NOT:                      ConstructorFence
 
@@ -430,6 +435,7 @@ public class Main {
   /// CHECK-DAG:                      InvokeStaticOrDirect [<<Obj>>,<<DValue>>,<<OValue>>{{(,[ij]\d+)?}}] method_name:Base.<init>
 
   /// CHECK-START: double Main.constructBase(double, java.lang.Object) inliner (after)
+  /// CHECK:                          ConstructorFence
   /// CHECK-NOT:                      InvokeStaticOrDirect
   /// CHECK-NOT:                      ConstructorFence
 
@@ -459,6 +465,7 @@ public class Main {
   /// CHECK-DAG:                      InvokeStaticOrDirect [<<Obj>>,<<IValue>>,<<DValue>>,<<OValue>>{{(,[ij]\d+)?}}] method_name:Base.<init>
 
   /// CHECK-START: double Main.constructBase(int, double, java.lang.Object) inliner (after)
+  /// CHECK:                          ConstructorFence
   /// CHECK-NOT:                      InvokeStaticOrDirect
   /// CHECK-NOT:                      ConstructorFence
 
@@ -492,6 +499,7 @@ public class Main {
   /// CHECK-DAG:                      InvokeStaticOrDirect [<<Obj>>,<<IValue>>,<<DValue>>,<<OValue>>{{(,[ij]\d+)?}}] method_name:Base.<init>
 
   /// CHECK-START: double Main.constructBaseWith0DoubleNull(double) inliner (after)
+  /// CHECK:                          ConstructorFence
   /// CHECK-NOT:                      InvokeStaticOrDirect
   /// CHECK-NOT:                      ConstructorFence
 
@@ -542,6 +550,7 @@ public class Main {
   /// CHECK-DAG:                      InvokeStaticOrDirect [<<Obj>>,<<Value>>{{(,[ij]\d+)?}}] method_name:Base.<init>
 
   /// CHECK-START: double Main.constructBase(double) inliner (after)
+  /// CHECK:                          ConstructorFence
   /// CHECK-NOT:                      InvokeStaticOrDirect
   /// CHECK-NOT:                      ConstructorFence
 
@@ -566,6 +575,7 @@ public class Main {
   /// CHECK-DAG:                      InvokeStaticOrDirect [<<Obj>>,<<Value>>{{(,[ij]\d+)?}}] method_name:Base.<init>
 
   /// CHECK-START: double Main.constructBaseWith0d() inliner (after)
+  /// CHECK:                          ConstructorFence
   /// CHECK-NOT:                      InvokeStaticOrDirect
   /// CHECK-NOT:                      ConstructorFence
   /// CHECK-NOT:                      InstanceFieldSet
@@ -604,6 +614,7 @@ public class Main {
   /// CHECK-DAG:                      InvokeStaticOrDirect [<<Obj>>,<<IValue>>,<<JValue>>{{(,[ij]\d+)?}}] method_name:Base.<init>
 
   /// CHECK-START: double Main.constructBase(int, long) inliner (after)
+  /// CHECK:                          ConstructorFence
   /// CHECK-NOT:                      InvokeStaticOrDirect
   /// CHECK-NOT:                      ConstructorFence
 
@@ -627,6 +638,7 @@ public class Main {
   /// CHECK-DAG:                      InvokeStaticOrDirect [<<Obj>>{{(,[ij]\d+)?}}] method_name:Derived.<init>
 
   /// CHECK-START: double Main.constructDerived() inliner (after)
+  /// CHECK:                          ConstructorFence
   /// CHECK-NOT:                      InvokeStaticOrDirect
   /// CHECK-NOT:                      ConstructorFence
   /// CHECK-NOT:                      InstanceFieldSet
@@ -643,6 +655,7 @@ public class Main {
   /// CHECK-DAG:                      InvokeStaticOrDirect [<<Obj>>,<<Value>>{{(,[ij]\d+)?}}] method_name:Derived.<init>
 
   /// CHECK-START: double Main.constructDerived(int) inliner (after)
+  /// CHECK:                          ConstructorFence
   /// CHECK-NOT:                      InvokeStaticOrDirect
   /// CHECK-NOT:                      ConstructorFence
 
@@ -667,6 +680,7 @@ public class Main {
   /// CHECK-DAG:                      InvokeStaticOrDirect [<<Obj>>,<<Value>>{{(,[ij]\d+)?}}] method_name:Derived.<init>
 
   /// CHECK-START: double Main.constructDerivedWith0() inliner (after)
+  /// CHECK:                          ConstructorFence
   /// CHECK-NOT:                      InvokeStaticOrDirect
   /// CHECK-NOT:                      ConstructorFence
   /// CHECK-NOT:                      InstanceFieldSet
@@ -683,6 +697,7 @@ public class Main {
   /// CHECK-DAG:                      InvokeStaticOrDirect [<<Obj>>,<<Value>>{{(,[ij]\d+)?}}] method_name:Derived.<init>
 
   /// CHECK-START: java.lang.String Main.constructDerived(java.lang.String) inliner (after)
+  /// CHECK:                          ConstructorFence
   /// CHECK-NOT:                      InvokeStaticOrDirect
   /// CHECK-NOT:                      ConstructorFence
 
@@ -701,6 +716,7 @@ public class Main {
   /// CHECK-DAG:                      InvokeStaticOrDirect [<<Obj>>,<<Value>>{{(,[ij]\d+)?}}] method_name:Derived.<init>
 
   /// CHECK-START: double Main.constructDerived(double) inliner (after)
+  /// CHECK:                          ConstructorFence
   /// CHECK-NOT:                      InvokeStaticOrDirect
   /// CHECK-NOT:                      ConstructorFence
 
@@ -725,6 +741,7 @@ public class Main {
   /// CHECK-DAG:                      InvokeStaticOrDirect [<<Obj>>,<<Value>>{{(,[ij]\d+)?}}] method_name:Derived.<init>
 
   /// CHECK-START: double Main.constructDerivedWith0d() inliner (after)
+  /// CHECK:                          ConstructorFence
   /// CHECK-NOT:                      InvokeStaticOrDirect
   /// CHECK-NOT:                      ConstructorFence
   /// CHECK-NOT:                      InstanceFieldSet
@@ -743,6 +760,7 @@ public class Main {
   /// CHECK-DAG:                      InvokeStaticOrDirect [<<Obj>>,<<IValue>>,<<DValue>>,<<OValue>>{{(,[ij]\d+)?}}] method_name:Derived.<init>
 
   /// CHECK-START: double Main.constructDerived(int, double, java.lang.Object) inliner (after)
+  /// CHECK:                          ConstructorFence
   /// CHECK-NOT:                      InvokeStaticOrDirect
   /// CHECK-NOT:                      ConstructorFence
 
@@ -793,6 +811,7 @@ public class Main {
   /// CHECK-DAG:                      InvokeStaticOrDirect [<<Obj>>,<<Value>>{{(,[ij]\d+)?}}] method_name:Derived.<init>
 
   /// CHECK-START: double Main.constructDerived(float) inliner (after)
+  /// CHECK:                          ConstructorFence
   /// CHECK-NOT:                      InvokeStaticOrDirect
   /// CHECK-NOT:                      ConstructorFence
 
@@ -820,6 +839,7 @@ public class Main {
   /// CHECK-DAG:                      InvokeStaticOrDirect [<<Obj>>,<<IValue>>,<<DValue>>,<<OValue>>,<<FValue>>{{(,[ij]\d+)?}}] method_name:Derived.<init>
 
   /// CHECK-START: double Main.constructDerived(int, double, java.lang.Object, float) inliner (after)
+  /// CHECK:                          ConstructorFence
   /// CHECK-NOT:                      InvokeStaticOrDirect
   /// CHECK-NOT:                      ConstructorFence
 
@@ -851,6 +871,7 @@ public class Main {
   /// CHECK-DAG:                      InvokeStaticOrDirect [<<Obj>>{{(,[ij]\d+)?}}] method_name:BaseWithFinalField.<init>
 
   /// CHECK-START: int Main.constructBaseWithFinalField() inliner (after)
+  /// CHECK:                          ConstructorFence
   /// CHECK-NOT:                      InvokeStaticOrDirect
   /// CHECK-NOT:                      ConstructorFence
   /// CHECK-NOT:                      InstanceFieldSet
@@ -872,6 +893,7 @@ public class Main {
   /// CHECK-START: int Main.constructBaseWithFinalField(int) inliner (after)
   /// CHECK-DAG:  <<Value:i\d+>>      ParameterValue
   /// CHECK-DAG:  <<Obj:l\d+>>        NewInstance
+  /// CHECK-DAG:                      ConstructorFence
   /// CHECK-DAG:                      InstanceFieldSet [<<Obj>>,<<Value>>]
   /// CHECK-DAG:                      ConstructorFence
 
@@ -891,6 +913,7 @@ public class Main {
   /// CHECK-DAG:                      InvokeStaticOrDirect [<<Obj>>,<<Value>>{{(,[ij]\d+)?}}] method_name:BaseWithFinalField.<init>
 
   /// CHECK-START: int Main.constructBaseWithFinalFieldWith0() inliner (after)
+  /// CHECK:                          ConstructorFence
   /// CHECK-NOT:                      InvokeStaticOrDirect
   /// CHECK-NOT:                      ConstructorFence
   /// CHECK-NOT:                      InstanceFieldSet
@@ -906,6 +929,7 @@ public class Main {
   /// CHECK-DAG:                      InvokeStaticOrDirect [<<Obj>>{{(,[ij]\d+)?}}] method_name:DerivedWithFinalField.<init>
 
   /// CHECK-START: double Main.constructDerivedWithFinalField() inliner (after)
+  /// CHECK:                          ConstructorFence
   /// CHECK-NOT:                      InvokeStaticOrDirect
   /// CHECK-NOT:                      ConstructorFence
   /// CHECK-NOT:                      InstanceFieldSet
@@ -927,6 +951,7 @@ public class Main {
   /// CHECK-START: double Main.constructDerivedWithFinalField(int) inliner (after)
   /// CHECK-DAG:  <<Value:i\d+>>      ParameterValue
   /// CHECK-DAG:  <<Obj:l\d+>>        NewInstance
+  /// CHECK-DAG:                      ConstructorFence
   /// CHECK-DAG:                      InstanceFieldSet [<<Obj>>,<<Value>>]
   /// CHECK-DAG:                      ConstructorFence
 
@@ -946,6 +971,7 @@ public class Main {
   /// CHECK-DAG:                      InvokeStaticOrDirect [<<Obj>>,<<Value>>{{(,[ij]\d+)?}}] method_name:DerivedWithFinalField.<init>
 
   /// CHECK-START: double Main.constructDerivedWithFinalFieldWith0() inliner (after)
+  /// CHECK:                          ConstructorFence
   /// CHECK-NOT:                      InvokeStaticOrDirect
   /// CHECK-NOT:                      ConstructorFence
   /// CHECK-NOT:                      InstanceFieldSet
@@ -967,6 +993,7 @@ public class Main {
   /// CHECK-START: double Main.constructDerivedWithFinalField(double) inliner (after)
   /// CHECK-DAG:  <<Value:d\d+>>      ParameterValue
   /// CHECK-DAG:  <<Obj:l\d+>>        NewInstance
+  /// CHECK-DAG:                      ConstructorFence
   /// CHECK-DAG:                      InstanceFieldSet [<<Obj>>,<<Value>>]
   /// CHECK-DAG:                      ConstructorFence
 
@@ -986,6 +1013,7 @@ public class Main {
   /// CHECK-DAG:                      InvokeStaticOrDirect [<<Obj>>,<<Value>>{{(,[ij]\d+)?}}] method_name:DerivedWithFinalField.<init>
 
   /// CHECK-START: double Main.constructDerivedWithFinalFieldWith0d() inliner (after)
+  /// CHECK:                          ConstructorFence
   /// CHECK-NOT:                      InvokeStaticOrDirect
   /// CHECK-NOT:                      ConstructorFence
   /// CHECK-NOT:                      InstanceFieldSet
@@ -1008,6 +1036,7 @@ public class Main {
   /// CHECK-START: double Main.constructDerivedWithFinalField(int, double) inliner (after)
   /// CHECK-DAG:  <<Value:d\d+>>      ParameterValue
   /// CHECK-DAG:  <<Obj:l\d+>>        NewInstance
+  /// CHECK-DAG:                      ConstructorFence
   /// CHECK-DAG:                      InstanceFieldSet [<<Obj>>,<<Value>>]
   /// CHECK-DAG:                      ConstructorFence
 
@@ -1017,6 +1046,7 @@ public class Main {
   /// CHECK-NOT:                      InstanceFieldSet
 
   /// CHECK-START: double Main.constructDerivedWithFinalField(int, double) inliner (after)
+  /// CHECK-DAG:                      ConstructorFence
   /// CHECK-DAG:                      ConstructorFence
   /// CHECK-NOT:                      ConstructorFence
 
@@ -1033,6 +1063,7 @@ public class Main {
   /// CHECK-DAG:                      InvokeStaticOrDirect [<<Obj>>,<<IValue>>,<<DValue>>{{(,[ij]\d+)?}}] method_name:DerivedWithFinalField.<init>
 
   /// CHECK-START: double Main.constructDerivedWithFinalFieldWith0And0d() inliner (after)
+  /// CHECK:                          ConstructorFence
   /// CHECK-NOT:                      InvokeStaticOrDirect
   /// CHECK-NOT:                      ConstructorFence
   /// CHECK-NOT:                      InstanceFieldSet
@@ -1048,6 +1079,7 @@ public class Main {
   /// CHECK-DAG:                      InvokeStaticOrDirect [<<Obj>>{{(,[ij]\d+)?}}] method_name:DerivedInSecondDex.<init>
 
   /// CHECK-START: int Main.constructDerivedInSecondDex() inliner (after)
+  /// CHECK:                          ConstructorFence
   /// CHECK-NOT:                      InvokeStaticOrDirect
   /// CHECK-NOT:                      ConstructorFence
   /// CHECK-NOT:                      InstanceFieldSet
@@ -1070,6 +1102,7 @@ public class Main {
   /// CHECK-DAG:                      InvokeStaticOrDirect [<<Obj>>,<<Value>>{{(,[ij]\d+)?}}] method_name:DerivedInSecondDex.<init>
 
   /// CHECK-START: int Main.constructDerivedInSecondDex(int) inliner (after)
+  /// CHECK:                          ConstructorFence
   /// CHECK-NOT:                      ConstructorFence
   /// CHECK-NOT:                      InstanceFieldSet
 
@@ -1091,6 +1124,7 @@ public class Main {
   /// CHECK-DAG:                      InvokeStaticOrDirect [<<Obj>>,<<Value>>{{(,[ij]\d+)?}}] method_name:DerivedInSecondDex.<init>
 
   /// CHECK-START: int Main.constructDerivedInSecondDexWith0() inliner (after)
+  /// CHECK:                          ConstructorFence
   /// CHECK-NOT:                      ConstructorFence
   /// CHECK-NOT:                      InstanceFieldSet
 
@@ -1106,6 +1140,7 @@ public class Main {
   /// CHECK-DAG:                      InvokeStaticOrDirect [<<Obj>>,<<Value>>{{(,[ij]\d+)?}}] method_name:DerivedInSecondDex.<init>
 
   /// CHECK-START: int Main.constructDerivedInSecondDex(long) inliner (after)
+  /// CHECK:                          ConstructorFence
   /// CHECK-NOT:                      InvokeStaticOrDirect
   /// CHECK-NOT:                      ConstructorFence
   /// CHECK-NOT:                      InstanceFieldSet

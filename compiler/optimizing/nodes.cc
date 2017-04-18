@@ -1234,6 +1234,20 @@ void HConstructorFence::RemoveConstructorFences(HInstruction* instruction) {
   }
 }
 
+HInstruction* HConstructorFence::GetAssociatedAllocation() {
+  HInstruction* new_instance_inst = GetPrevious();
+  // Check if the immediately preceding instruction is a new-instance/new-array.
+  // Otherwise this fence is for protecting final fields.
+  if (new_instance_inst != nullptr &&
+      (new_instance_inst->IsNewInstance() || new_instance_inst->IsNewArray())) {
+    // TODO: Need to update this code to handle multiple inputs.
+    DCHECK_EQ(InputCount(), 1u);
+    return new_instance_inst;
+  } else {
+    return nullptr;
+  }
+}
+
 #define DEFINE_ACCEPT(name, super)                                             \
 void H##name::Accept(HGraphVisitor* visitor) {                                 \
   visitor->Visit##name(this);                                                  \
