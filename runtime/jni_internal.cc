@@ -2277,7 +2277,8 @@ class JNI {
         // TODO: make this a hard register error in the future.
       }
 
-      m->RegisterNative(fnPtr, is_fast);
+      const void* final_function_ptr = m->RegisterNative(fnPtr, is_fast);
+      UNUSED(final_function_ptr);
     }
     return JNI_OK;
   }
