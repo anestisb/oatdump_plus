@@ -794,6 +794,7 @@ public class Main {
             ValueHolder valueHolder = new ValueHolder();
             MethodHandles.Lookup lookup = MethodHandles.lookup();
             MethodHandle h0 = lookup.findSetter(ValueHolder.class, "m_f", float.class);
+            MethodHandle s0 = lookup.findSetter(ValueHolder.class, "m_s", short.class);
             h0.invoke(valueHolder, 0.22f);
             h0.invoke(valueHolder, new Float(1.11f));
             Number floatNumber = getFloatAsNumber();
@@ -806,6 +807,11 @@ public class Main {
               h0.invoke(valueHolder, (Float)null);
               unreachable();
             } catch (NullPointerException e) {}
+
+            // Test that type conversion checks work on small field types.
+            short temp = (short)s0.invoke(valueHolder, new Byte((byte)45));
+            assertTrue(temp == 0);
+            assertTrue(valueHolder.m_s == 45);
 
             h0.invoke(valueHolder, (byte)1);
             h0.invoke(valueHolder, (short)2);
@@ -848,6 +854,7 @@ public class Main {
 
         private static void testStaticSetter() throws Throwable {
             MethodHandles.Lookup lookup = MethodHandles.lookup();
+            MethodHandle s0 = lookup.findStaticSetter(ValueHolder.class, "s_s", short.class);
             MethodHandle h0 = lookup.findStaticSetter(ValueHolder.class, "s_f", float.class);
             h0.invoke(0.22f);
             h0.invoke(new Float(1.11f));
@@ -859,6 +866,11 @@ public class Main {
               h0.invoke((Float)null);
               unreachable();
             } catch (NullPointerException e) {}
+
+            // Test that type conversion checks work on small field types.
+            short temp = (short)s0.invoke(new Byte((byte)45));
+            assertTrue(temp == 0);
+            assertTrue(ValueHolder.s_s == 45);
 
             h0.invoke((byte)1);
             h0.invoke((short)2);
