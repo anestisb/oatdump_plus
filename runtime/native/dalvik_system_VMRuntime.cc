@@ -252,7 +252,7 @@ static void VMRuntime_trimHeap(JNIEnv* env, jobject) {
 }
 
 static void VMRuntime_concurrentGC(JNIEnv* env, jobject) {
-  Runtime::Current()->GetHeap()->ConcurrentGC(ThreadForEnv(env), true);
+  Runtime::Current()->GetHeap()->ConcurrentGC(ThreadForEnv(env), gc::kGcCauseBackground, true);
 }
 
 static void VMRuntime_requestHeapTrim(JNIEnv* env, jobject) {
@@ -260,7 +260,9 @@ static void VMRuntime_requestHeapTrim(JNIEnv* env, jobject) {
 }
 
 static void VMRuntime_requestConcurrentGC(JNIEnv* env, jobject) {
-  Runtime::Current()->GetHeap()->RequestConcurrentGC(ThreadForEnv(env), true);
+  Runtime::Current()->GetHeap()->RequestConcurrentGC(ThreadForEnv(env),
+                                                     gc::kGcCauseBackground,
+                                                     true);
 }
 
 static void VMRuntime_startHeapTaskProcessor(JNIEnv* env, jobject) {

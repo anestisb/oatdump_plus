@@ -3686,20 +3686,21 @@ void Heap::RequestConcurrentGCAndSaveObject(Thread* self,
                                             ObjPtr<mirror::Object>* obj) {
   StackHandleScope<1> hs(self);
   HandleWrapperObjPtr<mirror::Object> wrapper(hs.NewHandleWrapper(obj));
-  RequestConcurrentGC(self, force_full);
+  RequestConcurrentGC(self, kGcCauseBackground, force_full);
 }
 
 class Heap::ConcurrentGCTask : public HeapTask {
  public:
-  ConcurrentGCTask(uint64_t target_time, bool force_full)
-      : HeapTask(target_time), force_full_(force_full) { }
+  ConcurrentGCTask(uint64_t target_time, GcCause cause, bool force_full)
+      : HeapTask(target_time), cause_(cause), force_full_(force_full) {}
   virtual void Run(Thread* self) OVERRIDE {
     gc::Heap* heap = Runtime::Current()->GetHeap();
-    heap->ConcurrentGC(self, force_full_);
+    heap->ConcurrentGC(self, cause_, force_full_);
     heap->ClearConcurrentGCRequest();
   }
 
  private:
+  const GcCause cause_;
   const bool force_full_;  // If true, force full (or partial) collection.
 };
 
@@ -3713,18 +3714,19 @@ void Heap::ClearConcurrentGCRequest() {
   concurrent_gc_pending_.StoreRelaxed(false);
 }
 
-void Heap::RequestConcurrentGC(Thread* self, bool force_full) {
+void Heap::RequestConcurrentGC(Thread* self, GcCause cause, bool force_full) {
   if (CanAddHeapTask(self) &&
       concurrent_gc_pending_.CompareExchangeStrongSequentiallyConsistent(false, true)) {
     task_processor_->AddTask(self, new ConcurrentGCTask(NanoTime(),  // Start straight away.
+                                                        cause,
                                                         force_full));
   }
 }
 
-void Heap::ConcurrentGC(Thread* self, bool force_full) {
+void Heap::ConcurrentGC(Thread* self, GcCause cause, bool force_full) {
   if (!Runtime::Current()->IsShuttingDown(self)) {
     // Wait for any GCs currently running to finish.
-    if (WaitForGcToComplete(kGcCauseBackground, self) == collector::kGcTypeNone) {
+    if (WaitForGcToComplete(cause, self) == collector::kGcTypeNone) {
       // If the we can't run the GC type we wanted to run, find the next appropriate one and try that
       // instead. E.g. can't do partial, so do full instead.
       collector::GcType next_gc_type = next_gc_type_;
@@ -3732,13 +3734,11 @@ void Heap::ConcurrentGC(Thread* self, bool force_full) {
       if (force_full && next_gc_type == collector::kGcTypeSticky) {
         next_gc_type = NonStickyGcType();
       }
-      if (CollectGarbageInternal(next_gc_type, kGcCauseBackground, false) ==
-          collector::kGcTypeNone) {
+      if (CollectGarbageInternal(next_gc_type, cause, false) == collector::kGcTypeNone) {
         for (collector::GcType gc_type : gc_plan_) {
           // Attempt to run the collector, if we succeed, we are done.
           if (gc_type > next_gc_type &&
-              CollectGarbageInternal(gc_type, kGcCauseBackground, false) !=
-                  collector::kGcTypeNone) {
+              CollectGarbageInternal(gc_type, cause, false) != collector::kGcTypeNone) {
             break;
           }
         }
@@ -3940,7 +3940,7 @@ void Heap::RegisterNativeAllocation(JNIEnv* env, size_t bytes) {
     // Trigger another GC because there have been enough native bytes
     // allocated since the last GC.
     if (IsGcConcurrent()) {
-      RequestConcurrentGC(ThreadForEnv(env), /*force_full*/true);
+      RequestConcurrentGC(ThreadForEnv(env), kGcCauseForNativeAllocBackground, /*force_full*/true);
     } else {
       CollectGarbageInternal(NonStickyGcType(), kGcCauseForNativeAlloc, false);
     }
