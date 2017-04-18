@@ -1418,14 +1418,18 @@ void Redefiner::ClassRedefinition::RestoreObsoleteMethodMapsIfUnneeded(
   art::mirror::Class* klass = GetMirrorClass();
   art::mirror::ClassExt* ext = klass->GetExtData();
   art::mirror::PointerArray* methods = ext->GetObsoleteMethods();
-  int32_t old_length =
-      cur_data->GetOldDexCaches() == nullptr ? 0 : cur_data->GetOldDexCaches()->GetLength();
+  art::mirror::PointerArray* old_methods = cur_data->GetOldObsoleteMethods();
+  int32_t old_length = old_methods == nullptr ? 0 : old_methods->GetLength();
   int32_t expected_length =
       old_length + klass->NumDirectMethods() + klass->NumDeclaredVirtualMethods();
   // Check to make sure we are only undoing this one.
   if (expected_length == methods->GetLength()) {
-    for (int32_t i = old_length; i < expected_length; i++) {
-      if (methods->GetElementPtrSize<art::ArtMethod*>(i, art::kRuntimePointerSize) != nullptr) {
+    for (int32_t i = 0; i < expected_length; i++) {
+      art::ArtMethod* expected = nullptr;
+      if (i < old_length) {
+        expected = old_methods->GetElementPtrSize<art::ArtMethod*>(i, art::kRuntimePointerSize);
+      }
+      if (methods->GetElementPtrSize<art::ArtMethod*>(i, art::kRuntimePointerSize) != expected) {
         // We actually have some new obsolete methods. Just abort since we cannot safely shrink the
         // obsolete methods array.
         return;
