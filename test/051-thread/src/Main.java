@@ -15,6 +15,9 @@
  */
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
 
 /**
  * Test some basic thread stuff.
@@ -28,6 +31,8 @@ public class Main {
         testSleepZero();
         testSetName();
         testThreadPriorities();
+        testMainThreadGroup();
+        testMainThreadAllStackTraces();
         System.out.println("thread test done");
     }
 
@@ -157,6 +162,49 @@ public class Main {
         }
 
         System.out.print("testThreadPriorities finished\n");
+    }
+
+    private static void testMainThreadGroup() {
+      Thread threads[] = new Thread[10];
+      Thread current = Thread.currentThread();
+      current.getThreadGroup().enumerate(threads);
+
+      for (Thread t : threads) {
+        if (t == current) {
+          System.out.println("Found current Thread in ThreadGroup");
+          return;
+        }
+      }
+      throw new RuntimeException("Did not find main thread: " + Arrays.toString(threads));
+    }
+
+    private static void testMainThreadAllStackTraces() {
+      StackTraceElement[] trace = Thread.getAllStackTraces().get(Thread.currentThread());
+      if (trace == null) {
+        throw new RuntimeException("Did not find main thread: " + Thread.getAllStackTraces());
+      }
+      List<StackTraceElement> list = Arrays.asList(trace);
+      Iterator<StackTraceElement> it = list.iterator();
+      while (it.hasNext()) {
+        StackTraceElement ste = it.next();
+        if (ste.getClassName().equals("Main")) {
+          if (!ste.getMethodName().equals("testMainThreadAllStackTraces")) {
+            throw new RuntimeException(list.toString());
+          }
+
+          StackTraceElement ste2 = it.next();
+          if (!ste2.getClassName().equals("Main")) {
+            throw new RuntimeException(list.toString());
+          }
+          if (!ste2.getMethodName().equals("main")) {
+            throw new RuntimeException(list.toString());
+          }
+
+          System.out.println("Found expected stack in getAllStackTraces()");
+          return;
+        }
+      }
+      throw new RuntimeException(list.toString());
     }
 
     private static native int getNativePriority();

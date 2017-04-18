@@ -1928,6 +1928,23 @@ void Thread::FinishStartup() {
   Thread::Current()->AssertNoPendingException();
 
   Runtime::Current()->GetClassLinker()->RunRootClinits();
+
+  // The thread counts as started from now on. We need to add it to the ThreadGroup. For regular
+  // threads, this is done in Thread.start() on the Java side.
+  {
+    // This is only ever done once. There's no benefit in caching the method.
+    jmethodID thread_group_add = soa.Env()->GetMethodID(WellKnownClasses::java_lang_ThreadGroup,
+                                                        "add",
+                                                        "(Ljava/lang/Thread;)V");
+    CHECK(thread_group_add != nullptr);
+    ScopedLocalRef<jobject> thread_jobject(
+        soa.Env(), soa.Env()->AddLocalReference<jobject>(Thread::Current()->GetPeer()));
+    soa.Env()->CallNonvirtualVoidMethod(runtime->GetMainThreadGroup(),
+                                        WellKnownClasses::java_lang_ThreadGroup,
+                                        thread_group_add,
+                                        thread_jobject.get());
+    Thread::Current()->AssertNoPendingException();
+  }
 }
 
 void Thread::Shutdown() {
