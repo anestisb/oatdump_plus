@@ -609,12 +609,5 @@
         ],
         "bug": "b/37239009",
         "variant": "jvmti-stress"
-    },
-    {
-        "tests": "160-read-barrier-stress",
-        "description": ["Disable 160-read-barrier-stress temporarily until we find ",
-                        "a fix to avoid the OOME with Jack. Note that it cannot be compiled ",
-                        "by javac either ('error: code too large')"],
-        "bug": "http://b/37335480"
     }
 ]
