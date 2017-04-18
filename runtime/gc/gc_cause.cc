@@ -29,6 +29,7 @@ const char* PrettyCause(GcCause cause) {
     case kGcCauseBackground: return "Background";
     case kGcCauseExplicit: return "Explicit";
     case kGcCauseForNativeAlloc: return "NativeAlloc";
+    case kGcCauseForNativeAllocBackground: return "NativeAllocBackground";
     case kGcCauseCollectorTransition: return "CollectorTransition";
     case kGcCauseDisableMovingGc: return "DisableMovingGc";
     case kGcCauseHomogeneousSpaceCompact: return "HomogeneousSpaceCompact";
