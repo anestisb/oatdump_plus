@@ -2453,7 +2453,7 @@ void Dbg::ResumeThread(JDWP::ObjectId thread_id) {
   bool needs_resume;
   {
     MutexLock mu2(soa.Self(), *Locks::thread_suspend_count_lock_);
-    needs_resume = thread->GetSuspendCount() > 0;
+    needs_resume = thread->GetDebugSuspendCount() > 0;
   }
   if (needs_resume) {
     Runtime::Current()->GetThreadList()->Resume(thread, true);
