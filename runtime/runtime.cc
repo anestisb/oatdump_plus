@@ -1722,6 +1722,7 @@ void Runtime::VisitConstantRoots(RootVisitor* visitor) {
   mirror::MethodHandlesLookup::VisitRoots(visitor);
   mirror::EmulatedStackFrame::VisitRoots(visitor);
   mirror::ClassExt::VisitRoots(visitor);
+  mirror::CallSite::VisitRoots(visitor);
   // Visit all the primitive array types classes.
   mirror::PrimitiveArray<uint8_t>::VisitRoots(visitor);   // BooleanArray
   mirror::PrimitiveArray<int8_t>::VisitRoots(visitor);    // ByteArray
