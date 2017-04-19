@@ -108,11 +108,12 @@ static bool SafeVerifyClassClass(mirror::Class* cls) REQUIRES_SHARED(Locks::muta
 
 #else
 
-static mirror::Class* SafeGetDeclaringClass(ArtMethod* method_obj) {
+static mirror::Class* SafeGetDeclaringClass(ArtMethod* method_obj)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   return method_obj->GetDeclaringClassUnchecked<kWithoutReadBarrier>();
 }
 
-static bool SafeVerifyClassClass(ArtClass* cls) {
+static bool SafeVerifyClassClass(mirror::Class* cls) REQUIRES_SHARED(Locks::mutator_lock_) {
   return VerifyClassClass(cls);
 }
 #endif
