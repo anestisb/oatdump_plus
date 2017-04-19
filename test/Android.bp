@@ -261,6 +261,7 @@ art_cc_defaults {
         "908-gc-start-finish/gc_callbacks.cc",
         "910-methods/methods.cc",
         "911-get-stack-trace/stack_trace.cc",
+        "912-classes/classes.cc",
         "913-heaps/heaps.cc",
         "918-fields/fields.cc",
         "920-objects/objects.cc",
@@ -295,7 +296,7 @@ art_cc_defaults {
         // make this list smaller.
         "901-hello-ti-agent/basics.cc",
         "909-attach-agent/attach.cc",
-        "912-classes/classes.cc",
+        "912-classes/classes_art.cc",
         "936-search-onload/search_onload.cc",
         "983-source-transform-verify/source_transform.cc",
     ],

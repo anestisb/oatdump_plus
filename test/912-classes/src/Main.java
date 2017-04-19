@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+package art;
+
 import java.lang.ref.Reference;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Proxy;
@@ -21,9 +23,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 
-public class Main {
-  public static void main(String[] args) throws Exception {
-    art.Main.bindAgentJNIForClass(Main.class);
+public class Test912 {
+  public static void run() throws Exception {
+    art.Main.bindAgentJNIForClass(Test912.class);
     doTest();
   }
 
@@ -89,18 +91,19 @@ public class Main {
 
     System.out.println();
 
-    testClassEvents();
-  }
-
-  private static Class<?> proxyClass = null;
-
-  private static Class<?> getProxyClass() throws Exception {
-    if (proxyClass != null) {
-      return proxyClass;
-    }
-
-    proxyClass = Proxy.getProxyClass(Main.class.getClassLoader(), new Class[] { Runnable.class });
-    return proxyClass;
+    // Use a dedicated thread to have a well-defined current thread.
+    Thread classEventsThread = new Thread("ClassEvents") {
+      @Override
+      public void run() {
+        try {
+          testClassEvents();
+        } catch (Exception e) {
+          throw new RuntimeException(e);
+        }
+      }
+    };
+    classEventsThread.start();
+    classEventsThread.join();
   }
 
   private static void testClass(String className) throws Exception {
@@ -166,34 +169,34 @@ public class Main {
   }
 
   private static void testClassLoaderClasses() throws Exception {
-    ClassLoader boot = ClassLoader.getSystemClassLoader().getParent();
-    while (boot.getParent() != null) {
-      boot = boot.getParent();
-    }
-
     System.out.println();
-    System.out.println("boot <- src <- src-ex (A,B)");
-    ClassLoader cl1 = create(create(boot, DEX1), DEX2);
+    System.out.println("boot <- (B) <- (A,C)");
+    ClassLoader cl1 = DexData.create2(DexData.create1());
     Class.forName("B", false, cl1);
     Class.forName("A", false, cl1);
     printClassLoaderClasses(cl1);
 
     System.out.println();
-    System.out.println("boot <- src (B) <- src-ex (A, List)");
-    ClassLoader cl2 = create(create(boot, DEX1), DEX2);
+    System.out.println("boot <- (B) <- (A, List)");
+    ClassLoader cl2 = DexData.create2(DexData.create1());
     Class.forName("A", false, cl2);
     Class.forName("java.util.List", false, cl2);
     Class.forName("B", false, cl2.getParent());
     printClassLoaderClasses(cl2);
 
     System.out.println();
-    System.out.println("boot <- src+src-ex (A,B)");
-    ClassLoader cl3 = create(boot, DEX1, DEX2);
+    System.out.println("boot <- 1+2 (A,B)");
+    ClassLoader cl3 = DexData.create12();
     Class.forName("B", false, cl3);
     Class.forName("A", false, cl3);
     printClassLoaderClasses(cl3);
 
     // Check that the boot classloader dumps something non-empty.
+    ClassLoader boot = ClassLoader.getSystemClassLoader().getParent();
+    while (boot.getParent() != null) {
+      boot = boot.getParent();
+    }
+
     Class<?>[] bootClasses = getClassLoaderClasses(boot);
     if (bootClasses.length == 0) {
       throw new RuntimeException("No classes initiated by boot classloader.");
@@ -236,9 +239,10 @@ public class Main {
       @Override
       public void run() {
         try {
-          ClassLoader cl6 = create(boot, DEX1, DEX2);
+          ClassLoader cl6 = DexData.create12();
           System.out.println("C, true");
           Class.forName("C", true, cl6);
+          printClassLoadMessages();
         } catch (Exception e) {
           throw new RuntimeException(e);
         }
@@ -249,77 +253,60 @@ public class Main {
     dummyThread.start();
     dummyThread.join();
 
-    ensureJitCompiled(Main.class, "testClassEvents");
+    enableClassLoadPreparePrintEvents(true, Thread.currentThread());
 
-    enableClassLoadPreparePrintEvents(true);
-
-    ClassLoader cl1 = create(boot, DEX1, DEX2);
+    ClassLoader cl1 = DexData.create12();
     System.out.println("B, false");
     Class.forName("B", false, cl1);
+    printClassLoadMessages();
 
-    ClassLoader cl2 = create(boot, DEX1, DEX2);
+    ClassLoader cl2 = DexData.create12();
     System.out.println("B, true");
     Class.forName("B", true, cl2);
+    printClassLoadMessages();
 
-    ClassLoader cl3 = create(boot, DEX1, DEX2);
+    ClassLoader cl3 = DexData.create12();
     System.out.println("C, false");
     Class.forName("C", false, cl3);
+    printClassLoadMessages();
     System.out.println("A, false");
     Class.forName("A", false, cl3);
+    printClassLoadMessages();
 
-    ClassLoader cl4 = create(boot, DEX1, DEX2);
+    ClassLoader cl4 = DexData.create12();
     System.out.println("C, true");
     Class.forName("C", true, cl4);
+    printClassLoadMessages();
     System.out.println("A, true");
     Class.forName("A", true, cl4);
+    printClassLoadMessages();
 
-    ClassLoader cl5 = create(boot, DEX1, DEX2);
+    ClassLoader cl5 = DexData.create12();
     System.out.println("A, true");
     Class.forName("A", true, cl5);
+    printClassLoadMessages();
     System.out.println("C, true");
     Class.forName("C", true, cl5);
+    printClassLoadMessages();
+
+    enableClassLoadPreparePrintEvents(false, null);
 
     Thread t = new Thread(r, "TestRunner");
+    enableClassLoadPreparePrintEvents(true, t);
     t.start();
     t.join();
+    enableClassLoadPreparePrintEvents(false, null);
+
+    enableClassLoadPreparePrintEvents(true, Thread.currentThread());
 
     // Check creation of arrays and proxies.
-    Proxy.getProxyClass(Main.class.getClassLoader(), new Class[] { Comparable.class });
-    Class.forName("[LMain;");
+    Proxy.getProxyClass(Main.class.getClassLoader(), new Class[] { Comparable.class, I0.class });
+    Class.forName("[Lart.Test912;");
+    printClassLoadMessages();
 
-    enableClassLoadPreparePrintEvents(false);
-
-    // Note: the JIT part of this test is about the JIT pulling in a class not yet touched by
-    //       anything else in the system. This could be the verifier or the interpreter. We
-    //       block the interpreter by calling ensureJitCompiled. The verifier, however, must
-    //       run in configurations where dex2oat didn't verify the class itself. So explicitly
-    //       check whether the class has been already loaded, and skip then.
-    // TODO: Add multiple configurations to the run script once that becomes easier to do.
-    if (hasJit() && !isLoadedClass("Main$ClassD")) {
-      testClassEventsJit();
-    }
+    enableClassLoadPreparePrintEvents(false, null);
 
     testClassLoadPrepareEquality();
-  }
-
-  private static void testClassEventsJit() throws Exception {
-    enableClassLoadSeenEvents(true);
-
-    testClassEventsJitImpl();
-
-    enableClassLoadSeenEvents(false);
-
-    if (!hadLoadEvent()) {
-      throw new RuntimeException("Did not get expected load event.");
-    }
-  }
-
-  private static void testClassEventsJitImpl() throws Exception {
-    ensureJitCompiled(Main.class, "testClassEventsJitImpl");
-
-    if (ClassD.x != 1) {
-      throw new RuntimeException("Unexpected value");
-    }
   }
 
   private static void testClassLoadPrepareEquality() throws Exception {
@@ -327,7 +314,7 @@ public class Main {
 
     enableClassLoadPrepareEqualityEvents(true);
 
-    Class.forName("Main$ClassE");
+    Class.forName("art.Test912$ClassE");
 
     enableClassLoadPrepareEqualityEvents(false);
   }
@@ -338,39 +325,17 @@ public class Main {
         break;
       }
 
-      ClassLoader saved = cl;
-      for (;;) {
-        if (cl == null || !cl.getClass().getName().startsWith("dalvik.system")) {
-          break;
-        }
-        String s = cl.toString();
-        int index1 = s.indexOf("zip file");
-        int index2 = s.indexOf(']', index1);
-        if (index2 < 0) {
-          throw new RuntimeException("Unexpected classloader " + s);
-        }
-        String zip_file = s.substring(index1, index2);
-        int index3 = zip_file.indexOf('"');
-        int index4 = zip_file.indexOf('"', index3 + 1);
-        if (index4 < 0) {
-          throw new RuntimeException("Unexpected classloader " + s);
-        }
-        String paths = zip_file.substring(index3 + 1, index4);
-        String pathArray[] = paths.split(":");
-        for (String path : pathArray) {
-          int index5 = path.lastIndexOf('/');
-          System.out.print(path.substring(index5 + 1));
-          System.out.print('+');
-        }
-        System.out.print(" -> ");
-        cl = cl.getParent();
-      }
-      System.out.println();
-      Class<?> classes[] = getClassLoaderClasses(saved);
+      Class<?> classes[] = getClassLoaderClasses(cl);
       Arrays.sort(classes, new ClassNameComparator());
       System.out.println(Arrays.toString(classes));
 
-      cl = saved.getParent();
+      cl = cl.getParent();
+    }
+  }
+
+  private static void printClassLoadMessages() {
+    for (String s : getClassLoadMessages()) {
+      System.out.println(s);
     }
   }
 
@@ -394,14 +359,8 @@ public class Main {
 
   private static native int[] getClassVersion(Class<?> c);
 
-  private static native void enableClassLoadPreparePrintEvents(boolean b);
-
-  private static native void ensureJitCompiled(Class<?> c, String name);
-
-  private static native boolean hasJit();
-  private static native boolean isLoadedClass(String name);
-  private static native void enableClassLoadSeenEvents(boolean b);
-  private static native boolean hadLoadEvent();
+  private static native void enableClassLoadPreparePrintEvents(boolean b, Thread filter);
+  private static native String[] getClassLoadMessages();
 
   private static native void setEqualityEventStorageClass(Class<?> c);
   private static native void enableClassLoadPrepareEqualityEvents(boolean b);
@@ -428,10 +387,6 @@ public class Main {
   public abstract static class ClassC implements InfA, InfC {
   }
 
-  public static class ClassD {
-    static int x = 1;
-  }
-
   public static class ClassE {
     public void foo() {
     }
@@ -444,22 +399,56 @@ public class Main {
     public static Reference<Object> WEAK = null;
   }
 
-  private static final String DEX1 = System.getenv("DEX_LOCATION") + "/912-classes.jar";
-  private static final String DEX2 = System.getenv("DEX_LOCATION") + "/912-classes-ex.jar";
-
-  private static ClassLoader create(ClassLoader parent, String... elements) throws Exception {
-    // Note: We use a PathClassLoader, as we do not care about code performance. We only load
-    //       the classes, and they're empty.
-    Class<?> pathClassLoaderClass = Class.forName("dalvik.system.PathClassLoader");
-    Constructor<?> pathClassLoaderInit = pathClassLoaderClass.getConstructor(String.class,
-                                                                             ClassLoader.class);
-    String path = String.join(":", elements);
-    return (ClassLoader) pathClassLoaderInit.newInstance(path, parent);
-  }
-
   private static class ClassNameComparator implements Comparator<Class<?>> {
     public int compare(Class<?> c1, Class<?> c2) {
       return c1.getName().compareTo(c2.getName());
     }
+  }
+
+  // See run-test 910 for an explanation.
+
+  private static Class<?> proxyClass = null;
+
+  private static Class<?> getProxyClass() throws Exception {
+    if (proxyClass != null) {
+      return proxyClass;
+    }
+
+    for (int i = 1; i <= 21; i++) {
+      proxyClass = createProxyClass(i);
+      String name = proxyClass.getName();
+      if (name.equals("$Proxy20")) {
+        return proxyClass;
+      }
+    }
+    return proxyClass;
+  }
+
+  private static Class<?> createProxyClass(int i) throws Exception {
+    int count = Integer.bitCount(i);
+    Class<?>[] input = new Class<?>[count + 1];
+    input[0] = Runnable.class;
+    int inputIndex = 1;
+    int bitIndex = 0;
+    while (i != 0) {
+        if ((i & 1) != 0) {
+            input[inputIndex++] = Class.forName("art.Test912$I" + bitIndex);
+        }
+        i >>>= 1;
+        bitIndex++;
+    }
+    return Proxy.getProxyClass(Test912.class.getClassLoader(), input);
+  }
+
+  // Need this for the proxy naming.
+  public static interface I0 {
+  }
+  public static interface I1 {
+  }
+  public static interface I2 {
+  }
+  public static interface I3 {
+  }
+  public static interface I4 {
   }
 }
