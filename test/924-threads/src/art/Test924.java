@@ -25,16 +25,34 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class Test924 {
   public static void run() throws Exception {
     Main.bindAgentJNIForClass(Test924.class);
-    doTest();
+
+    // Run the test on its own thread, so we have a known state for the "current" thread.
+    Thread t = new Thread("TestThread") {
+      @Override
+      public void run() {
+        try {
+          doTest();
+        } catch (Exception e) {
+          throw new RuntimeException(e);
+        }
+      }
+    };
+    t.start();
+    t.join();
   }
 
   private static void doTest() throws Exception {
     Thread t1 = Thread.currentThread();
     Thread t2 = getCurrentThread();
+
+    // Need to adjust priority, as on-device this may be unexpected (and we prefer not
+    // to special-case this.)
+    t1.setPriority(5);
 
     if (t1 != t2) {
       throw new RuntimeException("Expected " + t1 + " but got " + t2);
@@ -188,7 +206,32 @@ public class Test924 {
     }
 
     Collections.sort(threadList, THREAD_COMP);
-    System.out.println(threadList);
+
+    List<Thread> expectedList = new ArrayList<>();
+    Set<Thread> threadsFromTraces = Thread.getAllStackTraces().keySet();
+
+    expectedList.add(findThreadByName(threadsFromTraces, "FinalizerDaemon"));
+    expectedList.add(findThreadByName(threadsFromTraces, "FinalizerWatchdogDaemon"));
+    expectedList.add(findThreadByName(threadsFromTraces, "HeapTaskDaemon"));
+    expectedList.add(findThreadByName(threadsFromTraces, "ReferenceQueueDaemon"));
+    // We can't get the signal catcher through getAllStackTraces. So ignore it.
+    // expectedList.add(findThreadByName(threadsFromTraces, "Signal Catcher"));
+    expectedList.add(findThreadByName(threadsFromTraces, "TestThread"));
+    expectedList.add(findThreadByName(threadsFromTraces, "main"));
+
+    if (!threadList.containsAll(expectedList)) {
+      throw new RuntimeException("Expected " + expectedList + " as subset, got " + threadList);
+    }
+    System.out.println(expectedList);
+  }
+
+  private static Thread findThreadByName(Set<Thread> threads, String name) {
+    for (Thread t : threads) {
+        if (t.getName().equals(name)) {
+            return t;
+        }
+    }
+    throw new RuntimeException("Did not find thread " + name + ": " + threads);
   }
 
   private static void doTLSTests() throws Exception {
@@ -256,13 +299,35 @@ public class Test924 {
   private static void doTestEvents() throws Exception {
     enableThreadEvents(true);
 
-    Thread t = new Thread("EventTestThread");
+    final CountDownLatch cdl1 = new CountDownLatch(1);
+    final CountDownLatch cdl2 = new CountDownLatch(1);
+
+    Runnable r = new Runnable() {
+      @Override
+      public void run() {
+        try {
+          cdl1.countDown();
+          cdl2.await();
+        } catch (Exception e) {
+          throw new RuntimeException(e);
+        }
+      }
+    };
+    Thread t = new Thread(r, "EventTestThread");
 
     System.out.println("Constructed thread");
     Thread.yield();
+    Thread.sleep(100);
+    System.out.println(Arrays.toString(getThreadEventMessages()));
 
     t.start();
+    cdl1.await();
+
+    System.out.println(Arrays.toString(getThreadEventMessages()));
+
+    cdl2.countDown();
     t.join();
+    System.out.println(Arrays.toString(getThreadEventMessages()));
 
     System.out.println("Thread joined");
 
@@ -337,4 +402,5 @@ public class Test924 {
   private static native void setTLS(Thread t, long l);
   private static native long getTLS(Thread t);
   private static native void enableThreadEvents(boolean b);
+  private static native String[] getThreadEventMessages();
 }
