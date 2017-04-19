@@ -1451,7 +1451,8 @@ void Thread::RequestSynchronousCheckpoint(Closure* function) {
       MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
 
       DCHECK_NE(GetState(), ThreadState::kRunnable);
-      CHECK(ModifySuspendCount(self, -1, nullptr, false));
+      bool updated = ModifySuspendCount(self, -1, nullptr, false);
+      DCHECK(updated);
     }
 
     return;  // We're done, break out of the loop.
