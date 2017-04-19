@@ -18,6 +18,7 @@
 #define ART_RUNTIME_GC_SPACE_REGION_SPACE_INL_H_
 
 #include "region_space.h"
+#include "thread-inl.h"
 
 namespace art {
 namespace gc {
@@ -334,6 +335,28 @@ mirror::Object* RegionSpace::AllocLarge(size_t num_bytes, size_t* bytes_allocate
   }
   return nullptr;
 }
+
+inline size_t RegionSpace::Region::BytesAllocated() const {
+  if (IsLarge()) {
+    DCHECK_LT(begin_ + kRegionSize, Top());
+    return static_cast<size_t>(Top() - begin_);
+  } else if (IsLargeTail()) {
+    DCHECK_EQ(begin_, Top());
+    return 0;
+  } else {
+    DCHECK(IsAllocated()) << static_cast<uint>(state_);
+    DCHECK_LE(begin_, Top());
+    size_t bytes;
+    if (is_a_tlab_) {
+      bytes = thread_->GetThreadLocalBytesAllocated();
+    } else {
+      bytes = static_cast<size_t>(Top() - begin_);
+    }
+    DCHECK_LE(bytes, kRegionSize);
+    return bytes;
+  }
+}
+
 
 }  // namespace space
 }  // namespace gc

@@ -3468,11 +3468,13 @@ void Thread::SetStackEndForStackOverflow() {
   }
 }
 
-void Thread::SetTlab(uint8_t* start, uint8_t* end) {
+void Thread::SetTlab(uint8_t* start, uint8_t* end, uint8_t* limit) {
   DCHECK_LE(start, end);
+  DCHECK_LE(end, limit);
   tlsPtr_.thread_local_start = start;
   tlsPtr_.thread_local_pos  = tlsPtr_.thread_local_start;
   tlsPtr_.thread_local_end = end;
+  tlsPtr_.thread_local_limit = limit;
   tlsPtr_.thread_local_objects = 0;
 }
 
