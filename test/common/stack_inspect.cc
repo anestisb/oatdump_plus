@@ -144,22 +144,11 @@ extern "C" JNIEXPORT void JNICALL Java_Main_assertIsInterpreted(JNIEnv* env, jcl
   }
 }
 
-static jboolean IsManaged(JNIEnv* env, jclass cls, size_t level) {
+static jboolean IsManaged(JNIEnv* env, jclass, size_t level) {
   ScopedObjectAccess soa(env);
-
-  ObjPtr<mirror::Class> klass = soa.Decode<mirror::Class>(cls);
-  const DexFile& dex_file = klass->GetDexFile();
-  const OatFile::OatDexFile* oat_dex_file = dex_file.GetOatDexFile();
-  if (oat_dex_file == nullptr) {
-    // No oat file, this must be a test configuration that doesn't compile at all. Ignore that the
-    // result will be that we're running the interpreter.
-    return JNI_FALSE;
-  }
-
   NthCallerVisitor caller(soa.Self(), level, false);
   caller.WalkStack();
   CHECK(caller.caller != nullptr);
-
   return caller.GetCurrentShadowFrame() != nullptr ? JNI_FALSE : JNI_TRUE;
 }
 
