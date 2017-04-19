@@ -43,6 +43,7 @@
 #include "mirror/object-inl.h"
 #include "mirror/string.h"
 #include "oat_file-inl.h"
+#include "runtime_callbacks.h"
 #include "scoped_thread_state_change-inl.h"
 #include "well_known_classes.h"
 
@@ -372,20 +373,25 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
   self->PopManagedStackFragment(fragment);
 }
 
-void ArtMethod::RegisterNative(const void* native_method, bool is_fast) {
+const void* ArtMethod::RegisterNative(const void* native_method, bool is_fast) {
   CHECK(IsNative()) << PrettyMethod();
   CHECK(!IsFastNative()) << PrettyMethod();
   CHECK(native_method != nullptr) << PrettyMethod();
   if (is_fast) {
     AddAccessFlags(kAccFastNative);
   }
-  SetEntryPointFromJni(native_method);
+  void* new_native_method = nullptr;
+  Runtime::Current()->GetRuntimeCallbacks()->RegisterNativeMethod(this,
+                                                                  native_method,
+                                                                  /*out*/&new_native_method);
+  SetEntryPointFromJni(new_native_method);
+  return new_native_method;
 }
 
 void ArtMethod::UnregisterNative() {
   CHECK(IsNative() && !IsFastNative()) << PrettyMethod();
   // restore stub to lookup native pointer via dlsym
-  RegisterNative(GetJniDlsymLookupStub(), false);
+  SetEntryPointFromJni(GetJniDlsymLookupStub());
 }
 
 bool ArtMethod::IsOverridableByDefaultMethod() {

@@ -37,8 +37,13 @@
 
 namespace openjdkjvmti {
 
+class EventHandler;
+
 class MethodUtil {
  public:
+  static void Register(EventHandler* event_handler);
+  static void Unregister();
+
   static jvmtiError GetArgumentsSize(jvmtiEnv* env, jmethodID method, jint* size_ptr);
 
   static jvmtiError GetMaxLocals(jvmtiEnv* env, jmethodID method, jint* max_ptr);

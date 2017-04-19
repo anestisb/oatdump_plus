@@ -1,0 +1,8 @@
+private static native void art.Test986$Transform.sayHi() = Java_art_Test986_00024Transform_sayHi -> Java_art_Test986_00024Transform_sayHi
+Hello
+private static native void art.Test986$Transform.sayHi() = Java_art_Test986_00024Transform_sayHi -> NoReallySayGoodbye
+Bye
+public static native void art.Main.bindAgentJNI(java.lang.String,java.lang.ClassLoader) = Java_art_Main_bindAgentJNI -> Java_art_Main_bindAgentJNI
+public static native void art.Main.bindAgentJNIForClass(java.lang.Class) = Java_art_Main_bindAgentJNIForClass -> Java_art_Main_bindAgentJNIForClass
+private static native void art.Test986.setNativeBindNotify(boolean) = Java_art_Test986_setNativeBindNotify -> Java_art_Test986_setNativeBindNotify
+private static native void art.Test986.setupNativeBindNotify() = Java_art_Test986_setupNativeBindNotify -> Java_art_Test986_setupNativeBindNotify
