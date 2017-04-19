@@ -897,7 +897,6 @@ class RaceGenerateTask : public Task {
     const OatFile* oat_file = nullptr;
     dex_files = Runtime::Current()->GetOatFileManager().OpenDexFilesFromOat(
         dex_location_.c_str(),
-        oat_location_.c_str(),
         /*class_loader*/nullptr,
         /*dex_elements*/nullptr,
         &oat_file,
