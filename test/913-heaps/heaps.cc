@@ -137,9 +137,9 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test913_followReferences(
       if (reference_kind == JVMTI_HEAP_REFERENCE_JNI_GLOBAL && class_tag == 0) {
         return 0;
       }
-      // Ignore classes (1000-1002@0) for thread objects. These can be held by the JIT.
+      // Ignore classes (1000 <= tag < 3000) for thread objects. These can be held by the JIT.
       if (reference_kind == JVMTI_HEAP_REFERENCE_THREAD && class_tag == 0 &&
-              (1000 <= *tag_ptr &&  *tag_ptr <= 1002)) {
+              (1000 <= *tag_ptr &&  *tag_ptr < 3000)) {
         return 0;
       }
       // Ignore stack-locals of untagged threads. That is the environment.
