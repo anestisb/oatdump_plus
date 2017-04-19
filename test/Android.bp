@@ -275,6 +275,7 @@ art_cc_defaults {
         "933-misc-events/misc_events.cc",
         "945-obsolete-native/obsolete_native.cc",
         "984-obsolete-invoke/obsolete_invoke.cc",
+        "986-native-method-bind/native_bind.cc",
     ],
     shared_libs: [
         "libbase",
