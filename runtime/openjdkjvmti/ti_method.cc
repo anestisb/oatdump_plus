@@ -35,13 +35,58 @@
 #include "art_method-inl.h"
 #include "base/enums.h"
 #include "dex_file_annotations.h"
+#include "events-inl.h"
 #include "jni_internal.h"
 #include "mirror/object_array-inl.h"
 #include "modifiers.h"
+#include "runtime_callbacks.h"
 #include "scoped_thread_state_change-inl.h"
+#include "ScopedLocalRef.h"
 #include "thread-inl.h"
+#include "thread_list.h"
 
 namespace openjdkjvmti {
+
+struct TiMethodCallback : public art::MethodCallback {
+  void RegisterNativeMethod(art::ArtMethod* method,
+                            const void* cur_method,
+                            /*out*/void** new_method)
+      OVERRIDE REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    if (event_handler->IsEventEnabledAnywhere(ArtJvmtiEvent::kNativeMethodBind)) {
+      art::Thread* thread = art::Thread::Current();
+      ScopedLocalRef<jthread> thread_jni(
+          thread->GetJniEnv(), thread->GetJniEnv()->AddLocalReference<jthread>(thread->GetPeer()));
+      art::ScopedThreadSuspension sts(thread, art::ThreadState::kNative);
+      event_handler->DispatchEvent<ArtJvmtiEvent::kNativeMethodBind>(
+          thread,
+          static_cast<JNIEnv*>(thread->GetJniEnv()),
+          thread_jni.get(),
+          art::jni::EncodeArtMethod(method),
+          const_cast<void*>(cur_method),
+          new_method);
+    }
+  }
+
+  EventHandler* event_handler = nullptr;
+};
+
+TiMethodCallback gMethodCallback;
+
+void MethodUtil::Register(EventHandler* handler) {
+  gMethodCallback.event_handler = handler;
+  art::ScopedThreadStateChange stsc(art::Thread::Current(),
+                                    art::ThreadState::kWaitingForDebuggerToAttach);
+  art::ScopedSuspendAll ssa("Add method callback");
+  art::Runtime::Current()->GetRuntimeCallbacks()->AddMethodCallback(&gMethodCallback);
+}
+
+void MethodUtil::Unregister() {
+  art::ScopedThreadStateChange stsc(art::Thread::Current(),
+                                    art::ThreadState::kWaitingForDebuggerToAttach);
+  art::ScopedSuspendAll ssa("Remove method callback");
+  art::Runtime* runtime = art::Runtime::Current();
+  runtime->GetRuntimeCallbacks()->RemoveMethodCallback(&gMethodCallback);
+}
 
 jvmtiError MethodUtil::GetArgumentsSize(jvmtiEnv* env ATTRIBUTE_UNUSED,
                                         jmethodID method,

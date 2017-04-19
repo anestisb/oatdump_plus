@@ -31,8 +31,10 @@ class Class;
 class ClassLoader;
 }  // namespace mirror
 
+class ArtMethod;
 class ClassLoadCallback;
 class Thread;
+class MethodCallback;
 class ThreadLifecycleCallback;
 
 // Note: RuntimeCallbacks uses the mutator lock to synchronize the callback lists. A thread must
@@ -110,6 +112,14 @@ class RuntimeCallbacks {
                       /*out*/DexFile::ClassDef const** final_class_def)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  void AddMethodCallback(MethodCallback* cb) REQUIRES(Locks::mutator_lock_);
+  void RemoveMethodCallback(MethodCallback* cb) REQUIRES(Locks::mutator_lock_);
+
+  void RegisterNativeMethod(ArtMethod* method,
+                            const void* original_implementation,
+                            /*out*/void** new_implementation)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
  private:
   std::vector<ThreadLifecycleCallback*> thread_callbacks_
       GUARDED_BY(Locks::mutator_lock_);
@@ -118,7 +128,9 @@ class RuntimeCallbacks {
   std::vector<RuntimeSigQuitCallback*> sigquit_callbacks_
       GUARDED_BY(Locks::mutator_lock_);
   std::vector<RuntimePhaseCallback*> phase_callbacks_
-        GUARDED_BY(Locks::mutator_lock_);
+      GUARDED_BY(Locks::mutator_lock_);
+  std::vector<MethodCallback*> method_callbacks_
+      GUARDED_BY(Locks::mutator_lock_);
 };
 
 }  // namespace art
