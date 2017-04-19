@@ -62,13 +62,15 @@ class HLoopOptimization : public HOptimization {
    * Vectorization restrictions (bit mask).
    */
   enum VectorRestrictions {
-    kNone     = 0,   // no restrictions
-    kNoMul    = 1,   // no multiplication
-    kNoDiv    = 2,   // no division
-    kNoShift  = 4,   // no shift
-    kNoShr    = 8,   // no arithmetic shift right
-    kNoHiBits = 16,  // "wider" operations cannot bring in higher order bits
-    kNoAbs    = 32,  // no absolute value
+    kNone            = 0,    // no restrictions
+    kNoMul           = 1,    // no multiplication
+    kNoDiv           = 2,    // no division
+    kNoShift         = 4,    // no shift
+    kNoShr           = 8,    // no arithmetic shift right
+    kNoHiBits        = 16,   // "wider" operations cannot bring in higher order bits
+    kNoSignedHAdd    = 32,   // no signed halving add
+    kNoUnroundedHAdd = 64,   // no unrounded halving add
+    kNoAbs           = 128,  // no absolute value
   };
 
   /*
@@ -135,6 +137,13 @@ class HLoopOptimization : public HOptimization {
                       HInstruction* opb,
                       Primitive::Type type);
   void GenerateVecOp(HInstruction* org, HInstruction* opa, HInstruction* opb, Primitive::Type type);
+
+  // Vectorization idioms.
+  bool VectorizeHalvingAddIdiom(LoopNode* node,
+                                HInstruction* instruction,
+                                bool generate_code,
+                                Primitive::Type type,
+                                uint64_t restrictions);
 
   // Helpers.
   bool TrySetPhiInduction(HPhi* phi, bool restrict_uses);
