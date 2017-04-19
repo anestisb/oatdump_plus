@@ -907,8 +907,17 @@ bool DoInvokePolymorphicFieldAccess(Thread* self,
     case mirror::MethodHandle::kInstancePut: {
       size_t obj_reg = is_range ? first_arg : args[0];
       size_t value_reg = is_range ? (first_arg + 1) : args[1];
-      JValue value = GetValueFromShadowFrame(shadow_frame, field_type, value_reg);
-      if (do_conversions && !ConvertArgumentValue(callsite_type, handle_type, 1, &value)) {
+      const size_t kPTypeIndex = 1;
+      // Use ptypes instead of field type since we may be unboxing a reference for a primitive
+      // field. The field type is incorrect for this case.
+      JValue value = GetValueFromShadowFrame(
+          shadow_frame,
+          callsite_type->GetPTypes()->Get(kPTypeIndex)->GetPrimitiveType(),
+          value_reg);
+      if (do_conversions && !ConvertArgumentValue(callsite_type,
+                                                  handle_type,
+                                                  kPTypeIndex,
+                                                  &value)) {
         DCHECK(self->IsExceptionPending());
         return false;
       }
@@ -922,8 +931,17 @@ bool DoInvokePolymorphicFieldAccess(Thread* self,
         return false;
       }
       size_t value_reg = is_range ? first_arg : args[0];
-      JValue value = GetValueFromShadowFrame(shadow_frame, field_type, value_reg);
-      if (do_conversions && !ConvertArgumentValue(callsite_type, handle_type, 0, &value)) {
+      const size_t kPTypeIndex = 0;
+      // Use ptypes instead of field type since we may be unboxing a reference for a primitive
+      // field. The field type is incorrect for this case.
+      JValue value = GetValueFromShadowFrame(
+          shadow_frame,
+          callsite_type->GetPTypes()->Get(kPTypeIndex)->GetPrimitiveType(),
+          value_reg);
+      if (do_conversions && !ConvertArgumentValue(callsite_type,
+                                                  handle_type,
+                                                  kPTypeIndex,
+                                                  &value)) {
         DCHECK(self->IsExceptionPending());
         return false;
       }
