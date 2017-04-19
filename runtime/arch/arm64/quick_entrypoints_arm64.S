@@ -2649,7 +2649,8 @@ READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg29, w29, x29
      *
      * For field accesses and array loads with a constant index the thunk loads
      * the reference into IP0 using introspection and calls the main entrypoint,
-     * art_quick_read_barrier_mark_introspection.
+     * art_quick_read_barrier_mark_introspection. With heap poisoning enabled,
+     * the passed reference is poisoned.
      *
      * For array accesses with non-constant index, the thunk inserts the bits
      * 16-21 of the LDR instruction to the entrypoint address, effectively
@@ -2663,6 +2664,7 @@ READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg29, w29, x29
      *
      * For GC root accesses we cannot use the main entrypoint because of the
      * different offset where the LDR instruction in generated code is located.
+     * (And even with heap poisoning enabled, GC roots are not poisoned.)
      * To re-use the same entrypoint pointer in generated code, we make sure
      * that the gc root entrypoint (a copy of the entrypoint with a different
      * offset for introspection loads) is located at a known offset (768 bytes,
@@ -2686,6 +2688,8 @@ READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg29, w29, x29
     .balign 512
 ENTRY art_quick_read_barrier_mark_introspection
     // At this point, IP0 contains the reference, IP1 can be freely used.
+    // For heap poisoning, the reference is poisoned, so unpoison it first.
+    UNPOISON_HEAP_REF wIP0
     // If reference is null, just return it in the right register.
     cbz   wIP0, .Lmark_introspection_return
     // Use wIP1 as temp and check the mark bit of the reference.
