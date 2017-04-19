@@ -2425,7 +2425,9 @@ JDWP::JdwpError Dbg::SuspendThread(JDWP::ObjectId thread_id, bool request_suspen
   // Suspend thread to build stack trace.
   bool timed_out;
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
-  Thread* thread = thread_list->SuspendThreadByPeer(peer.get(), request_suspension, true,
+  Thread* thread = thread_list->SuspendThreadByPeer(peer.get(),
+                                                    request_suspension,
+                                                    /* debug_suspension */ true,
                                                     &timed_out);
   if (thread != nullptr) {
     return JDWP::ERR_NONE;
@@ -3669,7 +3671,10 @@ class ScopedDebuggerThreadSuspension {
           jobject thread_peer = Dbg::GetObjectRegistry()->GetJObject(thread_id);
           bool timed_out;
           ThreadList* const thread_list = Runtime::Current()->GetThreadList();
-          suspended_thread = thread_list->SuspendThreadByPeer(thread_peer, true, true, &timed_out);
+          suspended_thread = thread_list->SuspendThreadByPeer(thread_peer,
+                                                              /* request_suspension */ true,
+                                                              /* debug_suspension */ true,
+                                                              &timed_out);
         }
         if (suspended_thread == nullptr) {
           // Thread terminated from under us while suspending.
