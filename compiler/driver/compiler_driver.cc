@@ -2181,6 +2181,10 @@ class VerifyClassVisitor : public CompilationVisitor {
       CHECK(klass->ShouldVerifyAtRuntime() || klass->IsVerified() || klass->IsErroneous())
           << klass->PrettyDescriptor() << ": state=" << klass->GetStatus();
 
+      // Class has a meaningful status for the compiler now, record it.
+      ClassReference ref(manager_->GetDexFile(), class_def_index);
+      manager_->GetCompiler()->RecordClassStatus(ref, klass->GetStatus());
+
       // It is *very* problematic if there are verification errors in the boot classpath. For example,
       // we rely on things working OK without verification when the decryption dialog is brought up.
       // So abort in a debug build if we find this violated.
