@@ -124,6 +124,14 @@ void InstructionCodeGeneratorMIPS64::VisitVecAdd(HVecAdd* instruction) {
   LOG(FATAL) << "No SIMD for " << instruction->GetId();
 }
 
+void LocationsBuilderMIPS64::VisitVecHalvingAdd(HVecHalvingAdd* instruction) {
+  CreateVecBinOpLocations(GetGraph()->GetArena(), instruction);
+}
+
+void InstructionCodeGeneratorMIPS64::VisitVecHalvingAdd(HVecHalvingAdd* instruction) {
+  LOG(FATAL) << "No SIMD for " << instruction->GetId();
+}
+
 void LocationsBuilderMIPS64::VisitVecSub(HVecSub* instruction) {
   CreateVecBinOpLocations(GetGraph()->GetArena(), instruction);
 }
@@ -145,6 +153,22 @@ void LocationsBuilderMIPS64::VisitVecDiv(HVecDiv* instruction) {
 }
 
 void InstructionCodeGeneratorMIPS64::VisitVecDiv(HVecDiv* instruction) {
+  LOG(FATAL) << "No SIMD for " << instruction->GetId();
+}
+
+void LocationsBuilderMIPS64::VisitVecMin(HVecMin* instruction) {
+  CreateVecBinOpLocations(GetGraph()->GetArena(), instruction);
+}
+
+void InstructionCodeGeneratorMIPS64::VisitVecMin(HVecMin* instruction) {
+  LOG(FATAL) << "No SIMD for " << instruction->GetId();
+}
+
+void LocationsBuilderMIPS64::VisitVecMax(HVecMax* instruction) {
+  CreateVecBinOpLocations(GetGraph()->GetArena(), instruction);
+}
+
+void InstructionCodeGeneratorMIPS64::VisitVecMax(HVecMax* instruction) {
   LOG(FATAL) << "No SIMD for " << instruction->GetId();
 }
 

@@ -124,6 +124,14 @@ void InstructionCodeGeneratorARMVIXL::VisitVecAdd(HVecAdd* instruction) {
   LOG(FATAL) << "No SIMD for " << instruction->GetId();
 }
 
+void LocationsBuilderARMVIXL::VisitVecHalvingAdd(HVecHalvingAdd* instruction) {
+  CreateVecBinOpLocations(GetGraph()->GetArena(), instruction);
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitVecHalvingAdd(HVecHalvingAdd* instruction) {
+  LOG(FATAL) << "No SIMD for " << instruction->GetId();
+}
+
 void LocationsBuilderARMVIXL::VisitVecSub(HVecSub* instruction) {
   CreateVecBinOpLocations(GetGraph()->GetArena(), instruction);
 }
@@ -145,6 +153,22 @@ void LocationsBuilderARMVIXL::VisitVecDiv(HVecDiv* instruction) {
 }
 
 void InstructionCodeGeneratorARMVIXL::VisitVecDiv(HVecDiv* instruction) {
+  LOG(FATAL) << "No SIMD for " << instruction->GetId();
+}
+
+void LocationsBuilderARMVIXL::VisitVecMin(HVecMin* instruction) {
+  CreateVecBinOpLocations(GetGraph()->GetArena(), instruction);
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitVecMin(HVecMin* instruction) {
+  LOG(FATAL) << "No SIMD for " << instruction->GetId();
+}
+
+void LocationsBuilderARMVIXL::VisitVecMax(HVecMax* instruction) {
+  CreateVecBinOpLocations(GetGraph()->GetArena(), instruction);
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitVecMax(HVecMax* instruction) {
   LOG(FATAL) << "No SIMD for " << instruction->GetId();
 }
 
