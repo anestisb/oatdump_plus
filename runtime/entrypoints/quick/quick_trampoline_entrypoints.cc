@@ -2025,9 +2025,9 @@ void BuildGenericJniFrameVisitor::FinalizeHandleScope(Thread* self) {
 }
 
 #if defined(__arm__) || defined(__aarch64__)
-extern "C" void* artFindNativeMethod();
+extern "C" const void* artFindNativeMethod();
 #else
-extern "C" void* artFindNativeMethod(Thread* self);
+extern "C" const void* artFindNativeMethod(Thread* self);
 #endif
 
 static uint64_t artQuickGenericJniEndJNIRef(Thread* self,
@@ -2126,7 +2126,7 @@ extern "C" TwoWordReturn artQuickGenericJniTrampoline(Thread* self, ArtMethod** 
   }
 
   // Retrieve the stored native code.
-  void* nativeCode = called->GetEntryPointFromJni();
+  void const* nativeCode = called->GetEntryPointFromJni();
 
   // There are two cases for the content of nativeCode:
   // 1) Pointer to the native function.

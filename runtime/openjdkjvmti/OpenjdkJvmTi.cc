@@ -1556,6 +1556,7 @@ extern "C" bool ArtPlugin_Initialize() {
   ThreadUtil::Register(&gEventHandler);
   ClassUtil::Register(&gEventHandler);
   DumpUtil::Register(&gEventHandler);
+  MethodUtil::Register(&gEventHandler);
   SearchUtil::Register();
   HeapUtil::Register();
 
@@ -1569,6 +1570,7 @@ extern "C" bool ArtPlugin_Deinitialize() {
   ThreadUtil::Unregister();
   ClassUtil::Unregister();
   DumpUtil::Unregister();
+  MethodUtil::Unregister();
   SearchUtil::Unregister();
   HeapUtil::Unregister();
 
