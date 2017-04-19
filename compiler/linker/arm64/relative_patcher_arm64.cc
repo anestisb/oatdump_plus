@@ -383,9 +383,14 @@ static void EmitGrayCheckAndFastPath(arm64::Arm64Assembler& assembler,
   static_assert(ReadBarrier::WhiteState() == 0, "Expecting white to have value 0");
   static_assert(ReadBarrier::GrayState() == 1, "Expecting gray to have value 1");
   __ Tbnz(ip0.W(), LockWord::kReadBarrierStateShift, slow_path);
-  static_assert(BAKER_MARK_INTROSPECTION_FIELD_LDR_OFFSET == -4, "Check field LDR offset");
-  static_assert(BAKER_MARK_INTROSPECTION_ARRAY_LDR_OFFSET == -4, "Check array LDR offset");
-  __ Sub(lr, lr, 4);  // Adjust the return address one instruction back to the LDR.
+  static_assert(
+      BAKER_MARK_INTROSPECTION_ARRAY_LDR_OFFSET == BAKER_MARK_INTROSPECTION_FIELD_LDR_OFFSET,
+      "Field and array LDR offsets must be the same to reuse the same code.");
+  // Adjust the return address back to the LDR (1 instruction; 2 for heap poisoning).
+  static_assert(BAKER_MARK_INTROSPECTION_FIELD_LDR_OFFSET == (kPoisonHeapReferences ? -8 : -4),
+                "Field LDR must be 1 instruction (4B) before the return address label; "
+                " 2 instructions (8B) for heap poisoning.");
+  __ Add(lr, lr, BAKER_MARK_INTROSPECTION_FIELD_LDR_OFFSET);
   // Introduce a dependency on the lock_word including rb_state,
   // to prevent load-load reordering, and without using
   // a memory barrier (which would be more expensive).
@@ -431,8 +436,9 @@ std::vector<uint8_t> Arm64RelativePatcher::CompileThunk(const ThunkKey& key) {
       __ Bind(&slow_path);
       MemOperand ldr_address(lr, BAKER_MARK_INTROSPECTION_FIELD_LDR_OFFSET);
       __ Ldr(ip0.W(), ldr_address);         // Load the LDR (immediate) unsigned offset.
-      __ Ubfx(ip0, ip0, 10, 12);            // Extract the offset.
+      __ Ubfx(ip0.W(), ip0.W(), 10, 12);    // Extract the offset.
       __ Ldr(ip0.W(), MemOperand(base_reg, ip0, LSL, 2));   // Load the reference.
+      // Do not unpoison. With heap poisoning enabled, the entrypoint expects a poisoned reference.
       __ Br(ip1);                           // Jump to the entrypoint.
       if (holder_reg.Is(base_reg)) {
         // Add null check slow path. The stack map is at the address pointed to by LR.
