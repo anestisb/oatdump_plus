@@ -32,9 +32,17 @@
 #define BAKER_MARK_INTROSPECTION_GC_ROOT_ENTRYPOINT_OFFSET 0x300
 
 // The offset of the reference load LDR from the return address in LR for field loads.
+#ifdef USE_HEAP_POISONING
+#define BAKER_MARK_INTROSPECTION_FIELD_LDR_OFFSET -8
+#else
 #define BAKER_MARK_INTROSPECTION_FIELD_LDR_OFFSET -4
+#endif
 // The offset of the reference load LDR from the return address in LR for array loads.
+#ifdef USE_HEAP_POISONING
+#define BAKER_MARK_INTROSPECTION_ARRAY_LDR_OFFSET -8
+#else
 #define BAKER_MARK_INTROSPECTION_ARRAY_LDR_OFFSET -4
+#endif
 // The offset of the reference load LDR from the return address in LR for GC root loads.
 #define BAKER_MARK_INTROSPECTION_GC_ROOT_LDR_OFFSET -8
 
