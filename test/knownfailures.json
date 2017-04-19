@@ -220,7 +220,6 @@
         "tests": ["604-hot-static-interface",
                   "612-jit-dex-cache",
                   "613-inlining-dex-cache",
-                  "616-cha",
                   "626-set-resolved-string"],
         "variant": "trace  | stream",
         "description": ["These tests expect JIT compilation, which is",
@@ -330,14 +329,8 @@
         "variant": "interpreter | optimizing | regalloc_gc | jit"
     },
     {
-        "tests": ["912-classes",
-                  "616-cha",
-                  "616-cha-abstract",
-                  "616-cha-interface",
-                  "616-cha-interface-default",
-                  "616-cha-miranda",
-                  "616-cha-proxy-method-inline"],
-        "bug": "http://b/36344364 http://b/36344221",
+        "tests": ["912-classes"],
+        "bug": "http://b/36344364",
         "variant": "no-dex2oat | relocate-npatchoat"
     },
     {
