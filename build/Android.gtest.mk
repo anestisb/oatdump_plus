@@ -170,6 +170,12 @@ ART_GTEST_dex2oat_test_TARGET_DEPS := \
 # TODO: document why this is needed.
 ART_GTEST_proxy_test_HOST_DEPS := $(HOST_CORE_IMAGE_DEFAULT_64) $(HOST_CORE_IMAGE_DEFAULT_32)
 
+# The dexdiag test requires the dexdiag utility.
+ART_GTEST_dexdiag_test_HOST_DEPS := \
+  $(HOST_OUT_EXECUTABLES)/dexdiag
+ART_GTEST_dexdiag_test_TARGET_DEPS := \
+  dexdiag
+
 # The dexdump test requires an image and the dexdump utility.
 # TODO: rename into dexdump when migration completes
 ART_GTEST_dexdump_test_HOST_DEPS := \
@@ -241,6 +247,7 @@ ART_TEST_MODULES := \
     art_compiler_tests \
     art_compiler_host_tests \
     art_dex2oat_tests \
+    art_dexdiag_tests \
     art_dexdump_tests \
     art_dexlayout_tests \
     art_dexlist_tests \
