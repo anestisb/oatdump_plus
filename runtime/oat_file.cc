@@ -1497,11 +1497,18 @@ CompilerFilter::Filter OatFile::GetCompilerFilter() const {
 
 static constexpr char kDexClassPathEncodingSeparator = '*';
 
-std::string OatFile::EncodeDexFileDependencies(const std::vector<const DexFile*>& dex_files) {
+std::string OatFile::EncodeDexFileDependencies(const std::vector<const DexFile*>& dex_files,
+                                               std::string& base_dir) {
   std::ostringstream out;
 
   for (const DexFile* dex_file : dex_files) {
-    out << dex_file->GetLocation().c_str();
+    const std::string& location = dex_file->GetLocation();
+    // Find paths that were relative and convert them back from absolute.
+    if (!base_dir.empty() && location.substr(0, base_dir.length()) == base_dir) {
+      out << location.substr(base_dir.length() + 1).c_str();
+    } else {
+      out << dex_file->GetLocation().c_str();
+    }
     out << kDexClassPathEncodingSeparator;
     out << dex_file->GetLocationChecksum();
     out << kDexClassPathEncodingSeparator;
