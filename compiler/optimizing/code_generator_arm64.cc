@@ -90,9 +90,8 @@ static constexpr uint32_t kPackedSwitchCompareJumpThreshold = 7;
 constexpr uint32_t kReferenceLoadMinFarOffset = 16 * KB;
 
 // Flags controlling the use of link-time generated thunks for Baker read barriers.
-// Not yet implemented for heap poisoning.
-constexpr bool kBakerReadBarrierLinkTimeThunksEnableForFields = !kPoisonHeapReferences;
-constexpr bool kBakerReadBarrierLinkTimeThunksEnableForGcRoots = !kPoisonHeapReferences;
+constexpr bool kBakerReadBarrierLinkTimeThunksEnableForFields = true;
+constexpr bool kBakerReadBarrierLinkTimeThunksEnableForGcRoots = true;
 
 // Some instructions have special requirements for a temporary, for example
 // LoadClass/kBssEntry and LoadString/kBssEntry for Baker read barrier require
@@ -3053,6 +3052,11 @@ void InstructionCodeGeneratorARM64::VisitArraySet(HArraySet* instruction) {
 
       if (!index.IsConstant()) {
         __ Add(temp, array, offset);
+      } else {
+        // We no longer need the `temp` here so release it as the store below may
+        // need a scratch register (if the constant index makes the offset too large)
+        // and the poisoned `source` could be using the other scratch register.
+        temps.Release(temp);
       }
       {
         // Ensure that between store and MaybeRecordImplicitNullCheck there are no pools emitted.
@@ -6093,17 +6097,21 @@ void CodeGeneratorARM64::GenerateFieldLoadWithBakerReadBarrier(HInstruction* ins
     const int32_t entry_point_offset =
         CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kArm64PointerSize>(ip0.GetCode());
     __ Ldr(ip1, MemOperand(tr, entry_point_offset));
-    EmissionCheckScope guard(GetVIXLAssembler(), 3 * vixl::aarch64::kInstructionSize);
+    EmissionCheckScope guard(GetVIXLAssembler(),
+                             (kPoisonHeapReferences ? 4u : 3u) * vixl::aarch64::kInstructionSize);
     vixl::aarch64::Label return_address;
     __ adr(lr, &return_address);
     __ Bind(cbnz_label);
     __ cbnz(ip1, static_cast<int64_t>(0));  // Placeholder, patched at link-time.
-    static_assert(BAKER_MARK_INTROSPECTION_FIELD_LDR_OFFSET == -4,
-                  "Field LDR must be 1 instruction (4B) before the return address label.");
-    __ ldr(RegisterFrom(ref, Primitive::kPrimNot), MemOperand(base.X(), offset));
+    static_assert(BAKER_MARK_INTROSPECTION_FIELD_LDR_OFFSET == (kPoisonHeapReferences ? -8 : -4),
+                  "Field LDR must be 1 instruction (4B) before the return address label; "
+                  " 2 instructions (8B) for heap poisoning.");
+    Register ref_reg = RegisterFrom(ref, Primitive::kPrimNot);
+    __ ldr(ref_reg, MemOperand(base.X(), offset));
     if (needs_null_check) {
       MaybeRecordImplicitNullCheck(instruction);
     }
+    GetAssembler()->MaybeUnpoisonHeapReference(ref_reg);
     __ Bind(&return_address);
     return;
   }
