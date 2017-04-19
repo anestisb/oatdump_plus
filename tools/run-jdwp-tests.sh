@@ -51,6 +51,12 @@ host="no"
 # Use JIT compiling by default.
 use_jit=true
 variant_cmdline_parameter="--variant=X32"
+# Timeout of JDWP test in ms.
+#
+# Note: some tests expect a timeout to check that *no* reply/event is received for a specific case.
+# A lower timeout can save up several minutes when running the whole test suite, especially for
+# continuous testing. This value can be adjusted to fit the configuration of the host machine(s).
+jdwp_test_timeout=10000
 
 while true; do
   if [[ "$1" == "--mode=host" ]]; then
@@ -150,6 +156,8 @@ vogar $vm_command \
       $image_compiler_option \
       --timeout 800 \
       --vm-arg -Djpda.settings.verbose=true \
+      --vm-arg -Djpda.settings.timeout=$jdwp_test_timeout \
+      --vm-arg -Djpda.settings.waitingTime=$jdwp_test_timeout \
       --vm-arg -Djpda.settings.transportAddress=127.0.0.1:55107 \
       --vm-arg -Djpda.settings.debuggeeJavaPath="$art_debugee $image $debuggee_args" \
       --classpath $test_jack \
