@@ -2093,6 +2093,199 @@ void IntrinsicCodeGeneratorMIPS64::VisitStringGetCharsNoCheck(HInvoke* invoke) {
   __ Bind(&done);
 }
 
+// static void java.lang.System.arraycopy(Object src, int srcPos,
+//                                        Object dest, int destPos,
+//                                        int length)
+void IntrinsicLocationsBuilderMIPS64::VisitSystemArrayCopyChar(HInvoke* invoke) {
+  HIntConstant* src_pos = invoke->InputAt(1)->AsIntConstant();
+  HIntConstant* dest_pos = invoke->InputAt(3)->AsIntConstant();
+  HIntConstant* length = invoke->InputAt(4)->AsIntConstant();
+
+  // As long as we are checking, we might as well check to see if the src and dest
+  // positions are >= 0.
+  if ((src_pos != nullptr && src_pos->GetValue() < 0) ||
+      (dest_pos != nullptr && dest_pos->GetValue() < 0)) {
+    // We will have to fail anyways.
+    return;
+  }
+
+  // And since we are already checking, check the length too.
+  if (length != nullptr) {
+    int32_t len = length->GetValue();
+    if (len < 0) {
+      // Just call as normal.
+      return;
+    }
+  }
+
+  // Okay, it is safe to generate inline code.
+  LocationSummary* locations =
+      new (arena_) LocationSummary(invoke, LocationSummary::kCallOnSlowPath, kIntrinsified);
+  // arraycopy(Object src, int srcPos, Object dest, int destPos, int length).
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RegisterOrConstant(invoke->InputAt(1)));
+  locations->SetInAt(2, Location::RequiresRegister());
+  locations->SetInAt(3, Location::RegisterOrConstant(invoke->InputAt(3)));
+  locations->SetInAt(4, Location::RegisterOrConstant(invoke->InputAt(4)));
+
+  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
+}
+
+// Utility routine to verify that "length(input) - pos >= length"
+static void EnoughItems(Mips64Assembler* assembler,
+                        GpuRegister length_input_minus_pos,
+                        Location length,
+                        SlowPathCodeMIPS64* slow_path) {
+  if (length.IsConstant()) {
+    int32_t length_constant = length.GetConstant()->AsIntConstant()->GetValue();
+
+    if (IsInt<16>(length_constant)) {
+      __ Slti(TMP, length_input_minus_pos, length_constant);
+      __ Bnezc(TMP, slow_path->GetEntryLabel());
+    } else {
+      __ LoadConst32(TMP, length_constant);
+      __ Bltc(length_input_minus_pos, TMP, slow_path->GetEntryLabel());
+    }
+  } else {
+    __ Bltc(length_input_minus_pos, length.AsRegister<GpuRegister>(), slow_path->GetEntryLabel());
+  }
+}
+
+static void CheckPosition(Mips64Assembler* assembler,
+                          Location pos,
+                          GpuRegister input,
+                          Location length,
+                          SlowPathCodeMIPS64* slow_path,
+                          bool length_is_input_length = false) {
+  // Where is the length in the Array?
+  const uint32_t length_offset = mirror::Array::LengthOffset().Uint32Value();
+
+  // Calculate length(input) - pos.
+  if (pos.IsConstant()) {
+    int32_t pos_const = pos.GetConstant()->AsIntConstant()->GetValue();
+    if (pos_const == 0) {
+      if (!length_is_input_length) {
+        // Check that length(input) >= length.
+        __ LoadFromOffset(kLoadWord, AT, input, length_offset);
+        EnoughItems(assembler, AT, length, slow_path);
+      }
+    } else {
+      // Check that (length(input) - pos) >= zero.
+      __ LoadFromOffset(kLoadWord, AT, input, length_offset);
+      DCHECK_GT(pos_const, 0);
+      __ Addiu32(AT, AT, -pos_const);
+      __ Bltzc(AT, slow_path->GetEntryLabel());
+
+      // Verify that (length(input) - pos) >= length.
+      EnoughItems(assembler, AT, length, slow_path);
+    }
+  } else if (length_is_input_length) {
+    // The only way the copy can succeed is if pos is zero.
+    GpuRegister pos_reg = pos.AsRegister<GpuRegister>();
+    __ Bnezc(pos_reg, slow_path->GetEntryLabel());
+  } else {
+    // Verify that pos >= 0.
+    GpuRegister pos_reg = pos.AsRegister<GpuRegister>();
+    __ Bltzc(pos_reg, slow_path->GetEntryLabel());
+
+    // Check that (length(input) - pos) >= zero.
+    __ LoadFromOffset(kLoadWord, AT, input, length_offset);
+    __ Subu(AT, AT, pos_reg);
+    __ Bltzc(AT, slow_path->GetEntryLabel());
+
+    // Verify that (length(input) - pos) >= length.
+    EnoughItems(assembler, AT, length, slow_path);
+  }
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitSystemArrayCopyChar(HInvoke* invoke) {
+  Mips64Assembler* assembler = GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  GpuRegister src = locations->InAt(0).AsRegister<GpuRegister>();
+  Location src_pos = locations->InAt(1);
+  GpuRegister dest = locations->InAt(2).AsRegister<GpuRegister>();
+  Location dest_pos = locations->InAt(3);
+  Location length = locations->InAt(4);
+
+  Mips64Label loop;
+
+  GpuRegister dest_base = locations->GetTemp(0).AsRegister<GpuRegister>();
+  GpuRegister src_base = locations->GetTemp(1).AsRegister<GpuRegister>();
+  GpuRegister count = locations->GetTemp(2).AsRegister<GpuRegister>();
+
+  SlowPathCodeMIPS64* slow_path = new (GetAllocator()) IntrinsicSlowPathMIPS64(invoke);
+  codegen_->AddSlowPath(slow_path);
+
+  // Bail out if the source and destination are the same (to handle overlap).
+  __ Beqc(src, dest, slow_path->GetEntryLabel());
+
+  // Bail out if the source is null.
+  __ Beqzc(src, slow_path->GetEntryLabel());
+
+  // Bail out if the destination is null.
+  __ Beqzc(dest, slow_path->GetEntryLabel());
+
+  // Load length into register for count.
+  if (length.IsConstant()) {
+    __ LoadConst32(count, length.GetConstant()->AsIntConstant()->GetValue());
+  } else {
+    // If the length is negative, bail out.
+    // We have already checked in the LocationsBuilder for the constant case.
+    __ Bltzc(length.AsRegister<GpuRegister>(), slow_path->GetEntryLabel());
+
+    __ Move(count, length.AsRegister<GpuRegister>());
+  }
+
+  // Validity checks: source.
+  CheckPosition(assembler, src_pos, src, Location::RegisterLocation(count), slow_path);
+
+  // Validity checks: dest.
+  CheckPosition(assembler, dest_pos, dest, Location::RegisterLocation(count), slow_path);
+
+  // If count is zero, we're done.
+  __ Beqzc(count, slow_path->GetExitLabel());
+
+  // Okay, everything checks out.  Finally time to do the copy.
+  // Check assumption that sizeof(Char) is 2 (used in scaling below).
+  const size_t char_size = Primitive::ComponentSize(Primitive::kPrimChar);
+  DCHECK_EQ(char_size, 2u);
+
+  const size_t char_shift = Primitive::ComponentSizeShift(Primitive::kPrimChar);
+
+  const uint32_t data_offset = mirror::Array::DataOffset(char_size).Uint32Value();
+
+  // Calculate source and destination addresses.
+  if (src_pos.IsConstant()) {
+    int32_t src_pos_const = src_pos.GetConstant()->AsIntConstant()->GetValue();
+
+    __ Daddiu64(src_base, src, data_offset + char_size * src_pos_const, TMP);
+  } else {
+    __ Daddiu64(src_base, src, data_offset, TMP);
+    __ Dlsa(src_base, src_pos.AsRegister<GpuRegister>(), src_base, char_shift);
+  }
+  if (dest_pos.IsConstant()) {
+    int32_t dest_pos_const = dest_pos.GetConstant()->AsIntConstant()->GetValue();
+
+    __ Daddiu64(dest_base, dest, data_offset + char_size * dest_pos_const, TMP);
+  } else {
+    __ Daddiu64(dest_base, dest, data_offset, TMP);
+    __ Dlsa(dest_base, dest_pos.AsRegister<GpuRegister>(), dest_base, char_shift);
+  }
+
+  __ Bind(&loop);
+  __ Lh(TMP, src_base, 0);
+  __ Daddiu(src_base, src_base, char_size);
+  __ Daddiu(count, count, -1);
+  __ Sh(TMP, dest_base, 0);
+  __ Daddiu(dest_base, dest_base, char_size);
+  __ Bnezc(count, &loop);
+
+  __ Bind(slow_path->GetExitLabel());
+}
+
 static void GenHighestOneBit(LocationSummary* locations,
                              Primitive::Type type,
                              Mips64Assembler* assembler) {
@@ -2372,7 +2565,6 @@ void IntrinsicCodeGeneratorMIPS64::VisitMathTanh(HInvoke* invoke) {
 }
 
 UNIMPLEMENTED_INTRINSIC(MIPS64, ReferenceGetReferent)
-UNIMPLEMENTED_INTRINSIC(MIPS64, SystemArrayCopyChar)
 UNIMPLEMENTED_INTRINSIC(MIPS64, SystemArrayCopy)
 
 UNIMPLEMENTED_INTRINSIC(MIPS64, StringStringIndexOf);
