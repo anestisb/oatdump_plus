@@ -338,6 +338,42 @@ class HVecAdd FINAL : public HVecBinaryOperation {
   DISALLOW_COPY_AND_ASSIGN(HVecAdd);
 };
 
+// Performs halving add on every component in the two vectors, viz.
+// rounded [ x1, .. , xn ] hradd [ y1, .. , yn ] = [ (x1 + y1 + 1) >> 1, .. , (xn + yn + 1) >> 1 ]
+// or      [ x1, .. , xn ] hadd  [ y1, .. , yn ] = [ (x1 + y1)     >> 1, .. , (xn + yn )    >> 1 ]
+// for signed operands x, y (sign extension) or unsigned operands x, y (zero extension).
+class HVecHalvingAdd FINAL : public HVecBinaryOperation {
+ public:
+  HVecHalvingAdd(ArenaAllocator* arena,
+                 HInstruction* left,
+                 HInstruction* right,
+                 Primitive::Type packed_type,
+                 size_t vector_length,
+                 bool is_unsigned,
+                 bool is_rounded,
+                 uint32_t dex_pc = kNoDexPc)
+      : HVecBinaryOperation(arena, packed_type, vector_length, dex_pc),
+        is_unsigned_(is_unsigned),
+        is_rounded_(is_rounded) {
+    DCHECK(left->IsVecOperation() && right->IsVecOperation());
+    DCHECK_EQ(left->AsVecOperation()->GetPackedType(), packed_type);
+    DCHECK_EQ(right->AsVecOperation()->GetPackedType(), packed_type);
+    SetRawInputAt(0, left);
+    SetRawInputAt(1, right);
+  }
+
+  bool IsUnsigned() const { return is_unsigned_; }
+  bool IsRounded() const { return is_rounded_; }
+
+  DECLARE_INSTRUCTION(VecHalvingAdd);
+
+ private:
+  bool is_unsigned_;
+  bool is_rounded_;
+
+  DISALLOW_COPY_AND_ASSIGN(HVecHalvingAdd);
+};
+
 // Subtracts every component in the two vectors,
 // viz. [ x1, .. , xn ] - [ y1, .. , yn ] = [ x1 - y1, .. , xn - yn ].
 class HVecSub FINAL : public HVecBinaryOperation {
@@ -402,6 +438,50 @@ class HVecDiv FINAL : public HVecBinaryOperation {
   DECLARE_INSTRUCTION(VecDiv);
  private:
   DISALLOW_COPY_AND_ASSIGN(HVecDiv);
+};
+
+// Takes minimum of every component in the two vectors,
+// viz. MIN( [ x1, .. , xn ] , [ y1, .. , yn ]) = [ min(x1, y1), .. , min(xn, yn) ].
+class HVecMin FINAL : public HVecBinaryOperation {
+ public:
+  HVecMin(ArenaAllocator* arena,
+          HInstruction* left,
+          HInstruction* right,
+          Primitive::Type packed_type,
+          size_t vector_length,
+          uint32_t dex_pc = kNoDexPc)
+      : HVecBinaryOperation(arena, packed_type, vector_length, dex_pc) {
+    DCHECK(left->IsVecOperation() && right->IsVecOperation());
+    DCHECK_EQ(left->AsVecOperation()->GetPackedType(), packed_type);
+    DCHECK_EQ(right->AsVecOperation()->GetPackedType(), packed_type);
+    SetRawInputAt(0, left);
+    SetRawInputAt(1, right);
+  }
+  DECLARE_INSTRUCTION(VecMin);
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HVecMin);
+};
+
+// Takes maximum of every component in the two vectors,
+// viz. MAX( [ x1, .. , xn ] , [ y1, .. , yn ]) = [ max(x1, y1), .. , max(xn, yn) ].
+class HVecMax FINAL : public HVecBinaryOperation {
+ public:
+  HVecMax(ArenaAllocator* arena,
+          HInstruction* left,
+          HInstruction* right,
+          Primitive::Type packed_type,
+          size_t vector_length,
+          uint32_t dex_pc = kNoDexPc)
+      : HVecBinaryOperation(arena, packed_type, vector_length, dex_pc) {
+    DCHECK(left->IsVecOperation() && right->IsVecOperation());
+    DCHECK_EQ(left->AsVecOperation()->GetPackedType(), packed_type);
+    DCHECK_EQ(right->AsVecOperation()->GetPackedType(), packed_type);
+    SetRawInputAt(0, left);
+    SetRawInputAt(1, right);
+  }
+  DECLARE_INSTRUCTION(VecMax);
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HVecMax);
 };
 
 // Bitwise-ands every component in the two vectors,
