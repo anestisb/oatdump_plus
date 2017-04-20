@@ -210,5 +210,11 @@ void InstructionSimplifierArm64Visitor::VisitXor(HXor* instruction) {
   }
 }
 
+void InstructionSimplifierArm64Visitor::VisitVecMul(HVecMul* instruction) {
+  if (TryCombineVecMultiplyAccumulate(instruction, kArm64)) {
+    RecordSimplification();
+  }
+}
+
 }  // namespace arm64
 }  // namespace art
