@@ -95,8 +95,8 @@ static void doJvmtiMethodBind(jvmtiEnv* jvmtienv,
   if (thread == nullptr) {
     info.name = const_cast<char*>("<NULLPTR>");
   } else if (jvmtienv->GetThreadInfo(thread, &info) != JVMTI_ERROR_NONE) {
-    LOG(ERROR) << "Unable to get thread info!";
-    return;
+    LOG(WARNING) << "Unable to get thread info!";
+    info.name = const_cast<char*>("<UNKNOWN THREAD>");
   }
   char *fname, *fsig, *fgen;
   char *cname, *cgen;
@@ -185,7 +185,10 @@ static void JNICALL EnsureVMClassloaderInitializedCB(jvmtiEnv *jvmti_env,
   LOG(INFO) << "manual load & initialization of class java/lang/VMClassLoader!";
   jclass klass = jni_env->FindClass("java/lang/VMClassLoader");
   if (klass == nullptr) {
-    LOG(ERROR) << "Unable to find VMClassLoader class!";
+    // Probably on RI. Clear the exception so we can continue but don't mark vmclassloader as
+    // initialized.
+    LOG(WARNING) << "Unable to find VMClassLoader class!";
+    jni_env->ExceptionClear();
   } else {
     // GetMethodID is spec'd to cause the class to be initialized.
     jni_env->GetMethodID(klass, "hashCode", "()I");

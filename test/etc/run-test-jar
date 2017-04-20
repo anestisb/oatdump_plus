@@ -372,16 +372,18 @@ if [ "$IS_JVMTI_TEST" = "y" ]; then
 fi
 
 if [[ "$JVMTI_STRESS" = "y" ]]; then
-  if [[ "$USE_JVM" = "n" ]]; then
-    plugin=libopenjdkjvmtid.so
-    agent=libtistressd.so
-    if  [[ "$TEST_IS_NDEBUG" = "y" ]]; then
-      agent=libtistress.so
-      plugin=libopenjdkjvmti.so
-    fi
+  plugin=libopenjdkjvmtid.so
+  agent=libtistressd.so
+  if  [[ "$TEST_IS_NDEBUG" = "y" ]]; then
+    agent=libtistress.so
+    plugin=libopenjdkjvmti.so
+  fi
 
-    file_1=$(mktemp --tmpdir=${DEX_LOCATION})
-    file_2=$(mktemp --tmpdir=${DEX_LOCATION})
+  file_1=$(mktemp --tmpdir=${DEX_LOCATION})
+  file_2=$(mktemp --tmpdir=${DEX_LOCATION})
+  if [[ "$USE_JVM" = "y" ]]; then
+    FLAGS="${FLAGS} -agentpath:${ANDROID_HOST_OUT}/nativetest64/${agent}=/bin/false,${file_1},${file_2}"
+  else
     # TODO Remove need for DEXTER_BINARY!
     FLAGS="${FLAGS} -agentpath:${agent}=${DEXTER_BINARY},${file_1},${file_2}"
     if [ "$IS_JVMTI_TEST" = "n" ]; then
