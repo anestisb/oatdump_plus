@@ -389,6 +389,7 @@ cc_defaults {
         "597-deopt-new-string/deopt.cc",
         "626-const-class-linking/clear_dex_cache_types.cc",
         "642-fp-callees/fp_callees.cc",
+        "647-jni-get-field-id/get_field_id.cc",
     ],
     shared_libs: [
         "libbacktrace",
