@@ -84,6 +84,48 @@ static bool DoExtractClassFromData(StressData* data,
   return ReadIntoBuffer(data->out_temp_dex, dex);
 }
 
+static void doJvmtiMethodBind(jvmtiEnv* jvmtienv,
+                              JNIEnv* env,
+                              jthread thread,
+                              jmethodID m,
+                              void* address,
+                              /*out*/void** out_address) {
+  *out_address = address;
+  jvmtiThreadInfo info;
+  if (thread == nullptr) {
+    info.name = const_cast<char*>("<NULLPTR>");
+  } else if (jvmtienv->GetThreadInfo(thread, &info) != JVMTI_ERROR_NONE) {
+    LOG(ERROR) << "Unable to get thread info!";
+    return;
+  }
+  char *fname, *fsig, *fgen;
+  char *cname, *cgen;
+  jclass klass = nullptr;
+  if (jvmtienv->GetMethodDeclaringClass(m, &klass) != JVMTI_ERROR_NONE) {
+    LOG(ERROR) << "Unable to get method declaring class!";
+    return;
+  }
+  if (jvmtienv->GetMethodName(m, &fname, &fsig, &fgen) != JVMTI_ERROR_NONE) {
+    LOG(ERROR) << "Unable to get method name!";
+    env->DeleteLocalRef(klass);
+    return;
+  }
+  if (jvmtienv->GetClassSignature(klass, &cname, &cgen) != JVMTI_ERROR_NONE) {
+    LOG(ERROR) << "Unable to get class name!";
+    env->DeleteLocalRef(klass);
+    return;
+  }
+  LOG(INFO) << "Loading native method \"" << cname << "->" << fname << fsig << "\". Thread is "
+            << info.name;
+  jvmtienv->Deallocate(reinterpret_cast<unsigned char*>(cname));
+  jvmtienv->Deallocate(reinterpret_cast<unsigned char*>(cgen));
+  jvmtienv->Deallocate(reinterpret_cast<unsigned char*>(fname));
+  jvmtienv->Deallocate(reinterpret_cast<unsigned char*>(fsig));
+  jvmtienv->Deallocate(reinterpret_cast<unsigned char*>(fgen));
+  env->DeleteLocalRef(klass);
+  return;
+}
+
 // The hook we are using.
 void JNICALL ClassFileLoadHookSecretNoOp(jvmtiEnv* jvmti,
                                          JNIEnv* jni_env ATTRIBUTE_UNUSED,
@@ -187,9 +229,16 @@ extern "C" JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM* vm,
   jvmtiEventCallbacks cb;
   memset(&cb, 0, sizeof(cb));
   cb.ClassFileLoadHook = ClassFileLoadHookSecretNoOp;
+  cb.NativeMethodBind = doJvmtiMethodBind;
   cb.VMInit = EnsureVMClassloaderInitializedCB;
   if (jvmti->SetEventCallbacks(&cb, sizeof(cb)) != JVMTI_ERROR_NONE) {
     LOG(ERROR) << "Unable to set class file load hook cb!";
+    return 1;
+  }
+  if (jvmti->SetEventNotificationMode(JVMTI_ENABLE,
+                                      JVMTI_EVENT_NATIVE_METHOD_BIND,
+                                      nullptr) != JVMTI_ERROR_NONE) {
+    LOG(ERROR) << "Unable to enable JVMTI_EVENT_NATIVE_METHOD_BIND event!";
     return 1;
   }
   if (jvmti->SetEventNotificationMode(JVMTI_ENABLE,
