@@ -207,9 +207,9 @@ class VerifierDepsTest : public CommonCompilerTest {
     ScopedObjectAccess soa(Thread::Current());
     LoadDexFile(&soa);
     mirror::Class* klass_dst = FindClassByName(dst, &soa);
-    DCHECK(klass_dst != nullptr);
+    DCHECK(klass_dst != nullptr) << dst;
     mirror::Class* klass_src = FindClassByName(src, &soa);
-    DCHECK(klass_src != nullptr);
+    DCHECK(klass_src != nullptr) << src;
     verifier_deps_->AddAssignability(*primary_dex_file_,
                                      klass_dst,
                                      klass_src,
@@ -1534,6 +1534,17 @@ TEST_F(VerifierDepsTest, NotAssignable_InterfaceWithClassInBoot) {
                                          /* is_strict */ true,
                                          /* is_assignable */ false));
   ASSERT_TRUE(HasAssignable("Ljava/lang/Exception;", "LIface;", false));
+}
+
+TEST_F(VerifierDepsTest, Assignable_Arrays) {
+  ASSERT_TRUE(TestAssignabilityRecording(/* dst */ "[LIface;",
+                                         /* src */ "[LMyClassExtendingInterface;",
+                                         /* is_strict */ false,
+                                         /* is_assignable */ true));
+  ASSERT_FALSE(HasAssignable(
+      "LIface;", "LMyClassExtendingInterface;", /* expected_is_assignable */ true));
+  ASSERT_FALSE(HasAssignable(
+      "LIface;", "LMyClassExtendingInterface;", /* expected_is_assignable */ false));
 }
 
 }  // namespace verifier
