@@ -1356,6 +1356,106 @@ void Mips64Assembler::Mod_uD(VectorRegister wd, VectorRegister ws, VectorRegiste
   EmitMsa3R(0x7, 0x3, wt, ws, wd, 0x12);
 }
 
+void Mips64Assembler::Add_aB(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x0, 0x0, wt, ws, wd, 0x10);
+}
+
+void Mips64Assembler::Add_aH(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x0, 0x1, wt, ws, wd, 0x10);
+}
+
+void Mips64Assembler::Add_aW(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x0, 0x2, wt, ws, wd, 0x10);
+}
+
+void Mips64Assembler::Add_aD(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x0, 0x3, wt, ws, wd, 0x10);
+}
+
+void Mips64Assembler::Ave_sB(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x4, 0x0, wt, ws, wd, 0x10);
+}
+
+void Mips64Assembler::Ave_sH(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x4, 0x1, wt, ws, wd, 0x10);
+}
+
+void Mips64Assembler::Ave_sW(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x4, 0x2, wt, ws, wd, 0x10);
+}
+
+void Mips64Assembler::Ave_sD(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x4, 0x3, wt, ws, wd, 0x10);
+}
+
+void Mips64Assembler::Ave_uB(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x5, 0x0, wt, ws, wd, 0x10);
+}
+
+void Mips64Assembler::Ave_uH(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x5, 0x1, wt, ws, wd, 0x10);
+}
+
+void Mips64Assembler::Ave_uW(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x5, 0x2, wt, ws, wd, 0x10);
+}
+
+void Mips64Assembler::Ave_uD(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x5, 0x3, wt, ws, wd, 0x10);
+}
+
+void Mips64Assembler::Aver_sB(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x6, 0x0, wt, ws, wd, 0x10);
+}
+
+void Mips64Assembler::Aver_sH(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x6, 0x1, wt, ws, wd, 0x10);
+}
+
+void Mips64Assembler::Aver_sW(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x6, 0x2, wt, ws, wd, 0x10);
+}
+
+void Mips64Assembler::Aver_sD(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x6, 0x3, wt, ws, wd, 0x10);
+}
+
+void Mips64Assembler::Aver_uB(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x7, 0x0, wt, ws, wd, 0x10);
+}
+
+void Mips64Assembler::Aver_uH(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x7, 0x1, wt, ws, wd, 0x10);
+}
+
+void Mips64Assembler::Aver_uW(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x7, 0x2, wt, ws, wd, 0x10);
+}
+
+void Mips64Assembler::Aver_uD(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x7, 0x3, wt, ws, wd, 0x10);
+}
+
 void Mips64Assembler::FaddW(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
   CHECK(HasMsa());
   EmitMsa3R(0x0, 0x0, wt, ws, wd, 0x1b);
