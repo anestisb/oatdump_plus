@@ -303,10 +303,6 @@ inline void Thread::VerifyStack() {
   }
 }
 
-inline size_t Thread::TlabSize() const {
-  return tlsPtr_.thread_local_end - tlsPtr_.thread_local_pos;
-}
-
 inline mirror::Object* Thread::AllocTlab(size_t bytes) {
   DCHECK_GE(TlabSize(), bytes);
   ++tlsPtr_.thread_local_objects;

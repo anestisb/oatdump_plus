@@ -1034,10 +1034,24 @@ class Thread {
   void ResetQuickAllocEntryPointsForThread(bool is_marking);
 
   // Returns the remaining space in the TLAB.
-  size_t TlabSize() const;
+  size_t TlabSize() const {
+    return tlsPtr_.thread_local_end - tlsPtr_.thread_local_pos;
+  }
+
+  // Returns the remaining space in the TLAB if we were to expand it to maximum capacity.
+  size_t TlabRemainingCapacity() const {
+    return tlsPtr_.thread_local_limit - tlsPtr_.thread_local_pos;
+  }
+
+  // Expand the TLAB by a fixed number of bytes. There must be enough capacity to do so.
+  void ExpandTlab(size_t bytes) {
+    tlsPtr_.thread_local_end += bytes;
+    DCHECK_LE(tlsPtr_.thread_local_end, tlsPtr_.thread_local_limit);
+  }
+
   // Doesn't check that there is room.
   mirror::Object* AllocTlab(size_t bytes);
-  void SetTlab(uint8_t* start, uint8_t* end);
+  void SetTlab(uint8_t* start, uint8_t* end, uint8_t* limit);
   bool HasTlab() const;
   uint8_t* GetTlabStart() {
     return tlsPtr_.thread_local_start;
@@ -1449,6 +1463,7 @@ class Thread {
       frame_id_to_shadow_frame(nullptr), name(nullptr), pthread_self(0),
       last_no_thread_suspension_cause(nullptr), checkpoint_function(nullptr),
       thread_local_start(nullptr), thread_local_pos(nullptr), thread_local_end(nullptr),
+      thread_local_limit(nullptr),
       thread_local_objects(0), mterp_current_ibase(nullptr), mterp_default_ibase(nullptr),
       mterp_alt_ibase(nullptr), thread_local_alloc_stack_top(nullptr),
       thread_local_alloc_stack_end(nullptr),
@@ -1574,6 +1589,10 @@ class Thread {
     // potentially better performance.
     uint8_t* thread_local_pos;
     uint8_t* thread_local_end;
+
+    // Thread local limit is how much we can expand the thread local buffer to, it is greater or
+    // equal to thread_local_end.
+    uint8_t* thread_local_limit;
 
     size_t thread_local_objects;
 

@@ -135,6 +135,13 @@ static constexpr double kExtraHeapGrowthMultiplier = kUseReadBarrier ? 1.0 : 0.0
 
 static const char* kRegionSpaceName = "main space (region space)";
 
+// If true, we log all GCs in the both the foreground and background. Used for debugging.
+static constexpr bool kLogAllGCs = false;
+
+// How much we grow the TLAB if we can do it.
+static constexpr size_t kPartialTlabSize = 16 * KB;
+static constexpr bool kUsePartialTlabs = true;
+
 #if defined(__LP64__) || !defined(ADDRESS_SANITIZER)
 // 300 MB (0x12c00000) - (default non-moving space capacity).
 static uint8_t* const kPreferredAllocSpaceBegin =
@@ -2765,7 +2772,7 @@ void Heap::LogGC(GcCause gc_cause, collector::GarbageCollector* collector) {
   const std::vector<uint64_t>& pause_times = GetCurrentGcIteration()->GetPauseTimes();
   // Print the GC if it is an explicit GC (e.g. Runtime.gc()) or a slow GC
   // (mutator time blocked >= long_pause_log_threshold_).
-  bool log_gc = gc_cause == kGcCauseExplicit;
+  bool log_gc = kLogAllGCs || gc_cause == kGcCauseExplicit;
   if (!log_gc && CareAboutPauseTimes()) {
     // GC for alloc pauses the allocating thread, so consider it as a pause.
     log_gc = duration > long_gc_log_threshold_ ||
@@ -4185,7 +4192,21 @@ mirror::Object* Heap::AllocWithNewTLAB(Thread* self,
                                        size_t* usable_size,
                                        size_t* bytes_tl_bulk_allocated) {
   const AllocatorType allocator_type = GetCurrentAllocator();
-  if (allocator_type == kAllocatorTypeTLAB) {
+  if (kUsePartialTlabs && alloc_size <= self->TlabRemainingCapacity()) {
+    DCHECK_GT(alloc_size, self->TlabSize());
+    // There is enough space if we grow the TLAB. Lets do that. This increases the
+    // TLAB bytes.
+    const size_t min_expand_size = alloc_size - self->TlabSize();
+    const size_t expand_bytes = std::max(
+        min_expand_size,
+        std::min(self->TlabRemainingCapacity() - self->TlabSize(), kPartialTlabSize));
+    if (UNLIKELY(IsOutOfMemoryOnAllocation(allocator_type, expand_bytes, grow))) {
+      return nullptr;
+    }
+    *bytes_tl_bulk_allocated = expand_bytes;
+    self->ExpandTlab(expand_bytes);
+    DCHECK_LE(alloc_size, self->TlabSize());
+  } else if (allocator_type == kAllocatorTypeTLAB) {
     DCHECK(bump_pointer_space_ != nullptr);
     const size_t new_tlab_size = alloc_size + kDefaultTLABSize;
     if (UNLIKELY(IsOutOfMemoryOnAllocation(allocator_type, new_tlab_size, grow))) {
@@ -4205,15 +4226,18 @@ mirror::Object* Heap::AllocWithNewTLAB(Thread* self,
       if (LIKELY(!IsOutOfMemoryOnAllocation(allocator_type,
                                             space::RegionSpace::kRegionSize,
                                             grow))) {
+        const size_t new_tlab_size = kUsePartialTlabs
+            ? std::max(alloc_size, kPartialTlabSize)
+            : gc::space::RegionSpace::kRegionSize;
         // Try to allocate a tlab.
-        if (!region_space_->AllocNewTlab(self)) {
+        if (!region_space_->AllocNewTlab(self, new_tlab_size)) {
           // Failed to allocate a tlab. Try non-tlab.
           return region_space_->AllocNonvirtual<false>(alloc_size,
                                                        bytes_allocated,
                                                        usable_size,
                                                        bytes_tl_bulk_allocated);
         }
-        *bytes_tl_bulk_allocated = space::RegionSpace::kRegionSize;
+        *bytes_tl_bulk_allocated = new_tlab_size;
         // Fall-through to using the TLAB below.
       } else {
         // Check OOME for a non-tlab allocation.
