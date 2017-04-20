@@ -21,7 +21,6 @@ import java.util.Collections;
 
 public class Test906 {
   public static void run() throws Exception {
-    Main.bindAgentJNIForClass(Test906.class);
     doTest();
   }
 

@@ -23,7 +23,6 @@ import java.util.List;
 
 public class Test923 {
   public static void run() throws Exception {
-    Main.bindAgentJNIForClass(Test923.class);
     doTest();
   }
 

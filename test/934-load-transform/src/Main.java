@@ -70,7 +70,6 @@ class Main {
   }
 
   public static void main(String[] args) {
-    art.Main.bindAgentJNIForClass(Main.class);
     // Don't pop transformations. Make sure that even if 2 threads race to define the class both
     // will get the same result.
     setPopRetransformations(false);

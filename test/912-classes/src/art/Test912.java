@@ -25,7 +25,6 @@ import java.util.Comparator;
 
 public class Test912 {
   public static void run() throws Exception {
-    art.Main.bindAgentJNIForClass(Test912.class);
     doTest();
   }
 
