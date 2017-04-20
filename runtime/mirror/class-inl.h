@@ -823,7 +823,10 @@ inline bool Class::IsClassClass() {
 }
 
 inline const DexFile& Class::GetDexFile() {
-  return *GetDexCache()->GetDexFile();
+  // From-space version is the same as the to-space version since the dex file never changes.
+  // Avoiding the read barrier here is important to prevent recursive AssertToSpaceInvariant issues
+  // from PrettyTypeOf.
+  return *GetDexCache<kDefaultVerifyFlags, kWithoutReadBarrier>()->GetDexFile();
 }
 
 inline bool Class::DescriptorEquals(const char* match) {
