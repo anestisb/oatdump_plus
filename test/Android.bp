@@ -277,6 +277,7 @@ art_cc_defaults {
         "945-obsolete-native/obsolete_native.cc",
         "984-obsolete-invoke/obsolete_invoke.cc",
         "986-native-method-bind/native_bind.cc",
+        "987-agent-bind/agent_bind.cc",
     ],
     shared_libs: [
         "libbase",

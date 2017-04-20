@@ -657,6 +657,10 @@ class Runtime {
 
   void AttachAgent(const std::string& agent_arg);
 
+  const std::list<ti::Agent>& GetAgents() const {
+    return agents_;
+  }
+
   RuntimeCallbacks* GetRuntimeCallbacks();
 
   void InitThreadGroups(Thread* self);
