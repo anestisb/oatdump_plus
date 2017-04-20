@@ -1031,13 +1031,15 @@ class ConcurrentCopying::VerifyNoFromSpaceRefsVisitor : public SingleRootVisitor
   explicit VerifyNoFromSpaceRefsVisitor(ConcurrentCopying* collector)
       : collector_(collector) {}
 
-  void operator()(mirror::Object* ref) const
+  void operator()(mirror::Object* ref,
+                  MemberOffset offset = MemberOffset(0),
+                  mirror::Object* holder = nullptr) const
       REQUIRES_SHARED(Locks::mutator_lock_) ALWAYS_INLINE {
     if (ref == nullptr) {
       // OK.
       return;
     }
-    collector_->AssertToSpaceInvariant(nullptr, MemberOffset(0), ref);
+    collector_->AssertToSpaceInvariant(holder, offset, ref);
     if (kUseBakerReadBarrier) {
       CHECK_EQ(ref->GetReadBarrierState(), ReadBarrier::WhiteState())
           << "Ref " << ref << " " << ref->PrettyTypeOf()
@@ -1067,7 +1069,7 @@ class ConcurrentCopying::VerifyNoFromSpaceRefsFieldVisitor {
     mirror::Object* ref =
         obj->GetFieldObject<mirror::Object, kDefaultVerifyFlags, kWithoutReadBarrier>(offset);
     VerifyNoFromSpaceRefsVisitor visitor(collector_);
-    visitor(ref);
+    visitor(ref, offset, obj.Ptr());
   }
   void operator()(ObjPtr<mirror::Class> klass,
                   ObjPtr<mirror::Reference> ref) const
