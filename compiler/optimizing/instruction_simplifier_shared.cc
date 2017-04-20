@@ -278,5 +278,71 @@ bool TryExtractArrayAccessAddress(HInstruction* access,
   return true;
 }
 
+bool TryCombineVecMultiplyAccumulate(HVecMul* mul, InstructionSet isa) {
+  Primitive::Type type = mul->GetPackedType();
+  switch (isa) {
+    case kArm64:
+      if (!(type == Primitive::kPrimByte ||
+            type == Primitive::kPrimChar ||
+            type == Primitive::kPrimShort ||
+            type == Primitive::kPrimInt)) {
+        return false;
+      }
+      break;
+    default:
+      return false;
+  }
+
+  ArenaAllocator* arena = mul->GetBlock()->GetGraph()->GetArena();
+
+  if (mul->HasOnlyOneNonEnvironmentUse()) {
+    HInstruction* use = mul->GetUses().front().GetUser();
+    if (use->IsVecAdd() || use->IsVecSub()) {
+      // Replace code looking like
+      //    VECMUL tmp, x, y
+      //    VECADD/SUB dst, acc, tmp
+      // with
+      //    VECMULACC dst, acc, x, y
+      // Note that we do not want to (unconditionally) perform the merge when the
+      // multiplication has multiple uses and it can be merged in all of them.
+      // Multiple uses could happen on the same control-flow path, and we would
+      // then increase the amount of work. In the future we could try to evaluate
+      // whether all uses are on different control-flow paths (using dominance and
+      // reverse-dominance information) and only perform the merge when they are.
+      HInstruction* accumulator = nullptr;
+      HVecBinaryOperation* binop = use->AsVecBinaryOperation();
+      HInstruction* binop_left = binop->GetLeft();
+      HInstruction* binop_right = binop->GetRight();
+      // This is always true since the `HVecMul` has only one use (which is checked above).
+      DCHECK_NE(binop_left, binop_right);
+      if (binop_right == mul) {
+        accumulator = binop_left;
+      } else if (use->IsVecAdd()) {
+        DCHECK_EQ(binop_left, mul);
+        accumulator = binop_right;
+      }
+
+      HInstruction::InstructionKind kind =
+          use->IsVecAdd() ? HInstruction::kAdd : HInstruction::kSub;
+      if (accumulator != nullptr) {
+        HVecMultiplyAccumulate* mulacc =
+            new (arena) HVecMultiplyAccumulate(arena,
+                                               kind,
+                                               accumulator,
+                                               mul->GetLeft(),
+                                               mul->GetRight(),
+                                               binop->GetPackedType(),
+                                               binop->GetVectorLength());
+
+        binop->GetBlock()->ReplaceAndRemoveInstructionWith(binop, mulacc);
+        DCHECK(!mul->HasUses());
+        mul->GetBlock()->RemoveInstruction(mul);
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
 
 }  // namespace art

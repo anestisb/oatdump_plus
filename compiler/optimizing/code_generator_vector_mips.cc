@@ -245,6 +245,14 @@ void InstructionCodeGeneratorMIPS::VisitVecUShr(HVecUShr* instruction) {
   LOG(FATAL) << "No SIMD for " << instruction->GetId();
 }
 
+void LocationsBuilderMIPS::VisitVecMultiplyAccumulate(HVecMultiplyAccumulate* instr) {
+  LOG(FATAL) << "No SIMD for " << instr->GetId();
+}
+
+void InstructionCodeGeneratorMIPS::VisitVecMultiplyAccumulate(HVecMultiplyAccumulate* instr) {
+  LOG(FATAL) << "No SIMD for " << instr->GetId();
+}
+
 void LocationsBuilderMIPS::VisitVecLoad(HVecLoad* instruction) {
   LOG(FATAL) << "No SIMD for " << instruction->GetId();
 }
