@@ -79,7 +79,8 @@ static mirror::Class* SafeGetDeclaringClass(ArtMethod* method)
 static mirror::Class* SafeGetClass(mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_) {
   char* obj_cls = reinterpret_cast<char*>(obj) + mirror::Object::ClassOffset().SizeValue();
 
-  mirror::CompressedReference<mirror::Class> cls;
+  mirror::HeapReference<mirror::Class> cls =
+      mirror::HeapReference<mirror::Class>::FromMirrorPtr(nullptr);
   ssize_t rc = SafeCopy(&cls, obj_cls, sizeof(cls));
   CHECK_NE(-1, rc);
 
