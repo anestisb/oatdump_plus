@@ -25,8 +25,6 @@ import java.util.concurrent.CountDownLatch;
 
 public class Test913 {
   public static void run() throws Exception {
-    Main.bindAgentJNIForClass(Test913.class);
-
     doTest();
 
     // Use a countdown latch for synchronization, as join() will introduce more roots.

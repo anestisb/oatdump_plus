@@ -20,7 +20,6 @@ import java.util.Arrays;
 
 public class Test931 {
   public static void run() throws Exception {
-    Main.bindAgentJNIForClass(Test931.class);
     testAgentThread();
 
     System.out.println("Done");

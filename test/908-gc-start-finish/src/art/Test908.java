@@ -20,7 +20,6 @@ import java.util.ArrayList;
 
 public class Test908 {
   public static void run() throws Exception {
-    Main.bindAgentJNIForClass(Test908.class);
     doTest();
   }
 

@@ -21,9 +21,9 @@ import java.util.Base64;
 public class Test945 {
 
   static class Transform {
-    static {
-      art.Main.bindAgentJNIForClass(Transform.class);
-    }
+    // static block to ensure that there is a <clinit> method. This used to be needed due to a bug.
+    // Since it's annoying to recompute the transformed bytes we will just leave this here.
+    static { }
 
     public void sayHi(Runnable r) {
       System.out.println("hello");

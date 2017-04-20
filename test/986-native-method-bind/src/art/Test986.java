@@ -20,13 +20,6 @@ import java.lang.reflect.Method;
 import java.util.HashMap;
 
 public class Test986 {
-  static {
-    // NB This is called before any setup is done so we don't need to worry about getting bind
-    // events.
-    Main.bindAgentJNIForClass(Test986.class);
-  }
-
-
   private static final HashMap<Method, String> SymbolMap = new HashMap<>();
 
   // A class with a native method we can play with.

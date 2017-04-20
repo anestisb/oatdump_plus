@@ -56,7 +56,6 @@ public class Main {
     "AAQgAAACAAAAmwIAAAAgAAABAAAApwIAAAAQAAABAAAAuAIAAA==");
 
   public static void main(String[] args) {
-    art.Main.bindAgentJNIForClass(Main.class);
     doTest(new RemoveAnnotationsTest());
     doTest(new AddAnnotationsTest());
     doTest(new ChangeAnnotationValues());

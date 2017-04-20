@@ -72,7 +72,6 @@ public class Test984 {
     "AA==");
 
   public static void run() {
-    art.Main.bindAgentJNIForClass(Test984.class);
     doTest();
   }
 
