@@ -16,50 +16,39 @@
 
 #include <stdio.h>
 
-#include "android-base/macros.h"
+#include <mutex>
+#include <vector>
 
-#include "class_linker.h"
+#include "android-base/macros.h"
+#include "android-base/stringprintf.h"
+
 #include "jni.h"
-#include "mirror/class_loader.h"
 #include "jvmti.h"
-#include "runtime.h"
-#include "scoped_local_ref.h"
-#include "scoped_utf_chars.h"
-#include "scoped_thread_state_change-inl.h"
-#include "thread-inl.h"
 
 // Test infrastructure
 #include "jni_helper.h"
 #include "jvmti_helper.h"
+#include "scoped_local_ref.h"
+#include "scoped_utf_chars.h"
 #include "test_env.h"
 
 namespace art {
 namespace Test912Classes {
 
-extern "C" JNIEXPORT jboolean JNICALL Java_Main_isModifiableClass(
-    JNIEnv* env ATTRIBUTE_UNUSED, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
+extern "C" JNIEXPORT jboolean JNICALL Java_art_Test912_isModifiableClass(
+    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
   jboolean res = JNI_FALSE;
   jvmtiError result = jvmti_env->IsModifiableClass(klass, &res);
-  if (result != JVMTI_ERROR_NONE) {
-    char* err;
-    jvmti_env->GetErrorName(result, &err);
-    printf("Failure running IsModifiableClass: %s\n", err);
-    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
-    return JNI_FALSE;
-  }
+  JvmtiErrorToException(env, jvmti_env, result);
   return res;
 }
 
-extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getClassSignature(
+extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test912_getClassSignature(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
   char* sig;
   char* gen;
   jvmtiError result = jvmti_env->GetClassSignature(klass, &sig, &gen);
-  if (result != JVMTI_ERROR_NONE) {
-    char* err;
-    jvmti_env->GetErrorName(result, &err);
-    printf("Failure running GetClassSignature: %s\n", err);
-    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
+  if (JvmtiErrorToException(env, jvmti_env, result)) {
     return nullptr;
   }
 
@@ -83,57 +72,36 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getClassSignature(
   return ret;
 }
 
-extern "C" JNIEXPORT jboolean JNICALL Java_Main_isInterface(
-    JNIEnv* env ATTRIBUTE_UNUSED, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
+extern "C" JNIEXPORT jboolean JNICALL Java_art_Test912_isInterface(
+    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
   jboolean is_interface = JNI_FALSE;
   jvmtiError result = jvmti_env->IsInterface(klass, &is_interface);
-  if (result != JVMTI_ERROR_NONE) {
-    char* err;
-    jvmti_env->GetErrorName(result, &err);
-    printf("Failure running IsInterface: %s\n", err);
-    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
-    return JNI_FALSE;
-  }
+  JvmtiErrorToException(env, jvmti_env, result);
   return is_interface;
 }
 
-extern "C" JNIEXPORT jboolean JNICALL Java_Main_isArrayClass(
-    JNIEnv* env ATTRIBUTE_UNUSED, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
+extern "C" JNIEXPORT jboolean JNICALL Java_art_Test912_isArrayClass(
+    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
   jboolean is_array_class = JNI_FALSE;
   jvmtiError result = jvmti_env->IsArrayClass(klass, &is_array_class);
-  if (result != JVMTI_ERROR_NONE) {
-    char* err;
-    jvmti_env->GetErrorName(result, &err);
-    printf("Failure running IsArrayClass: %s\n", err);
-    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
-    return JNI_FALSE;
-  }
+  JvmtiErrorToException(env, jvmti_env, result);
   return is_array_class;
 }
 
-extern "C" JNIEXPORT jint JNICALL Java_Main_getClassModifiers(
-    JNIEnv* env ATTRIBUTE_UNUSED, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
+extern "C" JNIEXPORT jint JNICALL Java_art_Test912_getClassModifiers(
+    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
   jint mod;
   jvmtiError result = jvmti_env->GetClassModifiers(klass, &mod);
-  if (result != JVMTI_ERROR_NONE) {
-    char* err;
-    jvmti_env->GetErrorName(result, &err);
-    printf("Failure running GetClassModifiers: %s\n", err);
-    return JNI_FALSE;
-  }
+  JvmtiErrorToException(env, jvmti_env, result);
   return mod;
 }
 
-extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getClassFields(
+extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test912_getClassFields(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
   jint count = 0;
   jfieldID* fields = nullptr;
   jvmtiError result = jvmti_env->GetClassFields(klass, &count, &fields);
-  if (result != JVMTI_ERROR_NONE) {
-    char* err;
-    jvmti_env->GetErrorName(result, &err);
-    printf("Failure running GetClassFields: %s\n", err);
-    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
+  if (JvmtiErrorToException(env, jvmti_env, result)) {
     return nullptr;
   }
 
@@ -153,15 +121,12 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getClassFields(
   return ret;
 }
 
-extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getClassMethods(
+extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test912_getClassMethods(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
   jint count = 0;
   jmethodID* methods = nullptr;
   jvmtiError result = jvmti_env->GetClassMethods(klass, &count, &methods);
-  if (result != JVMTI_ERROR_NONE) {
-    char* err;
-    jvmti_env->GetErrorName(result, &err);
-    printf("Failure running GetClassMethods: %s\n", err);
+  if (JvmtiErrorToException(env, jvmti_env, result)) {
     return nullptr;
   }
 
@@ -181,15 +146,12 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getClassMethods(
   return ret;
 }
 
-extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getImplementedInterfaces(
+extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test912_getImplementedInterfaces(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
   jint count = 0;
   jclass* classes = nullptr;
   jvmtiError result = jvmti_env->GetImplementedInterfaces(klass, &count, &classes);
-  if (result != JVMTI_ERROR_NONE) {
-    char* err;
-    jvmti_env->GetErrorName(result, &err);
-    printf("Failure running GetImplementedInterfaces: %s\n", err);
+  if (JvmtiErrorToException(env, jvmti_env, result)) {
     return nullptr;
   }
 
@@ -203,35 +165,23 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getImplementedInterfaces(
   return ret;
 }
 
-extern "C" JNIEXPORT jint JNICALL Java_Main_getClassStatus(
-    JNIEnv* env ATTRIBUTE_UNUSED, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
+extern "C" JNIEXPORT jint JNICALL Java_art_Test912_getClassStatus(
+    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
   jint status;
   jvmtiError result = jvmti_env->GetClassStatus(klass, &status);
-  if (result != JVMTI_ERROR_NONE) {
-    char* err;
-    jvmti_env->GetErrorName(result, &err);
-    printf("Failure running GetClassStatus: %s\n", err);
-    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
-    return JNI_FALSE;
-  }
+  JvmtiErrorToException(env, jvmti_env, result);
   return status;
 }
 
-extern "C" JNIEXPORT jobject JNICALL Java_Main_getClassLoader(
-    JNIEnv* env ATTRIBUTE_UNUSED, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
+extern "C" JNIEXPORT jobject JNICALL Java_art_Test912_getClassLoader(
+    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
   jobject classloader;
   jvmtiError result = jvmti_env->GetClassLoader(klass, &classloader);
-  if (result != JVMTI_ERROR_NONE) {
-    char* err;
-    jvmti_env->GetErrorName(result, &err);
-    printf("Failure running GetClassLoader: %s\n", err);
-    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
-    return nullptr;
-  }
+  JvmtiErrorToException(env, jvmti_env, result);
   return classloader;
 }
 
-extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getClassLoaderClasses(
+extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test912_getClassLoaderClasses(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jobject jclassloader) {
   jint count = 0;
   jclass* classes = nullptr;
@@ -250,7 +200,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getClassLoaderClasses(
   return ret;
 }
 
-extern "C" JNIEXPORT jintArray JNICALL Java_Main_getClassVersion(
+extern "C" JNIEXPORT jintArray JNICALL Java_art_Test912_getClassVersion(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
   jint major, minor;
   jvmtiError result = jvmti_env->GetClassVersionNumbers(klass, &minor, &major);
@@ -325,6 +275,22 @@ static void EnableEvents(JNIEnv* env,
   JvmtiErrorToException(env, jvmti_env, ret);
 }
 
+static std::mutex gEventsMutex;
+static std::vector<std::string> gEvents;
+
+extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test912_getClassLoadMessages(
+    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED) {
+  std::lock_guard<std::mutex> guard(gEventsMutex);
+  jobjectArray ret = CreateObjectArray(env,
+                                       static_cast<jint>(gEvents.size()),
+                                       "java/lang/String",
+                                       [&](jint i) {
+    return env->NewStringUTF(gEvents[i].c_str());
+  });
+  gEvents.clear();
+  return ret;
+}
+
 class ClassLoadPreparePrinter {
  public:
   static void JNICALL ClassLoadCallback(jvmtiEnv* jenv,
@@ -339,7 +305,14 @@ class ClassLoadPreparePrinter {
     if (thread_name == "") {
       return;
     }
-    printf("Load: %s on %s\n", name.c_str(), thread_name.c_str());
+    if (thread_name_filter_ != "" && thread_name_filter_ != thread_name) {
+      return;
+    }
+
+    std::lock_guard<std::mutex> guard(gEventsMutex);
+    gEvents.push_back(android::base::StringPrintf("Load: %s on %s",
+                                                  name.c_str(),
+                                                  thread_name.c_str()));
   }
 
   static void JNICALL ClassPrepareCallback(jvmtiEnv* jenv,
@@ -354,14 +327,18 @@ class ClassLoadPreparePrinter {
     if (thread_name == "") {
       return;
     }
-    std::string cur_thread_name = GetThreadName(Thread::Current());
-    printf("Prepare: %s on %s (cur=%s)\n",
-           name.c_str(),
-           thread_name.c_str(),
-           cur_thread_name.c_str());
+    if (thread_name_filter_ != "" && thread_name_filter_ != thread_name) {
+      return;
+    }
+    std::string cur_thread_name = GetThreadName(jenv, jni_env, nullptr);
+
+    std::lock_guard<std::mutex> guard(gEventsMutex);
+    gEvents.push_back(android::base::StringPrintf("Prepare: %s on %s (cur=%s)",
+                                                  name.c_str(),
+                                                  thread_name.c_str(),
+                                                  cur_thread_name.c_str()));
   }
 
- private:
   static std::string GetThreadName(jvmtiEnv* jenv, JNIEnv* jni_env, jthread thread) {
     jvmtiThreadInfo info;
     jvmtiError result = jenv->GetThreadInfo(thread, &info);
@@ -382,60 +359,28 @@ class ClassLoadPreparePrinter {
     return tmp;
   }
 
-  static std::string GetThreadName(Thread* thread) {
-    std::string tmp;
-    thread->GetThreadName(tmp);
-    return tmp;
-  }
+  static std::string thread_name_filter_;
 };
+std::string ClassLoadPreparePrinter::thread_name_filter_;
 
-extern "C" JNIEXPORT void JNICALL Java_Main_enableClassLoadPreparePrintEvents(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jboolean enable) {
+extern "C" JNIEXPORT void JNICALL Java_art_Test912_enableClassLoadPreparePrintEvents(
+    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jboolean enable, jthread thread) {
+  if (thread != nullptr) {
+    ClassLoadPreparePrinter::thread_name_filter_ =
+        ClassLoadPreparePrinter::GetThreadName(jvmti_env, env, thread);
+  } else {
+    ClassLoadPreparePrinter::thread_name_filter_ = "";
+  }
+
   EnableEvents(env,
                enable,
                ClassLoadPreparePrinter::ClassLoadCallback,
                ClassLoadPreparePrinter::ClassPrepareCallback);
 }
 
-struct ClassLoadSeen {
-  static void JNICALL ClassLoadSeenCallback(jvmtiEnv* jenv ATTRIBUTE_UNUSED,
-                                            JNIEnv* jni_env ATTRIBUTE_UNUSED,
-                                            jthread thread ATTRIBUTE_UNUSED,
-                                            jclass klass ATTRIBUTE_UNUSED) {
-    saw_event = true;
-  }
-
-  static bool saw_event;
-};
-bool ClassLoadSeen::saw_event = false;
-
-extern "C" JNIEXPORT void JNICALL Java_Main_enableClassLoadSeenEvents(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jboolean b) {
-  EnableEvents(env, b, ClassLoadSeen::ClassLoadSeenCallback, nullptr);
-}
-
-extern "C" JNIEXPORT jboolean JNICALL Java_Main_hadLoadEvent(
-    JNIEnv* env ATTRIBUTE_UNUSED, jclass Main_klass ATTRIBUTE_UNUSED) {
-  return ClassLoadSeen::saw_event ? JNI_TRUE : JNI_FALSE;
-}
-
-extern "C" JNIEXPORT jboolean JNICALL Java_Main_isLoadedClass(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jstring class_name) {
-  ScopedUtfChars name(env, class_name);
-  ScopedObjectAccess soa(Thread::Current());
-  Runtime* current = Runtime::Current();
-  ClassLinker* class_linker = current->GetClassLinker();
-  bool found =
-      class_linker->LookupClass(
-          soa.Self(),
-          name.c_str(),
-          soa.Decode<mirror::ClassLoader>(current->GetSystemClassLoader())) != nullptr;
-  return found ? JNI_TRUE : JNI_FALSE;
-}
-
 class ClassLoadPrepareEquality {
  public:
-  static constexpr const char* kClassName = "LMain$ClassE;";
+  static constexpr const char* kClassName = "Lart/Test912$ClassE;";
   static constexpr const char* kStorageFieldName = "STATIC";
   static constexpr const char* kStorageFieldSig = "Ljava/lang/Object;";
   static constexpr const char* kStorageWeakFieldName = "WEAK";
@@ -553,13 +498,13 @@ jobject ClassLoadPrepareEquality::local_stored_class_ = nullptr;
 bool ClassLoadPrepareEquality::found_ = false;
 bool ClassLoadPrepareEquality::compared_ = false;
 
-extern "C" JNIEXPORT void JNICALL Java_Main_setEqualityEventStorageClass(
+extern "C" JNIEXPORT void JNICALL Java_art_Test912_setEqualityEventStorageClass(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
   ClassLoadPrepareEquality::storage_class_ =
       reinterpret_cast<jclass>(env->NewGlobalRef(klass));
 }
 
-extern "C" JNIEXPORT void JNICALL Java_Main_enableClassLoadPrepareEqualityEvents(
+extern "C" JNIEXPORT void JNICALL Java_art_Test912_enableClassLoadPrepareEqualityEvents(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jboolean b) {
   EnableEvents(env,
                b,

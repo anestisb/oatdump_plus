@@ -6,14 +6,14 @@
 11
 [Ljava/util/List;, <E:Ljava/lang/Object;>Ljava/lang/Object;Ljava/util/Collection<TE;>;]
 601
-[L$Proxy0;, null]
+[L$Proxy20;, null]
 11
 [I, null]
 411
 [[D, null]
 411
 int interface=false array=false modifiable=false
-$Proxy0 interface=false array=false modifiable=false
+$Proxy20 interface=false array=false modifiable=false
 java.lang.Runnable interface=true array=false modifiable=false
 java.lang.String interface=false array=false modifiable=false
 java.util.ArrayList interface=false array=false modifiable=true
@@ -29,70 +29,65 @@ java.util.ArrayList interface=false array=false modifiable=true
 int 100000
 class [Ljava.lang.String; 10000
 class java.lang.Object 111
-class Main$TestForNonInit 11
-class Main$TestForInitFail 1011
+class art.Test912$TestForNonInit 11
+class art.Test912$TestForInitFail 1011
 int []
 class [Ljava.lang.String; []
 class java.lang.Object []
-interface Main$InfA []
-interface Main$InfB [interface Main$InfA]
-interface Main$InfC [interface Main$InfB]
-class Main$ClassA [interface Main$InfA]
-class Main$ClassB [interface Main$InfB]
-class Main$ClassC [interface Main$InfA, interface Main$InfC]
+interface art.Test912$InfA []
+interface art.Test912$InfB [interface art.Test912$InfA]
+interface art.Test912$InfC [interface art.Test912$InfB]
+class art.Test912$ClassA [interface art.Test912$InfA]
+class art.Test912$ClassB [interface art.Test912$InfB]
+class art.Test912$ClassC [interface art.Test912$InfA, interface art.Test912$InfC]
 class java.lang.String null
 class [Ljava.lang.String; null
-interface Main$InfA dalvik.system.PathClassLoader
-class $Proxy0 dalvik.system.PathClassLoader
+interface art.Test912$InfA dalvik.system.PathClassLoader
+class $Proxy20 dalvik.system.PathClassLoader
 
-boot <- src <- src-ex (A,B)
-912-classes-ex.jar+ -> 912-classes.jar+ -> 
+boot <- (B) <- (A,C)
 [class A, class B, class java.lang.Object]
-912-classes.jar+ -> 
 [class B, class java.lang.Object]
 
-boot <- src (B) <- src-ex (A, List)
-912-classes-ex.jar+ -> 912-classes.jar+ -> 
+boot <- (B) <- (A, List)
 [class A, class java.lang.Object, interface java.util.List]
-912-classes.jar+ -> 
 [class B, class java.lang.Object]
 
-boot <- src+src-ex (A,B)
-912-classes.jar+ -> 
+boot <- 1+2 (A,B)
 [class A, class B, class java.lang.Object]
 
 [37, 0]
 
 B, false
-Load: LB; on main
-Prepare: LB; on main (cur=main)
+Load: LB; on ClassEvents
+Prepare: LB; on ClassEvents (cur=ClassEvents)
 B, true
-Load: LB; on main
-Prepare: LB; on main (cur=main)
+Load: LB; on ClassEvents
+Prepare: LB; on ClassEvents (cur=ClassEvents)
 C, false
-Load: LA; on main
-Prepare: LA; on main (cur=main)
-Load: LC; on main
-Prepare: LC; on main (cur=main)
+Load: LA; on ClassEvents
+Prepare: LA; on ClassEvents (cur=ClassEvents)
+Load: LC; on ClassEvents
+Prepare: LC; on ClassEvents (cur=ClassEvents)
 A, false
 C, true
-Load: LA; on main
-Prepare: LA; on main (cur=main)
-Load: LC; on main
-Prepare: LC; on main (cur=main)
+Load: LA; on ClassEvents
+Prepare: LA; on ClassEvents (cur=ClassEvents)
+Load: LC; on ClassEvents
+Prepare: LC; on ClassEvents (cur=ClassEvents)
 A, true
 A, true
-Load: LA; on main
-Prepare: LA; on main (cur=main)
+Load: LA; on ClassEvents
+Prepare: LA; on ClassEvents (cur=ClassEvents)
 C, true
-Load: LC; on main
-Prepare: LC; on main (cur=main)
+Load: LC; on ClassEvents
+Prepare: LC; on ClassEvents (cur=ClassEvents)
 C, true
 Load: LA; on TestRunner
 Prepare: LA; on TestRunner (cur=TestRunner)
 Load: LC; on TestRunner
 Prepare: LC; on TestRunner (cur=TestRunner)
-Load: L$Proxy1; on main
-Prepare: L$Proxy1; on main (cur=main)
-Load: [LMain; on main
-Prepare: [LMain; on main (cur=main)
+Load: L$Proxy21; on ClassEvents
+Prepare: L$Proxy21; on ClassEvents (cur=ClassEvents)
+Load: [Lart/Test912; on ClassEvents
+Prepare: [Lart/Test912; on ClassEvents (cur=ClassEvents)
