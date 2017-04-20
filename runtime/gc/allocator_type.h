@@ -35,6 +35,10 @@ enum AllocatorType {
 };
 std::ostream& operator<<(std::ostream& os, const AllocatorType& rhs);
 
+inline constexpr bool IsTLABAllocator(AllocatorType allocator) {
+  return allocator == kAllocatorTypeTLAB || allocator == kAllocatorTypeRegionTLAB;
+}
+
 }  // namespace gc
 }  // namespace art
 
