@@ -22,7 +22,8 @@
 namespace art {
 
 // Safely dereference a pointer.
-// Returns -1 if safe copy isn't implemented on the platform, 0 if src is unreadable.
+// Returns -1 if safe copy isn't implemented on the platform, or if the transfer is too large.
+// Returns 0 if src is unreadable.
 ssize_t SafeCopy(void *dst, const void *src, size_t len);
 
 }  // namespace art
