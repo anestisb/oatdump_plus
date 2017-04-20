@@ -382,8 +382,6 @@ NO_RETURN static void Usage(const char* fmt, ...) {
              "input dex file.");
   UsageError("");
   UsageError("  --force-determinism: force the compiler to emit a deterministic output.");
-  UsageError("      This option is incompatible with read barriers (e.g., if dex2oat has been");
-  UsageError("      built with the environment variable `ART_USE_READ_BARRIER` set to `true`).");
   UsageError("");
   UsageError("  --classpath-dir=<directory-path>: directory used to resolve relative class paths.");
   UsageError("");
@@ -915,9 +913,10 @@ class Dex2Oat FINAL {
     // Fill some values into the key-value store for the oat header.
     key_value_store_.reset(new SafeMap<std::string, std::string>());
 
-    // Automatically force determinism for the boot image in a host build if the default GC is CMS
-    // or MS and read barriers are not enabled, as the former switches the GC to a non-concurrent
-    // one by passing the option `-Xgc:nonconcurrent` (see below).
+    // Automatically force determinism for the boot image in a host build if read barriers
+    // are enabled, or if the default GC is CMS or MS. When the default GC is CMS
+    // (Concurrent Mark-Sweep), the GC is switched to a non-concurrent one by passing the
+    // option `-Xgc:nonconcurrent` (see below).
     if (!kIsTargetBuild && IsBootImage()) {
       if (SupportsDeterministicCompilation()) {
         force_determinism_ = true;
@@ -939,9 +938,9 @@ class Dex2Oat FINAL {
   }
 
   static bool SupportsDeterministicCompilation() {
-    return (gc::kCollectorTypeDefault == gc::kCollectorTypeCMS ||
-            gc::kCollectorTypeDefault == gc::kCollectorTypeMS) &&
-        !kEmitCompilerReadBarrier;
+    return (kUseReadBarrier ||
+            gc::kCollectorTypeDefault == gc::kCollectorTypeCMS ||
+            gc::kCollectorTypeDefault == gc::kCollectorTypeMS);
   }
 
   void ExpandOatAndImageFilenames() {
@@ -1233,7 +1232,7 @@ class Dex2Oat FINAL {
         no_inline_from_string_ = option.substr(strlen("--no-inline-from=")).data();
       } else if (option == "--force-determinism") {
         if (!SupportsDeterministicCompilation()) {
-          Usage("Cannot use --force-determinism with read barriers or non-CMS garbage collector");
+          Usage("Option --force-determinism requires read barriers or a CMS/MS garbage collector");
         }
         force_determinism_ = true;
       } else if (option.starts_with("--classpath-dir=")) {
@@ -2421,15 +2420,25 @@ class Dex2Oat FINAL {
     // foreground collector by default for dex2oat.
     raw_options.push_back(std::make_pair("-XX:DisableHSpaceCompactForOOM", nullptr));
 
-    // If we're asked to be deterministic, ensure non-concurrent GC for determinism. Also
-    // force the free-list implementation for large objects.
     if (compiler_options_->IsForceDeterminism()) {
+      // If we're asked to be deterministic, ensure non-concurrent GC for determinism.
+      //
+      // Note that with read barriers, this option is ignored, because Runtime::Init
+      // overrides the foreground GC to be gc::kCollectorTypeCC when instantiating
+      // gc::Heap. This is fine, as concurrent GC requests are not honored in dex2oat,
+      // which uses an unstarted runtime.
       raw_options.push_back(std::make_pair("-Xgc:nonconcurrent", nullptr));
+
+      // Also force the free-list implementation for large objects.
       raw_options.push_back(std::make_pair("-XX:LargeObjectSpace=freelist", nullptr));
 
       // We also need to turn off the nonmoving space. For that, we need to disable HSpace
       // compaction (done above) and ensure that neither foreground nor background collectors
       // are concurrent.
+      //
+      // Likewise, this option is ignored with read barriers because Runtime::Init
+      // overrides the background GC to be gc::kCollectorTypeCCBackground, but that's
+      // fine too, for the same reason (see above).
       raw_options.push_back(std::make_pair("-XX:BackgroundGC=nonconcurrent", nullptr));
 
       // To make identity hashcode deterministic, set a known seed.

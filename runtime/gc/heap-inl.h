@@ -57,8 +57,8 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self,
     HandleWrapperObjPtr<mirror::Class> h = hs.NewHandleWrapper(&klass);
     self->PoisonObjectPointers();
   }
-  // Need to check that we arent the large object allocator since the large object allocation code
-  // path this function. If we didn't check we would have an infinite loop.
+  // Need to check that we aren't the large object allocator since the large object allocation code
+  // path includes this function. If we didn't check we would have an infinite loop.
   ObjPtr<mirror::Object> obj;
   if (kCheckLargeObject && UNLIKELY(ShouldAllocLargeObject(klass, byte_count))) {
     obj = AllocLargeObject<kInstrumented, PreFenceVisitor>(self, &klass, byte_count,
@@ -198,7 +198,7 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self,
   } else {
     DCHECK(!gc_stress_mode_);
   }
-  // IsConcurrentGc() isn't known at compile time so we can optimize by not checking it for
+  // IsGcConcurrent() isn't known at compile time so we can optimize by not checking it for
   // the BumpPointer or TLAB allocators. This is nice since it allows the entire if statement to be
   // optimized out. And for the other allocators, AllocatorMayHaveConcurrentGC is a constant since
   // the allocator_type should be constant propagated.
