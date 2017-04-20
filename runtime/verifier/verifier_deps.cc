@@ -428,8 +428,6 @@ void VerifierDeps::AddAssignability(const DexFile& dex_file,
     return;
   }
 
-  DCHECK_EQ(is_assignable, destination->IsAssignableFrom(source));
-
   if (destination->IsArrayClass() && source->IsArrayClass()) {
     // Both types are arrays. Break down to component types and add recursively.
     // This helps filter out destinations from compiled DEX files (see below)
@@ -447,6 +445,10 @@ void VerifierDeps::AddAssignability(const DexFile& dex_file,
                        is_assignable);
       return;
     }
+  } else {
+    // We only do this check for non-array types, as arrays might have erroneous
+    // component types which makes the IsAssignableFrom check unreliable.
+    DCHECK_EQ(is_assignable, destination->IsAssignableFrom(source));
   }
 
   DexFileDeps* dex_deps = GetDexFileDeps(dex_file);
