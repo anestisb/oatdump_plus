@@ -278,14 +278,16 @@ enum LoadOperandType {
   kLoadUnsignedHalfword,
   kLoadWord,
   kLoadUnsignedWord,
-  kLoadDoubleword
+  kLoadDoubleword,
+  kLoadQuadword
 };
 
 enum StoreOperandType {
   kStoreByte,
   kStoreHalfword,
   kStoreWord,
-  kStoreDoubleword
+  kStoreDoubleword,
+  kStoreQuadword
 };
 
 // Used to test the values returned by ClassS/ClassD.
@@ -896,6 +898,10 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
 
   void EmitLoad(ManagedRegister m_dst, GpuRegister src_register, int32_t src_offset, size_t size);
   void AdjustBaseAndOffset(GpuRegister& base, int32_t& offset, bool is_doubleword);
+  // If element_size_shift is negative at entry, its value will be calculated based on the offset.
+  void AdjustBaseOffsetAndElementSizeShift(GpuRegister& base,
+                                           int32_t& offset,
+                                           int& element_size_shift);
 
  private:
   // This will be used as an argument for loads/stores
@@ -1019,6 +1025,8 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
           null_checker();
         }
         break;
+      default:
+        LOG(FATAL) << "UNREACHABLE";
     }
     if (type != kLoadDoubleword) {
       null_checker();
@@ -1031,7 +1039,12 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
                          GpuRegister base,
                          int32_t offset,
                          ImplicitNullChecker null_checker = NoImplicitNullChecker()) {
-    AdjustBaseAndOffset(base, offset, /* is_doubleword */ (type == kLoadDoubleword));
+    int element_size_shift = -1;
+    if (type != kLoadQuadword) {
+      AdjustBaseAndOffset(base, offset, /* is_doubleword */ (type == kLoadDoubleword));
+    } else {
+      AdjustBaseOffsetAndElementSizeShift(base, offset, element_size_shift);
+    }
 
     switch (type) {
       case kLoadWord:
@@ -1050,6 +1063,17 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
           Ldc1(reg, base, offset);
           null_checker();
         }
+        break;
+      case kLoadQuadword:
+        switch (element_size_shift) {
+          case TIMES_1: LdB(static_cast<VectorRegister>(reg), base, offset); break;
+          case TIMES_2: LdH(static_cast<VectorRegister>(reg), base, offset); break;
+          case TIMES_4: LdW(static_cast<VectorRegister>(reg), base, offset); break;
+          case TIMES_8: LdD(static_cast<VectorRegister>(reg), base, offset); break;
+          default:
+            LOG(FATAL) << "UNREACHABLE";
+        }
+        null_checker();
         break;
       default:
         LOG(FATAL) << "UNREACHABLE";
@@ -1104,7 +1128,12 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
                         GpuRegister base,
                         int32_t offset,
                         ImplicitNullChecker null_checker = NoImplicitNullChecker()) {
-    AdjustBaseAndOffset(base, offset, /* is_doubleword */ (type == kStoreDoubleword));
+    int element_size_shift = -1;
+    if (type != kStoreQuadword) {
+      AdjustBaseAndOffset(base, offset, /* is_doubleword */ (type == kStoreDoubleword));
+    } else {
+      AdjustBaseOffsetAndElementSizeShift(base, offset, element_size_shift);
+    }
 
     switch (type) {
       case kStoreWord:
@@ -1123,6 +1152,17 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
           Sdc1(reg, base, offset);
           null_checker();
         }
+        break;
+      case kStoreQuadword:
+        switch (element_size_shift) {
+          case TIMES_1: StB(static_cast<VectorRegister>(reg), base, offset); break;
+          case TIMES_2: StH(static_cast<VectorRegister>(reg), base, offset); break;
+          case TIMES_4: StW(static_cast<VectorRegister>(reg), base, offset); break;
+          case TIMES_8: StD(static_cast<VectorRegister>(reg), base, offset); break;
+          default:
+            LOG(FATAL) << "UNREACHABLE";
+        }
+        null_checker();
         break;
       default:
         LOG(FATAL) << "UNREACHABLE";

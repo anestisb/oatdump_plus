@@ -336,7 +336,11 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
 
   size_t GetWordSize() const OVERRIDE { return kMips64DoublewordSize; }
 
-  size_t GetFloatingPointSpillSlotSize() const OVERRIDE { return kMips64DoublewordSize; }
+  size_t GetFloatingPointSpillSlotSize() const OVERRIDE {
+    return GetGraph()->HasSIMD()
+        ? 2 * kMips64DoublewordSize   // 16 bytes for each spill.
+        : 1 * kMips64DoublewordSize;  //  8 bytes for each spill.
+  }
 
   uintptr_t GetAddressOf(HBasicBlock* block) OVERRIDE {
     return assembler_.GetLabelLocation(GetLabelOf(block));
