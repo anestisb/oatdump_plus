@@ -427,7 +427,7 @@ void RegionSpace::RecordAlloc(mirror::Object* ref) {
   r->objects_allocated_.FetchAndAddSequentiallyConsistent(1);
 }
 
-bool RegionSpace::AllocNewTlab(Thread* self) {
+bool RegionSpace::AllocNewTlab(Thread* self, size_t min_bytes) {
   MutexLock mu(self, region_lock_);
   RevokeThreadLocalBuffersLocked(self);
   // Retain sufficient free regions for full evacuation.
@@ -443,7 +443,7 @@ bool RegionSpace::AllocNewTlab(Thread* self) {
       r->SetTop(r->End());
       r->is_a_tlab_ = true;
       r->thread_ = self;
-      self->SetTlab(r->Begin(), r->End());
+      self->SetTlab(r->Begin(), r->Begin() + min_bytes, r->End());
       return true;
     }
   }
@@ -463,13 +463,13 @@ void RegionSpace::RevokeThreadLocalBuffersLocked(Thread* thread) {
     DCHECK_ALIGNED(tlab_start, kRegionSize);
     Region* r = RefToRegionLocked(reinterpret_cast<mirror::Object*>(tlab_start));
     DCHECK(r->IsAllocated());
-    DCHECK_EQ(thread->GetThreadLocalBytesAllocated(), kRegionSize);
+    DCHECK_LE(thread->GetThreadLocalBytesAllocated(), kRegionSize);
     r->RecordThreadLocalAllocations(thread->GetThreadLocalObjectsAllocated(),
                                     thread->GetThreadLocalBytesAllocated());
     r->is_a_tlab_ = false;
     r->thread_ = nullptr;
   }
-  thread->SetTlab(nullptr, nullptr);
+  thread->SetTlab(nullptr, nullptr, nullptr);
 }
 
 size_t RegionSpace::RevokeAllThreadLocalBuffers() {

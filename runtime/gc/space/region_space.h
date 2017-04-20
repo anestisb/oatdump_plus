@@ -234,7 +234,7 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
   }
 
   void RecordAlloc(mirror::Object* ref) REQUIRES(!region_lock_);
-  bool AllocNewTlab(Thread* self) REQUIRES(!region_lock_);
+  bool AllocNewTlab(Thread* self, size_t min_bytes) REQUIRES(!region_lock_);
 
   uint32_t Time() {
     return time_;
@@ -417,21 +417,7 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
       return live_bytes_;
     }
 
-    size_t BytesAllocated() const {
-      if (IsLarge()) {
-        DCHECK_LT(begin_ + kRegionSize, Top());
-        return static_cast<size_t>(Top() - begin_);
-      } else if (IsLargeTail()) {
-        DCHECK_EQ(begin_, Top());
-        return 0;
-      } else {
-        DCHECK(IsAllocated()) << static_cast<uint>(state_);
-        DCHECK_LE(begin_, Top());
-        size_t bytes = static_cast<size_t>(Top() - begin_);
-        DCHECK_LE(bytes, kRegionSize);
-        return bytes;
-      }
-    }
+    size_t BytesAllocated() const;
 
     size_t ObjectsAllocated() const {
       if (IsLarge()) {
@@ -476,7 +462,7 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
       DCHECK_EQ(Top(), end_);
       objects_allocated_.StoreRelaxed(num_objects);
       top_.StoreRelaxed(begin_ + num_bytes);
-      DCHECK_EQ(Top(), end_);
+      DCHECK_LE(Top(), end_);
     }
 
    private:
