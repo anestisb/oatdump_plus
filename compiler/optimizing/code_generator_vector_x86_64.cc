@@ -719,6 +719,14 @@ void InstructionCodeGeneratorX86_64::VisitVecUShr(HVecUShr* instruction) {
   }
 }
 
+void LocationsBuilderX86_64::VisitVecMultiplyAccumulate(HVecMultiplyAccumulate* instr) {
+  LOG(FATAL) << "No SIMD for " << instr->GetId();
+}
+
+void InstructionCodeGeneratorX86_64::VisitVecMultiplyAccumulate(HVecMultiplyAccumulate* instr) {
+  LOG(FATAL) << "No SIMD for " << instr->GetId();
+}
+
 // Helper to set up locations for vector memory operations.
 static void CreateVecMemLocations(ArenaAllocator* arena,
                                   HVecMemoryOperation* instruction,

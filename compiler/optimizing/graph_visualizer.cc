@@ -514,6 +514,10 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
     StartAttributeStream("rounded") << std::boolalpha << hadd->IsRounded() << std::noboolalpha;
   }
 
+  void VisitVecMultiplyAccumulate(HVecMultiplyAccumulate* instruction) OVERRIDE {
+    StartAttributeStream("kind") << instruction->GetOpKind();
+  }
+
 #if defined(ART_ENABLE_CODEGEN_arm) || defined(ART_ENABLE_CODEGEN_arm64)
   void VisitMultiplyAccumulate(HMultiplyAccumulate* instruction) OVERRIDE {
     StartAttributeStream("kind") << instruction->GetOpKind();
