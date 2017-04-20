@@ -77,12 +77,11 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self,
   size_t bytes_allocated;
   size_t usable_size;
   size_t new_num_bytes_allocated = 0;
-  if (allocator == kAllocatorTypeTLAB || allocator == kAllocatorTypeRegionTLAB) {
+  if (IsTLABAllocator(allocator)) {
     byte_count = RoundUp(byte_count, space::BumpPointerSpace::kAlignment);
   }
   // If we have a thread local allocation we don't need to update bytes allocated.
-  if ((allocator == kAllocatorTypeTLAB || allocator == kAllocatorTypeRegionTLAB) &&
-      byte_count <= self->TlabSize()) {
+  if (IsTLABAllocator(allocator) && byte_count <= self->TlabSize()) {
     obj = self->AllocTlab(byte_count);
     DCHECK(obj != nullptr) << "AllocTlab can't fail";
     obj->SetClass(klass);
