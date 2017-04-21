@@ -665,5 +665,23 @@
         "description": "The tests above fail with --build-with-javac-dx.",
         "env_vars": {"ANDROID_COMPILE_WITH_JACK": "false"},
         "bug": "b/37636792"
+    },
+    {
+        "tests": "648-many-direct-methods",
+        "variant": "optimizing",
+        "description": "Test disabled with AOT because of dex2oatd timeouts.",
+        "bug": "b/33650497"
+    },
+    {
+        "tests": [
+            "536-checker-needs-access-check",
+            "537-checker-inline-and-unverified",
+            "569-checker-pattern-replacement",
+            "586-checker-null-array-get"
+        ],
+        "description": [
+            "Tests that have verify-at-runtime classes, but being compiled when using vdex."
+        ],
+        "variant": "speed-profile"
     }
 ]
