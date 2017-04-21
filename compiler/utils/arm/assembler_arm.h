@@ -652,6 +652,9 @@ class ArmAssembler : public Assembler {
   virtual void blx(Register rm, Condition cond = AL) = 0;
   virtual void bx(Register rm, Condition cond = AL) = 0;
 
+  // ADR instruction loading register for branching to the label.
+  virtual void AdrCode(Register rt, Label* label) = 0;
+
   // Memory barriers.
   virtual void dmb(DmbOptions flavor) = 0;
 

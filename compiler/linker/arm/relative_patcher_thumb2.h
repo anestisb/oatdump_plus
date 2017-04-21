@@ -17,6 +17,10 @@
 #ifndef ART_COMPILER_LINKER_ARM_RELATIVE_PATCHER_THUMB2_H_
 #define ART_COMPILER_LINKER_ARM_RELATIVE_PATCHER_THUMB2_H_
 
+#include "arch/arm/registers_arm.h"
+#include "base/array_ref.h"
+#include "base/bit_field.h"
+#include "base/bit_utils.h"
 #include "linker/arm/relative_patcher_arm_base.h"
 
 namespace art {
@@ -24,6 +28,37 @@ namespace linker {
 
 class Thumb2RelativePatcher FINAL : public ArmBaseRelativePatcher {
  public:
+  static constexpr uint32_t kBakerCcEntrypointRegister = 4u;
+
+  enum class BakerReadBarrierKind : uint8_t {
+    kField,   // Field get or array get with constant offset (i.e. constant index).
+    kArray,   // Array get with index in register.
+    kGcRoot,  // GC root load.
+    kLast
+  };
+
+  static uint32_t EncodeBakerReadBarrierFieldData(uint32_t base_reg, uint32_t holder_reg) {
+    CheckValidReg(base_reg);
+    CheckValidReg(holder_reg);
+    return BakerReadBarrierKindField::Encode(BakerReadBarrierKind::kField) |
+           BakerReadBarrierFirstRegField::Encode(base_reg) |
+           BakerReadBarrierSecondRegField::Encode(holder_reg);
+  }
+
+  static uint32_t EncodeBakerReadBarrierArrayData(uint32_t base_reg) {
+    CheckValidReg(base_reg);
+    return BakerReadBarrierKindField::Encode(BakerReadBarrierKind::kArray) |
+           BakerReadBarrierFirstRegField::Encode(base_reg) |
+           BakerReadBarrierSecondRegField::Encode(kInvalidEncodedReg);
+  }
+
+  static uint32_t EncodeBakerReadBarrierGcRootData(uint32_t root_reg) {
+    CheckValidReg(root_reg);
+    return BakerReadBarrierKindField::Encode(BakerReadBarrierKind::kGcRoot) |
+           BakerReadBarrierFirstRegField::Encode(root_reg) |
+           BakerReadBarrierSecondRegField::Encode(kInvalidEncodedReg);
+  }
+
   explicit Thumb2RelativePatcher(RelativePatcherTargetProvider* provider);
 
   void PatchCall(std::vector<uint8_t>* code,
@@ -45,6 +80,22 @@ class Thumb2RelativePatcher FINAL : public ArmBaseRelativePatcher {
   uint32_t MaxNegativeDisplacement(ThunkType type) OVERRIDE;
 
  private:
+  static constexpr uint32_t kInvalidEncodedReg = /* pc is invalid */ 15u;
+
+  static constexpr size_t kBitsForBakerReadBarrierKind =
+      MinimumBitsToStore(static_cast<size_t>(BakerReadBarrierKind::kLast));
+  static constexpr size_t kBitsForRegister = 4u;
+  using BakerReadBarrierKindField =
+      BitField<BakerReadBarrierKind, 0, kBitsForBakerReadBarrierKind>;
+  using BakerReadBarrierFirstRegField =
+      BitField<uint32_t, kBitsForBakerReadBarrierKind, kBitsForRegister>;
+  using BakerReadBarrierSecondRegField =
+      BitField<uint32_t, kBitsForBakerReadBarrierKind + kBitsForRegister, kBitsForRegister>;
+
+  static void CheckValidReg(uint32_t reg) {
+    DCHECK(reg < 12u && reg != kBakerCcEntrypointRegister);
+  }
+
   void SetInsn32(std::vector<uint8_t>* code, uint32_t offset, uint32_t value);
   static uint32_t GetInsn32(ArrayRef<const uint8_t> code, uint32_t offset);
 

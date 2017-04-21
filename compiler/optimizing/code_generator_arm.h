@@ -488,6 +488,11 @@ class CodeGeneratorARM : public CodeGenerator {
   PcRelativePatchInfo* NewTypeBssEntryPatch(const DexFile& dex_file, dex::TypeIndex type_index);
   PcRelativePatchInfo* NewPcRelativeDexCacheArrayPatch(const DexFile& dex_file,
                                                        uint32_t element_offset);
+
+  // Add a new baker read barrier patch and return the label to be bound
+  // before the BNE instruction.
+  Label* NewBakerReadBarrierPatch(uint32_t custom_data);
+
   Literal* DeduplicateBootImageStringLiteral(const DexFile& dex_file,
                                              dex::StringIndex string_index);
   Literal* DeduplicateBootImageTypeLiteral(const DexFile& dex_file, dex::TypeIndex type_index);
@@ -502,6 +507,10 @@ class CodeGeneratorARM : public CodeGenerator {
   void EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) OVERRIDE;
 
   void EmitJitRootPatches(uint8_t* code, const uint8_t* roots_data) OVERRIDE;
+
+  // Maybe add the reserved entrypoint register as a temporary for field load. This temp
+  // is added only for AOT compilation if link-time generated thunks for fields are enabled.
+  void MaybeAddBakerCcEntrypointTempForFields(LocationSummary* locations);
 
   // Fast path implementation of ReadBarrier::Barrier for a heap
   // reference field load when Baker's read barriers are used.
@@ -616,6 +625,13 @@ class CodeGeneratorARM : public CodeGenerator {
                                         Literal*,
                                         TypeReferenceValueComparator>;
 
+  struct BakerReadBarrierPatchInfo {
+    explicit BakerReadBarrierPatchInfo(uint32_t data) : label(), custom_data(data) { }
+
+    Label label;
+    uint32_t custom_data;
+  };
+
   Literal* DeduplicateUint32Literal(uint32_t value, Uint32ToLiteralMap* map);
   Literal* DeduplicateMethodLiteral(MethodReference target_method, MethodToLiteralMap* map);
   PcRelativePatchInfo* NewPcRelativePatch(const DexFile& dex_file,
@@ -648,6 +664,8 @@ class CodeGeneratorARM : public CodeGenerator {
   ArenaDeque<PcRelativePatchInfo> pc_relative_type_patches_;
   // PC-relative type patch info for kBssEntry.
   ArenaDeque<PcRelativePatchInfo> type_bss_entry_patches_;
+  // Baker read barrier patch info.
+  ArenaDeque<BakerReadBarrierPatchInfo> baker_read_barrier_patches_;
 
   // Patches for string literals in JIT compiled code.
   StringToLiteralMap jit_string_patches_;

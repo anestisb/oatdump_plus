@@ -572,6 +572,11 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
   PcRelativePatchInfo* NewTypeBssEntryPatch(const DexFile& dex_file, dex::TypeIndex type_index);
   PcRelativePatchInfo* NewPcRelativeDexCacheArrayPatch(const DexFile& dex_file,
                                                        uint32_t element_offset);
+
+  // Add a new baker read barrier patch and return the label to be bound
+  // before the BNE instruction.
+  vixl::aarch32::Label* NewBakerReadBarrierPatch(uint32_t custom_data);
+
   VIXLUInt32Literal* DeduplicateBootImageStringLiteral(const DexFile& dex_file,
                                                        dex::StringIndex string_index);
   VIXLUInt32Literal* DeduplicateBootImageTypeLiteral(const DexFile& dex_file,
@@ -588,6 +593,10 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
   void EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) OVERRIDE;
 
   void EmitJitRootPatches(uint8_t* code, const uint8_t* roots_data) OVERRIDE;
+
+  // Maybe add the reserved entrypoint register as a temporary for field load. This temp
+  // is added only for AOT compilation if link-time generated thunks for fields are enabled.
+  void MaybeAddBakerCcEntrypointTempForFields(LocationSummary* locations);
 
   // Fast path implementation of ReadBarrier::Barrier for a heap
   // reference field load when Baker's read barriers are used.
@@ -713,6 +722,13 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
                                         VIXLUInt32Literal*,
                                         TypeReferenceValueComparator>;
 
+  struct BakerReadBarrierPatchInfo {
+    explicit BakerReadBarrierPatchInfo(uint32_t data) : label(), custom_data(data) { }
+
+    vixl::aarch32::Label label;
+    uint32_t custom_data;
+  };
+
   VIXLUInt32Literal* DeduplicateUint32Literal(uint32_t value, Uint32ToLiteralMap* map);
   VIXLUInt32Literal* DeduplicateMethodLiteral(MethodReference target_method,
                                               MethodToLiteralMap* map);
@@ -750,6 +766,8 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
   ArenaDeque<PcRelativePatchInfo> pc_relative_type_patches_;
   // PC-relative type patch info for kBssEntry.
   ArenaDeque<PcRelativePatchInfo> type_bss_entry_patches_;
+  // Baker read barrier patch info.
+  ArenaDeque<BakerReadBarrierPatchInfo> baker_read_barrier_patches_;
 
   // Patches for string literals in JIT compiled code.
   StringToLiteralMap jit_string_patches_;

@@ -1648,6 +1648,8 @@ void IntrinsicLocationsBuilderARM::VisitSystemArrayCopy(HInvoke* invoke) {
     // is clobbered by ReadBarrierMarkRegX entry points). Get an extra
     // temporary register from the register allocator.
     locations->AddTemp(Location::RequiresRegister());
+    CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen_);
+    arm_codegen->MaybeAddBakerCcEntrypointTempForFields(locations);
   }
 }
 
