@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_QUICK_INLINE_METHOD_ANALYSER_H_
-#define ART_RUNTIME_QUICK_INLINE_METHOD_ANALYSER_H_
+#ifndef ART_COMPILER_DEX_INLINE_METHOD_ANALYSER_H_
+#define ART_COMPILER_DEX_INLINE_METHOD_ANALYSER_H_
 
 #include "base/macros.h"
 #include "base/mutex.h"
@@ -36,128 +36,12 @@ class MethodVerifier;
 class ArtMethod;
 
 enum InlineMethodOpcode : uint16_t {
-  kIntrinsicDoubleCvt,
-  kIntrinsicFloatCvt,
-  kIntrinsicFloat2Int,
-  kIntrinsicDouble2Long,
-  kIntrinsicFloatIsInfinite,
-  kIntrinsicDoubleIsInfinite,
-  kIntrinsicFloatIsNaN,
-  kIntrinsicDoubleIsNaN,
-  kIntrinsicReverseBits,
-  kIntrinsicReverseBytes,
-  kIntrinsicBitCount,
-  kIntrinsicCompare,
-  kIntrinsicHighestOneBit,
-  kIntrinsicLowestOneBit,
-  kIntrinsicNumberOfLeadingZeros,
-  kIntrinsicNumberOfTrailingZeros,
-  kIntrinsicRotateRight,
-  kIntrinsicRotateLeft,
-  kIntrinsicSignum,
-  kIntrinsicAbsInt,
-  kIntrinsicAbsLong,
-  kIntrinsicAbsFloat,
-  kIntrinsicAbsDouble,
-  kIntrinsicMinMaxInt,
-  kIntrinsicMinMaxLong,
-  kIntrinsicMinMaxFloat,
-  kIntrinsicMinMaxDouble,
-  kIntrinsicCos,
-  kIntrinsicSin,
-  kIntrinsicAcos,
-  kIntrinsicAsin,
-  kIntrinsicAtan,
-  kIntrinsicAtan2,
-  kIntrinsicCbrt,
-  kIntrinsicCosh,
-  kIntrinsicExp,
-  kIntrinsicExpm1,
-  kIntrinsicHypot,
-  kIntrinsicLog,
-  kIntrinsicLog10,
-  kIntrinsicNextAfter,
-  kIntrinsicSinh,
-  kIntrinsicTan,
-  kIntrinsicTanh,
-  kIntrinsicSqrt,
-  kIntrinsicCeil,
-  kIntrinsicFloor,
-  kIntrinsicRint,
-  kIntrinsicRoundFloat,
-  kIntrinsicRoundDouble,
-  kIntrinsicReferenceGetReferent,
-  kIntrinsicCharAt,
-  kIntrinsicCompareTo,
-  kIntrinsicEquals,
-  kIntrinsicGetCharsNoCheck,
-  kIntrinsicIsEmptyOrLength,
-  kIntrinsicIndexOf,
-  kIntrinsicNewStringFromBytes,
-  kIntrinsicNewStringFromChars,
-  kIntrinsicNewStringFromString,
-  kIntrinsicCurrentThread,
-  kIntrinsicPeek,
-  kIntrinsicPoke,
-  kIntrinsicCas,
-  kIntrinsicUnsafeGet,
-  kIntrinsicUnsafePut,
-
-  // 1.8.
-  kIntrinsicUnsafeGetAndAddInt,
-  kIntrinsicUnsafeGetAndAddLong,
-  kIntrinsicUnsafeGetAndSetInt,
-  kIntrinsicUnsafeGetAndSetLong,
-  kIntrinsicUnsafeGetAndSetObject,
-  kIntrinsicUnsafeLoadFence,
-  kIntrinsicUnsafeStoreFence,
-  kIntrinsicUnsafeFullFence,
-
-  kIntrinsicSystemArrayCopyCharArray,
-  kIntrinsicSystemArrayCopy,
-
   kInlineOpNop,
   kInlineOpReturnArg,
   kInlineOpNonWideConst,
   kInlineOpIGet,
   kInlineOpIPut,
   kInlineOpConstructor,
-  kInlineStringInit,
-};
-std::ostream& operator<<(std::ostream& os, const InlineMethodOpcode& rhs);
-
-enum InlineMethodFlags : uint16_t {
-  kNoInlineMethodFlags = 0x0000,
-  kInlineIntrinsic     = 0x0001,
-  kInlineSpecial       = 0x0002,
-};
-
-// IntrinsicFlags are stored in InlineMethod::d::raw_data
-enum IntrinsicFlags {
-  kIntrinsicFlagNone = 0,
-
-  // kIntrinsicMinMaxInt
-  kIntrinsicFlagMax = kIntrinsicFlagNone,
-  kIntrinsicFlagMin = 1,
-
-  // kIntrinsicIsEmptyOrLength
-  kIntrinsicFlagLength  = kIntrinsicFlagNone,
-  kIntrinsicFlagIsEmpty = kIntrinsicFlagMin,
-
-  // kIntrinsicIndexOf
-  kIntrinsicFlagBase0 = kIntrinsicFlagMin,
-
-  // kIntrinsicUnsafeGet, kIntrinsicUnsafePut, kIntrinsicUnsafeCas
-  kIntrinsicFlagIsLong     = kIntrinsicFlagMin,
-  // kIntrinsicUnsafeGet, kIntrinsicUnsafePut
-  kIntrinsicFlagIsVolatile = 2,
-  // kIntrinsicUnsafePut, kIntrinsicUnsafeCas
-  kIntrinsicFlagIsObject   = 4,
-  // kIntrinsicUnsafePut
-  kIntrinsicFlagIsOrdered  = 8,
-
-  // kIntrinsicDoubleCvt, kIntrinsicFloatCvt.
-  kIntrinsicFlagToFloatingPoint = kIntrinsicFlagMin,
 };
 
 struct InlineIGetIPutData {
@@ -198,7 +82,6 @@ static_assert(sizeof(InlineConstructorData) == sizeof(uint64_t),
 
 struct InlineMethod {
   InlineMethodOpcode opcode;
-  InlineMethodFlags flags;
   union {
     uint64_t data;
     InlineIGetIPutData ifield_data;
@@ -213,12 +96,8 @@ class InlineMethodAnalyser {
    * Analyse method code to determine if the method is a candidate for inlining.
    * If it is, record the inlining data.
    *
-   * @param verifier the method verifier holding data about the method to analyse.
-   * @param method placeholder for the inline method data.
    * @return true if the method is a candidate for inlining, false otherwise.
    */
-  static bool AnalyseMethodCode(verifier::MethodVerifier* verifier, InlineMethod* result)
-      REQUIRES_SHARED(Locks::mutator_lock_);
   static bool AnalyseMethodCode(ArtMethod* method, InlineMethod* result)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -274,4 +153,4 @@ class InlineMethodAnalyser {
 
 }  // namespace art
 
-#endif  // ART_RUNTIME_QUICK_INLINE_METHOD_ANALYSER_H_
+#endif  // ART_COMPILER_DEX_INLINE_METHOD_ANALYSER_H_
