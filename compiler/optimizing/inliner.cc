@@ -1539,6 +1539,14 @@ HInstanceFieldSet* HInliner::CreateInstanceFieldSet(uint32_t field_index,
   return iput;
 }
 
+template <typename T>
+static inline Handle<T> NewHandleIfDifferent(T* object,
+                                             Handle<T> hint,
+                                             VariableSizedHandleScope* handles)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  return (object != hint.Get()) ? handles->NewHandle(object) : hint;
+}
+
 bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
                                        ArtMethod* resolved_method,
                                        ReferenceTypeInfo receiver_type,
@@ -1550,9 +1558,13 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
   const DexFile& callee_dex_file = *resolved_method->GetDexFile();
   uint32_t method_index = resolved_method->GetDexMethodIndex();
   ClassLinker* class_linker = caller_compilation_unit_.GetClassLinker();
-  Handle<mirror::DexCache> dex_cache(handles_->NewHandle(resolved_method->GetDexCache()));
-  Handle<mirror::ClassLoader> class_loader(handles_->NewHandle(
-      resolved_method->GetDeclaringClass()->GetClassLoader()));
+  Handle<mirror::DexCache> dex_cache = NewHandleIfDifferent(resolved_method->GetDexCache(),
+                                                            caller_compilation_unit_.GetDexCache(),
+                                                            handles_);
+  Handle<mirror::ClassLoader> class_loader =
+      NewHandleIfDifferent(resolved_method->GetDeclaringClass()->GetClassLoader(),
+                           caller_compilation_unit_.GetClassLoader(),
+                           handles_);
 
   DexCompilationUnit dex_compilation_unit(
       class_loader,
