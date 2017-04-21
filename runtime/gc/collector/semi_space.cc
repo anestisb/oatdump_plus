@@ -44,6 +44,7 @@
 #include "monitor.h"
 #include "mirror/reference-inl.h"
 #include "mirror/object-inl.h"
+#include "mirror/object-refvisitor-inl.h"
 #include "runtime.h"
 #include "thread-inl.h"
 #include "thread_list.h"

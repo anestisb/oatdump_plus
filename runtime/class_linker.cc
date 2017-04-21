@@ -8983,6 +8983,13 @@ mirror::Class* ClassLinker::GetHoldingClassOfCopiedMethod(ArtMethod* method) {
   return visitor.holder_.Ptr();
 }
 
+mirror::IfTable* ClassLinker::AllocIfTable(Thread* self, size_t ifcount) {
+  return down_cast<mirror::IfTable*>(
+      mirror::IfTable::Alloc(self,
+                             GetClassRoot(kObjectArrayClass),
+                             ifcount * mirror::IfTable::kMax));
+}
+
 // Instantiate ResolveMethod.
 template ArtMethod* ClassLinker::ResolveMethod<ClassLinker::kForceICCECheck>(
     const DexFile& dex_file,

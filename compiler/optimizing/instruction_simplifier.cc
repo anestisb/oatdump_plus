@@ -16,6 +16,8 @@
 
 #include "instruction_simplifier.h"
 
+#include "art_method-inl.h"
+#include "class_linker-inl.h"
 #include "escape.h"
 #include "intrinsics.h"
 #include "mirror/class-inl.h"

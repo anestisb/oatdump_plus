@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "art_method-inl.h"
+#include "art_method.h"
 #include "base/enums.h"
 #include "callee_save_frame.h"
 #include "entrypoints/runtime_asm_entrypoints.h"

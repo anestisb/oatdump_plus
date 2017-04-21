@@ -21,6 +21,7 @@
 
 #include "base/logging.h"
 #include "class_linker.h"
+#include "dex_file-inl.h"
 #include "gc_root-inl.h"
 #include "gc/accounting/card_table-inl.h"
 #include "jvalue.h"
@@ -44,16 +45,6 @@ inline ObjPtr<mirror::Class> ArtField::GetDeclaringClass() {
 
 inline void ArtField::SetDeclaringClass(ObjPtr<mirror::Class> new_declaring_class) {
   declaring_class_ = GcRoot<mirror::Class>(new_declaring_class);
-}
-
-inline uint32_t ArtField::GetAccessFlags() {
-  DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
-  return access_flags_;
-}
-
-inline MemberOffset ArtField::GetOffset() {
-  DCHECK(GetDeclaringClass()->IsResolved());
-  return MemberOffset(offset_);
 }
 
 inline MemberOffset ArtField::GetOffsetDuringLinking() {

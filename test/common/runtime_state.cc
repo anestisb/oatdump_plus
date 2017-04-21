@@ -16,12 +16,14 @@
 
 #include "jni.h"
 
+#include "art_method-inl.h"
 #include "base/enums.h"
 #include "base/logging.h"
 #include "dex_file-inl.h"
 #include "instrumentation.h"
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
+#include "jit/profiling_info.h"
 #include "mirror/class-inl.h"
 #include "oat_quick_method_header.h"
 #include "runtime.h"
