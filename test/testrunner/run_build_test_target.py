@@ -62,7 +62,7 @@ custom_env['SOONG_ALLOW_MISSING_DEPENDENCIES'] = 'true'
 print custom_env
 os.environ.update(custom_env)
 
-if target.get('make'):
+if target.has_key('make'):
   build_command = 'make'
   build_command += ' -j' + str(n_threads)
   build_command += ' -C ' + env.ANDROID_BUILD_TOP
@@ -74,7 +74,7 @@ if target.get('make'):
   if subprocess.call(build_command.split()):
     sys.exit(1)
 
-if target.get('golem'):
+if target.has_key('golem'):
   machine_type = target.get('golem')
   # use art-opt-cc by default since it mimics the default preopt config.
   default_golem_config = 'art-opt-cc'
@@ -92,7 +92,7 @@ if target.get('golem'):
   if subprocess.call(cmd):
     sys.exit(1)
 
-if target.get('run-test'):
+if target.has_key('run-test'):
   run_test_command = [os.path.join(env.ANDROID_BUILD_TOP,
                                    'art/test/testrunner/testrunner.py')]
   run_test_command += target.get('run-test', [])
