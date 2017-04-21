@@ -29,8 +29,14 @@ namespace ti {
 using AgentOnLoadFunction = jint (*)(JavaVM*, const char*, void*);
 using AgentOnUnloadFunction = void (*)(JavaVM*);
 
+// Agents are native libraries that will be loaded by the runtime for the purpose of
+// instrumentation. They will be entered by Agent_OnLoad or Agent_OnAttach depending on whether the
+// agent is being attached during runtime startup or later.
+//
+// The agent's Agent_OnUnload function will be called during runtime shutdown.
+//
 // TODO: consider splitting ti::Agent into command line, agent and shared library handler classes
-
+// TODO Support native-bridge. Currently agents can only be the actual runtime ISA of the device.
 class Agent {
  public:
   enum LoadError {
@@ -55,6 +61,8 @@ class Agent {
   bool HasArgs() const {
     return !GetArgs().empty();
   }
+
+  void* FindSymbol(const std::string& name) const;
 
   LoadError Load(/*out*/jint* call_res, /*out*/std::string* error_msg) {
     VLOG(agents) << "Loading agent: " << name_ << " " << args_;

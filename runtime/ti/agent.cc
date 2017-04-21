@@ -72,6 +72,11 @@ Agent::LoadError Agent::DoLoadHelper(bool attaching,
   }
 }
 
+void* Agent::FindSymbol(const std::string& name) const {
+  CHECK(IsStarted()) << "Cannot find symbols in an unloaded agent library " << this;
+  return dlsym(dlopen_handle_, name.c_str());
+}
+
 Agent::LoadError Agent::DoDlOpen(/*out*/std::string* error_msg) {
   DCHECK(error_msg != nullptr);
 
@@ -86,18 +91,15 @@ Agent::LoadError Agent::DoDlOpen(/*out*/std::string* error_msg) {
     return kLoadingError;
   }
 
-  onload_ = reinterpret_cast<AgentOnLoadFunction>(dlsym(dlopen_handle_,
-                                                        AGENT_ON_LOAD_FUNCTION_NAME));
+  onload_ = reinterpret_cast<AgentOnLoadFunction>(FindSymbol(AGENT_ON_LOAD_FUNCTION_NAME));
   if (onload_ == nullptr) {
     VLOG(agents) << "Unable to find 'Agent_OnLoad' symbol in " << this;
   }
-  onattach_ = reinterpret_cast<AgentOnLoadFunction>(dlsym(dlopen_handle_,
-                                                            AGENT_ON_ATTACH_FUNCTION_NAME));
+  onattach_ = reinterpret_cast<AgentOnLoadFunction>(FindSymbol(AGENT_ON_ATTACH_FUNCTION_NAME));
   if (onattach_ == nullptr) {
     VLOG(agents) << "Unable to find 'Agent_OnAttach' symbol in " << this;
   }
-  onunload_= reinterpret_cast<AgentOnUnloadFunction>(dlsym(dlopen_handle_,
-                                                           AGENT_ON_UNLOAD_FUNCTION_NAME));
+  onunload_= reinterpret_cast<AgentOnUnloadFunction>(FindSymbol(AGENT_ON_UNLOAD_FUNCTION_NAME));
   if (onunload_ == nullptr) {
     VLOG(agents) << "Unable to find 'Agent_OnUnload' symbol in " << this;
   }
