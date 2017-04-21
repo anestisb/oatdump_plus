@@ -18,6 +18,7 @@
 
 #include "android-base/stringprintf.h"
 
+#include "art_method-inl.h"
 #include "class_linker.h"
 #include "common_runtime_test.h"
 #include "handle_scope-inl.h"

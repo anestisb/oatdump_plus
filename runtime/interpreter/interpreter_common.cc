@@ -28,7 +28,7 @@
 #include "mirror/array-inl.h"
 #include "mirror/class.h"
 #include "mirror/emulated_stack_frame.h"
-#include "mirror/method_handle_impl.h"
+#include "mirror/method_handle_impl-inl.h"
 #include "reflection.h"
 #include "reflection-inl.h"
 #include "stack.h"

@@ -20,7 +20,7 @@
 
 #include "android-base/stringprintf.h"
 
-#include "art_method.h"
+#include "art_method-inl.h"
 #include "base/dumpable.h"
 #include "base/mutex.h"
 #include "base/stl_util.h"

@@ -21,6 +21,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "art_field-inl.h"
 #include "debug/dwarf/debug_abbrev_writer.h"
 #include "debug/dwarf/debug_info_entry_writer.h"
 #include "debug/elf_compilation_unit.h"

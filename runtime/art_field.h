@@ -51,7 +51,12 @@ class ArtField FINAL {
     return declaring_class_.AddressWithoutBarrier();
   }
 
-  uint32_t GetAccessFlags() REQUIRES_SHARED(Locks::mutator_lock_);
+  uint32_t GetAccessFlags() REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (kIsDebugBuild) {
+      GetAccessFlagsDCheck();
+    }
+    return access_flags_;
+  }
 
   void SetAccessFlags(uint32_t new_access_flags) REQUIRES_SHARED(Locks::mutator_lock_) {
     // Not called within a transaction.
@@ -80,7 +85,12 @@ class ArtField FINAL {
   }
 
   // Offset to field within an Object.
-  MemberOffset GetOffset() REQUIRES_SHARED(Locks::mutator_lock_);
+  MemberOffset GetOffset() REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (kIsDebugBuild) {
+      GetOffsetDCheck();
+    }
+    return MemberOffset(offset_);
+  }
 
   static MemberOffset OffsetOffset() {
     return MemberOffset(OFFSETOF_MEMBER(ArtField, offset_));
@@ -226,6 +236,9 @@ class ArtField FINAL {
                                               dex::StringIndex string_idx,
                                               ObjPtr<mirror::DexCache> dex_cache)
       REQUIRES_SHARED(Locks::mutator_lock_);
+
+  void GetAccessFlagsDCheck() REQUIRES_SHARED(Locks::mutator_lock_);
+  void GetOffsetDCheck() REQUIRES_SHARED(Locks::mutator_lock_);
 
   GcRoot<mirror::Class> declaring_class_;
 

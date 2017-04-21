@@ -22,9 +22,12 @@
 #include "common_arm64.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "intrinsics.h"
+#include "lock_word.h"
 #include "mirror/array-inl.h"
+#include "mirror/reference.h"
 #include "mirror/string-inl.h"
-#include "thread.h"
+#include "scoped_thread_state_change-inl.h"
+#include "thread-inl.h"
 #include "utils/arm64/assembler_arm64.h"
 
 using namespace vixl::aarch64;  // NOLINT(build/namespaces)

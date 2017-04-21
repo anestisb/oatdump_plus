@@ -19,14 +19,12 @@
 
 #include <sys/ucontext.h>
 
-#include "art_method-inl.h"
+#include "art_method.h"
 #include "base/enums.h"
-#include "base/macros.h"
 #include "base/hex_dump.h"
-#include "globals.h"
 #include "base/logging.h"
-#include "base/hex_dump.h"
-#include "thread.h"
+#include "base/macros.h"
+#include "globals.h"
 #include "thread-inl.h"
 
 //
