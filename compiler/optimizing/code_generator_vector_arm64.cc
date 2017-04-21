@@ -27,6 +27,7 @@ using helpers::HeapOperand;
 using helpers::InputRegisterAt;
 using helpers::Int64ConstantFrom;
 using helpers::XRegisterFrom;
+using helpers::WRegisterFrom;
 
 #define __ GetVIXLAssembler()->
 
@@ -774,7 +775,8 @@ static void CreateVecMemLocations(ArenaAllocator* arena,
 MemOperand InstructionCodeGeneratorARM64::CreateVecMemRegisters(
     HVecMemoryOperation* instruction,
     Location* reg_loc,
-    bool is_load) {
+    bool is_load,
+    UseScratchRegisterScope* temps_scope) {
   LocationSummary* locations = instruction->GetLocations();
   Register base = InputRegisterAt(instruction, 0);
   Location index = locations->InAt(1);
@@ -784,20 +786,18 @@ MemOperand InstructionCodeGeneratorARM64::CreateVecMemRegisters(
   uint32_t offset = mirror::Array::DataOffset(Primitive::ComponentSize(packed_type)).Uint32Value();
   size_t shift = Primitive::ComponentSizeShift(packed_type);
 
-  UseScratchRegisterScope temps(GetVIXLAssembler());
-  Register temp = temps.AcquireSameSizeAs(base);
+  // HIntermediateAddress optimization is only applied for scalar ArrayGet and ArraySet.
+  DCHECK(!instruction->InputAt(0)->IsIntermediateAddress());
+
   if (index.IsConstant()) {
     offset += Int64ConstantFrom(index) << shift;
-    __ Add(temp, base, offset);
+    return HeapOperand(base, offset);
   } else {
-    if (instruction->InputAt(0)->IsIntermediateAddress()) {
-      temp = base;
-    } else {
-      __ Add(temp, base, offset);
-    }
-    __ Add(temp.X(), temp.X(), Operand(XRegisterFrom(index), LSL, shift));
+    Register temp = temps_scope->AcquireSameSizeAs(base);
+    __ Add(temp, base, Operand(WRegisterFrom(index), LSL, shift));
+
+    return HeapOperand(temp, offset);
   }
-  return HeapOperand(temp);
 }
 
 void LocationsBuilderARM64::VisitVecLoad(HVecLoad* instruction) {
@@ -806,28 +806,22 @@ void LocationsBuilderARM64::VisitVecLoad(HVecLoad* instruction) {
 
 void InstructionCodeGeneratorARM64::VisitVecLoad(HVecLoad* instruction) {
   Location reg_loc = Location::NoLocation();
-  MemOperand mem = CreateVecMemRegisters(instruction, &reg_loc, /*is_load*/ true);
+  UseScratchRegisterScope temps(GetVIXLAssembler());
+  MemOperand mem = CreateVecMemRegisters(instruction, &reg_loc, /*is_load*/ true, &temps);
   VRegister reg = VRegisterFrom(reg_loc);
+
   switch (instruction->GetPackedType()) {
     case Primitive::kPrimBoolean:
     case Primitive::kPrimByte:
-      DCHECK_EQ(16u, instruction->GetVectorLength());
-      __ Ld1(reg.V16B(), mem);
-      break;
     case Primitive::kPrimChar:
     case Primitive::kPrimShort:
-      DCHECK_EQ(8u, instruction->GetVectorLength());
-      __ Ld1(reg.V8H(), mem);
-      break;
     case Primitive::kPrimInt:
     case Primitive::kPrimFloat:
-      DCHECK_EQ(4u, instruction->GetVectorLength());
-      __ Ld1(reg.V4S(), mem);
-      break;
     case Primitive::kPrimLong:
     case Primitive::kPrimDouble:
-      DCHECK_EQ(2u, instruction->GetVectorLength());
-      __ Ld1(reg.V2D(), mem);
+      DCHECK_LE(2u, instruction->GetVectorLength());
+      DCHECK_LE(instruction->GetVectorLength(), 16u);
+      __ Ldr(reg, mem);
       break;
     default:
       LOG(FATAL) << "Unsupported SIMD type";
@@ -841,28 +835,22 @@ void LocationsBuilderARM64::VisitVecStore(HVecStore* instruction) {
 
 void InstructionCodeGeneratorARM64::VisitVecStore(HVecStore* instruction) {
   Location reg_loc = Location::NoLocation();
-  MemOperand mem = CreateVecMemRegisters(instruction, &reg_loc, /*is_load*/ false);
+  UseScratchRegisterScope temps(GetVIXLAssembler());
+  MemOperand mem = CreateVecMemRegisters(instruction, &reg_loc, /*is_load*/ false, &temps);
   VRegister reg = VRegisterFrom(reg_loc);
+
   switch (instruction->GetPackedType()) {
     case Primitive::kPrimBoolean:
     case Primitive::kPrimByte:
-      DCHECK_EQ(16u, instruction->GetVectorLength());
-      __ St1(reg.V16B(), mem);
-      break;
     case Primitive::kPrimChar:
     case Primitive::kPrimShort:
-      DCHECK_EQ(8u, instruction->GetVectorLength());
-      __ St1(reg.V8H(), mem);
-      break;
     case Primitive::kPrimInt:
     case Primitive::kPrimFloat:
-      DCHECK_EQ(4u, instruction->GetVectorLength());
-      __ St1(reg.V4S(), mem);
-      break;
     case Primitive::kPrimLong:
     case Primitive::kPrimDouble:
-      DCHECK_EQ(2u, instruction->GetVectorLength());
-      __ St1(reg.V2D(), mem);
+      DCHECK_LE(2u, instruction->GetVectorLength());
+      DCHECK_LE(instruction->GetVectorLength(), 16u);
+      __ Str(reg, mem);
       break;
     default:
       LOG(FATAL) << "Unsupported SIMD type";
