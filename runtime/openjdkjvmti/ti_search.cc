@@ -33,6 +33,7 @@
 
 #include "jni.h"
 
+#include "art_field-inl.h"
 #include "art_jvmti.h"
 #include "base/enums.h"
 #include "base/macros.h"
@@ -50,6 +51,7 @@
 #include "ti_phase.h"
 #include "thread-inl.h"
 #include "thread_list.h"
+#include "well_known_classes.h"
 
 namespace openjdkjvmti {
 

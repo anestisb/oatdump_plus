@@ -19,14 +19,13 @@
 
 #include <sys/ucontext.h>
 
-#include "art_method-inl.h"
+#include "art_method.h"
 #include "base/enums.h"
+#include "base/hex_dump.h"
+#include "base/logging.h"
 #include "base/macros.h"
 #include "globals.h"
-#include "base/logging.h"
-#include "base/hex_dump.h"
 #include "registers_arm64.h"
-#include "thread.h"
 #include "thread-inl.h"
 
 extern "C" void art_quick_throw_stack_overflow();

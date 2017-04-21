@@ -185,7 +185,9 @@ class ClassLinker {
   // boot_class_path_.
   mirror::Class* FindSystemClass(Thread* self, const char* descriptor)
       REQUIRES_SHARED(Locks::mutator_lock_)
-      REQUIRES(!Locks::dex_lock_);
+      REQUIRES(!Locks::dex_lock_) {
+    return FindClass(self, descriptor, ScopedNullHandle<mirror::ClassLoader>());
+  }
 
   // Finds the array class given for the element class.
   mirror::Class* FindArrayClass(Thread* self, ObjPtr<mirror::Class>* element_class)
@@ -228,12 +230,6 @@ class ClassLinker {
 
   size_t NumLoadedClasses()
       REQUIRES(!Locks::classlinker_classes_lock_)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  // Resolve a String with the given index from the DexFile, storing the
-  // result in the DexCache. The referrer is used to identify the
-  // target DexCache and ClassLoader to use for resolution.
-  mirror::String* ResolveString(dex::StringIndex string_idx, ArtMethod* referrer)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Resolve a String with the given index from the DexFile, storing the
@@ -435,25 +431,6 @@ class ClassLinker {
   void FixupDexCaches(ArtMethod* resolution_method)
       REQUIRES(!Locks::dex_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
-
-  // Allocate an instance of a java.lang.Object.
-  mirror::Object* AllocObject(Thread* self)
-      REQUIRES_SHARED(Locks::mutator_lock_)
-      REQUIRES(!Roles::uninterruptible_);
-
-  // TODO: replace this with multiple methods that allocate the correct managed type.
-  template <class T>
-  mirror::ObjectArray<T>* AllocObjectArray(Thread* self, size_t length)
-      REQUIRES_SHARED(Locks::mutator_lock_)
-      REQUIRES(!Roles::uninterruptible_);
-
-  mirror::ObjectArray<mirror::Class>* AllocClassArray(Thread* self, size_t length)
-      REQUIRES_SHARED(Locks::mutator_lock_)
-      REQUIRES(!Roles::uninterruptible_);
-
-  mirror::ObjectArray<mirror::String>* AllocStringArray(Thread* self, size_t length)
-      REQUIRES_SHARED(Locks::mutator_lock_)
-      REQUIRES(!Roles::uninterruptible_);
 
   LengthPrefixedArray<ArtField>* AllocArtFieldArray(Thread* self,
                                                     LinearAlloc* allocator,

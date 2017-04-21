@@ -31,7 +31,7 @@
 
 #include "ti_threadgroup.h"
 
-#include "art_field.h"
+#include "art_field-inl.h"
 #include "art_jvmti.h"
 #include "base/logging.h"
 #include "base/macros.h"

@@ -17,10 +17,15 @@
 #include "intrinsics_arm_vixl.h"
 
 #include "arch/arm/instruction_set_features_arm.h"
+#include "art_method.h"
 #include "code_generator_arm_vixl.h"
 #include "common_arm.h"
 #include "lock_word.h"
 #include "mirror/array-inl.h"
+#include "mirror/reference.h"
+#include "mirror/string.h"
+#include "scoped_thread_state_change-inl.h"
+#include "thread-inl.h"
 
 #include "aarch32/constants-aarch32.h"
 

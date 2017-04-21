@@ -40,6 +40,7 @@
 #include "android-base/stringprintf.h"
 
 #include "art_field-inl.h"
+#include "art_method-inl.h"
 #include "base/logging.h"
 #include "base/time_utils.h"
 #include "base/unix_file/fd_file.h"
@@ -58,7 +59,7 @@
 #include "jdwp/jdwp_priv.h"
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
-#include "mirror/object-inl.h"
+#include "mirror/object-refvisitor-inl.h"
 #include "os.h"
 #include "safe_map.h"
 #include "scoped_thread_state_change-inl.h"

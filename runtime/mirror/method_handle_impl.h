@@ -21,7 +21,7 @@
 #include "art_method.h"
 #include "class.h"
 #include "gc_root.h"
-#include "object-inl.h"
+#include "object.h"
 #include "method_type.h"
 
 namespace art {
@@ -65,13 +65,9 @@ class MANAGED MethodHandle : public Object {
     return static_cast<Kind>(handle_kind);
   }
 
-  mirror::MethodType* GetMethodType() REQUIRES_SHARED(Locks::mutator_lock_) {
-    return GetFieldObject<mirror::MethodType>(OFFSET_OF_OBJECT_MEMBER(MethodHandle, method_type_));
-  }
+  ALWAYS_INLINE mirror::MethodType* GetMethodType() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  mirror::MethodType* GetNominalType() REQUIRES_SHARED(Locks::mutator_lock_) {
-    return GetFieldObject<mirror::MethodType>(OFFSET_OF_OBJECT_MEMBER(MethodHandle, nominal_type_));
-  }
+  ALWAYS_INLINE mirror::MethodType* GetNominalType() REQUIRES_SHARED(Locks::mutator_lock_);
 
   ArtField* GetTargetField() REQUIRES_SHARED(Locks::mutator_lock_) {
     return reinterpret_cast<ArtField*>(
@@ -83,11 +79,7 @@ class MANAGED MethodHandle : public Object {
         GetField64(OFFSET_OF_OBJECT_MEMBER(MethodHandle, art_field_or_method_)));
   }
 
-  ObjPtr<mirror::Class> GetTargetClass() REQUIRES_SHARED(Locks::mutator_lock_) {
-    Kind kind = GetHandleKind();
-    return (kind <= kLastValidKind) ?
-        GetTargetMethod()->GetDeclaringClass() : GetTargetField()->GetDeclaringClass();
-  }
+  ALWAYS_INLINE ObjPtr<mirror::Class> GetTargetClass() REQUIRES_SHARED(Locks::mutator_lock_);
 
   static mirror::Class* StaticClass() REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -132,9 +124,7 @@ class MANAGED MethodHandleImpl : public MethodHandle {
                                           Handle<MethodType> method_type)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
-  static mirror::Class* StaticClass() REQUIRES_SHARED(Locks::mutator_lock_) {
-    return static_class_.Read();
-  }
+  static mirror::Class* StaticClass() REQUIRES_SHARED(Locks::mutator_lock_);
 
   static void SetClass(Class* klass) REQUIRES_SHARED(Locks::mutator_lock_);
   static void ResetClass() REQUIRES_SHARED(Locks::mutator_lock_);

@@ -61,6 +61,7 @@
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache-inl.h"
 #include "mirror/object-inl.h"
+#include "mirror/object-refvisitor-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/throwable.h"
 #include "scoped_thread_state_change-inl.h"

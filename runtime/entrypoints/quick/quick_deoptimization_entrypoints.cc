@@ -14,22 +14,18 @@
  * limitations under the License.
  */
 
-#include "art_method-inl.h"
 #include "base/logging.h"
+#include "base/mutex.h"
 #include "callee_save_frame.h"
-#include "dex_file-inl.h"
 #include "interpreter/interpreter.h"
-#include "mirror/class-inl.h"
-#include "mirror/object_array-inl.h"
-#include "mirror/object-inl.h"
+#include "obj_ptr-inl.h"  // TODO: Find the other include that isn't complete, and clean this up.
 #include "quick_exception_handler.h"
 #include "thread.h"
-#include "verifier/method_verifier.h"
 
 namespace art {
 
 NO_RETURN static void artDeoptimizeImpl(Thread* self, bool single_frame)
-      REQUIRES_SHARED(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   if (VLOG_IS_ON(deopt)) {
     if (single_frame) {
       // Deopt logging will be in DeoptimizeSingleFrame. It is there to take advantage of the

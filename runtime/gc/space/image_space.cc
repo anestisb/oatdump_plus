@@ -25,7 +25,8 @@
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 
-#include "art_method.h"
+#include "art_field-inl.h"
+#include "art_method-inl.h"
 #include "base/enums.h"
 #include "base/macros.h"
 #include "base/stl_util.h"
@@ -38,6 +39,7 @@
 #include "image_space_fs.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
+#include "mirror/object-refvisitor-inl.h"
 #include "oat_file.h"
 #include "os.h"
 #include "space-inl.h"
