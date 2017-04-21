@@ -374,6 +374,8 @@ class ConcurrentCopying::FlipCallback : public Closure {
         cc->VerifyGrayImmuneObjects();
       }
     }
+    cc->java_lang_Object_ = down_cast<mirror::Class*>(cc->Mark(
+        WellKnownClasses::ToClass(WellKnownClasses::java_lang_Object).Ptr()));
   }
 
  private:
@@ -2067,11 +2069,9 @@ void ConcurrentCopying::FillWithDummyObject(mirror::Object* dummy_obj, size_t by
   size_t data_offset = mirror::Array::DataOffset(component_size).SizeValue();
   if (data_offset > byte_size) {
     // An int array is too big. Use java.lang.Object.
-    ObjPtr<mirror::Class> java_lang_Object =
-        WellKnownClasses::ToClass(WellKnownClasses::java_lang_Object);
-    AssertToSpaceInvariant(nullptr, MemberOffset(0), java_lang_Object.Ptr());
-    CHECK_EQ(byte_size, (java_lang_Object->GetObjectSize<kVerifyNone, kWithoutReadBarrier>()));
-    dummy_obj->SetClass(java_lang_Object.Ptr());
+    AssertToSpaceInvariant(nullptr, MemberOffset(0), java_lang_Object_);
+    CHECK_EQ(byte_size, (java_lang_Object_->GetObjectSize<kVerifyNone, kWithoutReadBarrier>()));
+    dummy_obj->SetClass(java_lang_Object_);
     CHECK_EQ(byte_size, (dummy_obj->SizeOf<kVerifyNone>()));
   } else {
     // Use an int array.
