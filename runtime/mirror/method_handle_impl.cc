@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "method_handle_impl.h"
+#include "method_handle_impl-inl.h"
 
 #include "class-inl.h"
 #include "gc_root-inl.h"
@@ -41,6 +41,10 @@ void MethodHandle::Initialize(uintptr_t art_field_or_method,
 }
 
 GcRoot<mirror::Class> MethodHandleImpl::static_class_;
+
+mirror::Class* MethodHandleImpl::StaticClass()  {
+  return static_class_.Read();
+}
 
 void MethodHandleImpl::SetClass(Class* klass) {
   CHECK(static_class_.IsNull()) << static_class_.Read() << " " << klass;

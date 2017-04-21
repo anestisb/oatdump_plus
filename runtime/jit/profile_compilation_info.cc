@@ -24,7 +24,6 @@
 #include <sys/stat.h>
 #include <sys/uio.h>
 
-#include "art_method-inl.h"
 #include "base/mutex.h"
 #include "base/scoped_flock.h"
 #include "base/stl_util.h"
@@ -33,6 +32,7 @@
 #include "jit/profiling_info.h"
 #include "os.h"
 #include "safe_map.h"
+#include "utils.h"
 
 namespace art {
 

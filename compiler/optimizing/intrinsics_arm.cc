@@ -22,9 +22,12 @@
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "intrinsics.h"
 #include "intrinsics_utils.h"
+#include "lock_word.h"
 #include "mirror/array-inl.h"
+#include "mirror/reference.h"
 #include "mirror/string.h"
-#include "thread.h"
+#include "scoped_thread_state_change-inl.h"
+#include "thread-inl.h"
 #include "utils/arm/assembler_arm.h"
 
 namespace art {

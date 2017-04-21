@@ -28,6 +28,7 @@
 
 #include "android-base/stringprintf.h"
 
+#include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "base/unix_file/fd_file.h"
 #include "gc/space/image_space.h"

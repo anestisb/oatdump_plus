@@ -21,6 +21,7 @@
 
 #include "gc/heap.h"
 #include "mirror/class-inl.h"
+#include "mirror/object-refvisitor-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/reference.h"
 

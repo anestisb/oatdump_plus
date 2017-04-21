@@ -82,37 +82,6 @@ inline bool ArtMethod::CASDeclaringClass(mirror::Class* expected_class,
           expected_root, desired_root);
 }
 
-// AssertSharedHeld doesn't work in GetAccessFlags, so use a NO_THREAD_SAFETY_ANALYSIS helper.
-// TODO: Figure out why ASSERT_SHARED_CAPABILITY doesn't work.
-template <ReadBarrierOption kReadBarrierOption>
-ALWAYS_INLINE static inline void DoGetAccessFlagsHelper(ArtMethod* method)
-    NO_THREAD_SAFETY_ANALYSIS {
-  CHECK(method->IsRuntimeMethod() ||
-        method->GetDeclaringClass<kReadBarrierOption>()->IsIdxLoaded() ||
-        method->GetDeclaringClass<kReadBarrierOption>()->IsErroneous());
-}
-
-template <ReadBarrierOption kReadBarrierOption>
-inline uint32_t ArtMethod::GetAccessFlags() {
-  if (kCheckDeclaringClassState) {
-    Thread* self = Thread::Current();
-    if (!Locks::mutator_lock_->IsSharedHeld(self)) {
-      if (self->IsThreadSuspensionAllowable()) {
-        ScopedObjectAccess soa(self);
-        CHECK(IsRuntimeMethod() ||
-              GetDeclaringClass<kReadBarrierOption>()->IsIdxLoaded() ||
-              GetDeclaringClass<kReadBarrierOption>()->IsErroneous());
-      }
-    } else {
-      // We cannot use SOA in this case. We might be holding the lock, but may not be in the
-      // runnable state (e.g., during GC).
-      Locks::mutator_lock_->AssertSharedHeld(self);
-      DoGetAccessFlagsHelper<kReadBarrierOption>(this);
-    }
-  }
-  return access_flags_.load(std::memory_order_relaxed);
-}
-
 inline uint16_t ArtMethod::GetMethodIndex() {
   DCHECK(IsRuntimeMethod() || GetDeclaringClass()->IsResolved());
   return method_index_;
@@ -224,10 +193,6 @@ inline bool ArtMethod::CheckIncompatibleClassChange(InvokeType type) {
   }
 }
 
-inline bool ArtMethod::IsRuntimeMethod() {
-  return dex_method_index_ == DexFile::kDexNoIndex;
-}
-
 inline bool ArtMethod::IsCalleeSaveMethod() {
   if (!IsRuntimeMethod()) {
     return false;
@@ -271,6 +236,11 @@ inline const char* ArtMethod::GetDeclaringClassDescriptor() {
   DCHECK(!IsProxyMethod());
   const DexFile* dex_file = GetDexFile();
   return dex_file->GetMethodDeclaringClassDescriptor(dex_file->GetMethodId(dex_method_idx));
+}
+
+inline const char* ArtMethod::GetShorty() {
+  uint32_t unused_length;
+  return GetShorty(&unused_length);
 }
 
 inline const char* ArtMethod::GetShorty(uint32_t* out_length) {
