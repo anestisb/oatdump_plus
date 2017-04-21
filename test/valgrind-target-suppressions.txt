@@ -67,3 +67,10 @@
   fun:msync
   fun:_ZN3art6MemMap11MapInternalEPvmiiilb
 }
+
+{
+   process_vm_readv
+   Memcheck:Param
+   process_vm_readv(lvec[...])
+   fun:process_vm_readv
+}
