@@ -321,7 +321,9 @@ class InstructionCodeGeneratorARM64 : public InstructionCodeGenerator {
   vixl::aarch64::MemOperand CreateVecMemRegisters(
       HVecMemoryOperation* instruction,
       Location* reg_loc,
-      bool is_load);
+      bool is_load,
+      // This function may acquire a scratch register.
+      vixl::aarch64::UseScratchRegisterScope* temps_scope);
 
   Arm64Assembler* const assembler_;
   CodeGeneratorARM64* const codegen_;
