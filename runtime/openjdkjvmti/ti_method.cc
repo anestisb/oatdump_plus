@@ -44,6 +44,7 @@
 #include "ScopedLocalRef.h"
 #include "thread-inl.h"
 #include "thread_list.h"
+#include "ti_phase.h"
 
 namespace openjdkjvmti {
 
@@ -54,12 +55,14 @@ struct TiMethodCallback : public art::MethodCallback {
       OVERRIDE REQUIRES_SHARED(art::Locks::mutator_lock_) {
     if (event_handler->IsEventEnabledAnywhere(ArtJvmtiEvent::kNativeMethodBind)) {
       art::Thread* thread = art::Thread::Current();
+      art::JNIEnvExt* jnienv = thread->GetJniEnv();
       ScopedLocalRef<jthread> thread_jni(
-          thread->GetJniEnv(), thread->GetJniEnv()->AddLocalReference<jthread>(thread->GetPeer()));
+          jnienv, PhaseUtil::IsLivePhase() ? jnienv->AddLocalReference<jthread>(thread->GetPeer())
+                                           : nullptr);
       art::ScopedThreadSuspension sts(thread, art::ThreadState::kNative);
       event_handler->DispatchEvent<ArtJvmtiEvent::kNativeMethodBind>(
           thread,
-          static_cast<JNIEnv*>(thread->GetJniEnv()),
+          static_cast<JNIEnv*>(jnienv),
           thread_jni.get(),
           art::jni::EncodeArtMethod(method),
           const_cast<void*>(cur_method),
