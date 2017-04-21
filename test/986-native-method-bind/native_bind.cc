@@ -38,9 +38,14 @@ static void doUpPrintCall(JNIEnv* env, const char* function) {
   env->CallStaticVoidMethod(klass.get(), targetMethod);
 }
 
-extern "C" JNIEXPORT void JNICALL Java_art_Test986_00024Transform_sayHi(
+extern "C" JNIEXPORT void JNICALL Java_art_Test986_00024Transform_sayHi__(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
   doUpPrintCall(env, "doSayHi");
+}
+
+extern "C" JNIEXPORT void JNICALL Java_art_Test986_00024Transform_sayHi2(
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
+  doUpPrintCall(env, "doSayHi2");
 }
 
 extern "C" JNIEXPORT void JNICALL NoReallySayGoodbye(JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
@@ -104,6 +109,18 @@ extern "C" JNIEXPORT void JNICALL Java_art_Test986_setNativeBindNotify(
   if (res != JVMTI_ERROR_NONE) {
     JvmtiErrorToException(env, jvmti_env, res);
   }
+}
+
+extern "C" JNIEXPORT void JNICALL Java_art_Test986_rebindTransformClass(
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jclass k) {
+  JNINativeMethod m[2];
+  m[0].name= "sayHi";
+  m[0].signature = "()V";
+  m[0].fnPtr = reinterpret_cast<void*>(Java_art_Test986_00024Transform_sayHi__);
+  m[1].name= "sayHi2";
+  m[1].signature = "()V";
+  m[1].fnPtr = reinterpret_cast<void*>(Java_art_Test986_00024Transform_sayHi2);
+  env->RegisterNatives(k, m, 2);
 }
 
 }  // namespace Test986NativeBind
