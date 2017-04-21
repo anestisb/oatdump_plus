@@ -254,10 +254,11 @@ static jobject DexFile_createCookieWithArray(JNIEnv* env,
   return CreateSingleDexFileCookie(env, std::move(dex_mem_map));
 }
 
+// TODO(calin): clean up the unused parameters (here and in libcore).
 static jobject DexFile_openDexFileNative(JNIEnv* env,
                                          jclass,
                                          jstring javaSourceName,
-                                         jstring javaOutputName,
+                                         jstring javaOutputName ATTRIBUTE_UNUSED,
                                          jint flags ATTRIBUTE_UNUSED,
                                          jobject class_loader,
                                          jobjectArray dex_elements) {
@@ -265,10 +266,7 @@ static jobject DexFile_openDexFileNative(JNIEnv* env,
   if (sourceName.c_str() == nullptr) {
     return 0;
   }
-  NullableScopedUtfChars outputName(env, javaOutputName);
-  if (env->ExceptionCheck()) {
-    return 0;
-  }
+
   Runtime* const runtime = Runtime::Current();
   ClassLinker* linker = runtime->GetClassLinker();
   std::vector<std::unique_ptr<const DexFile>> dex_files;
@@ -276,7 +274,6 @@ static jobject DexFile_openDexFileNative(JNIEnv* env,
   const OatFile* oat_file = nullptr;
 
   dex_files = runtime->GetOatFileManager().OpenDexFilesFromOat(sourceName.c_str(),
-                                                               outputName.c_str(),
                                                                class_loader,
                                                                dex_elements,
                                                                /*out*/ &oat_file,
