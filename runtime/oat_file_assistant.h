@@ -47,6 +47,11 @@ class ImageSpace;
 // dex location is in the boot class path.
 class OatFileAssistant {
  public:
+  // The default compile filter to use when optimizing dex file at load time if they
+  // are out of date.
+  static const CompilerFilter::Filter kDefaultCompilerFilterForDexLoading =
+      CompilerFilter::kQuicken;
+
   enum DexOptNeeded {
     // No dexopt should (or can) be done to update the apk/jar.
     // Matches Java: dalvik.system.DexFile.NO_DEXOPT_NEEDED = 0
@@ -114,13 +119,6 @@ class OatFileAssistant {
   // load_executable should be true if the caller intends to try and load
   // executable code for this dex location.
   OatFileAssistant(const char* dex_location,
-                   const InstructionSet isa,
-                   bool load_executable);
-
-  // Constructs an OatFileAssistant, providing an explicit target oat_location
-  // to use instead of the standard oat location.
-  OatFileAssistant(const char* dex_location,
-                   const char* oat_location,
                    const InstructionSet isa,
                    bool load_executable);
 
@@ -231,16 +229,6 @@ class OatFileAssistant {
   //
   // Returns the status of the oat file for the dex location.
   OatStatus OatFileStatus();
-
-  // Generate the oat file from the dex file using the current runtime
-  // compiler options.
-  // This does not check the current status before attempting to generate the
-  // oat file.
-  //
-  // If the result is not kUpdateSucceeded, the value of error_msg will be set
-  // to a string describing why there was a failure or the update was not
-  // attempted. error_msg must not be null.
-  ResultOfAttemptToUpdate GenerateOatFile(std::string* error_msg);
 
   // Executes dex2oat using the current runtime configuration overridden with
   // the given arguments. This does not check to see if dex2oat is enabled in
@@ -377,6 +365,16 @@ class OatFileAssistant {
     bool file_released_ = false;
   };
 
+  // Generate the oat file for the given info from the dex file using the
+  // current runtime compiler options.
+  // This does not check the current status before attempting to generate the
+  // oat file.
+  //
+  // If the result is not kUpdateSucceeded, the value of error_msg will be set
+  // to a string describing why there was a failure or the update was not
+  // attempted. error_msg must not be null.
+  ResultOfAttemptToUpdate GenerateOatFileNoChecks(OatFileInfo& info, std::string* error_msg);
+
   // Return info for the best oat file.
   OatFileInfo& GetBestInfo();
 
@@ -422,6 +420,9 @@ class OatFileAssistant {
 
   std::string dex_location_;
 
+  // Whether or not the parent directory of the dex file is writable.
+  bool dex_parent_writable_ = false;
+
   // In a properly constructed OatFileAssistant object, isa_ should be either
   // the 32 or 64 bit variant for the current device.
   const InstructionSet isa_ = kNone;
@@ -445,6 +446,8 @@ class OatFileAssistant {
   // assistant to an image file manager.
   bool image_info_load_attempted_ = false;
   std::unique_ptr<ImageInfo> cached_image_info_;
+
+  friend class OatFileAssistantTest;
 
   DISALLOW_COPY_AND_ASSIGN(OatFileAssistant);
 };
