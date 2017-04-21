@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_QUICK_INLINE_METHOD_ANALYSER_H_
-#define ART_RUNTIME_QUICK_INLINE_METHOD_ANALYSER_H_
+#ifndef ART_COMPILER_DEX_INLINE_METHOD_ANALYSER_H_
+#define ART_COMPILER_DEX_INLINE_METHOD_ANALYSER_H_
 
 #include "base/macros.h"
 #include "base/mutex.h"
@@ -274,4 +274,4 @@ class InlineMethodAnalyser {
 
 }  // namespace art
 
-#endif  // ART_RUNTIME_QUICK_INLINE_METHOD_ANALYSER_H_
+#endif  // ART_COMPILER_DEX_INLINE_METHOD_ANALYSER_H_
