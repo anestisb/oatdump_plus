@@ -26,7 +26,6 @@
 #include "dex_instruction_utils.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache-inl.h"
-#include "verifier/method_verifier-inl.h"
 
 /*
  * NOTE: This code is part of the quick compiler. It lives in the runtime
@@ -391,7 +390,6 @@ bool AnalyseConstructor(const DexFile::CodeItem* code_item,
 #undef STORE_IPUT
 
   result->opcode = kInlineOpConstructor;
-  result->flags = kInlineSpecial;
   result->d.constructor_data.reserved = 0u;
   return true;
 }
@@ -429,25 +427,6 @@ static_assert(InlineMethodAnalyser::IGetVariant(Instruction::IGET_CHAR) ==
 static_assert(InlineMethodAnalyser::IGetVariant(Instruction::IGET_SHORT) ==
     InlineMethodAnalyser::IPutVariant(Instruction::IPUT_SHORT), "iget/iput_short variant");
 
-// This is used by compiler and debugger. We look into the dex cache for resolved methods and
-// fields. However, in the context of the debugger, not all methods and fields are resolved. Since
-// we need to be able to detect possibly inlined method, we pass a null inline method to indicate
-// we don't want to take unresolved methods and fields into account during analysis.
-bool InlineMethodAnalyser::AnalyseMethodCode(verifier::MethodVerifier* verifier,
-                                             InlineMethod* result) {
-  DCHECK(verifier != nullptr);
-  if (!Runtime::Current()->UseJitCompilation()) {
-    DCHECK_EQ(verifier->CanLoadClasses(), result != nullptr);
-  }
-
-  // Note: verifier->GetMethod() may be null.
-  return AnalyseMethodCode(verifier->CodeItem(),
-                           verifier->GetMethodReference(),
-                           (verifier->GetAccessFlags() & kAccStatic) != 0u,
-                           verifier->GetMethod(),
-                           result);
-}
-
 bool InlineMethodAnalyser::AnalyseMethodCode(ArtMethod* method, InlineMethod* result) {
   const DexFile::CodeItem* code_item = method->GetCodeItem();
   if (code_item == nullptr) {
@@ -473,7 +452,6 @@ bool InlineMethodAnalyser::AnalyseMethodCode(const DexFile::CodeItem* code_item,
     case Instruction::RETURN_VOID:
       if (result != nullptr) {
         result->opcode = kInlineOpNop;
-        result->flags = kInlineSpecial;
         result->d.data = 0u;
       }
       return true;
@@ -549,7 +527,6 @@ bool InlineMethodAnalyser::AnalyseReturnMethod(const DexFile::CodeItem* code_ite
 
   if (result != nullptr) {
     result->opcode = kInlineOpReturnArg;
-    result->flags = kInlineSpecial;
     InlineReturnArgData* data = &result->d.return_data;
     data->arg = reg - arg_start;
     data->is_wide = (return_opcode == Instruction::RETURN_WIDE) ? 1u : 0u;
@@ -586,7 +563,6 @@ bool InlineMethodAnalyser::AnalyseConstMethod(const DexFile::CodeItem* code_item
   }
   if (result != nullptr) {
     result->opcode = kInlineOpNonWideConst;
-    result->flags = kInlineSpecial;
     result->d.data = static_cast<uint64_t>(const_value);
   }
   return true;
@@ -647,7 +623,6 @@ bool InlineMethodAnalyser::AnalyseIGetMethod(const DexFile::CodeItem* code_item,
       return false;
     }
     result->opcode = kInlineOpIGet;
-    result->flags = kInlineSpecial;
     data->op_variant = IGetVariant(opcode);
     data->method_is_static = is_static ? 1u : 0u;
     data->object_arg = object_arg;  // Allow IGET on any register, not just "this".
@@ -716,7 +691,6 @@ bool InlineMethodAnalyser::AnalyseIPutMethod(const DexFile::CodeItem* code_item,
       return false;
     }
     result->opcode = kInlineOpIPut;
-    result->flags = kInlineSpecial;
     data->op_variant = IPutVariant(opcode);
     data->method_is_static = is_static ? 1u : 0u;
     data->object_arg = object_arg;  // Allow IPUT on any register, not just "this".
