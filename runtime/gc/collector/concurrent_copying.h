@@ -316,6 +316,11 @@ class ConcurrentCopying : public GarbageCollector {
   Mutex immune_gray_stack_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   std::vector<mirror::Object*> immune_gray_stack_ GUARDED_BY(immune_gray_stack_lock_);
 
+  // Class of java.lang.Object. Filled in from WellKnownClasses in FlipCallback. Must
+  // be filled in before flipping thread roots so that FillDummyObject can run. Not
+  // ObjPtr since the GC may transition to suspended and runnable between phases.
+  mirror::Class* java_lang_Object_;
+
   class AssertToSpaceInvariantFieldVisitor;
   class AssertToSpaceInvariantObjectVisitor;
   class AssertToSpaceInvariantRefsVisitor;
