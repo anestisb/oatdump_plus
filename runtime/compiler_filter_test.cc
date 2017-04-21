@@ -33,14 +33,12 @@ static void TestCompilerFilterName(CompilerFilter::Filter filter, std::string na
 TEST(CompilerFilterTest, ParseCompilerFilter) {
   CompilerFilter::Filter filter;
 
-  TestCompilerFilterName(CompilerFilter::kVerifyNone, "verify-none");
-  TestCompilerFilterName(CompilerFilter::kVerifyAtRuntime, "verify-at-runtime");
-  TestCompilerFilterName(CompilerFilter::kVerifyProfile, "verify-profile");
-  TestCompilerFilterName(CompilerFilter::kInterpretOnly, "interpret-only");
-  TestCompilerFilterName(CompilerFilter::kTime, "time");
+  TestCompilerFilterName(CompilerFilter::kAssumeVerified, "assume-verified");
+  TestCompilerFilterName(CompilerFilter::kExtract, "extract");
+  TestCompilerFilterName(CompilerFilter::kVerify, "verify");
+  TestCompilerFilterName(CompilerFilter::kQuicken, "quicken");
   TestCompilerFilterName(CompilerFilter::kSpaceProfile, "space-profile");
   TestCompilerFilterName(CompilerFilter::kSpace, "space");
-  TestCompilerFilterName(CompilerFilter::kBalanced, "balanced");
   TestCompilerFilterName(CompilerFilter::kSpeedProfile, "speed-profile");
   TestCompilerFilterName(CompilerFilter::kSpeed, "speed");
   TestCompilerFilterName(CompilerFilter::kEverythingProfile, "everything-profile");

@@ -14,4 +14,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-exec ${RUN} -Xcompiler-option --compiler-filter=verify-profile --vdex "${@}"
+exec ${RUN} -Xcompiler-option --compiler-filter=verify --vdex "${@}"

@@ -122,7 +122,7 @@ void DexoptTest::GenerateOatForTest(const std::string& dex_location,
   }
 
   if (!with_alternate_image) {
-    if (CompilerFilter::IsBytecodeCompilationEnabled(filter)) {
+    if (CompilerFilter::IsAotCompilationEnabled(filter)) {
       if (relocate) {
         EXPECT_EQ(reinterpret_cast<uintptr_t>(image_header->GetOatDataBegin()),
             oat_header.GetImageFileLocationOatDataBegin());

@@ -132,8 +132,8 @@ if [[ "$image" != "" ]]; then
   vm_args="--vm-arg $image"
 fi
 if $use_jit; then
-  vm_args="$vm_args --vm-arg -Xcompiler-option --vm-arg --compiler-filter=interpret-only"
-  debuggee_args="$debuggee_args -Xcompiler-option --compiler-filter=interpret-only"
+  vm_args="$vm_args --vm-arg -Xcompiler-option --vm-arg --compiler-filter=quicken"
+  debuggee_args="$debuggee_args -Xcompiler-option --compiler-filter=quicken"
 fi
 vm_args="$vm_args --vm-arg -Xusejit:$use_jit"
 debuggee_args="$debuggee_args -Xusejit:$use_jit"

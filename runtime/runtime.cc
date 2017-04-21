@@ -2131,7 +2131,7 @@ void Runtime::SetFaultMessage(const std::string& message) {
 void Runtime::AddCurrentRuntimeFeaturesAsDex2OatArguments(std::vector<std::string>* argv)
     const {
   if (GetInstrumentation()->InterpretOnly()) {
-    argv->push_back("--compiler-filter=interpret-only");
+    argv->push_back("--compiler-filter=quicken");
   }
 
   // Make the dex2oat instruction set match that of the launching runtime. If we have multiple
