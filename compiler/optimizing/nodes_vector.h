@@ -116,16 +116,23 @@ class HVecOperation : public HVariableInputSizeInstruction {
 class HVecUnaryOperation : public HVecOperation {
  public:
   HVecUnaryOperation(ArenaAllocator* arena,
+                     HInstruction* input,
                      Primitive::Type packed_type,
                      size_t vector_length,
                      uint32_t dex_pc)
       : HVecOperation(arena,
                       packed_type,
                       SideEffects::None(),
-                      /*number_of_inputs*/ 1,
+                      /* number_of_inputs */ 1,
                       vector_length,
-                      dex_pc) { }
+                      dex_pc) {
+    SetRawInputAt(0, input);
+  }
+
+  HInstruction* GetInput() const { return InputAt(0); }
+
   DECLARE_ABSTRACT_INSTRUCTION(VecUnaryOperation);
+
  private:
   DISALLOW_COPY_AND_ASSIGN(HVecUnaryOperation);
 };
@@ -134,20 +141,26 @@ class HVecUnaryOperation : public HVecOperation {
 class HVecBinaryOperation : public HVecOperation {
  public:
   HVecBinaryOperation(ArenaAllocator* arena,
+                      HInstruction* left,
+                      HInstruction* right,
                       Primitive::Type packed_type,
                       size_t vector_length,
                       uint32_t dex_pc)
       : HVecOperation(arena,
                       packed_type,
                       SideEffects::None(),
-                      /*number_of_inputs*/ 2,
+                      /* number_of_inputs */ 2,
                       vector_length,
-                      dex_pc) { }
+                      dex_pc) {
+    SetRawInputAt(0, left);
+    SetRawInputAt(1, right);
+  }
 
   HInstruction* GetLeft() const { return InputAt(0); }
   HInstruction* GetRight() const { return InputAt(1); }
 
   DECLARE_ABSTRACT_INSTRUCTION(VecBinaryOperation);
+
  private:
   DISALLOW_COPY_AND_ASSIGN(HVecBinaryOperation);
 };
@@ -179,7 +192,7 @@ class HVecMemoryOperation : public HVecOperation {
 };
 
 //
-// Definitions of concrete vector operations in HIR.
+// Definitions of concrete unary vector operations in HIR.
 //
 
 // Replicates the given scalar into a vector,
@@ -191,30 +204,12 @@ class HVecReplicateScalar FINAL : public HVecUnaryOperation {
                       Primitive::Type packed_type,
                       size_t vector_length,
                       uint32_t dex_pc = kNoDexPc)
-      : HVecUnaryOperation(arena, packed_type, vector_length, dex_pc) {
-    SetRawInputAt(0, scalar);
+      : HVecUnaryOperation(arena, scalar, packed_type, vector_length, dex_pc) {
+    DCHECK(!scalar->IsVecOperation());
   }
   DECLARE_INSTRUCTION(VecReplicateScalar);
  private:
   DISALLOW_COPY_AND_ASSIGN(HVecReplicateScalar);
-};
-
-// Assigns the given scalar elements to a vector,
-// viz. set( array(x1, .., xn) ) = [ x1, .. , xn ].
-class HVecSetScalars FINAL : public HVecUnaryOperation {
-  HVecSetScalars(ArenaAllocator* arena,
-                 HInstruction** scalars,  // array
-                 Primitive::Type packed_type,
-                 size_t vector_length,
-                 uint32_t dex_pc = kNoDexPc)
-      : HVecUnaryOperation(arena, packed_type, vector_length, dex_pc) {
-    for (size_t i = 0; i < vector_length; i++) {
-      SetRawInputAt(0, scalars[i]);
-    }
-  }
-  DECLARE_INSTRUCTION(VecSetScalars);
- private:
-  DISALLOW_COPY_AND_ASSIGN(HVecSetScalars);
 };
 
 // Sum-reduces the given vector into a shorter vector (m < n) or scalar (m = 1),
@@ -225,10 +220,9 @@ class HVecSumReduce FINAL : public HVecUnaryOperation {
                 Primitive::Type packed_type,
                 size_t vector_length,
                 uint32_t dex_pc = kNoDexPc)
-      : HVecUnaryOperation(arena, packed_type, vector_length, dex_pc) {
+      : HVecUnaryOperation(arena, input, packed_type, vector_length, dex_pc) {
     DCHECK(input->IsVecOperation());
     DCHECK_EQ(input->AsVecOperation()->GetPackedType(), packed_type);
-    SetRawInputAt(0, input);
   }
 
   // TODO: probably integral promotion
@@ -248,10 +242,9 @@ class HVecCnv FINAL : public HVecUnaryOperation {
           Primitive::Type packed_type,
           size_t vector_length,
           uint32_t dex_pc = kNoDexPc)
-      : HVecUnaryOperation(arena, packed_type, vector_length, dex_pc) {
+      : HVecUnaryOperation(arena, input, packed_type, vector_length, dex_pc) {
     DCHECK(input->IsVecOperation());
     DCHECK_NE(input->AsVecOperation()->GetPackedType(), packed_type);  // actual convert
-    SetRawInputAt(0, input);
   }
 
   Primitive::Type GetInputType() const { return InputAt(0)->AsVecOperation()->GetPackedType(); }
@@ -272,10 +265,9 @@ class HVecNeg FINAL : public HVecUnaryOperation {
           Primitive::Type packed_type,
           size_t vector_length,
           uint32_t dex_pc = kNoDexPc)
-      : HVecUnaryOperation(arena, packed_type, vector_length, dex_pc) {
+      : HVecUnaryOperation(arena, input, packed_type, vector_length, dex_pc) {
     DCHECK(input->IsVecOperation());
     DCHECK_EQ(input->AsVecOperation()->GetPackedType(), packed_type);
-    SetRawInputAt(0, input);
   }
   DECLARE_INSTRUCTION(VecNeg);
  private:
@@ -291,10 +283,9 @@ class HVecAbs FINAL : public HVecUnaryOperation {
           Primitive::Type packed_type,
           size_t vector_length,
           uint32_t dex_pc = kNoDexPc)
-      : HVecUnaryOperation(arena, packed_type, vector_length, dex_pc) {
+      : HVecUnaryOperation(arena, input, packed_type, vector_length, dex_pc) {
     DCHECK(input->IsVecOperation());
     DCHECK_EQ(input->AsVecOperation()->GetPackedType(), packed_type);
-    SetRawInputAt(0, input);
   }
   DECLARE_INSTRUCTION(VecAbs);
  private:
@@ -311,14 +302,17 @@ class HVecNot FINAL : public HVecUnaryOperation {
           Primitive::Type packed_type,
           size_t vector_length,
           uint32_t dex_pc = kNoDexPc)
-      : HVecUnaryOperation(arena, packed_type, vector_length, dex_pc) {
+      : HVecUnaryOperation(arena, input, packed_type, vector_length, dex_pc) {
     DCHECK(input->IsVecOperation());
-    SetRawInputAt(0, input);
   }
   DECLARE_INSTRUCTION(VecNot);
  private:
   DISALLOW_COPY_AND_ASSIGN(HVecNot);
 };
+
+//
+// Definitions of concrete binary vector operations in HIR.
+//
 
 // Adds every component in the two vectors,
 // viz. [ x1, .. , xn ] + [ y1, .. , yn ] = [ x1 + y1, .. , xn + yn ].
@@ -330,12 +324,10 @@ class HVecAdd FINAL : public HVecBinaryOperation {
           Primitive::Type packed_type,
           size_t vector_length,
           uint32_t dex_pc = kNoDexPc)
-      : HVecBinaryOperation(arena, packed_type, vector_length, dex_pc) {
+      : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc) {
     DCHECK(left->IsVecOperation() && right->IsVecOperation());
     DCHECK_EQ(left->AsVecOperation()->GetPackedType(), packed_type);
     DCHECK_EQ(right->AsVecOperation()->GetPackedType(), packed_type);
-    SetRawInputAt(0, left);
-    SetRawInputAt(1, right);
   }
   DECLARE_INSTRUCTION(VecAdd);
  private:
@@ -356,14 +348,12 @@ class HVecHalvingAdd FINAL : public HVecBinaryOperation {
                  bool is_unsigned,
                  bool is_rounded,
                  uint32_t dex_pc = kNoDexPc)
-      : HVecBinaryOperation(arena, packed_type, vector_length, dex_pc),
+      : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc),
         is_unsigned_(is_unsigned),
         is_rounded_(is_rounded) {
     DCHECK(left->IsVecOperation() && right->IsVecOperation());
     DCHECK_EQ(left->AsVecOperation()->GetPackedType(), packed_type);
     DCHECK_EQ(right->AsVecOperation()->GetPackedType(), packed_type);
-    SetRawInputAt(0, left);
-    SetRawInputAt(1, right);
   }
 
   bool IsUnsigned() const { return is_unsigned_; }
@@ -388,12 +378,10 @@ class HVecSub FINAL : public HVecBinaryOperation {
           Primitive::Type packed_type,
           size_t vector_length,
           uint32_t dex_pc = kNoDexPc)
-      : HVecBinaryOperation(arena, packed_type, vector_length, dex_pc) {
+      : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc) {
     DCHECK(left->IsVecOperation() && right->IsVecOperation());
     DCHECK_EQ(left->AsVecOperation()->GetPackedType(), packed_type);
     DCHECK_EQ(right->AsVecOperation()->GetPackedType(), packed_type);
-    SetRawInputAt(0, left);
-    SetRawInputAt(1, right);
   }
   DECLARE_INSTRUCTION(VecSub);
  private:
@@ -410,12 +398,10 @@ class HVecMul FINAL : public HVecBinaryOperation {
           Primitive::Type packed_type,
           size_t vector_length,
           uint32_t dex_pc = kNoDexPc)
-      : HVecBinaryOperation(arena, packed_type, vector_length, dex_pc) {
+      : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc) {
     DCHECK(left->IsVecOperation() && right->IsVecOperation());
     DCHECK_EQ(left->AsVecOperation()->GetPackedType(), packed_type);
     DCHECK_EQ(right->AsVecOperation()->GetPackedType(), packed_type);
-    SetRawInputAt(0, left);
-    SetRawInputAt(1, right);
   }
   DECLARE_INSTRUCTION(VecMul);
  private:
@@ -432,12 +418,10 @@ class HVecDiv FINAL : public HVecBinaryOperation {
           Primitive::Type packed_type,
           size_t vector_length,
           uint32_t dex_pc = kNoDexPc)
-      : HVecBinaryOperation(arena, packed_type, vector_length, dex_pc) {
+      : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc) {
     DCHECK(left->IsVecOperation() && right->IsVecOperation());
     DCHECK_EQ(left->AsVecOperation()->GetPackedType(), packed_type);
     DCHECK_EQ(right->AsVecOperation()->GetPackedType(), packed_type);
-    SetRawInputAt(0, left);
-    SetRawInputAt(1, right);
   }
   DECLARE_INSTRUCTION(VecDiv);
  private:
@@ -454,12 +438,10 @@ class HVecMin FINAL : public HVecBinaryOperation {
           Primitive::Type packed_type,
           size_t vector_length,
           uint32_t dex_pc = kNoDexPc)
-      : HVecBinaryOperation(arena, packed_type, vector_length, dex_pc) {
+      : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc) {
     DCHECK(left->IsVecOperation() && right->IsVecOperation());
     DCHECK_EQ(left->AsVecOperation()->GetPackedType(), packed_type);
     DCHECK_EQ(right->AsVecOperation()->GetPackedType(), packed_type);
-    SetRawInputAt(0, left);
-    SetRawInputAt(1, right);
   }
   DECLARE_INSTRUCTION(VecMin);
  private:
@@ -476,12 +458,10 @@ class HVecMax FINAL : public HVecBinaryOperation {
           Primitive::Type packed_type,
           size_t vector_length,
           uint32_t dex_pc = kNoDexPc)
-      : HVecBinaryOperation(arena, packed_type, vector_length, dex_pc) {
+      : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc) {
     DCHECK(left->IsVecOperation() && right->IsVecOperation());
     DCHECK_EQ(left->AsVecOperation()->GetPackedType(), packed_type);
     DCHECK_EQ(right->AsVecOperation()->GetPackedType(), packed_type);
-    SetRawInputAt(0, left);
-    SetRawInputAt(1, right);
   }
   DECLARE_INSTRUCTION(VecMax);
  private:
@@ -498,10 +478,8 @@ class HVecAnd FINAL : public HVecBinaryOperation {
           Primitive::Type packed_type,
           size_t vector_length,
           uint32_t dex_pc = kNoDexPc)
-      : HVecBinaryOperation(arena, packed_type, vector_length, dex_pc) {
+      : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc) {
     DCHECK(left->IsVecOperation() && right->IsVecOperation());
-    SetRawInputAt(0, left);
-    SetRawInputAt(1, right);
   }
   DECLARE_INSTRUCTION(VecAnd);
  private:
@@ -518,10 +496,8 @@ class HVecAndNot FINAL : public HVecBinaryOperation {
              Primitive::Type packed_type,
              size_t vector_length,
              uint32_t dex_pc = kNoDexPc)
-         : HVecBinaryOperation(arena, packed_type, vector_length, dex_pc) {
+         : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc) {
     DCHECK(left->IsVecOperation() && right->IsVecOperation());
-    SetRawInputAt(0, left);
-    SetRawInputAt(1, right);
   }
   DECLARE_INSTRUCTION(VecAndNot);
  private:
@@ -538,10 +514,8 @@ class HVecOr FINAL : public HVecBinaryOperation {
          Primitive::Type packed_type,
          size_t vector_length,
          uint32_t dex_pc = kNoDexPc)
-      : HVecBinaryOperation(arena, packed_type, vector_length, dex_pc) {
+      : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc) {
     DCHECK(left->IsVecOperation() && right->IsVecOperation());
-    SetRawInputAt(0, left);
-    SetRawInputAt(1, right);
   }
   DECLARE_INSTRUCTION(VecOr);
  private:
@@ -558,10 +532,8 @@ class HVecXor FINAL : public HVecBinaryOperation {
           Primitive::Type packed_type,
           size_t vector_length,
           uint32_t dex_pc = kNoDexPc)
-      : HVecBinaryOperation(arena, packed_type, vector_length, dex_pc) {
+      : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc) {
     DCHECK(left->IsVecOperation() && right->IsVecOperation());
-    SetRawInputAt(0, left);
-    SetRawInputAt(1, right);
   }
   DECLARE_INSTRUCTION(VecXor);
  private:
@@ -578,11 +550,9 @@ class HVecShl FINAL : public HVecBinaryOperation {
           Primitive::Type packed_type,
           size_t vector_length,
           uint32_t dex_pc = kNoDexPc)
-      : HVecBinaryOperation(arena, packed_type, vector_length, dex_pc) {
+      : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc) {
     DCHECK(left->IsVecOperation());
     DCHECK_EQ(left->AsVecOperation()->GetPackedType(), packed_type);
-    SetRawInputAt(0, left);
-    SetRawInputAt(1, right);
   }
   DECLARE_INSTRUCTION(VecShl);
  private:
@@ -599,11 +569,9 @@ class HVecShr FINAL : public HVecBinaryOperation {
           Primitive::Type packed_type,
           size_t vector_length,
           uint32_t dex_pc = kNoDexPc)
-      : HVecBinaryOperation(arena, packed_type, vector_length, dex_pc) {
+      : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc) {
     DCHECK(left->IsVecOperation());
     DCHECK_EQ(left->AsVecOperation()->GetPackedType(), packed_type);
-    SetRawInputAt(0, left);
-    SetRawInputAt(1, right);
   }
   DECLARE_INSTRUCTION(VecShr);
  private:
@@ -620,15 +588,41 @@ class HVecUShr FINAL : public HVecBinaryOperation {
            Primitive::Type packed_type,
            size_t vector_length,
            uint32_t dex_pc = kNoDexPc)
-      : HVecBinaryOperation(arena, packed_type, vector_length, dex_pc) {
+      : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc) {
     DCHECK(left->IsVecOperation());
     DCHECK_EQ(left->AsVecOperation()->GetPackedType(), packed_type);
-    SetRawInputAt(0, left);
-    SetRawInputAt(1, right);
   }
   DECLARE_INSTRUCTION(VecUShr);
  private:
   DISALLOW_COPY_AND_ASSIGN(HVecUShr);
+};
+
+//
+// Definitions of concrete miscellaneous vector operations in HIR.
+//
+
+// Assigns the given scalar elements to a vector,
+// viz. set( array(x1, .., xn) ) = [ x1, .. , xn ].
+class HVecSetScalars FINAL : public HVecOperation {
+  HVecSetScalars(ArenaAllocator* arena,
+                 HInstruction** scalars,  // array
+                 Primitive::Type packed_type,
+                 size_t vector_length,
+                 uint32_t dex_pc = kNoDexPc)
+      : HVecOperation(arena,
+                      packed_type,
+                      SideEffects::None(),
+                      /* number_of_inputs */ vector_length,
+                      vector_length,
+                      dex_pc) {
+    for (size_t i = 0; i < vector_length; i++) {
+      DCHECK(!scalars[i]->IsVecOperation());
+      SetRawInputAt(0, scalars[i]);
+    }
+  }
+  DECLARE_INSTRUCTION(VecSetScalars);
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HVecSetScalars);
 };
 
 // Multiplies every component in the two vectors, adds the result vector to the accumulator vector.
@@ -647,7 +641,7 @@ class HVecMultiplyAccumulate FINAL : public HVecOperation {
       : HVecOperation(arena,
                       packed_type,
                       SideEffects::None(),
-                      /*number_of_inputs*/ 3,
+                      /* number_of_inputs */ 3,
                       vector_length,
                       dex_pc),
         op_kind_(op) {
@@ -697,7 +691,7 @@ class HVecLoad FINAL : public HVecMemoryOperation {
       : HVecMemoryOperation(arena,
                             packed_type,
                             SideEffects::ArrayReadOfType(packed_type),
-                            /*number_of_inputs*/ 2,
+                            /* number_of_inputs */ 2,
                             vector_length,
                             dex_pc) {
     SetRawInputAt(0, base);
@@ -722,7 +716,7 @@ class HVecStore FINAL : public HVecMemoryOperation {
       : HVecMemoryOperation(arena,
                             packed_type,
                             SideEffects::ArrayWriteOfType(packed_type),
-                            /*number_of_inputs*/ 3,
+                            /* number_of_inputs */ 3,
                             vector_length,
                             dex_pc) {
     DCHECK(value->IsVecOperation());
