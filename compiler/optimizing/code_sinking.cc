@@ -161,9 +161,15 @@ static HInstruction* FindIdealPosition(HInstruction* instruction,
   for (const HUseListNode<HInstruction*>& use : instruction->GetUses()) {
     HInstruction* user = use.GetUser();
     if (!(filter && ShouldFilterUse(instruction, user, post_dominated))) {
-      finder.Update(user->IsPhi()
-          ? user->GetBlock()->GetPredecessors()[use.GetIndex()]
-          : user->GetBlock());
+      HBasicBlock* block = user->GetBlock();
+      if (user->IsPhi()) {
+        // Special case phis by taking the incoming block for regular ones,
+        // or the dominator for catch phis.
+        block = user->AsPhi()->IsCatchPhi()
+            ? block->GetDominator()
+            : block->GetPredecessors()[use.GetIndex()];
+      }
+      finder.Update(block);
     }
   }
   for (const HUseListNode<HEnvironment*>& use : instruction->GetEnvUses()) {
