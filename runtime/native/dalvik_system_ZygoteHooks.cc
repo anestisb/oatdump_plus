@@ -192,8 +192,8 @@ static void EnableDebugFeatures(uint32_t debug_flags) {
 
   const bool safe_mode = (debug_flags & DEBUG_ENABLE_SAFEMODE) != 0;
   if (safe_mode) {
-    // Ensure that any (secondary) oat files will be interpreted.
-    runtime->AddCompilerOption("--compiler-filter=interpret-only");
+    // Only quicken oat files.
+    runtime->AddCompilerOption("--compiler-filter=quicken");
     runtime->SetSafeMode(true);
     debug_flags &= ~DEBUG_ENABLE_SAFEMODE;
   }

@@ -127,7 +127,7 @@ vogar_args="$vogar_args --toolchain jack --language JO"
 
 # JIT settings.
 if $use_jit; then
-  vogar_args="$vogar_args --vm-arg -Xcompiler-option --vm-arg --compiler-filter=interpret-only"
+  vogar_args="$vogar_args --vm-arg -Xcompiler-option --vm-arg --compiler-filter=quicken"
 fi
 vogar_args="$vogar_args --vm-arg -Xusejit:$use_jit"
 

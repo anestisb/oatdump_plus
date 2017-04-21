@@ -15,13 +15,13 @@
 # limitations under the License.
 
 # Use
-# --compiler-filter=interpret-only to make sure that the test is not compiled AOT
+# --compiler-filter=quicken to make sure that the test is not compiled AOT
 # and to make sure the test is not compiled  when loaded (by PathClassLoader)
 # -Xjitsaveprofilinginfo to enable profile saving
 # -Xusejit:false to disable jit and only test profiles.
 exec ${RUN} \
-  -Xcompiler-option --compiler-filter=interpret-only \
-  --runtime-option '-Xcompiler-option --compiler-filter=interpret-only' \
+  -Xcompiler-option --compiler-filter=quicken \
+  --runtime-option '-Xcompiler-option --compiler-filter=quicken' \
   --runtime-option -Xjitsaveprofilinginfo \
   --runtime-option -Xusejit:false \
   "${@}"

@@ -439,7 +439,7 @@ OatFileAssistant::OatStatus OatFileAssistant::GivenOatFileStatus(const OatFile& 
     VLOG(oat) << "Image checksum test skipped for compiler filter " << current_compiler_filter;
   }
 
-  if (CompilerFilter::IsBytecodeCompilationEnabled(current_compiler_filter)) {
+  if (CompilerFilter::IsAotCompilationEnabled(current_compiler_filter)) {
     if (!file.IsPic()) {
       const ImageInfo* image_info = GetImageInfo();
       if (image_info == nullptr) {
@@ -834,7 +834,7 @@ OatFileAssistant::OatStatus OatFileAssistant::OatFileInfo::Status() {
 
 OatFileAssistant::DexOptNeeded OatFileAssistant::OatFileInfo::GetDexOptNeeded(
     CompilerFilter::Filter target, bool profile_changed) {
-  bool compilation_desired = CompilerFilter::IsBytecodeCompilationEnabled(target);
+  bool compilation_desired = CompilerFilter::IsAotCompilationEnabled(target);
   bool filter_okay = CompilerFilterIsOkay(target, profile_changed);
 
   if (filter_okay && Status() == kOatUpToDate) {

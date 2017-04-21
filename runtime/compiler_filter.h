@@ -30,14 +30,12 @@ class CompilerFilter FINAL {
   // Note: Order here matters. Later filter choices are considered "as good
   // as" earlier filter choices.
   enum Filter {
-    kVerifyNone,          // Skip verification but mark all classes as verified anyway.
-    kVerifyAtRuntime,     // Delay verication to runtime, do not compile anything.
-    kVerifyProfile,       // Verify only the classes in the profile, compile only JNI stubs.
-    kInterpretOnly,       // Verify everything, compile only JNI stubs.
-    kTime,                // Compile methods, but minimize compilation time.
+    kAssumeVerified,      // Skip verification but mark all classes as verified anyway.
+    kExtract,             // Delay verication to runtime, do not compile anything.
+    kVerify,              // Only verify classes.
+    kQuicken,             // Verify, quicken, and compile JNI stubs.
     kSpaceProfile,        // Maximize space savings based on profile.
     kSpace,               // Maximize space savings.
-    kBalanced,            // Good performance return on compilation investment.
     kSpeedProfile,        // Maximize runtime performance based on profile.
     kSpeed,               // Maximize runtime performance.
     kEverythingProfile,   // Compile everything capable of being compiled based on profile.
@@ -48,16 +46,20 @@ class CompilerFilter FINAL {
 
   // Returns true if an oat file with this compiler filter contains
   // compiled executable code for bytecode.
-  static bool IsBytecodeCompilationEnabled(Filter filter);
+  static bool IsAotCompilationEnabled(Filter filter);
 
   // Returns true if an oat file with this compiler filter contains
   // compiled executable code for bytecode, JNI methods, or quickened dex
   // bytecode.
-  static bool IsAnyMethodCompilationEnabled(Filter filter);
+  static bool IsAnyCompilationEnabled(Filter filter);
 
   // Returns true if an oat file with this compiler filter contains
   // compiled executable code for JNI methods.
   static bool IsJniCompilationEnabled(Filter filter);
+
+  // Returns true if an oat file with this compiler filter contains
+  // quickened dex bytecode.
+  static bool IsQuickeningCompilationEnabled(Filter filter);
 
   // Returns true if this compiler filter requires running verification.
   static bool IsVerificationEnabled(Filter filter);

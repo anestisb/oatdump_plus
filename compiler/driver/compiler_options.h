@@ -84,16 +84,16 @@ class CompilerOptions FINAL {
     compiler_filter_ = compiler_filter;
   }
 
-  bool VerifyAtRuntime() const {
-    return compiler_filter_ == CompilerFilter::kVerifyAtRuntime;
-  }
-
-  bool IsBytecodeCompilationEnabled() const {
-    return CompilerFilter::IsBytecodeCompilationEnabled(compiler_filter_);
+  bool IsAotCompilationEnabled() const {
+    return CompilerFilter::IsAotCompilationEnabled(compiler_filter_);
   }
 
   bool IsJniCompilationEnabled() const {
     return CompilerFilter::IsJniCompilationEnabled(compiler_filter_);
+  }
+
+  bool IsQuickeningCompilationEnabled() const {
+    return CompilerFilter::IsQuickeningCompilationEnabled(compiler_filter_);
   }
 
   bool IsVerificationEnabled() const {
@@ -101,15 +101,15 @@ class CompilerOptions FINAL {
   }
 
   bool AssumeClassesAreVerified() const {
-    return compiler_filter_ == CompilerFilter::kVerifyNone;
+    return compiler_filter_ == CompilerFilter::kAssumeVerified;
   }
 
-  bool VerifyOnlyProfile() const {
-    return compiler_filter_ == CompilerFilter::kVerifyProfile;
+  bool VerifyAtRuntime() const {
+    return compiler_filter_ == CompilerFilter::kExtract;
   }
 
-  bool IsAnyMethodCompilationEnabled() const {
-    return CompilerFilter::IsAnyMethodCompilationEnabled(compiler_filter_);
+  bool IsAnyCompilationEnabled() const {
+    return CompilerFilter::IsAnyCompilationEnabled(compiler_filter_);
   }
 
   size_t GetHugeMethodThreshold() const {

@@ -421,7 +421,7 @@ INTRINSICS_LIST(SETUP_INTRINSICS)
   // Compile:
   // 1) Compile all classes and methods enabled for compilation. May fall back to dex-to-dex
   //    compilation.
-  if (GetCompilerOptions().IsAnyMethodCompilationEnabled()) {
+  if (GetCompilerOptions().IsAnyCompilationEnabled()) {
     Compile(class_loader, dex_files, timings);
   }
   if (dump_stats_) {
@@ -514,7 +514,7 @@ static optimizer::DexToDexCompilationLevel GetDexToDexCompilationLevel(
     const DexFile& dex_file, const DexFile::ClassDef& class_def)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   auto* const runtime = Runtime::Current();
-  DCHECK(driver.GetCompilerOptions().IsAnyMethodCompilationEnabled());
+  DCHECK(driver.GetCompilerOptions().IsQuickeningCompilationEnabled());
   const char* descriptor = dex_file.GetClassDescriptor(class_def);
   ClassLinker* class_linker = runtime->GetClassLinker();
   mirror::Class* klass = class_linker->FindClass(self, descriptor, class_loader);
@@ -986,7 +986,8 @@ void CompilerDriver::PreCompile(jobject class_loader,
   LoadImageClasses(timings);
   VLOG(compiler) << "LoadImageClasses: " << GetMemoryUsageString(false);
 
-  if (compiler_options_->IsAnyMethodCompilationEnabled()) {
+  if (compiler_options_->IsAnyCompilationEnabled()) {
+    // Resolve eagerly to prepare for compilation.
     Resolve(class_loader, dex_files, timings);
     VLOG(compiler) << "Resolve: " << GetMemoryUsageString(false);
   }
@@ -1014,7 +1015,7 @@ void CompilerDriver::PreCompile(jobject class_loader,
                << "situations. Please check the log.";
   }
 
-  if (compiler_options_->IsAnyMethodCompilationEnabled()) {
+  if (compiler_options_->IsAnyCompilationEnabled()) {
     if (kIsDebugBuild) {
       EnsureVerifiedOrVerifyAtRuntime(class_loader, dex_files);
     }
@@ -2017,7 +2018,7 @@ bool CompilerDriver::FastVerify(jobject jclass_loader,
     return false;
   }
 
-  bool compiler_only_verifies = !GetCompilerOptions().IsAnyMethodCompilationEnabled();
+  bool compiler_only_verifies = !GetCompilerOptions().IsAnyCompilationEnabled();
 
   // We successfully validated the dependencies, now update class status
   // of verified classes. Note that the dependencies also record which classes

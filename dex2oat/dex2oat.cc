@@ -268,20 +268,17 @@ NO_RETURN static void Usage(const char* fmt, ...) {
   UsageError("      Default: Optimizing");
   UsageError("");
   UsageError("  --compiler-filter="
-                "(verify-none"
-                "|verify-at-runtime"
-                "|verify-profile"
-                "|interpret-only"
-                "|time"
+                "(assume-verified"
+                "|extract"
+                "|verify"
+                "|quicken"
                 "|space-profile"
                 "|space"
-                "|balanced"
                 "|speed-profile"
                 "|speed"
                 "|everything-profile"
                 "|everything):");
   UsageError("      select compiler filter.");
-  UsageError("      verify-profile requires a --profile(-fd) to also be passed in.");
   UsageError("      Example: --compiler-filter=everything");
   UsageError("      Default: speed");
   UsageError("");
@@ -1570,14 +1567,14 @@ class Dex2Oat FINAL {
 
     // If we need to downgrade the compiler-filter for size reasons, do that check now.
     if (!IsBootImage() && IsVeryLarge(dex_files_)) {
-      if (!CompilerFilter::IsAsGoodAs(CompilerFilter::kVerifyAtRuntime,
+      if (!CompilerFilter::IsAsGoodAs(CompilerFilter::kExtract,
                                       compiler_options_->GetCompilerFilter())) {
-        LOG(INFO) << "Very large app, downgrading to verify-at-runtime.";
+        LOG(INFO) << "Very large app, downgrading to extract.";
         // Note: this change won't be reflected in the key-value store, as that had to be
         //       finalized before loading the dex files. This setup is currently required
         //       to get the size from the DexFile objects.
         // TODO: refactor. b/29790079
-        compiler_options_->SetCompilerFilter(CompilerFilter::kVerifyAtRuntime);
+        compiler_options_->SetCompilerFilter(CompilerFilter::kExtract);
       }
     }
 
@@ -2085,7 +2082,7 @@ class Dex2Oat FINAL {
   }
 
   bool DoProfileGuidedOptimizations() const {
-    return UseProfile() && compiler_options_->GetCompilerFilter() != CompilerFilter::kVerifyProfile;
+    return UseProfile();
   }
 
   bool DoDexLayoutOptimizations() const {
