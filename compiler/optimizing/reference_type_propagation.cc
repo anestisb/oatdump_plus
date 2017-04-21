@@ -16,6 +16,8 @@
 
 #include "reference_type_propagation.h"
 
+#include "art_field-inl.h"
+#include "art_method-inl.h"
 #include "base/enums.h"
 #include "class_linker-inl.h"
 #include "mirror/class-inl.h"

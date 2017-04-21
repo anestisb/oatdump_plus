@@ -32,7 +32,7 @@
 #include "ti_thread.h"
 
 #include "android-base/strings.h"
-#include "art_field.h"
+#include "art_field-inl.h"
 #include "art_jvmti.h"
 #include "base/logging.h"
 #include "base/mutex.h"

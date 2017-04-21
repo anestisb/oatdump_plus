@@ -18,22 +18,15 @@
 
 #include <algorithm>
 #include <memory>
-#include <vector>
 
-#include "art_method-inl.h"
-#include "base/enums.h"
 #include "base/logging.h"
-#include "base/stl_util.h"
 #include "dex_file.h"
 #include "dex_instruction-inl.h"
-#include "dex_instruction_utils.h"
-#include "mirror/class-inl.h"
-#include "mirror/dex_cache-inl.h"
-#include "mirror/object-inl.h"
-#include "utils.h"
+#include "runtime.h"
 #include "verifier/method_verifier-inl.h"
 #include "verifier/reg_type-inl.h"
 #include "verifier/register_line-inl.h"
+#include "verifier/verifier_deps.h"
 
 namespace art {
 

@@ -42,6 +42,7 @@
 #include "mirror/dex_cache.h"
 #include "mirror/executable.h"
 #include "mirror/object-inl.h"
+#include "mirror/object-refvisitor-inl.h"
 #include "mirror/method.h"
 #include "mirror/reference.h"
 #include "noop_compiler_callbacks.h"

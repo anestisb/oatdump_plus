@@ -18,7 +18,7 @@
 
 #include "arch/instruction_set_features.h"
 #include "art_field-inl.h"
-#include "art_method.h"
+#include "art_method-inl.h"
 #include "base/enums.h"
 #include "class_linker.h"
 #include "compiled_method.h"

@@ -19,14 +19,13 @@
 
 #include <sys/ucontext.h>
 
-#include "art_method-inl.h"
+#include "art_method.h"
 #include "base/enums.h"
-#include "base/macros.h"
-#include "globals.h"
-#include "base/logging.h"
 #include "base/hex_dump.h"
+#include "base/logging.h"
+#include "base/macros.h"
 #include "base/safe_copy.h"
-#include "thread.h"
+#include "globals.h"
 #include "thread-inl.h"
 
 #if defined(__APPLE__)

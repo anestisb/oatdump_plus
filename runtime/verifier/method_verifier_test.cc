@@ -23,7 +23,7 @@
 
 #include "class_linker-inl.h"
 #include "common_runtime_test.h"
-#include "dex_file.h"
+#include "dex_file-inl.h"
 #include "scoped_thread_state_change-inl.h"
 #include "utils.h"
 #include "verifier_log_mode.h"

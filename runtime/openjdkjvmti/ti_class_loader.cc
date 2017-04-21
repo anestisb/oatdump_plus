@@ -35,6 +35,7 @@
 
 #include "android-base/stringprintf.h"
 
+#include "art_field-inl.h"
 #include "art_jvmti.h"
 #include "base/array_slice.h"
 #include "base/logging.h"

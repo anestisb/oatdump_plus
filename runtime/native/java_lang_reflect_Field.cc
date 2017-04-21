@@ -18,6 +18,7 @@
 
 #include "android-base/stringprintf.h"
 
+#include "art_field-inl.h"
 #include "class_linker.h"
 #include "class_linker-inl.h"
 #include "common_throws.h"
@@ -29,6 +30,7 @@
 #include "reflection-inl.h"
 #include "scoped_fast_native_object_access-inl.h"
 #include "utils.h"
+#include "well_known_classes.h"
 
 namespace art {
 

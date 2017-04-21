@@ -17,6 +17,7 @@
 // Test is in compiler, as it uses compiler related code.
 #include "verifier/verifier_deps.h"
 
+#include "art_method-inl.h"
 #include "class_linker.h"
 #include "common_compiler_test.h"
 #include "compiler_callbacks.h"

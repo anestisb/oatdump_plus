@@ -17,6 +17,8 @@
 
 #include <cfloat>
 
+#include "art_method-inl.h"
+#include "class_linker-inl.h"
 #include "code_generator.h"
 #include "common_dominator.h"
 #include "ssa_builder.h"

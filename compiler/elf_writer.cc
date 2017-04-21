@@ -16,17 +16,8 @@
 
 #include "elf_writer.h"
 
-#include "art_method-inl.h"
 #include "base/unix_file/fd_file.h"
-#include "class_linker.h"
-#include "dex_file-inl.h"
-#include "dex_method_iterator.h"
-#include "driver/compiler_driver.h"
 #include "elf_file.h"
-#include "invoke_type.h"
-#include "mirror/object-inl.h"
-#include "oat.h"
-#include "scoped_thread_state_change-inl.h"
 
 namespace art {
 

@@ -29,6 +29,7 @@
 #include "gc/space/space-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
+#include "mirror/object-refvisitor-inl.h"
 #include "runtime.h"
 #include "stack.h"
 #include "thread-inl.h"

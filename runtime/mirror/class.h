@@ -530,10 +530,7 @@ class MANAGED Class FINAL : public Object {
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
            ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
-  bool IsObjectArrayClass() REQUIRES_SHARED(Locks::mutator_lock_) {
-    ObjPtr<Class> const component_type = GetComponentType<kVerifyFlags, kReadBarrierOption>();
-    return component_type != nullptr && !component_type->IsPrimitive();
-  }
+  ALWAYS_INLINE bool IsObjectArrayClass() REQUIRES_SHARED(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool IsIntArrayClass() REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -561,12 +558,7 @@ class MANAGED Class FINAL : public Object {
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
            ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
-  bool IsVariableSize() REQUIRES_SHARED(Locks::mutator_lock_) {
-    // Classes, arrays, and strings vary in size, and so the object_size_ field cannot
-    // be used to Get their instance size
-    return IsClassClass<kVerifyFlags, kReadBarrierOption>() ||
-        IsArrayClass<kVerifyFlags, kReadBarrierOption>() || IsStringClass();
-  }
+  ALWAYS_INLINE bool IsVariableSize() REQUIRES_SHARED(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
            ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
@@ -614,11 +606,7 @@ class MANAGED Class FINAL : public Object {
     return OFFSET_OF_OBJECT_MEMBER(Class, object_size_alloc_fast_path_);
   }
 
-  void SetObjectSize(uint32_t new_object_size) REQUIRES_SHARED(Locks::mutator_lock_) {
-    DCHECK(!IsVariableSize());
-    // Not called within a transaction.
-    return SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, object_size_), new_object_size);
-  }
+  ALWAYS_INLINE void SetObjectSize(uint32_t new_object_size) REQUIRES_SHARED(Locks::mutator_lock_);
 
   void SetObjectSizeAllocFastPath(uint32_t new_object_size) REQUIRES_SHARED(Locks::mutator_lock_);
 
