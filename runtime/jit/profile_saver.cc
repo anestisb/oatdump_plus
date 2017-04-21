@@ -16,6 +16,7 @@
 
 #include "profile_saver.h"
 
+#include <sys/resource.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -431,6 +432,16 @@ void ProfileSaver::Start(const ProfileSaverOptions& options,
       pthread_create,
       (&profiler_pthread_, nullptr, &RunProfileSaverThread, reinterpret_cast<void*>(instance_)),
       "Profile saver thread");
+
+#if defined(ART_TARGET_ANDROID)
+  // At what priority to schedule the saver threads. 9 is the lowest foreground priority on device.
+  static constexpr int kProfileSaverPthreadPriority = 9;
+  int result = setpriority(
+      PRIO_PROCESS, pthread_gettid_np(profiler_pthread_), kProfileSaverPthreadPriority);
+  if (result != 0) {
+    PLOG(ERROR) << "Failed to setpriority to :" << kProfileSaverPthreadPriority;
+  }
+#endif
 }
 
 void ProfileSaver::Stop(bool dump_info) {
