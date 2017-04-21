@@ -21,8 +21,10 @@
 #include <memory>
 
 #include "base/logging.h"
+#include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "dex_file.h"
+#include "dex_to_dex_decompiler.h"
 
 namespace art {
 
@@ -54,6 +56,7 @@ VdexFile::Header::Header(uint32_t number_of_dex_files,
 std::unique_ptr<VdexFile> VdexFile::Open(const std::string& vdex_filename,
                                          bool writable,
                                          bool low_4gb,
+                                         bool unquicken,
                                          std::string* error_msg) {
   if (!OS::FileExists(vdex_filename.c_str())) {
     *error_msg = "File " + vdex_filename + " does not exist.";
@@ -78,7 +81,7 @@ std::unique_ptr<VdexFile> VdexFile::Open(const std::string& vdex_filename,
     return nullptr;
   }
 
-  return Open(vdex_file->Fd(), vdex_length, vdex_filename, writable, low_4gb, error_msg);
+  return Open(vdex_file->Fd(), vdex_length, vdex_filename, writable, low_4gb, unquicken, error_msg);
 }
 
 std::unique_ptr<VdexFile> VdexFile::Open(int file_fd,
@@ -86,15 +89,17 @@ std::unique_ptr<VdexFile> VdexFile::Open(int file_fd,
                                          const std::string& vdex_filename,
                                          bool writable,
                                          bool low_4gb,
+                                         bool unquicken,
                                          std::string* error_msg) {
-  std::unique_ptr<MemMap> mmap(MemMap::MapFile(vdex_length,
-                                               writable ? PROT_READ | PROT_WRITE : PROT_READ,
-                                               MAP_SHARED,
-                                               file_fd,
-                                               0 /* start offset */,
-                                               low_4gb,
-                                               vdex_filename.c_str(),
-                                               error_msg));
+  std::unique_ptr<MemMap> mmap(MemMap::MapFile(
+      vdex_length,
+      (writable || unquicken) ? PROT_READ | PROT_WRITE : PROT_READ,
+      unquicken ? MAP_PRIVATE : MAP_SHARED,
+      file_fd,
+      0 /* start offset */,
+      low_4gb,
+      vdex_filename.c_str(),
+      error_msg));
   if (mmap == nullptr) {
     *error_msg = "Failed to mmap file " + vdex_filename + " : " + *error_msg;
     return nullptr;
@@ -104,6 +109,16 @@ std::unique_ptr<VdexFile> VdexFile::Open(int file_fd,
   if (!vdex->IsValid()) {
     *error_msg = "Vdex file is not valid";
     return nullptr;
+  }
+
+  if (unquicken) {
+    std::vector<std::unique_ptr<const DexFile>> unique_ptr_dex_files;
+    if (!vdex->OpenAllDexFiles(&unique_ptr_dex_files, error_msg)) {
+      return nullptr;
+    }
+    Unquicken(MakeNonOwningPointerVector(unique_ptr_dex_files), vdex->GetQuickeningInfo());
+    // Update the quickening info size to pretend there isn't any.
+    reinterpret_cast<Header*>(vdex->mmap_->Begin())->quickening_info_size_ = 0;
   }
 
   *error_msg = "Success";
@@ -146,6 +161,64 @@ bool VdexFile::OpenAllDexFiles(std::vector<std::unique_ptr<const DexFile>>* dex_
     dex_files->push_back(std::move(dex));
   }
   return true;
+}
+
+void VdexFile::Unquicken(const std::vector<const DexFile*>& dex_files,
+                         const ArrayRef<const uint8_t>& quickening_info) {
+  if (quickening_info.size() == 0) {
+    // If there is no quickening info, we bail early, as the code below expects at
+    // least the size of quickening data for each method that has a code item.
+    return;
+  }
+  const uint8_t* quickening_info_ptr = quickening_info.data();
+  const uint8_t* const quickening_info_end = quickening_info.data() + quickening_info.size();
+  for (const DexFile* dex_file : dex_files) {
+    for (uint32_t i = 0; i < dex_file->NumClassDefs(); ++i) {
+      const DexFile::ClassDef& class_def = dex_file->GetClassDef(i);
+      const uint8_t* class_data = dex_file->GetClassData(class_def);
+      if (class_data == nullptr) {
+        continue;
+      }
+      ClassDataItemIterator it(*dex_file, class_data);
+      // Skip fields
+      while (it.HasNextStaticField()) {
+        it.Next();
+      }
+      while (it.HasNextInstanceField()) {
+        it.Next();
+      }
+
+      while (it.HasNextDirectMethod()) {
+        const DexFile::CodeItem* code_item = it.GetMethodCodeItem();
+        if (code_item != nullptr) {
+          uint32_t quickening_size = *reinterpret_cast<const uint32_t*>(quickening_info_ptr);
+          quickening_info_ptr += sizeof(uint32_t);
+          optimizer::ArtDecompileDEX(*code_item,
+                                     ArrayRef<const uint8_t>(quickening_info_ptr, quickening_size),
+                                     /* decompile_return_instruction */ false);
+          quickening_info_ptr += quickening_size;
+        }
+        it.Next();
+      }
+
+      while (it.HasNextVirtualMethod()) {
+        const DexFile::CodeItem* code_item = it.GetMethodCodeItem();
+        if (code_item != nullptr) {
+          uint32_t quickening_size = *reinterpret_cast<const uint32_t*>(quickening_info_ptr);
+          quickening_info_ptr += sizeof(uint32_t);
+          optimizer::ArtDecompileDEX(*code_item,
+                                     ArrayRef<const uint8_t>(quickening_info_ptr, quickening_size),
+                                     /* decompile_return_instruction */ false);
+          quickening_info_ptr += quickening_size;
+        }
+        it.Next();
+      }
+      DCHECK(!it.HasNext());
+    }
+  }
+  if (quickening_info_ptr != quickening_info_end) {
+    LOG(FATAL) << "Failed to use all quickening info";
+  }
 }
 
 }  // namespace art

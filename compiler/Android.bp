@@ -28,7 +28,6 @@ art_cc_defaults {
         "compiled_method.cc",
         "debug/elf_debug_writer.cc",
         "dex/dex_to_dex_compiler.cc",
-        "dex/dex_to_dex_decompiler.cc",
         "dex/inline_method_analyser.cc",
         "dex/verified_method.cc",
         "dex/verification_results.cc",

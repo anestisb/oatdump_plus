@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_DEX_DEX_TO_DEX_DECOMPILER_H_
-#define ART_COMPILER_DEX_DEX_TO_DEX_DECOMPILER_H_
+#ifndef ART_RUNTIME_DEX_TO_DEX_DECOMPILER_H_
+#define ART_RUNTIME_DEX_TO_DEX_DECOMPILER_H_
 
 #include "base/array_ref.h"
 #include "dex_file.h"
@@ -36,4 +36,4 @@ bool ArtDecompileDEX(const DexFile::CodeItem& code_item,
 }  // namespace optimizer
 }  // namespace art
 
-#endif  // ART_COMPILER_DEX_DEX_TO_DEX_DECOMPILER_H_
+#endif  // ART_RUNTIME_DEX_TO_DEX_DECOMPILER_H_

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "dex/dex_to_dex_decompiler.h"
+#include "dex_to_dex_decompiler.h"
 
 #include "class_linker.h"
 #include "compiler/common_compiler_test.h"

@@ -313,6 +313,7 @@ static bool DisplayMappingIfFromVdexFile(pm_map_t* map, Printer* printer) {
   std::unique_ptr<VdexFile> vdex(VdexFile::Open(vdex_name,
                                                 false /*writeable*/,
                                                 false /*low_4gb*/,
+                                                false /*unquicken */,
                                                 &error_msg /*out*/));
   if (vdex == nullptr) {
     std::cerr << "Could not open vdex file "

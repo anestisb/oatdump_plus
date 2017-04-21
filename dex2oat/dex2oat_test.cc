@@ -736,12 +736,12 @@ class Dex2oatLayoutTest : public Dex2oatTest {
                          /* use_fd */ true,
                          /* num_profile_classes */ 1,
                          { input_vdex, output_vdex },
-                         /* expect_success */ false);
-      EXPECT_EQ(vdex_file2.GetFile()->GetLength(), 0u);
+                         /* expect_success */ true);
+      EXPECT_GT(vdex_file2.GetFile()->GetLength(), 0u);
     }
     ASSERT_EQ(vdex_file1->FlushCloseOrErase(), 0) << "Could not flush and close vdex file";
     CheckValidity();
-    ASSERT_FALSE(success_);
+    ASSERT_TRUE(success_);
   }
 
   void CheckResult(const std::string& dex_location,

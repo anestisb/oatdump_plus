@@ -45,7 +45,6 @@
 #include "dex_file-inl.h"
 #include "dex_instruction-inl.h"
 #include "dex/dex_to_dex_compiler.h"
-#include "dex/dex_to_dex_decompiler.h"
 #include "dex/verification_results.h"
 #include "dex/verified_method.h"
 #include "driver/compiler_options.h"
@@ -431,61 +430,6 @@ INTRINSICS_LIST(SETUP_INTRINSICS)
   FreeThreadPools();
 }
 
-// In-place unquicken the given `dex_files` based on `quickening_info`.
-static void Unquicken(const std::vector<const DexFile*>& dex_files,
-                      const ArrayRef<const uint8_t>& quickening_info,
-                      bool decompile_return_instruction) {
-  const uint8_t* quickening_info_ptr = quickening_info.data();
-  const uint8_t* const quickening_info_end = quickening_info.data() + quickening_info.size();
-  for (const DexFile* dex_file : dex_files) {
-    for (uint32_t i = 0; i < dex_file->NumClassDefs(); ++i) {
-      const DexFile::ClassDef& class_def = dex_file->GetClassDef(i);
-      const uint8_t* class_data = dex_file->GetClassData(class_def);
-      if (class_data == nullptr) {
-        continue;
-      }
-      ClassDataItemIterator it(*dex_file, class_data);
-      // Skip fields
-      while (it.HasNextStaticField()) {
-        it.Next();
-      }
-      while (it.HasNextInstanceField()) {
-        it.Next();
-      }
-
-      while (it.HasNextDirectMethod()) {
-        const DexFile::CodeItem* code_item = it.GetMethodCodeItem();
-        if (code_item != nullptr) {
-          uint32_t quickening_size = *reinterpret_cast<const uint32_t*>(quickening_info_ptr);
-          quickening_info_ptr += sizeof(uint32_t);
-          optimizer::ArtDecompileDEX(*code_item,
-                                     ArrayRef<const uint8_t>(quickening_info_ptr, quickening_size),
-                                     decompile_return_instruction);
-          quickening_info_ptr += quickening_size;
-        }
-        it.Next();
-      }
-
-      while (it.HasNextVirtualMethod()) {
-        const DexFile::CodeItem* code_item = it.GetMethodCodeItem();
-        if (code_item != nullptr) {
-          uint32_t quickening_size = *reinterpret_cast<const uint32_t*>(quickening_info_ptr);
-          quickening_info_ptr += sizeof(uint32_t);
-          optimizer::ArtDecompileDEX(*code_item,
-                                     ArrayRef<const uint8_t>(quickening_info_ptr, quickening_size),
-                                     decompile_return_instruction);
-          quickening_info_ptr += quickening_size;
-        }
-        it.Next();
-      }
-      DCHECK(!it.HasNext());
-    }
-  }
-  if (quickening_info_ptr != quickening_info_end) {
-    LOG(FATAL) << "Failed to use all quickening info";
-  }
-}
-
 void CompilerDriver::CompileAll(jobject class_loader,
                                 const std::vector<const DexFile*>& dex_files,
                                 VdexFile* vdex_file,
@@ -494,15 +438,12 @@ void CompilerDriver::CompileAll(jobject class_loader,
     // TODO: we unquicken unconditionnally, as we don't know
     // if the boot image has changed. How exactly we'll know is under
     // experimentation.
-    if (vdex_file->GetQuickeningInfo().size() != 0) {
-      TimingLogger::ScopedTiming t("Unquicken", timings);
-      // We do not decompile a RETURN_VOID_NO_BARRIER into a RETURN_VOID, as the quickening
-      // optimization does not depend on the boot image (the optimization relies on not
-      // having final fields in a class, which does not change for an app).
-      Unquicken(dex_files,
-                vdex_file->GetQuickeningInfo(),
-                /* decompile_return_instruction */ false);
-    }
+    TimingLogger::ScopedTiming t("Unquicken", timings);
+    // We do not decompile a RETURN_VOID_NO_BARRIER into a RETURN_VOID, as the quickening
+    // optimization does not depend on the boot image (the optimization relies on not
+    // having final fields in a class, which does not change for an app).
+    VdexFile::Unquicken(dex_files, vdex_file->GetQuickeningInfo());
+
     Runtime::Current()->GetCompilerCallbacks()->SetVerifierDeps(
         new verifier::VerifierDeps(dex_files, vdex_file->GetVerifierDepsData()));
   }
