@@ -47,6 +47,7 @@
 #include "dex/verified_method.h"
 #include "driver/compiler_driver.h"
 #include "graph_visualizer.h"
+#include "intern_table.h"
 #include "intrinsics.h"
 #include "leb128.h"
 #include "mirror/array-inl.h"

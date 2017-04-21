@@ -23,11 +23,16 @@
 #include "base/mutex.h"
 #include "indirect_reference_table.h"
 #include "object_callbacks.h"
+#include "obj_ptr.h"
 #include "reference_table.h"
 
 namespace art {
 
 class JavaVMExt;
+
+namespace mirror {
+class Object;
+}  // namespace mirror
 
 // Number of local references in the indirect reference table. The value is arbitrary but
 // low enough that it forces sanity checks.

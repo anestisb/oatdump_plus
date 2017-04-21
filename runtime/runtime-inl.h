@@ -21,6 +21,7 @@
 
 #include "art_method.h"
 #include "class_linker.h"
+#include "gc_root-inl.h"
 #include "obj_ptr-inl.h"
 #include "read_barrier-inl.h"
 

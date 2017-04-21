@@ -65,6 +65,7 @@
 #include "heap-inl.h"
 #include "image.h"
 #include "intern_table.h"
+#include "java_vm_ext.h"
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
 #include "obj_ptr-inl.h"
