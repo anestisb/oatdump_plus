@@ -19,6 +19,7 @@
 
 #include "class-inl.h"
 
+#include "art_field-inl.h"
 #include "class_ext-inl.h"
 
 namespace art {

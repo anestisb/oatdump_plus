@@ -18,6 +18,7 @@
 
 #include <cstring>
 
+#include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "base/stl_util.h"
 #include "compiler_callbacks.h"

@@ -47,16 +47,6 @@ inline void ArtField::SetDeclaringClass(ObjPtr<mirror::Class> new_declaring_clas
   declaring_class_ = GcRoot<mirror::Class>(new_declaring_class);
 }
 
-inline uint32_t ArtField::GetAccessFlags() {
-  DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
-  return access_flags_;
-}
-
-inline MemberOffset ArtField::GetOffset() {
-  DCHECK(GetDeclaringClass()->IsResolved());
-  return MemberOffset(offset_);
-}
-
 inline MemberOffset ArtField::GetOffsetDuringLinking() {
   DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
   return MemberOffset(offset_);

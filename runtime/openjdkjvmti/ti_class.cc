@@ -69,6 +69,7 @@
 #include "ti_phase.h"
 #include "ti_redefine.h"
 #include "utils.h"
+#include "well_known_classes.h"
 
 namespace openjdkjvmti {
 

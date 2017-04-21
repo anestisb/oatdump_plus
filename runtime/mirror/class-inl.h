@@ -19,13 +19,14 @@
 
 #include "class.h"
 
-#include "art_field-inl.h"
+#include "art_field.h"
 #include "art_method.h"
 #include "base/array_slice.h"
 #include "base/length_prefixed_array.h"
+#include "class_linker-inl.h"
 #include "class_loader.h"
 #include "common_throws.h"
-#include "dex_file.h"
+#include "dex_file-inl.h"
 #include "gc/heap-inl.h"
 #include "iftable.h"
 #include "object_array-inl.h"

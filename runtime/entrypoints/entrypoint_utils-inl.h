@@ -39,6 +39,7 @@
 #include "runtime.h"
 #include "stack_map.h"
 #include "thread.h"
+#include "well_known_classes.h"
 
 namespace art {
 
