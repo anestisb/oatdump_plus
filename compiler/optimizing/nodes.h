@@ -1362,7 +1362,6 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(UShr, BinaryOperation)                                              \
   M(Xor, BinaryOperation)                                               \
   M(VecReplicateScalar, VecUnaryOperation)                              \
-  M(VecSetScalars, VecUnaryOperation)                                   \
   M(VecSumReduce, VecUnaryOperation)                                    \
   M(VecCnv, VecUnaryOperation)                                          \
   M(VecNeg, VecUnaryOperation)                                          \
@@ -1382,6 +1381,7 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(VecShl, VecBinaryOperation)                                         \
   M(VecShr, VecBinaryOperation)                                         \
   M(VecUShr, VecBinaryOperation)                                        \
+  M(VecSetScalars, VecOperation)                                        \
   M(VecMultiplyAccumulate, VecOperation)                                \
   M(VecLoad, VecMemoryOperation)                                        \
   M(VecStore, VecMemoryOperation)                                       \
