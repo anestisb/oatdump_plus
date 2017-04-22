@@ -18,6 +18,7 @@
 
 #include "base/hash_set.h"
 #include "common_runtime_test.h"
+#include "gc_root-inl.h"
 #include "mirror/object.h"
 #include "handle_scope-inl.h"
 #include "mirror/string.h"
