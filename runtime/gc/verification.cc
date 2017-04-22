@@ -19,6 +19,7 @@
 #include <iomanip>
 #include <sstream>
 
+#include "art_field-inl.h"
 #include "mirror/class-inl.h"
 
 namespace art {
