@@ -22,7 +22,7 @@
 #include "gc/accounting/space_bitmap-inl.h"
 #include "gc/heap.h"
 #include "gc/space/region_space.h"
-#include "mirror/object-inl.h"
+#include "mirror/object-readbarrier-inl.h"
 #include "lock_word.h"
 
 namespace art {

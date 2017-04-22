@@ -56,6 +56,7 @@
 #include "gc/space/space-inl.h"
 #include "handle_scope-inl.h"
 #include "indirect_reference_table-inl.h"
+#include "java_vm_ext.h"
 #include "jni_internal.h"
 #include "mirror/class_loader.h"
 #include "mirror/class-inl.h"

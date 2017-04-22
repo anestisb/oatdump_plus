@@ -25,7 +25,7 @@
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache-inl.h"
 #include "mirror/iftable.h"
-#include "mirror/object_array.h"
+#include "mirror/object_array-inl.h"
 #include "handle_scope-inl.h"
 #include "scoped_thread_state_change-inl.h"
 

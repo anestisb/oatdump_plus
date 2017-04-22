@@ -23,6 +23,7 @@
 #include "common_throws.h"
 #include "dex_file-inl.h"
 #include "indirect_reference_table-inl.h"
+#include "java_vm_ext.h"
 #include "jni_internal.h"
 #include "mirror/class-inl.h"
 #include "mirror/executable.h"
