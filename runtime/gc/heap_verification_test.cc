@@ -15,9 +15,15 @@
  */
 
 #include "common_runtime_test.h"
-#include "verification.h"
+
+#include "class_linker.h"
+#include "handle_scope-inl.h"
+#include "mirror/object-inl.h"
+#include "mirror/object_array-inl.h"
 #include "mirror/string.h"
+#include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
+#include "verification.h"
 
 namespace art {
 namespace gc {
