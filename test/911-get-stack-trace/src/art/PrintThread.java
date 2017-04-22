@@ -19,6 +19,8 @@ package art;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class PrintThread {
   public static void print(String[][] stack) {
@@ -36,6 +38,20 @@ public class PrintThread {
     print(getStackTrace(t, start, max));
   }
 
+  // We have to ignore some threads when printing all stack traces. These are threads that may or
+  // may not exist depending on the environment.
+  public final static String IGNORE_THREAD_NAME_REGEX =
+      "Binder:|RenderThread|hwuiTask|Jit thread pool worker|Instr:|JDWP|Profile Saver|main";
+  public final static Matcher IGNORE_THREADS =
+      Pattern.compile(IGNORE_THREAD_NAME_REGEX).matcher("");
+
+  // We have to skip the stack of some threads when printing all stack traces. These are threads
+  // that may have a different call stack (e.g., when run as an app), or may be in a
+  // non-deterministic state.
+  public final static String CUT_STACK_THREAD_NAME_REGEX = "Daemon|main";
+  public final static Matcher CUT_STACK_THREADS =
+      Pattern.compile(CUT_STACK_THREAD_NAME_REGEX).matcher("");
+
   public static void printAll(Object[][] stacks) {
     List<String> stringified = new ArrayList<String>(stacks.length);
 
@@ -43,11 +59,11 @@ public class PrintThread {
       Thread t = (Thread)stackInfo[0];
       String name = (t != null) ? t.getName() : "null";
       String stackSerialization;
-      if (name.contains("Daemon")) {
+      if (CUT_STACK_THREADS.reset(name).find()) {
         // Do not print daemon stacks, as they're non-deterministic.
         stackSerialization = "<not printed>";
-      } else if (name.startsWith("Jit thread pool worker")) {
-        // Skip JIT thread pool. It may or may not be there depending on configuration.
+      } else if (IGNORE_THREADS.reset(name).find()) {
+        // Skip IGNORE_THREADS.
         continue;
       } else {
         StringBuilder sb = new StringBuilder();

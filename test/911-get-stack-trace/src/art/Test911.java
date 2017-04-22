@@ -23,27 +23,38 @@ public class Test911 {
     Main.bindAgentJNIForClass(PrintThread.class);
     Main.bindAgentJNIForClass(ThreadListTraces.class);
 
-    SameThread.doTest();
+    Thread t = new Thread("Test911") {
+      @Override
+      public void run() {
+        try {
+          SameThread.doTest();
 
-    System.out.println();
+          System.out.println();
 
-    OtherThread.doTestOtherThreadWait();
+          OtherThread.doTestOtherThreadWait();
 
-    System.out.println();
+          System.out.println();
 
-    OtherThread.doTestOtherThreadBusyLoop();
+          OtherThread.doTestOtherThreadBusyLoop();
 
-    System.out.println();
+          System.out.println();
 
-    AllTraces.doTest();
+          AllTraces.doTest();
 
-    System.out.println();
+          System.out.println();
 
-    ThreadListTraces.doTest();
+          ThreadListTraces.doTest();
 
-    System.out.println();
+          System.out.println();
 
-    Frames.doTest();
+          Frames.doTest();
+        } catch (Exception e) {
+          throw new RuntimeException(e);
+        }
+      }
+    };
+    t.start();
+    t.join();
 
     System.out.println("Done");
   }
