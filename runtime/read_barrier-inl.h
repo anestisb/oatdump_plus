@@ -22,6 +22,7 @@
 #include "gc/collector/concurrent_copying-inl.h"
 #include "gc/heap.h"
 #include "mirror/object_reference.h"
+#include "mirror/object-readbarrier-inl.h"
 #include "mirror/reference.h"
 #include "runtime.h"
 #include "utils.h"

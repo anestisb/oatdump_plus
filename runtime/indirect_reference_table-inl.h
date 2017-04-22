@@ -24,7 +24,6 @@
 #include "base/dumpable.h"
 #include "gc_root-inl.h"
 #include "obj_ptr-inl.h"
-#include "runtime-inl.h"
 #include "verify_object.h"
 
 namespace art {

@@ -35,28 +35,31 @@
 #include<stdio.h>
 #include <dlfcn.h>
 #include <limits.h>
-#include <unistd.h>
-
-#include "common_throws.h"
-#include "gc/heap.h"
-#include "thread.h"
-#include "thread_list.h"
-#include "runtime.h"
-#include "handle_scope-inl.h"
-#include "scoped_thread_state_change-inl.h"
-#include "ScopedUtfChars.h"
-#include "mirror/class_loader.h"
-#include "verify_object.h"
-#include "base/logging.h"
-#include "base/macros.h"
-#include "../../libcore/ojluni/src/main/native/jvm.h"  // TODO(narayan): fix it
-#include "jni_internal.h"
-#include "mirror/string-inl.h"
-#include "native/scoped_fast_native_object_access-inl.h"
-#include "ScopedLocalRef.h"
 #include <sys/time.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
+#include <unistd.h>
+
+#include "../../libcore/ojluni/src/main/native/jvm.h"  // TODO(narayan): fix it
+
+#include "base/logging.h"
+#include "base/macros.h"
+#include "common_throws.h"
+#include "gc/heap.h"
+#include "handle_scope-inl.h"
+#include "java_vm_ext.h"
+#include "jni_internal.h"
+#include "mirror/class_loader.h"
+#include "mirror/string-inl.h"
+#include "monitor.h"
+#include "native/scoped_fast_native_object_access-inl.h"
+#include "runtime.h"
+#include "thread.h"
+#include "thread_list.h"
+#include "scoped_thread_state_change-inl.h"
+#include "ScopedLocalRef.h"
+#include "ScopedUtfChars.h"
+#include "verify_object.h"
 
 #undef LOG_TAG
 #define LOG_TAG "artopenjdk"
