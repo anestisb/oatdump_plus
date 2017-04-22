@@ -4,7 +4,7 @@
 From top
 ---------
  getStackTrace (Ljava/lang/Thread;II)[[Ljava/lang/String; -1 -2
- print (Ljava/lang/Thread;II)V 0 36
+ print (Ljava/lang/Thread;II)V 0 38
  printOrWait (IILart/ControlData;)V 6 41
  baz (IIILart/ControlData;)Ljava/lang/Object; 2 32
  bar (IIILart/ControlData;)J 0 26
@@ -22,10 +22,9 @@ From top
  bar (IIILart/ControlData;)J 0 26
  foo (IIILart/ControlData;)I 0 21
  doTest ()V 38 25
- run ()V 20 26
- main ([Ljava/lang/String;)V 0 19
+ run ()V 0 30
 ---------
- print (Ljava/lang/Thread;II)V 0 36
+ print (Ljava/lang/Thread;II)V 0 38
  printOrWait (IILart/ControlData;)V 6 41
  baz (IIILart/ControlData;)Ljava/lang/Object; 2 32
  bar (IIILart/ControlData;)J 0 26
@@ -43,11 +42,10 @@ From top
  bar (IIILart/ControlData;)J 0 26
  foo (IIILart/ControlData;)I 0 21
  doTest ()V 42 26
- run ()V 20 26
- main ([Ljava/lang/String;)V 0 19
+ run ()V 0 30
 ---------
  getStackTrace (Ljava/lang/Thread;II)[[Ljava/lang/String; -1 -2
- print (Ljava/lang/Thread;II)V 0 36
+ print (Ljava/lang/Thread;II)V 0 38
  printOrWait (IILart/ControlData;)V 6 41
  baz (IIILart/ControlData;)Ljava/lang/Object; 2 32
  bar (IIILart/ControlData;)J 0 26
@@ -59,19 +57,19 @@ From top
  baz (IIILart/ControlData;)Ljava/lang/Object; 9 34
 From bottom
 ---------
- main ([Ljava/lang/String;)V 0 19
+ run ()V 0 30
 ---------
+ baz (IIILart/ControlData;)Ljava/lang/Object; 9 34
  bar (IIILart/ControlData;)J 0 26
  foo (IIILart/ControlData;)I 0 21
  doTest ()V 65 32
- run ()V 20 26
- main ([Ljava/lang/String;)V 0 19
+ run ()V 0 30
 ---------
+ bar (IIILart/ControlData;)J 0 26
  foo (IIILart/ControlData;)I 0 21
  baz (IIILart/ControlData;)Ljava/lang/Object; 9 34
  bar (IIILart/ControlData;)J 0 26
  foo (IIILart/ControlData;)I 0 21
- doTest ()V 69 33
 
 ################################
 ### Other thread (suspended) ###
@@ -258,8 +256,11 @@ ReferenceQueueDaemon
 Signal Catcher
 
 ---------
-main
+Test911
 
+---------
+main
+<not printed>
 ---------
 AllTraces Thread 0
  wait ()V -1 -2
@@ -356,13 +357,15 @@ ReferenceQueueDaemon
 Signal Catcher
 
 ---------
-main
+Test911
  getAllStackTraces (I)[[Ljava/lang/Object; -1 -2
  printAll (I)V 0 75
  doTest ()V 128 59
- run ()V 44 38
- main ([Ljava/lang/String;)V 0 19
+ run ()V 24 42
 
+---------
+main
+<not printed>
 ---------
 AllTraces Thread 0
  wait ()V -1 -2
@@ -589,18 +592,23 @@ ReferenceQueueDaemon
 Signal Catcher
 
 ---------
-main
+Test911
  getAllStackTraces (I)[[Ljava/lang/Object; -1 -2
  printAll (I)V 0 75
  doTest ()V 133 61
- run ()V 44 38
- main ([Ljava/lang/String;)V 0 19
+ run ()V 24 42
 
+---------
+main
+<not printed>
 
 ########################################
 ### Other select threads (suspended) ###
 ########################################
 ---------
+Test911
+
+---------
 ThreadListTraces Thread 0
 
 ---------
@@ -616,55 +624,58 @@ ThreadListTraces Thread 6
 ThreadListTraces Thread 8
 
 ---------
-main
-
----------
-ThreadListTraces Thread 0
- wait ()V -1 -2
- printOrWait (IILart/ControlData;)V 24 47
- baz (IIILart/ControlData;)Ljava/lang/Object; 2 32
- bar (IIILart/ControlData;)J 0 26
- foo (IIILart/ControlData;)I 0 21
-
----------
-ThreadListTraces Thread 2
- wait ()V -1 -2
- printOrWait (IILart/ControlData;)V 24 47
- baz (IIILart/ControlData;)Ljava/lang/Object; 2 32
- bar (IIILart/ControlData;)J 0 26
- foo (IIILart/ControlData;)I 0 21
-
----------
-ThreadListTraces Thread 4
- wait ()V -1 -2
- printOrWait (IILart/ControlData;)V 24 47
- baz (IIILart/ControlData;)Ljava/lang/Object; 2 32
- bar (IIILart/ControlData;)J 0 26
- foo (IIILart/ControlData;)I 0 21
-
----------
-ThreadListTraces Thread 6
- wait ()V -1 -2
- printOrWait (IILart/ControlData;)V 24 47
- baz (IIILart/ControlData;)Ljava/lang/Object; 2 32
- bar (IIILart/ControlData;)J 0 26
- foo (IIILart/ControlData;)I 0 21
-
----------
-ThreadListTraces Thread 8
- wait ()V -1 -2
- printOrWait (IILart/ControlData;)V 24 47
- baz (IIILart/ControlData;)Ljava/lang/Object; 2 32
- bar (IIILart/ControlData;)J 0 26
- foo (IIILart/ControlData;)I 0 21
-
----------
-main
+Test911
  getThreadListStackTraces ([Ljava/lang/Thread;I)[[Ljava/lang/Object; -1 -2
  printList ([Ljava/lang/Thread;I)V 0 68
  doTest ()V 116 54
- run ()V 52 42
- main ([Ljava/lang/String;)V 0 19
+ run ()V 32 46
+
+---------
+ThreadListTraces Thread 0
+ wait ()V -1 -2
+ printOrWait (IILart/ControlData;)V 24 47
+ baz (IIILart/ControlData;)Ljava/lang/Object; 2 32
+ bar (IIILart/ControlData;)J 0 26
+ foo (IIILart/ControlData;)I 0 21
+
+---------
+ThreadListTraces Thread 2
+ wait ()V -1 -2
+ printOrWait (IILart/ControlData;)V 24 47
+ baz (IIILart/ControlData;)Ljava/lang/Object; 2 32
+ bar (IIILart/ControlData;)J 0 26
+ foo (IIILart/ControlData;)I 0 21
+
+---------
+ThreadListTraces Thread 4
+ wait ()V -1 -2
+ printOrWait (IILart/ControlData;)V 24 47
+ baz (IIILart/ControlData;)Ljava/lang/Object; 2 32
+ bar (IIILart/ControlData;)J 0 26
+ foo (IIILart/ControlData;)I 0 21
+
+---------
+ThreadListTraces Thread 6
+ wait ()V -1 -2
+ printOrWait (IILart/ControlData;)V 24 47
+ baz (IIILart/ControlData;)Ljava/lang/Object; 2 32
+ bar (IIILart/ControlData;)J 0 26
+ foo (IIILart/ControlData;)I 0 21
+
+---------
+ThreadListTraces Thread 8
+ wait ()V -1 -2
+ printOrWait (IILart/ControlData;)V 24 47
+ baz (IIILart/ControlData;)Ljava/lang/Object; 2 32
+ bar (IIILart/ControlData;)J 0 26
+ foo (IIILart/ControlData;)I 0 21
+
+---------
+Test911
+ getThreadListStackTraces ([Ljava/lang/Thread;I)[[Ljava/lang/Object; -1 -2
+ printList ([Ljava/lang/Thread;I)V 0 68
+ doTest ()V 121 56
+ run ()V 32 46
 
 ---------
 ThreadListTraces Thread 0
@@ -770,26 +781,17 @@ ThreadListTraces Thread 8
  bar (IIILart/ControlData;)J 0 26
  foo (IIILart/ControlData;)I 0 21
  run ()V 4 37
-
----------
-main
- getThreadListStackTraces ([Ljava/lang/Thread;I)[[Ljava/lang/Object; -1 -2
- printList ([Ljava/lang/Thread;I)V 0 68
- doTest ()V 121 56
- run ()V 52 42
- main ([Ljava/lang/String;)V 0 19
 
 
 ###################
 ### Same thread ###
 ###################
-5
+4
 JVMTI_ERROR_ILLEGAL_ARGUMENT
 [public static native java.lang.Object[] art.Frames.getFrameLocation(java.lang.Thread,int), ffffffff]
 [public static void art.Frames.doTestSameThread(), 38]
 [public static void art.Frames.doTest() throws java.lang.Exception, 0]
-[public static void art.Test911.run() throws java.lang.Exception, 3c]
-[public static void Main.main(java.lang.String[]) throws java.lang.Exception, 0]
+[public void art.Test911$1.run(), 28]
 JVMTI_ERROR_NO_MORE_FRAMES
 
 ################################
