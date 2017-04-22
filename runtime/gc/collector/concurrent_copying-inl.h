@@ -96,7 +96,9 @@ inline mirror::Object* ConcurrentCopying::MarkImmuneSpace(mirror::Object* ref) {
 }
 
 template<bool kGrayImmuneObject, bool kFromGCThread>
-inline mirror::Object* ConcurrentCopying::Mark(mirror::Object* from_ref) {
+inline mirror::Object* ConcurrentCopying::Mark(mirror::Object* from_ref,
+                                               mirror::Object* holder,
+                                               MemberOffset offset) {
   if (from_ref == nullptr) {
     return nullptr;
   }
@@ -141,7 +143,7 @@ inline mirror::Object* ConcurrentCopying::Mark(mirror::Object* from_ref) {
       if (immune_spaces_.ContainsObject(from_ref)) {
         return MarkImmuneSpace<kGrayImmuneObject>(from_ref);
       } else {
-        return MarkNonMoving(from_ref);
+        return MarkNonMoving(from_ref, holder, offset);
       }
     default:
       UNREACHABLE();
