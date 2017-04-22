@@ -19,9 +19,7 @@
 
 #include "jni_env_ext.h"
 
-#include "indirect_reference_table-inl.h"
-#include "obj_ptr-inl.h"
-#include "utils.h"
+#include "mirror/object.h"
 
 namespace art {
 

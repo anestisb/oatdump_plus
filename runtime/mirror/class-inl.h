@@ -30,6 +30,7 @@
 #include "gc/heap-inl.h"
 #include "iftable.h"
 #include "object_array-inl.h"
+#include "object-inl.h"
 #include "read_barrier-inl.h"
 #include "reference-inl.h"
 #include "runtime.h"

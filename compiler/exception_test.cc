@@ -30,7 +30,7 @@
 #include "mirror/stack_trace_element.h"
 #include "oat_quick_method_header.h"
 #include "optimizing/stack_map_stream.h"
-#include "runtime.h"
+#include "runtime-inl.h"
 #include "scoped_thread_state_change-inl.h"
 #include "handle_scope-inl.h"
 #include "thread.h"
