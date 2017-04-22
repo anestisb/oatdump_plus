@@ -17,6 +17,7 @@
 #include "class_table.h"
 
 #include "mirror/class-inl.h"
+#include "oat_file.h"
 
 namespace art {
 

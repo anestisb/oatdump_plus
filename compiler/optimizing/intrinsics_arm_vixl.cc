@@ -22,6 +22,7 @@
 #include "common_arm.h"
 #include "lock_word.h"
 #include "mirror/array-inl.h"
+#include "mirror/object_array-inl.h"
 #include "mirror/reference.h"
 #include "mirror/string.h"
 #include "scoped_thread_state_change-inl.h"

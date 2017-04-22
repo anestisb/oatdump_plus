@@ -20,6 +20,7 @@
 
 #include <sys/stat.h>
 
+#include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 
 #include "base/logging.h"

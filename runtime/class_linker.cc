@@ -65,6 +65,7 @@
 #include "imtable-inl.h"
 #include "intern_table.h"
 #include "interpreter/interpreter.h"
+#include "java_vm_ext.h"
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
 #include "jit/profile_compilation_info.h"

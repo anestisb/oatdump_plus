@@ -23,6 +23,7 @@
 #include "debugger.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "interpreter/interpreter.h"
+#include "java_vm_ext.h"
 #include "jit_code_cache.h"
 #include "oat_file_manager.h"
 #include "oat_quick_method_header.h"
