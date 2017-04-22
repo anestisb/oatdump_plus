@@ -125,6 +125,7 @@ ART_GTEST_stub_test_DEX_DEPS := AllFields
 ART_GTEST_transaction_test_DEX_DEPS := Transaction
 ART_GTEST_type_lookup_table_test_DEX_DEPS := Lookup
 ART_GTEST_unstarted_runtime_test_DEX_DEPS := Nested
+ART_GTEST_heap_verification_test_DEX_DEPS := ProtoCompare ProtoCompare2 StaticsFromCode XandY
 ART_GTEST_verifier_deps_test_DEX_DEPS := VerifierDeps VerifierDepsMulti MultiDex
 ART_GTEST_dex_to_dex_decompiler_test_DEX_DEPS := VerifierDeps DexToDexDecompiler
 
@@ -655,6 +656,7 @@ ART_GTEST_reflection_test_DEX_DEPS :=
 ART_GTEST_stub_test_DEX_DEPS :=
 ART_GTEST_transaction_test_DEX_DEPS :=
 ART_GTEST_dex2oat_environment_tests_DEX_DEPS :=
+ART_GTEST_heap_verification_test_DEX_DEPS :=
 ART_GTEST_verifier_deps_test_DEX_DEPS :=
 ART_VALGRIND_DEPENDENCIES :=
 ART_VALGRIND_TARGET_DEPENDENCIES :=

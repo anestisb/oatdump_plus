@@ -60,6 +60,7 @@
 #include "gc/space/space-inl.h"
 #include "gc/space/zygote_space.h"
 #include "gc/task_processor.h"
+#include "gc/verification.h"
 #include "entrypoints/quick/quick_alloc_entrypoints.h"
 #include "gc_pause_listener.h"
 #include "heap-inl.h"
@@ -286,6 +287,7 @@ Heap::Heap(size_t initial_size,
     CHECK_EQ(foreground_collector_type_, kCollectorTypeCC);
     CHECK_EQ(background_collector_type_, kCollectorTypeCCBackground);
   }
+  verification_.reset(new Verification(this));
   CHECK_GE(large_object_threshold, kMinLargeObjectThreshold);
   ScopedTrace trace(__FUNCTION__);
   Runtime* const runtime = Runtime::Current();
@@ -4265,6 +4267,10 @@ mirror::Object* Heap::AllocWithNewTLAB(Thread* self,
   *bytes_allocated = alloc_size;
   *usable_size = alloc_size;
   return ret;
+}
+
+const Verification* Heap::GetVerification() const {
+  return verification_.get();
 }
 
 }  // namespace gc

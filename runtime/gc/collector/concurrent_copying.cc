@@ -29,6 +29,7 @@
 #include "gc/reference_processor.h"
 #include "gc/space/image_space.h"
 #include "gc/space/space-inl.h"
+#include "gc/verification.h"
 #include "image-inl.h"
 #include "intern_table.h"
 #include "mirror/class-inl.h"
@@ -2362,7 +2363,9 @@ bool ConcurrentCopying::IsOnAllocStack(mirror::Object* ref) {
   return alloc_stack->Contains(ref);
 }
 
-mirror::Object* ConcurrentCopying::MarkNonMoving(mirror::Object* ref) {
+mirror::Object* ConcurrentCopying::MarkNonMoving(mirror::Object* ref,
+                                                 mirror::Object* holder,
+                                                 MemberOffset offset) {
   // ref is in a non-moving space (from_ref == to_ref).
   DCHECK(!region_space_->HasAddress(ref)) << ref;
   DCHECK(!immune_spaces_.ContainsObject(ref));
@@ -2407,6 +2410,11 @@ mirror::Object* ConcurrentCopying::MarkNonMoving(mirror::Object* ref) {
             (is_los && los_bitmap->Test(ref))) {
           return ref;
         }
+      }
+      if (is_los && !IsAligned<kPageSize>(ref)) {
+        // Ref is a large object that is not aligned, it must be heap corruption. Dump data before
+        // AtomicSetReadBarrierState since it will fault if the address is not valid.
+        heap_->GetVerification()->LogHeapCorruption(ref, offset, holder, /* fatal */ true);
       }
       // Not marked or on the allocation stack. Try to mark it.
       // This may or may not succeed, which is ok.
