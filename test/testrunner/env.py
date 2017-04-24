@@ -95,6 +95,9 @@ def _get_android_build_top():
 
 ANDROID_BUILD_TOP = _get_android_build_top()
 
+# Compiling with jack? Possible values in (True, False, 'default')
+ANDROID_COMPILE_WITH_JACK = _getEnvBoolean('ANDROID_COMPILE_WITH_JACK', 'default')
+
 # Directory used for temporary test files on the host.
 ART_HOST_TEST_DIR = tempfile.mkdtemp(prefix = 'test-art-')
 
