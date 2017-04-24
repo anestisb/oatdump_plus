@@ -55,6 +55,10 @@ class ArtMethod FINAL {
  public:
   static constexpr bool kCheckDeclaringClassState = kIsDebugBuild;
 
+  // The runtime dex_method_index is kDexNoIndex. To lower dependencies, we use this
+  // constexpr, and ensure that the value is correct in art_method.cc.
+  static constexpr uint32_t kRuntimeMethodDexMethodIndex = 0xFFFFFFFF;
+
   ArtMethod() : access_flags_(0), dex_code_item_offset_(0), dex_method_index_(0),
       method_index_(0), hotness_count_(0) { }
 
@@ -73,6 +77,10 @@ class ArtMethod FINAL {
   ALWAYS_INLINE mirror::Class* GetDeclaringClassUnchecked()
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  mirror::CompressedReference<mirror::Object>* GetDeclaringClassAddressWithoutBarrier() {
+    return declaring_class_.AddressWithoutBarrier();
+  }
+
   void SetDeclaringClass(ObjPtr<mirror::Class> new_declaring_class)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -86,7 +94,12 @@ class ArtMethod FINAL {
   // Note: GetAccessFlags acquires the mutator lock in debug mode to check that it is not called for
   // a proxy method.
   template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
-  ALWAYS_INLINE uint32_t GetAccessFlags();
+  uint32_t GetAccessFlags() {
+    if (kCheckDeclaringClassState) {
+      GetAccessFlagsDCheck<kReadBarrierOption>();
+    }
+    return access_flags_.load(std::memory_order_relaxed);
+  }
 
   // This version should only be called when it's certain there is no
   // concurrency so there is no need to guarantee atomicity. For example,
@@ -394,8 +407,10 @@ class ArtMethod FINAL {
                      pointer_size);
   }
 
-  void RegisterNative(const void* native_method, bool is_fast)
-      REQUIRES_SHARED(Locks::mutator_lock_);
+  // Registers the native method and returns the new entry point. NB The returned entry point might
+  // be different from the native_method argument if some MethodCallback modifies it.
+  const void* RegisterNative(const void* native_method, bool is_fast)
+      REQUIRES_SHARED(Locks::mutator_lock_) WARN_UNUSED;
 
   void UnregisterNative() REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -498,7 +513,9 @@ class ArtMethod FINAL {
 
   // Is this a CalleSaveMethod or ResolutionMethod and therefore doesn't adhere to normal
   // conventions for a method of managed code. Returns false for Proxy methods.
-  ALWAYS_INLINE bool IsRuntimeMethod();
+  ALWAYS_INLINE bool IsRuntimeMethod() {
+    return dex_method_index_ == kRuntimeMethodDexMethodIndex;;
+  }
 
   // Is this a hand crafted method used for something like describing callee saves?
   bool IsCalleeSaveMethod() REQUIRES_SHARED(Locks::mutator_lock_);
@@ -526,10 +543,7 @@ class ArtMethod FINAL {
 
   const char* GetDeclaringClassDescriptor() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  const char* GetShorty() REQUIRES_SHARED(Locks::mutator_lock_) {
-    uint32_t unused_length;
-    return GetShorty(&unused_length);
-  }
+  ALWAYS_INLINE const char* GetShorty() REQUIRES_SHARED(Locks::mutator_lock_);
 
   const char* GetShorty(uint32_t* out_length) REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -737,7 +751,19 @@ class ArtMethod FINAL {
     }
   }
 
+  template <ReadBarrierOption kReadBarrierOption> void GetAccessFlagsDCheck();
+
   DISALLOW_COPY_AND_ASSIGN(ArtMethod);  // Need to use CopyFrom to deal with 32 vs 64 bits.
+};
+
+class MethodCallback {
+ public:
+  virtual ~MethodCallback() {}
+
+  virtual void RegisterNativeMethod(ArtMethod* method,
+                                    const void* original_implementation,
+                                    /*out*/void** new_implementation)
+      REQUIRES_SHARED(Locks::mutator_lock_) = 0;
 };
 
 }  // namespace art

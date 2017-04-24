@@ -76,9 +76,10 @@ class RelativePatcherTest : public testing::Test {
     return MethodReference(nullptr, method_idx);
   }
 
-  void AddCompiledMethod(MethodReference method_ref,
-                         const ArrayRef<const uint8_t>& code,
-                         const ArrayRef<const LinkerPatch>& patches) {
+  void AddCompiledMethod(
+      MethodReference method_ref,
+      const ArrayRef<const uint8_t>& code,
+      const ArrayRef<const LinkerPatch>& patches = ArrayRef<const LinkerPatch>()) {
     compiled_method_refs_.push_back(method_ref);
     compiled_methods_.emplace_back(new CompiledMethod(
         &driver_,
@@ -169,6 +170,10 @@ class RelativePatcherTest : public testing::Test {
                                                patch,
                                                offset + patch.LiteralOffset(),
                                                target_offset);
+          } else if (patch.GetType() == LinkerPatch::Type::kBakerReadBarrierBranch) {
+            patcher_->PatchBakerReadBarrierBranch(&patched_code_,
+                                                  patch,
+                                                  offset + patch.LiteralOffset());
           } else {
             LOG(FATAL) << "Bad patch type. " << patch.GetType();
             UNREACHABLE();

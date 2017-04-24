@@ -161,6 +161,16 @@ static const char kRawZipThreeDexFiles[] =
   "ACACAAALABgAAAAAAAAAAACgge4CAABjbGFzc2VzLmRleFVUBQADAWPlV3V4CwABBOQDAQAEiBMA"
   "AFBLBQYAAAAAAwADAPUAAABkBAAAAAA=";
 
+static const char kRawDexBadMapOffset[] =
+  "ZGV4CjAzNQAZKGSz85r+tXJ1I24FYi+FpQtWbXtelAmoAQAAcAAAAHhWNBIAAAAAAAAAAEAwIBAF"
+  "AAAAcAAAAAMAAACEAAAAAQAAAJAAAAAAAAAAAAAAAAIAAACcAAAAAQAAAKwAAADcAAAAzAAAAOQA"
+  "AADsAAAA9AAAAPkAAAANAQAAAgAAAAMAAAAEAAAABAAAAAIAAAAAAAAAAAAAAAAAAAABAAAAAAAA"
+  "AAAAAAABAAAAAQAAAAAAAAABAAAAAAAAABUBAAAAAAAAAQABAAEAAAAQAQAABAAAAHAQAQAAAA4A"
+  "Bjxpbml0PgAGQS5qYXZhAANMQTsAEkxqYXZhL2xhbmcvT2JqZWN0OwABVgABAAcOAAAAAQAAgYAE"
+  "zAEACwAAAAAAAAABAAAAAAAAAAEAAAAFAAAAcAAAAAIAAAADAAAAhAAAAAMAAAABAAAAkAAAAAUA"
+  "AAACAAAAnAAAAAYAAAABAAAArAAAAAEgAAABAAAAzAAAAAIgAAAFAAAA5AAAAAMgAAABAAAAEAEA"
+  "AAAgAAABAAAAFQEAAAAQAAABAAAAIAEAAA==";
+
 static void DecodeAndWriteDexFile(const char* base64, const char* location) {
   // decode base64
   CHECK(base64 != nullptr);
@@ -212,7 +222,8 @@ static std::unique_ptr<const DexFile> OpenDexFileBase64(const char* base64,
 
 static std::unique_ptr<const DexFile> OpenDexFileInMemoryBase64(const char* base64,
                                                                 const char* location,
-                                                                uint32_t location_checksum) {
+                                                                uint32_t location_checksum,
+                                                                bool expect_success) {
   CHECK(base64 != nullptr);
   std::vector<uint8_t> dex_bytes = DecodeBase64Vec(base64);
   CHECK_NE(dex_bytes.size(), 0u);
@@ -232,7 +243,11 @@ static std::unique_ptr<const DexFile> OpenDexFileInMemoryBase64(const char* base
                                                         /* verify */ true,
                                                         /* verify_checksum */ true,
                                                         &error_message));
-  CHECK(dex_file != nullptr) << error_message;
+  if (expect_success) {
+    CHECK(dex_file != nullptr) << error_message;
+  } else {
+    CHECK(dex_file == nullptr) << "Expected dex file open to fail.";
+  }
   return dex_file;
 }
 
@@ -282,7 +297,7 @@ TEST_F(DexFileTest, Header) {
 TEST_F(DexFileTest, HeaderInMemory) {
   ScratchFile tmp;
   std::unique_ptr<const DexFile> raw =
-      OpenDexFileInMemoryBase64(kRawDex, tmp.GetFilename().c_str(), 0x00d87910U);
+      OpenDexFileInMemoryBase64(kRawDex, tmp.GetFilename().c_str(), 0x00d87910U, true);
   ValidateDexFileHeader(std::move(raw));
 }
 
@@ -567,6 +582,20 @@ TEST_F(DexFileTest, ZipOpenThreeDexFiles) {
   ASSERT_TRUE(OpenDexFilesBase64(kRawZipThreeDexFiles, tmp.GetFilename().c_str(), &dex_files,
                                  &error_msg));
   EXPECT_EQ(dex_files.size(), 3u);
+}
+
+TEST_F(DexFileTest, OpenDexBadMapOffset) {
+  ScratchFile tmp;
+  std::unique_ptr<const DexFile> raw =
+      OpenDexFileInMemoryBase64(kRawDexBadMapOffset, tmp.GetFilename().c_str(), 0xb3642819U, false);
+  EXPECT_EQ(raw, nullptr);
+}
+
+TEST_F(DexFileTest, GetStringWithNoIndex) {
+  ScratchFile tmp;
+  std::unique_ptr<const DexFile> raw(OpenDexFileBase64(kRawDex, tmp.GetFilename().c_str()));
+  dex::TypeIndex idx;
+  EXPECT_EQ(raw->StringByTypeIdx(idx), nullptr);
 }
 
 }  // namespace art

@@ -19,6 +19,7 @@
 #include "instruction_simplifier_arm.h"
 #include "instruction_simplifier_shared.h"
 #include "mirror/array-inl.h"
+#include "mirror/string.h"
 #include "nodes.h"
 
 namespace art {

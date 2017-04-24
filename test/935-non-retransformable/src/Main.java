@@ -17,6 +17,8 @@
 import java.lang.reflect.*;
 import java.util.Base64;
 
+import art.Redefinition;
+
 class Main {
   public static String TEST_NAME = "935-non-retransformable";
 
@@ -74,9 +76,9 @@ class Main {
   }
 
   public static void main(String[] args) {
-    setPopRetransformations(false);
-    addCommonTransformationResult("Transform", CLASS_BYTES, DEX_BYTES);
-    enableCommonRetransformation(true);
+    Redefinition.setPopRetransformations(false);
+    Redefinition.addCommonTransformationResult("Transform", CLASS_BYTES, DEX_BYTES);
+    Redefinition.enableCommonRetransformation(true);
     try {
       /* this is the "alternate" DEX/Jar file */
       ClassLoader new_loader = getClassLoaderFor(System.getenv("DEX_LOCATION"));
@@ -88,23 +90,14 @@ class Main {
       run_test.invoke(null);
 
       // Remove the original transformation. It has been used by now.
-      popTransformationFor("Transform");
+      Redefinition.popTransformationFor("Transform");
       // Make sure we don't get called for transformation again.
-      addCommonTransformationResult("Transform", new byte[0], new byte[0]);
-      doCommonClassRetransformation(new_loader.loadClass("Transform"));
+      Redefinition.addCommonTransformationResult("Transform", new byte[0], new byte[0]);
+      Redefinition.doCommonClassRetransformation(new_loader.loadClass("Transform"));
       run_test.invoke(null);
     } catch (Exception e) {
       System.out.println(e.toString());
       e.printStackTrace();
     }
   }
-
-  // Transforms the class
-  private static native void doCommonClassRetransformation(Class<?>... classes);
-  private static native void enableCommonRetransformation(boolean enable);
-  private static native void addCommonTransformationResult(String target_name,
-                                                           byte[] class_bytes,
-                                                           byte[] dex_bytes);
-  private static native void setPopRetransformations(boolean should_pop);
-  private static native void popTransformationFor(String target_name);
 }

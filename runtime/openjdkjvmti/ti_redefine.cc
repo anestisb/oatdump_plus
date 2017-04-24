@@ -35,9 +35,12 @@
 
 #include "android-base/stringprintf.h"
 
+#include "art_field-inl.h"
+#include "art_method-inl.h"
 #include "art_jvmti.h"
 #include "base/array_slice.h"
 #include "base/logging.h"
+#include "class_linker-inl.h"
 #include "debugger.h"
 #include "dex_file.h"
 #include "dex_file_types.h"

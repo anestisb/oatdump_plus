@@ -305,7 +305,6 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   HGraph(ArenaAllocator* arena,
          const DexFile& dex_file,
          uint32_t method_idx,
-         bool should_generate_constructor_barrier,
          InstructionSet instruction_set,
          InvokeType invoke_type = kInvalidInvokeType,
          bool debuggable = false,
@@ -332,7 +331,6 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
         method_idx_(method_idx),
         invoke_type_(invoke_type),
         in_ssa_form_(false),
-        should_generate_constructor_barrier_(should_generate_constructor_barrier),
         number_of_cha_guards_(0),
         instruction_set_(instruction_set),
         cached_null_constant_(nullptr),
@@ -399,6 +397,12 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   // Need to add a couple of blocks to test if the loop body is entered and
   // put deoptimization instructions, etc.
   void TransformLoopHeaderForBCE(HBasicBlock* header);
+
+  // Adds a new loop directly after the loop with the given header and exit.
+  // Returns the new preheader.
+  HBasicBlock* TransformLoopForVectorization(HBasicBlock* header,
+                                             HBasicBlock* body,
+                                             HBasicBlock* exit);
 
   // Removes `block` from the graph. Assumes `block` has been disconnected from
   // other blocks and has no instructions or phis.
@@ -496,10 +500,6 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
 
   void SetHasBoundsChecks(bool value) {
     has_bounds_checks_ = value;
-  }
-
-  bool ShouldGenerateConstructorBarrier() const {
-    return should_generate_constructor_barrier_;
   }
 
   bool IsDebuggable() const { return debuggable_; }
@@ -694,8 +694,6 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   // in debug mode to ensure we are not using properties only valid
   // for non-SSA form (like the number of temporaries).
   bool in_ssa_form_;
-
-  const bool should_generate_constructor_barrier_;
 
   // Number of CHA guards in the graph. Used to short-circuit the
   // CHA guard optimization pass when there is no CHA guard left.
@@ -1363,6 +1361,30 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(TypeConversion, Instruction)                                        \
   M(UShr, BinaryOperation)                                              \
   M(Xor, BinaryOperation)                                               \
+  M(VecReplicateScalar, VecUnaryOperation)                              \
+  M(VecSumReduce, VecUnaryOperation)                                    \
+  M(VecCnv, VecUnaryOperation)                                          \
+  M(VecNeg, VecUnaryOperation)                                          \
+  M(VecAbs, VecUnaryOperation)                                          \
+  M(VecNot, VecUnaryOperation)                                          \
+  M(VecAdd, VecBinaryOperation)                                         \
+  M(VecHalvingAdd, VecBinaryOperation)                                  \
+  M(VecSub, VecBinaryOperation)                                         \
+  M(VecMul, VecBinaryOperation)                                         \
+  M(VecDiv, VecBinaryOperation)                                         \
+  M(VecMin, VecBinaryOperation)                                         \
+  M(VecMax, VecBinaryOperation)                                         \
+  M(VecAnd, VecBinaryOperation)                                         \
+  M(VecAndNot, VecBinaryOperation)                                      \
+  M(VecOr, VecBinaryOperation)                                          \
+  M(VecXor, VecBinaryOperation)                                         \
+  M(VecShl, VecBinaryOperation)                                         \
+  M(VecShr, VecBinaryOperation)                                         \
+  M(VecUShr, VecBinaryOperation)                                        \
+  M(VecSetScalars, VecOperation)                                        \
+  M(VecMultiplyAccumulate, VecOperation)                                \
+  M(VecLoad, VecMemoryOperation)                                        \
+  M(VecStore, VecMemoryOperation)                                       \
 
 /*
  * Instructions, shared across several (not all) architectures.
@@ -1424,7 +1446,11 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(Constant, Instruction)                                              \
   M(UnaryOperation, Instruction)                                        \
   M(BinaryOperation, Instruction)                                       \
-  M(Invoke, Instruction)
+  M(Invoke, Instruction)                                                \
+  M(VecOperation, Instruction)                                          \
+  M(VecUnaryOperation, VecOperation)                                    \
+  M(VecBinaryOperation, VecOperation)                                   \
+  M(VecMemoryOperation, VecOperation)
 
 #define FOR_EACH_INSTRUCTION(M)                                         \
   FOR_EACH_CONCRETE_INSTRUCTION(M)                                      \
@@ -4195,6 +4221,10 @@ class HInvokeStaticOrDirect FINAL : public HInvoke {
     dispatch_info_ = dispatch_info;
   }
 
+  DispatchInfo GetDispatchInfo() const {
+    return dispatch_info_;
+  }
+
   void AddSpecialInput(HInstruction* input) {
     // We allow only one special input.
     DCHECK(!IsStringInit() && !HasCurrentMethodInput());
@@ -5039,7 +5069,7 @@ class HParameterValue FINAL : public HExpression<0> {
   const DexFile& GetDexFile() const { return dex_file_; }
   dex::TypeIndex GetTypeIndex() const { return type_index_; }
   uint8_t GetIndex() const { return index_; }
-  bool IsThis() const { return GetPackedFlag<kFlagIsThis>(); }
+  bool IsThis() const ATTRIBUTE_UNUSED { return GetPackedFlag<kFlagIsThis>(); }
 
   bool CanBeNull() const OVERRIDE { return GetPackedFlag<kFlagCanBeNull>(); }
   void SetCanBeNull(bool can_be_null) { SetPackedFlag<kFlagCanBeNull>(can_be_null); }
@@ -6689,6 +6719,8 @@ class HParallelMove FINAL : public HTemplateInstruction<0> {
 
 }  // namespace art
 
+#include "nodes_vector.h"
+
 #if defined(ART_ENABLE_CODEGEN_arm) || defined(ART_ENABLE_CODEGEN_arm64)
 #include "nodes_shared.h"
 #endif
@@ -6817,6 +6849,7 @@ class HBlocksInLoopReversePostOrderIterator : public ValueObject {
   DISALLOW_COPY_AND_ASSIGN(HBlocksInLoopReversePostOrderIterator);
 };
 
+// Returns int64_t value of a properly typed constant.
 inline int64_t Int64FromConstant(HConstant* constant) {
   if (constant->IsIntConstant()) {
     return constant->AsIntConstant()->GetValue();
@@ -6826,6 +6859,21 @@ inline int64_t Int64FromConstant(HConstant* constant) {
     DCHECK(constant->IsNullConstant()) << constant->DebugName();
     return 0;
   }
+}
+
+// Returns true iff instruction is an integral constant (and sets value on success).
+inline bool IsInt64AndGet(HInstruction* instruction, /*out*/ int64_t* value) {
+  if (instruction->IsIntConstant()) {
+    *value = instruction->AsIntConstant()->GetValue();
+    return true;
+  } else if (instruction->IsLongConstant()) {
+    *value = instruction->AsLongConstant()->GetValue();
+    return true;
+  } else if (instruction->IsNullConstant()) {
+    *value = 0;
+    return true;
+  }
+  return false;
 }
 
 #define INSTRUCTION_TYPE_CHECK(type, super)                                    \

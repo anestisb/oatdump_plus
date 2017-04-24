@@ -37,7 +37,7 @@ static void DumpRequestCallback(jvmtiEnv* jenv ATTRIBUTE_UNUSED) {
   saw_dump_request.store(true, std::memory_order::memory_order_relaxed);
 }
 
-extern "C" JNIEXPORT void JNICALL Java_Main_testSigQuit(
+extern "C" JNIEXPORT void JNICALL Java_art_Test933_testSigQuit(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED) {
   jvmtiEventCallbacks callbacks;
   memset(&callbacks, 0, sizeof(jvmtiEventCallbacks));

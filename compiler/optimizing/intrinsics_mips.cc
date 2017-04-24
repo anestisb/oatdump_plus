@@ -1514,21 +1514,31 @@ void IntrinsicCodeGeneratorMIPS::VisitThreadCurrentThread(HInvoke* invoke) {
                     Thread::PeerOffset<kMipsPointerSize>().Int32Value());
 }
 
-static void CreateIntIntIntToIntLocations(ArenaAllocator* arena, HInvoke* invoke) {
-  bool can_call =
-       invoke->GetIntrinsic() == Intrinsics::kUnsafeGetObject ||
-       invoke->GetIntrinsic() == Intrinsics::kUnsafeGetObjectVolatile;
+static void CreateIntIntIntToIntLocations(ArenaAllocator* arena,
+                                          HInvoke* invoke,
+                                          Primitive::Type type) {
+  bool can_call = kEmitCompilerReadBarrier &&
+      (invoke->GetIntrinsic() == Intrinsics::kUnsafeGetObject ||
+       invoke->GetIntrinsic() == Intrinsics::kUnsafeGetObjectVolatile);
   LocationSummary* locations = new (arena) LocationSummary(invoke,
-                                                           can_call ?
-                                                               LocationSummary::kCallOnSlowPath :
-                                                               LocationSummary::kNoCall,
+                                                           (can_call
+                                                                ? LocationSummary::kCallOnSlowPath
+                                                                : LocationSummary::kNoCall),
                                                            kIntrinsified);
   locations->SetInAt(0, Location::NoLocation());        // Unused receiver.
   locations->SetInAt(1, Location::RequiresRegister());
   locations->SetInAt(2, Location::RequiresRegister());
-  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+  locations->SetOut(Location::RequiresRegister(),
+                    (can_call ? Location::kOutputOverlap : Location::kNoOutputOverlap));
+  if (type == Primitive::kPrimNot && kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
+    // We need a temporary register for the read barrier marking slow
+    // path in InstructionCodeGeneratorMIPS::GenerateReferenceLoadWithBakerReadBarrier.
+    locations->AddTemp(Location::RequiresRegister());
+  }
 }
 
+// Note that the caller must supply a properly aligned memory address.
+// If they do not, the behavior is undefined (atomicity not guaranteed, exception may occur).
 static void GenUnsafeGet(HInvoke* invoke,
                          Primitive::Type type,
                          bool is_volatile,
@@ -1539,49 +1549,109 @@ static void GenUnsafeGet(HInvoke* invoke,
          (type == Primitive::kPrimLong) ||
          (type == Primitive::kPrimNot)) << type;
   MipsAssembler* assembler = codegen->GetAssembler();
+  // Target register.
+  Location trg_loc = locations->Out();
   // Object pointer.
-  Register base = locations->InAt(1).AsRegister<Register>();
+  Location base_loc = locations->InAt(1);
+  Register base = base_loc.AsRegister<Register>();
   // The "offset" argument is passed as a "long". Since this code is for
   // a 32-bit processor, we can only use 32-bit addresses, so we only
   // need the low 32-bits of offset.
-  Register offset_lo = invoke->GetLocations()->InAt(2).AsRegisterPairLow<Register>();
+  Location offset_loc = locations->InAt(2);
+  Register offset_lo = offset_loc.AsRegisterPairLow<Register>();
 
-  __ Addu(TMP, base, offset_lo);
-  if (is_volatile) {
-    __ Sync(0);
+  if (!(kEmitCompilerReadBarrier && kUseBakerReadBarrier && (type == Primitive::kPrimNot))) {
+    __ Addu(TMP, base, offset_lo);
   }
-  if (type == Primitive::kPrimLong) {
-    Register trg_lo = locations->Out().AsRegisterPairLow<Register>();
-    Register trg_hi = locations->Out().AsRegisterPairHigh<Register>();
 
-    if (is_R6) {
-      __ Lw(trg_lo, TMP, 0);
-      __ Lw(trg_hi, TMP, 4);
-    } else {
-      __ Lwr(trg_lo, TMP, 0);
-      __ Lwl(trg_lo, TMP, 3);
-      __ Lwr(trg_hi, TMP, 4);
-      __ Lwl(trg_hi, TMP, 7);
-    }
-  } else {
-    Register trg = locations->Out().AsRegister<Register>();
-
-    if (is_R6) {
-      __ Lw(trg, TMP, 0);
-    } else {
-      __ Lwr(trg, TMP, 0);
-      __ Lwl(trg, TMP, 3);
+  switch (type) {
+    case Primitive::kPrimLong: {
+      Register trg_lo = trg_loc.AsRegisterPairLow<Register>();
+      Register trg_hi = trg_loc.AsRegisterPairHigh<Register>();
+      CHECK(!is_volatile);  // TODO: support atomic 8-byte volatile loads.
+      if (is_R6) {
+        __ Lw(trg_lo, TMP, 0);
+        __ Lw(trg_hi, TMP, 4);
+      } else {
+        __ Lwr(trg_lo, TMP, 0);
+        __ Lwl(trg_lo, TMP, 3);
+        __ Lwr(trg_hi, TMP, 4);
+        __ Lwl(trg_hi, TMP, 7);
+      }
+      break;
     }
 
-    if (type == Primitive::kPrimNot) {
-      __ MaybeUnpoisonHeapReference(trg);
+    case Primitive::kPrimInt: {
+      Register trg = trg_loc.AsRegister<Register>();
+      if (is_R6) {
+        __ Lw(trg, TMP, 0);
+      } else {
+        __ Lwr(trg, TMP, 0);
+        __ Lwl(trg, TMP, 3);
+      }
+      if (is_volatile) {
+        __ Sync(0);
+      }
+      break;
     }
+
+    case Primitive::kPrimNot: {
+      Register trg = trg_loc.AsRegister<Register>();
+      if (kEmitCompilerReadBarrier) {
+        if (kUseBakerReadBarrier) {
+          Location temp = locations->GetTemp(0);
+          codegen->GenerateReferenceLoadWithBakerReadBarrier(invoke,
+                                                             trg_loc,
+                                                             base,
+                                                             /* offset */ 0U,
+                                                             /* index */ offset_loc,
+                                                             TIMES_1,
+                                                             temp,
+                                                             /* needs_null_check */ false);
+          if (is_volatile) {
+            __ Sync(0);
+          }
+        } else {
+          if (is_R6) {
+            __ Lw(trg, TMP, 0);
+          } else {
+            __ Lwr(trg, TMP, 0);
+            __ Lwl(trg, TMP, 3);
+          }
+          if (is_volatile) {
+            __ Sync(0);
+          }
+          codegen->GenerateReadBarrierSlow(invoke,
+                                           trg_loc,
+                                           trg_loc,
+                                           base_loc,
+                                           /* offset */ 0U,
+                                           /* index */ offset_loc);
+        }
+      } else {
+        if (is_R6) {
+          __ Lw(trg, TMP, 0);
+        } else {
+          __ Lwr(trg, TMP, 0);
+          __ Lwl(trg, TMP, 3);
+        }
+        if (is_volatile) {
+          __ Sync(0);
+        }
+        __ MaybeUnpoisonHeapReference(trg);
+      }
+      break;
+    }
+
+    default:
+      LOG(FATAL) << "Unexpected type " << type;
+      UNREACHABLE();
   }
 }
 
 // int sun.misc.Unsafe.getInt(Object o, long offset)
 void IntrinsicLocationsBuilderMIPS::VisitUnsafeGet(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(arena_, invoke);
+  CreateIntIntIntToIntLocations(arena_, invoke, Primitive::kPrimInt);
 }
 
 void IntrinsicCodeGeneratorMIPS::VisitUnsafeGet(HInvoke* invoke) {
@@ -1590,7 +1660,7 @@ void IntrinsicCodeGeneratorMIPS::VisitUnsafeGet(HInvoke* invoke) {
 
 // int sun.misc.Unsafe.getIntVolatile(Object o, long offset)
 void IntrinsicLocationsBuilderMIPS::VisitUnsafeGetVolatile(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(arena_, invoke);
+  CreateIntIntIntToIntLocations(arena_, invoke, Primitive::kPrimInt);
 }
 
 void IntrinsicCodeGeneratorMIPS::VisitUnsafeGetVolatile(HInvoke* invoke) {
@@ -1599,25 +1669,16 @@ void IntrinsicCodeGeneratorMIPS::VisitUnsafeGetVolatile(HInvoke* invoke) {
 
 // long sun.misc.Unsafe.getLong(Object o, long offset)
 void IntrinsicLocationsBuilderMIPS::VisitUnsafeGetLong(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(arena_, invoke);
+  CreateIntIntIntToIntLocations(arena_, invoke, Primitive::kPrimLong);
 }
 
 void IntrinsicCodeGeneratorMIPS::VisitUnsafeGetLong(HInvoke* invoke) {
   GenUnsafeGet(invoke, Primitive::kPrimLong, /* is_volatile */ false, IsR6(), codegen_);
 }
 
-// long sun.misc.Unsafe.getLongVolatile(Object o, long offset)
-void IntrinsicLocationsBuilderMIPS::VisitUnsafeGetLongVolatile(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(arena_, invoke);
-}
-
-void IntrinsicCodeGeneratorMIPS::VisitUnsafeGetLongVolatile(HInvoke* invoke) {
-  GenUnsafeGet(invoke, Primitive::kPrimLong, /* is_volatile */ true, IsR6(), codegen_);
-}
-
 // Object sun.misc.Unsafe.getObject(Object o, long offset)
 void IntrinsicLocationsBuilderMIPS::VisitUnsafeGetObject(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(arena_, invoke);
+  CreateIntIntIntToIntLocations(arena_, invoke, Primitive::kPrimNot);
 }
 
 void IntrinsicCodeGeneratorMIPS::VisitUnsafeGetObject(HInvoke* invoke) {
@@ -1626,7 +1687,7 @@ void IntrinsicCodeGeneratorMIPS::VisitUnsafeGetObject(HInvoke* invoke) {
 
 // Object sun.misc.Unsafe.getObjectVolatile(Object o, long offset)
 void IntrinsicLocationsBuilderMIPS::VisitUnsafeGetObjectVolatile(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(arena_, invoke);
+  CreateIntIntIntToIntLocations(arena_, invoke, Primitive::kPrimNot);
 }
 
 void IntrinsicCodeGeneratorMIPS::VisitUnsafeGetObjectVolatile(HInvoke* invoke) {
@@ -1643,6 +1704,8 @@ static void CreateIntIntIntIntToVoidLocations(ArenaAllocator* arena, HInvoke* in
   locations->SetInAt(3, Location::RequiresRegister());
 }
 
+// Note that the caller must supply a properly aligned memory address.
+// If they do not, the behavior is undefined (atomicity not guaranteed, exception may occur).
 static void GenUnsafePut(LocationSummary* locations,
                          Primitive::Type type,
                          bool is_volatile,
@@ -1681,7 +1744,7 @@ static void GenUnsafePut(LocationSummary* locations,
   } else {
     Register value_lo = locations->InAt(3).AsRegisterPairLow<Register>();
     Register value_hi = locations->InAt(3).AsRegisterPairHigh<Register>();
-
+    CHECK(!is_volatile);  // TODO: support atomic 8-byte volatile stores.
     if (is_R6) {
       __ Sw(value_lo, TMP, 0);
       __ Sw(value_hi, TMP, 4);
@@ -1815,50 +1878,71 @@ void IntrinsicCodeGeneratorMIPS::VisitUnsafePutLongOrdered(HInvoke* invoke) {
                codegen_);
 }
 
-// void sun.misc.Unsafe.putLongVolatile(Object o, long offset, long x)
-void IntrinsicLocationsBuilderMIPS::VisitUnsafePutLongVolatile(HInvoke* invoke) {
-  CreateIntIntIntIntToVoidLocations(arena_, invoke);
-}
-
-void IntrinsicCodeGeneratorMIPS::VisitUnsafePutLongVolatile(HInvoke* invoke) {
-  GenUnsafePut(invoke->GetLocations(),
-               Primitive::kPrimLong,
-               /* is_volatile */ true,
-               /* is_ordered */ false,
-               IsR6(),
-               codegen_);
-}
-
-static void CreateIntIntIntIntIntToIntLocations(ArenaAllocator* arena, HInvoke* invoke) {
+static void CreateIntIntIntIntIntToIntPlusTemps(ArenaAllocator* arena, HInvoke* invoke) {
+  bool can_call = kEmitCompilerReadBarrier &&
+      kUseBakerReadBarrier &&
+      (invoke->GetIntrinsic() == Intrinsics::kUnsafeCASObject);
   LocationSummary* locations = new (arena) LocationSummary(invoke,
-                                                           LocationSummary::kNoCall,
+                                                           (can_call
+                                                                ? LocationSummary::kCallOnSlowPath
+                                                                : LocationSummary::kNoCall),
                                                            kIntrinsified);
   locations->SetInAt(0, Location::NoLocation());        // Unused receiver.
   locations->SetInAt(1, Location::RequiresRegister());
   locations->SetInAt(2, Location::RequiresRegister());
   locations->SetInAt(3, Location::RequiresRegister());
   locations->SetInAt(4, Location::RequiresRegister());
-
   locations->SetOut(Location::RequiresRegister());
+
+  // Temporary register used in CAS by (Baker) read barrier.
+  if (can_call) {
+    locations->AddTemp(Location::RequiresRegister());
+  }
 }
 
-static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGeneratorMIPS* codegen) {
+// Note that the caller must supply a properly aligned memory address.
+// If they do not, the behavior is undefined (atomicity not guaranteed, exception may occur).
+static void GenCas(HInvoke* invoke, Primitive::Type type, CodeGeneratorMIPS* codegen) {
   MipsAssembler* assembler = codegen->GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
   bool isR6 = codegen->GetInstructionSetFeatures().IsR6();
   Register base = locations->InAt(1).AsRegister<Register>();
-  Register offset_lo = locations->InAt(2).AsRegisterPairLow<Register>();
+  Location offset_loc = locations->InAt(2);
+  Register offset_lo = offset_loc.AsRegisterPairLow<Register>();
   Register expected = locations->InAt(3).AsRegister<Register>();
   Register value = locations->InAt(4).AsRegister<Register>();
-  Register out = locations->Out().AsRegister<Register>();
+  Location out_loc = locations->Out();
+  Register out = out_loc.AsRegister<Register>();
 
   DCHECK_NE(base, out);
   DCHECK_NE(offset_lo, out);
   DCHECK_NE(expected, out);
 
   if (type == Primitive::kPrimNot) {
-    // Mark card for object assuming new value is stored.
+    // The only read barrier implementation supporting the
+    // UnsafeCASObject intrinsic is the Baker-style read barriers.
+    DCHECK(!kEmitCompilerReadBarrier || kUseBakerReadBarrier);
+
+    // Mark card for object assuming new value is stored. Worst case we will mark an unchanged
+    // object and scan the receiver at the next GC for nothing.
     bool value_can_be_null = true;  // TODO: Worth finding out this information?
     codegen->MarkGCCard(base, value, value_can_be_null);
+
+    if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
+      Location temp = locations->GetTemp(0);
+      // Need to make sure the reference stored in the field is a to-space
+      // one before attempting the CAS or the CAS could fail incorrectly.
+      codegen->GenerateReferenceLoadWithBakerReadBarrier(
+          invoke,
+          out_loc,  // Unused, used only as a "temporary" within the read barrier.
+          base,
+          /* offset */ 0u,
+          /* index */ offset_loc,
+          ScaleFactor::TIMES_1,
+          temp,
+          /* needs_null_check */ false,
+          /* always_update_field */ true);
+    }
   }
 
   MipsLabel loop_head, exit_loop;
@@ -1926,20 +2010,30 @@ static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGenerat
 
 // boolean sun.misc.Unsafe.compareAndSwapInt(Object o, long offset, int expected, int x)
 void IntrinsicLocationsBuilderMIPS::VisitUnsafeCASInt(HInvoke* invoke) {
-  CreateIntIntIntIntIntToIntLocations(arena_, invoke);
+  CreateIntIntIntIntIntToIntPlusTemps(arena_, invoke);
 }
 
 void IntrinsicCodeGeneratorMIPS::VisitUnsafeCASInt(HInvoke* invoke) {
-  GenCas(invoke->GetLocations(), Primitive::kPrimInt, codegen_);
+  GenCas(invoke, Primitive::kPrimInt, codegen_);
 }
 
 // boolean sun.misc.Unsafe.compareAndSwapObject(Object o, long offset, Object expected, Object x)
 void IntrinsicLocationsBuilderMIPS::VisitUnsafeCASObject(HInvoke* invoke) {
-  CreateIntIntIntIntIntToIntLocations(arena_, invoke);
+  // The only read barrier implementation supporting the
+  // UnsafeCASObject intrinsic is the Baker-style read barriers.
+  if (kEmitCompilerReadBarrier && !kUseBakerReadBarrier) {
+    return;
+  }
+
+  CreateIntIntIntIntIntToIntPlusTemps(arena_, invoke);
 }
 
 void IntrinsicCodeGeneratorMIPS::VisitUnsafeCASObject(HInvoke* invoke) {
-  GenCas(invoke->GetLocations(), Primitive::kPrimNot, codegen_);
+  // The only read barrier implementation supporting the
+  // UnsafeCASObject intrinsic is the Baker-style read barriers.
+  DCHECK(!kEmitCompilerReadBarrier || kUseBakerReadBarrier);
+
+  GenCas(invoke, Primitive::kPrimNot, codegen_);
 }
 
 // int java.lang.String.compareTo(String anotherString)
@@ -2607,12 +2701,7 @@ void IntrinsicCodeGeneratorMIPS::VisitStringGetCharsNoCheck(HInvoke* invoke) {
 
   // Calculate destination address.
   __ Addiu(dstPtr, dstObj, data_offset);
-  if (IsR6()) {
-    __ Lsa(dstPtr, dstBegin, dstPtr, char_shift);
-  } else {
-    __ Sll(AT, dstBegin, char_shift);
-    __ Addu(dstPtr, dstPtr, AT);
-  }
+  __ ShiftAndAdd(dstPtr, dstBegin, dstPtr, char_shift);
 
   if (mirror::kUseStringCompression) {
     MipsLabel uncompressed_copy, compressed_loop;
@@ -2640,12 +2729,7 @@ void IntrinsicCodeGeneratorMIPS::VisitStringGetCharsNoCheck(HInvoke* invoke) {
 
   // Calculate source address.
   __ Addiu(srcPtr, srcObj, value_offset);
-  if (IsR6()) {
-    __ Lsa(srcPtr, srcBegin, srcPtr, char_shift);
-  } else {
-    __ Sll(AT, srcBegin, char_shift);
-    __ Addu(srcPtr, srcPtr, AT);
-  }
+  __ ShiftAndAdd(srcPtr, srcBegin, srcPtr, char_shift);
 
   __ Bind(&loop);
   __ Lh(AT, srcPtr, 0);
@@ -2658,35 +2742,409 @@ void IntrinsicCodeGeneratorMIPS::VisitStringGetCharsNoCheck(HInvoke* invoke) {
   __ Bind(&done);
 }
 
+static void CreateFPToFPCallLocations(ArenaAllocator* arena, HInvoke* invoke) {
+  LocationSummary* locations = new (arena) LocationSummary(invoke,
+                                                           LocationSummary::kCallOnMainOnly,
+                                                           kIntrinsified);
+  InvokeRuntimeCallingConvention calling_convention;
+
+  locations->SetInAt(0, Location::FpuRegisterLocation(calling_convention.GetFpuRegisterAt(0)));
+  locations->SetOut(calling_convention.GetReturnLocation(Primitive::kPrimDouble));
+}
+
+static void CreateFPFPToFPCallLocations(ArenaAllocator* arena, HInvoke* invoke) {
+  LocationSummary* locations = new (arena) LocationSummary(invoke,
+                                                           LocationSummary::kCallOnMainOnly,
+                                                           kIntrinsified);
+  InvokeRuntimeCallingConvention calling_convention;
+
+  locations->SetInAt(0, Location::FpuRegisterLocation(calling_convention.GetFpuRegisterAt(0)));
+  locations->SetInAt(1, Location::FpuRegisterLocation(calling_convention.GetFpuRegisterAt(1)));
+  locations->SetOut(calling_convention.GetReturnLocation(Primitive::kPrimDouble));
+}
+
+static void GenFPToFPCall(HInvoke* invoke, CodeGeneratorMIPS* codegen, QuickEntrypointEnum entry) {
+  LocationSummary* locations = invoke->GetLocations();
+  FRegister in = locations->InAt(0).AsFpuRegister<FRegister>();
+  DCHECK_EQ(in, F12);
+  FRegister out = locations->Out().AsFpuRegister<FRegister>();
+  DCHECK_EQ(out, F0);
+
+  codegen->InvokeRuntime(entry, invoke, invoke->GetDexPc());
+}
+
+static void GenFPFPToFPCall(HInvoke* invoke,
+                            CodeGeneratorMIPS* codegen,
+                            QuickEntrypointEnum entry) {
+  LocationSummary* locations = invoke->GetLocations();
+  FRegister in0 = locations->InAt(0).AsFpuRegister<FRegister>();
+  DCHECK_EQ(in0, F12);
+  FRegister in1 = locations->InAt(1).AsFpuRegister<FRegister>();
+  DCHECK_EQ(in1, F14);
+  FRegister out = locations->Out().AsFpuRegister<FRegister>();
+  DCHECK_EQ(out, F0);
+
+  codegen->InvokeRuntime(entry, invoke, invoke->GetDexPc());
+}
+
+// static double java.lang.Math.cos(double a)
+void IntrinsicLocationsBuilderMIPS::VisitMathCos(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathCos(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickCos);
+}
+
+// static double java.lang.Math.sin(double a)
+void IntrinsicLocationsBuilderMIPS::VisitMathSin(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathSin(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickSin);
+}
+
+// static double java.lang.Math.acos(double a)
+void IntrinsicLocationsBuilderMIPS::VisitMathAcos(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathAcos(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickAcos);
+}
+
+// static double java.lang.Math.asin(double a)
+void IntrinsicLocationsBuilderMIPS::VisitMathAsin(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathAsin(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickAsin);
+}
+
+// static double java.lang.Math.atan(double a)
+void IntrinsicLocationsBuilderMIPS::VisitMathAtan(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathAtan(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickAtan);
+}
+
+// static double java.lang.Math.atan2(double y, double x)
+void IntrinsicLocationsBuilderMIPS::VisitMathAtan2(HInvoke* invoke) {
+  CreateFPFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathAtan2(HInvoke* invoke) {
+  GenFPFPToFPCall(invoke, codegen_, kQuickAtan2);
+}
+
+// static double java.lang.Math.cbrt(double a)
+void IntrinsicLocationsBuilderMIPS::VisitMathCbrt(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathCbrt(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickCbrt);
+}
+
+// static double java.lang.Math.cosh(double x)
+void IntrinsicLocationsBuilderMIPS::VisitMathCosh(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathCosh(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickCosh);
+}
+
+// static double java.lang.Math.exp(double a)
+void IntrinsicLocationsBuilderMIPS::VisitMathExp(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathExp(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickExp);
+}
+
+// static double java.lang.Math.expm1(double x)
+void IntrinsicLocationsBuilderMIPS::VisitMathExpm1(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathExpm1(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickExpm1);
+}
+
+// static double java.lang.Math.hypot(double x, double y)
+void IntrinsicLocationsBuilderMIPS::VisitMathHypot(HInvoke* invoke) {
+  CreateFPFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathHypot(HInvoke* invoke) {
+  GenFPFPToFPCall(invoke, codegen_, kQuickHypot);
+}
+
+// static double java.lang.Math.log(double a)
+void IntrinsicLocationsBuilderMIPS::VisitMathLog(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathLog(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickLog);
+}
+
+// static double java.lang.Math.log10(double x)
+void IntrinsicLocationsBuilderMIPS::VisitMathLog10(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathLog10(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickLog10);
+}
+
+// static double java.lang.Math.nextAfter(double start, double direction)
+void IntrinsicLocationsBuilderMIPS::VisitMathNextAfter(HInvoke* invoke) {
+  CreateFPFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathNextAfter(HInvoke* invoke) {
+  GenFPFPToFPCall(invoke, codegen_, kQuickNextAfter);
+}
+
+// static double java.lang.Math.sinh(double x)
+void IntrinsicLocationsBuilderMIPS::VisitMathSinh(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathSinh(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickSinh);
+}
+
+// static double java.lang.Math.tan(double a)
+void IntrinsicLocationsBuilderMIPS::VisitMathTan(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathTan(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickTan);
+}
+
+// static double java.lang.Math.tanh(double x)
+void IntrinsicLocationsBuilderMIPS::VisitMathTanh(HInvoke* invoke) {
+  CreateFPToFPCallLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathTanh(HInvoke* invoke) {
+  GenFPToFPCall(invoke, codegen_, kQuickTanh);
+}
+
+// static void java.lang.System.arraycopy(Object src, int srcPos,
+//                                        Object dest, int destPos,
+//                                        int length)
+void IntrinsicLocationsBuilderMIPS::VisitSystemArrayCopyChar(HInvoke* invoke) {
+  HIntConstant* src_pos = invoke->InputAt(1)->AsIntConstant();
+  HIntConstant* dest_pos = invoke->InputAt(3)->AsIntConstant();
+  HIntConstant* length = invoke->InputAt(4)->AsIntConstant();
+
+  // As long as we are checking, we might as well check to see if the src and dest
+  // positions are >= 0.
+  if ((src_pos != nullptr && src_pos->GetValue() < 0) ||
+      (dest_pos != nullptr && dest_pos->GetValue() < 0)) {
+    // We will have to fail anyways.
+    return;
+  }
+
+  // And since we are already checking, check the length too.
+  if (length != nullptr) {
+    int32_t len = length->GetValue();
+    if (len < 0) {
+      // Just call as normal.
+      return;
+    }
+  }
+
+  // Okay, it is safe to generate inline code.
+  LocationSummary* locations =
+      new (arena_) LocationSummary(invoke, LocationSummary::kCallOnSlowPath, kIntrinsified);
+  // arraycopy(Object src, int srcPos, Object dest, int destPos, int length).
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RegisterOrConstant(invoke->InputAt(1)));
+  locations->SetInAt(2, Location::RequiresRegister());
+  locations->SetInAt(3, Location::RegisterOrConstant(invoke->InputAt(3)));
+  locations->SetInAt(4, Location::RegisterOrConstant(invoke->InputAt(4)));
+
+  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
+}
+
+// Utility routine to verify that "length(input) - pos >= length"
+static void EnoughItems(MipsAssembler* assembler,
+                        Register length_input_minus_pos,
+                        Location length,
+                        SlowPathCodeMIPS* slow_path) {
+  if (length.IsConstant()) {
+    int32_t length_constant = length.GetConstant()->AsIntConstant()->GetValue();
+
+    if (IsInt<16>(length_constant)) {
+      __ Slti(TMP, length_input_minus_pos, length_constant);
+      __ Bnez(TMP, slow_path->GetEntryLabel());
+    } else {
+      __ LoadConst32(TMP, length_constant);
+      __ Blt(length_input_minus_pos, TMP, slow_path->GetEntryLabel());
+    }
+  } else {
+    __ Blt(length_input_minus_pos, length.AsRegister<Register>(), slow_path->GetEntryLabel());
+  }
+}
+
+static void CheckPosition(MipsAssembler* assembler,
+                          Location pos,
+                          Register input,
+                          Location length,
+                          SlowPathCodeMIPS* slow_path,
+                          bool length_is_input_length = false) {
+  // Where is the length in the Array?
+  const uint32_t length_offset = mirror::Array::LengthOffset().Uint32Value();
+
+  // Calculate length(input) - pos.
+  if (pos.IsConstant()) {
+    int32_t pos_const = pos.GetConstant()->AsIntConstant()->GetValue();
+    if (pos_const == 0) {
+      if (!length_is_input_length) {
+        // Check that length(input) >= length.
+        __ LoadFromOffset(kLoadWord, AT, input, length_offset);
+        EnoughItems(assembler, AT, length, slow_path);
+      }
+    } else {
+      // Check that (length(input) - pos) >= zero.
+      __ LoadFromOffset(kLoadWord, AT, input, length_offset);
+      DCHECK_GT(pos_const, 0);
+      __ Addiu32(AT, AT, -pos_const, TMP);
+      __ Bltz(AT, slow_path->GetEntryLabel());
+
+      // Verify that (length(input) - pos) >= length.
+      EnoughItems(assembler, AT, length, slow_path);
+    }
+  } else if (length_is_input_length) {
+    // The only way the copy can succeed is if pos is zero.
+    Register pos_reg = pos.AsRegister<Register>();
+    __ Bnez(pos_reg, slow_path->GetEntryLabel());
+  } else {
+    // Verify that pos >= 0.
+    Register pos_reg = pos.AsRegister<Register>();
+    __ Bltz(pos_reg, slow_path->GetEntryLabel());
+
+    // Check that (length(input) - pos) >= zero.
+    __ LoadFromOffset(kLoadWord, AT, input, length_offset);
+    __ Subu(AT, AT, pos_reg);
+    __ Bltz(AT, slow_path->GetEntryLabel());
+
+    // Verify that (length(input) - pos) >= length.
+    EnoughItems(assembler, AT, length, slow_path);
+  }
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitSystemArrayCopyChar(HInvoke* invoke) {
+  MipsAssembler* assembler = GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  Register src = locations->InAt(0).AsRegister<Register>();
+  Location src_pos = locations->InAt(1);
+  Register dest = locations->InAt(2).AsRegister<Register>();
+  Location dest_pos = locations->InAt(3);
+  Location length = locations->InAt(4);
+
+  MipsLabel loop;
+
+  Register dest_base = locations->GetTemp(0).AsRegister<Register>();
+  Register src_base = locations->GetTemp(1).AsRegister<Register>();
+  Register count = locations->GetTemp(2).AsRegister<Register>();
+
+  SlowPathCodeMIPS* slow_path = new (GetAllocator()) IntrinsicSlowPathMIPS(invoke);
+  codegen_->AddSlowPath(slow_path);
+
+  // Bail out if the source and destination are the same (to handle overlap).
+  __ Beq(src, dest, slow_path->GetEntryLabel());
+
+  // Bail out if the source is null.
+  __ Beqz(src, slow_path->GetEntryLabel());
+
+  // Bail out if the destination is null.
+  __ Beqz(dest, slow_path->GetEntryLabel());
+
+  // Load length into register for count.
+  if (length.IsConstant()) {
+    __ LoadConst32(count, length.GetConstant()->AsIntConstant()->GetValue());
+  } else {
+    // If the length is negative, bail out.
+    // We have already checked in the LocationsBuilder for the constant case.
+    __ Bltz(length.AsRegister<Register>(), slow_path->GetEntryLabel());
+
+    __ Move(count, length.AsRegister<Register>());
+  }
+
+  // Validity checks: source.
+  CheckPosition(assembler, src_pos, src, Location::RegisterLocation(count), slow_path);
+
+  // Validity checks: dest.
+  CheckPosition(assembler, dest_pos, dest, Location::RegisterLocation(count), slow_path);
+
+  // If count is zero, we're done.
+  __ Beqz(count, slow_path->GetExitLabel());
+
+  // Okay, everything checks out.  Finally time to do the copy.
+  // Check assumption that sizeof(Char) is 2 (used in scaling below).
+  const size_t char_size = Primitive::ComponentSize(Primitive::kPrimChar);
+  DCHECK_EQ(char_size, 2u);
+
+  const size_t char_shift = Primitive::ComponentSizeShift(Primitive::kPrimChar);
+
+  const uint32_t data_offset = mirror::Array::DataOffset(char_size).Uint32Value();
+
+  // Calculate source and destination addresses.
+  if (src_pos.IsConstant()) {
+    int32_t src_pos_const = src_pos.GetConstant()->AsIntConstant()->GetValue();
+
+    __ Addiu32(src_base, src, data_offset + char_size * src_pos_const, TMP);
+  } else {
+    __ Addiu32(src_base, src, data_offset, TMP);
+    __ ShiftAndAdd(src_base, src_pos.AsRegister<Register>(), src_base, char_shift);
+  }
+  if (dest_pos.IsConstant()) {
+    int32_t dest_pos_const = dest_pos.GetConstant()->AsIntConstant()->GetValue();
+
+    __ Addiu32(dest_base, dest, data_offset + char_size * dest_pos_const, TMP);
+  } else {
+    __ Addiu32(dest_base, dest, data_offset, TMP);
+    __ ShiftAndAdd(dest_base, dest_pos.AsRegister<Register>(), dest_base, char_shift);
+  }
+
+  __ Bind(&loop);
+  __ Lh(TMP, src_base, 0);
+  __ Addiu(src_base, src_base, char_size);
+  __ Addiu(count, count, -1);
+  __ Sh(TMP, dest_base, 0);
+  __ Addiu(dest_base, dest_base, char_size);
+  __ Bnez(count, &loop);
+
+  __ Bind(slow_path->GetExitLabel());
+}
+
 // Unimplemented intrinsics.
 
 UNIMPLEMENTED_INTRINSIC(MIPS, MathCeil)
 UNIMPLEMENTED_INTRINSIC(MIPS, MathFloor)
 UNIMPLEMENTED_INTRINSIC(MIPS, MathRint)
 UNIMPLEMENTED_INTRINSIC(MIPS, MathRoundDouble)
+UNIMPLEMENTED_INTRINSIC(MIPS, UnsafeGetLongVolatile);
+UNIMPLEMENTED_INTRINSIC(MIPS, UnsafePutLongVolatile);
 UNIMPLEMENTED_INTRINSIC(MIPS, UnsafeCASLong)
 
 UNIMPLEMENTED_INTRINSIC(MIPS, ReferenceGetReferent)
-UNIMPLEMENTED_INTRINSIC(MIPS, SystemArrayCopyChar)
 UNIMPLEMENTED_INTRINSIC(MIPS, SystemArrayCopy)
-
-UNIMPLEMENTED_INTRINSIC(MIPS, MathCos)
-UNIMPLEMENTED_INTRINSIC(MIPS, MathSin)
-UNIMPLEMENTED_INTRINSIC(MIPS, MathAcos)
-UNIMPLEMENTED_INTRINSIC(MIPS, MathAsin)
-UNIMPLEMENTED_INTRINSIC(MIPS, MathAtan)
-UNIMPLEMENTED_INTRINSIC(MIPS, MathAtan2)
-UNIMPLEMENTED_INTRINSIC(MIPS, MathCbrt)
-UNIMPLEMENTED_INTRINSIC(MIPS, MathCosh)
-UNIMPLEMENTED_INTRINSIC(MIPS, MathExp)
-UNIMPLEMENTED_INTRINSIC(MIPS, MathExpm1)
-UNIMPLEMENTED_INTRINSIC(MIPS, MathHypot)
-UNIMPLEMENTED_INTRINSIC(MIPS, MathLog)
-UNIMPLEMENTED_INTRINSIC(MIPS, MathLog10)
-UNIMPLEMENTED_INTRINSIC(MIPS, MathNextAfter)
-UNIMPLEMENTED_INTRINSIC(MIPS, MathSinh)
-UNIMPLEMENTED_INTRINSIC(MIPS, MathTan)
-UNIMPLEMENTED_INTRINSIC(MIPS, MathTanh)
 
 UNIMPLEMENTED_INTRINSIC(MIPS, StringStringIndexOf);
 UNIMPLEMENTED_INTRINSIC(MIPS, StringStringIndexOfAfter);

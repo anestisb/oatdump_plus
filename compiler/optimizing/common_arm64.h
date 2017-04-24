@@ -92,6 +92,16 @@ inline vixl::aarch64::FPRegister DRegisterFrom(Location location) {
   return vixl::aarch64::FPRegister::GetDRegFromCode(location.reg());
 }
 
+inline vixl::aarch64::FPRegister QRegisterFrom(Location location) {
+  DCHECK(location.IsFpuRegister()) << location;
+  return vixl::aarch64::FPRegister::GetQRegFromCode(location.reg());
+}
+
+inline vixl::aarch64::FPRegister VRegisterFrom(Location location) {
+  DCHECK(location.IsFpuRegister()) << location;
+  return vixl::aarch64::FPRegister::GetVRegFromCode(location.reg());
+}
+
 inline vixl::aarch64::FPRegister SRegisterFrom(Location location) {
   DCHECK(location.IsFpuRegister()) << location;
   return vixl::aarch64::FPRegister::GetSRegFromCode(location.reg());

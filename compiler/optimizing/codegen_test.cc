@@ -769,6 +769,45 @@ TEST_F(CodegenTest, ARM64ParallelMoveResolverB34760542) {
   InternalCodeAllocator code_allocator;
   codegen.Finalize(&code_allocator);
 }
+
+// Check that ParallelMoveResolver works fine for ARM64 for both cases when SIMD is on and off.
+TEST_F(CodegenTest, ARM64ParallelMoveResolverSIMD) {
+  std::unique_ptr<const Arm64InstructionSetFeatures> features(
+      Arm64InstructionSetFeatures::FromCppDefines());
+  ArenaPool pool;
+  ArenaAllocator allocator(&pool);
+  HGraph* graph = CreateGraph(&allocator);
+  arm64::CodeGeneratorARM64 codegen(graph, *features.get(), CompilerOptions());
+
+  codegen.Initialize();
+
+  graph->SetHasSIMD(true);
+  for (int i = 0; i < 2; i++) {
+    HParallelMove* move = new (graph->GetArena()) HParallelMove(graph->GetArena());
+    move->AddMove(Location::SIMDStackSlot(0),
+                  Location::SIMDStackSlot(257),
+                  Primitive::kPrimDouble,
+                  nullptr);
+    move->AddMove(Location::SIMDStackSlot(257),
+                  Location::SIMDStackSlot(0),
+                  Primitive::kPrimDouble,
+                  nullptr);
+    move->AddMove(Location::FpuRegisterLocation(0),
+                  Location::FpuRegisterLocation(1),
+                  Primitive::kPrimDouble,
+                  nullptr);
+    move->AddMove(Location::FpuRegisterLocation(1),
+                  Location::FpuRegisterLocation(0),
+                  Primitive::kPrimDouble,
+                  nullptr);
+    codegen.GetMoveResolver()->EmitNativeCode(move);
+    graph->SetHasSIMD(false);
+  }
+
+  InternalCodeAllocator code_allocator;
+  codegen.Finalize(&code_allocator);
+}
+
 #endif
 
 #ifdef ART_ENABLE_CODEGEN_mips

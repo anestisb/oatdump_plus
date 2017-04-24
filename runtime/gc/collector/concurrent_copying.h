@@ -106,7 +106,9 @@ class ConcurrentCopying : public GarbageCollector {
     return IsMarked(ref) == ref;
   }
   template<bool kGrayImmuneObject = true, bool kFromGCThread = false>
-  ALWAYS_INLINE mirror::Object* Mark(mirror::Object* from_ref)
+  ALWAYS_INLINE mirror::Object* Mark(mirror::Object* from_ref,
+                                     mirror::Object* holder = nullptr,
+                                     MemberOffset offset = MemberOffset(0))
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!mark_stack_lock_, !skipped_blocks_lock_, !immune_gray_stack_lock_);
   ALWAYS_INLINE mirror::Object* MarkFromReadBarrier(mirror::Object* from_ref)
@@ -224,7 +226,10 @@ class ConcurrentCopying : public GarbageCollector {
   void DisableMarking() REQUIRES_SHARED(Locks::mutator_lock_);
   void IssueDisableMarkingCheckpoint() REQUIRES_SHARED(Locks::mutator_lock_);
   void ExpandGcMarkStack() REQUIRES_SHARED(Locks::mutator_lock_);
-  mirror::Object* MarkNonMoving(mirror::Object* from_ref) REQUIRES_SHARED(Locks::mutator_lock_)
+  mirror::Object* MarkNonMoving(mirror::Object* from_ref,
+                                mirror::Object* holder = nullptr,
+                                MemberOffset offset = MemberOffset(0))
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!mark_stack_lock_, !skipped_blocks_lock_);
   ALWAYS_INLINE mirror::Object* MarkUnevacFromSpaceRegion(mirror::Object* from_ref,
       accounting::SpaceBitmap<kObjectAlignment>* bitmap)
@@ -315,6 +320,11 @@ class ConcurrentCopying : public GarbageCollector {
   bool gc_grays_immune_objects_;
   Mutex immune_gray_stack_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   std::vector<mirror::Object*> immune_gray_stack_ GUARDED_BY(immune_gray_stack_lock_);
+
+  // Class of java.lang.Object. Filled in from WellKnownClasses in FlipCallback. Must
+  // be filled in before flipping thread roots so that FillDummyObject can run. Not
+  // ObjPtr since the GC may transition to suspended and runnable between phases.
+  mirror::Class* java_lang_Object_;
 
   class AssertToSpaceInvariantFieldVisitor;
   class AssertToSpaceInvariantObjectVisitor;

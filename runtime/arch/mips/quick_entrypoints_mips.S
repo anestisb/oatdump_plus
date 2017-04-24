@@ -2206,6 +2206,151 @@ ENTRY_NO_GP art_quick_string_compareto
     subu   $v0, $t0, $t1  # return (this.charAt(i) - anotherString.charAt(i))
 END art_quick_string_compareto
 
+    /*
+     * Create a function `name` calling the ReadBarrier::Mark routine,
+     * getting its argument and returning its result through register
+     * `reg`, saving and restoring all caller-save registers.
+     */
+.macro READ_BARRIER_MARK_REG name, reg
+ENTRY \name
+    /* TODO: optimizations: mark bit, forwarding. */
+    addiu   $sp, $sp, -160      # includes 16 bytes of space for argument registers a0-a3
+    .cfi_adjust_cfa_offset 160
+
+    sw      $ra, 156($sp)
+    .cfi_rel_offset 31, 156
+    sw      $t8, 152($sp)
+    .cfi_rel_offset 24, 152
+    sw      $t7, 148($sp)
+    .cfi_rel_offset 15, 148
+    sw      $t6, 144($sp)
+    .cfi_rel_offset 14, 144
+    sw      $t5, 140($sp)
+    .cfi_rel_offset 13, 140
+    sw      $t4, 136($sp)
+    .cfi_rel_offset 12, 136
+    sw      $t3, 132($sp)
+    .cfi_rel_offset 11, 132
+    sw      $t2, 128($sp)
+    .cfi_rel_offset 10, 128
+    sw      $t1, 124($sp)
+    .cfi_rel_offset 9, 124
+    sw      $t0, 120($sp)
+    .cfi_rel_offset 8, 120
+    sw      $a3, 116($sp)
+    .cfi_rel_offset 7, 116
+    sw      $a2, 112($sp)
+    .cfi_rel_offset 6, 112
+    sw      $a1, 108($sp)
+    .cfi_rel_offset 5, 108
+    sw      $a0, 104($sp)
+    .cfi_rel_offset 4, 104
+    sw      $v1, 100($sp)
+    .cfi_rel_offset 3, 100
+    sw      $v0, 96($sp)
+    .cfi_rel_offset 2, 96
+
+    la      $t9, artReadBarrierMark
+
+    sdc1    $f18, 88($sp)
+    sdc1    $f16, 80($sp)
+    sdc1    $f14, 72($sp)
+    sdc1    $f12, 64($sp)
+    sdc1    $f10, 56($sp)
+    sdc1    $f8,  48($sp)
+    sdc1    $f6,  40($sp)
+    sdc1    $f4,  32($sp)
+    sdc1    $f2,  24($sp)
+
+    .ifnc \reg, $a0
+      move  $a0, \reg           # pass obj from `reg` in a0
+    .endif
+    jalr    $t9                 # v0 <- artReadBarrierMark(obj)
+    sdc1    $f0,  16($sp)       # in delay slot
+
+    lw      $ra, 156($sp)
+    .cfi_restore 31
+    lw      $t8, 152($sp)
+    .cfi_restore 24
+    lw      $t7, 148($sp)
+    .cfi_restore 15
+    lw      $t6, 144($sp)
+    .cfi_restore 14
+    lw      $t5, 140($sp)
+    .cfi_restore 13
+    lw      $t4, 136($sp)
+    .cfi_restore 12
+    lw      $t3, 132($sp)
+    .cfi_restore 11
+    lw      $t2, 128($sp)
+    .cfi_restore 10
+    lw      $t1, 124($sp)
+    .cfi_restore 9
+    lw      $t0, 120($sp)
+    .cfi_restore 8
+    lw      $a3, 116($sp)
+    .cfi_restore 7
+    lw      $a2, 112($sp)
+    .cfi_restore 6
+    lw      $a1, 108($sp)
+    .cfi_restore 5
+    lw      $a0, 104($sp)
+    .cfi_restore 4
+    lw      $v1, 100($sp)
+    .cfi_restore 3
+
+    .ifnc \reg, $v0
+      move  \reg, $v0           # `reg` <- v0
+      lw    $v0, 96($sp)
+      .cfi_restore 2
+    .endif
+
+    ldc1    $f18, 88($sp)
+    ldc1    $f16, 80($sp)
+    ldc1    $f14, 72($sp)
+    ldc1    $f12, 64($sp)
+    ldc1    $f10, 56($sp)
+    ldc1    $f8,  48($sp)
+    ldc1    $f6,  40($sp)
+    ldc1    $f4,  32($sp)
+    ldc1    $f2,  24($sp)
+    ldc1    $f0,  16($sp)
+
+    jalr    $zero, $ra
+    addiu   $sp, $sp, 160
+    .cfi_adjust_cfa_offset -160
+END \name
+.endm
+
+// Note that art_quick_read_barrier_mark_regXX corresponds to register XX+1.
+// ZERO (register 0) is reserved.
+// AT (register 1) is reserved as a temporary/scratch register.
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg01, $v0
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg02, $v1
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg03, $a0
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg04, $a1
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg05, $a2
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg06, $a3
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg07, $t0
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg08, $t1
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg09, $t2
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg10, $t3
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg11, $t4
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg12, $t5
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg13, $t6
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg14, $t7
+// S0 and S1 (registers 16 and 17) are reserved as suspended and thread registers.
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg17, $s2
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg18, $s3
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg19, $s4
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg20, $s5
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg21, $s6
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg22, $s7
+// T8 and T9 (registers 24 and 25) are reserved as temporary/scratch registers.
+// K0, K1, GP, SP (registers 26 - 29) are reserved.
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg29, $s8
+// RA (register 31) is reserved.
+
 .extern artInvokePolymorphic
 ENTRY art_quick_invoke_polymorphic
     SETUP_SAVE_REFS_AND_ARGS_FRAME

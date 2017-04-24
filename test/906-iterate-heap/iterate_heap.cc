@@ -71,11 +71,12 @@ static bool Run(JNIEnv* env, jint heap_filter, jclass klass_filter, IterationCon
   return true;
 }
 
-extern "C" JNIEXPORT jint JNICALL Java_Main_iterateThroughHeapCount(JNIEnv* env,
-                                                                    jclass klass ATTRIBUTE_UNUSED,
-                                                                    jint heap_filter,
-                                                                    jclass klass_filter,
-                                                                    jint stop_after) {
+extern "C" JNIEXPORT jint JNICALL Java_art_Test906_iterateThroughHeapCount(
+    JNIEnv* env,
+    jclass klass ATTRIBUTE_UNUSED,
+    jint heap_filter,
+    jclass klass_filter,
+    jint stop_after) {
   class CountIterationConfig : public IterationConfig {
    public:
     CountIterationConfig(jint _counter, jint _stop_after)
@@ -108,15 +109,15 @@ extern "C" JNIEXPORT jint JNICALL Java_Main_iterateThroughHeapCount(JNIEnv* env,
   return config.counter;
 }
 
-
-extern "C" JNIEXPORT jint JNICALL Java_Main_iterateThroughHeapData(JNIEnv* env,
-                                                                   jclass klass ATTRIBUTE_UNUSED,
-                                                                   jint heap_filter,
-                                                                   jclass klass_filter,
-                                                                   jlongArray class_tags,
-                                                                   jlongArray sizes,
-                                                                   jlongArray tags,
-                                                                   jintArray lengths) {
+extern "C" JNIEXPORT jint JNICALL Java_art_Test906_iterateThroughHeapData(
+    JNIEnv* env,
+    jclass klass ATTRIBUTE_UNUSED,
+    jint heap_filter,
+    jclass klass_filter,
+    jlongArray class_tags,
+    jlongArray sizes,
+    jlongArray tags,
+    jintArray lengths) {
   class DataIterationConfig : public IterationConfig {
    public:
     jint Handle(jlong class_tag, jlong size, jlong* tag_ptr, jint length) OVERRIDE {
@@ -154,10 +155,8 @@ extern "C" JNIEXPORT jint JNICALL Java_Main_iterateThroughHeapData(JNIEnv* env,
   return static_cast<jint>(config.class_tags_.size());
 }
 
-extern "C" JNIEXPORT void JNICALL Java_Main_iterateThroughHeapAdd(JNIEnv* env,
-                                                                  jclass klass ATTRIBUTE_UNUSED,
-                                                                  jint heap_filter,
-                                                                  jclass klass_filter) {
+extern "C" JNIEXPORT void JNICALL Java_art_Test906_iterateThroughHeapAdd(
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jint heap_filter, jclass klass_filter) {
   class AddIterationConfig : public IterationConfig {
    public:
     AddIterationConfig() {}
@@ -178,7 +177,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_iterateThroughHeapAdd(JNIEnv* env,
   Run(env, heap_filter, klass_filter, &config);
 }
 
-extern "C" JNIEXPORT jstring JNICALL Java_Main_iterateThroughHeapString(
+extern "C" JNIEXPORT jstring JNICALL Java_art_Test906_iterateThroughHeapString(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jlong tag) {
   struct FindStringCallbacks {
     explicit FindStringCallbacks(jlong t) : tag_to_find(t) {}
@@ -234,7 +233,7 @@ extern "C" JNIEXPORT jstring JNICALL Java_Main_iterateThroughHeapString(
   return env->NewStringUTF(fsc.data.c_str());
 }
 
-extern "C" JNIEXPORT jstring JNICALL Java_Main_iterateThroughHeapPrimitiveArray(
+extern "C" JNIEXPORT jstring JNICALL Java_art_Test906_iterateThroughHeapPrimitiveArray(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jlong tag) {
   struct FindArrayCallbacks {
     explicit FindArrayCallbacks(jlong t) : tag_to_find(t) {}
@@ -345,7 +344,7 @@ static constexpr const char* GetPrimitiveTypeName(jvmtiPrimitiveType type) {
   UNREACHABLE();
 }
 
-extern "C" JNIEXPORT jstring JNICALL Java_Main_iterateThroughHeapPrimitiveFields(
+extern "C" JNIEXPORT jstring JNICALL Java_art_Test906_iterateThroughHeapPrimitiveFields(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jlong tag) {
   struct FindFieldCallbacks {
     explicit FindFieldCallbacks(jlong t) : tag_to_find(t) {}

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 The Android Open Source Project
+ * Copyright (C) 2017 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,21 +14,8 @@
  * limitations under the License.
  */
 
-import java.util.Base64;
 public class Main {
-
-  public static void main(String[] args) {
-    doTest(new Transform());
+  public static void main(String[] args) throws Exception {
+    art.Test982.run();
   }
-
-  public static void doTest(Transform t) {
-    t.sayHi();
-    enableCommonRetransformation(true);
-    doCommonClassRetransformation(Transform.class);
-    t.sayHi();
-  }
-
-  // Transforms the class
-  private static native void doCommonClassRetransformation(Class<?>... target);
-  private static native void enableCommonRetransformation(boolean enable);
 }

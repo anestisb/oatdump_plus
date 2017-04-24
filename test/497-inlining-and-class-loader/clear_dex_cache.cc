@@ -14,9 +14,12 @@
  * limitations under the License.
  */
 
-#include "art_method-inl.h"
+#include "art_method.h"
 #include "base/enums.h"
 #include "jni.h"
+#include "mirror/array-inl.h"
+#include "mirror/class-inl.h"
+#include "mirror/dex_cache-inl.h"
 #include "scoped_thread_state_change-inl.h"
 #include "stack.h"
 #include "thread.h"

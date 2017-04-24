@@ -30,6 +30,7 @@
 #include "iftable-inl.h"
 #include "monitor.h"
 #include "object-inl.h"
+#include "object-refvisitor-inl.h"
 #include "object_array-inl.h"
 #include "runtime.h"
 #include "handle_scope-inl.h"
@@ -281,12 +282,16 @@ std::string Object::PrettyTypeOf(ObjPtr<mirror::Object> obj) {
 }
 
 std::string Object::PrettyTypeOf() {
-  if (GetClass() == nullptr) {
+  // From-space version is the same as the to-space version since the dex file never changes.
+  // Avoiding the read barrier here is important to prevent recursive AssertToSpaceInvariant
+  // issues.
+  ObjPtr<mirror::Class> klass = GetClass<kDefaultVerifyFlags, kWithoutReadBarrier>();
+  if (klass == nullptr) {
     return "(raw)";
   }
   std::string temp;
-  std::string result(PrettyDescriptor(GetClass()->GetDescriptor(&temp)));
-  if (IsClass()) {
+  std::string result(PrettyDescriptor(klass->GetDescriptor(&temp)));
+  if (klass->IsClassClass()) {
     result += "<" + PrettyDescriptor(AsClass()->GetDescriptor(&temp)) + ">";
   }
   return result;

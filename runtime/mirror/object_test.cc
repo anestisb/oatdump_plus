@@ -73,6 +73,13 @@ class ObjectTest : public CommonRuntimeTest {
     }
     EXPECT_EQ(expected_hash, string->GetHashCode());
   }
+
+  template <class T>
+  mirror::ObjectArray<T>* AllocObjectArray(Thread* self, size_t length)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    return mirror::ObjectArray<T>::Alloc(
+        self, class_linker_->GetClassRoot(ClassLinker::ClassRoot::kObjectArrayClass), length);
+  }
 };
 
 // Keep constants in sync.
@@ -100,8 +107,7 @@ TEST_F(ObjectTest, IsInSamePackage) {
 TEST_F(ObjectTest, Clone) {
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScope<2> hs(soa.Self());
-  Handle<ObjectArray<Object>> a1(
-      hs.NewHandle(class_linker_->AllocObjectArray<Object>(soa.Self(), 256)));
+  Handle<ObjectArray<Object>> a1(hs.NewHandle(AllocObjectArray<Object>(soa.Self(), 256)));
   size_t s1 = a1->SizeOf();
   Object* clone = a1->Clone(soa.Self());
   EXPECT_EQ(s1, clone->SizeOf());
@@ -111,8 +117,7 @@ TEST_F(ObjectTest, Clone) {
 TEST_F(ObjectTest, AllocObjectArray) {
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScope<2> hs(soa.Self());
-  Handle<ObjectArray<Object>> oa(
-      hs.NewHandle(class_linker_->AllocObjectArray<Object>(soa.Self(), 2)));
+  Handle<ObjectArray<Object>> oa(hs.NewHandle(AllocObjectArray<Object>(soa.Self(), 2)));
   EXPECT_EQ(2, oa->GetLength());
   EXPECT_TRUE(oa->Get(0) == nullptr);
   EXPECT_TRUE(oa->Get(1) == nullptr);

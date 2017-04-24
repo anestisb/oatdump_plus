@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import static art.Redefinition.*;
 import java.lang.reflect.*;
 import java.util.Base64;
 
@@ -96,6 +97,7 @@ class Main {
   }
 
   public static void main(String[] args) {
+    art.Main.bindAgentJNIForClass(Main.class);
     setPopRetransformations(false);
     addCommonTransformationResult("java/util/OptionalLong", CLASS_BYTES, DEX_BYTES);
     enableCommonRetransformation(true);
@@ -113,11 +115,4 @@ class Main {
       e.printStackTrace();
     }
   }
-
-  private static native void setPopRetransformations(boolean should_pop);
-  // Transforms the class
-  private static native void enableCommonRetransformation(boolean enable);
-  private static native void addCommonTransformationResult(String target_name,
-                                                           byte[] class_bytes,
-                                                           byte[] dex_bytes);
 }

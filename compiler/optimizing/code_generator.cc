@@ -42,18 +42,23 @@
 #endif
 
 #include "bytecode_utils.h"
+#include "class_linker.h"
 #include "compiled_method.h"
 #include "dex/verified_method.h"
 #include "driver/compiler_driver.h"
 #include "graph_visualizer.h"
+#include "intern_table.h"
 #include "intrinsics.h"
 #include "leb128.h"
 #include "mirror/array-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object_reference.h"
+#include "mirror/reference.h"
 #include "mirror/string.h"
 #include "parallel_move_resolver.h"
 #include "ssa_liveness_analysis.h"
+#include "scoped_thread_state_change-inl.h"
+#include "thread-inl.h"
 #include "utils/assembler.h"
 
 namespace art {

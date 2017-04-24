@@ -424,6 +424,88 @@ public class Main {
     return - (left * right);
   }
 
+  /// CHECK-START-ARM64: void Main.SimdMulAdd(int[], int[]) instruction_simplifier_arm64 (before)
+  /// CHECK-DAG:     Phi                            loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG:     VecMul                         loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG:     VecAdd                         loop:<<Loop>>      outer_loop:none
+
+  /// CHECK-START-ARM64: void Main.SimdMulAdd(int[], int[]) instruction_simplifier_arm64 (after)
+  /// CHECK-DAG:     Phi                            loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG:     VecMultiplyAccumulate kind:Add loop:<<Loop>>      outer_loop:none
+
+  /// CHECK-START-ARM64: void Main.SimdMulAdd(int[], int[]) instruction_simplifier_arm64 (after)
+  /// CHECK-NOT:     VecMull
+  /// CHECK-NOT:     VecAdd
+  public static void SimdMulAdd(int[] array1, int[] array2) {
+    for (int j = 0; j < 100; j++) {
+      array2[j] += 12345 * array1[j];
+    }
+  }
+
+  /// CHECK-START-ARM64: void Main.SimdMulSub(int[], int[]) instruction_simplifier_arm64 (before)
+  /// CHECK-DAG:     Phi                            loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG:     VecMul                         loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG:     VecSub                         loop:<<Loop>>      outer_loop:none
+
+  /// CHECK-START-ARM64: void Main.SimdMulSub(int[], int[]) instruction_simplifier_arm64 (after)
+  /// CHECK-DAG:     Phi                            loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG:     VecMultiplyAccumulate kind:Sub loop:<<Loop>>      outer_loop:none
+
+  /// CHECK-START-ARM64: void Main.SimdMulSub(int[], int[]) instruction_simplifier_arm64 (after)
+  /// CHECK-NOT:     VecMull
+  /// CHECK-NOT:     VecSub
+  public static void SimdMulSub(int[] array1, int[] array2) {
+    for (int j = 0; j < 100; j++) {
+      array2[j] -= 12345 * array1[j];
+    }
+  }
+
+  /// CHECK-START-ARM64: void Main.SimdMulMultipleUses(int[], int[]) instruction_simplifier_arm64 (before)
+  /// CHECK-DAG:     Phi                            loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG:     VecMul                         loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG:     VecSub                         loop:<<Loop>>      outer_loop:none
+
+  /// CHECK-START-ARM64: void Main.SimdMulMultipleUses(int[], int[]) instruction_simplifier_arm64 (after)
+  /// CHECK-NOT: VecMultiplyAccumulate
+  public static void SimdMulMultipleUses(int[] array1, int[] array2) {
+    for (int j = 0; j < 100; j++) {
+       int temp = 12345 * array1[j];
+       array2[j] -= temp;
+       array1[j] = temp;
+    }
+  }
+
+  public static final int ARRAY_SIZE = 1000;
+
+  public static void initArray(int[] array) {
+    for (int i = 0; i < ARRAY_SIZE; i++) {
+      array[i] = i;
+    }
+  }
+
+  public static int calcArraySum(int[] array) {
+    int sum = 0;
+    for (int i = 0; i < ARRAY_SIZE; i++) {
+      sum += array[i];
+    }
+    return sum;
+  }
+
+  public static void testSimdMultiplyAccumulate() {
+    int[] array1 = new int[ARRAY_SIZE];
+    int[] array2 = new int[ARRAY_SIZE];
+
+    initArray(array1);
+    initArray(array2);
+    SimdMulSub(array1, array2);
+    assertIntEquals(-60608250, calcArraySum(array2));
+
+    initArray(array1);
+    initArray(array2);
+    SimdMulAdd(array1, array2);
+    assertIntEquals(61607250, calcArraySum(array2));
+  }
+
   public static void main(String[] args) {
     assertIntEquals(7, $opt$noinline$mulAdd(1, 2, 3));
     assertLongEquals(-26, $opt$noinline$mulSub(4, 5, 6));
@@ -433,5 +515,7 @@ public class Main {
     assertLongEquals(-225, $opt$noinline$mulMinusOne(15, 16));
     assertIntEquals(-306, $opt$noinline$mulNeg(17, 18));
     assertLongEquals(-380, $opt$noinline$mulNeg(19, 20));
+
+    testSimdMultiplyAccumulate();
   }
 }

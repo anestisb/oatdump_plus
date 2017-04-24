@@ -18,6 +18,7 @@
 
 #include <stdio.h>
 
+#include "art_method-inl.h"
 #include "class_linker.h"
 #include "common_runtime_test.h"
 #include "linear_alloc.h"

@@ -35,13 +35,61 @@
 #include "art_method-inl.h"
 #include "base/enums.h"
 #include "dex_file_annotations.h"
+#include "events-inl.h"
 #include "jni_internal.h"
 #include "mirror/object_array-inl.h"
 #include "modifiers.h"
+#include "runtime_callbacks.h"
 #include "scoped_thread_state_change-inl.h"
+#include "ScopedLocalRef.h"
 #include "thread-inl.h"
+#include "thread_list.h"
+#include "ti_phase.h"
 
 namespace openjdkjvmti {
+
+struct TiMethodCallback : public art::MethodCallback {
+  void RegisterNativeMethod(art::ArtMethod* method,
+                            const void* cur_method,
+                            /*out*/void** new_method)
+      OVERRIDE REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    if (event_handler->IsEventEnabledAnywhere(ArtJvmtiEvent::kNativeMethodBind)) {
+      art::Thread* thread = art::Thread::Current();
+      art::JNIEnvExt* jnienv = thread->GetJniEnv();
+      ScopedLocalRef<jthread> thread_jni(
+          jnienv, PhaseUtil::IsLivePhase() ? jnienv->AddLocalReference<jthread>(thread->GetPeer())
+                                           : nullptr);
+      art::ScopedThreadSuspension sts(thread, art::ThreadState::kNative);
+      event_handler->DispatchEvent<ArtJvmtiEvent::kNativeMethodBind>(
+          thread,
+          static_cast<JNIEnv*>(jnienv),
+          thread_jni.get(),
+          art::jni::EncodeArtMethod(method),
+          const_cast<void*>(cur_method),
+          new_method);
+    }
+  }
+
+  EventHandler* event_handler = nullptr;
+};
+
+TiMethodCallback gMethodCallback;
+
+void MethodUtil::Register(EventHandler* handler) {
+  gMethodCallback.event_handler = handler;
+  art::ScopedThreadStateChange stsc(art::Thread::Current(),
+                                    art::ThreadState::kWaitingForDebuggerToAttach);
+  art::ScopedSuspendAll ssa("Add method callback");
+  art::Runtime::Current()->GetRuntimeCallbacks()->AddMethodCallback(&gMethodCallback);
+}
+
+void MethodUtil::Unregister() {
+  art::ScopedThreadStateChange stsc(art::Thread::Current(),
+                                    art::ThreadState::kWaitingForDebuggerToAttach);
+  art::ScopedSuspendAll ssa("Remove method callback");
+  art::Runtime* runtime = art::Runtime::Current();
+  runtime->GetRuntimeCallbacks()->RemoveMethodCallback(&gMethodCallback);
+}
 
 jvmtiError MethodUtil::GetArgumentsSize(jvmtiEnv* env ATTRIBUTE_UNUSED,
                                         jmethodID method,
@@ -61,8 +109,13 @@ jvmtiError MethodUtil::GetArgumentsSize(jvmtiEnv* env ATTRIBUTE_UNUSED,
 
   art::ScopedObjectAccess soa(art::Thread::Current());
   if (art_method->IsProxyMethod() || art_method->IsAbstract()) {
-    // This isn't specified as an error case, so return 0.
-    *size_ptr = 0;
+    // Use the shorty.
+    art::ArtMethod* base_method = art_method->GetInterfaceMethodIfProxy(art::kRuntimePointerSize);
+    size_t arg_count = art::ArtMethod::NumArgRegisters(base_method->GetShorty());
+    if (!base_method->IsStatic()) {
+      arg_count++;
+    }
+    *size_ptr = static_cast<jint>(arg_count);
     return ERR(NONE);
   }
 
@@ -203,9 +256,9 @@ jvmtiError MethodUtil::GetMethodLocation(jvmtiEnv* env ATTRIBUTE_UNUSED,
 
   art::ScopedObjectAccess soa(art::Thread::Current());
   if (art_method->IsProxyMethod() || art_method->IsAbstract()) {
-    // This isn't specified as an error case, so return 0/0.
-    *start_location_ptr = 0;
-    *end_location_ptr = 0;
+    // This isn't specified as an error case, so return -1/-1 as the RI does.
+    *start_location_ptr = -1;
+    *end_location_ptr = -1;
     return ERR(NONE);
   }
 

@@ -19,13 +19,13 @@
 
 #include <sys/ucontext.h>
 
-#include "art_method-inl.h"
+#include "art_method.h"
 #include "base/enums.h"
-#include "base/macros.h"
-#include "globals.h"
-#include "base/logging.h"
 #include "base/hex_dump.h"
-#include "thread.h"
+#include "base/logging.h"
+#include "base/macros.h"
+#include "base/safe_copy.h"
+#include "globals.h"
 #include "thread-inl.h"
 
 #if defined(__APPLE__)
@@ -78,6 +78,30 @@ extern "C" void art_quick_test_suspend();
 // Get the size of an instruction in bytes.
 // Return 0 if the instruction is not handled.
 static uint32_t GetInstructionSize(const uint8_t* pc) {
+  // Don't segfault if pc points to garbage.
+  char buf[15];  // x86/x86-64 have a maximum instruction length of 15 bytes.
+  ssize_t bytes = SafeCopy(buf, pc, sizeof(buf));
+
+  if (bytes == 0) {
+    // Nothing was readable.
+    return 0;
+  }
+
+  if (bytes == -1) {
+    // SafeCopy not supported, assume that the entire range is readable.
+    bytes = 16;
+  } else {
+    pc = reinterpret_cast<uint8_t*>(buf);
+  }
+
+#define INCREMENT_PC()          \
+  do {                          \
+    pc++;                       \
+    if (pc - startpc > bytes) { \
+      return 0;                 \
+    }                           \
+  } while (0)
+
 #if defined(__x86_64)
   const bool x86_64 = true;
 #else
@@ -86,7 +110,8 @@ static uint32_t GetInstructionSize(const uint8_t* pc) {
 
   const uint8_t* startpc = pc;
 
-  uint8_t opcode = *pc++;
+  uint8_t opcode = *pc;
+  INCREMENT_PC();
   uint8_t modrm;
   bool has_modrm = false;
   bool two_byte = false;
@@ -118,7 +143,8 @@ static uint32_t GetInstructionSize(const uint8_t* pc) {
 
       // Group 4
       case 0x67:
-        opcode = *pc++;
+        opcode = *pc;
+        INCREMENT_PC();
         prefix_present = true;
         break;
     }
@@ -128,13 +154,15 @@ static uint32_t GetInstructionSize(const uint8_t* pc) {
   }
 
   if (x86_64 && opcode >= 0x40 && opcode <= 0x4f) {
-    opcode = *pc++;
+    opcode = *pc;
+    INCREMENT_PC();
   }
 
   if (opcode == 0x0f) {
     // Two byte opcode
     two_byte = true;
-    opcode = *pc++;
+    opcode = *pc;
+    INCREMENT_PC();
   }
 
   bool unhandled_instruction = false;
@@ -147,7 +175,8 @@ static uint32_t GetInstructionSize(const uint8_t* pc) {
       case 0xb7:
       case 0xbe:        // movsx
       case 0xbf:
-        modrm = *pc++;
+        modrm = *pc;
+        INCREMENT_PC();
         has_modrm = true;
         break;
       default:
@@ -166,28 +195,32 @@ static uint32_t GetInstructionSize(const uint8_t* pc) {
       case 0x3c:
       case 0x3d:
       case 0x85:        // test.
-        modrm = *pc++;
+        modrm = *pc;
+        INCREMENT_PC();
         has_modrm = true;
         break;
 
       case 0x80:        // group 1, byte immediate.
       case 0x83:
       case 0xc6:
-        modrm = *pc++;
+        modrm = *pc;
+        INCREMENT_PC();
         has_modrm = true;
         immediate_size = 1;
         break;
 
       case 0x81:        // group 1, word immediate.
       case 0xc7:        // mov
-        modrm = *pc++;
+        modrm = *pc;
+        INCREMENT_PC();
         has_modrm = true;
         immediate_size = operand_size_prefix ? 2 : 4;
         break;
 
       case 0xf6:
       case 0xf7:
-        modrm = *pc++;
+        modrm = *pc;
+        INCREMENT_PC();
         has_modrm = true;
         switch ((modrm >> 3) & 7) {  // Extract "reg/opcode" from "modr/m".
           case 0:  // test
@@ -222,7 +255,7 @@ static uint32_t GetInstructionSize(const uint8_t* pc) {
 
     // Check for SIB.
     if (mod != 3U /* 0b11 */ && (modrm & 7U /* 0b111 */) == 4) {
-      ++pc;     // SIB
+      INCREMENT_PC();     // SIB
     }
 
     switch (mod) {
@@ -238,6 +271,9 @@ static uint32_t GetInstructionSize(const uint8_t* pc) {
   pc += displacement_size + immediate_size;
 
   VLOG(signals) << "x86 instruction length calculated as " << (pc - startpc);
+  if (pc - startpc > bytes) {
+    return 0;
+  }
   return pc - startpc;
 }
 

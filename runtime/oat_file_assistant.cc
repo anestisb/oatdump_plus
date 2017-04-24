@@ -20,6 +20,7 @@
 
 #include <sys/stat.h>
 
+#include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 
 #include "base/logging.h"
@@ -640,15 +641,8 @@ bool OatFileAssistant::DexLocationToOdexFilename(const std::string& location,
   std::string dir = location.substr(0, pos+1);
   dir += "oat/" + std::string(GetInstructionSetString(isa));
 
-  // Find the file portion of the dex location.
-  std::string file;
-  if (pos == std::string::npos) {
-    file = location;
-  } else {
-    file = location.substr(pos+1);
-  }
-
   // Get the base part of the file without the extension.
+  std::string file = location.substr(pos+1);
   pos = file.rfind('.');
   if (pos == std::string::npos) {
     *error_msg = "Dex location " + location + " has no extension.";

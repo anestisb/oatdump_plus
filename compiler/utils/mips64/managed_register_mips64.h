@@ -30,11 +30,27 @@ const int kNumberOfGpuAllocIds = kNumberOfGpuRegisters;
 const int kNumberOfFpuRegIds = kNumberOfFpuRegisters;
 const int kNumberOfFpuAllocIds = kNumberOfFpuRegisters;
 
-const int kNumberOfRegIds = kNumberOfGpuRegIds + kNumberOfFpuRegIds;
-const int kNumberOfAllocIds = kNumberOfGpuAllocIds + kNumberOfFpuAllocIds;
+const int kNumberOfVecRegIds = kNumberOfVectorRegisters;
+const int kNumberOfVecAllocIds = kNumberOfVectorRegisters;
 
-// An instance of class 'ManagedRegister' represents a single GPU register (enum
-// Register) or a double precision FP register (enum FpuRegister)
+const int kNumberOfRegIds = kNumberOfGpuRegIds + kNumberOfFpuRegIds + kNumberOfVecRegIds;
+const int kNumberOfAllocIds = kNumberOfGpuAllocIds + kNumberOfFpuAllocIds + kNumberOfVecAllocIds;
+
+// Register ids map:
+//   [0..R[  core registers (enum GpuRegister)
+//   [R..F[  floating-point registers (enum FpuRegister)
+//   [F..W[  MSA vector registers (enum VectorRegister)
+// where
+//   R = kNumberOfGpuRegIds
+//   F = R + kNumberOfFpuRegIds
+//   W = F + kNumberOfVecRegIds
+
+// An instance of class 'ManagedRegister' represents a single Mips64 register.
+// A register can be one of the following:
+//  * core register (enum GpuRegister)
+//  * floating-point register (enum FpuRegister)
+//  * MSA vector register (enum VectorRegister)
+//
 // 'ManagedRegister::NoRegister()' provides an invalid register.
 // There is a one-to-one mapping between ManagedRegister and register id.
 class Mips64ManagedRegister : public ManagedRegister {
@@ -49,6 +65,21 @@ class Mips64ManagedRegister : public ManagedRegister {
     return static_cast<FpuRegister>(id_ - kNumberOfGpuRegIds);
   }
 
+  constexpr VectorRegister AsVectorRegister() const {
+    CHECK(IsVectorRegister());
+    return static_cast<VectorRegister>(id_ - (kNumberOfGpuRegIds + kNumberOfFpuRegisters));
+  }
+
+  constexpr FpuRegister AsOverlappingFpuRegister() const {
+    CHECK(IsValidManagedRegister());
+    return static_cast<FpuRegister>(AsVectorRegister());
+  }
+
+  constexpr VectorRegister AsOverlappingVectorRegister() const {
+    CHECK(IsValidManagedRegister());
+    return static_cast<VectorRegister>(AsFpuRegister());
+  }
+
   constexpr bool IsGpuRegister() const {
     CHECK(IsValidManagedRegister());
     return (0 <= id_) && (id_ < kNumberOfGpuRegIds);
@@ -58,6 +89,12 @@ class Mips64ManagedRegister : public ManagedRegister {
     CHECK(IsValidManagedRegister());
     const int test = id_ - kNumberOfGpuRegIds;
     return (0 <= test) && (test < kNumberOfFpuRegIds);
+  }
+
+  constexpr bool IsVectorRegister() const {
+    CHECK(IsValidManagedRegister());
+    const int test = id_ - (kNumberOfGpuRegIds + kNumberOfFpuRegIds);
+    return (0 <= test) && (test < kNumberOfVecRegIds);
   }
 
   void Print(std::ostream& os) const;
@@ -75,6 +112,11 @@ class Mips64ManagedRegister : public ManagedRegister {
   static constexpr Mips64ManagedRegister FromFpuRegister(FpuRegister r) {
     CHECK_NE(r, kNoFpuRegister);
     return FromRegId(r + kNumberOfGpuRegIds);
+  }
+
+  static constexpr Mips64ManagedRegister FromVectorRegister(VectorRegister r) {
+    CHECK_NE(r, kNoVectorRegister);
+    return FromRegId(r + kNumberOfGpuRegIds + kNumberOfFpuRegIds);
   }
 
  private:

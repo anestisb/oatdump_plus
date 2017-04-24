@@ -96,7 +96,6 @@ class OatFileManager {
   // files.
   std::vector<std::unique_ptr<const DexFile>> OpenDexFilesFromOat(
       const char* dex_location,
-      const char* oat_location,
       jobject class_loader,
       jobjectArray dex_elements,
       /*out*/ const OatFile** out_oat_file,

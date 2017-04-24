@@ -16,14 +16,14 @@
 
 """Build and run go/ab/git_master-art-host target
 
+This script is executed by the android build server and must not be moved,
+or changed in an otherwise backwards-incompatible manner.
+
 Provided with a target name, the script setup the environment for
 building the test target by taking config information from
 from target_config.py.
 
-If the target field is defined in the configuration for the target, it
-invokes `make` to build the target, otherwise, it assumes
-that the its is a run-test target, and invokes testrunner.py
-script for building and running the run-tests.
+See target_config.py for the configuration syntax.
 """
 
 import argparse
@@ -35,9 +35,25 @@ from target_config import target_config
 import env
 
 parser = argparse.ArgumentParser()
-parser.add_argument('build_target')
 parser.add_argument('-j', default='1', dest='n_threads')
+# either -l/--list OR build-target is required (but not both).
+group = parser.add_mutually_exclusive_group(required=True)
+group.add_argument('build_target', nargs='?')
+group.add_argument('-l', '--list', action='store_true', help='List all possible run-build targets.')
 options = parser.parse_args()
+
+##########
+
+if options.list:
+  print "List of all known build_target: "
+  for k in sorted(target_config.iterkeys()):
+    print " * " + k
+  # TODO: would be nice if this was the same order as the target config file.
+  sys.exit(1)
+
+if not target_config.get(options.build_target):
+  sys.stderr.write("error: invalid build_target, see -l/--list.\n")
+  sys.exit(1)
 
 target = target_config[options.build_target]
 n_threads = options.n_threads
@@ -46,28 +62,46 @@ custom_env['SOONG_ALLOW_MISSING_DEPENDENCIES'] = 'true'
 print custom_env
 os.environ.update(custom_env)
 
-if target.get('target'):
+if target.has_key('make'):
   build_command = 'make'
   build_command += ' -j' + str(n_threads)
   build_command += ' -C ' + env.ANDROID_BUILD_TOP
-  build_command += ' ' + target.get('target')
+  build_command += ' ' + target.get('make')
   # Add 'dist' to avoid Jack issues b/36169180.
   build_command += ' dist'
-  sys.stdout.write(str(build_command))
+  sys.stdout.write(str(build_command) + '\n')
   sys.stdout.flush()
   if subprocess.call(build_command.split()):
     sys.exit(1)
 
-if target.get('run-tests'):
+if target.has_key('golem'):
+  machine_type = target.get('golem')
+  # use art-opt-cc by default since it mimics the default preopt config.
+  default_golem_config = 'art-opt-cc'
+
+  os.chdir(env.ANDROID_BUILD_TOP)
+  cmd =  ['art/tools/golem/build-target.sh']
+  cmd += ['-j' + str(n_threads)]
+  cmd += ['--showcommands']
+  cmd += ['--machine-type=%s' %(machine_type)]
+  cmd += ['--golem=%s' %(default_golem_config)]
+  cmd += ['--tarball']
+  sys.stdout.write(str(cmd) + '\n')
+  sys.stdout.flush()
+
+  if subprocess.call(cmd):
+    sys.exit(1)
+
+if target.has_key('run-test'):
   run_test_command = [os.path.join(env.ANDROID_BUILD_TOP,
                                    'art/test/testrunner/testrunner.py')]
-  run_test_command += target.get('flags', [])
+  run_test_command += target.get('run-test', [])
   run_test_command += ['-j', str(n_threads)]
   run_test_command += ['-b']
   run_test_command += ['--host']
   run_test_command += ['--verbose']
 
-  sys.stdout.write(str(run_test_command))
+  sys.stdout.write(str(run_test_command) + '\n')
   sys.stdout.flush()
   if subprocess.call(run_test_command):
     sys.exit(1)

@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import static art.Redefinition.doCommonClassRedefinition;
 import java.util.Base64;
 import java.util.Random;
 import java.util.function.*;
@@ -425,6 +426,7 @@ public class Main {
   }
 
   public static void main(String[] args) {
+    art.Main.bindAgentJNIForClass(Main.class);
     doTest(10000);
   }
 
@@ -463,9 +465,4 @@ public class Main {
     }
     System.out.println("Finished!");
   }
-
-  // Transforms the class
-  private static native void doCommonClassRedefinition(Class<?> target,
-                                                       byte[] class_file,
-                                                       byte[] dex_file);
 }

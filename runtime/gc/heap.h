@@ -64,6 +64,7 @@ class AllocRecordObjectMap;
 class GcPauseListener;
 class ReferenceProcessor;
 class TaskProcessor;
+class Verification;
 
 namespace accounting {
   class HeapBitmap;
@@ -330,7 +331,7 @@ class Heap {
 
   // Does a concurrent GC, should only be called by the GC daemon thread
   // through runtime.
-  void ConcurrentGC(Thread* self, bool force_full)
+  void ConcurrentGC(Thread* self, GcCause cause, bool force_full)
       REQUIRES(!Locks::runtime_shutdown_lock_, !*gc_complete_lock_, !*pending_task_lock_);
 
   // Implements VMDebug.countInstancesOfClass and JDWP VM_InstanceCount.
@@ -743,7 +744,8 @@ class Heap {
   void RequestTrim(Thread* self) REQUIRES(!*pending_task_lock_);
 
   // Request asynchronous GC.
-  void RequestConcurrentGC(Thread* self, bool force_full) REQUIRES(!*pending_task_lock_);
+  void RequestConcurrentGC(Thread* self, GcCause cause, bool force_full)
+      REQUIRES(!*pending_task_lock_);
 
   // Whether or not we may use a garbage collector, used so that we only create collectors we need.
   bool MayUseCollector(CollectorType type) const;
@@ -819,6 +821,8 @@ class Heap {
   // Remove a gc pause listener. Note: the listener must not be deleted, as for performance
   // reasons, we assume it stays valid when we read it (so that we don't require a lock).
   void RemoveGcPauseListener();
+
+  const Verification* GetVerification() const;
 
  private:
   class ConcurrentGCTask;
@@ -1431,6 +1435,8 @@ class Heap {
   Atomic<AllocationListener*> alloc_listener_;
   // An installed GC Pause listener.
   Atomic<GcPauseListener*> gc_pause_listener_;
+
+  std::unique_ptr<Verification> verification_;
 
   friend class CollectorTransitionTask;
   friend class collector::GarbageCollector;

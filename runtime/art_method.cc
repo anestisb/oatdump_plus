@@ -21,7 +21,6 @@
 #include "android-base/stringprintf.h"
 
 #include "arch/context.h"
-#include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "base/stringpiece.h"
 #include "class_linker-inl.h"
@@ -43,6 +42,7 @@
 #include "mirror/object-inl.h"
 #include "mirror/string.h"
 #include "oat_file-inl.h"
+#include "runtime_callbacks.h"
 #include "scoped_thread_state_change-inl.h"
 #include "well_known_classes.h"
 
@@ -54,6 +54,10 @@ extern "C" void art_quick_invoke_stub(ArtMethod*, uint32_t*, uint32_t, Thread*, 
                                       const char*);
 extern "C" void art_quick_invoke_static_stub(ArtMethod*, uint32_t*, uint32_t, Thread*, JValue*,
                                              const char*);
+
+// Enforce that we he have the right index for runtime methods.
+static_assert(ArtMethod::kRuntimeMethodDexMethodIndex == DexFile::kDexNoIndex,
+              "Wrong runtime-method dex method index");
 
 ArtMethod* ArtMethod::GetNonObsoleteMethod() {
   DCHECK_EQ(kRuntimePointerSize, Runtime::Current()->GetClassLinker()->GetImagePointerSize());
@@ -372,20 +376,25 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
   self->PopManagedStackFragment(fragment);
 }
 
-void ArtMethod::RegisterNative(const void* native_method, bool is_fast) {
+const void* ArtMethod::RegisterNative(const void* native_method, bool is_fast) {
   CHECK(IsNative()) << PrettyMethod();
   CHECK(!IsFastNative()) << PrettyMethod();
   CHECK(native_method != nullptr) << PrettyMethod();
   if (is_fast) {
     AddAccessFlags(kAccFastNative);
   }
-  SetEntryPointFromJni(native_method);
+  void* new_native_method = nullptr;
+  Runtime::Current()->GetRuntimeCallbacks()->RegisterNativeMethod(this,
+                                                                  native_method,
+                                                                  /*out*/&new_native_method);
+  SetEntryPointFromJni(new_native_method);
+  return new_native_method;
 }
 
 void ArtMethod::UnregisterNative() {
   CHECK(IsNative() && !IsFastNative()) << PrettyMethod();
   // restore stub to lookup native pointer via dlsym
-  RegisterNative(GetJniDlsymLookupStub(), false);
+  SetEntryPointFromJni(GetJniDlsymLookupStub());
 }
 
 bool ArtMethod::IsOverridableByDefaultMethod() {
@@ -800,5 +809,36 @@ std::string ArtMethod::JniLongName() {
 
   return long_name;
 }
+
+// AssertSharedHeld doesn't work in GetAccessFlags, so use a NO_THREAD_SAFETY_ANALYSIS helper.
+// TODO: Figure out why ASSERT_SHARED_CAPABILITY doesn't work.
+template <ReadBarrierOption kReadBarrierOption>
+ALWAYS_INLINE static inline void DoGetAccessFlagsHelper(ArtMethod* method)
+    NO_THREAD_SAFETY_ANALYSIS {
+  CHECK(method->IsRuntimeMethod() ||
+        method->GetDeclaringClass<kReadBarrierOption>()->IsIdxLoaded() ||
+        method->GetDeclaringClass<kReadBarrierOption>()->IsErroneous());
+}
+
+template <ReadBarrierOption kReadBarrierOption> void ArtMethod::GetAccessFlagsDCheck() {
+  if (kCheckDeclaringClassState) {
+    Thread* self = Thread::Current();
+    if (!Locks::mutator_lock_->IsSharedHeld(self)) {
+      if (self->IsThreadSuspensionAllowable()) {
+        ScopedObjectAccess soa(self);
+        CHECK(IsRuntimeMethod() ||
+              GetDeclaringClass<kReadBarrierOption>()->IsIdxLoaded() ||
+              GetDeclaringClass<kReadBarrierOption>()->IsErroneous());
+      }
+    } else {
+      // We cannot use SOA in this case. We might be holding the lock, but may not be in the
+      // runnable state (e.g., during GC).
+      Locks::mutator_lock_->AssertSharedHeld(self);
+      DoGetAccessFlagsHelper<kReadBarrierOption>(this);
+    }
+  }
+}
+template void ArtMethod::GetAccessFlagsDCheck<ReadBarrierOption::kWithReadBarrier>();
+template void ArtMethod::GetAccessFlagsDCheck<ReadBarrierOption::kWithoutReadBarrier>();
 
 }  // namespace art

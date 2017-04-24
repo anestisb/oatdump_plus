@@ -39,7 +39,7 @@ static jstring GetClassName(JNIEnv* jni_env, jclass cls) {
   return reinterpret_cast<jstring>(jni_env->CallObjectMethod(cls, mid));
 }
 
-extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getLoadedClasses(
+extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test907_getLoadedClasses(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
   jint count = -1;
   jclass* classes = nullptr;

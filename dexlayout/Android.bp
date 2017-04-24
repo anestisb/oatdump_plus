@@ -14,6 +14,7 @@
 
 art_cc_defaults {
     name: "libart-dexlayout-defaults",
+    defaults: ["art_defaults"],
     host_supported: true,
     srcs: [
         "dexlayout.cc",
@@ -56,3 +57,16 @@ art_cc_test {
     defaults: ["art_gtest_defaults"],
     srcs: ["dexlayout_test.cc"],
 }
+
+art_cc_binary {
+    name: "dexdiag",
+    host_supported: false,
+    srcs: ["dexdiag.cc"],
+    cflags: ["-Wall"],
+    shared_libs: [
+        "libart",
+        "libart-dexlayout",
+        "libpagemap",
+    ],
+}
+

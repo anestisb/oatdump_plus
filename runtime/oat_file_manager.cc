@@ -486,6 +486,8 @@ static bool CollisionCheck(std::vector<const DexFile*>& dex_files_loaded,
   }
 
   // Now drain the queue.
+  bool has_duplicates = false;
+  error_msg->clear();
   while (!queue.empty()) {
     // Modifying the top element is only safe if we pop right after.
     DexFileAndClassPair compare_pop(queue.top());
@@ -497,12 +499,15 @@ static bool CollisionCheck(std::vector<const DexFile*>& dex_files_loaded,
       if (strcmp(compare_pop.GetCachedDescriptor(), top.GetCachedDescriptor()) == 0) {
         // Same descriptor. Check whether it's crossing old-oat-files to new-oat-files.
         if (compare_pop.FromLoadedOat() != top.FromLoadedOat()) {
-          *error_msg =
-              StringPrintf("Found duplicated class when checking oat files: '%s' in %s and %s",
+          error_msg->append(
+              StringPrintf("Found duplicated class when checking oat files: '%s' in %s and %s\n",
                            compare_pop.GetCachedDescriptor(),
                            compare_pop.GetDexFile()->GetLocation().c_str(),
-                           top.GetDexFile()->GetLocation().c_str());
-          return true;
+                           top.GetDexFile()->GetLocation().c_str()));
+          if (!VLOG_IS_ON(oat)) {
+            return true;
+          }
+          has_duplicates = true;
         }
         queue.pop();
         AddNext(top, queue);
@@ -514,7 +519,7 @@ static bool CollisionCheck(std::vector<const DexFile*>& dex_files_loaded,
     AddNext(compare_pop, queue);
   }
 
-  return false;
+  return has_duplicates;
 }
 
 // Check for class-def collisions in dex files.
@@ -610,7 +615,6 @@ bool OatFileManager::HasCollisions(const OatFile* oat_file,
 
 std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
     const char* dex_location,
-    const char* oat_location,
     jobject class_loader,
     jobjectArray dex_elements,
     const OatFile** out_oat_file,
@@ -625,8 +629,9 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
   Locks::mutator_lock_->AssertNotHeld(self);
   Runtime* const runtime = Runtime::Current();
 
+  // TODO(calin): remove the explicit oat_location for OatFileAssistant
   OatFileAssistant oat_file_assistant(dex_location,
-                                      oat_location,
+                                      /*oat_location*/ nullptr,
                                       kRuntimeISA,
                                       !runtime->IsAotCompiler());
 

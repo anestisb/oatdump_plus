@@ -17,6 +17,8 @@
 
 #include <cfloat>
 
+#include "art_method-inl.h"
+#include "class_linker-inl.h"
 #include "code_generator.h"
 #include "common_dominator.h"
 #include "ssa_builder.h"
@@ -2338,6 +2340,68 @@ void HGraph::TransformLoopHeaderForBCE(HBasicBlock* header) {
       false_block, old_pre_header, /* replace_if_back_edge */ false);
   UpdateLoopAndTryInformationOfNewBlock(
       new_pre_header, old_pre_header, /* replace_if_back_edge */ false);
+}
+
+HBasicBlock* HGraph::TransformLoopForVectorization(HBasicBlock* header,
+                                                   HBasicBlock* body,
+                                                   HBasicBlock* exit) {
+  DCHECK(header->IsLoopHeader());
+  HLoopInformation* loop = header->GetLoopInformation();
+
+  // Add new loop blocks.
+  HBasicBlock* new_pre_header = new (arena_) HBasicBlock(this, header->GetDexPc());
+  HBasicBlock* new_header = new (arena_) HBasicBlock(this, header->GetDexPc());
+  HBasicBlock* new_body = new (arena_) HBasicBlock(this, header->GetDexPc());
+  AddBlock(new_pre_header);
+  AddBlock(new_header);
+  AddBlock(new_body);
+
+  // Set up control flow.
+  header->ReplaceSuccessor(exit, new_pre_header);
+  new_pre_header->AddSuccessor(new_header);
+  new_header->AddSuccessor(exit);
+  new_header->AddSuccessor(new_body);
+  new_body->AddSuccessor(new_header);
+
+  // Set up dominators.
+  header->ReplaceDominatedBlock(exit, new_pre_header);
+  new_pre_header->SetDominator(header);
+  new_pre_header->dominated_blocks_.push_back(new_header);
+  new_header->SetDominator(new_pre_header);
+  new_header->dominated_blocks_.push_back(new_body);
+  new_body->SetDominator(new_header);
+  new_header->dominated_blocks_.push_back(exit);
+  exit->SetDominator(new_header);
+
+  // Fix reverse post order.
+  size_t index_of_header = IndexOfElement(reverse_post_order_, header);
+  MakeRoomFor(&reverse_post_order_, 2, index_of_header);
+  reverse_post_order_[++index_of_header] = new_pre_header;
+  reverse_post_order_[++index_of_header] = new_header;
+  size_t index_of_body = IndexOfElement(reverse_post_order_, body);
+  MakeRoomFor(&reverse_post_order_, 1, index_of_body - 1);
+  reverse_post_order_[index_of_body] = new_body;
+
+  // Add gotos and suspend check (client must add conditional in header).
+  new_pre_header->AddInstruction(new (arena_) HGoto());
+  HSuspendCheck* suspend_check = new (arena_) HSuspendCheck(header->GetDexPc());
+  new_header->AddInstruction(suspend_check);
+  new_body->AddInstruction(new (arena_) HGoto());
+  suspend_check->CopyEnvironmentFromWithLoopPhiAdjustment(
+      loop->GetSuspendCheck()->GetEnvironment(), header);
+
+  // Update loop information.
+  new_header->AddBackEdge(new_body);
+  new_header->GetLoopInformation()->SetSuspendCheck(suspend_check);
+  new_header->GetLoopInformation()->Populate();
+  new_pre_header->SetLoopInformation(loop->GetPreHeader()->GetLoopInformation());  // outward
+  HLoopInformationOutwardIterator it(*new_header);
+  for (it.Advance(); !it.Done(); it.Advance()) {
+    it.Current()->Add(new_pre_header);
+    it.Current()->Add(new_header);
+    it.Current()->Add(new_body);
+  }
+  return new_pre_header;
 }
 
 static void CheckAgainstUpperBound(ReferenceTypeInfo rti, ReferenceTypeInfo upper_bound_rti)

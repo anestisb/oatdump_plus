@@ -37,9 +37,13 @@ class ImTable {
   // (non-marker) interfaces.
   static constexpr size_t kSize = IMT_SIZE;
 
+  uint8_t* AddressOfElement(size_t index, PointerSize pointer_size) {
+    return reinterpret_cast<uint8_t*>(this) + OffsetOfElement(index, pointer_size);
+  }
+
   ArtMethod* Get(size_t index, PointerSize pointer_size) {
     DCHECK_LT(index, kSize);
-    uint8_t* ptr = reinterpret_cast<uint8_t*>(this) + OffsetOfElement(index, pointer_size);
+    uint8_t* ptr = AddressOfElement(index, pointer_size);
     if (pointer_size == PointerSize::k32) {
       uint32_t value = *reinterpret_cast<uint32_t*>(ptr);
       return reinterpret_cast<ArtMethod*>(value);
@@ -51,7 +55,7 @@ class ImTable {
 
   void Set(size_t index, ArtMethod* method, PointerSize pointer_size) {
     DCHECK_LT(index, kSize);
-    uint8_t* ptr = reinterpret_cast<uint8_t*>(this) + OffsetOfElement(index, pointer_size);
+    uint8_t* ptr = AddressOfElement(index, pointer_size);
     if (pointer_size == PointerSize::k32) {
       uintptr_t value = reinterpret_cast<uintptr_t>(method);
       DCHECK_EQ(static_cast<uint32_t>(value), value);  // Check that we dont lose any non 0 bits.

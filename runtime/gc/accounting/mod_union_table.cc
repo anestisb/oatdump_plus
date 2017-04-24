@@ -26,6 +26,7 @@
 #include "gc/space/image_space.h"
 #include "gc/space/space.h"
 #include "mirror/object-inl.h"
+#include "mirror/object-refvisitor-inl.h"
 #include "space_bitmap-inl.h"
 #include "thread-inl.h"
 

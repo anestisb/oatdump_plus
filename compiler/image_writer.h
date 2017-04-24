@@ -38,8 +38,9 @@
 #include "image.h"
 #include "lock_word.h"
 #include "mem_map.h"
-#include "oat_file.h"
 #include "mirror/dex_cache.h"
+#include "obj_ptr.h"
+#include "oat_file.h"
 #include "os.h"
 #include "safe_map.h"
 #include "utils.h"
@@ -317,6 +318,12 @@ class ImageWriter FINAL {
     // Number of image class table bytes.
     size_t class_table_bytes_ = 0;
 
+    // Number of object fixup bytes.
+    size_t object_fixup_bytes_ = 0;
+
+    // Number of pointer fixup bytes.
+    size_t pointer_fixup_bytes_ = 0;
+
     // Intern table associated with this image for serialization.
     std::unique_ptr<InternTable> intern_table_;
 
@@ -464,7 +471,8 @@ class ImageWriter FINAL {
                           size_t oat_index)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void TryAssignImTableOffset(ImTable* imt, size_t oat_index) REQUIRES_SHARED(Locks::mutator_lock_);
+  // Return true if imt was newly inserted.
+  bool TryAssignImTableOffset(ImTable* imt, size_t oat_index) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Assign the offset for an IMT conflict table. Does nothing if the table already has a native
   // relocation.
@@ -533,6 +541,14 @@ class ImageWriter FINAL {
 
   // Return true if there already exists a native allocation for an object.
   bool NativeRelocationAssigned(void* ptr) const;
+
+  void CopyReference(mirror::HeapReference<mirror::Object>* dest, ObjPtr<mirror::Object> src)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  void CopyReference(mirror::CompressedReference<mirror::Object>* dest, ObjPtr<mirror::Object> src)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  void CopyAndFixupPointer(void** target, void* value);
 
   const CompilerDriver& compiler_driver_;
 
@@ -608,9 +624,11 @@ class ImageWriter FINAL {
   class FixupRootVisitor;
   class FixupVisitor;
   class GetRootsVisitor;
+  class ImageAddressVisitorForDexCacheArray;
   class NativeLocationVisitor;
   class PruneClassesVisitor;
   class PruneClassLoaderClassesVisitor;
+  class RegisterBootClassPathClassesVisitor;
   class VisitReferencesVisitor;
 
   DISALLOW_COPY_AND_ASSIGN(ImageWriter);

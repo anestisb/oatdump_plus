@@ -42,6 +42,7 @@
 #include "mirror/dex_cache.h"
 #include "mirror/executable.h"
 #include "mirror/object-inl.h"
+#include "mirror/object-refvisitor-inl.h"
 #include "mirror/method.h"
 #include "mirror/reference.h"
 #include "noop_compiler_callbacks.h"
@@ -485,7 +486,7 @@ class PatchOat::RelocatedPointerVisitor {
   explicit RelocatedPointerVisitor(PatchOat* patch_oat) : patch_oat_(patch_oat) {}
 
   template <typename T>
-  T* operator()(T* ptr) const {
+  T* operator()(T* ptr, void** dest_addr ATTRIBUTE_UNUSED = 0) const {
     return patch_oat_->RelocatedAddressOfPointer(ptr);
   }
 

@@ -19,40 +19,35 @@
 #include <string.h>
 
 #include <iostream>
+#include <sstream>
 #include <vector>
 
 #include "android-base/macros.h"
 #include "android-base/logging.h"
 #include "android-base/stringprintf.h"
 
-#include "jit/jit.h"
 #include "jni.h"
-#include "native_stack_dump.h"
 #include "jvmti.h"
-#include "runtime.h"
-#include "scoped_thread_state_change-inl.h"
-#include "thread-inl.h"
-#include "thread_list.h"
 
 // Test infrastructure
 #include "jni_helper.h"
 #include "jvmti_helper.h"
 #include "test_env.h"
+#include "ti_utf.h"
 
 namespace art {
 namespace Test913Heaps {
 
 using android::base::StringPrintf;
 
-extern "C" JNIEXPORT void JNICALL Java_Main_forceGarbageCollection(JNIEnv* env ATTRIBUTE_UNUSED,
-                                                                   jclass klass ATTRIBUTE_UNUSED) {
+#define FINAL final
+#define OVERRIDE override
+#define UNREACHABLE  __builtin_unreachable
+
+extern "C" JNIEXPORT void JNICALL Java_art_Test913_forceGarbageCollection(
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
   jvmtiError ret = jvmti_env->ForceGarbageCollection();
-  if (ret != JVMTI_ERROR_NONE) {
-    char* err;
-    jvmti_env->GetErrorName(ret, &err);
-    printf("Error forcing a garbage collection: %s\n", err);
-    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
-  }
+  JvmtiErrorToException(env, jvmti_env, ret);
 }
 
 class IterationConfig {
@@ -92,7 +87,8 @@ static jint JNICALL HeapReferenceCallback(jvmtiHeapReferenceKind reference_kind,
                         user_data);
 }
 
-static bool Run(jint heap_filter,
+static bool Run(JNIEnv* env,
+                jint heap_filter,
                 jclass klass_filter,
                 jobject initial_object,
                 IterationConfig* config) {
@@ -105,24 +101,18 @@ static bool Run(jint heap_filter,
                                                initial_object,
                                                &callbacks,
                                                config);
-  if (ret != JVMTI_ERROR_NONE) {
-    char* err;
-    jvmti_env->GetErrorName(ret, &err);
-    printf("Failure running FollowReferences: %s\n", err);
-    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(err));
-    return false;
-  }
-  return true;
+  return !JvmtiErrorToException(env, jvmti_env, ret);
 }
 
-extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_followReferences(JNIEnv* env,
-                                                                     jclass klass ATTRIBUTE_UNUSED,
-                                                                     jint heap_filter,
-                                                                     jclass klass_filter,
-                                                                     jobject initial_object,
-                                                                     jint stop_after,
-                                                                     jint follow_set,
-                                                                     jobject jniRef) {
+extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test913_followReferences(
+    JNIEnv* env,
+    jclass klass ATTRIBUTE_UNUSED,
+    jint heap_filter,
+    jclass klass_filter,
+    jobject initial_object,
+    jint stop_after,
+    jint follow_set,
+    jobject jniRef) {
   class PrintIterationConfig FINAL : public IterationConfig {
    public:
     PrintIterationConfig(jint _stop_after, jint _follow_set)
@@ -141,6 +131,27 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_followReferences(JNIEnv* env
                 jint length,
                 void* user_data ATTRIBUTE_UNUSED) OVERRIDE {
       jlong tag = *tag_ptr;
+
+      // Ignore any jni-global roots with untagged classes. These can be from the environment,
+      // or the JIT.
+      if (reference_kind == JVMTI_HEAP_REFERENCE_JNI_GLOBAL && class_tag == 0) {
+        return 0;
+      }
+      // Ignore classes (1000 <= tag < 3000) for thread objects. These can be held by the JIT.
+      if (reference_kind == JVMTI_HEAP_REFERENCE_THREAD && class_tag == 0 &&
+              (1000 <= *tag_ptr &&  *tag_ptr < 3000)) {
+        return 0;
+      }
+      // Ignore stack-locals of untagged threads. That is the environment.
+      if (reference_kind == JVMTI_HEAP_REFERENCE_STACK_LOCAL &&
+          reference_info->stack_local.thread_tag != 3000) {
+        return 0;
+      }
+      // Ignore array elements with an untagged source. These are from the environment.
+      if (reference_kind == JVMTI_HEAP_REFERENCE_ARRAY_ELEMENT && *referrer_tag_ptr == 0) {
+        return 0;
+      }
+
       // Only check tagged objects.
       if (tag == 0) {
         return JVMTI_VISIT_OBJECTS;
@@ -200,10 +211,6 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_followReferences(JNIEnv* env
                                   reference_info,
                                   adapted_size,
                                   length));
-
-      if (reference_kind == JVMTI_HEAP_REFERENCE_THREAD && *tag_ptr == 1000) {
-        DumpStacks();
-      }
     }
 
     std::vector<std::string> GetLines() const {
@@ -258,9 +265,15 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_followReferences(JNIEnv* env
         if (info_.jni_local.method != nullptr) {
           jvmti_env->GetMethodName(info_.jni_local.method, &name, nullptr, nullptr);
         }
+        // Normalize the thread id, as this depends on the number of other threads
+        // and which thread is running the test. Should be:
+        //   jlong thread_id = info_.jni_local.thread_id;
+        // TODO: A pre-pass before the test should be able fetch this number, so it can
+        //       be compared explicitly.
+        jlong thread_id = 1;
         std::string ret = StringPrintf("jni-local[id=%" PRId64 ",tag=%" PRId64 ",depth=%d,"
                                        "method=%s]",
-                                       info_.jni_local.thread_id,
+                                       thread_id,
                                        info_.jni_local.thread_tag,
                                        info_.jni_local.depth,
                                        name == nullptr ? "<null>" : name);
@@ -283,13 +296,12 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_followReferences(JNIEnv* env
                         jlong size,
                         jint length,
                         const jvmtiHeapReferenceInfo* reference_info)
-          REQUIRES_SHARED(Locks::mutator_lock_)
           : Elem(referrer, referree, size, length) {
         memcpy(&info_, reference_info, sizeof(jvmtiHeapReferenceInfo));
-        // Debug stack trace for failure condition. Remove when done.
-        if (info_.stack_local.depth == 3 && info_.stack_local.slot == 13) {
-          DumpNativeStack(std::cerr, GetTid());
-          Thread::Current()->DumpJavaStack(std::cerr, false, false);
+
+        // Debug code. Try to figure out where bad depth is coming from.
+        if (reference_info->stack_local.depth == 6) {
+          LOG(FATAL) << "Unexpected depth of 6";
         }
       }
 
@@ -299,9 +311,15 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_followReferences(JNIEnv* env
         if (info_.stack_local.method != nullptr) {
           jvmti_env->GetMethodName(info_.stack_local.method, &name, nullptr, nullptr);
         }
+        // Normalize the thread id, as this depends on the number of other threads
+        // and which thread is running the test. Should be:
+        //   jlong thread_id = info_.stack_local.thread_id;
+        // TODO: A pre-pass before the test should be able fetch this number, so it can
+        //       be compared explicitly.
+        jlong thread_id = 1;
         std::string ret = StringPrintf("stack-local[id=%" PRId64 ",tag=%" PRId64 ",depth=%d,"
                                        "method=%s,vreg=%d,location=% " PRId64 "]",
-                                       info_.stack_local.thread_id,
+                                       thread_id,
                                        info_.stack_local.thread_tag,
                                        info_.stack_local.depth,
                                        name == nullptr ? "<null>" : name,
@@ -360,7 +378,13 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_followReferences(JNIEnv* env
                                                         tmp));
         }
         case JVMTI_HEAP_REFERENCE_ARRAY_ELEMENT: {
-          std::string tmp = StringPrintf("array-element@%d", reference_info->array.index);
+          jint index = reference_info->array.index;
+          // Normalize if it's "0@0" -> "3000@1".
+          // TODO: A pre-pass could probably give us this index to check explicitly.
+          if (referrer == "0@0" && referree == "3000@0") {
+            index = 0;
+          }
+          std::string tmp = StringPrintf("array-element@%d", index);
           return std::unique_ptr<Elem>(new StringElement(referrer,
                                                          referree,
                                                          size,
@@ -458,24 +482,12 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_followReferences(JNIEnv* env
       UNREACHABLE();
     }
 
-    static void DumpStacks() NO_THREAD_SAFETY_ANALYSIS {
-      auto dump_function = [](art::Thread* t, void* data ATTRIBUTE_UNUSED) {
-        std::string name;
-        t->GetThreadName(name);
-        LOG(ERROR) << name;
-        art::DumpNativeStack(LOG_STREAM(ERROR), t->GetTid());
-      };
-      art::Runtime::Current()->GetThreadList()->ForEach(dump_function, nullptr);
-    }
-
     jint counter_;
     const jint stop_after_;
     const jint follow_set_;
 
     std::vector<std::unique_ptr<Elem>> lines_;
   };
-
-  jit::ScopedJitSuspend sjs;  // Wait to avoid JIT influence (e.g., JNI globals).
 
   // If jniRef isn't null, add a local and a global ref.
   ScopedLocalRef<jobject> jni_local_ref(env, nullptr);
@@ -486,7 +498,9 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_followReferences(JNIEnv* env
   }
 
   PrintIterationConfig config(stop_after, follow_set);
-  Run(heap_filter, klass_filter, initial_object, &config);
+  if (!Run(env, heap_filter, klass_filter, initial_object, &config)) {
+    return nullptr;
+  }
 
   std::vector<std::string> lines = config.GetLines();
   jobjectArray ret = CreateObjectArray(env,
@@ -503,7 +517,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_followReferences(JNIEnv* env
   return ret;
 }
 
-extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_followReferencesString(
+extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test913_followReferencesString(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject initial_object) {
   struct FindStringCallbacks {
     static jint JNICALL FollowReferencesCallback(
@@ -527,10 +541,10 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_followReferencesString(
                                             void* user_data) {
       FindStringCallbacks* p = reinterpret_cast<FindStringCallbacks*>(user_data);
       if (*tag_ptr != 0) {
-        size_t utf_byte_count = CountUtf8Bytes(value, value_length);
+        size_t utf_byte_count = ti::CountUtf8Bytes(value, value_length);
         std::unique_ptr<char[]> mod_utf(new char[utf_byte_count + 1]);
         memset(mod_utf.get(), 0, utf_byte_count + 1);
-        ConvertUtf16ToModifiedUtf8(mod_utf.get(), utf_byte_count, value, value_length);
+        ti::ConvertUtf16ToModifiedUtf8(mod_utf.get(), utf_byte_count, value, value_length);
         p->data.push_back(android::base::StringPrintf("%" PRId64 "@%" PRId64 " (%" PRId64 ", '%s')",
                                                       *tag_ptr,
                                                       class_tag,
@@ -566,7 +580,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_followReferencesString(
 }
 
 
-extern "C" JNIEXPORT jstring JNICALL Java_Main_followReferencesPrimitiveArray(
+extern "C" JNIEXPORT jstring JNICALL Java_art_Test913_followReferencesPrimitiveArray(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject initial_object) {
   struct FindArrayCallbacks {
     static jint JNICALL FollowReferencesCallback(
@@ -679,7 +693,7 @@ static constexpr const char* GetPrimitiveTypeName(jvmtiPrimitiveType type) {
   UNREACHABLE();
 }
 
-extern "C" JNIEXPORT jstring JNICALL Java_Main_followReferencesPrimitiveFields(
+extern "C" JNIEXPORT jstring JNICALL Java_art_Test913_followReferencesPrimitiveFields(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject initial_object) {
   struct FindFieldCallbacks {
     static jint JNICALL FollowReferencesCallback(
@@ -744,6 +758,63 @@ extern "C" JNIEXPORT jstring JNICALL Java_Main_followReferencesPrimitiveFields(
     return nullptr;
   }
   return env->NewStringUTF(ffc.data.c_str());
+}
+
+// This is copied from test 908. Consider moving this to the main shim.
+
+static size_t starts = 0;
+static size_t finishes = 0;
+
+static void JNICALL GarbageCollectionFinish(jvmtiEnv* ti_env ATTRIBUTE_UNUSED) {
+  finishes++;
+}
+
+static void JNICALL GarbageCollectionStart(jvmtiEnv* ti_env ATTRIBUTE_UNUSED) {
+  starts++;
+}
+
+extern "C" JNIEXPORT void JNICALL Java_art_Test913_setupGcCallback(
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
+  jvmtiEventCallbacks callbacks;
+  memset(&callbacks, 0, sizeof(jvmtiEventCallbacks));
+  callbacks.GarbageCollectionFinish = GarbageCollectionFinish;
+  callbacks.GarbageCollectionStart = GarbageCollectionStart;
+
+  jvmtiError ret = jvmti_env->SetEventCallbacks(&callbacks, sizeof(callbacks));
+  JvmtiErrorToException(env, jvmti_env, ret);
+}
+
+extern "C" JNIEXPORT void JNICALL Java_art_Test913_enableGcTracking(JNIEnv* env,
+                                                                    jclass klass ATTRIBUTE_UNUSED,
+                                                                    jboolean enable) {
+  jvmtiError ret = jvmti_env->SetEventNotificationMode(
+      enable ? JVMTI_ENABLE : JVMTI_DISABLE,
+      JVMTI_EVENT_GARBAGE_COLLECTION_START,
+      nullptr);
+  if (JvmtiErrorToException(env, jvmti_env, ret)) {
+    return;
+  }
+  ret = jvmti_env->SetEventNotificationMode(
+      enable ? JVMTI_ENABLE : JVMTI_DISABLE,
+      JVMTI_EVENT_GARBAGE_COLLECTION_FINISH,
+      nullptr);
+  if (JvmtiErrorToException(env, jvmti_env, ret)) {
+    return;
+  }
+}
+
+extern "C" JNIEXPORT jint JNICALL Java_art_Test913_getGcStarts(JNIEnv* env ATTRIBUTE_UNUSED,
+                                                               jclass klass ATTRIBUTE_UNUSED) {
+  jint result = static_cast<jint>(starts);
+  starts = 0;
+  return result;
+}
+
+extern "C" JNIEXPORT jint JNICALL Java_art_Test913_getGcFinishes(JNIEnv* env ATTRIBUTE_UNUSED,
+                                                                 jclass klass ATTRIBUTE_UNUSED) {
+  jint result = static_cast<jint>(finishes);
+  finishes = 0;
+  return result;
 }
 
 }  // namespace Test913Heaps

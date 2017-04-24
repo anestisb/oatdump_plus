@@ -22,6 +22,10 @@
 
 namespace art {
 
+// Find the given classname. First try the implied classloader, then the system classloader,
+// then use JVMTI to find all classloaders.
+jclass FindClass(jvmtiEnv* jvmti_env, JNIEnv* env, const char* class_name, jobject class_loader);
+
 // Load the class through JNI. Inspect it, find all native methods. Construct the corresponding
 // mangled name, run dlsym and bind the method.
 //

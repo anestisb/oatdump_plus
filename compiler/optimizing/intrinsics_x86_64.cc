@@ -19,15 +19,19 @@
 #include <limits>
 
 #include "arch/x86_64/instruction_set_features_x86_64.h"
-#include "art_method-inl.h"
+#include "art_method.h"
 #include "base/bit_utils.h"
 #include "code_generator_x86_64.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "intrinsics.h"
 #include "intrinsics_utils.h"
+#include "lock_word.h"
 #include "mirror/array-inl.h"
+#include "mirror/object_array-inl.h"
+#include "mirror/reference.h"
 #include "mirror/string.h"
-#include "thread.h"
+#include "scoped_thread_state_change-inl.h"
+#include "thread-inl.h"
 #include "utils/x86_64/assembler_x86_64.h"
 #include "utils/x86_64/constants_x86_64.h"
 

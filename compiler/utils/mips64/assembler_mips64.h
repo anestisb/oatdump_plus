@@ -734,6 +734,10 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
   void FillW(VectorRegister wd, GpuRegister rs);
   void FillD(VectorRegister wd, GpuRegister rs);
 
+  void LdiB(VectorRegister wd, int imm8);
+  void LdiH(VectorRegister wd, int imm10);
+  void LdiW(VectorRegister wd, int imm10);
+  void LdiD(VectorRegister wd, int imm10);
   void LdB(VectorRegister wd, GpuRegister rs, int offset);
   void LdH(VectorRegister wd, GpuRegister rs, int offset);
   void LdW(VectorRegister wd, GpuRegister rs, int offset);
@@ -1457,6 +1461,7 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
   void EmitMsaBIT(int operation, int df_m, VectorRegister ws, VectorRegister wd, int minor_opcode);
   void EmitMsaELM(int operation, int df_n, VectorRegister ws, VectorRegister wd, int minor_opcode);
   void EmitMsaMI10(int s10, GpuRegister rs, VectorRegister wd, int minor_opcode, int df);
+  void EmitMsaI10(int operation, int df, int i10, VectorRegister wd, int minor_opcode);
   void EmitMsa2R(int operation, int df, VectorRegister ws, VectorRegister wd, int minor_opcode);
   void EmitMsa2RF(int operation, int df, VectorRegister ws, VectorRegister wd, int minor_opcode);
 

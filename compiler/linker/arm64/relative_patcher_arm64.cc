@@ -16,11 +16,17 @@
 
 #include "linker/arm64/relative_patcher_arm64.h"
 
+#include "arch/arm64/asm_support_arm64.h"
 #include "arch/arm64/instruction_set_features_arm64.h"
 #include "art_method.h"
+#include "base/bit_utils.h"
 #include "compiled_method.h"
 #include "driver/compiler_driver.h"
+#include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "linker/output_stream.h"
+#include "lock_word.h"
+#include "mirror/object.h"
+#include "mirror/array-inl.h"
 #include "oat.h"
 #include "oat_quick_method_header.h"
 #include "utils/arm64/assembler_arm64.h"
@@ -30,17 +36,52 @@ namespace linker {
 
 namespace {
 
+// Maximum positive and negative displacement for method call measured from the patch location.
+// (Signed 28 bit displacement with the last two bits 0 has range [-2^27, 2^27-4] measured from
+// the ARM64 PC pointing to the BL.)
+constexpr uint32_t kMaxMethodCallPositiveDisplacement = (1u << 27) - 4u;
+constexpr uint32_t kMaxMethodCallNegativeDisplacement = (1u << 27);
+
+// Maximum positive and negative displacement for a conditional branch measured from the patch
+// location. (Signed 21 bit displacement with the last two bits 0 has range [-2^20, 2^20-4]
+// measured from the ARM64 PC pointing to the B.cond.)
+constexpr uint32_t kMaxBcondPositiveDisplacement = (1u << 20) - 4u;
+constexpr uint32_t kMaxBcondNegativeDisplacement = (1u << 20);
+
+// The ADRP thunk for erratum 843419 is 2 instructions, i.e. 8 bytes.
+constexpr uint32_t kAdrpThunkSize = 8u;
+
 inline bool IsAdrpPatch(const LinkerPatch& patch) {
-  return (patch.IsPcRelative() && patch.GetType() != LinkerPatch::Type::kCallRelative) &&
-      patch.LiteralOffset() == patch.PcInsnOffset();
+  switch (patch.GetType()) {
+    case LinkerPatch::Type::kMethod:
+    case LinkerPatch::Type::kCall:
+    case LinkerPatch::Type::kCallRelative:
+    case LinkerPatch::Type::kType:
+    case LinkerPatch::Type::kString:
+    case LinkerPatch::Type::kBakerReadBarrierBranch:
+      return false;
+    case LinkerPatch::Type::kTypeRelative:
+    case LinkerPatch::Type::kTypeBssEntry:
+    case LinkerPatch::Type::kStringRelative:
+    case LinkerPatch::Type::kStringBssEntry:
+    case LinkerPatch::Type::kDexCacheArray:
+      return patch.LiteralOffset() == patch.PcInsnOffset();
+  }
+}
+
+inline uint32_t MaxExtraSpace(size_t num_adrp, size_t code_size) {
+  if (num_adrp == 0u) {
+    return 0u;
+  }
+  uint32_t alignment_bytes = CompiledMethod::AlignCode(code_size, kArm64) - code_size;
+  return kAdrpThunkSize * num_adrp + alignment_bytes;
 }
 
 }  // anonymous namespace
 
 Arm64RelativePatcher::Arm64RelativePatcher(RelativePatcherTargetProvider* provider,
                                            const Arm64InstructionSetFeatures* features)
-    : ArmBaseRelativePatcher(provider, kArm64, CompileThunkCode(),
-                             kMaxPositiveDisplacement, kMaxNegativeDisplacement),
+    : ArmBaseRelativePatcher(provider, kArm64),
       fix_cortex_a53_843419_(features->NeedFixCortexA53_843419()),
       reserved_adrp_thunks_(0u),
       processed_adrp_thunks_(0u) {
@@ -74,7 +115,9 @@ uint32_t Arm64RelativePatcher::ReserveSpace(uint32_t offset,
       ++num_adrp;
     }
   }
-  offset = ReserveSpaceInternal(offset, compiled_method, method_ref, kAdrpThunkSize * num_adrp);
+  ArrayRef<const uint8_t> code = compiled_method->GetQuickCode();
+  uint32_t max_extra_space = MaxExtraSpace(num_adrp, code.size());
+  offset = ReserveSpaceInternal(offset, compiled_method, method_ref, max_extra_space);
   if (num_adrp == 0u) {
     return offset;
   }
@@ -82,7 +125,6 @@ uint32_t Arm64RelativePatcher::ReserveSpace(uint32_t offset,
   // Now that we have the actual offset where the code will be placed, locate the ADRP insns
   // that actually require the thunk.
   uint32_t quick_code_offset = compiled_method->AlignCode(offset + sizeof(OatQuickMethodHeader));
-  ArrayRef<const uint8_t> code = compiled_method->GetQuickCode();
   uint32_t thunk_offset = compiled_method->AlignCode(quick_code_offset + code.size());
   DCHECK(compiled_method != nullptr);
   for (const LinkerPatch& patch : compiled_method->GetPatches()) {
@@ -146,7 +188,7 @@ void Arm64RelativePatcher::PatchCall(std::vector<uint8_t>* code,
   DCHECK_EQ(literal_offset & 3u, 0u);
   DCHECK_EQ(patch_offset & 3u, 0u);
   DCHECK_EQ(target_offset & 3u, 0u);
-  uint32_t displacement = CalculateDisplacement(patch_offset, target_offset & ~1u);
+  uint32_t displacement = CalculateMethodCallDisplacement(patch_offset, target_offset & ~1u);
   DCHECK_EQ(displacement & 3u, 0u);
   DCHECK((displacement >> 27) == 0u || (displacement >> 27) == 31u);  // 28-bit signed.
   uint32_t insn = (displacement & 0x0fffffffu) >> 2;
@@ -253,21 +295,218 @@ void Arm64RelativePatcher::PatchPcRelativeReference(std::vector<uint8_t>* code,
   }
 }
 
-std::vector<uint8_t> Arm64RelativePatcher::CompileThunkCode() {
-  // The thunk just uses the entry point in the ArtMethod. This works even for calls
-  // to the generic JNI and interpreter trampolines.
+void Arm64RelativePatcher::PatchBakerReadBarrierBranch(std::vector<uint8_t>* code,
+                                                       const LinkerPatch& patch,
+                                                       uint32_t patch_offset) {
+  DCHECK_ALIGNED(patch_offset, 4u);
+  uint32_t literal_offset = patch.LiteralOffset();
+  DCHECK_ALIGNED(literal_offset, 4u);
+  DCHECK_LT(literal_offset, code->size());
+  uint32_t insn = GetInsn(code, literal_offset);
+  DCHECK_EQ(insn & 0xffffffe0u, 0xb5000000);  // CBNZ Xt, +0 (unpatched)
+  ThunkKey key = GetBakerReadBarrierKey(patch);
+  if (kIsDebugBuild) {
+    // Check that the next instruction matches the expected LDR.
+    switch (key.GetType()) {
+      case ThunkType::kBakerReadBarrierField: {
+        DCHECK_GE(code->size() - literal_offset, 8u);
+        uint32_t next_insn = GetInsn(code, literal_offset + 4u);
+        // LDR (immediate) with correct base_reg.
+        CheckValidReg(next_insn & 0x1fu);  // Check destination register.
+        CHECK_EQ(next_insn & 0xffc003e0u, 0xb9400000u | (key.GetOffsetParams().base_reg << 5));
+        break;
+      }
+      case ThunkType::kBakerReadBarrierRoot: {
+        DCHECK_GE(literal_offset, 4u);
+        uint32_t prev_insn = GetInsn(code, literal_offset - 4u);
+        // LDR (immediate) with correct root_reg.
+        CHECK_EQ(prev_insn & 0xffc0001fu, 0xb9400000u | key.GetRootParams().root_reg);
+        break;
+      }
+      default:
+        LOG(FATAL) << "Unexpected type: " << static_cast<uint32_t>(key.GetType());
+        UNREACHABLE();
+    }
+  }
+  uint32_t target_offset = GetThunkTargetOffset(key, patch_offset);
+  DCHECK_ALIGNED(target_offset, 4u);
+  uint32_t disp = target_offset - patch_offset;
+  DCHECK((disp >> 20) == 0u || (disp >> 20) == 4095u);  // 21-bit signed.
+  insn |= (disp << (5 - 2)) & 0x00ffffe0u;              // Shift bits 2-20 to 5-23.
+  SetInsn(code, literal_offset, insn);
+}
+
+ArmBaseRelativePatcher::ThunkKey Arm64RelativePatcher::GetBakerReadBarrierKey(
+    const LinkerPatch& patch) {
+  DCHECK_EQ(patch.GetType(), LinkerPatch::Type::kBakerReadBarrierBranch);
+  uint32_t value = patch.GetBakerCustomValue1();
+  BakerReadBarrierKind type = BakerReadBarrierKindField::Decode(value);
+  ThunkParams params;
+  switch (type) {
+    case BakerReadBarrierKind::kField:
+      params.offset_params.base_reg = BakerReadBarrierFirstRegField::Decode(value);
+      CheckValidReg(params.offset_params.base_reg);
+      params.offset_params.holder_reg = BakerReadBarrierSecondRegField::Decode(value);
+      CheckValidReg(params.offset_params.holder_reg);
+      break;
+    case BakerReadBarrierKind::kGcRoot:
+      params.root_params.root_reg = BakerReadBarrierFirstRegField::Decode(value);
+      CheckValidReg(params.root_params.root_reg);
+      params.root_params.dummy = 0u;
+      DCHECK_EQ(BakerReadBarrierSecondRegField::Decode(value), kInvalidEncodedReg);
+      break;
+    default:
+      LOG(FATAL) << "Unexpected type: " << static_cast<uint32_t>(type);
+      UNREACHABLE();
+  }
+  constexpr uint8_t kTypeTranslationOffset = 1u;
+  static_assert(static_cast<uint32_t>(BakerReadBarrierKind::kField) + kTypeTranslationOffset ==
+                static_cast<uint32_t>(ThunkType::kBakerReadBarrierField),
+                "Thunk type translation check.");
+  static_assert(static_cast<uint32_t>(BakerReadBarrierKind::kGcRoot) + kTypeTranslationOffset ==
+                static_cast<uint32_t>(ThunkType::kBakerReadBarrierRoot),
+                "Thunk type translation check.");
+  return ThunkKey(static_cast<ThunkType>(static_cast<uint32_t>(type) + kTypeTranslationOffset),
+                  params);
+}
+
+#define __ assembler.GetVIXLAssembler()->
+
+static void EmitGrayCheckAndFastPath(arm64::Arm64Assembler& assembler,
+                                     vixl::aarch64::Register base_reg,
+                                     vixl::aarch64::MemOperand& lock_word,
+                                     vixl::aarch64::Label* slow_path) {
+  using namespace vixl::aarch64;  // NOLINT(build/namespaces)
+  // Load the lock word containing the rb_state.
+  __ Ldr(ip0.W(), lock_word);
+  // Given the numeric representation, it's enough to check the low bit of the rb_state.
+  static_assert(ReadBarrier::WhiteState() == 0, "Expecting white to have value 0");
+  static_assert(ReadBarrier::GrayState() == 1, "Expecting gray to have value 1");
+  __ Tbnz(ip0.W(), LockWord::kReadBarrierStateShift, slow_path);
+  static_assert(
+      BAKER_MARK_INTROSPECTION_ARRAY_LDR_OFFSET == BAKER_MARK_INTROSPECTION_FIELD_LDR_OFFSET,
+      "Field and array LDR offsets must be the same to reuse the same code.");
+  // Adjust the return address back to the LDR (1 instruction; 2 for heap poisoning).
+  static_assert(BAKER_MARK_INTROSPECTION_FIELD_LDR_OFFSET == (kPoisonHeapReferences ? -8 : -4),
+                "Field LDR must be 1 instruction (4B) before the return address label; "
+                " 2 instructions (8B) for heap poisoning.");
+  __ Add(lr, lr, BAKER_MARK_INTROSPECTION_FIELD_LDR_OFFSET);
+  // Introduce a dependency on the lock_word including rb_state,
+  // to prevent load-load reordering, and without using
+  // a memory barrier (which would be more expensive).
+  __ Add(base_reg, base_reg, Operand(vixl::aarch64::ip0, LSR, 32));
+  __ Br(lr);          // And return back to the function.
+  // Note: The fake dependency is unnecessary for the slow path.
+}
+
+std::vector<uint8_t> Arm64RelativePatcher::CompileThunk(const ThunkKey& key) {
+  using namespace vixl::aarch64;  // NOLINT(build/namespaces)
   ArenaPool pool;
   ArenaAllocator arena(&pool);
   arm64::Arm64Assembler assembler(&arena);
-  Offset offset(ArtMethod::EntryPointFromQuickCompiledCodeOffset(
-      kArm64PointerSize).Int32Value());
-  assembler.JumpTo(ManagedRegister(arm64::X0), offset, ManagedRegister(arm64::IP0));
+
+  switch (key.GetType()) {
+    case ThunkType::kMethodCall: {
+      // The thunk just uses the entry point in the ArtMethod. This works even for calls
+      // to the generic JNI and interpreter trampolines.
+      Offset offset(ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+          kArm64PointerSize).Int32Value());
+      assembler.JumpTo(ManagedRegister(arm64::X0), offset, ManagedRegister(arm64::IP0));
+      break;
+    }
+    case ThunkType::kBakerReadBarrierField: {
+      // Check if the holder is gray and, if not, add fake dependency to the base register
+      // and return to the LDR instruction to load the reference. Otherwise, use introspection
+      // to load the reference and call the entrypoint (in IP1) that performs further checks
+      // on the reference and marks it if needed.
+      auto holder_reg = Register::GetXRegFromCode(key.GetOffsetParams().holder_reg);
+      auto base_reg = Register::GetXRegFromCode(key.GetOffsetParams().base_reg);
+      UseScratchRegisterScope temps(assembler.GetVIXLAssembler());
+      temps.Exclude(ip0, ip1);
+      // If base_reg differs from holder_reg, the offset was too large and we must have
+      // emitted an explicit null check before the load. Otherwise, we need to null-check
+      // the holder as we do not necessarily do that check before going to the thunk.
+      vixl::aarch64::Label throw_npe;
+      if (holder_reg.Is(base_reg)) {
+        __ Cbz(holder_reg.W(), &throw_npe);
+      }
+      vixl::aarch64::Label slow_path;
+      MemOperand lock_word(holder_reg, mirror::Object::MonitorOffset().Int32Value());
+      EmitGrayCheckAndFastPath(assembler, base_reg, lock_word, &slow_path);
+      __ Bind(&slow_path);
+      MemOperand ldr_address(lr, BAKER_MARK_INTROSPECTION_FIELD_LDR_OFFSET);
+      __ Ldr(ip0.W(), ldr_address);         // Load the LDR (immediate) unsigned offset.
+      __ Ubfx(ip0.W(), ip0.W(), 10, 12);    // Extract the offset.
+      __ Ldr(ip0.W(), MemOperand(base_reg, ip0, LSL, 2));   // Load the reference.
+      // Do not unpoison. With heap poisoning enabled, the entrypoint expects a poisoned reference.
+      __ Br(ip1);                           // Jump to the entrypoint.
+      if (holder_reg.Is(base_reg)) {
+        // Add null check slow path. The stack map is at the address pointed to by LR.
+        __ Bind(&throw_npe);
+        int32_t offset = GetThreadOffset<kArm64PointerSize>(kQuickThrowNullPointer).Int32Value();
+        __ Ldr(ip0, MemOperand(vixl::aarch64::x19, offset));
+        __ Br(ip0);
+      }
+      break;
+    }
+    case ThunkType::kBakerReadBarrierRoot: {
+      // Check if the reference needs to be marked and if so (i.e. not null, not marked yet
+      // and it does not have a forwarding address), call the correct introspection entrypoint;
+      // otherwise return the reference (or the extracted forwarding address).
+      // There is no gray bit check for GC roots.
+      auto root_reg = Register::GetWRegFromCode(key.GetRootParams().root_reg);
+      UseScratchRegisterScope temps(assembler.GetVIXLAssembler());
+      temps.Exclude(ip0, ip1);
+      vixl::aarch64::Label return_label, not_marked, forwarding_address;
+      __ Cbz(root_reg, &return_label);
+      MemOperand lock_word(root_reg.X(), mirror::Object::MonitorOffset().Int32Value());
+      __ Ldr(ip0.W(), lock_word);
+      __ Tbz(ip0.W(), LockWord::kMarkBitStateShift, &not_marked);
+      __ Bind(&return_label);
+      __ Br(lr);
+      __ Bind(&not_marked);
+      __ Tst(ip0.W(), Operand(ip0.W(), LSL, 1));
+      __ B(&forwarding_address, mi);
+      // Adjust the art_quick_read_barrier_mark_introspection address in IP1 to
+      // art_quick_read_barrier_mark_introspection_gc_roots.
+      __ Add(ip1, ip1, Operand(BAKER_MARK_INTROSPECTION_GC_ROOT_ENTRYPOINT_OFFSET));
+      __ Mov(ip0.W(), root_reg);
+      __ Br(ip1);
+      __ Bind(&forwarding_address);
+      __ Lsl(root_reg, ip0.W(), LockWord::kForwardingAddressShift);
+      __ Br(lr);
+      break;
+    }
+  }
+
   // Ensure we emit the literal pool.
   assembler.FinalizeCode();
   std::vector<uint8_t> thunk_code(assembler.CodeSize());
   MemoryRegion code(thunk_code.data(), thunk_code.size());
   assembler.FinalizeInstructions(code);
   return thunk_code;
+}
+
+#undef __
+
+uint32_t Arm64RelativePatcher::MaxPositiveDisplacement(ThunkType type) {
+  switch (type) {
+    case ThunkType::kMethodCall:
+      return kMaxMethodCallPositiveDisplacement;
+    case ThunkType::kBakerReadBarrierField:
+    case ThunkType::kBakerReadBarrierRoot:
+      return kMaxBcondPositiveDisplacement;
+  }
+}
+
+uint32_t Arm64RelativePatcher::MaxNegativeDisplacement(ThunkType type) {
+  switch (type) {
+    case ThunkType::kMethodCall:
+      return kMaxMethodCallNegativeDisplacement;
+    case ThunkType::kBakerReadBarrierField:
+    case ThunkType::kBakerReadBarrierRoot:
+      return kMaxBcondNegativeDisplacement;
+  }
 }
 
 uint32_t Arm64RelativePatcher::PatchAdrp(uint32_t adrp, uint32_t disp) {

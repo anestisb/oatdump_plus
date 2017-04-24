@@ -69,15 +69,12 @@ class RedefinitionDataHolder;
 class RedefinitionDataIter;
 
 // Class that can redefine a single class's methods.
-// TODO We should really make this be driven by an outside class so we can do multiple classes at
-// the same time and have less required cleanup.
 class Redefiner {
  public:
   // Redefine the given classes with the given dex data. Note this function does not take ownership
   // of the dex_data pointers. It is not used after this call however and may be freed if desired.
   // The caller is responsible for freeing it. The runtime makes its own copy of the data. This
   // function does not call the transformation events.
-  // TODO Check modified flag of the definitions.
   static jvmtiError RedefineClassesDirect(ArtJvmTiEnv* env,
                                           art::Runtime* runtime,
                                           art::Thread* self,
@@ -87,7 +84,6 @@ class Redefiner {
   // Redefine the given classes with the given dex data. Note this function does not take ownership
   // of the dex_data pointers. It is not used after this call however and may be freed if desired.
   // The caller is responsible for freeing it. The runtime makes its own copy of the data.
-  // TODO This function should call the transformation events.
   static jvmtiError RedefineClasses(ArtJvmTiEnv* env,
                                     EventHandler* event_handler,
                                     art::Runtime* runtime,
@@ -164,8 +160,6 @@ class Redefiner {
         REQUIRES_SHARED(art::Locks::mutator_lock_);
 
     // Preallocates all needed allocations in klass so that we can pause execution safely.
-    // TODO We should be able to free the arrays if they end up not being used. Investigate doing
-    // this in the future. For now we will just take the memory hit.
     bool EnsureClassAllocationsFinished(/*out*/RedefinitionDataIter* data)
         REQUIRES_SHARED(art::Locks::mutator_lock_);
 
@@ -222,7 +216,6 @@ class Redefiner {
   // mirror::Class difficult and confusing.
   std::string* error_msg_;
 
-  // TODO Maybe change jclass to a mirror::Class
   Redefiner(art::Runtime* runtime,
             art::Thread* self,
             std::string* error_msg)
@@ -239,7 +232,6 @@ class Redefiner {
                                               /*out*/std::string* error_msg)
       REQUIRES_SHARED(art::Locks::mutator_lock_);
 
-  // TODO Put on all the lock qualifiers.
   jvmtiError Run() REQUIRES_SHARED(art::Locks::mutator_lock_);
 
   bool CheckAllRedefinitionAreValid() REQUIRES_SHARED(art::Locks::mutator_lock_);

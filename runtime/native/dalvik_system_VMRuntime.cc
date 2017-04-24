@@ -46,6 +46,7 @@ extern "C" void android_set_application_target_sdk_version(uint32_t version);
 #include "gc/space/image_space.h"
 #include "gc/task_processor.h"
 #include "intern_table.h"
+#include "java_vm_ext.h"
 #include "jni_internal.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache-inl.h"
@@ -252,7 +253,7 @@ static void VMRuntime_trimHeap(JNIEnv* env, jobject) {
 }
 
 static void VMRuntime_concurrentGC(JNIEnv* env, jobject) {
-  Runtime::Current()->GetHeap()->ConcurrentGC(ThreadForEnv(env), true);
+  Runtime::Current()->GetHeap()->ConcurrentGC(ThreadForEnv(env), gc::kGcCauseBackground, true);
 }
 
 static void VMRuntime_requestHeapTrim(JNIEnv* env, jobject) {
@@ -260,7 +261,9 @@ static void VMRuntime_requestHeapTrim(JNIEnv* env, jobject) {
 }
 
 static void VMRuntime_requestConcurrentGC(JNIEnv* env, jobject) {
-  Runtime::Current()->GetHeap()->RequestConcurrentGC(ThreadForEnv(env), true);
+  Runtime::Current()->GetHeap()->RequestConcurrentGC(ThreadForEnv(env),
+                                                     gc::kGcCauseBackground,
+                                                     true);
 }
 
 static void VMRuntime_startHeapTaskProcessor(JNIEnv* env, jobject) {

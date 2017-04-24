@@ -19,6 +19,7 @@
 
 #include "scoped_thread_state_change.h"
 
+#include "base/casts.h"
 #include "jni_env_ext-inl.h"
 #include "obj_ptr-inl.h"
 #include "thread-inl.h"
@@ -74,8 +75,10 @@ inline ScopedThreadStateChange::~ScopedThreadStateChange() {
 template<typename T>
 inline T ScopedObjectAccessAlreadyRunnable::AddLocalReference(ObjPtr<mirror::Object> obj) const {
   Locks::mutator_lock_->AssertSharedHeld(Self());
-  DCHECK(IsRunnable());  // Don't work with raw objects in non-runnable states.
-  DCHECK_NE(obj, Runtime::Current()->GetClearedJniWeakGlobal());
+  if (kIsDebugBuild) {
+    CHECK(IsRunnable());  // Don't work with raw objects in non-runnable states.
+    DCheckObjIsNotClearedJniWeakGlobal(obj);
+  }
   return obj == nullptr ? nullptr : Env()->AddLocalReference<T>(obj);
 }
 

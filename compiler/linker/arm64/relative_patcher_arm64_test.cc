@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
+#include "base/casts.h"
 #include "linker/relative_patcher_test.h"
 #include "linker/arm64/relative_patcher_arm64.h"
+#include "lock_word.h"
+#include "mirror/object.h"
 #include "oat_quick_method_header.h"
 
 namespace art {
@@ -32,6 +35,9 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
   static const uint8_t kNopRawCode[];
   static const ArrayRef<const uint8_t> kNopCode;
 
+  // NOP instruction.
+  static constexpr uint32_t kNopInsn = 0xd503201f;
+
   // All branches can be created from kBlPlus0 or kBPlus0 by adding the low 26 bits.
   static constexpr uint32_t kBlPlus0 = 0x94000000u;
   static constexpr uint32_t kBPlus0 = 0x14000000u;
@@ -40,7 +46,7 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
   static constexpr uint32_t kBlPlusMax = 0x95ffffffu;
   static constexpr uint32_t kBlMinusMax = 0x96000000u;
 
-  // LDR immediate, 32-bit.
+  // LDR immediate, unsigned offset.
   static constexpr uint32_t kLdrWInsn = 0xb9400000u;
 
   // ADD/ADDS/SUB/SUBS immediate, 64-bit.
@@ -60,6 +66,34 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
   // in units of 4-bytes (for 32-bit load) or 8-bytes (for 64-bit load).
   static constexpr uint32_t kLdrWSpRelInsn = 0xb94003edu;
   static constexpr uint32_t kLdrXSpRelInsn = 0xf94003edu;
+
+  // CBNZ x17, +0. Bits 5-23 are a placeholder for target offset from PC in units of 4-bytes.
+  static constexpr uint32_t kCbnzIP1Plus0Insn = 0xb5000011;
+
+  void InsertInsn(std::vector<uint8_t>* code, size_t pos, uint32_t insn) {
+    CHECK_LE(pos, code->size());
+    const uint8_t insn_code[] = {
+        static_cast<uint8_t>(insn),
+        static_cast<uint8_t>(insn >> 8),
+        static_cast<uint8_t>(insn >> 16),
+        static_cast<uint8_t>(insn >> 24),
+    };
+    static_assert(sizeof(insn_code) == 4u, "Invalid sizeof(insn_code).");
+    code->insert(code->begin() + pos, insn_code, insn_code + sizeof(insn_code));
+  }
+
+  void PushBackInsn(std::vector<uint8_t>* code, uint32_t insn) {
+    InsertInsn(code, code->size(), insn);
+  }
+
+  std::vector<uint8_t> RawCode(std::initializer_list<uint32_t> insns) {
+    std::vector<uint8_t> raw_code;
+    raw_code.reserve(insns.size() * 4u);
+    for (uint32_t insn : insns) {
+      PushBackInsn(&raw_code, insn);
+    }
+    return raw_code;
+  }
 
   uint32_t Create2MethodsWithGap(const ArrayRef<const uint8_t>& method1_code,
                                  const ArrayRef<const LinkerPatch>& method1_patches,
@@ -93,8 +127,7 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
       uint32_t chunk_code_size =
           chunk_size - CodeAlignmentSize(chunk_start) - sizeof(OatQuickMethodHeader);
       gap_code.resize(chunk_code_size, 0u);
-      AddCompiledMethod(MethodRef(method_idx), ArrayRef<const uint8_t>(gap_code),
-                        ArrayRef<const LinkerPatch>());
+      AddCompiledMethod(MethodRef(method_idx), ArrayRef<const uint8_t>(gap_code));
       method_idx += 1u;
       chunk_start += chunk_size;
       chunk_size = kSmallChunkSize;  // For all but the first chunk.
@@ -112,7 +145,7 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
     // There may be a thunk before method2.
     if (last_result.second != last_method_offset) {
       // Thunk present. Check that there's only one.
-      uint32_t thunk_end = CompiledCode::AlignCode(gap_end, kArm64) + ThunkSize();
+      uint32_t thunk_end = CompiledCode::AlignCode(gap_end, kArm64) + MethodCallThunkSize();
       uint32_t header_offset = thunk_end + CodeAlignmentSize(thunk_end);
       CHECK_EQ(last_result.second, header_offset + sizeof(OatQuickMethodHeader));
     }
@@ -126,37 +159,49 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
     return result.second;
   }
 
-  uint32_t ThunkSize() {
-    return static_cast<Arm64RelativePatcher*>(patcher_.get())->thunk_code_.size();
+  std::vector<uint8_t> CompileMethodCallThunk() {
+    ArmBaseRelativePatcher::ThunkKey key(
+        ArmBaseRelativePatcher::ThunkType::kMethodCall,
+        ArmBaseRelativePatcher::ThunkParams{{ 0, 0 }});  // NOLINT(whitespace/braces)
+    return down_cast<Arm64RelativePatcher*>(patcher_.get())->CompileThunk(key);
+  }
+
+  uint32_t MethodCallThunkSize() {
+    return CompileMethodCallThunk().size();
   }
 
   bool CheckThunk(uint32_t thunk_offset) {
-    Arm64RelativePatcher* patcher = static_cast<Arm64RelativePatcher*>(patcher_.get());
-    ArrayRef<const uint8_t> expected_code(patcher->thunk_code_);
+    const std::vector<uint8_t> expected_code = CompileMethodCallThunk();
     if (output_.size() < thunk_offset + expected_code.size()) {
       LOG(ERROR) << "output_.size() == " << output_.size() << " < "
           << "thunk_offset + expected_code.size() == " << (thunk_offset + expected_code.size());
       return false;
     }
     ArrayRef<const uint8_t> linked_code(&output_[thunk_offset], expected_code.size());
-    if (linked_code == expected_code) {
+    if (linked_code == ArrayRef<const uint8_t>(expected_code)) {
       return true;
     }
     // Log failure info.
-    DumpDiff(expected_code, linked_code);
+    DumpDiff(ArrayRef<const uint8_t>(expected_code), linked_code);
     return false;
+  }
+
+  std::vector<uint8_t> GenNops(size_t num_nops) {
+    std::vector<uint8_t> result;
+    result.reserve(num_nops * 4u + 4u);
+    for (size_t i = 0; i != num_nops; ++i) {
+      PushBackInsn(&result, kNopInsn);
+    }
+    return result;
   }
 
   std::vector<uint8_t> GenNopsAndBl(size_t num_nops, uint32_t bl) {
     std::vector<uint8_t> result;
     result.reserve(num_nops * 4u + 4u);
     for (size_t i = 0; i != num_nops; ++i) {
-      result.insert(result.end(), kNopCode.begin(), kNopCode.end());
+      PushBackInsn(&result, kNopInsn);
     }
-    result.push_back(static_cast<uint8_t>(bl));
-    result.push_back(static_cast<uint8_t>(bl >> 8));
-    result.push_back(static_cast<uint8_t>(bl >> 16));
-    result.push_back(static_cast<uint8_t>(bl >> 24));
+    PushBackInsn(&result, bl);
     return result;
   }
 
@@ -167,7 +212,7 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
     std::vector<uint8_t> result;
     result.reserve(num_nops * 4u + 8u);
     for (size_t i = 0; i != num_nops; ++i) {
-      result.insert(result.end(), kNopCode.begin(), kNopCode.end());
+      PushBackInsn(&result, kNopInsn);
     }
     CHECK_ALIGNED(method_offset, 4u);
     CHECK_ALIGNED(target_offset, 4u);
@@ -188,14 +233,8 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
         ((disp & 0xffffc000) >> (14 - 5)) |   // immhi = (disp >> 14) is at bit 5,
         // We take the sign bit from the disp, limiting disp to +- 2GiB.
         ((disp & 0x80000000) >> (31 - 23));   // sign bit in immhi is at bit 23.
-    result.push_back(static_cast<uint8_t>(adrp));
-    result.push_back(static_cast<uint8_t>(adrp >> 8));
-    result.push_back(static_cast<uint8_t>(adrp >> 16));
-    result.push_back(static_cast<uint8_t>(adrp >> 24));
-    result.push_back(static_cast<uint8_t>(use_insn));
-    result.push_back(static_cast<uint8_t>(use_insn >> 8));
-    result.push_back(static_cast<uint8_t>(use_insn >> 16));
-    result.push_back(static_cast<uint8_t>(use_insn >> 24));
+    PushBackInsn(&result, adrp);
+    PushBackInsn(&result, use_insn);
     return result;
   }
 
@@ -208,7 +247,7 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
   void TestNopsAdrpLdr(size_t num_nops, uint32_t dex_cache_arrays_begin, uint32_t element_offset) {
     dex_cache_arrays_begin_ = dex_cache_arrays_begin;
     auto code = GenNopsAndAdrpLdr(num_nops, 0u, 0u);  // Unpatched.
-    LinkerPatch patches[] = {
+    const LinkerPatch patches[] = {
         LinkerPatch::DexCacheArrayPatch(num_nops * 4u     , nullptr, num_nops * 4u, element_offset),
         LinkerPatch::DexCacheArrayPatch(num_nops * 4u + 4u, nullptr, num_nops * 4u, element_offset),
     };
@@ -233,7 +272,7 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
     constexpr uint32_t kStringIndex = 1u;
     string_index_to_offset_map_.Put(kStringIndex, string_offset);
     auto code = GenNopsAndAdrpAdd(num_nops, 0u, 0u);  // Unpatched.
-    LinkerPatch patches[] = {
+    const LinkerPatch patches[] = {
         LinkerPatch::RelativeStringPatch(num_nops * 4u     , nullptr, num_nops * 4u, kStringIndex),
         LinkerPatch::RelativeStringPatch(num_nops * 4u + 4u, nullptr, num_nops * 4u, kStringIndex),
     };
@@ -247,16 +286,6 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
     EXPECT_TRUE(CheckLinkedMethod(MethodRef(1u), ArrayRef<const uint8_t>(expected_code)));
   }
 
-  void InsertInsn(std::vector<uint8_t>* code, size_t pos, uint32_t insn) {
-    CHECK_LE(pos, code->size());
-    const uint8_t insn_code[] = {
-        static_cast<uint8_t>(insn), static_cast<uint8_t>(insn >> 8),
-        static_cast<uint8_t>(insn >> 16), static_cast<uint8_t>(insn >> 24),
-    };
-    static_assert(sizeof(insn_code) == 4u, "Invalid sizeof(insn_code).");
-    code->insert(code->begin() + pos, insn_code, insn_code + sizeof(insn_code));
-  }
-
   void PrepareNopsAdrpInsn2Ldr(size_t num_nops,
                                uint32_t insn2,
                                uint32_t dex_cache_arrays_begin,
@@ -264,7 +293,7 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
     dex_cache_arrays_begin_ = dex_cache_arrays_begin;
     auto code = GenNopsAndAdrpLdr(num_nops, 0u, 0u);  // Unpatched.
     InsertInsn(&code, num_nops * 4u + 4u, insn2);
-    LinkerPatch patches[] = {
+    const LinkerPatch patches[] = {
         LinkerPatch::DexCacheArrayPatch(num_nops * 4u     , nullptr, num_nops * 4u, element_offset),
         LinkerPatch::DexCacheArrayPatch(num_nops * 4u + 8u, nullptr, num_nops * 4u, element_offset),
     };
@@ -279,7 +308,7 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
     string_index_to_offset_map_.Put(kStringIndex, string_offset);
     auto code = GenNopsAndAdrpAdd(num_nops, 0u, 0u);  // Unpatched.
     InsertInsn(&code, num_nops * 4u + 4u, insn2);
-    LinkerPatch patches[] = {
+    const LinkerPatch patches[] = {
         LinkerPatch::RelativeStringPatch(num_nops * 4u     , nullptr, num_nops * 4u, kStringIndex),
         LinkerPatch::RelativeStringPatch(num_nops * 4u + 8u, nullptr, num_nops * 4u, kStringIndex),
     };
@@ -329,7 +358,7 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
     InsertInsn(&expected_thunk_code, 4u, b_in);
     ASSERT_EQ(expected_thunk_code.size(), 8u);
 
-    uint32_t thunk_size = ThunkSize();
+    uint32_t thunk_size = MethodCallThunkSize();
     ASSERT_EQ(thunk_offset + thunk_size, output_.size());
     ASSERT_EQ(thunk_size, expected_thunk_code.size());
     ArrayRef<const uint8_t> thunk_code(&output_[thunk_offset], thunk_size);
@@ -433,6 +462,33 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
     uint32_t insn2 = sprel_ldr_insn | ((sprel_disp_in_load_units & 0xfffu) << 10);
     TestAdrpInsn2Add(insn2, adrp_offset, has_thunk, string_offset);
   }
+
+  std::vector<uint8_t> CompileBakerOffsetThunk(uint32_t base_reg, uint32_t holder_reg) {
+    const LinkerPatch patch = LinkerPatch::BakerReadBarrierBranchPatch(
+        0u, Arm64RelativePatcher::EncodeBakerReadBarrierFieldData(base_reg, holder_reg));
+    auto* patcher = down_cast<Arm64RelativePatcher*>(patcher_.get());
+    ArmBaseRelativePatcher::ThunkKey key = patcher->GetBakerReadBarrierKey(patch);
+    return patcher->CompileThunk(key);
+  }
+
+  std::vector<uint8_t> CompileBakerGcRootThunk(uint32_t root_reg) {
+    LinkerPatch patch = LinkerPatch::BakerReadBarrierBranchPatch(
+        0u, Arm64RelativePatcher::EncodeBakerReadBarrierGcRootData(root_reg));
+    auto* patcher = down_cast<Arm64RelativePatcher*>(patcher_.get());
+    ArmBaseRelativePatcher::ThunkKey key = patcher->GetBakerReadBarrierKey(patch);
+    return patcher->CompileThunk(key);
+  }
+
+  uint32_t GetOutputInsn(uint32_t offset) {
+    CHECK_LE(offset, output_.size());
+    CHECK_GE(output_.size() - offset, 4u);
+    return (static_cast<uint32_t>(output_[offset]) << 0) |
+           (static_cast<uint32_t>(output_[offset + 1]) << 8) |
+           (static_cast<uint32_t>(output_[offset + 2]) << 16) |
+           (static_cast<uint32_t>(output_[offset + 3]) << 24);
+  }
+
+  void TestBakerField(uint32_t offset, uint32_t root_reg);
 };
 
 const uint8_t Arm64RelativePatcherTest::kCallRawCode[] = {
@@ -458,24 +514,22 @@ class Arm64RelativePatcherTestDenver64 : public Arm64RelativePatcherTest {
 };
 
 TEST_F(Arm64RelativePatcherTestDefault, CallSelf) {
-  LinkerPatch patches[] = {
+  const LinkerPatch patches[] = {
       LinkerPatch::RelativeCodePatch(0u, nullptr, 1u),
   };
   AddCompiledMethod(MethodRef(1u), kCallCode, ArrayRef<const LinkerPatch>(patches));
   Link();
 
-  static const uint8_t expected_code[] = {
-      0x00, 0x00, 0x00, 0x94
-  };
+  const std::vector<uint8_t> expected_code = RawCode({kBlPlus0});
   EXPECT_TRUE(CheckLinkedMethod(MethodRef(1u), ArrayRef<const uint8_t>(expected_code)));
 }
 
 TEST_F(Arm64RelativePatcherTestDefault, CallOther) {
-  LinkerPatch method1_patches[] = {
+  const LinkerPatch method1_patches[] = {
       LinkerPatch::RelativeCodePatch(0u, nullptr, 2u),
   };
   AddCompiledMethod(MethodRef(1u), kCallCode, ArrayRef<const LinkerPatch>(method1_patches));
-  LinkerPatch method2_patches[] = {
+  const LinkerPatch method2_patches[] = {
       LinkerPatch::RelativeCodePatch(0u, nullptr, 1u),
   };
   AddCompiledMethod(MethodRef(2u), kCallCode, ArrayRef<const LinkerPatch>(method2_patches));
@@ -486,9 +540,7 @@ TEST_F(Arm64RelativePatcherTestDefault, CallOther) {
   uint32_t diff_after = method2_offset - method1_offset;
   CHECK_ALIGNED(diff_after, 4u);
   ASSERT_LT(diff_after >> 2, 1u << 8);  // Simple encoding, (diff_after >> 2) fits into 8 bits.
-  static const uint8_t method1_expected_code[] = {
-      static_cast<uint8_t>(diff_after >> 2), 0x00, 0x00, 0x94
-  };
+  const std::vector<uint8_t> method1_expected_code = RawCode({kBlPlus0 + (diff_after >> 2)});
   EXPECT_TRUE(CheckLinkedMethod(MethodRef(1u), ArrayRef<const uint8_t>(method1_expected_code)));
   uint32_t diff_before = method1_offset - method2_offset;
   CHECK_ALIGNED(diff_before, 4u);
@@ -498,7 +550,7 @@ TEST_F(Arm64RelativePatcherTestDefault, CallOther) {
 }
 
 TEST_F(Arm64RelativePatcherTestDefault, CallTrampoline) {
-  LinkerPatch patches[] = {
+  const LinkerPatch patches[] = {
       LinkerPatch::RelativeCodePatch(0u, nullptr, 2u),
   };
   AddCompiledMethod(MethodRef(1u), kCallCode, ArrayRef<const LinkerPatch>(patches));
@@ -518,7 +570,7 @@ TEST_F(Arm64RelativePatcherTestDefault, CallTrampolineTooFar) {
   constexpr uint32_t bl_offset_in_last_method = 1u * 4u;  // After NOPs.
   ArrayRef<const uint8_t> last_method_code(last_method_raw_code);
   ASSERT_EQ(bl_offset_in_last_method + 4u, last_method_code.size());
-  LinkerPatch last_method_patches[] = {
+  const LinkerPatch last_method_patches[] = {
       LinkerPatch::RelativeCodePatch(bl_offset_in_last_method, nullptr, missing_method_index),
   };
 
@@ -551,7 +603,7 @@ TEST_F(Arm64RelativePatcherTestDefault, CallOtherAlmostTooFarAfter) {
   ArrayRef<const uint8_t> method1_code(method1_raw_code);
   ASSERT_EQ(bl_offset_in_method1 + 4u, method1_code.size());
   uint32_t expected_last_method_idx = 65;  // Based on 2MiB chunks in Create2MethodsWithGap().
-  LinkerPatch method1_patches[] = {
+  const LinkerPatch method1_patches[] = {
       LinkerPatch::RelativeCodePatch(bl_offset_in_method1, nullptr, expected_last_method_idx),
   };
 
@@ -577,7 +629,7 @@ TEST_F(Arm64RelativePatcherTestDefault, CallOtherAlmostTooFarBefore) {
   constexpr uint32_t bl_offset_in_last_method = 0u * 4u;  // After NOPs.
   ArrayRef<const uint8_t> last_method_code(last_method_raw_code);
   ASSERT_EQ(bl_offset_in_last_method + 4u, last_method_code.size());
-  LinkerPatch last_method_patches[] = {
+  const LinkerPatch last_method_patches[] = {
       LinkerPatch::RelativeCodePatch(bl_offset_in_last_method, nullptr, 1u),
   };
 
@@ -603,7 +655,7 @@ TEST_F(Arm64RelativePatcherTestDefault, CallOtherJustTooFarAfter) {
   ArrayRef<const uint8_t> method1_code(method1_raw_code);
   ASSERT_EQ(bl_offset_in_method1 + 4u, method1_code.size());
   uint32_t expected_last_method_idx = 65;  // Based on 2MiB chunks in Create2MethodsWithGap().
-  LinkerPatch method1_patches[] = {
+  const LinkerPatch method1_patches[] = {
       LinkerPatch::RelativeCodePatch(bl_offset_in_method1, nullptr, expected_last_method_idx),
   };
 
@@ -620,9 +672,10 @@ TEST_F(Arm64RelativePatcherTestDefault, CallOtherJustTooFarAfter) {
   uint32_t last_method_offset = GetMethodOffset(last_method_idx);
   ASSERT_TRUE(IsAligned<kArm64Alignment>(last_method_offset));
   uint32_t last_method_header_offset = last_method_offset - sizeof(OatQuickMethodHeader);
+  uint32_t thunk_size = MethodCallThunkSize();
   uint32_t thunk_offset =
-      RoundDown(last_method_header_offset - ThunkSize(), GetInstructionSetAlignment(kArm64));
-  DCHECK_EQ(thunk_offset + ThunkSize() + CodeAlignmentSize(thunk_offset + ThunkSize()),
+      RoundDown(last_method_header_offset - thunk_size, GetInstructionSetAlignment(kArm64));
+  DCHECK_EQ(thunk_offset + thunk_size + CodeAlignmentSize(thunk_offset + thunk_size),
             last_method_header_offset);
   uint32_t diff = thunk_offset - (method1_offset + bl_offset_in_method1);
   CHECK_ALIGNED(diff, 4u);
@@ -637,7 +690,7 @@ TEST_F(Arm64RelativePatcherTestDefault, CallOtherJustTooFarBefore) {
   constexpr uint32_t bl_offset_in_last_method = 1u * 4u;  // After NOPs.
   ArrayRef<const uint8_t> last_method_code(last_method_raw_code);
   ASSERT_EQ(bl_offset_in_last_method + 4u, last_method_code.size());
-  LinkerPatch last_method_patches[] = {
+  const LinkerPatch last_method_patches[] = {
       LinkerPatch::RelativeCodePatch(bl_offset_in_last_method, nullptr, 1u),
   };
 
@@ -831,6 +884,384 @@ TEST_FOR_OFFSETS(LDRW_SPREL_ADD_TEST, 0, 4)
   }
 
 TEST_FOR_OFFSETS(LDRX_SPREL_ADD_TEST, 0, 8)
+
+void Arm64RelativePatcherTest::TestBakerField(uint32_t offset, uint32_t root_reg) {
+  uint32_t valid_regs[] = {
+      0,  1,  2,  3,  4,  5,  6,  7,  8,  9,
+      10, 11, 12, 13, 14, 15,         18, 19,  // IP0 and IP1 are reserved.
+      20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
+      // LR and SP/ZR are reserved.
+  };
+  DCHECK_ALIGNED(offset, 4u);
+  DCHECK_LT(offset, 16 * KB);
+  constexpr size_t kMethodCodeSize = 8u;
+  constexpr size_t kLiteralOffset = 0u;
+  uint32_t method_idx = 0u;
+  for (uint32_t base_reg : valid_regs) {
+    for (uint32_t holder_reg : valid_regs) {
+      uint32_t ldr = kLdrWInsn | (offset << (10 - 2)) | (base_reg << 5) | root_reg;
+      const std::vector<uint8_t> raw_code = RawCode({kCbnzIP1Plus0Insn, ldr});
+      ASSERT_EQ(kMethodCodeSize, raw_code.size());
+      ArrayRef<const uint8_t> code(raw_code);
+      uint32_t encoded_data =
+          Arm64RelativePatcher::EncodeBakerReadBarrierFieldData(base_reg, holder_reg);
+      const LinkerPatch patches[] = {
+          LinkerPatch::BakerReadBarrierBranchPatch(kLiteralOffset, encoded_data),
+      };
+      ++method_idx;
+      AddCompiledMethod(MethodRef(method_idx), code, ArrayRef<const LinkerPatch>(patches));
+    }
+  }
+  Link();
+
+  // All thunks are at the end.
+  uint32_t thunk_offset = GetMethodOffset(method_idx) + RoundUp(kMethodCodeSize, kArm64Alignment);
+  method_idx = 0u;
+  for (uint32_t base_reg : valid_regs) {
+    for (uint32_t holder_reg : valid_regs) {
+      ++method_idx;
+      uint32_t cbnz_offset = thunk_offset - (GetMethodOffset(method_idx) + kLiteralOffset);
+      uint32_t cbnz = kCbnzIP1Plus0Insn | (cbnz_offset << (5 - 2));
+      uint32_t ldr = kLdrWInsn | (offset << (10 - 2)) | (base_reg << 5) | root_reg;
+      const std::vector<uint8_t> expected_code = RawCode({cbnz, ldr});
+      ASSERT_EQ(kMethodCodeSize, expected_code.size());
+      ASSERT_TRUE(
+          CheckLinkedMethod(MethodRef(method_idx), ArrayRef<const uint8_t>(expected_code)));
+
+      std::vector<uint8_t> expected_thunk = CompileBakerOffsetThunk(base_reg, holder_reg);
+      ASSERT_GT(output_.size(), thunk_offset);
+      ASSERT_GE(output_.size() - thunk_offset, expected_thunk.size());
+      ArrayRef<const uint8_t> compiled_thunk(output_.data() + thunk_offset,
+                                             expected_thunk.size());
+      if (ArrayRef<const uint8_t>(expected_thunk) != compiled_thunk) {
+        DumpDiff(ArrayRef<const uint8_t>(expected_thunk), compiled_thunk);
+        ASSERT_TRUE(false);
+      }
+
+      size_t gray_check_offset = thunk_offset;
+      if (holder_reg == base_reg) {
+        // Verify that the null-check CBZ uses the correct register, i.e. holder_reg.
+        ASSERT_GE(output_.size() - gray_check_offset, 4u);
+        ASSERT_EQ(0x34000000 | holder_reg, GetOutputInsn(thunk_offset) & 0xff00001f);
+        gray_check_offset +=4u;
+      }
+      // Verify that the lock word for gray bit check is loaded from the holder address.
+      static constexpr size_t kGrayCheckInsns = 5;
+      ASSERT_GE(output_.size() - gray_check_offset, 4u * kGrayCheckInsns);
+      const uint32_t load_lock_word =
+          kLdrWInsn |
+          (mirror::Object::MonitorOffset().Uint32Value() << (10 - 2)) |
+          (holder_reg << 5) |
+          /* ip0 */ 16;
+      EXPECT_EQ(load_lock_word, GetOutputInsn(gray_check_offset));
+      // Verify the gray bit check.
+      const uint32_t check_gray_bit_witout_offset =
+          0x37000000 | (LockWord::kReadBarrierStateShift << 19) | /* ip0 */ 16;
+      EXPECT_EQ(check_gray_bit_witout_offset, GetOutputInsn(gray_check_offset + 4u) & 0xfff8001f);
+      // Verify the fake dependency.
+      const uint32_t fake_dependency =
+          0x8b408000 |              // ADD Xd, Xn, Xm, LSR 32
+          (/* ip0 */ 16 << 16) |    // Xm = ip0
+          (base_reg << 5) |         // Xn = base_reg
+          base_reg;                 // Xd = base_reg
+      EXPECT_EQ(fake_dependency, GetOutputInsn(gray_check_offset + 12u));
+      // Do not check the rest of the implementation.
+
+      // The next thunk follows on the next aligned offset.
+      thunk_offset += RoundUp(expected_thunk.size(), kArm64Alignment);
+    }
+  }
+}
+
+#define TEST_BAKER_FIELD(offset, root_reg)    \
+  TEST_F(Arm64RelativePatcherTestDefault,     \
+    BakerOffset##offset##_##root_reg) {       \
+    TestBakerField(offset, root_reg);         \
+  }
+
+TEST_BAKER_FIELD(/* offset */ 0, /* root_reg */ 0)
+TEST_BAKER_FIELD(/* offset */ 8, /* root_reg */ 15)
+TEST_BAKER_FIELD(/* offset */ 0x3ffc, /* root_reg */ 29)
+
+TEST_F(Arm64RelativePatcherTestDefault, BakerOffsetThunkInTheMiddle) {
+  // One thunk in the middle with maximum distance branches to it from both sides.
+  // Use offset = 0, base_reg = 0, root_reg = 0, the LDR is simply `kLdrWInsn`.
+  constexpr uint32_t kLiteralOffset1 = 4;
+  const std::vector<uint8_t> raw_code1 = RawCode({kNopInsn, kCbnzIP1Plus0Insn, kLdrWInsn});
+  ArrayRef<const uint8_t> code1(raw_code1);
+  uint32_t encoded_data =
+      Arm64RelativePatcher::EncodeBakerReadBarrierFieldData(/* base_reg */ 0, /* holder_reg */ 0);
+  const LinkerPatch patches1[] = {
+      LinkerPatch::BakerReadBarrierBranchPatch(kLiteralOffset1, encoded_data),
+  };
+  AddCompiledMethod(MethodRef(1u), code1, ArrayRef<const LinkerPatch>(patches1));
+
+  // Allow thunk at 1MiB offset from the start of the method above. Literal offset being 4
+  // allows the branch to reach that thunk.
+  size_t filler1_size =
+      1 * MB - RoundUp(raw_code1.size() + sizeof(OatQuickMethodHeader), kArm64Alignment);
+  std::vector<uint8_t> raw_filler1_code = GenNops(filler1_size / 4u);
+  ArrayRef<const uint8_t> filler1_code(raw_filler1_code);
+  AddCompiledMethod(MethodRef(2u), filler1_code);
+
+  // Enforce thunk reservation with a tiny method.
+  AddCompiledMethod(MethodRef(3u), kNopCode);
+
+  // Allow reaching the thunk from the very beginning of a method 1MiB away. Backward branch
+  // reaches the full 1MiB. Things to subtract:
+  //   - thunk size and method 3 pre-header, rounded up (padding in between if needed)
+  //   - method 3 code and method 4 pre-header, rounded up (padding in between if needed)
+  //   - method 4 header (let there be no padding between method 4 code and method 5 pre-header).
+  size_t thunk_size = CompileBakerOffsetThunk(/* base_reg */ 0, /* holder_reg */ 0).size();
+  size_t filler2_size =
+      1 * MB - RoundUp(thunk_size + sizeof(OatQuickMethodHeader), kArm64Alignment)
+             - RoundUp(kNopCode.size() + sizeof(OatQuickMethodHeader), kArm64Alignment)
+             - sizeof(OatQuickMethodHeader);
+  std::vector<uint8_t> raw_filler2_code = GenNops(filler2_size / 4u);
+  ArrayRef<const uint8_t> filler2_code(raw_filler2_code);
+  AddCompiledMethod(MethodRef(4u), filler2_code);
+
+  constexpr uint32_t kLiteralOffset2 = 0;
+  const std::vector<uint8_t> raw_code2 = RawCode({kCbnzIP1Plus0Insn, kLdrWInsn});
+  ArrayRef<const uint8_t> code2(raw_code2);
+  const LinkerPatch patches2[] = {
+      LinkerPatch::BakerReadBarrierBranchPatch(kLiteralOffset2, encoded_data),
+  };
+  AddCompiledMethod(MethodRef(5u), code2, ArrayRef<const LinkerPatch>(patches2));
+
+  Link();
+
+  uint32_t first_method_offset = GetMethodOffset(1u);
+  uint32_t last_method_offset = GetMethodOffset(5u);
+  EXPECT_EQ(2 * MB, last_method_offset - first_method_offset);
+
+  const uint32_t cbnz_max_forward = kCbnzIP1Plus0Insn | 0x007fffe0;
+  const uint32_t cbnz_max_backward = kCbnzIP1Plus0Insn | 0x00800000;
+  const std::vector<uint8_t> expected_code1 = RawCode({kNopInsn, cbnz_max_forward, kLdrWInsn});
+  const std::vector<uint8_t> expected_code2 = RawCode({cbnz_max_backward, kLdrWInsn});
+  ASSERT_TRUE(CheckLinkedMethod(MethodRef(1), ArrayRef<const uint8_t>(expected_code1)));
+  ASSERT_TRUE(CheckLinkedMethod(MethodRef(5), ArrayRef<const uint8_t>(expected_code2)));
+}
+
+TEST_F(Arm64RelativePatcherTestDefault, BakerOffsetThunkBeforeFiller) {
+  // Based on the first part of BakerOffsetThunkInTheMiddle but the CBNZ is one instruction
+  // earlier, so the thunk is emitted before the filler.
+  // Use offset = 0, base_reg = 0, root_reg = 0, the LDR is simply `kLdrWInsn`.
+  constexpr uint32_t kLiteralOffset1 = 0;
+  const std::vector<uint8_t> raw_code1 = RawCode({kCbnzIP1Plus0Insn, kLdrWInsn, kNopInsn});
+  ArrayRef<const uint8_t> code1(raw_code1);
+  uint32_t encoded_data =
+      Arm64RelativePatcher::EncodeBakerReadBarrierFieldData(/* base_reg */ 0, /* holder_reg */ 0);
+  const LinkerPatch patches1[] = {
+      LinkerPatch::BakerReadBarrierBranchPatch(kLiteralOffset1, encoded_data),
+  };
+  AddCompiledMethod(MethodRef(1u), code1, ArrayRef<const LinkerPatch>(patches1));
+
+  // Allow thunk at 1MiB offset from the start of the method above. Literal offset being 4
+  // allows the branch to reach that thunk.
+  size_t filler1_size =
+      1 * MB - RoundUp(raw_code1.size() + sizeof(OatQuickMethodHeader), kArm64Alignment);
+  std::vector<uint8_t> raw_filler1_code = GenNops(filler1_size / 4u);
+  ArrayRef<const uint8_t> filler1_code(raw_filler1_code);
+  AddCompiledMethod(MethodRef(2u), filler1_code);
+
+  Link();
+
+  const uint32_t cbnz_offset = RoundUp(raw_code1.size(), kArm64Alignment) - kLiteralOffset1;
+  const uint32_t cbnz = kCbnzIP1Plus0Insn | (cbnz_offset << (5 - 2));
+  const std::vector<uint8_t> expected_code1 = RawCode({cbnz, kLdrWInsn, kNopInsn});
+  ASSERT_TRUE(CheckLinkedMethod(MethodRef(1), ArrayRef<const uint8_t>(expected_code1)));
+}
+
+TEST_F(Arm64RelativePatcherTestDefault, BakerOffsetThunkInTheMiddleUnreachableFromLast) {
+  // Based on the BakerOffsetThunkInTheMiddle but the CBNZ in the last method is preceded
+  // by NOP and cannot reach the thunk in the middle, so we emit an extra thunk at the end.
+  // Use offset = 0, base_reg = 0, root_reg = 0, the LDR is simply `kLdrWInsn`.
+  constexpr uint32_t kLiteralOffset1 = 4;
+  const std::vector<uint8_t> raw_code1 = RawCode({kNopInsn, kCbnzIP1Plus0Insn, kLdrWInsn});
+  ArrayRef<const uint8_t> code1(raw_code1);
+  uint32_t encoded_data =
+      Arm64RelativePatcher::EncodeBakerReadBarrierFieldData(/* base_reg */ 0, /* holder_reg */ 0);
+  const LinkerPatch patches1[] = {
+      LinkerPatch::BakerReadBarrierBranchPatch(kLiteralOffset1, encoded_data),
+  };
+  AddCompiledMethod(MethodRef(1u), code1, ArrayRef<const LinkerPatch>(patches1));
+
+  // Allow thunk at 1MiB offset from the start of the method above. Literal offset being 4
+  // allows the branch to reach that thunk.
+  size_t filler1_size =
+      1 * MB - RoundUp(raw_code1.size() + sizeof(OatQuickMethodHeader), kArm64Alignment);
+  std::vector<uint8_t> raw_filler1_code = GenNops(filler1_size / 4u);
+  ArrayRef<const uint8_t> filler1_code(raw_filler1_code);
+  AddCompiledMethod(MethodRef(2u), filler1_code);
+
+  // Enforce thunk reservation with a tiny method.
+  AddCompiledMethod(MethodRef(3u), kNopCode);
+
+  // If not for the extra NOP, this would allow reaching the thunk from the very beginning
+  // of a method 1MiB away. Backward branch reaches the full 1MiB. Things to subtract:
+  //   - thunk size and method 3 pre-header, rounded up (padding in between if needed)
+  //   - method 3 code and method 4 pre-header, rounded up (padding in between if needed)
+  //   - method 4 header (let there be no padding between method 4 code and method 5 pre-header).
+  size_t thunk_size = CompileBakerOffsetThunk(/* base_reg */ 0, /* holder_reg */ 0).size();
+  size_t filler2_size =
+      1 * MB - RoundUp(thunk_size + sizeof(OatQuickMethodHeader), kArm64Alignment)
+             - RoundUp(kNopCode.size() + sizeof(OatQuickMethodHeader), kArm64Alignment)
+             - sizeof(OatQuickMethodHeader);
+  std::vector<uint8_t> raw_filler2_code = GenNops(filler2_size / 4u);
+  ArrayRef<const uint8_t> filler2_code(raw_filler2_code);
+  AddCompiledMethod(MethodRef(4u), filler2_code);
+
+  // Extra NOP compared to BakerOffsetThunkInTheMiddle.
+  constexpr uint32_t kLiteralOffset2 = 4;
+  const std::vector<uint8_t> raw_code2 = RawCode({kNopInsn, kCbnzIP1Plus0Insn, kLdrWInsn});
+  ArrayRef<const uint8_t> code2(raw_code2);
+  const LinkerPatch patches2[] = {
+      LinkerPatch::BakerReadBarrierBranchPatch(kLiteralOffset2, encoded_data),
+  };
+  AddCompiledMethod(MethodRef(5u), code2, ArrayRef<const LinkerPatch>(patches2));
+
+  Link();
+
+  const uint32_t cbnz_max_forward = kCbnzIP1Plus0Insn | 0x007fffe0;
+  const uint32_t cbnz_last_offset = RoundUp(raw_code2.size(), kArm64Alignment) - kLiteralOffset2;
+  const uint32_t cbnz_last = kCbnzIP1Plus0Insn | (cbnz_last_offset << (5 - 2));
+  const std::vector<uint8_t> expected_code1 = RawCode({kNopInsn, cbnz_max_forward, kLdrWInsn});
+  const std::vector<uint8_t> expected_code2 = RawCode({kNopInsn, cbnz_last, kLdrWInsn});
+  ASSERT_TRUE(CheckLinkedMethod(MethodRef(1), ArrayRef<const uint8_t>(expected_code1)));
+  ASSERT_TRUE(CheckLinkedMethod(MethodRef(5), ArrayRef<const uint8_t>(expected_code2)));
+}
+
+TEST_F(Arm64RelativePatcherTestDefault, BakerRootGcRoot) {
+  uint32_t valid_regs[] = {
+      0,  1,  2,  3,  4,  5,  6,  7,  8,  9,
+      10, 11, 12, 13, 14, 15,         18, 19,  // IP0 and IP1 are reserved.
+      20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
+      // LR and SP/ZR are reserved.
+  };
+  constexpr size_t kMethodCodeSize = 8u;
+  constexpr size_t kLiteralOffset = 4u;
+  uint32_t method_idx = 0u;
+  for (uint32_t root_reg : valid_regs) {
+    ++method_idx;
+    uint32_t ldr = kLdrWInsn | (/* offset */ 8 << (10 - 2)) | (/* base_reg */ 0 << 5) | root_reg;
+    const std::vector<uint8_t> raw_code = RawCode({ldr, kCbnzIP1Plus0Insn});
+    ASSERT_EQ(kMethodCodeSize, raw_code.size());
+    ArrayRef<const uint8_t> code(raw_code);
+    const LinkerPatch patches[] = {
+        LinkerPatch::BakerReadBarrierBranchPatch(
+            kLiteralOffset, Arm64RelativePatcher::EncodeBakerReadBarrierGcRootData(root_reg)),
+    };
+    AddCompiledMethod(MethodRef(method_idx), code, ArrayRef<const LinkerPatch>(patches));
+  }
+  Link();
+
+  // All thunks are at the end.
+  uint32_t thunk_offset = GetMethodOffset(method_idx) + RoundUp(kMethodCodeSize, kArm64Alignment);
+  method_idx = 0u;
+  for (uint32_t root_reg : valid_regs) {
+    ++method_idx;
+    uint32_t cbnz_offset = thunk_offset - (GetMethodOffset(method_idx) + kLiteralOffset);
+    uint32_t cbnz = kCbnzIP1Plus0Insn | (cbnz_offset << (5 - 2));
+    uint32_t ldr = kLdrWInsn | (/* offset */ 8 << (10 - 2)) | (/* base_reg */ 0 << 5) | root_reg;
+    const std::vector<uint8_t> expected_code = RawCode({ldr, cbnz});
+    ASSERT_EQ(kMethodCodeSize, expected_code.size());
+    EXPECT_TRUE(CheckLinkedMethod(MethodRef(method_idx), ArrayRef<const uint8_t>(expected_code)));
+
+    std::vector<uint8_t> expected_thunk = CompileBakerGcRootThunk(root_reg);
+    ASSERT_GT(output_.size(), thunk_offset);
+    ASSERT_GE(output_.size() - thunk_offset, expected_thunk.size());
+    ArrayRef<const uint8_t> compiled_thunk(output_.data() + thunk_offset,
+                                           expected_thunk.size());
+    if (ArrayRef<const uint8_t>(expected_thunk) != compiled_thunk) {
+      DumpDiff(ArrayRef<const uint8_t>(expected_thunk), compiled_thunk);
+      ASSERT_TRUE(false);
+    }
+
+    // Verify that the fast-path null-check CBZ uses the correct register, i.e. root_reg.
+    ASSERT_GE(output_.size() - thunk_offset, 4u);
+    ASSERT_EQ(0x34000000 | root_reg, GetOutputInsn(thunk_offset) & 0xff00001f);
+    // Do not check the rest of the implementation.
+
+    // The next thunk follows on the next aligned offset.
+    thunk_offset += RoundUp(expected_thunk.size(), kArm64Alignment);
+  }
+}
+
+TEST_F(Arm64RelativePatcherTestDefault, BakerAndMethodCallInteraction) {
+  // During development, there was a `DCHECK_LE(MaxNextOffset(), next_thunk.MaxNextOffset());`
+  // in `ArmBaseRelativePatcher::ThunkData::MakeSpaceBefore()` which does not necessarily
+  // hold when we're reserving thunks of different sizes. This test exposes the situation
+  // by using Baker thunks and a method call thunk.
+
+  // Add a method call patch that can reach to method 1 offset + 128MiB.
+  uint32_t method_idx = 0u;
+  constexpr size_t kMethodCallLiteralOffset = 4u;
+  constexpr uint32_t kMissingMethodIdx = 2u;
+  const std::vector<uint8_t> raw_code1 = RawCode({kNopInsn, kBlPlus0});
+  const LinkerPatch method1_patches[] = {
+      LinkerPatch::RelativeCodePatch(kMethodCallLiteralOffset, nullptr, 2u),
+  };
+  ArrayRef<const uint8_t> code1(raw_code1);
+  ++method_idx;
+  AddCompiledMethod(MethodRef(1u), code1, ArrayRef<const LinkerPatch>(method1_patches));
+
+  // Skip kMissingMethodIdx.
+  ++method_idx;
+  ASSERT_EQ(kMissingMethodIdx, method_idx);
+  // Add a method with the right size that the method code for the next one starts 1MiB
+  // after code for method 1.
+  size_t filler_size =
+      1 * MB - RoundUp(raw_code1.size() + sizeof(OatQuickMethodHeader), kArm64Alignment)
+             - sizeof(OatQuickMethodHeader);
+  std::vector<uint8_t> filler_code = GenNops(filler_size / 4u);
+  ++method_idx;
+  AddCompiledMethod(MethodRef(method_idx), ArrayRef<const uint8_t>(filler_code));
+  // Add 126 methods with 1MiB code+header, making the code for the next method start 1MiB
+  // before the currently scheduled MaxNextOffset() for the method call thunk.
+  for (uint32_t i = 0; i != 126; ++i) {
+    filler_size = 1 * MB - sizeof(OatQuickMethodHeader);
+    filler_code = GenNops(filler_size / 4u);
+    ++method_idx;
+    AddCompiledMethod(MethodRef(method_idx), ArrayRef<const uint8_t>(filler_code));
+  }
+
+  // Add 2 Baker GC root patches to the last method, one that would allow the thunk at
+  // 1MiB + kArm64Alignment, i.e. kArm64Alignment after the method call thunk, and the
+  // second that needs it kArm64Alignment after that. Given the size of the GC root thunk
+  // is more than the space required by the method call thunk plus kArm64Alignment,
+  // this pushes the first GC root thunk's pending MaxNextOffset() before the method call
+  // thunk's pending MaxNextOffset() which needs to be adjusted.
+  ASSERT_LT(RoundUp(CompileMethodCallThunk().size(), kArm64Alignment) + kArm64Alignment,
+            CompileBakerGcRootThunk(/* root_reg */ 0).size());
+  static_assert(kArm64Alignment == 16, "Code below assumes kArm64Alignment == 16");
+  constexpr size_t kBakerLiteralOffset1 = 4u + kArm64Alignment;
+  constexpr size_t kBakerLiteralOffset2 = 4u + 2 * kArm64Alignment;
+  // Use offset = 0, base_reg = 0, the LDR is simply `kLdrWInsn | root_reg`.
+  const uint32_t ldr1 = kLdrWInsn | /* root_reg */ 1;
+  const uint32_t ldr2 = kLdrWInsn | /* root_reg */ 2;
+  const std::vector<uint8_t> last_method_raw_code = RawCode({
+      kNopInsn, kNopInsn, kNopInsn, kNopInsn,   // Padding before first GC root read barrier.
+      ldr1, kCbnzIP1Plus0Insn,                  // First GC root LDR with read barrier.
+      kNopInsn, kNopInsn,                       // Padding before second GC root read barrier.
+      ldr2, kCbnzIP1Plus0Insn,                  // Second GC root LDR with read barrier.
+  });
+  uint32_t encoded_data1 = Arm64RelativePatcher::EncodeBakerReadBarrierGcRootData(/* root_reg */ 1);
+  uint32_t encoded_data2 = Arm64RelativePatcher::EncodeBakerReadBarrierGcRootData(/* root_reg */ 2);
+  const LinkerPatch last_method_patches[] = {
+      LinkerPatch::BakerReadBarrierBranchPatch(kBakerLiteralOffset1, encoded_data1),
+      LinkerPatch::BakerReadBarrierBranchPatch(kBakerLiteralOffset2, encoded_data2),
+  };
+  ++method_idx;
+  AddCompiledMethod(MethodRef(method_idx),
+                    ArrayRef<const uint8_t>(last_method_raw_code),
+                    ArrayRef<const LinkerPatch>(last_method_patches));
+
+  // The main purpose of the test is to check that Link() does not cause a crash.
+  Link();
+
+  ASSERT_EQ(127 * MB, GetMethodOffset(method_idx) - GetMethodOffset(1u));
+}
 
 }  // namespace linker
 }  // namespace art

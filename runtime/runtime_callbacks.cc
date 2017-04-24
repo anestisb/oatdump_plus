@@ -18,6 +18,7 @@
 
 #include <algorithm>
 
+#include "art_method.h"
 #include "base/macros.h"
 #include "class_linker.h"
 #include "thread.h"
@@ -128,6 +129,27 @@ void RuntimeCallbacks::RemoveRuntimePhaseCallback(RuntimePhaseCallback* cb) {
 void RuntimeCallbacks::NextRuntimePhase(RuntimePhaseCallback::RuntimePhase phase) {
   for (RuntimePhaseCallback* cb : phase_callbacks_) {
     cb->NextRuntimePhase(phase);
+  }
+}
+
+void RuntimeCallbacks::AddMethodCallback(MethodCallback* cb) {
+  method_callbacks_.push_back(cb);
+}
+
+void RuntimeCallbacks::RemoveMethodCallback(MethodCallback* cb) {
+  Remove(cb, &method_callbacks_);
+}
+
+void RuntimeCallbacks::RegisterNativeMethod(ArtMethod* method,
+                                            const void* in_cur_method,
+                                            /*out*/void** new_method) {
+  void* cur_method = const_cast<void*>(in_cur_method);
+  *new_method = cur_method;
+  for (MethodCallback* cb : method_callbacks_) {
+    cb->RegisterNativeMethod(method, cur_method, new_method);
+    if (*new_method != nullptr) {
+      cur_method = *new_method;
+    }
   }
 }
 

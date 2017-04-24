@@ -12,4 +12,6 @@ testSetName running
 testSetName finished
 testThreadPriorities starting
 testThreadPriorities finished
+Found current Thread in ThreadGroup
+Found expected stack in getAllStackTraces()
 thread test done

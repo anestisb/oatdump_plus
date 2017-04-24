@@ -174,12 +174,7 @@ static jclass FindClassWithClassLoader(JNIEnv* env, const char* class_name, jobj
                                                          class_loader));
 }
 
-// Find the given classname. First try the implied classloader, then the system classloader,
-// then use JVMTI to find all classloaders.
-static jclass FindClass(jvmtiEnv* jvmti_env,
-                        JNIEnv* env,
-                        const char* class_name,
-                        jobject class_loader) {
+jclass FindClass(jvmtiEnv* jvmti_env, JNIEnv* env, const char* class_name, jobject class_loader) {
   if (class_loader != nullptr) {
     return FindClassWithClassLoader(env, class_name, class_loader);
   }

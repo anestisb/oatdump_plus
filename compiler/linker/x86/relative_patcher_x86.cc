@@ -56,5 +56,11 @@ void X86RelativePatcher::PatchPcRelativeReference(std::vector<uint8_t>* code,
   (*code)[literal_offset + 3u] = static_cast<uint8_t>(diff >> 24);
 }
 
+void X86RelativePatcher::PatchBakerReadBarrierBranch(std::vector<uint8_t>* code ATTRIBUTE_UNUSED,
+                                                     const LinkerPatch& patch ATTRIBUTE_UNUSED,
+                                                     uint32_t patch_offset ATTRIBUTE_UNUSED) {
+  LOG(FATAL) << "UNIMPLEMENTED";
+}
+
 }  // namespace linker
 }  // namespace art

@@ -657,9 +657,17 @@ class Runtime {
 
   void AttachAgent(const std::string& agent_arg);
 
+  const std::list<ti::Agent>& GetAgents() const {
+    return agents_;
+  }
+
   RuntimeCallbacks* GetRuntimeCallbacks();
 
   void InitThreadGroups(Thread* self);
+
+  void SetDumpGCPerformanceOnShutdown(bool value) {
+    dump_gc_performance_on_shutdown_ = value;
+  }
 
  private:
   static void InitPlatformSignalHandlers();
