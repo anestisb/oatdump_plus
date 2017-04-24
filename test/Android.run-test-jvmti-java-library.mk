@@ -74,6 +74,8 @@ LOCAL_SRC_FILES += \
   981-dedup-original-dex/src/art/Test981.java \
   982-ok-no-retransform/src/art/Test982.java \
   984-obsolete-invoke/src/art/Test984.java \
+  985-re-obsolete/src/art/Test985.java \
+  986-native-method-bind/src/art/Test986.java \
 
 JVMTI_RUN_TEST_GENERATED_NUMBERS := \
   901 \
@@ -114,6 +116,8 @@ JVMTI_RUN_TEST_GENERATED_NUMBERS := \
   981 \
   982 \
   984 \
+  985 \
+  986 \
 
 # Try to enforce that the directories correspond to the Java files we pull in.
 JVMTI_RUN_TEST_DIR_CHECK := $(sort $(foreach DIR,$(JVMTI_RUN_TEST_GENERATED_NUMBERS), \
