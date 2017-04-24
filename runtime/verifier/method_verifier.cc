@@ -36,6 +36,7 @@
 #include "dex_instruction_visitor.h"
 #include "experimental_flags.h"
 #include "gc/accounting/card_table-inl.h"
+#include "handle_scope-inl.h"
 #include "indenter.h"
 #include "intern_table.h"
 #include "leb128.h"
@@ -52,7 +53,7 @@
 #include "scoped_thread_state_change-inl.h"
 #include "utils.h"
 #include "verifier_deps.h"
-#include "handle_scope-inl.h"
+#include "verifier_compiler_binding.h"
 
 namespace art {
 namespace verifier {
@@ -136,14 +137,14 @@ static void SafelyMarkAllRegistersAsConflicts(MethodVerifier* verifier, Register
   reg_line->MarkAllRegistersAsConflicts(verifier);
 }
 
-MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
-                                                        mirror::Class* klass,
-                                                        CompilerCallbacks* callbacks,
-                                                        bool allow_soft_failures,
-                                                        HardFailLogMode log_level,
-                                                        std::string* error) {
+FailureKind MethodVerifier::VerifyClass(Thread* self,
+                                        mirror::Class* klass,
+                                        CompilerCallbacks* callbacks,
+                                        bool allow_soft_failures,
+                                        HardFailLogMode log_level,
+                                        std::string* error) {
   if (klass->IsVerified()) {
-    return kNoFailure;
+    return FailureKind::kNoFailure;
   }
   bool early_failure = false;
   std::string failure_message;
@@ -167,7 +168,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
       ClassReference ref(&dex_file, klass->GetDexClassDefIndex());
       callbacks->ClassRejected(ref);
     }
-    return kHardFailure;
+    return FailureKind::kHardFailure;
   }
   StackHandleScope<2> hs(self);
   Handle<mirror::DexCache> dex_cache(hs.NewHandle(klass->GetDexCache()));
@@ -188,12 +189,9 @@ static bool HasNextMethod(ClassDataItemIterator* it) {
   return kDirect ? it->HasNextDirectMethod() : it->HasNextVirtualMethod();
 }
 
-static MethodVerifier::FailureKind FailureKindMax(MethodVerifier::FailureKind fk1,
-                                                  MethodVerifier::FailureKind fk2) {
-  static_assert(MethodVerifier::FailureKind::kNoFailure <
-                    MethodVerifier::FailureKind::kSoftFailure
-                && MethodVerifier::FailureKind::kSoftFailure <
-                       MethodVerifier::FailureKind::kHardFailure,
+static FailureKind FailureKindMax(FailureKind fk1, FailureKind fk2) {
+  static_assert(FailureKind::kNoFailure < FailureKind::kSoftFailure
+                    && FailureKind::kSoftFailure < FailureKind::kHardFailure,
                 "Unexpected FailureKind order");
   return std::max(fk1, fk2);
 }
@@ -257,8 +255,8 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethods(Thread* self,
                                                       log_level,
                                                       need_precise_constants,
                                                       &hard_failure_msg);
-    if (result.kind == kHardFailure) {
-      if (failure_data.kind == kHardFailure) {
+    if (result.kind == FailureKind::kHardFailure) {
+      if (failure_data.kind == FailureKind::kHardFailure) {
         // If we logged an error before, we need a newline.
         *error_string += "\n";
       } else {
@@ -277,15 +275,15 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethods(Thread* self,
   return failure_data;
 }
 
-MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
-                                                        const DexFile* dex_file,
-                                                        Handle<mirror::DexCache> dex_cache,
-                                                        Handle<mirror::ClassLoader> class_loader,
-                                                        const DexFile::ClassDef& class_def,
-                                                        CompilerCallbacks* callbacks,
-                                                        bool allow_soft_failures,
-                                                        HardFailLogMode log_level,
-                                                        std::string* error) {
+FailureKind MethodVerifier::VerifyClass(Thread* self,
+                                        const DexFile* dex_file,
+                                        Handle<mirror::DexCache> dex_cache,
+                                        Handle<mirror::ClassLoader> class_loader,
+                                        const DexFile::ClassDef& class_def,
+                                        CompilerCallbacks* callbacks,
+                                        bool allow_soft_failures,
+                                        HardFailLogMode log_level,
+                                        std::string* error) {
   ScopedTrace trace(__FUNCTION__);
 
   // A class must not be abstract and final.
@@ -293,13 +291,13 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
     *error = "Verifier rejected class ";
     *error += PrettyDescriptor(dex_file->GetClassDescriptor(class_def));
     *error += ": class is abstract and final.";
-    return kHardFailure;
+    return FailureKind::kHardFailure;
   }
 
   const uint8_t* class_data = dex_file->GetClassData(class_def);
   if (class_data == nullptr) {
     // empty class, probably a marker interface
-    return kNoFailure;
+    return FailureKind::kNoFailure;
   }
   ClassDataItemIterator it(*dex_file, class_data);
   while (it.HasNextStaticField() || it.HasNextInstanceField()) {
@@ -335,8 +333,8 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
 
   data1.Merge(data2);
 
-  if (data1.kind == kNoFailure) {
-    return kNoFailure;
+  if (data1.kind == FailureKind::kNoFailure) {
+    return FailureKind::kNoFailure;
   } else {
     if ((data1.types & VERIFY_ERROR_LOCKING) != 0) {
       // Print a warning about expected slow-down. Use a string temporary to print one contiguous
@@ -412,7 +410,7 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
         verifier.DumpFailures(VLOG_STREAM(verifier) << "Soft verification failures in "
                                                     << dex_file->PrettyMethod(method_idx) << "\n");
       }
-      result.kind = kSoftFailure;
+      result.kind = FailureKind::kSoftFailure;
       if (method != nullptr &&
           !CanCompilerHandleVerificationFailure(verifier.encountered_failure_types_)) {
         method->SetDontCompile();
@@ -432,7 +430,7 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
           // code is valid (even the dead and unverified one). As such this is done only for apps.
           // (CompilerDriver DCHECKs in VerifyClassVisitor that methods from boot image are
           // fully verified).
-          result.kind = kSoftFailure;
+          result.kind = FailureKind::kSoftFailure;
         }
       }
       if ((verifier.encountered_failure_types_ & VerifyError::VERIFY_ERROR_LOCKING) != 0) {
@@ -446,7 +444,7 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
     if (UNLIKELY(verifier.have_pending_experimental_failure_)) {
       // Failed due to being forced into interpreter. This is ok because
       // we just want to skip verification.
-      result.kind = kSoftFailure;
+      result.kind = FailureKind::kSoftFailure;
     } else {
       CHECK(verifier.have_pending_hard_failure_);
       if (VLOG_IS_ON(verifier)) {
@@ -477,7 +475,7 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
         *hard_failure_msg =
             verifier.failure_messages_[verifier.failure_messages_.size() - 1]->str();
       }
-      result.kind = kHardFailure;
+      result.kind = FailureKind::kHardFailure;
 
       if (callbacks != nullptr) {
         // Let the interested party know that we failed the class.
