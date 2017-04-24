@@ -1420,6 +1420,40 @@ mirror::ObjectArray<mirror::String>* GetSignatureAnnotationForClass(Handle<mirro
   return GetSignatureValue(data, annotation_set);
 }
 
+const char* GetSourceDebugExtension(Handle<mirror::Class> klass) {
+  ClassData data(klass);
+  const DexFile::AnnotationSetItem* annotation_set = FindAnnotationSetForClass(data);
+  if (annotation_set == nullptr) {
+    return nullptr;
+  }
+  const DexFile::AnnotationItem* annotation_item = SearchAnnotationSet(
+      data.GetDexFile(),
+      annotation_set,
+      "Ldalvik/annotation/SourceDebugExtension;",
+      DexFile::kDexVisibilitySystem);
+  if (annotation_item == nullptr) {
+    return nullptr;
+  }
+  const uint8_t* annotation =
+      SearchEncodedAnnotation(data.GetDexFile(), annotation_item->annotation_, "value");
+  if (annotation == nullptr) {
+    return nullptr;
+  }
+  DexFile::AnnotationValue annotation_value;
+  if (!ProcessAnnotationValue<false>(data,
+                                     &annotation,
+                                     &annotation_value,
+                                     ScopedNullHandle<mirror::Class>(),
+                                     DexFile::kAllRaw)) {
+    return nullptr;
+  }
+  if (annotation_value.type_ != DexFile::kDexAnnotationString) {
+    return nullptr;
+  }
+  dex::StringIndex index(static_cast<uint32_t>(annotation_value.value_.GetI()));
+  return data.GetDexFile().StringDataByIdx(index);
+}
+
 bool IsClassAnnotationPresent(Handle<mirror::Class> klass, Handle<mirror::Class> annotation_class) {
   ClassData data(klass);
   const DexFile::AnnotationSetItem* annotation_set = FindAnnotationSetForClass(data);
