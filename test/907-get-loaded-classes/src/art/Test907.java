@@ -22,7 +22,6 @@ import java.util.HashSet;
 
 public class Test907 {
   public static void run() throws Exception {
-    Main.bindAgentJNIForClass(Test907.class);
     doTest();
   }
 

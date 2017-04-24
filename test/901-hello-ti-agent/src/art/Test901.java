@@ -18,8 +18,6 @@ package art;
 
 public class Test901 {
   public static void run() {
-    Main.bindAgentJNIForClass(Test901.class);
-
     System.out.println("Hello, world!");
 
     if (checkLivePhase()) {

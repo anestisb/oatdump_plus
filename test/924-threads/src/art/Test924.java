@@ -29,8 +29,6 @@ import java.util.Set;
 
 public class Test924 {
   public static void run() throws Exception {
-    Main.bindAgentJNIForClass(Test924.class);
-
     // Run the test on its own thread, so we have a known state for the "current" thread.
     Thread t = new Thread("TestThread") {
       @Override

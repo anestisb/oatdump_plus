@@ -21,7 +21,6 @@ import java.util.TreeSet;
 
 public class Test922 {
   public static void run() throws Exception {
-    Main.bindAgentJNIForClass(Test922.class);
     doTest();
   }
 

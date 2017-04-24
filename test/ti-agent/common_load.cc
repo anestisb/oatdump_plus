@@ -20,7 +20,6 @@
 #include "base/logging.h"
 #include "base/macros.h"
 
-#include "agent_startup.h"
 #include "common_helper.h"
 #include "jni_binder.h"
 #include "jvmti_helper.h"
@@ -117,8 +116,6 @@ extern "C" JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM* vm, char* options, void* 
 
   SetIsJVM(remaining_options);
 
-  BindOnLoad(vm, nullptr);
-
   AgentLib* lib = FindAgent(name_option);
   OnLoad fn = nullptr;
   if (lib == nullptr) {
@@ -140,8 +137,6 @@ extern "C" JNIEXPORT jint JNICALL Agent_OnAttach(JavaVM* vm, char* options, void
     printf("Unable to find agent name in options: %s\n", options);
     return -1;
   }
-
-  BindOnAttach(vm, nullptr);
 
   AgentLib* lib = FindAgent(name_option);
   if (lib == nullptr) {

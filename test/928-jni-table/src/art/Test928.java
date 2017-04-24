@@ -18,7 +18,6 @@ package art;
 
 public class Test928 {
   public static void run() throws Exception {
-    Main.bindAgentJNIForClass(Test928.class);
     doJNITableTest();
 
     System.out.println("Done");
