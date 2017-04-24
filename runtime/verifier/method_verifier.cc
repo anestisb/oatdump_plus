@@ -4137,6 +4137,12 @@ void MethodVerifier::VerifyInvocationArgsUnresolvedMethod(const Instruction* ins
 }
 
 bool MethodVerifier::CheckCallSite(uint32_t call_site_idx) {
+  if (call_site_idx >= dex_file_->NumCallSiteIds()) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Bad call site id #" << call_site_idx
+                                      << " >= " << dex_file_->NumCallSiteIds();
+    return false;
+  }
+
   CallSiteArrayValueIterator it(*dex_file_, dex_file_->GetCallSiteId(call_site_idx));
   // Check essential arguments are provided. The dex file verifier has verified indicies of the
   // main values (method handle, name, method_type).
@@ -4147,9 +4153,11 @@ bool MethodVerifier::CheckCallSite(uint32_t call_site_idx) {
     return false;
   }
 
-  // Get and check the first argument: the method handle.
+  // Get and check the first argument: the method handle (index range
+  // checked by the dex file verifier).
   uint32_t method_handle_idx = static_cast<uint32_t>(it.GetJavaValue().i);
   it.Next();
+
   const DexFile::MethodHandleItem& mh = dex_file_->GetMethodHandle(method_handle_idx);
   if (mh.method_handle_type_ != static_cast<uint16_t>(DexFile::MethodHandleType::kInvokeStatic)) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Call site #" << call_site_idx
