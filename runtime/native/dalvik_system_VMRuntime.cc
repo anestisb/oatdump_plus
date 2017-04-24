@@ -30,6 +30,7 @@ extern "C" void android_set_application_target_sdk_version(uint32_t version);
 #pragma GCC diagnostic pop
 
 #include "android-base/stringprintf.h"
+#include "nativehelper/jni_macros.h"
 
 #include "art_method-inl.h"
 #include "arch/instruction_set.h"

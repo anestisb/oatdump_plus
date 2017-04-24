@@ -17,6 +17,7 @@
 #include "java_lang_reflect_Parameter.h"
 
 #include "android-base/stringprintf.h"
+#include "nativehelper/jni_macros.h"
 
 #include "art_method-inl.h"
 #include "common_throws.h"

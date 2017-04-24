@@ -17,6 +17,7 @@
 #include "java_lang_reflect_Field.h"
 
 #include "android-base/stringprintf.h"
+#include "nativehelper/jni_macros.h"
 
 #include "art_field-inl.h"
 #include "class_linker.h"

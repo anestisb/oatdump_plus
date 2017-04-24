@@ -16,6 +16,8 @@
 
 #include "java_lang_ref_Reference.h"
 
+#include "nativehelper/jni_macros.h"
+
 #include "gc/heap.h"
 #include "gc/reference_processor.h"
 #include "jni_internal.h"

@@ -16,6 +16,8 @@
 
 #include "dalvik_system_VMStack.h"
 
+#include "nativehelper/jni_macros.h"
+
 #include "art_method-inl.h"
 #include "gc/task_processor.h"
 #include "jni_internal.h"

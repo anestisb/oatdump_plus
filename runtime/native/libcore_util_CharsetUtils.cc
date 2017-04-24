@@ -14,15 +14,19 @@
  * limitations under the License.
  */
 
+#include "libcore_util_CharsetUtils.h"
+
+#include <string.h>
+
+#include "nativehelper/jni_macros.h"
+
 #include "jni_internal.h"
 #include "mirror/string.h"
 #include "mirror/string-inl.h"
-#include "native/libcore_util_CharsetUtils.h"
 #include "scoped_fast_native_object_access-inl.h"
 #include "ScopedPrimitiveArray.h"
 #include "unicode/utf16.h"
 
-#include <string.h>
 
 namespace art {
 

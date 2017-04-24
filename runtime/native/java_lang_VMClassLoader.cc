@@ -16,6 +16,8 @@
 
 #include "java_lang_VMClassLoader.h"
 
+#include "nativehelper/jni_macros.h"
+
 #include "class_linker.h"
 #include "jni_internal.h"
 #include "mirror/class_loader.h"

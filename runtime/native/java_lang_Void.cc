@@ -16,6 +16,8 @@
 
 #include "java_lang_Void.h"
 
+#include "nativehelper/jni_macros.h"
+
 #include "class_linker-inl.h"
 #include "jni_internal.h"
 #include "runtime.h"

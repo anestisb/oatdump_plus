@@ -17,6 +17,7 @@
 #include "java_lang_reflect_Executable.h"
 
 #include "android-base/stringprintf.h"
+#include "nativehelper/jni_macros.h"
 
 #include "art_method-inl.h"
 #include "dex_file_annotations.h"

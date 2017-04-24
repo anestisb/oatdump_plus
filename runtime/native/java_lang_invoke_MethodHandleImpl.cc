@@ -16,6 +16,8 @@
 
 #include "java_lang_invoke_MethodHandleImpl.h"
 
+#include "nativehelper/jni_macros.h"
+
 #include "art_method.h"
 #include "handle_scope-inl.h"
 #include "jni_internal.h"

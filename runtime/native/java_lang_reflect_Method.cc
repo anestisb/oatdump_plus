@@ -16,6 +16,8 @@
 
 #include "java_lang_reflect_Method.h"
 
+#include "nativehelper/jni_macros.h"
+
 #include "art_method-inl.h"
 #include "base/enums.h"
 #include "class_linker.h"

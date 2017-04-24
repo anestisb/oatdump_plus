@@ -19,6 +19,7 @@
 #include <stdlib.h>
 
 #include "android-base/stringprintf.h"
+#include "nativehelper/jni_macros.h"
 
 #include "arch/instruction_set.h"
 #include "art_method-inl.h"

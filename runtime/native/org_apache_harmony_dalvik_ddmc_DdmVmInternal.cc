@@ -16,6 +16,8 @@
 
 #include "org_apache_harmony_dalvik_ddmc_DdmVmInternal.h"
 
+#include "nativehelper/jni_macros.h"
+
 #include "base/logging.h"
 #include "base/mutex.h"
 #include "debugger.h"
