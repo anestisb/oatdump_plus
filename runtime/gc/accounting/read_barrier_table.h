@@ -17,6 +17,8 @@
 #ifndef ART_RUNTIME_GC_ACCOUNTING_READ_BARRIER_TABLE_H_
 #define ART_RUNTIME_GC_ACCOUNTING_READ_BARRIER_TABLE_H_
 
+#include <sys/mman.h>  // For the PROT_* and MAP_* constants.
+
 #include "base/bit_utils.h"
 #include "base/mutex.h"
 #include "gc/space/space.h"

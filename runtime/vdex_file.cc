@@ -16,6 +16,8 @@
 
 #include "vdex_file.h"
 
+#include <sys/mman.h>  // For the PROT_* and MAP_* constants.
+
 #include <memory>
 
 #include "base/logging.h"

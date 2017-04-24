@@ -17,18 +17,14 @@
 #ifndef ART_RUNTIME_MEM_MAP_H_
 #define ART_RUNTIME_MEM_MAP_H_
 
-#include "base/mutex.h"
-
-#include <string>
-#include <map>
-#include <mutex>
-
 #include <stddef.h>
-#include <sys/mman.h>  // For the PROT_* and MAP_* constants.
 #include <sys/types.h>
 
-#include "base/allocator.h"
-#include "globals.h"
+#include <map>
+#include <mutex>
+#include <string>
+
+#include "android-base/thread_annotations.h"
 
 namespace art {
 
@@ -180,8 +176,6 @@ class MemMap {
   static void DumpMaps(std::ostream& os, bool terse = false)
       REQUIRES(!MemMap::mem_maps_lock_);
 
-  typedef AllocationTrackingMultiMap<void*, MemMap*, kAllocatorTagMaps> Maps;
-
   // Init and Shutdown are NOT thread safe.
   // Both may be called multiple times and MemMap objects may be created any
   // time after the first call to Init and before the first call to Shutodwn.
@@ -195,6 +189,11 @@ class MemMap {
 
   // Align the map by unmapping the unaligned parts at the lower and the higher ends.
   void AlignBy(size_t size);
+
+  // For annotation reasons.
+  static std::mutex* GetMemMapsLock() RETURN_CAPABILITY(mem_maps_lock_) {
+    return nullptr;
+  }
 
  private:
   MemMap(const std::string& name,
@@ -245,14 +244,10 @@ class MemMap {
 
   static std::mutex* mem_maps_lock_;
 
-  // All the non-empty MemMaps. Use a multimap as we do a reserve-and-divide (eg ElfMap::Load()).
-  static Maps* maps_ GUARDED_BY(MemMap::mem_maps_lock_);
-
   friend class MemMapTest;  // To allow access to base_begin_ and base_size_.
 };
 
 std::ostream& operator<<(std::ostream& os, const MemMap& mem_map);
-std::ostream& operator<<(std::ostream& os, const MemMap::Maps& mem_maps);
 
 // Zero and release pages if possible, no requirements on alignments.
 void ZeroAndReleasePages(void* address, size_t length);

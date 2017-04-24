@@ -18,6 +18,7 @@
 
 #include <fcntl.h>
 #include <stdio.h>
+#include <sys/mman.h>  // For the PROT_* and MAP_* constants.
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
