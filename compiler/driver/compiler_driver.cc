@@ -78,8 +78,8 @@
 #include "vdex_file.h"
 #include "verifier/method_verifier.h"
 #include "verifier/method_verifier-inl.h"
-#include "verifier/verifier_log_mode.h"
 #include "verifier/verifier_deps.h"
+#include "verifier/verifier_enums.h"
 
 namespace art {
 
@@ -2132,7 +2132,7 @@ class VerifyClassVisitor : public CompilationVisitor {
         hs.NewHandle(soa.Decode<mirror::ClassLoader>(jclass_loader)));
     Handle<mirror::Class> klass(
         hs.NewHandle(class_linker->FindClass(soa.Self(), descriptor, class_loader)));
-    verifier::MethodVerifier::FailureKind failure_kind;
+    verifier::FailureKind failure_kind;
     if (klass == nullptr) {
       CHECK(soa.Self()->IsExceptionPending());
       soa.Self()->ClearException();
@@ -2155,7 +2155,7 @@ class VerifyClassVisitor : public CompilationVisitor {
                                                 true /* allow soft failures */,
                                                 log_level_,
                                                 &error_msg);
-      if (failure_kind == verifier::MethodVerifier::kHardFailure) {
+      if (failure_kind == verifier::FailureKind::kHardFailure) {
         LOG(ERROR) << "Verification failed on class " << PrettyDescriptor(descriptor)
                    << " because: " << error_msg;
         manager_->GetCompiler()->SetHadHardVerifierFailure();
@@ -2163,10 +2163,10 @@ class VerifyClassVisitor : public CompilationVisitor {
         // Force a soft failure for the VerifierDeps. This is a sanity measure, as
         // the vdex file already records that the class hasn't been resolved. It avoids
         // trying to do future verification optimizations when processing the vdex file.
-        DCHECK(failure_kind == verifier::MethodVerifier::kSoftFailure ||
-               failure_kind == verifier::MethodVerifier::kNoFailure)
+        DCHECK(failure_kind == verifier::FailureKind::kSoftFailure ||
+               failure_kind == verifier::FailureKind::kNoFailure)
             << failure_kind;
-        failure_kind = verifier::MethodVerifier::kSoftFailure;
+        failure_kind = verifier::FailureKind::kSoftFailure;
       }
     } else if (!SkipClass(jclass_loader, dex_file, klass.Get())) {
       CHECK(klass->IsResolved()) << klass->PrettyClass();
@@ -2198,16 +2198,16 @@ class VerifyClassVisitor : public CompilationVisitor {
               << " failed to fully verify: state= " << klass->GetStatus();
         }
         if (klass->IsVerified()) {
-          DCHECK_EQ(failure_kind, verifier::MethodVerifier::kNoFailure);
+          DCHECK_EQ(failure_kind, verifier::FailureKind::kNoFailure);
         } else if (klass->ShouldVerifyAtRuntime()) {
-          DCHECK_EQ(failure_kind, verifier::MethodVerifier::kSoftFailure);
+          DCHECK_EQ(failure_kind, verifier::FailureKind::kSoftFailure);
         } else {
-          DCHECK_EQ(failure_kind, verifier::MethodVerifier::kHardFailure);
+          DCHECK_EQ(failure_kind, verifier::FailureKind::kHardFailure);
         }
       }
     } else {
       // Make the skip a soft failure, essentially being considered as verify at runtime.
-      failure_kind = verifier::MethodVerifier::kSoftFailure;
+      failure_kind = verifier::FailureKind::kSoftFailure;
     }
     verifier::VerifierDeps::MaybeRecordVerificationStatus(
         dex_file, class_def.class_idx_, failure_kind);

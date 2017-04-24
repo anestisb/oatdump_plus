@@ -3981,7 +3981,7 @@ static void EnsureSkipAccessChecksMethods(Handle<mirror::Class> klass, PointerSi
   }
 }
 
-verifier::MethodVerifier::FailureKind ClassLinker::VerifyClass(
+verifier::FailureKind ClassLinker::VerifyClass(
     Thread* self, Handle<mirror::Class> klass, verifier::HardFailLogMode log_level) {
   {
     // TODO: assert that the monitor on the Class is held
@@ -4003,19 +4003,19 @@ verifier::MethodVerifier::FailureKind ClassLinker::VerifyClass(
     // this class as a parent to another.
     if (klass->IsErroneous()) {
       ThrowEarlierClassFailure(klass.Get());
-      return verifier::MethodVerifier::kHardFailure;
+      return verifier::FailureKind::kHardFailure;
     }
 
     // Don't attempt to re-verify if already verified.
     if (klass->IsVerified()) {
       EnsureSkipAccessChecksMethods(klass, image_pointer_size_);
-      return verifier::MethodVerifier::kNoFailure;
+      return verifier::FailureKind::kNoFailure;
     }
 
     // For AOT, don't attempt to re-verify if we have already found we should
     // verify at runtime.
     if (Runtime::Current()->IsAotCompiler() && klass->ShouldVerifyAtRuntime()) {
-      return verifier::MethodVerifier::kSoftFailure;
+      return verifier::FailureKind::kSoftFailure;
     }
 
     if (klass->GetStatus() == mirror::Class::kStatusResolved) {
@@ -4031,7 +4031,7 @@ verifier::MethodVerifier::FailureKind ClassLinker::VerifyClass(
     if (!Runtime::Current()->IsVerificationEnabled()) {
       mirror::Class::SetStatus(klass, mirror::Class::kStatusVerified, self);
       EnsureSkipAccessChecksMethods(klass, image_pointer_size_);
-      return verifier::MethodVerifier::kNoFailure;
+      return verifier::FailureKind::kNoFailure;
     }
   }
 
@@ -4041,7 +4041,7 @@ verifier::MethodVerifier::FailureKind ClassLinker::VerifyClass(
   // If we have a superclass and we get a hard verification failure we can return immediately.
   if (supertype != nullptr && !AttemptSupertypeVerification(self, klass, supertype)) {
     CHECK(self->IsExceptionPending()) << "Verification error should be pending.";
-    return verifier::MethodVerifier::kHardFailure;
+    return verifier::FailureKind::kHardFailure;
   }
 
   // Verify all default super-interfaces.
@@ -4068,7 +4068,7 @@ verifier::MethodVerifier::FailureKind ClassLinker::VerifyClass(
       } else if (UNLIKELY(!AttemptSupertypeVerification(self, klass, iface))) {
         // We had a hard failure while verifying this interface. Just return immediately.
         CHECK(self->IsExceptionPending()) << "Verification error should be pending.";
-        return verifier::MethodVerifier::kHardFailure;
+        return verifier::FailureKind::kHardFailure;
       } else if (UNLIKELY(!iface->IsVerified())) {
         // We softly failed to verify the iface. Stop checking and clean up.
         // Put the iface into the supertype handle so we know what caused us to fail.
@@ -4095,7 +4095,7 @@ verifier::MethodVerifier::FailureKind ClassLinker::VerifyClass(
   DCHECK(!mirror::Class::IsErroneous(oat_file_class_status) || !preverified);
 
   std::string error_msg;
-  verifier::MethodVerifier::FailureKind verifier_failure = verifier::MethodVerifier::kNoFailure;
+  verifier::FailureKind verifier_failure = verifier::FailureKind::kNoFailure;
   if (!preverified) {
     Runtime* runtime = Runtime::Current();
     verifier_failure = verifier::MethodVerifier::VerifyClass(self,
@@ -4109,8 +4109,8 @@ verifier::MethodVerifier::FailureKind ClassLinker::VerifyClass(
   // Verification is done, grab the lock again.
   ObjectLock<mirror::Class> lock(self, klass);
 
-  if (preverified || verifier_failure != verifier::MethodVerifier::kHardFailure) {
-    if (!preverified && verifier_failure != verifier::MethodVerifier::kNoFailure) {
+  if (preverified || verifier_failure != verifier::FailureKind::kHardFailure) {
+    if (!preverified && verifier_failure != verifier::FailureKind::kNoFailure) {
       VLOG(class_linker) << "Soft verification failure in class "
                          << klass->PrettyDescriptor()
                          << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8()
@@ -4119,7 +4119,7 @@ verifier::MethodVerifier::FailureKind ClassLinker::VerifyClass(
     self->AssertNoPendingException();
     // Make sure all classes referenced by catch blocks are resolved.
     ResolveClassExceptionHandlerTypes(klass);
-    if (verifier_failure == verifier::MethodVerifier::kNoFailure) {
+    if (verifier_failure == verifier::FailureKind::kNoFailure) {
       // Even though there were no verifier failures we need to respect whether the super-class and
       // super-default-interfaces were verified or requiring runtime reverification.
       if (supertype == nullptr || supertype->IsVerified()) {
@@ -4128,10 +4128,10 @@ verifier::MethodVerifier::FailureKind ClassLinker::VerifyClass(
         CHECK_EQ(supertype->GetStatus(), mirror::Class::kStatusRetryVerificationAtRuntime);
         mirror::Class::SetStatus(klass, mirror::Class::kStatusRetryVerificationAtRuntime, self);
         // Pretend a soft failure occurred so that we don't consider the class verified below.
-        verifier_failure = verifier::MethodVerifier::kSoftFailure;
+        verifier_failure = verifier::FailureKind::kSoftFailure;
       }
     } else {
-      CHECK_EQ(verifier_failure, verifier::MethodVerifier::kSoftFailure);
+      CHECK_EQ(verifier_failure, verifier::FailureKind::kSoftFailure);
       // Soft failures at compile time should be retried at runtime. Soft
       // failures at runtime will be handled by slow paths in the generated
       // code. Set status accordingly.
@@ -4152,7 +4152,7 @@ verifier::MethodVerifier::FailureKind ClassLinker::VerifyClass(
     ThrowVerifyError(klass.Get(), "%s", error_msg.c_str());
     mirror::Class::SetStatus(klass, mirror::Class::kStatusErrorResolved, self);
   }
-  if (preverified || verifier_failure == verifier::MethodVerifier::kNoFailure) {
+  if (preverified || verifier_failure == verifier::FailureKind::kNoFailure) {
     // Class is verified so we don't need to do any access check on its methods.
     // Let the interpreter know it by setting the kAccSkipAccessChecks flag onto each
     // method.

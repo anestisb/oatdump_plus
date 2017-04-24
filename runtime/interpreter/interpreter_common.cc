@@ -32,7 +32,6 @@
 #include "reflection.h"
 #include "reflection-inl.h"
 #include "stack.h"
-#include "verifier/method_verifier.h"
 #include "well_known_classes.h"
 
 namespace art {
