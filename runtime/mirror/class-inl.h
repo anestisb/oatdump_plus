@@ -96,7 +96,13 @@ inline DexCache* Class::GetDexCache() {
 }
 
 inline uint32_t Class::GetCopiedMethodsStartOffset() {
-  return GetFieldShort(OFFSET_OF_OBJECT_MEMBER(Class, copied_methods_offset_));
+  // Object::GetFieldShort returns an int16_t value, but
+  // Class::copied_methods_offset_ is an uint16_t value; cast the
+  // latter to int16_t before returning it as an uint32_t value, so
+  // that uint16_t values between 2^15 and 2^16-1 are correctly
+  // handled.
+  return static_cast<uint16_t>(
+      GetFieldShort(OFFSET_OF_OBJECT_MEMBER(Class, copied_methods_offset_)));
 }
 
 inline uint32_t Class::GetDirectMethodsStartOffset() {
@@ -104,7 +110,13 @@ inline uint32_t Class::GetDirectMethodsStartOffset() {
 }
 
 inline uint32_t Class::GetVirtualMethodsStartOffset() {
-  return GetFieldShort(OFFSET_OF_OBJECT_MEMBER(Class, virtual_methods_offset_));
+  // Object::GetFieldShort returns an int16_t value, but
+  // Class::virtual_method_offset_ is an uint16_t value; cast the
+  // latter to int16_t before returning it as an uint32_t value, so
+  // that uint16_t values between 2^15 and 2^16-1 are correctly
+  // handled.
+  return static_cast<uint16_t>(
+      GetFieldShort(OFFSET_OF_OBJECT_MEMBER(Class, virtual_methods_offset_)));
 }
 
 template<VerifyObjectFlags kVerifyFlags>
