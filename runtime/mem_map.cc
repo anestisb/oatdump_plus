@@ -16,26 +16,26 @@
 
 #include "mem_map.h"
 
-#include "base/memory_tool.h"
-#include <backtrace/BacktraceMap.h>
 #include <inttypes.h>
 #include <stdlib.h>
+#include <sys/mman.h>  // For the PROT_* and MAP_* constants.
+#ifndef ANDROID_OS
+#include <sys/resource.h>
+#endif
 
 #include <memory>
 #include <sstream>
 
 #include "android-base/stringprintf.h"
+#include "android-base/unique_fd.h"
+#include "backtrace/BacktraceMap.h"
+#include "cutils/ashmem.h"
 
-#include "base/unix_file/fd_file.h"
-#include "os.h"
-#include "thread-inl.h"
+#include "base/allocator.h"
+#include "base/memory_tool.h"
+#include "globals.h"
 #include "utils.h"
 
-#include <cutils/ashmem.h>
-
-#ifndef ANDROID_OS
-#include <sys/resource.h>
-#endif
 
 #ifndef MAP_ANONYMOUS
 #define MAP_ANONYMOUS MAP_ANON
@@ -44,6 +44,12 @@
 namespace art {
 
 using android::base::StringPrintf;
+using android::base::unique_fd;
+
+using Maps = AllocationTrackingMultiMap<void*, MemMap*, kAllocatorTagMaps>;
+
+// All the non-empty MemMaps. Use a multimap as we do a reserve-and-divide (eg ElfMap::Load()).
+static Maps* gMaps GUARDED_BY(MemMap::GetMemMapsLock()) = nullptr;
 
 static std::ostream& operator<<(
     std::ostream& os,
@@ -59,7 +65,7 @@ static std::ostream& operator<<(
   return os;
 }
 
-std::ostream& operator<<(std::ostream& os, const MemMap::Maps& mem_maps) {
+std::ostream& operator<<(std::ostream& os, const Maps& mem_maps) {
   os << "MemMap:" << std::endl;
   for (auto it = mem_maps.begin(); it != mem_maps.end(); ++it) {
     void* base = it->first;
@@ -71,7 +77,6 @@ std::ostream& operator<<(std::ostream& os, const MemMap::Maps& mem_maps) {
 }
 
 std::mutex* MemMap::mem_maps_lock_ = nullptr;
-MemMap::Maps* MemMap::maps_ = nullptr;
 
 #if USE_ART_LOW_4G_ALLOCATOR
 // Handling mem_map in 32b address range for 64b architectures that do not support MAP_32BIT.
@@ -132,7 +137,7 @@ uintptr_t MemMap::next_mem_pos_ = GenerateNextMemPos();
 #endif
 
 // Return true if the address range is contained in a single memory map by either reading
-// the maps_ variable or the /proc/self/map entry.
+// the gMaps variable or the /proc/self/map entry.
 bool MemMap::ContainedWithinExistingMap(uint8_t* ptr, size_t size, std::string* error_msg) {
   uintptr_t begin = reinterpret_cast<uintptr_t>(ptr);
   uintptr_t end = begin + size;
@@ -141,7 +146,7 @@ bool MemMap::ContainedWithinExistingMap(uint8_t* ptr, size_t size, std::string* 
   // further.
   {
     std::lock_guard<std::mutex> mu(*mem_maps_lock_);
-    for (auto& pair : *maps_) {
+    for (auto& pair : *gMaps) {
       MemMap* const map = pair.second;
       if (begin >= reinterpret_cast<uintptr_t>(map->Begin()) &&
           end <= reinterpret_cast<uintptr_t>(map->End())) {
@@ -302,8 +307,6 @@ MemMap* MemMap::MapAnonymous(const char* name,
     flags |= MAP_FIXED;
   }
 
-  File fd;
-
   if (use_ashmem) {
     if (!kIsTargetBuild) {
       // When not on Android (either host or assuming a linux target) ashmem is faked using
@@ -316,15 +319,17 @@ MemMap* MemMap::MapAnonymous(const char* name,
     }
   }
 
+  unique_fd fd;
+
+
   if (use_ashmem) {
     // android_os_Debug.cpp read_mapinfo assumes all ashmem regions associated with the VM are
     // prefixed "dalvik-".
     std::string debug_friendly_name("dalvik-");
     debug_friendly_name += name;
-    fd.Reset(ashmem_create_region(debug_friendly_name.c_str(), page_aligned_byte_count),
-             /* check_usage */ false);
+    fd.reset(ashmem_create_region(debug_friendly_name.c_str(), page_aligned_byte_count));
 
-    if (fd.Fd() == -1) {
+    if (fd.get() == -1) {
       // We failed to create the ashmem region. Print a warning, but continue
       // anyway by creating a true anonymous mmap with an fd of -1. It is
       // better to use an unlabelled anonymous map than to fail to create a
@@ -344,7 +349,7 @@ MemMap* MemMap::MapAnonymous(const char* name,
                              page_aligned_byte_count,
                              prot,
                              flags,
-                             fd.Fd(),
+                             fd.get(),
                              0,
                              low_4gb);
   saved_errno = errno;
@@ -361,7 +366,7 @@ MemMap* MemMap::MapAnonymous(const char* name,
                                 page_aligned_byte_count,
                                 prot,
                                 flags,
-                                fd.Fd(),
+                                fd.get(),
                                 strerror(saved_errno));
     }
     return nullptr;
@@ -490,15 +495,15 @@ MemMap::~MemMap() {
     }
   }
 
-  // Remove it from maps_.
+  // Remove it from gMaps.
   std::lock_guard<std::mutex> mu(*mem_maps_lock_);
   bool found = false;
-  DCHECK(maps_ != nullptr);
-  for (auto it = maps_->lower_bound(base_begin_), end = maps_->end();
+  DCHECK(gMaps != nullptr);
+  for (auto it = gMaps->lower_bound(base_begin_), end = gMaps->end();
        it != end && it->first == base_begin_; ++it) {
     if (it->second == this) {
       found = true;
-      maps_->erase(it);
+      gMaps->erase(it);
       break;
     }
   }
@@ -518,10 +523,10 @@ MemMap::MemMap(const std::string& name, uint8_t* begin, size_t size, void* base_
     CHECK(base_begin_ != nullptr);
     CHECK_NE(base_size_, 0U);
 
-    // Add it to maps_.
+    // Add it to gMaps.
     std::lock_guard<std::mutex> mu(*mem_maps_lock_);
-    DCHECK(maps_ != nullptr);
-    maps_->insert(std::make_pair(base_begin_, this));
+    DCHECK(gMaps != nullptr);
+    gMaps->insert(std::make_pair(base_begin_, this));
   }
 }
 
@@ -551,22 +556,21 @@ MemMap* MemMap::RemapAtEnd(uint8_t* new_end, const char* tail_name, int tail_pro
   DCHECK_EQ(tail_base_begin + tail_base_size, old_base_end);
   DCHECK_ALIGNED(tail_base_size, kPageSize);
 
-  int int_fd = -1;
+  unique_fd fd;
   int flags = MAP_PRIVATE | MAP_ANONYMOUS;
   if (use_ashmem) {
     // android_os_Debug.cpp read_mapinfo assumes all ashmem regions associated with the VM are
     // prefixed "dalvik-".
     std::string debug_friendly_name("dalvik-");
     debug_friendly_name += tail_name;
-    int_fd = ashmem_create_region(debug_friendly_name.c_str(), tail_base_size);
+    fd.reset(ashmem_create_region(debug_friendly_name.c_str(), tail_base_size));
     flags = MAP_PRIVATE | MAP_FIXED;
-    if (int_fd == -1) {
+    if (fd.get() == -1) {
       *error_msg = StringPrintf("ashmem_create_region failed for '%s': %s",
                                 tail_name, strerror(errno));
       return nullptr;
     }
   }
-  File fd(int_fd, /* check_usage */ false);
 
   MEMORY_TOOL_MAKE_UNDEFINED(tail_base_begin, tail_base_size);
   // Unmap/map the tail region.
@@ -581,13 +585,17 @@ MemMap* MemMap::RemapAtEnd(uint8_t* new_end, const char* tail_name, int tail_pro
   // calls. Otherwise, libc (or something else) might take this memory
   // region. Note this isn't perfect as there's no way to prevent
   // other threads to try to take this memory region here.
-  uint8_t* actual = reinterpret_cast<uint8_t*>(mmap(tail_base_begin, tail_base_size, tail_prot,
-                                              flags, fd.Fd(), 0));
+  uint8_t* actual = reinterpret_cast<uint8_t*>(mmap(tail_base_begin,
+                                                    tail_base_size,
+                                                    tail_prot,
+                                                    flags,
+                                                    fd.get(),
+                                                    0));
   if (actual == MAP_FAILED) {
     PrintFileToLog("/proc/self/maps", LogSeverity::WARNING);
     *error_msg = StringPrintf("anonymous mmap(%p, %zd, 0x%x, 0x%x, %d, 0) failed. See process "
                               "maps in the log.", tail_base_begin, tail_base_size, tail_prot, flags,
-                              fd.Fd());
+                              fd.get());
     return nullptr;
   }
   return new MemMap(tail_name, actual, tail_size, actual, tail_base_size, tail_prot, false);
@@ -662,7 +670,7 @@ void MemMap::DumpMaps(std::ostream& os, bool terse) {
 }
 
 void MemMap::DumpMapsLocked(std::ostream& os, bool terse) {
-  const auto& mem_maps = *maps_;
+  const auto& mem_maps = *gMaps;
   if (!terse) {
     os << mem_maps;
     return;
@@ -722,7 +730,7 @@ void MemMap::DumpMapsLocked(std::ostream& os, bool terse) {
 
 bool MemMap::HasMemMap(MemMap* map) {
   void* base_begin = map->BaseBegin();
-  for (auto it = maps_->lower_bound(base_begin), end = maps_->end();
+  for (auto it = gMaps->lower_bound(base_begin), end = gMaps->end();
        it != end && it->first == base_begin; ++it) {
     if (it->second == map) {
       return true;
@@ -734,8 +742,8 @@ bool MemMap::HasMemMap(MemMap* map) {
 MemMap* MemMap::GetLargestMemMapAt(void* address) {
   size_t largest_size = 0;
   MemMap* largest_map = nullptr;
-  DCHECK(maps_ != nullptr);
-  for (auto it = maps_->lower_bound(address), end = maps_->end();
+  DCHECK(gMaps != nullptr);
+  for (auto it = gMaps->lower_bound(address), end = gMaps->end();
        it != end && it->first == address; ++it) {
     MemMap* map = it->second;
     CHECK(map != nullptr);
@@ -753,10 +761,10 @@ void MemMap::Init() {
     return;
   }
   mem_maps_lock_ = new std::mutex();
-  // Not for thread safety, but for the annotation that maps_ is GUARDED_BY(mem_maps_lock_).
+  // Not for thread safety, but for the annotation that gMaps is GUARDED_BY(mem_maps_lock_).
   std::lock_guard<std::mutex> mu(*mem_maps_lock_);
-  DCHECK(maps_ == nullptr);
-  maps_ = new Maps;
+  DCHECK(gMaps == nullptr);
+  gMaps = new Maps;
 }
 
 void MemMap::Shutdown() {
@@ -765,11 +773,11 @@ void MemMap::Shutdown() {
     return;
   }
   {
-    // Not for thread safety, but for the annotation that maps_ is GUARDED_BY(mem_maps_lock_).
+    // Not for thread safety, but for the annotation that gMaps is GUARDED_BY(mem_maps_lock_).
     std::lock_guard<std::mutex> mu(*mem_maps_lock_);
-    DCHECK(maps_ != nullptr);
-    delete maps_;
-    maps_ = nullptr;
+    DCHECK(gMaps != nullptr);
+    delete gMaps;
+    gMaps = nullptr;
   }
   delete mem_maps_lock_;
   mem_maps_lock_ = nullptr;
@@ -830,17 +838,17 @@ void* MemMap::MapInternal(void* addr,
 
     std::lock_guard<std::mutex> mu(*mem_maps_lock_);
     for (uintptr_t ptr = next_mem_pos_; ptr < 4 * GB; ptr += kPageSize) {
-      // Use maps_ as an optimization to skip over large maps.
+      // Use gMaps as an optimization to skip over large maps.
       // Find the first map which is address > ptr.
-      auto it = maps_->upper_bound(reinterpret_cast<void*>(ptr));
-      if (it != maps_->begin()) {
+      auto it = gMaps->upper_bound(reinterpret_cast<void*>(ptr));
+      if (it != gMaps->begin()) {
         auto before_it = it;
         --before_it;
         // Start at the end of the map before the upper bound.
         ptr = std::max(ptr, reinterpret_cast<uintptr_t>(before_it->second->BaseEnd()));
         CHECK_ALIGNED(ptr, kPageSize);
       }
-      while (it != maps_->end()) {
+      while (it != gMaps->end()) {
         // How much space do we have until the next map?
         size_t delta = reinterpret_cast<uintptr_t>(it->first) - ptr;
         // If the space may be sufficient, break out of the loop.
@@ -1001,12 +1009,12 @@ void MemMap::AlignBy(size_t size) {
   base_size_ = aligned_base_size;
   begin_ = aligned_base_begin;
   size_ = aligned_base_size;
-  DCHECK(maps_ != nullptr);
+  DCHECK(gMaps != nullptr);
   if (base_begin < aligned_base_begin) {
-    auto it = maps_->find(base_begin);
-    CHECK(it != maps_->end()) << "MemMap not found";
-    maps_->erase(it);
-    maps_->insert(std::make_pair(base_begin_, this));
+    auto it = gMaps->find(base_begin);
+    CHECK(it != gMaps->end()) << "MemMap not found";
+    gMaps->erase(it);
+    gMaps->insert(std::make_pair(base_begin_, this));
   }
 }
 

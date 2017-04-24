@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/file.h>
+#include <sys/mman.h>  // For the PROT_* and MAP_* constants.
 #include <sys/stat.h>
 #include <zlib.h>
 
