@@ -243,6 +243,12 @@ class CheckJniAbortCatcher {
     return; \
   }
 
+#define TEST_DISABLED_FOR_MEMORY_TOOL() \
+  if (RUNNING_ON_MEMORY_TOOL > 0) { \
+    printf("WARNING: TEST DISABLED FOR MEMORY TOOL\n"); \
+    return; \
+  }
+
 }  // namespace art
 
 namespace std {
