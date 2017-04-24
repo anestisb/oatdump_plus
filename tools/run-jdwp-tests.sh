@@ -108,6 +108,17 @@ while true; do
   fi
 done
 
+# The JDWP tests include a class with a SourceDebugExtension attribute. Convert this class into
+# a DEX so the JDWP SourceDebugExtension can be tested. There is no corresponding java file as by
+# definition the class file is generated from a different language.
+jsr45_dex=$ANDROID_HOST_OUT/jsr45-test.dex
+(cd $ANDROID_BUILD_TOP/external/apache-harmony/jdwp/src/test/resources &&
+ dx --dex --output=$jsr45_dex org/apache/harmony/jpda/tests/jdwp/Events/SourceDebugExtensionMockClass.class )
+if [ $? -ne 0 ]; then
+    echo Failed to convert class file to DEX. >&2
+    exit 1
+fi
+
 # For the host:
 #
 # If, on the other hand, there is a variant set, use it to modify the art_debugee parameter to
@@ -160,7 +171,7 @@ vogar $vm_command \
       --vm-arg -Djpda.settings.waitingTime=$jdwp_test_timeout \
       --vm-arg -Djpda.settings.transportAddress=127.0.0.1:55107 \
       --vm-arg -Djpda.settings.debuggeeJavaPath="$art_debugee $image $debuggee_args" \
-      --classpath $test_jack \
+      --classpath $test_jack --resource-classpath $jsr45_dex \
       --toolchain jack --language JN \
       --vm-arg -Xcompiler-option --vm-arg --debuggable \
       --jack-arg -g \
