@@ -17,6 +17,8 @@
 #ifndef ART_RUNTIME_GC_ACCOUNTING_ATOMIC_STACK_H_
 #define ART_RUNTIME_GC_ACCOUNTING_ATOMIC_STACK_H_
 
+#include <sys/mman.h>  // For the PROT_* and MAP_* constants.
+
 #include <algorithm>
 #include <memory>
 #include <string>
@@ -25,7 +27,7 @@
 #include "base/logging.h"
 #include "base/macros.h"
 #include "mem_map.h"
-#include "stack.h"
+#include "stack_reference.h"
 
 namespace art {
 namespace gc {

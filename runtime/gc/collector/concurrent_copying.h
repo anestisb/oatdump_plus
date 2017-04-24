@@ -23,8 +23,6 @@
 #include "jni.h"
 #include "object_callbacks.h"
 #include "offsets.h"
-#include "gc/accounting/atomic_stack.h"
-#include "gc/accounting/read_barrier_table.h"
 #include "gc/accounting/space_bitmap.h"
 #include "mirror/object.h"
 #include "mirror/object_reference.h"
@@ -40,8 +38,11 @@ class RootInfo;
 namespace gc {
 
 namespace accounting {
+  template<typename T> class AtomicStack;
+  typedef AtomicStack<mirror::Object> ObjectStack;
   typedef SpaceBitmap<kObjectAlignment> ContinuousSpaceBitmap;
   class HeapBitmap;
+  class ReadBarrierTable;
 }  // namespace accounting
 
 namespace space {
