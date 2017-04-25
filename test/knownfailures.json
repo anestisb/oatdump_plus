@@ -664,5 +664,11 @@
         "description": "Tests that use javac/dx to build (not jack).",
         "env_vars": {"ANDROID_COMPILE_WITH_JACK": "false"},
         "bug": "b/37636792"
+    },
+    {
+        "tests": "648-many-direct-methods",
+        "variant": "optimizing",
+        "description": "Test disabled with AOT because of dex2oatd timeouts.",
+        "bug": "b/33650497"
     }
 ]
