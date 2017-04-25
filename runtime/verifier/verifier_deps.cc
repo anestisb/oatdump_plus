@@ -23,8 +23,10 @@
 #include "base/stl_util.h"
 #include "compiler_callbacks.h"
 #include "dex_file-inl.h"
+#include "indenter.h"
 #include "leb128.h"
 #include "mirror/class-inl.h"
+#include "mirror/class_loader.h"
 #include "obj_ptr-inl.h"
 #include "runtime.h"
 
@@ -502,8 +504,8 @@ void VerifierDeps::AddAssignability(const DexFile& dex_file,
 
 void VerifierDeps::MaybeRecordVerificationStatus(const DexFile& dex_file,
                                                  dex::TypeIndex type_idx,
-                                                 MethodVerifier::FailureKind failure_kind) {
-  if (failure_kind == MethodVerifier::kNoFailure) {
+                                                 FailureKind failure_kind) {
+  if (failure_kind == FailureKind::kNoFailure) {
     // We only record classes that did not fully verify at compile time.
     return;
   }

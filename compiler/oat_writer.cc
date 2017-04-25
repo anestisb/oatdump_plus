@@ -55,7 +55,6 @@
 #include "type_lookup_table.h"
 #include "utils/dex_cache_arrays_layout-inl.h"
 #include "vdex_file.h"
-#include "verifier/method_verifier.h"
 #include "verifier/verifier_deps.h"
 #include "zip_archive.h"
 

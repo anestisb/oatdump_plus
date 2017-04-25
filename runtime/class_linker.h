@@ -24,9 +24,7 @@
 #include <utility>
 #include <vector>
 
-#include "base/allocator.h"
 #include "base/enums.h"
-#include "base/hash_set.h"
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "class_table.h"
@@ -38,8 +36,7 @@
 #include "jni.h"
 #include "mirror/class.h"
 #include "object_callbacks.h"
-#include "verifier/method_verifier.h"
-#include "verifier/verifier_log_mode.h"
+#include "verifier/verifier_enums.h"
 
 namespace art {
 
@@ -453,7 +450,7 @@ class ClassLinker {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Roles::uninterruptible_);
 
-  verifier::MethodVerifier::FailureKind VerifyClass(
+  verifier::FailureKind VerifyClass(
       Thread* self,
       Handle<mirror::Class> klass,
       verifier::HardFailLogMode log_level = verifier::HardFailLogMode::kLogNone)

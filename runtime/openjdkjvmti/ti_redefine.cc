@@ -66,7 +66,7 @@
 #include "ti_class_loader.h"
 #include "transform.h"
 #include "verifier/method_verifier.h"
-#include "verifier/verifier_log_mode.h"
+#include "verifier/verifier_enums.h"
 
 namespace openjdkjvmti {
 
@@ -1063,7 +1063,7 @@ bool Redefiner::ClassRedefinition::CheckVerification(const RedefinitionDataIter&
   art::StackHandleScope<2> hs(driver_->self_);
   std::string error;
   // TODO Make verification log level lower
-  art::verifier::MethodVerifier::FailureKind failure =
+  art::verifier::FailureKind failure =
       art::verifier::MethodVerifier::VerifyClass(driver_->self_,
                                                  dex_file_.get(),
                                                  hs.NewHandle(iter.GetNewDexCache()),
@@ -1074,7 +1074,7 @@ bool Redefiner::ClassRedefinition::CheckVerification(const RedefinitionDataIter&
                                                  /*log_level*/
                                                  art::verifier::HardFailLogMode::kLogWarning,
                                                  &error);
-  bool passes = failure == art::verifier::MethodVerifier::kNoFailure;
+  bool passes = failure == art::verifier::FailureKind::kNoFailure;
   if (!passes) {
     RecordFailure(ERR(FAILS_VERIFICATION), "Failed to verify class. Error was: " + error);
   }

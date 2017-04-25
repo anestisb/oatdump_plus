@@ -98,7 +98,7 @@
 #include "ssa_liveness_analysis.h"
 #include "ssa_phi_elimination.h"
 #include "utils/assembler.h"
-#include "verifier/method_verifier.h"
+#include "verifier/verifier_compiler_binding.h"
 
 namespace art {
 
@@ -1041,7 +1041,7 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
   const VerifiedMethod* verified_method = compiler_driver->GetVerifiedMethod(&dex_file, method_idx);
   DCHECK(!verified_method->HasRuntimeThrow());
   if (compiler_driver->IsMethodVerifiedWithoutFailures(method_idx, class_def_idx, dex_file)
-      || verifier::MethodVerifier::CanCompilerHandleVerificationFailure(
+      || verifier::CanCompilerHandleVerificationFailure(
             verified_method->GetEncounteredVerificationFailures())) {
     ArenaAllocator arena(Runtime::Current()->GetArenaPool());
     CodeVectorAllocator code_allocator(&arena);
