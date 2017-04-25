@@ -3517,7 +3517,13 @@ collector::GcType Heap::WaitForGcToCompleteLocked(GcCause cause, Thread* self) {
     // is not the heap task daemon thread, it's considered as a
     // blocking GC (i.e., blocking itself).
     running_collection_is_blocking_ = true;
-    VLOG(gc) << "Starting a blocking GC " << cause;
+    // Don't log fake "GC" types that are only used for debugger or hidden APIs. If we log these,
+    // it results in log spam. kGcCauseExplicit is already logged in LogGC, so avoid it here too.
+    if (cause == kGcCauseForAlloc ||
+        cause == kGcCauseForNativeAlloc ||
+        cause == kGcCauseDisableMovingGc) {
+      VLOG(gc) << "Starting a blocking GC " << cause;
+    }
   }
   return last_gc_type;
 }
