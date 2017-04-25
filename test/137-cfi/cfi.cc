@@ -33,6 +33,7 @@
 #include "gc/heap.h"
 #include "gc/space/image_space.h"
 #include "oat_file.h"
+#include "runtime.h"
 #include "utils.h"
 
 namespace art {

@@ -33,7 +33,7 @@
 #include "dex/verification_results.h"
 #include "dex_file-inl.h"
 #include "dexlayout.h"
-#include "driver/compiler_driver.h"
+#include "driver/compiler_driver-inl.h"
 #include "driver/compiler_options.h"
 #include "gc/space/image_space.h"
 #include "gc/space/space.h"

@@ -43,6 +43,43 @@ inline const ConstantType& RegTypeCache::FromCat1Const(int32_t value, bool preci
   return FromCat1NonSmallConstant(value, precise);
 }
 
+inline const BooleanType& RegTypeCache::Boolean() {
+  return *BooleanType::GetInstance();
+}
+inline const ByteType& RegTypeCache::Byte() {
+  return *ByteType::GetInstance();
+}
+inline const CharType& RegTypeCache::Char() {
+  return *CharType::GetInstance();
+}
+inline const ShortType& RegTypeCache::Short() {
+  return *ShortType::GetInstance();
+}
+inline const IntegerType& RegTypeCache::Integer() {
+  return *IntegerType::GetInstance();
+}
+inline const FloatType& RegTypeCache::Float() {
+  return *FloatType::GetInstance();
+}
+inline const LongLoType& RegTypeCache::LongLo() {
+  return *LongLoType::GetInstance();
+}
+inline const LongHiType& RegTypeCache::LongHi() {
+  return *LongHiType::GetInstance();
+}
+inline const DoubleLoType& RegTypeCache::DoubleLo() {
+  return *DoubleLoType::GetInstance();
+}
+inline const DoubleHiType& RegTypeCache::DoubleHi() {
+  return *DoubleHiType::GetInstance();
+}
+inline const UndefinedType& RegTypeCache::Undefined() {
+  return *UndefinedType::GetInstance();
+}
+inline const ConflictType& RegTypeCache::Conflict() {
+  return *ConflictType::GetInstance();
+}
+
 inline const ImpreciseConstType& RegTypeCache::ByteConstant() {
   const ConstantType& result = FromCat1Const(std::numeric_limits<jbyte>::min(), false);
   DCHECK(result.IsImpreciseConstant());

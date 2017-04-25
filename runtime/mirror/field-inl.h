@@ -21,7 +21,6 @@
 
 #include "art_field-inl.h"
 #include "mirror/dex_cache-inl.h"
-#include "runtime-inl.h"
 
 namespace art {
 

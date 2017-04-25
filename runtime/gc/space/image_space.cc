@@ -42,6 +42,7 @@
 #include "mirror/object-refvisitor-inl.h"
 #include "oat_file.h"
 #include "os.h"
+#include "runtime.h"
 #include "space-inl.h"
 #include "utils.h"
 

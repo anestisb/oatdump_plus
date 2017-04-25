@@ -64,6 +64,7 @@ class ImtConflictTable;
 template<typename T> class LengthPrefixedArray;
 template<class T> class MutableHandle;
 class InternTable;
+class LinearAlloc;
 class OatFile;
 template<class T> class ObjectLock;
 class Runtime;

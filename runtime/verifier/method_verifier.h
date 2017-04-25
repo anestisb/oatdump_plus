@@ -37,11 +37,16 @@
 
 namespace art {
 
+class ClassLinker;
 class CompilerCallbacks;
 class Instruction;
 struct ReferenceMap2Visitor;
 class Thread;
 class VariableIndentationOutputStream;
+
+namespace mirror {
+class DexCache;
+}  // namespace mirror
 
 namespace verifier {
 

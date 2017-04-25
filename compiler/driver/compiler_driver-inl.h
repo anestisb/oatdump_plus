@@ -24,10 +24,11 @@
 #include "base/enums.h"
 #include "class_linker-inl.h"
 #include "dex_compilation_unit.h"
+#include "handle_scope-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache-inl.h"
+#include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
-#include "handle_scope-inl.h"
 
 namespace art {
 
@@ -147,6 +148,11 @@ inline ArtMethod* CompilerDriver::ResolveMethod(
     soa.Self()->ClearException();
   }
   return resolved_method;
+}
+
+inline VerificationResults* CompilerDriver::GetVerificationResults() const {
+  DCHECK(Runtime::Current()->IsAotCompiler());
+  return verification_results_;
 }
 
 }  // namespace art

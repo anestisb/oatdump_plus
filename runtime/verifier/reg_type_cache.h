@@ -17,15 +17,14 @@
 #ifndef ART_RUNTIME_VERIFIER_REG_TYPE_CACHE_H_
 #define ART_RUNTIME_VERIFIER_REG_TYPE_CACHE_H_
 
+#include <stdint.h>
+#include <vector>
+
 #include "base/casts.h"
 #include "base/macros.h"
 #include "base/scoped_arena_containers.h"
-#include "object_callbacks.h"
-#include "reg_type.h"
-#include "runtime.h"
-
-#include <stdint.h>
-#include <vector>
+#include "gc_root.h"
+#include "primitive.h"
 
 namespace art {
 namespace mirror {
@@ -37,7 +36,24 @@ class StringPiece;
 
 namespace verifier {
 
+class BooleanType;
+class ByteType;
+class CharType;
+class ConflictType;
+class ConstantType;
+class DoubleHiType;
+class DoubleLoType;
+class FloatType;
+class ImpreciseConstType;
+class IntegerType;
+class LongHiType;
+class LongLoType;
+class PreciseConstType;
+class PreciseReferenceType;
 class RegType;
+class ShortType;
+class UndefinedType;
+class UninitializedType;
 
 // Use 8 bytes since that is the default arena allocator alignment.
 static constexpr size_t kDefaultArenaBitVectorBytes = 8;
@@ -90,42 +106,18 @@ class RegTypeCache {
   size_t GetCacheSize() {
     return entries_.size();
   }
-  const BooleanType& Boolean() REQUIRES_SHARED(Locks::mutator_lock_) {
-    return *BooleanType::GetInstance();
-  }
-  const ByteType& Byte() REQUIRES_SHARED(Locks::mutator_lock_) {
-    return *ByteType::GetInstance();
-  }
-  const CharType& Char() REQUIRES_SHARED(Locks::mutator_lock_) {
-    return *CharType::GetInstance();
-  }
-  const ShortType& Short() REQUIRES_SHARED(Locks::mutator_lock_) {
-    return *ShortType::GetInstance();
-  }
-  const IntegerType& Integer() REQUIRES_SHARED(Locks::mutator_lock_) {
-    return *IntegerType::GetInstance();
-  }
-  const FloatType& Float() REQUIRES_SHARED(Locks::mutator_lock_) {
-    return *FloatType::GetInstance();
-  }
-  const LongLoType& LongLo() REQUIRES_SHARED(Locks::mutator_lock_) {
-    return *LongLoType::GetInstance();
-  }
-  const LongHiType& LongHi() REQUIRES_SHARED(Locks::mutator_lock_) {
-    return *LongHiType::GetInstance();
-  }
-  const DoubleLoType& DoubleLo() REQUIRES_SHARED(Locks::mutator_lock_) {
-    return *DoubleLoType::GetInstance();
-  }
-  const DoubleHiType& DoubleHi() REQUIRES_SHARED(Locks::mutator_lock_) {
-    return *DoubleHiType::GetInstance();
-  }
-  const UndefinedType& Undefined() REQUIRES_SHARED(Locks::mutator_lock_) {
-    return *UndefinedType::GetInstance();
-  }
-  const ConflictType& Conflict() {
-    return *ConflictType::GetInstance();
-  }
+  const BooleanType& Boolean() REQUIRES_SHARED(Locks::mutator_lock_);
+  const ByteType& Byte() REQUIRES_SHARED(Locks::mutator_lock_);
+  const CharType& Char() REQUIRES_SHARED(Locks::mutator_lock_);
+  const ShortType& Short() REQUIRES_SHARED(Locks::mutator_lock_);
+  const IntegerType& Integer() REQUIRES_SHARED(Locks::mutator_lock_);
+  const FloatType& Float() REQUIRES_SHARED(Locks::mutator_lock_);
+  const LongLoType& LongLo() REQUIRES_SHARED(Locks::mutator_lock_);
+  const LongHiType& LongHi() REQUIRES_SHARED(Locks::mutator_lock_);
+  const DoubleLoType& DoubleLo() REQUIRES_SHARED(Locks::mutator_lock_);
+  const DoubleHiType& DoubleHi() REQUIRES_SHARED(Locks::mutator_lock_);
+  const UndefinedType& Undefined() REQUIRES_SHARED(Locks::mutator_lock_);
+  const ConflictType& Conflict();
 
   const PreciseReferenceType& JavaLangClass() REQUIRES_SHARED(Locks::mutator_lock_);
   const PreciseReferenceType& JavaLangString() REQUIRES_SHARED(Locks::mutator_lock_);
