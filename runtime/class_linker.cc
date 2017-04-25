@@ -352,7 +352,8 @@ static void ShuffleForward(size_t* current_field_idx,
 }
 
 ClassLinker::ClassLinker(InternTable* intern_table)
-    : failed_dex_cache_class_lookups_(0),
+    : boot_class_table_(new ClassTable()),
+      failed_dex_cache_class_lookups_(0),
       class_roots_(nullptr),
       array_iftable_(nullptr),
       find_array_class_cache_next_victim_(0),
@@ -1222,15 +1223,36 @@ static void CopyDexCachePairs(const std::atomic<mirror::DexCachePair<T>>* src,
   }
 }
 
-bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
+// new_class_set is the set of classes that were read from the class table section in the image.
+// If there was no class table section, it is null.
+// Note: using a class here to avoid having to make ClassLinker internals public.
+class AppImageClassLoadersAndDexCachesHelper {
+ public:
+  static bool Update(
+      ClassLinker* class_linker,
+      gc::space::ImageSpace* space,
+      Handle<mirror::ClassLoader> class_loader,
+      Handle<mirror::ObjectArray<mirror::DexCache>> dex_caches,
+      ClassTable::ClassSet* new_class_set,
+      bool* out_forward_dex_cache_array,
+      std::string* out_error_msg)
+      REQUIRES(!Locks::dex_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+};
+
+bool AppImageClassLoadersAndDexCachesHelper::Update(
+    ClassLinker* class_linker,
     gc::space::ImageSpace* space,
     Handle<mirror::ClassLoader> class_loader,
     Handle<mirror::ObjectArray<mirror::DexCache>> dex_caches,
     ClassTable::ClassSet* new_class_set,
     bool* out_forward_dex_cache_array,
-    std::string* out_error_msg) {
+    std::string* out_error_msg)
+    REQUIRES(!Locks::dex_lock_)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK(out_forward_dex_cache_array != nullptr);
   DCHECK(out_error_msg != nullptr);
+  PointerSize image_pointer_size = class_linker->GetImagePointerSize();
   Thread* const self = Thread::Current();
   gc::Heap* const heap = Runtime::Current()->GetHeap();
   const ImageHeader& header = space->GetImageHeader();
@@ -1295,7 +1317,7 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
         CHECK_EQ(num_fields, dex_cache->NumResolvedFields());
         CHECK_EQ(num_method_types, dex_cache->NumResolvedMethodTypes());
         CHECK_EQ(num_call_sites, dex_cache->NumResolvedCallSites());
-        DexCacheArraysLayout layout(image_pointer_size_, dex_file);
+        DexCacheArraysLayout layout(image_pointer_size, dex_file);
         uint8_t* const raw_arrays = oat_dex_file->GetDexCacheArrays();
         if (num_strings != 0u) {
           mirror::StringDexCacheType* const image_resolved_strings = dex_cache->GetStrings();
@@ -1331,17 +1353,17 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
           mirror::FieldDexCacheType* const fields =
               reinterpret_cast<mirror::FieldDexCacheType*>(raw_arrays + layout.FieldsOffset());
           for (size_t j = 0; j < num_fields; ++j) {
-            DCHECK_EQ(mirror::DexCache::GetNativePairPtrSize(fields, j, image_pointer_size_).index,
+            DCHECK_EQ(mirror::DexCache::GetNativePairPtrSize(fields, j, image_pointer_size).index,
                       0u);
-            DCHECK(mirror::DexCache::GetNativePairPtrSize(fields, j, image_pointer_size_).object ==
+            DCHECK(mirror::DexCache::GetNativePairPtrSize(fields, j, image_pointer_size).object ==
                    nullptr);
             mirror::DexCache::SetNativePairPtrSize(
                 fields,
                 j,
                 mirror::DexCache::GetNativePairPtrSize(image_resolved_fields,
                                                        j,
-                                                       image_pointer_size_),
-                image_pointer_size_);
+                                                       image_pointer_size),
+                image_pointer_size);
           }
           dex_cache->SetResolvedFields(fields);
         }
@@ -1379,8 +1401,8 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
         // Make sure to do this after we update the arrays since we store the resolved types array
         // in DexCacheData in RegisterDexFileLocked. We need the array pointer to be the one in the
         // BSS.
-        CHECK(!FindDexCacheDataLocked(*dex_file).IsValid());
-        RegisterDexFileLocked(*dex_file, dex_cache, class_loader.Get());
+        CHECK(!class_linker->FindDexCacheDataLocked(*dex_file).IsValid());
+        class_linker->RegisterDexFileLocked(*dex_file, dex_cache, class_loader.Get());
       }
       if (kIsDebugBuild) {
         CHECK(new_class_set != nullptr);
@@ -1402,20 +1424,20 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
             }
             for (ArtMethod& m : klass->GetDirectMethods(kRuntimePointerSize)) {
               const void* code = m.GetEntryPointFromQuickCompiledCode();
-              const void* oat_code = m.IsInvokable() ? GetQuickOatCodeFor(&m) : code;
-              if (!IsQuickResolutionStub(code) &&
-                  !IsQuickGenericJniStub(code) &&
-                  !IsQuickToInterpreterBridge(code) &&
+              const void* oat_code = m.IsInvokable() ? class_linker->GetQuickOatCodeFor(&m) : code;
+              if (!class_linker->IsQuickResolutionStub(code) &&
+                  !class_linker->IsQuickGenericJniStub(code) &&
+                  !class_linker->IsQuickToInterpreterBridge(code) &&
                   !m.IsNative()) {
                 DCHECK_EQ(code, oat_code) << m.PrettyMethod();
               }
             }
             for (ArtMethod& m : klass->GetVirtualMethods(kRuntimePointerSize)) {
               const void* code = m.GetEntryPointFromQuickCompiledCode();
-              const void* oat_code = m.IsInvokable() ? GetQuickOatCodeFor(&m) : code;
-              if (!IsQuickResolutionStub(code) &&
-                  !IsQuickGenericJniStub(code) &&
-                  !IsQuickToInterpreterBridge(code) &&
+              const void* oat_code = m.IsInvokable() ? class_linker->GetQuickOatCodeFor(&m) : code;
+              if (!class_linker->IsQuickResolutionStub(code) &&
+                  !class_linker->IsQuickGenericJniStub(code) &&
+                  !class_linker->IsQuickToInterpreterBridge(code) &&
                   !m.IsNative()) {
                 DCHECK_EQ(code, oat_code) << m.PrettyMethod();
               }
@@ -1875,12 +1897,13 @@ bool ClassLinker::AddImageSpace(
   }
   if (app_image) {
     bool forward_dex_cache_arrays = false;
-    if (!UpdateAppImageClassLoadersAndDexCaches(space,
-                                                class_loader,
-                                                dex_caches,
-                                                &temp_set,
-                                                /*out*/&forward_dex_cache_arrays,
-                                                /*out*/error_msg)) {
+    if (!AppImageClassLoadersAndDexCachesHelper::Update(this,
+                                                        space,
+                                                        class_loader,
+                                                        dex_caches,
+                                                        &temp_set,
+                                                        /*out*/&forward_dex_cache_arrays,
+                                                        /*out*/error_msg)) {
       return false;
     }
     // Update class loader and resolved strings. If added_class_table is false, the resolved
@@ -1979,7 +2002,7 @@ void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
     // ClassTable::TableSlot. The buffered root visiting would access a stale stack location for
     // these objects.
     UnbufferedRootVisitor root_visitor(visitor, RootInfo(kRootStickyClass));
-    boot_class_table_.VisitRoots(root_visitor);
+    boot_class_table_->VisitRoots(root_visitor);
     // If tracing is enabled, then mark all the class loaders to prevent unloading.
     if ((flags & kVisitRootFlagClassLoader) != 0 || tracing_enabled) {
       for (const ClassLoaderData& data : class_loaders_) {
@@ -2078,7 +2101,7 @@ class VisitClassLoaderClassesVisitor : public ClassLoaderVisitor {
 };
 
 void ClassLinker::VisitClassesInternal(ClassVisitor* visitor) {
-  if (boot_class_table_.Visit(*visitor)) {
+  if (boot_class_table_->Visit(*visitor)) {
     VisitClassLoaderClassesVisitor loader_visitor(visitor);
     VisitClassLoaders(&loader_visitor);
   }
@@ -3881,7 +3904,7 @@ class MoveClassTableToPreZygoteVisitor : public ClassLoaderVisitor {
 
 void ClassLinker::MoveClassTableToPreZygote() {
   WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
-  boot_class_table_.FreezeSnapshot();
+  boot_class_table_->FreezeSnapshot();
   MoveClassTableToPreZygoteVisitor visitor;
   VisitClassLoaders(&visitor);
 }
@@ -3918,7 +3941,7 @@ void ClassLinker::LookupClasses(const char* descriptor,
   Thread* const self = Thread::Current();
   ReaderMutexLock mu(self, *Locks::classlinker_classes_lock_);
   const size_t hash = ComputeModifiedUtf8Hash(descriptor);
-  ObjPtr<mirror::Class> klass = boot_class_table_.Lookup(descriptor, hash);
+  ObjPtr<mirror::Class> klass = boot_class_table_->Lookup(descriptor, hash);
   if (klass != nullptr) {
     DCHECK(klass->GetClassLoader() == nullptr);
     result.push_back(klass);
@@ -5202,7 +5225,7 @@ void ClassLinker::RegisterClassLoader(ObjPtr<mirror::ClassLoader> class_loader) 
 
 ClassTable* ClassLinker::InsertClassTableForClassLoader(ObjPtr<mirror::ClassLoader> class_loader) {
   if (class_loader == nullptr) {
-    return &boot_class_table_;
+    return boot_class_table_.get();
   }
   ClassTable* class_table = class_loader->GetClassTable();
   if (class_table == nullptr) {
@@ -5214,7 +5237,7 @@ ClassTable* ClassLinker::InsertClassTableForClassLoader(ObjPtr<mirror::ClassLoad
 }
 
 ClassTable* ClassLinker::ClassTableForClassLoader(ObjPtr<mirror::ClassLoader> class_loader) {
-  return class_loader == nullptr ? &boot_class_table_ : class_loader->GetClassTable();
+  return class_loader == nullptr ? boot_class_table_.get() : class_loader->GetClassTable();
 }
 
 static ImTable* FindSuperImt(ObjPtr<mirror::Class> klass, PointerSize pointer_size)
@@ -8571,13 +8594,13 @@ class CountClassesVisitor : public ClassLoaderVisitor {
 size_t ClassLinker::NumZygoteClasses() const {
   CountClassesVisitor visitor;
   VisitClassLoaders(&visitor);
-  return visitor.num_zygote_classes + boot_class_table_.NumZygoteClasses(nullptr);
+  return visitor.num_zygote_classes + boot_class_table_->NumZygoteClasses(nullptr);
 }
 
 size_t ClassLinker::NumNonZygoteClasses() const {
   CountClassesVisitor visitor;
   VisitClassLoaders(&visitor);
-  return visitor.num_non_zygote_classes + boot_class_table_.NumNonZygoteClasses(nullptr);
+  return visitor.num_non_zygote_classes + boot_class_table_->NumNonZygoteClasses(nullptr);
 }
 
 size_t ClassLinker::NumLoadedClasses() {
