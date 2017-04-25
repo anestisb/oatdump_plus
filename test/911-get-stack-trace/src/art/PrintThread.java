@@ -41,7 +41,8 @@ public class PrintThread {
   // We have to ignore some threads when printing all stack traces. These are threads that may or
   // may not exist depending on the environment.
   public final static String IGNORE_THREAD_NAME_REGEX =
-      "Binder:|RenderThread|hwuiTask|Jit thread pool worker|Instr:|JDWP|Profile Saver|main";
+      "Binder:|RenderThread|hwuiTask|Jit thread pool worker|Instr:|JDWP|Profile Saver|main|" +
+      "queued-work-looper";
   public final static Matcher IGNORE_THREADS =
       Pattern.compile(IGNORE_THREAD_NAME_REGEX).matcher("");
 
