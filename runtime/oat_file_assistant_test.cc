@@ -526,7 +526,7 @@ TEST_F(OatFileAssistantTest, StrippedDexOdexOat) {
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kVerifyAtRuntime));
   EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded,
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
-  EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded,  // Can't run dex2oat because dex file is stripped.
+  EXPECT_EQ(-OatFileAssistant::kDex2OatForFilter,  // Compiling from the .vdex file
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kEverything));
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
