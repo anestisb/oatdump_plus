@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import static art.Redefinition.doCommonClassRedefinition;
+
 import java.util.Base64;
 import java.util.function.Consumer;
 import java.lang.reflect.Method;
@@ -99,6 +101,7 @@ public class Main {
   }
 
   public static void main(String[] args) {
+    art.Main.bindAgentJNIForClass(Main.class);
     doTest(new Transform());
   }
 
@@ -147,9 +150,4 @@ public class Main {
   private static native boolean isInterpretedFunction(Method m, boolean require_deoptimizable);
 
   private static native void ensureJitCompiled(Class c, String name);
-
-  // Transforms the class
-  private static native void doCommonClassRedefinition(Class<?> target,
-                                                       byte[] classfile,
-                                                       byte[] dexfile);
 }

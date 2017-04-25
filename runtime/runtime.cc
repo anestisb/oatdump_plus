@@ -83,6 +83,7 @@
 #include "instrumentation.h"
 #include "intern_table.h"
 #include "interpreter/interpreter.h"
+#include "java_vm_ext.h"
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
 #include "jni_internal.h"
@@ -269,13 +270,6 @@ Runtime::~Runtime() {
     UnloadNativeBridge();
   }
 
-  if (dump_gc_performance_on_shutdown_) {
-    // This can't be called from the Heap destructor below because it
-    // could call RosAlloc::InspectAll() which needs the thread_list
-    // to be still alive.
-    heap_->DumpGcPerformanceInfo(LOG_STREAM(INFO));
-  }
-
   Thread* self = Thread::Current();
   const bool attach_shutdown_thread = self == nullptr;
   if (attach_shutdown_thread) {
@@ -283,6 +277,13 @@ Runtime::~Runtime() {
     self = Thread::Current();
   } else {
     LOG(WARNING) << "Current thread not detached in Runtime shutdown";
+  }
+
+  if (dump_gc_performance_on_shutdown_) {
+    // This can't be called from the Heap destructor below because it
+    // could call RosAlloc::InspectAll() which needs the thread_list
+    // to be still alive.
+    heap_->DumpGcPerformanceInfo(LOG_STREAM(INFO));
   }
 
   if (jit_ != nullptr) {
@@ -1722,6 +1723,7 @@ void Runtime::VisitConstantRoots(RootVisitor* visitor) {
   mirror::MethodHandlesLookup::VisitRoots(visitor);
   mirror::EmulatedStackFrame::VisitRoots(visitor);
   mirror::ClassExt::VisitRoots(visitor);
+  mirror::CallSite::VisitRoots(visitor);
   // Visit all the primitive array types classes.
   mirror::PrimitiveArray<uint8_t>::VisitRoots(visitor);   // BooleanArray
   mirror::PrimitiveArray<int8_t>::VisitRoots(visitor);    // ByteArray

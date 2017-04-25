@@ -2159,10 +2159,11 @@ class JNI {
     }
     CHECK_NON_NULL_ARGUMENT_FN_NAME("RegisterNatives", java_class, JNI_ERR);
     ScopedObjectAccess soa(env);
-    ObjPtr<mirror::Class> c = soa.Decode<mirror::Class>(java_class);
+    StackHandleScope<1> hs(soa.Self());
+    Handle<mirror::Class> c = hs.NewHandle(soa.Decode<mirror::Class>(java_class));
     if (UNLIKELY(method_count == 0)) {
       LOG(WARNING) << "JNI RegisterNativeMethods: attempt to register 0 native methods for "
-          << mirror::Class::PrettyDescriptor(c);
+          << c->PrettyDescriptor();
       return JNI_OK;
     }
     CHECK_NON_NULL_ARGUMENT_FN_NAME("RegisterNatives", methods, JNI_ERR);
@@ -2171,13 +2172,13 @@ class JNI {
       const char* sig = methods[i].signature;
       const void* fnPtr = methods[i].fnPtr;
       if (UNLIKELY(name == nullptr)) {
-        ReportInvalidJNINativeMethod(soa, c, "method name", i, return_errors);
+        ReportInvalidJNINativeMethod(soa, c.Get(), "method name", i, return_errors);
         return JNI_ERR;
       } else if (UNLIKELY(sig == nullptr)) {
-        ReportInvalidJNINativeMethod(soa, c, "method signature", i, return_errors);
+        ReportInvalidJNINativeMethod(soa, c.Get(), "method signature", i, return_errors);
         return JNI_ERR;
       } else if (UNLIKELY(fnPtr == nullptr)) {
-        ReportInvalidJNINativeMethod(soa, c, "native function", i, return_errors);
+        ReportInvalidJNINativeMethod(soa, c.Get(), "native function", i, return_errors);
         return JNI_ERR;
       }
       bool is_fast = false;
@@ -2220,7 +2221,7 @@ class JNI {
       // the parent.
       ArtMethod* m = nullptr;
       bool warn_on_going_to_parent = down_cast<JNIEnvExt*>(env)->vm->IsCheckJniEnabled();
-      for (ObjPtr<mirror::Class> current_class = c;
+      for (ObjPtr<mirror::Class> current_class = c.Get();
            current_class != nullptr;
            current_class = current_class->GetSuperClass()) {
         // Search first only comparing methods which are native.
@@ -2252,14 +2253,14 @@ class JNI {
             << "Failed to register native method "
             << c->PrettyDescriptor() << "." << name << sig << " in "
             << c->GetDexCache()->GetLocation()->ToModifiedUtf8();
-        ThrowNoSuchMethodError(soa, c, name, sig, "static or non-static");
+        ThrowNoSuchMethodError(soa, c.Get(), name, sig, "static or non-static");
         return JNI_ERR;
       } else if (!m->IsNative()) {
         LOG(return_errors ? ::android::base::ERROR : ::android::base::FATAL)
             << "Failed to register non-native method "
             << c->PrettyDescriptor() << "." << name << sig
             << " as native";
-        ThrowNoSuchMethodError(soa, c, name, sig, "native");
+        ThrowNoSuchMethodError(soa, c.Get(), name, sig, "native");
         return JNI_ERR;
       }
 
@@ -2277,7 +2278,8 @@ class JNI {
         // TODO: make this a hard register error in the future.
       }
 
-      m->RegisterNative(fnPtr, is_fast);
+      const void* final_function_ptr = m->RegisterNative(fnPtr, is_fast);
+      UNUSED(final_function_ptr);
     }
     return JNI_OK;
   }

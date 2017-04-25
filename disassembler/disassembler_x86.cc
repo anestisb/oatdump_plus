@@ -574,6 +574,20 @@ DISASSEMBLER_ENTRY(cmp,
               load = true;
               src_reg_file = dst_reg_file = SSE;
               break;
+            case 0x29:
+              opcode1 = "pcmpeqq";
+              prefix[2] = 0;
+              has_modrm = true;
+              load = true;
+              src_reg_file = dst_reg_file = SSE;
+              break;
+            case 0x39:
+              opcode1 = "pcmpgtq";
+              prefix[2] = 0;
+              has_modrm = true;
+              load = true;
+              src_reg_file = dst_reg_file = SSE;
+              break;
             case 0x40:
               opcode1 = "pmulld";
               prefix[2] = 0;
@@ -736,6 +750,24 @@ DISASSEMBLER_ENTRY(cmp,
         }
         load = true;
         has_modrm = true;
+        break;
+      case 0x64:
+      case 0x65:
+      case 0x66:
+        if (prefix[2] == 0x66) {
+          src_reg_file = dst_reg_file = SSE;
+          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else {
+          src_reg_file = dst_reg_file = MMX;
+        }
+        switch (*instr) {
+          case 0x64: opcode1 = "pcmpgtb"; break;
+          case 0x65: opcode1 = "pcmpgtw"; break;
+          case 0x66: opcode1 = "pcmpgtd"; break;
+        }
+        prefix[2] = 0;
+        has_modrm = true;
+        load = true;
         break;
       case 0x6E:
         if (prefix[2] == 0x66) {
@@ -1100,6 +1132,22 @@ DISASSEMBLER_ENTRY(cmp,
           opcode_tmp = StringPrintf("unknown opcode '0F %02X'", *instr);
           opcode1 = opcode_tmp.c_str();
         }
+        break;
+      case 0xE0:
+      case 0xE3:
+        if (prefix[2] == 0x66) {
+          src_reg_file = dst_reg_file = SSE;
+          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else {
+          src_reg_file = dst_reg_file = MMX;
+        }
+        switch (*instr) {
+          case 0xE0: opcode1 = "pavgb"; break;
+          case 0xE3: opcode1 = "pavgw"; break;
+        }
+        prefix[2] = 0;
+        has_modrm = true;
+        load = true;
         break;
       case 0xEB:
         if (prefix[2] == 0x66) {

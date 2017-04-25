@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+import static art.Redefinition.doCommonClassRedefinition;
+
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedList;
@@ -287,7 +290,33 @@ public class Main {
   private static final String LISTENER_LOCATION =
       System.getenv("DEX_LOCATION") + "/980-redefine-object-ex.jar";
 
+  private static Method doEnableReporting;
+  private static Method doDisableReporting;
+
+  private static void DisableReporting() {
+    if (doDisableReporting == null) {
+      return;
+    }
+    try {
+      doDisableReporting.invoke(null);
+    } catch (Exception e) {
+      throw new Error("Unable to disable reporting!");
+    }
+  }
+
+  private static void EnableReporting() {
+    if (doEnableReporting == null) {
+      return;
+    }
+    try {
+      doEnableReporting.invoke(null);
+    } catch (Exception e) {
+      throw new Error("Unable to enable reporting!");
+    }
+  }
+
   public static void main(String[] args) {
+    art.Main.bindAgentJNIForClass(Main.class);
     doTest();
   }
 
@@ -297,8 +326,8 @@ public class Main {
       addToBootClassLoader(LISTENER_LOCATION);
       // Load TestWatcher from the bootclassloader and make sure it is initialized.
       Class<?> testwatcher_class = Class.forName("art.test.TestWatcher", true, null);
-      // Bind the native functions of testwatcher_class.
-      bindFunctionsForClass(testwatcher_class);
+      doEnableReporting = testwatcher_class.getDeclaredMethod("EnableReporting");
+      doDisableReporting = testwatcher_class.getDeclaredMethod("DisableReporting");
     } catch (Exception e) {
       throw new Error("Exception while making testwatcher", e);
     }
@@ -307,9 +336,9 @@ public class Main {
   // NB This function will cause 2 objects of type "Ljava/nio/HeapCharBuffer;" and
   // "Ljava/nio/HeapCharBuffer;" to be allocated each time it is called.
   private static void safePrintln(Object o) {
-    System.out.flush();
-    System.out.print("\t" + o + "\n");
-    System.out.flush();
+    DisableReporting();
+    System.out.println("\t" + o);
+    EnableReporting();
   }
 
   private static void throwFrom(int depth) throws Exception {
@@ -380,11 +409,4 @@ public class Main {
   }
 
   private static native void addToBootClassLoader(String s);
-
-  private static native void bindFunctionsForClass(Class<?> target);
-
-  // Transforms the class
-  private static native void doCommonClassRedefinition(Class<?> target,
-                                                       byte[] class_file,
-                                                       byte[] dex_file);
 }

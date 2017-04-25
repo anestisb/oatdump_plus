@@ -14,60 +14,8 @@
  * limitations under the License.
  */
 
-import java.lang.reflect.Field;
-import java.util.Arrays;
-
 public class Main {
   public static void main(String[] args) throws Exception {
-    doTest();
-  }
-
-  public static void doTest() throws Exception {
-    testField(Math.class, "PI");
-    testField(Integer.class, "value");
-    testField(Foo.class, "this$0");
-    testField(Bar.class, "VAL");
-    testField(Generics.class, "generics");
-  }
-
-  private static void testField(Class<?> base, String fieldName)
-      throws Exception {
-    Field f = base.getDeclaredField(fieldName);
-    String[] result = getFieldName(f);
-    System.out.println(Arrays.toString(result));
-
-    Class<?> declClass = getFieldDeclaringClass(f);
-    if (base != declClass) {
-      throw new RuntimeException("Declaring class not equal: " + base + " vs " + declClass);
-    }
-    System.out.println(declClass);
-
-    int modifiers = getFieldModifiers(f);
-    if (modifiers != f.getModifiers()) {
-      throw new RuntimeException("Modifiers not equal: " + f.getModifiers() + " vs " + modifiers);
-    }
-    System.out.println(modifiers);
-
-    boolean synth = isFieldSynthetic(f);
-    if (synth != f.isSynthetic()) {
-      throw new RuntimeException("Synthetic not equal: " + f.isSynthetic() + " vs " + synth);
-    }
-    System.out.println(synth);
-  }
-
-  private static native String[] getFieldName(Field f);
-  private static native Class<?> getFieldDeclaringClass(Field f);
-  private static native int getFieldModifiers(Field f);
-  private static native boolean isFieldSynthetic(Field f);
-
-  private class Foo {
-  }
-
-  private static interface Bar {
-    public static int VAL = 1;
-  }
-
-  private static class Generics<T> {
-    T generics;
+    art.Test918.run();
   }
 }

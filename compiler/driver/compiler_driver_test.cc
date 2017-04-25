@@ -149,7 +149,6 @@ TEST_F(CompilerDriverTest, DISABLED_LARGE_CompileDexLibCore) {
 }
 
 TEST_F(CompilerDriverTest, AbstractMethodErrorStub) {
-  TEST_DISABLED_FOR_READ_BARRIER_WITH_OPTIMIZING_FOR_UNSUPPORTED_INSTRUCTION_SETS();
   jobject class_loader;
   {
     ScopedObjectAccess soa(Thread::Current());
@@ -192,7 +191,6 @@ class CompilerDriverMethodsTest : public CompilerDriverTest {
 };
 
 TEST_F(CompilerDriverMethodsTest, Selection) {
-  TEST_DISABLED_FOR_READ_BARRIER_WITH_OPTIMIZING_FOR_UNSUPPORTED_INSTRUCTION_SETS();
   Thread* self = Thread::Current();
   jobject class_loader;
   {
@@ -300,7 +298,6 @@ class CompilerDriverProfileTest : public CompilerDriverTest {
 };
 
 TEST_F(CompilerDriverProfileTest, ProfileGuidedCompilation) {
-  TEST_DISABLED_FOR_READ_BARRIER_WITH_OPTIMIZING_FOR_UNSUPPORTED_INSTRUCTION_SETS();
   Thread* self = Thread::Current();
   jobject class_loader;
   {

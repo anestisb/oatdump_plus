@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-#include "arch/mips/quick_method_frame_info_mips.h"
 #include "fault_handler.h"
 #include <sys/ucontext.h>
-#include "art_method-inl.h"
+
+#include "art_method.h"
+#include "base/hex_dump.h"
+#include "base/logging.h"
 #include "base/macros.h"
 #include "globals.h"
-#include "base/logging.h"
-#include "base/hex_dump.h"
+#include "quick_method_frame_info_mips.h"
 #include "registers_mips.h"
-#include "thread.h"
 #include "thread-inl.h"
 
 extern "C" void art_quick_throw_stack_overflow();

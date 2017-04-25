@@ -25,7 +25,8 @@
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 
-#include "art_method.h"
+#include "art_field-inl.h"
+#include "art_method-inl.h"
 #include "base/enums.h"
 #include "base/macros.h"
 #include "base/stl_util.h"
@@ -38,6 +39,7 @@
 #include "image_space_fs.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
+#include "mirror/object-refvisitor-inl.h"
 #include "oat_file.h"
 #include "os.h"
 #include "space-inl.h"
@@ -886,7 +888,7 @@ class ImageSpaceLoader {
     explicit FixupObjectAdapter(Args... args) : FixupVisitor(args...) {}
 
     template <typename T>
-    T* operator()(T* obj) const {
+    T* operator()(T* obj, void** dest_addr ATTRIBUTE_UNUSED = nullptr) const {
       return ForwardObject(obj);
     }
   };
@@ -976,7 +978,8 @@ class ImageSpaceLoader {
           ForwardObject(obj));
     }
 
-    void operator()(mirror::Object* obj) const NO_THREAD_SAFETY_ANALYSIS {
+    void operator()(mirror::Object* obj) const
+        NO_THREAD_SAFETY_ANALYSIS {
       if (visited_->Test(obj)) {
         // Already visited.
         return;

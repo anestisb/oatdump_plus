@@ -32,6 +32,32 @@ namespace art {
 // Cast entrypoints.
 extern "C" size_t artInstanceOfFromCode(mirror::Object* obj, mirror::Class* ref_class);
 
+// Read barrier entrypoints.
+// art_quick_read_barrier_mark_regXX uses a non-standard calling
+// convention: it expects its input in register XX+1 and returns its
+// result in that same register, and saves and restores all
+// caller-save registers.
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg01(mirror::Object*);
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg02(mirror::Object*);
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg03(mirror::Object*);
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg04(mirror::Object*);
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg05(mirror::Object*);
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg06(mirror::Object*);
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg07(mirror::Object*);
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg08(mirror::Object*);
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg09(mirror::Object*);
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg10(mirror::Object*);
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg11(mirror::Object*);
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg12(mirror::Object*);
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg13(mirror::Object*);
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg17(mirror::Object*);
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg18(mirror::Object*);
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg19(mirror::Object*);
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg20(mirror::Object*);
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg21(mirror::Object*);
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg22(mirror::Object*);
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg29(mirror::Object*);
+
 // Math entrypoints.
 extern int32_t CmpgDouble(double a, double b);
 extern int32_t CmplDouble(double a, double b);
@@ -60,8 +86,28 @@ extern "C" int64_t __divdi3(int64_t, int64_t);
 extern "C" int64_t __moddi3(int64_t, int64_t);
 
 // No read barrier entrypoints for marking registers.
-void UpdateReadBarrierEntrypoints(QuickEntryPoints* qpoints ATTRIBUTE_UNUSED,
-                                  bool is_marking ATTRIBUTE_UNUSED) {}
+void UpdateReadBarrierEntrypoints(QuickEntryPoints* qpoints, bool is_marking) {
+  qpoints->pReadBarrierMarkReg01 = is_marking ? art_quick_read_barrier_mark_reg01 : nullptr;
+  qpoints->pReadBarrierMarkReg02 = is_marking ? art_quick_read_barrier_mark_reg02 : nullptr;
+  qpoints->pReadBarrierMarkReg03 = is_marking ? art_quick_read_barrier_mark_reg03 : nullptr;
+  qpoints->pReadBarrierMarkReg04 = is_marking ? art_quick_read_barrier_mark_reg04 : nullptr;
+  qpoints->pReadBarrierMarkReg05 = is_marking ? art_quick_read_barrier_mark_reg05 : nullptr;
+  qpoints->pReadBarrierMarkReg06 = is_marking ? art_quick_read_barrier_mark_reg06 : nullptr;
+  qpoints->pReadBarrierMarkReg07 = is_marking ? art_quick_read_barrier_mark_reg07 : nullptr;
+  qpoints->pReadBarrierMarkReg08 = is_marking ? art_quick_read_barrier_mark_reg08 : nullptr;
+  qpoints->pReadBarrierMarkReg09 = is_marking ? art_quick_read_barrier_mark_reg09 : nullptr;
+  qpoints->pReadBarrierMarkReg10 = is_marking ? art_quick_read_barrier_mark_reg10 : nullptr;
+  qpoints->pReadBarrierMarkReg11 = is_marking ? art_quick_read_barrier_mark_reg11 : nullptr;
+  qpoints->pReadBarrierMarkReg12 = is_marking ? art_quick_read_barrier_mark_reg12 : nullptr;
+  qpoints->pReadBarrierMarkReg13 = is_marking ? art_quick_read_barrier_mark_reg13 : nullptr;
+  qpoints->pReadBarrierMarkReg17 = is_marking ? art_quick_read_barrier_mark_reg17 : nullptr;
+  qpoints->pReadBarrierMarkReg18 = is_marking ? art_quick_read_barrier_mark_reg18 : nullptr;
+  qpoints->pReadBarrierMarkReg19 = is_marking ? art_quick_read_barrier_mark_reg19 : nullptr;
+  qpoints->pReadBarrierMarkReg20 = is_marking ? art_quick_read_barrier_mark_reg20 : nullptr;
+  qpoints->pReadBarrierMarkReg21 = is_marking ? art_quick_read_barrier_mark_reg21 : nullptr;
+  qpoints->pReadBarrierMarkReg22 = is_marking ? art_quick_read_barrier_mark_reg22 : nullptr;
+  qpoints->pReadBarrierMarkReg29 = is_marking ? art_quick_read_barrier_mark_reg29 : nullptr;
+}
 
 void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
   DefaultInitEntryPoints(jpoints, qpoints);
@@ -91,6 +137,25 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
   qpoints->pShrLong = nullptr;
   qpoints->pUshrLong = nullptr;
 
+  // More math.
+  qpoints->pCos = cos;
+  qpoints->pSin = sin;
+  qpoints->pAcos = acos;
+  qpoints->pAsin = asin;
+  qpoints->pAtan = atan;
+  qpoints->pAtan2 = atan2;
+  qpoints->pCbrt = cbrt;
+  qpoints->pCosh = cosh;
+  qpoints->pExp = exp;
+  qpoints->pExpm1 = expm1;
+  qpoints->pHypot = hypot;
+  qpoints->pLog = log;
+  qpoints->pLog10 = log10;
+  qpoints->pNextAfter = nextafter;
+  qpoints->pSinh = sinh;
+  qpoints->pTan = tan;
+  qpoints->pTanh = tanh;
+
   // Intrinsics
   qpoints->pIndexOf = art_quick_indexof;
   qpoints->pStringCompareTo = art_quick_string_compareto;
@@ -103,38 +168,20 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
 
   // Read barrier.
   qpoints->pReadBarrierJni = ReadBarrierJni;
-  // Read barriers (and these entry points in particular) are not
-  // supported in the compiler on MIPS64.
+  UpdateReadBarrierEntrypoints(qpoints, /*is_marking*/ false);
+  // Cannot use the following registers to pass arguments:
+  // 0(ZERO), 1(AT), 15(T3), 16(S0), 17(S1), 24(T8), 25(T9), 26(K0), 27(K1), 28(GP), 29(SP), 31(RA).
+  // Note that there are 30 entry points only: 00 for register 1(AT), ..., 29 for register 30(S8).
   qpoints->pReadBarrierMarkReg00 = nullptr;
-  qpoints->pReadBarrierMarkReg01 = nullptr;
-  qpoints->pReadBarrierMarkReg02 = nullptr;
-  qpoints->pReadBarrierMarkReg03 = nullptr;
-  qpoints->pReadBarrierMarkReg04 = nullptr;
-  qpoints->pReadBarrierMarkReg05 = nullptr;
-  qpoints->pReadBarrierMarkReg06 = nullptr;
-  qpoints->pReadBarrierMarkReg07 = nullptr;
-  qpoints->pReadBarrierMarkReg08 = nullptr;
-  qpoints->pReadBarrierMarkReg09 = nullptr;
-  qpoints->pReadBarrierMarkReg10 = nullptr;
-  qpoints->pReadBarrierMarkReg11 = nullptr;
-  qpoints->pReadBarrierMarkReg12 = nullptr;
-  qpoints->pReadBarrierMarkReg13 = nullptr;
   qpoints->pReadBarrierMarkReg14 = nullptr;
   qpoints->pReadBarrierMarkReg15 = nullptr;
   qpoints->pReadBarrierMarkReg16 = nullptr;
-  qpoints->pReadBarrierMarkReg17 = nullptr;
-  qpoints->pReadBarrierMarkReg18 = nullptr;
-  qpoints->pReadBarrierMarkReg19 = nullptr;
-  qpoints->pReadBarrierMarkReg20 = nullptr;
-  qpoints->pReadBarrierMarkReg21 = nullptr;
-  qpoints->pReadBarrierMarkReg22 = nullptr;
   qpoints->pReadBarrierMarkReg23 = nullptr;
   qpoints->pReadBarrierMarkReg24 = nullptr;
   qpoints->pReadBarrierMarkReg25 = nullptr;
   qpoints->pReadBarrierMarkReg26 = nullptr;
   qpoints->pReadBarrierMarkReg27 = nullptr;
   qpoints->pReadBarrierMarkReg28 = nullptr;
-  qpoints->pReadBarrierMarkReg29 = nullptr;
   qpoints->pReadBarrierSlow = artReadBarrierSlow;
   qpoints->pReadBarrierForRootSlow = artReadBarrierForRootSlow;
 };

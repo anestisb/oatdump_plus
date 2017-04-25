@@ -15,11 +15,13 @@
  */
 
 #include <iostream>
+#include <mutex>
 #include <pthread.h>
 #include <stdio.h>
 #include <vector>
 
 #include "android-base/logging.h"
+#include "android-base/stringprintf.h"
 #include "jni.h"
 #include "jvmti.h"
 #include "scoped_local_ref.h"
@@ -41,6 +43,9 @@ static std::string GetClassName(JNIEnv* jni_env, jclass cls) {
   return utf_chars.c_str();
 }
 
+static std::mutex gEventsMutex;
+static std::vector<std::string> gEvents;
+
 static void JNICALL ObjectAllocated(jvmtiEnv* ti_env ATTRIBUTE_UNUSED,
                                     JNIEnv* jni_env,
                                     jthread thread ATTRIBUTE_UNUSED,
@@ -51,13 +56,14 @@ static void JNICALL ObjectAllocated(jvmtiEnv* ti_env ATTRIBUTE_UNUSED,
   ScopedLocalRef<jclass> object_klass2(jni_env, jni_env->GetObjectClass(object));
   std::string object_klass_descriptor2 = GetClassName(jni_env, object_klass2.get());
 
-  printf("ObjectAllocated type %s/%s size %zu\n",
-         object_klass_descriptor.c_str(),
-         object_klass_descriptor2.c_str(),
-         static_cast<size_t>(size));
+  std::lock_guard<std::mutex> guard(gEventsMutex);
+  gEvents.push_back(android::base::StringPrintf("ObjectAllocated type %s/%s size %zu",
+                                                object_klass_descriptor.c_str(),
+                                                object_klass_descriptor2.c_str(),
+                                                static_cast<size_t>(size)));
 }
 
-extern "C" JNIEXPORT void JNICALL Java_Main_setupObjectAllocCallback(
+extern "C" JNIEXPORT void JNICALL Java_art_Test904_setupObjectAllocCallback(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jboolean enable) {
   jvmtiEventCallbacks callbacks;
   memset(&callbacks, 0, sizeof(jvmtiEventCallbacks));
@@ -67,15 +73,26 @@ extern "C" JNIEXPORT void JNICALL Java_Main_setupObjectAllocCallback(
   JvmtiErrorToException(env, jvmti_env, ret);
 }
 
-extern "C" JNIEXPORT void JNICALL Java_Main_enableAllocationTracking(JNIEnv* env,
-                                                                     jclass,
-                                                                     jthread thread,
-                                                                     jboolean enable) {
+extern "C" JNIEXPORT void JNICALL Java_art_Test904_enableAllocationTracking(
+    JNIEnv* env, jclass, jthread thread, jboolean enable) {
   jvmtiError ret = jvmti_env->SetEventNotificationMode(
       enable ? JVMTI_ENABLE : JVMTI_DISABLE,
       JVMTI_EVENT_VM_OBJECT_ALLOC,
       thread);
   JvmtiErrorToException(env, jvmti_env, ret);
+}
+
+extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test904_getTrackingEventMessages(
+    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED) {
+  std::lock_guard<std::mutex> guard(gEventsMutex);
+  jobjectArray ret = CreateObjectArray(env,
+                                       static_cast<jint>(gEvents.size()),
+                                       "java/lang/String",
+                                       [&](jint i) {
+    return env->NewStringUTF(gEvents[i].c_str());
+  });
+  gEvents.clear();
+  return ret;
 }
 
 }  // namespace Test904ObjectAllocation

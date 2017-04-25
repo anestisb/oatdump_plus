@@ -128,8 +128,7 @@ class MANAGED LOCKABLE Object {
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   ALWAYS_INLINE bool InstanceOf(ObjPtr<Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
-           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   size_t SizeOf() REQUIRES_SHARED(Locks::mutator_lock_);
 
   Object* Clone(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_)
@@ -488,11 +487,18 @@ class MANAGED LOCKABLE Object {
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kIsVolatile = false>
   ALWAYS_INLINE int64_t GetField64(MemberOffset field_offset)
-      REQUIRES_SHARED(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (kVerifyFlags & kVerifyThis) {
+      VerifyObject(this);
+    }
+    return GetField<int64_t, kIsVolatile>(field_offset);
+  }
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   ALWAYS_INLINE int64_t GetField64Volatile(MemberOffset field_offset)
-      REQUIRES_SHARED(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    return GetField64<kVerifyFlags, true>(field_offset);
+  }
 
   template<bool kTransactionActive, bool kCheckTransaction = true,
       VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kIsVolatile = false>

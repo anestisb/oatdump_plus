@@ -63,7 +63,7 @@ class MultiOatRelativePatcherTest : public testing::Test {
       if (next_write_call_thunk_ != 0u) {
         offset += next_write_call_thunk_;
         std::vector<uint8_t> thunk(next_write_call_thunk_, 'c');
-        bool success = WriteRelCallThunk(out, ArrayRef<const uint8_t>(thunk));
+        bool success = WriteThunk(out, ArrayRef<const uint8_t>(thunk));
         CHECK(success);
         next_write_call_thunk_ = 0u;
       }
@@ -93,6 +93,12 @@ class MultiOatRelativePatcherTest : public testing::Test {
       last_literal_offset_ = patch.LiteralOffset();
       last_patch_offset_ = patch_offset;
       last_target_offset_ = target_offset;
+    }
+
+    void PatchBakerReadBarrierBranch(std::vector<uint8_t>* code ATTRIBUTE_UNUSED,
+                                     const LinkerPatch& patch ATTRIBUTE_UNUSED,
+                                     uint32_t patch_offset ATTRIBUTE_UNUSED) {
+      LOG(FATAL) << "UNIMPLEMENTED";
     }
 
     uint32_t last_reserve_offset_ = 0u;

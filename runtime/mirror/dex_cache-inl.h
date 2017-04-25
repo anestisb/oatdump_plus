@@ -19,13 +19,15 @@
 
 #include "dex_cache.h"
 
-#include "art_field-inl.h"
-#include "art_method-inl.h"
+#include "art_field.h"
+#include "art_method.h"
 #include "base/casts.h"
 #include "base/enums.h"
 #include "base/logging.h"
+#include "class_linker.h"
 #include "dex_file.h"
 #include "gc_root.h"
+#include "gc/heap-inl.h"
 #include "mirror/class.h"
 #include "mirror/call_site.h"
 #include "mirror/method_type.h"

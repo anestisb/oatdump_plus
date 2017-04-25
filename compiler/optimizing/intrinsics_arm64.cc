@@ -22,9 +22,13 @@
 #include "common_arm64.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "intrinsics.h"
+#include "lock_word.h"
 #include "mirror/array-inl.h"
+#include "mirror/object_array-inl.h"
+#include "mirror/reference.h"
 #include "mirror/string-inl.h"
-#include "thread.h"
+#include "scoped_thread_state_change-inl.h"
+#include "thread-inl.h"
 #include "utils/arm64/assembler_arm64.h"
 
 using namespace vixl::aarch64;  // NOLINT(build/namespaces)
@@ -2507,9 +2511,11 @@ void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopy(HInvoke* invoke) {
     // We use a block to end the scratch scope before the write barrier, thus
     // freeing the temporary registers so they can be used in `MarkGCCard`.
     UseScratchRegisterScope temps(masm);
+    Location temp3_loc;  // Used only for Baker read barrier.
     Register temp3;
     if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
-      temp3 = WRegisterFrom(locations->GetTemp(2));
+      temp3_loc = locations->GetTemp(2);
+      temp3 = WRegisterFrom(temp3_loc);
     } else {
       temp3 = temps.AcquireW();
     }
@@ -2527,7 +2533,7 @@ void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopy(HInvoke* invoke) {
                                                           temp1_loc,
                                                           src.W(),
                                                           class_offset,
-                                                          temp2,
+                                                          temp3_loc,
                                                           /* needs_null_check */ false,
                                                           /* use_load_acquire */ false);
           // Bail out if the source is not a non primitive array.
@@ -2536,7 +2542,7 @@ void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopy(HInvoke* invoke) {
                                                           temp1_loc,
                                                           temp1,
                                                           component_offset,
-                                                          temp2,
+                                                          temp3_loc,
                                                           /* needs_null_check */ false,
                                                           /* use_load_acquire */ false);
           __ Cbz(temp1, intrinsic_slow_path->GetEntryLabel());
@@ -2553,7 +2559,7 @@ void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopy(HInvoke* invoke) {
                                                         temp1_loc,
                                                         dest.W(),
                                                         class_offset,
-                                                        temp2,
+                                                        temp3_loc,
                                                         /* needs_null_check */ false,
                                                         /* use_load_acquire */ false);
 
@@ -2570,7 +2576,7 @@ void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopy(HInvoke* invoke) {
                                                           temp2_loc,
                                                           temp1,
                                                           component_offset,
-                                                          temp3,
+                                                          temp3_loc,
                                                           /* needs_null_check */ false,
                                                           /* use_load_acquire */ false);
           __ Cbz(temp2, intrinsic_slow_path->GetEntryLabel());
@@ -2589,7 +2595,7 @@ void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopy(HInvoke* invoke) {
                                                         temp2_loc,
                                                         src.W(),
                                                         class_offset,
-                                                        temp3,
+                                                        temp3_loc,
                                                         /* needs_null_check */ false,
                                                         /* use_load_acquire */ false);
         // Note: if heap poisoning is on, we are comparing two unpoisoned references here.
@@ -2603,7 +2609,7 @@ void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopy(HInvoke* invoke) {
                                                           temp1_loc,
                                                           temp1,
                                                           component_offset,
-                                                          temp2,
+                                                          temp3_loc,
                                                           /* needs_null_check */ false,
                                                           /* use_load_acquire */ false);
           // /* HeapReference<Class> */ temp1 = temp1->super_class_
@@ -2687,7 +2693,7 @@ void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopy(HInvoke* invoke) {
                                                         temp1_loc,
                                                         src.W(),
                                                         class_offset,
-                                                        temp2,
+                                                        temp3_loc,
                                                         /* needs_null_check */ false,
                                                         /* use_load_acquire */ false);
         // /* HeapReference<Class> */ temp2 = temp1->component_type_
@@ -2695,7 +2701,7 @@ void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopy(HInvoke* invoke) {
                                                         temp2_loc,
                                                         temp1,
                                                         component_offset,
-                                                        temp3,
+                                                        temp3_loc,
                                                         /* needs_null_check */ false,
                                                         /* use_load_acquire */ false);
         __ Cbz(temp2, intrinsic_slow_path->GetEntryLabel());

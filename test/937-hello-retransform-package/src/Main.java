@@ -17,6 +17,8 @@
 import java.util.Base64;
 
 import testing.*;
+import art.Redefinition;
+
 public class Main {
 
   /**
@@ -58,16 +60,9 @@ public class Main {
 
   public static void doTest(Transform t) {
     t.sayHi();
-    addCommonTransformationResult("testing/Transform", CLASS_BYTES, DEX_BYTES);
-    enableCommonRetransformation(true);
-    doCommonClassRetransformation(Transform.class);
+    Redefinition.addCommonTransformationResult("testing/Transform", CLASS_BYTES, DEX_BYTES);
+    Redefinition.enableCommonRetransformation(true);
+    Redefinition.doCommonClassRetransformation(Transform.class);
     t.sayHi();
   }
-
-  // Transforms the class
-  private static native void doCommonClassRetransformation(Class<?>... target);
-  private static native void enableCommonRetransformation(boolean enable);
-  private static native void addCommonTransformationResult(String target_name,
-                                                           byte[] class_bytes,
-                                                           byte[] dex_bytes);
 }

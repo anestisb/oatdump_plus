@@ -496,8 +496,8 @@ AnnotationsDirectoryItem* Collections::CreateAnnotationsDirectoryItem(const DexF
       dex_file.GetClassAnnotationSet(disk_annotations_item);
   AnnotationSetItem* class_annotation = nullptr;
   if (class_set_item != nullptr) {
-    uint32_t offset = disk_annotations_item->class_annotations_off_;
-    class_annotation = CreateAnnotationSetItem(dex_file, class_set_item, offset);
+    uint32_t item_offset = disk_annotations_item->class_annotations_off_;
+    class_annotation = CreateAnnotationSetItem(dex_file, class_set_item, item_offset);
   }
   const DexFile::FieldAnnotationsItem* fields =
       dex_file.GetFieldAnnotations(disk_annotations_item);
@@ -762,6 +762,139 @@ ClassData* Collections::CreateClassData(
     class_datas_.AddItem(class_data, offset);
   }
   return class_data;
+}
+
+static uint32_t HeaderOffset(const dex_ir::Collections& collections ATTRIBUTE_UNUSED) {
+  return 0;
+}
+
+static uint32_t HeaderSize(const dex_ir::Collections& collections ATTRIBUTE_UNUSED) {
+  // Size is in elements, so there is only one header.
+  return 1;
+}
+
+// The description of each dex file section type.
+struct FileSectionDescriptor {
+ public:
+  std::string name;
+  uint16_t type;
+  // A function that when applied to a collection object, gives the size of the section.
+  std::function<uint32_t(const dex_ir::Collections&)> size_fn;
+  // A function that when applied to a collection object, gives the offset of the section.
+  std::function<uint32_t(const dex_ir::Collections&)> offset_fn;
+};
+
+static const FileSectionDescriptor kFileSectionDescriptors[] = {
+  {
+    "Header",
+    DexFile::kDexTypeHeaderItem,
+    &HeaderSize,
+    &HeaderOffset,
+  }, {
+    "StringId",
+    DexFile::kDexTypeStringIdItem,
+    &dex_ir::Collections::StringIdsSize,
+    &dex_ir::Collections::StringIdsOffset
+  }, {
+    "TypeId",
+    DexFile::kDexTypeTypeIdItem,
+    &dex_ir::Collections::TypeIdsSize,
+    &dex_ir::Collections::TypeIdsOffset
+  }, {
+    "ProtoId",
+    DexFile::kDexTypeProtoIdItem,
+    &dex_ir::Collections::ProtoIdsSize,
+    &dex_ir::Collections::ProtoIdsOffset
+  }, {
+    "FieldId",
+    DexFile::kDexTypeFieldIdItem,
+    &dex_ir::Collections::FieldIdsSize,
+    &dex_ir::Collections::FieldIdsOffset
+  }, {
+    "MethodId",
+    DexFile::kDexTypeMethodIdItem,
+    &dex_ir::Collections::MethodIdsSize,
+    &dex_ir::Collections::MethodIdsOffset
+  }, {
+    "ClassDef",
+    DexFile::kDexTypeClassDefItem,
+    &dex_ir::Collections::ClassDefsSize,
+    &dex_ir::Collections::ClassDefsOffset
+  }, {
+    "StringData",
+    DexFile::kDexTypeStringDataItem,
+    &dex_ir::Collections::StringDatasSize,
+    &dex_ir::Collections::StringDatasOffset
+  }, {
+    "TypeList",
+    DexFile::kDexTypeTypeList,
+    &dex_ir::Collections::TypeListsSize,
+    &dex_ir::Collections::TypeListsOffset
+  }, {
+    "EncArr",
+    DexFile::kDexTypeEncodedArrayItem,
+    &dex_ir::Collections::EncodedArrayItemsSize,
+    &dex_ir::Collections::EncodedArrayItemsOffset
+  }, {
+    "Annotation",
+    DexFile::kDexTypeAnnotationItem,
+    &dex_ir::Collections::AnnotationItemsSize,
+    &dex_ir::Collections::AnnotationItemsOffset
+  }, {
+    "AnnoSet",
+    DexFile::kDexTypeAnnotationSetItem,
+    &dex_ir::Collections::AnnotationSetItemsSize,
+    &dex_ir::Collections::AnnotationSetItemsOffset
+  }, {
+    "AnnoSetRL",
+    DexFile::kDexTypeAnnotationSetRefList,
+    &dex_ir::Collections::AnnotationSetRefListsSize,
+    &dex_ir::Collections::AnnotationSetRefListsOffset
+  }, {
+    "AnnoDir",
+    DexFile::kDexTypeAnnotationsDirectoryItem,
+    &dex_ir::Collections::AnnotationsDirectoryItemsSize,
+    &dex_ir::Collections::AnnotationsDirectoryItemsOffset
+  }, {
+    "DebugInfo",
+    DexFile::kDexTypeDebugInfoItem,
+    &dex_ir::Collections::DebugInfoItemsSize,
+    &dex_ir::Collections::DebugInfoItemsOffset
+  }, {
+    "CodeItem",
+    DexFile::kDexTypeCodeItem,
+    &dex_ir::Collections::CodeItemsSize,
+    &dex_ir::Collections::CodeItemsOffset
+  }, {
+    "ClassData",
+    DexFile::kDexTypeClassDataItem,
+    &dex_ir::Collections::ClassDatasSize,
+    &dex_ir::Collections::ClassDatasOffset
+  }
+};
+
+std::vector<dex_ir::DexFileSection> GetSortedDexFileSections(dex_ir::Header* header,
+                                                             dex_ir::SortDirection direction) {
+  const dex_ir::Collections& collections = header->GetCollections();
+  std::vector<dex_ir::DexFileSection> sorted_sections;
+  // Build the table that will map from offset to color
+  for (const FileSectionDescriptor& s : kFileSectionDescriptors) {
+    sorted_sections.push_back(dex_ir::DexFileSection(s.name,
+                                                     s.type,
+                                                     s.size_fn(collections),
+                                                     s.offset_fn(collections)));
+  }
+  // Sort by offset.
+  std::sort(sorted_sections.begin(),
+            sorted_sections.end(),
+            [=](dex_ir::DexFileSection& a, dex_ir::DexFileSection& b) {
+              if (direction == SortDirection::kSortDescending) {
+                return a.offset > b.offset;
+              } else {
+                return a.offset < b.offset;
+              }
+            });
+  return sorted_sections;
 }
 
 }  // namespace dex_ir

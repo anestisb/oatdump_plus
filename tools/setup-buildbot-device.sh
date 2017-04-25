@@ -61,6 +61,9 @@ adb shell uptime
 echo -e "${green}Battery info${nc}"
 adb shell dumpsys battery
 
+echo -e "${green}Killing logd, seen leaking on fugu/N${nc}"
+adb shell killall -9 /system/bin/logd
+
 echo -e "${green}Setting adb buffer size to 32MB${nc}"
 adb logcat -G 32M
 adb logcat -g

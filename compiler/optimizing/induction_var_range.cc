@@ -45,18 +45,6 @@ static bool IsSafeDiv(int32_t c1, int32_t c2) {
   return c2 != 0 && CanLongValueFitIntoInt(static_cast<int64_t>(c1) / static_cast<int64_t>(c2));
 }
 
-/** Returns true for 32/64-bit constant instruction. */
-static bool IsIntAndGet(HInstruction* instruction, int64_t* value) {
-  if (instruction->IsIntConstant()) {
-    *value = instruction->AsIntConstant()->GetValue();
-    return true;
-  } else if (instruction->IsLongConstant()) {
-    *value = instruction->AsLongConstant()->GetValue();
-    return true;
-  }
-  return false;
-}
-
 /** Computes a * b for a,b > 0 (at least until first overflow happens). */
 static int64_t SafeMul(int64_t a, int64_t b, /*out*/ bool* overflow) {
   if (a > 0 && b > 0 && a > (std::numeric_limits<int64_t>::max() / b)) {
@@ -106,7 +94,7 @@ static bool IsGEZero(HInstruction* instruction) {
     }
   }
   int64_t value = -1;
-  return IsIntAndGet(instruction, &value) && value >= 0;
+  return IsInt64AndGet(instruction, &value) && value >= 0;
 }
 
 /** Hunts "under the hood" for a suitable instruction at the hint. */
@@ -149,7 +137,7 @@ static InductionVarRange::Value SimplifyMax(InductionVarRange::Value v, HInstruc
     int64_t value;
     if (v.instruction->IsDiv() &&
         v.instruction->InputAt(0)->IsArrayLength() &&
-        IsIntAndGet(v.instruction->InputAt(1), &value) && v.a_constant == value) {
+        IsInt64AndGet(v.instruction->InputAt(1), &value) && v.a_constant == value) {
       return InductionVarRange::Value(v.instruction->InputAt(0), 1, v.b_constant);
     }
     // If a == 1, the most suitable one suffices as maximum value.
@@ -383,12 +371,13 @@ bool InductionVarRange::IsFinite(HLoopInformation* loop, /*out*/ int64_t* tc) co
   return false;
 }
 
-bool InductionVarRange::IsUnitStride(HInstruction* instruction,
+bool InductionVarRange::IsUnitStride(HInstruction* context,
+                                     HInstruction* instruction,
                                      /*out*/ HInstruction** offset) const {
   HLoopInformation* loop = nullptr;
   HInductionVarAnalysis::InductionInfo* info = nullptr;
   HInductionVarAnalysis::InductionInfo* trip = nullptr;
-  if (HasInductionInfo(instruction, instruction, &loop, &info, &trip)) {
+  if (HasInductionInfo(context, instruction, &loop, &info, &trip)) {
     if (info->induction_class == HInductionVarAnalysis::kLinear &&
         info->op_b->operation == HInductionVarAnalysis::kFetch &&
         !HInductionVarAnalysis::IsNarrowingLinear(info)) {
@@ -443,7 +432,7 @@ bool InductionVarRange::IsConstant(HInductionVarAnalysis::InductionInfo* info,
     // any of the three requests (kExact, kAtMost, and KAtLeast).
     if (info->induction_class == HInductionVarAnalysis::kInvariant &&
         info->operation == HInductionVarAnalysis::kFetch) {
-      if (IsIntAndGet(info->fetch, value)) {
+      if (IsInt64AndGet(info->fetch, value)) {
         return true;
       }
     }
@@ -634,7 +623,7 @@ InductionVarRange::Value InductionVarRange::GetGeometric(HInductionVarAnalysis::
   int64_t f = 0;
   if (IsConstant(info->op_a, kExact, &a) &&
       CanLongValueFitIntoInt(a) &&
-      IsIntAndGet(info->fetch, &f) && f >= 1) {
+      IsInt64AndGet(info->fetch, &f) && f >= 1) {
     // Conservative bounds on a * f^-i + b with f >= 1 can be computed without
     // trip count. Other forms would require a much more elaborate evaluation.
     const bool is_min_a = a >= 0 ? is_min : !is_min;
@@ -662,7 +651,7 @@ InductionVarRange::Value InductionVarRange::GetFetch(HInstruction* instruction,
   // Unless at a constant or hint, chase the instruction a bit deeper into the HIR tree, so that
   // it becomes more likely range analysis will compare the same instructions as terminal nodes.
   int64_t value;
-  if (IsIntAndGet(instruction, &value) && CanLongValueFitIntoInt(value)) {
+  if (IsInt64AndGet(instruction, &value) && CanLongValueFitIntoInt(value)) {
     // Proper constant reveals best information.
     return Value(static_cast<int32_t>(value));
   } else if (instruction == chase_hint_) {
@@ -670,10 +659,10 @@ InductionVarRange::Value InductionVarRange::GetFetch(HInstruction* instruction,
     return Value(instruction, 1, 0);
   } else if (instruction->IsAdd()) {
     // Incorporate suitable constants in the chased value.
-    if (IsIntAndGet(instruction->InputAt(0), &value) && CanLongValueFitIntoInt(value)) {
+    if (IsInt64AndGet(instruction->InputAt(0), &value) && CanLongValueFitIntoInt(value)) {
       return AddValue(Value(static_cast<int32_t>(value)),
                       GetFetch(instruction->InputAt(1), trip, in_body, is_min));
-    } else if (IsIntAndGet(instruction->InputAt(1), &value) && CanLongValueFitIntoInt(value)) {
+    } else if (IsInt64AndGet(instruction->InputAt(1), &value) && CanLongValueFitIntoInt(value)) {
       return AddValue(GetFetch(instruction->InputAt(0), trip, in_body, is_min),
                       Value(static_cast<int32_t>(value)));
     }
@@ -1073,7 +1062,7 @@ bool InductionVarRange::GenerateLastValueGeometric(HInductionVarAnalysis::Induct
   // Detect known base and trip count (always taken).
   int64_t f = 0;
   int64_t m = 0;
-  if (IsIntAndGet(info->fetch, &f) && f >= 1 && IsConstant(trip->op_a, kExact, &m) && m >= 1) {
+  if (IsInt64AndGet(info->fetch, &f) && f >= 1 && IsConstant(trip->op_a, kExact, &m) && m >= 1) {
     HInstruction* opa = nullptr;
     HInstruction* opb = nullptr;
     if (GenerateCode(info->op_a, nullptr, graph, block, &opa, false, false) &&

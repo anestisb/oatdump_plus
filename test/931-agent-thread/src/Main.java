@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 The Android Open Source Project
+ * Copyright (C) 2016 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,14 +14,8 @@
  * limitations under the License.
  */
 
-import java.util.Arrays;
-
 public class Main {
   public static void main(String[] args) throws Exception {
-    testAgentThread();
-
-    System.out.println("Done");
+    art.Test931.run();
   }
-
-  private static native void testAgentThread();
 }

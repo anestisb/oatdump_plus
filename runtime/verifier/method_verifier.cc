@@ -3732,7 +3732,7 @@ const RegType& MethodVerifier::ResolveClassAndCheckAccess(dex::TypeIndex class_i
     self_->ClearException();
   }
   const RegType* result = nullptr;
-  if (klass != nullptr && !klass->IsErroneous()) {
+  if (klass != nullptr) {
     bool precise = klass->CannotBeAssignedFromOtherTypes();
     if (precise && !IsInstantiableOrPrimitive(klass)) {
       const char* descriptor = dex_file_->StringByTypeIdx(class_idx);

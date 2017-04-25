@@ -32,10 +32,12 @@
 #include "ti_class_definition.h"
 
 #include "base/array_slice.h"
+#include "class_linker-inl.h"
 #include "dex_file.h"
 #include "fixed_up_dex_file.h"
 #include "handle_scope-inl.h"
 #include "handle.h"
+#include "mirror/class_ext.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "reflection.h"

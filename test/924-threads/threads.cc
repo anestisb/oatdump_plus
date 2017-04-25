@@ -16,6 +16,10 @@
 
 #include <stdio.h>
 
+#include <mutex>
+#include <string>
+#include <vector>
+
 #include "android-base/logging.h"
 #include "android-base/stringprintf.h"
 #include "jni.h"
@@ -34,7 +38,7 @@ namespace Test924Threads {
 // private static native Thread getCurrentThread();
 // private static native Object[] getThreadInfo(Thread t);
 
-extern "C" JNIEXPORT jthread JNICALL Java_Main_getCurrentThread(
+extern "C" JNIEXPORT jthread JNICALL Java_art_Test924_getCurrentThread(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED) {
   jthread thread = nullptr;
   jvmtiError result = jvmti_env->GetCurrentThread(&thread);
@@ -44,7 +48,7 @@ extern "C" JNIEXPORT jthread JNICALL Java_Main_getCurrentThread(
   return thread;
 }
 
-extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getThreadInfo(
+extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test924_getThreadInfo(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jthread thread) {
   jvmtiThreadInfo info;
   memset(&info, 0, sizeof(jvmtiThreadInfo));
@@ -92,7 +96,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getThreadInfo(
   return ret;
 }
 
-extern "C" JNIEXPORT jint JNICALL Java_Main_getThreadState(
+extern "C" JNIEXPORT jint JNICALL Java_art_Test924_getThreadState(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jthread thread) {
   jint state;
   jvmtiError result = jvmti_env->GetThreadState(thread, &state);
@@ -102,7 +106,7 @@ extern "C" JNIEXPORT jint JNICALL Java_Main_getThreadState(
   return state;
 }
 
-extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getAllThreads(
+extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test924_getAllThreads(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED) {
   jint thread_count;
   jthread* threads;
@@ -122,7 +126,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getAllThreads(
   return ret;
 }
 
-extern "C" JNIEXPORT jlong JNICALL Java_Main_getTLS(
+extern "C" JNIEXPORT jlong JNICALL Java_art_Test924_getTLS(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jthread thread) {
   void* tls;
   jvmtiError result = jvmti_env->GetThreadLocalStorage(thread, &tls);
@@ -132,24 +136,34 @@ extern "C" JNIEXPORT jlong JNICALL Java_Main_getTLS(
   return static_cast<jlong>(reinterpret_cast<uintptr_t>(tls));
 }
 
-extern "C" JNIEXPORT void JNICALL Java_Main_setTLS(
+extern "C" JNIEXPORT void JNICALL Java_art_Test924_setTLS(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jthread thread, jlong val) {
   const void* tls = reinterpret_cast<void*>(static_cast<uintptr_t>(val));
   jvmtiError result = jvmti_env->SetThreadLocalStorage(thread, tls);
   JvmtiErrorToException(env, jvmti_env, result);
 }
 
+static std::mutex gEventsMutex;
+static std::vector<std::string> gEvents;
+
 static void JNICALL ThreadEvent(jvmtiEnv* jvmti_env,
                                 JNIEnv* jni_env,
                                 jthread thread,
                                 bool is_start) {
   jvmtiThreadInfo info;
-  jvmtiError result = jvmti_env->GetThreadInfo(thread, &info);
-  if (result != JVMTI_ERROR_NONE) {
-    printf("Error getting thread info");
-    return;
+  {
+    std::lock_guard<std::mutex> guard(gEventsMutex);
+
+    jvmtiError result = jvmti_env->GetThreadInfo(thread, &info);
+    if (result != JVMTI_ERROR_NONE) {
+      gEvents.push_back("Error getting thread info");
+      return;
+    }
+
+    gEvents.push_back(android::base::StringPrintf("Thread(%s): %s",
+                                                  info.name,
+                                                  is_start ? "start" : "end"));
   }
-  printf("Thread(%s): %s\n", info.name, is_start ? "start" : "end");
 
   jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(info.name));
   jni_env->DeleteLocalRef(info.thread_group);
@@ -168,7 +182,7 @@ static void JNICALL ThreadEnd(jvmtiEnv* jvmti_env,
   ThreadEvent(jvmti_env, jni_env, thread, false);
 }
 
-extern "C" JNIEXPORT void JNICALL Java_Main_enableThreadEvents(
+extern "C" JNIEXPORT void JNICALL Java_art_Test924_enableThreadEvents(
     JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jboolean b) {
   if (b == JNI_FALSE) {
     jvmtiError ret = jvmti_env->SetEventNotificationMode(JVMTI_DISABLE,
@@ -203,6 +217,19 @@ extern "C" JNIEXPORT void JNICALL Java_Main_enableThreadEvents(
                                             JVMTI_EVENT_THREAD_END,
                                             nullptr);
   JvmtiErrorToException(env, jvmti_env, ret);
+}
+
+extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test924_getThreadEventMessages(
+    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED) {
+  std::lock_guard<std::mutex> guard(gEventsMutex);
+  jobjectArray ret = CreateObjectArray(env,
+                                       static_cast<jint>(gEvents.size()),
+                                       "java/lang/String",
+                                       [&](jint i) {
+    return env->NewStringUTF(gEvents[i].c_str());
+  });
+  gEvents.clear();
+  return ret;
 }
 
 }  // namespace Test924Threads

@@ -22,6 +22,7 @@
 #include "class_linker.h"
 #include "constant_folding.h"
 #include "dead_code_elimination.h"
+#include "dex/inline_method_analyser.h"
 #include "dex/verified_method.h"
 #include "dex/verification_results.h"
 #include "driver/compiler_driver-inl.h"
@@ -37,7 +38,6 @@
 #include "optimizing_compiler.h"
 #include "reference_type_propagation.h"
 #include "register_allocator_linear_scan.h"
-#include "quick/inline_method_analyser.h"
 #include "sharpening.h"
 #include "ssa_builder.h"
 #include "ssa_phi_elimination.h"
@@ -369,6 +369,12 @@ ArtMethod* HInliner::TryCHADevirtualization(ArtMethod* resolved_method) {
     // devirtualizing/inlining. It also causes issues when the proxy
     // method is in another dex file if we try to rewrite invoke-interface to
     // invoke-virtual because a proxy method doesn't have a real dex file.
+    return nullptr;
+  }
+  if (!single_impl->GetDeclaringClass()->IsResolved()) {
+    // There's a race with the class loading, which updates the CHA info
+    // before setting the class to resolved. So we just bail for this
+    // rare occurence.
     return nullptr;
   }
   return single_impl;
@@ -1533,6 +1539,14 @@ HInstanceFieldSet* HInliner::CreateInstanceFieldSet(uint32_t field_index,
   return iput;
 }
 
+template <typename T>
+static inline Handle<T> NewHandleIfDifferent(T* object,
+                                             Handle<T> hint,
+                                             VariableSizedHandleScope* handles)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  return (object != hint.Get()) ? handles->NewHandle(object) : hint;
+}
+
 bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
                                        ArtMethod* resolved_method,
                                        ReferenceTypeInfo receiver_type,
@@ -1544,9 +1558,13 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
   const DexFile& callee_dex_file = *resolved_method->GetDexFile();
   uint32_t method_index = resolved_method->GetDexMethodIndex();
   ClassLinker* class_linker = caller_compilation_unit_.GetClassLinker();
-  Handle<mirror::DexCache> dex_cache(handles_->NewHandle(resolved_method->GetDexCache()));
-  Handle<mirror::ClassLoader> class_loader(handles_->NewHandle(
-      resolved_method->GetDeclaringClass()->GetClassLoader()));
+  Handle<mirror::DexCache> dex_cache = NewHandleIfDifferent(resolved_method->GetDexCache(),
+                                                            caller_compilation_unit_.GetDexCache(),
+                                                            handles_);
+  Handle<mirror::ClassLoader> class_loader =
+      NewHandleIfDifferent(resolved_method->GetDeclaringClass()->GetClassLoader(),
+                           caller_compilation_unit_.GetClassLoader(),
+                           handles_);
 
   DexCompilationUnit dex_compilation_unit(
       class_loader,
@@ -1558,25 +1576,6 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
       resolved_method->GetAccessFlags(),
       /* verified_method */ nullptr,
       dex_cache);
-
-  bool requires_ctor_barrier = false;
-
-  if (dex_compilation_unit.IsConstructor()) {
-    // If it's a super invocation and we already generate a barrier there's no need
-    // to generate another one.
-    // We identify super calls by looking at the "this" pointer. If its value is the
-    // same as the local "this" pointer then we must have a super invocation.
-    bool is_super_invocation = invoke_instruction->InputAt(0)->IsParameterValue()
-        && invoke_instruction->InputAt(0)->AsParameterValue()->IsThis();
-    if (is_super_invocation && graph_->ShouldGenerateConstructorBarrier()) {
-      requires_ctor_barrier = false;
-    } else {
-      Thread* self = Thread::Current();
-      requires_ctor_barrier = compiler_driver_->RequiresConstructorBarrier(self,
-          dex_compilation_unit.GetDexFile(),
-          dex_compilation_unit.GetClassDefIndex());
-    }
-  }
 
   InvokeType invoke_type = invoke_instruction->GetInvokeType();
   if (invoke_type == kInterface) {
@@ -1590,7 +1589,6 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
       graph_->GetArena(),
       callee_dex_file,
       method_index,
-      requires_ctor_barrier,
       compiler_driver_->GetInstructionSet(),
       invoke_type,
       graph_->IsDebuggable(),

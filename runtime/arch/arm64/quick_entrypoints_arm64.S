@@ -2384,9 +2384,8 @@ ENTRY \name
     ret
 .Lnot_marked_rb_\name:
     // Check if the top two bits are one, if this is the case it is a forwarding address.
-    mvn wIP0, wIP0
-    cmp wzr, wIP0, lsr #30
-    beq .Lret_forwarding_address\name
+    tst   wIP0, wIP0, lsl #1
+    bmi   .Lret_forwarding_address\name
 .Lslow_rb_\name:
     /*
      * Allocate 44 stack slots * 8 = 352 bytes:
@@ -2457,10 +2456,9 @@ ENTRY \name
     DECREASE_FRAME 352
     ret
 .Lret_forwarding_address\name:
-    mvn wIP0, wIP0
     // Shift left by the forwarding address shift. This clears out the state bits since they are
     // in the top 2 bits of the lock word.
-    lsl \wreg, wIP0, #LOCK_WORD_STATE_FORWARDING_ADDRESS_SHIFT
+    lsl   \wreg, wIP0, #LOCK_WORD_STATE_FORWARDING_ADDRESS_SHIFT
     ret
 END \name
 .endm
@@ -2495,6 +2493,244 @@ READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg26, w26, x26
 READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg27, w27, x27
 READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg28, w28, x28
 READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg29, w29, x29
+
+
+.macro SELECT_X_OR_W_FOR_MACRO macro_to_use, x, w, xreg
+    .if \xreg
+      \macro_to_use \x
+    .else
+      \macro_to_use \w
+    .endif
+.endm
+
+.macro FOR_REGISTERS macro_for_register, macro_for_reserved_register, xreg
+    SELECT_X_OR_W_FOR_MACRO \macro_for_register, x0, w0, \xreg
+    SELECT_X_OR_W_FOR_MACRO \macro_for_register, x1, w1, \xreg
+    SELECT_X_OR_W_FOR_MACRO \macro_for_register, x2, w2, \xreg
+    SELECT_X_OR_W_FOR_MACRO \macro_for_register, x3, w3, \xreg
+    SELECT_X_OR_W_FOR_MACRO \macro_for_register, x4, w4, \xreg
+    SELECT_X_OR_W_FOR_MACRO \macro_for_register, x5, w5, \xreg
+    SELECT_X_OR_W_FOR_MACRO \macro_for_register, x6, w6, \xreg
+    SELECT_X_OR_W_FOR_MACRO \macro_for_register, x7, w7, \xreg
+    SELECT_X_OR_W_FOR_MACRO \macro_for_register, x8, w8, \xreg
+    SELECT_X_OR_W_FOR_MACRO \macro_for_register, x9, w9, \xreg
+    SELECT_X_OR_W_FOR_MACRO \macro_for_register, x10, w10, \xreg
+    SELECT_X_OR_W_FOR_MACRO \macro_for_register, x11, w11, \xreg
+    SELECT_X_OR_W_FOR_MACRO \macro_for_register, x12, w12, \xreg
+    SELECT_X_OR_W_FOR_MACRO \macro_for_register, x13, w13, \xreg
+    SELECT_X_OR_W_FOR_MACRO \macro_for_register, x14, w14, \xreg
+    SELECT_X_OR_W_FOR_MACRO \macro_for_register, x15, w15, \xreg
+    \macro_for_reserved_register  // IP0 is reserved
+    \macro_for_reserved_register  // IP1 is reserved
+    SELECT_X_OR_W_FOR_MACRO \macro_for_register, x18, w18, \xreg
+    SELECT_X_OR_W_FOR_MACRO \macro_for_register, x19, w19, \xreg
+    SELECT_X_OR_W_FOR_MACRO \macro_for_register, x20, w20, \xreg
+    SELECT_X_OR_W_FOR_MACRO \macro_for_register, x21, w21, \xreg
+    SELECT_X_OR_W_FOR_MACRO \macro_for_register, x22, w22, \xreg
+    SELECT_X_OR_W_FOR_MACRO \macro_for_register, x23, w23, \xreg
+    SELECT_X_OR_W_FOR_MACRO \macro_for_register, x24, w24, \xreg
+    SELECT_X_OR_W_FOR_MACRO \macro_for_register, x25, w25, \xreg
+    SELECT_X_OR_W_FOR_MACRO \macro_for_register, x26, w26, \xreg
+    SELECT_X_OR_W_FOR_MACRO \macro_for_register, x27, w27, \xreg
+    SELECT_X_OR_W_FOR_MACRO \macro_for_register, x28, w28, \xreg
+    SELECT_X_OR_W_FOR_MACRO \macro_for_register, x29, w29, \xreg
+    \macro_for_reserved_register  // lr is reserved
+    \macro_for_reserved_register  // sp is reserved
+.endm
+
+.macro FOR_XREGISTERS macro_for_register, macro_for_reserved_register
+    FOR_REGISTERS \macro_for_register, \macro_for_reserved_register, /* xreg */ 1
+.endm
+
+.macro FOR_WREGISTERS macro_for_register, macro_for_reserved_register
+    FOR_REGISTERS \macro_for_register, \macro_for_reserved_register, /* xreg */ 0
+.endm
+
+.macro BRK0_BRK0
+    brk 0
+    brk 0
+.endm
+
+#if BAKER_MARK_INTROSPECTION_FIELD_LDR_OFFSET != BAKER_MARK_INTROSPECTION_ARRAY_LDR_OFFSET
+#error "Array and field introspection code sharing requires same LDR offset."
+#endif
+.macro INTROSPECTION_ARRAY_LOAD index_reg
+    ldr   wIP0, [xIP0, \index_reg, lsl #2]
+    b     art_quick_read_barrier_mark_introspection
+.endm
+
+.macro MOV_WIP0_TO_WREG_AND_BL_LR reg
+    mov   \reg, wIP0
+    br    lr  // Do not use RET as we do not enter the entrypoint with "BL".
+.endm
+
+.macro READ_BARRIER_MARK_INTROSPECTION_SLOW_PATH ldr_offset
+    /*
+     * Allocate 44 stack slots * 8 = 352 bytes:
+     * - 19 slots for core registers X0-15, X18-X19, LR
+     * - 1 slot padding
+     * - 24 slots for floating-point registers D0-D7 and D16-D31
+     */
+    // Save all potentially live caller-save core registers.
+    SAVE_TWO_REGS_INCREASE_FRAME x0, x1, 352
+    SAVE_TWO_REGS  x2,  x3, 16
+    SAVE_TWO_REGS  x4,  x5, 32
+    SAVE_TWO_REGS  x6,  x7, 48
+    SAVE_TWO_REGS  x8,  x9, 64
+    SAVE_TWO_REGS x10, x11, 80
+    SAVE_TWO_REGS x12, x13, 96
+    SAVE_TWO_REGS x14, x15, 112
+    SAVE_TWO_REGS x18, x19, 128       // Skip x16, x17, i.e. IP0, IP1.
+    SAVE_REG      xLR,      144       // Save return address, skip padding at 152.
+    // Save all potentially live caller-save floating-point registers.
+    stp   d0, d1,   [sp, #160]
+    stp   d2, d3,   [sp, #176]
+    stp   d4, d5,   [sp, #192]
+    stp   d6, d7,   [sp, #208]
+    stp   d16, d17, [sp, #224]
+    stp   d18, d19, [sp, #240]
+    stp   d20, d21, [sp, #256]
+    stp   d22, d23, [sp, #272]
+    stp   d24, d25, [sp, #288]
+    stp   d26, d27, [sp, #304]
+    stp   d28, d29, [sp, #320]
+    stp   d30, d31, [sp, #336]
+
+    mov   x0, xIP0
+    bl    artReadBarrierMark          // artReadBarrierMark(obj)
+    mov   xIP0, x0
+
+    // Restore core regs, except x0 and x1 as the return register switch case
+    // address calculation is smoother with an extra register.
+    RESTORE_TWO_REGS  x2,  x3, 16
+    RESTORE_TWO_REGS  x4,  x5, 32
+    RESTORE_TWO_REGS  x6,  x7, 48
+    RESTORE_TWO_REGS  x8,  x9, 64
+    RESTORE_TWO_REGS x10, x11, 80
+    RESTORE_TWO_REGS x12, x13, 96
+    RESTORE_TWO_REGS x14, x15, 112
+    RESTORE_TWO_REGS x18, x19, 128    // Skip x16, x17, i.e. IP0, IP1.
+    RESTORE_REG      xLR,      144    // Restore return address.
+    // Save all potentially live caller-save floating-point registers.
+    stp   d0, d1,   [sp, #160]
+    stp   d2, d3,   [sp, #176]
+    stp   d4, d5,   [sp, #192]
+    stp   d6, d7,   [sp, #208]
+    stp   d16, d17, [sp, #224]
+    stp   d18, d19, [sp, #240]
+    stp   d20, d21, [sp, #256]
+    stp   d22, d23, [sp, #272]
+    stp   d24, d25, [sp, #288]
+    stp   d26, d27, [sp, #304]
+    stp   d28, d29, [sp, #320]
+    stp   d30, d31, [sp, #336]
+
+    ldr   x0, [lr, #\ldr_offset]      // Load the instruction.
+    adr   xIP1, .Lmark_introspection_return_switch
+    bfi   xIP1, x0, #3, #5            // Calculate switch case address.
+    RESTORE_TWO_REGS_DECREASE_FRAME x0, x1, 352
+    br    xIP1
+.endm
+
+    /*
+     * Use introspection to load a reference from the same address as the LDR
+     * instruction in generated code would load (unless loaded by the thunk,
+     * see below), call ReadBarrier::Mark() with that reference if needed
+     * and return it in the same register as the LDR instruction would load.
+     *
+     * The entrypoint is called through a thunk that differs across load kinds.
+     * For field and array loads the LDR instruction in generated code follows
+     * the branch to the thunk, i.e. the LDR is at [LR, #-4], and the thunk
+     * knows the holder and performs the gray bit check, returning to the LDR
+     * instruction if the object is not gray, so this entrypoint no longer
+     * needs to know anything about the holder. For GC root loads, the LDR
+     * instruction in generated code precedes the branch to the thunk (i.e.
+     * the LDR is at [LR, #-8]) and the thunk does not do the gray bit check.
+     *
+     * For field accesses and array loads with a constant index the thunk loads
+     * the reference into IP0 using introspection and calls the main entrypoint,
+     * art_quick_read_barrier_mark_introspection. With heap poisoning enabled,
+     * the passed reference is poisoned.
+     *
+     * For array accesses with non-constant index, the thunk inserts the bits
+     * 16-21 of the LDR instruction to the entrypoint address, effectively
+     * calculating a switch case label based on the index register (bits 16-20)
+     * and adding an extra offset (bit 21 is set) to differentiate from the
+     * main entrypoint, then moves the base register to IP0 and jumps to the
+     * switch case. Therefore we need to align the main entrypoint to 512 bytes,
+     * accounting for a 256-byte offset followed by 32 array entrypoints
+     * starting at art_quick_read_barrier_mark_introspection_arrays, each
+     * containing an LDR (register) and a branch to the main entrypoint.
+     *
+     * For GC root accesses we cannot use the main entrypoint because of the
+     * different offset where the LDR instruction in generated code is located.
+     * (And even with heap poisoning enabled, GC roots are not poisoned.)
+     * To re-use the same entrypoint pointer in generated code, we make sure
+     * that the gc root entrypoint (a copy of the entrypoint with a different
+     * offset for introspection loads) is located at a known offset (768 bytes,
+     * or BAKER_MARK_INTROSPECTION_GC_ROOT_ENTRYPOINT_OFFSET) from the main
+     * entrypoint and the GC root thunk adjusts the entrypoint pointer, moves
+     * the root register to IP0 and jumps to the customized entrypoint,
+     * art_quick_read_barrier_mark_introspection_gc_roots. The thunk also
+     * performs all the fast-path checks, so we need just the slow path.
+     *
+     * The code structure is
+     *   art_quick_read_barrier_mark_introspection:
+     *     Up to 256 bytes for the main entrypoint code.
+     *     Padding to 256 bytes if needed.
+     *   art_quick_read_barrier_mark_introspection_arrays:
+     *     Exactly 256 bytes for array load switch cases (32x2 instructions).
+     *   .Lmark_introspection_return_switch:
+     *     Exactly 256 bytes for return switch cases (32x2 instructions).
+     *   art_quick_read_barrier_mark_introspection_gc_roots:
+     *     GC root entrypoint code.
+     */
+    .balign 512
+ENTRY art_quick_read_barrier_mark_introspection
+    // At this point, IP0 contains the reference, IP1 can be freely used.
+    // For heap poisoning, the reference is poisoned, so unpoison it first.
+    UNPOISON_HEAP_REF wIP0
+    // If reference is null, just return it in the right register.
+    cbz   wIP0, .Lmark_introspection_return
+    // Use wIP1 as temp and check the mark bit of the reference.
+    ldr   wIP1, [xIP0, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
+    tbz   wIP1, #LOCK_WORD_MARK_BIT_SHIFT, .Lmark_introspection_unmarked
+.Lmark_introspection_return:
+    // Without an extra register for the return switch case address calculation,
+    // we exploit the high word of the xIP0 to temporarily store the ref_reg*8,
+    // so the return switch below must move wIP0 instead of xIP0 to the register.
+    ldr   wIP1, [lr, #BAKER_MARK_INTROSPECTION_FIELD_LDR_OFFSET]  // Load the instruction.
+    bfi   xIP0, xIP1, #(32 + 3), #5   // Extract ref_reg*8 to high word in xIP0.
+    adr   xIP1, .Lmark_introspection_return_switch
+    bfxil xIP1, xIP0, #32, #8         // Calculate return switch case address.
+    br    xIP1
+.Lmark_introspection_unmarked:
+    // Check if the top two bits are one, if this is the case it is a forwarding address.
+    tst   wIP1, wIP1, lsl #1
+    bmi   .Lmark_introspection_forwarding_address
+    READ_BARRIER_MARK_INTROSPECTION_SLOW_PATH BAKER_MARK_INTROSPECTION_FIELD_LDR_OFFSET
+
+.Lmark_introspection_forwarding_address:
+    // Shift left by the forwarding address shift. This clears out the state bits since they are
+    // in the top 2 bits of the lock word.
+    lsl   wIP0, wIP1, #LOCK_WORD_STATE_FORWARDING_ADDRESS_SHIFT
+    b .Lmark_introspection_return
+
+    // We're very close to the alloted 256B for the entrypoint code before the
+    // array switch cases. Should we go a little bit over the limit, we can
+    // move some code after the array switch cases and return switch cases.
+    .balign 256
+    .hidden art_quick_read_barrier_mark_introspection_arrays
+    .global art_quick_read_barrier_mark_introspection_arrays
+art_quick_read_barrier_mark_introspection_arrays:
+    FOR_XREGISTERS INTROSPECTION_ARRAY_LOAD, BRK0_BRK0
+.Lmark_introspection_return_switch:
+    FOR_WREGISTERS MOV_WIP0_TO_WREG_AND_BL_LR, BRK0_BRK0
+    .hidden art_quick_read_barrier_mark_introspection_gc_roots
+    .global art_quick_read_barrier_mark_introspection_gc_roots
+art_quick_read_barrier_mark_introspection_gc_roots:
+    READ_BARRIER_MARK_INTROSPECTION_SLOW_PATH BAKER_MARK_INTROSPECTION_GC_ROOT_LDR_OFFSET
+END art_quick_read_barrier_mark_introspection
 
 .extern artInvokePolymorphic
 ENTRY art_quick_invoke_polymorphic

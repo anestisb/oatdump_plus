@@ -27,7 +27,6 @@
 #include "dex_instruction-inl.h"
 #include "driver/compiler_driver.h"
 #include "driver/dex_compilation_unit.h"
-#include "mirror/class-inl.h"
 #include "mirror/dex_cache.h"
 #include "thread-inl.h"
 

@@ -137,6 +137,7 @@ trace_stream="false"
 basic_verify="false"
 gc_verify="false"
 gc_stress="false"
+jvmti_stress="false"
 strace="false"
 always_clean="no"
 never_clean="no"
@@ -232,6 +233,9 @@ while true; do
     elif [ "x$1" = "x--gcstress" ]; then
         basic_verify="true"
         gc_stress="true"
+        shift
+    elif [ "x$1" = "x--jvmti-stress" ]; then
+        jvmti_stress="true"
         shift
     elif [ "x$1" = "x--suspend-timeout" ]; then
         shift
@@ -443,6 +447,9 @@ fi
 if [ "$gc_stress" = "true" ]; then
   run_args="${run_args} --gc-stress --runtime-option -Xgc:gcstress --runtime-option -Xms2m --runtime-option -Xmx16m"
 fi
+if [ "$jvmti_stress" = "true" ]; then
+    run_args="${run_args} --no-app-image --jvmti-stress"
+fi
 if [ "$trace" = "true" ]; then
     run_args="${run_args} --runtime-option -Xmethod-trace --runtime-option -Xmethod-trace-file-size:2000000"
     if [ "$trace_stream" = "true" ]; then
@@ -651,6 +658,7 @@ if [ "$usage" = "yes" ]; then
         echo "    --stream              Run method tracing in streaming mode (requires --trace)"
         echo "    --gcstress            Run with gc stress testing"
         echo "    --gcverify            Run with gc verification"
+        echo "    --jvmti-stress        Run with jvmti stress testing"
         echo "    --always-clean        Delete the test files even if the test fails."
         echo "    --never-clean         Keep the test files even if the test succeeds."
         echo "    --android-root [path] The path on target for the android root. (/system by default)."
@@ -716,36 +724,13 @@ chmod 755 "$check_cmd"
 
 export TEST_NAME=`basename ${test_dir}`
 
-# arch_supports_read_barrier ARCH
-# -------------------------------
-# Return whether the Optimizing compiler has read barrier support for ARCH.
-function arch_supports_read_barrier() {
-  # Optimizing has read barrier support for ARM, ARM64, x86 and x86-64 at the
-  # moment.
-  [ "x$1" = xarm ] || [ "x$1" = xarm64 ] || [ "x$1" = xx86 ] || [ "x$1" = xx86_64 ]
-}
-
 # Tests named '<number>-checker-*' will also have their CFGs verified with
 # Checker when compiled with Optimizing on host.
 if [[ "$TEST_NAME" =~ ^[0-9]+-checker- ]]; then
   if [ "$runtime" = "art" -a "$image_suffix" = "" -a "$USE_JACK" = "true" ]; then
-    # Optimizing has read barrier support for certain architectures
-    # only. On other architectures, compiling is disabled when read
-    # barriers are enabled, meaning that we do not produce a CFG file
-    # as a side-effect of compilation, thus the Checker assertions
-    # cannot be checked. Disable Checker for those cases.
-    #
-    # TODO: Enable Checker when read barrier support is added to more
-    # architectures (b/12687968).
-    if [ "x$ART_USE_READ_BARRIER" != xfalse ]                  \
-       && (([ "x$host_mode" = "xyes" ]                         \
-            && ! arch_supports_read_barrier "$host_arch_name") \
-           || ([ "x$target_mode" = "xyes" ]                    \
-               && ! arch_supports_read_barrier "$target_arch_name")); then
-      run_checker="no"
     # In no-prebuild mode, the compiler is only invoked if both dex2oat and
     # patchoat are available. Disable Checker otherwise (b/22552692).
-    elif [ "$prebuild_mode" = "yes" ] \
+    if [ "$prebuild_mode" = "yes" ] \
          || [ "$have_patchoat" = "yes" -a "$have_dex2oat" = "yes" ]; then
       run_checker="yes"
 

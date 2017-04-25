@@ -252,6 +252,22 @@ void Mips64Assembler::EmitMsaMI10(int s10,
   Emit(encoding);
 }
 
+void Mips64Assembler::EmitMsaI10(int operation,
+                                 int df,
+                                 int i10,
+                                 VectorRegister wd,
+                                 int minor_opcode) {
+  CHECK_NE(wd, kNoVectorRegister);
+  CHECK(IsUint<10>(i10)) << i10;
+  uint32_t encoding = static_cast<uint32_t>(kMsaMajorOpcode) << kOpcodeShift |
+                      operation << kMsaOperationShift |
+                      df << kDfShift |
+                      i10 << kI10Shift |
+                      static_cast<uint32_t>(wd) << kWdShift |
+                      minor_opcode;
+  Emit(encoding);
+}
+
 void Mips64Assembler::EmitMsa2R(int operation,
                                 int df,
                                 VectorRegister ws,
@@ -1581,6 +1597,30 @@ void Mips64Assembler::FillD(VectorRegister wd, GpuRegister rs) {
   EmitMsa2R(0xc0, 0x3, static_cast<VectorRegister>(rs), wd, 0x1e);
 }
 
+void Mips64Assembler::LdiB(VectorRegister wd, int imm8) {
+  CHECK(HasMsa());
+  CHECK(IsInt<8>(imm8)) << imm8;
+  EmitMsaI10(0x6, 0x0, imm8 & kMsaS10Mask, wd, 0x7);
+}
+
+void Mips64Assembler::LdiH(VectorRegister wd, int imm10) {
+  CHECK(HasMsa());
+  CHECK(IsInt<10>(imm10)) << imm10;
+  EmitMsaI10(0x6, 0x1, imm10 & kMsaS10Mask, wd, 0x7);
+}
+
+void Mips64Assembler::LdiW(VectorRegister wd, int imm10) {
+  CHECK(HasMsa());
+  CHECK(IsInt<10>(imm10)) << imm10;
+  EmitMsaI10(0x6, 0x2, imm10 & kMsaS10Mask, wd, 0x7);
+}
+
+void Mips64Assembler::LdiD(VectorRegister wd, int imm10) {
+  CHECK(HasMsa());
+  CHECK(IsInt<10>(imm10)) << imm10;
+  EmitMsaI10(0x6, 0x3, imm10 & kMsaS10Mask, wd, 0x7);
+}
+
 void Mips64Assembler::LdB(VectorRegister wd, GpuRegister rs, int offset) {
   CHECK(HasMsa());
   CHECK(IsInt<10>(offset)) << offset;
@@ -1661,7 +1701,9 @@ void Mips64Assembler::Addiu32(GpuRegister rt, GpuRegister rs, int32_t value) {
   }
 }
 
+// TODO: don't use rtmp, use daui, dahi, dati.
 void Mips64Assembler::Daddiu64(GpuRegister rt, GpuRegister rs, int64_t value, GpuRegister rtmp) {
+  CHECK_NE(rs, rtmp);
   if (IsInt<16>(value)) {
     Daddiu(rt, rs, value);
   } else {

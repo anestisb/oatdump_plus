@@ -23,9 +23,17 @@
 namespace art {
 namespace linker {
 
+// PC displacement from patch location; Thumb2 PC is always at instruction address + 4.
+static constexpr int32_t kPcDisplacement = 4;
+
+// Maximum positive and negative displacement for method call measured from the patch location.
+// (Signed 25 bit displacement with the last bit 0 has range [-2^24, 2^24-2] measured from
+// the Thumb2 PC pointing right after the BL, i.e. 4 bytes later than the patch location.)
+constexpr uint32_t kMaxMethodCallPositiveDisplacement = (1u << 24) - 2 + kPcDisplacement;
+constexpr uint32_t kMaxMethodCallNegativeDisplacement = (1u << 24) - kPcDisplacement;
+
 Thumb2RelativePatcher::Thumb2RelativePatcher(RelativePatcherTargetProvider* provider)
-    : ArmBaseRelativePatcher(provider, kThumb2, CompileThunkCode(),
-                             kMaxPositiveDisplacement, kMaxNegativeDisplacement) {
+    : ArmBaseRelativePatcher(provider, kThumb2) {
 }
 
 void Thumb2RelativePatcher::PatchCall(std::vector<uint8_t>* code,
@@ -36,7 +44,7 @@ void Thumb2RelativePatcher::PatchCall(std::vector<uint8_t>* code,
   DCHECK_EQ(literal_offset & 1u, 0u);
   DCHECK_EQ(patch_offset & 1u, 0u);
   DCHECK_EQ(target_offset & 1u, 1u);  // Thumb2 mode bit.
-  uint32_t displacement = CalculateDisplacement(patch_offset, target_offset & ~1u);
+  uint32_t displacement = CalculateMethodCallDisplacement(patch_offset, target_offset & ~1u);
   displacement -= kPcDisplacement;  // The base PC is at the end of the 4-byte patch.
   DCHECK_EQ(displacement & 1u, 0u);
   DCHECK((displacement >> 24) == 0u || (displacement >> 24) == 255u);  // 25-bit signed.
@@ -76,7 +84,20 @@ void Thumb2RelativePatcher::PatchPcRelativeReference(std::vector<uint8_t>* code,
   SetInsn32(code, literal_offset, insn);
 }
 
-std::vector<uint8_t> Thumb2RelativePatcher::CompileThunkCode() {
+void Thumb2RelativePatcher::PatchBakerReadBarrierBranch(std::vector<uint8_t>* code ATTRIBUTE_UNUSED,
+                                                        const LinkerPatch& patch ATTRIBUTE_UNUSED,
+                                                        uint32_t patch_offset ATTRIBUTE_UNUSED) {
+  LOG(FATAL) << "UNIMPLEMENTED";
+}
+
+ArmBaseRelativePatcher::ThunkKey Thumb2RelativePatcher::GetBakerReadBarrierKey(
+    const LinkerPatch& patch ATTRIBUTE_UNUSED) {
+  LOG(FATAL) << "UNIMPLEMENTED";
+  UNREACHABLE();
+}
+
+std::vector<uint8_t> Thumb2RelativePatcher::CompileThunk(const ThunkKey& key) {
+  DCHECK(key.GetType() == ThunkType::kMethodCall);
   // The thunk just uses the entry point in the ArtMethod. This works even for calls
   // to the generic JNI and interpreter trampolines.
   ArenaPool pool;
@@ -91,6 +112,16 @@ std::vector<uint8_t> Thumb2RelativePatcher::CompileThunkCode() {
   MemoryRegion code(thunk_code.data(), thunk_code.size());
   assembler.FinalizeInstructions(code);
   return thunk_code;
+}
+
+uint32_t Thumb2RelativePatcher::MaxPositiveDisplacement(ThunkType type) {
+  DCHECK(type == ThunkType::kMethodCall);
+  return kMaxMethodCallPositiveDisplacement;
+}
+
+uint32_t Thumb2RelativePatcher::MaxNegativeDisplacement(ThunkType type) {
+  DCHECK(type == ThunkType::kMethodCall);
+  return kMaxMethodCallNegativeDisplacement;
 }
 
 void Thumb2RelativePatcher::SetInsn32(std::vector<uint8_t>* code, uint32_t offset, uint32_t value) {

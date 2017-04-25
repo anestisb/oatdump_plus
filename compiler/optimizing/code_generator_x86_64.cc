@@ -143,10 +143,10 @@ class SuspendCheckSlowPathX86_64 : public SlowPathCode {
     LocationSummary* locations = instruction_->GetLocations();
     CodeGeneratorX86_64* x86_64_codegen = down_cast<CodeGeneratorX86_64*>(codegen);
     __ Bind(GetEntryLabel());
-    SaveLiveRegisters(codegen, locations);  // only saves full width XMM for SIMD
+    SaveLiveRegisters(codegen, locations);  // Only saves full width XMM for SIMD.
     x86_64_codegen->InvokeRuntime(kQuickTestSuspend, instruction_, instruction_->GetDexPc(), this);
     CheckEntrypointTypes<kQuickTestSuspend, void, void>();
-    RestoreLiveRegisters(codegen, locations);  // only saves full width XMM for SIMD
+    RestoreLiveRegisters(codegen, locations);  // Only restores full width XMM for SIMD.
     if (successor_ == nullptr) {
       __ jmp(GetReturnLabel());
     } else {
@@ -3660,7 +3660,7 @@ void InstructionCodeGeneratorX86_64::GenerateDivRemWithAnyConstant(HBinaryOperat
 void InstructionCodeGeneratorX86_64::GenerateDivRemIntegral(HBinaryOperation* instruction) {
   DCHECK(instruction->IsDiv() || instruction->IsRem());
   Primitive::Type type = instruction->GetResultType();
-  DCHECK(type == Primitive::kPrimInt || Primitive::kPrimLong);
+  DCHECK(type == Primitive::kPrimInt || type == Primitive::kPrimLong);
 
   bool is_div = instruction->IsDiv();
   LocationSummary* locations = instruction->GetLocations();

@@ -17,20 +17,20 @@
 #include "android-base/macros.h"
 #include "jni.h"
 #include "jvmti.h"
-#include "mirror/class-inl.h"
-#include "scoped_local_ref.h"
 
 // Test infrastructure
 #include "test_env.h"
 
 #include "jvmti_helper.h"
+#include "scoped_local_ref.h"
 
 namespace art {
 namespace Test984ObsoleteInvoke {
 
 static constexpr size_t kNumFrames = 30;
 
-extern "C" JNIEXPORT jobject JNICALL Java_Main_getFirstObsoleteMethod984(JNIEnv* env, jclass) {
+extern "C" JNIEXPORT jobject JNICALL Java_art_Test984_getFirstObsoleteMethod984(JNIEnv* env,
+                                                                                jclass) {
   jthread cur;
   jint frame_count;
   jvmtiFrameInfo frames[kNumFrames];

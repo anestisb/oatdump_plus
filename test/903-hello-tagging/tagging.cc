@@ -33,25 +33,8 @@
 namespace art {
 namespace Test903HelloTagging {
 
-extern "C" JNIEXPORT void JNICALL Java_Main_setTag(JNIEnv* env, jclass, jobject obj, jlong tag) {
-  jvmtiError ret = jvmti_env->SetTag(obj, tag);
-  JvmtiErrorToException(env, jvmti_env, ret);
-}
-
-extern "C" JNIEXPORT jlong JNICALL Java_Main_getTag(JNIEnv* env, jclass, jobject obj) {
-  jlong tag = 0;
-  jvmtiError ret = jvmti_env->GetTag(obj, &tag);
-  if (JvmtiErrorToException(env, jvmti_env, ret)) {
-    return 0;
-  }
-  return tag;
-}
-
-extern "C" JNIEXPORT jobjectArray JNICALL Java_Main_getTaggedObjects(JNIEnv* env,
-                                                                     jclass,
-                                                                     jlongArray searchTags,
-                                                                     jboolean returnObjects,
-                                                                     jboolean returnTags) {
+extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test903_getTaggedObjects(
+    JNIEnv* env, jclass, jlongArray searchTags, jboolean returnObjects, jboolean returnTags) {
   ScopedLongArrayRO scoped_array(env);
   if (searchTags != nullptr) {
     scoped_array.reset(searchTags);
@@ -150,7 +133,7 @@ static jlong GetTag(jvmtiEnv* env, jobject obj) {
   return tag;
 }
 
-extern "C" JNIEXPORT jlongArray JNICALL Java_Main_testTagsInDifferentEnvs(
+extern "C" JNIEXPORT jlongArray JNICALL Java_art_Test903_testTagsInDifferentEnvs(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject obj, jlong base_tag, jint count) {
   std::unique_ptr<jvmtiEnv*[]> envs = std::unique_ptr<jvmtiEnv*[]>(new jvmtiEnv*[count]);
   envs[0] = jvmti_env;

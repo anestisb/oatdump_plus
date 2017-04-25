@@ -244,6 +244,7 @@ class Thread {
                           int delta,
                           AtomicInteger* suspend_barrier,
                           bool for_debugger)
+      WARN_UNUSED
       REQUIRES(Locks::thread_suspend_count_lock_);
 
   bool RequestCheckpoint(Closure* function)
@@ -1290,6 +1291,7 @@ class Thread {
                                   int delta,
                                   AtomicInteger* suspend_barrier,
                                   bool for_debugger)
+      WARN_UNUSED
       REQUIRES(Locks::thread_suspend_count_lock_);
 
   void RunCheckpointFunction();

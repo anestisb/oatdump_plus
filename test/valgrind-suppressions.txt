@@ -69,3 +69,9 @@
    fun:_ZN12BacktraceMap6CreateEib
 }
 
+{
+   process_vm_readv
+   Memcheck:Param
+   process_vm_readv(lvec[...])
+   fun:process_vm_readv
+}

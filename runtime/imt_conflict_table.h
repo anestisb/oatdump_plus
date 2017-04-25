@@ -81,6 +81,14 @@ class ImtConflictTable {
     return GetMethod(index * kMethodCount + kMethodImplementation, pointer_size);
   }
 
+  void** AddressOfInterfaceMethod(size_t index, PointerSize pointer_size) {
+    return AddressOfMethod(index * kMethodCount + kMethodInterface, pointer_size);
+  }
+
+  void** AddressOfImplementationMethod(size_t index, PointerSize pointer_size) {
+    return AddressOfMethod(index * kMethodCount + kMethodImplementation, pointer_size);
+  }
+
   // Return true if two conflict tables are the same.
   bool Equals(ImtConflictTable* other, PointerSize pointer_size) const {
     size_t num = NumEntries(pointer_size);
@@ -169,6 +177,14 @@ class ImtConflictTable {
   }
 
  private:
+  void** AddressOfMethod(size_t index, PointerSize pointer_size) {
+    if (pointer_size == PointerSize::k64) {
+      return reinterpret_cast<void**>(&data64_[index]);
+    } else {
+      return reinterpret_cast<void**>(&data32_[index]);
+    }
+  }
+
   ArtMethod* GetMethod(size_t index, PointerSize pointer_size) const {
     if (pointer_size == PointerSize::k64) {
       return reinterpret_cast<ArtMethod*>(static_cast<uintptr_t>(data64_[index]));

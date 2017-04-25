@@ -39,7 +39,7 @@ static jobject CountNewGlobalRef(JNIEnv* env, jobject o) {
   return gOriginalEnv->NewGlobalRef(env, o);
 }
 
-extern "C" JNIEXPORT void JNICALL Java_Main_doJNITableTest(
+extern "C" JNIEXPORT void JNICALL Java_art_Test928_doJNITableTest(
     JNIEnv* env, jclass klass) {
   // Get the current table, as the delegate.
   jvmtiError getorig_result = jvmti_env->GetJNIFunctionTable(&gOriginalEnv);

@@ -1,72 +1,99 @@
 target_config = {
+
+# Configuration syntax:
+#
+#   Required keys: (Use one or more of these)
+#    * golem - specify a golem machine-type to build, e.g. android-armv8
+#              (uses art/tools/golem/build-target.sh)
+#    * make - specify a make target to build, e.g. build-art-host
+#    * run-test - runs the tests in art/test/ directory with testrunner.py,
+#                 specify a list of arguments to pass to testrunner.py
+#
+#   Optional keys: (Use any of these)
+#    * env - Add additional environment variable to the current environment.
+#
+# *** IMPORTANT ***:
+#    This configuration is used by the android build server. Targets must not be renamed
+#    or removed.
+#
+
+##########################################
+
+    # General ART configurations.
+    # Calls make and testrunner both.
+
     'art-test' : {
-        'target' : 'test-art-host-gtest',
-        'run-tests' : True,
-        'flags' : [],
+        'make' : 'test-art-host-gtest',
+        'run-test' : [],
         'env' : {
-            'ART_USE_READ_BARRIER' : 'false'
+            'ART_USE_READ_BARRIER' : 'true'
         }
     },
-    'art-interpreter' : {
-        'run-tests' : True,
-        'flags' : ['--interpreter'],
+
+    'art-test-javac' : {
+        'make' : 'test-art-host-gtest',
+        'run-test' : [],
         'env' : {
-            'ART_USE_READ_BARRIER' : 'false'
+            'ANDROID_COMPILE_WITH_JACK' : 'false',
+            'ART_USE_READ_BARRIER' : 'true'
+        }
+    },
+
+    # ART run-test configurations
+    # (calls testrunner which builds and then runs the test targets)
+
+    'art-interpreter' : {
+        'run-test' : ['--interpreter'],
+        'env' : {
+            'ART_USE_READ_BARRIER' : 'true'
         }
     },
     'art-interpreter-access-checks' : {
-        'run-tests' : True,
-        'flags' : ['--interp-ac'],
+        'run-test' : ['--interp-ac'],
         'env' : {
-            'ART_USE_READ_BARRIER' : 'false'
+            'ART_USE_READ_BARRIER' : 'true'
         }
     },
     'art-jit' : {
-        'run-tests' : True,
-        'flags' : ['--jit'],
+        'run-test' : ['--jit'],
         'env' : {
-            'ART_USE_READ_BARRIER' : 'false'
+            'ART_USE_READ_BARRIER' : 'true'
         }
     },
     'art-gcstress-gcverify': {
-        'run-tests' : True,
-        'flags' : ['--gcstress',
-                   '--gcverify'],
+        'run-test': ['--gcstress',
+                     '--gcverify'],
         'env' : {
             'ART_USE_READ_BARRIER' : 'false',
             'ART_DEFAULT_GC_TYPE' : 'SS'
         }
     },
     'art-interpreter-gcstress' : {
-        'run-tests' : True,
-        'flags': ['--interpreter',
-                  '--gcstress'],
+        'run-test' : ['--interpreter',
+                      '--gcstress'],
         'env' : {
             'ART_USE_READ_BARRIER' : 'false',
             'ART_DEFAULT_GC_TYPE' : 'SS'
         }
     },
     'art-optimizing-gcstress' : {
-        'run-tests' : True,
-        'flags': ['--gcstress',
-                  '--optimizing'],
+        'run-test' : ['--gcstress',
+                      '--optimizing'],
         'env' : {
             'ART_USE_READ_BARRIER' : 'false',
             'ART_DEFAULT_GC_TYPE' : 'SS'
         }
     },
     'art-jit-gcstress' : {
-        'run-tests' : True,
-        'flags': ['--jit',
-                  '--gcstress'],
+        'run-test' : ['--jit',
+                      '--gcstress'],
         'env' : {
             'ART_USE_READ_BARRIER' : 'false',
             'ART_DEFAULT_GC_TYPE' : 'SS'
         }
     },
     'art-read-barrier' : {
-        'run-tests' : True,
-        'flags': ['--interpreter',
+        'run-test': ['--interpreter',
                   '--optimizing'],
         'env' : {
             'ART_USE_READ_BARRIER' : 'true',
@@ -74,19 +101,17 @@ target_config = {
         }
     },
     'art-read-barrier-gcstress' : {
-        'run-tests' : True,
-        'flags' : ['--interpreter',
-                   '--optimizing',
-                   '--gcstress'],
+        'run-test' : ['--interpreter',
+                      '--optimizing',
+                      '--gcstress'],
         'env' : {
             'ART_USE_READ_BARRIER' : 'true',
             'ART_HEAP_POISONING' : 'true'
         }
     },
     'art-read-barrier-table-lookup' : {
-        'run-tests' : True,
-        'flags' : ['--interpreter',
-                   '--optimizing'],
+        'run-test' : ['--interpreter',
+                      '--optimizing'],
         'env' : {
             'ART_USE_READ_BARRIER' : 'true',
             'ART_READ_BARRIER_TYPE' : 'TABLELOOKUP',
@@ -94,39 +119,35 @@ target_config = {
         }
     },
     'art-debug-gc' : {
-        'run-tests' : True,
-        'flags' : ['--interpreter',
-                   '--optimizing'],
+        'run-test' : ['--interpreter',
+                      '--optimizing'],
         'env' : {
             'ART_TEST_DEBUG_GC' : 'true',
             'ART_USE_READ_BARRIER' : 'false'
         }
     },
     'art-ss-gc' : {
-        'run-tests' : True,
-        'flags' : ['--interpreter',
-                   '--optimizing',
-                   '--jit'],
+        'run-test' : ['--interpreter',
+                      '--optimizing',
+                      '--jit'],
         'env' : {
             'ART_DEFAULT_GC_TYPE' : 'SS',
             'ART_USE_READ_BARRIER' : 'false'
         }
     },
     'art-gss-gc' : {
-        'run-tests' : True,
-        'flags' : ['--interpreter',
-                   '--optimizing',
-                   '--jit'],
+        'run-test' : ['--interpreter',
+                      '--optimizing',
+                      '--jit'],
         'env' : {
             'ART_DEFAULT_GC_TYPE' : 'GSS',
             'ART_USE_READ_BARRIER' : 'false'
         }
     },
     'art-ss-gc-tlab' : {
-        'run-tests' : True,
-        'flags' : ['--interpreter',
-                   '--optimizing',
-                   '--jit'],
+        'run-test' : ['--interpreter',
+                      '--optimizing',
+                      '--jit'],
         'env' : {
             'ART_DEFAULT_GC_TYPE' : 'SS',
             'ART_USE_TLAB' : 'true',
@@ -134,10 +155,9 @@ target_config = {
         }
     },
     'art-gss-gc-tlab' : {
-        'run-tests' : True,
-        'flags' : ['--interpreter',
-                   '--optimizing',
-                   '--jit'],
+        'run-test' : ['--interpreter',
+                      '--optimizing',
+                      '--jit'],
         'env' : {
             'ART_DEFAULT_GC_TYPE' : 'GSS',
             'ART_USE_TLAB' : 'true',
@@ -145,87 +165,94 @@ target_config = {
         }
     },
     'art-tracing' : {
-        'run-tests' : True,
-        'flags' : ['--trace'],
+        'run-test' : ['--trace'],
         'env' : {
-            'ART_USE_READ_BARRIER' : 'false'
+            'ART_USE_READ_BARRIER' : 'true'
         }
     },
     'art-interpreter-tracing' : {
-        'run-tests' : True,
-        'flags' : ['--interpreter',
-                   '--trace'],
+        'run-test' : ['--interpreter',
+                      '--trace'],
         'env' : {
-            'ART_USE_READ_BARRIER' : 'false',
+            'ART_USE_READ_BARRIER' : 'true',
         }
     },
     'art-forcecopy' : {
-        'run-tests' : True,
-        'flags' : ['--forcecopy'],
+        'run-test' : ['--forcecopy'],
         'env' : {
-            'ART_USE_READ_BARRIER' : 'false',
+            'ART_USE_READ_BARRIER' : 'true',
         }
     },
     'art-no-prebuild' : {
-        'run-tests' : True,
-        'flags' : ['--no-prebuild'],
+        'run-test' : ['--no-prebuild'],
         'env' : {
-            'ART_USE_READ_BARRIER' : 'false',
+            'ART_USE_READ_BARRIER' : 'true',
         }
     },
     'art-no-image' : {
-        'run-tests' : True,
-        'flags' : ['--no-image'],
+        'run-test' : ['--no-image'],
         'env' : {
-            'ART_USE_READ_BARRIER' : 'false',
+            'ART_USE_READ_BARRIER' : 'true',
         }
     },
     'art-interpreter-no-image' : {
-        'run-tests' : True,
-        'flags' : ['--interpreter',
-                   '--no-image'],
+        'run-test' : ['--interpreter',
+                      '--no-image'],
         'env' : {
-            'ART_USE_READ_BARRIER' : 'false',
+            'ART_USE_READ_BARRIER' : 'true',
         }
     },
     'art-relocate-no-patchoat' : {
-        'run-tests' : True,
-        'flags' : ['--relocate-npatchoat'],
+        'run-test' : ['--relocate-npatchoat'],
         'env' : {
-            'ART_USE_READ_BARRIER' : 'false',
+            'ART_USE_READ_BARRIER' : 'true',
         }
     },
     'art-no-dex2oat' : {
-        'run-tests' : True,
-        'flags' : ['--no-dex2oat'],
+        'run-test' : ['--no-dex2oat'],
         'env' : {
-            'ART_USE_READ_BARRIER' : 'false',
+            'ART_USE_READ_BARRIER' : 'true',
         }
     },
     'art-heap-poisoning' : {
-        'run-tests' : True,
-        'flags' : ['--interpreter',
-                   '--optimizing'],
+        'run-test' : ['--interpreter',
+                      '--optimizing'],
         'env' : {
             'ART_USE_READ_BARRIER' : 'false',
             'ART_HEAP_POISONING' : 'true'
         }
     },
+    'art-preopt' : {
+        # This test configuration is intended to be representative of the case
+        # of preopted apps, which are precompiled compiled pic against an
+        # unrelocated image, then used with a relocated image.
+        'run-test' : ['--pictest',
+                      '--prebuild',
+                      '--relocate',
+                      '--jit'],
+        'env' : {
+            'ART_USE_READ_BARRIER' : 'true'
+        }
+    },
+
+    # ART gtest configurations
+    # (calls make 'target' which builds and then runs the gtests).
+
     'art-gtest' : {
-        'target' :  'test-art-host-gtest',
+        'make' :  'test-art-host-gtest',
         'env' : {
             'ART_USE_READ_BARRIER' : 'true'
         }
     },
     'art-gtest-read-barrier': {
-        'target' :  'test-art-host-gtest',
+        'make' :  'test-art-host-gtest',
         'env' : {
             'ART_USE_READ_BARRIER' : 'true',
             'ART_HEAP_POISONING' : 'true'
         }
     },
     'art-gtest-read-barrier-table-lookup': {
-        'target' :  'test-art-host-gtest',
+        'make' :  'test-art-host-gtest',
         'env': {
             'ART_USE_READ_BARRIER' : 'true',
             'ART_READ_BARRIER_TYPE' : 'TABLELOOKUP',
@@ -233,21 +260,21 @@ target_config = {
         }
     },
     'art-gtest-ss-gc': {
-        'target' :  'test-art-host-gtest',
+        'make' :  'test-art-host-gtest',
         'env': {
             'ART_DEFAULT_GC_TYPE' : 'SS',
             'ART_USE_READ_BARRIER' : 'false'
         }
     },
     'art-gtest-gss-gc': {
-        'target' :  'test-art-host-gtest',
+        'make' :  'test-art-host-gtest',
         'env' : {
             'ART_DEFAULT_GC_TYPE' : 'GSS',
             'ART_USE_READ_BARRIER' : 'false'
         }
     },
     'art-gtest-ss-gc-tlab': {
-        'target' :  'test-art-host-gtest',
+        'make' :  'test-art-host-gtest',
         'env': {
             'ART_DEFAULT_GC_TYPE' : 'SS',
             'ART_USE_TLAB' : 'true',
@@ -255,7 +282,7 @@ target_config = {
         }
     },
     'art-gtest-gss-gc-tlab': {
-        'target' :  'test-art-host-gtest',
+        'make' :  'test-art-host-gtest',
         'env': {
             'ART_DEFAULT_GC_TYPE' : 'GSS',
             'ART_USE_TLAB' : 'true',
@@ -263,29 +290,54 @@ target_config = {
         }
     },
     'art-gtest-debug-gc' : {
-        'target' :  'test-art-host-gtest',
+        'make' :  'test-art-host-gtest',
         'env' : {
             'ART_TEST_DEBUG_GC' : 'true',
             'ART_USE_READ_BARRIER' : 'false'
         }
     },
     'art-gtest-valgrind32': {
-        'target' : 'valgrind-test-art-host32',
+        'make' : 'valgrind-test-art-host32',
         'env': {
             'ART_USE_READ_BARRIER' : 'false'
         }
     },
     'art-gtest-valgrind64': {
-        'target' : 'valgrind-test-art-host64',
+        'make' : 'valgrind-test-art-host64',
         'env': {
             'ART_USE_READ_BARRIER' : 'false'
         }
     },
     'art-gtest-heap-poisoning': {
-        'target' : 'valgrind-test-art-host64',
+        'make' : 'valgrind-test-art-host64',
         'env' : {
             'ART_HEAP_POISONING' : 'true',
             'ART_USE_READ_BARRIER' : 'false'
         }
-    }
+    },
+
+   # ART Golem build targets used by go/lem (continuous ART benchmarking),
+   # (art-opt-cc is used by default since it mimics the default preopt config),
+   #
+   # calls golem/build-target.sh which builds a golem tarball of the target name,
+   #     e.g. 'golem: android-armv7' produces an 'android-armv7.tar.gz' upon success.
+
+    'art-golem-android-armv7': {
+        'golem' : 'android-armv7'
+    },
+    'art-golem-android-armv8': {
+        'golem' : 'android-armv8'
+    },
+    'art-golem-linux-armv7': {
+        'golem' : 'linux-armv7'
+    },
+    'art-golem-linux-armv8': {
+        'golem' : 'linux-armv8'
+    },
+    'art-golem-linux-ia32': {
+        'golem' : 'linux-ia32'
+    },
+    'art-golem-linux-x64': {
+        'golem' : 'linux-x64'
+    },
 }

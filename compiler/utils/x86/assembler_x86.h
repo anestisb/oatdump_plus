@@ -495,10 +495,18 @@ class X86Assembler FINAL : public Assembler {
   void orps(XmmRegister dst, XmmRegister src);
   void por(XmmRegister dst, XmmRegister src);
 
+  void pavgb(XmmRegister dst, XmmRegister src);  // no addr variant (for now)
+  void pavgw(XmmRegister dst, XmmRegister src);
+
   void pcmpeqb(XmmRegister dst, XmmRegister src);
   void pcmpeqw(XmmRegister dst, XmmRegister src);
   void pcmpeqd(XmmRegister dst, XmmRegister src);
   void pcmpeqq(XmmRegister dst, XmmRegister src);
+
+  void pcmpgtb(XmmRegister dst, XmmRegister src);
+  void pcmpgtw(XmmRegister dst, XmmRegister src);
+  void pcmpgtd(XmmRegister dst, XmmRegister src);
+  void pcmpgtq(XmmRegister dst, XmmRegister src);  // SSE4.2
 
   void shufpd(XmmRegister dst, XmmRegister src, const Immediate& imm);
   void shufps(XmmRegister dst, XmmRegister src, const Immediate& imm);

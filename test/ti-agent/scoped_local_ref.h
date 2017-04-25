@@ -44,7 +44,7 @@ class ScopedLocalRef {
     }
   }
 
-  T release() __attribute__((warn_unused_result)) {
+  T release() WARN_UNUSED {
     T localRef = mLocalRef;
     mLocalRef = nullptr;
     return localRef;

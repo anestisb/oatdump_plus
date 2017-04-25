@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-import java.util.ArrayList;
+import art.Redefinition;
+import java.util.Arrays;
+
 public class Main {
 
   public static void main(String[] args) {
@@ -35,40 +37,40 @@ public class Main {
     Unmodifiable.doTest(new Transform[] { new Transform(), });
   }
 
-  // Transforms the class. This throws an exception if something goes wrong.
-  public static native void doCommonClassRedefinition(Class<?> target,
-                                                      byte[] classfile,
-                                                      byte[] dexfile) throws Exception;
+  // TODO Replace this shim with a better re-write of this test.
+  private static Redefinition.CommonClassDefinition mapCCD(CommonClassDefinition d) {
+    return new Redefinition.CommonClassDefinition(d.target, d.class_file_bytes, d.dex_file_bytes);
+  }
 
+  private static Redefinition.CommonClassDefinition[] toCCDA(CommonClassDefinition[] ds) {
+    return Arrays.stream(ds).map(Main::mapCCD).toArray(Redefinition.CommonClassDefinition[]::new);
+  }
+
+  public static void doCommonClassRedefinition(Class<?> target,
+                                               byte[] classfile,
+                                               byte[] dexfile) throws Exception {
+    Redefinition.doCommonClassRedefinition(target, classfile, dexfile);
+  }
   public static void doMultiClassRedefinition(CommonClassDefinition... defs) throws Exception {
-    ArrayList<Class<?>> classes = new ArrayList<>();
-    ArrayList<byte[]> class_files = new ArrayList<>();
-    ArrayList<byte[]> dex_files = new ArrayList<>();
-
-    for (CommonClassDefinition d : defs) {
-      classes.add(d.target);
-      class_files.add(d.class_file_bytes);
-      dex_files.add(d.dex_file_bytes);
-    }
-    doCommonMultiClassRedefinition(classes.toArray(new Class<?>[0]),
-                                   class_files.toArray(new byte[0][]),
-                                   dex_files.toArray(new byte[0][]));
+    Redefinition.doMultiClassRedefinition(toCCDA(defs));
   }
-
   public static void addMultiTransformationResults(CommonClassDefinition... defs) throws Exception {
-    for (CommonClassDefinition d : defs) {
-      addCommonTransformationResult(d.target.getCanonicalName(),
-                                    d.class_file_bytes,
-                                    d.dex_file_bytes);
-    }
+    Redefinition.addMultiTransformationResults(toCCDA(defs));
   }
-
-  public static native void doCommonMultiClassRedefinition(Class<?>[] targets,
-                                                           byte[][] classfiles,
-                                                           byte[][] dexfiles) throws Exception;
-  public static native void doCommonClassRetransformation(Class<?>... target) throws Exception;
-  public static native void enableCommonRetransformation(boolean enable);
-  public static native void addCommonTransformationResult(String target_name,
-                                                          byte[] class_bytes,
-                                                          byte[] dex_bytes);
+  public static void doCommonMultiClassRedefinition(Class<?>[] targets,
+                                                    byte[][] classfiles,
+                                                    byte[][] dexfiles) throws Exception {
+    Redefinition.doCommonMultiClassRedefinition(targets, classfiles, dexfiles);
+  }
+  public static void doCommonClassRetransformation(Class<?>... target) throws Exception {
+    Redefinition.doCommonClassRetransformation(target);
+  }
+  public static void enableCommonRetransformation(boolean enable) {
+    Redefinition.enableCommonRetransformation(enable);
+  }
+  public static void addCommonTransformationResult(String target_name,
+                                                   byte[] class_bytes,
+                                                   byte[] dex_bytes) {
+    Redefinition.addCommonTransformationResult(target_name, class_bytes, dex_bytes);
+  }
 }

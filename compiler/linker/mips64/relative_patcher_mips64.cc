@@ -107,5 +107,11 @@ void Mips64RelativePatcher::PatchPcRelativeReference(std::vector<uint8_t>* code,
   (*code)[literal_offset + 5] = static_cast<uint8_t>(diff >> 8);
 }
 
+void Mips64RelativePatcher::PatchBakerReadBarrierBranch(std::vector<uint8_t>* code ATTRIBUTE_UNUSED,
+                                                        const LinkerPatch& patch ATTRIBUTE_UNUSED,
+                                                        uint32_t patch_offset ATTRIBUTE_UNUSED) {
+  LOG(FATAL) << "UNIMPLEMENTED";
+}
+
 }  // namespace linker
 }  // namespace art

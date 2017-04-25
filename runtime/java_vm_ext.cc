@@ -20,7 +20,7 @@
 
 #include "android-base/stringprintf.h"
 
-#include "art_method.h"
+#include "art_method-inl.h"
 #include "base/dumpable.h"
 #include "base/mutex.h"
 #include "base/stl_util.h"
@@ -40,6 +40,7 @@
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change-inl.h"
 #include "sigchain.h"
+#include "ti/agent.h"
 #include "thread-inl.h"
 #include "thread_list.h"
 
@@ -268,7 +269,6 @@ class Libraries {
     detail += "No implementation found for ";
     detail += m->PrettyMethod();
     detail += " (tried " + jni_short_name + " and " + jni_long_name + ")";
-    LOG(ERROR) << detail;
     return nullptr;
   }
 
@@ -929,6 +929,26 @@ bool JavaVMExt::LoadNativeLibrary(JNIEnv* env,
   return was_successful;
 }
 
+static void* FindCodeForNativeMethodInAgents(ArtMethod* m) REQUIRES_SHARED(Locks::mutator_lock_) {
+  std::string jni_short_name(m->JniShortName());
+  std::string jni_long_name(m->JniLongName());
+  for (const ti::Agent& agent : Runtime::Current()->GetAgents()) {
+    void* fn = agent.FindSymbol(jni_short_name);
+    if (fn != nullptr) {
+      VLOG(jni) << "Found implementation for " << m->PrettyMethod()
+                << " (symbol: " << jni_short_name << ") in " << agent;
+      return fn;
+    }
+    fn = agent.FindSymbol(jni_long_name);
+    if (fn != nullptr) {
+      VLOG(jni) << "Found implementation for " << m->PrettyMethod()
+                << " (symbol: " << jni_long_name << ") in " << agent;
+      return fn;
+    }
+  }
+  return nullptr;
+}
+
 void* JavaVMExt::FindCodeForNativeMethod(ArtMethod* m) {
   CHECK(m->IsNative());
   mirror::Class* c = m->GetDeclaringClass();
@@ -941,8 +961,14 @@ void* JavaVMExt::FindCodeForNativeMethod(ArtMethod* m) {
     MutexLock mu(self, *Locks::jni_libraries_lock_);
     native_method = libraries_->FindNativeMethod(m, detail);
   }
+  if (native_method == nullptr) {
+    // Lookup JNI native methods from native TI Agent libraries. See runtime/ti/agent.h for more
+    // information. Agent libraries are searched for native methods after all jni libraries.
+    native_method = FindCodeForNativeMethodInAgents(m);
+  }
   // Throwing can cause libraries_lock to be reacquired.
   if (native_method == nullptr) {
+    LOG(ERROR) << detail;
     self->ThrowNewException("Ljava/lang/UnsatisfiedLinkError;", detail.c_str());
   }
   return native_method;

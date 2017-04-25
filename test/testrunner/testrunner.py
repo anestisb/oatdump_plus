@@ -73,6 +73,7 @@ PICTEST_TYPES = set()
 DEBUGGABLE_TYPES = set()
 ADDRESS_SIZES = set()
 OPTIMIZING_COMPILER_TYPES = set()
+JVMTI_TYPES = set()
 ADDRESS_SIZES_TARGET = {'host': set(), 'target': set()}
 # timeout for individual tests.
 # TODO: make it adjustable per tests and for buildbots
@@ -146,6 +147,7 @@ def gather_test_info():
   VARIANT_TYPE_DICT['relocate'] = {'relocate-npatchoat', 'relocate', 'no-relocate'}
   VARIANT_TYPE_DICT['jni'] = {'jni', 'forcecopy', 'checkjni'}
   VARIANT_TYPE_DICT['address_sizes'] = {'64', '32'}
+  VARIANT_TYPE_DICT['jvmti'] = {'no-jvmti', 'jvmti-stress'}
   VARIANT_TYPE_DICT['compiler'] = {'interp-ac', 'interpreter', 'jit', 'optimizing',
                               'regalloc_gc', 'speed-profile'}
 
@@ -194,6 +196,10 @@ def setup_test_env():
     OPTIMIZING_COMPILER_TYPES.add('optimizing')
   if env.ART_TEST_SPEED_PROFILE:
     COMPILER_TYPES.add('speed-profile')
+
+  # By default only run without jvmti
+  if not JVMTI_TYPES:
+    JVMTI_TYPES.add('no-jvmti')
 
   # By default we run all 'compiler' variants.
   if not COMPILER_TYPES:
@@ -256,8 +262,8 @@ def setup_test_env():
     ADDRESS_SIZES_TARGET['target'].add(env.ART_PHONY_TEST_TARGET_SUFFIX)
     ADDRESS_SIZES_TARGET['host'].add(env.ART_PHONY_TEST_HOST_SUFFIX)
     if env.ART_TEST_RUN_TEST_2ND_ARCH:
-      ADDRESS_SIZES_TARGET['host'].add(env._2ND_ART_PHONY_TEST_HOST_SUFFIX)
-      ADDRESS_SIZES_TARGET['target'].add(env._2ND_ART_PHONY_TEST_TARGET_SUFFIX)
+      ADDRESS_SIZES_TARGET['host'].add(env.ART_2ND_PHONY_TEST_HOST_SUFFIX)
+      ADDRESS_SIZES_TARGET['target'].add(env.ART_2ND_PHONY_TEST_TARGET_SUFFIX)
   else:
     ADDRESS_SIZES_TARGET['host'] = ADDRESS_SIZES_TARGET['host'].union(ADDRESS_SIZES)
     ADDRESS_SIZES_TARGET['target'] = ADDRESS_SIZES_TARGET['target'].union(ADDRESS_SIZES)
@@ -310,6 +316,7 @@ def run_tests(tests):
   total_test_count *= len(PICTEST_TYPES)
   total_test_count *= len(DEBUGGABLE_TYPES)
   total_test_count *= len(COMPILER_TYPES)
+  total_test_count *= len(JVMTI_TYPES)
   target_address_combinations = 0
   for target in TARGET_TYPES:
     for address_size in ADDRESS_SIZES_TARGET[target]:
@@ -336,10 +343,10 @@ def run_tests(tests):
   config = itertools.product(tests, TARGET_TYPES, RUN_TYPES, PREBUILD_TYPES,
                              COMPILER_TYPES, RELOCATE_TYPES, TRACE_TYPES,
                              GC_TYPES, JNI_TYPES, IMAGE_TYPES, PICTEST_TYPES,
-                             DEBUGGABLE_TYPES)
+                             DEBUGGABLE_TYPES, JVMTI_TYPES)
 
   for test, target, run, prebuild, compiler, relocate, trace, gc, \
-      jni, image, pictest, debuggable in config:
+      jni, image, pictest, debuggable, jvmti in config:
     for address_size in ADDRESS_SIZES_TARGET[target]:
       if stop_testrunner:
         # When ART_TEST_KEEP_GOING is set to false, then as soon as a test
@@ -361,11 +368,12 @@ def run_tests(tests):
       test_name += image + '-'
       test_name += pictest + '-'
       test_name += debuggable + '-'
+      test_name += jvmti + '-'
       test_name += test
       test_name += address_size
 
       variant_set = {target, run, prebuild, compiler, relocate, trace, gc, jni,
-                     image, pictest, debuggable, address_size}
+                     image, pictest, debuggable, jvmti, address_size}
 
       options_test = options_all
 
@@ -427,6 +435,9 @@ def run_tests(tests):
 
       if debuggable == 'debuggable':
         options_test += ' --debuggable'
+
+      if jvmti == 'jvmti-stress':
+        options_test += ' --jvmti-stress'
 
       if address_size == '64':
         options_test += ' --64'
@@ -499,7 +510,7 @@ def run_test(command, test, test_variant, test_name):
     else:
       print_test_info(test_name, '')
   except subprocess.TimeoutExpired as e:
-    failed_tests.append((test_name, 'Timed out in %d seconds'))
+    failed_tests.append((test_name, 'Timed out in %d seconds' % timeout))
     print_test_info(test_name, 'TIMEOUT', 'Timed out in %d seconds\n%s' % (
         timeout, command))
   except Exception as e:
@@ -762,6 +773,7 @@ def parse_test_name(test_name):
   regex += '(' + '|'.join(VARIANT_TYPE_DICT['image']) + ')-'
   regex += '(' + '|'.join(VARIANT_TYPE_DICT['pictest']) + ')-'
   regex += '(' + '|'.join(VARIANT_TYPE_DICT['debuggable']) + ')-'
+  regex += '(' + '|'.join(VARIANT_TYPE_DICT['jvmti']) + ')-'
   regex += '(' + '|'.join(RUN_TEST_SET) + ')'
   regex += '(' + '|'.join(VARIANT_TYPE_DICT['address_sizes']) + ')$'
   match = re.match(regex, test_name)
@@ -777,8 +789,9 @@ def parse_test_name(test_name):
     IMAGE_TYPES.add(match.group(9))
     PICTEST_TYPES.add(match.group(10))
     DEBUGGABLE_TYPES.add(match.group(11))
-    ADDRESS_SIZES.add(match.group(13))
-    return {match.group(12)}
+    JVMTI_TYPES.add(match.group(12))
+    ADDRESS_SIZES.add(match.group(14))
+    return {match.group(13)}
   raise ValueError(test_name + " is not a valid test")
 
 
@@ -918,6 +931,10 @@ def parse_option():
     GC_TYPES.add('cms')
   if options['multipicimage']:
     IMAGE_TYPES.add('multipicimage')
+  if options['jvmti_stress']:
+    JVMTI_TYPES.add('jvmti-stress')
+  if options['no_jvmti']:
+    JVMTI_TYPES.add('no-jvmti')
   if options['verbose']:
     verbose = True
   if options['n_thread']:

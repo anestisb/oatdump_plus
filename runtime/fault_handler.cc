@@ -21,8 +21,10 @@
 #include <sys/ucontext.h>
 
 #include "art_method-inl.h"
+#include "base/safe_copy.h"
 #include "base/stl_util.h"
 #include "mirror/class.h"
+#include "mirror/object_reference.h"
 #include "oat_quick_method_header.h"
 #include "sigchain.h"
 #include "thread-inl.h"
@@ -41,6 +43,82 @@ extern "C" __attribute__((visibility("default"))) void art_sigsegv_fault() {
 static bool art_fault_handler(int sig, siginfo_t* info, void* context) {
   return fault_manager.HandleFault(sig, info, context);
 }
+
+#if defined(__linux__)
+
+// Change to verify the safe implementations against the original ones.
+constexpr bool kVerifySafeImpls = false;
+
+// Provide implementations of ArtMethod::GetDeclaringClass and VerifyClassClass that use SafeCopy
+// to safely dereference pointers which are potentially garbage.
+// Only available on Linux due to availability of SafeCopy.
+
+static mirror::Class* SafeGetDeclaringClass(ArtMethod* method)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  char* method_declaring_class =
+      reinterpret_cast<char*>(method) + ArtMethod::DeclaringClassOffset().SizeValue();
+
+  // ArtMethod::declaring_class_ is a GcRoot<mirror::Class>.
+  // Read it out into as a CompressedReference directly for simplicity's sake.
+  mirror::CompressedReference<mirror::Class> cls;
+  ssize_t rc = SafeCopy(&cls, method_declaring_class, sizeof(cls));
+  CHECK_NE(-1, rc);
+
+  if (kVerifySafeImpls) {
+    mirror::Class* actual_class = method->GetDeclaringClassUnchecked<kWithoutReadBarrier>();
+    CHECK_EQ(actual_class, cls.AsMirrorPtr());
+  }
+
+  if (rc != sizeof(cls)) {
+    return nullptr;
+  }
+
+  return cls.AsMirrorPtr();
+}
+
+static mirror::Class* SafeGetClass(mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_) {
+  char* obj_cls = reinterpret_cast<char*>(obj) + mirror::Object::ClassOffset().SizeValue();
+
+  mirror::HeapReference<mirror::Class> cls =
+      mirror::HeapReference<mirror::Class>::FromMirrorPtr(nullptr);
+  ssize_t rc = SafeCopy(&cls, obj_cls, sizeof(cls));
+  CHECK_NE(-1, rc);
+
+  if (kVerifySafeImpls) {
+    mirror::Class* actual_class = obj->GetClass<kVerifyNone>();
+    CHECK_EQ(actual_class, cls.AsMirrorPtr());
+  }
+
+  if (rc != sizeof(cls)) {
+    return nullptr;
+  }
+
+  return cls.AsMirrorPtr();
+}
+
+static bool SafeVerifyClassClass(mirror::Class* cls) REQUIRES_SHARED(Locks::mutator_lock_) {
+  mirror::Class* c_c = SafeGetClass(cls);
+  bool result = c_c != nullptr && c_c == SafeGetClass(c_c);
+
+  if (kVerifySafeImpls) {
+    CHECK_EQ(VerifyClassClass(cls), result);
+  }
+
+  return result;
+}
+
+#else
+
+static mirror::Class* SafeGetDeclaringClass(ArtMethod* method_obj)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  return method_obj->GetDeclaringClassUnchecked<kWithoutReadBarrier>();
+}
+
+static bool SafeVerifyClassClass(mirror::Class* cls) REQUIRES_SHARED(Locks::mutator_lock_) {
+  return VerifyClassClass(cls);
+}
+#endif
+
 
 FaultManager::FaultManager() : initialized_(false) {
   sigaction(SIGSEGV, nullptr, &oldaction_);
@@ -191,20 +269,19 @@ bool FaultManager::IsInGeneratedCode(siginfo_t* siginfo, void* context, bool che
   // Verify that the potential method is indeed a method.
   // TODO: check the GC maps to make sure it's an object.
   // Check that the class pointer inside the object is not null and is aligned.
-  // TODO: Method might be not a heap address, and GetClass could fault.
   // No read barrier because method_obj may not be a real object.
-  mirror::Class* cls = method_obj->GetDeclaringClassUnchecked<kWithoutReadBarrier>();
+  mirror::Class* cls = SafeGetDeclaringClass(method_obj);
   if (cls == nullptr) {
     VLOG(signals) << "not a class";
     return false;
   }
+
   if (!IsAligned<kObjectAlignment>(cls)) {
     VLOG(signals) << "not aligned";
     return false;
   }
 
-
-  if (!VerifyClassClass(cls)) {
+  if (!SafeVerifyClassClass(cls)) {
     VLOG(signals) << "not a class class";
     return false;
   }

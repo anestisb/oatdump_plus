@@ -81,6 +81,7 @@ include $(art_path)/tools/Android.mk
 include $(art_path)/tools/ahat/Android.mk
 include $(art_path)/tools/dexfuzz/Android.mk
 include $(art_path)/libart_fake/Android.mk
+include $(art_path)/test/Android.run-test-jvmti-java-library.mk
 
 ART_HOST_DEPENDENCIES := \
   $(ART_HOST_EXECUTABLES) \

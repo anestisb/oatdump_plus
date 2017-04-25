@@ -78,6 +78,7 @@ const char* const ArenaAllocatorStatsImpl<kCount>::kAllocNames[] = {
   "RegAllocator ",
   "RegAllocVldt ",
   "StackMapStm  ",
+  "VectorNode   ",
   "CodeGen      ",
   "Assembler    ",
   "ParallelMove ",
@@ -150,8 +151,15 @@ void ArenaAllocatorStatsImpl<kCount>::Dump(std::ostream& os, const Arena* first,
 #if __clang_major__ >= 4
 #pragma GCC diagnostic ignored "-Winstantiation-after-specialization"
 #endif
-// Explicitly instantiate the used implementation.
-template class ArenaAllocatorStatsImpl<kArenaAllocatorCountAllocations>;
+// We're going to use ArenaAllocatorStatsImpl<kArenaAllocatorCountAllocations> which needs
+// to be explicitly instantiated if kArenaAllocatorCountAllocations is true. Explicit
+// instantiation of the specialization ArenaAllocatorStatsImpl<false> does not do anything
+// but requires the warning "-Winstantiation-after-specialization" to be turned off.
+//
+// To avoid bit-rot of the ArenaAllocatorStatsImpl<true>, instantiate it also in debug builds
+// (but keep the unnecessary code out of release builds) as we do not usually compile with
+// kArenaAllocatorCountAllocations set to true.
+template class ArenaAllocatorStatsImpl<kArenaAllocatorCountAllocations || kIsDebugBuild>;
 #pragma GCC diagnostic pop
 
 void ArenaAllocatorMemoryTool::DoMakeDefined(void* ptr, size_t size) {

@@ -605,6 +605,14 @@ TEST_F(AssemblerX86Test, POr) {
   DriverStr(RepeatFF(&x86::X86Assembler::por, "por %{reg2}, %{reg1}"), "por");
 }
 
+TEST_F(AssemblerX86Test, PAvgB) {
+  DriverStr(RepeatFF(&x86::X86Assembler::pavgb, "pavgb %{reg2}, %{reg1}"), "pavgb");
+}
+
+TEST_F(AssemblerX86Test, PAvgW) {
+  DriverStr(RepeatFF(&x86::X86Assembler::pavgw, "pavgw %{reg2}, %{reg1}"), "pavgw");
+}
+
 TEST_F(AssemblerX86Test, PCmpeqB) {
   DriverStr(RepeatFF(&x86::X86Assembler::pcmpeqb, "pcmpeqb %{reg2}, %{reg1}"), "cmpeqb");
 }
@@ -619,6 +627,22 @@ TEST_F(AssemblerX86Test, PCmpeqD) {
 
 TEST_F(AssemblerX86Test, PCmpeqQ) {
   DriverStr(RepeatFF(&x86::X86Assembler::pcmpeqq, "pcmpeqq %{reg2}, %{reg1}"), "cmpeqq");
+}
+
+TEST_F(AssemblerX86Test, PCmpgtB) {
+  DriverStr(RepeatFF(&x86::X86Assembler::pcmpgtb, "pcmpgtb %{reg2}, %{reg1}"), "cmpgtb");
+}
+
+TEST_F(AssemblerX86Test, PCmpgtW) {
+  DriverStr(RepeatFF(&x86::X86Assembler::pcmpgtw, "pcmpgtw %{reg2}, %{reg1}"), "cmpgtw");
+}
+
+TEST_F(AssemblerX86Test, PCmpgtD) {
+  DriverStr(RepeatFF(&x86::X86Assembler::pcmpgtd, "pcmpgtd %{reg2}, %{reg1}"), "cmpgtd");
+}
+
+TEST_F(AssemblerX86Test, PCmpgtQ) {
+  DriverStr(RepeatFF(&x86::X86Assembler::pcmpgtq, "pcmpgtq %{reg2}, %{reg1}"), "cmpgtq");
 }
 
 TEST_F(AssemblerX86Test, ShufPS) {

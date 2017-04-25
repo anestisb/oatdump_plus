@@ -241,6 +241,38 @@ class InstructionCodeGeneratorMIPS : public InstructionCodeGenerator {
                       uint32_t dex_pc,
                       bool value_can_be_null);
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info, uint32_t dex_pc);
+
+  // Generate a heap reference load using one register `out`:
+  //
+  //   out <- *(out + offset)
+  //
+  // while honoring heap poisoning and/or read barriers (if any).
+  //
+  // Location `maybe_temp` is used when generating a read barrier and
+  // shall be a register in that case; it may be an invalid location
+  // otherwise.
+  void GenerateReferenceLoadOneRegister(HInstruction* instruction,
+                                        Location out,
+                                        uint32_t offset,
+                                        Location maybe_temp,
+                                        ReadBarrierOption read_barrier_option);
+  // Generate a heap reference load using two different registers
+  // `out` and `obj`:
+  //
+  //   out <- *(obj + offset)
+  //
+  // while honoring heap poisoning and/or read barriers (if any).
+  //
+  // Location `maybe_temp` is used when generating a Baker's (fast
+  // path) read barrier and shall be a register in that case; it may
+  // be an invalid location otherwise.
+  void GenerateReferenceLoadTwoRegisters(HInstruction* instruction,
+                                         Location out,
+                                         Location obj,
+                                         uint32_t offset,
+                                         Location maybe_temp,
+                                         ReadBarrierOption read_barrier_option);
+
   // Generate a GC root reference load:
   //
   //   root <- *(obj + offset)
@@ -249,7 +281,9 @@ class InstructionCodeGeneratorMIPS : public InstructionCodeGenerator {
   void GenerateGcRootFieldLoad(HInstruction* instruction,
                                Location root,
                                Register obj,
-                               uint32_t offset);
+                               uint32_t offset,
+                               ReadBarrierOption read_barrier_option);
+
   void GenerateIntCompare(IfCondition cond, LocationSummary* locations);
   // When the function returns `false` it means that the condition holds if `dst` is non-zero
   // and doesn't hold if `dst` is zero. If it returns `true`, the roles of zero and non-zero
@@ -353,6 +387,91 @@ class CodeGeneratorMIPS : public CodeGenerator {
   void EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) OVERRIDE;
   void EmitJitRootPatches(uint8_t* code, const uint8_t* roots_data) OVERRIDE;
 
+  // Fast path implementation of ReadBarrier::Barrier for a heap
+  // reference field load when Baker's read barriers are used.
+  void GenerateFieldLoadWithBakerReadBarrier(HInstruction* instruction,
+                                             Location ref,
+                                             Register obj,
+                                             uint32_t offset,
+                                             Location temp,
+                                             bool needs_null_check);
+  // Fast path implementation of ReadBarrier::Barrier for a heap
+  // reference array load when Baker's read barriers are used.
+  void GenerateArrayLoadWithBakerReadBarrier(HInstruction* instruction,
+                                             Location ref,
+                                             Register obj,
+                                             uint32_t data_offset,
+                                             Location index,
+                                             Location temp,
+                                             bool needs_null_check);
+
+  // Factored implementation, used by GenerateFieldLoadWithBakerReadBarrier,
+  // GenerateArrayLoadWithBakerReadBarrier and some intrinsics.
+  //
+  // Load the object reference located at the address
+  // `obj + offset + (index << scale_factor)`, held by object `obj`, into
+  // `ref`, and mark it if needed.
+  //
+  // If `always_update_field` is true, the value of the reference is
+  // atomically updated in the holder (`obj`).
+  void GenerateReferenceLoadWithBakerReadBarrier(HInstruction* instruction,
+                                                 Location ref,
+                                                 Register obj,
+                                                 uint32_t offset,
+                                                 Location index,
+                                                 ScaleFactor scale_factor,
+                                                 Location temp,
+                                                 bool needs_null_check,
+                                                 bool always_update_field = false);
+
+  // Generate a read barrier for a heap reference within `instruction`
+  // using a slow path.
+  //
+  // A read barrier for an object reference read from the heap is
+  // implemented as a call to the artReadBarrierSlow runtime entry
+  // point, which is passed the values in locations `ref`, `obj`, and
+  // `offset`:
+  //
+  //   mirror::Object* artReadBarrierSlow(mirror::Object* ref,
+  //                                      mirror::Object* obj,
+  //                                      uint32_t offset);
+  //
+  // The `out` location contains the value returned by
+  // artReadBarrierSlow.
+  //
+  // When `index` is provided (i.e. for array accesses), the offset
+  // value passed to artReadBarrierSlow is adjusted to take `index`
+  // into account.
+  void GenerateReadBarrierSlow(HInstruction* instruction,
+                               Location out,
+                               Location ref,
+                               Location obj,
+                               uint32_t offset,
+                               Location index = Location::NoLocation());
+
+  // If read barriers are enabled, generate a read barrier for a heap
+  // reference using a slow path. If heap poisoning is enabled, also
+  // unpoison the reference in `out`.
+  void MaybeGenerateReadBarrierSlow(HInstruction* instruction,
+                                    Location out,
+                                    Location ref,
+                                    Location obj,
+                                    uint32_t offset,
+                                    Location index = Location::NoLocation());
+
+  // Generate a read barrier for a GC root within `instruction` using
+  // a slow path.
+  //
+  // A read barrier for an object reference GC root is implemented as
+  // a call to the artReadBarrierForRootSlow runtime entry point,
+  // which is passed the value in location `root`:
+  //
+  //   mirror::Object* artReadBarrierForRootSlow(GcRoot<mirror::Object>* root);
+  //
+  // The `out` location contains the value returned by
+  // artReadBarrierForRootSlow.
+  void GenerateReadBarrierForRootSlow(HInstruction* instruction, Location out, Location root);
+
   void MarkGCCard(Register object, Register value, bool value_can_be_null);
 
   // Register allocation.
@@ -399,6 +518,15 @@ class CodeGeneratorMIPS : public CodeGenerator {
                      HInstruction* instruction,
                      uint32_t dex_pc,
                      SlowPathCode* slow_path = nullptr) OVERRIDE;
+
+  // Generate code to invoke a runtime entry point, but do not record
+  // PC-related information in a stack map.
+  void InvokeRuntimeWithoutRecordingPcInfo(int32_t entry_point_offset,
+                                           HInstruction* instruction,
+                                           SlowPathCode* slow_path,
+                                           bool direct);
+
+  void GenerateInvokeRuntime(int32_t entry_point_offset, bool direct);
 
   ParallelMoveResolver* GetMoveResolver() OVERRIDE { return &move_resolver_; }
 

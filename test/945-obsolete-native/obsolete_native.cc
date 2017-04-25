@@ -19,31 +19,20 @@
 #include <stdio.h>
 
 #include "android-base/stringprintf.h"
-
-#include "android-base/stringprintf.h"
-#include "base/logging.h"
-#include "base/macros.h"
 #include "jni.h"
 #include "jvmti.h"
-#include "scoped_local_ref.h"
 
 // Test infrastructure
 #include "jni_binder.h"
 #include "test_env.h"
+#include "scoped_local_ref.h"
 
 namespace art {
 namespace Test945ObsoleteNative {
 
-extern "C" JNIEXPORT void JNICALL Java_Main_bindTest945ObsoleteNative(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
-  BindFunctions(jvmti_env, env, "Transform");
-}
-
-extern "C" JNIEXPORT void JNICALL Java_Transform_doExecute(JNIEnv* env,
-                                                           jclass klass ATTRIBUTE_UNUSED,
-                                                           jobject runnable) {
+extern "C" JNIEXPORT void JNICALL Java_art_Test945_00024Transform_doExecute(
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject runnable) {
   jclass runnable_klass = env->FindClass("java/lang/Runnable");
-  DCHECK(runnable_klass != nullptr);
   jmethodID run_method = env->GetMethodID(runnable_klass, "run", "()V");
   env->CallVoidMethod(runnable, run_method);
 }

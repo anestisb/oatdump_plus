@@ -65,6 +65,7 @@
 #include "imtable-inl.h"
 #include "intern_table.h"
 #include "interpreter/interpreter.h"
+#include "java_vm_ext.h"
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
 #include "jit/profile_compilation_info.h"
@@ -2592,9 +2593,25 @@ mirror::Class* ClassLinker::FindClass(Thread* self,
         return nullptr;
       }
 
+      // Inlined DescriptorToDot(descriptor) with extra validation.
+      //
+      // Throw NoClassDefFoundError early rather than potentially load a class only to fail
+      // the DescriptorEquals() check below and give a confusing error message. For example,
+      // when native code erroneously calls JNI GetFieldId() with signature "java/lang/String"
+      // instead of "Ljava/lang/String;", the message below using the "dot" names would be
+      // "class loader [...] returned class java.lang.String instead of java.lang.String".
+      size_t descriptor_length = strlen(descriptor);
+      if (UNLIKELY(descriptor[0] != 'L') ||
+          UNLIKELY(descriptor[descriptor_length - 1] != ';') ||
+          UNLIKELY(memchr(descriptor + 1, '.', descriptor_length - 2) != nullptr)) {
+        ThrowNoClassDefFoundError("Invalid descriptor: %s.", descriptor);
+        return nullptr;
+      }
+      std::string class_name_string(descriptor + 1, descriptor_length - 2);
+      std::replace(class_name_string.begin(), class_name_string.end(), '/', '.');
+
       ScopedLocalRef<jobject> class_loader_object(
           soa.Env(), soa.AddLocalReference<jobject>(class_loader.Get()));
-      std::string class_name_string(DescriptorToDot(descriptor));
       ScopedLocalRef<jobject> result(soa.Env(), nullptr);
       {
         ScopedThreadStateChange tsc(self, kNative);
@@ -8965,6 +8982,13 @@ mirror::Class* ClassLinker::GetHoldingClassOfCopiedMethod(ArtMethod* method) {
   FindVirtualMethodHolderVisitor visitor(method, image_pointer_size_);
   VisitClasses(&visitor);
   return visitor.holder_.Ptr();
+}
+
+mirror::IfTable* ClassLinker::AllocIfTable(Thread* self, size_t ifcount) {
+  return down_cast<mirror::IfTable*>(
+      mirror::IfTable::Alloc(self,
+                             GetClassRoot(kObjectArrayClass),
+                             ifcount * mirror::IfTable::kMax));
 }
 
 // Instantiate ResolveMethod.

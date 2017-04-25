@@ -393,6 +393,7 @@ static std::unique_ptr<char[]> IndexString(dex_ir::Header* header,
       index = dec_insn->VRegB();
       secondary_index = dec_insn->VRegH();
       width = 4;
+      break;
     default:
       break;
   }  // switch
@@ -1816,7 +1817,15 @@ void DexLayout::OutputDexFile(const DexFile* dex_file) {
       output_location += "/" + dex_file_location + ".new";
     }
     new_file.reset(OS::CreateEmptyFile(output_location.c_str()));
-    ftruncate(new_file->Fd(), header_->FileSize());
+    if (new_file == nullptr) {
+      LOG(ERROR) << "Could not create dex writer output file: " << output_location;
+      return;
+    }
+    if (ftruncate(new_file->Fd(), header_->FileSize()) != 0) {
+      LOG(ERROR) << "Could not grow dex writer output file: " << output_location;;
+      new_file->Erase();
+      return;
+    }
     mem_map_.reset(MemMap::MapFile(header_->FileSize(), PROT_READ | PROT_WRITE, MAP_SHARED,
         new_file->Fd(), 0, /*low_4gb*/ false, output_location.c_str(), &error_msg));
   } else {
@@ -1825,7 +1834,7 @@ void DexLayout::OutputDexFile(const DexFile* dex_file) {
   }
   if (mem_map_ == nullptr) {
     LOG(ERROR) << "Could not create mem map for dex writer output: " << error_msg;
-    if (new_file.get() != nullptr) {
+    if (new_file != nullptr) {
       new_file->Erase();
     }
     return;

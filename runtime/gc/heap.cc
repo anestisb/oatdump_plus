@@ -60,16 +60,19 @@
 #include "gc/space/space-inl.h"
 #include "gc/space/zygote_space.h"
 #include "gc/task_processor.h"
+#include "gc/verification.h"
 #include "entrypoints/quick/quick_alloc_entrypoints.h"
 #include "gc_pause_listener.h"
 #include "heap-inl.h"
 #include "image.h"
 #include "intern_table.h"
+#include "java_vm_ext.h"
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
 #include "obj_ptr-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
+#include "mirror/object-refvisitor-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/reference-inl.h"
 #include "os.h"
@@ -285,6 +288,7 @@ Heap::Heap(size_t initial_size,
     CHECK_EQ(foreground_collector_type_, kCollectorTypeCC);
     CHECK_EQ(background_collector_type_, kCollectorTypeCCBackground);
   }
+  verification_.reset(new Verification(this));
   CHECK_GE(large_object_threshold, kMinLargeObjectThreshold);
   ScopedTrace trace(__FUNCTION__);
   Runtime* const runtime = Runtime::Current();
@@ -2344,9 +2348,7 @@ class ZygoteCompactingCollector FINAL : public collector::SemiSpace {
     size_t bin_size = object_addr - context->prev_;
     // Add the bin consisting of the end of the previous object to the start of the current object.
     collector->AddBin(bin_size, context->prev_);
-    // Turn off read barrier. ZygoteCompactingCollector doesn't use it (even in the CC build.)
-    context->prev_ = object_addr + RoundUp(obj->SizeOf<kDefaultVerifyFlags, kWithoutReadBarrier>(),
-                                           kObjectAlignment);
+    context->prev_ = object_addr + RoundUp(obj->SizeOf<kDefaultVerifyFlags>(), kObjectAlignment);
   }
 
   void AddBin(size_t size, uintptr_t position) {
@@ -2366,8 +2368,7 @@ class ZygoteCompactingCollector FINAL : public collector::SemiSpace {
 
   virtual mirror::Object* MarkNonForwardedObject(mirror::Object* obj)
       REQUIRES(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
-    // Turn off read barrier. ZygoteCompactingCollector doesn't use it (even in the CC build.)
-    size_t obj_size = obj->SizeOf<kDefaultVerifyFlags, kWithoutReadBarrier>();
+    size_t obj_size = obj->SizeOf<kDefaultVerifyFlags>();
     size_t alloc_size = RoundUp(obj_size, kObjectAlignment);
     mirror::Object* forward_address;
     // Find the smallest bin which we can move obj in.
@@ -3696,20 +3697,21 @@ void Heap::RequestConcurrentGCAndSaveObject(Thread* self,
                                             ObjPtr<mirror::Object>* obj) {
   StackHandleScope<1> hs(self);
   HandleWrapperObjPtr<mirror::Object> wrapper(hs.NewHandleWrapper(obj));
-  RequestConcurrentGC(self, force_full);
+  RequestConcurrentGC(self, kGcCauseBackground, force_full);
 }
 
 class Heap::ConcurrentGCTask : public HeapTask {
  public:
-  ConcurrentGCTask(uint64_t target_time, bool force_full)
-      : HeapTask(target_time), force_full_(force_full) { }
+  ConcurrentGCTask(uint64_t target_time, GcCause cause, bool force_full)
+      : HeapTask(target_time), cause_(cause), force_full_(force_full) {}
   virtual void Run(Thread* self) OVERRIDE {
     gc::Heap* heap = Runtime::Current()->GetHeap();
-    heap->ConcurrentGC(self, force_full_);
+    heap->ConcurrentGC(self, cause_, force_full_);
     heap->ClearConcurrentGCRequest();
   }
 
  private:
+  const GcCause cause_;
   const bool force_full_;  // If true, force full (or partial) collection.
 };
 
@@ -3723,18 +3725,19 @@ void Heap::ClearConcurrentGCRequest() {
   concurrent_gc_pending_.StoreRelaxed(false);
 }
 
-void Heap::RequestConcurrentGC(Thread* self, bool force_full) {
+void Heap::RequestConcurrentGC(Thread* self, GcCause cause, bool force_full) {
   if (CanAddHeapTask(self) &&
       concurrent_gc_pending_.CompareExchangeStrongSequentiallyConsistent(false, true)) {
     task_processor_->AddTask(self, new ConcurrentGCTask(NanoTime(),  // Start straight away.
+                                                        cause,
                                                         force_full));
   }
 }
 
-void Heap::ConcurrentGC(Thread* self, bool force_full) {
+void Heap::ConcurrentGC(Thread* self, GcCause cause, bool force_full) {
   if (!Runtime::Current()->IsShuttingDown(self)) {
     // Wait for any GCs currently running to finish.
-    if (WaitForGcToComplete(kGcCauseBackground, self) == collector::kGcTypeNone) {
+    if (WaitForGcToComplete(cause, self) == collector::kGcTypeNone) {
       // If the we can't run the GC type we wanted to run, find the next appropriate one and try that
       // instead. E.g. can't do partial, so do full instead.
       collector::GcType next_gc_type = next_gc_type_;
@@ -3742,13 +3745,11 @@ void Heap::ConcurrentGC(Thread* self, bool force_full) {
       if (force_full && next_gc_type == collector::kGcTypeSticky) {
         next_gc_type = NonStickyGcType();
       }
-      if (CollectGarbageInternal(next_gc_type, kGcCauseBackground, false) ==
-          collector::kGcTypeNone) {
+      if (CollectGarbageInternal(next_gc_type, cause, false) == collector::kGcTypeNone) {
         for (collector::GcType gc_type : gc_plan_) {
           // Attempt to run the collector, if we succeed, we are done.
           if (gc_type > next_gc_type &&
-              CollectGarbageInternal(gc_type, kGcCauseBackground, false) !=
-                  collector::kGcTypeNone) {
+              CollectGarbageInternal(gc_type, cause, false) != collector::kGcTypeNone) {
             break;
           }
         }
@@ -3950,7 +3951,7 @@ void Heap::RegisterNativeAllocation(JNIEnv* env, size_t bytes) {
     // Trigger another GC because there have been enough native bytes
     // allocated since the last GC.
     if (IsGcConcurrent()) {
-      RequestConcurrentGC(ThreadForEnv(env), /*force_full*/true);
+      RequestConcurrentGC(ThreadForEnv(env), kGcCauseForNativeAllocBackground, /*force_full*/true);
     } else {
       CollectGarbageInternal(NonStickyGcType(), kGcCauseForNativeAlloc, false);
     }
@@ -4267,6 +4268,10 @@ mirror::Object* Heap::AllocWithNewTLAB(Thread* self,
   *bytes_allocated = alloc_size;
   *usable_size = alloc_size;
   return ret;
+}
+
+const Verification* Heap::GetVerification() const {
+  return verification_.get();
 }
 
 }  // namespace gc

@@ -270,6 +270,46 @@ public class Main {
     }
   }
 
+  // If vectorized, invariant stride should be recognized
+  // as a reduction, not a unit stride in outer loop.
+  static void reduc(int[] xx, int[] yy) {
+    for (int i0 = 0; i0 < 2; i0++) {
+      for (int i1 = 0; i1 < 469; i1++) {
+        xx[i0] -= (++yy[i1]);
+      }
+    }
+  }
+
+  // If vectorized, string encoding should be dealt with.
+  private static void string2Bytes(char[] a, String b) {
+    int min = Math.min(a.length, b.length());
+    for (int i = 0; i < min; i++) {
+      a[i] = b.charAt(i);
+    }
+  }
+
+  // A strange function that does not inline.
+  private static void $noinline$foo(boolean x, int n) {
+    if (n < 0)
+      throw new Error("oh no");
+    if (n > 100) {
+      $noinline$foo(!x, n - 1);
+      $noinline$foo(!x, n - 2);
+      $noinline$foo(!x, n - 3);
+      $noinline$foo(!x, n - 4);
+    }
+  }
+
+  // A loop with environment uses of x (the terminating condition). As exposed by bug
+  // b/37247891, the loop can be unrolled, but should handle the (unlikely, but clearly
+  // not impossible) environment uses of the terminating condition in a correct manner.
+  private static void envUsesInCond() {
+    boolean x = false;
+    for (int i = 0; !(x = i >= 1); i++) {
+      $noinline$foo(true, i);
+    }
+  }
+
   public static void main(String[] args) {
     expectEquals(10, earlyExitFirst(-1));
     for (int i = 0; i <= 10; i++) {
@@ -334,6 +374,24 @@ public class Main {
     for (int i = 0; i < 16; i++) {
       expectEquals(2.0f, a[i]);
     }
+
+    int[] xx = new int[2];
+    int[] yy = new int[469];
+    reduc(xx, yy);
+    expectEquals(-469, xx[0]);
+    expectEquals(-938, xx[1]);
+    for (int i = 0; i < 469; i++) {
+      expectEquals(2, yy[i]);
+    }
+
+    char[] aa = new char[23];
+    String bb = "hello world how are you";
+    string2Bytes(aa, bb);
+    for (int i = 0; i < aa.length; i++) {
+      expectEquals(aa[i], bb.charAt(i));
+    }
+
+    envUsesInCond();
 
     System.out.println("passed");
   }

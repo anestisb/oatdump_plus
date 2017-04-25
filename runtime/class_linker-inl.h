@@ -25,17 +25,13 @@
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache-inl.h"
 #include "mirror/iftable.h"
-#include "mirror/object_array.h"
+#include "mirror/object_array-inl.h"
 #include "handle_scope-inl.h"
 #include "scoped_thread_state_change-inl.h"
 
 #include <atomic>
 
 namespace art {
-
-inline mirror::Class* ClassLinker::FindSystemClass(Thread* self, const char* descriptor) {
-  return FindClass(self, descriptor, ScopedNullHandle<mirror::ClassLoader>());
-}
 
 inline mirror::Class* ClassLinker::FindArrayClass(Thread* self,
                                                   ObjPtr<mirror::Class>* element_class) {
@@ -63,19 +59,6 @@ inline mirror::Class* ClassLinker::FindArrayClass(Thread* self,
     self->AssertPendingException();
   }
   return array_class.Ptr();
-}
-
-inline mirror::String* ClassLinker::ResolveString(dex::StringIndex string_idx,
-                                                  ArtMethod* referrer) {
-  Thread::PoisonObjectPointersIfDebug();
-  ObjPtr<mirror::String> string = referrer->GetDexCache()->GetResolvedString(string_idx);
-  if (UNLIKELY(string == nullptr)) {
-    StackHandleScope<1> hs(Thread::Current());
-    Handle<mirror::DexCache> dex_cache(hs.NewHandle(referrer->GetDexCache()));
-    const DexFile& dex_file = *dex_cache->GetDexFile();
-    string = ResolveString(dex_file, string_idx, dex_cache);
-  }
-  return string.Ptr();
 }
 
 inline ObjPtr<mirror::Class> ClassLinker::LookupResolvedType(
@@ -189,36 +172,6 @@ inline ArtField* ClassLinker::ResolveField(uint32_t field_idx,
     //       might be an erroneous class, which results in it being hidden from us.
   }
   return resolved_field;
-}
-
-inline mirror::Object* ClassLinker::AllocObject(Thread* self) {
-  return GetClassRoot(kJavaLangObject)->Alloc<true, false>(
-      self,
-      Runtime::Current()->GetHeap()->GetCurrentAllocator()).Ptr();
-}
-
-template <class T>
-inline mirror::ObjectArray<T>* ClassLinker::AllocObjectArray(Thread* self, size_t length) {
-  return mirror::ObjectArray<T>::Alloc(self, GetClassRoot(kObjectArrayClass), length);
-}
-
-inline mirror::ObjectArray<mirror::Class>* ClassLinker::AllocClassArray(Thread* self,
-                                                                        size_t length) {
-  return mirror::ObjectArray<mirror::Class>::Alloc(self, GetClassRoot(kClassArrayClass), length);
-}
-
-inline mirror::ObjectArray<mirror::String>* ClassLinker::AllocStringArray(Thread* self,
-                                                                          size_t length) {
-  return mirror::ObjectArray<mirror::String>::Alloc(self,
-                                                    GetClassRoot(kJavaLangStringArrayClass),
-                                                    length);
-}
-
-inline mirror::IfTable* ClassLinker::AllocIfTable(Thread* self, size_t ifcount) {
-  return down_cast<mirror::IfTable*>(
-      mirror::IfTable::Alloc(self,
-                             GetClassRoot(kObjectArrayClass),
-                             ifcount * mirror::IfTable::kMax));
 }
 
 inline mirror::Class* ClassLinker::GetClassRoot(ClassRoot class_root) {
