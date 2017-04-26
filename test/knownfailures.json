@@ -668,7 +668,7 @@
     },
     {
         "tests": "648-many-direct-methods",
-        "variant": "optimizing",
+        "variant": "optimizing | speed-profile",
         "description": "Test disabled with AOT because of dex2oatd timeouts.",
         "bug": "b/33650497"
     }
