@@ -247,6 +247,7 @@ bool TryExtractArrayAccessAddress(HInstruction* access,
       access->GetType() == Primitive::kPrimNot) {
     // For object arrays, the read barrier instrumentation requires
     // the original array pointer.
+    // TODO: This can be relaxed for Baker CC.
     return false;
   }
 
