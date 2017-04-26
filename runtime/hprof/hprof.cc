@@ -34,7 +34,6 @@
 #include <time.h>
 #include <time.h>
 #include <unistd.h>
-
 #include <set>
 
 #include "android-base/stringprintf.h"
@@ -502,8 +501,15 @@ class Hprof : public SingleRootVisitor {
   void DumpHeapArray(mirror::Array* obj, mirror::Class* klass)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void DumpHeapInstanceObject(mirror::Object* obj, mirror::Class* klass)
+  void DumpFakeObjectArray(mirror::Object* obj, const std::set<mirror::Object*>& elements)
       REQUIRES_SHARED(Locks::mutator_lock_);
+
+  void DumpHeapInstanceObject(mirror::Object* obj,
+                              mirror::Class* klass,
+                              const std::set<mirror::Object*>& fake_roots)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  bool AddRuntimeInternalObjectsField(mirror::Class* klass) REQUIRES_SHARED(Locks::mutator_lock_);
 
   void ProcessHeap(bool header_first)
       REQUIRES(Locks::mutator_lock_) {
@@ -1062,37 +1068,17 @@ void Hprof::MarkRootObject(const mirror::Object* obj, jobject jni_obj, HprofHeap
   ++objects_in_segment_;
 }
 
-// Use for visiting the GcRoots held live by ArtFields, ArtMethods, and ClassLoaders.
-class GcRootVisitor {
- public:
-  explicit GcRootVisitor(Hprof* hprof) : hprof_(hprof) {}
-
-  void operator()(mirror::Object* obj ATTRIBUTE_UNUSED,
-                  MemberOffset offset ATTRIBUTE_UNUSED,
-                  bool is_static ATTRIBUTE_UNUSED) const {}
-
-  // Note that these don't have read barriers. Its OK however since the GC is guaranteed to not be
-  // running during the hprof dumping process.
-  void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
-      REQUIRES_SHARED(Locks::mutator_lock_) {
-    if (!root->IsNull()) {
-      VisitRoot(root);
-    }
+bool Hprof::AddRuntimeInternalObjectsField(mirror::Class* klass) {
+  if (klass->IsDexCacheClass()) {
+    return true;
   }
-
-  void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
-      REQUIRES_SHARED(Locks::mutator_lock_) {
-    mirror::Object* obj = root->AsMirrorPtr();
-    // The two cases are either classes or dex cache arrays. If it is a dex cache array, then use
-    // VM internal. Otherwise the object is a declaring class of an ArtField or ArtMethod or a
-    // class from a ClassLoader.
-    hprof_->VisitRoot(obj, RootInfo(obj->IsClass() ? kRootStickyClass : kRootVMInternal));
+  // IsClassLoaderClass is true for subclasses of classloader but we only want to add the fake
+  // field to the java.lang.ClassLoader class.
+  if (klass->IsClassLoaderClass() && klass->GetSuperClass()->IsObjectClass()) {
+    return true;
   }
-
-
- private:
-  Hprof* const hprof_;
-};
+  return false;
+}
 
 void Hprof::DumpHeapObject(mirror::Object* obj) {
   // Ignore classes that are retired.
@@ -1103,8 +1089,41 @@ void Hprof::DumpHeapObject(mirror::Object* obj) {
 
   ++total_objects_;
 
-  GcRootVisitor visitor(this);
-  obj->VisitReferences(visitor, VoidFunctor());
+  class RootCollector {
+   public:
+    explicit RootCollector() {}
+
+    void operator()(mirror::Object*, MemberOffset, bool) const {}
+
+    // Note that these don't have read barriers. Its OK however since the GC is guaranteed to not be
+    // running during the hprof dumping process.
+    void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
+        REQUIRES_SHARED(Locks::mutator_lock_) {
+      if (!root->IsNull()) {
+        VisitRoot(root);
+      }
+    }
+
+    void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
+        REQUIRES_SHARED(Locks::mutator_lock_) {
+      roots_.insert(root->AsMirrorPtr());
+    }
+
+    const std::set<mirror::Object*>& GetRoots() const {
+      return roots_;
+    }
+
+   private:
+    // These roots are actually live from the object. Avoid marking them as roots in hprof to make
+    // it easier to debug class unloading.
+    mutable std::set<mirror::Object*> roots_;
+  };
+
+  RootCollector visitor;
+  // Collect all native roots.
+  if (!obj->IsClass()) {
+    obj->VisitReferences(visitor, VoidFunctor());
+  }
 
   gc::Heap* const heap = Runtime::Current()->GetHeap();
   const gc::space::ContinuousSpace* const space = heap->FindContinuousSpaceFromObject(obj, true);
@@ -1112,15 +1131,18 @@ void Hprof::DumpHeapObject(mirror::Object* obj) {
   if (space != nullptr) {
     if (space->IsZygoteSpace()) {
       heap_type = HPROF_HEAP_ZYGOTE;
+      VisitRoot(obj, RootInfo(kRootVMInternal));
     } else if (space->IsImageSpace() && heap->ObjectIsInBootImageSpace(obj)) {
       // Only count objects in the boot image as HPROF_HEAP_IMAGE, this leaves app image objects as
       // HPROF_HEAP_APP. b/35762934
       heap_type = HPROF_HEAP_IMAGE;
+      VisitRoot(obj, RootInfo(kRootVMInternal));
     }
   } else {
     const auto* los = heap->GetLargeObjectsSpace();
     if (los->Contains(obj) && los->IsZygoteLargeObject(Thread::Current(), obj)) {
       heap_type = HPROF_HEAP_ZYGOTE;
+      VisitRoot(obj, RootInfo(kRootVMInternal));
     }
   }
   CheckHeapSegmentConstraints();
@@ -1164,7 +1186,7 @@ void Hprof::DumpHeapObject(mirror::Object* obj) {
     } else if (c->IsArrayClass()) {
       DumpHeapArray(obj->AsArray(), c);
     } else {
-      DumpHeapInstanceObject(obj, c);
+      DumpHeapInstanceObject(obj, c, visitor.GetRoots());
     }
   }
 
@@ -1269,7 +1291,10 @@ void Hprof::DumpHeapClass(mirror::Class* klass) {
 
   // Instance fields for this class (no superclass fields)
   int iFieldCount = klass->NumInstanceFields();
-  if (klass->IsStringClass()) {
+  // add_internal_runtime_objects is only for classes that may retain objects live through means
+  // other than fields. It is never the case for strings.
+  const bool add_internal_runtime_objects = AddRuntimeInternalObjectsField(klass);
+  if (klass->IsStringClass() || add_internal_runtime_objects) {
     __ AddU2((uint16_t)iFieldCount + 1);
   } else {
     __ AddU2((uint16_t)iFieldCount);
@@ -1284,6 +1309,21 @@ void Hprof::DumpHeapClass(mirror::Class* klass) {
   if (klass->IsStringClass()) {
     __ AddStringId(LookupStringId("value"));
     __ AddU1(hprof_basic_object);
+  } else if (add_internal_runtime_objects) {
+    __ AddStringId(LookupStringId("runtimeInternalObjects"));
+    __ AddU1(hprof_basic_object);
+  }
+}
+
+void Hprof::DumpFakeObjectArray(mirror::Object* obj, const std::set<mirror::Object*>& elements) {
+  __ AddU1(HPROF_OBJECT_ARRAY_DUMP);
+  __ AddObjectId(obj);
+  __ AddStackTraceSerialNumber(LookupStackTraceSerialNumber(obj));
+  __ AddU4(elements.size());
+  __ AddClassId(LookupClassId(
+      Runtime::Current()->GetClassLinker()->GetClassRoot(ClassLinker::kObjectArrayClass)));
+  for (mirror::Object* e : elements) {
+    __ AddObjectId(e);
   }
 }
 
@@ -1327,7 +1367,9 @@ void Hprof::DumpHeapArray(mirror::Array* obj, mirror::Class* klass) {
   }
 }
 
-void Hprof::DumpHeapInstanceObject(mirror::Object* obj, mirror::Class* klass) {
+void Hprof::DumpHeapInstanceObject(mirror::Object* obj,
+                                   mirror::Class* klass,
+                                   const std::set<mirror::Object*>& fake_roots) {
   // obj is an instance object.
   __ AddU1(HPROF_INSTANCE_DUMP);
   __ AddObjectId(obj);
@@ -1341,6 +1383,7 @@ void Hprof::DumpHeapInstanceObject(mirror::Object* obj, mirror::Class* klass) {
 
   // What we will use for the string value if the object is a string.
   mirror::Object* string_value = nullptr;
+  mirror::Object* fake_object_array = nullptr;
 
   // Write the instance data;  fields for this class, followed by super class fields, and so on.
   do {
@@ -1396,8 +1439,12 @@ void Hprof::DumpHeapInstanceObject(mirror::Object* obj, mirror::Class* klass) {
         }
       }
       __ AddObjectId(string_value);
+    } else if (AddRuntimeInternalObjectsField(klass)) {
+      // We need an id that is guaranteed to not be used, use 1/2 of the object alignment.
+      fake_object_array = reinterpret_cast<mirror::Object*>(
+          reinterpret_cast<uintptr_t>(obj) + kObjectAlignment / 2);
+      __ AddObjectId(fake_object_array);
     }
-
     klass = klass->GetSuperClass();
   } while (klass != nullptr);
 
@@ -1419,6 +1466,8 @@ void Hprof::DumpHeapInstanceObject(mirror::Object* obj, mirror::Class* klass) {
       __ AddU1(hprof_basic_char);
       __ AddU2List(s->GetValue(), s->GetLength());
     }
+  } else if (fake_object_array != nullptr) {
+    DumpFakeObjectArray(fake_object_array, fake_roots);
   }
 }
 
