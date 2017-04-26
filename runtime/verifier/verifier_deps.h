@@ -21,17 +21,26 @@
 #include <set>
 #include <vector>
 
-#include "art_field.h"
-#include "art_method.h"
 #include "base/array_ref.h"
 #include "base/mutex.h"
-#include "indenter.h"
+#include "handle.h"
 #include "method_resolution_kind.h"
-#include "method_verifier.h"  // For MethodVerifier::FailureKind.
 #include "obj_ptr.h"
-#include "os.h"
+#include "thread.h"
+#include "verifier_enums.h"  // For MethodVerifier::FailureKind.
 
 namespace art {
+
+class ArtField;
+class ArtMethod;
+class DexFile;
+class VariableIndentationOutputStream;
+
+namespace mirror {
+class Class;
+class ClassLoader;
+}
+
 namespace verifier {
 
 // Verification dependencies collector class used by the MethodVerifier to record
@@ -59,7 +68,7 @@ class VerifierDeps {
   // Record the verification status of the class at `type_idx`.
   static void MaybeRecordVerificationStatus(const DexFile& dex_file,
                                             dex::TypeIndex type_idx,
-                                            MethodVerifier::FailureKind failure_kind)
+                                            FailureKind failure_kind)
       REQUIRES(!Locks::verifier_deps_lock_);
 
   // Record the outcome `klass` of resolving type `type_idx` from `dex_file`.

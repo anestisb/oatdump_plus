@@ -32,7 +32,6 @@
 #include "oat_quick_method_header.h"
 #include "stack.h"
 #include "stack_map.h"
-#include "verifier/method_verifier.h"
 
 namespace art {
 

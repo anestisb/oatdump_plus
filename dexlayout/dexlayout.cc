@@ -24,6 +24,7 @@
 
 #include <inttypes.h>
 #include <stdio.h>
+#include <sys/mman.h>  // For the PROT_* and MAP_* constants.
 
 #include <iostream>
 #include <memory>

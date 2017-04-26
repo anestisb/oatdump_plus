@@ -17,6 +17,7 @@
 #include "elf_file.h"
 
 #include <inttypes.h>
+#include <sys/mman.h>  // For the PROT_* and MAP_* constants.
 #include <sys/types.h>
 #include <unistd.h>
 

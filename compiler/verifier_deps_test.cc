@@ -28,12 +28,13 @@
 #include "driver/compiler_options.h"
 #include "driver/compiler_driver.h"
 #include "handle_scope-inl.h"
-#include "verifier/method_verifier-inl.h"
+#include "indenter.h"
 #include "mirror/class_loader.h"
 #include "runtime.h"
-#include "thread.h"
 #include "scoped_thread_state_change-inl.h"
+#include "thread.h"
 #include "utils/atomic_method_ref_map-inl.h"
+#include "verifier/method_verifier-inl.h"
 
 namespace art {
 namespace verifier {
