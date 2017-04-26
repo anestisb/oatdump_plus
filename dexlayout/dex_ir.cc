@@ -708,10 +708,12 @@ MethodItem* Collections::GenerateMethodItem(const DexFile& dex_file, ClassDataIt
   MethodId* method_item = GetMethodId(cdii.GetMemberIndex());
   uint32_t access_flags = cdii.GetRawMemberAccessFlags();
   const DexFile::CodeItem* disk_code_item = cdii.GetMethodCodeItem();
-  CodeItem* code_item = nullptr;
+  CodeItem* code_item = code_items_.GetExistingObject(cdii.GetMethodCodeItemOffset());;
   DebugInfoItem* debug_info = nullptr;
   if (disk_code_item != nullptr) {
-    code_item = CreateCodeItem(dex_file, *disk_code_item, cdii.GetMethodCodeItemOffset());
+    if (code_item == nullptr) {
+      code_item = CreateCodeItem(dex_file, *disk_code_item, cdii.GetMethodCodeItemOffset());
+    }
     debug_info = code_item->DebugInfo();
   }
   if (debug_info != nullptr) {
