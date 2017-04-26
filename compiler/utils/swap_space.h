@@ -78,7 +78,7 @@ class SwapSpace {
     mutable FreeByStartSet::const_iterator free_by_start_entry;
   };
   struct FreeBySizeComparator {
-    bool operator()(const FreeBySizeEntry& lhs, const FreeBySizeEntry& rhs) {
+    bool operator()(const FreeBySizeEntry& lhs, const FreeBySizeEntry& rhs) const {
       if (lhs.size != rhs.size) {
         return lhs.size < rhs.size;
       } else {

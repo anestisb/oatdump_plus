@@ -391,7 +391,7 @@ void ModUnionTableReferenceCache::VisitObjects(ObjectCallback* callback, void* a
     uintptr_t end = start + CardTable::kCardSize;
     live_bitmap->VisitMarkedRange(start,
                                   end,
-                                  [this, callback, arg](mirror::Object* obj) {
+                                  [callback, arg](mirror::Object* obj) {
       callback(obj, arg);
     });
   }
@@ -402,7 +402,7 @@ void ModUnionTableReferenceCache::VisitObjects(ObjectCallback* callback, void* a
     uintptr_t end = start + CardTable::kCardSize;
     live_bitmap->VisitMarkedRange(start,
                                   end,
-                                  [this, callback, arg](mirror::Object* obj) {
+                                  [callback, arg](mirror::Object* obj) {
       callback(obj, arg);
     });
   }
@@ -560,7 +560,7 @@ void ModUnionTableCardCache::VisitObjects(ObjectCallback* callback, void* arg) {
             << start << " " << *space_;
         space_->GetLiveBitmap()->VisitMarkedRange(start,
                                                   start + CardTable::kCardSize,
-                                                  [this, callback, arg](mirror::Object* obj) {
+                                                  [callback, arg](mirror::Object* obj) {
           callback(obj, arg);
         });
       });
