@@ -115,7 +115,7 @@ std::string SignalCatcher::GetStackTraceFileName() {
 
     for (uint32_t i = 0; i < kMaxRetries; ++i) {
         std::srand(NanoTime());
-        // Sample output for PID 1234 : /data/anr-pid1234-cafeffee.txt
+        // Sample output for PID 1234 : /data/anr/anr-pid1234-cafeffee.txt
         const std::string file_name = android::base::StringPrintf(
             "%s/anr-pid%" PRId32 "-%08" PRIx32 ".txt",
             stack_trace_dir_.c_str(),
@@ -135,19 +135,19 @@ std::string SignalCatcher::GetStackTraceFileName() {
 }
 
 void SignalCatcher::Output(const std::string& s) {
-  const std::string stack_trace_file = GetStackTraceFileName();
-  if (stack_trace_file.empty()) {
+  const std::string output_file = GetStackTraceFileName();
+  if (output_file.empty()) {
     LOG(INFO) << s;
     return;
   }
 
   ScopedThreadStateChange tsc(Thread::Current(), kWaitingForSignalCatcherOutput);
-  int fd = open(stack_trace_file.c_str(), O_APPEND | O_CREAT | O_WRONLY, 0666);
+  int fd = open(output_file.c_str(), O_APPEND | O_CREAT | O_WRONLY, 0666);
   if (fd == -1) {
-    PLOG(ERROR) << "Unable to open stack trace file '" << stack_trace_file_ << "'";
+    PLOG(ERROR) << "Unable to open stack trace file '" << output_file << "'";
     return;
   }
-  std::unique_ptr<File> file(new File(fd, stack_trace_file, true));
+  std::unique_ptr<File> file(new File(fd, output_file, true));
   bool success = file->WriteFully(s.data(), s.size());
   if (success) {
     success = file->FlushCloseOrErase() == 0;
@@ -155,9 +155,9 @@ void SignalCatcher::Output(const std::string& s) {
     file->Erase();
   }
   if (success) {
-    LOG(INFO) << "Wrote stack traces to '" << stack_trace_file << "'";
+    LOG(INFO) << "Wrote stack traces to '" << output_file << "'";
   } else {
-    PLOG(ERROR) << "Failed to write stack traces to '" << stack_trace_file << "'";
+    PLOG(ERROR) << "Failed to write stack traces to '" << output_file << "'";
   }
 }
 
