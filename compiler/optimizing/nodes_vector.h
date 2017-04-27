@@ -98,7 +98,7 @@ class HVecOperation : public HVariableInputSizeInstruction {
 
   DECLARE_ABSTRACT_INSTRUCTION(VecOperation);
 
- private:
+ protected:
   // Additional packed bits.
   static constexpr size_t kFieldType = HInstruction::kNumberOfGenericPackedBits;
   static constexpr size_t kFieldTypeSize =
@@ -107,6 +107,7 @@ class HVecOperation : public HVariableInputSizeInstruction {
   static_assert(kNumberOfVectorOpPackedBits <= kMaxNumberOfPackedBits, "Too many packed fields.");
   using TypeField = BitField<Primitive::Type, kFieldType, kFieldTypeSize>;
 
+ private:
   const size_t vector_length_;
 
   DISALLOW_COPY_AND_ASSIGN(HVecOperation);
@@ -348,22 +349,25 @@ class HVecHalvingAdd FINAL : public HVecBinaryOperation {
                  bool is_unsigned,
                  bool is_rounded,
                  uint32_t dex_pc = kNoDexPc)
-      : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc),
-        is_unsigned_(is_unsigned),
-        is_rounded_(is_rounded) {
+      : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc) {
     DCHECK(left->IsVecOperation() && right->IsVecOperation());
     DCHECK_EQ(left->AsVecOperation()->GetPackedType(), packed_type);
     DCHECK_EQ(right->AsVecOperation()->GetPackedType(), packed_type);
+    SetPackedFlag<kFieldHAddIsUnsigned>(is_unsigned);
+    SetPackedFlag<kFieldHAddIsRounded>(is_rounded);
   }
 
-  bool IsUnsigned() const { return is_unsigned_; }
-  bool IsRounded() const { return is_rounded_; }
+  bool IsUnsigned() const { return GetPackedFlag<kFieldHAddIsUnsigned>(); }
+  bool IsRounded() const { return GetPackedFlag<kFieldHAddIsRounded>(); }
 
   DECLARE_INSTRUCTION(VecHalvingAdd);
 
  private:
-  bool is_unsigned_;
-  bool is_rounded_;
+  // Additional packed bits.
+  static constexpr size_t kFieldHAddIsUnsigned = HVecOperation::kNumberOfVectorOpPackedBits;
+  static constexpr size_t kFieldHAddIsRounded = kFieldHAddIsUnsigned + 1;
+  static constexpr size_t kNumberOfHAddPackedBits = kFieldHAddIsRounded + 1;
+  static_assert(kNumberOfHAddPackedBits <= kMaxNumberOfPackedBits, "Too many packed fields.");
 
   DISALLOW_COPY_AND_ASSIGN(HVecHalvingAdd);
 };
@@ -687,6 +691,7 @@ class HVecLoad FINAL : public HVecMemoryOperation {
            HInstruction* index,
            Primitive::Type packed_type,
            size_t vector_length,
+           bool is_string_char_at,
            uint32_t dex_pc = kNoDexPc)
       : HVecMemoryOperation(arena,
                             packed_type,
@@ -696,9 +701,18 @@ class HVecLoad FINAL : public HVecMemoryOperation {
                             dex_pc) {
     SetRawInputAt(0, base);
     SetRawInputAt(1, index);
+    SetPackedFlag<kFieldIsStringCharAt>(is_string_char_at);
   }
   DECLARE_INSTRUCTION(VecLoad);
+
+  bool IsStringCharAt() const { return GetPackedFlag<kFieldIsStringCharAt>(); }
+
  private:
+  // Additional packed bits.
+  static constexpr size_t kFieldIsStringCharAt = HVecOperation::kNumberOfVectorOpPackedBits;
+  static constexpr size_t kNumberOfVecLoadPackedBits = kFieldIsStringCharAt + 1;
+  static_assert(kNumberOfVecLoadPackedBits <= kMaxNumberOfPackedBits, "Too many packed fields.");
+
   DISALLOW_COPY_AND_ASSIGN(HVecLoad);
 };
 
