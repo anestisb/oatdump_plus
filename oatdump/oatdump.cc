@@ -125,9 +125,12 @@ class OatSymbolizer FINAL {
     std::unique_ptr<const InstructionSetFeatures> features = InstructionSetFeatures::FromBitmap(
         isa, oat_file_->GetOatHeader().GetInstructionSetFeaturesBitmap());
 
-    File* elf_file = OS::CreateEmptyFile(output_name_.c_str());
+    std::unique_ptr<File> elf_file(OS::CreateEmptyFile(output_name_.c_str()));
+    if (elf_file == nullptr) {
+      return false;
+    }
     std::unique_ptr<BufferedOutputStream> output_stream(
-        MakeUnique<BufferedOutputStream>(MakeUnique<FileOutputStream>(elf_file)));
+        MakeUnique<BufferedOutputStream>(MakeUnique<FileOutputStream>(elf_file.get())));
     builder_.reset(new ElfBuilder<ElfTypes>(isa, features.get(), output_stream.get()));
 
     builder_->Start();
@@ -182,7 +185,17 @@ class OatSymbolizer FINAL {
 
     builder_->End();
 
-    return builder_->Good();
+    bool ret_value = builder_->Good();
+
+    builder_.reset();
+    output_stream.reset();
+
+    if (elf_file->FlushCloseOrErase() != 0) {
+      return false;
+    }
+    elf_file.reset();
+
+    return ret_value;
   }
 
   void Walk() {
@@ -2842,14 +2855,14 @@ static int DumpOat(Runtime* runtime, const char* oat_filename, OatDumperOptions*
 
 static int SymbolizeOat(const char* oat_filename, std::string& output_name, bool no_bits) {
   std::string error_msg;
-  OatFile* oat_file = OatFile::Open(oat_filename,
-                                    oat_filename,
-                                    nullptr,
-                                    nullptr,
-                                    false,
-                                    /*low_4gb*/false,
-                                    nullptr,
-                                    &error_msg);
+  std::unique_ptr<OatFile> oat_file(OatFile::Open(oat_filename,
+                                                  oat_filename,
+                                                  nullptr,
+                                                  nullptr,
+                                                  false,
+                                                  /*low_4gb*/false,
+                                                  nullptr,
+                                                  &error_msg));
   if (oat_file == nullptr) {
     fprintf(stderr, "Failed to open oat file from '%s': %s\n", oat_filename, error_msg.c_str());
     return EXIT_FAILURE;
@@ -2859,10 +2872,10 @@ static int SymbolizeOat(const char* oat_filename, std::string& output_name, bool
   // Try to produce an ELF file of the same type. This is finicky, as we have used 32-bit ELF
   // files for 64-bit code in the past.
   if (Is64BitInstructionSet(oat_file->GetOatHeader().GetInstructionSet())) {
-    OatSymbolizer<ElfTypes64> oat_symbolizer(oat_file, output_name, no_bits);
+    OatSymbolizer<ElfTypes64> oat_symbolizer(oat_file.get(), output_name, no_bits);
     result = oat_symbolizer.Symbolize();
   } else {
-    OatSymbolizer<ElfTypes32> oat_symbolizer(oat_file, output_name, no_bits);
+    OatSymbolizer<ElfTypes32> oat_symbolizer(oat_file.get(), output_name, no_bits);
     result = oat_symbolizer.Symbolize();
   }
   if (!result) {
