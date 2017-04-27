@@ -667,12 +667,6 @@
         "bug": "b/37636792"
     },
     {
-        "tests": "648-many-direct-methods",
-        "variant": "optimizing",
-        "description": "Test disabled with AOT because of dex2oatd timeouts.",
-        "bug": "b/33650497"
-    },
-    {
         "tests": [
             "536-checker-needs-access-check",
             "537-checker-inline-and-unverified",
