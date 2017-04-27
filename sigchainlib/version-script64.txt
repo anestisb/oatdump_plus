@@ -1,6 +1,5 @@
 {
 global:
-  InitializeSignalChain;
   EnsureFrontOfChain;
   AddSpecialSignalHandlerFn;
   RemoveSpecialSignalHandlerFn;
