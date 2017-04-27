@@ -905,6 +905,7 @@ static bool OpenDexFilesFromImage(const std::string& image_location,
     std::unique_ptr<VdexFile> vdex_file(VdexFile::Open(vdex_filename,
                                                        false /* writable */,
                                                        false /* low_4gb */,
+                                                       false, /* unquicken */
                                                        &error_msg));
     if (vdex_file.get() == nullptr) {
       return false;

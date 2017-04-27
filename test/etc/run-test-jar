@@ -605,6 +605,8 @@ if [ "$PREBUILD" = "y" ]; then
   fi
   if [ "$TEST_VDEX" = "y" ]; then
     vdex_cmdline="${dex2oat_cmdline} ${VDEX_FILTER} --input-vdex=$DEX_LOCATION/oat/$ISA/$TEST_NAME.vdex"
+  elif [ "$PROFILE" = "y" ] || [ "$RANDOM_PROFILE" = "y" ]; then
+    vdex_cmdline="${dex2oat_cmdline} --input-vdex=$DEX_LOCATION/oat/$ISA/$TEST_NAME.vdex --output-vdex=$DEX_LOCATION/oat/$ISA/$TEST_NAME.vdex"
   fi
 fi
 

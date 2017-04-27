@@ -3764,7 +3764,7 @@ const RegType& MethodVerifier::ResolveClassAndCheckAccess(dex::TypeIndex class_i
     const RegType& referrer = GetDeclaringClass();
     if (!referrer.IsUnresolvedTypes() && !referrer.CanAccess(*result)) {
       Fail(VERIFY_ERROR_ACCESS_CLASS) << "illegal class access: '"
-                                      << referrer << "' -> '" << result << "'";
+                                      << referrer << "' -> '" << *result << "'";
     }
   }
   return *result;

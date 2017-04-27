@@ -194,6 +194,17 @@ static inline void MergeSets(std::set<T>& to_update, const std::set<T>& other) {
   to_update.insert(other.begin(), other.end());
 }
 
+// Returns a copy of the passed vector that doesn't memory-own its entries.
+template <typename T>
+static inline std::vector<T*> MakeNonOwningPointerVector(const std::vector<std::unique_ptr<T>>& src) {
+  std::vector<T*> result;
+  result.reserve(src.size());
+  for (const std::unique_ptr<T>& t : src) {
+    result.push_back(t.get());
+  }
+  return result;
+}
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_BASE_STL_UTIL_H_
