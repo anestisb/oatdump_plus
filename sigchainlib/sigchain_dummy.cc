@@ -48,11 +48,6 @@ static void log(const char* format, ...) {
 
 namespace art {
 
-extern "C" void InitializeSignalChain() {
-  log("InitializeSignalChain is not exported by the main executable.");
-  abort();
-}
-
 extern "C" void EnsureFrontOfChain(int signal ATTRIBUTE_UNUSED) {
   log("EnsureFrontOfChain is not exported by the main executable.");
   abort();
