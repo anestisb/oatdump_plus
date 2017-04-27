@@ -451,8 +451,8 @@ AnnotationItem* Collections::CreateAnnotationItem(const DexFile::AnnotationItem*
   }
   uint8_t visibility = annotation->visibility_;
   const uint8_t* annotation_data = annotation->annotation_;
-  EncodedValue* encoded_value =
-      ReadEncodedValue(&annotation_data, DexFile::kDexAnnotationAnnotation, 0);
+  std::unique_ptr<EncodedValue> encoded_value(
+      ReadEncodedValue(&annotation_data, DexFile::kDexAnnotationAnnotation, 0));
   // TODO: Calculate the size of the annotation.
   AnnotationItem* annotation_item =
       new AnnotationItem(visibility, encoded_value->ReleaseEncodedAnnotation());

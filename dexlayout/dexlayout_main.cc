@@ -170,14 +170,14 @@ int DexlayoutDriver(int argc, char** argv) {
   }
 
   // Open profile file.
-  ProfileCompilationInfo* profile_info = nullptr;
+  std::unique_ptr<ProfileCompilationInfo> profile_info;
   if (options.profile_file_name_) {
     int profile_fd = open(options.profile_file_name_, O_RDONLY);
     if (profile_fd < 0) {
       fprintf(stderr, "Can't open %s\n", options.profile_file_name_);
       return 1;
     }
-    profile_info = new ProfileCompilationInfo();
+    profile_info.reset(new ProfileCompilationInfo());
     if (!profile_info->Load(profile_fd)) {
       fprintf(stderr, "Can't read profile info from %s\n", options.profile_file_name_);
       return 1;
@@ -185,13 +185,19 @@ int DexlayoutDriver(int argc, char** argv) {
   }
 
   // Create DexLayout instance.
-  DexLayout dex_layout(options, profile_info, out_file);
+  DexLayout dex_layout(options, profile_info.get(), out_file);
 
   // Process all files supplied on command line.
   int result = 0;
   while (optind < argc) {
     result |= dex_layout.ProcessFile(argv[optind++]);
   }  // while
+
+  if (options.output_file_name_) {
+    CHECK(out_file != nullptr && out_file != stdout);
+    fclose(out_file);
+  }
+
   return result != 0;
 }
 
