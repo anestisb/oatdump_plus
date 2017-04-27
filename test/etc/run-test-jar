@@ -582,7 +582,11 @@ if [ "$PREBUILD" = "y" ]; then
     app_image="--base=0x4000 --app-image-file=$DEX_LOCATION/oat/$ISA/$TEST_NAME.art"
   fi
 
-  dex2oat_cmdline="$INVOKE_WITH $ANDROID_ROOT/bin/dex2oatd \
+  dex2oat_binary=dex2oatd
+  if  [[ "$TEST_IS_NDEBUG" = "y" ]]; then
+    dex2oat_binary=dex2oat
+  fi
+  dex2oat_cmdline="$INVOKE_WITH $ANDROID_ROOT/bin/$dex2oat_binary \
                       $COMPILE_FLAGS \
                       --boot-image=${BOOT_IMAGE} \
                       --dex-file=$DEX_LOCATION/$TEST_NAME.jar \

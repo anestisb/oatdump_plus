@@ -140,6 +140,14 @@ void HInliner::Run() {
   DCHECK_NE(total_number_of_instructions_, 0u);
   DCHECK_NE(inlining_budget_, 0u);
 
+  // If we're compiling with a core image (which is only used for
+  // test purposes), honor inlining directives in method names:
+  // - if a method's name contains the substring "$inline$", ensure
+  //   that this method is actually inlined;
+  // - if a method's name contains the substring "$noinline$", do not
+  //   inline that method.
+  const bool honor_inlining_directives = IsCompilingWithCoreImage();
+
   // Keep a copy of all blocks when starting the visit.
   ArenaVector<HBasicBlock*> blocks = graph_->GetReversePostOrder();
   DCHECK(!blocks.empty());
@@ -152,7 +160,7 @@ void HInliner::Run() {
       HInvoke* call = instruction->AsInvoke();
       // As long as the call is not intrinsified, it is worth trying to inline.
       if (call != nullptr && call->GetIntrinsic() == Intrinsics::kNone) {
-        if (kIsDebugBuild && IsCompilingWithCoreImage()) {
+        if (honor_inlining_directives) {
           // Debugging case: directives in method names control or assert on inlining.
           std::string callee_name = outer_compilation_unit_.GetDexFile()->PrettyMethod(
               call->GetDexMethodIndex(), /* with_signature */ false);
