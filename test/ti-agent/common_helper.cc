@@ -69,6 +69,214 @@ static void throwCommonRedefinitionError(jvmtiEnv* jvmti,
   env->ThrowNew(env->FindClass("java/lang/Exception"), message.c_str());
 }
 
+namespace common_trace {
+
+// Taken from art/runtime/modifiers.h
+static constexpr uint32_t kAccStatic =       0x0008;  // field, method, ic
+
+struct TraceData {
+  jclass test_klass;
+  jmethodID enter_method;
+  jmethodID exit_method;
+  bool in_callback;
+};
+
+static jobject GetJavaMethod(jvmtiEnv* jvmti, JNIEnv* env, jmethodID m) {
+  jint mods = 0;
+  if (JvmtiErrorToException(env, jvmti, jvmti->GetMethodModifiers(m, &mods))) {
+    return nullptr;
+  }
+
+  bool is_static = (mods & kAccStatic) != 0;
+  jclass method_klass = nullptr;
+  if (JvmtiErrorToException(env, jvmti, jvmti->GetMethodDeclaringClass(m, &method_klass))) {
+    return nullptr;
+  }
+  jobject res = env->ToReflectedMethod(method_klass, m, is_static);
+  env->DeleteLocalRef(method_klass);
+  return res;
+}
+
+static jobject GetJavaValue(jvmtiEnv* jvmtienv,
+                            JNIEnv* env,
+                            jmethodID m,
+                            jvalue value) {
+  char *fname, *fsig, *fgen;
+  if (JvmtiErrorToException(env, jvmtienv, jvmtienv->GetMethodName(m, &fname, &fsig, &fgen))) {
+    return nullptr;
+  }
+  std::string type(fsig);
+  type = type.substr(type.find(")") + 1);
+  jvmtienv->Deallocate(reinterpret_cast<unsigned char*>(fsig));
+  jvmtienv->Deallocate(reinterpret_cast<unsigned char*>(fname));
+  jvmtienv->Deallocate(reinterpret_cast<unsigned char*>(fgen));
+  std::string name;
+  switch (type[0]) {
+    case 'V':
+      return nullptr;
+    case '[':
+    case 'L':
+      return value.l;
+    case 'Z':
+      name = "java/lang/Boolean";
+      break;
+    case 'B':
+      name = "java/lang/Byte";
+      break;
+    case 'C':
+      name = "java/lang/Character";
+      break;
+    case 'S':
+      name = "java/lang/Short";
+      break;
+    case 'I':
+      name = "java/lang/Integer";
+      break;
+    case 'J':
+      name = "java/lang/Long";
+      break;
+    case 'F':
+      name = "java/lang/Float";
+      break;
+    case 'D':
+      name = "java/lang/Double";
+      break;
+    default:
+      LOG(FATAL) << "Unable to figure out type!";
+      return nullptr;
+  }
+  std::ostringstream oss;
+  oss << "(" << type[0] << ")L" << name << ";";
+  std::string args = oss.str();
+  jclass target = env->FindClass(name.c_str());
+  jmethodID valueOfMethod = env->GetStaticMethodID(target, "valueOf", args.c_str());
+
+  CHECK(valueOfMethod != nullptr) << args;
+  jobject res = env->CallStaticObjectMethodA(target, valueOfMethod, &value);
+  env->DeleteLocalRef(target);
+  return res;
+}
+
+static void methodExitCB(jvmtiEnv* jvmti,
+                         JNIEnv* jnienv,
+                         jthread thr ATTRIBUTE_UNUSED,
+                         jmethodID method,
+                         jboolean was_popped_by_exception,
+                         jvalue return_value) {
+  TraceData* data = nullptr;
+  if (JvmtiErrorToException(jnienv, jvmti,
+                            jvmti->GetEnvironmentLocalStorage(reinterpret_cast<void**>(&data)))) {
+    return;
+  }
+  if (method == data->exit_method || method == data->enter_method || data->in_callback) {
+    // Don't do callback for either of these to prevent an infinite loop.
+    return;
+  }
+  data->in_callback = true;
+  jobject method_arg = GetJavaMethod(jvmti, jnienv, method);
+  jobject result =
+      was_popped_by_exception ? nullptr : GetJavaValue(jvmti, jnienv, method, return_value);
+  if (jnienv->ExceptionCheck()) {
+    data->in_callback = false;
+    return;
+  }
+  jnienv->CallStaticVoidMethod(data->test_klass,
+                               data->exit_method,
+                               method_arg,
+                               was_popped_by_exception,
+                               result);
+  jnienv->DeleteLocalRef(method_arg);
+  data->in_callback = false;
+}
+
+static void methodEntryCB(jvmtiEnv* jvmti,
+                          JNIEnv* jnienv,
+                          jthread thr ATTRIBUTE_UNUSED,
+                          jmethodID method) {
+  TraceData* data = nullptr;
+  if (JvmtiErrorToException(jnienv, jvmti,
+                            jvmti->GetEnvironmentLocalStorage(reinterpret_cast<void**>(&data)))) {
+    return;
+  }
+  if (method == data->exit_method || method == data->enter_method || data->in_callback) {
+    // Don't do callback for either of these to prevent an infinite loop.
+    return;
+  }
+  data->in_callback = true;
+  jobject method_arg = GetJavaMethod(jvmti, jnienv, method);
+  if (jnienv->ExceptionCheck()) {
+    return;
+  }
+  jnienv->CallStaticVoidMethod(data->test_klass, data->enter_method, method_arg);
+  jnienv->DeleteLocalRef(method_arg);
+  data->in_callback = false;
+}
+
+extern "C" JNIEXPORT void JNICALL Java_art_Trace_enableMethodTracing(
+    JNIEnv* env,
+    jclass trace ATTRIBUTE_UNUSED,
+    jclass klass,
+    jobject enter,
+    jobject exit,
+    jthread thr) {
+  TraceData* data = nullptr;
+  if (JvmtiErrorToException(env,
+                            jvmti_env,
+                            jvmti_env->Allocate(sizeof(TraceData),
+                                                reinterpret_cast<unsigned char**>(&data)))) {
+    return;
+  }
+  memset(data, 0, sizeof(TraceData));
+  data->test_klass = reinterpret_cast<jclass>(env->NewGlobalRef(klass));
+  data->enter_method = env->FromReflectedMethod(enter);
+  data->exit_method = env->FromReflectedMethod(exit);
+  data->in_callback = false;
+
+  if (JvmtiErrorToException(env, jvmti_env, jvmti_env->SetEnvironmentLocalStorage(data))) {
+    return;
+  }
+
+  jvmtiEventCallbacks cb;
+  memset(&cb, 0, sizeof(cb));
+  cb.MethodEntry = methodEntryCB;
+  cb.MethodExit = methodExitCB;
+  if (JvmtiErrorToException(env, jvmti_env, jvmti_env->SetEventCallbacks(&cb, sizeof(cb)))) {
+    return;
+  }
+  if (JvmtiErrorToException(env,
+                            jvmti_env,
+                            jvmti_env->SetEventNotificationMode(JVMTI_ENABLE,
+                                                                JVMTI_EVENT_METHOD_ENTRY,
+                                                                thr))) {
+    return;
+  }
+  if (JvmtiErrorToException(env,
+                            jvmti_env,
+                            jvmti_env->SetEventNotificationMode(JVMTI_ENABLE,
+                                                                JVMTI_EVENT_METHOD_EXIT,
+                                                                thr))) {
+    return;
+  }
+}
+
+extern "C" JNIEXPORT void JNICALL Java_art_Trace_disableMethodTracing(
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jthread thr) {
+  if (JvmtiErrorToException(env, jvmti_env,
+                            jvmti_env->SetEventNotificationMode(JVMTI_DISABLE,
+                                                                JVMTI_EVENT_METHOD_ENTRY,
+                                                                thr))) {
+    return;
+  }
+  if (JvmtiErrorToException(env, jvmti_env,
+                            jvmti_env->SetEventNotificationMode(JVMTI_DISABLE,
+                                                                JVMTI_EVENT_METHOD_EXIT,
+                                                                thr))) {
+    return;
+  }
+}
+
+}  // namespace common_trace
+
 namespace common_redefine {
 
 static void throwRedefinitionError(jvmtiEnv* jvmti,

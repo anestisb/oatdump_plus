@@ -664,7 +664,9 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
     }
     if (existing_entry_point == GetQuickInstrumentationEntryPoint()) {
       // We are running the generic jni stub, but the method is being instrumented.
-      DCHECK_EQ(pc, 0u) << "Should be a downcall";
+      // NB We would normally expect the pc to be zero but we can have non-zero pc's if
+      // instrumentation is installed or removed during the call which is using the generic jni
+      // trampoline.
       DCHECK(IsNative());
       return nullptr;
     }

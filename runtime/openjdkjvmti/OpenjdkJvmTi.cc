@@ -1731,6 +1731,7 @@ extern "C" bool ArtPlugin_Initialize() {
 }
 
 extern "C" bool ArtPlugin_Deinitialize() {
+  gEventHandler.Shutdown();
   PhaseUtil::Unregister();
   ThreadUtil::Unregister();
   ClassUtil::Unregister();

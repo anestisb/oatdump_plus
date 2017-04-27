@@ -254,6 +254,13 @@ static inline JValue Execute(
     if (UNLIKELY(instrumentation->HasMethodEntryListeners())) {
       instrumentation->MethodEnterEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                         method, 0);
+      if (UNLIKELY(self->IsExceptionPending())) {
+        instrumentation->MethodUnwindEvent(self,
+                                           shadow_frame.GetThisObject(code_item->ins_size_),
+                                           method,
+                                           0);
+        return JValue();
+      }
     }
 
     if (!stay_in_interpreter) {

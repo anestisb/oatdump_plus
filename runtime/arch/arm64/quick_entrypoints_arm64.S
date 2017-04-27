@@ -2168,15 +2168,19 @@ ENTRY art_quick_instrumentation_entry
     mov   x20, x0             // Preserve method reference in a callee-save.
 
     mov   x2, xSELF
-    mov   x3, xLR
-    bl    artInstrumentationMethodEntryFromCode  // (Method*, Object*, Thread*, LR)
+    mov   x3, sp  // Pass SP
+    bl    artInstrumentationMethodEntryFromCode  // (Method*, Object*, Thread*, SP)
 
     mov   xIP0, x0            // x0 = result of call.
     mov   x0, x20             // Reload method reference.
 
     RESTORE_SAVE_REFS_AND_ARGS_FRAME  // Note: will restore xSELF
+    cbz   xIP0, 1f            // Deliver the pending exception if method is null.
     adr   xLR, art_quick_instrumentation_exit
     br    xIP0                // Tail-call method with lr set to art_quick_instrumentation_exit.
+
+1:
+    DELIVER_PENDING_EXCEPTION
 END art_quick_instrumentation_entry
 
     .extern artInstrumentationMethodExitFromCode
@@ -2185,30 +2189,28 @@ ENTRY art_quick_instrumentation_exit
 
     SETUP_SAVE_REFS_ONLY_FRAME
 
-    // We need to save x0 and d0. We could use a callee-save from SETUP_REF_ONLY, but then
-    // we would need to fully restore it. As there are a lot of callee-save registers, it seems
-    // easier to have an extra small stack area.
-
     str x0, [sp, #-16]!       // Save integer result.
     .cfi_adjust_cfa_offset 16
-    str d0,  [sp, #8]         // Save floating-point result.
+    str d0, [sp, #8]          // Save floating-point result.
 
+    add   x3, sp, #8          // Pass floating-point result pointer.
+    mov   x2, sp              // Pass integer result pointer.
     add   x1, sp, #16         // Pass SP.
-    mov   x2, x0              // Pass integer result.
-    fmov  x3, d0              // Pass floating-point result.
     mov   x0, xSELF           // Pass Thread.
-    bl   artInstrumentationMethodExitFromCode    // (Thread*, SP, gpr_res, fpr_res)
+    bl   artInstrumentationMethodExitFromCode    // (Thread*, SP, gpr_res*, fpr_res*)
 
     mov   xIP0, x0            // Return address from instrumentation call.
     mov   xLR, x1             // r1 is holding link register if we're to bounce to deoptimize
 
     ldr   d0, [sp, #8]        // Restore floating-point result.
     ldr   x0, [sp], #16       // Restore integer result, and drop stack area.
-    .cfi_adjust_cfa_offset 16
+    .cfi_adjust_cfa_offset -16
 
-    POP_SAVE_REFS_ONLY_FRAME
-
+    RESTORE_SAVE_REFS_ONLY_FRAME
+    cbz   xIP0, 1f            // Handle error
     br    xIP0                // Tail-call out.
+1:
+    DELIVER_PENDING_EXCEPTION
 END art_quick_instrumentation_exit
 
     /*
