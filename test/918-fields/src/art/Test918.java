@@ -21,7 +21,6 @@ import java.util.Arrays;
 
 public class Test918 {
   public static void run() throws Exception {
-    Main.bindAgentJNIForClass(Test918.class);
     doTest();
   }
 

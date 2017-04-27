@@ -19,11 +19,6 @@ package art;
 import java.util.ArrayList;
 // Common Redefinition functions. Placed here for use by CTS
 public class Redefinition {
-  // Bind native functions.
-  static {
-    Main.bindAgentJNIForClass(Redefinition.class);
-  }
-
   public static final class CommonClassDefinition {
     public final Class<?> target;
     public final byte[] class_file_bytes;

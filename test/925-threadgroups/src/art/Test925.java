@@ -25,7 +25,6 @@ import java.util.List;
 
 public class Test925 {
   public static void run() throws Exception {
-    Main.bindAgentJNIForClass(Test925.class);
     doTest();
   }
 

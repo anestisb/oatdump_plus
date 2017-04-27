@@ -22,8 +22,6 @@ import java.util.Arrays;
 
 public class Test903 {
   public static void run() {
-    Main.bindAgentJNIForClass(Test903.class);
-
     doTest();
     testGetTaggedObjects();
     testTags();
