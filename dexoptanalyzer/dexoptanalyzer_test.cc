@@ -89,8 +89,8 @@ TEST_F(DexoptAnalyzerTest, DexNoOat) {
   Copy(GetDexSrc1(), dex_location);
 
   Verify(dex_location, CompilerFilter::kSpeed);
-  Verify(dex_location, CompilerFilter::kVerifyAtRuntime);
-  Verify(dex_location, CompilerFilter::kInterpretOnly);
+  Verify(dex_location, CompilerFilter::kExtract);
+  Verify(dex_location, CompilerFilter::kQuicken);
   Verify(dex_location, CompilerFilter::kSpeedProfile);
 }
 
@@ -101,8 +101,8 @@ TEST_F(DexoptAnalyzerTest, OatUpToDate) {
   GenerateOatForTest(dex_location.c_str(), CompilerFilter::kSpeed);
 
   Verify(dex_location, CompilerFilter::kSpeed);
-  Verify(dex_location, CompilerFilter::kInterpretOnly);
-  Verify(dex_location, CompilerFilter::kVerifyAtRuntime);
+  Verify(dex_location, CompilerFilter::kQuicken);
+  Verify(dex_location, CompilerFilter::kExtract);
   Verify(dex_location, CompilerFilter::kEverything);
 }
 
@@ -113,9 +113,9 @@ TEST_F(DexoptAnalyzerTest, ProfileOatUpToDate) {
   GenerateOatForTest(dex_location.c_str(), CompilerFilter::kSpeedProfile);
 
   Verify(dex_location, CompilerFilter::kSpeedProfile, false);
-  Verify(dex_location, CompilerFilter::kInterpretOnly, false);
+  Verify(dex_location, CompilerFilter::kQuicken, false);
   Verify(dex_location, CompilerFilter::kSpeedProfile, true);
-  Verify(dex_location, CompilerFilter::kInterpretOnly, true);
+  Verify(dex_location, CompilerFilter::kQuicken, true);
 }
 
 // Case: We have a MultiDEX file and up-to-date OAT file for it.
@@ -154,7 +154,7 @@ TEST_F(DexoptAnalyzerTest, OatDexOutOfDate) {
   GenerateOatForTest(dex_location.c_str(), CompilerFilter::kSpeed);
   Copy(GetDexSrc2(), dex_location);
 
-  Verify(dex_location, CompilerFilter::kVerifyAtRuntime);
+  Verify(dex_location, CompilerFilter::kExtract);
   Verify(dex_location, CompilerFilter::kSpeed);
 }
 
@@ -170,8 +170,8 @@ TEST_F(DexoptAnalyzerTest, OatImageOutOfDate) {
                      /*pic*/false,
                      /*with_alternate_image*/true);
 
-  Verify(dex_location, CompilerFilter::kVerifyAtRuntime);
-  Verify(dex_location, CompilerFilter::kInterpretOnly);
+  Verify(dex_location, CompilerFilter::kExtract);
+  Verify(dex_location, CompilerFilter::kQuicken);
   Verify(dex_location, CompilerFilter::kSpeed);
 }
 
@@ -184,13 +184,13 @@ TEST_F(DexoptAnalyzerTest, OatVerifyAtRuntimeImageOutOfDate) {
 
   Copy(GetDexSrc1(), dex_location);
   GenerateOatForTest(dex_location.c_str(),
-                     CompilerFilter::kVerifyAtRuntime,
+                     CompilerFilter::kExtract,
                      /*relocate*/true,
                      /*pic*/false,
                      /*with_alternate_image*/true);
 
-  Verify(dex_location, CompilerFilter::kVerifyAtRuntime);
-  Verify(dex_location, CompilerFilter::kInterpretOnly);
+  Verify(dex_location, CompilerFilter::kExtract);
+  Verify(dex_location, CompilerFilter::kQuicken);
 }
 
 // Case: We have a DEX file and an ODEX file, but no OAT file.
@@ -201,7 +201,7 @@ TEST_F(DexoptAnalyzerTest, DexOdexNoOat) {
   Copy(GetDexSrc1(), dex_location);
   GenerateOdexForTest(dex_location, odex_location, CompilerFilter::kSpeed);
 
-  Verify(dex_location, CompilerFilter::kVerifyAtRuntime);
+  Verify(dex_location, CompilerFilter::kExtract);
   Verify(dex_location, CompilerFilter::kSpeed);
 }
 
@@ -235,7 +235,7 @@ TEST_F(DexoptAnalyzerTest, StrippedDexOdexOat) {
   // Strip the dex file.
   Copy(GetStrippedDexSrc1(), dex_location);
 
-  Verify(dex_location, CompilerFilter::kVerifyAtRuntime);
+  Verify(dex_location, CompilerFilter::kExtract);
   Verify(dex_location, CompilerFilter::kSpeed);
   Verify(dex_location, CompilerFilter::kEverything);
 }
@@ -248,8 +248,8 @@ TEST_F(DexoptAnalyzerTest, ResourceOnlyDex) {
   Copy(GetStrippedDexSrc1(), dex_location);
 
   Verify(dex_location, CompilerFilter::kSpeed);
-  Verify(dex_location, CompilerFilter::kVerifyAtRuntime);
-  Verify(dex_location, CompilerFilter::kInterpretOnly);
+  Verify(dex_location, CompilerFilter::kExtract);
+  Verify(dex_location, CompilerFilter::kQuicken);
 }
 
 // Case: We have a DEX file, an ODEX file and an OAT file, where the ODEX and
@@ -287,9 +287,9 @@ TEST_F(DexoptAnalyzerTest, DexVerifyAtRuntimeOdexNoOat) {
   std::string odex_location = GetOdexDir() + "/DexVerifyAtRuntimeOdexNoOat.odex";
 
   Copy(GetDexSrc1(), dex_location);
-  GenerateOdexForTest(dex_location, odex_location, CompilerFilter::kVerifyAtRuntime);
+  GenerateOdexForTest(dex_location, odex_location, CompilerFilter::kExtract);
 
-  Verify(dex_location, CompilerFilter::kVerifyAtRuntime);
+  Verify(dex_location, CompilerFilter::kExtract);
   Verify(dex_location, CompilerFilter::kSpeed);
 }
 
