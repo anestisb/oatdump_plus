@@ -884,6 +884,7 @@ class Dex2oatReturnCodeTest : public Dex2oatTest {
 };
 
 TEST_F(Dex2oatReturnCodeTest, TestCreateRuntime) {
+  TEST_DISABLED_FOR_MEMORY_TOOL();  // b/19100793
   int status = RunTest({ "--boot-image=/this/does/not/exist/yolo.oat" });
   EXPECT_EQ(static_cast<int>(dex2oat::ReturnCode::kCreateRuntime), WEXITSTATUS(status)) << output_;
 }
