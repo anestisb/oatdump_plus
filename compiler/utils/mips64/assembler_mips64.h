@@ -682,6 +682,26 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
   void Mod_uH(VectorRegister wd, VectorRegister ws, VectorRegister wt);
   void Mod_uW(VectorRegister wd, VectorRegister ws, VectorRegister wt);
   void Mod_uD(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Add_aB(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Add_aH(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Add_aW(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Add_aD(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Ave_sB(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Ave_sH(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Ave_sW(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Ave_sD(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Ave_uB(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Ave_uH(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Ave_uW(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Ave_uD(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Aver_sB(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Aver_sH(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Aver_sW(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Aver_sD(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Aver_uB(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Aver_uH(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Aver_uW(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Aver_uD(VectorRegister wd, VectorRegister ws, VectorRegister wt);
 
   void FaddW(VectorRegister wd, VectorRegister ws, VectorRegister wt);
   void FaddD(VectorRegister wd, VectorRegister ws, VectorRegister wt);
