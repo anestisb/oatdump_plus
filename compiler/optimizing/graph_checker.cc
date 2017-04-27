@@ -497,8 +497,7 @@ void GraphChecker::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
                             "has a null pointer as last input.",
                             invoke->DebugName(),
                             invoke->GetId()));
-    }
-    if (!last_input->IsClinitCheck() && !last_input->IsLoadClass()) {
+    } else if (!last_input->IsClinitCheck() && !last_input->IsLoadClass()) {
       AddError(StringPrintf("Static invoke %s:%d marked as having an explicit clinit check "
                             "has a last instruction (%s:%d) which is neither a clinit check "
                             "nor a load class instruction.",
