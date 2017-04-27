@@ -677,5 +677,11 @@
             "Tests that have verify-at-runtime classes, but being compiled when using vdex."
         ],
         "variant": "speed-profile"
+    },
+    {
+        "tests": "648-many-direct-methods",
+        "variant": "debug",
+        "description": "Test disabled in debug mode because of dex2oatd timeouts.",
+        "bug": "b/33650497"
     }
 ]
