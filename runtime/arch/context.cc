@@ -14,43 +14,12 @@
  * limitations under the License.
  */
 
-#include "context.h"
-
-#if defined(__arm__)
-#include "arm/context_arm.h"
-#elif defined(__aarch64__)
-#include "arm64/context_arm64.h"
-#elif defined(__mips__) && !defined(__LP64__)
-#include "mips/context_mips.h"
-#elif defined(__mips__) && defined(__LP64__)
-#include "mips64/context_mips64.h"
-#elif defined(__i386__)
-#include "x86/context_x86.h"
-#elif defined(__x86_64__)
-#include "x86_64/context_x86_64.h"
-#else
-#include "base/logging.h"
-#endif
+#include "context-inl.h"
 
 namespace art {
 
 Context* Context::Create() {
-#if defined(__arm__)
-  return new arm::ArmContext();
-#elif defined(__aarch64__)
-  return new arm64::Arm64Context();
-#elif defined(__mips__) && !defined(__LP64__)
-  return new mips::MipsContext();
-#elif defined(__mips__) && defined(__LP64__)
-  return new mips64::Mips64Context();
-#elif defined(__i386__)
-  return new x86::X86Context();
-#elif defined(__x86_64__)
-  return new x86_64::X86_64Context();
-#else
-  UNIMPLEMENTED(FATAL);
-  return nullptr;
-#endif
+  return new RuntimeContextType;
 }
 
 }  // namespace art
