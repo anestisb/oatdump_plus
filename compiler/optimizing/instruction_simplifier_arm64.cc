@@ -216,5 +216,18 @@ void InstructionSimplifierArm64Visitor::VisitVecMul(HVecMul* instruction) {
   }
 }
 
+void InstructionSimplifierArm64Visitor::VisitVecLoad(HVecLoad* instruction) {
+  if (!instruction->IsStringCharAt()
+      && TryExtractVecArrayAccessAddress(instruction, instruction->GetIndex())) {
+    RecordSimplification();
+  }
+}
+
+void InstructionSimplifierArm64Visitor::VisitVecStore(HVecStore* instruction) {
+  if (TryExtractVecArrayAccessAddress(instruction, instruction->GetIndex())) {
+    RecordSimplification();
+  }
+}
+
 }  // namespace arm64
 }  // namespace art

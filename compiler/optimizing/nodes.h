@@ -1396,7 +1396,8 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(BitwiseNegatedRight, Instruction)                                   \
   M(DataProcWithShifterOp, Instruction)                                 \
   M(MultiplyAccumulate, Instruction)                                    \
-  M(IntermediateAddress, Instruction)
+  M(IntermediateAddress, Instruction)                                   \
+  M(IntermediateAddressIndex, Instruction)
 #endif
 
 #ifndef ART_ENABLE_CODEGEN_arm

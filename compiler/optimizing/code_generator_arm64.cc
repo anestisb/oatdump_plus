@@ -2644,6 +2644,38 @@ void InstructionCodeGeneratorARM64::VisitIntermediateAddress(HIntermediateAddres
          Operand(InputOperandAt(instruction, 1)));
 }
 
+void LocationsBuilderARM64::VisitIntermediateAddressIndex(HIntermediateAddressIndex* instruction) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
+
+  HIntConstant* shift = instruction->GetShift()->AsIntConstant();
+
+  locations->SetInAt(0, Location::RequiresRegister());
+  // For byte case we don't need to shift the index variable so we can encode the data offset into
+  // ADD instruction. For other cases we prefer the data_offset to be in register; that will hoist
+  // data offset constant generation out of the loop and reduce the critical path length in the
+  // loop.
+  locations->SetInAt(1, shift->GetValue() == 0
+                        ? Location::ConstantLocation(instruction->GetOffset()->AsIntConstant())
+                        : Location::RequiresRegister());
+  locations->SetInAt(2, Location::ConstantLocation(shift));
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+}
+
+void InstructionCodeGeneratorARM64::VisitIntermediateAddressIndex(
+    HIntermediateAddressIndex* instruction) {
+  Register index_reg = InputRegisterAt(instruction, 0);
+  uint32_t shift = Int64ConstantFrom(instruction->GetLocations()->InAt(2));
+  uint32_t offset = instruction->GetOffset()->AsIntConstant()->GetValue();
+
+  if (shift == 0) {
+    __ Add(OutputRegister(instruction), index_reg, offset);
+  } else {
+    Register offset_reg = InputRegisterAt(instruction, 1);
+    __ Add(OutputRegister(instruction), offset_reg, Operand(index_reg, LSL, shift));
+  }
+}
+
 void LocationsBuilderARM64::VisitMultiplyAccumulate(HMultiplyAccumulate* instr) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instr, LocationSummary::kNoCall);
