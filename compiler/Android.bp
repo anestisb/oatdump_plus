@@ -67,6 +67,7 @@ art_cc_defaults {
         "optimizing/intrinsics.cc",
         "optimizing/licm.cc",
         "optimizing/linear_order.cc",
+        "optimizing/load_store_analysis.cc",
         "optimizing/load_store_elimination.cc",
         "optimizing/locations.cc",
         "optimizing/loop_optimization.cc",
@@ -374,6 +375,7 @@ art_cc_test {
 
         "jni/jni_cfi_test.cc",
         "optimizing/codegen_test.cc",
+        "optimizing/load_store_analysis_test.cc",
         "optimizing/optimizing_cfi_test.cc",
         "optimizing/scheduler_test.cc",
     ],
