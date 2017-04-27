@@ -1504,8 +1504,8 @@ DEFINE_FUNCTION art_quick_aput_obj
     movl %edx, MIRROR_OBJECT_ARRAY_DATA_OFFSET(%edi, %esi, 4)
 //  movq %rdx, MIRROR_OBJECT_ARRAY_DATA_OFFSET(%rdi, %rsi, 4)
     movq %gs:THREAD_CARD_TABLE_OFFSET, %rdx
-    shrl LITERAL(7), %edi
-//  shrl LITERAL(7), %rdi
+    shrl LITERAL(CARD_TABLE_CARD_SHIFT), %edi
+//  shrl LITERAL(CARD_TABLE_CARD_SHIFT), %rdi
     movb %dl, (%rdx, %rdi)                       // Note: this assumes that top 32b of %rdi are zero
     ret
 .Ldo_aput_null:
@@ -1545,8 +1545,8 @@ DEFINE_FUNCTION art_quick_aput_obj
     movl %edx, MIRROR_OBJECT_ARRAY_DATA_OFFSET(%edi, %esi, 4)
 //  movq %rdx, MIRROR_OBJECT_ARRAY_DATA_OFFSET(%rdi, %rsi, 4)
     movq %gs:THREAD_CARD_TABLE_OFFSET, %rdx
-    shrl LITERAL(7), %edi
-//  shrl LITERAL(7), %rdi
+    shrl LITERAL(CARD_TABLE_CARD_SHIFT), %edi
+//  shrl LITERAL(CARD_TABLE_CARD_SHIFT), %rdi
     movb %dl, (%rdx, %rdi)                       // Note: this assumes that top 32b of %rdi are zero
 //  movb %dl, (%rdx, %rdi)
     ret

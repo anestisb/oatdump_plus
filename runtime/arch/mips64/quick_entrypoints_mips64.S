@@ -1374,7 +1374,7 @@ ENTRY art_quick_aput_obj
     POISON_HEAP_REF $a2
     sw   $a2, MIRROR_OBJECT_ARRAY_DATA_OFFSET($t0)
     ld   $t0, THREAD_CARD_TABLE_OFFSET(rSELF)
-    dsrl  $t1, $a0, 7
+    dsrl  $t1, $a0, CARD_TABLE_CARD_SHIFT
     daddu $t1, $t1, $t0
     sb   $t0, ($t1)
     jalr $zero, $ra

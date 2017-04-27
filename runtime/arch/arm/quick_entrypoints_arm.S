@@ -872,7 +872,7 @@ ENTRY art_quick_aput_obj
     POISON_HEAP_REF r2
     str r2, [r3, r1, lsl #2]
     ldr r3, [r9, #THREAD_CARD_TABLE_OFFSET]
-    lsr r0, r0, #7
+    lsr r0, r0, #CARD_TABLE_CARD_SHIFT
     strb r3, [r3, r0]
     blx lr
 .Ldo_aput_null:
@@ -900,7 +900,7 @@ ENTRY art_quick_aput_obj
     POISON_HEAP_REF r2
     str r2, [r3, r1, lsl #2]
     ldr r3, [r9, #THREAD_CARD_TABLE_OFFSET]
-    lsr r0, r0, #7
+    lsr r0, r0, #CARD_TABLE_CARD_SHIFT
     strb r3, [r3, r0]
     blx lr
 .Lthrow_array_store_exception:
