@@ -568,7 +568,7 @@ static void GetResourceAsStream(Thread* self,
   // Copy in content.
   memcpy(h_array->GetData(), mem_map->Begin(), map_size);
   // Be proactive releasing memory.
-  mem_map.release();
+  mem_map.reset();
 
   // Create a ByteArrayInputStream.
   Handle<mirror::Class> h_class(hs.NewHandle(
