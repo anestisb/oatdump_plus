@@ -49,6 +49,7 @@ art_cc_binary {
     shared_libs: [
         "libart",
         "libart-dexlayout",
+        "libbase",
     ],
 }
 
