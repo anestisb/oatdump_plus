@@ -30,6 +30,7 @@
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "base/dumpable.h"
+#include "base/memory_tool.h"
 #include "base/scoped_flock.h"
 #include "base/stringpiece.h"
 #include "base/unix_file/fd_file.h"
@@ -142,6 +143,8 @@ bool PatchOat::Patch(const std::string& image_location,
     LOG(ERROR) << "Unable to initialize runtime";
     return false;
   }
+  std::unique_ptr<Runtime> runtime(Runtime::Current());
+
   // Runtime::Create acquired the mutator_lock_ that is normally given away when we Runtime::Start,
   // give it away now and then switch to a more manageable ScopedObjectAccess.
   Thread::Current()->TransitionFromRunnableToSuspended(kNative);
@@ -286,6 +289,13 @@ bool PatchOat::Patch(const std::string& image_location,
       return false;
     }
   }
+
+  if (!kIsDebugBuild && !(RUNNING_ON_MEMORY_TOOL && kMemoryToolDetectsLeaks)) {
+    // We want to just exit on non-debug builds, not bringing the runtime down
+    // in an orderly fashion. So release the following fields.
+    runtime.release();
+  }
+
   return true;
 }
 
