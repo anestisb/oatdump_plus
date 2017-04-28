@@ -281,6 +281,16 @@ void Collections::ReadEncodedValue(
       item->SetDouble(conv.d);
       break;
     }
+    case DexFile::kDexAnnotationMethodType: {
+      const uint32_t proto_index = static_cast<uint32_t>(ReadVarWidth(data, length, false));
+      item->SetProtoId(GetProtoId(proto_index));
+      break;
+    }
+    case DexFile::kDexAnnotationMethodHandle: {
+      const uint32_t method_handle_index = static_cast<uint32_t>(ReadVarWidth(data, length, false));
+      item->SetMethodHandle(GetMethodHandle(method_handle_index));
+      break;
+    }
     case DexFile::kDexAnnotationString: {
       const uint32_t string_index = static_cast<uint32_t>(ReadVarWidth(data, length, false));
       item->SetStringId(GetStringId(string_index));
@@ -766,6 +776,64 @@ ClassData* Collections::CreateClassData(
   return class_data;
 }
 
+void Collections::CreateCallSitesAndMethodHandles(const DexFile& dex_file) {
+  // Iterate through the map list and set the offset of the CallSiteIds and MethodHandleItems.
+  const DexFile::MapList* map =
+      reinterpret_cast<const DexFile::MapList*>(dex_file.Begin() + MapListOffset());
+  for (uint32_t i = 0; i < map->size_; ++i) {
+    const DexFile::MapItem* item = map->list_ + i;
+    switch (item->type_) {
+      case DexFile::kDexTypeCallSiteIdItem:
+        SetCallSiteIdsOffset(item->offset_);
+        break;
+      case DexFile::kDexTypeMethodHandleItem:
+        SetMethodHandleItemsOffset(item->offset_);
+        break;
+      default:
+        break;
+    }
+  }
+  // Populate MethodHandleItems first (CallSiteIds may depend on them).
+  for (uint32_t i = 0; i < dex_file.NumMethodHandles(); i++) {
+    CreateMethodHandleItem(dex_file, i);
+  }
+  // Populate CallSiteIds.
+  for (uint32_t i = 0; i < dex_file.NumCallSiteIds(); i++) {
+    CreateCallSiteId(dex_file, i);
+  }
+}
+
+void Collections::CreateCallSiteId(const DexFile& dex_file, uint32_t i) {
+  const DexFile::CallSiteIdItem& disk_call_site_id = dex_file.GetCallSiteId(i);
+  const uint8_t* disk_call_item_ptr = dex_file.Begin() + disk_call_site_id.data_off_;
+  EncodedArrayItem* call_site_item =
+      CreateEncodedArrayItem(disk_call_item_ptr, disk_call_site_id.data_off_);
+
+  CallSiteId* call_site_id = new CallSiteId(call_site_item);
+  call_site_ids_.AddIndexedItem(call_site_id, CallSiteIdsOffset() + i * CallSiteId::ItemSize(), i);
+}
+
+void Collections::CreateMethodHandleItem(const DexFile& dex_file, uint32_t i) {
+  const DexFile::MethodHandleItem& disk_method_handle = dex_file.GetMethodHandle(i);
+  uint16_t index = disk_method_handle.field_or_method_idx_;
+  DexFile::MethodHandleType type =
+      static_cast<DexFile::MethodHandleType>(disk_method_handle.method_handle_type_);
+  bool is_invoke = type == DexFile::MethodHandleType::kInvokeStatic ||
+                   type == DexFile::MethodHandleType::kInvokeInstance ||
+                   type == DexFile::MethodHandleType::kInvokeConstructor;
+  static_assert(DexFile::MethodHandleType::kLast == DexFile::MethodHandleType::kInvokeConstructor,
+                "Unexpected method handle types.");
+  IndexedItem* field_or_method_id;
+  if (is_invoke) {
+    field_or_method_id = GetMethodId(index);
+  } else {
+    field_or_method_id = GetFieldId(index);
+  }
+  MethodHandleItem* method_handle = new MethodHandleItem(type, field_or_method_id);
+  method_handle_items_.AddIndexedItem(
+      method_handle, MethodHandleItemsOffset() + i * MethodHandleItem::ItemSize(), i);
+}
+
 static uint32_t HeaderOffset(const dex_ir::Collections& collections ATTRIBUTE_UNUSED) {
   return 0;
 }
@@ -822,6 +890,16 @@ static const FileSectionDescriptor kFileSectionDescriptors[] = {
     DexFile::kDexTypeClassDefItem,
     &dex_ir::Collections::ClassDefsSize,
     &dex_ir::Collections::ClassDefsOffset
+  }, {
+    "CallSiteId",
+    DexFile::kDexTypeCallSiteIdItem,
+    &dex_ir::Collections::CallSiteIdsSize,
+    &dex_ir::Collections::CallSiteIdsOffset
+  }, {
+    "MethodHandle",
+    DexFile::kDexTypeMethodHandleItem,
+    &dex_ir::Collections::MethodHandleItemsSize,
+    &dex_ir::Collections::MethodHandleItemsOffset
   }, {
     "StringData",
     DexFile::kDexTypeStringDataItem,

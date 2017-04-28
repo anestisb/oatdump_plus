@@ -35,6 +35,7 @@ class AnnotationItem;
 class AnnotationsDirectoryItem;
 class AnnotationSetItem;
 class AnnotationSetRefList;
+class CallSiteId;
 class ClassData;
 class ClassDef;
 class CodeItem;
@@ -47,6 +48,7 @@ class FieldItem;
 class Header;
 class MapList;
 class MapItem;
+class MethodHandleItem;
 class MethodId;
 class MethodItem;
 class ParameterAnnotation;
@@ -65,6 +67,8 @@ static constexpr size_t kProtoIdItemSize = 12;
 static constexpr size_t kFieldIdItemSize = 8;
 static constexpr size_t kMethodIdItemSize = 8;
 static constexpr size_t kClassDefItemSize = 32;
+static constexpr size_t kCallSiteIdItemSize = 4;
+static constexpr size_t kMethodHandleItemSize = 8;
 
 // Visitor support
 class AbstractDispatcher {
@@ -79,6 +83,8 @@ class AbstractDispatcher {
   virtual void Dispatch(const ProtoId* proto_id) = 0;
   virtual void Dispatch(const FieldId* field_id) = 0;
   virtual void Dispatch(const MethodId* method_id) = 0;
+  virtual void Dispatch(const CallSiteId* call_site_id) = 0;
+  virtual void Dispatch(const MethodHandleItem* method_handle_item) = 0;
   virtual void Dispatch(ClassData* class_data) = 0;
   virtual void Dispatch(ClassDef* class_def) = 0;
   virtual void Dispatch(FieldItem* field_item) = 0;
@@ -165,6 +171,9 @@ class Collections {
   std::vector<std::unique_ptr<FieldId>>& FieldIds() { return field_ids_.Collection(); }
   std::vector<std::unique_ptr<MethodId>>& MethodIds() { return method_ids_.Collection(); }
   std::vector<std::unique_ptr<ClassDef>>& ClassDefs() { return class_defs_.Collection(); }
+  std::vector<std::unique_ptr<CallSiteId>>& CallSiteIds() { return call_site_ids_.Collection(); }
+  std::vector<std::unique_ptr<MethodHandleItem>>& MethodHandleItems()
+      { return method_handle_items_.Collection(); }
   std::map<uint32_t, std::unique_ptr<StringData>>& StringDatas()
       { return string_datas_.Collection(); }
   std::map<uint32_t, std::unique_ptr<TypeList>>& TypeLists() { return type_lists_.Collection(); }
@@ -189,6 +198,10 @@ class Collections {
   void CreateFieldId(const DexFile& dex_file, uint32_t i);
   void CreateMethodId(const DexFile& dex_file, uint32_t i);
   void CreateClassDef(const DexFile& dex_file, uint32_t i);
+  void CreateCallSiteId(const DexFile& dex_file, uint32_t i);
+  void CreateMethodHandleItem(const DexFile& dex_file, uint32_t i);
+
+  void CreateCallSitesAndMethodHandles(const DexFile& dex_file);
 
   TypeList* CreateTypeList(const DexFile::TypeList* type_list, uint32_t offset);
   EncodedArrayItem* CreateEncodedArrayItem(const uint8_t* static_data, uint32_t offset);
@@ -207,6 +220,8 @@ class Collections {
   FieldId* GetFieldId(uint32_t index) { return FieldIds()[index].get(); }
   MethodId* GetMethodId(uint32_t index) { return MethodIds()[index].get(); }
   ClassDef* GetClassDef(uint32_t index) { return ClassDefs()[index].get(); }
+  CallSiteId* GetCallSiteId(uint32_t index) { return CallSiteIds()[index].get(); }
+  MethodHandleItem* GetMethodHandle(uint32_t index) { return MethodHandleItems()[index].get(); }
 
   StringId* GetStringIdOrNullPtr(uint32_t index) {
     return index == DexFile::kDexNoIndex ? nullptr : GetStringId(index);
@@ -221,6 +236,8 @@ class Collections {
   uint32_t FieldIdsOffset() const { return field_ids_.GetOffset(); }
   uint32_t MethodIdsOffset() const { return method_ids_.GetOffset(); }
   uint32_t ClassDefsOffset() const { return class_defs_.GetOffset(); }
+  uint32_t CallSiteIdsOffset() const { return call_site_ids_.GetOffset(); }
+  uint32_t MethodHandleItemsOffset() const { return method_handle_items_.GetOffset(); }
   uint32_t StringDatasOffset() const { return string_datas_.GetOffset(); }
   uint32_t TypeListsOffset() const { return type_lists_.GetOffset(); }
   uint32_t EncodedArrayItemsOffset() const { return encoded_array_items_.GetOffset(); }
@@ -240,6 +257,9 @@ class Collections {
   void SetFieldIdsOffset(uint32_t new_offset) { field_ids_.SetOffset(new_offset); }
   void SetMethodIdsOffset(uint32_t new_offset) { method_ids_.SetOffset(new_offset); }
   void SetClassDefsOffset(uint32_t new_offset) { class_defs_.SetOffset(new_offset); }
+  void SetCallSiteIdsOffset(uint32_t new_offset) { call_site_ids_.SetOffset(new_offset); }
+  void SetMethodHandleItemsOffset(uint32_t new_offset)
+      { method_handle_items_.SetOffset(new_offset); }
   void SetStringDatasOffset(uint32_t new_offset) { string_datas_.SetOffset(new_offset); }
   void SetTypeListsOffset(uint32_t new_offset) { type_lists_.SetOffset(new_offset); }
   void SetEncodedArrayItemsOffset(uint32_t new_offset)
@@ -262,6 +282,8 @@ class Collections {
   uint32_t FieldIdsSize() const { return field_ids_.Size(); }
   uint32_t MethodIdsSize() const { return method_ids_.Size(); }
   uint32_t ClassDefsSize() const { return class_defs_.Size(); }
+  uint32_t CallSiteIdsSize() const { return call_site_ids_.Size(); }
+  uint32_t MethodHandleItemsSize() const { return method_handle_items_.Size(); }
   uint32_t StringDatasSize() const { return string_datas_.Size(); }
   uint32_t TypeListsSize() const { return type_lists_.Size(); }
   uint32_t EncodedArrayItemsSize() const { return encoded_array_items_.Size(); }
@@ -288,6 +310,8 @@ class Collections {
   CollectionVector<FieldId> field_ids_;
   CollectionVector<MethodId> method_ids_;
   CollectionVector<ClassDef> class_defs_;
+  CollectionVector<CallSiteId> call_site_ids_;
+  CollectionVector<MethodHandleItem> method_handle_items_;
 
   CollectionMap<StringData> string_datas_;
   CollectionMap<TypeList> type_lists_;
@@ -603,8 +627,10 @@ class EncodedValue {
   void SetDouble(double d) { u_.double_val_ = d; }
   void SetStringId(StringId* string_id) { u_.string_val_ = string_id; }
   void SetTypeId(TypeId* type_id) { u_.type_val_ = type_id; }
+  void SetProtoId(ProtoId* proto_id) { u_.proto_val_ = proto_id; }
   void SetFieldId(FieldId* field_id) { u_.field_val_ = field_id; }
   void SetMethodId(MethodId* method_id) { u_.method_val_ = method_id; }
+  void SetMethodHandle(MethodHandleItem* method_handle) { u_.method_handle_val_ = method_handle; }
   void SetEncodedArray(EncodedArrayItem* encoded_array) { encoded_array_.reset(encoded_array); }
   void SetEncodedAnnotation(EncodedAnnotation* encoded_annotation)
       { encoded_annotation_.reset(encoded_annotation); }
@@ -619,8 +645,10 @@ class EncodedValue {
   double GetDouble() const { return u_.double_val_; }
   StringId* GetStringId() const { return u_.string_val_; }
   TypeId* GetTypeId() const { return u_.type_val_; }
+  ProtoId* GetProtoId() const { return u_.proto_val_; }
   FieldId* GetFieldId() const { return u_.field_val_; }
   MethodId* GetMethodId() const { return u_.method_val_; }
+  MethodHandleItem* GetMethodHandle() const { return u_.method_handle_val_; }
   EncodedArrayItem* GetEncodedArray() const { return encoded_array_.get(); }
   EncodedAnnotation* GetEncodedAnnotation() const { return encoded_annotation_.get(); }
 
@@ -639,8 +667,10 @@ class EncodedValue {
     double double_val_;
     StringId* string_val_;
     TypeId* type_val_;
+    ProtoId* proto_val_;
     FieldId* field_val_;
     MethodId* method_val_;
+    MethodHandleItem* method_handle_val_;
   } u_;
   std::unique_ptr<EncodedArrayItem> encoded_array_;
   std::unique_ptr<EncodedAnnotation> encoded_annotation_;
@@ -1085,6 +1115,48 @@ class AnnotationsDirectoryItem : public Item {
   std::unique_ptr<ParameterAnnotationVector> parameter_annotations_;  // This can be nullptr.
 
   DISALLOW_COPY_AND_ASSIGN(AnnotationsDirectoryItem);
+};
+
+class CallSiteId : public IndexedItem {
+ public:
+  explicit CallSiteId(EncodedArrayItem* call_site_item) : call_site_item_(call_site_item) {
+    size_ = kCallSiteIdItemSize;
+  }
+  ~CallSiteId() OVERRIDE { }
+
+  static size_t ItemSize() { return kCallSiteIdItemSize; }
+
+  EncodedArrayItem* CallSiteItem() const { return call_site_item_; }
+
+  void Accept(AbstractDispatcher* dispatch) const { dispatch->Dispatch(this); }
+
+ private:
+  EncodedArrayItem* call_site_item_;
+
+  DISALLOW_COPY_AND_ASSIGN(CallSiteId);
+};
+
+class MethodHandleItem : public IndexedItem {
+ public:
+  MethodHandleItem(DexFile::MethodHandleType method_handle_type, IndexedItem* field_or_method_id)
+      : method_handle_type_(method_handle_type),
+        field_or_method_id_(field_or_method_id) {
+    size_ = kMethodHandleItemSize;
+  }
+  ~MethodHandleItem() OVERRIDE { }
+
+  static size_t ItemSize() { return kMethodHandleItemSize; }
+
+  DexFile::MethodHandleType GetMethodHandleType() const { return method_handle_type_; }
+  IndexedItem* GetFieldOrMethodId() const { return field_or_method_id_; }
+
+  void Accept(AbstractDispatcher* dispatch) const { dispatch->Dispatch(this); }
+
+ private:
+  DexFile::MethodHandleType method_handle_type_;
+  IndexedItem* field_or_method_id_;
+
+  DISALLOW_COPY_AND_ASSIGN(MethodHandleItem);
 };
 
 // TODO(sehr): implement MapList.
