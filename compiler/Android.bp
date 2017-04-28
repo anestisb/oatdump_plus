@@ -338,6 +338,7 @@ art_cc_test {
         "elf_writer_test.cc",
         "exception_test.cc",
         "image_test.cc",
+        "image_write_read_test.cc",
         "jni/jni_compiler_test.cc",
         "linker/multi_oat_relative_patcher_test.cc",
         "linker/output_stream_test.cc",
