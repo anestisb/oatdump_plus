@@ -92,8 +92,8 @@ class DexFile {
     uint32_t method_ids_off_;  // file offset of MethodIds array
     uint32_t class_defs_size_;  // number of ClassDefs
     uint32_t class_defs_off_;  // file offset of ClassDef array
-    uint32_t data_size_;  // unused
-    uint32_t data_off_;  // unused
+    uint32_t data_size_;  // size of data section
+    uint32_t data_off_;  // file offset of data section
 
     // Decode the dex magic version
     uint32_t GetVersion() const;

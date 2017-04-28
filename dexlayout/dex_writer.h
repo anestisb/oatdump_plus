@@ -59,6 +59,8 @@ class DexWriter {
   void WriteDebugInfoItems();
   void WriteCodeItems();
   void WriteClasses();
+  void WriteCallSites();
+  void WriteMethodHandles();
   void WriteMapItem();
   void WriteHeader();
 
