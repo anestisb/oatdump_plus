@@ -32,6 +32,7 @@ class DexDecompiler {
                 bool decompile_return_instruction)
     : code_item_(code_item),
       quickened_info_ptr_(quickened_info.data()),
+      quickened_info_start_(quickened_info.data()),
       quickened_info_end_(quickened_info.data() + quickened_info.size()),
       decompile_return_instruction_(decompile_return_instruction) {}
 
@@ -89,6 +90,7 @@ class DexDecompiler {
 
   const DexFile::CodeItem& code_item_;
   const uint8_t* quickened_info_ptr_;
+  const uint8_t* const quickened_info_start_;
   const uint8_t* const quickened_info_end_;
   const bool decompile_return_instruction_;
 
@@ -185,10 +187,15 @@ bool DexDecompiler::Decompile() {
   }
 
   if (quickened_info_ptr_ != quickened_info_end_) {
-    LOG(FATAL) << "Failed to use all values in quickening info."
-               << " Actual: " << std::hex << quickened_info_ptr_
-               << " Expected: " << quickened_info_end_;
-    return false;
+    if (quickened_info_start_ == quickened_info_ptr_) {
+      LOG(WARNING) << "Failed to use any value in quickening info,"
+                   << " potentially due to duplicate methods.";
+    } else {
+      LOG(FATAL) << "Failed to use all values in quickening info."
+                 << " Actual: " << std::hex << reinterpret_cast<uintptr_t>(quickened_info_ptr_)
+                 << " Expected: " << reinterpret_cast<uintptr_t>(quickened_info_end_);
+      return false;
+    }
   }
 
   return true;
