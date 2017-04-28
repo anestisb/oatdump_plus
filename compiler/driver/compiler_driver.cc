@@ -2088,16 +2088,18 @@ void CompilerDriver::Verify(jobject jclass_loader,
     }
   }
 
-  // Note: verification should not be pulling in classes anymore when compiling the boot image,
-  //       as all should have been resolved before. As such, doing this in parallel should still
-  //       be deterministic.
+  // Verification updates VerifierDeps and needs to run single-threaded to be deterministic.
+  bool force_determinism = GetCompilerOptions().IsForceDeterminism();
+  ThreadPool* verify_thread_pool =
+      force_determinism ? single_thread_pool_.get() : parallel_thread_pool_.get();
+  size_t verify_thread_count = force_determinism ? 1U : parallel_thread_count_;
   for (const DexFile* dex_file : dex_files) {
     CHECK(dex_file != nullptr);
     VerifyDexFile(jclass_loader,
                   *dex_file,
                   dex_files,
-                  parallel_thread_pool_.get(),
-                  parallel_thread_count_,
+                  verify_thread_pool,
+                  verify_thread_count,
                   timings);
   }
 
