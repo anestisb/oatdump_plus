@@ -280,7 +280,17 @@ public class Main {
     }
   }
 
-  // If vectorized, string encoding should be dealt with.
+  /// CHECK-START: void Main.string2Bytes(char[], java.lang.String) loop_optimization (before)
+  /// CHECK-DAG: Phi      loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: ArrayGet loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: ArraySet loop:<<Loop>>      outer_loop:none
+  //
+  /// CHECK-START-ARM64: void Main.string2Bytes(char[], java.lang.String) loop_optimization (after)
+  /// CHECK-DAG: Phi      loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: VecLoad  loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: VecStore loop:<<Loop>>      outer_loop:none
+  //
+  // NOTE: should correctly deal with compressed and uncompressed cases.
   private static void string2Bytes(char[] a, String b) {
     int min = Math.min(a.length, b.length());
     for (int i = 0; i < min; i++) {
@@ -389,6 +399,11 @@ public class Main {
     string2Bytes(aa, bb);
     for (int i = 0; i < aa.length; i++) {
       expectEquals(aa[i], bb.charAt(i));
+    }
+    String cc = "\u1010\u2020llo world how are y\u3030\u4040";
+    string2Bytes(aa, cc);
+    for (int i = 0; i < aa.length; i++) {
+      expectEquals(aa[i], cc.charAt(i));
     }
 
     envUsesInCond();

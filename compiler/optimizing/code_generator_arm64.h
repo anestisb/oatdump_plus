@@ -318,12 +318,13 @@ class InstructionCodeGeneratorARM64 : public InstructionCodeGenerator {
   void GenerateDivRemIntegral(HBinaryOperation* instruction);
   void HandleGoto(HInstruction* got, HBasicBlock* successor);
 
-  vixl::aarch64::MemOperand CreateVecMemRegisters(
+  vixl::aarch64::MemOperand VecAddress(
       HVecMemoryOperation* instruction,
-      Location* reg_loc,
-      bool is_load,
       // This function may acquire a scratch register.
-      vixl::aarch64::UseScratchRegisterScope* temps_scope);
+      vixl::aarch64::UseScratchRegisterScope* temps_scope,
+      size_t size,
+      bool is_string_char_at,
+      /*out*/ vixl::aarch64::Register* scratch);
 
   Arm64Assembler* const assembler_;
   CodeGeneratorARM64* const codegen_;

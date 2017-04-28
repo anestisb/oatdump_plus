@@ -22,6 +22,7 @@ using namespace vixl::aarch64;  // NOLINT(build/namespaces)
 namespace art {
 namespace arm64 {
 
+using helpers::DRegisterFrom;
 using helpers::VRegisterFrom;
 using helpers::HeapOperand;
 using helpers::InputRegisterAt;
@@ -771,20 +772,22 @@ static void CreateVecMemLocations(ArenaAllocator* arena,
   }
 }
 
-// Helper to set up registers and address for vector memory operations.
-MemOperand InstructionCodeGeneratorARM64::CreateVecMemRegisters(
+// Helper to set up locations for vector memory operations. Returns the memory operand and,
+// if used, sets the output parameter scratch to a temporary register used in this operand,
+// so that the client can release it right after the memory operand use.
+MemOperand InstructionCodeGeneratorARM64::VecAddress(
     HVecMemoryOperation* instruction,
-    Location* reg_loc,
-    bool is_load,
-    UseScratchRegisterScope* temps_scope) {
+    UseScratchRegisterScope* temps_scope,
+    size_t size,
+    bool is_string_char_at,
+    /*out*/ Register* scratch) {
   LocationSummary* locations = instruction->GetLocations();
   Register base = InputRegisterAt(instruction, 0);
   Location index = locations->InAt(1);
-  *reg_loc = is_load ? locations->Out() : locations->InAt(2);
-
-  Primitive::Type packed_type = instruction->GetPackedType();
-  uint32_t offset = mirror::Array::DataOffset(Primitive::ComponentSize(packed_type)).Uint32Value();
-  size_t shift = Primitive::ComponentSizeShift(packed_type);
+  uint32_t offset = is_string_char_at
+      ? mirror::String::ValueOffset().Uint32Value()
+      : mirror::Array::DataOffset(size).Uint32Value();
+  size_t shift = ComponentSizeShiftWidth(size);
 
   // HIntermediateAddress optimization is only applied for scalar ArrayGet and ArraySet.
   DCHECK(!instruction->InputAt(0)->IsIntermediateAddress());
@@ -793,10 +796,9 @@ MemOperand InstructionCodeGeneratorARM64::CreateVecMemRegisters(
     offset += Int64ConstantFrom(index) << shift;
     return HeapOperand(base, offset);
   } else {
-    Register temp = temps_scope->AcquireSameSizeAs(base);
-    __ Add(temp, base, Operand(WRegisterFrom(index), LSL, shift));
-
-    return HeapOperand(temp, offset);
+    *scratch = temps_scope->AcquireSameSizeAs(base);
+    __ Add(*scratch, base, Operand(WRegisterFrom(index), LSL, shift));
+    return HeapOperand(*scratch, offset);
   }
 }
 
@@ -805,15 +807,43 @@ void LocationsBuilderARM64::VisitVecLoad(HVecLoad* instruction) {
 }
 
 void InstructionCodeGeneratorARM64::VisitVecLoad(HVecLoad* instruction) {
-  Location reg_loc = Location::NoLocation();
+  LocationSummary* locations = instruction->GetLocations();
+  size_t size = Primitive::ComponentSize(instruction->GetPackedType());
+  VRegister reg = VRegisterFrom(locations->Out());
   UseScratchRegisterScope temps(GetVIXLAssembler());
-  MemOperand mem = CreateVecMemRegisters(instruction, &reg_loc, /*is_load*/ true, &temps);
-  VRegister reg = VRegisterFrom(reg_loc);
+  Register scratch;
 
   switch (instruction->GetPackedType()) {
+    case Primitive::kPrimChar:
+      DCHECK_EQ(8u, instruction->GetVectorLength());
+      // Special handling of compressed/uncompressed string load.
+      if (mirror::kUseStringCompression && instruction->IsStringCharAt()) {
+        vixl::aarch64::Label uncompressed_load, done;
+        // Test compression bit.
+        static_assert(static_cast<uint32_t>(mirror::StringCompressionFlag::kCompressed) == 0u,
+                      "Expecting 0=compressed, 1=uncompressed");
+        uint32_t count_offset = mirror::String::CountOffset().Uint32Value();
+        Register length = temps.AcquireW();
+        __ Ldr(length, HeapOperand(InputRegisterAt(instruction, 0), count_offset));
+        __ Tbnz(length.W(), 0, &uncompressed_load);
+        temps.Release(length);  // no longer needed
+        // Zero extend 8 compressed bytes into 8 chars.
+        __ Ldr(DRegisterFrom(locations->Out()).V8B(),
+               VecAddress(instruction, &temps, 1, /*is_string_char_at*/ true, &scratch));
+        __ Uxtl(reg.V8H(), reg.V8B());
+        __ B(&done);
+        if (scratch.IsValid()) {
+          temps.Release(scratch);  // if used, no longer needed
+        }
+        // Load 8 direct uncompressed chars.
+        __ Bind(&uncompressed_load);
+        __ Ldr(reg, VecAddress(instruction, &temps, size, /*is_string_char_at*/ true, &scratch));
+        __ Bind(&done);
+        return;
+      }
+      FALLTHROUGH_INTENDED;
     case Primitive::kPrimBoolean:
     case Primitive::kPrimByte:
-    case Primitive::kPrimChar:
     case Primitive::kPrimShort:
     case Primitive::kPrimInt:
     case Primitive::kPrimFloat:
@@ -821,7 +851,7 @@ void InstructionCodeGeneratorARM64::VisitVecLoad(HVecLoad* instruction) {
     case Primitive::kPrimDouble:
       DCHECK_LE(2u, instruction->GetVectorLength());
       DCHECK_LE(instruction->GetVectorLength(), 16u);
-      __ Ldr(reg, mem);
+      __ Ldr(reg, VecAddress(instruction, &temps, size, instruction->IsStringCharAt(), &scratch));
       break;
     default:
       LOG(FATAL) << "Unsupported SIMD type";
@@ -834,10 +864,11 @@ void LocationsBuilderARM64::VisitVecStore(HVecStore* instruction) {
 }
 
 void InstructionCodeGeneratorARM64::VisitVecStore(HVecStore* instruction) {
-  Location reg_loc = Location::NoLocation();
+  LocationSummary* locations = instruction->GetLocations();
+  size_t size = Primitive::ComponentSize(instruction->GetPackedType());
+  VRegister reg = VRegisterFrom(locations->InAt(2));
   UseScratchRegisterScope temps(GetVIXLAssembler());
-  MemOperand mem = CreateVecMemRegisters(instruction, &reg_loc, /*is_load*/ false, &temps);
-  VRegister reg = VRegisterFrom(reg_loc);
+  Register scratch;
 
   switch (instruction->GetPackedType()) {
     case Primitive::kPrimBoolean:
@@ -850,7 +881,7 @@ void InstructionCodeGeneratorARM64::VisitVecStore(HVecStore* instruction) {
     case Primitive::kPrimDouble:
       DCHECK_LE(2u, instruction->GetVectorLength());
       DCHECK_LE(instruction->GetVectorLength(), 16u);
-      __ Str(reg, mem);
+      __ Str(reg, VecAddress(instruction, &temps, size, /*is_string_char_at*/ false, &scratch));
       break;
     default:
       LOG(FATAL) << "Unsupported SIMD type";

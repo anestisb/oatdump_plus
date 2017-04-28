@@ -733,12 +733,6 @@ bool HLoopOptimization::VectorizeUse(LoopNode* node,
     }
     return true;
   } else if (instruction->IsArrayGet()) {
-    // Strings are different, with a different offset to the actual data
-    // and some compressed to save memory. For now, all cases are rejected
-    // to avoid the complexity.
-    if (instruction->AsArrayGet()->IsStringCharAt()) {
-      return false;
-    }
     // Accept a right-hand-side array base[index] for
     // (1) exact matching vector type,
     // (2) loop-invariant base,
