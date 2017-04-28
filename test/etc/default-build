@@ -82,9 +82,9 @@ JACK_EXPERIMENTAL_ARGS["method-handles"]="-D jack.java.source.version=1.7 -D jac
 JACK_EXPERIMENTAL_ARGS[${DEFAULT_EXPERIMENT}]="-D jack.java.source.version=1.8 -D jack.android.min-api-level=24"
 
 declare -A SMALI_EXPERIMENTAL_ARGS
-SMALI_EXPERIMENTAL_ARGS["default-methods"]="--api-level 24"
-SMALI_EXPERIMENTAL_ARGS["method-handles"]="--api-level 26"
-SMALI_EXPERIMENTAL_ARGS["agents"]="--api-level 26"
+SMALI_EXPERIMENTAL_ARGS["default-methods"]="--api 24"
+SMALI_EXPERIMENTAL_ARGS["method-handles"]="--api 26"
+SMALI_EXPERIMENTAL_ARGS["agents"]="--api 26"
 
 declare -A JAVAC_EXPERIMENTAL_ARGS
 JAVAC_EXPERIMENTAL_ARGS["default-methods"]="-source 1.8 -target 1.8"
@@ -275,7 +275,7 @@ fi
 
 if [ "${HAS_SMALI}" = "true" -a ${NEED_DEX} = "true" ]; then
   # Compile Smali classes
-  ${SMALI} -JXmx512m ${SMALI_ARGS} --output smali_classes.dex `find smali -name '*.smali'`
+  ${SMALI} -JXmx512m assemble ${SMALI_ARGS} --output smali_classes.dex `find smali -name '*.smali'`
 
   # Don't bother with dexmerger if we provide our own main function in a smali file.
   if [ ${SKIP_DX_MERGER} = "false" ]; then
@@ -287,7 +287,7 @@ fi
 
 if [ "${HAS_SMALI_MULTIDEX}" = "true" -a ${NEED_DEX} = "true" ]; then
   # Compile Smali classes
-  ${SMALI} -JXmx512m ${SMALI_ARGS} --output smali_classes2.dex `find smali-multidex -name '*.smali'`
+  ${SMALI} -JXmx512m assemble ${SMALI_ARGS} --output smali_classes2.dex `find smali-multidex -name '*.smali'`
 
   # Don't bother with dexmerger if we provide our own main function in a smali file.
   if [ ${HAS_SRC_MULTIDEX} = "true" ]; then

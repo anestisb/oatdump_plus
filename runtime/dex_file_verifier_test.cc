@@ -123,7 +123,7 @@ static std::unique_ptr<const DexFile> OpenDexFileBase64(const char* base64,
 // To generate a base64 encoded Dex file (such as kGoodTestDex, below)
 // from Smali files, use:
 //
-//   smali -o classes.dex class1.smali [class2.smali ...]
+//   smali assemble -o classes.dex class1.smali [class2.smali ...]
 //   base64 classes.dex >classes.dex.base64
 
 // For reference.
@@ -1461,7 +1461,7 @@ TEST_F(DexFileVerifierTest, ProtoOrdering) {
 
 // To generate a base64 encoded Dex file version 037 from Smali files, use:
 //
-//   smali --api-level 24 -o classes.dex class1.smali [class2.smali ...]
+//   smali assemble --api 24 -o classes.dex class1.smali [class2.smali ...]
 //   base64 classes.dex >classes.dex.base64
 
 // Dex file version 037 generated from:
