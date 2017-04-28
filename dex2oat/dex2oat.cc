@@ -2406,6 +2406,8 @@ class Dex2Oat FINAL {
     if (!IsBootImage()) {
       raw_options.push_back(std::make_pair("-Xno-dex-file-fallback", nullptr));
     }
+    // Never allow implicit image compilation.
+    raw_options.push_back(std::make_pair("-Xnoimage-dex2oat", nullptr));
     // Disable libsigchain. We don't don't need it during compilation and it prevents us
     // from getting a statically linked version of dex2oat (because of dlsym and RTLD_NEXT).
     raw_options.push_back(std::make_pair("-Xno-sig-chain", nullptr));
