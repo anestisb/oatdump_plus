@@ -115,7 +115,11 @@ bool ProfileCompilationInfo::MergeAndSave(const std::string& filename,
   ScopedTrace trace(__PRETTY_FUNCTION__);
   ScopedFlock flock;
   std::string error;
-  if (!flock.Init(filename.c_str(), O_RDWR | O_NOFOLLOW | O_CLOEXEC, /* block */ false, &error)) {
+  int flags = O_RDWR | O_NOFOLLOW | O_CLOEXEC;
+  // There's no need to fsync profile data right away. We get many chances
+  // to write it again in case something goes wrong. We can rely on a simple
+  // close(), no sync, and let to the kernel decide when to write to disk.
+  if (!flock.Init(filename.c_str(), flags, /*block*/false, /*flush_on_close*/false, &error)) {
     LOG(WARNING) << "Couldn't lock the profile file " << filename << ": " << error;
     return false;
   }
