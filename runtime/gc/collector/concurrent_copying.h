@@ -133,7 +133,10 @@ class ConcurrentCopying : public GarbageCollector {
  private:
   void PushOntoMarkStack(mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!mark_stack_lock_);
-  mirror::Object* Copy(mirror::Object* from_ref) REQUIRES_SHARED(Locks::mutator_lock_)
+  mirror::Object* Copy(mirror::Object* from_ref,
+                       mirror::Object* holder,
+                       MemberOffset offset)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!mark_stack_lock_, !skipped_blocks_lock_, !immune_gray_stack_lock_);
   void Scan(mirror::Object* to_ref) REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!mark_stack_lock_);

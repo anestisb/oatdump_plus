@@ -2152,8 +2152,16 @@ mirror::Object* ConcurrentCopying::AllocateInSkippedBlock(size_t alloc_size) {
   return reinterpret_cast<mirror::Object*>(addr);
 }
 
-mirror::Object* ConcurrentCopying::Copy(mirror::Object* from_ref) {
+mirror::Object* ConcurrentCopying::Copy(mirror::Object* from_ref,
+                                        mirror::Object* holder,
+                                        MemberOffset offset) {
   DCHECK(region_space_->IsInFromSpace(from_ref));
+  // If the class pointer is null, the object is invalid. This could occur for a dangling pointer
+  // from a previous GC that is either inside or outside the allocated region.
+  mirror::Class* klass = from_ref->GetClass<kVerifyNone, kWithoutReadBarrier>();
+  if (UNLIKELY(klass == nullptr)) {
+    heap_->GetVerification()->LogHeapCorruption(holder, offset, from_ref, /* fatal */ true);
+  }
   // There must not be a read barrier to avoid nested RB that might violate the to-space invariant.
   // Note that from_ref is a from space ref so the SizeOf() call will access the from-space meta
   // objects, but it's ok and necessary.
@@ -2208,7 +2216,7 @@ mirror::Object* ConcurrentCopying::Copy(mirror::Object* from_ref) {
   DCHECK(to_ref != nullptr);
 
   // Copy the object excluding the lock word since that is handled in the loop.
-  to_ref->SetClass(from_ref->GetClass<kVerifyNone, kWithoutReadBarrier>());
+  to_ref->SetClass(klass);
   const size_t kObjectHeaderSize = sizeof(mirror::Object);
   DCHECK_GE(obj_size, kObjectHeaderSize);
   static_assert(kObjectHeaderSize == sizeof(mirror::HeapReference<mirror::Class>) +
@@ -2416,7 +2424,7 @@ mirror::Object* ConcurrentCopying::MarkNonMoving(mirror::Object* ref,
       if (is_los && !IsAligned<kPageSize>(ref)) {
         // Ref is a large object that is not aligned, it must be heap corruption. Dump data before
         // AtomicSetReadBarrierState since it will fault if the address is not valid.
-        heap_->GetVerification()->LogHeapCorruption(ref, offset, holder, /* fatal */ true);
+        heap_->GetVerification()->LogHeapCorruption(holder, offset, ref, /* fatal */ true);
       }
       // Not marked or on the allocation stack. Try to mark it.
       // This may or may not succeed, which is ok.
