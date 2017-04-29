@@ -140,7 +140,7 @@ inline mirror::Object* MarkCompact::MarkObject(mirror::Object* obj) {
       }
     } else {
       DCHECK(!space_->HasAddress(obj));
-      auto slow_path = [this](const mirror::Object* ref)
+      auto slow_path = [](const mirror::Object* ref)
           REQUIRES_SHARED(Locks::mutator_lock_) {
         // Marking a large object, make sure its aligned as a sanity check.
         if (!IsAligned<kPageSize>(ref)) {

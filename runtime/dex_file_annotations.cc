@@ -1135,7 +1135,7 @@ mirror::Object* GetAnnotationForMethodParameter(ArtMethod* method,
 bool GetParametersMetadataForMethod(ArtMethod* method,
                                     MutableHandle<mirror::ObjectArray<mirror::String>>* names,
                                     MutableHandle<mirror::IntArray>* access_flags) {
-  const DexFile::AnnotationSetItem::AnnotationSetItem* annotation_set =
+  const DexFile::AnnotationSetItem* annotation_set =
       FindAnnotationSetForMethod(method);
   if (annotation_set == nullptr) {
     return false;
