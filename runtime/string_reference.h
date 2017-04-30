@@ -41,7 +41,7 @@ struct StringReference {
 
 // Compare only the reference and not the string contents.
 struct StringReferenceComparator {
-  bool operator()(const StringReference& a, const StringReference& b) {
+  bool operator()(const StringReference& a, const StringReference& b) const {
     if (a.dex_file != b.dex_file) {
       return a.dex_file < b.dex_file;
     }
