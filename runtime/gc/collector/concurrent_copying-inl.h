@@ -130,7 +130,7 @@ inline mirror::Object* ConcurrentCopying::Mark(mirror::Object* from_ref,
       mirror::Object* to_ref = GetFwdPtr(from_ref);
       if (to_ref == nullptr) {
         // It isn't marked yet. Mark it by copying it to the to-space.
-        to_ref = Copy(from_ref);
+        to_ref = Copy(from_ref, holder, offset);
       }
       DCHECK(region_space_->IsInToSpace(to_ref) || heap_->non_moving_space_->HasAddress(to_ref))
           << "from_ref=" << from_ref << " to_ref=" << to_ref;
