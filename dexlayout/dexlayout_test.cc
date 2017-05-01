@@ -205,6 +205,19 @@ static const char kUnknownTypeDebugInfoInputDex[] =
     "AAIAAAAEAAAAkAAAAAMAAAACAAAAoAAAAAUAAAADAAAAuAAAAAYAAAABAAAA0AAAAAEgAAACAAAA"
     "8AAAAAIgAAAIAAAAHAEAAAMgAAACAAAAVAEAAAAgAAABAAAAYwEAAAAQAAABAAAAdAEAAA==";
 
+// Dex file with multiple class data items pointing to the same code item.
+// Constructed by hex editing.
+static const char kDuplicateCodeItemInputDex[] =
+    "ZGV4CjAzNQCwKtVglQOmLWuHwldN5jkBOInC7mTMhJMAAgAAcAAAAHhWNBIAAAAAAAAAAHgBAAAH"
+    "AAAAcAAAAAMAAACMAAAAAQAAAJgAAAAAAAAAAAAAAAQAAACkAAAAAQAAAMQAAAAcAQAA5AAAACQB"
+    "AAAsAQAANAEAADkBAABNAQAAUAEAAFMBAAACAAAAAwAAAAQAAAAEAAAAAgAAAAAAAAAAAAAAAAAA"
+    "AAAAAAAFAAAAAAAAAAYAAAABAAAAAAAAAAAAAAABAAAAAQAAAAAAAAABAAAAAAAAAGUBAAAAAAAA"
+    "AQABAAEAAABWAQAABAAAAHAQAwAAAA4AAQABAAAAAABbAQAAAQAAAA4AAAABAAEAAAAAAGABAAAB"
+    "AAAADgAAAAY8aW5pdD4ABkEuamF2YQADTEE7ABJMamF2YS9sYW5nL09iamVjdDsAAVYAAWEAAWIA"
+    "AQAHDgADAAcOAAUABw4AAAABAgCBgATkAQEA/AEBAPwBAAsAAAAAAAAAAQAAAAAAAAABAAAABwAA"
+    "AHAAAAACAAAAAwAAAIwAAAADAAAAAQAAAJgAAAAFAAAABAAAAKQAAAAGAAAAAQAAAMQAAAABIAAA"
+    "AwAAAOQAAAACIAAABwAAACQBAAADIAAAAwAAAFYBAAAAIAAAAQAAAGUBAAAAEAAAAQAAAHgBAAA=";
+
 static void WriteBase64ToFile(const char* base64, File* file) {
   // Decode base64.
   CHECK(base64 != nullptr);
@@ -514,6 +527,19 @@ TEST_F(DexLayoutTest, UnknownTypeDebugInfo) {
       { dexlayout, "-o", "/dev/null", temp_dex.GetFilename() };
   ASSERT_TRUE(DexLayoutExec(&temp_dex,
                             kUnknownTypeDebugInfoInputDex,
+                            nullptr /* profile_file */,
+                            nullptr /* profile_filename */,
+                            dexlayout_exec_argv));
+}
+
+TEST_F(DexLayoutTest, DuplicateCodeItem) {
+  ScratchFile temp_dex;
+  std::string dexlayout = GetTestAndroidRoot() + "/bin/dexlayout";
+  EXPECT_TRUE(OS::FileExists(dexlayout.c_str())) << dexlayout << " should be a valid file path";
+  std::vector<std::string> dexlayout_exec_argv =
+      { dexlayout, "-o", "/dev/null", temp_dex.GetFilename() };
+  ASSERT_TRUE(DexLayoutExec(&temp_dex,
+                            kDuplicateCodeItemInputDex,
                             nullptr /* profile_file */,
                             nullptr /* profile_filename */,
                             dexlayout_exec_argv));
