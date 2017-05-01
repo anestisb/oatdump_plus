@@ -47,7 +47,7 @@ template<size_t kAlignment> class SpaceBitmap;
 // WriteBarrier, and from there to here.
 class CardTable {
  public:
-  static constexpr size_t kCardShift = 7;
+  static constexpr size_t kCardShift = 10;
   static constexpr size_t kCardSize = 1 << kCardShift;
   static constexpr uint8_t kCardClean = 0x0;
   static constexpr uint8_t kCardDirty = 0x70;

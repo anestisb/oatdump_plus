@@ -32,8 +32,8 @@ class InstructionSetFeatures;
 class PACKED(4) OatHeader {
  public:
   static constexpr uint8_t kOatMagic[] = { 'o', 'a', 't', '\n' };
-  // Go back to checking is_marking for x86 and x86_64.
-  static constexpr uint8_t kOatVersion[] = { '1', '2', '0', '\0' };
+  // Increase GC card size.
+  static constexpr uint8_t kOatVersion[] = { '1', '2', '1', '\0' };
 
   static constexpr const char* kImageLocationKey = "image-location";
   static constexpr const char* kDex2OatCmdLineKey = "dex2oat-cmdline";

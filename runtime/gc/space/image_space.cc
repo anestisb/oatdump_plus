@@ -651,7 +651,8 @@ class ImageSpaceLoader {
               bitmap_name,
               image_bitmap_map.release(),
               reinterpret_cast<uint8_t*>(map->Begin()),
-              image_objects.End()));
+              // Make sure the bitmap is aligned to card size instead of just bitmap word size.
+              RoundUp(image_objects.End(), gc::accounting::CardTable::kCardSize)));
       if (bitmap == nullptr) {
         *error_msg = StringPrintf("Could not create bitmap '%s'", bitmap_name.c_str());
         return nullptr;
