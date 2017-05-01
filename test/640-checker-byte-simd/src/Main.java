@@ -179,6 +179,11 @@ public class Main {
       a[i] >>>= 33;  // 1, since & 31
   }
 
+  static void shl9() {
+    for (int i = 0; i < 128; i++)
+      a[i] <<= 9;  // yields all-zeros
+  }
+
   //
   // Loop bounds.
   //
@@ -259,6 +264,10 @@ public class Main {
     shr33();
     for (int i = 0; i < 128; i++) {
       expectEquals((byte) 0x09, a[i], "shr33");
+    }
+    shl9();
+    for (int i = 0; i < 128; i++) {
+      expectEquals((byte) 0x00, a[i], "shl9");
       a[i] = (byte) 0xf0;  // reset
     }
     not();
