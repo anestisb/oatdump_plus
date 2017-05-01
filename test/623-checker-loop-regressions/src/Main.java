@@ -310,6 +310,27 @@ public class Main {
     }
   }
 
+  /// CHECK-START: void Main.oneBoth(short[], char[]) loop_optimization (before)
+  /// CHECK-DAG: <<One:i\d+>>  IntConstant 1                       loop:none
+  /// CHECK-DAG: <<Phi:i\d+>>  Phi                                 loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG:               ArraySet [{{l\d+}},<<Phi>>,<<One>>] loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG:               ArraySet [{{l\d+}},<<Phi>>,<<One>>] loop:<<Loop>>      outer_loop:none
+  //
+  /// CHECK-START-ARM64: void Main.oneBoth(short[], char[]) loop_optimization (after)
+  /// CHECK-DAG: <<One:i\d+>>  IntConstant 1                        loop:none
+  /// CHECK-DAG: <<Repl:d\d+>> VecReplicateScalar [<<One>>]         loop:none
+  /// CHECK-DAG: <<Phi:i\d+>>  Phi                                  loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG:               VecStore [{{l\d+}},<<Phi>>,<<Repl>>] loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG:               VecStore [{{l\d+}},<<Phi>>,<<Repl>>] loop:<<Loop>>      outer_loop:none
+  //
+  // Bug b/37764324: integral same-length packed types can be mixed freely.
+  private static void oneBoth(short[] a, char[] b) {
+    for (int i = 0; i < Math.min(a.length, b.length); i++) {
+      a[i] = 1;
+      b[i] = 1;
+    }
+  }
+
   public static void main(String[] args) {
     expectEquals(10, earlyExitFirst(-1));
     for (int i = 0; i <= 10; i++) {
@@ -392,6 +413,13 @@ public class Main {
     }
 
     envUsesInCond();
+
+    short[] dd = new short[23];
+    oneBoth(dd, aa);
+    for (int i = 0; i < aa.length; i++) {
+      expectEquals(aa[i], 1);
+      expectEquals(dd[i], 1);
+    }
 
     System.out.println("passed");
   }
