@@ -140,36 +140,54 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!*unique_methods_lock_, !*streaming_lock_);
 
   // InstrumentationListener implementation.
-  void MethodEntered(Thread* thread, mirror::Object* this_object,
-                     ArtMethod* method, uint32_t dex_pc)
+  void MethodEntered(Thread* thread,
+                     Handle<mirror::Object> this_object,
+                     ArtMethod* method,
+                     uint32_t dex_pc)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!*unique_methods_lock_, !*streaming_lock_)
       OVERRIDE;
-  void MethodExited(Thread* thread, mirror::Object* this_object,
-                    ArtMethod* method, uint32_t dex_pc,
+  void MethodExited(Thread* thread,
+                    Handle<mirror::Object> this_object,
+                    ArtMethod* method,
+                    uint32_t dex_pc,
                     const JValue& return_value)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!*unique_methods_lock_, !*streaming_lock_)
       OVERRIDE;
-  void MethodUnwind(Thread* thread, mirror::Object* this_object,
-                    ArtMethod* method, uint32_t dex_pc)
+  void MethodUnwind(Thread* thread,
+                    Handle<mirror::Object> this_object,
+                    ArtMethod* method,
+                    uint32_t dex_pc)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!*unique_methods_lock_, !*streaming_lock_)
       OVERRIDE;
-  void DexPcMoved(Thread* thread, mirror::Object* this_object,
-                  ArtMethod* method, uint32_t new_dex_pc)
+  void DexPcMoved(Thread* thread,
+                  Handle<mirror::Object> this_object,
+                  ArtMethod* method,
+                  uint32_t new_dex_pc)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!*unique_methods_lock_, !*streaming_lock_)
       OVERRIDE;
-  void FieldRead(Thread* thread, mirror::Object* this_object,
-                 ArtMethod* method, uint32_t dex_pc, ArtField* field)
+  void FieldRead(Thread* thread,
+                 Handle<mirror::Object> this_object,
+                 ArtMethod* method,
+                 uint32_t dex_pc,
+                 ArtField* field)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!*unique_methods_lock_) OVERRIDE;
-  void FieldWritten(Thread* thread, mirror::Object* this_object,
-                    ArtMethod* method, uint32_t dex_pc, ArtField* field,
+  void FieldWritten(Thread* thread,
+                    Handle<mirror::Object> this_object,
+                    ArtMethod* method,
+                    uint32_t dex_pc,
+                    ArtField* field,
                     const JValue& field_value)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!*unique_methods_lock_) OVERRIDE;
-  void ExceptionCaught(Thread* thread, mirror::Throwable* exception_object)
+  void ExceptionCaught(Thread* thread,
+                       Handle<mirror::Throwable> exception_object)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!*unique_methods_lock_) OVERRIDE;
-  void Branch(Thread* thread, ArtMethod* method, uint32_t dex_pc, int32_t dex_pc_offset)
+  void Branch(Thread* thread,
+              ArtMethod* method,
+              uint32_t dex_pc,
+              int32_t dex_pc_offset)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!*unique_methods_lock_) OVERRIDE;
   void InvokeVirtualOrInterface(Thread* thread,
-                                mirror::Object* this_object,
+                                Handle<mirror::Object> this_object,
                                 ArtMethod* caller,
                                 uint32_t dex_pc,
                                 ArtMethod* callee)

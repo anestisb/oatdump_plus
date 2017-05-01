@@ -740,7 +740,7 @@ void Trace::FinishTracing() {
 }
 
 void Trace::DexPcMoved(Thread* thread ATTRIBUTE_UNUSED,
-                       mirror::Object* this_object ATTRIBUTE_UNUSED,
+                       Handle<mirror::Object> this_object ATTRIBUTE_UNUSED,
                        ArtMethod* method,
                        uint32_t new_dex_pc) {
   // We're not recorded to listen to this kind of event, so complain.
@@ -749,7 +749,7 @@ void Trace::DexPcMoved(Thread* thread ATTRIBUTE_UNUSED,
 }
 
 void Trace::FieldRead(Thread* thread ATTRIBUTE_UNUSED,
-                      mirror::Object* this_object ATTRIBUTE_UNUSED,
+                      Handle<mirror::Object> this_object ATTRIBUTE_UNUSED,
                       ArtMethod* method,
                       uint32_t dex_pc,
                       ArtField* field ATTRIBUTE_UNUSED)
@@ -760,7 +760,7 @@ void Trace::FieldRead(Thread* thread ATTRIBUTE_UNUSED,
 }
 
 void Trace::FieldWritten(Thread* thread ATTRIBUTE_UNUSED,
-                         mirror::Object* this_object ATTRIBUTE_UNUSED,
+                         Handle<mirror::Object> this_object ATTRIBUTE_UNUSED,
                          ArtMethod* method,
                          uint32_t dex_pc,
                          ArtField* field ATTRIBUTE_UNUSED,
@@ -771,8 +771,10 @@ void Trace::FieldWritten(Thread* thread ATTRIBUTE_UNUSED,
              << " " << dex_pc;
 }
 
-void Trace::MethodEntered(Thread* thread, mirror::Object* this_object ATTRIBUTE_UNUSED,
-                          ArtMethod* method, uint32_t dex_pc ATTRIBUTE_UNUSED) {
+void Trace::MethodEntered(Thread* thread,
+                          Handle<mirror::Object> this_object ATTRIBUTE_UNUSED,
+                          ArtMethod* method,
+                          uint32_t dex_pc ATTRIBUTE_UNUSED) {
   uint32_t thread_clock_diff = 0;
   uint32_t wall_clock_diff = 0;
   ReadClocks(thread, &thread_clock_diff, &wall_clock_diff);
@@ -780,8 +782,10 @@ void Trace::MethodEntered(Thread* thread, mirror::Object* this_object ATTRIBUTE_
                       thread_clock_diff, wall_clock_diff);
 }
 
-void Trace::MethodExited(Thread* thread, mirror::Object* this_object ATTRIBUTE_UNUSED,
-                         ArtMethod* method, uint32_t dex_pc ATTRIBUTE_UNUSED,
+void Trace::MethodExited(Thread* thread,
+                         Handle<mirror::Object> this_object ATTRIBUTE_UNUSED,
+                         ArtMethod* method,
+                         uint32_t dex_pc ATTRIBUTE_UNUSED,
                          const JValue& return_value ATTRIBUTE_UNUSED) {
   uint32_t thread_clock_diff = 0;
   uint32_t wall_clock_diff = 0;
@@ -790,8 +794,10 @@ void Trace::MethodExited(Thread* thread, mirror::Object* this_object ATTRIBUTE_U
                       thread_clock_diff, wall_clock_diff);
 }
 
-void Trace::MethodUnwind(Thread* thread, mirror::Object* this_object ATTRIBUTE_UNUSED,
-                         ArtMethod* method, uint32_t dex_pc ATTRIBUTE_UNUSED) {
+void Trace::MethodUnwind(Thread* thread,
+                         Handle<mirror::Object> this_object ATTRIBUTE_UNUSED,
+                         ArtMethod* method,
+                         uint32_t dex_pc ATTRIBUTE_UNUSED) {
   uint32_t thread_clock_diff = 0;
   uint32_t wall_clock_diff = 0;
   ReadClocks(thread, &thread_clock_diff, &wall_clock_diff);
@@ -800,7 +806,7 @@ void Trace::MethodUnwind(Thread* thread, mirror::Object* this_object ATTRIBUTE_U
 }
 
 void Trace::ExceptionCaught(Thread* thread ATTRIBUTE_UNUSED,
-                            mirror::Throwable* exception_object ATTRIBUTE_UNUSED)
+                            Handle<mirror::Throwable> exception_object ATTRIBUTE_UNUSED)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   LOG(ERROR) << "Unexpected exception caught event in tracing";
 }
@@ -812,7 +818,7 @@ void Trace::Branch(Thread* /*thread*/, ArtMethod* method,
 }
 
 void Trace::InvokeVirtualOrInterface(Thread*,
-                                     mirror::Object*,
+                                     Handle<mirror::Object>,
                                      ArtMethod* method,
                                      uint32_t dex_pc,
                                      ArtMethod*) {

@@ -27,6 +27,7 @@
 #include "modifiers.h"
 #include "obj_ptr.h"
 #include "offsets.h"
+#include "primitive.h"
 #include "read_barrier_option.h"
 
 namespace art {
@@ -568,6 +569,8 @@ class ArtMethod FINAL {
   const DexFile::ClassDef& GetClassDef() REQUIRES_SHARED(Locks::mutator_lock_);
 
   const char* GetReturnTypeDescriptor() REQUIRES_SHARED(Locks::mutator_lock_);
+
+  ALWAYS_INLINE Primitive::Type GetReturnTypePrimitive() REQUIRES_SHARED(Locks::mutator_lock_);
 
   const char* GetTypeDescriptorFromTypeIdx(dex::TypeIndex type_idx)
       REQUIRES_SHARED(Locks::mutator_lock_);

@@ -23,11 +23,13 @@
 #include "dex_file.h"
 #include "gc/scoped_gc_critical_section.h"
 #include "handle_scope-inl.h"
+#include "jni_internal.h"
 #include "jvalue.h"
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread_list.h"
-#include "thread-current-inl.h"
+#include "thread-inl.h"
+#include "well_known_classes.h"
 
 namespace art {
 namespace instrumentation {
@@ -35,16 +37,22 @@ namespace instrumentation {
 class TestInstrumentationListener FINAL : public instrumentation::InstrumentationListener {
  public:
   TestInstrumentationListener()
-    : received_method_enter_event(false), received_method_exit_event(false),
-      received_method_unwind_event(false), received_dex_pc_moved_event(false),
-      received_field_read_event(false), received_field_written_event(false),
-      received_exception_caught_event(false), received_branch_event(false),
+    : received_method_enter_event(false),
+      received_method_exit_event(false),
+      received_method_exit_object_event(false),
+      received_method_unwind_event(false),
+      received_dex_pc_moved_event(false),
+      received_field_read_event(false),
+      received_field_written_event(false),
+      received_field_written_object_event(false),
+      received_exception_caught_event(false),
+      received_branch_event(false),
       received_invoke_virtual_or_interface_event(false) {}
 
   virtual ~TestInstrumentationListener() {}
 
   void MethodEntered(Thread* thread ATTRIBUTE_UNUSED,
-                     mirror::Object* this_object ATTRIBUTE_UNUSED,
+                     Handle<mirror::Object> this_object ATTRIBUTE_UNUSED,
                      ArtMethod* method ATTRIBUTE_UNUSED,
                      uint32_t dex_pc ATTRIBUTE_UNUSED)
       OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -52,7 +60,16 @@ class TestInstrumentationListener FINAL : public instrumentation::Instrumentatio
   }
 
   void MethodExited(Thread* thread ATTRIBUTE_UNUSED,
-                    mirror::Object* this_object ATTRIBUTE_UNUSED,
+                    Handle<mirror::Object> this_object ATTRIBUTE_UNUSED,
+                    ArtMethod* method ATTRIBUTE_UNUSED,
+                    uint32_t dex_pc ATTRIBUTE_UNUSED,
+                    Handle<mirror::Object> return_value ATTRIBUTE_UNUSED)
+      OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
+    received_method_exit_object_event = true;
+  }
+
+  void MethodExited(Thread* thread ATTRIBUTE_UNUSED,
+                    Handle<mirror::Object> this_object ATTRIBUTE_UNUSED,
                     ArtMethod* method ATTRIBUTE_UNUSED,
                     uint32_t dex_pc ATTRIBUTE_UNUSED,
                     const JValue& return_value ATTRIBUTE_UNUSED)
@@ -61,7 +78,7 @@ class TestInstrumentationListener FINAL : public instrumentation::Instrumentatio
   }
 
   void MethodUnwind(Thread* thread ATTRIBUTE_UNUSED,
-                    mirror::Object* this_object ATTRIBUTE_UNUSED,
+                    Handle<mirror::Object> this_object ATTRIBUTE_UNUSED,
                     ArtMethod* method ATTRIBUTE_UNUSED,
                     uint32_t dex_pc ATTRIBUTE_UNUSED)
       OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -69,7 +86,7 @@ class TestInstrumentationListener FINAL : public instrumentation::Instrumentatio
   }
 
   void DexPcMoved(Thread* thread ATTRIBUTE_UNUSED,
-                  mirror::Object* this_object ATTRIBUTE_UNUSED,
+                  Handle<mirror::Object> this_object ATTRIBUTE_UNUSED,
                   ArtMethod* method ATTRIBUTE_UNUSED,
                   uint32_t new_dex_pc ATTRIBUTE_UNUSED)
       OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -77,7 +94,7 @@ class TestInstrumentationListener FINAL : public instrumentation::Instrumentatio
   }
 
   void FieldRead(Thread* thread ATTRIBUTE_UNUSED,
-                 mirror::Object* this_object ATTRIBUTE_UNUSED,
+                 Handle<mirror::Object> this_object ATTRIBUTE_UNUSED,
                  ArtMethod* method ATTRIBUTE_UNUSED,
                  uint32_t dex_pc ATTRIBUTE_UNUSED,
                  ArtField* field ATTRIBUTE_UNUSED)
@@ -86,7 +103,17 @@ class TestInstrumentationListener FINAL : public instrumentation::Instrumentatio
   }
 
   void FieldWritten(Thread* thread ATTRIBUTE_UNUSED,
-                    mirror::Object* this_object ATTRIBUTE_UNUSED,
+                    Handle<mirror::Object> this_object ATTRIBUTE_UNUSED,
+                    ArtMethod* method ATTRIBUTE_UNUSED,
+                    uint32_t dex_pc ATTRIBUTE_UNUSED,
+                    ArtField* field ATTRIBUTE_UNUSED,
+                    Handle<mirror::Object> field_value ATTRIBUTE_UNUSED)
+      OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
+    received_field_written_object_event = true;
+  }
+
+  void FieldWritten(Thread* thread ATTRIBUTE_UNUSED,
+                    Handle<mirror::Object> this_object ATTRIBUTE_UNUSED,
                     ArtMethod* method ATTRIBUTE_UNUSED,
                     uint32_t dex_pc ATTRIBUTE_UNUSED,
                     ArtField* field ATTRIBUTE_UNUSED,
@@ -96,7 +123,7 @@ class TestInstrumentationListener FINAL : public instrumentation::Instrumentatio
   }
 
   void ExceptionCaught(Thread* thread ATTRIBUTE_UNUSED,
-                       mirror::Throwable* exception_object ATTRIBUTE_UNUSED)
+                       Handle<mirror::Throwable> exception_object ATTRIBUTE_UNUSED)
       OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     received_exception_caught_event = true;
   }
@@ -110,7 +137,7 @@ class TestInstrumentationListener FINAL : public instrumentation::Instrumentatio
   }
 
   void InvokeVirtualOrInterface(Thread* thread ATTRIBUTE_UNUSED,
-                                mirror::Object* this_object ATTRIBUTE_UNUSED,
+                                Handle<mirror::Object> this_object ATTRIBUTE_UNUSED,
                                 ArtMethod* caller ATTRIBUTE_UNUSED,
                                 uint32_t dex_pc ATTRIBUTE_UNUSED,
                                 ArtMethod* callee ATTRIBUTE_UNUSED)
@@ -121,10 +148,12 @@ class TestInstrumentationListener FINAL : public instrumentation::Instrumentatio
   void Reset() {
     received_method_enter_event = false;
     received_method_exit_event = false;
+    received_method_exit_object_event = false;
     received_method_unwind_event = false;
     received_dex_pc_moved_event = false;
     received_field_read_event = false;
     received_field_written_event = false;
+    received_field_written_object_event = false;
     received_exception_caught_event = false;
     received_branch_event = false;
     received_invoke_virtual_or_interface_event = false;
@@ -132,10 +161,12 @@ class TestInstrumentationListener FINAL : public instrumentation::Instrumentatio
 
   bool received_method_enter_event;
   bool received_method_exit_event;
+  bool received_method_exit_object_event;
   bool received_method_unwind_event;
   bool received_dex_pc_moved_event;
   bool received_field_read_event;
   bool received_field_written_event;
+  bool received_field_written_object_event;
   bool received_exception_caught_event;
   bool received_branch_event;
   bool received_invoke_virtual_or_interface_event;
@@ -171,6 +202,13 @@ class InstrumentationTest : public CommonRuntimeTest {
   }
 
   void TestEvent(uint32_t instrumentation_event) {
+    TestEvent(instrumentation_event, nullptr, nullptr, false);
+  }
+
+  void TestEvent(uint32_t instrumentation_event,
+                 ArtMethod* event_method,
+                 ArtField* event_field,
+                 bool with_object) {
     ScopedObjectAccess soa(Thread::Current());
     instrumentation::Instrumentation* instr = Runtime::Current()->GetInstrumentation();
     TestInstrumentationListener listener;
@@ -180,15 +218,20 @@ class InstrumentationTest : public CommonRuntimeTest {
       instr->AddListener(&listener, instrumentation_event);
     }
 
-    ArtMethod* const event_method = nullptr;
     mirror::Object* const event_obj = nullptr;
     const uint32_t event_dex_pc = 0;
 
     // Check the listener is registered and is notified of the event.
     EXPECT_TRUE(HasEventListener(instr, instrumentation_event));
-    EXPECT_FALSE(DidListenerReceiveEvent(listener, instrumentation_event));
-    ReportEvent(instr, instrumentation_event, soa.Self(), event_method, event_obj, event_dex_pc);
-    EXPECT_TRUE(DidListenerReceiveEvent(listener, instrumentation_event));
+    EXPECT_FALSE(DidListenerReceiveEvent(listener, instrumentation_event, with_object));
+    ReportEvent(instr,
+                instrumentation_event,
+                soa.Self(),
+                event_method,
+                event_obj,
+                event_field,
+                event_dex_pc);
+    EXPECT_TRUE(DidListenerReceiveEvent(listener, instrumentation_event, with_object));
 
     listener.Reset();
     {
@@ -199,9 +242,15 @@ class InstrumentationTest : public CommonRuntimeTest {
 
     // Check the listener is not registered and is not notified of the event.
     EXPECT_FALSE(HasEventListener(instr, instrumentation_event));
-    EXPECT_FALSE(DidListenerReceiveEvent(listener, instrumentation_event));
-    ReportEvent(instr, instrumentation_event, soa.Self(), event_method, event_obj, event_dex_pc);
-    EXPECT_FALSE(DidListenerReceiveEvent(listener, instrumentation_event));
+    EXPECT_FALSE(DidListenerReceiveEvent(listener, instrumentation_event, with_object));
+    ReportEvent(instr,
+                instrumentation_event,
+                soa.Self(),
+                event_method,
+                event_obj,
+                event_field,
+                event_dex_pc);
+    EXPECT_FALSE(DidListenerReceiveEvent(listener, instrumentation_event, with_object));
   }
 
   void DeoptimizeMethod(Thread* self, ArtMethod* method, bool enable_deoptimization)
@@ -317,8 +366,12 @@ class InstrumentationTest : public CommonRuntimeTest {
     }
   }
 
-  static void ReportEvent(const instrumentation::Instrumentation* instr, uint32_t event_type,
-                          Thread* self, ArtMethod* method, mirror::Object* obj,
+  static void ReportEvent(const instrumentation::Instrumentation* instr,
+                          uint32_t event_type,
+                          Thread* self,
+                          ArtMethod* method,
+                          mirror::Object* obj,
+                          ArtField* field,
                           uint32_t dex_pc)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     switch (event_type) {
@@ -337,11 +390,11 @@ class InstrumentationTest : public CommonRuntimeTest {
         instr->DexPcMovedEvent(self, obj, method, dex_pc);
         break;
       case instrumentation::Instrumentation::kFieldRead:
-        instr->FieldReadEvent(self, obj, method, dex_pc, nullptr);
+        instr->FieldReadEvent(self, obj, method, dex_pc, field);
         break;
       case instrumentation::Instrumentation::kFieldWritten: {
         JValue value;
-        instr->FieldWriteEvent(self, obj, method, dex_pc, nullptr, value);
+        instr->FieldWriteEvent(self, obj, method, dex_pc, field, value);
         break;
       }
       case instrumentation::Instrumentation::kExceptionCaught: {
@@ -364,12 +417,14 @@ class InstrumentationTest : public CommonRuntimeTest {
   }
 
   static bool DidListenerReceiveEvent(const TestInstrumentationListener& listener,
-                                      uint32_t event_type) {
+                                      uint32_t event_type,
+                                      bool with_object) {
     switch (event_type) {
       case instrumentation::Instrumentation::kMethodEntered:
         return listener.received_method_enter_event;
       case instrumentation::Instrumentation::kMethodExited:
-        return listener.received_method_exit_event;
+        return (!with_object && listener.received_method_exit_event) ||
+            (with_object && listener.received_method_exit_object_event);
       case instrumentation::Instrumentation::kMethodUnwind:
         return listener.received_method_unwind_event;
       case instrumentation::Instrumentation::kDexPcMoved:
@@ -377,7 +432,8 @@ class InstrumentationTest : public CommonRuntimeTest {
       case instrumentation::Instrumentation::kFieldRead:
         return listener.received_field_read_event;
       case instrumentation::Instrumentation::kFieldWritten:
-        return listener.received_field_written_event;
+        return (!with_object && listener.received_field_written_event) ||
+            (with_object && listener.received_field_written_object_event);
       case instrumentation::Instrumentation::kExceptionCaught:
         return listener.received_exception_caught_event;
       case instrumentation::Instrumentation::kBranch:
@@ -419,8 +475,42 @@ TEST_F(InstrumentationTest, MethodEntryEvent) {
   TestEvent(instrumentation::Instrumentation::kMethodEntered);
 }
 
-TEST_F(InstrumentationTest, MethodExitEvent) {
-  TestEvent(instrumentation::Instrumentation::kMethodExited);
+TEST_F(InstrumentationTest, MethodExitObjectEvent) {
+  ScopedObjectAccess soa(Thread::Current());
+  jobject class_loader = LoadDex("Instrumentation");
+  Runtime* const runtime = Runtime::Current();
+  ClassLinker* class_linker = runtime->GetClassLinker();
+  StackHandleScope<1> hs(soa.Self());
+  Handle<mirror::ClassLoader> loader(hs.NewHandle(soa.Decode<mirror::ClassLoader>(class_loader)));
+  mirror::Class* klass = class_linker->FindClass(soa.Self(), "LInstrumentation;", loader);
+  ASSERT_TRUE(klass != nullptr);
+  ArtMethod* method = klass->FindDeclaredDirectMethod("returnReference",
+                                                      "()Ljava/lang/Object;",
+                                                      kRuntimePointerSize);
+  ASSERT_TRUE(method != nullptr);
+  TestEvent(instrumentation::Instrumentation::kMethodExited,
+            /*event_method*/ method,
+            /*event_field*/ nullptr,
+            /*with_object*/ true);
+}
+
+TEST_F(InstrumentationTest, MethodExitPrimEvent) {
+  ScopedObjectAccess soa(Thread::Current());
+  jobject class_loader = LoadDex("Instrumentation");
+  Runtime* const runtime = Runtime::Current();
+  ClassLinker* class_linker = runtime->GetClassLinker();
+  StackHandleScope<1> hs(soa.Self());
+  Handle<mirror::ClassLoader> loader(hs.NewHandle(soa.Decode<mirror::ClassLoader>(class_loader)));
+  mirror::Class* klass = class_linker->FindClass(soa.Self(), "LInstrumentation;", loader);
+  ASSERT_TRUE(klass != nullptr);
+  ArtMethod* method = klass->FindDeclaredDirectMethod("returnPrimitive",
+                                                      "()I",
+                                                      kRuntimePointerSize);
+  ASSERT_TRUE(method != nullptr);
+  TestEvent(instrumentation::Instrumentation::kMethodExited,
+            /*event_method*/ method,
+            /*event_field*/ nullptr,
+            /*with_object*/ false);
 }
 
 TEST_F(InstrumentationTest, MethodUnwindEvent) {
@@ -435,8 +525,40 @@ TEST_F(InstrumentationTest, FieldReadEvent) {
   TestEvent(instrumentation::Instrumentation::kFieldRead);
 }
 
-TEST_F(InstrumentationTest, FieldWriteEvent) {
-  TestEvent(instrumentation::Instrumentation::kFieldWritten);
+TEST_F(InstrumentationTest, FieldWriteObjectEvent) {
+  ScopedObjectAccess soa(Thread::Current());
+  jobject class_loader = LoadDex("Instrumentation");
+  Runtime* const runtime = Runtime::Current();
+  ClassLinker* class_linker = runtime->GetClassLinker();
+  StackHandleScope<1> hs(soa.Self());
+  Handle<mirror::ClassLoader> loader(hs.NewHandle(soa.Decode<mirror::ClassLoader>(class_loader)));
+  mirror::Class* klass = class_linker->FindClass(soa.Self(), "LInstrumentation;", loader);
+  ASSERT_TRUE(klass != nullptr);
+  ArtField* field = klass->FindDeclaredStaticField("referenceField", "Ljava/lang/Object;");
+  ASSERT_TRUE(field != nullptr);
+
+  TestEvent(instrumentation::Instrumentation::kFieldWritten,
+            /*event_method*/ nullptr,
+            /*event_field*/ field,
+            /*with_object*/ true);
+}
+
+TEST_F(InstrumentationTest, FieldWritePrimEvent) {
+  ScopedObjectAccess soa(Thread::Current());
+  jobject class_loader = LoadDex("Instrumentation");
+  Runtime* const runtime = Runtime::Current();
+  ClassLinker* class_linker = runtime->GetClassLinker();
+  StackHandleScope<1> hs(soa.Self());
+  Handle<mirror::ClassLoader> loader(hs.NewHandle(soa.Decode<mirror::ClassLoader>(class_loader)));
+  mirror::Class* klass = class_linker->FindClass(soa.Self(), "LInstrumentation;", loader);
+  ASSERT_TRUE(klass != nullptr);
+  ArtField* field = klass->FindDeclaredStaticField("primitiveField", "I");
+  ASSERT_TRUE(field != nullptr);
+
+  TestEvent(instrumentation::Instrumentation::kFieldWritten,
+            /*event_method*/ nullptr,
+            /*event_field*/ field,
+            /*with_object*/ false);
 }
 
 TEST_F(InstrumentationTest, ExceptionCaughtEvent) {
