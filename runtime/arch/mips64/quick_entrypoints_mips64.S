@@ -2067,7 +2067,29 @@ END art_quick_indexof
      */
 .macro READ_BARRIER_MARK_REG name, reg
 ENTRY \name
-    /* TODO: optimizations: mark bit, forwarding. */
+    // Null check so that we can load the lock word.
+    bnezc   \reg, .Lnot_null_\name
+    nop
+.Lret_rb_\name:
+    jic     $ra, 0
+.Lnot_null_\name:
+    // Check lock word for mark bit, if marked return.
+    lw      $t9, MIRROR_OBJECT_LOCK_WORD_OFFSET(\reg)
+    .set push
+    .set noat
+    sll     $at, $t9, 31 - LOCK_WORD_MARK_BIT_SHIFT     # Move mark bit to sign bit.
+    bltzc   $at, .Lret_rb_\name
+#if (LOCK_WORD_STATE_SHIFT != 30) || (LOCK_WORD_STATE_FORWARDING_ADDRESS != 3)
+    // The below code depends on the lock word state being in the highest bits
+    // and the "forwarding address" state having all bits set.
+#error "Unexpected lock word state shift or forwarding address state value."
+#endif
+    // Test that both the forwarding state bits are 1.
+    sll     $at, $t9, 1
+    and     $at, $at, $t9                               # Sign bit = 1 IFF both bits are 1.
+    bltzc   $at, .Lret_forwarding_address\name
+    .set pop
+
     daddiu  $sp, $sp, -320
     .cfi_adjust_cfa_offset 320
 
@@ -2202,6 +2224,13 @@ ENTRY \name
     jalr    $zero, $ra
     daddiu  $sp, $sp, 320
     .cfi_adjust_cfa_offset -320
+
+.Lret_forwarding_address\name:
+    // Shift left by the forwarding address shift. This clears out the state bits since they are
+    // in the top 2 bits of the lock word.
+    sll     \reg, $t9, LOCK_WORD_STATE_FORWARDING_ADDRESS_SHIFT
+    jalr    $zero, $ra
+    dext    \reg, \reg, 0, 32   # Make sure the address is zero-extended.
 END \name
 .endm
 
