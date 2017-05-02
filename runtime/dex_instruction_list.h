@@ -271,8 +271,8 @@
   V(0xF9, UNUSED_F9, "unused-f9", k10x, kIndexUnknown, 0, kVerifyError) \
   V(0xFA, INVOKE_POLYMORPHIC, "invoke-polymorphic", k45cc, kIndexMethodAndProtoRef, kContinue | kThrow | kInvoke, kVerifyRegBMethod | kVerifyVarArgNonZero | kVerifyRegHPrototype) \
   V(0xFB, INVOKE_POLYMORPHIC_RANGE, "invoke-polymorphic/range", k4rcc, kIndexMethodAndProtoRef, kContinue | kThrow | kInvoke, kVerifyRegBMethod | kVerifyVarArgRangeNonZero | kVerifyRegHPrototype) \
-  V(0xFC, INVOKE_CUSTOM, "invoke-custom", k35c, kIndexCallSiteRef, kContinue | kThrow, kVerifyRegBCallSite) \
-  V(0xFD, INVOKE_CUSTOM_RANGE, "invoke-custom/range", k3rc, kIndexCallSiteRef, kContinue | kThrow, kVerifyRegBCallSite) \
+  V(0xFC, INVOKE_CUSTOM, "invoke-custom", k35c, kIndexCallSiteRef, kContinue | kThrow, kVerifyRegBCallSite | kVerifyVarArg) \
+  V(0xFD, INVOKE_CUSTOM_RANGE, "invoke-custom/range", k3rc, kIndexCallSiteRef, kContinue | kThrow, kVerifyRegBCallSite | kVerifyVarArgRange) \
   V(0xFE, UNUSED_FE, "unused-fe", k10x, kIndexUnknown, 0, kVerifyError) \
   V(0xFF, UNUSED_FF, "unused-ff", k10x, kIndexUnknown, 0, kVerifyError)
 
