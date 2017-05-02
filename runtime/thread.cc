@@ -134,13 +134,6 @@ void UpdateReadBarrierEntrypoints(QuickEntryPoints* qpoints, bool is_marking);
 void Thread::SetIsGcMarkingAndUpdateEntrypoints(bool is_marking) {
   CHECK(kUseReadBarrier);
   tls32_.is_gc_marking = is_marking;
-  if (kUseReadBarrier && (kRuntimeISA == kX86_64 || kRuntimeISA == kX86)) {
-    // Disable entrypoint switching for X86 since we don't always check is_marking with the gray
-    // bit. This causes a race between GrayAllDirtyImmuneObjects and FlipThreadRoots where
-    // we may try to go slow path with a null entrypoint. The fix is to never do entrypoint
-    // switching for x86.
-    is_marking = true;
-  }
   UpdateReadBarrierEntrypoints(&tlsPtr_.quick_entrypoints, is_marking);
   ResetQuickAllocEntryPointsForThread(is_marking);
 }
