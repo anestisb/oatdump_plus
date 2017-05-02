@@ -49,6 +49,7 @@ INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
   bool TryDispatch(HInvoke* invoke);
 
  private:
+  CodeGeneratorMIPS* codegen_;
   ArenaAllocator* arena_;
 
   DISALLOW_COPY_AND_ASSIGN(IntrinsicLocationsBuilderMIPS);

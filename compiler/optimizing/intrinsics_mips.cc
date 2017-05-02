@@ -32,7 +32,7 @@ namespace art {
 namespace mips {
 
 IntrinsicLocationsBuilderMIPS::IntrinsicLocationsBuilderMIPS(CodeGeneratorMIPS* codegen)
-  : arena_(codegen->GetGraph()->GetArena()) {
+  : codegen_(codegen), arena_(codegen->GetGraph()->GetArena()) {
 }
 
 MipsAssembler* IntrinsicCodeGeneratorMIPS::GetAssembler() {
@@ -3133,6 +3133,89 @@ void IntrinsicCodeGeneratorMIPS::VisitSystemArrayCopyChar(HInvoke* invoke) {
   __ Bind(slow_path->GetExitLabel());
 }
 
+// long java.lang.Integer.valueOf(long)
+void IntrinsicLocationsBuilderMIPS::VisitIntegerValueOf(HInvoke* invoke) {
+  InvokeRuntimeCallingConvention calling_convention;
+  IntrinsicVisitor::ComputeIntegerValueOfLocations(
+      invoke,
+      codegen_,
+      calling_convention.GetReturnLocation(Primitive::kPrimNot),
+      Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitIntegerValueOf(HInvoke* invoke) {
+  IntrinsicVisitor::IntegerValueOfInfo info = IntrinsicVisitor::ComputeIntegerValueOfInfo();
+  LocationSummary* locations = invoke->GetLocations();
+  MipsAssembler* assembler = GetAssembler();
+  InstructionCodeGeneratorMIPS* icodegen =
+      down_cast<InstructionCodeGeneratorMIPS*>(codegen_->GetInstructionVisitor());
+
+  Register out = locations->Out().AsRegister<Register>();
+  InvokeRuntimeCallingConvention calling_convention;
+  if (invoke->InputAt(0)->IsConstant()) {
+    int32_t value = invoke->InputAt(0)->AsIntConstant()->GetValue();
+    if (value >= info.low && value <= info.high) {
+      // Just embed the j.l.Integer in the code.
+      ScopedObjectAccess soa(Thread::Current());
+      mirror::Object* boxed = info.cache->Get(value + (-info.low));
+      DCHECK(boxed != nullptr && Runtime::Current()->GetHeap()->ObjectIsInBootImageSpace(boxed));
+      uint32_t address = dchecked_integral_cast<uint32_t>(reinterpret_cast<uintptr_t>(boxed));
+      __ LoadConst32(out, address);
+    } else {
+      // Allocate and initialize a new j.l.Integer.
+      // TODO: If we JIT, we could allocate the j.l.Integer now, and store it in the
+      // JIT object table.
+      uint32_t address =
+          dchecked_integral_cast<uint32_t>(reinterpret_cast<uintptr_t>(info.integer));
+      __ LoadConst32(calling_convention.GetRegisterAt(0), address);
+      codegen_->InvokeRuntime(kQuickAllocObjectInitialized, invoke, invoke->GetDexPc());
+      CheckEntrypointTypes<kQuickAllocObjectWithChecks, void*, mirror::Class*>();
+      __ StoreConstToOffset(kStoreWord, value, out, info.value_offset, TMP);
+      // `value` is a final field :-( Ideally, we'd merge this memory barrier with the allocation
+      // one.
+      icodegen->GenerateMemoryBarrier(MemBarrierKind::kStoreStore);
+    }
+  } else {
+    Register in = locations->InAt(0).AsRegister<Register>();
+    MipsLabel allocate, done;
+    int32_t count = static_cast<uint32_t>(info.high) - info.low + 1;
+
+    // Is (info.low <= in) && (in <= info.high)?
+    __ Addiu32(out, in, -info.low);
+    // As unsigned quantities is out < (info.high - info.low + 1)?
+    if (IsInt<16>(count)) {
+      __ Sltiu(AT, out, count);
+    } else {
+      __ LoadConst32(AT, count);
+      __ Sltu(AT, out, AT);
+    }
+    // Branch if out >= (info.high - info.low + 1).
+    // This means that "in" is outside of the range [info.low, info.high].
+    __ Beqz(AT, &allocate);
+
+    // If the value is within the bounds, load the j.l.Integer directly from the array.
+    uint32_t data_offset = mirror::Array::DataOffset(kHeapReferenceSize).Uint32Value();
+    uint32_t address = dchecked_integral_cast<uint32_t>(reinterpret_cast<uintptr_t>(info.cache));
+    __ LoadConst32(TMP, data_offset + address);
+    __ ShiftAndAdd(out, out, TMP, TIMES_4);
+    __ Lw(out, out, 0);
+    __ MaybeUnpoisonHeapReference(out);
+    __ B(&done);
+
+    __ Bind(&allocate);
+    // Otherwise allocate and initialize a new j.l.Integer.
+    address = dchecked_integral_cast<uint32_t>(reinterpret_cast<uintptr_t>(info.integer));
+    __ LoadConst32(calling_convention.GetRegisterAt(0), address);
+    codegen_->InvokeRuntime(kQuickAllocObjectInitialized, invoke, invoke->GetDexPc());
+    CheckEntrypointTypes<kQuickAllocObjectWithChecks, void*, mirror::Class*>();
+    __ StoreToOffset(kStoreWord, in, out, info.value_offset);
+    // `value` is a final field :-( Ideally, we'd merge this memory barrier with the allocation
+    // one.
+    icodegen->GenerateMemoryBarrier(MemBarrierKind::kStoreStore);
+    __ Bind(&done);
+  }
+}
+
 // Unimplemented intrinsics.
 
 UNIMPLEMENTED_INTRINSIC(MIPS, MathCeil)
@@ -3161,8 +3244,6 @@ UNIMPLEMENTED_INTRINSIC(MIPS, UnsafeGetAndAddLong)
 UNIMPLEMENTED_INTRINSIC(MIPS, UnsafeGetAndSetInt)
 UNIMPLEMENTED_INTRINSIC(MIPS, UnsafeGetAndSetLong)
 UNIMPLEMENTED_INTRINSIC(MIPS, UnsafeGetAndSetObject)
-
-UNIMPLEMENTED_INTRINSIC(MIPS, IntegerValueOf)
 
 UNREACHABLE_INTRINSICS(MIPS)
 

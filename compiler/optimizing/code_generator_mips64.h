@@ -226,9 +226,10 @@ class InstructionCodeGeneratorMIPS64 : public InstructionCodeGenerator {
   // We switch to the table-based method starting with 7 cases.
   static constexpr uint32_t kPackedSwitchJumpTableThreshold = 6;
 
+  void GenerateMemoryBarrier(MemBarrierKind kind);
+
  private:
   void GenerateClassInitializationCheck(SlowPathCodeMIPS64* slow_path, GpuRegister class_reg);
-  void GenerateMemoryBarrier(MemBarrierKind kind);
   void GenerateSuspendCheck(HSuspendCheck* check, HBasicBlock* successor);
   void HandleBinaryOp(HBinaryOperation* operation);
   void HandleCondition(HCondition* instruction);
