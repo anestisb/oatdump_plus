@@ -849,24 +849,24 @@ OatFileAssistant::DexOptNeeded OatFileAssistant::OatFileInfo::GetDexOptNeeded(
     return kNoDexOptNeeded;
   }
 
-  if (oat_file_assistant_->HasOriginalDexFiles()) {
-    if (filter_okay && Status() == kOatRelocationOutOfDate) {
-      return kDex2OatForRelocation;
-    }
-
-    if (IsUseable()) {
-      return kDex2OatForFilter;
-    }
-
-    if (Status() == kOatBootImageOutOfDate) {
-      return kDex2OatForBootImage;
-    }
-
-    return kDex2OatFromScratch;
+  if (filter_okay && Status() == kOatRelocationOutOfDate) {
+    return kDex2OatForRelocation;
   }
 
-  // Otherwise there is nothing we can do, even if we want to.
-  return kNoDexOptNeeded;
+  if (IsUseable()) {
+    return kDex2OatForFilter;
+  }
+
+  if (Status() == kOatBootImageOutOfDate) {
+    return kDex2OatForBootImage;
+  }
+
+  if (oat_file_assistant_->HasOriginalDexFiles()) {
+    return kDex2OatFromScratch;
+  } else {
+    // Otherwise there is nothing we can do, even if we want to.
+    return kNoDexOptNeeded;
+  }
 }
 
 const OatFile* OatFileAssistant::OatFileInfo::GetFile() {
