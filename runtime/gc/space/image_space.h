@@ -159,6 +159,9 @@ class ImageSpace : public MemMapSpace {
 
   void DumpSections(std::ostream& os) const;
 
+  // De-initialize the image-space by undoing the effects in Init().
+  virtual ~ImageSpace();
+
  protected:
   // Tries to initialize an ImageSpace from the given image path, returning null on error.
   //
