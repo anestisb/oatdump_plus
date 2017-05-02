@@ -114,5 +114,8 @@ art_cc_test {
     defaults: [
         "art_gtest_defaults",
     ],
-    srcs: ["oatdump_test.cc"],
+    srcs: [
+        "oatdump_test.cc",
+        "oatdump_image_test.cc",
+    ],
 }
