@@ -200,7 +200,7 @@ bool CompilerOptions::ParseCompilerOption(const StringPiece& option, UsageFn Usa
     ParseDumpInitFailures(option, Usage);
   } else if (option.starts_with("--dump-cfg=")) {
     dump_cfg_file_name_ = option.substr(strlen("--dump-cfg=")).data();
-  } else if (option.starts_with("--dump-cfg-append")) {
+  } else if (option == "--dump-cfg-append") {
     dump_cfg_append_ = true;
   } else if (option.starts_with("--register-allocation-strategy=")) {
     ParseRegisterAllocationStrategy(option, Usage);
