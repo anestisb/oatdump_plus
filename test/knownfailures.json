@@ -108,18 +108,17 @@
                         "non-deterministic. Same for 913."]
     },
     {
-        "tests": "961-default-iface-resolution-gen",
+        "tests": ["961-default-iface-resolution-gen",
+                  "964-default-iface-init-gen",
+                  "968-default-partial-compile-gen"],
         "variant": "gcstress",
-        "description": ["961-default-iface-resolution-gen and",
-                        "964-default-iface-init-genare very long tests that",
+        "description": ["961-default-iface-resolution-gen,",
+                        "968-default-partial-compile-gen and",
+                        "964-default-iface-init-gen are very long tests that",
                         "often will take more than the timeout to run when",
                         "gcstress is enabled. This is because gcstress slows",
                         "down allocations significantly which these tests do a",
                         "lot."]
-    },
-    {
-        "tests": "964-default-iface-init-gen",
-        "variant": "gcstress"
     },
     {
         "tests": "154-gc-loop",
