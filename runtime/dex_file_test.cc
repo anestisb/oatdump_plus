@@ -171,6 +171,17 @@ static const char kRawDexBadMapOffset[] =
   "AAACAAAAnAAAAAYAAAABAAAArAAAAAEgAAABAAAAzAAAAAIgAAAFAAAA5AAAAAMgAAABAAAAEAEA"
   "AAAgAAABAAAAFQEAAAAQAAABAAAAIAEAAA==";
 
+static const char kRawDexDebugInfoLocalNullType[] =
+    "ZGV4CjAzNQA+Kwj2g6OZMH88OvK9Ey6ycdIsFCt18ED8AQAAcAAAAHhWNBIAAAAAAAAAAHQBAAAI"
+    "AAAAcAAAAAQAAACQAAAAAgAAAKAAAAAAAAAAAAAAAAMAAAC4AAAAAQAAANAAAAAMAQAA8AAAABwB"
+    "AAAkAQAALAEAAC8BAAA0AQAASAEAAEsBAABOAQAAAgAAAAMAAAAEAAAABQAAAAIAAAAAAAAAAAAA"
+    "AAUAAAADAAAAAAAAAAEAAQAAAAAAAQAAAAYAAAACAAEAAAAAAAEAAAABAAAAAgAAAAAAAAABAAAA"
+    "AAAAAGMBAAAAAAAAAQABAAEAAABUAQAABAAAAHAQAgAAAA4AAgABAAAAAABZAQAAAgAAABIQDwAG"
+    "PGluaXQ+AAZBLmphdmEAAUkAA0xBOwASTGphdmEvbGFuZy9PYmplY3Q7AAFWAAFhAAR0aGlzAAEA"
+    "Bw4AAwAHDh4DAAcAAAAAAQEAgYAE8AEBAIgCAAAACwAAAAAAAAABAAAAAAAAAAEAAAAIAAAAcAAA"
+    "AAIAAAAEAAAAkAAAAAMAAAACAAAAoAAAAAUAAAADAAAAuAAAAAYAAAABAAAA0AAAAAEgAAACAAAA"
+    "8AAAAAIgAAAIAAAAHAEAAAMgAAACAAAAVAEAAAAgAAABAAAAYwEAAAAQAAABAAAAdAEAAA==";
+
 static void DecodeAndWriteDexFile(const char* base64, const char* location) {
   // decode base64
   CHECK(base64 != nullptr);
@@ -596,6 +607,19 @@ TEST_F(DexFileTest, GetStringWithNoIndex) {
   std::unique_ptr<const DexFile> raw(OpenDexFileBase64(kRawDex, tmp.GetFilename().c_str()));
   dex::TypeIndex idx;
   EXPECT_EQ(raw->StringByTypeIdx(idx), nullptr);
+}
+
+static void Callback(void* context ATTRIBUTE_UNUSED,
+                     const DexFile::LocalInfo& entry ATTRIBUTE_UNUSED) {
+}
+
+TEST_F(DexFileTest, OpenDexDebugInfoLocalNullType) {
+  ScratchFile tmp;
+  std::unique_ptr<const DexFile> raw = OpenDexFileInMemoryBase64(
+      kRawDexDebugInfoLocalNullType, tmp.GetFilename().c_str(), 0xf25f2b38U, true);
+  const DexFile::ClassDef& class_def = raw->GetClassDef(0);
+  const DexFile::CodeItem* code_item = raw->GetCodeItem(raw->FindCodeItemOffset(class_def, 1));
+  ASSERT_TRUE(raw->DecodeDebugLocalInfo(code_item, true, 1, Callback, nullptr));
 }
 
 }  // namespace art
