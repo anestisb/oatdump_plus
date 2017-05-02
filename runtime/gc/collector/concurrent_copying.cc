@@ -163,12 +163,6 @@ void ConcurrentCopying::RunPhases() {
     ReaderMutexLock mu(self, *Locks::mutator_lock_);
     InitializePhase();
   }
-  if (kUseBakerReadBarrier && kGrayDirtyImmuneObjects) {
-    // Gray dirty immune objects concurrently to reduce GC pause times. We re-process gray cards in
-    // the pause.
-    ReaderMutexLock mu(self, *Locks::mutator_lock_);
-    GrayAllDirtyImmuneObjects();
-  }
   FlipThreadRoots();
   {
     ReaderMutexLock mu(self, *Locks::mutator_lock_);
@@ -358,12 +352,9 @@ class ConcurrentCopying::FlipCallback : public Closure {
     if (kVerifyNoMissingCardMarks) {
       cc->VerifyNoMissingCardMarks();
     }
-    CHECK_EQ(thread, self);
+    CHECK(thread == self);
     Locks::mutator_lock_->AssertExclusiveHeld(self);
-    {
-      TimingLogger::ScopedTiming split2("(Paused)SetFromSpace", cc->GetTimings());
-      cc->region_space_->SetFromSpace(cc->rb_table_, cc->force_evacuate_all_);
-    }
+    cc->region_space_->SetFromSpace(cc->rb_table_, cc->force_evacuate_all_);
     cc->SwapStacks();
     if (ConcurrentCopying::kEnableFromSpaceAccountingCheck) {
       cc->RecordLiveStackFreezeSize(self);
@@ -377,11 +368,11 @@ class ConcurrentCopying::FlipCallback : public Closure {
     }
     if (UNLIKELY(Runtime::Current()->IsActiveTransaction())) {
       CHECK(Runtime::Current()->IsAotCompiler());
-      TimingLogger::ScopedTiming split3("(Paused)VisitTransactionRoots", cc->GetTimings());
+      TimingLogger::ScopedTiming split2("(Paused)VisitTransactionRoots", cc->GetTimings());
       Runtime::Current()->VisitTransactionRoots(cc);
     }
     if (kUseBakerReadBarrier && kGrayDirtyImmuneObjects) {
-      cc->GrayAllNewlyDirtyImmuneObjects();
+      cc->GrayAllDirtyImmuneObjects();
       if (kIsDebugBuild) {
         // Check that all non-gray immune objects only refernce immune objects.
         cc->VerifyGrayImmuneObjects();
@@ -528,8 +519,8 @@ class ConcurrentCopying::VerifyNoMissingCardMarkVisitor {
 
 void ConcurrentCopying::VerifyNoMissingCardMarkCallback(mirror::Object* obj, void* arg) {
   auto* collector = reinterpret_cast<ConcurrentCopying*>(arg);
-  // Objects not on dirty or aged cards should never have references to newly allocated regions.
-  if (collector->heap_->GetCardTable()->GetCard(obj) == gc::accounting::CardTable::kCardClean) {
+  // Objects not on dirty cards should never have references to newly allocated regions.
+  if (!collector->heap_->GetCardTable()->IsDirty(obj)) {
     VerifyNoMissingCardMarkVisitor visitor(collector, /*holder*/ obj);
     obj->VisitReferences</*kVisitNativeRoots*/true, kVerifyNone, kWithoutReadBarrier>(
         visitor,
@@ -592,100 +583,53 @@ void ConcurrentCopying::FlipThreadRoots() {
   }
 }
 
-template <bool kConcurrent>
 class ConcurrentCopying::GrayImmuneObjectVisitor {
  public:
-  explicit GrayImmuneObjectVisitor(Thread* self) : self_(self) {}
+  explicit GrayImmuneObjectVisitor() {}
 
   ALWAYS_INLINE void operator()(mirror::Object* obj) const REQUIRES_SHARED(Locks::mutator_lock_) {
-    if (kUseBakerReadBarrier && obj->GetReadBarrierState() == ReadBarrier::WhiteState()) {
-      if (kConcurrent) {
-        Locks::mutator_lock_->AssertSharedHeld(self_);
-        obj->AtomicSetReadBarrierState(ReadBarrier::WhiteState(), ReadBarrier::GrayState());
-        // Mod union table VisitObjects may visit the same object multiple times so we can't check
-        // the result of the atomic set.
-      } else {
-        Locks::mutator_lock_->AssertExclusiveHeld(self_);
-        obj->SetReadBarrierState(ReadBarrier::GrayState());
+    if (kUseBakerReadBarrier) {
+      if (kIsDebugBuild) {
+        Locks::mutator_lock_->AssertExclusiveHeld(Thread::Current());
       }
+      obj->SetReadBarrierState(ReadBarrier::GrayState());
     }
   }
 
   static void Callback(mirror::Object* obj, void* arg) REQUIRES_SHARED(Locks::mutator_lock_) {
-    reinterpret_cast<GrayImmuneObjectVisitor<kConcurrent>*>(arg)->operator()(obj);
+    reinterpret_cast<GrayImmuneObjectVisitor*>(arg)->operator()(obj);
   }
-
- private:
-  Thread* const self_;
 };
 
 void ConcurrentCopying::GrayAllDirtyImmuneObjects() {
-  TimingLogger::ScopedTiming split("GrayAllDirtyImmuneObjects", GetTimings());
-  accounting::CardTable* const card_table = heap_->GetCardTable();
-  Thread* const self = Thread::Current();
-  using VisitorType = GrayImmuneObjectVisitor</* kIsConcurrent */ true>;
-  VisitorType visitor(self);
-  WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
+  TimingLogger::ScopedTiming split(__FUNCTION__, GetTimings());
+  gc::Heap* const heap = Runtime::Current()->GetHeap();
+  accounting::CardTable* const card_table = heap->GetCardTable();
+  WriterMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
   for (space::ContinuousSpace* space : immune_spaces_.GetSpaces()) {
     DCHECK(space->IsImageSpace() || space->IsZygoteSpace());
-    accounting::ModUnionTable* table = heap_->FindModUnionTableFromSpace(space);
+    GrayImmuneObjectVisitor visitor;
+    accounting::ModUnionTable* table = heap->FindModUnionTableFromSpace(space);
     // Mark all the objects on dirty cards since these may point to objects in other space.
     // Once these are marked, the GC will eventually clear them later.
     // Table is non null for boot image and zygote spaces. It is only null for application image
     // spaces.
     if (table != nullptr) {
+      // TODO: Consider adding precleaning outside the pause.
       table->ProcessCards();
-      table->VisitObjects(&VisitorType::Callback, &visitor);
-      // Don't clear cards here since we need to rescan in the pause. If we cleared the cards here,
-      // there would be races with the mutator marking new cards.
-    } else {
-      // Keep cards aged if we don't have a mod-union table since we may need to scan them in future
-      // GCs. This case is for app images.
-      card_table->ModifyCardsAtomic(
-          space->Begin(),
-          space->End(),
-          [](uint8_t card) {
-            return (card != gc::accounting::CardTable::kCardClean)
-                ? gc::accounting::CardTable::kCardAged
-                : card;
-          },
-          /* card modified visitor */ VoidFunctor());
-      card_table->Scan</* kClearCard */ false>(space->GetMarkBitmap(),
-                                               space->Begin(),
-                                               space->End(),
-                                               visitor,
-                                               gc::accounting::CardTable::kCardAged);
-    }
-  }
-}
-
-void ConcurrentCopying::GrayAllNewlyDirtyImmuneObjects() {
-  TimingLogger::ScopedTiming split("(Paused)GrayAllNewlyDirtyImmuneObjects", GetTimings());
-  accounting::CardTable* const card_table = heap_->GetCardTable();
-  using VisitorType = GrayImmuneObjectVisitor</* kIsConcurrent */ false>;
-  Thread* const self = Thread::Current();
-  VisitorType visitor(self);
-  WriterMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
-  for (space::ContinuousSpace* space : immune_spaces_.GetSpaces()) {
-    DCHECK(space->IsImageSpace() || space->IsZygoteSpace());
-    accounting::ModUnionTable* table = heap_->FindModUnionTableFromSpace(space);
-
-    // Don't need to scan aged cards since we did these before the pause. Note that scanning cards
-    // also handles the mod-union table cards.
-    card_table->Scan</* kClearCard */ false>(space->GetMarkBitmap(),
-                                             space->Begin(),
-                                             space->End(),
-                                             visitor,
-                                             gc::accounting::CardTable::kCardDirty);
-    if (table != nullptr) {
-      // Add the cards to the mod-union table so that we can clear cards to save RAM.
-      table->ProcessCards();
+      table->VisitObjects(GrayImmuneObjectVisitor::Callback, &visitor);
+      // Since the cards are recorded in the mod-union table and this is paused, we can clear
+      // the cards for the space (to madvise).
       TimingLogger::ScopedTiming split2("(Paused)ClearCards", GetTimings());
       card_table->ClearCardRange(space->Begin(),
                                  AlignDown(space->End(), accounting::CardTable::kCardSize));
+    } else {
+      // TODO: Consider having a mark bitmap for app image spaces and avoid scanning during the
+      // pause because app image spaces are all dirty pages anyways.
+      card_table->Scan<false>(space->GetMarkBitmap(), space->Begin(), space->End(), visitor);
     }
   }
-  // Since all of the objects that may point to other spaces are gray, we can avoid all the read
+  // Since all of the objects that may point to other spaces are marked, we can avoid all the read
   // barriers in the immune spaces.
   updated_all_immune_objects_.StoreRelaxed(true);
 }
@@ -714,7 +658,6 @@ class ConcurrentCopying::ImmuneSpaceScanObjVisitor {
 
   ALWAYS_INLINE void operator()(mirror::Object* obj) const REQUIRES_SHARED(Locks::mutator_lock_) {
     if (kUseBakerReadBarrier && kGrayDirtyImmuneObjects) {
-      // Only need to scan gray objects.
       if (obj->GetReadBarrierState() == ReadBarrier::GrayState()) {
         collector_->ScanImmuneObject(obj);
         // Done scanning the object, go back to white.
@@ -764,7 +707,6 @@ void ConcurrentCopying::MarkingPhase() {
       if (kUseBakerReadBarrier && kGrayDirtyImmuneObjects && table != nullptr) {
         table->VisitObjects(ImmuneSpaceScanObjVisitor::Callback, &visitor);
       } else {
-        // TODO: Scan only the aged cards.
         live_bitmap->VisitMarkedRange(reinterpret_cast<uintptr_t>(space->Begin()),
                                       reinterpret_cast<uintptr_t>(space->Limit()),
                                       visitor);

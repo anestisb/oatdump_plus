@@ -7177,10 +7177,10 @@ void InstructionCodeGeneratorX86::GenerateGcRootFieldLoad(
           instruction, root, /* unpoison_ref_before_marking */ false);
       codegen_->AddSlowPath(slow_path);
 
-      // Test if the GC is marking. Note that X86 and X86_64 don't switch the entrypoints when the
-      // GC is marking.
-      const int32_t is_marking_offset = Thread::IsGcMarkingOffset<kX86PointerSize>().Int32Value();
-      __ fs()->cmpl(Address::Absolute(is_marking_offset), Immediate(0));
+      // Test the entrypoint (`Thread::Current()->pReadBarrierMarkReg ## root.reg()`).
+      const int32_t entry_point_offset =
+          CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kX86PointerSize>(root.reg());
+      __ fs()->cmpl(Address::Absolute(entry_point_offset), Immediate(0));
       // The entrypoint is null when the GC is not marking.
       __ j(kNotEqual, slow_path->GetEntryLabel());
       __ Bind(slow_path->GetExitLabel());
