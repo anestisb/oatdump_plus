@@ -192,6 +192,24 @@ class HVecMemoryOperation : public HVecOperation {
   DISALLOW_COPY_AND_ASSIGN(HVecMemoryOperation);
 };
 
+// Packed type consistency checker (same vector length integral types may mix freely).
+inline static bool HasConsistentPackedTypes(HInstruction* input, Primitive::Type type) {
+  DCHECK(input->IsVecOperation());
+  Primitive::Type input_type = input->AsVecOperation()->GetPackedType();
+  switch (input_type) {
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimByte:
+      return type == Primitive::kPrimBoolean ||
+             type == Primitive::kPrimByte;
+    case Primitive::kPrimChar:
+    case Primitive::kPrimShort:
+      return type == Primitive::kPrimChar ||
+             type == Primitive::kPrimShort;
+    default:
+      return type == input_type;
+  }
+}
+
 //
 // Definitions of concrete unary vector operations in HIR.
 //
@@ -222,8 +240,7 @@ class HVecSumReduce FINAL : public HVecUnaryOperation {
                 size_t vector_length,
                 uint32_t dex_pc = kNoDexPc)
       : HVecUnaryOperation(arena, input, packed_type, vector_length, dex_pc) {
-    DCHECK(input->IsVecOperation());
-    DCHECK_EQ(input->AsVecOperation()->GetPackedType(), packed_type);
+    DCHECK(HasConsistentPackedTypes(input, packed_type));
   }
 
   // TODO: probably integral promotion
@@ -245,7 +262,7 @@ class HVecCnv FINAL : public HVecUnaryOperation {
           uint32_t dex_pc = kNoDexPc)
       : HVecUnaryOperation(arena, input, packed_type, vector_length, dex_pc) {
     DCHECK(input->IsVecOperation());
-    DCHECK_NE(input->AsVecOperation()->GetPackedType(), packed_type);  // actual convert
+    DCHECK_NE(GetInputType(), GetResultType());  // actual convert
   }
 
   Primitive::Type GetInputType() const { return InputAt(0)->AsVecOperation()->GetPackedType(); }
@@ -267,8 +284,7 @@ class HVecNeg FINAL : public HVecUnaryOperation {
           size_t vector_length,
           uint32_t dex_pc = kNoDexPc)
       : HVecUnaryOperation(arena, input, packed_type, vector_length, dex_pc) {
-    DCHECK(input->IsVecOperation());
-    DCHECK_EQ(input->AsVecOperation()->GetPackedType(), packed_type);
+    DCHECK(HasConsistentPackedTypes(input, packed_type));
   }
   DECLARE_INSTRUCTION(VecNeg);
  private:
@@ -285,8 +301,7 @@ class HVecAbs FINAL : public HVecUnaryOperation {
           size_t vector_length,
           uint32_t dex_pc = kNoDexPc)
       : HVecUnaryOperation(arena, input, packed_type, vector_length, dex_pc) {
-    DCHECK(input->IsVecOperation());
-    DCHECK_EQ(input->AsVecOperation()->GetPackedType(), packed_type);
+    DCHECK(HasConsistentPackedTypes(input, packed_type));
   }
   DECLARE_INSTRUCTION(VecAbs);
  private:
@@ -326,9 +341,8 @@ class HVecAdd FINAL : public HVecBinaryOperation {
           size_t vector_length,
           uint32_t dex_pc = kNoDexPc)
       : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc) {
-    DCHECK(left->IsVecOperation() && right->IsVecOperation());
-    DCHECK_EQ(left->AsVecOperation()->GetPackedType(), packed_type);
-    DCHECK_EQ(right->AsVecOperation()->GetPackedType(), packed_type);
+    DCHECK(HasConsistentPackedTypes(left, packed_type));
+    DCHECK(HasConsistentPackedTypes(right, packed_type));
   }
   DECLARE_INSTRUCTION(VecAdd);
  private:
@@ -350,9 +364,8 @@ class HVecHalvingAdd FINAL : public HVecBinaryOperation {
                  bool is_rounded,
                  uint32_t dex_pc = kNoDexPc)
       : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc) {
-    DCHECK(left->IsVecOperation() && right->IsVecOperation());
-    DCHECK_EQ(left->AsVecOperation()->GetPackedType(), packed_type);
-    DCHECK_EQ(right->AsVecOperation()->GetPackedType(), packed_type);
+    DCHECK(HasConsistentPackedTypes(left, packed_type));
+    DCHECK(HasConsistentPackedTypes(right, packed_type));
     SetPackedFlag<kFieldHAddIsUnsigned>(is_unsigned);
     SetPackedFlag<kFieldHAddIsRounded>(is_rounded);
   }
@@ -383,9 +396,8 @@ class HVecSub FINAL : public HVecBinaryOperation {
           size_t vector_length,
           uint32_t dex_pc = kNoDexPc)
       : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc) {
-    DCHECK(left->IsVecOperation() && right->IsVecOperation());
-    DCHECK_EQ(left->AsVecOperation()->GetPackedType(), packed_type);
-    DCHECK_EQ(right->AsVecOperation()->GetPackedType(), packed_type);
+    DCHECK(HasConsistentPackedTypes(left, packed_type));
+    DCHECK(HasConsistentPackedTypes(right, packed_type));
   }
   DECLARE_INSTRUCTION(VecSub);
  private:
@@ -403,9 +415,8 @@ class HVecMul FINAL : public HVecBinaryOperation {
           size_t vector_length,
           uint32_t dex_pc = kNoDexPc)
       : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc) {
-    DCHECK(left->IsVecOperation() && right->IsVecOperation());
-    DCHECK_EQ(left->AsVecOperation()->GetPackedType(), packed_type);
-    DCHECK_EQ(right->AsVecOperation()->GetPackedType(), packed_type);
+    DCHECK(HasConsistentPackedTypes(left, packed_type));
+    DCHECK(HasConsistentPackedTypes(right, packed_type));
   }
   DECLARE_INSTRUCTION(VecMul);
  private:
@@ -423,9 +434,8 @@ class HVecDiv FINAL : public HVecBinaryOperation {
           size_t vector_length,
           uint32_t dex_pc = kNoDexPc)
       : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc) {
-    DCHECK(left->IsVecOperation() && right->IsVecOperation());
-    DCHECK_EQ(left->AsVecOperation()->GetPackedType(), packed_type);
-    DCHECK_EQ(right->AsVecOperation()->GetPackedType(), packed_type);
+    DCHECK(HasConsistentPackedTypes(left, packed_type));
+    DCHECK(HasConsistentPackedTypes(right, packed_type));
   }
   DECLARE_INSTRUCTION(VecDiv);
  private:
@@ -443,9 +453,8 @@ class HVecMin FINAL : public HVecBinaryOperation {
           size_t vector_length,
           uint32_t dex_pc = kNoDexPc)
       : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc) {
-    DCHECK(left->IsVecOperation() && right->IsVecOperation());
-    DCHECK_EQ(left->AsVecOperation()->GetPackedType(), packed_type);
-    DCHECK_EQ(right->AsVecOperation()->GetPackedType(), packed_type);
+    DCHECK(HasConsistentPackedTypes(left, packed_type));
+    DCHECK(HasConsistentPackedTypes(right, packed_type));
   }
   DECLARE_INSTRUCTION(VecMin);
  private:
@@ -463,9 +472,8 @@ class HVecMax FINAL : public HVecBinaryOperation {
           size_t vector_length,
           uint32_t dex_pc = kNoDexPc)
       : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc) {
-    DCHECK(left->IsVecOperation() && right->IsVecOperation());
-    DCHECK_EQ(left->AsVecOperation()->GetPackedType(), packed_type);
-    DCHECK_EQ(right->AsVecOperation()->GetPackedType(), packed_type);
+    DCHECK(HasConsistentPackedTypes(left, packed_type));
+    DCHECK(HasConsistentPackedTypes(right, packed_type));
   }
   DECLARE_INSTRUCTION(VecMax);
  private:
@@ -555,8 +563,7 @@ class HVecShl FINAL : public HVecBinaryOperation {
           size_t vector_length,
           uint32_t dex_pc = kNoDexPc)
       : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc) {
-    DCHECK(left->IsVecOperation());
-    DCHECK_EQ(left->AsVecOperation()->GetPackedType(), packed_type);
+    DCHECK(HasConsistentPackedTypes(left, packed_type));
   }
   DECLARE_INSTRUCTION(VecShl);
  private:
@@ -574,8 +581,7 @@ class HVecShr FINAL : public HVecBinaryOperation {
           size_t vector_length,
           uint32_t dex_pc = kNoDexPc)
       : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc) {
-    DCHECK(left->IsVecOperation());
-    DCHECK_EQ(left->AsVecOperation()->GetPackedType(), packed_type);
+    DCHECK(HasConsistentPackedTypes(left, packed_type));
   }
   DECLARE_INSTRUCTION(VecShr);
  private:
@@ -593,8 +599,7 @@ class HVecUShr FINAL : public HVecBinaryOperation {
            size_t vector_length,
            uint32_t dex_pc = kNoDexPc)
       : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc) {
-    DCHECK(left->IsVecOperation());
-    DCHECK_EQ(left->AsVecOperation()->GetPackedType(), packed_type);
+    DCHECK(HasConsistentPackedTypes(left, packed_type));
   }
   DECLARE_INSTRUCTION(VecUShr);
  private:
@@ -650,12 +655,9 @@ class HVecMultiplyAccumulate FINAL : public HVecOperation {
                       dex_pc),
         op_kind_(op) {
     DCHECK(op == InstructionKind::kAdd || op == InstructionKind::kSub);
-    DCHECK(accumulator->IsVecOperation());
-    DCHECK(mul_left->IsVecOperation() && mul_right->IsVecOperation());
-    DCHECK_EQ(accumulator->AsVecOperation()->GetPackedType(), packed_type);
-    DCHECK_EQ(mul_left->AsVecOperation()->GetPackedType(), packed_type);
-    DCHECK_EQ(mul_right->AsVecOperation()->GetPackedType(), packed_type);
-
+    DCHECK(HasConsistentPackedTypes(accumulator, packed_type));
+    DCHECK(HasConsistentPackedTypes(mul_left, packed_type));
+    DCHECK(HasConsistentPackedTypes(mul_right, packed_type));
     SetRawInputAt(kInputAccumulatorIndex, accumulator);
     SetRawInputAt(kInputMulLeftIndex, mul_left);
     SetRawInputAt(kInputMulRightIndex, mul_right);
@@ -733,8 +735,7 @@ class HVecStore FINAL : public HVecMemoryOperation {
                             /* number_of_inputs */ 3,
                             vector_length,
                             dex_pc) {
-    DCHECK(value->IsVecOperation());
-    DCHECK_EQ(value->AsVecOperation()->GetPackedType(), packed_type);
+    DCHECK(HasConsistentPackedTypes(value, packed_type));
     SetRawInputAt(0, base);
     SetRawInputAt(1, index);
     SetRawInputAt(2, value);
