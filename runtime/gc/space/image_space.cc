@@ -1695,6 +1695,29 @@ bool ImageSpace::LoadBootImage(const std::string& image_file_name,
   return true;
 }
 
+ImageSpace::~ImageSpace() {
+  Runtime* runtime = Runtime::Current();
+  if (runtime == nullptr) {
+    return;
+  }
+
+  if (GetImageHeader().IsAppImage()) {
+    // This image space did not modify resolution method then in Init.
+    return;
+  }
+
+  if (!runtime->HasResolutionMethod()) {
+    // Another image space has already unloaded the below methods.
+    return;
+  }
+
+  runtime->ClearInstructionSet();
+  runtime->ClearResolutionMethod();
+  runtime->ClearImtConflictMethod();
+  runtime->ClearImtUnimplementedMethod();
+  runtime->ClearCalleeSaveMethods();
+}
+
 std::unique_ptr<ImageSpace> ImageSpace::CreateFromAppImage(const char* image,
                                                            const OatFile* oat_file,
                                                            std::string* error_msg) {
