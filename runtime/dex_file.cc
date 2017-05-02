@@ -1044,7 +1044,7 @@ bool DexFile::DecodeDebugLocalInfo(const CodeItem* code_item, bool is_static, ui
         }
 
         uint32_t name_idx = DecodeUnsignedLeb128P1(&stream);
-        uint32_t descriptor_idx = DecodeUnsignedLeb128P1(&stream);
+        uint16_t descriptor_idx = DecodeUnsignedLeb128P1(&stream);
         uint32_t signature_idx = kDexNoIndex;
         if (opcode == DBG_START_LOCAL_EXTENDED) {
           signature_idx = DecodeUnsignedLeb128P1(&stream);
