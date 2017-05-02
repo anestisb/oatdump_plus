@@ -335,7 +335,7 @@ static JdwpError VM_CapabilitiesNew(JdwpState*, Request* request, ExpandBuf* rep
   expandBufAdd1(reply, false);   // canUnrestrictedlyRedefineClasses
   expandBufAdd1(reply, false);   // canPopFrames
   expandBufAdd1(reply, true);    // canUseInstanceFilters
-  expandBufAdd1(reply, false);   // canGetSourceDebugExtension
+  expandBufAdd1(reply, true);    // canGetSourceDebugExtension
   expandBufAdd1(reply, false);   // canRequestVMDeathEvent
   expandBufAdd1(reply, false);   // canSetDefaultStratum
   expandBufAdd1(reply, true);    // 1.6: canGetInstanceInfo
@@ -499,13 +499,18 @@ static JdwpError RT_ClassObject(JdwpState*, Request* request, ExpandBuf* pReply)
 
 /*
  * Returns the value of the SourceDebugExtension attribute.
- *
- * JDB seems interested, but DEX files don't currently support this.
  */
-static JdwpError RT_SourceDebugExtension(JdwpState*, Request*, ExpandBuf*)
+static JdwpError RT_SourceDebugExtension(JdwpState*, Request* request, ExpandBuf* pReply)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   /* referenceTypeId in, string out */
-  return ERR_ABSENT_INFORMATION;
+  RefTypeId refTypeId = request->ReadRefTypeId();
+  std::string extension_data;
+  JdwpError status = Dbg::GetSourceDebugExtension(refTypeId, &extension_data);
+  if (status != ERR_NONE) {
+    return status;
+  }
+  expandBufAddUtf8String(pReply, extension_data);
+  return ERR_NONE;
 }
 
 static JdwpError RT_Signature(JdwpState*, Request* request, ExpandBuf* pReply, bool with_generic)
