@@ -129,12 +129,12 @@ static void UnimplementedEntryPoint() {
 }
 
 void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints);
-void UpdateReadBarrierEntrypoints(QuickEntryPoints* qpoints, bool is_marking);
+void UpdateReadBarrierEntrypoints(QuickEntryPoints* qpoints, bool is_active);
 
 void Thread::SetIsGcMarkingAndUpdateEntrypoints(bool is_marking) {
   CHECK(kUseReadBarrier);
   tls32_.is_gc_marking = is_marking;
-  UpdateReadBarrierEntrypoints(&tlsPtr_.quick_entrypoints, is_marking);
+  UpdateReadBarrierEntrypoints(&tlsPtr_.quick_entrypoints, /* is_active */ is_marking);
   ResetQuickAllocEntryPointsForThread(is_marking);
 }
 
@@ -3602,6 +3602,11 @@ mirror::Object* Thread::GetPeerFromOtherThread() const {
     peer = art::ReadBarrier::Mark(peer);
   }
   return peer;
+}
+
+void Thread::SetReadBarrierEntrypoints() {
+  // Make sure entrypoints aren't null.
+  UpdateReadBarrierEntrypoints(&tlsPtr_.quick_entrypoints, /* is_active*/ true);
 }
 
 }  // namespace art

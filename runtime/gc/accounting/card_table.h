@@ -51,6 +51,7 @@ class CardTable {
   static constexpr size_t kCardSize = 1 << kCardShift;
   static constexpr uint8_t kCardClean = 0x0;
   static constexpr uint8_t kCardDirty = 0x70;
+  static constexpr uint8_t kCardAged = kCardDirty - 1;
 
   static CardTable* Create(const uint8_t* heap_begin, size_t heap_capacity);
   ~CardTable();

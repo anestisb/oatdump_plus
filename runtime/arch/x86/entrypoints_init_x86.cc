@@ -44,14 +44,14 @@ extern "C" mirror::Object* art_quick_read_barrier_mark_reg07(mirror::Object*);
 extern "C" mirror::Object* art_quick_read_barrier_slow(mirror::Object*, mirror::Object*, uint32_t);
 extern "C" mirror::Object* art_quick_read_barrier_for_root_slow(GcRoot<mirror::Object>*);
 
-void UpdateReadBarrierEntrypoints(QuickEntryPoints* qpoints, bool is_marking) {
-  qpoints->pReadBarrierMarkReg00 = is_marking ? art_quick_read_barrier_mark_reg00 : nullptr;
-  qpoints->pReadBarrierMarkReg01 = is_marking ? art_quick_read_barrier_mark_reg01 : nullptr;
-  qpoints->pReadBarrierMarkReg02 = is_marking ? art_quick_read_barrier_mark_reg02 : nullptr;
-  qpoints->pReadBarrierMarkReg03 = is_marking ? art_quick_read_barrier_mark_reg03 : nullptr;
-  qpoints->pReadBarrierMarkReg05 = is_marking ? art_quick_read_barrier_mark_reg05 : nullptr;
-  qpoints->pReadBarrierMarkReg06 = is_marking ? art_quick_read_barrier_mark_reg06 : nullptr;
-  qpoints->pReadBarrierMarkReg07 = is_marking ? art_quick_read_barrier_mark_reg07 : nullptr;
+void UpdateReadBarrierEntrypoints(QuickEntryPoints* qpoints, bool is_active) {
+  qpoints->pReadBarrierMarkReg00 = is_active ? art_quick_read_barrier_mark_reg00 : nullptr;
+  qpoints->pReadBarrierMarkReg01 = is_active ? art_quick_read_barrier_mark_reg01 : nullptr;
+  qpoints->pReadBarrierMarkReg02 = is_active ? art_quick_read_barrier_mark_reg02 : nullptr;
+  qpoints->pReadBarrierMarkReg03 = is_active ? art_quick_read_barrier_mark_reg03 : nullptr;
+  qpoints->pReadBarrierMarkReg05 = is_active ? art_quick_read_barrier_mark_reg05 : nullptr;
+  qpoints->pReadBarrierMarkReg06 = is_active ? art_quick_read_barrier_mark_reg06 : nullptr;
+  qpoints->pReadBarrierMarkReg07 = is_active ? art_quick_read_barrier_mark_reg07 : nullptr;
 }
 
 void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
@@ -97,7 +97,7 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
 
   // Read barrier.
   qpoints->pReadBarrierJni = ReadBarrierJni;
-  UpdateReadBarrierEntrypoints(qpoints, /*is_marking*/ false);
+  UpdateReadBarrierEntrypoints(qpoints, /*is_active*/ false);
   qpoints->pReadBarrierMarkReg04 = nullptr;  // Cannot use register 4 (ESP) to pass arguments.
   // x86 has only 8 core registers.
   qpoints->pReadBarrierMarkReg08 = nullptr;

@@ -1387,13 +1387,14 @@ void ThreadList::Register(Thread* self) {
   CHECK(!Contains(self));
   list_.push_back(self);
   if (kUseReadBarrier) {
+    gc::collector::ConcurrentCopying* const cc =
+        Runtime::Current()->GetHeap()->ConcurrentCopyingCollector();
     // Initialize according to the state of the CC collector.
-    bool is_gc_marking =
-        Runtime::Current()->GetHeap()->ConcurrentCopyingCollector()->IsMarking();
-    self->SetIsGcMarkingAndUpdateEntrypoints(is_gc_marking);
-    bool weak_ref_access_enabled =
-        Runtime::Current()->GetHeap()->ConcurrentCopyingCollector()->IsWeakRefAccessEnabled();
-    self->SetWeakRefAccessEnabled(weak_ref_access_enabled);
+    self->SetIsGcMarkingAndUpdateEntrypoints(cc->IsMarking());
+    if (cc->IsUsingReadBarrierEntrypoints()) {
+      self->SetReadBarrierEntrypoints();
+    }
+    self->SetWeakRefAccessEnabled(cc->IsWeakRefAccessEnabled());
   }
 }
 
