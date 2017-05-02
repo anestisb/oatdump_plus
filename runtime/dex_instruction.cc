@@ -515,6 +515,30 @@ std::string Instruction::DumpString(const DexFile* file) const {
   return os.str();
 }
 
+// Add some checks that ensure the flags make sense. We need a subclass to be in the context of
+// Instruction. Otherwise the flags from the instruction list don't work.
+struct InstructionStaticAsserts : private Instruction {
+  #define IMPLIES(a, b) (!(a) || (b))
+
+  #define VAR_ARGS_CHECK(o, c, pname, f, i, a, v) \
+    static_assert(IMPLIES((f) == k35c || (f) == k45cc, \
+                          ((v) & (kVerifyVarArg | kVerifyVarArgNonZero)) != 0), \
+                  "Missing var-arg verification");
+  #include "dex_instruction_list.h"
+    DEX_INSTRUCTION_LIST(VAR_ARGS_CHECK)
+  #undef DEX_INSTRUCTION_LIST
+  #undef VAR_ARGS_CHECK
+
+  #define VAR_ARGS_RANGE_CHECK(o, c, pname, f, i, a, v) \
+    static_assert(IMPLIES((f) == k3rc || (f) == k4rcc, \
+                          ((v) & (kVerifyVarArgRange | kVerifyVarArgRangeNonZero)) != 0), \
+                  "Missing var-arg verification");
+  #include "dex_instruction_list.h"
+    DEX_INSTRUCTION_LIST(VAR_ARGS_RANGE_CHECK)
+  #undef DEX_INSTRUCTION_LIST
+  #undef VAR_ARGS_RANGE_CHECK
+};
+
 std::ostream& operator<<(std::ostream& os, const Instruction::Code& code) {
   return os << Instruction::Name(code);
 }
