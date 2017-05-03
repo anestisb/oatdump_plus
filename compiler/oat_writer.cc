@@ -1675,7 +1675,7 @@ bool OatWriter::VisitDexMethods(DexMethodVisitor* visitor) {
       if (UNLIKELY(!visitor->StartClass(dex_file, class_def_index))) {
         return false;
       }
-      if (compiler_driver_->GetCompilerOptions().IsAnyMethodCompilationEnabled()) {
+      if (compiler_driver_->GetCompilerOptions().IsAnyCompilationEnabled()) {
         const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
         const uint8_t* class_data = dex_file->GetClassData(class_def);
         if (class_data != nullptr) {  // ie not an empty class, such as a marker interface
@@ -1757,7 +1757,7 @@ size_t OatWriter::InitOatClasses(size_t offset) {
 }
 
 size_t OatWriter::InitOatMaps(size_t offset) {
-  if (!compiler_driver_->GetCompilerOptions().IsAnyMethodCompilationEnabled()) {
+  if (!compiler_driver_->GetCompilerOptions().IsAnyCompilationEnabled()) {
     return offset;
   }
   {
@@ -1813,7 +1813,7 @@ size_t OatWriter::InitOatCode(size_t offset) {
 }
 
 size_t OatWriter::InitOatCodeDexFiles(size_t offset) {
-  if (!compiler_driver_->GetCompilerOptions().IsAnyMethodCompilationEnabled()) {
+  if (!compiler_driver_->GetCompilerOptions().IsAnyCompilationEnabled()) {
     return offset;
   }
   InitCodeMethodVisitor code_visitor(this, offset, vdex_quickening_info_offset_);
@@ -1982,7 +1982,7 @@ bool OatWriter::WriteQuickeningInfo(OutputStream* vdex_out) {
     return false;
   }
 
-  if (compiler_driver_->GetCompilerOptions().IsAnyMethodCompilationEnabled()) {
+  if (compiler_driver_->GetCompilerOptions().IsAnyCompilationEnabled()) {
     WriteQuickeningInfoMethodVisitor visitor(this, vdex_out, start_offset);
     if (!VisitDexMethods(&visitor)) {
       PLOG(ERROR) << "Failed to write the vdex quickening info. File: " << vdex_out->GetLocation();

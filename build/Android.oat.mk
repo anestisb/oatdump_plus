@@ -56,11 +56,11 @@ define create-core-oat-host-rules
     core_dex2oat_dependency := $(DEX2OAT)
   endif
   ifeq ($(1),interpreter)
-    core_compile_options += --compiler-filter=interpret-only
+    core_compile_options += --compiler-filter=quicken
     core_infix := -interpreter
   endif
   ifeq ($(1),interp-ac)
-    core_compile_options += --compiler-filter=verify-at-runtime --runtime-arg -Xverify:softfail
+    core_compile_options += --compiler-filter=extract --runtime-arg -Xverify:softfail
     core_infix := -interp-ac
   endif
   ifneq ($(filter-out interpreter interp-ac optimizing,$(1)),)
@@ -166,11 +166,11 @@ define create-core-oat-target-rules
     core_dex2oat_dependency := $(DEX2OAT)
   endif
   ifeq ($(1),interpreter)
-    core_compile_options += --compiler-filter=interpret-only
+    core_compile_options += --compiler-filter=quicken
     core_infix := -interpreter
   endif
   ifeq ($(1),interp-ac)
-    core_compile_options += --compiler-filter=verify-at-runtime --runtime-arg -Xverify:softfail
+    core_compile_options += --compiler-filter=extract --runtime-arg -Xverify:softfail
     core_infix := -interp-ac
   endif
   ifneq ($(filter-out interpreter interp-ac optimizing,$(1)),)

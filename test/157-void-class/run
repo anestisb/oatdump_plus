@@ -14,9 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Let the test build its own core image with --no-image and use verify-profile,
+# Let the test build its own core image with --no-image and use verify,
 # so that the compiler does not try to initialize classes. This leaves the
 # java.lang.Void compile-time verified but uninitialized.
 ./default-run "$@" --no-image \
     --runtime-option -Ximage-compiler-option \
-    --runtime-option --compiler-filter=verify-profile
+    --runtime-option --compiler-filter=verify

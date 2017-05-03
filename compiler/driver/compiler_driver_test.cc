@@ -325,7 +325,7 @@ TEST_F(CompilerDriverProfileTest, ProfileGuidedCompilation) {
 class CompilerDriverVerifyTest : public CompilerDriverTest {
  protected:
   CompilerFilter::Filter GetCompilerFilter() const OVERRIDE {
-    return CompilerFilter::kVerifyProfile;
+    return CompilerFilter::kVerify;
   }
 
   void CheckVerifiedClass(jobject class_loader, const std::string& clazz) const {

@@ -46,17 +46,17 @@ function find_libdir() {
   fi
 }
 
-function replace_compiler_filter_with_interepret_only() {
-  ARGS_WITH_INTERPRET_ONLY=("$@")
+function replace_compiler_filter_with_quicken() {
+  ARGS_WITH_QUICKEN=("$@")
 
   found="false"
   ((index=0))
   while ((index <= $#)); do
-    what="${ARGS_WITH_INTERPRET_ONLY[$index]}"
+    what="${ARGS_WITH_QUICKEN[$index]}"
 
     case "$what" in
       --compiler-filter=*)
-        ARGS_WITH_INTERPRET_ONLY[$index]="--compiler-filter=interpret-only"
+        ARGS_WITH_QUICKEN[$index]="--compiler-filter=quicken"
         found="true"
         ;;
     esac
@@ -65,7 +65,7 @@ function replace_compiler_filter_with_interepret_only() {
     shift
   done
   if [ "$found" != "true" ]; then
-    ARGS_WITH_INTERPRET_ONLY=(-Xcompiler-option --compiler-filter=interpret-only "${ARGS_WITH_INTERPRET_ONLY[@]}")
+    ARGS_WITH_QUICKEN=(-Xcompiler-option --compiler-filter=quicken "${ARGS_WITH_QUICKEN[@]}")
   fi
 }
 
@@ -224,10 +224,10 @@ if [ "$JIT_PROFILE" = "yes" ]; then
   PROFILE_PATH="$ANDROID_DATA/primary.prof"
   touch $PROFILE_PATH
 
-  # Replace the compiler filter with interpret-only so that we
+  # Replace the compiler filter with quicken so that we
   # can capture the profile.
-  ARGS_WITH_INTERPRET_ONLY=
-  replace_compiler_filter_with_interepret_only "$@"
+  ARGS_WITH_QUICKEN=
+  replace_compiler_filter_with_quicken "$@"
 
   run_art -Xjitsaveprofilinginfo               \
           -Xps-min-methods-to-save:1           \
@@ -235,7 +235,7 @@ if [ "$JIT_PROFILE" = "yes" ]; then
           -Xps-min-notification-before-wake:10 \
           -Xps-profile-path:$PROFILE_PATH      \
           -Xusejit:true                        \
-          "${ARGS_WITH_INTERPRET_ONLY[@]}"     \
+          "${ARGS_WITH_QUICKEN[@]}"            \
           "&>" "$ANDROID_DATA/profile_gen.log"
   EXIT_STATUS=$?
 

@@ -519,7 +519,7 @@ TEST_F(OatTest, EmptyTextSection) {
   if (insn_set == kArm) insn_set = kThumb2;
   std::string error_msg;
   std::vector<std::string> compiler_options;
-  compiler_options.push_back("--compiler-filter=verify-at-runtime");
+  compiler_options.push_back("--compiler-filter=extract");
   SetupCompiler(compiler_kind, insn_set, compiler_options, /*out*/ &error_msg);
 
   jobject class_loader;
