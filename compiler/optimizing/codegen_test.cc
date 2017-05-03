@@ -754,7 +754,28 @@ TEST_F(CodegenTest, ARM64ParallelMoveResolverB34760542) {
   //
   //   Assertion failed (!available->IsEmpty())
   //
-  // in vixl::aarch64::UseScratchRegisterScope::AcquireNextAvailable.
+  // in vixl::aarch64::UseScratchRegisterScope::AcquireNextAvailable,
+  // because of the following situation:
+  //
+  //   1. a temp register (IP0) is allocated as a scratch register by
+  //      the parallel move resolver to solve a cycle (swap):
+  //
+  //        [ source=DS0 destination=DS257 type=PrimDouble instruction=null ]
+  //        [ source=DS257 destination=DS0 type=PrimDouble instruction=null ]
+  //
+  //   2. within CodeGeneratorARM64::MoveLocation, another temp
+  //      register (IP1) is allocated to generate the swap between two
+  //      double stack slots;
+  //
+  //   3. VIXL requires a third temp register to emit the `Ldr` or
+  //      `Str` operation from CodeGeneratorARM64::MoveLocation (as
+  //      one of the stack slots' offsets cannot be encoded as an
+  //      immediate), but the pool of (core) temp registers is now
+  //      empty.
+  //
+  // The solution used so far is to use a floating-point temp register
+  // (D31) in step #2, so that IP1 is available for step #3.
+
   HParallelMove* move = new (graph->GetArena()) HParallelMove(graph->GetArena());
   move->AddMove(Location::DoubleStackSlot(0),
                 Location::DoubleStackSlot(257),
@@ -807,7 +828,6 @@ TEST_F(CodegenTest, ARM64ParallelMoveResolverSIMD) {
   InternalCodeAllocator code_allocator;
   codegen.Finalize(&code_allocator);
 }
-
 #endif
 
 #ifdef ART_ENABLE_CODEGEN_mips
