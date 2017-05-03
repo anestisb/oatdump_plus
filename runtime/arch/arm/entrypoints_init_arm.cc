@@ -67,19 +67,19 @@ extern "C" int __aeabi_idivmod(int32_t, int32_t);  // [DIV|REM]_INT[_2ADDR|_LIT8
 // Long long arithmetics - REM_LONG[_2ADDR] and DIV_LONG[_2ADDR]
 extern "C" int64_t __aeabi_ldivmod(int64_t, int64_t);
 
-void UpdateReadBarrierEntrypoints(QuickEntryPoints* qpoints, bool is_marking) {
-  qpoints->pReadBarrierMarkReg00 = is_marking ? art_quick_read_barrier_mark_reg00 : nullptr;
-  qpoints->pReadBarrierMarkReg01 = is_marking ? art_quick_read_barrier_mark_reg01 : nullptr;
-  qpoints->pReadBarrierMarkReg02 = is_marking ? art_quick_read_barrier_mark_reg02 : nullptr;
-  qpoints->pReadBarrierMarkReg03 = is_marking ? art_quick_read_barrier_mark_reg03 : nullptr;
-  qpoints->pReadBarrierMarkReg04 = is_marking ? art_quick_read_barrier_mark_reg04 : nullptr;
-  qpoints->pReadBarrierMarkReg05 = is_marking ? art_quick_read_barrier_mark_reg05 : nullptr;
-  qpoints->pReadBarrierMarkReg06 = is_marking ? art_quick_read_barrier_mark_reg06 : nullptr;
-  qpoints->pReadBarrierMarkReg07 = is_marking ? art_quick_read_barrier_mark_reg07 : nullptr;
-  qpoints->pReadBarrierMarkReg08 = is_marking ? art_quick_read_barrier_mark_reg08 : nullptr;
-  qpoints->pReadBarrierMarkReg09 = is_marking ? art_quick_read_barrier_mark_reg09 : nullptr;
-  qpoints->pReadBarrierMarkReg10 = is_marking ? art_quick_read_barrier_mark_reg10 : nullptr;
-  qpoints->pReadBarrierMarkReg11 = is_marking ? art_quick_read_barrier_mark_reg11 : nullptr;
+void UpdateReadBarrierEntrypoints(QuickEntryPoints* qpoints, bool is_active) {
+  qpoints->pReadBarrierMarkReg00 = is_active ? art_quick_read_barrier_mark_reg00 : nullptr;
+  qpoints->pReadBarrierMarkReg01 = is_active ? art_quick_read_barrier_mark_reg01 : nullptr;
+  qpoints->pReadBarrierMarkReg02 = is_active ? art_quick_read_barrier_mark_reg02 : nullptr;
+  qpoints->pReadBarrierMarkReg03 = is_active ? art_quick_read_barrier_mark_reg03 : nullptr;
+  qpoints->pReadBarrierMarkReg04 = is_active ? art_quick_read_barrier_mark_reg04 : nullptr;
+  qpoints->pReadBarrierMarkReg05 = is_active ? art_quick_read_barrier_mark_reg05 : nullptr;
+  qpoints->pReadBarrierMarkReg06 = is_active ? art_quick_read_barrier_mark_reg06 : nullptr;
+  qpoints->pReadBarrierMarkReg07 = is_active ? art_quick_read_barrier_mark_reg07 : nullptr;
+  qpoints->pReadBarrierMarkReg08 = is_active ? art_quick_read_barrier_mark_reg08 : nullptr;
+  qpoints->pReadBarrierMarkReg09 = is_active ? art_quick_read_barrier_mark_reg09 : nullptr;
+  qpoints->pReadBarrierMarkReg10 = is_active ? art_quick_read_barrier_mark_reg10 : nullptr;
+  qpoints->pReadBarrierMarkReg11 = is_active ? art_quick_read_barrier_mark_reg11 : nullptr;
 }
 
 void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
@@ -138,7 +138,7 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
 
   // Read barrier.
   qpoints->pReadBarrierJni = ReadBarrierJni;
-  UpdateReadBarrierEntrypoints(qpoints, /*is_marking*/ false);
+  UpdateReadBarrierEntrypoints(qpoints, /*is_active*/ false);
   qpoints->pReadBarrierMarkReg12 = nullptr;  // Cannot use register 12 (IP) to pass arguments.
   qpoints->pReadBarrierMarkReg13 = nullptr;  // Cannot use register 13 (SP) to pass arguments.
   qpoints->pReadBarrierMarkReg14 = nullptr;  // Cannot use register 14 (LR) to pass arguments.

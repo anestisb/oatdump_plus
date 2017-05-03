@@ -152,7 +152,8 @@ inline mirror::Object* ConcurrentCopying::Mark(mirror::Object* from_ref,
 
 inline mirror::Object* ConcurrentCopying::MarkFromReadBarrier(mirror::Object* from_ref) {
   mirror::Object* ret;
-  if (from_ref == nullptr) {
+  // We can get here before marking starts since we gray immune objects before the marking phase.
+  if (from_ref == nullptr || !Thread::Current()->GetIsGcMarking()) {
     return from_ref;
   }
   // TODO: Consider removing this check when we are done investigating slow paths. b/30162165

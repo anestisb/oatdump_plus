@@ -118,6 +118,11 @@ class ConcurrentCopying : public GarbageCollector {
   bool IsMarking() const {
     return is_marking_;
   }
+  // We may want to use read barrier entrypoints before is_marking_ is true since concurrent graying
+  // creates a small window where we might dispatch on these entrypoints.
+  bool IsUsingReadBarrierEntrypoints() const {
+    return is_using_read_barrier_entrypoints_;
+  }
   bool IsActive() const {
     return is_active_;
   }
@@ -163,6 +168,9 @@ class ConcurrentCopying : public GarbageCollector {
   void ProcessMarkStackRef(mirror::Object* to_ref) REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!mark_stack_lock_);
   void GrayAllDirtyImmuneObjects()
+      REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!mark_stack_lock_);
+  void GrayAllNewlyDirtyImmuneObjects()
       REQUIRES(Locks::mutator_lock_)
       REQUIRES(!mark_stack_lock_);
   void VerifyGrayImmuneObjects()
@@ -252,6 +260,8 @@ class ConcurrentCopying : public GarbageCollector {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!mark_stack_lock_, !skipped_blocks_lock_, !immune_gray_stack_lock_);
   void DumpPerformanceInfo(std::ostream& os) OVERRIDE REQUIRES(!rb_slow_path_histogram_lock_);
+  // Set the read barrier mark entrypoints to non-null.
+  void ActivateReadBarrierEntrypoints();
 
   space::RegionSpace* region_space_;      // The underlying region space.
   std::unique_ptr<Barrier> gc_barrier_;
@@ -268,6 +278,8 @@ class ConcurrentCopying : public GarbageCollector {
       GUARDED_BY(mark_stack_lock_);
   Thread* thread_running_gc_;
   bool is_marking_;                       // True while marking is ongoing.
+  // True while we might dispatch on the read barrier entrypoints.
+  bool is_using_read_barrier_entrypoints_;
   bool is_active_;                        // True while the collection is ongoing.
   bool is_asserting_to_space_invariant_;  // True while asserting the to-space invariant.
   ImmuneSpaces immune_spaces_;
@@ -330,6 +342,8 @@ class ConcurrentCopying : public GarbageCollector {
   // ObjPtr since the GC may transition to suspended and runnable between phases.
   mirror::Class* java_lang_Object_;
 
+  class ActivateReadBarrierEntrypointsCallback;
+  class ActivateReadBarrierEntrypointsCheckpoint;
   class AssertToSpaceInvariantFieldVisitor;
   class AssertToSpaceInvariantObjectVisitor;
   class AssertToSpaceInvariantRefsVisitor;
@@ -339,7 +353,7 @@ class ConcurrentCopying : public GarbageCollector {
   class DisableMarkingCheckpoint;
   class DisableWeakRefAccessCallback;
   class FlipCallback;
-  class GrayImmuneObjectVisitor;
+  template <bool kConcurrent> class GrayImmuneObjectVisitor;
   class ImmuneSpaceScanObjVisitor;
   class LostCopyVisitor;
   class RefFieldsVisitor;
