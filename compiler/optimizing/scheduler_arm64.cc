@@ -16,6 +16,7 @@
 
 #include "scheduler_arm64.h"
 #include "code_generator_utils.h"
+#include "mirror/array-inl.h"
 
 namespace art {
 namespace arm64 {
@@ -41,6 +42,13 @@ void SchedulingLatencyVisitorARM64::VisitIntermediateAddress(
   // Although the code generated is a simple `add` instruction, we found through empirical results
   // that spacing it from its use in memory accesses was beneficial.
   last_visited_latency_ = kArm64IntegerOpLatency + 2;
+}
+
+void SchedulingLatencyVisitorARM64::VisitIntermediateAddressIndex(
+    HIntermediateAddressIndex* instr ATTRIBUTE_UNUSED) {
+  // Although the code generated is a simple `add` instruction, we found through empirical results
+  // that spacing it from its use in memory accesses was beneficial.
+  last_visited_latency_ = kArm64DataProcWithShifterOpLatency + 2;
 }
 
 void SchedulingLatencyVisitorARM64::VisitMultiplyAccumulate(HMultiplyAccumulate* ATTRIBUTE_UNUSED) {
@@ -190,6 +198,149 @@ void SchedulingLatencyVisitorARM64::VisitTypeConversion(HTypeConversion* instr) 
   } else {
     last_visited_latency_ = kArm64IntegerOpLatency;
   }
+}
+
+void SchedulingLatencyVisitorARM64::HandleSimpleArithmeticSIMD(HVecOperation *instr) {
+  if (Primitive::IsFloatingPointType(instr->GetPackedType())) {
+    last_visited_latency_ = kArm64SIMDFloatingPointOpLatency;
+  } else {
+    last_visited_latency_ = kArm64SIMDIntegerOpLatency;
+  }
+}
+
+void SchedulingLatencyVisitorARM64::VisitVecReplicateScalar(
+    HVecReplicateScalar* instr ATTRIBUTE_UNUSED) {
+  last_visited_latency_ = kArm64SIMDReplicateOpLatency;
+}
+
+void SchedulingLatencyVisitorARM64::VisitVecSetScalars(HVecSetScalars* instr) {
+  LOG(FATAL) << "Unsupported SIMD instruction " << instr->GetId();
+}
+
+void SchedulingLatencyVisitorARM64::VisitVecSumReduce(HVecSumReduce* instr) {
+  LOG(FATAL) << "Unsupported SIMD instruction " << instr->GetId();
+}
+
+void SchedulingLatencyVisitorARM64::VisitVecCnv(HVecCnv* instr ATTRIBUTE_UNUSED) {
+  last_visited_latency_ = kArm64SIMDTypeConversionInt2FPLatency;
+}
+
+void SchedulingLatencyVisitorARM64::VisitVecNeg(HVecNeg* instr) {
+  HandleSimpleArithmeticSIMD(instr);
+}
+
+void SchedulingLatencyVisitorARM64::VisitVecAbs(HVecAbs* instr) {
+  HandleSimpleArithmeticSIMD(instr);
+}
+
+void SchedulingLatencyVisitorARM64::VisitVecNot(HVecNot* instr) {
+  if (instr->GetPackedType() == Primitive::kPrimBoolean) {
+    last_visited_internal_latency_ = kArm64SIMDIntegerOpLatency;
+  }
+  last_visited_latency_ = kArm64SIMDIntegerOpLatency;
+}
+
+void SchedulingLatencyVisitorARM64::VisitVecAdd(HVecAdd* instr) {
+  HandleSimpleArithmeticSIMD(instr);
+}
+
+void SchedulingLatencyVisitorARM64::VisitVecHalvingAdd(HVecHalvingAdd* instr) {
+  HandleSimpleArithmeticSIMD(instr);
+}
+
+void SchedulingLatencyVisitorARM64::VisitVecSub(HVecSub* instr) {
+  HandleSimpleArithmeticSIMD(instr);
+}
+
+void SchedulingLatencyVisitorARM64::VisitVecMul(HVecMul* instr) {
+  if (Primitive::IsFloatingPointType(instr->GetPackedType())) {
+    last_visited_latency_ = kArm64SIMDMulFloatingPointLatency;
+  } else {
+    last_visited_latency_ = kArm64SIMDMulIntegerLatency;
+  }
+}
+
+void SchedulingLatencyVisitorARM64::VisitVecDiv(HVecDiv* instr) {
+  if (instr->GetPackedType() == Primitive::kPrimFloat) {
+    last_visited_latency_ = kArm64SIMDDivFloatLatency;
+  } else {
+    DCHECK(instr->GetPackedType() == Primitive::kPrimDouble);
+    last_visited_latency_ = kArm64SIMDDivDoubleLatency;
+  }
+}
+
+void SchedulingLatencyVisitorARM64::VisitVecMin(HVecMin* instr) {
+  HandleSimpleArithmeticSIMD(instr);
+}
+
+void SchedulingLatencyVisitorARM64::VisitVecMax(HVecMax* instr) {
+  HandleSimpleArithmeticSIMD(instr);
+}
+
+void SchedulingLatencyVisitorARM64::VisitVecAnd(HVecAnd* instr ATTRIBUTE_UNUSED) {
+  last_visited_latency_ = kArm64SIMDIntegerOpLatency;
+}
+
+void SchedulingLatencyVisitorARM64::VisitVecAndNot(HVecAndNot* instr) {
+  LOG(FATAL) << "Unsupported SIMD instruction " << instr->GetId();
+}
+
+void SchedulingLatencyVisitorARM64::VisitVecOr(HVecOr* instr ATTRIBUTE_UNUSED) {
+  last_visited_latency_ = kArm64SIMDIntegerOpLatency;
+}
+
+void SchedulingLatencyVisitorARM64::VisitVecXor(HVecXor* instr ATTRIBUTE_UNUSED) {
+  last_visited_latency_ = kArm64SIMDIntegerOpLatency;
+}
+
+void SchedulingLatencyVisitorARM64::VisitVecShl(HVecShl* instr) {
+  HandleSimpleArithmeticSIMD(instr);
+}
+
+void SchedulingLatencyVisitorARM64::VisitVecShr(HVecShr* instr) {
+  HandleSimpleArithmeticSIMD(instr);
+}
+
+void SchedulingLatencyVisitorARM64::VisitVecUShr(HVecUShr* instr) {
+  HandleSimpleArithmeticSIMD(instr);
+}
+
+void SchedulingLatencyVisitorARM64::VisitVecMultiplyAccumulate(
+    HVecMultiplyAccumulate* instr ATTRIBUTE_UNUSED) {
+  last_visited_latency_ = kArm64SIMDMulIntegerLatency;
+}
+
+void SchedulingLatencyVisitorARM64::HandleVecAddress(
+    HVecMemoryOperation* instruction,
+    size_t size ATTRIBUTE_UNUSED) {
+  HInstruction* index = instruction->InputAt(1);
+  if (!index->IsConstant()) {
+    last_visited_internal_latency_ += kArm64DataProcWithShifterOpLatency;
+  }
+}
+
+void SchedulingLatencyVisitorARM64::VisitVecLoad(HVecLoad* instr) {
+  last_visited_internal_latency_ = 0;
+  size_t size = Primitive::ComponentSize(instr->GetPackedType());
+
+  if (instr->GetPackedType() == Primitive::kPrimChar
+      && mirror::kUseStringCompression
+      && instr->IsStringCharAt()) {
+    // Set latencies for the uncompressed case.
+    last_visited_internal_latency_ += kArm64MemoryLoadLatency + kArm64BranchLatency;
+    HandleVecAddress(instr, size);
+    last_visited_latency_ = kArm64SIMDMemoryLoadLatency;
+  } else {
+    HandleVecAddress(instr, size);
+    last_visited_latency_ = kArm64SIMDMemoryLoadLatency;
+  }
+}
+
+void SchedulingLatencyVisitorARM64::VisitVecStore(HVecStore* instr) {
+  last_visited_internal_latency_ = 0;
+  size_t size = Primitive::ComponentSize(instr->GetPackedType());
+  HandleVecAddress(instr, size);
+  last_visited_latency_ = kArm64SIMDMemoryStoreLatency;
 }
 
 }  // namespace arm64
