@@ -2057,6 +2057,15 @@ void InstructionCodeGeneratorX86::VisitDoubleConstant(HDoubleConstant* constant 
   // Will be generated at use site.
 }
 
+void LocationsBuilderX86::VisitConstructorFence(HConstructorFence* constructor_fence) {
+  constructor_fence->SetLocations(nullptr);
+}
+
+void InstructionCodeGeneratorX86::VisitConstructorFence(
+    HConstructorFence* constructor_fence ATTRIBUTE_UNUSED) {
+  codegen_->GenerateMemoryBarrier(MemBarrierKind::kStoreStore);
+}
+
 void LocationsBuilderX86::VisitMemoryBarrier(HMemoryBarrier* memory_barrier) {
   memory_barrier->SetLocations(nullptr);
 }

@@ -3067,6 +3067,15 @@ void InstructionCodeGeneratorARM::VisitDoubleConstant(HDoubleConstant* constant 
   // Will be generated at use site.
 }
 
+void LocationsBuilderARM::VisitConstructorFence(HConstructorFence* constructor_fence) {
+  constructor_fence->SetLocations(nullptr);
+}
+
+void InstructionCodeGeneratorARM::VisitConstructorFence(
+    HConstructorFence* constructor_fence ATTRIBUTE_UNUSED) {
+  codegen_->GenerateMemoryBarrier(MemBarrierKind::kStoreStore);
+}
+
 void LocationsBuilderARM::VisitMemoryBarrier(HMemoryBarrier* memory_barrier) {
   memory_barrier->SetLocations(nullptr);
 }

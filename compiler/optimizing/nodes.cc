@@ -528,6 +528,15 @@ HCurrentMethod* HGraph::GetCurrentMethod() {
   return cached_current_method_;
 }
 
+const char* HGraph::GetMethodName() const {
+  const DexFile::MethodId& method_id = dex_file_.GetMethodId(method_idx_);
+  return dex_file_.GetMethodName(method_id);
+}
+
+std::string HGraph::PrettyMethod(bool with_signature) const {
+  return dex_file_.PrettyMethod(method_idx_, with_signature);
+}
+
 HConstant* HGraph::GetConstant(Primitive::Type type, int64_t value, uint32_t dex_pc) {
   switch (type) {
     case Primitive::Type::kPrimBoolean:
@@ -1147,6 +1156,81 @@ void HVariableInputSizeInstruction::RemoveInputAt(size_t index) {
   for (size_t i = index, e = inputs_.size(); i < e; ++i) {
     DCHECK_EQ(inputs_[i].GetUseNode()->GetIndex(), i + 1u);
     inputs_[i].GetUseNode()->SetIndex(i);
+  }
+}
+
+void HVariableInputSizeInstruction::RemoveAllInputs() {
+  RemoveAsUserOfAllInputs();
+  DCHECK(!HasNonEnvironmentUses());
+
+  inputs_.clear();
+  DCHECK_EQ(0u, InputCount());
+}
+
+void HConstructorFence::RemoveConstructorFences(HInstruction* instruction) {
+  DCHECK(instruction->GetBlock() != nullptr);
+  // Removing constructor fences only makes sense for instructions with an object return type.
+  DCHECK_EQ(Primitive::kPrimNot, instruction->GetType());
+
+  // Efficient implementation that simultaneously (in one pass):
+  // * Scans the uses list for all constructor fences.
+  // * Deletes that constructor fence from the uses list of `instruction`.
+  // * Deletes `instruction` from the constructor fence's inputs.
+  // * Deletes the constructor fence if it now has 0 inputs.
+
+  const HUseList<HInstruction*>& uses = instruction->GetUses();
+  // Warning: Although this is "const", we might mutate the list when calling RemoveInputAt.
+  for (auto it = uses.begin(), end = uses.end(); it != end; ) {
+    const HUseListNode<HInstruction*>& use_node = *it;
+    HInstruction* const use_instruction = use_node.GetUser();
+
+    // Advance the iterator immediately once we fetch the use_node.
+    // Warning: If the input is removed, the current iterator becomes invalid.
+    ++it;
+
+    if (use_instruction->IsConstructorFence()) {
+      HConstructorFence* ctor_fence = use_instruction->AsConstructorFence();
+      size_t input_index = use_node.GetIndex();
+
+      // Process the candidate instruction for removal
+      // from the graph.
+
+      // Constructor fence instructions are never
+      // used by other instructions.
+      //
+      // If we wanted to make this more generic, it
+      // could be a runtime if statement.
+      DCHECK(!ctor_fence->HasUses());
+
+      // A constructor fence's return type is "kPrimVoid"
+      // and therefore it can't have any environment uses.
+      DCHECK(!ctor_fence->HasEnvironmentUses());
+
+      // Remove the inputs first, otherwise removing the instruction
+      // will try to remove its uses while we are already removing uses
+      // and this operation will fail.
+      DCHECK_EQ(instruction, ctor_fence->InputAt(input_index));
+
+      // Removing the input will also remove the `use_node`.
+      // (Do not look at `use_node` after this, it will be a dangling reference).
+      ctor_fence->RemoveInputAt(input_index);
+
+      // Once all inputs are removed, the fence is considered dead and
+      // is removed.
+      if (ctor_fence->InputCount() == 0u) {
+        ctor_fence->GetBlock()->RemoveInstruction(ctor_fence);
+      }
+    }
+  }
+
+  if (kIsDebugBuild) {
+    // Post-condition checks:
+    // * None of the uses of `instruction` are a constructor fence.
+    // * The `instruction` itself did not get removed from a block.
+    for (const HUseListNode<HInstruction*>& use_node : instruction->GetUses()) {
+      CHECK(!use_node.GetUser()->IsConstructorFence());
+    }
+    CHECK(instruction->GetBlock() != nullptr);
   }
 }
 

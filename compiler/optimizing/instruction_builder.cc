@@ -451,10 +451,13 @@ void HInstructionBuilder::InitializeParameters() {
                                                               referrer_method_id.class_idx_,
                                                               parameter_index++,
                                                               Primitive::kPrimNot,
-                                                              true);
+                                                              /* is_this */ true);
     AppendInstruction(parameter);
     UpdateLocal(locals_index++, parameter);
     number_of_parameters--;
+    current_this_parameter_ = parameter;
+  } else {
+    DCHECK(current_this_parameter_ == nullptr);
   }
 
   const DexFile::ProtoId& proto = dex_file_->GetMethodPrototype(referrer_method_id);
@@ -465,7 +468,7 @@ void HInstructionBuilder::InitializeParameters() {
         arg_types->GetTypeItem(shorty_pos - 1).type_idx_,
         parameter_index++,
         Primitive::GetType(shorty[shorty_pos]),
-        false);
+        /* is_this */ false);
     ++shorty_pos;
     AppendInstruction(parameter);
     // Store the parameter value in the local that the dex code will use
@@ -588,6 +591,8 @@ void HInstructionBuilder::Binop_22b(const Instruction& instruction, bool reverse
   UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction());
 }
 
+// Does the method being compiled need any constructor barriers being inserted?
+// (Always 'false' for methods that aren't <init>.)
 static bool RequiresConstructorBarrier(const DexCompilationUnit* cu, CompilerDriver* driver) {
   // Can be null in unit tests only.
   if (UNLIKELY(cu == nullptr)) {
@@ -596,6 +601,11 @@ static bool RequiresConstructorBarrier(const DexCompilationUnit* cu, CompilerDri
 
   Thread* self = Thread::Current();
   return cu->IsConstructor()
+      && !cu->IsStatic()
+      // RequiresConstructorBarrier must only be queried for <init> methods;
+      // it's effectively "false" for every other method.
+      //
+      // See CompilerDriver::RequiresConstructBarrier for more explanation.
       && driver->RequiresConstructorBarrier(self, cu->GetDexFile(), cu->GetClassDefIndex());
 }
 
@@ -639,13 +649,24 @@ void HInstructionBuilder::BuildReturn(const Instruction& instruction,
                                       Primitive::Type type,
                                       uint32_t dex_pc) {
   if (type == Primitive::kPrimVoid) {
+    // Only <init> (which is a return-void) could possibly have a constructor fence.
     // This may insert additional redundant constructor fences from the super constructors.
     // TODO: remove redundant constructor fences (b/36656456).
     if (RequiresConstructorBarrier(dex_compilation_unit_, compiler_driver_)) {
-      AppendInstruction(new (arena_) HMemoryBarrier(kStoreStore, dex_pc));
+      // Compiling instance constructor.
+      if (kIsDebugBuild) {
+        std::string method_name = graph_->GetMethodName();
+        CHECK_EQ(std::string("<init>"), method_name);
+      }
+
+      HInstruction* fence_target = current_this_parameter_;
+      DCHECK(fence_target != nullptr);
+
+      AppendInstruction(new (arena_) HConstructorFence(fence_target, dex_pc, arena_));
     }
     AppendInstruction(new (arena_) HReturnVoid(dex_pc));
   } else {
+    DCHECK(!RequiresConstructorBarrier(dex_compilation_unit_, compiler_driver_));
     HInstruction* value = LoadLocal(instruction.VRegA(), type);
     AppendInstruction(new (arena_) HReturn(value, dex_pc));
   }

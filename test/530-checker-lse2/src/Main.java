@@ -76,16 +76,27 @@ public class Main {
   /// CHECK-DAG: Deoptimize
   /// CHECK-DAG: Deoptimize
   /// CHECK-DAG: NewInstance
+  /// CHECK-DAG: ConstructorFence
   /// CHECK-DAG: NewInstance
+  /// CHECK-DAG: ConstructorFence
   /// CHECK-DAG: NewInstance
+  /// CHECK-DAG: ConstructorFence
   /// CHECK-DAG: NewInstance
+  /// CHECK-DAG: ConstructorFence
   /// CHECK-DAG: NewInstance
+  /// CHECK-DAG: ConstructorFence
   /// CHECK-DAG: NewInstance
+  /// CHECK-DAG: ConstructorFence
   /// CHECK-DAG: NewInstance
+  /// CHECK-DAG: ConstructorFence
   /// CHECK-DAG: NewInstance
+  /// CHECK-DAG: ConstructorFence
   /// CHECK-DAG: NewInstance
+  /// CHECK-DAG: ConstructorFence
   /// CHECK-DAG: NewInstance
+  /// CHECK-DAG: ConstructorFence
   /// CHECK-DAG: NewInstance
+  /// CHECK-DAG: ConstructorFence
   /// CHECK-DAG: NewInstance
   /// CHECK-DAG: NewInstance
   /// CHECK-DAG: NewInstance
@@ -95,9 +106,14 @@ public class Main {
   /// CHECK-DAG: Deoptimize
   /// CHECK-DAG: Deoptimize
   /// CHECK-NOT: NewInstance
+  /// CHECK-NOT: ConstructorFence
 
   private float testMethod() {
     {
+      // Each of the "new" statements here will initialize an object with final fields,
+      // which after inlining will also retain a constructor fence.
+      //
+      // After LSE we remove the 'new-instance' and the associated constructor fence.
       int lI0 = (-1456058746 << mI);
       mD = ((double)(int)(double) mD);
       for (int i0 = 56 - 1; i0 >= 0; i0--) {
