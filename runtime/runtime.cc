@@ -1963,10 +1963,21 @@ void Runtime::SetInstructionSet(InstructionSet instruction_set) {
   }
 }
 
+void Runtime::ClearInstructionSet() {
+  instruction_set_ = InstructionSet::kNone;
+}
+
 void Runtime::SetCalleeSaveMethod(ArtMethod* method, CalleeSaveType type) {
   DCHECK_LT(static_cast<int>(type), static_cast<int>(kLastCalleeSaveType));
   CHECK(method != nullptr);
   callee_save_methods_[type] = reinterpret_cast<uintptr_t>(method);
+}
+
+void Runtime::ClearCalleeSaveMethods() {
+  for (size_t i = 0; i < static_cast<size_t>(kLastCalleeSaveType); ++i) {
+    CalleeSaveType type = static_cast<CalleeSaveType>(i);
+    callee_save_methods_[type] = reinterpret_cast<uintptr_t>(nullptr);
+  }
 }
 
 void Runtime::RegisterAppInfo(const std::vector<std::string>& code_paths,

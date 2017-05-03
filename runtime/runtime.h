@@ -356,6 +356,9 @@ class Runtime {
   }
 
   void SetResolutionMethod(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_);
+  void ClearResolutionMethod() {
+    resolution_method_ = nullptr;
+  }
 
   ArtMethod* CreateResolutionMethod() REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -367,12 +370,20 @@ class Runtime {
     return imt_conflict_method_ != nullptr;
   }
 
+  void ClearImtConflictMethod() {
+    imt_conflict_method_ = nullptr;
+  }
+
   void FixupConflictTables();
   void SetImtConflictMethod(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_);
   void SetImtUnimplementedMethod(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_);
 
   ArtMethod* CreateImtConflictMethod(LinearAlloc* linear_alloc)
       REQUIRES_SHARED(Locks::mutator_lock_);
+
+  void ClearImtUnimplementedMethod() {
+    imt_unimplemented_method_ = nullptr;
+  }
 
   // Returns a special method that describes all callee saves being spilled to the stack.
   enum CalleeSaveType {
@@ -409,8 +420,10 @@ class Runtime {
   }
 
   void SetInstructionSet(InstructionSet instruction_set);
+  void ClearInstructionSet();
 
   void SetCalleeSaveMethod(ArtMethod* method, CalleeSaveType type);
+  void ClearCalleeSaveMethods();
 
   ArtMethod* CreateCalleeSaveMethod() REQUIRES_SHARED(Locks::mutator_lock_);
 
