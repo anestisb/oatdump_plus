@@ -564,6 +564,11 @@ if [ "$PROFILE" = "y" ] || [ "$RANDOM_PROFILE" = "y" ]; then
   profman_cmdline="${ANDROID_ROOT}/bin/profman  \
     --apk=$DEX_LOCATION/$TEST_NAME.jar \
     --dex-location=$DEX_LOCATION/$TEST_NAME.jar"
+  if [ -f $DEX_LOCATION/$TEST_NAME-ex.jar ]; then
+    profman_cmdline="${profman_cmdline} \
+      --apk=$DEX_LOCATION/$TEST_NAME-ex.jar \
+      --dex-location=$DEX_LOCATION/$TEST_NAME-ex.jar"
+  fi
   COMPILE_FLAGS="${COMPILE_FLAGS} --profile-file=$DEX_LOCATION/$TEST_NAME.prof"
   FLAGS="${FLAGS} -Xcompiler-option --profile-file=$DEX_LOCATION/$TEST_NAME.prof"
   if [ "$PROFILE" = "y" ]; then
