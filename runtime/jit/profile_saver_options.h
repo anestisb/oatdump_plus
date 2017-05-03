@@ -20,7 +20,7 @@ namespace art {
 
 struct ProfileSaverOptions {
  public:
-  static constexpr uint32_t kMinSavePeriodMs = 20 * 1000;  // 20 seconds
+  static constexpr uint32_t kMinSavePeriodMs = 40 * 1000;  // 40 seconds
   static constexpr uint32_t kSaveResolvedClassesDelayMs = 5 * 1000;  // 5 seconds
   // Minimum number of JIT samples during launch to include a method into the profile.
   static constexpr uint32_t kStartupMethodSamples = 1;
