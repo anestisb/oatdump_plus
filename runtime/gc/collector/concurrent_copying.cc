@@ -1614,25 +1614,29 @@ void ConcurrentCopying::MarkZygoteLargeObjects() {
   Thread* const self = Thread::Current();
   WriterMutexLock rmu(self, *Locks::heap_bitmap_lock_);
   space::LargeObjectSpace* const los = heap_->GetLargeObjectsSpace();
-  // Pick the current live bitmap (mark bitmap if swapped).
-  accounting::LargeObjectBitmap* const live_bitmap = los->GetLiveBitmap();
-  accounting::LargeObjectBitmap* const mark_bitmap = los->GetMarkBitmap();
-  // Walk through all of the objects and explicitly mark the zygote ones so they don't get swept.
-  std::pair<uint8_t*, uint8_t*> range = los->GetBeginEndAtomic();
-  live_bitmap->VisitMarkedRange(reinterpret_cast<uintptr_t>(range.first),
-                                reinterpret_cast<uintptr_t>(range.second),
-                                [mark_bitmap, los, self](mirror::Object* obj)
-      REQUIRES(Locks::heap_bitmap_lock_)
-      REQUIRES_SHARED(Locks::mutator_lock_) {
-    if (los->IsZygoteLargeObject(self, obj)) {
-      mark_bitmap->Set(obj);
-    }
-  });
+  if (los != nullptr) {
+    // Pick the current live bitmap (mark bitmap if swapped).
+    accounting::LargeObjectBitmap* const live_bitmap = los->GetLiveBitmap();
+    accounting::LargeObjectBitmap* const mark_bitmap = los->GetMarkBitmap();
+    // Walk through all of the objects and explicitly mark the zygote ones so they don't get swept.
+    std::pair<uint8_t*, uint8_t*> range = los->GetBeginEndAtomic();
+    live_bitmap->VisitMarkedRange(reinterpret_cast<uintptr_t>(range.first),
+                                  reinterpret_cast<uintptr_t>(range.second),
+                                  [mark_bitmap, los, self](mirror::Object* obj)
+        REQUIRES(Locks::heap_bitmap_lock_)
+        REQUIRES_SHARED(Locks::mutator_lock_) {
+      if (los->IsZygoteLargeObject(self, obj)) {
+        mark_bitmap->Set(obj);
+      }
+    });
+  }
 }
 
 void ConcurrentCopying::SweepLargeObjects(bool swap_bitmaps) {
   TimingLogger::ScopedTiming split("SweepLargeObjects", GetTimings());
-  RecordFreeLOS(heap_->GetLargeObjectsSpace()->Sweep(swap_bitmaps));
+  if (heap_->GetLargeObjectsSpace() != nullptr) {
+    RecordFreeLOS(heap_->GetLargeObjectsSpace()->Sweep(swap_bitmaps));
+  }
 }
 
 void ConcurrentCopying::ReclaimPhase() {
@@ -1881,7 +1885,6 @@ void ConcurrentCopying::AssertToSpaceInvariantInNonMovingSpace(mirror::Object* o
         heap_mark_bitmap_->GetContinuousSpaceBitmap(ref);
     accounting::LargeObjectBitmap* los_bitmap =
         heap_mark_bitmap_->GetLargeObjectBitmap(ref);
-    CHECK(los_bitmap != nullptr) << "LOS bitmap covers the entire address range";
     bool is_los = mark_bitmap == nullptr;
     if ((!is_los && mark_bitmap->Test(ref)) ||
         (is_los && los_bitmap->Test(ref))) {
@@ -2384,7 +2387,6 @@ mirror::Object* ConcurrentCopying::MarkNonMoving(mirror::Object* ref,
       heap_mark_bitmap_->GetContinuousSpaceBitmap(ref);
   accounting::LargeObjectBitmap* los_bitmap =
       heap_mark_bitmap_->GetLargeObjectBitmap(ref);
-  CHECK(los_bitmap != nullptr) << "LOS bitmap covers the entire address range";
   bool is_los = mark_bitmap == nullptr;
   if (!is_los && mark_bitmap->Test(ref)) {
     // Already marked.
