@@ -1749,6 +1749,7 @@ class BCEVisitor : public HGraphVisitor {
               phi = NewPhi(new_preheader, instruction, type);
             }
             user->ReplaceInput(phi, index);  // Removes the use node from the list.
+            induction_range_.Replace(user, instruction, phi);  // update induction
           }
         }
         // Scan all environment uses of an instruction and replace each later use with a phi node.
