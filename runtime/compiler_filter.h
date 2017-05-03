@@ -75,6 +75,9 @@ class CompilerFilter FINAL {
   // Returns a non-profile-guided version of the given filter.
   static Filter GetNonProfileDependentFilterFrom(Filter filter);
 
+  // Returns a filter suitable for safe mode.
+  static Filter GetSafeModeFilterFrom(Filter filter);
+
   // Returns true if the 'current' compiler filter is considered at least as
   // good as the 'target' compilation type.
   // For example: kSpeed is as good as kInterpretOnly, but kInterpretOnly is
