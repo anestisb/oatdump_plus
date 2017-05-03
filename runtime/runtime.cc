@@ -336,6 +336,16 @@ Runtime::~Runtime() {
     jit_->DeleteThreadPool();
   }
 
+  // Make sure our internal threads are dead before we start tearing down things they're using.
+  Dbg::StopJdwp();
+  delete signal_catcher_;
+
+  // Make sure all other non-daemon threads have terminated, and all daemon threads are suspended.
+  {
+    ScopedTrace trace2("Delete thread list");
+    thread_list_->ShutDown();
+  }
+
   // TODO Maybe do some locking.
   for (auto& agent : agents_) {
     agent.Unload();
@@ -346,15 +356,9 @@ Runtime::~Runtime() {
     plugin.Unload();
   }
 
-  // Make sure our internal threads are dead before we start tearing down things they're using.
-  Dbg::StopJdwp();
-  delete signal_catcher_;
+  // Finally delete the thread list.
+  delete thread_list_;
 
-  // Make sure all other non-daemon threads have terminated, and all daemon threads are suspended.
-  {
-    ScopedTrace trace2("Delete thread list");
-    delete thread_list_;
-  }
   // Delete the JIT after thread list to ensure that there is no remaining threads which could be
   // accessing the instrumentation when we delete it.
   if (jit_ != nullptr) {
