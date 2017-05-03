@@ -52,6 +52,9 @@ class Thumb2RelativePatcherTest : public RelativePatcherTest {
   // BNE +0, 32-bit, encoding T3. Bits 0-10, 11, 13, 16-21, 26 are placeholder for target offset.
   static constexpr uint32_t kBneWPlus0 = 0xf0408000u;
 
+  // LDR immediate, 16-bit, encoding T1. Bits 6-10 are imm5, 0-2 are Rt, 3-5 are Rn.
+  static constexpr uint32_t kLdrInsn = 0x6800u;
+
   // LDR immediate, 32-bit, encoding T3. Bits 0-11 are offset, 12-15 are Rt, 16-20 are Rn.
   static constexpr uint32_t kLdrWInsn = 0xf8d00000u;
 
@@ -223,9 +226,11 @@ class Thumb2RelativePatcherTest : public RelativePatcherTest {
   void TestStringReference(uint32_t string_offset);
   void CheckPcRelativePatch(const ArrayRef<const LinkerPatch>& patches, uint32_t target_offset);
 
-  std::vector<uint8_t> CompileBakerOffsetThunk(uint32_t base_reg, uint32_t holder_reg) {
+  std::vector<uint8_t> CompileBakerOffsetThunk(uint32_t base_reg,
+                                               uint32_t holder_reg,
+                                               bool narrow) {
     const LinkerPatch patch = LinkerPatch::BakerReadBarrierBranchPatch(
-        0u, Thumb2RelativePatcher::EncodeBakerReadBarrierFieldData(base_reg, holder_reg));
+        0u, Thumb2RelativePatcher::EncodeBakerReadBarrierFieldData(base_reg, holder_reg, narrow));
     ArmBaseRelativePatcher::ThunkKey key = ArmBaseRelativePatcher::GetBakerThunkKey(patch);
     return down_cast<Thumb2RelativePatcher*>(patcher_.get())->CompileThunk(key);
   }
@@ -237,9 +242,9 @@ class Thumb2RelativePatcherTest : public RelativePatcherTest {
     return down_cast<Thumb2RelativePatcher*>(patcher_.get())->CompileThunk(key);
   }
 
-  std::vector<uint8_t> CompileBakerGcRootThunk(uint32_t root_reg) {
+  std::vector<uint8_t> CompileBakerGcRootThunk(uint32_t root_reg, bool narrow) {
     LinkerPatch patch = LinkerPatch::BakerReadBarrierBranchPatch(
-        0u, Thumb2RelativePatcher::EncodeBakerReadBarrierGcRootData(root_reg));
+        0u, Thumb2RelativePatcher::EncodeBakerReadBarrierGcRootData(root_reg, narrow));
     ArmBaseRelativePatcher::ThunkKey key = ArmBaseRelativePatcher::GetBakerThunkKey(patch);
     return down_cast<Thumb2RelativePatcher*>(patcher_.get())->CompileThunk(key);
   }
@@ -260,7 +265,8 @@ class Thumb2RelativePatcherTest : public RelativePatcherTest {
            (static_cast<uint32_t>(output_[offset + 1]) << 8);
   }
 
-  void TestBakerField(uint32_t offset, uint32_t ref_reg);
+  void TestBakerFieldWide(uint32_t offset, uint32_t ref_reg);
+  void TestBakerFieldNarrow(uint32_t offset, uint32_t ref_reg);
 };
 
 const uint8_t Thumb2RelativePatcherTest::kCallRawCode[] = {
@@ -568,7 +574,7 @@ TEST_F(Thumb2RelativePatcherTest, StringReference4) {
   ASSERT_LT(GetMethodOffset(1u), 0xfcu);
 }
 
-void Thumb2RelativePatcherTest::TestBakerField(uint32_t offset, uint32_t ref_reg) {
+void Thumb2RelativePatcherTest::TestBakerFieldWide(uint32_t offset, uint32_t ref_reg) {
   uint32_t valid_regs[] = {
       0,  1,  2,  3,      5,  6,  7,  // R4 is reserved for entrypoint address.
       8,  9, 10, 11,                  // IP, SP, LR and PC are reserved.
@@ -584,8 +590,8 @@ void Thumb2RelativePatcherTest::TestBakerField(uint32_t offset, uint32_t ref_reg
       const std::vector<uint8_t> raw_code = RawCode({kBneWPlus0, ldr});
       ASSERT_EQ(kMethodCodeSize, raw_code.size());
       ArrayRef<const uint8_t> code(raw_code);
-      uint32_t encoded_data =
-          Thumb2RelativePatcher::EncodeBakerReadBarrierFieldData(base_reg, holder_reg);
+      uint32_t encoded_data = Thumb2RelativePatcher::EncodeBakerReadBarrierFieldData(
+          base_reg, holder_reg, /* narrow */ false);
       const LinkerPatch patches[] = {
           LinkerPatch::BakerReadBarrierBranchPatch(kLiteralOffset, encoded_data),
       };
@@ -608,7 +614,8 @@ void Thumb2RelativePatcherTest::TestBakerField(uint32_t offset, uint32_t ref_reg
       ASSERT_TRUE(
           CheckLinkedMethod(MethodRef(method_idx), ArrayRef<const uint8_t>(expected_code)));
 
-      std::vector<uint8_t> expected_thunk = CompileBakerOffsetThunk(base_reg, holder_reg);
+      std::vector<uint8_t> expected_thunk =
+          CompileBakerOffsetThunk(base_reg, holder_reg, /* narrow */ false);
       ASSERT_GT(output_.size(), thunk_offset);
       ASSERT_GE(output_.size() - thunk_offset, expected_thunk.size());
       ArrayRef<const uint8_t> compiled_thunk(output_.data() + thunk_offset,
@@ -666,15 +673,131 @@ void Thumb2RelativePatcherTest::TestBakerField(uint32_t offset, uint32_t ref_reg
   }
 }
 
-#define TEST_BAKER_FIELD(offset, ref_reg)     \
-  TEST_F(Thumb2RelativePatcherTest,           \
-    BakerOffset##offset##_##ref_reg) {        \
-    TestBakerField(offset, ref_reg);          \
+void Thumb2RelativePatcherTest::TestBakerFieldNarrow(uint32_t offset, uint32_t ref_reg) {
+  uint32_t valid_regs[] = {
+      0,  1,  2,  3,      5,  6,  7,  // R4 is reserved for entrypoint address.
+      8,  9, 10, 11,                  // IP, SP, LR and PC are reserved.
+  };
+  DCHECK_ALIGNED(offset, 4u);
+  DCHECK_LT(offset, 32u);
+  constexpr size_t kMethodCodeSize = 6u;
+  constexpr size_t kLiteralOffset = 0u;
+  uint32_t method_idx = 0u;
+  for (uint32_t base_reg : valid_regs) {
+    if (base_reg >= 8u) {
+      continue;
+    }
+    for (uint32_t holder_reg : valid_regs) {
+      uint32_t ldr = kLdrInsn | (offset << (6 - 2)) | (base_reg << 3) | ref_reg;
+      const std::vector<uint8_t> raw_code = RawCode({kBneWPlus0, ldr});
+      ASSERT_EQ(kMethodCodeSize, raw_code.size());
+      ArrayRef<const uint8_t> code(raw_code);
+      uint32_t encoded_data = Thumb2RelativePatcher::EncodeBakerReadBarrierFieldData(
+          base_reg, holder_reg, /* narrow */ true);
+      const LinkerPatch patches[] = {
+          LinkerPatch::BakerReadBarrierBranchPatch(kLiteralOffset, encoded_data),
+      };
+      ++method_idx;
+      AddCompiledMethod(MethodRef(method_idx), code, ArrayRef<const LinkerPatch>(patches));
+    }
+  }
+  Link();
+
+  // All thunks are at the end.
+  uint32_t thunk_offset = GetMethodOffset(method_idx) + RoundUp(kMethodCodeSize, kArmAlignment);
+  method_idx = 0u;
+  for (uint32_t base_reg : valid_regs) {
+    if (base_reg >= 8u) {
+      continue;
+    }
+    for (uint32_t holder_reg : valid_regs) {
+      ++method_idx;
+      uint32_t bne = BneWWithOffset(GetMethodOffset(method_idx) + kLiteralOffset, thunk_offset);
+      uint32_t ldr = kLdrInsn | (offset << (6 - 2)) | (base_reg << 3) | ref_reg;
+      const std::vector<uint8_t> expected_code = RawCode({bne, ldr});
+      ASSERT_EQ(kMethodCodeSize, expected_code.size()) << "bne=0x" << std::hex << bne;
+      ASSERT_TRUE(
+          CheckLinkedMethod(MethodRef(method_idx), ArrayRef<const uint8_t>(expected_code)));
+
+      std::vector<uint8_t> expected_thunk =
+          CompileBakerOffsetThunk(base_reg, holder_reg, /* narrow */ true);
+      ASSERT_GT(output_.size(), thunk_offset);
+      ASSERT_GE(output_.size() - thunk_offset, expected_thunk.size());
+      ArrayRef<const uint8_t> compiled_thunk(output_.data() + thunk_offset,
+                                             expected_thunk.size());
+      if (ArrayRef<const uint8_t>(expected_thunk) != compiled_thunk) {
+        DumpDiff(ArrayRef<const uint8_t>(expected_thunk), compiled_thunk);
+        ASSERT_TRUE(false);
+      }
+
+      size_t gray_check_offset = thunk_offset;
+      if (holder_reg == base_reg) {
+        // Verify that the null-check uses the correct register, i.e. holder_reg.
+        if (holder_reg < 8) {
+          ASSERT_GE(output_.size() - gray_check_offset, 2u);
+          ASSERT_EQ(0xb100 | holder_reg, GetOutputInsn16(thunk_offset) & 0xfd07u);
+          gray_check_offset +=2u;
+        } else {
+          ASSERT_GE(output_.size() - gray_check_offset, 6u);
+          ASSERT_EQ(0xf1b00f00u | (holder_reg << 16), GetOutputInsn32(thunk_offset) & 0xfbff8f00u);
+          ASSERT_EQ(0xd000u, GetOutputInsn16(thunk_offset + 4u) & 0xff00u);  // BEQ
+          gray_check_offset += 6u;
+        }
+      }
+      // Verify that the lock word for gray bit check is loaded from the holder address.
+      ASSERT_GE(output_.size() - gray_check_offset,
+                4u * /* 32-bit instructions */ 4u + 2u * /* 16-bit instructions */ 2u);
+      const uint32_t load_lock_word =
+          kLdrWInsn |
+          (holder_reg << 16) |
+          (/* IP */ 12 << 12) |
+          mirror::Object::MonitorOffset().Uint32Value();
+      ASSERT_EQ(load_lock_word, GetOutputInsn32(gray_check_offset));
+      // Verify the gray bit check.
+      DCHECK_GE(LockWord::kReadBarrierStateShift, 8u);  // ROR modified immediate.
+      uint32_t ror_shift = 7 + (32 - LockWord::kReadBarrierStateShift);
+      const uint32_t tst_gray_bit_without_offset =
+          0xf0100f00 | (/* IP */ 12 << 16)
+                     | (((ror_shift >> 4) & 1) << 26)   // i
+                     | (((ror_shift >> 1) & 7) << 12)   // imm3
+                     | ((ror_shift & 1) << 7);          // imm8, ROR('1':imm8<7:0>, ror_shift).
+      EXPECT_EQ(tst_gray_bit_without_offset, GetOutputInsn32(gray_check_offset + 4u));
+      EXPECT_EQ(0xd100u, GetOutputInsn16(gray_check_offset + 8u) & 0xff00u);  // BNE
+      // Verify the fake dependency (skip "ADD LR, LR, #ldr_offset").
+      const uint32_t fake_dependency =
+          0xeb000010 |              // ADD Rd, Rn, Rm, LSR 32 (type=01, imm3=000, imm2=00)
+          (/* IP */ 12) |           // Rm = IP
+          (base_reg << 16) |        // Rn = base_reg
+          (base_reg << 8);          // Rd = base_reg
+      EXPECT_EQ(fake_dependency, GetOutputInsn32(gray_check_offset + 14u));
+      // Do not check the rest of the implementation.
+
+      // The next thunk follows on the next aligned offset.
+      thunk_offset += RoundUp(expected_thunk.size(), kArmAlignment);
+    }
+  }
+}
+
+#define TEST_BAKER_FIELD_WIDE(offset, ref_reg)    \
+  TEST_F(Thumb2RelativePatcherTest,               \
+    BakerOffsetWide##offset##_##ref_reg) {        \
+    TestBakerFieldWide(offset, ref_reg);          \
   }
 
-TEST_BAKER_FIELD(/* offset */ 0, /* ref_reg */ 0)
-TEST_BAKER_FIELD(/* offset */ 8, /* ref_reg */ 7)
-TEST_BAKER_FIELD(/* offset */ 0xffc, /* ref_reg */ 11)
+TEST_BAKER_FIELD_WIDE(/* offset */ 0, /* ref_reg */ 0)
+TEST_BAKER_FIELD_WIDE(/* offset */ 8, /* ref_reg */ 3)
+TEST_BAKER_FIELD_WIDE(/* offset */ 28, /* ref_reg */ 7)
+TEST_BAKER_FIELD_WIDE(/* offset */ 0xffc, /* ref_reg */ 11)
+
+#define TEST_BAKER_FIELD_NARROW(offset, ref_reg)  \
+  TEST_F(Thumb2RelativePatcherTest,               \
+    BakerOffsetNarrow##offset##_##ref_reg) {      \
+    TestBakerFieldNarrow(offset, ref_reg);        \
+  }
+
+TEST_BAKER_FIELD_NARROW(/* offset */ 0, /* ref_reg */ 0)
+TEST_BAKER_FIELD_NARROW(/* offset */ 8, /* ref_reg */ 3)
+TEST_BAKER_FIELD_NARROW(/* offset */ 28, /* ref_reg */ 7)
 
 TEST_F(Thumb2RelativePatcherTest, BakerOffsetThunkInTheMiddle) {
   // One thunk in the middle with maximum distance branches to it from both sides.
@@ -682,8 +805,8 @@ TEST_F(Thumb2RelativePatcherTest, BakerOffsetThunkInTheMiddle) {
   constexpr uint32_t kLiteralOffset1 = 6u;
   const std::vector<uint8_t> raw_code1 = RawCode({kNopWInsn, kNopInsn, kBneWPlus0, kLdrWInsn});
   ArrayRef<const uint8_t> code1(raw_code1);
-  uint32_t encoded_data =
-      Thumb2RelativePatcher::EncodeBakerReadBarrierFieldData(/* base_reg */ 0, /* holder_reg */ 0);
+  uint32_t encoded_data = Thumb2RelativePatcher::EncodeBakerReadBarrierFieldData(
+      /* base_reg */ 0, /* holder_reg */ 0, /* narrow */ false);
   const LinkerPatch patches1[] = {
       LinkerPatch::BakerReadBarrierBranchPatch(kLiteralOffset1, encoded_data),
   };
@@ -710,7 +833,8 @@ TEST_F(Thumb2RelativePatcherTest, BakerOffsetThunkInTheMiddle) {
   //   - thunk size and method 3 pre-header, rounded up (padding in between if needed)
   //   - method 3 code and method 4 pre-header, rounded up (padding in between if needed)
   //   - method 4 header (let there be no padding between method 4 code and method 5 pre-header).
-  size_t thunk_size = CompileBakerOffsetThunk(/* base_reg */ 0, /* holder_reg */ 0).size();
+  size_t thunk_size =
+      CompileBakerOffsetThunk(/* base_reg */ 0, /* holder_reg */ 0, /* narrow */ false).size();
   size_t filler2_size =
       1 * MB - (kLiteralOffset2 + kPcAdjustment)
              - RoundUp(thunk_size + sizeof(OatQuickMethodHeader), kArmAlignment)
@@ -749,8 +873,8 @@ TEST_F(Thumb2RelativePatcherTest, BakerOffsetThunkBeforeFiller) {
   constexpr uint32_t kLiteralOffset1 = 4u;
   const std::vector<uint8_t> raw_code1 = RawCode({kNopWInsn, kBneWPlus0, kLdrWInsn, kNopInsn});
   ArrayRef<const uint8_t> code1(raw_code1);
-  uint32_t encoded_data =
-      Thumb2RelativePatcher::EncodeBakerReadBarrierFieldData(/* base_reg */ 0, /* holder_reg */ 0);
+  uint32_t encoded_data = Thumb2RelativePatcher::EncodeBakerReadBarrierFieldData(
+      /* base_reg */ 0, /* holder_reg */ 0, /* narrow */ false);
   const LinkerPatch patches1[] = {
       LinkerPatch::BakerReadBarrierBranchPatch(kLiteralOffset1, encoded_data),
   };
@@ -779,8 +903,8 @@ TEST_F(Thumb2RelativePatcherTest, BakerOffsetThunkInTheMiddleUnreachableFromLast
   constexpr uint32_t kLiteralOffset1 = 6u;
   const std::vector<uint8_t> raw_code1 = RawCode({kNopWInsn, kNopInsn, kBneWPlus0, kLdrWInsn});
   ArrayRef<const uint8_t> code1(raw_code1);
-  uint32_t encoded_data =
-      Thumb2RelativePatcher::EncodeBakerReadBarrierFieldData(/* base_reg */ 0, /* holder_reg */ 0);
+  uint32_t encoded_data = Thumb2RelativePatcher::EncodeBakerReadBarrierFieldData(
+      /* base_reg */ 0, /* holder_reg */ 0, /* narrow */ false);
   const LinkerPatch patches1[] = {
       LinkerPatch::BakerReadBarrierBranchPatch(kLiteralOffset1, encoded_data),
   };
@@ -809,7 +933,8 @@ TEST_F(Thumb2RelativePatcherTest, BakerOffsetThunkInTheMiddleUnreachableFromLast
   //   - thunk size and method 3 pre-header, rounded up (padding in between if needed)
   //   - method 3 code and method 4 pre-header, rounded up (padding in between if needed)
   //   - method 4 header (let there be no padding between method 4 code and method 5 pre-header).
-  size_t thunk_size = CompileBakerOffsetThunk(/* base_reg */ 0, /* holder_reg */ 0).size();
+  size_t thunk_size =
+      CompileBakerOffsetThunk(/* base_reg */ 0, /* holder_reg */ 0, /* narrow */ false).size();
   size_t filler2_size =
       1 * MB - (kReachableFromOffset2 + kPcAdjustment)
              - RoundUp(thunk_size + sizeof(OatQuickMethodHeader), kArmAlignment)
@@ -929,7 +1054,7 @@ TEST_F(Thumb2RelativePatcherTest, BakerArray) {
   }
 }
 
-TEST_F(Thumb2RelativePatcherTest, BakerGcRoot) {
+TEST_F(Thumb2RelativePatcherTest, BakerGcRootWide) {
   uint32_t valid_regs[] = {
       0,  1,  2,  3,      5,  6,  7,  // R4 is reserved for entrypoint address.
       8,  9, 10, 11,                  // IP, SP, LR and PC are reserved.
@@ -945,7 +1070,8 @@ TEST_F(Thumb2RelativePatcherTest, BakerGcRoot) {
     ArrayRef<const uint8_t> code(raw_code);
     const LinkerPatch patches[] = {
         LinkerPatch::BakerReadBarrierBranchPatch(
-            kLiteralOffset, Thumb2RelativePatcher::EncodeBakerReadBarrierGcRootData(root_reg)),
+            kLiteralOffset,
+            Thumb2RelativePatcher::EncodeBakerReadBarrierGcRootData(root_reg, /* narrow */ false)),
     };
     AddCompiledMethod(MethodRef(method_idx), code, ArrayRef<const LinkerPatch>(patches));
   }
@@ -962,7 +1088,67 @@ TEST_F(Thumb2RelativePatcherTest, BakerGcRoot) {
     ASSERT_EQ(kMethodCodeSize, expected_code.size());
     EXPECT_TRUE(CheckLinkedMethod(MethodRef(method_idx), ArrayRef<const uint8_t>(expected_code)));
 
-    std::vector<uint8_t> expected_thunk = CompileBakerGcRootThunk(root_reg);
+    std::vector<uint8_t> expected_thunk = CompileBakerGcRootThunk(root_reg, /* narrow */ false);
+    ASSERT_GT(output_.size(), thunk_offset);
+    ASSERT_GE(output_.size() - thunk_offset, expected_thunk.size());
+    ArrayRef<const uint8_t> compiled_thunk(output_.data() + thunk_offset,
+                                           expected_thunk.size());
+    if (ArrayRef<const uint8_t>(expected_thunk) != compiled_thunk) {
+      DumpDiff(ArrayRef<const uint8_t>(expected_thunk), compiled_thunk);
+      ASSERT_TRUE(false);
+    }
+
+    // Verify that the fast-path null-check uses the correct register, i.e. root_reg.
+    if (root_reg < 8) {
+      ASSERT_GE(output_.size() - thunk_offset, 2u);
+      ASSERT_EQ(0xb100 | root_reg, GetOutputInsn16(thunk_offset) & 0xfd07u);
+    } else {
+      ASSERT_GE(output_.size() - thunk_offset, 6u);
+      ASSERT_EQ(0xf1b00f00u | (root_reg << 16), GetOutputInsn32(thunk_offset) & 0xfbff8f00u);
+      ASSERT_EQ(0xd000u, GetOutputInsn16(thunk_offset + 4u) & 0xff00u);  // BEQ
+    }
+    // Do not check the rest of the implementation.
+
+    // The next thunk follows on the next aligned offset.
+    thunk_offset += RoundUp(expected_thunk.size(), kArmAlignment);
+  }
+}
+
+TEST_F(Thumb2RelativePatcherTest, BakerGcRootNarrow) {
+  uint32_t valid_regs[] = {
+      0,  1,  2,  3,      5,  6,  7,  // R4 is reserved for entrypoint address.
+                                      // Not appplicable to high registers.
+  };
+  constexpr size_t kMethodCodeSize = 6u;
+  constexpr size_t kLiteralOffset = 2u;
+  uint32_t method_idx = 0u;
+  for (uint32_t root_reg : valid_regs) {
+    ++method_idx;
+    uint32_t ldr = kLdrInsn | (/* offset */ 8 << (6 - 2)) | (/* base_reg */ 0 << 3) | root_reg;
+    const std::vector<uint8_t> raw_code = RawCode({ldr, kBneWPlus0});
+    ASSERT_EQ(kMethodCodeSize, raw_code.size());
+    ArrayRef<const uint8_t> code(raw_code);
+    const LinkerPatch patches[] = {
+        LinkerPatch::BakerReadBarrierBranchPatch(
+            kLiteralOffset,
+            Thumb2RelativePatcher::EncodeBakerReadBarrierGcRootData(root_reg, /* narrow */ true)),
+    };
+    AddCompiledMethod(MethodRef(method_idx), code, ArrayRef<const LinkerPatch>(patches));
+  }
+  Link();
+
+  // All thunks are at the end.
+  uint32_t thunk_offset = GetMethodOffset(method_idx) + RoundUp(kMethodCodeSize, kArmAlignment);
+  method_idx = 0u;
+  for (uint32_t root_reg : valid_regs) {
+    ++method_idx;
+    uint32_t bne = BneWWithOffset(GetMethodOffset(method_idx) + kLiteralOffset, thunk_offset);
+    uint32_t ldr = kLdrInsn | (/* offset */ 8 << (6 - 2)) | (/* base_reg */ 0 << 3) | root_reg;
+    const std::vector<uint8_t> expected_code = RawCode({ldr, bne});
+    ASSERT_EQ(kMethodCodeSize, expected_code.size());
+    EXPECT_TRUE(CheckLinkedMethod(MethodRef(method_idx), ArrayRef<const uint8_t>(expected_code)));
+
+    std::vector<uint8_t> expected_thunk = CompileBakerGcRootThunk(root_reg, /* narrow */ true);
     ASSERT_GT(output_.size(), thunk_offset);
     ASSERT_GE(output_.size() - thunk_offset, expected_thunk.size());
     ArrayRef<const uint8_t> compiled_thunk(output_.data() + thunk_offset,
@@ -973,14 +1159,8 @@ TEST_F(Thumb2RelativePatcherTest, BakerGcRoot) {
     }
 
     // Verify that the fast-path null-check CBZ uses the correct register, i.e. root_reg.
-    if (root_reg < 8) {
-      ASSERT_GE(output_.size() - thunk_offset, 2u);
-      ASSERT_EQ(0xb100 | root_reg, GetOutputInsn16(thunk_offset) & 0xfd07u);
-    } else {
-      ASSERT_GE(output_.size() - thunk_offset, 6u);
-      ASSERT_EQ(0xf1b00f00u | (root_reg << 16), GetOutputInsn32(thunk_offset) & 0xfbff8f00u);
-      ASSERT_EQ(0xd000u, GetOutputInsn16(thunk_offset + 4u) & 0xff00u);  // BEQ
-    }
+    ASSERT_GE(output_.size() - thunk_offset, 2u);
+    ASSERT_EQ(0xb100 | root_reg, GetOutputInsn16(thunk_offset) & 0xfd07u);
     // Do not check the rest of the implementation.
 
     // The next thunk follows on the next aligned offset.
@@ -998,7 +1178,8 @@ TEST_F(Thumb2RelativePatcherTest, BakerGcRootOffsetBits) {
   patches.reserve(num_patches);
   const uint32_t ldr =
       kLdrWInsn | (/* offset */ 8) | (/* base_reg */ 0 << 16) | (/* root_reg */ 0 << 12);
-  uint32_t encoded_data = Thumb2RelativePatcher::EncodeBakerReadBarrierGcRootData(/* root_reg */ 0);
+  uint32_t encoded_data =
+      Thumb2RelativePatcher::EncodeBakerReadBarrierGcRootData(/* root_reg */ 0, /* narrow */ false);
   for (size_t i = 0; i != num_patches; ++i) {
     PushBackInsn(&code, ldr);
     PushBackInsn(&code, kBneWPlus0);
@@ -1067,7 +1248,7 @@ TEST_F(Thumb2RelativePatcherTest, BakerAndMethodCallInteraction) {
   // this pushes the first GC root thunk's pending MaxNextOffset() before the method call
   // thunk's pending MaxNextOffset() which needs to be adjusted.
   ASSERT_LT(RoundUp(CompileMethodCallThunk().size(), kArmAlignment) + kArmAlignment,
-            CompileBakerGcRootThunk(/* root_reg */ 0).size());
+            CompileBakerGcRootThunk(/* root_reg */ 0, /* narrow */ false).size());
   static_assert(kArmAlignment == 8, "Code below assumes kArmAlignment == 8");
   constexpr size_t kBakerLiteralOffset1 = kArmAlignment + 2u - kPcAdjustment;
   constexpr size_t kBakerLiteralOffset2 = kBakerLiteralOffset1 + kArmAlignment;
@@ -1080,9 +1261,9 @@ TEST_F(Thumb2RelativePatcherTest, BakerAndMethodCallInteraction) {
       ldr2, kBneWPlus0,                         // Second GC root LDR with read barrier.
   });
   uint32_t encoded_data1 =
-      Thumb2RelativePatcher::EncodeBakerReadBarrierGcRootData(/* root_reg */ 1);
+      Thumb2RelativePatcher::EncodeBakerReadBarrierGcRootData(/* root_reg */ 1, /* narrow */ false);
   uint32_t encoded_data2 =
-      Thumb2RelativePatcher::EncodeBakerReadBarrierGcRootData(/* root_reg */ 2);
+      Thumb2RelativePatcher::EncodeBakerReadBarrierGcRootData(/* root_reg */ 2, /* narrow */ false);
   const LinkerPatch last_method_patches[] = {
       LinkerPatch::BakerReadBarrierBranchPatch(kBakerLiteralOffset1, encoded_data1),
       LinkerPatch::BakerReadBarrierBranchPatch(kBakerLiteralOffset2, encoded_data2),

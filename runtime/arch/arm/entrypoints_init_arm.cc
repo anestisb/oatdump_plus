@@ -53,8 +53,11 @@ extern "C" mirror::Object* art_quick_read_barrier_mark_reg11(mirror::Object*);
 extern "C" mirror::Object* art_quick_read_barrier_mark_reg12(mirror::Object*);
 
 extern "C" mirror::Object* art_quick_read_barrier_mark_introspection(mirror::Object*);
+extern "C" mirror::Object* art_quick_read_barrier_mark_introspection_narrow(mirror::Object*);
 extern "C" mirror::Object* art_quick_read_barrier_mark_introspection_arrays(mirror::Object*);
-extern "C" mirror::Object* art_quick_read_barrier_mark_introspection_gc_roots(mirror::Object*);
+extern "C" mirror::Object* art_quick_read_barrier_mark_introspection_gc_roots_wide(mirror::Object*);
+extern "C" mirror::Object* art_quick_read_barrier_mark_introspection_gc_roots_narrow(
+    mirror::Object*);
 
 // Used by soft float.
 // Single-precision FP arithmetics.
@@ -86,18 +89,27 @@ void UpdateReadBarrierEntrypoints(QuickEntryPoints* qpoints, bool is_active) {
   qpoints->pReadBarrierMarkReg10 = is_active ? art_quick_read_barrier_mark_reg10 : nullptr;
   qpoints->pReadBarrierMarkReg11 = is_active ? art_quick_read_barrier_mark_reg11 : nullptr;
 
-  // Check that array switch cases are at appropriate offsets from the introspection entrypoint.
   // For the alignment check, strip the Thumb mode bit.
   DCHECK_ALIGNED(reinterpret_cast<intptr_t>(art_quick_read_barrier_mark_introspection) - 1u, 256u);
+  // Check the field narrow entrypoint offset from the introspection entrypoint.
+  intptr_t narrow_diff =
+      reinterpret_cast<intptr_t>(art_quick_read_barrier_mark_introspection_narrow) -
+      reinterpret_cast<intptr_t>(art_quick_read_barrier_mark_introspection);
+  DCHECK_EQ(BAKER_MARK_INTROSPECTION_FIELD_LDR_NARROW_ENTRYPOINT_OFFSET, narrow_diff);
+  // Check array switch cases offsets from the introspection entrypoint.
   intptr_t array_diff =
       reinterpret_cast<intptr_t>(art_quick_read_barrier_mark_introspection_arrays) -
       reinterpret_cast<intptr_t>(art_quick_read_barrier_mark_introspection);
   DCHECK_EQ(BAKER_MARK_INTROSPECTION_ARRAY_SWITCH_OFFSET, array_diff);
-  // Check that the GC root entrypoint is at appropriate offset from the introspection entrypoint.
-  intptr_t gc_roots_diff =
-      reinterpret_cast<intptr_t>(art_quick_read_barrier_mark_introspection_gc_roots) -
+  // Check the GC root entrypoint offsets from the introspection entrypoint.
+  intptr_t gc_roots_wide_diff =
+      reinterpret_cast<intptr_t>(art_quick_read_barrier_mark_introspection_gc_roots_wide) -
       reinterpret_cast<intptr_t>(art_quick_read_barrier_mark_introspection);
-  DCHECK_EQ(BAKER_MARK_INTROSPECTION_GC_ROOT_ENTRYPOINT_OFFSET, gc_roots_diff);
+  DCHECK_EQ(BAKER_MARK_INTROSPECTION_GC_ROOT_LDR_WIDE_ENTRYPOINT_OFFSET, gc_roots_wide_diff);
+  intptr_t gc_roots_narrow_diff =
+      reinterpret_cast<intptr_t>(art_quick_read_barrier_mark_introspection_gc_roots_narrow) -
+      reinterpret_cast<intptr_t>(art_quick_read_barrier_mark_introspection);
+  DCHECK_EQ(BAKER_MARK_INTROSPECTION_GC_ROOT_LDR_NARROW_ENTRYPOINT_OFFSET, gc_roots_narrow_diff);
   // The register 12, i.e. IP, is reserved, so there is no art_quick_read_barrier_mark_reg12.
   // We're using the entry to hold a pointer to the introspection entrypoint instead.
   qpoints->pReadBarrierMarkReg12 = is_active ? art_quick_read_barrier_mark_introspection : nullptr;

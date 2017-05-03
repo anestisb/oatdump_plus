@@ -35,26 +35,37 @@ class Thumb2RelativePatcher FINAL : public ArmBaseRelativePatcher {
  public:
   static constexpr uint32_t kBakerCcEntrypointRegister = 4u;
 
-  static uint32_t EncodeBakerReadBarrierFieldData(uint32_t base_reg, uint32_t holder_reg) {
+  static uint32_t EncodeBakerReadBarrierFieldData(uint32_t base_reg,
+                                                  uint32_t holder_reg,
+                                                  bool narrow) {
     CheckValidReg(base_reg);
     CheckValidReg(holder_reg);
+    DCHECK(!narrow || base_reg < 8u) << base_reg;
+    BakerReadBarrierWidth width =
+        narrow ? BakerReadBarrierWidth::kNarrow : BakerReadBarrierWidth::kWide;
     return BakerReadBarrierKindField::Encode(BakerReadBarrierKind::kField) |
            BakerReadBarrierFirstRegField::Encode(base_reg) |
-           BakerReadBarrierSecondRegField::Encode(holder_reg);
+           BakerReadBarrierSecondRegField::Encode(holder_reg) |
+           BakerReadBarrierWidthField::Encode(width);
   }
 
   static uint32_t EncodeBakerReadBarrierArrayData(uint32_t base_reg) {
     CheckValidReg(base_reg);
     return BakerReadBarrierKindField::Encode(BakerReadBarrierKind::kArray) |
            BakerReadBarrierFirstRegField::Encode(base_reg) |
-           BakerReadBarrierSecondRegField::Encode(kInvalidEncodedReg);
+           BakerReadBarrierSecondRegField::Encode(kInvalidEncodedReg) |
+           BakerReadBarrierWidthField::Encode(BakerReadBarrierWidth::kWide);
   }
 
-  static uint32_t EncodeBakerReadBarrierGcRootData(uint32_t root_reg) {
+  static uint32_t EncodeBakerReadBarrierGcRootData(uint32_t root_reg, bool narrow) {
     CheckValidReg(root_reg);
+    DCHECK(!narrow || root_reg < 8u) << root_reg;
+    BakerReadBarrierWidth width =
+        narrow ? BakerReadBarrierWidth::kNarrow : BakerReadBarrierWidth::kWide;
     return BakerReadBarrierKindField::Encode(BakerReadBarrierKind::kGcRoot) |
            BakerReadBarrierFirstRegField::Encode(root_reg) |
-           BakerReadBarrierSecondRegField::Encode(kInvalidEncodedReg);
+           BakerReadBarrierSecondRegField::Encode(kInvalidEncodedReg) |
+           BakerReadBarrierWidthField::Encode(width);
   }
 
   explicit Thumb2RelativePatcher(RelativePatcherTargetProvider* provider);
@@ -86,6 +97,12 @@ class Thumb2RelativePatcher FINAL : public ArmBaseRelativePatcher {
     kLast
   };
 
+  enum class BakerReadBarrierWidth : uint8_t {
+    kWide,          // 32-bit LDR (and 32-bit NEG if heap poisoning is enabled).
+    kNarrow,        // 16-bit LDR (and 16-bit NEG if heap poisoning is enabled).
+    kLast
+  };
+
   static constexpr size_t kBitsForBakerReadBarrierKind =
       MinimumBitsToStore(static_cast<size_t>(BakerReadBarrierKind::kLast));
   static constexpr size_t kBitsForRegister = 4u;
@@ -95,9 +112,14 @@ class Thumb2RelativePatcher FINAL : public ArmBaseRelativePatcher {
       BitField<uint32_t, kBitsForBakerReadBarrierKind, kBitsForRegister>;
   using BakerReadBarrierSecondRegField =
       BitField<uint32_t, kBitsForBakerReadBarrierKind + kBitsForRegister, kBitsForRegister>;
+  static constexpr size_t kBitsForBakerReadBarrierWidth =
+      MinimumBitsToStore(static_cast<size_t>(BakerReadBarrierWidth::kLast));
+  using BakerReadBarrierWidthField = BitField<BakerReadBarrierWidth,
+                                              kBitsForBakerReadBarrierKind + 2 * kBitsForRegister,
+                                              kBitsForBakerReadBarrierWidth>;
 
   static void CheckValidReg(uint32_t reg) {
-    DCHECK(reg < 12u && reg != kBakerCcEntrypointRegister);
+    DCHECK(reg < 12u && reg != kBakerCcEntrypointRegister) << reg;
   }
 
   void CompileBakerReadBarrierThunk(arm::ArmVIXLAssembler& assembler, uint32_t encoded_data);
@@ -107,6 +129,11 @@ class Thumb2RelativePatcher FINAL : public ArmBaseRelativePatcher {
 
   template <typename Vector>
   static uint32_t GetInsn32(Vector* code, uint32_t offset);
+
+  static uint32_t GetInsn16(ArrayRef<const uint8_t> code, uint32_t offset);
+
+  template <typename Vector>
+  static uint32_t GetInsn16(Vector* code, uint32_t offset);
 
   friend class Thumb2RelativePatcherTest;
 
