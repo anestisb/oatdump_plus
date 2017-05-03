@@ -71,6 +71,8 @@ class VdexFile {
     uint32_t dex_size_;
     uint32_t verifier_deps_size_;
     uint32_t quickening_info_size_;
+
+    friend class VdexFile;
   };
 
   typedef uint32_t VdexChecksum;
@@ -79,6 +81,7 @@ class VdexFile {
   static std::unique_ptr<VdexFile> Open(const std::string& vdex_filename,
                                         bool writable,
                                         bool low_4gb,
+                                        bool unquicken,
                                         std::string* error_msg);
 
   // Returns nullptr if the vdex file cannot be opened or is not valid.
@@ -87,6 +90,7 @@ class VdexFile {
                                         const std::string& vdex_filename,
                                         bool writable,
                                         bool low_4gb,
+                                        bool unquicken,
                                         std::string* error_msg);
 
   const uint8_t* Begin() const { return mmap_->Begin(); }
@@ -124,11 +128,13 @@ class VdexFile {
     return reinterpret_cast<const uint32_t*>(Begin() + sizeof(Header))[dex_file_index];
   }
 
-  // Opens all the dex files contained in this vdex file.  This is currently
-  // used for dumping tools only, and has not been tested for use by the
-  // remainder of the runtime.
+  // Opens all the dex files contained in this vdex file.
   bool OpenAllDexFiles(std::vector<std::unique_ptr<const DexFile>>* dex_files,
                        std::string* error_msg);
+
+  // In-place unquicken the given `dex_files` based on `quickening_info`.
+  static void Unquicken(const std::vector<const DexFile*>& dex_files,
+                        const ArrayRef<const uint8_t>& quickening_info);
 
  private:
   explicit VdexFile(MemMap* mmap) : mmap_(mmap) {}

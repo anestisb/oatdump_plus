@@ -57,6 +57,7 @@ cc_defaults {
         "dex_file_annotations.cc",
         "dex_file_verifier.cc",
         "dex_instruction.cc",
+        "dex_to_dex_decompiler.cc",
         "elf_file.cc",
         "exec_utils.cc",
         "fault_handler.cc",

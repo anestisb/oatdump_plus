@@ -808,6 +808,7 @@ OatFileAssistant::OatStatus OatFileAssistant::OatFileInfo::Status() {
       std::unique_ptr<VdexFile> vdex = VdexFile::Open(vdex_filename,
                                                       /*writeable*/false,
                                                       /*low_4gb*/false,
+                                                      /*unquicken*/false,
                                                       &error_msg);
       if (vdex == nullptr) {
         status_ = kOatCannotOpen;

@@ -32,10 +32,8 @@
 #include "fixed_up_dex_file.h"
 #include "dex_file-inl.h"
 
-// Compiler includes.
-#include "dex/dex_to_dex_decompiler.h"
-
 // Runtime includes.
+#include "dex_to_dex_decompiler.h"
 #include "oat_file.h"
 #include "vdex_file.h"
 
