@@ -922,12 +922,12 @@ bool DexFileVerifier::CheckEncodedAnnotation() {
   return true;
 }
 
-bool DexFileVerifier::FindClassFlags(uint32_t index,
-                                     bool is_field,
-                                     dex::TypeIndex* class_type_index,
-                                     uint32_t* class_access_flags) {
+bool DexFileVerifier::FindClassIndexAndDef(uint32_t index,
+                                           bool is_field,
+                                           dex::TypeIndex* class_type_index,
+                                           const DexFile::ClassDef** output_class_def) {
   DCHECK(class_type_index != nullptr);
-  DCHECK(class_access_flags != nullptr);
+  DCHECK(output_class_def != nullptr);
 
   // First check if the index is valid.
   if (index >= (is_field ? header_->field_ids_size_ : header_->method_ids_size_)) {
@@ -957,7 +957,7 @@ bool DexFileVerifier::FindClassFlags(uint32_t index,
   for (size_t i = 0; i < header_->class_defs_size_; ++i) {
     const DexFile::ClassDef* class_def = class_def_begin + i;
     if (class_def->class_idx_ == *class_type_index) {
-      *class_access_flags = class_def->access_flags_;
+      *output_class_def = class_def;
       return true;
     }
   }
@@ -966,13 +966,13 @@ bool DexFileVerifier::FindClassFlags(uint32_t index,
   return false;
 }
 
-bool DexFileVerifier::CheckOrderAndGetClassFlags(bool is_field,
-                                                 const char* type_descr,
-                                                 uint32_t curr_index,
-                                                 uint32_t prev_index,
-                                                 bool* have_class,
-                                                 dex::TypeIndex* class_type_index,
-                                                 uint32_t* class_access_flags) {
+bool DexFileVerifier::CheckOrderAndGetClassDef(bool is_field,
+                                               const char* type_descr,
+                                               uint32_t curr_index,
+                                               uint32_t prev_index,
+                                               bool* have_class,
+                                               dex::TypeIndex* class_type_index,
+                                               const DexFile::ClassDef** class_def) {
   if (curr_index < prev_index) {
     ErrorStringPrintf("out-of-order %s indexes %" PRIu32 " and %" PRIu32,
                       type_descr,
@@ -982,7 +982,7 @@ bool DexFileVerifier::CheckOrderAndGetClassFlags(bool is_field,
   }
 
   if (!*have_class) {
-    *have_class = FindClassFlags(curr_index, is_field, class_type_index, class_access_flags);
+    *have_class = FindClassIndexAndDef(curr_index, is_field, class_type_index, class_def);
     if (!*have_class) {
       // Should have really found one.
       ErrorStringPrintf("could not find declaring class for %s index %" PRIu32,
@@ -994,34 +994,130 @@ bool DexFileVerifier::CheckOrderAndGetClassFlags(bool is_field,
   return true;
 }
 
+bool DexFileVerifier::CheckStaticFieldTypes(const DexFile::ClassDef* class_def) {
+  if (class_def == nullptr) {
+    return true;
+  }
+
+  ClassDataItemIterator field_it(*dex_file_, ptr_);
+  EncodedStaticFieldValueIterator array_it(*dex_file_, *class_def);
+
+  for (; field_it.HasNextStaticField() && array_it.HasNext(); field_it.Next(), array_it.Next()) {
+    uint32_t index = field_it.GetMemberIndex();
+    const DexFile::TypeId& type_id = dex_file_->GetTypeId(dex_file_->GetFieldId(index).type_idx_);
+    const char* field_type_name =
+        dex_file_->GetStringData(dex_file_->GetStringId(type_id.descriptor_idx_));
+    Primitive::Type field_type = Primitive::GetType(field_type_name[0]);
+    EncodedArrayValueIterator::ValueType array_type = array_it.GetValueType();
+    // Ensure this matches RuntimeEncodedStaticFieldValueIterator.
+    switch (array_type) {
+      case EncodedArrayValueIterator::ValueType::kBoolean:
+        if (field_type != Primitive::kPrimBoolean) {
+          ErrorStringPrintf("unexpected static field initial value type: 'Z' vs '%c'",
+                            field_type_name[0]);
+          return false;
+        }
+        break;
+      case EncodedArrayValueIterator::ValueType::kByte:
+        if (field_type != Primitive::kPrimByte) {
+          ErrorStringPrintf("unexpected static field initial value type: 'B' vs '%c'",
+                            field_type_name[0]);
+          return false;
+        }
+        break;
+      case EncodedArrayValueIterator::ValueType::kShort:
+        if (field_type != Primitive::kPrimShort) {
+          ErrorStringPrintf("unexpected static field initial value type: 'S' vs '%c'",
+                            field_type_name[0]);
+          return false;
+        }
+        break;
+      case EncodedArrayValueIterator::ValueType::kChar:
+        if (field_type != Primitive::kPrimChar) {
+          ErrorStringPrintf("unexpected static field initial value type: 'C' vs '%c'",
+                            field_type_name[0]);
+          return false;
+        }
+        break;
+      case EncodedArrayValueIterator::ValueType::kInt:
+        if (field_type != Primitive::kPrimInt) {
+          ErrorStringPrintf("unexpected static field initial value type: 'I' vs '%c'",
+                            field_type_name[0]);
+          return false;
+        }
+        break;
+      case EncodedArrayValueIterator::ValueType::kLong:
+        if (field_type != Primitive::kPrimLong) {
+          ErrorStringPrintf("unexpected static field initial value type: 'J' vs '%c'",
+                            field_type_name[0]);
+          return false;
+        }
+        break;
+      case EncodedArrayValueIterator::ValueType::kFloat:
+        if (field_type != Primitive::kPrimFloat) {
+          ErrorStringPrintf("unexpected static field initial value type: 'F' vs '%c'",
+                            field_type_name[0]);
+          return false;
+        }
+        break;
+      case EncodedArrayValueIterator::ValueType::kDouble:
+        if (field_type != Primitive::kPrimDouble) {
+          ErrorStringPrintf("unexpected static field initial value type: 'D' vs '%c'",
+                            field_type_name[0]);
+          return false;
+        }
+        break;
+      case EncodedArrayValueIterator::ValueType::kNull:
+      case EncodedArrayValueIterator::ValueType::kString:
+      case EncodedArrayValueIterator::ValueType::kType:
+        if (field_type != Primitive::kPrimNot) {
+          ErrorStringPrintf("unexpected static field initial value type: 'L' vs '%c'",
+                            field_type_name[0]);
+          return false;
+        }
+        break;
+      default:
+        ErrorStringPrintf("unexpected static field initial value type: %x", array_type);
+        return false;
+    }
+  }
+
+  if (array_it.HasNext()) {
+    ErrorStringPrintf("too many static field initial values");
+    return false;
+  }
+  return true;
+}
+
 template <bool kStatic>
 bool DexFileVerifier::CheckIntraClassDataItemFields(ClassDataItemIterator* it,
                                                     bool* have_class,
                                                     dex::TypeIndex* class_type_index,
-                                                    uint32_t* class_access_flags) {
+                                                    const DexFile::ClassDef** class_def) {
   DCHECK(it != nullptr);
   // These calls use the raw access flags to check whether the whole dex field is valid.
   uint32_t prev_index = 0;
   for (; kStatic ? it->HasNextStaticField() : it->HasNextInstanceField(); it->Next()) {
     uint32_t curr_index = it->GetMemberIndex();
-    if (!CheckOrderAndGetClassFlags(true,
-                                    kStatic ? "static field" : "instance field",
-                                    curr_index,
-                                    prev_index,
-                                    have_class,
-                                    class_type_index,
-                                    class_access_flags)) {
+    if (!CheckOrderAndGetClassDef(true,
+                                  kStatic ? "static field" : "instance field",
+                                  curr_index,
+                                  prev_index,
+                                  have_class,
+                                  class_type_index,
+                                  class_def)) {
       return false;
     }
-    prev_index = curr_index;
-
+    DCHECK(class_def != nullptr);
     if (!CheckClassDataItemField(curr_index,
                                  it->GetRawMemberAccessFlags(),
-                                 *class_access_flags,
+                                 (*class_def)->access_flags_,
                                  *class_type_index,
                                  kStatic)) {
       return false;
     }
+
+    prev_index = curr_index;
   }
 
   return true;
@@ -1033,30 +1129,31 @@ bool DexFileVerifier::CheckIntraClassDataItemMethods(
     std::unordered_set<uint32_t>* direct_method_indexes,
     bool* have_class,
     dex::TypeIndex* class_type_index,
-    uint32_t* class_access_flags) {
+    const DexFile::ClassDef** class_def) {
   uint32_t prev_index = 0;
   for (; kDirect ? it->HasNextDirectMethod() : it->HasNextVirtualMethod(); it->Next()) {
     uint32_t curr_index = it->GetMemberIndex();
-    if (!CheckOrderAndGetClassFlags(false,
-                                    kDirect ? "direct method" : "virtual method",
-                                    curr_index,
-                                    prev_index,
-                                    have_class,
-                                    class_type_index,
-                                    class_access_flags)) {
+    if (!CheckOrderAndGetClassDef(false,
+                                  kDirect ? "direct method" : "virtual method",
+                                  curr_index,
+                                  prev_index,
+                                  have_class,
+                                  class_type_index,
+                                  class_def)) {
       return false;
     }
-    prev_index = curr_index;
-
+    DCHECK(class_def != nullptr);
     if (!CheckClassDataItemMethod(curr_index,
                                   it->GetRawMemberAccessFlags(),
-                                  *class_access_flags,
+                                  (*class_def)->access_flags_,
                                   *class_type_index,
                                   it->GetMethodCodeItemOffset(),
                                   direct_method_indexes,
                                   kDirect)) {
       return false;
     }
+
+    prev_index = curr_index;
   }
 
   return true;
@@ -1071,19 +1168,19 @@ bool DexFileVerifier::CheckIntraClassDataItem() {
   // as the lookup is expensive, cache the result.
   bool have_class = false;
   dex::TypeIndex class_type_index;
-  uint32_t class_access_flags;
+  const DexFile::ClassDef* class_def = nullptr;
 
   // Check fields.
   if (!CheckIntraClassDataItemFields<true>(&it,
                                            &have_class,
                                            &class_type_index,
-                                           &class_access_flags)) {
+                                           &class_def)) {
     return false;
   }
   if (!CheckIntraClassDataItemFields<false>(&it,
                                             &have_class,
                                             &class_type_index,
-                                            &class_access_flags)) {
+                                            &class_def)) {
     return false;
   }
 
@@ -1092,18 +1189,25 @@ bool DexFileVerifier::CheckIntraClassDataItem() {
                                             &direct_method_indexes,
                                             &have_class,
                                             &class_type_index,
-                                            &class_access_flags)) {
+                                            &class_def)) {
     return false;
   }
   if (!CheckIntraClassDataItemMethods<false>(&it,
                                              &direct_method_indexes,
                                              &have_class,
                                              &class_type_index,
-                                             &class_access_flags)) {
+                                             &class_def)) {
     return false;
   }
 
-  ptr_ = it.EndDataPointer();
+  const uint8_t* end_ptr = it.EndDataPointer();
+
+  // Check static field types against initial static values in encoded array.
+  if (!CheckStaticFieldTypes(class_def)) {
+    return false;
+  }
+
+  ptr_ = end_ptr;
   return true;
 }
 
