@@ -1525,6 +1525,9 @@ static void CreateIntIntIntToIntLocations(ArenaAllocator* arena,
                                                                 ? LocationSummary::kCallOnSlowPath
                                                                 : LocationSummary::kNoCall),
                                                            kIntrinsified);
+  if (can_call && kUseBakerReadBarrier) {
+    locations->SetCustomSlowPathCallerSaves(RegisterSet::Empty());  // No caller-save registers.
+  }
   locations->SetInAt(0, Location::NoLocation());        // Unused receiver.
   locations->SetInAt(1, Location::RequiresRegister());
   locations->SetInAt(2, Location::RequiresRegister());
