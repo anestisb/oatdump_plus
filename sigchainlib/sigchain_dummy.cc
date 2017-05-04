@@ -54,13 +54,13 @@ extern "C" void EnsureFrontOfChain(int signal ATTRIBUTE_UNUSED) {
 }
 
 extern "C" void AddSpecialSignalHandlerFn(int signal ATTRIBUTE_UNUSED,
-                                          SpecialSignalHandlerFn fn ATTRIBUTE_UNUSED) {
+                                          SigchainAction* sa ATTRIBUTE_UNUSED) {
   log("SetSpecialSignalHandlerFn is not exported by the main executable.");
   abort();
 }
 
 extern "C" void RemoveSpecialSignalHandlerFn(int signal ATTRIBUTE_UNUSED,
-                                          SpecialSignalHandlerFn fn ATTRIBUTE_UNUSED) {
+                                             bool (*fn)(int, siginfo_t*, void*) ATTRIBUTE_UNUSED) {
   log("SetSpecialSignalHandlerFn is not exported by the main executable.");
   abort();
 }
