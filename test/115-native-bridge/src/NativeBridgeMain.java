@@ -35,6 +35,7 @@ class Main {
         testNewStringObject();
         testSignalHandler();
         testGetErrorByLoadInvalidLibrary();
+        testSignalHandlerNotReturn();
     }
 
     public static native void testFindClassOnAttachedNativeThread();
@@ -199,6 +200,8 @@ class Main {
             System.out.println("Catch UnsatisfiedLinkError exception as expected.");
         }
     }
+
+    private static native void testSignalHandlerNotReturn();
 }
 
 public class NativeBridgeMain {

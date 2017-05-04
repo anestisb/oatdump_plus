@@ -190,10 +190,10 @@ class SignalChain {
     return action_;
   }
 
-  void AddSpecialHandler(SpecialSignalHandlerFn fn) {
-    for (SpecialSignalHandlerFn& slot : special_handlers_) {
-      if (slot == nullptr) {
-        slot = fn;
+  void AddSpecialHandler(SigchainAction* sa) {
+    for (SigchainAction& slot : special_handlers_) {
+      if (slot.sc_sigaction == nullptr) {
+        slot = *sa;
         return;
       }
     }
@@ -201,15 +201,15 @@ class SignalChain {
     fatal("too many special signal handlers");
   }
 
-  void RemoveSpecialHandler(SpecialSignalHandlerFn fn) {
+  void RemoveSpecialHandler(bool (*fn)(int, siginfo_t*, void*)) {
     // This isn't thread safe, but it's unlikely to be a real problem.
     size_t len = sizeof(special_handlers_)/sizeof(*special_handlers_);
     for (size_t i = 0; i < len; ++i) {
-      if (special_handlers_[i] == fn) {
+      if (special_handlers_[i].sc_sigaction == fn) {
         for (size_t j = i; j < len - 1; ++j) {
           special_handlers_[j] = special_handlers_[j + 1];
         }
-        special_handlers_[len - 1] = nullptr;
+        special_handlers_[len - 1].sc_sigaction = nullptr;
         return;
       }
     }
@@ -223,47 +223,37 @@ class SignalChain {
  private:
   bool claimed_;
   struct sigaction action_;
-  SpecialSignalHandlerFn special_handlers_[2];
+  SigchainAction special_handlers_[2];
 };
 
 static SignalChain chains[_NSIG];
 
-class ScopedSignalUnblocker {
- public:
-  explicit ScopedSignalUnblocker(const std::initializer_list<int>& signals) {
-    sigset_t new_mask;
-    sigemptyset(&new_mask);
-    for (int signal : signals) {
-      sigaddset(&new_mask, signal);
-    }
-    if (sigprocmask(SIG_UNBLOCK, &new_mask, &previous_mask_) != 0) {
-      fatal("failed to unblock signals: %s", strerror(errno));
-    }
-  }
-
-  ~ScopedSignalUnblocker() {
-    if (sigprocmask(SIG_SETMASK, &previous_mask_, nullptr) != 0) {
-      fatal("failed to unblock signals: %s", strerror(errno));
-    }
-  }
-
- private:
-  sigset_t previous_mask_;
-};
-
 void SignalChain::Handler(int signo, siginfo_t* siginfo, void* ucontext_raw) {
-  ScopedHandlingSignal handling_signal;
-
   // Try the special handlers first.
   // If one of them crashes, we'll reenter this handler and pass that crash onto the user handler.
   if (!GetHandlingSignal()) {
-    ScopedSignalUnblocker unblocked { SIGABRT, SIGBUS, SIGFPE, SIGILL, SIGSEGV }; // NOLINT
-    SetHandlingSignal(true);
-
     for (const auto& handler : chains[signo].special_handlers_) {
-      if (handler != nullptr && handler(signo, siginfo, ucontext_raw)) {
+      if (handler.sc_sigaction == nullptr) {
+        break;
+      }
+
+      // The native bridge signal handler might not return.
+      // Avoid setting the thread local flag in this case, since we'll never
+      // get a chance to restore it.
+      bool handler_noreturn = (handler.sc_flags & SIGCHAIN_ALLOW_NORETURN);
+      sigset_t previous_mask;
+      linked_sigprocmask(SIG_SETMASK, &handler.sc_mask, &previous_mask);
+
+      ScopedHandlingSignal restorer;
+      if (!handler_noreturn) {
+        SetHandlingSignal(true);
+      }
+
+      if (handler.sc_sigaction(signo, siginfo, ucontext_raw)) {
         return;
       }
+
+      linked_sigprocmask(SIG_SETMASK, &previous_mask, nullptr);
     }
   }
 
@@ -275,7 +265,7 @@ void SignalChain::Handler(int signo, siginfo_t* siginfo, void* ucontext_raw) {
   if ((handler_flags & SA_NODEFER)) {
     sigdelset(&mask, signo);
   }
-  sigprocmask(SIG_SETMASK, &mask, nullptr);
+  linked_sigprocmask(SIG_SETMASK, &mask, nullptr);
 
   if ((handler_flags & SA_SIGINFO)) {
     chains[signo].action_.sa_sigaction(signo, siginfo, ucontext_raw);
@@ -386,7 +376,7 @@ extern "C" int sigprocmask(int how, const sigset_t* bionic_new_set, sigset_t* bi
   return linked_sigprocmask(how, new_set_ptr, bionic_old_set);
 }
 
-extern "C" void AddSpecialSignalHandlerFn(int signal, SpecialSignalHandlerFn fn) {
+extern "C" void AddSpecialSignalHandlerFn(int signal, SigchainAction* sa) {
   InitializeSignalChain();
 
   if (signal <= 0 || signal >= _NSIG) {
@@ -394,11 +384,11 @@ extern "C" void AddSpecialSignalHandlerFn(int signal, SpecialSignalHandlerFn fn)
   }
 
   // Set the managed_handler.
-  chains[signal].AddSpecialHandler(fn);
+  chains[signal].AddSpecialHandler(sa);
   chains[signal].Claim(signal);
 }
 
-extern "C" void RemoveSpecialSignalHandlerFn(int signal, SpecialSignalHandlerFn fn) {
+extern "C" void RemoveSpecialSignalHandlerFn(int signal, bool (*fn)(int, siginfo_t*, void*)) {
   InitializeSignalChain();
 
   if (signal <= 0 || signal >= _NSIG) {
