@@ -249,6 +249,12 @@ class CheckJniAbortCatcher {
     return; \
   }
 
+#define TEST_DISABLED_FOR_MEMORY_TOOL_ASAN() \
+  if (RUNNING_ON_MEMORY_TOOL > 0 && !kMemoryToolIsValgrind) { \
+    printf("WARNING: TEST DISABLED FOR MEMORY TOOL ASAN\n"); \
+    return; \
+  }
+
 }  // namespace art
 
 namespace std {
