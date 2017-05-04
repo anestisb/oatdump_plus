@@ -56,6 +56,12 @@ class HeapUtil {
   ObjectTagTable* tags_;
 };
 
+class HeapExtensions {
+ public:
+  static jvmtiError JNICALL GetObjectHeapId(jvmtiEnv* env, jlong tag, jint* heap_id, ...);
+  static jvmtiError JNICALL GetHeapName(jvmtiEnv* env, jint heap_id, char** heap_name, ...);
+};
+
 }  // namespace openjdkjvmti
 
 #endif  // ART_RUNTIME_OPENJDKJVMTI_TI_HEAP_H_
