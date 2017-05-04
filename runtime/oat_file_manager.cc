@@ -615,9 +615,7 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
   Locks::mutator_lock_->AssertNotHeld(self);
   Runtime* const runtime = Runtime::Current();
 
-  // TODO(calin): remove the explicit oat_location for OatFileAssistant
   OatFileAssistant oat_file_assistant(dex_location,
-                                      /*oat_location*/ nullptr,
                                       kRuntimeISA,
                                       !runtime->IsAotCompiler());
 
