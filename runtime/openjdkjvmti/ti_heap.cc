@@ -1400,4 +1400,95 @@ jvmtiError HeapUtil::ForceGarbageCollection(jvmtiEnv* env ATTRIBUTE_UNUSED) {
 
   return ERR(NONE);
 }
+
+static constexpr jint kHeapIdDefault = 0;
+static constexpr jint kHeapIdImage = 1;
+static constexpr jint kHeapIdZygote = 2;
+static constexpr jint kHeapIdApp = 3;
+
+jvmtiError HeapExtensions::GetObjectHeapId(jvmtiEnv* env, jlong tag, jint* heap_id, ...) {
+  if (heap_id == nullptr) {
+    return ERR(NULL_POINTER);
+  }
+
+  art::Thread* self = art::Thread::Current();
+
+  auto work = [&]() REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    ObjectTagTable* tag_table = ArtJvmTiEnv::AsArtJvmTiEnv(env)->object_tag_table.get();
+    art::ObjPtr<art::mirror::Object> obj = tag_table->Find(tag);
+    if (obj == nullptr) {
+      return ERR(NOT_FOUND);
+    }
+
+    art::gc::Heap* const heap = art::Runtime::Current()->GetHeap();
+    const art::gc::space::ContinuousSpace* const space =
+        heap->FindContinuousSpaceFromObject(obj, true);
+    jint heap_type = kHeapIdApp;
+    if (space != nullptr) {
+      if (space->IsZygoteSpace()) {
+        heap_type = kHeapIdZygote;
+      } else if (space->IsImageSpace() && heap->ObjectIsInBootImageSpace(obj)) {
+        // Only count objects in the boot image as HPROF_HEAP_IMAGE, this leaves app image objects
+        // as HPROF_HEAP_APP. b/35762934
+        heap_type = kHeapIdImage;
+      }
+    } else {
+      const auto* los = heap->GetLargeObjectsSpace();
+      if (los->Contains(obj.Ptr()) && los->IsZygoteLargeObject(self, obj.Ptr())) {
+        heap_type = kHeapIdZygote;
+      }
+    }
+    *heap_id = heap_type;
+    return ERR(NONE);
+  };
+
+  if (!art::Locks::mutator_lock_->IsSharedHeld(self)) {
+    if (!self->IsThreadSuspensionAllowable()) {
+      return ERR(INTERNAL);
+    }
+    art::ScopedObjectAccess soa(self);
+    return work();
+  } else {
+    // We cannot use SOA in this case. We might be holding the lock, but may not be in the
+    // runnable state (e.g., during GC).
+    art::Locks::mutator_lock_->AssertSharedHeld(self);
+    // TODO: Investigate why ASSERT_SHARED_CAPABILITY doesn't work.
+    auto annotalysis_workaround = [&]() NO_THREAD_SAFETY_ANALYSIS {
+      return work();
+    };
+    return annotalysis_workaround();
+  }
+}
+
+static jvmtiError CopyStringAndReturn(jvmtiEnv* env, const char* in, char** out) {
+  jvmtiError error;
+  JvmtiUniquePtr<char[]> param_name = CopyString(env, in, &error);
+  if (param_name == nullptr) {
+    return error;
+  }
+  *out = param_name.release();
+  return ERR(NONE);
+}
+
+static constexpr const char* kHeapIdDefaultName = "default";
+static constexpr const char* kHeapIdImageName = "image";
+static constexpr const char* kHeapIdZygoteName = "zygote";
+static constexpr const char* kHeapIdAppName = "app";
+
+jvmtiError HeapExtensions::GetHeapName(jvmtiEnv* env, jint heap_id, char** heap_name, ...) {
+  switch (heap_id) {
+    case kHeapIdDefault:
+      return CopyStringAndReturn(env, kHeapIdDefaultName, heap_name);
+    case kHeapIdImage:
+      return CopyStringAndReturn(env, kHeapIdImageName, heap_name);
+    case kHeapIdZygote:
+      return CopyStringAndReturn(env, kHeapIdZygoteName, heap_name);
+    case kHeapIdApp:
+      return CopyStringAndReturn(env, kHeapIdAppName, heap_name);
+
+    default:
+      return ERR(ILLEGAL_ARGUMENT);
+  }
+}
+
 }  // namespace openjdkjvmti

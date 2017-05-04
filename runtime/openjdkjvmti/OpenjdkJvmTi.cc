@@ -1078,9 +1078,156 @@ class JvmtiFunctions {
                                           jint* extension_count_ptr,
                                           jvmtiExtensionFunctionInfo** extensions) {
     ENSURE_VALID_ENV(env);
-    // We do not have any extension functions.
-    *extension_count_ptr = 0;
-    *extensions = nullptr;
+    ENSURE_NON_NULL(extension_count_ptr);
+    ENSURE_NON_NULL(extensions);
+
+    std::vector<jvmtiExtensionFunctionInfo> ext_vector;
+
+    // Holders for allocated values.
+    std::vector<JvmtiUniquePtr<char[]>> char_buffers;
+    std::vector<JvmtiUniquePtr<jvmtiParamInfo[]>> param_buffers;
+    std::vector<JvmtiUniquePtr<jvmtiError[]>> error_buffers;
+
+    // Add a helper struct that takes an arbitrary const char*. add_extension will use Allocate
+    // appropriately.
+    struct CParamInfo {
+      const char* name;
+      jvmtiParamKind kind;
+      jvmtiParamTypes base_type;
+      jboolean null_ok;
+    };
+
+    auto add_extension = [&](jvmtiExtensionFunction func,
+                             const char* id,
+                             const char* short_description,
+                             jint param_count,
+                             const std::vector<CParamInfo>& params,
+                             jint error_count,
+                             const std::vector<jvmtiError>& errors) {
+      jvmtiExtensionFunctionInfo func_info;
+      jvmtiError error;
+
+      func_info.func = func;
+
+      JvmtiUniquePtr<char[]> id_ptr = CopyString(env, id, &error);
+      if (id_ptr == nullptr) {
+        return error;
+      }
+      func_info.id = id_ptr.get();
+      char_buffers.push_back(std::move(id_ptr));
+
+      JvmtiUniquePtr<char[]> descr = CopyString(env, short_description, &error);
+      if (descr == nullptr) {
+        return error;
+      }
+      func_info.short_description = descr.get();
+      char_buffers.push_back(std::move(descr));
+
+      func_info.param_count = param_count;
+      if (param_count > 0) {
+        JvmtiUniquePtr<jvmtiParamInfo[]> params_ptr =
+            AllocJvmtiUniquePtr<jvmtiParamInfo[]>(env, param_count, &error);
+        if (params_ptr == nullptr) {
+          return error;
+        }
+        func_info.params = params_ptr.get();
+        param_buffers.push_back(std::move(params_ptr));
+
+        for (jint i = 0; i != param_count; ++i) {
+          JvmtiUniquePtr<char[]> param_name = CopyString(env, params[i].name, &error);
+          if (param_name == nullptr) {
+            return error;
+          }
+          func_info.params[i].name = param_name.get();
+          char_buffers.push_back(std::move(param_name));
+
+          func_info.params[i].kind = params[i].kind;
+          func_info.params[i].base_type = params[i].base_type;
+          func_info.params[i].null_ok = params[i].null_ok;
+        }
+      } else {
+        func_info.params = nullptr;
+      }
+
+      func_info.error_count = error_count;
+      if (error_count > 0) {
+        JvmtiUniquePtr<jvmtiError[]> errors_ptr =
+            AllocJvmtiUniquePtr<jvmtiError[]>(env, error_count, &error);
+        if (errors_ptr == nullptr) {
+          return error;
+        }
+        func_info.errors = errors_ptr.get();
+        error_buffers.push_back(std::move(errors_ptr));
+
+        for (jint i = 0; i != error_count; ++i) {
+          func_info.errors[i] = errors[i];
+        }
+      } else {
+        func_info.errors = nullptr;
+      }
+
+      ext_vector.push_back(func_info);
+
+      return ERR(NONE);
+    };
+
+    jvmtiError error;
+
+    // Heap extensions.
+    error = add_extension(
+        reinterpret_cast<jvmtiExtensionFunction>(HeapExtensions::GetObjectHeapId),
+        "com.android.art.heap.get_object_heap_id",
+        "Retrieve the heap id of the the object tagged with the given argument. An "
+            "arbitrary object is chosen if multiple objects exist with the same tag.",
+        2,
+        {                                                          // NOLINT [whitespace/braces] [4]
+            { "tag", JVMTI_KIND_IN, JVMTI_TYPE_JLONG, false},
+            { "heap_id", JVMTI_KIND_OUT, JVMTI_TYPE_JINT, false}
+        },
+        1,
+        { JVMTI_ERROR_NOT_FOUND });
+    if (error != ERR(NONE)) {
+      return error;
+    }
+
+    error = add_extension(
+        reinterpret_cast<jvmtiExtensionFunction>(HeapExtensions::GetHeapName),
+        "com.android.art.heap.get_heap_name",
+        "Retrieve the name of the heap with the given id.",
+        2,
+        {                                                          // NOLINT [whitespace/braces] [4]
+            { "heap_id", JVMTI_KIND_IN, JVMTI_TYPE_JINT, false},
+            { "heap_name", JVMTI_KIND_ALLOC_BUF, JVMTI_TYPE_CCHAR, false}
+        },
+        1,
+        { JVMTI_ERROR_ILLEGAL_ARGUMENT });
+    if (error != ERR(NONE)) {
+      return error;
+    }
+
+    // Copy into output buffer.
+
+    *extension_count_ptr = ext_vector.size();
+    JvmtiUniquePtr<jvmtiExtensionFunctionInfo[]> out_data =
+        AllocJvmtiUniquePtr<jvmtiExtensionFunctionInfo[]>(env, ext_vector.size(), &error);
+    if (out_data == nullptr) {
+      return error;
+    }
+    memcpy(out_data.get(),
+           ext_vector.data(),
+           ext_vector.size() * sizeof(jvmtiExtensionFunctionInfo));
+    *extensions = out_data.release();
+
+    // Release all the buffer holders, we're OK now.
+    for (auto& holder : char_buffers) {
+      holder.release();
+    }
+    for (auto& holder : param_buffers) {
+      holder.release();
+    }
+    for (auto& holder : error_buffers) {
+      holder.release();
+    }
 
     return ERR(NONE);
   }

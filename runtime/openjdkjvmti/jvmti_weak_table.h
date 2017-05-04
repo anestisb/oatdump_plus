@@ -116,6 +116,10 @@ class JvmtiWeakTable : public art::gc::SystemWeakHolder {
   void Unlock() RELEASE(allow_disallow_lock_);
   void AssertLocked() ASSERT_CAPABILITY(allow_disallow_lock_);
 
+  art::mirror::Object* Find(T tag)
+      REQUIRES_SHARED(art::Locks::mutator_lock_)
+      REQUIRES(!allow_disallow_lock_);
+
  protected:
   // Should HandleNullSweep be called when Sweep detects the release of an object?
   virtual bool DoesHandleNullOnSweep() {
