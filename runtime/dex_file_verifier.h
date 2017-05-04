@@ -86,13 +86,14 @@ class DexFileVerifier {
                                 uint32_t code_offset,
                                 std::unordered_set<uint32_t>* direct_method_indexes,
                                 bool expect_direct);
-  bool CheckOrderAndGetClassFlags(bool is_field,
-                                  const char* type_descr,
-                                  uint32_t curr_index,
-                                  uint32_t prev_index,
-                                  bool* have_class,
-                                  dex::TypeIndex* class_type_index,
-                                  uint32_t* class_access_flags);
+  bool CheckOrderAndGetClassDef(bool is_field,
+                                const char* type_descr,
+                                uint32_t curr_index,
+                                uint32_t prev_index,
+                                bool* have_class,
+                                dex::TypeIndex* class_type_index,
+                                const DexFile::ClassDef** class_def);
+  bool CheckStaticFieldTypes(const DexFile::ClassDef* class_def);
 
   bool CheckPadding(size_t offset, uint32_t aligned_offset);
   bool CheckEncodedValue();
@@ -106,7 +107,7 @@ class DexFileVerifier {
   bool CheckIntraClassDataItemFields(ClassDataItemIterator* it,
                                      bool* have_class,
                                      dex::TypeIndex* class_type_index,
-                                     uint32_t* class_access_flags);
+                                     const DexFile::ClassDef** class_def);
   // Check all methods of the given type from the given iterator. Load the class data from the first
   // method, if necessary (and return it), or use the given values.
   template <bool kDirect>
@@ -114,7 +115,7 @@ class DexFileVerifier {
                                       std::unordered_set<uint32_t>* direct_method_indexes,
                                       bool* have_class,
                                       dex::TypeIndex* class_type_index,
-                                      uint32_t* class_access_flags);
+                                      const DexFile::ClassDef** class_def);
 
   bool CheckIntraCodeItem();
   bool CheckIntraStringDataItem();
@@ -165,16 +166,15 @@ class DexFileVerifier {
       __attribute__((__format__(__printf__, 2, 3))) COLD_ATTR;
   bool FailureReasonIsSet() const { return failure_reason_.size() != 0; }
 
-  // Retrieve class index and class access flag from the given member. index is the member index,
-  // which is taken as either a field or a method index (as designated by is_field). The result,
-  // if the member and declaring class could be found, is stored in class_type_index and
-  // class_access_flags.
-  // This is an expensive lookup, as we have to find the class-def by type index, which is a
+  // Retrieve class index and class def from the given member. index is the member index, which is
+  // taken as either a field or a method index (as designated by is_field). The result, if the
+  // member and declaring class could be found, is stored in class_type_index and class_def.
+  // This is an expensive lookup, as we have to find the class def by type index, which is a
   // linear search. The output values should thus be cached by the caller.
-  bool FindClassFlags(uint32_t index,
-                      bool is_field,
-                      dex::TypeIndex* class_type_index,
-                      uint32_t* class_access_flags);
+  bool FindClassIndexAndDef(uint32_t index,
+                            bool is_field,
+                            dex::TypeIndex* class_type_index,
+                            const DexFile::ClassDef** output_class_def);
 
   // Check validity of the given access flags, interpreted for a field in the context of a class
   // with the given second access flags.
