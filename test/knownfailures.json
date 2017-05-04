@@ -328,11 +328,6 @@
         "variant": "interpreter | optimizing | regalloc_gc | jit"
     },
     {
-        "tests": ["912-classes"],
-        "bug": "http://b/36344364",
-        "variant": "no-dex2oat | relocate-npatchoat"
-    },
-    {
         "tests": ["476-clinit-inline-static-invoke",
                   "496-checker-inlining-class-loader",
                   "508-referrer-method",
