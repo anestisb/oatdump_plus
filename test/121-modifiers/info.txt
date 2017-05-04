@@ -14,5 +14,5 @@ mv Inf.out classes/Inf.class
 mv NonInf.out classes/NonInf.class
 mv Main.class A.class A\$B.class A\$C.class classes/
 dx --debug --dex --output=classes.dex classes
-baksmali classes.dex
+baksmali disassemble classes.dex
 mv out/*.smali smali/

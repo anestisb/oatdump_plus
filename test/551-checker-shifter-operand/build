@@ -168,7 +168,7 @@ fi
 
 if [ "${HAS_SMALI}" = "true" ]; then
   # Compile Smali classes
-  ${SMALI} -JXmx512m ${SMALI_ARGS} --output smali_classes.dex `find smali -name '*.smali'`
+  ${SMALI} -JXmx512m assemble ${SMALI_ARGS} --output smali_classes.dex `find smali -name '*.smali'`
 
   # Don't bother with dexmerger if we provide our own main function in a smali file.
   if [ ${SKIP_DX_MERGER} = "false" ]; then
