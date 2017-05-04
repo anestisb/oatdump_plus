@@ -296,21 +296,20 @@ static void ProcessOneDexMapping(uint64_t* pagemap,
   DisplayDexStatistics(start_page, end_page, section_resident_pages, sections, printer);
 }
 
-static bool DisplayMappingIfFromVdexFile(pm_map_t* map, Printer* printer) {
+static bool IsVdexFileMapping(const std::string& mapped_name) {
   // Confirm that the map is from a vdex file.
   static const char* suffixes[] = { ".vdex" };
-  std::string vdex_name;
-  bool found = false;
-  for (size_t j = 0; j < sizeof(suffixes) / sizeof(suffixes[0]); ++j) {
-    if (strstr(pm_map_name(map), suffixes[j]) != nullptr) {
-      vdex_name = pm_map_name(map);
-      found = true;
-      break;
+  for (const char* suffix : suffixes) {
+    size_t match_loc = mapped_name.find(suffix);
+    if (match_loc != std::string::npos && mapped_name.length() == match_loc + strlen(suffix)) {
+      return true;
     }
   }
-  if (!found) {
-    return true;
-  }
+  return false;
+}
+
+static bool DisplayMappingIfFromVdexFile(pm_map_t* map, Printer* printer) {
+  std::string vdex_name = pm_map_name(map);
   // Extract all the dex files from the vdex file.
   std::string error_msg;
   std::unique_ptr<VdexFile> vdex(VdexFile::Open(vdex_name,
@@ -334,6 +333,7 @@ static bool DisplayMappingIfFromVdexFile(pm_map_t* map, Printer* printer) {
               << ": error "
               << error_msg
               << std::endl;
+    return false;
   }
   // Open the page mapping (one uint64_t per page) for the entire vdex mapping.
   uint64_t* pagemap;
@@ -385,21 +385,19 @@ static void ProcessOneOatMapping(uint64_t* pagemap, size_t size, Printer* printe
   printer->PrintSkipLine();
 }
 
-static bool DisplayMappingIfFromOatFile(pm_map_t* map, Printer* printer) {
-  // Confirm that the map is from a vdex file.
+static bool IsOatFileMapping(const std::string& mapped_name) {
+  // Confirm that the map is from an oat file.
   static const char* suffixes[] = { ".odex", ".oat" };
-  std::string vdex_name;
-  bool found = false;
-  for (size_t j = 0; j < sizeof(suffixes) / sizeof(suffixes[0]); ++j) {
-    if (strstr(pm_map_name(map), suffixes[j]) != nullptr) {
-      vdex_name = pm_map_name(map);
-      found = true;
-      break;
+  for (const char* suffix : suffixes) {
+    size_t match_loc = mapped_name.find(suffix);
+    if (match_loc != std::string::npos && mapped_name.length() == match_loc + strlen(suffix)) {
+      return true;
     }
   }
-  if (!found) {
-    return true;
-  }
+  return false;
+}
+
+static bool DisplayMappingIfFromOatFile(pm_map_t* map, Printer* printer) {
   // Open the page mapping (one uint64_t per page) for the entire vdex mapping.
   uint64_t* pagemap;
   size_t len;
@@ -511,14 +509,20 @@ static int DexDiagMain(int argc, char* argv[]) {
     if (!FilterByNameContains(mapped_file_name, name_filters)) {
       continue;
     }
-    match_found = true;
-    if (!DisplayMappingIfFromVdexFile(maps[i], &printer)) {
-      return EXIT_FAILURE;
-    } else if (!DisplayMappingIfFromOatFile(maps[i], &printer)) {
-      return EXIT_FAILURE;
+    if (IsVdexFileMapping(mapped_file_name)) {
+      if (!DisplayMappingIfFromVdexFile(maps[i], &printer)) {
+        return EXIT_FAILURE;
+      }
+      match_found = true;
+    } else if (IsOatFileMapping(mapped_file_name)) {
+      if (!DisplayMappingIfFromOatFile(maps[i], &printer)) {
+        return EXIT_FAILURE;
+      }
+      match_found = true;
     }
   }
   if (!match_found) {
+    std::cerr << "No relevant memory maps were found." << std::endl;
     return EXIT_FAILURE;
   }
 #endif

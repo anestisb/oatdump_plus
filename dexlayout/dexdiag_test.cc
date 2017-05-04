@@ -55,7 +55,6 @@ class DexDiagTest : public CommonRuntimeTest {
   }
 
   std::unique_ptr<OatFile> OpenOatAndVdexFiles() {
-    std::cout << "YO!" << std::endl;
     // Open the core.oat file.
     // This is a little convoluted because we have to
     // get the location of the default core image (.../framework/core.oat),
