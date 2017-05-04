@@ -331,6 +331,16 @@ public class Main {
     }
   }
 
+  // Bug b/37768917: potential dynamic BCE vs. loop optimizations
+  // case should be deal with correctly (used to DCHECK fail).
+  private static void arrayInTripCount(int[] a, byte[] b, int n) {
+    for (int k = 0; k < n; k++) {
+      for (int i = 0, u = a[0]; i < u; i++) {
+        b[i] += 2;
+      }
+    }
+  }
+
   public static void main(String[] args) {
     expectEquals(10, earlyExitFirst(-1));
     for (int i = 0; i <= 10; i++) {
@@ -419,6 +429,13 @@ public class Main {
     for (int i = 0; i < aa.length; i++) {
       expectEquals(aa[i], 1);
       expectEquals(dd[i], 1);
+    }
+
+    xx[0] = 10;
+    byte[] bt = new byte[10];
+    arrayInTripCount(xx, bt, 20);
+    for (int i = 0; i < bt.length; i++) {
+      expectEquals(40, bt[i]);
     }
 
     System.out.println("passed");
