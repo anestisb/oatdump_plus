@@ -991,8 +991,12 @@ class ConcurrentCopying::DisableMarkingCallback : public Closure {
     // to avoid a race with ThreadList::Register().
     CHECK(concurrent_copying_->is_marking_);
     concurrent_copying_->is_marking_ = false;
-    CHECK(concurrent_copying_->is_using_read_barrier_entrypoints_);
-    concurrent_copying_->is_using_read_barrier_entrypoints_ = false;
+    if (kUseBakerReadBarrier && kGrayDirtyImmuneObjects) {
+      CHECK(concurrent_copying_->is_using_read_barrier_entrypoints_);
+      concurrent_copying_->is_using_read_barrier_entrypoints_ = false;
+    } else {
+      CHECK(!concurrent_copying_->is_using_read_barrier_entrypoints_);
+    }
   }
 
  private:
