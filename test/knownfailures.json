@@ -602,5 +602,17 @@
         ],
         "bug": "b/37239009",
         "variant": "jvmti-stress"
+    },
+    {
+        "tests": [
+            "536-checker-needs-access-check",
+            "537-checker-inline-and-unverified",
+            "569-checker-pattern-replacement",
+            "586-checker-null-array-get"
+        ],
+        "description": [
+            "Tests that have verify-at-runtime classes, but being compiled when using vdex."
+        ],
+        "variant": "speed-profile"
     }
 ]
