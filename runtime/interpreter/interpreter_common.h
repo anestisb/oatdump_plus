@@ -527,10 +527,11 @@ static inline void AssignRegister(ShadowFrame* new_shadow_frame, const ShadowFra
   }
 }
 
+// The arg_offset is the offset to the first input register in the frame.
 void ArtInterpreterToCompiledCodeBridge(Thread* self,
                                         ArtMethod* caller,
-                                        const DexFile::CodeItem* code_item,
                                         ShadowFrame* shadow_frame,
+                                        uint16_t arg_offset,
                                         JValue* result);
 
 // Set string value created from StringFactory.newStringFromXXX() into all aliases of
