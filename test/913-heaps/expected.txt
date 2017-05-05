@@ -140,9 +140,7 @@ root@root --(thread)--> 3000@0 [size=136, length=-1]
 10001
 10000@0 (static, int, index=11) 0000000000000000
 10001
-10000@0 (static, int, index=0) 0000000000000000
 10001
-10000@0 (static, int, index=1) 0000000000000000
 10001
 10000@0 (instance, int, index=2) 0000000000000000
 10001@0 (instance, byte, index=4) 0000000000000001

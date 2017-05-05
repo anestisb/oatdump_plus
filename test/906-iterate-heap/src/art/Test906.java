@@ -142,6 +142,7 @@ public class Test906 {
   }
 
   private static void doTestPrimitiveFieldsClasses() {
+    System.out.println("doTestPrimitiveFieldsClasses");
     setTag(IntObject.class, 10000);
     System.out.println(iterateThroughHeapPrimitiveFields(10000));
     System.out.println(getTag(IntObject.class));
@@ -152,18 +153,40 @@ public class Test906 {
     System.out.println(getTag(FloatObject.class));
     setTag(FloatObject.class, 0);
 
+    boolean correctHeapValue = false;
     setTag(Inf1.class, 10000);
-    System.out.println(iterateThroughHeapPrimitiveFields(10000));
+    String heapTrace = iterateThroughHeapPrimitiveFields(10000);
+
+    if (!checkInitialized(Inf1.class)) {
+      correctHeapValue = heapTrace.equals("10000@0 (static, int, index=0) 0000000000000000");
+    } else {
+      correctHeapValue = heapTrace.equals("10000@0 (static, int, index=0) 0000000000000001");
+    }
+
+    if (!correctHeapValue)
+      System.out.println("Heap Trace for Inf1 is not as expected:\n" + heapTrace);
+
     System.out.println(getTag(Inf1.class));
     setTag(Inf1.class, 0);
 
     setTag(Inf2.class, 10000);
-    System.out.println(iterateThroughHeapPrimitiveFields(10000));
+    heapTrace = iterateThroughHeapPrimitiveFields(10000);
+
+    if (!checkInitialized(Inf2.class)) {
+      correctHeapValue = heapTrace.equals("10000@0 (static, int, index=1) 0000000000000000");
+    } else {
+      correctHeapValue = heapTrace.equals("10000@0 (static, int, index=1) 0000000000000001");
+    }
+
+    if (!correctHeapValue)
+      System.out.println("Heap Trace for Inf2 is not as expected:\n" + heapTrace);
     System.out.println(getTag(Inf2.class));
+
     setTag(Inf2.class, 0);
   }
 
   private static void doTestPrimitiveFieldsIntegral() {
+    System.out.println("doTestPrimitiveFieldsIntegral");
     IntObject intObject = new IntObject();
     setTag(intObject, 10000);
     System.out.println(iterateThroughHeapPrimitiveFields(10000));
@@ -171,6 +194,7 @@ public class Test906 {
   }
 
   private static void doTestPrimitiveFieldsFloat() {
+    System.out.println("doTestPrimitiveFieldsFloat");
     FloatObject floatObject = new FloatObject();
     setTag(floatObject, 10000);
     System.out.println(iterateThroughHeapPrimitiveFields(10000));
@@ -265,6 +289,7 @@ public class Test906 {
     return Main.getTag(o);
   }
 
+  private static native boolean checkInitialized(Class<?> klass);
   private static native int iterateThroughHeapCount(int heapFilter,
       Class<?> klassFilter, int stopAfter);
   private static native int iterateThroughHeapData(int heapFilter,
