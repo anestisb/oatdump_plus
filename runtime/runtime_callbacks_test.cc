@@ -335,6 +335,9 @@ class RuntimeSigQuitCallbackRuntimeCallbacksTest : public RuntimeCallbacksTest {
 };
 
 TEST_F(RuntimeSigQuitCallbackRuntimeCallbacksTest, SigQuit) {
+  // SigQuit induces a dump. ASAN isn't happy with libunwind reading memory.
+  TEST_DISABLED_FOR_MEMORY_TOOL_ASAN();
+
   // The runtime needs to be started for the signal handler.
   Thread* self = Thread::Current();
 

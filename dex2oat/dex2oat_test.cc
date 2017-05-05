@@ -430,6 +430,9 @@ class Dex2oatSwapUseTest : public Dex2oatSwapTest {
 };
 
 TEST_F(Dex2oatSwapUseTest, CheckSwapUsage) {
+  // Native memory usage isn't correctly tracked under sanitization.
+  TEST_DISABLED_FOR_MEMORY_TOOL_ASAN();
+
   // The `native_alloc_2_ >= native_alloc_1_` assertion below may not
   // hold true on some x86 systems; disable this test while we
   // investigate (b/29259363).
