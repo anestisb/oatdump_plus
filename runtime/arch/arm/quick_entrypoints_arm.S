@@ -2146,6 +2146,216 @@ READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg09, r9
 READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg10, r10
 READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg11, r11
 
+// Helper macros for Baker CC read barrier mark introspection (BRBMI).
+.macro BRBMI_FOR_12_REGISTERS macro_for_register, macro_for_reserved_register
+    \macro_for_register r0
+    \macro_for_register r1
+    \macro_for_register r2
+    \macro_for_register r3
+    \macro_for_reserved_register  // R4 is reserved for the entrypoint address.
+    \macro_for_register r5
+    \macro_for_register r6
+    \macro_for_register r7
+    \macro_for_register r8
+    \macro_for_register r9
+    \macro_for_register r10
+    \macro_for_register r11
+.endm
+
+.macro BRBMI_FOR_REGISTERS macro_for_register, macro_for_reserved_register
+    BRBMI_FOR_12_REGISTERS \macro_for_register, \macro_for_reserved_register
+    \macro_for_reserved_register  // IP is reserved.
+    \macro_for_reserved_register  // SP is reserved.
+    \macro_for_reserved_register  // LR is reserved.
+    \macro_for_reserved_register  // PC is reserved.
+.endm
+
+.macro BRBMI_RETURN_SWITCH_CASE reg
+.Lmark_introspection_return_switch_case_\reg:
+    mov     \reg, ip
+    bx      lr
+.endm
+
+.macro BRBMI_BAD_RETURN_SWITCH_CASE
+.Lmark_introspection_return_switch_case_bad:
+    BRBMI_BKPT_FILL_4B
+.endm
+
+.macro BRBMI_RETURN_SWITCH_CASE_OFFSET reg
+    .byte   (.Lmark_introspection_return_switch_case_\reg - .Lmark_introspection_return_table) / 2
+.endm
+
+.macro BRBMI_BAD_RETURN_SWITCH_CASE_OFFSET
+    .byte   (.Lmark_introspection_return_switch_case_bad - .Lmark_introspection_return_table) / 2
+.endm
+
+#if BAKER_MARK_INTROSPECTION_FIELD_LDR_OFFSET != BAKER_MARK_INTROSPECTION_ARRAY_LDR_OFFSET
+#error "Array and field introspection code sharing requires same LDR offset."
+#endif
+.macro BRBMI_ARRAY_LOAD index_reg
+    ldr     ip, [ip, \index_reg, lsl #2]                // 4 bytes.
+    b       art_quick_read_barrier_mark_introspection   // Should be 2 bytes, encoding T2.
+    .balign 8                                           // Add padding to 8 bytes.
+.endm
+
+.macro BRBMI_BKPT_FILL_4B
+    bkpt    0
+    bkpt    0
+.endm
+
+.macro BRBMI_BKPT_FILL_8B
+    BRBMI_BKPT_FILL_4B
+    BRBMI_BKPT_FILL_4B
+.endm
+
+.macro BRBMI_SLOW_PATH ldr_offset
+    push   {r0-r3, r7, lr}            // Save return address and caller-save registers.
+    .cfi_adjust_cfa_offset 24
+    .cfi_rel_offset r0, 0
+    .cfi_rel_offset r1, 4
+    .cfi_rel_offset r2, 8
+    .cfi_rel_offset r3, 12
+    .cfi_rel_offset r7, 16
+    .cfi_rel_offset lr, 20
+
+    mov     r0, ip                    // Pass the reference.
+    vpush {s0-s15}                    // save floating-point caller-save registers
+    .cfi_adjust_cfa_offset 64
+    bl      artReadBarrierMark        // r0 <- artReadBarrierMark(obj)
+    vpop    {s0-s15}                  // restore floating-point registers
+    .cfi_adjust_cfa_offset -64
+    mov     ip, r0                    // Move reference to ip in preparation for return switch.
+
+    pop     {r0-r3, r7, lr}           // Restore registers.
+    .cfi_adjust_cfa_offset -24
+    .cfi_restore r0
+    .cfi_restore r1
+    .cfi_restore r2
+    .cfi_restore r3
+    .cfi_restore r7
+    .cfi_restore lr
+
+    // Load the half of the instruction that contains Rt. Adjust for the thumb state in LR.
+    ldrh    r4, [lr, #(-1 + \ldr_offset + 2)]
+    lsr     r4, r4, #12               // Extract `ref_reg`.
+    b       .Lmark_introspection_return_switch
+.endm
+
+    /*
+     * Use introspection to load a reference from the same address as the LDR
+     * instruction in generated code would load (unless loaded by the thunk,
+     * see below), call ReadBarrier::Mark() with that reference if needed
+     * and return it in the same register as the LDR instruction would load.
+     *
+     * The entrypoint is called through a thunk that differs across load kinds.
+     * For field and array loads the LDR instruction in generated code follows
+     * the branch to the thunk, i.e. the LDR is at [LR, #(-4 - 1)] where the -1
+     * is an adjustment for the Thumb mode bit in LR, and the thunk knows the
+     * holder and performs the gray bit check, returning to the LDR instruction
+     * if the object is not gray, so this entrypoint no longer needs to know
+     * anything about the holder. For GC root loads, the LDR instruction in
+     * generated code precedes the branch to the thunk, i.e. the LDR is at
+     * [LR, #(-8 - 1)] where the -1 is again the Thumb mode bit adjustment, and
+     * the thunk does not do the gray bit check.
+     *
+     * For field accesses and array loads with a constant index the thunk loads
+     * the reference into IP using introspection and calls the main entrypoint,
+     * art_quick_read_barrier_mark_introspection. With heap poisoning enabled,
+     * the passed reference is poisoned.
+     *
+     * For array accesses with non-constant index, the thunk inserts the bits
+     * 0-5 of the LDR instruction to the entrypoint address, effectively
+     * calculating a switch case label based on the index register (bits 0-3)
+     * and adding an extra offset (bits 4-5 hold the shift which is always 2
+     * for reference loads) to differentiate from the main entrypoint, then
+     * moves the base register to IP and jumps to the switch case. Therefore
+     * we need to align the main entrypoint to 512 bytes, accounting for
+     * a 256-byte offset followed by 16 array entrypoints starting at
+     * art_quick_read_barrier_mark_introspection_arrays, each containing an LDR
+     * (register) and a branch to the main entrypoint.
+     *
+     * For GC root accesses we cannot use the main entrypoint because of the
+     * different offset where the LDR instruction in generated code is located.
+     * (And even with heap poisoning enabled, GC roots are not poisoned.)
+     * To re-use the same entrypoint pointer in generated code, we make sure
+     * that the gc root entrypoint (a copy of the entrypoint with a different
+     * offset for introspection loads) is located at a known offset (128 bytes,
+     * or BAKER_MARK_INTROSPECTION_GC_ROOT_ENTRYPOINT_OFFSET) from the main
+     * entrypoint and the GC root thunk adjusts the entrypoint pointer, moves
+     * the root register to IP and jumps to the customized entrypoint,
+     * art_quick_read_barrier_mark_introspection_gc_roots. The thunk also
+     * performs all the fast-path checks, so we need just the slow path.
+     *
+     * The code structure is
+     *   art_quick_read_barrier_mark_introspection:
+     *     Over 128 bytes for the main entrypoint code.
+     *     Padding to 192 bytes if needed.
+     *   art_quick_read_barrier_mark_introspection_gc_roots:
+     *     GC root entrypoint code.
+     *     Padding to 256 bytes if needed.
+     *   art_quick_read_barrier_mark_introspection_arrays:
+     *     Exactly 128 bytes for array load switch cases (16x2 instructions).
+     */
+    .balign 512
+ENTRY art_quick_read_barrier_mark_introspection
+    // At this point, IP contains the reference, R4 can be freely used.
+    // (R4 is reserved for the entrypoint address.)
+    // For heap poisoning, the reference is poisoned, so unpoison it first.
+    UNPOISON_HEAP_REF ip
+    // If reference is null, just return it in the right register.
+    cmp     ip, #0
+    beq     .Lmark_introspection_return
+    // Use R4 as temp and check the mark bit of the reference.
+    ldr     r4, [ip, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
+    tst     r4, #LOCK_WORD_MARK_BIT_MASK_SHIFTED
+    beq     .Lmark_introspection_unmarked
+.Lmark_introspection_return:
+    // Load the half of the instruction that contains Rt. Adjust for the thumb state in LR.
+    ldrh    r4, [lr, #(-1 + BAKER_MARK_INTROSPECTION_FIELD_LDR_OFFSET + 2)]
+    lsr     r4, r4, #12               // Extract `ref_reg`.
+.Lmark_introspection_return_switch:
+    tbb     [pc, r4]                  // Jump to the switch case.
+.Lmark_introspection_return_table:
+    BRBMI_FOR_REGISTERS BRBMI_RETURN_SWITCH_CASE_OFFSET, BRBMI_BAD_RETURN_SWITCH_CASE_OFFSET
+    .balign 16
+    BRBMI_FOR_12_REGISTERS BRBMI_RETURN_SWITCH_CASE, BRBMI_BAD_RETURN_SWITCH_CASE
+
+    .balign 16
+.Lmark_introspection_unmarked:
+    // Check if the top two bits are one, if this is the case it is a forwarding address.
+#if (LOCK_WORD_STATE_SHIFT != 30) || (LOCK_WORD_STATE_FORWARDING_ADDRESS != 3)
+    // To use "CMP ip, #modified-immediate; BHS", we need the lock word state in
+    // the highest bits and the "forwarding address" state to have all bits set.
+#error "Unexpected lock word state shift or forwarding address state value."
+#endif
+    cmp     r4, #(LOCK_WORD_STATE_FORWARDING_ADDRESS << LOCK_WORD_STATE_SHIFT)
+    bhs     .Lmark_introspection_forwarding_address
+    BRBMI_SLOW_PATH BAKER_MARK_INTROSPECTION_FIELD_LDR_OFFSET
+
+    .balign 8
+.Lmark_introspection_forwarding_address:
+    // Shift left by the forwarding address shift. This clears out the state bits since they are
+    // in the top 2 bits of the lock word.
+    lsl     ip, r4, #LOCK_WORD_STATE_FORWARDING_ADDRESS_SHIFT
+    b       .Lmark_introspection_return
+
+    .balign 64
+    .thumb_func
+    .type art_quick_read_barrier_mark_introspection_gc_roots, #function
+    .hidden art_quick_read_barrier_mark_introspection_gc_roots
+    .global art_quick_read_barrier_mark_introspection_gc_roots
+art_quick_read_barrier_mark_introspection_gc_roots:
+    BRBMI_SLOW_PATH BAKER_MARK_INTROSPECTION_GC_ROOT_LDR_OFFSET
+
+    .balign 256
+    .thumb_func
+    .type art_quick_read_barrier_mark_introspection_arrays, #function
+    .hidden art_quick_read_barrier_mark_introspection_arrays
+    .global art_quick_read_barrier_mark_introspection_arrays
+art_quick_read_barrier_mark_introspection_arrays:
+    BRBMI_FOR_REGISTERS BRBMI_ARRAY_LOAD, BRBMI_BKPT_FILL_8B
+END art_quick_read_barrier_mark_introspection
+
 .extern artInvokePolymorphic
 ENTRY art_quick_invoke_polymorphic
     SETUP_SAVE_REFS_AND_ARGS_FRAME r2

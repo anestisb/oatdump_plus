@@ -214,14 +214,14 @@ void Thumb2Assembler::EmitFixups(uint32_t adjusted_code_size) {
   DCHECK_GE(dest_end, src_end);
   for (auto i = fixups_.rbegin(), end = fixups_.rend(); i != end; ++i) {
     Fixup* fixup = &*i;
+    size_t old_fixup_location = fixup->GetLocation();
     if (fixup->GetOriginalSize() == fixup->GetSize()) {
       // The size of this Fixup didn't change. To avoid moving the data
       // in small chunks, emit the code to its original position.
-      fixup->Emit(&buffer_, adjusted_code_size);
       fixup->Finalize(dest_end - src_end);
+      fixup->Emit(old_fixup_location, &buffer_, adjusted_code_size);
     } else {
       // Move the data between the end of the fixup and src_end to its final location.
-      size_t old_fixup_location = fixup->GetLocation();
       size_t src_begin = old_fixup_location + fixup->GetOriginalSizeInBytes();
       size_t data_size = src_end - src_begin;
       size_t dest_begin  = dest_end - data_size;
@@ -230,7 +230,7 @@ void Thumb2Assembler::EmitFixups(uint32_t adjusted_code_size) {
       dest_end = dest_begin - fixup->GetSizeInBytes();
       // Finalize the Fixup and emit the data to the new location.
       fixup->Finalize(dest_end - src_end);
-      fixup->Emit(&buffer_, adjusted_code_size);
+      fixup->Emit(fixup->GetLocation(), &buffer_, adjusted_code_size);
     }
   }
   CHECK_EQ(src_end, dest_end);
@@ -1895,6 +1895,9 @@ inline size_t Thumb2Assembler::Fixup::SizeInBytes(Size size) {
     case kCbxz48Bit:
       return 6u;
 
+    case kCodeAddr4KiB:
+      return 4u;
+
     case kLiteral1KiB:
       return 2u;
     case kLiteral4KiB:
@@ -1973,6 +1976,15 @@ inline int32_t Thumb2Assembler::Fixup::GetOffset(uint32_t current_code_size) con
       diff -= 2;        // Extra CMP Rn, #0, 16-bit.
       break;
 
+    case kCodeAddr4KiB:
+      // The ADR instruction rounds down the PC+4 to a multiple of 4, so if the PC
+      // isn't a multiple of 2, we need to adjust.
+      DCHECK_ALIGNED(diff, 2);
+      diff += location_ & 2;
+      // Add the Thumb mode bit.
+      diff += 1;
+      break;
+
     case kLiteral1KiB:
     case kLiteral4KiB:
     case kLongOrFPLiteral1KiB:
@@ -1987,8 +1999,8 @@ inline int32_t Thumb2Assembler::Fixup::GetOffset(uint32_t current_code_size) con
       diff = diff + (diff & 2);
       DCHECK_GE(diff, 0);
       break;
-    case kLiteral1MiB:
     case kLiteral64KiB:
+    case kLiteral1MiB:
     case kLongOrFPLiteral64KiB:
     case kLiteralAddr64KiB:
       DCHECK_GE(diff, 4);  // The target must be at least 4 bytes after the ADD rX, PC.
@@ -2041,6 +2053,10 @@ bool Thumb2Assembler::Fixup::IsCandidateForEmitEarly() const {
       // We don't support conditional branches beyond +-1MiB.
       return true;
 
+    case kCodeAddr4KiB:
+      // ADR uses the aligned PC and as such the offset cannot be calculated early.
+      return false;
+
     case kLiteral1KiB:
     case kLiteral4KiB:
     case kLiteral64KiB:
@@ -2085,6 +2101,10 @@ uint32_t Thumb2Assembler::Fixup::AdjustSizeIfNeeded(uint32_t current_code_size) 
       FALLTHROUGH_INTENDED;
     case kCbxz48Bit:
       // We don't support conditional branches beyond +-1MiB.
+      break;
+
+    case kCodeAddr4KiB:
+      // We don't support Code address ADR beyond +4KiB.
       break;
 
     case kLiteral1KiB:
@@ -2159,13 +2179,15 @@ uint32_t Thumb2Assembler::Fixup::AdjustSizeIfNeeded(uint32_t current_code_size) 
   return current_code_size - old_code_size;
 }
 
-void Thumb2Assembler::Fixup::Emit(AssemblerBuffer* buffer, uint32_t code_size) const {
+void Thumb2Assembler::Fixup::Emit(uint32_t emit_location,
+                                  AssemblerBuffer* buffer,
+                                  uint32_t code_size) const {
   switch (GetSize()) {
     case kBranch16Bit: {
       DCHECK(type_ == kUnconditional || type_ == kConditional);
       DCHECK_EQ(type_ == kConditional, cond_ != AL);
       int16_t encoding = BEncoding16(GetOffset(code_size), cond_);
-      buffer->Store<int16_t>(location_, encoding);
+      buffer->Store<int16_t>(emit_location, encoding);
       break;
     }
     case kBranch32Bit: {
@@ -2180,15 +2202,15 @@ void Thumb2Assembler::Fixup::Emit(AssemblerBuffer* buffer, uint32_t code_size) c
         DCHECK_NE(encoding & B12, 0);
         encoding ^= B14 | B12;
       }
-      buffer->Store<int16_t>(location_, encoding >> 16);
-      buffer->Store<int16_t>(location_ + 2u, static_cast<int16_t>(encoding & 0xffff));
+      buffer->Store<int16_t>(emit_location, encoding >> 16);
+      buffer->Store<int16_t>(emit_location + 2u, static_cast<int16_t>(encoding & 0xffff));
       break;
     }
 
     case kCbxz16Bit: {
       DCHECK(type_ == kCompareAndBranchXZero);
       int16_t encoding = CbxzEncoding16(rn_, GetOffset(code_size), cond_);
-      buffer->Store<int16_t>(location_, encoding);
+      buffer->Store<int16_t>(emit_location, encoding);
       break;
     }
     case kCbxz32Bit: {
@@ -2196,8 +2218,8 @@ void Thumb2Assembler::Fixup::Emit(AssemblerBuffer* buffer, uint32_t code_size) c
       DCHECK(cond_ == EQ || cond_ == NE);
       int16_t cmp_encoding = CmpRnImm8Encoding16(rn_, 0);
       int16_t b_encoding = BEncoding16(GetOffset(code_size), cond_);
-      buffer->Store<int16_t>(location_, cmp_encoding);
-      buffer->Store<int16_t>(location_ + 2, b_encoding);
+      buffer->Store<int16_t>(emit_location, cmp_encoding);
+      buffer->Store<int16_t>(emit_location + 2, b_encoding);
       break;
     }
     case kCbxz48Bit: {
@@ -2205,24 +2227,32 @@ void Thumb2Assembler::Fixup::Emit(AssemblerBuffer* buffer, uint32_t code_size) c
       DCHECK(cond_ == EQ || cond_ == NE);
       int16_t cmp_encoding = CmpRnImm8Encoding16(rn_, 0);
       int32_t b_encoding = BEncoding32(GetOffset(code_size), cond_);
-      buffer->Store<int16_t>(location_, cmp_encoding);
-      buffer->Store<int16_t>(location_ + 2u, b_encoding >> 16);
-      buffer->Store<int16_t>(location_ + 4u, static_cast<int16_t>(b_encoding & 0xffff));
+      buffer->Store<int16_t>(emit_location, cmp_encoding);
+      buffer->Store<int16_t>(emit_location + 2u, b_encoding >> 16);
+      buffer->Store<int16_t>(emit_location + 4u, static_cast<int16_t>(b_encoding & 0xffff));
+      break;
+    }
+
+    case kCodeAddr4KiB: {
+      DCHECK(type_ == kLoadCodeAddr);
+      int32_t encoding = AdrEncoding32(rn_, GetOffset(code_size));
+      buffer->Store<int16_t>(emit_location, encoding >> 16);
+      buffer->Store<int16_t>(emit_location + 2u, static_cast<int16_t>(encoding & 0xffff));
       break;
     }
 
     case kLiteral1KiB: {
       DCHECK(type_ == kLoadLiteralNarrow);
       int16_t encoding = LdrLitEncoding16(rn_, GetOffset(code_size));
-      buffer->Store<int16_t>(location_, encoding);
+      buffer->Store<int16_t>(emit_location, encoding);
       break;
     }
     case kLiteral4KiB: {
       DCHECK(type_ == kLoadLiteralNarrow);
       // GetOffset() uses PC+4 but load literal uses AlignDown(PC+4, 4). Adjust offset accordingly.
       int32_t encoding = LdrLitEncoding32(rn_, GetOffset(code_size));
-      buffer->Store<int16_t>(location_, encoding >> 16);
-      buffer->Store<int16_t>(location_ + 2u, static_cast<int16_t>(encoding & 0xffff));
+      buffer->Store<int16_t>(emit_location, encoding >> 16);
+      buffer->Store<int16_t>(emit_location + 2u, static_cast<int16_t>(encoding & 0xffff));
       break;
     }
     case kLiteral64KiB: {
@@ -2242,11 +2272,11 @@ void Thumb2Assembler::Fixup::Emit(AssemblerBuffer* buffer, uint32_t code_size) c
       int32_t mov_encoding = MovModImmEncoding32(rn_, offset & ~0xfff);
       int16_t add_pc_encoding = AddRdnRmEncoding16(rn_, PC);
       int32_t ldr_encoding = LdrRtRnImm12Encoding(rn_, rn_, offset & 0xfff);
-      buffer->Store<int16_t>(location_, mov_encoding >> 16);
-      buffer->Store<int16_t>(location_ + 2u, static_cast<int16_t>(mov_encoding & 0xffff));
-      buffer->Store<int16_t>(location_ + 4u, add_pc_encoding);
-      buffer->Store<int16_t>(location_ + 6u, ldr_encoding >> 16);
-      buffer->Store<int16_t>(location_ + 8u, static_cast<int16_t>(ldr_encoding & 0xffff));
+      buffer->Store<int16_t>(emit_location, mov_encoding >> 16);
+      buffer->Store<int16_t>(emit_location + 2u, static_cast<int16_t>(mov_encoding & 0xffff));
+      buffer->Store<int16_t>(emit_location + 4u, add_pc_encoding);
+      buffer->Store<int16_t>(emit_location + 6u, ldr_encoding >> 16);
+      buffer->Store<int16_t>(emit_location + 8u, static_cast<int16_t>(ldr_encoding & 0xffff));
       break;
     }
     case kLiteralFar: {
@@ -2256,36 +2286,36 @@ void Thumb2Assembler::Fixup::Emit(AssemblerBuffer* buffer, uint32_t code_size) c
       int32_t movt_encoding = MovtEncoding32(rn_, offset & ~0xffff);
       int16_t add_pc_encoding = AddRdnRmEncoding16(rn_, PC);
       int32_t ldr_encoding = LdrRtRnImm12Encoding(rn_, rn_, 0);
-      buffer->Store<int16_t>(location_, movw_encoding >> 16);
-      buffer->Store<int16_t>(location_ + 2u, static_cast<int16_t>(movw_encoding & 0xffff));
-      buffer->Store<int16_t>(location_ + 4u, movt_encoding >> 16);
-      buffer->Store<int16_t>(location_ + 6u, static_cast<int16_t>(movt_encoding & 0xffff));
-      buffer->Store<int16_t>(location_ + 8u, add_pc_encoding);
-      buffer->Store<int16_t>(location_ + 10u, ldr_encoding >> 16);
-      buffer->Store<int16_t>(location_ + 12u, static_cast<int16_t>(ldr_encoding & 0xffff));
+      buffer->Store<int16_t>(emit_location, movw_encoding >> 16);
+      buffer->Store<int16_t>(emit_location + 2u, static_cast<int16_t>(movw_encoding & 0xffff));
+      buffer->Store<int16_t>(emit_location + 4u, movt_encoding >> 16);
+      buffer->Store<int16_t>(emit_location + 6u, static_cast<int16_t>(movt_encoding & 0xffff));
+      buffer->Store<int16_t>(emit_location + 8u, add_pc_encoding);
+      buffer->Store<int16_t>(emit_location + 10u, ldr_encoding >> 16);
+      buffer->Store<int16_t>(emit_location + 12u, static_cast<int16_t>(ldr_encoding & 0xffff));
       break;
     }
 
     case kLiteralAddr1KiB: {
       DCHECK(type_ == kLoadLiteralAddr);
       int16_t encoding = AdrEncoding16(rn_, GetOffset(code_size));
-      buffer->Store<int16_t>(location_, encoding);
+      buffer->Store<int16_t>(emit_location, encoding);
       break;
     }
     case kLiteralAddr4KiB: {
       DCHECK(type_ == kLoadLiteralAddr);
       int32_t encoding = AdrEncoding32(rn_, GetOffset(code_size));
-      buffer->Store<int16_t>(location_, encoding >> 16);
-      buffer->Store<int16_t>(location_ + 2u, static_cast<int16_t>(encoding & 0xffff));
+      buffer->Store<int16_t>(emit_location, encoding >> 16);
+      buffer->Store<int16_t>(emit_location + 2u, static_cast<int16_t>(encoding & 0xffff));
       break;
     }
     case kLiteralAddr64KiB: {
       DCHECK(type_ == kLoadLiteralAddr);
       int32_t mov_encoding = MovwEncoding32(rn_, GetOffset(code_size));
       int16_t add_pc_encoding = AddRdnRmEncoding16(rn_, PC);
-      buffer->Store<int16_t>(location_, mov_encoding >> 16);
-      buffer->Store<int16_t>(location_ + 2u, static_cast<int16_t>(mov_encoding & 0xffff));
-      buffer->Store<int16_t>(location_ + 4u, add_pc_encoding);
+      buffer->Store<int16_t>(emit_location, mov_encoding >> 16);
+      buffer->Store<int16_t>(emit_location + 2u, static_cast<int16_t>(mov_encoding & 0xffff));
+      buffer->Store<int16_t>(emit_location + 4u, add_pc_encoding);
       break;
     }
     case kLiteralAddrFar: {
@@ -2294,29 +2324,29 @@ void Thumb2Assembler::Fixup::Emit(AssemblerBuffer* buffer, uint32_t code_size) c
       int32_t movw_encoding = MovwEncoding32(rn_, offset & 0xffff);
       int32_t movt_encoding = MovtEncoding32(rn_, offset & ~0xffff);
       int16_t add_pc_encoding = AddRdnRmEncoding16(rn_, PC);
-      buffer->Store<int16_t>(location_, movw_encoding >> 16);
-      buffer->Store<int16_t>(location_ + 2u, static_cast<int16_t>(movw_encoding & 0xffff));
-      buffer->Store<int16_t>(location_ + 4u, movt_encoding >> 16);
-      buffer->Store<int16_t>(location_ + 6u, static_cast<int16_t>(movt_encoding & 0xffff));
-      buffer->Store<int16_t>(location_ + 8u, add_pc_encoding);
+      buffer->Store<int16_t>(emit_location, movw_encoding >> 16);
+      buffer->Store<int16_t>(emit_location + 2u, static_cast<int16_t>(movw_encoding & 0xffff));
+      buffer->Store<int16_t>(emit_location + 4u, movt_encoding >> 16);
+      buffer->Store<int16_t>(emit_location + 6u, static_cast<int16_t>(movt_encoding & 0xffff));
+      buffer->Store<int16_t>(emit_location + 8u, add_pc_encoding);
       break;
     }
 
     case kLongOrFPLiteral1KiB: {
       int32_t encoding = LoadWideOrFpEncoding(PC, GetOffset(code_size));  // DCHECKs type_.
-      buffer->Store<int16_t>(location_, encoding >> 16);
-      buffer->Store<int16_t>(location_ + 2u, static_cast<int16_t>(encoding & 0xffff));
+      buffer->Store<int16_t>(emit_location, encoding >> 16);
+      buffer->Store<int16_t>(emit_location + 2u, static_cast<int16_t>(encoding & 0xffff));
       break;
     }
     case kLongOrFPLiteral64KiB: {
       int32_t mov_encoding = MovwEncoding32(IP, GetOffset(code_size));
       int16_t add_pc_encoding = AddRdnRmEncoding16(IP, PC);
       int32_t ldr_encoding = LoadWideOrFpEncoding(IP, 0u);    // DCHECKs type_.
-      buffer->Store<int16_t>(location_, mov_encoding >> 16);
-      buffer->Store<int16_t>(location_ + 2u, static_cast<int16_t>(mov_encoding & 0xffff));
-      buffer->Store<int16_t>(location_ + 4u, add_pc_encoding);
-      buffer->Store<int16_t>(location_ + 6u, ldr_encoding >> 16);
-      buffer->Store<int16_t>(location_ + 8u, static_cast<int16_t>(ldr_encoding & 0xffff));
+      buffer->Store<int16_t>(emit_location, mov_encoding >> 16);
+      buffer->Store<int16_t>(emit_location + 2u, static_cast<int16_t>(mov_encoding & 0xffff));
+      buffer->Store<int16_t>(emit_location + 4u, add_pc_encoding);
+      buffer->Store<int16_t>(emit_location + 6u, ldr_encoding >> 16);
+      buffer->Store<int16_t>(emit_location + 8u, static_cast<int16_t>(ldr_encoding & 0xffff));
       break;
     }
     case kLongOrFPLiteralFar: {
@@ -2325,13 +2355,13 @@ void Thumb2Assembler::Fixup::Emit(AssemblerBuffer* buffer, uint32_t code_size) c
       int32_t movt_encoding = MovtEncoding32(IP, offset & ~0xffff);
       int16_t add_pc_encoding = AddRdnRmEncoding16(IP, PC);
       int32_t ldr_encoding = LoadWideOrFpEncoding(IP, 0);                 // DCHECKs type_.
-      buffer->Store<int16_t>(location_, movw_encoding >> 16);
-      buffer->Store<int16_t>(location_ + 2u, static_cast<int16_t>(movw_encoding & 0xffff));
-      buffer->Store<int16_t>(location_ + 4u, movt_encoding >> 16);
-      buffer->Store<int16_t>(location_ + 6u, static_cast<int16_t>(movt_encoding & 0xffff));
-      buffer->Store<int16_t>(location_ + 8u, add_pc_encoding);
-      buffer->Store<int16_t>(location_ + 10u, ldr_encoding >> 16);
-      buffer->Store<int16_t>(location_ + 12u, static_cast<int16_t>(ldr_encoding & 0xffff));
+      buffer->Store<int16_t>(emit_location, movw_encoding >> 16);
+      buffer->Store<int16_t>(emit_location + 2u, static_cast<int16_t>(movw_encoding & 0xffff));
+      buffer->Store<int16_t>(emit_location + 4u, movt_encoding >> 16);
+      buffer->Store<int16_t>(emit_location + 6u, static_cast<int16_t>(movt_encoding & 0xffff));
+      buffer->Store<int16_t>(emit_location + 8u, add_pc_encoding);
+      buffer->Store<int16_t>(emit_location + 10u, ldr_encoding >> 16);
+      buffer->Store<int16_t>(emit_location + 12u, static_cast<int16_t>(ldr_encoding & 0xffff));
       break;
     }
   }
@@ -3331,6 +3361,19 @@ void Thumb2Assembler::bx(Register rm, Condition cond) {
 }
 
 
+void Thumb2Assembler::AdrCode(Register rt, Label* label) {
+  uint32_t pc = buffer_.Size();
+  FixupId branch_id = AddFixup(Fixup::LoadCodeAddress(pc, rt));
+  CHECK(!label->IsBound());
+  // ADR target must be an unbound label. Add it to a singly-linked list maintained within
+  // the code with the label serving as the head.
+  Emit16(static_cast<uint16_t>(label->position_));
+  label->LinkTo(branch_id);
+  Emit16(0);
+  DCHECK_EQ(buffer_.Size() - pc, GetFixup(branch_id)->GetSizeInBytes());
+}
+
+
 void Thumb2Assembler::Push(Register rd, Condition cond) {
   str(rd, Address(SP, -kRegisterSize, Address::PreIndex), cond);
 }
@@ -3405,7 +3448,7 @@ void Thumb2Assembler::Bind(Label* label) {
         break;
       }
     }
-    last_fixup.Emit(&buffer_, buffer_.Size());
+    last_fixup.Emit(last_fixup.GetLocation(), &buffer_, buffer_.Size());
     fixups_.pop_back();
   }
 }

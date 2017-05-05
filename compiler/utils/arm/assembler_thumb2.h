@@ -268,6 +268,9 @@ class Thumb2Assembler FINAL : public ArmAssembler {
   void blx(Register rm, Condition cond = AL) OVERRIDE;
   void bx(Register rm, Condition cond = AL) OVERRIDE;
 
+  // ADR instruction loading register for branching to the label, including the Thumb mode bit.
+  void AdrCode(Register rt, Label* label) OVERRIDE;
+
   virtual void Lsl(Register rd, Register rm, uint32_t shift_imm,
                    Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
   virtual void Lsr(Register rd, Register rm, uint32_t shift_imm,
@@ -377,6 +380,10 @@ class Thumb2Assembler FINAL : public ArmAssembler {
     force_32bit_ = true;
   }
 
+  void Allow16Bit() {
+    force_32bit_ = false;
+  }
+
   // Emit an ADR (or a sequence of instructions) to load the jump table address into base_reg. This
   // will generate a fixup.
   JumpTable* CreateJumpTable(std::vector<Label*>&& labels, Register base_reg) OVERRIDE;
@@ -422,6 +429,7 @@ class Thumb2Assembler FINAL : public ArmAssembler {
       kUnconditionalLink,         // BL.
       kUnconditionalLinkX,        // BLX.
       kCompareAndBranchXZero,     // cbz/cbnz.
+      kLoadCodeAddr,              // Get address of a code label, used for Baker read barriers.
       kLoadLiteralNarrow,         // Load narrrow integer literal.
       kLoadLiteralWide,           // Load wide integer literal.
       kLoadLiteralAddr,           // Load address of literal (used for jump table).
@@ -441,6 +449,10 @@ class Thumb2Assembler FINAL : public ArmAssembler {
       kCbxz16Bit,   // CBZ/CBNZ rX, label; X < 8; 7-bit positive offset.
       kCbxz32Bit,   // CMP rX, #0 + Bcc label; X < 8; 16-bit Bcc; +-8-bit offset.
       kCbxz48Bit,   // CMP rX, #0 + Bcc label; X < 8; 32-bit Bcc; up to +-1MiB offset.
+
+      // ADR variants.
+      kCodeAddr4KiB,  // ADR rX, <label>; label must be after the ADR but within 4KiB range.
+                      // Multi-instruction expansion is not supported.
 
       // Load integer literal variants.
       // LDR rX, label; X < 8; 16-bit variant up to 1KiB offset; 2 bytes.
@@ -490,6 +502,12 @@ class Thumb2Assembler FINAL : public ArmAssembler {
       DCHECK(cond == EQ || cond == NE);
       return Fixup(rn, kNoRegister, kNoSRegister, kNoDRegister,
                    cond, kCompareAndBranchXZero, kCbxz16Bit, location);
+    }
+
+    // Code address.
+    static Fixup LoadCodeAddress(uint32_t location, Register rt) {
+      return Fixup(rt, kNoRegister, kNoSRegister, kNoDRegister,
+                   AL, kLoadCodeAddr, kCodeAddr4KiB, location);
     }
 
     // Load narrow literal.
@@ -550,6 +568,7 @@ class Thumb2Assembler FINAL : public ArmAssembler {
       switch (GetOriginalSize()) {
         case kBranch32Bit:
         case kCbxz48Bit:
+        case kCodeAddr4KiB:
         case kLiteralFar:
         case kLiteralAddrFar:
         case kLongOrFPLiteralFar:
@@ -623,7 +642,7 @@ class Thumb2Assembler FINAL : public ArmAssembler {
 
     // Emit the branch instruction into the assembler buffer.  This does the
     // encoding into the thumb instruction.
-    void Emit(AssemblerBuffer* buffer, uint32_t code_size) const;
+    void Emit(uint32_t emit_location, AssemblerBuffer* buffer, uint32_t code_size) const;
 
    private:
     Fixup(Register rn, Register rt2, SRegister sd, DRegister dd,
@@ -901,6 +920,24 @@ class Thumb2Assembler FINAL : public ArmAssembler {
   uint32_t last_position_adjustment_;
   uint32_t last_old_position_;
   FixupId last_fixup_id_;
+};
+
+class ScopedForce32Bit {
+ public:
+  explicit ScopedForce32Bit(Thumb2Assembler* assembler)
+      : assembler_(assembler), old_force_32bit_(assembler->IsForced32Bit()) {
+    assembler->Force32Bit();
+  }
+
+  ~ScopedForce32Bit() {
+    if (!old_force_32bit_) {
+      assembler_->Allow16Bit();
+    }
+  }
+
+ private:
+  Thumb2Assembler* const assembler_;
+  const bool old_force_32bit_;
 };
 
 }  // namespace arm
