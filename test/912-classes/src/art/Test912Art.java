@@ -39,7 +39,7 @@ public class Test912Art {
     //       run in configurations where dex2oat didn't verify the class itself. So explicitly
     //       check whether the class has been already loaded, and skip then.
     // TODO: Add multiple configurations to the run script once that becomes easier to do.
-    if (hasJit() && !isLoadedClass("art.Test912Art$ClassD")) {
+    if (hasJit() && !isLoadedClass("Lart/Test912Art$ClassD;")) {
       testClassEventsJit();
     }
   }
