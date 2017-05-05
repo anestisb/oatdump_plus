@@ -458,8 +458,8 @@ ALWAYS_INLINE void CopyRegisters(ShadowFrame& caller_frame,
 
 void ArtInterpreterToCompiledCodeBridge(Thread* self,
                                         ArtMethod* caller,
-                                        const DexFile::CodeItem* code_item,
                                         ShadowFrame* shadow_frame,
+                                        uint16_t arg_offset,
                                         JValue* result)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   ArtMethod* method = shadow_frame->GetMethod();
@@ -482,9 +482,15 @@ void ArtInterpreterToCompiledCodeBridge(Thread* self,
       method = shadow_frame->GetMethod();
     }
   }
-  uint16_t arg_offset = (code_item == nullptr)
-                            ? 0
-                            : code_item->registers_size_ - code_item->ins_size_;
+  // Basic checks for the arg_offset. If there's no code item, the arg_offset must be 0. Otherwise,
+  // check that the arg_offset isn't greater than the number of registers. A stronger check is
+  // difficult since the frame may contain space for all the registers in the method, or only enough
+  // space for the arguments.
+  if (method->GetCodeItem() == nullptr) {
+    DCHECK_EQ(0u, arg_offset) << method->PrettyMethod();
+  } else {
+    DCHECK_LE(arg_offset, shadow_frame->NumberOfVRegs());
+  }
   jit::Jit* jit = Runtime::Current()->GetJit();
   if (jit != nullptr && caller != nullptr) {
     jit->NotifyInterpreterToCompiledCodeTransition(self, caller);
@@ -918,12 +924,20 @@ static inline bool DoCallCommon(ArtMethod* called_method,
 
   // Compute method information.
   const DexFile::CodeItem* code_item = called_method->GetCodeItem();
-
   // Number of registers for the callee's call frame.
   uint16_t num_regs;
   if (LIKELY(code_item != nullptr)) {
-    num_regs = code_item->registers_size_;
-    DCHECK_EQ(string_init ? number_of_inputs - 1 : number_of_inputs, code_item->ins_size_);
+    // When transitioning to compiled code, space only needs to be reserved for the input registers.
+    // The rest of the frame gets discarded. This also prevents accessing the called method's code
+    // item, saving memory by keeping code items of compiled code untouched.
+    if (Runtime::Current()->IsStarted() &&
+        !ClassLinker::ShouldUseInterpreterEntrypoint(
+            called_method, called_method->GetEntryPointFromQuickCompiledCode())) {
+      num_regs = number_of_inputs;
+    } else {
+      num_regs = code_item->registers_size_;
+      DCHECK_EQ(string_init ? number_of_inputs - 1 : number_of_inputs, code_item->ins_size_);
+    }
   } else {
     DCHECK(called_method->IsNative() || called_method->IsProxyMethod());
     num_regs = number_of_inputs;
