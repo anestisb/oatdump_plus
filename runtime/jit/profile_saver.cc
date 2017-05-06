@@ -212,6 +212,10 @@ class GetMethodsVisitor : public ClassVisitor {
 
 void ProfileSaver::FetchAndCacheResolvedClassesAndMethods() {
   ScopedTrace trace(__PRETTY_FUNCTION__);
+
+  // Resolve any new registered locations.
+  ResolveTrackedLocations();
+
   ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
   std::set<DexCacheResolvedClasses> resolved_classes =
       class_linker->GetResolvedClasses(/*ignore boot classes*/ true);
@@ -260,6 +264,10 @@ void ProfileSaver::FetchAndCacheResolvedClassesAndMethods() {
 
 bool ProfileSaver::ProcessProfilingInfo(bool force_save, /*out*/uint16_t* number_of_new_methods) {
   ScopedTrace trace(__PRETTY_FUNCTION__);
+
+  // Resolve any new registered locations.
+  ResolveTrackedLocations();
+
   SafeMap<std::string, std::set<std::string>> tracked_locations;
   {
     // Make a copy so that we don't hold the lock while doing I/O.
@@ -497,15 +505,32 @@ bool ProfileSaver::IsStarted() {
   return instance_ != nullptr;
 }
 
-void ProfileSaver::AddTrackedLocations(const std::string& output_filename,
-                                       const std::vector<std::string>& code_paths) {
-  auto it = tracked_dex_base_locations_.find(output_filename);
-  if (it == tracked_dex_base_locations_.end()) {
-    tracked_dex_base_locations_.Put(output_filename,
-                                    std::set<std::string>(code_paths.begin(), code_paths.end()));
+static void AddTrackedLocationsToMap(const std::string& output_filename,
+                                     const std::vector<std::string>& code_paths,
+                                     SafeMap<std::string, std::set<std::string>>* map) {
+  auto it = map->find(output_filename);
+  if (it == map->end()) {
+    map->Put(output_filename, std::set<std::string>(code_paths.begin(), code_paths.end()));
   } else {
     it->second.insert(code_paths.begin(), code_paths.end());
   }
+}
+
+void ProfileSaver::AddTrackedLocations(const std::string& output_filename,
+                                       const std::vector<std::string>& code_paths) {
+  // Add the code paths to the list of tracked location.
+  AddTrackedLocationsToMap(output_filename, code_paths, &tracked_dex_base_locations_);
+  // The code paths may contain symlinks which could fool the profiler.
+  // If the dex file is compiled with an absolute location but loaded with symlink
+  // the profiler could skip the dex due to location mismatch.
+  // To avoid this, we add the code paths to the temporary cache of 'to_be_resolved'
+  // locations. When the profiler thread executes we will resolve the paths to their
+  // real paths.
+  // Note that we delay taking the realpath to avoid spending more time than needed
+  // when registering location (as it is done during app launch).
+  AddTrackedLocationsToMap(output_filename,
+                           code_paths,
+                           &tracked_dex_base_locations_to_be_resolved_);
 }
 
 void ProfileSaver::DumpInstanceInfo(std::ostream& os) {
@@ -554,6 +579,40 @@ bool ProfileSaver::HasSeenMethod(const std::string& profile,
     return info.ContainsMethod(MethodReference(dex_file, method_idx));
   }
   return false;
+}
+
+void ProfileSaver::ResolveTrackedLocations() {
+  SafeMap<std::string, std::set<std::string>> locations_to_be_resolved;
+  {
+    // Make a copy so that we don't hold the lock while doing I/O.
+    MutexLock mu(Thread::Current(), *Locks::profiler_lock_);
+    locations_to_be_resolved = tracked_dex_base_locations_to_be_resolved_;
+    tracked_dex_base_locations_to_be_resolved_.clear();
+  }
+
+  // Resolve the locations.
+  SafeMap<std::string, std::vector<std::string>> resolved_locations_map;
+  for (const auto& it : locations_to_be_resolved) {
+    const std::string& filename = it.first;
+    const std::set<std::string>& locations = it.second;
+    auto resolved_locations_it = resolved_locations_map.Put(
+        filename,
+        std::vector<std::string>(locations.size()));
+
+    for (const auto& location : locations) {
+      UniqueCPtr<const char[]> location_real(realpath(location.c_str(), nullptr));
+      // Note that it's ok if we cannot get the real path.
+      if (location_real != nullptr) {
+        resolved_locations_it->second.emplace_back(location_real.get());
+      }
+    }
+  }
+
+  // Add the resolved locations to the tracked collection.
+  MutexLock mu(Thread::Current(), *Locks::profiler_lock_);
+  for (const auto& it : resolved_locations_map) {
+    AddTrackedLocationsToMap(it.first, it.second, &tracked_dex_base_locations_);
+  }
 }
 
 }   // namespace art
