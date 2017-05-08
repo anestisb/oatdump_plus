@@ -32,6 +32,8 @@ public class Test901 {
     set(2);  // CLASS
     set(4);  // JNI
     set(8);  // Error.
+
+    testErrorNames();
   }
 
   private static void set(int i) {
@@ -44,7 +46,39 @@ public class Test901 {
     }
   }
 
+  private static void testErrorNames() {
+      int consecutiveErrors = 0;
+      String lastError = null;
+      for (int i = -1; i <= 117; i++) {
+          String errorName = null;
+          String error = null;
+          try {
+              errorName = getErrorName(i);
+          } catch (RuntimeException e) {
+              error = e.getMessage();
+          }
+
+          if (lastError != null &&
+                  (errorName != null || (error != null && !lastError.equals(error)))) {
+              System.out.println(consecutiveErrors + " times " + lastError);
+              lastError = null;
+              consecutiveErrors = 0;
+          }
+
+          if (errorName != null) {
+              System.out.println(i + " = " + errorName);
+          } else {
+              lastError = error;
+              consecutiveErrors++;
+          }
+      }
+      if (consecutiveErrors > 0) {
+          System.out.println(consecutiveErrors + " times " + lastError);
+      }
+  }
+
   private static native boolean checkLivePhase();
   private static native void setVerboseFlag(int flag, boolean value);
   private static native boolean checkUnattached();
+  private static native String getErrorName(int error);
 }
