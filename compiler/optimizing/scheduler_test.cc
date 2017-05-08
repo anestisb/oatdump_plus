@@ -18,6 +18,7 @@
 #include "builder.h"
 #include "codegen_test_utils.h"
 #include "common_compiler_test.h"
+#include "load_store_analysis.h"
 #include "nodes.h"
 #include "optimizing_unit_test.h"
 #include "pc_relative_fixups_x86.h"
@@ -193,6 +194,147 @@ class SchedulerTest : public CommonCompilerTest {
     }
   }
 
+  void TestDependencyGraphOnAliasingArrayAccesses(HScheduler* scheduler) {
+    HBasicBlock* entry = new (&allocator_) HBasicBlock(graph_);
+    graph_->AddBlock(entry);
+    graph_->SetEntryBlock(entry);
+    graph_->BuildDominatorTree();
+
+    HInstruction* arr = new (&allocator_) HParameterValue(graph_->GetDexFile(),
+                                                          dex::TypeIndex(0),
+                                                          0,
+                                                          Primitive::kPrimNot);
+    HInstruction* i = new (&allocator_) HParameterValue(graph_->GetDexFile(),
+                                                        dex::TypeIndex(1),
+                                                        1,
+                                                        Primitive::kPrimInt);
+    HInstruction* j = new (&allocator_) HParameterValue(graph_->GetDexFile(),
+                                                        dex::TypeIndex(1),
+                                                        1,
+                                                        Primitive::kPrimInt);
+    HInstruction* object = new (&allocator_) HParameterValue(graph_->GetDexFile(),
+                                                             dex::TypeIndex(0),
+                                                             0,
+                                                             Primitive::kPrimNot);
+    HInstruction* c0 = graph_->GetIntConstant(0);
+    HInstruction* c1 = graph_->GetIntConstant(1);
+    HInstruction* add0 = new (&allocator_) HAdd(Primitive::kPrimInt, i, c0);
+    HInstruction* add1 = new (&allocator_) HAdd(Primitive::kPrimInt, i, c1);
+    HInstruction* sub0 = new (&allocator_) HSub(Primitive::kPrimInt, i, c0);
+    HInstruction* sub1 = new (&allocator_) HSub(Primitive::kPrimInt, i, c1);
+    HInstruction* arr_set_0 = new (&allocator_) HArraySet(arr, c0, c0, Primitive::kPrimInt, 0);
+    HInstruction* arr_set_1 = new (&allocator_) HArraySet(arr, c1, c0, Primitive::kPrimInt, 0);
+    HInstruction* arr_set_i = new (&allocator_) HArraySet(arr, i, c0, Primitive::kPrimInt, 0);
+    HInstruction* arr_set_add0 = new (&allocator_) HArraySet(arr, add0, c0, Primitive::kPrimInt, 0);
+    HInstruction* arr_set_add1 = new (&allocator_) HArraySet(arr, add1, c0, Primitive::kPrimInt, 0);
+    HInstruction* arr_set_sub0 = new (&allocator_) HArraySet(arr, sub0, c0, Primitive::kPrimInt, 0);
+    HInstruction* arr_set_sub1 = new (&allocator_) HArraySet(arr, sub1, c0, Primitive::kPrimInt, 0);
+    HInstruction* arr_set_j = new (&allocator_) HArraySet(arr, j, c0, Primitive::kPrimInt, 0);
+    HInstanceFieldSet* set_field10 = new (&allocator_) HInstanceFieldSet(object,
+                                                                         c1,
+                                                                         nullptr,
+                                                                         Primitive::kPrimInt,
+                                                                         MemberOffset(10),
+                                                                         false,
+                                                                         kUnknownFieldIndex,
+                                                                         kUnknownClassDefIndex,
+                                                                         graph_->GetDexFile(),
+                                                                         0);
+
+    HInstruction* block_instructions[] = {arr,
+                                          i,
+                                          j,
+                                          object,
+                                          add0,
+                                          add1,
+                                          sub0,
+                                          sub1,
+                                          arr_set_0,
+                                          arr_set_1,
+                                          arr_set_i,
+                                          arr_set_add0,
+                                          arr_set_add1,
+                                          arr_set_sub0,
+                                          arr_set_sub1,
+                                          arr_set_j,
+                                          set_field10};
+
+    for (HInstruction* instr : block_instructions) {
+      entry->AddInstruction(instr);
+    }
+
+    SchedulingGraph scheduling_graph(scheduler, graph_->GetArena());
+    HeapLocationCollector heap_location_collector(graph_);
+    heap_location_collector.VisitBasicBlock(entry);
+    heap_location_collector.BuildAliasingMatrix();
+    scheduling_graph.SetHeapLocationCollector(heap_location_collector);
+
+    for (HInstruction* instr : ReverseRange(block_instructions)) {
+      // Build scheduling graph with memory access aliasing information
+      // from LSA/heap_location_collector.
+      scheduling_graph.AddNode(instr);
+    }
+
+    // LSA/HeapLocationCollector should see those ArraySet instructions.
+    ASSERT_EQ(heap_location_collector.GetNumberOfHeapLocations(), 9U);
+    ASSERT_TRUE(heap_location_collector.HasHeapStores());
+
+    // Test queries on HeapLocationCollector's aliasing matrix after load store analysis.
+    // HeapLocationCollector and SchedulingGraph should report consistent relationships.
+    size_t loc1 = HeapLocationCollector::kHeapLocationNotFound;
+    size_t loc2 = HeapLocationCollector::kHeapLocationNotFound;
+
+    // Test side effect dependency: array[0] and array[1]
+    loc1 = heap_location_collector.GetArrayAccessHeapLocation(arr, c0);
+    loc2 = heap_location_collector.GetArrayAccessHeapLocation(arr, c1);
+    ASSERT_FALSE(heap_location_collector.MayAlias(loc1, loc2));
+    ASSERT_FALSE(scheduling_graph.HasImmediateOtherDependency(arr_set_1, arr_set_0));
+
+    // Test side effect dependency based on LSA analysis: array[i] and array[j]
+    loc1 = heap_location_collector.GetArrayAccessHeapLocation(arr, i);
+    loc2 = heap_location_collector.GetArrayAccessHeapLocation(arr, j);
+    ASSERT_TRUE(heap_location_collector.MayAlias(loc1, loc2));
+    ASSERT_TRUE(scheduling_graph.HasImmediateOtherDependency(arr_set_j, arr_set_i));
+
+    // Test side effect dependency based on LSA analysis: array[i] and array[i+0]
+    loc1 = heap_location_collector.GetArrayAccessHeapLocation(arr, i);
+    loc2 = heap_location_collector.GetArrayAccessHeapLocation(arr, add0);
+    ASSERT_TRUE(heap_location_collector.MayAlias(loc1, loc2));
+    ASSERT_TRUE(scheduling_graph.HasImmediateOtherDependency(arr_set_add0, arr_set_i));
+
+    // Test side effect dependency based on LSA analysis: array[i] and array[i-0]
+    loc1 = heap_location_collector.GetArrayAccessHeapLocation(arr, i);
+    loc2 = heap_location_collector.GetArrayAccessHeapLocation(arr, sub0);
+    ASSERT_TRUE(heap_location_collector.MayAlias(loc1, loc2));
+    ASSERT_TRUE(scheduling_graph.HasImmediateOtherDependency(arr_set_sub0, arr_set_i));
+
+    // Test side effect dependency based on LSA analysis: array[i] and array[i+1]
+    loc1 = heap_location_collector.GetArrayAccessHeapLocation(arr, i);
+    loc2 = heap_location_collector.GetArrayAccessHeapLocation(arr, add1);
+    ASSERT_FALSE(heap_location_collector.MayAlias(loc1, loc2));
+    ASSERT_FALSE(scheduling_graph.HasImmediateOtherDependency(arr_set_add1, arr_set_i));
+
+    // Test side effect dependency based on LSA analysis: array[i+1] and array[i-1]
+    loc1 = heap_location_collector.GetArrayAccessHeapLocation(arr, add1);
+    loc2 = heap_location_collector.GetArrayAccessHeapLocation(arr, sub1);
+    ASSERT_FALSE(heap_location_collector.MayAlias(loc1, loc2));
+    ASSERT_FALSE(scheduling_graph.HasImmediateOtherDependency(arr_set_sub1, arr_set_add1));
+
+    // Test side effect dependency based on LSA analysis: array[j] and all others array accesses
+    ASSERT_TRUE(scheduling_graph.HasImmediateOtherDependency(arr_set_j, arr_set_i));
+    ASSERT_TRUE(scheduling_graph.HasImmediateOtherDependency(arr_set_j, arr_set_add0));
+    ASSERT_TRUE(scheduling_graph.HasImmediateOtherDependency(arr_set_j, arr_set_sub0));
+    ASSERT_TRUE(scheduling_graph.HasImmediateOtherDependency(arr_set_j, arr_set_add1));
+    ASSERT_TRUE(scheduling_graph.HasImmediateOtherDependency(arr_set_j, arr_set_sub1));
+
+    // Test that ArraySet and FieldSet should not have side effect dependency
+    ASSERT_FALSE(scheduling_graph.HasImmediateOtherDependency(arr_set_i, set_field10));
+    ASSERT_FALSE(scheduling_graph.HasImmediateOtherDependency(arr_set_j, set_field10));
+
+    // Exercise target specific scheduler and SchedulingLatencyVisitor.
+    scheduler->Schedule(graph_);
+  }
+
   ArenaPool pool_;
   ArenaAllocator allocator_;
   HGraph* graph_;
@@ -204,14 +346,27 @@ TEST_F(SchedulerTest, DependencyGraphAndSchedulerARM64) {
   arm64::HSchedulerARM64 scheduler(&allocator_, &critical_path_selector);
   TestBuildDependencyGraphAndSchedule(&scheduler);
 }
+
+TEST_F(SchedulerTest, ArrayAccessAliasingARM64) {
+  CriticalPathSchedulingNodeSelector critical_path_selector;
+  arm64::HSchedulerARM64 scheduler(&allocator_, &critical_path_selector);
+  TestDependencyGraphOnAliasingArrayAccesses(&scheduler);
+}
 #endif
 
 #if defined(ART_ENABLE_CODEGEN_arm)
-TEST_F(SchedulerTest, DependencyGrapAndSchedulerARM) {
+TEST_F(SchedulerTest, DependencyGraphAndSchedulerARM) {
   CriticalPathSchedulingNodeSelector critical_path_selector;
   arm::SchedulingLatencyVisitorARM arm_latency_visitor(/*CodeGenerator*/ nullptr);
   arm::HSchedulerARM scheduler(&allocator_, &critical_path_selector, &arm_latency_visitor);
   TestBuildDependencyGraphAndSchedule(&scheduler);
+}
+
+TEST_F(SchedulerTest, ArrayAccessAliasingARM) {
+  CriticalPathSchedulingNodeSelector critical_path_selector;
+  arm::SchedulingLatencyVisitorARM arm_latency_visitor(/*CodeGenerator*/ nullptr);
+  arm::HSchedulerARM scheduler(&allocator_, &critical_path_selector, &arm_latency_visitor);
+  TestDependencyGraphOnAliasingArrayAccesses(&scheduler);
 }
 #endif
 

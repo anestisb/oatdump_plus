@@ -16,7 +16,21 @@
 
 public class Main {
 
+  public class ExampleObj {
+    int n1;
+    int n2;
+
+    public ExampleObj(int n1, int n2) {
+      this.n1 = n1;
+      this.n2 = n2;
+    }
+  }
+
   static int static_variable = 0;
+
+  public ExampleObj my_obj;
+  public static int number1;
+  public static int number2;
 
   /// CHECK-START-ARM64: int Main.arrayAccess() scheduler (before)
   /// CHECK:    <<Const1:i\d+>>       IntConstant 1
@@ -48,6 +62,282 @@ public class Main {
       res += array[i + 1];
     }
     return res;
+  }
+
+  /// CHECK-START-ARM: void Main.arrayAccessVariable(int) scheduler (before)
+  /// CHECK:     <<Param:i\d+>>        ParameterValue
+  /// CHECK-DAG: <<Const1:i\d+>>       IntConstant 1
+  /// CHECK-DAG: <<Const2:i\d+>>       IntConstant 2
+  /// CHECK-DAG: <<Const3:i\d+>>       IntConstant -1
+  /// CHECK:     <<Add1:i\d+>>         Add [<<Param>>,<<Const1>>]
+  /// CHECK:     <<Add2:i\d+>>         Add [<<Param>>,<<Const2>>]
+  /// CHECK:     <<Add3:i\d+>>         Add [<<Param>>,<<Const3>>]
+  /// CHECK:     <<Array:i\d+>>        IntermediateAddress
+  /// CHECK:     <<ArrayGet1:i\d+>>    ArrayGet [<<Array>>,<<Add1>>]
+  /// CHECK:     <<AddArray1:i\d+>>    Add [<<ArrayGet1>>,<<Const1>>]
+  /// CHECK:     <<ArraySet1:v\d+>>    ArraySet [<<Array>>,<<Add1>>,<<AddArray1>>]
+  /// CHECK:     <<ArrayGet2:i\d+>>    ArrayGet [<<Array>>,<<Add2>>]
+  /// CHECK:     <<AddArray2:i\d+>>    Add [<<ArrayGet2>>,<<Const1>>]
+  /// CHECK:     <<ArraySet2:v\d+>>    ArraySet [<<Array>>,<<Add2>>,<<AddArray2>>]
+  /// CHECK:     <<ArrayGet3:i\d+>>    ArrayGet [<<Array>>,<<Add3>>]
+  /// CHECK:     <<AddArray3:i\d+>>    Add [<<ArrayGet3>>,<<Const1>>]
+  /// CHECK:     <<ArraySet3:v\d+>>    ArraySet [<<Array>>,<<Add3>>,<<AddArray3>>]
+
+  /// CHECK-START-ARM: void Main.arrayAccessVariable(int) scheduler (after)
+  /// CHECK:     <<Param:i\d+>>        ParameterValue
+  /// CHECK-DAG: <<Const1:i\d+>>       IntConstant 1
+  /// CHECK-DAG: <<Const2:i\d+>>       IntConstant 2
+  /// CHECK-DAG: <<Const3:i\d+>>       IntConstant -1
+  /// CHECK:     <<Add1:i\d+>>         Add [<<Param>>,<<Const1>>]
+  /// CHECK:     <<Add2:i\d+>>         Add [<<Param>>,<<Const2>>]
+  /// CHECK:     <<Add3:i\d+>>         Add [<<Param>>,<<Const3>>]
+  /// CHECK:     <<Array:i\d+>>        IntermediateAddress
+  /// CHECK:                           ArrayGet [<<Array>>,{{i\d+}}]
+  /// CHECK:                           ArrayGet [<<Array>>,{{i\d+}}]
+  /// CHECK:                           ArrayGet [<<Array>>,{{i\d+}}]
+  /// CHECK:                           Add
+  /// CHECK:                           Add
+  /// CHECK:                           Add
+  /// CHECK:                           ArraySet
+  /// CHECK:                           ArraySet
+  /// CHECK:                           ArraySet
+
+  /// CHECK-START-ARM64: void Main.arrayAccessVariable(int) scheduler (before)
+  /// CHECK:     <<Param:i\d+>>        ParameterValue
+  /// CHECK-DAG: <<Const1:i\d+>>       IntConstant 1
+  /// CHECK-DAG: <<Const2:i\d+>>       IntConstant 2
+  /// CHECK-DAG: <<Const3:i\d+>>       IntConstant -1
+  /// CHECK:     <<Add1:i\d+>>         Add [<<Param>>,<<Const1>>]
+  /// CHECK:     <<Add2:i\d+>>         Add [<<Param>>,<<Const2>>]
+  /// CHECK:     <<Add3:i\d+>>         Add [<<Param>>,<<Const3>>]
+  /// CHECK:     <<Array:i\d+>>        IntermediateAddress
+  /// CHECK:     <<ArrayGet1:i\d+>>    ArrayGet [<<Array>>,<<Add1>>]
+  /// CHECK:     <<AddArray1:i\d+>>    Add [<<ArrayGet1>>,<<Const1>>]
+  /// CHECK:     <<ArraySet1:v\d+>>    ArraySet [<<Array>>,<<Add1>>,<<AddArray1>>]
+  /// CHECK:     <<ArrayGet2:i\d+>>    ArrayGet [<<Array>>,<<Add2>>]
+  /// CHECK:     <<AddArray2:i\d+>>    Add [<<ArrayGet2>>,<<Const1>>]
+  /// CHECK:     <<ArraySet2:v\d+>>    ArraySet [<<Array>>,<<Add2>>,<<AddArray2>>]
+  /// CHECK:     <<ArrayGet3:i\d+>>    ArrayGet [<<Array>>,<<Add3>>]
+  /// CHECK:     <<AddArray3:i\d+>>    Add [<<ArrayGet3>>,<<Const1>>]
+  /// CHECK:     <<ArraySet3:v\d+>>    ArraySet [<<Array>>,<<Add3>>,<<AddArray3>>]
+
+  /// CHECK-START-ARM64: void Main.arrayAccessVariable(int) scheduler (after)
+  /// CHECK:     <<Param:i\d+>>        ParameterValue
+  /// CHECK-DAG: <<Const1:i\d+>>       IntConstant 1
+  /// CHECK-DAG: <<Const2:i\d+>>       IntConstant 2
+  /// CHECK-DAG: <<Const3:i\d+>>       IntConstant -1
+  /// CHECK:     <<Add1:i\d+>>         Add [<<Param>>,<<Const1>>]
+  /// CHECK:     <<Add2:i\d+>>         Add [<<Param>>,<<Const2>>]
+  /// CHECK:     <<Add3:i\d+>>         Add [<<Param>>,<<Const3>>]
+  /// CHECK:     <<Array:i\d+>>        IntermediateAddress
+  /// CHECK:                           ArrayGet [<<Array>>,{{i\d+}}]
+  /// CHECK:                           ArrayGet [<<Array>>,{{i\d+}}]
+  /// CHECK:                           ArrayGet [<<Array>>,{{i\d+}}]
+  /// CHECK:                           Add
+  /// CHECK:                           Add
+  /// CHECK:                           Add
+  /// CHECK:                           ArraySet
+  /// CHECK:                           ArraySet
+  /// CHECK:                           ArraySet
+  public static void arrayAccessVariable(int i) {
+    int [] array = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+    for (int j = 0; j < 100; j++) {
+      array[i + 1]++;
+      array[i + 2]++;
+      array[i - 1]++;
+    }
+  }
+
+  /// CHECK-START-ARM: void Main.arrayAccessSub(int) scheduler (before)
+  /// CHECK:      <<Param:i\d+>>        ParameterValue
+  /// CHECK-DAG:  <<Const1:i\d+>>       IntConstant -1
+  /// CHECK-DAG:  <<Const2:i\d+>>       IntConstant 9
+  /// CHECK-DAG:  <<Const3:i\d+>>       IntConstant 1
+  /// CHECK:      <<Add1:i\d+>>         Add [<<Param>>,<<Const1>>]
+  /// CHECK:      <<Sub2:i\d+>>         Sub [<<Const2>>,<<Param>>]
+  /// CHECK:      <<Array:i\d+>>        IntermediateAddress
+  /// CHECK:      <<ArrayGet1:i\d+>>    ArrayGet [<<Array>>,<<Add1>>]
+  /// CHECK:      <<AddArray1:i\d+>>    Add [<<ArrayGet1>>,<<Const3>>]
+  /// CHECK:      <<ArraySet1:v\d+>>    ArraySet [<<Array>>,<<Add1>>,<<AddArray1>>]
+  /// CHECK:      <<ArrayGet2:i\d+>>    ArrayGet [<<Array>>,<<Sub2>>]
+  /// CHECK:      <<AddArray2:i\d+>>    Add [<<ArrayGet2>>,<<Const3>>]
+  /// CHECK:      <<ArraySet2:v\d+>>    ArraySet [<<Array>>,<<Sub2>>,<<AddArray2>>]
+
+  /// CHECK-START-ARM: void Main.arrayAccessSub(int) scheduler (after)
+  /// CHECK:      <<Param:i\d+>>        ParameterValue
+  /// CHECK-DAG:  <<Const1:i\d+>>       IntConstant -1
+  /// CHECK-DAG:  <<Const2:i\d+>>       IntConstant 9
+  /// CHECK-DAG:  <<Const3:i\d+>>       IntConstant 1
+  /// CHECK:      <<Add1:i\d+>>         Add [<<Param>>,<<Const1>>]
+  /// CHECK:      <<Sub2:i\d+>>         Sub [<<Const2>>,<<Param>>]
+  /// CHECK:      <<Array:i\d+>>        IntermediateAddress
+  /// CHECK:      <<ArrayGet1:i\d+>>    ArrayGet [<<Array>>,<<Add1>>]
+  /// CHECK:      <<AddArray1:i\d+>>    Add [<<ArrayGet1>>,<<Const3>>]
+  /// CHECK:      <<ArraySet1:v\d+>>    ArraySet [<<Array>>,<<Add1>>,<<AddArray1>>]
+  /// CHECK:      <<ArrayGet2:i\d+>>    ArrayGet [<<Array>>,<<Sub2>>]
+  /// CHECK:      <<AddArray2:i\d+>>    Add [<<ArrayGet2>>,<<Const3>>]
+  /// CHECK:      <<ArraySet2:v\d+>>    ArraySet [<<Array>>,<<Sub2>>,<<AddArray2>>]
+
+  /// CHECK-START-ARM64: void Main.arrayAccessSub(int) scheduler (before)
+  /// CHECK:      <<Param:i\d+>>        ParameterValue
+  /// CHECK-DAG:  <<Const1:i\d+>>       IntConstant -1
+  /// CHECK-DAG:  <<Const2:i\d+>>       IntConstant 9
+  /// CHECK-DAG:  <<Const3:i\d+>>       IntConstant 1
+  /// CHECK:      <<Add1:i\d+>>         Add [<<Param>>,<<Const1>>]
+  /// CHECK:      <<Sub2:i\d+>>         Sub [<<Const2>>,<<Param>>]
+  /// CHECK:      <<Array:i\d+>>        IntermediateAddress
+  /// CHECK:      <<ArrayGet1:i\d+>>    ArrayGet [<<Array>>,<<Add1>>]
+  /// CHECK:      <<AddArray1:i\d+>>    Add [<<ArrayGet1>>,<<Const3>>]
+  /// CHECK:      <<ArraySet1:v\d+>>    ArraySet [<<Array>>,<<Add1>>,<<AddArray1>>]
+  /// CHECK:      <<ArrayGet2:i\d+>>    ArrayGet [<<Array>>,<<Sub2>>]
+  /// CHECK:      <<AddArray2:i\d+>>    Add [<<ArrayGet2>>,<<Const3>>]
+  /// CHECK:      <<ArraySet2:v\d+>>    ArraySet [<<Array>>,<<Sub2>>,<<AddArray2>>]
+
+  /// CHECK-START-ARM64: void Main.arrayAccessSub(int) scheduler (after)
+  /// CHECK:      <<Param:i\d+>>        ParameterValue
+  /// CHECK-DAG:  <<Const1:i\d+>>       IntConstant -1
+  /// CHECK-DAG:  <<Const2:i\d+>>       IntConstant 9
+  /// CHECK-DAG:  <<Const3:i\d+>>       IntConstant 1
+  /// CHECK:      <<Add1:i\d+>>         Add [<<Param>>,<<Const1>>]
+  /// CHECK:      <<Sub2:i\d+>>         Sub [<<Const2>>,<<Param>>]
+  /// CHECK:      <<Array:i\d+>>        IntermediateAddress
+  /// CHECK:      <<ArrayGet1:i\d+>>    ArrayGet [<<Array>>,<<Add1>>]
+  /// CHECK:      <<AddArray1:i\d+>>    Add [<<ArrayGet1>>,<<Const3>>]
+  /// CHECK:      <<ArraySet1:v\d+>>    ArraySet [<<Array>>,<<Add1>>,<<AddArray1>>]
+  /// CHECK:      <<ArrayGet2:i\d+>>    ArrayGet [<<Array>>,<<Sub2>>]
+  /// CHECK:      <<AddArray2:i\d+>>    Add [<<ArrayGet2>>,<<Const3>>]
+  /// CHECK:      <<ArraySet2:v\d+>>    ArraySet [<<Array>>,<<Sub2>>,<<AddArray2>>]
+  public static void arrayAccessSub(int i) {
+    int [] array = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+    for (int j = 0; j < 100; j++) {
+      // These two accesses MAY ALIAS
+      array[i - 1]++;
+      array[9 - i]++;
+    }
+  }
+
+  /// CHECK-START-ARM: void Main.arrayAccessLoopVariable() scheduler (before)
+  /// CHECK-DAG: <<Const0:i\d+>>       IntConstant 0
+  /// CHECK-DAG: <<Const1:i\d+>>       IntConstant 1
+  /// CHECK:     <<Phi:i\d+>>          Phi
+  /// CHECK:     <<Array:i\d+>>        IntermediateAddress
+  /// CHECK:     <<ArrayGet1:i\d+>>    ArrayGet
+  /// CHECK:     <<AddArray1:i\d+>>    Add
+  /// CHECK:     <<ArraySet1:v\d+>>    ArraySet
+  /// CHECK:     <<AddVar:i\d+>>       Add
+  /// CHECK:     <<ArrayGet2:i\d+>>    ArrayGet
+  /// CHECK:     <<AddArray2:i\d+>>    Add
+  /// CHECK:     <<ArraySet2:v\d+>>    ArraySet
+
+  /// CHECK-START-ARM: void Main.arrayAccessLoopVariable() scheduler (after)
+  /// CHECK-DAG: <<Const0:i\d+>>       IntConstant 0
+  /// CHECK-DAG: <<Const1:i\d+>>       IntConstant 1
+  /// CHECK:     <<Phi:i\d+>>          Phi
+  /// CHECK:     <<Array:i\d+>>        IntermediateAddress
+  /// CHECK:     <<AddVar:i\d+>>       Add
+  /// CHECK:     <<ArrayGet1:i\d+>>    ArrayGet
+  /// CHECK:     <<ArrayGet2:i\d+>>    ArrayGet
+  /// CHECK:     <<AddArray1:i\d+>>    Add
+  /// CHECK:     <<AddArray2:i\d+>>    Add
+  /// CHECK:     <<ArraySet1:v\d+>>    ArraySet
+  /// CHECK:     <<ArraySet2:v\d+>>    ArraySet
+
+  /// CHECK-START-ARM64: void Main.arrayAccessLoopVariable() scheduler (before)
+  /// CHECK-DAG: <<Const0:i\d+>>       IntConstant 0
+  /// CHECK-DAG: <<Const1:i\d+>>       IntConstant 1
+  /// CHECK:     <<Phi:i\d+>>          Phi
+  /// CHECK:     <<Array:i\d+>>        IntermediateAddress
+  /// CHECK:     <<ArrayGet1:i\d+>>    ArrayGet
+  /// CHECK:     <<AddArray1:i\d+>>    Add
+  /// CHECK:     <<ArraySet1:v\d+>>    ArraySet
+  /// CHECK:     <<AddVar:i\d+>>       Add
+  /// CHECK:     <<ArrayGet2:i\d+>>    ArrayGet
+  /// CHECK:     <<AddArray2:i\d+>>    Add
+  /// CHECK:     <<ArraySet2:v\d+>>    ArraySet
+
+  /// CHECK-START-ARM64: void Main.arrayAccessLoopVariable() scheduler (after)
+  /// CHECK-DAG: <<Const0:i\d+>>       IntConstant 0
+  /// CHECK-DAG: <<Const1:i\d+>>       IntConstant 1
+  /// CHECK:     <<Phi:i\d+>>          Phi
+  /// CHECK:     <<Array:i\d+>>        IntermediateAddress
+  /// CHECK:     <<AddVar:i\d+>>       Add
+  /// CHECK:     <<ArrayGet1:i\d+>>    ArrayGet
+  /// CHECK:     <<ArrayGet2:i\d+>>    ArrayGet
+  /// CHECK:     <<AddArray1:i\d+>>    Add
+  /// CHECK:     <<AddArray2:i\d+>>    Add
+  /// CHECK:     <<ArraySet1:v\d+>>    ArraySet
+  /// CHECK:     <<ArraySet2:v\d+>>    ArraySet
+  public static void arrayAccessLoopVariable() {
+    int [] array = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+    for (int j = 0; j < 9; j++) {
+      array[j]++;
+      array[j + 1]++;
+    }
+  }
+
+  /// CHECK-START-ARM: void Main.accessFields() scheduler (before)
+  /// CHECK:            InstanceFieldGet
+  /// CHECK:            Add
+  /// CHECK:            InstanceFieldSet
+  /// CHECK:            InstanceFieldGet
+  /// CHECK:            Add
+  /// CHECK:            InstanceFieldSet
+  /// CHECK:            StaticFieldGet
+  /// CHECK:            Add
+  /// CHECK:            StaticFieldSet
+  /// CHECK:            StaticFieldGet
+  /// CHECK:            Add
+  /// CHECK:            StaticFieldSet
+
+  /// CHECK-START-ARM: void Main.accessFields() scheduler (after)
+  /// CHECK-DAG:        InstanceFieldGet
+  /// CHECK-DAG:        InstanceFieldGet
+  /// CHECK-DAG:        StaticFieldGet
+  /// CHECK-DAG:        StaticFieldGet
+  /// CHECK:            Add
+  /// CHECK:            Add
+  /// CHECK:            Add
+  /// CHECK:            Add
+  /// CHECK-DAG:        InstanceFieldSet
+  /// CHECK-DAG:        InstanceFieldSet
+  /// CHECK-DAG:        StaticFieldSet
+  /// CHECK-DAG:        StaticFieldSet
+
+  /// CHECK-START-ARM64: void Main.accessFields() scheduler (before)
+  /// CHECK:            InstanceFieldGet
+  /// CHECK:            Add
+  /// CHECK:            InstanceFieldSet
+  /// CHECK:            InstanceFieldGet
+  /// CHECK:            Add
+  /// CHECK:            InstanceFieldSet
+  /// CHECK:            StaticFieldGet
+  /// CHECK:            Add
+  /// CHECK:            StaticFieldSet
+  /// CHECK:            StaticFieldGet
+  /// CHECK:            Add
+  /// CHECK:            StaticFieldSet
+
+  /// CHECK-START-ARM64: void Main.accessFields() scheduler (after)
+  /// CHECK-DAG:        InstanceFieldGet
+  /// CHECK-DAG:        InstanceFieldGet
+  /// CHECK-DAG:        StaticFieldGet
+  /// CHECK-DAG:        StaticFieldGet
+  /// CHECK:            Add
+  /// CHECK:            Add
+  /// CHECK:            Add
+  /// CHECK:            Add
+  /// CHECK-DAG:        InstanceFieldSet
+  /// CHECK-DAG:        InstanceFieldSet
+  /// CHECK-DAG:        StaticFieldSet
+  /// CHECK-DAG:        StaticFieldSet
+  public void accessFields() {
+    my_obj = new ExampleObj(1, 2);
+    for (int i = 0; i < 10; i++) {
+      my_obj.n1++;
+      my_obj.n2++;
+      number1++;
+      number2++;
+    }
   }
 
   /// CHECK-START-ARM64: int Main.intDiv(int) scheduler (before)
