@@ -112,6 +112,10 @@ class ProfileSaver {
 
   void DumpInfo(std::ostream& os);
 
+  // Resolve the realpath of the locations stored in tracked_dex_base_locations_to_be_resolved_
+  // and put the result in tracked_dex_base_locations_.
+  void ResolveTrackedLocations() REQUIRES(!Locks::profiler_lock_);
+
   // The only instance of the saver.
   static ProfileSaver* instance_ GUARDED_BY(Locks::profiler_lock_);
   // Profile saver thread.
@@ -119,9 +123,15 @@ class ProfileSaver {
 
   jit::JitCodeCache* jit_code_cache_;
 
-  // Collection of code paths that the profiles tracks.
+  // Collection of code paths that the profiler tracks.
   // It maps profile locations to code paths (dex base locations).
   SafeMap<std::string, std::set<std::string>> tracked_dex_base_locations_
+      GUARDED_BY(Locks::profiler_lock_);
+
+  // Collection of code paths that the profiler tracks but may note have been resolved
+  // to their realpath. The resolution is done async to minimize the time it takes for
+  // someone to register a path.
+  SafeMap<std::string, std::set<std::string>> tracked_dex_base_locations_to_be_resolved_
       GUARDED_BY(Locks::profiler_lock_);
 
   bool shutting_down_ GUARDED_BY(Locks::profiler_lock_);
