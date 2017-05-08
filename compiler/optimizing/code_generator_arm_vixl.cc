@@ -608,8 +608,14 @@ class DeoptimizationSlowPathARMVIXL : public SlowPathCodeARMVIXL {
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorARMVIXL* arm_codegen = down_cast<CodeGeneratorARMVIXL*>(codegen);
     __ Bind(GetEntryLabel());
+        LocationSummary* locations = instruction_->GetLocations();
+    SaveLiveRegisters(codegen, locations);
+    InvokeRuntimeCallingConventionARMVIXL calling_convention;
+    __ Mov(calling_convention.GetRegisterAt(0),
+           static_cast<uint32_t>(instruction_->AsDeoptimize()->GetDeoptimizationKind()));
+
     arm_codegen->InvokeRuntime(kQuickDeoptimize, instruction_, instruction_->GetDexPc(), this);
-    CheckEntrypointTypes<kQuickDeoptimize, void, void>();
+    CheckEntrypointTypes<kQuickDeoptimize, void, DeoptimizationKind>();
   }
 
   const char* GetDescription() const OVERRIDE { return "DeoptimizationSlowPathARMVIXL"; }
@@ -2704,7 +2710,10 @@ void InstructionCodeGeneratorARMVIXL::VisitIf(HIf* if_instr) {
 void LocationsBuilderARMVIXL::VisitDeoptimize(HDeoptimize* deoptimize) {
   LocationSummary* locations = new (GetGraph()->GetArena())
       LocationSummary(deoptimize, LocationSummary::kCallOnSlowPath);
-  locations->SetCustomSlowPathCallerSaves(RegisterSet::Empty());  // No caller-save registers.
+  InvokeRuntimeCallingConventionARMVIXL calling_convention;
+  RegisterSet caller_saves = RegisterSet::Empty();
+  caller_saves.Add(LocationFrom(calling_convention.GetRegisterAt(0)));
+  locations->SetCustomSlowPathCallerSaves(caller_saves);
   if (IsBooleanValueOrMaterializedCondition(deoptimize->InputAt(0))) {
     locations->SetInAt(0, Location::RequiresRegister());
   }

@@ -149,7 +149,6 @@ JitCodeCache::JitCodeCache(MemMap* code_map,
       used_memory_for_code_(0),
       number_of_compilations_(0),
       number_of_osr_compilations_(0),
-      number_of_deoptimizations_(0),
       number_of_collections_(0),
       histogram_stack_map_memory_use_("Memory used for stack maps", 16),
       histogram_code_memory_use_("Memory used for compiled code", 16),
@@ -1416,8 +1415,6 @@ void JitCodeCache::InvalidateCompiledCodeFor(ArtMethod* method,
       osr_code_map_.erase(it);
     }
   }
-  MutexLock mu(Thread::Current(), lock_);
-  number_of_deoptimizations_++;
 }
 
 uint8_t* JitCodeCache::AllocateCode(size_t code_size) {
@@ -1456,7 +1453,6 @@ void JitCodeCache::Dump(std::ostream& os) {
      << "Total number of JIT compilations: " << number_of_compilations_ << "\n"
      << "Total number of JIT compilations for on stack replacement: "
         << number_of_osr_compilations_ << "\n"
-     << "Total number of deoptimizations: " << number_of_deoptimizations_ << "\n"
      << "Total number of JIT code cache collections: " << number_of_collections_ << std::endl;
   histogram_stack_map_memory_use_.PrintMemoryUse(os);
   histogram_code_memory_use_.PrintMemoryUse(os);

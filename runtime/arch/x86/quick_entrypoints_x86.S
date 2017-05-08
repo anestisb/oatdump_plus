@@ -2028,7 +2028,7 @@ DEFINE_FUNCTION art_quick_deoptimize
     CFI_ADJUST_CFA_OFFSET(12)
     pushl %fs:THREAD_SELF_OFFSET  // Pass Thread::Current().
     CFI_ADJUST_CFA_OFFSET(4)
-    call SYMBOL(artDeoptimize)    // artDeoptimize(Thread*)
+    call SYMBOL(artDeoptimize)    // (Thread*)
     UNREACHABLE
 END_FUNCTION art_quick_deoptimize
 
@@ -2038,11 +2038,12 @@ END_FUNCTION art_quick_deoptimize
      */
 DEFINE_FUNCTION art_quick_deoptimize_from_compiled_code
     SETUP_SAVE_EVERYTHING_FRAME ebx, ebx
-    subl LITERAL(12), %esp                      // Align stack.
-    CFI_ADJUST_CFA_OFFSET(12)
+    subl LITERAL(8), %esp                      // Align stack.
+    CFI_ADJUST_CFA_OFFSET(8)
     pushl %fs:THREAD_SELF_OFFSET                // Pass Thread::Current().
     CFI_ADJUST_CFA_OFFSET(4)
-    call SYMBOL(artDeoptimizeFromCompiledCode)  // artDeoptimizeFromCompiledCode(Thread*)
+    PUSH eax
+    call SYMBOL(artDeoptimizeFromCompiledCode)  // (DeoptimizationKind, Thread*)
     UNREACHABLE
 END_FUNCTION art_quick_deoptimize_from_compiled_code
 

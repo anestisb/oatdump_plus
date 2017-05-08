@@ -190,7 +190,7 @@ TEST_F(SsaLivenessAnalysisTest, TestDeoptimize) {
   HInstruction* ae = new (&allocator_) HAboveOrEqual(index, length);
   block->AddInstruction(ae);
   HInstruction* deoptimize =
-      new(&allocator_) HDeoptimize(&allocator_, ae, HDeoptimize::Kind::kBCE, /* dex_pc */ 0u);
+      new(&allocator_) HDeoptimize(&allocator_, ae, DeoptimizationKind::kBlockBCE, /* dex_pc */ 0u);
   block->AddInstruction(deoptimize);
   HEnvironment* deoptimize_env = new (&allocator_) HEnvironment(&allocator_,
                                                                 /* number_of_vregs */ 5,

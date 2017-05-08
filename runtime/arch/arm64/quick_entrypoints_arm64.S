@@ -2219,7 +2219,7 @@ END art_quick_instrumentation_exit
 ENTRY art_quick_deoptimize
     SETUP_SAVE_ALL_CALLEE_SAVES_FRAME
     mov    x0, xSELF          // Pass thread.
-    bl     artDeoptimize      // artDeoptimize(Thread*)
+    bl     artDeoptimize      // (Thread*)
     brk 0
 END art_quick_deoptimize
 
@@ -2230,8 +2230,8 @@ END art_quick_deoptimize
     .extern artDeoptimizeFromCompiledCode
 ENTRY art_quick_deoptimize_from_compiled_code
     SETUP_SAVE_EVERYTHING_FRAME
-    mov    x0, xSELF                      // Pass thread.
-    bl     artDeoptimizeFromCompiledCode  // artDeoptimizeFromCompiledCode(Thread*)
+    mov    x1, xSELF                      // Pass thread.
+    bl     artDeoptimizeFromCompiledCode  // (DeoptimizationKind, Thread*)
     brk 0
 END art_quick_deoptimize_from_compiled_code
 

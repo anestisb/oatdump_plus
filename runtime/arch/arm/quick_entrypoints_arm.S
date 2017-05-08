@@ -1681,8 +1681,8 @@ END art_quick_instrumentation_entry
     .extern artDeoptimize
 ENTRY art_quick_deoptimize
     SETUP_SAVE_ALL_CALLEE_SAVES_FRAME r0
-    mov    r0, r9         @ Set up args.
-    blx    artDeoptimize  @ artDeoptimize(Thread*)
+    mov    r0, r9         @ pass Thread::Current
+    blx    artDeoptimize  @ (Thread*)
 END art_quick_deoptimize
 
     /*
@@ -1691,9 +1691,9 @@ END art_quick_deoptimize
      */
     .extern artDeoptimizeFromCompiledCode
 ENTRY art_quick_deoptimize_from_compiled_code
-    SETUP_SAVE_EVERYTHING_FRAME r0
-    mov    r0, r9                         @ Set up args.
-    blx    artDeoptimizeFromCompiledCode  @ artDeoptimizeFromCompiledCode(Thread*)
+    SETUP_SAVE_EVERYTHING_FRAME r1
+    mov    r1, r9                         @ pass Thread::Current
+    blx    artDeoptimizeFromCompiledCode  @ (DeoptimizationKind, Thread*)
 END art_quick_deoptimize_from_compiled_code
 
     /*

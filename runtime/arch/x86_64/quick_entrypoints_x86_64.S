@@ -1983,7 +1983,7 @@ DEFINE_FUNCTION art_quick_deoptimize
     SETUP_SAVE_ALL_CALLEE_SAVES_FRAME
                                        // Stack should be aligned now.
     movq %gs:THREAD_SELF_OFFSET, %rdi  // Pass Thread.
-    call SYMBOL(artDeoptimize)         // artDeoptimize(Thread*)
+    call SYMBOL(artDeoptimize)         // (Thread*)
     UNREACHABLE
 END_FUNCTION art_quick_deoptimize
 
@@ -1994,8 +1994,8 @@ END_FUNCTION art_quick_deoptimize
 DEFINE_FUNCTION art_quick_deoptimize_from_compiled_code
     SETUP_SAVE_EVERYTHING_FRAME
                                                 // Stack should be aligned now.
-    movq %gs:THREAD_SELF_OFFSET, %rdi           // Pass Thread.
-    call SYMBOL(artDeoptimizeFromCompiledCode)  // artDeoptimizeFromCompiledCode(Thread*)
+    movq %gs:THREAD_SELF_OFFSET, %rsi           // Pass Thread.
+    call SYMBOL(artDeoptimizeFromCompiledCode)  // (DeoptimizationKind, Thread*)
     UNREACHABLE
 END_FUNCTION art_quick_deoptimize_from_compiled_code
 
