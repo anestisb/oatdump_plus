@@ -117,8 +117,12 @@ ScopedFlock::~ScopedFlock() {
   if (file_.get() != nullptr) {
     int flock_result = TEMP_FAILURE_RETRY(flock(file_->Fd(), LOCK_UN));
     if (flock_result != 0) {
-      PLOG(FATAL) << "Unable to unlock file " << file_->GetPath();
-      UNREACHABLE();
+      // Only printing a warning is okay since this is only used with either:
+      // 1) a non-blocking Init call, or
+      // 2) as a part of a seperate binary (eg dex2oat) which has it's own timeout logic to prevent
+      //    deadlocks.
+      // This means we can be sure that the warning won't cause a deadlock.
+      PLOG(WARNING) << "Unable to unlock file " << file_->GetPath();
     }
     int close_result = -1;
     if (file_->ReadOnlyMode()) {
