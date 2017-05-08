@@ -497,7 +497,11 @@ def run_test(command, test, test_variant, test_name):
       test_skipped = True
     else:
       test_skipped = False
-      proc = subprocess.Popen(command.split(), stderr=subprocess.STDOUT, stdout=subprocess.PIPE, universal_newlines=True)
+      if gdb:
+        proc = subprocess.Popen(command.split(), stderr=subprocess.STDOUT, universal_newlines=True)
+      else:
+        proc = subprocess.Popen(command.split(), stderr=subprocess.STDOUT, stdout = subprocess.PIPE,
+                                universal_newlines=True)
       script_output = proc.communicate(timeout=timeout)[0]
       test_passed = not proc.wait()
 
