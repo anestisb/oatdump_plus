@@ -176,5 +176,22 @@ extern "C" JNIEXPORT jboolean JNICALL Java_art_Test901_checkUnattached(
   return res == JVMTI_ERROR_UNATTACHED_THREAD;
 }
 
+extern "C" JNIEXPORT jstring JNICALL Java_art_Test901_getErrorName(
+    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jint error) {
+  char* name;
+  jvmtiError res = jvmti_env->GetErrorName(static_cast<jvmtiError>(error), &name);
+  if (JvmtiErrorToException(env, jvmti_env, res)) {
+    return nullptr;
+  }
+
+  jstring ret_string = env->NewStringUTF(name);
+  jvmtiError dealloc = jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(name));
+  if (JvmtiErrorToException(env, jvmti_env, dealloc)) {
+    return nullptr;
+  }
+
+  return ret_string;
+}
+
 }  // namespace Test901HelloTi
 }  // namespace art
