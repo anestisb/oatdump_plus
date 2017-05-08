@@ -1010,17 +1010,14 @@ static void GenCas(HInvoke* invoke, Primitive::Type type, CodeGeneratorARM* code
     if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
       // Need to make sure the reference stored in the field is a to-space
       // one before attempting the CAS or the CAS could fail incorrectly.
-      codegen->GenerateReferenceLoadWithBakerReadBarrier(
+      codegen->UpdateReferenceFieldWithBakerReadBarrier(
           invoke,
           out_loc,  // Unused, used only as a "temporary" within the read barrier.
           base,
-          /* offset */ 0u,
-          /* index */ offset_loc,
-          ScaleFactor::TIMES_1,
+          /* field_offset */ offset_loc,
           tmp_ptr_loc,
           /* needs_null_check */ false,
-          /* always_update_field */ true,
-          &tmp);
+          tmp);
     }
   }
 

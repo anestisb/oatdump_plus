@@ -635,9 +635,6 @@ class CodeGeneratorARM64 : public CodeGenerator {
   // Load the object reference located at the address
   // `obj + offset + (index << scale_factor)`, held by object `obj`, into
   // `ref`, and mark it if needed.
-  //
-  // If `always_update_field` is true, the value of the reference is
-  // atomically updated in the holder (`obj`).
   void GenerateReferenceLoadWithBakerReadBarrier(HInstruction* instruction,
                                                  Location ref,
                                                  vixl::aarch64::Register obj,
@@ -646,8 +643,27 @@ class CodeGeneratorARM64 : public CodeGenerator {
                                                  size_t scale_factor,
                                                  vixl::aarch64::Register temp,
                                                  bool needs_null_check,
-                                                 bool use_load_acquire,
-                                                 bool always_update_field = false);
+                                                 bool use_load_acquire);
+
+  // Generate code checking whether the the reference field at the
+  // address `obj + field_offset`, held by object `obj`, needs to be
+  // marked, and if so, marking it and updating the field within `obj`
+  // with the marked value.
+  //
+  // This routine is used for the implementation of the
+  // UnsafeCASObject intrinsic with Baker read barriers.
+  //
+  // This method has a structure similar to
+  // GenerateReferenceLoadWithBakerReadBarrier, but note that argument
+  // `ref` is only as a temporary here, and thus its value should not
+  // be used afterwards.
+  void UpdateReferenceFieldWithBakerReadBarrier(HInstruction* instruction,
+                                                Location ref,
+                                                vixl::aarch64::Register obj,
+                                                Location field_offset,
+                                                vixl::aarch64::Register temp,
+                                                bool needs_null_check,
+                                                bool use_load_acquire);
 
   // Generate a heap reference load (with no read barrier).
   void GenerateRawReferenceLoad(HInstruction* instruction,

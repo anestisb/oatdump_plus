@@ -1154,17 +1154,14 @@ static void GenCas(HInvoke* invoke, Primitive::Type type, CodeGeneratorARM64* co
       Register temp = WRegisterFrom(locations->GetTemp(0));
       // Need to make sure the reference stored in the field is a to-space
       // one before attempting the CAS or the CAS could fail incorrectly.
-      codegen->GenerateReferenceLoadWithBakerReadBarrier(
+      codegen->UpdateReferenceFieldWithBakerReadBarrier(
           invoke,
           out_loc,  // Unused, used only as a "temporary" within the read barrier.
           base,
-          /* offset */ 0u,
-          /* index */ offset_loc,
-          /* scale_factor */ 0u,
+          /* field_offset */ offset_loc,
           temp,
           /* needs_null_check */ false,
-          /* use_load_acquire */ false,
-          /* always_update_field */ true);
+          /* use_load_acquire */ false);
     }
   }
 

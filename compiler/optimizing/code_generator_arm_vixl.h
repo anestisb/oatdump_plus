@@ -620,11 +620,6 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
   // Load the object reference located at the address
   // `obj + offset + (index << scale_factor)`, held by object `obj`, into
   // `ref`, and mark it if needed.
-  //
-  // If `always_update_field` is true, the value of the reference is
-  // atomically updated in the holder (`obj`).  This operation
-  // requires an extra temporary register, which must be provided as a
-  // non-null pointer (`temp2`).
   void GenerateReferenceLoadWithBakerReadBarrier(HInstruction* instruction,
                                                  Location ref,
                                                  vixl::aarch32::Register obj,
@@ -632,9 +627,27 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
                                                  Location index,
                                                  ScaleFactor scale_factor,
                                                  Location temp,
-                                                 bool needs_null_check,
-                                                 bool always_update_field = false,
-                                                 vixl::aarch32::Register* temp2 = nullptr);
+                                                 bool needs_null_check);
+
+  // Generate code checking whether the the reference field at the
+  // address `obj + field_offset`, held by object `obj`, needs to be
+  // marked, and if so, marking it and updating the field within `obj`
+  // with the marked value.
+  //
+  // This routine is used for the implementation of the
+  // UnsafeCASObject intrinsic with Baker read barriers.
+  //
+  // This method has a structure similar to
+  // GenerateReferenceLoadWithBakerReadBarrier, but note that argument
+  // `ref` is only as a temporary here, and thus its value should not
+  // be used afterwards.
+  void UpdateReferenceFieldWithBakerReadBarrier(HInstruction* instruction,
+                                                Location ref,
+                                                vixl::aarch32::Register obj,
+                                                Location field_offset,
+                                                Location temp,
+                                                bool needs_null_check,
+                                                vixl::aarch32::Register temp2);
 
   // Generate a heap reference load (with no read barrier).
   void GenerateRawReferenceLoad(HInstruction* instruction,
