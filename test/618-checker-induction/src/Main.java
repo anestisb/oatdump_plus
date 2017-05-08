@@ -468,6 +468,19 @@ public class Main {
     return sum;
   }
 
+  // Ensure double induction does not "overshoot" the subscript range.
+  private static int getIncr2(int[] arr) {
+    for (int i = 0; i < 12; ) {
+      arr[i++] = 30;
+      arr[i++] = 29;
+    }
+    int sum = 0;
+    for (int i = 0; i < 12; i++) {
+      sum += arr[i];
+    }
+    return sum;
+  }
+
   // TODO: handle as closed/empty eventually?
   static int mainIndexReturnedN(int n) {
     int i;
@@ -869,6 +882,7 @@ public class Main {
     expectEquals(1, periodicReturned9());
     expectEquals(0, periodicReturned10());
     expectEquals(21, getSum21());
+    expectEquals(354, getIncr2(new int[12]));
     for (int n = -4; n < 4; n++) {
       int tc = (n <= 0) ? 0 : n;
       expectEquals(tc, mainIndexReturnedN(n));
