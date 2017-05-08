@@ -249,7 +249,7 @@ uint32_t ArmBaseRelativePatcher::ReserveSpaceInternal(uint32_t offset,
       // All remaining method call patches will be handled by this thunk.
       DCHECK(!unprocessed_method_call_patches_.empty());
       DCHECK_LE(thunk_offset - unprocessed_method_call_patches_.front().GetPatchOffset(),
-                MaxPositiveDisplacement(ThunkType::kMethodCall));
+                MaxPositiveDisplacement(GetMethodCallKey()));
       unprocessed_method_call_patches_.clear();
     }
   }
@@ -271,8 +271,8 @@ uint32_t ArmBaseRelativePatcher::CalculateMethodCallDisplacement(uint32_t patch_
   DCHECK(method_call_thunk_ != nullptr);
   // Unsigned arithmetic with its well-defined overflow behavior is just fine here.
   uint32_t displacement = target_offset - patch_offset;
-  uint32_t max_positive_displacement = MaxPositiveDisplacement(ThunkType::kMethodCall);
-  uint32_t max_negative_displacement = MaxNegativeDisplacement(ThunkType::kMethodCall);
+  uint32_t max_positive_displacement = MaxPositiveDisplacement(GetMethodCallKey());
+  uint32_t max_negative_displacement = MaxNegativeDisplacement(GetMethodCallKey());
   // NOTE: With unsigned arithmetic we do mean to use && rather than || below.
   if (displacement > max_positive_displacement && displacement < -max_negative_displacement) {
     // Unwritten thunks have higher offsets, check if it's within range.
@@ -299,29 +299,42 @@ uint32_t ArmBaseRelativePatcher::GetThunkTargetOffset(const ThunkKey& key, uint3
   if (data.HasWrittenOffset()) {
     uint32_t offset = data.LastWrittenOffset();
     DCHECK_LT(offset, patch_offset);
-    if (patch_offset - offset <= MaxNegativeDisplacement(key.GetType())) {
+    if (patch_offset - offset <= MaxNegativeDisplacement(key)) {
       return offset;
     }
   }
   DCHECK(data.HasPendingOffset());
   uint32_t offset = data.GetPendingOffset();
   DCHECK_GT(offset, patch_offset);
-  DCHECK_LE(offset - patch_offset, MaxPositiveDisplacement(key.GetType()));
+  DCHECK_LE(offset - patch_offset, MaxPositiveDisplacement(key));
   return offset;
+}
+
+ArmBaseRelativePatcher::ThunkKey ArmBaseRelativePatcher::GetMethodCallKey() {
+  return ThunkKey(ThunkType::kMethodCall, ThunkParams{{ 0u, 0u }});  // NOLINT(whitespace/braces)
+}
+
+ArmBaseRelativePatcher::ThunkKey ArmBaseRelativePatcher::GetBakerThunkKey(
+    const LinkerPatch& patch) {
+  DCHECK_EQ(patch.GetType(), LinkerPatch::Type::kBakerReadBarrierBranch);
+  ThunkParams params;
+  params.baker_params.custom_value1 = patch.GetBakerCustomValue1();
+  params.baker_params.custom_value2 = patch.GetBakerCustomValue2();
+  ThunkKey key(ThunkType::kBakerReadBarrier, params);
+  return key;
 }
 
 void ArmBaseRelativePatcher::ProcessPatches(const CompiledMethod* compiled_method,
                                             uint32_t code_offset) {
   for (const LinkerPatch& patch : compiled_method->GetPatches()) {
     uint32_t patch_offset = code_offset + patch.LiteralOffset();
-    ThunkType key_type = static_cast<ThunkType>(-1);
+    ThunkKey key(static_cast<ThunkType>(-1), ThunkParams{{ 0u, 0u }});  // NOLINT(whitespace/braces)
     ThunkData* old_data = nullptr;
     if (patch.GetType() == LinkerPatch::Type::kCallRelative) {
-      key_type = ThunkType::kMethodCall;
+      key = GetMethodCallKey();
       unprocessed_method_call_patches_.emplace_back(patch_offset, patch.TargetMethod());
       if (method_call_thunk_ == nullptr) {
-        ThunkKey key(key_type, ThunkParams{{ 0u, 0u }});  // NOLINT(whitespace/braces)
-        uint32_t max_next_offset = CalculateMaxNextOffset(patch_offset, key_type);
+        uint32_t max_next_offset = CalculateMaxNextOffset(patch_offset, key);
         auto it = thunks_.Put(key, ThunkData(CompileThunk(key), max_next_offset));
         method_call_thunk_ = &it->second;
         AddUnreservedThunk(method_call_thunk_);
@@ -329,11 +342,10 @@ void ArmBaseRelativePatcher::ProcessPatches(const CompiledMethod* compiled_metho
         old_data = method_call_thunk_;
       }
     } else if (patch.GetType() == LinkerPatch::Type::kBakerReadBarrierBranch) {
-      ThunkKey key = GetBakerReadBarrierKey(patch);
-      key_type = key.GetType();
+      key = GetBakerThunkKey(patch);
       auto lb = thunks_.lower_bound(key);
       if (lb == thunks_.end() || thunks_.key_comp()(key, lb->first)) {
-        uint32_t max_next_offset = CalculateMaxNextOffset(patch_offset, key_type);
+        uint32_t max_next_offset = CalculateMaxNextOffset(patch_offset, key);
         auto it = thunks_.PutBefore(lb, key, ThunkData(CompileThunk(key), max_next_offset));
         AddUnreservedThunk(&it->second);
       } else {
@@ -342,16 +354,16 @@ void ArmBaseRelativePatcher::ProcessPatches(const CompiledMethod* compiled_metho
     }
     if (old_data != nullptr) {
       // Shared path where an old thunk may need an update.
-      DCHECK(key_type != static_cast<ThunkType>(-1));
+      DCHECK(key.GetType() != static_cast<ThunkType>(-1));
       DCHECK(!old_data->HasReservedOffset() || old_data->LastReservedOffset() < patch_offset);
       if (old_data->NeedsNextThunk()) {
         // Patches for a method are ordered by literal offset, so if we still need to place
         // this thunk for a previous patch, that thunk shall be in range for this patch.
-        DCHECK_LE(old_data->MaxNextOffset(), CalculateMaxNextOffset(patch_offset, key_type));
+        DCHECK_LE(old_data->MaxNextOffset(), CalculateMaxNextOffset(patch_offset, key));
       } else {
         if (!old_data->HasReservedOffset() ||
-            patch_offset - old_data->LastReservedOffset() > MaxNegativeDisplacement(key_type)) {
-          old_data->SetMaxNextOffset(CalculateMaxNextOffset(patch_offset, key_type));
+            patch_offset - old_data->LastReservedOffset() > MaxNegativeDisplacement(key)) {
+          old_data->SetMaxNextOffset(CalculateMaxNextOffset(patch_offset, key));
           AddUnreservedThunk(old_data);
         }
       }
@@ -385,8 +397,8 @@ void ArmBaseRelativePatcher::ResolveMethodCalls(uint32_t quick_code_offset,
   DCHECK(!unreserved_thunks_.empty());
   DCHECK(!unprocessed_method_call_patches_.empty());
   DCHECK(method_call_thunk_ != nullptr);
-  uint32_t max_positive_displacement = MaxPositiveDisplacement(ThunkType::kMethodCall);
-  uint32_t max_negative_displacement = MaxNegativeDisplacement(ThunkType::kMethodCall);
+  uint32_t max_positive_displacement = MaxPositiveDisplacement(GetMethodCallKey());
+  uint32_t max_negative_displacement = MaxNegativeDisplacement(GetMethodCallKey());
   // Process as many patches as possible, stop only on unresolved targets or calls too far back.
   while (!unprocessed_method_call_patches_.empty()) {
     MethodReference target_method = unprocessed_method_call_patches_.front().GetTargetMethod();
@@ -439,8 +451,8 @@ void ArmBaseRelativePatcher::ResolveMethodCalls(uint32_t quick_code_offset,
 }
 
 inline uint32_t ArmBaseRelativePatcher::CalculateMaxNextOffset(uint32_t patch_offset,
-                                                               ThunkType type) {
-  return RoundDown(patch_offset + MaxPositiveDisplacement(type),
+                                                               const ThunkKey& key) {
+  return RoundDown(patch_offset + MaxPositiveDisplacement(key),
                    GetInstructionSetAlignment(instruction_set_));
 }
 

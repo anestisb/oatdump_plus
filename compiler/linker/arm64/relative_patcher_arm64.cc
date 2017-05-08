@@ -305,37 +305,42 @@ void Arm64RelativePatcher::PatchBakerReadBarrierBranch(std::vector<uint8_t>* cod
   DCHECK_LT(literal_offset, code->size());
   uint32_t insn = GetInsn(code, literal_offset);
   DCHECK_EQ(insn & 0xffffffe0u, 0xb5000000);  // CBNZ Xt, +0 (unpatched)
-  ThunkKey key = GetBakerReadBarrierKey(patch);
+  ThunkKey key = GetBakerThunkKey(patch);
   if (kIsDebugBuild) {
+    const uint32_t encoded_data = key.GetBakerReadBarrierParams().custom_value1;
+    BakerReadBarrierKind kind = BakerReadBarrierKindField::Decode(encoded_data);
     // Check that the next instruction matches the expected LDR.
-    switch (key.GetType()) {
-      case ThunkType::kBakerReadBarrierField: {
+    switch (kind) {
+      case BakerReadBarrierKind::kField: {
         DCHECK_GE(code->size() - literal_offset, 8u);
         uint32_t next_insn = GetInsn(code, literal_offset + 4u);
         // LDR (immediate) with correct base_reg.
         CheckValidReg(next_insn & 0x1fu);  // Check destination register.
-        CHECK_EQ(next_insn & 0xffc003e0u, 0xb9400000u | (key.GetFieldParams().base_reg << 5));
+        const uint32_t base_reg = BakerReadBarrierFirstRegField::Decode(encoded_data);
+        CHECK_EQ(next_insn & 0xffc003e0u, 0xb9400000u | (base_reg << 5));
         break;
       }
-      case ThunkType::kBakerReadBarrierArray: {
+      case BakerReadBarrierKind::kArray: {
         DCHECK_GE(code->size() - literal_offset, 8u);
         uint32_t next_insn = GetInsn(code, literal_offset + 4u);
         // LDR (register) with the correct base_reg, size=10 (32-bit), option=011 (extend = LSL),
         // and S=1 (shift amount = 2 for 32-bit version), i.e. LDR Wt, [Xn, Xm, LSL #2].
         CheckValidReg(next_insn & 0x1fu);  // Check destination register.
-        CHECK_EQ(next_insn & 0xffe0ffe0u, 0xb8607800u | (key.GetArrayParams().base_reg << 5));
+        const uint32_t base_reg = BakerReadBarrierFirstRegField::Decode(encoded_data);
+        CHECK_EQ(next_insn & 0xffe0ffe0u, 0xb8607800u | (base_reg << 5));
         CheckValidReg((next_insn >> 16) & 0x1f);  // Check index register
         break;
       }
-      case ThunkType::kBakerReadBarrierRoot: {
+      case BakerReadBarrierKind::kGcRoot: {
         DCHECK_GE(literal_offset, 4u);
         uint32_t prev_insn = GetInsn(code, literal_offset - 4u);
         // LDR (immediate) with correct root_reg.
-        CHECK_EQ(prev_insn & 0xffc0001fu, 0xb9400000u | key.GetRootParams().root_reg);
+        const uint32_t root_reg = BakerReadBarrierFirstRegField::Decode(encoded_data);
+        CHECK_EQ(prev_insn & 0xffc0001fu, 0xb9400000u | root_reg);
         break;
       }
       default:
-        LOG(FATAL) << "Unexpected type: " << static_cast<uint32_t>(key.GetType());
+        LOG(FATAL) << "Unexpected kind: " << static_cast<uint32_t>(kind);
         UNREACHABLE();
     }
   }
@@ -345,49 +350,6 @@ void Arm64RelativePatcher::PatchBakerReadBarrierBranch(std::vector<uint8_t>* cod
   DCHECK((disp >> 20) == 0u || (disp >> 20) == 4095u);  // 21-bit signed.
   insn |= (disp << (5 - 2)) & 0x00ffffe0u;              // Shift bits 2-20 to 5-23.
   SetInsn(code, literal_offset, insn);
-}
-
-ArmBaseRelativePatcher::ThunkKey Arm64RelativePatcher::GetBakerReadBarrierKey(
-    const LinkerPatch& patch) {
-  DCHECK_EQ(patch.GetType(), LinkerPatch::Type::kBakerReadBarrierBranch);
-  uint32_t value = patch.GetBakerCustomValue1();
-  BakerReadBarrierKind type = BakerReadBarrierKindField::Decode(value);
-  ThunkParams params;
-  switch (type) {
-    case BakerReadBarrierKind::kField:
-      params.field_params.base_reg = BakerReadBarrierFirstRegField::Decode(value);
-      CheckValidReg(params.field_params.base_reg);
-      params.field_params.holder_reg = BakerReadBarrierSecondRegField::Decode(value);
-      CheckValidReg(params.field_params.holder_reg);
-      break;
-    case BakerReadBarrierKind::kArray:
-      params.array_params.base_reg = BakerReadBarrierFirstRegField::Decode(value);
-      CheckValidReg(params.array_params.base_reg);
-      params.array_params.dummy = 0u;
-      DCHECK_EQ(BakerReadBarrierSecondRegField::Decode(value), kInvalidEncodedReg);
-      break;
-    case BakerReadBarrierKind::kGcRoot:
-      params.root_params.root_reg = BakerReadBarrierFirstRegField::Decode(value);
-      CheckValidReg(params.root_params.root_reg);
-      params.root_params.dummy = 0u;
-      DCHECK_EQ(BakerReadBarrierSecondRegField::Decode(value), kInvalidEncodedReg);
-      break;
-    default:
-      LOG(FATAL) << "Unexpected type: " << static_cast<uint32_t>(type);
-      UNREACHABLE();
-  }
-  constexpr uint8_t kTypeTranslationOffset = 1u;
-  static_assert(static_cast<uint32_t>(BakerReadBarrierKind::kField) + kTypeTranslationOffset ==
-                static_cast<uint32_t>(ThunkType::kBakerReadBarrierField),
-                "Thunk type translation check.");
-  static_assert(static_cast<uint32_t>(BakerReadBarrierKind::kArray) + kTypeTranslationOffset ==
-                static_cast<uint32_t>(ThunkType::kBakerReadBarrierArray),
-                "Thunk type translation check.");
-  static_assert(static_cast<uint32_t>(BakerReadBarrierKind::kGcRoot) + kTypeTranslationOffset ==
-                static_cast<uint32_t>(ThunkType::kBakerReadBarrierRoot),
-                "Thunk type translation check.");
-  return ThunkKey(static_cast<ThunkType>(static_cast<uint32_t>(type) + kTypeTranslationOffset),
-                  params);
 }
 
 #define __ assembler.GetVIXLAssembler()->
@@ -419,28 +381,22 @@ static void EmitGrayCheckAndFastPath(arm64::Arm64Assembler& assembler,
   // Note: The fake dependency is unnecessary for the slow path.
 }
 
-std::vector<uint8_t> Arm64RelativePatcher::CompileThunk(const ThunkKey& key) {
+void Arm64RelativePatcher::CompileBakerReadBarrierThunk(arm64::Arm64Assembler& assembler,
+                                                        uint32_t encoded_data) {
   using namespace vixl::aarch64;  // NOLINT(build/namespaces)
-  ArenaPool pool;
-  ArenaAllocator arena(&pool);
-  arm64::Arm64Assembler assembler(&arena);
-
-  switch (key.GetType()) {
-    case ThunkType::kMethodCall: {
-      // The thunk just uses the entry point in the ArtMethod. This works even for calls
-      // to the generic JNI and interpreter trampolines.
-      Offset offset(ArtMethod::EntryPointFromQuickCompiledCodeOffset(
-          kArm64PointerSize).Int32Value());
-      assembler.JumpTo(ManagedRegister(arm64::X0), offset, ManagedRegister(arm64::IP0));
-      break;
-    }
-    case ThunkType::kBakerReadBarrierField: {
+  BakerReadBarrierKind kind = BakerReadBarrierKindField::Decode(encoded_data);
+  switch (kind) {
+    case BakerReadBarrierKind::kField: {
       // Check if the holder is gray and, if not, add fake dependency to the base register
       // and return to the LDR instruction to load the reference. Otherwise, use introspection
       // to load the reference and call the entrypoint (in IP1) that performs further checks
       // on the reference and marks it if needed.
-      auto holder_reg = Register::GetXRegFromCode(key.GetFieldParams().holder_reg);
-      auto base_reg = Register::GetXRegFromCode(key.GetFieldParams().base_reg);
+      auto base_reg =
+          Register::GetXRegFromCode(BakerReadBarrierFirstRegField::Decode(encoded_data));
+      CheckValidReg(base_reg.GetCode());
+      auto holder_reg =
+          Register::GetXRegFromCode(BakerReadBarrierSecondRegField::Decode(encoded_data));
+      CheckValidReg(holder_reg.GetCode());
       UseScratchRegisterScope temps(assembler.GetVIXLAssembler());
       temps.Exclude(ip0, ip1);
       // If base_reg differs from holder_reg, the offset was too large and we must have
@@ -469,8 +425,11 @@ std::vector<uint8_t> Arm64RelativePatcher::CompileThunk(const ThunkKey& key) {
       }
       break;
     }
-    case ThunkType::kBakerReadBarrierArray: {
-      auto base_reg = Register::GetXRegFromCode(key.GetArrayParams().base_reg);
+    case BakerReadBarrierKind::kArray: {
+      auto base_reg =
+          Register::GetXRegFromCode(BakerReadBarrierFirstRegField::Decode(encoded_data));
+      CheckValidReg(base_reg.GetCode());
+      DCHECK_EQ(kInvalidEncodedReg, BakerReadBarrierSecondRegField::Decode(encoded_data));
       UseScratchRegisterScope temps(assembler.GetVIXLAssembler());
       temps.Exclude(ip0, ip1);
       vixl::aarch64::Label slow_path;
@@ -489,12 +448,15 @@ std::vector<uint8_t> Arm64RelativePatcher::CompileThunk(const ThunkKey& key) {
       __ Br(ip1);                           // Jump to the entrypoint's array switch case.
       break;
     }
-    case ThunkType::kBakerReadBarrierRoot: {
+    case BakerReadBarrierKind::kGcRoot: {
       // Check if the reference needs to be marked and if so (i.e. not null, not marked yet
       // and it does not have a forwarding address), call the correct introspection entrypoint;
       // otherwise return the reference (or the extracted forwarding address).
       // There is no gray bit check for GC roots.
-      auto root_reg = Register::GetWRegFromCode(key.GetRootParams().root_reg);
+      auto root_reg =
+          Register::GetWRegFromCode(BakerReadBarrierFirstRegField::Decode(encoded_data));
+      CheckValidReg(root_reg.GetCode());
+      DCHECK_EQ(kInvalidEncodedReg, BakerReadBarrierSecondRegField::Decode(encoded_data));
       UseScratchRegisterScope temps(assembler.GetVIXLAssembler());
       temps.Exclude(ip0, ip1);
       vixl::aarch64::Label return_label, not_marked, forwarding_address;
@@ -517,6 +479,30 @@ std::vector<uint8_t> Arm64RelativePatcher::CompileThunk(const ThunkKey& key) {
       __ Br(lr);
       break;
     }
+    default:
+      LOG(FATAL) << "Unexpected kind: " << static_cast<uint32_t>(kind);
+      UNREACHABLE();
+  }
+}
+
+std::vector<uint8_t> Arm64RelativePatcher::CompileThunk(const ThunkKey& key) {
+  ArenaPool pool;
+  ArenaAllocator arena(&pool);
+  arm64::Arm64Assembler assembler(&arena);
+
+  switch (key.GetType()) {
+    case ThunkType::kMethodCall: {
+      // The thunk just uses the entry point in the ArtMethod. This works even for calls
+      // to the generic JNI and interpreter trampolines.
+      Offset offset(ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+          kArm64PointerSize).Int32Value());
+      assembler.JumpTo(ManagedRegister(arm64::X0), offset, ManagedRegister(arm64::IP0));
+      break;
+    }
+    case ThunkType::kBakerReadBarrier: {
+      CompileBakerReadBarrierThunk(assembler, key.GetBakerReadBarrierParams().custom_value1);
+      break;
+    }
   }
 
   // Ensure we emit the literal pool.
@@ -529,24 +515,20 @@ std::vector<uint8_t> Arm64RelativePatcher::CompileThunk(const ThunkKey& key) {
 
 #undef __
 
-uint32_t Arm64RelativePatcher::MaxPositiveDisplacement(ThunkType type) {
-  switch (type) {
+uint32_t Arm64RelativePatcher::MaxPositiveDisplacement(const ThunkKey& key) {
+  switch (key.GetType()) {
     case ThunkType::kMethodCall:
       return kMaxMethodCallPositiveDisplacement;
-    case ThunkType::kBakerReadBarrierField:
-    case ThunkType::kBakerReadBarrierArray:
-    case ThunkType::kBakerReadBarrierRoot:
+    case ThunkType::kBakerReadBarrier:
       return kMaxBcondPositiveDisplacement;
   }
 }
 
-uint32_t Arm64RelativePatcher::MaxNegativeDisplacement(ThunkType type) {
-  switch (type) {
+uint32_t Arm64RelativePatcher::MaxNegativeDisplacement(const ThunkKey& key) {
+  switch (key.GetType()) {
     case ThunkType::kMethodCall:
       return kMaxMethodCallNegativeDisplacement;
-    case ThunkType::kBakerReadBarrierField:
-    case ThunkType::kBakerReadBarrierArray:
-    case ThunkType::kBakerReadBarrierRoot:
+    case ThunkType::kBakerReadBarrier:
       return kMaxBcondNegativeDisplacement;
   }
 }

@@ -167,9 +167,7 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
   }
 
   std::vector<uint8_t> CompileMethodCallThunk() {
-    ArmBaseRelativePatcher::ThunkKey key(
-        ArmBaseRelativePatcher::ThunkType::kMethodCall,
-        ArmBaseRelativePatcher::ThunkParams{{ 0, 0 }});  // NOLINT(whitespace/braces)
+    ArmBaseRelativePatcher::ThunkKey key = ArmBaseRelativePatcher::GetMethodCallKey();
     return down_cast<Arm64RelativePatcher*>(patcher_.get())->CompileThunk(key);
   }
 
@@ -473,25 +471,22 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
   std::vector<uint8_t> CompileBakerOffsetThunk(uint32_t base_reg, uint32_t holder_reg) {
     const LinkerPatch patch = LinkerPatch::BakerReadBarrierBranchPatch(
         0u, Arm64RelativePatcher::EncodeBakerReadBarrierFieldData(base_reg, holder_reg));
-    auto* patcher = down_cast<Arm64RelativePatcher*>(patcher_.get());
-    ArmBaseRelativePatcher::ThunkKey key = patcher->GetBakerReadBarrierKey(patch);
-    return patcher->CompileThunk(key);
+    ArmBaseRelativePatcher::ThunkKey key = ArmBaseRelativePatcher::GetBakerThunkKey(patch);
+    return down_cast<Arm64RelativePatcher*>(patcher_.get())->CompileThunk(key);
   }
 
   std::vector<uint8_t> CompileBakerArrayThunk(uint32_t base_reg) {
     LinkerPatch patch = LinkerPatch::BakerReadBarrierBranchPatch(
         0u, Arm64RelativePatcher::EncodeBakerReadBarrierArrayData(base_reg));
-    auto* patcher = down_cast<Arm64RelativePatcher*>(patcher_.get());
-    ArmBaseRelativePatcher::ThunkKey key = patcher->GetBakerReadBarrierKey(patch);
-    return patcher->CompileThunk(key);
+    ArmBaseRelativePatcher::ThunkKey key = ArmBaseRelativePatcher::GetBakerThunkKey(patch);
+    return down_cast<Arm64RelativePatcher*>(patcher_.get())->CompileThunk(key);
   }
 
   std::vector<uint8_t> CompileBakerGcRootThunk(uint32_t root_reg) {
     LinkerPatch patch = LinkerPatch::BakerReadBarrierBranchPatch(
         0u, Arm64RelativePatcher::EncodeBakerReadBarrierGcRootData(root_reg));
-    auto* patcher = down_cast<Arm64RelativePatcher*>(patcher_.get());
-    ArmBaseRelativePatcher::ThunkKey key = patcher->GetBakerReadBarrierKey(patch);
-    return patcher->CompileThunk(key);
+    ArmBaseRelativePatcher::ThunkKey key = ArmBaseRelativePatcher::GetBakerThunkKey(patch);
+    return down_cast<Arm64RelativePatcher*>(patcher_.get())->CompileThunk(key);
   }
 
   uint32_t GetOutputInsn(uint32_t offset) {

@@ -42,29 +42,12 @@ class ArmBaseRelativePatcher : public RelativePatcher {
 
   enum class ThunkType {
     kMethodCall,              // Method call thunk.
-    kBakerReadBarrierField,   // Baker read barrier, load field or array element at known offset.
-    kBakerReadBarrierArray,   // Baker read barrier, array load with index in register.
-    kBakerReadBarrierRoot,    // Baker read barrier, GC root load.
+    kBakerReadBarrier,        // Baker read barrier.
   };
 
-  struct BakerReadBarrierFieldParams {
-    uint32_t holder_reg;      // Holder object for reading lock word.
-    uint32_t base_reg;        // Base register, different from holder for large offset.
-                              // If base differs from holder, it should be a pre-defined
-                              // register to limit the number of thunks we need to emit.
-                              // The offset is retrieved using introspection.
-  };
-
-  struct BakerReadBarrierArrayParams {
-    uint32_t base_reg;        // Reference to the start of the data.
-    uint32_t dummy;           // Dummy field.
-                              // The index register is retrieved using introspection
-                              // to limit the number of thunks we need to emit.
-  };
-
-  struct BakerReadBarrierRootParams {
-    uint32_t root_reg;        // The register holding the GC root.
-    uint32_t dummy;           // Dummy field.
+  struct BakerReadBarrierParams {
+    uint32_t custom_value1;
+    uint32_t custom_value2;
   };
 
   struct RawThunkParams {
@@ -74,12 +57,8 @@ class ArmBaseRelativePatcher : public RelativePatcher {
 
   union ThunkParams {
     RawThunkParams raw_params;
-    BakerReadBarrierFieldParams field_params;
-    BakerReadBarrierArrayParams array_params;
-    BakerReadBarrierRootParams root_params;
-    static_assert(sizeof(raw_params) == sizeof(field_params), "field_params size check");
-    static_assert(sizeof(raw_params) == sizeof(array_params), "array_params size check");
-    static_assert(sizeof(raw_params) == sizeof(root_params), "root_params size check");
+    BakerReadBarrierParams baker_params;
+    static_assert(sizeof(raw_params) == sizeof(baker_params), "baker_params size check");
   };
 
   class ThunkKey {
@@ -90,19 +69,9 @@ class ArmBaseRelativePatcher : public RelativePatcher {
       return type_;
     }
 
-    BakerReadBarrierFieldParams GetFieldParams() const {
-      DCHECK(type_ == ThunkType::kBakerReadBarrierField);
-      return params_.field_params;
-    }
-
-    BakerReadBarrierArrayParams GetArrayParams() const {
-      DCHECK(type_ == ThunkType::kBakerReadBarrierArray);
-      return params_.array_params;
-    }
-
-    BakerReadBarrierRootParams GetRootParams() const {
-      DCHECK(type_ == ThunkType::kBakerReadBarrierRoot);
-      return params_.root_params;
+    BakerReadBarrierParams GetBakerReadBarrierParams() const {
+      DCHECK(type_ == ThunkType::kBakerReadBarrier);
+      return params_.baker_params;
     }
 
     RawThunkParams GetRawParams() const {
@@ -127,6 +96,9 @@ class ArmBaseRelativePatcher : public RelativePatcher {
     }
   };
 
+  static ThunkKey GetMethodCallKey();
+  static ThunkKey GetBakerThunkKey(const LinkerPatch& patch);
+
   uint32_t ReserveSpaceInternal(uint32_t offset,
                                 const CompiledMethod* compiled_method,
                                 MethodReference method_ref,
@@ -136,10 +108,9 @@ class ArmBaseRelativePatcher : public RelativePatcher {
   uint32_t CalculateMethodCallDisplacement(uint32_t patch_offset,
                                            uint32_t target_offset);
 
-  virtual ThunkKey GetBakerReadBarrierKey(const LinkerPatch& patch) = 0;
   virtual std::vector<uint8_t> CompileThunk(const ThunkKey& key) = 0;
-  virtual uint32_t MaxPositiveDisplacement(ThunkType type) = 0;
-  virtual uint32_t MaxNegativeDisplacement(ThunkType type) = 0;
+  virtual uint32_t MaxPositiveDisplacement(const ThunkKey& key) = 0;
+  virtual uint32_t MaxNegativeDisplacement(const ThunkKey& key) = 0;
 
  private:
   class ThunkData;
@@ -149,7 +120,7 @@ class ArmBaseRelativePatcher : public RelativePatcher {
 
   void ResolveMethodCalls(uint32_t quick_code_offset, MethodReference method_ref);
 
-  uint32_t CalculateMaxNextOffset(uint32_t patch_offset, ThunkType type);
+  uint32_t CalculateMaxNextOffset(uint32_t patch_offset, const ThunkKey& key);
 
   RelativePatcherTargetProvider* const provider_;
   const InstructionSet instruction_set_;

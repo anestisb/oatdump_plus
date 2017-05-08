@@ -24,18 +24,16 @@
 #include "linker/arm/relative_patcher_arm_base.h"
 
 namespace art {
+
+namespace arm {
+class ArmVIXLAssembler;
+}  // namespace arm
+
 namespace linker {
 
 class Thumb2RelativePatcher FINAL : public ArmBaseRelativePatcher {
  public:
   static constexpr uint32_t kBakerCcEntrypointRegister = 4u;
-
-  enum class BakerReadBarrierKind : uint8_t {
-    kField,   // Field get or array get with constant offset (i.e. constant index).
-    kArray,   // Array get with index in register.
-    kGcRoot,  // GC root load.
-    kLast
-  };
 
   static uint32_t EncodeBakerReadBarrierFieldData(uint32_t base_reg, uint32_t holder_reg) {
     CheckValidReg(base_reg);
@@ -74,13 +72,19 @@ class Thumb2RelativePatcher FINAL : public ArmBaseRelativePatcher {
                                    uint32_t patch_offset) OVERRIDE;
 
  protected:
-  ThunkKey GetBakerReadBarrierKey(const LinkerPatch& patch) OVERRIDE;
   std::vector<uint8_t> CompileThunk(const ThunkKey& key) OVERRIDE;
-  uint32_t MaxPositiveDisplacement(ThunkType type) OVERRIDE;
-  uint32_t MaxNegativeDisplacement(ThunkType type) OVERRIDE;
+  uint32_t MaxPositiveDisplacement(const ThunkKey& key) OVERRIDE;
+  uint32_t MaxNegativeDisplacement(const ThunkKey& key) OVERRIDE;
 
  private:
   static constexpr uint32_t kInvalidEncodedReg = /* pc is invalid */ 15u;
+
+  enum class BakerReadBarrierKind : uint8_t {
+    kField,   // Field get or array get with constant offset (i.e. constant index).
+    kArray,   // Array get with index in register.
+    kGcRoot,  // GC root load.
+    kLast
+  };
 
   static constexpr size_t kBitsForBakerReadBarrierKind =
       MinimumBitsToStore(static_cast<size_t>(BakerReadBarrierKind::kLast));
@@ -95,6 +99,8 @@ class Thumb2RelativePatcher FINAL : public ArmBaseRelativePatcher {
   static void CheckValidReg(uint32_t reg) {
     DCHECK(reg < 12u && reg != kBakerCcEntrypointRegister);
   }
+
+  void CompileBakerReadBarrierThunk(arm::ArmVIXLAssembler& assembler, uint32_t encoded_data);
 
   void SetInsn32(std::vector<uint8_t>* code, uint32_t offset, uint32_t value);
   static uint32_t GetInsn32(ArrayRef<const uint8_t> code, uint32_t offset);
