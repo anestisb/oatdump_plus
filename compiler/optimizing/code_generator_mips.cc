@@ -3482,8 +3482,6 @@ void InstructionCodeGeneratorMIPS::HandleCondition(HCondition* instruction) {
 
   Primitive::Type type = instruction->InputAt(0)->GetType();
   LocationSummary* locations = instruction->GetLocations();
-  Register dst = locations->Out().AsRegister<Register>();
-  MipsLabel true_label;
 
   switch (type) {
     default:
@@ -3492,27 +3490,14 @@ void InstructionCodeGeneratorMIPS::HandleCondition(HCondition* instruction) {
       return;
 
     case Primitive::kPrimLong:
-      // TODO: don't use branches.
-      GenerateLongCompareAndBranch(instruction->GetCondition(), locations, &true_label);
-      break;
+      GenerateLongCompare(instruction->GetCondition(), locations);
+      return;
 
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble:
       GenerateFpCompare(instruction->GetCondition(), instruction->IsGtBias(), type, locations);
       return;
   }
-
-  // Convert the branches into the result.
-  MipsLabel done;
-
-  // False case: result = 0.
-  __ LoadConst32(dst, 0);
-  __ B(&done);
-
-  // True case: result = 1.
-  __ Bind(&true_label);
-  __ LoadConst32(dst, 1);
-  __ Bind(&done);
 }
 
 void InstructionCodeGeneratorMIPS::DivRemOneOrMinusOne(HBinaryOperation* instruction) {
@@ -4278,6 +4263,221 @@ void InstructionCodeGeneratorMIPS::GenerateIntCompareAndBranch(IfCondition cond,
           }
           break;
       }
+    }
+  }
+}
+
+void InstructionCodeGeneratorMIPS::GenerateLongCompare(IfCondition cond,
+                                                       LocationSummary* locations) {
+  Register dst = locations->Out().AsRegister<Register>();
+  Register lhs_high = locations->InAt(0).AsRegisterPairHigh<Register>();
+  Register lhs_low = locations->InAt(0).AsRegisterPairLow<Register>();
+  Location rhs_location = locations->InAt(1);
+  Register rhs_high = ZERO;
+  Register rhs_low = ZERO;
+  int64_t imm = 0;
+  uint32_t imm_high = 0;
+  uint32_t imm_low = 0;
+  bool use_imm = rhs_location.IsConstant();
+  if (use_imm) {
+    imm = rhs_location.GetConstant()->AsLongConstant()->GetValue();
+    imm_high = High32Bits(imm);
+    imm_low = Low32Bits(imm);
+  } else {
+    rhs_high = rhs_location.AsRegisterPairHigh<Register>();
+    rhs_low = rhs_location.AsRegisterPairLow<Register>();
+  }
+  if (use_imm && imm == 0) {
+    switch (cond) {
+      case kCondEQ:
+      case kCondBE:  // <= 0 if zero
+        __ Or(dst, lhs_high, lhs_low);
+        __ Sltiu(dst, dst, 1);
+        break;
+      case kCondNE:
+      case kCondA:  // > 0 if non-zero
+        __ Or(dst, lhs_high, lhs_low);
+        __ Sltu(dst, ZERO, dst);
+        break;
+      case kCondLT:
+        __ Slt(dst, lhs_high, ZERO);
+        break;
+      case kCondGE:
+        __ Slt(dst, lhs_high, ZERO);
+        __ Xori(dst, dst, 1);
+        break;
+      case kCondLE:
+        __ Or(TMP, lhs_high, lhs_low);
+        __ Sra(AT, lhs_high, 31);
+        __ Sltu(dst, AT, TMP);
+        __ Xori(dst, dst, 1);
+        break;
+      case kCondGT:
+        __ Or(TMP, lhs_high, lhs_low);
+        __ Sra(AT, lhs_high, 31);
+        __ Sltu(dst, AT, TMP);
+        break;
+      case kCondB:  // always false
+        __ Andi(dst, dst, 0);
+        break;
+      case kCondAE:  // always true
+        __ Ori(dst, ZERO, 1);
+        break;
+    }
+  } else if (use_imm) {
+    // TODO: more efficient comparison with constants without loading them into TMP/AT.
+    switch (cond) {
+      case kCondEQ:
+        __ LoadConst32(TMP, imm_high);
+        __ Xor(TMP, TMP, lhs_high);
+        __ LoadConst32(AT, imm_low);
+        __ Xor(AT, AT, lhs_low);
+        __ Or(dst, TMP, AT);
+        __ Sltiu(dst, dst, 1);
+        break;
+      case kCondNE:
+        __ LoadConst32(TMP, imm_high);
+        __ Xor(TMP, TMP, lhs_high);
+        __ LoadConst32(AT, imm_low);
+        __ Xor(AT, AT, lhs_low);
+        __ Or(dst, TMP, AT);
+        __ Sltu(dst, ZERO, dst);
+        break;
+      case kCondLT:
+      case kCondGE:
+        if (dst == lhs_low) {
+          __ LoadConst32(TMP, imm_low);
+          __ Sltu(dst, lhs_low, TMP);
+        }
+        __ LoadConst32(TMP, imm_high);
+        __ Slt(AT, lhs_high, TMP);
+        __ Slt(TMP, TMP, lhs_high);
+        if (dst != lhs_low) {
+          __ LoadConst32(dst, imm_low);
+          __ Sltu(dst, lhs_low, dst);
+        }
+        __ Slt(dst, TMP, dst);
+        __ Or(dst, dst, AT);
+        if (cond == kCondGE) {
+          __ Xori(dst, dst, 1);
+        }
+        break;
+      case kCondGT:
+      case kCondLE:
+        if (dst == lhs_low) {
+          __ LoadConst32(TMP, imm_low);
+          __ Sltu(dst, TMP, lhs_low);
+        }
+        __ LoadConst32(TMP, imm_high);
+        __ Slt(AT, TMP, lhs_high);
+        __ Slt(TMP, lhs_high, TMP);
+        if (dst != lhs_low) {
+          __ LoadConst32(dst, imm_low);
+          __ Sltu(dst, dst, lhs_low);
+        }
+        __ Slt(dst, TMP, dst);
+        __ Or(dst, dst, AT);
+        if (cond == kCondLE) {
+          __ Xori(dst, dst, 1);
+        }
+        break;
+      case kCondB:
+      case kCondAE:
+        if (dst == lhs_low) {
+          __ LoadConst32(TMP, imm_low);
+          __ Sltu(dst, lhs_low, TMP);
+        }
+        __ LoadConst32(TMP, imm_high);
+        __ Sltu(AT, lhs_high, TMP);
+        __ Sltu(TMP, TMP, lhs_high);
+        if (dst != lhs_low) {
+          __ LoadConst32(dst, imm_low);
+          __ Sltu(dst, lhs_low, dst);
+        }
+        __ Slt(dst, TMP, dst);
+        __ Or(dst, dst, AT);
+        if (cond == kCondAE) {
+          __ Xori(dst, dst, 1);
+        }
+        break;
+      case kCondA:
+      case kCondBE:
+        if (dst == lhs_low) {
+          __ LoadConst32(TMP, imm_low);
+          __ Sltu(dst, TMP, lhs_low);
+        }
+        __ LoadConst32(TMP, imm_high);
+        __ Sltu(AT, TMP, lhs_high);
+        __ Sltu(TMP, lhs_high, TMP);
+        if (dst != lhs_low) {
+          __ LoadConst32(dst, imm_low);
+          __ Sltu(dst, dst, lhs_low);
+        }
+        __ Slt(dst, TMP, dst);
+        __ Or(dst, dst, AT);
+        if (cond == kCondBE) {
+          __ Xori(dst, dst, 1);
+        }
+        break;
+    }
+  } else {
+    switch (cond) {
+      case kCondEQ:
+        __ Xor(TMP, lhs_high, rhs_high);
+        __ Xor(AT, lhs_low, rhs_low);
+        __ Or(dst, TMP, AT);
+        __ Sltiu(dst, dst, 1);
+        break;
+      case kCondNE:
+        __ Xor(TMP, lhs_high, rhs_high);
+        __ Xor(AT, lhs_low, rhs_low);
+        __ Or(dst, TMP, AT);
+        __ Sltu(dst, ZERO, dst);
+        break;
+      case kCondLT:
+      case kCondGE:
+        __ Slt(TMP, rhs_high, lhs_high);
+        __ Sltu(AT, lhs_low, rhs_low);
+        __ Slt(TMP, TMP, AT);
+        __ Slt(AT, lhs_high, rhs_high);
+        __ Or(dst, AT, TMP);
+        if (cond == kCondGE) {
+          __ Xori(dst, dst, 1);
+        }
+        break;
+      case kCondGT:
+      case kCondLE:
+        __ Slt(TMP, lhs_high, rhs_high);
+        __ Sltu(AT, rhs_low, lhs_low);
+        __ Slt(TMP, TMP, AT);
+        __ Slt(AT, rhs_high, lhs_high);
+        __ Or(dst, AT, TMP);
+        if (cond == kCondLE) {
+          __ Xori(dst, dst, 1);
+        }
+        break;
+      case kCondB:
+      case kCondAE:
+        __ Sltu(TMP, rhs_high, lhs_high);
+        __ Sltu(AT, lhs_low, rhs_low);
+        __ Slt(TMP, TMP, AT);
+        __ Sltu(AT, lhs_high, rhs_high);
+        __ Or(dst, AT, TMP);
+        if (cond == kCondAE) {
+          __ Xori(dst, dst, 1);
+        }
+        break;
+      case kCondA:
+      case kCondBE:
+        __ Sltu(TMP, lhs_high, rhs_high);
+        __ Sltu(AT, rhs_low, lhs_low);
+        __ Slt(TMP, TMP, AT);
+        __ Sltu(AT, rhs_high, lhs_high);
+        __ Or(dst, AT, TMP);
+        if (cond == kCondBE) {
+          __ Xori(dst, dst, 1);
+        }
+        break;
     }
   }
 }

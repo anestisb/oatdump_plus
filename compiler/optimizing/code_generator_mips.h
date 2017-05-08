@@ -295,6 +295,7 @@ class InstructionCodeGeneratorMIPS : public InstructionCodeGenerator {
   void GenerateIntCompareAndBranch(IfCondition cond,
                                    LocationSummary* locations,
                                    MipsLabel* label);
+  void GenerateLongCompare(IfCondition cond, LocationSummary* locations);
   void GenerateLongCompareAndBranch(IfCondition cond,
                                     LocationSummary* locations,
                                     MipsLabel* label);
