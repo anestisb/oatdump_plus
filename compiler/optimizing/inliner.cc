@@ -775,7 +775,7 @@ void HInliner::AddCHAGuard(HInstruction* invoke_instruction,
   HInstruction* compare = new (graph_->GetArena()) HNotEqual(
       deopt_flag, graph_->GetIntConstant(0, dex_pc));
   HInstruction* deopt = new (graph_->GetArena()) HDeoptimize(
-      graph_->GetArena(), compare, HDeoptimize::Kind::kInline, dex_pc);
+      graph_->GetArena(), compare, DeoptimizationKind::kCHA, dex_pc);
 
   if (cursor != nullptr) {
     bb_cursor->InsertInstructionAfter(deopt_flag, cursor);
@@ -852,7 +852,9 @@ HInstruction* HInliner::AddTypeGuard(HInstruction* receiver,
         graph_->GetArena(),
         compare,
         receiver,
-        HDeoptimize::Kind::kInline,
+        Runtime::Current()->IsAotCompiler()
+            ? DeoptimizationKind::kAotInlineCache
+            : DeoptimizationKind::kJitInlineCache,
         invoke_instruction->GetDexPc());
     bb_cursor->InsertInstructionAfter(deoptimize, compare);
     deoptimize->CopyEnvironmentFrom(invoke_instruction->GetEnvironment());
@@ -1139,7 +1141,7 @@ bool HInliner::TryInlinePolymorphicCallToSameTarget(
         graph_->GetArena(),
         compare,
         receiver,
-        HDeoptimize::Kind::kInline,
+        DeoptimizationKind::kJitSameTarget,
         invoke_instruction->GetDexPc());
     bb_cursor->InsertInstructionAfter(deoptimize, compare);
     deoptimize->CopyEnvironmentFrom(invoke_instruction->GetEnvironment());

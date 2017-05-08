@@ -1885,8 +1885,7 @@ END art_quick_instrumentation_exit
     .extern artEnterInterpreterFromDeoptimize
 ENTRY art_quick_deoptimize
     SETUP_SAVE_ALL_CALLEE_SAVES_FRAME
-    jal      artDeoptimize     # artDeoptimize(Thread*, SP)
-                               # Returns caller method's frame size.
+    jal      artDeoptimize     # artDeoptimize(Thread*)
     move     $a0, rSELF        # pass Thread::current
 END art_quick_deoptimize
 
@@ -1897,9 +1896,8 @@ END art_quick_deoptimize
     .extern artDeoptimizeFromCompiledCode
 ENTRY_NO_GP art_quick_deoptimize_from_compiled_code
     SETUP_SAVE_EVERYTHING_FRAME
-    jal      artDeoptimizeFromCompiledCode    # artDeoptimizeFromCompiledCode(Thread*, SP)
-                                              # Returns caller method's frame size.
-    move     $a0, rSELF                       # pass Thread::current
+    jal      artDeoptimizeFromCompiledCode    # (DeoptimizationKind, Thread*)
+    move     $a1, rSELF                       # pass Thread::current
 END art_quick_deoptimize_from_compiled_code
 
   .set push

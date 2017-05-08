@@ -17,6 +17,8 @@
 #ifndef ART_RUNTIME_ENTRYPOINTS_RUNTIME_ASM_ENTRYPOINTS_H_
 #define ART_RUNTIME_ENTRYPOINTS_RUNTIME_ASM_ENTRYPOINTS_H_
 
+#include "deoptimization_kind.h"
+
 namespace art {
 
 #ifndef BUILDING_LIBART
@@ -77,7 +79,7 @@ static inline const void* GetQuickInstrumentationEntryPoint() {
 }
 
 // Stub to deoptimize from compiled code.
-extern "C" void art_quick_deoptimize_from_compiled_code();
+extern "C" void art_quick_deoptimize_from_compiled_code(DeoptimizationKind);
 
 // The return_pc of instrumentation exit stub.
 extern "C" void art_quick_instrumentation_exit();

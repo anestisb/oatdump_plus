@@ -1944,8 +1944,7 @@ END art_quick_instrumentation_exit
 ENTRY art_quick_deoptimize
     SETUP_SAVE_ALL_CALLEE_SAVES_FRAME
     la       $t9, artDeoptimize
-    jalr     $t9            # artDeoptimize(Thread*)
-                            # Returns caller method's frame size.
+    jalr     $t9            # (Thread*)
     move     $a0, rSELF     # pass Thread::current
 END art_quick_deoptimize
 
@@ -1957,9 +1956,8 @@ END art_quick_deoptimize
 ENTRY art_quick_deoptimize_from_compiled_code
     SETUP_SAVE_EVERYTHING_FRAME
     la       $t9, artDeoptimizeFromCompiledCode
-    jalr     $t9                            # artDeoptimizeFromCompiledCode(Thread*)
-                                            # Returns caller method's frame size.
-    move     $a0, rSELF                     # pass Thread::current
+    jalr     $t9                            # (DeoptimizationKind, Thread*)
+    move     $a1, rSELF                     # pass Thread::current
 END art_quick_deoptimize_from_compiled_code
 
     /*

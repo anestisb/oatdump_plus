@@ -203,7 +203,7 @@ bool CHAGuardVisitor::HoistGuard(HShouldDeoptimizeFlag* flag,
     // Need a new deoptimize instruction that copies the environment
     // of the suspend instruction for the loop.
     HDeoptimize* deoptimize = new (GetGraph()->GetArena()) HDeoptimize(
-        GetGraph()->GetArena(), compare, HDeoptimize::Kind::kInline, suspend->GetDexPc());
+        GetGraph()->GetArena(), compare, DeoptimizationKind::kCHA, suspend->GetDexPc());
     pre_header->InsertInstructionBefore(deoptimize, pre_header->GetLastInstruction());
     deoptimize->CopyEnvironmentFromWithLoopPhiAdjustment(
         suspend->GetEnvironment(), loop_info->GetHeader());

@@ -21,6 +21,7 @@
 
 #include "base/macros.h"
 #include "base/mutex.h"
+#include "deoptimization_kind.h"
 #include "offsets.h"
 
 #define QUICK_ENTRYPOINT_OFFSET(ptr_size, x) \

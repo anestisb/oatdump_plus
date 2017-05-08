@@ -1550,7 +1550,7 @@ class BCEVisitor : public HGraphVisitor {
         HBasicBlock* block = GetPreHeader(loop, check);
         HInstruction* cond =
             new (GetGraph()->GetArena()) HEqual(array, GetGraph()->GetNullConstant());
-        InsertDeoptInLoop(loop, block, cond);
+        InsertDeoptInLoop(loop, block, cond, /* is_null_check */ true);
         ReplaceInstruction(check, array);
         return true;
       }
@@ -1616,11 +1616,16 @@ class BCEVisitor : public HGraphVisitor {
   }
 
   /** Inserts a deoptimization test in a loop preheader. */
-  void InsertDeoptInLoop(HLoopInformation* loop, HBasicBlock* block, HInstruction* condition) {
+  void InsertDeoptInLoop(HLoopInformation* loop,
+                         HBasicBlock* block,
+                         HInstruction* condition,
+                         bool is_null_check = false) {
     HInstruction* suspend = loop->GetSuspendCheck();
     block->InsertInstructionBefore(condition, block->GetLastInstruction());
+    DeoptimizationKind kind =
+        is_null_check ? DeoptimizationKind::kLoopNullBCE : DeoptimizationKind::kLoopBoundsBCE;
     HDeoptimize* deoptimize = new (GetGraph()->GetArena()) HDeoptimize(
-        GetGraph()->GetArena(), condition, HDeoptimize::Kind::kBCE, suspend->GetDexPc());
+        GetGraph()->GetArena(), condition, kind, suspend->GetDexPc());
     block->InsertInstructionBefore(deoptimize, block->GetLastInstruction());
     if (suspend->HasEnvironment()) {
       deoptimize->CopyEnvironmentFromWithLoopPhiAdjustment(
@@ -1633,7 +1638,7 @@ class BCEVisitor : public HGraphVisitor {
     HBasicBlock* block = bounds_check->GetBlock();
     block->InsertInstructionBefore(condition, bounds_check);
     HDeoptimize* deoptimize = new (GetGraph()->GetArena()) HDeoptimize(
-        GetGraph()->GetArena(), condition, HDeoptimize::Kind::kBCE, bounds_check->GetDexPc());
+        GetGraph()->GetArena(), condition, DeoptimizationKind::kBlockBCE, bounds_check->GetDexPc());
     block->InsertInstructionBefore(deoptimize, bounds_check);
     deoptimize->CopyEnvironmentFrom(bounds_check->GetEnvironment());
   }
