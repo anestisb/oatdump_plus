@@ -414,6 +414,46 @@ public class Main {
     return a > 0x7FFFFFFFFFFFFFFFL ? x : y;
   }
 
+  /// CHECK-START-ARM: long Main.$noinline$LongNonmatCondCst_LongVarVar4(long, long, long) disassembly (after)
+  /// CHECK:               Select
+  /// CHECK-NEXT:            orrs ip, {{r\d+}}, {{r\d+}}
+  /// CHECK-NOT:             cmp
+  /// CHECK-NOT:             sbcs
+
+  public static long $noinline$LongNonmatCondCst_LongVarVar4(long a, long x, long y) {
+    return a == 0 ? x : y;
+  }
+
+  /// CHECK-START-ARM: long Main.$noinline$LongNonmatCondCst_LongVarVar5(long, long, long) disassembly (after)
+  /// CHECK:               Select
+  /// CHECK-NEXT:            orrs ip, {{r\d+}}, {{r\d+}}
+  /// CHECK-NOT:             cmp
+  /// CHECK-NOT:             sbcs
+
+  public static long $noinline$LongNonmatCondCst_LongVarVar5(long a, long x, long y) {
+    return a != 0 ? x : y;
+  }
+
+  /// CHECK-START-ARM: long Main.$noinline$LongNonmatCondCst_LongVarVar6(long, long, long) disassembly (after)
+  /// CHECK:               Select
+  /// CHECK-NEXT:            cmp {{r\d+}}, #0
+  /// CHECK-NOT:             cmp
+  /// CHECK-NOT:             sbcs
+
+  public static long $noinline$LongNonmatCondCst_LongVarVar6(long a, long x, long y) {
+    return a >= 0 ? x : y;
+  }
+
+  /// CHECK-START-ARM: long Main.$noinline$LongNonmatCondCst_LongVarVar7(long, long, long) disassembly (after)
+  /// CHECK:               Select
+  /// CHECK-NEXT:            cmp {{r\d+}}, #0
+  /// CHECK-NOT:             cmp
+  /// CHECK-NOT:             sbcs
+
+  public static long $noinline$LongNonmatCondCst_LongVarVar7(long a, long x, long y) {
+    return a < 0 ? x : y;
+  }
+
   /// CHECK-START: long Main.LongMatCond_LongVarVar(long, long, long, long) register (after)
   /// CHECK:            <<Cond:z\d+>> LessThanOrEqual [{{j\d+}},{{j\d+}}]
   /// CHECK:            <<Sel1:j\d+>> Select [{{j\d+}},{{j\d+}},<<Cond>>]
@@ -687,6 +727,37 @@ public class Main {
     assertEqual(7L, $noinline$LongNonmatCondCst_LongVarVar2(2L, 5L, 7L));
 
     assertEqual(7L, $noinline$LongNonmatCondCst_LongVarVar3(2L, 5L, 7L));
+
+    long[] long_inputs = {
+        0L, 1L, -1L, Long.MIN_VALUE, Long.MAX_VALUE, 2L, 0x100000000L, 0xFFFFFFFF00000000L, -9000L};
+
+    long[] expected_1 = {5L, 7L, 7L, 7L, 7L, 7L, 7L, 7L, 7L};
+
+    for (int i = 0; i < long_inputs.length; i++) {
+      assertEqual(expected_1[i], $noinline$LongNonmatCondCst_LongVarVar4(long_inputs[i], 5L, 7L));
+    }
+
+    long[] expected_2 = {7L, 5L, 5L, 5L, 5L, 5L, 5L, 5L, 5L};
+
+    for (int i = 0; i < long_inputs.length; i++) {
+      assertEqual(expected_2[i], $noinline$LongNonmatCondCst_LongVarVar5(long_inputs[i], 5L, 7L));
+    }
+
+    long[] expected_3 = {5L, 5L, 7L, 7L, 5L, 5L, 5L, 7L, 7L};
+
+    for (int i = 0; i < long_inputs.length; i++) {
+      assertEqual(expected_3[i], $noinline$LongNonmatCondCst_LongVarVar6(long_inputs[i], 5L, 7L));
+    }
+
+    long[] expected_4 = {7L, 7L, 5L, 5L, 7L, 7L, 7L, 5L, 5L};
+
+    for (int i = 0; i < long_inputs.length; i++) {
+      assertEqual(expected_4[i], $noinline$LongNonmatCondCst_LongVarVar7(long_inputs[i], 5L, 7L));
+    }
+
+    assertEqual(7L, $noinline$LongNonmatCondCst_LongVarVar7(0L, 5L, 7L));
+    assertEqual(7L, $noinline$LongNonmatCondCst_LongVarVar7(2L, 5L, 7L));
+    assertEqual(5L, $noinline$LongNonmatCondCst_LongVarVar7(-9000L, 5L, 7L));
 
     assertEqual(5, FloatLtNonmatCond_IntVarVar(3, 2, 5, 7));
     assertEqual(7, FloatLtNonmatCond_IntVarVar(2, 3, 5, 7));
