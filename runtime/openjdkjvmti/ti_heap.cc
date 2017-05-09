@@ -651,14 +651,17 @@ void HeapUtil::Unregister() {
   art::Runtime::Current()->RemoveSystemWeakHolder(&gIndexCachingTable);
 }
 
+template <typename Callback>
 struct IterateThroughHeapData {
-  IterateThroughHeapData(HeapUtil* _heap_util,
+  IterateThroughHeapData(Callback _cb,
+                         ObjectTagTable* _tag_table,
                          jvmtiEnv* _env,
                          art::ObjPtr<art::mirror::Class> klass,
                          jint _heap_filter,
                          const jvmtiHeapCallbacks* _callbacks,
                          const void* _user_data)
-      : heap_util(_heap_util),
+      : cb(_cb),
+        tag_table(_tag_table),
         heap_filter(_heap_filter),
         filter_klass(klass),
         env(_env),
@@ -667,7 +670,72 @@ struct IterateThroughHeapData {
         stop_reports(false) {
   }
 
-  HeapUtil* heap_util;
+  static void ObjectCallback(art::mirror::Object* obj, void* arg)
+      REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    IterateThroughHeapData* ithd = reinterpret_cast<IterateThroughHeapData*>(arg);
+    ithd->ObjectCallback(obj);
+  }
+
+  void ObjectCallback(art::mirror::Object* obj)
+      REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    // Early return, as we can't really stop visiting.
+    if (stop_reports) {
+      return;
+    }
+
+    art::ScopedAssertNoThreadSuspension no_suspension("IterateThroughHeapCallback");
+
+    jlong tag = 0;
+    tag_table->GetTag(obj, &tag);
+
+    jlong class_tag = 0;
+    art::ObjPtr<art::mirror::Class> klass = obj->GetClass();
+    tag_table->GetTag(klass.Ptr(), &class_tag);
+    // For simplicity, even if we find a tag = 0, assume 0 = not tagged.
+
+    if (!heap_filter.ShouldReportByHeapFilter(tag, class_tag)) {
+      return;
+    }
+
+    if (filter_klass != nullptr) {
+      if (filter_klass != klass) {
+        return;
+      }
+    }
+
+    jlong size = obj->SizeOf();
+
+    jint length = -1;
+    if (obj->IsArrayInstance()) {
+      length = obj->AsArray()->GetLength();
+    }
+
+    jlong saved_tag = tag;
+    jint ret = cb(obj, callbacks, class_tag, size, &tag, length, const_cast<void*>(user_data));
+
+    if (tag != saved_tag) {
+      tag_table->Set(obj, tag);
+    }
+
+    stop_reports = (ret & JVMTI_VISIT_ABORT) != 0;
+
+    if (!stop_reports) {
+      jint string_ret = ReportString(obj, env, tag_table, callbacks, user_data);
+      stop_reports = (string_ret & JVMTI_VISIT_ABORT) != 0;
+    }
+
+    if (!stop_reports) {
+      jint array_ret = ReportPrimitiveArray(obj, env, tag_table, callbacks, user_data);
+      stop_reports = (array_ret & JVMTI_VISIT_ABORT) != 0;
+    }
+
+    if (!stop_reports) {
+      stop_reports = ReportPrimitiveField::Report(obj, tag_table, callbacks, user_data);
+    }
+  }
+
+  Callback cb;
+  ObjectTagTable* tag_table;
   const HeapFilter heap_filter;
   art::ObjPtr<art::mirror::Class> filter_klass;
   jvmtiEnv* env;
@@ -677,85 +745,14 @@ struct IterateThroughHeapData {
   bool stop_reports;
 };
 
-static void IterateThroughHeapObjectCallback(art::mirror::Object* obj, void* arg)
-    REQUIRES_SHARED(art::Locks::mutator_lock_) {
-  IterateThroughHeapData* ithd = reinterpret_cast<IterateThroughHeapData*>(arg);
-  // Early return, as we can't really stop visiting.
-  if (ithd->stop_reports) {
-    return;
-  }
-
-  art::ScopedAssertNoThreadSuspension no_suspension("IterateThroughHeapCallback");
-
-  jlong tag = 0;
-  ithd->heap_util->GetTags()->GetTag(obj, &tag);
-
-  jlong class_tag = 0;
-  art::ObjPtr<art::mirror::Class> klass = obj->GetClass();
-  ithd->heap_util->GetTags()->GetTag(klass.Ptr(), &class_tag);
-  // For simplicity, even if we find a tag = 0, assume 0 = not tagged.
-
-  if (!ithd->heap_filter.ShouldReportByHeapFilter(tag, class_tag)) {
-    return;
-  }
-
-  if (ithd->filter_klass != nullptr) {
-    if (ithd->filter_klass != klass) {
-      return;
-    }
-  }
-
-  jlong size = obj->SizeOf();
-
-  jint length = -1;
-  if (obj->IsArrayInstance()) {
-    length = obj->AsArray()->GetLength();
-  }
-
-  jlong saved_tag = tag;
-  jint ret = ithd->callbacks->heap_iteration_callback(class_tag,
-                                                      size,
-                                                      &tag,
-                                                      length,
-                                                      const_cast<void*>(ithd->user_data));
-
-  if (tag != saved_tag) {
-    ithd->heap_util->GetTags()->Set(obj, tag);
-  }
-
-  ithd->stop_reports = (ret & JVMTI_VISIT_ABORT) != 0;
-
-  if (!ithd->stop_reports) {
-    jint string_ret = ReportString(obj,
-                                   ithd->env,
-                                   ithd->heap_util->GetTags(),
-                                   ithd->callbacks,
-                                   ithd->user_data);
-    ithd->stop_reports = (string_ret & JVMTI_VISIT_ABORT) != 0;
-  }
-
-  if (!ithd->stop_reports) {
-    jint array_ret = ReportPrimitiveArray(obj,
-                                          ithd->env,
-                                          ithd->heap_util->GetTags(),
-                                          ithd->callbacks,
-                                          ithd->user_data);
-    ithd->stop_reports = (array_ret & JVMTI_VISIT_ABORT) != 0;
-  }
-
-  if (!ithd->stop_reports) {
-    ithd->stop_reports = ReportPrimitiveField::Report(obj,
-                                                      ithd->heap_util->GetTags(),
-                                                      ithd->callbacks,
-                                                      ithd->user_data);
-  }
-}
-
-jvmtiError HeapUtil::IterateThroughHeap(jvmtiEnv* env,
-                                        jint heap_filter,
-                                        jclass klass,
-                                        const jvmtiHeapCallbacks* callbacks,
-                                        const void* user_data) {
+template <typename T>
+static jvmtiError DoIterateThroughHeap(T fn,
+                                       jvmtiEnv* env,
+                                       ObjectTagTable* tag_table,
+                                       jint heap_filter,
+                                       jclass klass,
+                                       const jvmtiHeapCallbacks* callbacks,
+                                       const void* user_data) {
   if (callbacks == nullptr) {
     return ERR(NULL_POINTER);
   }
@@ -763,16 +760,46 @@ jvmtiError HeapUtil::IterateThroughHeap(jvmtiEnv* env,
   art::Thread* self = art::Thread::Current();
   art::ScopedObjectAccess soa(self);      // Now we know we have the shared lock.
 
-  IterateThroughHeapData ithd(this,
-                              env,
-                              soa.Decode<art::mirror::Class>(klass),
-                              heap_filter,
-                              callbacks,
-                              user_data);
+  using Iterator = IterateThroughHeapData<T>;
+  Iterator ithd(fn,
+                tag_table,
+                env,
+                soa.Decode<art::mirror::Class>(klass),
+                heap_filter,
+                callbacks,
+                user_data);
 
-  art::Runtime::Current()->GetHeap()->VisitObjects(IterateThroughHeapObjectCallback, &ithd);
+  art::Runtime::Current()->GetHeap()->VisitObjects(Iterator::ObjectCallback, &ithd);
 
   return ERR(NONE);
+}
+
+jvmtiError HeapUtil::IterateThroughHeap(jvmtiEnv* env,
+                                        jint heap_filter,
+                                        jclass klass,
+                                        const jvmtiHeapCallbacks* callbacks,
+                                        const void* user_data) {
+  auto JvmtiIterateHeap = [](art::mirror::Object* obj ATTRIBUTE_UNUSED,
+                             const jvmtiHeapCallbacks* cb_callbacks,
+                             jlong class_tag,
+                             jlong size,
+                             jlong* tag,
+                             jint length,
+                             void* cb_user_data)
+      REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    return cb_callbacks->heap_iteration_callback(class_tag,
+                                                 size,
+                                                 tag,
+                                                 length,
+                                                 cb_user_data);
+  };
+  return DoIterateThroughHeap(JvmtiIterateHeap,
+                              env,
+                              ArtJvmTiEnv::AsArtJvmTiEnv(env)->object_tag_table.get(),
+                              heap_filter,
+                              klass,
+                              callbacks,
+                              user_data);
 }
 
 class FollowReferencesHelper FINAL {
