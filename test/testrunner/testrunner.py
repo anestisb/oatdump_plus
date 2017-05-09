@@ -828,7 +828,15 @@ def get_default_threads(target):
     adb_command = 'adb shell cat /sys/devices/system/cpu/present'
     cpu_info_proc = subprocess.Popen(adb_command.split(), stdout=subprocess.PIPE)
     cpu_info = cpu_info_proc.stdout.read()
-    return int(cpu_info.split('-')[1])
+    if type(cpu_info) is bytes:
+      cpu_info = cpu_info.decode('utf-8')
+    cpu_info_regex = '\d*-(\d*)'
+    match = re.match(cpu_info_regex, cpu_info)
+    if match:
+      return int(match.group(1))
+    else:
+      raise ValueError('Unable to predict the concurrency for the target. '
+                       'Is device connected?')
   else:
     return multiprocessing.cpu_count()
 
