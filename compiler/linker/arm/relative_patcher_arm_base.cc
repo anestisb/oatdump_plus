@@ -311,24 +311,22 @@ uint32_t ArmBaseRelativePatcher::GetThunkTargetOffset(const ThunkKey& key, uint3
 }
 
 ArmBaseRelativePatcher::ThunkKey ArmBaseRelativePatcher::GetMethodCallKey() {
-  return ThunkKey(ThunkType::kMethodCall, ThunkParams{{ 0u, 0u }});  // NOLINT(whitespace/braces)
+  return ThunkKey(ThunkType::kMethodCall);
 }
 
 ArmBaseRelativePatcher::ThunkKey ArmBaseRelativePatcher::GetBakerThunkKey(
     const LinkerPatch& patch) {
   DCHECK_EQ(patch.GetType(), LinkerPatch::Type::kBakerReadBarrierBranch);
-  ThunkParams params;
-  params.baker_params.custom_value1 = patch.GetBakerCustomValue1();
-  params.baker_params.custom_value2 = patch.GetBakerCustomValue2();
-  ThunkKey key(ThunkType::kBakerReadBarrier, params);
-  return key;
+  return ThunkKey(ThunkType::kBakerReadBarrier,
+                  patch.GetBakerCustomValue1(),
+                  patch.GetBakerCustomValue2());
 }
 
 void ArmBaseRelativePatcher::ProcessPatches(const CompiledMethod* compiled_method,
                                             uint32_t code_offset) {
   for (const LinkerPatch& patch : compiled_method->GetPatches()) {
     uint32_t patch_offset = code_offset + patch.LiteralOffset();
-    ThunkKey key(static_cast<ThunkType>(-1), ThunkParams{{ 0u, 0u }});  // NOLINT(whitespace/braces)
+    ThunkKey key(static_cast<ThunkType>(-1));
     ThunkData* old_data = nullptr;
     if (patch.GetType() == LinkerPatch::Type::kCallRelative) {
       key = GetMethodCallKey();

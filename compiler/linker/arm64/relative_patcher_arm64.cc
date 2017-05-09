@@ -307,7 +307,7 @@ void Arm64RelativePatcher::PatchBakerReadBarrierBranch(std::vector<uint8_t>* cod
   DCHECK_EQ(insn & 0xffffffe0u, 0xb5000000);  // CBNZ Xt, +0 (unpatched)
   ThunkKey key = GetBakerThunkKey(patch);
   if (kIsDebugBuild) {
-    const uint32_t encoded_data = key.GetBakerReadBarrierParams().custom_value1;
+    const uint32_t encoded_data = key.GetCustomValue1();
     BakerReadBarrierKind kind = BakerReadBarrierKindField::Decode(encoded_data);
     // Check that the next instruction matches the expected LDR.
     switch (kind) {
@@ -500,7 +500,7 @@ std::vector<uint8_t> Arm64RelativePatcher::CompileThunk(const ThunkKey& key) {
       break;
     }
     case ThunkType::kBakerReadBarrier: {
-      CompileBakerReadBarrierThunk(assembler, key.GetBakerReadBarrierParams().custom_value1);
+      CompileBakerReadBarrierThunk(assembler, key.GetCustomValue1());
       break;
     }
   }

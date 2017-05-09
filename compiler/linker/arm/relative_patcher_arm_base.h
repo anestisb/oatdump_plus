@@ -45,42 +45,27 @@ class ArmBaseRelativePatcher : public RelativePatcher {
     kBakerReadBarrier,        // Baker read barrier.
   };
 
-  struct BakerReadBarrierParams {
-    uint32_t custom_value1;
-    uint32_t custom_value2;
-  };
-
-  struct RawThunkParams {
-    uint32_t first;
-    uint32_t second;
-  };
-
-  union ThunkParams {
-    RawThunkParams raw_params;
-    BakerReadBarrierParams baker_params;
-    static_assert(sizeof(raw_params) == sizeof(baker_params), "baker_params size check");
-  };
-
   class ThunkKey {
    public:
-    ThunkKey(ThunkType type, ThunkParams params) : type_(type), params_(params) { }
+    explicit ThunkKey(ThunkType type, uint32_t custom_value1 = 0u, uint32_t custom_value2 = 0u)
+        : type_(type), custom_value1_(custom_value1), custom_value2_(custom_value2) { }
 
     ThunkType GetType() const {
       return type_;
     }
 
-    BakerReadBarrierParams GetBakerReadBarrierParams() const {
-      DCHECK(type_ == ThunkType::kBakerReadBarrier);
-      return params_.baker_params;
+    uint32_t GetCustomValue1() const {
+      return custom_value1_;
     }
 
-    RawThunkParams GetRawParams() const {
-      return params_.raw_params;
+    uint32_t GetCustomValue2() const {
+      return custom_value2_;
     }
 
    private:
     ThunkType type_;
-    ThunkParams params_;
+    uint32_t custom_value1_;
+    uint32_t custom_value2_;
   };
 
   class ThunkKeyCompare {
@@ -89,10 +74,10 @@ class ArmBaseRelativePatcher : public RelativePatcher {
       if (lhs.GetType() != rhs.GetType()) {
         return lhs.GetType() < rhs.GetType();
       }
-      if (lhs.GetRawParams().first != rhs.GetRawParams().first) {
-        return lhs.GetRawParams().first < rhs.GetRawParams().first;
+      if (lhs.GetCustomValue1() != rhs.GetCustomValue1()) {
+        return lhs.GetCustomValue1() < rhs.GetCustomValue1();
       }
-      return lhs.GetRawParams().second < rhs.GetRawParams().second;
+      return lhs.GetCustomValue2() < rhs.GetCustomValue2();
     }
   };
 
