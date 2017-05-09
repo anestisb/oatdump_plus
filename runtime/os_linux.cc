@@ -51,10 +51,11 @@ File* OS::CreateEmptyFileWriteOnly(const char* name) {
   return art::CreateEmptyFile(name, O_WRONLY | O_TRUNC | O_NOFOLLOW | O_CLOEXEC);
 }
 
-File* OS::OpenFileWithFlags(const char* name, int flags) {
+File* OS::OpenFileWithFlags(const char* name, int flags, bool auto_flush) {
   CHECK(name != nullptr);
   bool read_only = ((flags & O_ACCMODE) == O_RDONLY);
-  std::unique_ptr<File> file(new File(name, flags, 0666, !read_only));
+  bool check_usage = !read_only && auto_flush;
+  std::unique_ptr<File> file(new File(name, flags, 0666, check_usage));
   if (!file->IsOpened()) {
     return nullptr;
   }
