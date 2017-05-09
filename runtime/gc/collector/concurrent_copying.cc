@@ -616,25 +616,8 @@ void ConcurrentCopying::FlipThreadRoots() {
   ThreadFlipVisitor thread_flip_visitor(this, heap_->use_tlab_);
   FlipCallback flip_callback(this);
 
-  // This is the point where Concurrent-Copying will pause all threads. We report a pause here, if
-  // necessary. This is slightly over-reporting, as this includes the time to actually suspend
-  // threads.
-  {
-    GcPauseListener* pause_listener = GetHeap()->GetGcPauseListener();
-    if (pause_listener != nullptr) {
-      pause_listener->StartPause();
-    }
-  }
-
-  size_t barrier_count = Runtime::Current()->FlipThreadRoots(
-      &thread_flip_visitor, &flip_callback, this);
-
-  {
-    GcPauseListener* pause_listener = GetHeap()->GetGcPauseListener();
-    if (pause_listener != nullptr) {
-      pause_listener->EndPause();
-    }
-  }
+  size_t barrier_count = Runtime::Current()->GetThreadList()->FlipThreadRoots(
+      &thread_flip_visitor, &flip_callback, this, GetHeap()->GetGcPauseListener());
 
   {
     ScopedThreadStateChange tsc(self, kWaitingForCheckPointsToRun);
