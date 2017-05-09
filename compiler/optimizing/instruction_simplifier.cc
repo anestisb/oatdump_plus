@@ -257,13 +257,25 @@ void InstructionSimplifierVisitor::VisitShift(HBinaryOperation* instruction) {
 
   if (shift_amount->IsConstant()) {
     int64_t cst = Int64FromConstant(shift_amount->AsConstant());
-    if ((cst & implicit_mask) == 0) {
+    int64_t masked_cst = cst & implicit_mask;
+    if (masked_cst == 0) {
       // Replace code looking like
       //    SHL dst, value, 0
       // with
       //    value
       instruction->ReplaceWith(value);
       instruction->GetBlock()->RemoveInstruction(instruction);
+      RecordSimplification();
+      return;
+    } else if (masked_cst != cst) {
+      // Replace code looking like
+      //    SHL dst, value, cst
+      // where cst exceeds maximum distance with the equivalent
+      //    SHL dst, value, cst & implicit_mask
+      // (as defined by shift semantics). This ensures other
+      // optimizations do not need to special case for such situations.
+      DCHECK_EQ(shift_amount->GetType(), Primitive::kPrimInt);
+      instruction->ReplaceInput(GetGraph()->GetIntConstant(masked_cst), /* index */ 1);
       RecordSimplification();
       return;
     }
