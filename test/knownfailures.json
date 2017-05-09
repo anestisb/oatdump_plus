@@ -677,5 +677,12 @@
         "variant": "debug",
         "description": "Test disabled in debug mode because of dex2oatd timeouts.",
         "bug": "b/33650497"
+    },
+    {
+        "tests": "640-checker-integer-valueof",
+        "description": [
+            "The java.lang.Integer.valueOf intrinsic is not supported in PIC mode."
+        ],
+        "variant": "optimizing & pictest | speed-profile & pictest"
     }
 ]
