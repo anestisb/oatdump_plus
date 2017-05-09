@@ -5992,68 +5992,6 @@ void InstructionCodeGeneratorMIPS64::VisitTypeConversion(HTypeConversion* conver
     CHECK(result_type == Primitive::kPrimInt || result_type == Primitive::kPrimLong);
     GpuRegister dst = locations->Out().AsRegister<GpuRegister>();
     FpuRegister src = locations->InAt(0).AsFpuRegister<FpuRegister>();
-    Mips64Label truncate;
-    Mips64Label done;
-
-    // When NAN2008=0 (R2 and before), the truncate instruction produces the maximum positive
-    // value when the input is either a NaN or is outside of the range of the output type
-    // after the truncation. IOW, the three special cases (NaN, too small, too big) produce
-    // the same result.
-    //
-    // When NAN2008=1 (R6), the truncate instruction caps the output at the minimum/maximum
-    // value of the output type if the input is outside of the range after the truncation or
-    // produces 0 when the input is a NaN. IOW, the three special cases produce three distinct
-    // results. This matches the desired float/double-to-int/long conversion exactly.
-    //
-    // So, NAN2008 affects handling of negative values and NaNs by the truncate instruction.
-    //
-    // The following code supports both NAN2008=0 and NAN2008=1 behaviors of the truncate
-    // instruction, the reason being that the emulator implements NAN2008=0 on MIPS64R6,
-    // even though it must be NAN2008=1 on R6.
-    //
-    // The code takes care of the different behaviors by first comparing the input to the
-    // minimum output value (-2**-63 for truncating to long, -2**-31 for truncating to int).
-    // If the input is greater than or equal to the minimum, it procedes to the truncate
-    // instruction, which will handle such an input the same way irrespective of NAN2008.
-    // Otherwise the input is compared to itself to determine whether it is a NaN or not
-    // in order to return either zero or the minimum value.
-    //
-    // TODO: simplify this when the emulator correctly implements NAN2008=1 behavior of the
-    // truncate instruction for MIPS64R6.
-    if (input_type == Primitive::kPrimFloat) {
-      uint32_t min_val = (result_type == Primitive::kPrimLong)
-          ? bit_cast<uint32_t, float>(std::numeric_limits<int64_t>::min())
-          : bit_cast<uint32_t, float>(std::numeric_limits<int32_t>::min());
-      __ LoadConst32(TMP, min_val);
-      __ Mtc1(TMP, FTMP);
-      __ CmpLeS(FTMP, FTMP, src);
-    } else {
-      uint64_t min_val = (result_type == Primitive::kPrimLong)
-          ? bit_cast<uint64_t, double>(std::numeric_limits<int64_t>::min())
-          : bit_cast<uint64_t, double>(std::numeric_limits<int32_t>::min());
-      __ LoadConst64(TMP, min_val);
-      __ Dmtc1(TMP, FTMP);
-      __ CmpLeD(FTMP, FTMP, src);
-    }
-
-    __ Bc1nez(FTMP, &truncate);
-
-    if (input_type == Primitive::kPrimFloat) {
-      __ CmpEqS(FTMP, src, src);
-    } else {
-      __ CmpEqD(FTMP, src, src);
-    }
-    if (result_type == Primitive::kPrimLong) {
-      __ LoadConst64(dst, std::numeric_limits<int64_t>::min());
-    } else {
-      __ LoadConst32(dst, std::numeric_limits<int32_t>::min());
-    }
-    __ Mfc1(TMP, FTMP);
-    __ And(dst, dst, TMP);
-
-    __ Bc(&done);
-
-    __ Bind(&truncate);
 
     if (result_type == Primitive::kPrimLong) {
       if (input_type == Primitive::kPrimFloat) {
@@ -6070,8 +6008,6 @@ void InstructionCodeGeneratorMIPS64::VisitTypeConversion(HTypeConversion* conver
       }
       __ Mfc1(dst, FTMP);
     }
-
-    __ Bind(&done);
   } else if (Primitive::IsFloatingPointType(result_type) &&
              Primitive::IsFloatingPointType(input_type)) {
     FpuRegister dst = locations->Out().AsFpuRegister<FpuRegister>();
