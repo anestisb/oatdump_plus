@@ -44,7 +44,7 @@ class OS {
   static File* CreateEmptyFileWriteOnly(const char* name);
 
   // Open a file with the specified open(2) flags.
-  static File* OpenFileWithFlags(const char* name, int flags);
+  static File* OpenFileWithFlags(const char* name, int flags, bool auto_flush = true);
 
   // Check if a file exists.
   static bool FileExists(const char* name);
