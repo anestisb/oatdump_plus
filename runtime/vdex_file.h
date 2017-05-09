@@ -61,6 +61,8 @@ class VdexFile {
     uint32_t GetQuickeningInfoSize() const { return quickening_info_size_; }
     uint32_t GetNumberOfDexFiles() const { return number_of_dex_files_; }
 
+    static constexpr uint8_t kVdexInvalidMagic[] = { 'w', 'd', 'e', 'x' };
+
    private:
     static constexpr uint8_t kVdexMagic[] = { 'v', 'd', 'e', 'x' };
     static constexpr uint8_t kVdexVersion[] = { '0', '0', '5', '\0' };  // access flags
