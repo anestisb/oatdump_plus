@@ -1421,11 +1421,20 @@ mirror::ObjectArray<mirror::String>* GetSignatureAnnotationForClass(Handle<mirro
 }
 
 const char* GetSourceDebugExtension(Handle<mirror::Class> klass) {
+  // Before instantiating ClassData, check that klass has a DexCache
+  // assigned.  The ClassData constructor indirectly dereferences it
+  // when calling klass->GetDexFile().
+  if (klass->GetDexCache() == nullptr) {
+    DCHECK(klass->IsPrimitive() || klass->IsArrayClass());
+    return nullptr;
+  }
+
   ClassData data(klass);
   const DexFile::AnnotationSetItem* annotation_set = FindAnnotationSetForClass(data);
   if (annotation_set == nullptr) {
     return nullptr;
   }
+
   const DexFile::AnnotationItem* annotation_item = SearchAnnotationSet(
       data.GetDexFile(),
       annotation_set,
@@ -1434,6 +1443,7 @@ const char* GetSourceDebugExtension(Handle<mirror::Class> klass) {
   if (annotation_item == nullptr) {
     return nullptr;
   }
+
   const uint8_t* annotation =
       SearchEncodedAnnotation(data.GetDexFile(), annotation_item->annotation_, "value");
   if (annotation == nullptr) {
