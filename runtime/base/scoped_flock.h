@@ -25,6 +25,15 @@
 
 namespace art {
 
+// A scoped file-lock implemented using flock. The file is locked by calling the Init function and
+// is released during destruction. Note that failing to unlock the file only causes a warning to be
+// printed. Users should take care that this does not cause potential deadlocks.
+//
+// Only printing a warning on unlock failure is okay since this is only used with either:
+// 1) a non-blocking Init call, or
+// 2) as a part of a seperate binary (eg dex2oat) which has it's own timeout logic to prevent
+//    deadlocks.
+// This means we can be sure that the warning won't cause a deadlock.
 class ScopedFlock {
  public:
   ScopedFlock();
