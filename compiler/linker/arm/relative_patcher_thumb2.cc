@@ -18,6 +18,7 @@
 
 #include "arch/arm/asm_support_arm.h"
 #include "art_method.h"
+#include "base/bit_utils.h"
 #include "compiled_method.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "lock_word.h"
@@ -112,12 +113,22 @@ void Thumb2RelativePatcher::PatchBakerReadBarrierBranch(std::vector<uint8_t>* co
     // Check that the next instruction matches the expected LDR.
     switch (kind) {
       case BakerReadBarrierKind::kField: {
-        DCHECK_GE(code->size() - literal_offset, 8u);
-        uint32_t next_insn = GetInsn32(code, literal_offset + 4u);
-        // LDR (immediate) with correct base_reg.
-        CheckValidReg((next_insn >> 12) & 0xfu);  // Check destination register.
-        const uint32_t base_reg = BakerReadBarrierFirstRegField::Decode(encoded_data);
-        CHECK_EQ(next_insn & 0xffff0000u, 0xf8d00000u | (base_reg << 16));
+        BakerReadBarrierWidth width = BakerReadBarrierWidthField::Decode(encoded_data);
+        if (width == BakerReadBarrierWidth::kWide) {
+          DCHECK_GE(code->size() - literal_offset, 8u);
+          uint32_t next_insn = GetInsn32(code, literal_offset + 4u);
+          // LDR (immediate), encoding T3, with correct base_reg.
+          CheckValidReg((next_insn >> 12) & 0xfu);  // Check destination register.
+          const uint32_t base_reg = BakerReadBarrierFirstRegField::Decode(encoded_data);
+          CHECK_EQ(next_insn & 0xffff0000u, 0xf8d00000u | (base_reg << 16));
+        } else {
+          DCHECK_GE(code->size() - literal_offset, 6u);
+          uint32_t next_insn = GetInsn16(code, literal_offset + 4u);
+          // LDR (immediate), encoding T1, with correct base_reg.
+          CheckValidReg(next_insn & 0x7u);  // Check destination register.
+          const uint32_t base_reg = BakerReadBarrierFirstRegField::Decode(encoded_data);
+          CHECK_EQ(next_insn & 0xf838u, 0x6800u | (base_reg << 3));
+        }
         break;
       }
       case BakerReadBarrierKind::kArray: {
@@ -131,11 +142,20 @@ void Thumb2RelativePatcher::PatchBakerReadBarrierBranch(std::vector<uint8_t>* co
         break;
       }
       case BakerReadBarrierKind::kGcRoot: {
-        DCHECK_GE(literal_offset, 4u);
-        uint32_t prev_insn = GetInsn32(code, literal_offset - 4u);
-        // LDR (immediate) with correct root_reg.
-        const uint32_t root_reg = BakerReadBarrierFirstRegField::Decode(encoded_data);
-        CHECK_EQ(prev_insn & 0xfff0f000u, 0xf8d00000u | (root_reg << 12));
+        BakerReadBarrierWidth width = BakerReadBarrierWidthField::Decode(encoded_data);
+        if (width == BakerReadBarrierWidth::kWide) {
+          DCHECK_GE(literal_offset, 4u);
+          uint32_t prev_insn = GetInsn32(code, literal_offset - 4u);
+          // LDR (immediate), encoding T3, with correct root_reg.
+          const uint32_t root_reg = BakerReadBarrierFirstRegField::Decode(encoded_data);
+          CHECK_EQ(prev_insn & 0xfff0f000u, 0xf8d00000u | (root_reg << 12));
+        } else {
+          DCHECK_GE(literal_offset, 2u);
+          uint32_t prev_insn = GetInsn16(code, literal_offset - 2u);
+          // LDR (immediate), encoding T1, with correct root_reg.
+          const uint32_t root_reg = BakerReadBarrierFirstRegField::Decode(encoded_data);
+          CHECK_EQ(prev_insn & 0xf807u, 0x6800u | root_reg);
+        }
         break;
       }
       default:
@@ -160,7 +180,8 @@ void Thumb2RelativePatcher::PatchBakerReadBarrierBranch(std::vector<uint8_t>* co
 static void EmitGrayCheckAndFastPath(arm::ArmVIXLAssembler& assembler,
                                      vixl::aarch32::Register base_reg,
                                      vixl::aarch32::MemOperand& lock_word,
-                                     vixl::aarch32::Label* slow_path) {
+                                     vixl::aarch32::Label* slow_path,
+                                     int32_t raw_ldr_offset) {
   using namespace vixl::aarch32;  // NOLINT(build/namespaces)
   // Load the lock word containing the rb_state.
   __ Ldr(ip, lock_word);
@@ -169,14 +190,7 @@ static void EmitGrayCheckAndFastPath(arm::ArmVIXLAssembler& assembler,
   static_assert(ReadBarrier::GrayState() == 1, "Expecting gray to have value 1");
   __ Tst(ip, Operand(LockWord::kReadBarrierStateMaskShifted));
   __ B(ne, slow_path, /* is_far_target */ false);
-  static_assert(
-      BAKER_MARK_INTROSPECTION_ARRAY_LDR_OFFSET == BAKER_MARK_INTROSPECTION_FIELD_LDR_OFFSET,
-      "Field and array LDR offsets must be the same to reuse the same code.");
-  // Adjust the return address back to the LDR (1 instruction; 2 for heap poisoning).
-  static_assert(BAKER_MARK_INTROSPECTION_FIELD_LDR_OFFSET == (kPoisonHeapReferences ? -8 : -4),
-                "Field LDR must be 1 instruction (4B) before the return address label; "
-                " 2 instructions (8B) for heap poisoning.");
-  __ Add(lr, lr, BAKER_MARK_INTROSPECTION_FIELD_LDR_OFFSET);
+  __ Add(lr, lr, raw_ldr_offset);
   // Introduce a dependency on the lock_word including rb_state,
   // to prevent load-load reordering, and without using
   // a memory barrier (which would be more expensive).
@@ -199,6 +213,7 @@ void Thumb2RelativePatcher::CompileBakerReadBarrierThunk(arm::ArmVIXLAssembler& 
       CheckValidReg(base_reg.GetCode());
       Register holder_reg(BakerReadBarrierSecondRegField::Decode(encoded_data));
       CheckValidReg(holder_reg.GetCode());
+      BakerReadBarrierWidth width = BakerReadBarrierWidthField::Decode(encoded_data);
       UseScratchRegisterScope temps(assembler.GetVIXLAssembler());
       temps.Exclude(ip);
       // If base_reg differs from holder_reg, the offset was too large and we must have
@@ -210,16 +225,30 @@ void Thumb2RelativePatcher::CompileBakerReadBarrierThunk(arm::ArmVIXLAssembler& 
       }
       vixl::aarch32::Label slow_path;
       MemOperand lock_word(holder_reg, mirror::Object::MonitorOffset().Int32Value());
-      EmitGrayCheckAndFastPath(assembler, base_reg, lock_word, &slow_path);
+      const int32_t raw_ldr_offset = (width == BakerReadBarrierWidth::kWide)
+          ? BAKER_MARK_INTROSPECTION_FIELD_LDR_WIDE_OFFSET
+          : BAKER_MARK_INTROSPECTION_FIELD_LDR_NARROW_OFFSET;
+      EmitGrayCheckAndFastPath(assembler, base_reg, lock_word, &slow_path, raw_ldr_offset);
       __ Bind(&slow_path);
       const int32_t ldr_offset = /* Thumb state adjustment (LR contains Thumb state). */ -1 +
-                                 BAKER_MARK_INTROSPECTION_FIELD_LDR_OFFSET;
-      MemOperand ldr_half_address(lr, ldr_offset + 2);
-      __ Ldrh(ip, ldr_half_address);          // Load the LDR immediate half-word with "Rt | imm12".
-      __ Ubfx(ip, ip, 0, 12);                 // Extract the offset imm12.
-      __ Ldr(ip, MemOperand(base_reg, ip));   // Load the reference.
+                                 raw_ldr_offset;
+      Register ep_reg(kBakerCcEntrypointRegister);
+      if (width == BakerReadBarrierWidth::kWide) {
+        MemOperand ldr_half_address(lr, ldr_offset + 2);
+        __ Ldrh(ip, ldr_half_address);        // Load the LDR immediate half-word with "Rt | imm12".
+        __ Ubfx(ip, ip, 0, 12);               // Extract the offset imm12.
+        __ Ldr(ip, MemOperand(base_reg, ip));   // Load the reference.
+      } else {
+        MemOperand ldr_address(lr, ldr_offset);
+        __ Ldrh(ip, ldr_address);             // Load the LDR immediate, encoding T1.
+        __ Add(ep_reg,                        // Adjust the entrypoint address to the entrypoint
+               ep_reg,                        // for narrow LDR.
+               Operand(BAKER_MARK_INTROSPECTION_FIELD_LDR_NARROW_ENTRYPOINT_OFFSET));
+        __ Ubfx(ip, ip, 6, 5);                // Extract the imm5, i.e. offset / 4.
+        __ Ldr(ip, MemOperand(base_reg, ip, LSL, 2));   // Load the reference.
+      }
       // Do not unpoison. With heap poisoning enabled, the entrypoint expects a poisoned reference.
-      __ Bx(Register(kBakerCcEntrypointRegister));  // Jump to the entrypoint.
+      __ Bx(ep_reg);                          // Jump to the entrypoint.
       if (holder_reg.Is(base_reg)) {
         // Add null check slow path. The stack map is at the address pointed to by LR.
         __ Bind(&throw_npe);
@@ -233,6 +262,7 @@ void Thumb2RelativePatcher::CompileBakerReadBarrierThunk(arm::ArmVIXLAssembler& 
       Register base_reg(BakerReadBarrierFirstRegField::Decode(encoded_data));
       CheckValidReg(base_reg.GetCode());
       DCHECK_EQ(kInvalidEncodedReg, BakerReadBarrierSecondRegField::Decode(encoded_data));
+      DCHECK(BakerReadBarrierWidth::kWide == BakerReadBarrierWidthField::Decode(encoded_data));
       UseScratchRegisterScope temps(assembler.GetVIXLAssembler());
       temps.Exclude(ip);
       vixl::aarch32::Label slow_path;
@@ -240,10 +270,11 @@ void Thumb2RelativePatcher::CompileBakerReadBarrierThunk(arm::ArmVIXLAssembler& 
           mirror::Array::DataOffset(Primitive::ComponentSize(Primitive::kPrimNot)).Int32Value();
       MemOperand lock_word(base_reg, mirror::Object::MonitorOffset().Int32Value() - data_offset);
       DCHECK_LT(lock_word.GetOffsetImmediate(), 0);
-      EmitGrayCheckAndFastPath(assembler, base_reg, lock_word, &slow_path);
+      const int32_t raw_ldr_offset = BAKER_MARK_INTROSPECTION_ARRAY_LDR_OFFSET;
+      EmitGrayCheckAndFastPath(assembler, base_reg, lock_word, &slow_path, raw_ldr_offset);
       __ Bind(&slow_path);
       const int32_t ldr_offset = /* Thumb state adjustment (LR contains Thumb state). */ -1 +
-                                 BAKER_MARK_INTROSPECTION_ARRAY_LDR_OFFSET;
+                                 raw_ldr_offset;
       MemOperand ldr_address(lr, ldr_offset + 2);
       __ Ldrb(ip, ldr_address);               // Load the LDR (register) byte with "00 | imm2 | Rm",
                                               // i.e. Rm+32 because the scale in imm2 is 2.
@@ -261,6 +292,7 @@ void Thumb2RelativePatcher::CompileBakerReadBarrierThunk(arm::ArmVIXLAssembler& 
       Register root_reg(BakerReadBarrierFirstRegField::Decode(encoded_data));
       CheckValidReg(root_reg.GetCode());
       DCHECK_EQ(kInvalidEncodedReg, BakerReadBarrierSecondRegField::Decode(encoded_data));
+      BakerReadBarrierWidth width = BakerReadBarrierWidthField::Decode(encoded_data);
       UseScratchRegisterScope temps(assembler.GetVIXLAssembler());
       temps.Exclude(ip);
       vixl::aarch32::Label return_label, not_marked, forwarding_address;
@@ -280,7 +312,10 @@ void Thumb2RelativePatcher::CompileBakerReadBarrierThunk(arm::ArmVIXLAssembler& 
       // Adjust the art_quick_read_barrier_mark_introspection address in kBakerCcEntrypointRegister
       // to art_quick_read_barrier_mark_introspection_gc_roots.
       Register ep_reg(kBakerCcEntrypointRegister);
-      __ Add(ep_reg, ep_reg, Operand(BAKER_MARK_INTROSPECTION_GC_ROOT_ENTRYPOINT_OFFSET));
+      int32_t entrypoint_offset = (width == BakerReadBarrierWidth::kWide)
+          ? BAKER_MARK_INTROSPECTION_GC_ROOT_LDR_WIDE_ENTRYPOINT_OFFSET
+          : BAKER_MARK_INTROSPECTION_GC_ROOT_LDR_NARROW_ENTRYPOINT_OFFSET;
+      __ Add(ep_reg, ep_reg, Operand(entrypoint_offset));
       __ Mov(ip, root_reg);
       __ Bx(ep_reg);
       __ Bind(&forwarding_address);
@@ -344,7 +379,7 @@ uint32_t Thumb2RelativePatcher::MaxNegativeDisplacement(const ThunkKey& key) {
 
 void Thumb2RelativePatcher::SetInsn32(std::vector<uint8_t>* code, uint32_t offset, uint32_t value) {
   DCHECK_LE(offset + 4u, code->size());
-  DCHECK_EQ(offset & 1u, 0u);
+  DCHECK_ALIGNED(offset, 2u);
   uint8_t* addr = &(*code)[offset];
   addr[0] = (value >> 16) & 0xff;
   addr[1] = (value >> 24) & 0xff;
@@ -354,7 +389,7 @@ void Thumb2RelativePatcher::SetInsn32(std::vector<uint8_t>* code, uint32_t offse
 
 uint32_t Thumb2RelativePatcher::GetInsn32(ArrayRef<const uint8_t> code, uint32_t offset) {
   DCHECK_LE(offset + 4u, code.size());
-  DCHECK_EQ(offset & 1u, 0u);
+  DCHECK_ALIGNED(offset, 2u);
   const uint8_t* addr = &code[offset];
   return
       (static_cast<uint32_t>(addr[0]) << 16) +
@@ -367,6 +402,19 @@ template <typename Vector>
 uint32_t Thumb2RelativePatcher::GetInsn32(Vector* code, uint32_t offset) {
   static_assert(std::is_same<typename Vector::value_type, uint8_t>::value, "Invalid value type");
   return GetInsn32(ArrayRef<const uint8_t>(*code), offset);
+}
+
+uint32_t Thumb2RelativePatcher::GetInsn16(ArrayRef<const uint8_t> code, uint32_t offset) {
+  DCHECK_LE(offset + 2u, code.size());
+  DCHECK_ALIGNED(offset, 2u);
+  const uint8_t* addr = &code[offset];
+  return (static_cast<uint32_t>(addr[0]) << 0) + (static_cast<uint32_t>(addr[1]) << 8);
+}
+
+template <typename Vector>
+uint32_t Thumb2RelativePatcher::GetInsn16(Vector* code, uint32_t offset) {
+  static_assert(std::is_same<typename Vector::value_type, uint8_t>::value, "Invalid value type");
+  return GetInsn16(ArrayRef<const uint8_t>(*code), offset);
 }
 
 }  // namespace linker

@@ -90,11 +90,15 @@ static inline void CheckLastTempIsBakerCcEntrypointRegister(HInstruction* instru
 }
 
 static inline void EmitPlaceholderBne(CodeGeneratorARM* codegen, Label* bne_label) {
-  DCHECK(down_cast<Thumb2Assembler*>(codegen->GetAssembler())->IsForced32Bit());
+  ScopedForce32Bit force_32bit(down_cast<Thumb2Assembler*>(codegen->GetAssembler()));
   __ BindTrackedLabel(bne_label);
   Label placeholder_label;
   __ b(&placeholder_label, NE);  // Placeholder, patched at link-time.
   __ Bind(&placeholder_label);
+}
+
+static inline bool CanEmitNarrowLdr(Register rt, Register rn, uint32_t offset) {
+  return ArmAssembler::IsLowRegister(rt) && ArmAssembler::IsLowRegister(rn) && offset < 32u;
 }
 
 static constexpr int kRegListThreshold = 4;
@@ -8057,8 +8061,9 @@ void InstructionCodeGeneratorARM::GenerateGcRootFieldLoad(HInstruction* instruct
         //   return_address:
 
         CheckLastTempIsBakerCcEntrypointRegister(instruction);
+        bool narrow = CanEmitNarrowLdr(root_reg, obj, offset);
         uint32_t custom_data =
-            linker::Thumb2RelativePatcher::EncodeBakerReadBarrierGcRootData(root_reg);
+            linker::Thumb2RelativePatcher::EncodeBakerReadBarrierGcRootData(root_reg, narrow);
         Label* bne_label = codegen_->NewBakerReadBarrierPatch(custom_data);
 
         // entrypoint_reg =
@@ -8071,16 +8076,18 @@ void InstructionCodeGeneratorARM::GenerateGcRootFieldLoad(HInstruction* instruct
         Label return_address;
         __ AdrCode(LR, &return_address);
         __ CmpConstant(kBakerCcEntrypointRegister, 0);
-        static_assert(
-            BAKER_MARK_INTROSPECTION_GC_ROOT_LDR_OFFSET == -8,
-            "GC root LDR must be 2 32-bit instructions (8B) before the return address label.");
         // Currently the offset is always within range. If that changes,
         // we shall have to split the load the same way as for fields.
         DCHECK_LT(offset, kReferenceLoadMinFarOffset);
-        ScopedForce32Bit force_32bit(down_cast<Thumb2Assembler*>(GetAssembler()));
+        DCHECK(!down_cast<Thumb2Assembler*>(GetAssembler())->IsForced32Bit());
+        ScopedForce32Bit maybe_force_32bit(down_cast<Thumb2Assembler*>(GetAssembler()), !narrow);
+        int old_position = GetAssembler()->GetBuffer()->GetPosition();
         __ LoadFromOffset(kLoadWord, root_reg, obj, offset);
         EmitPlaceholderBne(codegen_, bne_label);
         __ Bind(&return_address);
+        DCHECK_EQ(old_position - GetAssembler()->GetBuffer()->GetPosition(),
+                  narrow ? BAKER_MARK_INTROSPECTION_GC_ROOT_LDR_NARROW_OFFSET
+                         : BAKER_MARK_INTROSPECTION_GC_ROOT_LDR_WIDE_OFFSET);
       } else {
         // Note that we do not actually check the value of
         // `GetIsGcMarking()` to decide whether to mark the loaded GC
@@ -8180,10 +8187,12 @@ void CodeGeneratorARM::GenerateFieldLoadWithBakerReadBarrier(HInstruction* instr
     //   not_gray_return_address:
     //     // Original reference load. If the offset is too large to fit
     //     // into LDR, we use an adjusted base register here.
-    //     GcRoot<mirror::Object> reference = *(obj+offset);
+    //     HeapReference<mirror::Object> reference = *(obj+offset);
     //   gray_return_address:
 
     DCHECK_ALIGNED(offset, sizeof(mirror::HeapReference<mirror::Object>));
+    Register ref_reg = ref.AsRegister<Register>();
+    bool narrow = CanEmitNarrowLdr(ref_reg, obj, offset);
     Register base = obj;
     if (offset >= kReferenceLoadMinFarOffset) {
       base = temp.AsRegister<Register>();
@@ -8191,10 +8200,14 @@ void CodeGeneratorARM::GenerateFieldLoadWithBakerReadBarrier(HInstruction* instr
       static_assert(IsPowerOfTwo(kReferenceLoadMinFarOffset), "Expecting a power of 2.");
       __ AddConstant(base, obj, offset & ~(kReferenceLoadMinFarOffset - 1u));
       offset &= (kReferenceLoadMinFarOffset - 1u);
+      // Use narrow LDR only for small offsets. Generating narrow encoding LDR for the large
+      // offsets with `(offset & (kReferenceLoadMinFarOffset - 1u)) < 32u` would most likely
+      // increase the overall code size when taking the generated thunks into account.
+      DCHECK(!narrow);
     }
     CheckLastTempIsBakerCcEntrypointRegister(instruction);
     uint32_t custom_data =
-        linker::Thumb2RelativePatcher::EncodeBakerReadBarrierFieldData(base, obj);
+        linker::Thumb2RelativePatcher::EncodeBakerReadBarrierFieldData(base, obj, narrow);
     Label* bne_label = NewBakerReadBarrierPatch(custom_data);
 
     // entrypoint_reg =
@@ -8207,19 +8220,20 @@ void CodeGeneratorARM::GenerateFieldLoadWithBakerReadBarrier(HInstruction* instr
     Label return_address;
     __ AdrCode(LR, &return_address);
     __ CmpConstant(kBakerCcEntrypointRegister, 0);
-    ScopedForce32Bit force_32bit(down_cast<Thumb2Assembler*>(GetAssembler()));
     EmitPlaceholderBne(this, bne_label);
-    static_assert(BAKER_MARK_INTROSPECTION_FIELD_LDR_OFFSET == (kPoisonHeapReferences ? -8 : -4),
-                  "Field LDR must be 1 32-bit instruction (4B) before the return address label; "
-                  " 2 32-bit instructions (8B) for heap poisoning.");
-    Register ref_reg = ref.AsRegister<Register>();
     DCHECK_LT(offset, kReferenceLoadMinFarOffset);
+    DCHECK(!down_cast<Thumb2Assembler*>(GetAssembler())->IsForced32Bit());
+    ScopedForce32Bit maybe_force_32bit(down_cast<Thumb2Assembler*>(GetAssembler()), !narrow);
+    int old_position = GetAssembler()->GetBuffer()->GetPosition();
     __ LoadFromOffset(kLoadWord, ref_reg, base, offset);
     if (needs_null_check) {
       MaybeRecordImplicitNullCheck(instruction);
     }
     GetAssembler()->MaybeUnpoisonHeapReference(ref_reg);
     __ Bind(&return_address);
+    DCHECK_EQ(old_position - GetAssembler()->GetBuffer()->GetPosition(),
+              narrow ? BAKER_MARK_INTROSPECTION_FIELD_LDR_NARROW_OFFSET
+                     : BAKER_MARK_INTROSPECTION_FIELD_LDR_WIDE_OFFSET);
     return;
   }
 
@@ -8265,7 +8279,7 @@ void CodeGeneratorARM::GenerateArrayLoadWithBakerReadBarrier(HInstruction* instr
     //   not_gray_return_address:
     //     // Original reference load. If the offset is too large to fit
     //     // into LDR, we use an adjusted base register here.
-    //     GcRoot<mirror::Object> reference = data[index];
+    //     HeapReference<mirror::Object> reference = data[index];
     //   gray_return_address:
 
     DCHECK(index.IsValid());
@@ -8290,15 +8304,15 @@ void CodeGeneratorARM::GenerateArrayLoadWithBakerReadBarrier(HInstruction* instr
     Label return_address;
     __ AdrCode(LR, &return_address);
     __ CmpConstant(kBakerCcEntrypointRegister, 0);
-    ScopedForce32Bit force_32bit(down_cast<Thumb2Assembler*>(GetAssembler()));
     EmitPlaceholderBne(this, bne_label);
-    static_assert(BAKER_MARK_INTROSPECTION_ARRAY_LDR_OFFSET == (kPoisonHeapReferences ? -8 : -4),
-                  "Array LDR must be 1 32-bit instruction (4B) before the return address label; "
-                  " 2 32-bit instructions (8B) for heap poisoning.");
+    ScopedForce32Bit maybe_force_32bit(down_cast<Thumb2Assembler*>(GetAssembler()));
+    int old_position = GetAssembler()->GetBuffer()->GetPosition();
     __ ldr(ref_reg, Address(data_reg, index_reg, LSL, scale_factor));
     DCHECK(!needs_null_check);  // The thunk cannot handle the null check.
     GetAssembler()->MaybeUnpoisonHeapReference(ref_reg);
     __ Bind(&return_address);
+    DCHECK_EQ(old_position - GetAssembler()->GetBuffer()->GetPosition(),
+              BAKER_MARK_INTROSPECTION_ARRAY_LDR_OFFSET);
     return;
   }
 

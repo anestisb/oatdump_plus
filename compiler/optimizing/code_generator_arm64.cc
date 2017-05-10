@@ -6102,7 +6102,7 @@ void CodeGeneratorARM64::GenerateFieldLoadWithBakerReadBarrier(HInstruction* ins
     //   not_gray_return_address:
     //     // Original reference load. If the offset is too large to fit
     //     // into LDR, we use an adjusted base register here.
-    //     GcRoot<mirror::Object> reference = *(obj+offset);
+    //     HeapReference<mirror::Object> reference = *(obj+offset);
     //   gray_return_address:
 
     DCHECK_ALIGNED(offset, sizeof(mirror::HeapReference<mirror::Object>));
@@ -6197,7 +6197,7 @@ void CodeGeneratorARM64::GenerateArrayLoadWithBakerReadBarrier(HInstruction* ins
     //   not_gray_return_address:
     //     // Original reference load. If the offset is too large to fit
     //     // into LDR, we use an adjusted base register here.
-    //     GcRoot<mirror::Object> reference = data[index];
+    //     HeapReference<mirror::Object> reference = data[index];
     //   gray_return_address:
 
     DCHECK(index.IsValid());

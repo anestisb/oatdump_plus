@@ -100,7 +100,7 @@ class Arm64RelativePatcher FINAL : public ArmBaseRelativePatcher {
       BitField<uint32_t, kBitsForBakerReadBarrierKind + kBitsForRegister, kBitsForRegister>;
 
   static void CheckValidReg(uint32_t reg) {
-    DCHECK(reg < 30u && reg != 16u && reg != 17u);
+    DCHECK(reg < 30u && reg != 16u && reg != 17u) << reg;
   }
 
   void CompileBakerReadBarrierThunk(arm64::Arm64Assembler& assembler, uint32_t encoded_data);

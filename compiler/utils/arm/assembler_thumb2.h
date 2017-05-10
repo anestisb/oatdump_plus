@@ -924,9 +924,11 @@ class Thumb2Assembler FINAL : public ArmAssembler {
 
 class ScopedForce32Bit {
  public:
-  explicit ScopedForce32Bit(Thumb2Assembler* assembler)
+  explicit ScopedForce32Bit(Thumb2Assembler* assembler, bool force = true)
       : assembler_(assembler), old_force_32bit_(assembler->IsForced32Bit()) {
-    assembler->Force32Bit();
+    if (force) {
+      assembler->Force32Bit();
+    }
   }
 
   ~ScopedForce32Bit() {
