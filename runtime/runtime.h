@@ -947,7 +947,8 @@ class Runtime {
 
   std::unique_ptr<RuntimeCallbacks> callbacks_;
 
-  std::atomic<uint32_t> deoptimization_counts_[static_cast<uint32_t>(DeoptimizationKind::kLast)];
+  std::atomic<uint32_t> deoptimization_counts_[
+      static_cast<uint32_t>(DeoptimizationKind::kLast) + 1];
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };
