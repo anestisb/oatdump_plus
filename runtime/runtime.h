@@ -48,9 +48,6 @@ namespace art {
 namespace gc {
   class AbstractSystemWeakHolder;
   class Heap;
-  namespace collector {
-    class GarbageCollector;
-  }  // namespace collector
 }  // namespace gc
 
 namespace jit {
@@ -79,7 +76,6 @@ class ArenaPool;
 class ArtMethod;
 class ClassHierarchyAnalysis;
 class ClassLinker;
-class Closure;
 class CompilerCallbacks;
 class DexFile;
 class InternTable;
@@ -339,11 +335,6 @@ class Runtime {
 
   void VisitTransactionRoots(RootVisitor* visitor)
       REQUIRES_SHARED(Locks::mutator_lock_);
-
-  // Flip thread roots from from-space refs to to-space refs.
-  size_t FlipThreadRoots(Closure* thread_flip_visitor, Closure* flip_callback,
-                         gc::collector::GarbageCollector* collector)
-      REQUIRES(!Locks::mutator_lock_);
 
   // Sweep system weaks, the system weak is deleted if the visitor return null. Otherwise, the
   // system weak is updated to be the visitor's returned value.

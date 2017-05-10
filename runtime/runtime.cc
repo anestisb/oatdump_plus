@@ -1816,11 +1816,6 @@ void Runtime::VisitThreadRoots(RootVisitor* visitor, VisitRootFlags flags) {
   thread_list_->VisitRoots(visitor, flags);
 }
 
-size_t Runtime::FlipThreadRoots(Closure* thread_flip_visitor, Closure* flip_callback,
-                                gc::collector::GarbageCollector* collector) {
-  return thread_list_->FlipThreadRoots(thread_flip_visitor, flip_callback, collector);
-}
-
 void Runtime::VisitRoots(RootVisitor* visitor, VisitRootFlags flags) {
   VisitNonConcurrentRoots(visitor, flags);
   VisitConcurrentRoots(visitor, flags);

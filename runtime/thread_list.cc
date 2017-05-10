@@ -34,6 +34,7 @@
 #include "base/timing_logger.h"
 #include "debugger.h"
 #include "gc/collector/concurrent_copying.h"
+#include "gc/gc_pause_listener.h"
 #include "gc/reference_processor.h"
 #include "jni_internal.h"
 #include "lock_word.h"
@@ -528,7 +529,8 @@ size_t ThreadList::RunCheckpointOnRunnableThreads(Closure* checkpoint_function) 
 // invariant.
 size_t ThreadList::FlipThreadRoots(Closure* thread_flip_visitor,
                                    Closure* flip_callback,
-                                   gc::collector::GarbageCollector* collector) {
+                                   gc::collector::GarbageCollector* collector,
+                                   gc::GcPauseListener* pause_listener) {
   TimingLogger::ScopedTiming split("ThreadListFlip", collector->GetTimings());
   Thread* self = Thread::Current();
   Locks::mutator_lock_->AssertNotHeld(self);
@@ -542,6 +544,9 @@ size_t ThreadList::FlipThreadRoots(Closure* thread_flip_visitor,
   // pause.
   const uint64_t suspend_start_time = NanoTime();
   SuspendAllInternal(self, self, nullptr);
+  if (pause_listener != nullptr) {
+    pause_listener->StartPause();
+  }
 
   // Run the flip callback for the collector.
   Locks::mutator_lock_->ExclusiveLock(self);
@@ -549,6 +554,9 @@ size_t ThreadList::FlipThreadRoots(Closure* thread_flip_visitor,
   flip_callback->Run(self);
   Locks::mutator_lock_->ExclusiveUnlock(self);
   collector->RegisterPause(NanoTime() - suspend_start_time);
+  if (pause_listener != nullptr) {
+    pause_listener->EndPause();
+  }
 
   // Resume runnable threads.
   size_t runnable_thread_count = 0;

@@ -35,6 +35,7 @@ namespace gc {
   namespace collector {
     class GarbageCollector;
   }  // namespac collector
+  class GcPauseListener;
 }  // namespace gc
 class Closure;
 class Thread;
@@ -121,7 +122,8 @@ class ThreadList {
   // the concurrent copying collector.
   size_t FlipThreadRoots(Closure* thread_flip_visitor,
                          Closure* flip_callback,
-                         gc::collector::GarbageCollector* collector)
+                         gc::collector::GarbageCollector* collector,
+                         gc::GcPauseListener* pause_listener)
       REQUIRES(!Locks::mutator_lock_,
                !Locks::thread_list_lock_,
                !Locks::thread_suspend_count_lock_);
