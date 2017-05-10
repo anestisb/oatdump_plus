@@ -767,6 +767,11 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
   void StW(VectorRegister wd, GpuRegister rs, int offset);
   void StD(VectorRegister wd, GpuRegister rs, int offset);
 
+  void IlvrB(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void IlvrH(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void IlvrW(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void IlvrD(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+
   // Higher level composite instructions.
   int InstrCountForLoadReplicatedConst32(int64_t);
   void LoadConst32(GpuRegister rd, int32_t value);

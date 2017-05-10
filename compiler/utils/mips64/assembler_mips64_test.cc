@@ -2990,6 +2990,26 @@ TEST_F(AssemblerMIPS64Test, StD) {
             "st.d");
 }
 
+TEST_F(AssemblerMIPS64Test, IlvrB) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::IlvrB, "ilvr.b ${reg1}, ${reg2}, ${reg3}"),
+            "ilvr.b");
+}
+
+TEST_F(AssemblerMIPS64Test, IlvrH) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::IlvrH, "ilvr.h ${reg1}, ${reg2}, ${reg3}"),
+            "ilvr.h");
+}
+
+TEST_F(AssemblerMIPS64Test, IlvrW) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::IlvrW, "ilvr.w ${reg1}, ${reg2}, ${reg3}"),
+            "ilvr.w");
+}
+
+TEST_F(AssemblerMIPS64Test, IlvrD) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::IlvrD, "ilvr.d ${reg1}, ${reg2}, ${reg3}"),
+            "ilvr.d");
+}
+
 #undef __
 
 }  // namespace art

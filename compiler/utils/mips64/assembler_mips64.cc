@@ -1775,6 +1775,26 @@ void Mips64Assembler::StD(VectorRegister wd, GpuRegister rs, int offset) {
   EmitMsaMI10((offset >> TIMES_8) & kMsaS10Mask, rs, wd, 0x9, 0x3);
 }
 
+void Mips64Assembler::IlvrB(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x5, 0x0, wt, ws, wd, 0x14);
+}
+
+void Mips64Assembler::IlvrH(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x5, 0x1, wt, ws, wd, 0x14);
+}
+
+void Mips64Assembler::IlvrW(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x5, 0x2, wt, ws, wd, 0x14);
+}
+
+void Mips64Assembler::IlvrD(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x5, 0x3, wt, ws, wd, 0x14);
+}
+
 void Mips64Assembler::LoadConst32(GpuRegister rd, int32_t value) {
   TemplateLoadConst32(this, rd, value);
 }
