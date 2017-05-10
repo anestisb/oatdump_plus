@@ -1515,7 +1515,7 @@ Location ParallelMoveResolverARM64::AllocateScratchLocationFor(Location::Kind ki
   if (kind == Location::kRegister) {
     scratch = LocationFrom(vixl_temps_.AcquireX());
   } else {
-    DCHECK(kind == Location::kFpuRegister);
+    DCHECK_EQ(kind, Location::kFpuRegister);
     scratch = LocationFrom(codegen_->GetGraph()->HasSIMD()
         ? vixl_temps_.AcquireVRegisterOfSize(kQRegSize)
         : vixl_temps_.AcquireD());
@@ -1743,9 +1743,9 @@ static bool CoherentConstantAndType(Location constant, Primitive::Type type) {
          (cst->IsDoubleConstant() && type == Primitive::kPrimDouble);
 }
 
-// Allocate a scratch register from the VIXL pool, querying first into
-// the floating-point register pool, and then the the core register
-// pool.  This is essentially a reimplementation of
+// Allocate a scratch register from the VIXL pool, querying first
+// the floating-point register pool, and then the core register
+// pool. This is essentially a reimplementation of
 // vixl::aarch64::UseScratchRegisterScope::AcquireCPURegisterOfSize
 // using a different allocation strategy.
 static CPURegister AcquireFPOrCoreCPURegisterOfSize(vixl::aarch64::MacroAssembler* masm,
@@ -1893,7 +1893,7 @@ void CodeGeneratorARM64::MoveLocation(Location destination,
       // ask for a scratch register of any type (core or FP).
       //
       // Also, we start by asking for a FP scratch register first, as the
-      // demand of scratch core registers is higher.  This is why we
+      // demand of scratch core registers is higher. This is why we
       // use AcquireFPOrCoreCPURegisterOfSize instead of
       // UseScratchRegisterScope::AcquireCPURegisterOfSize, which
       // allocates core scratch registers first.
