@@ -322,12 +322,19 @@ static uint8_t* GetRootTable(const void* code_ptr, uint32_t* number_of_roots = n
   return data - ComputeRootTableSize(roots);
 }
 
+// Use a sentinel for marking entries in the JIT table that have been cleared.
+// This helps diagnosing in case the compiled code tries to wrongly access such
+// entries.
+static mirror::Class* const weak_sentinel = reinterpret_cast<mirror::Class*>(0x1);
+
 // Helper for the GC to process a weak class in a JIT root table.
-static inline void ProcessWeakClass(GcRoot<mirror::Class>* root_ptr, IsMarkedVisitor* visitor)
+static inline void ProcessWeakClass(GcRoot<mirror::Class>* root_ptr,
+                                    IsMarkedVisitor* visitor,
+                                    mirror::Class* update)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   // This does not need a read barrier because this is called by GC.
   mirror::Class* cls = root_ptr->Read<kWithoutReadBarrier>();
-  if (cls != nullptr) {
+  if (cls != nullptr && cls != weak_sentinel) {
     DCHECK((cls->IsClass<kDefaultVerifyFlags, kWithoutReadBarrier>()));
     // Look at the classloader of the class to know if it has been unloaded.
     // This does not need a read barrier because this is called by GC.
@@ -342,7 +349,7 @@ static inline void ProcessWeakClass(GcRoot<mirror::Class>* root_ptr, IsMarkedVis
       }
     } else {
       // The class loader is not live, clear the entry.
-      *root_ptr = GcRoot<mirror::Class>(nullptr);
+      *root_ptr = GcRoot<mirror::Class>(update);
     }
   }
 }
@@ -356,7 +363,7 @@ void JitCodeCache::SweepRootTables(IsMarkedVisitor* visitor) {
     for (uint32_t i = 0; i < number_of_roots; ++i) {
       // This does not need a read barrier because this is called by GC.
       mirror::Object* object = roots[i].Read<kWithoutReadBarrier>();
-      if (object == nullptr) {
+      if (object == nullptr || object == weak_sentinel) {
         // entry got deleted in a previous sweep.
       } else if (object->IsString<kDefaultVerifyFlags, kWithoutReadBarrier>()) {
         mirror::Object* new_object = visitor->IsMarked(object);
@@ -371,7 +378,8 @@ void JitCodeCache::SweepRootTables(IsMarkedVisitor* visitor) {
           roots[i] = GcRoot<mirror::Object>(new_object);
         }
       } else {
-        ProcessWeakClass(reinterpret_cast<GcRoot<mirror::Class>*>(&roots[i]), visitor);
+        ProcessWeakClass(
+            reinterpret_cast<GcRoot<mirror::Class>*>(&roots[i]), visitor, weak_sentinel);
       }
     }
   }
@@ -380,7 +388,7 @@ void JitCodeCache::SweepRootTables(IsMarkedVisitor* visitor) {
     for (size_t i = 0; i < info->number_of_inline_caches_; ++i) {
       InlineCache* cache = &info->cache_[i];
       for (size_t j = 0; j < InlineCache::kIndividualCacheSize; ++j) {
-        ProcessWeakClass(&cache->classes_[j], visitor);
+        ProcessWeakClass(&cache->classes_[j], visitor, nullptr);
       }
     }
   }
