@@ -3127,7 +3127,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitIntegerValueOf(HInvoke* invoke) {
     __ Add(out, in, -info.low);
     __ Cmp(out, info.high - info.low + 1);
     vixl32::Label allocate, done;
-    __ B(hs, &allocate);
+    __ B(hs, &allocate, /* is_far_target */ false);
     // If the value is within the bounds, load the j.l.Integer directly from the array.
     uint32_t data_offset = mirror::Array::DataOffset(kHeapReferenceSize).Uint32Value();
     uint32_t address = dchecked_integral_cast<uint32_t>(reinterpret_cast<uintptr_t>(info.cache));
@@ -3164,12 +3164,15 @@ void IntrinsicCodeGeneratorARMVIXL::VisitThreadInterrupted(HInvoke* invoke) {
   UseScratchRegisterScope temps(assembler->GetVIXLAssembler());
   vixl32::Register temp = temps.Acquire();
   vixl32::Label done;
-  __ CompareAndBranchIfZero(out, &done, /* far_target */ false);
+  vixl32::Label* const final_label = codegen_->GetFinalLabel(invoke, &done);
+  __ CompareAndBranchIfZero(out, final_label, /* far_target */ false);
   __ Dmb(vixl32::ISH);
   __ Mov(temp, 0);
   assembler->StoreToOffset(kStoreWord, temp, tr, offset);
   __ Dmb(vixl32::ISH);
-  __ Bind(&done);
+  if (done.IsReferenced()) {
+    __ Bind(&done);
+  }
 }
 
 UNIMPLEMENTED_INTRINSIC(ARMVIXL, MathRoundDouble)   // Could be done by changing rounding mode, maybe?
