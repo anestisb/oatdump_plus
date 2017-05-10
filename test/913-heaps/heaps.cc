@@ -823,6 +823,14 @@ static GetObjectHeapId gGetObjectHeapIdFn = nullptr;
 using GetHeapName = jvmtiError(*)(jvmtiEnv*, jint, char**, ...);
 static GetHeapName gGetHeapNameFn = nullptr;
 
+using IterateThroughHeapExt = jvmtiError(*)(jvmtiEnv*,
+                                            jint,
+                                            jclass,
+                                            const jvmtiHeapCallbacks*,
+                                            const void*);
+static IterateThroughHeapExt gIterateThroughHeapExt = nullptr;
+
+
 static void FreeExtensionFunctionInfo(jvmtiExtensionFunctionInfo* extensions, jint count) {
   for (size_t i = 0; i != static_cast<size_t>(count); ++i) {
     jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(extensions[i].id));
@@ -885,6 +893,38 @@ extern "C" JNIEXPORT void JNICALL Java_art_Test913_checkForExtensionApis(
       CHECK_EQ(extensions[i].error_count, 1);
       CHECK(extensions[i].errors != nullptr);
       CHECK(extensions[i].errors[0] == JVMTI_ERROR_ILLEGAL_ARGUMENT);
+    }
+
+    if (strcmp("com.android.art.heap.iterate_through_heap_ext", extensions[i].id) == 0) {
+      CHECK(gIterateThroughHeapExt == nullptr);
+      gIterateThroughHeapExt = reinterpret_cast<IterateThroughHeapExt>(extensions[i].func);
+
+      CHECK_EQ(extensions[i].param_count, 4);
+
+      CHECK_EQ(strcmp("heap_filter", extensions[i].params[0].name), 0);
+      CHECK_EQ(extensions[i].params[0].base_type, JVMTI_TYPE_JINT);
+      CHECK_EQ(extensions[i].params[0].kind, JVMTI_KIND_IN);
+
+      CHECK_EQ(strcmp("klass", extensions[i].params[1].name), 0);
+      CHECK_EQ(extensions[i].params[1].base_type, JVMTI_TYPE_JCLASS);
+      CHECK_EQ(extensions[i].params[1].kind, JVMTI_KIND_IN);
+      CHECK_EQ(extensions[i].params[1].null_ok, true);
+
+      CHECK_EQ(strcmp("callbacks", extensions[i].params[2].name), 0);
+      CHECK_EQ(extensions[i].params[2].base_type, JVMTI_TYPE_CVOID);
+      CHECK_EQ(extensions[i].params[2].kind, JVMTI_KIND_IN_PTR);
+      CHECK_EQ(extensions[i].params[2].null_ok, false);
+
+      CHECK_EQ(strcmp("user_data", extensions[i].params[3].name), 0);
+      CHECK_EQ(extensions[i].params[3].base_type, JVMTI_TYPE_CVOID);
+      CHECK_EQ(extensions[i].params[3].kind, JVMTI_KIND_IN_PTR);
+      CHECK_EQ(extensions[i].params[3].null_ok, true);
+
+      CHECK_EQ(extensions[i].error_count, 3);
+      CHECK(extensions[i].errors != nullptr);
+      CHECK(extensions[i].errors[0] == JVMTI_ERROR_MUST_POSSESS_CAPABILITY);
+      CHECK(extensions[i].errors[1] == JVMTI_ERROR_INVALID_CLASS);
+      CHECK(extensions[i].errors[2] == JVMTI_ERROR_NULL_POINTER);
     }
   }
 
@@ -1002,6 +1042,40 @@ extern "C" JNIEXPORT void JNICALL Java_art_Test913_checkGetObjectHeapIdInCallbac
       return;
     }
   }
+}
+
+static bool gFoundExt = false;
+
+static jint JNICALL HeapIterationExtCallback(jlong class_tag ATTRIBUTE_UNUSED,
+                                             jlong size ATTRIBUTE_UNUSED,
+                                             jlong* tag_ptr,
+                                             jint length ATTRIBUTE_UNUSED,
+                                             void* user_data ATTRIBUTE_UNUSED,
+                                             jint heap_id) {
+  // We expect some tagged objects at or above the threshold, where the expected heap id is
+  // encoded into lowest byte.
+  constexpr jlong kThreshold = 30000000;
+  jlong tag = *tag_ptr;
+  if (tag >= kThreshold) {
+    jint expected_heap_id = static_cast<jint>(tag - kThreshold);
+    CHECK_EQ(expected_heap_id, heap_id);
+    gFoundExt = true;
+  }
+  return 0;
+}
+
+extern "C" JNIEXPORT void JNICALL Java_art_Test913_iterateThroughHeapExt(
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
+  CHECK(gIterateThroughHeapExt != nullptr);
+
+  jvmtiHeapCallbacks callbacks;
+  memset(&callbacks, 0, sizeof(jvmtiHeapCallbacks));
+  callbacks.heap_iteration_callback =
+      reinterpret_cast<decltype(callbacks.heap_iteration_callback)>(HeapIterationExtCallback);
+
+  jvmtiError ret = gIterateThroughHeapExt(jvmti_env, 0, nullptr, &callbacks, nullptr);
+  JvmtiErrorToException(env, jvmti_env, ret);
+  CHECK(gFoundExt);
 }
 
 }  // namespace Test913Heaps

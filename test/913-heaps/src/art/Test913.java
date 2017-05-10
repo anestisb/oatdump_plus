@@ -261,6 +261,15 @@ public class Test913 {
     checkGetObjectHeapIdInCallback(100000, objClassExpectedHeapId);
     checkGetObjectHeapIdInCallback(100001, 3);
 
+    long baseTag = 30000000;
+    setTag(Object.class, baseTag + objClassExpectedHeapId);
+    setTag(Class.class, baseTag + objClassExpectedHeapId);
+    Object o = new Object();
+    extensionTestHolder.add(o);
+    setTag(o, baseTag + 3);
+
+    iterateThroughHeapExt();
+
     extensionTestHolder = null;
   }
 
@@ -719,4 +728,6 @@ public class Test913 {
   public static native String[] followReferencesString(Object initialObject);
   public static native String followReferencesPrimitiveArray(Object initialObject);
   public static native String followReferencesPrimitiveFields(Object initialObject);
+
+  private static native void iterateThroughHeapExt();
 }
