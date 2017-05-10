@@ -516,13 +516,13 @@ void GlobalValueNumberer::VisitBasicBlock(HBasicBlock* block) {
 bool GlobalValueNumberer::WillBeReferencedAgain(HBasicBlock* block) const {
   DCHECK(visited_blocks_.IsBitSet(block->GetBlockId()));
 
-  for (auto dominated_block : block->GetDominatedBlocks()) {
+  for (const HBasicBlock* dominated_block : block->GetDominatedBlocks()) {
     if (!visited_blocks_.IsBitSet(dominated_block->GetBlockId())) {
       return true;
     }
   }
 
-  for (auto successor : block->GetSuccessors()) {
+  for (const HBasicBlock* successor : block->GetSuccessors()) {
     if (!visited_blocks_.IsBitSet(successor->GetBlockId())) {
       return true;
     }

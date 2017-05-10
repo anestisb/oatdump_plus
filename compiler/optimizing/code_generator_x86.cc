@@ -7703,7 +7703,7 @@ void CodeGeneratorX86::Finalize(CodeAllocator* allocator) {
     constant_area_start_ = assembler->CodeSize();
 
     // Populate any jump tables.
-    for (auto jump_table : fixups_to_jump_tables_) {
+    for (JumpTableRIPFixup* jump_table : fixups_to_jump_tables_) {
       jump_table->CreateJumpTable();
     }
 
@@ -7842,17 +7842,19 @@ void CodeGeneratorX86::PatchJitRootUse(uint8_t* code,
 
 void CodeGeneratorX86::EmitJitRootPatches(uint8_t* code, const uint8_t* roots_data) {
   for (const PatchInfo<Label>& info : jit_string_patches_) {
-    const auto& it = jit_string_roots_.find(
+    const auto it = jit_string_roots_.find(
         StringReference(&info.dex_file, dex::StringIndex(info.index)));
     DCHECK(it != jit_string_roots_.end());
-    PatchJitRootUse(code, roots_data, info, it->second);
+    uint64_t index_in_table = it->second;
+    PatchJitRootUse(code, roots_data, info, index_in_table);
   }
 
   for (const PatchInfo<Label>& info : jit_class_patches_) {
-    const auto& it = jit_class_roots_.find(
+    const auto it = jit_class_roots_.find(
         TypeReference(&info.dex_file, dex::TypeIndex(info.index)));
     DCHECK(it != jit_class_roots_.end());
-    PatchJitRootUse(code, roots_data, info, it->second);
+    uint64_t index_in_table = it->second;
+    PatchJitRootUse(code, roots_data, info, index_in_table);
   }
 }
 

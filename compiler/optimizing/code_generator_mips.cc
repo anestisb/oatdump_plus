@@ -1780,16 +1780,18 @@ void CodeGeneratorMIPS::PatchJitRootUse(uint8_t* code,
 
 void CodeGeneratorMIPS::EmitJitRootPatches(uint8_t* code, const uint8_t* roots_data) {
   for (const JitPatchInfo& info : jit_string_patches_) {
-    const auto& it = jit_string_roots_.find(StringReference(&info.target_dex_file,
-                                                            dex::StringIndex(info.index)));
+    const auto it = jit_string_roots_.find(StringReference(&info.target_dex_file,
+                                                           dex::StringIndex(info.index)));
     DCHECK(it != jit_string_roots_.end());
-    PatchJitRootUse(code, roots_data, info, it->second);
+    uint64_t index_in_table = it->second;
+    PatchJitRootUse(code, roots_data, info, index_in_table);
   }
   for (const JitPatchInfo& info : jit_class_patches_) {
-    const auto& it = jit_class_roots_.find(TypeReference(&info.target_dex_file,
-                                                         dex::TypeIndex(info.index)));
+    const auto it = jit_class_roots_.find(TypeReference(&info.target_dex_file,
+                                                        dex::TypeIndex(info.index)));
     DCHECK(it != jit_class_roots_.end());
-    PatchJitRootUse(code, roots_data, info, it->second);
+    uint64_t index_in_table = it->second;
+    PatchJitRootUse(code, roots_data, info, index_in_table);
   }
 }
 

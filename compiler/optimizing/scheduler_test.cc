@@ -60,7 +60,7 @@ static ::std::vector<CodegenTargetConfig> GetTargetConfigs() {
 #endif
   };
 
-  for (auto test_config : test_config_candidates) {
+  for (const CodegenTargetConfig& test_config : test_config_candidates) {
     if (CanExecute(test_config.GetInstructionSet())) {
       v.push_back(test_config);
     }
@@ -127,7 +127,7 @@ class SchedulerTest : public CommonCompilerTest {
                                           array_set1,
                                           array_get2,
                                           array_set2};
-    for (auto instr : block_instructions) {
+    for (HInstruction* instr : block_instructions) {
       block1->AddInstruction(instr);
     }
 
@@ -144,7 +144,7 @@ class SchedulerTest : public CommonCompilerTest {
 
     SchedulingGraph scheduling_graph(scheduler, graph_->GetArena());
     // Instructions must be inserted in reverse order into the scheduling graph.
-    for (auto instr : ReverseRange(block_instructions)) {
+    for (HInstruction* instr : ReverseRange(block_instructions)) {
       scheduling_graph.AddNode(instr);
     }
 

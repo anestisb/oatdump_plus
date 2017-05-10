@@ -759,7 +759,7 @@ static void CreateFPToFPCallLocations(ArenaAllocator* arena,
   // We have to ensure that the native code doesn't clobber the XMM registers which are
   // non-volatile for ART, but volatile for Native calls.  This will ensure that they are
   // saved in the prologue and properly restored.
-  for (auto fp_reg : non_volatile_xmm_regs) {
+  for (FloatRegister fp_reg : non_volatile_xmm_regs) {
     locations->AddTemp(Location::FpuRegisterLocation(fp_reg));
   }
 }
@@ -898,7 +898,7 @@ static void CreateFPFPToFPCallLocations(ArenaAllocator* arena,
   // We have to ensure that the native code doesn't clobber the XMM registers which are
   // non-volatile for ART, but volatile for Native calls.  This will ensure that they are
   // saved in the prologue and properly restored.
-  for (auto fp_reg : non_volatile_xmm_regs) {
+  for (FloatRegister fp_reg : non_volatile_xmm_regs) {
     locations->AddTemp(Location::FpuRegisterLocation(fp_reg));
   }
 }

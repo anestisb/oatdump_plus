@@ -842,7 +842,7 @@ class SlowPathGenerator {
     const uint32_t dex_pc = instruction->GetDexPc();
     auto iter = slow_path_map_.find(dex_pc);
     if (iter != slow_path_map_.end()) {
-      auto candidates = iter->second;
+      const ArenaVector<std::pair<InstructionType*, SlowPathCode*>>& candidates = iter->second;
       for (const auto& it : candidates) {
         InstructionType* other_instruction = it.first;
         SlowPathCodeType* other_slow_path = down_cast<SlowPathCodeType*>(it.second);
