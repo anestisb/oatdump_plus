@@ -30,6 +30,7 @@
 #include "base/transform_array_ref.h"
 #include "dex_file.h"
 #include "dex_file_types.h"
+#include "deoptimization_kind.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "handle.h"
 #include "handle_scope.h"
@@ -2973,15 +2974,9 @@ class HTryBoundary FINAL : public HTemplateInstruction<0> {
 // Deoptimize to interpreter, upon checking a condition.
 class HDeoptimize FINAL : public HVariableInputSizeInstruction {
  public:
-  enum class Kind {
-    kBCE,
-    kInline,
-    kLast = kInline
-  };
-
   // Use this constructor when the `HDeoptimize` acts as a barrier, where no code can move
   // across.
-  HDeoptimize(ArenaAllocator* arena, HInstruction* cond, Kind kind, uint32_t dex_pc)
+  HDeoptimize(ArenaAllocator* arena, HInstruction* cond, DeoptimizationKind kind, uint32_t dex_pc)
       : HVariableInputSizeInstruction(
             SideEffects::All(),
             dex_pc,
@@ -3001,7 +2996,7 @@ class HDeoptimize FINAL : public HVariableInputSizeInstruction {
   HDeoptimize(ArenaAllocator* arena,
               HInstruction* cond,
               HInstruction* guard,
-              Kind kind,
+              DeoptimizationKind kind,
               uint32_t dex_pc)
       : HVariableInputSizeInstruction(
             SideEffects::CanTriggerGC(),
@@ -3025,7 +3020,7 @@ class HDeoptimize FINAL : public HVariableInputSizeInstruction {
 
   bool CanThrow() const OVERRIDE { return true; }
 
-  Kind GetKind() const { return GetPackedField<DeoptimizeKindField>(); }
+  DeoptimizationKind GetDeoptimizationKind() const { return GetPackedField<DeoptimizeKindField>(); }
 
   Primitive::Type GetType() const OVERRIDE {
     return GuardsAnInput() ? GuardedInput()->GetType() : Primitive::kPrimVoid;
@@ -3050,17 +3045,16 @@ class HDeoptimize FINAL : public HVariableInputSizeInstruction {
   static constexpr size_t kFieldCanBeMoved = kNumberOfGenericPackedBits;
   static constexpr size_t kFieldDeoptimizeKind = kNumberOfGenericPackedBits + 1;
   static constexpr size_t kFieldDeoptimizeKindSize =
-      MinimumBitsToStore(static_cast<size_t>(Kind::kLast));
+      MinimumBitsToStore(static_cast<size_t>(DeoptimizationKind::kLast));
   static constexpr size_t kNumberOfDeoptimizePackedBits =
       kFieldDeoptimizeKind + kFieldDeoptimizeKindSize;
   static_assert(kNumberOfDeoptimizePackedBits <= kMaxNumberOfPackedBits,
                 "Too many packed fields.");
-  using DeoptimizeKindField = BitField<Kind, kFieldDeoptimizeKind, kFieldDeoptimizeKindSize>;
+  using DeoptimizeKindField =
+      BitField<DeoptimizationKind, kFieldDeoptimizeKind, kFieldDeoptimizeKindSize>;
 
   DISALLOW_COPY_AND_ASSIGN(HDeoptimize);
 };
-
-std::ostream& operator<<(std::ostream& os, const HDeoptimize::Kind& rhs);
 
 // Represents a should_deoptimize flag. Currently used for CHA-based devirtualization.
 // The compiled code checks this flag value in a guard before devirtualized call and

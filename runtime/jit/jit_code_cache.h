@@ -384,9 +384,6 @@ class JitCodeCache {
   // Number of compilations for on-stack-replacement done throughout the lifetime of the JIT.
   size_t number_of_osr_compilations_ GUARDED_BY(lock_);
 
-  // Number of deoptimizations done throughout the lifetime of the JIT.
-  size_t number_of_deoptimizations_ GUARDED_BY(lock_);
-
   // Number of code cache collections done throughout the lifetime of the JIT.
   size_t number_of_collections_ GUARDED_BY(lock_);
 

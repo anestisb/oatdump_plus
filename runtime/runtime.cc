@@ -262,6 +262,9 @@ Runtime::Runtime()
   std::fill(callee_save_methods_, callee_save_methods_ + arraysize(callee_save_methods_), 0u);
   interpreter::CheckInterpreterAsmConstants();
   callbacks_.reset(new RuntimeCallbacks());
+  for (size_t i = 0; i <= static_cast<size_t>(DeoptimizationKind::kLast); ++i) {
+    deoptimization_counts_[i] = 0u;
+  }
 }
 
 Runtime::~Runtime() {
@@ -1570,6 +1573,23 @@ void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {
   register_sun_misc_Unsafe(env);
 }
 
+std::ostream& operator<<(std::ostream& os, const DeoptimizationKind& kind) {
+  os << GetDeoptimizationKindName(kind);
+  return os;
+}
+
+void Runtime::DumpDeoptimizations(std::ostream& os) {
+  for (size_t i = 0; i <= static_cast<size_t>(DeoptimizationKind::kLast); ++i) {
+    if (deoptimization_counts_[i] != 0) {
+      os << "Number of "
+         << GetDeoptimizationKindName(static_cast<DeoptimizationKind>(i))
+         << " deoptimizations: "
+         << deoptimization_counts_[i]
+         << "\n";
+    }
+  }
+}
+
 void Runtime::DumpForSigQuit(std::ostream& os) {
   GetClassLinker()->DumpForSigQuit(os);
   GetInternTable()->DumpForSigQuit(os);
@@ -1581,6 +1601,7 @@ void Runtime::DumpForSigQuit(std::ostream& os) {
   } else {
     os << "Running non JIT\n";
   }
+  DumpDeoptimizations(os);
   TrackedAllocators::Dump(os);
   os << "\n";
 

@@ -1338,18 +1338,6 @@ std::ostream& operator<<(std::ostream& os, const ComparisonBias& rhs) {
   }
 }
 
-std::ostream& operator<<(std::ostream& os, const HDeoptimize::Kind& rhs) {
-  switch (rhs) {
-    case HDeoptimize::Kind::kBCE:
-      return os << "bce";
-    case HDeoptimize::Kind::kInline:
-      return os << "inline";
-    default:
-      LOG(FATAL) << "Unknown Deoptimization kind: " << static_cast<int>(rhs);
-      UNREACHABLE();
-  }
-}
-
 bool HCondition::IsBeforeWhenDisregardMoves(HInstruction* instruction) const {
   return this == instruction->GetPreviousDisregardingMoves();
 }
