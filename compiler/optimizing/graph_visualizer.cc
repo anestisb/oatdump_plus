@@ -514,6 +514,14 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
     StartAttributeStream("rounded") << std::boolalpha << hadd->IsRounded() << std::noboolalpha;
   }
 
+  void VisitVecMin(HVecMin* min) OVERRIDE {
+    StartAttributeStream("unsigned") << std::boolalpha << min->IsUnsigned() << std::noboolalpha;
+  }
+
+  void VisitVecMax(HVecMax* max) OVERRIDE {
+    StartAttributeStream("unsigned") << std::boolalpha << max->IsUnsigned() << std::noboolalpha;
+  }
+
   void VisitVecMultiplyAccumulate(HVecMultiplyAccumulate* instruction) OVERRIDE {
     StartAttributeStream("kind") << instruction->GetOpKind();
   }

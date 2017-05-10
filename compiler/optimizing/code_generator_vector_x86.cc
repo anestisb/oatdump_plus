@@ -483,7 +483,51 @@ void LocationsBuilderX86::VisitVecMin(HVecMin* instruction) {
 }
 
 void InstructionCodeGeneratorX86::VisitVecMin(HVecMin* instruction) {
-  LOG(FATAL) << "No SIMD for " << instruction->GetId();
+  LocationSummary* locations = instruction->GetLocations();
+  DCHECK(locations->InAt(0).Equals(locations->Out()));
+  XmmRegister src = locations->InAt(1).AsFpuRegister<XmmRegister>();
+  XmmRegister dst = locations->Out().AsFpuRegister<XmmRegister>();
+  switch (instruction->GetPackedType()) {
+    case Primitive::kPrimByte:
+      DCHECK_EQ(16u, instruction->GetVectorLength());
+      if (instruction->IsUnsigned()) {
+        __ pminub(dst, src);
+      } else {
+        __ pminsb(dst, src);
+      }
+      break;
+    case Primitive::kPrimChar:
+    case Primitive::kPrimShort:
+      DCHECK_EQ(8u, instruction->GetVectorLength());
+      if (instruction->IsUnsigned()) {
+        __ pminuw(dst, src);
+      } else {
+        __ pminsw(dst, src);
+      }
+      break;
+    case Primitive::kPrimInt:
+      DCHECK_EQ(4u, instruction->GetVectorLength());
+      if (instruction->IsUnsigned()) {
+        __ pminud(dst, src);
+      } else {
+        __ pminsd(dst, src);
+      }
+      break;
+    // Next cases are sloppy wrt 0.0 vs -0.0.
+    case Primitive::kPrimFloat:
+      DCHECK_EQ(4u, instruction->GetVectorLength());
+      DCHECK(!instruction->IsUnsigned());
+      __ minps(dst, src);
+      break;
+    case Primitive::kPrimDouble:
+      DCHECK_EQ(2u, instruction->GetVectorLength());
+      DCHECK(!instruction->IsUnsigned());
+      __ minpd(dst, src);
+      break;
+    default:
+      LOG(FATAL) << "Unsupported SIMD type";
+      UNREACHABLE();
+  }
 }
 
 void LocationsBuilderX86::VisitVecMax(HVecMax* instruction) {
@@ -491,7 +535,51 @@ void LocationsBuilderX86::VisitVecMax(HVecMax* instruction) {
 }
 
 void InstructionCodeGeneratorX86::VisitVecMax(HVecMax* instruction) {
-  LOG(FATAL) << "No SIMD for " << instruction->GetId();
+  LocationSummary* locations = instruction->GetLocations();
+  DCHECK(locations->InAt(0).Equals(locations->Out()));
+  XmmRegister src = locations->InAt(1).AsFpuRegister<XmmRegister>();
+  XmmRegister dst = locations->Out().AsFpuRegister<XmmRegister>();
+  switch (instruction->GetPackedType()) {
+    case Primitive::kPrimByte:
+      DCHECK_EQ(16u, instruction->GetVectorLength());
+      if (instruction->IsUnsigned()) {
+        __ pmaxub(dst, src);
+      } else {
+        __ pmaxsb(dst, src);
+      }
+      break;
+    case Primitive::kPrimChar:
+    case Primitive::kPrimShort:
+      DCHECK_EQ(8u, instruction->GetVectorLength());
+      if (instruction->IsUnsigned()) {
+        __ pmaxuw(dst, src);
+      } else {
+        __ pmaxsw(dst, src);
+      }
+      break;
+    case Primitive::kPrimInt:
+      DCHECK_EQ(4u, instruction->GetVectorLength());
+      if (instruction->IsUnsigned()) {
+        __ pmaxud(dst, src);
+      } else {
+        __ pmaxsd(dst, src);
+      }
+      break;
+    // Next cases are sloppy wrt 0.0 vs -0.0.
+    case Primitive::kPrimFloat:
+      DCHECK_EQ(4u, instruction->GetVectorLength());
+      DCHECK(!instruction->IsUnsigned());
+      __ maxps(dst, src);
+      break;
+    case Primitive::kPrimDouble:
+      DCHECK_EQ(2u, instruction->GetVectorLength());
+      DCHECK(!instruction->IsUnsigned());
+      __ maxpd(dst, src);
+      break;
+    default:
+      LOG(FATAL) << "Unsupported SIMD type";
+      UNREACHABLE();
+  }
 }
 
 void LocationsBuilderX86::VisitVecAnd(HVecAnd* instruction) {

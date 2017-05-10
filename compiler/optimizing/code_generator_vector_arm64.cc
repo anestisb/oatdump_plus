@@ -468,7 +468,50 @@ void LocationsBuilderARM64::VisitVecMin(HVecMin* instruction) {
 }
 
 void InstructionCodeGeneratorARM64::VisitVecMin(HVecMin* instruction) {
-  LOG(FATAL) << "Unsupported SIMD instruction " << instruction->GetId();
+  LocationSummary* locations = instruction->GetLocations();
+  VRegister lhs = VRegisterFrom(locations->InAt(0));
+  VRegister rhs = VRegisterFrom(locations->InAt(1));
+  VRegister dst = VRegisterFrom(locations->Out());
+  switch (instruction->GetPackedType()) {
+    case Primitive::kPrimByte:
+      DCHECK_EQ(16u, instruction->GetVectorLength());
+      if (instruction->IsUnsigned()) {
+        __ Umin(dst.V16B(), lhs.V16B(), rhs.V16B());
+      } else {
+        __ Smin(dst.V16B(), lhs.V16B(), rhs.V16B());
+      }
+      break;
+    case Primitive::kPrimChar:
+    case Primitive::kPrimShort:
+      DCHECK_EQ(8u, instruction->GetVectorLength());
+      if (instruction->IsUnsigned()) {
+        __ Umin(dst.V8H(), lhs.V8H(), rhs.V8H());
+      } else {
+        __ Smin(dst.V8H(), lhs.V8H(), rhs.V8H());
+      }
+      break;
+    case Primitive::kPrimInt:
+      DCHECK_EQ(4u, instruction->GetVectorLength());
+      if (instruction->IsUnsigned()) {
+        __ Umin(dst.V4S(), lhs.V4S(), rhs.V4S());
+      } else {
+        __ Smin(dst.V4S(), lhs.V4S(), rhs.V4S());
+      }
+      break;
+    case Primitive::kPrimFloat:
+      DCHECK_EQ(4u, instruction->GetVectorLength());
+      DCHECK(!instruction->IsUnsigned());
+      __ Fmin(dst.V4S(), lhs.V4S(), rhs.V4S());
+      break;
+    case Primitive::kPrimDouble:
+      DCHECK_EQ(2u, instruction->GetVectorLength());
+      DCHECK(!instruction->IsUnsigned());
+      __ Fmin(dst.V2D(), lhs.V2D(), rhs.V2D());
+      break;
+    default:
+      LOG(FATAL) << "Unsupported SIMD type";
+      UNREACHABLE();
+  }
 }
 
 void LocationsBuilderARM64::VisitVecMax(HVecMax* instruction) {
@@ -476,7 +519,50 @@ void LocationsBuilderARM64::VisitVecMax(HVecMax* instruction) {
 }
 
 void InstructionCodeGeneratorARM64::VisitVecMax(HVecMax* instruction) {
-  LOG(FATAL) << "Unsupported SIMD instruction " << instruction->GetId();
+  LocationSummary* locations = instruction->GetLocations();
+  VRegister lhs = VRegisterFrom(locations->InAt(0));
+  VRegister rhs = VRegisterFrom(locations->InAt(1));
+  VRegister dst = VRegisterFrom(locations->Out());
+  switch (instruction->GetPackedType()) {
+    case Primitive::kPrimByte:
+      DCHECK_EQ(16u, instruction->GetVectorLength());
+      if (instruction->IsUnsigned()) {
+        __ Umax(dst.V16B(), lhs.V16B(), rhs.V16B());
+      } else {
+        __ Smax(dst.V16B(), lhs.V16B(), rhs.V16B());
+      }
+      break;
+    case Primitive::kPrimChar:
+    case Primitive::kPrimShort:
+      DCHECK_EQ(8u, instruction->GetVectorLength());
+      if (instruction->IsUnsigned()) {
+        __ Umax(dst.V8H(), lhs.V8H(), rhs.V8H());
+      } else {
+        __ Smax(dst.V8H(), lhs.V8H(), rhs.V8H());
+      }
+      break;
+    case Primitive::kPrimInt:
+      DCHECK_EQ(4u, instruction->GetVectorLength());
+      if (instruction->IsUnsigned()) {
+        __ Umax(dst.V4S(), lhs.V4S(), rhs.V4S());
+      } else {
+        __ Smax(dst.V4S(), lhs.V4S(), rhs.V4S());
+      }
+      break;
+    case Primitive::kPrimFloat:
+      DCHECK_EQ(4u, instruction->GetVectorLength());
+      DCHECK(!instruction->IsUnsigned());
+      __ Fmax(dst.V4S(), lhs.V4S(), rhs.V4S());
+      break;
+    case Primitive::kPrimDouble:
+      DCHECK_EQ(2u, instruction->GetVectorLength());
+      DCHECK(!instruction->IsUnsigned());
+      __ Fmax(dst.V2D(), lhs.V2D(), rhs.V2D());
+      break;
+    default:
+      LOG(FATAL) << "Unsupported SIMD type";
+      UNREACHABLE();
+  }
 }
 
 void LocationsBuilderARM64::VisitVecAnd(HVecAnd* instruction) {

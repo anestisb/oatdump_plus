@@ -1301,6 +1301,70 @@ TEST_F(AssemblerX86_64Test, Pavgw) {
   DriverStr(RepeatFF(&x86_64::X86_64Assembler::pavgw, "pavgw %{reg2}, %{reg1}"), "pavgw");
 }
 
+TEST_F(AssemblerX86_64Test, Pminsb) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::pminsb, "pminsb %{reg2}, %{reg1}"), "pminsb");
+}
+
+TEST_F(AssemblerX86_64Test, Pmaxsb) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::pmaxsb, "pmaxsb %{reg2}, %{reg1}"), "pmaxsb");
+}
+
+TEST_F(AssemblerX86_64Test, Pminsw) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::pminsw, "pminsw %{reg2}, %{reg1}"), "pminsw");
+}
+
+TEST_F(AssemblerX86_64Test, Pmaxsw) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::pmaxsw, "pmaxsw %{reg2}, %{reg1}"), "pmaxsw");
+}
+
+TEST_F(AssemblerX86_64Test, Pminsd) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::pminsd, "pminsd %{reg2}, %{reg1}"), "pminsd");
+}
+
+TEST_F(AssemblerX86_64Test, Pmaxsd) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::pmaxsd, "pmaxsd %{reg2}, %{reg1}"), "pmaxsd");
+}
+
+TEST_F(AssemblerX86_64Test, Pminub) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::pminub, "pminub %{reg2}, %{reg1}"), "pminub");
+}
+
+TEST_F(AssemblerX86_64Test, Pmaxub) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::pmaxub, "pmaxub %{reg2}, %{reg1}"), "pmaxub");
+}
+
+TEST_F(AssemblerX86_64Test, Pminuw) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::pminuw, "pminuw %{reg2}, %{reg1}"), "pminuw");
+}
+
+TEST_F(AssemblerX86_64Test, Pmaxuw) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::pmaxuw, "pmaxuw %{reg2}, %{reg1}"), "pmaxuw");
+}
+
+TEST_F(AssemblerX86_64Test, Pminud) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::pminud, "pminud %{reg2}, %{reg1}"), "pminud");
+}
+
+TEST_F(AssemblerX86_64Test, Pmaxud) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::pmaxud, "pmaxud %{reg2}, %{reg1}"), "pmaxud");
+}
+
+TEST_F(AssemblerX86_64Test, Minps) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::minps, "minps %{reg2}, %{reg1}"), "minps");
+}
+
+TEST_F(AssemblerX86_64Test, Maxps) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::maxps, "maxps %{reg2}, %{reg1}"), "maxps");
+}
+
+TEST_F(AssemblerX86_64Test, Minpd) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::minpd, "minpd %{reg2}, %{reg1}"), "minpd");
+}
+
+TEST_F(AssemblerX86_64Test, Maxpd) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::maxpd, "maxpd %{reg2}, %{reg1}"), "maxpd");
+}
+
 TEST_F(AssemblerX86_64Test, PCmpeqb) {
   DriverStr(RepeatFF(&x86_64::X86_64Assembler::pcmpeqb, "pcmpeqb %{reg2}, %{reg1}"), "pcmpeqb");
 }
