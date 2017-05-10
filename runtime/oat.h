@@ -175,6 +175,7 @@ class PACKED(4) OatMethodOffsets {
 
   ~OatMethodOffsets();
 
+  OatMethodOffsets(const OatMethodOffsets&) = default;
   OatMethodOffsets& operator=(const OatMethodOffsets&) = default;
 
   uint32_t code_offset_;

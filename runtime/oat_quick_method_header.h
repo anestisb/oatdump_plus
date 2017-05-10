@@ -54,6 +54,7 @@ class PACKED(4) OatQuickMethodHeader {
     return FromCodePointer(EntryPointToCodePointer(entry_point));
   }
 
+  OatQuickMethodHeader(const OatQuickMethodHeader&) = default;
   OatQuickMethodHeader& operator=(const OatQuickMethodHeader&) = default;
 
   uintptr_t NativeQuickPcOffset(const uintptr_t pc) const {
