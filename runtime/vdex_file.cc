@@ -28,6 +28,7 @@
 
 namespace art {
 
+constexpr uint8_t VdexFile::Header::kVdexInvalidMagic[4];
 constexpr uint8_t VdexFile::Header::kVdexMagic[4];
 constexpr uint8_t VdexFile::Header::kVdexVersion[4];
 
