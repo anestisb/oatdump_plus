@@ -352,6 +352,7 @@ cc_defaults {
                 "libdl",
                 // For android::FileMap used by libziparchive.
                 "libutils",
+                "libtombstoned_client"
             ],
             static_libs: [
                 // ZipArchive support, the order matters here to get all symbols.
