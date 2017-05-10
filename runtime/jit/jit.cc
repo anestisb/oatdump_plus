@@ -353,6 +353,7 @@ Jit::~Jit() {
   DCHECK(!profile_saver_options_.IsEnabled() || !ProfileSaver::IsStarted());
   if (dump_info_on_shutdown_) {
     DumpInfo(LOG_STREAM(INFO));
+    Runtime::Current()->DumpDeoptimizations(LOG_STREAM(INFO));
   }
   DeleteThreadPool();
   if (jit_compiler_handle_ != nullptr) {
