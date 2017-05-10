@@ -1358,23 +1358,26 @@ class JvmtiFunctions {
 
   static jvmtiError GetErrorName(jvmtiEnv* env, jvmtiError error,  char** name_ptr) {
     ENSURE_NON_NULL(name_ptr);
+    auto copy_fn = [&](const char* name_cstr) {
+      jvmtiError res;
+      JvmtiUniquePtr<char[]> copy = CopyString(env, name_cstr, &res);
+      if (copy == nullptr) {
+        *name_ptr = nullptr;
+        return res;
+      } else {
+        *name_ptr = copy.release();
+        return OK;
+      }
+    };
     switch (error) {
-#define ERROR_CASE(e) case (JVMTI_ERROR_ ## e) : do { \
-          jvmtiError res; \
-          JvmtiUniquePtr<char[]> copy = CopyString(env, "JVMTI_ERROR_"#e, &res); \
-          if (copy == nullptr) { \
-            *name_ptr = nullptr; \
-            return res; \
-          } else { \
-            *name_ptr = copy.release(); \
-            return OK; \
-          } \
-        } while (false)
+#define ERROR_CASE(e) case (JVMTI_ERROR_ ## e) : \
+        return copy_fn("JVMTI_ERROR_"#e);
       ERROR_CASE(NONE);
       ERROR_CASE(INVALID_THREAD);
       ERROR_CASE(INVALID_THREAD_GROUP);
       ERROR_CASE(INVALID_PRIORITY);
       ERROR_CASE(THREAD_NOT_SUSPENDED);
+      ERROR_CASE(THREAD_SUSPENDED);
       ERROR_CASE(THREAD_NOT_ALIVE);
       ERROR_CASE(INVALID_OBJECT);
       ERROR_CASE(INVALID_CLASS);
@@ -1419,18 +1422,9 @@ class JvmtiFunctions {
       ERROR_CASE(UNATTACHED_THREAD);
       ERROR_CASE(INVALID_ENVIRONMENT);
 #undef ERROR_CASE
-      default: {
-        jvmtiError res;
-        JvmtiUniquePtr<char[]> copy = CopyString(env, "JVMTI_ERROR_UNKNOWN", &res);
-        if (copy == nullptr) {
-          *name_ptr = nullptr;
-          return res;
-        } else {
-          *name_ptr = copy.release();
-          return ERR(ILLEGAL_ARGUMENT);
-        }
-      }
     }
+
+    return ERR(ILLEGAL_ARGUMENT);
   }
 
   static jvmtiError SetVerboseFlag(jvmtiEnv* env,
