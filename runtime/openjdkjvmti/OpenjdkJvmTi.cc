@@ -1205,6 +1205,30 @@ class JvmtiFunctions {
       return error;
     }
 
+    error = add_extension(
+        reinterpret_cast<jvmtiExtensionFunction>(HeapExtensions::IterateThroughHeapExt),
+        "com.android.art.heap.iterate_through_heap_ext",
+        "Iterate through a heap. This is equivalent to the standard IterateThroughHeap function,"
+        " except for additionally passing the heap id of the current object. The jvmtiHeapCallbacks"
+        " structure is reused, with the callbacks field overloaded to a signature of "
+        "jint (*)(jlong, jlong, jlong*, jint length, void*, jint).",
+        4,
+        {                                                          // NOLINT [whitespace/braces] [4]
+            { "heap_filter", JVMTI_KIND_IN, JVMTI_TYPE_JINT, false},
+            { "klass", JVMTI_KIND_IN, JVMTI_TYPE_JCLASS, true},
+            { "callbacks", JVMTI_KIND_IN_PTR, JVMTI_TYPE_CVOID, false},
+            { "user_data", JVMTI_KIND_IN_PTR, JVMTI_TYPE_CVOID, true}
+        },
+        3,
+        {                                                          // NOLINT [whitespace/braces] [4]
+            JVMTI_ERROR_MUST_POSSESS_CAPABILITY,
+            JVMTI_ERROR_INVALID_CLASS,
+            JVMTI_ERROR_NULL_POINTER
+        });
+    if (error != ERR(NONE)) {
+      return error;
+    }
+
     // Copy into output buffer.
 
     *extension_count_ptr = ext_vector.size();

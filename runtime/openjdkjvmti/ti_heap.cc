@@ -1433,6 +1433,33 @@ static constexpr jint kHeapIdImage = 1;
 static constexpr jint kHeapIdZygote = 2;
 static constexpr jint kHeapIdApp = 3;
 
+static jint GetHeapId(art::ObjPtr<art::mirror::Object> obj)
+    REQUIRES_SHARED(art::Locks::mutator_lock_) {
+  if (obj == nullptr) {
+    return -1;
+  }
+
+  art::gc::Heap* const heap = art::Runtime::Current()->GetHeap();
+  const art::gc::space::ContinuousSpace* const space =
+      heap->FindContinuousSpaceFromObject(obj, true);
+  jint heap_type = kHeapIdApp;
+  if (space != nullptr) {
+    if (space->IsZygoteSpace()) {
+      heap_type = kHeapIdZygote;
+    } else if (space->IsImageSpace() && heap->ObjectIsInBootImageSpace(obj)) {
+      // Only count objects in the boot image as HPROF_HEAP_IMAGE, this leaves app image objects
+      // as HPROF_HEAP_APP. b/35762934
+      heap_type = kHeapIdImage;
+    }
+  } else {
+    const auto* los = heap->GetLargeObjectsSpace();
+    if (los->Contains(obj.Ptr()) && los->IsZygoteLargeObject(art::Thread::Current(), obj.Ptr())) {
+      heap_type = kHeapIdZygote;
+    }
+  }
+  return heap_type;
+};
+
 jvmtiError HeapExtensions::GetObjectHeapId(jvmtiEnv* env, jlong tag, jint* heap_id, ...) {
   if (heap_id == nullptr) {
     return ERR(NULL_POINTER);
@@ -1443,27 +1470,9 @@ jvmtiError HeapExtensions::GetObjectHeapId(jvmtiEnv* env, jlong tag, jint* heap_
   auto work = [&]() REQUIRES_SHARED(art::Locks::mutator_lock_) {
     ObjectTagTable* tag_table = ArtJvmTiEnv::AsArtJvmTiEnv(env)->object_tag_table.get();
     art::ObjPtr<art::mirror::Object> obj = tag_table->Find(tag);
-    if (obj == nullptr) {
+    jint heap_type = GetHeapId(obj);
+    if (heap_type == -1) {
       return ERR(NOT_FOUND);
-    }
-
-    art::gc::Heap* const heap = art::Runtime::Current()->GetHeap();
-    const art::gc::space::ContinuousSpace* const space =
-        heap->FindContinuousSpaceFromObject(obj, true);
-    jint heap_type = kHeapIdApp;
-    if (space != nullptr) {
-      if (space->IsZygoteSpace()) {
-        heap_type = kHeapIdZygote;
-      } else if (space->IsImageSpace() && heap->ObjectIsInBootImageSpace(obj)) {
-        // Only count objects in the boot image as HPROF_HEAP_IMAGE, this leaves app image objects
-        // as HPROF_HEAP_APP. b/35762934
-        heap_type = kHeapIdImage;
-      }
-    } else {
-      const auto* los = heap->GetLargeObjectsSpace();
-      if (los->Contains(obj.Ptr()) && los->IsZygoteLargeObject(self, obj.Ptr())) {
-        heap_type = kHeapIdZygote;
-      }
     }
     *heap_id = heap_type;
     return ERR(NONE);
@@ -1516,6 +1525,38 @@ jvmtiError HeapExtensions::GetHeapName(jvmtiEnv* env, jint heap_id, char** heap_
     default:
       return ERR(ILLEGAL_ARGUMENT);
   }
+}
+
+jvmtiError HeapExtensions::IterateThroughHeapExt(jvmtiEnv* env,
+                                                 jint heap_filter,
+                                                 jclass klass,
+                                                 const jvmtiHeapCallbacks* callbacks,
+                                                 const void* user_data) {
+  if (ArtJvmTiEnv::AsArtJvmTiEnv(env)->capabilities.can_tag_objects != 1) { \
+    return ERR(MUST_POSSESS_CAPABILITY); \
+  }
+
+  // ART extension API: Also pass the heap id.
+  auto ArtIterateHeap = [](art::mirror::Object* obj,
+                           const jvmtiHeapCallbacks* cb_callbacks,
+                           jlong class_tag,
+                           jlong size,
+                           jlong* tag,
+                           jint length,
+                           void* cb_user_data)
+      REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    jint heap_id = GetHeapId(obj);
+    using ArtExtensionAPI = jint (*)(jlong, jlong, jlong*, jint length, void*, jint);
+    return reinterpret_cast<ArtExtensionAPI>(cb_callbacks->heap_iteration_callback)(
+        class_tag, size, tag, length, cb_user_data, heap_id);
+  };
+  return DoIterateThroughHeap(ArtIterateHeap,
+                              env,
+                              ArtJvmTiEnv::AsArtJvmTiEnv(env)->object_tag_table.get(),
+                              heap_filter,
+                              klass,
+                              callbacks,
+                              user_data);
 }
 
 }  // namespace openjdkjvmti
