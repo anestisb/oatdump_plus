@@ -401,6 +401,9 @@ class InstructionCodeGeneratorARMVIXL : public InstructionCodeGenerator {
   void GenerateCompareTestAndBranch(HCondition* condition,
                                     vixl::aarch32::Label* true_target,
                                     vixl::aarch32::Label* false_target);
+  void GenerateLongComparesAndJumps(HCondition* cond,
+                                    vixl::aarch32::Label* true_label,
+                                    vixl::aarch32::Label* false_label);
   void DivRemOneOrMinusOne(HBinaryOperation* instruction);
   void DivRemByPowerOfTwo(HBinaryOperation* instruction);
   void GenerateDivRemWithAnyConstant(HBinaryOperation* instruction);
@@ -695,14 +698,6 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
 
   void EmitMovwMovtPlaceholder(CodeGeneratorARMVIXL::PcRelativePatchInfo* labels,
                                vixl::aarch32::Register out);
-
-  // `temp` is an extra temporary register that is used for some conditions;
-  // callers may not specify it, in which case the method will use a scratch
-  // register instead.
-  void GenerateConditionWithZero(IfCondition condition,
-                                 vixl::aarch32::Register out,
-                                 vixl::aarch32::Register in,
-                                 vixl::aarch32::Register temp = vixl32::Register());
 
  private:
   vixl::aarch32::Register GetInvokeStaticOrDirectExtraParameter(HInvokeStaticOrDirect* invoke,
