@@ -188,6 +188,9 @@ class GcRoot {
   ALWAYS_INLINE MirrorType* Read(GcRootSource* gc_root_source = nullptr) const
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // Return the mirror Object if it is marked, or null if not.
+  ALWAYS_INLINE MirrorType* ReadIfMarked() const REQUIRES_SHARED(Locks::mutator_lock_);
+
   void VisitRoot(RootVisitor* visitor, const RootInfo& info) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(!IsNull());

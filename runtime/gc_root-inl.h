@@ -34,6 +34,11 @@ inline MirrorType* GcRoot<MirrorType>::Read(GcRootSource* gc_root_source) const 
 }
 
 template<class MirrorType>
+inline MirrorType* GcRoot<MirrorType>::ReadIfMarked() const {
+  return down_cast<MirrorType*>(ReadBarrier::IsMarked(Read<kWithoutReadBarrier>()));
+}
+
+template<class MirrorType>
 inline GcRoot<MirrorType>::GcRoot(MirrorType* ref)
     : root_(mirror::CompressedReference<mirror::Object>::FromMirrorPtr(ref)) { }
 
