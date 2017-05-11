@@ -115,6 +115,7 @@ art_cc_defaults {
                 "optimizing/intrinsics_arm.cc",
                 "optimizing/intrinsics_arm_vixl.cc",
                 "optimizing/nodes_shared.cc",
+                "optimizing/scheduler_arm.cc",
                 "utils/arm/assembler_arm.cc",
                 "utils/arm/assembler_arm_vixl.cc",
                 "utils/arm/assembler_thumb2.cc",

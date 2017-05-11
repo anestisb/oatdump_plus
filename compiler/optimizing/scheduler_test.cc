@@ -28,6 +28,10 @@
 #include "scheduler_arm64.h"
 #endif
 
+#ifdef ART_ENABLE_CODEGEN_arm
+#include "scheduler_arm.h"
+#endif
+
 namespace art {
 
 // Return all combinations of ISA and code generator that are executable on
@@ -65,133 +69,151 @@ static ::std::vector<CodegenTargetConfig> GetTargetConfigs() {
   return v;
 }
 
-class SchedulerTest : public CommonCompilerTest {};
-
-#ifdef ART_ENABLE_CODEGEN_arm64
-TEST_F(SchedulerTest, DependencyGraph) {
-  ArenaPool pool;
-  ArenaAllocator allocator(&pool);
-  HGraph* graph = CreateGraph(&allocator);
-  HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
-  HBasicBlock* block1 = new (&allocator) HBasicBlock(graph);
-  graph->AddBlock(entry);
-  graph->AddBlock(block1);
-  graph->SetEntryBlock(entry);
-
-  // entry:
-  // array         ParameterValue
-  // c1            IntConstant
-  // c2            IntConstant
-  // block1:
-  // add1          Add [c1, c2]
-  // add2          Add [add1, c2]
-  // mul           Mul [add1, add2]
-  // div_check     DivZeroCheck [add2] (env: add2, mul)
-  // div           Div [add1, div_check]
-  // array_get1    ArrayGet [array, add1]
-  // array_set1    ArraySet [array, add1, add2]
-  // array_get2    ArrayGet [array, add1]
-  // array_set2    ArraySet [array, add1, add2]
-
-  HInstruction* array = new (&allocator) HParameterValue(graph->GetDexFile(),
-                                                         dex::TypeIndex(0),
-                                                         0,
-                                                         Primitive::kPrimNot);
-  HInstruction* c1 = graph->GetIntConstant(1);
-  HInstruction* c2 = graph->GetIntConstant(10);
-  HInstruction* add1 = new (&allocator) HAdd(Primitive::kPrimInt, c1, c2);
-  HInstruction* add2 = new (&allocator) HAdd(Primitive::kPrimInt, add1, c2);
-  HInstruction* mul = new (&allocator) HMul(Primitive::kPrimInt, add1, add2);
-  HInstruction* div_check = new (&allocator) HDivZeroCheck(add2, 0);
-  HInstruction* div = new (&allocator) HDiv(Primitive::kPrimInt, add1, div_check, 0);
-  HInstruction* array_get1 = new (&allocator) HArrayGet(array, add1, Primitive::kPrimInt, 0);
-  HInstruction* array_set1 = new (&allocator) HArraySet(array, add1, add2, Primitive::kPrimInt, 0);
-  HInstruction* array_get2 = new (&allocator) HArrayGet(array, add1, Primitive::kPrimInt, 0);
-  HInstruction* array_set2 = new (&allocator) HArraySet(array, add1, add2, Primitive::kPrimInt, 0);
-
-  DCHECK(div_check->CanThrow());
-
-  entry->AddInstruction(array);
-
-  HInstruction* block_instructions[] = {add1,
-                                        add2,
-                                        mul,
-                                        div_check,
-                                        div,
-                                        array_get1,
-                                        array_set1,
-                                        array_get2,
-                                        array_set2};
-  for (auto instr : block_instructions) {
-    block1->AddInstruction(instr);
+class SchedulerTest : public CommonCompilerTest {
+ public:
+  SchedulerTest() : pool_(), allocator_(&pool_) {
+    graph_ = CreateGraph(&allocator_);
   }
 
-  HEnvironment* environment = new (&allocator) HEnvironment(&allocator,
-                                                            2,
-                                                            graph->GetArtMethod(),
+  // Build scheduling graph, and run target specific scheduling on it.
+  void TestBuildDependencyGraphAndSchedule(HScheduler* scheduler) {
+    HBasicBlock* entry = new (&allocator_) HBasicBlock(graph_);
+    HBasicBlock* block1 = new (&allocator_) HBasicBlock(graph_);
+    graph_->AddBlock(entry);
+    graph_->AddBlock(block1);
+    graph_->SetEntryBlock(entry);
+
+    // entry:
+    // array         ParameterValue
+    // c1            IntConstant
+    // c2            IntConstant
+    // block1:
+    // add1          Add [c1, c2]
+    // add2          Add [add1, c2]
+    // mul           Mul [add1, add2]
+    // div_check     DivZeroCheck [add2] (env: add2, mul)
+    // div           Div [add1, div_check]
+    // array_get1    ArrayGet [array, add1]
+    // array_set1    ArraySet [array, add1, add2]
+    // array_get2    ArrayGet [array, add1]
+    // array_set2    ArraySet [array, add1, add2]
+
+    HInstruction* array = new (&allocator_) HParameterValue(graph_->GetDexFile(),
+                                                            dex::TypeIndex(0),
                                                             0,
-                                                            div_check);
-  div_check->SetRawEnvironment(environment);
-  environment->SetRawEnvAt(0, add2);
-  add2->AddEnvUseAt(div_check->GetEnvironment(), 0);
-  environment->SetRawEnvAt(1, mul);
-  mul->AddEnvUseAt(div_check->GetEnvironment(), 1);
+                                                            Primitive::kPrimNot);
+    HInstruction* c1 = graph_->GetIntConstant(1);
+    HInstruction* c2 = graph_->GetIntConstant(10);
+    HInstruction* add1 = new (&allocator_) HAdd(Primitive::kPrimInt, c1, c2);
+    HInstruction* add2 = new (&allocator_) HAdd(Primitive::kPrimInt, add1, c2);
+    HInstruction* mul = new (&allocator_) HMul(Primitive::kPrimInt, add1, add2);
+    HInstruction* div_check = new (&allocator_) HDivZeroCheck(add2, 0);
+    HInstruction* div = new (&allocator_) HDiv(Primitive::kPrimInt, add1, div_check, 0);
+    HInstruction* array_get1 = new (&allocator_) HArrayGet(array, add1, Primitive::kPrimInt, 0);
+    HInstruction* array_set1 = new (&allocator_) HArraySet(array, add1, add2, Primitive::kPrimInt, 0);
+    HInstruction* array_get2 = new (&allocator_) HArrayGet(array, add1, Primitive::kPrimInt, 0);
+    HInstruction* array_set2 = new (&allocator_) HArraySet(array, add1, add2, Primitive::kPrimInt, 0);
 
-  ArenaAllocator* arena = graph->GetArena();
-  CriticalPathSchedulingNodeSelector critical_path_selector;
-  arm64::HSchedulerARM64 scheduler(arena, &critical_path_selector);
-  SchedulingGraph scheduling_graph(&scheduler, arena);
-  // Instructions must be inserted in reverse order into the scheduling graph.
-  for (auto instr : ReverseRange(block_instructions)) {
-    scheduling_graph.AddNode(instr);
+    DCHECK(div_check->CanThrow());
+
+    entry->AddInstruction(array);
+
+    HInstruction* block_instructions[] = {add1,
+                                          add2,
+                                          mul,
+                                          div_check,
+                                          div,
+                                          array_get1,
+                                          array_set1,
+                                          array_get2,
+                                          array_set2};
+    for (auto instr : block_instructions) {
+      block1->AddInstruction(instr);
+    }
+
+    HEnvironment* environment = new (&allocator_) HEnvironment(&allocator_,
+                                                               2,
+                                                               graph_->GetArtMethod(),
+                                                               0,
+                                                               div_check);
+    div_check->SetRawEnvironment(environment);
+    environment->SetRawEnvAt(0, add2);
+    add2->AddEnvUseAt(div_check->GetEnvironment(), 0);
+    environment->SetRawEnvAt(1, mul);
+    mul->AddEnvUseAt(div_check->GetEnvironment(), 1);
+
+    SchedulingGraph scheduling_graph(scheduler, graph_->GetArena());
+    // Instructions must be inserted in reverse order into the scheduling graph.
+    for (auto instr : ReverseRange(block_instructions)) {
+      scheduling_graph.AddNode(instr);
+    }
+
+    // Should not have dependencies cross basic blocks.
+    ASSERT_FALSE(scheduling_graph.HasImmediateDataDependency(add1, c1));
+    ASSERT_FALSE(scheduling_graph.HasImmediateDataDependency(add2, c2));
+
+    // Define-use dependency.
+    ASSERT_TRUE(scheduling_graph.HasImmediateDataDependency(add2, add1));
+    ASSERT_FALSE(scheduling_graph.HasImmediateDataDependency(add1, add2));
+    ASSERT_TRUE(scheduling_graph.HasImmediateDataDependency(div_check, add2));
+    ASSERT_FALSE(scheduling_graph.HasImmediateDataDependency(div_check, add1));
+    ASSERT_TRUE(scheduling_graph.HasImmediateDataDependency(div, div_check));
+    ASSERT_TRUE(scheduling_graph.HasImmediateDataDependency(array_set1, add1));
+    ASSERT_TRUE(scheduling_graph.HasImmediateDataDependency(array_set1, add2));
+
+    // Read and write dependencies
+    ASSERT_TRUE(scheduling_graph.HasImmediateOtherDependency(array_set1, array_get1));
+    ASSERT_TRUE(scheduling_graph.HasImmediateOtherDependency(array_set2, array_get2));
+    ASSERT_TRUE(scheduling_graph.HasImmediateOtherDependency(array_get2, array_set1));
+    ASSERT_TRUE(scheduling_graph.HasImmediateOtherDependency(array_set2, array_set1));
+
+    // Env dependency.
+    ASSERT_TRUE(scheduling_graph.HasImmediateOtherDependency(div_check, mul));
+    ASSERT_FALSE(scheduling_graph.HasImmediateOtherDependency(mul, div_check));
+
+    // CanThrow.
+    ASSERT_TRUE(scheduling_graph.HasImmediateOtherDependency(array_set1, div_check));
+
+    // Exercise the code path of target specific scheduler and SchedulingLatencyVisitor.
+    scheduler->Schedule(graph_);
   }
 
-  // Should not have dependencies cross basic blocks.
-  ASSERT_FALSE(scheduling_graph.HasImmediateDataDependency(add1, c1));
-  ASSERT_FALSE(scheduling_graph.HasImmediateDataDependency(add2, c2));
+  void CompileWithRandomSchedulerAndRun(const uint16_t* data, bool has_result, int expected) {
+    for (CodegenTargetConfig target_config : GetTargetConfigs()) {
+      HGraph* graph = CreateCFG(&allocator_, data);
 
-  // Define-use dependency.
-  ASSERT_TRUE(scheduling_graph.HasImmediateDataDependency(add2, add1));
-  ASSERT_FALSE(scheduling_graph.HasImmediateDataDependency(add1, add2));
-  ASSERT_TRUE(scheduling_graph.HasImmediateDataDependency(div_check, add2));
-  ASSERT_FALSE(scheduling_graph.HasImmediateDataDependency(div_check, add1));
-  ASSERT_TRUE(scheduling_graph.HasImmediateDataDependency(div, div_check));
-  ASSERT_TRUE(scheduling_graph.HasImmediateDataDependency(array_set1, add1));
-  ASSERT_TRUE(scheduling_graph.HasImmediateDataDependency(array_set1, add2));
+      // Schedule the graph randomly.
+      HInstructionScheduling scheduling(graph, target_config.GetInstructionSet());
+      scheduling.Run(/*only_optimize_loop_blocks*/ false, /*schedule_randomly*/ true);
 
-  // Read and write dependencies
-  ASSERT_TRUE(scheduling_graph.HasImmediateOtherDependency(array_set1, array_get1));
-  ASSERT_TRUE(scheduling_graph.HasImmediateOtherDependency(array_set2, array_get2));
-  ASSERT_TRUE(scheduling_graph.HasImmediateOtherDependency(array_get2, array_set1));
-  ASSERT_TRUE(scheduling_graph.HasImmediateOtherDependency(array_set2, array_set1));
+      RunCode(target_config,
+              graph,
+              [](HGraph* graph_arg) { RemoveSuspendChecks(graph_arg); },
+              has_result, expected);
+    }
+  }
 
-  // Env dependency.
-  ASSERT_TRUE(scheduling_graph.HasImmediateOtherDependency(div_check, mul));
-  ASSERT_FALSE(scheduling_graph.HasImmediateOtherDependency(mul, div_check));
+  ArenaPool pool_;
+  ArenaAllocator allocator_;
+  HGraph* graph_;
+};
 
-  // CanThrow.
-  ASSERT_TRUE(scheduling_graph.HasImmediateOtherDependency(array_set1, div_check));
+#if defined(ART_ENABLE_CODEGEN_arm64)
+TEST_F(SchedulerTest, DependencyGraphAndSchedulerARM64) {
+  CriticalPathSchedulingNodeSelector critical_path_selector;
+  arm64::HSchedulerARM64 scheduler(&allocator_, &critical_path_selector);
+  TestBuildDependencyGraphAndSchedule(&scheduler);
 }
 #endif
 
-static void CompileWithRandomSchedulerAndRun(const uint16_t* data,
-                                             bool has_result,
-                                             int expected) {
-  for (CodegenTargetConfig target_config : GetTargetConfigs()) {
-    ArenaPool pool;
-    ArenaAllocator arena(&pool);
-    HGraph* graph = CreateCFG(&arena, data);
-
-    // Schedule the graph randomly.
-    HInstructionScheduling scheduling(graph, target_config.GetInstructionSet());
-    scheduling.Run(/*only_optimize_loop_blocks*/ false, /*schedule_randomly*/ true);
-
-    RunCode(target_config,
-            graph,
-            [](HGraph* graph_arg) { RemoveSuspendChecks(graph_arg); },
-            has_result, expected);
-  }
+#if defined(ART_ENABLE_CODEGEN_arm)
+TEST_F(SchedulerTest, DependencyGrapAndSchedulerARM) {
+  CriticalPathSchedulingNodeSelector critical_path_selector;
+  arm::SchedulingLatencyVisitorARM arm_latency_visitor(/*CodeGenerator*/ nullptr);
+  arm::HSchedulerARM scheduler(&allocator_, &critical_path_selector, &arm_latency_visitor);
+  TestBuildDependencyGraphAndSchedule(&scheduler);
 }
+#endif
 
 TEST_F(SchedulerTest, RandomScheduling) {
   //

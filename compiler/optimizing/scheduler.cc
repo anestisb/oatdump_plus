@@ -23,6 +23,10 @@
 #include "scheduler_arm64.h"
 #endif
 
+#ifdef ART_ENABLE_CODEGEN_arm
+#include "scheduler_arm.h"
+#endif
+
 namespace art {
 
 void SchedulingGraph::AddDependency(SchedulingNode* node,
@@ -580,23 +584,34 @@ bool HScheduler::IsSchedulingBarrier(const HInstruction* instr) const {
 
 void HInstructionScheduling::Run(bool only_optimize_loop_blocks,
                                  bool schedule_randomly) {
+#if defined(ART_ENABLE_CODEGEN_arm64) || defined(ART_ENABLE_CODEGEN_arm)
+  // Phase-local allocator that allocates scheduler internal data structures like
+  // scheduling nodes, internel nodes map, dependencies, etc.
+  ArenaAllocator arena_allocator(graph_->GetArena()->GetArenaPool());
+  CriticalPathSchedulingNodeSelector critical_path_selector;
+  RandomSchedulingNodeSelector random_selector;
+  SchedulingNodeSelector* selector = schedule_randomly
+      ? static_cast<SchedulingNodeSelector*>(&random_selector)
+      : static_cast<SchedulingNodeSelector*>(&critical_path_selector);
+#else
   // Avoid compilation error when compiling for unsupported instruction set.
   UNUSED(only_optimize_loop_blocks);
   UNUSED(schedule_randomly);
+#endif
   switch (instruction_set_) {
 #ifdef ART_ENABLE_CODEGEN_arm64
     case kArm64: {
-      // Phase-local allocator that allocates scheduler internal data structures like
-      // scheduling nodes, internel nodes map, dependencies, etc.
-      ArenaAllocator arena_allocator(graph_->GetArena()->GetArenaPool());
-
-      CriticalPathSchedulingNodeSelector critical_path_selector;
-      RandomSchedulingNodeSelector random_selector;
-      SchedulingNodeSelector* selector = schedule_randomly
-          ? static_cast<SchedulingNodeSelector*>(&random_selector)
-          : static_cast<SchedulingNodeSelector*>(&critical_path_selector);
-
       arm64::HSchedulerARM64 scheduler(&arena_allocator, selector);
+      scheduler.SetOnlyOptimizeLoopBlocks(only_optimize_loop_blocks);
+      scheduler.Schedule(graph_);
+      break;
+    }
+#endif
+#if defined(ART_ENABLE_CODEGEN_arm)
+    case kThumb2:
+    case kArm: {
+      arm::SchedulingLatencyVisitorARM arm_latency_visitor(codegen_);
+      arm::HSchedulerARM scheduler(&arena_allocator, selector, &arm_latency_visitor);
       scheduler.SetOnlyOptimizeLoopBlocks(only_optimize_loop_blocks);
       scheduler.Schedule(graph_);
       break;
