@@ -606,7 +606,7 @@ class ReadBarrierMarkSlowPathMIPS64 : public SlowPathCodeMIPS64 {
       __ Nop();
     } else {
       int32_t entry_point_offset =
-          CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kMips64PointerSize>(ref_reg - 1);
+          Thread::ReadBarrierMarkEntryPointsOffset<kMips64PointerSize>(ref_reg - 1);
       // This runtime call does not require a stack map.
       mips64_codegen->InvokeRuntimeWithoutRecordingPcInfo(entry_point_offset,
                                                           instruction_,
@@ -699,7 +699,7 @@ class ReadBarrierMarkAndUpdateFieldSlowPathMIPS64 : public SlowPathCodeMIPS64 {
     //   rX <- ReadBarrierMarkRegX(rX)
     //
     int32_t entry_point_offset =
-        CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kMips64PointerSize>(ref_reg - 1);
+        Thread::ReadBarrierMarkEntryPointsOffset<kMips64PointerSize>(ref_reg - 1);
     // This runtime call does not require a stack map.
     mips64_codegen->InvokeRuntimeWithoutRecordingPcInfo(entry_point_offset,
                                                         instruction_,
@@ -4421,7 +4421,7 @@ void InstructionCodeGeneratorMIPS64::GenerateGcRootFieldLoad(
 
       // temp = Thread::Current()->pReadBarrierMarkReg ## root.reg()
       const int32_t entry_point_offset =
-          CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kMips64PointerSize>(root.reg() - 1);
+          Thread::ReadBarrierMarkEntryPointsOffset<kMips64PointerSize>(root.reg() - 1);
       // Loading the entrypoint does not require a load acquire since it is only changed when
       // threads are suspended or running a checkpoint.
       __ LoadFromOffset(kLoadDoubleword, temp.AsRegister<GpuRegister>(), TR, entry_point_offset);

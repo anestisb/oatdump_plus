@@ -381,6 +381,21 @@ static void EmitGrayCheckAndFastPath(arm64::Arm64Assembler& assembler,
   // Note: The fake dependency is unnecessary for the slow path.
 }
 
+// Load the read barrier introspection entrypoint in register `entrypoint`.
+static void LoadReadBarrierMarkIntrospectionEntrypoint(arm64::Arm64Assembler& assembler,
+                                                       vixl::aarch64::Register entrypoint) {
+  using vixl::aarch64::MemOperand;
+  using vixl::aarch64::ip0;
+  // Thread Register.
+  const vixl::aarch64::Register tr = vixl::aarch64::x19;
+
+  // entrypoint = Thread::Current()->pReadBarrierMarkReg16, i.e. pReadBarrierMarkIntrospection.
+  DCHECK_EQ(ip0.GetCode(), 16u);
+  const int32_t entry_point_offset =
+      Thread::ReadBarrierMarkEntryPointsOffset<kArm64PointerSize>(ip0.GetCode());
+  __ Ldr(entrypoint, MemOperand(tr, entry_point_offset));
+}
+
 void Arm64RelativePatcher::CompileBakerReadBarrierThunk(arm64::Arm64Assembler& assembler,
                                                         uint32_t encoded_data) {
   using namespace vixl::aarch64;  // NOLINT(build/namespaces)
@@ -412,6 +427,7 @@ void Arm64RelativePatcher::CompileBakerReadBarrierThunk(arm64::Arm64Assembler& a
       __ Bind(&slow_path);
       MemOperand ldr_address(lr, BAKER_MARK_INTROSPECTION_FIELD_LDR_OFFSET);
       __ Ldr(ip0.W(), ldr_address);         // Load the LDR (immediate) unsigned offset.
+      LoadReadBarrierMarkIntrospectionEntrypoint(assembler, ip1);
       __ Ubfx(ip0.W(), ip0.W(), 10, 12);    // Extract the offset.
       __ Ldr(ip0.W(), MemOperand(base_reg, ip0, LSL, 2));   // Load the reference.
       // Do not unpoison. With heap poisoning enabled, the entrypoint expects a poisoned reference.
@@ -441,6 +457,7 @@ void Arm64RelativePatcher::CompileBakerReadBarrierThunk(arm64::Arm64Assembler& a
       __ Bind(&slow_path);
       MemOperand ldr_address(lr, BAKER_MARK_INTROSPECTION_ARRAY_LDR_OFFSET);
       __ Ldr(ip0.W(), ldr_address);         // Load the LDR (register) unsigned offset.
+      LoadReadBarrierMarkIntrospectionEntrypoint(assembler, ip1);
       __ Ubfx(ip0, ip0, 16, 6);             // Extract the index register, plus 32 (bit 21 is set).
       __ Bfi(ip1, ip0, 3, 6);               // Insert ip0 to the entrypoint address to create
                                             // a switch case target based on the index register.
@@ -469,6 +486,7 @@ void Arm64RelativePatcher::CompileBakerReadBarrierThunk(arm64::Arm64Assembler& a
       __ Bind(&not_marked);
       __ Tst(ip0.W(), Operand(ip0.W(), LSL, 1));
       __ B(&forwarding_address, mi);
+      LoadReadBarrierMarkIntrospectionEntrypoint(assembler, ip1);
       // Adjust the art_quick_read_barrier_mark_introspection address in IP1 to
       // art_quick_read_barrier_mark_introspection_gc_roots.
       __ Add(ip1, ip1, Operand(BAKER_MARK_INTROSPECTION_GC_ROOT_ENTRYPOINT_OFFSET));

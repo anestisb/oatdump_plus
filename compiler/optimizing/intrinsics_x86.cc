@@ -143,8 +143,7 @@ class ReadBarrierSystemArrayCopySlowPathX86 : public SlowPathCode {
     // explanations.)
     DCHECK_NE(temp2, ESP);
     DCHECK(0 <= temp2 && temp2 < kNumberOfCpuRegisters) << temp2;
-    int32_t entry_point_offset =
-        CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kX86PointerSize>(temp2);
+    int32_t entry_point_offset = Thread::ReadBarrierMarkEntryPointsOffset<kX86PointerSize>(temp2);
     // This runtime call does not require a stack map.
     x86_codegen->InvokeRuntimeWithoutRecordingPcInfo(entry_point_offset, instruction_, this);
     __ MaybePoisonHeapReference(temp2);

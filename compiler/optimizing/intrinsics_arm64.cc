@@ -205,7 +205,7 @@ class ReadBarrierSystemArrayCopySlowPathARM64 : public SlowPathCodeARM64 {
     // TODO: Load the entrypoint once before the loop, instead of
     // loading it at every iteration.
     int32_t entry_point_offset =
-        CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kArm64PointerSize>(tmp_.reg());
+        Thread::ReadBarrierMarkEntryPointsOffset<kArm64PointerSize>(tmp_.reg());
     // This runtime call does not require a stack map.
     codegen->InvokeRuntimeWithoutRecordingPcInfo(entry_point_offset, instruction_, this);
     codegen->GetAssembler()->MaybePoisonHeapReference(tmp_reg);

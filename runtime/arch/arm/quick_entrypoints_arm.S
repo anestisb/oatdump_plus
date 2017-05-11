@@ -1331,7 +1331,7 @@ GENERATE_ALLOC_OBJECT_RESOLVED_TLAB art_quick_alloc_object_initialized_tlab, art
 // r0: type r1: component_count r2: total_size r9: Thread::Current, r3, r12: free.
 // Need to preserve r0 and r1 to the slow path.
 .macro ALLOC_ARRAY_TLAB_FAST_PATH_RESOLVED_WITH_SIZE slowPathLabel
-    and    r2, r2, #OBJECT_ALIGNMENT_MASK_TOGGLED             // Apply alignemnt mask
+    and    r2, r2, #OBJECT_ALIGNMENT_MASK_TOGGLED             // Apply alignment mask
                                                               // (addr + 7) & ~7.
 
                                                               // Load thread_local_pos (r3) and

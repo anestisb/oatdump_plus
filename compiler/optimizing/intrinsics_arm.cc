@@ -154,8 +154,7 @@ class ReadBarrierSystemArrayCopySlowPathARM : public SlowPathCode {
     DCHECK(0 <= tmp && tmp < kNumberOfCoreRegisters) << tmp;
     // TODO: Load the entrypoint once before the loop, instead of
     // loading it at every iteration.
-    int32_t entry_point_offset =
-        CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kArmPointerSize>(tmp);
+    int32_t entry_point_offset = Thread::ReadBarrierMarkEntryPointsOffset<kArmPointerSize>(tmp);
     // This runtime call does not require a stack map.
     arm_codegen->InvokeRuntimeWithoutRecordingPcInfo(entry_point_offset, instruction_, this);
     __ MaybePoisonHeapReference(tmp);
