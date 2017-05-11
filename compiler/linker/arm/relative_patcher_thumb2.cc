@@ -108,7 +108,7 @@ void Thumb2RelativePatcher::PatchBakerReadBarrierBranch(std::vector<uint8_t>* co
   DCHECK_EQ(insn, 0xf0408000);  // BNE +0 (unpatched)
   ThunkKey key = GetBakerThunkKey(patch);
   if (kIsDebugBuild) {
-    const uint32_t encoded_data = key.GetBakerReadBarrierParams().custom_value1;
+    const uint32_t encoded_data = key.GetCustomValue1();
     BakerReadBarrierKind kind = BakerReadBarrierKindField::Decode(encoded_data);
     // Check that the next instruction matches the expected LDR.
     switch (kind) {
@@ -346,7 +346,7 @@ std::vector<uint8_t> Thumb2RelativePatcher::CompileThunk(const ThunkKey& key) {
       __ Bkpt(0);
       break;
     case ThunkType::kBakerReadBarrier:
-      CompileBakerReadBarrierThunk(assembler, key.GetBakerReadBarrierParams().custom_value1);
+      CompileBakerReadBarrierThunk(assembler, key.GetCustomValue1());
       break;
   }
 

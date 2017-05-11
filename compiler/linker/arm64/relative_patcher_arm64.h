@@ -86,7 +86,7 @@ class Arm64RelativePatcher FINAL : public ArmBaseRelativePatcher {
     kField,   // Field get or array get with constant offset (i.e. constant index).
     kArray,   // Array get with index in register.
     kGcRoot,  // GC root load.
-    kLast
+    kLast = kGcRoot
   };
 
   static constexpr size_t kBitsForBakerReadBarrierKind =
