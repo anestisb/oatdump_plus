@@ -2802,6 +2802,94 @@ void Mips64Assembler::AdjustBaseAndOffset(GpuRegister& base,
   CHECK_EQ(misalignment, offset & (kMips64DoublewordSize - 1));
 }
 
+void Mips64Assembler::AdjustBaseOffsetAndElementSizeShift(GpuRegister& base,
+                                                          int32_t& offset,
+                                                          int& element_size_shift) {
+  // This method is used to adjust the base register, offset and element_size_shift
+  // for a vector load/store when the offset doesn't fit into allowed number of bits.
+  // MSA ld.df and st.df instructions take signed offsets as arguments, but maximum
+  // offset is dependant on the size of the data format df (10-bit offsets for ld.b,
+  // 11-bit for ld.h, 12-bit for ld.w and 13-bit for ld.d).
+  // If element_size_shift is non-negative at entry, it won't be changed, but offset
+  // will be checked for appropriate alignment. If negative at entry, it will be
+  // adjusted based on offset for maximum fit.
+  // It's assumed that `base` is a multiple of 8.
+
+  CHECK_NE(base, AT);  // Must not overwrite the register `base` while loading `offset`.
+
+  if (element_size_shift >= 0) {
+    CHECK_LE(element_size_shift, TIMES_8);
+    CHECK_GE(JAVASTYLE_CTZ(offset), element_size_shift);
+  } else if (IsAligned<kMips64DoublewordSize>(offset)) {
+    element_size_shift = TIMES_8;
+  } else if (IsAligned<kMips64WordSize>(offset)) {
+    element_size_shift = TIMES_4;
+  } else if (IsAligned<kMips64HalfwordSize>(offset)) {
+    element_size_shift = TIMES_2;
+  } else {
+    element_size_shift = TIMES_1;
+  }
+
+  const int low_len = 10 + element_size_shift;  // How many low bits of `offset` ld.df/st.df
+                                                // will take.
+  int16_t low = offset & ((1 << low_len) - 1);  // Isolate these bits.
+  low -= (low & (1 << (low_len - 1))) << 1;     // Sign-extend these bits.
+  if (low == offset) {
+    return;  // `offset` fits into ld.df/st.df.
+  }
+
+  // First, see if `offset` can be represented as a sum of two signed offsets.
+  // This can save an instruction.
+
+  // Max int16_t that's a multiple of element size.
+  const int32_t kMaxDeltaForSimpleAdjustment = 0x8000 - (1 << element_size_shift);
+  // Max ld.df/st.df offset that's a multiple of element size.
+  const int32_t kMaxLoadStoreOffset = 0x1ff << element_size_shift;
+  const int32_t kMaxOffsetForSimpleAdjustment = kMaxDeltaForSimpleAdjustment + kMaxLoadStoreOffset;
+
+  if (IsInt<16>(offset)) {
+    Daddiu(AT, base, offset);
+    offset = 0;
+  } else if (0 <= offset && offset <= kMaxOffsetForSimpleAdjustment) {
+    Daddiu(AT, base, kMaxDeltaForSimpleAdjustment);
+    offset -= kMaxDeltaForSimpleAdjustment;
+  } else if (-kMaxOffsetForSimpleAdjustment <= offset && offset < 0) {
+    Daddiu(AT, base, -kMaxDeltaForSimpleAdjustment);
+    offset += kMaxDeltaForSimpleAdjustment;
+  } else {
+    // Let's treat `offset` as 64-bit to simplify handling of sign
+    // extensions in the instructions that supply its smaller signed parts.
+    //
+    // 16-bit or smaller parts of `offset`:
+    // |63  top  48|47  hi  32|31  upper  16|15  mid  13-10|12-9  low  0|
+    //
+    // Instructions that supply each part as a signed integer addend:
+    // |dati       |dahi      |daui         |daddiu        |ld.df/st.df |
+    //
+    // `top` is always 0, so dati isn't used.
+    // `hi` is 1 when `offset` is close to +2GB and 0 otherwise.
+    uint64_t tmp = static_cast<uint64_t>(offset) - low;  // Exclude `low` from the rest of `offset`
+                                                         // (accounts for sign of `low`).
+    tmp += (tmp & (UINT64_C(1) << 15)) << 1;  // Account for sign extension in daddiu.
+    tmp += (tmp & (UINT64_C(1) << 31)) << 1;  // Account for sign extension in daui.
+    int16_t mid = Low16Bits(tmp);
+    int16_t upper = High16Bits(tmp);
+    int16_t hi = Low16Bits(High32Bits(tmp));
+    Daui(AT, base, upper);
+    if (hi != 0) {
+      CHECK_EQ(hi, 1);
+      Dahi(AT, hi);
+    }
+    if (mid != 0) {
+      Daddiu(AT, AT, mid);
+    }
+    offset = low;
+  }
+  base = AT;
+  CHECK_GE(JAVASTYLE_CTZ(offset), element_size_shift);
+  CHECK(IsInt<10>(offset >> element_size_shift));
+}
+
 void Mips64Assembler::LoadFromOffset(LoadOperandType type,
                                      GpuRegister reg,
                                      GpuRegister base,
