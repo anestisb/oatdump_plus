@@ -20,63 +20,68 @@
 #include <memory>
 #include <string>
 
+#include "android-base/unique_fd.h"
+
+#include "base/logging.h"
 #include "base/macros.h"
+#include "base/unix_file/fd_file.h"
 #include "os.h"
 
 namespace art {
 
-// A scoped file-lock implemented using flock. The file is locked by calling the Init function and
-// is released during destruction. Note that failing to unlock the file only causes a warning to be
-// printed. Users should take care that this does not cause potential deadlocks.
-//
-// Only printing a warning on unlock failure is okay since this is only used with either:
-// 1) a non-blocking Init call, or
-// 2) as a part of a seperate binary (eg dex2oat) which has it's own timeout logic to prevent
-//    deadlocks.
-// This means we can be sure that the warning won't cause a deadlock.
-class ScopedFlock {
- public:
-  ScopedFlock();
+class LockedFile;
+class LockedFileCloseNoFlush;
 
+// A scoped File object that calls Close without flushing.
+typedef std::unique_ptr<LockedFile, LockedFileCloseNoFlush> ScopedFlock;
+
+class LockedFile : public unix_file::FdFile {
+ public:
   // Attempts to acquire an exclusive file lock (see flock(2)) on the file
   // at filename, and blocks until it can do so.
   //
-  // Returns true if the lock could be acquired, or false if an error occurred.
   // It is an error if its inode changed (usually due to a new file being
   // created at the same path) between attempts to lock it. In blocking mode,
   // locking will be retried if the file changed. In non-blocking mode, false
   // is returned and no attempt is made to re-acquire the lock.
   //
-  // The argument `flush_on_close` controls whether or not the file
-  // will be explicitly flushed before close.
-  //
   // The file is opened with the provided flags.
-  bool Init(const char* filename,
-            int flags,
-            bool block,
-            bool flush_on_close,
-            std::string* error_msg);
-  // Calls Init(filename, flags, block, true, error_msg);
-  bool Init(const char* filename, int flags, bool block, std::string* error_msg);
-  // Calls Init(filename, O_CREAT | O_RDWR, true, errror_msg)
-  bool Init(const char* filename, std::string* error_msg);
+  static ScopedFlock Open(const char* filename, int flags, bool block,
+                          std::string* error_msg);
+
+  // Calls Open(filename, O_CREAT | O_RDWR, true, errror_msg)
+  static ScopedFlock Open(const char* filename, std::string* error_msg);
+
   // Attempt to acquire an exclusive file lock (see flock(2)) on 'file'.
   // Returns true if the lock could be acquired or false if an error
   // occured.
-  bool Init(File* file, std::string* error_msg);
+  static ScopedFlock DupOf(const int fd, const std::string& path,
+                           const bool read_only_mode, std::string* error_message);
 
-  // Returns the (locked) file associated with this instance.
-  File* GetFile() const;
-
-  // Returns whether a file is held.
-  bool HasFile();
-
-  ~ScopedFlock();
+  // Release a lock held on this file, if any.
+  void ReleaseLock();
 
  private:
-  std::unique_ptr<File> file_;
-  bool flush_on_close_;
-  DISALLOW_COPY_AND_ASSIGN(ScopedFlock);
+  // Constructors should not be invoked directly, use one of the factory
+  // methods instead.
+  explicit LockedFile(FdFile&& other) : FdFile(std::move(other)) {
+  }
+
+  // Constructors should not be invoked directly, use one of the factory
+  // methods instead.
+  LockedFile(int fd, const std::string& path, bool check_usage, bool read_only_mode)
+      : FdFile(fd, path, check_usage, read_only_mode) {
+  }
+};
+
+class LockedFileCloseNoFlush {
+ public:
+  void operator()(LockedFile* ptr) {
+    ptr->ReleaseLock();
+    UNUSED(ptr->Close());
+
+    delete ptr;
+  }
 };
 
 }  // namespace art

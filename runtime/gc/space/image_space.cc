@@ -482,21 +482,22 @@ class ImageSpaceLoader {
                                           bool validate_oat_file,
                                           std::string* error_msg)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    // Note that we must not use the file descriptor associated with
-    // ScopedFlock::GetFile to Init the image file. We want the file
-    // descriptor (and the associated exclusive lock) to be released when
-    // we leave Create.
-    ScopedFlock image_lock;
     // Should this be a RDWR lock? This is only a defensive measure, as at
     // this point the image should exist.
     // However, only the zygote can write into the global dalvik-cache, so
     // restrict to zygote processes, or any process that isn't using
     // /data/dalvik-cache (which we assume to be allowed to write there).
     const bool rw_lock = is_zygote || !is_global_cache;
-    image_lock.Init(image_filename.c_str(),
-                    rw_lock ? (O_CREAT | O_RDWR) : O_RDONLY /* flags */,
-                    true /* block */,
-                    error_msg);
+
+    // Note that we must not use the file descriptor associated with
+    // ScopedFlock::GetFile to Init the image file. We want the file
+    // descriptor (and the associated exclusive lock) to be released when
+    // we leave Create.
+    ScopedFlock image = LockedFile::Open(image_filename.c_str(),
+                                         rw_lock ? (O_CREAT | O_RDWR) : O_RDONLY /* flags */,
+                                         true /* block */,
+                                         error_msg);
+
     VLOG(startup) << "Using image file " << image_filename.c_str() << " for image location "
                   << image_location;
     // If we are in /system we can assume the image is good. We can also
