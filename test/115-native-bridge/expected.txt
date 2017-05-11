@@ -62,3 +62,8 @@ trampoline_Java_Main_testNewStringObject called!
 Getting trampoline for Java_Main_testSignal with shorty I.
 NB signal handler with signal 11.
 NB signal handler with signal 4.
+Loading invalid library 'libinvalid.so' from Java, which will fail.
+Checking for support.
+Was to load 'libinvalid.so', force fail.
+getError() in native bridge.
+Catch UnsatisfiedLinkError exception as expected.
