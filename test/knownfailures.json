@@ -336,11 +336,6 @@
         "variant": "no-image & jit"
     },
     {
-        "tests": ["597-deopt-new-string"],
-        "bug": "http://b/36467228",
-        "variant": "no-image & jit"
-    },
-    {
         "tests": ["530-checker-lse",
                   "530-checker-lse2",
                   "030-bad-finalizer",
