@@ -135,9 +135,6 @@ class ConcurrentCopying : public GarbageCollector {
   void RevokeThreadLocalMarkStack(Thread* thread) REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!mark_stack_lock_);
 
-  virtual mirror::Object* IsMarked(mirror::Object* from_ref) OVERRIDE
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
  private:
   void PushOntoMarkStack(mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!mark_stack_lock_);
@@ -203,6 +200,8 @@ class ConcurrentCopying : public GarbageCollector {
                                  bool do_atomic_update) OVERRIDE
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!mark_stack_lock_, !skipped_blocks_lock_, !immune_gray_stack_lock_);
+  virtual mirror::Object* IsMarked(mirror::Object* from_ref) OVERRIDE
+      REQUIRES_SHARED(Locks::mutator_lock_);
   bool IsMarkedInUnevacFromSpace(mirror::Object* from_ref)
       REQUIRES_SHARED(Locks::mutator_lock_);
   virtual bool IsNullOrMarkedHeapReference(mirror::HeapReference<mirror::Object>* field,
