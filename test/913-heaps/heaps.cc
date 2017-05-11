@@ -817,5 +817,266 @@ extern "C" JNIEXPORT jint JNICALL Java_art_Test913_getGcFinishes(JNIEnv* env ATT
   return result;
 }
 
+using GetObjectHeapId = jvmtiError(*)(jvmtiEnv*, jlong, jint*, ...);
+static GetObjectHeapId gGetObjectHeapIdFn = nullptr;
+
+using GetHeapName = jvmtiError(*)(jvmtiEnv*, jint, char**, ...);
+static GetHeapName gGetHeapNameFn = nullptr;
+
+using IterateThroughHeapExt = jvmtiError(*)(jvmtiEnv*,
+                                            jint,
+                                            jclass,
+                                            const jvmtiHeapCallbacks*,
+                                            const void*);
+static IterateThroughHeapExt gIterateThroughHeapExt = nullptr;
+
+
+static void FreeExtensionFunctionInfo(jvmtiExtensionFunctionInfo* extensions, jint count) {
+  for (size_t i = 0; i != static_cast<size_t>(count); ++i) {
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(extensions[i].id));
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(extensions[i].short_description));
+    for (size_t j = 0; j != static_cast<size_t>(extensions[i].param_count); ++j) {
+      jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(extensions[i].params[j].name));
+    }
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(extensions[i].params));
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(extensions[i].errors));
+  }
+}
+
+extern "C" JNIEXPORT void JNICALL Java_art_Test913_checkForExtensionApis(
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
+  jint extension_count;
+  jvmtiExtensionFunctionInfo* extensions;
+  jvmtiError result = jvmti_env->GetExtensionFunctions(&extension_count, &extensions);
+  if (JvmtiErrorToException(env, jvmti_env, result)) {
+    return;
+  }
+
+  for (size_t i = 0; i != static_cast<size_t>(extension_count); ++i) {
+    if (strcmp("com.android.art.heap.get_object_heap_id", extensions[i].id) == 0) {
+      CHECK(gGetObjectHeapIdFn == nullptr);
+      gGetObjectHeapIdFn = reinterpret_cast<GetObjectHeapId>(extensions[i].func);
+
+      CHECK_EQ(extensions[i].param_count, 2);
+
+      CHECK_EQ(strcmp("tag", extensions[i].params[0].name), 0);
+      CHECK_EQ(extensions[i].params[0].base_type, JVMTI_TYPE_JLONG);
+      CHECK_EQ(extensions[i].params[0].kind, JVMTI_KIND_IN);
+
+      CHECK_EQ(strcmp("heap_id", extensions[i].params[1].name), 0);
+      CHECK_EQ(extensions[i].params[1].base_type, JVMTI_TYPE_JINT);
+      CHECK_EQ(extensions[i].params[1].kind, JVMTI_KIND_OUT);
+      CHECK_EQ(extensions[i].params[1].null_ok, false);
+
+      CHECK_EQ(extensions[i].error_count, 1);
+      CHECK(extensions[i].errors != nullptr);
+      CHECK(extensions[i].errors[0] == JVMTI_ERROR_NOT_FOUND);
+
+      continue;
+    }
+
+    if (strcmp("com.android.art.heap.get_heap_name", extensions[i].id) == 0) {
+      CHECK(gGetHeapNameFn == nullptr);
+      gGetHeapNameFn = reinterpret_cast<GetHeapName>(extensions[i].func);
+
+      CHECK_EQ(extensions[i].param_count, 2);
+
+      CHECK_EQ(strcmp("heap_id", extensions[i].params[0].name), 0);
+      CHECK_EQ(extensions[i].params[0].base_type, JVMTI_TYPE_JINT);
+      CHECK_EQ(extensions[i].params[0].kind, JVMTI_KIND_IN);
+
+      CHECK_EQ(strcmp("heap_name", extensions[i].params[1].name), 0);
+      CHECK_EQ(extensions[i].params[1].base_type, JVMTI_TYPE_CCHAR);
+      CHECK_EQ(extensions[i].params[1].kind, JVMTI_KIND_ALLOC_BUF);
+      CHECK_EQ(extensions[i].params[1].null_ok, false);
+
+      CHECK_EQ(extensions[i].error_count, 1);
+      CHECK(extensions[i].errors != nullptr);
+      CHECK(extensions[i].errors[0] == JVMTI_ERROR_ILLEGAL_ARGUMENT);
+    }
+
+    if (strcmp("com.android.art.heap.iterate_through_heap_ext", extensions[i].id) == 0) {
+      CHECK(gIterateThroughHeapExt == nullptr);
+      gIterateThroughHeapExt = reinterpret_cast<IterateThroughHeapExt>(extensions[i].func);
+
+      CHECK_EQ(extensions[i].param_count, 4);
+
+      CHECK_EQ(strcmp("heap_filter", extensions[i].params[0].name), 0);
+      CHECK_EQ(extensions[i].params[0].base_type, JVMTI_TYPE_JINT);
+      CHECK_EQ(extensions[i].params[0].kind, JVMTI_KIND_IN);
+
+      CHECK_EQ(strcmp("klass", extensions[i].params[1].name), 0);
+      CHECK_EQ(extensions[i].params[1].base_type, JVMTI_TYPE_JCLASS);
+      CHECK_EQ(extensions[i].params[1].kind, JVMTI_KIND_IN);
+      CHECK_EQ(extensions[i].params[1].null_ok, true);
+
+      CHECK_EQ(strcmp("callbacks", extensions[i].params[2].name), 0);
+      CHECK_EQ(extensions[i].params[2].base_type, JVMTI_TYPE_CVOID);
+      CHECK_EQ(extensions[i].params[2].kind, JVMTI_KIND_IN_PTR);
+      CHECK_EQ(extensions[i].params[2].null_ok, false);
+
+      CHECK_EQ(strcmp("user_data", extensions[i].params[3].name), 0);
+      CHECK_EQ(extensions[i].params[3].base_type, JVMTI_TYPE_CVOID);
+      CHECK_EQ(extensions[i].params[3].kind, JVMTI_KIND_IN_PTR);
+      CHECK_EQ(extensions[i].params[3].null_ok, true);
+
+      CHECK_EQ(extensions[i].error_count, 3);
+      CHECK(extensions[i].errors != nullptr);
+      CHECK(extensions[i].errors[0] == JVMTI_ERROR_MUST_POSSESS_CAPABILITY);
+      CHECK(extensions[i].errors[1] == JVMTI_ERROR_INVALID_CLASS);
+      CHECK(extensions[i].errors[2] == JVMTI_ERROR_NULL_POINTER);
+    }
+  }
+
+  CHECK(gGetObjectHeapIdFn != nullptr);
+  CHECK(gGetHeapNameFn != nullptr);
+
+  FreeExtensionFunctionInfo(extensions, extension_count);
+}
+
+extern "C" JNIEXPORT jint JNICALL Java_art_Test913_getObjectHeapId(
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jlong tag) {
+  CHECK(gGetObjectHeapIdFn != nullptr);
+  jint heap_id;
+  jvmtiError result = gGetObjectHeapIdFn(jvmti_env, tag, &heap_id);
+  JvmtiErrorToException(env, jvmti_env, result);
+  return heap_id;
+}
+
+extern "C" JNIEXPORT jstring JNICALL Java_art_Test913_getHeapName(
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jint heap_id) {
+  CHECK(gGetHeapNameFn != nullptr);
+  char* heap_name;
+  jvmtiError result = gGetHeapNameFn(jvmti_env, heap_id, &heap_name);
+  if (JvmtiErrorToException(env, jvmti_env, result)) {
+    return nullptr;
+  }
+  jstring ret = env->NewStringUTF(heap_name);
+  jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(heap_name));
+  return ret;
+}
+
+extern "C" JNIEXPORT void JNICALL Java_art_Test913_checkGetObjectHeapIdInCallback(
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jlong tag, jint heap_id) {
+  CHECK(gGetObjectHeapIdFn != nullptr);
+
+  {
+    struct GetObjectHeapIdCallbacks {
+      static jint JNICALL FollowReferencesCallback(
+          jvmtiHeapReferenceKind reference_kind ATTRIBUTE_UNUSED,
+          const jvmtiHeapReferenceInfo* reference_info ATTRIBUTE_UNUSED,
+          jlong class_tag ATTRIBUTE_UNUSED,
+          jlong referrer_class_tag ATTRIBUTE_UNUSED,
+          jlong size ATTRIBUTE_UNUSED,
+          jlong* tag_ptr,
+          jlong* referrer_tag_ptr ATTRIBUTE_UNUSED,
+          jint length ATTRIBUTE_UNUSED,
+          void* user_data) {
+        if (*tag_ptr != 0) {
+          GetObjectHeapIdCallbacks* p = reinterpret_cast<GetObjectHeapIdCallbacks*>(user_data);
+          if (*tag_ptr == p->check_callback_tag) {
+            jint tag_heap_id;
+            jvmtiError result = gGetObjectHeapIdFn(jvmti_env, *tag_ptr, &tag_heap_id);
+            CHECK_EQ(result, JVMTI_ERROR_NONE);
+            CHECK_EQ(tag_heap_id, p->check_callback_id);
+            return JVMTI_VISIT_ABORT;
+          }
+        }
+
+        return JVMTI_VISIT_OBJECTS;  // Continue visiting.
+      }
+
+      jlong check_callback_tag;
+      jint check_callback_id;
+    };
+
+    jvmtiHeapCallbacks callbacks;
+    memset(&callbacks, 0, sizeof(jvmtiHeapCallbacks));
+    callbacks.heap_reference_callback = GetObjectHeapIdCallbacks::FollowReferencesCallback;
+
+    GetObjectHeapIdCallbacks ffc;
+    ffc.check_callback_tag = tag;
+    ffc.check_callback_id = heap_id;
+
+    jvmtiError ret = jvmti_env->FollowReferences(0, nullptr, nullptr, &callbacks, &ffc);
+    if (JvmtiErrorToException(env, jvmti_env, ret)) {
+      return;
+    }
+  }
+
+  {
+    struct GetObjectHeapIdCallbacks {
+      static jint JNICALL HeapIterationCallback(jlong class_tag ATTRIBUTE_UNUSED,
+                                                jlong size ATTRIBUTE_UNUSED,
+                                                jlong* tag_ptr,
+                                                jint length ATTRIBUTE_UNUSED,
+                                                void* user_data) {
+        if (*tag_ptr != 0) {
+          GetObjectHeapIdCallbacks* p = reinterpret_cast<GetObjectHeapIdCallbacks*>(user_data);
+          if (*tag_ptr == p->check_callback_tag) {
+            jint tag_heap_id;
+            jvmtiError result = gGetObjectHeapIdFn(jvmti_env, *tag_ptr, &tag_heap_id);
+            CHECK_EQ(result, JVMTI_ERROR_NONE);
+            CHECK_EQ(tag_heap_id, p->check_callback_id);
+            return JVMTI_VISIT_ABORT;
+          }
+        }
+
+        return 0;  // Continue visiting.
+      }
+
+      jlong check_callback_tag;
+      jint check_callback_id;
+    };
+
+    jvmtiHeapCallbacks callbacks;
+    memset(&callbacks, 0, sizeof(jvmtiHeapCallbacks));
+    callbacks.heap_iteration_callback = GetObjectHeapIdCallbacks::HeapIterationCallback;
+
+    GetObjectHeapIdCallbacks ffc;
+    ffc.check_callback_tag = tag;
+    ffc.check_callback_id = heap_id;
+
+    jvmtiError ret = jvmti_env->IterateThroughHeap(0, nullptr, &callbacks, &ffc);
+    if (JvmtiErrorToException(env, jvmti_env, ret)) {
+      return;
+    }
+  }
+}
+
+static bool gFoundExt = false;
+
+static jint JNICALL HeapIterationExtCallback(jlong class_tag ATTRIBUTE_UNUSED,
+                                             jlong size ATTRIBUTE_UNUSED,
+                                             jlong* tag_ptr,
+                                             jint length ATTRIBUTE_UNUSED,
+                                             void* user_data ATTRIBUTE_UNUSED,
+                                             jint heap_id) {
+  // We expect some tagged objects at or above the threshold, where the expected heap id is
+  // encoded into lowest byte.
+  constexpr jlong kThreshold = 30000000;
+  jlong tag = *tag_ptr;
+  if (tag >= kThreshold) {
+    jint expected_heap_id = static_cast<jint>(tag - kThreshold);
+    CHECK_EQ(expected_heap_id, heap_id);
+    gFoundExt = true;
+  }
+  return 0;
+}
+
+extern "C" JNIEXPORT void JNICALL Java_art_Test913_iterateThroughHeapExt(
+    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
+  CHECK(gIterateThroughHeapExt != nullptr);
+
+  jvmtiHeapCallbacks callbacks;
+  memset(&callbacks, 0, sizeof(jvmtiHeapCallbacks));
+  callbacks.heap_iteration_callback =
+      reinterpret_cast<decltype(callbacks.heap_iteration_callback)>(HeapIterationExtCallback);
+
+  jvmtiError ret = gIterateThroughHeapExt(jvmti_env, 0, nullptr, &callbacks, nullptr);
+  JvmtiErrorToException(env, jvmti_env, ret);
+  CHECK(gFoundExt);
+}
+
 }  // namespace Test913Heaps
 }  // namespace art

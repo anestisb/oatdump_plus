@@ -384,6 +384,23 @@ jvmtiError JvmtiWeakTable<T>::GetTaggedObjects(jvmtiEnv* jvmti_env,
   return ERR(NONE);
 }
 
+template <typename T>
+art::mirror::Object* JvmtiWeakTable<T>::Find(T tag) {
+  art::Thread* self = art::Thread::Current();
+  art::MutexLock mu(self, allow_disallow_lock_);
+  Wait(self);
+
+  for (auto& pair : tagged_objects_) {
+    if (tag == pair.second) {
+      art::mirror::Object* obj = pair.first.template Read<art::kWithReadBarrier>();
+      if (obj != nullptr) {
+        return obj;
+      }
+    }
+  }
+  return nullptr;
+}
+
 }  // namespace openjdkjvmti
 
 #endif  // ART_RUNTIME_OPENJDKJVMTI_JVMTI_WEAK_TABLE_INL_H_
