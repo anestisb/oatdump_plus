@@ -35,6 +35,12 @@ public class Main {
   /// CHECK-DAG: VecLoad  loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: VecAnd   loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: VecStore loop:<<Loop>>      outer_loop:none
+  //
+  /// CHECK-START-MIPS64: void Main.and(boolean) loop_optimization (after)
+  /// CHECK-DAG: Phi      loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: VecLoad  loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: VecAnd   loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: VecStore loop:<<Loop>>      outer_loop:none
   static void and(boolean x) {
     for (int i = 0; i < 128; i++)
       a[i] &= x;  // NOTE: bitwise and, not the common &&
@@ -46,6 +52,12 @@ public class Main {
   /// CHECK-DAG: ArraySet loop:<<Loop>>      outer_loop:none
   //
   /// CHECK-START-ARM64: void Main.or(boolean) loop_optimization (after)
+  /// CHECK-DAG: Phi      loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: VecLoad  loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: VecOr    loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: VecStore loop:<<Loop>>      outer_loop:none
+  //
+  /// CHECK-START-MIPS64: void Main.or(boolean) loop_optimization (after)
   /// CHECK-DAG: Phi      loop:<<Loop:B\d+>> outer_loop:none
   /// CHECK-DAG: VecLoad  loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: VecOr    loop:<<Loop>>      outer_loop:none
@@ -65,6 +77,12 @@ public class Main {
   /// CHECK-DAG: VecLoad  loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: VecXor   loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: VecStore loop:<<Loop>>      outer_loop:none
+  //
+  /// CHECK-START-MIPS64: void Main.xor(boolean) loop_optimization (after)
+  /// CHECK-DAG: Phi      loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: VecLoad  loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: VecXor   loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: VecStore loop:<<Loop>>      outer_loop:none
   static void xor(boolean x) {
     for (int i = 0; i < 128; i++)
       a[i] ^= x;  // NOTE: bitwise xor
@@ -76,6 +94,12 @@ public class Main {
   /// CHECK-DAG: ArraySet loop:<<Loop>>      outer_loop:none
   //
   /// CHECK-START-ARM64: void Main.not() loop_optimization (after)
+  /// CHECK-DAG: Phi      loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: VecLoad  loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: VecNot   loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: VecStore loop:<<Loop>>      outer_loop:none
+  //
+  /// CHECK-START-MIPS64: void Main.not() loop_optimization (after)
   /// CHECK-DAG: Phi      loop:<<Loop:B\d+>> outer_loop:none
   /// CHECK-DAG: VecLoad  loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: VecNot   loop:<<Loop>>      outer_loop:none

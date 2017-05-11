@@ -72,6 +72,7 @@ class HLoopOptimization : public HOptimization {
     kNoUnroundedHAdd = 64,   // no unrounded halving add
     kNoAbs           = 128,  // no absolute value
     kNoMinMax        = 256,  // no min/max
+    kNoStringCharAt  = 512,  // no StringCharAt
   };
 
   /*
