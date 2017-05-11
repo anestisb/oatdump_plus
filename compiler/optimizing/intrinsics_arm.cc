@@ -2598,11 +2598,7 @@ void IntrinsicCodeGeneratorARM::VisitFloatIsInfinite(HInvoke* invoke) {
   // We don't care about the sign bit, so shift left.
   __ Lsl(out, out, 1);
   __ eor(out, out, ShifterOperand(infinity));
-  // If the result is 0, then it has 32 leading zeros, and less than that otherwise.
-  __ clz(out, out);
-  // Any number less than 32 logically shifted right by 5 bits results in 0;
-  // the same operation on 32 yields 1.
-  __ Lsr(out, out, 5);
+  codegen_->GenerateConditionWithZero(kCondEQ, out, out);
 }
 
 void IntrinsicLocationsBuilderARM::VisitDoubleIsInfinite(HInvoke* invoke) {
@@ -2625,11 +2621,7 @@ void IntrinsicCodeGeneratorARM::VisitDoubleIsInfinite(HInvoke* invoke) {
   __ eor(out, out, ShifterOperand(infinity_high2));
   // We don't care about the sign bit, so shift left.
   __ orr(out, IP, ShifterOperand(out, LSL, 1));
-  // If the result is 0, then it has 32 leading zeros, and less than that otherwise.
-  __ clz(out, out);
-  // Any number less than 32 logically shifted right by 5 bits results in 0;
-  // the same operation on 32 yields 1.
-  __ Lsr(out, out, 5);
+  codegen_->GenerateConditionWithZero(kCondEQ, out, out);
 }
 
 void IntrinsicLocationsBuilderARM::VisitReferenceGetReferent(HInvoke* invoke) {

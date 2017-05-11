@@ -299,7 +299,6 @@ class InstructionCodeGeneratorARM : public InstructionCodeGenerator {
   void GenerateCompareTestAndBranch(HCondition* condition,
                                     Label* true_target,
                                     Label* false_target);
-  void GenerateLongComparesAndJumps(HCondition* cond, Label* true_label, Label* false_label);
   void DivRemOneOrMinusOne(HBinaryOperation* instruction);
   void DivRemByPowerOfTwo(HBinaryOperation* instruction);
   void GenerateDivRemWithAnyConstant(HBinaryOperation* instruction);
@@ -622,6 +621,14 @@ class CodeGeneratorARM : public CodeGenerator {
 
   void GenerateImplicitNullCheck(HNullCheck* instruction) OVERRIDE;
   void GenerateExplicitNullCheck(HNullCheck* instruction) OVERRIDE;
+
+  // `temp` is an extra temporary register that is used for some conditions;
+  // callers may not specify it, in which case the method will use a scratch
+  // register instead.
+  void GenerateConditionWithZero(IfCondition condition,
+                                 Register out,
+                                 Register in,
+                                 Register temp = kNoRegister);
 
  private:
   Register GetInvokeStaticOrDirectExtraParameter(HInvokeStaticOrDirect* invoke, Register temp);
