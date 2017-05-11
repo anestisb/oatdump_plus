@@ -178,11 +178,16 @@ class HVecMemoryOperation : public HVecOperation {
                       size_t vector_length,
                       uint32_t dex_pc)
       : HVecOperation(arena, packed_type, side_effects, number_of_inputs, vector_length, dex_pc),
-        alignment_(Primitive::ComponentSize(packed_type), 0) { }
+        alignment_(Primitive::ComponentSize(packed_type), 0) {
+    DCHECK_GE(number_of_inputs, 2u);
+  }
 
   void SetAlignment(Alignment alignment) { alignment_ = alignment; }
 
   Alignment GetAlignment() const { return alignment_; }
+
+  HInstruction* GetArray() const { return InputAt(0); }
+  HInstruction* GetIndex() const { return InputAt(1); }
 
   DECLARE_ABSTRACT_INSTRUCTION(VecMemoryOperation);
 

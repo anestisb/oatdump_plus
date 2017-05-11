@@ -75,6 +75,8 @@ class InstructionSimplifierArm64Visitor : public HGraphVisitor {
   void VisitUShr(HUShr* instruction) OVERRIDE;
   void VisitXor(HXor* instruction) OVERRIDE;
   void VisitVecMul(HVecMul* instruction) OVERRIDE;
+  void VisitVecLoad(HVecLoad* instruction) OVERRIDE;
+  void VisitVecStore(HVecStore* instruction) OVERRIDE;
 
   OptimizingCompilerStats* stats_;
 };

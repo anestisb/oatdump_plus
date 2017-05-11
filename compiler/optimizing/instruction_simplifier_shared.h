@@ -59,6 +59,7 @@ bool TryExtractArrayAccessAddress(HInstruction* access,
                                   size_t data_offset);
 
 bool TryCombineVecMultiplyAccumulate(HVecMul* mul, InstructionSet isa);
+bool TryExtractVecArrayAccessAddress(HVecMemoryOperation* access, HInstruction* index);
 
 }  // namespace art
 

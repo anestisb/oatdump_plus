@@ -150,6 +150,49 @@ class HIntermediateAddress FINAL : public HExpression<2> {
   DISALLOW_COPY_AND_ASSIGN(HIntermediateAddress);
 };
 
+// This instruction computes part of the array access offset (data and index offset).
+//
+// For array accesses the element address has the following structure:
+// Address = CONST_OFFSET + base_addr + index << ELEM_SHIFT. Taking into account LDR/STR addressing
+// modes address part (CONST_OFFSET + index << ELEM_SHIFT) can be shared across array access with
+// the same data type and index. For example, for the following loop 5 accesses can share address
+// computation:
+//
+// void foo(int[] a, int[] b, int[] c) {
+//   for (i...) {
+//     a[i] = a[i] + 5;
+//     b[i] = b[i] + c[i];
+//   }
+// }
+//
+// Note: as the instruction doesn't involve base array address into computations it has no side
+// effects (in comparison of HIntermediateAddress).
+class HIntermediateAddressIndex FINAL : public HExpression<3> {
+ public:
+  HIntermediateAddressIndex(
+      HInstruction* index, HInstruction* offset, HInstruction* shift, uint32_t dex_pc)
+      : HExpression(Primitive::kPrimInt, SideEffects::None(), dex_pc) {
+    SetRawInputAt(0, index);
+    SetRawInputAt(1, offset);
+    SetRawInputAt(2, shift);
+  }
+
+  bool CanBeMoved() const OVERRIDE { return true; }
+  bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
+    return true;
+  }
+  bool IsActualObject() const OVERRIDE { return false; }
+
+  HInstruction* GetIndex() const { return InputAt(0); }
+  HInstruction* GetOffset() const { return InputAt(1); }
+  HInstruction* GetShift() const { return InputAt(2); }
+
+  DECLARE_INSTRUCTION(IntermediateAddressIndex);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HIntermediateAddressIndex);
+};
+
 class HDataProcWithShifterOp FINAL : public HExpression<2> {
  public:
   enum OpKind {

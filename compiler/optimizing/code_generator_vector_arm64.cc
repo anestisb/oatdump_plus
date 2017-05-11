@@ -783,6 +783,12 @@ MemOperand InstructionCodeGeneratorARM64::VecAddress(
     /*out*/ Register* scratch) {
   LocationSummary* locations = instruction->GetLocations();
   Register base = InputRegisterAt(instruction, 0);
+
+  if (instruction->InputAt(1)->IsIntermediateAddressIndex()) {
+    DCHECK(!is_string_char_at);
+    return MemOperand(base.X(), InputRegisterAt(instruction, 1).X());
+  }
+
   Location index = locations->InAt(1);
   uint32_t offset = is_string_char_at
       ? mirror::String::ValueOffset().Uint32Value()
