@@ -140,6 +140,26 @@ CompilerFilter::Filter CompilerFilter::GetNonProfileDependentFilterFrom(Filter f
   UNREACHABLE();
 }
 
+CompilerFilter::Filter CompilerFilter::GetSafeModeFilterFrom(Filter filter) {
+  // For safe mode, we should not return a filter that generates AOT compiled
+  // code.
+  switch (filter) {
+    case CompilerFilter::kAssumeVerified:
+    case CompilerFilter::kExtract:
+    case CompilerFilter::kVerify:
+    case CompilerFilter::kQuicken:
+      return filter;
+
+    case CompilerFilter::kSpace:
+    case CompilerFilter::kSpeed:
+    case CompilerFilter::kEverything:
+    case CompilerFilter::kSpaceProfile:
+    case CompilerFilter::kSpeedProfile:
+    case CompilerFilter::kEverythingProfile:
+      return CompilerFilter::kQuicken;
+  }
+  UNREACHABLE();
+}
 
 bool CompilerFilter::IsAsGoodAs(Filter current, Filter target) {
   return current >= target;
