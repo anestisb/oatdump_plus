@@ -64,7 +64,7 @@ static ::std::vector<CodegenTargetConfig> GetTargetConfigs() {
 #endif
   };
 
-  for (auto test_config : test_config_candidates) {
+  for (const CodegenTargetConfig& test_config : test_config_candidates) {
     if (CanExecute(test_config.GetInstructionSet())) {
       v.push_back(test_config);
     }
@@ -76,7 +76,7 @@ static ::std::vector<CodegenTargetConfig> GetTargetConfigs() {
 static void TestCode(const uint16_t* data,
                      bool has_result = false,
                      int32_t expected = 0) {
-  for (CodegenTargetConfig target_config : GetTargetConfigs()) {
+  for (const CodegenTargetConfig& target_config : GetTargetConfigs()) {
     ArenaPool pool;
     ArenaAllocator arena(&pool);
     HGraph* graph = CreateCFG(&arena, data);
@@ -89,7 +89,7 @@ static void TestCode(const uint16_t* data,
 static void TestCodeLong(const uint16_t* data,
                          bool has_result,
                          int64_t expected) {
-  for (CodegenTargetConfig target_config : GetTargetConfigs()) {
+  for (const CodegenTargetConfig& target_config : GetTargetConfigs()) {
     ArenaPool pool;
     ArenaAllocator arena(&pool);
     HGraph* graph = CreateCFG(&arena, data, Primitive::kPrimLong);

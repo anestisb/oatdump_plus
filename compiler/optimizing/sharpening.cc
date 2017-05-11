@@ -56,7 +56,7 @@ static bool IsInBootImage(ArtMethod* method) {
   const std::vector<gc::space::ImageSpace*>& image_spaces =
       Runtime::Current()->GetHeap()->GetBootImageSpaces();
   for (gc::space::ImageSpace* image_space : image_spaces) {
-    const auto& method_section = image_space->GetImageHeader().GetMethodsSection();
+    const ImageSection& method_section = image_space->GetImageHeader().GetMethodsSection();
     if (method_section.Contains(reinterpret_cast<uint8_t*>(method) - image_space->Begin())) {
       return true;
     }

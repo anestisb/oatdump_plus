@@ -268,10 +268,11 @@ void SchedulingGraph::DumpAsDotGraph(const std::string& description,
   // Start the dot graph. Use an increasing index for easier differentiation.
   output << "digraph G {\n";
   for (const auto& entry : nodes_map_) {
-    DumpAsDotNode(output, entry.second);
+    SchedulingNode* node = entry.second;
+    DumpAsDotNode(output, node);
   }
   // Create a fake 'end_of_scheduling' node to help visualization of critical_paths.
-  for (auto node : initial_candidates) {
+  for (SchedulingNode* node : initial_candidates) {
     const HInstruction* instruction = node->GetInstruction();
     output << InstructionTypeId(instruction) << ":s -> end_of_scheduling:n "
       << "[label=\"" << node->GetLatency() << "\",dir=back]\n";

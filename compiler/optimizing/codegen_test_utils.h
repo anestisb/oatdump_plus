@@ -243,7 +243,7 @@ static void ValidateGraph(HGraph* graph) {
   GraphChecker graph_checker(graph);
   graph_checker.Run();
   if (!graph_checker.IsValid()) {
-    for (const auto& error : graph_checker.GetErrors()) {
+    for (const std::string& error : graph_checker.GetErrors()) {
       std::cout << error << std::endl;
     }
   }

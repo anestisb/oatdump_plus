@@ -1734,8 +1734,8 @@ class BCEVisitor : public HGraphVisitor {
    */
   void InsertPhiNodes() {
     // Scan all new deoptimization blocks.
-    for (auto it1 = taken_test_loop_.begin(); it1 != taken_test_loop_.end(); ++it1) {
-      HBasicBlock* true_block = it1->second;
+    for (const auto& entry : taken_test_loop_) {
+      HBasicBlock* true_block = entry.second;
       HBasicBlock* new_preheader = true_block->GetSingleSuccessor();
       // Scan all instructions in a new deoptimization block.
       for (HInstructionIterator it(true_block->GetInstructions()); !it.Done(); it.Advance()) {

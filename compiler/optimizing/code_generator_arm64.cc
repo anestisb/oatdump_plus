@@ -6571,14 +6571,20 @@ static void PatchJitRootUse(uint8_t* code,
 
 void CodeGeneratorARM64::EmitJitRootPatches(uint8_t* code, const uint8_t* roots_data) {
   for (const auto& entry : jit_string_patches_) {
-    const auto& it = jit_string_roots_.find(entry.first);
+    const StringReference& string_reference = entry.first;
+    vixl::aarch64::Literal<uint32_t>* table_entry_literal = entry.second;
+    const auto it = jit_string_roots_.find(string_reference);
     DCHECK(it != jit_string_roots_.end());
-    PatchJitRootUse(code, roots_data, entry.second, it->second);
+    uint64_t index_in_table = it->second;
+    PatchJitRootUse(code, roots_data, table_entry_literal, index_in_table);
   }
   for (const auto& entry : jit_class_patches_) {
-    const auto& it = jit_class_roots_.find(entry.first);
+    const TypeReference& type_reference = entry.first;
+    vixl::aarch64::Literal<uint32_t>* table_entry_literal = entry.second;
+    const auto it = jit_class_roots_.find(type_reference);
     DCHECK(it != jit_class_roots_.end());
-    PatchJitRootUse(code, roots_data, entry.second, it->second);
+    uint64_t index_in_table = it->second;
+    PatchJitRootUse(code, roots_data, table_entry_literal, index_in_table);
   }
 }
 
