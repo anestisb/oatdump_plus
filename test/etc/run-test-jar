@@ -643,7 +643,7 @@ if [ "$HOST" = "n" ]; then
     adb root > /dev/null
     adb wait-for-device
     if [ "$QUIET" = "n" ]; then
-      adb shell rm -r $DEX_LOCATION
+      adb shell rm -rf $DEX_LOCATION
       adb shell mkdir -p $DEX_LOCATION
       adb push $TEST_NAME.jar $DEX_LOCATION
       adb push $TEST_NAME-ex.jar $DEX_LOCATION
@@ -711,6 +711,7 @@ if [ "$HOST" = "n" ]; then
 
     rm -f $cmdfile
 else
+    # Host run.
     export ANDROID_PRINTF_LOG=brief
 
     # By default, and for prebuild dex2oat, we are interested in errors being logged. In dev mode
@@ -767,7 +768,12 @@ else
 
     cd $ANDROID_BUILD_TOP
 
+    # Make sure we delete any existing compiler artifacts.
+    # This enables tests to call the RUN script multiple times in a row
+    # without worrying about interference.
+    rm -rf ${DEX_LOCATION}/oat
     rm -rf ${DEX_LOCATION}/dalvik-cache/
+
     mkdir -p ${mkdir_locations} || exit 1
     $profman_cmdline || { echo "Profman failed." >&2 ; exit 2; }
     $dex2oat_cmdline || { echo "Dex2oat failed." >&2 ; exit 2; }
