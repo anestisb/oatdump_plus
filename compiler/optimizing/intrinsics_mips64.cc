@@ -890,54 +890,14 @@ static void GenRound(LocationSummary* locations, Mips64Assembler* assembler, Pri
   DCHECK(type == Primitive::kPrimFloat || type == Primitive::kPrimDouble);
 
   Mips64Label done;
-  Mips64Label finite;
-  Mips64Label add;
 
-  // if (in.isNaN) {
-  //   return 0;
-  // }
-  //
   // out = floor(in);
   //
-  // /*
-  //  * TODO: Amend this code when emulator FCSR.NAN2008=1 bug is fixed.
-  //  *
-  //  * Starting with MIPSR6, which always sets FCSR.NAN2008=1, negative
-  //  * numbers which are too large to be represented in a 32-/64-bit
-  //  * signed integer will be processed by floor.X.Y to output
-  //  * Integer.MIN_VALUE/Long.MIN_VALUE, and will no longer be
-  //  * processed by this "if" statement.
-  //  *
-  //  * However, this bug in the 64-bit MIPS emulator causes the
-  //  * behavior of floor.X.Y to be the same as pre-R6 implementations
-  //  * of MIPS64.  When that bug is fixed this logic should be amended.
-  //  */
-  // if (out == MAX_VALUE) {
-  //   TMP = (in < 0.0) ? 1 : 0;
-  //   /*
-  //    * If TMP is 1, then adding it to out will wrap its value from
-  //    * MAX_VALUE to MIN_VALUE.
-  //    */
+  // if (out != MAX_VALUE && out != MIN_VALUE) {
+  //   TMP = ((in - out) >= 0.5) ? 1 : 0;
   //   return out += TMP;
   // }
-  //
-  // /*
-  //  * For negative values not handled by the previous "if" statement the
-  //  * test here will correctly set the value of TMP.
-  //  */
-  // TMP = ((in - out) >= 0.5) ? 1 : 0;
-  // return out += TMP;
-
-  // Test for NaN.
-  if (type == Primitive::kPrimDouble) {
-    __ CmpUnD(FTMP, in, in);
-  } else {
-    __ CmpUnS(FTMP, in, in);
-  }
-
-  // Return zero for NaN.
-  __ Move(out, ZERO);
-  __ Bc1nez(FTMP, &done);
+  // return out;
 
   // out = floor(in);
   if (type == Primitive::kPrimDouble) {
@@ -948,27 +908,26 @@ static void GenRound(LocationSummary* locations, Mips64Assembler* assembler, Pri
     __ Mfc1(out, FTMP);
   }
 
-  // TMP = (out = java.lang.Integer.MAX_VALUE) ? 1 : 0;
+  // if (out != MAX_VALUE && out != MIN_VALUE)
   if (type == Primitive::kPrimDouble) {
-    __ LoadConst64(AT, std::numeric_limits<int64_t>::max());
+    __ Daddiu(TMP, out, 1);
+    __ Dati(TMP, 0x8000);  // TMP = out + 0x8000 0000 0000 0001
+                           // or    out - 0x7FFF FFFF FFFF FFFF.
+                           // IOW, TMP = 1 if out = Long.MIN_VALUE
+                           // or   TMP = 0 if out = Long.MAX_VALUE.
+    __ Dsrl(TMP, TMP, 1);  // TMP = 0 if out = Long.MIN_VALUE
+                           //         or out = Long.MAX_VALUE.
+    __ Beqzc(TMP, &done);
   } else {
-    __ LoadConst32(AT, std::numeric_limits<int32_t>::max());
+    __ Addiu(TMP, out, 1);
+    __ Aui(TMP, TMP, 0x8000);  // TMP = out + 0x8000 0001
+                               // or    out - 0x7FFF FFFF.
+                               // IOW, TMP = 1 if out = Int.MIN_VALUE
+                               // or   TMP = 0 if out = Int.MAX_VALUE.
+    __ Srl(TMP, TMP, 1);       // TMP = 0 if out = Int.MIN_VALUE
+                               //         or out = Int.MAX_VALUE.
+    __ Beqzc(TMP, &done);
   }
-  __ Bnec(AT, out, &finite);
-
-  if (type == Primitive::kPrimDouble) {
-    __ Dmtc1(ZERO, FTMP);
-    __ CmpLtD(FTMP, in, FTMP);
-    __ Dmfc1(AT, FTMP);
-  } else {
-    __ Mtc1(ZERO, FTMP);
-    __ CmpLtS(FTMP, in, FTMP);
-    __ Mfc1(AT, FTMP);
-  }
-
-  __ Bc(&add);
-
-  __ Bind(&finite);
 
   // TMP = (0.5 <= (in - out)) ? -1 : 0;
   if (type == Primitive::kPrimDouble) {
@@ -977,23 +936,21 @@ static void GenRound(LocationSummary* locations, Mips64Assembler* assembler, Pri
     __ SubD(FTMP, in, FTMP);
     __ Dmtc1(AT, half);
     __ CmpLeD(FTMP, half, FTMP);
-    __ Dmfc1(AT, FTMP);
+    __ Dmfc1(TMP, FTMP);
   } else {
     __ Cvtsw(FTMP, FTMP);  // Convert output of floor.w.s back to "float".
     __ LoadConst32(AT, bit_cast<int32_t, float>(0.5f));
     __ SubS(FTMP, in, FTMP);
     __ Mtc1(AT, half);
     __ CmpLeS(FTMP, half, FTMP);
-    __ Mfc1(AT, FTMP);
+    __ Mfc1(TMP, FTMP);
   }
-
-  __ Bind(&add);
 
   // Return out -= TMP.
   if (type == Primitive::kPrimDouble) {
-    __ Dsubu(out, out, AT);
+    __ Dsubu(out, out, TMP);
   } else {
-    __ Subu(out, out, AT);
+    __ Subu(out, out, TMP);
   }
 
   __ Bind(&done);

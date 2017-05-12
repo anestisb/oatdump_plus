@@ -8415,6 +8415,23 @@ void InstructionCodeGeneratorMIPS::VisitTypeConversion(HTypeConversion* conversi
     }
   } else if (Primitive::IsIntegralType(result_type) && Primitive::IsFloatingPointType(input_type)) {
     CHECK(result_type == Primitive::kPrimInt || result_type == Primitive::kPrimLong);
+
+    // When NAN2008=1 (R6), the truncate instruction caps the output at the minimum/maximum
+    // value of the output type if the input is outside of the range after the truncation or
+    // produces 0 when the input is a NaN. IOW, the three special cases produce three distinct
+    // results. This matches the desired float/double-to-int/long conversion exactly.
+    //
+    // When NAN2008=0 (R2 and before), the truncate instruction produces the maximum positive
+    // value when the input is either a NaN or is outside of the range of the output type
+    // after the truncation. IOW, the three special cases (NaN, too small, too big) produce
+    // the same result.
+    //
+    // The code takes care of the different behaviors by first comparing the input to the
+    // minimum output value (-2**-63 for truncating to long, -2**-31 for truncating to int).
+    // If the input is greater than or equal to the minimum, it procedes to the truncate
+    // instruction, which will handle such an input the same way irrespective of NAN2008.
+    // Otherwise the input is compared to itself to determine whether it is a NaN or not
+    // in order to return either zero or the minimum value.
     if (result_type == Primitive::kPrimLong) {
       if (isR6) {
         // trunc.l.s/trunc.l.d requires MIPSR2+ with FR=1. MIPS32R6 is implemented as a secondary
@@ -8422,62 +8439,6 @@ void InstructionCodeGeneratorMIPS::VisitTypeConversion(HTypeConversion* conversi
         FRegister src = locations->InAt(0).AsFpuRegister<FRegister>();
         Register dst_high = locations->Out().AsRegisterPairHigh<Register>();
         Register dst_low = locations->Out().AsRegisterPairLow<Register>();
-        MipsLabel truncate;
-        MipsLabel done;
-
-        // When NAN2008=0 (R2 and before), the truncate instruction produces the maximum positive
-        // value when the input is either a NaN or is outside of the range of the output type
-        // after the truncation. IOW, the three special cases (NaN, too small, too big) produce
-        // the same result.
-        //
-        // When NAN2008=1 (R6), the truncate instruction caps the output at the minimum/maximum
-        // value of the output type if the input is outside of the range after the truncation or
-        // produces 0 when the input is a NaN. IOW, the three special cases produce three distinct
-        // results. This matches the desired float/double-to-int/long conversion exactly.
-        //
-        // So, NAN2008 affects handling of negative values and NaNs by the truncate instruction.
-        //
-        // The following code supports both NAN2008=0 and NAN2008=1 behaviors of the truncate
-        // instruction, the reason being that the emulator implements NAN2008=0 on MIPS64R6,
-        // even though it must be NAN2008=1 on R6.
-        //
-        // The code takes care of the different behaviors by first comparing the input to the
-        // minimum output value (-2**-63 for truncating to long, -2**-31 for truncating to int).
-        // If the input is greater than or equal to the minimum, it procedes to the truncate
-        // instruction, which will handle such an input the same way irrespective of NAN2008.
-        // Otherwise the input is compared to itself to determine whether it is a NaN or not
-        // in order to return either zero or the minimum value.
-        //
-        // TODO: simplify this when the emulator correctly implements NAN2008=1 behavior of the
-        // truncate instruction for MIPS64R6.
-        if (input_type == Primitive::kPrimFloat) {
-          uint32_t min_val = bit_cast<uint32_t, float>(std::numeric_limits<int64_t>::min());
-          __ LoadConst32(TMP, min_val);
-          __ Mtc1(TMP, FTMP);
-          __ CmpLeS(FTMP, FTMP, src);
-        } else {
-          uint64_t min_val = bit_cast<uint64_t, double>(std::numeric_limits<int64_t>::min());
-          __ LoadConst32(TMP, High32Bits(min_val));
-          __ Mtc1(ZERO, FTMP);
-          __ Mthc1(TMP, FTMP);
-          __ CmpLeD(FTMP, FTMP, src);
-        }
-
-        __ Bc1nez(FTMP, &truncate);
-
-        if (input_type == Primitive::kPrimFloat) {
-          __ CmpEqS(FTMP, src, src);
-        } else {
-          __ CmpEqD(FTMP, src, src);
-        }
-        __ Move(dst_low, ZERO);
-        __ LoadConst32(dst_high, std::numeric_limits<int32_t>::min());
-        __ Mfc1(TMP, FTMP);
-        __ And(dst_high, dst_high, TMP);
-
-        __ B(&done);
-
-        __ Bind(&truncate);
 
         if (input_type == Primitive::kPrimFloat) {
           __ TruncLS(FTMP, src);
@@ -8486,8 +8447,6 @@ void InstructionCodeGeneratorMIPS::VisitTypeConversion(HTypeConversion* conversi
         }
         __ Mfc1(dst_low, FTMP);
         __ Mfhc1(dst_high, FTMP);
-
-        __ Bind(&done);
       } else {
         QuickEntrypointEnum entrypoint = (input_type == Primitive::kPrimFloat) ? kQuickF2l
                                                                                : kQuickD2l;
@@ -8504,42 +8463,18 @@ void InstructionCodeGeneratorMIPS::VisitTypeConversion(HTypeConversion* conversi
       MipsLabel truncate;
       MipsLabel done;
 
-      // The following code supports both NAN2008=0 and NAN2008=1 behaviors of the truncate
-      // instruction, the reason being that the emulator implements NAN2008=0 on MIPS64R6,
-      // even though it must be NAN2008=1 on R6.
-      //
-      // For details see the large comment above for the truncation of float/double to long on R6.
-      //
-      // TODO: simplify this when the emulator correctly implements NAN2008=1 behavior of the
-      // truncate instruction for MIPS64R6.
-      if (input_type == Primitive::kPrimFloat) {
-        uint32_t min_val = bit_cast<uint32_t, float>(std::numeric_limits<int32_t>::min());
-        __ LoadConst32(TMP, min_val);
-        __ Mtc1(TMP, FTMP);
-      } else {
-        uint64_t min_val = bit_cast<uint64_t, double>(std::numeric_limits<int32_t>::min());
-        __ LoadConst32(TMP, High32Bits(min_val));
-        __ Mtc1(ZERO, FTMP);
-        __ MoveToFpuHigh(TMP, FTMP);
-      }
-
-      if (isR6) {
+      if (!isR6) {
         if (input_type == Primitive::kPrimFloat) {
-          __ CmpLeS(FTMP, FTMP, src);
+          uint32_t min_val = bit_cast<uint32_t, float>(std::numeric_limits<int32_t>::min());
+          __ LoadConst32(TMP, min_val);
+          __ Mtc1(TMP, FTMP);
         } else {
-          __ CmpLeD(FTMP, FTMP, src);
+          uint64_t min_val = bit_cast<uint64_t, double>(std::numeric_limits<int32_t>::min());
+          __ LoadConst32(TMP, High32Bits(min_val));
+          __ Mtc1(ZERO, FTMP);
+          __ MoveToFpuHigh(TMP, FTMP);
         }
-        __ Bc1nez(FTMP, &truncate);
 
-        if (input_type == Primitive::kPrimFloat) {
-          __ CmpEqS(FTMP, src, src);
-        } else {
-          __ CmpEqD(FTMP, src, src);
-        }
-        __ LoadConst32(dst, std::numeric_limits<int32_t>::min());
-        __ Mfc1(TMP, FTMP);
-        __ And(dst, dst, TMP);
-      } else {
         if (input_type == Primitive::kPrimFloat) {
           __ ColeS(0, FTMP, src);
         } else {
@@ -8554,11 +8489,11 @@ void InstructionCodeGeneratorMIPS::VisitTypeConversion(HTypeConversion* conversi
         }
         __ LoadConst32(dst, std::numeric_limits<int32_t>::min());
         __ Movf(dst, ZERO, 0);
+
+        __ B(&done);
+
+        __ Bind(&truncate);
       }
-
-      __ B(&done);
-
-      __ Bind(&truncate);
 
       if (input_type == Primitive::kPrimFloat) {
         __ TruncWS(FTMP, src);
@@ -8567,7 +8502,9 @@ void InstructionCodeGeneratorMIPS::VisitTypeConversion(HTypeConversion* conversi
       }
       __ Mfc1(dst, FTMP);
 
-      __ Bind(&done);
+      if (!isR6) {
+        __ Bind(&done);
+      }
     }
   } else if (Primitive::IsFloatingPointType(result_type) &&
              Primitive::IsFloatingPointType(input_type)) {
