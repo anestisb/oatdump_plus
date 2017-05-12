@@ -49,7 +49,10 @@ const VerifiedMethod* VerifiedMethod::Create(verifier::MethodVerifier* method_ve
 }
 
 bool VerifiedMethod::IsSafeCast(uint32_t pc) const {
-  return std::binary_search(safe_cast_set_.begin(), safe_cast_set_.end(), pc);
+  if (safe_cast_set_ == nullptr) {
+    return false;
+  }
+  return std::binary_search(safe_cast_set_->begin(), safe_cast_set_->end(), pc);
 }
 
 void VerifiedMethod::GenerateSafeCastSet(verifier::MethodVerifier* method_verifier) {
@@ -94,12 +97,16 @@ void VerifiedMethod::GenerateSafeCastSet(verifier::MethodVerifier* method_verifi
                                                            /* strict */ true,
                                                            /* assignable */ true);
         }
+        if (safe_cast_set_ == nullptr) {
+          safe_cast_set_.reset(new SafeCastSet());
+        }
         // Verify ordering for push_back() to the sorted vector.
-        DCHECK(safe_cast_set_.empty() || safe_cast_set_.back() < dex_pc);
-        safe_cast_set_.push_back(dex_pc);
+        DCHECK(safe_cast_set_->empty() || safe_cast_set_->back() < dex_pc);
+        safe_cast_set_->push_back(dex_pc);
       }
     }
   }
+  DCHECK(safe_cast_set_ == nullptr || !safe_cast_set_->empty());
 }
 
 }  // namespace art
