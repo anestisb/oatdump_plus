@@ -19,7 +19,7 @@
 #include <iomanip>
 #include <numeric>
 
-#include "arena_allocator.h"
+#include "arena_allocator-inl.h"
 #include "logging.h"
 #include "mem_map.h"
 #include "mutex.h"
@@ -29,7 +29,6 @@
 namespace art {
 
 constexpr size_t kMemoryToolRedZoneBytes = 8;
-constexpr size_t Arena::kDefaultSize;
 
 template <bool kCount>
 const char* const ArenaAllocatorStatsImpl<kCount>::kAllocNames[] = {
@@ -181,7 +180,7 @@ Arena::Arena() : bytes_allocated_(0), memory_(nullptr), size_(0), next_(nullptr)
 
 class MallocArena FINAL : public Arena {
  public:
-  explicit MallocArena(size_t size = Arena::kDefaultSize);
+  explicit MallocArena(size_t size = arena_allocator::kArenaDefaultSize);
   virtual ~MallocArena();
  private:
   static constexpr size_t RequiredOverallocation() {
@@ -344,6 +343,17 @@ void ArenaPool::FreeArenaChain(Arena* first) {
       MEMORY_TOOL_MAKE_UNDEFINED(arena->memory_, arena->bytes_allocated_);
     }
   }
+
+  if (arena_allocator::kArenaAllocatorPreciseTracking) {
+    // Do not reuse arenas when tracking.
+    while (first != nullptr) {
+      Arena* next = first->next_;
+      delete first;
+      first = next;
+    }
+    return;
+  }
+
   if (first != nullptr) {
     Arena* last = first;
     while (last->next_ != nullptr) {
@@ -437,7 +447,7 @@ ArenaAllocator::~ArenaAllocator() {
 }
 
 uint8_t* ArenaAllocator::AllocFromNewArena(size_t bytes) {
-  Arena* new_arena = pool_->AllocArena(std::max(Arena::kDefaultSize, bytes));
+  Arena* new_arena = pool_->AllocArena(std::max(arena_allocator::kArenaDefaultSize, bytes));
   DCHECK(new_arena != nullptr);
   DCHECK_LE(bytes, new_arena->Size());
   if (static_cast<size_t>(end_ - ptr_) > new_arena->Size() - bytes) {
