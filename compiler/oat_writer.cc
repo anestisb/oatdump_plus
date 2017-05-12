@@ -28,7 +28,6 @@
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
-#include "compiled_class.h"
 #include "compiled_method.h"
 #include "debug/method_debug_info.h"
 #include "dex/verification_results.h"
@@ -712,17 +711,17 @@ class OatWriter::InitOatClassesMethodVisitor : public DexMethodVisitor {
 
   bool EndClass() {
     ClassReference class_ref(dex_file_, class_def_index_);
-    CompiledClass* compiled_class = writer_->compiler_driver_->GetCompiledClass(class_ref);
     mirror::Class::Status status;
-    if (compiled_class != nullptr) {
-      status = compiled_class->GetStatus();
-    } else if (writer_->compiler_driver_->GetVerificationResults()->IsClassRejected(class_ref)) {
-      // The oat class status is used only for verification of resolved classes,
-      // so use kStatusErrorResolved whether the class was resolved or unresolved
-      // during compile-time verification.
-      status = mirror::Class::kStatusErrorResolved;
-    } else {
-      status = mirror::Class::kStatusNotReady;
+    bool found = writer_->compiler_driver_->GetCompiledClass(class_ref, &status);
+    if (!found) {
+      if (writer_->compiler_driver_->GetVerificationResults()->IsClassRejected(class_ref)) {
+        // The oat class status is used only for verification of resolved classes,
+        // so use kStatusErrorResolved whether the class was resolved or unresolved
+        // during compile-time verification.
+        status = mirror::Class::kStatusErrorResolved;
+      } else {
+        status = mirror::Class::kStatusNotReady;
+      }
     }
 
     writer_->oat_classes_.emplace_back(offset_,
