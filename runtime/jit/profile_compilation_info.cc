@@ -45,8 +45,9 @@
 namespace art {
 
 const uint8_t ProfileCompilationInfo::kProfileMagic[] = { 'p', 'r', 'o', '\0' };
-// Last profile version: Compress profile data.
-const uint8_t ProfileCompilationInfo::kProfileVersion[] = { '0', '0', '6', '\0' };
+// Last profile version: Instead of method index, put the difference with the last
+// method's index.
+const uint8_t ProfileCompilationInfo::kProfileVersion[] = { '0', '0', '7', '\0' };
 
 static constexpr uint16_t kMaxDexFileKeyLength = PATH_MAX;
 
@@ -302,12 +303,25 @@ bool ProfileCompilationInfo::Save(int fd) {
 
     AddStringToBuffer(&buffer, dex_data.profile_key);
 
+    uint16_t last_method_index = 0;
     for (const auto& method_it : dex_data.method_map) {
-      AddUintToBuffer(&buffer, method_it.first);
+      // Store the difference between the method indices. The SafeMap is ordered by
+      // method_id, so the difference will always be non negative.
+      DCHECK_GE(method_it.first, last_method_index);
+      uint16_t diff_with_last_method_index = method_it.first - last_method_index;
+      last_method_index = method_it.first;
+      AddUintToBuffer(&buffer, diff_with_last_method_index);
       AddInlineCacheToBuffer(&buffer, method_it.second);
     }
+
+    uint16_t last_class_index = 0;
     for (const auto& class_id : dex_data.class_set) {
-      AddUintToBuffer(&buffer, class_id.index_);
+      // Store the difference between the class indices. The set is ordered by
+      // class_id, so the difference will always be non negative.
+      DCHECK_GE(class_id.index_, last_class_index);
+      uint16_t diff_with_last_class_index = class_id.index_ - last_class_index;
+      last_class_index = class_id.index_;
+      AddUintToBuffer(&buffer, diff_with_last_class_index);
     }
   }
 
@@ -632,11 +646,13 @@ bool ProfileCompilationInfo::ReadMethods(SafeBuffer& buffer,
   }
   size_t expected_unread_bytes_after_operation = buffer.CountUnreadBytes()
       - line_header.method_region_size_bytes;
+  uint16_t last_method_index = 0;
   while (buffer.CountUnreadBytes() > expected_unread_bytes_after_operation) {
     DexFileData* const data = GetOrAddDexFileData(line_header.dex_location, line_header.checksum);
-    uint16_t method_index;
-    READ_UINT(uint16_t, buffer, method_index, error);
-
+    uint16_t diff_with_last_method_index;
+    READ_UINT(uint16_t, buffer, diff_with_last_method_index, error);
+    uint16_t method_index = last_method_index + diff_with_last_method_index;
+    last_method_index = method_index;
     auto it = data->method_map.FindOrAdd(method_index);
     if (!ReadInlineCache(buffer, number_of_dex_files, &(it->second), error)) {
       return false;
@@ -659,9 +675,12 @@ bool ProfileCompilationInfo::ReadClasses(SafeBuffer& buffer,
     return kProfileLoadBadData;
   }
 
+  uint16_t last_class_index = 0;
   for (uint16_t i = 0; i < line_header.class_set_size; i++) {
-    uint16_t type_index;
-    READ_UINT(uint16_t, buffer, type_index, error);
+    uint16_t diff_with_last_class_index;
+    READ_UINT(uint16_t, buffer, diff_with_last_class_index, error);
+    uint16_t type_index = last_class_index + diff_with_last_class_index;
+    last_class_index = type_index;
     if (!AddClassIndex(line_header.dex_location,
                        line_header.checksum,
                        dex::TypeIndex(type_index))) {
