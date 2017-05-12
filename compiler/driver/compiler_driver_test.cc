@@ -23,7 +23,6 @@
 #include "art_method-inl.h"
 #include "class_linker-inl.h"
 #include "common_compiler_test.h"
-#include "compiled_class.h"
 #include "dex_file.h"
 #include "dex_file_types.h"
 #include "gc/heap.h"
@@ -339,10 +338,11 @@ class CompilerDriverVerifyTest : public CompilerDriverTest {
     ASSERT_NE(klass, nullptr);
     EXPECT_TRUE(klass->IsVerified());
 
-    CompiledClass* compiled_class = compiler_driver_->GetCompiledClass(
-        ClassReference(&klass->GetDexFile(), klass->GetDexTypeIndex().index_));
-    ASSERT_NE(compiled_class, nullptr);
-    EXPECT_EQ(compiled_class->GetStatus(), mirror::Class::kStatusVerified);
+    mirror::Class::Status status;
+    bool found = compiler_driver_->GetCompiledClass(
+        ClassReference(&klass->GetDexFile(), klass->GetDexTypeIndex().index_), &status);
+    ASSERT_TRUE(found);
+    EXPECT_EQ(status, mirror::Class::kStatusVerified);
   }
 };
 

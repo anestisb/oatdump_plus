@@ -56,7 +56,6 @@ class VerifierDepsTest;
 }  // namespace verifier
 
 class BitVector;
-class CompiledClass;
 class CompiledMethod;
 class CompilerOptions;
 class DexCompilationUnit;
@@ -164,7 +163,7 @@ class CompilerDriver {
   std::unique_ptr<const std::vector<uint8_t>> CreateQuickResolutionTrampoline() const;
   std::unique_ptr<const std::vector<uint8_t>> CreateQuickToInterpreterBridge() const;
 
-  CompiledClass* GetCompiledClass(ClassReference ref) const
+  bool GetCompiledClass(ClassReference ref, mirror::Class::Status* status) const
       REQUIRES(!compiled_classes_lock_);
 
   CompiledMethod* GetCompiledMethod(MethodReference ref) const;
@@ -505,10 +504,10 @@ class CompilerDriver {
   std::map<ClassReference, bool> requires_constructor_barrier_
       GUARDED_BY(requires_constructor_barrier_lock_);
 
-  typedef SafeMap<const ClassReference, CompiledClass*> ClassTable;
+  using ClassStateTable = SafeMap<const ClassReference, mirror::Class::Status>;
   // All class references that this compiler has compiled.
   mutable Mutex compiled_classes_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  ClassTable compiled_classes_ GUARDED_BY(compiled_classes_lock_);
+  ClassStateTable compiled_classes_ GUARDED_BY(compiled_classes_lock_);
 
   typedef AtomicMethodRefMap<CompiledMethod*> MethodTable;
 
