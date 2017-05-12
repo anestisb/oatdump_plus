@@ -214,6 +214,17 @@ class HeapLocationCollector : public HGraphVisitor {
     return nullptr;
   }
 
+  size_t GetArrayAccessHeapLocation(HInstruction* array, HInstruction* index) const {
+    DCHECK(array != nullptr);
+    DCHECK(index != nullptr);
+    HInstruction* original_ref = HuntForOriginalReference(array);
+    ReferenceInfo* ref_info = FindReferenceInfoOf(original_ref);
+    return FindHeapLocationIndex(ref_info,
+                                 HeapLocation::kInvalidFieldOffset,
+                                 index,
+                                 HeapLocation::kDeclaringClassDefIndexForArrays);
+  }
+
   bool HasHeapStores() const {
     return has_heap_stores_;
   }
@@ -300,6 +311,8 @@ class HeapLocationCollector : public HGraphVisitor {
     return true;
   }
 
+  bool CanArrayIndicesAlias(const HInstruction* i1, const HInstruction* i2) const;
+
   // `index1` and `index2` are indices in the array of collected heap locations.
   // Returns the position in the bit vector that tracks whether the two heap
   // locations may alias.
@@ -336,12 +349,7 @@ class HeapLocationCollector : public HGraphVisitor {
     if (loc1->IsArrayElement() && loc2->IsArrayElement()) {
       HInstruction* array_index1 = loc1->GetIndex();
       HInstruction* array_index2 = loc2->GetIndex();
-      DCHECK(array_index1 != nullptr);
-      DCHECK(array_index2 != nullptr);
-      if (array_index1->IsIntConstant() &&
-          array_index2->IsIntConstant() &&
-          array_index1->AsIntConstant()->GetValue() != array_index2->AsIntConstant()->GetValue()) {
-        // Different constant indices do not alias.
+      if (!CanArrayIndicesAlias(array_index1, array_index2)) {
         return false;
       }
       ReferenceInfo* ref_info = loc1->GetReferenceInfo();
