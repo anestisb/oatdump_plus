@@ -81,6 +81,7 @@ class DexFile;
 class InternTable;
 class JavaVMExt;
 class LinearAlloc;
+class MemMap;
 class MonitorList;
 class MonitorPool;
 class NullPointerHandler;
@@ -941,6 +942,8 @@ class Runtime {
 
   std::atomic<uint32_t> deoptimization_counts_[
       static_cast<uint32_t>(DeoptimizationKind::kLast) + 1];
+
+  std::unique_ptr<MemMap> protected_fault_page_;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };
