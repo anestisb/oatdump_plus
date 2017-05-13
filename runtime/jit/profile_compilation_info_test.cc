@@ -92,7 +92,15 @@ class ProfileCompilationInfoTest : public CommonRuntimeTest {
     if (info.GetNumberOfMethods() != profile_methods.size()) {
       return false;
     }
-    return info.MergeAndSave(filename, nullptr, false);
+    ProfileCompilationInfo file_profile;
+    if (!file_profile.Load(filename, false)) {
+      return false;
+    }
+    if (!info.MergeWith(file_profile)) {
+      return false;
+    }
+
+    return info.Save(filename, nullptr);
   }
 
   // Saves the given art methods to a profile backed by 'filename' and adds
@@ -145,7 +153,7 @@ class ProfileCompilationInfoTest : public CommonRuntimeTest {
     if (info.GetNumberOfMethods() != profile_methods.size()) {
       return false;
     }
-    return info.MergeAndSave(filename, nullptr, false);
+    return info.Save(filename, nullptr);
   }
 
   ProfileCompilationInfo::OfflineProfileMethodInfo ConvertProfileMethodInfo(
