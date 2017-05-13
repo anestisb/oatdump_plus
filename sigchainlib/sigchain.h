@@ -21,8 +21,6 @@
 
 namespace art {
 
-extern "C" void InitializeSignalChain();
-
 typedef bool (*SpecialSignalHandlerFn)(int, siginfo_t*, void*);
 extern "C" void AddSpecialSignalHandlerFn(int signal, SpecialSignalHandlerFn fn);
 extern "C" void RemoveSpecialSignalHandlerFn(int signal, SpecialSignalHandlerFn fn);
