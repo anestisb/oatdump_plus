@@ -16,6 +16,9 @@
 
 package art;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -44,6 +47,8 @@ public class Test913 {
     };
     t.start();
     cdl1.await();
+
+    doExtensionTests();
   }
 
   public static void runFollowReferences() throws Exception {
@@ -215,6 +220,59 @@ public class Test913 {
     System.out.println(getTag(floatObject));
   }
 
+  static ArrayList<Object> extensionTestHolder;
+
+  private static void doExtensionTests() {
+    checkForExtensionApis();
+
+    extensionTestHolder = new ArrayList<>();
+    System.out.println();
+
+    try {
+      getHeapName(-1);
+      System.out.println("Expected failure for -1");
+    } catch (Exception e) {
+    }
+    System.out.println(getHeapName(0));
+    System.out.println(getHeapName(1));
+    System.out.println(getHeapName(2));
+    System.out.println(getHeapName(3));
+    try {
+      getHeapName(4);
+      System.out.println("Expected failure for -1");
+    } catch (Exception e) {
+    }
+
+    System.out.println();
+
+    setTag(Object.class, 100000);
+    int objectClassHeapId = getObjectHeapId(100000);
+    int objClassExpectedHeapId = hasImage() ? 1 : 3;
+    if (objectClassHeapId != objClassExpectedHeapId) {
+      throw new RuntimeException("Expected object class in heap " + objClassExpectedHeapId +
+          " but received " + objectClassHeapId);
+    }
+
+    A a = new A();
+    extensionTestHolder.add(a);
+    setTag(a, 100001);
+    System.out.println(getObjectHeapId(100001));
+
+    checkGetObjectHeapIdInCallback(100000, objClassExpectedHeapId);
+    checkGetObjectHeapIdInCallback(100001, 3);
+
+    long baseTag = 30000000;
+    setTag(Object.class, baseTag + objClassExpectedHeapId);
+    setTag(Class.class, baseTag + objClassExpectedHeapId);
+    Object o = new Object();
+    extensionTestHolder.add(o);
+    setTag(o, baseTag + 3);
+
+    iterateThroughHeapExt();
+
+    extensionTestHolder = null;
+  }
+
   private static void runGc() {
     clearStats();
     forceGarbageCollection();
@@ -231,6 +289,24 @@ public class Test913 {
     int s = getGcStarts();
     int f = getGcFinishes();
     System.out.println((s > 0) + " " + (f > 0));
+  }
+
+  private static boolean hasImage() {
+    try {
+      int pid = Integer.parseInt(new File("/proc/self").getCanonicalFile().getName());
+      BufferedReader reader = new BufferedReader(new FileReader("/proc/" + pid + "/maps"));
+      String line;
+      while ((line = reader.readLine()) != null) {
+        if (line.endsWith(".art")) {
+          reader.close();
+          return true;
+        }
+      }
+      reader.close();
+      return false;
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
   }
 
   private static class TestConfig {
@@ -642,9 +718,16 @@ public class Test913 {
   private static native int getGcFinishes();
   private static native void forceGarbageCollection();
 
+  private static native void checkForExtensionApis();
+  private static native int getObjectHeapId(long tag);
+  private static native String getHeapName(int heapId);
+  private static native void checkGetObjectHeapIdInCallback(long tag, int heapId);
+
   public static native String[] followReferences(int heapFilter, Class<?> klassFilter,
       Object initialObject, int stopAfter, int followSet, Object jniRef);
   public static native String[] followReferencesString(Object initialObject);
   public static native String followReferencesPrimitiveArray(Object initialObject);
   public static native String followReferencesPrimitiveFields(Object initialObject);
+
+  private static native void iterateThroughHeapExt();
 }
