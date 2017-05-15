@@ -90,13 +90,17 @@ InlineCache* ProfilingInfo::GetInlineCache(uint32_t dex_pc) {
 void ProfilingInfo::AddInvokeInfo(uint32_t dex_pc, mirror::Class* cls) {
   InlineCache* cache = GetInlineCache(dex_pc);
   for (size_t i = 0; i < InlineCache::kIndividualCacheSize; ++i) {
-    mirror::Class* existing = cache->classes_[i].Read();
-    if (existing == cls) {
+    mirror::Class* existing = cache->classes_[i].Read<kWithoutReadBarrier>();
+    mirror::Class* marked = ReadBarrier::IsMarked(existing);
+    if (marked == cls) {
       // Receiver type is already in the cache, nothing else to do.
       return;
-    } else if (existing == nullptr) {
+    } else if (marked == nullptr) {
       // Cache entry is empty, try to put `cls` in it.
-      GcRoot<mirror::Class> expected_root(nullptr);
+      // Note: it's ok to spin on 'existing' here: if 'existing' is not null, that means
+      // it is a stalled heap address, which will only be cleared during SweepSystemWeaks,
+      // *after* this thread hits a suspend point.
+      GcRoot<mirror::Class> expected_root(existing);
       GcRoot<mirror::Class> desired_root(cls);
       if (!reinterpret_cast<Atomic<GcRoot<mirror::Class>>*>(&cache->classes_[i])->
               CompareExchangeStrongSequentiallyConsistent(expected_root, desired_root)) {
