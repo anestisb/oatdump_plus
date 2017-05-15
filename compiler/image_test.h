@@ -311,6 +311,7 @@ inline void CompilationHelper::Compile(CompilerDriver* driver,
         elf_writer->PrepareDynamicSection(rodata_size,
                                           text_size,
                                           oat_writer->GetBssSize(),
+                                          oat_writer->GetBssMethodsOffset(),
                                           oat_writer->GetBssRootsOffset());
 
         writer->UpdateOatFileLayout(i,

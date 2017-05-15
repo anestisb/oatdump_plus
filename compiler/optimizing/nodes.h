@@ -1410,12 +1410,7 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(IntermediateAddressIndex, Instruction)
 #endif
 
-#ifndef ART_ENABLE_CODEGEN_arm
 #define FOR_EACH_CONCRETE_INSTRUCTION_ARM(M)
-#else
-#define FOR_EACH_CONCRETE_INSTRUCTION_ARM(M)                            \
-  M(ArmDexCacheArraysBase, Instruction)
-#endif
 
 #define FOR_EACH_CONCRETE_INSTRUCTION_ARM64(M)
 
@@ -1424,7 +1419,6 @@ class HLoopInformationOutwardIterator : public ValueObject {
 #else
 #define FOR_EACH_CONCRETE_INSTRUCTION_MIPS(M)                           \
   M(MipsComputeBaseMethodAddress, Instruction)                          \
-  M(MipsDexCacheArraysBase, Instruction)                                \
   M(MipsPackedSwitch, Instruction)
 #endif
 
@@ -4166,11 +4160,9 @@ class HInvokeStaticOrDirect FINAL : public HInvoke {
     // Used for app->boot calls with non-relocatable image and for JIT-compiled calls.
     kDirectAddress,
 
-    // Load from resolved methods array in the dex cache using a PC-relative load.
-    // Used when we need to use the dex cache, for example for invoke-static that
-    // may cause class initialization (the entry may point to a resolution method),
-    // and we know that we can access the dex cache arrays using a PC-relative load.
-    kDexCachePcRelative,
+    // Load from an entry in the .bss section using a PC-relative load.
+    // Used for classes outside boot image when .bss is accessible with a PC-relative load.
+    kBssEntry,
 
     // Make a runtime call to resolve and call the method. This is the last-resort-kind
     // used when other kinds are unimplemented on a particular architecture.
@@ -4195,7 +4187,6 @@ class HInvokeStaticOrDirect FINAL : public HInvoke {
     //   - thread entrypoint offset for kStringInit method if this is a string init invoke.
     //     Note that there are multiple string init methods, each having its own offset.
     //   - the method address for kDirectAddress
-    //   - the dex cache arrays offset for kDexCachePcRel.
     uint64_t method_load_data;
   };
 
@@ -4296,12 +4287,9 @@ class HInvokeStaticOrDirect FINAL : public HInvoke {
   bool NeedsDexCacheOfDeclaringClass() const OVERRIDE;
   bool IsStringInit() const { return GetMethodLoadKind() == MethodLoadKind::kStringInit; }
   bool HasMethodAddress() const { return GetMethodLoadKind() == MethodLoadKind::kDirectAddress; }
-  bool HasPcRelativeDexCache() const {
-    return GetMethodLoadKind() == MethodLoadKind::kDexCachePcRelative;
-  }
   bool HasPcRelativeMethodLoadKind() const {
     return GetMethodLoadKind() == MethodLoadKind::kBootImageLinkTimePcRelative ||
-           GetMethodLoadKind() == MethodLoadKind::kDexCachePcRelative;
+           GetMethodLoadKind() == MethodLoadKind::kBssEntry;
   }
   bool HasCurrentMethodInput() const {
     // This function can be called only after the invoke has been fully initialized by the builder.
@@ -4322,11 +4310,6 @@ class HInvokeStaticOrDirect FINAL : public HInvoke {
 
   uint64_t GetMethodAddress() const {
     DCHECK(HasMethodAddress());
-    return dispatch_info_.method_load_data;
-  }
-
-  uint32_t GetDexCacheArrayOffset() const {
-    DCHECK(HasPcRelativeDexCache());
     return dispatch_info_.method_load_data;
   }
 
@@ -6878,9 +6861,6 @@ class HParallelMove FINAL : public HTemplateInstruction<0> {
 
 #if defined(ART_ENABLE_CODEGEN_arm) || defined(ART_ENABLE_CODEGEN_arm64)
 #include "nodes_shared.h"
-#endif
-#ifdef ART_ENABLE_CODEGEN_arm
-#include "nodes_arm.h"
 #endif
 #ifdef ART_ENABLE_CODEGEN_mips
 #include "nodes_mips.h"

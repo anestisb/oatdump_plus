@@ -24,16 +24,11 @@
 
 #include "android-base/strings.h"
 
-#ifdef ART_ENABLE_CODEGEN_arm
-#include "dex_cache_array_fixups_arm.h"
-#endif
-
 #ifdef ART_ENABLE_CODEGEN_arm64
 #include "instruction_simplifier_arm64.h"
 #endif
 
 #ifdef ART_ENABLE_CODEGEN_mips
-#include "dex_cache_array_fixups_mips.h"
 #include "pc_relative_fixups_mips.h"
 #endif
 
@@ -522,8 +517,6 @@ static HOptimization* BuildOptimization(
   } else if (opt_name == CodeSinking::kCodeSinkingPassName) {
     return new (arena) CodeSinking(graph, stats);
 #ifdef ART_ENABLE_CODEGEN_arm
-  } else if (opt_name == arm::DexCacheArrayFixups::kDexCacheArrayFixupsArmPassName) {
-    return new (arena) arm::DexCacheArrayFixups(graph, codegen, stats);
   } else if (opt_name == arm::InstructionSimplifierArm::kInstructionSimplifierArmPassName) {
     return new (arena) arm::InstructionSimplifierArm(graph, stats);
 #endif
@@ -532,8 +525,6 @@ static HOptimization* BuildOptimization(
     return new (arena) arm64::InstructionSimplifierArm64(graph, stats);
 #endif
 #ifdef ART_ENABLE_CODEGEN_mips
-  } else if (opt_name == mips::DexCacheArrayFixups::kDexCacheArrayFixupsMipsPassName) {
-    return new (arena) mips::DexCacheArrayFixups(graph, codegen, stats);
   } else if (opt_name == mips::PcRelativeFixups::kPcRelativeFixupsMipsPassName) {
     return new (arena) mips::PcRelativeFixups(graph, codegen, stats);
 #endif
@@ -641,8 +632,6 @@ void OptimizingCompiler::RunArchOptimizations(InstructionSet instruction_set,
 #if defined(ART_ENABLE_CODEGEN_arm)
     case kThumb2:
     case kArm: {
-      arm::DexCacheArrayFixups* fixups =
-          new (arena) arm::DexCacheArrayFixups(graph, codegen, stats);
       arm::InstructionSimplifierArm* simplifier =
           new (arena) arm::InstructionSimplifierArm(graph, stats);
       SideEffectsAnalysis* side_effects = new (arena) SideEffectsAnalysis(graph);
@@ -653,7 +642,6 @@ void OptimizingCompiler::RunArchOptimizations(InstructionSet instruction_set,
         simplifier,
         side_effects,
         gvn,
-        fixups,
         scheduling,
       };
       RunOptimizations(arm_optimizations, arraysize(arm_optimizations), pass_observer);
@@ -682,11 +670,8 @@ void OptimizingCompiler::RunArchOptimizations(InstructionSet instruction_set,
     case kMips: {
       mips::PcRelativeFixups* pc_relative_fixups =
           new (arena) mips::PcRelativeFixups(graph, codegen, stats);
-      mips::DexCacheArrayFixups* dex_cache_array_fixups =
-          new (arena) mips::DexCacheArrayFixups(graph, codegen, stats);
       HOptimization* mips_optimizations[] = {
           pc_relative_fixups,
-          dex_cache_array_fixups
       };
       RunOptimizations(mips_optimizations, arraysize(mips_optimizations), pass_observer);
       break;

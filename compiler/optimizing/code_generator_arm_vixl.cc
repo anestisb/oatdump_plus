@@ -2499,8 +2499,8 @@ CodeGeneratorARMVIXL::CodeGeneratorARMVIXL(HGraph* graph,
       isa_features_(isa_features),
       uint32_literals_(std::less<uint32_t>(),
                        graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
-      pc_relative_dex_cache_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       pc_relative_method_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      method_bss_entry_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       pc_relative_type_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       type_bss_entry_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       pc_relative_string_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
@@ -3642,18 +3642,10 @@ void LocationsBuilderARMVIXL::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* i
 
   IntrinsicLocationsBuilderARMVIXL intrinsic(codegen_);
   if (intrinsic.TryDispatch(invoke)) {
-    if (invoke->GetLocations()->CanCall() && invoke->HasPcRelativeDexCache()) {
-      invoke->GetLocations()->SetInAt(invoke->GetSpecialInputIndex(), Location::Any());
-    }
     return;
   }
 
   HandleInvoke(invoke);
-
-  // For PC-relative dex cache the invoke has an extra input, the PC-relative address base.
-  if (invoke->HasPcRelativeDexCache()) {
-    invoke->GetLocations()->SetInAt(invoke->GetSpecialInputIndex(), Location::RequiresRegister());
-  }
 }
 
 static bool TryGenerateIntrinsicCode(HInvoke* invoke, CodeGeneratorARMVIXL* codegen) {
@@ -9140,12 +9132,12 @@ void CodeGeneratorARMVIXL::GenerateStaticOrDirectCall(
     case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddress:
       __ Mov(RegisterFrom(temp), Operand::From(invoke->GetMethodAddress()));
       break;
-    case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative: {
-      HArmDexCacheArraysBase* base =
-          invoke->InputAt(invoke->GetSpecialInputIndex())->AsArmDexCacheArraysBase();
-      vixl32::Register base_reg = GetInvokeStaticOrDirectExtraParameter(invoke, RegisterFrom(temp));
-      int32_t offset = invoke->GetDexCacheArrayOffset() - base->GetElementOffset();
-      GetAssembler()->LoadFromOffset(kLoadWord, RegisterFrom(temp), base_reg, offset);
+    case HInvokeStaticOrDirect::MethodLoadKind::kBssEntry: {
+      PcRelativePatchInfo* labels = NewMethodBssEntryPatch(
+          MethodReference(&GetGraph()->GetDexFile(), invoke->GetDexMethodIndex()));
+      vixl32::Register temp_reg = RegisterFrom(temp);
+      EmitMovwMovtPlaceholder(labels, temp_reg);
+      GetAssembler()->LoadFromOffset(kLoadWord, temp_reg, temp_reg, /* offset*/ 0);
       break;
     }
     case HInvokeStaticOrDirect::MethodLoadKind::kRuntimeCall: {
@@ -9244,6 +9236,13 @@ CodeGeneratorARMVIXL::PcRelativePatchInfo* CodeGeneratorARMVIXL::NewPcRelativeMe
                             &pc_relative_method_patches_);
 }
 
+CodeGeneratorARMVIXL::PcRelativePatchInfo* CodeGeneratorARMVIXL::NewMethodBssEntryPatch(
+    MethodReference target_method) {
+  return NewPcRelativePatch(*target_method.dex_file,
+                            target_method.dex_method_index,
+                            &method_bss_entry_patches_);
+}
+
 CodeGeneratorARMVIXL::PcRelativePatchInfo* CodeGeneratorARMVIXL::NewPcRelativeTypePatch(
     const DexFile& dex_file, dex::TypeIndex type_index) {
   return NewPcRelativePatch(dex_file, type_index.index_, &pc_relative_type_patches_);
@@ -9257,11 +9256,6 @@ CodeGeneratorARMVIXL::PcRelativePatchInfo* CodeGeneratorARMVIXL::NewTypeBssEntry
 CodeGeneratorARMVIXL::PcRelativePatchInfo* CodeGeneratorARMVIXL::NewPcRelativeStringPatch(
     const DexFile& dex_file, dex::StringIndex string_index) {
   return NewPcRelativePatch(dex_file, string_index.index_, &pc_relative_string_patches_);
-}
-
-CodeGeneratorARMVIXL::PcRelativePatchInfo* CodeGeneratorARMVIXL::NewPcRelativeDexCacheArrayPatch(
-    const DexFile& dex_file, uint32_t element_offset) {
-  return NewPcRelativePatch(dex_file, element_offset, &pc_relative_dex_cache_patches_);
 }
 
 CodeGeneratorARMVIXL::PcRelativePatchInfo* CodeGeneratorARMVIXL::NewPcRelativePatch(
@@ -9327,15 +9321,13 @@ inline void CodeGeneratorARMVIXL::EmitPcRelativeLinkerPatches(
 void CodeGeneratorARMVIXL::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) {
   DCHECK(linker_patches->empty());
   size_t size =
-      /* MOVW+MOVT for each entry */ 2u * pc_relative_dex_cache_patches_.size() +
       /* MOVW+MOVT for each entry */ 2u * pc_relative_method_patches_.size() +
+      /* MOVW+MOVT for each entry */ 2u * method_bss_entry_patches_.size() +
       /* MOVW+MOVT for each entry */ 2u * pc_relative_type_patches_.size() +
       /* MOVW+MOVT for each entry */ 2u * type_bss_entry_patches_.size() +
       /* MOVW+MOVT for each entry */ 2u * pc_relative_string_patches_.size() +
       baker_read_barrier_patches_.size();
   linker_patches->reserve(size);
-  EmitPcRelativeLinkerPatches<LinkerPatch::DexCacheArrayPatch>(pc_relative_dex_cache_patches_,
-                                                               linker_patches);
   if (GetCompilerOptions().IsBootImage()) {
     EmitPcRelativeLinkerPatches<LinkerPatch::RelativeMethodPatch>(pc_relative_method_patches_,
                                                                   linker_patches);
@@ -9349,6 +9341,8 @@ void CodeGeneratorARMVIXL::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_pa
     EmitPcRelativeLinkerPatches<LinkerPatch::StringBssEntryPatch>(pc_relative_string_patches_,
                                                                   linker_patches);
   }
+  EmitPcRelativeLinkerPatches<LinkerPatch::MethodBssEntryPatch>(method_bss_entry_patches_,
+                                                                linker_patches);
   EmitPcRelativeLinkerPatches<LinkerPatch::TypeBssEntryPatch>(type_bss_entry_patches_,
                                                               linker_patches);
   for (const BakerReadBarrierPatchInfo& info : baker_read_barrier_patches_) {
@@ -9497,17 +9491,6 @@ void InstructionCodeGeneratorARMVIXL::VisitPackedSwitch(HPackedSwitch* switch_in
       jump_table->EmitTable(codegen_);
     }
   }
-}
-void LocationsBuilderARMVIXL::VisitArmDexCacheArraysBase(HArmDexCacheArraysBase* base) {
-  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(base);
-  locations->SetOut(Location::RequiresRegister());
-}
-
-void InstructionCodeGeneratorARMVIXL::VisitArmDexCacheArraysBase(HArmDexCacheArraysBase* base) {
-  vixl32::Register base_reg = OutputRegister(base);
-  CodeGeneratorARMVIXL::PcRelativePatchInfo* labels =
-      codegen_->NewPcRelativeDexCacheArrayPatch(base->GetDexFile(), base->GetElementOffset());
-  codegen_->EmitMovwMovtPlaceholder(labels, base_reg);
 }
 
 // Copy the result of a call into the given target.

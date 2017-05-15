@@ -585,12 +585,11 @@ class CodeGeneratorMIPS : public CodeGenerator {
   };
 
   PcRelativePatchInfo* NewPcRelativeMethodPatch(MethodReference target_method);
+  PcRelativePatchInfo* NewMethodBssEntryPatch(MethodReference target_method);
   PcRelativePatchInfo* NewPcRelativeTypePatch(const DexFile& dex_file, dex::TypeIndex type_index);
   PcRelativePatchInfo* NewTypeBssEntryPatch(const DexFile& dex_file, dex::TypeIndex type_index);
   PcRelativePatchInfo* NewPcRelativeStringPatch(const DexFile& dex_file,
                                                 dex::StringIndex string_index);
-  PcRelativePatchInfo* NewPcRelativeDexCacheArrayPatch(const DexFile& dex_file,
-                                                       uint32_t element_offset);
   Literal* DeduplicateBootImageAddressLiteral(uint32_t address);
 
   void EmitPcRelativeAddressPlaceholderHigh(PcRelativePatchInfo* info, Register out, Register base);
@@ -645,10 +644,10 @@ class CodeGeneratorMIPS : public CodeGenerator {
 
   // Deduplication map for 32-bit literals, used for non-patchable boot image addresses.
   Uint32ToLiteralMap uint32_literals_;
-  // PC-relative patch info for each HMipsDexCacheArraysBase.
-  ArenaDeque<PcRelativePatchInfo> pc_relative_dex_cache_patches_;
   // PC-relative method patch info for kBootImageLinkTimePcRelative.
   ArenaDeque<PcRelativePatchInfo> pc_relative_method_patches_;
+  // PC-relative method patch info for kBssEntry.
+  ArenaDeque<PcRelativePatchInfo> method_bss_entry_patches_;
   // PC-relative type patch info for kBootImageLinkTimePcRelative.
   ArenaDeque<PcRelativePatchInfo> pc_relative_type_patches_;
   // PC-relative type patch info for kBssEntry.

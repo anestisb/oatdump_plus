@@ -59,11 +59,11 @@ inline bool IsAdrpPatch(const LinkerPatch& patch) {
     case LinkerPatch::Type::kBakerReadBarrierBranch:
       return false;
     case LinkerPatch::Type::kMethodRelative:
+    case LinkerPatch::Type::kMethodBssEntry:
     case LinkerPatch::Type::kTypeRelative:
     case LinkerPatch::Type::kTypeBssEntry:
     case LinkerPatch::Type::kStringRelative:
     case LinkerPatch::Type::kStringBssEntry:
-    case LinkerPatch::Type::kDexCacheArray:
       return patch.LiteralOffset() == patch.PcInsnOffset();
   }
 }
@@ -251,20 +251,20 @@ void Arm64RelativePatcher::PatchPcRelativeReference(std::vector<uint8_t>* code,
       // ADD immediate, 64-bit with imm12 == 0 (unset).
       if (!kEmitCompilerReadBarrier) {
         DCHECK(patch.GetType() == LinkerPatch::Type::kMethodRelative ||
-               patch.GetType() == LinkerPatch::Type::kStringRelative ||
-               patch.GetType() == LinkerPatch::Type::kTypeRelative) << patch.GetType();
+               patch.GetType() == LinkerPatch::Type::kTypeRelative ||
+               patch.GetType() == LinkerPatch::Type::kStringRelative) << patch.GetType();
       } else {
         // With the read barrier (non-Baker) enabled, it could be kStringBssEntry or kTypeBssEntry.
         DCHECK(patch.GetType() == LinkerPatch::Type::kMethodRelative ||
-               patch.GetType() == LinkerPatch::Type::kStringRelative ||
                patch.GetType() == LinkerPatch::Type::kTypeRelative ||
-               patch.GetType() == LinkerPatch::Type::kStringBssEntry ||
-               patch.GetType() == LinkerPatch::Type::kTypeBssEntry) << patch.GetType();
+               patch.GetType() == LinkerPatch::Type::kStringRelative ||
+               patch.GetType() == LinkerPatch::Type::kTypeBssEntry ||
+               patch.GetType() == LinkerPatch::Type::kStringBssEntry) << patch.GetType();
       }
       shift = 0u;  // No shift for ADD.
     } else {
       // LDR/STR 32-bit or 64-bit with imm12 == 0 (unset).
-      DCHECK(patch.GetType() == LinkerPatch::Type::kDexCacheArray ||
+      DCHECK(patch.GetType() == LinkerPatch::Type::kMethodBssEntry ||
              patch.GetType() == LinkerPatch::Type::kTypeBssEntry ||
              patch.GetType() == LinkerPatch::Type::kStringBssEntry) << patch.GetType();
       DCHECK_EQ(insn & 0xbfbffc00, 0xb9000000) << std::hex << insn;

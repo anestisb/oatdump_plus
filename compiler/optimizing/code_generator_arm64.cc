@@ -1448,8 +1448,8 @@ CodeGeneratorARM64::CodeGeneratorARM64(HGraph* graph,
                        graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       uint64_literals_(std::less<uint64_t>(),
                        graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
-      pc_relative_dex_cache_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       pc_relative_method_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      method_bss_entry_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       pc_relative_type_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       type_bss_entry_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       pc_relative_string_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
@@ -4526,15 +4526,14 @@ void CodeGeneratorARM64::GenerateStaticOrDirectCall(
       // Load method address from literal pool.
       __ Ldr(XRegisterFrom(temp), DeduplicateUint64Literal(invoke->GetMethodAddress()));
       break;
-    case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative: {
+    case HInvokeStaticOrDirect::MethodLoadKind::kBssEntry: {
       // Add ADRP with its PC-relative DexCache access patch.
-      const DexFile& dex_file = invoke->GetDexFileForPcRelativeDexCache();
-      uint32_t element_offset = invoke->GetDexCacheArrayOffset();
-      vixl::aarch64::Label* adrp_label = NewPcRelativeDexCacheArrayPatch(dex_file, element_offset);
+      MethodReference target_method(&GetGraph()->GetDexFile(), invoke->GetDexMethodIndex());
+      vixl::aarch64::Label* adrp_label = NewMethodBssEntryPatch(target_method);
       EmitAdrpPlaceholder(adrp_label, XRegisterFrom(temp));
       // Add LDR with its PC-relative DexCache access patch.
       vixl::aarch64::Label* ldr_label =
-          NewPcRelativeDexCacheArrayPatch(dex_file, element_offset, adrp_label);
+          NewMethodBssEntryPatch(target_method, adrp_label);
       EmitLdrOffsetPlaceholder(ldr_label, XRegisterFrom(temp), XRegisterFrom(temp));
       break;
     }
@@ -4635,6 +4634,15 @@ vixl::aarch64::Label* CodeGeneratorARM64::NewPcRelativeMethodPatch(
                             &pc_relative_method_patches_);
 }
 
+vixl::aarch64::Label* CodeGeneratorARM64::NewMethodBssEntryPatch(
+    MethodReference target_method,
+    vixl::aarch64::Label* adrp_label) {
+  return NewPcRelativePatch(*target_method.dex_file,
+                            target_method.dex_method_index,
+                            adrp_label,
+                            &method_bss_entry_patches_);
+}
+
 vixl::aarch64::Label* CodeGeneratorARM64::NewPcRelativeTypePatch(
     const DexFile& dex_file,
     dex::TypeIndex type_index,
@@ -4655,13 +4663,6 @@ vixl::aarch64::Label* CodeGeneratorARM64::NewPcRelativeStringPatch(
     vixl::aarch64::Label* adrp_label) {
   return
       NewPcRelativePatch(dex_file, string_index.index_, adrp_label, &pc_relative_string_patches_);
-}
-
-vixl::aarch64::Label* CodeGeneratorARM64::NewPcRelativeDexCacheArrayPatch(
-    const DexFile& dex_file,
-    uint32_t element_offset,
-    vixl::aarch64::Label* adrp_label) {
-  return NewPcRelativePatch(dex_file, element_offset, adrp_label, &pc_relative_dex_cache_patches_);
 }
 
 vixl::aarch64::Label* CodeGeneratorARM64::NewBakerReadBarrierPatch(uint32_t custom_data) {
@@ -4685,7 +4686,7 @@ vixl::aarch64::Label* CodeGeneratorARM64::NewPcRelativePatch(
 
 vixl::aarch64::Literal<uint32_t>* CodeGeneratorARM64::DeduplicateBootImageAddressLiteral(
     uint64_t address) {
-  return DeduplicateUint32Literal(dchecked_integral_cast<uint32_t>(address), &uint32_literals_);
+  return DeduplicateUint32Literal(dchecked_integral_cast<uint32_t>(address));
 }
 
 vixl::aarch64::Literal<uint32_t>* CodeGeneratorARM64::DeduplicateJitStringLiteral(
@@ -4748,19 +4749,13 @@ inline void CodeGeneratorARM64::EmitPcRelativeLinkerPatches(
 void CodeGeneratorARM64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) {
   DCHECK(linker_patches->empty());
   size_t size =
-      pc_relative_dex_cache_patches_.size() +
       pc_relative_method_patches_.size() +
+      method_bss_entry_patches_.size() +
       pc_relative_type_patches_.size() +
       type_bss_entry_patches_.size() +
       pc_relative_string_patches_.size() +
       baker_read_barrier_patches_.size();
   linker_patches->reserve(size);
-  for (const PcRelativePatchInfo& info : pc_relative_dex_cache_patches_) {
-    linker_patches->push_back(LinkerPatch::DexCacheArrayPatch(info.label.GetLocation(),
-                                                              &info.target_dex_file,
-                                                              info.pc_insn_label->GetLocation(),
-                                                              info.offset_or_index));
-  }
   if (GetCompilerOptions().IsBootImage()) {
     EmitPcRelativeLinkerPatches<LinkerPatch::RelativeMethodPatch>(pc_relative_method_patches_,
                                                                   linker_patches);
@@ -4774,6 +4769,8 @@ void CodeGeneratorARM64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patc
     EmitPcRelativeLinkerPatches<LinkerPatch::StringBssEntryPatch>(pc_relative_string_patches_,
                                                                   linker_patches);
   }
+  EmitPcRelativeLinkerPatches<LinkerPatch::MethodBssEntryPatch>(method_bss_entry_patches_,
+                                                                linker_patches);
   EmitPcRelativeLinkerPatches<LinkerPatch::TypeBssEntryPatch>(type_bss_entry_patches_,
                                                               linker_patches);
   for (const BakerReadBarrierPatchInfo& info : baker_read_barrier_patches_) {
@@ -4783,9 +4780,8 @@ void CodeGeneratorARM64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patc
   DCHECK_EQ(size, linker_patches->size());
 }
 
-vixl::aarch64::Literal<uint32_t>* CodeGeneratorARM64::DeduplicateUint32Literal(uint32_t value,
-                                                                      Uint32ToLiteralMap* map) {
-  return map->GetOrCreate(
+vixl::aarch64::Literal<uint32_t>* CodeGeneratorARM64::DeduplicateUint32Literal(uint32_t value) {
+  return uint32_literals_.GetOrCreate(
       value,
       [this, value]() { return __ CreateLiteralDestroyedWithPool<uint32_t>(value); });
 }

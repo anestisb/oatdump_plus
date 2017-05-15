@@ -2395,8 +2395,8 @@ CodeGeneratorARM::CodeGeneratorARM(HGraph* graph,
       isa_features_(isa_features),
       uint32_literals_(std::less<uint32_t>(),
                        graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
-      pc_relative_dex_cache_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       pc_relative_method_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      method_bss_entry_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       pc_relative_type_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       type_bss_entry_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       pc_relative_string_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
@@ -3553,18 +3553,10 @@ void LocationsBuilderARM::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invok
 
   IntrinsicLocationsBuilderARM intrinsic(codegen_);
   if (intrinsic.TryDispatch(invoke)) {
-    if (invoke->GetLocations()->CanCall() && invoke->HasPcRelativeDexCache()) {
-      invoke->GetLocations()->SetInAt(invoke->GetSpecialInputIndex(), Location::Any());
-    }
     return;
   }
 
   HandleInvoke(invoke);
-
-  // For PC-relative dex cache the invoke has an extra input, the PC-relative address base.
-  if (invoke->HasPcRelativeDexCache()) {
-    invoke->GetLocations()->SetInAt(invoke->GetSpecialInputIndex(), Location::RequiresRegister());
-  }
 }
 
 static bool TryGenerateIntrinsicCode(HInvoke* invoke, CodeGeneratorARM* codegen) {
@@ -8981,13 +8973,17 @@ void CodeGeneratorARM::GenerateStaticOrDirectCall(
     case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddress:
       __ LoadImmediate(temp.AsRegister<Register>(), invoke->GetMethodAddress());
       break;
-    case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative: {
-      HArmDexCacheArraysBase* base =
-          invoke->InputAt(invoke->GetSpecialInputIndex())->AsArmDexCacheArraysBase();
-      Register base_reg = GetInvokeStaticOrDirectExtraParameter(invoke,
-                                                                temp.AsRegister<Register>());
-      int32_t offset = invoke->GetDexCacheArrayOffset() - base->GetElementOffset();
-      __ LoadFromOffset(kLoadWord, temp.AsRegister<Register>(), base_reg, offset);
+    case HInvokeStaticOrDirect::MethodLoadKind::kBssEntry: {
+      Register temp_reg = temp.AsRegister<Register>();
+      PcRelativePatchInfo* labels = NewMethodBssEntryPatch(
+          MethodReference(&GetGraph()->GetDexFile(), invoke->GetDexMethodIndex()));
+      __ BindTrackedLabel(&labels->movw_label);
+      __ movw(temp_reg, /* placeholder */ 0u);
+      __ BindTrackedLabel(&labels->movt_label);
+      __ movt(temp_reg, /* placeholder */ 0u);
+      __ BindTrackedLabel(&labels->add_pc_label);
+      __ add(temp_reg, temp_reg, ShifterOperand(PC));
+      __ LoadFromOffset(kLoadWord, temp_reg, temp_reg, /* offset */ 0);
       break;
     }
     case HInvokeStaticOrDirect::MethodLoadKind::kRuntimeCall: {
@@ -9056,6 +9052,13 @@ CodeGeneratorARM::PcRelativePatchInfo* CodeGeneratorARM::NewPcRelativeMethodPatc
                             &pc_relative_method_patches_);
 }
 
+CodeGeneratorARM::PcRelativePatchInfo* CodeGeneratorARM::NewMethodBssEntryPatch(
+    MethodReference target_method) {
+  return NewPcRelativePatch(*target_method.dex_file,
+                            target_method.dex_method_index,
+                            &method_bss_entry_patches_);
+}
+
 CodeGeneratorARM::PcRelativePatchInfo* CodeGeneratorARM::NewPcRelativeTypePatch(
     const DexFile& dex_file, dex::TypeIndex type_index) {
   return NewPcRelativePatch(dex_file, type_index.index_, &pc_relative_type_patches_);
@@ -9069,11 +9072,6 @@ CodeGeneratorARM::PcRelativePatchInfo* CodeGeneratorARM::NewTypeBssEntryPatch(
 CodeGeneratorARM::PcRelativePatchInfo* CodeGeneratorARM::NewPcRelativeStringPatch(
     const DexFile& dex_file, dex::StringIndex string_index) {
   return NewPcRelativePatch(dex_file, string_index.index_, &pc_relative_string_patches_);
-}
-
-CodeGeneratorARM::PcRelativePatchInfo* CodeGeneratorARM::NewPcRelativeDexCacheArrayPatch(
-    const DexFile& dex_file, uint32_t element_offset) {
-  return NewPcRelativePatch(dex_file, element_offset, &pc_relative_dex_cache_patches_);
 }
 
 CodeGeneratorARM::PcRelativePatchInfo* CodeGeneratorARM::NewPcRelativePatch(
@@ -9134,15 +9132,13 @@ inline void CodeGeneratorARM::EmitPcRelativeLinkerPatches(
 void CodeGeneratorARM::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) {
   DCHECK(linker_patches->empty());
   size_t size =
-      /* MOVW+MOVT for each entry */ 2u * pc_relative_dex_cache_patches_.size() +
       /* MOVW+MOVT for each entry */ 2u * pc_relative_method_patches_.size() +
+      /* MOVW+MOVT for each entry */ 2u * method_bss_entry_patches_.size() +
       /* MOVW+MOVT for each entry */ 2u * pc_relative_type_patches_.size() +
       /* MOVW+MOVT for each entry */ 2u * type_bss_entry_patches_.size() +
       /* MOVW+MOVT for each entry */ 2u * pc_relative_string_patches_.size() +
       baker_read_barrier_patches_.size();
   linker_patches->reserve(size);
-  EmitPcRelativeLinkerPatches<LinkerPatch::DexCacheArrayPatch>(pc_relative_dex_cache_patches_,
-                                                               linker_patches);
   if (GetCompilerOptions().IsBootImage()) {
     EmitPcRelativeLinkerPatches<LinkerPatch::RelativeMethodPatch>(pc_relative_method_patches_,
                                                                   linker_patches);
@@ -9156,6 +9152,8 @@ void CodeGeneratorARM::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patche
     EmitPcRelativeLinkerPatches<LinkerPatch::StringBssEntryPatch>(pc_relative_string_patches_,
                                                                   linker_patches);
   }
+  EmitPcRelativeLinkerPatches<LinkerPatch::MethodBssEntryPatch>(method_bss_entry_patches_,
+                                                                linker_patches);
   EmitPcRelativeLinkerPatches<LinkerPatch::TypeBssEntryPatch>(type_bss_entry_patches_,
                                                               linker_patches);
   for (const BakerReadBarrierPatchInfo& info : baker_read_barrier_patches_) {
@@ -9290,23 +9288,6 @@ void InstructionCodeGeneratorARM::VisitPackedSwitch(HPackedSwitch* switch_instr)
     // Dispatch is a direct add to the PC (for Thumb2).
     __ EmitJumpTableDispatch(table, temp_reg);
   }
-}
-
-void LocationsBuilderARM::VisitArmDexCacheArraysBase(HArmDexCacheArraysBase* base) {
-  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(base);
-  locations->SetOut(Location::RequiresRegister());
-}
-
-void InstructionCodeGeneratorARM::VisitArmDexCacheArraysBase(HArmDexCacheArraysBase* base) {
-  Register base_reg = base->GetLocations()->Out().AsRegister<Register>();
-  CodeGeneratorARM::PcRelativePatchInfo* labels =
-      codegen_->NewPcRelativeDexCacheArrayPatch(base->GetDexFile(), base->GetElementOffset());
-  __ BindTrackedLabel(&labels->movw_label);
-  __ movw(base_reg, /* placeholder */ 0u);
-  __ BindTrackedLabel(&labels->movt_label);
-  __ movt(base_reg, /* placeholder */ 0u);
-  __ BindTrackedLabel(&labels->add_pc_label);
-  __ add(base_reg, base_reg, ShifterOperand(PC));
 }
 
 void CodeGeneratorARM::MoveFromReturnRegister(Location trg, Primitive::Type type) {

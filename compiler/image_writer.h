@@ -106,19 +106,6 @@ class ImageWriter FINAL {
 
   ArtMethod* GetImageMethodAddress(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  template <typename PtrType>
-  PtrType GetDexCacheArrayElementImageAddress(const DexFile* dex_file, uint32_t offset)
-      const REQUIRES_SHARED(Locks::mutator_lock_) {
-    auto oat_it = dex_file_oat_index_map_.find(dex_file);
-    DCHECK(oat_it != dex_file_oat_index_map_.end());
-    const ImageInfo& image_info = GetImageInfo(oat_it->second);
-    auto it = image_info.dex_cache_array_starts_.find(dex_file);
-    DCHECK(it != image_info.dex_cache_array_starts_.end());
-    return reinterpret_cast<PtrType>(
-        image_info.image_begin_ + image_info.bin_slot_offsets_[kBinDexCacheArray] +
-            it->second + offset);
-  }
-
   size_t GetOatFileOffset(size_t oat_index) const {
     return GetImageInfo(oat_index).oat_offset_;
   }

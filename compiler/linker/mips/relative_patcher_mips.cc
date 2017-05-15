@@ -50,7 +50,6 @@ void MipsRelativePatcher::PatchPcRelativeReference(std::vector<uint8_t>* code,
   uint32_t anchor_literal_offset = patch.PcInsnOffset();
   uint32_t literal_offset = patch.LiteralOffset();
   uint32_t literal_low_offset;
-  bool dex_cache_array = (patch.GetType() == LinkerPatch::Type::kDexCacheArray);
 
   // Perform basic sanity checks and initialize `literal_low_offset` to point
   // to the instruction containing the 16 least significant bits of the
@@ -72,16 +71,8 @@ void MipsRelativePatcher::PatchPcRelativeReference(std::vector<uint8_t>* code,
     DCHECK_GE(code->size(), 16u);
     DCHECK_LE(literal_offset, code->size() - 12u);
     DCHECK_GE(literal_offset, 4u);
-    // The NAL instruction may not precede immediately as the PC+0 value may
-    // come from HMipsComputeBaseMethodAddress.
-    if (dex_cache_array) {
-      DCHECK_EQ(literal_offset + 4u, anchor_literal_offset);
-      // NAL
-      DCHECK_EQ((*code)[literal_offset - 4], 0x00);
-      DCHECK_EQ((*code)[literal_offset - 3], 0x00);
-      DCHECK_EQ((*code)[literal_offset - 2], 0x10);
-      DCHECK_EQ((*code)[literal_offset - 1], 0x04);
-    }
+    // The NAL instruction does not precede immediately as the PC+0
+    // comes from HMipsComputeBaseMethodAddress.
     // LUI reg, offset_high
     DCHECK_EQ((*code)[literal_offset + 0], 0x34);
     DCHECK_EQ((*code)[literal_offset + 1], 0x12);
@@ -90,10 +81,6 @@ void MipsRelativePatcher::PatchPcRelativeReference(std::vector<uint8_t>* code,
     // ADDU reg, reg, reg2
     DCHECK_EQ((*code)[literal_offset + 4], 0x21);
     DCHECK_EQ(((*code)[literal_offset + 5] & 0x07), 0x00);
-    if (dex_cache_array) {
-      // reg2 is either RA or from HMipsComputeBaseMethodAddress.
-      DCHECK_EQ(((*code)[literal_offset + 6] & 0x1F), 0x1F);
-    }
     DCHECK_EQ(((*code)[literal_offset + 7] & 0xFC), 0x00);
     // instr reg(s), offset_low
     DCHECK_EQ((*code)[literal_offset + 8], 0x78);
@@ -104,9 +91,6 @@ void MipsRelativePatcher::PatchPcRelativeReference(std::vector<uint8_t>* code,
   // Apply patch.
   uint32_t anchor_offset = patch_offset - literal_offset + anchor_literal_offset;
   uint32_t diff = target_offset - anchor_offset;
-  if (dex_cache_array && !is_r6) {
-    diff += kDexCacheArrayLwOffset;
-  }
   diff += (diff & 0x8000) << 1;  // Account for sign extension in "instr reg(s), offset_low".
 
   // LUI reg, offset_high / AUIPC reg, offset_high

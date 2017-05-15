@@ -670,6 +670,7 @@ class ElfBuilder FINAL {
                              Elf_Word rodata_size,
                              Elf_Word text_size,
                              Elf_Word bss_size,
+                             Elf_Word bss_methods_offset,
                              Elf_Word bss_roots_offset) {
     std::string soname(elf_file_path);
     size_t directory_separator_pos = soname.rfind('/');
@@ -715,9 +716,18 @@ class ElfBuilder FINAL {
       Elf_Word bss_index = rodata_index + 1u + (text_size != 0 ? 1u : 0u);
       Elf_Word oatbss = dynstr_.Add("oatbss");
       dynsym_.Add(oatbss, bss_index, bss_address, bss_roots_offset, STB_GLOBAL, STT_OBJECT);
+      DCHECK_LE(bss_methods_offset, bss_roots_offset);
+      DCHECK_LE(bss_roots_offset, bss_size);
+      // Add a symbol marking the start of the methods part of the .bss, if not empty.
+      if (bss_methods_offset != bss_roots_offset) {
+        Elf_Word bss_methods_address = bss_address + bss_methods_offset;
+        Elf_Word bss_methods_size = bss_roots_offset - bss_methods_offset;
+        Elf_Word oatbssroots = dynstr_.Add("oatbssmethods");
+        dynsym_.Add(
+            oatbssroots, bss_index, bss_methods_address, bss_methods_size, STB_GLOBAL, STT_OBJECT);
+      }
       // Add a symbol marking the start of the GC roots part of the .bss, if not empty.
       if (bss_roots_offset != bss_size) {
-        DCHECK_LT(bss_roots_offset, bss_size);
         Elf_Word bss_roots_address = bss_address + bss_roots_offset;
         Elf_Word bss_roots_size = bss_size - bss_roots_offset;
         Elf_Word oatbssroots = dynstr_.Add("oatbssroots");

@@ -46,9 +46,6 @@ class MipsRelativePatcher FINAL : public RelativePatcher {
                                    uint32_t patch_offset) OVERRIDE;
 
  private:
-  // We'll maximize the range of a single load instruction for dex cache array accesses
-  // by aligning offset -32768 with the offset of the first used element.
-  static constexpr uint32_t kDexCacheArrayLwOffset = 0x8000;
   bool is_r6;
 
   DISALLOW_COPY_AND_ASSIGN(MipsRelativePatcher);
