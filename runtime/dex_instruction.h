@@ -196,6 +196,8 @@ class Instruction {
 
   static constexpr uint32_t kMaxVarArgRegs = 5;
 
+  static constexpr bool kHaveExperimentalInstructions = false;
+
   // Returns the size (in 2 byte code units) of this instruction.
   size_t SizeInCodeUnits() const {
     int result = kInstructionSizeInCodeUnits[Opcode()];
