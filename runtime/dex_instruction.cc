@@ -31,7 +31,7 @@ namespace art {
 using android::base::StringPrintf;
 
 const char* const Instruction::kInstructionNames[] = {
-#define INSTRUCTION_NAME(o, c, pname, f, i, a, v) pname,
+#define INSTRUCTION_NAME(o, c, pname, f, i, a, e, v) pname,
 #include "dex_instruction_list.h"
   DEX_INSTRUCTION_LIST(INSTRUCTION_NAME)
 #undef DEX_INSTRUCTION_LIST
@@ -39,7 +39,7 @@ const char* const Instruction::kInstructionNames[] = {
 };
 
 Instruction::Format const Instruction::kInstructionFormats[] = {
-#define INSTRUCTION_FORMAT(o, c, p, format, i, a, v) format,
+#define INSTRUCTION_FORMAT(o, c, p, format, i, a, e, v) format,
 #include "dex_instruction_list.h"
   DEX_INSTRUCTION_LIST(INSTRUCTION_FORMAT)
 #undef DEX_INSTRUCTION_LIST
@@ -47,7 +47,7 @@ Instruction::Format const Instruction::kInstructionFormats[] = {
 };
 
 Instruction::IndexType const Instruction::kInstructionIndexTypes[] = {
-#define INSTRUCTION_INDEX_TYPE(o, c, p, f, index, a, v) index,
+#define INSTRUCTION_INDEX_TYPE(o, c, p, f, index, a, e, v) index,
 #include "dex_instruction_list.h"
   DEX_INSTRUCTION_LIST(INSTRUCTION_INDEX_TYPE)
 #undef DEX_INSTRUCTION_LIST
@@ -55,7 +55,7 @@ Instruction::IndexType const Instruction::kInstructionIndexTypes[] = {
 };
 
 int const Instruction::kInstructionFlags[] = {
-#define INSTRUCTION_FLAGS(o, c, p, f, i, flags, v) flags,
+#define INSTRUCTION_FLAGS(o, c, p, f, i, flags, e, v) flags,
 #include "dex_instruction_list.h"
   DEX_INSTRUCTION_LIST(INSTRUCTION_FLAGS)
 #undef DEX_INSTRUCTION_LIST
@@ -63,7 +63,7 @@ int const Instruction::kInstructionFlags[] = {
 };
 
 int const Instruction::kInstructionVerifyFlags[] = {
-#define INSTRUCTION_VERIFY_FLAGS(o, c, p, f, i, a, vflags) vflags,
+#define INSTRUCTION_VERIFY_FLAGS(o, c, p, f, i, a, e, vflags) vflags,
 #include "dex_instruction_list.h"
   DEX_INSTRUCTION_LIST(INSTRUCTION_VERIFY_FLAGS)
 #undef DEX_INSTRUCTION_LIST
@@ -71,7 +71,7 @@ int const Instruction::kInstructionVerifyFlags[] = {
 };
 
 int const Instruction::kInstructionSizeInCodeUnits[] = {
-#define INSTRUCTION_SIZE(opcode, c, p, format, i, a, v) \
+#define INSTRUCTION_SIZE(opcode, c, p, format, i, a, e, v) \
     (((opcode) == NOP) ? -1 : \
      (((format) >= k10x) && ((format) <= k10t)) ?  1 : \
      (((format) >= k20t) && ((format) <= k22c)) ?  2 : \
@@ -520,7 +520,7 @@ std::string Instruction::DumpString(const DexFile* file) const {
 struct InstructionStaticAsserts : private Instruction {
   #define IMPLIES(a, b) (!(a) || (b))
 
-  #define VAR_ARGS_CHECK(o, c, pname, f, i, a, v) \
+  #define VAR_ARGS_CHECK(o, c, pname, f, i, a, e, v) \
     static_assert(IMPLIES((f) == k35c || (f) == k45cc, \
                           ((v) & (kVerifyVarArg | kVerifyVarArgNonZero)) != 0), \
                   "Missing var-arg verification");
@@ -529,7 +529,7 @@ struct InstructionStaticAsserts : private Instruction {
   #undef DEX_INSTRUCTION_LIST
   #undef VAR_ARGS_CHECK
 
-  #define VAR_ARGS_RANGE_CHECK(o, c, pname, f, i, a, v) \
+  #define VAR_ARGS_RANGE_CHECK(o, c, pname, f, i, a, e, v) \
     static_assert(IMPLIES((f) == k3rc || (f) == k4rcc, \
                           ((v) & (kVerifyVarArgRange | kVerifyVarArgRangeNonZero)) != 0), \
                   "Missing var-arg verification");
@@ -538,7 +538,7 @@ struct InstructionStaticAsserts : private Instruction {
   #undef DEX_INSTRUCTION_LIST
   #undef VAR_ARGS_RANGE_CHECK
 
-  #define EXPERIMENTAL_CHECK(o, c, pname, f, i, a, v) \
+  #define EXPERIMENTAL_CHECK(o, c, pname, f, i, a, e, v) \
     static_assert(kHaveExperimentalInstructions || (((a) & kExperimental) == 0), \
                   "Unexpected experimental instruction.");
     #include "dex_instruction_list.h"
