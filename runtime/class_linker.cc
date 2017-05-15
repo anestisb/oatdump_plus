@@ -8705,6 +8705,8 @@ jobject ClassLinker::CreatePathClassLoader(Thread* self,
     DCHECK(h_long_array != nullptr);
     h_long_array->Set(kDexFileIndexStart, reinterpret_cast<intptr_t>(dex_file));
 
+    // Note that this creates a finalizable dalvik.system.DexFile object and a corresponding
+    // FinalizerReference which will never get cleaned up without a started runtime.
     Handle<mirror::Object> h_dex_file = hs2.NewHandle(
         cookie_field->GetDeclaringClass()->AllocObject(self));
     DCHECK(h_dex_file != nullptr);

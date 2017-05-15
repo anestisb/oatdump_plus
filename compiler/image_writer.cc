@@ -48,6 +48,7 @@
 #include "image.h"
 #include "imt_conflict_table.h"
 #include "intern_table.h"
+#include "jni_internal.h"
 #include "linear_alloc.h"
 #include "lock_word.h"
 #include "mirror/array-inl.h"
@@ -114,15 +115,19 @@ bool ImageWriter::IsInBootOatFile(const void* ptr) const {
   return false;
 }
 
-static void CheckNoDexObjectsCallback(Object* obj, void* arg ATTRIBUTE_UNUSED)
+static void ClearDexFileCookieCallback(Object* obj, void* arg ATTRIBUTE_UNUSED)
     REQUIRES_SHARED(Locks::mutator_lock_) {
+  DCHECK(obj != nullptr);
   Class* klass = obj->GetClass();
-  CHECK_NE(Class::PrettyClass(klass), "com.android.dex.Dex");
+  if (klass == WellKnownClasses::ToClass(WellKnownClasses::dalvik_system_DexFile)) {
+    ArtField* field = jni::DecodeArtField(WellKnownClasses::dalvik_system_DexFile_cookie);
+    // Null out the cookie to enable determinism. b/34090128
+    field->SetObject</*kTransactionActive*/false>(obj, nullptr);
+  }
 }
 
-static void CheckNoDexObjects() {
-  ScopedObjectAccess soa(Thread::Current());
-  Runtime::Current()->GetHeap()->VisitObjects(CheckNoDexObjectsCallback, nullptr);
+static void ClearDexFileCookies() REQUIRES_SHARED(Locks::mutator_lock_) {
+  Runtime::Current()->GetHeap()->VisitObjects(ClearDexFileCookieCallback, nullptr);
 }
 
 bool ImageWriter::PrepareImageAddressSpace() {
@@ -131,22 +136,17 @@ bool ImageWriter::PrepareImageAddressSpace() {
   {
     ScopedObjectAccess soa(Thread::Current());
     PruneNonImageClasses();  // Remove junk
-    if (!compile_app_image_) {
+    if (compile_app_image_) {
+      // Clear dex file cookies for app images to enable app image determinism. This is required
+      // since the cookie field contains long pointers to DexFiles which are not deterministic.
+      // b/34090128
+      ClearDexFileCookies();
+    } else {
       // Avoid for app image since this may increase RAM and image size.
       ComputeLazyFieldsForImageClasses();  // Add useful information
     }
   }
   heap->CollectGarbage(false);  // Remove garbage.
-
-  // Dex caches must not have their dex fields set in the image. These are memory buffers of mapped
-  // dex files.
-  //
-  // We may open them in the unstarted-runtime code for class metadata. Their fields should all be
-  // reset in PruneNonImageClasses and the objects reclaimed in the GC. Make sure that's actually
-  // true.
-  if (kIsDebugBuild) {
-    CheckNoDexObjects();
-  }
 
   if (kIsDebugBuild) {
     ScopedObjectAccess soa(Thread::Current());
