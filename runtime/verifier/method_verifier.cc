@@ -1110,8 +1110,9 @@ bool MethodVerifier::VerifyInstructions() {
   GetInstructionFlags(0).SetCompileTimeInfoPoint();
 
   uint32_t insns_size = code_item_->insns_size_in_code_units_;
+  bool allow_runtime_only_instructions = !Runtime::Current()->IsAotCompiler() || verify_to_dump_;
   for (uint32_t dex_pc = 0; dex_pc < insns_size;) {
-    if (!VerifyInstruction(inst, dex_pc)) {
+    if (!VerifyInstruction(inst, dex_pc, allow_runtime_only_instructions)) {
       DCHECK_NE(failures_.size(), 0U);
       return false;
     }
@@ -1138,7 +1139,9 @@ bool MethodVerifier::VerifyInstructions() {
   return true;
 }
 
-bool MethodVerifier::VerifyInstruction(const Instruction* inst, uint32_t code_offset) {
+bool MethodVerifier::VerifyInstruction(const Instruction* inst,
+                                       uint32_t code_offset,
+                                       bool allow_runtime_only_instructions) {
   if (Instruction::kHaveExperimentalInstructions && UNLIKELY(inst->IsExperimental())) {
     // Experimental instructions don't yet have verifier support implementation.
     // While it is possible to use them by themselves, when we try to use stable instructions
@@ -1247,7 +1250,7 @@ bool MethodVerifier::VerifyInstruction(const Instruction* inst, uint32_t code_of
       result = false;
       break;
   }
-  if (inst->GetVerifyIsRuntimeOnly() && Runtime::Current()->IsAotCompiler() && !verify_to_dump_) {
+  if (!allow_runtime_only_instructions && inst->GetVerifyIsRuntimeOnly()) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "opcode only expected at runtime " << inst->Name();
     result = false;
   }
