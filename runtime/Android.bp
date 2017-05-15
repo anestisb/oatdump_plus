@@ -539,7 +539,6 @@ art_cc_test {
         "dex_file_test.cc",
         "dex_file_verifier_test.cc",
         "dex_instruction_test.cc",
-        "dex_instruction_visitor_test.cc",
         "dex_method_iterator_test.cc",
         "entrypoints/math_entrypoints_test.cc",
         "entrypoints/quick/quick_trampoline_entrypoints_test.cc",

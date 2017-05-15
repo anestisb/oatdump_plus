@@ -33,7 +33,6 @@
 #include "dex_file-inl.h"
 #include "dex_instruction-inl.h"
 #include "dex_instruction_utils.h"
-#include "dex_instruction_visitor.h"
 #include "experimental_flags.h"
 #include "gc/accounting/card_table-inl.h"
 #include "handle_scope-inl.h"
