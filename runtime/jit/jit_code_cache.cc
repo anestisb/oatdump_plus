@@ -18,6 +18,7 @@
 
 #include <sstream>
 
+#include "arch/context.h"
 #include "art_method-inl.h"
 #include "base/enums.h"
 #include "base/stl_util.h"
@@ -325,7 +326,8 @@ static uint8_t* GetRootTable(const void* code_ptr, uint32_t* number_of_roots = n
 // Use a sentinel for marking entries in the JIT table that have been cleared.
 // This helps diagnosing in case the compiled code tries to wrongly access such
 // entries.
-static mirror::Class* const weak_sentinel = reinterpret_cast<mirror::Class*>(0x1);
+static mirror::Class* const weak_sentinel =
+    reinterpret_cast<mirror::Class*>(Context::kBadGprBase + 0xff);
 
 // Helper for the GC to process a weak class in a JIT root table.
 static inline void ProcessWeakClass(GcRoot<mirror::Class>* root_ptr,
