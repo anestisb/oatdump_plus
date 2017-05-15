@@ -80,7 +80,7 @@ class Instruction {
   };
 
   enum Code {  // private marker to avoid generate-operator-out.py from processing.
-#define INSTRUCTION_ENUM(opcode, cname, p, f, i, a, v) cname = (opcode),
+#define INSTRUCTION_ENUM(opcode, cname, p, f, i, a, e, v) cname = (opcode),
 #include "dex_instruction_list.h"
     DEX_INSTRUCTION_LIST(INSTRUCTION_ENUM)
 #undef DEX_INSTRUCTION_LIST
@@ -138,13 +138,18 @@ class Instruction {
   };
 
   enum Flags {
-    kBranch              = 0x0000001,  // conditional or unconditional branch
-    kContinue            = 0x0000002,  // flow can continue to next statement
-    kSwitch              = 0x0000004,  // switch statement
-    kThrow               = 0x0000008,  // could cause an exception to be thrown
-    kReturn              = 0x0000010,  // returns, no additional statements
-    kInvoke              = 0x0000020,  // a flavor of invoke
-    kUnconditional       = 0x0000040,  // unconditional branch
+    kBranch              = 0x01,  // conditional or unconditional branch
+    kContinue            = 0x02,  // flow can continue to next statement
+    kSwitch              = 0x04,  // switch statement
+    kThrow               = 0x08,  // could cause an exception to be thrown
+    kReturn              = 0x10,  // returns, no additional statements
+    kInvoke              = 0x20,  // a flavor of invoke
+    kUnconditional       = 0x40,  // unconditional branch
+    kExperimental        = 0x80,  // is an experimental opcode
+  };
+
+  // Old flags. Keeping them around in case we might need them again some day.
+  enum ExtendedFlags : uint32_t {
     kAdd                 = 0x0000080,  // addition
     kSubtract            = 0x0000100,  // subtract
     kMultiply            = 0x0000200,  // multiply
@@ -162,7 +167,6 @@ class Instruction {
     kClobber             = 0x0200000,  // clobbers memory in a big way (not just a write)
     kRegCFieldOrConstant = 0x0400000,  // is the third virtual register a field or literal constant (vC)
     kRegBFieldOrConstant = 0x0800000,  // is the second virtual register a field or literal constant (vB)
-    kExperimental        = 0x1000000,  // is an experimental opcode
   };
 
   enum VerifyFlag {
