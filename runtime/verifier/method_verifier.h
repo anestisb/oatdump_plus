@@ -390,7 +390,9 @@ class MethodVerifier {
    * - (earlier) for each exception handler, the handler must start at a valid
    *   instruction
    */
-  bool VerifyInstruction(const Instruction* inst, uint32_t code_offset);
+  bool VerifyInstruction(const Instruction* inst,
+                         uint32_t code_offset,
+                         bool allow_runtime_only_instructions);
 
   /* Ensure that the register index is valid for this code item. */
   bool CheckRegisterIndex(uint32_t idx);
