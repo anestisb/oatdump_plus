@@ -537,6 +537,14 @@ struct InstructionStaticAsserts : private Instruction {
     DEX_INSTRUCTION_LIST(VAR_ARGS_RANGE_CHECK)
   #undef DEX_INSTRUCTION_LIST
   #undef VAR_ARGS_RANGE_CHECK
+
+  #define EXPERIMENTAL_CHECK(o, c, pname, f, i, a, v) \
+    static_assert(kHaveExperimentalInstructions || (((a) & kExperimental) == 0), \
+                  "Unexpected experimental instruction.");
+    #include "dex_instruction_list.h"
+  DEX_INSTRUCTION_LIST(EXPERIMENTAL_CHECK)
+  #undef DEX_INSTRUCTION_LIST
+  #undef EXPERIMENTAL_CHECK
 };
 
 std::ostream& operator<<(std::ostream& os, const Instruction::Code& code) {
