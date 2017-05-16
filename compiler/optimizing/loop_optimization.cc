@@ -173,6 +173,51 @@ static bool IsZeroExtensionAndGet(HInstruction* instruction,
   return false;
 }
 
+// Detect up to two instructions a and b, and an acccumulated constant c.
+static bool IsAddConstHelper(HInstruction* instruction,
+                             /*out*/ HInstruction** a,
+                             /*out*/ HInstruction** b,
+                             /*out*/ int64_t* c,
+                             int32_t depth) {
+  static constexpr int32_t kMaxDepth = 8;  // don't search too deep
+  int64_t value = 0;
+  if (IsInt64AndGet(instruction, &value)) {
+    *c += value;
+    return true;
+  } else if (instruction->IsAdd() && depth <= kMaxDepth) {
+    return IsAddConstHelper(instruction->InputAt(0), a, b, c, depth + 1) &&
+           IsAddConstHelper(instruction->InputAt(1), a, b, c, depth + 1);
+  } else if (*a == nullptr) {
+    *a = instruction;
+    return true;
+  } else if (*b == nullptr) {
+    *b = instruction;
+    return true;
+  }
+  return false;  // too many non-const operands
+}
+
+// Detect a + b + c for an optional constant c.
+static bool IsAddConst(HInstruction* instruction,
+                       /*out*/ HInstruction** a,
+                       /*out*/ HInstruction** b,
+                       /*out*/ int64_t* c) {
+  if (instruction->IsAdd()) {
+    // Try to find a + b and accumulated c.
+    if (IsAddConstHelper(instruction->InputAt(0), a, b, c, /*depth*/ 0) &&
+        IsAddConstHelper(instruction->InputAt(1), a, b, c, /*depth*/ 0) &&
+        *b != nullptr) {
+      return true;
+    }
+    // Found a + b.
+    *a = instruction->InputAt(0);
+    *b = instruction->InputAt(1);
+    *c = 0;
+    return true;
+  }
+  return false;
+}
+
 // Test vector restrictions.
 static bool HasVectorRestrictions(uint64_t restrictions, uint64_t tested) {
   return (restrictions & tested) != 0;
@@ -1215,24 +1260,23 @@ bool HLoopOptimization::VectorizeHalvingAddIdiom(LoopNode* node,
   // Test for top level arithmetic shift right x >> 1 or logical shift right x >>> 1
   // (note whether the sign bit in higher precision is shifted in has no effect
   // on the narrow precision computed by the idiom).
-  int64_t value = 0;
+  int64_t distance = 0;
   if ((instruction->IsShr() ||
        instruction->IsUShr()) &&
-      IsInt64AndGet(instruction->InputAt(1), /*out*/ &value) && value == 1) {
-    //
-    // TODO: make following code less sensitive to associativity and commutativity differences.
-    //
-    HInstruction* x = instruction->InputAt(0);
-    // Test for an optional rounding part (x + 1) >> 1.
-    bool is_rounded = false;
-    if (x->IsAdd() && IsInt64AndGet(x->InputAt(1), /*out*/ &value) && value == 1) {
-      x = x->InputAt(0);
-      is_rounded = true;
-    }
-    // Test for a core addition (a + b) >> 1 (possibly rounded), either unsigned or signed.
-    if (x->IsAdd()) {
-      HInstruction* a = x->InputAt(0);
-      HInstruction* b = x->InputAt(1);
+      IsInt64AndGet(instruction->InputAt(1), /*out*/ &distance) && distance == 1) {
+    // Test for (a + b + c) >> 1 for optional constant c.
+    HInstruction* a = nullptr;
+    HInstruction* b = nullptr;
+    int64_t       c = 0;
+    if (IsAddConst(instruction->InputAt(0), /*out*/ &a, /*out*/ &b, /*out*/ &c)) {
+      // Accept c == 1 (rounded) or c == 0 (not rounded).
+      bool is_rounded = false;
+      if (c == 1) {
+        is_rounded = true;
+      } else if (c != 0) {
+        return false;
+      }
+      // Accept consistent zero or sign extension on operands a and b.
       HInstruction* r = nullptr;
       HInstruction* s = nullptr;
       bool is_unsigned = false;
