@@ -456,13 +456,24 @@ class HVecMin FINAL : public HVecBinaryOperation {
           HInstruction* right,
           Primitive::Type packed_type,
           size_t vector_length,
+          bool is_unsigned,
           uint32_t dex_pc = kNoDexPc)
       : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc) {
     DCHECK(HasConsistentPackedTypes(left, packed_type));
     DCHECK(HasConsistentPackedTypes(right, packed_type));
+    SetPackedFlag<kFieldMinOpIsUnsigned>(is_unsigned);
   }
+
+  bool IsUnsigned() const { return GetPackedFlag<kFieldMinOpIsUnsigned>(); }
+
   DECLARE_INSTRUCTION(VecMin);
+
  private:
+  // Additional packed bits.
+  static constexpr size_t kFieldMinOpIsUnsigned = HVecOperation::kNumberOfVectorOpPackedBits;
+  static constexpr size_t kNumberOfMinOpPackedBits = kFieldMinOpIsUnsigned + 1;
+  static_assert(kNumberOfMinOpPackedBits <= kMaxNumberOfPackedBits, "Too many packed fields.");
+
   DISALLOW_COPY_AND_ASSIGN(HVecMin);
 };
 
@@ -475,13 +486,24 @@ class HVecMax FINAL : public HVecBinaryOperation {
           HInstruction* right,
           Primitive::Type packed_type,
           size_t vector_length,
+          bool is_unsigned,
           uint32_t dex_pc = kNoDexPc)
       : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc) {
     DCHECK(HasConsistentPackedTypes(left, packed_type));
     DCHECK(HasConsistentPackedTypes(right, packed_type));
+    SetPackedFlag<kFieldMaxOpIsUnsigned>(is_unsigned);
   }
+
+  bool IsUnsigned() const { return GetPackedFlag<kFieldMaxOpIsUnsigned>(); }
+
   DECLARE_INSTRUCTION(VecMax);
+
  private:
+  // Additional packed bits.
+  static constexpr size_t kFieldMaxOpIsUnsigned = HVecOperation::kNumberOfVectorOpPackedBits;
+  static constexpr size_t kNumberOfMaxOpPackedBits = kFieldMaxOpIsUnsigned + 1;
+  static_assert(kNumberOfMaxOpPackedBits <= kMaxNumberOfPackedBits, "Too many packed fields.");
+
   DISALLOW_COPY_AND_ASSIGN(HVecMax);
 };
 

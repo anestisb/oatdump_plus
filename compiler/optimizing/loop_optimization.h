@@ -71,6 +71,7 @@ class HLoopOptimization : public HOptimization {
     kNoSignedHAdd    = 32,   // no signed halving add
     kNoUnroundedHAdd = 64,   // no unrounded halving add
     kNoAbs           = 128,  // no absolute value
+    kNoMinMax        = 256,  // no min/max
   };
 
   /*
