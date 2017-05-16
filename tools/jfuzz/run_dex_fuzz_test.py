@@ -91,7 +91,7 @@ class DexFuzzTester(object):
   def Run(self):
     """Feeds JFuzz programs into DexFuzz testing."""
     print()
-    print('**\n**** JFuzz Testing\n**')
+    print('**\n**** J/DexFuzz Testing\n**')
     print()
     print('#Tests    :', self._num_tests)
     print('Device    :', self._device)
@@ -111,9 +111,11 @@ class DexFuzzTester(object):
     for i in range(1, self._num_inputs + 1):
       jack_args = ['-cp', GetJackClassPath(), '--output-dex', '.', 'Test.java']
       if RunCommand(['jfuzz'], out='Test.java', err=None) != RetCode.SUCCESS:
+        print('Unexpected error while running JFuzz')
         raise FatalError('Unexpected error while running JFuzz')
       if RunCommand(['jack'] + jack_args, out=None, err='jackerr.txt',
                     timeout=30) != RetCode.SUCCESS:
+        print('Unexpected error while running Jack')
         raise FatalError('Unexpected error while running Jack')
       shutil.move('Test.java', '../Test' + str(i) + '.java')
       shutil.move('classes.dex', 'classes' + str(i) + '.dex')
@@ -126,8 +128,11 @@ class DexFuzzTester(object):
                     '--execute',
                     '--execute-class=Test',
                     '--repeat=' + str(self._num_tests),
-                    '--dump-output', '--dump-verify',
-                    '--interpreter', '--optimizing',
+                    '--quiet',
+                    '--dump-output',
+                    '--dump-verify',
+                    '--interpreter',
+                    '--optimizing',
                     '--bisection-search']
     if self._device is not None:
       dexfuzz_args += ['--device=' + self._device, '--allarm']

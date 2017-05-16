@@ -26,8 +26,9 @@ from glob import glob
 from tempfile import mkdtemp
 from tempfile import TemporaryFile
 
-# run_jfuzz_test.py success string.
+# run_jfuzz_test.py success/failure strings.
 SUCCESS_STRING = 'success (no divergences)'
+FAILURE_STRING = 'FAILURE (divergences)'
 
 # Constant returned by string find() method when search fails.
 NOT_FOUND = -1
@@ -43,7 +44,10 @@ def main(argv):
   (args, unknown_args) = parser.parse_known_args()
   # Run processes.
   cmd = cmd + unknown_args
-  print('\n**** Running ****\n\n', cmd, '\n')
+  print()
+  print('**\n**** Nightly JFuzz Testing\n**')
+  print()
+  print('**** Running ****\n\n', cmd, '\n')
   output_files = [TemporaryFile('wb+') for _ in range(args.num_proc)]
   processes = []
   for i, output_file in enumerate(output_files):
@@ -69,7 +73,7 @@ def main(argv):
     if directory_match:
       output_dirs.append(directory_match.group(1))
     if output_str.find(SUCCESS_STRING) == NOT_FOUND:
-      print('Tester', i, output_str)
+      print('Tester', i, FAILURE_STRING)
     else:
       print('Tester', i, SUCCESS_STRING)
   # Gather divergences.
