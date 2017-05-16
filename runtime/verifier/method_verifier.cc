@@ -4347,7 +4347,7 @@ ArtMethod* MethodVerifier::VerifyInvocationArgs(
     }
   }
 
-  if (method_type == METHOD_POLYMORPHIC) {
+  if (UNLIKELY(method_type == METHOD_POLYMORPHIC)) {
     // Process the signature of the calling site that is invoking the method handle.
     DexFileParameterIterator it(*dex_file_, dex_file_->GetProtoId(inst->VRegH()));
     return VerifyInvocationArgsFromIterator(&it, inst, method_type, is_range, res_method);
