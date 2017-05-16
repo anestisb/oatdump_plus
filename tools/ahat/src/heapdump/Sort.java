@@ -32,6 +32,17 @@ import java.util.List;
  */
 public class Sort {
   /**
+   * Compare sizes by their total size.
+   * This sorts sizes from smaller total size to larger total size.
+   */
+  public static final Comparator<Size> SIZE_BY_SIZE = new Comparator<Size>() {
+    @Override
+    public int compare(Size a, Size b) {
+      return Long.compare(a.getSize(), b.getSize());
+    }
+  };
+
+  /**
    * Compare instances by their total retained size.
    * Different instances with the same total retained size are considered
    * equal for the purposes of comparison.
@@ -41,7 +52,7 @@ public class Sort {
     = new Comparator<AhatInstance>() {
     @Override
     public int compare(AhatInstance a, AhatInstance b) {
-      return Long.compare(b.getTotalRetainedSize(), a.getTotalRetainedSize());
+      return SIZE_BY_SIZE.compare(b.getTotalRetainedSize(), a.getTotalRetainedSize());
     }
   };
 
@@ -60,7 +71,7 @@ public class Sort {
 
     @Override
     public int compare(AhatInstance a, AhatInstance b) {
-      return Long.compare(b.getRetainedSize(mHeap), a.getRetainedSize(mHeap));
+      return SIZE_BY_SIZE.compare(b.getRetainedSize(mHeap), a.getRetainedSize(mHeap));
     }
   }
 
@@ -119,7 +130,7 @@ public class Sort {
 
     @Override
     public int compare(Site a, Site b) {
-      return Long.compare(b.getSize(mHeap), a.getSize(mHeap));
+      return SIZE_BY_SIZE.compare(b.getSize(mHeap), a.getSize(mHeap));
     }
   }
 
@@ -130,7 +141,7 @@ public class Sort {
   public static final Comparator<Site> SITE_BY_TOTAL_SIZE = new Comparator<Site>() {
     @Override
     public int compare(Site a, Site b) {
-      return Long.compare(b.getTotalSize(), a.getTotalSize());
+      return SIZE_BY_SIZE.compare(b.getTotalSize(), a.getTotalSize());
     }
   };
 
@@ -158,7 +169,7 @@ public class Sort {
     = new Comparator<Site.ObjectsInfo>() {
     @Override
     public int compare(Site.ObjectsInfo a, Site.ObjectsInfo b) {
-      return Long.compare(b.numBytes, a.numBytes);
+      return SIZE_BY_SIZE.compare(b.numBytes, a.numBytes);
     }
   };
 

@@ -54,23 +54,18 @@ class ObjectsHandler implements AhatHandler {
 
     doc.title("Objects");
 
-    doc.table(
-        new Column("Size", Column.Align.RIGHT),
-        new Column("Δ", Column.Align.RIGHT, mSnapshot.isDiffed()),
+    SizeTable.table(doc, mSnapshot.isDiffed(),
         new Column("Heap"),
         new Column("Object"));
 
     SubsetSelector<AhatInstance> selector = new SubsetSelector(query, OBJECTS_ID, insts);
     for (AhatInstance inst : selector.selected()) {
       AhatInstance base = inst.getBaseline();
-      doc.row(
-          DocString.format("%,14d", inst.getSize()),
-          DocString.delta(inst.isPlaceHolder(), base.isPlaceHolder(),
-            inst.getSize(), base.getSize()),
+      SizeTable.row(doc, inst.getSize(), base.getSize(),
           DocString.text(inst.getHeap().getName()),
           Summarizer.summarize(inst));
     }
-    doc.end();
+    SizeTable.end(doc);
     selector.render(doc);
   }
 }

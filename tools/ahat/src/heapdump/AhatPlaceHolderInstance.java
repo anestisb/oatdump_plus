@@ -29,16 +29,16 @@ public class AhatPlaceHolderInstance extends AhatInstance {
     baseline.setBaseline(this);
   }
 
-  @Override public long getSize() {
-    return 0;
+  @Override public Size getSize() {
+    return Size.ZERO;
   }
 
-  @Override public long getRetainedSize(AhatHeap heap) {
-    return 0;
+  @Override public Size getRetainedSize(AhatHeap heap) {
+    return Size.ZERO;
   }
 
-  @Override public long getTotalRetainedSize() {
-    return 0;
+  @Override public Size getTotalRetainedSize() {
+    return Size.ZERO;
   }
 
   @Override public AhatHeap getHeap() {

@@ -82,8 +82,7 @@ public class AhatSnapshot implements Diffable<AhatSnapshot> {
     Snapshot snapshot = Snapshot.createSnapshot(buffer, map);
     snapshot.computeDominators();
 
-    // Properly label the class of class objects in the perflib snapshot, and
-    // count the total number of instances.
+    // Properly label the class of class objects in the perflib snapshot.
     final ClassObj javaLangClass = snapshot.findClass("java.lang.Class");
     if (javaLangClass != null) {
       for (Heap heap : snapshot.getHeaps()) {
@@ -134,11 +133,18 @@ public class AhatSnapshot implements Diffable<AhatSnapshot> {
       }
     });
 
+    Map<Instance, Long> registeredNative = Perflib.getRegisteredNativeAllocations(snapshot);
+
     // Initialize ahat snapshot and instances based on the perflib snapshot
     // and instances.
     for (AhatInstance ahat : mInstances) {
       Instance inst = snapshot.findInstance(ahat.getId());
       ahat.initialize(this, inst);
+
+      Long registeredNativeSize = registeredNative.get(inst);
+      if (registeredNativeSize != null) {
+        ahat.addRegisteredNativeSize(registeredNativeSize);
+      }
 
       if (inst.getImmediateDominator() == Snapshot.SENTINEL_ROOT) {
         mRooted.add(ahat);
@@ -166,6 +172,13 @@ public class AhatSnapshot implements Diffable<AhatSnapshot> {
       }
     }
     snapshot.dispose();
+
+    // Compute the retained sizes of objects. We do this explicitly now rather
+    // than relying on the retained sizes computed by perflib so that
+    // registered native sizes are included.
+    for (AhatInstance inst : mRooted) {
+      AhatInstance.computeRetainedSize(inst, mHeaps.size());
+    }
   }
 
   /**

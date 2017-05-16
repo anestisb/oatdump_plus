@@ -24,6 +24,7 @@ public class Tests {
       args = new String[]{
         "com.android.ahat.DiffTest",
         "com.android.ahat.InstanceTest",
+        "com.android.ahat.NativeAllocationTest",
         "com.android.ahat.ObjectHandlerTest",
         "com.android.ahat.OverviewHandlerTest",
         "com.android.ahat.PerformanceTest",

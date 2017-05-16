@@ -21,6 +21,7 @@ import com.android.ahat.heapdump.AhatHeap;
 import com.android.ahat.heapdump.AhatInstance;
 import com.android.ahat.heapdump.AhatSnapshot;
 import com.android.ahat.heapdump.PathElement;
+import com.android.ahat.heapdump.Size;
 import com.android.ahat.heapdump.Value;
 import com.android.tools.perflib.heap.hprof.HprofClassDump;
 import com.android.tools.perflib.heap.hprof.HprofConstant;
@@ -292,13 +293,13 @@ public class InstanceTest {
     // allocated on, and should be 0 for all other heaps.
     AhatInstance anObject = dump.getDumpedAhatInstance("anObject");
     AhatSnapshot snapshot = dump.getAhatSnapshot();
-    long size = anObject.getSize();
+    Size size = anObject.getSize();
     assertEquals(size, anObject.getTotalRetainedSize());
     assertEquals(size, anObject.getRetainedSize(anObject.getHeap()));
     for (AhatHeap heap : snapshot.getHeaps()) {
       if (!heap.equals(anObject.getHeap())) {
         assertEquals(String.format("For heap '%s'", heap.getName()),
-            0, anObject.getRetainedSize(heap));
+            Size.ZERO, anObject.getRetainedSize(heap));
       }
     }
   }

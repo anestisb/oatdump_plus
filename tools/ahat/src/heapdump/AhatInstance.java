@@ -20,17 +20,18 @@ import com.android.tools.perflib.heap.ClassObj;
 import com.android.tools.perflib.heap.Instance;
 import com.android.tools.perflib.heap.RootObj;
 import java.awt.image.BufferedImage;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.List;
 
 public abstract class AhatInstance implements Diffable<AhatInstance> {
   private long mId;
-  private long mSize;
-  private long mTotalRetainedSize;
-  private long mRetainedSizes[];      // Retained size indexed by heap index
+  private Size mSize;
+  private Size[] mRetainedSizes;      // Retained size indexed by heap index
   private boolean mIsReachable;
   private AhatHeap mHeap;
   private AhatInstance mImmediateDominator;
@@ -63,15 +64,10 @@ public abstract class AhatInstance implements Diffable<AhatInstance> {
    */
   void initialize(AhatSnapshot snapshot, Instance inst) {
     mId = inst.getId();
-    mSize = inst.getSize();
-    mTotalRetainedSize = inst.getTotalRetainedSize();
+    mSize = new Size(inst.getSize(), 0);
     mIsReachable = inst.isReachable();
 
     List<AhatHeap> heaps = snapshot.getHeaps();
-    mRetainedSizes = new long[heaps.size()];
-    for (AhatHeap heap : heaps) {
-      mRetainedSizes[heap.getIndex()] = inst.getRetainedSize(heap.getIndex());
-    }
 
     mHeap = snapshot.getHeap(inst.getHeap().getName());
 
@@ -130,7 +126,7 @@ public abstract class AhatInstance implements Diffable<AhatInstance> {
   /**
    * Returns the shallow number of bytes this object takes up.
    */
-  public long getSize() {
+  public Size getSize() {
     return mSize;
   }
 
@@ -138,16 +134,32 @@ public abstract class AhatInstance implements Diffable<AhatInstance> {
    * Returns the number of bytes belonging to the given heap that this instance
    * retains.
    */
-  public long getRetainedSize(AhatHeap heap) {
+  public Size getRetainedSize(AhatHeap heap) {
     int index = heap.getIndex();
-    return 0 <= index && index < mRetainedSizes.length ? mRetainedSizes[heap.getIndex()] : 0;
+    if (mRetainedSizes != null && 0 <= index && index < mRetainedSizes.length) {
+      return mRetainedSizes[heap.getIndex()];
+    }
+    return Size.ZERO;
   }
 
   /**
    * Returns the total number of bytes this instance retains.
    */
-  public long getTotalRetainedSize() {
-    return mTotalRetainedSize;
+  public Size getTotalRetainedSize() {
+    Size size = Size.ZERO;
+    if (mRetainedSizes != null) {
+      for (int i = 0; i < mRetainedSizes.length; i++) {
+        size = size.plus(mRetainedSizes[i]);
+      }
+    }
+    return size;
+  }
+
+  /**
+   * Increment the number of registered native bytes tied to this object.
+   */
+  void addRegisteredNativeSize(long size) {
+    mSize = mSize.plusRegisteredNativeSize(size);
   }
 
   /**
@@ -451,5 +463,42 @@ public abstract class AhatInstance implements Diffable<AhatInstance> {
    */
   AhatInstance newPlaceHolderInstance() {
     return new AhatPlaceHolderInstance(this);
+  }
+
+  /**
+   * Recursively compute the retained size of the given instance and all
+   * other instances it dominates.
+   */
+  static void computeRetainedSize(AhatInstance inst, int numHeaps) {
+    // Note: We can't use a recursive implementation because it can lead to
+    // stack overflow. Use an iterative implementation instead.
+    //
+    // Objects not yet processed will have mRetainedSizes set to null.
+    // Once prepared, an object will have mRetaiedSizes set to an array of 0
+    // sizes.
+    Deque<AhatInstance> deque = new ArrayDeque<AhatInstance>();
+    deque.push(inst);
+
+    while (!deque.isEmpty()) {
+      inst = deque.pop();
+      if (inst.mRetainedSizes == null) {
+        inst.mRetainedSizes = new Size[numHeaps];
+        for (int i = 0; i < numHeaps; i++) {
+          inst.mRetainedSizes[i] = Size.ZERO;
+        }
+        inst.mRetainedSizes[inst.mHeap.getIndex()] = 
+          inst.mRetainedSizes[inst.mHeap.getIndex()].plus(inst.mSize);
+        deque.push(inst);
+        for (AhatInstance dominated : inst.mDominated) {
+          deque.push(dominated);
+        }
+      } else {
+        for (AhatInstance dominated : inst.mDominated) {
+          for (int i = 0; i < numHeaps; i++) {
+            inst.mRetainedSizes[i] = inst.mRetainedSizes[i].plus(dominated.mRetainedSizes[i]);
+          }
+        }
+      }
+    }
   }
 }

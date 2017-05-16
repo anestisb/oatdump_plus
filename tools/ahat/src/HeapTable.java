@@ -45,16 +45,6 @@ class HeapTable {
     List<ValueConfig<T>> getValueConfigs();
   }
 
-  private static DocString sizeString(long size, boolean isPlaceHolder) {
-    DocString string = new DocString();
-    if (isPlaceHolder) {
-      string.append(DocString.removed("del"));
-    } else if (size != 0) {
-      string.appendFormat("%,14d", size);
-    }
-    return string;
-  }
-
   /**
    * Render the table to the given document.
    * @param query - The page query.
@@ -100,10 +90,10 @@ class HeapTable {
         long basesize = config.getSize(base, heap.getBaseline());
         total += size;
         basetotal += basesize;
-        vals.add(sizeString(size, elem.isPlaceHolder()));
+        vals.add(DocString.size(size, elem.isPlaceHolder()));
         vals.add(DocString.delta(elem.isPlaceHolder(), base.isPlaceHolder(), size, basesize));
       }
-      vals.add(sizeString(total, elem.isPlaceHolder()));
+      vals.add(DocString.size(total, elem.isPlaceHolder()));
       vals.add(DocString.delta(elem.isPlaceHolder(), base.isPlaceHolder(), total, basetotal));
 
       for (ValueConfig<T> value : values) {
@@ -140,10 +130,10 @@ class HeapTable {
         long basesize = basesummary.get(heap);
         total += size;
         basetotal += basesize;
-        vals.add(sizeString(size, false));
+        vals.add(DocString.size(size, false));
         vals.add(DocString.delta(false, false, size, basesize));
       }
-      vals.add(sizeString(total, false));
+      vals.add(DocString.size(total, false));
       vals.add(DocString.delta(false, false, total, basetotal));
 
       for (ValueConfig<T> value : values) {
@@ -159,7 +149,7 @@ class HeapTable {
   public static <T extends Diffable<T>> boolean hasNonZeroEntry(AhatHeap heap,
       TableConfig<T> config, List<T> elements) {
     AhatHeap baseheap = heap.getBaseline();
-    if (heap.getSize() > 0 || baseheap.getSize() > 0) {
+    if (!heap.getSize().isZero() || !baseheap.getSize().isZero()) {
       for (T element : elements) {
         if (config.getSize(element, heap) > 0 ||
             config.getSize(element.getBaseline(), baseheap) > 0) {
