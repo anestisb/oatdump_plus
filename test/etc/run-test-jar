@@ -664,6 +664,10 @@ dalvikvm_cmdline=$(echo $dalvikvm_cmdline)
 vdex_cmdline=$(echo $vdex_cmdline)
 profman_cmdline=$(echo $profman_cmdline)
 
+# Use an empty ASAN_OPTIONS to enable defaults.
+# Note: this is required as envsetup right now exports detect_leaks=0.
+RUN_TEST_ASAN_OPTIONS=""
+
 if [ "$HOST" = "n" ]; then
     adb root > /dev/null
     adb wait-for-device
@@ -702,6 +706,7 @@ if [ "$HOST" = "n" ]; then
     # command. Dalvik cache is cleaned before running to make subsequent executions
     # of the script follow the same runtime path.
     cmdline="cd $DEX_LOCATION && \
+             export ASAN_OPTIONS=$RUN_TEST_ASAN_OPTIONS && \
              export ANDROID_DATA=$DEX_LOCATION && \
              export ANDROID_ADDITIONAL_PUBLIC_LIBRARIES=$PUBLIC_LIBS && \
              export DEX_LOCATION=$DEX_LOCATION && \
@@ -798,6 +803,8 @@ else
     # without worrying about interference.
     rm -rf ${DEX_LOCATION}/oat
     rm -rf ${DEX_LOCATION}/dalvik-cache/
+
+    export ASAN_OPTIONS=$RUN_TEST_ASAN_OPTIONS
 
     mkdir -p ${mkdir_locations} || exit 1
     $profman_cmdline || { echo "Profman failed." >&2 ; exit 2; }
