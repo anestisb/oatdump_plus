@@ -28,6 +28,7 @@
 
 #include "art_field-inl.h"
 #include "art_method-inl.h"
+#include "base/arena_allocator.h"
 #include "base/array_ref.h"
 #include "base/bit_vector.h"
 #include "base/enums.h"
