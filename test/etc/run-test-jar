@@ -674,6 +674,12 @@ if [ "x$RUN_TEST_ASAN_OPTIONS" != "x" ] ; then
 fi
 RUN_TEST_ASAN_OPTIONS="${RUN_TEST_ASAN_OPTIONS}alloc_dealloc_mismatch=0"
 
+# Multiple shutdown leaks. b/38341789
+if [ "x$RUN_TEST_ASAN_OPTIONS" != "x" ] ; then
+  RUN_TEST_ASAN_OPTIONS="${RUN_TEST_ASAN_OPTIONS}:"
+fi
+RUN_TEST_ASAN_OPTIONS="${RUN_TEST_ASAN_OPTIONS}detect_leaks=0"
+
 if [ "$HOST" = "n" ]; then
     adb root > /dev/null
     adb wait-for-device
