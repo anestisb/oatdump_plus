@@ -470,12 +470,20 @@ class JFuzzTester(object):
         self._num_not_compiled += 1
       else:
         self._num_not_run += 1
-    elif self._true_divergence_only and RetCode.TIMEOUT in (retc1, retc2):
-      # When only true divergences are requested, any divergence in return
-      # code where one is a time out is treated as a regular time out.
-      self._num_timed_out += 1
     else:
       # Divergence in return code.
+      if self._true_divergence_only:
+        # When only true divergences are requested, any divergence in return
+        # code where one is a time out is treated as a regular time out.
+        if RetCode.TIMEOUT in (retc1, retc2):
+          self._num_timed_out += 1
+          return
+        # When only true divergences are requested, a runtime crash in just
+        # the RI is treated as if not run at all.
+        if retc1 == RetCode.ERROR and retc2 == RetCode.SUCCESS:
+          if self._runner1.GetBisectionSearchArgs() is None:
+            self._num_not_run += 1
+            return
       self.ReportDivergence(retc1, retc2, is_output_divergence=False)
 
   def GetCurrentDivergenceDir(self):
