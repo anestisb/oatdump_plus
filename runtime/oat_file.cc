@@ -1064,7 +1064,7 @@ OatFile* OatFile::Open(const std::string& oat_filename,
   CHECK(!oat_filename.empty()) << oat_location;
   CheckLocation(oat_location);
 
-  std::string vdex_filename = ReplaceFileExtension(oat_filename, "vdex");
+  std::string vdex_filename = GetVdexFilename(oat_filename);
 
   // Check that the files even exist, fast-fail.
   if (kIsVdexEnabled && !OS::FileExists(vdex_filename.c_str())) {
