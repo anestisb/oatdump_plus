@@ -677,13 +677,13 @@ void JitCodeCache::NotifyMethodRedefined(ArtMethod* method) {
   }
   method->SetProfilingInfo(nullptr);
   ScopedCodeCacheWrite ccw(code_map_.get());
-  for (auto code_iter = method_code_map_.begin();
-       code_iter != method_code_map_.end();
-       ++code_iter) {
+  for (auto code_iter = method_code_map_.begin(); code_iter != method_code_map_.end();) {
     if (code_iter->second == method) {
       FreeCode(code_iter->first);
-      method_code_map_.erase(code_iter);
+      code_iter = method_code_map_.erase(code_iter);
+      continue;
     }
+    ++code_iter;
   }
   auto code_map = osr_code_map_.find(method);
   if (code_map != osr_code_map_.end()) {
