@@ -5664,12 +5664,8 @@ class HLoadClass FINAL : public HInstruction {
     // Use the Class* from the method's own ArtMethod*.
     kReferrersClass,
 
-    // Use boot image Class* address that will be known at link time.
-    // Used for boot image classes referenced by boot image code in non-PIC mode.
-    kBootImageLinkTimeAddress,
-
     // Use PC-relative boot image Class* address that will be known at link time.
-    // Used for boot image classes referenced by boot image code in PIC mode.
+    // Used for boot image classes referenced by boot image code.
     kBootImageLinkTimePcRelative,
 
     // Use a known boot image Class* address, embedded in the code by the codegen.
@@ -5821,7 +5817,6 @@ class HLoadClass FINAL : public HInstruction {
 
   static bool HasTypeReference(LoadKind load_kind) {
     return load_kind == LoadKind::kReferrersClass ||
-        load_kind == LoadKind::kBootImageLinkTimeAddress ||
         load_kind == LoadKind::kBootImageLinkTimePcRelative ||
         load_kind == LoadKind::kBssEntry ||
         load_kind == LoadKind::kDexCacheViaMethod;
@@ -5855,7 +5850,6 @@ inline void HLoadClass::AddSpecialInput(HInstruction* special_input) {
   // The special input is used for PC-relative loads on some architectures,
   // including literal pool loads, which are PC-relative too.
   DCHECK(GetLoadKind() == LoadKind::kBootImageLinkTimePcRelative ||
-         GetLoadKind() == LoadKind::kBootImageLinkTimeAddress ||
          GetLoadKind() == LoadKind::kBootImageAddress ||
          GetLoadKind() == LoadKind::kBssEntry) << GetLoadKind();
   DCHECK(special_input_.GetInstruction() == nullptr);
@@ -5867,12 +5861,8 @@ class HLoadString FINAL : public HInstruction {
  public:
   // Determines how to load the String.
   enum class LoadKind {
-    // Use boot image String* address that will be known at link time.
-    // Used for boot image strings referenced by boot image code in non-PIC mode.
-    kBootImageLinkTimeAddress,
-
     // Use PC-relative boot image String* address that will be known at link time.
-    // Used for boot image strings referenced by boot image code in PIC mode.
+    // Used for boot image strings referenced by boot image code.
     kBootImageLinkTimePcRelative,
 
     // Use a known boot image String* address, embedded in the code by the codegen.
@@ -5937,8 +5927,7 @@ class HLoadString FINAL : public HInstruction {
   // the dex cache and the string is not guaranteed to be there yet.
   bool NeedsEnvironment() const OVERRIDE {
     LoadKind load_kind = GetLoadKind();
-    if (load_kind == LoadKind::kBootImageLinkTimeAddress ||
-        load_kind == LoadKind::kBootImageLinkTimePcRelative ||
+    if (load_kind == LoadKind::kBootImageLinkTimePcRelative ||
         load_kind == LoadKind::kBootImageAddress ||
         load_kind == LoadKind::kJitTableAddress) {
       return false;
@@ -6001,7 +5990,6 @@ inline void HLoadString::AddSpecialInput(HInstruction* special_input) {
   // including literal pool loads, which are PC-relative too.
   DCHECK(GetLoadKind() == LoadKind::kBootImageLinkTimePcRelative ||
          GetLoadKind() == LoadKind::kBssEntry ||
-         GetLoadKind() == LoadKind::kBootImageLinkTimeAddress ||
          GetLoadKind() == LoadKind::kBootImageAddress) << GetLoadKind();
   // HLoadString::GetInputRecords() returns an empty array at this point,
   // so use the GetInputRecords() from the base class to set the input record.

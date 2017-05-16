@@ -2690,8 +2690,6 @@ std::ostream& operator<<(std::ostream& os, HLoadClass::LoadKind rhs) {
   switch (rhs) {
     case HLoadClass::LoadKind::kReferrersClass:
       return os << "ReferrersClass";
-    case HLoadClass::LoadKind::kBootImageLinkTimeAddress:
-      return os << "BootImageLinkTimeAddress";
     case HLoadClass::LoadKind::kBootImageLinkTimePcRelative:
       return os << "BootImageLinkTimePcRelative";
     case HLoadClass::LoadKind::kBootImageAddress:
@@ -2744,8 +2742,6 @@ void HLoadString::SetLoadKind(LoadKind load_kind) {
 
 std::ostream& operator<<(std::ostream& os, HLoadString::LoadKind rhs) {
   switch (rhs) {
-    case HLoadString::LoadKind::kBootImageLinkTimeAddress:
-      return os << "BootImageLinkTimeAddress";
     case HLoadString::LoadKind::kBootImageLinkTimePcRelative:
       return os << "BootImageLinkTimePcRelative";
     case HLoadString::LoadKind::kBootImageAddress:
