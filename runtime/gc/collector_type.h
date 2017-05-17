@@ -61,6 +61,8 @@ enum CollectorType {
   kCollectorTypeAddRemoveSystemWeakHolder,
   // Fake collector type for GetObjectsAllocated
   kCollectorTypeGetObjectsAllocated,
+  // Fake collector type for ScopedGCCriticalSection
+  kCollectorTypeCriticalSection,
 };
 std::ostream& operator<<(std::ostream& os, const CollectorType& collector_type);
 
