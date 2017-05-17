@@ -170,9 +170,7 @@ HLoadClass::LoadKind HSharpening::ComputeLoadClassKind(HLoadClass* load_class,
       } else if ((klass != nullptr) && compiler_driver->IsImageClass(
           dex_file.StringDataByIdx(dex_file.GetTypeId(type_index).descriptor_idx_))) {
         is_in_boot_image = true;
-        desired_load_kind = codegen->GetCompilerOptions().GetCompilePic()
-            ? HLoadClass::LoadKind::kBootImageLinkTimePcRelative
-            : HLoadClass::LoadKind::kBootImageLinkTimeAddress;
+        desired_load_kind = HLoadClass::LoadKind::kBootImageLinkTimePcRelative;
       } else {
         // Not a boot image class.
         DCHECK(ContainsElement(compiler_driver->GetDexFilesForOatFile(), &dex_file));
@@ -182,8 +180,7 @@ HLoadClass::LoadKind HSharpening::ComputeLoadClassKind(HLoadClass* load_class,
       is_in_boot_image = (klass != nullptr) &&
           runtime->GetHeap()->ObjectIsInBootImageSpace(klass.Get());
       if (runtime->UseJitCompilation()) {
-        // TODO: Make sure we don't set the "compile PIC" flag for JIT as that's bogus.
-        // DCHECK(!codegen_->GetCompilerOptions().GetCompilePic());
+        DCHECK(!codegen->GetCompilerOptions().GetCompilePic());
         if (is_in_boot_image) {
           // TODO: Use direct pointers for all non-moving spaces, not just boot image. Bug: 29530787
           desired_load_kind = HLoadClass::LoadKind::kBootImageAddress;
@@ -249,16 +246,13 @@ void HSharpening::ProcessLoadString(HLoadString* load_string) {
       CHECK(string != nullptr);
       if (compiler_driver_->GetSupportBootImageFixup()) {
         DCHECK(ContainsElement(compiler_driver_->GetDexFilesForOatFile(), &dex_file));
-        desired_load_kind = codegen_->GetCompilerOptions().GetCompilePic()
-            ? HLoadString::LoadKind::kBootImageLinkTimePcRelative
-            : HLoadString::LoadKind::kBootImageLinkTimeAddress;
+        desired_load_kind = HLoadString::LoadKind::kBootImageLinkTimePcRelative;
       } else {
         // compiler_driver_test. Do not sharpen.
         desired_load_kind = HLoadString::LoadKind::kDexCacheViaMethod;
       }
     } else if (runtime->UseJitCompilation()) {
-      // TODO: Make sure we don't set the "compile PIC" flag for JIT as that's bogus.
-      // DCHECK(!codegen_->GetCompilerOptions().GetCompilePic());
+      DCHECK(!codegen_->GetCompilerOptions().GetCompilePic());
       string = class_linker->LookupString(dex_file, string_index, dex_cache.Get());
       if (string != nullptr) {
         if (runtime->GetHeap()->ObjectIsInBootImageSpace(string)) {

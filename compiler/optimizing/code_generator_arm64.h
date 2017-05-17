@@ -586,11 +586,6 @@ class CodeGeneratorARM64 : public CodeGenerator {
   // before the CBNZ instruction.
   vixl::aarch64::Label* NewBakerReadBarrierPatch(uint32_t custom_data);
 
-  vixl::aarch64::Literal<uint32_t>* DeduplicateBootImageStringLiteral(
-      const DexFile& dex_file,
-      dex::StringIndex string_index);
-  vixl::aarch64::Literal<uint32_t>* DeduplicateBootImageTypeLiteral(const DexFile& dex_file,
-                                                                    dex::TypeIndex type_index);
   vixl::aarch64::Literal<uint32_t>* DeduplicateBootImageAddressLiteral(uint64_t address);
   vixl::aarch64::Literal<uint32_t>* DeduplicateJitStringLiteral(const DexFile& dex_file,
                                                                 dex::StringIndex string_index,
@@ -731,9 +726,6 @@ class CodeGeneratorARM64 : public CodeGenerator {
  private:
   using Uint64ToLiteralMap = ArenaSafeMap<uint64_t, vixl::aarch64::Literal<uint64_t>*>;
   using Uint32ToLiteralMap = ArenaSafeMap<uint32_t, vixl::aarch64::Literal<uint32_t>*>;
-  using MethodToLiteralMap = ArenaSafeMap<MethodReference,
-                                          vixl::aarch64::Literal<uint64_t>*,
-                                          MethodReferenceComparator>;
   using StringToLiteralMap = ArenaSafeMap<StringReference,
                                           vixl::aarch64::Literal<uint32_t>*,
                                           StringReferenceValueComparator>;
@@ -744,8 +736,6 @@ class CodeGeneratorARM64 : public CodeGenerator {
   vixl::aarch64::Literal<uint32_t>* DeduplicateUint32Literal(uint32_t value,
                                                              Uint32ToLiteralMap* map);
   vixl::aarch64::Literal<uint64_t>* DeduplicateUint64Literal(uint64_t value);
-  vixl::aarch64::Literal<uint64_t>* DeduplicateMethodLiteral(MethodReference target_method,
-                                                             MethodToLiteralMap* map);
 
   // The PcRelativePatchInfo is used for PC-relative addressing of dex cache arrays
   // and boot image strings/types. The only difference is the interpretation of the
@@ -797,12 +787,8 @@ class CodeGeneratorARM64 : public CodeGenerator {
   Uint64ToLiteralMap uint64_literals_;
   // PC-relative DexCache access info.
   ArenaDeque<PcRelativePatchInfo> pc_relative_dex_cache_patches_;
-  // Deduplication map for boot string literals for kBootImageLinkTimeAddress.
-  StringToLiteralMap boot_image_string_patches_;
   // PC-relative String patch info; type depends on configuration (app .bss or boot image PIC).
   ArenaDeque<PcRelativePatchInfo> pc_relative_string_patches_;
-  // Deduplication map for boot type literals for kBootImageLinkTimeAddress.
-  TypeToLiteralMap boot_image_type_patches_;
   // PC-relative type patch info for kBootImageLinkTimePcRelative.
   ArenaDeque<PcRelativePatchInfo> pc_relative_type_patches_;
   // PC-relative type patch info for kBssEntry.

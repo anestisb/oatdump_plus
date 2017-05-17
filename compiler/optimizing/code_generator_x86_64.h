@@ -603,9 +603,9 @@ class CodeGeneratorX86_64 : public CodeGenerator {
 
   // PC-relative DexCache access info.
   ArenaDeque<PatchInfo<Label>> pc_relative_dex_cache_patches_;
-  // String patch locations; type depends on configuration (app .bss or boot image PIC).
+  // String patch locations; type depends on configuration (app .bss or boot image).
   ArenaDeque<PatchInfo<Label>> string_patches_;
-  // Type patch locations for boot image (always PIC).
+  // PC-relative type patch info for kBootImageLinkTimePcRelative.
   ArenaDeque<PatchInfo<Label>> boot_image_type_patches_;
   // Type patch locations for kBssEntry.
   ArenaDeque<PatchInfo<Label>> type_bss_entry_patches_;

@@ -57,8 +57,6 @@ inline bool IsAdrpPatch(const LinkerPatch& patch) {
     case LinkerPatch::Type::kMethod:
     case LinkerPatch::Type::kCall:
     case LinkerPatch::Type::kCallRelative:
-    case LinkerPatch::Type::kType:
-    case LinkerPatch::Type::kString:
     case LinkerPatch::Type::kBakerReadBarrierBranch:
       return false;
     case LinkerPatch::Type::kTypeRelative:

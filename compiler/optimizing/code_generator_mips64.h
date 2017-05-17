@@ -553,9 +553,6 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
                                                        uint32_t element_offset);
   PcRelativePatchInfo* NewPcRelativeCallPatch(const DexFile& dex_file,
                                               uint32_t method_index);
-  Literal* DeduplicateBootImageStringLiteral(const DexFile& dex_file,
-                                             dex::StringIndex string_index);
-  Literal* DeduplicateBootImageTypeLiteral(const DexFile& dex_file, dex::TypeIndex type_index);
   Literal* DeduplicateBootImageAddressLiteral(uint64_t address);
 
   void EmitPcRelativeAddressPlaceholderHigh(PcRelativePatchInfo* info, GpuRegister out);
@@ -574,23 +571,15 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
  private:
   using Uint32ToLiteralMap = ArenaSafeMap<uint32_t, Literal*>;
   using Uint64ToLiteralMap = ArenaSafeMap<uint64_t, Literal*>;
-  using MethodToLiteralMap = ArenaSafeMap<MethodReference, Literal*, MethodReferenceComparator>;
   using StringToLiteralMap = ArenaSafeMap<StringReference,
                                           Literal*,
                                           StringReferenceValueComparator>;
   using TypeToLiteralMap = ArenaSafeMap<TypeReference,
                                         Literal*,
                                         TypeReferenceValueComparator>;
-  using BootStringToLiteralMap = ArenaSafeMap<StringReference,
-                                              Literal*,
-                                              StringReferenceValueComparator>;
-  using BootTypeToLiteralMap = ArenaSafeMap<TypeReference,
-                                            Literal*,
-                                            TypeReferenceValueComparator>;
 
   Literal* DeduplicateUint32Literal(uint32_t value, Uint32ToLiteralMap* map);
   Literal* DeduplicateUint64Literal(uint64_t value);
-  Literal* DeduplicateMethodLiteral(MethodReference target_method, MethodToLiteralMap* map);
 
   PcRelativePatchInfo* NewPcRelativePatch(const DexFile& dex_file,
                                           uint32_t offset_or_index,
@@ -616,12 +605,8 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
   Uint64ToLiteralMap uint64_literals_;
   // PC-relative patch info.
   ArenaDeque<PcRelativePatchInfo> pc_relative_dex_cache_patches_;
-  // Deduplication map for boot string literals for kBootImageLinkTimeAddress.
-  BootStringToLiteralMap boot_image_string_patches_;
   // PC-relative String patch info; type depends on configuration (app .bss or boot image PIC).
   ArenaDeque<PcRelativePatchInfo> pc_relative_string_patches_;
-  // Deduplication map for boot type literals for kBootImageLinkTimeAddress.
-  BootTypeToLiteralMap boot_image_type_patches_;
   // PC-relative type patch info for kBootImageLinkTimePcRelative.
   ArenaDeque<PcRelativePatchInfo> pc_relative_type_patches_;
   // PC-relative type patch info for kBssEntry.

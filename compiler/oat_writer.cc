@@ -1336,16 +1336,6 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
                 PatchMethodAddress(&patched_code_, literal_offset, method);
                 break;
               }
-              case LinkerPatch::Type::kString: {
-                mirror::String* string = GetTargetString(patch);
-                PatchObjectAddress(&patched_code_, literal_offset, string);
-                break;
-              }
-              case LinkerPatch::Type::kType: {
-                mirror::Class* type = GetTargetType(patch);
-                PatchObjectAddress(&patched_code_, literal_offset, type);
-                break;
-              }
               case LinkerPatch::Type::kBakerReadBarrierBranch: {
                 writer_->relative_patcher_->PatchBakerReadBarrierBranch(&patched_code_,
                                                                         patch,

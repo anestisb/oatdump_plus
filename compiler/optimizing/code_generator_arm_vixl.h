@@ -577,10 +577,6 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
   // before the BNE instruction.
   vixl::aarch32::Label* NewBakerReadBarrierPatch(uint32_t custom_data);
 
-  VIXLUInt32Literal* DeduplicateBootImageStringLiteral(const DexFile& dex_file,
-                                                       dex::StringIndex string_index);
-  VIXLUInt32Literal* DeduplicateBootImageTypeLiteral(const DexFile& dex_file,
-                                                     dex::TypeIndex type_index);
   VIXLUInt32Literal* DeduplicateBootImageAddressLiteral(uint32_t address);
   VIXLUInt32Literal* DeduplicateJitStringLiteral(const DexFile& dex_file,
                                                  dex::StringIndex string_index,
@@ -725,8 +721,6 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
                                                                 vixl::aarch32::Register temp);
 
   using Uint32ToLiteralMap = ArenaSafeMap<uint32_t, VIXLUInt32Literal*>;
-  using MethodToLiteralMap =
-      ArenaSafeMap<MethodReference, VIXLUInt32Literal*, MethodReferenceComparator>;
   using StringToLiteralMap = ArenaSafeMap<StringReference,
                                           VIXLUInt32Literal*,
                                           StringReferenceValueComparator>;
@@ -742,8 +736,6 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
   };
 
   VIXLUInt32Literal* DeduplicateUint32Literal(uint32_t value, Uint32ToLiteralMap* map);
-  VIXLUInt32Literal* DeduplicateMethodLiteral(MethodReference target_method,
-                                              MethodToLiteralMap* map);
   PcRelativePatchInfo* NewPcRelativePatch(const DexFile& dex_file,
                                           uint32_t offset_or_index,
                                           ArenaDeque<PcRelativePatchInfo>* patches);
@@ -768,12 +760,8 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
   Uint32ToLiteralMap uint32_literals_;
   // PC-relative patch info for each HArmDexCacheArraysBase.
   ArenaDeque<PcRelativePatchInfo> pc_relative_dex_cache_patches_;
-  // Deduplication map for boot string literals for kBootImageLinkTimeAddress.
-  StringToLiteralMap boot_image_string_patches_;
   // PC-relative String patch info; type depends on configuration (app .bss or boot image PIC).
   ArenaDeque<PcRelativePatchInfo> pc_relative_string_patches_;
-  // Deduplication map for boot type literals for kBootImageLinkTimeAddress.
-  TypeToLiteralMap boot_image_type_patches_;
   // PC-relative type patch info for kBootImageLinkTimePcRelative.
   ArenaDeque<PcRelativePatchInfo> pc_relative_type_patches_;
   // PC-relative type patch info for kBssEntry.
