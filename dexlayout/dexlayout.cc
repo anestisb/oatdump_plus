@@ -1909,7 +1909,7 @@ void DexLayout::OutputDexFile(const DexFile* dex_file) {
   }
   // Do IR-level comparison between input and output. This check ignores potential differences
   // due to layout, so offsets are not checked. Instead, it checks the data contents of each item.
-  if (options_.verify_output_) {
+  if (kIsDebugBuild || options_.verify_output_) {
     std::unique_ptr<dex_ir::Header> orig_header(dex_ir::DexIrBuilder(*dex_file));
     CHECK(VerifyOutputDexFile(orig_header.get(), header_, &error_msg)) << error_msg;
   }
