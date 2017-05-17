@@ -4633,12 +4633,7 @@ void CodeGeneratorX86::GenerateVirtualCall(HInvokeVirtual* invoke, Location temp
 
 void CodeGeneratorX86::RecordBootStringPatch(HLoadString* load_string) {
   DCHECK(GetCompilerOptions().IsBootImage());
-  HX86ComputeBaseMethodAddress* address = nullptr;
-  if (GetCompilerOptions().GetCompilePic()) {
-    address = load_string->InputAt(0)->AsX86ComputeBaseMethodAddress();
-  } else {
-    DCHECK_EQ(load_string->InputCount(), 0u);
-  }
+  HX86ComputeBaseMethodAddress* address = load_string->InputAt(0)->AsX86ComputeBaseMethodAddress();
   string_patches_.emplace_back(address,
                                load_string->GetDexFile(),
                                load_string->GetStringIndex().index_);
@@ -4646,12 +4641,7 @@ void CodeGeneratorX86::RecordBootStringPatch(HLoadString* load_string) {
 }
 
 void CodeGeneratorX86::RecordBootTypePatch(HLoadClass* load_class) {
-  HX86ComputeBaseMethodAddress* address = nullptr;
-  if (GetCompilerOptions().GetCompilePic()) {
-    address = load_class->InputAt(0)->AsX86ComputeBaseMethodAddress();
-  } else {
-    DCHECK_EQ(load_class->InputCount(), 0u);
-  }
+  HX86ComputeBaseMethodAddress* address = load_class->InputAt(0)->AsX86ComputeBaseMethodAddress();
   boot_image_type_patches_.emplace_back(address,
                                         load_class->GetDexFile(),
                                         load_class->GetTypeIndex().index_);
