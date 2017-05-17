@@ -171,14 +171,6 @@ void ProfileSaver::NotifyJitActivityInternal() {
   }
 }
 
-ProfileSaver::ProfileInfoCache* ProfileSaver::GetCachedProfiledInfo(const std::string& filename) {
-  auto info_it = profile_cache_.find(filename);
-  if (info_it == profile_cache_.end()) {
-    info_it = profile_cache_.Put(filename, ProfileInfoCache());
-  }
-  return &info_it->second;
-}
-
 // Get resolved methods that have a profile info or more than kStartupMethodSamples samples.
 // Excludes native methods and classes in the boot image.
 class GetMethodsVisitor : public ClassVisitor {
@@ -252,9 +244,11 @@ void ProfileSaver::FetchAndCacheResolvedClassesAndMethods() {
                        << " (" << classes.GetDexLocation() << ")";
       }
     }
-    ProfileInfoCache* cached_info = GetCachedProfiledInfo(filename);
-    cached_info->profile.AddMethodsAndClasses(profile_methods_for_location,
-                                              resolved_classes_for_location);
+    auto info_it = profile_cache_.Put(filename, ProfileCompilationInfo());
+
+    ProfileCompilationInfo* cached_info = &(info_it->second);
+    cached_info->AddMethodsAndClasses(profile_methods_for_location,
+                                      resolved_classes_for_location);
     total_number_of_profile_entries_cached += resolved_classes_for_location.size();
   }
   max_number_of_profile_entries_cached_ = std::max(
@@ -297,16 +291,22 @@ bool ProfileSaver::ProcessProfilingInfo(bool force_save, /*out*/uint16_t* number
       jit_code_cache_->GetProfiledMethods(locations, profile_methods);
       total_number_of_code_cache_queries_++;
     }
+    ProfileCompilationInfo info;
+    if (!info.Load(filename, /*clear_if_invalid*/ true)) {
+      LOG(ERROR) << "Could not forcefully load profile " << filename;
+      continue;
+    }
+    uint64_t last_save_number_of_methods = info.GetNumberOfMethods();
+    uint64_t last_save_number_of_classes = info.GetNumberOfResolvedClasses();
 
-    ProfileInfoCache* cached_info = GetCachedProfiledInfo(filename);
-    ProfileCompilationInfo* cached_profile = &cached_info->profile;
-    cached_profile->AddMethodsAndClasses(profile_methods, std::set<DexCacheResolvedClasses>());
-    int64_t delta_number_of_methods =
-        cached_profile->GetNumberOfMethods() -
-        static_cast<int64_t>(cached_info->last_save_number_of_methods);
-    int64_t delta_number_of_classes =
-        cached_profile->GetNumberOfResolvedClasses() -
-        static_cast<int64_t>(cached_info->last_save_number_of_classes);
+    info.AddMethodsAndClasses(profile_methods, std::set<DexCacheResolvedClasses>());
+    auto profile_cache_it = profile_cache_.find(filename);
+    if (profile_cache_it != profile_cache_.end()) {
+      info.MergeWith(profile_cache_it->second);
+    }
+
+    int64_t delta_number_of_methods = info.GetNumberOfMethods() - last_save_number_of_methods;
+    int64_t delta_number_of_classes = info.GetNumberOfResolvedClasses() - last_save_number_of_classes;
 
     if (!force_save &&
         delta_number_of_methods < options_.GetMinMethodsToSave() &&
@@ -324,12 +324,12 @@ bool ProfileSaver::ProcessProfilingInfo(bool force_save, /*out*/uint16_t* number
     uint64_t bytes_written;
     // Force the save. In case the profile data is corrupted or the the profile
     // has the wrong version this will "fix" the file to the correct format.
-    if (cached_profile->MergeAndSave(filename, &bytes_written, /*force*/ true)) {
-      cached_info->last_save_number_of_methods = cached_profile->GetNumberOfMethods();
-      cached_info->last_save_number_of_classes = cached_profile->GetNumberOfResolvedClasses();
-      // Clear resolved classes. No need to store them around as
-      // they don't change after the first write.
-      cached_profile->ClearResolvedClasses();
+    if (info.Save(filename, &bytes_written)) {
+      // We managed to save the profile. Clear the cache stored during startup.
+      if (profile_cache_it != profile_cache_.end()) {
+        profile_cache_.erase(profile_cache_it);
+        total_number_of_profile_entries_cached = 0;
+      }
       if (bytes_written > 0) {
         total_number_of_writes_++;
         total_bytes_written_ += bytes_written;
@@ -345,13 +345,8 @@ bool ProfileSaver::ProcessProfilingInfo(bool force_save, /*out*/uint16_t* number
       LOG(WARNING) << "Could not save profiling info to " << filename;
       total_number_of_failed_writes_++;
     }
-    total_number_of_profile_entries_cached +=
-        cached_profile->GetNumberOfMethods() +
-        cached_profile->GetNumberOfResolvedClasses();
   }
-  max_number_of_profile_entries_cached_ = std::max(
-      max_number_of_profile_entries_cached_,
-      total_number_of_profile_entries_cached);
+
   return profile_file_saved;
 }
 
@@ -575,7 +570,10 @@ bool ProfileSaver::HasSeenMethod(const std::string& profile,
                                  uint16_t method_idx) {
   MutexLock mu(Thread::Current(), *Locks::profiler_lock_);
   if (instance_ != nullptr) {
-    const ProfileCompilationInfo& info = instance_->GetCachedProfiledInfo(profile)->profile;
+    ProfileCompilationInfo info;
+    if (!info.Load(profile, /*clear_if_invalid*/false)) {
+      return false;
+    }
     return info.ContainsMethod(MethodReference(dex_file, method_idx));
   }
   return false;
