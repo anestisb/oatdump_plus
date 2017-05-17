@@ -557,6 +557,8 @@
         "tests": [
             "097-duplicate-method",
             "138-duplicate-classes-check2",
+            "159-app-image-fields",
+            "649-vdex-duplicate-method",
             "804-class-extends-itself",
             "921-hello-failure"
         ],
@@ -573,6 +575,7 @@
             "087-gc-after-link",
             "626-const-class-linking",
             "629-vdex-speed",
+            "647-jni-get-field-id",
             "944-transform-classloaders"
         ],
         "description": [
