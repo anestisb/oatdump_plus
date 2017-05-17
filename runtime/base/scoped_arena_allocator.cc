@@ -16,7 +16,7 @@
 
 #include "scoped_arena_allocator.h"
 
-#include "arena_allocator.h"
+#include "arena_allocator-inl.h"
 #include "base/memory_tool.h"
 
 namespace art {
@@ -54,7 +54,7 @@ MemStats ArenaStack::GetPeakStats() const {
 
 uint8_t* ArenaStack::AllocateFromNextArena(size_t rounded_bytes) {
   UpdateBytesAllocated();
-  size_t allocation_size = std::max(Arena::kDefaultSize, rounded_bytes);
+  size_t allocation_size = std::max(arena_allocator::kArenaDefaultSize, rounded_bytes);
   if (UNLIKELY(top_arena_ == nullptr)) {
     top_arena_ = bottom_arena_ = stats_and_pool_.pool->AllocArena(allocation_size);
     top_arena_->next_ = nullptr;

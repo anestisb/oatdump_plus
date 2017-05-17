@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "base/arena_allocator.h"
+#include "base/arena_allocator-inl.h"
 #include "base/arena_bit_vector.h"
 #include "base/memory_tool.h"
 #include "gtest/gtest.h"
@@ -65,23 +65,28 @@ TEST_F(ArenaAllocatorTest, MakeDefined) {
 }
 
 TEST_F(ArenaAllocatorTest, LargeAllocations) {
+  if (arena_allocator::kArenaAllocatorPreciseTracking) {
+    printf("WARNING: TEST DISABLED FOR precise arena tracking\n");
+    return;
+  }
+
   {
     ArenaPool pool;
     ArenaAllocator arena(&pool);
     // Note: Leaving some space for memory tool red zones.
-    void* alloc1 = arena.Alloc(Arena::kDefaultSize * 5 / 8);
-    void* alloc2 = arena.Alloc(Arena::kDefaultSize * 2 / 8);
+    void* alloc1 = arena.Alloc(arena_allocator::kArenaDefaultSize * 5 / 8);
+    void* alloc2 = arena.Alloc(arena_allocator::kArenaDefaultSize * 2 / 8);
     ASSERT_NE(alloc1, alloc2);
     ASSERT_EQ(1u, NumberOfArenas(&arena));
   }
   {
     ArenaPool pool;
     ArenaAllocator arena(&pool);
-    void* alloc1 = arena.Alloc(Arena::kDefaultSize * 13 / 16);
-    void* alloc2 = arena.Alloc(Arena::kDefaultSize * 11 / 16);
+    void* alloc1 = arena.Alloc(arena_allocator::kArenaDefaultSize * 13 / 16);
+    void* alloc2 = arena.Alloc(arena_allocator::kArenaDefaultSize * 11 / 16);
     ASSERT_NE(alloc1, alloc2);
     ASSERT_EQ(2u, NumberOfArenas(&arena));
-    void* alloc3 = arena.Alloc(Arena::kDefaultSize * 7 / 16);
+    void* alloc3 = arena.Alloc(arena_allocator::kArenaDefaultSize * 7 / 16);
     ASSERT_NE(alloc1, alloc3);
     ASSERT_NE(alloc2, alloc3);
     ASSERT_EQ(3u, NumberOfArenas(&arena));
@@ -89,12 +94,12 @@ TEST_F(ArenaAllocatorTest, LargeAllocations) {
   {
     ArenaPool pool;
     ArenaAllocator arena(&pool);
-    void* alloc1 = arena.Alloc(Arena::kDefaultSize * 13 / 16);
-    void* alloc2 = arena.Alloc(Arena::kDefaultSize * 9 / 16);
+    void* alloc1 = arena.Alloc(arena_allocator::kArenaDefaultSize * 13 / 16);
+    void* alloc2 = arena.Alloc(arena_allocator::kArenaDefaultSize * 9 / 16);
     ASSERT_NE(alloc1, alloc2);
     ASSERT_EQ(2u, NumberOfArenas(&arena));
     // Note: Leaving some space for memory tool red zones.
-    void* alloc3 = arena.Alloc(Arena::kDefaultSize * 5 / 16);
+    void* alloc3 = arena.Alloc(arena_allocator::kArenaDefaultSize * 5 / 16);
     ASSERT_NE(alloc1, alloc3);
     ASSERT_NE(alloc2, alloc3);
     ASSERT_EQ(2u, NumberOfArenas(&arena));
@@ -102,12 +107,12 @@ TEST_F(ArenaAllocatorTest, LargeAllocations) {
   {
     ArenaPool pool;
     ArenaAllocator arena(&pool);
-    void* alloc1 = arena.Alloc(Arena::kDefaultSize * 9 / 16);
-    void* alloc2 = arena.Alloc(Arena::kDefaultSize * 13 / 16);
+    void* alloc1 = arena.Alloc(arena_allocator::kArenaDefaultSize * 9 / 16);
+    void* alloc2 = arena.Alloc(arena_allocator::kArenaDefaultSize * 13 / 16);
     ASSERT_NE(alloc1, alloc2);
     ASSERT_EQ(2u, NumberOfArenas(&arena));
     // Note: Leaving some space for memory tool red zones.
-    void* alloc3 = arena.Alloc(Arena::kDefaultSize * 5 / 16);
+    void* alloc3 = arena.Alloc(arena_allocator::kArenaDefaultSize * 5 / 16);
     ASSERT_NE(alloc1, alloc3);
     ASSERT_NE(alloc2, alloc3);
     ASSERT_EQ(2u, NumberOfArenas(&arena));
@@ -117,9 +122,9 @@ TEST_F(ArenaAllocatorTest, LargeAllocations) {
     ArenaAllocator arena(&pool);
     // Note: Leaving some space for memory tool red zones.
     for (size_t i = 0; i != 15; ++i) {
-      arena.Alloc(Arena::kDefaultSize * 1 / 16);    // Allocate 15 times from the same arena.
+      arena.Alloc(arena_allocator::kArenaDefaultSize * 1 / 16);    // Allocate 15 times from the same arena.
       ASSERT_EQ(i + 1u, NumberOfArenas(&arena));
-      arena.Alloc(Arena::kDefaultSize * 17 / 16);   // Allocate a separate arena.
+      arena.Alloc(arena_allocator::kArenaDefaultSize * 17 / 16);   // Allocate a separate arena.
       ASSERT_EQ(i + 2u, NumberOfArenas(&arena));
     }
   }
@@ -204,10 +209,11 @@ TEST_F(ArenaAllocatorTest, ReallocReuse) {
     ArenaPool pool;
     ArenaAllocator arena(&pool);
 
-    const size_t original_size = Arena::kDefaultSize - ArenaAllocator::kAlignment * 5;
+    const size_t original_size = arena_allocator::kArenaDefaultSize -
+        ArenaAllocator::kAlignment * 5;
     void* original_allocation = arena.Alloc(original_size);
 
-    const size_t new_size = Arena::kDefaultSize + ArenaAllocator::kAlignment * 2;
+    const size_t new_size = arena_allocator::kArenaDefaultSize + ArenaAllocator::kAlignment * 2;
     void* realloc_allocation = arena.Realloc(original_allocation, original_size, new_size);
     EXPECT_NE(original_allocation, realloc_allocation);
   }
@@ -217,12 +223,12 @@ TEST_F(ArenaAllocatorTest, ReallocReuse) {
     ArenaPool pool;
     ArenaAllocator arena(&pool);
 
-    const size_t original_size = Arena::kDefaultSize -
+    const size_t original_size = arena_allocator::kArenaDefaultSize -
         ArenaAllocator::kAlignment * 4 -
         ArenaAllocator::kAlignment / 2;
     void* original_allocation = arena.Alloc(original_size);
 
-    const size_t new_size = Arena::kDefaultSize +
+    const size_t new_size = arena_allocator::kArenaDefaultSize +
         ArenaAllocator::kAlignment * 2 +
         ArenaAllocator::kAlignment / 2;
     void* realloc_allocation = arena.Realloc(original_allocation, original_size, new_size);
@@ -307,11 +313,12 @@ TEST_F(ArenaAllocatorTest, ReallocAlignment) {
     ArenaPool pool;
     ArenaAllocator arena(&pool);
 
-    const size_t original_size = Arena::kDefaultSize - ArenaAllocator::kAlignment * 5;
+    const size_t original_size = arena_allocator::kArenaDefaultSize -
+        ArenaAllocator::kAlignment * 5;
     void* original_allocation = arena.Alloc(original_size);
     ASSERT_TRUE(IsAligned<ArenaAllocator::kAlignment>(original_allocation));
 
-    const size_t new_size = Arena::kDefaultSize + ArenaAllocator::kAlignment * 2;
+    const size_t new_size = arena_allocator::kArenaDefaultSize + ArenaAllocator::kAlignment * 2;
     void* realloc_allocation = arena.Realloc(original_allocation, original_size, new_size);
     EXPECT_TRUE(IsAligned<ArenaAllocator::kAlignment>(realloc_allocation));
 
@@ -324,13 +331,13 @@ TEST_F(ArenaAllocatorTest, ReallocAlignment) {
     ArenaPool pool;
     ArenaAllocator arena(&pool);
 
-    const size_t original_size = Arena::kDefaultSize -
+    const size_t original_size = arena_allocator::kArenaDefaultSize -
         ArenaAllocator::kAlignment * 4 -
         ArenaAllocator::kAlignment / 2;
     void* original_allocation = arena.Alloc(original_size);
     ASSERT_TRUE(IsAligned<ArenaAllocator::kAlignment>(original_allocation));
 
-    const size_t new_size = Arena::kDefaultSize +
+    const size_t new_size = arena_allocator::kArenaDefaultSize +
         ArenaAllocator::kAlignment * 2 +
         ArenaAllocator::kAlignment / 2;
     void* realloc_allocation = arena.Realloc(original_allocation, original_size, new_size);
