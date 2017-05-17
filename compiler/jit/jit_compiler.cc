@@ -117,6 +117,9 @@ JitCompiler::JitCompiler() {
   for (const std::string& argument : Runtime::Current()->GetCompilerOptions()) {
     compiler_options_->ParseCompilerOption(argument, Usage);
   }
+  // JIT is never PIC, no matter what the runtime compiler options specify.
+  compiler_options_->SetNonPic();
+
   const InstructionSet instruction_set = kRuntimeISA;
   for (const StringPiece option : Runtime::Current()->GetCompilerOptions()) {
     VLOG(compiler) << "JIT compiler option " << option;
