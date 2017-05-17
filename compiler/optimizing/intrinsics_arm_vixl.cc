@@ -3157,6 +3157,29 @@ void IntrinsicCodeGeneratorARMVIXL::VisitIntegerValueOf(HInvoke* invoke) {
   }
 }
 
+void IntrinsicLocationsBuilderARMVIXL::VisitThreadInterrupted(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kNoCall,
+                                                            kIntrinsified);
+  locations->SetOut(Location::RequiresRegister());
+}
+
+void IntrinsicCodeGeneratorARMVIXL::VisitThreadInterrupted(HInvoke* invoke) {
+  ArmVIXLAssembler* assembler = GetAssembler();
+  vixl32::Register out = RegisterFrom(invoke->GetLocations()->Out());
+  int32_t offset = Thread::InterruptedOffset<kArmPointerSize>().Int32Value();
+  __ Ldr(out, MemOperand(tr, offset));
+  UseScratchRegisterScope temps(assembler->GetVIXLAssembler());
+  vixl32::Register temp = temps.Acquire();
+  vixl32::Label done;
+  __ CompareAndBranchIfZero(out, &done, /* far_target */ false);
+  __ Dmb(vixl32::ISH);
+  __ Mov(temp, 0);
+  assembler->StoreToOffset(kStoreWord, temp, tr, offset);
+  __ Dmb(vixl32::ISH);
+  __ Bind(&done);
+}
+
 UNIMPLEMENTED_INTRINSIC(ARMVIXL, MathRoundDouble)   // Could be done by changing rounding mode, maybe?
 UNIMPLEMENTED_INTRINSIC(ARMVIXL, UnsafeCASLong)     // High register pressure.
 UNIMPLEMENTED_INTRINSIC(ARMVIXL, SystemArrayCopyChar)

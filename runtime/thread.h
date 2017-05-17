@@ -487,15 +487,12 @@ class Thread {
   }
 
   // Implements java.lang.Thread.interrupted.
-  bool Interrupted() REQUIRES(!*wait_mutex_);
+  bool Interrupted();
   // Implements java.lang.Thread.isInterrupted.
-  bool IsInterrupted() REQUIRES(!*wait_mutex_);
-  bool IsInterruptedLocked() REQUIRES(wait_mutex_) {
-    return interrupted_;
-  }
+  bool IsInterrupted();
   void Interrupt(Thread* self) REQUIRES(!*wait_mutex_);
-  void SetInterruptedLocked(bool i) REQUIRES(wait_mutex_) {
-    interrupted_ = i;
+  void SetInterrupted(bool i) {
+    tls32_.interrupted.StoreSequentiallyConsistent(i);
   }
   void Notify() REQUIRES(!*wait_mutex_);
 
@@ -577,6 +574,13 @@ class Thread {
     return ThreadOffset<pointer_size>(
         OFFSETOF_MEMBER(Thread, tls32_) +
         OFFSETOF_MEMBER(tls_32bit_sized_values, thin_lock_thread_id));
+  }
+
+  template<PointerSize pointer_size>
+  static ThreadOffset<pointer_size> InterruptedOffset() {
+    return ThreadOffset<pointer_size>(
+        OFFSETOF_MEMBER(Thread, tls32_) +
+        OFFSETOF_MEMBER(tls_32bit_sized_values, interrupted));
   }
 
   template<PointerSize pointer_size>
@@ -1432,6 +1436,9 @@ class Thread {
     // GC roots.
     bool32_t is_gc_marking;
 
+    // Thread "interrupted" status; stays raised until queried or thrown.
+    Atomic<bool32_t> interrupted;
+
     // True if the thread is allowed to access a weak ref (Reference::GetReferent() and system
     // weaks) and to potentially mark an object alive/gray. This is used for concurrent reference
     // processing of the CC collector only. This is thread local so that we can enable/disable weak
@@ -1631,16 +1638,13 @@ class Thread {
     gc::accounting::AtomicStack<mirror::Object>* thread_local_mark_stack;
   } tlsPtr_;
 
-  // Guards the 'interrupted_' and 'wait_monitor_' members.
+  // Guards the 'wait_monitor_' members.
   Mutex* wait_mutex_ DEFAULT_MUTEX_ACQUIRED_AFTER;
 
   // Condition variable waited upon during a wait.
   ConditionVariable* wait_cond_ GUARDED_BY(wait_mutex_);
   // Pointer to the monitor lock we're currently waiting on or null if not waiting.
   Monitor* wait_monitor_ GUARDED_BY(wait_mutex_);
-
-  // Thread "interrupted" status; stays raised until queried or thrown.
-  bool interrupted_ GUARDED_BY(wait_mutex_);
 
   // Debug disable read barrier count, only is checked for debug builds and only in the runtime.
   uint8_t debug_disallow_read_barrier_ = 0;

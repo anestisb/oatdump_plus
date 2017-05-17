@@ -28,6 +28,9 @@
 // The kNoThrow should be renamed to kNoVisibleThrow, as it is ok to GVN Integer.valueOf
 // (kNoSideEffects), and it is also OK to remove it if it's unused.
 
+// Note: Thread.interrupted is marked with kAllSideEffects due to the lack of finer grain
+// side effects representation.
+
 #define INTRINSICS_LIST(V) \
   V(DoubleDoubleToRawLongBits, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow, "Ljava/lang/Double;", "doubleToRawLongBits", "(D)J") \
   V(DoubleDoubleToLongBits, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow, "Ljava/lang/Double;", "doubleToLongBits", "(D)J") \
@@ -154,7 +157,8 @@
   V(UnsafeStoreFence, kVirtual, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow, "Lsun/misc/Unsafe;", "storeFence", "()V") \
   V(UnsafeFullFence, kVirtual, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow, "Lsun/misc/Unsafe;", "fullFence", "()V") \
   V(ReferenceGetReferent, kDirect, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow, "Ljava/lang/ref/Reference;", "getReferent", "()Ljava/lang/Object;") \
-  V(IntegerValueOf, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow, "Ljava/lang/Integer;", "valueOf", "(I)Ljava/lang/Integer;")
+  V(IntegerValueOf, kStatic, kNeedsEnvironmentOrCache, kNoSideEffects, kNoThrow, "Ljava/lang/Integer;", "valueOf", "(I)Ljava/lang/Integer;") \
+  V(ThreadInterrupted, kStatic, kNeedsEnvironmentOrCache, kAllSideEffects, kNoThrow, "Ljava/lang/Thread;", "interrupted", "()Z")
 
 #endif  // ART_COMPILER_INTRINSICS_LIST_H_
 #undef ART_COMPILER_INTRINSICS_LIST_H_   // #define is only for lint.

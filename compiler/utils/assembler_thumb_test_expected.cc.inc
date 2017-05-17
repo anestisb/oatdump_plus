@@ -5535,7 +5535,7 @@ const char* const VixlJniHelpersResults[] = {
   "  f0:	f1bc 0f00 	cmp.w	ip, #0\n",
   "  f4:	bf18      	it	ne\n",
   "  f6:	f20d 4c01 	addwne	ip, sp, #1025	; 0x401\n",
-  "  fa:	f8d9 c084 	ldr.w	ip, [r9, #132]	; 0x84\n",
+  "  fa:	f8d9 c08c 	ldr.w	ip, [r9, #140]	; 0x8c\n",
   "  fe:	f1bc 0f00 	cmp.w	ip, #0\n",
   " 102:	d171      	bne.n	1e8 <VixlJniHelpers+0x1e8>\n",
   " 104:	f8cd c7ff 	str.w	ip, [sp, #2047]	; 0x7ff\n",
@@ -5610,7 +5610,7 @@ const char* const VixlJniHelpersResults[] = {
   " 214:	ecbd 8a10 	vpop	{s16-s31}\n",
   " 218:	e8bd 8de0 	ldmia.w	sp!, {r5, r6, r7, r8, sl, fp, pc}\n",
   " 21c:	4660      	mov	r0, ip\n",
-  " 21e:	f8d9 c2b8 	ldr.w	ip, [r9, #696]	; 0x2b8\n",
+  " 21e:	f8d9 c2c0 	ldr.w	ip, [r9, #704]	; 0x2c0\n",
   " 222:	47e0      	blx	ip\n",
   nullptr
 };
