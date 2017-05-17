@@ -92,7 +92,6 @@ class Context {
   // Switches execution of the executing context to this context
   NO_RETURN virtual void DoLongJump() = 0;
 
- protected:
   enum {
     kBadGprBase = 0xebad6070,
     kBadFprBase = 0xebad8070,

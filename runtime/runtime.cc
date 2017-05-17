@@ -390,6 +390,7 @@ Runtime::~Runtime() {
   low_4gb_arena_pool_.reset();
   arena_pool_.reset();
   jit_arena_pool_.reset();
+  protected_fault_page_.reset();
   MemMap::Shutdown();
 
   // TODO: acquire a static mutex on Runtime to avoid racing.
@@ -1398,6 +1399,27 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   {
     ScopedObjectAccess soa(self);
     callbacks_->NextRuntimePhase(RuntimePhaseCallback::RuntimePhase::kInitialAgents);
+  }
+
+  // Try to reserve a dedicated fault page. This is allocated for clobbered registers and sentinels.
+  // If we cannot reserve it, log a warning.
+  // Note: This is allocated last so that the heap and other things have priority, if necessary.
+  {
+    constexpr uintptr_t kSentinelAddr =
+        RoundDown(static_cast<uintptr_t>(Context::kBadGprBase), kPageSize);
+    protected_fault_page_.reset(MemMap::MapAnonymous("Sentinel fault page",
+                                                     reinterpret_cast<uint8_t*>(kSentinelAddr),
+                                                     kPageSize,
+                                                     PROT_NONE,
+                                                     true,
+                                                     false,
+                                                     &error_msg));
+    if (protected_fault_page_ == nullptr) {
+      LOG(WARNING) << "Could not reserve sentinel fault page: " << error_msg;
+    } else if (reinterpret_cast<uintptr_t>(protected_fault_page_->Begin()) != kSentinelAddr) {
+      LOG(WARNING) << "Could not reserve sentinel fault page at the right address.";
+      protected_fault_page_.reset();
+    }
   }
 
   VLOG(startup) << "Runtime::Init exiting";
