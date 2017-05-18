@@ -1269,6 +1269,7 @@ void JitCodeCache::GetProfiledMethods(const std::set<std::string>& dex_base_loca
                                       std::vector<ProfileMethodInfo>& methods) {
   ScopedTrace trace(__FUNCTION__);
   MutexLock mu(Thread::Current(), lock_);
+  uint16_t jit_compile_threshold = Runtime::Current()->GetJITOptions()->GetCompileThreshold();
   for (const ProfilingInfo* info : profiling_infos_) {
     ArtMethod* method = info->GetMethod();
     const DexFile* dex_file = method->GetDexFile();
@@ -1277,6 +1278,16 @@ void JitCodeCache::GetProfiledMethods(const std::set<std::string>& dex_base_loca
       continue;
     }
     std::vector<ProfileMethodInfo::ProfileInlineCache> inline_caches;
+
+    // If the method didn't reach the compilation threshold don't save the inline caches.
+    // They might be incomplete and cause unnecessary deoptimizations.
+    // If the inline cache is empty the compiler will generate a regular invoke virtual/interface.
+    if (method->GetCounter() < jit_compile_threshold) {
+      methods.emplace_back(/*ProfileMethodInfo*/
+          dex_file, method->GetDexMethodIndex(), inline_caches);
+      continue;
+    }
+
     for (size_t i = 0; i < info->number_of_inline_caches_; ++i) {
       std::vector<ProfileMethodInfo::ProfileClassReference> profile_classes;
       const InlineCache& cache = info->cache_[i];
