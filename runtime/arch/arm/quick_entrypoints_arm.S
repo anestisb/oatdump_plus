@@ -1112,7 +1112,10 @@ GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_CHARS(_tlab, TLAB)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_STRING(_tlab, TLAB)
 
 // A hand-written override for GENERATE_ALLOC_ENTRYPOINTS_ALLOC_RESOLVED_OBJECT(_rosalloc, RosAlloc).
-.macro ART_QUICK_ALLOC_OBJECT_ROSALLOC c_name, cxx_name
+//
+// If isInitialized=1 then the compiler assumes the object's class has already been initialized.
+// If isInitialized=0 the compiler can only assume it's been at least resolved.
+.macro ART_QUICK_ALLOC_OBJECT_ROSALLOC c_name, cxx_name, isInitialized
 ENTRY \c_name
     // Fast path rosalloc allocation.
     // r0: type/return value, r9: Thread::Current
@@ -1128,6 +1131,11 @@ ENTRY \c_name
     cmp    r3, #ROSALLOC_MAX_THREAD_LOCAL_BRACKET_SIZE        // Check if the size is for a thread
                                                               // local allocation. Also does the
                                                               // initialized and finalizable checks.
+    // When isInitialized == 0, then the class is potentially not yet initialized.
+    // If the class is not yet initialized, the object size will be very large to force the branch
+    // below to be taken.
+    //
+    // See InitializeClassVisitors in class-inl.h for more details.
     bhs    .Lslow_path\c_name
                                                               // Compute the rosalloc bracket index
                                                               // from the size. Since the size is
@@ -1157,18 +1165,6 @@ ENTRY \c_name
 #endif
     POISON_HEAP_REF r0
     str    r0, [r3, #MIRROR_OBJECT_CLASS_OFFSET]
-                                                              // Fence. This is "ish" not "ishst" so
-                                                              // that it also ensures ordering of
-                                                              // the class status load with respect
-                                                              // to later accesses to the class
-                                                              // object. Alternatively we could use
-                                                              // "ishst" if we use load-acquire for
-                                                              // the object size load.
-                                                              // Needs to be done before pushing on
-                                                              // allocation since Heap::VisitObjects
-                                                              // relies on seeing the class pointer.
-                                                              // b/28790624
-    dmb    ish
                                                               // Push the new object onto the thread
                                                               // local allocation stack and
                                                               // increment the thread local
@@ -1177,6 +1173,28 @@ ENTRY \c_name
     str    r3, [r1], #COMPRESSED_REFERENCE_SIZE               // (Increment r1 as a side effect.)
     str    r1, [r9, #THREAD_LOCAL_ALLOC_STACK_TOP_OFFSET]
                                                               // Decrement the size of the free list
+
+    // After this "STR" the object is published to the thread local allocation stack,
+    // and it will be observable from a runtime internal (eg. Heap::VisitObjects) point of view.
+    // It is not yet visible to the running (user) compiled code until after the return.
+    //
+    // To avoid the memory barrier prior to the "STR", a trick is employed, by differentiating
+    // the state of the allocation stack slot. It can be a pointer to one of:
+    // 0) Null entry, because the stack was bumped but the new pointer wasn't written yet.
+    //       (The stack initial state is "null" pointers).
+    // 1) A partially valid object, with an invalid class pointer to the next free rosalloc slot.
+    // 2) A fully valid object, with a valid class pointer pointing to a real class.
+    // Other states are not allowed.
+    //
+    // An object that is invalid only temporarily, and will eventually become valid.
+    // The internal runtime code simply checks if the object is not null or is partial and then
+    // ignores it.
+    //
+    // (Note: The actual check is done by seeing if a non-null object has a class pointer pointing
+    // to ClassClass, and that the ClassClass's class pointer is self-cyclic. A rosalloc free slot
+    // "next" pointer is not-cyclic.)
+    //
+    // See also b/28790624 for a listing of CLs dealing with this race.
     ldr    r1, [r12, #(ROSALLOC_RUN_FREE_LIST_OFFSET + ROSALLOC_RUN_FREE_LIST_SIZE_OFFSET)]
     sub    r1, #1
                                                               // TODO: consider combining this store
@@ -1185,6 +1203,19 @@ ENTRY \c_name
     str    r1, [r12, #(ROSALLOC_RUN_FREE_LIST_OFFSET + ROSALLOC_RUN_FREE_LIST_SIZE_OFFSET)]
 
     mov    r0, r3                                             // Set the return value and return.
+.if \isInitialized == 0
+    // This barrier is only necessary when the allocation also requires
+    // a class initialization check.
+    //
+    // If the class is already observably initialized, then new-instance allocations are protected
+    // from publishing by the compiler which inserts its own StoreStore barrier.
+    dmb    ish
+    // Use a "dmb ish" fence here because if there are later loads of statics (e.g. class size),
+    // they should happen-after the implicit initialization check.
+    //
+    // TODO: Remove this dmb for class initialization checks (b/36692143) by introducing
+    // a new observably-initialized class state.
+.endif
     bx     lr
 
 .Lslow_path\c_name:
@@ -1196,18 +1227,21 @@ ENTRY \c_name
 END \c_name
 .endm
 
-ART_QUICK_ALLOC_OBJECT_ROSALLOC art_quick_alloc_object_resolved_rosalloc, artAllocObjectFromCodeResolvedRosAlloc
-ART_QUICK_ALLOC_OBJECT_ROSALLOC art_quick_alloc_object_initialized_rosalloc, artAllocObjectFromCodeInitializedRosAlloc
+ART_QUICK_ALLOC_OBJECT_ROSALLOC art_quick_alloc_object_resolved_rosalloc, artAllocObjectFromCodeResolvedRosAlloc, /* isInitialized */ 0
+ART_QUICK_ALLOC_OBJECT_ROSALLOC art_quick_alloc_object_initialized_rosalloc, artAllocObjectFromCodeInitializedRosAlloc, /* isInitialized */ 1
 
 // The common fast path code for art_quick_alloc_object_resolved/initialized_tlab
 // and art_quick_alloc_object_resolved/initialized_region_tlab.
 //
 // r0: type r9: Thread::Current, r1, r2, r3, r12: free.
 // Need to preserve r0 to the slow path.
-.macro ALLOC_OBJECT_RESOLVED_TLAB_FAST_PATH slowPathLabel
-                                                              // Load thread_local_pos (r12) and
-                                                              // thread_local_end (r3) with ldrd.
-                                                              // Check constraints for ldrd.
+//
+// If isInitialized=1 then the compiler assumes the object's class has already been initialized.
+// If isInitialized=0 the compiler can only assume it's been at least resolved.
+.macro ALLOC_OBJECT_RESOLVED_TLAB_FAST_PATH slowPathLabel isInitialized
+                                                             // Load thread_local_pos (r12) and
+                                                             // thread_local_end (r3) with ldrd.
+                                                             // Check constraints for ldrd.
 #if !((THREAD_LOCAL_POS_OFFSET + 4 == THREAD_LOCAL_END_OFFSET) && (THREAD_LOCAL_POS_OFFSET % 8 == 0))
 #error "Thread::thread_local_pos/end must be consecutive and are 8 byte aligned for performance"
 #endif
@@ -1215,6 +1249,11 @@ ART_QUICK_ALLOC_OBJECT_ROSALLOC art_quick_alloc_object_initialized_rosalloc, art
     sub    r12, r3, r12                                       // Compute the remaining buf size.
     ldr    r3, [r0, #MIRROR_CLASS_OBJECT_SIZE_ALLOC_FAST_PATH_OFFSET]  // Load the object size (r3).
     cmp    r3, r12                                            // Check if it fits.
+    // When isInitialized == 0, then the class is potentially not yet initialized.
+    // If the class is not yet initialized, the object size will be very large to force the branch
+    // below to be taken.
+    //
+    // See InitializeClassVisitors in class-inl.h for more details.
     bhi    \slowPathLabel
     // "Point of no slow path". Won't go to the slow path from here on. OK to clobber r0 and r1.
                                                               // Reload old thread_local_pos (r0)
@@ -1222,6 +1261,23 @@ ART_QUICK_ALLOC_OBJECT_ROSALLOC art_quick_alloc_object_initialized_rosalloc, art
     ldr    r2, [r9, #THREAD_LOCAL_POS_OFFSET]
     add    r1, r2, r3
     str    r1, [r9, #THREAD_LOCAL_POS_OFFSET]                 // Store new thread_local_pos.
+    // After this "STR" the object is published to the thread local allocation stack,
+    // and it will be observable from a runtime internal (eg. Heap::VisitObjects) point of view.
+    // It is not yet visible to the running (user) compiled code until after the return.
+    //
+    // To avoid the memory barrier prior to the "STR", a trick is employed, by differentiating
+    // the state of the object. It can be either:
+    // 1) A partially valid object, with a null class pointer
+    //       (because the initial state of TLAB buffers is all 0s/nulls).
+    // 2) A fully valid object, with a valid class pointer pointing to a real class.
+    // Other states are not allowed.
+    //
+    // An object that is invalid only temporarily, and will eventually become valid.
+    // The internal runtime code simply checks if the object is not null or is partial and then
+    // ignores it.
+    //
+    // (Note: The actual check is done by checking that the object's class pointer is non-null.
+    // Also, unlike rosalloc, the object can never be observed as null).
     ldr    r1, [r9, #THREAD_LOCAL_OBJECTS_OFFSET]             // Increment thread_local_objects.
     add    r1, r1, #1
     str    r1, [r9, #THREAD_LOCAL_OBJECTS_OFFSET]
@@ -1231,21 +1287,29 @@ ART_QUICK_ALLOC_OBJECT_ROSALLOC art_quick_alloc_object_initialized_rosalloc, art
                                                               // that the code after this allocation
                                                               // site will see the right values in
                                                               // the fields of the class.
-                                                              // Alternatively we could use "ishst"
-                                                              // if we use load-acquire for the
-                                                              // object size load.)
     mov    r0, r2
+.if \isInitialized == 0
+    // This barrier is only necessary when the allocation also requires
+    // a class initialization check.
+    //
+    // If the class is already observably initialized, then new-instance allocations are protected
+    // from publishing by the compiler which inserts its own StoreStore barrier.
     dmb    ish
+    // Use a "dmb ish" fence here because if there are later loads of statics (e.g. class size),
+    // they should happen-after the implicit initialization check.
+    //
+    // TODO: Remove dmb for class initialization checks (b/36692143)
+.endif
     bx     lr
 .endm
 
 // The common code for art_quick_alloc_object_*region_tlab
-.macro GENERATE_ALLOC_OBJECT_RESOLVED_TLAB name, entrypoint
+.macro GENERATE_ALLOC_OBJECT_RESOLVED_TLAB name, entrypoint, isInitialized
 ENTRY \name
     // Fast path tlab allocation.
     // r0: type, r9: Thread::Current
     // r1, r2, r3, r12: free.
-    ALLOC_OBJECT_RESOLVED_TLAB_FAST_PATH .Lslow_path\name
+    ALLOC_OBJECT_RESOLVED_TLAB_FAST_PATH .Lslow_path\name, \isInitialized
 .Lslow_path\name:
     SETUP_SAVE_REFS_ONLY_FRAME r2                             // Save callee saves in case of GC.
     mov    r1, r9                                             // Pass Thread::Current.
@@ -1255,10 +1319,10 @@ ENTRY \name
 END \name
 .endm
 
-GENERATE_ALLOC_OBJECT_RESOLVED_TLAB art_quick_alloc_object_resolved_region_tlab, artAllocObjectFromCodeResolvedRegionTLAB
-GENERATE_ALLOC_OBJECT_RESOLVED_TLAB art_quick_alloc_object_initialized_region_tlab, artAllocObjectFromCodeInitializedRegionTLAB
-GENERATE_ALLOC_OBJECT_RESOLVED_TLAB art_quick_alloc_object_resolved_tlab, artAllocObjectFromCodeResolvedTLAB
-GENERATE_ALLOC_OBJECT_RESOLVED_TLAB art_quick_alloc_object_initialized_tlab, artAllocObjectFromCodeInitializedTLAB
+GENERATE_ALLOC_OBJECT_RESOLVED_TLAB art_quick_alloc_object_resolved_region_tlab, artAllocObjectFromCodeResolvedRegionTLAB, /* isInitialized */ 0
+GENERATE_ALLOC_OBJECT_RESOLVED_TLAB art_quick_alloc_object_initialized_region_tlab, artAllocObjectFromCodeInitializedRegionTLAB, /* isInitialized */ 1
+GENERATE_ALLOC_OBJECT_RESOLVED_TLAB art_quick_alloc_object_resolved_tlab, artAllocObjectFromCodeResolvedTLAB, /* isInitialized */ 0
+GENERATE_ALLOC_OBJECT_RESOLVED_TLAB art_quick_alloc_object_initialized_tlab, artAllocObjectFromCodeInitializedTLAB, /* isInitialized */ 1
 
 
 // The common fast path code for art_quick_alloc_array_resolved/initialized_tlab
@@ -1279,6 +1343,8 @@ GENERATE_ALLOC_OBJECT_RESOLVED_TLAB art_quick_alloc_object_initialized_tlab, art
     ldrd   r3, r12, [r9, #THREAD_LOCAL_POS_OFFSET]
     sub    r12, r12, r3                                       // Compute the remaining buf size.
     cmp    r2, r12                                            // Check if the total_size fits.
+    // The array class is always initialized here. Unlike new-instance,
+    // this does not act as a double test.
     bhi    \slowPathLabel
     // "Point of no slow path". Won't go to the slow path from here on. OK to clobber r0 and r1.
     add    r2, r2, r3
@@ -1293,11 +1359,13 @@ GENERATE_ALLOC_OBJECT_RESOLVED_TLAB art_quick_alloc_object_initialized_tlab, art
                                                               // that the code after this allocation
                                                               // site will see the right values in
                                                               // the fields of the class.
-                                                              // Alternatively we could use "ishst"
-                                                              // if we use load-acquire for the
-                                                              // object size load.)
     mov    r0, r3
-    dmb    ish
+// new-array is special. The class is loaded and immediately goes to the Initialized state
+// before it is published. Therefore the only fence needed is for the publication of the object.
+// See ClassLinker::CreateArrayClass() for more details.
+
+// For publication of the new array, we don't need a 'dmb ishst' here.
+// The compiler generates 'dmb ishst' for all new-array insts.
     bx     lr
 .endm
 
