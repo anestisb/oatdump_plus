@@ -293,7 +293,7 @@ bool ProfileSaver::ProcessProfilingInfo(bool force_save, /*out*/uint16_t* number
     }
     ProfileCompilationInfo info;
     if (!info.Load(filename, /*clear_if_invalid*/ true)) {
-      LOG(ERROR) << "Could not forcefully load profile " << filename;
+      LOG(WARNING) << "Could not forcefully load profile " << filename;
       continue;
     }
     uint64_t last_save_number_of_methods = info.GetNumberOfMethods();
