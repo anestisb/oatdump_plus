@@ -595,24 +595,24 @@ class ProfMan FINAL {
 
     const DexFile::StringId* name_id = dex_file->FindStringId(name.c_str());
     if (name_id == nullptr) {
-      LOG(ERROR) << "Could not find name: "  << name;
+      LOG(WARNING) << "Could not find name: "  << name;
       return DexFile::kDexNoIndex;
     }
     dex::TypeIndex return_type_idx;
     std::vector<dex::TypeIndex> param_type_idxs;
     if (!dex_file->CreateTypeList(signature, &return_type_idx, &param_type_idxs)) {
-      LOG(ERROR) << "Could not create type list" << signature;
+      LOG(WARNING) << "Could not create type list" << signature;
       return DexFile::kDexNoIndex;
     }
     const DexFile::ProtoId* proto_id = dex_file->FindProtoId(return_type_idx, param_type_idxs);
     if (proto_id == nullptr) {
-      LOG(ERROR) << "Could not find proto_id: " << name;
+      LOG(WARNING) << "Could not find proto_id: " << name;
       return DexFile::kDexNoIndex;
     }
     const DexFile::MethodId* method_id = dex_file->FindMethodId(
         dex_file->GetTypeId(class_ref.type_index), *name_id, *proto_id);
     if (method_id == nullptr) {
-      LOG(ERROR) << "Could not find method_id: " << name;
+      LOG(WARNING) << "Could not find method_id: " << name;
       return DexFile::kDexNoIndex;
     }
 
