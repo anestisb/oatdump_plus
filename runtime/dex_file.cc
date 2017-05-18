@@ -1072,13 +1072,13 @@ bool DexFile::DecodeDebugLocalInfo(const CodeItem* code_item, bool is_static, ui
                      << code_item->registers_size_ << ") in " << GetLocation();
           return false;
         }
-        if (!local_in_reg[reg].is_live_) {
-          LOG(ERROR) << "invalid stream - end without start in " << GetLocation();
-          return false;
+        // If the register is live, close it properly. Otherwise, closing an already
+        // closed register is sloppy, but harmless if no further action is taken.
+        if (local_in_reg[reg].is_live_) {
+          local_in_reg[reg].end_address_ = address;
+          local_cb(context, local_in_reg[reg]);
+          local_in_reg[reg].is_live_ = false;
         }
-        local_in_reg[reg].end_address_ = address;
-        local_cb(context, local_in_reg[reg]);
-        local_in_reg[reg].is_live_ = false;
         break;
       }
       case DBG_RESTART_LOCAL: {
