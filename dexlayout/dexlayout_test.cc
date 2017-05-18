@@ -350,6 +350,55 @@ class DexLayoutTest : public CommonRuntimeTest {
     return true;
   }
 
+  // Runs DexFileLayout test twice (second time is run on output of first time)
+  // for behavior consistency.
+  bool DexFileLayoutFixedPointExec(std::string* error_msg) {
+    ScratchFile tmp_file;
+    std::string tmp_name = tmp_file.GetFilename();
+    size_t tmp_last_slash = tmp_name.rfind("/");
+    std::string tmp_dir = tmp_name.substr(0, tmp_last_slash + 1);
+
+    // Write inputs and expected outputs.
+    std::string dex_file = tmp_dir + "classes.dex";
+    WriteFileBase64(kDexFileLayoutInputDex, dex_file.c_str());
+    std::string profile_file = tmp_dir + "primary.prof";
+    WriteFileBase64(kDexFileLayoutInputProfile, profile_file.c_str());
+    std::string output_dex = tmp_dir + "classes.dex.new";
+    std::string second_output_dex = tmp_dir + "classes.dex.new.new";
+
+    std::string dexlayout = GetTestAndroidRoot() + "/bin/dexlayout";
+    EXPECT_TRUE(OS::FileExists(dexlayout.c_str())) << dexlayout << " should be a valid file path";
+
+    // -v makes sure that the layout did not corrupt the dex file.
+    std::vector<std::string> dexlayout_exec_argv =
+        { dexlayout, "-v", "-w", tmp_dir, "-o", tmp_name, "-p", profile_file, dex_file };
+    if (!::art::Exec(dexlayout_exec_argv, error_msg)) {
+      return false;
+    }
+
+    // -v makes sure that the layout did not corrupt the dex file.
+    std::vector<std::string> second_dexlayout_exec_argv =
+        { dexlayout, "-v", "-w", tmp_dir, "-o", tmp_name, "-p", profile_file, output_dex };
+    if (!::art::Exec(second_dexlayout_exec_argv, error_msg)) {
+      return false;
+    }
+
+    bool diff_result = true;
+    std::vector<std::string> diff_exec_argv =
+        { "/usr/bin/diff", output_dex, second_output_dex };
+    if (!::art::Exec(diff_exec_argv, error_msg)) {
+      diff_result = false;
+    }
+
+    std::vector<std::string> rm_exec_argv =
+        { "/bin/rm", dex_file, profile_file, output_dex, second_output_dex };
+    if (!::art::Exec(rm_exec_argv, error_msg)) {
+      return false;
+    }
+
+    return diff_result;
+  }
+
   // Runs UnreferencedCatchHandlerTest & Unreferenced0SizeCatchHandlerTest.
   bool UnreferencedCatchHandlerExec(std::string* error_msg, const char* filename) {
     ScratchFile tmp_file;
@@ -425,6 +474,13 @@ TEST_F(DexLayoutTest, DexFileLayout) {
   TEST_DISABLED_FOR_TARGET();
   std::string error_msg;
   ASSERT_TRUE(DexFileLayoutExec(&error_msg)) << error_msg;
+}
+
+TEST_F(DexLayoutTest, DexFileLayoutFixedPoint) {
+  // Disable test on target.
+  TEST_DISABLED_FOR_TARGET();
+  std::string error_msg;
+  ASSERT_TRUE(DexFileLayoutFixedPointExec(&error_msg)) << error_msg;
 }
 
 TEST_F(DexLayoutTest, UnreferencedCatchHandler) {
