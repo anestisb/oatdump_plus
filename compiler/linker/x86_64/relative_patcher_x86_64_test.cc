@@ -127,19 +127,20 @@ TEST_F(X86_64RelativePatcherTest, CallTrampoline) {
   EXPECT_TRUE(CheckLinkedMethod(MethodRef(1u), ArrayRef<const uint8_t>(expected_code)));
 }
 
-TEST_F(X86_64RelativePatcherTest, DexCacheReference) {
-  dex_cache_arrays_begin_ = 0x12345678;
-  constexpr size_t kElementOffset = 0x1234;
+TEST_F(X86_64RelativePatcherTest, StringBssEntry) {
+  bss_begin_ = 0x12345678;
+  constexpr size_t kStringEntryOffset = 0x1234;
+  constexpr uint32_t kStringIndex = 1u;
+  string_index_to_offset_map_.Put(kStringIndex, kStringEntryOffset);
   LinkerPatch patches[] = {
-      LinkerPatch::DexCacheArrayPatch(kDexCacheLoadCode.size() - 4u, nullptr, 0u, kElementOffset),
+      LinkerPatch::StringBssEntryPatch(kDexCacheLoadCode.size() - 4u, nullptr, 0u, kStringIndex),
   };
   AddCompiledMethod(MethodRef(1u), kDexCacheLoadCode, ArrayRef<const LinkerPatch>(patches));
   Link();
 
   auto result = method_offset_map_.FindMethodOffset(MethodRef(1u));
   ASSERT_TRUE(result.first);
-  uint32_t diff =
-      dex_cache_arrays_begin_ + kElementOffset - (result.second + kDexCacheLoadCode.size());
+  uint32_t diff = bss_begin_ + kStringEntryOffset - (result.second + kDexCacheLoadCode.size());
   static const uint8_t expected_code[] = {
       0x8b, 0x05,
       static_cast<uint8_t>(diff),

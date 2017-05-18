@@ -282,7 +282,7 @@ TEST_F(MultiOatRelativePatcherTest, Patch) {
   uint32_t method2_patch_offset = 0x7654u;
   uint32_t method2_target_offset = 0xccccu;
   LinkerPatch method2_patch =
-      LinkerPatch::DexCacheArrayPatch(method2_literal_offset, nullptr, 0u, 1234u);
+      LinkerPatch::StringBssEntryPatch(method2_literal_offset, nullptr, 0u, 1u);
   patcher_.PatchPcRelativeReference(
       &code, method2_patch, method2_patch_offset, method2_target_offset);
   DCHECK_EQ(method2_literal_offset, mock_->last_literal_offset_);

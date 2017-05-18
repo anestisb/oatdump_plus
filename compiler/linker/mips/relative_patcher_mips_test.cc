@@ -20,10 +20,6 @@
 namespace art {
 namespace linker {
 
-// We'll maximize the range of a single load instruction for dex cache array accesses
-// by aligning offset -32768 with the offset of the first used element.
-static constexpr uint32_t kDexCacheArrayLwOffset = 0x8000;
-
 class MipsRelativePatcherTest : public RelativePatcherTest {
  public:
   MipsRelativePatcherTest() : RelativePatcherTest(kMips, "mips32r2") {}
@@ -41,7 +37,7 @@ class MipsRelativePatcherTest : public RelativePatcherTest {
   }
 
   void CheckPcRelativePatch(const ArrayRef<const LinkerPatch>& patches, uint32_t target_offset);
-  void TestDexCacheReference(uint32_t dex_cache_arrays_begin, uint32_t element_offset);
+  void TestStringBssEntry(uint32_t bss_begin, uint32_t string_entry_offset);
   void TestStringReference(uint32_t string_offset);
 };
 
@@ -65,9 +61,7 @@ void MipsRelativePatcherTest::CheckPcRelativePatch(const ArrayRef<const LinkerPa
   ASSERT_TRUE(result.first);
 
   uint32_t diff = target_offset - (result.second + kAnchorOffset);
-  if (patches[0].GetType() == LinkerPatch::Type::kDexCacheArray) {
-    diff += kDexCacheArrayLwOffset;
-  }
+  CHECK_NE(patches[0].GetType(), LinkerPatch::Type::kDexCacheArray);
   diff += (diff & 0x8000) << 1;  // Account for sign extension in addiu.
 
   const uint8_t expected_code[] = {
@@ -79,14 +73,15 @@ void MipsRelativePatcherTest::CheckPcRelativePatch(const ArrayRef<const LinkerPa
   EXPECT_TRUE(CheckLinkedMethod(MethodRef(1u), ArrayRef<const uint8_t>(expected_code)));
 }
 
-void MipsRelativePatcherTest::TestDexCacheReference(uint32_t dex_cache_arrays_begin,
-                                                    uint32_t element_offset) {
-  dex_cache_arrays_begin_ = dex_cache_arrays_begin;
+void MipsRelativePatcherTest::TestStringBssEntry(uint32_t bss_begin,
+                                                 uint32_t string_entry_offset) {
+  constexpr uint32_t kStringIndex = 1u;
+  string_index_to_offset_map_.Put(kStringIndex, string_entry_offset);
+  bss_begin_ = bss_begin;
   LinkerPatch patches[] = {
-      LinkerPatch::DexCacheArrayPatch(kLiteralOffset, nullptr, kAnchorOffset, element_offset)
+      LinkerPatch::StringBssEntryPatch(kLiteralOffset, nullptr, kAnchorOffset, kStringIndex)
   };
-  CheckPcRelativePatch(ArrayRef<const LinkerPatch>(patches),
-                       dex_cache_arrays_begin_ + element_offset);
+  CheckPcRelativePatch(ArrayRef<const LinkerPatch>(patches), bss_begin_ + string_entry_offset);
 }
 
 void MipsRelativePatcherTest::TestStringReference(uint32_t string_offset) {
@@ -98,8 +93,8 @@ void MipsRelativePatcherTest::TestStringReference(uint32_t string_offset) {
   CheckPcRelativePatch(ArrayRef<const LinkerPatch>(patches), string_offset);
 }
 
-TEST_F(MipsRelativePatcherTest, DexCacheReference) {
-  TestDexCacheReference(/* dex_cache_arrays_begin */ 0x12345678, /* element_offset */ 0x1234);
+TEST_F(MipsRelativePatcherTest, StringBssEntry) {
+  TestStringBssEntry(/* bss_begin */ 0x12345678, /* string_entry_offset */ 0x1234);
 }
 
 TEST_F(MipsRelativePatcherTest, StringReference) {

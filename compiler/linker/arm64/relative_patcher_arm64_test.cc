@@ -249,12 +249,14 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
     return GenNopsAndAdrpAndUse(num_nops, method_offset, target_offset, kLdrWInsn);
   }
 
-  void TestNopsAdrpLdr(size_t num_nops, uint32_t dex_cache_arrays_begin, uint32_t element_offset) {
-    dex_cache_arrays_begin_ = dex_cache_arrays_begin;
+  void TestNopsAdrpLdr(size_t num_nops, uint32_t bss_begin, uint32_t string_entry_offset) {
+    constexpr uint32_t kStringIndex = 1u;
+    string_index_to_offset_map_.Put(kStringIndex, string_entry_offset);
+    bss_begin_ = bss_begin;
     auto code = GenNopsAndAdrpLdr(num_nops, 0u, 0u);  // Unpatched.
     const LinkerPatch patches[] = {
-        LinkerPatch::DexCacheArrayPatch(num_nops * 4u     , nullptr, num_nops * 4u, element_offset),
-        LinkerPatch::DexCacheArrayPatch(num_nops * 4u + 4u, nullptr, num_nops * 4u, element_offset),
+        LinkerPatch::StringBssEntryPatch(num_nops * 4u     , nullptr, num_nops * 4u, kStringIndex),
+        LinkerPatch::StringBssEntryPatch(num_nops * 4u + 4u, nullptr, num_nops * 4u, kStringIndex),
     };
     AddCompiledMethod(MethodRef(1u),
                       ArrayRef<const uint8_t>(code),
@@ -262,7 +264,7 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
     Link();
 
     uint32_t method1_offset = GetMethodOffset(1u);
-    uint32_t target_offset = dex_cache_arrays_begin_ + element_offset;
+    uint32_t target_offset = bss_begin_ + string_entry_offset;
     auto expected_code = GenNopsAndAdrpLdr(num_nops, method1_offset, target_offset);
     EXPECT_TRUE(CheckLinkedMethod(MethodRef(1u), ArrayRef<const uint8_t>(expected_code)));
   }
@@ -293,14 +295,16 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
 
   void PrepareNopsAdrpInsn2Ldr(size_t num_nops,
                                uint32_t insn2,
-                               uint32_t dex_cache_arrays_begin,
-                               uint32_t element_offset) {
-    dex_cache_arrays_begin_ = dex_cache_arrays_begin;
+                               uint32_t bss_begin,
+                               uint32_t string_entry_offset) {
+    constexpr uint32_t kStringIndex = 1u;
+    string_index_to_offset_map_.Put(kStringIndex, string_entry_offset);
+    bss_begin_ = bss_begin;
     auto code = GenNopsAndAdrpLdr(num_nops, 0u, 0u);  // Unpatched.
     InsertInsn(&code, num_nops * 4u + 4u, insn2);
     const LinkerPatch patches[] = {
-        LinkerPatch::DexCacheArrayPatch(num_nops * 4u     , nullptr, num_nops * 4u, element_offset),
-        LinkerPatch::DexCacheArrayPatch(num_nops * 4u + 8u, nullptr, num_nops * 4u, element_offset),
+        LinkerPatch::StringBssEntryPatch(num_nops * 4u     , nullptr, num_nops * 4u, kStringIndex),
+        LinkerPatch::StringBssEntryPatch(num_nops * 4u + 8u, nullptr, num_nops * 4u, kStringIndex),
     };
     AddCompiledMethod(MethodRef(1u),
                       ArrayRef<const uint8_t>(code),
@@ -376,15 +380,15 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
   void TestAdrpInsn2Ldr(uint32_t insn2,
                         uint32_t adrp_offset,
                         bool has_thunk,
-                        uint32_t dex_cache_arrays_begin,
-                        uint32_t element_offset) {
+                        uint32_t bss_begin,
+                        uint32_t string_entry_offset) {
     uint32_t method1_offset =
         kTrampolineSize + CodeAlignmentSize(kTrampolineSize) + sizeof(OatQuickMethodHeader);
     ASSERT_LT(method1_offset, adrp_offset);
     CHECK_ALIGNED(adrp_offset, 4u);
     uint32_t num_nops = (adrp_offset - method1_offset) / 4u;
-    PrepareNopsAdrpInsn2Ldr(num_nops, insn2, dex_cache_arrays_begin, element_offset);
-    uint32_t target_offset = dex_cache_arrays_begin_ + element_offset;
+    PrepareNopsAdrpInsn2Ldr(num_nops, insn2, bss_begin, string_entry_offset);
+    uint32_t target_offset = bss_begin_ + string_entry_offset;
     if (has_thunk) {
       TestNopsAdrpInsn2AndUseHasThunk(num_nops, insn2, target_offset, kLdrWInsn);
     } else {
@@ -395,33 +399,33 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
 
   void TestAdrpLdurLdr(uint32_t adrp_offset,
                        bool has_thunk,
-                       uint32_t dex_cache_arrays_begin,
-                       uint32_t element_offset) {
-    TestAdrpInsn2Ldr(kLdurInsn, adrp_offset, has_thunk, dex_cache_arrays_begin, element_offset);
+                       uint32_t bss_begin,
+                       uint32_t string_entry_offset) {
+    TestAdrpInsn2Ldr(kLdurInsn, adrp_offset, has_thunk, bss_begin, string_entry_offset);
   }
 
   void TestAdrpLdrPcRelLdr(uint32_t pcrel_ldr_insn,
                            int32_t pcrel_disp,
                            uint32_t adrp_offset,
                            bool has_thunk,
-                           uint32_t dex_cache_arrays_begin,
-                           uint32_t element_offset) {
+                           uint32_t bss_begin,
+                           uint32_t string_entry_offset) {
     ASSERT_LT(pcrel_disp, 0x100000);
     ASSERT_GE(pcrel_disp, -0x100000);
     ASSERT_EQ(pcrel_disp & 0x3, 0);
     uint32_t insn2 = pcrel_ldr_insn | (((static_cast<uint32_t>(pcrel_disp) >> 2) & 0x7ffffu) << 5);
-    TestAdrpInsn2Ldr(insn2, adrp_offset, has_thunk, dex_cache_arrays_begin, element_offset);
+    TestAdrpInsn2Ldr(insn2, adrp_offset, has_thunk, bss_begin, string_entry_offset);
   }
 
   void TestAdrpLdrSpRelLdr(uint32_t sprel_ldr_insn,
                            uint32_t sprel_disp_in_load_units,
                            uint32_t adrp_offset,
                            bool has_thunk,
-                           uint32_t dex_cache_arrays_begin,
-                           uint32_t element_offset) {
+                           uint32_t bss_begin,
+                           uint32_t string_entry_offset) {
     ASSERT_LT(sprel_disp_in_load_units, 0x1000u);
     uint32_t insn2 = sprel_ldr_insn | ((sprel_disp_in_load_units & 0xfffu) << 10);
-    TestAdrpInsn2Ldr(insn2, adrp_offset, has_thunk, dex_cache_arrays_begin, element_offset);
+    TestAdrpInsn2Ldr(insn2, adrp_offset, has_thunk, bss_begin, string_entry_offset);
   }
 
   void TestAdrpInsn2Add(uint32_t insn2,
@@ -726,19 +730,19 @@ TEST_F(Arm64RelativePatcherTestDefault, CallOtherJustTooFarBefore) {
   EXPECT_TRUE(CheckThunk(thunk_offset));
 }
 
-TEST_F(Arm64RelativePatcherTestDefault, DexCacheReference1) {
+TEST_F(Arm64RelativePatcherTestDefault, StringBssEntry1) {
   TestNopsAdrpLdr(0u, 0x12345678u, 0x1234u);
 }
 
-TEST_F(Arm64RelativePatcherTestDefault, DexCacheReference2) {
+TEST_F(Arm64RelativePatcherTestDefault, StringBssEntry2) {
   TestNopsAdrpLdr(0u, -0x12345678u, 0x4444u);
 }
 
-TEST_F(Arm64RelativePatcherTestDefault, DexCacheReference3) {
+TEST_F(Arm64RelativePatcherTestDefault, StringBssEntry3) {
   TestNopsAdrpLdr(0u, 0x12345000u, 0x3ffcu);
 }
 
-TEST_F(Arm64RelativePatcherTestDefault, DexCacheReference4) {
+TEST_F(Arm64RelativePatcherTestDefault, StringBssEntry4) {
   TestNopsAdrpLdr(0u, 0x12345000u, 0x4000u);
 }
 
@@ -763,7 +767,7 @@ TEST_F(Arm64RelativePatcherTestDefault, StringReference4) {
   test(0xff4u, disp2) test(0xff8u, disp2) test(0xffcu, disp2) test(0x1000u, disp2)
 
 #define DEFAULT_LDUR_LDR_TEST(adrp_offset, disp) \
-  TEST_F(Arm64RelativePatcherTestDefault, DexCacheReference ## adrp_offset ## Ldur ## disp) { \
+  TEST_F(Arm64RelativePatcherTestDefault, StringBssEntry ## adrp_offset ## Ldur ## disp) { \
     bool has_thunk = ((adrp_offset) == 0xff8u || (adrp_offset) == 0xffcu); \
     TestAdrpLdurLdr(adrp_offset, has_thunk, 0x12345678u, disp); \
   }
@@ -771,7 +775,7 @@ TEST_F(Arm64RelativePatcherTestDefault, StringReference4) {
 TEST_FOR_OFFSETS(DEFAULT_LDUR_LDR_TEST, 0x1234, 0x1238)
 
 #define DENVER64_LDUR_LDR_TEST(adrp_offset, disp) \
-  TEST_F(Arm64RelativePatcherTestDenver64, DexCacheReference ## adrp_offset ## Ldur ## disp) { \
+  TEST_F(Arm64RelativePatcherTestDenver64, StringBssEntry ## adrp_offset ## Ldur ## disp) { \
     TestAdrpLdurLdr(adrp_offset, false, 0x12345678u, disp); \
   }
 
@@ -779,7 +783,7 @@ TEST_FOR_OFFSETS(DENVER64_LDUR_LDR_TEST, 0x1234, 0x1238)
 
 // LDR <Wt>, <label> is always aligned. We should never have to use a fixup.
 #define LDRW_PCREL_LDR_TEST(adrp_offset, disp) \
-  TEST_F(Arm64RelativePatcherTestDefault, DexCacheReference ## adrp_offset ## WPcRel ## disp) { \
+  TEST_F(Arm64RelativePatcherTestDefault, StringBssEntry ## adrp_offset ## WPcRel ## disp) { \
     TestAdrpLdrPcRelLdr(kLdrWPcRelInsn, disp, adrp_offset, false, 0x12345678u, 0x1234u); \
   }
 
@@ -787,7 +791,7 @@ TEST_FOR_OFFSETS(LDRW_PCREL_LDR_TEST, 0x1234, 0x1238)
 
 // LDR <Xt>, <label> is aligned when offset + displacement is a multiple of 8.
 #define LDRX_PCREL_LDR_TEST(adrp_offset, disp) \
-  TEST_F(Arm64RelativePatcherTestDefault, DexCacheReference ## adrp_offset ## XPcRel ## disp) { \
+  TEST_F(Arm64RelativePatcherTestDefault, StringBssEntry ## adrp_offset ## XPcRel ## disp) { \
     bool unaligned = !IsAligned<8u>((adrp_offset) + 4u + static_cast<uint32_t>(disp)); \
     bool has_thunk = ((adrp_offset) == 0xff8u || (adrp_offset) == 0xffcu) && unaligned; \
     TestAdrpLdrPcRelLdr(kLdrXPcRelInsn, disp, adrp_offset, has_thunk, 0x12345678u, 0x1234u); \
@@ -797,14 +801,14 @@ TEST_FOR_OFFSETS(LDRX_PCREL_LDR_TEST, 0x1234, 0x1238)
 
 // LDR <Wt>, [SP, #<pimm>] and LDR <Xt>, [SP, #<pimm>] are always aligned. No fixup needed.
 #define LDRW_SPREL_LDR_TEST(adrp_offset, disp) \
-  TEST_F(Arm64RelativePatcherTestDefault, DexCacheReference ## adrp_offset ## WSpRel ## disp) { \
+  TEST_F(Arm64RelativePatcherTestDefault, StringBssEntry ## adrp_offset ## WSpRel ## disp) { \
     TestAdrpLdrSpRelLdr(kLdrWSpRelInsn, (disp) >> 2, adrp_offset, false, 0x12345678u, 0x1234u); \
   }
 
 TEST_FOR_OFFSETS(LDRW_SPREL_LDR_TEST, 0, 4)
 
 #define LDRX_SPREL_LDR_TEST(adrp_offset, disp) \
-  TEST_F(Arm64RelativePatcherTestDefault, DexCacheReference ## adrp_offset ## XSpRel ## disp) { \
+  TEST_F(Arm64RelativePatcherTestDefault, StringBssEntry ## adrp_offset ## XSpRel ## disp) { \
     TestAdrpLdrSpRelLdr(kLdrXSpRelInsn, (disp) >> 3, adrp_offset, false, 0x12345678u, 0x1234u); \
   }
 

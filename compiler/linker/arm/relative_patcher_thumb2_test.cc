@@ -222,7 +222,7 @@ class Thumb2RelativePatcherTest : public RelativePatcherTest {
     return result;
   }
 
-  void TestDexCacheReference(uint32_t dex_cache_arrays_begin, uint32_t element_offset);
+  void TestStringBssEntry(uint32_t bss_begin, uint32_t string_entry_offset);
   void TestStringReference(uint32_t string_offset);
   void CheckPcRelativePatch(const ArrayRef<const LinkerPatch>& patches, uint32_t target_offset);
 
@@ -290,15 +290,16 @@ const ArrayRef<const uint8_t> Thumb2RelativePatcherTest::kUnpatchedPcRelativeCod
     kUnpatchedPcRelativeRawCode);
 const uint32_t Thumb2RelativePatcherTest::kPcInsnOffset = 8u;
 
-void Thumb2RelativePatcherTest::TestDexCacheReference(uint32_t dex_cache_arrays_begin,
-                                                      uint32_t element_offset) {
-  dex_cache_arrays_begin_ = dex_cache_arrays_begin;
+void Thumb2RelativePatcherTest::TestStringBssEntry(uint32_t bss_begin,
+                                                   uint32_t string_entry_offset) {
+  constexpr uint32_t kStringIndex = 1u;
+  string_index_to_offset_map_.Put(kStringIndex, string_entry_offset);
+  bss_begin_ = bss_begin;
   const LinkerPatch patches[] = {
-      LinkerPatch::DexCacheArrayPatch(0u, nullptr, kPcInsnOffset, element_offset),
-      LinkerPatch::DexCacheArrayPatch(4u, nullptr, kPcInsnOffset, element_offset),
+      LinkerPatch::StringBssEntryPatch(0u, nullptr, kPcInsnOffset, kStringIndex),
+      LinkerPatch::StringBssEntryPatch(4u, nullptr, kPcInsnOffset, kStringIndex),
   };
-  CheckPcRelativePatch(ArrayRef<const LinkerPatch>(patches),
-                       dex_cache_arrays_begin_ + element_offset);
+  CheckPcRelativePatch(ArrayRef<const LinkerPatch>(patches), bss_begin_ + string_entry_offset);
 }
 
 void Thumb2RelativePatcherTest::TestStringReference(uint32_t string_offset) {
@@ -534,23 +535,23 @@ TEST_F(Thumb2RelativePatcherTest, CallOtherJustTooFarBefore) {
   EXPECT_TRUE(CheckThunk(thunk_offset));
 }
 
-TEST_F(Thumb2RelativePatcherTest, DexCacheReference1) {
-  TestDexCacheReference(0x00ff0000u, 0x00fcu);
+TEST_F(Thumb2RelativePatcherTest, StringBssEntry1) {
+  TestStringBssEntry(0x00ff0000u, 0x00fcu);
   ASSERT_LT(GetMethodOffset(1u), 0xfcu);
 }
 
-TEST_F(Thumb2RelativePatcherTest, DexCacheReference2) {
-  TestDexCacheReference(0x02ff0000u, 0x05fcu);
+TEST_F(Thumb2RelativePatcherTest, StringBssEntry2) {
+  TestStringBssEntry(0x02ff0000u, 0x05fcu);
   ASSERT_LT(GetMethodOffset(1u), 0xfcu);
 }
 
-TEST_F(Thumb2RelativePatcherTest, DexCacheReference3) {
-  TestDexCacheReference(0x08ff0000u, 0x08fcu);
+TEST_F(Thumb2RelativePatcherTest, StringBssEntry3) {
+  TestStringBssEntry(0x08ff0000u, 0x08fcu);
   ASSERT_LT(GetMethodOffset(1u), 0xfcu);
 }
 
-TEST_F(Thumb2RelativePatcherTest, DexCacheReference4) {
-  TestDexCacheReference(0xd0ff0000u, 0x60fcu);
+TEST_F(Thumb2RelativePatcherTest, StringBssEntry4) {
+  TestStringBssEntry(0xd0ff0000u, 0x60fcu);
   ASSERT_LT(GetMethodOffset(1u), 0xfcu);
 }
 

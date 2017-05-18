@@ -31,6 +31,7 @@
 #include "method_reference.h"
 #include "oat.h"
 #include "oat_quick_method_header.h"
+#include "string_reference.h"
 #include "vector_output_stream.h"
 
 namespace art {
@@ -61,7 +62,7 @@ class RelativePatcherTest : public testing::Test {
         features_(InstructionSetFeatures::FromVariant(instruction_set, variant, &error_msg_)),
         method_offset_map_(),
         patcher_(RelativePatcher::Create(instruction_set, features_.get(), &method_offset_map_)),
-        dex_cache_arrays_begin_(0u),
+        bss_begin_(0u),
         compiled_method_refs_(),
         compiled_methods_(),
         patched_code_(),
@@ -157,8 +158,9 @@ class RelativePatcherTest : public testing::Test {
                 result.first ? result.second : kTrampolineOffset + compiled_method->CodeDelta();
             patcher_->PatchCall(&patched_code_, patch.LiteralOffset(),
                                 offset + patch.LiteralOffset(), target_offset);
-          } else if (patch.GetType() == LinkerPatch::Type::kDexCacheArray) {
-            uint32_t target_offset = dex_cache_arrays_begin_ + patch.TargetDexCacheElementOffset();
+          } else if (patch.GetType() == LinkerPatch::Type::kStringBssEntry) {
+            uint32_t target_offset =
+                bss_begin_ + string_index_to_offset_map_.Get(patch.TargetStringIndex().index_);
             patcher_->PatchPcRelativeReference(&patched_code_,
                                                patch,
                                                offset + patch.LiteralOffset(),
@@ -276,7 +278,7 @@ class RelativePatcherTest : public testing::Test {
   std::unique_ptr<const InstructionSetFeatures> features_;
   MethodOffsetMap method_offset_map_;
   std::unique_ptr<RelativePatcher> patcher_;
-  uint32_t dex_cache_arrays_begin_;
+  uint32_t bss_begin_;
   SafeMap<uint32_t, uint32_t> string_index_to_offset_map_;
   std::vector<MethodReference> compiled_method_refs_;
   std::vector<std::unique_ptr<CompiledMethod>> compiled_methods_;
