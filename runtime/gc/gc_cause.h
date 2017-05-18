@@ -61,6 +61,8 @@ enum GcCause {
   kGcCauseHprof,
   // Not a real GC cause, used to prevent GetObjectsAllocated running in the middle of GC.
   kGcCauseGetObjectsAllocated,
+  // GC cause for the profile saver.
+  kGcCauseProfileSaver,
 };
 
 const char* PrettyCause(GcCause cause);

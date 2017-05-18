@@ -42,6 +42,7 @@ const char* PrettyCause(GcCause cause) {
     case kGcCauseAddRemoveSystemWeakHolder: return "SystemWeakHolder";
     case kGcCauseHprof: return "Hprof";
     case kGcCauseGetObjectsAllocated: return "ObjectsAllocated";
+    case kGcCauseProfileSaver: return "ProfileSaver";
   }
   LOG(FATAL) << "Unreachable";
   UNREACHABLE();
