@@ -129,7 +129,21 @@ FaultManager::~FaultManager() {
 
 void FaultManager::Init() {
   CHECK(!initialized_);
-  AddSpecialSignalHandlerFn(SIGSEGV, art_fault_handler);
+  sigset_t mask;
+  sigfillset(&mask);
+  sigdelset(&mask, SIGABRT);
+  sigdelset(&mask, SIGBUS);
+  sigdelset(&mask, SIGFPE);
+  sigdelset(&mask, SIGILL);
+  sigdelset(&mask, SIGSEGV);
+
+  SigchainAction sa = {
+    .sc_sigaction = art_fault_handler,
+    .sc_mask = mask,
+    .sc_flags = 0UL,
+  };
+
+  AddSpecialSignalHandlerFn(SIGSEGV, &sa);
   initialized_ = true;
 }
 

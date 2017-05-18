@@ -3,7 +3,7 @@ Checking for getEnvValues.
 Ready for native bridge tests.
 Checking for support.
 Getting trampoline for JNI_OnLoad with shorty (null).
-Test ART callbacks: all JNI function number is 11.
+Test ART callbacks: all JNI function number is 12.
     name:booleanMethod, signature:(ZZZZZZZZZZ)Z, shorty:ZZZZZZZZZZZ.
     name:byteMethod, signature:(BBBBBBBBBB)B, shorty:BBBBBBBBBBB.
     name:charMethod, signature:(CCCCCCCCCC)C, shorty:CCCCCCCCCCC.
@@ -14,6 +14,7 @@ Test ART callbacks: all JNI function number is 11.
     name:testGetMirandaMethodNative, signature:()Ljava/lang/reflect/Method;, shorty:L.
     name:testNewStringObject, signature:()V, shorty:V.
     name:testSignal, signature:()I, shorty:I.
+    name:testSignalHandlerNotReturn, signature:()V, shorty:V.
     name:testZeroLengthByteBuffers, signature:()V, shorty:V.
 trampoline_JNI_OnLoad called!
 JNI_OnLoad called
@@ -62,3 +63,18 @@ trampoline_Java_Main_testNewStringObject called!
 Getting trampoline for Java_Main_testSignal with shorty I.
 NB signal handler with signal 11.
 NB signal handler with signal 4.
+Loading invalid library 'libinvalid.so' from Java, which will fail.
+Checking for support.
+Was to load 'libinvalid.so', force fail.
+getError() in native bridge.
+Catch UnsatisfiedLinkError exception as expected.
+Getting trampoline for Java_Main_testSignalHandlerNotReturn with shorty V.
+start testSignalHandlerNotReturn
+raising first SIGSEGV
+NB signal handler with signal 11.
+handling first SIGSEGV, will raise another
+unblock SIGSEGV in handler
+raising second SIGSEGV
+NB signal handler with signal 11.
+handling second SIGSEGV, will jump back to test function
+back to test from signal handler via siglongjmp(), and done!

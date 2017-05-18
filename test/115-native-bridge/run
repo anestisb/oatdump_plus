@@ -23,6 +23,7 @@ LIBPATH=${LIBPATH##*:}
 ln -sf ${LIBPATH}/libnativebridgetest.so .
 touch libarttest.so
 touch libarttestd.so
+touch libinvalid.so
 ln -sf ${LIBPATH}/libarttest.so libarttest2.so
 ln -sf ${LIBPATH}/libarttestd.so libarttestd2.so
 

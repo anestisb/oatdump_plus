@@ -18,14 +18,21 @@
 #define ART_SIGCHAINLIB_SIGCHAIN_H_
 
 #include <signal.h>
+#include <stdint.h>
 
 namespace art {
 
-extern "C" void InitializeSignalChain();
+// Handlers that exit without returning to their caller (e.g. via siglongjmp) must pass this flag.
+static constexpr uint64_t SIGCHAIN_ALLOW_NORETURN = 0x1UL;
 
-typedef bool (*SpecialSignalHandlerFn)(int, siginfo_t*, void*);
-extern "C" void AddSpecialSignalHandlerFn(int signal, SpecialSignalHandlerFn fn);
-extern "C" void RemoveSpecialSignalHandlerFn(int signal, SpecialSignalHandlerFn fn);
+struct SigchainAction {
+  bool (*sc_sigaction)(int, siginfo_t*, void*);
+  sigset_t sc_mask;
+  uint64_t sc_flags;
+};
+
+extern "C" void AddSpecialSignalHandlerFn(int signal, SigchainAction* sa);
+extern "C" void RemoveSpecialSignalHandlerFn(int signal, bool (*fn)(int, siginfo_t*, void*));
 
 extern "C" void EnsureFrontOfChain(int signal);
 

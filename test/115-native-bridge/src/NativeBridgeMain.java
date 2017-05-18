@@ -16,6 +16,7 @@
 
 import java.lang.reflect.Method;
 import java.lang.System;
+import java.lang.Exception;
 
 // This is named Main as it is a copy of JniTest, so that we can re-use the native implementations
 // from libarttest.
@@ -33,6 +34,8 @@ class Main {
         testEnvironment();
         testNewStringObject();
         testSignalHandler();
+        testGetErrorByLoadInvalidLibrary();
+        testSignalHandlerNotReturn();
     }
 
     public static native void testFindClassOnAttachedNativeThread();
@@ -183,6 +186,22 @@ class Main {
     }
 
     private static native int testSignal();
+
+    // Test the path from Java to getError() of NativeBridge.
+    //
+    // Load invalid library 'libinvalid.so' from Java. Library loading will fail since it's
+    // invalid (empty file). ART, NativeLoader actually, calls getError() to dump error message.
+    // After that in Java, catch UnsatisfiedLinkError exception to confirm.
+    private static void testGetErrorByLoadInvalidLibrary() {
+        System.out.println("Loading invalid library 'libinvalid.so' from Java, which will fail.");
+        try {
+            System.loadLibrary("invalid");
+        } catch (java.lang.UnsatisfiedLinkError e){
+            System.out.println("Catch UnsatisfiedLinkError exception as expected.");
+        }
+    }
+
+    private static native void testSignalHandlerNotReturn();
 }
 
 public class NativeBridgeMain {
