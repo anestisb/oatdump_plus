@@ -102,7 +102,7 @@ class MultiOatRelativePatcher FINAL {
     relative_patcher_->PatchCall(code, literal_offset, patch_offset, target_offset);
   }
 
-  // Wrapper around RelativePatcher::PatchDexCacheReference(), doing offset adjustment.
+  // Wrapper around RelativePatcher::PatchPcRelativeReference(), doing offset adjustment.
   void PatchPcRelativeReference(std::vector<uint8_t>* code,
                                 const LinkerPatch& patch,
                                 uint32_t patch_offset,

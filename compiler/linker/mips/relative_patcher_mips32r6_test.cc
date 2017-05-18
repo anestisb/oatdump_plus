@@ -37,7 +37,7 @@ class Mips32r6RelativePatcherTest : public RelativePatcherTest {
   }
 
   void CheckPcRelativePatch(const ArrayRef<const LinkerPatch>& patches, uint32_t target_offset);
-  void TestDexCacheReference(uint32_t dex_cache_arrays_begin, uint32_t element_offset);
+  void TestStringBssEntry(uint32_t bss_begin, uint32_t string_entry_offset);
   void TestStringReference(uint32_t string_offset);
 };
 
@@ -69,14 +69,15 @@ void Mips32r6RelativePatcherTest::CheckPcRelativePatch(const ArrayRef<const Link
   EXPECT_TRUE(CheckLinkedMethod(MethodRef(1u), ArrayRef<const uint8_t>(expected_code)));
 }
 
-void Mips32r6RelativePatcherTest::TestDexCacheReference(uint32_t dex_cache_arrays_begin,
-                                                        uint32_t element_offset) {
-  dex_cache_arrays_begin_ = dex_cache_arrays_begin;
+void Mips32r6RelativePatcherTest::TestStringBssEntry(uint32_t bss_begin,
+                                                     uint32_t string_entry_offset) {
+  constexpr uint32_t kStringIndex = 1u;
+  string_index_to_offset_map_.Put(kStringIndex, string_entry_offset);
+  bss_begin_ = bss_begin;
   LinkerPatch patches[] = {
-      LinkerPatch::DexCacheArrayPatch(kLiteralOffset, nullptr, kAnchorOffset, element_offset)
+      LinkerPatch::StringBssEntryPatch(kLiteralOffset, nullptr, kAnchorOffset, kStringIndex)
   };
-  CheckPcRelativePatch(ArrayRef<const LinkerPatch>(patches),
-                       dex_cache_arrays_begin_ + element_offset);
+  CheckPcRelativePatch(ArrayRef<const LinkerPatch>(patches), bss_begin_ + string_entry_offset);
 }
 
 void Mips32r6RelativePatcherTest::TestStringReference(uint32_t string_offset) {
@@ -88,8 +89,8 @@ void Mips32r6RelativePatcherTest::TestStringReference(uint32_t string_offset) {
   CheckPcRelativePatch(ArrayRef<const LinkerPatch>(patches), string_offset);
 }
 
-TEST_F(Mips32r6RelativePatcherTest, DexCacheReference) {
-  TestDexCacheReference(/* dex_cache_arrays_begin */ 0x12345678, /* element_offset */ 0x1234);
+TEST_F(Mips32r6RelativePatcherTest, StringBssEntry) {
+  TestStringBssEntry(/* bss_begin */ 0x12345678, /* string_entry_offset */ 0x1234);
 }
 
 TEST_F(Mips32r6RelativePatcherTest, StringReference) {
