@@ -50,7 +50,8 @@ public class Main {
 
   /// CHECK-START: void Main.testSimpleUse() code_sinking (before)
   /// CHECK: <<LoadClass:l\d+>> LoadClass class_name:java.lang.Object
-  /// CHECK:                    NewInstance [<<LoadClass>>]
+  /// CHECK: <<New:l\d+>>       NewInstance [<<LoadClass>>]
+  /// CHECK:                    ConstructorFence [<<New>>]
   /// CHECK:                    If
   /// CHECK:                    begin_block
   /// CHECK:                    Throw
@@ -62,7 +63,8 @@ public class Main {
   /// CHECK: <<Error:l\d+>>     LoadClass class_name:java.lang.Error
   /// CHECK: <<LoadClass:l\d+>> LoadClass class_name:java.lang.Object
   /// CHECK-NOT:                begin_block
-  /// CHECK:                    NewInstance [<<LoadClass>>]
+  /// CHECK: <<New:l\d+>>       NewInstance [<<LoadClass>>]
+  /// CHECK:                    ConstructorFence [<<New>>]
   /// CHECK-NOT:                begin_block
   /// CHECK:                    NewInstance [<<Error>>]
   /// CHECK:                    Throw

@@ -56,6 +56,17 @@ static bool IsInterestingInstruction(HInstruction* instruction) {
     return true;
   }
 
+  // Check it is safe to move ConstructorFence.
+  // (Safe to move ConstructorFence for only protecting the new-instance but not for finals.)
+  if (instruction->IsConstructorFence()) {
+    HConstructorFence* ctor_fence = instruction->AsConstructorFence();
+
+    // A fence with "0" inputs is dead and should've been removed in a prior pass.
+    DCHECK_NE(0u, ctor_fence->InputCount());
+
+    return ctor_fence->GetAssociatedAllocation() != nullptr;
+  }
+
   // All other instructions that can throw cannot be moved.
   if (instruction->CanThrow()) {
     return false;
@@ -134,11 +145,11 @@ static bool ShouldFilterUse(HInstruction* instruction,
                             HInstruction* user,
                             const ArenaBitVector& post_dominated) {
   if (instruction->IsNewInstance()) {
-    return user->IsInstanceFieldSet() &&
+    return (user->IsInstanceFieldSet() || user->IsConstructorFence()) &&
         (user->InputAt(0) == instruction) &&
         !post_dominated.IsBitSet(user->GetBlock()->GetBlockId());
   } else if (instruction->IsNewArray()) {
-    return user->IsArraySet() &&
+    return (user->IsArraySet() || user->IsConstructorFence()) &&
         (user->InputAt(0) == instruction) &&
         !post_dominated.IsBitSet(user->GetBlock()->GetBlockId());
   }
@@ -372,7 +383,9 @@ void CodeSinking::SinkCodeToUncommonBranch(HBasicBlock* end_block) {
   // Step (3): Try to move sinking candidates.
   for (HInstruction* instruction : move_in_order) {
     HInstruction* position = nullptr;
-    if (instruction->IsArraySet() || instruction->IsInstanceFieldSet()) {
+    if (instruction->IsArraySet()
+            || instruction->IsInstanceFieldSet()
+            || instruction->IsConstructorFence()) {
       if (!instructions_that_can_move.IsBitSet(instruction->InputAt(0)->GetId())) {
         // A store can trivially move, but it can safely do so only if the heap
         // location it stores to can also move.

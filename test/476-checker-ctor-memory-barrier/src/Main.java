@@ -35,7 +35,7 @@ class ClassWithFinals {
 
   /// CHECK-START: void ClassWithFinals.<init>() inliner (after)
   /// CHECK:      ConstructorFence
-  /// CHECK-NEXT: ReturnVoid
+  /// CHECK-NOT:  ConstructorFence
 
   /*
    * Check that the correct assembly instructions are selected for a Store/Store fence.
@@ -65,11 +65,15 @@ class ClassWithFinals {
   }
 
   /// CHECK-START: void ClassWithFinals.<init>(int) inliner (after)
-  /// CHECK:      ConstructorFence
-  /// CHECK:      ConstructorFence
-  /// CHECK-NEXT: ReturnVoid
+  /// CHECK: <<This:l\d+>>            ParameterValue
+  /// CHECK: <<NewInstance:l\d+>>     NewInstance
+  /// CHECK-DAG:                      ConstructorFence [<<NewInstance>>]
+  /// CHECK-DAG:                      ConstructorFence [<<NewInstance>>]
+  /// CHECK-DAG:                      ConstructorFence [<<This>>]
+  /// CHECK-NOT:                      ConstructorFence
   public ClassWithFinals(int x) {
-    // This should have exactly two barriers:
+    // This should have exactly three barriers:
+    //   - one for the new-instance
     //   - one for the constructor
     //   - one for the `new` which should be inlined.
     obj = new ClassWithFinals();
@@ -79,8 +83,9 @@ class ClassWithFinals {
 
 class InheritFromClassWithFinals extends ClassWithFinals {
   /// CHECK-START: void InheritFromClassWithFinals.<init>() inliner (after)
-  /// CHECK:      ConstructorFence
-  /// CHECK-NEXT: ReturnVoid
+  /// CHECK: <<This:l\d+>>            ParameterValue
+  /// CHECK:                          ConstructorFence [<<This>>]
+  /// CHECK-NOT:                      ConstructorFence
 
   /// CHECK-START: void InheritFromClassWithFinals.<init>() inliner (after)
   /// CHECK-NOT:  InvokeStaticOrDirect
@@ -101,17 +106,21 @@ class InheritFromClassWithFinals extends ClassWithFinals {
   }
 
   /// CHECK-START: void InheritFromClassWithFinals.<init>(int) inliner (after)
-  /// CHECK:      ConstructorFence
-  /// CHECK:      ConstructorFence
-  /// CHECK-NOT:  ConstructorFence
-  /// CHECK:      ReturnVoid
+  /// CHECK: <<This:l\d+>>            ParameterValue
+  /// CHECK-DAG: <<NewHere:l\d+>>     NewInstance klass:InheritFromClassWithFinals
+  /// CHECK-DAG:                      ConstructorFence [<<This>>]
+  /// CHECK-DAG:                      ConstructorFence [<<NewHere>>]
+  /// CHECK-DAG:                      ConstructorFence [<<NewHere>>]
+  /// CHECK-NOT:                      ConstructorFence
 
   /// CHECK-START: void InheritFromClassWithFinals.<init>(int) inliner (after)
   /// CHECK-NOT:  InvokeStaticOrDirect
   public InheritFromClassWithFinals(int unused) {
-    // Should inline the super constructor and insert a memory barrier.
+    // super();  // implicitly the first invoke in this constructor.
+    //   Should inline the super constructor and insert a constructor fence there.
 
-    // Should inline the new instance call and insert another memory barrier.
+    // Should inline the new instance call (barrier); and add another one
+    // because the superclass has finals.
     new InheritFromClassWithFinals();
   }
 }
@@ -120,9 +129,10 @@ class HaveFinalsAndInheritFromClassWithFinals extends ClassWithFinals {
   final int y;
 
   /// CHECK-START: void HaveFinalsAndInheritFromClassWithFinals.<init>() inliner (after)
-  /// CHECK:      ConstructorFence
-  /// CHECK:      ConstructorFence
-  /// CHECK-NEXT: ReturnVoid
+  /// CHECK: <<This:l\d+>>            ParameterValue
+  /// CHECK:                          ConstructorFence [<<This>>]
+  /// CHECK:                          ConstructorFence [<<This>>]
+  /// CHECK-NOT:                      ConstructorFence
 
   /// CHECK-START: void HaveFinalsAndInheritFromClassWithFinals.<init>() inliner (after)
   /// CHECK-NOT: InvokeStaticOrDirect
@@ -132,9 +142,10 @@ class HaveFinalsAndInheritFromClassWithFinals extends ClassWithFinals {
   }
 
   /// CHECK-START: void HaveFinalsAndInheritFromClassWithFinals.<init>(boolean) inliner (after)
-  /// CHECK:      InvokeStaticOrDirect
-  /// CHECK:      ConstructorFence
-  /// CHECK-NEXT: ReturnVoid
+  /// CHECK: <<This:l\d+>>            ParameterValue
+  /// CHECK:                          InvokeStaticOrDirect
+  /// CHECK:                          ConstructorFence [<<This>>]
+  /// CHECK-NOT:                      ConstructorFence
   public HaveFinalsAndInheritFromClassWithFinals(boolean cond) {
     super(cond);
     // should not inline the super constructor
@@ -142,23 +153,35 @@ class HaveFinalsAndInheritFromClassWithFinals extends ClassWithFinals {
   }
 
   /// CHECK-START: void HaveFinalsAndInheritFromClassWithFinals.<init>(int) inliner (after)
-  /// CHECK:      ConstructorFence
-  /// CHECK:      ConstructorFence
-  /// CHECK:      ConstructorFence
-  /// CHECK:      ConstructorFence
-  /// CHECK:      ConstructorFence
-  /// CHECK-NEXT: ReturnVoid
+  /// CHECK: <<This:l\d+>>            ParameterValue
+  /// CHECK-DAG: <<NewHF:l\d+>>       NewInstance klass:HaveFinalsAndInheritFromClassWithFinals
+  /// CHECK-DAG: <<NewIF:l\d+>>       NewInstance klass:InheritFromClassWithFinals
+  /// CHECK-DAG:                      ConstructorFence [<<This>>]
+  /// CHECK-DAG:                      ConstructorFence [<<NewHF>>]
+  /// CHECK-DAG:                      ConstructorFence [<<NewHF>>]
+  /// CHECK-DAG:                      ConstructorFence [<<NewHF>>]
+  /// CHECK-DAG:                      ConstructorFence [<<NewIF>>]
+  /// CHECK-DAG:                      ConstructorFence [<<NewIF>>]
+  /// CHECK-DAG:                      ConstructorFence [<<This>>]
+  /// CHECK-NOT:                      ConstructorFence
 
   /// CHECK-START: void HaveFinalsAndInheritFromClassWithFinals.<init>(int) inliner (after)
   /// CHECK-NOT:  InvokeStaticOrDirect
   public HaveFinalsAndInheritFromClassWithFinals(int unused) {
-    // Should inline the super constructor and keep keep both memory barriers.
+    // super()
+    // -- Inlined super constructor, insert memory barrier here.
     y = 0;
 
     // Should inline new instance and keep both memory barriers.
+    // One more memory barrier for new-instance.
+    // (3 total for this new-instance #1)
     new HaveFinalsAndInheritFromClassWithFinals();
     // Should inline new instance and have exactly one barrier.
+    // One more barrier for new-instance.
+    // (2 total for this new-instance #2)
     new InheritFromClassWithFinals();
+
+    // -- End of constructor, insert memory barrier here to freeze 'y'.
   }
 }
 
@@ -168,25 +191,33 @@ public class Main {
   /// CHECK:      InvokeStaticOrDirect
 
   /// CHECK-START: ClassWithFinals Main.noInlineNoConstructorBarrier() inliner (after)
-  /// CHECK-NOT:  ConstructorFence
+  /// CHECK: <<NewInstance:l\d+>>     NewInstance
+  /// CHECK:                          ConstructorFence [<<NewInstance>>]
+  /// CHECK-NOT:                      ConstructorFence
   public static ClassWithFinals noInlineNoConstructorBarrier() {
+    // Exactly one barrier for the new-instance.
     return new ClassWithFinals(false);
     // should not inline the constructor
   }
 
   /// CHECK-START: void Main.inlineNew() inliner (after)
-  /// CHECK:      ConstructorFence
-  /// CHECK-NEXT: ReturnVoid
+  /// CHECK: <<NewInstance:l\d+>>     NewInstance
+  /// CHECK-DAG:                      ConstructorFence [<<NewInstance>>]
+  /// CHECK-DAG:                      ConstructorFence [<<NewInstance>>]
+  /// CHECK-NOT:                      ConstructorFence
 
   /// CHECK-START: void Main.inlineNew() inliner (after)
   /// CHECK-NOT:  InvokeStaticOrDirect
   public static void inlineNew() {
+    // Exactly 2 barriers. One for new-instance, one for constructor with finals.
     new ClassWithFinals();
   }
 
   /// CHECK-START: void Main.inlineNew1() inliner (after)
-  /// CHECK:      ConstructorFence
-  /// CHECK-NEXT: ReturnVoid
+  /// CHECK: <<NewInstance:l\d+>>     NewInstance
+  /// CHECK-DAG:                      ConstructorFence [<<NewInstance>>]
+  /// CHECK-DAG:                      ConstructorFence [<<NewInstance>>]
+  /// CHECK-NOT:                      ConstructorFence
 
   /// CHECK-START: void Main.inlineNew1() inliner (after)
   /// CHECK-NOT:  InvokeStaticOrDirect
@@ -195,9 +226,11 @@ public class Main {
   }
 
   /// CHECK-START: void Main.inlineNew2() inliner (after)
-  /// CHECK:      ConstructorFence
-  /// CHECK:      ConstructorFence
-  /// CHECK-NEXT: ReturnVoid
+  /// CHECK: <<NewInstance:l\d+>>     NewInstance
+  /// CHECK-DAG:                      ConstructorFence [<<NewInstance>>]
+  /// CHECK-DAG:                      ConstructorFence [<<NewInstance>>]
+  /// CHECK-DAG:                      ConstructorFence [<<NewInstance>>]
+  /// CHECK-NOT:                      ConstructorFence
 
   /// CHECK-START: void Main.inlineNew2() inliner (after)
   /// CHECK-NOT:  InvokeStaticOrDirect
@@ -206,17 +239,37 @@ public class Main {
   }
 
   /// CHECK-START: void Main.inlineNew3() inliner (after)
-  /// CHECK:      ConstructorFence
-  /// CHECK:      ConstructorFence
-  /// CHECK:      ConstructorFence
-  /// CHECK:      ConstructorFence
-  /// CHECK-NEXT: ReturnVoid
+  /// CHECK: <<NewInstance:l\d+>>     NewInstance
+  /// CHECK-DAG:                      ConstructorFence [<<NewInstance>>]
+  /// CHECK-DAG:                      ConstructorFence [<<NewInstance>>]
+  /// CHECK-DAG:                      ConstructorFence [<<NewInstance>>]
+  /// CHECK-NOT:                      ConstructorFence
+  /// CHECK: <<NewInstance2:l\d+>>    NewInstance
+  /// CHECK-DAG:                      ConstructorFence [<<NewInstance2>>]
+  /// CHECK-DAG:                      ConstructorFence [<<NewInstance2>>]
+  /// CHECK-DAG:                      ConstructorFence [<<NewInstance2>>]
+  /// CHECK-NOT:                      ConstructorFence
 
   /// CHECK-START: void Main.inlineNew3() inliner (after)
   /// CHECK-NOT:  InvokeStaticOrDirect
   public static void inlineNew3() {
     new HaveFinalsAndInheritFromClassWithFinals();
     new HaveFinalsAndInheritFromClassWithFinals();
+  }
+
+  static int[] mCodePointsEmpty = new int[0];
+
+  /// CHECK-START: void Main.testNewString() inliner (after)
+  /// CHECK-NOT:  ConstructorFence
+  /// CHECK:      InvokeStaticOrDirect method_load_kind:string_init
+  /// CHECK-NOT:  ConstructorFence
+  /// CHECK-NOT:  InvokeStaticOrDirect
+  public static void testNewString() {
+    // Strings are special because of StringFactory hackeries.
+    //
+    // Assume they handle their own fencing internally in the StringFactory.
+    int[] codePoints = null;
+    String some_new_string = new String(mCodePointsEmpty, 0, 0);
   }
 
   public static void main(String[] args) {}

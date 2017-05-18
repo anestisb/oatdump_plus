@@ -168,7 +168,39 @@ void PrepareForRegisterAllocation::VisitCondition(HCondition* condition) {
 }
 
 void PrepareForRegisterAllocation::VisitConstructorFence(HConstructorFence* constructor_fence) {
-  // Delete all the inputs to the constructor fence;
+  // Trivially remove redundant HConstructorFence when it immediately follows an HNewInstance
+  // to an uninitialized class. In this special case, the art_quick_alloc_object_resolved
+  // will already have the 'dmb' which is strictly stronger than an HConstructorFence.
+  //
+  // The instruction builder always emits "x = HNewInstance; HConstructorFence(x)" so this
+  // is effectively pattern-matching that particular case and undoing the redundancy the builder
+  // had introduced.
+  //
+  // TODO: Move this to a separate pass.
+  HInstruction* allocation_inst = constructor_fence->GetAssociatedAllocation();
+  if (allocation_inst != nullptr && allocation_inst->IsNewInstance()) {
+    HNewInstance* new_inst = allocation_inst->AsNewInstance();
+    // This relies on the entrypoint already being set to the more optimized version;
+    // as that happens in this pass, this redundancy removal also cannot happen any earlier.
+    if (new_inst != nullptr && new_inst->GetEntrypoint() == kQuickAllocObjectResolved) {
+      // If this was done in an earlier pass, we would want to match that `previous` was an input
+      // to the `constructor_fence`. However, since this pass removes the inputs to the fence,
+      // we can ignore the inputs and just remove the instruction from its block.
+      DCHECK_EQ(1u, constructor_fence->InputCount());
+      // TODO: GetAssociatedAllocation should not care about multiple inputs
+      // if we are in prepare_for_register_allocation pass only.
+      constructor_fence->GetBlock()->RemoveInstruction(constructor_fence);
+      return;
+      // TODO: actually remove the dmb from the .S entrypoints (initialized variants only).
+    }
+
+    // HNewArray does not need this check because the art_quick_alloc_array does not itself
+    // have a dmb in any normal situation (i.e. the array class is never exactly in the
+    // "resolved" state). If the array class is not yet loaded, it will always go from
+    // Unloaded->Initialized state.
+  }
+
+  // Remove all the inputs to the constructor fence;
   // they aren't used by the InstructionCodeGenerator and this lets us avoid creating a
   // LocationSummary in the LocationsBuilder.
   constructor_fence->RemoveAllInputs();
