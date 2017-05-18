@@ -664,6 +664,22 @@ dalvikvm_cmdline=$(echo $dalvikvm_cmdline)
 vdex_cmdline=$(echo $vdex_cmdline)
 profman_cmdline=$(echo $profman_cmdline)
 
+# Use an empty ASAN_OPTIONS to enable defaults.
+# Note: this is required as envsetup right now exports detect_leaks=0.
+RUN_TEST_ASAN_OPTIONS=""
+
+# JVMTI has a mismatch of malloc with delete. b/38322765
+if [ "x$RUN_TEST_ASAN_OPTIONS" != "x" ] ; then
+  RUN_TEST_ASAN_OPTIONS="${RUN_TEST_ASAN_OPTIONS}:"
+fi
+RUN_TEST_ASAN_OPTIONS="${RUN_TEST_ASAN_OPTIONS}alloc_dealloc_mismatch=0"
+
+# Multiple shutdown leaks. b/38341789
+if [ "x$RUN_TEST_ASAN_OPTIONS" != "x" ] ; then
+  RUN_TEST_ASAN_OPTIONS="${RUN_TEST_ASAN_OPTIONS}:"
+fi
+RUN_TEST_ASAN_OPTIONS="${RUN_TEST_ASAN_OPTIONS}detect_leaks=0"
+
 if [ "$HOST" = "n" ]; then
     adb root > /dev/null
     adb wait-for-device
@@ -702,6 +718,7 @@ if [ "$HOST" = "n" ]; then
     # command. Dalvik cache is cleaned before running to make subsequent executions
     # of the script follow the same runtime path.
     cmdline="cd $DEX_LOCATION && \
+             export ASAN_OPTIONS=$RUN_TEST_ASAN_OPTIONS && \
              export ANDROID_DATA=$DEX_LOCATION && \
              export ANDROID_ADDITIONAL_PUBLIC_LIBRARIES=$PUBLIC_LIBS && \
              export DEX_LOCATION=$DEX_LOCATION && \
@@ -798,6 +815,8 @@ else
     # without worrying about interference.
     rm -rf ${DEX_LOCATION}/oat
     rm -rf ${DEX_LOCATION}/dalvik-cache/
+
+    export ASAN_OPTIONS=$RUN_TEST_ASAN_OPTIONS
 
     mkdir -p ${mkdir_locations} || exit 1
     $profman_cmdline || { echo "Profman failed." >&2 ; exit 2; }
