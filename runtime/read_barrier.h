@@ -64,6 +64,11 @@ class ReadBarrier {
                                                   GcRootSource* gc_root_source = nullptr)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // Return the mirror Object if it is marked, or null if not.
+  template <typename MirrorType>
+  ALWAYS_INLINE static MirrorType* IsMarked(MirrorType* ref)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   static bool IsDuringStartup();
 
   // Without the holder object.

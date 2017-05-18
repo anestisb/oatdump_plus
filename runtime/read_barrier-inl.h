@@ -182,6 +182,26 @@ inline MirrorType* ReadBarrier::BarrierForRoot(mirror::CompressedReference<Mirro
   }
 }
 
+template <typename MirrorType>
+inline MirrorType* ReadBarrier::IsMarked(MirrorType* ref) {
+  // Only read-barrier configurations can have mutators run while
+  // the GC is marking.
+  if (!kUseReadBarrier) {
+    return ref;
+  }
+  // IsMarked does not handle null, so handle it here.
+  if (ref == nullptr) {
+    return nullptr;
+  }
+  // IsMarked should only be called when the GC is marking.
+  if (!Thread::Current()->GetIsGcMarking()) {
+    return ref;
+  }
+
+  return reinterpret_cast<MirrorType*>(
+      Runtime::Current()->GetHeap()->ConcurrentCopyingCollector()->IsMarked(ref));
+}
+
 inline bool ReadBarrier::IsDuringStartup() {
   gc::Heap* heap = Runtime::Current()->GetHeap();
   if (heap == nullptr) {
