@@ -117,9 +117,7 @@ bool ProfileCompilationInfo::AddMethodsAndClasses(
   return true;
 }
 
-bool ProfileCompilationInfo::MergeAndSave(const std::string& filename,
-                                          uint64_t* bytes_written,
-                                          bool force) {
+bool ProfileCompilationInfo::Load(const std::string& filename, bool clear_if_invalid) {
   ScopedTrace trace(__PRETTY_FUNCTION__);
   ScopedFlock flock;
   std::string error;
@@ -134,35 +132,41 @@ bool ProfileCompilationInfo::MergeAndSave(const std::string& filename,
 
   int fd = flock.GetFile()->Fd();
 
-  // Load the file but keep a copy around to be able to infer if the content has changed.
-  ProfileCompilationInfo fileInfo;
-  ProfileLoadSatus status = fileInfo.LoadInternal(fd, &error);
+  ProfileLoadSatus status = LoadInternal(fd, &error);
   if (status == kProfileLoadSuccess) {
-    // Merge the content of file into the current object.
-    if (MergeWith(fileInfo)) {
-      // If after the merge we have the same data as what is the file there's no point
-      // in actually doing the write. The file will be exactly the same as before.
-      if (Equals(fileInfo)) {
-        if (bytes_written != nullptr) {
-          *bytes_written = 0;
-        }
-        return true;
-      }
+    return true;
+  }
+
+  if (clear_if_invalid &&
+      ((status == kProfileLoadVersionMismatch) || (status == kProfileLoadBadData))) {
+    LOG(WARNING) << "Clearing bad or obsolete profile data from file "
+                 << filename << ": " << error;
+    if (flock.GetFile()->ClearContent()) {
+      return true;
     } else {
-      LOG(WARNING) << "Could not merge previous profile data from file " << filename;
-      if (!force) {
-        return false;
-      }
+      PLOG(WARNING) << "Could not clear profile file: " << filename;
+      return false;
     }
-  } else if (force &&
-        ((status == kProfileLoadVersionMismatch) || (status == kProfileLoadBadData))) {
-      // Log a warning but don't return false. We will clear the profile anyway.
-      LOG(WARNING) << "Clearing bad or obsolete profile data from file "
-          << filename << ": " << error;
-  } else {
-    LOG(WARNING) << "Could not load profile data from file " << filename << ": " << error;
+  }
+
+  LOG(WARNING) << "Could not load profile data from file " << filename << ": " << error;
+  return false;
+}
+
+bool ProfileCompilationInfo::Save(const std::string& filename, uint64_t* bytes_written) {
+  ScopedTrace trace(__PRETTY_FUNCTION__);
+  ScopedFlock flock;
+  std::string error;
+  int flags = O_WRONLY | O_NOFOLLOW | O_CLOEXEC;
+  // There's no need to fsync profile data right away. We get many chances
+  // to write it again in case something goes wrong. We can rely on a simple
+  // close(), no sync, and let to the kernel decide when to write to disk.
+  if (!flock.Init(filename.c_str(), flags, /*block*/false, /*flush_on_close*/false, &error)) {
+    LOG(WARNING) << "Couldn't lock the profile file " << filename << ": " << error;
     return false;
   }
+
+  int fd = flock.GetFile()->Fd();
 
   // We need to clear the data because we don't support appending to the profiles yet.
   if (!flock.GetFile()->ClearContent()) {
@@ -174,10 +178,14 @@ bool ProfileCompilationInfo::MergeAndSave(const std::string& filename,
   // access and fail immediately if we can't.
   bool result = Save(fd);
   if (result) {
-    VLOG(profiler) << "Successfully saved profile info to " << filename
-        << " Size: " << GetFileSizeBytes(filename);
-    if (bytes_written != nullptr) {
-      *bytes_written = GetFileSizeBytes(filename);
+    int64_t size = GetFileSizeBytes(filename);
+    if (size != -1) {
+      VLOG(profiler)
+        << "Successfully saved profile info to " << filename << " Size: "
+        << size;
+      if (bytes_written != nullptr) {
+        *bytes_written = static_cast<uint64_t>(size);
+      }
     }
   } else {
     VLOG(profiler) << "Failed to save profile info to " << filename;
@@ -886,6 +894,7 @@ bool ProfileCompilationInfo::Load(int fd) {
   }
 }
 
+// TODO(calin): fail fast if the dex checksums don't match.
 ProfileCompilationInfo::ProfileLoadSatus ProfileCompilationInfo::LoadInternal(
       int fd, std::string* error) {
   ScopedTrace trace(__PRETTY_FUNCTION__);
