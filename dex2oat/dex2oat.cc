@@ -2130,7 +2130,9 @@ class Dex2Oat FINAL {
 
   bool LoadProfile() {
     DCHECK(UseProfile());
-
+    // TODO(calin): We should be using the runtime arena pool (instead of the default profile arean).
+    // However the setup logic is messy and needs cleaning up before that (e.g. the oat writers are
+    // created before the runtime).
     profile_compilation_info_.reset(new ProfileCompilationInfo());
     ScopedFlock flock;
     bool success = true;
