@@ -446,7 +446,7 @@ void ProfileCompilationInfo::GroupClassesByDex(
 ProfileCompilationInfo::DexFileData* ProfileCompilationInfo::GetOrAddDexFileData(
     const std::string& profile_key,
     uint32_t checksum) {
-  const auto& profile_index_it = profile_key_map_.FindOrAdd(profile_key, profile_key_map_.size());
+  const auto profile_index_it = profile_key_map_.FindOrAdd(profile_key, profile_key_map_.size());
   if (profile_key_map_.size() > std::numeric_limits<uint8_t>::max()) {
     // Allow only 255 dex files to be profiled. This allows us to save bytes
     // when encoding. The number is well above what we expect for normal applications.
@@ -480,7 +480,7 @@ ProfileCompilationInfo::DexFileData* ProfileCompilationInfo::GetOrAddDexFileData
 
 const ProfileCompilationInfo::DexFileData* ProfileCompilationInfo::FindDexData(
       const std::string& profile_key) const {
-  const auto& profile_index_it = profile_key_map_.find(profile_key);
+  const auto profile_index_it = profile_key_map_.find(profile_key);
   if (profile_index_it == profile_key_map_.end()) {
     return nullptr;
   }
@@ -1314,7 +1314,7 @@ std::set<DexCacheResolvedClasses> ProfileCompilationInfo::GetResolvedClasses(
   }
   std::set<DexCacheResolvedClasses> ret;
   for (const DexFileData* dex_data : info_) {
-    const auto& it = key_to_location_map.find(dex_data->profile_key);
+    const auto it = key_to_location_map.find(dex_data->profile_key);
     if (it != key_to_location_map.end()) {
       DexCacheResolvedClasses classes(it->second, it->second, dex_data->checksum);
       classes.AddClasses(dex_data->class_set.begin(), dex_data->class_set.end());

@@ -411,7 +411,7 @@ class ElfCompilationUnitWriter {
     for (const auto& base_class_reference : base_class_references) {
       size_t reference_offset = base_class_reference.first;
       mirror::Class* base_class = base_class_reference.second;
-      const auto& it = class_declarations.find(base_class);
+      const auto it = class_declarations.find(base_class);
       if (it != class_declarations.end()) {
         info_.UpdateUint32(reference_offset, it->second);
       } else {
@@ -512,7 +512,7 @@ class ElfCompilationUnitWriter {
     using namespace dwarf;  // NOLINT. For easy access to DWARF constants.
 
     DCHECK(!desc.empty());
-    const auto& it = type_cache_.find(desc);
+    const auto it = type_cache_.find(desc);
     if (it != type_cache_.end()) {
       return it->second;
     }
