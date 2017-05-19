@@ -841,6 +841,10 @@ bool GetDalvikCacheFilename(const char* location, const char* cache_location,
   return true;
 }
 
+std::string GetVdexFilename(const std::string& oat_location) {
+  return ReplaceFileExtension(oat_location, "vdex");
+}
+
 static void InsertIsaDirectory(const InstructionSet isa, std::string* filename) {
   // in = /foo/bar/baz
   // out = /foo/bar/<isa>/baz
