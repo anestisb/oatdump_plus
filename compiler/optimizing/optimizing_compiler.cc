@@ -499,7 +499,7 @@ static HOptimization* BuildOptimization(
   } else if (opt_name == HInductionVarAnalysis::kInductionPassName) {
     return new (arena) HInductionVarAnalysis(graph);
   } else if (opt_name == InstructionSimplifier::kInstructionSimplifierPassName) {
-    return new (arena) InstructionSimplifier(graph, codegen, stats, pass_name.c_str());
+    return new (arena) InstructionSimplifier(graph, codegen, driver, stats, pass_name.c_str());
   } else if (opt_name == IntrinsicsRecognizer::kIntrinsicsRecognizerPassName) {
     return new (arena) IntrinsicsRecognizer(graph, stats);
   } else if (opt_name == LICM::kLoopInvariantCodeMotionPassName) {
@@ -763,7 +763,8 @@ void OptimizingCompiler::RunOptimizations(HGraph* graph,
   HDeadCodeElimination* dce3 = new (arena) HDeadCodeElimination(
       graph, stats, "dead_code_elimination$final");
   HConstantFolding* fold1 = new (arena) HConstantFolding(graph, "constant_folding");
-  InstructionSimplifier* simplify1 = new (arena) InstructionSimplifier(graph, codegen, stats);
+  InstructionSimplifier* simplify1 = new (arena) InstructionSimplifier(
+      graph, codegen, driver, stats);
   HSelectGenerator* select_generator = new (arena) HSelectGenerator(graph, stats);
   HConstantFolding* fold2 = new (arena) HConstantFolding(
       graph, "constant_folding$after_inlining");
@@ -781,11 +782,11 @@ void OptimizingCompiler::RunOptimizations(HGraph* graph,
   HSharpening* sharpening = new (arena) HSharpening(
       graph, codegen, dex_compilation_unit, driver, handles);
   InstructionSimplifier* simplify2 = new (arena) InstructionSimplifier(
-      graph, codegen, stats, "instruction_simplifier$after_inlining");
+      graph, codegen, driver, stats, "instruction_simplifier$after_inlining");
   InstructionSimplifier* simplify3 = new (arena) InstructionSimplifier(
-      graph, codegen, stats, "instruction_simplifier$after_bce");
+      graph, codegen, driver, stats, "instruction_simplifier$after_bce");
   InstructionSimplifier* simplify4 = new (arena) InstructionSimplifier(
-      graph, codegen, stats, "instruction_simplifier$before_codegen");
+      graph, codegen, driver, stats, "instruction_simplifier$before_codegen");
   IntrinsicsRecognizer* intrinsics = new (arena) IntrinsicsRecognizer(graph, stats);
   CHAGuardOptimization* cha_guard = new (arena) CHAGuardOptimization(graph);
   CodeSinking* code_sinking = new (arena) CodeSinking(graph, stats);

@@ -43,7 +43,7 @@ class BoundsCheckEliminationTest : public testing::Test {
   void RunBCE() {
     graph_->BuildDominatorTree();
 
-    InstructionSimplifier(graph_, /* codegen */ nullptr).Run();
+    InstructionSimplifier(graph_, /* codegen */ nullptr, /* driver */ nullptr).Run();
 
     SideEffectsAnalysis side_effects(graph_);
     side_effects.Run();

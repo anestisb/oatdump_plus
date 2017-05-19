@@ -55,7 +55,9 @@ class HSharpening : public HOptimization {
     REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Used by Sharpening and InstructionSimplifier.
-  static void SharpenInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke, CodeGenerator* codegen);
+  static void SharpenInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke,
+                                          CodeGenerator* codegen,
+                                          CompilerDriver* compiler_driver);
 
  private:
   void ProcessLoadString(HLoadString* load_string);

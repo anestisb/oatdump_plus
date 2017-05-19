@@ -16,6 +16,7 @@
 
 #include "sharpening.h"
 
+#include "art_method-inl.h"
 #include "base/casts.h"
 #include "base/enums.h"
 #include "class_linker.h"
@@ -41,7 +42,9 @@ void HSharpening::Run() {
     for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
       HInstruction* instruction = it.Current();
       if (instruction->IsInvokeStaticOrDirect()) {
-        SharpenInvokeStaticOrDirect(instruction->AsInvokeStaticOrDirect(), codegen_);
+        SharpenInvokeStaticOrDirect(instruction->AsInvokeStaticOrDirect(),
+                                    codegen_,
+                                    compiler_driver_);
       } else if (instruction->IsLoadString()) {
         ProcessLoadString(instruction->AsLoadString());
       }
@@ -68,9 +71,21 @@ static bool AOTCanEmbedMethod(ArtMethod* method, const CompilerOptions& options)
   return IsInBootImage(method) && !options.GetCompilePic();
 }
 
+static bool BootImageAOTCanEmbedMethod(ArtMethod* method, CompilerDriver* compiler_driver) {
+  DCHECK(compiler_driver->GetCompilerOptions().IsBootImage());
+  if (!compiler_driver->GetSupportBootImageFixup()) {
+    return false;
+  }
+  ScopedObjectAccess soa(Thread::Current());
+  ObjPtr<mirror::Class> klass = method->GetDeclaringClass();
+  DCHECK(klass != nullptr);
+  const DexFile& dex_file = klass->GetDexFile();
+  return compiler_driver->IsImageClass(dex_file.StringByTypeIdx(klass->GetDexTypeIndex()));
+}
 
 void HSharpening::SharpenInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke,
-                                              CodeGenerator* codegen) {
+                                              CodeGenerator* codegen,
+                                              CompilerDriver* compiler_driver) {
   if (invoke->IsStringInit()) {
     // Not using the dex cache arrays. But we could still try to use a better dispatch...
     // TODO: Use direct_method and direct_code for the appropriate StringFactory method.
@@ -107,6 +122,10 @@ void HSharpening::SharpenInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke,
     // Use the method address directly.
     method_load_kind = HInvokeStaticOrDirect::MethodLoadKind::kDirectAddress;
     method_load_data = reinterpret_cast<uintptr_t>(callee);
+    code_ptr_location = HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod;
+  } else if (codegen->GetCompilerOptions().IsBootImage() &&
+             BootImageAOTCanEmbedMethod(callee, compiler_driver)) {
+    method_load_kind = HInvokeStaticOrDirect::MethodLoadKind::kBootImageLinkTimePcRelative;
     code_ptr_location = HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod;
   } else {
     // Use PC-relative access to the dex cache arrays.
@@ -167,8 +186,8 @@ HLoadClass::LoadKind HSharpening::ComputeLoadClassKind(HLoadClass* load_class,
       if (!compiler_driver->GetSupportBootImageFixup()) {
         // compiler_driver_test. Do not sharpen.
         desired_load_kind = HLoadClass::LoadKind::kDexCacheViaMethod;
-      } else if ((klass != nullptr) && compiler_driver->IsImageClass(
-          dex_file.StringDataByIdx(dex_file.GetTypeId(type_index).descriptor_idx_))) {
+      } else if ((klass != nullptr) &&
+                 compiler_driver->IsImageClass(dex_file.StringByTypeIdx(type_index))) {
         is_in_boot_image = true;
         desired_load_kind = HLoadClass::LoadKind::kBootImageLinkTimePcRelative;
       } else {

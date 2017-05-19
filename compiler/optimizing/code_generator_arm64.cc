@@ -1449,9 +1449,10 @@ CodeGeneratorARM64::CodeGeneratorARM64(HGraph* graph,
       uint64_literals_(std::less<uint64_t>(),
                        graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       pc_relative_dex_cache_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
-      pc_relative_string_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      pc_relative_method_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       pc_relative_type_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       type_bss_entry_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      pc_relative_string_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       baker_read_barrier_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       jit_string_patches_(StringReferenceValueComparator(),
                           graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
@@ -4510,6 +4511,17 @@ Location CodeGeneratorARM64::GenerateCalleeMethodStaticOrDirectCall(HInvokeStati
     case HInvokeStaticOrDirect::MethodLoadKind::kRecursive:
       callee_method = invoke->GetLocations()->InAt(invoke->GetSpecialInputIndex());
       break;
+    case HInvokeStaticOrDirect::MethodLoadKind::kBootImageLinkTimePcRelative: {
+      DCHECK(GetCompilerOptions().IsBootImage());
+      // Add ADRP with its PC-relative method patch.
+      vixl::aarch64::Label* adrp_label = NewPcRelativeMethodPatch(invoke->GetTargetMethod());
+      EmitAdrpPlaceholder(adrp_label, XRegisterFrom(temp));
+      // Add ADD with its PC-relative method patch.
+      vixl::aarch64::Label* add_label =
+          NewPcRelativeMethodPatch(invoke->GetTargetMethod(), adrp_label);
+      EmitAddPlaceholder(add_label, XRegisterFrom(temp), XRegisterFrom(temp));
+      break;
+    }
     case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddress:
       // Load method address from literal pool.
       __ Ldr(XRegisterFrom(temp), DeduplicateUint64Literal(invoke->GetMethodAddress()));
@@ -4633,12 +4645,13 @@ void InstructionCodeGeneratorARM64::VisitInvokePolymorphic(HInvokePolymorphic* i
   codegen_->GenerateInvokePolymorphicCall(invoke);
 }
 
-vixl::aarch64::Label* CodeGeneratorARM64::NewPcRelativeStringPatch(
-    const DexFile& dex_file,
-    dex::StringIndex string_index,
+vixl::aarch64::Label* CodeGeneratorARM64::NewPcRelativeMethodPatch(
+    MethodReference target_method,
     vixl::aarch64::Label* adrp_label) {
-  return
-      NewPcRelativePatch(dex_file, string_index.index_, adrp_label, &pc_relative_string_patches_);
+  return NewPcRelativePatch(*target_method.dex_file,
+                            target_method.dex_method_index,
+                            adrp_label,
+                            &pc_relative_method_patches_);
 }
 
 vixl::aarch64::Label* CodeGeneratorARM64::NewPcRelativeTypePatch(
@@ -4653,6 +4666,14 @@ vixl::aarch64::Label* CodeGeneratorARM64::NewBssEntryTypePatch(
     dex::TypeIndex type_index,
     vixl::aarch64::Label* adrp_label) {
   return NewPcRelativePatch(dex_file, type_index.index_, adrp_label, &type_bss_entry_patches_);
+}
+
+vixl::aarch64::Label* CodeGeneratorARM64::NewPcRelativeStringPatch(
+    const DexFile& dex_file,
+    dex::StringIndex string_index,
+    vixl::aarch64::Label* adrp_label) {
+  return
+      NewPcRelativePatch(dex_file, string_index.index_, adrp_label, &pc_relative_string_patches_);
 }
 
 vixl::aarch64::Label* CodeGeneratorARM64::NewPcRelativeDexCacheArrayPatch(
@@ -4747,9 +4768,10 @@ void CodeGeneratorARM64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patc
   DCHECK(linker_patches->empty());
   size_t size =
       pc_relative_dex_cache_patches_.size() +
-      pc_relative_string_patches_.size() +
+      pc_relative_method_patches_.size() +
       pc_relative_type_patches_.size() +
       type_bss_entry_patches_.size() +
+      pc_relative_string_patches_.size() +
       baker_read_barrier_patches_.size();
   linker_patches->reserve(size);
   for (const PcRelativePatchInfo& info : pc_relative_dex_cache_patches_) {
@@ -4758,14 +4780,17 @@ void CodeGeneratorARM64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patc
                                                               info.pc_insn_label->GetLocation(),
                                                               info.offset_or_index));
   }
-  if (!GetCompilerOptions().IsBootImage()) {
-    DCHECK(pc_relative_type_patches_.empty());
-    EmitPcRelativeLinkerPatches<LinkerPatch::StringBssEntryPatch>(pc_relative_string_patches_,
+  if (GetCompilerOptions().IsBootImage()) {
+    EmitPcRelativeLinkerPatches<LinkerPatch::RelativeMethodPatch>(pc_relative_method_patches_,
                                                                   linker_patches);
-  } else {
     EmitPcRelativeLinkerPatches<LinkerPatch::RelativeTypePatch>(pc_relative_type_patches_,
                                                                 linker_patches);
     EmitPcRelativeLinkerPatches<LinkerPatch::RelativeStringPatch>(pc_relative_string_patches_,
+                                                                  linker_patches);
+  } else {
+    DCHECK(pc_relative_method_patches_.empty());
+    DCHECK(pc_relative_type_patches_.empty());
+    EmitPcRelativeLinkerPatches<LinkerPatch::StringBssEntryPatch>(pc_relative_string_patches_,
                                                                   linker_patches);
   }
   EmitPcRelativeLinkerPatches<LinkerPatch::TypeBssEntryPatch>(type_bss_entry_patches_,

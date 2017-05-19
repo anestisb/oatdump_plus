@@ -71,11 +71,11 @@ TEST(CompiledMethodStorage, Deduplicate) {
   };
   const LinkerPatch raw_patches1[] = {
       LinkerPatch::CodePatch(0u, nullptr, 1u),
-      LinkerPatch::MethodPatch(4u, nullptr, 1u),
+      LinkerPatch::RelativeMethodPatch(4u, nullptr, 0u, 1u),
   };
   const LinkerPatch raw_patches2[] = {
       LinkerPatch::CodePatch(0u, nullptr, 1u),
-      LinkerPatch::MethodPatch(4u, nullptr, 2u),
+      LinkerPatch::RelativeMethodPatch(4u, nullptr, 0u, 2u),
   };
   ArrayRef<const LinkerPatch> patches[] = {
       ArrayRef<const LinkerPatch>(raw_patches1),

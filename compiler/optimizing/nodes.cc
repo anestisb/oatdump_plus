@@ -2636,15 +2636,17 @@ bool HInvokeStaticOrDirect::NeedsDexCacheOfDeclaringClass() const {
 std::ostream& operator<<(std::ostream& os, HInvokeStaticOrDirect::MethodLoadKind rhs) {
   switch (rhs) {
     case HInvokeStaticOrDirect::MethodLoadKind::kStringInit:
-      return os << "string_init";
+      return os << "StringInit";
     case HInvokeStaticOrDirect::MethodLoadKind::kRecursive:
-      return os << "recursive";
+      return os << "Recursive";
+    case HInvokeStaticOrDirect::MethodLoadKind::kBootImageLinkTimePcRelative:
+      return os << "BootImageLinkTimePcRelative";
     case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddress:
-      return os << "direct";
+      return os << "Direct";
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative:
-      return os << "dex_cache_pc_relative";
+      return os << "DexCachePcRelative";
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod:
-      return os << "dex_cache_via_method";
+      return os << "DexCacheViaMethod";
     default:
       LOG(FATAL) << "Unknown MethodLoadKind: " << static_cast<int>(rhs);
       UNREACHABLE();

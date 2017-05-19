@@ -4153,6 +4153,10 @@ class HInvokeStaticOrDirect FINAL : public HInvoke {
     // Use the method's own ArtMethod* loaded by the register allocator.
     kRecursive,
 
+    // Use PC-relative boot image ArtMethod* address that will be known at link time.
+    // Used for boot image methods referenced by boot image code.
+    kBootImageLinkTimePcRelative,
+
     // Use ArtMethod* at a known address, embed the direct address in the code.
     // Used for app->boot calls with non-relocatable image and for JIT-compiled calls.
     kDirectAddress,
@@ -4291,6 +4295,10 @@ class HInvokeStaticOrDirect FINAL : public HInvoke {
   bool HasMethodAddress() const { return GetMethodLoadKind() == MethodLoadKind::kDirectAddress; }
   bool HasPcRelativeDexCache() const {
     return GetMethodLoadKind() == MethodLoadKind::kDexCachePcRelative;
+  }
+  bool HasPcRelativeMethodLoadKind() const {
+    return GetMethodLoadKind() == MethodLoadKind::kBootImageLinkTimePcRelative ||
+           GetMethodLoadKind() == MethodLoadKind::kDexCachePcRelative;
   }
   bool HasCurrentMethodInput() const {
     // This function can be called only after the invoke has been fully initialized by the builder.

@@ -261,7 +261,7 @@ public class Main {
 
   /// CHECK-START: void Main.testNewString() inliner (after)
   /// CHECK-NOT:  ConstructorFence
-  /// CHECK:      InvokeStaticOrDirect method_load_kind:string_init
+  /// CHECK:      InvokeStaticOrDirect method_load_kind:StringInit
   /// CHECK-NOT:  ConstructorFence
   /// CHECK-NOT:  InvokeStaticOrDirect
   public static void testNewString() {

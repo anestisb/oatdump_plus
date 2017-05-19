@@ -1061,9 +1061,10 @@ CodeGeneratorMIPS::CodeGeneratorMIPS(HGraph* graph,
       uint32_literals_(std::less<uint32_t>(),
                        graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       pc_relative_dex_cache_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
-      pc_relative_string_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      pc_relative_method_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       pc_relative_type_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       type_bss_entry_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      pc_relative_string_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       jit_string_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       jit_class_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       clobbered_ra_(false) {
@@ -1602,20 +1603,24 @@ void CodeGeneratorMIPS::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patch
   DCHECK(linker_patches->empty());
   size_t size =
       pc_relative_dex_cache_patches_.size() +
-      pc_relative_string_patches_.size() +
+      pc_relative_method_patches_.size() +
       pc_relative_type_patches_.size() +
-      type_bss_entry_patches_.size();
+      type_bss_entry_patches_.size() +
+      pc_relative_string_patches_.size();
   linker_patches->reserve(size);
   EmitPcRelativeLinkerPatches<LinkerPatch::DexCacheArrayPatch>(pc_relative_dex_cache_patches_,
                                                                linker_patches);
-  if (!GetCompilerOptions().IsBootImage()) {
-    DCHECK(pc_relative_type_patches_.empty());
-    EmitPcRelativeLinkerPatches<LinkerPatch::StringBssEntryPatch>(pc_relative_string_patches_,
+  if (GetCompilerOptions().IsBootImage()) {
+    EmitPcRelativeLinkerPatches<LinkerPatch::RelativeMethodPatch>(pc_relative_method_patches_,
                                                                   linker_patches);
-  } else {
     EmitPcRelativeLinkerPatches<LinkerPatch::RelativeTypePatch>(pc_relative_type_patches_,
                                                                 linker_patches);
     EmitPcRelativeLinkerPatches<LinkerPatch::RelativeStringPatch>(pc_relative_string_patches_,
+                                                                  linker_patches);
+  } else {
+    DCHECK(pc_relative_method_patches_.empty());
+    DCHECK(pc_relative_type_patches_.empty());
+    EmitPcRelativeLinkerPatches<LinkerPatch::StringBssEntryPatch>(pc_relative_string_patches_,
                                                                   linker_patches);
   }
   EmitPcRelativeLinkerPatches<LinkerPatch::TypeBssEntryPatch>(type_bss_entry_patches_,
@@ -1623,9 +1628,11 @@ void CodeGeneratorMIPS::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patch
   DCHECK_EQ(size, linker_patches->size());
 }
 
-CodeGeneratorMIPS::PcRelativePatchInfo* CodeGeneratorMIPS::NewPcRelativeStringPatch(
-    const DexFile& dex_file, dex::StringIndex string_index) {
-  return NewPcRelativePatch(dex_file, string_index.index_, &pc_relative_string_patches_);
+CodeGeneratorMIPS::PcRelativePatchInfo* CodeGeneratorMIPS::NewPcRelativeMethodPatch(
+    MethodReference target_method) {
+  return NewPcRelativePatch(*target_method.dex_file,
+                            target_method.dex_method_index,
+                            &pc_relative_method_patches_);
 }
 
 CodeGeneratorMIPS::PcRelativePatchInfo* CodeGeneratorMIPS::NewPcRelativeTypePatch(
@@ -1636,6 +1643,11 @@ CodeGeneratorMIPS::PcRelativePatchInfo* CodeGeneratorMIPS::NewPcRelativeTypePatc
 CodeGeneratorMIPS::PcRelativePatchInfo* CodeGeneratorMIPS::NewTypeBssEntryPatch(
     const DexFile& dex_file, dex::TypeIndex type_index) {
   return NewPcRelativePatch(dex_file, type_index.index_, &type_bss_entry_patches_);
+}
+
+CodeGeneratorMIPS::PcRelativePatchInfo* CodeGeneratorMIPS::NewPcRelativeStringPatch(
+    const DexFile& dex_file, dex::StringIndex string_index) {
+  return NewPcRelativePatch(dex_file, string_index.index_, &pc_relative_string_patches_);
 }
 
 CodeGeneratorMIPS::PcRelativePatchInfo* CodeGeneratorMIPS::NewPcRelativeDexCacheArrayPatch(
@@ -6947,7 +6959,7 @@ void LocationsBuilderMIPS::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invo
   DCHECK(!invoke->IsStaticWithExplicitClinitCheck());
 
   bool is_r6 = codegen_->GetInstructionSetFeatures().IsR6();
-  bool has_extra_input = invoke->HasPcRelativeDexCache() && !is_r6;
+  bool has_extra_input = invoke->HasPcRelativeMethodLoadKind() && !is_r6;
 
   IntrinsicLocationsBuilderMIPS intrinsic(codegen_);
   if (intrinsic.TryDispatch(invoke)) {
@@ -7084,6 +7096,7 @@ HInvokeStaticOrDirect::DispatchInfo CodeGeneratorMIPS::GetSupportedInvokeStaticO
   bool is_r6 = GetInstructionSetFeatures().IsR6();
   bool fallback_load = has_irreducible_loops && !is_r6;
   switch (dispatch_info.method_load_kind) {
+    case HInvokeStaticOrDirect::MethodLoadKind::kBootImageLinkTimePcRelative:
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative:
       break;
     default:
@@ -7103,7 +7116,7 @@ void CodeGeneratorMIPS::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke
   HInvokeStaticOrDirect::MethodLoadKind method_load_kind = invoke->GetMethodLoadKind();
   HInvokeStaticOrDirect::CodePtrLocation code_ptr_location = invoke->GetCodePtrLocation();
   bool is_r6 = GetInstructionSetFeatures().IsR6();
-  Register base_reg = (invoke->HasPcRelativeDexCache() && !is_r6)
+  Register base_reg = (invoke->HasPcRelativeMethodLoadKind() && !is_r6)
       ? GetInvokeStaticOrDirectExtraParameter(invoke, temp.AsRegister<Register>())
       : ZERO;
 
@@ -7121,6 +7134,16 @@ void CodeGeneratorMIPS::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke
     case HInvokeStaticOrDirect::MethodLoadKind::kRecursive:
       callee_method = invoke->GetLocations()->InAt(invoke->GetSpecialInputIndex());
       break;
+    case HInvokeStaticOrDirect::MethodLoadKind::kBootImageLinkTimePcRelative: {
+      DCHECK(GetCompilerOptions().IsBootImage());
+      PcRelativePatchInfo* info = NewPcRelativeMethodPatch(invoke->GetTargetMethod());
+      bool reordering = __ SetReorder(false);
+      Register temp_reg = temp.AsRegister<Register>();
+      EmitPcRelativeAddressPlaceholderHigh(info, temp_reg, base_reg);
+      __ Addiu(temp_reg, temp_reg, /* placeholder */ 0x5678);
+      __ SetReorder(reordering);
+      break;
+    }
     case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddress:
       __ LoadConst32(temp.AsRegister<Register>(), invoke->GetMethodAddress());
       break;
