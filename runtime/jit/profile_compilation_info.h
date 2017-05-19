@@ -17,11 +17,12 @@
 #ifndef ART_RUNTIME_JIT_PROFILE_COMPILATION_INFO_H_
 #define ART_RUNTIME_JIT_PROFILE_COMPILATION_INFO_H_
 
-#include <memory>
 #include <set>
 #include <vector>
 
 #include "atomic.h"
+#include "base/arena_object.h"
+#include "base/arena_containers.h"
 #include "dex_cache_resolved_classes.h"
 #include "dex_file.h"
 #include "dex_file_types.h"
@@ -37,7 +38,7 @@ namespace art {
 struct ProfileMethodInfo {
   struct ProfileClassReference {
     ProfileClassReference() : dex_file(nullptr) {}
-    ProfileClassReference(const DexFile* dex, const dex::TypeIndex& index)
+    ProfileClassReference(const DexFile* dex, const dex::TypeIndex index)
         : dex_file(dex), type_index(index) {}
 
     const DexFile* dex_file;
@@ -115,8 +116,8 @@ class ProfileCompilationInfo {
   // We cannot rely on the actual multidex index because a single profile may store
   // data from multiple splits. This means that a profile may contain a classes2.dex from split-A
   // and one from split-B.
-  struct ClassReference {
-    ClassReference(uint8_t dex_profile_idx, const dex::TypeIndex& type_idx) :
+  struct ClassReference : public ValueObject {
+    ClassReference(uint8_t dex_profile_idx, const dex::TypeIndex type_idx) :
       dex_profile_index(dex_profile_idx), type_index(type_idx) {}
 
     bool operator==(const ClassReference& other) const {
@@ -133,13 +134,16 @@ class ProfileCompilationInfo {
   };
 
   // The set of classes that can be found at a given dex pc.
-  using ClassSet = std::set<ClassReference>;
+  using ClassSet = ArenaSet<ClassReference>;
 
   // Encodes the actual inline cache for a given dex pc (whether or not the receiver is
   // megamorphic and its possible types).
   // If the receiver is megamorphic or is missing types the set of classes will be empty.
-  struct DexPcData {
-    DexPcData() : is_missing_types(false), is_megamorphic(false) {}
+  struct DexPcData : public ArenaObject<kArenaAllocProfile> {
+    explicit DexPcData(ArenaAllocator* arena)
+        : is_missing_types(false),
+          is_megamorphic(false),
+          classes(std::less<ClassReference>(), arena->Adapter(kArenaAllocProfile)) {}
     void AddClass(uint16_t dex_profile_idx, const dex::TypeIndex& type_idx);
     void SetIsMegamorphic() {
       if (is_missing_types) return;
@@ -166,26 +170,29 @@ class ProfileCompilationInfo {
   };
 
   // The inline cache map: DexPc -> DexPcData.
-  using InlineCacheMap = SafeMap<uint16_t, DexPcData>;
+  using InlineCacheMap = ArenaSafeMap<uint16_t, DexPcData>;
 
   // Maps a method dex index to its inline cache.
-  using MethodMap = SafeMap<uint16_t, InlineCacheMap>;
+  using MethodMap = ArenaSafeMap<uint16_t, InlineCacheMap>;
 
   // Encodes the full set of inline caches for a given method.
   // The dex_references vector is indexed according to the ClassReference::dex_profile_index.
   // i.e. the dex file of any ClassReference present in the inline caches can be found at
   // dex_references[ClassReference::dex_profile_index].
   struct OfflineProfileMethodInfo {
+    explicit OfflineProfileMethodInfo(const InlineCacheMap* inline_cache_map)
+        : inline_caches(inline_cache_map) {}
+
     bool operator==(const OfflineProfileMethodInfo& other) const;
 
+    const InlineCacheMap* const inline_caches;
     std::vector<DexReference> dex_references;
-    InlineCacheMap inline_caches;
   };
 
   // Public methods to create, extend or query the profile.
+  ProfileCompilationInfo();
+  explicit ProfileCompilationInfo(ArenaPool* arena_pool);
 
-  ProfileCompilationInfo() {}
-  ProfileCompilationInfo(const ProfileCompilationInfo& pci);
   ~ProfileCompilationInfo();
 
   // Add the given methods and classes to the current profile object.
@@ -223,12 +230,13 @@ class ProfileCompilationInfo {
   // Return true if the class's type is present in the profiling info.
   bool ContainsClass(const DexFile& dex_file, dex::TypeIndex type_idx) const;
 
-  // Return true if the method is present in the profiling info.
-  // If the method is found, `pmi` is populated with its inline caches.
-  bool GetMethod(const std::string& dex_location,
-                 uint32_t dex_checksum,
-                 uint16_t dex_method_index,
-                 /*out*/OfflineProfileMethodInfo* pmi) const;
+  // Return the method data for the given location and index from the profiling info.
+  // If the method index is not found or the checksum doesn't match, null is returned.
+  // Note: the inline cache map is a pointer to the map stored in the profile and
+  // its allocation will go away if the profile goes out of scope.
+  std::unique_ptr<OfflineProfileMethodInfo> GetMethod(const std::string& dex_location,
+                                                      uint32_t dex_checksum,
+                                                      uint16_t dex_method_index) const;
 
   // Dump all the loaded profile info into a string and returns it.
   // If dex_files is not null then the method indices will be resolved to their
@@ -239,12 +247,12 @@ class ProfileCompilationInfo {
   std::string DumpInfo(const std::vector<const DexFile*>* dex_files,
                        bool print_full_dex_location = true) const;
 
-  // Return the classes and methods for a given dex file through out args. The otu args are the set
+  // Return the classes and methods for a given dex file through out args. The out args are the set
   // of class as well as the methods and their associated inline caches. Returns true if the dex
   // file is register and has a matching checksum, false otherwise.
-  bool GetClassesAndMethods(const DexFile* dex_file,
-                            std::set<dex::TypeIndex>* class_set,
-                            MethodMap* method_map) const;
+  bool GetClassesAndMethods(const DexFile& dex_file,
+                            /*out*/std::set<dex::TypeIndex>* class_set,
+                            /*out*/std::set<uint16_t>* method_set) const;
 
   // Perform an equality test with the `other` profile information.
   bool Equals(const ProfileCompilationInfo& other);
@@ -252,9 +260,6 @@ class ProfileCompilationInfo {
   // Return the class descriptors for all of the classes in the profiles' class sets.
   std::set<DexCacheResolvedClasses> GetResolvedClasses(
       const std::unordered_set<std::string>& dex_files_locations) const;
-
-  // Clear the resolved classes from the current object.
-  void ClearResolvedClasses();
 
   // Return the profile key associated with the given dex location.
   static std::string GetProfileDexFileKey(const std::string& dex_location);
@@ -277,6 +282,8 @@ class ProfileCompilationInfo {
   static bool Equals(const ProfileCompilationInfo::OfflineProfileMethodInfo& pmi1,
                      const ProfileCompilationInfo::OfflineProfileMethodInfo& pmi2);
 
+  ArenaAllocator* GetArena() { return &arena_; }
+
  private:
   enum ProfileLoadSatus {
     kProfileLoadWouldOverwiteData,
@@ -292,9 +299,20 @@ class ProfileCompilationInfo {
   // profile) fields in this struct because we can infer them from
   // profile_key_map_ and info_. However, it makes the profiles logic much
   // simpler if we have references here as well.
-  struct DexFileData {
-    DexFileData(const std::string& key, uint32_t location_checksum, uint16_t index)
-         : profile_key(key), profile_index(index), checksum(location_checksum) {}
+  struct DexFileData : public DeletableArenaObject<kArenaAllocProfile> {
+    DexFileData(ArenaAllocator* arena,
+                const std::string& key,
+                uint32_t location_checksum,
+                uint16_t index)
+        : arena_(arena),
+          profile_key(key),
+          profile_index(index),
+          checksum(location_checksum),
+          method_map(std::less<uint16_t>(), arena->Adapter(kArenaAllocProfile)),
+          class_set(std::less<dex::TypeIndex>(), arena->Adapter(kArenaAllocProfile)) {}
+
+    // The arena used to allocate new inline cache maps.
+    ArenaAllocator* arena_;
     // The profile key this data belongs to.
     std::string profile_key;
     // The profile index of this dex file (matches ClassReference#dex_profile_index).
@@ -305,11 +323,15 @@ class ProfileCompilationInfo {
     MethodMap method_map;
     // The classes which have been profiled. Note that these don't necessarily include
     // all the classes that can be found in the inline caches reference.
-    std::set<dex::TypeIndex> class_set;
+    ArenaSet<dex::TypeIndex> class_set;
 
     bool operator==(const DexFileData& other) const {
       return checksum == other.checksum && method_map == other.method_map;
     }
+
+    // Find the inline caches of the the given method index. Add an empty entry if
+    // no previous data is found.
+    InlineCacheMap* FindOrAddMethod(uint16_t method_index);
   };
 
   // Return the profile data for the given profile key or null if the dex location
@@ -348,9 +370,6 @@ class ProfileCompilationInfo {
   // Return the dex data associated with the given profile key or null if the profile
   // doesn't contain the key.
   const DexFileData* FindDexData(const std::string& profile_key) const;
-
-  // Clear all the profile data.
-  void ClearProfile();
 
   // Checks if the profile is empty.
   bool IsEmpty() const;
@@ -456,20 +475,27 @@ class ProfileCompilationInfo {
       const ClassSet& classes,
       /*out*/SafeMap<uint8_t, std::vector<dex::TypeIndex>>* dex_to_classes_map);
 
+  // Find the data for the dex_pc in the inline cache. Adds an empty entry
+  // if no previous data exists.
+  DexPcData* FindOrAddDexPc(InlineCacheMap* inline_cache, uint32_t dex_pc);
+
   friend class ProfileCompilationInfoTest;
   friend class CompilerDriverProfileTest;
   friend class ProfileAssistantTest;
   friend class Dex2oatLayoutTest;
 
+  ArenaPool default_arena_pool_;
+  ArenaAllocator arena_;
+
   // Vector containing the actual profile info.
   // The vector index is the profile index of the dex data and
   // matched DexFileData::profile_index.
-  std::vector<DexFileData*> info_;
+  ArenaVector<DexFileData*> info_;
 
   // Cache mapping profile keys to profile index.
   // This is used to speed up searches since it avoids iterating
   // over the info_ vector when searching by profile key.
-  SafeMap<const std::string, uint8_t> profile_key_map_;
+  ArenaSafeMap<const std::string, uint8_t> profile_key_map_;
 };
 
 }  // namespace art

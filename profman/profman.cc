@@ -423,15 +423,13 @@ class ProfMan FINAL {
     }
     for (const std::unique_ptr<const DexFile>& dex_file : *dex_files) {
       std::set<dex::TypeIndex> class_types;
-      ProfileCompilationInfo::MethodMap methods;
-      if (profile_info.GetClassesAndMethods(dex_file.get(), &class_types, &methods)) {
+      std::set<uint16_t> methods;
+      if (profile_info.GetClassesAndMethods(*dex_file.get(), &class_types, &methods)) {
         for (const dex::TypeIndex& type_index : class_types) {
           const DexFile::TypeId& type_id = dex_file->GetTypeId(type_index);
           out_lines->insert(std::string(dex_file->GetTypeDescriptor(type_id)));
         }
-        for (const auto& pair : methods) {
-          // TODO: Process inline caches.
-          const uint16_t dex_method_idx = pair.first;
+        for (uint16_t dex_method_idx : methods) {
           const DexFile::MethodId& id = dex_file->GetMethodId(dex_method_idx);
           std::string signature_string(dex_file->GetMethodSignature(id).ToString());
           std::string type_string(dex_file->GetTypeDescriptor(dex_file->GetTypeId(id.class_idx_)));

@@ -595,12 +595,11 @@ HInliner::InlineCacheType HInliner::GetInlineCacheAOT(
     return kInlineCacheNoData;
   }
 
-  ProfileCompilationInfo::OfflineProfileMethodInfo offline_profile;
-  bool found = pci->GetMethod(caller_dex_file.GetLocation(),
-                              caller_dex_file.GetLocationChecksum(),
-                              caller_compilation_unit_.GetDexMethodIndex(),
-                              &offline_profile);
-  if (!found) {
+  std::unique_ptr<ProfileCompilationInfo::OfflineProfileMethodInfo> offline_profile =
+      pci->GetMethod(caller_dex_file.GetLocation(),
+                     caller_dex_file.GetLocationChecksum(),
+                     caller_compilation_unit_.GetDexMethodIndex());
+  if (offline_profile == nullptr) {
     return kInlineCacheNoData;  // no profile information for this invocation.
   }
 
@@ -610,7 +609,7 @@ HInliner::InlineCacheType HInliner::GetInlineCacheAOT(
     return kInlineCacheNoData;
   } else {
     return ExtractClassesFromOfflineProfile(invoke_instruction,
-                                            offline_profile,
+                                            *(offline_profile.get()),
                                             *inline_cache);
   }
 }
@@ -620,8 +619,8 @@ HInliner::InlineCacheType HInliner::ExtractClassesFromOfflineProfile(
     const ProfileCompilationInfo::OfflineProfileMethodInfo& offline_profile,
     /*out*/Handle<mirror::ObjectArray<mirror::Class>> inline_cache)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  const auto it = offline_profile.inline_caches.find(invoke_instruction->GetDexPc());
-  if (it == offline_profile.inline_caches.end()) {
+  const auto it = offline_profile.inline_caches->find(invoke_instruction->GetDexPc());
+  if (it == offline_profile.inline_caches->end()) {
     return kInlineCacheUninitialized;
   }
 

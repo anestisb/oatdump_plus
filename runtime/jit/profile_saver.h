@@ -65,6 +65,7 @@ class ProfileSaver {
                const std::string& output_filename,
                jit::JitCodeCache* jit_code_cache,
                const std::vector<std::string>& code_paths);
+  ~ProfileSaver();
 
   // NO_THREAD_SAFETY_ANALYSIS for static function calling into member function with excludes lock.
   static void* RunProfileSaverThread(void* arg)
@@ -131,7 +132,7 @@ class ProfileSaver {
   // we don't hammer the disk to save them right away.
   // The size of this cache is usually very small and tops
   // to just a few hundreds entries in the ProfileCompilationInfo objects.
-  SafeMap<std::string, ProfileCompilationInfo> profile_cache_;
+  SafeMap<std::string, ProfileCompilationInfo*> profile_cache_;
 
   // Save period condition support.
   Mutex wait_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;

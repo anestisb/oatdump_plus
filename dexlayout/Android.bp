@@ -20,7 +20,7 @@ art_cc_defaults {
         "dexlayout.cc",
         "dex_ir.cc",
         "dex_ir_builder.cc",
-	"dex_verify.cc",
+        "dex_verify.cc",
         "dex_visualize.cc",
         "dex_writer.cc",
     ],
@@ -43,12 +43,14 @@ art_cc_library {
 
 art_cc_binary {
     name: "dexlayout",
+    defaults: ["art_defaults"],
     host_supported: true,
     srcs: ["dexlayout_main.cc"],
     cflags: ["-Wall"],
     shared_libs: [
         "libart",
         "libart-dexlayout",
+        "libbase",
     ],
 }
 
@@ -60,6 +62,7 @@ art_cc_test {
 
 art_cc_binary {
     name: "dexdiag",
+    defaults: ["art_defaults"],
     host_supported: false,
     srcs: ["dexdiag.cc"],
     cflags: ["-Wall"],

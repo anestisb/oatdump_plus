@@ -15,6 +15,7 @@
  */
 
 #include <errno.h>
+#include <inttypes.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -270,7 +271,7 @@ static void ProcessOneDexMapping(uint64_t* pagemap,
     std::cerr << "Dex file start offset for "
               << dex_file->GetLocation().c_str()
               << " is incorrect: map start "
-              << StringPrintf("%zx > dex start %zx\n", map_start, dex_file_start)
+              << StringPrintf("%" PRIx64 " > dex start %" PRIx64 "\n", map_start, dex_file_start)
               << std::endl;
     return;
   }
@@ -279,7 +280,7 @@ static void ProcessOneDexMapping(uint64_t* pagemap,
   uint64_t end_page = RoundUp(start_address + dex_file_size, kPageSize) / kPageSize;
   std::cout << "DEX "
             << dex_file->GetLocation().c_str()
-            << StringPrintf(": %zx-%zx",
+            << StringPrintf(": %" PRIx64 "-%" PRIx64,
                             map_start + start_page * kPageSize,
                             map_start + end_page * kPageSize)
             << std::endl;
@@ -344,7 +345,7 @@ static bool DisplayMappingIfFromVdexFile(pm_map_t* map, Printer* printer) {
   // Process the dex files.
   std::cout << "MAPPING "
             << pm_map_name(map)
-            << StringPrintf(": %zx-%zx", pm_map_start(map), pm_map_end(map))
+            << StringPrintf(": %" PRIx64 "-%" PRIx64, pm_map_start(map), pm_map_end(map))
             << std::endl;
   for (const auto& dex_file : dex_files) {
     ProcessOneDexMapping(pagemap,
@@ -408,7 +409,7 @@ static bool DisplayMappingIfFromOatFile(pm_map_t* map, Printer* printer) {
   // Process the dex files.
   std::cout << "MAPPING "
             << pm_map_name(map)
-            << StringPrintf(": %zx-%zx", pm_map_start(map), pm_map_end(map))
+            << StringPrintf(": %" PRIx64 "-%" PRIx64, pm_map_start(map), pm_map_end(map))
             << std::endl;
   ProcessOneOatMapping(pagemap, len, printer);
   free(pagemap);
