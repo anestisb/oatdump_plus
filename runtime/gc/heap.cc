@@ -4052,7 +4052,7 @@ void Heap::CheckPreconditionsForAllocObject(ObjPtr<mirror::Class> c, size_t byte
       << " IsVariableSize=" << c->IsVariableSize()
       << " ObjectSize=" << c->GetObjectSize()
       << " sizeof(Class)=" << sizeof(mirror::Class)
-      << " klass=" << c.Ptr();
+      << verification_->DumpObjectInfo(c.Ptr(), /*tag*/ "klass");
   CHECK_GE(byte_count, sizeof(mirror::Object));
 }
 
