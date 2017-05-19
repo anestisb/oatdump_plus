@@ -143,7 +143,7 @@ void CreateJITCodeEntryForAddress(uintptr_t address, std::vector<uint8_t> symfil
 bool DeleteJITCodeEntryForAddress(uintptr_t address) {
   Thread* self = Thread::Current();
   MutexLock mu(self, g_jit_debug_mutex);
-  const auto& it = g_jit_code_entries.find(address);
+  const auto it = g_jit_code_entries.find(address);
   if (it == g_jit_code_entries.end()) {
     return false;
   }
