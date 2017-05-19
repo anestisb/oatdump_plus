@@ -32,6 +32,12 @@ cc_library {
             shared_libs: ["liblog"],
         },
     },
+    // Sigchainlib is whole-statically linked into binaries. For Android.mk-based binaries,
+    // this will drag ASAN symbols into the binary, even for modules using LOCAL_SANITIZE := never.
+    // So disable sanitization for now. b/38456126
+    sanitize: {
+        never: true,
+    },
 }
 
 // Create a dummy version of libsigchain which expose the necessary symbols
