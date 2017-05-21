@@ -173,6 +173,9 @@ bool GetDalvikCacheFilename(const char* file_location, const char* cache_locatio
 // Returns the system location for an image
 std::string GetSystemImageFilename(const char* location, InstructionSet isa);
 
+// Returns the vdex filename for the given oat filename.
+std::string GetVdexFilename(const std::string& oat_filename);
+
 // Returns true if the file exists.
 bool FileExists(const std::string& filename);
 bool FileExistsAndNotEmpty(const std::string& filename);

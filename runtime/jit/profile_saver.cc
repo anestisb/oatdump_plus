@@ -28,9 +28,11 @@
 #include "base/systrace.h"
 #include "base/time_utils.h"
 #include "compiler_filter.h"
+#include "gc/collector_type.h"
+#include "gc/gc_cause.h"
+#include "gc/scoped_gc_critical_section.h"
 #include "oat_file_manager.h"
 #include "scoped_thread_state_change-inl.h"
-
 
 namespace art {
 
@@ -208,20 +210,27 @@ void ProfileSaver::FetchAndCacheResolvedClassesAndMethods() {
   // Resolve any new registered locations.
   ResolveTrackedLocations();
 
-  ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
-  std::set<DexCacheResolvedClasses> resolved_classes =
-      class_linker->GetResolvedClasses(/*ignore boot classes*/ true);
-
+  Thread* const self = Thread::Current();
   std::vector<MethodReference> methods;
+  std::set<DexCacheResolvedClasses> resolved_classes;
   {
-    ScopedTrace trace2("Get hot methods");
-    GetMethodsVisitor visitor(&methods, options_.GetStartupMethodSamples());
-    ScopedObjectAccess soa(Thread::Current());
-    class_linker->VisitClasses(&visitor);
-    VLOG(profiler) << "Methods with samples greater than "
-                   << options_.GetStartupMethodSamples() << " = " << methods.size();
+    ScopedObjectAccess soa(self);
+    gc::ScopedGCCriticalSection sgcs(self,
+                                     gc::kGcCauseProfileSaver,
+                                     gc::kCollectorTypeCriticalSection);
+
+    ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
+    resolved_classes = class_linker->GetResolvedClasses(/*ignore boot classes*/ true);
+
+    {
+      ScopedTrace trace2("Get hot methods");
+      GetMethodsVisitor visitor(&methods, options_.GetStartupMethodSamples());
+      class_linker->VisitClasses(&visitor);
+      VLOG(profiler) << "Methods with samples greater than "
+                     << options_.GetStartupMethodSamples() << " = " << methods.size();
+    }
   }
-  MutexLock mu(Thread::Current(), *Locks::profiler_lock_);
+  MutexLock mu(self, *Locks::profiler_lock_);
   uint64_t total_number_of_profile_entries_cached = 0;
 
   for (const auto& it : tracked_dex_base_locations_) {
@@ -293,7 +302,7 @@ bool ProfileSaver::ProcessProfilingInfo(bool force_save, /*out*/uint16_t* number
     }
     ProfileCompilationInfo info;
     if (!info.Load(filename, /*clear_if_invalid*/ true)) {
-      LOG(ERROR) << "Could not forcefully load profile " << filename;
+      LOG(WARNING) << "Could not forcefully load profile " << filename;
       continue;
     }
     uint64_t last_save_number_of_methods = info.GetNumberOfMethods();

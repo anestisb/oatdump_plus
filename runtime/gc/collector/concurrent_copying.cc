@@ -1959,7 +1959,10 @@ inline void ConcurrentCopying::Process(mirror::Object* obj, MemberOffset offset)
   DCHECK_EQ(Thread::Current(), thread_running_gc_);
   mirror::Object* ref = obj->GetFieldObject<
       mirror::Object, kVerifyNone, kWithoutReadBarrier, false>(offset);
-  mirror::Object* to_ref = Mark</*kGrayImmuneObject*/false, /*kFromGCThread*/true>(ref);
+  mirror::Object* to_ref = Mark</*kGrayImmuneObject*/false, /*kFromGCThread*/true>(
+      ref,
+      /*holder*/ obj,
+      offset);
   if (to_ref == ref) {
     return;
   }
