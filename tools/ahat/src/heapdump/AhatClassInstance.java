@@ -154,10 +154,7 @@ public class AhatClassInstance extends AhatInstance {
   }
 
   @Override public AhatInstance getAssociatedBitmapInstance() {
-    if (isInstanceOfClass("android.graphics.Bitmap")) {
-      return this;
-    }
-    return null;
+    return getBitmapInfo() == null ? null : this;
   }
 
   @Override public boolean isClassInstance() {
@@ -178,14 +175,27 @@ public class AhatClassInstance extends AhatInstance {
    * Returns null if the field value is null, not a byte[] or could not be read.
    */
   private byte[] getByteArrayField(String fieldName) {
-    Value value = getField(fieldName);
-    if (!value.isAhatInstance()) {
-      return null;
-    }
-    return value.asAhatInstance().asByteArray();
+    AhatInstance field = getRefField(fieldName);
+    return field == null ? null : field.asByteArray();
   }
 
-  public BufferedImage asBitmap() {
+  private static class BitmapInfo {
+    public final int width;
+    public final int height;
+    public final byte[] buffer;
+
+    public BitmapInfo(int width, int height, byte[] buffer) {
+      this.width = width;
+      this.height = height;
+      this.buffer = buffer;
+    }
+  }
+
+  /**
+   * Return bitmap info for this object, or null if no appropriate bitmap
+   * info is available.
+   */
+  private BitmapInfo getBitmapInfo() {
     if (!isInstanceOfClass("android.graphics.Bitmap")) {
       return null;
     }
@@ -205,20 +215,34 @@ public class AhatClassInstance extends AhatInstance {
       return null;
     }
 
+    if (buffer.length < 4 * height * width) {
+      return null;
+    }
+
+    return new BitmapInfo(width, height, buffer);
+
+  }
+
+  public BufferedImage asBitmap() {
+    BitmapInfo info = getBitmapInfo();
+    if (info == null) {
+      return null;
+    }
+
     // Convert the raw data to an image
     // Convert BGRA to ABGR
-    int[] abgr = new int[height * width];
+    int[] abgr = new int[info.height * info.width];
     for (int i = 0; i < abgr.length; i++) {
       abgr[i] = (
-          (((int) buffer[i * 4 + 3] & 0xFF) << 24)
-          + (((int) buffer[i * 4 + 0] & 0xFF) << 16)
-          + (((int) buffer[i * 4 + 1] & 0xFF) << 8)
-          + ((int) buffer[i * 4 + 2] & 0xFF));
+          (((int) info.buffer[i * 4 + 3] & 0xFF) << 24)
+          + (((int) info.buffer[i * 4 + 0] & 0xFF) << 16)
+          + (((int) info.buffer[i * 4 + 1] & 0xFF) << 8)
+          + ((int) info.buffer[i * 4 + 2] & 0xFF));
     }
 
     BufferedImage bitmap = new BufferedImage(
-        width, height, BufferedImage.TYPE_4BYTE_ABGR);
-    bitmap.setRGB(0, 0, width, height, abgr, 0, width);
+        info.width, info.height, BufferedImage.TYPE_4BYTE_ABGR);
+    bitmap.setRGB(0, 0, info.width, info.height, abgr, 0, info.width);
     return bitmap;
   }
 }
