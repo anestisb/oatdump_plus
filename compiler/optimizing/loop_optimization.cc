@@ -173,6 +173,39 @@ static bool IsZeroExtensionAndGet(HInstruction* instruction,
   return false;
 }
 
+// Detect situations with same-extension narrower operands.
+// Returns true on success and sets is_unsigned accordingly.
+static bool IsNarrowerOperands(HInstruction* a,
+                               HInstruction* b,
+                               Primitive::Type type,
+                               /*out*/ HInstruction** r,
+                               /*out*/ HInstruction** s,
+                               /*out*/ bool* is_unsigned) {
+  if (IsSignExtensionAndGet(a, type, r) && IsSignExtensionAndGet(b, type, s)) {
+    *is_unsigned = false;
+    return true;
+  } else if (IsZeroExtensionAndGet(a, type, r) && IsZeroExtensionAndGet(b, type, s)) {
+    *is_unsigned = true;
+    return true;
+  }
+  return false;
+}
+
+// As above, single operand.
+static bool IsNarrowerOperand(HInstruction* a,
+                              Primitive::Type type,
+                              /*out*/ HInstruction** r,
+                              /*out*/ bool* is_unsigned) {
+  if (IsSignExtensionAndGet(a, type, r)) {
+    *is_unsigned = false;
+    return true;
+  } else if (IsZeroExtensionAndGet(a, type, r)) {
+    *is_unsigned = true;
+    return true;
+  }
+  return false;
+}
+
 // Detect up to two instructions a and b, and an acccumulated constant c.
 static bool IsAddConstHelper(HInstruction* instruction,
                              /*out*/ HInstruction** a,
@@ -756,7 +789,7 @@ bool HLoopOptimization::VectorizeDef(LoopNode* node,
   return !IsUsedOutsideLoop(node->loop_info, instruction) && !instruction->DoesAnyWrite();
 }
 
-// TODO: more operations and intrinsics, detect saturation arithmetic, etc.
+// TODO: saturation arithmetic.
 bool HLoopOptimization::VectorizeUse(LoopNode* node,
                                      HInstruction* instruction,
                                      bool generate_code,
@@ -867,25 +900,38 @@ bool HLoopOptimization::VectorizeUse(LoopNode* node,
       return true;
     }
     // Deal with vector restrictions.
+    HInstruction* opa = instruction->InputAt(0);
+    HInstruction* opb = instruction->InputAt(1);
+    HInstruction* r = opa;
+    bool is_unsigned = false;
     if ((HasVectorRestrictions(restrictions, kNoShift)) ||
         (instruction->IsShr() && HasVectorRestrictions(restrictions, kNoShr))) {
       return false;  // unsupported instruction
-    } else if ((instruction->IsShr() || instruction->IsUShr()) &&
-               HasVectorRestrictions(restrictions, kNoHiBits)) {
-      return false;  // hibits may impact lobits; TODO: we can do better!
+    } else if (HasVectorRestrictions(restrictions, kNoHiBits)) {
+      // Shifts right need extra care to account for higher order bits.
+      // TODO: less likely shr/unsigned and ushr/signed can by flipping signess.
+      if (instruction->IsShr() &&
+          (!IsNarrowerOperand(opa, type, &r, &is_unsigned) || is_unsigned)) {
+        return false;  // reject, unless all operands are sign-extension narrower
+      } else if (instruction->IsUShr() &&
+                 (!IsNarrowerOperand(opa, type, &r, &is_unsigned) || !is_unsigned)) {
+        return false;  // reject, unless all operands are zero-extension narrower
+      }
     }
     // Accept shift operator for vectorizable/invariant operands.
     // TODO: accept symbolic, albeit loop invariant shift factors.
-    HInstruction* opa = instruction->InputAt(0);
-    HInstruction* opb = instruction->InputAt(1);
+    DCHECK(r != nullptr);
+    if (generate_code && vector_mode_ != kVector) {  // de-idiom
+      r = opa;
+    }
     int64_t distance = 0;
-    if (VectorizeUse(node, opa, generate_code, type, restrictions) &&
+    if (VectorizeUse(node, r, generate_code, type, restrictions) &&
         IsInt64AndGet(opb, /*out*/ &distance)) {
       // Restrict shift distance to packed data type width.
       int64_t max_distance = Primitive::ComponentSize(type) * 8;
       if (0 <= distance && distance < max_distance) {
         if (generate_code) {
-          GenerateVecOp(instruction, vector_map_->Get(opa), opb, type);
+          GenerateVecOp(instruction, vector_map_->Get(r), opb, type);
         }
         return true;
       }
@@ -899,16 +945,23 @@ bool HLoopOptimization::VectorizeUse(LoopNode* node,
       case Intrinsics::kMathAbsFloat:
       case Intrinsics::kMathAbsDouble: {
         // Deal with vector restrictions.
-        if (HasVectorRestrictions(restrictions, kNoAbs) ||
-            HasVectorRestrictions(restrictions, kNoHiBits)) {
-          // TODO: we can do better for some hibits cases.
+        HInstruction* opa = instruction->InputAt(0);
+        HInstruction* r = opa;
+        bool is_unsigned = false;
+        if (HasVectorRestrictions(restrictions, kNoAbs)) {
           return false;
+        } else if (HasVectorRestrictions(restrictions, kNoHiBits) &&
+                   (!IsNarrowerOperand(opa, type, &r, &is_unsigned) || is_unsigned)) {
+          return false;  // reject, unless operand is sign-extension narrower
         }
         // Accept ABS(x) for vectorizable operand.
-        HInstruction* opa = instruction->InputAt(0);
-        if (VectorizeUse(node, opa, generate_code, type, restrictions)) {
+        DCHECK(r != nullptr);
+        if (generate_code && vector_mode_ != kVector) {  // de-idiom
+          r = opa;
+        }
+        if (VectorizeUse(node, r, generate_code, type, restrictions)) {
           if (generate_code) {
-            GenerateVecOp(instruction, vector_map_->Get(opa), nullptr, type);
+            GenerateVecOp(instruction, vector_map_->Get(r), nullptr, type);
           }
           return true;
         }
@@ -923,18 +976,28 @@ bool HLoopOptimization::VectorizeUse(LoopNode* node,
       case Intrinsics::kMathMaxFloatFloat:
       case Intrinsics::kMathMaxDoubleDouble: {
         // Deal with vector restrictions.
-        if (HasVectorRestrictions(restrictions, kNoMinMax) ||
-            HasVectorRestrictions(restrictions, kNoHiBits)) {
-          // TODO: we can do better for some hibits cases.
-          return false;
-        }
-        // Accept MIN/MAX(x, y) for vectorizable operands.
         HInstruction* opa = instruction->InputAt(0);
         HInstruction* opb = instruction->InputAt(1);
-        if (VectorizeUse(node, opa, generate_code, type, restrictions) &&
-            VectorizeUse(node, opb, generate_code, type, restrictions)) {
+        HInstruction* r = opa;
+        HInstruction* s = opb;
+        bool is_unsigned = false;
+        if (HasVectorRestrictions(restrictions, kNoMinMax)) {
+          return false;
+        } else if (HasVectorRestrictions(restrictions, kNoHiBits) &&
+                   !IsNarrowerOperands(opa, opb, type, &r, &s, &is_unsigned)) {
+          return false;  // reject, unless all operands are same-extension narrower
+        }
+        // Accept MIN/MAX(x, y) for vectorizable operands.
+        DCHECK(r != nullptr && s != nullptr);
+        if (generate_code && vector_mode_ != kVector) {  // de-idiom
+          r = opa;
+          s = opb;
+        }
+        if (VectorizeUse(node, r, generate_code, type, restrictions) &&
+            VectorizeUse(node, s, generate_code, type, restrictions)) {
           if (generate_code) {
-            GenerateVecOp(instruction, vector_map_->Get(opa), vector_map_->Get(opb), type);
+            GenerateVecOp(
+                instruction, vector_map_->Get(r), vector_map_->Get(s), type, is_unsigned);
           }
           return true;
         }
@@ -959,11 +1022,11 @@ bool HLoopOptimization::TrySetVectorType(Primitive::Type type, uint64_t* restric
       switch (type) {
         case Primitive::kPrimBoolean:
         case Primitive::kPrimByte:
-          *restrictions |= kNoDiv | kNoAbs;
+          *restrictions |= kNoDiv;
           return TrySetVectorLength(16);
         case Primitive::kPrimChar:
         case Primitive::kPrimShort:
-          *restrictions |= kNoDiv | kNoAbs;
+          *restrictions |= kNoDiv;
           return TrySetVectorLength(8);
         case Primitive::kPrimInt:
           *restrictions |= kNoDiv;
@@ -1098,13 +1161,14 @@ void HLoopOptimization::GenerateVecMem(HInstruction* org,
 void HLoopOptimization::GenerateVecOp(HInstruction* org,
                                       HInstruction* opa,
                                       HInstruction* opb,
-                                      Primitive::Type type) {
+                                      Primitive::Type type,
+                                      bool is_unsigned) {
   if (vector_mode_ == kSequential) {
-    // Scalar code follows implicit integral promotion.
-    if (type == Primitive::kPrimBoolean ||
-        type == Primitive::kPrimByte ||
-        type == Primitive::kPrimChar ||
-        type == Primitive::kPrimShort) {
+    // Non-converting scalar code follows implicit integral promotion.
+    if (!org->IsTypeConversion() && (type == Primitive::kPrimBoolean ||
+                                     type == Primitive::kPrimByte ||
+                                     type == Primitive::kPrimChar ||
+                                     type == Primitive::kPrimShort)) {
       type = Primitive::kPrimInt;
     }
   }
@@ -1185,7 +1249,6 @@ void HLoopOptimization::GenerateVecOp(HInstruction* org,
           case Intrinsics::kMathMinLongLong:
           case Intrinsics::kMathMinFloatFloat:
           case Intrinsics::kMathMinDoubleDouble: {
-            bool is_unsigned = false;  // TODO: detect unsigned versions
             vector = new (global_allocator_)
                 HVecMin(global_allocator_, opa, opb, type, vector_length_, is_unsigned);
             break;
@@ -1194,7 +1257,6 @@ void HLoopOptimization::GenerateVecOp(HInstruction* org,
           case Intrinsics::kMathMaxLongLong:
           case Intrinsics::kMathMaxFloatFloat:
           case Intrinsics::kMathMaxDoubleDouble: {
-            bool is_unsigned = false;  // TODO: detect unsigned versions
             vector = new (global_allocator_)
                 HVecMax(global_allocator_, opa, opb, type, vector_length_, is_unsigned);
             break;
@@ -1258,7 +1320,7 @@ bool HLoopOptimization::VectorizeHalvingAddIdiom(LoopNode* node,
                                                  Primitive::Type type,
                                                  uint64_t restrictions) {
   // Test for top level arithmetic shift right x >> 1 or logical shift right x >>> 1
-  // (note whether the sign bit in higher precision is shifted in has no effect
+  // (note whether the sign bit in wider precision is shifted in has no effect
   // on the narrow precision computed by the idiom).
   int64_t distance = 0;
   if ((instruction->IsShr() ||
@@ -1269,6 +1331,7 @@ bool HLoopOptimization::VectorizeHalvingAddIdiom(LoopNode* node,
     HInstruction* b = nullptr;
     int64_t       c = 0;
     if (IsAddConst(instruction->InputAt(0), /*out*/ &a, /*out*/ &b, /*out*/ &c)) {
+      DCHECK(a != nullptr && b != nullptr);
       // Accept c == 1 (rounded) or c == 0 (not rounded).
       bool is_rounded = false;
       if (c == 1) {
@@ -1280,11 +1343,7 @@ bool HLoopOptimization::VectorizeHalvingAddIdiom(LoopNode* node,
       HInstruction* r = nullptr;
       HInstruction* s = nullptr;
       bool is_unsigned = false;
-      if (IsZeroExtensionAndGet(a, type, &r) && IsZeroExtensionAndGet(b, type, &s)) {
-        is_unsigned = true;
-      } else if (IsSignExtensionAndGet(a, type, &r) && IsSignExtensionAndGet(b, type, &s)) {
-        is_unsigned = false;
-      } else {
+      if (!IsNarrowerOperands(a, b, type, &r, &s, &is_unsigned)) {
         return false;
       }
       // Deal with vector restrictions.
@@ -1295,6 +1354,10 @@ bool HLoopOptimization::VectorizeHalvingAddIdiom(LoopNode* node,
       // Accept recognized halving add for vectorizable operands. Vectorized code uses the
       // shorthand idiomatic operation. Sequential code uses the original scalar expressions.
       DCHECK(r != nullptr && s != nullptr);
+      if (generate_code && vector_mode_ != kVector) {  // de-idiom
+        r = instruction->InputAt(0);
+        s = instruction->InputAt(1);
+      }
       if (VectorizeUse(node, r, generate_code, type, restrictions) &&
           VectorizeUse(node, s, generate_code, type, restrictions)) {
         if (generate_code) {
@@ -1308,12 +1371,7 @@ bool HLoopOptimization::VectorizeHalvingAddIdiom(LoopNode* node,
                 is_unsigned,
                 is_rounded));
           } else {
-            VectorizeUse(node, instruction->InputAt(0), generate_code, type, restrictions);
-            VectorizeUse(node, instruction->InputAt(1), generate_code, type, restrictions);
-            GenerateVecOp(instruction,
-                          vector_map_->Get(instruction->InputAt(0)),
-                          vector_map_->Get(instruction->InputAt(1)),
-                          type);
+            GenerateVecOp(instruction, vector_map_->Get(r), vector_map_->Get(s), type);
           }
         }
         return true;

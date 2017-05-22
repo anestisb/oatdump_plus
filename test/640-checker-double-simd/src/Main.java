@@ -122,8 +122,10 @@ public class Main {
   /// CHECK-DAG: ArraySet loop:<<Loop>>      outer_loop:none
   //
   /// CHECK-START-ARM64: void Main.conv(long[]) loop_optimization (after)
+  /// CHECK-NOT: VecLoad
+  /// CHECK-NOT: VecStore
   //
-  // TODO: fill in when supported
+  // TODO: fill in when long2double is supported
   static void conv(long[] b) {
     for (int i = 0; i < 128; i++)
       a[i] = b[i];
