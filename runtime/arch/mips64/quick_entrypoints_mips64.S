@@ -1222,8 +1222,38 @@ END art_quick_handle_fill_data
      */
     .extern artLockObjectFromCode
 ENTRY_NO_GP art_quick_lock_object
-    beq     $a0, $zero, art_quick_throw_null_pointer_exception
+    beqzc   $a0, art_quick_throw_null_pointer_exception
+    li      $t8, LOCK_WORD_THIN_LOCK_COUNT_ONE
+    li      $t3, LOCK_WORD_GC_STATE_MASK_SHIFTED_TOGGLED
+.Lretry_lock:
+    lw      $t0, THREAD_ID_OFFSET(rSELF)  # TODO: Can the thread ID really change during the loop?
+    ll      $t1, MIRROR_OBJECT_LOCK_WORD_OFFSET($a0)
+    and     $t2, $t1, $t3                 # zero the gc bits
+    bnezc   $t2, .Lnot_unlocked           # already thin locked
+    # Unlocked case - $t1: original lock word that's zero except for the read barrier bits.
+    or      $t2, $t1, $t0                 # $t2 holds thread id with count of 0 with preserved read barrier bits
+    sc      $t2, MIRROR_OBJECT_LOCK_WORD_OFFSET($a0)
+    beqzc   $t2, .Lretry_lock             # store failed, retry
+    sync                                  # full (LoadLoad|LoadStore) memory barrier
+    jic     $ra, 0
+.Lnot_unlocked:
+    # $t1: original lock word, $t0: thread_id with count of 0 and zero read barrier bits
+    srl     $t2, $t1, LOCK_WORD_STATE_SHIFT
+    bnezc   $t2, .Lslow_lock              # if either of the top two bits are set, go slow path
+    xor     $t2, $t1, $t0                 # lock_word.ThreadId() ^ self->ThreadId()
+    andi    $t2, $t2, 0xFFFF              # zero top 16 bits
+    bnezc   $t2, .Lslow_lock              # lock word and self thread id's match -> recursive lock
+                                          # otherwise contention, go to slow path
+    and     $t2, $t1, $t3                 # zero the gc bits
+    addu    $t2, $t2, $t8                 # increment count in lock word
+    srl     $t2, $t2, LOCK_WORD_STATE_SHIFT  # if the first gc state bit is set, we overflowed.
+    bnezc   $t2, .Lslow_lock              # if we overflow the count go slow path
+    addu    $t2, $t1, $t8                 # increment count for real
+    sc      $t2, MIRROR_OBJECT_LOCK_WORD_OFFSET($a0)
+    beqzc   $t2, .Lretry_lock             # store failed, retry
     nop
+    jic     $ra, 0
+.Lslow_lock:
     .cpsetup $t9, $t8, art_quick_lock_object
     SETUP_SAVE_REFS_ONLY_FRAME            # save callee saves in case we block
     jal     artLockObjectFromCode         # (Object* obj, Thread*)
@@ -1246,8 +1276,48 @@ END art_quick_lock_object_no_inline
      */
     .extern artUnlockObjectFromCode
 ENTRY_NO_GP art_quick_unlock_object
-    beq     $a0, $zero, art_quick_throw_null_pointer_exception
+    beqzc   $a0, art_quick_throw_null_pointer_exception
+    li      $t8, LOCK_WORD_THIN_LOCK_COUNT_ONE
+    li      $t3, LOCK_WORD_GC_STATE_MASK_SHIFTED_TOGGLED
+.Lretry_unlock:
+#ifndef USE_READ_BARRIER
+    lw      $t1, MIRROR_OBJECT_LOCK_WORD_OFFSET($a0)
+#else
+    ll      $t1, MIRROR_OBJECT_LOCK_WORD_OFFSET($a0)  # Need to use atomic read-modify-write for read barrier
+#endif
+    srl     $t2, $t1, LOCK_WORD_STATE_SHIFT
+    bnezc   $t2, .Lslow_unlock         # if either of the top two bits are set, go slow path
+    lw      $t0, THREAD_ID_OFFSET(rSELF)
+    and     $t2, $t1, $t3              # zero the gc bits
+    xor     $t2, $t2, $t0              # lock_word.ThreadId() ^ self->ThreadId()
+    andi    $t2, $t2, 0xFFFF           # zero top 16 bits
+    bnezc   $t2, .Lslow_unlock         # do lock word and self thread id's match?
+    and     $t2, $t1, $t3              # zero the gc bits
+    bgeuc   $t2, $t8, .Lrecursive_thin_unlock
+    # transition to unlocked
+    nor     $t2, $zero, $t3            # $t2 = LOCK_WORD_GC_STATE_MASK_SHIFTED
+    and     $t2, $t1, $t2              # $t2: zero except for the preserved gc bits
+    sync                               # full (LoadStore|StoreStore) memory barrier
+#ifndef USE_READ_BARRIER
+    sw      $t2, MIRROR_OBJECT_LOCK_WORD_OFFSET($a0)
+#else
+    sc      $t2, MIRROR_OBJECT_LOCK_WORD_OFFSET($a0)
+    beqzc   $t2, .Lretry_unlock        # store failed, retry
     nop
+#endif
+    jic     $ra, 0
+.Lrecursive_thin_unlock:
+    # t1: original lock word
+    subu    $t2, $t1, $t8              # decrement count
+#ifndef USE_READ_BARRIER
+    sw      $t2, MIRROR_OBJECT_LOCK_WORD_OFFSET($a0)
+#else
+    sc      $t2, MIRROR_OBJECT_LOCK_WORD_OFFSET($a0)
+    beqzc   $t2, .Lretry_unlock        # store failed, retry
+    nop
+#endif
+    jic     $ra, 0
+.Lslow_unlock:
     .cpsetup $t9, $t8, art_quick_unlock_object
     SETUP_SAVE_REFS_ONLY_FRAME         # save callee saves in case exception allocation triggers GC
     jal     artUnlockObjectFromCode    # (Object* obj, Thread*)
