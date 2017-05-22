@@ -123,7 +123,7 @@ ifneq ($(ART_TEST_NO_SYNC),true)
 ifeq ($(ART_TEST_ANDROID_ROOT),)
 test-art-target-sync: $(TEST_ART_TARGET_SYNC_DEPS)
 	$(TEST_ART_ADB_ROOT_AND_REMOUNT)
-	adb sync
+	adb sync system && adb sync data
 else
 test-art-target-sync: $(TEST_ART_TARGET_SYNC_DEPS)
 	$(TEST_ART_ADB_ROOT_AND_REMOUNT)
