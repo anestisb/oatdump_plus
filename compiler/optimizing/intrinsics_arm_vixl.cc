@@ -2971,11 +2971,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitFloatIsInfinite(HInvoke* invoke) {
   // We don't care about the sign bit, so shift left.
   __ Lsl(out, out, 1);
   __ Eor(out, out, infinity);
-  // If the result is 0, then it has 32 leading zeros, and less than that otherwise.
-  __ Clz(out, out);
-  // Any number less than 32 logically shifted right by 5 bits results in 0;
-  // the same operation on 32 yields 1.
-  __ Lsr(out, out, 5);
+  codegen_->GenerateConditionWithZero(kCondEQ, out, out);
 }
 
 void IntrinsicLocationsBuilderARMVIXL::VisitDoubleIsInfinite(HInvoke* invoke) {
@@ -3001,11 +2997,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitDoubleIsInfinite(HInvoke* invoke) {
   __ Eor(out, out, infinity_high2);
   // We don't care about the sign bit, so shift left.
   __ Orr(out, temp, Operand(out, vixl32::LSL, 1));
-  // If the result is 0, then it has 32 leading zeros, and less than that otherwise.
-  __ Clz(out, out);
-  // Any number less than 32 logically shifted right by 5 bits results in 0;
-  // the same operation on 32 yields 1.
-  __ Lsr(out, out, 5);
+  codegen_->GenerateConditionWithZero(kCondEQ, out, out);
 }
 
 void IntrinsicLocationsBuilderARMVIXL::VisitReferenceGetReferent(HInvoke* invoke) {
