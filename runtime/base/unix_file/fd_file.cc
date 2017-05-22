@@ -91,6 +91,7 @@ FdFile& FdFile::operator=(FdFile&& other) {
   fd_ = other.fd_;
   file_path_ = std::move(other.file_path_);
   auto_close_ = other.auto_close_;
+  read_only_mode_ = other.read_only_mode_;
   other.Release();  // Release other.
 
   return *this;
