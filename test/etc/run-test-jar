@@ -668,12 +668,6 @@ profman_cmdline=$(echo $profman_cmdline)
 # Note: this is required as envsetup right now exports detect_leaks=0.
 RUN_TEST_ASAN_OPTIONS=""
 
-# JVMTI has a mismatch of malloc with delete. b/38322765
-if [ "x$RUN_TEST_ASAN_OPTIONS" != "x" ] ; then
-  RUN_TEST_ASAN_OPTIONS="${RUN_TEST_ASAN_OPTIONS}:"
-fi
-RUN_TEST_ASAN_OPTIONS="${RUN_TEST_ASAN_OPTIONS}alloc_dealloc_mismatch=0"
-
 # Multiple shutdown leaks. b/38341789
 if [ "x$RUN_TEST_ASAN_OPTIONS" != "x" ] ; then
   RUN_TEST_ASAN_OPTIONS="${RUN_TEST_ASAN_OPTIONS}:"
