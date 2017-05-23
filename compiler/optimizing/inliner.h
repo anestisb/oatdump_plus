@@ -180,6 +180,9 @@ class HInliner : public HOptimization {
                                             Handle<mirror::ObjectArray<mirror::Class>> classes)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // Returns whether or not we should use only polymorphic inlining with no deoptimizations.
+  bool UseOnlyPolymorphicInliningWithNoDeopt();
+
   // Try CHA-based devirtualization to change virtual method calls into
   // direct calls.
   // Returns the actual method that resolved_method can be devirtualized to.
