@@ -98,6 +98,7 @@ enum ArenaAllocKind {
   kArenaAllocCallingConvention,
   kArenaAllocCHA,
   kArenaAllocScheduler,
+  kArenaAllocProfile,
   kNumArenaAllocKinds
 };
 
