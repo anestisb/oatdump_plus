@@ -48,7 +48,7 @@ public class Main {
   /// CHECK-DAG: <<Max:d\d+>>  InvokeStaticOrDirect [<<Get1>>,<<Get2>>] intrinsic:MathMaxDoubleDouble loop:<<Loop>> outer_loop:none
   /// CHECK-DAG:               ArraySet [{{l\d+}},<<Phi>>,<<Max>>] loop:<<Loop>>      outer_loop:none
   //
-  // TODO-x86: 0.0 vs -0.0?
+  // TODO x86: 0.0 vs -0.0?
   //
   /// CHECK-START-ARM64: void Main.doitMax(double[], double[], double[]) loop_optimization (after)
   /// CHECK-DAG: <<Phi:i\d+>>  Phi                                 loop:<<Loop:B\d+>> outer_loop:none

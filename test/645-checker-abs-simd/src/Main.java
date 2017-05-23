@@ -22,6 +22,67 @@ public class Main {
   private static final int SPQUIET = 1 << 22;
   private static final long DPQUIET = 1L << 51;
 
+  /// CHECK-START: void Main.doitByte(byte[]) loop_optimization (before)
+  /// CHECK-DAG: Phi                                       loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: ArrayGet                                  loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: InvokeStaticOrDirect intrinsic:MathAbsInt loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: ArraySet                                  loop:<<Loop>>      outer_loop:none
+  //
+  /// CHECK-START-ARM64: void Main.doitByte(byte[]) loop_optimization (after)
+  /// CHECK-DAG: Phi                                       loop:<<Loop1:B\d+>> outer_loop:none
+  /// CHECK-DAG: VecLoad                                   loop:<<Loop1>>      outer_loop:none
+  /// CHECK-DAG: VecAbs                                    loop:<<Loop1>>      outer_loop:none
+  /// CHECK-DAG: VecStore                                  loop:<<Loop1>>      outer_loop:none
+  /// CHECK-DAG: Phi                                       loop:<<Loop2:B\d+>> outer_loop:none
+  /// CHECK-DAG: ArrayGet                                  loop:<<Loop2>>      outer_loop:none
+  /// CHECK-DAG: InvokeStaticOrDirect intrinsic:MathAbsInt loop:<<Loop2>>      outer_loop:none
+  /// CHECK-DAG: ArraySet                                  loop:<<Loop2>>      outer_loop:none
+  //
+  /// CHECK-EVAL: "<<Loop1>>" != "<<Loop2>>"
+  private static void doitByte(byte[] x) {
+    for (int i = 0; i < x.length; i++) {
+      x[i] = (byte) Math.abs(x[i]);
+    }
+  }
+
+  /// CHECK-START: void Main.doitChar(char[]) loop_optimization (before)
+  /// CHECK-DAG: Phi                                       loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: ArrayGet                                  loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: InvokeStaticOrDirect intrinsic:MathAbsInt loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: ArraySet                                  loop:<<Loop>>      outer_loop:none
+  //
+  /// CHECK-START: void Main.doitChar(char[]) loop_optimization (after)
+  /// CHECK-NOT: VecAbs
+  private static void doitChar(char[] x) {
+    // Basically a nop due to zero extension.
+    for (int i = 0; i < x.length; i++) {
+      x[i] = (char) Math.abs(x[i]);
+    }
+  }
+
+  /// CHECK-START: void Main.doitShort(short[]) loop_optimization (before)
+  /// CHECK-DAG: Phi                                       loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: ArrayGet                                  loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: InvokeStaticOrDirect intrinsic:MathAbsInt loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: ArraySet                                  loop:<<Loop>>      outer_loop:none
+  //
+  /// CHECK-START-ARM64: void Main.doitShort(short[]) loop_optimization (after)
+  /// CHECK-DAG: Phi                                       loop:<<Loop1:B\d+>> outer_loop:none
+  /// CHECK-DAG: VecLoad                                   loop:<<Loop1>>      outer_loop:none
+  /// CHECK-DAG: VecAbs                                    loop:<<Loop1>>      outer_loop:none
+  /// CHECK-DAG: VecStore                                  loop:<<Loop1>>      outer_loop:none
+  /// CHECK-DAG: Phi                                       loop:<<Loop2:B\d+>> outer_loop:none
+  /// CHECK-DAG: ArrayGet                                  loop:<<Loop2>>      outer_loop:none
+  /// CHECK-DAG: InvokeStaticOrDirect intrinsic:MathAbsInt loop:<<Loop2>>      outer_loop:none
+  /// CHECK-DAG: ArraySet                                  loop:<<Loop2>>      outer_loop:none
+  //
+  /// CHECK-EVAL: "<<Loop1>>" != "<<Loop2>>"
+  private static void doitShort(short[] x) {
+    for (int i = 0; i < x.length; i++) {
+      x[i] = (short) Math.abs(x[i]);
+    }
+  }
+
   /// CHECK-START: void Main.doitInt(int[]) loop_optimization (before)
   /// CHECK-DAG: Phi                                       loop:<<Loop:B\d+>> outer_loop:none
   /// CHECK-DAG: ArrayGet                                  loop:<<Loop>>      outer_loop:none
@@ -52,8 +113,16 @@ public class Main {
   /// CHECK-DAG: ArraySet                                   loop:<<Loop>>      outer_loop:none
   //
   /// CHECK-START-ARM64: void Main.doitLong(long[]) loop_optimization (after)
+  /// CHECK-DAG: Phi                                        loop:<<Loop1:B\d+>> outer_loop:none
+  /// CHECK-DAG: VecLoad                                    loop:<<Loop1>>      outer_loop:none
+  /// CHECK-DAG: VecAbs                                     loop:<<Loop1>>      outer_loop:none
+  /// CHECK-DAG: VecStore                                   loop:<<Loop1>>      outer_loop:none
+  /// CHECK-DAG: Phi                                        loop:<<Loop2:B\d+>> outer_loop:none
+  /// CHECK-DAG: ArrayGet                                   loop:<<Loop2>>      outer_loop:none
+  /// CHECK-DAG: InvokeStaticOrDirect intrinsic:MathAbsLong loop:<<Loop2>>      outer_loop:none
+  /// CHECK-DAG: ArraySet                                   loop:<<Loop2>>      outer_loop:none
   //
-  // TODO: Not supported yet.
+  /// CHECK-EVAL: "<<Loop1>>" != "<<Loop2>>"
   private static void doitLong(long[] x) {
     for (int i = 0; i < x.length; i++) {
       x[i] = Math.abs(x[i]);
@@ -90,8 +159,16 @@ public class Main {
   /// CHECK-DAG: ArraySet                                     loop:<<Loop>>      outer_loop:none
   //
   /// CHECK-START-ARM64: void Main.doitDouble(double[]) loop_optimization (after)
+  /// CHECK-DAG: Phi                                          loop:<<Loop1:B\d+>> outer_loop:none
+  /// CHECK-DAG: VecLoad                                      loop:<<Loop1>>      outer_loop:none
+  /// CHECK-DAG: VecAbs                                       loop:<<Loop1>>      outer_loop:none
+  /// CHECK-DAG: VecStore                                     loop:<<Loop1>>      outer_loop:none
+  /// CHECK-DAG: Phi                                          loop:<<Loop2:B\d+>> outer_loop:none
+  /// CHECK-DAG: ArrayGet                                     loop:<<Loop2>>      outer_loop:none
+  /// CHECK-DAG: InvokeStaticOrDirect intrinsic:MathAbsDouble loop:<<Loop2>>      outer_loop:none
+  /// CHECK-DAG: ArraySet                                     loop:<<Loop2>>      outer_loop:none
   //
-  // TODO: Not supported yet.
+  /// CHECK-EVAL: "<<Loop1>>" != "<<Loop2>>"
   private static void doitDouble(double[] x) {
     for (int i = 0; i < x.length; i++) {
       x[i] = Math.abs(x[i]);
@@ -99,6 +176,31 @@ public class Main {
   }
 
   public static void main(String[] args) {
+    // Bytes, chars, shorts.
+    byte[] xb = new byte[256];
+    for (int i = 0; i < 256; i++) {
+      xb[i] = (byte) i;
+    }
+    doitByte(xb);
+    for (int i = 0; i < 256; i++) {
+      expectEquals32((byte) Math.abs((byte) i), xb[i]);
+    }
+    char[] xc = new char[1024 * 64];
+    for (int i = 0; i < 1024 * 64; i++) {
+      xc[i] = (char) i;
+    }
+    doitChar(xc);
+    for (int i = 0; i < 1024 *64; i++) {
+      expectEquals32((char) Math.abs((char) i), xc[i]);
+    }
+    short[] xs = new short[1024 * 64];
+    for (int i = 0; i < 1024 * 64; i++) {
+      xs[i] = (short) i;
+    }
+    doitShort(xs);
+    for (int i = 0; i < 1024 * 64; i++) {
+      expectEquals32((short) Math.abs((short) i), xs[i]);
+    }
     // Set up minint32, maxint32 and some others.
     int[] xi = new int[8];
     xi[0] = 0x80000000;
