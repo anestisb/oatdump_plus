@@ -75,8 +75,37 @@ enum InstructionFields {
   kFdShift = 6,
   kFdBits = 5,
 
+  kMsaOperationShift = 23,
+  kMsaELMOperationShift = 22,
+  kMsa2ROperationShift = 18,
+  kMsa2RFOperationShift = 17,
+  kDfShift = 21,
+  kDfMShift = 16,
+  kDf2RShift = 16,
+  kDfNShift = 16,
+  kWtShift = 16,
+  kWtBits = 5,
+  kWsShift = 11,
+  kWsBits = 5,
+  kWdShift = 6,
+  kWdBits = 5,
+  kS10Shift = 16,
+  kI10Shift = 11,
+  kS10MinorShift = 2,
+
   kBranchOffsetMask = 0x0000ffff,
   kJumpOffsetMask = 0x03ffffff,
+
+  kMsaMajorOpcode = 0x1e,
+  kMsaDfMByteMask = 0x70,
+  kMsaDfMHalfwordMask = 0x60,
+  kMsaDfMWordMask = 0x40,
+  kMsaDfMDoublewordMask = 0x00,
+  kMsaDfNByteMask = 0x00,
+  kMsaDfNHalfwordMask = 0x20,
+  kMsaDfNWordMask = 0x30,
+  kMsaDfNDoublewordMask = 0x38,
+  kMsaS10Mask = 0x3ff,
 };
 
 enum ScaleFactor {
