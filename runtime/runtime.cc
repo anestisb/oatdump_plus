@@ -1017,6 +1017,30 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
 
   MemMap::Init();
 
+  // Try to reserve a dedicated fault page. This is allocated for clobbered registers and sentinels.
+  // If we cannot reserve it, log a warning.
+  // Note: We allocate this first to have a good chance of grabbing the page. The address (0xebad..)
+  //       is out-of-the-way enough that it should not collide with boot image mapping.
+  // Note: Don't request an error message. That will lead to a maps dump in the case of failure,
+  //       leading to logspam.
+  {
+    constexpr uintptr_t kSentinelAddr =
+        RoundDown(static_cast<uintptr_t>(Context::kBadGprBase), kPageSize);
+    protected_fault_page_.reset(MemMap::MapAnonymous("Sentinel fault page",
+                                                     reinterpret_cast<uint8_t*>(kSentinelAddr),
+                                                     kPageSize,
+                                                     PROT_NONE,
+                                                     /* low_4g */ true,
+                                                     /* reuse */ false,
+                                                     /* error_msg */ nullptr));
+    if (protected_fault_page_ == nullptr) {
+      LOG(WARNING) << "Could not reserve sentinel fault page";
+    } else if (reinterpret_cast<uintptr_t>(protected_fault_page_->Begin()) != kSentinelAddr) {
+      LOG(WARNING) << "Could not reserve sentinel fault page at the right address.";
+      protected_fault_page_.reset();
+    }
+  }
+
   using Opt = RuntimeArgumentMap;
   VLOG(startup) << "Runtime::Init -verbose:startup enabled";
 
@@ -1399,27 +1423,6 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   {
     ScopedObjectAccess soa(self);
     callbacks_->NextRuntimePhase(RuntimePhaseCallback::RuntimePhase::kInitialAgents);
-  }
-
-  // Try to reserve a dedicated fault page. This is allocated for clobbered registers and sentinels.
-  // If we cannot reserve it, log a warning.
-  // Note: This is allocated last so that the heap and other things have priority, if necessary.
-  {
-    constexpr uintptr_t kSentinelAddr =
-        RoundDown(static_cast<uintptr_t>(Context::kBadGprBase), kPageSize);
-    protected_fault_page_.reset(MemMap::MapAnonymous("Sentinel fault page",
-                                                     reinterpret_cast<uint8_t*>(kSentinelAddr),
-                                                     kPageSize,
-                                                     PROT_NONE,
-                                                     true,
-                                                     false,
-                                                     &error_msg));
-    if (protected_fault_page_ == nullptr) {
-      LOG(WARNING) << "Could not reserve sentinel fault page: " << error_msg;
-    } else if (reinterpret_cast<uintptr_t>(protected_fault_page_->Begin()) != kSentinelAddr) {
-      LOG(WARNING) << "Could not reserve sentinel fault page at the right address.";
-      protected_fault_page_.reset();
-    }
   }
 
   VLOG(startup) << "Runtime::Init exiting";
