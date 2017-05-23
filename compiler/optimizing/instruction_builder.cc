@@ -1000,8 +1000,8 @@ HNewInstance* HInstructionBuilder::BuildNewInstance(dex::TypeIndex type_index, u
 
 void HInstructionBuilder::BuildConstructorFenceForAllocation(HInstruction* allocation) {
   DCHECK(allocation != nullptr &&
-             allocation->IsNewInstance() ||
-             allocation->IsNewArray());  // corresponding to "new" keyword in JLS.
+             (allocation->IsNewInstance() ||
+              allocation->IsNewArray()));  // corresponding to "new" keyword in JLS.
 
   if (allocation->IsNewInstance()) {
     // STRING SPECIAL HANDLING:
