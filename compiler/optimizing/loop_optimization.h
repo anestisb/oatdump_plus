@@ -137,11 +137,7 @@ class HLoopOptimization : public HOptimization {
                       HInstruction* opa,
                       HInstruction* opb,
                       Primitive::Type type);
-  void GenerateVecOp(HInstruction* org,
-                     HInstruction* opa,
-                     HInstruction* opb,
-                     Primitive::Type type,
-                     bool is_unsigned = false);
+  void GenerateVecOp(HInstruction* org, HInstruction* opa, HInstruction* opb, Primitive::Type type);
 
   // Vectorization idioms.
   bool VectorizeHalvingAddIdiom(LoopNode* node,
