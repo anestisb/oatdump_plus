@@ -186,6 +186,20 @@ TEST_F(FdFileTest, MoveConstructor) {
   ASSERT_EQ(file2.Close(), 0);
 }
 
+TEST_F(FdFileTest, OperatorMoveEquals) {
+  // Make sure the read_only_ flag is correctly copied
+  // over.
+  art::ScratchFile tmp;
+  FdFile file(tmp.GetFilename(), O_RDONLY, false);
+  ASSERT_TRUE(file.ReadOnlyMode());
+
+  FdFile file2(tmp.GetFilename(), O_RDWR, false);
+  ASSERT_FALSE(file2.ReadOnlyMode());
+
+  file2 = std::move(file);
+  ASSERT_TRUE(file2.ReadOnlyMode());
+}
+
 TEST_F(FdFileTest, EraseWithPathUnlinks) {
   // New scratch file, zero-length.
   art::ScratchFile tmp;
