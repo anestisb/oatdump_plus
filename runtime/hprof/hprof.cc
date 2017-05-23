@@ -1198,26 +1198,67 @@ void Hprof::DumpHeapClass(mirror::Class* klass) {
     // Class is allocated but not yet resolved: we cannot access its fields or super class.
     return;
   }
-  const size_t num_static_fields = klass->NumStaticFields();
-  // Total class size including embedded IMT, embedded vtable, and static fields.
-  const size_t class_size = klass->GetClassSize();
-  // Class size excluding static fields (relies on reference fields being the first static fields).
-  const size_t class_size_without_overhead = sizeof(mirror::Class);
-  CHECK_LE(class_size_without_overhead, class_size);
-  const size_t overhead_size = class_size - class_size_without_overhead;
 
-  if (overhead_size != 0) {
+  // Note: We will emit instance fields of Class as synthetic static fields with a prefix of
+  //       "$class$" so the class fields are visible in hprof dumps. For tools to account for that
+  //       correctly, we'll emit an instance size of zero for java.lang.Class, and also emit the
+  //       instance fields of java.lang.Object.
+  //
+  //       For other overhead (currently only the embedded vtable), we will generate a synthetic
+  //       byte array (or field[s] in case the overhead size is of reference size or less).
+
+  const size_t num_static_fields = klass->NumStaticFields();
+
+  // Total class size:
+  //   * class instance fields (including Object instance fields)
+  //   * vtable
+  //   * class static fields
+  const size_t total_class_size = klass->GetClassSize();
+
+  // Base class size (common parts of all Class instances):
+  //   * class instance fields (including Object instance fields)
+  constexpr size_t base_class_size = sizeof(mirror::Class);
+  CHECK_LE(base_class_size, total_class_size);
+
+  // Difference of Total and Base:
+  //   * vtable
+  //   * class static fields
+  const size_t base_overhead_size = total_class_size - base_class_size;
+
+  // Tools (ahat/Studio) will count the static fields and account for them in the class size. We
+  // must thus subtract them from base_overhead_size or they will be double-counted.
+  size_t class_static_fields_size = 0;
+  for (ArtField& class_static_field : klass->GetSFields()) {
+    size_t size = 0;
+    SignatureToBasicTypeAndSize(class_static_field.GetTypeDescriptor(), &size);
+    class_static_fields_size += size;
+  }
+
+  CHECK_GE(base_overhead_size, class_static_fields_size);
+  // Now we have:
+  //   * vtable
+  const size_t base_no_statics_overhead_size = base_overhead_size - class_static_fields_size;
+
+  // We may decide to display native overhead (the actual IMT, ArtFields and ArtMethods) in the
+  // future.
+  const size_t java_heap_overhead_size = base_no_statics_overhead_size;
+
+  // For overhead greater 4, we'll allocate a synthetic array.
+  if (java_heap_overhead_size > 4) {
     // Create a byte array to reflect the allocation of the
     // StaticField array at the end of this class.
     __ AddU1(HPROF_PRIMITIVE_ARRAY_DUMP);
     __ AddClassStaticsId(klass);
     __ AddStackTraceSerialNumber(LookupStackTraceSerialNumber(klass));
-    __ AddU4(overhead_size);
+    __ AddU4(java_heap_overhead_size - 4);
     __ AddU1(hprof_basic_byte);
-    for (size_t i = 0; i < overhead_size; ++i) {
+    for (size_t i = 0; i < java_heap_overhead_size - 4; ++i) {
       __ AddU1(0);
     }
   }
+  const size_t java_heap_overhead_field_count = java_heap_overhead_size > 0
+                                                    ? (java_heap_overhead_size == 3 ? 2u : 1u)
+                                                    : 0;
 
   __ AddU1(HPROF_CLASS_DUMP);
   __ AddClassId(LookupClassId(klass));
@@ -1228,10 +1269,11 @@ void Hprof::DumpHeapClass(mirror::Class* klass) {
   __ AddObjectId(nullptr);    // no prot domain
   __ AddObjectId(nullptr);    // reserved
   __ AddObjectId(nullptr);    // reserved
+  // Instance size.
   if (klass->IsClassClass()) {
-    // ClassObjects have their static fields appended, so aren't all the same size.
-    // But they're at least this size.
-    __ AddU4(class_size_without_overhead);  // instance size
+    // As mentioned above, we will emit instance fields as synthetic static fields. So the
+    // base object is "empty."
+    __ AddU4(0);
   } else if (klass->IsStringClass()) {
     // Strings are variable length with character data at the end like arrays.
     // This outputs the size of an empty string.
@@ -1245,47 +1287,115 @@ void Hprof::DumpHeapClass(mirror::Class* klass) {
   __ AddU2(0);  // empty const pool
 
   // Static fields
-  if (overhead_size == 0) {
-    __ AddU2(static_cast<uint16_t>(0));
-  } else {
-    __ AddU2(static_cast<uint16_t>(num_static_fields + 1));
+  //
+  // Note: we report Class' and Object's instance fields here, too. This is for visibility reasons.
+  //       (b/38167721)
+  mirror::Class* class_class = klass->GetClass();
+
+  DCHECK(class_class->GetSuperClass()->IsObjectClass());
+  const size_t static_fields_reported = class_class->NumInstanceFields()
+                                        + class_class->GetSuperClass()->NumInstanceFields()
+                                        + java_heap_overhead_field_count
+                                        + num_static_fields;
+  __ AddU2(dchecked_integral_cast<uint16_t>(static_fields_reported));
+
+  if (java_heap_overhead_size != 0) {
     __ AddStringId(LookupStringId(kClassOverheadName));
-    __ AddU1(hprof_basic_object);
-    __ AddClassStaticsId(klass);
+    size_t overhead_fields = 0;
+    if (java_heap_overhead_size > 4) {
+      __ AddU1(hprof_basic_object);
+      __ AddClassStaticsId(klass);
+      ++overhead_fields;
+    } else {
+      switch (java_heap_overhead_size) {
+        case 4: {
+          __ AddU1(hprof_basic_int);
+          __ AddU4(0);
+          ++overhead_fields;
+          break;
+        }
 
-    for (size_t i = 0; i < num_static_fields; ++i) {
-      ArtField* f = klass->GetStaticField(i);
+        case 2: {
+          __ AddU1(hprof_basic_short);
+          __ AddU2(0);
+          ++overhead_fields;
+          break;
+        }
 
-      size_t size;
-      HprofBasicType t = SignatureToBasicTypeAndSize(f->GetTypeDescriptor(), &size);
-      __ AddStringId(LookupStringId(f->GetName()));
-      __ AddU1(t);
-      switch (t) {
-        case hprof_basic_byte:
-          __ AddU1(f->GetByte(klass));
+        case 3: {
+          __ AddU1(hprof_basic_short);
+          __ AddU2(0);
+          __ AddStringId(LookupStringId(std::string(kClassOverheadName) + "2"));
+          ++overhead_fields;
+        }
+        FALLTHROUGH_INTENDED;
+
+        case 1: {
+          __ AddU1(hprof_basic_byte);
+          __ AddU1(0);
+          ++overhead_fields;
           break;
-        case hprof_basic_boolean:
-          __ AddU1(f->GetBoolean(klass));
-          break;
-        case hprof_basic_char:
-          __ AddU2(f->GetChar(klass));
-          break;
-        case hprof_basic_short:
-          __ AddU2(f->GetShort(klass));
-          break;
-        case hprof_basic_float:
-        case hprof_basic_int:
-        case hprof_basic_object:
-          __ AddU4(f->Get32(klass));
-          break;
-        case hprof_basic_double:
-        case hprof_basic_long:
-          __ AddU8(f->Get64(klass));
-          break;
-        default:
-          LOG(FATAL) << "Unexpected size " << size;
-          UNREACHABLE();
+        }
       }
+    }
+    DCHECK_EQ(java_heap_overhead_field_count, overhead_fields);
+  }
+
+  // Helper lambda to emit the given static field. The second argument name_fn will be called to
+  // generate the name to emit. This can be used to emit something else than the field's actual
+  // name.
+  auto static_field_writer = [&](ArtField& field, auto name_fn)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    __ AddStringId(LookupStringId(name_fn(field)));
+
+    size_t size;
+    HprofBasicType t = SignatureToBasicTypeAndSize(field.GetTypeDescriptor(), &size);
+    __ AddU1(t);
+    switch (t) {
+      case hprof_basic_byte:
+        __ AddU1(field.GetByte(klass));
+        return;
+      case hprof_basic_boolean:
+        __ AddU1(field.GetBoolean(klass));
+        return;
+      case hprof_basic_char:
+        __ AddU2(field.GetChar(klass));
+        return;
+      case hprof_basic_short:
+        __ AddU2(field.GetShort(klass));
+        return;
+      case hprof_basic_float:
+      case hprof_basic_int:
+      case hprof_basic_object:
+        __ AddU4(field.Get32(klass));
+        return;
+      case hprof_basic_double:
+      case hprof_basic_long:
+        __ AddU8(field.Get64(klass));
+        return;
+    }
+    LOG(FATAL) << "Unexpected size " << size;
+    UNREACHABLE();
+  };
+
+  {
+    auto class_instance_field_name_fn = [](ArtField& field) REQUIRES_SHARED(Locks::mutator_lock_) {
+      return std::string("$class$") + field.GetName();
+    };
+    for (ArtField& class_instance_field : class_class->GetIFields()) {
+      static_field_writer(class_instance_field, class_instance_field_name_fn);
+    }
+    for (ArtField& object_instance_field : class_class->GetSuperClass()->GetIFields()) {
+      static_field_writer(object_instance_field, class_instance_field_name_fn);
+    }
+  }
+
+  {
+    auto class_static_field_name_fn = [](ArtField& field) REQUIRES_SHARED(Locks::mutator_lock_) {
+      return field.GetName();
+    };
+    for (ArtField& class_static_field : klass->GetSFields()) {
+      static_field_writer(class_static_field, class_static_field_name_fn);
     }
   }
 
