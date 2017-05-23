@@ -129,6 +129,25 @@ static std::unique_ptr<const art::DexFile> MakeSingleDexFile(art::Thread* self,
   return dex_file;
 }
 
+// A deleter that acts like the jvmtiEnv->Deallocate so that asan does not get tripped up.
+// TODO We should everything use the actual jvmtiEnv->Allocate/Deallocate functions once we can
+// figure out which env to use.
+template <typename T>
+class FakeJvmtiDeleter {
+ public:
+  FakeJvmtiDeleter() {}
+
+  FakeJvmtiDeleter(FakeJvmtiDeleter&) = default;
+  FakeJvmtiDeleter(FakeJvmtiDeleter&&) = default;
+  FakeJvmtiDeleter& operator=(const FakeJvmtiDeleter&) = default;
+
+  template <typename U> void operator()(const U* ptr) const {
+    if (ptr != nullptr) {
+      free(const_cast<U*>(ptr));
+    }
+  }
+};
+
 struct ClassCallback : public art::ClassLoadCallback {
   void ClassPreDefine(const char* descriptor,
                       art::Handle<art::mirror::Class> klass,
@@ -173,7 +192,8 @@ struct ClassCallback : public art::ClassLoadCallback {
     // Call all Non-retransformable agents.
     jint post_no_redefine_len = 0;
     unsigned char* post_no_redefine_dex_data = nullptr;
-    std::unique_ptr<const unsigned char> post_no_redefine_unique_ptr(nullptr);
+    std::unique_ptr<const unsigned char, FakeJvmtiDeleter<const unsigned char>>
+        post_no_redefine_unique_ptr(nullptr, FakeJvmtiDeleter<const unsigned char>());
     event_handler->DispatchEvent<ArtJvmtiEvent::kClassFileLoadHookNonRetransformable>(
         self,
         static_cast<JNIEnv*>(env),
@@ -190,13 +210,16 @@ struct ClassCallback : public art::ClassLoadCallback {
       post_no_redefine_dex_data = const_cast<unsigned char*>(dex_file_copy->Begin());
       post_no_redefine_len = dex_file_copy->Size();
     } else {
-      post_no_redefine_unique_ptr = std::unique_ptr<const unsigned char>(post_no_redefine_dex_data);
+      post_no_redefine_unique_ptr =
+          std::unique_ptr<const unsigned char, FakeJvmtiDeleter<const unsigned char>>(
+              post_no_redefine_dex_data, FakeJvmtiDeleter<const unsigned char>());
       DCHECK_GT(post_no_redefine_len, 0);
     }
     // Call all retransformable agents.
     jint final_len = 0;
     unsigned char* final_dex_data = nullptr;
-    std::unique_ptr<const unsigned char> final_dex_unique_ptr(nullptr);
+    std::unique_ptr<const unsigned char, FakeJvmtiDeleter<const unsigned char>>
+        final_dex_unique_ptr(nullptr, FakeJvmtiDeleter<const unsigned char>());
     event_handler->DispatchEvent<ArtJvmtiEvent::kClassFileLoadHookRetransformable>(
         self,
         static_cast<JNIEnv*>(env),
@@ -213,7 +236,9 @@ struct ClassCallback : public art::ClassLoadCallback {
       final_dex_data = post_no_redefine_dex_data;
       final_len = post_no_redefine_len;
     } else {
-      final_dex_unique_ptr = std::unique_ptr<const unsigned char>(final_dex_data);
+      final_dex_unique_ptr =
+          std::unique_ptr<const unsigned char, FakeJvmtiDeleter<const unsigned char>>(
+              final_dex_data, FakeJvmtiDeleter<const unsigned char>());
       DCHECK_GT(final_len, 0);
     }
 
