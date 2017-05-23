@@ -549,12 +549,11 @@ class CodeGeneratorARM64 : public CodeGenerator {
     UNIMPLEMENTED(FATAL);
   }
 
-  // Add a new PC-relative string patch for an instruction and return the label
+  // Add a new PC-relative method patch for an instruction and return the label
   // to be bound before the instruction. The instruction will be either the
   // ADRP (pass `adrp_label = null`) or the ADD (pass `adrp_label` pointing
   // to the associated ADRP patch label).
-  vixl::aarch64::Label* NewPcRelativeStringPatch(const DexFile& dex_file,
-                                                 dex::StringIndex string_index,
+  vixl::aarch64::Label* NewPcRelativeMethodPatch(MethodReference target_method,
                                                  vixl::aarch64::Label* adrp_label = nullptr);
 
   // Add a new PC-relative type patch for an instruction and return the label
@@ -572,6 +571,14 @@ class CodeGeneratorARM64 : public CodeGenerator {
   vixl::aarch64::Label* NewBssEntryTypePatch(const DexFile& dex_file,
                                              dex::TypeIndex type_index,
                                              vixl::aarch64::Label* adrp_label = nullptr);
+
+  // Add a new PC-relative string patch for an instruction and return the label
+  // to be bound before the instruction. The instruction will be either the
+  // ADRP (pass `adrp_label = null`) or the ADD (pass `adrp_label` pointing
+  // to the associated ADRP patch label).
+  vixl::aarch64::Label* NewPcRelativeStringPatch(const DexFile& dex_file,
+                                                 dex::StringIndex string_index,
+                                                 vixl::aarch64::Label* adrp_label = nullptr);
 
   // Add a new PC-relative dex cache array patch for an instruction and return
   // the label to be bound before the instruction. The instruction will be
@@ -787,12 +794,14 @@ class CodeGeneratorARM64 : public CodeGenerator {
   Uint64ToLiteralMap uint64_literals_;
   // PC-relative DexCache access info.
   ArenaDeque<PcRelativePatchInfo> pc_relative_dex_cache_patches_;
-  // PC-relative String patch info; type depends on configuration (app .bss or boot image PIC).
-  ArenaDeque<PcRelativePatchInfo> pc_relative_string_patches_;
+  // PC-relative method patch info for kBootImageLinkTimePcRelative.
+  ArenaDeque<PcRelativePatchInfo> pc_relative_method_patches_;
   // PC-relative type patch info for kBootImageLinkTimePcRelative.
   ArenaDeque<PcRelativePatchInfo> pc_relative_type_patches_;
   // PC-relative type patch info for kBssEntry.
   ArenaDeque<PcRelativePatchInfo> type_bss_entry_patches_;
+  // PC-relative String patch info; type depends on configuration (app .bss or boot image PIC).
+  ArenaDeque<PcRelativePatchInfo> pc_relative_string_patches_;
   // Baker read barrier patch info.
   ArenaDeque<BakerReadBarrierPatchInfo> baker_read_barrier_patches_;
 

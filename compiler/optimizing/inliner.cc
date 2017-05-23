@@ -1856,7 +1856,7 @@ void HInliner::RunOptimizations(HGraph* callee_graph,
   HDeadCodeElimination dce(callee_graph, inline_stats_, "dead_code_elimination$inliner");
   HConstantFolding fold(callee_graph, "constant_folding$inliner");
   HSharpening sharpening(callee_graph, codegen_, dex_compilation_unit, compiler_driver_, handles_);
-  InstructionSimplifier simplify(callee_graph, codegen_, inline_stats_);
+  InstructionSimplifier simplify(callee_graph, codegen_, compiler_driver_, inline_stats_);
   IntrinsicsRecognizer intrinsics(callee_graph, inline_stats_);
 
   HOptimization* optimizations[] = {

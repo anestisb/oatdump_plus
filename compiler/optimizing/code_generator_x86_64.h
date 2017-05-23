@@ -408,9 +408,10 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) OVERRIDE;
   void GenerateVirtualCall(HInvokeVirtual* invoke, Location temp) OVERRIDE;
 
-  void RecordBootStringPatch(HLoadString* load_string);
+  void RecordBootMethodPatch(HInvokeStaticOrDirect* invoke);
   void RecordBootTypePatch(HLoadClass* load_class);
   Label* NewTypeBssEntryPatch(HLoadClass* load_class);
+  void RecordBootStringPatch(HLoadString* load_string);
   Label* NewStringBssEntryPatch(HLoadString* load_string);
   Label* NewPcRelativeDexCacheArrayPatch(const DexFile& dex_file, uint32_t element_offset);
   Label* NewJitRootStringPatch(const DexFile& dex_file,
@@ -603,21 +604,22 @@ class CodeGeneratorX86_64 : public CodeGenerator {
 
   // PC-relative DexCache access info.
   ArenaDeque<PatchInfo<Label>> pc_relative_dex_cache_patches_;
-  // String patch locations; type depends on configuration (app .bss or boot image).
-  ArenaDeque<PatchInfo<Label>> string_patches_;
+  // PC-relative method patch info for kBootImageLinkTimePcRelative.
+  ArenaDeque<PatchInfo<Label>> boot_image_method_patches_;
   // PC-relative type patch info for kBootImageLinkTimePcRelative.
   ArenaDeque<PatchInfo<Label>> boot_image_type_patches_;
   // Type patch locations for kBssEntry.
   ArenaDeque<PatchInfo<Label>> type_bss_entry_patches_;
-
-  // Fixups for jump tables need to be handled specially.
-  ArenaVector<JumpTableRIPFixup*> fixups_to_jump_tables_;
+  // String patch locations; type depends on configuration (app .bss or boot image).
+  ArenaDeque<PatchInfo<Label>> string_patches_;
 
   // Patches for string literals in JIT compiled code.
   ArenaDeque<PatchInfo<Label>> jit_string_patches_;
-
   // Patches for class literals in JIT compiled code.
   ArenaDeque<PatchInfo<Label>> jit_class_patches_;
+
+  // Fixups for jump tables need to be handled specially.
+  ArenaVector<JumpTableRIPFixup*> fixups_to_jump_tables_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorX86_64);
 };

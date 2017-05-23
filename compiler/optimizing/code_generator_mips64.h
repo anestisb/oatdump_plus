@@ -545,10 +545,11 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
     Mips64Label pc_rel_label;
   };
 
-  PcRelativePatchInfo* NewPcRelativeStringPatch(const DexFile& dex_file,
-                                                dex::StringIndex string_index);
+  PcRelativePatchInfo* NewPcRelativeMethodPatch(MethodReference target_method);
   PcRelativePatchInfo* NewPcRelativeTypePatch(const DexFile& dex_file, dex::TypeIndex type_index);
   PcRelativePatchInfo* NewTypeBssEntryPatch(const DexFile& dex_file, dex::TypeIndex type_index);
+  PcRelativePatchInfo* NewPcRelativeStringPatch(const DexFile& dex_file,
+                                                dex::StringIndex string_index);
   PcRelativePatchInfo* NewPcRelativeDexCacheArrayPatch(const DexFile& dex_file,
                                                        uint32_t element_offset);
   PcRelativePatchInfo* NewPcRelativeCallPatch(const DexFile& dex_file,
@@ -605,12 +606,15 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
   Uint64ToLiteralMap uint64_literals_;
   // PC-relative patch info.
   ArenaDeque<PcRelativePatchInfo> pc_relative_dex_cache_patches_;
-  // PC-relative String patch info; type depends on configuration (app .bss or boot image PIC).
-  ArenaDeque<PcRelativePatchInfo> pc_relative_string_patches_;
+  // PC-relative method patch info for kBootImageLinkTimePcRelative.
+  ArenaDeque<PcRelativePatchInfo> pc_relative_method_patches_;
   // PC-relative type patch info for kBootImageLinkTimePcRelative.
   ArenaDeque<PcRelativePatchInfo> pc_relative_type_patches_;
   // PC-relative type patch info for kBssEntry.
   ArenaDeque<PcRelativePatchInfo> type_bss_entry_patches_;
+  // PC-relative String patch info; type depends on configuration (app .bss or boot image PIC).
+  ArenaDeque<PcRelativePatchInfo> pc_relative_string_patches_;
+
   // Patches for string root accesses in JIT compiled code.
   StringToLiteralMap jit_string_patches_;
   // Patches for class root accesses in JIT compiled code.

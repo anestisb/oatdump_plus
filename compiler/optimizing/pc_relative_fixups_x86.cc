@@ -205,13 +205,13 @@ class PCRelativeHandlerVisitor : public HGraphVisitor {
     // method pointer from the invoke.
     if (invoke_static_or_direct != nullptr &&
         invoke_static_or_direct->HasCurrentMethodInput()) {
-      DCHECK(!invoke_static_or_direct->HasPcRelativeDexCache());
+      DCHECK(!invoke_static_or_direct->HasPcRelativeMethodLoadKind());
       return;
     }
 
     bool base_added = false;
     if (invoke_static_or_direct != nullptr &&
-        invoke_static_or_direct->HasPcRelativeDexCache() &&
+        invoke_static_or_direct->HasPcRelativeMethodLoadKind() &&
         !IsCallFreeIntrinsic<IntrinsicLocationsBuilderX86>(invoke, codegen_)) {
       HX86ComputeBaseMethodAddress* method_address = GetPCRelativeBasePointer(invoke);
       // Add the extra parameter.

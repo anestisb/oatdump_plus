@@ -2397,9 +2397,10 @@ CodeGeneratorARM::CodeGeneratorARM(HGraph* graph,
       uint32_literals_(std::less<uint32_t>(),
                        graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       pc_relative_dex_cache_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
-      pc_relative_string_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      pc_relative_method_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       pc_relative_type_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       type_bss_entry_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      pc_relative_string_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       baker_read_barrier_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
       jit_string_patches_(StringReferenceValueComparator(),
                           graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
@@ -8967,6 +8968,18 @@ Location CodeGeneratorARM::GenerateCalleeMethodStaticOrDirectCall(HInvokeStaticO
     case HInvokeStaticOrDirect::MethodLoadKind::kRecursive:
       callee_method = invoke->GetLocations()->InAt(invoke->GetSpecialInputIndex());
       break;
+    case HInvokeStaticOrDirect::MethodLoadKind::kBootImageLinkTimePcRelative: {
+      DCHECK(GetCompilerOptions().IsBootImage());
+      Register temp_reg = temp.AsRegister<Register>();
+      PcRelativePatchInfo* labels = NewPcRelativeMethodPatch(invoke->GetTargetMethod());
+      __ BindTrackedLabel(&labels->movw_label);
+      __ movw(temp_reg, /* placeholder */ 0u);
+      __ BindTrackedLabel(&labels->movt_label);
+      __ movt(temp_reg, /* placeholder */ 0u);
+      __ BindTrackedLabel(&labels->add_pc_label);
+      __ add(temp_reg, temp_reg, ShifterOperand(PC));
+      break;
+    }
     case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddress:
       __ LoadImmediate(temp.AsRegister<Register>(), invoke->GetMethodAddress());
       break;
@@ -9059,9 +9072,11 @@ void CodeGeneratorARM::GenerateVirtualCall(HInvokeVirtual* invoke, Location temp
   __ blx(LR);
 }
 
-CodeGeneratorARM::PcRelativePatchInfo* CodeGeneratorARM::NewPcRelativeStringPatch(
-    const DexFile& dex_file, dex::StringIndex string_index) {
-  return NewPcRelativePatch(dex_file, string_index.index_, &pc_relative_string_patches_);
+CodeGeneratorARM::PcRelativePatchInfo* CodeGeneratorARM::NewPcRelativeMethodPatch(
+    MethodReference target_method) {
+  return NewPcRelativePatch(*target_method.dex_file,
+                            target_method.dex_method_index,
+                            &pc_relative_method_patches_);
 }
 
 CodeGeneratorARM::PcRelativePatchInfo* CodeGeneratorARM::NewPcRelativeTypePatch(
@@ -9072,6 +9087,11 @@ CodeGeneratorARM::PcRelativePatchInfo* CodeGeneratorARM::NewPcRelativeTypePatch(
 CodeGeneratorARM::PcRelativePatchInfo* CodeGeneratorARM::NewTypeBssEntryPatch(
     const DexFile& dex_file, dex::TypeIndex type_index) {
   return NewPcRelativePatch(dex_file, type_index.index_, &type_bss_entry_patches_);
+}
+
+CodeGeneratorARM::PcRelativePatchInfo* CodeGeneratorARM::NewPcRelativeStringPatch(
+    const DexFile& dex_file, dex::StringIndex string_index) {
+  return NewPcRelativePatch(dex_file, string_index.index_, &pc_relative_string_patches_);
 }
 
 CodeGeneratorARM::PcRelativePatchInfo* CodeGeneratorARM::NewPcRelativeDexCacheArrayPatch(
@@ -9138,21 +9158,25 @@ void CodeGeneratorARM::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patche
   DCHECK(linker_patches->empty());
   size_t size =
       /* MOVW+MOVT for each entry */ 2u * pc_relative_dex_cache_patches_.size() +
-      /* MOVW+MOVT for each entry */ 2u * pc_relative_string_patches_.size() +
+      /* MOVW+MOVT for each entry */ 2u * pc_relative_method_patches_.size() +
       /* MOVW+MOVT for each entry */ 2u * pc_relative_type_patches_.size() +
       /* MOVW+MOVT for each entry */ 2u * type_bss_entry_patches_.size() +
+      /* MOVW+MOVT for each entry */ 2u * pc_relative_string_patches_.size() +
       baker_read_barrier_patches_.size();
   linker_patches->reserve(size);
   EmitPcRelativeLinkerPatches<LinkerPatch::DexCacheArrayPatch>(pc_relative_dex_cache_patches_,
                                                                linker_patches);
-  if (!GetCompilerOptions().IsBootImage()) {
-    DCHECK(pc_relative_type_patches_.empty());
-    EmitPcRelativeLinkerPatches<LinkerPatch::StringBssEntryPatch>(pc_relative_string_patches_,
+  if (GetCompilerOptions().IsBootImage()) {
+    EmitPcRelativeLinkerPatches<LinkerPatch::RelativeMethodPatch>(pc_relative_method_patches_,
                                                                   linker_patches);
-  } else {
     EmitPcRelativeLinkerPatches<LinkerPatch::RelativeTypePatch>(pc_relative_type_patches_,
                                                                 linker_patches);
     EmitPcRelativeLinkerPatches<LinkerPatch::RelativeStringPatch>(pc_relative_string_patches_,
+                                                                  linker_patches);
+  } else {
+    DCHECK(pc_relative_method_patches_.empty());
+    DCHECK(pc_relative_type_patches_.empty());
+    EmitPcRelativeLinkerPatches<LinkerPatch::StringBssEntryPatch>(pc_relative_string_patches_,
                                                                   linker_patches);
   }
   EmitPcRelativeLinkerPatches<LinkerPatch::TypeBssEntryPatch>(type_bss_entry_patches_,

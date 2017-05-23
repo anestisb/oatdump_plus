@@ -50,10 +50,14 @@ TEST(CompiledMethod, LinkerPatchOperators) {
   const DexFile* dex_file1 = reinterpret_cast<const DexFile*>(1);
   const DexFile* dex_file2 = reinterpret_cast<const DexFile*>(2);
   LinkerPatch patches[] = {
-      LinkerPatch::MethodPatch(16u, dex_file1, 1000u),
-      LinkerPatch::MethodPatch(16u, dex_file1, 1001u),
-      LinkerPatch::MethodPatch(16u, dex_file2, 1000u),
-      LinkerPatch::MethodPatch(16u, dex_file2, 1001u),  // Index 3.
+      LinkerPatch::RelativeMethodPatch(16u, dex_file1, 3000u, 1000u),
+      LinkerPatch::RelativeMethodPatch(16u, dex_file1, 3001u, 1000u),
+      LinkerPatch::RelativeMethodPatch(16u, dex_file1, 3000u, 1001u),
+      LinkerPatch::RelativeMethodPatch(16u, dex_file1, 3001u, 1001u),  // Index 3.
+      LinkerPatch::RelativeMethodPatch(16u, dex_file2, 3000u, 1000u),
+      LinkerPatch::RelativeMethodPatch(16u, dex_file2, 3001u, 1000u),
+      LinkerPatch::RelativeMethodPatch(16u, dex_file2, 3000u, 1001u),
+      LinkerPatch::RelativeMethodPatch(16u, dex_file2, 3001u, 1001u),
       LinkerPatch::CodePatch(16u, dex_file1, 1000u),
       LinkerPatch::CodePatch(16u, dex_file1, 1001u),
       LinkerPatch::CodePatch(16u, dex_file2, 1000u),
@@ -107,10 +111,14 @@ TEST(CompiledMethod, LinkerPatchOperators) {
       LinkerPatch::BakerReadBarrierBranchPatch(16u, 1u, 0u),
       LinkerPatch::BakerReadBarrierBranchPatch(16u, 1u, 1u),
 
-      LinkerPatch::MethodPatch(32u, dex_file1, 1000u),
-      LinkerPatch::MethodPatch(32u, dex_file1, 1001u),
-      LinkerPatch::MethodPatch(32u, dex_file2, 1000u),
-      LinkerPatch::MethodPatch(32u, dex_file2, 1001u),  // Index 3.
+      LinkerPatch::RelativeMethodPatch(32u, dex_file1, 3000u, 1000u),
+      LinkerPatch::RelativeMethodPatch(32u, dex_file1, 3001u, 1000u),
+      LinkerPatch::RelativeMethodPatch(32u, dex_file1, 3000u, 1001u),
+      LinkerPatch::RelativeMethodPatch(32u, dex_file1, 3001u, 1001u),
+      LinkerPatch::RelativeMethodPatch(32u, dex_file2, 3000u, 1000u),
+      LinkerPatch::RelativeMethodPatch(32u, dex_file2, 3001u, 1000u),
+      LinkerPatch::RelativeMethodPatch(32u, dex_file2, 3000u, 1001u),
+      LinkerPatch::RelativeMethodPatch(32u, dex_file2, 3001u, 1001u),
       LinkerPatch::CodePatch(32u, dex_file1, 1000u),
       LinkerPatch::CodePatch(32u, dex_file1, 1001u),
       LinkerPatch::CodePatch(32u, dex_file2, 1000u),
@@ -164,7 +172,7 @@ TEST(CompiledMethod, LinkerPatchOperators) {
       LinkerPatch::BakerReadBarrierBranchPatch(32u, 1u, 0u),
       LinkerPatch::BakerReadBarrierBranchPatch(32u, 1u, 1u),
 
-      LinkerPatch::MethodPatch(16u, dex_file2, 1001u),  // identical with patch at index 3.
+      LinkerPatch::RelativeMethodPatch(16u, dex_file1, 3001u, 1001u),  // Same as patch at index 3.
   };
   constexpr size_t last_index = arraysize(patches) - 1u;
 
