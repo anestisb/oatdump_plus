@@ -689,6 +689,14 @@ class Runtime {
     deoptimization_counts_[static_cast<size_t>(kind)]++;
   }
 
+  uint32_t GetNumberOfDeoptimizations() const {
+    uint32_t result = 0;
+    for (size_t i = 0; i <= static_cast<size_t>(DeoptimizationKind::kLast); ++i) {
+      result += deoptimization_counts_[i];
+    }
+    return result;
+  }
+
  private:
   static void InitPlatformSignalHandlers();
 
