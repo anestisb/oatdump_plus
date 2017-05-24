@@ -651,7 +651,7 @@
             "969-iface-super",
             "981-dedup-original-dex",
             "984-obsolete-invoke",
-            "985-re-obsolete",
+            "985-re-obsolete"
         ],
         "description": "The tests above fail with --build-with-javac-dx.",
         "env_vars": {"ANDROID_COMPILE_WITH_JACK": "false"},
