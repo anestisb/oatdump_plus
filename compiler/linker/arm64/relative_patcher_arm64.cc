@@ -54,11 +54,11 @@ constexpr uint32_t kAdrpThunkSize = 8u;
 
 inline bool IsAdrpPatch(const LinkerPatch& patch) {
   switch (patch.GetType()) {
-    case LinkerPatch::Type::kMethodRelative:
     case LinkerPatch::Type::kCall:
     case LinkerPatch::Type::kCallRelative:
     case LinkerPatch::Type::kBakerReadBarrierBranch:
       return false;
+    case LinkerPatch::Type::kMethodRelative:
     case LinkerPatch::Type::kTypeRelative:
     case LinkerPatch::Type::kTypeBssEntry:
     case LinkerPatch::Type::kStringRelative:
@@ -567,10 +567,10 @@ bool Arm64RelativePatcher::NeedsErratum843419Thunk(ArrayRef<const uint8_t> code,
       return false;
     }
 
-    // And since LinkerPatch::Type::kStringRelative is using the result of the ADRP
-    // for an ADD immediate, check for that as well. We generalize a bit to include
-    // ADD/ADDS/SUB/SUBS immediate that either uses the ADRP destination or stores
-    // the result to a different register.
+    // And since LinkerPatch::Type::k{Method,Type,String}Relative is using the result
+    // of the ADRP for an ADD immediate, check for that as well. We generalize a bit
+    // to include ADD/ADDS/SUB/SUBS immediate that either uses the ADRP destination
+    // or stores the result to a different register.
     if ((next_insn & 0x1f000000) == 0x11000000 &&
         ((((next_insn >> 5) ^ adrp) & 0x1f) == 0 || ((next_insn ^ adrp) & 0x1f) != 0)) {
       return false;
