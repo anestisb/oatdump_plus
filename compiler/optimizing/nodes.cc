@@ -2642,7 +2642,7 @@ std::ostream& operator<<(std::ostream& os, HInvokeStaticOrDirect::MethodLoadKind
     case HInvokeStaticOrDirect::MethodLoadKind::kBootImageLinkTimePcRelative:
       return os << "BootImageLinkTimePcRelative";
     case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddress:
-      return os << "Direct";
+      return os << "DirectAddress";
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative:
       return os << "DexCachePcRelative";
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod:
