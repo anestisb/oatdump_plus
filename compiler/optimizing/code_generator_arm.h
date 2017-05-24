@@ -24,8 +24,8 @@
 #include "nodes.h"
 #include "string_reference.h"
 #include "parallel_move_resolver.h"
+#include "type_reference.h"
 #include "utils/arm/assembler_thumb2.h"
-#include "utils/type_reference.h"
 
 namespace art {
 namespace arm {

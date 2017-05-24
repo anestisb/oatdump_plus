@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_UTILS_TYPE_REFERENCE_H_
-#define ART_COMPILER_UTILS_TYPE_REFERENCE_H_
+#ifndef ART_RUNTIME_TYPE_REFERENCE_H_
+#define ART_RUNTIME_TYPE_REFERENCE_H_
 
 #include <stdint.h>
 
@@ -29,7 +29,9 @@ class DexFile;
 
 // A type is located by its DexFile and the string_ids_ table index into that DexFile.
 struct TypeReference {
-  TypeReference(const DexFile* file, dex::TypeIndex index) : dex_file(file), type_index(index) { }
+  TypeReference(const DexFile* file = nullptr, dex::TypeIndex index = dex::TypeIndex())
+      : dex_file(file),
+        type_index(index) {}
 
   const DexFile* dex_file;
   dex::TypeIndex type_index;
@@ -48,4 +50,4 @@ struct TypeReferenceValueComparator {
 
 }  // namespace art
 
-#endif  // ART_COMPILER_UTILS_TYPE_REFERENCE_H_
+#endif  // ART_RUNTIME_TYPE_REFERENCE_H_

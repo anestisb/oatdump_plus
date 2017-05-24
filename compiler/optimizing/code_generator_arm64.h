@@ -25,8 +25,8 @@
 #include "nodes.h"
 #include "parallel_move_resolver.h"
 #include "string_reference.h"
+#include "type_reference.h"
 #include "utils/arm64/assembler_arm64.h"
-#include "utils/type_reference.h"
 
 // TODO(VIXL): Make VIXL compile with -Wshadow.
 #pragma GCC diagnostic push

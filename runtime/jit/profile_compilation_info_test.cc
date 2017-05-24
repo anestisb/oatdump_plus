@@ -25,9 +25,10 @@
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "handle_scope-inl.h"
-#include "linear_alloc.h"
 #include "jit/profile_compilation_info.h"
+#include "linear_alloc.h"
 #include "scoped_thread_state_change-inl.h"
+#include "type_reference.h"
 
 namespace art {
 
@@ -123,13 +124,13 @@ class ProfileCompilationInfoTest : public CommonRuntimeTest {
       std::vector<ProfileMethodInfo::ProfileInlineCache> caches;
       // Monomorphic
       for (uint16_t dex_pc = 0; dex_pc < 11; dex_pc++) {
-        std::vector<ProfileMethodInfo::ProfileClassReference> classes;
+        std::vector<TypeReference> classes;
         classes.emplace_back(method->GetDexFile(), dex::TypeIndex(0));
         caches.emplace_back(dex_pc, /*is_missing_types*/false, classes);
       }
       // Polymorphic
       for (uint16_t dex_pc = 11; dex_pc < 22; dex_pc++) {
-        std::vector<ProfileMethodInfo::ProfileClassReference> classes;
+        std::vector<TypeReference> classes;
         for (uint16_t k = 0; k < InlineCache::kIndividualCacheSize / 2; k++) {
           classes.emplace_back(method->GetDexFile(), dex::TypeIndex(k));
         }
@@ -137,7 +138,7 @@ class ProfileCompilationInfoTest : public CommonRuntimeTest {
       }
       // Megamorphic
       for (uint16_t dex_pc = 22; dex_pc < 33; dex_pc++) {
-        std::vector<ProfileMethodInfo::ProfileClassReference> classes;
+        std::vector<TypeReference> classes;
         for (uint16_t k = 0; k < 2 * InlineCache::kIndividualCacheSize; k++) {
           classes.emplace_back(method->GetDexFile(), dex::TypeIndex(k));
         }
@@ -145,7 +146,7 @@ class ProfileCompilationInfoTest : public CommonRuntimeTest {
       }
       // Missing types
       for (uint16_t dex_pc = 33; dex_pc < 44; dex_pc++) {
-        std::vector<ProfileMethodInfo::ProfileClassReference> classes;
+        std::vector<TypeReference> classes;
         caches.emplace_back(dex_pc, /*is_missing_types*/true, classes);
       }
       ProfileMethodInfo pmi(method->GetDexFile(), method->GetDexMethodIndex(), caches);
