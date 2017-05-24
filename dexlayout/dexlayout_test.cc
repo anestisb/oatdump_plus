@@ -23,7 +23,9 @@
 
 #include "base/unix_file/fd_file.h"
 #include "common_runtime_test.h"
+#include "dex_file-inl.h"
 #include "exec_utils.h"
+#include "jit/profile_compilation_info.h"
 #include "utils.h"
 
 namespace art {
@@ -39,9 +41,6 @@ static const char kDexFileLayoutInputDex[] =
     "AAAAAAABAAAAAAAAAAEAAAAHAAAAcAAAAAIAAAAEAAAAjAAAAAMAAAABAAAAnAAAAAUAAAADAAAA"
     "qAAAAAYAAAACAAAAwAAAAAEgAAACAAAAAAEAAAIgAAAHAAAAMAEAAAMgAAACAAAAaQEAAAAgAAAC"
     "AAAAdQEAAAAQAAABAAAAjAEAAA==";
-
-static const char kDexFileLayoutInputProfile[] =
-    "cHJvADAwNwAAAAAAAAgAAAB4AQMAAAAAAQ==";
 
 // Dex file with catch handler unreferenced by try blocks.
 // Constructed by building a dex file with try/catch blocks and hex editing.
@@ -317,6 +316,56 @@ class DexLayoutTest : public CommonRuntimeTest {
     return true;
   }
 
+  // Create a profile with some subset of methods and classes.
+  void CreateProfile(const std::string& input_dex,
+                     const std::string& out_profile,
+                     const std::string& dex_location) {
+    std::vector<std::unique_ptr<const DexFile>> dex_files;
+    std::string error_msg;
+    bool result = DexFile::Open(input_dex.c_str(),
+                                input_dex,
+                                false,
+                                &error_msg,
+                                &dex_files);
+
+    ASSERT_TRUE(result) << error_msg;
+    ASSERT_GE(dex_files.size(), 1u);
+
+    size_t profile_methods = 0;
+    size_t profile_classes = 0;
+    ProfileCompilationInfo pfi;
+    std::vector<ProfileMethodInfo> pmis;
+    std::set<DexCacheResolvedClasses> classes;
+    for (const std::unique_ptr<const DexFile>& dex_file : dex_files) {
+      for (uint32_t i = 0; i < dex_file->NumMethodIds(); i += 2) {
+        if ((i & 3) != 0) {
+          pfi.AddMethodIndex(dex_location,
+                             dex_file->GetLocationChecksum(),
+                             i);
+          ++profile_methods;
+        }
+      }
+      DexCacheResolvedClasses cur_classes(dex_location,
+                                          dex_location,
+                                          dex_file->GetLocationChecksum());
+      // Add every even class too.
+      for (uint32_t i = 0; i < dex_file->NumClassDefs(); i += 1) {
+        cur_classes.AddClass(dex_file->GetClassDef(i).class_idx_);
+        ++profile_classes;
+      }
+    }
+    pfi.AddMethodsAndClasses(pmis, classes);
+    // Write to provided file.
+    std::unique_ptr<File> file(OS::CreateEmptyFile(out_profile.c_str()));
+    ASSERT_TRUE(file != nullptr);
+    pfi.Save(file->Fd());
+    if (file->FlushCloseOrErase() != 0) {
+      PLOG(FATAL) << "Could not flush and close test file.";
+    }
+    EXPECT_GE(profile_methods, 0u);
+    EXPECT_GE(profile_classes, 0u);
+  }
+
   // Runs DexFileLayout test.
   bool DexFileLayoutExec(std::string* error_msg) {
     ScratchFile tmp_file;
@@ -328,7 +377,8 @@ class DexLayoutTest : public CommonRuntimeTest {
     std::string dex_file = tmp_dir + "classes.dex";
     WriteFileBase64(kDexFileLayoutInputDex, dex_file.c_str());
     std::string profile_file = tmp_dir + "primary.prof";
-    WriteFileBase64(kDexFileLayoutInputProfile, profile_file.c_str());
+    CreateProfile(dex_file, profile_file, dex_file);
+    // WriteFileBase64(kDexFileLayoutInputProfile, profile_file.c_str());
     std::string output_dex = tmp_dir + "classes.dex.new";
 
     std::string dexlayout = GetTestAndroidRoot() + "/bin/dexlayout";
@@ -358,11 +408,24 @@ class DexLayoutTest : public CommonRuntimeTest {
     size_t tmp_last_slash = tmp_name.rfind("/");
     std::string tmp_dir = tmp_name.substr(0, tmp_last_slash + 1);
 
-    // Write inputs and expected outputs.
+    // Unzip the test dex file to the classes.dex destination. It is required to unzip since
+    // opening from jar recalculates the dex location checksum.
     std::string dex_file = tmp_dir + "classes.dex";
-    WriteFileBase64(kDexFileLayoutInputDex, dex_file.c_str());
+
+    std::vector<std::string> unzip_args = {
+        "/usr/bin/unzip",
+        GetTestDexFileName("ManyMethods"),
+        "classes.dex",
+        "-d",
+        tmp_dir,
+    };
+    if (!art::Exec(unzip_args, error_msg)) {
+      LOG(ERROR) << "Failed to unzip dex";
+      return false;
+    }
+
     std::string profile_file = tmp_dir + "primary.prof";
-    WriteFileBase64(kDexFileLayoutInputProfile, profile_file.c_str());
+    CreateProfile(dex_file, profile_file, dex_file);
     std::string output_dex = tmp_dir + "classes.dex.new";
     std::string second_output_dex = tmp_dir + "classes.dex.new.new";
 
@@ -371,14 +434,19 @@ class DexLayoutTest : public CommonRuntimeTest {
 
     // -v makes sure that the layout did not corrupt the dex file.
     std::vector<std::string> dexlayout_exec_argv =
-        { dexlayout, "-v", "-w", tmp_dir, "-o", tmp_name, "-p", profile_file, dex_file };
+        { dexlayout, "-i", "-v", "-w", tmp_dir, "-o", tmp_name, "-p", profile_file, dex_file };
     if (!::art::Exec(dexlayout_exec_argv, error_msg)) {
       return false;
     }
 
+    // Recreate the profile with the new dex location. This is required so that the profile dex
+    // location matches.
+    CreateProfile(dex_file, profile_file, output_dex);
+
     // -v makes sure that the layout did not corrupt the dex file.
+    // -i since the checksum won't match from the first layout.
     std::vector<std::string> second_dexlayout_exec_argv =
-        { dexlayout, "-v", "-w", tmp_dir, "-o", tmp_name, "-p", profile_file, output_dex };
+        { dexlayout, "-i", "-v", "-w", tmp_dir, "-o", tmp_name, "-p", profile_file, output_dex };
     if (!::art::Exec(second_dexlayout_exec_argv, error_msg)) {
       return false;
     }
@@ -436,13 +504,11 @@ class DexLayoutTest : public CommonRuntimeTest {
   bool DexLayoutExec(ScratchFile* dex_file,
                      const char* dex_filename,
                      ScratchFile* profile_file,
-                     const char* profile_filename,
                      std::vector<std::string>& dexlayout_exec_argv) {
     WriteBase64ToFile(dex_filename, dex_file->GetFile());
     EXPECT_EQ(dex_file->GetFile()->Flush(), 0);
     if (profile_file != nullptr) {
-      WriteBase64ToFile(profile_filename, profile_file->GetFile());
-      EXPECT_EQ(profile_file->GetFile()->Flush(), 0);
+      CreateProfile(dex_file->GetFilename(), profile_file->GetFilename(), dex_file->GetFilename());
     }
     std::string error_msg;
     const bool result = ::art::Exec(dexlayout_exec_argv, &error_msg);
@@ -516,7 +582,6 @@ TEST_F(DexLayoutTest, DuplicateOffset) {
   ASSERT_TRUE(DexLayoutExec(&temp_dex,
                             kDexFileDuplicateOffset,
                             nullptr /* profile_file */,
-                            nullptr /* profile_filename */,
                             dexlayout_exec_argv));
 }
 
@@ -529,7 +594,6 @@ TEST_F(DexLayoutTest, NullSetRefListElement) {
   ASSERT_TRUE(DexLayoutExec(&temp_dex,
                             kNullSetRefListElementInputDex,
                             nullptr /* profile_file */,
-                            nullptr /* profile_filename */,
                             dexlayout_exec_argv));
 }
 
@@ -543,7 +607,6 @@ TEST_F(DexLayoutTest, MultiClassData) {
   ASSERT_TRUE(DexLayoutExec(&temp_dex,
                             kMultiClassDataInputDex,
                             &temp_profile,
-                            kDexFileLayoutInputProfile,
                             dexlayout_exec_argv));
 }
 
@@ -557,7 +620,6 @@ TEST_F(DexLayoutTest, UnalignedCodeInfo) {
   ASSERT_TRUE(DexLayoutExec(&temp_dex,
                             kUnalignedCodeInfoInputDex,
                             &temp_profile,
-                            kDexFileLayoutInputProfile,
                             dexlayout_exec_argv));
 }
 
@@ -571,7 +633,6 @@ TEST_F(DexLayoutTest, ClassDataBeforeCode) {
   ASSERT_TRUE(DexLayoutExec(&temp_dex,
                             kClassDataBeforeCodeInputDex,
                             &temp_profile,
-                            kDexFileLayoutInputProfile,
                             dexlayout_exec_argv));
 }
 
@@ -584,7 +645,6 @@ TEST_F(DexLayoutTest, UnknownTypeDebugInfo) {
   ASSERT_TRUE(DexLayoutExec(&temp_dex,
                             kUnknownTypeDebugInfoInputDex,
                             nullptr /* profile_file */,
-                            nullptr /* profile_filename */,
                             dexlayout_exec_argv));
 }
 
@@ -597,7 +657,6 @@ TEST_F(DexLayoutTest, DuplicateCodeItem) {
   ASSERT_TRUE(DexLayoutExec(&temp_dex,
                             kDuplicateCodeItemInputDex,
                             nullptr /* profile_file */,
-                            nullptr /* profile_filename */,
                             dexlayout_exec_argv));
 }
 
