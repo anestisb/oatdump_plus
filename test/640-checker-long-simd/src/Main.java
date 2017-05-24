@@ -134,8 +134,10 @@ public class Main {
   /// CHECK-DAG: ArraySet loop:<<Loop>>      outer_loop:none
   //
   /// CHECK-START-ARM64: void Main.sar2() loop_optimization (after)
-  //
-  // TODO: fill in when supported
+  /// CHECK-DAG: Phi      loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: VecLoad  loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: VecShr   loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: VecStore loop:<<Loop>>      outer_loop:none
   static void sar2() {
     for (int i = 0; i < 128; i++)
       a[i] >>= 2;
@@ -147,8 +149,10 @@ public class Main {
   /// CHECK-DAG: ArraySet loop:<<Loop>>      outer_loop:none
   //
   /// CHECK-START-ARM64: void Main.shr2() loop_optimization (after)
-  //
-  // TODO: fill in when supported
+  /// CHECK-DAG: Phi      loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: VecLoad  loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: VecUShr  loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: VecStore loop:<<Loop>>      outer_loop:none
   static void shr2() {
     for (int i = 0; i < 128; i++)
       a[i] >>>= 2;

@@ -30,7 +30,7 @@ public class Main {
   /// CHECK-DAG: <<Phi:i\d+>>  Phi                                 loop:<<Loop:B\d+>> outer_loop:none
   /// CHECK-DAG: <<Get1:d\d+>> VecLoad                             loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: <<Get2:d\d+>> VecLoad                             loop:<<Loop>>      outer_loop:none
-  /// CHECK-DAG: <<Min:d\d+>>  VecMin [<<Get1>>,<<Get2>>]          loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: <<Min:d\d+>>  VecMin [<<Get1>>,<<Get2>>] unsigned:false loop:<<Loop>> outer_loop:none
   /// CHECK-DAG:               VecStore [{{l\d+}},<<Phi>>,<<Min>>] loop:<<Loop>>      outer_loop:none
   private static void doitMin(int[] x, int[] y, int[] z) {
     int min = Math.min(x.length, Math.min(y.length, z.length));
@@ -50,7 +50,7 @@ public class Main {
   /// CHECK-DAG: <<Phi:i\d+>>  Phi                                 loop:<<Loop:B\d+>> outer_loop:none
   /// CHECK-DAG: <<Get1:d\d+>> VecLoad                             loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: <<Get2:d\d+>> VecLoad                             loop:<<Loop>>      outer_loop:none
-  /// CHECK-DAG: <<Max:d\d+>>  VecMax [<<Get1>>,<<Get2>>]          loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: <<Max:d\d+>>  VecMax [<<Get1>>,<<Get2>>] unsigned:false loop:<<Loop>> outer_loop:none
   /// CHECK-DAG:               VecStore [{{l\d+}},<<Phi>>,<<Max>>] loop:<<Loop>>      outer_loop:none
   private static void doitMax(int[] x, int[] y, int[] z) {
     int min = Math.min(x.length, Math.min(y.length, z.length));
