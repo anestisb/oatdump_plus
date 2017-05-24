@@ -425,26 +425,6 @@ INTRINSICS_LIST(SETUP_INTRINSICS)
   FreeThreadPools();
 }
 
-void CompilerDriver::CompileAll(jobject class_loader,
-                                const std::vector<const DexFile*>& dex_files,
-                                VdexFile* vdex_file,
-                                TimingLogger* timings) {
-  if (vdex_file != nullptr) {
-    // TODO: we unquicken unconditionnally, as we don't know
-    // if the boot image has changed. How exactly we'll know is under
-    // experimentation.
-    TimingLogger::ScopedTiming t("Unquicken", timings);
-    // We do not decompile a RETURN_VOID_NO_BARRIER into a RETURN_VOID, as the quickening
-    // optimization does not depend on the boot image (the optimization relies on not
-    // having final fields in a class, which does not change for an app).
-    VdexFile::Unquicken(dex_files, vdex_file->GetQuickeningInfo());
-
-    Runtime::Current()->GetCompilerCallbacks()->SetVerifierDeps(
-        new verifier::VerifierDeps(dex_files, vdex_file->GetVerifierDepsData()));
-  }
-  CompileAll(class_loader, dex_files, timings);
-}
-
 static optimizer::DexToDexCompilationLevel GetDexToDexCompilationLevel(
     Thread* self, const CompilerDriver& driver, Handle<mirror::ClassLoader> class_loader,
     const DexFile& dex_file, const DexFile::ClassDef& class_def)

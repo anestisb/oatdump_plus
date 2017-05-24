@@ -119,12 +119,6 @@ class CompilerDriver {
                   TimingLogger* timings)
       REQUIRES(!Locks::mutator_lock_, !compiled_classes_lock_, !dex_to_dex_references_lock_);
 
-  void CompileAll(jobject class_loader,
-                  const std::vector<const DexFile*>& dex_files,
-                  VdexFile* vdex_file,
-                  TimingLogger* timings)
-      REQUIRES(!Locks::mutator_lock_, !compiled_classes_lock_, !dex_to_dex_references_lock_);
-
   // Compile a single Method.
   void CompileOne(Thread* self, ArtMethod* method, TimingLogger* timings)
       REQUIRES_SHARED(Locks::mutator_lock_)

@@ -2544,7 +2544,7 @@ bool OatWriter::WriteDexFile(OutputStream* out,
     return false;
   }
   if (profile_compilation_info_ != nullptr) {
-    DCHECK(!update_input_vdex);
+    CHECK(!update_input_vdex) << "We should never update the input vdex when doing dexlayout";
     if (!LayoutAndWriteDexFile(out, oat_dex_file)) {
       return false;
     }

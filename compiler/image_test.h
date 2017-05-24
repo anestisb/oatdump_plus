@@ -220,7 +220,7 @@ inline void CompilationHelper::Compile(CompilerDriver* driver,
       TimingLogger timings("ImageTest::WriteRead", false, false);
       TimingLogger::ScopedTiming t("CompileAll", &timings);
       driver->SetDexFilesForOatFile(class_path);
-      driver->CompileAll(class_loader, class_path, /* verifier_deps */ nullptr, &timings);
+      driver->CompileAll(class_loader, class_path, &timings);
 
       t.NewTiming("WriteElf");
       SafeMap<std::string, std::string> key_value_store;
