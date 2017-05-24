@@ -276,6 +276,12 @@ extern "C" size_t MterpInvokeVirtualQuick(Thread* self,
         vtable_idx, kRuntimePointerSize);
     if ((called_method != nullptr) && called_method->IsIntrinsic()) {
       if (MterpHandleIntrinsic(shadow_frame, called_method, inst, inst_data, result_register)) {
+        jit::Jit* jit = Runtime::Current()->GetJit();
+        if (jit != nullptr) {
+          jit->InvokeVirtualOrInterface(
+              receiver, shadow_frame->GetMethod(), shadow_frame->GetDexPC(), called_method);
+          jit->AddSamples(self, shadow_frame->GetMethod(), 1, /*with_backedges*/false);
+        }
         return !self->IsExceptionPending();
       }
     }
