@@ -783,7 +783,13 @@ class Runtime {
   ClassLinker* class_linker_;
 
   SignalCatcher* signal_catcher_;
-  std::string stack_trace_dir_;
+
+  // If true, the runtime will connect to tombstoned via a socket to
+  // request an open file descriptor to write its traces to.
+  bool use_tombstoned_traces_;
+
+  // Location to which traces must be written on SIGQUIT. Only used if
+  // tombstoned_traces_ == false.
   std::string stack_trace_file_;
 
   std::unique_ptr<JavaVMExt> java_vm_;
