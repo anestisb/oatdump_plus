@@ -75,6 +75,9 @@ Things to move to perflib:
  * Instance.isRoot and Instance.getRootTypes.
 
 Release History:
+ 1.2 Pending
+   Simplify presentation of sample path from gc root.
+
  1.1 Feb 21, 2017
    Show java.lang.ref.Reference referents as "unreachable" instead of null.
 
