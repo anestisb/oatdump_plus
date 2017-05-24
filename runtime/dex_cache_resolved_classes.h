@@ -30,10 +30,12 @@ class DexCacheResolvedClasses {
  public:
   DexCacheResolvedClasses(const std::string& dex_location,
                           const std::string& base_location,
-                          uint32_t location_checksum)
+                          uint32_t location_checksum,
+                          uint32_t num_method_ids)
       : dex_location_(dex_location),
         base_location_(base_location),
-        location_checksum_(location_checksum) {}
+        location_checksum_(location_checksum),
+        num_method_ids_(num_method_ids) {}
 
   // Only compare the key elements, ignore the resolved classes.
   int Compare(const DexCacheResolvedClasses& other) const {
@@ -69,10 +71,15 @@ class DexCacheResolvedClasses {
     return classes_;
   }
 
+  size_t NumMethodIds() const {
+    return num_method_ids_;
+  }
+
  private:
   const std::string dex_location_;
   const std::string base_location_;
   const uint32_t location_checksum_;
+  const uint32_t num_method_ids_;
   // Array of resolved class def indexes.
   mutable std::unordered_set<dex::TypeIndex> classes_;
 };

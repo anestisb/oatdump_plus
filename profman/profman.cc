@@ -43,6 +43,7 @@
 #include "runtime.h"
 #include "type_reference.h"
 #include "utils.h"
+#include "type_reference.h"
 #include "zip_archive.h"
 
 namespace art {
@@ -150,6 +151,9 @@ static const std::string kClassAllMethods = "*";
 static constexpr char kProfileParsingInlineChacheSep = '+';
 static constexpr char kProfileParsingTypeSep = ',';
 static constexpr char kProfileParsingFirstCharInSignature = '(';
+static constexpr char kMethodFlagStringHot = 'H';
+static constexpr char kMethodFlagStringStartup = 'S';
+static constexpr char kMethodFlagStringPostStartup = 'P';
 
 // TODO(calin): This class has grown too much from its initial design. Split the functionality
 // into smaller, more contained pieces.
@@ -426,18 +430,42 @@ class ProfMan FINAL {
     }
     for (const std::unique_ptr<const DexFile>& dex_file : *dex_files) {
       std::set<dex::TypeIndex> class_types;
-      std::set<uint16_t> methods;
-      if (profile_info.GetClassesAndMethods(*dex_file.get(), &class_types, &methods)) {
+      std::set<uint16_t> hot_methods;
+      std::set<uint16_t> startup_methods;
+      std::set<uint16_t> post_startup_methods;
+      std::set<uint16_t> combined_methods;
+      if (profile_info.GetClassesAndMethods(*dex_file.get(),
+                                            &class_types,
+                                            &hot_methods,
+                                            &startup_methods,
+                                            &post_startup_methods)) {
         for (const dex::TypeIndex& type_index : class_types) {
           const DexFile::TypeId& type_id = dex_file->GetTypeId(type_index);
           out_lines->insert(std::string(dex_file->GetTypeDescriptor(type_id)));
         }
-        for (uint16_t dex_method_idx : methods) {
+        combined_methods = hot_methods;
+        combined_methods.insert(startup_methods.begin(), startup_methods.end());
+        combined_methods.insert(post_startup_methods.begin(), post_startup_methods.end());
+        for (uint16_t dex_method_idx : combined_methods) {
           const DexFile::MethodId& id = dex_file->GetMethodId(dex_method_idx);
           std::string signature_string(dex_file->GetMethodSignature(id).ToString());
           std::string type_string(dex_file->GetTypeDescriptor(dex_file->GetTypeId(id.class_idx_)));
           std::string method_name(dex_file->GetMethodName(id));
-          out_lines->insert(type_string + kMethodSep + method_name + signature_string);
+          std::string flags_string;
+          if (hot_methods.find(dex_method_idx) != hot_methods.end()) {
+            flags_string += kMethodFlagStringHot;
+          }
+          if (startup_methods.find(dex_method_idx) != startup_methods.end()) {
+            flags_string += kMethodFlagStringStartup;
+          }
+          if (post_startup_methods.find(dex_method_idx) != post_startup_methods.end()) {
+            flags_string += kMethodFlagStringPostStartup;
+          }
+          out_lines->insert(flags_string +
+                            type_string +
+                            kMethodSep +
+                            method_name +
+                            signature_string);
         }
       }
     }
@@ -461,7 +489,7 @@ class ProfMan FINAL {
     return true;
   }
 
-  int DumpClasses() {
+  int DumpClassesAndMethods() {
     // Validate that at least one profile file or reference was specified.
     if (profile_files_.empty() && profile_files_fd_.empty() &&
         reference_profile_file_.empty() && !FdIsValid(reference_profile_file_fd_)) {
@@ -694,11 +722,30 @@ class ProfMan FINAL {
                    /*out*/ProfileCompilationInfo* profile) {
     std::string klass;
     std::string method_str;
-    size_t method_sep_index = line.find(kMethodSep);
+    bool is_hot = false;
+    bool is_startup = false;
+    bool is_post_startup = false;
+    const size_t method_sep_index = line.find(kMethodSep, 0);
     if (method_sep_index == std::string::npos) {
-      klass = line;
+      klass = line.substr(0);
     } else {
-      klass = line.substr(0, method_sep_index);
+      // The method prefix flags are only valid for method strings.
+      size_t start_index = 0;
+      while (start_index < line.size() && line[start_index] != 'L') {
+        const char c = line[start_index];
+        if (c == kMethodFlagStringHot) {
+          is_hot = true;
+        } else if (c == kMethodFlagStringStartup) {
+          is_startup = true;
+        } else if (c == kMethodFlagStringPostStartup) {
+          is_post_startup = true;
+        } else {
+          LOG(WARNING) << "Invalid flag " << c;
+          return false;
+        }
+        ++start_index;
+      }
+      klass = line.substr(start_index, method_sep_index - start_index);
       method_str = line.substr(method_sep_index + kMethodSep.size());
     }
 
@@ -715,7 +762,8 @@ class ProfMan FINAL {
       const auto& dex_resolved_classes = resolved_class_set.emplace(
             dex_file->GetLocation(),
             dex_file->GetBaseLocation(),
-            dex_file->GetLocationChecksum());
+            dex_file->GetLocationChecksum(),
+            dex_file->NumMethodIds());
       dex_resolved_classes.first->AddClass(class_ref.type_index);
       std::vector<ProfileMethodInfo> methods;
       if (method_str == kClassAllMethods) {
@@ -745,6 +793,9 @@ class ProfMan FINAL {
     std::string method_spec;
     std::vector<std::string> inline_cache_elems;
 
+    // If none of the flags are set, default to hot.
+    is_hot = is_hot || (!is_hot && !is_startup && !is_post_startup);
+
     std::vector<std::string> method_elems;
     bool is_missing_types = false;
     Split(method_str, kProfileParsingInlineChacheSep, &method_elems);
@@ -766,7 +817,6 @@ class ProfMan FINAL {
       return false;
     }
 
-    std::vector<ProfileMethodInfo> pmi;
     std::vector<ProfileMethodInfo::ProfileInlineCache> inline_caches;
     if (is_missing_types || !inline_cache_elems.empty()) {
       uint32_t dex_pc;
@@ -783,8 +833,29 @@ class ProfMan FINAL {
       }
       inline_caches.emplace_back(dex_pc, is_missing_types, classes);
     }
-    pmi.emplace_back(class_ref.dex_file, method_index, inline_caches);
-    profile->AddMethodsAndClasses(pmi, std::set<DexCacheResolvedClasses>());
+    ProfileMethodInfo pmi(class_ref.dex_file, method_index, inline_caches);
+    if (is_hot) {
+      profile->AddMethod(pmi);
+    }
+    if (is_startup) {
+      if (!profile->AddSampledMethod(/*is_startup*/ true,
+                                     pmi.dex_file->GetLocation(),
+                                     pmi.dex_file->GetLocationChecksum(),
+                                     method_index,
+                                     pmi.dex_file->NumMethodIds())) {
+        return false;
+      }
+      DCHECK(profile->IsStartupOrHotMethod(MethodReference(pmi.dex_file, method_index)));
+    }
+    if (is_post_startup) {
+      if (!profile->AddSampledMethod(/*is_startup*/ false,
+                                     pmi.dex_file->GetLocation(),
+                                     pmi.dex_file->GetLocationChecksum(),
+                                     method_index,
+                                     pmi.dex_file->NumMethodIds())) {
+        return false;
+      }
+    }
     return true;
   }
 
@@ -959,7 +1030,7 @@ static int profman(int argc, char** argv) {
     return profman.DumpProfileInfo();
   }
   if (profman.ShouldOnlyDumpClassesAndMethods()) {
-    return profman.DumpClasses();
+    return profman.DumpClassesAndMethods();
   }
   if (profman.ShouldCreateProfile()) {
     return profman.CreateProfile();

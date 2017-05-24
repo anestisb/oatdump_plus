@@ -8949,7 +8949,8 @@ class GetResolvedClassesVisitor : public ClassVisitor {
         last_dex_file_ = &dex_file;
         DexCacheResolvedClasses resolved_classes(dex_file.GetLocation(),
                                                  dex_file.GetBaseLocation(),
-                                                 dex_file.GetLocationChecksum());
+                                                 dex_file.GetLocationChecksum(),
+                                                 dex_file.NumMethodIds());
         last_resolved_classes_ = result_->find(resolved_classes);
         if (last_resolved_classes_ == result_->end()) {
           last_resolved_classes_ = result_->insert(resolved_classes).first;
